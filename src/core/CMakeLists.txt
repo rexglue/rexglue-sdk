@@ -66,6 +66,7 @@ target_link_libraries(rexcore
         absl::flags_parse 
         tomlplusplus
         spdlog::spdlog
-    PRIVATE 
+    PRIVATE
         disruptorplus
+        utf8cpp
 )

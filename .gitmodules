@@ -23,3 +23,43 @@
 [submodule "thirdparty/xxHash"]
 	path = thirdparty/xxHash
 	url = https://github.com/Cyan4973/xxHash.git
+[submodule "thirdparty/spdlog"]
+	path = thirdparty/spdlog
+	url = https://github.com/gabime/spdlog.git
+[submodule "thirdparty/fmt"]
+	path = thirdparty/fmt
+	url = https://github.com/fmtlib/fmt.git
+[submodule "thirdparty/catch2"]
+	path = thirdparty/catch2
+	url = https://github.com/catchorg/Catch2.git
+[submodule "thirdparty/date"]
+	path = thirdparty/date
+	url = https://github.com/HowardHinnant/date.git
+[submodule "thirdparty/snappy"]
+	path = thirdparty/snappy
+	url = https://github.com/google/snappy.git
+[submodule "thirdparty/utfcpp"]
+	path = thirdparty/utfcpp
+	url = https://github.com/nemtrif/utfcpp.git
+[submodule "thirdparty/volk"]
+	path = thirdparty/volk
+	url = https://github.com/zeux/volk.git
+[submodule "thirdparty/vulkan-headers"]
+	path = thirdparty/vulkan-headers
+	url = https://github.com/KhronosGroup/Vulkan-Headers.git
+[submodule "thirdparty/vulkan-memory-allocator"]
+	path = thirdparty/vulkan-memory-allocator
+	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+[submodule "thirdparty/imgui"]
+	path = thirdparty/imgui
+	url = https://github.com/ocornut/imgui.git
+[submodule "thirdparty/sdl2"]
+	path = thirdparty/sdl2
+	url = https://github.com/libsdl-org/SDL.git
+	branch = release-2.32.x
+[submodule "thirdparty/spirv-tools"]
+	path = thirdparty/spirv-tools
+	url = https://github.com/KhronosGroup/SPIRV-Tools.git
+[submodule "thirdparty/spirv-headers"]
+	path = thirdparty/spirv-headers
+	url = https://github.com/KhronosGroup/SPIRV-Headers.git

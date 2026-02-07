@@ -18,7 +18,7 @@
 #include <tuple>
 
 #define UTF_CPP_CPLUSPLUS 201703L
-#include <utf8cpp/utf8.h>
+#include <utf8.h>
 
 namespace utfcpp = utf8;
 

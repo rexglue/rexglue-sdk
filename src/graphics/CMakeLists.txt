@@ -131,7 +131,7 @@ if(WIN32)
         d3d12
         dxgi
         dxguid
-        Snappy::snappy
+        snappy
     )
     target_compile_definitions(rexgraphics PUBLIC REX_HAS_D3D12=1)
 endif()

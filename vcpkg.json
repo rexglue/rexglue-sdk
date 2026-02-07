@@ -3,24 +3,5 @@
     "name": "rexglue",
     "version": "0.1.0",
     "description": "Xbox 360 Recompilation SDK",
-    "builtin-baseline": "84bab45d415d22042bd0b9081aea57f362da3f35",
-    "dependencies": [
-        { "name": "spdlog", "default-features": false },
-        "fmt",
-        "catch2",
-        "volk",
-        "vulkan-memory-allocator",
-        "vulkan-headers",
-        "imgui",
-        "date",
-        "snappy",
-        "utfcpp",
-        "sdl2",
-        "spirv-tools",
-        "spirv-headers"
-    ],
-    "overrides": [
-        { "name": "spirv-tools", "version": "1.4.328.0" },
-        { "name": "spirv-headers", "version": "1.4.328.0" }
-    ]
+    "dependencies": []
 }

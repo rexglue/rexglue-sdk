@@ -26,7 +26,7 @@
 #endif  // !REX_PLATFORM_WIN32
 
 #define UTF_CPP_CPLUSPLUS 201703L
-#include <utf8cpp/utf8.h>
+#include <utf8.h>
 
 namespace utfcpp = utf8;
 

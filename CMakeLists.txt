@@ -92,21 +92,8 @@ if(REXGLUE_ENABLE_SANITIZERS)
     add_link_options(-fsanitize=undefined)
 endif()
 
-find_package(spdlog CONFIG REQUIRED)
-find_package(fmt CONFIG REQUIRED)
-find_package(volk CONFIG REQUIRED)
-find_package(VulkanMemoryAllocator CONFIG REQUIRED)
-find_package(VulkanHeaders CONFIG REQUIRED)
-find_package(imgui CONFIG REQUIRED)
-find_package(date CONFIG REQUIRED)
-find_package(Snappy CONFIG REQUIRED)
-find_package(utf8cpp CONFIG REQUIRED)
-find_package(SDL2 CONFIG REQUIRED)
-find_package(SPIRV-Tools CONFIG REQUIRED)
-
 if(REXGLUE_BUILD_TESTS)
-    find_package(Catch2 CONFIG REQUIRED)
-    list(APPEND CMAKE_MODULE_PATH ${Catch2_DIR})
+    list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/thirdparty/Catch2/extras")
 endif()
 
 # Third-party dependencies (vendored sources only)
@@ -167,9 +154,10 @@ install(TARGETS
     rexaudio rexgraphics rexkernel rexruntime rexcodegen
     # Vendored thirdparty libraries (required by SDK)
     disruptorplus renderdoc simde tomlplusplus  # INTERFACE (header-only)
-    aes128 mspack disasm xxhash    # STATIC libraries
+    aes128 mspack disasm xxhash imgui  # STATIC libraries
     libavcodec libavutil           # FFmpeg (vendored build)
     SPIRV glslang MachineIndependent GenericCodeGen OSDependent OGLCompiler  # glslang (vendored build)
+    SPIRV-Tools-static             # SPIRV-Tools (only static lib, install handled here)
     # CLI tool
     rexglue
     EXPORT rexglueTargets
@@ -177,65 +165,6 @@ install(TARGETS
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
-
-# Install vcpkg triplets for SDK consumers
-install(DIRECTORY triplets/
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/rexglue/triplets
-)
-
-# Bundle vcpkg dependencies into SDK prefix (self-contained SDK, no vcpkg needed by consumers)
-set(_VCPKG_PREFIX "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}")
-
-# Static libraries (.a on Linux, .lib on Windows) - release
-# Exclude SPIRV-Tools sub-packages (opt/reduce/link/lint/diff are not used by the SDK)
-# and Catch2 (test-only, not needed by consumers)
-install(DIRECTORY "${_VCPKG_PREFIX}/lib/"
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    FILES_MATCHING
-    PATTERN "*.a"
-    PATTERN "*.lib"
-    PATTERN "pkgconfig" EXCLUDE
-    PATTERN "SPIRV-Tools-opt*" EXCLUDE
-    PATTERN "SPIRV-Tools-reduce*" EXCLUDE
-    PATTERN "SPIRV-Tools-link*" EXCLUDE
-    PATTERN "SPIRV-Tools-lint*" EXCLUDE
-    PATTERN "SPIRV-Tools-diff*" EXCLUDE
-    PATTERN "Catch2*" EXCLUDE
-)
-
-# TODO(tomc): it would be nice to deal with these differently. most flatten fine
-# vcpkg debug libs are in a separate debug/ subfolder
-install(DIRECTORY "${_VCPKG_PREFIX}/debug/lib/"
-    DESTINATION debug/${CMAKE_INSTALL_LIBDIR}
-    FILES_MATCHING
-    PATTERN "*.a"
-    PATTERN "*.lib"
-    PATTERN "pkgconfig" EXCLUDE
-    PATTERN "SPIRV-Tools-opt*" EXCLUDE
-    PATTERN "SPIRV-Tools-reduce*" EXCLUDE
-    PATTERN "SPIRV-Tools-link*" EXCLUDE
-    PATTERN "SPIRV-Tools-lint*" EXCLUDE
-    PATTERN "SPIRV-Tools-diff*" EXCLUDE
-    PATTERN "Catch2*" EXCLUDE
-)
-
-# Headers
-install(DIRECTORY "${_VCPKG_PREFIX}/include/"
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-)
-
-# CMake package config files (for find_dependency resolution)
-install(DIRECTORY "${_VCPKG_PREFIX}/share/"
-    DESTINATION ${CMAKE_INSTALL_DATADIR}
-    PATTERN "pkgconfig" EXCLUDE
-    PATTERN "catch2" EXCLUDE
-    PATTERN "spirv-tools-opt" EXCLUDE
-    PATTERN "spirv-tools-reduce" EXCLUDE
-    PATTERN "spirv-tools-link" EXCLUDE
-    PATTERN "spirv-tools-lint" EXCLUDE
-    PATTERN "spirv-tools-diff" EXCLUDE
-)
-
 
 # Install public headers
 install(DIRECTORY include/rex
@@ -261,6 +190,22 @@ install(FILES
     thirdparty/xxHash/xxhash.h
     thirdparty/xxHash/xxh3.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+install(FILES
+    thirdparty/imgui/imgui.h
+    thirdparty/imgui/imconfig.h
+    thirdparty/imgui/imgui_internal.h
+    thirdparty/imgui/imstb_rectpack.h
+    thirdparty/imgui/imstb_textedit.h
+    thirdparty/imgui/imstb_truetype.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+# Install SPIRV-Tools headers (only the public API, not opt/linker)
+install(FILES
+    thirdparty/spirv-tools/include/spirv-tools/libspirv.h
+    thirdparty/spirv-tools/include/spirv-tools/libspirv.hpp
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/spirv-tools
 )
 
 # Install platform entry point sources for SDK consumers

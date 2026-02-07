@@ -1,6 +1,6 @@
 # Third-party vendored dependencies for ReXGlue
-# Libraries available via vcpkg are no longer defined here
 
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 #=============================================================================
 # Verify git submodules are initialized (only vendored ones)
 #=============================================================================
@@ -12,7 +12,23 @@ set(REQUIRED_SUBMODULES
     tomlplusplus
     simde
     xxHash
+    spdlog
+    fmt
+    date
+    snappy
+    utfcpp
+    volk
+    Vulkan-Headers
+    vulkan-memory-allocator
+    imgui
+    sdl2
+    spirv-headers
+    spirv-tools
 )
+
+if(REXGLUE_BUILD_TESTS)
+    list(APPEND REQUIRED_SUBMODULES Catch2)
+endif()
 
 foreach(submodule ${REQUIRED_SUBMODULES})
     if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${submodule}/.git")
@@ -98,6 +114,116 @@ add_subdirectory(disasm)
 target_compile_options(disasm PRIVATE -w)
 
 #=============================================================================
+# fmt - Formatting library (must come before spdlog)
+#=============================================================================
+set(FMT_DOC OFF CACHE BOOL "" FORCE)
+set(FMT_TEST OFF CACHE BOOL "" FORCE)
+set(FMT_INSTALL ON CACHE BOOL "" FORCE)
+add_subdirectory(fmt)
+target_compile_options(fmt PRIVATE -w)
+
+#=============================================================================
+# spdlog - Logging library
+#=============================================================================
+set(SPDLOG_FMT_EXTERNAL ON CACHE BOOL "" FORCE)
+set(SPDLOG_BUILD_EXAMPLE OFF CACHE BOOL "" FORCE)
+set(SPDLOG_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(SPDLOG_BUILD_BENCH OFF CACHE BOOL "" FORCE)
+set(SPDLOG_INSTALL ON CACHE BOOL "" FORCE)
+add_subdirectory(spdlog)
+target_compile_options(spdlog PRIVATE -w)
+
+#=============================================================================
+# date - Date and time library
+#=============================================================================
+set(ENABLE_DATE_TESTING OFF CACHE BOOL "" FORCE)
+set(ENABLE_DATE_INSTALL ON CACHE BOOL "" FORCE)
+set(BUILD_TZ_LIB ON CACHE BOOL "" FORCE)
+set(USE_SYSTEM_TZ_DB ON CACHE BOOL "" FORCE)
+add_subdirectory(date)
+
+#=============================================================================
+# snappy - Fast compression/decompression (GPU traces)
+#=============================================================================
+set(SNAPPY_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(SNAPPY_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
+set(SNAPPY_INSTALL ON CACHE BOOL "" FORCE)
+add_subdirectory(snappy)
+target_compile_options(snappy PRIVATE -w)
+
+#=============================================================================
+# utfcpp - UTF-8 string library (header-only)
+#=============================================================================
+add_subdirectory(utfcpp)
+
+#=============================================================================
+# Vulkan-Headers - Vulkan API headers (must come before volk/VMA)
+#=============================================================================
+set(VULKAN_HEADERS_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
+set(VULKAN_HEADERS_ENABLE_INSTALL ON CACHE BOOL "" FORCE)
+set(VULKAN_HEADERS_ENABLE_MODULE OFF CACHE BOOL "" FORCE)
+add_subdirectory(Vulkan-Headers)
+
+#=============================================================================
+# VulkanMemoryAllocator - GPU memory allocator (header-only)
+#=============================================================================
+set(VMA_ENABLE_INSTALL ON CACHE BOOL "" FORCE)
+add_subdirectory(vulkan-memory-allocator)
+
+#=============================================================================
+# volk - Vulkan meta-loader
+#=============================================================================
+set(VOLK_INSTALL ON CACHE BOOL "" FORCE)
+set(VOLK_PULL_IN_VULKAN OFF CACHE BOOL "" FORCE)
+add_subdirectory(volk)
+target_link_libraries(volk PUBLIC Vulkan::Headers)
+target_link_libraries(volk_headers INTERFACE Vulkan::Headers)
+target_compile_options(volk PRIVATE -w)
+
+#=============================================================================
+# imgui - Immediate mode GUI (no CMakeLists.txt, manual target)
+#=============================================================================
+set(IMGUI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/imgui")
+add_library(imgui STATIC
+    ${IMGUI_DIR}/imgui.cpp
+    ${IMGUI_DIR}/imgui_demo.cpp
+    ${IMGUI_DIR}/imgui_draw.cpp
+    ${IMGUI_DIR}/imgui_tables.cpp
+    ${IMGUI_DIR}/imgui_widgets.cpp
+)
+add_library(imgui::imgui ALIAS imgui)
+target_include_directories(imgui PUBLIC
+    $<BUILD_INTERFACE:${IMGUI_DIR}>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+target_compile_options(imgui PRIVATE -w)
+
+#=============================================================================
+# SDL2 - Cross-platform media layer
+#=============================================================================
+set(SDL2_DISABLE_INSTALL OFF CACHE BOOL "" FORCE)
+set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+set(SDL_STATIC ON CACHE BOOL "" FORCE)
+set(SDL_TEST OFF CACHE BOOL "" FORCE)
+add_subdirectory(sdl2)
+
+#=============================================================================
+# SPIRV-Headers - SPIR-V header files (must come before SPIRV-Tools)
+#=============================================================================
+set(SPIRV_HEADERS_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
+set(SPIRV_HEADERS_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+add_subdirectory(spirv-headers)
+
+#=============================================================================
+# SPIRV-Tools - SPIR-V optimizer/validator
+#=============================================================================
+set(SPIRV_SKIP_EXECUTABLES ON CACHE BOOL "" FORCE)
+set(SPIRV_SKIP_TESTS ON CACHE BOOL "" FORCE)
+set(SPIRV_WERROR OFF CACHE BOOL "" FORCE)
+set(SKIP_SPIRV_TOOLS_INSTALL ON CACHE BOOL "" FORCE)
+add_subdirectory(spirv-tools)
+target_compile_options(SPIRV-Tools-static PRIVATE -w)
+
+#=============================================================================
 # glslang/SPIRV - SPIR-V code generation for shader translation
 #=============================================================================
 
@@ -122,7 +248,14 @@ if(NOT TARGET glslang::SPIRV)
 endif()
 
 #=============================================================================
-# abseil-cpp - Google's C++ common libraries
+# Catch2 - Test framework (only when tests are enabled, not part of SDK install)
+#=============================================================================
+if(REXGLUE_BUILD_TESTS)
+    add_subdirectory(Catch2)
+endif()
+
+#=============================================================================
+# abseil-cpp - Flags from Google's C++ common libraries (CVAR system)
 #=============================================================================
 set(ABSL_PROPAGATE_CXX_STD ON CACHE BOOL "" FORCE)
 set(ABSL_BUILD_TESTING OFF CACHE BOOL "" FORCE)
