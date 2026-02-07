@@ -69,7 +69,7 @@ target_link_libraries(rexcodegen
         fmt::fmt
         spdlog::spdlog
     PRIVATE
-        tomlplusplus::tomlplusplus
+        tomlplusplus
         disasm
         xxHash::xxhash
         simde

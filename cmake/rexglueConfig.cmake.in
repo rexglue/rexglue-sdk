@@ -9,8 +9,6 @@ include(CMakeFindDependencyMacro)
 find_dependency(fmt CONFIG)
 find_dependency(spdlog CONFIG)
 find_dependency(absl CONFIG)
-find_dependency(tomlplusplus CONFIG)
-find_dependency(xxHash CONFIG)
 find_dependency(volk CONFIG)
 find_dependency(VulkanMemoryAllocator CONFIG)
 find_dependency(VulkanHeaders CONFIG)
@@ -21,7 +19,7 @@ find_dependency(utf8cpp CONFIG)
 find_dependency(SDL2 CONFIG)
 find_dependency(SPIRV-Tools CONFIG)
 
-# glslang and simde are vendored/exported in rexglueTargets — no find_dependency needed
+# glslang, simde, and xxHash are vendored/exported in rexglueTargets — no find_dependency needed
 
 # Include the generated targets
 include("${CMAKE_CURRENT_LIST_DIR}/rexglueTargets.cmake")

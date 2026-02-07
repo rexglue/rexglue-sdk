@@ -64,7 +64,7 @@ target_link_libraries(rexcore
         simde 
         absl::flags 
         absl::flags_parse 
-        tomlplusplus::tomlplusplus 
+        tomlplusplus
         spdlog::spdlog
     PRIVATE 
         disruptorplus

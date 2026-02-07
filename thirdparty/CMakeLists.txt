@@ -9,6 +9,9 @@ set(REQUIRED_SUBMODULES
     libmspack
     FFmpeg
     glslang
+    tomlplusplus
+    simde
+    xxHash
 )
 
 foreach(submodule ${REQUIRED_SUBMODULES})
@@ -37,12 +40,17 @@ target_include_directories(renderdoc INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/renderdoc>
     $<INSTALL_INTERFACE:include/renderdoc>)
 
-# simde - create target using vcpkg's include path from parent scope
-# Uses generator expressions for proper SDK install support
+# tomlplusplus - TOML config file parser (header-only)
+add_library(tomlplusplus INTERFACE)
+target_include_directories(tomlplusplus INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/tomlplusplus/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+
+# simde - SIMD Everywhere (header-only, git submodule)
 add_library(simde INTERFACE)
 target_include_directories(simde INTERFACE
-    $<BUILD_INTERFACE:${SIMDE_INCLUDE_DIR}>
-    $<BUILD_INTERFACE:${SIMDE_INCLUDE_DIR}/simde>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/simde>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/simde/simde>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 
 #=============================================================================
@@ -78,6 +86,11 @@ target_include_directories(mspack PUBLIC
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 # Suppress warnings in third-party C code
 target_compile_options(mspack PRIVATE -w)
+
+# xxHash - extremely fast non-cryptographic hash (git submodule)
+set(XXHASH_BUILD_XXHSUM OFF CACHE BOOL "" FORCE)
+add_subdirectory(xxHash/cmake_unofficial)
+target_compile_options(xxhash PRIVATE -w)
 
 # disasm - PowerPC disassembler (existing local library)
 add_subdirectory(disasm)

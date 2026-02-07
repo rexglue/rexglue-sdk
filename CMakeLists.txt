@@ -92,11 +92,6 @@ if(REXGLUE_ENABLE_SANITIZERS)
     add_link_options(-fsanitize=undefined)
 endif()
 
-find_package(tomlplusplus CONFIG REQUIRED)
-
-# simde is header-only without cmake config in vcpkg
-find_path(SIMDE_INCLUDE_DIR NAMES simde/simde-common.h REQUIRED)
-find_package(xxHash CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 find_package(fmt CONFIG REQUIRED)
 find_package(volk CONFIG REQUIRED)
@@ -171,8 +166,8 @@ install(TARGETS
     rexcore rexfilesystem rexui rexinput
     rexaudio rexgraphics rexkernel rexruntime rexcodegen
     # Vendored thirdparty libraries (required by SDK)
-    disruptorplus renderdoc simde  # INTERFACE (header-only)
-    aes128 mspack disasm           # STATIC libraries
+    disruptorplus renderdoc simde tomlplusplus  # INTERFACE (header-only)
+    aes128 mspack disasm xxhash    # STATIC libraries
     libavcodec libavutil           # FFmpeg (vendored build)
     SPIRV glslang MachineIndependent GenericCodeGen OSDependent OGLCompiler  # glslang (vendored build)
     # CLI tool
@@ -254,6 +249,18 @@ install(DIRECTORY thirdparty/disruptorplus/include/
 install(DIRECTORY thirdparty/renderdoc/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/renderdoc
     FILES_MATCHING PATTERN "*.h"
+)
+install(DIRECTORY thirdparty/tomlplusplus/include/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+install(DIRECTORY thirdparty/simde/simde
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    FILES_MATCHING PATTERN "*.h"
+)
+install(FILES
+    thirdparty/xxHash/xxhash.h
+    thirdparty/xxHash/xxh3.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
 # Install platform entry point sources for SDK consumers
