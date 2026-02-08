@@ -136,6 +136,10 @@ static const std::unordered_map<int, Builder>& GetDispatchTable()
         { PPC_INST_BGTLR, build_bgtlr },
         { PPC_INST_BLE, build_ble },
         { PPC_INST_BLELR, build_blelr },
+        { PPC_INST_BSO, build_bso },
+        { PPC_INST_BSOLR, build_bsolr },
+        { PPC_INST_BNS, build_bns },
+        { PPC_INST_BNSLR, build_bnslr },
 
         //=====================================================================
         // Floating Point

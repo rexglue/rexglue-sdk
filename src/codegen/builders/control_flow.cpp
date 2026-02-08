@@ -316,4 +316,32 @@ bool build_blelr(BuilderContext& ctx)
     return true;
 }
 
+//=============================================================================
+// Conditional Branch (so - summary overflow / unordered)
+//=============================================================================
+
+bool build_bso(BuilderContext& ctx)
+{
+    ctx.emit_conditional_branch(false, "so");
+    return true;
+}
+
+bool build_bsolr(BuilderContext& ctx)
+{
+    ctx.println("\tif ({}.so) return;", ctx.cr(ctx.insn.operands[0]));
+    return true;
+}
+
+bool build_bns(BuilderContext& ctx)
+{
+    ctx.emit_conditional_branch(true, "so");
+    return true;
+}
+
+bool build_bnslr(BuilderContext& ctx)
+{
+    ctx.println("\tif (!{}.so) return;", ctx.cr(ctx.insn.operands[0]));
+    return true;
+}
+
 } // namespace rexglue::codegen::builders

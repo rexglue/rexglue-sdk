@@ -184,6 +184,12 @@ bool build_bgtlr(BuilderContext& ctx);
 bool build_ble(BuilderContext& ctx);
 bool build_blelr(BuilderContext& ctx);
 
+// Conditional branch (so - summary overflow / unordered)
+bool build_bso(BuilderContext& ctx);
+bool build_bsolr(BuilderContext& ctx);
+bool build_bns(BuilderContext& ctx);
+bool build_bnslr(BuilderContext& ctx);
+
 //=============================================================================
 // Floating Point Builders
 //=============================================================================
