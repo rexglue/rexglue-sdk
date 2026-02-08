@@ -7,16 +7,8 @@
     },
     "configurePresets": [
         {
-            "name": "vcpkg-base",
-            "hidden": true,
-            "cacheVariables": {
-                "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
-            }
-        },
-        {
             "name": "windows-base",
             "hidden": true,
-            "inherits": "vcpkg-base",
             "generator": "Ninja Multi-Config",
             "binaryDir": "${sourceDir}/out/build/${presetName}",
             "cacheVariables": {
@@ -26,9 +18,7 @@
                 "CMAKE_CONFIGURATION_TYPES": "Debug;Release;RelWithDebInfo",
                 "CMAKE_CROSS_CONFIGS": "all",
                 "CMAKE_DEFAULT_BUILD_TYPE": "Debug",
-                "CMAKE_DEFAULT_CONFIGS": "all",
-                "VCPKG_TARGET_TRIPLET": "x64-windows-clang-static",
-                "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/triplets"
+                "CMAKE_DEFAULT_CONFIGS": "all"
             },
             "condition": {
                 "type": "equals",
@@ -39,7 +29,6 @@
         {
             "name": "linux-base",
             "hidden": true,
-            "inherits": "vcpkg-base",
             "generator": "Ninja Multi-Config",
             "binaryDir": "${sourceDir}/out/build/${presetName}",
             "cacheVariables": {
@@ -49,8 +38,7 @@
                 "CMAKE_CONFIGURATION_TYPES": "Debug;Release;RelWithDebInfo",
                 "CMAKE_CROSS_CONFIGS": "all",
                 "CMAKE_DEFAULT_BUILD_TYPE": "Debug",
-                "CMAKE_DEFAULT_CONFIGS": "all",
-                "VCPKG_TARGET_TRIPLET": "x64-linux"
+                "CMAKE_DEFAULT_CONFIGS": "all"
             },
             "condition": {
                 "type": "equals",
