@@ -9,7 +9,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/memory/mapped_memory.h>
+#include "rex/memory/mapped_memory.h"
 
 #include <fcntl.h>
 #include <sys/mman.h>
@@ -17,8 +17,8 @@
 #include <unistd.h>
 #include <memory>
 
-#include <rex/filesystem.h>
-#include <rex/platform.h>
+#include "rex/filesystem.h"
+#include "rex/platform.h"
 
 namespace rex::memory {
 
@@ -36,38 +36,44 @@ class PosixMappedMemory : public MappedMemory {
     }
   }
 
-  static std::unique_ptr<PosixMappedMemory> WrapFileDescriptor(
-      int file_descriptor, Mode mode, size_t offset = 0, size_t length = 0) {
-    int protection = 0;
-    switch (mode) {
-      case Mode::kRead:
-        protection |= PROT_READ;
-        break;
-      case Mode::kReadWrite:
-        protection |= PROT_READ | PROT_WRITE;
-        break;
-    }
+static std::unique_ptr<PosixMappedMemory> WrapFileDescriptor(
+    int file_descriptor, Mode mode, size_t offset = 0, size_t length = 0) {
+  // POSIX requires mmap offset to be page-aligned.
+  const size_t page = size_t(getpagesize());
+  if (offset % page != 0) {
+    close(file_descriptor);
+    return nullptr;
+  }
 
-    size_t map_length = length;
-    if (!length) {
-      struct stat64 file_stat;
-      if (fstat64(file_descriptor, &file_stat)) {
-        close(file_descriptor);
-        return nullptr;
-      }
-      map_length = size_t(file_stat.st_size);
-    }
+  int protection = 0;
+  switch (mode) {
+    case Mode::kRead:
+      protection |= PROT_READ;
+      break;
+    case Mode::kReadWrite:
+      protection |= PROT_READ | PROT_WRITE;
+      break;
+  }
 
-    void* data =
-        mmap(0, map_length, protection, MAP_SHARED, file_descriptor, offset);
-    if (!data || data == MAP_FAILED) {
+  size_t map_length = length;
+  if (!length) {
+    struct stat file_stat;
+    if (fstat(file_descriptor, &file_stat)) {
       close(file_descriptor);
       return nullptr;
     }
-
-    return std::make_unique<PosixMappedMemory>(data, map_length,
-                                               file_descriptor);
+    map_length = size_t(file_stat.st_size);
   }
+
+  void* data = mmap(nullptr, map_length, protection, MAP_SHARED, file_descriptor,
+                    off_t(offset));
+  if (!data || data == MAP_FAILED) {
+    close(file_descriptor);
+    return nullptr;
+  }
+
+  return std::make_unique<PosixMappedMemory>(data, map_length, file_descriptor);
+}
 
   void Close(uint64_t truncate_size) override {
     if (data_) {
@@ -76,7 +82,7 @@ class PosixMappedMemory : public MappedMemory {
     }
     if (file_descriptor_ >= 0) {
       if (truncate_size) {
-        ftruncate64(file_descriptor_, off64_t(truncate_size));
+        ftruncate(file_descriptor_, off_t(truncate_size));
       }
       close(file_descriptor_);
       file_descriptor_ = -1;
