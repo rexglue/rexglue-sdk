@@ -135,31 +135,40 @@ bool CreateEmptyFile(const std::filesystem::path& path) {
 
 class PosixFileHandle : public FileHandle {
  public:
-  PosixFileHandle(std::filesystem::path path, int handle)
-      : FileHandle(std::move(path)), handle_(handle) {}
-  ~PosixFileHandle() override {
-    close(handle_);
-    handle_ = -1;
-  }
-  bool Read(size_t file_offset, void* buffer, size_t buffer_length,
+    PosixFileHandle(std::filesystem::path path, int handle)
+        : FileHandle(std::move(path)), handle_(handle) {}
+    ~PosixFileHandle() override {
+        close(handle_);
+        handle_ = -1;
+    }
+    bool Read(size_t file_offset, void* buffer, size_t buffer_length,
             size_t* out_bytes_read) override {
     ssize_t out = pread(handle_, buffer, buffer_length, file_offset);
-    *out_bytes_read = out;
-    return out >= 0 ? true : false;
-  }
-  bool Write(size_t file_offset, const void* buffer, size_t buffer_length,
-             size_t* out_bytes_written) override {
-    ssize_t out = pwrite(handle_, buffer, buffer_length, file_offset);
-    *out_bytes_written = out;
-    return out >= 0 ? true : false;
-  }
-  bool SetLength(size_t length) override {
-    return ftruncate(handle_, length) >= 0 ? true : false;
-  }
-  void Flush() override { fsync(handle_); }
+    if (out < 0) {
+        if (out_bytes_read) *out_bytes_read = 0;
+        return false;
+    }
+    if (out_bytes_read) *out_bytes_read = static_cast<size_t>(out);
+    return true;
+    }
 
- private:
-  int handle_ = -1;
+    bool Write(size_t file_offset, const void* buffer, size_t buffer_length,
+            size_t* out_bytes_written) override {
+    ssize_t out = pwrite(handle_, buffer, buffer_length, file_offset);
+    if (out < 0) {
+        if (out_bytes_written) *out_bytes_written = 0;
+        return false;
+    }
+    if (out_bytes_written) *out_bytes_written = static_cast<size_t>(out);
+    return true;
+    }
+    bool SetLength(size_t length) override {
+        return ftruncate(handle_, length) >= 0 ? true : false;
+    }
+    void Flush() override { fsync(handle_); }
+
+    private:
+    int handle_ = -1;
 };
 
 std::unique_ptr<FileHandle> FileHandle::OpenExisting(
@@ -196,18 +205,24 @@ std::unique_ptr<FileHandle> FileHandle::OpenExisting(
 
 bool GetInfo(const std::filesystem::path& path, FileInfo* out_info) {
   struct stat st;
-  if (stat(path.c_str(), &st) == 0) {
-    if (S_ISDIR(st.st_mode)) {
-      out_info->type = FileInfo::Type::kDirectory;
-    } else {
-      out_info->type = FileInfo::Type::kFile;
-    }
-    out_info->create_timestamp = convertUnixtimeToWinFiletime(st.st_ctime);
-    out_info->access_timestamp = convertUnixtimeToWinFiletime(st.st_atime);
-    out_info->write_timestamp = convertUnixtimeToWinFiletime(st.st_mtime);
-    return true;
+  if (stat(path.c_str(), &st) != 0) return false;
+
+  // If FileInfo is POD-ish, you can clear it to avoid future landmines.
+  // *out_info = FileInfo{};
+  // (Only do this if it won't wipe fields the caller expects preserved.)
+
+  if (S_ISDIR(st.st_mode)) {
+    out_info->type = FileInfo::Type::kDirectory;
+    out_info->total_size = 0;
+  } else {
+    out_info->type = FileInfo::Type::kFile;
+    out_info->total_size = static_cast<uint64_t>(st.st_size);
   }
-  return false;
+
+  out_info->create_timestamp = convertUnixtimeToWinFiletime(st.st_ctime);
+  out_info->access_timestamp = convertUnixtimeToWinFiletime(st.st_atime);
+  out_info->write_timestamp  = convertUnixtimeToWinFiletime(st.st_mtime);
+  return true;
 }
 
 std::vector<FileInfo> ListFiles(const std::filesystem::path& path) {
