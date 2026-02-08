@@ -18,7 +18,7 @@ set(REQUIRED_SUBMODULES
     snappy
     utfcpp
     volk
-    Vulkan-Headers
+    vulkan-headers
     vulkan-memory-allocator
     imgui
     sdl2
@@ -27,7 +27,7 @@ set(REQUIRED_SUBMODULES
 )
 
 if(REXGLUE_BUILD_TESTS)
-    list(APPEND REQUIRED_SUBMODULES Catch2)
+    list(APPEND REQUIRED_SUBMODULES catch2)
 endif()
 
 foreach(submodule ${REQUIRED_SUBMODULES})
@@ -162,7 +162,7 @@ add_subdirectory(utfcpp)
 set(VULKAN_HEADERS_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
 set(VULKAN_HEADERS_ENABLE_INSTALL ON CACHE BOOL "" FORCE)
 set(VULKAN_HEADERS_ENABLE_MODULE OFF CACHE BOOL "" FORCE)
-add_subdirectory(Vulkan-Headers)
+add_subdirectory(vulkan-headers)
 
 #=============================================================================
 # VulkanMemoryAllocator - GPU memory allocator (header-only)
@@ -251,7 +251,7 @@ endif()
 # Catch2 - Test framework (only when tests are enabled, not part of SDK install)
 #=============================================================================
 if(REXGLUE_BUILD_TESTS)
-    add_subdirectory(Catch2)
+    add_subdirectory(catch2)
 endif()
 
 #=============================================================================
