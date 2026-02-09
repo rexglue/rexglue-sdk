@@ -466,6 +466,7 @@ bool build_vcmpgefp(BuilderContext& ctx);
 bool build_vcmpgtfp(BuilderContext& ctx);
 bool build_vcmpgtub(BuilderContext& ctx);
 bool build_vcmpgtuh(BuilderContext& ctx);
+bool build_vcmpgtsw(BuilderContext& ctx);
 
 // Vector conversion
 bool build_vctsxs(BuilderContext& ctx);

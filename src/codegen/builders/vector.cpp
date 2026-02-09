@@ -534,6 +534,15 @@ bool build_vcmpgtuh(BuilderContext& ctx)
     return true;
 }
 
+bool build_vcmpgtsw(BuilderContext& ctx)
+{
+    ctx.println("\tsimde_mm_store_si128((simde__m128i*){}.u32, simde_mm_cmpgt_epi32(simde_mm_load_si128((simde__m128i*){}.u32), simde_mm_load_si128((simde__m128i*){}.u32)));",
+        ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]), ctx.v(ctx.insn.operands[2]));
+    if (isRecordForm(ctx.insn))
+        ctx.println("\t{}.setFromMask(simde_mm_castsi128_ps(simde_mm_load_si128((simde__m128i*){}.u32)), 0xF);", ctx.cr(6), ctx.v(ctx.insn.operands[0]));
+    return true;
+}
+
 //=============================================================================
 // Vector Conversion
 //=============================================================================

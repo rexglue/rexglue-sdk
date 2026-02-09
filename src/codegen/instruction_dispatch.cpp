@@ -467,6 +467,7 @@ static const std::unordered_map<int, Builder>& GetDispatchTable()
         { PPC_INST_VCMPGTFP128, build_vcmpgtfp },
         { PPC_INST_VCMPGTUB, build_vcmpgtub },
         { PPC_INST_VCMPGTUH, build_vcmpgtuh },
+        { PPC_INST_VCMPGTSW, build_vcmpgtsw },
 
         //=====================================================================
         // Vector - Conversion
