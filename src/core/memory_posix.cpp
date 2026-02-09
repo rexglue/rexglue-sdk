@@ -41,7 +41,7 @@
 #include <string.h>
 #include <sys/ioctl.h>
 
-#include "xenia/base/main_android.h"
+#include <xenia/base/main_android.h>
 #endif
 
 #if !REX_PLATFORM_ANDROID
@@ -429,8 +429,34 @@ bool DeallocFixed(void* base_address, size_t length,
 
 bool Protect(void* base_address, size_t length, PageAccess access,
              PageAccess* out_old_access) {
-  // Linux does not have a syscall to query memory permissions.
-  assert_null(out_old_access);
+  if (!base_address || length == 0) {
+    if (out_old_access) *out_old_access = PageAccess::kNoAccess;
+    return false;
+  }
+
+#if REX_PLATFORM_LINUX
+  if (out_old_access) {
+    size_t queried_len = 0;
+    PageAccess old_access = PageAccess::kNoAccess;
+
+    // Query old perms at base_address. We don't need the full length,
+    // just the current protection at that address.
+    if (!QueryProtect(base_address, queried_len, old_access)) {
+      return false;  // can't reliably report old value
+    }
+    *out_old_access = old_access;
+  }
+#else
+  // Non-Linux: we currently can't reliably report old perms with this backend.
+  if (out_old_access) {
+    *out_old_access = PageAccess::kNoAccess;
+    // Either:
+    //  - return false; (strict)
+    //  - or continue without guaranteeing correctness (looser)
+    // Choose strict to match the contract implied by the test.
+    return false;
+  }
+#endif
 
   uint32_t prot = ToPosixProtectFlags(access);
   return mprotect(base_address, length, static_cast<int>(prot)) == 0;

@@ -9,7 +9,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include "rex/memory/mapped_memory.h"
+#include <rex/memory/mapped_memory.h>
 
 #include <fcntl.h>
 #include <sys/mman.h>
@@ -17,8 +17,8 @@
 #include <unistd.h>
 #include <memory>
 
-#include "rex/filesystem.h"
-#include "rex/platform.h"
+#include <rex/filesystem.h>
+#include <rex/platform.h>
 
 namespace rex::memory {
 
