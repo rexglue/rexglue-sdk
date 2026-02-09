@@ -410,6 +410,7 @@ static const std::unordered_map<int, Builder>& GetDispatchTable()
         //=====================================================================
         // Vector - Integer Arithmetic
         //=====================================================================
+        { PPC_INST_VADDSBS, build_vaddsbs },
         { PPC_INST_VADDSHS, build_vaddshs },
         { PPC_INST_VADDSWS, build_vaddsws },
         { PPC_INST_VADDUBM, build_vaddubm },

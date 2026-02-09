@@ -219,6 +219,12 @@ bool build_vrfiz(BuilderContext& ctx)
 // Vector Integer Arithmetic
 //=============================================================================
 
+bool build_vaddsbs(BuilderContext& ctx)
+{
+    ctx.emit_vec_int_binary("adds_epi8", "s8");
+    return true;
+}
+
 bool build_vaddshs(BuilderContext& ctx)
 {
     ctx.emit_vec_int_binary("adds_epi16", "s16");

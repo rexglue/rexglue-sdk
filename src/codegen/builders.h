@@ -425,6 +425,7 @@ bool build_vrfip(BuilderContext& ctx);
 bool build_vrfiz(BuilderContext& ctx);
 
 // Vector integer arithmetic
+bool build_vaddsbs(BuilderContext& ctx);
 bool build_vaddshs(BuilderContext& ctx);
 bool build_vaddsws(BuilderContext& ctx);
 bool build_vaddubm(BuilderContext& ctx);
