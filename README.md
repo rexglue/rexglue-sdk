@@ -29,11 +29,10 @@ Download the latest release and extract it to a location of your choice. This wi
 git clone --recursive https://github.com/rexglue/rexglue-sdk
 cd rexglue
 cmake --preset <platform>
-cmake --build out/build/<platform>
-cmake --install out/build/<platform> --prefix <REXSDK path>
+cmake --build out/build/<platform> --target install
 ```
 
-Where `<platform>` is `win-amd64` or `linux-amd64`. The build step compiles all configurations (Debug, Release, RelWithDebInfo) at once.
+This will perform a multi-config build and put the SDK at `out/install/<platform>`. You may move this folder and then set this path on your environment variable as `REXSDK` using your preferred method (system or CMakeUserPresets.json in your target project).
 
 
 ### Creating a project
