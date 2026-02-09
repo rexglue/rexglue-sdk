@@ -421,6 +421,7 @@ bool build_vmsum4fp128(BuilderContext& ctx);
 // Vector rounding
 bool build_vrfim(BuilderContext& ctx);
 bool build_vrfin(BuilderContext& ctx);
+bool build_vrfip(BuilderContext& ctx);
 bool build_vrfiz(BuilderContext& ctx);
 
 // Vector integer arithmetic

@@ -402,6 +402,8 @@ static const std::unordered_map<int, Builder>& GetDispatchTable()
         { PPC_INST_VRFIM128, build_vrfim },
         { PPC_INST_VRFIN, build_vrfin },
         { PPC_INST_VRFIN128, build_vrfin },
+        { PPC_INST_VRFIP, build_vrfip },
+        { PPC_INST_VRFIP128, build_vrfip },
         { PPC_INST_VRFIZ, build_vrfiz },
         { PPC_INST_VRFIZ128, build_vrfiz },
 

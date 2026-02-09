@@ -199,6 +199,14 @@ bool build_vrfin(BuilderContext& ctx)
     return true;
 }
 
+bool build_vrfip(BuilderContext& ctx)
+{
+    ctx.emit_set_flush_mode(true);
+    ctx.println("\tsimde_mm_store_ps({}.f32, simde_mm_round_ps(simde_mm_load_ps({}.f32), SIMDE_MM_FROUND_TO_POS_INF | SIMDE_MM_FROUND_NO_EXC));",
+        ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]));
+    return true;
+}
+
 bool build_vrfiz(BuilderContext& ctx)
 {
     ctx.emit_set_flush_mode(true);
