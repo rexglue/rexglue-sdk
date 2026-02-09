@@ -48,7 +48,6 @@ add_compile_options(
     -Wextra
     -fno-strict-aliasing
     -ffp-model=strict
-    -march=sandybridge
     $<$<CONFIG:DEBUG>:-g>
     $<$<CONFIG:DEBUG>:-O0>
     $<$<CONFIG:RELEASE>:-O3>
