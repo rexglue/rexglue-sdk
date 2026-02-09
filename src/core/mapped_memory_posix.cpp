@@ -38,6 +38,13 @@ class PosixMappedMemory : public MappedMemory {
 
   static std::unique_ptr<PosixMappedMemory> WrapFileDescriptor(
       int file_descriptor, Mode mode, size_t offset = 0, size_t length = 0) {
+  // POSIX requires mmap offset to be page-aligned.
+  const size_t page = size_t(getpagesize());
+  if (offset % page != 0) {
+    close(file_descriptor);
+    return nullptr;
+  }
+
     int protection = 0;
     switch (mode) {
       case Mode::kRead:
@@ -58,8 +65,7 @@ class PosixMappedMemory : public MappedMemory {
       map_length = size_t(file_stat.st_size);
     }
 
-    void* data =
-        mmap(0, map_length, protection, MAP_SHARED, file_descriptor, offset);
+    void* data = mmap(nullptr, map_length, protection, MAP_SHARED, file_descriptor, off_t(offset));
     if (!data || data == MAP_FAILED) {
       close(file_descriptor);
       return nullptr;
