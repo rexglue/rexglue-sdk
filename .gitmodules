@@ -13,7 +13,7 @@
 [submodule "thirdparty/abseil-cpp"]
 	path = thirdparty/abseil-cpp
 	url = https://github.com/abseil/abseil-cpp.git
-	branch = lts_2024_07_22
+	branch = lts_2026_01_07
 [submodule "thirdparty/tomlplusplus"]
 	path = thirdparty/tomlplusplus
 	url = https://github.com/marzer/tomlplusplus.git
