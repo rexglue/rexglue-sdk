@@ -51,6 +51,7 @@ target_include_directories(rexcore PUBLIC
 
 target_include_directories(rexcore PRIVATE
     ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/thirdparty/cli11/include
 )
 
 if(UNIX)
@@ -58,12 +59,10 @@ if(UNIX)
 endif()
 
 target_link_libraries(rexcore
-    PUBLIC 
-        fmt::fmt 
-        date::date 
-        simde 
-        absl::flags 
-        absl::flags_parse 
+    PUBLIC
+        fmt::fmt
+        date::date
+        simde
         tomlplusplus
         spdlog::spdlog
     PRIVATE

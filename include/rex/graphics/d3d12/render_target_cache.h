@@ -104,7 +104,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   // configuration.
   bool IsFixed16TruncatedToMinus1To1() const {
     return GetPath() == Path::kHostRenderTargets &&
-           !::REXCVAR_GET(snorm16_render_target_full_range);
+           !REXCVAR_GET(snorm16_render_target_full_range);
   }
 
   bool depth_float24_round() const { return depth_float24_round_; }

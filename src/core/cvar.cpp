@@ -9,8 +9,7 @@
 #include <rex/cvar.h>
 #include <rex/logging.h>
 
-#include <absl/flags/flag.h>
-#include <absl/flags/parse.h>
+#include <CLI/CLI.hpp>
 
 #include <toml++/toml.hpp>
 
@@ -344,10 +343,38 @@ void UnregisterChangeCallbacks(std::string_view name) {
 // Initialization
 //=============================================================================
 
-void Init(int argc, char** argv) {
-    absl::ParseCommandLine(argc, argv);
+std::vector<std::string> Init(int argc, char** argv) {
+    CLI::App app{"", ""};
+    app.allow_extras();
+
+    for (auto& entry : GetRegistryStorage()) {
+        if (entry.type == FlagType::Boolean) {
+            app.add_flag_function(
+                "--" + entry.name + ",!--no-" + entry.name,
+                [&entry](int64_t count) {
+                    entry.setter(count > 0 ? "true" : "false");
+                },
+                entry.description);
+        } else {
+            app.add_option_function<std::string>(
+                "--" + entry.name,
+                [&entry](const std::string& val) {
+                    entry.setter(val);
+                },
+                entry.description);
+        }
+    }
+
+    try {
+        app.parse(argc, argv);
+    } catch (const CLI::ParseError& e) {
+        REXLOG_WARN("cvar: CLI parse issue: {}", e.what());
+    }
+
     REXLOG_DEBUG("cvar: parsed command line, {} cvars registered",
                  GetRegistryStorage().size());
+
+    return app.remaining();
 }
 
 void LoadConfig(const std::filesystem::path& config_path) {

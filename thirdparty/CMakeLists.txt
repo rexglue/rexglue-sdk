@@ -5,7 +5,7 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 # Verify git submodules are initialized (only vendored ones)
 #=============================================================================
 set(REQUIRED_SUBMODULES
-    abseil-cpp
+    cli11
     libmspack
     FFmpeg
     glslang
@@ -253,15 +253,6 @@ endif()
 if(REXGLUE_BUILD_TESTS)
     add_subdirectory(catch2)
 endif()
-
-#=============================================================================
-# abseil-cpp - Flags from Google's C++ common libraries (CVAR system)
-#=============================================================================
-set(ABSL_PROPAGATE_CXX_STD ON CACHE BOOL "" FORCE)
-set(ABSL_BUILD_TESTING OFF CACHE BOOL "" FORCE)
-set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
-set(ABSL_ENABLE_INSTALL ON CACHE BOOL "" FORCE)
-add_subdirectory(abseil-cpp)
 
 #=============================================================================
 # FFmpeg - Audio/video codec library (for XMA decoding)

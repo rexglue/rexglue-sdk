@@ -8,7 +8,6 @@ include(CMakeFindDependencyMacro)
 # Required dependencies
 find_dependency(fmt CONFIG)
 find_dependency(spdlog CONFIG)
-find_dependency(absl CONFIG)
 find_dependency(VulkanHeaders CONFIG)
 find_dependency(volk CONFIG)
 find_dependency(VulkanMemoryAllocator CONFIG)

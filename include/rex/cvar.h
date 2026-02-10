@@ -87,9 +87,6 @@
 
 #pragma once
 
-#include <absl/flags/declare.h>
-#include <absl/flags/flag.h>
-
 #include <charconv>
 #include <cstdint>
 #include <optional>
@@ -106,7 +103,7 @@ namespace rex::cvar {
 // Initialization API
 //=============================================================================
 
-void Init(int argc, char** argv);
+std::vector<std::string> Init(int argc, char** argv);
 void LoadConfig(const std::filesystem::path& config_path);
 void ApplyEnvironment();
 void FinalizeInit();
@@ -243,26 +240,26 @@ inline bool ParseDouble(std::string_view s, double& out) {
 //=============================================================================
 
 // Declare a cvar (use in files that need access to a cvar defined elsewhere)
-#define REXCVAR_DECLARE(type, name) ABSL_DECLARE_FLAG(type, name)
+#define REXCVAR_DECLARE(type, name) extern type FLAGS_##name
 
 // Get a cvar value
-#define REXCVAR_GET(name) absl::GetFlag(FLAGS_##name)
+#define REXCVAR_GET(name) (FLAGS_##name)
 
 // Set a cvar value
-#define REXCVAR_SET(name, value) absl::SetFlag(&FLAGS_##name, value)
+#define REXCVAR_SET(name, value) (FLAGS_##name = (value))
 
 // Define cvars (use in one .cpp file per cvar)
 // The FlagRegistrar registers the flag in its destructor, allowing method chaining.
 #define REXCVAR_DEFINE_BOOL(name, default_val, category, desc) \
-    ABSL_FLAG(bool, name, default_val, desc); \
+    bool FLAGS_##name = (default_val); \
     static auto _cvar_reg_##name = ::rex::cvar::FlagRegistrar({ \
         #name, ::rex::cvar::FlagType::Boolean, category, desc, \
         [](std::string_view v) { \
             bool val = (v == "true" || v == "1" || v == "yes"); \
-            absl::SetFlag(&FLAGS_##name, val); \
+            FLAGS_##name = val; \
             return true; \
         }, \
-        []() { return absl::GetFlag(FLAGS_##name) ? "true" : "false"; }, \
+        []() { return FLAGS_##name ? "true" : "false"; }, \
         ::rex::cvar::Lifecycle::kHotReload, \
         {}, \
         (default_val) ? "true" : "false", \
@@ -270,17 +267,17 @@ inline bool ParseDouble(std::string_view s, double& out) {
     })
 
 #define REXCVAR_DEFINE_INT32(name, default_val, category, desc) \
-    ABSL_FLAG(int32_t, name, default_val, desc); \
+    int32_t FLAGS_##name = (default_val); \
     static auto _cvar_reg_##name = ::rex::cvar::FlagRegistrar({ \
         #name, ::rex::cvar::FlagType::Int32, category, desc, \
         [](std::string_view v) { \
             int32_t val = 0; \
             auto [ptr, ec] = std::from_chars(v.data(), v.data() + v.size(), val); \
             if (ec != std::errc()) return false; \
-            absl::SetFlag(&FLAGS_##name, val); \
+            FLAGS_##name = val; \
             return true; \
         }, \
-        []() { return std::to_string(absl::GetFlag(FLAGS_##name)); }, \
+        []() { return std::to_string(FLAGS_##name); }, \
         ::rex::cvar::Lifecycle::kHotReload, \
         {}, \
         std::to_string(default_val), \
@@ -288,17 +285,17 @@ inline bool ParseDouble(std::string_view s, double& out) {
     })
 
 #define REXCVAR_DEFINE_INT64(name, default_val, category, desc) \
-    ABSL_FLAG(int64_t, name, default_val, desc); \
+    int64_t FLAGS_##name = (default_val); \
     static auto _cvar_reg_##name = ::rex::cvar::FlagRegistrar({ \
         #name, ::rex::cvar::FlagType::Int64, category, desc, \
         [](std::string_view v) { \
             int64_t val = 0; \
             auto [ptr, ec] = std::from_chars(v.data(), v.data() + v.size(), val); \
             if (ec != std::errc()) return false; \
-            absl::SetFlag(&FLAGS_##name, val); \
+            FLAGS_##name = val; \
             return true; \
         }, \
-        []() { return std::to_string(absl::GetFlag(FLAGS_##name)); }, \
+        []() { return std::to_string(FLAGS_##name); }, \
         ::rex::cvar::Lifecycle::kHotReload, \
         {}, \
         std::to_string(default_val), \
@@ -306,17 +303,17 @@ inline bool ParseDouble(std::string_view s, double& out) {
     })
 
 #define REXCVAR_DEFINE_UINT32(name, default_val, category, desc) \
-    ABSL_FLAG(uint32_t, name, default_val, desc); \
+    uint32_t FLAGS_##name = (default_val); \
     static auto _cvar_reg_##name = ::rex::cvar::FlagRegistrar({ \
         #name, ::rex::cvar::FlagType::Uint32, category, desc, \
         [](std::string_view v) { \
             uint32_t val = 0; \
             auto [ptr, ec] = std::from_chars(v.data(), v.data() + v.size(), val); \
             if (ec != std::errc()) return false; \
-            absl::SetFlag(&FLAGS_##name, val); \
+            FLAGS_##name = val; \
             return true; \
         }, \
-        []() { return std::to_string(absl::GetFlag(FLAGS_##name)); }, \
+        []() { return std::to_string(FLAGS_##name); }, \
         ::rex::cvar::Lifecycle::kHotReload, \
         {}, \
         std::to_string(default_val), \
@@ -324,17 +321,17 @@ inline bool ParseDouble(std::string_view s, double& out) {
     })
 
 #define REXCVAR_DEFINE_UINT64(name, default_val, category, desc) \
-    ABSL_FLAG(uint64_t, name, default_val, desc); \
+    uint64_t FLAGS_##name = (default_val); \
     static auto _cvar_reg_##name = ::rex::cvar::FlagRegistrar({ \
         #name, ::rex::cvar::FlagType::Uint64, category, desc, \
         [](std::string_view v) { \
             uint64_t val = 0; \
             auto [ptr, ec] = std::from_chars(v.data(), v.data() + v.size(), val); \
             if (ec != std::errc()) return false; \
-            absl::SetFlag(&FLAGS_##name, val); \
+            FLAGS_##name = val; \
             return true; \
         }, \
-        []() { return std::to_string(absl::GetFlag(FLAGS_##name)); }, \
+        []() { return std::to_string(FLAGS_##name); }, \
         ::rex::cvar::Lifecycle::kHotReload, \
         {}, \
         std::to_string(default_val), \
@@ -342,16 +339,16 @@ inline bool ParseDouble(std::string_view s, double& out) {
     })
 
 #define REXCVAR_DEFINE_DOUBLE(name, default_val, category, desc) \
-    ABSL_FLAG(double, name, default_val, desc); \
+    double FLAGS_##name = (default_val); \
     static auto _cvar_reg_##name = ::rex::cvar::FlagRegistrar({ \
         #name, ::rex::cvar::FlagType::Double, category, desc, \
         [](std::string_view v) { \
             double val = 0; \
             if (!::rex::cvar::ParseDouble(v, val)) return false; \
-            absl::SetFlag(&FLAGS_##name, val); \
+            FLAGS_##name = val; \
             return true; \
         }, \
-        []() { return std::to_string(absl::GetFlag(FLAGS_##name)); }, \
+        []() { return std::to_string(FLAGS_##name); }, \
         ::rex::cvar::Lifecycle::kHotReload, \
         {}, \
         std::to_string(default_val), \
@@ -359,14 +356,14 @@ inline bool ParseDouble(std::string_view s, double& out) {
     })
 
 #define REXCVAR_DEFINE_STRING(name, default_val, category, desc) \
-    ABSL_FLAG(std::string, name, default_val, desc); \
+    std::string FLAGS_##name = (default_val); \
     static auto _cvar_reg_##name = ::rex::cvar::FlagRegistrar({ \
         #name, ::rex::cvar::FlagType::String, category, desc, \
         [](std::string_view v) { \
-            absl::SetFlag(&FLAGS_##name, std::string(v)); \
+            FLAGS_##name = std::string(v); \
             return true; \
         }, \
-        []() { return absl::GetFlag(FLAGS_##name); }, \
+        []() { return FLAGS_##name; }, \
         ::rex::cvar::Lifecycle::kHotReload, \
         {}, \
         default_val, \
