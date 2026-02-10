@@ -90,7 +90,8 @@ class RingBuffer {
                   "Immediate read only supports basic types!");
 
     T imm;
-    assert_true(Read(reinterpret_cast<uint8_t*>(&imm), sizeof(T)) == sizeof(T));
+    size_t read = Read(reinterpret_cast<uint8_t*>(&imm), sizeof(T));
+    assert_true(read == sizeof(T));
     imm = rex::byte_swap(imm);
     return imm;
   }
