@@ -10,34 +10,28 @@
 #include "commands/codegen_command.h"
 #include "commands/init_command.h"
 #include "commands/test_recompiler.h"
+#include <rex/cvar.h>
 #include <rex/logging.h>
 #include <rex/result.h>
-
-#include <absl/flags/flag.h>
-#include <absl/flags/parse.h>
-#include <absl/flags/usage.h>
 
 #include <iostream>
 #include <map>
 
 // Analyze/Codegen flags
-// TODO(tomc): should probably move these to codegen_command.cpp and consider using CVAR system
-ABSL_FLAG(bool, force, false, "Generate output even if validation errors occur");
-ABSL_FLAG(bool, no_exception_handlers, false, "Skip generation of SEH exception handler code");
+REXCVAR_DEFINE_BOOL(force, false, "Codegen", "Generate output even if validation errors occur");
+REXCVAR_DEFINE_BOOL(no_exception_handlers, false, "Codegen", "Skip generation of SEH exception handler code");
 
 // Recompile-tests flags
-// TODO(tomc): should probably move these to test_recompiler.cpp and consider using CVAR system
-ABSL_FLAG(std::string, bin_dir, "", "Directory containing linked .bin and .map files");
-ABSL_FLAG(std::string, asm_dir, "", "Directory containing .s assembly source files");
-ABSL_FLAG(std::string, output, "", "Output path for recompile-tests");
+REXCVAR_DEFINE_STRING(bin_dir, "", "RecompileTests", "Directory containing linked .bin and .map files");
+REXCVAR_DEFINE_STRING(asm_dir, "", "RecompileTests", "Directory containing .s assembly source files");
+REXCVAR_DEFINE_STRING(output, "", "RecompileTests", "Output path for recompile-tests");
 
 // Init flags
-// TODO(tomc): .. you guessed it, should probably move these to init_command.cpp and consider using CVAR system
-ABSL_FLAG(std::string, app_name, "", "Project name for init command");
-ABSL_FLAG(std::string, app_root, "", "Project root directory for init command");
-ABSL_FLAG(std::string, app_desc, "", "Project description (optional)");
-ABSL_FLAG(std::string, app_author, "", "Project author (optional)");
-ABSL_FLAG(bool, sdk_example, false, "Create as SDK example (omit vcpkg.json)");
+REXCVAR_DEFINE_STRING(app_name, "", "Init", "Project name for init command");
+REXCVAR_DEFINE_STRING(app_root, "", "Init", "Project root directory for init command");
+REXCVAR_DEFINE_STRING(app_desc, "", "Init", "Project description (optional)");
+REXCVAR_DEFINE_STRING(app_author, "", "Init", "Project author (optional)");
+REXCVAR_DEFINE_BOOL(sdk_example, false, "Init", "Create as SDK example (omit vcpkg.json)");
 
 using rex::Result;
 using rex::Ok;
@@ -53,15 +47,13 @@ void PrintUsage() {
 }
 
 int main(int argc, char** argv) {
-    absl::SetProgramUsageMessage("ReXGlue - Xbox 360 Recompilation Toolkit");
-    rex::cvar::Init(argc, argv);
+    auto remaining = rex::cvar::Init(argc, argv);
     rex::cvar::ApplyEnvironment();
 
-    std::vector<char*> remaining = absl::ParseCommandLine(argc, argv);
     std::string command;
 
-    if (remaining.size() > 1) {
-        command = remaining[1];
+    if (!remaining.empty()) {
+        command = remaining[0];
     }
 
     if (command.empty()) {
@@ -97,17 +89,17 @@ int main(int argc, char** argv) {
     // Set up CLI context
     rexglue::cli::CliContext ctx;
     ctx.verbose = verbose;
-    ctx.force = absl::GetFlag(FLAGS_force);
-    ctx.noExceptionHandlers = absl::GetFlag(FLAGS_no_exception_handlers);
+    ctx.force = REXCVAR_GET(force);
+    ctx.noExceptionHandlers = REXCVAR_GET(no_exception_handlers);
 
     Result<void> result = Ok();
     if (command == "init") {
         rexglue::cli::InitOptions opts;
-        opts.app_name = absl::GetFlag(FLAGS_app_name);
-        opts.app_root = absl::GetFlag(FLAGS_app_root);
-        opts.app_desc = absl::GetFlag(FLAGS_app_desc);
-        opts.app_author = absl::GetFlag(FLAGS_app_author);
-        opts.sdk_example = absl::GetFlag(FLAGS_sdk_example);
+        opts.app_name = REXCVAR_GET(app_name);
+        opts.app_root = REXCVAR_GET(app_root);
+        opts.app_desc = REXCVAR_GET(app_desc);
+        opts.app_author = REXCVAR_GET(app_author);
+        opts.sdk_example = REXCVAR_GET(sdk_example);
         opts.force = ctx.force;
 
         if (opts.app_name.empty()) {
@@ -122,21 +114,21 @@ int main(int argc, char** argv) {
         result = rexglue::cli::InitProject(opts, ctx);
     }
     else if (command == "codegen") {
-        if (remaining.size() < 3) {
+        if (remaining.size() < 2) {
             REXLOG_ERROR("Missing config path. Usage: rexglue codegen <config.toml>");
             return 1;
         }
-        if (remaining.size() > 3) {
+        if (remaining.size() > 2) {
             REXLOG_ERROR("Too many arguments for codegen command");
             return 1;
         }
-        std::string config_path = remaining[2];
+        std::string config_path = remaining[1];
         result = rexglue::cli::CodegenFromConfig(config_path, ctx);
     }
     else if (command == "recompile-tests") {
-        std::string bin_dir = absl::GetFlag(FLAGS_bin_dir);
-        std::string asm_dir = absl::GetFlag(FLAGS_asm_dir);
-        std::string output = absl::GetFlag(FLAGS_output);
+        std::string bin_dir = REXCVAR_GET(bin_dir);
+        std::string asm_dir = REXCVAR_GET(asm_dir);
+        std::string output = REXCVAR_GET(output);
 
         if (bin_dir.empty() || asm_dir.empty() || output.empty()) {
             REXLOG_ERROR("--bin-dir, --asm-dir, and --output are required");

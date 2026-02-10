@@ -17,31 +17,13 @@
 #include <string>
 #include <vector>
 
+#include <rex/cvar.h>
 #include <rex/logging.h>
 #include <rex/filesystem.h>
 #include <rex/ui/windowed_app.h>
 #include <rex/ui/windowed_app_context_gtk.h>
 #include <spdlog/common.h>
 #include <filesystem>
-
-namespace {
-
-// TEMP: Replace with CVAR system
-// Match positional args to registered option names
-std::map<std::string, std::string> MatchPositionalArgs(
-    int argc, char** argv,
-    const std::vector<std::string>& option_names) {
-  std::map<std::string, std::string> result;
-  // Skip argv[0] (program name)
-  size_t arg_count = argc > 1 ? static_cast<size_t>(argc - 1) : 0;
-  size_t count = std::min(arg_count, option_names.size());
-  for (size_t i = 0; i < count; ++i) {
-    result[option_names[i]] = argv[i + 1];
-  }
-  return result;
-}
-
-}  // namespace
 
 extern "C" int main(int argc_pre_gtk, char** argv_pre_gtk) {
   // Before touching anything GTK+, make sure that when running on Wayland,
@@ -62,6 +44,9 @@ extern "C" int main(int argc_pre_gtk, char** argv_pre_gtk) {
     return EXIT_FAILURE;
   }
 
+  auto remaining = rex::cvar::Init(argc_post_gtk, argv_post_gtk);
+  rex::cvar::ApplyEnvironment();
+
   int result;
 
   {
@@ -70,9 +55,13 @@ extern "C" int main(int argc_pre_gtk, char** argv_pre_gtk) {
     std::unique_ptr<rex::ui::WindowedApp> app =
         rex::ui::GetWindowedAppCreator()(app_context);
 
-    // TEMP: Replace with CVAR system - parse positional arguments
-    auto parsed = MatchPositionalArgs(argc_post_gtk, argv_post_gtk,
-                                      app->GetPositionalOptions());
+    // Match remaining positional args to app's expected options
+    const auto& option_names = app->GetPositionalOptions();
+    std::map<std::string, std::string> parsed;
+    size_t count = std::min(remaining.size(), option_names.size());
+    for (size_t i = 0; i < count; ++i) {
+      parsed[option_names[i]] = remaining[i];
+    }
     app->SetParsedArguments(std::move(parsed));
 
     // Initialize logging.

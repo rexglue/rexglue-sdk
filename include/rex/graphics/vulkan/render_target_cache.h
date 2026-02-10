@@ -143,12 +143,12 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   bool IsFixedRG16TruncatedToMinus1To1() const {
     // TODO(Triang3l): Not float16 condition.
     return GetPath() == Path::kHostRenderTargets &&
-           !::REXCVAR_GET(snorm16_render_target_full_range);
+           !REXCVAR_GET(snorm16_render_target_full_range);
   }
   bool IsFixedRGBA16TruncatedToMinus1To1() const {
     // TODO(Triang3l): Not float16 condition.
     return GetPath() == Path::kHostRenderTargets &&
-           !::REXCVAR_GET(snorm16_render_target_full_range);
+           !REXCVAR_GET(snorm16_render_target_full_range);
   }
 
   bool depth_unorm24_vulkan_format_supported() const {
