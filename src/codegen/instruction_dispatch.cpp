@@ -420,6 +420,7 @@ static const std::unordered_map<int, Builder>& GetDispatchTable()
         { PPC_INST_VADDUWS, build_vadduws },
         { PPC_INST_VSUBSWS, build_vsubsws },
         { PPC_INST_VSUBUBS, build_vsububs },
+        { PPC_INST_VSUBUWS, build_vsubuws },
         { PPC_INST_VSUBUHM, build_vsubuhm },
         { PPC_INST_VSUBSHS, build_vsubshs },
         { PPC_INST_VMAXSW, build_vmaxsw },

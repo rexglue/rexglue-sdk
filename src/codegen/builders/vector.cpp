@@ -304,6 +304,13 @@ bool build_vsububs(BuilderContext& ctx)
     return true;
 }
 
+bool build_vsubuws(BuilderContext& ctx)
+{
+    ctx.println("\tsimde_mm_store_si128((simde__m128i*){}.u32, simde_mm_sub_epi32(simde_mm_load_si128((simde__m128i*) {}.u32), simde_mm_min_epu32(simde_mm_load_si128((simde__m128i*){}.u32), simde_mm_load_si128((simde__m128i*){}.u32))));", 
+        ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]), ctx.v(ctx.insn.operands[1]), ctx.v(ctx.insn.operands[2]));
+    return true;
+}
+
 bool build_vsubuhm(BuilderContext& ctx)
 {
     ctx.emit_vec_int_binary("sub_epi16", "u8");
