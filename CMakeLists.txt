@@ -165,6 +165,13 @@ install(TARGETS
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
+# DXC headers target (Windows only, required by rexui export)
+if(WIN32)
+    install(TARGETS dxc-headers
+        EXPORT rexglueTargets
+    )
+endif()
+
 # Install public headers
 install(DIRECTORY include/rex
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
@@ -214,11 +221,11 @@ install(FILES
     DESTINATION ${CMAKE_INSTALL_DATADIR}/rexglue
 )
 
-# Install DirectXShaderCompiler headers (Windows only, for D3D12 backend)
+# Install DXC API headers (vendored, Windows only, for D3D12 backend)
 if(WIN32)
     install(FILES
-        thirdparty/DirectXShaderCompiler/projects/dxilconv/include/DxbcConverter.h
-        thirdparty/DirectXShaderCompiler/include/dxc/dxcapi.h
+        thirdparty/dxc/include/DxbcConverter.h
+        thirdparty/dxc/include/dxcapi.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/dxc
     )
 endif()

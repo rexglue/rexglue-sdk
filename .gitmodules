@@ -1,9 +1,6 @@
 [submodule "thirdparty/libmspack"]
 	path = thirdparty/libmspack
 	url = https://github.com/kyz/libmspack.git
-[submodule "thirdparty/DirectXShaderCompiler"]
-	path = thirdparty/DirectXShaderCompiler
-	url = https://github.com/microsoft/DirectXShaderCompiler.git
 [submodule "thirdparty/glslang"]
 	path = thirdparty/glslang
 	url = https://github.com/KhronosGroup/glslang.git

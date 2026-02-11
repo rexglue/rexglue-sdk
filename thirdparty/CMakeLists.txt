@@ -204,7 +204,40 @@ set(SDL2_DISABLE_INSTALL OFF CACHE BOOL "" FORCE)
 set(SDL_SHARED OFF CACHE BOOL "" FORCE)
 set(SDL_STATIC ON CACHE BOOL "" FORCE)
 set(SDL_TEST OFF CACHE BOOL "" FORCE)
+
+# Disable unused subsystems
+set(SDL_VIDEO OFF CACHE BOOL "" FORCE)
+set(SDL_RENDER OFF CACHE BOOL "" FORCE)
+set(SDL_HAPTIC OFF CACHE BOOL "" FORCE)
+set(SDL_SENSOR OFF CACHE BOOL "" FORCE)
+set(SDL_POWER OFF CACHE BOOL "" FORCE)
+set(SDL_FILESYSTEM OFF CACHE BOOL "" FORCE)
+set(SDL_LOCALE OFF CACHE BOOL "" FORCE)
+set(SDL_FILE OFF CACHE BOOL "" FORCE)
+set(SDL_MISC OFF CACHE BOOL "" FORCE)
+
+# Disable graphics APIs (unused without video)
+set(SDL_OPENGL OFF CACHE BOOL "" FORCE)
+set(SDL_OPENGLES OFF CACHE BOOL "" FORCE)
+set(SDL_VULKAN OFF CACHE BOOL "" FORCE)
+set(SDL_METAL OFF CACHE BOOL "" FORCE)
+
+# Disable dummy drivers
+set(SDL_DISKAUDIO OFF CACHE BOOL "" FORCE)
+set(SDL_DUMMYAUDIO OFF CACHE BOOL "" FORCE)
+set(SDL_DUMMYVIDEO OFF CACHE BOOL "" FORCE)
+
 add_subdirectory(sdl2)
+
+#=============================================================================
+# DXC API headers (vendored from DirectXShaderCompiler, runtime-loaded)
+#=============================================================================
+if(WIN32)
+    add_library(dxc-headers INTERFACE)
+    target_include_directories(dxc-headers INTERFACE
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/dxc/include>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/dxc>)
+endif()
 
 #=============================================================================
 # SPIRV-Headers - SPIR-V header files (must come before SPIRV-Tools)

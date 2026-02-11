@@ -81,7 +81,6 @@ target_include_directories(rexui PUBLIC
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 target_include_directories(rexui PRIVATE
-    ${CMAKE_SOURCE_DIR}  # For thirdparty/DirectXShaderCompiler includes
     ${CMAKE_SOURCE_DIR}/src  # For ui/shaders/bytecode includes
 )
 
@@ -102,12 +101,8 @@ if(WIN32)
         Shcore      # Per-monitor DPI awareness APIs
         dxgi        # CreateDXGIFactory1 for monitor enumeration
     )
-    # DirectXShaderCompiler headers for D3D12 backend
-    target_include_directories(rexui PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/thirdparty/DirectXShaderCompiler/projects/dxilconv/include>
-        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/thirdparty/DirectXShaderCompiler/include/dxc>
-        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/dxc>
-    )
+    # DirectXShaderCompiler headers for D3D12 backend (vendored, runtime-loaded)
+    target_link_libraries(rexui PUBLIC dxc-headers)
 else()
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(GTK3 REQUIRED gtk+-3.0)

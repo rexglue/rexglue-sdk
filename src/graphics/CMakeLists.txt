@@ -111,7 +111,7 @@ target_include_directories(rexgraphics PUBLIC
 )
 target_include_directories(rexgraphics PRIVATE
     ${CMAKE_SOURCE_DIR}/thirdparty/renderdoc
-    ${CMAKE_SOURCE_DIR}  # For thirdparty/DirectXShaderCompiler includes
+    ${CMAKE_SOURCE_DIR}  # For thirdparty/dxbc/DXBCChecksum.h include
 )
 
 target_link_libraries(rexgraphics PUBLIC
