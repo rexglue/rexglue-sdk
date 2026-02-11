@@ -91,7 +91,7 @@ struct RecompilerConfig
     bool crRegistersAsLocalVariables = false;
     bool nonArgumentRegistersAsLocalVariables = false;
     bool nonVolatileRegistersAsLocalVariables = false;
-    bool generateExceptionHandlers = true;  ///< Generate SEH exception handler wrappers
+    bool generateExceptionHandlers = false;  ///< Generate SEH exception handler wrappers
 
     // === Analysis tuning (optional) ===
     uint32_t maxJumpExtension = 65536;     ///< Max bytes to extend function for jump table targets

@@ -22,7 +22,7 @@ namespace rexglue::cli {
 struct CliContext {
     bool verbose = false;
     bool force = false;  // Generate output despite validation errors
-    bool noExceptionHandlers = false;  // Skip SEH exception handler generation
+    bool enableExceptionHandlers = false;  // Enable SEH exception handler generation
 };
 
 } // namespace rexglue::cli

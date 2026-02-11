@@ -27,9 +27,9 @@ Result<void> CodegenFromConfig(const std::string& config_path, const CliContext&
     }
 
     // Apply CLI overrides to config
-    if (ctx.noExceptionHandlers) {
-        pipeline->context().Config().generateExceptionHandlers = false;
-        REXLOG_INFO("Exception handler generation disabled");
+    if (ctx.enableExceptionHandlers) {
+        pipeline->context().Config().generateExceptionHandlers = true;
+        REXLOG_INFO("Exception handler generation enabled");
     }
 
     return pipeline->Run(ctx.force);

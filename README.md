@@ -76,6 +76,7 @@ These control how PPC registers and instructions are translated to C++. All defa
 | `reserved_as_local` | Emit reserved registers (r1, r2, r13) as local variables. |
 | `non_argument_as_local` | Emit non-argument volatile registers (r11-r12) as local variables. |
 | `non_volatile_as_local` | Emit non-volatile registers (r14-r31) as local variables. Only safe when the function's save/restore behavior is well understood. |
+| `generate_exception_handlers` | Generate SEH exception handler wrappers. Can also be enabled at the CLI with `--enable_exception_handlers`. |
 
 #### Special addresses
 

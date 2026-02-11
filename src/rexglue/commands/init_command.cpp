@@ -309,7 +309,7 @@ std::string generate_config_toml(const InitOptions& opts) {
     content += "# non_volatile_as_local = false\n";
     content += "\n";
     content += "# Generate exception handler stubs\n";
-    content += "# generate_exception_handlers = true\n";
+    content += "# generate_exception_handlers = false\n";
     content += "\n";
     content += "# --- Analysis Tuning ---\n";
     content += "\n";

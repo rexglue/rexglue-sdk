@@ -19,7 +19,7 @@
 
 // Analyze/Codegen flags
 REXCVAR_DEFINE_BOOL(force, false, "Codegen", "Generate output even if validation errors occur");
-REXCVAR_DEFINE_BOOL(no_exception_handlers, false, "Codegen", "Skip generation of SEH exception handler code");
+REXCVAR_DEFINE_BOOL(enable_exception_handlers, false, "Codegen", "Enable generation of SEH exception handler code");
 
 // Recompile-tests flags
 REXCVAR_DEFINE_STRING(bin_dir, "", "RecompileTests", "Directory containing linked .bin and .map files");
@@ -90,7 +90,7 @@ int main(int argc, char** argv) {
     rexglue::cli::CliContext ctx;
     ctx.verbose = verbose;
     ctx.force = REXCVAR_GET(force);
-    ctx.noExceptionHandlers = REXCVAR_GET(no_exception_handlers);
+    ctx.enableExceptionHandlers = REXCVAR_GET(enable_exception_handlers);
 
     Result<void> result = Ok();
     if (command == "init") {
