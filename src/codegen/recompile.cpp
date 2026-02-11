@@ -41,9 +41,11 @@ Result<void> Recompile(CodegenContext& ctx, bool force) {
     // Clean up old generated files
     std::string prefix = config.projectName + "_";
     for (const auto& entry : std::filesystem::directory_iterator(output_path)) {
-        if (entry.path().extension() == ".cpp" || entry.path().extension() == ".h") {
+        auto ext = entry.path().extension();
+        if (ext == ".cpp" || ext == ".h" || ext == ".cmake") {
             std::string filename = entry.path().filename().string();
-            if (filename.starts_with(prefix) ||
+            if (filename == "sources.cmake" ||
+                filename.starts_with(prefix) ||
                 filename.starts_with("ppc_recomp") || filename.starts_with("ppc_func_mapping") ||
                 filename.starts_with("function_table_init") || filename.starts_with("ppc_config")) {
                 std::filesystem::remove(entry.path());
