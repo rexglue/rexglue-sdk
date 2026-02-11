@@ -284,7 +284,7 @@ inline void emitVectorTempEA(BuilderContext& ctx)
 //=============================================================================
 
 /**
- * Emit a PPC trap instruction: if (<condition>) __builtin_trap();
+ * Emit a PPC trap instruction: if (<condition>) ppc_trap(ctx, base, 0);
  *
  * @param to       5-bit TO field
  * @param aSigned  First operand, signed (e.g., "ctx.r3.s32")
@@ -297,7 +297,7 @@ inline void emitTrap(BuilderContext& ctx, uint32_t to,
     const std::string& bSigned, const std::string& bUnsigned)
 {
     if (to == 0) return;
-    if (to == 0x1F) { ctx.println("\t__builtin_trap();"); return; }
+    if (to == 0x1F) { ctx.println("\tppc_trap(ctx, base, 0);"); return; }
 
     std::string cond;
     auto add = [&](std::string_view c) {
@@ -310,7 +310,7 @@ inline void emitTrap(BuilderContext& ctx, uint32_t to,
     if (to & 0x02) add(fmt::format("{} < {}",  aUnsigned, bUnsigned));
     if (to & 0x01) add(fmt::format("{} > {}",  aUnsigned, bUnsigned));
 
-    ctx.println("\tif ({}) __builtin_trap();", cond);
+    ctx.println("\tif ({}) ppc_trap(ctx, base, 0);", cond);
 }
 
 } // namespace rexglue::codegen::builders

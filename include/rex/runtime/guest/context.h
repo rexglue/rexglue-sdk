@@ -26,6 +26,7 @@
 #include <rex/runtime/guest/memory.h>
 #include <rex/thread/mutex.h>
 #include <rex/time/clock.h>  // For mftb timebase access
+#include <rex/logging.h>
 
 // Forward declarations for kernel state access
 namespace rex::kernel {
@@ -483,3 +484,33 @@ inline std::atomic<int32_t>& ppc_global_lock_count_() {
         assert(old_count_ >= 1 && "LeaveGlobalLock called without matching EnterGlobalLock"); \
         rex::thread::global_critical_region::mutex().unlock(); \
     } while(0)
+
+//=============================================================================
+// PPC Trap Handling
+//=============================================================================
+// Trap instructions (tw/twi/td/tdi) generate a Program Exception on PPC.
+// The kernel inspects the trap type and dispatches to the appropriate handler.
+// Unconditional traps (twi 31, r0, <imm>) encode a service code in the immediate:
+//   20, 26 = Debug print (r3 = string ptr, r4 = length)
+//   0, 22  = Debug break
+//   25     = No-op
+// Conditional traps are inline assertions that continue on the exception return path.
+inline void ppc_trap(PPCContext& ctx, uint8_t* base, uint16_t trap_type) {
+    switch (trap_type) {
+    case 20:
+    case 26: {
+        auto str = PPC_LOAD_STRING(ctx.r3.u32, ctx.r4.u16);
+        REXCPU_DEBUG("(service trap) {}", str);
+        break;
+    }
+    case 0:
+    case 22:
+        REXCPU_WARN("tw/td trap hit (type {})", trap_type);
+        break;
+    case 25:
+        break;
+    default:
+        REXCPU_WARN("Unknown trap type {}", trap_type);
+        break;
+    }
+}

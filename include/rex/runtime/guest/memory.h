@@ -66,6 +66,10 @@
 #define PPC_LOAD_U64(x) __builtin_bswap64(*(volatile uint64_t*)(base + (uint32_t)(x) + PPC_PHYS_HOST_OFFSET(x)))
 #endif
 
+#ifndef PPC_LOAD_STRING
+#define PPC_LOAD_STRING(x, len) std::string_view(reinterpret_cast<const char*>(base + (uint32_t)(x) + PPC_PHYS_HOST_OFFSET(x)), (len))
+#endif
+
 //=============================================================================
 // Store Macros (Host to Big-Endian)
 //=============================================================================

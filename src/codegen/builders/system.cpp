@@ -99,6 +99,14 @@ bool build_twi(BuilderContext& ctx)
     uint32_t to = (ctx.insn.instruction >> 21) & 0x1F;
     uint32_t ra = (ctx.insn.instruction >> 16) & 0x1F;
     int32_t simm = static_cast<int16_t>(ctx.insn.instruction & 0xFFFF);
+
+    // twi 31, r0, <imm> is an unconditional trap with service code in the immediate
+    if (to == 0x1F && ra == 0) {
+        uint16_t trap_type = static_cast<uint16_t>(simm);
+        ctx.println("\tppc_trap(ctx, base, {});", trap_type);
+        return true;
+    }
+
     emitTrap(ctx, to,
         fmt::format("{}.s32", ctx.r(ra)), fmt::format("{}.u32", ctx.r(ra)),
         fmt::format("{}", simm), fmt::format("{}u", static_cast<uint32_t>(simm)));
