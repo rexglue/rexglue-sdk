@@ -298,6 +298,20 @@ bool build_vsubsws(BuilderContext& ctx)
     return true;
 }
 
+bool build_vsubuws(BuilderContext& ctx)
+{
+    // TODO: vectorize
+    for (size_t i = 0; i < 4; i++)
+    {
+        ctx.println("\t{}.s64 = int64_t({}.u32[{}]) - int64_t({}.u32[{}]);",
+            ctx.temp(), ctx.v(ctx.insn.operands[1]), i, ctx.v(ctx.insn.operands[2]), i);
+        ctx.println("\t{}.u32[{}] = {}.s64 < 0 ? 0 : (uint32_t){}.s64;",
+            ctx.v(ctx.insn.operands[0]), i, ctx.temp(), ctx.temp());
+    }
+    return true;
+}
+
+
 bool build_vsububs(BuilderContext& ctx)
 {
     ctx.emit_vec_int_binary("subs_epu8", "u8");
@@ -334,9 +348,21 @@ bool build_vmaxuh(BuilderContext& ctx)
     return true;
 }
 
+bool build_vmaxub(BuilderContext& ctx)
+{
+    ctx.emit_vec_int_binary("max_epu8", "epu8");
+    return true;
+}
+
 bool build_vminuh(BuilderContext& ctx)
 {
     ctx.emit_vec_int_binary("min_epu16", "u16");
+    return true;
+}
+
+bool build_vminub(BuilderContext& ctx)
+{
+    ctx.emit_vec_int_binary("min_epu8", "u8");
     return true;
 }
 
@@ -759,6 +785,20 @@ bool build_vrlh(BuilderContext& ctx)
     }
     return true;
 }
+
+bool build_vrlw(BuilderContext& ctx)
+{
+    // TODO(tomc): vectorize
+    for (size_t i = 0; i < 4; i++)
+    {
+        ctx.println("\t{{ uint32_t sh = {}.u32[{}] & 0x1F;",
+            ctx.v(ctx.insn.operands[2]), i);
+		ctx.println("\t{}.u32[{}] = ({}.u32[{}] << sh) | ({}.u32[{}] >> (32 - sh)); }}",
+            ctx.v(ctx.insn.operands[0]), i, ctx.v(ctx.insn.operands[1]), i, ctx.v(ctx.insn.operands[1]), i);
+    }
+    return true;
+}
+
 
 bool build_vsl(BuilderContext& ctx)
 {

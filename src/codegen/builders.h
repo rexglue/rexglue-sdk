@@ -435,13 +435,16 @@ bool build_vadduwm(BuilderContext& ctx);
 bool build_vadduws(BuilderContext& ctx);
 bool build_vsubshs(BuilderContext& ctx);
 bool build_vsubsws(BuilderContext& ctx);
+bool build_vsubuws(BuilderContext& ctx);
 bool build_vsububs(BuilderContext& ctx);
 bool build_vsubuhm(BuilderContext& ctx);
 bool build_vmaxsh(BuilderContext& ctx);
 bool build_vmaxsw(BuilderContext& ctx);
 bool build_vmaxuh(BuilderContext& ctx);
+bool build_vmaxub(BuilderContext& ctx);
 bool build_vminsh(BuilderContext& ctx);
 bool build_vminuh(BuilderContext& ctx);
+bool build_vminub(BuilderContext& ctx);
 
 // Vector average
 bool build_vavgsb(BuilderContext& ctx);
@@ -503,6 +506,7 @@ bool build_vsraw(BuilderContext& ctx);
 bool build_vsrw(BuilderContext& ctx);
 bool build_vsro(BuilderContext& ctx);
 bool build_vrlh(BuilderContext& ctx);
+bool build_vrlw(BuilderContext& ctx);
 
 // Vector splat
 bool build_vspltb(BuilderContext& ctx);

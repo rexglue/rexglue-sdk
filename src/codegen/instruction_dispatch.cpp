@@ -422,11 +422,14 @@ static const std::unordered_map<int, Builder>& GetDispatchTable()
         { PPC_INST_VSUBUBS, build_vsububs },
         { PPC_INST_VSUBUHM, build_vsubuhm },
         { PPC_INST_VSUBSHS, build_vsubshs },
+		{ PPC_INST_VSUBUWS, build_vsubuws },
         { PPC_INST_VMAXSW, build_vmaxsw },
         { PPC_INST_VMAXSH, build_vmaxsh },
         { PPC_INST_VMINSH, build_vminsh },
         { PPC_INST_VMAXUH, build_vmaxuh },
+        { PPC_INST_VMAXUB, build_vmaxub },
         { PPC_INST_VMINUH, build_vminuh },
+        { PPC_INST_VMINUB, build_vminub },
 
         //=====================================================================
         // Vector - Average
@@ -525,6 +528,8 @@ static const std::unordered_map<int, Builder>& GetDispatchTable()
         { PPC_INST_VSRO, build_vsro },
         { PPC_INST_VSRO128, build_vsro },
         { PPC_INST_VRLH, build_vrlh },
+        { PPC_INST_VRLW, build_vrlw },
+        { PPC_INST_VRLW128, build_vrlw },
 
         //=====================================================================
         // Vector - Splat
