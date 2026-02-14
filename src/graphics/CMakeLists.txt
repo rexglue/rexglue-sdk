@@ -117,7 +117,7 @@ target_include_directories(rexgraphics PRIVATE
 
 target_link_libraries(rexgraphics PUBLIC
     rexcore
-    rexkernel
+    rexsystem
     rexui
     xxHash::xxhash
     snappy

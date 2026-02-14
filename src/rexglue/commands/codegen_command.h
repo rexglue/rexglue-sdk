@@ -11,9 +11,11 @@
 
 #pragma once
 
-#include <rex/result.h>
 #include "../cli_utils.h"
+
 #include <string>
+
+#include <rex/result.h>
 
 namespace rexglue::cli {
 
@@ -28,4 +30,4 @@ using rex::Result;
  */
 Result<void> CodegenFromConfig(const std::string& config_path, const CliContext& ctx);
 
-} // namespace rexglue::cli
+}  // namespace rexglue::cli

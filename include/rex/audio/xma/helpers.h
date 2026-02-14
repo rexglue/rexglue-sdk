@@ -26,8 +26,7 @@ inline uint32_t GetPacketFrameCount(uint8_t* packet) {
 
 // Get the first frame offset in bits
 inline uint32_t GetPacketFrameOffset(uint8_t* packet) {
-  uint32_t val = (uint16_t)(((packet[0] & 0x3) << 13) | (packet[1] << 5) |
-                            (packet[2] >> 3));
+  uint32_t val = (uint16_t)(((packet[0] & 0x3) << 13) | (packet[1] << 5) | (packet[2] >> 3));
   // if (val > kBitsPerPacket - kBitsPerHeader) {
   //   // There is no data in this packet
   //   return -1;
@@ -40,6 +39,8 @@ inline uint32_t GetPacketMetadata(uint8_t* packet) {
   return (uint8_t)(packet[2] & 0x7);
 }
 
-inline uint32_t GetPacketSkipCount(uint8_t* packet) { return (uint8_t)(packet[3]); }
+inline uint32_t GetPacketSkipCount(uint8_t* packet) {
+  return (uint8_t)(packet[3]);
+}
 
 }  // namespace rex::audio::xma

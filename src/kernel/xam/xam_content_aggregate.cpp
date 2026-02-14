@@ -9,28 +9,28 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <rex/filesystem/file.h>
+#include <rex/kernel/xam/private.h>
 #include <rex/logging.h>
 #include <rex/math.h>
+#include <rex/ppc/function.h>
+#include <rex/ppc/types.h>
 #include <rex/string/util.h>
-#include <rex/kernel/kernel_state.h>
-#include <rex/kernel/user_module.h>
-#include <rex/runtime/guest/function.h>
-#include <rex/runtime/guest/types.h>
-#include <rex/kernel/xam/content_device.h>
-#include <rex/kernel/xam/private.h>
-#include <rex/kernel/xenumerator.h>
-#include <rex/filesystem/file.h>
-#include <rex/kernel/xtypes.h>
+#include <rex/system/kernel_state.h>
+#include <rex/system/user_module.h>
+#include <rex/system/xam/content_device.h>
+#include <rex/system/xenumerator.h>
+#include <rex/system/xtypes.h>
 
 namespace rex {
 namespace kernel {
 namespace xam {
-using namespace rex::runtime::guest;
+using namespace rex::system;
+using namespace rex::system::xam;
 
 void AddODDContentTest(object_ref<XStaticEnumerator<XCONTENT_AGGREGATE_DATA>> e,
                        XContentType content_type) {
-  auto root_entry = kernel_state()->file_system()->ResolvePath(
-      "game:\\Content\\0000000000000000");
+  auto root_entry = kernel_state()->file_system()->ResolvePath("game:\\Content\\0000000000000000");
   if (!root_entry) {
     return;
   }
@@ -46,22 +46,20 @@ void AddODDContentTest(object_ref<XStaticEnumerator<XCONTENT_AGGREGATE_DATA>> e,
   size_t title_find_index = 0;
   rex::filesystem::Entry* title_entry;
   for (;;) {
-    title_entry =
-        root_entry->IterateChildren(title_find_engine, &title_find_index);
+    title_entry = root_entry->IterateChildren(title_find_engine, &title_find_index);
     if (!title_entry) {
       break;
     }
 
-    auto title_id =
-        rex::string::from_string<uint32_t>(title_entry->name(), true);
+    auto title_id = rex::string::from_string<uint32_t>(title_entry->name(), true);
 
     auto content_root_entry = title_entry->ResolvePath(content_type_path);
     if (content_root_entry) {
       size_t content_find_index = 0;
       rex::filesystem::Entry* content_entry;
       for (;;) {
-        content_entry = content_root_entry->IterateChildren(
-            content_find_engine, &content_find_index);
+        content_entry =
+            content_root_entry->IterateChildren(content_find_engine, &content_find_index);
         if (!content_entry) {
           break;
         }
@@ -80,11 +78,10 @@ void AddODDContentTest(object_ref<XStaticEnumerator<XCONTENT_AGGREGATE_DATA>> e,
   }
 }
 
-dword_result_t XamContentAggregateCreateEnumerator_entry(qword_t xuid,
-                                                         dword_t device_id,
-                                                         dword_t content_type,
-                                                         unknown_t unk3,
-                                                         lpdword_t handle_out) {
+ppc_u32_result_t XamContentAggregateCreateEnumerator_entry(ppc_u64_t xuid, ppc_u32_t device_id,
+                                                           ppc_u32_t content_type,
+                                                           ppc_unknown_t unk3,
+                                                           ppc_pu32_t handle_out) {
   assert_not_null(handle_out);
 
   auto device_info = device_id == 0 ? nullptr : GetDummyDeviceInfo(device_id);
@@ -92,8 +89,7 @@ dword_result_t XamContentAggregateCreateEnumerator_entry(qword_t xuid,
     return X_E_INVALIDARG;
   }
 
-  auto e = make_object<XStaticEnumerator<XCONTENT_AGGREGATE_DATA>>(
-      kernel_state(), 1);
+  auto e = make_object<XStaticEnumerator<XCONTENT_AGGREGATE_DATA>>(kernel_state(), 1);
   X_KENUMERATOR_CONTENT_AGGREGATE* extra;
   auto result = e->Initialize(0xFF, 0xFE, 0x2000E, 0x20010, 0, &extra);
   if (XFAILED(result)) {
@@ -112,15 +108,13 @@ dword_result_t XamContentAggregateCreateEnumerator_entry(qword_t xuid,
     auto exe_module = kernel_state()->GetExecutableModule();
     if (exe_module && exe_module->xex_module()) {
       const auto& alt_ids = exe_module->xex_module()->opt_alternate_title_ids();
-      std::copy(alt_ids.cbegin(), alt_ids.cend(),
-                std::back_inserter(title_ids));
+      std::copy(alt_ids.cbegin(), alt_ids.cend(), std::back_inserter(title_ids));
     }
 
     for (auto& title_id : title_ids) {
       // Get all content data.
       auto content_datas = kernel_state()->content_manager()->ListContent(
-          static_cast<uint32_t>(DummyDeviceId::HDD), content_type_enum,
-          title_id);
+          static_cast<uint32_t>(DummyDeviceId::HDD), content_type_enum, title_id);
       for (const auto& content_data : content_datas) {
         auto item = e->AppendItem();
         assert_not_null(item);
@@ -136,7 +130,7 @@ dword_result_t XamContentAggregateCreateEnumerator_entry(qword_t xuid,
   }
 
   REXKRNL_DEBUG("XamContentAggregateCreateEnumerator: added {} items to enumerator",
-         e->item_count());
+                e->item_count());
 
   *handle_out = e->handle();
   return X_ERROR_SUCCESS;
@@ -146,4 +140,5 @@ dword_result_t XamContentAggregateCreateEnumerator_entry(qword_t xuid,
 }  // namespace kernel
 }  // namespace rex
 
-GUEST_FUNCTION_HOOK(__imp__XamContentAggregateCreateEnumerator, rex::kernel::xam::XamContentAggregateCreateEnumerator_entry)
+PPC_HOOK(__imp__XamContentAggregateCreateEnumerator,
+         rex::kernel::xam::XamContentAggregateCreateEnumerator_entry)

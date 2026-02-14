@@ -9,29 +9,26 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/graphics/pipeline/texture/info.h>
-
 #include <algorithm>
 #include <cmath>
 
+#include <rex/graphics/pipeline/texture/info.h>
 #include <rex/math.h>
 
 namespace rex::graphics {
 
 using namespace rex::graphics::xenos;
 
-static TextureExtent CalculateExtent(const FormatInfo* format_info,
-                                     uint32_t pitch, uint32_t height,
-                                     uint32_t depth, bool is_tiled,
-                                     bool is_guest) {
+static TextureExtent CalculateExtent(const FormatInfo* format_info, uint32_t pitch, uint32_t height,
+                                     uint32_t depth, bool is_tiled, bool is_guest) {
   TextureExtent extent;
 
   extent.pitch = pitch;
   extent.height = height;
-  extent.block_width = rex::round_up(extent.pitch, format_info->block_width) /
-                       format_info->block_width;
-  extent.block_height = rex::round_up(extent.height, format_info->block_height) /
-                        format_info->block_height;
+  extent.block_width =
+      rex::round_up(extent.pitch, format_info->block_width) / format_info->block_width;
+  extent.block_height =
+      rex::round_up(extent.height, format_info->block_height) / format_info->block_height;
   extent.block_pitch_h = extent.block_width;
   extent.block_pitch_v = extent.block_height;
   extent.depth = depth;
@@ -65,17 +62,16 @@ static TextureExtent CalculateExtent(const FormatInfo* format_info,
   return extent;
 }
 
-TextureExtent TextureExtent::Calculate(const FormatInfo* format_info,
-                                       uint32_t pitch, uint32_t height,
-                                       uint32_t depth, bool is_tiled,
+TextureExtent TextureExtent::Calculate(const FormatInfo* format_info, uint32_t pitch,
+                                       uint32_t height, uint32_t depth, bool is_tiled,
                                        bool is_guest) {
   return CalculateExtent(format_info, pitch, height, depth, is_tiled, is_guest);
 }
 
 TextureExtent TextureExtent::Calculate(const TextureInfo* info, bool is_guest) {
   assert_not_null(info);
-  return CalculateExtent(info->format_info(), info->pitch, info->height + 1,
-                         info->depth + 1, info->is_tiled, is_guest);
+  return CalculateExtent(info->format_info(), info->pitch, info->height + 1, info->depth + 1,
+                         info->is_tiled, is_guest);
 }
 
 }  // namespace rex::graphics

@@ -10,13 +10,12 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <memory>
 
 #include <rex/ui/graphics_provider.h>
-#include <rex/ui/vulkan/ui_samplers.h>
 #include <rex/ui/vulkan/device.h>
 #include <rex/ui/vulkan/instance.h>
+#include <rex/ui/vulkan/ui_samplers.h>
 
 namespace rex {
 namespace ui {
@@ -24,8 +23,7 @@ namespace vulkan {
 
 class VulkanProvider : public GraphicsProvider {
  public:
-  static std::unique_ptr<VulkanProvider> Create(bool with_gpu_emulation,
-                                                bool with_presentation);
+  static std::unique_ptr<VulkanProvider> Create(bool with_gpu_emulation, bool with_presentation);
 
   VulkanInstance* vulkan_instance() const { return vulkan_instance_.get(); }
 
@@ -34,9 +32,8 @@ class VulkanProvider : public GraphicsProvider {
   // nullptr if created without presentation support.
   const UISamplers* ui_samplers() const { return ui_samplers_.get(); }
 
-  std::unique_ptr<Presenter> CreatePresenter(
-      Presenter::HostGpuLossCallback host_gpu_loss_callback =
-          Presenter::FatalErrorHostGpuLossCallback) override;
+  std::unique_ptr<Presenter> CreatePresenter(Presenter::HostGpuLossCallback host_gpu_loss_callback =
+                                                 Presenter::FatalErrorHostGpuLossCallback) override;
 
   std::unique_ptr<ImmediateDrawer> CreateImmediateDrawer() override;
 
@@ -54,5 +51,4 @@ class VulkanProvider : public GraphicsProvider {
 
 }  // namespace vulkan
 }  // namespace ui
-}  // namespace xe
-
+}  // namespace rex

@@ -9,8 +9,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/ui/window_win.h>
-
 #include <algorithm>
 #include <memory>
 #include <string>
@@ -19,30 +17,32 @@
 #include <rex/filesystem.h>
 #include <rex/logging.h>
 #include <rex/ui/surface_win.h>
+#include <rex/ui/window_win.h>
 
 // Must be included before Windows headers for things like NOMINMAX.
+#include <windowsx.h>
+
 #include <rex/platform.h>
 #include <rex/ui/virtual_key.h>
 #include <rex/ui/windowed_app_context_win.h>
 
 #include <ShellScalingApi.h>
 #include <dwmapi.h>
+#include <shellapi.h>
+#include <tpcshrd.h>
 
 namespace rex {
 namespace ui {
 
 std::unique_ptr<Window> Window::Create(WindowedAppContext& app_context,
-                                       const std::string_view title,
-                                       uint32_t desired_logical_width,
+                                       const std::string_view title, uint32_t desired_logical_width,
                                        uint32_t desired_logical_height) {
-  return std::make_unique<Win32Window>(
-      app_context, title, desired_logical_width, desired_logical_height);
+  return std::make_unique<Win32Window>(app_context, title, desired_logical_width,
+                                       desired_logical_height);
 }
 
-Win32Window::Win32Window(WindowedAppContext& app_context,
-                         const std::string_view title,
-                         uint32_t desired_logical_width,
-                         uint32_t desired_logical_height)
+Win32Window::Win32Window(WindowedAppContext& app_context, const std::string_view title,
+                         uint32_t desired_logical_width, uint32_t desired_logical_height)
     : Window(app_context, title, desired_logical_width, desired_logical_height),
       arrow_cursor_(LoadCursor(nullptr, IDC_ARROW)) {
   dpi_ = GetCurrentSystemDpi();
@@ -67,7 +67,9 @@ Win32Window::~Win32Window() {
   }
 }
 
-uint32_t Win32Window::GetMediumDpi() const { return USER_DEFAULT_SCREEN_DPI; }
+uint32_t Win32Window::GetMediumDpi() const {
+  return USER_DEFAULT_SCREEN_DPI;
+}
 
 bool Win32Window::OpenImpl() {
   const Win32WindowedAppContext& win32_app_context =
@@ -97,8 +99,7 @@ bool Win32Window::OpenImpl() {
     has_registered_class = true;
   }
 
-  const Win32MenuItem* main_menu =
-      static_cast<const Win32MenuItem*>(GetMainMenu());
+  const Win32MenuItem* main_menu = static_cast<const Win32MenuItem*>(GetMainMenu());
 
   // Setup the initial size for the non-fullscreen window. With per-monitor DPI,
   // this is also done to be able to obtain the initial window rectangle (with
@@ -121,22 +122,20 @@ bool Win32Window::OpenImpl() {
   RECT window_size_rect;
   window_size_rect.left = 0;
   window_size_rect.top = 0;
-  window_size_rect.right = LONG(ConvertSizeDpi(initial_desired_logical_width,
-                                               dpi_, USER_DEFAULT_SCREEN_DPI));
-  window_size_rect.bottom = LONG(ConvertSizeDpi(initial_desired_logical_height,
-                                                dpi_, USER_DEFAULT_SCREEN_DPI));
-  AdjustWindowRectangle(window_size_rect, window_style,
-                        BOOL(main_menu != nullptr), window_ex_style, dpi_);
+  window_size_rect.right =
+      LONG(ConvertSizeDpi(initial_desired_logical_width, dpi_, USER_DEFAULT_SCREEN_DPI));
+  window_size_rect.bottom =
+      LONG(ConvertSizeDpi(initial_desired_logical_height, dpi_, USER_DEFAULT_SCREEN_DPI));
+  AdjustWindowRectangle(window_size_rect, window_style, BOOL(main_menu != nullptr), window_ex_style,
+                        dpi_);
   // Create the window. Though WM_NCCREATE will assign to `hwnd_` too, still do
   // the assignment here to handle the case of a failure after WM_NCCREATE, for
   // instance.
   hwnd_ = CreateWindowExW(
       window_ex_style, L"RexWindowClass",
       reinterpret_cast<LPCWSTR>(rex::string::to_utf16(GetTitle()).c_str()), window_style,
-      CW_USEDEFAULT, CW_USEDEFAULT,
-      window_size_rect.right - window_size_rect.left,
-      window_size_rect.bottom - window_size_rect.top, nullptr, nullptr,
-      hinstance, this);
+      CW_USEDEFAULT, CW_USEDEFAULT, window_size_rect.right - window_size_rect.left,
+      window_size_rect.bottom - window_size_rect.top, nullptr, nullptr, hinstance, this);
   if (!hwnd_) {
     REXLOG_ERROR("CreateWindowExW failed");
     return false;
@@ -168,12 +167,12 @@ bool Win32Window::OpenImpl() {
     if (GetWindowPlacement(hwnd_, &initial_dpi_placement)) {
       window_size_rect.left = 0;
       window_size_rect.top = 0;
-      window_size_rect.right = LONG(ConvertSizeDpi(
-          initial_desired_logical_width, dpi_, USER_DEFAULT_SCREEN_DPI));
-      window_size_rect.bottom = LONG(ConvertSizeDpi(
-          initial_desired_logical_height, dpi_, USER_DEFAULT_SCREEN_DPI));
-      AdjustWindowRectangle(window_size_rect, window_style,
-                            BOOL(main_menu != nullptr), window_ex_style, dpi_);
+      window_size_rect.right =
+          LONG(ConvertSizeDpi(initial_desired_logical_width, dpi_, USER_DEFAULT_SCREEN_DPI));
+      window_size_rect.bottom =
+          LONG(ConvertSizeDpi(initial_desired_logical_height, dpi_, USER_DEFAULT_SCREEN_DPI));
+      AdjustWindowRectangle(window_size_rect, window_style, BOOL(main_menu != nullptr),
+                            window_ex_style, dpi_);
       initial_dpi_placement.rcNormalPosition.right =
           initial_dpi_placement.rcNormalPosition.left +
           (window_size_rect.right - window_size_rect.left);
@@ -188,22 +187,21 @@ bool Win32Window::OpenImpl() {
   // ignore E_INVALIDARG on Windows versions before 10.0.22000.0), primarily to
   // preserve all pixels of the guest output.
   DWM_WINDOW_CORNER_PREFERENCE window_corner_preference = DWMWCP_DONOTROUND;
-  DwmSetWindowAttribute(hwnd_, DWMWA_WINDOW_CORNER_PREFERENCE,
-                        &window_corner_preference,
+  DwmSetWindowAttribute(hwnd_, DWMWA_WINDOW_CORNER_PREFERENCE, &window_corner_preference,
                         sizeof(window_corner_preference));
 
   // Disable flicks.
   ATOM atom = GlobalAddAtomW(L"MicrosoftTabletPenServiceProperty");
   const DWORD_PTR dwHwndTabletProperty =
-      TABLET_DISABLE_PRESSANDHOLD |    // disables press and hold (right-click)
-                                       // gesture
-      TABLET_DISABLE_PENTAPFEEDBACK |  // disables UI feedback on pen up (waves)
+      TABLET_DISABLE_PRESSANDHOLD |       // disables press and hold (right-click)
+                                          // gesture
+      TABLET_DISABLE_PENTAPFEEDBACK |     // disables UI feedback on pen up (waves)
       TABLET_DISABLE_PENBARRELFEEDBACK |  // disables UI feedback on pen button
                                           // down (circle)
-      TABLET_DISABLE_FLICKS |  // disables pen flicks (back, forward, drag down,
-                               // drag up)
-      TABLET_DISABLE_TOUCHSWITCH | TABLET_DISABLE_SMOOTHSCROLLING |
-      TABLET_DISABLE_TOUCHUIFORCEON | TABLET_ENABLE_MULTITOUCHDATA;
+      TABLET_DISABLE_FLICKS |             // disables pen flicks (back, forward, drag down,
+                                          // drag up)
+      TABLET_DISABLE_TOUCHSWITCH | TABLET_DISABLE_SMOOTHSCROLLING | TABLET_DISABLE_TOUCHUIFORCEON |
+      TABLET_ENABLE_MULTITOUCHDATA;
   SetPropW(hwnd_, L"MicrosoftTabletPenServiceProperty",
            reinterpret_cast<HANDLE>(dwHwndTabletProperty));
   GlobalDeleteAtom(atom);
@@ -216,8 +214,7 @@ bool Win32Window::OpenImpl() {
 
   if (icon_) {
     SendMessageW(hwnd_, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(icon_));
-    SendMessageW(hwnd_, WM_SETICON, ICON_SMALL,
-                 reinterpret_cast<LPARAM>(icon_));
+    SendMessageW(hwnd_, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(icon_));
   }
 
   if (IsFullscreen()) {
@@ -257,13 +254,11 @@ bool Win32Window::OpenImpl() {
       AdjustWindowRectangle(non_client_area_rect);
       OnDesiredLogicalSizeUpdate(
           SizeToLogical(uint32_t(std::max(
-              (shown_placement.rcNormalPosition.right -
-               shown_placement.rcNormalPosition.left) -
+              (shown_placement.rcNormalPosition.right - shown_placement.rcNormalPosition.left) -
                   (non_client_area_rect.right - non_client_area_rect.left),
               LONG(0)))),
           SizeToLogical(uint32_t(std::max(
-              (shown_placement.rcNormalPosition.bottom -
-               shown_placement.rcNormalPosition.top) -
+              (shown_placement.rcNormalPosition.bottom - shown_placement.rcNormalPosition.top) -
                   (non_client_area_rect.bottom - non_client_area_rect.top),
               LONG(0)))));
     }
@@ -272,8 +267,7 @@ bool Win32Window::OpenImpl() {
     // GetClientRect returns a rectangle with 0 origin.
     RECT shown_client_rect;
     if (GetClientRect(hwnd_, &shown_client_rect)) {
-      OnActualSizeUpdate(uint32_t(shown_client_rect.right),
-                         uint32_t(shown_client_rect.bottom),
+      OnActualSizeUpdate(uint32_t(shown_client_rect.right), uint32_t(shown_client_rect.bottom),
                          destruction_receiver);
       if (destruction_receiver.IsWindowDestroyedOrClosed()) {
         return true;
@@ -343,16 +337,14 @@ void Win32Window::ApplyNewFullscreen() {
     BeginBatchedSizeUpdate();
 
     // Reinstate the non-client area.
-    SetWindowLong(hwnd_, GWL_STYLE,
-                  GetWindowLong(hwnd_, GWL_STYLE) | WS_OVERLAPPEDWINDOW);
+    SetWindowLong(hwnd_, GWL_STYLE, GetWindowLong(hwnd_, GWL_STYLE) | WS_OVERLAPPEDWINDOW);
     if (destruction_receiver.IsWindowDestroyedOrClosed()) {
       if (!destruction_receiver.IsWindowDestroyed()) {
         EndBatchedSizeUpdate(destruction_receiver);
       }
       return;
     }
-    const Win32MenuItem* main_menu =
-        static_cast<const Win32MenuItem*>(GetMainMenu());
+    const Win32MenuItem* main_menu = static_cast<const Win32MenuItem*>(GetMainMenu());
     if (main_menu) {
       SetMenu(hwnd_, main_menu->handle());
       if (destruction_receiver.IsWindowDestroyedOrClosed()) {
@@ -383,17 +375,16 @@ void Win32Window::ApplyNewFullscreen() {
       RECT new_dpi_rect;
       new_dpi_rect.left = 0;
       new_dpi_rect.top = 0;
-      new_dpi_rect.right = LONG(ConvertSizeDpi(
-          pre_fullscreen_normal_client_width_, dpi_, pre_fullscreen_dpi_));
-      new_dpi_rect.bottom = LONG(ConvertSizeDpi(
-          pre_fullscreen_normal_client_height_, dpi_, pre_fullscreen_dpi_));
+      new_dpi_rect.right =
+          LONG(ConvertSizeDpi(pre_fullscreen_normal_client_width_, dpi_, pre_fullscreen_dpi_));
+      new_dpi_rect.bottom =
+          LONG(ConvertSizeDpi(pre_fullscreen_normal_client_height_, dpi_, pre_fullscreen_dpi_));
       AdjustWindowRectangle(new_dpi_rect);
       pre_fullscreen_placement_.rcNormalPosition.right =
           pre_fullscreen_placement_.rcNormalPosition.left +
           (new_dpi_rect.right - new_dpi_rect.left);
       pre_fullscreen_placement_.rcNormalPosition.bottom =
-          pre_fullscreen_placement_.rcNormalPosition.top +
-          (new_dpi_rect.bottom - new_dpi_rect.top);
+          pre_fullscreen_placement_.rcNormalPosition.top + (new_dpi_rect.bottom - new_dpi_rect.top);
     }
     SetWindowPlacement(hwnd_, &pre_fullscreen_placement_);
     if (destruction_receiver.IsWindowDestroyedOrClosed()) {
@@ -405,8 +396,7 @@ void Win32Window::ApplyNewFullscreen() {
 
     // https://devblogs.microsoft.com/oldnewthing/20131017-00/?p=2903
     SetWindowPos(hwnd_, nullptr, 0, 0, 0, 0,
-                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER |
-                     SWP_FRAMECHANGED);
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
     if (destruction_receiver.IsWindowDestroyedOrClosed()) {
       if (!destruction_receiver.IsWindowDestroyed()) {
         EndBatchedSizeUpdate(destruction_receiver);
@@ -422,8 +412,7 @@ void Win32Window::ApplyNewFullscreen() {
 }
 
 void Win32Window::ApplyNewTitle() {
-  SetWindowTextW(hwnd_,
-                 reinterpret_cast<LPCWSTR>(rex::string::to_utf16(GetTitle()).c_str()));
+  SetWindowTextW(hwnd_, reinterpret_cast<LPCWSTR>(rex::string::to_utf16(GetTitle()).c_str()));
 }
 
 void Win32Window::LoadAndApplyIcon(const void* buffer, size_t size,
@@ -445,14 +434,12 @@ void Win32Window::LoadAndApplyIcon(const void* buffer, size_t size,
       return;
     }
     new_icon = reinterpret_cast<HICON>(GetClassLongPtrW(hwnd_, GCLP_HICON));
-    new_icon_small =
-        reinterpret_cast<HICON>(GetClassLongPtrW(hwnd_, GCLP_HICONSM));
+    new_icon_small = reinterpret_cast<HICON>(GetClassLongPtrW(hwnd_, GCLP_HICONSM));
     // Not caring if it's null in the class, accepting anything the class
     // specifies.
   } else {
-    new_icon = CreateIconFromResourceEx(
-        static_cast<PBYTE>(const_cast<void*>(buffer)), DWORD(size), TRUE,
-        0x00030000, 0, 0, LR_DEFAULTCOLOR | LR_DEFAULTSIZE);
+    new_icon = CreateIconFromResourceEx(static_cast<PBYTE>(const_cast<void*>(buffer)), DWORD(size),
+                                        TRUE, 0x00030000, 0, 0, LR_DEFAULTCOLOR | LR_DEFAULTSIZE);
     if (!new_icon) {
       return;
     }
@@ -460,10 +447,8 @@ void Win32Window::LoadAndApplyIcon(const void* buffer, size_t size,
   }
 
   if (hwnd_) {
-    SendMessageW(hwnd_, WM_SETICON, ICON_BIG,
-                 reinterpret_cast<LPARAM>(new_icon));
-    SendMessageW(hwnd_, WM_SETICON, ICON_SMALL,
-                 reinterpret_cast<LPARAM>(new_icon_small));
+    SendMessageW(hwnd_, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(new_icon));
+    SendMessageW(hwnd_, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(new_icon_small));
   }
 
   // The old icon is not in use anymore, safe to destroy it now.
@@ -483,8 +468,7 @@ void Win32Window::ApplyNewMainMenu(MenuItem* old_main_menu) {
     // The menu will be set when exiting fullscreen.
     return;
   }
-  const Win32MenuItem* main_menu =
-      static_cast<const Win32MenuItem*>(GetMainMenu());
+  const Win32MenuItem* main_menu = static_cast<const Win32MenuItem*>(GetMainMenu());
   WindowDestructionReceiver destruction_receiver(this);
   SetMenu(hwnd_, main_menu ? main_menu->handle() : nullptr);
   if (destruction_receiver.IsWindowDestroyedOrClosed()) {
@@ -518,8 +502,7 @@ void Win32Window::ApplyNewMouseRelease() {
   }
 }
 
-void Win32Window::ApplyNewCursorVisibility(
-    CursorVisibility old_cursor_visibility) {
+void Win32Window::ApplyNewCursorVisibility(CursorVisibility old_cursor_visibility) {
   CursorVisibility new_cursor_visibility = GetCursorVisibility();
   cursor_currently_auto_hidden_ = false;
   if (new_cursor_visibility == CursorVisibility::kAutoHidden) {
@@ -534,34 +517,34 @@ void Win32Window::ApplyNewCursorVisibility(
       cursor_auto_hide_timer_ = nullptr;
     }
   }
-  SetCursorIfFocusedOnClientArea(
-      new_cursor_visibility == CursorVisibility::kVisible ? arrow_cursor_
-                                                          : nullptr);
+  SetCursorIfFocusedOnClientArea(new_cursor_visibility == CursorVisibility::kVisible ? arrow_cursor_
+                                                                                     : nullptr);
 }
 
-void Win32Window::FocusImpl() { SetFocus(hwnd_); }
+void Win32Window::FocusImpl() {
+  SetFocus(hwnd_);
+}
 
-std::unique_ptr<Surface> Win32Window::CreateSurfaceImpl(
-    Surface::TypeFlags allowed_types) {
-  HINSTANCE hInstance =
-      static_cast<const Win32WindowedAppContext&>(app_context()).hinstance();
+std::unique_ptr<Surface> Win32Window::CreateSurfaceImpl(Surface::TypeFlags allowed_types) {
+  HINSTANCE hInstance = static_cast<const Win32WindowedAppContext&>(app_context()).hinstance();
   if (allowed_types & Surface::kTypeFlag_Win32Hwnd) {
     return std::make_unique<Win32HwndSurface>(hInstance, hwnd_);
   }
   return nullptr;
 }
 
-void Win32Window::RequestPaintImpl() { InvalidateRect(hwnd_, nullptr, FALSE); }
+void Win32Window::RequestPaintImpl() {
+  InvalidateRect(hwnd_, nullptr, FALSE);
+}
 
-BOOL Win32Window::AdjustWindowRectangle(RECT& rect, DWORD style, BOOL menu,
-                                        DWORD ex_style, UINT dpi) const {
+BOOL Win32Window::AdjustWindowRectangle(RECT& rect, DWORD style, BOOL menu, DWORD ex_style,
+                                        UINT dpi) const {
   const Win32WindowedAppContext& win32_app_context =
       static_cast<const Win32WindowedAppContext&>(app_context());
   const Win32WindowedAppContext::PerMonitorDpiV2Api* per_monitor_dpi_v2_api =
       win32_app_context.per_monitor_dpi_v2_api();
   if (per_monitor_dpi_v2_api) {
-    return per_monitor_dpi_v2_api->adjust_window_rect_ex_for_dpi(
-        &rect, style, menu, ex_style, dpi);
+    return per_monitor_dpi_v2_api->adjust_window_rect_ex_for_dpi(&rect, style, menu, ex_style, dpi);
   }
   // Before per-monitor DPI v2, there was no rescaling of the non-client
   // area at runtime at all, so throughout the execution of the process it will
@@ -574,8 +557,8 @@ BOOL Win32Window::AdjustWindowRectangle(RECT& rect) const {
     return FALSE;
   }
   return AdjustWindowRectangle(rect, GetWindowLong(hwnd_, GWL_STYLE),
-                               BOOL(GetMainMenu() != nullptr),
-                               GetWindowLong(hwnd_, GWL_EXSTYLE), dpi_);
+                               BOOL(GetMainMenu() != nullptr), GetWindowLong(hwnd_, GWL_EXSTYLE),
+                               dpi_);
 }
 
 uint32_t Win32Window::GetCurrentSystemDpi() const {
@@ -613,9 +596,8 @@ uint32_t Win32Window::GetCurrentDpi() const {
     if (per_monitor_dpi_v1_api) {
       HMONITOR monitor = MonitorFromWindow(hwnd_, MONITOR_DEFAULTTONEAREST);
       UINT monitor_dpi_x, monitor_dpi_y;
-      if (monitor &&
-          SUCCEEDED(per_monitor_dpi_v1_api->get_dpi_for_monitor(
-              monitor, MDT_DEFAULT, &monitor_dpi_x, &monitor_dpi_y))) {
+      if (monitor && SUCCEEDED(per_monitor_dpi_v1_api->get_dpi_for_monitor(
+                         monitor, MDT_DEFAULT, &monitor_dpi_x, &monitor_dpi_y))) {
         // According to MSDN, x and y are identical.
         return monitor_dpi_x;
       }
@@ -625,8 +607,7 @@ uint32_t Win32Window::GetCurrentDpi() const {
   return GetCurrentSystemDpi();
 }
 
-void Win32Window::ApplyFullscreenEntry(
-    WindowDestructionReceiver& destruction_receiver) {
+void Win32Window::ApplyFullscreenEntry(WindowDestructionReceiver& destruction_receiver) {
   if (!IsFullscreen()) {
     return;
   }
@@ -654,16 +635,16 @@ void Win32Window::ApplyFullscreenEntry(
   // becomes multiline), clamp to 0.
   RECT non_client_area_rect = {};
   AdjustWindowRectangle(non_client_area_rect);
-  pre_fullscreen_normal_client_width_ = uint32_t(
-      std::max((pre_fullscreen_placement_.rcNormalPosition.right -
-                pre_fullscreen_placement_.rcNormalPosition.left) -
-                   (non_client_area_rect.right - non_client_area_rect.left),
-               LONG(0)));
-  pre_fullscreen_normal_client_height_ = uint32_t(
-      std::max((pre_fullscreen_placement_.rcNormalPosition.bottom -
-                pre_fullscreen_placement_.rcNormalPosition.top) -
-                   (non_client_area_rect.bottom - non_client_area_rect.top),
-               LONG(0)));
+  pre_fullscreen_normal_client_width_ =
+      uint32_t(std::max((pre_fullscreen_placement_.rcNormalPosition.right -
+                         pre_fullscreen_placement_.rcNormalPosition.left) -
+                            (non_client_area_rect.right - non_client_area_rect.left),
+                        LONG(0)));
+  pre_fullscreen_normal_client_height_ =
+      uint32_t(std::max((pre_fullscreen_placement_.rcNormalPosition.bottom -
+                         pre_fullscreen_placement_.rcNormalPosition.top) -
+                            (non_client_area_rect.bottom - non_client_area_rect.top),
+                        LONG(0)));
 
   // Changing the style and the menu may change the size too, don't handle the
   // resize multiple times (also potentially with the listeners changing the
@@ -681,8 +662,7 @@ void Win32Window::ApplyFullscreenEntry(
       return;
     }
   }
-  SetWindowLong(hwnd_, GWL_STYLE,
-                GetWindowLong(hwnd_, GWL_STYLE) & ~DWORD(WS_OVERLAPPEDWINDOW));
+  SetWindowLong(hwnd_, GWL_STYLE, GetWindowLong(hwnd_, GWL_STYLE) & ~DWORD(WS_OVERLAPPEDWINDOW));
   if (destruction_receiver.IsWindowDestroyedOrClosed()) {
     if (!destruction_receiver.IsWindowDestroyed()) {
       EndBatchedSizeUpdate(destruction_receiver);
@@ -698,8 +678,7 @@ void Win32Window::ApplyFullscreenEntry(
   // state change that sometimes helps, sometimes doesn't, even if it becomes
   // borderless fullscreen again - this occurs sometimes at least on Windows 11
   // 21H2 on Nvidia GeForce GTX 1070 on driver version 472.12.
-  SetWindowPos(hwnd_, HWND_TOP, monitor_info.rcMonitor.left,
-               monitor_info.rcMonitor.top,
+  SetWindowPos(hwnd_, HWND_TOP, monitor_info.rcMonitor.left, monitor_info.rcMonitor.top,
                monitor_info.rcMonitor.right - monitor_info.rcMonitor.left,
                monitor_info.rcMonitor.bottom - monitor_info.rcMonitor.top,
                SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
@@ -716,8 +695,7 @@ void Win32Window::ApplyFullscreenEntry(
   }
 }
 
-void Win32Window::HandleSizeUpdate(
-    WindowDestructionReceiver& destruction_receiver) {
+void Win32Window::HandleSizeUpdate(WindowDestructionReceiver& destruction_receiver) {
   if (!hwnd_) {
     // Batched size update ended when the window has already been closed, for
     // instance.
@@ -744,13 +722,11 @@ void Win32Window::HandleSizeUpdate(
       if (AdjustWindowRectangle(non_client_area_rect)) {
         OnDesiredLogicalSizeUpdate(
             SizeToLogical(uint32_t(std::max(
-                (window_placement.rcNormalPosition.right -
-                 window_placement.rcNormalPosition.left) -
+                (window_placement.rcNormalPosition.right - window_placement.rcNormalPosition.left) -
                     (non_client_area_rect.right - non_client_area_rect.left),
                 LONG(0)))),
             SizeToLogical(uint32_t(std::max(
-                (window_placement.rcNormalPosition.bottom -
-                 window_placement.rcNormalPosition.top) -
+                (window_placement.rcNormalPosition.bottom - window_placement.rcNormalPosition.top) -
                     (non_client_area_rect.bottom - non_client_area_rect.top),
                 LONG(0)))));
       }
@@ -761,8 +737,8 @@ void Win32Window::HandleSizeUpdate(
   // GetClientRect returns a rectangle with 0 origin.
   RECT client_rect;
   if (GetClientRect(hwnd_, &client_rect)) {
-    OnActualSizeUpdate(uint32_t(client_rect.right),
-                       uint32_t(client_rect.bottom), destruction_receiver);
+    OnActualSizeUpdate(uint32_t(client_rect.right), uint32_t(client_rect.bottom),
+                       destruction_receiver);
     if (destruction_receiver.IsWindowDestroyedOrClosed()) {
       return;
     }
@@ -776,8 +752,7 @@ void Win32Window::BeginBatchedSizeUpdate() {
   ++batched_size_update_depth_;
 }
 
-void Win32Window::EndBatchedSizeUpdate(
-    WindowDestructionReceiver& destruction_receiver) {
+void Win32Window::EndBatchedSizeUpdate(WindowDestructionReceiver& destruction_receiver) {
   assert_not_zero(batched_size_update_depth_);
   if (--batched_size_update_depth_) {
     return;
@@ -866,10 +841,9 @@ bool Win32Window::HandleMouse(UINT message, WPARAM wParam, LPARAM lParam,
       break;
     case WM_MOUSEWHEEL:
       button = MouseEvent::Button::kNone;
-      static_assert(
-          MouseEvent::kScrollPerDetent == WHEEL_DELTA,
-          "Assuming the Windows scroll amount can be passed directly to "
-          "MouseEvent");
+      static_assert(MouseEvent::kScrollPerDetent == WHEEL_DELTA,
+                    "Assuming the Windows scroll amount can be passed directly to "
+                    "MouseEvent");
       scroll_y = GET_WHEEL_DELTA_WPARAM(wParam);
       break;
     default:
@@ -904,12 +878,10 @@ bool Win32Window::HandleMouse(UINT message, WPARAM wParam, LPARAM lParam,
   return e.is_handled();
 }
 
-bool Win32Window::HandleKeyboard(
-    UINT message, WPARAM wParam, LPARAM lParam,
-    WindowDestructionReceiver& destruction_receiver) {
-  KeyEvent e(this, VirtualKey(wParam), lParam & 0xFFFF,
-             !!(lParam & (LPARAM(1) << 30)), !!(GetKeyState(VK_SHIFT) & 0x80),
-             !!(GetKeyState(VK_CONTROL) & 0x80),
+bool Win32Window::HandleKeyboard(UINT message, WPARAM wParam, LPARAM lParam,
+                                 WindowDestructionReceiver& destruction_receiver) {
+  KeyEvent e(this, VirtualKey(wParam), lParam & 0xFFFF, !!(lParam & (LPARAM(1) << 30)),
+             !!(GetKeyState(VK_SHIFT) & 0x80), !!(GetKeyState(VK_CONTROL) & 0x80),
              !!(GetKeyState(VK_MENU) & 0x80), !!(GetKeyState(VK_LWIN) & 0x80));
   switch (message) {
     case WM_KEYDOWN:
@@ -938,8 +910,7 @@ void Win32Window::SetCursorIfFocusedOnClientArea(HCURSOR cursor) const {
     return;
   }
   if (WindowFromPoint(cursor_pos) == hwnd_ &&
-      SendMessage(hwnd_, WM_NCHITTEST, 0,
-                  MAKELONG(cursor_pos.x, cursor_pos.y)) == HTCLIENT) {
+      SendMessage(hwnd_, WM_NCHITTEST, 0, MAKELONG(cursor_pos.x, cursor_pos.y)) == HTCLIENT) {
     SetCursor(cursor);
   }
 }
@@ -956,26 +927,22 @@ void Win32Window::SetCursorAutoHideTimer() {
   // been called already, or cancels it if it's hasn't), update the most recent
   // message revision.
   last_cursor_auto_hide_queued = last_cursor_auto_hide_signaled + 1;
-  CreateTimerQueueTimer(&cursor_auto_hide_timer_, nullptr,
-                        AutoHideCursorTimerCallback, this,
+  CreateTimerQueueTimer(&cursor_auto_hide_timer_, nullptr, AutoHideCursorTimerCallback, this,
                         kDefaultCursorAutoHideMilliseconds, 0,
                         WT_EXECUTEINTIMERTHREAD | WT_EXECUTEONLYONCE);
 }
 
-void Win32Window::AutoHideCursorTimerCallback(void* parameter,
-                                              BOOLEAN timer_or_wait_fired) {
+void Win32Window::AutoHideCursorTimerCallback(void* parameter, BOOLEAN timer_or_wait_fired) {
   if (!timer_or_wait_fired) {
     // Not a timer callback.
     return;
   }
   Win32Window& window = *static_cast<Win32Window*>(parameter);
   window.last_cursor_auto_hide_signaled = window.last_cursor_auto_hide_queued;
-  SendMessage(window.hwnd_, kUserMessageAutoHideCursor,
-              window.last_cursor_auto_hide_signaled, 0);
+  SendMessage(window.hwnd_, kUserMessageAutoHideCursor, window.last_cursor_auto_hide_signaled, 0);
 }
 
-LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
-                             LPARAM lParam) {
+LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
   if (message >= WM_MOUSEFIRST && message <= WM_MOUSELAST) {
     WindowDestructionReceiver destruction_receiver(this);
     // Returning immediately anyway - no need to check
@@ -1031,8 +998,7 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
           ++path_size;             // Ensure space for the null terminator
           path.resize(path_size);  // Reserve space
           // Only getting first file dropped (other files ignored)
-          path_size =
-              DragQueryFileW(drop_handle, 0, (LPWSTR)&path[0], path_size);
+          path_size = DragQueryFileW(drop_handle, 0, (LPWSTR)&path[0], path_size);
           if (path_size > 0) {
             path.resize(path_size);  // Will drop the null terminator
             FileDropEvent e(this, rex::to_path(path));
@@ -1117,10 +1083,8 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
         // updating the window placement instead of the window position in this
         // case, for instance), as Windows (by design) restores the window when
         // changing the DPI to a new one.
-        SetWindowPos(hwnd_, nullptr, int(rect->left), int(rect->top),
-                     int(rect->right - rect->left),
-                     int(rect->bottom - rect->top),
-                     SWP_NOZORDER | SWP_NOACTIVATE);
+        SetWindowPos(hwnd_, nullptr, int(rect->left), int(rect->top), int(rect->right - rect->left),
+                     int(rect->bottom - rect->top), SWP_NOZORDER | SWP_NOACTIVATE);
         if (destruction_receiver.IsWindowDestroyedOrClosed()) {
           break;
         }
@@ -1144,8 +1108,7 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
     } break;
 
     case WM_SETCURSOR: {
-      if (reinterpret_cast<HWND>(wParam) == hwnd_ && HasFocus() &&
-          LOWORD(lParam) == HTCLIENT) {
+      if (reinterpret_cast<HWND>(wParam) == hwnd_ && HasFocus() && LOWORD(lParam) == HTCLIENT) {
         switch (GetCursorVisibility()) {
           case CursorVisibility::kAutoHidden: {
             // Always revealing the cursor in case of events like clicking, but
@@ -1199,9 +1162,8 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
           // disables UI feedback on pen button down (circle)
           TABLET_DISABLE_PENBARRELFEEDBACK |
           // disables pen flicks (back, forward, drag down, drag up)
-          TABLET_DISABLE_FLICKS | TABLET_DISABLE_TOUCHSWITCH |
-          TABLET_DISABLE_SMOOTHSCROLLING | TABLET_DISABLE_TOUCHUIFORCEON |
-          TABLET_ENABLE_MULTITOUCHDATA;
+          TABLET_DISABLE_FLICKS | TABLET_DISABLE_TOUCHSWITCH | TABLET_DISABLE_SMOOTHSCROLLING |
+          TABLET_DISABLE_TOUCHUIFORCEON | TABLET_ENABLE_MULTITOUCHDATA;
 
     case WM_MENUCOMMAND: {
       MENUINFO menu_info = {0};
@@ -1209,8 +1171,7 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
       menu_info.fMask = MIM_MENUDATA;
       GetMenuInfo(HMENU(lParam), &menu_info);
       auto parent_item = reinterpret_cast<Win32MenuItem*>(menu_info.dwMenuData);
-      auto child_item =
-          reinterpret_cast<Win32MenuItem*>(parent_item->child(wParam));
+      auto child_item = reinterpret_cast<Win32MenuItem*>(parent_item->child(wParam));
       assert_not_null(child_item);
       WindowDestructionReceiver destruction_receiver(this);
       child_item->OnSelected();
@@ -1232,8 +1193,7 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
   return DefWindowProc(hWnd, message, wParam, lParam);
 }
 
-LRESULT CALLBACK Win32Window::WndProcThunk(HWND hWnd, UINT message,
-                                           WPARAM wParam, LPARAM lParam) {
+LRESULT CALLBACK Win32Window::WndProcThunk(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
   if (hWnd) {
     Win32Window* window = nullptr;
     if (message == WM_NCCREATE) {
@@ -1257,15 +1217,14 @@ LRESULT CALLBACK Win32Window::WndProcThunk(HWND hWnd, UINT message,
       // area DPI scaling).
       const Win32WindowedAppContext& win32_app_context =
           static_cast<const Win32WindowedAppContext&>(window->app_context());
-      const Win32WindowedAppContext::PerMonitorDpiV2Api*
-          per_monitor_dpi_v2_api = win32_app_context.per_monitor_dpi_v2_api();
+      const Win32WindowedAppContext::PerMonitorDpiV2Api* per_monitor_dpi_v2_api =
+          win32_app_context.per_monitor_dpi_v2_api();
       if (per_monitor_dpi_v2_api) {
         per_monitor_dpi_v2_api->enable_non_client_dpi_scaling(hWnd);
       }
       // Already fully handled, no need to call Win32Window::WndProc.
     } else {
-      window =
-          reinterpret_cast<Win32Window*>(GetWindowLongPtr(hWnd, GWLP_USERDATA));
+      window = reinterpret_cast<Win32Window*>(GetWindowLongPtr(hWnd, GWLP_USERDATA));
       if (window && window->hwnd_ == hWnd) {
         return window->WndProc(hWnd, message, wParam, lParam);
       }
@@ -1274,15 +1233,13 @@ LRESULT CALLBACK Win32Window::WndProcThunk(HWND hWnd, UINT message,
   return DefWindowProc(hWnd, message, wParam, lParam);
 }
 
-std::unique_ptr<ui::MenuItem> MenuItem::Create(Type type,
-                                               const std::string& text,
+std::unique_ptr<ui::MenuItem> MenuItem::Create(Type type, const std::string& text,
                                                const std::string& hotkey,
                                                std::function<void()> callback) {
   return std::make_unique<Win32MenuItem>(type, text, hotkey, callback);
 }
 
-Win32MenuItem::Win32MenuItem(Type type, const std::string& text,
-                             const std::string& hotkey,
+Win32MenuItem::Win32MenuItem(Type type, const std::string& text, const std::string& hotkey,
                              std::function<void()> callback)
     : MenuItem(type, text, hotkey, std::move(callback)) {
   switch (type) {
@@ -1328,9 +1285,8 @@ void Win32MenuItem::OnChildAdded(MenuItem* generic_child_item) {
       // Nothing special.
       break;
     case MenuItem::Type::kPopup:
-      AppendMenuW(
-          handle_, MF_POPUP, reinterpret_cast<UINT_PTR>(child_item->handle()),
-          reinterpret_cast<LPCWSTR>(rex::string::to_utf16(child_item->text()).c_str()));
+      AppendMenuW(handle_, MF_POPUP, reinterpret_cast<UINT_PTR>(child_item->handle()),
+                  reinterpret_cast<LPCWSTR>(rex::string::to_utf16(child_item->text()).c_str()));
       break;
     case MenuItem::Type::kSeparator:
       AppendMenuW(handle_, MF_SEPARATOR, UINT_PTR(child_item->handle_), 0);

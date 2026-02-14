@@ -11,9 +11,15 @@
 
 #pragma once
 
-
-// Must be included before D3D and DXGI for things like NOMINMAX.
-#include <rex/platform/win.h>
+// clang - format off
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <ObjBase.h>
 
 #include <DXProgrammableCapture.h>
 #include <d3d12.h>
@@ -26,3 +32,4 @@
 #include <dxcapi.h>
 #include "DxbcConverter.h"
 
+// clang-format on

@@ -10,14 +10,13 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <cstdint>
 #include <mutex>
 #include <utility>
 #include <vector>
 
-#include <rex/thread/mutex.h>
 #include <rex/memory.h>
+#include <rex/thread/mutex.h>
 
 namespace rex::graphics {
 
@@ -33,9 +32,9 @@ class SharedMemory {
   // Call in the implementation-specific ClearCache.
   virtual void ClearCache();
 
-  typedef void (*GlobalWatchCallback)(
-      const std::unique_lock<std::recursive_mutex>& global_lock, void* context,
-      uint32_t address_first, uint32_t address_last, bool invalidated_by_gpu);
+  typedef void (*GlobalWatchCallback)(const std::unique_lock<std::recursive_mutex>& global_lock,
+                                      void* context, uint32_t address_first, uint32_t address_last,
+                                      bool invalidated_by_gpu);
   typedef void* GlobalWatchHandle;
   // Registers a callback invoked when something is invalidated in the GPU
   // memory copy by the CPU or (if triggered explicitly - such as by a resolve)
@@ -45,12 +44,11 @@ class SharedMemory {
   // the watched range.
   //
   // The callback is called within the global critical region.
-  GlobalWatchHandle RegisterGlobalWatch(GlobalWatchCallback callback,
-                                        void* callback_context);
+  GlobalWatchHandle RegisterGlobalWatch(GlobalWatchCallback callback, void* callback_context);
   void UnregisterGlobalWatch(GlobalWatchHandle handle);
-  typedef void (*WatchCallback)(
-      const std::unique_lock<std::recursive_mutex>& global_lock, void* context,
-      void* data, uint64_t argument, bool invalidated_by_gpu);
+  typedef void (*WatchCallback)(const std::unique_lock<std::recursive_mutex>& global_lock,
+                                void* context, void* data, uint64_t argument,
+                                bool invalidated_by_gpu);
   typedef void* WatchHandle;
   // Registers a callback invoked when the specified memory range is invalidated
   // in the GPU memory copy by the CPU or (if triggered explicitly - such as by
@@ -67,9 +65,9 @@ class SharedMemory {
   // Called with the global critical region locked. Do NOT watch or unwatch
   // ranges from within it! The watch for the callback is cancelled after the
   // callback - the handle becomes invalid.
-  WatchHandle WatchMemoryRange(uint32_t start, uint32_t length,
-                               WatchCallback callback, void* callback_context,
-                               void* callback_data, uint64_t callback_argument);
+  WatchHandle WatchMemoryRange(uint32_t start, uint32_t length, WatchCallback callback,
+                               void* callback_context, void* callback_data,
+                               uint64_t callback_argument);
   // Unregisters previously registered watched memory range.
   void UnwatchMemoryRange(WatchHandle handle);
 
@@ -82,8 +80,8 @@ class SharedMemory {
   // (to up to the first GPU-written page, as an access violation exception
   // count optimization) as modified by the CPU, also invalidating GPU-written
   // pages directly in the range.
-  std::pair<uint32_t, uint32_t> MemoryInvalidationCallback(
-      uint32_t physical_address_start, uint32_t length, bool exact_range);
+  std::pair<uint32_t, uint32_t> MemoryInvalidationCallback(uint32_t physical_address_start,
+                                                           uint32_t length, bool exact_range);
 
   // Marks the range as containing GPU-generated data (such as resolves),
   // triggering modification callbacks, making it valid (so pages are not
@@ -142,9 +140,7 @@ class SharedMemory {
   const std::vector<std::pair<uint32_t, uint32_t>>& trace_download_ranges() {
     return trace_download_ranges_;
   }
-  uint32_t trace_download_page_count() const {
-    return trace_download_page_count_;
-  }
+  uint32_t trace_download_page_count() const { return trace_download_page_count_; }
   // Fills trace_download_ranges() and trace_download_page_count() with
   // GPU-written ranges that need to be downloaded, and also invalidates
   // non-GPU-written ranges so only the needed data - not the all the collected
@@ -201,8 +197,7 @@ class SharedMemory {
   std::vector<SystemPageFlagsBlock> system_page_flags_;
 
   static std::pair<uint32_t, uint32_t> MemoryInvalidationCallbackThunk(
-      void* context_ptr, uint32_t physical_address_start, uint32_t length,
-      bool exact_range);
+      void* context_ptr, uint32_t physical_address_start, uint32_t length, bool exact_range);
 
   struct GlobalWatch {
     GlobalWatchCallback callback;
@@ -242,8 +237,7 @@ class SharedMemory {
     };
   };
   static constexpr uint32_t kWatchBucketSizeLog2 = 22;
-  static constexpr uint32_t kWatchBucketCount =
-      1 << (kBufferSizeLog2 - kWatchBucketSizeLog2);
+  static constexpr uint32_t kWatchBucketCount = 1 << (kBufferSizeLog2 - kWatchBucketSizeLog2);
   WatchNode* watch_buckets_[kWatchBucketCount] = {};
   // Allocation from pools - taking new WatchRanges and WatchNodes from the free
   // list, and if there are none, creating a pool if the current one is fully
@@ -258,12 +252,10 @@ class SharedMemory {
   WatchNode* watch_node_first_free_ = nullptr;
   // Triggers the watches (global and per-range), removing triggered range
   // watches.
-  void FireWatches(uint32_t page_first, uint32_t page_last,
-                   bool invalidated_by_gpu);
+  void FireWatches(uint32_t page_first, uint32_t page_last, bool invalidated_by_gpu);
   // Unlinks and frees the range and its nodes. Call this in the global critical
   // region.
   void UnlinkWatchRange(WatchRange* range);
 };
 
 }  // namespace rex::graphics
-

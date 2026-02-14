@@ -9,8 +9,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/ui/vulkan/immediate_drawer.h>
-
 #include <algorithm>
 #include <cstring>
 #include <iterator>
@@ -19,6 +17,7 @@
 #include <rex/assert.h>
 #include <rex/logging.h>
 #include <rex/math.h>
+#include <rex/ui/vulkan/immediate_drawer.h>
 #include <rex/ui/vulkan/presenter.h>
 #include <rex/ui/vulkan/util.h>
 
@@ -33,13 +32,12 @@ namespace shaders {
 }  // namespace shaders
 
 std::unique_ptr<VulkanImmediateDrawer> VulkanImmediateDrawer::Create(
-    const VulkanDevice* const vulkan_device,
-    const UISamplers* const ui_samplers) {
+    const VulkanDevice* const vulkan_device, const UISamplers* const ui_samplers) {
   assert_not_null(vulkan_device);
   assert_not_null(ui_samplers);
 
-  auto immediate_drawer = std::unique_ptr<VulkanImmediateDrawer>(
-      new VulkanImmediateDrawer(vulkan_device, ui_samplers));
+  auto immediate_drawer =
+      std::unique_ptr<VulkanImmediateDrawer>(new VulkanImmediateDrawer(vulkan_device, ui_samplers));
   if (!immediate_drawer->Initialize()) {
     return nullptr;
   }
@@ -57,8 +55,7 @@ VulkanImmediateDrawer::~VulkanImmediateDrawer() {
   // before draws).
   auto vulkan_presenter = static_cast<VulkanPresenter*>(presenter());
   if (vulkan_presenter) {
-    vulkan_presenter->AwaitUISubmissionCompletionFromUIThread(
-        last_paint_submission_index_);
+    vulkan_presenter->AwaitUISubmissionCompletionFromUIThread(last_paint_submission_index_);
   }
 
   const VulkanDevice::Functions& dfn = vulkan_device_->functions();
@@ -67,21 +64,17 @@ VulkanImmediateDrawer::~VulkanImmediateDrawer() {
   util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device, pipeline_line_);
   util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device, pipeline_triangle_);
 
-  util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
-                             pipeline_layout_);
+  util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device, pipeline_layout_);
 
   for (auto& deleted_texture : textures_deleted_) {
     DestroyTextureResource(deleted_texture.first);
   }
   for (SubmittedTextureUploadBuffer& submitted_texture_upload_buffer :
        texture_upload_buffers_submitted_) {
-    dfn.vkDestroyBuffer(device, submitted_texture_upload_buffer.buffer,
-                        nullptr);
-    dfn.vkFreeMemory(device, submitted_texture_upload_buffer.buffer_memory,
-                     nullptr);
+    dfn.vkDestroyBuffer(device, submitted_texture_upload_buffer.buffer, nullptr);
+    dfn.vkFreeMemory(device, submitted_texture_upload_buffer.buffer_memory, nullptr);
   }
-  for (PendingTextureUpload& pending_texture_upload :
-       texture_uploads_pending_) {
+  for (PendingTextureUpload& pending_texture_upload : texture_uploads_pending_) {
     dfn.vkDestroyBuffer(device, pending_texture_upload.buffer, nullptr);
     dfn.vkFreeMemory(device, pending_texture_upload.buffer_memory, nullptr);
   }
@@ -104,9 +97,8 @@ VulkanImmediateDrawer::~VulkanImmediateDrawer() {
                              texture_descriptor_set_layout_);
 }
 
-VulkanImmediateDrawer::VulkanImmediateDrawer(
-    const VulkanDevice* const vulkan_device,
-    const UISamplers* const ui_samplers)
+VulkanImmediateDrawer::VulkanImmediateDrawer(const VulkanDevice* const vulkan_device,
+                                             const UISamplers* const ui_samplers)
     : vulkan_device_(vulkan_device), ui_samplers_(ui_samplers) {
   assert_not_null(vulkan_device);
   assert_not_null(ui_samplers);
@@ -118,11 +110,9 @@ bool VulkanImmediateDrawer::Initialize() {
 
   VkDescriptorSetLayoutBinding texture_descriptor_set_layout_binding;
   texture_descriptor_set_layout_binding.binding = 0;
-  texture_descriptor_set_layout_binding.descriptorType =
-      VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+  texture_descriptor_set_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
   texture_descriptor_set_layout_binding.descriptorCount = 1;
-  texture_descriptor_set_layout_binding.stageFlags =
-      VK_SHADER_STAGE_FRAGMENT_BIT;
+  texture_descriptor_set_layout_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
   texture_descriptor_set_layout_binding.pImmutableSamplers = nullptr;
   VkDescriptorSetLayoutCreateInfo texture_descriptor_set_layout_create_info;
   texture_descriptor_set_layout_create_info.sType =
@@ -130,11 +120,9 @@ bool VulkanImmediateDrawer::Initialize() {
   texture_descriptor_set_layout_create_info.pNext = nullptr;
   texture_descriptor_set_layout_create_info.flags = 0;
   texture_descriptor_set_layout_create_info.bindingCount = 1;
-  texture_descriptor_set_layout_create_info.pBindings =
-      &texture_descriptor_set_layout_binding;
-  if (dfn.vkCreateDescriptorSetLayout(
-          device, &texture_descriptor_set_layout_create_info, nullptr,
-          &texture_descriptor_set_layout_) != VK_SUCCESS) {
+  texture_descriptor_set_layout_create_info.pBindings = &texture_descriptor_set_layout_binding;
+  if (dfn.vkCreateDescriptorSetLayout(device, &texture_descriptor_set_layout_create_info, nullptr,
+                                      &texture_descriptor_set_layout_) != VK_SUCCESS) {
     REXLOG_ERROR(
         "VulkanImmediateDrawer: Failed to create the combined image sampler "
         "descriptor set layout");
@@ -144,30 +132,26 @@ bool VulkanImmediateDrawer::Initialize() {
   // Create the (1, 1, 1, 1) texture as a replacement when drawing without a
   // real texture.
   size_t white_texture_pending_upload_index;
-  if (!CreateTextureResource(1, 1, ImmediateTextureFilter::kNearest, false,
-                             nullptr, white_texture_,
+  if (!CreateTextureResource(1, 1, ImmediateTextureFilter::kNearest, false, nullptr, white_texture_,
                              white_texture_pending_upload_index)) {
     REXLOG_ERROR("VulkanImmediateDrawer: Failed to create a blank texture");
     return false;
   }
 
   vertex_buffer_pool_ = std::make_unique<VulkanUploadBufferPool>(
-      vulkan_device_,
-      VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+      vulkan_device_, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
   VkPushConstantRange push_constant_ranges[1];
   push_constant_ranges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
   push_constant_ranges[0].offset = offsetof(PushConstants, vertex);
   push_constant_ranges[0].size = sizeof(PushConstants::Vertex);
   VkPipelineLayoutCreateInfo pipeline_layout_create_info;
-  pipeline_layout_create_info.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
   pipeline_layout_create_info.pNext = nullptr;
   pipeline_layout_create_info.flags = 0;
   pipeline_layout_create_info.setLayoutCount = 1;
   pipeline_layout_create_info.pSetLayouts = &texture_descriptor_set_layout_;
-  pipeline_layout_create_info.pushConstantRangeCount =
-      uint32_t(rex::countof(push_constant_ranges));
+  pipeline_layout_create_info.pushConstantRangeCount = uint32_t(rex::countof(push_constant_ranges));
   pipeline_layout_create_info.pPushConstantRanges = push_constant_ranges;
   if (dfn.vkCreatePipelineLayout(device, &pipeline_layout_create_info, nullptr,
                                  &pipeline_layout_) != VK_SUCCESS) {
@@ -182,29 +166,26 @@ bool VulkanImmediateDrawer::Initialize() {
 }
 
 std::unique_ptr<ImmediateTexture> VulkanImmediateDrawer::CreateTexture(
-    uint32_t width, uint32_t height, ImmediateTextureFilter filter,
-    bool is_repeated, const uint8_t* data) {
+    uint32_t width, uint32_t height, ImmediateTextureFilter filter, bool is_repeated,
+    const uint8_t* data) {
   assert_not_null(data);
   auto texture = std::make_unique<VulkanImmediateTexture>(width, height);
   size_t pending_upload_index;
-  if (CreateTextureResource(width, height, filter, is_repeated, data,
-                            texture->resource_, pending_upload_index)) {
+  if (CreateTextureResource(width, height, filter, is_repeated, data, texture->resource_,
+                            pending_upload_index)) {
     // Manage by this immediate drawer.
     texture->immediate_drawer_ = this;
     texture->immediate_drawer_index_ = textures_.size();
     textures_.push_back(texture.get());
     texture->pending_upload_index_ = pending_upload_index;
-    texture_uploads_pending_[texture->pending_upload_index_].texture =
-        texture.get();
+    texture_uploads_pending_[texture->pending_upload_index_].texture = texture.get();
   }
   return std::move(texture);
 }
 
-void VulkanImmediateDrawer::Begin(UIDrawContext& ui_draw_context,
-                                  float coordinate_space_width,
+void VulkanImmediateDrawer::Begin(UIDrawContext& ui_draw_context, float coordinate_space_width,
                                   float coordinate_space_height) {
-  ImmediateDrawer::Begin(ui_draw_context, coordinate_space_width,
-                         coordinate_space_height);
+  ImmediateDrawer::Begin(ui_draw_context, coordinate_space_width, coordinate_space_height);
 
   assert_false(batch_open_);
 
@@ -213,10 +194,8 @@ void VulkanImmediateDrawer::Begin(UIDrawContext& ui_draw_context,
 
   // Update the submission index to be used throughout the current immediate
   // drawer paint.
-  last_paint_submission_index_ =
-      vulkan_ui_draw_context.submission_index_current();
-  last_completed_submission_index_ =
-      vulkan_ui_draw_context.submission_index_completed();
+  last_paint_submission_index_ = vulkan_ui_draw_context.submission_index_current();
+  last_completed_submission_index_ = vulkan_ui_draw_context.submission_index_completed();
 
   const VulkanDevice::Functions& dfn = vulkan_device_->functions();
   const VkDevice device = vulkan_device_->device();
@@ -237,16 +216,15 @@ void VulkanImmediateDrawer::Begin(UIDrawContext& ui_draw_context,
   // Release upload buffers for completed texture uploads.
   auto erase_texture_uploads_end = texture_upload_buffers_submitted_.begin();
   while (erase_texture_uploads_end != texture_upload_buffers_submitted_.end()) {
-    if (erase_texture_uploads_end->submission_index >
-        last_completed_submission_index_) {
+    if (erase_texture_uploads_end->submission_index > last_completed_submission_index_) {
       break;
     }
     dfn.vkDestroyBuffer(device, erase_texture_uploads_end->buffer, nullptr);
     dfn.vkFreeMemory(device, erase_texture_uploads_end->buffer_memory, nullptr);
     ++erase_texture_uploads_end;
   }
-  texture_upload_buffers_submitted_.erase(
-      texture_upload_buffers_submitted_.begin(), erase_texture_uploads_end);
+  texture_upload_buffers_submitted_.erase(texture_upload_buffers_submitted_.begin(),
+                                          erase_texture_uploads_end);
 
   vertex_buffer_pool_->Reclaim(last_completed_submission_index_);
 
@@ -259,8 +237,7 @@ void VulkanImmediateDrawer::Begin(UIDrawContext& ui_draw_context,
     return;
   }
 
-  VkCommandBuffer draw_command_buffer =
-      vulkan_ui_draw_context.draw_command_buffer();
+  VkCommandBuffer draw_command_buffer = vulkan_ui_draw_context.draw_command_buffer();
 
   VkViewport viewport;
   viewport.x = 0.0f;
@@ -271,14 +248,11 @@ void VulkanImmediateDrawer::Begin(UIDrawContext& ui_draw_context,
   viewport.maxDepth = 1.0f;
   dfn.vkCmdSetViewport(draw_command_buffer, 0, 1, &viewport);
   PushConstants::Vertex push_constants_vertex;
-  push_constants_vertex.coordinate_space_size_inv[0] =
-      1.0f / coordinate_space_width;
-  push_constants_vertex.coordinate_space_size_inv[1] =
-      1.0f / coordinate_space_height;
-  dfn.vkCmdPushConstants(draw_command_buffer, pipeline_layout_,
-                         VK_SHADER_STAGE_VERTEX_BIT,
-                         offsetof(PushConstants, vertex),
-                         sizeof(PushConstants::Vertex), &push_constants_vertex);
+  push_constants_vertex.coordinate_space_size_inv[0] = 1.0f / coordinate_space_width;
+  push_constants_vertex.coordinate_space_size_inv[1] = 1.0f / coordinate_space_height;
+  dfn.vkCmdPushConstants(draw_command_buffer, pipeline_layout_, VK_SHADER_STAGE_VERTEX_BIT,
+                         offsetof(PushConstants, vertex), sizeof(PushConstants::Vertex),
+                         &push_constants_vertex);
   current_scissor_.offset.x = 0;
   current_scissor_.offset.y = 0;
   current_scissor_.extent.width = 0;
@@ -293,8 +267,7 @@ void VulkanImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
 
   const VulkanUIDrawContext& vulkan_ui_draw_context =
       *static_cast<const VulkanUIDrawContext*>(ui_draw_context());
-  VkCommandBuffer draw_command_buffer =
-      vulkan_ui_draw_context.draw_command_buffer();
+  VkCommandBuffer draw_command_buffer = vulkan_ui_draw_context.draw_command_buffer();
 
   const VulkanDevice::Functions& dfn = vulkan_device_->functions();
 
@@ -302,17 +275,16 @@ void VulkanImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
   size_t vertex_buffer_size = sizeof(ImmediateVertex) * batch.vertex_count;
   VkBuffer vertex_buffer;
   VkDeviceSize vertex_buffer_offset;
-  void* vertex_buffer_mapping = vertex_buffer_pool_->Request(
-      last_paint_submission_index_, vertex_buffer_size, sizeof(float),
-      vertex_buffer, vertex_buffer_offset);
+  void* vertex_buffer_mapping =
+      vertex_buffer_pool_->Request(last_paint_submission_index_, vertex_buffer_size, sizeof(float),
+                                   vertex_buffer, vertex_buffer_offset);
   if (!vertex_buffer_mapping) {
     REXLOG_ERROR("VulkanImmediateDrawer: Failed to get a buffer for {} vertices",
-           batch.vertex_count);
+                 batch.vertex_count);
     return;
   }
   std::memcpy(vertex_buffer_mapping, batch.vertices, vertex_buffer_size);
-  dfn.vkCmdBindVertexBuffers(draw_command_buffer, 0, 1, &vertex_buffer,
-                             &vertex_buffer_offset);
+  dfn.vkCmdBindVertexBuffers(draw_command_buffer, 0, 1, &vertex_buffer, &vertex_buffer_offset);
 
   // Bind the indices.
   batch_has_index_buffer_ = batch.indices != nullptr;
@@ -320,17 +292,17 @@ void VulkanImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
     size_t index_buffer_size = sizeof(uint16_t) * batch.index_count;
     VkBuffer index_buffer;
     VkDeviceSize index_buffer_offset;
-    void* index_buffer_mapping = vertex_buffer_pool_->Request(
-        last_paint_submission_index_, index_buffer_size, sizeof(uint16_t),
-        index_buffer, index_buffer_offset);
+    void* index_buffer_mapping =
+        vertex_buffer_pool_->Request(last_paint_submission_index_, index_buffer_size,
+                                     sizeof(uint16_t), index_buffer, index_buffer_offset);
     if (!index_buffer_mapping) {
       REXLOG_ERROR("VulkanImmediateDrawer: Failed to get a buffer for {} indices",
-             batch.index_count);
+                   batch.index_count);
       return;
     }
     std::memcpy(index_buffer_mapping, batch.indices, index_buffer_size);
-    dfn.vkCmdBindIndexBuffer(draw_command_buffer, index_buffer,
-                             index_buffer_offset, VK_INDEX_TYPE_UINT16);
+    dfn.vkCmdBindIndexBuffer(draw_command_buffer, index_buffer, index_buffer_offset,
+                             VK_INDEX_TYPE_UINT16);
   }
 
   batch_open_ = true;
@@ -346,8 +318,7 @@ void VulkanImmediateDrawer::Draw(const ImmediateDraw& draw) {
   const VulkanDevice::Functions& dfn = vulkan_device_->functions();
   const VulkanUIDrawContext& vulkan_ui_draw_context =
       *static_cast<const VulkanUIDrawContext*>(ui_draw_context());
-  VkCommandBuffer draw_command_buffer =
-      vulkan_ui_draw_context.draw_command_buffer();
+  VkCommandBuffer draw_command_buffer = vulkan_ui_draw_context.draw_command_buffer();
 
   // Get the pipeline for the current primitive type.
   VkPipeline pipeline;
@@ -370,8 +341,8 @@ void VulkanImmediateDrawer::Draw(const ImmediateDraw& draw) {
   // Set the scissor rectangle if enabled.
   VkRect2D scissor;
   uint32_t scissor_left, scissor_top;
-  if (!ScissorToRenderTarget(draw, scissor_left, scissor_top,
-                             scissor.extent.width, scissor.extent.height)) {
+  if (!ScissorToRenderTarget(draw, scissor_left, scissor_top, scissor.extent.width,
+                             scissor.extent.height)) {
     // Nothing is visible (zero area is used as the default current_scissor_
     // value also).
     return;
@@ -389,14 +360,12 @@ void VulkanImmediateDrawer::Draw(const ImmediateDraw& draw) {
   // Bind the pipeline for the primitive type if the scissor is not empty.
   if (current_pipeline_ != pipeline) {
     current_pipeline_ = pipeline;
-    dfn.vkCmdBindPipeline(draw_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          pipeline);
+    dfn.vkCmdBindPipeline(draw_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
   }
 
   // Bind the texture.
   uint32_t texture_descriptor_index;
-  VulkanImmediateTexture* texture =
-      static_cast<VulkanImmediateTexture*>(draw.texture);
+  VulkanImmediateTexture* texture = static_cast<VulkanImmediateTexture*>(draw.texture);
   if (texture && texture->immediate_drawer_ == this) {
     texture_descriptor_index = texture->resource_.descriptor_index;
     texture->last_usage_submission_ = last_paint_submission_index_;
@@ -405,31 +374,30 @@ void VulkanImmediateDrawer::Draw(const ImmediateDraw& draw) {
   }
   if (current_texture_descriptor_index_ != texture_descriptor_index) {
     current_texture_descriptor_index_ = texture_descriptor_index;
-    VkDescriptorSet texture_descriptor_set =
-        GetTextureDescriptor(texture_descriptor_index);
-    dfn.vkCmdBindDescriptorSets(
-        draw_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_,
-        0, 1, &texture_descriptor_set, 0, nullptr);
+    VkDescriptorSet texture_descriptor_set = GetTextureDescriptor(texture_descriptor_index);
+    dfn.vkCmdBindDescriptorSets(draw_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                pipeline_layout_, 0, 1, &texture_descriptor_set, 0, nullptr);
   }
 
   // Draw.
   if (batch_has_index_buffer_) {
-    dfn.vkCmdDrawIndexed(draw_command_buffer, draw.count, 1, draw.index_offset,
-                         draw.base_vertex, 0);
+    dfn.vkCmdDrawIndexed(draw_command_buffer, draw.count, 1, draw.index_offset, draw.base_vertex,
+                         0);
   } else {
     dfn.vkCmdDraw(draw_command_buffer, draw.count, 1, draw.base_vertex, 0);
   }
 }
 
-void VulkanImmediateDrawer::EndDrawBatch() { batch_open_ = false; }
+void VulkanImmediateDrawer::EndDrawBatch() {
+  batch_open_ = false;
+}
 
 void VulkanImmediateDrawer::End() {
   assert_false(batch_open_);
 
   // Upload textures.
   if (!texture_uploads_pending_.empty()) {
-    VulkanPresenter& vulkan_presenter =
-        *static_cast<VulkanPresenter*>(presenter());
+    VulkanPresenter& vulkan_presenter = *static_cast<VulkanPresenter*>(presenter());
     VkCommandBuffer setup_command_buffer =
         vulkan_presenter.AcquireUISetupCommandBufferFromUIThread();
     if (setup_command_buffer != VK_NULL_HANDLE) {
@@ -450,23 +418,20 @@ void VulkanImmediateDrawer::End() {
       image_memory_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
       image_memory_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
       image_memory_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-      image_memory_barrier.subresourceRange =
-          util::InitializeSubresourceRange();
-      for (const PendingTextureUpload& pending_texture_upload :
-           texture_uploads_pending_) {
+      image_memory_barrier.subresourceRange = util::InitializeSubresourceRange();
+      for (const PendingTextureUpload& pending_texture_upload : texture_uploads_pending_) {
         image_memory_barriers.emplace_back(image_memory_barrier).image =
             pending_texture_upload.image;
       }
-      dfn.vkCmdPipelineBarrier(
-          setup_command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-          VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr,
-          uint32_t(image_memory_barriers.size()), image_memory_barriers.data());
+      dfn.vkCmdPipelineBarrier(setup_command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                               VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr,
+                               uint32_t(image_memory_barriers.size()),
+                               image_memory_barriers.data());
 
       // Do transfer operations and transition to
       // VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, and also mark as used.
       for (size_t i = 0; i < texture_uploads_pending_count; ++i) {
-        const PendingTextureUpload& pending_texture_upload =
-            texture_uploads_pending_[i];
+        const PendingTextureUpload& pending_texture_upload = texture_uploads_pending_[i];
         if (pending_texture_upload.buffer != VK_NULL_HANDLE) {
           // Copying.
           VkBufferImageCopy copy_region;
@@ -483,19 +448,15 @@ void VulkanImmediateDrawer::End() {
           copy_region.imageExtent.width = pending_texture_upload.width;
           copy_region.imageExtent.height = pending_texture_upload.height;
           copy_region.imageExtent.depth = 1;
-          dfn.vkCmdCopyBufferToImage(
-              setup_command_buffer, pending_texture_upload.buffer,
-              pending_texture_upload.image,
-              VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy_region);
+          dfn.vkCmdCopyBufferToImage(setup_command_buffer, pending_texture_upload.buffer,
+                                     pending_texture_upload.image,
+                                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy_region);
 
           SubmittedTextureUploadBuffer& submitted_texture_upload_buffer =
               texture_upload_buffers_submitted_.emplace_back();
-          submitted_texture_upload_buffer.buffer =
-              pending_texture_upload.buffer;
-          submitted_texture_upload_buffer.buffer_memory =
-              pending_texture_upload.buffer_memory;
-          submitted_texture_upload_buffer.submission_index =
-              last_paint_submission_index_;
+          submitted_texture_upload_buffer.buffer = pending_texture_upload.buffer;
+          submitted_texture_upload_buffer.buffer_memory = pending_texture_upload.buffer_memory;
+          submitted_texture_upload_buffer.submission_index = last_paint_submission_index_;
         } else {
           // Clearing (initializing the special empty image).
           VkClearColorValue white_clear_value;
@@ -503,32 +464,26 @@ void VulkanImmediateDrawer::End() {
           white_clear_value.float32[1] = 1.0f;
           white_clear_value.float32[2] = 1.0f;
           white_clear_value.float32[3] = 1.0f;
-          dfn.vkCmdClearColorImage(
-              setup_command_buffer, pending_texture_upload.image,
-              VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &white_clear_value, 1,
-              &image_memory_barrier.subresourceRange);
+          dfn.vkCmdClearColorImage(setup_command_buffer, pending_texture_upload.image,
+                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &white_clear_value, 1,
+                                   &image_memory_barrier.subresourceRange);
         }
 
-        VkImageMemoryBarrier& image_memory_barrier_current =
-            image_memory_barriers[i];
-        image_memory_barrier_current.srcAccessMask =
-            VK_ACCESS_TRANSFER_WRITE_BIT;
+        VkImageMemoryBarrier& image_memory_barrier_current = image_memory_barriers[i];
+        image_memory_barrier_current.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         image_memory_barrier_current.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        image_memory_barrier_current.oldLayout =
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        image_memory_barrier_current.newLayout =
-            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        image_memory_barrier_current.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        image_memory_barrier_current.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
         if (pending_texture_upload.texture) {
-          pending_texture_upload.texture->last_usage_submission_ =
-              last_paint_submission_index_;
+          pending_texture_upload.texture->last_usage_submission_ = last_paint_submission_index_;
           pending_texture_upload.texture->pending_upload_index_ = SIZE_MAX;
         }
       }
-      dfn.vkCmdPipelineBarrier(
-          setup_command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
-          VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr,
-          uint32_t(image_memory_barriers.size()), image_memory_barriers.data());
+      dfn.vkCmdPipelineBarrier(setup_command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                               VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr,
+                               uint32_t(image_memory_barriers.size()),
+                               image_memory_barriers.data());
 
       texture_uploads_pending_.clear();
     }
@@ -543,10 +498,8 @@ void VulkanImmediateDrawer::OnLeavePresenter() {
   // Leaving the presenter's submission timeline - await GPU usage completion of
   // all draws and texture uploads (which happen before draws) and reset
   // submission indices.
-  VulkanPresenter& vulkan_presenter =
-      *static_cast<VulkanPresenter*>(presenter());
-  vulkan_presenter.AwaitUISubmissionCompletionFromUIThread(
-      last_paint_submission_index_);
+  VulkanPresenter& vulkan_presenter = *static_cast<VulkanPresenter*>(presenter());
+  vulkan_presenter.AwaitUISubmissionCompletionFromUIThread(last_paint_submission_index_);
 
   for (VulkanImmediateTexture* texture : textures_) {
     texture->last_usage_submission_ = 0;
@@ -557,10 +510,8 @@ void VulkanImmediateDrawer::OnLeavePresenter() {
 
   for (SubmittedTextureUploadBuffer& submitted_texture_upload_buffer :
        texture_upload_buffers_submitted_) {
-    dfn.vkDestroyBuffer(device, submitted_texture_upload_buffer.buffer,
-                        nullptr);
-    dfn.vkFreeMemory(device, submitted_texture_upload_buffer.buffer_memory,
-                     nullptr);
+    dfn.vkDestroyBuffer(device, submitted_texture_upload_buffer.buffer, nullptr);
+    dfn.vkFreeMemory(device, submitted_texture_upload_buffer.buffer_memory, nullptr);
   }
 
   vertex_buffer_pool_->ChangeSubmissionTimeline();
@@ -577,17 +528,14 @@ bool VulkanImmediateDrawer::EnsurePipelinesCreatedForCurrentRenderPass() {
   if (render_pass_format == pipeline_framebuffer_format_) {
     // Either created, or failed to create once (don't try to create every
     // frame).
-    return pipeline_triangle_ != VK_NULL_HANDLE &&
-           pipeline_line_ != VK_NULL_HANDLE;
+    return pipeline_triangle_ != VK_NULL_HANDLE && pipeline_line_ != VK_NULL_HANDLE;
   }
 
   if (last_paint_submission_index_ && pipeline_triangle_ != VK_NULL_HANDLE &&
       pipeline_line_ != VK_NULL_HANDLE) {
     // Make sure it's safe to delete the pipelines.
-    VulkanPresenter& vulkan_presenter =
-        *static_cast<VulkanPresenter*>(presenter());
-    vulkan_presenter.AwaitUISubmissionCompletionFromUIThread(
-        last_paint_submission_index_);
+    VulkanPresenter& vulkan_presenter = *static_cast<VulkanPresenter*>(presenter());
+    vulkan_presenter.AwaitUISubmissionCompletionFromUIThread(last_paint_submission_index_);
   }
 
   const VulkanDevice::Functions& dfn = vulkan_device_->functions();
@@ -605,8 +553,8 @@ bool VulkanImmediateDrawer::EnsurePipelinesCreatedForCurrentRenderPass() {
   VkPipelineShaderStageCreateInfo stages[2] = {};
   stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
-  stages[0].module = util::CreateShaderModule(
-      vulkan_device_, shaders::immediate_vs, sizeof(shaders::immediate_vs));
+  stages[0].module = util::CreateShaderModule(vulkan_device_, shaders::immediate_vs,
+                                              sizeof(shaders::immediate_vs));
   if (stages[0].module == VK_NULL_HANDLE) {
     REXLOG_ERROR("VulkanImmediateDrawer: Failed to create the vertex shader module");
     return false;
@@ -614,11 +562,10 @@ bool VulkanImmediateDrawer::EnsurePipelinesCreatedForCurrentRenderPass() {
   stages[0].pName = "main";
   stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-  stages[1].module = util::CreateShaderModule(
-      vulkan_device_, shaders::immediate_ps, sizeof(shaders::immediate_ps));
+  stages[1].module = util::CreateShaderModule(vulkan_device_, shaders::immediate_ps,
+                                              sizeof(shaders::immediate_ps));
   if (stages[1].module == VK_NULL_HANDLE) {
-    REXLOG_ERROR(
-        "VulkanImmediateDrawer: Failed to create the fragment shader module");
+    REXLOG_ERROR("VulkanImmediateDrawer: Failed to create the fragment shader module");
     dfn.vkDestroyShaderModule(device, stages[0].module, nullptr);
     return false;
   }
@@ -642,8 +589,7 @@ bool VulkanImmediateDrawer::EnsurePipelinesCreatedForCurrentRenderPass() {
   vertex_input_attributes[2].format = VK_FORMAT_R8G8B8A8_UNORM;
   vertex_input_attributes[2].offset = offsetof(ImmediateVertex, color);
   VkPipelineVertexInputStateCreateInfo vertex_input_state;
-  vertex_input_state.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+  vertex_input_state.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
   vertex_input_state.pNext = nullptr;
   vertex_input_state.flags = 0;
   vertex_input_state.vertexBindingDescriptionCount = 1;
@@ -653,8 +599,7 @@ bool VulkanImmediateDrawer::EnsurePipelinesCreatedForCurrentRenderPass() {
   vertex_input_state.pVertexAttributeDescriptions = vertex_input_attributes;
 
   VkPipelineInputAssemblyStateCreateInfo input_assembly_state;
-  input_assembly_state.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+  input_assembly_state.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
   input_assembly_state.pNext = nullptr;
   input_assembly_state.flags = 0;
   input_assembly_state.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
@@ -670,33 +615,29 @@ bool VulkanImmediateDrawer::EnsurePipelinesCreatedForCurrentRenderPass() {
   viewport_state.pScissors = nullptr;
 
   VkPipelineRasterizationStateCreateInfo rasterization_state = {};
-  rasterization_state.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+  rasterization_state.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
   rasterization_state.polygonMode = VK_POLYGON_MODE_FILL;
   rasterization_state.cullMode = VK_CULL_MODE_NONE;
   rasterization_state.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
   rasterization_state.lineWidth = 1.0f;
 
   VkPipelineMultisampleStateCreateInfo multisample_state = {};
-  multisample_state.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+  multisample_state.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
   multisample_state.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
   VkPipelineColorBlendAttachmentState color_blend_attachment_state;
   color_blend_attachment_state.blendEnable = VK_TRUE;
   color_blend_attachment_state.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-  color_blend_attachment_state.dstColorBlendFactor =
-      VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+  color_blend_attachment_state.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
   color_blend_attachment_state.colorBlendOp = VK_BLEND_OP_ADD;
   color_blend_attachment_state.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
   color_blend_attachment_state.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
   color_blend_attachment_state.alphaBlendOp = VK_BLEND_OP_ADD;
-  color_blend_attachment_state.colorWriteMask =
-      VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-      VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  color_blend_attachment_state.colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
+                                                VK_COLOR_COMPONENT_G_BIT |
+                                                VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
   VkPipelineColorBlendStateCreateInfo color_blend_state = {};
-  color_blend_state.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+  color_blend_state.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
   color_blend_state.attachmentCount = 1;
   color_blend_state.pAttachments = &color_blend_attachment_state;
 
@@ -731,11 +672,9 @@ bool VulkanImmediateDrawer::EnsurePipelinesCreatedForCurrentRenderPass() {
   pipeline_create_info.subpass = 0;
   pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
   pipeline_create_info.basePipelineIndex = -1;
-  if (dfn.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1,
-                                    &pipeline_create_info, nullptr,
+  if (dfn.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipeline_create_info, nullptr,
                                     &pipeline_triangle_) != VK_SUCCESS) {
-    REXLOG_ERROR(
-        "VulkanImmediateDrawer: Failed to create the triangle list pipeline");
+    REXLOG_ERROR("VulkanImmediateDrawer: Failed to create the triangle list pipeline");
     dfn.vkDestroyShaderModule(device, stages[1].module, nullptr);
     dfn.vkDestroyShaderModule(device, stages[0].module, nullptr);
     return false;
@@ -749,8 +688,7 @@ bool VulkanImmediateDrawer::EnsurePipelinesCreatedForCurrentRenderPass() {
       VK_PIPELINE_CREATE_DERIVATIVE_BIT;
   pipeline_create_info.basePipelineHandle = pipeline_triangle_;
   VkResult pipeline_line_create_result = dfn.vkCreateGraphicsPipelines(
-      device, VK_NULL_HANDLE, 1, &pipeline_create_info, nullptr,
-      &pipeline_line_);
+      device, VK_NULL_HANDLE, 1, &pipeline_create_info, nullptr, &pipeline_line_);
   dfn.vkDestroyShaderModule(device, stages[1].module, nullptr);
   dfn.vkDestroyShaderModule(device, stages[0].module, nullptr);
   if (pipeline_line_create_result != VK_SUCCESS) {
@@ -792,10 +730,9 @@ uint32_t VulkanImmediateDrawer::AllocateTextureDescriptor() {
     TextureDescriptorPool* pool = texture_descriptor_pool_unallocated_first_;
     assert_not_zero(pool->unallocated_count);
     allocate_info.descriptorPool = pool->pool;
-    uint32_t local_index =
-        TextureDescriptorPool::kDescriptorCount - pool->unallocated_count;
-    VkResult allocate_result = dfn.vkAllocateDescriptorSets(
-        device, &allocate_info, &pool->sets[local_index]);
+    uint32_t local_index = TextureDescriptorPool::kDescriptorCount - pool->unallocated_count;
+    VkResult allocate_result =
+        dfn.vkAllocateDescriptorSets(device, &allocate_info, &pool->sets[local_index]);
     if (allocate_result == VK_SUCCESS) {
       --pool->unallocated_count;
     } else {
@@ -813,19 +750,17 @@ uint32_t VulkanImmediateDrawer::AllocateTextureDescriptor() {
   // Create a new pool and allocate the descriptor from it.
   VkDescriptorPoolSize descriptor_pool_size;
   descriptor_pool_size.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-  descriptor_pool_size.descriptorCount =
-      TextureDescriptorPool::kDescriptorCount;
+  descriptor_pool_size.descriptorCount = TextureDescriptorPool::kDescriptorCount;
   VkDescriptorPoolCreateInfo descriptor_pool_create_info;
-  descriptor_pool_create_info.sType =
-      VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+  descriptor_pool_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
   descriptor_pool_create_info.pNext = nullptr;
   descriptor_pool_create_info.flags = 0;
   descriptor_pool_create_info.maxSets = TextureDescriptorPool::kDescriptorCount;
   descriptor_pool_create_info.poolSizeCount = 1;
   descriptor_pool_create_info.pPoolSizes = &descriptor_pool_size;
   VkDescriptorPool descriptor_pool;
-  if (dfn.vkCreateDescriptorPool(device, &descriptor_pool_create_info, nullptr,
-                                 &descriptor_pool) != VK_SUCCESS) {
+  if (dfn.vkCreateDescriptorPool(device, &descriptor_pool_create_info, nullptr, &descriptor_pool) !=
+      VK_SUCCESS) {
     REXLOG_ERROR(
         "VulkanImmediateDrawer: Failed to create a combined image sampler "
         "descriptor pool with {} descriptors",
@@ -834,8 +769,7 @@ uint32_t VulkanImmediateDrawer::AllocateTextureDescriptor() {
   }
   allocate_info.descriptorPool = descriptor_pool;
   VkDescriptorSet descriptor_set;
-  if (dfn.vkAllocateDescriptorSets(device, &allocate_info, &descriptor_set) !=
-      VK_SUCCESS) {
+  if (dfn.vkAllocateDescriptorSets(device, &allocate_info, &descriptor_set) != VK_SUCCESS) {
     REXLOG_ERROR(
         "VulkanImmediateDrawer: Failed to allocate a combined image sampler "
         "descriptor");
@@ -856,14 +790,12 @@ uint32_t VulkanImmediateDrawer::AllocateTextureDescriptor() {
   return new_pool_index << 6;
 }
 
-VkDescriptorSet VulkanImmediateDrawer::GetTextureDescriptor(
-    uint32_t descriptor_index) const {
+VkDescriptorSet VulkanImmediateDrawer::GetTextureDescriptor(uint32_t descriptor_index) const {
   uint32_t pool_index = descriptor_index >> 6;
   assert_true(pool_index < texture_descriptor_pools_.size());
   const TextureDescriptorPool* pool = texture_descriptor_pools_[pool_index];
   uint32_t allocation_index = descriptor_index & 63;
-  assert_true(allocation_index < TextureDescriptorPool::kDescriptorCount -
-                                     pool->unallocated_count);
+  assert_true(allocation_index < TextureDescriptorPool::kDescriptorCount - pool->unallocated_count);
   return pool->sets[allocation_index];
 }
 
@@ -872,8 +804,7 @@ void VulkanImmediateDrawer::FreeTextureDescriptor(uint32_t descriptor_index) {
   assert_true(pool_index < texture_descriptor_pools_.size());
   TextureDescriptorPool* pool = texture_descriptor_pools_[pool_index];
   uint32_t allocation_index = descriptor_index & 63;
-  assert_true(allocation_index < TextureDescriptorPool::kDescriptorCount -
-                                     pool->unallocated_count);
+  assert_true(allocation_index < TextureDescriptorPool::kDescriptorCount - pool->unallocated_count);
   assert_zero(pool->recycled_bits & (uint64_t(1) << allocation_index));
   if (!pool->recycled_bits) {
     // Add to the free list if not already in it.
@@ -883,11 +814,11 @@ void VulkanImmediateDrawer::FreeTextureDescriptor(uint32_t descriptor_index) {
   pool->recycled_bits |= uint64_t(1) << allocation_index;
 }
 
-bool VulkanImmediateDrawer::CreateTextureResource(
-    uint32_t width, uint32_t height, ImmediateTextureFilter filter,
-    bool is_repeated, const uint8_t* data,
-    VulkanImmediateTexture::Resource& resource_out,
-    size_t& pending_upload_index_out) {
+bool VulkanImmediateDrawer::CreateTextureResource(uint32_t width, uint32_t height,
+                                                  ImmediateTextureFilter filter, bool is_repeated,
+                                                  const uint8_t* data,
+                                                  VulkanImmediateTexture::Resource& resource_out,
+                                                  size_t& pending_upload_index_out) {
   const VulkanDevice::Functions& dfn = vulkan_device_->functions();
   const VkDevice device = vulkan_device_->device();
 
@@ -906,8 +837,7 @@ bool VulkanImmediateDrawer::CreateTextureResource(
   image_create_info.arrayLayers = 1;
   image_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
   image_create_info.tiling = VK_IMAGE_TILING_OPTIMAL;
-  image_create_info.usage =
-      VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+  image_create_info.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
   image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
   image_create_info.queueFamilyIndexCount = 0;
   image_create_info.pQueueFamilyIndices = nullptr;
@@ -915,8 +845,8 @@ bool VulkanImmediateDrawer::CreateTextureResource(
   VkImage image;
   VkDeviceMemory image_memory;
   if (!util::CreateDedicatedAllocationImage(vulkan_device_, image_create_info,
-                                            util::MemoryPurpose::kDeviceLocal,
-                                            image, image_memory)) {
+                                            util::MemoryPurpose::kDeviceLocal, image,
+                                            image_memory)) {
     REXLOG_ERROR(
         "VulkanImmediateDrawer: Failed to create an image with dedicated "
         "memory for a {}x{} texture",
@@ -933,18 +863,16 @@ bool VulkanImmediateDrawer::CreateTextureResource(
   image_view_create_info.format = VK_FORMAT_R8G8B8A8_UNORM;
   // data == nullptr is a special case for (1, 1, 1, 1), though the image will
   // be cleared to (1, 1, 1, 1) anyway, just a micro-optimization.
-  VkComponentSwizzle swizzle =
-      (data || !vulkan_device_->properties().imageViewFormatSwizzle)
-          ? VK_COMPONENT_SWIZZLE_IDENTITY
-          : VK_COMPONENT_SWIZZLE_ONE;
+  VkComponentSwizzle swizzle = (data || !vulkan_device_->properties().imageViewFormatSwizzle)
+                                   ? VK_COMPONENT_SWIZZLE_IDENTITY
+                                   : VK_COMPONENT_SWIZZLE_ONE;
   image_view_create_info.components.r = swizzle;
   image_view_create_info.components.g = swizzle;
   image_view_create_info.components.b = swizzle;
   image_view_create_info.components.a = swizzle;
   image_view_create_info.subresourceRange = util::InitializeSubresourceRange();
   VkImageView image_view;
-  if (dfn.vkCreateImageView(device, &image_view_create_info, nullptr,
-                            &image_view) != VK_SUCCESS) {
+  if (dfn.vkCreateImageView(device, &image_view_create_info, nullptr, &image_view) != VK_SUCCESS) {
     REXLOG_ERROR(
         "VulkanImmediateDrawer: Failed to create an image view for a {}x{} "
         "image",
@@ -956,8 +884,7 @@ bool VulkanImmediateDrawer::CreateTextureResource(
 
   uint32_t descriptor_index = AllocateTextureDescriptor();
   if (descriptor_index == UINT32_MAX) {
-    REXLOG_ERROR(
-        "VulkanImmediateDrawer: Failed to allocate a descriptor for an image");
+    REXLOG_ERROR("VulkanImmediateDrawer: Failed to allocate a descriptor for an image");
     dfn.vkDestroyImageView(device, image_view, nullptr);
     dfn.vkDestroyImage(device, image, nullptr);
     dfn.vkFreeMemory(device, image_memory, nullptr);
@@ -969,9 +896,8 @@ bool VulkanImmediateDrawer::CreateTextureResource(
     ui_sampler_index = is_repeated ? UISamplers::kSamplerIndexLinearRepeat
                                    : UISamplers::kSamplerIndexLinearClampToEdge;
   } else {
-    ui_sampler_index = is_repeated
-                           ? UISamplers::kSamplerIndexNearestRepeat
-                           : UISamplers::kSamplerIndexNearestClampToEdge;
+    ui_sampler_index = is_repeated ? UISamplers::kSamplerIndexNearestRepeat
+                                   : UISamplers::kSamplerIndexNearestClampToEdge;
   }
   descriptor_image_info.sampler = ui_samplers_->samplers()[ui_sampler_index];
   descriptor_image_info.imageView = image_view;
@@ -998,10 +924,10 @@ bool VulkanImmediateDrawer::CreateTextureResource(
   if (data) {
     size_t data_size = sizeof(uint32_t) * width * height;
     uint32_t upload_buffer_memory_type;
-    if (!util::CreateDedicatedAllocationBuffer(
-            vulkan_device_, VkDeviceSize(data_size),
-            VK_BUFFER_USAGE_TRANSFER_SRC_BIT, util::MemoryPurpose::kUpload,
-            upload_buffer, upload_buffer_memory, &upload_buffer_memory_type)) {
+    if (!util::CreateDedicatedAllocationBuffer(vulkan_device_, VkDeviceSize(data_size),
+                                               VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                                               util::MemoryPurpose::kUpload, upload_buffer,
+                                               upload_buffer_memory, &upload_buffer_memory_type)) {
       REXLOG_ERROR(
           "VulkanImmediateDrawer: Failed to create an upload buffer for a "
           "{}x{} image",
@@ -1028,8 +954,7 @@ bool VulkanImmediateDrawer::CreateTextureResource(
       return false;
     }
     std::memcpy(upload_buffer_mapping, data, data_size);
-    util::FlushMappedMemoryRange(vulkan_device_, upload_buffer_memory,
-                                 upload_buffer_memory_type);
+    util::FlushMappedMemoryRange(vulkan_device_, upload_buffer_memory, upload_buffer_memory_type);
     dfn.vkUnmapMemory(device, upload_buffer_memory);
   }
 
@@ -1039,8 +964,7 @@ bool VulkanImmediateDrawer::CreateTextureResource(
   resource_out.descriptor_index = descriptor_index;
 
   pending_upload_index_out = texture_uploads_pending_.size();
-  PendingTextureUpload& pending_upload =
-      texture_uploads_pending_.emplace_back();
+  PendingTextureUpload& pending_upload = texture_uploads_pending_.emplace_back();
   // The caller will set the ImmedateTexture pointer if needed.
   pending_upload.texture = nullptr;
   pending_upload.buffer = upload_buffer;
@@ -1052,8 +976,7 @@ bool VulkanImmediateDrawer::CreateTextureResource(
   return true;
 }
 
-void VulkanImmediateDrawer::DestroyTextureResource(
-    VulkanImmediateTexture::Resource& resource) {
+void VulkanImmediateDrawer::DestroyTextureResource(VulkanImmediateTexture::Resource& resource) {
   FreeTextureDescriptor(resource.descriptor_index);
   const VulkanDevice::Functions& dfn = vulkan_device_->functions();
   const VkDevice device = vulkan_device_->device();
@@ -1062,14 +985,12 @@ void VulkanImmediateDrawer::DestroyTextureResource(
   dfn.vkFreeMemory(device, resource.memory, nullptr);
 }
 
-void VulkanImmediateDrawer::OnImmediateTextureDestroyed(
-    VulkanImmediateTexture& texture) {
+void VulkanImmediateDrawer::OnImmediateTextureDestroyed(VulkanImmediateTexture& texture) {
   // Remove from the pending uploads.
   size_t pending_upload_index = texture.pending_upload_index_;
   if (pending_upload_index != SIZE_MAX) {
     if (pending_upload_index + 1 < texture_uploads_pending_.size()) {
-      PendingTextureUpload& pending_upload =
-          texture_uploads_pending_[pending_upload_index];
+      PendingTextureUpload& pending_upload = texture_uploads_pending_[pending_upload_index];
       pending_upload = texture_uploads_pending_.back();
       if (pending_upload.texture) {
         pending_upload.texture->pending_upload_index_ = pending_upload_index;
@@ -1079,8 +1000,7 @@ void VulkanImmediateDrawer::OnImmediateTextureDestroyed(
   }
 
   // Remove from the texture list.
-  VulkanImmediateTexture*& texture_at_index =
-      textures_[texture.immediate_drawer_index_];
+  VulkanImmediateTexture*& texture_at_index = textures_[texture.immediate_drawer_index_];
   texture_at_index = textures_.back();
   texture_at_index->immediate_drawer_index_ = texture.immediate_drawer_index_;
   textures_.pop_back();
@@ -1096,4 +1016,4 @@ void VulkanImmediateDrawer::OnImmediateTextureDestroyed(
 
 }  // namespace vulkan
 }  // namespace ui
-}  // namespace xe
+}  // namespace rex

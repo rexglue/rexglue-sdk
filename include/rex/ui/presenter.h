@@ -10,7 +10,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -28,19 +27,23 @@
 #include <vector>
 
 #include <rex/assert.h>
-#include <rex/byte_order.h>
 #include <rex/math.h>
 #include <rex/platform.h>
+#include <rex/types.h>
 #include <rex/ui/flags.h>
 #include <rex/ui/surface.h>
 #include <rex/ui/ui_drawer.h>
 
 #if REX_PLATFORM_WIN32
-// Must be included before DXGI for things like NOMINMAX, and also needed for
-// Windows handle types.
-#include <rex/platform/win.h>
-
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <dxgi.h>
+#include <windows.h>
+
 #include <wrl/client.h>
 #endif  // XE_PLATFORM
 
@@ -164,15 +167,12 @@ class Presenter {
   // is false, such as when the guest output is refreshed by the UI thread.
   using HostGpuLossCallback =
       std::function<void(bool is_responsible, bool statically_from_ui_thread)>;
-  static void FatalErrorHostGpuLossCallback(bool is_responsible,
-                                            bool statically_from_ui_thread);
+  static void FatalErrorHostGpuLossCallback(bool is_responsible, bool statically_from_ui_thread);
 
   class GuestOutputRefreshContext {
    public:
-    GuestOutputRefreshContext(const GuestOutputRefreshContext& context) =
-        delete;
-    GuestOutputRefreshContext& operator=(
-        const GuestOutputRefreshContext& context) = delete;
+    GuestOutputRefreshContext(const GuestOutputRefreshContext& context) = delete;
+    GuestOutputRefreshContext& operator=(const GuestOutputRefreshContext& context) = delete;
     virtual ~GuestOutputRefreshContext() = default;
 
     // Sets whether the source actually has no more than 8 bits of precision
@@ -181,8 +181,7 @@ class Presenter {
     void SetIs8bpc(bool is_8bpc) { is_8bpc_out_ref_ = is_8bpc; }
 
    protected:
-    GuestOutputRefreshContext(bool& is_8bpc_out_ref)
-        : is_8bpc_out_ref_(is_8bpc_out_ref) {
+    GuestOutputRefreshContext(bool& is_8bpc_out_ref) : is_8bpc_out_ref_(is_8bpc_out_ref) {
       is_8bpc_out_ref = false;
     }
 
@@ -204,8 +203,7 @@ class Presenter {
     static constexpr float kCasAdditionalSharpnessMin = 0.0f;
     static constexpr float kCasAdditionalSharpnessMax = 1.0f;
     static constexpr float kCasAdditionalSharpnessDefault = 0.0f;
-    static_assert(kCasAdditionalSharpnessDefault >=
-                      kCasAdditionalSharpnessMin &&
+    static_assert(kCasAdditionalSharpnessDefault >= kCasAdditionalSharpnessMin &&
                   kCasAdditionalSharpnessDefault <= kCasAdditionalSharpnessMax);
 
     // EASU (as well as CAS) is designed for scaling by factors of up to 2x2.
@@ -234,30 +232,25 @@ class Presenter {
     Effect GetEffect() const { return effect_; }
     void SetEffect(Effect new_effect) { effect_ = new_effect; }
 
-    float GetCasAdditionalSharpness() const {
-      return cas_additional_sharpness_;
-    }
+    float GetCasAdditionalSharpness() const { return cas_additional_sharpness_; }
     void SetCasAdditionalSharpness(float new_cas_additional_sharpness) {
-      cas_additional_sharpness_ = std::min(
-          kCasAdditionalSharpnessMax,
-          std::max(kCasAdditionalSharpnessMin, new_cas_additional_sharpness));
+      cas_additional_sharpness_ =
+          std::min(kCasAdditionalSharpnessMax,
+                   std::max(kCasAdditionalSharpnessMin, new_cas_additional_sharpness));
     }
 
-    uint32_t GetFsrMaxUpsamplingPasses() const {
-      return fsr_max_upsampling_passes_;
-    }
+    uint32_t GetFsrMaxUpsamplingPasses() const { return fsr_max_upsampling_passes_; }
     void SetFsrMaxUpsamplingPasses(uint32_t new_fsr_max_upsampling_passes) {
       fsr_max_upsampling_passes_ =
-          std::min(kFsrMaxUpscalingPassesMax,
-                   std::max(uint32_t(1), new_fsr_max_upsampling_passes));
+          std::min(kFsrMaxUpscalingPassesMax, std::max(uint32_t(1), new_fsr_max_upsampling_passes));
     }
 
     // In stops.
     float GetFsrSharpnessReduction() const { return fsr_sharpness_reduction_; }
     void SetFsrSharpnessReduction(float new_fsr_sharpness_reduction) {
-      fsr_sharpness_reduction_ = std::min(
-          kFsrSharpnessReductionMax,
-          std::max(kFsrSharpnessReductionMin, new_fsr_sharpness_reduction));
+      fsr_sharpness_reduction_ =
+          std::min(kFsrSharpnessReductionMax,
+                   std::max(kFsrSharpnessReductionMin, new_fsr_sharpness_reduction));
     }
 
     // Very tiny effect, but highly noticeable, for instance, on the sky in the
@@ -288,8 +281,7 @@ class Presenter {
   // For calling from the Window for the Presenter attached to it.
   // May be called from the destructor of the presenter through the window.
   void SetWindowSurfaceFromUIThread(Window* new_window, Surface* new_surface);
-  void OnSurfaceMonitorUpdateFromUIThread(
-      bool old_monitor_potentially_disconnected);
+  void OnSurfaceMonitorUpdateFromUIThread(bool old_monitor_potentially_disconnected);
   void OnSurfaceResizeFromUIThread();
 
   // For calling from the platform paint event handler. Refreshes the surface
@@ -312,10 +304,9 @@ class Presenter {
   // returned true. The callback must submit all updating work to the host GPU
   // before successfully returning, and also signal all the GPU synchronization
   // primitives required by the GuestOutputRefreshContext implementation.
-  bool RefreshGuestOutput(
-      uint32_t frontbuffer_width, uint32_t frontbuffer_height,
-      uint32_t display_aspect_ratio_x, uint32_t display_aspect_ratio_y,
-      std::function<bool(GuestOutputRefreshContext& context)> refresher);
+  bool RefreshGuestOutput(uint32_t frontbuffer_width, uint32_t frontbuffer_height,
+                          uint32_t display_aspect_ratio_x, uint32_t display_aspect_ratio_y,
+                          std::function<bool(GuestOutputRefreshContext& context)> refresher);
   // The implementation must be callable from any thread, including from
   // multiple at the same time, and it should acquire the latest guest output
   // image via ConsumeGuestOutput.
@@ -324,8 +315,7 @@ class Presenter {
     return guest_output_paint_config_;
   }
   // For simplicity, may be called repeatedly even if no changes have been made.
-  void SetGuestOutputPaintConfigFromUIThread(
-      const GuestOutputPaintConfig& new_config);
+  void SetGuestOutputPaintConfigFromUIThread(const GuestOutputPaintConfig& new_config);
 
   void AddUIDrawerFromUIThread(UIDrawer* drawer, size_t z_order);
   void RemoveUIDrawerFromUIThread(UIDrawer* drawer);
@@ -370,8 +360,8 @@ class Presenter {
     GuestOutputProperties() { SetToInactive(); }
 
     bool IsActive() const {
-      return frontbuffer_width && frontbuffer_height &&
-             display_aspect_ratio_x && display_aspect_ratio_y;
+      return frontbuffer_width && frontbuffer_height && display_aspect_ratio_x &&
+             display_aspect_ratio_y;
     }
 
     void SetToInactive() {
@@ -397,8 +387,7 @@ class Presenter {
     kCount,
   };
 
-  static constexpr bool CanGuestOutputPaintEffectBeIntermediate(
-      GuestOutputPaintEffect effect) {
+  static constexpr bool CanGuestOutputPaintEffectBeIntermediate(GuestOutputPaintEffect effect) {
     switch (effect) {
       case GuestOutputPaintEffect::kBilinear:
       // Dithering is never performed in intermediate passes because it may be
@@ -415,8 +404,7 @@ class Presenter {
     };
   }
 
-  static constexpr bool CanGuestOutputPaintEffectBeFinal(
-      GuestOutputPaintEffect effect) {
+  static constexpr bool CanGuestOutputPaintEffectBeFinal(GuestOutputPaintEffect effect) {
     switch (effect) {
       case GuestOutputPaintEffect::kFsrEasu:
         return false;
@@ -449,8 +437,7 @@ class Presenter {
     // If 0, don't display the guest output.
     size_t effect_count;
     std::array<GuestOutputPaintEffect, kMaxGuestOutputPaintEffects> effects;
-    std::array<std::pair<uint32_t, uint32_t>, kMaxGuestOutputPaintEffects>
-        effect_output_sizes;
+    std::array<std::pair<uint32_t, uint32_t>, kMaxGuestOutputPaintEffects> effect_output_sizes;
 
     // Offset of the rectangle for final drawing to the host window with
     // letterboxing.
@@ -462,8 +449,7 @@ class Presenter {
     size_t letterbox_clear_rectangle_count;
     std::array<ClearRectangle, kMaxClearRectangles> letterbox_clear_rectangles;
 
-    void GetEffectInputSize(size_t effect_index, uint32_t& width_out,
-                            uint32_t& height_out) const {
+    void GetEffectInputSize(size_t effect_index, uint32_t& width_out, uint32_t& height_out) const {
       assert_true(effect_index < effect_count);
       if (!effect_index) {
         width_out = properties.frontbuffer_width;
@@ -476,8 +462,7 @@ class Presenter {
       height_out = intermediate_size.second;
     }
 
-    void GetEffectOutputOffset(size_t effect_index, int32_t& x_out,
-                               int32_t& y_out) const {
+    void GetEffectOutputOffset(size_t effect_index, int32_t& x_out, int32_t& y_out) const {
       assert_true(effect_index < effect_count);
       if (effect_index + 1 < effect_count) {
         x_out = 0;
@@ -494,10 +479,8 @@ class Presenter {
     float output_size_inv[2];
 
     void Initialize(const GuestOutputPaintFlow& flow, size_t effect_index) {
-      flow.GetEffectOutputOffset(effect_index, output_offset[0],
-                                 output_offset[1]);
-      const std::pair<uint32_t, uint32_t>& output_size =
-          flow.effect_output_sizes[effect_index];
+      flow.GetEffectOutputOffset(effect_index, output_offset[0], output_offset[1]);
+      const std::pair<uint32_t, uint32_t>& output_size = flow.effect_output_sizes[effect_index];
       output_size_inv[0] = 1.0f / float(output_size.first);
       output_size_inv[1] = 1.0f / float(output_size.second);
     }
@@ -514,10 +497,8 @@ class Presenter {
 
     void Initialize(const GuestOutputPaintFlow& flow, size_t effect_index,
                     const GuestOutputPaintConfig& config) {
-      flow.GetEffectOutputOffset(effect_index, output_offset[0],
-                                 output_offset[1]);
-      sharpness_post_setup =
-          CalculateCasPostSetupSharpness(config.GetCasAdditionalSharpness());
+      flow.GetEffectOutputOffset(effect_index, output_offset[0], output_offset[1]);
+      sharpness_post_setup = CalculateCasPostSetupSharpness(config.GetCasAdditionalSharpness());
     }
   };
 
@@ -529,18 +510,13 @@ class Presenter {
 
     void Initialize(const GuestOutputPaintFlow& flow, size_t effect_index,
                     const GuestOutputPaintConfig& config) {
-      flow.GetEffectOutputOffset(effect_index, output_offset[0],
-                                 output_offset[1]);
+      flow.GetEffectOutputOffset(effect_index, output_offset[0], output_offset[1]);
       uint32_t input_width, input_height;
       flow.GetEffectInputSize(effect_index, input_width, input_height);
-      const std::pair<uint32_t, uint32_t>& output_size =
-          flow.effect_output_sizes[effect_index];
-      input_output_size_ratio[0] =
-          float(input_width) / float(output_size.first);
-      input_output_size_ratio[1] =
-          float(input_height) / float(output_size.second);
-      sharpness_post_setup =
-          CalculateCasPostSetupSharpness(config.GetCasAdditionalSharpness());
+      const std::pair<uint32_t, uint32_t>& output_size = flow.effect_output_sizes[effect_index];
+      input_output_size_ratio[0] = float(input_width) / float(output_size.first);
+      input_output_size_ratio[1] = float(input_height) / float(output_size.second);
+      sharpness_post_setup = CalculateCasPostSetupSharpness(config.GetCasAdditionalSharpness());
     }
   };
 
@@ -553,12 +529,9 @@ class Presenter {
     void Initialize(const GuestOutputPaintFlow& flow, size_t effect_index) {
       uint32_t input_width, input_height;
       flow.GetEffectInputSize(effect_index, input_width, input_height);
-      const std::pair<uint32_t, uint32_t>& output_size =
-          flow.effect_output_sizes[effect_index];
-      input_output_size_ratio[0] =
-          float(input_width) / float(output_size.first);
-      input_output_size_ratio[1] =
-          float(input_height) / float(output_size.second);
+      const std::pair<uint32_t, uint32_t>& output_size = flow.effect_output_sizes[effect_index];
+      input_output_size_ratio[0] = float(input_width) / float(output_size.first);
+      input_output_size_ratio[1] = float(input_height) / float(output_size.second);
       input_size_inv[0] = 1.0f / float(input_width);
       input_size_inv[1] = 1.0f / float(input_height);
     }
@@ -575,10 +548,8 @@ class Presenter {
 
     void Initialize(const GuestOutputPaintFlow& flow, size_t effect_index,
                     const GuestOutputPaintConfig& config) {
-      flow.GetEffectOutputOffset(effect_index, output_offset[0],
-                                 output_offset[1]);
-      sharpness_post_setup =
-          CalculatePostSetupSharpness(config.GetFsrSharpnessReduction());
+      flow.GetEffectOutputOffset(effect_index, output_offset[0], output_offset[1]);
+      sharpness_post_setup = CalculatePostSetupSharpness(config.GetFsrSharpnessReduction());
     }
   };
 
@@ -601,11 +572,9 @@ class Presenter {
   // connection will now have vertical sync forced by the host window system,
   // which may cause undesirable waits on the CPU when beginning or ending
   // frames.
-  virtual SurfacePaintConnectResult
-  ConnectOrReconnectPaintingToSurfaceFromUIThread(
-      Surface& new_surface, uint32_t new_surface_width,
-      uint32_t new_surface_height, bool was_paintable,
-      bool& is_vsync_implicit_out) = 0;
+  virtual SurfacePaintConnectResult ConnectOrReconnectPaintingToSurfaceFromUIThread(
+      Surface& new_surface, uint32_t new_surface_width, uint32_t new_surface_height,
+      bool was_paintable, bool& is_vsync_implicit_out) = 0;
   // Releases resources referencing the surface in the implementation if they
   // are held by it. Call through DisconnectPaintingFromSurfaceFromUIThread to
   // ensure the implementation is only called while the connection is active.
@@ -633,8 +602,7 @@ class Presenter {
   // as the mailbox index if the image is inactive (if it's active, it has
   // proper properties though).
   [[nodiscard]] std::unique_lock<std::mutex> ConsumeGuestOutput(
-      uint32_t& mailbox_index_or_max_if_inactive_out,
-      GuestOutputProperties* properties_out,
+      uint32_t& mailbox_index_or_max_if_inactive_out, GuestOutputProperties* properties_out,
       GuestOutputPaintConfig* paint_config_out);
   // The properties are passed explicitly, not taken from the current acquired
   // image, so it can be called for a copy of the acquired image's properties
@@ -643,19 +611,17 @@ class Presenter {
   // possible to leave the consumer critical section earlier. Also, the guest
   // output paint configuration is passed explicitly too so calling this
   // function multiple times is safer.
-  GuestOutputPaintFlow GetGuestOutputPaintFlow(
-      const GuestOutputProperties& properties, uint32_t host_rt_width,
-      uint32_t host_rt_height, uint32_t max_rt_width, uint32_t max_rt_height,
-      const GuestOutputPaintConfig& config) const;
+  GuestOutputPaintFlow GetGuestOutputPaintFlow(const GuestOutputProperties& properties,
+                                               uint32_t host_rt_width, uint32_t host_rt_height,
+                                               uint32_t max_rt_width, uint32_t max_rt_height,
+                                               const GuestOutputPaintConfig& config) const;
   // is_8bpc_out_ref is where to write whether the source actually has no more
   // than 8 bits of precision per channel (though the image provided by the
   // refresher may still have a higher storage precision) - if not written, it
   // will be assumed to be false.
   virtual bool RefreshGuestOutputImpl(
-      uint32_t mailbox_index, uint32_t frontbuffer_width,
-      uint32_t frontbuffer_height,
-      std::function<bool(GuestOutputRefreshContext& context)> refresher,
-      bool& is_8bpc_out_ref) = 0;
+      uint32_t mailbox_index, uint32_t frontbuffer_width, uint32_t frontbuffer_height,
+      std::function<bool(GuestOutputRefreshContext& context)> refresher, bool& is_8bpc_out_ref) = 0;
 
   // For guest output capturing (for debugging use thus - shouldn't be adding
   // any noise like dithering that's not present in the original image),
@@ -666,19 +632,14 @@ class Presenter {
     // unorm), but with one multiplication rather than separate division and
     // multiplication - the results are the same for unorm10 to unorm8.
     if constexpr (std::endian::native == std::endian::big) {
-      return (uint32_t(float(rgb10 & 0x3FF) * (255.0f / 1023.0f) + 0.5f)
-              << 24) |
-             (uint32_t(float((rgb10 >> 10) & 0x3FF) * (255.0f / 1023.0f) + 0.5f)
-              << 16) |
-             (uint32_t(float((rgb10 >> 20) & 0x3FF) * (255.0f / 1023.0f) + 0.5f)
-              << 8) |
+      return (uint32_t(float(rgb10 & 0x3FF) * (255.0f / 1023.0f) + 0.5f) << 24) |
+             (uint32_t(float((rgb10 >> 10) & 0x3FF) * (255.0f / 1023.0f) + 0.5f) << 16) |
+             (uint32_t(float((rgb10 >> 20) & 0x3FF) * (255.0f / 1023.0f) + 0.5f) << 8) |
              uint32_t(0xFF);
     }
     return uint32_t(float(rgb10 & 0x3FF) * (255.0f / 1023.0f) + 0.5f) |
-           (uint32_t(float((rgb10 >> 10) & 0x3FF) * (255.0f / 1023.0f) + 0.5f)
-            << 8) |
-           (uint32_t(float((rgb10 >> 20) & 0x3FF) * (255.0f / 1023.0f) + 0.5f)
-            << 16) |
+           (uint32_t(float((rgb10 >> 10) & 0x3FF) * (255.0f / 1023.0f) + 0.5f) << 8) |
+           (uint32_t(float((rgb10 >> 20) & 0x3FF) * (255.0f / 1023.0f) + 0.5f) << 16) |
            (uint32_t(0xFF) << 24);
   }
 
@@ -750,8 +711,7 @@ class Presenter {
 
   static constexpr bool IsConnectedSurfacePaintConnectionState(
       SurfacePaintConnectionState connection_state) {
-    return connection_state ==
-               SurfacePaintConnectionState::kConnectedPaintable ||
+    return connection_state == SurfacePaintConnectionState::kConnectedPaintable ||
            connection_state == SurfacePaintConnectionState::kConnectedOutdated;
   }
 
@@ -759,8 +719,7 @@ class Presenter {
     UIDrawer* drawer;
     uint64_t last_draw;
 
-    explicit UIDrawerReference(UIDrawer* drawer,
-                               uint64_t last_draw = UINT64_MAX)
+    explicit UIDrawerReference(UIDrawer* drawer, uint64_t last_draw = UINT64_MAX)
         : drawer(drawer), last_draw(last_draw) {}
   };
 
@@ -787,28 +746,25 @@ class Presenter {
   // surface to another - need to disconnect prior to that, because the
   // implementation may assume that the surface is still the same, and may try
   // to, for instance, resize the buffers for the existing surface.
-  void UpdateSurfacePaintConnectionFromUIThread(
-      bool* repaint_needed_out, bool update_paint_mode_to_desired);
+  void UpdateSurfacePaintConnectionFromUIThread(bool* repaint_needed_out,
+                                                bool update_paint_mode_to_desired);
   // Callable only by the UI thread and only when it has access to painting
   // (PaintMode is not kGuestOutputThreadImmediately).
   // See DisconnectPaintingFromSurfaceFromUIThreadImpl for more information.
-  void DisconnectPaintingFromSurfaceFromUIThread(
-      SurfacePaintConnectionState new_state);
+  void DisconnectPaintingFromSurfaceFromUIThread(SurfacePaintConnectionState new_state);
 
   // Can be called from any thread if an existing window_ safe to RequestPaint
   // (not closed) is available in it, so doesn't check the surface painting
   // connection state. Returns whether the window_->RequestPaint() call has been
   // made.
-  bool RequestPaintOrConnectionRecoveryViaWindow(
-      bool force_ui_thread_paint_tick);
+  bool RequestPaintOrConnectionRecoveryViaWindow(bool force_ui_thread_paint_tick);
 
   // Platform-specific function refreshing the monitor the current window
   // surface is on, through the Surface or its Window. A reference to the
   // monitor is held only when a Surface is available, so it's automatically
   // dropped when the Window loses its Surface when it's being closed (but the
   // Window object keeps being attached to the Presenter), for instance.
-  void UpdateSurfaceMonitorFromUIThread(
-      bool old_monitor_potentially_disconnected);
+  void UpdateSurfaceMonitorFromUIThread(bool old_monitor_potentially_disconnected);
   // Platform-specific function returning whether the surface the presenter is
   // currently attached it is actually visible on any monitor. UI thread
   // painting may be dropped if this returns false - need to request painting if
@@ -952,8 +908,7 @@ class Presenter {
   // happens as part of painting.
   std::mutex guest_output_mailbox_consumer_mutex_;
 
-  std::array<GuestOutputProperties, kGuestOutputMailboxSize>
-      guest_output_properties_;
+  std::array<GuestOutputProperties, kGuestOutputMailboxSize> guest_output_properties_;
   // Accessible only by refreshing, whether the last refresh contained an image
   // rather than being blank.
   bool guest_output_active_last_refresh_ = false;
@@ -984,12 +939,11 @@ class Presenter {
   // On Android and GTK, this is not needed, the frame rate of draw events is
   // limited to the display refresh rate internally.
 #if REX_PLATFORM_WIN32
-  static Microsoft::WRL::ComPtr<IDXGIOutput> GetDXGIOutputForMonitor(
-      IDXGIFactory1* factory, HMONITOR monitor);
+  static Microsoft::WRL::ComPtr<IDXGIOutput> GetDXGIOutputForMonitor(IDXGIFactory1* factory,
+                                                                     HMONITOR monitor);
   bool AreDXGIUITicksWaitable(
       [[maybe_unused]] const std::unique_lock<std::mutex>& dxgi_ui_tick_lock) {
-    return dxgi_ui_ticks_needed_ && !dxgi_ui_tick_thread_shutdown_ &&
-           dxgi_ui_tick_output_;
+    return dxgi_ui_ticks_needed_ && !dxgi_ui_tick_thread_shutdown_ && dxgi_ui_tick_output_;
   }
   void DXGIUITickThread();
 
@@ -1036,5 +990,4 @@ class Presenter {
 };
 
 }  // namespace ui
-}  // namespace xe
-
+}  // namespace rex

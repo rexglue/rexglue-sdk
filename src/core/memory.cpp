@@ -9,13 +9,12 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <rex/cvar.h>
 #include <rex/memory/utils.h>
 #include <rex/platform.h>
-#include <rex/cvar.h>
 
-REXCVAR_DEFINE_BOOL(writable_executable_memory, true,
-    "Allow executable memory to be writable",
-    "Memory")
+REXCVAR_DEFINE_BOOL(writable_executable_memory, true, "Allow executable memory to be writable",
+                    "Memory")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
 #if REX_ARCH_ARM64
@@ -51,20 +50,19 @@ void copy_128_aligned(void* dest, const void* src, size_t count) {
 // TODO(Joel Linn): Remove this when fixed GCC versions are common place.
 #if REX_COMPILER_GNUC
 #define REX_WORKAROUND_CONSTANT_RETURN_IF(x) \
-  if (__builtin_constant_p(x) && (x)) return;
+  if (__builtin_constant_p(x) && (x))        \
+    return;
 #else
 #define REX_WORKAROUND_CONSTANT_RETURN_IF(x)
 #endif
-void copy_and_swap_16_aligned(void* dest_ptr, const void* src_ptr,
-                              size_t count) {
+void copy_and_swap_16_aligned(void* dest_ptr, const void* src_ptr, size_t count) {
   assert_zero(reinterpret_cast<uintptr_t>(dest_ptr) & 0xF);
   assert_zero(reinterpret_cast<uintptr_t>(src_ptr) & 0xF);
 
   auto dest = reinterpret_cast<uint16_t*>(dest_ptr);
   auto src = reinterpret_cast<const uint16_t*>(src_ptr);
-  __m128i shufmask =
-      _mm_set_epi8(0x0E, 0x0F, 0x0C, 0x0D, 0x0A, 0x0B, 0x08, 0x09, 0x06, 0x07,
-                   0x04, 0x05, 0x02, 0x03, 0x00, 0x01);
+  __m128i shufmask = _mm_set_epi8(0x0E, 0x0F, 0x0C, 0x0D, 0x0A, 0x0B, 0x08, 0x09, 0x06, 0x07, 0x04,
+                                  0x05, 0x02, 0x03, 0x00, 0x01);
 
   size_t i = 0;
   for (i = 0; i + 8 <= count; i += 8) {
@@ -78,13 +76,11 @@ void copy_and_swap_16_aligned(void* dest_ptr, const void* src_ptr,
   }
 }
 
-void copy_and_swap_16_unaligned(void* dest_ptr, const void* src_ptr,
-                                size_t count) {
+void copy_and_swap_16_unaligned(void* dest_ptr, const void* src_ptr, size_t count) {
   auto dest = reinterpret_cast<uint16_t*>(dest_ptr);
   auto src = reinterpret_cast<const uint16_t*>(src_ptr);
-  __m128i shufmask =
-      _mm_set_epi8(0x0E, 0x0F, 0x0C, 0x0D, 0x0A, 0x0B, 0x08, 0x09, 0x06, 0x07,
-                   0x04, 0x05, 0x02, 0x03, 0x00, 0x01);
+  __m128i shufmask = _mm_set_epi8(0x0E, 0x0F, 0x0C, 0x0D, 0x0A, 0x0B, 0x08, 0x09, 0x06, 0x07, 0x04,
+                                  0x05, 0x02, 0x03, 0x00, 0x01);
 
   size_t i;
   for (i = 0; i + 8 <= count; i += 8) {
@@ -98,16 +94,14 @@ void copy_and_swap_16_unaligned(void* dest_ptr, const void* src_ptr,
   }
 }
 
-void copy_and_swap_32_aligned(void* dest_ptr, const void* src_ptr,
-                              size_t count) {
+void copy_and_swap_32_aligned(void* dest_ptr, const void* src_ptr, size_t count) {
   assert_zero(reinterpret_cast<uintptr_t>(dest_ptr) & 0xF);
   assert_zero(reinterpret_cast<uintptr_t>(src_ptr) & 0xF);
 
   auto dest = reinterpret_cast<uint32_t*>(dest_ptr);
   auto src = reinterpret_cast<const uint32_t*>(src_ptr);
-  __m128i shufmask =
-      _mm_set_epi8(0x0C, 0x0D, 0x0E, 0x0F, 0x08, 0x09, 0x0A, 0x0B, 0x04, 0x05,
-                   0x06, 0x07, 0x00, 0x01, 0x02, 0x03);
+  __m128i shufmask = _mm_set_epi8(0x0C, 0x0D, 0x0E, 0x0F, 0x08, 0x09, 0x0A, 0x0B, 0x04, 0x05, 0x06,
+                                  0x07, 0x00, 0x01, 0x02, 0x03);
 
   size_t i;
   for (i = 0; i + 4 <= count; i += 4) {
@@ -121,13 +115,11 @@ void copy_and_swap_32_aligned(void* dest_ptr, const void* src_ptr,
   }
 }
 
-void copy_and_swap_32_unaligned(void* dest_ptr, const void* src_ptr,
-                                size_t count) {
+void copy_and_swap_32_unaligned(void* dest_ptr, const void* src_ptr, size_t count) {
   auto dest = reinterpret_cast<uint32_t*>(dest_ptr);
   auto src = reinterpret_cast<const uint32_t*>(src_ptr);
-  __m128i shufmask =
-      _mm_set_epi8(0x0C, 0x0D, 0x0E, 0x0F, 0x08, 0x09, 0x0A, 0x0B, 0x04, 0x05,
-                   0x06, 0x07, 0x00, 0x01, 0x02, 0x03);
+  __m128i shufmask = _mm_set_epi8(0x0C, 0x0D, 0x0E, 0x0F, 0x08, 0x09, 0x0A, 0x0B, 0x04, 0x05, 0x06,
+                                  0x07, 0x00, 0x01, 0x02, 0x03);
 
   size_t i;
   for (i = 0; i + 4 <= count; i += 4) {
@@ -141,16 +133,14 @@ void copy_and_swap_32_unaligned(void* dest_ptr, const void* src_ptr,
   }
 }
 
-void copy_and_swap_64_aligned(void* dest_ptr, const void* src_ptr,
-                              size_t count) {
+void copy_and_swap_64_aligned(void* dest_ptr, const void* src_ptr, size_t count) {
   assert_zero(reinterpret_cast<uintptr_t>(dest_ptr) & 0xF);
   assert_zero(reinterpret_cast<uintptr_t>(src_ptr) & 0xF);
 
   auto dest = reinterpret_cast<uint64_t*>(dest_ptr);
   auto src = reinterpret_cast<const uint64_t*>(src_ptr);
-  __m128i shufmask =
-      _mm_set_epi8(0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x00, 0x01,
-                   0x02, 0x03, 0x04, 0x05, 0x06, 0x07);
+  __m128i shufmask = _mm_set_epi8(0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x00, 0x01, 0x02,
+                                  0x03, 0x04, 0x05, 0x06, 0x07);
 
   size_t i;
   for (i = 0; i + 2 <= count; i += 2) {
@@ -164,13 +154,11 @@ void copy_and_swap_64_aligned(void* dest_ptr, const void* src_ptr,
   }
 }
 
-void copy_and_swap_64_unaligned(void* dest_ptr, const void* src_ptr,
-                                size_t count) {
+void copy_and_swap_64_unaligned(void* dest_ptr, const void* src_ptr, size_t count) {
   auto dest = reinterpret_cast<uint64_t*>(dest_ptr);
   auto src = reinterpret_cast<const uint64_t*>(src_ptr);
-  __m128i shufmask =
-      _mm_set_epi8(0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x00, 0x01,
-                   0x02, 0x03, 0x04, 0x05, 0x06, 0x07);
+  __m128i shufmask = _mm_set_epi8(0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x00, 0x01, 0x02,
+                                  0x03, 0x04, 0x05, 0x06, 0x07);
 
   size_t i;
   for (i = 0; i + 2 <= count; i += 2) {
@@ -184,15 +172,13 @@ void copy_and_swap_64_unaligned(void* dest_ptr, const void* src_ptr,
   }
 }
 
-void copy_and_swap_16_in_32_aligned(void* dest_ptr, const void* src_ptr,
-                                    size_t count) {
+void copy_and_swap_16_in_32_aligned(void* dest_ptr, const void* src_ptr, size_t count) {
   auto dest = reinterpret_cast<uint32_t*>(dest_ptr);
   auto src = reinterpret_cast<const uint32_t*>(src_ptr);
   size_t i;
   for (i = 0; i + 4 <= count; i += 4) {
     __m128i input = _mm_load_si128(reinterpret_cast<const __m128i*>(&src[i]));
-    __m128i output =
-        _mm_or_si128(_mm_slli_epi32(input, 16), _mm_srli_epi32(input, 16));
+    __m128i output = _mm_or_si128(_mm_slli_epi32(input, 16), _mm_srli_epi32(input, 16));
     _mm_store_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
   }
   REX_WORKAROUND_CONSTANT_RETURN_IF(count % 4 == 0);
@@ -201,15 +187,13 @@ void copy_and_swap_16_in_32_aligned(void* dest_ptr, const void* src_ptr,
   }
 }
 
-void copy_and_swap_16_in_32_unaligned(void* dest_ptr, const void* src_ptr,
-                                      size_t count) {
+void copy_and_swap_16_in_32_unaligned(void* dest_ptr, const void* src_ptr, size_t count) {
   auto dest = reinterpret_cast<uint32_t*>(dest_ptr);
   auto src = reinterpret_cast<const uint32_t*>(src_ptr);
   size_t i;
   for (i = 0; i + 4 <= count; i += 4) {
     __m128i input = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&src[i]));
-    __m128i output =
-        _mm_or_si128(_mm_slli_epi32(input, 16), _mm_srli_epi32(input, 16));
+    __m128i output = _mm_or_si128(_mm_slli_epi32(input, 16), _mm_srli_epi32(input, 16));
     _mm_storeu_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
   }
   REX_WORKAROUND_CONSTANT_RETURN_IF(count % 4 == 0);
@@ -225,19 +209,16 @@ void copy_and_swap_16_in_32_unaligned(void* dest_ptr, const void* src_ptr,
 // benchmarks, hence we use just use one SIMD register to minimize residual
 // processing.
 
-void copy_and_swap_16_aligned(void* dst_ptr, const void* src_ptr,
-                              size_t count) {
+void copy_and_swap_16_aligned(void* dst_ptr, const void* src_ptr, size_t count) {
   copy_and_swap_16_unaligned(dst_ptr, src_ptr, count);
 }
 
-void copy_and_swap_16_unaligned(void* dst_ptr, const void* src_ptr,
-                                size_t count) {
+void copy_and_swap_16_unaligned(void* dst_ptr, const void* src_ptr, size_t count) {
   auto dst = reinterpret_cast<uint8_t*>(dst_ptr);
   auto src = reinterpret_cast<const uint8_t*>(src_ptr);
 
-  const uint8x16_t tbl_idx =
-      vcombine_u8(vcreate_u8(UINT64_C(0x0607040502030001)),
-                  vcreate_u8(UINT64_C(0x0E0F0C0D0A0B0809)));
+  const uint8x16_t tbl_idx = vcombine_u8(vcreate_u8(UINT64_C(0x0607040502030001)),
+                                         vcreate_u8(UINT64_C(0x0E0F0C0D0A0B0809)));
 
   while (count >= 8) {
     uint8x16_t data = vld1q_u8(src);
@@ -264,14 +245,12 @@ void copy_and_swap_32_aligned(void* dst, const void* src, size_t count) {
   copy_and_swap_32_unaligned(dst, src, count);
 }
 
-void copy_and_swap_32_unaligned(void* dst_ptr, const void* src_ptr,
-                                size_t count) {
+void copy_and_swap_32_unaligned(void* dst_ptr, const void* src_ptr, size_t count) {
   auto dst = reinterpret_cast<uint8_t*>(dst_ptr);
   auto src = reinterpret_cast<const uint8_t*>(src_ptr);
 
-  const uint8x16_t tbl_idx =
-      vcombine_u8(vcreate_u8(UINT64_C(0x405060700010203)),
-                  vcreate_u8(UINT64_C(0x0C0D0E0F08090A0B)));
+  const uint8x16_t tbl_idx = vcombine_u8(vcreate_u8(UINT64_C(0x405060700010203)),
+                                         vcreate_u8(UINT64_C(0x0C0D0E0F08090A0B)));
 
   while (count >= 4) {
     uint8x16_t data = vld1q_u8(src);
@@ -296,14 +275,12 @@ void copy_and_swap_64_aligned(void* dst, const void* src, size_t count) {
   copy_and_swap_64_unaligned(dst, src, count);
 }
 
-void copy_and_swap_64_unaligned(void* dst_ptr, const void* src_ptr,
-                                size_t count) {
+void copy_and_swap_64_unaligned(void* dst_ptr, const void* src_ptr, size_t count) {
   auto dst = reinterpret_cast<uint8_t*>(dst_ptr);
   auto src = reinterpret_cast<const uint8_t*>(src_ptr);
 
-  const uint8x16_t tbl_idx =
-      vcombine_u8(vcreate_u8(UINT64_C(0x0001020304050607)),
-                  vcreate_u8(UINT64_C(0x08090A0B0C0D0E0F)));
+  const uint8x16_t tbl_idx = vcombine_u8(vcreate_u8(UINT64_C(0x0001020304050607)),
+                                         vcreate_u8(UINT64_C(0x08090A0B0C0D0E0F)));
 
   while (count >= 2) {
     uint8x16_t data = vld1q_u8(src);
@@ -328,8 +305,7 @@ void copy_and_swap_16_in_32_aligned(void* dst, const void* src, size_t count) {
   return copy_and_swap_16_in_32_unaligned(dst, src, count);
 }
 
-void copy_and_swap_16_in_32_unaligned(void* dst_ptr, const void* src_ptr,
-                                      size_t count) {
+void copy_and_swap_16_in_32_unaligned(void* dst_ptr, const void* src_ptr, size_t count) {
   auto dst = reinterpret_cast<uint16_t*>(dst_ptr);
   auto src = reinterpret_cast<const uint16_t*>(src_ptr);
   while (count > 0) {
@@ -349,8 +325,7 @@ void copy_and_swap_16_aligned(void* dest, const void* src, size_t count) {
   return copy_and_swap_16_unaligned(dest, src, count);
 }
 
-void copy_and_swap_16_unaligned(void* dest_ptr, const void* src_ptr,
-                                size_t count) {
+void copy_and_swap_16_unaligned(void* dest_ptr, const void* src_ptr, size_t count) {
   auto dest = reinterpret_cast<uint16_t*>(dest_ptr);
   auto src = reinterpret_cast<const uint16_t*>(src_ptr);
   for (size_t i = 0; i < count; ++i) {
@@ -362,8 +337,7 @@ void copy_and_swap_32_aligned(void* dest, const void* src, size_t count) {
   return copy_and_swap_32_unaligned(dest, src, count);
 }
 
-void copy_and_swap_32_unaligned(void* dest_ptr, const void* src_ptr,
-                                size_t count) {
+void copy_and_swap_32_unaligned(void* dest_ptr, const void* src_ptr, size_t count) {
   auto dest = reinterpret_cast<uint32_t*>(dest_ptr);
   auto src = reinterpret_cast<const uint32_t*>(src_ptr);
   for (size_t i = 0; i < count; ++i) {
@@ -375,8 +349,7 @@ void copy_and_swap_64_aligned(void* dest, const void* src, size_t count) {
   return copy_and_swap_64_unaligned(dest, src, count);
 }
 
-void copy_and_swap_64_unaligned(void* dest_ptr, const void* src_ptr,
-                                size_t count) {
+void copy_and_swap_64_unaligned(void* dest_ptr, const void* src_ptr, size_t count) {
   auto dest = reinterpret_cast<uint64_t*>(dest_ptr);
   auto src = reinterpret_cast<const uint64_t*>(src_ptr);
   for (size_t i = 0; i < count; ++i) {
@@ -388,8 +361,7 @@ void copy_and_swap_16_in_32_aligned(void* dest, const void* src, size_t count) {
   return copy_and_swap_16_in_32_unaligned(dest, src, count);
 }
 
-void copy_and_swap_16_in_32_unaligned(void* dst_ptr, const void* src_ptr,
-                                      size_t count) {
+void copy_and_swap_16_in_32_unaligned(void* dst_ptr, const void* src_ptr, size_t count) {
   auto dst = reinterpret_cast<uint16_t*>(dst_ptr);
   auto src = reinterpret_cast<const uint16_t*>(src_ptr);
   while (count > 0) {

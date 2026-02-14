@@ -5,6 +5,9 @@ set(REXGLUE_SHARE_DIR "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_DATADIR@/rexglue")
 
 include(CMakeFindDependencyMacro)
 
+# Ensure bundled dependencies are found from the SDK install prefix
+list(PREPEND CMAKE_PREFIX_PATH "${PACKAGE_PREFIX_DIR}")
+
 # Required dependencies
 find_dependency(fmt CONFIG)
 find_dependency(spdlog CONFIG)

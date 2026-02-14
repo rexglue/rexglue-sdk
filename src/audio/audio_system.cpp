@@ -9,20 +9,19 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/audio/audio_system.h>
-
-#include <rex/audio/flags.h>
-#include <rex/audio/audio_driver.h>
-#include <rex/audio/xma/decoder.h>
 #include <rex/assert.h>
-#include <rex/stream.h>
+#include <rex/audio/audio_driver.h>
+#include <rex/audio/audio_system.h>
+#include <rex/audio/flags.h>
+#include <rex/audio/xma/decoder.h>
+#include <rex/dbg.h>
 #include <rex/logging.h>
 #include <rex/math.h>
-#include <rex/profiling.h>
 #include <rex/memory/ring_buffer.h>
+#include <rex/stream.h>
 #include <rex/string/buffer.h>
+#include <rex/system/thread_state.h>
 #include <rex/thread.h>
-#include <rex/runtime/thread_state.h>
 
 // As with normal Microsoft, there are like twelve different ways to access
 // the audio APIs. Early games use XMA*() methods almost exclusively to touch
@@ -39,14 +38,11 @@
 namespace rex::audio {
 
 AudioSystem::AudioSystem(runtime::Processor* processor)
-    : memory_(processor->memory()),
-      processor_(processor),
-      worker_running_(false) {
+    : memory_(processor->memory()), processor_(processor), worker_running_(false) {
   std::memset(clients_, 0, sizeof(clients_));
 
   for (size_t i = 0; i < kMaximumClientCount; ++i) {
-    client_semaphores_[i] =
-        rex::thread::Semaphore::Create(0, kMaximumQueuedFrames);
+    client_semaphores_[i] = rex::thread::Semaphore::Create(0, kMaximumQueuedFrames);
     assert_not_null(client_semaphores_[i]);
     wait_handles_[i] = client_semaphores_[i].get();
   }
@@ -66,19 +62,19 @@ AudioSystem::~AudioSystem() {
   }
 }
 
-X_STATUS AudioSystem::Setup(kernel::KernelState* kernel_state) {
+X_STATUS AudioSystem::Setup(system::KernelState* kernel_state) {
   X_STATUS result = xma_decoder_->Setup(kernel_state);
   if (result) {
     return result;
   }
 
   worker_running_ = true;
-  worker_thread_ = kernel::object_ref<kernel::XHostThread>(
-      new kernel::XHostThread(kernel_state, 128 * 1024, 0, [this]() {
+  worker_thread_ = system::object_ref<system::XHostThread>(
+      new system::XHostThread(kernel_state, 128 * 1024, 0, [this]() {
         WorkerThreadMain();
         return 0;
       }));
-  
+
   worker_thread_->set_name("Audio Worker");
   worker_thread_->Create();
 
@@ -94,15 +90,13 @@ void AudioSystem::WorkerThreadMain() {
     // These handles signify the number of submitted samples. Once we reach
     // 64 samples, we wait until our audio backend releases a semaphore
     // (signaling a sample has finished playing)
-    auto result =
-        rex::thread::WaitAny(wait_handles_, rex::countof(wait_handles_), true);
+    auto result = rex::thread::WaitAny(wait_handles_, rex::countof(wait_handles_), true);
     if (result.first == rex::thread::WaitResult::kFailed) {
       // TODO: Assert?
       continue;
     }
 
-    if (result.first == thread::WaitResult::kSuccess &&
-        result.second == kMaximumClientCount) {
+    if (result.first == thread::WaitResult::kSuccess && result.second == kMaximumClientCount) {
       // Shutdown event signaled.
       if (paused_) {
         pause_fence_.Signal();
@@ -125,8 +119,8 @@ void AudioSystem::WorkerThreadMain() {
       if (client_callback) {
         SCOPE_profile_cpu_i("apu", "rex::audio::AudioSystem->client_callback");
         uint64_t args[] = {client_callback_arg};
-        processor_->Execute(worker_thread_->thread_state(), client_callback,
-                            args, rex::countof(args));
+        processor_->Execute(worker_thread_->thread_state(), client_callback, args,
+                            rex::countof(args));
       }
 
       pumped = true;
@@ -168,8 +162,7 @@ void AudioSystem::Shutdown() {
   }
 }
 
-X_STATUS AudioSystem::RegisterClient(uint32_t callback, uint32_t callback_arg,
-                                     size_t* out_index) {
+X_STATUS AudioSystem::RegisterClient(uint32_t callback, uint32_t callback_arg, size_t* out_index) {
   auto global_lock = global_critical_region_.Acquire();
 
   auto index = FindFreeClient();
@@ -220,8 +213,7 @@ void AudioSystem::UnregisterClient(size_t index) {
   auto client_semaphore = client_semaphores_[index].get();
   rex::thread::WaitResult wait_result;
   do {
-    wait_result = rex::thread::Wait(client_semaphore, false,
-                                      std::chrono::milliseconds(0));
+    wait_result = rex::thread::Wait(client_semaphore, false, std::chrono::milliseconds(0));
   } while (wait_result == rex::thread::WaitResult::kSuccess);
   assert_true(wait_result == rex::thread::WaitResult::kTimeout);
 }

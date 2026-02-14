@@ -11,7 +11,6 @@
 
 #pragma once
 
-
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
@@ -34,16 +33,14 @@ class DeferredCommandList {
                       size_t initial_size_bytes = 1_MiB);
 
   void Reset();
-  void Execute(ID3D12GraphicsCommandList* command_list,
-               ID3D12GraphicsCommandList1* command_list_1);
+  void Execute(ID3D12GraphicsCommandList* command_list, ID3D12GraphicsCommandList1* command_list_1);
 
-  D3D12_RECT* ClearDepthStencilViewAllocatedRects(
-      D3D12_CPU_DESCRIPTOR_HANDLE depth_stencil_view,
-      D3D12_CLEAR_FLAGS clear_flags, FLOAT depth, UINT8 stencil,
-      UINT num_rects) {
-    auto args = reinterpret_cast<ClearDepthStencilViewHeader*>(WriteCommand(
-        Command::kD3DClearDepthStencilView,
-        sizeof(ClearDepthStencilViewHeader) + num_rects * sizeof(D3D12_RECT)));
+  D3D12_RECT* ClearDepthStencilViewAllocatedRects(D3D12_CPU_DESCRIPTOR_HANDLE depth_stencil_view,
+                                                  D3D12_CLEAR_FLAGS clear_flags, FLOAT depth,
+                                                  UINT8 stencil, UINT num_rects) {
+    auto args = reinterpret_cast<ClearDepthStencilViewHeader*>(
+        WriteCommand(Command::kD3DClearDepthStencilView,
+                     sizeof(ClearDepthStencilViewHeader) + num_rects * sizeof(D3D12_RECT)));
     args->depth_stencil_view = depth_stencil_view;
     args->clear_flags = clear_flags;
     args->depth = depth;
@@ -53,9 +50,8 @@ class DeferredCommandList {
   }
 
   void D3DClearDepthStencilView(D3D12_CPU_DESCRIPTOR_HANDLE depth_stencil_view,
-                                D3D12_CLEAR_FLAGS clear_flags, FLOAT depth,
-                                UINT8 stencil, UINT num_rects,
-                                const D3D12_RECT* rects) {
+                                D3D12_CLEAR_FLAGS clear_flags, FLOAT depth, UINT8 stencil,
+                                UINT num_rects, const D3D12_RECT* rects) {
     D3D12_RECT* allocated_rects = ClearDepthStencilViewAllocatedRects(
         depth_stencil_view, clear_flags, depth, stencil, num_rects);
     if (num_rects) {
@@ -67,9 +63,9 @@ class DeferredCommandList {
   void D3DClearRenderTargetView(D3D12_CPU_DESCRIPTOR_HANDLE render_target_view,
                                 const FLOAT color_rgba[4], UINT num_rects,
                                 const D3D12_RECT* rects) {
-    auto args = reinterpret_cast<ClearRenderTargetViewHeader*>(WriteCommand(
-        Command::kD3DClearRenderTargetView,
-        sizeof(ClearRenderTargetViewHeader) + num_rects * sizeof(D3D12_RECT)));
+    auto args = reinterpret_cast<ClearRenderTargetViewHeader*>(
+        WriteCommand(Command::kD3DClearRenderTargetView,
+                     sizeof(ClearRenderTargetViewHeader) + num_rects * sizeof(D3D12_RECT)));
     args->render_target_view = render_target_view;
     std::memcpy(args->color_rgba, color_rgba, 4 * sizeof(FLOAT));
     args->num_rects = num_rects;
@@ -78,14 +74,13 @@ class DeferredCommandList {
     }
   }
 
-  void D3DClearUnorderedAccessViewUint(
-      D3D12_GPU_DESCRIPTOR_HANDLE view_gpu_handle_in_current_heap,
-      D3D12_CPU_DESCRIPTOR_HANDLE view_cpu_handle, ID3D12Resource* resource,
-      const UINT values[4], UINT num_rects, const D3D12_RECT* rects) {
+  void D3DClearUnorderedAccessViewUint(D3D12_GPU_DESCRIPTOR_HANDLE view_gpu_handle_in_current_heap,
+                                       D3D12_CPU_DESCRIPTOR_HANDLE view_cpu_handle,
+                                       ID3D12Resource* resource, const UINT values[4],
+                                       UINT num_rects, const D3D12_RECT* rects) {
     auto args = reinterpret_cast<ClearUnorderedAccessViewHeader*>(
         WriteCommand(Command::kD3DClearUnorderedAccessViewUint,
-                     sizeof(ClearUnorderedAccessViewHeader) +
-                         num_rects * sizeof(D3D12_RECT)));
+                     sizeof(ClearUnorderedAccessViewHeader) + num_rects * sizeof(D3D12_RECT)));
     args->view_gpu_handle_in_current_heap = view_gpu_handle_in_current_heap;
     args->view_cpu_handle = view_cpu_handle;
     args->resource = resource;
@@ -97,10 +92,9 @@ class DeferredCommandList {
   }
 
   void D3DCopyBufferRegion(ID3D12Resource* dst_buffer, UINT64 dst_offset,
-                           ID3D12Resource* src_buffer, UINT64 src_offset,
-                           UINT64 num_bytes) {
-    auto& args = *reinterpret_cast<D3DCopyBufferRegionArguments*>(WriteCommand(
-        Command::kD3DCopyBufferRegion, sizeof(D3DCopyBufferRegionArguments)));
+                           ID3D12Resource* src_buffer, UINT64 src_offset, UINT64 num_bytes) {
+    auto& args = *reinterpret_cast<D3DCopyBufferRegionArguments*>(
+        WriteCommand(Command::kD3DCopyBufferRegion, sizeof(D3DCopyBufferRegionArguments)));
     args.dst_buffer = dst_buffer;
     args.dst_offset = dst_offset;
     args.src_buffer = src_buffer;
@@ -108,30 +102,27 @@ class DeferredCommandList {
     args.num_bytes = num_bytes;
   }
 
-  void D3DCopyResource(ID3D12Resource* dst_resource,
-                       ID3D12Resource* src_resource) {
-    auto& args = *reinterpret_cast<D3DCopyResourceArguments*>(WriteCommand(
-        Command::kD3DCopyResource, sizeof(D3DCopyResourceArguments)));
+  void D3DCopyResource(ID3D12Resource* dst_resource, ID3D12Resource* src_resource) {
+    auto& args = *reinterpret_cast<D3DCopyResourceArguments*>(
+        WriteCommand(Command::kD3DCopyResource, sizeof(D3DCopyResourceArguments)));
     args.dst_resource = dst_resource;
     args.src_resource = src_resource;
   }
 
-  void CopyTexture(const D3D12_TEXTURE_COPY_LOCATION& dst,
-                   const D3D12_TEXTURE_COPY_LOCATION& src) {
+  void CopyTexture(const D3D12_TEXTURE_COPY_LOCATION& dst, const D3D12_TEXTURE_COPY_LOCATION& src) {
     auto& args = *reinterpret_cast<CopyTextureArguments*>(
         WriteCommand(Command::kCopyTexture, sizeof(CopyTextureArguments)));
     std::memcpy(&args.dst, &dst, sizeof(D3D12_TEXTURE_COPY_LOCATION));
     std::memcpy(&args.src, &src, sizeof(D3D12_TEXTURE_COPY_LOCATION));
   }
 
-  void D3DCopyTextureRegion(const D3D12_TEXTURE_COPY_LOCATION* dst, UINT dst_x,
-                            UINT dst_y, UINT dst_z,
-                            const D3D12_TEXTURE_COPY_LOCATION* src,
+  void D3DCopyTextureRegion(const D3D12_TEXTURE_COPY_LOCATION* dst, UINT dst_x, UINT dst_y,
+                            UINT dst_z, const D3D12_TEXTURE_COPY_LOCATION* src,
                             const D3D12_BOX* src_box) {
     assert_not_null(dst);
     assert_not_null(src);
-    auto& args = *reinterpret_cast<D3DCopyTextureRegionArguments*>(WriteCommand(
-        Command::kD3DCopyTextureRegion, sizeof(D3DCopyTextureRegionArguments)));
+    auto& args = *reinterpret_cast<D3DCopyTextureRegionArguments*>(
+        WriteCommand(Command::kD3DCopyTextureRegion, sizeof(D3DCopyTextureRegionArguments)));
     std::memcpy(&args.dst, dst, sizeof(D3D12_TEXTURE_COPY_LOCATION));
     args.dst_x = dst_x;
     args.dst_y = dst_y;
@@ -154,13 +145,11 @@ class DeferredCommandList {
     args.thread_group_count_z = thread_group_count_z;
   }
 
-  void D3DDrawIndexedInstanced(UINT index_count_per_instance,
-                               UINT instance_count, UINT start_index_location,
-                               INT base_vertex_location,
+  void D3DDrawIndexedInstanced(UINT index_count_per_instance, UINT instance_count,
+                               UINT start_index_location, INT base_vertex_location,
                                UINT start_instance_location) {
     auto& args = *reinterpret_cast<D3DDrawIndexedInstancedArguments*>(
-        WriteCommand(Command::kD3DDrawIndexedInstanced,
-                     sizeof(D3DDrawIndexedInstancedArguments)));
+        WriteCommand(Command::kD3DDrawIndexedInstanced, sizeof(D3DDrawIndexedInstancedArguments)));
     args.index_count_per_instance = index_count_per_instance;
     args.instance_count = instance_count;
     args.start_index_location = start_index_location;
@@ -169,10 +158,9 @@ class DeferredCommandList {
   }
 
   void D3DDrawInstanced(UINT vertex_count_per_instance, UINT instance_count,
-                        UINT start_vertex_location,
-                        UINT start_instance_location) {
-    auto& args = *reinterpret_cast<D3DDrawInstancedArguments*>(WriteCommand(
-        Command::kD3DDrawInstanced, sizeof(D3DDrawInstancedArguments)));
+                        UINT start_vertex_location, UINT start_instance_location) {
+    auto& args = *reinterpret_cast<D3DDrawInstancedArguments*>(
+        WriteCommand(Command::kD3DDrawInstanced, sizeof(D3DDrawInstancedArguments)));
     args.vertex_count_per_instance = vertex_count_per_instance;
     args.instance_count = instance_count;
     args.start_vertex_location = start_vertex_location;
@@ -180,8 +168,8 @@ class DeferredCommandList {
   }
 
   void D3DIASetIndexBuffer(const D3D12_INDEX_BUFFER_VIEW* view) {
-    auto& args = *reinterpret_cast<D3D12_INDEX_BUFFER_VIEW*>(WriteCommand(
-        Command::kD3DIASetIndexBuffer, sizeof(D3D12_INDEX_BUFFER_VIEW)));
+    auto& args = *reinterpret_cast<D3D12_INDEX_BUFFER_VIEW*>(
+        WriteCommand(Command::kD3DIASetIndexBuffer, sizeof(D3D12_INDEX_BUFFER_VIEW)));
     if (view != nullptr) {
       args.BufferLocation = view->BufferLocation;
       args.SizeInBytes = view->SizeInBytes;
@@ -194,8 +182,8 @@ class DeferredCommandList {
   }
 
   void D3DIASetPrimitiveTopology(D3D12_PRIMITIVE_TOPOLOGY primitive_topology) {
-    auto& arg = *reinterpret_cast<D3D12_PRIMITIVE_TOPOLOGY*>(WriteCommand(
-        Command::kD3DIASetPrimitiveTopology, sizeof(D3D12_PRIMITIVE_TOPOLOGY)));
+    auto& arg = *reinterpret_cast<D3D12_PRIMITIVE_TOPOLOGY*>(
+        WriteCommand(Command::kD3DIASetPrimitiveTopology, sizeof(D3D12_PRIMITIVE_TOPOLOGY)));
     arg = primitive_topology;
   }
 
@@ -205,11 +193,11 @@ class DeferredCommandList {
       return;
     }
     static_assert(alignof(D3D12_VERTEX_BUFFER_VIEW) <= alignof(uintmax_t));
-    const size_t header_size = ::rex::align(sizeof(D3DIASetVertexBuffersHeader),
-                                         alignof(D3D12_VERTEX_BUFFER_VIEW));
-    auto args = reinterpret_cast<D3DIASetVertexBuffersHeader*>(WriteCommand(
-        Command::kD3DIASetVertexBuffers,
-        header_size + num_views * sizeof(D3D12_VERTEX_BUFFER_VIEW)));
+    const size_t header_size =
+        ::rex::align(sizeof(D3DIASetVertexBuffersHeader), alignof(D3D12_VERTEX_BUFFER_VIEW));
+    auto args = reinterpret_cast<D3DIASetVertexBuffersHeader*>(
+        WriteCommand(Command::kD3DIASetVertexBuffers,
+                     header_size + num_views * sizeof(D3D12_VERTEX_BUFFER_VIEW)));
     args->start_slot = start_slot;
     args->num_views = num_views;
     std::memcpy(reinterpret_cast<uint8_t*>(args) + header_size, views,
@@ -217,33 +205,27 @@ class DeferredCommandList {
   }
 
   void D3DOMSetBlendFactor(const FLOAT blend_factor[4]) {
-    auto args = reinterpret_cast<FLOAT*>(
-        WriteCommand(Command::kD3DOMSetBlendFactor, 4 * sizeof(FLOAT)));
+    auto args =
+        reinterpret_cast<FLOAT*>(WriteCommand(Command::kD3DOMSetBlendFactor, 4 * sizeof(FLOAT)));
     args[0] = blend_factor[0];
     args[1] = blend_factor[1];
     args[2] = blend_factor[2];
     args[3] = blend_factor[3];
   }
 
-  void D3DOMSetRenderTargets(
-      UINT num_render_target_descriptors,
-      const D3D12_CPU_DESCRIPTOR_HANDLE* render_target_descriptors,
-      BOOL rts_single_handle_to_descriptor_range,
-      const D3D12_CPU_DESCRIPTOR_HANDLE* depth_stencil_descriptor) {
+  void D3DOMSetRenderTargets(UINT num_render_target_descriptors,
+                             const D3D12_CPU_DESCRIPTOR_HANDLE* render_target_descriptors,
+                             BOOL rts_single_handle_to_descriptor_range,
+                             const D3D12_CPU_DESCRIPTOR_HANDLE* depth_stencil_descriptor) {
     auto& args = *reinterpret_cast<D3DOMSetRenderTargetsArguments*>(
-        WriteCommand(Command::kD3DOMSetRenderTargets,
-                     sizeof(D3DOMSetRenderTargetsArguments)));
+        WriteCommand(Command::kD3DOMSetRenderTargets, sizeof(D3DOMSetRenderTargetsArguments)));
     num_render_target_descriptors =
-        std::min(num_render_target_descriptors,
-                 UINT(D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT));
+        std::min(num_render_target_descriptors, UINT(D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT));
     args.num_render_target_descriptors = num_render_target_descriptors;
-    args.rts_single_handle_to_descriptor_range =
-        rts_single_handle_to_descriptor_range ? 1 : 0;
+    args.rts_single_handle_to_descriptor_range = rts_single_handle_to_descriptor_range ? 1 : 0;
     if (num_render_target_descriptors != 0) {
       std::memcpy(args.render_target_descriptors, render_target_descriptors,
-                  (rts_single_handle_to_descriptor_range
-                       ? 1
-                       : num_render_target_descriptors) *
+                  (rts_single_handle_to_descriptor_range ? 1 : num_render_target_descriptors) *
                       sizeof(D3D12_CPU_DESCRIPTOR_HANDLE));
     }
     args.depth_stencil = (depth_stencil_descriptor != nullptr) ? 1 : 0;
@@ -253,25 +235,20 @@ class DeferredCommandList {
   }
 
   void D3DOMSetStencilRef(UINT stencil_ref) {
-    auto& arg = *reinterpret_cast<UINT*>(
-        WriteCommand(Command::kD3DOMSetStencilRef, sizeof(UINT)));
+    auto& arg = *reinterpret_cast<UINT*>(WriteCommand(Command::kD3DOMSetStencilRef, sizeof(UINT)));
     arg = stencil_ref;
   }
 
-  void D3DResourceBarrier(UINT num_barriers,
-                          const D3D12_RESOURCE_BARRIER* barriers) {
+  void D3DResourceBarrier(UINT num_barriers, const D3D12_RESOURCE_BARRIER* barriers) {
     if (num_barriers == 0) {
       return;
     }
     static_assert(alignof(D3D12_RESOURCE_BARRIER) <= alignof(uintmax_t));
-    const size_t header_size =
-        ::rex::align(sizeof(UINT), alignof(D3D12_RESOURCE_BARRIER));
+    const size_t header_size = ::rex::align(sizeof(UINT), alignof(D3D12_RESOURCE_BARRIER));
     uint8_t* args = reinterpret_cast<uint8_t*>(WriteCommand(
-        Command::kD3DResourceBarrier,
-        header_size + num_barriers * sizeof(D3D12_RESOURCE_BARRIER)));
+        Command::kD3DResourceBarrier, header_size + num_barriers * sizeof(D3D12_RESOURCE_BARRIER)));
     *reinterpret_cast<UINT*>(args) = num_barriers;
-    std::memcpy(args + header_size, barriers,
-                num_barriers * sizeof(D3D12_RESOURCE_BARRIER));
+    std::memcpy(args + header_size, barriers, num_barriers * sizeof(D3D12_RESOURCE_BARRIER));
   }
 
   void RSSetScissorRect(const D3D12_RECT& rect) {
@@ -286,51 +263,44 @@ class DeferredCommandList {
     arg = viewport;
   }
 
-  void D3DSetComputeRoot32BitConstants(UINT root_parameter_index,
-                                       UINT num_32bit_values_to_set,
-                                       const void* src_data,
-                                       UINT dest_offset_in_32bit_values) {
+  void D3DSetComputeRoot32BitConstants(UINT root_parameter_index, UINT num_32bit_values_to_set,
+                                       const void* src_data, UINT dest_offset_in_32bit_values) {
     if (num_32bit_values_to_set == 0) {
       return;
     }
-    auto args = reinterpret_cast<SetRoot32BitConstantsHeader*>(
-        WriteCommand(Command::kD3DSetComputeRoot32BitConstants,
-                     sizeof(SetRoot32BitConstantsHeader) +
-                         num_32bit_values_to_set * sizeof(uint32_t)));
+    auto args = reinterpret_cast<SetRoot32BitConstantsHeader*>(WriteCommand(
+        Command::kD3DSetComputeRoot32BitConstants,
+        sizeof(SetRoot32BitConstantsHeader) + num_32bit_values_to_set * sizeof(uint32_t)));
     args->root_parameter_index = root_parameter_index;
     args->num_32bit_values_to_set = num_32bit_values_to_set;
     args->dest_offset_in_32bit_values = dest_offset_in_32bit_values;
     std::memcpy(args + 1, src_data, num_32bit_values_to_set * sizeof(uint32_t));
   }
 
-  void D3DSetGraphicsRoot32BitConstants(UINT root_parameter_index,
-                                        UINT num_32bit_values_to_set,
-                                        const void* src_data,
-                                        UINT dest_offset_in_32bit_values) {
+  void D3DSetGraphicsRoot32BitConstants(UINT root_parameter_index, UINT num_32bit_values_to_set,
+                                        const void* src_data, UINT dest_offset_in_32bit_values) {
     if (num_32bit_values_to_set == 0) {
       return;
     }
-    auto args = reinterpret_cast<SetRoot32BitConstantsHeader*>(
-        WriteCommand(Command::kD3DSetGraphicsRoot32BitConstants,
-                     sizeof(SetRoot32BitConstantsHeader) +
-                         num_32bit_values_to_set * sizeof(uint32_t)));
+    auto args = reinterpret_cast<SetRoot32BitConstantsHeader*>(WriteCommand(
+        Command::kD3DSetGraphicsRoot32BitConstants,
+        sizeof(SetRoot32BitConstantsHeader) + num_32bit_values_to_set * sizeof(uint32_t)));
     args->root_parameter_index = root_parameter_index;
     args->num_32bit_values_to_set = num_32bit_values_to_set;
     args->dest_offset_in_32bit_values = dest_offset_in_32bit_values;
     std::memcpy(args + 1, src_data, num_32bit_values_to_set * sizeof(uint32_t));
   }
 
-  void D3DSetComputeRootConstantBufferView(
-      UINT root_parameter_index, D3D12_GPU_VIRTUAL_ADDRESS buffer_location) {
-    auto& args = *reinterpret_cast<SetRootConstantBufferViewArguments*>(
-        WriteCommand(Command::kD3DSetComputeRootConstantBufferView,
-                     sizeof(SetRootConstantBufferViewArguments)));
+  void D3DSetComputeRootConstantBufferView(UINT root_parameter_index,
+                                           D3D12_GPU_VIRTUAL_ADDRESS buffer_location) {
+    auto& args = *reinterpret_cast<SetRootConstantBufferViewArguments*>(WriteCommand(
+        Command::kD3DSetComputeRootConstantBufferView, sizeof(SetRootConstantBufferViewArguments)));
     args.root_parameter_index = root_parameter_index;
     args.buffer_location = buffer_location;
   }
 
-  void D3DSetGraphicsRootConstantBufferView(
-      UINT root_parameter_index, D3D12_GPU_VIRTUAL_ADDRESS buffer_location) {
+  void D3DSetGraphicsRootConstantBufferView(UINT root_parameter_index,
+                                            D3D12_GPU_VIRTUAL_ADDRESS buffer_location) {
     auto& args = *reinterpret_cast<SetRootConstantBufferViewArguments*>(
         WriteCommand(Command::kD3DSetGraphicsRootConstantBufferView,
                      sizeof(SetRootConstantBufferViewArguments)));
@@ -338,66 +308,63 @@ class DeferredCommandList {
     args.buffer_location = buffer_location;
   }
 
-  void D3DSetComputeRootDescriptorTable(
-      UINT root_parameter_index, D3D12_GPU_DESCRIPTOR_HANDLE base_descriptor) {
-    auto& args = *reinterpret_cast<SetRootDescriptorTableArguments*>(
-        WriteCommand(Command::kD3DSetComputeRootDescriptorTable,
-                     sizeof(SetRootDescriptorTableArguments)));
+  void D3DSetComputeRootDescriptorTable(UINT root_parameter_index,
+                                        D3D12_GPU_DESCRIPTOR_HANDLE base_descriptor) {
+    auto& args = *reinterpret_cast<SetRootDescriptorTableArguments*>(WriteCommand(
+        Command::kD3DSetComputeRootDescriptorTable, sizeof(SetRootDescriptorTableArguments)));
     args.root_parameter_index = root_parameter_index;
     args.base_descriptor.ptr = base_descriptor.ptr;
   }
 
-  void D3DSetGraphicsRootDescriptorTable(
-      UINT root_parameter_index, D3D12_GPU_DESCRIPTOR_HANDLE base_descriptor) {
-    auto& args = *reinterpret_cast<SetRootDescriptorTableArguments*>(
-        WriteCommand(Command::kD3DSetGraphicsRootDescriptorTable,
-                     sizeof(SetRootDescriptorTableArguments)));
+  void D3DSetGraphicsRootDescriptorTable(UINT root_parameter_index,
+                                         D3D12_GPU_DESCRIPTOR_HANDLE base_descriptor) {
+    auto& args = *reinterpret_cast<SetRootDescriptorTableArguments*>(WriteCommand(
+        Command::kD3DSetGraphicsRootDescriptorTable, sizeof(SetRootDescriptorTableArguments)));
     args.root_parameter_index = root_parameter_index;
     args.base_descriptor.ptr = base_descriptor.ptr;
   }
 
   void D3DSetComputeRootSignature(ID3D12RootSignature* root_signature) {
-    auto& arg = *reinterpret_cast<ID3D12RootSignature**>(WriteCommand(
-        Command::kD3DSetComputeRootSignature, sizeof(ID3D12RootSignature*)));
+    auto& arg = *reinterpret_cast<ID3D12RootSignature**>(
+        WriteCommand(Command::kD3DSetComputeRootSignature, sizeof(ID3D12RootSignature*)));
     arg = root_signature;
   }
 
   void D3DSetGraphicsRootSignature(ID3D12RootSignature* root_signature) {
-    auto& arg = *reinterpret_cast<ID3D12RootSignature**>(WriteCommand(
-        Command::kD3DSetGraphicsRootSignature, sizeof(ID3D12RootSignature*)));
+    auto& arg = *reinterpret_cast<ID3D12RootSignature**>(
+        WriteCommand(Command::kD3DSetGraphicsRootSignature, sizeof(ID3D12RootSignature*)));
     arg = root_signature;
   }
 
   void SetDescriptorHeaps(ID3D12DescriptorHeap* cbv_srv_uav_descriptor_heap,
                           ID3D12DescriptorHeap* sampler_descriptor_heap) {
-    auto& args = *reinterpret_cast<SetDescriptorHeapsArguments*>(WriteCommand(
-        Command::kSetDescriptorHeaps, sizeof(SetDescriptorHeapsArguments)));
+    auto& args = *reinterpret_cast<SetDescriptorHeapsArguments*>(
+        WriteCommand(Command::kSetDescriptorHeaps, sizeof(SetDescriptorHeapsArguments)));
     args.cbv_srv_uav_descriptor_heap = cbv_srv_uav_descriptor_heap;
     args.sampler_descriptor_heap = sampler_descriptor_heap;
   }
 
   void D3DSetPipelineState(ID3D12PipelineState* pipeline_state) {
-    auto& arg = *reinterpret_cast<ID3D12PipelineState**>(WriteCommand(
-        Command::kD3DSetPipelineState, sizeof(ID3D12PipelineState*)));
+    auto& arg = *reinterpret_cast<ID3D12PipelineState**>(
+        WriteCommand(Command::kD3DSetPipelineState, sizeof(ID3D12PipelineState*)));
     arg = pipeline_state;
   }
 
   void SetPipelineStateHandle(void* pipeline_state_handle) {
-    auto& arg = *reinterpret_cast<void**>(
-        WriteCommand(Command::kSetPipelineStateHandle, sizeof(void*)));
+    auto& arg =
+        *reinterpret_cast<void**>(WriteCommand(Command::kSetPipelineStateHandle, sizeof(void*)));
     arg = pipeline_state_handle;
   }
 
   void D3DSetSamplePositions(UINT num_samples_per_pixel, UINT num_pixels,
                              const D3D12_SAMPLE_POSITION* sample_positions) {
     auto& args = *reinterpret_cast<D3DSetSamplePositionsArguments*>(
-        WriteCommand(Command::kD3DSetSamplePositions,
-                     sizeof(D3DSetSamplePositionsArguments)));
+        WriteCommand(Command::kD3DSetSamplePositions, sizeof(D3DSetSamplePositionsArguments)));
     args.num_samples_per_pixel = num_samples_per_pixel;
     args.num_pixels = num_pixels;
-    std::memcpy(args.sample_positions, sample_positions,
-                std::min(num_samples_per_pixel * num_pixels, UINT(16)) *
-                    sizeof(D3D12_SAMPLE_POSITION));
+    std::memcpy(
+        args.sample_positions, sample_positions,
+        std::min(num_samples_per_pixel * num_pixels, UINT(16)) * sizeof(D3D12_SAMPLE_POSITION));
   }
 
  private:
@@ -566,4 +533,3 @@ class DeferredCommandList {
 };
 
 }  // namespace rex::graphics::d3d12
-

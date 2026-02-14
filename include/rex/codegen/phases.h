@@ -11,9 +11,10 @@
 
 #pragma once
 
+#include <string>
+
 #include <rex/codegen/codegen_context.h>
 #include <rex/result.h>
-#include <string>
 
 namespace rex::codegen::phases {
 
@@ -35,4 +36,4 @@ VoidResult GapFill(CodegenContext& ctx);
 /// Validate all call targets resolve
 VoidResult Validate(CodegenContext& ctx);
 
-} // namespace rex::codegen::phases
+}  // namespace rex::codegen::phases

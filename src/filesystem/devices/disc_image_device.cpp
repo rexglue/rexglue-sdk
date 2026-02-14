@@ -10,8 +10,8 @@
  */
 
 #include "disc_image_device.h"
-
 #include "disc_image_entry.h"
+
 #include <rex/literals.h>
 #include <rex/logging.h>
 #include <rex/math.h>
@@ -92,8 +92,7 @@ DiscImageDevice::Error DiscImageDevice::Verify(ParseState* state) {
   uint8_t* fs_ptr = state->ptr + state->game_offset + (32 * kXESectorSize);
   state->root_sector = memory::load<uint32_t>(fs_ptr + 20);
   state->root_size = memory::load<uint32_t>(fs_ptr + 24);
-  state->root_offset =
-      state->game_offset + (state->root_sector * kXESectorSize);
+  state->root_offset = state->game_offset + (state->root_sector * kXESectorSize);
   if (state->root_size < 13 || state->root_size > 32_MiB) {
     return Error::kErrorDamagedFile;
   }
@@ -110,8 +109,8 @@ bool DiscImageDevice::VerifyMagic(ParseState* state, size_t offset) {
   return std::memcmp(state->ptr + offset, "MICROSOFT*XBOX*MEDIA", 20) == 0;
 }
 
-DiscImageDevice::Error DiscImageDevice::ReadAllEntries(
-    ParseState* state, const uint8_t* root_buffer) {
+DiscImageDevice::Error DiscImageDevice::ReadAllEntries(ParseState* state,
+                                                       const uint8_t* root_buffer) {
   auto root_entry = new DiscImageEntry(this, nullptr, "", mmap_.get());
   root_entry->attributes_ = kFileAttributeDirectory;
   root_entry_ = std::unique_ptr<Entry>(root_entry);
@@ -123,8 +122,7 @@ DiscImageDevice::Error DiscImageDevice::ReadAllEntries(
   return Error::kSuccess;
 }
 
-bool DiscImageDevice::ReadEntry(ParseState* state, const uint8_t* buffer,
-                                uint16_t entry_ordinal,
+bool DiscImageDevice::ReadEntry(ParseState* state, const uint8_t* buffer, uint16_t entry_ordinal,
                                 DiscImageEntry* parent) {
   const uint8_t* p = buffer + (entry_ordinal * 4);
 
@@ -163,8 +161,7 @@ bool DiscImageDevice::ReadEntry(ParseState* state, const uint8_t* buffer,
         return false;
       }
       // Read child list.
-      uint8_t* folder_ptr =
-          state->ptr + state->game_offset + (sector * kXESectorSize);
+      uint8_t* folder_ptr = state->ptr + state->game_offset + (sector * kXESectorSize);
       if (!ReadEntry(state, folder_ptr, 0, entry.get())) {
         return false;
       }

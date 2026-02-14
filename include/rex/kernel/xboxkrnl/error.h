@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include <rex/kernel/xtypes.h>
+#include <rex/system/xtypes.h>
 
 namespace rex::kernel::xboxkrnl {
 

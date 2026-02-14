@@ -9,11 +9,10 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/filesystem/wildcard.h>
-
 #include <algorithm>
 
 #include <rex/assert.h>
+#include <rex/filesystem/wildcard.h>
 #include <rex/string.h>
 
 namespace rex::filesystem {
@@ -23,18 +22,15 @@ WildcardFlags WildcardFlags::LAST(false, true, false);
 WildcardFlags WildcardFlags::ANY(false, false, true);
 WildcardFlags WildcardFlags::FIRST_AND_LAST(true, true, false);
 
-WildcardFlags::WildcardFlags()
-    : FromStart(false), ToEnd(false), ExactLength(false) {}
+WildcardFlags::WildcardFlags() : FromStart(false), ToEnd(false), ExactLength(false) {}
 
 WildcardFlags::WildcardFlags(bool start, bool end, bool exact_length)
     : FromStart(start), ToEnd(end), ExactLength(exact_length) {}
 
-WildcardRule::WildcardRule(const std::string_view match,
-                           const WildcardFlags& flags)
+WildcardRule::WildcardRule(const std::string_view match, const WildcardFlags& flags)
     : match_(rex::string::utf8_lower_ascii(match)), rules_(flags) {}
 
-bool WildcardRule::Check(const std::string_view lower,
-                         std::string::size_type* offset) const {
+bool WildcardRule::Check(const std::string_view lower, std::string::size_type* offset) const {
   if (match_.empty()) {
     return true;
   }
@@ -80,8 +76,7 @@ void WildcardEngine::PreparePattern(const std::string_view pattern) {
     if (pattern[n] == '?') {
       auto end = pattern.find_first_not_of('?', n + 1);
       auto count = end == pattern.npos ? (pattern.size() - n) : (end - n);
-      rules_.push_back(
-          WildcardRule(pattern.substr(n, count), WildcardFlags::ANY));
+      rules_.push_back(WildcardRule(pattern.substr(n, count), WildcardFlags::ANY));
       last = n + count;
     } else if (pattern[n] == '*') {
       last = n + 1;
@@ -92,8 +87,8 @@ void WildcardEngine::PreparePattern(const std::string_view pattern) {
   }
   if (last != pattern.size()) {
     std::string str_str(pattern.substr(last));
-    rules_.push_back(WildcardRule(
-        str_str, last ? WildcardFlags::LAST : WildcardFlags::FIRST_AND_LAST));
+    rules_.push_back(
+        WildcardRule(str_str, last ? WildcardFlags::LAST : WildcardFlags::FIRST_AND_LAST));
   }
 }
 

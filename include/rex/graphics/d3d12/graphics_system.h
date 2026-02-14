@@ -11,7 +11,6 @@
 
 #pragma once
 
-
 #include <memory>
 
 #include <rex/graphics/command_processor.h>
@@ -29,13 +28,11 @@ class D3D12GraphicsSystem : public GraphicsSystem {
 
   std::string name() const override;
 
-  X_STATUS Setup(runtime::Processor* processor, kernel::KernelState* kernel_state,
-      ui::WindowedAppContext* app_context,
-      bool with_presentation) override;
+  X_STATUS Setup(runtime::Processor* processor, system::KernelState* kernel_state,
+                 ui::WindowedAppContext* app_context, bool with_presentation) override;
 
  protected:
   std::unique_ptr<CommandProcessor> CreateCommandProcessor() override;
 };
 
 }  // namespace rex::graphics::d3d12
-

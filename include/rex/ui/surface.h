@@ -10,7 +10,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <cstdint>
 
 #include <rex/assert.h>
@@ -37,8 +36,7 @@ class Surface {
   };
   using TypeFlags = uint32_t;
   enum : TypeFlags {
-    kTypeFlag_AndroidNativeWindow = TypeFlags(1)
-                                    << kTypeIndex_AndroidNativeWindow,
+    kTypeFlag_AndroidNativeWindow = TypeFlags(1) << kTypeIndex_AndroidNativeWindow,
     kTypeFlag_XcbWindow = TypeFlags(1) << kTypeIndex_XcbWindow,
     kTypeFlag_Win32Hwnd = TypeFlags(1) << kTypeIndex_Win32Hwnd,
   };
@@ -79,5 +77,4 @@ class Surface {
 };
 
 }  // namespace ui
-}  // namespace xe
-
+}  // namespace rex

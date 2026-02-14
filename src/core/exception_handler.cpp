@@ -48,8 +48,7 @@ bool IsArm64LoadPrefetchStore(uint32_t instruction, bool& is_store_out) {
   if ((instruction & kArm64LoadStoreAnyFMask) != kArm64LoadStoreAnyFixed) {
     return false;
   }
-  if ((instruction & kArm64LoadStorePairAnyFMask) ==
-      kArm64LoadStorePairAnyFixed) {
+  if ((instruction & kArm64LoadStorePairAnyFMask) == kArm64LoadStorePairAnyFixed) {
     is_store_out = !(instruction & kArm64LoadStorePairLoadBit);
     return true;
   }

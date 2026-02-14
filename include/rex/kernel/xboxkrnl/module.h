@@ -12,22 +12,23 @@
 #pragma once
 
 #include <memory>
-#include <rex/thread.h>
-#include <rex/runtime/export_resolver.h>
-#include <rex/kernel/kernel_module.h>
-#include <rex/kernel/kernel_state.h>
+
 #include <rex/kernel/xboxkrnl/ordinals.h>
+#include <rex/system/export_resolver.h>
+#include <rex/system/kernel_module.h>
+#include <rex/system/kernel_state.h>
+#include <rex/thread.h>
 
 // All of the exported functions:
 #include <rex/kernel/xboxkrnl/rtl.h>
 
 namespace rex::kernel::xboxkrnl {
 
-class XboxkrnlModule : public KernelModule {
+class XboxkrnlModule : public system::KernelModule {
  public:
   static constexpr size_t kExLoadedImageNameSize = 255 + 1;
 
-  XboxkrnlModule(Runtime* emulator, KernelState* kernel_state);
+  XboxkrnlModule(Runtime* emulator, system::KernelState* kernel_state);
   virtual ~XboxkrnlModule();
 
   static void RegisterExportTable(rex::runtime::ExportResolver* export_resolver);

@@ -12,10 +12,6 @@
 #include <algorithm>
 #include <string>
 
-#include <X11/Xlib-xcb.h>
-#include <gdk/gdkx.h>
-#include <xcb/xcb.h>
-
 #include <rex/assert.h>
 #include <rex/logging.h>
 #include <rex/platform.h>
@@ -23,23 +19,23 @@
 #include <rex/ui/virtual_key.h>
 #include <rex/ui/window_gtk.h>
 
+#include <X11/Xlib-xcb.h>
+#include <gdk/gdkx.h>
+#include <xcb/xcb.h>
+
 namespace rex {
 namespace ui {
 
 std::unique_ptr<Window> Window::Create(WindowedAppContext& app_context,
-                                       const std::string_view title,
-                                       uint32_t desired_logical_width,
+                                       const std::string_view title, uint32_t desired_logical_width,
                                        uint32_t desired_logical_height) {
   return std::make_unique<GTKWindow>(app_context, title, desired_logical_width,
                                      desired_logical_height);
 }
 
-GTKWindow::GTKWindow(WindowedAppContext& app_context,
-                     const std::string_view title,
-                     uint32_t desired_logical_width,
-                     uint32_t desired_logical_height)
-    : Window(app_context, title, desired_logical_width,
-             desired_logical_height) {}
+GTKWindow::GTKWindow(WindowedAppContext& app_context, const std::string_view title,
+                     uint32_t desired_logical_width, uint32_t desired_logical_height)
+    : Window(app_context, title, desired_logical_width, desired_logical_height) {}
 
 GTKWindow::~GTKWindow() {
   EnterDestructor();
@@ -81,23 +77,18 @@ bool GTKWindow::OpenImpl() {
   // entire window around it (as well as the width of the menu actually if it
   // happens to be bigger - the desired size in the Window will be updated later
   // to reflect that).
-  gtk_widget_set_size_request(drawing_area_, GetDesiredLogicalWidth(),
-                              GetDesiredLogicalHeight());
+  gtk_widget_set_size_request(drawing_area_, GetDesiredLogicalWidth(), GetDesiredLogicalHeight());
 
   // Attach the event handlers.
   // Keyboard events are processed by the window, mouse events are processed
   // within, and by, the drawing (client) area.
-  gtk_widget_set_events(window_, GDK_KEY_PRESS_MASK | GDK_KEY_RELEASE_MASK |
-                                     GDK_FOCUS_CHANGE_MASK);
-  gtk_widget_set_events(drawing_area_,
-                        GDK_POINTER_MOTION_MASK | GDK_BUTTON_MOTION_MASK |
-                            GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK |
-                            GDK_SCROLL_MASK);
-  g_signal_connect(G_OBJECT(window_), "event",
-                   G_CALLBACK(WindowEventHandlerThunk),
+  gtk_widget_set_events(window_, GDK_KEY_PRESS_MASK | GDK_KEY_RELEASE_MASK | GDK_FOCUS_CHANGE_MASK);
+  gtk_widget_set_events(drawing_area_, GDK_POINTER_MOTION_MASK | GDK_BUTTON_MOTION_MASK |
+                                           GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK |
+                                           GDK_SCROLL_MASK);
+  g_signal_connect(G_OBJECT(window_), "event", G_CALLBACK(WindowEventHandlerThunk),
                    reinterpret_cast<gpointer>(this));
-  g_signal_connect(G_OBJECT(drawing_area_), "event",
-                   G_CALLBACK(DrawingAreaEventHandlerThunk),
+  g_signal_connect(G_OBJECT(drawing_area_), "event", G_CALLBACK(DrawingAreaEventHandlerThunk),
                    reinterpret_cast<gpointer>(this));
   g_signal_connect(G_OBJECT(drawing_area_), "draw", G_CALLBACK(DrawHandler),
                    reinterpret_cast<gpointer>(this));
@@ -128,8 +119,7 @@ bool GTKWindow::OpenImpl() {
     GtkAllocation drawing_area_allocation;
     gtk_widget_get_allocation(drawing_area_, &drawing_area_allocation);
     OnActualSizeUpdate(uint32_t(drawing_area_allocation.width),
-                       uint32_t(drawing_area_allocation.height),
-                       destruction_receiver);
+                       uint32_t(drawing_area_allocation.height), destruction_receiver);
     if (destruction_receiver.IsWindowDestroyedOrClosed()) {
       return true;
     }
@@ -145,7 +135,9 @@ bool GTKWindow::OpenImpl() {
   return true;
 }
 
-void GTKWindow::RequestCloseImpl() { gtk_window_close(GTK_WINDOW(window_)); }
+void GTKWindow::RequestCloseImpl() {
+  gtk_window_close(GTK_WINDOW(window_));
+}
 
 void GTKWindow::ApplyNewFullscreen() {
   // Various functions here may trigger events that may result in the listeners
@@ -234,8 +226,7 @@ void GTKWindow::ApplyNewMainMenu(MenuItem* old_main_menu) {
   BeginBatchedSizeUpdate();
 
   if (old_main_menu) {
-    const GTKMenuItem& old_gtk_main_menu =
-        *static_cast<const GTKMenuItem*>(old_main_menu);
+    const GTKMenuItem& old_gtk_main_menu = *static_cast<const GTKMenuItem*>(old_main_menu);
     gtk_container_remove(GTK_CONTAINER(box_), old_gtk_main_menu.handle());
     if (destruction_receiver.IsWindowDestroyedOrClosed() || IsFullscreen()) {
       if (!destruction_receiver.IsWindowDestroyed()) {
@@ -245,8 +236,7 @@ void GTKWindow::ApplyNewMainMenu(MenuItem* old_main_menu) {
     }
   }
 
-  const GTKMenuItem* new_main_menu =
-      static_cast<const GTKMenuItem*>(GetMainMenu());
+  const GTKMenuItem* new_main_menu = static_cast<const GTKMenuItem*>(GetMainMenu());
   if (!new_main_menu) {
     EndBatchedSizeUpdate(destruction_receiver);
     return;
@@ -275,10 +265,11 @@ void GTKWindow::ApplyNewMainMenu(MenuItem* old_main_menu) {
   }
 }
 
-void GTKWindow::FocusImpl() { gtk_window_activate_focus(GTK_WINDOW(window_)); }
+void GTKWindow::FocusImpl() {
+  gtk_window_activate_focus(GTK_WINDOW(window_));
+}
 
-std::unique_ptr<Surface> GTKWindow::CreateSurfaceImpl(
-    Surface::TypeFlags allowed_types) {
+std::unique_ptr<Surface> GTKWindow::CreateSurfaceImpl(Surface::TypeFlags allowed_types) {
   GdkDisplay* display = gtk_widget_get_display(window_);
   GdkWindow* drawing_area_window = gtk_widget_get_window(drawing_area_);
   bool type_known = false;
@@ -301,10 +292,11 @@ std::unique_ptr<Surface> GTKWindow::CreateSurfaceImpl(
   return nullptr;
 }
 
-void GTKWindow::RequestPaintImpl() { gtk_widget_queue_draw(drawing_area_); }
+void GTKWindow::RequestPaintImpl() {
+  gtk_widget_queue_draw(drawing_area_);
+}
 
-void GTKWindow::HandleSizeUpdate(
-    WindowDestructionReceiver& destruction_receiver) {
+void GTKWindow::HandleSizeUpdate(WindowDestructionReceiver& destruction_receiver) {
   if (!drawing_area_) {
     // Batched size update ended when the window has already been closed, for
     // instance.
@@ -316,8 +308,7 @@ void GTKWindow::HandleSizeUpdate(
   GtkAllocation drawing_area_allocation;
   gtk_widget_get_allocation(drawing_area_, &drawing_area_allocation);
   OnActualSizeUpdate(uint32_t(drawing_area_allocation.width),
-                     uint32_t(drawing_area_allocation.height),
-                     destruction_receiver);
+                     uint32_t(drawing_area_allocation.height), destruction_receiver);
   if (destruction_receiver.IsWindowDestroyedOrClosed()) {
     return;
   }
@@ -330,8 +321,7 @@ void GTKWindow::BeginBatchedSizeUpdate() {
   ++batched_size_update_depth_;
 }
 
-void GTKWindow::EndBatchedSizeUpdate(
-    WindowDestructionReceiver& destruction_receiver) {
+void GTKWindow::EndBatchedSizeUpdate(WindowDestructionReceiver& destruction_receiver) {
   assert_not_zero(batched_size_update_depth_);
   if (--batched_size_update_depth_) {
     return;
@@ -352,8 +342,7 @@ void GTKWindow::EndBatchedSizeUpdate(
   }
 }
 
-bool GTKWindow::HandleMouse(GdkEvent* event,
-                            WindowDestructionReceiver& destruction_receiver) {
+bool GTKWindow::HandleMouse(GdkEvent* event, WindowDestructionReceiver& destruction_receiver) {
   MouseEvent::Button button = MouseEvent::Button::kNone;
   int32_t x = 0;
   int32_t y = 0;
@@ -426,8 +415,8 @@ bool GTKWindow::HandleMouse(GdkEvent* event,
   return e.is_handled();
 }
 
-bool GTKWindow::HandleKeyboard(
-    GdkEventKey* event, WindowDestructionReceiver& destruction_receiver) {
+bool GTKWindow::HandleKeyboard(GdkEventKey* event,
+                               WindowDestructionReceiver& destruction_receiver) {
   unsigned int modifiers = event->state;
   bool shift_pressed = modifiers & GDK_SHIFT_MASK;
   bool ctrl_pressed = modifiers & GDK_CONTROL_MASK;
@@ -435,9 +424,8 @@ bool GTKWindow::HandleKeyboard(
   bool super_pressed = modifiers & GDK_SUPER_MASK;
   uint32_t key_char = gdk_keyval_to_unicode(event->keyval);
   // TODO(Triang3l): event->hardware_keycode to VirtualKey translation.
-  KeyEvent e(this, VirtualKey(event->hardware_keycode), 1,
-             event->type == GDK_KEY_RELEASE, shift_pressed, ctrl_pressed,
-             alt_pressed, super_pressed);
+  KeyEvent e(this, VirtualKey(event->hardware_keycode), 1, event->type == GDK_KEY_RELEASE,
+             shift_pressed, ctrl_pressed, alt_pressed, super_pressed);
   switch (event->type) {
     case GDK_KEY_PRESS:
       OnKeyDown(e, destruction_receiver);
@@ -495,8 +483,7 @@ gboolean GTKWindow::WindowEventHandler(GdkEvent* event) {
     case GDK_KEY_PRESS:
     case GDK_KEY_RELEASE: {
       WindowDestructionReceiver destruction_receiver(this);
-      HandleKeyboard(reinterpret_cast<GdkEventKey*>(event),
-                     destruction_receiver);
+      HandleKeyboard(reinterpret_cast<GdkEventKey*>(event), destruction_receiver);
       if (destruction_receiver.IsWindowDestroyedOrClosed()) {
         break;
       }
@@ -557,8 +544,7 @@ gboolean GTKWindow::DrawingAreaEventHandler(GdkEvent* event) {
   return GDK_EVENT_PROPAGATE;
 }
 
-gboolean GTKWindow::DrawingAreaEventHandlerThunk(GtkWidget* widget,
-                                                 GdkEvent* event,
+gboolean GTKWindow::DrawingAreaEventHandlerThunk(GtkWidget* widget, GdkEvent* event,
                                                  gpointer user_data) {
   GTKWindow* window = reinterpret_cast<GTKWindow*>(user_data);
   if (!window || widget != window->drawing_area_ ||
@@ -569,8 +555,7 @@ gboolean GTKWindow::DrawingAreaEventHandlerThunk(GtkWidget* widget,
   return window->DrawingAreaEventHandler(event);
 }
 
-gboolean GTKWindow::DrawHandler(GtkWidget* widget, cairo_t* cr,
-                                gpointer user_data) {
+gboolean GTKWindow::DrawHandler(GtkWidget* widget, cairo_t* cr, gpointer user_data) {
   GTKWindow* window = reinterpret_cast<GTKWindow*>(user_data);
   if (!window || widget != window->drawing_area_) {
     return FALSE;
@@ -583,8 +568,7 @@ gboolean GTKWindow::DrawHandler(GtkWidget* widget, cairo_t* cr,
   return TRUE;
 }
 
-std::unique_ptr<ui::MenuItem> MenuItem::Create(Type type,
-                                               const std::string& text,
+std::unique_ptr<ui::MenuItem> MenuItem::Create(Type type, const std::string& text,
                                                const std::string& hotkey,
                                                std::function<void()> callback) {
   return std::make_unique<GTKMenuItem>(type, text, hotkey, callback);
@@ -596,8 +580,7 @@ void GTKMenuItem::ActivateHandler(GtkWidget* menu_item, gpointer user_data) {
   // anything with it here from now on.
 }
 
-GTKMenuItem::GTKMenuItem(Type type, const std::string& text,
-                         const std::string& hotkey,
+GTKMenuItem::GTKMenuItem(Type type, const std::string& text, const std::string& hotkey,
                          std::function<void()> callback)
     : MenuItem(type, text, hotkey, std::move(callback)) {
   std::string label = text;

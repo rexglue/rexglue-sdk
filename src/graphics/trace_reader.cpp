@@ -9,19 +9,19 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/graphics/trace_reader.h>
-
 #include <cinttypes>
 
-#include <snappy.h"
 #include <rex/filesystem.h>
-#include <rex/logging.h>
-#include <rex/memory/mapped_memory.h>
-#include <rex/math.h>
-#include <rex/platform.h>
 #include <rex/graphics/packet_disassembler.h>
 #include <rex/graphics/trace_protocol.h>
+#include <rex/graphics/trace_reader.h>
+#include <rex/logging.h>
+#include <rex/math.h>
 #include <rex/memory.h>
+#include <rex/memory/mapped_memory.h>
+#include <rex/platform.h>
+
+#include <snappy.h"
 
 namespace rex::graphics {
 
@@ -31,8 +31,7 @@ bool TraceReader::Open(const std::string_view path) {
   mmap_.reset();
 #if REX_PLATFORM_ANDROID
   if (rex::filesystem::IsAndroidContentUri(path)) {
-    mmap_ =
-        memory::MappedMemory::OpenForAndroidContentUri(path, memory::MappedMemory::Mode::kRead);
+    mmap_ = memory::MappedMemory::OpenForAndroidContentUri(path, memory::MappedMemory::Mode::kRead);
   }
 #endif  // REX_PLATFORM_ANDROID
   if (!mmap_) {
@@ -48,8 +47,8 @@ bool TraceReader::Open(const std::string_view path) {
   // Verify version.
   auto header = reinterpret_cast<const TraceHeader*>(trace_data_);
   if (header->version != kTraceFormatVersion) {
-    REXGPU_ERROR("Trace format version mismatch, code has {}, file has {}",
-           kTraceFormatVersion, header->version);
+    REXGPU_ERROR("Trace format version mismatch, code has {}, file has {}", kTraceFormatVersion,
+                 header->version);
     if (header->version < kTraceFormatVersion) {
       REXGPU_ERROR("You need to regenerate your trace for the latest version");
     }
@@ -58,8 +57,7 @@ bool TraceReader::Open(const std::string_view path) {
 
   REXGPU_INFO("Mapped {}b trace from {}", trace_size_, rex::path_to_utf8(path));
   REXGPU_INFO("   Version: {}", header->version);
-  auto commit_str = std::string(header->build_commit_sha,
-                                rex::countof(header->build_commit_sha));
+  auto commit_str = std::string(header->build_commit_sha, rex::countof(header->build_commit_sha));
   REXGPU_INFO("    Commit: {}", commit_str);
   REXGPU_INFO("  Title ID: {}", header->title_id);
 
@@ -86,16 +84,14 @@ void TraceReader::ParseTrace() {
   const uint8_t* last_ptr = trace_ptr;
   bool pending_break = false;
   auto current_command_buffer = new CommandBuffer();
-  current_frame.command_tree =
-      std::unique_ptr<CommandBuffer>(current_command_buffer);
+  current_frame.command_tree = std::unique_ptr<CommandBuffer>(current_command_buffer);
 
   while (trace_ptr < trace_data_ + trace_size_) {
     ++current_frame.command_count;
     auto type = static_cast<TraceCommandType>(memory::load<uint32_t>(trace_ptr));
     switch (type) {
       case TraceCommandType::kPrimaryBufferStart: {
-        auto cmd =
-            reinterpret_cast<const PrimaryBufferStartCommand*>(trace_ptr);
+        auto cmd = reinterpret_cast<const PrimaryBufferStartCommand*>(trace_ptr);
         trace_ptr += sizeof(*cmd) + cmd->count * 4;
         break;
       }
@@ -105,15 +101,13 @@ void TraceReader::ParseTrace() {
         break;
       }
       case TraceCommandType::kIndirectBufferStart: {
-        auto cmd =
-            reinterpret_cast<const IndirectBufferStartCommand*>(trace_ptr);
+        auto cmd = reinterpret_cast<const IndirectBufferStartCommand*>(trace_ptr);
         trace_ptr += sizeof(*cmd) + cmd->count * 4;
 
         // Traverse down a level.
         auto sub_command_buffer = new CommandBuffer();
         sub_command_buffer->parent = current_command_buffer;
-        current_command_buffer->commands.push_back(
-            CommandBuffer::Command(sub_command_buffer));
+        current_command_buffer->commands.push_back(CommandBuffer::Command(sub_command_buffer));
         current_command_buffer = sub_command_buffer;
         break;
       }
@@ -146,8 +140,8 @@ void TraceReader::ParseTrace() {
         if (!packet_start_ptr) {
           continue;
         }
-        auto packet_category = PacketDisassembler::GetPacketCategory(
-            packet_start_ptr + sizeof(*packet_start));
+        auto packet_category =
+            PacketDisassembler::GetPacketCategory(packet_start_ptr + sizeof(*packet_start));
         switch (packet_category) {
           case PacketCategory::kDraw: {
             Frame::Command command;
@@ -157,8 +151,8 @@ void TraceReader::ParseTrace() {
             command.end_ptr = trace_ptr;
             current_frame.commands.push_back(std::move(command));
             last_ptr = trace_ptr;
-            current_command_buffer->commands.push_back(CommandBuffer::Command(
-                uint32_t(current_frame.commands.size() - 1)));
+            current_command_buffer->commands.push_back(
+                CommandBuffer::Command(uint32_t(current_frame.commands.size() - 1)));
             break;
           }
           case PacketCategory::kSwap: {
@@ -169,8 +163,8 @@ void TraceReader::ParseTrace() {
             command.end_ptr = trace_ptr;
             current_frame.commands.push_back(std::move(command));
             last_ptr = trace_ptr;
-            current_command_buffer->commands.push_back(CommandBuffer::Command(
-                uint32_t(current_frame.commands.size() - 1)));
+            current_command_buffer->commands.push_back(
+                CommandBuffer::Command(uint32_t(current_frame.commands.size() - 1)));
           } break;
           case PacketCategory::kGeneric: {
             // Ignored.
@@ -181,8 +175,7 @@ void TraceReader::ParseTrace() {
           current_frame.end_ptr = trace_ptr;
           frames_.push_back(std::move(current_frame));
           current_command_buffer = new CommandBuffer();
-          current_frame.command_tree =
-              std::unique_ptr<CommandBuffer>(current_command_buffer);
+          current_frame.command_tree = std::unique_ptr<CommandBuffer>(current_command_buffer);
           current_frame.start_ptr = trace_ptr;
           current_frame.end_ptr = nullptr;
           current_frame.command_count = 0;
@@ -238,9 +231,8 @@ void TraceReader::ParseTrace() {
   }
 }
 
-bool TraceReader::DecompressMemory(MemoryEncodingFormat encoding_format,
-                                   const void* src, size_t src_size, void* dest,
-                                   size_t dest_size) {
+bool TraceReader::DecompressMemory(MemoryEncodingFormat encoding_format, const void* src,
+                                   size_t src_size, void* dest, size_t dest_size) {
   switch (encoding_format) {
     case MemoryEncodingFormat::kNone:
       assert_true(src_size == dest_size);

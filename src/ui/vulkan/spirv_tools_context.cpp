@@ -9,20 +9,12 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/ui/vulkan/spirv_tools_context.h>
-
 #include <cstdlib>
 #include <filesystem>
 #include <string>
 
 #include <rex/logging.h>
-#include <rex/platform.h>
-
-#if REX_PLATFORM_LINUX
-#include <dlfcn.h>
-#elif REX_PLATFORM_WIN32
-#include <rex/platform.h>
-#endif
+#include <rex/ui/vulkan/spirv_tools_context.h>
 
 namespace rex {
 namespace ui {
@@ -36,27 +28,12 @@ bool SpirvToolsContext::Initialize(unsigned int spirv_version) {
     return false;
   }
   std::filesystem::path vulkan_sdk_path(vulkan_sdk_env);
-#if REX_PLATFORM_LINUX
-  library_ = dlopen((vulkan_sdk_path / "bin/libSPIRV-Tools-shared.so").c_str(),
-                    RTLD_NOW | RTLD_LOCAL);
-  if (!library_) {
-    REXLOG_ERROR(
-        "SPIRV-Tools: Failed to load $VULKAN_SDK/bin/libSPIRV-Tools-shared.so");
+  auto library_path = vulkan_sdk_path / platform::lib_names::kSpirvToolsSdkPath;
+  if (!library_.Load(library_path)) {
+    REXLOG_ERROR("SPIRV-Tools: Failed to load {}", library_path.string());
     Shutdown();
     return false;
   }
-#elif REX_PLATFORM_WIN32
-  library_ = LoadLibraryW(
-      (vulkan_sdk_path / "Bin/SPIRV-Tools-shared.dll").wstring().c_str());
-  if (!library_) {
-    REXLOG_ERROR(
-        "SPIRV-Tools: Failed to load %VULKAN_SDK%/Bin/SPIRV-Tools-shared.dll");
-    Shutdown();
-    return false;
-  }
-#else
-#error No SPIRV-Tools library loading provided for the target platform.
-#endif
   if (!LoadLibraryFunction(fn_spvContextCreate_, "spvContextCreate") ||
       !LoadLibraryFunction(fn_spvContextDestroy_, "spvContextDestroy") ||
       !LoadLibraryFunction(fn_spvValidateBinary_, "spvValidateBinary") ||
@@ -89,18 +66,10 @@ void SpirvToolsContext::Shutdown() {
     fn_spvContextDestroy_(context_);
     context_ = nullptr;
   }
-  if (library_) {
-#if REX_PLATFORM_LINUX
-    dlclose(library_);
-#elif REX_PLATFORM_WIN32
-    FreeLibrary(library_);
-#endif
-    library_ = nullptr;
-  }
+  library_.Close();
 }
 
-spv_result_t SpirvToolsContext::Validate(const uint32_t* words,
-                                         size_t num_words,
+spv_result_t SpirvToolsContext::Validate(const uint32_t* words, size_t num_words,
                                          std::string* error) const {
   if (error) {
     error->clear();
@@ -109,8 +78,7 @@ spv_result_t SpirvToolsContext::Validate(const uint32_t* words,
     return SPV_UNSUPPORTED;
   }
   spv_diagnostic diagnostic = nullptr;
-  spv_result_t result =
-      fn_spvValidateBinary_(context_, words, num_words, &diagnostic);
+  spv_result_t result = fn_spvValidateBinary_(context_, words, num_words, &diagnostic);
   if (diagnostic) {
     if (error && diagnostic && diagnostic->error) {
       *error = diagnostic->error;

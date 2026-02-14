@@ -9,15 +9,15 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/memory/mapped_memory.h>
+#include <memory>
 
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <memory>
 
 #include <rex/filesystem.h>
+#include <rex/memory/mapped_memory.h>
 #include <rex/platform.h>
 
 namespace rex::memory {
@@ -36,8 +36,9 @@ class PosixMappedMemory : public MappedMemory {
     }
   }
 
-  static std::unique_ptr<PosixMappedMemory> WrapFileDescriptor(
-      int file_descriptor, Mode mode, size_t offset = 0, size_t length = 0) {
+  static std::unique_ptr<PosixMappedMemory> WrapFileDescriptor(int file_descriptor, Mode mode,
+                                                               size_t offset = 0,
+                                                               size_t length = 0) {
     int protection = 0;
     switch (mode) {
       case Mode::kRead:
@@ -58,15 +59,13 @@ class PosixMappedMemory : public MappedMemory {
       map_length = size_t(file_stat.st_size);
     }
 
-    void* data =
-        mmap(0, map_length, protection, MAP_SHARED, file_descriptor, offset);
+    void* data = mmap(0, map_length, protection, MAP_SHARED, file_descriptor, offset);
     if (!data || data == MAP_FAILED) {
       close(file_descriptor);
       return nullptr;
     }
 
-    return std::make_unique<PosixMappedMemory>(data, map_length,
-                                               file_descriptor);
+    return std::make_unique<PosixMappedMemory>(data, map_length, file_descriptor);
   }
 
   void Close(uint64_t truncate_size) override {
@@ -89,9 +88,8 @@ class PosixMappedMemory : public MappedMemory {
   int file_descriptor_;
 };
 
-std::unique_ptr<MappedMemory> MappedMemory::Open(
-    const std::filesystem::path& path, Mode mode, size_t offset,
-    size_t length) {
+std::unique_ptr<MappedMemory> MappedMemory::Open(const std::filesystem::path& path, Mode mode,
+                                                 size_t offset, size_t length) {
   int open_flags = 0;
   switch (mode) {
     case Mode::kRead:
@@ -105,13 +103,13 @@ std::unique_ptr<MappedMemory> MappedMemory::Open(
   if (file_descriptor < 0) {
     return nullptr;
   }
-  return PosixMappedMemory::WrapFileDescriptor(file_descriptor, mode, offset,
-                                               length);
+  return PosixMappedMemory::WrapFileDescriptor(file_descriptor, mode, offset, length);
 }
 
 #if REX_PLATFORM_ANDROID
-std::unique_ptr<MappedMemory> MappedMemory::OpenForAndroidContentUri(
-    const std::string_view uri, Mode mode, size_t offset, size_t length) {
+std::unique_ptr<MappedMemory> MappedMemory::OpenForAndroidContentUri(const std::string_view uri,
+                                                                     Mode mode, size_t offset,
+                                                                     size_t length) {
   const char* open_mode = nullptr;
   switch (mode) {
     case Mode::kRead:
@@ -121,19 +119,16 @@ std::unique_ptr<MappedMemory> MappedMemory::OpenForAndroidContentUri(
       open_mode = "rw";
       break;
   }
-  int file_descriptor =
-      rex::filesystem::OpenAndroidContentFileDescriptor(uri, open_mode);
+  int file_descriptor = rex::filesystem::OpenAndroidContentFileDescriptor(uri, open_mode);
   if (file_descriptor < 0) {
     return nullptr;
   }
-  return PosixMappedMemory::WrapFileDescriptor(file_descriptor, mode, offset,
-                                               length);
+  return PosixMappedMemory::WrapFileDescriptor(file_descriptor, mode, offset, length);
 }
 #endif  // REX_PLATFORM_ANDROID
 
 std::unique_ptr<ChunkedMappedMemoryWriter> ChunkedMappedMemoryWriter::Open(
-    const std::filesystem::path& path, size_t chunk_size,
-    bool low_address_space) {
+    const std::filesystem::path& path, size_t chunk_size, bool low_address_space) {
   // TODO: Implement if needed
   return nullptr;
 }

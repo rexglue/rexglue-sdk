@@ -10,14 +10,14 @@
  */
 
 #include "null_entry.h"
+#include "null_file.h"
 
 #include <rex/filesystem.h>
-#include <rex/logging.h>
-#include <rex/memory/mapped_memory.h>
-#include <rex/math.h>
-#include <rex/string.h>
 #include <rex/filesystem/device.h>
-#include "null_file.h"
+#include <rex/logging.h>
+#include <rex/math.h>
+#include <rex/memory/mapped_memory.h>
+#include <rex/string.h>
 
 namespace rex::filesystem {
 
@@ -26,8 +26,7 @@ NullEntry::NullEntry(Device* device, Entry* parent, std::string path)
 
 NullEntry::~NullEntry() = default;
 
-NullEntry* NullEntry::Create(Device* device, Entry* parent,
-                             const std::string& path) {
+NullEntry* NullEntry::Create(Device* device, Entry* parent, const std::string& path) {
   auto entry = new NullEntry(device, parent, path);
 
   entry->create_timestamp_ = 0;
@@ -42,8 +41,8 @@ NullEntry* NullEntry::Create(Device* device, Entry* parent,
 }
 
 X_STATUS NullEntry::Open(uint32_t desired_access, File** out_file) {
-  if (is_read_only() && (desired_access & (FileAccess::kFileWriteData |
-                                           FileAccess::kFileAppendData))) {
+  if (is_read_only() &&
+      (desired_access & (FileAccess::kFileWriteData | FileAccess::kFileAppendData))) {
     REXFS_ERROR("Attempting to open file for write access on read-only device");
     return X_STATUS_ACCESS_DENIED;
   }

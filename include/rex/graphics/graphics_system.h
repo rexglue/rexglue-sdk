@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include "rex/system/processor.h"
+
 #include <atomic>
 #include <cstdint>
 #include <functional>
@@ -19,14 +21,14 @@
 #include <string>
 #include <thread>
 
-#include  "rex/runtime/processor.h"
 #include <rex/graphics/register_file.h>
-#include <rex/kernel/xthread.h>
+#include <rex/kernel.h>
 #include <rex/memory.h>
+#include <rex/system/interfaces/graphics.h>
+#include <rex/system/xthread.h>
 #include <rex/thread/mutex.h>
 #include <rex/ui/graphics_provider.h>
 #include <rex/ui/presenter.h>
-#include <rex/kernel.h>
 
 // Forward declarations
 namespace rex {
@@ -44,7 +46,7 @@ namespace rex::graphics {
 
 class CommandProcessor;
 
-class GraphicsSystem {
+class GraphicsSystem : public system::IGraphicsSystem {
  public:
   virtual ~GraphicsSystem();
 
@@ -52,14 +54,12 @@ class GraphicsSystem {
 
   memory::Memory* memory() const { return memory_; }
   runtime::Processor* processor() const { return processor_; }
-  kernel::KernelState* kernel_state() const { return kernel_state_; }
+  system::KernelState* kernel_state() const { return kernel_state_; }
   ::rex::ui::GraphicsProvider* provider() const { return provider_.get(); }
   ::rex::ui::Presenter* presenter() const { return presenter_.get(); }
 
-  virtual X_STATUS Setup(runtime::Processor* processor,
-      kernel::KernelState* kernel_state,
-      ::rex::ui::WindowedAppContext* app_context,
-      bool with_presentation);
+  virtual X_STATUS Setup(runtime::Processor* processor, system::KernelState* kernel_state,
+                         ::rex::ui::WindowedAppContext* app_context, bool with_presentation);
   virtual void Shutdown();
 
   // May be called from any thread any number of times, even during recovery
@@ -67,21 +67,18 @@ class GraphicsSystem {
   void OnHostGpuLossFromAnyThread(bool is_responsible);
 
   RegisterFile* register_file() { return &register_file_; }
-  CommandProcessor* command_processor() const {
-    return command_processor_.get();
-  }
+  CommandProcessor* command_processor() const { return command_processor_.get(); }
 
   virtual void InitializeRingBuffer(uint32_t ptr, uint32_t size_log2);
-  virtual void EnableReadPointerWriteBack(uint32_t ptr,
-                                          uint32_t block_size_log2);
+  virtual void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size_log2);
 
   virtual void SetInterruptCallback(uint32_t callback, uint32_t user_data);
   void DispatchInterruptCallback(uint32_t source, uint32_t cpu);
 
   virtual void ClearCaches();
 
-  void InitializeShaderStorage(const std::filesystem::path& cache_root,
-                               uint32_t title_id, bool blocking);
+  void InitializeShaderStorage(const std::filesystem::path& cache_root, uint32_t title_id,
+                               bool blocking);
 
   void RequestFrameTrace();
   void BeginTracing();
@@ -99,10 +96,9 @@ class GraphicsSystem {
 
   virtual std::unique_ptr<CommandProcessor> CreateCommandProcessor() = 0;
 
-  static uint32_t ReadRegisterThunk(void* ppc_context, GraphicsSystem* gs,
-                                    uint32_t addr);
-  static void WriteRegisterThunk(void* ppc_context, GraphicsSystem* gs,
-                                 uint32_t addr, uint32_t value);
+  static uint32_t ReadRegisterThunk(void* ppc_context, GraphicsSystem* gs, uint32_t addr);
+  static void WriteRegisterThunk(void* ppc_context, GraphicsSystem* gs, uint32_t addr,
+                                 uint32_t value);
 
   uint32_t ReadRegister(uint32_t addr);
   void WriteRegister(uint32_t addr, uint32_t value);
@@ -111,7 +107,7 @@ class GraphicsSystem {
 
   memory::Memory* memory_ = nullptr;
   runtime::Processor* processor_ = nullptr;
-  kernel::KernelState* kernel_state_ = nullptr;
+  system::KernelState* kernel_state_ = nullptr;
   ::rex::ui::WindowedAppContext* app_context_ = nullptr;
   std::unique_ptr<::rex::ui::GraphicsProvider> provider_;
 
@@ -119,7 +115,7 @@ class GraphicsSystem {
   uint32_t interrupt_callback_data_ = 0;
 
   std::atomic<bool> vsync_worker_running_;
-  kernel::object_ref<kernel::XHostThread> vsync_worker_thread_;
+  system::object_ref<system::XHostThread> vsync_worker_thread_;
 
   RegisterFile register_file_;
   std::unique_ptr<CommandProcessor> command_processor_;

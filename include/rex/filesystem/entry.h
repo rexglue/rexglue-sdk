@@ -18,14 +18,14 @@
 #include <rex/filesystem.h>
 #include <rex/filesystem/wildcard.h>
 #include <rex/memory/mapped_memory.h>
-#include <rex/thread/mutex.h>
 #include <rex/string/buffer.h>
-#include <rex/kernel/xtypes.h>
+#include <rex/system/xtypes.h>
+#include <rex/thread/mutex.h>
 
-namespace rex::kernel {
+namespace rex::system {
 class KernelState;
 class XFile;
-}  // namespace rex::kernel
+}  // namespace rex::system
 
 namespace rex::filesystem {
 
@@ -97,12 +97,9 @@ class Entry {
   Entry* GetChild(const std::string_view name);
   Entry* ResolvePath(const std::string_view path);
 
-  const std::vector<std::unique_ptr<Entry>>& children() const {
-    return children_;
-  }
+  const std::vector<std::unique_ptr<Entry>>& children() const { return children_; }
   size_t child_count() const { return children_.size(); }
-  Entry* IterateChildren(const rex::filesystem::WildcardEngine& engine,
-                         size_t* current_index);
+  Entry* IterateChildren(const rex::filesystem::WildcardEngine& engine, size_t* current_index);
 
   Entry* CreateEntry(const std::string_view name, uint32_t attributes);
   bool Delete(Entry* entry);
@@ -115,11 +112,10 @@ class Entry {
 
   virtual bool can_map() const { return false; }
   virtual std::unique_ptr<memory::MappedMemory> OpenMapped(memory::MappedMemory::Mode mode,
-                                                   size_t offset = 0,
-                                                   size_t length = 0) {
-      (void)mode;
-      (void)offset;
-      (void)length;
+                                                           size_t offset = 0, size_t length = 0) {
+    (void)mode;
+    (void)offset;
+    (void)length;
     return nullptr;
   }
   virtual void update() { return; }
@@ -127,15 +123,15 @@ class Entry {
  protected:
   Entry(Device* device, Entry* parent, const std::string_view path);
 
-  virtual std::unique_ptr<Entry> CreateEntryInternal(
-      const std::string_view name, uint32_t attributes) {
-      (void)name;
-      (void)attributes;
+  virtual std::unique_ptr<Entry> CreateEntryInternal(const std::string_view name,
+                                                     uint32_t attributes) {
+    (void)name;
+    (void)attributes;
     return nullptr;
   }
-  virtual bool DeleteEntryInternal(Entry* entry) { 
-      (void)entry;
-      return false; 
+  virtual bool DeleteEntryInternal(Entry* entry) {
+    (void)entry;
+    return false;
   }
 
   rex::thread::global_critical_region global_critical_region_;
@@ -154,4 +150,3 @@ class Entry {
 };
 
 }  // namespace rex::filesystem
-

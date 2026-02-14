@@ -10,7 +10,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <cstdint>
 
 namespace rex {
@@ -34,5 +33,4 @@ class UIDrawer {
 };
 
 }  // namespace ui
-}  // namespace xe
-
+}  // namespace rex

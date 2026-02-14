@@ -10,13 +10,12 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <atomic>
 #include <string>
 
-#include <rex/thread.h>
 #include <rex/graphics/trace_protocol.h>
 #include <rex/graphics/trace_reader.h>
+#include <rex/thread.h>
 
 namespace rex::graphics {
 
@@ -47,8 +46,8 @@ class TracePlayer : public TraceReader {
   void WaitOnPlayback();
 
  private:
-  void PlayTrace(const uint8_t* trace_data, size_t trace_size,
-                 TracePlaybackMode playback_mode, bool clear_caches);
+  void PlayTrace(const uint8_t* trace_data, size_t trace_size, TracePlaybackMode playback_mode,
+                 bool clear_caches);
   void PlayTraceOnThread(const uint8_t* trace_data, size_t trace_size,
                          TracePlaybackMode playback_mode, bool clear_caches);
 
@@ -61,4 +60,3 @@ class TracePlayer : public TraceReader {
 };
 
 }  // namespace rex::graphics
-

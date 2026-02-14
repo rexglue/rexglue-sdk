@@ -9,33 +9,33 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
- // Disable warnings about unused parameters for kernel functions
+// Disable warnings about unused parameters for kernel functions
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
 #include <algorithm>
 #include <vector>
 
-#include <rex/thread/atomic.h>
-#include <rex/time/clock.h>
-#include <rex/runtime/processor.h>
-#include <rex/logging.h>
-#include <rex/thread/mutex.h>
-#include <rex/kernel/kernel_state.h>
-#include <rex/kernel/user_module.h>
-#include <rex/kernel/util/string_utils.h>
-#include <rex/runtime/guest/function.h>
-#include <rex/runtime/guest/types.h>
+#include <rex/chrono/clock.h>
 #include <rex/kernel/xboxkrnl/private.h>
 #include <rex/kernel/xboxkrnl/threading.h>
-#include <rex/kernel/xevent.h>
-#include <rex/kernel/xmutant.h>
-#include <rex/kernel/xsemaphore.h>
-#include <rex/kernel/xthread.h>
-#include <rex/kernel/xtimer.h>
-#include <rex/kernel/xtypes.h>
+#include <rex/logging.h>
+#include <rex/ppc/function.h>
+#include <rex/ppc/types.h>
+#include <rex/system/kernel_state.h>
+#include <rex/system/processor.h>
+#include <rex/system/user_module.h>
+#include <rex/system/util/string_utils.h>
+#include <rex/system/xevent.h>
+#include <rex/system/xmutant.h>
+#include <rex/system/xsemaphore.h>
+#include <rex/system/xthread.h>
+#include <rex/system/xtimer.h>
+#include <rex/system/xtypes.h>
+#include <rex/thread/atomic.h>
+#include <rex/thread/mutex.h>
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::runtime::guest;
+using namespace rex::system;
 
 // r13 + 0x100: pointer to thread local state
 // Thread local state:
@@ -71,8 +71,7 @@ using namespace rex::runtime::guest;
 // }
 
 template <typename T>
-object_ref<T> LookupNamedObject(KernelState* kernel_state,
-                                uint32_t obj_attributes_ptr) {
+object_ref<T> LookupNamedObject(KernelState* kernel_state, uint32_t obj_attributes_ptr) {
   // If the name exists and its type matches, we can return that (ref+1)
   // with a success of NAME_EXISTS.
   // If the name exists and its type doesn't match, we do NAME_COLLISION.
@@ -81,15 +80,12 @@ object_ref<T> LookupNamedObject(KernelState* kernel_state,
     return nullptr;
   }
   auto obj_attributes =
-      kernel_state->memory()->TranslateVirtual<X_OBJECT_ATTRIBUTES*>(
-          obj_attributes_ptr);
+      kernel_state->memory()->TranslateVirtual<X_OBJECT_ATTRIBUTES*>(obj_attributes_ptr);
   assert_true(obj_attributes->name_ptr != 0);
-  auto name = util::TranslateAnsiStringAddress(kernel_state->memory(),
-                                               obj_attributes->name_ptr);
+  auto name = util::TranslateAnsiStringAddress(kernel_state->memory(), obj_attributes->name_ptr);
   if (!name.empty()) {
     X_HANDLE handle = X_INVALID_HANDLE_VALUE;
-    X_RESULT result =
-        kernel_state->object_table()->GetObjectByName(name, &handle);
+    X_RESULT result = kernel_state->object_table()->GetObjectByName(name, &handle);
     if (XSUCCEEDED(result)) {
       // Found something! It's been retained, so return.
       auto obj = kernel_state->object_table()->LookupObject<T>(handle);
@@ -103,15 +99,14 @@ object_ref<T> LookupNamedObject(KernelState* kernel_state,
   return nullptr;
 }
 
-dword_result_t ExCreateThread_entry(lpdword_t handle_ptr, dword_t stack_size,
-                                    lpdword_t thread_id_ptr,
-                                    dword_t xapi_thread_startup,
-                                    lpvoid_t start_address,
-                                    lpvoid_t start_context,
-                                    dword_t creation_flags) {
-  REXKRNL_IMPORT_TRACE("ExCreateThread", "stack={:#x} xapi_startup={:#x} start={:#x} context={:#x} flags={:#x}",
-         (uint32_t)stack_size, (uint32_t)xapi_thread_startup,
-         start_address.guest_address(), start_context.guest_address(), (uint32_t)creation_flags);
+ppc_u32_result_t ExCreateThread_entry(ppc_pu32_t handle_ptr, ppc_u32_t stack_size,
+                                      ppc_pu32_t thread_id_ptr, ppc_u32_t xapi_thread_startup,
+                                      ppc_pvoid_t start_address, ppc_pvoid_t start_context,
+                                      ppc_u32_t creation_flags) {
+  REXKRNL_IMPORT_TRACE(
+      "ExCreateThread", "stack={:#x} xapi_startup={:#x} start={:#x} context={:#x} flags={:#x}",
+      (uint32_t)stack_size, (uint32_t)xapi_thread_startup, start_address.guest_address(),
+      start_context.guest_address(), (uint32_t)creation_flags);
   // http://jafile.com/uploads/scoop/main.cpp.txt
   // DWORD
   // LPHANDLE Handle,
@@ -130,13 +125,11 @@ dword_result_t ExCreateThread_entry(lpdword_t handle_ptr, dword_t stack_size,
   }
 
   // Stack must be aligned to 16kb pages
-  actual_stack_size =
-      std::max((uint32_t)0x4000, ((actual_stack_size + 0xFFF) & 0xFFFFF000));
+  actual_stack_size = std::max((uint32_t)0x4000, ((actual_stack_size + 0xFFF) & 0xFFFFF000));
 
-  auto thread = object_ref<XThread>(
-      new XThread(kernel_state(), actual_stack_size, xapi_thread_startup,
-                  start_address.guest_address(), start_context.guest_address(),
-                  creation_flags, true));
+  auto thread = object_ref<XThread>(new XThread(
+      kernel_state(), actual_stack_size, xapi_thread_startup, start_address.guest_address(),
+      start_context.guest_address(), creation_flags, true));
 
   X_STATUS result = thread->Create();
   if (XFAILED(result)) {
@@ -157,28 +150,26 @@ dword_result_t ExCreateThread_entry(lpdword_t handle_ptr, dword_t stack_size,
       *thread_id_ptr = thread->thread_id();
     }
   }
-  REXKRNL_IMPORT_RESULT("ExCreateThread", "{:#x} handle={:#x} tid={}",
-         result, handle_ptr ? (uint32_t)*handle_ptr : 0,
-         thread_id_ptr ? (uint32_t)*thread_id_ptr : 0);
+  REXKRNL_IMPORT_RESULT("ExCreateThread", "{:#x} handle={:#x} tid={}", result,
+                        handle_ptr ? (uint32_t)*handle_ptr : 0,
+                        thread_id_ptr ? (uint32_t)*thread_id_ptr : 0);
   return result;
 }
 
-dword_result_t ExTerminateThread_entry(dword_t exit_code) {
+ppc_u32_result_t ExTerminateThread_entry(ppc_u32_t exit_code) {
   XThread* thread = XThread::GetCurrentThread();
 
   // NOTE: this kills us right now. We won't return from it.
   return thread->Exit(exit_code);
 }
 
-dword_result_t NtResumeThread_entry(dword_t handle,
-                                    lpdword_t suspend_count_ptr) {
+ppc_u32_result_t NtResumeThread_entry(ppc_u32_t handle, ppc_pu32_t suspend_count_ptr) {
   X_RESULT result = X_STATUS_INVALID_HANDLE;
   uint32_t suspend_count = 0;
 
   auto thread = kernel_state()->object_table()->LookupObject<XThread>(handle);
   if (thread) {
-    REXKRNL_TRACE("[NtResumeThread] handle={:08X} thread={}",
-                  uint32_t(handle), thread->name());
+    REXKRNL_TRACE("[NtResumeThread] handle={:08X} thread={}", uint32_t(handle), thread->name());
     result = thread->Resume(&suspend_count);
   } else {
     REXKRNL_WARN("[NtResumeThread] handle={:08X} NOT FOUND", uint32_t(handle));
@@ -191,12 +182,12 @@ dword_result_t NtResumeThread_entry(dword_t handle,
   return result;
 }
 
-dword_result_t KeResumeThread_entry(lpvoid_t thread_ptr) {
+ppc_u32_result_t KeResumeThread_entry(ppc_pvoid_t thread_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
   auto thread = XObject::GetNativeObject<XThread>(kernel_state(), thread_ptr);
   if (thread) {
-    REXKRNL_TRACE("[KeResumeThread] ptr={:08X} thread={}",
-                  thread_ptr.guest_address(), thread->name());
+    REXKRNL_TRACE("[KeResumeThread] ptr={:08X} thread={}", thread_ptr.guest_address(),
+                  thread->name());
     result = thread->Resume();
   } else {
     REXKRNL_WARN("[KeResumeThread] ptr={:08X} NOT FOUND", thread_ptr.guest_address());
@@ -207,15 +198,13 @@ dword_result_t KeResumeThread_entry(lpvoid_t thread_ptr) {
   return result;
 }
 
-dword_result_t NtSuspendThread_entry(dword_t handle,
-                                     lpdword_t suspend_count_ptr) {
+ppc_u32_result_t NtSuspendThread_entry(ppc_u32_t handle, ppc_pu32_t suspend_count_ptr) {
   X_RESULT result = X_STATUS_SUCCESS;
   uint32_t suspend_count = 0;
 
   auto thread = kernel_state()->object_table()->LookupObject<XThread>(handle);
   if (thread) {
-    REXKRNL_TRACE("[NtSuspendThread] handle={:08X} thread={}",
-                  uint32_t(handle), thread->name());
+    REXKRNL_TRACE("[NtSuspendThread] handle={:08X} thread={}", uint32_t(handle), thread->name());
     result = thread->Suspend(&suspend_count);
   } else {
     REXKRNL_WARN("[NtSuspendThread] handle={:08X} NOT FOUND", uint32_t(handle));
@@ -230,15 +219,12 @@ dword_result_t NtSuspendThread_entry(dword_t handle,
   return result;
 }
 
-void KeSetCurrentStackPointers_entry(lpvoid_t stack_ptr,
-                                     pointer_t<X_KTHREAD> thread,
-                                     lpvoid_t stack_alloc_base,
-                                     lpvoid_t stack_base,
-                                     lpvoid_t stack_limit) {
+void KeSetCurrentStackPointers_entry(ppc_pvoid_t stack_ptr, ppc_ptr_t<X_KTHREAD> thread,
+                                     ppc_pvoid_t stack_alloc_base, ppc_pvoid_t stack_base,
+                                     ppc_pvoid_t stack_limit) {
   auto current_thread = XThread::GetCurrentThread();
   auto context = current_thread->thread_state()->context();
-  auto pcr = kernel_memory()->TranslateVirtual<X_KPCR*>(
-      static_cast<uint32_t>(context->r13.u64));
+  auto pcr = kernel_memory()->TranslateVirtual<X_KPCR*>(static_cast<uint32_t>(context->r13.u64));
 
   thread->stack_alloc_base = stack_alloc_base.value();
   thread->stack_base = stack_base.value();
@@ -249,16 +235,15 @@ void KeSetCurrentStackPointers_entry(lpvoid_t stack_ptr,
 
   // If a fiber is set, and the thread matches, reenter to avoid issues with
   // host stack overflowing.
-  if (thread->fiber_ptr &&
-      current_thread->guest_object() == thread.guest_address()) {
+  if (thread->fiber_ptr && current_thread->guest_object() == thread.guest_address()) {
     current_thread->Reenter(static_cast<uint32_t>(context->lr));
   }
 }
 
-dword_result_t KeSetAffinityThread_entry(lpvoid_t thread_ptr, dword_t affinity,
-                                         lpdword_t previous_affinity_ptr) {
+ppc_u32_result_t KeSetAffinityThread_entry(ppc_pvoid_t thread_ptr, ppc_u32_t affinity,
+                                           ppc_pu32_t previous_affinity_ptr) {
   REXKRNL_IMPORT_TRACE("KeSetAffinityThread", "thread={:#x} affinity={:#x}",
-         thread_ptr.guest_address(), (uint32_t)affinity);
+                       thread_ptr.guest_address(), (uint32_t)affinity);
   // The Xbox 360, according to disassembly of KeSetAffinityThread, unlike
   // Windows NT, stores the previous affinity via the pointer provided as an
   // argument, not in the return value - the return value is used for the
@@ -277,9 +262,8 @@ dword_result_t KeSetAffinityThread_entry(lpvoid_t thread_ptr, dword_t affinity,
   return X_STATUS_SUCCESS;
 }
 
-dword_result_t KeQueryBasePriorityThread_entry(lpvoid_t thread_ptr) {
-  REXKRNL_IMPORT_TRACE("KeQueryBasePriorityThread", "thread={:#x}",
-         thread_ptr.guest_address());
+ppc_u32_result_t KeQueryBasePriorityThread_entry(ppc_pvoid_t thread_ptr) {
+  REXKRNL_IMPORT_TRACE("KeQueryBasePriorityThread", "thread={:#x}", thread_ptr.guest_address());
   int32_t priority = 0;
 
   auto thread = XObject::GetNativeObject<XThread>(kernel_state(), thread_ptr);
@@ -291,10 +275,9 @@ dword_result_t KeQueryBasePriorityThread_entry(lpvoid_t thread_ptr) {
   return priority;
 }
 
-dword_result_t KeSetBasePriorityThread_entry(lpvoid_t thread_ptr,
-                                             dword_t increment) {
+ppc_u32_result_t KeSetBasePriorityThread_entry(ppc_pvoid_t thread_ptr, ppc_u32_t increment) {
   REXKRNL_IMPORT_TRACE("KeSetBasePriorityThread", "thread={:#x} increment={}",
-         thread_ptr.guest_address(), (int32_t)increment);
+                       thread_ptr.guest_address(), (int32_t)increment);
   int32_t prev_priority = 0;
   auto thread = XObject::GetNativeObject<XThread>(kernel_state(), thread_ptr);
 
@@ -302,14 +285,12 @@ dword_result_t KeSetBasePriorityThread_entry(lpvoid_t thread_ptr,
     prev_priority = thread->QueryPriority();
     thread->SetPriority(increment);
   }
-  REXKRNL_IMPORT_RESULT("KeSetBasePriorityThread", "prev_priority={}",
-         prev_priority);
+  REXKRNL_IMPORT_RESULT("KeSetBasePriorityThread", "prev_priority={}", prev_priority);
 
   return prev_priority;
 }
 
-dword_result_t KeSetDisableBoostThread_entry(lpvoid_t thread_ptr,
-                                             dword_t disabled) {
+ppc_u32_result_t KeSetDisableBoostThread_entry(ppc_pvoid_t thread_ptr, ppc_u32_t disabled) {
   auto thread = XObject::GetNativeObject<XThread>(kernel_state(), thread_ptr);
   if (thread) {
     // Uhm?
@@ -318,11 +299,11 @@ dword_result_t KeSetDisableBoostThread_entry(lpvoid_t thread_ptr,
   return 0;
 }
 
-dword_result_t KeGetCurrentProcessType_entry() {
+ppc_u32_result_t KeGetCurrentProcessType_entry() {
   return kernel_state()->process_type();
 }
 
-void KeSetCurrentProcessType_entry(dword_t type) {
+void KeSetCurrentProcessType_entry(ppc_u32_t type) {
   // One of X_PROCTYPE_?
 
   assert_true(type <= 2);
@@ -330,27 +311,26 @@ void KeSetCurrentProcessType_entry(dword_t type) {
   kernel_state()->set_process_type(type);
 }
 
-dword_result_t KeQueryPerformanceFrequency_entry() {
+ppc_u32_result_t KeQueryPerformanceFrequency_entry() {
   uint64_t result = chrono::Clock::guest_tick_frequency();
   return static_cast<uint32_t>(result);
 }
 
-dword_result_t KeDelayExecutionThread_entry(dword_t processor_mode,
-                                            dword_t alertable,
-                                            lpqword_t interval_ptr) {
+ppc_u32_result_t KeDelayExecutionThread_entry(ppc_u32_t processor_mode, ppc_u32_t alertable,
+                                              ppc_pu64_t interval_ptr) {
   XThread* thread = XThread::GetCurrentThread();
   X_STATUS result = thread->Delay(processor_mode, alertable, *interval_ptr);
 
   return result;
 }
 
-dword_result_t NtYieldExecution_entry() {
+ppc_u32_result_t NtYieldExecution_entry() {
   auto thread = XThread::GetCurrentThread();
   thread->Delay(0, 0, 0);
   return 0;
 }
 
-void KeQuerySystemTime_entry(lpqword_t time_ptr) {
+void KeQuerySystemTime_entry(ppc_pu64_t time_ptr) {
   uint64_t time = chrono::Clock::QueryGuestSystemTime();
   if (time_ptr) {
     *time_ptr = time;
@@ -358,7 +338,7 @@ void KeQuerySystemTime_entry(lpqword_t time_ptr) {
 }
 
 // https://msdn.microsoft.com/en-us/library/ms686801
-dword_result_t KeTlsAlloc_entry() {
+ppc_u32_result_t KeTlsAlloc_entry() {
   uint32_t slot = kernel_state()->AllocateTLS();
   XThread::GetCurrentThread()->SetTLSValue(slot, 0);
   REXKRNL_IMPORT_RESULT("KeTlsAlloc", "slot={}", slot);
@@ -366,7 +346,7 @@ dword_result_t KeTlsAlloc_entry() {
 }
 
 // https://msdn.microsoft.com/en-us/library/ms686804
-dword_result_t KeTlsFree_entry(dword_t tls_index) {
+ppc_u32_result_t KeTlsFree_entry(ppc_u32_t tls_index) {
   REXKRNL_IMPORT_TRACE("KeTlsFree", "slot={}", (uint32_t)tls_index);
   if (tls_index == X_TLS_OUT_OF_INDEXES) {
     REXKRNL_IMPORT_RESULT("KeTlsFree", "0 (invalid)");
@@ -379,7 +359,7 @@ dword_result_t KeTlsFree_entry(dword_t tls_index) {
 }
 
 // https://msdn.microsoft.com/en-us/library/ms686812
-dword_result_t KeTlsGetValue_entry(dword_t tls_index) {
+ppc_u32_result_t KeTlsGetValue_entry(ppc_u32_t tls_index) {
   // xboxkrnl doesn't actually have an error branch - it always succeeds, even
   // if it overflows the TLS.
   uint32_t value = 0;
@@ -391,9 +371,9 @@ dword_result_t KeTlsGetValue_entry(dword_t tls_index) {
 }
 
 // https://msdn.microsoft.com/en-us/library/ms686818
-dword_result_t KeTlsSetValue_entry(dword_t tls_index, dword_t tls_value) {
-  REXKRNL_IMPORT_TRACE("KeTlsSetValue", "slot={} value={:#x}",
-         (uint32_t)tls_index, (uint32_t)tls_value);
+ppc_u32_result_t KeTlsSetValue_entry(ppc_u32_t tls_index, ppc_u32_t tls_value) {
+  REXKRNL_IMPORT_TRACE("KeTlsSetValue", "slot={} value={:#x}", (uint32_t)tls_index,
+                       (uint32_t)tls_value);
   // xboxkrnl doesn't actually have an error branch - it always succeeds, even
   // if it overflows the TLS.
   if (XThread::GetCurrentThread()->SetTLSValue(tls_index, tls_value)) {
@@ -405,13 +385,12 @@ dword_result_t KeTlsSetValue_entry(dword_t tls_index, dword_t tls_value) {
   return 0;
 }
 
-void KeInitializeEvent_entry(pointer_t<X_KEVENT> event_ptr, dword_t event_type,
-                             dword_t initial_state) {
+void KeInitializeEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, ppc_u32_t event_type,
+                             ppc_u32_t initial_state) {
   event_ptr.Zero();
   event_ptr->header.type = event_type;
   event_ptr->header.signal_state = (uint32_t)initial_state;
-  auto ev =
-      XObject::GetNativeObject<XEvent>(kernel_state(), event_ptr, event_type);
+  auto ev = XObject::GetNativeObject<XEvent>(kernel_state(), event_ptr, event_type);
   if (!ev) {
     assert_always();
     return;
@@ -428,13 +407,13 @@ uint32_t xeKeSetEvent(X_KEVENT* event_ptr, uint32_t increment, uint32_t wait) {
   return ev->Set(increment, !!wait);
 }
 
-dword_result_t KeSetEvent_entry(pointer_t<X_KEVENT> event_ptr,
-                                dword_t increment, dword_t wait) {
+ppc_u32_result_t KeSetEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, ppc_u32_t increment,
+                                  ppc_u32_t wait) {
   return xeKeSetEvent(event_ptr, increment, wait);
 }
 
-dword_result_t KePulseEvent_entry(pointer_t<X_KEVENT> event_ptr,
-                                  dword_t increment, dword_t wait) {
+ppc_u32_result_t KePulseEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, ppc_u32_t increment,
+                                    ppc_u32_t wait) {
   auto ev = XObject::GetNativeObject<XEvent>(kernel_state(), event_ptr);
   if (!ev) {
     assert_always();
@@ -444,7 +423,7 @@ dword_result_t KePulseEvent_entry(pointer_t<X_KEVENT> event_ptr,
   return ev->Pulse(increment, !!wait);
 }
 
-dword_result_t KeResetEvent_entry(pointer_t<X_KEVENT> event_ptr) {
+ppc_u32_result_t KeResetEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr) {
   auto ev = XObject::GetNativeObject<XEvent>(kernel_state(), event_ptr);
   if (!ev) {
     assert_always();
@@ -454,12 +433,12 @@ dword_result_t KeResetEvent_entry(pointer_t<X_KEVENT> event_ptr) {
   return ev->Reset();
 }
 
-dword_result_t NtCreateEvent_entry(
-    lpdword_t handle_ptr, pointer_t<X_OBJECT_ATTRIBUTES> obj_attributes_ptr,
-    dword_t event_type, dword_t initial_state) {
+ppc_u32_result_t NtCreateEvent_entry(ppc_pu32_t handle_ptr,
+                                     ppc_ptr_t<X_OBJECT_ATTRIBUTES> obj_attributes_ptr,
+                                     ppc_u32_t event_type, ppc_u32_t initial_state) {
   // Check for an existing timer with the same name.
   auto existing_object =
-      LookupNamedObject<XEvent>(kernel_state(), obj_attributes_ptr);
+      LookupNamedObject<XEvent>(kernel_state(), obj_attributes_ptr.guest_address());
   if (existing_object) {
     if (existing_object->type() == XObject::Type::Event) {
       if (handle_ptr) {
@@ -477,7 +456,7 @@ dword_result_t NtCreateEvent_entry(
 
   // obj_attributes may have a name inside of it, if != NULL.
   if (obj_attributes_ptr) {
-    ev->SetAttributes(obj_attributes_ptr);
+    ev->SetAttributes(obj_attributes_ptr.guest_address());
   }
 
   if (handle_ptr) {
@@ -502,12 +481,11 @@ uint32_t xeNtSetEvent(uint32_t handle, rex::be<uint32_t>* previous_state_ptr) {
   return result;
 }
 
-dword_result_t NtSetEvent_entry(dword_t handle, lpdword_t previous_state_ptr) {
+ppc_u32_result_t NtSetEvent_entry(ppc_u32_t handle, ppc_pu32_t previous_state_ptr) {
   return xeNtSetEvent(handle, previous_state_ptr);
 }
 
-dword_result_t NtPulseEvent_entry(dword_t handle,
-                                  lpdword_t previous_state_ptr) {
+ppc_u32_result_t NtPulseEvent_entry(ppc_u32_t handle, ppc_pu32_t previous_state_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
   auto ev = kernel_state()->object_table()->LookupObject<XEvent>(handle);
@@ -536,29 +514,28 @@ uint32_t xeNtClearEvent(uint32_t handle) {
   return result;
 }
 
-dword_result_t NtClearEvent_entry(dword_t handle) {
+ppc_u32_result_t NtClearEvent_entry(ppc_u32_t handle) {
   return xeNtClearEvent(handle);
 }
 
 // https://msdn.microsoft.com/en-us/library/windows/hardware/ff552150(v=vs.85).aspx
-void KeInitializeSemaphore_entry(pointer_t<X_KSEMAPHORE> semaphore_ptr,
-                                 dword_t count, dword_t limit) {
+void KeInitializeSemaphore_entry(ppc_ptr_t<X_KSEMAPHORE> semaphore_ptr, ppc_u32_t count,
+                                 ppc_u32_t limit) {
   semaphore_ptr->header.type = 5;  // SemaphoreObject
   semaphore_ptr->header.signal_state = (uint32_t)count;
   semaphore_ptr->limit = (uint32_t)limit;
 
-  auto sem = XObject::GetNativeObject<XSemaphore>(kernel_state(), semaphore_ptr,
-                                                  5 /* SemaphoreObject */);
+  auto sem =
+      XObject::GetNativeObject<XSemaphore>(kernel_state(), semaphore_ptr, 5 /* SemaphoreObject */);
   if (!sem) {
     assert_always();
     return;
   }
 }
 
-uint32_t xeKeReleaseSemaphore(X_KSEMAPHORE* semaphore_ptr, uint32_t increment,
-                              uint32_t adjustment, uint32_t wait) {
-  auto sem =
-      XObject::GetNativeObject<XSemaphore>(kernel_state(), semaphore_ptr);
+uint32_t xeKeReleaseSemaphore(X_KSEMAPHORE* semaphore_ptr, uint32_t increment, uint32_t adjustment,
+                              uint32_t wait) {
+  auto sem = XObject::GetNativeObject<XSemaphore>(kernel_state(), semaphore_ptr);
   if (!sem) {
     assert_always();
     return 0;
@@ -570,18 +547,17 @@ uint32_t xeKeReleaseSemaphore(X_KSEMAPHORE* semaphore_ptr, uint32_t increment,
   return sem->ReleaseSemaphore(adjustment);
 }
 
-dword_result_t KeReleaseSemaphore_entry(pointer_t<X_KSEMAPHORE> semaphore_ptr,
-                                        dword_t increment, dword_t adjustment,
-                                        dword_t wait) {
+ppc_u32_result_t KeReleaseSemaphore_entry(ppc_ptr_t<X_KSEMAPHORE> semaphore_ptr,
+                                          ppc_u32_t increment, ppc_u32_t adjustment,
+                                          ppc_u32_t wait) {
   return xeKeReleaseSemaphore(semaphore_ptr, increment, adjustment, wait);
 }
 
-dword_result_t NtCreateSemaphore_entry(lpdword_t handle_ptr,
-                                       lpvoid_t obj_attributes_ptr,
-                                       dword_t count, dword_t limit) {
+ppc_u32_result_t NtCreateSemaphore_entry(ppc_pu32_t handle_ptr, ppc_pvoid_t obj_attributes_ptr,
+                                         ppc_u32_t count, ppc_u32_t limit) {
   // Check for an existing semaphore with the same name.
   auto existing_object =
-      LookupNamedObject<XSemaphore>(kernel_state(), obj_attributes_ptr);
+      LookupNamedObject<XSemaphore>(kernel_state(), obj_attributes_ptr.guest_address());
   if (existing_object) {
     if (existing_object->type() == XObject::Type::Semaphore) {
       if (handle_ptr) {
@@ -605,7 +581,7 @@ dword_result_t NtCreateSemaphore_entry(lpdword_t handle_ptr,
 
   // obj_attributes may have a name inside of it, if != NULL.
   if (obj_attributes_ptr) {
-    sem->SetAttributes(obj_attributes_ptr);
+    sem->SetAttributes(obj_attributes_ptr.guest_address());
   }
 
   if (handle_ptr) {
@@ -615,14 +591,12 @@ dword_result_t NtCreateSemaphore_entry(lpdword_t handle_ptr,
   return X_STATUS_SUCCESS;
 }
 
-dword_result_t NtReleaseSemaphore_entry(dword_t sem_handle,
-                                        dword_t release_count,
-                                        lpdword_t previous_count_ptr) {
+ppc_u32_result_t NtReleaseSemaphore_entry(ppc_u32_t sem_handle, ppc_u32_t release_count,
+                                          ppc_pu32_t previous_count_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
   int32_t previous_count = 0;
 
-  auto sem =
-      kernel_state()->object_table()->LookupObject<XSemaphore>(sem_handle);
+  auto sem = kernel_state()->object_table()->LookupObject<XSemaphore>(sem_handle);
   if (sem) {
     previous_count = sem->ReleaseSemaphore((int32_t)release_count);
   } else {
@@ -635,12 +609,11 @@ dword_result_t NtReleaseSemaphore_entry(dword_t sem_handle,
   return result;
 }
 
-dword_result_t NtCreateMutant_entry(
-    lpdword_t handle_out, pointer_t<X_OBJECT_ATTRIBUTES> obj_attributes,
-    dword_t initial_owner) {
+ppc_u32_result_t NtCreateMutant_entry(ppc_pu32_t handle_out,
+                                      ppc_ptr_t<X_OBJECT_ATTRIBUTES> obj_attributes,
+                                      ppc_u32_t initial_owner) {
   // Check for an existing timer with the same name.
-  auto existing_object = LookupNamedObject<XMutant>(
-      kernel_state(), obj_attributes.guest_address());
+  auto existing_object = LookupNamedObject<XMutant>(kernel_state(), obj_attributes.guest_address());
   if (existing_object) {
     if (existing_object->type() == XObject::Type::Mutant) {
       if (handle_out) {
@@ -658,7 +631,7 @@ dword_result_t NtCreateMutant_entry(
 
   // obj_attributes may have a name inside of it, if != NULL.
   if (obj_attributes) {
-    mutant->SetAttributes(obj_attributes);
+    mutant->SetAttributes(obj_attributes.guest_address());
   }
 
   if (handle_out) {
@@ -668,7 +641,7 @@ dword_result_t NtCreateMutant_entry(
   return X_STATUS_SUCCESS;
 }
 
-dword_result_t NtReleaseMutant_entry(dword_t mutant_handle, dword_t unknown) {
+ppc_u32_result_t NtReleaseMutant_entry(ppc_u32_t mutant_handle, ppc_u32_t unknown) {
   // This doesn't seem to be supported.
   // int32_t previous_count_ptr = SHIM_GET_ARG_32(2);
 
@@ -682,8 +655,7 @@ dword_result_t NtReleaseMutant_entry(dword_t mutant_handle, dword_t unknown) {
 
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto mutant =
-      kernel_state()->object_table()->LookupObject<XMutant>(mutant_handle);
+  auto mutant = kernel_state()->object_table()->LookupObject<XMutant>(mutant_handle);
   if (mutant) {
     result = mutant->ReleaseMutant(priority_increment, abandon, wait);
   } else {
@@ -693,14 +665,13 @@ dword_result_t NtReleaseMutant_entry(dword_t mutant_handle, dword_t unknown) {
   return result;
 }
 
-dword_result_t NtCreateTimer_entry(lpdword_t handle_ptr,
-                                   lpvoid_t obj_attributes_ptr,
-                                   dword_t timer_type) {
+ppc_u32_result_t NtCreateTimer_entry(ppc_pu32_t handle_ptr, ppc_pvoid_t obj_attributes_ptr,
+                                     ppc_u32_t timer_type) {
   // timer_type = NotificationTimer (0) or SynchronizationTimer (1)
 
   // Check for an existing timer with the same name.
   auto existing_object =
-      LookupNamedObject<XTimer>(kernel_state(), obj_attributes_ptr);
+      LookupNamedObject<XTimer>(kernel_state(), obj_attributes_ptr.guest_address());
   if (existing_object) {
     if (existing_object->type() == XObject::Type::Timer) {
       if (handle_ptr) {
@@ -718,7 +689,7 @@ dword_result_t NtCreateTimer_entry(lpdword_t handle_ptr,
 
   // obj_attributes may have a name inside of it, if != NULL.
   if (obj_attributes_ptr) {
-    timer->SetAttributes(obj_attributes_ptr);
+    timer->SetAttributes(obj_attributes_ptr.guest_address());
   }
 
   if (handle_ptr) {
@@ -728,11 +699,10 @@ dword_result_t NtCreateTimer_entry(lpdword_t handle_ptr,
   return X_STATUS_SUCCESS;
 }
 
-dword_result_t NtSetTimerEx_entry(dword_t timer_handle, lpqword_t due_time_ptr,
-                                  lpvoid_t routine_ptr /*PTIMERAPCROUTINE*/,
-                                  dword_t unk_one, lpvoid_t routine_arg,
-                                  dword_t resume, dword_t period_ms,
-                                  dword_t unk_zero) {
+ppc_u32_result_t NtSetTimerEx_entry(ppc_u32_t timer_handle, ppc_pu64_t due_time_ptr,
+                                    ppc_pvoid_t routine_ptr /*PTIMERAPCROUTINE*/, ppc_u32_t unk_one,
+                                    ppc_pvoid_t routine_arg, ppc_u32_t resume, ppc_u32_t period_ms,
+                                    ppc_u32_t unk_zero) {
   assert_true(unk_one == 1);
   assert_true(unk_zero == 0);
 
@@ -740,12 +710,10 @@ dword_result_t NtSetTimerEx_entry(dword_t timer_handle, lpqword_t due_time_ptr,
 
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto timer =
-      kernel_state()->object_table()->LookupObject<XTimer>(timer_handle);
+  auto timer = kernel_state()->object_table()->LookupObject<XTimer>(timer_handle);
   if (timer) {
-    result =
-        timer->SetTimer(due_time, period_ms, routine_ptr.guest_address(),
-                        routine_arg.guest_address(), resume ? true : false);
+    result = timer->SetTimer(due_time, period_ms, routine_ptr.guest_address(),
+                             routine_arg.guest_address(), resume ? true : false);
   } else {
     result = X_STATUS_INVALID_HANDLE;
   }
@@ -753,12 +721,10 @@ dword_result_t NtSetTimerEx_entry(dword_t timer_handle, lpqword_t due_time_ptr,
   return result;
 }
 
-dword_result_t NtCancelTimer_entry(dword_t timer_handle,
-                                   lpdword_t current_state_ptr) {
+ppc_u32_result_t NtCancelTimer_entry(ppc_u32_t timer_handle, ppc_pu32_t current_state_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto timer =
-      kernel_state()->object_table()->LookupObject<XTimer>(timer_handle);
+  auto timer = kernel_state()->object_table()->LookupObject<XTimer>(timer_handle);
   if (timer) {
     result = timer->Cancel();
   } else {
@@ -771,9 +737,8 @@ dword_result_t NtCancelTimer_entry(dword_t timer_handle,
   return result;
 }
 
-uint32_t xeKeWaitForSingleObject(void* object_ptr, uint32_t wait_reason,
-                                 uint32_t processor_mode, uint32_t alertable,
-                                 uint64_t* timeout_ptr) {
+uint32_t xeKeWaitForSingleObject(void* object_ptr, uint32_t wait_reason, uint32_t processor_mode,
+                                 uint32_t alertable, uint64_t* timeout_ptr) {
   auto object = XObject::GetNativeObject<XObject>(kernel_state(), object_ptr);
 
   if (!object) {
@@ -782,40 +747,34 @@ uint32_t xeKeWaitForSingleObject(void* object_ptr, uint32_t wait_reason,
     return X_STATUS_ABANDONED_WAIT_0;
   }
 
-  X_STATUS result =
-      object->Wait(wait_reason, processor_mode, alertable, timeout_ptr);
+  X_STATUS result = object->Wait(wait_reason, processor_mode, alertable, timeout_ptr);
 
   return result;
 }
 
-dword_result_t KeWaitForSingleObject_entry(lpvoid_t object_ptr,
-                                           dword_t wait_reason,
-                                           dword_t processor_mode,
-                                           dword_t alertable,
-                                           lpqword_t timeout_ptr) {
+ppc_u32_result_t KeWaitForSingleObject_entry(ppc_pvoid_t object_ptr, ppc_u32_t wait_reason,
+                                             ppc_u32_t processor_mode, ppc_u32_t alertable,
+                                             ppc_pu64_t timeout_ptr) {
   uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
- // REXKRNL_IMPORT_TRACE("KeWaitForSingleObject", "obj={:#x} reason={} mode={} alertable={} timeout={}",
-         //object_ptr.guest_address(), (uint32_t)wait_reason,
-         //(uint32_t)processor_mode, (uint32_t)alertable,
-         //timeout_ptr ? (int64_t)timeout : -1);
-  auto result = xeKeWaitForSingleObject(object_ptr, wait_reason, processor_mode,
-                                        alertable, timeout_ptr ? &timeout : nullptr);
- // REXKRNL_IMPORT_RESULT("KeWaitForSingleObject", "{:#x}", result);
+  // REXKRNL_IMPORT_TRACE("KeWaitForSingleObject", "obj={:#x} reason={} mode={} alertable={}
+  // timeout={}",
+  // object_ptr.guest_address(), (uint32_t)wait_reason,
+  //(uint32_t)processor_mode, (uint32_t)alertable,
+  // timeout_ptr ? (int64_t)timeout : -1);
+  auto result = xeKeWaitForSingleObject(object_ptr, wait_reason, processor_mode, alertable,
+                                        timeout_ptr ? &timeout : nullptr);
+  // REXKRNL_IMPORT_RESULT("KeWaitForSingleObject", "{:#x}", result);
   return result;
 }
 
-dword_result_t NtWaitForSingleObjectEx_entry(dword_t object_handle,
-                                             dword_t wait_mode,
-                                             dword_t alertable,
-                                             lpqword_t timeout_ptr) {
+ppc_u32_result_t NtWaitForSingleObjectEx_entry(ppc_u32_t object_handle, ppc_u32_t wait_mode,
+                                               ppc_u32_t alertable, ppc_pu64_t timeout_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto object =
-      kernel_state()->object_table()->LookupObject<XObject>(object_handle);
+  auto object = kernel_state()->object_table()->LookupObject<XObject>(object_handle);
   if (object) {
     uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
-    result =
-        object->Wait(3, wait_mode, alertable, timeout_ptr ? &timeout : nullptr);
+    result = object->Wait(3, wait_mode, alertable, timeout_ptr ? &timeout : nullptr);
   } else {
     result = X_STATUS_INVALID_HANDLE;
   }
@@ -823,17 +782,17 @@ dword_result_t NtWaitForSingleObjectEx_entry(dword_t object_handle,
   return result;
 }
 
-dword_result_t KeWaitForMultipleObjects_entry(
-    dword_t count, lpdword_t objects_ptr, dword_t wait_type,
-    dword_t wait_reason, dword_t processor_mode, dword_t alertable,
-    lpqword_t timeout_ptr, lpvoid_t wait_block_array_ptr) {
+ppc_u32_result_t KeWaitForMultipleObjects_entry(ppc_u32_t count, ppc_pu32_t objects_ptr,
+                                                ppc_u32_t wait_type, ppc_u32_t wait_reason,
+                                                ppc_u32_t processor_mode, ppc_u32_t alertable,
+                                                ppc_pu64_t timeout_ptr,
+                                                ppc_pvoid_t wait_block_array_ptr) {
   assert_true(wait_type <= 1);
 
   std::vector<object_ref<XObject>> objects;
   for (uint32_t n = 0; n < count; n++) {
     auto object_ptr = kernel_memory()->TranslateVirtual(objects_ptr[n]);
-    auto object_ref =
-        XObject::GetNativeObject<XObject>(kernel_state(), object_ptr);
+    auto object_ref = XObject::GetNativeObject<XObject>(kernel_state(), object_ptr);
     if (!object_ref) {
       return X_STATUS_INVALID_PARAMETER;
     }
@@ -843,58 +802,48 @@ dword_result_t KeWaitForMultipleObjects_entry(
 
   uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
   return XObject::WaitMultiple(uint32_t(objects.size()),
-                               reinterpret_cast<XObject**>(objects.data()),
-                               wait_type, wait_reason, processor_mode,
-                               alertable, timeout_ptr ? &timeout : nullptr);
+                               reinterpret_cast<XObject**>(objects.data()), wait_type, wait_reason,
+                               processor_mode, alertable, timeout_ptr ? &timeout : nullptr);
 }
 
 uint32_t xeNtWaitForMultipleObjectsEx(uint32_t count, rex::be<uint32_t>* handles,
-                                      uint32_t wait_type, uint32_t wait_mode,
-                                      uint32_t alertable,
+                                      uint32_t wait_type, uint32_t wait_mode, uint32_t alertable,
                                       uint64_t* timeout_ptr) {
   assert_true(wait_type <= 1);
 
   std::vector<object_ref<XObject>> objects;
   for (uint32_t n = 0; n < count; n++) {
     uint32_t object_handle = handles[n];
-    auto object =
-        kernel_state()->object_table()->LookupObject<XObject>(object_handle);
+    auto object = kernel_state()->object_table()->LookupObject<XObject>(object_handle);
     if (!object) {
       return X_STATUS_INVALID_PARAMETER;
     }
     objects.push_back(std::move(object));
   }
 
-  return XObject::WaitMultiple(count,
-                               reinterpret_cast<XObject**>(objects.data()),
-                               wait_type, 6, wait_mode, alertable, timeout_ptr);
+  return XObject::WaitMultiple(count, reinterpret_cast<XObject**>(objects.data()), wait_type, 6,
+                               wait_mode, alertable, timeout_ptr);
 }
 
-dword_result_t NtWaitForMultipleObjectsEx_entry(
-    dword_t count, lpdword_t handles, dword_t wait_type, dword_t wait_mode,
-    dword_t alertable, lpqword_t timeout_ptr) {
+ppc_u32_result_t NtWaitForMultipleObjectsEx_entry(ppc_u32_t count, ppc_pu32_t handles,
+                                                  ppc_u32_t wait_type, ppc_u32_t wait_mode,
+                                                  ppc_u32_t alertable, ppc_pu64_t timeout_ptr) {
   uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
-  return xeNtWaitForMultipleObjectsEx(count, handles, wait_type, wait_mode,
-                                      alertable,
+  return xeNtWaitForMultipleObjectsEx(count, handles, wait_type, wait_mode, alertable,
                                       timeout_ptr ? &timeout : nullptr);
 }
 
-dword_result_t NtSignalAndWaitForSingleObjectEx_entry(dword_t signal_handle,
-                                                      dword_t wait_handle,
-                                                      dword_t alertable,
-                                                      dword_t r6,
-                                                      lpqword_t timeout_ptr) {
+ppc_u32_result_t NtSignalAndWaitForSingleObjectEx_entry(ppc_u32_t signal_handle,
+                                                        ppc_u32_t wait_handle, ppc_u32_t alertable,
+                                                        ppc_u32_t r6, ppc_pu64_t timeout_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto signal_object =
-      kernel_state()->object_table()->LookupObject<XObject>(signal_handle);
-  auto wait_object =
-      kernel_state()->object_table()->LookupObject<XObject>(wait_handle);
+  auto signal_object = kernel_state()->object_table()->LookupObject<XObject>(signal_handle);
+  auto wait_object = kernel_state()->object_table()->LookupObject<XObject>(wait_handle);
   if (signal_object && wait_object) {
     uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
-    result =
-        XObject::SignalAndWait(signal_object.get(), wait_object.get(), 3, 1,
-                               alertable, timeout_ptr ? &timeout : nullptr);
+    result = XObject::SignalAndWait(signal_object.get(), wait_object.get(), 3, 1, alertable,
+                                    timeout_ptr ? &timeout : nullptr);
   } else {
     result = X_STATUS_INVALID_HANDLE;
   }
@@ -921,12 +870,12 @@ uint32_t xeKeKfAcquireSpinLock(uint32_t* lock) {
   return old_irql;
 }
 
-dword_result_t KfAcquireSpinLock_entry(lpdword_t lock_ptr) {
+ppc_u32_result_t KfAcquireSpinLock_entry(ppc_pu32_t lock_ptr) {
   auto lock = reinterpret_cast<uint32_t*>(lock_ptr.host_address());
   return xeKeKfAcquireSpinLock(lock);
 }
 
-void xeKeKfReleaseSpinLock(uint32_t* lock, dword_t old_irql) {
+void xeKeKfReleaseSpinLock(uint32_t* lock, ppc_u32_t old_irql) {
   // Restore IRQL.
   XThread* thread = XThread::GetCurrentThread();
   thread->LowerIrql(old_irql);
@@ -935,12 +884,12 @@ void xeKeKfReleaseSpinLock(uint32_t* lock, dword_t old_irql) {
   rex::thread::atomic_dec(lock);
 }
 
-void KfReleaseSpinLock_entry(lpdword_t lock_ptr, dword_t old_irql) {
+void KfReleaseSpinLock_entry(ppc_pu32_t lock_ptr, ppc_u32_t old_irql) {
   auto lock = reinterpret_cast<uint32_t*>(lock_ptr.host_address());
   xeKeKfReleaseSpinLock(lock, old_irql);
 }
 
-void KeAcquireSpinLockAtRaisedIrql_entry(lpdword_t lock_ptr) {
+void KeAcquireSpinLockAtRaisedIrql_entry(ppc_pu32_t lock_ptr) {
   // Lock.
   auto lock = reinterpret_cast<uint32_t*>(lock_ptr.host_address());
   while (!rex::thread::atomic_cas(0, 1, lock)) {
@@ -949,7 +898,7 @@ void KeAcquireSpinLockAtRaisedIrql_entry(lpdword_t lock_ptr) {
   }
 }
 
-dword_result_t KeTryToAcquireSpinLockAtRaisedIrql_entry(lpdword_t lock_ptr) {
+ppc_u32_result_t KeTryToAcquireSpinLockAtRaisedIrql_entry(ppc_pu32_t lock_ptr) {
   // Lock.
   auto lock = reinterpret_cast<uint32_t*>(lock_ptr.host_address());
   if (!rex::thread::atomic_cas(0, 1, lock)) {
@@ -958,7 +907,7 @@ dword_result_t KeTryToAcquireSpinLockAtRaisedIrql_entry(lpdword_t lock_ptr) {
   return 1;
 }
 
-void KeReleaseSpinLockFromRaisedIrql_entry(lpdword_t lock_ptr) {
+void KeReleaseSpinLockFromRaisedIrql_entry(ppc_pu32_t lock_ptr) {
   // Unlock.
   auto lock = reinterpret_cast<uint32_t*>(lock_ptr.host_address());
   rex::thread::atomic_dec(lock);
@@ -972,7 +921,7 @@ void KeLeaveCriticalRegion_entry() {
   XThread::GetCurrentThread()->LeaveCriticalRegion();
 }
 
-dword_result_t KeRaiseIrqlToDpcLevel_entry() {
+ppc_u32_result_t KeRaiseIrqlToDpcLevel_entry() {
   // Raise IRQL to DPC level - this acquires synchronization with interrupt dispatch
   auto* processor = kernel_state()->processor();
   if (processor) {
@@ -983,7 +932,7 @@ dword_result_t KeRaiseIrqlToDpcLevel_entry() {
   return 0;
 }
 
-void KfLowerIrql_entry(dword_t old_value) {
+void KfLowerIrql_entry(ppc_u32_t old_value) {
   // Lower IRQL to the old value - releases synchronization
   auto* processor = kernel_state()->processor();
   if (processor) {
@@ -992,11 +941,9 @@ void KfLowerIrql_entry(dword_t old_value) {
   XThread::GetCurrentThread()->CheckApcs();
 }
 
-void NtQueueApcThread_entry(dword_t thread_handle, lpvoid_t apc_routine,
-                            lpvoid_t apc_routine_context, lpvoid_t arg1,
-                            lpvoid_t arg2) {
-  auto thread =
-      kernel_state()->object_table()->LookupObject<XThread>(thread_handle);
+void NtQueueApcThread_entry(ppc_u32_t thread_handle, ppc_pvoid_t apc_routine,
+                            ppc_pvoid_t apc_routine_context, ppc_pvoid_t arg1, ppc_pvoid_t arg2) {
+  auto thread = kernel_state()->object_table()->LookupObject<XThread>(thread_handle);
 
   if (!thread) {
     REXKRNL_ERROR("NtQueueApcThread: Incorrect thread handle! Might cause crash");
@@ -1008,29 +955,26 @@ void NtQueueApcThread_entry(dword_t thread_handle, lpvoid_t apc_routine,
     return;
   }
 
-  thread->EnqueueApc(apc_routine, apc_routine_context, arg1, arg2);
+  thread->EnqueueApc(apc_routine.guest_address(), apc_routine_context.guest_address(),
+                     arg1.guest_address(), arg2.guest_address());
 }
 
-void KeInitializeApc_entry(pointer_t<XAPC> apc, lpvoid_t thread_ptr,
-                           lpvoid_t kernel_routine, lpvoid_t rundown_routine,
-                           lpvoid_t normal_routine, dword_t processor_mode,
-                           lpvoid_t normal_context) {
+void KeInitializeApc_entry(ppc_ptr_t<XAPC> apc, ppc_pvoid_t thread_ptr, ppc_pvoid_t kernel_routine,
+                           ppc_pvoid_t rundown_routine, ppc_pvoid_t normal_routine,
+                           ppc_u32_t processor_mode, ppc_pvoid_t normal_context) {
   apc->Initialize();
   apc->processor_mode = processor_mode;
   apc->thread_ptr = thread_ptr.guest_address();
   apc->kernel_routine = kernel_routine.guest_address();
   apc->rundown_routine = rundown_routine.guest_address();
   apc->normal_routine = normal_routine.guest_address();
-  apc->normal_context =
-      normal_routine.guest_address() ? normal_context.guest_address() : 0;
+  apc->normal_context = normal_routine.guest_address() ? normal_context.guest_address() : 0;
 }
 
-dword_result_t KeInsertQueueApc_entry(pointer_t<XAPC> apc, lpvoid_t arg1,
-                                      lpvoid_t arg2,
-                                      dword_t priority_increment) {
+ppc_u32_result_t KeInsertQueueApc_entry(ppc_ptr_t<XAPC> apc, ppc_pvoid_t arg1, ppc_pvoid_t arg2,
+                                        ppc_u32_t priority_increment) {
   auto thread = XObject::GetNativeObject<XThread>(
-      kernel_state(),
-      kernel_state()->memory()->TranslateVirtual(apc->thread_ptr));
+      kernel_state(), kernel_state()->memory()->TranslateVirtual(apc->thread_ptr));
   if (!thread) {
     return 0;
   }
@@ -1060,12 +1004,11 @@ dword_result_t KeInsertQueueApc_entry(pointer_t<XAPC> apc, lpvoid_t arg1,
   return 1;
 }
 
-dword_result_t KeRemoveQueueApc_entry(pointer_t<XAPC> apc) {
+ppc_u32_result_t KeRemoveQueueApc_entry(ppc_ptr_t<XAPC> apc) {
   bool result = false;
 
   auto thread = XObject::GetNativeObject<XThread>(
-      kernel_state(),
-      kernel_state()->memory()->TranslateVirtual(apc->thread_ptr));
+      kernel_state(), kernel_state()->memory()->TranslateVirtual(apc->thread_ptr));
   if (!thread) {
     return 0;
   }
@@ -1089,8 +1032,8 @@ dword_result_t KeRemoveQueueApc_entry(pointer_t<XAPC> apc) {
   return result ? 1 : 0;
 }
 
-dword_result_t KiApcNormalRoutineNop_entry(dword_t unk0 /* output? */,
-                                           dword_t unk1 /* 0x13 */) {
+ppc_u32_result_t KiApcNormalRoutineNop_entry(ppc_u32_t unk0 /* output? */,
+                                             ppc_u32_t unk1 /* 0x13 */) {
   return 0;
 }
 
@@ -1104,8 +1047,7 @@ typedef struct {
   rex::be<uint32_t> arg2;
 } XDPC;
 
-void KeInitializeDpc_entry(pointer_t<XDPC> dpc, lpvoid_t routine,
-                           lpvoid_t context) {
+void KeInitializeDpc_entry(ppc_ptr_t<XDPC> dpc, ppc_pvoid_t routine, ppc_pvoid_t context) {
   // KDPC (maybe) 0x18 bytes?
   uint32_t type = 19;  // DpcObject
   uint32_t importance = 0;
@@ -1119,8 +1061,7 @@ void KeInitializeDpc_entry(pointer_t<XDPC> dpc, lpvoid_t routine,
   dpc->arg2 = 0;
 }
 
-dword_result_t KeInsertQueueDpc_entry(pointer_t<XDPC> dpc, dword_t arg1,
-                                      dword_t arg2) {
+ppc_u32_result_t KeInsertQueueDpc_entry(ppc_ptr_t<XDPC> dpc, ppc_u32_t arg1, ppc_u32_t arg2) {
   assert_always("DPC does not dispatch yet; going to hang!");
 
   uint32_t list_entry_ptr = dpc.guest_address() + 4;
@@ -1143,7 +1084,7 @@ dword_result_t KeInsertQueueDpc_entry(pointer_t<XDPC> dpc, dword_t arg1,
   return 1;
 }
 
-dword_result_t KeRemoveQueueDpc_entry(pointer_t<XDPC> dpc) {
+ppc_u32_result_t KeRemoveQueueDpc_entry(ppc_ptr_t<XDPC> dpc) {
   bool result = false;
 
   uint32_t list_entry_ptr = dpc.guest_address() + 4;
@@ -1170,22 +1111,22 @@ struct X_ERWLOCK {
 };
 static_assert_size(X_ERWLOCK, 0x38);
 
-void ExInitializeReadWriteLock_entry(pointer_t<X_ERWLOCK> lock_ptr) {
+void ExInitializeReadWriteLock_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
   lock_ptr->lock_count = -1;
   lock_ptr->writers_waiting_count = 0;
   lock_ptr->readers_waiting_count = 0;
   lock_ptr->readers_entry_count = 0;
   // Create GuestPointers to struct members with correct guest addresses
-  pointer_t<X_KEVENT> event_ptr(&lock_ptr->writer_event,
-      lock_ptr.guest_address() + offsetof(X_ERWLOCK, writer_event));
-  pointer_t<X_KSEMAPHORE> sem_ptr(&lock_ptr->reader_semaphore,
-      lock_ptr.guest_address() + offsetof(X_ERWLOCK, reader_semaphore));
+  ppc_ptr_t<X_KEVENT> event_ptr(&lock_ptr->writer_event,
+                                lock_ptr.guest_address() + offsetof(X_ERWLOCK, writer_event));
+  ppc_ptr_t<X_KSEMAPHORE> sem_ptr(&lock_ptr->reader_semaphore,
+                                  lock_ptr.guest_address() + offsetof(X_ERWLOCK, reader_semaphore));
   KeInitializeEvent_entry(event_ptr, 1, 0);
   KeInitializeSemaphore_entry(sem_ptr, 0, 0x7FFFFFFF);
   lock_ptr->spin_lock = 0;
 }
 
-void ExAcquireReadWriteLockExclusive_entry(pointer_t<X_ERWLOCK> lock_ptr) {
+void ExAcquireReadWriteLockExclusive_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
   auto old_irql = xeKeKfAcquireSpinLock(&lock_ptr->spin_lock);
 
   int32_t lock_count = ++lock_ptr->lock_count;
@@ -1200,8 +1141,7 @@ void ExAcquireReadWriteLockExclusive_entry(pointer_t<X_ERWLOCK> lock_ptr) {
   xeKeWaitForSingleObject(&lock_ptr->writer_event, 7, 0, 0, nullptr);
 }
 
-dword_result_t ExTryToAcquireReadWriteLockExclusive_entry(
-    pointer_t<X_ERWLOCK> lock_ptr) {
+ppc_u32_result_t ExTryToAcquireReadWriteLockExclusive_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
   auto old_irql = xeKeKfAcquireSpinLock(&lock_ptr->spin_lock);
 
   uint32_t result;
@@ -1216,12 +1156,11 @@ dword_result_t ExTryToAcquireReadWriteLockExclusive_entry(
   return result;
 }
 
-void ExAcquireReadWriteLockShared_entry(pointer_t<X_ERWLOCK> lock_ptr) {
+void ExAcquireReadWriteLockShared_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
   auto old_irql = xeKeKfAcquireSpinLock(&lock_ptr->spin_lock);
 
   int32_t lock_count = ++lock_ptr->lock_count;
-  if (!lock_count ||
-      (lock_ptr->readers_entry_count && !lock_ptr->writers_waiting_count)) {
+  if (!lock_count || (lock_ptr->readers_entry_count && !lock_ptr->writers_waiting_count)) {
     lock_ptr->readers_entry_count++;
     xeKeKfReleaseSpinLock(&lock_ptr->spin_lock, old_irql);
     return;
@@ -1233,8 +1172,7 @@ void ExAcquireReadWriteLockShared_entry(pointer_t<X_ERWLOCK> lock_ptr) {
   xeKeWaitForSingleObject(&lock_ptr->reader_semaphore, 7, 0, 0, nullptr);
 }
 
-dword_result_t ExTryToAcquireReadWriteLockShared_entry(
-    pointer_t<X_ERWLOCK> lock_ptr) {
+ppc_u32_result_t ExTryToAcquireReadWriteLockShared_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
   auto old_irql = xeKeKfAcquireSpinLock(&lock_ptr->spin_lock);
 
   uint32_t result;
@@ -1251,7 +1189,7 @@ dword_result_t ExTryToAcquireReadWriteLockShared_entry(
   return result;
 }
 
-void ExReleaseReadWriteLock_entry(pointer_t<X_ERWLOCK> lock_ptr) {
+void ExReleaseReadWriteLock_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
   auto old_irql = xeKeKfAcquireSpinLock(&lock_ptr->spin_lock);
 
   int32_t lock_count = --lock_ptr->lock_count;
@@ -1268,8 +1206,7 @@ void ExReleaseReadWriteLock_entry(pointer_t<X_ERWLOCK> lock_ptr) {
       lock_ptr->readers_waiting_count = 0;
       lock_ptr->readers_entry_count = readers_waiting_count;
       xeKeKfReleaseSpinLock(&lock_ptr->spin_lock, old_irql);
-      xeKeReleaseSemaphore(&lock_ptr->reader_semaphore, 1,
-                           readers_waiting_count, 0);
+      xeKeReleaseSemaphore(&lock_ptr->reader_semaphore, 1, readers_waiting_count, 0);
       return;
     }
   }
@@ -1286,8 +1223,8 @@ void ExReleaseReadWriteLock_entry(pointer_t<X_ERWLOCK> lock_ptr) {
 }
 
 // NOTE: This function is very commonly inlined, and probably won't be called!
-pointer_result_t InterlockedPushEntrySList_entry(
-    pointer_t<X_SLIST_HEADER> plist_ptr, pointer_t<X_SINGLE_LIST_ENTRY> entry) {
+ppc_ptr_result_t InterlockedPushEntrySList_entry(ppc_ptr_t<X_SLIST_HEADER> plist_ptr,
+                                                 ppc_ptr_t<X_SINGLE_LIST_ENTRY> entry) {
   assert_not_null(plist_ptr);
   assert_not_null(entry);
 
@@ -1302,15 +1239,13 @@ pointer_result_t InterlockedPushEntrySList_entry(
     old_head = old_hdr.next.next;
     entry->next = old_hdr.next.next;
     new_hdr.next.next = entry.guest_address();
-  } while (
-      !rex::thread::atomic_cas(*(uint64_t*)(&old_hdr), *(uint64_t*)(&new_hdr),
-                      reinterpret_cast<uint64_t*>(plist_ptr.host_address())));
+  } while (!rex::thread::atomic_cas(*(uint64_t*)(&old_hdr), *(uint64_t*)(&new_hdr),
+                                    reinterpret_cast<uint64_t*>(plist_ptr.host_address())));
 
   return old_head;
 }
 
-pointer_result_t InterlockedPopEntrySList_entry(
-    pointer_t<X_SLIST_HEADER> plist_ptr) {
+ppc_ptr_result_t InterlockedPopEntrySList_entry(ppc_ptr_t<X_SLIST_HEADER> plist_ptr) {
   assert_not_null(plist_ptr);
 
   uint32_t popped = 0;
@@ -1318,8 +1253,7 @@ pointer_result_t InterlockedPopEntrySList_entry(
   alignas(8) X_SLIST_HEADER new_hdr = {0};
   do {
     old_hdr = *plist_ptr;
-    auto next = kernel_memory()->TranslateVirtual<X_SINGLE_LIST_ENTRY*>(
-        old_hdr.next.next);
+    auto next = kernel_memory()->TranslateVirtual<X_SINGLE_LIST_ENTRY*>(old_hdr.next.next);
     if (!old_hdr.next.next) {
       return 0;
     }
@@ -1328,15 +1262,13 @@ pointer_result_t InterlockedPopEntrySList_entry(
     new_hdr.depth = old_hdr.depth - 1;
     new_hdr.next.next = next->next;
     new_hdr.sequence = old_hdr.sequence;
-  } while (
-      !rex::thread::atomic_cas(*(uint64_t*)(&old_hdr), *(uint64_t*)(&new_hdr),
-                      reinterpret_cast<uint64_t*>(plist_ptr.host_address())));
+  } while (!rex::thread::atomic_cas(*(uint64_t*)(&old_hdr), *(uint64_t*)(&new_hdr),
+                                    reinterpret_cast<uint64_t*>(plist_ptr.host_address())));
 
   return popped;
 }
 
-pointer_result_t InterlockedFlushSList_entry(
-    pointer_t<X_SLIST_HEADER> plist_ptr) {
+ppc_ptr_result_t InterlockedFlushSList_entry(ppc_ptr_t<X_SLIST_HEADER> plist_ptr) {
   assert_not_null(plist_ptr);
 
   alignas(8) X_SLIST_HEADER old_hdr = *plist_ptr;
@@ -1348,80 +1280,88 @@ pointer_result_t InterlockedFlushSList_entry(
     new_hdr.next.next = 0;
     new_hdr.depth = 0;
     new_hdr.sequence = 0;
-  } while (
-      !rex::thread::atomic_cas(*(uint64_t*)(&old_hdr), *(uint64_t*)(&new_hdr),
-                      reinterpret_cast<uint64_t*>(plist_ptr.host_address())));
+  } while (!rex::thread::atomic_cas(*(uint64_t*)(&old_hdr), *(uint64_t*)(&new_hdr),
+                                    reinterpret_cast<uint64_t*>(plist_ptr.host_address())));
 
   return first;
 }
 
 }  // namespace rex::kernel::xboxkrnl
 
-GUEST_FUNCTION_HOOK(__imp__ExCreateThread, rex::kernel::xboxkrnl::ExCreateThread_entry)
-GUEST_FUNCTION_HOOK(__imp__ExTerminateThread, rex::kernel::xboxkrnl::ExTerminateThread_entry)
-GUEST_FUNCTION_HOOK(__imp__NtResumeThread, rex::kernel::xboxkrnl::NtResumeThread_entry)
-GUEST_FUNCTION_HOOK(__imp__KeResumeThread, rex::kernel::xboxkrnl::KeResumeThread_entry)
-GUEST_FUNCTION_HOOK(__imp__NtSuspendThread, rex::kernel::xboxkrnl::NtSuspendThread_entry)
-GUEST_FUNCTION_HOOK(__imp__KeSetCurrentStackPointers, rex::kernel::xboxkrnl::KeSetCurrentStackPointers_entry)
-GUEST_FUNCTION_HOOK(__imp__KeSetAffinityThread, rex::kernel::xboxkrnl::KeSetAffinityThread_entry)
-GUEST_FUNCTION_HOOK(__imp__KeQueryBasePriorityThread, rex::kernel::xboxkrnl::KeQueryBasePriorityThread_entry)
-GUEST_FUNCTION_HOOK(__imp__KeSetBasePriorityThread, rex::kernel::xboxkrnl::KeSetBasePriorityThread_entry)
-GUEST_FUNCTION_HOOK(__imp__KeSetDisableBoostThread, rex::kernel::xboxkrnl::KeSetDisableBoostThread_entry)
-GUEST_FUNCTION_HOOK(__imp__KeGetCurrentProcessType, rex::kernel::xboxkrnl::KeGetCurrentProcessType_entry)
-GUEST_FUNCTION_HOOK(__imp__KeSetCurrentProcessType, rex::kernel::xboxkrnl::KeSetCurrentProcessType_entry)
-GUEST_FUNCTION_HOOK(__imp__KeQueryPerformanceFrequency, rex::kernel::xboxkrnl::KeQueryPerformanceFrequency_entry)
-GUEST_FUNCTION_HOOK(__imp__KeDelayExecutionThread, rex::kernel::xboxkrnl::KeDelayExecutionThread_entry)
-GUEST_FUNCTION_HOOK(__imp__NtYieldExecution, rex::kernel::xboxkrnl::NtYieldExecution_entry)
-GUEST_FUNCTION_HOOK(__imp__KeQuerySystemTime, rex::kernel::xboxkrnl::KeQuerySystemTime_entry)
-GUEST_FUNCTION_HOOK(__imp__KeTlsAlloc, rex::kernel::xboxkrnl::KeTlsAlloc_entry)
-GUEST_FUNCTION_HOOK(__imp__KeTlsFree, rex::kernel::xboxkrnl::KeTlsFree_entry)
-GUEST_FUNCTION_HOOK(__imp__KeTlsGetValue, rex::kernel::xboxkrnl::KeTlsGetValue_entry)
-GUEST_FUNCTION_HOOK(__imp__KeTlsSetValue, rex::kernel::xboxkrnl::KeTlsSetValue_entry)
-GUEST_FUNCTION_HOOK(__imp__KeInitializeEvent, rex::kernel::xboxkrnl::KeInitializeEvent_entry)
-GUEST_FUNCTION_HOOK(__imp__KeSetEvent, rex::kernel::xboxkrnl::KeSetEvent_entry)
-GUEST_FUNCTION_HOOK(__imp__KePulseEvent, rex::kernel::xboxkrnl::KePulseEvent_entry)
-GUEST_FUNCTION_HOOK(__imp__KeResetEvent, rex::kernel::xboxkrnl::KeResetEvent_entry)
-GUEST_FUNCTION_HOOK(__imp__NtCreateEvent, rex::kernel::xboxkrnl::NtCreateEvent_entry)
-GUEST_FUNCTION_HOOK(__imp__NtSetEvent, rex::kernel::xboxkrnl::NtSetEvent_entry)
-GUEST_FUNCTION_HOOK(__imp__NtPulseEvent, rex::kernel::xboxkrnl::NtPulseEvent_entry)
-GUEST_FUNCTION_HOOK(__imp__NtClearEvent, rex::kernel::xboxkrnl::NtClearEvent_entry)
-GUEST_FUNCTION_HOOK(__imp__KeInitializeSemaphore, rex::kernel::xboxkrnl::KeInitializeSemaphore_entry)
-GUEST_FUNCTION_HOOK(__imp__KeReleaseSemaphore, rex::kernel::xboxkrnl::KeReleaseSemaphore_entry)
-GUEST_FUNCTION_HOOK(__imp__NtCreateSemaphore, rex::kernel::xboxkrnl::NtCreateSemaphore_entry)
-GUEST_FUNCTION_HOOK(__imp__NtReleaseSemaphore, rex::kernel::xboxkrnl::NtReleaseSemaphore_entry)
-GUEST_FUNCTION_HOOK(__imp__NtCreateMutant, rex::kernel::xboxkrnl::NtCreateMutant_entry)
-GUEST_FUNCTION_HOOK(__imp__NtReleaseMutant, rex::kernel::xboxkrnl::NtReleaseMutant_entry)
-GUEST_FUNCTION_HOOK(__imp__NtCreateTimer, rex::kernel::xboxkrnl::NtCreateTimer_entry)
-GUEST_FUNCTION_HOOK(__imp__NtSetTimerEx, rex::kernel::xboxkrnl::NtSetTimerEx_entry)
-GUEST_FUNCTION_HOOK(__imp__NtCancelTimer, rex::kernel::xboxkrnl::NtCancelTimer_entry)
-GUEST_FUNCTION_HOOK(__imp__KeWaitForSingleObject, rex::kernel::xboxkrnl::KeWaitForSingleObject_entry)
-GUEST_FUNCTION_HOOK(__imp__NtWaitForSingleObjectEx, rex::kernel::xboxkrnl::NtWaitForSingleObjectEx_entry)
-GUEST_FUNCTION_HOOK(__imp__KeWaitForMultipleObjects, rex::kernel::xboxkrnl::KeWaitForMultipleObjects_entry)
-GUEST_FUNCTION_HOOK(__imp__NtWaitForMultipleObjectsEx, rex::kernel::xboxkrnl::NtWaitForMultipleObjectsEx_entry)
-GUEST_FUNCTION_HOOK(__imp__NtSignalAndWaitForSingleObjectEx, rex::kernel::xboxkrnl::NtSignalAndWaitForSingleObjectEx_entry)
-GUEST_FUNCTION_HOOK(__imp__KfAcquireSpinLock, rex::kernel::xboxkrnl::KfAcquireSpinLock_entry)
-GUEST_FUNCTION_HOOK(__imp__KfReleaseSpinLock, rex::kernel::xboxkrnl::KfReleaseSpinLock_entry)
-GUEST_FUNCTION_HOOK(__imp__KeAcquireSpinLockAtRaisedIrql, rex::kernel::xboxkrnl::KeAcquireSpinLockAtRaisedIrql_entry)
-GUEST_FUNCTION_HOOK(__imp__KeTryToAcquireSpinLockAtRaisedIrql, rex::kernel::xboxkrnl::KeTryToAcquireSpinLockAtRaisedIrql_entry)
-GUEST_FUNCTION_HOOK(__imp__KeReleaseSpinLockFromRaisedIrql, rex::kernel::xboxkrnl::KeReleaseSpinLockFromRaisedIrql_entry)
-GUEST_FUNCTION_HOOK(__imp__KeEnterCriticalRegion, rex::kernel::xboxkrnl::KeEnterCriticalRegion_entry)
-GUEST_FUNCTION_HOOK(__imp__KeLeaveCriticalRegion, rex::kernel::xboxkrnl::KeLeaveCriticalRegion_entry)
-GUEST_FUNCTION_HOOK(__imp__KeRaiseIrqlToDpcLevel, rex::kernel::xboxkrnl::KeRaiseIrqlToDpcLevel_entry)
-GUEST_FUNCTION_HOOK(__imp__KfLowerIrql, rex::kernel::xboxkrnl::KfLowerIrql_entry)
-GUEST_FUNCTION_HOOK(__imp__NtQueueApcThread, rex::kernel::xboxkrnl::NtQueueApcThread_entry)
-GUEST_FUNCTION_HOOK(__imp__KeInitializeApc, rex::kernel::xboxkrnl::KeInitializeApc_entry)
-GUEST_FUNCTION_HOOK(__imp__KeInsertQueueApc, rex::kernel::xboxkrnl::KeInsertQueueApc_entry)
-GUEST_FUNCTION_HOOK(__imp__KeRemoveQueueApc, rex::kernel::xboxkrnl::KeRemoveQueueApc_entry)
-GUEST_FUNCTION_HOOK(__imp__KiApcNormalRoutineNop, rex::kernel::xboxkrnl::KiApcNormalRoutineNop_entry)
-GUEST_FUNCTION_HOOK(__imp__KeInitializeDpc, rex::kernel::xboxkrnl::KeInitializeDpc_entry)
-GUEST_FUNCTION_HOOK(__imp__KeInsertQueueDpc, rex::kernel::xboxkrnl::KeInsertQueueDpc_entry)
-GUEST_FUNCTION_HOOK(__imp__KeRemoveQueueDpc, rex::kernel::xboxkrnl::KeRemoveQueueDpc_entry)
-GUEST_FUNCTION_HOOK(__imp__ExInitializeReadWriteLock, rex::kernel::xboxkrnl::ExInitializeReadWriteLock_entry)
-GUEST_FUNCTION_HOOK(__imp__ExAcquireReadWriteLockExclusive, rex::kernel::xboxkrnl::ExAcquireReadWriteLockExclusive_entry)
-GUEST_FUNCTION_HOOK(__imp__ExTryToAcquireReadWriteLockExclusive, rex::kernel::xboxkrnl::ExTryToAcquireReadWriteLockExclusive_entry)
-GUEST_FUNCTION_HOOK(__imp__ExAcquireReadWriteLockShared, rex::kernel::xboxkrnl::ExAcquireReadWriteLockShared_entry)
-GUEST_FUNCTION_HOOK(__imp__ExTryToAcquireReadWriteLockShared, rex::kernel::xboxkrnl::ExTryToAcquireReadWriteLockShared_entry)
-GUEST_FUNCTION_HOOK(__imp__ExReleaseReadWriteLock, rex::kernel::xboxkrnl::ExReleaseReadWriteLock_entry)
-GUEST_FUNCTION_HOOK(__imp__InterlockedPushEntrySList, rex::kernel::xboxkrnl::InterlockedPushEntrySList_entry)
-GUEST_FUNCTION_HOOK(__imp__InterlockedPopEntrySList, rex::kernel::xboxkrnl::InterlockedPopEntrySList_entry)
-GUEST_FUNCTION_HOOK(__imp__InterlockedFlushSList, rex::kernel::xboxkrnl::InterlockedFlushSList_entry)
+PPC_HOOK(__imp__ExCreateThread, rex::kernel::xboxkrnl::ExCreateThread_entry)
+PPC_HOOK(__imp__ExTerminateThread, rex::kernel::xboxkrnl::ExTerminateThread_entry)
+PPC_HOOK(__imp__NtResumeThread, rex::kernel::xboxkrnl::NtResumeThread_entry)
+PPC_HOOK(__imp__KeResumeThread, rex::kernel::xboxkrnl::KeResumeThread_entry)
+PPC_HOOK(__imp__NtSuspendThread, rex::kernel::xboxkrnl::NtSuspendThread_entry)
+PPC_HOOK(__imp__KeSetCurrentStackPointers, rex::kernel::xboxkrnl::KeSetCurrentStackPointers_entry)
+PPC_HOOK(__imp__KeSetAffinityThread, rex::kernel::xboxkrnl::KeSetAffinityThread_entry)
+PPC_HOOK(__imp__KeQueryBasePriorityThread, rex::kernel::xboxkrnl::KeQueryBasePriorityThread_entry)
+PPC_HOOK(__imp__KeSetBasePriorityThread, rex::kernel::xboxkrnl::KeSetBasePriorityThread_entry)
+PPC_HOOK(__imp__KeSetDisableBoostThread, rex::kernel::xboxkrnl::KeSetDisableBoostThread_entry)
+PPC_HOOK(__imp__KeGetCurrentProcessType, rex::kernel::xboxkrnl::KeGetCurrentProcessType_entry)
+PPC_HOOK(__imp__KeSetCurrentProcessType, rex::kernel::xboxkrnl::KeSetCurrentProcessType_entry)
+PPC_HOOK(__imp__KeQueryPerformanceFrequency,
+         rex::kernel::xboxkrnl::KeQueryPerformanceFrequency_entry)
+PPC_HOOK(__imp__KeDelayExecutionThread, rex::kernel::xboxkrnl::KeDelayExecutionThread_entry)
+PPC_HOOK(__imp__NtYieldExecution, rex::kernel::xboxkrnl::NtYieldExecution_entry)
+PPC_HOOK(__imp__KeQuerySystemTime, rex::kernel::xboxkrnl::KeQuerySystemTime_entry)
+PPC_HOOK(__imp__KeTlsAlloc, rex::kernel::xboxkrnl::KeTlsAlloc_entry)
+PPC_HOOK(__imp__KeTlsFree, rex::kernel::xboxkrnl::KeTlsFree_entry)
+PPC_HOOK(__imp__KeTlsGetValue, rex::kernel::xboxkrnl::KeTlsGetValue_entry)
+PPC_HOOK(__imp__KeTlsSetValue, rex::kernel::xboxkrnl::KeTlsSetValue_entry)
+PPC_HOOK(__imp__KeInitializeEvent, rex::kernel::xboxkrnl::KeInitializeEvent_entry)
+PPC_HOOK(__imp__KeSetEvent, rex::kernel::xboxkrnl::KeSetEvent_entry)
+PPC_HOOK(__imp__KePulseEvent, rex::kernel::xboxkrnl::KePulseEvent_entry)
+PPC_HOOK(__imp__KeResetEvent, rex::kernel::xboxkrnl::KeResetEvent_entry)
+PPC_HOOK(__imp__NtCreateEvent, rex::kernel::xboxkrnl::NtCreateEvent_entry)
+PPC_HOOK(__imp__NtSetEvent, rex::kernel::xboxkrnl::NtSetEvent_entry)
+PPC_HOOK(__imp__NtPulseEvent, rex::kernel::xboxkrnl::NtPulseEvent_entry)
+PPC_HOOK(__imp__NtClearEvent, rex::kernel::xboxkrnl::NtClearEvent_entry)
+PPC_HOOK(__imp__KeInitializeSemaphore, rex::kernel::xboxkrnl::KeInitializeSemaphore_entry)
+PPC_HOOK(__imp__KeReleaseSemaphore, rex::kernel::xboxkrnl::KeReleaseSemaphore_entry)
+PPC_HOOK(__imp__NtCreateSemaphore, rex::kernel::xboxkrnl::NtCreateSemaphore_entry)
+PPC_HOOK(__imp__NtReleaseSemaphore, rex::kernel::xboxkrnl::NtReleaseSemaphore_entry)
+PPC_HOOK(__imp__NtCreateMutant, rex::kernel::xboxkrnl::NtCreateMutant_entry)
+PPC_HOOK(__imp__NtReleaseMutant, rex::kernel::xboxkrnl::NtReleaseMutant_entry)
+PPC_HOOK(__imp__NtCreateTimer, rex::kernel::xboxkrnl::NtCreateTimer_entry)
+PPC_HOOK(__imp__NtSetTimerEx, rex::kernel::xboxkrnl::NtSetTimerEx_entry)
+PPC_HOOK(__imp__NtCancelTimer, rex::kernel::xboxkrnl::NtCancelTimer_entry)
+PPC_HOOK(__imp__KeWaitForSingleObject, rex::kernel::xboxkrnl::KeWaitForSingleObject_entry)
+PPC_HOOK(__imp__NtWaitForSingleObjectEx, rex::kernel::xboxkrnl::NtWaitForSingleObjectEx_entry)
+PPC_HOOK(__imp__KeWaitForMultipleObjects, rex::kernel::xboxkrnl::KeWaitForMultipleObjects_entry)
+PPC_HOOK(__imp__NtWaitForMultipleObjectsEx, rex::kernel::xboxkrnl::NtWaitForMultipleObjectsEx_entry)
+PPC_HOOK(__imp__NtSignalAndWaitForSingleObjectEx,
+         rex::kernel::xboxkrnl::NtSignalAndWaitForSingleObjectEx_entry)
+PPC_HOOK(__imp__KfAcquireSpinLock, rex::kernel::xboxkrnl::KfAcquireSpinLock_entry)
+PPC_HOOK(__imp__KfReleaseSpinLock, rex::kernel::xboxkrnl::KfReleaseSpinLock_entry)
+PPC_HOOK(__imp__KeAcquireSpinLockAtRaisedIrql,
+         rex::kernel::xboxkrnl::KeAcquireSpinLockAtRaisedIrql_entry)
+PPC_HOOK(__imp__KeTryToAcquireSpinLockAtRaisedIrql,
+         rex::kernel::xboxkrnl::KeTryToAcquireSpinLockAtRaisedIrql_entry)
+PPC_HOOK(__imp__KeReleaseSpinLockFromRaisedIrql,
+         rex::kernel::xboxkrnl::KeReleaseSpinLockFromRaisedIrql_entry)
+PPC_HOOK(__imp__KeEnterCriticalRegion, rex::kernel::xboxkrnl::KeEnterCriticalRegion_entry)
+PPC_HOOK(__imp__KeLeaveCriticalRegion, rex::kernel::xboxkrnl::KeLeaveCriticalRegion_entry)
+PPC_HOOK(__imp__KeRaiseIrqlToDpcLevel, rex::kernel::xboxkrnl::KeRaiseIrqlToDpcLevel_entry)
+PPC_HOOK(__imp__KfLowerIrql, rex::kernel::xboxkrnl::KfLowerIrql_entry)
+PPC_HOOK(__imp__NtQueueApcThread, rex::kernel::xboxkrnl::NtQueueApcThread_entry)
+PPC_HOOK(__imp__KeInitializeApc, rex::kernel::xboxkrnl::KeInitializeApc_entry)
+PPC_HOOK(__imp__KeInsertQueueApc, rex::kernel::xboxkrnl::KeInsertQueueApc_entry)
+PPC_HOOK(__imp__KeRemoveQueueApc, rex::kernel::xboxkrnl::KeRemoveQueueApc_entry)
+PPC_HOOK(__imp__KiApcNormalRoutineNop, rex::kernel::xboxkrnl::KiApcNormalRoutineNop_entry)
+PPC_HOOK(__imp__KeInitializeDpc, rex::kernel::xboxkrnl::KeInitializeDpc_entry)
+PPC_HOOK(__imp__KeInsertQueueDpc, rex::kernel::xboxkrnl::KeInsertQueueDpc_entry)
+PPC_HOOK(__imp__KeRemoveQueueDpc, rex::kernel::xboxkrnl::KeRemoveQueueDpc_entry)
+PPC_HOOK(__imp__ExInitializeReadWriteLock, rex::kernel::xboxkrnl::ExInitializeReadWriteLock_entry)
+PPC_HOOK(__imp__ExAcquireReadWriteLockExclusive,
+         rex::kernel::xboxkrnl::ExAcquireReadWriteLockExclusive_entry)
+PPC_HOOK(__imp__ExTryToAcquireReadWriteLockExclusive,
+         rex::kernel::xboxkrnl::ExTryToAcquireReadWriteLockExclusive_entry)
+PPC_HOOK(__imp__ExAcquireReadWriteLockShared,
+         rex::kernel::xboxkrnl::ExAcquireReadWriteLockShared_entry)
+PPC_HOOK(__imp__ExTryToAcquireReadWriteLockShared,
+         rex::kernel::xboxkrnl::ExTryToAcquireReadWriteLockShared_entry)
+PPC_HOOK(__imp__ExReleaseReadWriteLock, rex::kernel::xboxkrnl::ExReleaseReadWriteLock_entry)
+PPC_HOOK(__imp__InterlockedPushEntrySList, rex::kernel::xboxkrnl::InterlockedPushEntrySList_entry)
+PPC_HOOK(__imp__InterlockedPopEntrySList, rex::kernel::xboxkrnl::InterlockedPopEntrySList_entry)
+PPC_HOOK(__imp__InterlockedFlushSList, rex::kernel::xboxkrnl::InterlockedFlushSList_entry)

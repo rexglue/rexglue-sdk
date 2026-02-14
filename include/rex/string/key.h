@@ -32,9 +32,8 @@ struct string_key_base {
   explicit string_key_base(std::string value) : value_(std::move(value)) {}
 
   std::string_view view() const {
-    return std::holds_alternative<std::string>(value_)
-               ? std::get<std::string>(value_)
-               : std::get<std::string_view>(value_);
+    return std::holds_alternative<std::string>(value_) ? std::get<std::string>(value_)
+                                                       : std::get<std::string_view>(value_);
   }
 };
 
@@ -45,15 +44,11 @@ struct string_key : detail::string_key_base {
   explicit string_key(const std::string_view value) : string_key_base(value) {}
   explicit string_key(std::string value) : string_key_base(value) {}
 
-  static string_key create(const std::string_view value) {
-    return string_key(std::string(value));
-  }
+  static string_key create(const std::string_view value) { return string_key(std::string(value)); }
 
   static string_key create(std::string value) { return string_key(value); }
 
-  bool operator==(const string_key& other) const {
-    return other.view() == view();
-  }
+  bool operator==(const string_key& other) const { return other.view() == view(); }
 
   size_t hash() const { return rex::string::utf8_hash_fnv1a(view()); }
 
@@ -64,17 +59,14 @@ struct string_key : detail::string_key_base {
 
 struct string_key_case : detail::string_key_base {
  public:
-  explicit string_key_case(const std::string_view value)
-      : string_key_base(value) {}
+  explicit string_key_case(const std::string_view value) : string_key_base(value) {}
   explicit string_key_case(std::string value) : string_key_base(value) {}
 
   static string_key_case create(const std::string_view value) {
     return string_key_case(std::string(value));
   }
 
-  static string_key_case create(std::string value) {
-    return string_key_case(value);
-  }
+  static string_key_case create(std::string value) { return string_key_case(value); }
 
   bool operator==(const string_key_case& other) const {
     return rex::string::utf8_equal_case(other.view(), view());
@@ -97,8 +89,6 @@ struct hash<rex::string::string_key> {
 
 template <>
 struct hash<rex::string::string_key_case> {
-  std::size_t operator()(const rex::string::string_key_case& t) const {
-    return t.hash();
-  }
+  std::size_t operator()(const rex::string::string_key_case& t) const { return t.hash(); }
 };
 }  // namespace std

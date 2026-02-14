@@ -9,18 +9,18 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/graphics/pipeline/shader/shader.h>
-
 #include <cinttypes>
 #include <cstring>
 #include <utility>
 
 #include <fmt/format.h>
+
 #include <rex/filesystem.h>
+#include <rex/graphics/format/ucode.h>
+#include <rex/graphics/pipeline/shader/shader.h>
 #include <rex/math.h>
 #include <rex/memory.h>
 #include <rex/string.h>
-#include <rex/graphics/format/ucode.h>
 
 namespace rex::graphics {
 using namespace ucode;
@@ -34,8 +34,7 @@ Shader::Shader(xenos::ShaderType shader_type, uint64_t ucode_data_hash,
   if (std::endian::native != ucode_source_endian) {
     memory::copy_and_swap(ucode_data_.data(), ucode_dwords, ucode_dword_count);
   } else {
-    std::memcpy(ucode_data_.data(), ucode_dwords,
-                sizeof(uint32_t) * ucode_dword_count);
+    std::memcpy(ucode_data_.data(), ucode_dwords, sizeof(uint32_t) * ucode_dword_count);
   }
 }
 
@@ -53,9 +52,8 @@ std::string Shader::Translation::GetTranslatedBinaryString() const {
   return result;
 }
 
-std::pair<std::filesystem::path, std::filesystem::path>
-Shader::Translation::Dump(const std::filesystem::path& base_path,
-                          const char* path_prefix) const {
+std::pair<std::filesystem::path, std::filesystem::path> Shader::Translation::Dump(
+    const std::filesystem::path& base_path, const char* path_prefix) const {
   if (!is_valid()) {
     return std::make_pair(std::filesystem::path(), std::filesystem::path());
   }
@@ -68,30 +66,27 @@ Shader::Translation::Dump(const std::filesystem::path& base_path,
     std::filesystem::create_directories(target_path);
   }
 
-  const char* type_extension =
-      shader().type() == xenos::ShaderType::kVertex ? "vert" : "frag";
+  const char* type_extension = shader().type() == xenos::ShaderType::kVertex ? "vert" : "frag";
 
   std::filesystem::path binary_path =
-      target_path / fmt::format("shader_{:016X}_{:016X}.{}.bin.{}",
-                                shader().ucode_data_hash(), modification(),
-                                path_prefix, type_extension);
+      target_path / fmt::format("shader_{:016X}_{:016X}.{}.bin.{}", shader().ucode_data_hash(),
+                                modification(), path_prefix, type_extension);
   FILE* binary_file = filesystem::OpenFile(binary_path, "wb");
   if (binary_file) {
-    fwrite(translated_binary_.data(), sizeof(*translated_binary_.data()),
-           translated_binary_.size(), binary_file);
+    fwrite(translated_binary_.data(), sizeof(*translated_binary_.data()), translated_binary_.size(),
+           binary_file);
     fclose(binary_file);
   }
 
   std::filesystem::path disasm_path;
   if (!host_disassembly_.empty()) {
     disasm_path =
-        target_path / fmt::format("shader_{:016X}_{:016X}.{}.{}",
-                                  shader().ucode_data_hash(), modification(),
-                                  path_prefix, type_extension);
+        target_path / fmt::format("shader_{:016X}_{:016X}.{}.{}", shader().ucode_data_hash(),
+                                  modification(), path_prefix, type_extension);
     FILE* disasm_file = filesystem::OpenFile(disasm_path, "w");
     if (disasm_file) {
-      fwrite(host_disassembly_.data(), sizeof(*host_disassembly_.data()),
-             host_disassembly_.size(), disasm_file);
+      fwrite(host_disassembly_.data(), sizeof(*host_disassembly_.data()), host_disassembly_.size(),
+             disasm_file);
       fclose(disasm_file);
     }
   }
@@ -99,8 +94,7 @@ Shader::Translation::Dump(const std::filesystem::path& base_path,
   return std::make_pair(std::move(binary_path), std::move(disasm_path));
 }
 
-Shader::Translation* Shader::GetOrCreateTranslation(uint64_t modification,
-                                                    bool* is_new) {
+Shader::Translation* Shader::GetOrCreateTranslation(uint64_t modification, bool* is_new) {
   auto it = translations_.find(modification);
   if (it != translations_.end()) {
     if (is_new) {
@@ -134,23 +128,20 @@ std::pair<std::filesystem::path, std::filesystem::path> Shader::DumpUcode(
     std::filesystem::create_directories(target_path);
   }
 
-  const char* type_extension =
-      type() == xenos::ShaderType::kVertex ? "vert" : "frag";
+  const char* type_extension = type() == xenos::ShaderType::kVertex ? "vert" : "frag";
 
   std::filesystem::path binary_path =
-      target_path / fmt::format("shader_{:016X}.ucode.bin.{}",
-                                ucode_data_hash(), type_extension);
+      target_path / fmt::format("shader_{:016X}.ucode.bin.{}", ucode_data_hash(), type_extension);
   FILE* binary_file = filesystem::OpenFile(binary_path, "wb");
   if (binary_file) {
-    fwrite(ucode_data().data(), sizeof(*ucode_data().data()),
-           ucode_data().size(), binary_file);
+    fwrite(ucode_data().data(), sizeof(*ucode_data().data()), ucode_data().size(), binary_file);
     fclose(binary_file);
   }
 
   std::filesystem::path disasm_path;
   if (is_ucode_analyzed()) {
-    disasm_path = target_path / fmt::format("shader_{:016X}.ucode.{}",
-                                            ucode_data_hash(), type_extension);
+    disasm_path =
+        target_path / fmt::format("shader_{:016X}.ucode.{}", ucode_data_hash(), type_extension);
     FILE* disasm_file = filesystem::OpenFile(disasm_path, "w");
     if (disasm_file) {
       fwrite(ucode_disassembly().data(), sizeof(*ucode_disassembly().data()),

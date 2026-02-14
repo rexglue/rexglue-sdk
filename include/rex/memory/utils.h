@@ -20,8 +20,8 @@
 #include <type_traits>
 
 #include <rex/assert.h>
-#include <rex/byte_order.h>
 #include <rex/platform.h>
+#include <rex/types.h>
 
 namespace rex {
 namespace memory {
@@ -95,14 +95,13 @@ bool IsWritableExecutableMemoryPreferred();
 // Allocates a block of memory at the given page-aligned base address.
 // Fails if the memory is not available.
 // Specify nullptr for base_address to leave it up to the system.
-void* AllocFixed(void* base_address, size_t length,
-                 AllocationType allocation_type, PageAccess access);
+void* AllocFixed(void* base_address, size_t length, AllocationType allocation_type,
+                 PageAccess access);
 
 // Deallocates and/or releases the given block of memory.
 // When releasing memory length must be zero, as all pages in the region are
 // released.
-bool DeallocFixed(void* base_address, size_t length,
-                  DeallocationType deallocation_type);
+bool DeallocFixed(void* base_address, size_t length, DeallocationType deallocation_type);
 
 // Sets the access rights for the given block of memory and returns the previous
 // access rights. Both base_address and length will be adjusted to page_size().
@@ -119,7 +118,7 @@ bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out);
 // The memory must be freed with AlignedFree.
 template <typename T>
 inline T* AlignedAlloc(size_t alignment) {
-#if defined(_WIN32)
+#if REX_PLATFORM_WIN32
   return reinterpret_cast<T*>(_aligned_malloc(sizeof(T), alignment));
 #else
   void* ptr = nullptr;
@@ -133,33 +132,29 @@ inline T* AlignedAlloc(size_t alignment) {
 // Frees memory previously allocated with AlignedAlloc.
 template <typename T>
 void AlignedFree(T* ptr) {
-#if defined(_WIN32)
+#if REX_PLATFORM_WIN32
   _aligned_free(ptr);
 #else
   free(ptr);
 #endif
 }
 
-#if REX_PLATFORM_WIN32
-// HANDLE.
-typedef void* FileMappingHandle;
-constexpr FileMappingHandle kFileMappingHandleInvalid = nullptr;
-#else
-// File descriptor.
-typedef int FileMappingHandle;
+// Opaque file mapping handle.
+// On Windows this holds a HANDLE (void*), on POSIX a file descriptor (int).
+// We use intptr_t to hold either without platform guards.
+using FileMappingHandle = intptr_t;
 constexpr FileMappingHandle kFileMappingHandleInvalid = -1;
-#endif
 
-FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path,
-                                          size_t length, PageAccess access,
-                                          bool commit);
-void CloseFileMappingHandle(FileMappingHandle handle,
-                            const std::filesystem::path& path);
-void* MapFileView(FileMappingHandle handle, void* base_address, size_t length,
-                  PageAccess access, size_t file_offset);
+FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, size_t length,
+                                          PageAccess access, bool commit);
+void CloseFileMappingHandle(FileMappingHandle handle, const std::filesystem::path& path);
+void* MapFileView(FileMappingHandle handle, void* base_address, size_t length, PageAccess access,
+                  size_t file_offset);
 bool UnmapFileView(FileMappingHandle handle, void* base_address, size_t length);
 
-inline size_t hash_combine(size_t seed) { return seed; }
+inline size_t hash_combine(size_t seed) {
+  return seed;
+}
 
 template <typename T, typename... Ts>
 size_t hash_combine(size_t seed, const T& v, const Ts&... vs) {
@@ -181,13 +176,12 @@ void copy_and_swap_32_unaligned(void* dest, const void* src, size_t count);
 void copy_and_swap_64_aligned(void* dest, const void* src, size_t count);
 void copy_and_swap_64_unaligned(void* dest, const void* src, size_t count);
 void copy_and_swap_16_in_32_aligned(void* dest, const void* src, size_t count);
-void copy_and_swap_16_in_32_unaligned(void* dest, const void* src,
-                                      size_t count);
+void copy_and_swap_16_in_32_unaligned(void* dest, const void* src, size_t count);
 
 template <typename T>
 void copy_and_swap(T* dest, const T* src, size_t count) {
-  bool is_aligned = reinterpret_cast<uintptr_t>(dest) % 32 == 0 &&
-                    reinterpret_cast<uintptr_t>(src) % 32 == 0;
+  bool is_aligned =
+      reinterpret_cast<uintptr_t>(dest) % 32 == 0 && reinterpret_cast<uintptr_t>(src) % 32 == 0;
   if (sizeof(T) == 1) {
     std::memcpy(dest, src, count);
   } else if (sizeof(T) == 2) {
@@ -239,8 +233,7 @@ template <>
 inline std::string load_and_swap<std::string>(const void* mem) {
   std::string value;
   for (int i = 0;; ++i) {
-    auto c =
-        load_and_swap<uint8_t>(reinterpret_cast<const uint8_t*>(mem) + i);
+    auto c = load_and_swap<uint8_t>(reinterpret_cast<const uint8_t*>(mem) + i);
     if (!c) {
       break;
     }
@@ -252,8 +245,7 @@ template <>
 inline std::u16string load_and_swap<std::u16string>(const void* mem) {
   std::u16string value;
   for (int i = 0;; ++i) {
-    auto c =
-        load_and_swap<uint16_t>(reinterpret_cast<const uint16_t*>(mem) + i);
+    auto c = load_and_swap<uint16_t>(reinterpret_cast<const uint16_t*>(mem) + i);
     if (!c) {
       break;
     }
@@ -277,8 +269,7 @@ inline void store_and_swap(void* mem, const T& value) {
 
 // String specializations need custom logic
 template <>
-inline void store_and_swap<std::string_view>(void* mem,
-                                             const std::string_view& value) {
+inline void store_and_swap<std::string_view>(void* mem, const std::string_view& value) {
   for (size_t i = 0; i < value.size(); ++i) {
     store_and_swap<uint8_t>(reinterpret_cast<uint8_t*>(mem) + i, value[i]);
   }
@@ -288,16 +279,13 @@ inline void store_and_swap<std::string>(void* mem, const std::string& value) {
   return store_and_swap<std::string_view>(mem, value);
 }
 template <>
-inline void store_and_swap<std::u16string_view>(
-    void* mem, const std::u16string_view& value) {
+inline void store_and_swap<std::u16string_view>(void* mem, const std::u16string_view& value) {
   for (size_t i = 0; i < value.size(); ++i) {
-    store_and_swap<uint16_t>(reinterpret_cast<uint16_t*>(mem) + i,
-                            value[i]);
+    store_and_swap<uint16_t>(reinterpret_cast<uint16_t*>(mem) + i, value[i]);
   }
 }
 template <>
-inline void store_and_swap<std::u16string>(void* mem,
-                                           const std::u16string& value) {
+inline void store_and_swap<std::u16string>(void* mem, const std::u16string& value) {
   return store_and_swap<std::u16string_view>(mem, value);
 }
 
@@ -306,8 +294,7 @@ using fourcc_t = uint32_t;
 // Get FourCC in host byte order
 // make_fourcc('a', 'b', 'c', 'd') == 0x61626364
 constexpr inline fourcc_t make_fourcc(char a, char b, char c, char d) {
-  return fourcc_t((static_cast<fourcc_t>(a) << 24) |
-                  (static_cast<fourcc_t>(b) << 16) |
+  return fourcc_t((static_cast<fourcc_t>(a) << 24) | (static_cast<fourcc_t>(b) << 16) |
                   (static_cast<fourcc_t>(c) << 8) | static_cast<fourcc_t>(d));
 }
 
@@ -323,4 +310,3 @@ constexpr inline fourcc_t make_fourcc(const std::string_view fourcc) {
 
 }  // namespace memory
 }  // namespace rex
-

@@ -23,6 +23,7 @@
 #include <string>
 
 #include <fmt/format.h>
+
 #include <rex/assert.h>
 #include <rex/memory.h>
 #include <rex/platform.h>
@@ -33,7 +34,7 @@
 // despite it being part of the C++17 standard. Check this in the future to see
 // if it's been resolved.
 
-#if REX_COMPILER_CLANG || REX_COMPILER_GNUC
+#if REX_LACKS_FLOAT_FROM_CHARS
 #include <cstdlib>
 #endif
 
@@ -66,8 +67,7 @@ inline size_t util_copy_truncating(char16_t* dest, const std::u16string_view sou
   return chars_copied;
 }
 
-inline size_t util_copy_and_swap_truncating(char16_t* dest,
-                                            const std::u16string_view source,
+inline size_t util_copy_and_swap_truncating(char16_t* dest, const std::u16string_view source,
                                             size_t dest_buffer_count) {
   if (!dest_buffer_count) {
     return 0;
@@ -91,8 +91,7 @@ inline size_t util_copy_maybe_truncating(char* dest, const std::string_view sour
 }
 
 template <CopySafety safety = CopySafety::IDontKnowWhatIAmDoing>
-inline size_t util_copy_maybe_truncating(char16_t* dest,
-                                         const std::u16string_view source,
+inline size_t util_copy_maybe_truncating(char16_t* dest, const std::u16string_view source,
                                          size_t dest_buffer_count) {
   static_assert(safety == CopySafety::IKnowWhatIAmDoing);
   if (!dest_buffer_count) {
@@ -104,8 +103,7 @@ inline size_t util_copy_maybe_truncating(char16_t* dest,
 }
 
 template <CopySafety safety = CopySafety::IDontKnowWhatIAmDoing>
-inline size_t util_copy_and_swap_maybe_truncating(char16_t* dest,
-                                                  const std::u16string_view source,
+inline size_t util_copy_and_swap_maybe_truncating(char16_t* dest, const std::u16string_view source,
                                                   size_t dest_buffer_count) {
   static_assert(safety == CopySafety::IKnowWhatIAmDoing);
   if (!dest_buffer_count) {
@@ -139,13 +137,14 @@ inline std::string to_hex_string(double value) {
 }
 
 inline std::string to_hex_string(const vec128_t& value) {
-  return fmt::format("[{:08X} {:08X} {:08X} {:08X}]", value.u32[0],
-                     value.u32[1], value.u32[2], value.u32[3]);
+  return fmt::format("[{:08X} {:08X} {:08X} {:08X}]", value.u32[0], value.u32[1], value.u32[2],
+                     value.u32[3]);
 }
 
 template <typename T>
 inline T from_string(const std::string_view value, bool force_hex = false) {
-    (void)value; (void)force_hex;
+  (void)value;
+  (void)force_hex;
   // Missing implementation for converting type T from string
   throw;
 }
@@ -186,8 +185,7 @@ inline T ifs(const std::string_view value, bool force_hex) {
     base = 16;
   }
   // TODO(gibbed): do something more with errors?
-  auto [p, error] =
-      std::from_chars(range.data(), range.data() + range.size(), result, base);
+  auto [p, error] = std::from_chars(range.data(), range.data() + range.size(), result, base);
   if (error != std::errc()) {
     assert_always();
     return T();
@@ -225,12 +223,12 @@ inline T fpfs(const std::string_view value, bool force_hex) {
     }
     std::memcpy(&result, &pun, sizeof(PUN));
   } else {
-#if REX_COMPILER_CLANG || REX_COMPILER_GNUC
+#if REX_LACKS_FLOAT_FROM_CHARS
     auto temp = std::string(range);
     result = std::strtod(temp.c_str(), nullptr);
 #else
-    auto [p, error] = std::from_chars(range.data(), range.data() + range.size(),
-                                      result, std::chars_format::general);
+    auto [p, error] = std::from_chars(range.data(), range.data() + range.size(), result,
+                                      std::chars_format::general);
     // TODO(gibbed): do something more with errors?
     if (error != std::errc()) {
       assert_always();
@@ -248,55 +246,47 @@ inline T fpfs(const std::string_view value, bool force_hex) {
 
 template <>
 inline bool from_string<bool>(const std::string_view value, bool force_hex) {
-    (void)force_hex;
+  (void)force_hex;
   return value == "true" || value == "1";
 }
 
 template <>
-inline int8_t from_string<int8_t>(const std::string_view value,
-                                  bool force_hex) {
+inline int8_t from_string<int8_t>(const std::string_view value, bool force_hex) {
   return detail::ifs<int8_t>(value, force_hex);
 }
 
 template <>
-inline uint8_t from_string<uint8_t>(const std::string_view value,
-                                    bool force_hex) {
+inline uint8_t from_string<uint8_t>(const std::string_view value, bool force_hex) {
   return detail::ifs<uint8_t>(value, force_hex);
 }
 
 template <>
-inline int16_t from_string<int16_t>(const std::string_view value,
-                                    bool force_hex) {
+inline int16_t from_string<int16_t>(const std::string_view value, bool force_hex) {
   return detail::ifs<int16_t>(value, force_hex);
 }
 
 template <>
-inline uint16_t from_string<uint16_t>(const std::string_view value,
-                                      bool force_hex) {
+inline uint16_t from_string<uint16_t>(const std::string_view value, bool force_hex) {
   return detail::ifs<uint16_t>(value, force_hex);
 }
 
 template <>
-inline int32_t from_string<int32_t>(const std::string_view value,
-                                    bool force_hex) {
+inline int32_t from_string<int32_t>(const std::string_view value, bool force_hex) {
   return detail::ifs<int32_t>(value, force_hex);
 }
 
 template <>
-inline uint32_t from_string<uint32_t>(const std::string_view value,
-                                      bool force_hex) {
+inline uint32_t from_string<uint32_t>(const std::string_view value, bool force_hex) {
   return detail::ifs<uint32_t>(value, force_hex);
 }
 
 template <>
-inline int64_t from_string<int64_t>(const std::string_view value,
-                                    bool force_hex) {
+inline int64_t from_string<int64_t>(const std::string_view value, bool force_hex) {
   return detail::ifs<int64_t>(value, force_hex);
 }
 
 template <>
-inline uint64_t from_string<uint64_t>(const std::string_view value,
-                                      bool force_hex) {
+inline uint64_t from_string<uint64_t>(const std::string_view value, bool force_hex) {
   return detail::ifs<uint64_t>(value, force_hex);
 }
 
@@ -306,19 +296,17 @@ inline float from_string<float>(const std::string_view value, bool force_hex) {
 }
 
 template <>
-inline double from_string<double>(const std::string_view value,
-                                  bool force_hex) {
+inline double from_string<double>(const std::string_view value, bool force_hex) {
   return detail::fpfs<double, uint64_t>(value, force_hex);
 }
 
 template <>
-inline vec128_t from_string<vec128_t>(const std::string_view value,
-                                      bool force_hex) {
+inline vec128_t from_string<vec128_t>(const std::string_view value, bool force_hex) {
   if (!value.size()) {
     return vec128_t();
   }
   vec128_t v;
-#if REX_COMPILER_CLANG || REX_COMPILER_GNUC
+#if REX_LACKS_FLOAT_FROM_CHARS
   auto temp = std::string(value);
   auto p = temp.c_str();
   auto end = temp.c_str() + temp.size();
@@ -366,13 +354,12 @@ inline vec128_t from_string<vec128_t>(const std::string_view value,
         assert_always();
         return vec128_t();
       }
-#if REX_COMPILER_CLANG || REX_COMPILER_GNUC
+#if REX_LACKS_FLOAT_FROM_CHARS
       char* next_p;
       v.f32[i] = std::strtof(p, &next_p);
       p = next_p;
 #else
-      auto result =
-          std::from_chars(p, end, v.f32[i], std::chars_format::general);
+      auto result = std::from_chars(p, end, v.f32[i], std::chars_format::general);
       if (result.ec != std::errc()) {
         assert_always();
         return vec128_t();

@@ -16,8 +16,9 @@
 #include <mutex>
 #include <optional>
 
-#include <SDL.h>
 #include <rex/input/input_driver.h>
+
+#include <SDL.h>
 
 #define HID_SDL_USER_COUNT 4
 #define HID_SDL_THUMB_THRES 0x4E00
@@ -71,8 +72,7 @@ class SDLInputDriver final : public InputDriver {
   void OnControllerDeviceButtonChanged(const SDL_Event& event);
 
   inline uint64_t AnalogToKeyfield(const X_INPUT_GAMEPAD& gamepad) const;
-  std::optional<size_t> GetControllerIndexFromInstanceID(
-      SDL_JoystickID instance_id);
+  std::optional<size_t> GetControllerIndexFromInstanceID(SDL_JoystickID instance_id);
   ControllerState* GetControllerState(uint32_t user_index);
   bool TestSDLVersion() const;
   void UpdateXCapabilities(ControllerState& state);
@@ -88,4 +88,3 @@ class SDLInputDriver final : public InputDriver {
 };
 
 }  // namespace rex::input::sdl
-

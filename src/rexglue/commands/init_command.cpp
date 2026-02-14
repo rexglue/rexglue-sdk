@@ -10,610 +10,670 @@
  */
 
 #include "init_command.h"
-#include <rex/logging.h>
-#include <rex/result.h>
 
-#include <filesystem>
-#include <fstream>
 #include <algorithm>
 #include <cctype>
+#include <filesystem>
+#include <fstream>
 #include <vector>
+
+#include <rex/logging.h>
+#include <rex/result.h>
 
 namespace fs = std::filesystem;
 
 namespace rexglue::cli {
 
+using rex::Err;
 using rex::Error;
 using rex::ErrorCategory;
-using rex::Err;
 using rex::Ok;
 
-// TODO(tomc): cleanup this shtsuff. we should have templates for file generation. idk theres prob a lib for that
+// TODO(tomc): cleanup this shtsuff. we should have templates for file generation. idk theres prob a
+// lib for that
 namespace {
 
 struct AppNameParts {
-    std::string snake_case;   // files, cmake target, etc.
-    std::string pascal_case;  // class/object names
-    std::string upper_case;   // cmake variables
+  std::string snake_case;   // files, cmake target, etc.
+  std::string pascal_case;  // class/object names
+  std::string upper_case;   // cmake variables
 };
 
 bool validate_app_name(const std::string& input, std::string& error) {
-    if (input.empty()) {
-        error = "App name must not be empty";
-        return false;
+  if (input.empty()) {
+    error = "App name must not be empty";
+    return false;
+  }
+  if (!std::isalpha(static_cast<unsigned char>(input[0]))) {
+    error = "App name must start with a letter";
+    return false;
+  }
+  for (char c : input) {
+    if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_' && c != '-' && c != ' ') {
+      error = "App name contains invalid character '" + std::string(1, c) +
+              "'. Only alphanumeric, space, underscore, and dash are allowed";
+      return false;
     }
-    if (!std::isalpha(static_cast<unsigned char>(input[0]))) {
-        error = "App name must start with a letter";
-        return false;
-    }
-    for (char c : input) {
-        if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_' && c != '-' && c != ' ') {
-            error = "App name contains invalid character '" + std::string(1, c) +
-                    "'. Only alphanumeric, space, underscore, and dash are allowed";
-            return false;
-        }
-    }
-    return true;
+  }
+  return true;
 }
 
 AppNameParts parse_app_name(const std::string& input) {
-    // Split on separators (space, underscore, dash), consecutive separators treated as one
-    std::vector<std::string> words;
-    std::string current;
-    for (char c : input) {
-        if (c == ' ' || c == '_' || c == '-') {
-            if (!current.empty()) {
-                words.push_back(current);
-                current.clear();
-            }
-        } else {
-            current += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-        }
-    }
-    if (!current.empty()) {
+  // Split on separators (space, underscore, dash), consecutive separators treated as one
+  std::vector<std::string> words;
+  std::string current;
+  for (char c : input) {
+    if (c == ' ' || c == '_' || c == '-') {
+      if (!current.empty()) {
         words.push_back(current);
+        current.clear();
+      }
+    } else {
+      current += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     }
+  }
+  if (!current.empty()) {
+    words.push_back(current);
+  }
 
-    AppNameParts parts;
+  AppNameParts parts;
 
-    // snake_case: join with underscores, all lowercase
-    for (size_t i = 0; i < words.size(); ++i) {
-        if (i > 0) parts.snake_case += '_';
-        parts.snake_case += words[i];
+  // snake_case: join with underscores, all lowercase
+  for (size_t i = 0; i < words.size(); ++i) {
+    if (i > 0)
+      parts.snake_case += '_';
+    parts.snake_case += words[i];
+  }
+
+  // pascal_case: capitalize first letter of each word, concatenate
+  for (const auto& w : words) {
+    std::string word = w;
+    if (!word.empty() && std::isalpha(static_cast<unsigned char>(word[0]))) {
+      word[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(word[0])));
     }
+    parts.pascal_case += word;
+  }
 
-    // pascal_case: capitalize first letter of each word, concatenate
-    for (const auto& w : words) {
-        std::string word = w;
-        if (!word.empty() && std::isalpha(static_cast<unsigned char>(word[0]))) {
-            word[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(word[0])));
-        }
-        parts.pascal_case += word;
+  // upper_case: all uppercase, no separators
+  for (const auto& w : words) {
+    for (char c : w) {
+      parts.upper_case += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
     }
+  }
 
-    // upper_case: all uppercase, no separators
-    for (const auto& w : words) {
-        for (char c : w) {
-            parts.upper_case += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
-        }
-    }
-
-    return parts;
+  return parts;
 }
 
 // Generate CMakeLists.txt content
 std::string generate_cmakelists(const AppNameParts& names) {
-    std::string content;
+  std::string content;
 
-    content += "# " + names.snake_case + " - ReXGlue Recompiled Project\n";
-    content += "# Generated by: rexglue init\n";
-    content += "\n";
-    content += "cmake_minimum_required(VERSION 3.25)\n";
-    content += "project(" + names.snake_case + " LANGUAGES CXX)\n";
-    content += "\n";
-    content += "set(CMAKE_CXX_STANDARD 23)\n";
-    content += "set(CMAKE_CXX_STANDARD_REQUIRED ON)\n";
-    content += "\n";
-    content += "# Find ReXGlue SDK\n";
-    content += "# REXSDK env var takes precedence, otherwise search system paths\n";
-    content += "if(DEFINED ENV{REXSDK})\n";
-    content += "    list(PREPEND CMAKE_PREFIX_PATH $ENV{REXSDK})\n";
-    content += "endif()\n";
-    content += "find_package(rexglue REQUIRED)\n";
-    content += "if(NOT rexglue_FOUND)\n";
-    content += "    message(FATAL_ERROR \"ReXGlue SDK was not found in environment variables or from find_package.\")\n";
-    content += "endif()\n";
-    content += "\n";
-    content += "# User source files\n";
-    content += "set(" + names.upper_case + "_SOURCES\n";
-    content += "    src/main.cpp\n";
-    content += ")\n";
-    content += "\n";
-    content += "# Platform-specific entry point (provides main/wWinMain)\n";
-    content += "if(WIN32)\n";
-    content += "    list(APPEND " + names.upper_case + "_SOURCES ${REXGLUE_SHARE_DIR}/windowed_app_main_win.cpp)\n";
-    content += "else()\n";
-    content += "    list(APPEND " + names.upper_case + "_SOURCES ${REXGLUE_SHARE_DIR}/windowed_app_main_posix.cpp)\n";
-    content += "endif()\n";
-    content += "\n";
-    content += "# Include generated code if codegen has been run\n";
-    content += "if(EXISTS \"${CMAKE_CURRENT_SOURCE_DIR}/generated/sources.cmake\")\n";
-    content += "    include(generated/sources.cmake)\n";
-    content += "    list(APPEND " + names.upper_case + "_SOURCES ${GENERATED_SOURCES})\n";
-    content += "endif()\n";
-    content += "\n";
-    content += "if(WIN32)\n";
-    content += "    add_executable(" + names.snake_case + " WIN32 ${" + names.upper_case + "_SOURCES})\n";
-    content += "else()\n";
-    content += "    add_executable(" + names.snake_case + " ${" + names.upper_case + "_SOURCES})\n";
-    content += "endif()\n";
-    content += "\n";
-    content += "target_include_directories(" + names.snake_case + " PRIVATE\n";
-    content += "    ${CMAKE_CURRENT_SOURCE_DIR}\n";
-    content += "    ${CMAKE_CURRENT_SOURCE_DIR}/generated\n";
-    content += ")\n";
-    content += "\n";
-    content += "target_link_libraries(" + names.snake_case + " PRIVATE\n";
-    content += "    rex::core\n";
-    content += "    rex::runtime\n";
-    content += "    rex::kernel\n";
-    content += "    rex::graphics\n";
-    content += "    rex::ui\n";
-    content += ")\n";
-    content += "\n";
-    content += "# Platform-specific settings\n";
-    content += "if(UNIX AND NOT APPLE)\n";
-    content += "    # GTK3 for entry point (windowed_app_main_posix.cpp)\n";
-    content += "    find_package(PkgConfig REQUIRED)\n";
-    content += "    pkg_check_modules(GTK3 REQUIRED gtk+-3.0)\n";
-    content += "    target_include_directories(" + names.snake_case + " PRIVATE ${GTK3_INCLUDE_DIRS})\n";
-    content += "    target_link_libraries(" + names.snake_case + " PRIVATE ${GTK3_LIBRARIES})\n";
-    content += "\n";
-    content += "    # Whole-archive linking for kernel hooks\n";
-    content += "    target_link_options(" + names.snake_case + " PRIVATE\n";
-    content += "        -Wl,--whole-archive\n";
-    content += "        $<TARGET_FILE:rex::kernel>\n";
-    content += "        -Wl,--no-whole-archive\n";
-    content += "    )\n";
-    content += "    # Large executable support\n";
-    content += "    target_link_options(" + names.snake_case + " PRIVATE -Wl,--no-relax)\n";
-    content += "    target_compile_options(" + names.snake_case + " PRIVATE -mcmodel=large)\n";
-    content += "endif()\n";
-    content += "\n";
-    content += "if(NOT MSVC)\n";
-    content += "    target_compile_options(" + names.snake_case + " PRIVATE -msse4.1)\n";
-    content += "endif()\n";
-    content += "\n";
-    content += "# Codegen target - run 'cmake --build . --target " + names.snake_case + "_codegen'\n";
-    content += "add_custom_target(" + names.snake_case + "_codegen\n";
-    content += "    COMMAND $<TARGET_FILE:rex::rexglue> codegen ${CMAKE_CURRENT_SOURCE_DIR}/" + names.snake_case + "_config.toml\n";
-    content += "    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}\n";
-    content += "    COMMENT \"Generating recompiled code for " + names.snake_case + "\"\n";
-    content += "    VERBATIM\n";
-    content += ")\n";
+  content += "# " + names.snake_case + " - ReXGlue Recompiled Project\n";
+  content += "# Generated by: rexglue init\n";
+  content += "\n";
+  content += "cmake_minimum_required(VERSION 3.25)\n";
+  content += "project(" + names.snake_case + " LANGUAGES CXX)\n";
+  content += "\n";
+  content += "set(CMAKE_CXX_STANDARD 23)\n";
+  content += "set(CMAKE_CXX_STANDARD_REQUIRED ON)\n";
+  content += "\n";
+  content += "# Find ReXGlue SDK\n";
+  content +=
+      "set(REXSDK \"\" CACHE PATH \"Path to ReXGlue SDK install prefix (overrides "
+      "auto-discovery)\")\n";
+  content +=
+      "set(REXSDK_VERSION \"\" CACHE STRING \"Required ReXGlue SDK version, e.g. 0.2.0 (empty = "
+      "any)\")\n";
+  content += "if(REXSDK)\n";
+  content += "    list(PREPEND CMAKE_PREFIX_PATH \"${REXSDK}\")\n";
+  content += "elseif(DEFINED ENV{REXSDK})\n";
+  content += "    list(PREPEND CMAKE_PREFIX_PATH \"$ENV{REXSDK}\")\n";
+  content += "endif()\n";
+  content += "find_package(rexglue ${REXSDK_VERSION} REQUIRED CONFIG)\n";
+  content += "\n";
+  content += "# User source files\n";
+  content += "set(" + names.upper_case + "_SOURCES\n";
+  content += "    src/main.cpp\n";
+  content += ")\n";
+  content += "\n";
+  content += "# Platform-specific entry point (provides main/wWinMain)\n";
+  content += "if(WIN32)\n";
+  content += "    list(APPEND " + names.upper_case +
+             "_SOURCES ${REXGLUE_SHARE_DIR}/windowed_app_main_win.cpp)\n";
+  content += "else()\n";
+  content += "    list(APPEND " + names.upper_case +
+             "_SOURCES ${REXGLUE_SHARE_DIR}/windowed_app_main_posix.cpp)\n";
+  content += "endif()\n";
+  content += "\n";
+  content += "# Include generated code if codegen has been run\n";
+  content += "if(EXISTS \"${CMAKE_CURRENT_SOURCE_DIR}/generated/sources.cmake\")\n";
+  content += "    include(generated/sources.cmake)\n";
+  content += "    list(APPEND " + names.upper_case + "_SOURCES ${GENERATED_SOURCES})\n";
+  content += "endif()\n";
+  content += "\n";
+  content += "if(WIN32)\n";
+  content +=
+      "    add_executable(" + names.snake_case + " WIN32 ${" + names.upper_case + "_SOURCES})\n";
+  content += "else()\n";
+  content += "    add_executable(" + names.snake_case + " ${" + names.upper_case + "_SOURCES})\n";
+  content += "endif()\n";
+  content += "\n";
+  content += "target_include_directories(" + names.snake_case + " PRIVATE\n";
+  content += "    ${CMAKE_CURRENT_SOURCE_DIR}\n";
+  content += "    ${CMAKE_CURRENT_SOURCE_DIR}/generated\n";
+  content += ")\n";
+  content += "\n";
+  content += "target_link_libraries(" + names.snake_case + " PRIVATE\n";
+  content += "    rex::core\n";
+  content += "    rex::system\n";
+  content += "    rex::kernel\n";
+  content += "    rex::graphics\n";
+  content += "    rex::ui\n";
+  content += ")\n";
+  content += "\n";
+  content += "# Platform-specific settings\n";
+  content += "if(UNIX AND NOT APPLE)\n";
+  content += "    # GTK3 for entry point (windowed_app_main_posix.cpp)\n";
+  content += "    find_package(PkgConfig REQUIRED)\n";
+  content += "    pkg_check_modules(GTK3 REQUIRED gtk+-3.0)\n";
+  content +=
+      "    target_include_directories(" + names.snake_case + " PRIVATE ${GTK3_INCLUDE_DIRS})\n";
+  content += "    target_link_libraries(" + names.snake_case + " PRIVATE ${GTK3_LIBRARIES})\n";
+  content += "\n";
+  content += "    # Whole-archive linking for kernel hooks\n";
+  content += "    target_link_options(" + names.snake_case + " PRIVATE\n";
+  content += "        -Wl,--whole-archive\n";
+  content += "        $<TARGET_FILE:rex::kernel>\n";
+  content += "        -Wl,--no-whole-archive\n";
+  content += "    )\n";
+  content += "    # Large executable support\n";
+  content += "    target_link_options(" + names.snake_case + " PRIVATE -Wl,--no-relax)\n";
+  content += "    target_compile_options(" + names.snake_case + " PRIVATE -mcmodel=large)\n";
+  content += "endif()\n";
+  content += "\n";
+  content += "if(NOT MSVC)\n";
+  content += "    target_compile_options(" + names.snake_case + " PRIVATE -msse4.1)\n";
+  content += "endif()\n";
+  content += "\n";
+  content += "# Codegen target - run 'cmake --build . --target " + names.snake_case + "_codegen'\n";
+  content += "add_custom_target(" + names.snake_case + "_codegen\n";
+  content += "    COMMAND $<TARGET_FILE:rex::rexglue> codegen ${CMAKE_CURRENT_SOURCE_DIR}/" +
+             names.snake_case + "_config.toml\n";
+  content += "    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}\n";
+  content += "    COMMENT \"Generating recompiled code for " + names.snake_case + "\"\n";
+  content += "    VERBATIM\n";
+  content += ")\n";
 
-    return content;
+  return content;
 }
 
 // Generate main.cpp content
 std::string generate_main_cpp(const AppNameParts& names) {
-    std::string class_name = names.pascal_case + "App";
-    std::string content;
+  std::string class_name = names.pascal_case + "App";
+  std::string content;
 
-    content += "// " + names.snake_case + " - ReXGlue Recompiled Project\n";
-    content += "// Generated by: rexglue init\n";
-    content += "\n";
-    content += "#include \"generated/" + names.snake_case + "_config.h\"\n";
-    content += "#include \"generated/" + names.snake_case + "_init.h\"\n";
-    content += "\n";
-    content += "#include <rex/cvar.h>\n";
-    content += "#include <rex/filesystem.h>\n";
-    content += "#include <rex/runtime.h>\n";
-    content += "#include <rex/logging.h>\n";
-    content += "#include <rex/kernel/xthread.h>\n";
-    content += "#include <rex/kernel/kernel_state.h>\n";
-    content += "#include <rex/graphics/graphics_system.h>\n";
-    content += "#include <rex/ui/window.h>\n";
-    content += "#include <rex/ui/window_listener.h>\n";
-    content += "#include <rex/ui/windowed_app.h>\n";
-    content += "#include <rex/ui/graphics_provider.h>\n";
-    content += "#include <rex/ui/immediate_drawer.h>\n";
-    content += "#include <rex/ui/imgui_drawer.h>\n";
-    content += "#include <rex/ui/imgui_dialog.h>\n";
-    content += "\n";
-    content += "#include <imgui.h>\n";
-    content += "\n";
-    content += "#include <atomic>\n";
-    content += "#include <filesystem>\n";
-    content += "#include <thread>\n";
-    content += "\n";
+  content += "// " + names.snake_case + " - ReXGlue Recompiled Project\n";
+  content += "// Generated by: rexglue init\n";
+  content += "\n";
+  content += "#include \"generated/" + names.snake_case + "_config.h\"\n";
+  content += "#include \"generated/" + names.snake_case + "_init.h\"\n";
+  content += "\n";
+  content += "#include <rex/cvar.h>\n";
+  content += "#include <rex/filesystem.h>\n";
+  content += "#include <rex/runtime.h>\n";
+  content += "#include <rex/logging.h>\n";
+  content += "#include <rex/system/xthread.h>\n";
+  content += "#include <rex/system/kernel_state.h>\n";
+  content += "#include <rex/graphics/graphics_system.h>\n";
+  content += "#if REX_HAS_VULKAN\n";
+  content += "#include <rex/graphics/vulkan/graphics_system.h>\n";
+  content += "#endif\n";
+  content += "#if REX_HAS_D3D12\n";
+  content += "#include <rex/graphics/d3d12/graphics_system.h>\n";
+  content += "#endif\n";
+  content += "#include <rex/audio/audio_system.h>\n";
+  content += "#include <rex/audio/sdl/sdl_audio_system.h>\n";
+  content += "#include <rex/input/input_system.h>\n";
+  content += "#include <rex/ui/window.h>\n";
+  content += "#include <rex/ui/window_listener.h>\n";
+  content += "#include <rex/ui/windowed_app.h>\n";
+  content += "#include <rex/ui/graphics_provider.h>\n";
+  content += "#include <rex/ui/immediate_drawer.h>\n";
+  content += "#include <rex/ui/imgui_drawer.h>\n";
+  content += "#include <rex/ui/imgui_dialog.h>\n";
+  content += "\n";
+  content += "#include <imgui.h>\n";
+  content += "\n";
+  content += "#include <atomic>\n";
+  content += "#include <filesystem>\n";
+  content += "#include <thread>\n";
+  content += "\n";
 
-    // DebugOverlayDialog class
-    content += "class DebugOverlayDialog : public rex::ui::ImGuiDialog {\n";
-    content += "public:\n";
-    content += "    DebugOverlayDialog(rex::ui::ImGuiDrawer* imgui_drawer)\n";
-    content += "        : ImGuiDialog(imgui_drawer) {}\n";
-    content += "protected:\n";
-    content += "    void OnDraw(ImGuiIO& io) override {\n";
-    content += "        ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);\n";
-    content += "        ImGui::SetNextWindowSize(ImVec2(220, 60), ImGuiCond_FirstUseEver);\n";
-    content += "        ImGui::SetNextWindowBgAlpha(0.5f);\n";
-    content += "        if (ImGui::Begin(\"Debug##overlay\", nullptr, ImGuiWindowFlags_NoCollapse)) {\n";
-    content += "            ImGui::Text(\"%.1f FPS (%.2f ms)\", io.Framerate, 1000.0f / io.Framerate);\n";
-    content += "        }\n";
-    content += "        ImGui::End();\n";
-    content += "    }\n";
-    content += "};\n";
-    content += "\n";
+  // DebugOverlayDialog class
+  content += "class DebugOverlayDialog : public rex::ui::ImGuiDialog {\n";
+  content += "public:\n";
+  content += "    DebugOverlayDialog(rex::ui::ImGuiDrawer* imgui_drawer)\n";
+  content += "        : ImGuiDialog(imgui_drawer) {}\n";
+  content += "protected:\n";
+  content += "    void OnDraw(ImGuiIO& io) override {\n";
+  content += "        ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);\n";
+  content += "        ImGui::SetNextWindowSize(ImVec2(220, 60), ImGuiCond_FirstUseEver);\n";
+  content += "        ImGui::SetNextWindowBgAlpha(0.5f);\n";
+  content +=
+      "        if (ImGui::Begin(\"Debug##overlay\", nullptr, ImGuiWindowFlags_NoCollapse)) {\n";
+  content +=
+      "            ImGui::Text(\"%.1f FPS (%.2f ms)\", io.Framerate, 1000.0f / io.Framerate);\n";
+  content += "        }\n";
+  content += "        ImGui::End();\n";
+  content += "    }\n";
+  content += "};\n";
+  content += "\n";
 
-    // App class
-    content += "class " + class_name + " : public rex::ui::WindowedApp, public rex::ui::WindowListener {\n";
-    content += "public:\n";
-    content += "    static std::unique_ptr<rex::ui::WindowedApp> Create(rex::ui::WindowedAppContext& ctx) {\n";
-    content += "        return std::make_unique<" + class_name + ">(ctx);\n";
-    content += "    }\n";
-    content += "\n";
-    content += "    " + class_name + "(rex::ui::WindowedAppContext& ctx)\n";
-    content += "        : WindowedApp(ctx, \"" + names.snake_case + "\", \"[game_directory]\") {\n";
-    content += "        AddPositionalOption(\"game_directory\");\n";
-    content += "    }\n";
-    content += "\n";
-    content += "    bool OnInitialize() override {\n";
-    content += "        auto exe_dir = rex::filesystem::GetExecutableFolder();\n";
-    content += "\n";
-    content += "        // Game directory: arg or default to exe_dir/assets\n";
-    content += "        std::filesystem::path game_dir;\n";
-    content += "        if (auto arg = GetArgument(\"game_directory\")) {\n";
-    content += "            game_dir = *arg;\n";
-    content += "        } else {\n";
-    content += "            game_dir = exe_dir / \"assets\";\n";
-    content += "        }\n";
-    content += "\n";
-    content += "        std::string log_file_cvar = REXCVAR_GET(log_file);\n";
-    content += "        std::string log_level_str = REXCVAR_GET(log_level);\n";
-    content += "        if (REXCVAR_GET(log_verbose) && log_level_str == \"info\") {\n";
-    content += "            log_level_str = \"trace\";\n";
-    content += "        }\n";
-    content += "        auto log_config = rex::BuildLogConfig(\n";
-    content += "            log_file_cvar.empty() ? nullptr : log_file_cvar.c_str(),\n";
-    content += "            log_level_str, {});\n";
-    content += "        rex::InitLogging(log_config);\n";
-    content += "        rex::RegisterLogLevelCallback();\n";
-    content += "        REXLOG_INFO(\"" + names.snake_case + " starting\");\n";
-    content += "        REXLOG_INFO(\"  Game directory: {}\", game_dir.string());\n";
-    content += "\n";
-    content += "        // Create and initialize runtime\n";
-    content += "        runtime_ = std::make_unique<rex::Runtime>(game_dir);\n";
-    content += "        runtime_->set_app_context(&app_context());\n";
-    content += "\n";
-    content += "        auto status = runtime_->Setup(\n";
-    content += "            static_cast<uint32_t>(PPC_CODE_BASE),\n";
-    content += "            static_cast<uint32_t>(PPC_CODE_SIZE),\n";
-    content += "            static_cast<uint32_t>(PPC_IMAGE_BASE),\n";
-    content += "            static_cast<uint32_t>(PPC_IMAGE_SIZE),\n";
-    content += "            PPCFuncMappings);\n";
-    content += "        if (XFAILED(status)) {\n";
-    content += "            REXLOG_ERROR(\"Runtime setup failed: {:08X}\", status);\n";
-    content += "            return false;\n";
-    content += "        }\n";
-    content += "\n";
-    content += "        // Load XEX image\n";
-    content += "        status = runtime_->LoadXexImage(\"game:\\\\default.xex\");\n";
-    content += "        if (XFAILED(status)) {\n";
-    content += "            REXLOG_ERROR(\"Failed to load XEX: {:08X}\", status);\n";
-    content += "            return false;\n";
-    content += "        }\n";
-    content += "\n";
-    content += "        // Create window\n";
-    content += "        window_ = rex::ui::Window::Create(app_context(), \"" + names.snake_case + "\", 1280, 720);\n";
-    content += "        if (!window_) {\n";
-    content += "            REXLOG_ERROR(\"Failed to create window\");\n";
-    content += "            return false;\n";
-    content += "        }\n";
-    content += "\n";
-    content += "        window_->AddListener(this);\n";
-    content += "        window_->Open();\n";
-    content += "\n";
-    content += "        // Setup graphics presenter and ImGui\n";
-    content += "        auto* graphics_system = runtime_->graphics_system();\n";
-    content += "        if (graphics_system && graphics_system->presenter()) {\n";
-    content += "            auto* presenter = graphics_system->presenter();\n";
-    content += "            auto* provider = graphics_system->provider();\n";
-    content += "            if (provider) {\n";
-    content += "                immediate_drawer_ = provider->CreateImmediateDrawer();\n";
-    content += "                if (immediate_drawer_) {\n";
-    content += "                    immediate_drawer_->SetPresenter(presenter);\n";
-    content += "                    imgui_drawer_ = std::make_unique<rex::ui::ImGuiDrawer>(window_.get(), 64);\n";
-    content += "                    imgui_drawer_->SetPresenterAndImmediateDrawer(presenter, immediate_drawer_.get());\n";
-    content += "                    debug_overlay_ = std::unique_ptr<DebugOverlayDialog>(\n";
-    content += "                        new DebugOverlayDialog(imgui_drawer_.get()));\n";
-    content += "                    runtime_->set_display_window(window_.get());\n";
-    content += "                    runtime_->set_imgui_drawer(imgui_drawer_.get());\n";
-    content += "                }\n";
-    content += "            }\n";
-    content += "            window_->SetPresenter(presenter);\n";
-    content += "        }\n";
-    content += "\n";
-    content += "        // Launch module in background\n";
-    content += "        app_context().CallInUIThreadDeferred([this]() {\n";
-    content += "            auto main_thread = runtime_->LaunchModule();\n";
-    content += "            if (!main_thread) {\n";
-    content += "                REXLOG_ERROR(\"Failed to launch module\");\n";
-    content += "                app_context().QuitFromUIThread();\n";
-    content += "                return;\n";
-    content += "            }\n";
-    content += "\n";
-    content += "            module_thread_ = std::thread([this, main_thread = std::move(main_thread)]() mutable {\n";
-    content += "                main_thread->Wait(0, 0, 0, nullptr);\n";
-    content += "                REXLOG_INFO(\"Execution complete\");\n";
-    content += "                if (!shutting_down_.load(std::memory_order_acquire)) {\n";
-    content += "                    app_context().CallInUIThread([this]() {\n";
-    content += "                        app_context().QuitFromUIThread();\n";
-    content += "                    });\n";
-    content += "                }\n";
-    content += "            });\n";
-    content += "        });\n";
-    content += "\n";
-    content += "        return true;\n";
-    content += "    }\n";
-    content += "\n";
-    content += "    void OnClosing(rex::ui::UIEvent& e) override {\n";
-    content += "        (void)e;\n";
-    content += "        REXLOG_INFO(\"Window closing, shutting down...\");\n";
-    content += "        shutting_down_.store(true, std::memory_order_release);\n";
-    content += "        if (runtime_ && runtime_->kernel_state()) {\n";
-    content += "            runtime_->kernel_state()->TerminateTitle();\n";
-    content += "        }\n";
-    content += "        app_context().QuitFromUIThread();\n";
-    content += "    }\n";
-    content += "\n";
-    content += "    void OnDestroy() override {\n";
-    content += "        // ImGui cleanup (reverse of setup)\n";
-    content += "        debug_overlay_.reset();\n";
-    content += "        if (imgui_drawer_) {\n";
-    content += "            imgui_drawer_->SetPresenterAndImmediateDrawer(nullptr, nullptr);\n";
-    content += "            imgui_drawer_.reset();\n";
-    content += "        }\n";
-    content += "        if (immediate_drawer_) {\n";
-    content += "            immediate_drawer_->SetPresenter(nullptr);\n";
-    content += "            immediate_drawer_.reset();\n";
-    content += "        }\n";
-    content += "        if (runtime_) {\n";
-    content += "            runtime_->set_display_window(nullptr);\n";
-    content += "            runtime_->set_imgui_drawer(nullptr);\n";
-    content += "        }\n";
-    content += "        // Window/runtime cleanup\n";
-    content += "        if (window_) {\n";
-    content += "            window_->SetPresenter(nullptr);\n";
-    content += "        }\n";
-    content += "        if (module_thread_.joinable()) {\n";
-    content += "            module_thread_.join();\n";
-    content += "        }\n";
-    content += "        if (window_) {\n";
-    content += "            window_->RemoveListener(this);\n";
-    content += "        }\n";
-    content += "        window_.reset();\n";
-    content += "        runtime_.reset();\n";
-    content += "    }\n";
-    content += "\n";
-    content += "private:\n";
-    content += "    std::unique_ptr<rex::Runtime> runtime_;\n";
-    content += "    std::unique_ptr<rex::ui::Window> window_;\n";
-    content += "    std::thread module_thread_;\n";
-    content += "    std::atomic<bool> shutting_down_{false};\n";
-    content += "    std::unique_ptr<rex::ui::ImmediateDrawer> immediate_drawer_;\n";
-    content += "    std::unique_ptr<rex::ui::ImGuiDrawer> imgui_drawer_;\n";
-    content += "    std::unique_ptr<DebugOverlayDialog> debug_overlay_;\n";
-    content += "};\n";
-    content += "\n";
-    content += "XE_DEFINE_WINDOWED_APP(" + names.snake_case + ", " + class_name + "::Create)\n";
+  // App class
+  content +=
+      "class " + class_name + " : public rex::ui::WindowedApp, public rex::ui::WindowListener {\n";
+  content += "public:\n";
+  content +=
+      "    static std::unique_ptr<rex::ui::WindowedApp> Create(rex::ui::WindowedAppContext& ctx) "
+      "{\n";
+  content += "        return std::make_unique<" + class_name + ">(ctx);\n";
+  content += "    }\n";
+  content += "\n";
+  content += "    " + class_name + "(rex::ui::WindowedAppContext& ctx)\n";
+  content += "        : WindowedApp(ctx, \"" + names.snake_case + "\", \"[game_directory]\") {\n";
+  content += "        AddPositionalOption(\"game_directory\");\n";
+  content += "    }\n";
+  content += "\n";
+  content += "    bool OnInitialize() override {\n";
+  content += "        auto exe_dir = rex::filesystem::GetExecutableFolder();\n";
+  content += "\n";
+  content += "        // Game directory: arg or default to exe_dir/assets\n";
+  content += "        std::filesystem::path game_dir;\n";
+  content += "        if (auto arg = GetArgument(\"game_directory\")) {\n";
+  content += "            game_dir = *arg;\n";
+  content += "        } else {\n";
+  content += "            game_dir = exe_dir / \"assets\";\n";
+  content += "        }\n";
+  content += "\n";
+  content += "        std::string log_file_cvar = REXCVAR_GET(log_file);\n";
+  content += "        std::string log_level_str = REXCVAR_GET(log_level);\n";
+  content += "        if (REXCVAR_GET(log_verbose) && log_level_str == \"info\") {\n";
+  content += "            log_level_str = \"trace\";\n";
+  content += "        }\n";
+  content += "        auto log_config = rex::BuildLogConfig(\n";
+  content += "            log_file_cvar.empty() ? nullptr : log_file_cvar.c_str(),\n";
+  content += "            log_level_str, {});\n";
+  content += "        rex::InitLogging(log_config);\n";
+  content += "        rex::RegisterLogLevelCallback();\n";
+  content += "        REXLOG_INFO(\"" + names.snake_case + " starting\");\n";
+  content += "        REXLOG_INFO(\"  Game directory: {}\", game_dir.string());\n";
+  content += "\n";
+  content += "        // Create and initialize runtime\n";
+  content += "        runtime_ = std::make_unique<rex::Runtime>(game_dir);\n";
+  content += "        runtime_->set_app_context(&app_context());\n";
+  content += "\n";
+  content += "        // Build runtime config with concrete backends\n";
+  content += "        rex::RuntimeConfig config;\n";
+  content += "#if REX_HAS_D3D12\n";
+  content +=
+      "        config.graphics = "
+      "REX_GRAPHICS_BACKEND(rex::graphics::d3d12::D3D12GraphicsSystem);\n";
+  content += "#elif REX_HAS_VULKAN\n";
+  content +=
+      "        config.graphics = "
+      "REX_GRAPHICS_BACKEND(rex::graphics::vulkan::VulkanGraphicsSystem);\n";
+  content += "#endif\n";
+  content += "        config.audio_factory = REX_AUDIO_BACKEND(rex::audio::sdl::SDLAudioSystem);\n";
+  content +=
+      "        config.input_factory = REX_INPUT_BACKEND(rex::input::CreateDefaultInputSystem);\n";
+  content += "\n";
+  content += "        auto status = runtime_->Setup(\n";
+  content += "            static_cast<uint32_t>(PPC_CODE_BASE),\n";
+  content += "            static_cast<uint32_t>(PPC_CODE_SIZE),\n";
+  content += "            static_cast<uint32_t>(PPC_IMAGE_BASE),\n";
+  content += "            static_cast<uint32_t>(PPC_IMAGE_SIZE),\n";
+  content += "            PPCFuncMappings,\n";
+  content += "            std::move(config));\n";
+  content += "        if (XFAILED(status)) {\n";
+  content += "            REXLOG_ERROR(\"Runtime setup failed: {:08X}\", status);\n";
+  content += "            return false;\n";
+  content += "        }\n";
+  content += "\n";
+  content += "        // Load XEX image\n";
+  content += "        status = runtime_->LoadXexImage(\"game:\\\\default.xex\");\n";
+  content += "        if (XFAILED(status)) {\n";
+  content += "            REXLOG_ERROR(\"Failed to load XEX: {:08X}\", status);\n";
+  content += "            return false;\n";
+  content += "        }\n";
+  content += "\n";
+  content += "        // Create window\n";
+  content += "        window_ = rex::ui::Window::Create(app_context(), \"" + names.snake_case +
+             "\", 1280, 720);\n";
+  content += "        if (!window_) {\n";
+  content += "            REXLOG_ERROR(\"Failed to create window\");\n";
+  content += "            return false;\n";
+  content += "        }\n";
+  content += "\n";
+  content += "        window_->AddListener(this);\n";
+  content += "        window_->Open();\n";
+  content += "\n";
+  content += "        // Setup graphics presenter and ImGui\n";
+  content += "        auto* graphics_system = static_cast<rex::graphics::GraphicsSystem*>(\n";
+  content += "            runtime_->graphics_system());\n";
+  content += "        if (graphics_system && graphics_system->presenter()) {\n";
+  content += "            auto* presenter = graphics_system->presenter();\n";
+  content += "            auto* provider = graphics_system->provider();\n";
+  content += "            if (provider) {\n";
+  content += "                immediate_drawer_ = provider->CreateImmediateDrawer();\n";
+  content += "                if (immediate_drawer_) {\n";
+  content += "                    immediate_drawer_->SetPresenter(presenter);\n";
+  content +=
+      "                    imgui_drawer_ = std::make_unique<rex::ui::ImGuiDrawer>(window_.get(), "
+      "64);\n";
+  content +=
+      "                    imgui_drawer_->SetPresenterAndImmediateDrawer(presenter, "
+      "immediate_drawer_.get());\n";
+  content += "                    debug_overlay_ = std::unique_ptr<DebugOverlayDialog>(\n";
+  content += "                        new DebugOverlayDialog(imgui_drawer_.get()));\n";
+  content += "                    runtime_->set_display_window(window_.get());\n";
+  content += "                    runtime_->set_imgui_drawer(imgui_drawer_.get());\n";
+  content += "                }\n";
+  content += "            }\n";
+  content += "            window_->SetPresenter(presenter);\n";
+  content += "        }\n";
+  content += "\n";
+  content += "        // Launch module in background\n";
+  content += "        app_context().CallInUIThreadDeferred([this]() {\n";
+  content += "            auto main_thread = runtime_->LaunchModule();\n";
+  content += "            if (!main_thread) {\n";
+  content += "                REXLOG_ERROR(\"Failed to launch module\");\n";
+  content += "                app_context().QuitFromUIThread();\n";
+  content += "                return;\n";
+  content += "            }\n";
+  content += "\n";
+  content +=
+      "            module_thread_ = std::thread([this, main_thread = std::move(main_thread)]() "
+      "mutable {\n";
+  content += "                main_thread->Wait(0, 0, 0, nullptr);\n";
+  content += "                REXLOG_INFO(\"Execution complete\");\n";
+  content += "                if (!shutting_down_.load(std::memory_order_acquire)) {\n";
+  content += "                    app_context().CallInUIThread([this]() {\n";
+  content += "                        app_context().QuitFromUIThread();\n";
+  content += "                    });\n";
+  content += "                }\n";
+  content += "            });\n";
+  content += "        });\n";
+  content += "\n";
+  content += "        return true;\n";
+  content += "    }\n";
+  content += "\n";
+  content += "    void OnClosing(rex::ui::UIEvent& e) override {\n";
+  content += "        (void)e;\n";
+  content += "        REXLOG_INFO(\"Window closing, shutting down...\");\n";
+  content += "        shutting_down_.store(true, std::memory_order_release);\n";
+  content += "        if (runtime_ && runtime_->kernel_state()) {\n";
+  content += "            runtime_->kernel_state()->TerminateTitle();\n";
+  content += "        }\n";
+  content += "        app_context().QuitFromUIThread();\n";
+  content += "    }\n";
+  content += "\n";
+  content += "    void OnDestroy() override {\n";
+  content += "        // ImGui cleanup (reverse of setup)\n";
+  content += "        debug_overlay_.reset();\n";
+  content += "        if (imgui_drawer_) {\n";
+  content += "            imgui_drawer_->SetPresenterAndImmediateDrawer(nullptr, nullptr);\n";
+  content += "            imgui_drawer_.reset();\n";
+  content += "        }\n";
+  content += "        if (immediate_drawer_) {\n";
+  content += "            immediate_drawer_->SetPresenter(nullptr);\n";
+  content += "            immediate_drawer_.reset();\n";
+  content += "        }\n";
+  content += "        if (runtime_) {\n";
+  content += "            runtime_->set_display_window(nullptr);\n";
+  content += "            runtime_->set_imgui_drawer(nullptr);\n";
+  content += "        }\n";
+  content += "        // Window/runtime cleanup\n";
+  content += "        if (window_) {\n";
+  content += "            window_->SetPresenter(nullptr);\n";
+  content += "        }\n";
+  content += "        if (module_thread_.joinable()) {\n";
+  content += "            module_thread_.join();\n";
+  content += "        }\n";
+  content += "        if (window_) {\n";
+  content += "            window_->RemoveListener(this);\n";
+  content += "        }\n";
+  content += "        window_.reset();\n";
+  content += "        runtime_.reset();\n";
+  content += "    }\n";
+  content += "\n";
+  content += "private:\n";
+  content += "    std::unique_ptr<rex::Runtime> runtime_;\n";
+  content += "    std::unique_ptr<rex::ui::Window> window_;\n";
+  content += "    std::thread module_thread_;\n";
+  content += "    std::atomic<bool> shutting_down_{false};\n";
+  content += "    std::unique_ptr<rex::ui::ImmediateDrawer> immediate_drawer_;\n";
+  content += "    std::unique_ptr<rex::ui::ImGuiDrawer> imgui_drawer_;\n";
+  content += "    std::unique_ptr<DebugOverlayDialog> debug_overlay_;\n";
+  content += "};\n";
+  content += "\n";
+  content += "XE_DEFINE_WINDOWED_APP(" + names.snake_case + ", " + class_name + "::Create)\n";
 
-    return content;
+  return content;
 }
 
 // Generate config.toml content
 std::string generate_config_toml(const AppNameParts& names) {
-    std::string content;
+  std::string content;
 
-    content += "# " + names.snake_case + " - ReXGlue Codegen Configuration\n";
-    content += "# Generated by: rexglue init\n";
-    content += "# See README.md for full configuration reference.\n";
-    content += "\n";
-    content += "project_name = \"" + names.snake_case + "\"\n";
-    content += "file_path = \"assets/default.xex\"\n";
-    content += "out_directory_path = \"generated\"\n";
+  content += "# " + names.snake_case + " - ReXGlue Codegen Configuration\n";
+  content += "# Generated by: rexglue init\n";
+  content += "# See README.md for full configuration reference.\n";
+  content += "\n";
+  content += "project_name = \"" + names.snake_case + "\"\n";
+  content += "file_path = \"assets/default.xex\"\n";
+  content += "out_directory_path = \"generated\"\n";
 
-    return content;
+  return content;
 }
 
 // Generate CMakePresets.json content (no vcpkg toolchain - SDK bundles all dependencies)
 std::string generate_cmake_presets() {
-    std::string content;
+  std::string content;
 
-    content += "{\n";
-    content += "    \"version\": 6,\n";
-    content += "    \"cmakeMinimumRequired\": { \"major\": 3, \"minor\": 25, \"patch\": 0 },\n";
-    content += "    \"configurePresets\": [\n";
-    content += "        {\n";
-    content += "            \"name\": \"windows-base\",\n";
-    content += "            \"hidden\": true,\n";
-    content += "            \"generator\": \"Ninja\",\n";
-    content += "            \"binaryDir\": \"${sourceDir}/out/build/${presetName}\",\n";
-    content += "            \"cacheVariables\": {\n";
-    content += "                \"CMAKE_C_COMPILER\": \"clang\",\n";
-    content += "                \"CMAKE_CXX_COMPILER\": \"clang++\"\n";
-    content += "            },\n";
-    content += "            \"condition\": {\n";
-    content += "                \"type\": \"equals\",\n";
-    content += "                \"lhs\": \"${hostSystemName}\",\n";
-    content += "                \"rhs\": \"Windows\"\n";
-    content += "            }\n";
-    content += "        },\n";
-    content += "        {\n";
-    content += "            \"name\": \"linux-base\",\n";
-    content += "            \"hidden\": true,\n";
-    content += "            \"generator\": \"Ninja\",\n";
-    content += "            \"binaryDir\": \"${sourceDir}/out/build/${presetName}\",\n";
-    content += "            \"cacheVariables\": {\n";
-    content += "                \"CMAKE_C_COMPILER\": \"clang-20\",\n";
-    content += "                \"CMAKE_CXX_COMPILER\": \"clang++-20\"\n";
-    content += "            },\n";
-    content += "            \"condition\": {\n";
-    content += "                \"type\": \"equals\",\n";
-    content += "                \"lhs\": \"${hostSystemName}\",\n";
-    content += "                \"rhs\": \"Linux\"\n";
-    content += "            }\n";
-    content += "        },\n";
-    content += "        {\n";
-    content += "            \"name\": \"win-amd64-debug\",\n";
-    content += "            \"displayName\": \"Windows AMD64 Debug\",\n";
-    content += "            \"inherits\": \"windows-base\",\n";
-    content += "            \"cacheVariables\": { \"CMAKE_BUILD_TYPE\": \"Debug\" }\n";
-    content += "        },\n";
-    content += "        {\n";
-    content += "            \"name\": \"win-amd64-release\",\n";
-    content += "            \"displayName\": \"Windows AMD64 Release\",\n";
-    content += "            \"inherits\": \"windows-base\",\n";
-    content += "            \"cacheVariables\": { \"CMAKE_BUILD_TYPE\": \"Release\" }\n";
-    content += "        },\n";
-    content += "        {\n";
-    content += "            \"name\": \"linux-amd64-debug\",\n";
-    content += "            \"displayName\": \"Linux AMD64 Debug\",\n";
-    content += "            \"inherits\": \"linux-base\",\n";
-    content += "            \"cacheVariables\": { \"CMAKE_BUILD_TYPE\": \"Debug\" }\n";
-    content += "        },\n";
-    content += "        {\n";
-    content += "            \"name\": \"linux-amd64-release\",\n";
-    content += "            \"displayName\": \"Linux AMD64 Release\",\n";
-    content += "            \"inherits\": \"linux-base\",\n";
-    content += "            \"cacheVariables\": { \"CMAKE_BUILD_TYPE\": \"Release\" }\n";
-    content += "        },\n";
-    content += "        {\n";
-    content += "            \"name\": \"win-amd64-relwithdebinfo\",\n";
-    content += "            \"displayName\": \"Windows AMD64 RelWithDebInfo\",\n";
-    content += "            \"inherits\": \"windows-base\",\n";
-    content += "            \"cacheVariables\": { \"CMAKE_BUILD_TYPE\": \"RelWithDebInfo\" }\n";
-    content += "        },\n";
-    content += "        {\n";
-    content += "            \"name\": \"linux-amd64-relwithdebinfo\",\n";
-    content += "            \"displayName\": \"Linux AMD64 RelWithDebInfo\",\n";
-    content += "            \"inherits\": \"linux-base\",\n";
-    content += "            \"cacheVariables\": { \"CMAKE_BUILD_TYPE\": \"RelWithDebInfo\" }\n";
-    content += "        }\n";
-    content += "    ],\n";
-    content += "    \"buildPresets\": [\n";
-    content += "        { \"name\": \"win-amd64-debug\", \"configurePreset\": \"win-amd64-debug\" },\n";
-    content += "        { \"name\": \"win-amd64-release\", \"configurePreset\": \"win-amd64-release\" },\n";
-    content += "        { \"name\": \"win-amd64-relwithdebinfo\", \"configurePreset\": \"win-amd64-relwithdebinfo\" },\n";
-    content += "        { \"name\": \"linux-amd64-debug\", \"configurePreset\": \"linux-amd64-debug\" },\n";
-    content += "        { \"name\": \"linux-amd64-release\", \"configurePreset\": \"linux-amd64-release\" },\n";
-    content += "        { \"name\": \"linux-amd64-relwithdebinfo\", \"configurePreset\": \"linux-amd64-relwithdebinfo\" }\n";
-    content += "    ]\n";
-    content += "}\n";
+  content += "{\n";
+  content += "    \"version\": 6,\n";
+  content += "    \"cmakeMinimumRequired\": { \"major\": 3, \"minor\": 25, \"patch\": 0 },\n";
+  content += "    \"configurePresets\": [\n";
+  content += "        {\n";
+  content += "            \"name\": \"windows-base\",\n";
+  content += "            \"hidden\": true,\n";
+  content += "            \"generator\": \"Ninja\",\n";
+  content += "            \"binaryDir\": \"${sourceDir}/out/build/${presetName}\",\n";
+  content += "            \"cacheVariables\": {\n";
+  content += "                \"CMAKE_C_COMPILER\": \"clang\",\n";
+  content += "                \"CMAKE_CXX_COMPILER\": \"clang++\"\n";
+  content += "            },\n";
+  content += "            \"condition\": {\n";
+  content += "                \"type\": \"equals\",\n";
+  content += "                \"lhs\": \"${hostSystemName}\",\n";
+  content += "                \"rhs\": \"Windows\"\n";
+  content += "            }\n";
+  content += "        },\n";
+  content += "        {\n";
+  content += "            \"name\": \"linux-base\",\n";
+  content += "            \"hidden\": true,\n";
+  content += "            \"generator\": \"Ninja\",\n";
+  content += "            \"binaryDir\": \"${sourceDir}/out/build/${presetName}\",\n";
+  content += "            \"cacheVariables\": {\n";
+  content += "                \"CMAKE_C_COMPILER\": \"clang-20\",\n";
+  content += "                \"CMAKE_CXX_COMPILER\": \"clang++-20\"\n";
+  content += "            },\n";
+  content += "            \"condition\": {\n";
+  content += "                \"type\": \"equals\",\n";
+  content += "                \"lhs\": \"${hostSystemName}\",\n";
+  content += "                \"rhs\": \"Linux\"\n";
+  content += "            }\n";
+  content += "        },\n";
+  content += "        {\n";
+  content += "            \"name\": \"win-amd64-debug\",\n";
+  content += "            \"displayName\": \"Windows AMD64 Debug\",\n";
+  content += "            \"inherits\": \"windows-base\",\n";
+  content += "            \"cacheVariables\": { \"CMAKE_BUILD_TYPE\": \"Debug\" }\n";
+  content += "        },\n";
+  content += "        {\n";
+  content += "            \"name\": \"win-amd64-release\",\n";
+  content += "            \"displayName\": \"Windows AMD64 Release\",\n";
+  content += "            \"inherits\": \"windows-base\",\n";
+  content += "            \"cacheVariables\": { \"CMAKE_BUILD_TYPE\": \"Release\" }\n";
+  content += "        },\n";
+  content += "        {\n";
+  content += "            \"name\": \"linux-amd64-debug\",\n";
+  content += "            \"displayName\": \"Linux AMD64 Debug\",\n";
+  content += "            \"inherits\": \"linux-base\",\n";
+  content += "            \"cacheVariables\": { \"CMAKE_BUILD_TYPE\": \"Debug\" }\n";
+  content += "        },\n";
+  content += "        {\n";
+  content += "            \"name\": \"linux-amd64-release\",\n";
+  content += "            \"displayName\": \"Linux AMD64 Release\",\n";
+  content += "            \"inherits\": \"linux-base\",\n";
+  content += "            \"cacheVariables\": { \"CMAKE_BUILD_TYPE\": \"Release\" }\n";
+  content += "        },\n";
+  content += "        {\n";
+  content += "            \"name\": \"win-amd64-relwithdebinfo\",\n";
+  content += "            \"displayName\": \"Windows AMD64 RelWithDebInfo\",\n";
+  content += "            \"inherits\": \"windows-base\",\n";
+  content += "            \"cacheVariables\": { \"CMAKE_BUILD_TYPE\": \"RelWithDebInfo\" }\n";
+  content += "        },\n";
+  content += "        {\n";
+  content += "            \"name\": \"linux-amd64-relwithdebinfo\",\n";
+  content += "            \"displayName\": \"Linux AMD64 RelWithDebInfo\",\n";
+  content += "            \"inherits\": \"linux-base\",\n";
+  content += "            \"cacheVariables\": { \"CMAKE_BUILD_TYPE\": \"RelWithDebInfo\" }\n";
+  content += "        }\n";
+  content += "    ],\n";
+  content += "    \"buildPresets\": [\n";
+  content +=
+      "        { \"name\": \"win-amd64-debug\", \"configurePreset\": \"win-amd64-debug\" },\n";
+  content +=
+      "        { \"name\": \"win-amd64-release\", \"configurePreset\": \"win-amd64-release\" },\n";
+  content +=
+      "        { \"name\": \"win-amd64-relwithdebinfo\", \"configurePreset\": "
+      "\"win-amd64-relwithdebinfo\" },\n";
+  content +=
+      "        { \"name\": \"linux-amd64-debug\", \"configurePreset\": \"linux-amd64-debug\" },\n";
+  content +=
+      "        { \"name\": \"linux-amd64-release\", \"configurePreset\": \"linux-amd64-release\" "
+      "},\n";
+  content +=
+      "        { \"name\": \"linux-amd64-relwithdebinfo\", \"configurePreset\": "
+      "\"linux-amd64-relwithdebinfo\" }\n";
+  content += "    ]\n";
+  content += "}\n";
 
-    return content;
+  return content;
 }
 
 // Write a file with given content
 bool write_file(const fs::path& path, const std::string& content) {
-    std::ofstream file(path);
-    if (!file) {
-        REXLOG_ERROR("Failed to create file: {}", path.string());
-        return false;
-    }
-    file << content;
-    return true;
+  std::ofstream file(path);
+  if (!file) {
+    REXLOG_ERROR("Failed to create file: {}", path.string());
+    return false;
+  }
+  file << content;
+  return true;
 }
-} // anonymous namespace
+}  // anonymous namespace
 
 Result<void> InitProject(const InitOptions& opts, const CliContext& ctx) {
-    (void)ctx;  // Currently unused
+  (void)ctx;  // Currently unused
 
-    // Validate required options
-    if (opts.app_name.empty()) {
-        return Err<void>(ErrorCategory::Config, "--app_name is required");
-    }
-    if (opts.app_root.empty()) {
-        return Err<void>(ErrorCategory::Config, "--app_root is required");
-    }
+  // Validate required options
+  if (opts.app_name.empty()) {
+    return Err<void>(ErrorCategory::Config, "--app_name is required");
+  }
+  if (opts.app_root.empty()) {
+    return Err<void>(ErrorCategory::Config, "--app_root is required");
+  }
 
-    // Validate and parse app name
-    std::string validation_error;
-    if (!validate_app_name(opts.app_name, validation_error)) {
-        return Err<void>(ErrorCategory::Config, validation_error);
-    }
-    auto names = parse_app_name(opts.app_name);
+  // Validate and parse app name
+  std::string validation_error;
+  if (!validate_app_name(opts.app_name, validation_error)) {
+    return Err<void>(ErrorCategory::Config, validation_error);
+  }
+  auto names = parse_app_name(opts.app_name);
 
-    fs::path root = fs::absolute(opts.app_root);
+  fs::path root = fs::absolute(opts.app_root);
 
-    REXLOG_INFO("Initializing project '{}' at: {}", names.snake_case, root.string());
-    REXLOG_INFO("Mode: {}", opts.sdk_example ? "SDK example" : "standalone");
+  REXLOG_INFO("Initializing project '{}' at: {}", names.snake_case, root.string());
+  REXLOG_INFO("Mode: {}", opts.sdk_example ? "SDK example" : "standalone");
 
-    // Check if directory exists and has contents
-    if (fs::exists(root)) {
-        if (!fs::is_directory(root)) {
-            return Err<void>(ErrorCategory::IO, "Path exists but is not a directory: " + root.string());
-        }
-
-        bool has_contents = false;
-        for (const auto& entry : fs::directory_iterator(root)) {
-            (void)entry;
-            has_contents = true;
-            break;
-        }
-
-        if (has_contents && !opts.force) {
-            return Err<void>(ErrorCategory::IO, "Directory is not empty. Use --force to overwrite: " + root.string());
-        }
+  // Check if directory exists and has contents
+  if (fs::exists(root)) {
+    if (!fs::is_directory(root)) {
+      return Err<void>(ErrorCategory::IO, "Path exists but is not a directory: " + root.string());
     }
 
-    // Create directory structure
-    REXLOG_INFO("Creating directory structure...");
-
-    std::error_code ec;
-    fs::create_directories(root, ec);
-    if (ec) {
-        return Err<void>(ErrorCategory::IO, "Failed to create root directory: " + ec.message());
+    bool has_contents = false;
+    for (const auto& entry : fs::directory_iterator(root)) {
+      (void)entry;
+      has_contents = true;
+      break;
     }
 
-    fs::create_directories(root / "src", ec);
-    if (ec) {
-        return Err<void>(ErrorCategory::IO, "Failed to create src directory: " + ec.message());
+    if (has_contents && !opts.force) {
+      return Err<void>(ErrorCategory::IO,
+                       "Directory is not empty. Use --force to overwrite: " + root.string());
     }
+  }
 
-    fs::create_directories(root / "generated", ec);
-    if (ec) {
-        return Err<void>(ErrorCategory::IO, "Failed to create generated directory: " + ec.message());
-    }
+  // Create directory structure
+  REXLOG_INFO("Creating directory structure...");
 
-    // Generate files
-    REXLOG_INFO("Generating project files...");
+  std::error_code ec;
+  fs::create_directories(root, ec);
+  if (ec) {
+    return Err<void>(ErrorCategory::IO, "Failed to create root directory: " + ec.message());
+  }
 
-    if (!write_file(root / "CMakeLists.txt", generate_cmakelists(names))) {
-        return Err<void>(ErrorCategory::IO, "Failed to write CMakeLists.txt");
-    }
-    REXLOG_DEBUG("  Created CMakeLists.txt");
+  fs::create_directories(root / "src", ec);
+  if (ec) {
+    return Err<void>(ErrorCategory::IO, "Failed to create src directory: " + ec.message());
+  }
 
-    if (!write_file(root / "src" / "main.cpp", generate_main_cpp(names))) {
-        return Err<void>(ErrorCategory::IO, "Failed to write main.cpp");
-    }
-    REXLOG_DEBUG("  Created src/main.cpp");
+  fs::create_directories(root / "generated", ec);
+  if (ec) {
+    return Err<void>(ErrorCategory::IO, "Failed to create generated directory: " + ec.message());
+  }
 
-    std::string config_filename = names.snake_case + "_config.toml";
-    if (!write_file(root / config_filename, generate_config_toml(names))) {
-        return Err<void>(ErrorCategory::IO, "Failed to write config.toml");
-    }
-    REXLOG_DEBUG("  Created {}", config_filename);
+  // Generate files
+  REXLOG_INFO("Generating project files...");
 
-    if (!write_file(root / "CMakePresets.json", generate_cmake_presets())) {
-        return Err<void>(ErrorCategory::IO, "Failed to write CMakePresets.json");
-    }
-    REXLOG_DEBUG("  Created CMakePresets.json");
+  if (!write_file(root / "CMakeLists.txt", generate_cmakelists(names))) {
+    return Err<void>(ErrorCategory::IO, "Failed to write CMakeLists.txt");
+  }
+  REXLOG_DEBUG("  Created CMakeLists.txt");
 
-    // Print success message with next steps
-    REXLOG_INFO("Project '{}' initialized in '{}' successfully!", names.snake_case, opts.app_root);
+  if (!write_file(root / "src" / "main.cpp", generate_main_cpp(names))) {
+    return Err<void>(ErrorCategory::IO, "Failed to write main.cpp");
+  }
+  REXLOG_DEBUG("  Created src/main.cpp");
 
-    return Ok();
+  std::string config_filename = names.snake_case + "_config.toml";
+  if (!write_file(root / config_filename, generate_config_toml(names))) {
+    return Err<void>(ErrorCategory::IO, "Failed to write config.toml");
+  }
+  REXLOG_DEBUG("  Created {}", config_filename);
+
+  if (!write_file(root / "CMakePresets.json", generate_cmake_presets())) {
+    return Err<void>(ErrorCategory::IO, "Failed to write CMakePresets.json");
+  }
+  REXLOG_DEBUG("  Created CMakePresets.json");
+
+  // Print success message with next steps
+  REXLOG_INFO("Project '{}' initialized in '{}' successfully!", names.snake_case, opts.app_root);
+
+  return Ok();
 }
 
-} // namespace rexglue::cli
+}  // namespace rexglue::cli

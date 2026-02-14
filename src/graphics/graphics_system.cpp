@@ -9,35 +9,30 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/graphics/graphics_system.h>
-
 #include <cstdint>
 #include <functional>
 #include <memory>
 #include <mutex>
 #include <utility>
 
-#include <rex/runtime/guest/context.h>
-#include <rex/stream.h>
-#include <rex/runtime/processor.h>
+#include <rex/cvar.h>
+#include <rex/graphics/command_processor.h>
+#include <rex/graphics/flags.h>
+#include <rex/graphics/graphics_system.h>
 #include <rex/logging.h>
 #include <rex/memory/utils.h>
-#include <rex/graphics/command_processor.h>
-#include <rex/cvar.h>
-#include <rex/graphics/flags.h>
-#include <rex/kernel/kernel_state.h>
-#include <rex/kernel/xthread.h>
+#include <rex/ppc/context.h>
+#include <rex/stream.h>
+#include <rex/system/kernel_state.h>
+#include <rex/system/processor.h>
+#include <rex/system/xthread.h>
 #include <rex/ui/graphics_provider.h>
 #include <rex/ui/window.h>
 #include <rex/ui/windowed_app_context.h>
 
-REXCVAR_DEFINE_STRING(trace_gpu_prefix, "",
-    "GPU trace file prefix",
-    "GPU");
+REXCVAR_DEFINE_STRING(trace_gpu_prefix, "", "GPU trace file prefix", "GPU");
 
-REXCVAR_DEFINE_BOOL(trace_gpu_stream, false,
-    "Enable GPU trace streaming",
-    "GPU");
+REXCVAR_DEFINE_BOOL(trace_gpu_stream, false, "Enable GPU trace streaming", "GPU");
 
 namespace {
 constexpr bool kStoreShaders = true;
@@ -61,64 +56,60 @@ GraphicsSystem::GraphicsSystem() : vsync_worker_running_(false) {}
 
 GraphicsSystem::~GraphicsSystem() = default;
 
-X_STATUS GraphicsSystem::Setup(runtime::Processor* processor, 
-                                kernel::KernelState* kernel_state,
-                               ui::WindowedAppContext* app_context,
-                               bool with_presentation) {
-    memory_ = processor->memory();
-    processor_ = processor;
+X_STATUS GraphicsSystem::Setup(runtime::Processor* processor, system::KernelState* kernel_state,
+                               ui::WindowedAppContext* app_context, bool with_presentation) {
+  memory_ = processor->memory();
+  processor_ = processor;
   kernel_state_ = kernel_state;
   app_context_ = app_context;
 
   // Create presenter if presentation is requested and provider is available
   if (with_presentation && provider_) {
-      // Safe if either the UI thread call or the presenter creation fails.
-      if (app_context_) {
-          app_context_->CallInUIThreadSynchronous([this]() {
-              presenter_ = provider_->CreatePresenter(
-                  [this](bool is_responsible, bool statically_from_ui_thread) {
-                      OnHostGpuLossFromAnyThread(is_responsible);
-                  });
-              });
-      }
-      else {
-          // May be needed for offscreen use, such as capturing the guest output
-          // image.
-          presenter_ = provider_->CreatePresenter(
-              [this](bool is_responsible, bool statically_from_ui_thread) {
-                  OnHostGpuLossFromAnyThread(is_responsible);
-              });
-      }
+    // Safe if either the UI thread call or the presenter creation fails.
+    if (app_context_) {
+      app_context_->CallInUIThreadSynchronous([this]() {
+        presenter_ =
+            provider_->CreatePresenter([this](bool is_responsible, bool statically_from_ui_thread) {
+              OnHostGpuLossFromAnyThread(is_responsible);
+            });
+      });
+    } else {
+      // May be needed for offscreen use, such as capturing the guest output
+      // image.
+      presenter_ =
+          provider_->CreatePresenter([this](bool is_responsible, bool statically_from_ui_thread) {
+            OnHostGpuLossFromAnyThread(is_responsible);
+          });
+    }
   }
 
   // Create command processor. This will spin up a thread to process all
   // incoming ringbuffer packets.
   command_processor_ = CreateCommandProcessor();
-    if (!command_processor_->Initialize()) {
-      REXGPU_ERROR("Unable to initialize command processor");
-      return X_STATUS_UNSUCCESSFUL;
-    }
+  if (!command_processor_->Initialize()) {
+    REXGPU_ERROR("Unable to initialize command processor");
+    return X_STATUS_UNSUCCESSFUL;
+  }
 
   // Register GPU MMIO handlers
   // GPU registers are at 0x7FC80000-0x7FCFFFFF
-  memory_->AddVirtualMappedRange(
-      0x7FC80000,  // base address
-      0xFFFF0000,  // mask
-      0x0000FFFF,  // size (64KB)
-      this,        // context (GraphicsSystem*)
-      reinterpret_cast<runtime::MMIOReadCallback>(ReadRegisterThunk),
-      reinterpret_cast<runtime::MMIOWriteCallback>(WriteRegisterThunk));
+  memory_->AddVirtualMappedRange(0x7FC80000,  // base address
+                                 0xFFFF0000,  // mask
+                                 0x0000FFFF,  // size (64KB)
+                                 this,        // context (GraphicsSystem*)
+                                 reinterpret_cast<runtime::MMIOReadCallback>(ReadRegisterThunk),
+                                 reinterpret_cast<runtime::MMIOWriteCallback>(WriteRegisterThunk));
 
   // 60hz vsync timer.
   vsync_worker_running_ = true;
-  vsync_worker_thread_ = kernel::object_ref<kernel::XHostThread>(
-      new kernel::XHostThread(kernel_state_, 128 * 1024, 0, [this]() {
+  vsync_worker_thread_ = system::object_ref<system::XHostThread>(
+      new system::XHostThread(kernel_state_, 128 * 1024, 0, [this]() {
         uint64_t vsync_duration = REXCVAR_GET(vsync) ? 16 : 1;
         uint64_t last_frame_time = chrono::Clock::QueryGuestTickCount();
         while (vsync_worker_running_) {
           uint64_t current_time = chrono::Clock::QueryGuestTickCount();
-          uint64_t elapsed = (current_time - last_frame_time) /
-                             (chrono::Clock::guest_tick_frequency() / 1000);
+          uint64_t elapsed =
+              (current_time - last_frame_time) / (chrono::Clock::guest_tick_frequency() / 1000);
           if (elapsed >= vsync_duration) {
             MarkVblank();
             last_frame_time = current_time;
@@ -153,20 +144,19 @@ void GraphicsSystem::Shutdown() {
   }
 
   if (presenter_) {
-      if (app_context_) {
-          app_context_->CallInUIThreadSynchronous([this]() { presenter_.reset(); });
-      }
-      // If there's no app context (thus the presenter is owned by the thread that
-      // initialized the GraphicsSystem) or can't be queueing UI thread calls
-      // anymore, shutdown anyway.
-      presenter_.reset();
+    if (app_context_) {
+      app_context_->CallInUIThreadSynchronous([this]() { presenter_.reset(); });
+    }
+    // If there's no app context (thus the presenter is owned by the thread that
+    // initialized the GraphicsSystem) or can't be queueing UI thread calls
+    // anymore, shutdown anyway.
+    presenter_.reset();
   }
 
   provider_.reset();
 }
 
-void GraphicsSystem::OnHostGpuLossFromAnyThread(
-    [[maybe_unused]] bool is_responsible) {
+void GraphicsSystem::OnHostGpuLossFromAnyThread([[maybe_unused]] bool is_responsible) {
   // TODO(Triang3l): Somehow gain exclusive ownership of the Provider (may be
   // used by the command processor, the presenter, and possibly anything else,
   // it's considered free-threaded, except for lifetime management which will be
@@ -183,13 +173,12 @@ void GraphicsSystem::OnHostGpuLossFromAnyThread(
   rex::FatalError("Graphics device lost (probably due to an internal error)");
 }
 
-uint32_t GraphicsSystem::ReadRegisterThunk(void* ppc_context,
-                                           GraphicsSystem* gs, uint32_t addr) {
+uint32_t GraphicsSystem::ReadRegisterThunk(void* ppc_context, GraphicsSystem* gs, uint32_t addr) {
   return gs->ReadRegister(addr);
 }
 
-void GraphicsSystem::WriteRegisterThunk(void* ppc_context, GraphicsSystem* gs,
-                                        uint32_t addr, uint32_t value) {
+void GraphicsSystem::WriteRegisterThunk(void* ppc_context, GraphicsSystem* gs, uint32_t addr,
+                                        uint32_t value) {
   gs->WriteRegister(addr, value);
 }
 
@@ -224,7 +213,7 @@ void GraphicsSystem::WriteRegister(uint32_t addr, uint32_t value) {
 
   switch (r) {
     case 0x01C5:  // CP_RB_WPTR
-        command_processor_->UpdateWritePointer(value);
+      command_processor_->UpdateWritePointer(value);
       break;
     case 0x1844:  // AVIVO_D1GRPH_PRIMARY_SURFACE_ADDRESS
       break;
@@ -238,16 +227,14 @@ void GraphicsSystem::WriteRegister(uint32_t addr, uint32_t value) {
 }
 
 void GraphicsSystem::InitializeRingBuffer(uint32_t ptr, uint32_t size_log2) {
-    command_processor_->InitializeRingBuffer(ptr, size_log2);
+  command_processor_->InitializeRingBuffer(ptr, size_log2);
 }
 
-void GraphicsSystem::EnableReadPointerWriteBack(uint32_t ptr,
-                                                uint32_t block_size_log2) {
-    command_processor_->EnableReadPointerWriteBack(ptr, block_size_log2);
+void GraphicsSystem::EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size_log2) {
+  command_processor_->EnableReadPointerWriteBack(ptr, block_size_log2);
 }
 
-void GraphicsSystem::SetInterruptCallback(uint32_t callback,
-                                          uint32_t user_data) {
+void GraphicsSystem::SetInterruptCallback(uint32_t callback, uint32_t user_data) {
   interrupt_callback_ = callback;
   interrupt_callback_data_ = user_data;
   REXGPU_INFO("SetInterruptCallback({:08X}, {:08X})", callback, user_data);
@@ -258,7 +245,7 @@ void GraphicsSystem::DispatchInterruptCallback(uint32_t source, uint32_t cpu) {
     return;
   }
 
-  auto thread = kernel::XThread::GetCurrentThread();
+  auto thread = system::XThread::GetCurrentThread();
   assert_not_null(thread);
 
   // Pick a CPU, if needed. We're going to guess 2. Because.
@@ -270,9 +257,9 @@ void GraphicsSystem::DispatchInterruptCallback(uint32_t source, uint32_t cpu) {
   // REXGPU_INFO("Dispatching GPU interrupt at {:08X} w/ mode {} on cpu {}",
   //          interrupt_callback_, source, cpu);
 
-  uint64_t args[] = { source, interrupt_callback_data_ };
-  processor_->ExecuteInterrupt(thread->thread_state(), interrupt_callback_,
-      args, rex::countof(args));
+  uint64_t args[] = {source, interrupt_callback_data_};
+  processor_->ExecuteInterrupt(thread->thread_state(), interrupt_callback_, args,
+                               rex::countof(args));
 }
 
 void GraphicsSystem::MarkVblank() {
@@ -291,12 +278,11 @@ void GraphicsSystem::MarkVblank() {
 }
 
 void GraphicsSystem::ClearCaches() {
-    command_processor_->CallInThread(
-        [&]() { command_processor_->ClearCaches(); });
-  }
+  command_processor_->CallInThread([&]() { command_processor_->ClearCaches(); });
+}
 
-void GraphicsSystem::InitializeShaderStorage(
-    const std::filesystem::path& cache_root, uint32_t title_id, bool blocking) {
+void GraphicsSystem::InitializeShaderStorage(const std::filesystem::path& cache_root,
+                                             uint32_t title_id, bool blocking) {
   if (!kStoreShaders) {
     return;
   }
@@ -321,37 +307,37 @@ void GraphicsSystem::InitializeShaderStorage(
 }
 
 void GraphicsSystem::RequestFrameTrace() {
-    command_processor_->RequestFrameTrace(REXCVAR_GET(trace_gpu_prefix));
+  command_processor_->RequestFrameTrace(REXCVAR_GET(trace_gpu_prefix));
 }
 
 void GraphicsSystem::BeginTracing() {
-    command_processor_->BeginTracing(REXCVAR_GET(trace_gpu_prefix));
+  command_processor_->BeginTracing(REXCVAR_GET(trace_gpu_prefix));
 }
 
 void GraphicsSystem::EndTracing() {
-    command_processor_->EndTracing();
+  command_processor_->EndTracing();
 }
 
 void GraphicsSystem::Pause() {
   paused_ = true;
-    command_processor_->Pause();
+  command_processor_->Pause();
 }
 
 void GraphicsSystem::Resume() {
   paused_ = false;
-    command_processor_->Resume();
-  }
+  command_processor_->Resume();
+}
 
 bool GraphicsSystem::Save(::rex::stream::ByteStream* stream) {
   stream->Write<uint32_t>(interrupt_callback_);
   stream->Write<uint32_t>(interrupt_callback_data_);
-    return command_processor_->Save(stream);
-  }
+  return command_processor_->Save(stream);
+}
 
 bool GraphicsSystem::Restore(::rex::stream::ByteStream* stream) {
   interrupt_callback_ = stream->Read<uint32_t>();
   interrupt_callback_data_ = stream->Read<uint32_t>();
-    return command_processor_->Restore(stream);
+  return command_processor_->Restore(stream);
 }
 
 }  // namespace rex::graphics

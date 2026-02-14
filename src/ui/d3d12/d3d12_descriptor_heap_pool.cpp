@@ -9,18 +9,20 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/ui/d3d12/d3d12_descriptor_heap_pool.h>
-
 #include <rex/assert.h>
 #include <rex/logging.h>
+#include <rex/ui/d3d12/d3d12_descriptor_heap_pool.h>
 
 namespace rex::ui::d3d12 {
 
-D3D12DescriptorHeapPool::D3D12DescriptorHeapPool(
-    ID3D12Device* device, D3D12_DESCRIPTOR_HEAP_TYPE type, uint32_t page_size)
+D3D12DescriptorHeapPool::D3D12DescriptorHeapPool(ID3D12Device* device,
+                                                 D3D12_DESCRIPTOR_HEAP_TYPE type,
+                                                 uint32_t page_size)
     : device_(device), type_(type), page_size_(page_size) {}
 
-D3D12DescriptorHeapPool::~D3D12DescriptorHeapPool() { ClearCache(); }
+D3D12DescriptorHeapPool::~D3D12DescriptorHeapPool() {
+  ClearCache();
+}
 
 void D3D12DescriptorHeapPool::Reclaim(uint64_t completed_submission_index) {
   while (submitted_first_) {
@@ -80,26 +82,20 @@ void D3D12DescriptorHeapPool::ClearCache() {
   writable_last_ = nullptr;
 }
 
-uint64_t D3D12DescriptorHeapPool::Request(uint64_t submission_index,
-                                          uint64_t previous_heap_index,
+uint64_t D3D12DescriptorHeapPool::Request(uint64_t submission_index, uint64_t previous_heap_index,
                                           uint32_t count_for_partial_update,
-                                          uint32_t count_for_full_update,
-                                          uint32_t& index_out) {
+                                          uint32_t count_for_full_update, uint32_t& index_out) {
   assert_true(count_for_partial_update <= count_for_full_update);
   assert_true(count_for_full_update <= page_size_);
-  if (count_for_partial_update > count_for_full_update ||
-      count_for_full_update > page_size_) {
+  if (count_for_partial_update > count_for_full_update || count_for_full_update > page_size_) {
     return kHeapIndexInvalid;
   }
-  assert_true(!current_page_used_ ||
-              submission_index >= writable_first_->last_submission_index);
-  assert_true(!submitted_last_ ||
-              submission_index >= submitted_last_->last_submission_index);
+  assert_true(!current_page_used_ || submission_index >= writable_first_->last_submission_index);
+  assert_true(!submitted_last_ || submission_index >= submitted_last_->last_submission_index);
   // If the last full update happened on the current page, a partial update is
   // possible.
-  uint32_t count = previous_heap_index == current_heap_index_
-                       ? count_for_partial_update
-                       : count_for_full_update;
+  uint32_t count =
+      previous_heap_index == current_heap_index_ ? count_for_partial_update : count_for_full_update;
   // Go to the next page if there's not enough free space on the current one,
   // or because the previous page may be outdated. In this case, a full update
   // is necessary.
@@ -128,10 +124,8 @@ uint64_t D3D12DescriptorHeapPool::Request(uint64_t submission_index,
     new_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     new_heap_desc.NodeMask = 0;
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> new_heap;
-    if (FAILED(device_->CreateDescriptorHeap(&new_heap_desc,
-                                             IID_PPV_ARGS(&new_heap)))) {
-      REXLOG_ERROR("Failed to create a heap for {} shader-visible descriptors",
-             page_size_);
+    if (FAILED(device_->CreateDescriptorHeap(&new_heap_desc, IID_PPV_ARGS(&new_heap)))) {
+      REXLOG_ERROR("Failed to create a heap for {} shader-visible descriptors", page_size_);
       return kHeapIndexInvalid;
     }
     writable_first_ = new Page;

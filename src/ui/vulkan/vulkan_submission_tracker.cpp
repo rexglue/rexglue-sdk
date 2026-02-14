@@ -9,11 +9,10 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/ui/vulkan/submission_tracker.h>
-
 #include <cstdint>
 
 #include <rex/assert.h>
+#include <rex/ui/vulkan/submission_tracker.h>
 #include <rex/ui/vulkan/util.h>
 
 namespace rex {
@@ -32,8 +31,8 @@ VulkanSubmissionTracker::FenceAcquisition::~FenceAcquisition() {
       submission_tracker_->fences_reclaimed_.push_back(fence_);
     } else {
       // Left in the pending state.
-      submission_tracker_->fences_pending_.emplace_back(
-          submission_tracker_->submission_current_, fence_);
+      submission_tracker_->fences_pending_.emplace_back(submission_tracker_->submission_current_,
+                                                        fence_);
     }
     submission_tracker_->fence_acquired_ = VK_NULL_HANDLE;
   }
@@ -76,8 +75,7 @@ uint64_t VulkanSubmissionTracker::UpdateAndGetCompletedSubmission() {
     const VulkanDevice::Functions& dfn = vulkan_device_->functions();
     const VkDevice device = vulkan_device_->device();
     while (!fences_pending_.empty()) {
-      const std::pair<uint64_t, VkFence>& pending_pair =
-          fences_pending_.front();
+      const std::pair<uint64_t, VkFence>& pending_pair = fences_pending_.front();
       assert_true(pending_pair.first > submission_completed_on_gpu_);
       if (dfn.vkGetFenceStatus(device, pending_pair.second) != VK_SUCCESS) {
         break;
@@ -90,8 +88,7 @@ uint64_t VulkanSubmissionTracker::UpdateAndGetCompletedSubmission() {
   return submission_completed_on_gpu_;
 }
 
-bool VulkanSubmissionTracker::AwaitSubmissionCompletion(
-    uint64_t submission_index) {
+bool VulkanSubmissionTracker::AwaitSubmissionCompletion(uint64_t submission_index) {
   // The tracker itself can't give a submission index for a submission that
   // hasn't even started being recorded yet, the client has provided a
   // completely invalid value or has done overly optimistic math if such an
@@ -118,13 +115,12 @@ bool VulkanSubmissionTracker::AwaitSubmissionCompletion(
     const VulkanDevice::Functions& dfn = vulkan_device_->functions();
     const VkDevice device = vulkan_device_->device();
     while (reclaim_end) {
-      const std::pair<uint64_t, VkFence>& pending_pair =
-          fences_pending_[reclaim_end - 1];
+      const std::pair<uint64_t, VkFence>& pending_pair = fences_pending_[reclaim_end - 1];
       assert_true(pending_pair.first > submission_completed_on_gpu_);
       if (pending_pair.first <= submission_index) {
         // Wait if requested.
-        if (dfn.vkWaitForFences(device, 1, &pending_pair.second, VK_TRUE,
-                                UINT64_MAX) == VK_SUCCESS) {
+        if (dfn.vkWaitForFences(device, 1, &pending_pair.second, VK_TRUE, UINT64_MAX) ==
+            VK_SUCCESS) {
           break;
         }
       }
@@ -173,4 +169,4 @@ VulkanSubmissionTracker::AcquireFenceToAdvanceSubmission() {
 
 }  // namespace vulkan
 }  // namespace ui
-}  // namespace xe
+}  // namespace rex

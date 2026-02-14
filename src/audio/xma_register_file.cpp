@@ -9,15 +9,16 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/audio/xma/register_file.h>
-
 #include <cstring>
 
+#include <rex/audio/xma/register_file.h>
 #include <rex/math.h>
 
 namespace rex::audio {
 
-XmaRegisterFile::XmaRegisterFile() { std::memset(values, 0, sizeof(values)); }
+XmaRegisterFile::XmaRegisterFile() {
+  std::memset(values, 0, sizeof(values));
+}
 
 const XmaRegisterInfo* XmaRegisterFile::GetRegisterInfo(uint32_t index) {
   switch (index) {

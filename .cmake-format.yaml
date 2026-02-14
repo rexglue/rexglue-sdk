@@ -1,0 +1,19 @@
+format:
+  line_width: 100
+  tab_size: 2
+  use_tabchars: false
+  fractional_tab_policy: use-space
+  max_subgroups_hwrap: 2
+  max_pargs_hwrap: 6
+  max_rows_cmdline: 2
+  separate_ctrl_name_with_space: true
+  separate_fn_name_with_space: false
+  dangle_parens: true
+  dangle_align: prefix
+  min_prefix_chars: 4
+  max_prefix_chars: 10
+  command_case: lower
+  keyword_case: upper
+
+markup:
+  enable_markup: false

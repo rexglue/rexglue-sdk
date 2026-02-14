@@ -10,14 +10,18 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <cstdint>
 #include <memory>
 
 #include <rex/ui/surface.h>
 
-// Must be included before Windows headers for things like NOMINMAX.
-#include <rex/platform/win.h>
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
 
 namespace rex {
 namespace ui {
@@ -25,8 +29,7 @@ namespace ui {
 #if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP | WINAPI_PARTITION_GAMES)
 class Win32HwndSurface final : public Surface {
  public:
-  explicit Win32HwndSurface(HINSTANCE hinstance, HWND hwnd)
-      : hinstance_(hinstance), hwnd_(hwnd) {}
+  explicit Win32HwndSurface(HINSTANCE hinstance, HWND hwnd) : hinstance_(hinstance), hwnd_(hwnd) {}
   TypeIndex GetType() const override { return kTypeIndex_Win32Hwnd; }
   HINSTANCE hinstance() const { return hinstance_; }
   HWND hwnd() const { return hwnd_; }
@@ -41,5 +44,4 @@ class Win32HwndSurface final : public Surface {
 #endif
 
 }  // namespace ui
-}  // namespace xe
-
+}  // namespace rex

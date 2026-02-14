@@ -22,18 +22,18 @@ namespace rex {
 //=============================================================================
 
 enum class ErrorCategory {
-    NoError,         // No error (success)
-    IO,              // File I/O errors
-    Memory,          // Memory allocation/mapping errors
-    Format,          // File format parsing errors (XEX, PE, ELF)
-    Crypto,          // Cryptography errors (decryption, signature)
-    Compression,     // Decompression errors
-    Runtime,         // Runtime execution errors
-    Platform,        // Platform-specific errors
-    Config,          // Configuration errors
-    Validation,      // Validation errors (e.g., unresolved functions)
-    NotFound,        // Resource not found
-    NotImplemented,  // Feature not implemented
+  NoError,         // No error (success)
+  IO,              // File I/O errors
+  Memory,          // Memory allocation/mapping errors
+  Format,          // File format parsing errors (XEX, PE, ELF)
+  Crypto,          // Cryptography errors (decryption, signature)
+  Compression,     // Decompression errors
+  Runtime,         // Runtime execution errors
+  Platform,        // Platform-specific errors
+  Config,          // Configuration errors
+  Validation,      // Validation errors (e.g., unresolved functions)
+  NotFound,        // Resource not found
+  NotImplemented,  // Feature not implemented
 };
 
 //=============================================================================
@@ -41,36 +41,34 @@ enum class ErrorCategory {
 //=============================================================================
 
 struct Error {
-    ErrorCategory category = ErrorCategory::NoError;
-    std::string message;
-    int code = 0;  // Platform or library-specific error code
+  ErrorCategory category = ErrorCategory::NoError;
+  std::string message;
+  int code = 0;  // Platform or library-specific error code
 
-    Error() = default;
+  Error() = default;
 
-    Error(ErrorCategory cat, std::string msg, int err_code = 0)
-        : category(cat), message(std::move(msg)), code(err_code) {}
+  Error(ErrorCategory cat, std::string msg, int err_code = 0)
+      : category(cat), message(std::move(msg)), code(err_code) {}
 
-    // Create from system error code
-    static Error from_errno(ErrorCategory cat, std::string msg, int errno_value) {
-        return Error(cat, std::move(msg), errno_value);
+  // Create from system error code
+  static Error from_errno(ErrorCategory cat, std::string msg, int errno_value) {
+    return Error(cat, std::move(msg), errno_value);
+  }
+
+  // Check if error represents success
+  [[nodiscard]] bool is_success() const noexcept { return category == ErrorCategory::NoError; }
+
+  // Get full error description
+  [[nodiscard]] std::string what() const {
+    if (is_success()) {
+      return "Success";
     }
-
-    // Check if error represents success
-    [[nodiscard]] bool is_success() const noexcept {
-        return category == ErrorCategory::NoError;
+    std::string result = message;
+    if (code != 0) {
+      result += " (code: " + std::to_string(code) + ")";
     }
-
-    // Get full error description
-    [[nodiscard]] std::string what() const {
-        if (is_success()) {
-            return "Success";
-        }
-        std::string result = message;
-        if (code != 0) {
-            result += " (code: " + std::to_string(code) + ")";
-        }
-        return result;
-    }
+    return result;
+  }
 };
 
 //=============================================================================
@@ -87,7 +85,7 @@ struct Error {
  *       Error err = result.error();  // Failure
  *   }
  */
-template<typename T>
+template <typename T>
 using Result = std::expected<T, Error>;
 
 /**
@@ -102,36 +100,36 @@ using VoidResult = std::expected<void, Error>;
 /**
  * Create a success result
  */
-template<typename T>
+template <typename T>
 inline Result<T> Ok(T&& value) {
-    return Result<T>(std::forward<T>(value));
+  return Result<T>(std::forward<T>(value));
 }
 
 /**
  * Create a success result for void operations
  */
 inline VoidResult Ok() {
-    return VoidResult();
+  return VoidResult();
 }
 
 /**
  * Create an error result
  */
-template<typename T = void>
+template <typename T = void>
 inline auto Err(Error error) {
-    if constexpr (std::is_void_v<T>) {
-        return VoidResult(std::unexpected(std::move(error)));
-    } else {
-        return Result<T>(std::unexpected(std::move(error)));
-    }
+  if constexpr (std::is_void_v<T>) {
+    return VoidResult(std::unexpected(std::move(error)));
+  } else {
+    return Result<T>(std::unexpected(std::move(error)));
+  }
 }
 
 /**
  * Create an error result (convenience overload)
  */
-template<typename T = void>
+template <typename T = void>
 inline auto Err(ErrorCategory category, std::string message, int code = 0) {
-    return Err<T>(Error(category, std::move(message), code));
+  return Err<T>(Error(category, std::move(message), code));
 }
 
 }  // namespace rex
@@ -161,12 +159,11 @@ inline auto Err(ErrorCategory category, std::string message, int code = 0) {
 #define REX_TRY_CONCAT_IMPL(x, y) x##y
 #define REX_TRY_CONCAT(x, y) REX_TRY_CONCAT_IMPL(x, y)
 
-#define TRY(expr)                                                              \
-    ({                                                                         \
-        auto REX_TRY_CONCAT(_rex_try_result_, __LINE__) = (expr);              \
-        if (!REX_TRY_CONCAT(_rex_try_result_, __LINE__)) {                     \
-            return std::unexpected(                                            \
-                REX_TRY_CONCAT(_rex_try_result_, __LINE__).error());           \
-        }                                                                      \
-        std::move(REX_TRY_CONCAT(_rex_try_result_, __LINE__)).value();         \
-    })
+#define TRY(expr)                                                                 \
+  ({                                                                              \
+    auto REX_TRY_CONCAT(_rex_try_result_, __LINE__) = (expr);                     \
+    if (!REX_TRY_CONCAT(_rex_try_result_, __LINE__)) {                            \
+      return std::unexpected(REX_TRY_CONCAT(_rex_try_result_, __LINE__).error()); \
+    }                                                                             \
+    std::move(REX_TRY_CONCAT(_rex_try_result_, __LINE__)).value();                \
+  })

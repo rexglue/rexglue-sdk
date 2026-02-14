@@ -12,27 +12,29 @@
 #pragma once
 
 #include "../builder_context.h"
-#include <rex/codegen/recompiler.h>
-#include <rex/codegen/recompiled_function.h>
-#include <rex/logging.h>
-#include <ppc-inst.h>
-#include <dis-asm.h>
+
 #include <cstring>
+
+#include <rex/codegen/recompiled_function.h>
+#include <rex/codegen/recompiler.h>
+#include <rex/logging.h>
+
+#include <dis-asm.h>
+#include <ppc-inst.h>
 
 namespace rex::codegen {
 
 /**
-* Compute a 64-bit mask for PPC rotate/mask instructions.
-* @param mstart Starting bit position (0-63)
-* @param mstop Ending bit position (0-63)
-* @return 64-bit mask with bits set between mstart and mstop
-*/
-inline uint64_t compute_mask(uint32_t mstart, uint32_t mstop)
-{
-    mstart &= 0x3F;
-    mstop &= 0x3F;
-    uint64_t value = (UINT64_MAX >> mstart) ^ ((mstop >= 63) ? 0 : UINT64_MAX >> (mstop + 1));
-    return mstart <= mstop ? value : ~value;
+ * Compute a 64-bit mask for PPC rotate/mask instructions.
+ * @param mstart Starting bit position (0-63)
+ * @param mstop Ending bit position (0-63)
+ * @return 64-bit mask with bits set between mstart and mstop
+ */
+inline uint64_t compute_mask(uint32_t mstart, uint32_t mstop) {
+  mstart &= 0x3F;
+  mstop &= 0x3F;
+  uint64_t value = (UINT64_MAX >> mstart) ^ ((mstop >= 63) ? 0 : UINT64_MAX >> (mstop + 1));
+  return mstart <= mstop ? value : ~value;
 }
 
 //=============================================================================
@@ -41,8 +43,8 @@ inline uint64_t compute_mask(uint32_t mstart, uint32_t mstop)
 
 /// Map PPC BI field bit index (0-3) to CRRegister member name.
 inline const char* crBitName(uint32_t bi) {
-    static constexpr const char* names[] = { "lt", "gt", "eq", "so" };
-    return names[bi & 3];
+  static constexpr const char* names[] = {"lt", "gt", "eq", "so"};
+  return names[bi & 3];
 }
 
 //=============================================================================
@@ -57,9 +59,8 @@ inline const char* crBitName(uint32_t bi) {
  * @param insn The ppc_insn being processed
  * @return true if the instruction name contains '.' (record form)
  */
-inline bool isRecordForm(const ppc_insn& insn)
-{
-    return std::strchr(insn.opcode->name, '.') != nullptr;
+inline bool isRecordForm(const ppc_insn& insn) {
+  return std::strchr(insn.opcode->name, '.') != nullptr;
 }
 
 /**
@@ -74,13 +75,11 @@ inline bool isRecordForm(const ppc_insn& insn)
  *
  * @param ctx The builder context containing the instruction being processed
  */
-inline void emitRecordFormCompare(BuilderContext& ctx)
-{
-    if (isRecordForm(ctx.insn))
-    {
-        ctx.println("\t{}.compare<int32_t>({}.s32, 0, {});",
-            ctx.cr(0), ctx.r(ctx.insn.operands[0]), ctx.xer());
-    }
+inline void emitRecordFormCompare(BuilderContext& ctx) {
+  if (isRecordForm(ctx.insn)) {
+    ctx.println("\t{}.compare<int32_t>({}.s32, 0, {});", ctx.cr(0), ctx.r(ctx.insn.operands[0]),
+                ctx.xer());
+  }
 }
 
 /**
@@ -96,42 +95,34 @@ inline void emitRecordFormCompare(BuilderContext& ctx)
  * @param invertB If true, invert the value of crB before the operation
  * @param invertResult If true, invert the final result before storing in crD
  */
-inline void emitCRBitOperation(BuilderContext& ctx, std::string_view op,
-    bool invertA = false, bool invertB = false, bool invertResult = false)
-{
-    uint32_t crD = ctx.insn.operands[0];
-    uint32_t crA = ctx.insn.operands[1];
-    uint32_t crB = ctx.insn.operands[2];
+inline void emitCRBitOperation(BuilderContext& ctx, std::string_view op, bool invertA = false,
+                               bool invertB = false, bool invertResult = false) {
+  uint32_t crD = ctx.insn.operands[0];
+  uint32_t crA = ctx.insn.operands[1];
+  uint32_t crB = ctx.insn.operands[2];
 
-    uint32_t crField_D = crD / 4;
-    uint32_t crBit_D = crD % 4;
-    uint32_t crField_A = crA / 4;
-    uint32_t crBit_A = crA % 4;
-    uint32_t crField_B = crB / 4;
-    uint32_t crBit_B = crB % 4;
+  uint32_t crField_D = crD / 4;
+  uint32_t crBit_D = crD % 4;
+  uint32_t crField_A = crA / 4;
+  uint32_t crBit_A = crA % 4;
+  uint32_t crField_B = crB / 4;
+  uint32_t crBit_B = crB % 4;
 
-    std::string aExpr = fmt::format(
-        "{}.{}",
-        ctx.cr(crField_A),
-        crBitName(crBit_A));
+  std::string aExpr = fmt::format("{}.{}", ctx.cr(crField_A), crBitName(crBit_A));
 
-    std::string bExpr = fmt::format(
-        "{}.{}",
-        ctx.cr(crField_B),
-        crBitName(crBit_B));
+  std::string bExpr = fmt::format("{}.{}", ctx.cr(crField_B), crBitName(crBit_B));
 
-    if (invertA) 
-        aExpr = "!(" + aExpr + ")";
-    if (invertB) 
-        bExpr = "!(" + bExpr + ")";
+  if (invertA)
+    aExpr = "!(" + aExpr + ")";
+  if (invertB)
+    bExpr = "!(" + bExpr + ")";
 
-    std::string expr = fmt::format("{} {} {}", aExpr, op, bExpr);
+  std::string expr = fmt::format("{} {} {}", aExpr, op, bExpr);
 
-    if (invertResult)
-        expr = "!(" + expr + ")";
+  if (invertResult)
+    expr = "!(" + expr + ")";
 
-    ctx.println("\t{}.{} = {};",
-        ctx.cr(crField_D), crBitName(crBit_D), expr);
+  ctx.println("\t{}.{} = {};", ctx.cr(crField_D), crBitName(crBit_D), expr);
 }
 
 //=============================================================================
@@ -147,19 +138,14 @@ inline void emitCRBitOperation(BuilderContext& ctx, std::string_view op,
  * @param ctx The builder context
  * @param load_macro The PPC_LOAD_* macro to use (e.g., "PPC_LOAD_U8")
  */
-inline void emitLoadWithUpdate(BuilderContext& ctx, const char* load_macro)
-{
-    // EA = displacement + rA
-    ctx.println("\t{} = {} + {}.u32;",
-        ctx.ea(),
-        static_cast<int32_t>(ctx.insn.operands[1]),
-        ctx.r(ctx.insn.operands[2]));
-    // rD = MEM[EA]
-    ctx.println("\t{}.u64 = {}({});",
-        ctx.r(ctx.insn.operands[0]), load_macro, ctx.ea());
-    // rA = EA (update)
-    ctx.println("\t{}.u32 = {};",
-        ctx.r(ctx.insn.operands[2]), ctx.ea());
+inline void emitLoadWithUpdate(BuilderContext& ctx, const char* load_macro) {
+  // EA = displacement + rA
+  ctx.println("\t{} = {} + {}.u32;", ctx.ea(), static_cast<int32_t>(ctx.insn.operands[1]),
+              ctx.r(ctx.insn.operands[2]));
+  // rD = MEM[EA]
+  ctx.println("\t{}.u64 = {}({});", ctx.r(ctx.insn.operands[0]), load_macro, ctx.ea());
+  // rA = EA (update)
+  ctx.println("\t{}.u32 = {};", ctx.r(ctx.insn.operands[2]), ctx.ea());
 }
 
 /**
@@ -172,19 +158,14 @@ inline void emitLoadWithUpdate(BuilderContext& ctx, const char* load_macro)
  * @param store_macro The PPC_STORE_* macro to use (e.g., "PPC_STORE_U8")
  * @param field The register field to store (e.g., "u8", "u32", "u64")
  */
-inline void emitStoreWithUpdate(BuilderContext& ctx, const char* store_macro, const char* field)
-{
-    // EA = displacement + rA
-    ctx.println("\t{} = {} + {}.u32;",
-        ctx.ea(),
-        static_cast<int32_t>(ctx.insn.operands[1]),
-        ctx.r(ctx.insn.operands[2]));
-    // MEM[EA] = rS
-    ctx.println("\t{}({}, {}.{});",
-        store_macro, ctx.ea(), ctx.r(ctx.insn.operands[0]), field);
-    // rA = EA (update)
-    ctx.println("\t{}.u32 = {};",
-        ctx.r(ctx.insn.operands[2]), ctx.ea());
+inline void emitStoreWithUpdate(BuilderContext& ctx, const char* store_macro, const char* field) {
+  // EA = displacement + rA
+  ctx.println("\t{} = {} + {}.u32;", ctx.ea(), static_cast<int32_t>(ctx.insn.operands[1]),
+              ctx.r(ctx.insn.operands[2]));
+  // MEM[EA] = rS
+  ctx.println("\t{}({}, {}.{});", store_macro, ctx.ea(), ctx.r(ctx.insn.operands[0]), field);
+  // rA = EA (update)
+  ctx.println("\t{}.u32 = {};", ctx.r(ctx.insn.operands[2]), ctx.ea());
 }
 
 /**
@@ -195,9 +176,9 @@ inline void emitStoreWithUpdate(BuilderContext& ctx, const char* store_macro, co
  * @param mmio_macro MMIO store macro (e.g., "PPC_MM_STORE_U32")
  * @return The appropriate macro string
  */
-inline const char* getStoreMacro(BuilderContext& ctx, const char* normal_macro, const char* mmio_macro)
-{
-    return ctx.mmio_check_d_form() ? mmio_macro : normal_macro;
+inline const char* getStoreMacro(BuilderContext& ctx, const char* normal_macro,
+                                 const char* mmio_macro) {
+  return ctx.mmio_check_d_form() ? mmio_macro : normal_macro;
 }
 
 //=============================================================================
@@ -214,12 +195,12 @@ inline const char* getStoreMacro(BuilderContext& ctx, const char* normal_macro, 
  * @param cast_type The cast for sign extension (e.g., "int16_t", "int32_t")
  * @param load_macro The PPC_LOAD_* macro to use
  */
-inline void emitSignExtendLoadDForm(BuilderContext& ctx, const char* cast_type, const char* load_macro)
-{
-    ctx.print("\t{}.s64 = {}({}(", ctx.r(ctx.insn.operands[0]), cast_type, load_macro);
-    if (ctx.insn.operands[2] != 0)
-        ctx.print("{}.u32 + ", ctx.r(ctx.insn.operands[2]));
-    ctx.println("{}));", static_cast<int32_t>(ctx.insn.operands[1]));
+inline void emitSignExtendLoadDForm(BuilderContext& ctx, const char* cast_type,
+                                    const char* load_macro) {
+  ctx.print("\t{}.s64 = {}({}(", ctx.r(ctx.insn.operands[0]), cast_type, load_macro);
+  if (ctx.insn.operands[2] != 0)
+    ctx.print("{}.u32 + ", ctx.r(ctx.insn.operands[2]));
+  ctx.println("{}));", static_cast<int32_t>(ctx.insn.operands[1]));
 }
 
 /**
@@ -232,12 +213,12 @@ inline void emitSignExtendLoadDForm(BuilderContext& ctx, const char* cast_type, 
  * @param cast_type The cast for sign extension (e.g., "int16_t", "int32_t")
  * @param load_macro The PPC_LOAD_* macro to use
  */
-inline void emitSignExtendLoadXForm(BuilderContext& ctx, const char* cast_type, const char* load_macro)
-{
-    ctx.print("\t{}.s64 = {}({}(", ctx.r(ctx.insn.operands[0]), cast_type, load_macro);
-    if (ctx.insn.operands[1] != 0)
-        ctx.print("{}.u32 + ", ctx.r(ctx.insn.operands[1]));
-    ctx.println("{}.u32));", ctx.r(ctx.insn.operands[2]));
+inline void emitSignExtendLoadXForm(BuilderContext& ctx, const char* cast_type,
+                                    const char* load_macro) {
+  ctx.print("\t{}.s64 = {}({}(", ctx.r(ctx.insn.operands[0]), cast_type, load_macro);
+  if (ctx.insn.operands[1] != 0)
+    ctx.print("{}.u32 + ", ctx.r(ctx.insn.operands[1]));
+  ctx.println("{}.u32));", ctx.r(ctx.insn.operands[2]));
 }
 
 //=============================================================================
@@ -254,9 +235,8 @@ inline void emitSignExtendLoadXForm(BuilderContext& ctx, const char* cast_type, 
  * @param imm The upper 16 bits loaded by lis/oris
  * @return true if the value matches a known MMIO base address range
  */
-inline bool isMMIOUpperBits(uint32_t imm)
-{
-    return (imm >= 0x7FC8 && imm <= 0x7FCF) || imm == 0x7FEA;
+inline bool isMMIOUpperBits(uint32_t imm) {
+  return (imm >= 0x7FC8 && imm <= 0x7FCF) || imm == 0x7FEA;
 }
 
 //=============================================================================
@@ -275,16 +255,14 @@ inline bool isMMIOUpperBits(uint32_t imm)
  * @param instr_name Instruction mnemonic for the warning message
  */
 inline void emitBranchWithBoundsCheck(BuilderContext& ctx, uint32_t target,
-    std::string_view condition, std::string_view instr_name)
-{
-    if (target < ctx.fn.base() || target >= ctx.fn.end()) {
-        REXCODEGEN_WARN("{} at {:X} branches outside function to {:X}",
-            instr_name, ctx.base, target);
-        ctx.println("\tif ({}) {{ /* branch to 0x{:X} outside function */ return; }}",
-            condition, target);
-    } else {
-        ctx.println("\tif ({}) goto loc_{:X};", condition, target);
-    }
+                                      std::string_view condition, std::string_view instr_name) {
+  if (target < ctx.fn.base() || target >= ctx.fn.end()) {
+    REXCODEGEN_WARN("{} at {:X} branches outside function to {:X}", instr_name, ctx.base, target);
+    ctx.println("\tif ({}) {{ /* branch to 0x{:X} outside function */ return; }}", condition,
+                target);
+  } else {
+    ctx.println("\tif ({}) goto loc_{:X};", condition, target);
+  }
 }
 
 //=============================================================================
@@ -300,18 +278,17 @@ inline void emitBranchWithBoundsCheck(BuilderContext& ctx, uint32_t target,
  * @param ctx The builder context
  * @param align_mask Alignment mask string (e.g., "0xF"), or nullptr for no alignment
  */
-inline void emitVectorEA(BuilderContext& ctx, const char* align_mask = nullptr)
-{
-    if (align_mask)
-        ctx.print("\t{} = (", ctx.ea());
-    else
-        ctx.print("\t{} = ", ctx.ea());
-    if (ctx.insn.operands[1] != 0)
-        ctx.print("{}.u32 + ", ctx.r(ctx.insn.operands[1]));
-    if (align_mask)
-        ctx.println("{}.u32) & ~{};", ctx.r(ctx.insn.operands[2]), align_mask);
-    else
-        ctx.println("{}.u32;", ctx.r(ctx.insn.operands[2]));
+inline void emitVectorEA(BuilderContext& ctx, const char* align_mask = nullptr) {
+  if (align_mask)
+    ctx.print("\t{} = (", ctx.ea());
+  else
+    ctx.print("\t{} = ", ctx.ea());
+  if (ctx.insn.operands[1] != 0)
+    ctx.print("{}.u32 + ", ctx.r(ctx.insn.operands[1]));
+  if (align_mask)
+    ctx.println("{}.u32) & ~{};", ctx.r(ctx.insn.operands[2]), align_mask);
+  else
+    ctx.println("{}.u32;", ctx.r(ctx.insn.operands[2]));
 }
 
 /**
@@ -322,12 +299,11 @@ inline void emitVectorEA(BuilderContext& ctx, const char* align_mask = nullptr)
  *
  * @param ctx The builder context
  */
-inline void emitVectorTempEA(BuilderContext& ctx)
-{
-    ctx.print("\t{}.u32 = ", ctx.temp());
-    if (ctx.insn.operands[1] != 0)
-        ctx.print("{}.u32 + ", ctx.r(ctx.insn.operands[1]));
-    ctx.println("{}.u32;", ctx.r(ctx.insn.operands[2]));
+inline void emitVectorTempEA(BuilderContext& ctx) {
+  ctx.print("\t{}.u32 = ", ctx.temp());
+  if (ctx.insn.operands[1] != 0)
+    ctx.print("{}.u32 + ", ctx.r(ctx.insn.operands[1]));
+  ctx.println("{}.u32;", ctx.r(ctx.insn.operands[2]));
 }
 
 //=============================================================================
@@ -343,25 +319,34 @@ inline void emitVectorTempEA(BuilderContext& ctx)
  * @param bSigned  Second operand, signed (e.g., "ctx.r4.s32" or "-1")
  * @param bUnsigned Second operand, unsigned (e.g., "ctx.r4.u32" or "4294967295u")
  */
-inline void emitTrap(BuilderContext& ctx, uint32_t to,
-    const std::string& aSigned, const std::string& aUnsigned,
-    const std::string& bSigned, const std::string& bUnsigned)
-{
-    if (to == 0) return;
-    if (to == 0x1F) { ctx.println("\tppc_trap(ctx, base, 0);"); return; }
+inline void emitTrap(BuilderContext& ctx, uint32_t to, const std::string& aSigned,
+                     const std::string& aUnsigned, const std::string& bSigned,
+                     const std::string& bUnsigned) {
+  if (to == 0)
+    return;
+  if (to == 0x1F) {
+    ctx.println("\tppc_trap(ctx, base, 0);");
+    return;
+  }
 
-    std::string cond;
-    auto add = [&](std::string_view c) {
-        if (!cond.empty()) cond += " || ";
-        cond += c;
-    };
-    if (to & 0x10) add(fmt::format("{} < {}",  aSigned,   bSigned));
-    if (to & 0x08) add(fmt::format("{} > {}",  aSigned,   bSigned));
-    if (to & 0x04) add(fmt::format("{} == {}", aSigned,   bSigned));
-    if (to & 0x02) add(fmt::format("{} < {}",  aUnsigned, bUnsigned));
-    if (to & 0x01) add(fmt::format("{} > {}",  aUnsigned, bUnsigned));
+  std::string cond;
+  auto add = [&](std::string_view c) {
+    if (!cond.empty())
+      cond += " || ";
+    cond += c;
+  };
+  if (to & 0x10)
+    add(fmt::format("{} < {}", aSigned, bSigned));
+  if (to & 0x08)
+    add(fmt::format("{} > {}", aSigned, bSigned));
+  if (to & 0x04)
+    add(fmt::format("{} == {}", aSigned, bSigned));
+  if (to & 0x02)
+    add(fmt::format("{} < {}", aUnsigned, bUnsigned));
+  if (to & 0x01)
+    add(fmt::format("{} > {}", aUnsigned, bUnsigned));
 
-    ctx.println("\tif ({}) ppc_trap(ctx, base, 0);", cond);
+  ctx.println("\tif ({}) ppc_trap(ctx, base, 0);", cond);
 }
 
-} // namespace rexglue::codegen::builders
+}  // namespace rex::codegen

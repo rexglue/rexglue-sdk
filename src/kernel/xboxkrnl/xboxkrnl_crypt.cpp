@@ -14,16 +14,18 @@
 
 #include <algorithm>
 
+#include <rex/kernel/xboxkrnl/private.h>
 #include <rex/logging.h>
 #include <rex/platform.h>
-#include <rex/kernel/kernel_state.h>
-#include <rex/runtime/guest/function.h>
-#include <rex/runtime/guest/types.h>
-#include <rex/kernel/xboxkrnl/private.h>
-#include <rex/kernel/xtypes.h>
+#include <rex/ppc/function.h>
+#include <rex/ppc/types.h>
+#include <rex/system/kernel_state.h>
+#include <rex/system/xtypes.h>
 
 #ifdef REX_PLATFORM_WIN32
-#include <rex/platform.h>  // for bcrypt.h
+#include <windows.h>
+
+#include <bcrypt.h>
 #endif
 
 #include "crypto/TinySHA1.hpp"
@@ -39,7 +41,6 @@ extern "C" {
 }
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::runtime::guest;
 
 typedef struct {
   uint8_t S[256];  // 0x0
@@ -48,8 +49,8 @@ typedef struct {
 } XECRYPT_RC4_STATE;
 static_assert_size(XECRYPT_RC4_STATE, 0x102);
 
-void XeCryptRc4Key_entry(pointer_t<XECRYPT_RC4_STATE> rc4_ctx, lpvoid_t key,
-                         dword_t key_size) {
+void XeCryptRc4Key_entry(ppc_ptr_t<XECRYPT_RC4_STATE> rc4_ctx, ppc_pvoid_t key,
+                         ppc_u32_t key_size) {
   // Setup RC4 state
   rc4_ctx->i = rc4_ctx->j = 0;
   for (uint32_t x = 0; x < 0x100; x++) {
@@ -65,8 +66,7 @@ void XeCryptRc4Key_entry(pointer_t<XECRYPT_RC4_STATE> rc4_ctx, lpvoid_t key,
   }
 }
 
-void XeCryptRc4Ecb_entry(pointer_t<XECRYPT_RC4_STATE> rc4_ctx, lpvoid_t data,
-                         dword_t size) {
+void XeCryptRc4Ecb_entry(ppc_ptr_t<XECRYPT_RC4_STATE> rc4_ctx, ppc_pvoid_t data, ppc_u32_t size) {
   // Crypt data
   for (uint32_t idx = 0; idx < size; idx++) {
     rc4_ctx->i = (rc4_ctx->i + 1) % 0x100;
@@ -76,23 +76,21 @@ void XeCryptRc4Ecb_entry(pointer_t<XECRYPT_RC4_STATE> rc4_ctx, lpvoid_t data,
     rc4_ctx->S[rc4_ctx->j] = temp;
 
     uint8_t a = data[idx];
-    uint8_t b =
-        rc4_ctx->S[(rc4_ctx->S[rc4_ctx->i] + rc4_ctx->S[rc4_ctx->j]) % 0x100];
+    uint8_t b = rc4_ctx->S[(rc4_ctx->S[rc4_ctx->i] + rc4_ctx->S[rc4_ctx->j]) % 0x100];
     data[idx] = (uint8_t)(a ^ b);
   }
 }
 
-void XeCryptRc4_entry(lpvoid_t key, dword_t key_size, lpvoid_t data,
-                      dword_t size) {
+void XeCryptRc4_entry(ppc_pvoid_t key, ppc_u32_t key_size, ppc_pvoid_t data, ppc_u32_t size) {
   XECRYPT_RC4_STATE rc4_ctx;
-  XeCryptRc4Key_entry(pointer_t<XECRYPT_RC4_STATE>::from_host(&rc4_ctx), key, key_size);
-  XeCryptRc4Ecb_entry(pointer_t<XECRYPT_RC4_STATE>::from_host(&rc4_ctx), data, size);
+  XeCryptRc4Key_entry(ppc_ptr_t<XECRYPT_RC4_STATE>::from_host(&rc4_ctx), key, key_size);
+  XeCryptRc4Ecb_entry(ppc_ptr_t<XECRYPT_RC4_STATE>::from_host(&rc4_ctx), data, size);
 }
 
 typedef struct {
   rex::be<uint32_t> count;     // 0x0
   rex::be<uint32_t> state[5];  // 0x4
-  uint8_t buffer[64];         // 0x18
+  uint8_t buffer[64];          // 0x18
 } XECRYPT_SHA_STATE;
 static_assert_size(XECRYPT_SHA_STATE, 0x58);
 
@@ -110,7 +108,7 @@ void StoreSha1(const sha1::SHA1* sha, XECRYPT_SHA_STATE* state) {
   std::copy_n(sha->getBlock(), sha->getBlockByteIndex(), state->buffer);
 }
 
-void XeCryptShaInit_entry(pointer_t<XECRYPT_SHA_STATE> sha_state) {
+void XeCryptShaInit_entry(ppc_ptr_t<XECRYPT_SHA_STATE> sha_state) {
   sha_state.Zero();
 
   sha_state->state[0] = 0x67452301;
@@ -120,8 +118,8 @@ void XeCryptShaInit_entry(pointer_t<XECRYPT_SHA_STATE> sha_state) {
   sha_state->state[4] = 0xC3D2E1F0;
 }
 
-void XeCryptShaUpdate_entry(pointer_t<XECRYPT_SHA_STATE> sha_state,
-                            lpvoid_t input, dword_t input_size) {
+void XeCryptShaUpdate_entry(ppc_ptr_t<XECRYPT_SHA_STATE> sha_state, ppc_pvoid_t input,
+                            ppc_u32_t input_size) {
   sha1::SHA1 sha;
   InitSha1(&sha, sha_state);
 
@@ -130,23 +128,21 @@ void XeCryptShaUpdate_entry(pointer_t<XECRYPT_SHA_STATE> sha_state,
   StoreSha1(&sha, sha_state);
 }
 
-void XeCryptShaFinal_entry(pointer_t<XECRYPT_SHA_STATE> sha_state,
-                           pointer_t<uint8_t> out, dword_t out_size) {
+void XeCryptShaFinal_entry(ppc_ptr_t<XECRYPT_SHA_STATE> sha_state, ppc_ptr_t<uint8_t> out,
+                           ppc_u32_t out_size) {
   sha1::SHA1 sha;
   InitSha1(&sha, sha_state);
 
   uint8_t digest[0x14];
   sha.finalize(digest);
 
-  std::copy_n(digest, std::min<size_t>(rex::countof(digest), out_size),
-              static_cast<uint8_t*>(out));
+  std::copy_n(digest, std::min<size_t>(rex::countof(digest), out_size), static_cast<uint8_t*>(out));
   std::copy_n(sha.getDigest(), rex::countof(sha_state->state), sha_state->state);
 }
 
-void XeCryptSha_entry(lpvoid_t input_1, dword_t input_1_size, lpvoid_t input_2,
-                      dword_t input_2_size, lpvoid_t input_3,
-                      dword_t input_3_size, lpvoid_t output,
-                      dword_t output_size) {
+void XeCryptSha_entry(ppc_pvoid_t input_1, ppc_u32_t input_1_size, ppc_pvoid_t input_2,
+                      ppc_u32_t input_2_size, ppc_pvoid_t input_3, ppc_u32_t input_3_size,
+                      ppc_pvoid_t output, ppc_u32_t output_size) {
   sha1::SHA1 sha;
 
   if (input_1 && input_1_size) {
@@ -161,18 +157,17 @@ void XeCryptSha_entry(lpvoid_t input_1, dword_t input_1_size, lpvoid_t input_2,
 
   uint8_t digest[0x14];
   sha.finalize(digest);
-  std::copy_n(digest, std::min<size_t>(rex::countof(digest), output_size),
-              output.as<uint8_t*>());
+  std::copy_n(digest, std::min<size_t>(rex::countof(digest), output_size), output.as<uint8_t*>());
 }
 
 // TODO: Size of this struct hasn't been confirmed yet.
 typedef struct {
   rex::be<uint32_t> count;     // 0x0
   rex::be<uint32_t> state[8];  // 0x4
-  uint8_t buffer[64];         // 0x24
+  uint8_t buffer[64];          // 0x24
 } XECRYPT_SHA256_STATE;
 
-void XeCryptSha256Init_entry(pointer_t<XECRYPT_SHA256_STATE> sha_state) {
+void XeCryptSha256Init_entry(ppc_ptr_t<XECRYPT_SHA256_STATE> sha_state) {
   sha_state.Zero();
 
   sha_state->state[0] = 0x6a09e667;
@@ -185,44 +180,37 @@ void XeCryptSha256Init_entry(pointer_t<XECRYPT_SHA256_STATE> sha_state) {
   sha_state->state[7] = 0x5be0cd19;
 }
 
-void XeCryptSha256Update_entry(pointer_t<XECRYPT_SHA256_STATE> sha_state,
-                               lpvoid_t input, dword_t input_size) {
+void XeCryptSha256Update_entry(ppc_ptr_t<XECRYPT_SHA256_STATE> sha_state, ppc_pvoid_t input,
+                               ppc_u32_t input_size) {
   sha256::SHA256 sha;
-  std::copy(std::begin(sha_state->state), std::end(sha_state->state),
-            sha.getHashValues());
-  std::copy(std::begin(sha_state->buffer), std::end(sha_state->buffer),
-            sha.getBuffer());
+  std::copy(std::begin(sha_state->state), std::end(sha_state->state), sha.getHashValues());
+  std::copy(std::begin(sha_state->buffer), std::end(sha_state->buffer), sha.getBuffer());
   sha.setTotalSize(sha_state->count);
 
   sha.add(input, input_size);
 
-  std::copy_n(sha.getHashValues(), rex::countof(sha_state->state),
-              sha_state->state);
-  std::copy_n(sha.getBuffer(), rex::countof(sha_state->buffer),
-              sha_state->buffer);
+  std::copy_n(sha.getHashValues(), rex::countof(sha_state->state), sha_state->state);
+  std::copy_n(sha.getBuffer(), rex::countof(sha_state->buffer), sha_state->buffer);
   sha_state->count = static_cast<uint32_t>(sha.getTotalSize());
 }
 
-void XeCryptSha256Final_entry(pointer_t<XECRYPT_SHA256_STATE> sha_state,
-                              pointer_t<uint8_t> out, dword_t out_size) {
+void XeCryptSha256Final_entry(ppc_ptr_t<XECRYPT_SHA256_STATE> sha_state, ppc_ptr_t<uint8_t> out,
+                              ppc_u32_t out_size) {
   sha256::SHA256 sha;
-  std::copy(std::begin(sha_state->state), std::end(sha_state->state),
-            sha.getHashValues());
-  std::copy(std::begin(sha_state->buffer), std::end(sha_state->buffer),
-            sha.getBuffer());
+  std::copy(std::begin(sha_state->state), std::end(sha_state->state), sha.getHashValues());
+  std::copy(std::begin(sha_state->buffer), std::end(sha_state->buffer), sha.getBuffer());
   sha.setTotalSize(sha_state->count);
 
   uint8_t hash[32];
   sha.getHash(hash);
 
-  std::copy_n(hash, std::min<size_t>(rex::countof(hash), out_size),
-              static_cast<uint8_t*>(out));
+  std::copy_n(hash, std::min<size_t>(rex::countof(hash), out_size), static_cast<uint8_t*>(out));
   std::copy(std::begin(hash), std::end(hash), sha_state->buffer);
 }
 
 // Byteswaps each 8 bytes
-void XeCryptBnQw_SwapDwQwLeBe_entry(pointer_t<uint64_t> qw_inp,
-                                    pointer_t<uint64_t> qw_out, dword_t size) {
+void XeCryptBnQw_SwapDwQwLeBe_entry(ppc_ptr_t<uint64_t> qw_inp, ppc_ptr_t<uint64_t> qw_out,
+                                    ppc_u32_t size) {
   memory::copy_and_swap<uint64_t>(qw_out, qw_inp, size);
 }
 
@@ -235,9 +223,8 @@ typedef struct {
 } XECRYPT_RSA;
 static_assert_size(XECRYPT_RSA, 0x10);
 
-dword_result_t XeCryptBnQwNeRsaPubCrypt_entry(pointer_t<uint64_t> qw_a,
-                                              pointer_t<uint64_t> qw_b,
-                                              pointer_t<XECRYPT_RSA> rsa) {
+ppc_u32_result_t XeCryptBnQwNeRsaPubCrypt_entry(ppc_ptr_t<uint64_t> qw_a, ppc_ptr_t<uint64_t> qw_b,
+                                                ppc_ptr_t<XECRYPT_RSA> rsa) {
   // 0 indicates failure (but not a BOOL return value)
 #ifndef REX_PLATFORM_WIN32
   REXKRNL_ERROR(
@@ -270,8 +257,8 @@ dword_result_t XeCryptBnQwNeRsaPubCrypt_entry(pointer_t<uint64_t> qw_a,
   std::reverse_copy(xecrypt_modulus, xecrypt_modulus + rsa->size, key_modulus);
 
   BCRYPT_ALG_HANDLE hAlgorithm = NULL;
-  NTSTATUS status = BCryptOpenAlgorithmProvider(
-      &hAlgorithm, BCRYPT_RSA_ALGORITHM, MS_PRIMITIVE_PROVIDER, 0);
+  NTSTATUS status =
+      BCryptOpenAlgorithmProvider(&hAlgorithm, BCRYPT_RSA_ALGORITHM, MS_PRIMITIVE_PROVIDER, 0);
 
   if (!BCRYPT_SUCCESS(status)) {
     REXKRNL_ERROR(
@@ -282,8 +269,8 @@ dword_result_t XeCryptBnQwNeRsaPubCrypt_entry(pointer_t<uint64_t> qw_a,
   }
 
   BCRYPT_KEY_HANDLE hKey = NULL;
-  status = BCryptImportKeyPair(hAlgorithm, NULL, BCRYPT_RSAPUBLIC_BLOB, &hKey,
-                               key_buf.get(), key_size, 0);
+  status = BCryptImportKeyPair(hAlgorithm, NULL, BCRYPT_RSAPUBLIC_BLOB, &hKey, key_buf.get(),
+                               key_size, 0);
 
   if (!BCRYPT_SUCCESS(status)) {
     REXKRNL_ERROR(
@@ -307,15 +294,13 @@ dword_result_t XeCryptBnQwNeRsaPubCrypt_entry(pointer_t<uint64_t> qw_a,
   // BCryptDecrypt only works with private keys, fortunately BCryptEncrypt
   // performs the right actions needed for us to decrypt the input
   ULONG result_size = 0;
-  status =
-      BCryptEncrypt(hKey, output_bytes, modulus_size, nullptr, nullptr, 0,
-                    output_bytes, modulus_size, &result_size, BCRYPT_PAD_NONE);
+  status = BCryptEncrypt(hKey, output_bytes, modulus_size, nullptr, nullptr, 0, output_bytes,
+                         modulus_size, &result_size, BCRYPT_PAD_NONE);
 
   assert(result_size == modulus_size);
 
   if (!BCRYPT_SUCCESS(status)) {
-    REXKRNL_ERROR("XeCryptBnQwNeRsaPubCrypt: BCryptEncrypt failed with status {:#X}!",
-           status);
+    REXKRNL_ERROR("XeCryptBnQwNeRsaPubCrypt: BCryptEncrypt failed with status {:#X}!", status);
   } else {
     // Reverse data & byteswap again so data is as game expects
     std::reverse(output_bytes, output_bytes + modulus_size);
@@ -338,13 +323,12 @@ dword_result_t XeCryptBnQwNeRsaPubCrypt_entry(pointer_t<uint64_t> qw_a,
 
 #endif
 
-dword_result_t XeCryptBnDwLePkcs1Verify_entry(lpvoid_t hash, lpvoid_t sig,
-                                              dword_t size) {
+ppc_u32_result_t XeCryptBnDwLePkcs1Verify_entry(ppc_pvoid_t hash, ppc_pvoid_t sig, ppc_u32_t size) {
   // BOOL return value
   return 1;
 }
 
-void XeCryptRandom_entry(lpvoid_t buf, dword_t buf_size) {
+void XeCryptRandom_entry(ppc_pvoid_t buf, ppc_u32_t buf_size) {
   std::memset(buf, 0xFD, buf_size);
 }
 
@@ -353,7 +337,7 @@ struct XECRYPT_DES_STATE {
 };
 
 // Sets bit 0 to make the parity odd
-void XeCryptDesParity_entry(lpvoid_t inp, dword_t inp_size, lpvoid_t out_ptr) {
+void XeCryptDesParity_entry(ppc_pvoid_t inp, ppc_u32_t inp_size, ppc_pvoid_t out_ptr) {
   DES::set_parity(inp, inp_size, out_ptr);
 }
 
@@ -361,8 +345,7 @@ struct XECRYPT_DES3_STATE {
   XECRYPT_DES_STATE des_state[3];
 };
 
-void XeCryptDes3Key_entry(pointer_t<XECRYPT_DES3_STATE> state_ptr,
-                          lpqword_t key) {
+void XeCryptDes3Key_entry(ppc_ptr_t<XECRYPT_DES3_STATE> state_ptr, ppc_pu64_t key) {
   DES3 des3(key[0], key[1], key[2]);
   DES* des = des3.getDES();
 
@@ -372,10 +355,9 @@ void XeCryptDes3Key_entry(pointer_t<XECRYPT_DES3_STATE> state_ptr,
   }
 }
 
-void XeCryptDes3Ecb_entry(pointer_t<XECRYPT_DES3_STATE> state_ptr,
-                          lpqword_t inp, lpqword_t out, dword_t encrypt) {
-  DES3 des3((ui64*)state_ptr->des_state[0].keytab,
-            (ui64*)state_ptr->des_state[1].keytab,
+void XeCryptDes3Ecb_entry(ppc_ptr_t<XECRYPT_DES3_STATE> state_ptr, ppc_pu64_t inp, ppc_pu64_t out,
+                          ppc_u32_t encrypt) {
+  DES3 des3((ui64*)state_ptr->des_state[0].keytab, (ui64*)state_ptr->des_state[1].keytab,
             (ui64*)state_ptr->des_state[2].keytab);
 
   if (encrypt) {
@@ -385,11 +367,9 @@ void XeCryptDes3Ecb_entry(pointer_t<XECRYPT_DES3_STATE> state_ptr,
   }
 }
 
-void XeCryptDes3Cbc_entry(pointer_t<XECRYPT_DES3_STATE> state_ptr,
-                          lpqword_t inp, dword_t inp_size, lpqword_t out,
-                          lpqword_t feed, dword_t encrypt) {
-  DES3 des3((ui64*)state_ptr->des_state[0].keytab,
-            (ui64*)state_ptr->des_state[1].keytab,
+void XeCryptDes3Cbc_entry(ppc_ptr_t<XECRYPT_DES3_STATE> state_ptr, ppc_pu64_t inp,
+                          ppc_u32_t inp_size, ppc_pu64_t out, ppc_pu64_t feed, ppc_u32_t encrypt) {
+  DES3 des3((ui64*)state_ptr->des_state[0].keytab, (ui64*)state_ptr->des_state[1].keytab,
             (ui64*)state_ptr->des_state[2].keytab);
 
   // DES can only do 8-byte chunks at a time!
@@ -420,15 +400,14 @@ static inline uint8_t xeXeCryptAesMul2(uint8_t a) {
   return (a & 0x80) ? ((a << 1) ^ 0x1B) : (a << 1);
 }
 
-void XeCryptAesKey_entry(pointer_t<XECRYPT_AES_STATE> state_ptr, lpvoid_t key) {
+void XeCryptAesKey_entry(ppc_ptr_t<XECRYPT_AES_STATE> state_ptr, ppc_pvoid_t key) {
   aes_key_schedule_128(key, reinterpret_cast<uint8_t*>(state_ptr->keytabenc));
   // Decryption key schedule not needed by openluopworld/aes_128, but generated
   // to fill the context structure properly.
   std::memcpy(state_ptr->keytabdec[0], state_ptr->keytabenc[10], 16);
   // Inverse MixColumns.
   for (uint32_t i = 1; i < 10; ++i) {
-    const uint8_t* enc =
-        reinterpret_cast<const uint8_t*>(state_ptr->keytabenc[10 - i]);
+    const uint8_t* enc = reinterpret_cast<const uint8_t*>(state_ptr->keytabenc[10 - i]);
     uint8_t* dec = reinterpret_cast<uint8_t*>(state_ptr->keytabdec[i]);
     uint8_t t, u, v;
     t = enc[0] ^ enc[1] ^ enc[2] ^ enc[3];
@@ -484,10 +463,9 @@ void XeCryptAesKey_entry(pointer_t<XECRYPT_AES_STATE> state_ptr, lpvoid_t key) {
   // TODO(Triang3l): Verify the order in keytabenc and everything in keytabdec.
 }
 
-void XeCryptAesEcb_entry(pointer_t<XECRYPT_AES_STATE> state_ptr,
-                         lpvoid_t inp_ptr, lpvoid_t out_ptr, dword_t encrypt) {
-  const uint8_t* keytab =
-      reinterpret_cast<const uint8_t*>(state_ptr->keytabenc);
+void XeCryptAesEcb_entry(ppc_ptr_t<XECRYPT_AES_STATE> state_ptr, ppc_pvoid_t inp_ptr,
+                         ppc_pvoid_t out_ptr, ppc_u32_t encrypt) {
+  const uint8_t* keytab = reinterpret_cast<const uint8_t*>(state_ptr->keytabenc);
   if (encrypt) {
     aes_encrypt_128(keytab, inp_ptr, out_ptr);
   } else {
@@ -495,11 +473,10 @@ void XeCryptAesEcb_entry(pointer_t<XECRYPT_AES_STATE> state_ptr,
   }
 }
 
-void XeCryptAesCbc_entry(pointer_t<XECRYPT_AES_STATE> state_ptr,
-                         lpvoid_t inp_ptr, dword_t inp_size, lpvoid_t out_ptr,
-                         lpvoid_t feed_ptr, dword_t encrypt) {
-  const uint8_t* keytab =
-      reinterpret_cast<const uint8_t*>(state_ptr->keytabenc);
+void XeCryptAesCbc_entry(ppc_ptr_t<XECRYPT_AES_STATE> state_ptr, ppc_pvoid_t inp_ptr,
+                         ppc_u32_t inp_size, ppc_pvoid_t out_ptr, ppc_pvoid_t feed_ptr,
+                         ppc_u32_t encrypt) {
+  const uint8_t* keytab = reinterpret_cast<const uint8_t*>(state_ptr->keytabenc);
   const uint8_t* inp = inp_ptr.as<const uint8_t*>();
   uint8_t* out = out_ptr.as<uint8_t*>();
   uint8_t* feed = feed_ptr.as<uint8_t*>();
@@ -529,10 +506,10 @@ void XeCryptAesCbc_entry(pointer_t<XECRYPT_AES_STATE> state_ptr,
   }
 }
 
-void XeCryptHmacSha_entry(lpvoid_t key, dword_t key_size_in, lpvoid_t inp_1,
-                          dword_t inp_1_size, lpvoid_t inp_2,
-                          dword_t inp_2_size, lpvoid_t inp_3,
-                          dword_t inp_3_size, lpvoid_t out, dword_t out_size) {
+void XeCryptHmacSha_entry(ppc_pvoid_t key, ppc_u32_t key_size_in, ppc_pvoid_t inp_1,
+                          ppc_u32_t inp_1_size, ppc_pvoid_t inp_2, ppc_u32_t inp_2_size,
+                          ppc_pvoid_t inp_3, ppc_u32_t inp_3_size, ppc_pvoid_t out,
+                          ppc_u32_t out_size) {
   uint32_t key_size = key_size_in;
   sha1::SHA1 sha;
   uint8_t kpad_i[0x40];
@@ -592,19 +569,17 @@ void XeCryptHmacSha_entry(lpvoid_t key, dword_t key_size_in, lpvoid_t inp_1,
 static const uint8_t key19[] = {0xE1, 0xBC, 0x15, 0x9C, 0x73, 0xB1, 0xEA, 0xE9,
                                 0xAB, 0x31, 0x70, 0xF3, 0xAD, 0x47, 0xEB, 0xF3};
 
-dword_result_t XeKeysHmacSha_entry(dword_t key_num, lpvoid_t inp_1,
-                                   dword_t inp_1_size, lpvoid_t inp_2,
-                                   dword_t inp_2_size, lpvoid_t inp_3,
-                                   dword_t inp_3_size, lpvoid_t out,
-                                   dword_t out_size) {
+ppc_u32_result_t XeKeysHmacSha_entry(ppc_u32_t key_num, ppc_pvoid_t inp_1, ppc_u32_t inp_1_size,
+                                     ppc_pvoid_t inp_2, ppc_u32_t inp_2_size, ppc_pvoid_t inp_3,
+                                     ppc_u32_t inp_3_size, ppc_pvoid_t out, ppc_u32_t out_size) {
   const uint8_t* key = nullptr;
   if (key_num == 0x19) {
     key = key19;
   }
 
   if (key) {
-    XeCryptHmacSha_entry(lpvoid_t::from_host((void*)key), 0x10, inp_1, inp_1_size, inp_2, inp_2_size,
-                         inp_3, inp_3_size, out, out_size);
+    XeCryptHmacSha_entry(ppc_pvoid_t::from_host((void*)key), 0x10, inp_1, inp_1_size, inp_2,
+                         inp_2_size, inp_3, inp_3_size, out, out_size);
 
     return X_STATUS_SUCCESS;
   }
@@ -612,44 +587,46 @@ dword_result_t XeKeysHmacSha_entry(dword_t key_num, lpvoid_t inp_1,
   return X_STATUS_UNSUCCESSFUL;
 }
 
-static const uint8_t xe_key_obfuscation_key[16] = {
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+static const uint8_t xe_key_obfuscation_key[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
-dword_result_t XeKeysAesCbcUsingKey_entry(lpvoid_t obscured_key,
-                                          lpvoid_t inp_ptr, dword_t inp_size,
-                                          lpvoid_t out_ptr, lpvoid_t feed_ptr,
-                                          dword_t encrypt) {
+ppc_u32_result_t XeKeysAesCbcUsingKey_entry(ppc_pvoid_t obscured_key, ppc_pvoid_t inp_ptr,
+                                            ppc_u32_t inp_size, ppc_pvoid_t out_ptr,
+                                            ppc_pvoid_t feed_ptr, ppc_u32_t encrypt) {
   uint8_t key[16];
 
   // Deobscure key
   XECRYPT_AES_STATE aes;
-  XeCryptAesKey_entry(pointer_t<XECRYPT_AES_STATE>::from_host(&aes), lpvoid_t::from_host((void*)xe_key_obfuscation_key));
-  XeCryptAesEcb_entry(pointer_t<XECRYPT_AES_STATE>::from_host(&aes), obscured_key, lpvoid_t::from_host(key), 0);
+  XeCryptAesKey_entry(ppc_ptr_t<XECRYPT_AES_STATE>::from_host(&aes),
+                      ppc_pvoid_t::from_host((void*)xe_key_obfuscation_key));
+  XeCryptAesEcb_entry(ppc_ptr_t<XECRYPT_AES_STATE>::from_host(&aes), obscured_key,
+                      ppc_pvoid_t::from_host(key), 0);
 
   // Run CBC using deobscured key
-  XeCryptAesKey_entry(pointer_t<XECRYPT_AES_STATE>::from_host(&aes), lpvoid_t::from_host(key));
-  XeCryptAesCbc_entry(pointer_t<XECRYPT_AES_STATE>::from_host(&aes), inp_ptr, inp_size, out_ptr, feed_ptr, encrypt);
+  XeCryptAesKey_entry(ppc_ptr_t<XECRYPT_AES_STATE>::from_host(&aes), ppc_pvoid_t::from_host(key));
+  XeCryptAesCbc_entry(ppc_ptr_t<XECRYPT_AES_STATE>::from_host(&aes), inp_ptr, inp_size, out_ptr,
+                      feed_ptr, encrypt);
 
   return X_STATUS_SUCCESS;
 }
 
-dword_result_t XeKeysObscureKey_entry(lpvoid_t input, lpvoid_t output) {
+ppc_u32_result_t XeKeysObscureKey_entry(ppc_pvoid_t input, ppc_pvoid_t output) {
   // Based on HvxKeysObscureKey
   // Seems to encrypt input with per-console KEY_OBFUSCATION_KEY (key 0x18)
 
   XECRYPT_AES_STATE aes;
-  XeCryptAesKey_entry(pointer_t<XECRYPT_AES_STATE>::from_host(&aes), lpvoid_t::from_host((void*)xe_key_obfuscation_key));
-  XeCryptAesEcb_entry(pointer_t<XECRYPT_AES_STATE>::from_host(&aes), input, output, 1);
+  XeCryptAesKey_entry(ppc_ptr_t<XECRYPT_AES_STATE>::from_host(&aes),
+                      ppc_pvoid_t::from_host((void*)xe_key_obfuscation_key));
+  XeCryptAesEcb_entry(ppc_ptr_t<XECRYPT_AES_STATE>::from_host(&aes), input, output, 1);
 
   return X_STATUS_SUCCESS;
 }
 
-dword_result_t XeKeysHmacShaUsingKey_entry(lpvoid_t obscured_key,
-                                           lpvoid_t inp_1, dword_t inp_1_size,
-                                           lpvoid_t inp_2, dword_t inp_2_size,
-                                           lpvoid_t inp_3, dword_t inp_3_size,
-                                           lpvoid_t out, dword_t out_size) {
+ppc_u32_result_t XeKeysHmacShaUsingKey_entry(ppc_pvoid_t obscured_key, ppc_pvoid_t inp_1,
+                                             ppc_u32_t inp_1_size, ppc_pvoid_t inp_2,
+                                             ppc_u32_t inp_2_size, ppc_pvoid_t inp_3,
+                                             ppc_u32_t inp_3_size, ppc_pvoid_t out,
+                                             ppc_u32_t out_size) {
   if (!obscured_key) {
     return X_STATUS_INVALID_PARAMETER;
   }
@@ -658,52 +635,56 @@ dword_result_t XeKeysHmacShaUsingKey_entry(lpvoid_t obscured_key,
 
   // Deobscure key
   XECRYPT_AES_STATE aes;
-  XeCryptAesKey_entry(pointer_t<XECRYPT_AES_STATE>::from_host(&aes), lpvoid_t::from_host((void*)xe_key_obfuscation_key));
-  XeCryptAesEcb_entry(pointer_t<XECRYPT_AES_STATE>::from_host(&aes), obscured_key, lpvoid_t::from_host(key), 0);
+  XeCryptAesKey_entry(ppc_ptr_t<XECRYPT_AES_STATE>::from_host(&aes),
+                      ppc_pvoid_t::from_host((void*)xe_key_obfuscation_key));
+  XeCryptAesEcb_entry(ppc_ptr_t<XECRYPT_AES_STATE>::from_host(&aes), obscured_key,
+                      ppc_pvoid_t::from_host(key), 0);
 
-  XeCryptHmacSha_entry(lpvoid_t::from_host(key), 0x10, inp_1, inp_1_size, inp_2, inp_2_size, inp_3,
-                       inp_3_size, out, out_size);
+  XeCryptHmacSha_entry(ppc_pvoid_t::from_host(key), 0x10, inp_1, inp_1_size, inp_2, inp_2_size,
+                       inp_3, inp_3_size, out, out_size);
   return X_STATUS_SUCCESS;
 }
 
-dword_result_t XeKeysConsolePrivateKeySign_entry(lpvoid_t hash, lpvoid_t signature) {
+ppc_u32_result_t XeKeysConsolePrivateKeySign_entry(ppc_pvoid_t hash, ppc_pvoid_t signature) {
   REXKRNL_DEBUG("XeKeysConsolePrivateKeySign - stub");
   return 0;  // Success
 }
 
-dword_result_t XeKeysConsoleSignatureVerification_entry(
-    lpvoid_t hash, lpvoid_t signature, lpvoid_t pubkey) {
+ppc_u32_result_t XeKeysConsoleSignatureVerification_entry(ppc_pvoid_t hash, ppc_pvoid_t signature,
+                                                          ppc_pvoid_t pubkey) {
   REXKRNL_DEBUG("XeKeysConsoleSignatureVerification - stub");
   return 0;  // Success (signature valid)
 }
 
 }  // namespace rex::kernel::xboxkrnl
 
-GUEST_FUNCTION_HOOK(__imp__XeCryptRc4Key, rex::kernel::xboxkrnl::XeCryptRc4Key_entry)
-GUEST_FUNCTION_HOOK(__imp__XeCryptRc4Ecb, rex::kernel::xboxkrnl::XeCryptRc4Ecb_entry)
-GUEST_FUNCTION_HOOK(__imp__XeCryptRc4, rex::kernel::xboxkrnl::XeCryptRc4_entry)
-GUEST_FUNCTION_HOOK(__imp__XeCryptShaInit, rex::kernel::xboxkrnl::XeCryptShaInit_entry)
-GUEST_FUNCTION_HOOK(__imp__XeCryptShaUpdate, rex::kernel::xboxkrnl::XeCryptShaUpdate_entry)
-GUEST_FUNCTION_HOOK(__imp__XeCryptShaFinal, rex::kernel::xboxkrnl::XeCryptShaFinal_entry)
-GUEST_FUNCTION_HOOK(__imp__XeCryptSha, rex::kernel::xboxkrnl::XeCryptSha_entry)
-GUEST_FUNCTION_HOOK(__imp__XeCryptSha256Init, rex::kernel::xboxkrnl::XeCryptSha256Init_entry)
-GUEST_FUNCTION_HOOK(__imp__XeCryptSha256Update, rex::kernel::xboxkrnl::XeCryptSha256Update_entry)
-GUEST_FUNCTION_HOOK(__imp__XeCryptSha256Final, rex::kernel::xboxkrnl::XeCryptSha256Final_entry)
-GUEST_FUNCTION_HOOK(__imp__XeCryptBnQw_SwapDwQwLeBe, rex::kernel::xboxkrnl::XeCryptBnQw_SwapDwQwLeBe_entry)
-GUEST_FUNCTION_HOOK(__imp__XeCryptBnQwNeRsaPubCrypt, rex::kernel::xboxkrnl::XeCryptBnQwNeRsaPubCrypt_entry)
-GUEST_FUNCTION_HOOK(__imp__XeCryptBnDwLePkcs1Verify, rex::kernel::xboxkrnl::XeCryptBnDwLePkcs1Verify_entry)
-GUEST_FUNCTION_HOOK(__imp__XeCryptRandom, rex::kernel::xboxkrnl::XeCryptRandom_entry)
-GUEST_FUNCTION_HOOK(__imp__XeCryptDesParity, rex::kernel::xboxkrnl::XeCryptDesParity_entry)
-GUEST_FUNCTION_HOOK(__imp__XeCryptDes3Key, rex::kernel::xboxkrnl::XeCryptDes3Key_entry)
-GUEST_FUNCTION_HOOK(__imp__XeCryptDes3Ecb, rex::kernel::xboxkrnl::XeCryptDes3Ecb_entry)
-GUEST_FUNCTION_HOOK(__imp__XeCryptDes3Cbc, rex::kernel::xboxkrnl::XeCryptDes3Cbc_entry)
-GUEST_FUNCTION_HOOK(__imp__XeCryptAesKey, rex::kernel::xboxkrnl::XeCryptAesKey_entry)
-GUEST_FUNCTION_HOOK(__imp__XeCryptAesEcb, rex::kernel::xboxkrnl::XeCryptAesEcb_entry)
-GUEST_FUNCTION_HOOK(__imp__XeCryptAesCbc, rex::kernel::xboxkrnl::XeCryptAesCbc_entry)
-GUEST_FUNCTION_HOOK(__imp__XeCryptHmacSha, rex::kernel::xboxkrnl::XeCryptHmacSha_entry)
-GUEST_FUNCTION_HOOK(__imp__XeKeysHmacSha, rex::kernel::xboxkrnl::XeKeysHmacSha_entry)
-GUEST_FUNCTION_HOOK(__imp__XeKeysAesCbcUsingKey, rex::kernel::xboxkrnl::XeKeysAesCbcUsingKey_entry)
-GUEST_FUNCTION_HOOK(__imp__XeKeysObscureKey, rex::kernel::xboxkrnl::XeKeysObscureKey_entry)
-GUEST_FUNCTION_HOOK(__imp__XeKeysHmacShaUsingKey, rex::kernel::xboxkrnl::XeKeysHmacShaUsingKey_entry)
-GUEST_FUNCTION_HOOK(__imp__XeKeysConsolePrivateKeySign, rex::kernel::xboxkrnl::XeKeysConsolePrivateKeySign_entry)
-GUEST_FUNCTION_HOOK(__imp__XeKeysConsoleSignatureVerification, rex::kernel::xboxkrnl::XeKeysConsoleSignatureVerification_entry)
+PPC_HOOK(__imp__XeCryptRc4Key, rex::kernel::xboxkrnl::XeCryptRc4Key_entry)
+PPC_HOOK(__imp__XeCryptRc4Ecb, rex::kernel::xboxkrnl::XeCryptRc4Ecb_entry)
+PPC_HOOK(__imp__XeCryptRc4, rex::kernel::xboxkrnl::XeCryptRc4_entry)
+PPC_HOOK(__imp__XeCryptShaInit, rex::kernel::xboxkrnl::XeCryptShaInit_entry)
+PPC_HOOK(__imp__XeCryptShaUpdate, rex::kernel::xboxkrnl::XeCryptShaUpdate_entry)
+PPC_HOOK(__imp__XeCryptShaFinal, rex::kernel::xboxkrnl::XeCryptShaFinal_entry)
+PPC_HOOK(__imp__XeCryptSha, rex::kernel::xboxkrnl::XeCryptSha_entry)
+PPC_HOOK(__imp__XeCryptSha256Init, rex::kernel::xboxkrnl::XeCryptSha256Init_entry)
+PPC_HOOK(__imp__XeCryptSha256Update, rex::kernel::xboxkrnl::XeCryptSha256Update_entry)
+PPC_HOOK(__imp__XeCryptSha256Final, rex::kernel::xboxkrnl::XeCryptSha256Final_entry)
+PPC_HOOK(__imp__XeCryptBnQw_SwapDwQwLeBe, rex::kernel::xboxkrnl::XeCryptBnQw_SwapDwQwLeBe_entry)
+PPC_HOOK(__imp__XeCryptBnQwNeRsaPubCrypt, rex::kernel::xboxkrnl::XeCryptBnQwNeRsaPubCrypt_entry)
+PPC_HOOK(__imp__XeCryptBnDwLePkcs1Verify, rex::kernel::xboxkrnl::XeCryptBnDwLePkcs1Verify_entry)
+PPC_HOOK(__imp__XeCryptRandom, rex::kernel::xboxkrnl::XeCryptRandom_entry)
+PPC_HOOK(__imp__XeCryptDesParity, rex::kernel::xboxkrnl::XeCryptDesParity_entry)
+PPC_HOOK(__imp__XeCryptDes3Key, rex::kernel::xboxkrnl::XeCryptDes3Key_entry)
+PPC_HOOK(__imp__XeCryptDes3Ecb, rex::kernel::xboxkrnl::XeCryptDes3Ecb_entry)
+PPC_HOOK(__imp__XeCryptDes3Cbc, rex::kernel::xboxkrnl::XeCryptDes3Cbc_entry)
+PPC_HOOK(__imp__XeCryptAesKey, rex::kernel::xboxkrnl::XeCryptAesKey_entry)
+PPC_HOOK(__imp__XeCryptAesEcb, rex::kernel::xboxkrnl::XeCryptAesEcb_entry)
+PPC_HOOK(__imp__XeCryptAesCbc, rex::kernel::xboxkrnl::XeCryptAesCbc_entry)
+PPC_HOOK(__imp__XeCryptHmacSha, rex::kernel::xboxkrnl::XeCryptHmacSha_entry)
+PPC_HOOK(__imp__XeKeysHmacSha, rex::kernel::xboxkrnl::XeKeysHmacSha_entry)
+PPC_HOOK(__imp__XeKeysAesCbcUsingKey, rex::kernel::xboxkrnl::XeKeysAesCbcUsingKey_entry)
+PPC_HOOK(__imp__XeKeysObscureKey, rex::kernel::xboxkrnl::XeKeysObscureKey_entry)
+PPC_HOOK(__imp__XeKeysHmacShaUsingKey, rex::kernel::xboxkrnl::XeKeysHmacShaUsingKey_entry)
+PPC_HOOK(__imp__XeKeysConsolePrivateKeySign,
+         rex::kernel::xboxkrnl::XeKeysConsolePrivateKeySign_entry)
+PPC_HOOK(__imp__XeKeysConsoleSignatureVerification,
+         rex::kernel::xboxkrnl::XeKeysConsoleSignatureVerification_entry)

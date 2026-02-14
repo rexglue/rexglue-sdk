@@ -10,7 +10,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
@@ -54,11 +53,10 @@ class LinkedTypeDescriptorSetAllocator {
  public:
   // Multiple descriptor sizes for the same descriptor type, and zero sizes, are
   // not allowed.
-  explicit LinkedTypeDescriptorSetAllocator(
-      const VulkanDevice* const vulkan_device,
-      const VkDescriptorPoolSize* const descriptor_sizes,
-      const uint32_t descriptor_size_count,
-      const uint32_t descriptor_sets_per_page)
+  explicit LinkedTypeDescriptorSetAllocator(const VulkanDevice* const vulkan_device,
+                                            const VkDescriptorPoolSize* const descriptor_sizes,
+                                            const uint32_t descriptor_size_count,
+                                            const uint32_t descriptor_sets_per_page)
       : vulkan_device_(vulkan_device),
         descriptor_pool_sizes_(new VkDescriptorPoolSize[descriptor_size_count]),
         descriptor_pool_size_count_(descriptor_size_count),
@@ -78,10 +76,9 @@ class LinkedTypeDescriptorSetAllocator {
     std::memcpy(descriptor_pool_sizes_.get(), descriptor_sizes,
                 sizeof(VkDescriptorPoolSize) * descriptor_size_count);
   }
-  LinkedTypeDescriptorSetAllocator(
-      const LinkedTypeDescriptorSetAllocator& allocator) = delete;
-  LinkedTypeDescriptorSetAllocator& operator=(
-      const LinkedTypeDescriptorSetAllocator& allocator) = delete;
+  LinkedTypeDescriptorSetAllocator(const LinkedTypeDescriptorSetAllocator& allocator) = delete;
+  LinkedTypeDescriptorSetAllocator& operator=(const LinkedTypeDescriptorSetAllocator& allocator) =
+      delete;
   ~LinkedTypeDescriptorSetAllocator() { Reset(); }
 
   void Reset();
@@ -123,5 +120,4 @@ class LinkedTypeDescriptorSetAllocator {
 
 }  // namespace vulkan
 }  // namespace ui
-}  // namespace xe
-
+}  // namespace rex

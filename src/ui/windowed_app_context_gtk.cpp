@@ -33,8 +33,7 @@ void GTKWindowedAppContext::NotifyUILoopOfPendingFunctions() {
   std::lock_guard<std::mutex> pending_functions_idle_pending_lock(
       pending_functions_idle_pending_mutex_);
   if (!pending_functions_idle_pending_) {
-    pending_functions_idle_pending_ =
-        gdk_threads_add_idle(PendingFunctionsSourceFunc, this);
+    pending_functions_idle_pending_ = gdk_threads_add_idle(PendingFunctionsSourceFunc, this);
   }
 }
 
@@ -99,8 +98,7 @@ gboolean GTKWindowedAppContext::QuitSourceFunc(gpointer data) {
   // Quit from all loops in the context, current inner, upcoming inner (this is
   // why the idle function is added even at the main level of 1), until we can
   // return to the tail of RunMainGTKLoop.
-  app_context->quit_idle_pending_ =
-      gdk_threads_add_idle(QuitSourceFunc, app_context);
+  app_context->quit_idle_pending_ = gdk_threads_add_idle(QuitSourceFunc, app_context);
   return G_SOURCE_REMOVE;
 }
 

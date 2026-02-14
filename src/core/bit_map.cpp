@@ -9,17 +9,18 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/bit.h>
-
 #include <rex/assert.h>
-#include <rex/thread/atomic.h>
+#include <rex/bit.h>
 #include <rex/math.h>
+#include <rex/thread/atomic.h>
 
 namespace rex::bit {
 
 BitMap::BitMap() = default;
 
-BitMap::BitMap(size_t size_bits) { Resize(size_bits); }
+BitMap::BitMap(size_t size_bits) {
+  Resize(size_bits);
+}
 
 BitMap::BitMap(uint64_t* data, size_t size_bits) {
   assert_true(size_bits % kDataSizeBits == 0);

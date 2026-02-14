@@ -9,21 +9,23 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <gtk/gtk.h>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <map>
 #include <memory>
 #include <string>
 #include <vector>
 
+#include <spdlog/common.h>
+
 #include <rex/cvar.h>
-#include <rex/logging.h>
 #include <rex/filesystem.h>
+#include <rex/logging.h>
 #include <rex/ui/windowed_app.h>
 #include <rex/ui/windowed_app_context_gtk.h>
-#include <spdlog/common.h>
-#include <filesystem>
+
+#include <gtk/gtk.h>
 
 extern "C" int main(int argc_pre_gtk, char** argv_pre_gtk) {
   // Before touching anything GTK+, make sure that when running on Wayland,
@@ -52,8 +54,7 @@ extern "C" int main(int argc_pre_gtk, char** argv_pre_gtk) {
   {
     rex::ui::GTKWindowedAppContext app_context;
 
-    std::unique_ptr<rex::ui::WindowedApp> app =
-        rex::ui::GetWindowedAppCreator()(app_context);
+    std::unique_ptr<rex::ui::WindowedApp> app = rex::ui::GetWindowedAppCreator()(app_context);
 
     // Match remaining positional args to app's expected options
     const auto& option_names = app->GetPositionalOptions();
@@ -70,12 +71,12 @@ extern "C" int main(int argc_pre_gtk, char** argv_pre_gtk) {
     std::filesystem::path log_path = exe_dir / (app->GetName() + ".log");
 
     try {
-    rex::InitLogging(log_path.string().c_str());
+      rex::InitLogging(log_path.string().c_str());
     } catch (const spdlog::spdlog_ex& e) {
-    // If file logging fails (permissions, ETXTBSY, etc), fall back to console-only.
-    std::fprintf(stderr, "Logging init failed for '%s': %s\n",
-                log_path.string().c_str(), e.what());
-    rex::InitLogging(nullptr);
+      // If file logging fails (permissions, ETXTBSY, etc), fall back to console-only.
+      std::fprintf(stderr, "Logging init failed for '%s': %s\n", log_path.string().c_str(),
+                   e.what());
+      rex::InitLogging(nullptr);
     }
 
     if (app->OnInitialize()) {

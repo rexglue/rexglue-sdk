@@ -10,7 +10,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <vector>
 
 #include <rex/graphics/register_file.h>
@@ -86,16 +85,11 @@ class PacketDisassembler {
  public:
   static PacketCategory GetPacketCategory(const uint8_t* base_ptr);
 
-  static bool DisasmPacketType0(const uint8_t* base_ptr, uint32_t packet,
-                                PacketInfo* out_info);
-  static bool DisasmPacketType1(const uint8_t* base_ptr, uint32_t packet,
-                                PacketInfo* out_info);
-  static bool DisasmPacketType2(const uint8_t* base_ptr, uint32_t packet,
-                                PacketInfo* out_info);
-  static bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet,
-                                PacketInfo* out_info);
+  static bool DisasmPacketType0(const uint8_t* base_ptr, uint32_t packet, PacketInfo* out_info);
+  static bool DisasmPacketType1(const uint8_t* base_ptr, uint32_t packet, PacketInfo* out_info);
+  static bool DisasmPacketType2(const uint8_t* base_ptr, uint32_t packet, PacketInfo* out_info);
+  static bool DisasmPacketType3(const uint8_t* base_ptr, uint32_t packet, PacketInfo* out_info);
   static bool DisasmPacket(const uint8_t* base_ptr, PacketInfo* out_info);
 };
 
 }  // namespace rex::graphics
-

@@ -21,8 +21,7 @@ class NullEntry;
 
 class NullDevice : public Device {
  public:
-  NullDevice(const std::string& mount_path,
-             const std::initializer_list<std::string>& null_paths);
+  NullDevice(const std::string& mount_path, const std::initializer_list<std::string>& null_paths);
   ~NullDevice() override;
 
   bool Initialize() override;
@@ -52,4 +51,3 @@ class NullDevice : public Device {
 };
 
 }  // namespace rex::filesystem
-

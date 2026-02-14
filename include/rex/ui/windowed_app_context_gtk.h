@@ -11,10 +11,11 @@
 
 #pragma once
 
-#include <glib.h>
 #include <mutex>
 
 #include <rex/ui/windowed_app_context.h>
+
+#include <glib.h>
 
 namespace rex {
 namespace ui {

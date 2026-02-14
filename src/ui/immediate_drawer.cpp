@@ -9,13 +9,12 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/ui/immediate_drawer.h>
-
 #include <algorithm>
 
 #include <rex/assert.h>
 #include <rex/math.h>
 #include <rex/ui/graphics_util.h>
+#include <rex/ui/immediate_drawer.h>
 #include <rex/ui/presenter.h>
 
 namespace rex {
@@ -36,8 +35,7 @@ void ImmediateDrawer::SetPresenter(Presenter* new_presenter) {
   }
 }
 
-void ImmediateDrawer::Begin(UIDrawContext& ui_draw_context,
-                            float coordinate_space_width,
+void ImmediateDrawer::Begin(UIDrawContext& ui_draw_context, float coordinate_space_width,
                             float coordinate_space_height) {
   assert_true(&ui_draw_context.presenter() == presenter_);
   ui_draw_context_ = &ui_draw_context;
@@ -52,12 +50,12 @@ void ImmediateDrawer::Begin(UIDrawContext& ui_draw_context,
   coordinate_space_height_ = coordinate_space_height;
 }
 
-void ImmediateDrawer::End() { ui_draw_context_ = nullptr; }
+void ImmediateDrawer::End() {
+  ui_draw_context_ = nullptr;
+}
 
-bool ImmediateDrawer::ScissorToRenderTarget(const ImmediateDraw& immediate_draw,
-                                            uint32_t& out_left,
-                                            uint32_t& out_top,
-                                            uint32_t& out_width,
+bool ImmediateDrawer::ScissorToRenderTarget(const ImmediateDraw& immediate_draw, uint32_t& out_left,
+                                            uint32_t& out_top, uint32_t& out_width,
                                             uint32_t& out_height) {
   uint32_t render_target_width = ui_draw_context()->render_target_width();
   uint32_t render_target_height = ui_draw_context()->render_target_height();
@@ -74,15 +72,15 @@ bool ImmediateDrawer::ScissorToRenderTarget(const ImmediateDraw& immediate_draw,
   // target size, below which the values are representable as 16p8 fixed-point.
   float scale_x = render_target_width / coordinate_space_width();
   float scale_y = render_target_height / coordinate_space_height();
-  float x0_float = rex::clamp_float(immediate_draw.scissor_left * scale_x, 0.0f,
-                                   render_target_width_float);
-  float y0_float = rex::clamp_float(immediate_draw.scissor_top * scale_y, 0.0f,
-                                   render_target_height_float);
+  float x0_float =
+      rex::clamp_float(immediate_draw.scissor_left * scale_x, 0.0f, render_target_width_float);
+  float y0_float =
+      rex::clamp_float(immediate_draw.scissor_top * scale_y, 0.0f, render_target_height_float);
   // Also make sure the size is non-negative.
-  float x1_float = rex::clamp_float(immediate_draw.scissor_right * scale_x,
-                                   x0_float, render_target_width_float);
-  float y1_float = rex::clamp_float(immediate_draw.scissor_bottom * scale_y,
-                                   y0_float, render_target_height_float);
+  float x1_float =
+      rex::clamp_float(immediate_draw.scissor_right * scale_x, x0_float, render_target_width_float);
+  float y1_float = rex::clamp_float(immediate_draw.scissor_bottom * scale_y, y0_float,
+                                    render_target_height_float);
   // Top-left - include .5 (0.128 treated as 0 covered, 0.129 as 0 not covered).
   int32_t x0 = (FloatToD3D11Fixed16p8(x0_float) + 127) >> 8;
   int32_t y0 = (FloatToD3D11Fixed16p8(y0_float) + 127) >> 8;
@@ -103,4 +101,4 @@ bool ImmediateDrawer::ScissorToRenderTarget(const ImmediateDraw& immediate_draw,
 }
 
 }  // namespace ui
-}  // namespace xe
+}  // namespace rex

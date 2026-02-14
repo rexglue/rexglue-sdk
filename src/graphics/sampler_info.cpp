@@ -9,39 +9,33 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/graphics/sampler_info.h>
-
 #include <cstring>
 #include <memory>
 
-#include <rex/xxhash.h>
+#include <rex/graphics/sampler_info.h>
+#include <rex/hash.h>
 
 namespace rex::graphics {
 
 bool SamplerInfo::Prepare(const xenos::xe_gpu_texture_fetch_t& fetch,
-                          const ParsedTextureFetchInstruction& fetch_instr,
-                          SamplerInfo* out_info) {
+                          const ParsedTextureFetchInstruction& fetch_instr, SamplerInfo* out_info) {
   std::memset(out_info, 0, sizeof(SamplerInfo));
 
-  out_info->min_filter =
-      fetch_instr.attributes.min_filter == xenos::TextureFilter::kUseFetchConst
-          ? fetch.min_filter
-          : fetch_instr.attributes.min_filter;
-  out_info->mag_filter =
-      fetch_instr.attributes.mag_filter == xenos::TextureFilter::kUseFetchConst
-          ? fetch.mag_filter
-          : fetch_instr.attributes.mag_filter;
-  out_info->mip_filter =
-      fetch_instr.attributes.mip_filter == xenos::TextureFilter::kUseFetchConst
-          ? fetch.mip_filter
-          : fetch_instr.attributes.mip_filter;
+  out_info->min_filter = fetch_instr.attributes.min_filter == xenos::TextureFilter::kUseFetchConst
+                             ? fetch.min_filter
+                             : fetch_instr.attributes.min_filter;
+  out_info->mag_filter = fetch_instr.attributes.mag_filter == xenos::TextureFilter::kUseFetchConst
+                             ? fetch.mag_filter
+                             : fetch_instr.attributes.mag_filter;
+  out_info->mip_filter = fetch_instr.attributes.mip_filter == xenos::TextureFilter::kUseFetchConst
+                             ? fetch.mip_filter
+                             : fetch_instr.attributes.mip_filter;
   out_info->clamp_u = fetch.clamp_x;
   out_info->clamp_v = fetch.clamp_y;
   out_info->clamp_w = fetch.clamp_z;
-  out_info->aniso_filter =
-      fetch_instr.attributes.aniso_filter == xenos::AnisoFilter::kUseFetchConst
-          ? fetch.aniso_filter
-          : fetch_instr.attributes.aniso_filter;
+  out_info->aniso_filter = fetch_instr.attributes.aniso_filter == xenos::AnisoFilter::kUseFetchConst
+                               ? fetch.aniso_filter
+                               : fetch_instr.attributes.aniso_filter;
 
   out_info->border_color = fetch.border_color;
   out_info->lod_bias = (fetch.lod_bias) / 32.f;

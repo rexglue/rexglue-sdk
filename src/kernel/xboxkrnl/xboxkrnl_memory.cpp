@@ -9,29 +9,28 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
- // Disable warnings about unused parameters for kernel functions
+// Disable warnings about unused parameters for kernel functions
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
 #include <cstring>
 
 #include <rex/assert.h>
+#include <rex/kernel/xboxkrnl/private.h>
 #include <rex/logging.h>
 #include <rex/math.h>
-#include <rex/kernel/kernel_state.h>
-#include <rex/runtime/guest/function.h>
-#include <rex/runtime/guest/types.h>
-#include <rex/kernel/xboxkrnl/private.h>
-#include <rex/kernel/xtypes.h>
+#include <rex/ppc/function.h>
+#include <rex/ppc/types.h>
+#include <rex/system/kernel_state.h>
+#include <rex/system/xtypes.h>
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::runtime::guest;
+using namespace rex::system;
 
 uint32_t ToXdkProtectFlags(uint32_t protect) {
   uint32_t result = 0;
   if (!(protect & memory::kMemoryProtectRead) && !(protect & memory::kMemoryProtectWrite)) {
     result = X_PAGE_NOACCESS;
-  } else if ((protect & memory::kMemoryProtectRead) &&
-             !(protect & memory::kMemoryProtectWrite)) {
+  } else if ((protect & memory::kMemoryProtectRead) && !(protect & memory::kMemoryProtectWrite)) {
     result = X_PAGE_READONLY;
   } else {
     result = X_PAGE_READWRITE;
@@ -49,8 +48,7 @@ uint32_t FromXdkProtectFlags(uint32_t protect) {
   uint32_t result = 0;
   if ((protect & X_PAGE_READONLY) | (protect & X_PAGE_EXECUTE_READ)) {
     result = memory::kMemoryProtectRead;
-  } else if ((protect & X_PAGE_READWRITE) |
-             (protect & X_PAGE_EXECUTE_READWRITE)) {
+  } else if ((protect & X_PAGE_READWRITE) | (protect & X_PAGE_EXECUTE_READWRITE)) {
     result = memory::kMemoryProtectRead | memory::kMemoryProtectWrite;
   }
   if (protect & X_PAGE_NOCACHE) {
@@ -62,15 +60,14 @@ uint32_t FromXdkProtectFlags(uint32_t protect) {
   return result;
 }
 
-dword_result_t NtAllocateVirtualMemory_entry(lpdword_t base_addr_ptr,
-                                             lpdword_t region_size_ptr,
-                                             dword_t alloc_type,
-                                             dword_t protect_bits,
-                                             dword_t debug_memory) {
+ppc_u32_result_t NtAllocateVirtualMemory_entry(ppc_pu32_t base_addr_ptr, ppc_pu32_t region_size_ptr,
+                                               ppc_u32_t alloc_type, ppc_u32_t protect_bits,
+                                               ppc_u32_t debug_memory) {
   uint32_t input_base = base_addr_ptr ? static_cast<uint32_t>(*base_addr_ptr) : 0;
   uint32_t input_size = region_size_ptr ? static_cast<uint32_t>(*region_size_ptr) : 0;
-  REXKRNL_IMPORT_TRACE("NtAllocateVirtualMemory", "base={:#x} size={:#x} type={:#x} protect={:#x} debug={}",
-         input_base, input_size, (uint32_t)alloc_type, (uint32_t)protect_bits, (uint32_t)debug_memory);
+  REXKRNL_IMPORT_TRACE(
+      "NtAllocateVirtualMemory", "base={:#x} size={:#x} type={:#x} protect={:#x} debug={}",
+      input_base, input_size, (uint32_t)alloc_type, (uint32_t)protect_bits, (uint32_t)debug_memory);
 
   // NTSTATUS
   // _Inout_  PVOID *BaseAddress,
@@ -85,8 +82,9 @@ dword_result_t NtAllocateVirtualMemory_entry(lpdword_t base_addr_ptr,
   // Set to TRUE when allocation is from devkit memory area.
   // assert_true(debug_memory == 0);
   // just warn tf am i gunna do about it
-  if((uint32_t)debug_memory != 0)
-    REXKRNL_WARN("attmpted allocation to devkit memory area (debug_memory={})", (uint32_t)debug_memory);
+  if ((uint32_t)debug_memory != 0)
+    REXKRNL_WARN("attmpted allocation to devkit memory area (debug_memory={})",
+                 (uint32_t)debug_memory);
 
   // This allocates memory from the kernel heap, which is initialized on startup
   // and shared by both the kernel implementation and user code.
@@ -106,8 +104,8 @@ dword_result_t NtAllocateVirtualMemory_entry(lpdword_t base_addr_ptr,
     return X_STATUS_INVALID_PARAMETER;
   }
   // Don't allow games to set execute bits.
-  if (protect_bits & (X_PAGE_EXECUTE | X_PAGE_EXECUTE_READ |
-                      X_PAGE_EXECUTE_READWRITE | X_PAGE_EXECUTE_WRITECOPY)) {
+  if (protect_bits & (X_PAGE_EXECUTE | X_PAGE_EXECUTE_READ | X_PAGE_EXECUTE_READWRITE |
+                      X_PAGE_EXECUTE_WRITECOPY)) {
     REXKRNL_WARN("Game setting EXECUTE bit on allocation");
   }
 
@@ -130,9 +128,8 @@ dword_result_t NtAllocateVirtualMemory_entry(lpdword_t base_addr_ptr,
   // Round the base address down to the nearest page boundary.
   uint32_t adjusted_base = *base_addr_ptr - (*base_addr_ptr % page_size);
   // For some reason, some games pass in negative sizes.
-  uint32_t adjusted_size = int32_t(*region_size_ptr) < 0
-                               ? -int32_t(region_size_ptr.value())
-                               : region_size_ptr.value();
+  uint32_t adjusted_size =
+      int32_t(*region_size_ptr) < 0 ? -int32_t(region_size_ptr.value()) : region_size_ptr.value();
   adjusted_size = rex::round_up(adjusted_size, page_size);
 
   // Allocate.
@@ -162,15 +159,13 @@ dword_result_t NtAllocateVirtualMemory_entry(lpdword_t base_addr_ptr,
     was_commited = heap->QueryRegionInfo(adjusted_base, &prev_alloc_info) &&
                    (prev_alloc_info.state & memory::kMemoryAllocationCommit) != 0;
 
-    if (heap->AllocFixed(adjusted_base, adjusted_size, page_size,
-                         allocation_type, protect)) {
+    if (heap->AllocFixed(adjusted_base, adjusted_size, page_size, allocation_type, protect)) {
       address = adjusted_base;
     }
   } else {
     bool top_down = !!(alloc_type & X_MEM_TOP_DOWN);
     heap = kernel_memory()->LookupHeapByType(false, page_size);
-    heap->Alloc(adjusted_size, page_size, allocation_type, protect, top_down,
-                &address);
+    heap->Alloc(adjusted_size, page_size, allocation_type, protect, top_down, &address);
   }
   if (!address) {
     // Failed - assume no memory available.
@@ -196,16 +191,14 @@ dword_result_t NtAllocateVirtualMemory_entry(lpdword_t base_addr_ptr,
   // Maybe set X_STATUS_ALREADY_COMMITTED if MEM_COMMIT?
   *base_addr_ptr = address;
   *region_size_ptr = adjusted_size;
-  REXKRNL_IMPORT_RESULT("NtAllocateVirtualMemory", "0x0 addr={:#x} size={:#x}",
-         address, adjusted_size);
+  REXKRNL_IMPORT_RESULT("NtAllocateVirtualMemory", "0x0 addr={:#x} size={:#x}", address,
+                        adjusted_size);
   return X_STATUS_SUCCESS;
 }
 
-dword_result_t NtProtectVirtualMemory_entry(lpdword_t base_addr_ptr,
-                                            lpdword_t region_size_ptr,
-                                            dword_t protect_bits,
-                                            lpdword_t old_protect,
-                                            dword_t debug_memory) {
+ppc_u32_result_t NtProtectVirtualMemory_entry(ppc_pu32_t base_addr_ptr, ppc_pu32_t region_size_ptr,
+                                              ppc_u32_t protect_bits, ppc_pu32_t old_protect,
+                                              ppc_u32_t debug_memory) {
   // Set to TRUE when this memory refers to devkit memory area.
   assert_true(debug_memory == 0);
 
@@ -215,8 +208,8 @@ dword_result_t NtProtectVirtualMemory_entry(lpdword_t base_addr_ptr,
   }
 
   // Don't allow games to set execute bits.
-  if (protect_bits & (X_PAGE_EXECUTE | X_PAGE_EXECUTE_READ |
-                      X_PAGE_EXECUTE_READWRITE | X_PAGE_EXECUTE_WRITECOPY)) {
+  if (protect_bits & (X_PAGE_EXECUTE | X_PAGE_EXECUTE_READ | X_PAGE_EXECUTE_READWRITE |
+                      X_PAGE_EXECUTE_WRITECOPY)) {
     REXKRNL_WARN("Game setting EXECUTE bit on protect");
     return X_STATUS_ACCESS_DENIED;
   }
@@ -226,8 +219,7 @@ dword_result_t NtProtectVirtualMemory_entry(lpdword_t base_addr_ptr,
     return X_STATUS_INVALID_PARAMETER;
   }
   // Adjust the base downwards to the nearest page boundary.
-  uint32_t adjusted_base =
-      *base_addr_ptr - (*base_addr_ptr % heap->page_size());
+  uint32_t adjusted_base = *base_addr_ptr - (*base_addr_ptr % heap->page_size());
   uint32_t adjusted_size = rex::round_up(*region_size_ptr, heap->page_size());
   uint32_t protect = FromXdkProtectFlags(protect_bits);
 
@@ -250,14 +242,13 @@ dword_result_t NtProtectVirtualMemory_entry(lpdword_t base_addr_ptr,
   return X_STATUS_SUCCESS;
 }
 
-dword_result_t NtFreeVirtualMemory_entry(lpdword_t base_addr_ptr,
-                                         lpdword_t region_size_ptr,
-                                         dword_t free_type,
-                                         dword_t debug_memory) {
+ppc_u32_result_t NtFreeVirtualMemory_entry(ppc_pu32_t base_addr_ptr, ppc_pu32_t region_size_ptr,
+                                           ppc_u32_t free_type, ppc_u32_t debug_memory) {
   uint32_t base_addr_value = *base_addr_ptr;
   uint32_t region_size_value = *region_size_ptr;
   REXKRNL_IMPORT_TRACE("NtFreeVirtualMemory", "base={:#x} size={:#x} type={:#x} debug={}",
-         base_addr_value, region_size_value, (uint32_t)free_type, (uint32_t)debug_memory);
+                       base_addr_value, region_size_value, (uint32_t)free_type,
+                       (uint32_t)debug_memory);
   // X_MEM_DECOMMIT | X_MEM_RELEASE
 
   // NTSTATUS
@@ -307,9 +298,8 @@ struct X_MEMORY_BASIC_INFORMATION {
   be<uint32_t> type;
 };
 
-dword_result_t NtQueryVirtualMemory_entry(
-    dword_t base_address,
-    pointer_t<X_MEMORY_BASIC_INFORMATION> memory_basic_information_ptr) {
+ppc_u32_result_t NtQueryVirtualMemory_entry(
+    ppc_u32_t base_address, ppc_ptr_t<X_MEMORY_BASIC_INFORMATION> memory_basic_information_ptr) {
   auto heap = kernel_state()->memory()->LookupHeap(base_address);
   memory::HeapAllocationInfo alloc_info;
   if (heap == nullptr || !heap->QueryRegionInfo(base_address, &alloc_info)) {
@@ -341,12 +331,13 @@ dword_result_t NtQueryVirtualMemory_entry(
   return X_STATUS_SUCCESS;
 }
 
-dword_result_t MmAllocatePhysicalMemoryEx_entry(
-    dword_t flags, dword_t region_size, dword_t protect_bits,
-    dword_t min_addr_range, dword_t max_addr_range, dword_t alignment) {
-  REXKRNL_IMPORT_TRACE("MmAllocatePhysicalMemoryEx", "flags={:#x} size={:#x} protect={:#x} min={:#x} max={:#x} align={:#x}",
-         (uint32_t)flags, (uint32_t)region_size, (uint32_t)protect_bits,
-         (uint32_t)min_addr_range, (uint32_t)max_addr_range, (uint32_t)alignment);
+ppc_u32_result_t MmAllocatePhysicalMemoryEx_entry(ppc_u32_t flags, ppc_u32_t region_size,
+                                                  ppc_u32_t protect_bits, ppc_u32_t min_addr_range,
+                                                  ppc_u32_t max_addr_range, ppc_u32_t alignment) {
+  REXKRNL_IMPORT_TRACE("MmAllocatePhysicalMemoryEx",
+                       "flags={:#x} size={:#x} protect={:#x} min={:#x} max={:#x} align={:#x}",
+                       (uint32_t)flags, (uint32_t)region_size, (uint32_t)protect_bits,
+                       (uint32_t)min_addr_range, (uint32_t)max_addr_range, (uint32_t)alignment);
 
   // Check protection bits.
   if (!(protect_bits & (X_PAGE_READONLY | X_PAGE_READWRITE))) {
@@ -379,22 +370,19 @@ dword_result_t MmAllocatePhysicalMemoryEx_entry(
   uint32_t allocation_type = memory::kMemoryAllocationReserve | memory::kMemoryAllocationCommit;
   uint32_t protect = FromXdkProtectFlags(protect_bits);
   bool top_down = true;
-  auto heap = static_cast<memory::PhysicalHeap*>(
-      kernel_memory()->LookupHeapByType(true, page_size));
+  auto heap =
+      static_cast<memory::PhysicalHeap*>(kernel_memory()->LookupHeapByType(true, page_size));
   // min_addr_range/max_addr_range are bounds in physical memory, not virtual.
   uint32_t heap_base = heap->heap_base();
   uint32_t heap_physical_address_offset = heap->GetPhysicalAddress(heap_base);
-  uint32_t heap_min_addr =
-      rex::sat_sub(min_addr_range.value(), heap_physical_address_offset);
-  uint32_t heap_max_addr =
-      rex::sat_sub(max_addr_range.value(), heap_physical_address_offset);
+  uint32_t heap_min_addr = rex::sat_sub(min_addr_range.value(), heap_physical_address_offset);
+  uint32_t heap_max_addr = rex::sat_sub(max_addr_range.value(), heap_physical_address_offset);
   uint32_t heap_size = heap->heap_size();
   heap_min_addr = heap_base + std::min(heap_min_addr, heap_size - 1);
   heap_max_addr = heap_base + std::min(heap_max_addr, heap_size - 1);
   uint32_t base_address;
-  if (!heap->AllocRange(heap_min_addr, heap_max_addr, adjusted_size,
-                        adjusted_alignment, allocation_type, protect, top_down,
-                        &base_address)) {
+  if (!heap->AllocRange(heap_min_addr, heap_max_addr, adjusted_size, adjusted_alignment,
+                        allocation_type, protect, top_down, &base_address)) {
     // Failed - assume no memory available.
     return 0;
   }
@@ -403,16 +391,14 @@ dword_result_t MmAllocatePhysicalMemoryEx_entry(
   return base_address;
 }
 
-dword_result_t MmAllocatePhysicalMemory_entry(dword_t flags,
-                                              dword_t region_size,
-                                              dword_t protect_bits) {
-  return MmAllocatePhysicalMemoryEx_entry(flags, region_size, protect_bits, 0,
-                                          0xFFFFFFFFu, 0);
+ppc_u32_result_t MmAllocatePhysicalMemory_entry(ppc_u32_t flags, ppc_u32_t region_size,
+                                                ppc_u32_t protect_bits) {
+  return MmAllocatePhysicalMemoryEx_entry(flags, region_size, protect_bits, 0, 0xFFFFFFFFu, 0);
 }
 
-void MmFreePhysicalMemory_entry(dword_t type, dword_t base_address) {
-  REXKRNL_IMPORT_TRACE("MmFreePhysicalMemory", "type={:#x} addr={:#x}",
-         (uint32_t)type, (uint32_t)base_address);
+void MmFreePhysicalMemory_entry(ppc_u32_t type, ppc_u32_t base_address) {
+  REXKRNL_IMPORT_TRACE("MmFreePhysicalMemory", "type={:#x} addr={:#x}", (uint32_t)type,
+                       (uint32_t)base_address);
 
   assert_true((base_address & 0x1F) == 0);
 
@@ -420,7 +406,7 @@ void MmFreePhysicalMemory_entry(dword_t type, dword_t base_address) {
   heap->Release(base_address);
 }
 
-dword_result_t MmQueryAddressProtect_entry(dword_t base_address) {
+ppc_u32_result_t MmQueryAddressProtect_entry(ppc_u32_t base_address) {
   auto heap = kernel_state()->memory()->LookupHeap(base_address);
   uint32_t access;
   if (!heap->QueryProtect(base_address, &access)) {
@@ -431,22 +417,22 @@ dword_result_t MmQueryAddressProtect_entry(dword_t base_address) {
   return access;
 }
 
-void MmSetAddressProtect_entry(lpvoid_t base_address, dword_t region_size,
-                               dword_t protect_bits) {
+void MmSetAddressProtect_entry(ppc_pvoid_t base_address, ppc_u32_t region_size,
+                               ppc_u32_t protect_bits) {
   if (!protect_bits) {
     REXKRNL_ERROR("MmSetAddressProtect: Failed due to incorrect protect_bits");
     return;
   }
 
   uint32_t protect = FromXdkProtectFlags(protect_bits);
-  auto heap = kernel_memory()->LookupHeap(base_address);
+  auto heap = kernel_memory()->LookupHeap(base_address.guest_address());
   heap->Protect(base_address.guest_address(), region_size, protect);
 }
 
-dword_result_t MmQueryAllocationSize_entry(lpvoid_t base_address) {
-  auto heap = kernel_state()->memory()->LookupHeap(base_address);
+ppc_u32_result_t MmQueryAllocationSize_entry(ppc_pvoid_t base_address) {
+  auto heap = kernel_state()->memory()->LookupHeap(base_address.guest_address());
   uint32_t size;
-  if (!heap->QuerySize(base_address, &size)) {
+  if (!heap->QuerySize(base_address.guest_address(), &size)) {
     size = 0;
   }
 
@@ -478,8 +464,7 @@ struct X_MM_QUERY_STATISTICS_RESULT {
 };
 static_assert_size(X_MM_QUERY_STATISTICS_RESULT, 104);
 
-dword_result_t MmQueryStatistics_entry(
-    pointer_t<X_MM_QUERY_STATISTICS_RESULT> stats_ptr) {
+ppc_u32_result_t MmQueryStatistics_entry(ppc_ptr_t<X_MM_QUERY_STATISTICS_RESULT> stats_ptr) {
   if (!stats_ptr) {
     return X_STATUS_INVALID_PARAMETER;
   }
@@ -511,8 +496,7 @@ dword_result_t MmQueryStatistics_entry(
   assert_not_null(heap_c);
   assert_not_null(heap_e);
 
-#define GET_USED_PAGE_COUNT(x) \
-  (x->GetTotalPageCount() - x->GetUnreservedPageCount())
+#define GET_USED_PAGE_COUNT(x) (x->GetTotalPageCount() - x->GetUnreservedPageCount())
 #define GET_USED_PAGE_SIZE(x) ((GET_USED_PAGE_COUNT(x) * x->page_size()) / 4096)
   uint32_t used_pages = 0;
   used_pages += GET_USED_PAGE_SIZE(heap_a);
@@ -523,13 +507,10 @@ dword_result_t MmQueryStatistics_entry(
 
   assert_true(used_pages < stats_ptr->total_physical_pages);
 
-  stats_ptr->title.available_pages =
-      stats_ptr->total_physical_pages - used_pages;
-  stats_ptr->title.total_virtual_memory_bytes =
-      0x2FFF0000;  // TODO(gibbed): FIXME
-  stats_ptr->title.reserved_virtual_memory_bytes =
-      0x00160000;                                // TODO(gibbed): FIXME
-  stats_ptr->title.physical_pages = 0x00001000;  // TODO(gibbed): FIXME
+  stats_ptr->title.available_pages = stats_ptr->total_physical_pages - used_pages;
+  stats_ptr->title.total_virtual_memory_bytes = 0x2FFF0000;     // TODO(gibbed): FIXME
+  stats_ptr->title.reserved_virtual_memory_bytes = 0x00160000;  // TODO(gibbed): FIXME
+  stats_ptr->title.physical_pages = 0x00001000;                 // TODO(gibbed): FIXME
   stats_ptr->title.pool_pages = 0x00000010;
   stats_ptr->title.stack_pages = 0x00000100;
   stats_ptr->title.image_pages = 0x00000100;
@@ -556,20 +537,20 @@ dword_result_t MmQueryStatistics_entry(
 }
 
 // https://msdn.microsoft.com/en-us/library/windows/hardware/ff554547(v=vs.85).aspx
-dword_result_t MmGetPhysicalAddress_entry(dword_t base_address) {
+ppc_u32_result_t MmGetPhysicalAddress_entry(ppc_u32_t base_address) {
   // base_address = result of MmAllocatePhysicalMemory.
   uint32_t physical_address = kernel_memory()->GetPhysicalAddress(base_address);
   assert_true(physical_address != UINT32_MAX);
   if (physical_address == UINT32_MAX) {
     physical_address = 0;
   }
-  REXKRNL_IMPORT_RESULT("MmGetPhysicalAddress", "addr={:#x} -> {:#x}",
-         (uint32_t)base_address, physical_address);
+  REXKRNL_IMPORT_RESULT("MmGetPhysicalAddress", "addr={:#x} -> {:#x}", (uint32_t)base_address,
+                        physical_address);
   return physical_address;
 }
 
-dword_result_t MmMapIoSpace_entry(dword_t unk0, lpvoid_t src_address,
-                                  dword_t size, dword_t flags) {
+ppc_u32_result_t MmMapIoSpace_entry(ppc_u32_t unk0, ppc_pvoid_t src_address, ppc_u32_t size,
+                                    ppc_u32_t flags) {
   // I've only seen this used to map XMA audio contexts.
   // The code seems fine with taking the src address, so this just returns that.
   // If others start using it there could be problems.
@@ -580,8 +561,7 @@ dword_result_t MmMapIoSpace_entry(dword_t unk0, lpvoid_t src_address,
   return src_address.guest_address();
 }
 
-dword_result_t ExAllocatePoolTypeWithTag_entry(dword_t size, dword_t tag,
-                                               dword_t zero) {
+ppc_u32_result_t ExAllocatePoolTypeWithTag_entry(ppc_u32_t size, ppc_u32_t tag, ppc_u32_t zero) {
   uint32_t alignment = 8;
   uint32_t adjusted_size = size;
   if (adjusted_size < 4 * 1024) {
@@ -590,34 +570,33 @@ dword_result_t ExAllocatePoolTypeWithTag_entry(dword_t size, dword_t tag,
     alignment = 4 * 1024;
   }
 
-  uint32_t addr =
-      kernel_state()->memory()->SystemHeapAlloc(adjusted_size, alignment);
+  uint32_t addr = kernel_state()->memory()->SystemHeapAlloc(adjusted_size, alignment);
 
   return addr;
 }
 
-dword_result_t ExAllocatePool_entry(dword_t size) {
+ppc_u32_result_t ExAllocatePool_entry(ppc_u32_t size) {
   const uint32_t none = 0x656E6F4E;  // 'None'
   return ExAllocatePoolTypeWithTag_entry(size, none, 0);
 }
 
-void ExFreePool_entry(lpvoid_t base_address) {
-  kernel_state()->memory()->SystemHeapFree(base_address);
+void ExFreePool_entry(ppc_pvoid_t base_address) {
+  kernel_state()->memory()->SystemHeapFree(base_address.guest_address());
 }
 
-dword_result_t KeGetImagePageTableEntry_entry(lpvoid_t address) {
+ppc_u32_result_t KeGetImagePageTableEntry_entry(ppc_pvoid_t address) {
   // Unknown
   return 1;
 }
 
-dword_result_t KeLockL2_entry() {
+ppc_u32_result_t KeLockL2_entry() {
   // TODO
   return 0;
 }
 
 void KeUnlockL2_entry() {}
 
-dword_result_t MmCreateKernelStack_entry(dword_t stack_size, dword_t r4) {
+ppc_u32_result_t MmCreateKernelStack_entry(ppc_u32_t stack_size, ppc_u32_t r4) {
   assert_zero(r4);  // Unknown argument.
 
   auto stack_size_aligned = (stack_size + 0xFFF) & 0xFFFFF000;
@@ -628,15 +607,13 @@ dword_result_t MmCreateKernelStack_entry(dword_t stack_size, dword_t r4) {
       ->LookupHeap(0x70000000)
       ->AllocRange(0x70000000, 0x7F000000, stack_size_aligned, stack_alignment,
                    memory::kMemoryAllocationReserve | memory::kMemoryAllocationCommit,
-                   memory::kMemoryProtectRead | memory::kMemoryProtectWrite, false,
-                   &stack_address);
+                   memory::kMemoryProtectRead | memory::kMemoryProtectWrite, false, &stack_address);
   return stack_address + stack_size;
 }
 
-dword_result_t MmDeleteKernelStack_entry(lpvoid_t stack_base,
-                                         lpvoid_t stack_end) {
+ppc_u32_result_t MmDeleteKernelStack_entry(ppc_pvoid_t stack_base, ppc_pvoid_t stack_end) {
   // Release the stack (where stack_end is the low address)
-  if (kernel_memory()->LookupHeap(0x70000000)->Release(stack_end)) {
+  if (kernel_memory()->LookupHeap(0x70000000)->Release(stack_end.guest_address())) {
     return X_STATUS_SUCCESS;
   }
 
@@ -645,24 +622,24 @@ dword_result_t MmDeleteKernelStack_entry(lpvoid_t stack_base,
 
 }  // namespace rex::kernel::xboxkrnl
 
-GUEST_FUNCTION_HOOK(__imp__NtAllocateVirtualMemory, rex::kernel::xboxkrnl::NtAllocateVirtualMemory_entry)
-GUEST_FUNCTION_HOOK(__imp__NtProtectVirtualMemory, rex::kernel::xboxkrnl::NtProtectVirtualMemory_entry)
-GUEST_FUNCTION_HOOK(__imp__NtFreeVirtualMemory, rex::kernel::xboxkrnl::NtFreeVirtualMemory_entry)
-GUEST_FUNCTION_HOOK(__imp__NtQueryVirtualMemory, rex::kernel::xboxkrnl::NtQueryVirtualMemory_entry)
-GUEST_FUNCTION_HOOK(__imp__MmAllocatePhysicalMemoryEx, rex::kernel::xboxkrnl::MmAllocatePhysicalMemoryEx_entry)
-GUEST_FUNCTION_HOOK(__imp__MmAllocatePhysicalMemory, rex::kernel::xboxkrnl::MmAllocatePhysicalMemory_entry)
-GUEST_FUNCTION_HOOK(__imp__MmFreePhysicalMemory, rex::kernel::xboxkrnl::MmFreePhysicalMemory_entry)
-GUEST_FUNCTION_HOOK(__imp__MmQueryAddressProtect, rex::kernel::xboxkrnl::MmQueryAddressProtect_entry)
-GUEST_FUNCTION_HOOK(__imp__MmSetAddressProtect, rex::kernel::xboxkrnl::MmSetAddressProtect_entry)
-GUEST_FUNCTION_HOOK(__imp__MmQueryAllocationSize, rex::kernel::xboxkrnl::MmQueryAllocationSize_entry)
-GUEST_FUNCTION_HOOK(__imp__MmQueryStatistics, rex::kernel::xboxkrnl::MmQueryStatistics_entry)
-GUEST_FUNCTION_HOOK(__imp__MmGetPhysicalAddress, rex::kernel::xboxkrnl::MmGetPhysicalAddress_entry)
-GUEST_FUNCTION_HOOK(__imp__MmMapIoSpace, rex::kernel::xboxkrnl::MmMapIoSpace_entry)
-GUEST_FUNCTION_HOOK(__imp__ExAllocatePoolTypeWithTag, rex::kernel::xboxkrnl::ExAllocatePoolTypeWithTag_entry)
-GUEST_FUNCTION_HOOK(__imp__ExAllocatePool, rex::kernel::xboxkrnl::ExAllocatePool_entry)
-GUEST_FUNCTION_HOOK(__imp__ExFreePool, rex::kernel::xboxkrnl::ExFreePool_entry)
-GUEST_FUNCTION_HOOK(__imp__KeGetImagePageTableEntry, rex::kernel::xboxkrnl::KeGetImagePageTableEntry_entry)
-GUEST_FUNCTION_HOOK(__imp__KeLockL2, rex::kernel::xboxkrnl::KeLockL2_entry)
-GUEST_FUNCTION_HOOK(__imp__KeUnlockL2, rex::kernel::xboxkrnl::KeUnlockL2_entry)
-GUEST_FUNCTION_HOOK(__imp__MmCreateKernelStack, rex::kernel::xboxkrnl::MmCreateKernelStack_entry)
-GUEST_FUNCTION_HOOK(__imp__MmDeleteKernelStack, rex::kernel::xboxkrnl::MmDeleteKernelStack_entry)
+PPC_HOOK(__imp__NtAllocateVirtualMemory, rex::kernel::xboxkrnl::NtAllocateVirtualMemory_entry)
+PPC_HOOK(__imp__NtProtectVirtualMemory, rex::kernel::xboxkrnl::NtProtectVirtualMemory_entry)
+PPC_HOOK(__imp__NtFreeVirtualMemory, rex::kernel::xboxkrnl::NtFreeVirtualMemory_entry)
+PPC_HOOK(__imp__NtQueryVirtualMemory, rex::kernel::xboxkrnl::NtQueryVirtualMemory_entry)
+PPC_HOOK(__imp__MmAllocatePhysicalMemoryEx, rex::kernel::xboxkrnl::MmAllocatePhysicalMemoryEx_entry)
+PPC_HOOK(__imp__MmAllocatePhysicalMemory, rex::kernel::xboxkrnl::MmAllocatePhysicalMemory_entry)
+PPC_HOOK(__imp__MmFreePhysicalMemory, rex::kernel::xboxkrnl::MmFreePhysicalMemory_entry)
+PPC_HOOK(__imp__MmQueryAddressProtect, rex::kernel::xboxkrnl::MmQueryAddressProtect_entry)
+PPC_HOOK(__imp__MmSetAddressProtect, rex::kernel::xboxkrnl::MmSetAddressProtect_entry)
+PPC_HOOK(__imp__MmQueryAllocationSize, rex::kernel::xboxkrnl::MmQueryAllocationSize_entry)
+PPC_HOOK(__imp__MmQueryStatistics, rex::kernel::xboxkrnl::MmQueryStatistics_entry)
+PPC_HOOK(__imp__MmGetPhysicalAddress, rex::kernel::xboxkrnl::MmGetPhysicalAddress_entry)
+PPC_HOOK(__imp__MmMapIoSpace, rex::kernel::xboxkrnl::MmMapIoSpace_entry)
+PPC_HOOK(__imp__ExAllocatePoolTypeWithTag, rex::kernel::xboxkrnl::ExAllocatePoolTypeWithTag_entry)
+PPC_HOOK(__imp__ExAllocatePool, rex::kernel::xboxkrnl::ExAllocatePool_entry)
+PPC_HOOK(__imp__ExFreePool, rex::kernel::xboxkrnl::ExFreePool_entry)
+PPC_HOOK(__imp__KeGetImagePageTableEntry, rex::kernel::xboxkrnl::KeGetImagePageTableEntry_entry)
+PPC_HOOK(__imp__KeLockL2, rex::kernel::xboxkrnl::KeLockL2_entry)
+PPC_HOOK(__imp__KeUnlockL2, rex::kernel::xboxkrnl::KeUnlockL2_entry)
+PPC_HOOK(__imp__MmCreateKernelStack, rex::kernel::xboxkrnl::MmCreateKernelStack_entry)
+PPC_HOOK(__imp__MmDeleteKernelStack, rex::kernel::xboxkrnl::MmDeleteKernelStack_entry)

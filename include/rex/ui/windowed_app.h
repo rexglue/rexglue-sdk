@@ -41,8 +41,8 @@ class WindowedApp {
   // initialization of platform-specific parts, should preferably be as simple
   // as possible).
 
-  using Creator = std::unique_ptr<rex::ui::WindowedApp> (*)(
-      rex::ui::WindowedAppContext& app_context);
+  using Creator =
+      std::unique_ptr<rex::ui::WindowedApp> (*)(rex::ui::WindowedAppContext& app_context);
 
   WindowedApp(const WindowedApp& app) = delete;
   WindowedApp& operator=(const WindowedApp& app) = delete;
@@ -52,12 +52,8 @@ class WindowedApp {
 
   // Same as the executable (project), xenia-library-app.
   const std::string& GetName() const { return name_; }
-  const std::string& GetPositionalOptionsUsage() const {
-    return positional_options_usage_;
-  }
-  const std::vector<std::string>& GetPositionalOptions() const {
-    return positional_options_;
-  }
+  const std::string& GetPositionalOptionsUsage() const { return positional_options_usage_; }
+  const std::vector<std::string>& GetPositionalOptions() const { return positional_options_; }
 
   // TEMP: Replace with CVAR system
   // Called by entry point after construction, before OnInitialize()
@@ -93,9 +89,8 @@ class WindowedApp {
   // Positional options should be initialized in the constructor if needed.
   // Cvars will not have been initialized with the arguments at the moment of
   // construction (as the result depends on construction).
-  explicit WindowedApp(
-      WindowedAppContext& app_context, const std::string_view name,
-      const std::string_view positional_options_usage = std::string_view())
+  explicit WindowedApp(WindowedAppContext& app_context, const std::string_view name,
+                       const std::string_view positional_options_usage = std::string_view())
       : app_context_(app_context),
         name_(name),
         positional_options_usage_(positional_options_usage) {}
@@ -152,8 +147,7 @@ class WindowedApp {
     }
 
    private:
-    std::pair<std::unordered_map<std::string, Creator>::iterator, bool>
-        iterator_inserted_;
+    std::pair<std::unordered_map<std::string, Creator>::iterator, bool> iterator_inserted_;
   };
 
   static Creator GetCreator(const std::string& identifier) {
@@ -171,21 +165,20 @@ class WindowedApp {
 
 #if XE_UI_WINDOWED_APPS_IN_LIBRARY
 // Multiple apps in a single library.
-#define XE_DEFINE_WINDOWED_APP(identifier, creator)                            \
-  namespace rex {                                                              \
-  namespace ui {                                                               \
-  namespace windowed_app_creator_registrations {                               \
-  rex::ui::WindowedApp::CreatorRegistration identifier(#identifier, creator);  \
-  }                                                                            \
-  }                                                                            \
+#define XE_DEFINE_WINDOWED_APP(identifier, creator)                           \
+  namespace rex {                                                             \
+  namespace ui {                                                              \
+  namespace windowed_app_creator_registrations {                              \
+  rex::ui::WindowedApp::CreatorRegistration identifier(#identifier, creator); \
+  }                                                                           \
+  }                                                                           \
   }
 #else
 // Separate executables for each app.
-std::unique_ptr<WindowedApp> (*GetWindowedAppCreator())(
-    WindowedAppContext& app_context);
-#define XE_DEFINE_WINDOWED_APP(identifier, creator)               \
+std::unique_ptr<WindowedApp> (*GetWindowedAppCreator())(WindowedAppContext& app_context);
+#define XE_DEFINE_WINDOWED_APP(identifier, creator)                \
   rex::ui::WindowedApp::Creator rex::ui::GetWindowedAppCreator() { \
-    return creator;                                               \
+    return creator;                                                \
   }
 #endif  // XE_UI_WINDOWED_APPS_IN_LIBRARY
 

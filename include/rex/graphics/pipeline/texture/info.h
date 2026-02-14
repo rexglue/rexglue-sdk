@@ -11,7 +11,6 @@
 
 #pragma once
 
-
 #include <cstring>
 #include <memory>
 
@@ -95,8 +94,7 @@ inline size_t GetTexelSize(xenos::TextureFormat format) {
   }
 }
 
-inline xenos::TextureFormat ColorFormatToTextureFormat(
-    xenos::ColorFormat color_format) {
+inline xenos::TextureFormat ColorFormatToTextureFormat(xenos::ColorFormat color_format) {
   return static_cast<xenos::TextureFormat>(color_format);
 }
 
@@ -129,9 +127,7 @@ struct FormatInfo {
   uint32_t block_height;
   uint32_t bits_per_pixel;
 
-  uint32_t bytes_per_block() const {
-    return block_width * block_height * bits_per_pixel / 8;
-  }
+  uint32_t bytes_per_block() const { return block_width * block_height * bits_per_pixel / 8; }
 
   static const FormatInfo* Get(uint32_t gpu_format);
 
@@ -152,15 +148,11 @@ struct TextureExtent {
   uint32_t depth;
 
   uint32_t all_blocks() const { return block_pitch_h * block_pitch_v * depth; }
-  uint32_t visible_blocks() const {
-    return block_pitch_h * block_height * depth;
-  }
+  uint32_t visible_blocks() const { return block_pitch_h * block_height * depth; }
 
-  static TextureExtent Calculate(const FormatInfo* format_info, uint32_t pitch,
-                                 uint32_t height, uint32_t depth, bool is_tiled,
-                                 bool is_guest);
-  static TextureExtent Calculate(const TextureInfo* texture_info,
-                                 bool is_guest);
+  static TextureExtent Calculate(const FormatInfo* format_info, uint32_t pitch, uint32_t height,
+                                 uint32_t depth, bool is_tiled, bool is_guest);
+  static TextureExtent Calculate(const TextureInfo* texture_info, bool is_guest);
 };
 
 struct TextureMemoryInfo {
@@ -188,24 +180,17 @@ struct TextureInfo {
   TextureMemoryInfo memory;
   TextureExtent extent;
 
-  const FormatInfo* format_info() const {
-    return FormatInfo::Get(static_cast<uint32_t>(format));
-  }
+  const FormatInfo* format_info() const { return FormatInfo::Get(static_cast<uint32_t>(format)); }
 
-  bool is_compressed() const {
-    return format_info()->type == FormatType::kCompressed;
-  }
+  bool is_compressed() const { return format_info()->type == FormatType::kCompressed; }
 
   uint32_t mip_levels() const { return 1 + (mip_max_level - mip_min_level); }
 
-  static bool Prepare(const xenos::xe_gpu_texture_fetch_t& fetch,
-                      TextureInfo* out_info);
+  static bool Prepare(const xenos::xe_gpu_texture_fetch_t& fetch, TextureInfo* out_info);
 
-  static bool PrepareResolve(uint32_t physical_address,
-                             xenos::TextureFormat texture_format,
-                             xenos::Endian endian, uint32_t pitch,
-                             uint32_t width, uint32_t height, uint32_t depth,
-                             TextureInfo* out_info);
+  static bool PrepareResolve(uint32_t physical_address, xenos::TextureFormat texture_format,
+                             xenos::Endian endian, uint32_t pitch, uint32_t width, uint32_t height,
+                             uint32_t depth, TextureInfo* out_info);
 
   uint32_t GetMaxMipLevels() const;
 
@@ -217,13 +202,10 @@ struct TextureInfo {
   uint32_t GetMipLocation(uint32_t mip, uint32_t* offset_x, uint32_t* offset_y,
                           bool is_guest) const;
 
-  static bool GetPackedTileOffset(uint32_t width, uint32_t height,
-                                  const FormatInfo* format_info,
-                                  int packed_tile, uint32_t* offset_x,
-                                  uint32_t* offset_y);
+  static bool GetPackedTileOffset(uint32_t width, uint32_t height, const FormatInfo* format_info,
+                                  int packed_tile, uint32_t* offset_x, uint32_t* offset_y);
 
-  bool GetPackedTileOffset(int packed_tile, uint32_t* offset_x,
-                           uint32_t* offset_y) const;
+  bool GetPackedTileOffset(int packed_tile, uint32_t* offset_x, uint32_t* offset_y) const;
 
   uint64_t hash() const;
   bool operator==(const TextureInfo& other) const {
@@ -235,5 +217,3 @@ struct TextureInfo {
 };
 
 }  // namespace rex::graphics
-
-

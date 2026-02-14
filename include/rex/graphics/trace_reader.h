@@ -10,13 +10,12 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <string_view>
 #include <vector>
 
-#include <rex/memory/mapped_memory.h>
 #include <rex/graphics/trace_protocol.h>
 #include <rex/memory.h>
+#include <rex/memory/mapped_memory.h>
 
 namespace rex::graphics {
 
@@ -92,9 +91,7 @@ class TraceReader {
   TraceReader() = default;
   virtual ~TraceReader() = default;
 
-  const TraceHeader* header() const {
-    return reinterpret_cast<const TraceHeader*>(trace_data_);
-  }
+  const TraceHeader* header() const { return reinterpret_cast<const TraceHeader*>(trace_data_); }
 
   const Frame* frame(int n) const { return &frames_[n]; }
   int frame_count() const { return int(frames_.size()); }
@@ -105,8 +102,8 @@ class TraceReader {
 
  protected:
   void ParseTrace();
-  bool DecompressMemory(MemoryEncodingFormat encoding_format, const void* src,
-                        size_t src_size, void* dest, size_t dest_size);
+  bool DecompressMemory(MemoryEncodingFormat encoding_format, const void* src, size_t src_size,
+                        void* dest, size_t dest_size);
 
   std::unique_ptr<memory::MappedMemory> mmap_;
   const uint8_t* trace_data_ = nullptr;
@@ -115,4 +112,3 @@ class TraceReader {
 };
 
 }  // namespace rex::graphics
-

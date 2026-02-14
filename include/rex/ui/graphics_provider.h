@@ -10,7 +10,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <memory>
 
 #include <rex/ui/immediate_drawer.h>
@@ -57,5 +56,4 @@ class GraphicsProvider {
 };
 
 }  // namespace ui
-}  // namespace xe
-
+}  // namespace rex

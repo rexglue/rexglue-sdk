@@ -27,8 +27,7 @@ struct TimerQueueWaitItem {
   using clock = std::chrono::steady_clock;
 
   TimerQueueWaitItem(std::move_only_function<void(void*)> callback, void* userdata,
-                     TimerQueue* parent_queue, clock::time_point due,
-                     clock::duration interval)
+                     TimerQueue* parent_queue, clock::time_point due, clock::duration interval)
       : callback_(std::move(callback)),
         userdata_(userdata),
         parent_queue_(parent_queue),
@@ -64,17 +63,16 @@ struct TimerQueueWaitItem {
   std::atomic<State> state_;
 };
 
-std::weak_ptr<TimerQueueWaitItem> QueueTimerOnce(
-    std::move_only_function<void(void*)> callback, void* userdata,
-    TimerQueueWaitItem::clock::time_point due);
+std::weak_ptr<TimerQueueWaitItem> QueueTimerOnce(std::move_only_function<void(void*)> callback,
+                                                 void* userdata,
+                                                 TimerQueueWaitItem::clock::time_point due);
 
 // Callback is first executed at due, then again repeatedly after interval
 // passes (unless interval == 0). The first callback will be scheduled at
 // `max(now() - interval, due)` to mitigate callback flooding.
-std::weak_ptr<TimerQueueWaitItem> QueueTimerRecurring(
-    std::move_only_function<void(void*)> callback, void* userdata,
-    TimerQueueWaitItem::clock::time_point due,
-    TimerQueueWaitItem::clock::duration interval);
+std::weak_ptr<TimerQueueWaitItem> QueueTimerRecurring(std::move_only_function<void(void*)> callback,
+                                                      void* userdata,
+                                                      TimerQueueWaitItem::clock::time_point due,
+                                                      TimerQueueWaitItem::clock::duration interval);
 
 }  // namespace rex::thread
-

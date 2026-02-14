@@ -29,10 +29,9 @@ class NullFile : public File {
 
   X_STATUS ReadSync(void* buffer, size_t buffer_length, size_t byte_offset,
                     size_t* out_bytes_read) override;
-  X_STATUS WriteSync(const void* buffer, size_t buffer_length,
-                     size_t byte_offset, size_t* out_bytes_written) override;
+  X_STATUS WriteSync(const void* buffer, size_t buffer_length, size_t byte_offset,
+                     size_t* out_bytes_written) override;
   X_STATUS SetLength(size_t length) override;
 };
 
 }  // namespace rex::filesystem
-

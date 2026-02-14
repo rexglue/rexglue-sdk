@@ -10,7 +10,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <atomic>
 #include <vector>
 
@@ -43,13 +42,10 @@ class SpirvShader : public Shader {
     uint32_t is_signed : 1;
   };
   // Safe to hash and compare with memcmp for layout hashing.
-  const std::vector<TextureBinding>& GetTextureBindingsAfterTranslation()
-      const {
+  const std::vector<TextureBinding>& GetTextureBindingsAfterTranslation() const {
     return texture_bindings_;
   }
-  const uint32_t GetUsedTextureMaskAfterTranslation() const {
-    return used_texture_mask_;
-  }
+  const uint32_t GetUsedTextureMaskAfterTranslation() const { return used_texture_mask_; }
 
   struct SamplerBinding {
     uint32_t fetch_constant : 5;
@@ -58,8 +54,7 @@ class SpirvShader : public Shader {
     xenos::TextureFilter mip_filter : 2;
     xenos::AnisoFilter aniso_filter : 3;
   };
-  const std::vector<SamplerBinding>& GetSamplerBindingsAfterTranslation()
-      const {
+  const std::vector<SamplerBinding>& GetSamplerBindingsAfterTranslation() const {
     return sampler_bindings_;
   }
 
@@ -76,4 +71,3 @@ class SpirvShader : public Shader {
 };
 
 }  // namespace rex::graphics
-

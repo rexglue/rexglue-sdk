@@ -9,54 +9,52 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/logging.h>
-#include <rex/kernel/kernel_state.h>
-#include <rex/runtime/guest/function.h>
-#include <rex/runtime/guest/types.h>
 #include <rex/kernel/xam/private.h>
-#include <rex/kernel/xnotifylistener.h>
-#include <rex/kernel/xtypes.h>
+#include <rex/logging.h>
+#include <rex/ppc/function.h>
+#include <rex/ppc/types.h>
+#include <rex/system/kernel_state.h>
+#include <rex/system/xnotifylistener.h>
+#include <rex/system/xtypes.h>
 
 namespace rex {
 namespace kernel {
 namespace xam {
-using namespace rex::runtime::guest;
+using namespace rex::system;
+using namespace rex::system::xam;
 
-uint32_t xeXamNotifyCreateListener(uint64_t mask, uint32_t is_system,
-                                   uint32_t max_version) {
+uint32_t xeXamNotifyCreateListener(uint64_t mask, uint32_t is_system, uint32_t max_version) {
   assert_true(max_version < 11);
 
   if (max_version > 10) {
     max_version = 10;
   }
 
-  auto listener =
-      object_ref<XNotifyListener>(new XNotifyListener(kernel_state()));
+  auto listener = object_ref<XNotifyListener>(new XNotifyListener(kernel_state()));
   listener->Initialize(mask, max_version);
 
   // Handle ref is incremented, so return that.
   uint32_t handle = listener->handle();
 
-  REXKRNL_DEBUG("XamNotifyCreateListener(mask={:#018x}, is_system={}, max_version={}) -> handle={:08X}",
-      mask, is_system, max_version, handle);
+  REXKRNL_DEBUG(
+      "XamNotifyCreateListener(mask={:#018x}, is_system={}, max_version={}) -> handle={:08X}", mask,
+      is_system, max_version, handle);
 
   return handle;
 }
 
-dword_result_t XamNotifyCreateListener_entry(qword_t mask,
-                                             dword_t max_version) {
+ppc_u32_result_t XamNotifyCreateListener_entry(ppc_u64_t mask, ppc_u32_t max_version) {
   return xeXamNotifyCreateListener(mask, 0, max_version);
 }
 
-dword_result_t XamNotifyCreateListenerInternal_entry(qword_t mask,
-                                                     dword_t is_system,
-                                                     dword_t max_version) {
+ppc_u32_result_t XamNotifyCreateListenerInternal_entry(ppc_u64_t mask, ppc_u32_t is_system,
+                                                       ppc_u32_t max_version) {
   return xeXamNotifyCreateListener(mask, is_system, max_version);
 }
 
 // https://github.com/CodeAsm/ffplay360/blob/master/Common/AtgSignIn.cpp
-dword_result_t XNotifyGetNext_entry(dword_t handle, dword_t match_id,
-                                    lpdword_t id_ptr, lpdword_t param_ptr) {
+ppc_u32_result_t XNotifyGetNext_entry(ppc_u32_t handle, ppc_u32_t match_id, ppc_pu32_t id_ptr,
+                                      ppc_pu32_t param_ptr) {
   if (param_ptr) {
     *param_ptr = 0;
   }
@@ -67,8 +65,7 @@ dword_result_t XNotifyGetNext_entry(dword_t handle, dword_t match_id,
   *id_ptr = 0;
 
   // Grab listener.
-  auto listener =
-      kernel_state()->object_table()->LookupObject<XNotifyListener>(handle);
+  auto listener = kernel_state()->object_table()->LookupObject<XNotifyListener>(handle);
   if (!listener) {
     return 0;
   }
@@ -94,18 +91,18 @@ dword_result_t XNotifyGetNext_entry(dword_t handle, dword_t match_id,
   }
 
   if (dequeued) {
-    REXKRNL_DEBUG("XNotifyGetNext({:08X}, {:08X}) -> id={:#x}, param={}",
-        uint32_t(handle), uint32_t(match_id), id, param);
+    REXKRNL_DEBUG("XNotifyGetNext({:08X}, {:08X}) -> id={:#x}, param={}", uint32_t(handle),
+                  uint32_t(match_id), id, param);
   }
   return dequeued ? 1 : 0;
 }
 
-dword_result_t XNotifyDelayUI_entry(dword_t delay_ms) {
+ppc_u32_result_t XNotifyDelayUI_entry(ppc_u32_t delay_ms) {
   // Ignored.
   return 0;
 }
 
-void XNotifyPositionUI_entry(dword_t position) {
+void XNotifyPositionUI_entry(ppc_u32_t position) {
   // Ignored.
 }
 
@@ -113,8 +110,9 @@ void XNotifyPositionUI_entry(dword_t position) {
 }  // namespace kernel
 }  // namespace rex
 
-GUEST_FUNCTION_HOOK(__imp__XamNotifyCreateListener, rex::kernel::xam::XamNotifyCreateListener_entry)
-GUEST_FUNCTION_HOOK(__imp__XamNotifyCreateListenerInternal, rex::kernel::xam::XamNotifyCreateListenerInternal_entry)
-GUEST_FUNCTION_HOOK(__imp__XNotifyGetNext, rex::kernel::xam::XNotifyGetNext_entry)
-GUEST_FUNCTION_HOOK(__imp__XNotifyDelayUI, rex::kernel::xam::XNotifyDelayUI_entry)
-GUEST_FUNCTION_HOOK(__imp__XNotifyPositionUI, rex::kernel::xam::XNotifyPositionUI_entry)
+PPC_HOOK(__imp__XamNotifyCreateListener, rex::kernel::xam::XamNotifyCreateListener_entry)
+PPC_HOOK(__imp__XamNotifyCreateListenerInternal,
+         rex::kernel::xam::XamNotifyCreateListenerInternal_entry)
+PPC_HOOK(__imp__XNotifyGetNext, rex::kernel::xam::XNotifyGetNext_entry)
+PPC_HOOK(__imp__XNotifyDelayUI, rex::kernel::xam::XNotifyDelayUI_entry)
+PPC_HOOK(__imp__XNotifyPositionUI, rex::kernel::xam::XNotifyPositionUI_entry)

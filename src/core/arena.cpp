@@ -9,13 +9,12 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/memory/arena.h>
-
 #include <cstring>
 #include <memory>
 
 #include <rex/assert.h>
 #include <rex/math.h>
+#include <rex/memory/arena.h>
 
 namespace rex::memory {
 
@@ -49,9 +48,8 @@ void Arena::DebugFill() {
 }
 
 void* Arena::Alloc(size_t size, size_t align) {
-  assert_true(
-      align > 0 && rex::is_pow2(align) && align <= 16,
-      "align needs to be a power of 2 and not greater than Chunk alignment");
+  assert_true(align > 0 && rex::is_pow2(align) && align <= 16,
+              "align needs to be a power of 2 and not greater than Chunk alignment");
 
   // for alignment
   const auto get_padding = [this, align]() -> size_t {
@@ -61,12 +59,10 @@ void* Arena::Alloc(size_t size, size_t align) {
   };
 
   if (active_chunk_) {
-    if (active_chunk_->capacity - active_chunk_->offset <
-        size + get_padding() + 4_KiB) {
+    if (active_chunk_->capacity - active_chunk_->offset < size + get_padding() + 4_KiB) {
       Chunk* next = active_chunk_->next;
       if (!next) {
-        assert_true(size + get_padding() < chunk_size_,
-                    "need to support larger chunks");
+        assert_true(size + get_padding() < chunk_size_, "need to support larger chunks");
         next = new Chunk(chunk_size_);
         active_chunk_->next = next;
       }
@@ -80,12 +76,13 @@ void* Arena::Alloc(size_t size, size_t align) {
   active_chunk_->offset += get_padding();
   uint8_t* p = active_chunk_->buffer + active_chunk_->offset;
   active_chunk_->offset += size;
-  assert_true((reinterpret_cast<size_t>(p) & (align - 1)) == 0,
-              "alignment failed");
+  assert_true((reinterpret_cast<size_t>(p) & (align - 1)) == 0, "alignment failed");
   return p;
 }
 
-void Arena::Rewind(size_t size) { active_chunk_->offset -= size; }
+void Arena::Rewind(size_t size) {
+  active_chunk_->offset -= size;
+}
 
 size_t Arena::CalculateSize() {
   size_t total_length = 0;
@@ -129,11 +126,9 @@ void Arena::CloneContents(void* buffer, size_t buffer_length) {
   }
 }
 
-Arena::Chunk::Chunk(size_t chunk_size)
-    : next(nullptr), capacity(chunk_size), buffer(0), offset(0) {
+Arena::Chunk::Chunk(size_t chunk_size) : next(nullptr), capacity(chunk_size), buffer(0), offset(0) {
   buffer = reinterpret_cast<uint8_t*>(malloc(capacity));
-  assert_true((reinterpret_cast<size_t>(buffer) & size_t(15)) == 0,
-              "16 byte alignment required");
+  assert_true((reinterpret_cast<size_t>(buffer) & size_t(15)) == 0, "16 byte alignment required");
 }
 
 Arena::Chunk::~Chunk() {

@@ -10,18 +10,17 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
-#include <rex/kernel/kernel_state.h>
-#include <rex/kernel/xam/app_manager.h>
+#include <rex/system/kernel_state.h>
+#include <rex/system/xam/app_manager.h>
 
 namespace rex {
 namespace kernel {
 namespace xam {
 namespace apps {
 
-class XLiveBaseApp : public App {
+class XLiveBaseApp : public system::xam::App {
  public:
-  explicit XLiveBaseApp(KernelState* kernel_state);
+  explicit XLiveBaseApp(system::KernelState* kernel_state);
 
   X_HRESULT DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
                                 uint32_t buffer_length) override;
@@ -30,5 +29,4 @@ class XLiveBaseApp : public App {
 }  // namespace apps
 }  // namespace xam
 }  // namespace kernel
-}  // namespace xe
-
+}  // namespace rex

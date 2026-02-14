@@ -11,12 +11,13 @@
 
 #pragma once
 
-#include <rex/types.h>
-#include <rex/codegen/recompiled_function.h>
 #include <filesystem>
+#include <map>
 #include <string>
 #include <vector>
-#include <map>
+
+#include <rex/codegen/recompiled_function.h>
+#include <rex/types.h>
 
 namespace rex::codegen {
 
@@ -28,17 +29,17 @@ namespace rex::codegen {
  * Configuration for recompiler output generation
  */
 struct OutputConfig {
-    // Image metadata
-    uint64_t image_base = 0;
-    uint64_t image_size = 0;
-    uint64_t code_base = 0;
-    uint64_t code_size = 0;
+  // Image metadata
+  uint64_t image_base = 0;
+  uint64_t image_size = 0;
+  uint64_t code_base = 0;
+  uint64_t code_size = 0;
 
-    // Output options
-    uint32_t functions_per_file = 256;
-    std::string project_name = "rex";
-    bool emit_comments = true;
-    bool emit_cmake = true;
+  // Output options
+  uint32_t functions_per_file = 256;
+  std::string project_name = "rex";
+  bool emit_comments = true;
+  bool emit_cmake = true;
 };
 
 //=============================================================================
@@ -49,10 +50,10 @@ struct OutputConfig {
  * A single recompiled function
  */
 struct CompiledFunction {
-    guest_addr_t address;
-    std::string name;
-    std::string cpp_code;
-    std::vector<JumpTable> jump_tables;
+  guest_addr_t address;
+  std::string name;
+  std::string cpp_code;
+  std::vector<JumpTable> jump_tables;
 };
 
 //=============================================================================
@@ -79,78 +80,74 @@ struct CompiledFunction {
  *   output.write_all(output_dir);
  */
 class RecompilerOutput {
-public:
-    RecompilerOutput() = default;
+ public:
+  RecompilerOutput() = default;
 
-    /**
-     * Set output configuration
-     */
-    void set_config(const OutputConfig& config);
+  /**
+   * Set output configuration
+   */
+  void set_config(const OutputConfig& config);
 
-    /**
-     * Get current configuration
-     */
-    const OutputConfig& config() const { return config_; }
+  /**
+   * Get current configuration
+   */
+  const OutputConfig& config() const { return config_; }
 
-    /**
-     * Add a recompiled function
-     * @param address Function guest address
-     * @param name Function name (e.g., "sub_82060000")
-     * @param cpp_code Generated C++ code for the function body
-     */
-    void add_function(guest_addr_t address, const std::string& name,
-                      std::string cpp_code);
+  /**
+   * Add a recompiled function
+   * @param address Function guest address
+   * @param name Function name (e.g., "sub_82060000")
+   * @param cpp_code Generated C++ code for the function body
+   */
+  void add_function(guest_addr_t address, const std::string& name, std::string cpp_code);
 
-    /**
-     * Add a jump table for a function
-     * @param func_address Function containing the jump table
-     * @param jump_table Jump table metadata
-     */
-    void add_jump_table(guest_addr_t func_address,
-                        const JumpTable& jump_table);
+  /**
+   * Add a jump table for a function
+   * @param func_address Function containing the jump table
+   * @param jump_table Jump table metadata
+   */
+  void add_jump_table(guest_addr_t func_address, const JumpTable& jump_table);
 
-    /**
-     * Set graph for import resolution
-     * Imports are read from FunctionNodes with IMPORT authority
-     * @param graph FunctionGraph containing imports (can be null)
-     */
-    void set_graph(const FunctionGraph* graph) { graph_ = graph; }
+  /**
+   * Set graph for import resolution
+   * Imports are read from FunctionNodes with IMPORT authority
+   * @param graph FunctionGraph containing imports (can be null)
+   */
+  void set_graph(const FunctionGraph* graph) { graph_ = graph; }
 
-    /**
-     * Get number of functions added
-     */
-    size_t function_count() const { return functions_.size(); }
+  /**
+   * Get number of functions added
+   */
+  size_t function_count() const { return functions_.size(); }
 
-    /**
-     * Write all output files to the specified directory
-     * @param output_dir Output directory (created if doesn't exist)
-     * @return true on success, false on failure
-     */
-    bool write_all(const std::filesystem::path& output_dir);
+  /**
+   * Write all output files to the specified directory
+   * @param output_dir Output directory (created if doesn't exist)
+   * @return true on success, false on failure
+   */
+  bool write_all(const std::filesystem::path& output_dir);
 
-    /**
-     * Get list of generated file names (after write_all)
-     */
-    const std::vector<std::string>& generated_files() const {
-        return generated_files_;
-    }
+  /**
+   * Get list of generated file names (after write_all)
+   */
+  const std::vector<std::string>& generated_files() const { return generated_files_; }
 
-private:
-    OutputConfig config_;
-    std::map<guest_addr_t, CompiledFunction> functions_;  // Sorted by address
-    const FunctionGraph* graph_ = nullptr;                // For imports (IMPORT authority nodes)
-    std::vector<std::string> generated_files_;
+ private:
+  OutputConfig config_;
+  std::map<guest_addr_t, CompiledFunction> functions_;  // Sorted by address
+  const FunctionGraph* graph_ = nullptr;                // For imports (IMPORT authority nodes)
+  std::vector<std::string> generated_files_;
 
-    // File generators
-    bool write_config_h(const std::filesystem::path& dir);
-    bool write_shared_h(const std::filesystem::path& dir);
-    bool write_recomp_files(const std::filesystem::path& dir);
-    bool write_init(const std::filesystem::path& dir);  // Combined func mapping + table init
-    bool write_cmake(const std::filesystem::path& dir);
+  // File generators
+  bool write_config_h(const std::filesystem::path& dir);
+  bool write_shared_h(const std::filesystem::path& dir);
+  bool write_recomp_files(const std::filesystem::path& dir);
+  bool write_init(const std::filesystem::path& dir);  // Combined func mapping + table init
+  bool write_cmake(const std::filesystem::path& dir);
 
-    // Helpers
-    std::string get_function_declaration(const CompiledFunction& func) const;
-    std::string get_function_definition(const CompiledFunction& func) const;
+  // Helpers
+  std::string get_function_declaration(const CompiledFunction& func) const;
+  std::string get_function_definition(const CompiledFunction& func) const;
 };
 
 }  // namespace rex::codegen

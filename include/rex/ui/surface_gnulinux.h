@@ -10,10 +10,9 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <rex/ui/surface.h>
 
 #include <xcb/xcb.h>
-
-#include <rex/ui/surface.h>
 
 namespace rex {
 namespace ui {
@@ -35,5 +34,4 @@ class XcbWindowSurface final : public Surface {
 };
 
 }  // namespace ui
-}  // namespace xe
-
+}  // namespace rex

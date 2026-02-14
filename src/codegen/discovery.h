@@ -12,11 +12,13 @@
 #pragma once
 
 #include "decoded_binary.h"
-#include <rex/codegen/function_graph.h>
+
 #include <cstdint>
 #include <set>
 #include <unordered_set>
 #include <vector>
+
+#include <rex/codegen/function_graph.h>
 
 namespace rex::codegen {
 
@@ -25,24 +27,24 @@ namespace rex::codegen {
 //=============================================================================
 
 struct UnresolvedBranch {
-    uint32_t site;          // Address of branch instruction
-    uint32_t target;        // Target address
-    bool isCall;            // true = bl (call), false = b (tail/jump)
-    bool isConditional;     // true = bc/beq/etc, false = unconditional
+  uint32_t site;       // Address of branch instruction
+  uint32_t target;     // Target address
+  bool isCall;         // true = bl (call), false = b (tail/jump)
+  bool isConditional;  // true = bc/beq/etc, false = unconditional
 };
 
 struct BlockDiscoveryResult {
-    std::vector<Block> blocks;
-    std::vector<UnresolvedBranch> unresolvedBranches;
-    std::vector<JumpTable> jumpTables;
-    std::set<uint32_t> internalLabels;
+  std::vector<Block> blocks;
+  std::vector<UnresolvedBranch> unresolvedBranches;
+  std::vector<JumpTable> jumpTables;
+  std::set<uint32_t> internalLabels;
 
-    // Collected instruction pointers (for FunctionNode ownership)
-    std::vector<rex::codegen::ppc::Instruction*> instructions;
+  // Collected instruction pointers (for FunctionNode ownership)
+  std::vector<rex::codegen::ppc::Instruction*> instructions;
 
-    // External references found during discovery
-    std::vector<uint32_t> externalCalls;    // bl to unknown targets
-    std::vector<uint32_t> tailCalls;        // b to external targets
+  // External references found during discovery
+  std::vector<uint32_t> externalCalls;  // bl to unknown targets
+  std::vector<uint32_t> tailCalls;      // b to external targets
 };
 
 //=============================================================================
@@ -65,12 +67,10 @@ struct BlockDiscoveryResult {
  * @param knownFunctions Set of known function entry points (to detect tail calls)
  * @return BlockDiscoveryResult containing blocks, branches, and jump tables
  */
-BlockDiscoveryResult discoverBlocks(
-    DecodedBinary& decoded,
-    uint32_t entryPoint,
-    const CodeRegion& containingRegion,
-    const std::unordered_set<uint32_t>& knownFunctions,
-    uint32_t pdataSize = 0);
+BlockDiscoveryResult discoverBlocks(DecodedBinary& decoded, uint32_t entryPoint,
+                                    const CodeRegion& containingRegion,
+                                    const std::unordered_set<uint32_t>& knownFunctions,
+                                    uint32_t pdataSize = 0);
 
 //=============================================================================
 // Jump Table Detection
@@ -90,11 +90,8 @@ BlockDiscoveryResult discoverBlocks(
  * @param containingRegion Code region for validation
  * @return JumpTable if detected, empty optional otherwise
  */
-std::optional<JumpTable> detectJumpTable(
-    DecodedBinary& decoded,
-    uint32_t bctrAddr,
-    const CodeRegion& containingRegion,
-    uint32_t funcStart,
-    uint32_t funcEnd);
+std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, uint32_t bctrAddr,
+                                         const CodeRegion& containingRegion, uint32_t funcStart,
+                                         uint32_t funcEnd);
 
-} // namespace rex::codegen
+}  // namespace rex::codegen

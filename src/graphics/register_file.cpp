@@ -9,15 +9,16 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/graphics/register_file.h>
-
 #include <cstring>
 
+#include <rex/graphics/register_file.h>
 #include <rex/math.h>
 
 namespace rex::graphics {
 
-RegisterFile::RegisterFile() { std::memset(values, 0, sizeof(values)); }
+RegisterFile::RegisterFile() {
+  std::memset(values, 0, sizeof(values));
+}
 
 const RegisterInfo* RegisterFile::GetRegisterInfo(uint32_t index) {
   switch (index) {

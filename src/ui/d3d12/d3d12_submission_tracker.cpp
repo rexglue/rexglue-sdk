@@ -9,20 +9,17 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/ui/d3d12/d3d12_submission_tracker.h>
-
 #include <rex/assert.h>
 #include <rex/logging.h>
+#include <rex/ui/d3d12/d3d12_submission_tracker.h>
 
 namespace rex::ui::d3d12 {
 
-bool D3D12SubmissionTracker::Initialize(ID3D12Device* device,
-                                        ID3D12CommandQueue* queue) {
+bool D3D12SubmissionTracker::Initialize(ID3D12Device* device, ID3D12CommandQueue* queue) {
   Shutdown();
   fence_completion_event_ = CreateEvent(nullptr, FALSE, FALSE, nullptr);
   if (!fence_completion_event_) {
-    REXLOG_ERROR(
-        "D3D12SubmissionTracker: Failed to create the fence completion event");
+    REXLOG_ERROR("D3D12SubmissionTracker: Failed to create the fence completion event");
     Shutdown();
     return false;
   }
@@ -48,8 +45,7 @@ void D3D12SubmissionTracker::Shutdown() {
   }
 }
 
-bool D3D12SubmissionTracker::AwaitSubmissionCompletion(
-    UINT64 submission_index) {
+bool D3D12SubmissionTracker::AwaitSubmissionCompletion(UINT64 submission_index) {
   if (!fence_ || !fence_completion_event_) {
     // Not fully initialized yet or already shut down.
     return false;
@@ -75,12 +71,10 @@ bool D3D12SubmissionTracker::AwaitSubmissionCompletion(
     fence_value = submission_signal_queued_;
   }
   if (fence_->GetCompletedValue() < fence_value) {
-    if (FAILED(fence_->SetEventOnCompletion(fence_value,
-                                            fence_completion_event_))) {
+    if (FAILED(fence_->SetEventOnCompletion(fence_value, fence_completion_event_))) {
       return false;
     }
-    if (WaitForSingleObject(fence_completion_event_, INFINITE) !=
-        WAIT_OBJECT_0) {
+    if (WaitForSingleObject(fence_completion_event_, INFINITE) != WAIT_OBJECT_0) {
       return false;
     }
   }

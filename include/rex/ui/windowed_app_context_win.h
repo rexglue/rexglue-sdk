@@ -12,7 +12,15 @@
 
 #include <memory>
 
-#include <rex/platform/win.h>
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <shellapi.h>
+
 #include <rex/ui/windowed_app_context.h>
 
 // For per-monitor DPI awareness v1.
@@ -75,14 +83,12 @@ class Win32WindowedAppContext final : public WindowedAppContext {
   // supposed to initialize it).
   // Windows 8.1 per-monitor DPI awareness version 1.
   const PerMonitorDpiV1Api* per_monitor_dpi_v1_api() const {
-    return per_monitor_dpi_v1_api_available_ ? &per_monitor_dpi_v1_api_
-                                             : nullptr;
+    return per_monitor_dpi_v1_api_available_ ? &per_monitor_dpi_v1_api_ : nullptr;
   }
   // Windows 10 1607 per-monitor DPI awareness API, also heavily used for
   // per-monitor DPI awareness version 2 functionality added in Windows 10 1703.
   const PerMonitorDpiV2Api* per_monitor_dpi_v2_api() const {
-    return per_monitor_dpi_v2_api_available_ ? &per_monitor_dpi_v2_api_
-                                             : nullptr;
+    return per_monitor_dpi_v2_api_available_ ? &per_monitor_dpi_v2_api_ : nullptr;
   }
 
  private:
@@ -90,8 +96,8 @@ class Win32WindowedAppContext final : public WindowedAppContext {
     kPendingFunctionsWindowClassMessageExecute = WM_USER,
   };
 
-  static LRESULT CALLBACK PendingFunctionsWndProc(HWND hwnd, UINT message,
-                                                  WPARAM wparam, LPARAM lparam);
+  static LRESULT CALLBACK PendingFunctionsWndProc(HWND hwnd, UINT message, WPARAM wparam,
+                                                  LPARAM lparam);
 
   HINSTANCE hinstance_;
   int show_cmd_;

@@ -21,34 +21,31 @@ namespace rex::codegen::ppc {
 //=============================================================================
 // Decodes raw bytes into ppc_insn struct using GNU binutils
 
-struct DisassemblerEngine
-{
-    disassemble_info info{};
-    DisassemblerEngine(const DisassemblerEngine&) = default;
-    DisassemblerEngine& operator=(const DisassemblerEngine&) = delete;
+struct DisassemblerEngine {
+  disassemble_info info{};
+  DisassemblerEngine(const DisassemblerEngine&) = default;
+  DisassemblerEngine& operator=(const DisassemblerEngine&) = delete;
 
-    DisassemblerEngine(bfd_endian endian, const char* options);
-    ~DisassemblerEngine() = default;
+  DisassemblerEngine(bfd_endian endian, const char* options);
+  ~DisassemblerEngine() = default;
 
-    /**
-     * Disassemble a single instruction
-     * @return Number of bytes decoded
-     */
-    int Disassemble(const void* code, size_t size, uint64_t base, ppc_insn& out);
+  /**
+   * Disassemble a single instruction
+   * @return Number of bytes decoded
+   */
+  int Disassemble(const void* code, size_t size, uint64_t base, ppc_insn& out);
 };
 
 thread_local extern DisassemblerEngine gBigEndianDisassembler;
 
-inline int Disassemble(const void* code, size_t size, uint64_t base, ppc_insn& out)
-{
-    return gBigEndianDisassembler.Disassemble(code, size, base, out);
+inline int Disassemble(const void* code, size_t size, uint64_t base, ppc_insn& out) {
+  return gBigEndianDisassembler.Disassemble(code, size, base, out);
 }
 
-inline int Disassemble(const void* code, uint64_t base, ppc_insn& out)
-{
-    return Disassemble(code, 4, base, out);
+inline int Disassemble(const void* code, uint64_t base, ppc_insn& out) {
+  return Disassemble(code, 4, base, out);
 }
 
 int Disassemble(const void* code, uint64_t base, ppc_insn* out, size_t nOut);
 
-} // namespace rex::codegen::ppc
+}  // namespace rex::codegen::ppc

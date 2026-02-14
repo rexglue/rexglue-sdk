@@ -20,13 +20,13 @@
 #pragma once
 
 #include <cstdint>
-#include <string>
 #include <functional>
+#include <string>
 #include <vector>
 
+#include <rex/assert.h>
 #include <rex/platform.h>
 #include <rex/vec128.h>
-#include <rex/assert.h>
 
 #if REX_ARCH_AMD64
 #include <xmmintrin.h>
@@ -416,8 +416,7 @@ class Exception {
     kWrite,
   };
 
-  void InitializeAccessViolation(HostThreadContext* thread_context,
-                                 uint64_t fault_address,
+  void InitializeAccessViolation(HostThreadContext* thread_context, uint64_t fault_address,
                                  AccessViolationOperation operation) {
     code_ = Code::kAccessViolation;
     thread_context_ = thread_context;
@@ -513,8 +512,7 @@ class Exception {
   uint32_t modified_v_registers_ = 0;
 #endif  // REX_ARCH
   uint64_t fault_address_ = 0;
-  AccessViolationOperation access_violation_operation_ =
-      AccessViolationOperation::kUnknown;
+  AccessViolationOperation access_violation_operation_ = AccessViolationOperation::kUnknown;
 };
 
 //=============================================================================

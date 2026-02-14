@@ -10,16 +10,15 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <cmath>
 #include <cstdint>
 #include <utility>
 #include <vector>
 
 #include <rex/assert.h>
+#include <rex/graphics/pipeline/shader/shader.h>
 #include <rex/graphics/register_file.h>
 #include <rex/graphics/registers.h>
-#include <rex/graphics/pipeline/shader/shader.h>
 #include <rex/graphics/trace_writer.h>
 #include <rex/graphics/xenos.h>
 #include <rex/memory.h>
@@ -28,8 +27,7 @@ namespace rex::graphics::draw_util {
 
 constexpr bool IsPrimitiveLine(bool vgt_output_path_is_tessellation_enable,
                                xenos::PrimitiveType type) {
-  if (vgt_output_path_is_tessellation_enable &&
-      type == xenos::PrimitiveType::kLinePatch) {
+  if (vgt_output_path_is_tessellation_enable && type == xenos::PrimitiveType::kLinePatch) {
     // For patch primitive types, the major mode is always explicit, so just
     // checking if VGT_OUTPUT_PATH_CNTL::path_select is kTessellationEnable is
     // enough.
@@ -64,8 +62,7 @@ inline bool IsPrimitiveLine(const RegisterFile& regs) {
 constexpr bool IsPrimitivePolygonal(bool vgt_output_path_is_tessellation_enable,
                                     xenos::PrimitiveType type) {
   if (vgt_output_path_is_tessellation_enable &&
-      (type == xenos::PrimitiveType::kTrianglePatch ||
-       type == xenos::PrimitiveType::kQuadPatch)) {
+      (type == xenos::PrimitiveType::kTrianglePatch || type == xenos::PrimitiveType::kQuadPatch)) {
     // For patch primitive types, the major mode is always explicit, so just
     // checking if VGT_OUTPUT_PATH_CNTL::path_select is kTessellationEnable is
     // enough.
@@ -91,10 +88,9 @@ constexpr bool IsPrimitivePolygonal(bool vgt_output_path_is_tessellation_enable,
 }
 
 inline bool IsPrimitivePolygonal(const RegisterFile& regs) {
-  return IsPrimitivePolygonal(
-      regs.Get<reg::VGT_OUTPUT_PATH_CNTL>().path_select ==
-          xenos::VGTOutputPath::kTessellationEnable,
-      regs.Get<reg::VGT_DRAW_INITIATOR>().prim_type);
+  return IsPrimitivePolygonal(regs.Get<reg::VGT_OUTPUT_PATH_CNTL>().path_select ==
+                                  xenos::VGTOutputPath::kTessellationEnable,
+                              regs.Get<reg::VGT_DRAW_INITIATOR>().prim_type);
 }
 
 // Whether with the current state, any samples to rasterize (for any reason, not
@@ -104,8 +100,7 @@ inline bool IsPrimitivePolygonal(const RegisterFile& regs) {
 // cases (for both the guest and usual host implementations), not everything
 // like whether viewport / scissor are empty (until this truly matters in any
 // game, of course).
-bool IsRasterizationPotentiallyDone(const RegisterFile& regs,
-                                    bool primitive_polygonal);
+bool IsRasterizationPotentiallyDone(const RegisterFile& regs, bool primitive_polygonal);
 
 // Direct3D 10.1+ standard sample positions, also used in Vulkan, for
 // calculations related to host MSAA, in 1/16th of a pixel.
@@ -167,8 +162,7 @@ reg::RB_DEPTHCONTROL GetNormalizedDepthControl(const RegisterFile& regs);
 // a primitive in the [0.5, 1) range (the worst case that forward depth reaches
 // very quickly, at nearly `2 * near clipping plane distance`) is 2 ^ (-1 - 23),
 // or 2^-24, and this factor is almost 2^24.
-constexpr float kD3D10PolygonOffsetFactorUnorm24 =
-    float((UINT32_C(1) << 24) - 1);
+constexpr float kD3D10PolygonOffsetFactorUnorm24 = float((UINT32_C(1) << 24) - 1);
 
 // For a host floating-point depth buffer, the integer value of the depth bias
 // is roughly how many ULPs primitives should be separated by.
@@ -199,19 +193,17 @@ constexpr float kD3D10PolygonOffsetFactorUnorm24 =
 // and the maximum Z value in the primitive will have an exponent lowered by 1,
 // thus the result will also have an exponent lowered by 1 - exactly what's
 // needed for remapping 0...1 to 0...0.5.
-constexpr float kD3D10PolygonOffsetFactorFloat24 =
-    float(UINT32_C(1) << (21 + 3));
+constexpr float kD3D10PolygonOffsetFactorFloat24 = float(UINT32_C(1) << (21 + 3));
 
-inline int32_t GetD3D10IntegerPolygonOffset(
-    xenos::DepthRenderTargetFormat depth_format, float polygon_offset) {
+inline int32_t GetD3D10IntegerPolygonOffset(xenos::DepthRenderTargetFormat depth_format,
+                                            float polygon_offset) {
   bool is_float24 = depth_format == xenos::DepthRenderTargetFormat::kD24FS8;
   // Using `ceil` because more offset is better, especially if flooring would
   // result in 0 - conceptually, if the offset is used at all, primitives need
   // to be separated in the depth buffer.
-  int32_t polygon_offset_int = int32_t(
-      std::ceil(std::abs(polygon_offset) *
-                (is_float24 ? kD3D10PolygonOffsetFactorFloat24 * (1.0f / 8.0f)
-                            : kD3D10PolygonOffsetFactorUnorm24)));
+  int32_t polygon_offset_int = int32_t(std::ceil(
+      std::abs(polygon_offset) * (is_float24 ? kD3D10PolygonOffsetFactorFloat24 * (1.0f / 8.0f)
+                                             : kD3D10PolygonOffsetFactorUnorm24)));
   // For float24, the conversion may be done in the translated pixel shaders,
   // including via truncation rather than rounding to the nearest. So, making
   // the integer bias always in the increments of 2^3 (2 ^ the difference in the
@@ -229,9 +221,8 @@ inline int32_t GetD3D10IntegerPolygonOffset(
 // registers (the scale is for 1/16 subpixels, multiply by
 // xenos::kPolygonOffsetScaleSubpixelUnit outside if the value for pixels is
 // needed).
-void GetPreferredFacePolygonOffset(const RegisterFile& regs,
-                                   bool primitive_polygonal, float& scale_out,
-                                   float& offset_out);
+void GetPreferredFacePolygonOffset(const RegisterFile& regs, bool primitive_polygonal,
+                                   float& scale_out, float& offset_out);
 
 inline bool DoesCoverageDependOnAlpha(reg::RB_COLORCONTROL rb_colorcontrol) {
   return (rb_colorcontrol.alpha_test_enable &&
@@ -249,8 +240,7 @@ inline bool DoesCoverageDependOnAlpha(reg::RB_COLORCONTROL rb_colorcontrol) {
 // unpredictable unneeded translations of random shaders with different host
 // modification bits, such as register count and depth format-related (though
 // shaders with side effects on depth or memory export will still be preserved).
-bool IsPixelShaderNeededWithRasterization(const Shader& shader,
-                                          const RegisterFile& regs);
+bool IsPixelShaderNeededWithRasterization(const Shader& shader, const RegisterFile& regs);
 
 struct ViewportInfo {
   // Offset from render target UV = 0 to +UV.
@@ -281,14 +271,11 @@ struct ViewportInfo {
 // a viewport, plus values to multiply-add the returned position by, usable on
 // host graphics APIs such as Direct3D 11+ and Vulkan, also forcing it to the
 // Direct3D clip space with 0...W Z rather than -W...W.
-void GetHostViewportInfo(const RegisterFile& regs,
-                         uint32_t draw_resolution_scale_x,
-                         uint32_t draw_resolution_scale_y,
-                         bool origin_bottom_left, uint32_t x_max,
+void GetHostViewportInfo(const RegisterFile& regs, uint32_t draw_resolution_scale_x,
+                         uint32_t draw_resolution_scale_y, bool origin_bottom_left, uint32_t x_max,
                          uint32_t y_max, bool allow_reverse_z,
-                         reg::RB_DEPTHCONTROL normalized_depth_control,
-                         bool convert_z_to_float24, bool full_float24_in_0_to_1,
-                         bool pixel_shader_writes_depth,
+                         reg::RB_DEPTHCONTROL normalized_depth_control, bool convert_z_to_float24,
+                         bool full_float24_in_0_to_1, bool pixel_shader_writes_depth,
                          ViewportInfo& viewport_info_out);
 
 struct Scissor {
@@ -297,8 +284,7 @@ struct Scissor {
   // Extent can be zero.
   uint32_t extent[2];
 };
-void GetScissor(const RegisterFile& regs, Scissor& scissor_out,
-                bool clamp_to_surface_pitch = true);
+void GetScissor(const RegisterFile& regs, Scissor& scissor_out, bool clamp_to_surface_pitch = true);
 
 // Returns the color component write mask for the draw command taking into
 // account which color targets are written to by the pixel shader, as well as
@@ -317,8 +303,8 @@ uint32_t GetNormalizedColorMask(const RegisterFile& regs,
 // multisampled render targets are stored in the memory (like 1x2 single-sampled
 // pixels with 2x MSAA, or like 2x2 single-sampled pixels with 4x), assuming
 // that the sample 0 is the top sample, and the sample 1 is the bottom one.
-inline uint32_t GetD3D10SampleIndexForGuest2xMSAA(
-    uint32_t guest_sample_index, bool native_2x_msaa_supported) {
+inline uint32_t GetD3D10SampleIndexForGuest2xMSAA(uint32_t guest_sample_index,
+                                                  bool native_2x_msaa_supported) {
   assert(guest_sample_index <= 1);
   if (native_2x_msaa_supported) {
     // On Direct3D 10.1 with native 2x MSAA, the top-left sample is 1, and the
@@ -345,9 +331,8 @@ void AddMemExportRanges(const RegisterFile& regs, const Shader& shader,
 
 // To avoid passing values that the shader won't understand (even though
 // Direct3D 9 shouldn't pass them anyway).
-xenos::CopySampleSelect SanitizeCopySampleSelect(
-    xenos::CopySampleSelect copy_sample_select, xenos::MsaaSamples msaa_samples,
-    bool is_depth);
+xenos::CopySampleSelect SanitizeCopySampleSelect(xenos::CopySampleSelect copy_sample_select,
+                                                 xenos::MsaaSamples msaa_samples, bool is_depth);
 
 // Packed structures are small and can be passed to the shaders in root/push
 // constants.
@@ -383,22 +368,18 @@ union ResolveCoordinateInfo {
     // In pixels.
     // May be zero if the original rectangle was somehow specified in a
     // totally broken way - in this case, the resolve must be dropped.
-    uint32_t width_div_8 : xenos::kResolveSizeBits -
-                           xenos::kResolveAlignmentPixelsLog2;
+    uint32_t width_div_8 : xenos::kResolveSizeBits - xenos::kResolveAlignmentPixelsLog2;
 
     // 1 to 7.
     uint32_t draw_resolution_scale_x : 3;
     uint32_t draw_resolution_scale_y : 3;
   };
-  ResolveCoordinateInfo() : packed(0) {
-    static_assert_size(*this, sizeof(packed));
-  }
+  ResolveCoordinateInfo() : packed(0) { static_assert_size(*this, sizeof(packed)); }
 };
 
 // Returns tiles actually covered by a resolve area. Row length used is width of
 // the area in tiles, but the pitch between rows is edram_info.pitch_tiles.
-void GetResolveEdramTileSpan(ResolveEdramInfo edram_info,
-                             ResolveCoordinateInfo coordinate_info,
+void GetResolveEdramTileSpan(ResolveEdramInfo edram_info, ResolveCoordinateInfo coordinate_info,
                              uint32_t height_div_8, uint32_t& base_out,
                              uint32_t& row_length_used_out, uint32_t& rows_out);
 
@@ -406,10 +387,10 @@ union ResolveCopyDestCoordinateInfo {
   uint32_t packed;
   struct {
     // 0...16384/32.
-    uint32_t pitch_aligned_div_32 : xenos::kTexture2DCubeMaxWidthHeightLog2 +
-                                    2 - xenos::kTextureTileWidthHeightLog2;
-    uint32_t height_aligned_div_32 : xenos::kTexture2DCubeMaxWidthHeightLog2 +
-                                     2 - xenos::kTextureTileWidthHeightLog2;
+    uint32_t pitch_aligned_div_32 : xenos::kTexture2DCubeMaxWidthHeightLog2 + 2 -
+                                    xenos::kTextureTileWidthHeightLog2;
+    uint32_t height_aligned_div_32 : xenos::kTexture2DCubeMaxWidthHeightLog2 + 2 -
+                                     xenos::kTextureTileWidthHeightLog2;
 
     // Up to the maximum period of the texture tiled address function (128x128
     // for 2D 1bpb).
@@ -418,9 +399,7 @@ union ResolveCopyDestCoordinateInfo {
 
     xenos::CopySampleSelect copy_sample_select : 3;
   };
-  ResolveCopyDestCoordinateInfo() : packed(0) {
-    static_assert_size(*this, sizeof(packed));
-  }
+  ResolveCopyDestCoordinateInfo() : packed(0) { static_assert_size(*this, sizeof(packed)); }
 };
 
 // For backends with Shader Model 5-like compute, host shaders to use to perform
@@ -463,8 +442,7 @@ struct ResolveCopyShaderInfo {
   uint32_t group_size_x_log2, group_size_y_log2;
 };
 
-extern const ResolveCopyShaderInfo
-    resolve_copy_shader_info[size_t(ResolveCopyShaderIndex::kCount)];
+extern const ResolveCopyShaderInfo resolve_copy_shader_info[size_t(ResolveCopyShaderIndex::kCount)];
 
 struct ResolveCopyShaderConstants {
   // When the destination base is not needed (not binding the entire shared
@@ -538,30 +516,27 @@ struct ResolveInfo {
   }
 
   // See GetResolveEdramTileSpan documentation for explanation.
-  void GetCopyEdramTileSpan(uint32_t& base_out, uint32_t& row_length_used_out,
-                            uint32_t& rows_out, uint32_t& pitch_out) const {
-    ResolveEdramInfo edram_info =
-        IsCopyingDepth() ? depth_edram_info : color_edram_info;
+  void GetCopyEdramTileSpan(uint32_t& base_out, uint32_t& row_length_used_out, uint32_t& rows_out,
+                            uint32_t& pitch_out) const {
+    ResolveEdramInfo edram_info = IsCopyingDepth() ? depth_edram_info : color_edram_info;
     GetResolveEdramTileSpan(edram_info, coordinate_info, height_div_8, base_out,
                             row_length_used_out, rows_out);
     pitch_out = edram_info.pitch_tiles;
   }
 
-  ResolveCopyShaderIndex GetCopyShader(
-      uint32_t draw_resolution_scale_x, uint32_t draw_resolution_scale_y,
-      ResolveCopyShaderConstants& constants_out, uint32_t& group_count_x_out,
-      uint32_t& group_count_y_out) const;
+  ResolveCopyShaderIndex GetCopyShader(uint32_t draw_resolution_scale_x,
+                                       uint32_t draw_resolution_scale_y,
+                                       ResolveCopyShaderConstants& constants_out,
+                                       uint32_t& group_count_x_out,
+                                       uint32_t& group_count_y_out) const;
 
-  bool IsClearingDepth() const {
-    return rb_copy_control.depth_clear_enable != 0;
-  }
+  bool IsClearingDepth() const { return rb_copy_control.depth_clear_enable != 0; }
 
   bool IsClearingColor() const {
     return !IsCopyingDepth() && rb_copy_control.color_clear_enable != 0;
   }
 
-  void GetDepthClearShaderConstants(
-      ResolveClearShaderConstants& constants_out) const {
+  void GetDepthClearShaderConstants(ResolveClearShaderConstants& constants_out) const {
     assert_true(IsClearingDepth());
     constants_out.rt_specific.clear_value[0] = rb_depth_clear;
     constants_out.rt_specific.clear_value[1] = rb_depth_clear;
@@ -569,8 +544,7 @@ struct ResolveInfo {
     constants_out.coordinate_info = coordinate_info;
   }
 
-  void GetColorClearShaderConstants(
-      ResolveClearShaderConstants& constants_out) const {
+  void GetColorClearShaderConstants(ResolveClearShaderConstants& constants_out) const {
     assert_true(IsClearingColor());
     // Not doing -32...32 to -1...1 clamping here as a hack for k_16_16 and
     // k_16_16_16_16 blending emulation when using host render targets as it
@@ -582,15 +556,13 @@ struct ResolveInfo {
     constants_out.coordinate_info = coordinate_info;
   }
 
-  std::pair<uint32_t, uint32_t> GetClearShaderGroupCount(
-      uint32_t draw_resolution_scale_x,
-      uint32_t draw_resolution_scale_y) const {
+  std::pair<uint32_t, uint32_t> GetClearShaderGroupCount(uint32_t draw_resolution_scale_x,
+                                                         uint32_t draw_resolution_scale_y) const {
     // 8 guest MSAA samples per invocation.
     uint32_t width_samples_div_8 = coordinate_info.width_div_8;
     uint32_t height_samples_div_8 = height_div_8;
-    xenos::MsaaSamples samples = IsCopyingDepth()
-                                     ? depth_edram_info.msaa_samples
-                                     : color_edram_info.msaa_samples;
+    xenos::MsaaSamples samples =
+        IsCopyingDepth() ? depth_edram_info.msaa_samples : color_edram_info.msaa_samples;
     if (samples >= xenos::MsaaSamples::k2X) {
       height_samples_div_8 <<= 1;
       if (samples >= xenos::MsaaSamples::k4X) {
@@ -599,8 +571,7 @@ struct ResolveInfo {
     }
     width_samples_div_8 *= draw_resolution_scale_x;
     height_samples_div_8 *= draw_resolution_scale_y;
-    return std::make_pair((width_samples_div_8 + uint32_t(7)) >> 3,
-                          height_samples_div_8);
+    return std::make_pair((width_samples_div_8 + uint32_t(7)) >> 3, height_samples_div_8);
   }
 };
 
@@ -611,10 +582,7 @@ struct ResolveInfo {
 // within that range.
 bool GetResolveInfo(const RegisterFile& regs, const memory::Memory& memory,
                     TraceWriter& trace_writer, uint32_t draw_resolution_scale_x,
-                    uint32_t draw_resolution_scale_y,
-                    bool fixed_rg16_truncated_to_minus_1_to_1,
-                    bool fixed_rgba16_truncated_to_minus_1_to_1,
-                    ResolveInfo& info_out);
+                    uint32_t draw_resolution_scale_y, bool fixed_rg16_truncated_to_minus_1_to_1,
+                    bool fixed_rgba16_truncated_to_minus_1_to_1, ResolveInfo& info_out);
 
 }  // namespace rex::graphics::draw_util
-

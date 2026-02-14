@@ -10,18 +10,12 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <cstdint>
 #include <string>
 
-#include <spirv-tools/libspirv.h>
-#include <rex/platform.h>
+#include <rex/platform/dynlib.h>
 
-#if REX_PLATFORM_LINUX
-#include <dlfcn.h>
-#elif REX_PLATFORM_WIN32
-#include <rex/platform/win.h>
-#endif
+#include <spirv-tools/libspirv.h>
 
 namespace rex {
 namespace ui {
@@ -36,26 +30,14 @@ class SpirvToolsContext {
   bool Initialize(unsigned int spirv_version);
   void Shutdown();
 
-  spv_result_t Validate(const uint32_t* words, size_t num_words,
-                        std::string* error) const;
+  spv_result_t Validate(const uint32_t* words, size_t num_words, std::string* error) const;
 
  private:
-#if REX_PLATFORM_LINUX
-  void* library_ = nullptr;
-#elif REX_PLATFORM_WIN32
-  HMODULE library_ = nullptr;
-#endif
+  rex::platform::DynamicLibrary library_;
 
   template <typename FunctionPointer>
   bool LoadLibraryFunction(FunctionPointer& function, const char* name) {
-#if REX_PLATFORM_LINUX
-    function = reinterpret_cast<FunctionPointer>(dlsym(library_, name));
-#elif REX_PLATFORM_WIN32
-    function =
-        reinterpret_cast<FunctionPointer>(GetProcAddress(library_, name));
-#else
-#error No SPIRV-Tools LoadLibraryFunction provided for the target platform.
-#endif
+    function = library_.GetSymbol<FunctionPointer>(name);
     return function != nullptr;
   }
   decltype(&spvContextCreate) fn_spvContextCreate_ = nullptr;
@@ -69,4 +51,3 @@ class SpirvToolsContext {
 }  // namespace vulkan
 }  // namespace ui
 }  // namespace rex
-

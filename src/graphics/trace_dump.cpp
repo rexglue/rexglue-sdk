@@ -9,21 +9,21 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/graphics/trace_dump.h>
-
-#include <stb_image_write.h"
+#include <rex/dbg.h>
 #include <rex/filesystem.h>
-#include <rex/logging.h>
-#include <rex/profiling.h>
-#include <rex/string.h>
-#include <rex/thread.h>
 #include <rex/graphics/command_processor.h>
 #include <rex/graphics/graphics_system.h>
+#include <rex/graphics/trace_dump.h>
+#include <rex/logging.h>
 #include <rex/memory.h>
+#include <rex/string.h>
+#include <rex/system/kernel_state.h>
+#include <rex/thread.h>
 #include <rex/ui/file_picker.h>
 #include <rex/ui/presenter.h>
 #include <rex/ui/window.h>
-#include <rex/kernel.h>
+
+#include <stb_image_write.h"
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #undef _CRT_SECURE_NO_WARNINGS
@@ -97,8 +97,7 @@ bool TraceDump::Setup() {
   // Create the emulator but don't initialize so we can setup the window.
   emulator_ = std::make_unique<Emulator>("", "", "", "");
   X_STATUS result = emulator_->Setup(
-      nullptr, nullptr, false, nullptr,
-      [this]() { return CreateGraphicsSystem(); }, nullptr);
+      nullptr, nullptr, false, nullptr, [this]() { return CreateGraphicsSystem(); }, nullptr);
   if (XFAILED(result)) {
     REXGPU_ERROR("Failed to setup emulator: {:08X}", result);
     return false;
@@ -122,8 +121,7 @@ bool TraceDump::Load(const std::filesystem::path& trace_file_path) {
 int TraceDump::Run() {
   BeginHostCapture();
   player_->SeekFrame(0);
-  player_->SeekCommand(
-      static_cast<int>(player_->current_frame()->commands.size() - 1));
+  player_->SeekCommand(static_cast<int>(player_->current_frame()->commands.size() - 1));
   player_->WaitOnPlayback();
   EndHostCapture();
 
@@ -139,8 +137,7 @@ int TraceDump::Run() {
       fwrite(data, 1, size, (FILE*)context);
     };
     stbi_write_png_to_func(callback, handle, static_cast<int>(raw_image.width),
-                           static_cast<int>(raw_image.height), 4,
-                           raw_image.data.data(),
+                           static_cast<int>(raw_image.height), 4, raw_image.data.data(),
                            static_cast<int>(raw_image.stride));
     fclose(handle);
   } else {

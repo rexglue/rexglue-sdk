@@ -9,32 +9,34 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/kernel/xam/module.h>
-
 #include <vector>
 
-#include <rex/math.h>
-#include <rex/kernel/kernel_state.h>
+#include <rex/kernel/xam/module.h>
 #include <rex/kernel/xam/private.h>
+#include <rex/math.h>
+#include <rex/system/kernel_state.h>
 
 namespace rex {
 namespace kernel {
 namespace xam {
-using namespace rex::runtime::guest;
+using namespace rex::system;
+using namespace rex::system::xam;
 
 std::atomic<int> xam_dialogs_shown_ = {0};
 
-bool xeXamIsUIActive() { return xam_dialogs_shown_ > 0; }
+bool xeXamIsUIActive() {
+  return xam_dialogs_shown_ > 0;
+}
 
 XamModule::XamModule(Runtime* emulator, KernelState* kernel_state)
     : KernelModule(kernel_state, "xe:\\xam.xex"), loader_data_() {
   RegisterExportTable(export_resolver_);
 
   // Register all exported functions.
-//#define XE_MODULE_EXPORT_GROUP(m, n) \
+  // #define XE_MODULE_EXPORT_GROUP(m, n) \
 //  Register##n##Exports(export_resolver_, kernel_state_);
-//#include <rex/kernel/xam/module_export_groups.inc>
-//#undef XE_MODULE_EXPORT_GROUP
+  // #include <rex/kernel/xam/module_export_groups.inc>
+  // #undef XE_MODULE_EXPORT_GROUP
 }
 
 std::vector<rex::runtime::Export*> xam_exports(4096);
@@ -49,11 +51,11 @@ void XamModule::RegisterExportTable(rex::runtime::ExportResolver* export_resolve
   assert_not_null(export_resolver);
 
 // Build the export table used for resolution.
-#include <rex/kernel/util/export_table_pre.inc>
+#include <rex/system/util/export_table_pre.inc>
   static rex::runtime::Export xam_export_table[] = {
 #include <rex/kernel/xam/table.inc>
   };
-#include <rex/kernel/util/export_table_post.inc>
+#include <rex/system/util/export_table_post.inc>
   for (size_t i = 0; i < rex::countof(xam_export_table); ++i) {
     auto& export_entry = xam_export_table[i];
     assert_true(export_entry.ordinal < xam_exports.size());
@@ -68,4 +70,4 @@ XamModule::~XamModule() {}
 
 }  // namespace xam
 }  // namespace kernel
-}  // namespace xe
+}  // namespace rex

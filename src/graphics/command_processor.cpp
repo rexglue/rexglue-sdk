@@ -9,36 +9,33 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/graphics/command_processor.h>
-
 #include <algorithm>
 #include <cinttypes>
 #include <cmath>
 #include <cstring>
 
 #include <fmt/format.h>
-#include <rex/stream.h>
+
+#include <rex/cvar.h>
+#include <rex/dbg.h>
+#include <rex/graphics/command_processor.h>
+#include <rex/graphics/flags.h>
+#include <rex/graphics/graphics_system.h>
+#include <rex/graphics/pipeline/texture/info.h>
+#include <rex/graphics/sampler_info.h>
+#include <rex/graphics/xenos.h>
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/memory.h>
-#include <rex/profiling.h>
 #include <rex/memory/ring_buffer.h>
-#include <rex/cvar.h>
-#include <rex/graphics/flags.h>
-#include <rex/graphics/graphics_system.h>
-#include <rex/graphics/sampler_info.h>
-#include <rex/graphics/pipeline/texture/info.h>
-#include <rex/graphics/xenos.h>
-#include <rex/kernel/kernel_state.h>
-#include <rex/kernel/user_module.h>
+#include <rex/stream.h>
+#include <rex/system/kernel_state.h>
+#include <rex/system/user_module.h>
 
-REXCVAR_DEFINE_BOOL(vsync, true,
-    "Enable vertical sync",
-    "GPU");
+REXCVAR_DEFINE_BOOL(vsync, true, "Enable vertical sync", "GPU");
 
 REXCVAR_DEFINE_INT32(query_occlusion_fake_sample_count, 1000,
-    "Fake sample count for occlusion queries",
-    "GPU")
+                     "Fake sample count for occlusion queries", "GPU")
     .range(1, 100000);
 
 namespace rex::graphics {
@@ -46,7 +43,7 @@ namespace rex::graphics {
 using namespace rex::graphics::xenos;
 
 CommandProcessor::CommandProcessor(GraphicsSystem* graphics_system,
-                                   kernel::KernelState* kernel_state)
+                                   system::KernelState* kernel_state)
     : memory_(graphics_system->memory()),
       kernel_state_(kernel_state),
       graphics_system_(graphics_system),
@@ -81,8 +78,8 @@ bool CommandProcessor::Initialize() {
   }
 
   worker_running_ = true;
-  worker_thread_ = kernel::object_ref<kernel::XHostThread>(
-      new kernel::XHostThread(kernel_state_, 128 * 1024, 0, [this]() {
+  worker_thread_ = system::object_ref<system::XHostThread>(
+      new system::XHostThread(kernel_state_, 128 * 1024, 0, [this]() {
         WorkerThreadMain();
         return 0;
       }));
@@ -101,12 +98,10 @@ void CommandProcessor::Shutdown() {
   worker_thread_.reset();
 }
 
-void CommandProcessor::InitializeShaderStorage(
-    const std::filesystem::path& cache_root, uint32_t title_id, bool blocking) {
-}
+void CommandProcessor::InitializeShaderStorage(const std::filesystem::path& cache_root,
+                                               uint32_t title_id, bool blocking) {}
 
-void CommandProcessor::RequestFrameTrace(
-    const std::filesystem::path& root_path) {
+void CommandProcessor::RequestFrameTrace(const std::filesystem::path& root_path) {
   if (trace_state_ == TraceState::kStreaming) {
     REXGPU_ERROR("Streaming trace; cannot also trace frame.");
     return;
@@ -142,10 +137,8 @@ void CommandProcessor::EndTracing() {
   trace_writer_.Close();
 }
 
-void CommandProcessor::RestoreRegisters(uint32_t first_register,
-                                        const uint32_t* register_values,
-                                        uint32_t register_count,
-                                        bool execute_callbacks) {
+void CommandProcessor::RestoreRegisters(uint32_t first_register, const uint32_t* register_values,
+                                        uint32_t register_count, bool execute_callbacks) {
   if (first_register > RegisterFile::kRegisterCount ||
       RegisterFile::kRegisterCount - first_register < register_count) {
     REXGPU_WARN(
@@ -156,8 +149,7 @@ void CommandProcessor::RestoreRegisters(uint32_t first_register,
       return;
     }
     register_count =
-        std::min(uint32_t(RegisterFile::kRegisterCount) - first_register,
-                 register_count);
+        std::min(uint32_t(RegisterFile::kRegisterCount) - first_register, register_count);
   }
   if (execute_callbacks) {
     for (uint32_t i = 0; i < register_count; ++i) {
@@ -169,22 +161,19 @@ void CommandProcessor::RestoreRegisters(uint32_t first_register,
   }
 }
 
-void CommandProcessor::RestoreGammaRamp(
-    const reg::DC_LUT_30_COLOR* new_gamma_ramp_256_entry_table,
-    const reg::DC_LUT_PWL_DATA* new_gamma_ramp_pwl_rgb,
-    uint32_t new_gamma_ramp_rw_component) {
+void CommandProcessor::RestoreGammaRamp(const reg::DC_LUT_30_COLOR* new_gamma_ramp_256_entry_table,
+                                        const reg::DC_LUT_PWL_DATA* new_gamma_ramp_pwl_rgb,
+                                        uint32_t new_gamma_ramp_rw_component) {
   std::memcpy(gamma_ramp_256_entry_table_, new_gamma_ramp_256_entry_table,
               sizeof(reg::DC_LUT_30_COLOR) * 256);
-  std::memcpy(gamma_ramp_pwl_rgb_, new_gamma_ramp_pwl_rgb,
-              sizeof(reg::DC_LUT_PWL_DATA) * 3 * 128);
+  std::memcpy(gamma_ramp_pwl_rgb_, new_gamma_ramp_pwl_rgb, sizeof(reg::DC_LUT_PWL_DATA) * 3 * 128);
   gamma_ramp_rw_component_ = new_gamma_ramp_rw_component;
   OnGammaRamp256EntryTableValueWritten();
   OnGammaRampPWLValueWritten();
 }
 
 void CommandProcessor::CallInThread(std::function<void()> fn) {
-  if (pending_fns_.empty() &&
-      kernel::XThread::IsInThread(worker_thread_.get())) {
+  if (pending_fns_.empty() && system::XThread::IsInThread(worker_thread_.get())) {
     fn();
   } else {
     pending_fns_.push(std::move(fn));
@@ -193,15 +182,12 @@ void CommandProcessor::CallInThread(std::function<void()> fn) {
 
 void CommandProcessor::ClearCaches() {}
 
-void CommandProcessor::SetDesiredSwapPostEffect(
-    SwapPostEffect swap_post_effect) {
+void CommandProcessor::SetDesiredSwapPostEffect(SwapPostEffect swap_post_effect) {
   if (swap_post_effect_desired_ == swap_post_effect) {
     return;
   }
   swap_post_effect_desired_ = swap_post_effect;
-  CallInThread([this, swap_post_effect]() {
-    swap_post_effect_actual_ = swap_post_effect;
-  });
+  CallInThread([this, swap_post_effect]() { swap_post_effect_actual_ = swap_post_effect; });
 }
 
 void CommandProcessor::WorkerThreadMain() {
@@ -230,15 +216,14 @@ void CommandProcessor::WorkerThreadMain() {
         if (loop_count > 500) {
           const int wait_time_ms = 5;
           rex::thread::Wait(write_ptr_index_event_.get(), true,
-                              std::chrono::milliseconds(wait_time_ms));
+                            std::chrono::milliseconds(wait_time_ms));
         }
 
         rex::thread::MaybeYield();
         loop_count++;
         write_ptr_index = write_ptr_index_.load();
       } while (worker_running_ && pending_fns_.empty() &&
-               (write_ptr_index == 0xBAADF00D ||
-                read_ptr_index_ == write_ptr_index));
+               (write_ptr_index == 0xBAADF00D || read_ptr_index_ == write_ptr_index));
       ReturnFromWait();
       if (!worker_running_ || !pending_fns_.empty()) {
         continue;
@@ -252,8 +237,8 @@ void CommandProcessor::WorkerThreadMain() {
     // TODO(benvanik): use reader->Read_update_freq_ and only issue after moving
     //     that many indices.
     if (read_ptr_writeback_ptr_) {
-      memory::store_and_swap<uint32_t>(
-          memory_->TranslatePhysical(read_ptr_writeback_ptr_), read_ptr_index_);
+      memory::store_and_swap<uint32_t>(memory_->TranslatePhysical(read_ptr_writeback_ptr_),
+                                       read_ptr_index_);
     }
 
     // FIXME: We're supposed to process the WAIT_UNTIL register at this point,
@@ -313,7 +298,9 @@ bool CommandProcessor::Restore(::rex::stream::ByteStream* stream) {
   return true;
 }
 
-bool CommandProcessor::SetupContext() { return true; }
+bool CommandProcessor::SetupContext() {
+  return true;
+}
 
 void CommandProcessor::ShutdownContext() {}
 
@@ -323,8 +310,7 @@ void CommandProcessor::InitializeRingBuffer(uint32_t ptr, uint32_t size_log2) {
   primary_buffer_size_ = uint32_t(1) << (size_log2 + 3);
 }
 
-void CommandProcessor::EnableReadPointerWriteBack(uint32_t ptr,
-                                                  uint32_t block_size_log2) {
+void CommandProcessor::EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size_log2) {
   // CP_RB_RPTR_ADDR Ring Buffer Read Pointer Address 0x70C
   // ptr = RB_RPTR_ADDR, pointer to write back the address to.
   read_ptr_writeback_ptr_ = ptr;
@@ -367,8 +353,7 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
       // This will block the command processor the next time it WAIT_REG_MEMs
       // and allow us to synchronize the memory.
       case XE_GPU_REG_COHER_STATUS_HOST: {
-        const_cast<volatile uint32_t&>(regs.values[index]) |=
-            UINT32_C(0x80000000);
+        const_cast<volatile uint32_t&>(regs.values[index]) |= UINT32_C(0x80000000);
       } break;
 
       case XE_GPU_REG_DC_LUT_RW_INDEX: {
@@ -383,15 +368,13 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
         auto gamma_ramp_rw_index = regs.Get<reg::DC_LUT_RW_INDEX>();
         // DC_LUT_SEQ_COLOR is in the red, green, blue order, but the write
         // enable mask is blue, green, red.
-        bool write_gamma_ramp_component =
-            (regs[XE_GPU_REG_DC_LUT_WRITE_EN_MASK] &
-             (UINT32_C(1) << (2 - gamma_ramp_rw_component_))) != 0;
+        bool write_gamma_ramp_component = (regs[XE_GPU_REG_DC_LUT_WRITE_EN_MASK] &
+                                           (UINT32_C(1) << (2 - gamma_ramp_rw_component_))) != 0;
         if (write_gamma_ramp_component) {
           reg::DC_LUT_30_COLOR& gamma_ramp_entry =
               gamma_ramp_256_entry_table_[gamma_ramp_rw_index.rw_index];
           // Bits 0:5 are hardwired to zero.
-          uint32_t gamma_ramp_seq_color =
-              regs.Get<reg::DC_LUT_SEQ_COLOR>().seq_color >> 6;
+          uint32_t gamma_ramp_seq_color = regs.Get<reg::DC_LUT_SEQ_COLOR>().seq_color >> 6;
           switch (gamma_ramp_rw_component_) {
             case 0:
               gamma_ramp_entry.color_10_red = gamma_ramp_seq_color;
@@ -408,9 +391,8 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
           gamma_ramp_rw_component_ = 0;
           reg::DC_LUT_RW_INDEX new_gamma_ramp_rw_index = gamma_ramp_rw_index;
           ++new_gamma_ramp_rw_index.rw_index;
-          WriteRegister(
-              XE_GPU_REG_DC_LUT_RW_INDEX,
-              rex::memory::Reinterpret<uint32_t>(new_gamma_ramp_rw_index));
+          WriteRegister(XE_GPU_REG_DC_LUT_RW_INDEX,
+                        rex::memory::Reinterpret<uint32_t>(new_gamma_ramp_rw_index));
         }
         if (write_gamma_ramp_component) {
           OnGammaRamp256EntryTableValueWritten();
@@ -425,13 +407,11 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
         uint32_t gamma_ramp_rw_index_pwl = gamma_ramp_rw_index.rw_index & 0x7F;
         // DC_LUT_PWL_DATA is likely in the red, green, blue order because
         // DC_LUT_SEQ_COLOR is, but the write enable mask is blue, green, red.
-        bool write_gamma_ramp_component =
-            (regs[XE_GPU_REG_DC_LUT_WRITE_EN_MASK] &
-             (UINT32_C(1) << (2 - gamma_ramp_rw_component_))) != 0;
+        bool write_gamma_ramp_component = (regs[XE_GPU_REG_DC_LUT_WRITE_EN_MASK] &
+                                           (UINT32_C(1) << (2 - gamma_ramp_rw_component_))) != 0;
         if (write_gamma_ramp_component) {
           reg::DC_LUT_PWL_DATA& gamma_ramp_entry =
-              gamma_ramp_pwl_rgb_[gamma_ramp_rw_index_pwl]
-                                 [gamma_ramp_rw_component_];
+              gamma_ramp_pwl_rgb_[gamma_ramp_rw_index_pwl][gamma_ramp_rw_component_];
           auto gamma_ramp_value = regs.Get<reg::DC_LUT_PWL_DATA>();
           // Bits 0:5 are hardwired to zero.
           gamma_ramp_entry.base = gamma_ramp_value.base & ~UINT32_C(0x3F);
@@ -444,12 +424,10 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
           // Direct3D 9 explicitly sets rw_index to 0x80 after writing the last
           // PWL entry. However, the DC_LUT_RW_INDEX documentation says that for
           // PWL, the bit 7 is ignored.
-          new_gamma_ramp_rw_index.rw_index =
-              (gamma_ramp_rw_index.rw_index & ~UINT32_C(0x7F)) |
-              ((gamma_ramp_rw_index_pwl + 1) & 0x7F);
-          WriteRegister(
-              XE_GPU_REG_DC_LUT_RW_INDEX,
-              rex::memory::Reinterpret<uint32_t>(new_gamma_ramp_rw_index));
+          new_gamma_ramp_rw_index.rw_index = (gamma_ramp_rw_index.rw_index & ~UINT32_C(0x7F)) |
+                                             ((gamma_ramp_rw_index_pwl + 1) & 0x7F);
+          WriteRegister(XE_GPU_REG_DC_LUT_RW_INDEX,
+                        rex::memory::Reinterpret<uint32_t>(new_gamma_ramp_rw_index));
         }
         if (write_gamma_ramp_component) {
           OnGammaRampPWLValueWritten();
@@ -460,8 +438,7 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
         // Should be in the 256-entry table writing mode.
         assert_zero(regs[XE_GPU_REG_DC_LUT_RW_MODE] & 0b1);
         auto gamma_ramp_rw_index = regs.Get<reg::DC_LUT_RW_INDEX>();
-        uint32_t gamma_ramp_write_enable_mask =
-            regs[XE_GPU_REG_DC_LUT_WRITE_EN_MASK] & 0b111;
+        uint32_t gamma_ramp_write_enable_mask = regs[XE_GPU_REG_DC_LUT_WRITE_EN_MASK] & 0b111;
         if (gamma_ramp_write_enable_mask) {
           reg::DC_LUT_30_COLOR& gamma_ramp_entry =
               gamma_ramp_256_entry_table_[gamma_ramp_rw_index.rw_index];
@@ -483,9 +460,8 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
         gamma_ramp_rw_component_ = 0;
         reg::DC_LUT_RW_INDEX new_gamma_ramp_rw_index = gamma_ramp_rw_index;
         ++new_gamma_ramp_rw_index.rw_index;
-        WriteRegister(
-            XE_GPU_REG_DC_LUT_RW_INDEX,
-            rex::memory::Reinterpret<uint32_t>(new_gamma_ramp_rw_index));
+        WriteRegister(XE_GPU_REG_DC_LUT_RW_INDEX,
+                      rex::memory::Reinterpret<uint32_t>(new_gamma_ramp_rw_index));
         if (gamma_ramp_write_enable_mask) {
           OnGammaRamp256EntryTableValueWritten();
         }
@@ -528,26 +504,26 @@ void CommandProcessor::MakeCoherent() {
 
   // TODO(benvanik): notify resource cache of base->size and type.
   REXGPU_TRACE("Make {:08X} -> {:08X} ({}b) coherent, action = {}", base_host,
-         base_host + size_host, size_host, action);
+               base_host + size_host, size_host, action);
 
   // Mark coherent.
   regs_volatile[XE_GPU_REG_COHER_STATUS_HOST] = 0;
 }
 
-void CommandProcessor::PrepareForWait() { trace_writer_.Flush(); }
+void CommandProcessor::PrepareForWait() {
+  trace_writer_.Flush();
+}
 
 void CommandProcessor::ReturnFromWait() {}
 
-uint32_t CommandProcessor::ExecutePrimaryBuffer(uint32_t read_index,
-                                                uint32_t write_index) {
+uint32_t CommandProcessor::ExecutePrimaryBuffer(uint32_t read_index, uint32_t write_index) {
   SCOPE_profile_cpu_f("gpu");
 
   // If we have a pending trace stream open it now. That way we ensure we get
   // all commands.
   if (!trace_writer_.is_open() && trace_state_ == TraceState::kStreaming) {
-    uint32_t title_id = kernel_state_->GetExecutableModule()
-                            ? kernel_state_->GetExecutableModule()->title_id()
-                            : 0;
+    uint32_t title_id =
+        kernel_state_->GetExecutableModule() ? kernel_state_->GetExecutableModule()->title_id() : 0;
     auto file_name = fmt::format("{:08X}_stream.xtr", title_id);
     auto path = trace_stream_path_ / file_name;
     trace_writer_.Open(path, title_id);
@@ -563,8 +539,7 @@ uint32_t CommandProcessor::ExecutePrimaryBuffer(uint32_t read_index,
   trace_writer_.WritePrimaryBufferStart(start_ptr, write_index - read_index);
 
   // Execute commands!
-  memory::RingBuffer reader(memory_->TranslatePhysical(primary_buffer_ptr_),
-                    primary_buffer_size_);
+  memory::RingBuffer reader(memory_->TranslatePhysical(primary_buffer_ptr_), primary_buffer_size_);
   reader.set_read_offset(read_index * sizeof(uint32_t));
   reader.set_write_offset(write_index * sizeof(uint32_t));
   do {
@@ -651,9 +626,8 @@ bool CommandProcessor::ExecutePacketType0(memory::RingBuffer* reader, uint32_t p
 
   uint32_t count = ((packet >> 16) & 0x3FFF) + 1;
   if (reader->read_count() < count * sizeof(uint32_t)) {
-    REXGPU_ERROR(
-        "ExecutePacketType0 overflow (read count {:08X}, packet count {:08X})",
-        reader->read_count(), count * sizeof(uint32_t));
+    REXGPU_ERROR("ExecutePacketType0 overflow (read count {:08X}, packet count {:08X})",
+                 reader->read_count(), count * sizeof(uint32_t));
     return false;
   }
 
@@ -700,9 +674,8 @@ bool CommandProcessor::ExecutePacketType3(memory::RingBuffer* reader, uint32_t p
   auto data_start_offset = reader->read_offset();
 
   if (reader->read_count() < count * sizeof(uint32_t)) {
-    REXGPU_ERROR(
-        "ExecutePacketType3 overflow (read count {:08X}, packet count {:08X})",
-        reader->read_count(), count * sizeof(uint32_t));
+    REXGPU_ERROR("ExecutePacketType3 overflow (read count {:08X}, packet count {:08X})",
+                 reader->read_count(), count * sizeof(uint32_t));
     return false;
   }
 
@@ -808,8 +781,7 @@ bool CommandProcessor::ExecutePacketType3(memory::RingBuffer* reader, uint32_t p
     } break;
     case PM4_SET_BIN_MASK_HI: {
       uint32_t value = reader->ReadAndSwap<uint32_t>();
-      bin_mask_ =
-          (bin_mask_ & 0xFFFFFFFFull) | (static_cast<uint64_t>(value) << 32);
+      bin_mask_ = (bin_mask_ & 0xFFFFFFFFull) | (static_cast<uint64_t>(value) << 32);
       result = true;
     } break;
     case PM4_SET_BIN_SELECT_LO: {
@@ -819,8 +791,7 @@ bool CommandProcessor::ExecutePacketType3(memory::RingBuffer* reader, uint32_t p
     } break;
     case PM4_SET_BIN_SELECT_HI: {
       uint32_t value = reader->ReadAndSwap<uint32_t>();
-      bin_select_ =
-          (bin_select_ & 0xFFFFFFFFull) | (static_cast<uint64_t>(value) << 32);
+      bin_select_ = (bin_select_ & 0xFFFFFFFFull) | (static_cast<uint64_t>(value) << 32);
       result = true;
     } break;
     case PM4_SET_BIN_MASK: {
@@ -855,8 +826,7 @@ bool CommandProcessor::ExecutePacketType3(memory::RingBuffer* reader, uint32_t p
     }
 
     default:
-      REXGPU_INFO("Unimplemented GPU OPCODE: 0x{:02X}\t\tCOUNT: {}\n", opcode,
-               count);
+      REXGPU_INFO("Unimplemented GPU OPCODE: 0x{:02X}\t\tCOUNT: {}\n", opcode, count);
       assert_always();
       reader->AdvanceRead(count * sizeof(uint32_t));
       break;
@@ -883,13 +853,11 @@ bool CommandProcessor::ExecutePacketType3(memory::RingBuffer* reader, uint32_t p
   }
 
   assert_true(reader->read_offset() ==
-              (data_start_offset + (count * sizeof(uint32_t))) %
-                  reader->capacity());
+              (data_start_offset + (count * sizeof(uint32_t))) % reader->capacity());
   return result;
 }
 
-bool CommandProcessor::ExecutePacketType3_ME_INIT(memory::RingBuffer* reader,
-                                                  uint32_t packet,
+bool CommandProcessor::ExecutePacketType3_ME_INIT(memory::RingBuffer* reader, uint32_t packet,
                                                   uint32_t count) {
   // initialize CP's micro-engine
   me_bin_.clear();
@@ -900,16 +868,15 @@ bool CommandProcessor::ExecutePacketType3_ME_INIT(memory::RingBuffer* reader,
   return true;
 }
 
-bool CommandProcessor::ExecutePacketType3_NOP(memory::RingBuffer* reader,
-                                              uint32_t packet, uint32_t count) {
+bool CommandProcessor::ExecutePacketType3_NOP(memory::RingBuffer* reader, uint32_t packet,
+                                              uint32_t count) {
   // skip N 32-bit words to get to the next packet
   // No-op, ignore some data.
   reader->AdvanceRead(count * sizeof(uint32_t));
   return true;
 }
 
-bool CommandProcessor::ExecutePacketType3_INTERRUPT(memory::RingBuffer* reader,
-                                                    uint32_t packet,
+bool CommandProcessor::ExecutePacketType3_INTERRUPT(memory::RingBuffer* reader, uint32_t packet,
                                                     uint32_t count) {
   SCOPE_profile_cpu_f("gpu");
 
@@ -923,11 +890,10 @@ bool CommandProcessor::ExecutePacketType3_INTERRUPT(memory::RingBuffer* reader,
   return true;
 }
 
-bool CommandProcessor::ExecutePacketType3_XE_SWAP(memory::RingBuffer* reader,
-                                                  uint32_t packet,
+bool CommandProcessor::ExecutePacketType3_XE_SWAP(memory::RingBuffer* reader, uint32_t packet,
                                                   uint32_t count) {
   SCOPE_profile_cpu_f("gpu");
-  
+
   rex::debug::Profiler::Flip();
 
   // Xenia-specific VdSwap hook.
@@ -950,8 +916,7 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(memory::RingBuffer* reader,
 }
 
 bool CommandProcessor::ExecutePacketType3_INDIRECT_BUFFER(memory::RingBuffer* reader,
-                                                          uint32_t packet,
-                                                          uint32_t count) {
+                                                          uint32_t packet, uint32_t count) {
   // indirect buffer dispatch
   uint32_t list_ptr = CpuToGpu(reader->ReadAndSwap<uint32_t>());
   uint32_t list_length = reader->ReadAndSwap<uint32_t>();
@@ -961,8 +926,7 @@ bool CommandProcessor::ExecutePacketType3_INDIRECT_BUFFER(memory::RingBuffer* re
   return true;
 }
 
-bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reader,
-                                                       uint32_t packet,
+bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reader, uint32_t packet,
                                                        uint32_t count) {
   SCOPE_profile_cpu_f("gpu");
 
@@ -978,18 +942,16 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reade
 
   assert_true(is_memory || poll_reg_addr < RegisterFile::kRegisterCount);
   const volatile uint32_t& value_ref =
-      is_memory ? *reinterpret_cast<uint32_t*>(memory_->TranslatePhysical(
-                      poll_reg_addr & ~uint32_t(0x3)))
-                : register_file_->values[poll_reg_addr];
+      is_memory
+          ? *reinterpret_cast<uint32_t*>(memory_->TranslatePhysical(poll_reg_addr & ~uint32_t(0x3)))
+          : register_file_->values[poll_reg_addr];
 
   bool matched = false;
   do {
     uint32_t value = value_ref;
     if (is_memory) {
-      trace_writer_.WriteMemoryRead(CpuToGpu(poll_reg_addr & ~uint32_t(0x3)),
-                                    sizeof(uint32_t));
-      value = xenos::GpuSwap(value,
-                             static_cast<xenos::Endian>(poll_reg_addr & 0x3));
+      trace_writer_.WriteMemoryRead(CpuToGpu(poll_reg_addr & ~uint32_t(0x3)), sizeof(uint32_t));
+      value = xenos::GpuSwap(value, static_cast<xenos::Endian>(poll_reg_addr & 0x3));
     } else {
       if (poll_reg_addr == XE_GPU_REG_COHER_STATUS_HOST) {
         MakeCoherent();
@@ -1048,8 +1010,7 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reade
   return true;
 }
 
-bool CommandProcessor::ExecutePacketType3_REG_RMW(memory::RingBuffer* reader,
-                                                  uint32_t packet,
+bool CommandProcessor::ExecutePacketType3_REG_RMW(memory::RingBuffer* reader, uint32_t packet,
                                                   uint32_t count) {
   // register read/modify/write
   // ? (used during shader upload and edram setup)
@@ -1075,8 +1036,7 @@ bool CommandProcessor::ExecutePacketType3_REG_RMW(memory::RingBuffer* reader,
   return true;
 }
 
-bool CommandProcessor::ExecutePacketType3_REG_TO_MEM(memory::RingBuffer* reader,
-                                                     uint32_t packet,
+bool CommandProcessor::ExecutePacketType3_REG_TO_MEM(memory::RingBuffer* reader, uint32_t packet,
                                                      uint32_t count) {
   // Copy Register to Memory (?)
   // Count is 2, assuming a Register Addr and a Memory Addr.
@@ -1098,8 +1058,7 @@ bool CommandProcessor::ExecutePacketType3_REG_TO_MEM(memory::RingBuffer* reader,
   return true;
 }
 
-bool CommandProcessor::ExecutePacketType3_MEM_WRITE(memory::RingBuffer* reader,
-                                                    uint32_t packet,
+bool CommandProcessor::ExecutePacketType3_MEM_WRITE(memory::RingBuffer* reader, uint32_t packet,
                                                     uint32_t count) {
   uint32_t write_addr = reader->ReadAndSwap<uint32_t>();
   for (uint32_t i = 0; i < count - 1; i++) {
@@ -1116,8 +1075,7 @@ bool CommandProcessor::ExecutePacketType3_MEM_WRITE(memory::RingBuffer* reader,
   return true;
 }
 
-bool CommandProcessor::ExecutePacketType3_COND_WRITE(memory::RingBuffer* reader,
-                                                     uint32_t packet,
+bool CommandProcessor::ExecutePacketType3_COND_WRITE(memory::RingBuffer* reader, uint32_t packet,
                                                      uint32_t count) {
   // conditional write to memory or register
   uint32_t wait_info = reader->ReadAndSwap<uint32_t>();
@@ -1183,8 +1141,7 @@ bool CommandProcessor::ExecutePacketType3_COND_WRITE(memory::RingBuffer* reader,
   return true;
 }
 
-bool CommandProcessor::ExecutePacketType3_EVENT_WRITE(memory::RingBuffer* reader,
-                                                      uint32_t packet,
+bool CommandProcessor::ExecutePacketType3_EVENT_WRITE(memory::RingBuffer* reader, uint32_t packet,
                                                       uint32_t count) {
   // generate an event that creates a write to memory when completed
   uint32_t initiator = reader->ReadAndSwap<uint32_t>();
@@ -1201,8 +1158,7 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE(memory::RingBuffer* reader
 }
 
 bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_SHD(memory::RingBuffer* reader,
-                                                          uint32_t packet,
-                                                          uint32_t count) {
+                                                          uint32_t packet, uint32_t count) {
   // generate a VS|PS_done event
   uint32_t initiator = reader->ReadAndSwap<uint32_t>();
   uint32_t address = reader->ReadAndSwap<uint32_t>();
@@ -1227,8 +1183,7 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_SHD(memory::RingBuffer* re
 }
 
 bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_EXT(memory::RingBuffer* reader,
-                                                          uint32_t packet,
-                                                          uint32_t count) {
+                                                          uint32_t packet, uint32_t count) {
   // generate a screen extent event
   uint32_t initiator = reader->ReadAndSwap<uint32_t>();
   uint32_t address = reader->ReadAndSwap<uint32_t>();
@@ -1251,14 +1206,13 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_EXT(memory::RingBuffer* re
   };
   assert_true(endianness == xenos::Endian::k8in16);
   memory::copy_and_swap_16_unaligned(memory_->TranslatePhysical(address), extents,
-                                 rex::countof(extents));
+                                     rex::countof(extents));
   trace_writer_.WriteMemoryWrite(CpuToGpu(address), sizeof(extents));
   return true;
 }
 
 bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffer* reader,
-                                                          uint32_t packet,
-                                                          uint32_t count) {
+                                                          uint32_t packet, uint32_t count) {
   // Set by D3D as BE but struct ABI is LE
   const uint32_t kQueryFinished = rex::byte_swap(0xFFFFFEED);
   assert_true(count == 1);
@@ -1271,16 +1225,15 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffer* re
   // As a workaround report some fixed amount of passed samples.
   auto fake_sample_count = REXCVAR_GET(query_occlusion_fake_sample_count);
   if (fake_sample_count >= 0) {
-    auto* pSampleCounts =
-        memory_->TranslatePhysical<xe_gpu_depth_sample_counts*>(
-            register_file_->values[XE_GPU_REG_RB_SAMPLE_COUNT_ADDR]);
+    auto* pSampleCounts = memory_->TranslatePhysical<xe_gpu_depth_sample_counts*>(
+        register_file_->values[XE_GPU_REG_RB_SAMPLE_COUNT_ADDR]);
     // 0xFFFFFEED is written to this two locations by D3D only on D3DISSUE_END
     // and used to detect a finished query.
-    bool is_end_via_z_pass = pSampleCounts->ZPass_A == kQueryFinished &&
-                             pSampleCounts->ZPass_B == kQueryFinished;
+    bool is_end_via_z_pass =
+        pSampleCounts->ZPass_A == kQueryFinished && pSampleCounts->ZPass_B == kQueryFinished;
     // Older versions of D3D also checks for ZFail (4D5307D5).
-    bool is_end_via_z_fail = pSampleCounts->ZFail_A == kQueryFinished &&
-                             pSampleCounts->ZFail_B == kQueryFinished;
+    bool is_end_via_z_fail =
+        pSampleCounts->ZFail_A == kQueryFinished && pSampleCounts->ZFail_B == kQueryFinished;
     std::memset(pSampleCounts, 0, sizeof(xe_gpu_depth_sample_counts));
     if (is_end_via_z_pass || is_end_via_z_fail) {
       pSampleCounts->ZPass_A = fake_sample_count;
@@ -1291,10 +1244,8 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffer* re
   return true;
 }
 
-bool CommandProcessor::ExecutePacketType3Draw(memory::RingBuffer* reader,
-                                              uint32_t packet,
-                                              const char* opcode_name,
-                                              uint32_t viz_query_condition,
+bool CommandProcessor::ExecutePacketType3Draw(memory::RingBuffer* reader, uint32_t packet,
+                                              const char* opcode_name, uint32_t viz_query_condition,
                                               uint32_t count_remaining) {
   // if viz_query_condition != 0, this is a conditional draw based on viz query.
   // This ID matches the one issued in PM4_VIZ_QUERY
@@ -1343,10 +1294,9 @@ bool CommandProcessor::ExecutePacketType3Draw(memory::RingBuffer* reader,
       --count_remaining;
       WriteRegister(XE_GPU_REG_VGT_DMA_SIZE, vgt_dma_size.value);
 
-      uint32_t index_size_bytes =
-          vgt_draw_initiator.index_size == xenos::IndexFormat::kInt16
-              ? sizeof(uint16_t)
-              : sizeof(uint32_t);
+      uint32_t index_size_bytes = vgt_draw_initiator.index_size == xenos::IndexFormat::kInt16
+                                      ? sizeof(uint16_t)
+                                      : sizeof(uint32_t);
       // The base address must already be word-aligned according to the R6xx
       // documentation, but for safety.
       index_buffer_info.guest_base = vgt_dma_base & ~(index_size_bytes - 1);
@@ -1391,13 +1341,12 @@ bool CommandProcessor::ExecutePacketType3Draw(memory::RingBuffer* reader,
       draw_succeeded = IssueDraw(
           vgt_draw_initiator.prim_type, vgt_draw_initiator.num_indices,
           is_indexed ? &index_buffer_info : nullptr,
-          xenos::IsMajorModeExplicit(vgt_draw_initiator.major_mode,
-                                     vgt_draw_initiator.prim_type));
+          xenos::IsMajorModeExplicit(vgt_draw_initiator.major_mode, vgt_draw_initiator.prim_type));
       if (!draw_succeeded) {
         REXGPU_ERROR("{}({}, {}, {}): Failed in backend", opcode_name,
-               static_cast<uint32_t>(vgt_draw_initiator.num_indices),
-               uint32_t(vgt_draw_initiator.prim_type),
-               uint32_t(vgt_draw_initiator.source_select));
+                     static_cast<uint32_t>(vgt_draw_initiator.num_indices),
+                     uint32_t(vgt_draw_initiator.prim_type),
+                     uint32_t(vgt_draw_initiator.source_select));
       }
     }
   }
@@ -1409,8 +1358,7 @@ bool CommandProcessor::ExecutePacketType3Draw(memory::RingBuffer* reader,
   return true;
 }
 
-bool CommandProcessor::ExecutePacketType3_DRAW_INDX(memory::RingBuffer* reader,
-                                                    uint32_t packet,
+bool CommandProcessor::ExecutePacketType3_DRAW_INDX(memory::RingBuffer* reader, uint32_t packet,
                                                     uint32_t count) {
   // "initiate fetch of index buffer and draw"
   // Generally used by Xbox 360 Direct3D 9 for kDMA and kAutoIndex sources.
@@ -1423,12 +1371,11 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX(memory::RingBuffer* reader,
   }
   uint32_t viz_query_condition = reader->ReadAndSwap<uint32_t>();
   --count_remaining;
-  return ExecutePacketType3Draw(reader, packet, "PM4_DRAW_INDX",
-                                viz_query_condition, count_remaining);
+  return ExecutePacketType3Draw(reader, packet, "PM4_DRAW_INDX", viz_query_condition,
+                                count_remaining);
 }
 
-bool CommandProcessor::ExecutePacketType3_DRAW_INDX_2(memory::RingBuffer* reader,
-                                                      uint32_t packet,
+bool CommandProcessor::ExecutePacketType3_DRAW_INDX_2(memory::RingBuffer* reader, uint32_t packet,
                                                       uint32_t count) {
   // "draw using supplied indices in packet"
   // Generally used by Xbox 360 Direct3D 9 for kAutoIndex source.
@@ -1436,8 +1383,7 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX_2(memory::RingBuffer* reader
   return ExecutePacketType3Draw(reader, packet, "PM4_DRAW_INDX_2", 0, count);
 }
 
-bool CommandProcessor::ExecutePacketType3_SET_CONSTANT(memory::RingBuffer* reader,
-                                                       uint32_t packet,
+bool CommandProcessor::ExecutePacketType3_SET_CONSTANT(memory::RingBuffer* reader, uint32_t packet,
                                                        uint32_t count) {
   // load constant into chip and to memory
   // PM4_REG(reg) ((0x4 << 16) | (GSL_HAL_SUBBLOCK_OFFSET(reg)))
@@ -1473,8 +1419,7 @@ bool CommandProcessor::ExecutePacketType3_SET_CONSTANT(memory::RingBuffer* reade
   return true;
 }
 
-bool CommandProcessor::ExecutePacketType3_SET_CONSTANT2(memory::RingBuffer* reader,
-                                                        uint32_t packet,
+bool CommandProcessor::ExecutePacketType3_SET_CONSTANT2(memory::RingBuffer* reader, uint32_t packet,
                                                         uint32_t count) {
   uint32_t offset_type = reader->ReadAndSwap<uint32_t>();
   uint32_t index = offset_type & 0xFFFF;
@@ -1486,8 +1431,7 @@ bool CommandProcessor::ExecutePacketType3_SET_CONSTANT2(memory::RingBuffer* read
 }
 
 bool CommandProcessor::ExecutePacketType3_LOAD_ALU_CONSTANT(memory::RingBuffer* reader,
-                                                            uint32_t packet,
-                                                            uint32_t count) {
+                                                            uint32_t packet, uint32_t count) {
   // load constants from memory
   uint32_t address = reader->ReadAndSwap<uint32_t>();
   address &= 0x3FFFFFFF;
@@ -1518,15 +1462,14 @@ bool CommandProcessor::ExecutePacketType3_LOAD_ALU_CONSTANT(memory::RingBuffer* 
   }
   trace_writer_.WriteMemoryRead(CpuToGpu(address), size_dwords * 4);
   for (uint32_t n = 0; n < size_dwords; n++, index++) {
-    uint32_t data = memory::load_and_swap<uint32_t>(
-        memory_->TranslatePhysical(address + n * 4));
+    uint32_t data = memory::load_and_swap<uint32_t>(memory_->TranslatePhysical(address + n * 4));
     WriteRegister(index, data);
   }
   return true;
 }
 
-bool CommandProcessor::ExecutePacketType3_SET_SHADER_CONSTANTS(
-    memory::RingBuffer* reader, uint32_t packet, uint32_t count) {
+bool CommandProcessor::ExecutePacketType3_SET_SHADER_CONSTANTS(memory::RingBuffer* reader,
+                                                               uint32_t packet, uint32_t count) {
   uint32_t offset_type = reader->ReadAndSwap<uint32_t>();
   uint32_t index = offset_type & 0xFFFF;
   for (uint32_t n = 0; n < count - 1; n++, index++) {
@@ -1536,8 +1479,7 @@ bool CommandProcessor::ExecutePacketType3_SET_SHADER_CONSTANTS(
   return true;
 }
 
-bool CommandProcessor::ExecutePacketType3_IM_LOAD(memory::RingBuffer* reader,
-                                                  uint32_t packet,
+bool CommandProcessor::ExecutePacketType3_IM_LOAD(memory::RingBuffer* reader, uint32_t packet,
                                                   uint32_t count) {
   SCOPE_profile_cpu_f("gpu");
 
@@ -1552,8 +1494,7 @@ bool CommandProcessor::ExecutePacketType3_IM_LOAD(memory::RingBuffer* reader,
 
   trace_writer_.WriteMemoryRead(CpuToGpu(addr), size_dwords * 4);
   auto shader =
-      LoadShader(shader_type, addr, memory_->TranslatePhysical<uint32_t*>(addr),
-                 size_dwords);
+      LoadShader(shader_type, addr, memory_->TranslatePhysical<uint32_t*>(addr), size_dwords);
   switch (shader_type) {
     case xenos::ShaderType::kVertex:
       active_vertex_shader_ = shader;
@@ -1569,8 +1510,7 @@ bool CommandProcessor::ExecutePacketType3_IM_LOAD(memory::RingBuffer* reader,
 }
 
 bool CommandProcessor::ExecutePacketType3_IM_LOAD_IMMEDIATE(memory::RingBuffer* reader,
-                                                            uint32_t packet,
-                                                            uint32_t count) {
+                                                            uint32_t packet, uint32_t count) {
   SCOPE_profile_cpu_f("gpu");
 
   // load sequencer instruction memory (code embedded in packet)
@@ -1583,9 +1523,8 @@ bool CommandProcessor::ExecutePacketType3_IM_LOAD_IMMEDIATE(memory::RingBuffer* 
   assert_true(start == 0);
   assert_true(reader->read_count() >= size_dwords * 4);
   assert_true(count - 2 >= size_dwords);
-  auto shader =
-      LoadShader(shader_type, uint32_t(reader->read_ptr()),
-                 reinterpret_cast<uint32_t*>(reader->read_ptr()), size_dwords);
+  auto shader = LoadShader(shader_type, uint32_t(reader->read_ptr()),
+                           reinterpret_cast<uint32_t*>(reader->read_ptr()), size_dwords);
   switch (shader_type) {
     case xenos::ShaderType::kVertex:
       active_vertex_shader_ = shader;
@@ -1602,16 +1541,14 @@ bool CommandProcessor::ExecutePacketType3_IM_LOAD_IMMEDIATE(memory::RingBuffer* 
 }
 
 bool CommandProcessor::ExecutePacketType3_INVALIDATE_STATE(memory::RingBuffer* reader,
-                                                           uint32_t packet,
-                                                           uint32_t count) {
+                                                           uint32_t packet, uint32_t count) {
   // selective invalidation of state pointers
   /*uint32_t mask =*/reader->ReadAndSwap<uint32_t>();
   // driver_->InvalidateState(mask);
   return true;
 }
 
-bool CommandProcessor::ExecutePacketType3_VIZ_QUERY(memory::RingBuffer* reader,
-                                                    uint32_t packet,
+bool CommandProcessor::ExecutePacketType3_VIZ_QUERY(memory::RingBuffer* reader, uint32_t packet,
                                                     uint32_t count) {
   // begin/end initiator for viz query extent processing
   // https://www.google.com/patents/US20050195186
@@ -1634,11 +1571,9 @@ bool CommandProcessor::ExecutePacketType3_VIZ_QUERY(memory::RingBuffer* reader,
     // The scan converter writes the internal result back to the register here.
     // We just fake it and say it was visible in case it is read back.
     if (id < 32) {
-      register_file_->values[XE_GPU_REG_PA_SC_VIZ_QUERY_STATUS_0] |= uint32_t(1)
-                                                                     << id;
+      register_file_->values[XE_GPU_REG_PA_SC_VIZ_QUERY_STATUS_0] |= uint32_t(1) << id;
     } else {
-      register_file_->values[XE_GPU_REG_PA_SC_VIZ_QUERY_STATUS_1] |=
-          uint32_t(1) << (id - 32);
+      register_file_->values[XE_GPU_REG_PA_SC_VIZ_QUERY_STATUS_1] |= uint32_t(1) << (id - 32);
     }
   }
 
@@ -1649,11 +1584,10 @@ void CommandProcessor::InitializeTrace() {
   // Write the initial register values, to be loaded directly into the
   // RegisterFile since all registers, including those that may have side
   // effects on setting, will be saved.
-  trace_writer_.WriteRegisters(0, register_file_->values,
-                               RegisterFile::kRegisterCount, false);
+  trace_writer_.WriteRegisters(0, register_file_->values, RegisterFile::kRegisterCount, false);
 
-  trace_writer_.WriteGammaRamp(gamma_ramp_256_entry_table(),
-                               gamma_ramp_pwl_rgb(), gamma_ramp_rw_component_);
+  trace_writer_.WriteGammaRamp(gamma_ramp_256_entry_table(), gamma_ramp_pwl_rgb(),
+                               gamma_ramp_rw_component_);
 }
 
 }  // namespace rex::graphics

@@ -11,7 +11,6 @@
 
 #pragma once
 
-
 #include <array>
 #include <memory>
 #include <utility>
@@ -27,22 +26,16 @@ namespace rex::ui::d3d12 {
 class D3D12UIDrawContext final : public UIDrawContext {
  public:
   D3D12UIDrawContext(Presenter& presenter, uint32_t render_target_width,
-                     uint32_t render_target_height,
-                     ID3D12GraphicsCommandList* command_list,
-                     UINT64 submission_index_current,
-                     UINT64 submission_index_completed)
+                     uint32_t render_target_height, ID3D12GraphicsCommandList* command_list,
+                     UINT64 submission_index_current, UINT64 submission_index_completed)
       : UIDrawContext(presenter, render_target_width, render_target_height),
         command_list_(command_list),
         submission_index_current_(submission_index_current),
         submission_index_completed_(submission_index_completed) {}
 
-  ID3D12GraphicsCommandList* command_list() const {
-    return command_list_.Get();
-  }
+  ID3D12GraphicsCommandList* command_list() const { return command_list_.Get(); }
   UINT64 submission_index_current() const { return submission_index_current_; }
-  UINT64 submission_index_completed() const {
-    return submission_index_completed_;
-  }
+  UINT64 submission_index_completed() const { return submission_index_completed_; }
 
  private:
   Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> command_list_;
@@ -52,23 +45,19 @@ class D3D12UIDrawContext final : public UIDrawContext {
 
 class D3D12Presenter final : public Presenter {
  public:
-  static constexpr DXGI_FORMAT kGuestOutputFormat =
-      DXGI_FORMAT_R10G10B10A2_UNORM;
+  static constexpr DXGI_FORMAT kGuestOutputFormat = DXGI_FORMAT_R10G10B10A2_UNORM;
   static constexpr D3D12_RESOURCE_STATES kGuestOutputInternalState =
       D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 
-  static constexpr DXGI_FORMAT kGuestOutputIntermediateFormat =
-      DXGI_FORMAT_R10G10B10A2_UNORM;
+  static constexpr DXGI_FORMAT kGuestOutputIntermediateFormat = DXGI_FORMAT_R10G10B10A2_UNORM;
 
   // The format used internally by Windows composition.
   static constexpr DXGI_FORMAT kSwapChainFormat = DXGI_FORMAT_B8G8R8A8_UNORM;
 
   // The callback must use the main direct queue of the provider.
-  class D3D12GuestOutputRefreshContext final
-      : public GuestOutputRefreshContext {
+  class D3D12GuestOutputRefreshContext final : public GuestOutputRefreshContext {
    public:
-    D3D12GuestOutputRefreshContext(bool& is_8bpc_out_ref,
-                                   ID3D12Resource* resource)
+    D3D12GuestOutputRefreshContext(bool& is_8bpc_out_ref, ID3D12Resource* resource)
         : GuestOutputRefreshContext(is_8bpc_out_ref), resource_(resource) {}
 
     // kGuestOutputFormat, supports UAV. The initial state in the callback is
@@ -80,11 +69,10 @@ class D3D12Presenter final : public Presenter {
     Microsoft::WRL::ComPtr<ID3D12Resource> resource_;
   };
 
-  static std::unique_ptr<D3D12Presenter> Create(
-      HostGpuLossCallback host_gpu_loss_callback,
-      const D3D12Provider& provider) {
-    auto presenter = std::unique_ptr<D3D12Presenter>(
-        new D3D12Presenter(host_gpu_loss_callback, provider));
+  static std::unique_ptr<D3D12Presenter> Create(HostGpuLossCallback host_gpu_loss_callback,
+                                                const D3D12Provider& provider) {
+    auto presenter =
+        std::unique_ptr<D3D12Presenter>(new D3D12Presenter(host_gpu_loss_callback, provider));
     if (!presenter->InitializeSurfaceIndependent()) {
       return nullptr;
     }
@@ -105,16 +93,14 @@ class D3D12Presenter final : public Presenter {
 
  protected:
   SurfacePaintConnectResult ConnectOrReconnectPaintingToSurfaceFromUIThread(
-      Surface& new_surface, uint32_t new_surface_width,
-      uint32_t new_surface_height, bool was_paintable,
-      bool& is_vsync_implicit_out) override;
+      Surface& new_surface, uint32_t new_surface_width, uint32_t new_surface_height,
+      bool was_paintable, bool& is_vsync_implicit_out) override;
   void DisconnectPaintingFromSurfaceFromUIThreadImpl() override;
 
-  bool RefreshGuestOutputImpl(
-      uint32_t mailbox_index, uint32_t frontbuffer_width,
-      uint32_t frontbuffer_height,
-      std::function<bool(GuestOutputRefreshContext& context)> refresher,
-      bool& is_8bpc_out) override;
+  bool RefreshGuestOutputImpl(uint32_t mailbox_index, uint32_t frontbuffer_width,
+                              uint32_t frontbuffer_height,
+                              std::function<bool(GuestOutputRefreshContext& context)> refresher,
+                              bool& is_8bpc_out) override;
 
   PaintResult PaintAndPresentImpl(bool execute_ui_drawers) override;
 
@@ -154,8 +140,8 @@ class D3D12Presenter final : public Presenter {
     kGuestOutputPaintRootSignatureCount,
   };
 
-  static constexpr GuestOutputPaintRootSignatureIndex
-  GetGuestOutputPaintRootSignatureIndex(GuestOutputPaintEffect effect) {
+  static constexpr GuestOutputPaintRootSignatureIndex GetGuestOutputPaintRootSignatureIndex(
+      GuestOutputPaintEffect effect) {
     switch (effect) {
       case GuestOutputPaintEffect::kBilinear:
       case GuestOutputPaintEffect::kBilinearDither:
@@ -191,11 +177,9 @@ class D3D12Presenter final : public Presenter {
 
       // Intermediate textures - the last usage is
       // guest_output_intermediate_texture_paint_last_usage_.
-      kRTVIndexGuestOutputIntermediate0 =
-          kRTVIndexSwapChainBuffer0 + kSwapChainBufferCount,
+      kRTVIndexGuestOutputIntermediate0 = kRTVIndexSwapChainBuffer0 + kSwapChainBufferCount,
 
-      kRTVCount =
-          kRTVIndexGuestOutputIntermediate0 + kGuestOutputMailboxSize - 1,
+      kRTVCount = kRTVIndexGuestOutputIntermediate0 + kGuestOutputMailboxSize - 1,
     };
 
     enum ViewIndex : UINT {
@@ -205,11 +189,9 @@ class D3D12Presenter final : public Presenter {
 
       // Intermediate textures - the last usage is
       // guest_output_intermediate_texture_paint_last_usage_.
-      kViewIndexGuestOutputIntermediate0Srv =
-          kViewIndexGuestOutput0Srv + kGuestOutputMailboxSize,
+      kViewIndexGuestOutputIntermediate0Srv = kViewIndexGuestOutput0Srv + kGuestOutputMailboxSize,
 
-      kViewCount = kViewIndexGuestOutputIntermediate0Srv +
-                   kMaxGuestOutputPaintEffects - 1,
+      kViewCount = kViewIndexGuestOutputIntermediate0Srv + kMaxGuestOutputPaintEffects - 1,
     };
 
     void AwaitSwapChainUsageCompletion() {
@@ -230,8 +212,7 @@ class D3D12Presenter final : public Presenter {
     // Signaled after presenting.
     D3D12SubmissionTracker present_submission_tracker;
 
-    std::array<Microsoft::WRL::ComPtr<ID3D12CommandAllocator>,
-               kSwapChainBufferCount>
+    std::array<Microsoft::WRL::ComPtr<ID3D12CommandAllocator>, kSwapChainBufferCount>
         command_allocators;
     Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> command_list;
 
@@ -251,15 +232,13 @@ class D3D12Presenter final : public Presenter {
     // the reference is not in this array yet, the most outdated reference, if
     // needed, is replaced with the new one, awaiting the completion of the last
     // paint usage.
-    std::array<std::pair<UINT64, Microsoft::WRL::ComPtr<ID3D12Resource>>,
-               kGuestOutputMailboxSize>
+    std::array<std::pair<UINT64, Microsoft::WRL::ComPtr<ID3D12Resource>>, kGuestOutputMailboxSize>
         guest_output_resource_paint_refs;
 
     // Current intermediate textures for guest output painting, refreshed when
     // painting guest output. While not in use, they are in
     // D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE.
-    std::array<Microsoft::WRL::ComPtr<ID3D12Resource>,
-               kMaxGuestOutputPaintEffects - 1>
+    std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, kMaxGuestOutputPaintEffects - 1>
         guest_output_intermediate_textures;
     UINT64 guest_output_intermediate_texture_last_usage = 0;
 
@@ -269,12 +248,10 @@ class D3D12Presenter final : public Presenter {
     uint32_t swap_chain_height = 0;
     bool swap_chain_allows_tearing = false;
     Microsoft::WRL::ComPtr<IDXGISwapChain3> swap_chain;
-    std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, kSwapChainBufferCount>
-        swap_chain_buffers;
+    std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, kSwapChainBufferCount> swap_chain_buffers;
   };
 
-  explicit D3D12Presenter(HostGpuLossCallback host_gpu_loss_callback,
-                          const D3D12Provider& provider)
+  explicit D3D12Presenter(HostGpuLossCallback host_gpu_loss_callback, const D3D12Provider& provider)
       : Presenter(host_gpu_loss_callback), provider_(provider) {}
 
   bool dxgi_supports_tearing() const { return dxgi_supports_tearing_; }
@@ -291,21 +268,17 @@ class D3D12Presenter final : public Presenter {
   // Static objects for guest output presentation, used only when painting the
   // main target (can be destroyed only after awaiting main target usage
   // completion).
-  std::array<Microsoft::WRL::ComPtr<ID3D12RootSignature>,
-             kGuestOutputPaintRootSignatureCount>
+  std::array<Microsoft::WRL::ComPtr<ID3D12RootSignature>, kGuestOutputPaintRootSignatureCount>
       guest_output_paint_root_signatures_;
-  std::array<Microsoft::WRL::ComPtr<ID3D12PipelineState>,
-             size_t(GuestOutputPaintEffect::kCount)>
+  std::array<Microsoft::WRL::ComPtr<ID3D12PipelineState>, size_t(GuestOutputPaintEffect::kCount)>
       guest_output_paint_intermediate_pipelines_;
-  std::array<Microsoft::WRL::ComPtr<ID3D12PipelineState>,
-             size_t(GuestOutputPaintEffect::kCount)>
+  std::array<Microsoft::WRL::ComPtr<ID3D12PipelineState>, size_t(GuestOutputPaintEffect::kCount)>
       guest_output_paint_final_pipelines_;
 
   // The first is the refresher submission tracker fence value at which the
   // guest output texture was last refreshed, the second is the reference to the
   // texture, which may be null. The indices are the mailbox indices.
-  std::array<std::pair<UINT64, Microsoft::WRL::ComPtr<ID3D12Resource>>,
-             kGuestOutputMailboxSize>
+  std::array<std::pair<UINT64, Microsoft::WRL::ComPtr<ID3D12Resource>>, kGuestOutputMailboxSize>
       guest_output_resources_;
   // The guest output resources are protected by two submission trackers - the
   // refresher ones (for writing to them via the guest_output_resources_
@@ -326,4 +299,3 @@ class D3D12Presenter final : public Presenter {
 };
 
 }  // namespace rex::ui::d3d12
-

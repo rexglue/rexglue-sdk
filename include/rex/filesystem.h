@@ -78,8 +78,8 @@ class FileHandle {
  public:
   // Opens the file, failing if it doesn't exist.
   // The desired_access bitmask denotes the permissions on the file.
-  static std::unique_ptr<FileHandle> OpenExisting(
-      const std::filesystem::path& path, uint32_t desired_access);
+  static std::unique_ptr<FileHandle> OpenExisting(const std::filesystem::path& path,
+                                                  uint32_t desired_access);
 
   virtual ~FileHandle() = default;
 
@@ -94,8 +94,8 @@ class FileHandle {
   // Writes the given buffer to the file starting at the given offset.
   // The total number of bytes written is returned only if the complete
   // write succeeds.
-  virtual bool Write(size_t file_offset, const void* buffer,
-                     size_t buffer_length, size_t* out_bytes_written) = 0;
+  virtual bool Write(size_t file_offset, const void* buffer, size_t buffer_length,
+                     size_t* out_bytes_written) = 0;
 
   // Set length of the file in bytes.
   virtual bool SetLength(size_t length) = 0;
@@ -129,10 +129,8 @@ std::vector<FileInfo> ListFiles(const std::filesystem::path& path);
 void AndroidInitialize();
 void AndroidShutdown();
 bool IsAndroidContentUri(const std::string_view source);
-int OpenAndroidContentFileDescriptor(const std::string_view uri,
-                                     const char* mode);
+int OpenAndroidContentFileDescriptor(const std::string_view uri, const char* mode);
 #endif  // REX_PLATFORM_ANDROID
 
 }  // namespace filesystem
 }  // namespace rex
-

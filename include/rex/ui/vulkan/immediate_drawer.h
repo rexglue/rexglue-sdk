@@ -10,7 +10,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <cstddef>
 #include <deque>
 #include <memory>
@@ -27,15 +26,13 @@ namespace vulkan {
 
 class VulkanImmediateDrawer : public ImmediateDrawer {
  public:
-  static std::unique_ptr<VulkanImmediateDrawer> Create(
-      const VulkanDevice* vulkan_device, const UISamplers* ui_samplers);
+  static std::unique_ptr<VulkanImmediateDrawer> Create(const VulkanDevice* vulkan_device,
+                                                       const UISamplers* ui_samplers);
 
   ~VulkanImmediateDrawer();
 
-  std::unique_ptr<ImmediateTexture> CreateTexture(uint32_t width,
-                                                  uint32_t height,
-                                                  ImmediateTextureFilter filter,
-                                                  bool is_repeated,
+  std::unique_ptr<ImmediateTexture> CreateTexture(uint32_t width, uint32_t height,
+                                                  ImmediateTextureFilter filter, bool is_repeated,
                                                   const uint8_t* data) override;
 
   void Begin(UIDrawContext& ui_draw_context, float coordinate_space_width,
@@ -91,8 +88,7 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
     TextureDescriptorPool* recycled_next;
   };
 
-  explicit VulkanImmediateDrawer(const VulkanDevice* vulkan_device,
-                                 const UISamplers* ui_samplers);
+  explicit VulkanImmediateDrawer(const VulkanDevice* vulkan_device, const UISamplers* ui_samplers);
   bool Initialize();
 
   bool EnsurePipelinesCreatedForCurrentRenderPass();
@@ -105,9 +101,8 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
 
   // If data is null, a (1, 1, 1, 1) image will be created, which can be used as
   // a replacement when drawing without a real texture.
-  bool CreateTextureResource(uint32_t width, uint32_t height,
-                             ImmediateTextureFilter filter, bool is_repeated,
-                             const uint8_t* data,
+  bool CreateTextureResource(uint32_t width, uint32_t height, ImmediateTextureFilter filter,
+                             bool is_repeated, const uint8_t* data,
                              VulkanImmediateTexture::Resource& resource_out,
                              size_t& pending_upload_index_out);
   void DestroyTextureResource(VulkanImmediateTexture::Resource& resource);
@@ -142,8 +137,7 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
   };
   std::deque<SubmittedTextureUploadBuffer> texture_upload_buffers_submitted_;
   // Resource and last usage submission pairs.
-  std::vector<std::pair<VulkanImmediateTexture::Resource, uint64_t>>
-      textures_deleted_;
+  std::vector<std::pair<VulkanImmediateTexture::Resource, uint64_t>> textures_deleted_;
 
   std::unique_ptr<VulkanUploadBufferPool> vertex_buffer_pool_;
 
@@ -171,5 +165,4 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
 
 }  // namespace vulkan
 }  // namespace ui
-}  // namespace xe
-
+}  // namespace rex

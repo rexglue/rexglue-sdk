@@ -107,12 +107,8 @@ typedef struct alignas(16) vec128_s {
     };
   };
 
-  bool operator==(const vec128_s& b) const {
-    return low == b.low && high == b.high;
-  }
-  bool operator!=(const vec128_s& b) const {
-    return low != b.low || high != b.high;
-  }
+  bool operator==(const vec128_s& b) const { return low == b.low && high == b.high; }
+  bool operator!=(const vec128_s& b) const { return low != b.low || high != b.high; }
   vec128_s operator^(const vec128_s& b) const {
     vec128_s a = *this;
     a.high ^= b.high;
@@ -208,9 +204,8 @@ static inline vec128_t vec128s(uint16_t src) {
   }
   return v;
 }
-static inline vec128_t vec128s(uint16_t x0, uint16_t x1, uint16_t y0,
-                               uint16_t y1, uint16_t z0, uint16_t z1,
-                               uint16_t w0, uint16_t w1) {
+static inline vec128_t vec128s(uint16_t x0, uint16_t x1, uint16_t y0, uint16_t y1, uint16_t z0,
+                               uint16_t z1, uint16_t w0, uint16_t w1) {
   vec128_t v;
   v.u16[0] = x1;
   v.u16[1] = x0;
@@ -229,10 +224,10 @@ static inline vec128_t vec128b(uint8_t src) {
   }
   return v;
 }
-static inline vec128_t vec128b(uint8_t x0, uint8_t x1, uint8_t x2, uint8_t x3,
-                               uint8_t y0, uint8_t y1, uint8_t y2, uint8_t y3,
-                               uint8_t z0, uint8_t z1, uint8_t z2, uint8_t z3,
-                               uint8_t w0, uint8_t w1, uint8_t w2, uint8_t w3) {
+static inline vec128_t vec128b(uint8_t x0, uint8_t x1, uint8_t x2, uint8_t x3, uint8_t y0,
+                               uint8_t y1, uint8_t y2, uint8_t y3, uint8_t z0, uint8_t z1,
+                               uint8_t z2, uint8_t z3, uint8_t w0, uint8_t w1, uint8_t w2,
+                               uint8_t w3) {
   vec128_t v;
   v.u8[0] = x3;
   v.u8[1] = x2;
@@ -261,4 +256,3 @@ std::string to_string(const vec128_t& value);
 std::ostream& operator<<(std::ostream& os, const vec128_t& value);
 
 }  // namespace rex
-

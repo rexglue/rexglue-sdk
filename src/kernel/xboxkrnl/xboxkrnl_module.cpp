@@ -9,51 +9,44 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
- // Disable warnings about unused parameters for kernel functions
+// Disable warnings about unused parameters for kernel functions
 #pragma GCC diagnostic ignored "-Wunused-parameter"
-
-#include <rex/kernel/xboxkrnl/module.h>
-#include <rex/kernel/xboxkrnl/video.h>
 
 #include <cstring>
 #include <memory>
 #include <vector>
 
 #include <fmt/format.h>
+
+#include <rex/chrono/clock.h>
 #include <rex/cvar.h>
-#include <rex/runtime/guest/function.h>
-#include <rex/runtime/guest/types.h>
-#include <rex/time/clock.h>
-#include <rex/debugging.h>
-#include <rex/logging.h>
-#include <rex/math.h>
-#include <rex/runtime/guest/context.h>
-#include <rex/runtime.h>
-#include <rex/kernel/kernel_state.h>
-#include <rex/kernel/user_module.h>
+#include <rex/dbg.h>
 #include <rex/kernel/xboxkrnl/cert_monitor.h>
 #include <rex/kernel/xboxkrnl/debug_monitor.h>
+#include <rex/kernel/xboxkrnl/module.h>
 #include <rex/kernel/xboxkrnl/private.h>
-#include <rex/kernel/xthread.h>
+#include <rex/kernel/xboxkrnl/video.h>
+#include <rex/logging.h>
+#include <rex/math.h>
+#include <rex/ppc/context.h>
+#include <rex/ppc/function.h>
+#include <rex/ppc/types.h>
+#include <rex/runtime.h>
+#include <rex/system/kernel_state.h>
+#include <rex/system/user_module.h>
+#include <rex/system/xthread.h>
 
 REXCVAR_DEFINE_BOOL(log_high_frequency_kernel_calls, false,
-    "Log kernel calls with the kHighFrequency tag",
-    "Kernel");
+                    "Log kernel calls with the kHighFrequency tag", "Kernel");
 
-REXCVAR_DEFINE_STRING(cl, "",
-    "Specify additional command-line provided to guest",
-    "Kernel");
+REXCVAR_DEFINE_STRING(cl, "", "Specify additional command-line provided to guest", "Kernel");
 
-REXCVAR_DEFINE_BOOL(kernel_debug_monitor, false,
-    "Enable debug monitor",
-    "Kernel");
+REXCVAR_DEFINE_BOOL(kernel_debug_monitor, false, "Enable debug monitor", "Kernel");
 
-REXCVAR_DEFINE_BOOL(kernel_cert_monitor, false,
-    "Enable cert monitor",
-    "Kernel");
+REXCVAR_DEFINE_BOOL(kernel_cert_monitor, false, "Enable cert monitor", "Kernel");
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::runtime::guest;
+using namespace rex::system;
 
 bool XboxkrnlModule::SendPIXCommand(const char* cmd) {
   // TODO: JIT - PIX commands require JIT processor->Execute
@@ -66,8 +59,7 @@ bool XboxkrnlModule::SendPIXCommand(const char* cmd) {
 }
 
 XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
-    : KernelModule(kernel_state, "xe:\\xboxkrnl.exe"),
-      timestamp_timer_(nullptr) {
+    : KernelModule(kernel_state, "xe:\\xboxkrnl.exe"), timestamp_timer_(nullptr) {
   RegisterExportTable(export_resolver_);
 
   // Register video variable exports (VdGlobalDevice, VdGpuClockInMHz, etc.)
@@ -83,20 +75,18 @@ XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
     auto lpKeDebugMonitorData = memory_->TranslateVirtual(pKeDebugMonitorData);
     memory::store_and_swap<uint32_t>(lpKeDebugMonitorData, 0);
   } else {
-    pKeDebugMonitorData =
-        memory_->SystemHeapAlloc(4 + sizeof(X_KEDEBUGMONITORDATA));
+    pKeDebugMonitorData = memory_->SystemHeapAlloc(4 + sizeof(X_KEDEBUGMONITORDATA));
     memory::store_and_swap<uint32_t>(memory_->TranslateVirtual(pKeDebugMonitorData),
-                                 pKeDebugMonitorData + 4);
+                                     pKeDebugMonitorData + 4);
     auto lpKeDebugMonitorData =
-        memory_->TranslateVirtual<X_KEDEBUGMONITORDATA*>(pKeDebugMonitorData +
-                                                         4);
+        memory_->TranslateVirtual<X_KEDEBUGMONITORDATA*>(pKeDebugMonitorData + 4);
     std::memset(lpKeDebugMonitorData, 0, sizeof(X_KEDEBUGMONITORDATA));
     // TODO: JIT - GenerateTrampoline requires JIT
     // lpKeDebugMonitorData->callback_fn =
     //     GenerateTrampoline("KeDebugMonitorCallback", KeDebugMonitorCallback);
   }
-  export_resolver_->SetVariableMapping(
-      "xboxkrnl.exe", ordinals::KeDebugMonitorData, pKeDebugMonitorData);
+  export_resolver_->SetVariableMapping("xboxkrnl.exe", ordinals::KeDebugMonitorData,
+                                       pKeDebugMonitorData);
 
   // KeCertMonitorData (?*)
   // Always set to zero, ignored.
@@ -106,10 +96,9 @@ XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
     auto lpKeCertMonitorData = memory_->TranslateVirtual(pKeCertMonitorData);
     memory::store_and_swap<uint32_t>(lpKeCertMonitorData, 0);
   } else {
-    pKeCertMonitorData =
-        memory_->SystemHeapAlloc(4 + sizeof(X_KECERTMONITORDATA));
+    pKeCertMonitorData = memory_->SystemHeapAlloc(4 + sizeof(X_KECERTMONITORDATA));
     memory::store_and_swap<uint32_t>(memory_->TranslateVirtual(pKeCertMonitorData),
-                                 pKeCertMonitorData + 4);
+                                     pKeCertMonitorData + 4);
     auto lpKeCertMonitorData =
         memory_->TranslateVirtual<X_KECERTMONITORDATA*>(pKeCertMonitorData + 4);
     std::memset(lpKeCertMonitorData, 0, sizeof(X_KECERTMONITORDATA));
@@ -117,8 +106,8 @@ XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
     // lpKeCertMonitorData->callback_fn =
     //     GenerateTrampoline("KeCertMonitorCallback", KeCertMonitorCallback);
   }
-  export_resolver_->SetVariableMapping(
-      "xboxkrnl.exe", ordinals::KeCertMonitorData, pKeCertMonitorData);
+  export_resolver_->SetVariableMapping("xboxkrnl.exe", ordinals::KeCertMonitorData,
+                                       pKeCertMonitorData);
 
   // XboxHardwareInfo (XboxHardwareInfo_t, 16b)
   // flags       cpu#  ?     ?     ?     ?           ?       ?
@@ -133,8 +122,8 @@ XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
   // XboxHardwareInfo flags is set with flag 5 (0x20).
   uint32_t pXboxHardwareInfo = memory_->SystemHeapAlloc(16);
   auto lpXboxHardwareInfo = memory_->TranslateVirtual(pXboxHardwareInfo);
-  export_resolver_->SetVariableMapping(
-      "xboxkrnl.exe", ordinals::XboxHardwareInfo, pXboxHardwareInfo);
+  export_resolver_->SetVariableMapping("xboxkrnl.exe", ordinals::XboxHardwareInfo,
+                                       pXboxHardwareInfo);
   memory::store_and_swap<uint32_t>(lpXboxHardwareInfo + 0, 0x20);  // flags
   memory::store_and_swap<uint8_t>(lpXboxHardwareInfo + 4, 0x06);   // cpu count
   // Remaining 11b are zeroes?
@@ -143,8 +132,8 @@ XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
   // Just return all 0xFF, should satisfy anything that checks it
   uint32_t pExConsoleGameRegion = memory_->SystemHeapAlloc(4);
   auto lpExConsoleGameRegion = memory_->TranslateVirtual(pExConsoleGameRegion);
-  export_resolver_->SetVariableMapping(
-      "xboxkrnl.exe", ordinals::ExConsoleGameRegion, pExConsoleGameRegion);
+  export_resolver_->SetVariableMapping("xboxkrnl.exe", ordinals::ExConsoleGameRegion,
+                                       pExConsoleGameRegion);
   memory::store<uint32_t>(lpExConsoleGameRegion, 0xFFFFFFFF);
 
   // XexExecutableModuleHandle (?**)
@@ -157,8 +146,7 @@ XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
   // 0x80101058 <- pointer to xex header
   // 0x80101100 <- xex header base
   uint32_t ppXexExecutableModuleHandle = memory_->SystemHeapAlloc(4);
-  export_resolver_->SetVariableMapping("xboxkrnl.exe",
-                                       ordinals::XexExecutableModuleHandle,
+  export_resolver_->SetVariableMapping("xboxkrnl.exe", ordinals::XexExecutableModuleHandle,
                                        ppXexExecutableModuleHandle);
 
   // ExLoadedImageName (char*)
@@ -166,10 +154,9 @@ XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
   // Used usually in custom dashboards (Aurora)
   // Todo(Gliniak): Confirm that official kernel always allocate space for this
   // variable.
-  uint32_t ppExLoadedImageName =
-      memory_->SystemHeapAlloc(kExLoadedImageNameSize);
-  export_resolver_->SetVariableMapping(
-      "xboxkrnl.exe", ordinals::ExLoadedImageName, ppExLoadedImageName);
+  uint32_t ppExLoadedImageName = memory_->SystemHeapAlloc(kExLoadedImageNameSize);
+  export_resolver_->SetVariableMapping("xboxkrnl.exe", ordinals::ExLoadedImageName,
+                                       ppExLoadedImageName);
 
   // ExLoadedCommandLine (char*)
   // The name of the xex. Not sure this is ever really used on real devices.
@@ -184,19 +171,17 @@ XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
       rex::align(static_cast<uint32_t>(command_line.length()) + 1, 1024u);
   uint32_t pExLoadedCommandLine = memory_->SystemHeapAlloc(command_line_length);
   auto lpExLoadedCommandLine = memory_->TranslateVirtual(pExLoadedCommandLine);
-  export_resolver_->SetVariableMapping(
-      "xboxkrnl.exe", ordinals::ExLoadedCommandLine, pExLoadedCommandLine);
+  export_resolver_->SetVariableMapping("xboxkrnl.exe", ordinals::ExLoadedCommandLine,
+                                       pExLoadedCommandLine);
   std::memset(lpExLoadedCommandLine, 0, command_line_length);
-  std::memcpy(lpExLoadedCommandLine, command_line.c_str(),
-              command_line.length());
+  std::memcpy(lpExLoadedCommandLine, command_line.c_str(), command_line.length());
 
   // XboxKrnlVersion (8b)
   // Kernel version, looks like 2b.2b.2b.2b.
   // I've only seen games check >=, so we just fake something here.
   uint32_t pXboxKrnlVersion = memory_->SystemHeapAlloc(8);
   auto lpXboxKrnlVersion = memory_->TranslateVirtual(pXboxKrnlVersion);
-  export_resolver_->SetVariableMapping(
-      "xboxkrnl.exe", ordinals::XboxKrnlVersion, pXboxKrnlVersion);
+  export_resolver_->SetVariableMapping("xboxkrnl.exe", ordinals::XboxKrnlVersion, pXboxKrnlVersion);
   memory::store_and_swap<uint16_t>(lpXboxKrnlVersion + 0, 2);
   memory::store_and_swap<uint16_t>(lpXboxKrnlVersion + 2, 0xFFFF);
   memory::store_and_swap<uint16_t>(lpXboxKrnlVersion + 4, 0xFFFF);
@@ -208,17 +193,17 @@ XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
   // We setup a system timer here to do that.
   uint32_t pKeTimeStampBundle = memory_->SystemHeapAlloc(24);
   auto lpKeTimeStampBundle = memory_->TranslateVirtual(pKeTimeStampBundle);
-  export_resolver_->SetVariableMapping(
-      "xboxkrnl.exe", ordinals::KeTimeStampBundle, pKeTimeStampBundle);
+  export_resolver_->SetVariableMapping("xboxkrnl.exe", ordinals::KeTimeStampBundle,
+                                       pKeTimeStampBundle);
   memory::store_and_swap<uint64_t>(lpKeTimeStampBundle + 0, 0);
   memory::store_and_swap<uint64_t>(lpKeTimeStampBundle + 8, 0);
   memory::store_and_swap<uint32_t>(lpKeTimeStampBundle + 16,
-                               chrono::Clock::QueryGuestUptimeMillis());
+                                   chrono::Clock::QueryGuestUptimeMillis());
   memory::store_and_swap<uint32_t>(lpKeTimeStampBundle + 20, 0);
   timestamp_timer_ = rex::thread::HighResolutionTimer::CreateRepeating(
       std::chrono::milliseconds(1), [lpKeTimeStampBundle]() {
         memory::store_and_swap<uint32_t>(lpKeTimeStampBundle + 16,
-                                     chrono::Clock::QueryGuestUptimeMillis());
+                                         chrono::Clock::QueryGuestUptimeMillis());
       });
 }
 
@@ -234,16 +219,15 @@ rex::runtime::Export* RegisterExport_xboxkrnl(rex::runtime::Export* export_entry
   return export_entry;
 }
 
-void XboxkrnlModule::RegisterExportTable(
-    rex::runtime::ExportResolver* export_resolver) {
+void XboxkrnlModule::RegisterExportTable(rex::runtime::ExportResolver* export_resolver) {
   assert_not_null(export_resolver);
 
 // Build the export table used for resolution.
-#include <rex/kernel/util/export_table_pre.inc>
+#include <rex/system/util/export_table_pre.inc>
   static rex::runtime::Export xboxkrnl_export_table[] = {
 #include <rex/kernel/xboxkrnl/xboxkrnl_table.inc>
   };
-#include <rex/kernel/util/export_table_post.inc>
+#include <rex/system/util/export_table_post.inc>
   auto& xboxkrnl_exports = get_xboxkrnl_exports();
   for (size_t i = 0; i < rex::countof(xboxkrnl_export_table); ++i) {
     auto& export_entry = xboxkrnl_export_table[i];

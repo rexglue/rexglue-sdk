@@ -15,6 +15,6 @@
 
 namespace rex::kernel::xboxkrnl {
 
-// NOTE(tomc): this file is uh just kina here. actual registration for rexglue is via GUEST_FUNCTION_HOOK
-// !cleanme 
+// NOTE(tomc): this file is uh just kina here. actual registration for rexglue is via
+// GUEST_FUNCTION_HOOK !cleanme
 }  // namespace rex::kernel::xboxkrnl

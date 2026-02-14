@@ -9,10 +9,9 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/ui/d3d12/d3d12_upload_buffer_pool.h>
-
 #include <rex/logging.h>
 #include <rex/math.h>
+#include <rex/ui/d3d12/d3d12_upload_buffer_pool.h>
 #include <rex/ui/d3d12/d3d12_util.h>
 
 namespace rex::ui::d3d12 {
@@ -20,20 +19,17 @@ namespace rex::ui::d3d12 {
 // Align to D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT not to waste any space if
 // it's smaller (the size of the heap backing the buffer will be aligned to
 // D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT anyway).
-D3D12UploadBufferPool::D3D12UploadBufferPool(const D3D12Provider& provider,
-                                             size_t page_size)
-    : GraphicsUploadBufferPool(rex::align(
-          page_size, size_t(D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT))),
+D3D12UploadBufferPool::D3D12UploadBufferPool(const D3D12Provider& provider, size_t page_size)
+    : GraphicsUploadBufferPool(
+          rex::align(page_size, size_t(D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT))),
       provider_(provider) {}
 
-uint8_t* D3D12UploadBufferPool::Request(
-    uint64_t submission_index, size_t size, size_t alignment,
-    ID3D12Resource** buffer_out, size_t* offset_out,
-    D3D12_GPU_VIRTUAL_ADDRESS* gpu_address_out) {
+uint8_t* D3D12UploadBufferPool::Request(uint64_t submission_index, size_t size, size_t alignment,
+                                        ID3D12Resource** buffer_out, size_t* offset_out,
+                                        D3D12_GPU_VIRTUAL_ADDRESS* gpu_address_out) {
   size_t offset;
-  const D3D12Page* page =
-      static_cast<const D3D12Page*>(GraphicsUploadBufferPool::Request(
-          submission_index, size, alignment, offset));
+  const D3D12Page* page = static_cast<const D3D12Page*>(
+      GraphicsUploadBufferPool::Request(submission_index, size, alignment, offset));
   if (!page) {
     return nullptr;
   }
@@ -49,14 +45,13 @@ uint8_t* D3D12UploadBufferPool::Request(
   return reinterpret_cast<uint8_t*>(page->mapping_) + offset;
 }
 
-uint8_t* D3D12UploadBufferPool::RequestPartial(
-    uint64_t submission_index, size_t size, size_t alignment,
-    ID3D12Resource** buffer_out, size_t* offset_out, size_t* size_out,
-    D3D12_GPU_VIRTUAL_ADDRESS* gpu_address_out) {
+uint8_t* D3D12UploadBufferPool::RequestPartial(uint64_t submission_index, size_t size,
+                                               size_t alignment, ID3D12Resource** buffer_out,
+                                               size_t* offset_out, size_t* size_out,
+                                               D3D12_GPU_VIRTUAL_ADDRESS* gpu_address_out) {
   size_t offset, size_obtained;
-  const D3D12Page* page =
-      static_cast<const D3D12Page*>(GraphicsUploadBufferPool::RequestPartial(
-          submission_index, size, alignment, offset, size_obtained));
+  const D3D12Page* page = static_cast<const D3D12Page*>(GraphicsUploadBufferPool::RequestPartial(
+      submission_index, size, alignment, offset, size_obtained));
   if (!page) {
     return nullptr;
   }
@@ -75,16 +70,13 @@ uint8_t* D3D12UploadBufferPool::RequestPartial(
   return reinterpret_cast<uint8_t*>(page->mapping_) + offset;
 }
 
-GraphicsUploadBufferPool::Page*
-D3D12UploadBufferPool::CreatePageImplementation() {
+GraphicsUploadBufferPool::Page* D3D12UploadBufferPool::CreatePageImplementation() {
   D3D12_RESOURCE_DESC buffer_desc;
-  util::FillBufferResourceDesc(buffer_desc, page_size_,
-                               D3D12_RESOURCE_FLAG_NONE);
+  util::FillBufferResourceDesc(buffer_desc, page_size_, D3D12_RESOURCE_FLAG_NONE);
   Microsoft::WRL::ComPtr<ID3D12Resource> buffer;
   if (FAILED(provider_.GetDevice()->CreateCommittedResource(
-          &util::kHeapPropertiesUpload, provider_.GetHeapFlagCreateNotZeroed(),
-          &buffer_desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
-          IID_PPV_ARGS(&buffer)))) {
+          &util::kHeapPropertiesUpload, provider_.GetHeapFlagCreateNotZeroed(), &buffer_desc,
+          D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&buffer)))) {
     REXLOG_ERROR("Failed to create a D3D upload buffer with {} bytes", page_size_);
     return nullptr;
   }
@@ -101,8 +93,7 @@ D3D12UploadBufferPool::CreatePageImplementation() {
   return new D3D12Page(buffer.Get(), mapping);
 }
 
-D3D12UploadBufferPool::D3D12Page::D3D12Page(ID3D12Resource* buffer,
-                                            void* mapping)
+D3D12UploadBufferPool::D3D12Page::D3D12Page(ID3D12Resource* buffer, void* mapping)
     : buffer_(buffer), mapping_(mapping) {
   gpu_address_ = buffer_->GetGPUVirtualAddress();
 }

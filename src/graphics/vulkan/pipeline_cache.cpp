@@ -9,8 +9,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/graphics/vulkan/pipeline_cache.h>
-
 #include <algorithm>
 #include <array>
 #include <cstdint>
@@ -20,57 +18,55 @@
 #include <vector>
 
 #include <fmt/format.h>
+
 #include <rex/assert.h>
-#include <rex/logging.h>
-#include <rex/math.h>
-#include <rex/profiling.h>
-#include <rex/xxhash.h>
-#include <rex/graphics/util/draw.h>
+#include <rex/dbg.h>
 #include <rex/graphics/flags.h>
-#include <rex/graphics/register_file.h>
-#include <rex/graphics/registers.h>
 #include <rex/graphics/pipeline/shader/spirv_builder.h>
 #include <rex/graphics/pipeline/shader/spirv_translator.h>
+#include <rex/graphics/register_file.h>
+#include <rex/graphics/registers.h>
+#include <rex/graphics/util/draw.h>
 #include <rex/graphics/vulkan/command_processor.h>
+#include <rex/graphics/vulkan/pipeline_cache.h>
 #include <rex/graphics/vulkan/shader.h>
 #include <rex/graphics/xenos.h>
+#include <rex/hash.h>
+#include <rex/logging.h>
+#include <rex/math.h>
 #include <rex/ui/vulkan/util.h>
 
 namespace rex::graphics::vulkan {
 
-VulkanPipelineCache::VulkanPipelineCache(
-    VulkanCommandProcessor& command_processor,
-    const RegisterFile& register_file,
-    VulkanRenderTargetCache& render_target_cache,
-    VkShaderStageFlags guest_shader_vertex_stages)
+VulkanPipelineCache::VulkanPipelineCache(VulkanCommandProcessor& command_processor,
+                                         const RegisterFile& register_file,
+                                         VulkanRenderTargetCache& render_target_cache,
+                                         VkShaderStageFlags guest_shader_vertex_stages)
     : command_processor_(command_processor),
       register_file_(register_file),
       render_target_cache_(render_target_cache),
       guest_shader_vertex_stages_(guest_shader_vertex_stages) {}
 
-VulkanPipelineCache::~VulkanPipelineCache() { Shutdown(); }
+VulkanPipelineCache::~VulkanPipelineCache() {
+  Shutdown();
+}
 
 bool VulkanPipelineCache::Initialize() {
-  const ui::vulkan::VulkanDevice* const vulkan_device =
-      command_processor_.GetVulkanDevice();
+  const ui::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
 
   bool edram_fragment_shader_interlock =
-      render_target_cache_.GetPath() ==
-      RenderTargetCache::Path::kPixelShaderInterlock;
+      render_target_cache_.GetPath() == RenderTargetCache::Path::kPixelShaderInterlock;
 
   shader_translator_ = std::make_unique<SpirvShaderTranslator>(
       SpirvShaderTranslator::Features(vulkan_device),
       render_target_cache_.msaa_2x_attachments_supported(),
-      render_target_cache_.msaa_2x_no_attachments_supported(),
-      edram_fragment_shader_interlock);
+      render_target_cache_.msaa_2x_no_attachments_supported(), edram_fragment_shader_interlock);
 
   if (edram_fragment_shader_interlock) {
     std::vector<uint8_t> depth_only_fragment_shader_code =
         shader_translator_->CreateDepthOnlyFragmentShader();
     depth_only_fragment_shader_ = ui::vulkan::util::CreateShaderModule(
-        vulkan_device,
-        reinterpret_cast<const uint32_t*>(
-            depth_only_fragment_shader_code.data()),
+        vulkan_device, reinterpret_cast<const uint32_t*>(depth_only_fragment_shader_code.data()),
         depth_only_fragment_shader_code.size());
     if (depth_only_fragment_shader_ == VK_NULL_HANDLE) {
       REXGPU_ERROR(
@@ -85,8 +81,7 @@ bool VulkanPipelineCache::Initialize() {
 }
 
 void VulkanPipelineCache::Shutdown() {
-  const ui::vulkan::VulkanDevice* const vulkan_device =
-      command_processor_.GetVulkanDevice();
+  const ui::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
   const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
   const VkDevice device = vulkan_device->device();
 
@@ -122,11 +117,9 @@ void VulkanPipelineCache::Shutdown() {
 }
 
 VulkanShader* VulkanPipelineCache::LoadShader(xenos::ShaderType shader_type,
-                                              const uint32_t* host_address,
-                                              uint32_t dword_count) {
+                                              const uint32_t* host_address, uint32_t dword_count) {
   // Hash the input memory and lookup the shader.
-  uint64_t data_hash =
-      XXH3_64bits(host_address, dword_count * sizeof(uint32_t));
+  uint64_t data_hash = XXH3_64bits(host_address, dword_count * sizeof(uint32_t));
   auto it = shaders_.find(data_hash);
   if (it != shaders_.end()) {
     // Shader has been previously loaded.
@@ -135,15 +128,13 @@ VulkanShader* VulkanPipelineCache::LoadShader(xenos::ShaderType shader_type,
   // Always create the shader and stash it away.
   // We need to track it even if it fails translation so we know not to try
   // again.
-  VulkanShader* shader =
-      new VulkanShader(command_processor_.GetVulkanDevice(), shader_type,
-                       data_hash, host_address, dword_count);
+  VulkanShader* shader = new VulkanShader(command_processor_.GetVulkanDevice(), shader_type,
+                                          data_hash, host_address, dword_count);
   shaders_.emplace(data_hash, shader);
   return shader;
 }
 
-SpirvShaderTranslator::Modification
-VulkanPipelineCache::GetCurrentVertexShaderModification(
+SpirvShaderTranslator::Modification VulkanPipelineCache::GetCurrentVertexShaderModification(
     const Shader& shader, Shader::HostVertexShaderType host_vertex_shader_type,
     uint32_t interpolator_mask, bool ps_param_gen_used) const {
   assert_true(shader.type() == xenos::ShaderType::kVertex);
@@ -154,66 +145,55 @@ VulkanPipelineCache::GetCurrentVertexShaderModification(
 
   SpirvShaderTranslator::Modification modification(
       shader_translator_->GetDefaultVertexShaderModification(
-          shader.GetDynamicAddressableRegisterCount(
-              regs.Get<reg::SQ_PROGRAM_CNTL>().vs_num_reg),
+          shader.GetDynamicAddressableRegisterCount(regs.Get<reg::SQ_PROGRAM_CNTL>().vs_num_reg),
           host_vertex_shader_type));
 
   modification.vertex.interpolator_mask = interpolator_mask;
 
-  if (host_vertex_shader_type ==
-      Shader::HostVertexShaderType::kPointListAsTriangleStrip) {
+  if (host_vertex_shader_type == Shader::HostVertexShaderType::kPointListAsTriangleStrip) {
     modification.vertex.output_point_parameters = uint32_t(ps_param_gen_used);
   } else {
     modification.vertex.output_point_parameters =
         uint32_t((shader.writes_point_size_edge_flag_kill_vertex() & 0b001) &&
-                 regs.Get<reg::VGT_DRAW_INITIATOR>().prim_type ==
-                     xenos::PrimitiveType::kPointList);
+                 regs.Get<reg::VGT_DRAW_INITIATOR>().prim_type == xenos::PrimitiveType::kPointList);
   }
 
   return modification;
 }
 
-SpirvShaderTranslator::Modification
-VulkanPipelineCache::GetCurrentPixelShaderModification(
-    const Shader& shader, uint32_t interpolator_mask,
-    uint32_t param_gen_pos) const {
+SpirvShaderTranslator::Modification VulkanPipelineCache::GetCurrentPixelShaderModification(
+    const Shader& shader, uint32_t interpolator_mask, uint32_t param_gen_pos) const {
   assert_true(shader.type() == xenos::ShaderType::kPixel);
   assert_true(shader.is_ucode_analyzed());
   const auto& regs = register_file_;
 
   SpirvShaderTranslator::Modification modification(
       shader_translator_->GetDefaultPixelShaderModification(
-          shader.GetDynamicAddressableRegisterCount(
-              regs.Get<reg::SQ_PROGRAM_CNTL>().ps_num_reg)));
+          shader.GetDynamicAddressableRegisterCount(regs.Get<reg::SQ_PROGRAM_CNTL>().ps_num_reg)));
 
   modification.pixel.interpolator_mask = interpolator_mask;
   modification.pixel.interpolators_centroid =
-      interpolator_mask &
-      ~xenos::GetInterpolatorSamplingPattern(
-          regs.Get<reg::RB_SURFACE_INFO>().msaa_samples,
-          regs.Get<reg::SQ_CONTEXT_MISC>().sc_sample_cntl,
-          regs.Get<reg::SQ_INTERPOLATOR_CNTL>().sampling_pattern);
+      interpolator_mask & ~xenos::GetInterpolatorSamplingPattern(
+                              regs.Get<reg::RB_SURFACE_INFO>().msaa_samples,
+                              regs.Get<reg::SQ_CONTEXT_MISC>().sc_sample_cntl,
+                              regs.Get<reg::SQ_INTERPOLATOR_CNTL>().sampling_pattern);
 
   if (param_gen_pos < xenos::kMaxInterpolators) {
     modification.pixel.param_gen_enable = 1;
     modification.pixel.param_gen_interpolator = param_gen_pos;
     modification.pixel.param_gen_point =
-        uint32_t(regs.Get<reg::VGT_DRAW_INITIATOR>().prim_type ==
-                 xenos::PrimitiveType::kPointList);
+        uint32_t(regs.Get<reg::VGT_DRAW_INITIATOR>().prim_type == xenos::PrimitiveType::kPointList);
   } else {
     modification.pixel.param_gen_enable = 0;
     modification.pixel.param_gen_interpolator = 0;
     modification.pixel.param_gen_point = 0;
   }
 
-  if (render_target_cache_.GetPath() ==
-      RenderTargetCache::Path::kHostRenderTargets) {
-    using DepthStencilMode =
-        SpirvShaderTranslator::Modification::DepthStencilMode;
+  if (render_target_cache_.GetPath() == RenderTargetCache::Path::kHostRenderTargets) {
+    using DepthStencilMode = SpirvShaderTranslator::Modification::DepthStencilMode;
     if (shader.implicit_early_z_write_allowed() &&
         (!shader.writes_color_target(0) ||
-         !draw_util::DoesCoverageDependOnAlpha(
-             regs.Get<reg::RB_COLORCONTROL>()))) {
+         !draw_util::DoesCoverageDependOnAlpha(regs.Get<reg::RB_COLORCONTROL>()))) {
       modification.pixel.depth_stencil_mode = DepthStencilMode::kEarlyHint;
     } else {
       modification.pixel.depth_stencil_mode = DepthStencilMode::kNoModifiers;
@@ -223,9 +203,8 @@ VulkanPipelineCache::GetCurrentPixelShaderModification(
   return modification;
 }
 
-bool VulkanPipelineCache::EnsureShadersTranslated(
-    VulkanShader::VulkanTranslation* vertex_shader,
-    VulkanShader::VulkanTranslation* pixel_shader) {
+bool VulkanPipelineCache::EnsureShadersTranslated(VulkanShader::VulkanTranslation* vertex_shader,
+                                                  VulkanShader::VulkanTranslation* pixel_shader) {
   // Edge flags are not supported yet (because polygon primitives are not).
   assert_true(register_file_.Get<reg::SQ_PROGRAM_CNTL>().vs_export_mode !=
                   xenos::VertexShaderExportMode::kPosition2VectorsEdge &&
@@ -260,13 +239,10 @@ bool VulkanPipelineCache::EnsureShadersTranslated(
 }
 
 bool VulkanPipelineCache::ConfigurePipeline(
-    VulkanShader::VulkanTranslation* vertex_shader,
-    VulkanShader::VulkanTranslation* pixel_shader,
+    VulkanShader::VulkanTranslation* vertex_shader, VulkanShader::VulkanTranslation* pixel_shader,
     const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
-    reg::RB_DEPTHCONTROL normalized_depth_control,
-    uint32_t normalized_color_mask,
-    VulkanRenderTargetCache::RenderPassKey render_pass_key,
-    VkPipeline& pipeline_out,
+    reg::RB_DEPTHCONTROL normalized_depth_control, uint32_t normalized_color_mask,
+    VulkanRenderTargetCache::RenderPassKey render_pass_key, VkPipeline& pipeline_out,
     const PipelineLayoutProvider*& pipeline_layout_out) {
 #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
@@ -278,10 +254,9 @@ bool VulkanPipelineCache::ConfigurePipeline(
   }
 
   PipelineDescription description;
-  if (!GetCurrentStateDescription(
-          vertex_shader, pixel_shader, primitive_processing_result,
-          normalized_depth_control, normalized_color_mask, render_pass_key,
-          description)) {
+  if (!GetCurrentStateDescription(vertex_shader, pixel_shader, primitive_processing_result,
+                                  normalized_depth_control, normalized_color_mask, render_pass_key,
+                                  description)) {
     return false;
   }
   if (last_pipeline_ && last_pipeline_->first == description) {
@@ -298,24 +273,21 @@ bool VulkanPipelineCache::ConfigurePipeline(
   }
 
   // Create the pipeline if not the latest and not already existing.
-  const PipelineLayoutProvider* pipeline_layout =
-      command_processor_.GetPipelineLayout(
-          pixel_shader
-              ? static_cast<const VulkanShader&>(pixel_shader->shader())
-                    .GetTextureBindingsAfterTranslation()
-                    .size()
-              : 0,
-          pixel_shader
-              ? static_cast<const VulkanShader&>(pixel_shader->shader())
-                    .GetSamplerBindingsAfterTranslation()
-                    .size()
-              : 0,
-          static_cast<const VulkanShader&>(vertex_shader->shader())
-              .GetTextureBindingsAfterTranslation()
-              .size(),
-          static_cast<const VulkanShader&>(vertex_shader->shader())
-              .GetSamplerBindingsAfterTranslation()
-              .size());
+  const PipelineLayoutProvider* pipeline_layout = command_processor_.GetPipelineLayout(
+      pixel_shader ? static_cast<const VulkanShader&>(pixel_shader->shader())
+                         .GetTextureBindingsAfterTranslation()
+                         .size()
+                   : 0,
+      pixel_shader ? static_cast<const VulkanShader&>(pixel_shader->shader())
+                         .GetSamplerBindingsAfterTranslation()
+                         .size()
+                   : 0,
+      static_cast<const VulkanShader&>(vertex_shader->shader())
+          .GetTextureBindingsAfterTranslation()
+          .size(),
+      static_cast<const VulkanShader&>(vertex_shader->shader())
+          .GetSamplerBindingsAfterTranslation()
+          .size());
   if (!pipeline_layout) {
     return false;
   }
@@ -324,8 +296,7 @@ bool VulkanPipelineCache::ConfigurePipeline(
   if (GetGeometryShaderKey(
           description.geometry_shader,
           SpirvShaderTranslator::Modification(vertex_shader->modification()),
-          SpirvShaderTranslator::Modification(
-              pixel_shader ? pixel_shader->modification() : 0),
+          SpirvShaderTranslator::Modification(pixel_shader ? pixel_shader->modification() : 0),
           geometry_shader_key)) {
     geometry_shader = GetGeometryShader(geometry_shader_key);
     if (geometry_shader == VK_NULL_HANDLE) {
@@ -333,17 +304,14 @@ bool VulkanPipelineCache::ConfigurePipeline(
     }
   }
   VkRenderPass render_pass =
-      render_target_cache_.GetPath() ==
-              RenderTargetCache::Path::kPixelShaderInterlock
+      render_target_cache_.GetPath() == RenderTargetCache::Path::kPixelShaderInterlock
           ? render_target_cache_.GetFragmentShaderInterlockRenderPass()
-          : render_target_cache_.GetHostRenderTargetsRenderPass(
-                render_pass_key);
+          : render_target_cache_.GetHostRenderTargetsRenderPass(render_pass_key);
   if (render_pass == VK_NULL_HANDLE) {
     return false;
   }
   PipelineCreationArguments creation_arguments;
-  auto& pipeline =
-      *pipelines_.emplace(description, Pipeline(pipeline_layout)).first;
+  auto& pipeline = *pipelines_.emplace(description, Pipeline(pipeline_layout)).first;
   creation_arguments.pipeline = &pipeline;
   creation_arguments.vertex_shader = vertex_shader;
   creation_arguments.pixel_shader = pixel_shader;
@@ -357,16 +325,14 @@ bool VulkanPipelineCache::ConfigurePipeline(
   return true;
 }
 
-bool VulkanPipelineCache::TranslateAnalyzedShader(
-    SpirvShaderTranslator& translator,
-    VulkanShader::VulkanTranslation& translation) {
+bool VulkanPipelineCache::TranslateAnalyzedShader(SpirvShaderTranslator& translator,
+                                                  VulkanShader::VulkanTranslation& translation) {
   VulkanShader& shader = static_cast<VulkanShader&>(translation.shader());
 
   // Perform translation.
   // If this fails the shader will be marked as invalid and ignored later.
   if (!translator.TranslateAnalyzedShader(translation)) {
-    REXGPU_ERROR("Shader {:016X} translation failed; marking as ignored",
-           shader.ucode_data_hash());
+    REXGPU_ERROR("Shader {:016X} translation failed; marking as ignored", shader.ucode_data_hash());
     return false;
   }
   if (translation.GetOrCreateShaderModule() == VK_NULL_HANDLE) {
@@ -389,34 +355,28 @@ bool VulkanPipelineCache::TranslateAnalyzedShader(
           texture_binding_count * sizeof(*texture_bindings.data());
       uint64_t texture_binding_layout_hash =
           XXH3_64bits(texture_bindings.data(), texture_binding_layout_bytes);
-      auto found_range =
-          texture_binding_layout_map_.equal_range(texture_binding_layout_hash);
+      auto found_range = texture_binding_layout_map_.equal_range(texture_binding_layout_hash);
       for (auto it = found_range.first; it != found_range.second; ++it) {
         if (it->second.vector_span_length == texture_binding_count &&
-            !std::memcmp(
-                texture_binding_layouts_.data() + it->second.vector_span_offset,
-                texture_bindings.data(), texture_binding_layout_bytes)) {
+            !std::memcmp(texture_binding_layouts_.data() + it->second.vector_span_offset,
+                         texture_bindings.data(), texture_binding_layout_bytes)) {
           texture_binding_layout_uid = it->second.uid;
           break;
         }
       }
       if (texture_binding_layout_uid == kLayoutUIDEmpty) {
-        static_assert(
-            kLayoutUIDEmpty == 0,
-            "Layout UID is size + 1 because it's assumed that 0 is the UID for "
-            "an empty layout");
+        static_assert(kLayoutUIDEmpty == 0,
+                      "Layout UID is size + 1 because it's assumed that 0 is the UID for "
+                      "an empty layout");
         texture_binding_layout_uid = texture_binding_layout_map_.size() + 1;
         LayoutUID new_uid;
         new_uid.uid = texture_binding_layout_uid;
         new_uid.vector_span_offset = texture_binding_layouts_.size();
         new_uid.vector_span_length = texture_binding_count;
-        texture_binding_layouts_.resize(new_uid.vector_span_offset +
-                                        texture_binding_count);
-        std::memcpy(
-            texture_binding_layouts_.data() + new_uid.vector_span_offset,
-            texture_bindings.data(), texture_binding_layout_bytes);
-        texture_binding_layout_map_.emplace(texture_binding_layout_hash,
-                                            new_uid);
+        texture_binding_layouts_.resize(new_uid.vector_span_offset + texture_binding_count);
+        std::memcpy(texture_binding_layouts_.data() + new_uid.vector_span_offset,
+                    texture_bindings.data(), texture_binding_layout_bytes);
+        texture_binding_layout_map_.emplace(texture_binding_layout_hash, new_uid);
       }
     }
     shader.SetTextureBindingLayoutUserUID(texture_binding_layout_uid);
@@ -425,12 +385,10 @@ bool VulkanPipelineCache::TranslateAnalyzedShader(
     // be the same for layouts to be compatible in this case
     // (instruction-specified parameters are used as overrides for creating
     // actual samplers).
-    static_assert(
-        kLayoutUIDEmpty == 0,
-        "Empty layout UID is assumed to be 0 because for bindful samplers, the "
-        "UID is their count");
-    shader.SetSamplerBindingLayoutUserUID(
-        shader.GetSamplerBindingsAfterTranslation().size());
+    static_assert(kLayoutUIDEmpty == 0,
+                  "Empty layout UID is assumed to be 0 because for bindful samplers, the "
+                  "UID is their count");
+    shader.SetSamplerBindingLayoutUserUID(shader.GetSamplerBindingsAfterTranslation().size());
   }
 
   return true;
@@ -471,24 +429,16 @@ void VulkanPipelineCache::WritePipelineRenderTargetDescription(
     render_target_out.dst_alpha_blend_factor =
         kBlendFactorMap[uint32_t(blend_control.alpha_destblend)];
     render_target_out.alpha_blend_op = blend_control.alpha_comb_fcn;
-    if (!command_processor_.GetVulkanDevice()
-             ->properties()
-             .constantAlphaColorBlendFactors) {
+    if (!command_processor_.GetVulkanDevice()->properties().constantAlphaColorBlendFactors) {
       if (blend_control.color_srcblend == xenos::BlendFactor::kConstantAlpha) {
-        render_target_out.src_color_blend_factor =
-            PipelineBlendFactor::kConstantColor;
-      } else if (blend_control.color_srcblend ==
-                 xenos::BlendFactor::kOneMinusConstantAlpha) {
-        render_target_out.src_color_blend_factor =
-            PipelineBlendFactor::kOneMinusConstantColor;
+        render_target_out.src_color_blend_factor = PipelineBlendFactor::kConstantColor;
+      } else if (blend_control.color_srcblend == xenos::BlendFactor::kOneMinusConstantAlpha) {
+        render_target_out.src_color_blend_factor = PipelineBlendFactor::kOneMinusConstantColor;
       }
       if (blend_control.color_destblend == xenos::BlendFactor::kConstantAlpha) {
-        render_target_out.dst_color_blend_factor =
-            PipelineBlendFactor::kConstantColor;
-      } else if (blend_control.color_destblend ==
-                 xenos::BlendFactor::kOneMinusConstantAlpha) {
-        render_target_out.dst_color_blend_factor =
-            PipelineBlendFactor::kOneMinusConstantColor;
+        render_target_out.dst_color_blend_factor = PipelineBlendFactor::kConstantColor;
+      } else if (blend_control.color_destblend == xenos::BlendFactor::kOneMinusConstantAlpha) {
+        render_target_out.dst_color_blend_factor = PipelineBlendFactor::kOneMinusConstantColor;
       }
     }
   } else {
@@ -506,8 +456,7 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
     const VulkanShader::VulkanTranslation* vertex_shader,
     const VulkanShader::VulkanTranslation* pixel_shader,
     const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
-    reg::RB_DEPTHCONTROL normalized_depth_control,
-    uint32_t normalized_color_mask,
+    reg::RB_DEPTHCONTROL normalized_depth_control, uint32_t normalized_color_mask,
     VulkanRenderTargetCache::RenderPassKey render_pass_key,
     PipelineDescription& description_out) const {
   description_out.Reset();
@@ -518,12 +467,10 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
   const RegisterFile& regs = register_file_;
   auto pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
 
-  description_out.vertex_shader_hash =
-      vertex_shader->shader().ucode_data_hash();
+  description_out.vertex_shader_hash = vertex_shader->shader().ucode_data_hash();
   description_out.vertex_shader_modification = vertex_shader->modification();
   if (pixel_shader) {
-    description_out.pixel_shader_hash =
-        pixel_shader->shader().ucode_data_hash();
+    description_out.pixel_shader_hash = pixel_shader->shader().ucode_data_hash();
     description_out.pixel_shader_modification = pixel_shader->modification();
   }
   description_out.render_pass_key = render_pass_key;
@@ -568,12 +515,10 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
   }
   description_out.geometry_shader = geometry_shader;
   description_out.primitive_topology = primitive_topology;
-  description_out.primitive_restart =
-      primitive_processing_result.host_primitive_reset_enabled;
+  description_out.primitive_restart = primitive_processing_result.host_primitive_reset_enabled;
 
   description_out.depth_clamp_enable =
-      device_properties.depthClamp &&
-      regs.Get<reg::PA_CL_CLIP_CNTL>().clip_disable;
+      device_properties.depthClamp && regs.Get<reg::PA_CL_CLIP_CNTL>().clip_disable;
 
   // TODO(Triang3l): Tessellation.
   bool primitive_polygonal = draw_util::IsPrimitivePolygonal(regs);
@@ -591,12 +536,10 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
     if (device_properties.fillModeNonSolid) {
       xenos::PolygonType polygon_type = xenos::PolygonType::kTriangles;
       if (!cull_front) {
-        polygon_type =
-            std::min(polygon_type, pa_su_sc_mode_cntl.polymode_front_ptype);
+        polygon_type = std::min(polygon_type, pa_su_sc_mode_cntl.polymode_front_ptype);
       }
       if (!cull_back) {
-        polygon_type =
-            std::min(polygon_type, pa_su_sc_mode_cntl.polymode_back_ptype);
+        polygon_type = std::min(polygon_type, pa_su_sc_mode_cntl.polymode_back_ptype);
       }
       if (pa_su_sc_mode_cntl.poly_mode != xenos::PolygonModeEnable::kDualMode) {
         polygon_type = xenos::PolygonType::kTriangles;
@@ -627,44 +570,30 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
     description_out.polygon_mode = PipelinePolygonMode::kFill;
   }
 
-  if (render_target_cache_.GetPath() ==
-      RenderTargetCache::Path::kHostRenderTargets) {
+  if (render_target_cache_.GetPath() == RenderTargetCache::Path::kHostRenderTargets) {
     if (render_pass_key.depth_and_color_used & 1) {
       if (normalized_depth_control.z_enable) {
-        description_out.depth_write_enable =
-            normalized_depth_control.z_write_enable;
+        description_out.depth_write_enable = normalized_depth_control.z_write_enable;
         description_out.depth_compare_op = normalized_depth_control.zfunc;
       } else {
         description_out.depth_compare_op = xenos::CompareFunction::kAlways;
       }
       if (normalized_depth_control.stencil_enable) {
         description_out.stencil_test_enable = 1;
-        description_out.stencil_front_fail_op =
-            normalized_depth_control.stencilfail;
-        description_out.stencil_front_pass_op =
-            normalized_depth_control.stencilzpass;
-        description_out.stencil_front_depth_fail_op =
-            normalized_depth_control.stencilzfail;
-        description_out.stencil_front_compare_op =
-            normalized_depth_control.stencilfunc;
+        description_out.stencil_front_fail_op = normalized_depth_control.stencilfail;
+        description_out.stencil_front_pass_op = normalized_depth_control.stencilzpass;
+        description_out.stencil_front_depth_fail_op = normalized_depth_control.stencilzfail;
+        description_out.stencil_front_compare_op = normalized_depth_control.stencilfunc;
         if (primitive_polygonal && normalized_depth_control.backface_enable) {
-          description_out.stencil_back_fail_op =
-              normalized_depth_control.stencilfail_bf;
-          description_out.stencil_back_pass_op =
-              normalized_depth_control.stencilzpass_bf;
-          description_out.stencil_back_depth_fail_op =
-              normalized_depth_control.stencilzfail_bf;
-          description_out.stencil_back_compare_op =
-              normalized_depth_control.stencilfunc_bf;
+          description_out.stencil_back_fail_op = normalized_depth_control.stencilfail_bf;
+          description_out.stencil_back_pass_op = normalized_depth_control.stencilzpass_bf;
+          description_out.stencil_back_depth_fail_op = normalized_depth_control.stencilzfail_bf;
+          description_out.stencil_back_compare_op = normalized_depth_control.stencilfunc_bf;
         } else {
-          description_out.stencil_back_fail_op =
-              description_out.stencil_front_fail_op;
-          description_out.stencil_back_pass_op =
-              description_out.stencil_front_pass_op;
-          description_out.stencil_back_depth_fail_op =
-              description_out.stencil_front_depth_fail_op;
-          description_out.stencil_back_compare_op =
-              description_out.stencil_front_compare_op;
+          description_out.stencil_back_fail_op = description_out.stencil_front_fail_op;
+          description_out.stencil_back_pass_op = description_out.stencil_front_pass_op;
+          description_out.stencil_back_depth_fail_op = description_out.stencil_front_depth_fail_op;
+          description_out.stencil_back_compare_op = description_out.stencil_front_compare_op;
         }
       }
     }
@@ -675,12 +604,10 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
     assert_true(device_properties.independentBlend);
     uint32_t render_pass_color_rts_remaining = render_pass_color_rts;
     uint32_t color_rt_index;
-    while (rex::bit_scan_forward(render_pass_color_rts_remaining,
-                                &color_rt_index)) {
+    while (rex::bit_scan_forward(render_pass_color_rts_remaining, &color_rt_index)) {
       render_pass_color_rts_remaining &= ~(uint32_t(1) << color_rt_index);
       WritePipelineRenderTargetDescription(
-          regs.Get<reg::RB_BLENDCONTROL>(
-              reg::RB_BLENDCONTROL::rt_register_indices[color_rt_index]),
+          regs.Get<reg::RB_BLENDCONTROL>(reg::RB_BLENDCONTROL::rt_register_indices[color_rt_index]),
           (normalized_color_mask >> (color_rt_index * 4)) & 0b1111,
           description_out.render_targets[color_rt_index]);
     }
@@ -689,12 +616,10 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
   return true;
 }
 
-bool VulkanPipelineCache::ArePipelineRequirementsMet(
-    const PipelineDescription& description) const {
+bool VulkanPipelineCache::ArePipelineRequirementsMet(const PipelineDescription& description) const {
   VkShaderStageFlags vertex_shader_stage =
       Shader::IsHostVertexShaderTypeDomain(
-          SpirvShaderTranslator::Modification(
-              description.vertex_shader_modification)
+          SpirvShaderTranslator::Modification(description.vertex_shader_modification)
               .vertex.host_vertex_shader_type)
           ? VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT
           : VK_SHADER_STAGE_VERTEX_BIT;
@@ -711,8 +636,7 @@ bool VulkanPipelineCache::ArePipelineRequirementsMet(
   }
 
   if (!device_properties.triangleFans &&
-      description.primitive_topology ==
-          PipelinePrimitiveTopology::kTriangleFan) {
+      description.primitive_topology == PipelinePrimitiveTopology::kTriangleFan) {
     return false;
   }
 
@@ -720,8 +644,7 @@ bool VulkanPipelineCache::ArePipelineRequirementsMet(
     return false;
   }
 
-  if (!device_properties.pointPolygons &&
-      description.polygon_mode == PipelinePolygonMode::kPoint) {
+  if (!device_properties.pointPolygons && description.polygon_mode == PipelinePolygonMode::kPoint) {
     return false;
   }
 
@@ -733,21 +656,15 @@ bool VulkanPipelineCache::ArePipelineRequirementsMet(
   assert_true(device_properties.independentBlend);
 
   if (!device_properties.constantAlphaColorBlendFactors) {
-    uint32_t color_rts_remaining =
-        description.render_pass_key.depth_and_color_used >> 1;
+    uint32_t color_rts_remaining = description.render_pass_key.depth_and_color_used >> 1;
     uint32_t color_rt_index;
     while (rex::bit_scan_forward(color_rts_remaining, &color_rt_index)) {
       color_rts_remaining &= ~(uint32_t(1) << color_rt_index);
-      const PipelineRenderTarget& color_rt =
-          description.render_targets[color_rt_index];
-      if (color_rt.src_color_blend_factor ==
-              PipelineBlendFactor::kConstantAlpha ||
-          color_rt.src_color_blend_factor ==
-              PipelineBlendFactor::kOneMinusConstantAlpha ||
-          color_rt.dst_color_blend_factor ==
-              PipelineBlendFactor::kConstantAlpha ||
-          color_rt.dst_color_blend_factor ==
-              PipelineBlendFactor::kOneMinusConstantAlpha) {
+      const PipelineRenderTarget& color_rt = description.render_targets[color_rt_index];
+      if (color_rt.src_color_blend_factor == PipelineBlendFactor::kConstantAlpha ||
+          color_rt.src_color_blend_factor == PipelineBlendFactor::kOneMinusConstantAlpha ||
+          color_rt.dst_color_blend_factor == PipelineBlendFactor::kConstantAlpha ||
+          color_rt.dst_color_blend_factor == PipelineBlendFactor::kOneMinusConstantAlpha) {
         return false;
       }
     }
@@ -759,8 +676,7 @@ bool VulkanPipelineCache::ArePipelineRequirementsMet(
 bool VulkanPipelineCache::GetGeometryShaderKey(
     PipelineGeometryShader geometry_shader_type,
     SpirvShaderTranslator::Modification vertex_shader_modification,
-    SpirvShaderTranslator::Modification pixel_shader_modification,
-    GeometryShaderKey& key_out) {
+    SpirvShaderTranslator::Modification pixel_shader_modification, GeometryShaderKey& key_out) {
   if (geometry_shader_type == PipelineGeometryShader::kNone) {
     return false;
   }
@@ -779,16 +695,14 @@ bool VulkanPipelineCache::GetGeometryShaderKey(
   key.type = geometry_shader_type;
   // TODO(Triang3l): Once all needed inputs and outputs are added, uncomment the
   // real counts here.
-  key.interpolator_count =
-      rex::bit_count(vertex_shader_modification.vertex.interpolator_mask);
+  key.interpolator_count = rex::bit_count(vertex_shader_modification.vertex.interpolator_mask);
   key.user_clip_plane_count =
       /* vertex_shader_modification.vertex.user_clip_plane_count */ 0;
   key.user_clip_plane_cull =
       /* vertex_shader_modification.vertex.user_clip_plane_cull */ 0;
   key.has_vertex_kill_and =
       /* vertex_shader_modification.vertex.vertex_kill_and */ 0;
-  key.has_point_size =
-      vertex_shader_modification.vertex.output_point_parameters;
+  key.has_point_size = vertex_shader_modification.vertex.output_point_parameters;
   key.has_point_coordinates = pixel_shader_modification.pixel.param_gen_point;
   key_out = key;
   return true;
@@ -834,15 +748,11 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
       assert_unhandled_case(key.type);
   }
 
-  uint32_t clip_distance_count =
-      key.user_clip_plane_cull ? 0 : key.user_clip_plane_count;
+  uint32_t clip_distance_count = key.user_clip_plane_cull ? 0 : key.user_clip_plane_count;
   uint32_t cull_distance_count =
-      (key.user_clip_plane_cull ? key.user_clip_plane_count : 0) +
-      key.has_vertex_kill_and;
+      (key.user_clip_plane_cull ? key.user_clip_plane_count : 0) + key.has_vertex_kill_and;
 
-  SpirvBuilder builder(spv::Spv_1_0,
-                       (SpirvShaderTranslator::kSpirvMagicToolId << 16) | 1,
-                       nullptr);
+  SpirvBuilder builder(spv::Spv_1_0, (SpirvShaderTranslator::kSpirvMagicToolId << 16) | 1, nullptr);
   spv::Id ext_inst_glsl_std_450 = builder.import("GLSL.std.450");
   builder.addCapability(spv::CapabilityGeometry);
   if (clip_distance_count) {
@@ -867,13 +777,11 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
   spv::Id type_float4 = builder.makeVectorType(type_float, 4);
   spv::Id type_clip_distances =
       clip_distance_count
-          ? builder.makeArrayType(
-                type_float, builder.makeUintConstant(clip_distance_count), 0)
+          ? builder.makeArrayType(type_float, builder.makeUintConstant(clip_distance_count), 0)
           : spv::NoType;
   spv::Id type_cull_distances =
       cull_distance_count
-          ? builder.makeArrayType(
-                type_float, builder.makeUintConstant(cull_distance_count), 0)
+          ? builder.makeArrayType(type_float, builder.makeUintConstant(cull_distance_count), 0)
           : spv::NoType;
 
   // System constants.
@@ -891,32 +799,25 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
     id_vector_temp.resize(kPointConstantCount);
     id_vector_temp[kPointConstantConstantDiameter] = type_float2;
     id_vector_temp[kPointConstantScreenDiameterToNdcRadius] = type_float2;
-    type_system_constants =
-        builder.makeStructType(id_vector_temp, "XeSystemConstants");
+    type_system_constants = builder.makeStructType(id_vector_temp, "XeSystemConstants");
     builder.addMemberName(type_system_constants, kPointConstantConstantDiameter,
                           "point_constant_diameter");
     builder.addMemberDecoration(
-        type_system_constants, kPointConstantConstantDiameter,
-        spv::DecorationOffset,
-        int(offsetof(SpirvShaderTranslator::SystemConstants,
-                     point_constant_diameter)));
-    builder.addMemberName(type_system_constants,
-                          kPointConstantScreenDiameterToNdcRadius,
+        type_system_constants, kPointConstantConstantDiameter, spv::DecorationOffset,
+        int(offsetof(SpirvShaderTranslator::SystemConstants, point_constant_diameter)));
+    builder.addMemberName(type_system_constants, kPointConstantScreenDiameterToNdcRadius,
                           "point_screen_diameter_to_ndc_radius");
     builder.addMemberDecoration(
-        type_system_constants, kPointConstantScreenDiameterToNdcRadius,
-        spv::DecorationOffset,
-        int(offsetof(SpirvShaderTranslator::SystemConstants,
-                     point_screen_diameter_to_ndc_radius)));
+        type_system_constants, kPointConstantScreenDiameterToNdcRadius, spv::DecorationOffset,
+        int(offsetof(SpirvShaderTranslator::SystemConstants, point_screen_diameter_to_ndc_radius)));
   }
   spv::Id uniform_system_constants = spv::NoResult;
   if (type_system_constants != spv::NoType) {
     builder.addDecoration(type_system_constants, spv::DecorationBlock);
-    uniform_system_constants = builder.createVariable(
-        spv::NoPrecision, spv::StorageClassUniform, type_system_constants,
-        "xe_uniform_system_constants");
-    builder.addDecoration(uniform_system_constants,
-                          spv::DecorationDescriptorSet,
+    uniform_system_constants =
+        builder.createVariable(spv::NoPrecision, spv::StorageClassUniform, type_system_constants,
+                               "xe_uniform_system_constants");
+    builder.addDecoration(uniform_system_constants, spv::DecorationDescriptorSet,
                           int(SpirvShaderTranslator::kDescriptorSetConstants));
     builder.addDecoration(uniform_system_constants, spv::DecorationBinding,
                           int(SpirvShaderTranslator::kConstantBufferSystem));
@@ -954,35 +855,28 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
     id_vector_temp.push_back(type_cull_distances);
   }
   // Structure and array.
-  spv::Id type_struct_in_gl_per_vertex =
-      builder.makeStructType(id_vector_temp, "gl_PerVertex");
-  builder.addMemberName(type_struct_in_gl_per_vertex,
-                        member_in_gl_per_vertex_position, "gl_Position");
-  builder.addMemberDecoration(type_struct_in_gl_per_vertex,
-                              member_in_gl_per_vertex_position,
+  spv::Id type_struct_in_gl_per_vertex = builder.makeStructType(id_vector_temp, "gl_PerVertex");
+  builder.addMemberName(type_struct_in_gl_per_vertex, member_in_gl_per_vertex_position,
+                        "gl_Position");
+  builder.addMemberDecoration(type_struct_in_gl_per_vertex, member_in_gl_per_vertex_position,
                               spv::DecorationBuiltIn, spv::BuiltInPosition);
   if (clip_distance_count) {
-    builder.addMemberName(type_struct_in_gl_per_vertex,
-                          member_in_gl_per_vertex_clip_distance,
+    builder.addMemberName(type_struct_in_gl_per_vertex, member_in_gl_per_vertex_clip_distance,
                           "gl_ClipDistance");
-    builder.addMemberDecoration(
-        type_struct_in_gl_per_vertex, member_in_gl_per_vertex_clip_distance,
-        spv::DecorationBuiltIn, spv::BuiltInClipDistance);
+    builder.addMemberDecoration(type_struct_in_gl_per_vertex, member_in_gl_per_vertex_clip_distance,
+                                spv::DecorationBuiltIn, spv::BuiltInClipDistance);
   }
   if (cull_distance_count) {
-    builder.addMemberName(type_struct_in_gl_per_vertex,
-                          member_in_gl_per_vertex_cull_distance,
+    builder.addMemberName(type_struct_in_gl_per_vertex, member_in_gl_per_vertex_cull_distance,
                           "gl_CullDistance");
-    builder.addMemberDecoration(
-        type_struct_in_gl_per_vertex, member_in_gl_per_vertex_cull_distance,
-        spv::DecorationBuiltIn, spv::BuiltInCullDistance);
+    builder.addMemberDecoration(type_struct_in_gl_per_vertex, member_in_gl_per_vertex_cull_distance,
+                                spv::DecorationBuiltIn, spv::BuiltInCullDistance);
   }
   builder.addDecoration(type_struct_in_gl_per_vertex, spv::DecorationBlock);
-  spv::Id type_array_in_gl_per_vertex = builder.makeArrayType(
-      type_struct_in_gl_per_vertex, const_input_primitive_vertex_count, 0);
-  spv::Id in_gl_per_vertex =
-      builder.createVariable(spv::NoPrecision, spv::StorageClassInput,
-                             type_array_in_gl_per_vertex, "gl_in");
+  spv::Id type_array_in_gl_per_vertex =
+      builder.makeArrayType(type_struct_in_gl_per_vertex, const_input_primitive_vertex_count, 0);
+  spv::Id in_gl_per_vertex = builder.createVariable(spv::NoPrecision, spv::StorageClassInput,
+                                                    type_array_in_gl_per_vertex, "gl_in");
   main_interface.push_back(in_gl_per_vertex);
 
   uint32_t output_location = 0;
@@ -990,12 +884,11 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
   // Interpolators outputs.
   std::array<spv::Id, xenos::kMaxInterpolators> out_interpolators;
   for (uint32_t i = 0; i < key.interpolator_count; ++i) {
-    spv::Id out_interpolator = builder.createVariable(
-        spv::NoPrecision, spv::StorageClassOutput, type_float4,
-        fmt::format("xe_out_interpolator_{}", i).c_str());
+    spv::Id out_interpolator =
+        builder.createVariable(spv::NoPrecision, spv::StorageClassOutput, type_float4,
+                               fmt::format("xe_out_interpolator_{}", i).c_str());
     out_interpolators[i] = out_interpolator;
-    builder.addDecoration(out_interpolator, spv::DecorationLocation,
-                          int(output_location));
+    builder.addDecoration(out_interpolator, spv::DecorationLocation, int(output_location));
     builder.addDecoration(out_interpolator, spv::DecorationInvariant);
     main_interface.push_back(out_interpolator);
     ++output_location;
@@ -1004,11 +897,9 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
   // Point coordinate output.
   spv::Id out_point_coordinates = spv::NoResult;
   if (key.has_point_coordinates) {
-    out_point_coordinates =
-        builder.createVariable(spv::NoPrecision, spv::StorageClassOutput,
-                               type_float2, "xe_out_point_coordinates");
-    builder.addDecoration(out_point_coordinates, spv::DecorationLocation,
-                          int(output_location));
+    out_point_coordinates = builder.createVariable(spv::NoPrecision, spv::StorageClassOutput,
+                                                   type_float2, "xe_out_point_coordinates");
+    builder.addDecoration(out_point_coordinates, spv::DecorationLocation, int(output_location));
     builder.addDecoration(out_point_coordinates, spv::DecorationInvariant);
     main_interface.push_back(out_point_coordinates);
     ++output_location;
@@ -1021,12 +912,10 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
   for (uint32_t i = 0; i < key.interpolator_count; ++i) {
     spv::Id in_interpolator = builder.createVariable(
         spv::NoPrecision, spv::StorageClassInput,
-        builder.makeArrayType(type_float4, const_input_primitive_vertex_count,
-                              0),
+        builder.makeArrayType(type_float4, const_input_primitive_vertex_count, 0),
         fmt::format("xe_in_interpolator_{}", i).c_str());
     in_interpolators[i] = in_interpolator;
-    builder.addDecoration(in_interpolator, spv::DecorationLocation,
-                          int(input_location));
+    builder.addDecoration(in_interpolator, spv::DecorationLocation, int(input_location));
     main_interface.push_back(in_interpolator);
     ++input_location;
   }
@@ -1036,11 +925,9 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
   if (key.has_point_size) {
     in_point_size = builder.createVariable(
         spv::NoPrecision, spv::StorageClassInput,
-        builder.makeArrayType(type_float, const_input_primitive_vertex_count,
-                              0),
+        builder.makeArrayType(type_float, const_input_primitive_vertex_count, 0),
         "xe_in_point_size");
-    builder.addDecoration(in_point_size, spv::DecorationLocation,
-                          int(input_location));
+    builder.addDecoration(in_point_size, spv::DecorationLocation, int(input_location));
     main_interface.push_back(in_point_size);
     ++input_location;
   }
@@ -1058,29 +945,25 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
   if (clip_distance_count) {
     member_out_gl_per_vertex_clip_distance = uint32_t(id_vector_temp.size());
     id_vector_temp.push_back(type_clip_distances);
-    const_member_out_gl_per_vertex_clip_distance = builder.makeIntConstant(
-        int32_t(member_out_gl_per_vertex_clip_distance));
+    const_member_out_gl_per_vertex_clip_distance =
+        builder.makeIntConstant(int32_t(member_out_gl_per_vertex_clip_distance));
   }
   // Structure.
-  spv::Id type_struct_out_gl_per_vertex =
-      builder.makeStructType(id_vector_temp, "gl_PerVertex");
-  builder.addMemberName(type_struct_out_gl_per_vertex,
-                        member_out_gl_per_vertex_position, "gl_Position");
-  builder.addMemberDecoration(type_struct_out_gl_per_vertex,
-                              member_out_gl_per_vertex_position,
+  spv::Id type_struct_out_gl_per_vertex = builder.makeStructType(id_vector_temp, "gl_PerVertex");
+  builder.addMemberName(type_struct_out_gl_per_vertex, member_out_gl_per_vertex_position,
+                        "gl_Position");
+  builder.addMemberDecoration(type_struct_out_gl_per_vertex, member_out_gl_per_vertex_position,
                               spv::DecorationBuiltIn, spv::BuiltInPosition);
   if (clip_distance_count) {
-    builder.addMemberName(type_struct_out_gl_per_vertex,
-                          member_out_gl_per_vertex_clip_distance,
+    builder.addMemberName(type_struct_out_gl_per_vertex, member_out_gl_per_vertex_clip_distance,
                           "gl_ClipDistance");
-    builder.addMemberDecoration(
-        type_struct_out_gl_per_vertex, member_out_gl_per_vertex_clip_distance,
-        spv::DecorationBuiltIn, spv::BuiltInClipDistance);
+    builder.addMemberDecoration(type_struct_out_gl_per_vertex,
+                                member_out_gl_per_vertex_clip_distance, spv::DecorationBuiltIn,
+                                spv::BuiltInClipDistance);
   }
   builder.addDecoration(type_struct_out_gl_per_vertex, spv::DecorationBlock);
-  spv::Id out_gl_per_vertex =
-      builder.createVariable(spv::NoPrecision, spv::StorageClassOutput,
-                             type_struct_out_gl_per_vertex, "");
+  spv::Id out_gl_per_vertex = builder.createVariable(spv::NoPrecision, spv::StorageClassOutput,
+                                                     type_struct_out_gl_per_vertex, "");
   builder.addDecoration(out_gl_per_vertex, spv::DecorationInvariant);
   main_interface.push_back(out_gl_per_vertex);
 
@@ -1088,9 +971,8 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
   std::vector<spv::Id> main_param_types;
   std::vector<std::vector<spv::Decoration>> main_precisions;
   spv::Block* main_entry;
-  spv::Function* main_function =
-      builder.makeFunctionEntry(spv::NoPrecision, type_void, "main",
-                                main_param_types, main_precisions, &main_entry);
+  spv::Function* main_function = builder.makeFunctionEntry(
+      spv::NoPrecision, type_void, "main", main_param_types, main_precisions, &main_entry);
   spv::Instruction* entry_point =
       builder.addEntryPoint(spv::ExecutionModelGeometry, main_function, "main");
   for (spv::Id interface_id : main_interface) {
@@ -1115,14 +997,12 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         builder.createUnaryOp(
             spv::OpIsNan, type_bool4,
             builder.createLoad(
-                builder.createAccessChain(spv::StorageClassInput,
-                                          in_gl_per_vertex, id_vector_temp),
+                builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex, id_vector_temp),
                 spv::NoPrecision)));
     spv::Block& discard_predecessor = *builder.getBuildPoint();
     spv::Block& discard_then_block = builder.makeNewBlock();
     spv::Block& discard_merge_block = builder.makeNewBlock();
-    builder.createSelectionMerge(&discard_merge_block,
-                                 spv::SelectionControlDontFlattenMask);
+    builder.createSelectionMerge(&discard_merge_block, spv::SelectionControlDontFlattenMask);
     {
       std::unique_ptr<spv::Instruction> branch_conditional_op(
           std::make_unique<spv::Instruction>(spv::OpBranchConditional));
@@ -1160,14 +1040,12 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         spv::Id cull_distance_is_negative = builder.createBinOp(
             spv::OpFOrdLessThan, type_bool,
             builder.createLoad(
-                builder.createAccessChain(spv::StorageClassInput,
-                                          in_gl_per_vertex, id_vector_temp),
+                builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex, id_vector_temp),
                 spv::NoPrecision),
             const_float_0);
         if (cull_condition != spv::NoResult) {
-          cull_condition =
-              builder.createBinOp(spv::OpLogicalAnd, type_bool, cull_condition,
-                                  cull_distance_is_negative);
+          cull_condition = builder.createBinOp(spv::OpLogicalAnd, type_bool, cull_condition,
+                                               cull_distance_is_negative);
         } else {
           cull_condition = cull_distance_is_negative;
         }
@@ -1177,8 +1055,7 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
     spv::Block& discard_predecessor = *builder.getBuildPoint();
     spv::Block& discard_then_block = builder.makeNewBlock();
     spv::Block& discard_merge_block = builder.makeNewBlock();
-    builder.createSelectionMerge(&discard_merge_block,
-                                 spv::SelectionControlDontFlattenMask);
+    builder.createSelectionMerge(&discard_merge_block, spv::SelectionControlDontFlattenMask);
     {
       std::unique_ptr<spv::Instruction> branch_conditional_op(
           std::make_unique<spv::Instruction>(spv::OpBranchConditional));
@@ -1206,18 +1083,17 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
 
       // Load the point diameter in guest pixels.
       id_vector_temp.clear();
-      id_vector_temp.push_back(
-          builder.makeIntConstant(int32_t(kPointConstantConstantDiameter)));
+      id_vector_temp.push_back(builder.makeIntConstant(int32_t(kPointConstantConstantDiameter)));
       id_vector_temp.push_back(const_int_0);
-      spv::Id point_guest_diameter_x = builder.createLoad(
-          builder.createAccessChain(spv::StorageClassUniform,
-                                    uniform_system_constants, id_vector_temp),
-          spv::NoPrecision);
+      spv::Id point_guest_diameter_x =
+          builder.createLoad(builder.createAccessChain(spv::StorageClassUniform,
+                                                       uniform_system_constants, id_vector_temp),
+                             spv::NoPrecision);
       id_vector_temp.back() = const_int_1;
-      spv::Id point_guest_diameter_y = builder.createLoad(
-          builder.createAccessChain(spv::StorageClassUniform,
-                                    uniform_system_constants, id_vector_temp),
-          spv::NoPrecision);
+      spv::Id point_guest_diameter_y =
+          builder.createLoad(builder.createAccessChain(spv::StorageClassUniform,
+                                                       uniform_system_constants, id_vector_temp),
+                             spv::NoPrecision);
       if (key.has_point_size) {
         // The vertex shader's header writes -1.0 to point_size by default, so
         // any non-negative value means that it was overwritten by the
@@ -1228,29 +1104,27 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         // 0 is the input primitive vertex index.
         id_vector_temp.push_back(const_int_0);
         spv::Id point_vertex_diameter = builder.createLoad(
-            builder.createAccessChain(spv::StorageClassInput, in_point_size,
-                                      id_vector_temp),
+            builder.createAccessChain(spv::StorageClassInput, in_point_size, id_vector_temp),
             spv::NoPrecision);
-        spv::Id point_vertex_diameter_written =
-            builder.createBinOp(spv::OpFOrdGreaterThanEqual, type_bool,
-                                point_vertex_diameter, const_float_0);
-        point_guest_diameter_x = builder.createTriOp(
-            spv::OpSelect, type_float, point_vertex_diameter_written,
-            point_vertex_diameter, point_guest_diameter_x);
-        point_guest_diameter_y = builder.createTriOp(
-            spv::OpSelect, type_float, point_vertex_diameter_written,
-            point_vertex_diameter, point_guest_diameter_y);
+        spv::Id point_vertex_diameter_written = builder.createBinOp(
+            spv::OpFOrdGreaterThanEqual, type_bool, point_vertex_diameter, const_float_0);
+        point_guest_diameter_x =
+            builder.createTriOp(spv::OpSelect, type_float, point_vertex_diameter_written,
+                                point_vertex_diameter, point_guest_diameter_x);
+        point_guest_diameter_y =
+            builder.createTriOp(spv::OpSelect, type_float, point_vertex_diameter_written,
+                                point_vertex_diameter, point_guest_diameter_y);
       }
 
       // 4D5307F1 has zero-size snowflakes, drop them quicker, and also drop
       // points with a constant size of zero since point lists may also be used
       // as just "compute" with memexport.
-      spv::Id point_size_not_zero = builder.createBinOp(
-          spv::OpLogicalAnd, type_bool,
-          builder.createBinOp(spv::OpFOrdGreaterThan, type_bool,
-                              point_guest_diameter_x, const_float_0),
-          builder.createBinOp(spv::OpFOrdGreaterThan, type_bool,
-                              point_guest_diameter_y, const_float_0));
+      spv::Id point_size_not_zero =
+          builder.createBinOp(spv::OpLogicalAnd, type_bool,
+                              builder.createBinOp(spv::OpFOrdGreaterThan, type_bool,
+                                                  point_guest_diameter_x, const_float_0),
+                              builder.createBinOp(spv::OpFOrdGreaterThan, type_bool,
+                                                  point_guest_diameter_y, const_float_0));
       spv::Block& point_size_zero_predecessor = *builder.getBuildPoint();
       spv::Block& point_size_zero_then_block = builder.makeNewBlock();
       spv::Block& point_size_zero_merge_block = builder.makeNewBlock();
@@ -1260,13 +1134,11 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         std::unique_ptr<spv::Instruction> branch_conditional_op(
             std::make_unique<spv::Instruction>(spv::OpBranchConditional));
         branch_conditional_op->addIdOperand(point_size_not_zero);
-        branch_conditional_op->addIdOperand(
-            point_size_zero_merge_block.getId());
+        branch_conditional_op->addIdOperand(point_size_zero_merge_block.getId());
         branch_conditional_op->addIdOperand(point_size_zero_then_block.getId());
         branch_conditional_op->addImmediateOperand(2);
         branch_conditional_op->addImmediateOperand(1);
-        point_size_zero_predecessor.addInstruction(
-            std::move(branch_conditional_op));
+        point_size_zero_predecessor.addInstruction(std::move(branch_conditional_op));
       }
       point_size_zero_then_block.addPredecessor(&point_size_zero_predecessor);
       point_size_zero_merge_block.addPredecessor(&point_size_zero_predecessor);
@@ -1278,36 +1150,32 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
       // normalized device coordinates, and then to the clip space by
       // multiplying by W.
       id_vector_temp.clear();
-      id_vector_temp.push_back(builder.makeIntConstant(
-          int32_t(kPointConstantScreenDiameterToNdcRadius)));
+      id_vector_temp.push_back(
+          builder.makeIntConstant(int32_t(kPointConstantScreenDiameterToNdcRadius)));
       id_vector_temp.push_back(const_int_0);
       spv::Id point_radius_x = builder.createNoContractionBinOp(
           spv::OpFMul, type_float, point_guest_diameter_x,
           builder.createLoad(builder.createAccessChain(spv::StorageClassUniform,
-                                                       uniform_system_constants,
-                                                       id_vector_temp),
+                                                       uniform_system_constants, id_vector_temp),
                              spv::NoPrecision));
       id_vector_temp.back() = const_int_1;
       spv::Id point_radius_y = builder.createNoContractionBinOp(
           spv::OpFMul, type_float, point_guest_diameter_y,
           builder.createLoad(builder.createAccessChain(spv::StorageClassUniform,
-                                                       uniform_system_constants,
-                                                       id_vector_temp),
+                                                       uniform_system_constants, id_vector_temp),
                              spv::NoPrecision));
       id_vector_temp.clear();
       // 0 is the input primitive vertex index.
       id_vector_temp.push_back(const_int_0);
       id_vector_temp.push_back(const_member_in_gl_per_vertex_position);
       spv::Id point_position = builder.createLoad(
-          builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex,
-                                    id_vector_temp),
+          builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex, id_vector_temp),
           spv::NoPrecision);
-      spv::Id point_w =
-          builder.createCompositeExtract(point_position, type_float, 3);
-      point_radius_x = builder.createNoContractionBinOp(
-          spv::OpFMul, type_float, point_radius_x, point_w);
-      point_radius_y = builder.createNoContractionBinOp(
-          spv::OpFMul, type_float, point_radius_y, point_w);
+      spv::Id point_w = builder.createCompositeExtract(point_position, type_float, 3);
+      point_radius_x =
+          builder.createNoContractionBinOp(spv::OpFMul, type_float, point_radius_x, point_w);
+      point_radius_y =
+          builder.createNoContractionBinOp(spv::OpFMul, type_float, point_radius_y, point_w);
 
       // Load the inputs for the guest point.
       // Interpolators.
@@ -1317,25 +1185,21 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
       id_vector_temp.push_back(const_int_0);
       for (uint32_t i = 0; i < key.interpolator_count; ++i) {
         point_interpolators[i] = builder.createLoad(
-            builder.createAccessChain(spv::StorageClassInput,
-                                      in_interpolators[i], id_vector_temp),
+            builder.createAccessChain(spv::StorageClassInput, in_interpolators[i], id_vector_temp),
             spv::NoPrecision);
       }
       // Positions.
-      spv::Id point_x =
-          builder.createCompositeExtract(point_position, type_float, 0);
-      spv::Id point_y =
-          builder.createCompositeExtract(point_position, type_float, 1);
+      spv::Id point_x = builder.createCompositeExtract(point_position, type_float, 0);
+      spv::Id point_y = builder.createCompositeExtract(point_position, type_float, 1);
       std::array<spv::Id, 2> point_edge_x, point_edge_y;
       for (uint32_t i = 0; i < 2; ++i) {
         spv::Op point_radius_add_op = i ? spv::OpFAdd : spv::OpFSub;
-        point_edge_x[i] = builder.createNoContractionBinOp(
-            point_radius_add_op, type_float, point_x, point_radius_x);
-        point_edge_y[i] = builder.createNoContractionBinOp(
-            point_radius_add_op, type_float, point_y, point_radius_y);
+        point_edge_x[i] = builder.createNoContractionBinOp(point_radius_add_op, type_float, point_x,
+                                                           point_radius_x);
+        point_edge_y[i] = builder.createNoContractionBinOp(point_radius_add_op, type_float, point_y,
+                                                           point_radius_y);
       };
-      spv::Id point_z =
-          builder.createCompositeExtract(point_position, type_float, 2);
+      spv::Id point_z = builder.createCompositeExtract(point_position, type_float, 2);
       // Clip distances.
       spv::Id point_clip_distances = spv::NoResult;
       if (clip_distance_count) {
@@ -1344,8 +1208,7 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         id_vector_temp.push_back(const_int_0);
         id_vector_temp.push_back(const_member_in_gl_per_vertex_clip_distance);
         point_clip_distances = builder.createLoad(
-            builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex,
-                                      id_vector_temp),
+            builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex, id_vector_temp),
             spv::NoPrecision);
       }
 
@@ -1363,13 +1226,10 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         // Point coordinates.
         if (key.has_point_coordinates) {
           id_vector_temp.clear();
-          id_vector_temp.push_back(
-              builder.makeFloatConstant(float(point_vertex_x)));
-          id_vector_temp.push_back(
-              builder.makeFloatConstant(float(point_vertex_y)));
-          builder.createStore(
-              builder.makeCompositeConstant(type_float2, id_vector_temp),
-              out_point_coordinates);
+          id_vector_temp.push_back(builder.makeFloatConstant(float(point_vertex_x)));
+          id_vector_temp.push_back(builder.makeFloatConstant(float(point_vertex_y)));
+          builder.createStore(builder.makeCompositeConstant(type_float2, id_vector_temp),
+                              out_point_coordinates);
         }
         // Position.
         id_vector_temp.clear();
@@ -1383,19 +1243,16 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         id_vector_temp.push_back(const_member_out_gl_per_vertex_position);
         builder.createStore(
             point_vertex_position,
-            builder.createAccessChain(spv::StorageClassOutput,
-                                      out_gl_per_vertex, id_vector_temp));
+            builder.createAccessChain(spv::StorageClassOutput, out_gl_per_vertex, id_vector_temp));
         // Clip distances.
         // TODO(Triang3l): Handle ps_ucp_mode properly, clip expanded points if
         // needed.
         if (clip_distance_count) {
           id_vector_temp.clear();
-          id_vector_temp.push_back(
-              const_member_out_gl_per_vertex_clip_distance);
-          builder.createStore(
-              point_clip_distances,
-              builder.createAccessChain(spv::StorageClassOutput,
-                                        out_gl_per_vertex, id_vector_temp));
+          id_vector_temp.push_back(const_member_out_gl_per_vertex_clip_distance);
+          builder.createStore(point_clip_distances,
+                              builder.createAccessChain(spv::StorageClassOutput, out_gl_per_vertex,
+                                                        id_vector_temp));
         }
         // Emit the vertex.
         builder.createNoResultOp(spv::OpEmitVertex);
@@ -1441,32 +1298,25 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         id_vector_temp[0] = builder.makeIntConstant(int32_t((1 + i) % 3));
         id_vector_temp[2] = const_int_0;
         spv::Id edge_0_x = builder.createLoad(
-            builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex,
-                                      id_vector_temp),
+            builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex, id_vector_temp),
             spv::NoPrecision);
         id_vector_temp[2] = const_int_1;
         spv::Id edge_0_y = builder.createLoad(
-            builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex,
-                                      id_vector_temp),
+            builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex, id_vector_temp),
             spv::NoPrecision);
         id_vector_temp[0] = builder.makeIntConstant(int32_t((2 + i) % 3));
         id_vector_temp[2] = const_int_0;
         spv::Id edge_1_x = builder.createLoad(
-            builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex,
-                                      id_vector_temp),
+            builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex, id_vector_temp),
             spv::NoPrecision);
         id_vector_temp[2] = const_int_1;
         spv::Id edge_1_y = builder.createLoad(
-            builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex,
-                                      id_vector_temp),
+            builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex, id_vector_temp),
             spv::NoPrecision);
-        spv::Id edge_x =
-            builder.createBinOp(spv::OpFSub, type_float, edge_1_x, edge_0_x);
-        spv::Id edge_y =
-            builder.createBinOp(spv::OpFSub, type_float, edge_1_y, edge_0_y);
+        spv::Id edge_x = builder.createBinOp(spv::OpFSub, type_float, edge_1_x, edge_0_x);
+        spv::Id edge_y = builder.createBinOp(spv::OpFSub, type_float, edge_1_y, edge_0_y);
         edge_lengths[i] = builder.createBinOp(
-            spv::OpFAdd, type_float,
-            builder.createBinOp(spv::OpFMul, type_float, edge_x, edge_x),
+            spv::OpFAdd, type_float, builder.createBinOp(spv::OpFMul, type_float, edge_x, edge_x),
             builder.createBinOp(spv::OpFMul, type_float, edge_y, edge_y));
       }
 
@@ -1478,30 +1328,26 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
       // 1203, but if not, 01 is the longest, and the strip is 2013.
       vertex_indices[0] = builder.createTriOp(
           spv::OpSelect, type_int,
-          builder.createBinOp(
-              spv::OpLogicalAnd, type_bool,
-              builder.createBinOp(spv::OpFOrdGreaterThan, type_bool,
-                                  edge_lengths[0], edge_lengths[1]),
-              builder.createBinOp(spv::OpFOrdGreaterThan, type_bool,
-                                  edge_lengths[0], edge_lengths[2])),
+          builder.createBinOp(spv::OpLogicalAnd, type_bool,
+                              builder.createBinOp(spv::OpFOrdGreaterThan, type_bool,
+                                                  edge_lengths[0], edge_lengths[1]),
+                              builder.createBinOp(spv::OpFOrdGreaterThan, type_bool,
+                                                  edge_lengths[0], edge_lengths[2])),
           const_int_0,
-          builder.createTriOp(
-              spv::OpSelect, type_int,
-              builder.createBinOp(spv::OpFOrdGreaterThan, type_bool,
-                                  edge_lengths[1], edge_lengths[2]),
-              const_int_1, const_int_2));
+          builder.createTriOp(spv::OpSelect, type_int,
+                              builder.createBinOp(spv::OpFOrdGreaterThan, type_bool,
+                                                  edge_lengths[1], edge_lengths[2]),
+                              const_int_1, const_int_2));
       for (uint32_t i = 1; i < 3; ++i) {
         // vertex_indices[i] = (vertex_indices[0] + i) % 3
-        spv::Id vertex_index_without_wrapping =
-            builder.createBinOp(spv::OpIAdd, type_int, vertex_indices[0],
-                                builder.makeIntConstant(int32_t(i)));
+        spv::Id vertex_index_without_wrapping = builder.createBinOp(
+            spv::OpIAdd, type_int, vertex_indices[0], builder.makeIntConstant(int32_t(i)));
         vertex_indices[i] = builder.createTriOp(
             spv::OpSelect, type_int,
-            builder.createBinOp(spv::OpSLessThan, type_bool,
-                                vertex_index_without_wrapping, const_int_3),
+            builder.createBinOp(spv::OpSLessThan, type_bool, vertex_index_without_wrapping,
+                                const_int_3),
             vertex_index_without_wrapping,
-            builder.createBinOp(spv::OpISub, type_int,
-                                vertex_index_without_wrapping, const_int_3));
+            builder.createBinOp(spv::OpISub, type_int, vertex_index_without_wrapping, const_int_3));
       }
 
       // Initialize the point coordinates output for safety if this shader type
@@ -1512,8 +1358,7 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         id_vector_temp.clear();
         id_vector_temp.push_back(const_float_0);
         id_vector_temp.push_back(const_float_0);
-        const_point_coordinates_zero =
-            builder.makeCompositeConstant(type_float2, id_vector_temp);
+        const_point_coordinates_zero = builder.makeCompositeConstant(type_float2, id_vector_temp);
       }
 
       // Emit the triangle in the strip that consists of the original vertices.
@@ -1524,47 +1369,40 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         id_vector_temp.push_back(vertex_index);
         for (uint32_t j = 0; j < key.interpolator_count; ++j) {
           builder.createStore(
-              builder.createLoad(builder.createAccessChain(
-                                     spv::StorageClassInput,
-                                     in_interpolators[j], id_vector_temp),
+              builder.createLoad(builder.createAccessChain(spv::StorageClassInput,
+                                                           in_interpolators[j], id_vector_temp),
                                  spv::NoPrecision),
               out_interpolators[j]);
         }
         // Point coordinates.
         if (key.has_point_coordinates) {
-          builder.createStore(const_point_coordinates_zero,
-                              out_point_coordinates);
+          builder.createStore(const_point_coordinates_zero, out_point_coordinates);
         }
         // Position.
         id_vector_temp.clear();
         id_vector_temp.push_back(vertex_index);
         id_vector_temp.push_back(const_member_in_gl_per_vertex_position);
         spv::Id vertex_position = builder.createLoad(
-            builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex,
-                                      id_vector_temp),
+            builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex, id_vector_temp),
             spv::NoPrecision);
         id_vector_temp.clear();
         id_vector_temp.push_back(const_member_out_gl_per_vertex_position);
         builder.createStore(
             vertex_position,
-            builder.createAccessChain(spv::StorageClassOutput,
-                                      out_gl_per_vertex, id_vector_temp));
+            builder.createAccessChain(spv::StorageClassOutput, out_gl_per_vertex, id_vector_temp));
         // Clip distances.
         if (clip_distance_count) {
           id_vector_temp.clear();
           id_vector_temp.push_back(vertex_index);
           id_vector_temp.push_back(const_member_in_gl_per_vertex_clip_distance);
           spv::Id vertex_clip_distances = builder.createLoad(
-              builder.createAccessChain(spv::StorageClassInput,
-                                        in_gl_per_vertex, id_vector_temp),
+              builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex, id_vector_temp),
               spv::NoPrecision);
           id_vector_temp.clear();
-          id_vector_temp.push_back(
-              const_member_out_gl_per_vertex_clip_distance);
-          builder.createStore(
-              vertex_clip_distances,
-              builder.createAccessChain(spv::StorageClassOutput,
-                                        out_gl_per_vertex, id_vector_temp));
+          id_vector_temp.push_back(const_member_out_gl_per_vertex_clip_distance);
+          builder.createStore(vertex_clip_distances,
+                              builder.createAccessChain(spv::StorageClassOutput, out_gl_per_vertex,
+                                                        id_vector_temp));
         }
         // Emit the vertex.
         builder.createNoResultOp(spv::OpEmitVertex);
@@ -1577,60 +1415,52 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         id_vector_temp.clear();
         id_vector_temp.push_back(vertex_indices[0]);
         spv::Id vertex_interpolator_v0 = builder.createLoad(
-            builder.createAccessChain(spv::StorageClassInput, in_interpolator,
-                                      id_vector_temp),
+            builder.createAccessChain(spv::StorageClassInput, in_interpolator, id_vector_temp),
             spv::NoPrecision);
         id_vector_temp[0] = vertex_indices[1];
         spv::Id vertex_interpolator_v01 = builder.createNoContractionBinOp(
             spv::OpFSub, type_float4,
             builder.createLoad(
-                builder.createAccessChain(spv::StorageClassInput,
-                                          in_interpolator, id_vector_temp),
+                builder.createAccessChain(spv::StorageClassInput, in_interpolator, id_vector_temp),
                 spv::NoPrecision),
             vertex_interpolator_v0);
         id_vector_temp[0] = vertex_indices[2];
         spv::Id vertex_interpolator_v3 = builder.createNoContractionBinOp(
             spv::OpFAdd, type_float4, vertex_interpolator_v01,
             builder.createLoad(
-                builder.createAccessChain(spv::StorageClassInput,
-                                          in_interpolator, id_vector_temp),
+                builder.createAccessChain(spv::StorageClassInput, in_interpolator, id_vector_temp),
                 spv::NoPrecision));
         builder.createStore(vertex_interpolator_v3, out_interpolators[i]);
       }
       // Point coordinates.
       if (key.has_point_coordinates) {
-        builder.createStore(const_point_coordinates_zero,
-                            out_point_coordinates);
+        builder.createStore(const_point_coordinates_zero, out_point_coordinates);
       }
       // Position.
       id_vector_temp.clear();
       id_vector_temp.push_back(vertex_indices[0]);
       id_vector_temp.push_back(const_member_in_gl_per_vertex_position);
       spv::Id vertex_position_v0 = builder.createLoad(
-          builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex,
-                                    id_vector_temp),
+          builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex, id_vector_temp),
           spv::NoPrecision);
       id_vector_temp[0] = vertex_indices[1];
       spv::Id vertex_position_v01 = builder.createNoContractionBinOp(
           spv::OpFSub, type_float4,
           builder.createLoad(
-              builder.createAccessChain(spv::StorageClassInput,
-                                        in_gl_per_vertex, id_vector_temp),
+              builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex, id_vector_temp),
               spv::NoPrecision),
           vertex_position_v0);
       id_vector_temp[0] = vertex_indices[2];
       spv::Id vertex_position_v3 = builder.createNoContractionBinOp(
           spv::OpFAdd, type_float4, vertex_position_v01,
           builder.createLoad(
-              builder.createAccessChain(spv::StorageClassInput,
-                                        in_gl_per_vertex, id_vector_temp),
+              builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex, id_vector_temp),
               spv::NoPrecision));
       id_vector_temp.clear();
       id_vector_temp.push_back(const_member_out_gl_per_vertex_position);
       builder.createStore(
           vertex_position_v3,
-          builder.createAccessChain(spv::StorageClassOutput, out_gl_per_vertex,
-                                    id_vector_temp));
+          builder.createAccessChain(spv::StorageClassOutput, out_gl_per_vertex, id_vector_temp));
       // Clip distances.
       for (uint32_t i = 0; i < clip_distance_count; ++i) {
         spv::Id const_int_i = builder.makeIntConstant(int32_t(i));
@@ -1639,31 +1469,27 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         id_vector_temp.push_back(const_member_in_gl_per_vertex_clip_distance);
         id_vector_temp.push_back(const_int_i);
         spv::Id vertex_clip_distance_v0 = builder.createLoad(
-            builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex,
-                                      id_vector_temp),
+            builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex, id_vector_temp),
             spv::NoPrecision);
         id_vector_temp[0] = vertex_indices[1];
         spv::Id vertex_clip_distance_v01 = builder.createNoContractionBinOp(
             spv::OpFSub, type_float,
             builder.createLoad(
-                builder.createAccessChain(spv::StorageClassInput,
-                                          in_gl_per_vertex, id_vector_temp),
+                builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex, id_vector_temp),
                 spv::NoPrecision),
             vertex_clip_distance_v0);
         id_vector_temp[0] = vertex_indices[2];
         spv::Id vertex_clip_distance_v3 = builder.createNoContractionBinOp(
             spv::OpFAdd, type_float, vertex_clip_distance_v01,
             builder.createLoad(
-                builder.createAccessChain(spv::StorageClassInput,
-                                          in_gl_per_vertex, id_vector_temp),
+                builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex, id_vector_temp),
                 spv::NoPrecision));
         id_vector_temp.clear();
         id_vector_temp.push_back(const_member_in_gl_per_vertex_clip_distance);
         id_vector_temp.push_back(const_int_i);
         builder.createStore(
             vertex_clip_distance_v3,
-            builder.createAccessChain(spv::StorageClassOutput,
-                                      out_gl_per_vertex, id_vector_temp));
+            builder.createAccessChain(spv::StorageClassOutput, out_gl_per_vertex, id_vector_temp));
       }
       // Emit the vertex.
       builder.createNoResultOp(spv::OpEmitVertex);
@@ -1679,8 +1505,7 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         id_vector_temp.clear();
         id_vector_temp.push_back(const_float_0);
         id_vector_temp.push_back(const_float_0);
-        const_point_coordinates_zero =
-            builder.makeCompositeConstant(type_float2, id_vector_temp);
+        const_point_coordinates_zero = builder.makeCompositeConstant(type_float2, id_vector_temp);
       }
 
       // Build the triangle strip from the original quad vertices in the
@@ -1688,54 +1513,46 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
       // TODO(Triang3l): Find the correct decomposition of quads into triangles
       // on the real hardware.
       for (uint32_t i = 0; i < 4; ++i) {
-        spv::Id const_vertex_index =
-            builder.makeIntConstant(int32_t(i ^ (i >> 1)));
+        spv::Id const_vertex_index = builder.makeIntConstant(int32_t(i ^ (i >> 1)));
         // Interpolators.
         id_vector_temp.clear();
         id_vector_temp.push_back(const_vertex_index);
         for (uint32_t j = 0; j < key.interpolator_count; ++j) {
           builder.createStore(
-              builder.createLoad(builder.createAccessChain(
-                                     spv::StorageClassInput,
-                                     in_interpolators[j], id_vector_temp),
+              builder.createLoad(builder.createAccessChain(spv::StorageClassInput,
+                                                           in_interpolators[j], id_vector_temp),
                                  spv::NoPrecision),
               out_interpolators[j]);
         }
         // Point coordinates.
         if (key.has_point_coordinates) {
-          builder.createStore(const_point_coordinates_zero,
-                              out_point_coordinates);
+          builder.createStore(const_point_coordinates_zero, out_point_coordinates);
         }
         // Position.
         id_vector_temp.clear();
         id_vector_temp.push_back(const_vertex_index);
         id_vector_temp.push_back(const_member_in_gl_per_vertex_position);
         spv::Id vertex_position = builder.createLoad(
-            builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex,
-                                      id_vector_temp),
+            builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex, id_vector_temp),
             spv::NoPrecision);
         id_vector_temp.clear();
         id_vector_temp.push_back(const_member_out_gl_per_vertex_position);
         builder.createStore(
             vertex_position,
-            builder.createAccessChain(spv::StorageClassOutput,
-                                      out_gl_per_vertex, id_vector_temp));
+            builder.createAccessChain(spv::StorageClassOutput, out_gl_per_vertex, id_vector_temp));
         // Clip distances.
         if (clip_distance_count) {
           id_vector_temp.clear();
           id_vector_temp.push_back(const_vertex_index);
           id_vector_temp.push_back(const_member_in_gl_per_vertex_clip_distance);
           spv::Id vertex_clip_distances = builder.createLoad(
-              builder.createAccessChain(spv::StorageClassInput,
-                                        in_gl_per_vertex, id_vector_temp),
+              builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex, id_vector_temp),
               spv::NoPrecision);
           id_vector_temp.clear();
-          id_vector_temp.push_back(
-              const_member_out_gl_per_vertex_clip_distance);
-          builder.createStore(
-              vertex_clip_distances,
-              builder.createAccessChain(spv::StorageClassOutput,
-                                        out_gl_per_vertex, id_vector_temp));
+          id_vector_temp.push_back(const_member_out_gl_per_vertex_clip_distance);
+          builder.createStore(vertex_clip_distances,
+                              builder.createAccessChain(spv::StorageClassOutput, out_gl_per_vertex,
+                                                        id_vector_temp));
         }
         // Emit the vertex.
         builder.createNoResultOp(spv::OpEmitVertex);
@@ -1757,8 +1574,7 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
   // Create the shader module, and store the handle even if creation fails not
   // to try to create it again later.
   VkShaderModule shader_module = ui::vulkan::util::CreateShaderModule(
-      command_processor_.GetVulkanDevice(),
-      reinterpret_cast<const uint32_t*>(shader_code.data()),
+      command_processor_.GetVulkanDevice(), reinterpret_cast<const uint32_t*>(shader_code.data()),
       sizeof(uint32_t) * shader_code.size());
   if (shader_module == VK_NULL_HANDLE) {
     REXGPU_ERROR(
@@ -1782,11 +1598,11 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
 
   if (creation_arguments.pixel_shader) {
     REXGPU_INFO("Creating graphics pipeline state with VS {:016X}, PS {:016X}",
-             creation_arguments.vertex_shader->shader().ucode_data_hash(),
-             creation_arguments.pixel_shader->shader().ucode_data_hash());
+                creation_arguments.vertex_shader->shader().ucode_data_hash(),
+                creation_arguments.pixel_shader->shader().ucode_data_hash());
   } else {
     REXGPU_INFO("Creating graphics pipeline state with VS {:016X}",
-             creation_arguments.vertex_shader->shader().ucode_data_hash());
+                creation_arguments.vertex_shader->shader().ucode_data_hash());
   }
 
   const PipelineDescription& description = creation_arguments.pipeline->first;
@@ -1798,12 +1614,10 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
     return false;
   }
 
-  const ui::vulkan::VulkanDevice* const vulkan_device =
-      command_processor_.GetVulkanDevice();
+  const ui::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
 
   bool edram_fragment_shader_interlock =
-      render_target_cache_.GetPath() ==
-      RenderTargetCache::Path::kPixelShaderInterlock;
+      render_target_cache_.GetPath() == RenderTargetCache::Path::kPixelShaderInterlock;
 
   std::array<VkPipelineShaderStageCreateInfo, 3> shader_stages;
   uint32_t shader_stage_count = 0;
@@ -1813,24 +1627,19 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
   if (!creation_arguments.vertex_shader->is_valid()) {
     return false;
   }
-  VkPipelineShaderStageCreateInfo& shader_stage_vertex =
-      shader_stages[shader_stage_count++];
-  shader_stage_vertex.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  VkPipelineShaderStageCreateInfo& shader_stage_vertex = shader_stages[shader_stage_count++];
+  shader_stage_vertex.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   shader_stage_vertex.pNext = nullptr;
   shader_stage_vertex.flags = 0;
   shader_stage_vertex.stage = VK_SHADER_STAGE_VERTEX_BIT;
-  shader_stage_vertex.module =
-      creation_arguments.vertex_shader->shader_module();
+  shader_stage_vertex.module = creation_arguments.vertex_shader->shader_module();
   assert_true(shader_stage_vertex.module != VK_NULL_HANDLE);
   shader_stage_vertex.pName = "main";
   shader_stage_vertex.pSpecializationInfo = nullptr;
   // Geometry shader.
   if (creation_arguments.geometry_shader != VK_NULL_HANDLE) {
-    VkPipelineShaderStageCreateInfo& shader_stage_geometry =
-        shader_stages[shader_stage_count++];
-    shader_stage_geometry.sType =
-        VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    VkPipelineShaderStageCreateInfo& shader_stage_geometry = shader_stages[shader_stage_count++];
+    shader_stage_geometry.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     shader_stage_geometry.pNext = nullptr;
     shader_stage_geometry.flags = 0;
     shader_stage_geometry.stage = VK_SHADER_STAGE_GEOMETRY_BIT;
@@ -1839,10 +1648,8 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
     shader_stage_geometry.pSpecializationInfo = nullptr;
   }
   // Fragment shader.
-  VkPipelineShaderStageCreateInfo& shader_stage_fragment =
-      shader_stages[shader_stage_count++];
-  shader_stage_fragment.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  VkPipelineShaderStageCreateInfo& shader_stage_fragment = shader_stages[shader_stage_count++];
+  shader_stage_fragment.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   shader_stage_fragment.pNext = nullptr;
   shader_stage_fragment.flags = 0;
   shader_stage_fragment.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
@@ -1854,8 +1661,7 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
     if (!creation_arguments.pixel_shader->is_valid()) {
       return false;
     }
-    shader_stage_fragment.module =
-        creation_arguments.pixel_shader->shader_module();
+    shader_stage_fragment.module = creation_arguments.pixel_shader->shader_module();
     assert_true(shader_stage_fragment.module != VK_NULL_HANDLE);
   } else {
     if (edram_fragment_shader_interlock) {
@@ -1867,12 +1673,10 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
   }
 
   VkPipelineVertexInputStateCreateInfo vertex_input_state = {};
-  vertex_input_state.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+  vertex_input_state.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
   VkPipelineInputAssemblyStateCreateInfo input_assembly_state;
-  input_assembly_state.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+  input_assembly_state.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
   input_assembly_state.pNext = nullptr;
   input_assembly_state.flags = 0;
   switch (description.primitive_topology) {
@@ -1907,8 +1711,7 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
       input_assembly_state.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN;
       break;
     case PipelinePrimitiveTopology::kLineListWithAdjacency:
-      input_assembly_state.topology =
-          VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY;
+      input_assembly_state.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY;
       assert_false(description.primitive_restart);
       if (description.primitive_restart) {
         return false;
@@ -1925,8 +1728,7 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
       assert_unhandled_case(description.primitive_topology);
       return false;
   }
-  input_assembly_state.primitiveRestartEnable =
-      description.primitive_restart ? VK_TRUE : VK_FALSE;
+  input_assembly_state.primitiveRestartEnable = description.primitive_restart ? VK_TRUE : VK_FALSE;
 
   VkPipelineViewportStateCreateInfo viewport_state;
   viewport_state.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -1938,10 +1740,8 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
   viewport_state.pScissors = nullptr;
 
   VkPipelineRasterizationStateCreateInfo rasterization_state = {};
-  rasterization_state.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-  rasterization_state.depthClampEnable =
-      description.depth_clamp_enable ? VK_TRUE : VK_FALSE;
+  rasterization_state.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+  rasterization_state.depthClampEnable = description.depth_clamp_enable ? VK_TRUE : VK_FALSE;
   switch (description.polygon_mode) {
     case PipelinePolygonMode::kFill:
       rasterization_state.polygonMode = VK_POLYGON_MODE_FILL;
@@ -1963,17 +1763,15 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
   if (description.cull_back) {
     rasterization_state.cullMode |= VK_CULL_MODE_BACK_BIT;
   }
-  rasterization_state.frontFace = description.front_face_clockwise
-                                      ? VK_FRONT_FACE_CLOCKWISE
-                                      : VK_FRONT_FACE_COUNTER_CLOCKWISE;
+  rasterization_state.frontFace =
+      description.front_face_clockwise ? VK_FRONT_FACE_CLOCKWISE : VK_FRONT_FACE_COUNTER_CLOCKWISE;
   // Depth bias is dynamic (even toggling - pipeline creation is expensive).
   // "If no depth attachment is present, r is undefined" in the depth bias
   // formula, though Z has no effect on anything if a depth attachment is not
   // used (the guest shader can't access Z), enabling only when there's a
   // depth / stencil attachment for correctness.
   rasterization_state.depthBiasEnable =
-      (!edram_fragment_shader_interlock &&
-       (description.render_pass_key.depth_and_color_used & 0b1))
+      (!edram_fragment_shader_interlock && (description.render_pass_key.depth_and_color_used & 0b1))
           ? VK_TRUE
           : VK_FALSE;
   // TODO(Triang3l): Wide lines.
@@ -1981,12 +1779,11 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
 
   VkSampleMask sample_mask = UINT32_MAX;
   VkPipelineMultisampleStateCreateInfo multisample_state = {};
-  multisample_state.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+  multisample_state.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
   if (description.render_pass_key.msaa_samples == xenos::MsaaSamples::k2X &&
-      !render_target_cache_.IsMsaa2xSupported(
-          !edram_fragment_shader_interlock &&
-          description.render_pass_key.depth_and_color_used != 0)) {
+      !render_target_cache_.IsMsaa2xSupported(!edram_fragment_shader_interlock &&
+                                              description.render_pass_key.depth_and_color_used !=
+                                                  0)) {
     // Using sample 0 as 0 and 3 as 1 for 2x instead (not exactly the same
     // sample locations, but still top-left and bottom-right - however, this can
     // be adjusted with custom sample locations).
@@ -1996,61 +1793,47 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
     // Direct3D, it's completely ignored in this case).
     multisample_state.pSampleMask = &sample_mask;
   } else {
-    multisample_state.rasterizationSamples = VkSampleCountFlagBits(
-        uint32_t(1) << uint32_t(description.render_pass_key.msaa_samples));
+    multisample_state.rasterizationSamples =
+        VkSampleCountFlagBits(uint32_t(1) << uint32_t(description.render_pass_key.msaa_samples));
   }
 
   VkPipelineDepthStencilStateCreateInfo depth_stencil_state = {};
-  depth_stencil_state.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+  depth_stencil_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
   depth_stencil_state.pNext = nullptr;
   if (!edram_fragment_shader_interlock) {
     if (description.depth_write_enable ||
         description.depth_compare_op != xenos::CompareFunction::kAlways) {
       depth_stencil_state.depthTestEnable = VK_TRUE;
-      depth_stencil_state.depthWriteEnable =
-          description.depth_write_enable ? VK_TRUE : VK_FALSE;
+      depth_stencil_state.depthWriteEnable = description.depth_write_enable ? VK_TRUE : VK_FALSE;
       depth_stencil_state.depthCompareOp =
-          VkCompareOp(uint32_t(VK_COMPARE_OP_NEVER) +
-                      uint32_t(description.depth_compare_op));
+          VkCompareOp(uint32_t(VK_COMPARE_OP_NEVER) + uint32_t(description.depth_compare_op));
     }
     if (description.stencil_test_enable) {
       depth_stencil_state.stencilTestEnable = VK_TRUE;
       depth_stencil_state.front.failOp =
-          VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) +
-                      uint32_t(description.stencil_front_fail_op));
+          VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) + uint32_t(description.stencil_front_fail_op));
       depth_stencil_state.front.passOp =
-          VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) +
-                      uint32_t(description.stencil_front_pass_op));
-      depth_stencil_state.front.depthFailOp =
-          VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) +
-                      uint32_t(description.stencil_front_depth_fail_op));
-      depth_stencil_state.front.compareOp =
-          VkCompareOp(uint32_t(VK_COMPARE_OP_NEVER) +
-                      uint32_t(description.stencil_front_compare_op));
+          VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) + uint32_t(description.stencil_front_pass_op));
+      depth_stencil_state.front.depthFailOp = VkStencilOp(
+          uint32_t(VK_STENCIL_OP_KEEP) + uint32_t(description.stencil_front_depth_fail_op));
+      depth_stencil_state.front.compareOp = VkCompareOp(
+          uint32_t(VK_COMPARE_OP_NEVER) + uint32_t(description.stencil_front_compare_op));
       depth_stencil_state.back.failOp =
-          VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) +
-                      uint32_t(description.stencil_back_fail_op));
+          VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) + uint32_t(description.stencil_back_fail_op));
       depth_stencil_state.back.passOp =
-          VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) +
-                      uint32_t(description.stencil_back_pass_op));
-      depth_stencil_state.back.depthFailOp =
-          VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) +
-                      uint32_t(description.stencil_back_depth_fail_op));
-      depth_stencil_state.back.compareOp =
-          VkCompareOp(uint32_t(VK_COMPARE_OP_NEVER) +
-                      uint32_t(description.stencil_back_compare_op));
+          VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) + uint32_t(description.stencil_back_pass_op));
+      depth_stencil_state.back.depthFailOp = VkStencilOp(
+          uint32_t(VK_STENCIL_OP_KEEP) + uint32_t(description.stencil_back_depth_fail_op));
+      depth_stencil_state.back.compareOp = VkCompareOp(
+          uint32_t(VK_COMPARE_OP_NEVER) + uint32_t(description.stencil_back_compare_op));
     }
   }
 
   VkPipelineColorBlendStateCreateInfo color_blend_state = {};
-  color_blend_state.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-  VkPipelineColorBlendAttachmentState
-      color_blend_attachments[xenos::kMaxColorRenderTargets] = {};
+  color_blend_state.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+  VkPipelineColorBlendAttachmentState color_blend_attachments[xenos::kMaxColorRenderTargets] = {};
   if (!edram_fragment_shader_interlock) {
-    uint32_t color_rts_used =
-        description.render_pass_key.depth_and_color_used >> 1;
+    uint32_t color_rts_used = description.render_pass_key.depth_and_color_used >> 1;
     {
       static const VkBlendFactor kBlendFactorMap[] = {
           VK_BLEND_FACTOR_ZERO,
@@ -2085,8 +1868,7 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
         color_rts_remaining &= ~(uint32_t(1) << color_rt_index);
         VkPipelineColorBlendAttachmentState& color_blend_attachment =
             color_blend_attachments[color_rt_index];
-        const PipelineRenderTarget& color_rt =
-            description.render_targets[color_rt_index];
+        const PipelineRenderTarget& color_rt = description.render_targets[color_rt_index];
         if (color_rt.src_color_blend_factor != PipelineBlendFactor::kOne ||
             color_rt.dst_color_blend_factor != PipelineBlendFactor::kZero ||
             color_rt.color_blend_op != xenos::BlendOp::kAdd ||
@@ -2098,17 +1880,14 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
               kBlendFactorMap[uint32_t(color_rt.src_color_blend_factor)];
           color_blend_attachment.dstColorBlendFactor =
               kBlendFactorMap[uint32_t(color_rt.dst_color_blend_factor)];
-          color_blend_attachment.colorBlendOp =
-              kBlendOpMap[uint32_t(color_rt.color_blend_op)];
+          color_blend_attachment.colorBlendOp = kBlendOpMap[uint32_t(color_rt.color_blend_op)];
           color_blend_attachment.srcAlphaBlendFactor =
               kBlendFactorMap[uint32_t(color_rt.src_alpha_blend_factor)];
           color_blend_attachment.dstAlphaBlendFactor =
               kBlendFactorMap[uint32_t(color_rt.dst_alpha_blend_factor)];
-          color_blend_attachment.alphaBlendOp =
-              kBlendOpMap[uint32_t(color_rt.alpha_blend_op)];
+          color_blend_attachment.alphaBlendOp = kBlendOpMap[uint32_t(color_rt.alpha_blend_op)];
         }
-        color_blend_attachment.colorWriteMask =
-            VkColorComponentFlags(color_rt.color_write_mask);
+        color_blend_attachment.colorWriteMask = VkColorComponentFlags(color_rt.color_write_mask);
       }
     }
     color_blend_state.attachmentCount = 32 - rex::lzcnt(color_rts_used);
@@ -2129,16 +1908,11 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
   dynamic_states[dynamic_state.dynamicStateCount++] = VK_DYNAMIC_STATE_VIEWPORT;
   dynamic_states[dynamic_state.dynamicStateCount++] = VK_DYNAMIC_STATE_SCISSOR;
   if (!edram_fragment_shader_interlock) {
-    dynamic_states[dynamic_state.dynamicStateCount++] =
-        VK_DYNAMIC_STATE_DEPTH_BIAS;
-    dynamic_states[dynamic_state.dynamicStateCount++] =
-        VK_DYNAMIC_STATE_BLEND_CONSTANTS;
-    dynamic_states[dynamic_state.dynamicStateCount++] =
-        VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK;
-    dynamic_states[dynamic_state.dynamicStateCount++] =
-        VK_DYNAMIC_STATE_STENCIL_WRITE_MASK;
-    dynamic_states[dynamic_state.dynamicStateCount++] =
-        VK_DYNAMIC_STATE_STENCIL_REFERENCE;
+    dynamic_states[dynamic_state.dynamicStateCount++] = VK_DYNAMIC_STATE_DEPTH_BIAS;
+    dynamic_states[dynamic_state.dynamicStateCount++] = VK_DYNAMIC_STATE_BLEND_CONSTANTS;
+    dynamic_states[dynamic_state.dynamicStateCount++] = VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK;
+    dynamic_states[dynamic_state.dynamicStateCount++] = VK_DYNAMIC_STATE_STENCIL_WRITE_MASK;
+    dynamic_states[dynamic_state.dynamicStateCount++] = VK_DYNAMIC_STATE_STENCIL_REFERENCE;
   }
 
   VkGraphicsPipelineCreateInfo pipeline_create_info;
@@ -2166,8 +1940,7 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
   const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
   const VkDevice device = vulkan_device->device();
   VkPipeline pipeline;
-  if (dfn.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1,
-                                    &pipeline_create_info, nullptr,
+  if (dfn.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipeline_create_info, nullptr,
                                     &pipeline) != VK_SUCCESS) {
     // TODO(Triang3l): Move these error messages outside.
     /* if (creation_arguments.pixel_shader) {

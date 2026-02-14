@@ -13,23 +13,22 @@
 
 #include <cstdint>
 
-#include <rex/byte_order.h>
 #include <rex/platform.h>
+#include <rex/types.h>
 
 namespace rex::audio::conversion {
 
 #if REX_ARCH_AMD64
-inline void sequential_6_BE_to_interleaved_6_LE(float* output,
-                                                const float* input,
+inline void sequential_6_BE_to_interleaved_6_LE(float* output, const float* input,
                                                 size_t ch_sample_count) {
   const uint32_t* in = reinterpret_cast<const uint32_t*>(input);
   uint32_t* out = reinterpret_cast<uint32_t*>(output);
   const __m128i byte_swap_shuffle =
       _mm_set_epi8(12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3);
   for (size_t sample = 0; sample < ch_sample_count; sample++) {
-    __m128i sample0 = _mm_set_epi32(
-        in[3 * ch_sample_count + sample], in[2 * ch_sample_count + sample],
-        in[1 * ch_sample_count + sample], in[0 * ch_sample_count + sample]);
+    __m128i sample0 =
+        _mm_set_epi32(in[3 * ch_sample_count + sample], in[2 * ch_sample_count + sample],
+                      in[1 * ch_sample_count + sample], in[0 * ch_sample_count + sample]);
     uint32_t sample1 = in[4 * ch_sample_count + sample];
     uint32_t sample2 = in[5 * ch_sample_count + sample];
     sample0 = _mm_shuffle_epi8(sample0, byte_swap_shuffle);
@@ -41,8 +40,7 @@ inline void sequential_6_BE_to_interleaved_6_LE(float* output,
   }
 }
 
-inline void sequential_6_BE_to_interleaved_2_LE(float* output,
-                                                const float* input,
+inline void sequential_6_BE_to_interleaved_2_LE(float* output, const float* input,
                                                 size_t ch_sample_count) {
   assert_true(ch_sample_count % 4 == 0);
 
@@ -60,16 +58,11 @@ inline void sequential_6_BE_to_interleaved_2_LE(float* output,
     __m128 bl = _mm_loadu_ps(&input[4 * ch_sample_count + sample]);
     __m128 br = _mm_loadu_ps(&input[5 * ch_sample_count + sample]);
     // byte swap
-    fl = _mm_castsi128_ps(
-        _mm_shuffle_epi8(_mm_castps_si128(fl), byte_swap_shuffle));
-    fr = _mm_castsi128_ps(
-        _mm_shuffle_epi8(_mm_castps_si128(fr), byte_swap_shuffle));
-    fc = _mm_castsi128_ps(
-        _mm_shuffle_epi8(_mm_castps_si128(fc), byte_swap_shuffle));
-    bl = _mm_castsi128_ps(
-        _mm_shuffle_epi8(_mm_castps_si128(bl), byte_swap_shuffle));
-    br = _mm_castsi128_ps(
-        _mm_shuffle_epi8(_mm_castps_si128(br), byte_swap_shuffle));
+    fl = _mm_castsi128_ps(_mm_shuffle_epi8(_mm_castps_si128(fl), byte_swap_shuffle));
+    fr = _mm_castsi128_ps(_mm_shuffle_epi8(_mm_castps_si128(fr), byte_swap_shuffle));
+    fc = _mm_castsi128_ps(_mm_shuffle_epi8(_mm_castps_si128(fc), byte_swap_shuffle));
+    bl = _mm_castsi128_ps(_mm_shuffle_epi8(_mm_castps_si128(bl), byte_swap_shuffle));
+    br = _mm_castsi128_ps(_mm_shuffle_epi8(_mm_castps_si128(br), byte_swap_shuffle));
 
     __m128 center_halved = _mm_mul_ps(fc, half);
     __m128 left = _mm_add_ps(_mm_add_ps(fl, bl), center_halved);
@@ -81,18 +74,15 @@ inline void sequential_6_BE_to_interleaved_2_LE(float* output,
   }
 }
 #else
-inline void sequential_6_BE_to_interleaved_6_LE(float* output,
-                                                const float* input,
+inline void sequential_6_BE_to_interleaved_6_LE(float* output, const float* input,
                                                 size_t ch_sample_count) {
   for (size_t sample = 0; sample < ch_sample_count; sample++) {
     for (size_t channel = 0; channel < 6; channel++) {
-      output[sample * 6 + channel] =
-          rex::byte_swap(input[channel * ch_sample_count + sample]);
+      output[sample * 6 + channel] = rex::byte_swap(input[channel * ch_sample_count + sample]);
     }
   }
 }
-inline void sequential_6_BE_to_interleaved_2_LE(float* output,
-                                                const float* input,
+inline void sequential_6_BE_to_interleaved_2_LE(float* output, const float* input,
                                                 size_t ch_sample_count) {
   // Default 5.1 channel mapping is fl, fr, fc, lf, bl, br
   // https://docs.microsoft.com/en-us/windows/win32/xaudio2/xaudio2-default-channel-mapping

@@ -10,7 +10,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <functional>
 #include <memory>
 #include <string>
@@ -84,5 +83,4 @@ class MenuItem {
 };
 
 }  // namespace ui
-}  // namespace xe
-
+}  // namespace rex

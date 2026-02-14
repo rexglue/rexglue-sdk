@@ -10,7 +10,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <array>
 #include <cstdint>
 #include <memory>
@@ -18,8 +17,8 @@
 #include <utility>
 #include <vector>
 
-#include <rex/graphics/pipeline/shader/translator.h>
 #include <rex/graphics/pipeline/shader/spirv_builder.h>
+#include <rex/graphics/pipeline/shader/translator.h>
 #include <rex/graphics/xenos.h>
 #include <rex/ui/vulkan/device.h>
 
@@ -58,8 +57,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
       // Dynamically indexable register count from SQ_PROGRAM_CNTL.
       uint32_t dynamic_addressable_register_count : 8;
       // Pipeline stage and input configuration.
-      Shader::HostVertexShaderType host_vertex_shader_type
-          : Shader::kHostVertexShaderTypeBitCount;
+      Shader::HostVertexShaderType host_vertex_shader_type : Shader::kHostVertexShaderTypeBitCount;
     } vertex;
     struct PixelShaderModification {
       // uint32_t 0.
@@ -81,8 +79,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
     } pixel;
     uint64_t value = 0;
 
-    explicit Modification(uint64_t modification_value = 0)
-        : value(modification_value) {
+    explicit Modification(uint64_t modification_value = 0) : value(modification_value) {
       static_assert_size(*this, sizeof(value));
     }
   };
@@ -97,8 +94,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
     kSysFlag_PrimitivePolygonal_Shift,
     kSysFlag_PrimitiveLine_Shift,
     kSysFlag_MsaaSamples_Shift,
-    kSysFlag_DepthFloat24_Shift =
-        kSysFlag_MsaaSamples_Shift + xenos::kMsaaSamplesBits,
+    kSysFlag_DepthFloat24_Shift = kSysFlag_MsaaSamples_Shift + xenos::kMsaaSamplesBits,
     kSysFlag_AlphaPassIfLess_Shift,
     kSysFlag_AlphaPassIfEqual_Shift,
     kSysFlag_AlphaPassIfGreater_Shift,
@@ -164,8 +160,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
     kSysFlag_FSIDepthPassIfGreater = 1u << kSysFlag_FSIDepthPassIfGreater_Shift,
     kSysFlag_FSIDepthWrite = 1u << kSysFlag_FSIDepthWrite_Shift,
     kSysFlag_FSIStencilTest = 1u << kSysFlag_FSIStencilTest_Shift,
-    kSysFlag_FSIDepthStencilEarlyWrite =
-        1u << kSysFlag_FSIDepthStencilEarlyWrite_Shift,
+    kSysFlag_FSIDepthStencilEarlyWrite = 1u << kSysFlag_FSIDepthStencilEarlyWrite_Shift,
   };
   static_assert(kSysFlag_Count <= 32, "Too many flags in the system constants");
 
@@ -307,13 +302,12 @@ class SpirvShaderTranslator : public ShaderTranslator {
 
     kDescriptorSetCount,
   };
-  static_assert(
-      kDescriptorSetCount <= 4,
-      "The number of descriptor sets used by translated shaders must be within "
-      "the minimum Vulkan maxBoundDescriptorSets requirement of 4, which is "
-      "the limit on most GPUs used in Android devices - Arm Mali, Imagination "
-      "PowerVR, Qualcomm Adreno 6xx and older, as well as on old PC Nvidia "
-      "drivers");
+  static_assert(kDescriptorSetCount <= 4,
+                "The number of descriptor sets used by translated shaders must be within "
+                "the minimum Vulkan maxBoundDescriptorSets requirement of 4, which is "
+                "the limit on most GPUs used in Android devices - Arm Mali, Imagination "
+                "PowerVR, Qualcomm Adreno 6xx and older, as well as on old PC Nvidia "
+                "drivers");
 
   // "Xenia Emulator Microcode Translator".
   // https://github.com/KhronosGroup/SPIRV-Headers/blob/c43a43c7cc3af55910b9bec2a71e3e8a622443cf/include/spirv/spir-v.xml#L79
@@ -346,10 +340,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
     bool demote_to_helper_invocation;
   };
 
-  SpirvShaderTranslator(const Features& features,
-                        bool native_2x_msaa_with_attachments,
-                        bool native_2x_msaa_no_attachments,
-                        bool edram_fragment_shader_interlock)
+  SpirvShaderTranslator(const Features& features, bool native_2x_msaa_with_attachments,
+                        bool native_2x_msaa_no_attachments, bool edram_fragment_shader_interlock)
       : features_(features),
         native_2x_msaa_with_attachments_(native_2x_msaa_with_attachments),
         native_2x_msaa_no_attachments_(native_2x_msaa_no_attachments),
@@ -373,8 +365,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
     return 2;
   }
   uint32_t GetSharedMemoryStorageBufferCountLog2() const {
-    return GetSharedMemoryStorageBufferCountLog2(
-        features_.max_storage_buffer_range);
+    return GetSharedMemoryStorageBufferCountLog2(features_.max_storage_buffer_range);
   }
 
   // Creates a special fragment shader without color outputs - this resets the
@@ -386,32 +377,26 @@ class SpirvShaderTranslator : public ShaderTranslator {
 
   // Converts the color value externally clamped to [0, 31.875] to 7e3 floating
   // point, with zeros in bits 10:31, rounding to the nearest even.
-  static spv::Id PreClampedFloat32To7e3(SpirvBuilder& builder,
-                                        spv::Id f32_scalar,
+  static spv::Id PreClampedFloat32To7e3(SpirvBuilder& builder, spv::Id f32_scalar,
                                         spv::Id ext_inst_glsl_std_450);
   // Same as PreClampedFloat32To7e3, but clamps the input to [0, 31.875].
-  static spv::Id UnclampedFloat32To7e3(SpirvBuilder& builder,
-                                       spv::Id f32_scalar,
+  static spv::Id UnclampedFloat32To7e3(SpirvBuilder& builder, spv::Id f32_scalar,
                                        spv::Id ext_inst_glsl_std_450);
   // Converts the 7e3 number in bits [f10_shift, f10_shift + 10) to a 32-bit
   // float.
-  static spv::Id Float7e3To32(SpirvBuilder& builder, spv::Id f10_uint_scalar,
-                              uint32_t f10_shift, bool result_as_uint,
-                              spv::Id ext_inst_glsl_std_450);
+  static spv::Id Float7e3To32(SpirvBuilder& builder, spv::Id f10_uint_scalar, uint32_t f10_shift,
+                              bool result_as_uint, spv::Id ext_inst_glsl_std_450);
   // Converts the depth value externally clamped to the representable [0, 2)
   // range to 20e4 floating point, with zeros in bits 24:31, rounding to the
   // nearest even or towards zero. If remap_from_0_to_0_5 is true, it's assumed
   // that 0...1 is pre-remapped to 0...0.5 in the input.
-  static spv::Id PreClampedDepthTo20e4(SpirvBuilder& builder,
-                                       spv::Id f32_scalar,
-                                       bool round_to_nearest_even,
-                                       bool remap_from_0_to_0_5,
+  static spv::Id PreClampedDepthTo20e4(SpirvBuilder& builder, spv::Id f32_scalar,
+                                       bool round_to_nearest_even, bool remap_from_0_to_0_5,
                                        spv::Id ext_inst_glsl_std_450);
   // Converts the 20e4 number in bits [f24_shift, f24_shift + 10) to a 32-bit
   // float.
-  static spv::Id Depth20e4To32(SpirvBuilder& builder, spv::Id f24_uint_scalar,
-                               uint32_t f24_shift, bool remap_to_0_to_0_5,
-                               bool result_as_uint,
+  static spv::Id Depth20e4To32(SpirvBuilder& builder, spv::Id f24_uint_scalar, uint32_t f24_shift,
+                               bool remap_to_0_to_0_5, bool result_as_uint,
                                spv::Id ext_inst_glsl_std_450);
 
  protected:
@@ -429,21 +414,15 @@ class SpirvShaderTranslator : public ShaderTranslator {
 
   void ProcessExecInstructionBegin(const ParsedExecInstruction& instr) override;
   void ProcessExecInstructionEnd(const ParsedExecInstruction& instr) override;
-  void ProcessLoopStartInstruction(
-      const ParsedLoopStartInstruction& instr) override;
-  void ProcessLoopEndInstruction(
-      const ParsedLoopEndInstruction& instr) override;
+  void ProcessLoopStartInstruction(const ParsedLoopStartInstruction& instr) override;
+  void ProcessLoopEndInstruction(const ParsedLoopEndInstruction& instr) override;
   void ProcessJumpInstruction(const ParsedJumpInstruction& instr) override;
-  void ProcessAllocInstruction(const ParsedAllocInstruction& instr,
-                               uint8_t export_eM) override;
+  void ProcessAllocInstruction(const ParsedAllocInstruction& instr, uint8_t export_eM) override;
 
-  void ProcessVertexFetchInstruction(
-      const ParsedVertexFetchInstruction& instr) override;
-  void ProcessTextureFetchInstruction(
-      const ParsedTextureFetchInstruction& instr) override;
-  void ProcessAluInstruction(
-      const ParsedAluInstruction& instr,
-      uint8_t memexport_eM_potentially_written_before) override;
+  void ProcessVertexFetchInstruction(const ParsedVertexFetchInstruction& instr) override;
+  void ProcessTextureFetchInstruction(const ParsedTextureFetchInstruction& instr) override;
+  void ProcessAluInstruction(const ParsedAluInstruction& instr,
+                             uint8_t memexport_eM_potentially_written_before) override;
 
  private:
   struct TextureBinding {
@@ -473,27 +452,23 @@ class SpirvShaderTranslator : public ShaderTranslator {
   }
 
   bool IsSpirvVertexShader() const {
-    return is_vertex_shader() &&
-           !Shader::IsHostVertexShaderTypeDomain(
-               GetSpirvShaderModification().vertex.host_vertex_shader_type);
+    return is_vertex_shader() && !Shader::IsHostVertexShaderTypeDomain(
+                                     GetSpirvShaderModification().vertex.host_vertex_shader_type);
   }
   bool IsSpirvTessEvalShader() const {
-    return is_vertex_shader() &&
-           Shader::IsHostVertexShaderTypeDomain(
-               GetSpirvShaderModification().vertex.host_vertex_shader_type);
+    return is_vertex_shader() && Shader::IsHostVertexShaderTypeDomain(
+                                     GetSpirvShaderModification().vertex.host_vertex_shader_type);
   }
   bool IsSpirvComputeShader() const {
-    return is_vertex_shader() &&
-           GetSpirvShaderModification().vertex.host_vertex_shader_type ==
-               Shader::HostVertexShaderType::kMemExportCompute;
+    return is_vertex_shader() && GetSpirvShaderModification().vertex.host_vertex_shader_type ==
+                                     Shader::HostVertexShaderType::kMemExportCompute;
   }
 
   bool IsExecutionModeEarlyFragmentTests() const {
     return is_pixel_shader() &&
            GetSpirvShaderModification().pixel.depth_stencil_mode ==
                Modification::DepthStencilMode::kEarlyHint &&
-           !edram_fragment_shader_interlock_ &&
-           current_shader().implicit_early_z_write_allowed();
+           !edram_fragment_shader_interlock_ && current_shader().implicit_early_z_write_allowed();
   }
 
   uint32_t GetModificationInterpolatorMask() const {
@@ -524,8 +499,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
   // However, if the condition is not different, the instruction-level predicate
   // conditional also won't be closed - this must be checked separately if
   // needed (for example, in jumps).
-  void UpdateExecConditionals(ParsedExecInstruction::Type type,
-                              uint32_t bool_constant_index, bool condition);
+  void UpdateExecConditionals(ParsedExecInstruction::Type type, uint32_t bool_constant_index,
+                              bool condition);
   // Opens or reopens the predicate check conditional for the instruction.
   // Should be called before processing a non-control-flow instruction.
   void UpdateInstructionPredication(bool predicated, bool condition);
@@ -537,41 +512,33 @@ class SpirvShaderTranslator : public ShaderTranslator {
   // labels) and updates the state accordingly.
   void CloseExecConditionals();
 
-  spv::Id GetStorageAddressingIndex(
-      InstructionStorageAddressingMode addressing_mode, uint32_t storage_index,
-      bool is_float_constant = false);
+  spv::Id GetStorageAddressingIndex(InstructionStorageAddressingMode addressing_mode,
+                                    uint32_t storage_index, bool is_float_constant = false);
   // Loads unswizzled operand without sign modifiers as float4.
   spv::Id LoadOperandStorage(const InstructionOperand& operand);
-  spv::Id ApplyOperandModifiers(spv::Id operand_value,
-                                const InstructionOperand& original_operand,
-                                bool invert_negate = false,
-                                bool force_absolute = false);
+  spv::Id ApplyOperandModifiers(spv::Id operand_value, const InstructionOperand& original_operand,
+                                bool invert_negate = false, bool force_absolute = false);
   // Returns the requested components, with the operand's swizzle applied, in a
   // condensed form, but without negation / absolute value modifiers. The
   // storage is float4, no matter what the component count of original_operand
   // is (the storage will be either r# or c#, but the instruction may be
   // scalar).
-  spv::Id GetUnmodifiedOperandComponents(
-      spv::Id operand_storage, const InstructionOperand& original_operand,
-      uint32_t components);
-  spv::Id GetOperandComponents(spv::Id operand_storage,
-                               const InstructionOperand& original_operand,
+  spv::Id GetUnmodifiedOperandComponents(spv::Id operand_storage,
+                                         const InstructionOperand& original_operand,
+                                         uint32_t components);
+  spv::Id GetOperandComponents(spv::Id operand_storage, const InstructionOperand& original_operand,
                                uint32_t components, bool invert_negate = false,
                                bool force_absolute = false) {
     return ApplyOperandModifiers(
-        GetUnmodifiedOperandComponents(operand_storage, original_operand,
-                                       components),
+        GetUnmodifiedOperandComponents(operand_storage, original_operand, components),
         original_operand, invert_negate, force_absolute);
   }
   // If components are identical, the same Id will be written to both outputs.
-  void GetOperandScalarXY(spv::Id operand_storage,
-                          const InstructionOperand& original_operand,
-                          spv::Id& a_out, spv::Id& b_out,
-                          bool invert_negate = false,
+  void GetOperandScalarXY(spv::Id operand_storage, const InstructionOperand& original_operand,
+                          spv::Id& a_out, spv::Id& b_out, bool invert_negate = false,
                           bool force_absolute = false);
   // Gets the absolute value of the loaded operand if it's not absolute already.
-  spv::Id GetAbsoluteOperand(spv::Id operand_storage,
-                             const InstructionOperand& original_operand);
+  spv::Id GetAbsoluteOperand(spv::Id operand_storage, const InstructionOperand& original_operand);
   // The type of the value must be a float vector consisting of
   // rex::bit_count(result.GetUsedResultComponents()) elements, or (to replicate
   // a scalar into all used components) float, or the value can be spv::NoResult
@@ -581,25 +548,23 @@ class SpirvShaderTranslator : public ShaderTranslator {
   // For Shader Model 3 multiplication (+-0 or denormal * anything = +0),
   // replaces the value with +0 if the minimum of the two operands is 0. This
   // must be called with absolute values of operands - use GetAbsoluteOperand!
-  spv::Id ZeroIfAnyOperandIsZero(spv::Id value, spv::Id operand_0_abs,
-                                 spv::Id operand_1_abs);
+  spv::Id ZeroIfAnyOperandIsZero(spv::Id value, spv::Id operand_0_abs, spv::Id operand_1_abs);
   // Conditionally discard the current fragment. Changes the build point.
-  void KillPixel(spv::Id condition,
-                 uint8_t memexport_eM_potentially_written_before);
+  void KillPixel(spv::Id condition, uint8_t memexport_eM_potentially_written_before);
   // Return type is a rex::bit_count(result.GetUsedResultComponents())-component
   // float vector or a single float, depending on whether it's a reduction
   // instruction (check getTypeId of the result), or returns spv::NoResult if
   // nothing to store.
-  spv::Id ProcessVectorAluOperation(
-      const ParsedAluInstruction& instr,
-      uint8_t memexport_eM_potentially_written_before, bool& predicate_written);
+  spv::Id ProcessVectorAluOperation(const ParsedAluInstruction& instr,
+                                    uint8_t memexport_eM_potentially_written_before,
+                                    bool& predicate_written);
   // Returns a float value to write to the previous scalar register and to the
   // destination. If the return value is ps itself (in the retain_prev case),
   // returns spv::NoResult (handled as a special case, so if it's retain_prev,
   // but don't need to write to anywhere, no OpLoad(ps) will be done).
-  spv::Id ProcessScalarAluOperation(
-      const ParsedAluInstruction& instr,
-      uint8_t memexport_eM_potentially_written_before, bool& predicate_written);
+  spv::Id ProcessScalarAluOperation(const ParsedAluInstruction& instr,
+                                    uint8_t memexport_eM_potentially_written_before,
+                                    bool& predicate_written);
 
   // Perform endian swap of a uint scalar or vector.
   spv::Id EndianSwap32Uint(spv::Id value, spv::Id endian);
@@ -617,8 +582,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
     if (is_pixel_shader()) {
       return features_.fragment_stores_and_atomics;
     }
-    return features_.vertex_pipeline_stores_and_atomics ||
-           IsSpirvComputeShader();
+    return features_.vertex_pipeline_stores_and_atomics || IsSpirvComputeShader();
   }
 
   bool IsMemoryExportUsed() const {
@@ -631,40 +595,34 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id PWLGammaToLinear(spv::Id gamma, bool gamma_pre_saturated);
   spv::Id LinearToPWLGamma(spv::Id linear, bool linear_pre_saturated);
 
-  size_t FindOrAddTextureBinding(uint32_t fetch_constant,
-                                 xenos::FetchOpDimension dimension,
+  size_t FindOrAddTextureBinding(uint32_t fetch_constant, xenos::FetchOpDimension dimension,
                                  bool is_signed);
-  size_t FindOrAddSamplerBinding(uint32_t fetch_constant,
-                                 xenos::TextureFilter mag_filter,
-                                 xenos::TextureFilter min_filter,
-                                 xenos::TextureFilter mip_filter,
+  size_t FindOrAddSamplerBinding(uint32_t fetch_constant, xenos::TextureFilter mag_filter,
+                                 xenos::TextureFilter min_filter, xenos::TextureFilter mip_filter,
                                  xenos::AnisoFilter aniso_filter);
   // `texture_parameters` need to be set up except for `sampler`, which will be
   // set internally, optionally doing linear interpolation between the an
   // existing value and the new one (the result location may be the same as for
   // the first lerp endpoint, but not across signedness).
   void SampleTexture(spv::Builder::TextureParameters& texture_parameters,
-                     spv::ImageOperandsMask image_operands_mask,
-                     spv::Id image_unsigned, spv::Id image_signed,
-                     spv::Id sampler, spv::Id is_any_unsigned,
+                     spv::ImageOperandsMask image_operands_mask, spv::Id image_unsigned,
+                     spv::Id image_signed, spv::Id sampler, spv::Id is_any_unsigned,
                      spv::Id is_any_signed, spv::Id& result_unsigned_out,
-                     spv::Id& result_signed_out,
-                     spv::Id lerp_factor = spv::NoResult,
+                     spv::Id& result_signed_out, spv::Id lerp_factor = spv::NoResult,
                      spv::Id lerp_first_unsigned = spv::NoResult,
                      spv::Id lerp_first_signed = spv::NoResult);
   // `texture_parameters` need to be set up except for `sampler`, which will be
   // set internally.
   spv::Id QueryTextureLod(spv::Builder::TextureParameters& texture_parameters,
-                          spv::Id image_unsigned, spv::Id image_signed,
-                          spv::Id sampler, spv::Id is_all_signed);
+                          spv::Id image_unsigned, spv::Id image_signed, spv::Id sampler,
+                          spv::Id is_all_signed);
 
   spv::Id LoadMsaaSamplesFromFlags();
   // Whether it's possible and worth skipping running the translated shader for
   // 2x2 quads.
   bool FSI_IsDepthStencilEarly() const {
     assert_true(edram_fragment_shader_interlock_);
-    return !is_depth_only_fragment_shader_ &&
-           !current_shader().writes_depth() &&
+    return !is_depth_only_fragment_shader_ && !current_shader().writes_depth() &&
            !current_shader().memexport_eM_written();
   }
   void FSI_LoadSampleMask(spv::Id msaa_samples);
@@ -675,38 +633,29 @@ class SpirvShaderTranslator : public ShaderTranslator {
                               spv::Id is_64bpp = spv::NoResult);
   // Updates main_fsi_sample_mask_. Must be called outside non-uniform control
   // flow because of taking derivatives of the fragment depth.
-  void FSI_DepthStencilTest(spv::Id msaa_samples,
-                            bool sample_mask_potentially_narrowed_previouly);
+  void FSI_DepthStencilTest(spv::Id msaa_samples, bool sample_mask_potentially_narrowed_previouly);
   // Returns the first and the second 32 bits as two uints.
-  std::array<spv::Id, 2> FSI_ClampAndPackColor(spv::Id color_float4,
-                                               spv::Id format_with_flags);
+  std::array<spv::Id, 2> FSI_ClampAndPackColor(spv::Id color_float4, spv::Id format_with_flags);
   std::array<spv::Id, 4> FSI_UnpackColor(std::array<spv::Id, 2> color_packed,
                                          spv::Id format_with_flags);
   // The bounds must have the same number of components as the color or alpha.
-  spv::Id FSI_FlushNaNClampAndInBlending(spv::Id color_or_alpha,
-                                         spv::Id is_fixed_point,
+  spv::Id FSI_FlushNaNClampAndInBlending(spv::Id color_or_alpha, spv::Id is_fixed_point,
                                          spv::Id min_value, spv::Id max_value);
-  spv::Id FSI_ApplyColorBlendFactor(spv::Id value, spv::Id is_fixed_point,
-                                    spv::Id clamp_min_value,
-                                    spv::Id clamp_max_value, spv::Id factor,
-                                    spv::Id source_color, spv::Id source_alpha,
-                                    spv::Id dest_color, spv::Id dest_alpha,
-                                    spv::Id constant_color,
-                                    spv::Id constant_alpha);
-  spv::Id FSI_ApplyAlphaBlendFactor(spv::Id value, spv::Id is_fixed_point,
-                                    spv::Id clamp_min_value,
-                                    spv::Id clamp_max_value, spv::Id factor,
-                                    spv::Id source_alpha, spv::Id dest_alpha,
-                                    spv::Id constant_alpha);
+  spv::Id FSI_ApplyColorBlendFactor(spv::Id value, spv::Id is_fixed_point, spv::Id clamp_min_value,
+                                    spv::Id clamp_max_value, spv::Id factor, spv::Id source_color,
+                                    spv::Id source_alpha, spv::Id dest_color, spv::Id dest_alpha,
+                                    spv::Id constant_color, spv::Id constant_alpha);
+  spv::Id FSI_ApplyAlphaBlendFactor(spv::Id value, spv::Id is_fixed_point, spv::Id clamp_min_value,
+                                    spv::Id clamp_max_value, spv::Id factor, spv::Id source_alpha,
+                                    spv::Id dest_alpha, spv::Id constant_alpha);
   // If source_color_clamped, dest_color, constant_color_clamped are
   // spv::NoResult, will blend the alpha. Otherwise, will blend the color.
   // The result will be unclamped (color packing is supposed to clamp it).
   spv::Id FSI_BlendColorOrAlphaWithUnclampedResult(
       spv::Id is_fixed_point, spv::Id clamp_min_value, spv::Id clamp_max_value,
-      spv::Id source_color_clamped, spv::Id source_alpha_clamped,
-      spv::Id dest_color, spv::Id dest_alpha, spv::Id constant_color_clamped,
-      spv::Id constant_alpha_clamped, spv::Id equation, spv::Id source_factor,
-      spv::Id dest_factor);
+      spv::Id source_color_clamped, spv::Id source_alpha_clamped, spv::Id dest_color,
+      spv::Id dest_alpha, spv::Id constant_color_clamped, spv::Id constant_alpha_clamped,
+      spv::Id equation, spv::Id source_factor, spv::Id dest_factor);
 
   Features features_;
   bool native_2x_msaa_with_attachments_;
@@ -887,8 +836,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
 
   // With fragment shader interlock, variables in the main function.
   // Otherwise, framebuffer color attachment outputs.
-  std::array<spv::Id, xenos::kMaxColorRenderTargets>
-      output_or_var_fragment_data_;
+  std::array<spv::Id, xenos::kMaxColorRenderTargets> output_or_var_fragment_data_;
 
   std::vector<spv::Id> main_interface_;
   spv::Function* function_main_;
@@ -999,4 +947,3 @@ class SpirvShaderTranslator : public ShaderTranslator {
 };
 
 }  // namespace rex::graphics
-

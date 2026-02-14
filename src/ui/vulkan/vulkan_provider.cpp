@@ -9,31 +9,27 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/ui/vulkan/provider.h>
-
 #include <vector>
 
 #include <rex/cvar.h>
 #include <rex/logging.h>
 #include <rex/ui/vulkan/immediate_drawer.h>
 #include <rex/ui/vulkan/presenter.h>
+#include <rex/ui/vulkan/provider.h>
 
-REXCVAR_DEFINE_BOOL(vulkan_validation_enabled, false,
-    "Enable Vulkan validation layers",
-    "UI/Vulkan")
+REXCVAR_DEFINE_BOOL(vulkan_validation_enabled, false, "Enable Vulkan validation layers",
+                    "UI/Vulkan")
     .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
-REXCVAR_DEFINE_INT32(vulkan_device, -1,
-    "Vulkan device index (-1 for auto selection)",
-    "UI/Vulkan")
+REXCVAR_DEFINE_INT32(vulkan_device, -1, "Vulkan device index (-1 for auto selection)", "UI/Vulkan")
     .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
 namespace rex {
 namespace ui {
 namespace vulkan {
 
-std::unique_ptr<VulkanProvider> VulkanProvider::Create(
-    const bool with_gpu_emulation, const bool with_presentation) {
+std::unique_ptr<VulkanProvider> VulkanProvider::Create(const bool with_gpu_emulation,
+                                                       const bool with_presentation) {
   std::unique_ptr<VulkanProvider> provider(new VulkanProvider());
 
   provider->vulkan_instance_ =
@@ -50,35 +46,30 @@ std::unique_ptr<VulkanProvider> VulkanProvider::Create(
     return nullptr;
   }
 
-  const VulkanInstance::Functions& ifn =
-      provider->vulkan_instance_->functions();
+  const VulkanInstance::Functions& ifn = provider->vulkan_instance_->functions();
 
   REXLOG_WARN(
       "Available Vulkan physical devices (use the 'vulkan_device' "
       "configuration variable to force a specific device):");
-  for (size_t physical_device_index = 0;
-       physical_device_index < physical_devices.size();
+  for (size_t physical_device_index = 0; physical_device_index < physical_devices.size();
        ++physical_device_index) {
     VkPhysicalDeviceProperties physical_device_properties;
     ifn.vkGetPhysicalDeviceProperties(physical_devices[physical_device_index],
                                       &physical_device_properties);
-    REXLOG_WARN("* {}: {}", physical_device_index,
-           physical_device_properties.deviceName);
+    REXLOG_WARN("* {}: {}", physical_device_index, physical_device_properties.deviceName);
   }
 
   if (REXCVAR_GET(vulkan_device) >= 0 &&
       uint32_t(REXCVAR_GET(vulkan_device)) < physical_devices.size()) {
     provider->vulkan_device_ = VulkanDevice::CreateIfSupported(
-        provider->vulkan_instance_.get(),
-        physical_devices[REXCVAR_GET(vulkan_device)], with_gpu_emulation,
-        with_presentation);
+        provider->vulkan_instance_.get(), physical_devices[REXCVAR_GET(vulkan_device)],
+        with_gpu_emulation, with_presentation);
   }
 
   if (!provider->vulkan_device_) {
     for (const VkPhysicalDevice physical_device : physical_devices) {
       provider->vulkan_device_ = VulkanDevice::CreateIfSupported(
-          provider->vulkan_instance_.get(), physical_device, with_gpu_emulation,
-          with_presentation);
+          provider->vulkan_instance_.get(), physical_device, with_gpu_emulation, with_presentation);
       if (provider->vulkan_device_) {
         break;
       }
@@ -104,8 +95,7 @@ std::unique_ptr<VulkanProvider> VulkanProvider::Create(
 
 std::unique_ptr<Presenter> VulkanProvider::CreatePresenter(
     Presenter::HostGpuLossCallback host_gpu_loss_callback) {
-  return VulkanPresenter::Create(host_gpu_loss_callback, vulkan_device(),
-                                 ui_samplers());
+  return VulkanPresenter::Create(host_gpu_loss_callback, vulkan_device(), ui_samplers());
 }
 
 std::unique_ptr<ImmediateDrawer> VulkanProvider::CreateImmediateDrawer() {
@@ -114,4 +104,4 @@ std::unique_ptr<ImmediateDrawer> VulkanProvider::CreateImmediateDrawer() {
 
 }  // namespace vulkan
 }  // namespace ui
-}  // namespace xe
+}  // namespace rex

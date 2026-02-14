@@ -9,58 +9,51 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/graphics/vulkan/primitive_processor.h>
-
 #include <algorithm>
 #include <cstdint>
 #include <memory>
 
 #include <rex/assert.h>
-#include <rex/logging.h>
-#include <rex/graphics/vulkan/deferred_command_buffer.h>
 #include <rex/graphics/vulkan/command_processor.h>
+#include <rex/graphics/vulkan/deferred_command_buffer.h>
+#include <rex/graphics/vulkan/primitive_processor.h>
+#include <rex/logging.h>
 #include <rex/ui/vulkan/util.h>
 
 namespace rex::graphics::vulkan {
 
-VulkanPrimitiveProcessor::~VulkanPrimitiveProcessor() { Shutdown(true); }
+VulkanPrimitiveProcessor::~VulkanPrimitiveProcessor() {
+  Shutdown(true);
+}
 
 bool VulkanPrimitiveProcessor::Initialize() {
-  const ui::vulkan::VulkanDevice* const vulkan_device =
-      command_processor_.GetVulkanDevice();
-  const ui::vulkan::VulkanDevice::Properties& device_properties =
-      vulkan_device->properties();
-  if (!InitializeCommon(
-          device_properties.fullDrawIndexUint32, device_properties.triangleFans,
-          false, device_properties.geometryShader,
-          device_properties.geometryShader, device_properties.geometryShader)) {
+  const ui::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
+  const ui::vulkan::VulkanDevice::Properties& device_properties = vulkan_device->properties();
+  if (!InitializeCommon(device_properties.fullDrawIndexUint32, device_properties.triangleFans,
+                        false, device_properties.geometryShader, device_properties.geometryShader,
+                        device_properties.geometryShader)) {
     Shutdown();
     return false;
   }
-  frame_index_buffer_pool_ =
-      std::make_unique<ui::vulkan::VulkanUploadBufferPool>(
-          vulkan_device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-          std::max(size_t(kMinRequiredConvertedIndexBufferSize),
-                   ui::GraphicsUploadBufferPool::kDefaultPageSize));
+  frame_index_buffer_pool_ = std::make_unique<ui::vulkan::VulkanUploadBufferPool>(
+      vulkan_device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+      std::max(size_t(kMinRequiredConvertedIndexBufferSize),
+               ui::GraphicsUploadBufferPool::kDefaultPageSize));
   return true;
 }
 
 void VulkanPrimitiveProcessor::Shutdown(bool from_destructor) {
-  const ui::vulkan::VulkanDevice* const vulkan_device =
-      command_processor_.GetVulkanDevice();
+  const ui::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
   const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
   const VkDevice device = vulkan_device->device();
 
   frame_index_buffers_.clear();
   frame_index_buffer_pool_.reset();
-  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device,
-                                         builtin_index_buffer_upload_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device, builtin_index_buffer_upload_);
   ui::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device,
                                          builtin_index_buffer_upload_memory_);
-  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device,
-                                         builtin_index_buffer_);
-  ui::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device,
-                                         builtin_index_buffer_memory_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device, builtin_index_buffer_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device, builtin_index_buffer_memory_);
 
   if (!from_destructor) {
     ShutdownCommon();
@@ -69,10 +62,8 @@ void VulkanPrimitiveProcessor::Shutdown(bool from_destructor) {
 
 void VulkanPrimitiveProcessor::CompletedSubmissionUpdated() {
   if (builtin_index_buffer_upload_ != VK_NULL_HANDLE &&
-      command_processor_.GetCompletedSubmission() >=
-          builtin_index_buffer_upload_submission_) {
-    const ui::vulkan::VulkanDevice* const vulkan_device =
-        command_processor_.GetVulkanDevice();
+      command_processor_.GetCompletedSubmission() >= builtin_index_buffer_upload_submission_) {
+    const ui::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
     const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
     const VkDevice device = vulkan_device->device();
     ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device,
@@ -91,22 +82,19 @@ void VulkanPrimitiveProcessor::BeginSubmission() {
 
     command_processor_.EndRenderPass();
 
-    DeferredCommandBuffer& command_buffer =
-        command_processor_.deferred_command_buffer();
+    DeferredCommandBuffer& command_buffer = command_processor_.deferred_command_buffer();
 
-    VkBufferCopy* copy_region = command_buffer.CmdCopyBufferEmplace(
-        builtin_index_buffer_upload_, builtin_index_buffer_, 1);
+    VkBufferCopy* copy_region =
+        command_buffer.CmdCopyBufferEmplace(builtin_index_buffer_upload_, builtin_index_buffer_, 1);
     copy_region->srcOffset = 0;
     copy_region->dstOffset = 0;
     copy_region->size = builtin_index_buffer_size_;
 
     command_processor_.PushBufferMemoryBarrier(
         builtin_index_buffer_, 0, VK_WHOLE_SIZE, VK_PIPELINE_STAGE_TRANSFER_BIT,
-        VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
-        VK_ACCESS_INDEX_READ_BIT);
+        VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_INDEX_READ_BIT);
 
-    builtin_index_buffer_upload_submission_ =
-        command_processor_.GetCurrentSubmission();
+    builtin_index_buffer_upload_submission_ = command_processor_.GetCurrentSubmission();
   }
 }
 
@@ -131,8 +119,7 @@ bool VulkanPrimitiveProcessor::InitializeBuiltinIndexBuffer(
   assert_true(builtin_index_buffer_upload_ == VK_NULL_HANDLE);
   assert_true(builtin_index_buffer_upload_memory_ == VK_NULL_HANDLE);
 
-  const ui::vulkan::VulkanDevice* const vulkan_device =
-      command_processor_.GetVulkanDevice();
+  const ui::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
   const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
   const VkDevice device = vulkan_device->device();
 
@@ -150,25 +137,21 @@ bool VulkanPrimitiveProcessor::InitializeBuiltinIndexBuffer(
   }
   uint32_t upload_memory_type;
   if (!ui::vulkan::util::CreateDedicatedAllocationBuffer(
-          vulkan_device, builtin_index_buffer_size_,
-          VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-          ui::vulkan::util::MemoryPurpose::kUpload,
-          builtin_index_buffer_upload_, builtin_index_buffer_upload_memory_,
-          &upload_memory_type)) {
+          vulkan_device, builtin_index_buffer_size_, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+          ui::vulkan::util::MemoryPurpose::kUpload, builtin_index_buffer_upload_,
+          builtin_index_buffer_upload_memory_, &upload_memory_type)) {
     REXGPU_ERROR(
         "Vulkan primitive processor: Failed to create the built-in index "
         "buffer upload resource with {} bytes",
         size_bytes);
-    ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device,
-                                           builtin_index_buffer_);
-    ui::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device,
-                                           builtin_index_buffer_memory_);
+    ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device, builtin_index_buffer_);
+    ui::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device, builtin_index_buffer_memory_);
     return false;
   }
 
   void* mapping;
-  if (dfn.vkMapMemory(device, builtin_index_buffer_upload_memory_, 0,
-                      VK_WHOLE_SIZE, 0, &mapping) != VK_SUCCESS) {
+  if (dfn.vkMapMemory(device, builtin_index_buffer_upload_memory_, 0, VK_WHOLE_SIZE, 0, &mapping) !=
+      VK_SUCCESS) {
     REXGPU_ERROR(
         "Vulkan primitive processor: Failed to map the built-in index buffer "
         "upload resource with {} bytes",
@@ -177,15 +160,13 @@ bool VulkanPrimitiveProcessor::InitializeBuiltinIndexBuffer(
                                            builtin_index_buffer_upload_);
     ui::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device,
                                            builtin_index_buffer_upload_memory_);
-    ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device,
-                                           builtin_index_buffer_);
-    ui::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device,
-                                           builtin_index_buffer_memory_);
+    ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device, builtin_index_buffer_);
+    ui::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device, builtin_index_buffer_memory_);
     return false;
   }
   fill_callback(mapping);
-  ui::vulkan::util::FlushMappedMemoryRange(
-      vulkan_device, builtin_index_buffer_memory_, upload_memory_type);
+  ui::vulkan::util::FlushMappedMemoryRange(vulkan_device, builtin_index_buffer_memory_,
+                                           upload_memory_type);
   dfn.vkUnmapMemory(device, builtin_index_buffer_upload_memory_);
 
   // Schedule uploading in the first submission.
@@ -196,21 +177,18 @@ bool VulkanPrimitiveProcessor::InitializeBuiltinIndexBuffer(
 void* VulkanPrimitiveProcessor::RequestHostConvertedIndexBufferForCurrentFrame(
     xenos::IndexFormat format, uint32_t index_count, bool coalign_for_simd,
     uint32_t coalignment_original_address, size_t& backend_handle_out) {
-  size_t index_size = format == xenos::IndexFormat::kInt16 ? sizeof(uint16_t)
-                                                           : sizeof(uint32_t);
+  size_t index_size = format == xenos::IndexFormat::kInt16 ? sizeof(uint16_t) : sizeof(uint32_t);
   VkBuffer buffer;
   VkDeviceSize offset;
   uint8_t* mapping = frame_index_buffer_pool_->Request(
       command_processor_.GetCurrentFrame(),
-      index_size * index_count +
-          (coalign_for_simd ? XE_GPU_PRIMITIVE_PROCESSOR_SIMD_SIZE : 0),
+      index_size * index_count + (coalign_for_simd ? XE_GPU_PRIMITIVE_PROCESSOR_SIMD_SIZE : 0),
       index_size, buffer, offset);
   if (!mapping) {
     return nullptr;
   }
   if (coalign_for_simd) {
-    ptrdiff_t coalignment_offset =
-        GetSimdCoalignmentOffset(mapping, coalignment_original_address);
+    ptrdiff_t coalignment_offset = GetSimdCoalignmentOffset(mapping, coalignment_original_address);
     mapping += coalignment_offset;
     offset = VkDeviceSize(offset + coalignment_offset);
   }

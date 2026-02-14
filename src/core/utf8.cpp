@@ -9,13 +9,13 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/string/utf8.h>
-
 #include <algorithm>
 #include <cstdint>
 #include <locale>
 #include <numeric>
 #include <tuple>
+
+#include <rex/string/utf8.h>
 
 #define UTF_CPP_CPLUSPLUS 201703L
 #include <utf8.h>
@@ -50,8 +50,7 @@ std::pair<utf8_citer, utf8_citer> make_citer(const std::string_view view) {
           utf8_citer(view.cend(), view.cbegin(), view.cend())};
 }
 
-std::pair<utf8_citer, utf8_citer> make_citer(const utf8_citer begin,
-                                             const utf8_citer end) {
+std::pair<utf8_citer, utf8_citer> make_citer(const utf8_citer begin, const utf8_citer end) {
   return {utf8_citer(begin.base(), begin.base(), end.base()),
           utf8_citer(end.base(), begin.base(), end.base())};
 }
@@ -131,10 +130,8 @@ inline utf8_citer find_needle(utf8_citer haystack_it, utf8_citer haystack_end,
   });
 }
 
-inline utf8_citer find_needle_case(utf8_citer haystack_it,
-                                   utf8_citer haystack_end,
-                                   utf8_citer needle_begin,
-                                   utf8_citer needle_end) {
+inline utf8_citer find_needle_case(utf8_citer haystack_it, utf8_citer haystack_end,
+                                   utf8_citer needle_begin, utf8_citer needle_end) {
   return std::find_if(haystack_it, haystack_end, [&](const auto& c) {
     for (auto needle = needle_begin; needle != needle_end; ++needle) {
       if (equal_ascii_case(c, *needle)) {
@@ -146,8 +143,7 @@ inline utf8_citer find_needle_case(utf8_citer haystack_it,
 }
 
 std::vector<std::string_view> utf8_split(const std::string_view haystack,
-                                    const std::string_view needles,
-                                    bool remove_empty) {
+                                         const std::string_view needles, bool remove_empty) {
   std::vector<std::string_view> result;
 
   auto [haystack_begin, haystack_end] = make_citer(haystack);
@@ -191,15 +187,13 @@ bool utf8_equal_z(const std::string_view left, const std::string_view right) {
   auto [right_begin, right_end] = make_citer(right);
   auto left_it = left_begin;
   auto right_it = right_begin;
-  for (; left_it != left_end && *left_it != 0 && right_it != right_end &&
-         *right_it != 0;
+  for (; left_it != left_end && *left_it != 0 && right_it != right_end && *right_it != 0;
        ++left_it, ++right_it) {
     if (*left_it != *right_it) {
       return false;
     }
   }
-  return (left_it == left_end || *left_it == 0) &&
-         (right_it == right_end || *right_it == 0);
+  return (left_it == left_end || *left_it == 0) && (right_it == right_end || *right_it == 0);
 }
 
 bool utf8_equal_case(const std::string_view left, const std::string_view right) {
@@ -210,8 +204,7 @@ bool utf8_equal_case(const std::string_view left, const std::string_view right) 
   }
   auto [left_begin, left_end] = make_citer(left);
   auto [right_begin, right_end] = make_citer(right);
-  return std::equal(left_begin, left_end, right_begin, right_end,
-                    equal_ascii_case);
+  return std::equal(left_begin, left_end, right_begin, right_end, equal_ascii_case);
 }
 
 bool utf8_equal_case_z(const std::string_view left, const std::string_view right) {
@@ -224,19 +217,17 @@ bool utf8_equal_case_z(const std::string_view left, const std::string_view right
   auto [right_begin, right_end] = make_citer(right);
   auto left_it = left_begin;
   auto right_it = right_begin;
-  for (; left_it != left_end && *left_it != 0 && right_it != right_end &&
-         *right_it != 0;
+  for (; left_it != left_end && *left_it != 0 && right_it != right_end && *right_it != 0;
        ++left_it, ++right_it) {
     if (!equal_ascii_case(*left_it, *right_it)) {
       return false;
     }
   }
-  return (left_it == left_end || *left_it == 0) &&
-         (right_it == right_end || *right_it == 0);
+  return (left_it == left_end || *left_it == 0) && (right_it == right_end || *right_it == 0);
 }
 
 std::string_view::size_type utf8_find_any_of(const std::string_view haystack,
-                                        const std::string_view needles) {
+                                             const std::string_view needles) {
   if (needles.empty()) {
     return std::string_view::size_type(0);
   } else if (haystack.empty()) {
@@ -255,7 +246,7 @@ std::string_view::size_type utf8_find_any_of(const std::string_view haystack,
 }
 
 std::string_view::size_type utf8_find_any_of_case(const std::string_view haystack,
-                                             const std::string_view needles) {
+                                                  const std::string_view needles) {
   if (needles.empty()) {
     return std::string_view::size_type(0);
   } else if (haystack.empty()) {
@@ -265,8 +256,7 @@ std::string_view::size_type utf8_find_any_of_case(const std::string_view haystac
   auto [haystack_begin, haystack_end] = make_citer(haystack);
   auto [needle_begin, needle_end] = make_citer(needles);
 
-  auto it =
-      find_needle_case(haystack_begin, haystack_end, needle_begin, needle_end);
+  auto it = find_needle_case(haystack_begin, haystack_end, needle_begin, needle_end);
   if (it == haystack_end) {
     return std::string_view::npos;
   }
@@ -275,7 +265,7 @@ std::string_view::size_type utf8_find_any_of_case(const std::string_view haystac
 }
 
 std::string_view::size_type utf8_find_first_of(const std::string_view haystack,
-                                          const std::string_view needle) {
+                                               const std::string_view needle) {
   if (needle.empty()) {
     return std::string_view::size_type(0);
   } else if (haystack.empty()) {
@@ -312,7 +302,7 @@ std::string_view::size_type utf8_find_first_of(const std::string_view haystack,
 }
 
 std::string_view::size_type utf8_find_first_of_case(const std::string_view haystack,
-                                               const std::string_view needle) {
+                                                    const std::string_view needle) {
   if (needle.empty()) {
     return std::string_view::size_type(0);
   } else if (haystack.empty()) {
@@ -326,9 +316,8 @@ std::string_view::size_type utf8_find_first_of_case(const std::string_view hayst
 
   auto it = haystack_begin;
   for (; it != haystack_end; ++it) {
-    it = std::find_if(it, haystack_end, [&nc](const uint32_t& c) {
-      return equal_ascii_case(nc, c);
-    });
+    it = std::find_if(it, haystack_end,
+                      [&nc](const uint32_t& c) { return equal_ascii_case(nc, c); });
     if (it == haystack_end) {
       return std::string_view::npos;
     }
@@ -343,8 +332,7 @@ std::string_view::size_type utf8_find_first_of_case(const std::string_view hayst
     }
 
     auto [sub_start, sub_end] = make_citer(it, end);
-    if (std::equal(needle_begin, needle_end, sub_start, sub_end,
-                   equal_ascii_case)) {
+    if (std::equal(needle_begin, needle_end, sub_start, sub_end, equal_ascii_case)) {
       return std::string_view::size_type(byte_length(haystack_begin, it));
     }
   }
@@ -360,8 +348,7 @@ bool utf8_starts_with(const std::string_view haystack, char32_t needle) {
   return *it == uint32_t(needle);
 }
 
-bool utf8_starts_with(const std::string_view haystack,
-                 const std::string_view needle) {
+bool utf8_starts_with(const std::string_view haystack, const std::string_view needle) {
   if (needle.empty()) {
     return true;
   } else if (haystack.empty()) {
@@ -386,8 +373,7 @@ bool utf8_starts_with(const std::string_view haystack,
   return std::equal(needle_begin, needle_end, sub_start, sub_end);
 }
 
-bool utf8_starts_with_case(const std::string_view haystack,
-                      const std::string_view needle) {
+bool utf8_starts_with_case(const std::string_view haystack, const std::string_view needle) {
   if (needle.empty()) {
     return true;
   } else if (haystack.empty()) {
@@ -409,8 +395,7 @@ bool utf8_starts_with_case(const std::string_view haystack,
   }
 
   auto [sub_start, sub_end] = make_citer(it, end);
-  return std::equal(needle_begin, needle_end, sub_start, sub_end,
-                    equal_ascii_case);
+  return std::equal(needle_begin, needle_end, sub_start, sub_end, equal_ascii_case);
 }
 
 bool utf8_ends_with(const std::string_view haystack, const std::string_view needle) {
@@ -440,8 +425,7 @@ bool utf8_ends_with(const std::string_view haystack, const std::string_view need
   return std::equal(needle_begin, needle_end, sub_start, sub_end);
 }
 
-bool utf8_ends_with_case(const std::string_view haystack,
-                    const std::string_view needle) {
+bool utf8_ends_with_case(const std::string_view haystack, const std::string_view needle) {
   if (needle.empty()) {
     return true;
   } else if (haystack.empty()) {
@@ -465,16 +449,15 @@ bool utf8_ends_with_case(const std::string_view haystack,
   }
 
   auto [sub_start, sub_end] = make_citer(it, end);
-  return std::equal(needle_begin, needle_end, sub_start, sub_end,
-                    equal_ascii_case);
+  return std::equal(needle_begin, needle_end, sub_start, sub_end, equal_ascii_case);
 }
 
 std::vector<std::string_view> utf8_split_path(const std::string_view path) {
   return utf8_split(path, "\\/", true);
 }
 
-std::string utf8_join_paths(const std::string_view left_path,
-                       const std::string_view right_path, char32_t separator) {
+std::string utf8_join_paths(const std::string_view left_path, const std::string_view right_path,
+                            char32_t separator) {
   if (!left_path.length()) {
     return std::string(right_path);
   } else if (!right_path.length()) {
@@ -492,8 +475,7 @@ std::string utf8_join_paths(const std::string_view left_path,
   return result + std::string(right_path);
 }
 
-std::string utf8_join_paths(const std::vector<std::string>& paths,
-                       char32_t separator) {
+std::string utf8_join_paths(const std::vector<std::string>& paths, char32_t separator) {
   std::string result;
   auto it = paths.cbegin();
   if (it != paths.cend()) {
@@ -505,8 +487,7 @@ std::string utf8_join_paths(const std::vector<std::string>& paths,
   return result;
 }
 
-std::string utf8_join_paths(const std::vector<std::string_view>& paths,
-                       char32_t separator) {
+std::string utf8_join_paths(const std::vector<std::string_view>& paths, char32_t separator) {
   std::string result;
   auto it = paths.cbegin();
   if (it != paths.cend()) {
@@ -518,8 +499,7 @@ std::string utf8_join_paths(const std::vector<std::string_view>& paths,
   return result;
 }
 
-std::string utf8_fix_path_separators(const std::string_view path,
-                                char32_t new_separator) {
+std::string utf8_fix_path_separators(const std::string_view path, char32_t new_separator) {
   if (path.empty()) {
     return std::string();
   }
@@ -573,8 +553,7 @@ std::string utf8_fix_path_separators(const std::string_view path,
   return result;
 }
 
-std::string utf8_find_name_from_path(const std::string_view path,
-                                char32_t separator) {
+std::string utf8_find_name_from_path(const std::string_view path, char32_t separator) {
   if (path.empty()) {
     return std::string();
   }
@@ -614,8 +593,7 @@ std::string utf8_find_name_from_path(const std::string_view path,
   return std::string(path.substr(offset, length));
 }
 
-std::string utf8_find_base_name_from_path(const std::string_view path,
-                                     char32_t separator) {
+std::string utf8_find_base_name_from_path(const std::string_view path, char32_t separator) {
   auto name = utf8_find_name_from_path(path, separator);
   if (!name.length()) {
     return std::string();

@@ -9,13 +9,12 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/filesystem/entry.h>
-
 #include <algorithm>
 
 #include <rex/filesystem.h>
-#include <rex/string.h>
 #include <rex/filesystem/device.h>
+#include <rex/filesystem/entry.h>
+#include <rex/string.h>
 
 namespace rex::filesystem {
 
@@ -47,14 +46,15 @@ void Entry::Dump(rex::string::StringBuffer* string_buffer, int indent) {
   }
 }
 
-bool Entry::is_read_only() const { return device_->is_read_only(); }
+bool Entry::is_read_only() const {
+  return device_->is_read_only();
+}
 
 Entry* Entry::GetChild(const std::string_view name) {
   auto global_lock = global_critical_region_.Acquire();
-  auto it = std::find_if(children_.cbegin(), children_.cend(),
-                         [&](const auto& child) {
-                           return rex::string::utf8_equal_case(child->name(), name);
-                         });
+  auto it = std::find_if(children_.cbegin(), children_.cend(), [&](const auto& child) {
+    return rex::string::utf8_equal_case(child->name(), name);
+  });
   if (it == children_.cend()) {
     return nullptr;
   }

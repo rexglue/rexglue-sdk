@@ -9,16 +9,17 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <string>
+
 #include <io.h>
 #include <shlobj.h>
 
-#include <string>
-
 #undef CreateFile
+
+#include "platform_win.h"
 
 #include <rex/filesystem.h>
 #include <rex/logging.h>
-#include <rex/platform/win.h>
 #include <rex/string.h>
 
 namespace rex {
@@ -54,8 +55,7 @@ std::filesystem::path GetExecutableFolder() {
 std::filesystem::path GetUserFolder() {
   std::filesystem::path result;
   PWSTR path;
-  if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Documents, KF_FLAG_DEFAULT,
-                                     nullptr, &path))) {
+  if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Documents, KF_FLAG_DEFAULT, nullptr, &path))) {
     result.assign(path);
     CoTaskMemFree(path);
   }
@@ -63,8 +63,8 @@ std::filesystem::path GetUserFolder() {
 }
 
 bool CreateEmptyFile(const std::filesystem::path& path) {
-  auto handle = CreateFileW(path.c_str(), 0, 0, nullptr, CREATE_ALWAYS,
-                            FILE_ATTRIBUTE_NORMAL, nullptr);
+  auto handle =
+      CreateFileW(path.c_str(), 0, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
   if (handle == INVALID_HANDLE_VALUE) {
     return false;
   }
@@ -83,7 +83,9 @@ bool Seek(FILE* file, int64_t offset, int origin) {
   return _fseeki64(file, offset, origin) == 0;
 }
 
-int64_t Tell(FILE* file) { return _ftelli64(file); }
+int64_t Tell(FILE* file) {
+  return _ftelli64(file);
+}
 
 bool TruncateStdioFile(FILE* file, uint64_t length) {
   // Flush is necessary - if not flushing, stream position may be out of sync.
@@ -120,8 +122,7 @@ class Win32FileHandle : public FileHandle {
     overlapped.Pointer = (PVOID)file_offset;
     overlapped.hEvent = NULL;
     DWORD bytes_read = 0;
-    BOOL read = ReadFile(handle_, buffer, (DWORD)buffer_length, &bytes_read,
-                         &overlapped);
+    BOOL read = ReadFile(handle_, buffer, (DWORD)buffer_length, &bytes_read, &overlapped);
     if (read) {
       *out_bytes_read = bytes_read;
       return true;
@@ -142,8 +143,7 @@ class Win32FileHandle : public FileHandle {
     overlapped.Pointer = (PVOID)file_offset;
     overlapped.hEvent = NULL;
     DWORD bytes_written = 0;
-    BOOL wrote = WriteFile(handle_, buffer, (DWORD)buffer_length,
-                           &bytes_written, &overlapped);
+    BOOL wrote = WriteFile(handle_, buffer, (DWORD)buffer_length, &bytes_written, &overlapped);
     if (wrote) {
       *out_bytes_written = bytes_written;
       return true;
@@ -168,8 +168,8 @@ class Win32FileHandle : public FileHandle {
   HANDLE handle_ = nullptr;
 };
 
-std::unique_ptr<FileHandle> FileHandle::OpenExisting(
-    const std::filesystem::path& path, uint32_t desired_access) {
+std::unique_ptr<FileHandle> FileHandle::OpenExisting(const std::filesystem::path& path,
+                                                     uint32_t desired_access) {
   DWORD open_access = 0;
   if (desired_access & FileAccess::kGenericRead) {
     open_access |= GENERIC_READ;
@@ -195,9 +195,8 @@ std::unique_ptr<FileHandle> FileHandle::OpenExisting(
   DWORD share_mode = FILE_SHARE_READ | FILE_SHARE_WRITE;
   // We assume we've already created the file in the caller.
   DWORD creation_disposition = OPEN_EXISTING;
-  HANDLE handle = CreateFileW(
-      path.c_str(), open_access, share_mode, nullptr, creation_disposition,
-      FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+  HANDLE handle = CreateFileW(path.c_str(), open_access, share_mode, nullptr, creation_disposition,
+                              FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS, nullptr);
   if (handle == INVALID_HANDLE_VALUE) {
     // TODO(benvanik): pick correct response.
     return nullptr;
@@ -218,8 +217,7 @@ bool GetInfo(const std::filesystem::path& path, FileInfo* out_info) {
     out_info->total_size = 0;
   } else {
     out_info->type = FileInfo::Type::kFile;
-    out_info->total_size =
-        (data.nFileSizeHigh * (size_t(MAXDWORD) + 1)) + data.nFileSizeLow;
+    out_info->total_size = (data.nFileSizeHigh * (size_t(MAXDWORD) + 1)) + data.nFileSizeLow;
   }
   out_info->path = path.parent_path();
   out_info->name = path.filename();
@@ -238,8 +236,7 @@ std::vector<FileInfo> ListFiles(const std::filesystem::path& path) {
     return result;
   }
   do {
-    if (std::wcscmp(ffd.cFileName, L".") == 0 ||
-        std::wcscmp(ffd.cFileName, L"..") == 0) {
+    if (std::wcscmp(ffd.cFileName, L".") == 0 || std::wcscmp(ffd.cFileName, L"..") == 0) {
       continue;
     }
     FileInfo info;
@@ -248,8 +245,7 @@ std::vector<FileInfo> ListFiles(const std::filesystem::path& path) {
       info.total_size = 0;
     } else {
       info.type = FileInfo::Type::kFile;
-      info.total_size =
-          (ffd.nFileSizeHigh * (size_t(MAXDWORD) + 1)) + ffd.nFileSizeLow;
+      info.total_size = (ffd.nFileSizeHigh * (size_t(MAXDWORD) + 1)) + ffd.nFileSizeLow;
     }
     info.path = path;
     info.name = ffd.cFileName;

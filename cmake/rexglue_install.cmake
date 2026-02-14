@@ -7,15 +7,15 @@ set_target_properties(rexui PROPERTIES EXPORT_NAME ui)
 set_target_properties(rexinput PROPERTIES EXPORT_NAME input)
 set_target_properties(rexaudio PROPERTIES EXPORT_NAME audio)
 set_target_properties(rexgraphics PROPERTIES EXPORT_NAME graphics)
+set_target_properties(rexsystem PROPERTIES EXPORT_NAME system)
 set_target_properties(rexkernel PROPERTIES EXPORT_NAME kernel)
-set_target_properties(rexruntime PROPERTIES EXPORT_NAME runtime)
 set_target_properties(rexcodegen PROPERTIES EXPORT_NAME codegen)
 
 # Build install target list dynamically based on backend options
 set(REXGLUE_INSTALL_TARGETS
     # ReX SDK libraries
     rexcore rexfilesystem rexui rexinput
-    rexaudio rexgraphics rexkernel rexruntime rexcodegen
+    rexaudio rexgraphics rexsystem rexkernel rexcodegen
     # Vendored thirdparty libraries (required by SDK)
     disruptorplus renderdoc simde tomlplusplus  # INTERFACE (header-only)
     aes128 mspack disasm xxhash imgui  # STATIC libraries

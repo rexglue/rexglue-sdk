@@ -10,7 +10,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <rex/ui/graphics_upload_buffer_pool.h>
 #include <rex/ui/vulkan/device.h>
 
@@ -20,15 +19,13 @@ namespace vulkan {
 
 class VulkanUploadBufferPool : public GraphicsUploadBufferPool {
  public:
-  VulkanUploadBufferPool(const VulkanDevice* vulkan_device,
-                         VkBufferUsageFlags usage,
+  VulkanUploadBufferPool(const VulkanDevice* vulkan_device, VkBufferUsageFlags usage,
                          size_t page_size = kDefaultPageSize);
 
-  uint8_t* Request(uint64_t submission_index, size_t size, size_t alignment,
-                   VkBuffer& buffer_out, VkDeviceSize& offset_out);
-  uint8_t* RequestPartial(uint64_t submission_index, size_t size,
-                          size_t alignment, VkBuffer& buffer_out,
-                          VkDeviceSize& offset_out, VkDeviceSize& size_out);
+  uint8_t* Request(uint64_t submission_index, size_t size, size_t alignment, VkBuffer& buffer_out,
+                   VkDeviceSize& offset_out);
+  uint8_t* RequestPartial(uint64_t submission_index, size_t size, size_t alignment,
+                          VkBuffer& buffer_out, VkDeviceSize& offset_out, VkDeviceSize& size_out);
 
  protected:
   Page* CreatePageImplementation() override;
@@ -38,12 +35,9 @@ class VulkanUploadBufferPool : public GraphicsUploadBufferPool {
  private:
   struct VulkanPage : public Page {
     // Takes ownership of the buffer and its memory and mapping.
-    VulkanPage(const VulkanDevice* vulkan_device, VkBuffer buffer,
-               VkDeviceMemory memory, void* mapping)
-        : vulkan_device_(vulkan_device),
-          buffer_(buffer),
-          memory_(memory),
-          mapping_(mapping) {}
+    VulkanPage(const VulkanDevice* vulkan_device, VkBuffer buffer, VkDeviceMemory memory,
+               void* mapping)
+        : vulkan_device_(vulkan_device), buffer_(buffer), memory_(memory), mapping_(mapping) {}
     ~VulkanPage() override;
     const VulkanDevice* vulkan_device_;
     VkBuffer buffer_;
@@ -63,5 +57,4 @@ class VulkanUploadBufferPool : public GraphicsUploadBufferPool {
 
 }  // namespace vulkan
 }  // namespace ui
-}  // namespace xe
-
+}  // namespace rex

@@ -10,9 +10,8 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <rex/assert.h>
-#include <rex/byte_order.h>
+#include <rex/types.h>
 
 namespace rex::input {
 
@@ -84,8 +83,7 @@ struct X_INPUT_CAPABILITIES {
   X_INPUT_GAMEPAD gamepad;
   X_INPUT_VIBRATION vibration;
 };
-static_assert_size(X_INPUT_CAPABILITIES,
-                   sizeof(X_INPUT_GAMEPAD) + sizeof(X_INPUT_VIBRATION) + 4);
+static_assert_size(X_INPUT_CAPABILITIES, sizeof(X_INPUT_GAMEPAD) + sizeof(X_INPUT_VIBRATION) + 4);
 
 // https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinput_keystroke(v=vs.85).aspx
 struct X_INPUT_KEYSTROKE {
@@ -98,4 +96,3 @@ struct X_INPUT_KEYSTROKE {
 static_assert_size(X_INPUT_KEYSTROKE, 8);
 
 }  // namespace rex::input
-

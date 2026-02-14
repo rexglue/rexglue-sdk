@@ -26,7 +26,7 @@
 #include <vector>
 
 #include <rex/assert.h>
-#include <rex/time/chrono.h>
+#include <rex/chrono/chrono.h>
 #include <rex/literals.h>
 #include <rex/platform.h>
 #include <rex/thread/timer_queue.h>
@@ -54,8 +54,7 @@ class Fence {
   // Wait for the Fence to be signaled. Clears the signal on return.
   void Wait() {
     std::unique_lock<std::mutex> lock(mutex_);
-    assert_true((signal_state_.load() & ~SIGMASK_) < (SIGMASK_ - 1) &&
-                "Too many threads?");
+    assert_true((signal_state_.load() & ~SIGMASK_) < (SIGMASK_ - 1) && "Too many threads?");
 
     // keep local copy to minimize loads
     auto signal_state = signal_state_.fetch_add(1) + 1;
@@ -77,8 +76,7 @@ class Fence {
 
  private:
   using state_t_ = uint_fast32_t;
-  static constexpr state_t_ SIGMASK_ = state_t_(1)
-                                       << (sizeof(state_t_) * 8 - 1);
+  static constexpr state_t_ SIGMASK_ = state_t_(1) << (sizeof(state_t_) * 8 - 1);
 
   std::mutex mutex_;
   std::condition_variable cond_;
@@ -131,8 +129,7 @@ enum class SleepResult {
 SleepResult AlertableSleep(std::chrono::microseconds duration);
 template <typename Rep, typename Period>
 SleepResult AlertableSleep(std::chrono::duration<Rep, Period> duration) {
-  return AlertableSleep(
-      std::chrono::duration_cast<std::chrono::microseconds>(duration));
+  return AlertableSleep(std::chrono::duration_cast<std::chrono::microseconds>(duration));
 }
 
 typedef uint32_t TlsHandle;
@@ -149,12 +146,10 @@ bool SetTlsValue(TlsHandle handle, uintptr_t value);
 // wrapper around QueueTimerRecurring which automatically cancels the timer on
 // destruction.
 class HighResolutionTimer {
-  HighResolutionTimer(std::chrono::milliseconds interval,
-                      std::function<void()> callback) {
+  HighResolutionTimer(std::chrono::milliseconds interval, std::function<void()> callback) {
     assert_not_null(callback);
-    wait_item_ = QueueTimerRecurring(
-        [callback = std::move(callback)](void*) { callback(); }, nullptr,
-        TimerQueueWaitItem::clock::now(), interval);
+    wait_item_ = QueueTimerRecurring([callback = std::move(callback)](void*) { callback(); },
+                                     nullptr, TimerQueueWaitItem::clock::now(), interval);
   }
 
  public:
@@ -167,8 +162,8 @@ class HighResolutionTimer {
   // Creates a new repeating timer with the given period.
   // The given function will be called back as close to the given period as
   // possible.
-  static std::unique_ptr<HighResolutionTimer> CreateRepeating(
-      std::chrono::milliseconds period, std::function<void()> callback) {
+  static std::unique_ptr<HighResolutionTimer> CreateRepeating(std::chrono::milliseconds period,
+                                                              std::function<void()> callback) {
     return std::unique_ptr<HighResolutionTimer>(
         new HighResolutionTimer(period, std::move(callback)));
   }
@@ -215,41 +210,33 @@ class WaitHandle {
 // a user callback is queued to the thread, or the timeout interval elapses.
 // If timeout is zero the call will return immediately instead of waiting and
 // if the timeout is max() the wait will not time out.
-WaitResult Wait(
-    WaitHandle* wait_handle, bool is_alertable,
-    std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+WaitResult Wait(WaitHandle* wait_handle, bool is_alertable,
+                std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
 
 // Signals one object and waits on another object as a single operation.
 // Waits until the wait handle is in the signaled state, an alert triggers and
 // a user callback is queued to the thread, or the timeout interval elapses.
 // If timeout is zero the call will return immediately instead of waiting and
 // if the timeout is max() the wait will not time out.
-WaitResult SignalAndWait(
-    WaitHandle* wait_handle_to_signal, WaitHandle* wait_handle_to_wait_on,
-    bool is_alertable,
-    std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+WaitResult SignalAndWait(WaitHandle* wait_handle_to_signal, WaitHandle* wait_handle_to_wait_on,
+                         bool is_alertable,
+                         std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
 
 std::pair<WaitResult, size_t> WaitMultiple(
-    WaitHandle* wait_handles[], size_t wait_handle_count, bool wait_all,
-    bool is_alertable,
+    WaitHandle* wait_handles[], size_t wait_handle_count, bool wait_all, bool is_alertable,
     std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
 
 // Waits until all of the specified objects are in the signaled state, a
 // user callback is queued to the thread, or the time-out interval elapses.
 // If timeout is zero the call will return immediately instead of waiting and
 // if the timeout is max() the wait will not time out.
-inline WaitResult WaitAll(
-    WaitHandle* wait_handles[], size_t wait_handle_count, bool is_alertable,
-    std::chrono::milliseconds timeout = std::chrono::milliseconds::max()) {
-  return WaitMultiple(wait_handles, wait_handle_count, true, is_alertable,
-                      timeout)
-      .first;
+inline WaitResult WaitAll(WaitHandle* wait_handles[], size_t wait_handle_count, bool is_alertable,
+                          std::chrono::milliseconds timeout = std::chrono::milliseconds::max()) {
+  return WaitMultiple(wait_handles, wait_handle_count, true, is_alertable, timeout).first;
 }
-inline WaitResult WaitAll(
-    std::vector<WaitHandle*> wait_handles, bool is_alertable,
-    std::chrono::milliseconds timeout = std::chrono::milliseconds::max()) {
-  return WaitAll(wait_handles.data(), wait_handles.size(), is_alertable,
-                 timeout);
+inline WaitResult WaitAll(std::vector<WaitHandle*> wait_handles, bool is_alertable,
+                          std::chrono::milliseconds timeout = std::chrono::milliseconds::max()) {
+  return WaitAll(wait_handles.data(), wait_handles.size(), is_alertable, timeout);
 }
 
 // Waits until any of the specified objects are in the signaled state, a
@@ -261,14 +248,12 @@ inline WaitResult WaitAll(
 inline std::pair<WaitResult, size_t> WaitAny(
     WaitHandle* wait_handles[], size_t wait_handle_count, bool is_alertable,
     std::chrono::milliseconds timeout = std::chrono::milliseconds::max()) {
-  return WaitMultiple(wait_handles, wait_handle_count, false, is_alertable,
-                      timeout);
+  return WaitMultiple(wait_handles, wait_handle_count, false, is_alertable, timeout);
 }
 inline std::pair<WaitResult, size_t> WaitAny(
     std::vector<WaitHandle*> wait_handles, bool is_alertable,
     std::chrono::milliseconds timeout = std::chrono::milliseconds::max()) {
-  return WaitAny(wait_handles.data(), wait_handles.size(), is_alertable,
-                 timeout);
+  return WaitAny(wait_handles.data(), wait_handles.size(), is_alertable, timeout);
 }
 
 // Models a Win32-like event object.
@@ -311,8 +296,7 @@ class Semaphore : public WaitHandle {
   // decreased by one whenever a wait function releases a thread that was
   // waiting for the semaphore. The count is increased  by a specified amount by
   // calling the Release() function.
-  static std::unique_ptr<Semaphore> Create(int initial_count,
-                                           int maximum_count);
+  static std::unique_ptr<Semaphore> Create(int initial_count, int maximum_count);
 
   // Increases the count of the specified semaphore object by a specified
   // amount.
@@ -370,14 +354,12 @@ class Timer : public WaitHandle {
   // completion routine. A periodic timer automatically reactivates each time
   // the period elapses, until the timer is canceled or reset.
   // Returns true on success.
-  virtual bool SetRepeatingAfter(
-      rex::chrono::hundrednanoseconds rel_time, std::chrono::milliseconds period,
-      std::function<void()> opt_callback = nullptr) = 0;
-  virtual bool SetRepeatingAt(WClock_::time_point due_time,
-                              std::chrono::milliseconds period,
+  virtual bool SetRepeatingAfter(rex::chrono::hundrednanoseconds rel_time,
+                                 std::chrono::milliseconds period,
+                                 std::function<void()> opt_callback = nullptr) = 0;
+  virtual bool SetRepeatingAt(WClock_::time_point due_time, std::chrono::milliseconds period,
                               std::function<void()> opt_callback = nullptr) = 0;
-  virtual bool SetRepeatingAt(GClock_::time_point due_time,
-                              std::chrono::milliseconds period,
+  virtual bool SetRepeatingAt(GClock_::time_point due_time, std::chrono::milliseconds period,
                               std::function<void()> opt_callback = nullptr) = 0;
 
   // Stops the timer before it can be set to the signaled state and cancels
@@ -471,4 +453,3 @@ class Thread : public WaitHandle {
 };
 
 }  // namespace rex::thread
-

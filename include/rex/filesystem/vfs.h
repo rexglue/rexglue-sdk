@@ -16,10 +16,10 @@
 #include <unordered_map>
 #include <vector>
 
-#include <rex/thread/mutex.h>
 #include <rex/filesystem/device.h>
 #include <rex/filesystem/entry.h>
 #include <rex/filesystem/file.h>
+#include <rex/thread/mutex.h>
 
 namespace rex::filesystem {
 
@@ -31,8 +31,7 @@ class VirtualFileSystem {
   bool RegisterDevice(std::unique_ptr<Device> device);
   bool UnregisterDevice(const std::string_view path);
 
-  bool RegisterSymbolicLink(const std::string_view path,
-                            const std::string_view target);
+  bool RegisterSymbolicLink(const std::string_view path, const std::string_view target);
   bool UnregisterSymbolicLink(const std::string_view path);
   bool FindSymbolicLink(const std::string_view path, std::string& target);
 
@@ -42,9 +41,8 @@ class VirtualFileSystem {
   bool DeletePath(const std::string_view path);
 
   X_STATUS OpenFile(Entry* root_entry, const std::string_view path,
-                    FileDisposition creation_disposition,
-                    uint32_t desired_access, bool is_directory,
-                    bool is_non_directory, File** out_file,
+                    FileDisposition creation_disposition, uint32_t desired_access,
+                    bool is_directory, bool is_non_directory, File** out_file,
                     FileAction* out_action);
 
  private:
@@ -56,4 +54,3 @@ class VirtualFileSystem {
 };
 
 }  // namespace rex::filesystem
-

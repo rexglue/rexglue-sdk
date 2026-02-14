@@ -10,13 +10,12 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <cstdint>
 #include <optional>
 
-#include <rex/graphics/register_file.h>
-#include <rex/graphics/pipeline/shader/shader.h>
 #include <rex/graphics/pipeline/shader/interpreter.h>
+#include <rex/graphics/pipeline/shader/shader.h>
+#include <rex/graphics/register_file.h>
 #include <rex/graphics/trace_writer.h>
 #include <rex/memory.h>
 
@@ -35,8 +34,7 @@ class DrawExtentEstimator {
 
   // The shader must have its ucode analyzed.
   uint32_t EstimateVertexMaxY(const Shader& vertex_shader);
-  uint32_t EstimateMaxY(bool try_to_estimate_vertex_max_y,
-                        const Shader& vertex_shader);
+  uint32_t EstimateMaxY(bool try_to_estimate_vertex_max_y, const Shader& vertex_shader);
 
  private:
   class PositionYExportSink : public ShaderInterpreter::ExportSink {
@@ -71,4 +69,3 @@ class DrawExtentEstimator {
 };
 
 }  // namespace rex::graphics
-

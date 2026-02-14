@@ -10,7 +10,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <memory>
 
 #include <rex/graphics/command_processor.h>
@@ -27,13 +26,11 @@ class VulkanGraphicsSystem : public GraphicsSystem {
 
   std::string name() const override;
 
-  X_STATUS Setup(runtime::Processor* processor, kernel::KernelState* kernel_state,
-      ui::WindowedAppContext* app_context,
-      bool with_presentation) override;
+  X_STATUS Setup(runtime::Processor* processor, system::KernelState* kernel_state,
+                 ui::WindowedAppContext* app_context, bool with_presentation) override;
 
  private:
   std::unique_ptr<CommandProcessor> CreateCommandProcessor() override;
 };
 
 }  // namespace rex::graphics::vulkan
-

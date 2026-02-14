@@ -14,8 +14,8 @@
 #include <string>
 #include <vector>
 
-#include <rex/memory/mapped_memory.h>
 #include <rex/filesystem/entry.h>
+#include <rex/memory/mapped_memory.h>
 
 namespace rex::filesystem {
 
@@ -38,9 +38,8 @@ class DiscImageEntry : public Entry {
   X_STATUS Open(uint32_t desired_access, File** out_file) override;
 
   bool can_map() const override { return true; }
-  std::unique_ptr<memory::MappedMemory> OpenMapped(memory::MappedMemory::Mode mode,
-                                           size_t offset,
-                                           size_t length) override;
+  std::unique_ptr<memory::MappedMemory> OpenMapped(memory::MappedMemory::Mode mode, size_t offset,
+                                                   size_t length) override;
 
  private:
   friend class DiscImageDevice;
@@ -51,4 +50,3 @@ class DiscImageEntry : public Entry {
 };
 
 }  // namespace rex::filesystem
-

@@ -9,18 +9,17 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/ui/window.h>
-
 #include <algorithm>
 #include <iterator>
 
-#include <imgui.h>
-
 #include <rex/assert.h>
-#include <rex/time/clock.h>
+#include <rex/chrono/clock.h>
 #include <rex/logging.h>
 #include <rex/ui/imgui_drawer.h>
 #include <rex/ui/presenter.h>
+#include <rex/ui/window.h>
+
+#include <imgui.h>
 
 namespace rex {
 namespace ui {
@@ -52,16 +51,14 @@ Window::~Window() {
   // being destroyed and that *this is not accessible anymore.
   while (innermost_destruction_receiver_) {
     innermost_destruction_receiver_->window_ = nullptr;
-    innermost_destruction_receiver_ =
-        innermost_destruction_receiver_->outer_receiver_;
+    innermost_destruction_receiver_ = innermost_destruction_receiver_->outer_receiver_;
   }
 }
 
 void Window::AddListener(WindowListener* listener) {
   assert_not_null(listener);
   // Check if already added.
-  if (std::find(listeners_.cbegin(), listeners_.cend(), listener) !=
-      listeners_.cend()) {
+  if (std::find(listeners_.cbegin(), listeners_.cend(), listener) != listeners_.cend()) {
     return;
   }
   listeners_.push_back(listener);
@@ -74,8 +71,7 @@ void Window::RemoveListener(WindowListener* listener) {
     return;
   }
   // Actualize the next listener indices after the erasure from the vector.
-  ListenerIterationContext* iteration_context =
-      innermost_listener_iteration_context_;
+  ListenerIterationContext* iteration_context = innermost_listener_iteration_context_;
   if (iteration_context) {
     size_t existing_index = size_t(std::distance(listeners_.cbegin(), it));
     while (iteration_context) {
@@ -91,8 +87,8 @@ void Window::RemoveListener(WindowListener* listener) {
 void Window::AddInputListener(WindowInputListener* listener, size_t z_order) {
   assert_not_null(listener);
   // Check if already added.
-  for (auto it_existing = input_listeners_.rbegin();
-       it_existing != input_listeners_.rend(); ++it_existing) {
+  for (auto it_existing = input_listeners_.rbegin(); it_existing != input_listeners_.rend();
+       ++it_existing) {
     if (it_existing->second != listener) {
       continue;
     }
@@ -101,8 +97,7 @@ void Window::AddInputListener(WindowInputListener* listener, size_t z_order) {
     }
     // If removing the listener that is the next in a current listener loop,
     // skip it (in a multimap, only one element iterator is invalidated).
-    InputListenerIterationContext* iteration_context =
-        innermost_input_listener_iteration_context_;
+    InputListenerIterationContext* iteration_context = innermost_input_listener_iteration_context_;
     while (iteration_context) {
       if (iteration_context->next_iterator == it_existing) {
         ++iteration_context->next_iterator;
@@ -120,8 +115,7 @@ void Window::AddInputListener(WindowInputListener* listener, size_t z_order) {
     // an inner one is done, a "greater than" comparison will cause the inner
     // loop to effectively terminate all outer ones).
   }
-  auto it_new = std::prev(
-      std::make_reverse_iterator(input_listeners_.emplace(z_order, listener)));
+  auto it_new = std::prev(std::make_reverse_iterator(input_listeners_.emplace(z_order, listener)));
   // If adding to layers in between the currently being processed ones (from
   // highest to lowest) and the previously next, make sure the new listener is
   // executed too. Execution within one layer, however, happens in the reverse
@@ -129,8 +123,7 @@ void Window::AddInputListener(WindowInputListener* listener, size_t z_order) {
   // the new listener must not be executed within the loop. But, if adding to
   // the next Z layer after the current one, it must be executed immediately.
   {
-    InputListenerIterationContext* iteration_context =
-        innermost_input_listener_iteration_context_;
+    InputListenerIterationContext* iteration_context = innermost_input_listener_iteration_context_;
     while (iteration_context) {
       if (z_order < iteration_context->current_z_order &&
           (iteration_context->next_iterator == input_listeners_.crend() ||
@@ -144,15 +137,14 @@ void Window::AddInputListener(WindowInputListener* listener, size_t z_order) {
 
 void Window::RemoveInputListener(WindowInputListener* listener) {
   assert_not_null(listener);
-  for (auto it_existing = input_listeners_.rbegin();
-       it_existing != input_listeners_.rend(); ++it_existing) {
+  for (auto it_existing = input_listeners_.rbegin(); it_existing != input_listeners_.rend();
+       ++it_existing) {
     if (it_existing->second != listener) {
       continue;
     }
     // If removing the listener that is the next in a current listener loop,
     // skip it (in a multimap, only one element iterator is invalidated).
-    InputListenerIterationContext* iteration_context =
-        innermost_input_listener_iteration_context_;
+    InputListenerIterationContext* iteration_context = innermost_input_listener_iteration_context_;
     while (iteration_context) {
       if (iteration_context->next_iterator == it_existing) {
         ++iteration_context->next_iterator;
@@ -206,24 +198,20 @@ bool Window::Open() {
   {
     UISetupEvent e(this, true);
     WindowDestructionReceiver destruction_receiver(this);
-    SendEventToListeners([&e](auto listener) { listener->OnOpened(e); },
-                         destruction_receiver);
+    SendEventToListeners([&e](auto listener) { listener->OnOpened(e); }, destruction_receiver);
     if (destruction_receiver.IsWindowDestroyedOrListenersUncallable()) {
       return true;
     }
-    SendEventToListeners([&e](auto listener) { listener->OnDpiChanged(e); },
-                         destruction_receiver);
+    SendEventToListeners([&e](auto listener) { listener->OnDpiChanged(e); }, destruction_receiver);
     if (destruction_receiver.IsWindowDestroyedOrListenersUncallable()) {
       return true;
     }
-    SendEventToListeners([&e](auto listener) { listener->OnResize(e); },
-                         destruction_receiver);
+    SendEventToListeners([&e](auto listener) { listener->OnResize(e); }, destruction_receiver);
     if (destruction_receiver.IsWindowDestroyedOrListenersUncallable()) {
       return true;
     }
     if (HasFocus()) {
-      SendEventToListeners([&e](auto listener) { listener->OnGotFocus(e); },
-                           destruction_receiver);
+      SendEventToListeners([&e](auto listener) { listener->OnGotFocus(e); }, destruction_receiver);
       if (destruction_receiver.IsWindowDestroyedOrListenersUncallable()) {
         return true;
       }
@@ -454,8 +442,7 @@ void Window::OnBeforeClose(WindowDestructionReceiver& destruction_receiver) {
 
     {
       UIEvent e(this);
-      SendEventToListeners([&e](auto listener) { listener->OnClosing(e); },
-                           destruction_receiver);
+      SendEventToListeners([&e](auto listener) { listener->OnClosing(e); }, destruction_receiver);
       if (destruction_receiver.IsWindowDestroyed()) {
         return;
       }
@@ -474,16 +461,13 @@ void Window::OnAfterClose() {
   if (phase_ != Phase::kClosing) {
     return;
   }
-  phase_ = (innermost_listener_iteration_context_ ||
-            innermost_input_listener_iteration_context_)
+  phase_ = (innermost_listener_iteration_context_ || innermost_input_listener_iteration_context_)
                ? Phase::kClosedLeavingListeners
                : Phase::kClosedOpenable;
 }
 
-void Window::OnDpiChanged(UISetupEvent& e,
-                          WindowDestructionReceiver& destruction_receiver) {
-  SendEventToListeners([&e](auto listener) { listener->OnDpiChanged(e); },
-                       destruction_receiver);
+void Window::OnDpiChanged(UISetupEvent& e, WindowDestructionReceiver& destruction_receiver) {
+  SendEventToListeners([&e](auto listener) { listener->OnDpiChanged(e); }, destruction_receiver);
   if (destruction_receiver.IsWindowDestroyed()) {
     return;
   }
@@ -491,14 +475,12 @@ void Window::OnDpiChanged(UISetupEvent& e,
 
 void Window::OnMonitorUpdate(MonitorUpdateEvent& e) {
   if (presenter_surface_) {
-    presenter_->OnSurfaceMonitorUpdateFromUIThread(
-        e.old_monitor_potentially_disconnected());
+    presenter_->OnSurfaceMonitorUpdateFromUIThread(e.old_monitor_potentially_disconnected());
   }
 }
 
-bool Window::OnActualSizeUpdate(
-    uint32_t new_physical_width, uint32_t new_physical_height,
-    WindowDestructionReceiver& destruction_receiver) {
+bool Window::OnActualSizeUpdate(uint32_t new_physical_width, uint32_t new_physical_height,
+                                WindowDestructionReceiver& destruction_receiver) {
   if (actual_physical_width_ == new_physical_width &&
       actual_physical_height_ == new_physical_height) {
     return false;
@@ -510,27 +492,23 @@ bool Window::OnActualSizeUpdate(
     presenter_->OnSurfaceResizeFromUIThread();
   }
   UISetupEvent e(this);
-  SendEventToListeners([&e](auto listener) { listener->OnResize(e); },
-                       destruction_receiver);
+  SendEventToListeners([&e](auto listener) { listener->OnResize(e); }, destruction_receiver);
   if (destruction_receiver.IsWindowDestroyed()) {
     return true;
   }
   return true;
 }
 
-void Window::OnFocusUpdate(bool new_has_focus,
-                           WindowDestructionReceiver& destruction_receiver) {
+void Window::OnFocusUpdate(bool new_has_focus, WindowDestructionReceiver& destruction_receiver) {
   if (has_focus_ == new_has_focus) {
     return;
   }
   has_focus_ = new_has_focus;
   UISetupEvent e(this);
   if (has_focus_) {
-    SendEventToListeners([&e](auto listener) { listener->OnGotFocus(e); },
-                         destruction_receiver);
+    SendEventToListeners([&e](auto listener) { listener->OnGotFocus(e); }, destruction_receiver);
   } else {
-    SendEventToListeners([&e](auto listener) { listener->OnLostFocus(e); },
-                         destruction_receiver);
+    SendEventToListeners([&e](auto listener) { listener->OnLostFocus(e); }, destruction_receiver);
   }
   if (destruction_receiver.IsWindowDestroyed()) {
     return;
@@ -548,17 +526,14 @@ void Window::OnPaint(bool force_paint) {
   is_painting_ = false;
 }
 
-void Window::OnFileDrop(FileDropEvent& e,
-                        WindowDestructionReceiver& destruction_receiver) {
-  SendEventToListeners([&e](auto listener) { listener->OnFileDrop(e); },
-                       destruction_receiver);
+void Window::OnFileDrop(FileDropEvent& e, WindowDestructionReceiver& destruction_receiver) {
+  SendEventToListeners([&e](auto listener) { listener->OnFileDrop(e); }, destruction_receiver);
   if (destruction_receiver.IsWindowDestroyed()) {
     return;
   }
 }
 
-void Window::OnKeyDown(KeyEvent& e,
-                       WindowDestructionReceiver& destruction_receiver) {
+void Window::OnKeyDown(KeyEvent& e, WindowDestructionReceiver& destruction_receiver) {
   PropagateEventThroughInputListeners(
       [&e](auto listener) {
         listener->OnKeyDown(e);
@@ -570,8 +545,7 @@ void Window::OnKeyDown(KeyEvent& e,
   }
 }
 
-void Window::OnKeyUp(KeyEvent& e,
-                     WindowDestructionReceiver& destruction_receiver) {
+void Window::OnKeyUp(KeyEvent& e, WindowDestructionReceiver& destruction_receiver) {
   PropagateEventThroughInputListeners(
       [&e](auto listener) {
         listener->OnKeyUp(e);
@@ -583,8 +557,7 @@ void Window::OnKeyUp(KeyEvent& e,
   }
 }
 
-void Window::OnKeyChar(KeyEvent& e,
-                       WindowDestructionReceiver& destruction_receiver) {
+void Window::OnKeyChar(KeyEvent& e, WindowDestructionReceiver& destruction_receiver) {
   PropagateEventThroughInputListeners(
       [&e](auto listener) {
         listener->OnKeyChar(e);
@@ -596,8 +569,7 @@ void Window::OnKeyChar(KeyEvent& e,
   }
 }
 
-void Window::OnMouseDown(MouseEvent& e,
-                         WindowDestructionReceiver& destruction_receiver) {
+void Window::OnMouseDown(MouseEvent& e, WindowDestructionReceiver& destruction_receiver) {
   PropagateEventThroughInputListeners(
       [&e](auto listener) {
         listener->OnMouseDown(e);
@@ -609,8 +581,7 @@ void Window::OnMouseDown(MouseEvent& e,
   }
 }
 
-void Window::OnMouseMove(MouseEvent& e,
-                         WindowDestructionReceiver& destruction_receiver) {
+void Window::OnMouseMove(MouseEvent& e, WindowDestructionReceiver& destruction_receiver) {
   PropagateEventThroughInputListeners(
       [&e](auto listener) {
         listener->OnMouseMove(e);
@@ -622,8 +593,7 @@ void Window::OnMouseMove(MouseEvent& e,
   }
 }
 
-void Window::OnMouseUp(MouseEvent& e,
-                       WindowDestructionReceiver& destruction_receiver) {
+void Window::OnMouseUp(MouseEvent& e, WindowDestructionReceiver& destruction_receiver) {
   PropagateEventThroughInputListeners(
       [&e](auto listener) {
         listener->OnMouseUp(e);
@@ -635,8 +605,7 @@ void Window::OnMouseUp(MouseEvent& e,
   }
 }
 
-void Window::OnMouseWheel(MouseEvent& e,
-                          WindowDestructionReceiver& destruction_receiver) {
+void Window::OnMouseWheel(MouseEvent& e, WindowDestructionReceiver& destruction_receiver) {
   PropagateEventThroughInputListeners(
       [&e](auto listener) {
         listener->OnMouseWheel(e);
@@ -648,8 +617,7 @@ void Window::OnMouseWheel(MouseEvent& e,
   }
 }
 
-void Window::OnTouchEvent(TouchEvent& e,
-                          WindowDestructionReceiver& destruction_receiver) {
+void Window::OnTouchEvent(TouchEvent& e, WindowDestructionReceiver& destruction_receiver) {
   PropagateEventThroughInputListeners(
       [&e](auto listener) {
         listener->OnTouchEvent(e);
@@ -661,14 +629,12 @@ void Window::OnTouchEvent(TouchEvent& e,
   }
 }
 
-void Window::SendEventToListeners(
-    std::function<void(WindowListener*)> fn,
-    WindowDestructionReceiver& destruction_receiver) {
+void Window::SendEventToListeners(std::function<void(WindowListener*)> fn,
+                                  WindowDestructionReceiver& destruction_receiver) {
   if (!CanSendEventsToListeners()) {
     return;
   }
-  ListenerIterationContext iteration_context(
-      innermost_listener_iteration_context_);
+  ListenerIterationContext iteration_context(innermost_listener_iteration_context_);
   innermost_listener_iteration_context_ = &iteration_context;
   while (iteration_context.next_index < listeners_.size()) {
     // iteration_context.next_index may be changed during the execution of the
@@ -689,23 +655,20 @@ void Window::SendEventToListeners(
     }
   }
   assert_true(innermost_listener_iteration_context_ == &iteration_context);
-  innermost_listener_iteration_context_ =
-      innermost_listener_iteration_context_->outer_context;
-  if (phase_ == Phase::kClosedLeavingListeners &&
-      !innermost_listener_iteration_context_ &&
+  innermost_listener_iteration_context_ = innermost_listener_iteration_context_->outer_context;
+  if (phase_ == Phase::kClosedLeavingListeners && !innermost_listener_iteration_context_ &&
       !innermost_input_listener_iteration_context_) {
     phase_ = Phase::kClosedOpenable;
   }
 }
 
-void Window::PropagateEventThroughInputListeners(
-    std::function<bool(WindowInputListener*)> fn,
-    WindowDestructionReceiver& destruction_receiver) {
+void Window::PropagateEventThroughInputListeners(std::function<bool(WindowInputListener*)> fn,
+                                                 WindowDestructionReceiver& destruction_receiver) {
   if (!CanSendEventsToListeners()) {
     return;
   }
-  InputListenerIterationContext iteration_context(
-      innermost_input_listener_iteration_context_, input_listeners_.crbegin());
+  InputListenerIterationContext iteration_context(innermost_input_listener_iteration_context_,
+                                                  input_listeners_.crbegin());
   innermost_input_listener_iteration_context_ = &iteration_context;
   while (iteration_context.next_iterator != input_listeners_.crend()) {
     // The current iterator may be invalidated, and
@@ -730,12 +693,10 @@ void Window::PropagateEventThroughInputListeners(
       break;
     }
   }
-  assert_true(innermost_input_listener_iteration_context_ ==
-              &iteration_context);
+  assert_true(innermost_input_listener_iteration_context_ == &iteration_context);
   innermost_input_listener_iteration_context_ =
       innermost_input_listener_iteration_context_->outer_context;
-  if (phase_ == Phase::kClosedLeavingListeners &&
-      !innermost_listener_iteration_context_ &&
+  if (phase_ == Phase::kClosedLeavingListeners && !innermost_listener_iteration_context_ &&
       !innermost_input_listener_iteration_context_) {
     phase_ = Phase::kClosedOpenable;
   }

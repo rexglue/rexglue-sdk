@@ -10,17 +10,13 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <memory>
 #include <vector>
 
 #include <rex/platform.h>
+#include <rex/platform/dynlib.h>
 #include <rex/ui/renderdoc_api.h>
 #include <rex/ui/vulkan/api.h>
-
-#if REX_PLATFORM_WIN32
-#include <rex/platform/win.h>
-#endif
 
 namespace rex {
 namespace ui {
@@ -28,8 +24,7 @@ namespace vulkan {
 
 class VulkanInstance {
  public:
-  static std::unique_ptr<VulkanInstance> Create(bool with_surface,
-                                                bool try_enable_validation);
+  static std::unique_ptr<VulkanInstance> Create(bool with_surface, bool try_enable_validation);
 
   VulkanInstance(const VulkanInstance&) = delete;
   VulkanInstance& operator=(const VulkanInstance&) = delete;
@@ -48,10 +43,8 @@ class VulkanInstance {
 
     // From vkGetInstanceProcAddr for nullptr.
     PFN_vkCreateInstance vkCreateInstance = nullptr;
-    PFN_vkEnumerateInstanceExtensionProperties
-        vkEnumerateInstanceExtensionProperties = nullptr;
-    PFN_vkEnumerateInstanceLayerProperties vkEnumerateInstanceLayerProperties =
-        nullptr;
+    PFN_vkEnumerateInstanceExtensionProperties vkEnumerateInstanceExtensionProperties = nullptr;
+    PFN_vkEnumerateInstanceLayerProperties vkEnumerateInstanceLayerProperties = nullptr;
     // Vulkan 1.1.
     PFN_vkEnumerateInstanceVersion vkEnumerateInstanceVersion = nullptr;
 
@@ -108,19 +101,14 @@ class VulkanInstance {
 
   VkInstance instance() const { return instance_; }
 
-  void EnumeratePhysicalDevices(
-      std::vector<VkPhysicalDevice>& physical_devices_out) const;
+  void EnumeratePhysicalDevices(std::vector<VkPhysicalDevice>& physical_devices_out) const;
 
  private:
   explicit VulkanInstance() = default;
 
   std::unique_ptr<RenderDocAPI> renderdoc_api_;
 
-#if REX_PLATFORM_LINUX
-  void* loader_ = nullptr;
-#elif REX_PLATFORM_WIN32
-  HMODULE loader_ = nullptr;
-#endif
+  rex::platform::DynamicLibrary loader_;
 
   Functions functions_;
 
@@ -133,13 +121,11 @@ class VulkanInstance {
   static VkBool32 DebugUtilsMessengerCallback(
       VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
       VkDebugUtilsMessageTypeFlagsEXT message_types,
-      const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
-      void* user_data);
+      const VkDebugUtilsMessengerCallbackDataEXT* callback_data, void* user_data);
 
   VkDebugUtilsMessengerEXT debug_utils_messenger_ = VK_NULL_HANDLE;
 };
 
 }  // namespace vulkan
 }  // namespace ui
-}  // namespace xe
-
+}  // namespace rex

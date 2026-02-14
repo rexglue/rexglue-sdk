@@ -9,28 +9,26 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/audio/sdl/sdl_audio_system.h>
-
 #include <rex/audio/flags.h>
 #include <rex/audio/sdl/sdl_audio_driver.h>
+#include <rex/audio/sdl/sdl_audio_system.h>
 
 namespace rex::audio::sdl {
 
-std::unique_ptr<AudioSystem> SDLAudioSystem::Create(
-    runtime::Processor* processor) {
+std::unique_ptr<AudioSystem> SDLAudioSystem::Create(runtime::Processor* processor) {
   return std::make_unique<SDLAudioSystem>(processor);
 }
 
-SDLAudioSystem::SDLAudioSystem(runtime::Processor* processor)
-    : AudioSystem(processor) {}
+SDLAudioSystem::SDLAudioSystem(runtime::Processor* processor) : AudioSystem(processor) {}
 
 SDLAudioSystem::~SDLAudioSystem() {}
 
-void SDLAudioSystem::Initialize() { AudioSystem::Initialize(); }
+void SDLAudioSystem::Initialize() {
+  AudioSystem::Initialize();
+}
 
 X_STATUS SDLAudioSystem::CreateDriver([[maybe_unused]] size_t index,
-                                      rex::thread::Semaphore* semaphore,
-                                      AudioDriver** out_driver) {
+                                      rex::thread::Semaphore* semaphore, AudioDriver** out_driver) {
   assert_not_null(out_driver);
   auto driver = new SDLAudioDriver(memory_, semaphore);
   if (!driver->Initialize()) {

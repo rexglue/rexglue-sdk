@@ -9,56 +9,47 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/graphics/pipeline/texture/cache.h>
-
 #include <algorithm>
 #include <cstdint>
 #include <utility>
 
 #include <rex/assert.h>
-#include <rex/time/clock.h>
+#include <rex/chrono/clock.h>
 #include <rex/cvar.h>
-#include <rex/logging.h>
-#include <rex/math.h>
-#include <rex/profiling.h>
+#include <rex/dbg.h>
 #include <rex/graphics/flags.h>
-#include <rex/graphics/register_file.h>
+#include <rex/graphics/pipeline/texture/cache.h>
 #include <rex/graphics/pipeline/texture/info.h>
 #include <rex/graphics/pipeline/texture/util.h>
+#include <rex/graphics/register_file.h>
 #include <rex/graphics/xenos.h>
+#include <rex/logging.h>
+#include <rex/math.h>
 
 REXCVAR_DEFINE_INT32(texture_cache_memory_limit_render_to_texture, 24,
-    "Texture cache memory limit for render-to-texture (MB)",
-    "GPU")
+                     "Texture cache memory limit for render-to-texture (MB)", "GPU")
     .range(1, 256)
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
-REXCVAR_DEFINE_INT32(texture_cache_memory_limit_soft, 384,
-    "Soft texture cache memory limit (MB)",
-    "GPU")
+REXCVAR_DEFINE_INT32(texture_cache_memory_limit_soft, 384, "Soft texture cache memory limit (MB)",
+                     "GPU")
     .range(64, 4096)
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
-REXCVAR_DEFINE_INT32(texture_cache_memory_limit_hard, 768,
-    "Hard texture cache memory limit (MB)",
-    "GPU")
+REXCVAR_DEFINE_INT32(texture_cache_memory_limit_hard, 768, "Hard texture cache memory limit (MB)",
+                     "GPU")
     .range(128, 8192)
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
 REXCVAR_DEFINE_INT32(texture_cache_memory_limit_soft_lifetime, 30,
-    "Soft texture cache memory limit lifetime (seconds)",
-    "GPU")
+                     "Soft texture cache memory limit lifetime (seconds)", "GPU")
     .range(1, 3600);
 
-REXCVAR_DEFINE_INT32(draw_resolution_scale_x, 1,
-    "Draw resolution scale X (1 = no scaling)",
-    "GPU")
+REXCVAR_DEFINE_INT32(draw_resolution_scale_x, 1, "Draw resolution scale X (1 = no scaling)", "GPU")
     .range(1, 8)
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
-REXCVAR_DEFINE_INT32(draw_resolution_scale_y, 1,
-    "Draw resolution scale Y (1 = no scaling)",
-    "GPU")
+REXCVAR_DEFINE_INT32(draw_resolution_scale_y, 1, "Draw resolution scale Y (1 = no scaling)", "GPU")
     .range(1, 8)
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
@@ -109,84 +100,81 @@ REXCVAR_DEFINE_INT32(draw_resolution_scale_y, 1,
 
 namespace rex::graphics {
 
-const TextureCache::LoadShaderInfo
-    TextureCache::load_shader_info_[kLoadShaderCount] = {
-        // k8bpb
-        {3, 4, 1, 4},
-        // k16bpb
-        {4, 4, 2, 4},
-        // k32bpb
-        {4, 4, 4, 3},
-        // k64bpb
-        {4, 4, 8, 2},
-        // k128bpb
-        {4, 4, 16, 1},
-        // kR5G5B5A1ToB5G5R5A1
-        {4, 4, 2, 4},
-        // kR5G6B5ToB5G6R5
-        {4, 4, 2, 4},
-        // kR5G5B6ToB5G6R5WithRBGASwizzle
-        {4, 4, 2, 4},
-        // kRGBA4ToBGRA4
-        {4, 4, 2, 4},
-        // kRGBA4ToARGB4
-        {4, 4, 2, 4},
-        // kGBGR8ToGRGB8
-        {4, 4, 4, 3},
-        // kGBGR8ToRGB8
-        {4, 4, 8, 3},
-        // kBGRG8ToRGBG8
-        {4, 4, 4, 3},
-        // kBGRG8ToRGB8
-        {4, 4, 8, 3},
-        // kR10G11B11ToRGBA16
-        {4, 4, 8, 3},
-        // kR10G11B11ToRGBA16SNorm
-        {4, 4, 8, 3},
-        // kR11G11B10ToRGBA16
-        {4, 4, 8, 3},
-        // kR11G11B10ToRGBA16SNorm
-        {4, 4, 8, 3},
-        // kR16UNormToFloat
-        {4, 4, 2, 4},
-        // kR16SNormToFloat
-        {4, 4, 2, 4},
-        // kRG16UNormToFloat
-        {4, 4, 4, 3},
-        // kRG16SNormToFloat
-        {4, 4, 4, 3},
-        // kRGBA16UNormToFloat
-        {4, 4, 8, 2},
-        // kRGBA16SNormToFloat
-        {4, 4, 8, 2},
-        // kDXT1ToRGBA8
-        {4, 4, 4, 2},
-        // kDXT3ToRGBA8
-        {4, 4, 4, 1},
-        // kDXT5ToRGBA8
-        {4, 4, 4, 1},
-        // kDXNToRG8
-        {4, 4, 2, 1},
-        // kDXT3A
-        {4, 4, 1, 2},
-        // kDXT3AAs1111ToBGRA4
-        {4, 4, 2, 2},
-        // kDXT3AAs1111ToARGB4
-        {4, 4, 2, 2},
-        // kDXT5AToR8
-        {4, 4, 1, 2},
-        // kCTX1
-        {4, 4, 2, 2},
-        // kDepthUnorm
-        {4, 4, 4, 3},
-        // kDepthFloat
-        {4, 4, 4, 3},
+const TextureCache::LoadShaderInfo TextureCache::load_shader_info_[kLoadShaderCount] = {
+    // k8bpb
+    {3, 4, 1, 4},
+    // k16bpb
+    {4, 4, 2, 4},
+    // k32bpb
+    {4, 4, 4, 3},
+    // k64bpb
+    {4, 4, 8, 2},
+    // k128bpb
+    {4, 4, 16, 1},
+    // kR5G5B5A1ToB5G5R5A1
+    {4, 4, 2, 4},
+    // kR5G6B5ToB5G6R5
+    {4, 4, 2, 4},
+    // kR5G5B6ToB5G6R5WithRBGASwizzle
+    {4, 4, 2, 4},
+    // kRGBA4ToBGRA4
+    {4, 4, 2, 4},
+    // kRGBA4ToARGB4
+    {4, 4, 2, 4},
+    // kGBGR8ToGRGB8
+    {4, 4, 4, 3},
+    // kGBGR8ToRGB8
+    {4, 4, 8, 3},
+    // kBGRG8ToRGBG8
+    {4, 4, 4, 3},
+    // kBGRG8ToRGB8
+    {4, 4, 8, 3},
+    // kR10G11B11ToRGBA16
+    {4, 4, 8, 3},
+    // kR10G11B11ToRGBA16SNorm
+    {4, 4, 8, 3},
+    // kR11G11B10ToRGBA16
+    {4, 4, 8, 3},
+    // kR11G11B10ToRGBA16SNorm
+    {4, 4, 8, 3},
+    // kR16UNormToFloat
+    {4, 4, 2, 4},
+    // kR16SNormToFloat
+    {4, 4, 2, 4},
+    // kRG16UNormToFloat
+    {4, 4, 4, 3},
+    // kRG16SNormToFloat
+    {4, 4, 4, 3},
+    // kRGBA16UNormToFloat
+    {4, 4, 8, 2},
+    // kRGBA16SNormToFloat
+    {4, 4, 8, 2},
+    // kDXT1ToRGBA8
+    {4, 4, 4, 2},
+    // kDXT3ToRGBA8
+    {4, 4, 4, 1},
+    // kDXT5ToRGBA8
+    {4, 4, 4, 1},
+    // kDXNToRG8
+    {4, 4, 2, 1},
+    // kDXT3A
+    {4, 4, 1, 2},
+    // kDXT3AAs1111ToBGRA4
+    {4, 4, 2, 2},
+    // kDXT3AAs1111ToARGB4
+    {4, 4, 2, 2},
+    // kDXT5AToR8
+    {4, 4, 1, 2},
+    // kCTX1
+    {4, 4, 2, 2},
+    // kDepthUnorm
+    {4, 4, 4, 3},
+    // kDepthFloat
+    {4, 4, 4, 3},
 };
 
-TextureCache::TextureCache(const RegisterFile& register_file,
-                           SharedMemory& shared_memory,
-                           uint32_t draw_resolution_scale_x,
-                           uint32_t draw_resolution_scale_y)
+TextureCache::TextureCache(const RegisterFile& register_file, SharedMemory& shared_memory,
+                           uint32_t draw_resolution_scale_x, uint32_t draw_resolution_scale_y)
     : register_file_(register_file),
       shared_memory_(shared_memory),
       draw_resolution_scale_x_(draw_resolution_scale_x),
@@ -197,15 +185,12 @@ TextureCache::TextureCache(const RegisterFile& register_file,
   assert_true(draw_resolution_scale_y <= kMaxDrawResolutionScaleAlongAxis);
 
   if (draw_resolution_scale_x > 1 || draw_resolution_scale_y > 1) {
-    constexpr uint32_t kScaledResolvePageDwordCount =
-        SharedMemory::kBufferSize / 4096 / 32;
-    scaled_resolve_pages_ =
-        std::unique_ptr<uint32_t[]>(new uint32_t[kScaledResolvePageDwordCount]);
-    std::memset(scaled_resolve_pages_.get(), 0,
-                kScaledResolvePageDwordCount * sizeof(uint32_t));
+    constexpr uint32_t kScaledResolvePageDwordCount = SharedMemory::kBufferSize / 4096 / 32;
+    scaled_resolve_pages_ = std::unique_ptr<uint32_t[]>(new uint32_t[kScaledResolvePageDwordCount]);
+    std::memset(scaled_resolve_pages_.get(), 0, kScaledResolvePageDwordCount * sizeof(uint32_t));
     std::memset(scaled_resolve_pages_l2_, 0, sizeof(scaled_resolve_pages_l2_));
-    scaled_resolve_global_watch_handle_ = shared_memory.RegisterGlobalWatch(
-        ScaledResolveGlobalWatchCallbackThunk, this);
+    scaled_resolve_global_watch_handle_ =
+        shared_memory.RegisterGlobalWatch(ScaledResolveGlobalWatchCallbackThunk, this);
   }
 }
 
@@ -217,12 +202,9 @@ TextureCache::~TextureCache() {
   }
 }
 
-bool TextureCache::GetConfigDrawResolutionScale(uint32_t& x_out,
-                                                uint32_t& y_out) {
-  uint32_t config_x =
-      uint32_t(std::max(INT32_C(1), REXCVAR_GET(draw_resolution_scale_x)));
-  uint32_t config_y =
-      uint32_t(std::max(INT32_C(1), REXCVAR_GET(draw_resolution_scale_y)));
+bool TextureCache::GetConfigDrawResolutionScale(uint32_t& x_out, uint32_t& y_out) {
+  uint32_t config_x = uint32_t(std::max(INT32_C(1), REXCVAR_GET(draw_resolution_scale_x)));
+  uint32_t config_y = uint32_t(std::max(INT32_C(1), REXCVAR_GET(draw_resolution_scale_y)));
   uint32_t clamped_x = std::min(kMaxDrawResolutionScaleAlongAxis, config_x);
   uint32_t clamped_y = std::min(kMaxDrawResolutionScaleAlongAxis, config_y);
   x_out = clamped_x;
@@ -230,10 +212,11 @@ bool TextureCache::GetConfigDrawResolutionScale(uint32_t& x_out,
   return clamped_x == config_x && clamped_y == config_y;
 }
 
-void TextureCache::ClearCache() { DestroyAllTextures(); }
+void TextureCache::ClearCache() {
+  DestroyAllTextures();
+}
 
-void TextureCache::CompletedSubmissionUpdated(
-    uint64_t completed_submission_index) {
+void TextureCache::CompletedSubmissionUpdated(uint64_t completed_submission_index) {
   // If memory usage is too high, destroy unused textures.
   uint64_t current_time = rex::chrono::Clock::QueryHostUptimeMillis();
   // texture_cache_memory_limit_render_to_texture is assumed to be included in
@@ -246,8 +229,7 @@ void TextureCache::CompletedSubmissionUpdated(
       REXCVAR_GET(texture_cache_memory_limit_soft) + limit_scaled_resolve_add_mb;
   uint32_t limit_hard_mb =
       REXCVAR_GET(texture_cache_memory_limit_hard) + limit_scaled_resolve_add_mb;
-  uint32_t limit_soft_lifetime =
-      REXCVAR_GET(texture_cache_memory_limit_soft_lifetime) * 1000;
+  uint32_t limit_soft_lifetime = REXCVAR_GET(texture_cache_memory_limit_soft_lifetime) * 1000;
   bool destroyed_any = false;
   while (texture_used_first_ != nullptr) {
     uint64_t total_host_memory_usage_mb =
@@ -260,8 +242,7 @@ void TextureCache::CompletedSubmissionUpdated(
     if (texture->last_usage_submission_index() > completed_submission_index) {
       break;
     }
-    if (!limit_hard_exceeded &&
-        (texture->last_usage_time() + limit_soft_lifetime) > current_time) {
+    if (!limit_hard_exceeded && (texture->last_usage_time() + limit_soft_lifetime) > current_time) {
       break;
     }
     if (!destroyed_any) {
@@ -300,8 +281,7 @@ void TextureCache::BeginFrame() {
   ResetTextureBindings();
 }
 
-void TextureCache::MarkRangeAsResolved(uint32_t start_unscaled,
-                                       uint32_t length_unscaled) {
+void TextureCache::MarkRangeAsResolved(uint32_t start_unscaled, uint32_t length_unscaled) {
   if (length_unscaled == 0) {
     return;
   }
@@ -332,8 +312,7 @@ void TextureCache::MarkRangeAsResolved(uint32_t start_unscaled,
   shared_memory().RangeWrittenByGpu(start_unscaled, length_unscaled);
 }
 
-uint32_t TextureCache::GuestToHostSwizzle(uint32_t guest_swizzle,
-                                          uint32_t host_format_swizzle) {
+uint32_t TextureCache::GuestToHostSwizzle(uint32_t guest_swizzle, uint32_t host_format_swizzle) {
   uint32_t host_swizzle = 0;
   for (uint32_t i = 0; i < 4; ++i) {
     uint32_t guest_swizzle_component = (guest_swizzle >> (3 * i)) & 0b111;
@@ -343,8 +322,7 @@ uint32_t TextureCache::GuestToHostSwizzle(uint32_t guest_swizzle,
       // something broken) the simple way - by changing them to 4 (0) and 5 (1).
       host_swizzle_component = guest_swizzle_component & 0b101;
     } else {
-      host_swizzle_component =
-          (host_format_swizzle >> (3 * guest_swizzle_component)) & 0b111;
+      host_swizzle_component = (host_format_swizzle >> (3 * guest_swizzle_component)) & 0b111;
     }
     host_swizzle |= host_swizzle_component << (3 * i);
   }
@@ -382,21 +360,16 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
       continue;
     }
     uint32_t old_host_swizzle = binding.host_swizzle;
-    binding.host_swizzle =
-        GuestToHostSwizzle(fetch.swizzle, GetHostFormatSwizzle(binding.key));
+    binding.host_swizzle = GuestToHostSwizzle(fetch.swizzle, GetHostFormatSwizzle(binding.key));
 
     // Check if need to load the unsigned and the signed versions of the texture
     // (if the format is emulated with different host bit representations for
     // signed and unsigned - otherwise only the unsigned one is loaded).
     bool key_changed = binding.key != old_key;
-    bool any_sign_was_not_signed =
-        texture_util::IsAnySignNotSigned(old_swizzled_signs);
-    bool any_sign_was_signed =
-        texture_util::IsAnySignSigned(old_swizzled_signs);
-    bool any_sign_is_not_signed =
-        texture_util::IsAnySignNotSigned(binding.swizzled_signs);
-    bool any_sign_is_signed =
-        texture_util::IsAnySignSigned(binding.swizzled_signs);
+    bool any_sign_was_not_signed = texture_util::IsAnySignNotSigned(old_swizzled_signs);
+    bool any_sign_was_signed = texture_util::IsAnySignSigned(old_swizzled_signs);
+    bool any_sign_is_not_signed = texture_util::IsAnySignNotSigned(binding.swizzled_signs);
+    bool any_sign_is_signed = texture_util::IsAnySignSigned(binding.swizzled_signs);
     if (key_changed || binding.host_swizzle != old_host_swizzle ||
         any_sign_is_not_signed != any_sign_was_not_signed ||
         any_sign_is_signed != any_sign_was_signed) {
@@ -449,8 +422,7 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
   }
 }
 
-const char* TextureCache::TextureKey::GetLogDimensionName(
-    xenos::DataDimension dimension) {
+const char* TextureCache::TextureKey::GetLogDimensionName(xenos::DataDimension dimension) {
   switch (dimension) {
     case xenos::DataDimension::k1D:
       return "1D";
@@ -470,11 +442,10 @@ void TextureCache::TextureKey::LogAction(const char* action) const {
   REXGPU_TRACE(
       "{} {} {}{}x{}x{} {} {} texture with {} {}packed mip level{}, "
       "base at 0x{:08X} (pitch {}), mips at 0x{:08X}",
-      action, tiled ? "tiled" : "linear", scaled_resolve ? "scaled " : "",
-      GetWidth(), GetHeight(), GetDepthOrArraySize(), GetLogDimensionName(),
-      FormatInfo::Get(format)->name, mip_max_level + 1, packed_mips ? "" : "un",
-      mip_max_level != 0 ? "s" : "", base_page << 12, pitch << 5,
-      mip_page << 12);
+      action, tiled ? "tiled" : "linear", scaled_resolve ? "scaled " : "", GetWidth(), GetHeight(),
+      GetDepthOrArraySize(), GetLogDimensionName(), FormatInfo::Get(format)->name,
+      mip_max_level + 1, packed_mips ? "" : "un", mip_max_level != 0 ? "s" : "", base_page << 12,
+      pitch << 5, mip_page << 12);
 }
 
 void TextureCache::Texture::LogAction(const char* action) const {
@@ -482,12 +453,10 @@ void TextureCache::Texture::LogAction(const char* action) const {
       "{} {} {}{}x{}x{} {} {} texture with {} {}packed mip level{}, "
       "base at 0x{:08X} (pitch {}, size 0x{:08X}), mips at 0x{:08X} (size "
       "0x{:08X})",
-      action, key_.tiled ? "tiled" : "linear",
-      key_.scaled_resolve ? "scaled " : "", key_.GetWidth(), key_.GetHeight(),
-      key_.GetDepthOrArraySize(), key_.GetLogDimensionName(),
-      FormatInfo::Get(key_.format)->name, key_.mip_max_level + 1,
-      key_.packed_mips ? "" : "un", key_.mip_max_level != 0 ? "s" : "",
-      key_.base_page << 12, key_.pitch << 5, GetGuestBaseSize(),
+      action, key_.tiled ? "tiled" : "linear", key_.scaled_resolve ? "scaled " : "",
+      key_.GetWidth(), key_.GetHeight(), key_.GetDepthOrArraySize(), key_.GetLogDimensionName(),
+      FormatInfo::Get(key_.format)->name, key_.mip_max_level + 1, key_.packed_mips ? "" : "un",
+      key_.mip_max_level != 0 ? "s" : "", key_.base_page << 12, key_.pitch << 5, GetGuestBaseSize(),
       key_.mip_page << 12, GetGuestMipsSize());
 }
 
@@ -496,8 +465,7 @@ void TextureCache::Texture::LogAction(const char* action) const {
 // not be destroyed immediately after creation if dropping of old textures is
 // performed somehow. The list is maintained by the Texture, not the
 // TextureCache itself (unlike the `textures_` container).
-TextureCache::Texture::Texture(TextureCache& texture_cache,
-                               const TextureKey& key)
+TextureCache::Texture::Texture(TextureCache& texture_cache, const TextureKey& key)
     : texture_cache_(texture_cache),
       key_(key),
       guest_layout_(key.GetGuestLayout()),
@@ -546,24 +514,20 @@ void TextureCache::Texture::MakeUpToDateAndWatch(
     assert_not_zero(GetGuestBaseSize());
     base_outdated_ = false;
     base_watch_handle_ = shared_memory.WatchMemoryRange(
-        key().base_page << 12, GetGuestBaseSize(), TextureCache::WatchCallback,
-        this, nullptr, 0);
+        key().base_page << 12, GetGuestBaseSize(), TextureCache::WatchCallback, this, nullptr, 0);
   }
   if (mips_outdated_) {
     assert_not_zero(GetGuestMipsSize());
     mips_outdated_ = false;
     mips_watch_handle_ = shared_memory.WatchMemoryRange(
-        key().mip_page << 12, GetGuestMipsSize(), TextureCache::WatchCallback,
-        this, nullptr, 1);
+        key().mip_page << 12, GetGuestMipsSize(), TextureCache::WatchCallback, this, nullptr, 1);
   }
 }
 
 void TextureCache::Texture::MarkAsUsed() {
-  assert_true(last_usage_submission_index_ <=
-              texture_cache_.current_submission_index_);
+  assert_true(last_usage_submission_index_ <= texture_cache_.current_submission_index_);
   // This is called very frequently, don't relink unless needed for caching.
-  if (last_usage_submission_index_ >=
-      texture_cache_.current_submission_index_) {
+  if (last_usage_submission_index_ >= texture_cache_.current_submission_index_) {
     return;
   }
   last_usage_submission_index_ = texture_cache_.current_submission_index_;
@@ -585,8 +549,7 @@ void TextureCache::Texture::MarkAsUsed() {
 }
 
 void TextureCache::Texture::WatchCallback(
-    [[maybe_unused]] const std::unique_lock<std::recursive_mutex>& global_lock,
-    bool is_mip) {
+    [[maybe_unused]] const std::unique_lock<std::recursive_mutex>& global_lock, bool is_mip) {
   if (is_mip) {
     assert_not_zero(GetGuestMipsSize());
     mips_outdated_ = true;
@@ -598,13 +561,12 @@ void TextureCache::Texture::WatchCallback(
   }
 }
 
-void TextureCache::WatchCallback(
-    const std::unique_lock<std::recursive_mutex>& global_lock, void* context,
-    void* data, uint64_t argument, bool invalidated_by_gpu) {
+void TextureCache::WatchCallback(const std::unique_lock<std::recursive_mutex>& global_lock,
+                                 void* context, void* data, uint64_t argument,
+                                 bool invalidated_by_gpu) {
   Texture& texture = *static_cast<Texture*>(context);
   texture.WatchCallback(global_lock, argument != 0);
-  texture.texture_cache().texture_became_outdated_.store(
-      true, std::memory_order_release);
+  texture.texture_cache().texture_became_outdated_.store(true, std::memory_order_release);
 }
 
 void TextureCache::DestroyAllTextures(bool from_destructor) {
@@ -615,18 +577,14 @@ void TextureCache::DestroyAllTextures(bool from_destructor) {
 
 TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   // Check if the texture is a scaled resolve texture.
-  if (IsDrawResolutionScaled() && key.tiled &&
-      IsScaledResolveSupportedForFormat(key)) {
-    texture_util::TextureGuestLayout scaled_resolve_guest_layout =
-        key.GetGuestLayout();
+  if (IsDrawResolutionScaled() && key.tiled && IsScaledResolveSupportedForFormat(key)) {
+    texture_util::TextureGuestLayout scaled_resolve_guest_layout = key.GetGuestLayout();
     if ((scaled_resolve_guest_layout.base.level_data_extent_bytes &&
-         IsRangeScaledResolved(
-             key.base_page << 12,
-             scaled_resolve_guest_layout.base.level_data_extent_bytes)) ||
+         IsRangeScaledResolved(key.base_page << 12,
+                               scaled_resolve_guest_layout.base.level_data_extent_bytes)) ||
         (scaled_resolve_guest_layout.mips_total_extent_bytes &&
-         IsRangeScaledResolved(
-             key.mip_page << 12,
-             scaled_resolve_guest_layout.mips_total_extent_bytes))) {
+         IsRangeScaledResolved(key.mip_page << 12,
+                               scaled_resolve_guest_layout.mips_total_extent_bytes))) {
       key.scaled_resolve = 1;
     }
   }
@@ -642,10 +600,8 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   // TODO(Triang3l): Skip mips on Vulkan in this case - the minimum requirement
   // there is 4096, which is below the Xenos maximum texture size of 8192.
   uint32_t max_host_width_height = GetMaxHostTextureWidthHeight(key.dimension);
-  uint32_t max_host_depth_or_array_size =
-      GetMaxHostTextureDepthOrArraySize(key.dimension);
-  if (host_width > max_host_width_height ||
-      host_height > max_host_width_height ||
+  uint32_t max_host_depth_or_array_size = GetMaxHostTextureDepthOrArraySize(key.dimension);
+  if (host_width > max_host_width_height || host_height > max_host_width_height ||
       key.GetDepthOrArraySize() > max_host_depth_or_array_size) {
     return nullptr;
   }
@@ -667,8 +623,7 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
       return nullptr;
     }
     assert_true(new_texture->key() == key);
-    texture =
-        textures_.emplace(key, std::move(new_texture)).first->second.get();
+    texture = textures_.emplace(key, std::move(new_texture)).first->second.get();
   }
   COUNT_profile_set("gpu/texture_cache/textures", textures_.size());
   texture->LogAction("Created");
@@ -704,16 +659,14 @@ bool TextureCache::LoadTextureData(Texture& texture) {
   // shared memory to load the unscaled parts.
   // TODO(Triang3l): Load unscaled parts.
   if (base_outdated) {
-    if (!shared_memory().RequestRange(
-            texture_key.base_page << 12,
-            rex::align(texture.GetGuestBaseSize(), UINT32_C(16)))) {
+    if (!shared_memory().RequestRange(texture_key.base_page << 12,
+                                      rex::align(texture.GetGuestBaseSize(), UINT32_C(16)))) {
       return false;
     }
   }
   if (mips_outdated) {
-    if (!shared_memory().RequestRange(
-            texture_key.mip_page << 12,
-            rex::align(texture.GetGuestMipsSize(), UINT32_C(16)))) {
+    if (!shared_memory().RequestRange(texture_key.mip_page << 12,
+                                      rex::align(texture.GetGuestMipsSize(), UINT32_C(16)))) {
       return false;
     }
   }
@@ -722,19 +675,18 @@ bool TextureCache::LoadTextureData(Texture& texture) {
     // the shader, including any possible padding that hasn't yet been touched
     // by an actual resolve, but is still included in the texture size, so the
     // GPU won't be trying to access unmapped memory.
-    if (!EnsureScaledResolveMemoryCommitted(texture_key.base_page << 12,
-                                            texture.GetGuestBaseSize(), 4)) {
+    if (!EnsureScaledResolveMemoryCommitted(texture_key.base_page << 12, texture.GetGuestBaseSize(),
+                                            4)) {
       return false;
     }
-    if (!EnsureScaledResolveMemoryCommitted(texture_key.mip_page << 12,
-                                            texture.GetGuestMipsSize(), 4)) {
+    if (!EnsureScaledResolveMemoryCommitted(texture_key.mip_page << 12, texture.GetGuestMipsSize(),
+                                            4)) {
       return false;
     }
   }
 
   // Actually load the texture data.
-  if (!LoadTextureDataFromResidentMemoryImpl(texture, base_outdated,
-                                             mips_outdated)) {
+  if (!LoadTextureDataFromResidentMemoryImpl(texture, base_outdated, mips_outdated)) {
     return false;
   }
 
@@ -749,14 +701,12 @@ bool TextureCache::LoadTextureData(Texture& texture) {
   return true;
 }
 
-void TextureCache::BindingInfoFromFetchConstant(
-    const xenos::xe_gpu_texture_fetch_t& fetch, TextureKey& key_out,
-    uint8_t* swizzled_signs_out) {
+void TextureCache::BindingInfoFromFetchConstant(const xenos::xe_gpu_texture_fetch_t& fetch,
+                                                TextureKey& key_out, uint8_t* swizzled_signs_out) {
   // Reset the key and the signedness.
   key_out.MakeInvalid();
   if (swizzled_signs_out != nullptr) {
-    *swizzled_signs_out =
-        uint8_t(xenos::TextureSign::kUnsigned) * uint8_t(0b01010101);
+    *swizzled_signs_out = uint8_t(xenos::TextureSign::kUnsigned) * uint8_t(0b01010101);
   }
 
   switch (fetch.type) {
@@ -771,23 +721,21 @@ void TextureCache::BindingInfoFromFetchConstant(
           "has \"invalid\" type! This is incorrect behavior, but you can try "
           "bypassing this by launching Xenia with "
           "--gpu_allow_invalid_fetch_constants=true.",
-          fetch.dword_0, fetch.dword_1, fetch.dword_2, fetch.dword_3,
-          fetch.dword_4, fetch.dword_5);
+          fetch.dword_0, fetch.dword_1, fetch.dword_2, fetch.dword_3, fetch.dword_4, fetch.dword_5);
       return;
     default:
       REXGPU_WARN(
           "Texture fetch constant ({:08X} {:08X} {:08X} {:08X} {:08X} {:08X}) "
           "is completely invalid!",
-          fetch.dword_0, fetch.dword_1, fetch.dword_2, fetch.dword_3,
-          fetch.dword_4, fetch.dword_5);
+          fetch.dword_0, fetch.dword_1, fetch.dword_2, fetch.dword_3, fetch.dword_4, fetch.dword_5);
       return;
   }
 
   uint32_t width_minus_1, height_minus_1, depth_or_array_size_minus_1;
   uint32_t base_page, mip_page, mip_max_level;
-  texture_util::GetSubresourcesFromFetchConstant(
-      fetch, &width_minus_1, &height_minus_1, &depth_or_array_size_minus_1,
-      &base_page, &mip_page, nullptr, &mip_max_level);
+  texture_util::GetSubresourcesFromFetchConstant(fetch, &width_minus_1, &height_minus_1,
+                                                 &depth_or_array_size_minus_1, &base_page,
+                                                 &mip_page, nullptr, &mip_max_level);
   if (base_page == 0 && mip_page == 0) {
     // No texture data at all.
     return;
@@ -861,25 +809,20 @@ void TextureCache::ResetTextureBindings(bool from_destructor) {
   }
 }
 
-void TextureCache::UpdateTexturesTotalHostMemoryUsage(uint64_t add,
-                                                      uint64_t subtract) {
-  textures_total_host_memory_usage_ =
-      textures_total_host_memory_usage_ - subtract + add;
-  COUNT_profile_set("gpu/texture_cache/total_host_memory_usage_mb",
-                    uint32_t((textures_total_host_memory_usage_ +
-                              ((UINT32_C(1) << 20) - 1)) >>
-                             20));
+void TextureCache::UpdateTexturesTotalHostMemoryUsage(uint64_t add, uint64_t subtract) {
+  textures_total_host_memory_usage_ = textures_total_host_memory_usage_ - subtract + add;
+  COUNT_profile_set(
+      "gpu/texture_cache/total_host_memory_usage_mb",
+      uint32_t((textures_total_host_memory_usage_ + ((UINT32_C(1) << 20) - 1)) >> 20));
 }
 
-bool TextureCache::IsRangeScaledResolved(uint32_t start_unscaled,
-                                         uint32_t length_unscaled) {
+bool TextureCache::IsRangeScaledResolved(uint32_t start_unscaled, uint32_t length_unscaled) {
   if (!IsDrawResolutionScaled()) {
     return false;
   }
 
   start_unscaled = std::min(start_unscaled, SharedMemory::kBufferSize);
-  length_unscaled =
-      std::min(length_unscaled, SharedMemory::kBufferSize - start_unscaled);
+  length_unscaled = std::min(length_unscaled, SharedMemory::kBufferSize - start_unscaled);
   if (!length_unscaled) {
     return false;
   }
@@ -926,13 +869,13 @@ void TextureCache::ScaledResolveGlobalWatchCallbackThunk(
     const std::unique_lock<std::recursive_mutex>& global_lock, void* context,
     uint32_t address_first, uint32_t address_last, bool invalidated_by_gpu) {
   TextureCache* texture_cache = reinterpret_cast<TextureCache*>(context);
-  texture_cache->ScaledResolveGlobalWatchCallback(
-      global_lock, address_first, address_last, invalidated_by_gpu);
+  texture_cache->ScaledResolveGlobalWatchCallback(global_lock, address_first, address_last,
+                                                  invalidated_by_gpu);
 }
 
 void TextureCache::ScaledResolveGlobalWatchCallback(
-    const std::unique_lock<std::recursive_mutex>& global_lock,
-    uint32_t address_first, uint32_t address_last, bool invalidated_by_gpu) {
+    const std::unique_lock<std::recursive_mutex>& global_lock, uint32_t address_first,
+    uint32_t address_last, bool invalidated_by_gpu) {
   assert_true(IsDrawResolutionScaled());
   if (invalidated_by_gpu) {
     // Resolves themselves do exactly the opposite of what this should do.
@@ -949,23 +892,19 @@ void TextureCache::ScaledResolveGlobalWatchCallback(
   for (uint32_t i = resolve_l2_block_first; i <= resolve_l2_block_last; ++i) {
     uint64_t resolve_l2_block = scaled_resolve_pages_l2_[i];
     uint32_t resolve_block_relative_index;
-    while (
-        rex::bit_scan_forward(resolve_l2_block, &resolve_block_relative_index)) {
+    while (rex::bit_scan_forward(resolve_l2_block, &resolve_block_relative_index)) {
       resolve_l2_block &= ~(UINT64_C(1) << resolve_block_relative_index);
       uint32_t resolve_block_index = (i << 6) + resolve_block_relative_index;
       uint32_t resolve_keep_bits = 0;
       if (resolve_block_index == resolve_block_first) {
         resolve_keep_bits |= (UINT32_C(1) << (resolve_page_first & 31)) - 1;
       }
-      if (resolve_block_index == resolve_block_last &&
-          (resolve_page_last & 31) != 31) {
-        resolve_keep_bits |=
-            ~((UINT32_C(1) << ((resolve_page_last & 31) + 1)) - 1);
+      if (resolve_block_index == resolve_block_last && (resolve_page_last & 31) != 31) {
+        resolve_keep_bits |= ~((UINT32_C(1) << ((resolve_page_last & 31) + 1)) - 1);
       }
       scaled_resolve_pages_[resolve_block_index] &= resolve_keep_bits;
       if (scaled_resolve_pages_[resolve_block_index] == 0) {
-        scaled_resolve_pages_l2_[i] &=
-            ~(UINT64_C(1) << resolve_block_relative_index);
+        scaled_resolve_pages_l2_[i] &= ~(UINT64_C(1) << resolve_block_relative_index);
       }
     }
   }

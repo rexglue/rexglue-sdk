@@ -10,7 +10,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <cstddef>
 #include <cstring>
 #include <functional>
@@ -18,16 +17,15 @@
 #include <unordered_map>
 #include <utility>
 
-#include <rex/hash.h>
-#include <rex/platform.h>
-#include <rex/xxhash.h>
+#include <rex/graphics/pipeline/shader/spirv_translator.h>
 #include <rex/graphics/primitive_processor.h>
 #include <rex/graphics/register_file.h>
 #include <rex/graphics/registers.h>
-#include <rex/graphics/pipeline/shader/spirv_translator.h>
 #include <rex/graphics/vulkan/render_target_cache.h>
 #include <rex/graphics/vulkan/shader.h>
 #include <rex/graphics/xenos.h>
+#include <rex/hash.h>
+#include <rex/platform.h>
 #include <rex/ui/vulkan/api.h>
 
 namespace rex::graphics::vulkan {
@@ -49,8 +47,7 @@ class VulkanPipelineCache {
     PipelineLayoutProvider() = default;
   };
 
-  VulkanPipelineCache(VulkanCommandProcessor& command_processor,
-                      const RegisterFile& register_file,
+  VulkanPipelineCache(VulkanCommandProcessor& command_processor, const RegisterFile& register_file,
                       VulkanRenderTargetCache& render_target_cache,
                       VkShaderStageFlags guest_shader_vertex_stages);
   ~VulkanPipelineCache();
@@ -58,35 +55,30 @@ class VulkanPipelineCache {
   bool Initialize();
   void Shutdown();
 
-  VulkanShader* LoadShader(xenos::ShaderType shader_type,
-                           const uint32_t* host_address, uint32_t dword_count);
+  VulkanShader* LoadShader(xenos::ShaderType shader_type, const uint32_t* host_address,
+                           uint32_t dword_count);
   // Analyze shader microcode on the translator thread.
-  void AnalyzeShaderUcode(Shader& shader) {
-    shader.AnalyzeUcode(ucode_disasm_buffer_);
-  }
+  void AnalyzeShaderUcode(Shader& shader) { shader.AnalyzeUcode(ucode_disasm_buffer_); }
 
   // Retrieves the shader modification for the current state. The shader must
   // have microcode analyzed.
   SpirvShaderTranslator::Modification GetCurrentVertexShaderModification(
-      const Shader& shader,
-      Shader::HostVertexShaderType host_vertex_shader_type,
+      const Shader& shader, Shader::HostVertexShaderType host_vertex_shader_type,
       uint32_t interpolator_mask, bool ps_param_gen_used) const;
   SpirvShaderTranslator::Modification GetCurrentPixelShaderModification(
-      const Shader& shader, uint32_t interpolator_mask,
-      uint32_t param_gen_pos) const;
+      const Shader& shader, uint32_t interpolator_mask, uint32_t param_gen_pos) const;
 
   bool EnsureShadersTranslated(VulkanShader::VulkanTranslation* vertex_shader,
                                VulkanShader::VulkanTranslation* pixel_shader);
   // TODO(Triang3l): Return a deferred creation handle.
-  bool ConfigurePipeline(
-      VulkanShader::VulkanTranslation* vertex_shader,
-      VulkanShader::VulkanTranslation* pixel_shader,
-      const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
-      reg::RB_DEPTHCONTROL normalized_depth_control,
-      uint32_t normalized_color_mask,
-      VulkanRenderTargetCache::RenderPassKey render_pass_key,
-      VkPipeline& pipeline_out,
-      const PipelineLayoutProvider*& pipeline_layout_out);
+  bool ConfigurePipeline(VulkanShader::VulkanTranslation* vertex_shader,
+                         VulkanShader::VulkanTranslation* pixel_shader,
+                         const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
+                         reg::RB_DEPTHCONTROL normalized_depth_control,
+                         uint32_t normalized_color_mask,
+                         VulkanRenderTargetCache::RenderPassKey render_pass_key,
+                         VkPipeline& pipeline_out,
+                         const PipelineLayoutProvider*& pipeline_layout_out);
 
  private:
   enum class PipelineGeometryShader : uint32_t {
@@ -179,7 +171,9 @@ class VulkanPipelineCache {
     PipelineRenderTarget render_targets[xenos::kMaxColorRenderTargets];
 
     // Including all the padding, for a stable hash.
-    PipelineDescription() { Reset(); }
+    PipelineDescription() {
+      Reset();
+    }
     PipelineDescription(const PipelineDescription& description) {
       std::memcpy(this, &description, sizeof(*this));
     }
@@ -190,8 +184,12 @@ class VulkanPipelineCache {
     bool operator==(const PipelineDescription& description) const {
       return std::memcmp(this, &description, sizeof(*this)) == 0;
     }
-    void Reset() { std::memset(this, 0, sizeof(*this)); }
-    uint64_t GetHash() const { return XXH3_64bits(this, sizeof(*this)); }
+    void Reset() {
+      std::memset(this, 0, sizeof(*this));
+    }
+    uint64_t GetHash() const {
+      return XXH3_64bits(this, sizeof(*this));
+    }
     struct Hasher {
       size_t operator()(const PipelineDescription& description) const {
         return size_t(description.GetHash());
@@ -237,45 +235,37 @@ class VulkanPipelineCache {
         return std::hash<uint32_t>{}(key.key);
       }
     };
-    bool operator==(const GeometryShaderKey& other_key) const {
-      return key == other_key.key;
-    }
-    bool operator!=(const GeometryShaderKey& other_key) const {
-      return !(*this == other_key);
-    }
+    bool operator==(const GeometryShaderKey& other_key) const { return key == other_key.key; }
+    bool operator!=(const GeometryShaderKey& other_key) const { return !(*this == other_key); }
   };
 
   // Can be called from multiple threads.
   bool TranslateAnalyzedShader(SpirvShaderTranslator& translator,
                                VulkanShader::VulkanTranslation& translation);
 
-  void WritePipelineRenderTargetDescription(
-      reg::RB_BLENDCONTROL blend_control, uint32_t write_mask,
-      PipelineRenderTarget& render_target_out) const;
+  void WritePipelineRenderTargetDescription(reg::RB_BLENDCONTROL blend_control, uint32_t write_mask,
+                                            PipelineRenderTarget& render_target_out) const;
   bool GetCurrentStateDescription(
       const VulkanShader::VulkanTranslation* vertex_shader,
       const VulkanShader::VulkanTranslation* pixel_shader,
       const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
-      reg::RB_DEPTHCONTROL normalized_depth_control,
-      uint32_t normalized_color_mask,
+      reg::RB_DEPTHCONTROL normalized_depth_control, uint32_t normalized_color_mask,
       VulkanRenderTargetCache::RenderPassKey render_pass_key,
       PipelineDescription& description_out) const;
 
   // Whether the pipeline for the given description is supported by the device.
   bool ArePipelineRequirementsMet(const PipelineDescription& description) const;
 
-  static bool GetGeometryShaderKey(
-      PipelineGeometryShader geometry_shader_type,
-      SpirvShaderTranslator::Modification vertex_shader_modification,
-      SpirvShaderTranslator::Modification pixel_shader_modification,
-      GeometryShaderKey& key_out);
+  static bool GetGeometryShaderKey(PipelineGeometryShader geometry_shader_type,
+                                   SpirvShaderTranslator::Modification vertex_shader_modification,
+                                   SpirvShaderTranslator::Modification pixel_shader_modification,
+                                   GeometryShaderKey& key_out);
   VkShaderModule GetGeometryShader(GeometryShaderKey key);
 
   // Can be called from creation threads - all needed data must be fully set up
   // at the point of the call: shaders must be translated, pipeline layout and
   // render pass objects must be available.
-  bool EnsurePipelineCreated(
-      const PipelineCreationArguments& creation_arguments);
+  bool EnsurePipelineCreated(const PipelineCreationArguments& creation_arguments);
 
   VulkanCommandProcessor& command_processor_;
   const RegisterFile& register_file_;
@@ -298,32 +288,25 @@ class VulkanPipelineCache {
   // Map of texture binding layouts used by shaders, for obtaining UIDs. Keys
   // are XXH3 hashes of layouts, values need manual collision resolution using
   // layout_vector_offset:layout_length of texture_binding_layouts_.
-  std::unordered_multimap<uint64_t, LayoutUID,
-                          rex::IdentityHasher<uint64_t>>
+  std::unordered_multimap<uint64_t, LayoutUID, rex::IdentityHasher<uint64_t>>
       texture_binding_layout_map_;
 
   // Ucode hash -> shader.
-  std::unordered_map<uint64_t, VulkanShader*,
-                     rex::IdentityHasher<uint64_t>>
-      shaders_;
+  std::unordered_map<uint64_t, VulkanShader*, rex::IdentityHasher<uint64_t>> shaders_;
 
   // Geometry shaders for Xenos primitive types not supported by Vulkan.
   // Stores VK_NULL_HANDLE if failed to create.
-  std::unordered_map<GeometryShaderKey, VkShaderModule,
-                     GeometryShaderKey::Hasher>
+  std::unordered_map<GeometryShaderKey, VkShaderModule, GeometryShaderKey::Hasher>
       geometry_shaders_;
 
   // Empty depth-only pixel shader for writing to depth buffer using fragment
   // shader interlock when no Xenos pixel shader provided.
   VkShaderModule depth_only_fragment_shader_ = VK_NULL_HANDLE;
 
-  std::unordered_map<PipelineDescription, Pipeline, PipelineDescription::Hasher>
-      pipelines_;
+  std::unordered_map<PipelineDescription, Pipeline, PipelineDescription::Hasher> pipelines_;
 
   // Previously used pipeline, to avoid lookups if the state wasn't changed.
-  const std::pair<const PipelineDescription, Pipeline>* last_pipeline_ =
-      nullptr;
+  const std::pair<const PipelineDescription, Pipeline>* last_pipeline_ = nullptr;
 };
 
 }  // namespace rex::graphics::vulkan
-

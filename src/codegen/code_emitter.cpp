@@ -13,16 +13,17 @@
 namespace rex::codegen {
 
 void CodeEmitter::ensureCsrState(CsrState required) {
-    if (csrState_ == required) return;
+  if (csrState_ == required)
+    return;
 
-    // Emit CSR mode change if needed
-    if (required == CsrState::Vmx) {
-        line("PPC_SET_FLUSH_MODE(true);");
-    } else if (required == CsrState::Fpu) {
-        line("PPC_SET_FLUSH_MODE(false);");
-    }
+  // Emit CSR mode change if needed
+  if (required == CsrState::Vmx) {
+    line("PPC_SET_FLUSH_MODE(true);");
+  } else if (required == CsrState::Fpu) {
+    line("PPC_SET_FLUSH_MODE(false);");
+  }
 
-    csrState_ = required;
+  csrState_ = required;
 }
 
-} // namespace rex::codegen
+}  // namespace rex::codegen

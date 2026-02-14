@@ -11,7 +11,6 @@
 
 #pragma once
 
-
 #include <memory>
 
 #include <rex/ui/d3d12/d3d12_api.h>
@@ -27,17 +26,14 @@ class D3D12Provider : public GraphicsProvider {
 
   static std::unique_ptr<D3D12Provider> Create();
 
-  std::unique_ptr<Presenter> CreatePresenter(
-      Presenter::HostGpuLossCallback host_gpu_loss_callback =
-          Presenter::FatalErrorHostGpuLossCallback) override;
+  std::unique_ptr<Presenter> CreatePresenter(Presenter::HostGpuLossCallback host_gpu_loss_callback =
+                                                 Presenter::FatalErrorHostGpuLossCallback) override;
 
   std::unique_ptr<ImmediateDrawer> CreateImmediateDrawer() override;
 
   IDXGIFactory2* GetDXGIFactory() const { return dxgi_factory_; }
   // nullptr if PIX not attached.
-  IDXGraphicsAnalysis* GetGraphicsAnalysis() const {
-    return graphics_analysis_;
-  }
+  IDXGraphicsAnalysis* GetGraphicsAnalysis() const { return graphics_analysis_; }
   ID3D12Device* GetDevice() const { return device_; }
   ID3D12CommandQueue* GetDirectQueue() const { return direct_queue_; }
 
@@ -57,8 +53,7 @@ class D3D12Provider : public GraphicsProvider {
     return GetDescriptorSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
   }
   template <typename T>
-  T OffsetDescriptor(D3D12_DESCRIPTOR_HEAP_TYPE type, T start,
-                     uint32_t index) const {
+  T OffsetDescriptor(D3D12_DESCRIPTOR_HEAP_TYPE type, T start, uint32_t index) const {
     start.ptr += index * GetDescriptorSize(type);
     return start;
   }
@@ -87,57 +82,38 @@ class D3D12Provider : public GraphicsProvider {
   GpuVendorID GetAdapterVendorID() const { return adapter_vendor_id_; }
 
   // Device features.
-  D3D12_HEAP_FLAGS GetHeapFlagCreateNotZeroed() const {
-    return heap_flag_create_not_zeroed_;
-  }
+  D3D12_HEAP_FLAGS GetHeapFlagCreateNotZeroed() const { return heap_flag_create_not_zeroed_; }
   D3D12_PROGRAMMABLE_SAMPLE_POSITIONS_TIER
-  GetProgrammableSamplePositionsTier() const {
-    return programmable_sample_positions_tier_;
-  }
+  GetProgrammableSamplePositionsTier() const { return programmable_sample_positions_tier_; }
   bool IsPSSpecifiedStencilReferenceSupported() const {
     return ps_specified_stencil_reference_supported_;
   }
-  bool AreRasterizerOrderedViewsSupported() const {
-    return rasterizer_ordered_views_supported_;
-  }
-  D3D12_RESOURCE_BINDING_TIER GetResourceBindingTier() const {
-    return resource_binding_tier_;
-  }
-  D3D12_TILED_RESOURCES_TIER GetTiledResourcesTier() const {
-    return tiled_resources_tier_;
-  }
-  bool AreUnalignedBlockTexturesSupported() const {
-    return unaligned_block_textures_supported_;
-  }
-  uint32_t GetVirtualAddressBitsPerResource() const {
-    return virtual_address_bits_per_resource_;
-  }
+  bool AreRasterizerOrderedViewsSupported() const { return rasterizer_ordered_views_supported_; }
+  D3D12_RESOURCE_BINDING_TIER GetResourceBindingTier() const { return resource_binding_tier_; }
+  D3D12_TILED_RESOURCES_TIER GetTiledResourcesTier() const { return tiled_resources_tier_; }
+  bool AreUnalignedBlockTexturesSupported() const { return unaligned_block_textures_supported_; }
+  uint32_t GetVirtualAddressBitsPerResource() const { return virtual_address_bits_per_resource_; }
 
   // Proxies for DirectX functions since they are loaded dynamically.
   HRESULT SerializeRootSignature(const D3D12_ROOT_SIGNATURE_DESC* desc,
-                                 D3D_ROOT_SIGNATURE_VERSION version,
-                                 ID3DBlob** blob_out,
+                                 D3D_ROOT_SIGNATURE_VERSION version, ID3DBlob** blob_out,
                                  ID3DBlob** error_blob_out) const {
-    return pfn_d3d12_serialize_root_signature_(desc, version, blob_out,
-                                               error_blob_out);
+    return pfn_d3d12_serialize_root_signature_(desc, version, blob_out, error_blob_out);
   }
-  HRESULT Disassemble(const void* src_data, size_t src_data_size, UINT flags,
-                      const char* comments, ID3DBlob** disassembly_out) const {
+  HRESULT Disassemble(const void* src_data, size_t src_data_size, UINT flags, const char* comments,
+                      ID3DBlob** disassembly_out) const {
     if (!pfn_d3d_disassemble_) {
       return E_NOINTERFACE;
     }
-    return pfn_d3d_disassemble_(src_data, src_data_size, flags, comments,
-                                disassembly_out);
+    return pfn_d3d_disassemble_(src_data, src_data_size, flags, comments, disassembly_out);
   }
-  HRESULT DxbcConverterCreateInstance(const CLSID& rclsid, const IID& riid,
-                                      void** ppv) const {
+  HRESULT DxbcConverterCreateInstance(const CLSID& rclsid, const IID& riid, void** ppv) const {
     if (!pfn_dxilconv_dxc_create_instance_) {
       return E_NOINTERFACE;
     }
     return pfn_dxilconv_dxc_create_instance_(rclsid, riid, ppv);
   }
-  HRESULT DxcCreateInstance(const CLSID& rclsid, const IID& riid,
-                            void** ppv) const {
+  HRESULT DxcCreateInstance(const CLSID& rclsid, const IID& riid, void** ppv) const {
     if (!pfn_dxcompiler_dxc_create_instance_) {
       return E_NOINTERFACE;
     }
@@ -152,8 +128,8 @@ class D3D12Provider : public GraphicsProvider {
 
   typedef HRESULT(WINAPI* PFNCreateDXGIFactory2)(UINT Flags, REFIID riid,
                                                  _COM_Outptr_ void** ppFactory);
-  typedef HRESULT(WINAPI* PFNDXGIGetDebugInterface1)(
-      UINT Flags, REFIID riid, _COM_Outptr_ void** pDebug);
+  typedef HRESULT(WINAPI* PFNDXGIGetDebugInterface1)(UINT Flags, REFIID riid,
+                                                     _COM_Outptr_ void** pDebug);
 
   HMODULE library_dxgi_ = nullptr;
   PFNCreateDXGIFactory2 pfn_create_dxgi_factory2_;
@@ -194,4 +170,3 @@ class D3D12Provider : public GraphicsProvider {
 };
 
 }  // namespace rex::ui::d3d12
-

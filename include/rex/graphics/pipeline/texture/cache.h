@@ -10,7 +10,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <array>
 #include <atomic>
 #include <cstdint>
@@ -19,12 +18,12 @@
 #include <unordered_map>
 
 #include <rex/assert.h>
-#include <rex/hash.h>
-#include <rex/thread/mutex.h>
+#include <rex/graphics/pipeline/texture/util.h>
 #include <rex/graphics/register_file.h>
 #include <rex/graphics/shared_memory.h>
-#include <rex/graphics/pipeline/texture/util.h>
 #include <rex/graphics/xenos.h>
+#include <rex/hash.h>
+#include <rex/thread/mutex.h>
 
 namespace rex::graphics {
 
@@ -83,14 +82,12 @@ class TextureCache {
   void MarkRangeAsResolved(uint32_t start_unscaled, uint32_t length_unscaled);
   // Ensures the memory backing the range in the scaled resolve address space is
   // allocated and returns whether it is.
-  virtual bool EnsureScaledResolveMemoryCommitted(
-      uint32_t start_unscaled, uint32_t length_unscaled,
-      uint32_t length_scaled_alignment_log2 = 0) {
+  virtual bool EnsureScaledResolveMemoryCommitted(uint32_t start_unscaled, uint32_t length_unscaled,
+                                                  uint32_t length_scaled_alignment_log2 = 0) {
     return false;
   }
 
-  static uint32_t GuestToHostSwizzle(uint32_t guest_swizzle,
-                                     uint32_t host_format_swizzle);
+  static uint32_t GuestToHostSwizzle(uint32_t guest_swizzle, uint32_t host_format_swizzle);
 
   void TextureFetchConstantWritten(uint32_t index) {
     texture_bindings_in_sync_ &= ~(UINT32_C(1) << index);
@@ -101,24 +98,20 @@ class TextureCache {
   // "ActiveTexture" means as of the latest RequestTextures call.
 
   uint32_t GetActiveTextureHostSwizzle(uint32_t fetch_constant_index) const {
-    const TextureBinding* binding =
-        GetValidTextureBinding(fetch_constant_index);
+    const TextureBinding* binding = GetValidTextureBinding(fetch_constant_index);
     return binding ? binding->host_swizzle : xenos::XE_GPU_TEXTURE_SWIZZLE_0000;
   }
   uint8_t GetActiveTextureSwizzledSigns(uint32_t fetch_constant_index) const {
-    const TextureBinding* binding =
-        GetValidTextureBinding(fetch_constant_index);
+    const TextureBinding* binding = GetValidTextureBinding(fetch_constant_index);
     return binding ? binding->swizzled_signs : kSwizzledSignsUnsigned;
   }
   bool IsActiveTextureResolutionScaled(uint32_t fetch_constant_index) const {
-    const TextureBinding* binding =
-        GetValidTextureBinding(fetch_constant_index);
+    const TextureBinding* binding = GetValidTextureBinding(fetch_constant_index);
     if (!binding) {
       return false;
     }
     return (binding->texture && binding->texture->key().scaled_resolve) ||
-           (binding->texture_signed &&
-            binding->texture_signed->key().scaled_resolve);
+           (binding->texture_signed && binding->texture_signed->key().scaled_resolve);
   }
 
  protected:
@@ -155,9 +148,7 @@ class TextureCache {
     uint32_t is_valid : 1;  // 98
 
     TextureKey() { MakeInvalid(); }
-    TextureKey(const TextureKey& key) {
-      std::memcpy(this, &key, sizeof(*this));
-    }
+    TextureKey(const TextureKey& key) { std::memcpy(this, &key, sizeof(*this)); }
     TextureKey& operator=(const TextureKey& key) {
       std::memcpy(this, &key, sizeof(*this));
       return *this;
@@ -168,27 +159,21 @@ class TextureCache {
     }
 
     using Hasher = rex::XXHasher<TextureKey>;
-    bool operator==(const TextureKey& key) const {
-      return !std::memcmp(this, &key, sizeof(*this));
-    }
+    bool operator==(const TextureKey& key) const { return !std::memcmp(this, &key, sizeof(*this)); }
     bool operator!=(const TextureKey& key) const { return !(*this == key); }
 
     uint32_t GetWidth() const { return width_minus_1 + 1; }
     uint32_t GetHeight() const { return height_minus_1 + 1; }
-    uint32_t GetDepthOrArraySize() const {
-      return depth_or_array_size_minus_1 + 1;
-    }
+    uint32_t GetDepthOrArraySize() const { return depth_or_array_size_minus_1 + 1; }
 
     texture_util::TextureGuestLayout GetGuestLayout() const {
-      return texture_util::GetGuestTextureLayout(
-          dimension, pitch, GetWidth(), GetHeight(), GetDepthOrArraySize(),
-          tiled, format, packed_mips, base_page != 0, mip_max_level);
+      return texture_util::GetGuestTextureLayout(dimension, pitch, GetWidth(), GetHeight(),
+                                                 GetDepthOrArraySize(), tiled, format, packed_mips,
+                                                 base_page != 0, mip_max_level);
     }
 
     static const char* GetLogDimensionName(xenos::DataDimension dimension);
-    const char* GetLogDimensionName() const {
-      return GetLogDimensionName(dimension);
-    }
+    const char* GetLogDimensionName() const { return GetLogDimensionName(dimension); }
     void LogAction(const char* action) const;
   };
 
@@ -202,36 +187,24 @@ class TextureCache {
 
     const TextureKey& key() const { return key_; }
 
-    const texture_util::TextureGuestLayout& guest_layout() const {
-      return guest_layout_;
-    }
-    uint32_t GetGuestBaseSize() const {
-      return guest_layout().base.level_data_extent_bytes;
-    }
-    uint32_t GetGuestMipsSize() const {
-      return guest_layout().mips_total_extent_bytes;
-    }
+    const texture_util::TextureGuestLayout& guest_layout() const { return guest_layout_; }
+    uint32_t GetGuestBaseSize() const { return guest_layout().base.level_data_extent_bytes; }
+    uint32_t GetGuestMipsSize() const { return guest_layout().mips_total_extent_bytes; }
 
     uint64_t GetHostMemoryUsage() const { return host_memory_usage_; }
 
-    uint64_t last_usage_submission_index() const {
-      return last_usage_submission_index_;
-    }
+    uint64_t last_usage_submission_index() const { return last_usage_submission_index_; }
     uint64_t last_usage_time() const { return last_usage_time_; }
 
-    bool base_outdated(
-        const std::unique_lock<std::recursive_mutex>& global_lock) const {
+    bool base_outdated(const std::unique_lock<std::recursive_mutex>& global_lock) const {
       return base_outdated_;
     }
-    bool mips_outdated(
-        const std::unique_lock<std::recursive_mutex>& global_lock) const {
+    bool mips_outdated(const std::unique_lock<std::recursive_mutex>& global_lock) const {
       return mips_outdated_;
     }
-    void MakeUpToDateAndWatch(
-        const std::unique_lock<std::recursive_mutex>& global_lock);
+    void MakeUpToDateAndWatch(const std::unique_lock<std::recursive_mutex>& global_lock);
 
-    void WatchCallback(
-        const std::unique_lock<std::recursive_mutex>& global_lock, bool is_mip);
+    void WatchCallback(const std::unique_lock<std::recursive_mutex>& global_lock, bool is_mip);
 
     // For LRU caching - updates the last usage frame and moves the texture to
     // the end of the usage queue. Must be called any time the texture is
@@ -245,8 +218,7 @@ class TextureCache {
     explicit Texture(TextureCache& texture_cache, const TextureKey& key);
 
     void SetHostMemoryUsage(uint64_t new_host_memory_usage) {
-      texture_cache_.UpdateTexturesTotalHostMemoryUsage(new_host_memory_usage,
-                                                        host_memory_usage_);
+      texture_cache_.UpdateTexturesTotalHostMemoryUsage(new_host_memory_usage, host_memory_usage_);
       host_memory_usage_ = new_host_memory_usage;
     }
 
@@ -470,10 +442,8 @@ class TextureCache {
     }
   };
 
-  explicit TextureCache(const RegisterFile& register_file,
-                        SharedMemory& shared_memory,
-                        uint32_t draw_resolution_scale_x,
-                        uint32_t draw_resolution_scale_y);
+  explicit TextureCache(const RegisterFile& register_file, SharedMemory& shared_memory,
+                        uint32_t draw_resolution_scale_x, uint32_t draw_resolution_scale_y);
 
   const RegisterFile& register_file() const { return register_file_; }
   SharedMemory& shared_memory() const { return shared_memory_; }
@@ -487,15 +457,11 @@ class TextureCache {
   // Whether the signed version of the texture has a different representation on
   // the host than its unsigned version (for example, if it's a fixed-point
   // texture emulated with a larger host pixel format).
-  virtual bool IsSignedVersionSeparateForFormat(TextureKey key) const {
-    return false;
-  }
+  virtual bool IsSignedVersionSeparateForFormat(TextureKey key) const { return false; }
   // Parameters like whether the texture is tiled and its dimensions are checked
   // externally, the implementation should take only format-related parameters
   // such as the format itself and the signedness into account.
-  virtual bool IsScaledResolveSupportedForFormat(TextureKey key) const {
-    return false;
-  }
+  virtual bool IsScaledResolveSupportedForFormat(TextureKey key) const { return false; }
   // For formats with less than 4 components, implementations normally should
   // replicate the last component into the non-existent ones, similar to what is
   // done for unused components of operands in shaders by Microsoft's Xbox 360
@@ -507,10 +473,8 @@ class TextureCache {
   // TODO(Triang3l): Find out the correct contents of unused texture components.
   virtual uint32_t GetHostFormatSwizzle(TextureKey key) const = 0;
 
-  virtual uint32_t GetMaxHostTextureWidthHeight(
-      xenos::DataDimension dimension) const = 0;
-  virtual uint32_t GetMaxHostTextureDepthOrArraySize(
-      xenos::DataDimension dimension) const = 0;
+  virtual uint32_t GetMaxHostTextureWidthHeight(xenos::DataDimension dimension) const = 0;
+  virtual uint32_t GetMaxHostTextureDepthOrArraySize(xenos::DataDimension dimension) const = 0;
 
   // The texture must be created exactly with this key (if the implementation
   // supports the texture with this key, otherwise, or in case of a runtime
@@ -522,8 +486,7 @@ class TextureCache {
   // should be made.
   Texture* FindOrCreateTexture(TextureKey key);
 
-  static const LoadShaderInfo& GetLoadShaderInfo(
-      LoadShaderIndex load_shader_index) {
+  static const LoadShaderInfo& GetLoadShaderInfo(LoadShaderIndex load_shader_index) {
     assert_true(load_shader_index < kLoadShaderCount);
     return load_shader_info_[load_shader_index];
   }
@@ -532,24 +495,21 @@ class TextureCache {
   // shared memory or the scaled resolve memory. The shared memory management is
   // done outside this function, the implementation just needs to load the data
   // into the texture object.
-  virtual bool LoadTextureDataFromResidentMemoryImpl(Texture& texture,
-                                                     bool load_base,
+  virtual bool LoadTextureDataFromResidentMemoryImpl(Texture& texture, bool load_base,
                                                      bool load_mips) = 0;
 
   // Converts a texture fetch constant to a texture key, normalizing and
   // validating the values, or creating an invalid key, and also gets the
   // post-guest-swizzle signedness.
-  static void BindingInfoFromFetchConstant(
-      const xenos::xe_gpu_texture_fetch_t& fetch, TextureKey& key_out,
-      uint8_t* swizzled_signs_out);
+  static void BindingInfoFromFetchConstant(const xenos::xe_gpu_texture_fetch_t& fetch,
+                                           TextureKey& key_out, uint8_t* swizzled_signs_out);
 
   // Makes all texture bindings invalid. Also requesting textures after calling
   // this will cause another attempt to create a texture or to untile it if
   // there was an error.
   void ResetTextureBindings(bool from_destructor = false);
 
-  const TextureBinding* GetValidTextureBinding(
-      uint32_t fetch_constant_index) const {
+  const TextureBinding* GetValidTextureBinding(uint32_t fetch_constant_index) const {
     const TextureBinding& binding = texture_bindings_[fetch_constant_index];
     return binding.key.is_valid ? &binding : nullptr;
   }
@@ -561,9 +521,8 @@ class TextureCache {
   void UpdateTexturesTotalHostMemoryUsage(uint64_t add, uint64_t subtract);
 
   // Shared memory callback for texture data invalidation.
-  static void WatchCallback(
-      const std::unique_lock<std::recursive_mutex>& global_lock, void* context,
-      void* data, uint64_t argument, bool invalidated_by_gpu);
+  static void WatchCallback(const std::unique_lock<std::recursive_mutex>& global_lock,
+                            void* context, void* data, uint64_t argument, bool invalidated_by_gpu);
 
   // Checks if there are any pages that contain scaled resolve data within the
   // range.
@@ -573,9 +532,9 @@ class TextureCache {
   static void ScaledResolveGlobalWatchCallbackThunk(
       const std::unique_lock<std::recursive_mutex>& global_lock, void* context,
       uint32_t address_first, uint32_t address_last, bool invalidated_by_gpu);
-  void ScaledResolveGlobalWatchCallback(
-      const std::unique_lock<std::recursive_mutex>& global_lock,
-      uint32_t address_first, uint32_t address_last, bool invalidated_by_gpu);
+  void ScaledResolveGlobalWatchCallback(const std::unique_lock<std::recursive_mutex>& global_lock,
+                                        uint32_t address_first, uint32_t address_last,
+                                        bool invalidated_by_gpu);
 
   const RegisterFile& register_file_;
   SharedMemory& shared_memory_;
@@ -600,8 +559,7 @@ class TextureCache {
   uint64_t current_submission_index_ = 0;
   uint64_t current_submission_time_ = 0;
 
-  std::unordered_map<TextureKey, std::unique_ptr<Texture>, TextureKey::Hasher>
-      textures_;
+  std::unordered_map<TextureKey, std::unique_ptr<Texture>, TextureKey::Hasher> textures_;
 
   uint64_t textures_total_host_memory_usage_ = 0;
 
@@ -613,12 +571,10 @@ class TextureCache {
   // constants have been changed.
   std::atomic<bool> texture_became_outdated_{false};
 
-  std::array<TextureBinding, xenos::kTextureFetchConstantCount>
-      texture_bindings_;
+  std::array<TextureBinding, xenos::kTextureFetchConstantCount> texture_bindings_;
   // Bit vector with bits reset on fetch constant writes to avoid parsing fetch
   // constants again and again.
   uint32_t texture_bindings_in_sync_ = 0;
 };
 
 }  // namespace rex::graphics
-

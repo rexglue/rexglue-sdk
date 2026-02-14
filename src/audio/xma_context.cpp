@@ -9,18 +9,17 @@
 * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
 */
 
-#include <rex/audio/xma/context.h>
-
 #include <algorithm>
 #include <cstring>
 
+#include <rex/audio/xma/context.h>
 #include <rex/audio/xma/decoder.h>
 #include <rex/audio/xma/helpers.h>
-#include <rex/stream.h>
+#include <rex/dbg.h>
 #include <rex/logging.h>
-#include <rex/platform.h>
-#include <rex/profiling.h>
 #include <rex/memory/ring_buffer.h>
+#include <rex/platform.h>
+#include <rex/stream.h>
 
 extern "C" {
 #if REX_COMPILER_MSVC
@@ -115,11 +114,11 @@ void XmaContext::Enable() {
   XMA_CONTEXT_DATA data(context_ptr);
 
   REXAPU_TRACE("XmaContext: kicking context {} (buffer {} {}/{} bits)", id(),
-           static_cast<uint32_t>(data.current_buffer),
-           static_cast<uint32_t>(data.input_buffer_read_offset),
-           (data.current_buffer == 0 ? data.input_buffer_0_packet_count
-                                     : data.input_buffer_1_packet_count) *
-               kBitsPerPacket);
+               static_cast<uint32_t>(data.current_buffer),
+               static_cast<uint32_t>(data.input_buffer_read_offset),
+               (data.current_buffer == 0 ? data.input_buffer_0_packet_count
+                                         : data.input_buffer_1_packet_count) *
+                   kBitsPerPacket);
 
   data.Store(context_ptr);
 
@@ -181,15 +180,13 @@ void XmaContext::SwapInputBuffer(XMA_CONTEXT_DATA* data) {
   data->input_buffer_read_offset = 0;
 }
 
-bool XmaContext::TrySetupNextLoop(XMA_CONTEXT_DATA* data,
-                                  bool ignore_input_buffer_offset) {
+bool XmaContext::TrySetupNextLoop(XMA_CONTEXT_DATA* data, bool ignore_input_buffer_offset) {
   // Setup the input buffer offset if next loop exists.
   // TODO(Pseudo-Kernel): Need to handle loop in the following cases.
   // 1. loop_start == loop_end == 0
   // 2. loop_start > loop_end && loop_count > 0
   if (data->loop_count > 0 && data->loop_start < data->loop_end &&
-      (ignore_input_buffer_offset ||
-       data->input_buffer_read_offset >= data->loop_end)) {
+      (ignore_input_buffer_offset || data->input_buffer_read_offset >= data->loop_end)) {
     // Loop back to the beginning.
     data->input_buffer_read_offset = data->loop_start;
     if (data->loop_count < 255) {
@@ -229,10 +226,8 @@ int XmaContext::GetSampleRate(int id) {
   return 0;
 }
 
-bool XmaContext::ValidFrameOffset(uint8_t* block, size_t size_bytes,
-                                  size_t frame_offset_bits) {
-  uint32_t packet_num =
-      GetFramePacketNumber(block, size_bytes, frame_offset_bits);
+bool XmaContext::ValidFrameOffset(uint8_t* block, size_t size_bytes, size_t frame_offset_bits) {
+  uint32_t packet_num = GetFramePacketNumber(block, size_bytes, frame_offset_bits);
   if (packet_num == -1) {
     // Invalid packet number
     return false;
@@ -338,39 +333,31 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
   // Sometimes the game will use rolling input buffers. If they do, we cannot
   // assume they form a complete block! In addition, the buffers DO NOT have
   // to be contiguous!
-  uint8_t* in0 = data->input_buffer_0_valid
-                     ? memory()->TranslatePhysical(data->input_buffer_0_ptr)
-                     : nullptr;
-  uint8_t* in1 = data->input_buffer_1_valid
-                     ? memory()->TranslatePhysical(data->input_buffer_1_ptr)
-                     : nullptr;
+  uint8_t* in0 =
+      data->input_buffer_0_valid ? memory()->TranslatePhysical(data->input_buffer_0_ptr) : nullptr;
+  uint8_t* in1 =
+      data->input_buffer_1_valid ? memory()->TranslatePhysical(data->input_buffer_1_ptr) : nullptr;
   uint8_t* current_input_buffer = data->current_buffer ? in1 : in0;
 
   REXAPU_TRACE("Processing context {} (offset {}, buffer {}, ptr {:p})", id(),
-           static_cast<uint32_t>(data->input_buffer_read_offset),
-           static_cast<uint32_t>(data->current_buffer),
-           static_cast<void*>(current_input_buffer));
+               static_cast<uint32_t>(data->input_buffer_read_offset),
+               static_cast<uint32_t>(data->current_buffer),
+               static_cast<void*>(current_input_buffer));
 
-  size_t input_buffer_0_size =
-      data->input_buffer_0_packet_count * kBytesPerPacket;
-  size_t input_buffer_1_size =
-      data->input_buffer_1_packet_count * kBytesPerPacket;
+  size_t input_buffer_0_size = data->input_buffer_0_packet_count * kBytesPerPacket;
+  size_t input_buffer_1_size = data->input_buffer_1_packet_count * kBytesPerPacket;
   size_t input_total_size = input_buffer_0_size + input_buffer_1_size;
 
-  size_t current_input_size =
-      data->current_buffer ? input_buffer_1_size : input_buffer_0_size;
+  size_t current_input_size = data->current_buffer ? input_buffer_1_size : input_buffer_0_size;
   size_t current_input_packet_count = current_input_size / kBytesPerPacket;
 
   // Output buffers are in raw PCM samples, 256 bytes per block.
   // Output buffer is a ring buffer. We need to write from the write offset
   // to the read offset.
   uint8_t* output_buffer = memory()->TranslatePhysical(data->output_buffer_ptr);
-  uint32_t output_capacity =
-      data->output_buffer_block_count * kBytesPerSubframeChannel;
-  uint32_t output_read_offset =
-      data->output_buffer_read_offset * kBytesPerSubframeChannel;
-  uint32_t output_write_offset =
-      data->output_buffer_write_offset * kBytesPerSubframeChannel;
+  uint32_t output_capacity = data->output_buffer_block_count * kBytesPerSubframeChannel;
+  uint32_t output_read_offset = data->output_buffer_read_offset * kBytesPerSubframeChannel;
+  uint32_t output_write_offset = data->output_buffer_write_offset * kBytesPerSubframeChannel;
 
   memory::RingBuffer output_rb(output_buffer, output_capacity);
   output_rb.set_read_offset(output_read_offset);
@@ -380,8 +367,7 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
   // don't save any samples.
   // TODO(JoelLinn): subframes when looping
   size_t output_remaining_bytes = output_rb.write_count();
-  output_remaining_bytes -=
-      output_remaining_bytes % (kBytesPerFrameChannel << data->is_stereo);
+  output_remaining_bytes -= output_remaining_bytes % (kBytesPerFrameChannel << data->is_stereo);
 
   // is_dirty_ = true; // TODO
   // is_dirty_ = false;  // TODO
@@ -414,9 +400,8 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
 
     // if we had a buffer swap try to skip packets first
     if (packets_skip_ > 0) {
-      packet_idx =
-          GetFramePacketNumber(current_input_buffer, current_input_size,
-                               data->input_buffer_read_offset);
+      packet_idx = GetFramePacketNumber(current_input_buffer, current_input_size,
+                                        data->input_buffer_read_offset);
       while (packets_skip_ > 0) {
         packets_skip_--;
         packet_idx++;
@@ -438,23 +423,20 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
 
     if (split_frame_len_) {
       // handle a frame that was split over two packages
-      packet_idx =
-          GetFramePacketNumber(current_input_buffer, current_input_size,
-                               data->input_buffer_read_offset);
+      packet_idx = GetFramePacketNumber(current_input_buffer, current_input_size,
+                                        data->input_buffer_read_offset);
       packet = current_input_buffer + packet_idx * kBytesPerPacket;
       std::tie(frame_count, frame_last_split) = GetPacketFrameCount(packet);
       frame_idx = -1;
 
-      stream =
-          BitStream(current_input_buffer, (packet_idx + 1) * kBitsPerPacket);
+      stream = BitStream(current_input_buffer, (packet_idx + 1) * kBitsPerPacket);
       stream.SetOffset(packet_idx * kBitsPerPacket + 32);
 
       if (split_frame_len_ > xma::kMaxFrameLength) {
         // TODO write CopyPeekMethod
         auto offset = stream.offset_bits();
         stream.Copy(
-            xma_frame_.data() + 1 +
-                ((split_frame_len_partial_ + split_frame_padding_start_) / 8),
+            xma_frame_.data() + 1 + ((split_frame_len_partial_ + split_frame_padding_start_) / 8),
             15 - split_frame_len_partial_);
         stream.SetOffset(offset);
         BitStream slen(xma_frame_.data() + 1, 15 + split_frame_padding_start_);
@@ -468,25 +450,21 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
       }
 
       auto offset = stream.Copy(
-          xma_frame_.data() + 1 +
-              ((split_frame_len_partial_ + split_frame_padding_start_) / 8),
+          xma_frame_.data() + 1 + ((split_frame_len_partial_ + split_frame_padding_start_) / 8),
           split_frame_len_ - split_frame_len_partial_);
-      assert_true(offset ==
-                  (split_frame_padding_start_ + split_frame_len_partial_) % 8);
+      assert_true(offset == (split_frame_padding_start_ + split_frame_len_partial_) % 8);
     } else {
       if (data->input_buffer_read_offset % kBitsPerPacket == 0) {
         // Invalid offset. Go ahead and set it.
-        int packet_number =
-            GetFramePacketNumber(current_input_buffer, current_input_size,
-                                 data->input_buffer_read_offset);
+        int packet_number = GetFramePacketNumber(current_input_buffer, current_input_size,
+                                                 data->input_buffer_read_offset);
 
         if (packet_number == -1) {
           return;
         }
 
         auto offset =
-            xma::GetPacketFrameOffset(current_input_buffer +
-                                      kBytesPerPacket * packet_number) +
+            xma::GetPacketFrameOffset(current_input_buffer + kBytesPerPacket * packet_number) +
             data->input_buffer_read_offset;
         if (offset == -1) {
           // No more frames.
@@ -503,15 +481,14 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
       if (!ValidFrameOffset(current_input_buffer, current_input_size,
                             data->input_buffer_read_offset)) {
         REXAPU_DEBUG("XmaContext {}: Invalid read offset {}!", id(),
-                 static_cast<uint32_t>(data->input_buffer_read_offset));
+                     static_cast<uint32_t>(data->input_buffer_read_offset));
         SwapInputBuffer(data);
         return;
       }
 
       // Where are we in the buffer (in XMA jargon)
       std::tie(packet_idx, frame_idx) =
-          GetFrameNumber(current_input_buffer, current_input_size,
-                         data->input_buffer_read_offset);
+          GetFrameNumber(current_input_buffer, current_input_size, data->input_buffer_read_offset);
       // TODO handle
       assert_true(packet_idx >= 0);
       assert_true(frame_idx >= 0);
@@ -525,8 +502,7 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
       // Current frame is split to next packet:
       bool frame_is_split = frame_last_split && (frame_idx >= frame_count - 1);
 
-      stream =
-          BitStream(current_input_buffer, (packet_idx + 1) * kBitsPerPacket);
+      stream = BitStream(current_input_buffer, (packet_idx + 1) * kBitsPerPacket);
       stream.SetOffset(data->input_buffer_read_offset);
       // int frame_len;
       // int frame_len_partial
@@ -537,16 +513,14 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
         // assert_always();
         split_frame_len_ = xma::kMaxFrameLength + 1;
       }
-      assert_true(frame_is_split ==
-                  (split_frame_len_ > split_frame_len_partial_));
+      assert_true(frame_is_split == (split_frame_len_ > split_frame_len_partial_));
 
       // TODO fix bitstream copy
       std::memset(xma_frame_.data(), 0, xma_frame_.size());
 
       {
-        auto offset =
-            stream.Copy(xma_frame_.data() + 1,
-                        std::min(split_frame_len_, split_frame_len_partial_));
+        auto offset = stream.Copy(xma_frame_.data() + 1,
+                                  std::min(split_frame_len_, split_frame_len_partial_));
         assert_true(offset < 8);
         split_frame_padding_start_ = static_cast<uint8_t>(offset);
       }
@@ -576,15 +550,13 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
     }
 
     av_packet_->data = xma_frame_.data();
-    av_packet_->size = static_cast<int>(
-        1 + ((split_frame_padding_start_ + split_frame_len_) / 8) +
-        (((split_frame_padding_start_ + split_frame_len_) % 8) ? 1 : 0));
+    av_packet_->size =
+        static_cast<int>(1 + ((split_frame_padding_start_ + split_frame_len_) / 8) +
+                         (((split_frame_padding_start_ + split_frame_len_) % 8) ? 1 : 0));
 
-    auto padding_end = av_packet_->size * 8 -
-                       (8 + split_frame_padding_start_ + split_frame_len_);
+    auto padding_end = av_packet_->size * 8 - (8 + split_frame_padding_start_ + split_frame_len_);
     assert_true(padding_end < 8);
-    xma_frame_[0] =
-        ((split_frame_padding_start_ & 7) << 5) | ((padding_end & 7) << 2);
+    xma_frame_[0] = ((split_frame_padding_start_ & 7) << 5) | ((padding_end & 7) << 2);
 
     split_frame_len_ = 0;
     split_frame_len_partial_ = 0;
@@ -620,8 +592,7 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
       // assert_true(frame_is_split == (frame_idx == -1));
 
       //			dump_raw(av_frame_, id());
-      ConvertFrame((const uint8_t**)av_frame_->data, bool(data->is_stereo),
-                   raw_frame_.data());
+      ConvertFrame((const uint8_t**)av_frame_->data, bool(data->is_stereo), raw_frame_.data());
       // decoded_consumed_samples_ += kSamplesPerFrame;
 
       auto byte_count = kBytesPerFrameChannel << data->is_stereo;
@@ -636,8 +607,8 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
       // if (offset % (kBytesPerSample * 8) == 0) {
       //  offset = xma::GetPacketFrameOffset(packet);
       //}
-      offset = static_cast<uint32_t>(
-          GetNextFrame(current_input_buffer, current_input_size, offset));
+      offset =
+          static_cast<uint32_t>(GetNextFrame(current_input_buffer, current_input_size, offset));
       // assert_true((offset == 0) ==
       //            (frame_is_split || (frame_idx + 1 >= frame_count)));
       if (frame_idx + 1 >= frame_count) {
@@ -658,8 +629,7 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
           }
         }
         packet = current_input_buffer + packet_idx * kBytesPerPacket;
-        offset =
-            xma::GetPacketFrameOffset(packet) + packet_idx * kBitsPerPacket;
+        offset = xma::GetPacketFrameOffset(packet) + packet_idx * kBitsPerPacket;
       }
       if (offset == 0 || frame_idx == -1) {
         // Next packet but we already skipped to it
@@ -674,8 +644,7 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
           }
           break;
         }
-        offset =
-            xma::GetPacketFrameOffset(packet) + packet_idx * kBitsPerPacket;
+        offset = xma::GetPacketFrameOffset(packet) + packet_idx * kBitsPerPacket;
       }
       // TODO buffer bounds check
       assert_true(data->input_buffer_read_offset < offset);
@@ -693,8 +662,7 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
   }
 }
 
-size_t XmaContext::GetNextFrame(uint8_t* block, size_t size,
-                                size_t bit_offset) {
+size_t XmaContext::GetNextFrame(uint8_t* block, size_t size, size_t bit_offset) {
   // offset = xma::GetPacketFrameOffset(packet);
   // TODO meh
   // auto next_packet = bit_offset - bit_offset % kBitsPerPacket +
@@ -736,8 +704,7 @@ size_t XmaContext::GetNextFrame(uint8_t* block, size_t size,
   return bit_offset;
 }
 
-int XmaContext::GetFramePacketNumber(uint8_t* block, size_t size,
-                                     size_t bit_offset) {
+int XmaContext::GetFramePacketNumber(uint8_t* block, size_t size, size_t bit_offset) {
   size *= 8;
   if (bit_offset >= size) {
     // Not good :(
@@ -751,8 +718,7 @@ int XmaContext::GetFramePacketNumber(uint8_t* block, size_t size,
   return (uint32_t)packet_number;
 }
 
-std::tuple<int, int> XmaContext::GetFrameNumber(uint8_t* block, size_t size,
-                                                size_t bit_offset) {
+std::tuple<int, int> XmaContext::GetFrameNumber(uint8_t* block, size_t size, size_t bit_offset) {
   auto packet_idx = GetFramePacketNumber(block, size, bit_offset);
 
   if (packet_idx < 0 || (packet_idx + 1) * kBytesPerPacket > size) {
@@ -832,8 +798,7 @@ std::tuple<int, bool> XmaContext::GetPacketFrameCount(uint8_t* packet) {
   }
 }
 
-int XmaContext::PrepareDecoder(uint8_t* packet, int sample_rate,
-                               bool is_two_channel) {
+int XmaContext::PrepareDecoder(uint8_t* packet, int sample_rate, bool is_two_channel) {
   // Sanity check: Packet metadata is always 1 for XMA2/0 for XMA
   assert_true((packet[2] & 0x7) == 1 || (packet[2] & 0x7) == 0);
 
@@ -841,8 +806,7 @@ int XmaContext::PrepareDecoder(uint8_t* packet, int sample_rate,
 
   // Re-initialize the context with new sample rate and channels.
   uint32_t channels = is_two_channel ? 2 : 1;
-  if (av_context_->sample_rate != sample_rate ||
-      av_context_->channels != channels) {
+  if (av_context_->sample_rate != sample_rate || av_context_->channels != channels) {
     // We have to reopen the codec so it'll realloc whatever data it needs.
     // TODO(DrChat): Find a better way.
     avcodec_close(av_context_);
@@ -877,8 +841,7 @@ void XmaContext::ConvertFrame(const uint8_t** samples, bool is_two_channel,
   const __m128 scale_mm = _mm_set1_ps(scale);
   if (is_two_channel) {
     const auto in_channel_1 = reinterpret_cast<const float*>(samples[1]);
-    const __m128i shufmask =
-        _mm_set_epi8(14, 15, 6, 7, 12, 13, 4, 5, 10, 11, 2, 3, 8, 9, 0, 1);
+    const __m128i shufmask = _mm_set_epi8(14, 15, 6, 7, 12, 13, 4, 5, 10, 11, 2, 3, 8, 9, 0, 1);
     for (uint32_t i = 0; i < kSamplesPerFrame; i += 4) {
       // Load 8 samples, 4 for each channel.
       __m128 in_mm0 = _mm_loadu_ps(&in_channel_0[i]);
@@ -897,8 +860,7 @@ void XmaContext::ConvertFrame(const uint8_t** samples, bool is_two_channel,
       _mm_storeu_si128(reinterpret_cast<__m128i*>(&out[i * 2]), out_mm);
     }
   } else {
-    const __m128i shufmask =
-        _mm_set_epi8(14, 15, 12, 13, 10, 11, 8, 9, 6, 7, 4, 5, 2, 3, 0, 1);
+    const __m128i shufmask = _mm_set_epi8(14, 15, 12, 13, 10, 11, 8, 9, 6, 7, 4, 5, 2, 3, 0, 1);
     for (uint32_t i = 0; i < kSamplesPerFrame; i += 8) {
       // Load 8 samples, as [in_channel_0 + i * 4] and
       // [in_channel_0 + i * 4 + 16] movups.

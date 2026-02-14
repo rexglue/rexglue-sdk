@@ -10,7 +10,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <rex/ui/ui_event.h>
 
 namespace rex {
@@ -54,5 +53,4 @@ class WindowInputListener {
 };
 
 }  // namespace ui
-}  // namespace xe
-
+}  // namespace rex

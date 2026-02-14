@@ -9,31 +9,27 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/audio/nop/nop_audio_system.h>
-
 #include <rex/audio/flags.h>
+#include <rex/audio/nop/nop_audio_system.h>
 
 namespace rex::audio::nop {
 
-std::unique_ptr<AudioSystem> NopAudioSystem::Create(
-    runtime::Processor* processor) {
+std::unique_ptr<AudioSystem> NopAudioSystem::Create(runtime::Processor* processor) {
   return std::make_unique<NopAudioSystem>(processor);
 }
 
-NopAudioSystem::NopAudioSystem(runtime::Processor* processor)
-    : AudioSystem(processor) {}
+NopAudioSystem::NopAudioSystem(runtime::Processor* processor) : AudioSystem(processor) {}
 
 NopAudioSystem::~NopAudioSystem() = default;
 
-X_STATUS NopAudioSystem::CreateDriver(size_t index,
-                                      rex::thread::Semaphore* semaphore,
+X_STATUS NopAudioSystem::CreateDriver(size_t index, rex::thread::Semaphore* semaphore,
                                       AudioDriver** out_driver) {
   return X_STATUS_NOT_IMPLEMENTED;
 }
 
-void NopAudioSystem::DestroyDriver(AudioDriver* driver) { 
-    (void)driver;
-    assert_always(); 
+void NopAudioSystem::DestroyDriver(AudioDriver* driver) {
+  (void)driver;
+  assert_always();
 }
 
 }  // namespace rex::audio::nop

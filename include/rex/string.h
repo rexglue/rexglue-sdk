@@ -50,16 +50,6 @@ std::string to_utf8(const std::u16string_view source);
 std::u16string to_utf16(const std::string_view source);
 
 // Safe string copy - copies up to max_count chars and null-terminates
-inline void rex_strcpy(char* dest, size_t dest_size, const char* src, size_t max_count = 0) {
-#ifdef _WIN32
-  if (max_count == 0) max_count = _TRUNCATE;
-  strncpy_s(dest, dest_size, src, max_count);
-#else
-  if (max_count == 0) max_count = dest_size - 1;
-  size_t count = std::min(max_count, dest_size - 1);
-  std::strncpy(dest, src, count);
-  dest[count] = '\0';
-#endif
-}
+void rex_strcpy(char* dest, size_t dest_size, const char* src, size_t max_count = 0);
 
 }  // namespace rex::string

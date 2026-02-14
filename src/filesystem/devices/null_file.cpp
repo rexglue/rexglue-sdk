@@ -9,21 +9,21 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include "null_file.h"
-
 #include "null_entry.h"
+#include "null_file.h"
 
 namespace rex::filesystem {
 
-NullFile::NullFile(uint32_t file_access, NullEntry* entry)
-    : File(file_access, entry) {}
+NullFile::NullFile(uint32_t file_access, NullEntry* entry) : File(file_access, entry) {}
 
 NullFile::~NullFile() = default;
 
-void NullFile::Destroy() { delete this; }
+void NullFile::Destroy() {
+  delete this;
+}
 
-X_STATUS NullFile::ReadSync(void* buffer, size_t buffer_length,
-                            size_t byte_offset, size_t* out_bytes_read) {
+X_STATUS NullFile::ReadSync(void* buffer, size_t buffer_length, size_t byte_offset,
+                            size_t* out_bytes_read) {
   if (!(file_access_ & FileAccess::kFileReadData)) {
     return X_STATUS_ACCESS_DENIED;
   }
@@ -31,10 +31,9 @@ X_STATUS NullFile::ReadSync(void* buffer, size_t buffer_length,
   return X_STATUS_SUCCESS;
 }
 
-X_STATUS NullFile::WriteSync(const void* buffer, size_t buffer_length,
-                             size_t byte_offset, size_t* out_bytes_written) {
-  if (!(file_access_ &
-        (FileAccess::kFileWriteData | FileAccess::kFileAppendData))) {
+X_STATUS NullFile::WriteSync(const void* buffer, size_t buffer_length, size_t byte_offset,
+                             size_t* out_bytes_written) {
+  if (!(file_access_ & (FileAccess::kFileWriteData | FileAccess::kFileAppendData))) {
     return X_STATUS_ACCESS_DENIED;
   }
 

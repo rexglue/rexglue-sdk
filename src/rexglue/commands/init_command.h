@@ -11,9 +11,11 @@
 
 #pragma once
 
-#include <rex/result.h>
 #include "../cli_utils.h"
+
 #include <string>
+
+#include <rex/result.h>
 
 namespace rexglue::cli {
 
@@ -23,12 +25,12 @@ using rex::Result;
  * Options for the init command
  */
 struct InitOptions {
-    std::string app_name;       // Project name (required)
-    std::string app_root;       // Project root directory (required)
-    std::string app_desc;       // Optional project description
-    std::string app_author;     // Optional author name
-    bool sdk_example = false;   // If true, omit vcpkg.json (child of rexglue)
-    bool force = false;         // Overwrite existing directory contents
+  std::string app_name;      // Project name (required)
+  std::string app_root;      // Project root directory (required)
+  std::string app_desc;      // Optional project description
+  std::string app_author;    // Optional author name
+  bool sdk_example = false;  // If true, omit vcpkg.json (child of rexglue)
+  bool force = false;        // Overwrite existing directory contents
 };
 
 /**
@@ -39,4 +41,4 @@ struct InitOptions {
  */
 Result<void> InitProject(const InitOptions& opts, const CliContext& ctx);
 
-} // namespace rexglue::cli
+}  // namespace rexglue::cli

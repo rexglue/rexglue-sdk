@@ -11,7 +11,6 @@
 
 #pragma once
 
-
 #include <utility>
 
 #include <rex/ui/d3d12/d3d12_provider.h>
@@ -39,10 +38,8 @@ bool ReleaseAndNull(T& object) {
 ID3D12RootSignature* CreateRootSignature(const D3D12Provider& provider,
                                          const D3D12_ROOT_SIGNATURE_DESC& desc);
 
-ID3D12PipelineState* CreateComputePipeline(ID3D12Device* device,
-                                           const void* shader,
-                                           size_t shader_size,
-                                           ID3D12RootSignature* root_signature);
+ID3D12PipelineState* CreateComputePipeline(ID3D12Device* device, const void* shader,
+                                           size_t shader_size, ID3D12RootSignature* root_signature);
 
 constexpr DXGI_FORMAT GetUintPow2DXGIFormat(uint32_t element_size_bytes_log2) {
   switch (element_size_bytes_log2) {
@@ -76,23 +73,16 @@ inline void FillBufferResourceDesc(D3D12_RESOURCE_DESC& desc, UINT64 size,
   desc.Flags = flags;
 }
 
-void CreateBufferRawSRV(ID3D12Device* device,
-                        D3D12_CPU_DESCRIPTOR_HANDLE handle,
-                        ID3D12Resource* buffer, uint32_t size,
-                        uint64_t offset = 0);
-void CreateBufferRawUAV(ID3D12Device* device,
-                        D3D12_CPU_DESCRIPTOR_HANDLE handle,
-                        ID3D12Resource* buffer, uint32_t size,
-                        uint64_t offset = 0);
-void CreateBufferTypedSRV(ID3D12Device* device,
-                          D3D12_CPU_DESCRIPTOR_HANDLE handle,
-                          ID3D12Resource* buffer, DXGI_FORMAT format,
-                          uint32_t num_elements, uint64_t first_element = 0);
-void CreateBufferTypedUAV(ID3D12Device* device,
-                          D3D12_CPU_DESCRIPTOR_HANDLE handle,
-                          ID3D12Resource* buffer, DXGI_FORMAT format,
-                          uint32_t num_elements, uint64_t first_element = 0);
+void CreateBufferRawSRV(ID3D12Device* device, D3D12_CPU_DESCRIPTOR_HANDLE handle,
+                        ID3D12Resource* buffer, uint32_t size, uint64_t offset = 0);
+void CreateBufferRawUAV(ID3D12Device* device, D3D12_CPU_DESCRIPTOR_HANDLE handle,
+                        ID3D12Resource* buffer, uint32_t size, uint64_t offset = 0);
+void CreateBufferTypedSRV(ID3D12Device* device, D3D12_CPU_DESCRIPTOR_HANDLE handle,
+                          ID3D12Resource* buffer, DXGI_FORMAT format, uint32_t num_elements,
+                          uint64_t first_element = 0);
+void CreateBufferTypedUAV(ID3D12Device* device, D3D12_CPU_DESCRIPTOR_HANDLE handle,
+                          ID3D12Resource* buffer, DXGI_FORMAT format, uint32_t num_elements,
+                          uint64_t first_element = 0);
 
 }  // namespace util
 }  // namespace rex::ui::d3d12
-

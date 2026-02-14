@@ -9,27 +9,24 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/graphics/pipeline/shader/spirv_builder.h>
-
 #include <memory>
 #include <utility>
 #include <vector>
 
 #include <rex/assert.h>
+#include <rex/graphics/pipeline/shader/spirv_builder.h>
 
 namespace rex::graphics {
 
-spv::Id SpirvBuilder::createQuadOp(spv::Op op_code, spv::Id type_id,
-                                   spv::Id operand1, spv::Id operand2,
-                                   spv::Id operand3, spv::Id operand4) {
+spv::Id SpirvBuilder::createQuadOp(spv::Op op_code, spv::Id type_id, spv::Id operand1,
+                                   spv::Id operand2, spv::Id operand3, spv::Id operand4) {
   if (generatingOpCodeForSpecConst) {
     std::vector<spv::Id> operands(4);
     operands[0] = operand1;
     operands[1] = operand2;
     operands[2] = operand3;
     operands[3] = operand4;
-    return createSpecConstantOp(op_code, type_id, operands,
-                                std::vector<spv::Id>());
+    return createSpecConstantOp(op_code, type_id, operands, std::vector<spv::Id>());
   }
   std::unique_ptr<spv::Instruction> op =
       std::make_unique<spv::Instruction>(getUniqueId(), type_id, op_code);
@@ -42,28 +39,24 @@ spv::Id SpirvBuilder::createQuadOp(spv::Op op_code, spv::Id type_id,
   return result;
 }
 
-spv::Id SpirvBuilder::createNoContractionUnaryOp(spv::Op op_code,
-                                                 spv::Id type_id,
+spv::Id SpirvBuilder::createNoContractionUnaryOp(spv::Op op_code, spv::Id type_id,
                                                  spv::Id operand) {
   spv::Id result = createUnaryOp(op_code, type_id, operand);
   addDecoration(result, spv::DecorationNoContraction);
   return result;
 }
 
-spv::Id SpirvBuilder::createNoContractionBinOp(spv::Op op_code, spv::Id type_id,
-                                               spv::Id operand1,
+spv::Id SpirvBuilder::createNoContractionBinOp(spv::Op op_code, spv::Id type_id, spv::Id operand1,
                                                spv::Id operand2) {
   spv::Id result = createBinOp(op_code, type_id, operand1, operand2);
   addDecoration(result, spv::DecorationNoContraction);
   return result;
 }
 
-spv::Id SpirvBuilder::createUnaryBuiltinCall(spv::Id result_type,
-                                             spv::Id builtins, int entry_point,
+spv::Id SpirvBuilder::createUnaryBuiltinCall(spv::Id result_type, spv::Id builtins, int entry_point,
                                              spv::Id operand) {
   std::unique_ptr<spv::Instruction> instruction =
-      std::make_unique<spv::Instruction>(getUniqueId(), result_type,
-                                         spv::OpExtInst);
+      std::make_unique<spv::Instruction>(getUniqueId(), result_type, spv::OpExtInst);
   instruction->addIdOperand(builtins);
   instruction->addImmediateOperand(entry_point);
   instruction->addIdOperand(operand);
@@ -72,12 +65,10 @@ spv::Id SpirvBuilder::createUnaryBuiltinCall(spv::Id result_type,
   return result;
 }
 
-spv::Id SpirvBuilder::createBinBuiltinCall(spv::Id result_type,
-                                           spv::Id builtins, int entry_point,
+spv::Id SpirvBuilder::createBinBuiltinCall(spv::Id result_type, spv::Id builtins, int entry_point,
                                            spv::Id operand1, spv::Id operand2) {
   std::unique_ptr<spv::Instruction> instruction =
-      std::make_unique<spv::Instruction>(getUniqueId(), result_type,
-                                         spv::OpExtInst);
+      std::make_unique<spv::Instruction>(getUniqueId(), result_type, spv::OpExtInst);
   instruction->addIdOperand(builtins);
   instruction->addImmediateOperand(entry_point);
   instruction->addIdOperand(operand1);
@@ -87,13 +78,10 @@ spv::Id SpirvBuilder::createBinBuiltinCall(spv::Id result_type,
   return result;
 }
 
-spv::Id SpirvBuilder::createTriBuiltinCall(spv::Id result_type,
-                                           spv::Id builtins, int entry_point,
-                                           spv::Id operand1, spv::Id operand2,
-                                           spv::Id operand3) {
+spv::Id SpirvBuilder::createTriBuiltinCall(spv::Id result_type, spv::Id builtins, int entry_point,
+                                           spv::Id operand1, spv::Id operand2, spv::Id operand3) {
   std::unique_ptr<spv::Instruction> instruction =
-      std::make_unique<spv::Instruction>(getUniqueId(), result_type,
-                                         spv::OpExtInst);
+      std::make_unique<spv::Instruction>(getUniqueId(), result_type, spv::OpExtInst);
   instruction->addIdOperand(builtins);
   instruction->addImmediateOperand(entry_point);
   instruction->addIdOperand(operand1);
@@ -104,10 +92,8 @@ spv::Id SpirvBuilder::createTriBuiltinCall(spv::Id result_type,
   return result;
 }
 
-SpirvBuilder::IfBuilder::IfBuilder(spv::Id condition, unsigned int control,
-                                   SpirvBuilder& builder,
-                                   unsigned int thenWeight,
-                                   unsigned int elseWeight)
+SpirvBuilder::IfBuilder::IfBuilder(spv::Id condition, unsigned int control, SpirvBuilder& builder,
+                                   unsigned int thenWeight, unsigned int elseWeight)
     : builder(builder),
       condition(condition),
       control(control),
@@ -163,8 +149,7 @@ void SpirvBuilder::IfBuilder::makeEndIf(bool branchToMerge) {
 
   if (branchToMerge) {
     // Jump to the merge block.
-    (elseBlock ? elsePhiParent : thenPhiParent) =
-        builder.getBuildPoint()->getId();
+    (elseBlock ? elsePhiParent : thenPhiParent) = builder.getBuildPoint()->getId();
     builder.createBranch(mergeBlock);
   }
 
@@ -199,13 +184,11 @@ void SpirvBuilder::IfBuilder::makeEndIf(bool branchToMerge) {
 spv::Id SpirvBuilder::IfBuilder::createMergePhi(spv::Id then_variable,
                                                 spv::Id else_variable) const {
   assert_true(builder.getBuildPoint() == mergeBlock);
-  return builder.createQuadOp(spv::OpPhi, builder.getTypeId(then_variable),
-                              then_variable, getThenPhiParent(), else_variable,
-                              getElsePhiParent());
+  return builder.createQuadOp(spv::OpPhi, builder.getTypeId(then_variable), then_variable,
+                              getThenPhiParent(), else_variable, getElsePhiParent());
 }
 
-SpirvBuilder::SwitchBuilder::SwitchBuilder(spv::Id selector,
-                                           unsigned int selection_control,
+SpirvBuilder::SwitchBuilder::SwitchBuilder(spv::Id selector, unsigned int selection_control,
                                            SpirvBuilder& builder)
     : builder_(builder),
       selector_(selector),
@@ -276,8 +259,7 @@ void SpirvBuilder::SwitchBuilder::makeEndSwitch() {
 }
 
 void SpirvBuilder::SwitchBuilder::endSegment() {
-  assert_true(current_branch_ == Branch::kSelection ||
-              current_branch_ == Branch::kDefault ||
+  assert_true(current_branch_ == Branch::kSelection || current_branch_ == Branch::kDefault ||
               current_branch_ == Branch::kCase);
 
   if (current_branch_ == Branch::kSelection) {

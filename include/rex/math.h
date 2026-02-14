@@ -12,14 +12,13 @@
 #pragma once
 
 #include <algorithm>
+#include <bit>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <limits>
 #include <numeric>
 #include <type_traits>
-
-#include <bit>
 
 #include <rex/platform.h>
 
@@ -127,136 +126,49 @@ constexpr uint32_t bit_count(T v) {
   return static_cast<uint32_t>(std::popcount(v));
 }
 
-// lzcnt instruction, typed for integers of all sizes.
-// The number of leading zero bits in the value parameter. If value is zero, the
-// return value is the size of the input operand (8, 16, 32, or 64). If the most
-// significant bit of value is one, the return value is zero.
-#if REX_PLATFORM_WIN32
-// TODO(benvanik): runtime magic so these point to an appropriate implementation
-// at runtime based on CPU features
-#if 0
-inline uint8_t lzcnt(uint8_t v) {
-  return static_cast<uint8_t>(__lzcnt16(v) - 8);
-}
-inline uint8_t lzcnt(uint16_t v) { return static_cast<uint8_t>(__lzcnt16(v)); }
-inline uint8_t lzcnt(uint32_t v) { return static_cast<uint8_t>(__lzcnt(v)); }
-inline uint8_t lzcnt(uint64_t v) { return static_cast<uint8_t>(__lzcnt64(v)); }
-#else
-inline uint8_t lzcnt(uint8_t v) {
-  unsigned long index;
-  unsigned long mask = v;
-  unsigned char is_nonzero = _BitScanReverse(&index, mask);
-  return static_cast<uint8_t>(is_nonzero ? int8_t(index) ^ 0x7 : 8);
-}
-inline uint8_t lzcnt(uint16_t v) {
-  unsigned long index;
-  unsigned long mask = v;
-  unsigned char is_nonzero = _BitScanReverse(&index, mask);
-  return static_cast<uint8_t>(is_nonzero ? int8_t(index) ^ 0xF : 16);
-}
-inline uint8_t lzcnt(uint32_t v) {
-  unsigned long index;
-  unsigned long mask = v;
-  unsigned char is_nonzero = _BitScanReverse(&index, mask);
-  return static_cast<uint8_t>(is_nonzero ? int8_t(index) ^ 0x1F : 32);
-}
-inline uint8_t lzcnt(uint64_t v) {
-  unsigned long index;
-  unsigned long long mask = v;
-  unsigned char is_nonzero = _BitScanReverse64(&index, mask);
-  return static_cast<uint8_t>(is_nonzero ? int8_t(index) ^ 0x3F : 64);
-}
-#endif  // LZCNT supported
+// lzcnt - count leading zeros.
+// Returns the size of the input operand if value is zero.
+uint8_t lzcnt(uint8_t v);
+uint8_t lzcnt(uint16_t v);
+uint8_t lzcnt(uint32_t v);
+uint8_t lzcnt(uint64_t v);
 
-inline uint8_t tzcnt(uint8_t v) {
-  unsigned long index;
-  unsigned long mask = v;
-  unsigned char is_nonzero = _BitScanForward(&index, mask);
-  return static_cast<uint8_t>(is_nonzero ? int8_t(index) : 8);
+// tzcnt - count trailing zeros.
+uint8_t tzcnt(uint8_t v);
+uint8_t tzcnt(uint16_t v);
+uint8_t tzcnt(uint32_t v);
+uint8_t tzcnt(uint64_t v);
+inline uint8_t lzcnt(int8_t v) {
+  return lzcnt(static_cast<uint8_t>(v));
 }
-
-inline uint8_t tzcnt(uint16_t v) {
-  unsigned long index;
-  unsigned long mask = v;
-  unsigned char is_nonzero = _BitScanForward(&index, mask);
-  return static_cast<uint8_t>(is_nonzero ? int8_t(index) : 16);
+inline uint8_t lzcnt(int16_t v) {
+  return lzcnt(static_cast<uint16_t>(v));
 }
-
-inline uint8_t tzcnt(uint32_t v) {
-  unsigned long index;
-  unsigned long mask = v;
-  unsigned char is_nonzero = _BitScanForward(&index, mask);
-  return static_cast<uint8_t>(is_nonzero ? int8_t(index) : 32);
+inline uint8_t lzcnt(int32_t v) {
+  return lzcnt(static_cast<uint32_t>(v));
 }
-
-inline uint8_t tzcnt(uint64_t v) {
-  unsigned long index;
-  unsigned long long mask = v;
-  unsigned char is_nonzero = _BitScanForward64(&index, mask);
-  return static_cast<uint8_t>(is_nonzero ? int8_t(index) : 64);
+inline uint8_t lzcnt(int64_t v) {
+  return lzcnt(static_cast<uint64_t>(v));
 }
-
-#else  // REX_PLATFORM_WIN32
-inline uint8_t lzcnt(uint8_t v) {
-  return v == 0 ? 8 : static_cast<uint8_t>(__builtin_clz(v) - 24);
+inline uint8_t tzcnt(int8_t v) {
+  return tzcnt(static_cast<uint8_t>(v));
 }
-inline uint8_t lzcnt(uint16_t v) {
-  return v == 0 ? 16 : static_cast<uint8_t>(__builtin_clz(v) - 16);
+inline uint8_t tzcnt(int16_t v) {
+  return tzcnt(static_cast<uint16_t>(v));
 }
-inline uint8_t lzcnt(uint32_t v) {
-  return v == 0 ? 32 : static_cast<uint8_t>(__builtin_clz(v));
+inline uint8_t tzcnt(int32_t v) {
+  return tzcnt(static_cast<uint32_t>(v));
 }
-inline uint8_t lzcnt(uint64_t v) {
-  return v == 0 ? 64 : static_cast<uint8_t>(__builtin_clzll(v));
+inline uint8_t tzcnt(int64_t v) {
+  return tzcnt(static_cast<uint64_t>(v));
 }
-
-inline uint8_t tzcnt(uint8_t v) {
-  return v == 0 ? 8 : static_cast<uint8_t>(__builtin_ctz(v));
-}
-inline uint8_t tzcnt(uint16_t v) {
-  return v == 0 ? 16 : static_cast<uint8_t>(__builtin_ctz(v));
-}
-inline uint8_t tzcnt(uint32_t v) {
-  return v == 0 ? 32 : static_cast<uint8_t>(__builtin_ctz(v));
-}
-inline uint8_t tzcnt(uint64_t v) {
-  return v == 0 ? 64 : static_cast<uint8_t>(__builtin_ctzll(v));
-}
-#endif
-inline uint8_t lzcnt(int8_t v) { return lzcnt(static_cast<uint8_t>(v)); }
-inline uint8_t lzcnt(int16_t v) { return lzcnt(static_cast<uint16_t>(v)); }
-inline uint8_t lzcnt(int32_t v) { return lzcnt(static_cast<uint32_t>(v)); }
-inline uint8_t lzcnt(int64_t v) { return lzcnt(static_cast<uint64_t>(v)); }
-inline uint8_t tzcnt(int8_t v) { return tzcnt(static_cast<uint8_t>(v)); }
-inline uint8_t tzcnt(int16_t v) { return tzcnt(static_cast<uint16_t>(v)); }
-inline uint8_t tzcnt(int32_t v) { return tzcnt(static_cast<uint32_t>(v)); }
-inline uint8_t tzcnt(int64_t v) { return tzcnt(static_cast<uint64_t>(v)); }
 
 // BitScanForward (bsf).
 // Search the value from least significant bit (LSB) to the most significant bit
 // (MSB) for a set bit (1).
 // Returns false if no bits are set and the output index is invalid.
-#if REX_PLATFORM_WIN32
-inline bool bit_scan_forward(uint32_t v, uint32_t* out_first_set_index) {
-  return _BitScanForward(reinterpret_cast<unsigned long*>(out_first_set_index),
-                         v) != 0;
-}
-inline bool bit_scan_forward(uint64_t v, uint32_t* out_first_set_index) {
-  return _BitScanForward64(
-             reinterpret_cast<unsigned long*>(out_first_set_index), v) != 0;
-}
-#else
-inline bool bit_scan_forward(uint32_t v, uint32_t* out_first_set_index) {
-  int i = ffs(v);
-  *out_first_set_index = i - 1;
-  return i != 0;
-}
-inline bool bit_scan_forward(uint64_t v, uint32_t* out_first_set_index) {
-  int i = __builtin_ffsll(v);
-  *out_first_set_index = i - 1;
-  return i != 0;
-}
-#endif  // REX_PLATFORM_WIN32
+bool bit_scan_forward(uint32_t v, uint32_t* out_first_set_index);
+bool bit_scan_forward(uint64_t v, uint32_t* out_first_set_index);
 inline bool bit_scan_forward(int32_t v, uint32_t* out_first_set_index) {
   return bit_scan_forward(static_cast<uint32_t>(v), out_first_set_index);
 }
@@ -277,24 +189,6 @@ template <typename T>
 inline T rotate_left(T v, uint8_t sh) {
   return (T(v) << sh) | (T(v) >> ((sizeof(T) * 8) - sh));
 }
-#if REX_PLATFORM_WIN32
-template <>
-inline uint8_t rotate_left(uint8_t v, uint8_t sh) {
-  return _rotl8(v, sh);
-}
-template <>
-inline uint16_t rotate_left(uint16_t v, uint8_t sh) {
-  return _rotl16(v, sh);
-}
-template <>
-inline uint32_t rotate_left(uint32_t v, uint8_t sh) {
-  return _rotl(v, sh);
-}
-template <>
-inline uint64_t rotate_left(uint64_t v, uint8_t sh) {
-  return _rotl64(v, sh);
-}
-#endif  // REX_PLATFORM_WIN32
 
 #if REX_ARCH_AMD64
 // Utilities for SSE values.
@@ -351,8 +245,7 @@ inline uint16_t float_to_xenos_half(float value, bool preserve_denormal = false,
     if (abs_value < 0x38800000u) {
       // The number is too small to be represented as a normalized half.
       if (preserve_denormal) {
-        uint32_t shift =
-            std::min(uint32_t(113u - (abs_value >> 23u)), uint32_t(24u));
+        uint32_t shift = std::min(uint32_t(113u - (abs_value >> 23u)), uint32_t(24u));
         result = (0x800000u | (abs_value & 0x7FFFFFu)) >> shift;
       } else {
         result = 0u;
@@ -369,8 +262,7 @@ inline uint16_t float_to_xenos_half(float value, bool preserve_denormal = false,
   return uint16_t(result | ((integer_value & 0x80000000u) >> 16u));
 }
 
-inline float xenos_half_to_float(uint16_t value,
-                                 bool preserve_denormal = false) {
+inline float xenos_half_to_float(uint16_t value, bool preserve_denormal = false) {
   uint32_t mantissa = value & 0x3FFu;
   uint32_t exponent = (value >> 10u) & 0x1Fu;
   if (!exponent) {
@@ -387,8 +279,8 @@ inline float xenos_half_to_float(uint16_t value,
       exponent = uint32_t(-112);
     }
   }
-  uint32_t result = (uint32_t(value & 0x8000u) << 16u) |
-                    ((exponent + 112u) << 23u) | (mantissa << 13u);
+  uint32_t result =
+      (uint32_t(value & 0x8000u) << 16u) | ((exponent + 112u) << 23u) | (mantissa << 13u);
   return std::bit_cast<float>(result);
 }
 
@@ -398,11 +290,9 @@ inline T sat_add(T a, T b) {
   using TU = typename std::make_unsigned<T>::type;
   TU result = TU(a) + TU(b);
   if (std::is_unsigned<T>::value) {
-    result |=
-        TU(-static_cast<typename std::make_signed<T>::type>(result < TU(a)));
+    result |= TU(-static_cast<typename std::make_signed<T>::type>(result < TU(a)));
   } else {
-    TU overflowed =
-        (TU(a) >> (sizeof(T) * 8 - 1)) + std::numeric_limits<T>::max();
+    TU overflowed = (TU(a) >> (sizeof(T) * 8 - 1)) + std::numeric_limits<T>::max();
     if (T((overflowed ^ TU(b)) | ~(TU(b) ^ result)) >= 0) {
       result = overflowed;
     }
@@ -414,11 +304,9 @@ inline T sat_sub(T a, T b) {
   using TU = typename std::make_unsigned<T>::type;
   TU result = TU(a) - TU(b);
   if (std::is_unsigned<T>::value) {
-    result &=
-        TU(-static_cast<typename std::make_signed<T>::type>(result <= TU(a)));
+    result &= TU(-static_cast<typename std::make_signed<T>::type>(result <= TU(a)));
   } else {
-    TU overflowed =
-        (TU(a) >> (sizeof(T) * 8 - 1)) + std::numeric_limits<T>::max();
+    TU overflowed = (TU(a) >> (sizeof(T) * 8 - 1)) + std::numeric_limits<T>::max();
     if (T((overflowed ^ TU(b)) & (overflowed ^ result)) < 0) {
       result = overflowed;
     }
@@ -427,4 +315,3 @@ inline T sat_sub(T a, T b) {
 }
 
 }  // namespace rex
-

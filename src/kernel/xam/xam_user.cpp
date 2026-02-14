@@ -9,38 +9,37 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
- // Disable warnings about unused parameters for kernel functions
+// Disable warnings about unused parameters for kernel functions
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
 #include <cstring>
 
 #include <rex/cvar.h>
+#include <rex/kernel/xam/private.h>
 #include <rex/logging.h>
 #include <rex/math.h>
+#include <rex/ppc/function.h>
+#include <rex/ppc/types.h>
 #include <rex/string/util.h>
-#include <rex/kernel/kernel_state.h>
-#include <rex/runtime/guest/function.h>
-#include <rex/runtime/guest/types.h>
-#include <rex/kernel/xam/user_profile.h>
-#include <rex/kernel/xam/private.h>
-#include <rex/kernel/xenumerator.h>
-#include <rex/kernel/xthread.h>
-#include <rex/kernel/xtypes.h>
-#include <rex/kernel/xio.h>
+#include <rex/system/kernel_state.h>
+#include <rex/system/xam/user_profile.h>
+#include <rex/system/xenumerator.h>
+#include <rex/system/xio.h>
+#include <rex/system/xthread.h>
+#include <rex/system/xtypes.h>
 
-REXCVAR_DEFINE_UINT32(user_language, 1,
-    "User's language ID",
-    "Kernel");
+REXCVAR_DEFINE_UINT32(user_language, 1, "User's language ID", "Kernel");
 
 namespace rex {
 namespace kernel {
 namespace xam {
-using namespace rex::runtime::guest;
+using namespace rex::system;
+using namespace rex::system::xam;
 
-X_HRESULT_result_t XamUserGetXUID_entry(dword_t user_index, dword_t type_mask,
-                                        lpqword_t xuid_ptr) {
-  assert_true(type_mask == 1 || type_mask == 2 || type_mask == 3 ||
-              type_mask == 4 || type_mask == 7);
+ppc_hresult_result_t XamUserGetXUID_entry(ppc_u32_t user_index, ppc_u32_t type_mask,
+                                          ppc_pu64_t xuid_ptr) {
+  assert_true(type_mask == 1 || type_mask == 2 || type_mask == 3 || type_mask == 4 ||
+              type_mask == 7);
   if (!xuid_ptr) {
     return X_E_INVALIDARG;
   }
@@ -67,7 +66,7 @@ X_HRESULT_result_t XamUserGetXUID_entry(dword_t user_index, dword_t type_mask,
   return result;
 }
 
-dword_result_t XamUserGetSigninState_entry(dword_t user_index) {
+ppc_u32_result_t XamUserGetSigninState_entry(ppc_u32_t user_index) {
   // Yield, as some games spam this.
   rex::thread::MaybeYield();
   uint32_t signin_state = 0;
@@ -90,8 +89,8 @@ typedef struct {
 } X_USER_SIGNIN_INFO;
 static_assert_size(X_USER_SIGNIN_INFO, 40);
 
-X_HRESULT_result_t XamUserGetSigninInfo_entry(
-    dword_t user_index, dword_t flags, pointer_t<X_USER_SIGNIN_INFO> info) {
+ppc_hresult_result_t XamUserGetSigninInfo_entry(ppc_u32_t user_index, ppc_u32_t flags,
+                                                ppc_ptr_t<X_USER_SIGNIN_INFO> info) {
   if (!info) {
     return X_E_INVALIDARG;
   }
@@ -104,13 +103,12 @@ X_HRESULT_result_t XamUserGetSigninInfo_entry(
   const auto& user_profile = kernel_state()->user_profile();
   info->xuid = user_profile->xuid();
   info->signin_state = user_profile->signin_state();
-  rex::string::util_copy_truncating(info->name, user_profile->name(),
-                                   rex::countof(info->name));
+  rex::string::util_copy_truncating(info->name, user_profile->name(), rex::countof(info->name));
   return X_E_SUCCESS;
 }
 
-dword_result_t XamUserGetName_entry(dword_t user_index, lpstring_t buffer,
-                                    dword_t buffer_len) {
+ppc_u32_result_t XamUserGetName_entry(ppc_u32_t user_index, ppc_pchar_t buffer,
+                                      ppc_u32_t buffer_len) {
   if (user_index >= 4) {
     return X_E_INVALIDARG;
   }
@@ -121,14 +119,12 @@ dword_result_t XamUserGetName_entry(dword_t user_index, lpstring_t buffer,
 
   const auto& user_profile = kernel_state()->user_profile();
   const auto& user_name = user_profile->name();
-  rex::string::util_copy_truncating(buffer, user_name,
-                                   std::min(buffer_len.value(), uint32_t(16)));
+  rex::string::util_copy_truncating(buffer, user_name, std::min(buffer_len.value(), uint32_t(16)));
   return X_E_SUCCESS;
 }
 
-dword_result_t XamUserGetGamerTag_entry(dword_t user_index,
-                                        lpu16string_t buffer,
-                                        dword_t buffer_len) {
+ppc_u32_result_t XamUserGetGamerTag_entry(ppc_u32_t user_index, ppc_pchar16_t buffer,
+                                          ppc_u32_t buffer_len) {
   if (user_index >= 4) {
     return X_E_INVALIDARG;
   }
@@ -143,8 +139,8 @@ dword_result_t XamUserGetGamerTag_entry(dword_t user_index,
 
   const auto& user_profile = kernel_state()->user_profile();
   auto user_name = rex::string::to_utf16(user_profile->name());
-  rex::string::util_copy_and_swap_truncating(
-      buffer, user_name, std::min(buffer_len.value(), uint32_t(16)));
+  rex::string::util_copy_and_swap_truncating(buffer, user_name,
+                                             std::min(buffer_len.value(), uint32_t(16)));
   return X_E_SUCCESS;
 }
 
@@ -155,12 +151,10 @@ typedef struct {
 static_assert_size(X_USER_READ_PROFILE_SETTINGS, 8);
 
 // https://github.com/oukiar/freestyledash/blob/master/Freestyle/Tools/Generic/xboxtools.cpp
-uint32_t XamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
-                                      uint32_t xuid_count, be<uint64_t>* xuids,
-                                      uint32_t setting_count,
+uint32_t XamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index, uint32_t xuid_count,
+                                      be<uint64_t>* xuids, uint32_t setting_count,
                                       be<uint32_t>* setting_ids, uint32_t unk,
-                                      be<uint32_t>* buffer_size_ptr,
-                                      uint8_t* buffer,
+                                      be<uint32_t>* buffer_size_ptr, uint8_t* buffer,
                                       XAM_OVERLAPPED* overlapped) {
   if (!xuid_count) {
     assert_null(xuids);
@@ -228,8 +222,7 @@ uint32_t XamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
     // Only support user 0.
     if (overlapped) {
       kernel_state()->CompleteOverlappedImmediate(
-          kernel_state()->memory()->HostToGuestVirtual(overlapped),
-          X_ERROR_NO_SUCH_USER);
+          kernel_state()->memory()->HostToGuestVirtual(overlapped), X_ERROR_NO_SUCH_USER);
       return X_ERROR_IO_PENDING;
     }
     return X_ERROR_NO_SUCH_USER;
@@ -258,8 +251,7 @@ uint32_t XamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
     // TODO(benvanik): don't fail? most games don't even check!
     if (overlapped) {
       kernel_state()->CompleteOverlappedImmediate(
-          kernel_state()->memory()->HostToGuestVirtual(overlapped),
-          X_ERROR_INVALID_PARAMETER);
+          kernel_state()->memory()->HostToGuestVirtual(overlapped), X_ERROR_INVALID_PARAMETER);
       return X_ERROR_IO_PENDING;
     }
     return X_ERROR_INVALID_PARAMETER;
@@ -268,20 +260,16 @@ uint32_t XamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
   auto out_header = reinterpret_cast<X_USER_READ_PROFILE_SETTINGS*>(buffer);
   auto out_setting = reinterpret_cast<X_USER_PROFILE_SETTING*>(&out_header[1]);
   out_header->setting_count = static_cast<uint32_t>(setting_count);
-  out_header->settings_ptr =
-      kernel_state()->memory()->HostToGuestVirtual(out_setting);
+  out_header->settings_ptr = kernel_state()->memory()->HostToGuestVirtual(out_setting);
 
-  UserProfile::SettingByteStream out_stream(
-      kernel_state()->memory()->HostToGuestVirtual(buffer), buffer, buffer_size,
-      needed_header_size);
+  UserProfile::SettingByteStream out_stream(kernel_state()->memory()->HostToGuestVirtual(buffer),
+                                            buffer, buffer_size, needed_header_size);
   for (uint32_t n = 0; n < setting_count; ++n) {
     uint32_t setting_id = setting_ids[n];
     auto setting = user_profile->GetSetting(setting_id);
 
     std::memset(out_setting, 0, sizeof(X_USER_PROFILE_SETTING));
-    out_setting->from = !setting || !setting->is_set   ? 0
-                        : setting->is_title_specific() ? 2
-                                                       : 1;
+    out_setting->from = !setting || !setting->is_set ? 0 : setting->is_title_specific() ? 2 : 1;
     if (xuids) {
       out_setting->xuid = user_profile->xuid();
     } else {
@@ -297,35 +285,36 @@ uint32_t XamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
 
   if (overlapped) {
     kernel_state()->CompleteOverlappedImmediate(
-        kernel_state()->memory()->HostToGuestVirtual(overlapped),
-        X_ERROR_SUCCESS);
+        kernel_state()->memory()->HostToGuestVirtual(overlapped), X_ERROR_SUCCESS);
     return X_ERROR_IO_PENDING;
   }
   return X_ERROR_SUCCESS;
 }
 
-dword_result_t XamUserReadProfileSettings_entry(
-    dword_t title_id, dword_t user_index, dword_t xuid_count, lpqword_t xuids,
-    dword_t setting_count, lpdword_t setting_ids, lpdword_t buffer_size_ptr,
-    lpvoid_t buffer_ptr, pointer_t<XAM_OVERLAPPED> overlapped) {
-  return XamUserReadProfileSettingsEx(title_id, user_index, xuid_count, xuids,
-                                      setting_count, setting_ids, 0,
-                                      buffer_size_ptr, buffer_ptr, overlapped);
+ppc_u32_result_t XamUserReadProfileSettings_entry(ppc_u32_t title_id, ppc_u32_t user_index,
+                                                  ppc_u32_t xuid_count, ppc_pu64_t xuids,
+                                                  ppc_u32_t setting_count, ppc_pu32_t setting_ids,
+                                                  ppc_pu32_t buffer_size_ptr,
+                                                  ppc_pvoid_t buffer_ptr,
+                                                  ppc_ptr_t<XAM_OVERLAPPED> overlapped) {
+  return XamUserReadProfileSettingsEx(title_id, user_index, xuid_count, xuids, setting_count,
+                                      setting_ids, 0, buffer_size_ptr, buffer_ptr, overlapped);
 }
 
-dword_result_t XamUserReadProfileSettingsEx_entry(
-    dword_t title_id, dword_t user_index, dword_t xuid_count, lpqword_t xuids,
-    dword_t setting_count, lpdword_t setting_ids, lpdword_t buffer_size_ptr,
-    dword_t unk_2, lpvoid_t buffer_ptr, pointer_t<XAM_OVERLAPPED> overlapped) {
-  return XamUserReadProfileSettingsEx(title_id, user_index, xuid_count, xuids,
-                                      setting_count, setting_ids, unk_2,
-                                      buffer_size_ptr, buffer_ptr, overlapped);
+ppc_u32_result_t XamUserReadProfileSettingsEx_entry(ppc_u32_t title_id, ppc_u32_t user_index,
+                                                    ppc_u32_t xuid_count, ppc_pu64_t xuids,
+                                                    ppc_u32_t setting_count, ppc_pu32_t setting_ids,
+                                                    ppc_pu32_t buffer_size_ptr, ppc_u32_t unk_2,
+                                                    ppc_pvoid_t buffer_ptr,
+                                                    ppc_ptr_t<XAM_OVERLAPPED> overlapped) {
+  return XamUserReadProfileSettingsEx(title_id, user_index, xuid_count, xuids, setting_count,
+                                      setting_ids, unk_2, buffer_size_ptr, buffer_ptr, overlapped);
 }
 
-dword_result_t XamUserWriteProfileSettings_entry(
-    dword_t title_id, dword_t user_index, dword_t setting_count,
-    pointer_t<X_USER_PROFILE_SETTING> settings,
-    pointer_t<XAM_OVERLAPPED> overlapped) {
+ppc_u32_result_t XamUserWriteProfileSettings_entry(ppc_u32_t title_id, ppc_u32_t user_index,
+                                                   ppc_u32_t setting_count,
+                                                   ppc_ptr_t<X_USER_PROFILE_SETTING> settings,
+                                                   ppc_ptr_t<XAM_OVERLAPPED> overlapped) {
   if (!setting_count || !settings) {
     return X_ERROR_INVALID_PARAMETER;
   }
@@ -333,8 +322,7 @@ dword_result_t XamUserWriteProfileSettings_entry(
   if (user_index) {
     // Only support user 0.
     if (overlapped) {
-      kernel_state()->CompleteOverlappedImmediate(overlapped,
-                                                  X_ERROR_NO_SUCH_USER);
+      kernel_state()->CompleteOverlappedImmediate(overlapped.guest_address(), X_ERROR_NO_SUCH_USER);
       return X_ERROR_IO_PENDING;
     }
     return X_ERROR_NO_SUCH_USER;
@@ -346,8 +334,7 @@ dword_result_t XamUserWriteProfileSettings_entry(
   for (uint32_t n = 0; n < setting_count; ++n) {
     const X_USER_PROFILE_SETTING& setting = settings[n];
 
-    auto setting_type =
-        static_cast<UserProfile::Setting::Type>(setting.data.type);
+    auto setting_type = static_cast<UserProfile::Setting::Type>(setting.data.type);
     if (setting_type == UserProfile::Setting::Type::UNSET) {
       continue;
     }
@@ -355,14 +342,12 @@ dword_result_t XamUserWriteProfileSettings_entry(
     REXKRNL_DEBUG(
         "XamUserWriteProfileSettings: setting index [{}]:"
         " from={} setting_id={:08X} data.type={}",
-        n, (uint32_t)setting.from, (uint32_t)setting.setting_id,
-        setting.data.type);
+        n, (uint32_t)setting.from, (uint32_t)setting.setting_id, setting.data.type);
 
     switch (setting_type) {
       case UserProfile::Setting::Type::CONTENT:
       case UserProfile::Setting::Type::BINARY: {
-        uint8_t* binary_ptr =
-            kernel_state()->memory()->TranslateVirtual(setting.data.binary.ptr);
+        uint8_t* binary_ptr = kernel_state()->memory()->TranslateVirtual(setting.data.binary.ptr);
         size_t binary_size = setting.data.binary.size;
         std::vector<uint8_t> bytes;
         if (setting.data.binary.ptr) {
@@ -374,8 +359,7 @@ dword_result_t XamUserWriteProfileSettings_entry(
           bytes.resize(binary_size, 0);
         }
         user_profile->AddSetting(
-            std::make_unique<xam::UserProfile::BinarySetting>(
-                setting.setting_id, bytes));
+            std::make_unique<xam::UserProfile::BinarySetting>(setting.setting_id, bytes));
       } break;
       case UserProfile::Setting::Type::WSTRING:
       case UserProfile::Setting::Type::DOUBLE:
@@ -384,21 +368,20 @@ dword_result_t XamUserWriteProfileSettings_entry(
       case UserProfile::Setting::Type::INT64:
       case UserProfile::Setting::Type::DATETIME:
       default: {
-        REXKRNL_ERROR("XamUserWriteProfileSettings: Unimplemented data type {}",
-               setting_type);
+        REXKRNL_ERROR("XamUserWriteProfileSettings: Unimplemented data type {}", setting_type);
       } break;
     };
   }
 
   if (overlapped) {
-    kernel_state()->CompleteOverlappedImmediate(overlapped, X_ERROR_SUCCESS);
+    kernel_state()->CompleteOverlappedImmediate(overlapped.guest_address(), X_ERROR_SUCCESS);
     return X_ERROR_IO_PENDING;
   }
   return X_ERROR_SUCCESS;
 }
 
-dword_result_t XamUserCheckPrivilege_entry(dword_t user_index, dword_t mask,
-                                           lpdword_t out_value) {
+ppc_u32_result_t XamUserCheckPrivilege_entry(ppc_u32_t user_index, ppc_u32_t mask,
+                                             ppc_pu32_t out_value) {
   // checking all users?
   if (user_index != 0xFF) {
     if (user_index >= 4) {
@@ -415,8 +398,8 @@ dword_result_t XamUserCheckPrivilege_entry(dword_t user_index, dword_t mask,
   return X_ERROR_SUCCESS;
 }
 
-dword_result_t XamUserContentRestrictionGetFlags_entry(dword_t user_index,
-                                                       lpdword_t out_flags) {
+ppc_u32_result_t XamUserContentRestrictionGetFlags_entry(ppc_u32_t user_index,
+                                                         ppc_pu32_t out_flags) {
   if (user_index) {
     return X_ERROR_NO_SUCH_USER;
   }
@@ -426,10 +409,9 @@ dword_result_t XamUserContentRestrictionGetFlags_entry(dword_t user_index,
   return X_ERROR_SUCCESS;
 }
 
-dword_result_t XamUserContentRestrictionGetRating_entry(dword_t user_index,
-                                                        dword_t unk1,
-                                                        lpdword_t out_unk2,
-                                                        lpdword_t out_unk3) {
+ppc_u32_result_t XamUserContentRestrictionGetRating_entry(ppc_u32_t user_index, ppc_u32_t unk1,
+                                                          ppc_pu32_t out_unk2,
+                                                          ppc_pu32_t out_unk3) {
   if (user_index) {
     return X_ERROR_NO_SUCH_USER;
   }
@@ -441,23 +423,25 @@ dword_result_t XamUserContentRestrictionGetRating_entry(dword_t user_index,
   return X_ERROR_SUCCESS;
 }
 
-dword_result_t XamUserContentRestrictionCheckAccess_entry(
-    dword_t user_index, dword_t unk1, dword_t unk2, dword_t unk3, dword_t unk4,
-    lpdword_t out_unk5, dword_t overlapped_ptr) {
+ppc_u32_result_t XamUserContentRestrictionCheckAccess_entry(ppc_u32_t user_index, ppc_u32_t unk1,
+                                                            ppc_u32_t unk2, ppc_u32_t unk3,
+                                                            ppc_u32_t unk4, ppc_pu32_t out_unk5,
+                                                            ppc_u32_t overlapped_ptr) {
   *out_unk5 = 1;
 
   if (overlapped_ptr) {
     // TODO(benvanik): does this need the access arg on it?
-    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr,
-                                                X_ERROR_SUCCESS);
+    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
   }
 
   return X_ERROR_SUCCESS;
 }
 
-dword_result_t XamUserIsOnlineEnabled_entry(dword_t user_index) { return 1; }
+ppc_u32_result_t XamUserIsOnlineEnabled_entry(ppc_u32_t user_index) {
+  return 1;
+}
 
-dword_result_t XamUserGetMembershipTier_entry(dword_t user_index) {
+ppc_u32_result_t XamUserGetMembershipTier_entry(ppc_u32_t user_index) {
   if (user_index >= 4) {
     return X_ERROR_INVALID_PARAMETER;
   }
@@ -467,9 +451,8 @@ dword_result_t XamUserGetMembershipTier_entry(dword_t user_index) {
   return 6 /* 6 appears to be Gold */;
 }
 
-dword_result_t XamUserAreUsersFriends_entry(dword_t user_index, dword_t unk1,
-                                            dword_t unk2, lpdword_t out_value,
-                                            dword_t overlapped_ptr) {
+ppc_u32_result_t XamUserAreUsersFriends_entry(ppc_u32_t user_index, ppc_u32_t unk1, ppc_u32_t unk2,
+                                              ppc_pu32_t out_value, ppc_u32_t overlapped_ptr) {
   uint32_t are_friends = 0;
   X_RESULT result;
 
@@ -487,8 +470,7 @@ dword_result_t XamUserAreUsersFriends_entry(dword_t user_index, dword_t unk1,
       }
     } else {
       // Only support user 0.
-      result =
-          X_ERROR_NO_SUCH_USER;  // if user is local -> X_ERROR_NOT_LOGGED_ON
+      result = X_ERROR_NO_SUCH_USER;  // if user is local -> X_ERROR_NOT_LOGGED_ON
     }
   }
 
@@ -499,10 +481,8 @@ dword_result_t XamUserAreUsersFriends_entry(dword_t user_index, dword_t unk1,
   } else if (overlapped_ptr) {
     assert_true(!out_value);
     kernel_state()->CompleteOverlappedImmediateEx(
-        overlapped_ptr,
-        result == X_ERROR_SUCCESS ? X_ERROR_SUCCESS : X_ERROR_FUNCTION_FAILED,
-        X_HRESULT_FROM_WIN32(result),
-        result == X_ERROR_SUCCESS ? are_friends : 0);
+        overlapped_ptr, result == X_ERROR_SUCCESS ? X_ERROR_SUCCESS : X_ERROR_FUNCTION_FAILED,
+        X_HRESULT_FROM_WIN32(result), result == X_ERROR_SUCCESS ? are_friends : 0);
     return X_ERROR_IO_PENDING;
   } else {
     assert_always();
@@ -510,7 +490,7 @@ dword_result_t XamUserAreUsersFriends_entry(dword_t user_index, dword_t unk1,
   }
 }
 
-dword_result_t XamShowSigninUI_entry(dword_t unk, dword_t unk_mask) {
+ppc_u32_result_t XamShowSigninUI_entry(ppc_u32_t unk, ppc_u32_t unk_mask) {
   // Mask values vary. Probably matching user types? Local/remote?
 
   // To fix game modes that display a 4 profile signin UI (even if playing
@@ -559,22 +539,17 @@ class XStaticAchievementEnumerator : public XEnumerator {
     uint32_t flags;
   };
 
-  XStaticAchievementEnumerator(KernelState* kernel_state,
-                               size_t items_per_enumerate, uint32_t flags)
-      : XEnumerator(
-            kernel_state, items_per_enumerate,
-            sizeof(X_ACHIEVEMENT_DETAILS) +
-                (!!(flags & 7) ? X_ACHIEVEMENT_DETAILS::kStringBufferSize : 0)),
+  XStaticAchievementEnumerator(KernelState* kernel_state, size_t items_per_enumerate,
+                               uint32_t flags)
+      : XEnumerator(kernel_state, items_per_enumerate,
+                    sizeof(X_ACHIEVEMENT_DETAILS) +
+                        (!!(flags & 7) ? X_ACHIEVEMENT_DETAILS::kStringBufferSize : 0)),
         flags_(flags) {}
 
-  void AppendItem(AchievementDetails item) {
-    items_.push_back(std::move(item));
-  }
+  void AppendItem(AchievementDetails item) { items_.push_back(std::move(item)); }
 
-  uint32_t WriteItems(uint32_t buffer_ptr, uint8_t* buffer_data,
-                      uint32_t* written_count) override {
-    size_t count =
-        std::min(items_.size() - current_item_, items_per_enumerate());
+  uint32_t WriteItems(uint32_t buffer_ptr, uint8_t* buffer_data, uint32_t* written_count) override {
+    size_t count = std::min(items_.size() - current_item_, items_per_enumerate());
     if (!count) {
       return X_ERROR_NO_MORE_FILES;
     }
@@ -582,21 +557,17 @@ class XStaticAchievementEnumerator : public XEnumerator {
     size_t size = count * item_size();
 
     auto details = reinterpret_cast<X_ACHIEVEMENT_DETAILS*>(buffer_data);
-    size_t string_offset =
-        items_per_enumerate() * sizeof(X_ACHIEVEMENT_DETAILS);
+    size_t string_offset = items_per_enumerate() * sizeof(X_ACHIEVEMENT_DETAILS);
     auto string_buffer =
-        StringBuffer{buffer_ptr + static_cast<uint32_t>(string_offset),
-                     &buffer_data[string_offset],
+        StringBuffer{buffer_ptr + static_cast<uint32_t>(string_offset), &buffer_data[string_offset],
                      count * X_ACHIEVEMENT_DETAILS::kStringBufferSize};
     for (size_t i = 0, o = current_item_; i < count; ++i, ++current_item_) {
       const auto& item = items_[current_item_];
       details[i].id = item.id;
-      details[i].label_ptr =
-          !!(flags_ & 1) ? AppendString(string_buffer, item.label) : 0;
+      details[i].label_ptr = !!(flags_ & 1) ? AppendString(string_buffer, item.label) : 0;
       details[i].description_ptr =
           !!(flags_ & 2) ? AppendString(string_buffer, item.description) : 0;
-      details[i].unachieved_ptr =
-          !!(flags_ & 4) ? AppendString(string_buffer, item.unachieved) : 0;
+      details[i].unachieved_ptr = !!(flags_ & 4) ? AppendString(string_buffer, item.unachieved) : 0;
       details[i].image_id = item.image_id;
       details[i].gamerscore = item.gamerscore;
       details[i].unlock_time.unk_0 = item.unlock_time.unk_0;
@@ -626,8 +597,7 @@ class XStaticAchievementEnumerator : public XEnumerator {
       return 0;
     }
     auto ptr = sb.ptr;
-    rex::string::util_copy_and_swap_truncating(reinterpret_cast<char16_t*>(sb.data),
-                                          string, count);
+    rex::string::util_copy_and_swap_truncating(reinterpret_cast<char16_t*>(sb.data), string, count);
     sb.ptr += static_cast<uint32_t>(size);
     sb.data += size;
     sb.remaining_bytes -= size;
@@ -640,10 +610,11 @@ class XStaticAchievementEnumerator : public XEnumerator {
   size_t current_item_ = 0;
 };
 
-dword_result_t XamUserCreateAchievementEnumerator_entry(
-    dword_t title_id, dword_t user_index, dword_t xuid, dword_t flags,
-    dword_t offset, dword_t count, lpdword_t buffer_size_ptr,
-    lpdword_t handle_ptr) {
+ppc_u32_result_t XamUserCreateAchievementEnumerator_entry(ppc_u32_t title_id, ppc_u32_t user_index,
+                                                          ppc_u32_t xuid, ppc_u32_t flags,
+                                                          ppc_u32_t offset, ppc_u32_t count,
+                                                          ppc_pu32_t buffer_size_ptr,
+                                                          ppc_pu32_t handle_ptr) {
   if (!count || !buffer_size_ptr || !handle_ptr) {
     return X_ERROR_INVALID_PARAMETER;
   }
@@ -673,8 +644,7 @@ dword_result_t XamUserCreateAchievementEnumerator_entry(
   if (db.is_valid()) {
     const XLanguage language =
         db.GetExistingLanguage(static_cast<XLanguage>(REXCVAR_GET(user_language)));
-    const std::vector<util::XdbfAchievementTableEntry> achievement_list =
-        db.GetAchievements();
+    const std::vector<util::XdbfAchievementTableEntry> achievement_list = db.GetAchievements();
 
     for (const util::XdbfAchievementTableEntry& entry : achievement_list) {
       auto item = XStaticAchievementEnumerator::AchievementDetails{
@@ -695,20 +665,18 @@ dword_result_t XamUserCreateAchievementEnumerator_entry(
   return X_ERROR_SUCCESS;
 }
 
-dword_result_t XamParseGamerTileKey_entry(lpdword_t key_ptr, lpdword_t out1_ptr,
-                                          lpdword_t out2_ptr,
-                                          lpdword_t out3_ptr) {
+ppc_u32_result_t XamParseGamerTileKey_entry(ppc_pu32_t key_ptr, ppc_pu32_t out1_ptr,
+                                            ppc_pu32_t out2_ptr, ppc_pu32_t out3_ptr) {
   *out1_ptr = 0xC0DE0001;
   *out2_ptr = 0xC0DE0002;
   *out3_ptr = 0xC0DE0003;
   return X_ERROR_SUCCESS;
 }
 
-dword_result_t XamReadTileToTexture_entry(dword_t unknown, dword_t title_id,
-                                          qword_t tile_id, dword_t user_index,
-                                          lpvoid_t buffer_ptr, dword_t stride,
-                                          dword_t height,
-                                          dword_t overlapped_ptr) {
+ppc_u32_result_t XamReadTileToTexture_entry(ppc_u32_t unknown, ppc_u32_t title_id,
+                                            ppc_u64_t tile_id, ppc_u32_t user_index,
+                                            ppc_pvoid_t buffer_ptr, ppc_u32_t stride,
+                                            ppc_u32_t height, ppc_u32_t overlapped_ptr) {
   // TODO(gibbed): unknown=0,2,3,9
   if (!tile_id) {
     return X_ERROR_INVALID_PARAMETER;
@@ -718,31 +686,27 @@ dword_result_t XamReadTileToTexture_entry(dword_t unknown, dword_t title_id,
   std::memset(buffer_ptr, 0xFF, size);
 
   if (overlapped_ptr) {
-    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr,
-                                                X_ERROR_SUCCESS);
+    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
     return X_ERROR_IO_PENDING;
   }
   return X_ERROR_SUCCESS;
 }
 
-dword_result_t XamWriteGamerTile_entry(dword_t arg1, dword_t arg2, dword_t arg3,
-                                       dword_t arg4, dword_t arg5,
-                                       dword_t overlapped_ptr) {
+ppc_u32_result_t XamWriteGamerTile_entry(ppc_u32_t arg1, ppc_u32_t arg2, ppc_u32_t arg3,
+                                         ppc_u32_t arg4, ppc_u32_t arg5, ppc_u32_t overlapped_ptr) {
   if (overlapped_ptr) {
-    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr,
-                                                X_ERROR_SUCCESS);
+    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
     return X_ERROR_IO_PENDING;
   }
   return X_ERROR_SUCCESS;
 }
 
-dword_result_t XamSessionCreateHandle_entry(lpdword_t handle_ptr) {
+ppc_u32_result_t XamSessionCreateHandle_entry(ppc_pu32_t handle_ptr) {
   *handle_ptr = 0xCAFEDEAD;
   return X_ERROR_SUCCESS;
 }
 
-dword_result_t XamSessionRefObjByHandle_entry(dword_t handle,
-                                              lpdword_t obj_ptr) {
+ppc_u32_result_t XamSessionRefObjByHandle_entry(ppc_u32_t handle, ppc_pu32_t obj_ptr) {
   assert_true(handle == 0xCAFEDEAD);
   // TODO(PermaNull): Implement this properly,
   // For the time being returning 0xDEADF00D will prevent crashing.
@@ -754,25 +718,29 @@ dword_result_t XamSessionRefObjByHandle_entry(dword_t handle,
 }  // namespace kernel
 }  // namespace rex
 
-GUEST_FUNCTION_HOOK(__imp__XamUserGetXUID, rex::kernel::xam::XamUserGetXUID_entry)
-GUEST_FUNCTION_HOOK(__imp__XamUserGetSigninState, rex::kernel::xam::XamUserGetSigninState_entry)
-GUEST_FUNCTION_HOOK(__imp__XamUserGetSigninInfo, rex::kernel::xam::XamUserGetSigninInfo_entry)
-GUEST_FUNCTION_HOOK(__imp__XamUserGetName, rex::kernel::xam::XamUserGetName_entry)
-GUEST_FUNCTION_HOOK(__imp__XamUserGetGamerTag, rex::kernel::xam::XamUserGetGamerTag_entry)
-GUEST_FUNCTION_HOOK(__imp__XamUserReadProfileSettings, rex::kernel::xam::XamUserReadProfileSettings_entry)
-GUEST_FUNCTION_HOOK(__imp__XamUserReadProfileSettingsEx, rex::kernel::xam::XamUserReadProfileSettingsEx_entry)
-GUEST_FUNCTION_HOOK(__imp__XamUserWriteProfileSettings, rex::kernel::xam::XamUserWriteProfileSettings_entry)
-GUEST_FUNCTION_HOOK(__imp__XamUserCheckPrivilege, rex::kernel::xam::XamUserCheckPrivilege_entry)
-GUEST_FUNCTION_HOOK(__imp__XamUserContentRestrictionGetFlags, rex::kernel::xam::XamUserContentRestrictionGetFlags_entry)
-GUEST_FUNCTION_HOOK(__imp__XamUserContentRestrictionGetRating, rex::kernel::xam::XamUserContentRestrictionGetRating_entry)
-GUEST_FUNCTION_HOOK(__imp__XamUserContentRestrictionCheckAccess, rex::kernel::xam::XamUserContentRestrictionCheckAccess_entry)
-GUEST_FUNCTION_HOOK(__imp__XamUserIsOnlineEnabled, rex::kernel::xam::XamUserIsOnlineEnabled_entry)
-GUEST_FUNCTION_HOOK(__imp__XamUserGetMembershipTier, rex::kernel::xam::XamUserGetMembershipTier_entry)
-GUEST_FUNCTION_HOOK(__imp__XamUserAreUsersFriends, rex::kernel::xam::XamUserAreUsersFriends_entry)
-GUEST_FUNCTION_HOOK(__imp__XamShowSigninUI, rex::kernel::xam::XamShowSigninUI_entry)
-GUEST_FUNCTION_HOOK(__imp__XamUserCreateAchievementEnumerator, rex::kernel::xam::XamUserCreateAchievementEnumerator_entry)
-GUEST_FUNCTION_HOOK(__imp__XamParseGamerTileKey, rex::kernel::xam::XamParseGamerTileKey_entry)
-GUEST_FUNCTION_HOOK(__imp__XamReadTileToTexture, rex::kernel::xam::XamReadTileToTexture_entry)
-GUEST_FUNCTION_HOOK(__imp__XamWriteGamerTile, rex::kernel::xam::XamWriteGamerTile_entry)
-GUEST_FUNCTION_HOOK(__imp__XamSessionCreateHandle, rex::kernel::xam::XamSessionCreateHandle_entry)
-GUEST_FUNCTION_HOOK(__imp__XamSessionRefObjByHandle, rex::kernel::xam::XamSessionRefObjByHandle_entry)
+PPC_HOOK(__imp__XamUserGetXUID, rex::kernel::xam::XamUserGetXUID_entry)
+PPC_HOOK(__imp__XamUserGetSigninState, rex::kernel::xam::XamUserGetSigninState_entry)
+PPC_HOOK(__imp__XamUserGetSigninInfo, rex::kernel::xam::XamUserGetSigninInfo_entry)
+PPC_HOOK(__imp__XamUserGetName, rex::kernel::xam::XamUserGetName_entry)
+PPC_HOOK(__imp__XamUserGetGamerTag, rex::kernel::xam::XamUserGetGamerTag_entry)
+PPC_HOOK(__imp__XamUserReadProfileSettings, rex::kernel::xam::XamUserReadProfileSettings_entry)
+PPC_HOOK(__imp__XamUserReadProfileSettingsEx, rex::kernel::xam::XamUserReadProfileSettingsEx_entry)
+PPC_HOOK(__imp__XamUserWriteProfileSettings, rex::kernel::xam::XamUserWriteProfileSettings_entry)
+PPC_HOOK(__imp__XamUserCheckPrivilege, rex::kernel::xam::XamUserCheckPrivilege_entry)
+PPC_HOOK(__imp__XamUserContentRestrictionGetFlags,
+         rex::kernel::xam::XamUserContentRestrictionGetFlags_entry)
+PPC_HOOK(__imp__XamUserContentRestrictionGetRating,
+         rex::kernel::xam::XamUserContentRestrictionGetRating_entry)
+PPC_HOOK(__imp__XamUserContentRestrictionCheckAccess,
+         rex::kernel::xam::XamUserContentRestrictionCheckAccess_entry)
+PPC_HOOK(__imp__XamUserIsOnlineEnabled, rex::kernel::xam::XamUserIsOnlineEnabled_entry)
+PPC_HOOK(__imp__XamUserGetMembershipTier, rex::kernel::xam::XamUserGetMembershipTier_entry)
+PPC_HOOK(__imp__XamUserAreUsersFriends, rex::kernel::xam::XamUserAreUsersFriends_entry)
+PPC_HOOK(__imp__XamShowSigninUI, rex::kernel::xam::XamShowSigninUI_entry)
+PPC_HOOK(__imp__XamUserCreateAchievementEnumerator,
+         rex::kernel::xam::XamUserCreateAchievementEnumerator_entry)
+PPC_HOOK(__imp__XamParseGamerTileKey, rex::kernel::xam::XamParseGamerTileKey_entry)
+PPC_HOOK(__imp__XamReadTileToTexture, rex::kernel::xam::XamReadTileToTexture_entry)
+PPC_HOOK(__imp__XamWriteGamerTile, rex::kernel::xam::XamWriteGamerTile_entry)
+PPC_HOOK(__imp__XamSessionCreateHandle, rex::kernel::xam::XamSessionCreateHandle_entry)
+PPC_HOOK(__imp__XamSessionRefObjByHandle, rex::kernel::xam::XamSessionRefObjByHandle_entry)

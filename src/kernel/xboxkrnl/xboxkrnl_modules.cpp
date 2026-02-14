@@ -9,19 +9,19 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/logging.h>
-#include <rex/kernel/kernel_state.h>
-#include <rex/kernel/user_module.h>
-#include <rex/runtime/guest/function.h>
-#include <rex/runtime/guest/types.h>
 #include <rex/kernel/xboxkrnl/private.h>
-#include <rex/kernel/xtypes.h>
-#include <rex/kernel/xexception.h>
+#include <rex/logging.h>
+#include <rex/ppc/function.h>
+#include <rex/ppc/types.h>
+#include <rex/system/kernel_state.h>
+#include <rex/system/user_module.h>
+#include <rex/system/xexception.h>
+#include <rex/system/xtypes.h>
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::runtime::guest;
+using namespace rex::system;
 
-dword_result_t XexCheckExecutablePrivilege_entry(dword_t privilege) {
+ppc_u32_result_t XexCheckExecutablePrivilege_entry(ppc_u32_t privilege) {
   REXKRNL_IMPORT_TRACE("XexCheckExecutablePrivilege", "priv={}", (uint32_t)privilege);
   // BOOL
   // DWORD Privilege
@@ -41,8 +41,7 @@ dword_result_t XexCheckExecutablePrivilege_entry(dword_t privilege) {
   return (flags & mask) > 0;
 }
 
-dword_result_t XexGetModuleHandle_entry(lpstring_t module_name,
-                                        lpdword_t hmodule_ptr) {
+ppc_u32_result_t XexGetModuleHandle_entry(ppc_pchar_t module_name, ppc_pu32_t hmodule_ptr) {
   object_ref<XModule> module;
 
   if (!module_name) {
@@ -62,9 +61,8 @@ dword_result_t XexGetModuleHandle_entry(lpstring_t module_name,
   return X_ERROR_SUCCESS;
 }
 
-dword_result_t XexGetModuleSection_entry(lpvoid_t hmodule, lpstring_t name,
-                                         lpdword_t data_ptr,
-                                         lpdword_t size_ptr) {
+ppc_u32_result_t XexGetModuleSection_entry(ppc_pvoid_t hmodule, ppc_pchar_t name,
+                                           ppc_pu32_t data_ptr, ppc_pu32_t size_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
   auto module = XModule::GetFromHModule(kernel_state(), hmodule);
@@ -83,8 +81,8 @@ dword_result_t XexGetModuleSection_entry(lpvoid_t hmodule, lpstring_t name,
   return result;
 }
 
-dword_result_t XexLoadImage_entry(lpstring_t module_name, dword_t module_flags,
-                                  dword_t min_version, lpdword_t hmodule_ptr) {
+ppc_u32_result_t XexLoadImage_entry(ppc_pchar_t module_name, ppc_u32_t module_flags,
+                                    ppc_u32_t min_version, ppc_pu32_t hmodule_ptr) {
   X_STATUS result = X_STATUS_NO_SUCH_FILE;
 
   uint32_t hmodule = 0;
@@ -107,8 +105,7 @@ dword_result_t XexLoadImage_entry(lpstring_t module_name, dword_t module_flags,
 
   // Increment the module's load count.
   if (hmodule) {
-    auto ldr_data =
-        kernel_memory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(hmodule);
+    auto ldr_data = kernel_memory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(hmodule);
     ldr_data->load_count++;
   }
 
@@ -117,7 +114,7 @@ dword_result_t XexLoadImage_entry(lpstring_t module_name, dword_t module_flags,
   return result;
 }
 
-dword_result_t XexUnloadImage_entry(lpvoid_t hmodule) {
+ppc_u32_result_t XexUnloadImage_entry(ppc_pvoid_t hmodule) {
   auto module = XModule::GetFromHModule(kernel_state(), hmodule);
   if (!module) {
     return X_STATUS_INVALID_HANDLE;
@@ -129,22 +126,21 @@ dword_result_t XexUnloadImage_entry(lpvoid_t hmodule) {
     if (--ldr_data->load_count == 0) {
       // No more references, free it.
       module->Release();
-      kernel_state()->UnloadUserModule(object_ref<UserModule>(
-          reinterpret_cast<UserModule*>(module.release())));
+      kernel_state()->UnloadUserModule(
+          object_ref<UserModule>(reinterpret_cast<UserModule*>(module.release())));
     }
   }
 
   return X_STATUS_SUCCESS;
 }
 
-dword_result_t XexGetProcedureAddress_entry(lpvoid_t hmodule, dword_t ordinal,
-                                            lpdword_t out_function_ptr) {
+ppc_u32_result_t XexGetProcedureAddress_entry(ppc_pvoid_t hmodule, ppc_u32_t ordinal,
+                                              ppc_pu32_t out_function_ptr) {
   // May be entry point?
   assert_not_zero(ordinal);
 
   bool is_string_name = (ordinal & 0xFFFF0000) != 0;
-  auto string_name =
-      reinterpret_cast<const char*>(kernel_memory()->TranslateVirtual(ordinal));
+  auto string_name = reinterpret_cast<const char*>(kernel_memory()->TranslateVirtual(ordinal));
 
   X_STATUS result = X_STATUS_INVALID_HANDLE;
 
@@ -166,8 +162,8 @@ dword_result_t XexGetProcedureAddress_entry(lpvoid_t hmodule, dword_t ordinal,
       result = X_STATUS_SUCCESS;
     } else {
       if (is_string_name) {
-        REXKRNL_WARN("ERROR: XexGetProcedureAddress export '{}' in '{}' not found!",
-               string_name, module->name());
+        REXKRNL_WARN("ERROR: XexGetProcedureAddress export '{}' in '{}' not found!", string_name,
+                     module->name());
       } else {
         REXKRNL_WARN(
             "ERROR: XexGetProcedureAddress ordinal {} (0x{:X}) in '{}' not "
@@ -182,30 +178,31 @@ dword_result_t XexGetProcedureAddress_entry(lpvoid_t hmodule, dword_t ordinal,
   return result;
 }
 
-void ExRegisterTitleTerminateNotification_entry(
-    pointer_t<X_EX_TITLE_TERMINATE_REGISTRATION> reg, dword_t create) {
+void ExRegisterTitleTerminateNotification_entry(ppc_ptr_t<X_EX_TITLE_TERMINATE_REGISTRATION> reg,
+                                                ppc_u32_t create) {
   if (create) {
     // Adding.
-    kernel_state()->RegisterTitleTerminateNotification(
-        reg->notification_routine, reg->priority);
+    kernel_state()->RegisterTitleTerminateNotification(reg->notification_routine, reg->priority);
   } else {
     // Removing.
     kernel_state()->RemoveTitleTerminateNotification(reg->notification_routine);
   }
 }
 
-dword_result_t XexLoadImageHeaders_entry(lpstring_t path, lpvoid_t headers) {
+ppc_u32_result_t XexLoadImageHeaders_entry(ppc_pchar_t path, ppc_pvoid_t headers) {
   REXKRNL_DEBUG("XexLoadImageHeaders({}) - stub", path.value());
   return X_STATUS_NOT_IMPLEMENTED;
 }
 
 }  // namespace rex::kernel::xboxkrnl
 
-GUEST_FUNCTION_HOOK(__imp__XexCheckExecutablePrivilege, rex::kernel::xboxkrnl::XexCheckExecutablePrivilege_entry)
-GUEST_FUNCTION_HOOK(__imp__XexGetModuleHandle, rex::kernel::xboxkrnl::XexGetModuleHandle_entry)
-GUEST_FUNCTION_HOOK(__imp__XexGetModuleSection, rex::kernel::xboxkrnl::XexGetModuleSection_entry)
-GUEST_FUNCTION_HOOK(__imp__XexLoadImage, rex::kernel::xboxkrnl::XexLoadImage_entry)
-GUEST_FUNCTION_HOOK(__imp__XexUnloadImage, rex::kernel::xboxkrnl::XexUnloadImage_entry)
-GUEST_FUNCTION_HOOK(__imp__XexGetProcedureAddress, rex::kernel::xboxkrnl::XexGetProcedureAddress_entry)
-GUEST_FUNCTION_HOOK(__imp__ExRegisterTitleTerminateNotification, rex::kernel::xboxkrnl::ExRegisterTitleTerminateNotification_entry)
-GUEST_FUNCTION_HOOK(__imp__XexLoadImageHeaders, rex::kernel::xboxkrnl::XexLoadImageHeaders_entry)
+PPC_HOOK(__imp__XexCheckExecutablePrivilege,
+         rex::kernel::xboxkrnl::XexCheckExecutablePrivilege_entry)
+PPC_HOOK(__imp__XexGetModuleHandle, rex::kernel::xboxkrnl::XexGetModuleHandle_entry)
+PPC_HOOK(__imp__XexGetModuleSection, rex::kernel::xboxkrnl::XexGetModuleSection_entry)
+PPC_HOOK(__imp__XexLoadImage, rex::kernel::xboxkrnl::XexLoadImage_entry)
+PPC_HOOK(__imp__XexUnloadImage, rex::kernel::xboxkrnl::XexUnloadImage_entry)
+PPC_HOOK(__imp__XexGetProcedureAddress, rex::kernel::xboxkrnl::XexGetProcedureAddress_entry)
+PPC_HOOK(__imp__ExRegisterTitleTerminateNotification,
+         rex::kernel::xboxkrnl::ExRegisterTitleTerminateNotification_entry)
+PPC_HOOK(__imp__XexLoadImageHeaders, rex::kernel::xboxkrnl::XexLoadImageHeaders_entry)

@@ -10,7 +10,6 @@
  */
 
 #include <rex/filesystem/device.h>
-
 #include <rex/logging.h>
 
 namespace rex::filesystem {

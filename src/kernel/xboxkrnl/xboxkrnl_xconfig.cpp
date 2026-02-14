@@ -9,25 +9,23 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
- // Disable warnings about unused parameters for kernel functions
+// Disable warnings about unused parameters for kernel functions
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
 #include <rex/cvar.h>
-#include <rex/logging.h>
-#include <rex/kernel/flags.h>
-#include <rex/kernel/kernel_state.h>
-#include <rex/kernel/user_module.h>
-#include <rex/runtime/guest/function.h>
-#include <rex/runtime/guest/types.h>
 #include <rex/kernel/xboxkrnl/private.h>
-#include <rex/kernel/xtypes.h>
+#include <rex/logging.h>
+#include <rex/ppc/function.h>
+#include <rex/ppc/types.h>
+#include <rex/system/flags.h>
+#include <rex/system/kernel_state.h>
+#include <rex/system/user_module.h>
+#include <rex/system/xtypes.h>
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::runtime::guest;
 
-X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
-                               void* buffer, uint16_t buffer_size,
-                               uint16_t* required_size) {
+X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting, void* buffer,
+                               uint16_t buffer_size, uint16_t* required_size) {
   uint16_t setting_size = 0;
   alignas(uint32_t) uint8_t value[4];
 
@@ -106,13 +104,12 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
   return X_STATUS_SUCCESS;
 }
 
-dword_result_t ExGetXConfigSetting_entry(word_t category, word_t setting,
-                                         lpvoid_t buffer_ptr,
-                                         word_t buffer_size,
-                                         lpword_t required_size_ptr) {
+ppc_u32_result_t ExGetXConfigSetting_entry(ppc_u16_t category, ppc_u16_t setting,
+                                           ppc_pvoid_t buffer_ptr, ppc_u16_t buffer_size,
+                                           ppc_pu16_t required_size_ptr) {
   uint16_t required_size = 0;
-  X_STATUS result = xeExGetXConfigSetting(category, setting, buffer_ptr,
-                                          buffer_size, &required_size);
+  X_STATUS result =
+      xeExGetXConfigSetting(category, setting, buffer_ptr, buffer_size, &required_size);
 
   if (required_size_ptr) {
     *required_size_ptr = required_size;
@@ -123,4 +120,4 @@ dword_result_t ExGetXConfigSetting_entry(word_t category, word_t setting,
 
 }  // namespace rex::kernel::xboxkrnl
 
-GUEST_FUNCTION_HOOK(__imp__ExGetXConfigSetting, rex::kernel::xboxkrnl::ExGetXConfigSetting_entry)
+PPC_HOOK(__imp__ExGetXConfigSetting, rex::kernel::xboxkrnl::ExGetXConfigSetting_entry)

@@ -83,4 +83,3 @@ class global_critical_region {
 };
 
 }  // namespace rex::thread
-

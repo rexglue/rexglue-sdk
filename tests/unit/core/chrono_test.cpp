@@ -10,12 +10,12 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <catch2/catch_test_macros.hpp>
-
 #include <chrono>
 #include <cstdint>
 
-#include <rex/time/chrono.h>
+#include <catch2/catch_test_macros.hpp>
+
+#include <rex/chrono/chrono.h>
 
 using rex::chrono::WinSystemClock;
 
@@ -24,13 +24,12 @@ using rex::chrono::WinSystemClock;
 // =============================================================================
 
 // All values are 100-nanosecond intervals since 1601-01-01 00:00:00 UTC.
-static constexpr uint64_t kFtNtEpoch     = 0;                    // 1601-01-01
-static constexpr uint64_t kFtUnixEpoch   = 116444736000000000;   // 1970-01-01
-static constexpr uint64_t kFtY2k         = 125911584000000000;   // 2000-01-01
-static constexpr uint64_t kFtLeapDay     = 125962560000000000;   // 2000-02-29
-static constexpr uint64_t kFtSubDay      = 132538032123450000;   // 2020-12-30 12:00:12.345
-static constexpr uint64_t kFt2021        = 132539328000000000;   // 2021-01-01
-
+static constexpr uint64_t kFtNtEpoch = 0;                     // 1601-01-01
+static constexpr uint64_t kFtUnixEpoch = 116444736000000000;  // 1970-01-01
+static constexpr uint64_t kFtY2k = 125911584000000000;        // 2000-01-01
+static constexpr uint64_t kFtLeapDay = 125962560000000000;    // 2000-02-29
+static constexpr uint64_t kFtSubDay = 132538032123450000;     // 2020-12-30 12:00:12.345
+static constexpr uint64_t kFt2021 = 132539328000000000;       // 2021-01-01
 
 // =============================================================================
 // Section 1: Epoch Constant Validation
@@ -223,10 +222,11 @@ TEST_CASE("calendar decomposition: 2021-01-01", "[chrono]") {
 // =============================================================================
 
 // Recompose fields to FILETIME exactly as RtlTimeFieldsToTime_entry does
-static uint64_t recompose(int y, unsigned m, unsigned d,
-                          int hour, int min, int sec, int ms) {
-  auto ymd = std::chrono::year_month_day{std::chrono::year{y}, std::chrono::month{m}, std::chrono::day{d}};
-  if (!ymd.ok()) return 0;
+static uint64_t recompose(int y, unsigned m, unsigned d, int hour, int min, int sec, int ms) {
+  auto ymd =
+      std::chrono::year_month_day{std::chrono::year{y}, std::chrono::month{m}, std::chrono::day{d}};
+  if (!ymd.ok())
+    return 0;
   auto dp = static_cast<std::chrono::sys_days>(ymd);
   std::chrono::system_clock::time_point time = dp;
   time += std::chrono::hours{hour};
@@ -248,27 +248,41 @@ TEST_CASE("calendar recomposition: known dates produce correct FILETIMEs", "[chr
 TEST_CASE("calendar recomposition: decompose then recompose round-trips", "[chrono]") {
   for (uint64_t ft : {kFtNtEpoch, kFtUnixEpoch, kFtY2k, kFtLeapDay, kFtSubDay, kFt2021}) {
     auto tf = decompose(ft);
-    auto result = recompose(tf.year, tf.month, tf.day,
-                            tf.hours, tf.minutes, tf.seconds, tf.milliseconds);
+    auto result =
+        recompose(tf.year, tf.month, tf.day, tf.hours, tf.minutes, tf.seconds, tf.milliseconds);
     CHECK(result == ft);
   }
 }
 
 TEST_CASE("year_month_day::ok rejects invalid dates", "[chrono]") {
   // Feb 30 - never valid
-  CHECK_FALSE(std::chrono::year_month_day{std::chrono::year{2000}, std::chrono::month{2}, std::chrono::day{30}}.ok());
+  CHECK_FALSE(std::chrono::year_month_day{std::chrono::year{2000}, std::chrono::month{2},
+                                          std::chrono::day{30}}
+                  .ok());
   // Month 13 - invalid month
-  CHECK_FALSE(std::chrono::year_month_day{std::chrono::year{2000}, std::chrono::month{13}, std::chrono::day{1}}.ok());
+  CHECK_FALSE(std::chrono::year_month_day{std::chrono::year{2000}, std::chrono::month{13},
+                                          std::chrono::day{1}}
+                  .ok());
   // Day 0 - invalid day
-  CHECK_FALSE(std::chrono::year_month_day{std::chrono::year{2000}, std::chrono::month{1}, std::chrono::day{0}}.ok());
+  CHECK_FALSE(std::chrono::year_month_day{std::chrono::year{2000}, std::chrono::month{1},
+                                          std::chrono::day{0}}
+                  .ok());
   // Feb 29 in non-leap year
-  CHECK_FALSE(std::chrono::year_month_day{std::chrono::year{2001}, std::chrono::month{2}, std::chrono::day{29}}.ok());
+  CHECK_FALSE(std::chrono::year_month_day{std::chrono::year{2001}, std::chrono::month{2},
+                                          std::chrono::day{29}}
+                  .ok());
   // Feb 29 in leap year - valid
-  CHECK(std::chrono::year_month_day{std::chrono::year{2000}, std::chrono::month{2}, std::chrono::day{29}}.ok());
+  CHECK(std::chrono::year_month_day{std::chrono::year{2000}, std::chrono::month{2},
+                                    std::chrono::day{29}}
+            .ok());
   // Century non-leap: 1900 is not a leap year
-  CHECK_FALSE(std::chrono::year_month_day{std::chrono::year{1900}, std::chrono::month{2}, std::chrono::day{29}}.ok());
+  CHECK_FALSE(std::chrono::year_month_day{std::chrono::year{1900}, std::chrono::month{2},
+                                          std::chrono::day{29}}
+                  .ok());
   // 400-year leap: 2000 is a leap year (already checked above, but explicit)
-  CHECK(std::chrono::year_month_day{std::chrono::year{2000}, std::chrono::month{2}, std::chrono::day{29}}.ok());
+  CHECK(std::chrono::year_month_day{std::chrono::year{2000}, std::chrono::month{2},
+                                    std::chrono::day{29}}
+            .ok());
 }
 
 TEST_CASE("recompose returns 0 for invalid dates", "[chrono]") {
@@ -287,17 +301,17 @@ TEST_CASE("weekday c_encoding returns 0=Sunday through 6=Saturday", "[chrono]") 
 
   // Verify the full range of c_encoding values using known days
   // 2000-01-02 is Sunday (0)
-  CHECK(weekday{sys_days{year{2000}/month{1}/day{2}}}.c_encoding() == 0);
+  CHECK(weekday{sys_days{year{2000} / month{1} / day{2}}}.c_encoding() == 0);
   // 1601-01-01 is Monday (1)
-  CHECK(weekday{sys_days{year{1601}/month{1}/day{1}}}.c_encoding() == 1);
+  CHECK(weekday{sys_days{year{1601} / month{1} / day{1}}}.c_encoding() == 1);
   // 2000-02-29 is Tuesday (2)
-  CHECK(weekday{sys_days{year{2000}/month{2}/day{29}}}.c_encoding() == 2);
+  CHECK(weekday{sys_days{year{2000} / month{2} / day{29}}}.c_encoding() == 2);
   // 2020-12-30 is Wednesday (3)
-  CHECK(weekday{sys_days{year{2020}/month{12}/day{30}}}.c_encoding() == 3);
+  CHECK(weekday{sys_days{year{2020} / month{12} / day{30}}}.c_encoding() == 3);
   // 1970-01-01 is Thursday (4)
-  CHECK(weekday{sys_days{year{1970}/month{1}/day{1}}}.c_encoding() == 4);
+  CHECK(weekday{sys_days{year{1970} / month{1} / day{1}}}.c_encoding() == 4);
   // 2021-01-01 is Friday (5)
-  CHECK(weekday{sys_days{year{2021}/month{1}/day{1}}}.c_encoding() == 5);
+  CHECK(weekday{sys_days{year{2021} / month{1} / day{1}}}.c_encoding() == 5);
   // 2000-01-01 is Saturday (6)
-  CHECK(weekday{sys_days{year{2000}/month{1}/day{1}}}.c_encoding() == 6);
+  CHECK(weekday{sys_days{year{2000} / month{1} / day{1}}}.c_encoding() == 6);
 }

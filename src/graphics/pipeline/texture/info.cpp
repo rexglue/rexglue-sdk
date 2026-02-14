@@ -9,23 +9,21 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/graphics/pipeline/texture/info.h>
-
 #include <algorithm>
 #include <cmath>
 #include <cstring>
 
+#include <rex/graphics/pipeline/texture/info.h>
+#include <rex/hash.h>
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/memory.h>
-#include <rex/xxhash.h>
 
 namespace rex::graphics {
 
 using namespace rex::graphics::xenos;
 
-bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
-                          TextureInfo* out_info) {
+bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch, TextureInfo* out_info) {
   // https://msdn.microsoft.com/en-us/library/windows/desktop/cc308051(v=vs.85).aspx
   // a2xx_sq_surfaceformat
 
@@ -74,8 +72,7 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
   info.pitch = fetch.pitch << 5;
 
   info.mip_min_level = fetch.mip_min_level;
-  info.mip_max_level =
-      std::max(uint32_t(fetch.mip_min_level), uint32_t(fetch.mip_max_level));
+  info.mip_max_level = std::max(uint32_t(fetch.mip_min_level), uint32_t(fetch.mip_max_level));
 
   info.is_tiled = fetch.tiled;
   info.has_packed_mips = fetch.packed_mips;
@@ -93,11 +90,9 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
   return true;
 }
 
-bool TextureInfo::PrepareResolve(uint32_t physical_address,
-                                 xenos::TextureFormat format,
-                                 xenos::Endian endian, uint32_t pitch,
-                                 uint32_t width, uint32_t height,
-                                 uint32_t depth, TextureInfo* out_info) {
+bool TextureInfo::PrepareResolve(uint32_t physical_address, xenos::TextureFormat format,
+                                 xenos::Endian endian, uint32_t pitch, uint32_t width,
+                                 uint32_t height, uint32_t depth, TextureInfo* out_info) {
   assert_true(width > 0);
   assert_true(height > 0);
 
@@ -128,8 +123,7 @@ uint32_t TextureInfo::GetMaxMipLevels() const {
   return 1 + rex::log2_floor(std::max({width + 1, height + 1, depth + 1}));
 }
 
-const TextureExtent TextureInfo::GetMipExtent(uint32_t mip,
-                                              bool is_guest) const {
+const TextureExtent TextureInfo::GetMipExtent(uint32_t mip, bool is_guest) const {
   if (mip == 0) {
     return extent;
   }
@@ -141,12 +135,11 @@ const TextureExtent TextureInfo::GetMipExtent(uint32_t mip,
     mip_width = std::max(1u, (width + 1) >> mip);
     mip_height = std::max(1u, (height + 1) >> mip);
   }
-  return TextureExtent::Calculate(format_info(), mip_width, mip_height,
-                                  depth + 1, is_tiled, is_guest);
+  return TextureExtent::Calculate(format_info(), mip_width, mip_height, depth + 1, is_tiled,
+                                  is_guest);
 }
 
-void TextureInfo::GetMipSize(uint32_t mip, uint32_t* out_width,
-                             uint32_t* out_height) const {
+void TextureInfo::GetMipSize(uint32_t mip, uint32_t* out_width, uint32_t* out_height) const {
   assert_not_null(out_width);
   assert_not_null(out_height);
   if (mip == 0) {
@@ -160,8 +153,8 @@ void TextureInfo::GetMipSize(uint32_t mip, uint32_t* out_width,
   *out_height = std::max(height_pow2 >> mip, 1u);
 }
 
-uint32_t TextureInfo::GetMipLocation(uint32_t mip, uint32_t* offset_x,
-                                     uint32_t* offset_y, bool is_guest) const {
+uint32_t TextureInfo::GetMipLocation(uint32_t mip, uint32_t* offset_x, uint32_t* offset_y,
+                                     bool is_guest) const {
   if (mip == 0) {
     // Short-circuit. Mip 0 is always stored in base_address.
     if (!has_packed_mips) {
@@ -188,8 +181,7 @@ uint32_t TextureInfo::GetMipLocation(uint32_t mip, uint32_t* offset_x,
 
   if (!has_packed_mips) {
     for (uint32_t i = 1; i < mip; i++) {
-      address_offset +=
-          GetMipExtent(i, is_guest).all_blocks() * bytes_per_block;
+      address_offset += GetMipExtent(i, is_guest).all_blocks() * bytes_per_block;
     }
     *offset_x = 0;
     *offset_y = 0;
@@ -212,15 +204,14 @@ uint32_t TextureInfo::GetMipLocation(uint32_t mip, uint32_t* offset_x,
   }
 
   // Now, check if the mip is packed at an offset.
-  GetPackedTileOffset(width_pow2 >> mip, height_pow2 >> mip, format_info(),
-                      mip - packed_mip_base, offset_x, offset_y);
+  GetPackedTileOffset(width_pow2 >> mip, height_pow2 >> mip, format_info(), mip - packed_mip_base,
+                      offset_x, offset_y);
   return address_base + address_offset;
 }
 
 bool TextureInfo::GetPackedTileOffset(uint32_t width, uint32_t height,
-                                      const FormatInfo* format_info,
-                                      int packed_tile, uint32_t* offset_x,
-                                      uint32_t* offset_y) {
+                                      const FormatInfo* format_info, int packed_tile,
+                                      uint32_t* offset_x, uint32_t* offset_y) {
   // Tile size is 32x32, and once textures go <=16 they are packed into a
   // single tile together. The math here is insane. Most sourced
   // from graph paper and looking at dds dumps.
@@ -300,8 +291,7 @@ bool TextureInfo::GetPackedTileOffset(int packed_tile, uint32_t* offset_x,
     *offset_y = 0;
     return false;
   }
-  return GetPackedTileOffset(rex::next_pow2(width + 1),
-                             rex::next_pow2(height + 1), format_info(),
+  return GetPackedTileOffset(rex::next_pow2(width + 1), rex::next_pow2(height + 1), format_info(),
                              packed_tile, offset_x, offset_y);
 }
 
@@ -350,12 +340,10 @@ void TextureInfo::SetupMemoryInfo(uint32_t base_address, uint32_t mip_address) {
   memory.mip_address = mip_address;
 
   if (!has_packed_mips) {
-    for (uint32_t mip = std::max(1u, mip_min_level); mip < mip_max_level;
-         mip++) {
+    for (uint32_t mip = std::max(1u, mip_min_level); mip < mip_max_level; mip++) {
       memory.mip_size += GetMipExtent(mip, true).all_blocks() * bytes_per_block;
     }
-    memory.mip_size +=
-        GetMipExtent(mip_max_level, true).visible_blocks() * bytes_per_block;
+    memory.mip_size += GetMipExtent(mip_max_level, true).visible_blocks() * bytes_per_block;
     return;
   }
 
@@ -364,8 +352,7 @@ void TextureInfo::SetupMemoryInfo(uint32_t base_address, uint32_t mip_address) {
 
   // Walk forward to find the address of the mip.
   uint32_t packed_mip_base = std::max(1u, mip_min_level);
-  for (uint32_t mip = packed_mip_base; mip < mip_max_level;
-       mip++, packed_mip_base++) {
+  for (uint32_t mip = packed_mip_base; mip < mip_max_level; mip++, packed_mip_base++) {
     uint32_t mip_width = std::max(width_pow2 >> mip, 1u);
     uint32_t mip_height = std::max(height_pow2 >> mip, 1u);
     if (std::min(mip_width, mip_height) <= 16) {

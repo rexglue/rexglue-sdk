@@ -14,12 +14,13 @@
 #include <atomic>
 #include <queue>
 
-#include <rex/thread/mutex.h>
-#include <rex/thread.h>
-#include <rex/runtime/processor.h>
-#include <rex/kernel/xthread.h>
-#include <rex/memory.h>
 #include <rex/kernel.h>
+#include <rex/memory.h>
+#include <rex/system/interfaces/audio.h>
+#include <rex/system/processor.h>
+#include <rex/system/xthread.h>
+#include <rex/thread.h>
+#include <rex/thread/mutex.h>
 
 namespace rex::stream {
 class ByteStream;
@@ -32,7 +33,7 @@ constexpr memory::fourcc_t kAudioSaveSignature = memory::make_fourcc("XAUD");
 class AudioDriver;
 class XmaDecoder;
 
-class AudioSystem {
+class AudioSystem : public system::IAudioSystem {
  public:
   virtual ~AudioSystem();
 
@@ -40,11 +41,10 @@ class AudioSystem {
   runtime::Processor* processor() const { return processor_; }
   XmaDecoder* xma_decoder() const { return xma_decoder_.get(); }
 
-  virtual X_STATUS Setup(kernel::KernelState* kernel_state);
+  virtual X_STATUS Setup(system::KernelState* kernel_state);
   virtual void Shutdown();
 
-  X_STATUS RegisterClient(uint32_t callback, uint32_t callback_arg,
-                          size_t* out_index);
+  X_STATUS RegisterClient(uint32_t callback, uint32_t callback_arg, size_t* out_index);
   void UnregisterClient(size_t index);
   void SubmitFrame(size_t index, uint32_t samples_ptr);
 
@@ -62,8 +62,7 @@ class AudioSystem {
 
   void WorkerThreadMain();
 
-  virtual X_STATUS CreateDriver(size_t index,
-                                rex::thread::Semaphore* semaphore,
+  virtual X_STATUS CreateDriver(size_t index, rex::thread::Semaphore* semaphore,
                                 AudioDriver** out_driver) = 0;
   virtual void DestroyDriver(AudioDriver* driver) = 0;
 
@@ -76,7 +75,7 @@ class AudioSystem {
   std::unique_ptr<XmaDecoder> xma_decoder_;
 
   std::atomic<bool> worker_running_ = {false};
-  kernel::object_ref<kernel::XHostThread> worker_thread_;
+  system::object_ref<system::XHostThread> worker_thread_;
 
   rex::thread::global_critical_region global_critical_region_;
   static const size_t kMaximumClientCount = 8;
@@ -90,8 +89,7 @@ class AudioSystem {
 
   int FindFreeClient();
 
-  std::unique_ptr<rex::thread::Semaphore>
-      client_semaphores_[kMaximumClientCount];
+  std::unique_ptr<rex::thread::Semaphore> client_semaphores_[kMaximumClientCount];
   // Event is always there in case we have no clients.
   std::unique_ptr<rex::thread::Event> shutdown_event_;
   rex::thread::WaitHandle* wait_handles_[kMaximumClientCount + 1];

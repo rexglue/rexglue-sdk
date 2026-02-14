@@ -9,12 +9,11 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/ui/windowed_app_context.h>
-
 #include <utility>
 
 #include <rex/assert.h>
 #include <rex/thread.h>
+#include <rex/ui/windowed_app_context.h>
 
 namespace rex {
 namespace ui {
@@ -47,11 +46,9 @@ WindowedAppContext::~WindowedAppContext() {
   ExecutePendingFunctionsFromUIThread(true);
 }
 
-bool WindowedAppContext::CallInUIThreadDeferred(
-    std::function<void()> function) {
+bool WindowedAppContext::CallInUIThreadDeferred(std::function<void()> function) {
   {
-    std::unique_lock<std::mutex> pending_functions_lock(
-        pending_functions_mutex_);
+    std::unique_lock<std::mutex> pending_functions_lock(pending_functions_mutex_);
     if (!pending_functions_accepted_) {
       // Will not be called as the loop will not be executed anymore.
       return false;
@@ -93,8 +90,7 @@ bool WindowedAppContext::CallInUIThread(std::function<void()> function) {
   return CallInUIThreadDeferred(std::move(function));
 }
 
-bool WindowedAppContext::CallInUIThreadSynchronous(
-    std::function<void()> function) {
+bool WindowedAppContext::CallInUIThreadSynchronous(std::function<void()> function) {
   if (IsInUIThread()) {
     // Prevent deadlock if called from the UI thread.
     function();

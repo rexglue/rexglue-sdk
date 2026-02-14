@@ -11,15 +11,16 @@
 
 #pragma once
 
+#include "stfs_xbox.h"
+
 #include <map>
 #include <memory>
 #include <string>
 #include <unordered_map>
 
+#include <rex/filesystem/device.h>
 #include <rex/math.h>
 #include <rex/string/util.h>
-#include <rex/filesystem/device.h>
-#include "stfs_xbox.h"
 
 namespace rex::filesystem {
 
@@ -31,8 +32,7 @@ class StfsContainerDevice : public Device {
  public:
   const static uint32_t kBlockSize = 0x1000;
 
-  StfsContainerDevice(const std::string_view mount_path,
-                      const std::filesystem::path& host_path);
+  StfsContainerDevice(const std::string_view mount_path, const std::filesystem::path& host_path);
   ~StfsContainerDevice() override;
 
   bool Initialize() override;
@@ -54,14 +54,12 @@ class StfsContainerDevice : public Device {
       return header_.metadata.volume_descriptor.stfs.total_block_count;
     }
 
-    return uint32_t(data_size() / sectors_per_allocation_unit() /
-                    bytes_per_sector());
+    return uint32_t(data_size() / sectors_per_allocation_unit() / bytes_per_sector());
   }
   uint32_t available_allocation_units() const override {
     if (!is_read_only()) {
       auto& descriptor = header_.metadata.volume_descriptor.stfs;
-      return kBlocksPerHashLevel[2] -
-             (descriptor.total_block_count - descriptor.free_block_count);
+      return kBlocksPerHashLevel[2] - (descriptor.total_block_count - descriptor.free_block_count);
     }
     return 0;
   }
@@ -71,11 +69,9 @@ class StfsContainerDevice : public Device {
   size_t data_size() const {
     if (header_.header.header_size) {
       if (header_.metadata.volume_type == XContentVolumeType::kStfs) {
-        return header_.metadata.volume_descriptor.stfs.total_block_count *
-               kBlockSize;
+        return header_.metadata.volume_descriptor.stfs.total_block_count * kBlockSize;
       }
-      return files_total_size_ -
-             rex::round_up(header_.header.header_size, kBlockSize);
+      return files_total_size_ - rex::round_up(header_.header.header_size, kBlockSize);
     }
     return files_total_size_ - sizeof(StfsHeader);
   }
@@ -83,8 +79,7 @@ class StfsContainerDevice : public Device {
  private:
   const uint32_t kBlocksPerHashLevel[3] = {170, 28900, 4913000};
   const uint32_t kEndOfChain = 0xFFFFFF;
-  const uint32_t kEntriesPerDirectoryBlock =
-      kBlockSize / sizeof(StfsDirectoryEntry);
+  const uint32_t kEntriesPerDirectoryBlock = kBlockSize / sizeof(StfsDirectoryEntry);
 
   enum class Error {
     kSuccess = 0,
@@ -111,16 +106,13 @@ class StfsContainerDevice : public Device {
   Error ReadHeaderAndVerify(FILE* header_file);
 
   Error ReadSVOD();
-  Error ReadEntrySVOD(uint32_t sector, uint32_t ordinal,
-                      StfsContainerEntry* parent);
+  Error ReadEntrySVOD(uint32_t sector, uint32_t ordinal, StfsContainerEntry* parent);
   void BlockToOffsetSVOD(size_t sector, size_t* address, size_t* file_index);
 
   Error ReadSTFS();
   size_t BlockToOffsetSTFS(uint64_t block_index) const;
-  uint32_t BlockToHashBlockNumberSTFS(uint32_t block_index,
-                                      uint32_t hash_level) const;
-  size_t BlockToHashBlockOffsetSTFS(uint32_t block_index,
-                                    uint32_t hash_level) const;
+  uint32_t BlockToHashBlockNumberSTFS(uint32_t block_index, uint32_t hash_level) const;
+  size_t BlockToHashBlockOffsetSTFS(uint32_t block_index, uint32_t hash_level) const;
 
   const StfsHashEntry* GetBlockHash(uint32_t block_index);
 
@@ -142,4 +134,3 @@ class StfsContainerDevice : public Device {
 };
 
 }  // namespace rex::filesystem
-

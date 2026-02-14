@@ -70,8 +70,7 @@ class BitMap {
 // Provided length is in bits since the first. Returns <first, length> of the
 // range in bits, with length == 0 if not found.
 template <typename Block>
-std::pair<size_t, size_t> GetNextRangeUnset(const Block* bits, size_t first,
-                                            size_t length) {
+std::pair<size_t, size_t> GetNextRangeUnset(const Block* bits, size_t first, size_t length) {
   if (!length) {
     return std::make_pair(size_t(first), size_t(0));
   }
@@ -103,14 +102,12 @@ std::pair<size_t, size_t> GetNextRangeUnset(const Block* bits, size_t first,
         // Ignore the set bits before the beginning of the range.
         Block block_bits_set_from_start = block;
         if (i == range_start / block_bits) {
-          block_bits_set_from_start &=
-              ~((Block(1) << (range_start & (block_bits - 1))) - 1);
+          block_bits_set_from_start &= ~((Block(1) << (range_start & (block_bits - 1))) - 1);
         }
         if (!rex::bit_scan_forward(block_bits_set_from_start, &block_bit)) {
           break;
         }
-        return std::make_pair(range_start,
-                              (i * block_bits) + block_bit - range_start);
+        return std::make_pair(range_start, (i * block_bits) + block_bit - range_start);
       }
     }
   }
@@ -140,8 +137,7 @@ void SetRange(Block* bits, size_t first, size_t length) {
   }
   bits[block_first] |= set_first;
   if (block_first + 1 < block_last) {
-    std::memset(bits + block_first + 1, CHAR_MAX,
-                (block_last - (block_first + 1)) * sizeof(Block));
+    std::memset(bits + block_first + 1, CHAR_MAX, (block_last - (block_first + 1)) * sizeof(Block));
   }
   bits[block_last] |= set_last;
 }

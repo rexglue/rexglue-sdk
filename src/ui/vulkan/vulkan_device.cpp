@@ -9,17 +9,16 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/ui/vulkan/device.h>
-
-#include <rex/assert.h>
-#include <rex/logging.h>
-#include <rex/platform.h>
-
 #include <algorithm>
 #include <cstring>
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+#include <rex/assert.h>
+#include <rex/logging.h>
+#include <rex/platform.h>
+#include <rex/ui/vulkan/device.h>
 
 namespace rex {
 namespace ui {
@@ -40,9 +39,8 @@ struct VulkanFeatures {
 };
 
 std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
-    const VulkanInstance* const vulkan_instance,
-    const VkPhysicalDevice physical_device, const bool with_gpu_emulation,
-    const bool with_swapchain) {
+    const VulkanInstance* const vulkan_instance, const VkPhysicalDevice physical_device,
+    const bool with_gpu_emulation, const bool with_swapchain) {
   assert_not_null(vulkan_instance);
   assert_not_null(physical_device);
 
@@ -66,8 +64,8 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
     //
     // "Vulkan 1.0 implementations were required to return
     // VK_ERROR_INCOMPATIBLE_DRIVER if apiVersion was larger than 1.0."
-    properties.apiVersion = VK_MAKE_API_VERSION(
-        0, 1, 0, VK_API_VERSION_PATCH(properties.apiVersion));
+    properties.apiVersion =
+        VK_MAKE_API_VERSION(0, 1, 0, VK_API_VERSION_PATCH(properties.apiVersion));
   }
 
   VkPhysicalDeviceFeatures supported_features = {};
@@ -94,8 +92,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
 
   // Enable needed extensions.
 
-  std::unique_ptr<VulkanDevice> device(
-      new VulkanDevice(vulkan_instance, physical_device));
+  std::unique_ptr<VulkanDevice> device(new VulkanDevice(vulkan_instance, physical_device));
 
   const bool get_physical_device_properties2_supported =
       vulkan_instance->extensions().ext_1_1_KHR_get_physical_device_properties2;
@@ -104,28 +101,24 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   // extensions vector.
   std::unordered_map<std::string, bool*> requested_extensions;
 
-  const auto request_promoted_extension =
-      [&](const char* const name, uint32_t const major, uint32_t const minor,
-          bool* const supported_ptr) {
-        assert_not_null(supported_ptr);
-        if (properties.apiVersion >= VK_MAKE_API_VERSION(0, major, minor, 0)) {
-          *supported_ptr = true;
-        } else {
-          requested_extensions.emplace(name, supported_ptr);
-        }
-      };
+  const auto request_promoted_extension = [&](const char* const name, uint32_t const major,
+                                              uint32_t const minor, bool* const supported_ptr) {
+    assert_not_null(supported_ptr);
+    if (properties.apiVersion >= VK_MAKE_API_VERSION(0, major, minor, 0)) {
+      *supported_ptr = true;
+    } else {
+      requested_extensions.emplace(name, supported_ptr);
+    }
+  };
 
 #define XE_UI_VULKAN_STRUCT_EXTENSION(name) \
   requested_extensions.emplace("VK_" #name, &device->extensions_.ext_##name);
-#define XE_UI_VULKAN_LOCAL_EXTENSION(name) \
-  requested_extensions.emplace("VK_" #name, &ext_##name);
+#define XE_UI_VULKAN_LOCAL_EXTENSION(name) requested_extensions.emplace("VK_" #name, &ext_##name);
 #define XE_UI_VULKAN_STRUCT_PROMOTED_EXTENSION(name, major, minor) \
-  request_promoted_extension(                                      \
-      "VK_" #name, major, minor,                                   \
-      &device->extensions_.ext_##major##_##minor##_##name);
+  request_promoted_extension("VK_" #name, major, minor,            \
+                             &device->extensions_.ext_##major##_##minor##_##name);
 #define XE_UI_VULKAN_LOCAL_PROMOTED_EXTENSION(name, major, minor) \
-  request_promoted_extension("VK_" #name, major, minor,           \
-                             &ext_##major##_##minor##_##name);
+  request_promoted_extension("VK_" #name, major, minor, &ext_##major##_##minor##_##name);
 
   bool ext_KHR_portability_subset = false;
   bool ext_1_2_KHR_driver_properties = false;
@@ -167,8 +160,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   bool ext_EXT_non_seamless_cube_map = false;
   if (with_gpu_emulation) {
     // #15.
-    XE_UI_VULKAN_LOCAL_PROMOTED_EXTENSION(KHR_sampler_mirror_clamp_to_edge, 1,
-                                          2)
+    XE_UI_VULKAN_LOCAL_PROMOTED_EXTENSION(KHR_sampler_mirror_clamp_to_edge, 1, 2)
     // #70. Must be enabled for VK_KHR_sampler_ycbcr_conversion.
     XE_UI_VULKAN_LOCAL_PROMOTED_EXTENSION(KHR_maintenance1, 1, 1)
     // #141.
@@ -183,8 +175,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
       // #252.
       XE_UI_VULKAN_LOCAL_EXTENSION(EXT_fragment_shader_interlock)
       // #277.
-      XE_UI_VULKAN_LOCAL_PROMOTED_EXTENSION(
-          EXT_shader_demote_to_helper_invocation, 1, 3)
+      XE_UI_VULKAN_LOCAL_PROMOTED_EXTENSION(EXT_shader_demote_to_helper_invocation, 1, 3)
       // #423.
       XE_UI_VULKAN_LOCAL_EXTENSION(EXT_non_seamless_cube_map)
     }
@@ -202,28 +193,23 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   std::vector<const char*> enabled_extensions;
   {
     uint32_t supported_extension_count = 0;
-    const VkResult get_supported_extension_count_result =
-        ifn.vkEnumerateDeviceExtensionProperties(
-            physical_device, nullptr, &supported_extension_count, nullptr);
+    const VkResult get_supported_extension_count_result = ifn.vkEnumerateDeviceExtensionProperties(
+        physical_device, nullptr, &supported_extension_count, nullptr);
     if (get_supported_extension_count_result != VK_SUCCESS &&
         get_supported_extension_count_result != VK_INCOMPLETE) {
-      REXLOG_WARN("Failed to get the Vulkan device '{}' extension count",
-             properties.deviceName);
+      REXLOG_WARN("Failed to get the Vulkan device '{}' extension count", properties.deviceName);
       return nullptr;
     }
     if (supported_extension_count) {
-      std::vector<VkExtensionProperties> supported_extensions(
-          supported_extension_count);
-      if (ifn.vkEnumerateDeviceExtensionProperties(
-              physical_device, nullptr, &supported_extension_count,
-              supported_extensions.data()) != VK_SUCCESS) {
-        REXLOG_WARN("Failed to get the Vulkan device '{}' extensions",
-               properties.deviceName);
+      std::vector<VkExtensionProperties> supported_extensions(supported_extension_count);
+      if (ifn.vkEnumerateDeviceExtensionProperties(physical_device, nullptr,
+                                                   &supported_extension_count,
+                                                   supported_extensions.data()) != VK_SUCCESS) {
+        REXLOG_WARN("Failed to get the Vulkan device '{}' extensions", properties.deviceName);
         return nullptr;
       }
       assert_true(supported_extension_count == supported_extensions.size());
-      for (const VkExtensionProperties& supported_extension :
-           supported_extensions) {
+      for (const VkExtensionProperties& supported_extension : supported_extensions) {
         const auto requested_extension_it =
             requested_extensions.find(supported_extension.extensionName);
         if (requested_extension_it == requested_extensions.cend()) {
@@ -231,8 +217,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
         }
         assert_not_null(requested_extension_it->second);
         if (!*requested_extension_it->second) {
-          enabled_extensions.emplace_back(
-              requested_extension_it->first.c_str());
+          enabled_extensions.emplace_back(requested_extension_it->first.c_str());
           *requested_extension_it->second = true;
         }
       }
@@ -240,16 +225,13 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   }
 
   if (with_swapchain && !device->extensions_.ext_KHR_swapchain) {
-    REXLOG_WARN("Vulkan device '{}' doesn't support swapchains",
-           properties.deviceName);
+    REXLOG_WARN("Vulkan device '{}' doesn't support swapchains", properties.deviceName);
     return nullptr;
   }
 
-  VkDeviceCreateInfo device_create_info = {
-      VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
+  VkDeviceCreateInfo device_create_info = {VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
 
-  device_create_info.enabledExtensionCount =
-      uint32_t(enabled_extensions.size());
+  device_create_info.enabledExtensionCount = uint32_t(enabled_extensions.size());
   device_create_info.ppEnabledExtensionNames = enabled_extensions.data();
 
   // Get supported Vulkan 1.1+ and extension properties and features.
@@ -258,11 +240,9 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   // minimum / maximum requirements for the simplicity of handling unavailable
   // VK_KHR_get_physical_device_properties2.
 
-  VkPhysicalDeviceProperties2 properties_2 = {
-      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
+  VkPhysicalDeviceProperties2 properties_2 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
 
-  VkPhysicalDeviceFeatures2 supported_features_2 = {
-      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+  VkPhysicalDeviceFeatures2 supported_features_2 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
 
   VulkanFeatures<VkPhysicalDeviceVulkan12Features,
                  VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES>
@@ -270,26 +250,21 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   VulkanFeatures<VkPhysicalDeviceVulkan13Features,
                  VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES>
       features_1_3;
-  VulkanFeatures<
-      VkPhysicalDevicePortabilitySubsetFeaturesKHR,
-      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_FEATURES_KHR>
+  VulkanFeatures<VkPhysicalDevicePortabilitySubsetFeaturesKHR,
+                 VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_FEATURES_KHR>
       features_KHR_portability_subset;
   VkPhysicalDeviceDriverPropertiesKHR properties_1_2_KHR_driver_properties = {
       VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES};
-  VkPhysicalDeviceFloatControlsProperties
-      properties_1_2_KHR_shader_float_controls = {
-          VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FLOAT_CONTROLS_PROPERTIES};
-  VulkanFeatures<
-      VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT,
-      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_INTERLOCK_FEATURES_EXT>
+  VkPhysicalDeviceFloatControlsProperties properties_1_2_KHR_shader_float_controls = {
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FLOAT_CONTROLS_PROPERTIES};
+  VulkanFeatures<VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT,
+                 VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_INTERLOCK_FEATURES_EXT>
       features_EXT_fragment_shader_interlock;
-  VulkanFeatures<
-      VkPhysicalDeviceShaderDemoteToHelperInvocationFeaturesEXT,
-      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DEMOTE_TO_HELPER_INVOCATION_FEATURES_EXT>
+  VulkanFeatures<VkPhysicalDeviceShaderDemoteToHelperInvocationFeaturesEXT,
+                 VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DEMOTE_TO_HELPER_INVOCATION_FEATURES_EXT>
       features_1_3_EXT_shader_demote_to_helper_invocation;
-  VulkanFeatures<
-      VkPhysicalDeviceNonSeamlessCubeMapFeaturesEXT,
-      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_NON_SEAMLESS_CUBE_MAP_FEATURES_EXT>
+  VulkanFeatures<VkPhysicalDeviceNonSeamlessCubeMapFeaturesEXT,
+                 VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_NON_SEAMLESS_CUBE_MAP_FEATURES_EXT>
       features_EXT_non_seamless_cube_map;
 
   if (get_physical_device_properties2_supported) {
@@ -300,13 +275,12 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
       features_1_3.Link(supported_features_2, device_create_info);
     } else {
       if (ext_1_3_EXT_shader_demote_to_helper_invocation) {
-        features_1_3_EXT_shader_demote_to_helper_invocation.Link(
-            supported_features_2, device_create_info);
+        features_1_3_EXT_shader_demote_to_helper_invocation.Link(supported_features_2,
+                                                                 device_create_info);
       }
     }
     if (ext_KHR_portability_subset) {
-      features_KHR_portability_subset.Link(supported_features_2,
-                                           device_create_info);
+      features_KHR_portability_subset.Link(supported_features_2, device_create_info);
     }
     if (ext_1_2_KHR_driver_properties) {
       properties_1_2_KHR_driver_properties.pNext = properties_2.pNext;
@@ -317,23 +291,20 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
       properties_2.pNext = &properties_1_2_KHR_shader_float_controls;
     }
     if (ext_EXT_fragment_shader_interlock) {
-      features_EXT_fragment_shader_interlock.Link(supported_features_2,
-                                                  device_create_info);
+      features_EXT_fragment_shader_interlock.Link(supported_features_2, device_create_info);
     }
     if (ext_EXT_non_seamless_cube_map) {
-      features_EXT_non_seamless_cube_map.Link(supported_features_2,
-                                              device_create_info);
+      features_EXT_non_seamless_cube_map.Link(supported_features_2, device_create_info);
     }
     ifn.vkGetPhysicalDeviceProperties2(physical_device, &properties_2);
     ifn.vkGetPhysicalDeviceFeatures2(physical_device, &supported_features_2);
   }
 
   uint32_t queue_family_count = 0;
-  ifn.vkGetPhysicalDeviceQueueFamilyProperties(physical_device,
-                                               &queue_family_count, nullptr);
+  ifn.vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count, nullptr);
   std::vector<VkQueueFamilyProperties> queue_families(queue_family_count);
-  ifn.vkGetPhysicalDeviceQueueFamilyProperties(
-      physical_device, &queue_family_count, queue_families.data());
+  ifn.vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count,
+                                               queue_families.data());
 
   device->queue_families_.resize(queue_family_count);
 
@@ -345,14 +316,11 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   for (uint32_t queue_family_index = 0; queue_family_index < queue_family_count;
        ++queue_family_index) {
     QueueFamily& queue_family = device->queue_families_[queue_family_index];
-    const VkQueueFamilyProperties& queue_family_properties =
-        queue_families[queue_family_index];
+    const VkQueueFamilyProperties& queue_family_properties = queue_families[queue_family_index];
 
-    const VkQueueFlags queue_unsupported_flags =
-        ~queue_family_properties.queueFlags;
+    const VkQueueFlags queue_unsupported_flags = ~queue_family_properties.queueFlags;
 
-    if (!(queue_unsupported_flags &
-          (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT))) {
+    if (!(queue_unsupported_flags & (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT))) {
       first_queue_family_graphics_compute =
           std::min(queue_family_index, first_queue_family_graphics_compute);
     }
@@ -361,11 +329,9 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
         !(queue_unsupported_flags & VK_QUEUE_SPARSE_BINDING_BIT)) {
       first_queue_family_sparse_binding =
           std::min(queue_family_index, first_queue_family_sparse_binding);
-      if (!(queue_unsupported_flags &
-            (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT))) {
+      if (!(queue_unsupported_flags & (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT))) {
         first_queue_family_graphics_compute_sparse_binding =
-            std::min(queue_family_index,
-                     first_queue_family_graphics_compute_sparse_binding);
+            std::min(queue_family_index, first_queue_family_graphics_compute_sparse_binding);
       }
     }
 
@@ -373,14 +339,12 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
 #if REX_PLATFORM_WIN32
       queue_family.may_support_presentation =
           vulkan_instance->extensions().ext_KHR_win32_surface &&
-          ifn.vkGetPhysicalDeviceWin32PresentationSupportKHR(
-              physical_device, queue_family_index);
+          ifn.vkGetPhysicalDeviceWin32PresentationSupportKHR(physical_device, queue_family_index);
 #else
       queue_family.may_support_presentation = true;
 #endif
       if (queue_family.may_support_presentation) {
-        queue_family.queues.resize(
-            std::max(size_t(1), queue_family.queues.size()));
+        queue_family.queues.resize(std::max(size_t(1), queue_family.queues.size()));
         has_presentation_queue_family = true;
       }
     }
@@ -427,25 +391,18 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   // swapchain image presentation, and sparse binding, may be beneficial.
 
   if (first_queue_family_graphics_compute_sparse_binding != UINT32_MAX) {
-    device->queue_family_graphics_compute_ =
-        first_queue_family_graphics_compute_sparse_binding;
-    device->queue_family_sparse_binding_ =
-        first_queue_family_graphics_compute_sparse_binding;
+    device->queue_family_graphics_compute_ = first_queue_family_graphics_compute_sparse_binding;
+    device->queue_family_sparse_binding_ = first_queue_family_graphics_compute_sparse_binding;
   } else {
-    device->queue_family_graphics_compute_ =
-        first_queue_family_graphics_compute;
+    device->queue_family_graphics_compute_ = first_queue_family_graphics_compute;
     device->queue_family_sparse_binding_ = first_queue_family_sparse_binding;
   }
 
-  device->queue_families_[device->queue_family_graphics_compute_].queues.resize(
-      std::max(size_t(1),
-               device->queue_families_[device->queue_family_graphics_compute_]
-                   .queues.size()));
+  device->queue_families_[device->queue_family_graphics_compute_].queues.resize(std::max(
+      size_t(1), device->queue_families_[device->queue_family_graphics_compute_].queues.size()));
   if (device->queue_family_sparse_binding_ != UINT32_MAX) {
-    device->queue_families_[device->queue_family_sparse_binding_].queues.resize(
-        std::max(size_t(1),
-                 device->queue_families_[device->queue_family_sparse_binding_]
-                     .queues.size()));
+    device->queue_families_[device->queue_family_sparse_binding_].queues.resize(std::max(
+        size_t(1), device->queue_families_[device->queue_family_sparse_binding_].queues.size()));
   }
 
   size_t max_enabled_queues_per_family = 0;
@@ -453,19 +410,15 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
     max_enabled_queues_per_family =
         std::max(queue_family.queues.size(), max_enabled_queues_per_family);
   }
-  const std::vector<float> queue_priorities(max_enabled_queues_per_family,
-                                            1.0f);
+  const std::vector<float> queue_priorities(max_enabled_queues_per_family, 1.0f);
   std::vector<VkDeviceQueueCreateInfo> queue_create_infos;
-  for (size_t queue_family_index = 0;
-       queue_family_index < device->queue_families_.size();
+  for (size_t queue_family_index = 0; queue_family_index < device->queue_families_.size();
        ++queue_family_index) {
-    const QueueFamily& queue_family =
-        device->queue_families_[queue_family_index];
+    const QueueFamily& queue_family = device->queue_families_[queue_family_index];
     if (queue_family.queues.empty()) {
       continue;
     }
-    VkDeviceQueueCreateInfo& queue_create_info =
-        queue_create_infos.emplace_back();
+    VkDeviceQueueCreateInfo& queue_create_info = queue_create_infos.emplace_back();
     queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
     queue_create_info.pNext = nullptr;
     queue_create_info.flags = 0;
@@ -493,15 +446,13 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
       "Vulkan device '{}': API {}.{}.{}, vendor 0x{:04X}, device 0x{:04X}, "
       "driver version 0x{:X}",
       properties.deviceName, VK_VERSION_MAJOR(properties.apiVersion),
-      VK_VERSION_MINOR(properties.apiVersion),
-      VK_VERSION_PATCH(properties.apiVersion), properties.vendorID,
-      properties.deviceID, properties.driverVersion);
+      VK_VERSION_MINOR(properties.apiVersion), VK_VERSION_PATCH(properties.apiVersion),
+      properties.vendorID, properties.deviceID, properties.driverVersion);
   if (unclamped_api_version != properties.apiVersion) {
     REXLOG_INFO(
         "Device supports Vulkan API {}.{}.{}, but the used version is limited "
         "by the instance",
-        VK_VERSION_MAJOR(unclamped_api_version),
-        VK_VERSION_MINOR(unclamped_api_version),
+        VK_VERSION_MAJOR(unclamped_api_version), VK_VERSION_MINOR(unclamped_api_version),
         VK_VERSION_PATCH(unclamped_api_version));
   }
 
@@ -509,8 +460,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   for (uint32_t enabled_extension_index = 0;
        enabled_extension_index < device_create_info.enabledExtensionCount;
        ++enabled_extension_index) {
-    REXLOG_INFO("* {}",
-           device_create_info.ppEnabledExtensionNames[enabled_extension_index]);
+    REXLOG_INFO("* {}", device_create_info.ppEnabledExtensionNames[enabled_extension_index]);
   }
 
   REXLOG_INFO("Vulkan device properties and enabled features:");
@@ -528,7 +478,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   enabled_features.name = supported_features.name;    \
   device->properties_.name = supported_features.name; \
   if (supported_features.name) {                      \
-    REXLOG_INFO("* " #name);                               \
+    REXLOG_INFO("* " #name);                          \
   }
 #define XE_UI_VULKAN_PROPERTY_2(structure, name) \
   device->properties_.name = structure.name;     \
@@ -540,25 +490,23 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   structure.enabled.name = structure.supported.name;   \
   device->properties_.name = structure.supported.name; \
   if (structure.supported.name) {                      \
-    REXLOG_INFO("* " #name);                                \
+    REXLOG_INFO("* " #name);                           \
   }
 #define XE_UI_VULKAN_FEATURE_IMPLIED(name) \
   device->properties_.name = true;         \
   REXLOG_INFO("* " #name);
 
   if (ext_1_2_KHR_driver_properties) {
-    XE_UI_VULKAN_ENUM_PROPERTY_2(properties_1_2_KHR_driver_properties, driverID,
-                                 DriverId);
+    XE_UI_VULKAN_ENUM_PROPERTY_2(properties_1_2_KHR_driver_properties, driverID, DriverId);
     REXLOG_INFO("* driverName: {}", properties_1_2_KHR_driver_properties.driverName);
     if (properties_1_2_KHR_driver_properties.driverInfo[0]) {
-      REXLOG_INFO("* driverInfo: {}",
-             properties_1_2_KHR_driver_properties.driverInfo);
+      REXLOG_INFO("* driverInfo: {}", properties_1_2_KHR_driver_properties.driverInfo);
     }
     REXLOG_INFO("* conformanceVersion: {}.{}.{}.{}",
-           properties_1_2_KHR_driver_properties.conformanceVersion.major,
-           properties_1_2_KHR_driver_properties.conformanceVersion.minor,
-           properties_1_2_KHR_driver_properties.conformanceVersion.subminor,
-           properties_1_2_KHR_driver_properties.conformanceVersion.patch);
+                properties_1_2_KHR_driver_properties.conformanceVersion.major,
+                properties_1_2_KHR_driver_properties.conformanceVersion.minor,
+                properties_1_2_KHR_driver_properties.conformanceVersion.subminor,
+                properties_1_2_KHR_driver_properties.conformanceVersion.patch);
   }
 
   XE_UI_VULKAN_LIMIT(maxImageDimension2D)
@@ -587,8 +535,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   XE_UI_VULKAN_ENUM_LIMIT(framebufferColorSampleCounts, SampleCountFlags)
   XE_UI_VULKAN_ENUM_LIMIT(framebufferDepthSampleCounts, SampleCountFlags)
   XE_UI_VULKAN_ENUM_LIMIT(framebufferStencilSampleCounts, SampleCountFlags)
-  XE_UI_VULKAN_ENUM_LIMIT(framebufferNoAttachmentsSampleCounts,
-                          SampleCountFlags)
+  XE_UI_VULKAN_ENUM_LIMIT(framebufferNoAttachmentsSampleCounts, SampleCountFlags)
   XE_UI_VULKAN_ENUM_LIMIT(sampledImageColorSampleCounts, SampleCountFlags)
   XE_UI_VULKAN_ENUM_LIMIT(sampledImageIntegerSampleCounts, SampleCountFlags)
   XE_UI_VULKAN_ENUM_LIMIT(sampledImageDepthSampleCounts, SampleCountFlags)
@@ -634,24 +581,19 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   } else {
     if (ext_1_3_EXT_shader_demote_to_helper_invocation) {
       if (with_gpu_emulation) {
-        XE_UI_VULKAN_FEATURE_2(
-            features_1_3_EXT_shader_demote_to_helper_invocation,
-            shaderDemoteToHelperInvocation);
+        XE_UI_VULKAN_FEATURE_2(features_1_3_EXT_shader_demote_to_helper_invocation,
+                               shaderDemoteToHelperInvocation);
       }
     }
   }
 
   if (ext_KHR_portability_subset) {
     if (with_gpu_emulation) {
-      XE_UI_VULKAN_FEATURE_2(features_KHR_portability_subset,
-                             constantAlphaColorBlendFactors)
-      XE_UI_VULKAN_FEATURE_2(features_KHR_portability_subset,
-                             imageViewFormatReinterpretation)
-      XE_UI_VULKAN_FEATURE_2(features_KHR_portability_subset,
-                             imageViewFormatSwizzle)
+      XE_UI_VULKAN_FEATURE_2(features_KHR_portability_subset, constantAlphaColorBlendFactors)
+      XE_UI_VULKAN_FEATURE_2(features_KHR_portability_subset, imageViewFormatReinterpretation)
+      XE_UI_VULKAN_FEATURE_2(features_KHR_portability_subset, imageViewFormatSwizzle)
       XE_UI_VULKAN_FEATURE_2(features_KHR_portability_subset, pointPolygons)
-      XE_UI_VULKAN_FEATURE_2(features_KHR_portability_subset,
-                             separateStencilMaskRef)
+      XE_UI_VULKAN_FEATURE_2(features_KHR_portability_subset, separateStencilMaskRef)
       XE_UI_VULKAN_FEATURE_2(features_KHR_portability_subset,
                              shaderSampleRateInterpolationFunctions)
       XE_UI_VULKAN_FEATURE_2(features_KHR_portability_subset, triangleFans)
@@ -672,23 +614,19 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
                             shaderSignedZeroInfNanPreserveFloat32);
     XE_UI_VULKAN_PROPERTY_2(properties_1_2_KHR_shader_float_controls,
                             shaderDenormFlushToZeroFloat32);
-    XE_UI_VULKAN_PROPERTY_2(properties_1_2_KHR_shader_float_controls,
-                            shaderRoundingModeRTEFloat32);
+    XE_UI_VULKAN_PROPERTY_2(properties_1_2_KHR_shader_float_controls, shaderRoundingModeRTEFloat32);
   }
 
   if (ext_EXT_fragment_shader_interlock) {
     if (with_gpu_emulation) {
-      XE_UI_VULKAN_FEATURE_2(features_EXT_fragment_shader_interlock,
-                             fragmentShaderSampleInterlock)
-      XE_UI_VULKAN_FEATURE_2(features_EXT_fragment_shader_interlock,
-                             fragmentShaderPixelInterlock)
+      XE_UI_VULKAN_FEATURE_2(features_EXT_fragment_shader_interlock, fragmentShaderSampleInterlock)
+      XE_UI_VULKAN_FEATURE_2(features_EXT_fragment_shader_interlock, fragmentShaderPixelInterlock)
     }
   }
 
   if (ext_EXT_non_seamless_cube_map) {
     if (with_gpu_emulation) {
-      XE_UI_VULKAN_FEATURE_2(features_EXT_non_seamless_cube_map,
-                             nonSeamlessCubeMap)
+      XE_UI_VULKAN_FEATURE_2(features_EXT_non_seamless_cube_map, nonSeamlessCubeMap)
     }
   }
 
@@ -701,8 +639,8 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
 
   // Create the device.
 
-  const VkResult device_create_result = ifn.vkCreateDevice(
-      physical_device, &device_create_info, nullptr, &device->device_);
+  const VkResult device_create_result =
+      ifn.vkCreateDevice(physical_device, &device_create_info, nullptr, &device->device_);
   if (device_create_result != VK_SUCCESS) {
     REXLOG_ERROR(
         "Failed to create a Vulkan logical device from the physical device "
@@ -717,18 +655,18 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
 
   Functions& dfn = device->functions_;
 
-#define XE_UI_VULKAN_FUNCTION(name)                                   \
-  functions_loaded &= (dfn.name = PFN_##name(ifn.vkGetDeviceProcAddr( \
-                           device->device_, #name))) != nullptr;
+#define XE_UI_VULKAN_FUNCTION(name) \
+  functions_loaded &=               \
+      (dfn.name = PFN_##name(ifn.vkGetDeviceProcAddr(device->device_, #name))) != nullptr;
 
   // Vulkan 1.0.
 #include <rex/ui/vulkan/functions/device_1_0.inc>
 
   // Extensions promoted to a Vulkan version supported by the device.
-#define XE_UI_VULKAN_FUNCTION_PROMOTED(extension_name, core_name) \
-  functions_loaded &=                                             \
-      (dfn.core_name = PFN_##core_name(                           \
-           ifn.vkGetDeviceProcAddr(device->device_, #core_name))) != nullptr;
+#define XE_UI_VULKAN_FUNCTION_PROMOTED(extension_name, core_name)                                \
+  functions_loaded &=                                                                            \
+      (dfn.core_name = PFN_##core_name(ifn.vkGetDeviceProcAddr(device->device_, #core_name))) != \
+      nullptr;
   if (properties.apiVersion >= VK_MAKE_API_VERSION(0, 1, 1, 0)) {
 #include <rex/ui/vulkan/functions/device_1_1_khr_bind_memory2.inc>
 #include <rex/ui/vulkan/functions/device_1_1_khr_get_memory_requirements2.inc>
@@ -741,9 +679,8 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   // Non-promoted extensions, and extensions promoted to a Vulkan version not
   // supported by the device.
 #define XE_UI_VULKAN_FUNCTION_PROMOTED(extension_name, core_name) \
-  functions_loaded &=                                             \
-      (dfn.core_name = PFN_##core_name(ifn.vkGetDeviceProcAddr(   \
-           device->device_, #extension_name))) != nullptr;
+  functions_loaded &= (dfn.core_name = PFN_##core_name(           \
+                           ifn.vkGetDeviceProcAddr(device->device_, #extension_name))) != nullptr;
   if (properties.apiVersion < VK_MAKE_API_VERSION(0, 1, 1, 0)) {
     if (device->extensions_.ext_1_1_KHR_get_memory_requirements2) {
 #include <rex/ui/vulkan/functions/device_1_1_khr_get_memory_requirements2.inc>
@@ -766,21 +703,19 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
 
   if (!functions_loaded) {
     REXLOG_ERROR("Failed to get all Vulkan device function pointers for '{}'",
-           properties.deviceName);
+                 properties.deviceName);
     return nullptr;
   }
 
   // Get the queues.
 
-  for (size_t queue_family_index = 0;
-       queue_family_index < device->queue_families_.size();
+  for (size_t queue_family_index = 0; queue_family_index < device->queue_families_.size();
        ++queue_family_index) {
     QueueFamily& queue_family = device->queue_families_[queue_family_index];
-    for (size_t queue_index = 0; queue_index < queue_family.queues.size();
-         ++queue_index) {
+    for (size_t queue_index = 0; queue_index < queue_family.queues.size(); ++queue_index) {
       VkQueue queue;
-      dfn.vkGetDeviceQueue(device->device_, uint32_t(queue_family_index),
-                           uint32_t(queue_index), &queue);
+      dfn.vkGetDeviceQueue(device->device_, uint32_t(queue_family_index), uint32_t(queue_index),
+                           &queue);
       queue_family.queues[queue_index] = std::make_unique<Queue>(queue);
     }
   }
@@ -789,8 +724,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
 
   VkPhysicalDeviceMemoryProperties memory_properties;
   ifn.vkGetPhysicalDeviceMemoryProperties(physical_device, &memory_properties);
-  for (uint32_t memory_type_index = 0;
-       memory_type_index < memory_properties.memoryTypeCount;
+  for (uint32_t memory_type_index = 0; memory_type_index < memory_properties.memoryTypeCount;
        ++memory_type_index) {
     const uint32_t memory_type_bit = uint32_t(1) << memory_type_index;
     const VkMemoryPropertyFlags memory_type_flags =
@@ -827,4 +761,4 @@ VulkanDevice::VulkanDevice(const VulkanInstance* const vulkan_instance,
 
 }  // namespace vulkan
 }  // namespace ui
-}  // namespace xe
+}  // namespace rex

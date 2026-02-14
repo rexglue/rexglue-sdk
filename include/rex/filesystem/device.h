@@ -14,9 +14,9 @@
 #include <memory>
 #include <string>
 
-#include <rex/thread/mutex.h>
-#include <rex/string/buffer.h>
 #include <rex/filesystem/entry.h>
+#include <rex/string/buffer.h>
+#include <rex/thread/mutex.h>
 
 namespace rex::filesystem {
 
@@ -48,4 +48,3 @@ class Device {
 };
 
 }  // namespace rex::filesystem
-

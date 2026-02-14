@@ -16,12 +16,12 @@
 #include <cctype>
 #include <cstring>
 
-#include <rex/kernel/format.h>
-#include <rex/kernel/flags.h>
 #include <rex/logging.h>
 #include <rex/memory/utils.h>
+#include <rex/system/flags.h>
+#include <rex/system/format.h>
 
-using namespace rex::kernel::format;
+using namespace rex::system::format;
 
 //=============================================================================
 // DbgPrint / XamDbgPrint
@@ -159,7 +159,8 @@ extern "C" PPC_FUNC(__imp__swprintf) {
   if (count <= 0) {
     buffer[0] = '\0';
   } else {
-    rex::memory::copy_and_swap(buffer, reinterpret_cast<const uint16_t*>(data.wstr().c_str()), count);
+    rex::memory::copy_and_swap(buffer, reinterpret_cast<const uint16_t*>(data.wstr().c_str()),
+                               count);
     buffer[count] = '\0';
   }
   ctx.r3.u64 = count;
@@ -187,12 +188,14 @@ extern "C" PPC_FUNC(__imp___snwprintf) {
       buffer[0] = '\0';
     }
   } else if (count <= buffer_count) {
-    rex::memory::copy_and_swap(buffer, reinterpret_cast<const uint16_t*>(data.wstr().c_str()), count);
+    rex::memory::copy_and_swap(buffer, reinterpret_cast<const uint16_t*>(data.wstr().c_str()),
+                               count);
     if (count < buffer_count) {
       buffer[count] = '\0';
     }
   } else {
-    rex::memory::copy_and_swap(buffer, reinterpret_cast<const uint16_t*>(data.wstr().c_str()), buffer_count);
+    rex::memory::copy_and_swap(buffer, reinterpret_cast<const uint16_t*>(data.wstr().c_str()),
+                               buffer_count);
     count = -1;
   }
   ctx.r3.u64 = count;
@@ -285,7 +288,8 @@ extern "C" PPC_FUNC(__imp__vswprintf) {
   if (count <= 0) {
     buffer[0] = '\0';
   } else {
-    rex::memory::copy_and_swap(buffer, reinterpret_cast<const uint16_t*>(data.wstr().c_str()), count);
+    rex::memory::copy_and_swap(buffer, reinterpret_cast<const uint16_t*>(data.wstr().c_str()),
+                               count);
     buffer[count] = '\0';
   }
   ctx.r3.u64 = count;
@@ -314,12 +318,14 @@ extern "C" PPC_FUNC(__imp___vsnwprintf) {
       buffer[0] = '\0';
     }
   } else if (count <= buffer_count) {
-    rex::memory::copy_and_swap(buffer, reinterpret_cast<const uint16_t*>(data.wstr().c_str()), count);
+    rex::memory::copy_and_swap(buffer, reinterpret_cast<const uint16_t*>(data.wstr().c_str()),
+                               count);
     if (count < buffer_count) {
       buffer[count] = '\0';
     }
   } else {
-    rex::memory::copy_and_swap(buffer, reinterpret_cast<const uint16_t*>(data.wstr().c_str()), buffer_count);
+    rex::memory::copy_and_swap(buffer, reinterpret_cast<const uint16_t*>(data.wstr().c_str()),
+                               buffer_count);
   }
   ctx.r3.u64 = count;
 }

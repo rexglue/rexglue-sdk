@@ -10,7 +10,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <array>
 #include <climits>
 #include <cstdint>
@@ -23,11 +22,10 @@
 #include <vector>
 
 #include <rex/assert.h>
-#include <rex/hash.h>
 #include <rex/graphics/command_processor.h>
-#include <rex/graphics/util/draw.h>
-#include <rex/graphics/registers.h>
 #include <rex/graphics/pipeline/shader/spirv_translator.h>
+#include <rex/graphics/registers.h>
+#include <rex/graphics/util/draw.h>
 #include <rex/graphics/vulkan/deferred_command_buffer.h>
 #include <rex/graphics/vulkan/graphics_system.h>
 #include <rex/graphics/vulkan/pipeline_cache.h>
@@ -37,7 +35,8 @@
 #include <rex/graphics/vulkan/shared_memory.h>
 #include <rex/graphics/vulkan/texture_cache.h>
 #include <rex/graphics/xenos.h>
-#include <rex/kernel/kernel_state.h>
+#include <rex/hash.h>
+#include <rex/system/kernel_state.h>
 #include <rex/ui/vulkan/linked_type_descriptor_set_allocator.h>
 #include <rex/ui/vulkan/presenter.h>
 #include <rex/ui/vulkan/provider.h>
@@ -56,19 +55,15 @@ class VulkanCommandProcessor : public CommandProcessor {
   class ScratchBufferAcquisition {
    public:
     explicit ScratchBufferAcquisition() = default;
-    explicit ScratchBufferAcquisition(VulkanCommandProcessor& command_processor,
-                                      VkBuffer buffer,
-                                      VkPipelineStageFlags stage_mask,
-                                      VkAccessFlags access_mask)
+    explicit ScratchBufferAcquisition(VulkanCommandProcessor& command_processor, VkBuffer buffer,
+                                      VkPipelineStageFlags stage_mask, VkAccessFlags access_mask)
         : command_processor_(&command_processor),
           buffer_(buffer),
           stage_mask_(stage_mask),
           access_mask_(access_mask) {}
 
-    ScratchBufferAcquisition(const ScratchBufferAcquisition& acquisition) =
-        delete;
-    ScratchBufferAcquisition& operator=(
-        const ScratchBufferAcquisition& acquisition) = delete;
+    ScratchBufferAcquisition(const ScratchBufferAcquisition& acquisition) = delete;
+    ScratchBufferAcquisition& operator=(const ScratchBufferAcquisition& acquisition) = delete;
 
     ScratchBufferAcquisition(ScratchBufferAcquisition&& acquisition) {
       command_processor_ = acquisition.command_processor_;
@@ -80,8 +75,7 @@ class VulkanCommandProcessor : public CommandProcessor {
       acquisition.stage_mask_ = 0;
       acquisition.access_mask_ = 0;
     }
-    ScratchBufferAcquisition& operator=(
-        ScratchBufferAcquisition&& acquisition) {
+    ScratchBufferAcquisition& operator=(ScratchBufferAcquisition&& acquisition) {
       if (this == &acquisition) {
         return *this;
       }
@@ -131,8 +125,7 @@ class VulkanCommandProcessor : public CommandProcessor {
     VkAccessFlags access_mask_ = 0;
   };
 
-  VulkanCommandProcessor(VulkanGraphicsSystem* graphics_system,
-                         kernel::KernelState* kernel_state);
+  VulkanCommandProcessor(VulkanGraphicsSystem* graphics_system, system::KernelState* kernel_state);
   ~VulkanCommandProcessor();
 
   void ClearCaches() override;
@@ -142,8 +135,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   void RestoreEdramSnapshot(const void* snapshot) override;
 
   ui::vulkan::VulkanDevice* GetVulkanDevice() const {
-    return static_cast<const ui::vulkan::VulkanProvider*>(
-               graphics_system_->provider())
+    return static_cast<const ui::vulkan::VulkanProvider*>(graphics_system_->provider())
         ->vulkan_device();
   }
 
@@ -156,8 +148,7 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   bool submission_open() const { return submission_open_; }
   uint64_t GetCurrentSubmission() const {
-    return submission_completed_ +
-           uint64_t(submissions_in_flight_fences_.size()) + 1;
+    return submission_completed_ + uint64_t(submissions_in_flight_fences_.size()) + 1;
   }
   uint64_t GetCompletedSubmission() const { return submission_completed_; }
 
@@ -167,8 +158,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   // Thus, multiple sparse binds between the completed and the current
   // submission, and within one submission, must not touch any overlapping
   // memory regions.
-  void SparseBindBuffer(VkBuffer buffer, uint32_t bind_count,
-                        const VkSparseMemoryBind* binds,
+  void SparseBindBuffer(VkBuffer buffer, uint32_t bind_count, const VkSparseMemoryBind* binds,
                         VkPipelineStageFlags wait_stage_mask);
 
   uint64_t GetCurrentFrame() const { return frame_current_; }
@@ -178,21 +168,21 @@ class VulkanCommandProcessor : public CommandProcessor {
   // the resource in a synchronization scope, the stage masks should be 0 (top /
   // bottom of pipe should be specified only if explicitly needed). Returning
   // true if the barrier has actually been inserted and not dropped.
-  bool PushBufferMemoryBarrier(
-      VkBuffer buffer, VkDeviceSize offset, VkDeviceSize size,
-      VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask,
-      VkAccessFlags src_access_mask, VkAccessFlags dst_access_mask,
-      uint32_t src_queue_family_index = VK_QUEUE_FAMILY_IGNORED,
-      uint32_t dst_queue_family_index = VK_QUEUE_FAMILY_IGNORED,
-      bool skip_if_equal = true);
-  bool PushImageMemoryBarrier(
-      VkImage image, const VkImageSubresourceRange& subresource_range,
-      VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask,
-      VkAccessFlags src_access_mask, VkAccessFlags dst_access_mask,
-      VkImageLayout old_layout, VkImageLayout new_layout,
-      uint32_t src_queue_family_index = VK_QUEUE_FAMILY_IGNORED,
-      uint32_t dst_queue_family_index = VK_QUEUE_FAMILY_IGNORED,
-      bool skip_if_equal = true);
+  bool PushBufferMemoryBarrier(VkBuffer buffer, VkDeviceSize offset, VkDeviceSize size,
+                               VkPipelineStageFlags src_stage_mask,
+                               VkPipelineStageFlags dst_stage_mask, VkAccessFlags src_access_mask,
+                               VkAccessFlags dst_access_mask,
+                               uint32_t src_queue_family_index = VK_QUEUE_FAMILY_IGNORED,
+                               uint32_t dst_queue_family_index = VK_QUEUE_FAMILY_IGNORED,
+                               bool skip_if_equal = true);
+  bool PushImageMemoryBarrier(VkImage image, const VkImageSubresourceRange& subresource_range,
+                              VkPipelineStageFlags src_stage_mask,
+                              VkPipelineStageFlags dst_stage_mask, VkAccessFlags src_access_mask,
+                              VkAccessFlags dst_access_mask, VkImageLayout old_layout,
+                              VkImageLayout new_layout,
+                              uint32_t src_queue_family_index = VK_QUEUE_FAMILY_IGNORED,
+                              uint32_t dst_queue_family_index = VK_QUEUE_FAMILY_IGNORED,
+                              bool skip_if_equal = true);
   // Returns whether any barriers have been submitted - if true is returned, the
   // render pass will also be closed.
   bool SubmitBarriers(bool force_end_render_pass);
@@ -200,8 +190,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   // If not started yet, begins a render pass from the render target cache.
   // Submission must be open.
   void SubmitBarriersAndEnterRenderTargetCacheRenderPass(
-      VkRenderPass render_pass,
-      const VulkanRenderTargetCache::Framebuffer* framebuffer);
+      VkRenderPass render_pass, const VulkanRenderTargetCache::Framebuffer* framebuffer);
   // Must be called before doing anything outside the render pass scope,
   // including adding pipeline barriers that are not a part of the render pass
   // scope. Submission must be open.
@@ -209,28 +198,27 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   VkDescriptorSetLayout GetSingleTransientDescriptorLayout(
       SingleTransientDescriptorLayout transient_descriptor_layout) const {
-    return descriptor_set_layouts_single_transient_[size_t(
-        transient_descriptor_layout)];
+    return descriptor_set_layouts_single_transient_[size_t(transient_descriptor_layout)];
   }
   // A frame must be open.
   VkDescriptorSet AllocateSingleTransientDescriptor(
       SingleTransientDescriptorLayout transient_descriptor_layout);
 
   // The returned reference is valid until a cache clear.
-  VkDescriptorSetLayout GetTextureDescriptorSetLayout(bool is_vertex,
-                                                      size_t texture_count,
+  VkDescriptorSetLayout GetTextureDescriptorSetLayout(bool is_vertex, size_t texture_count,
                                                       size_t sampler_count);
   // The returned reference is valid until a cache clear.
-  const VulkanPipelineCache::PipelineLayoutProvider* GetPipelineLayout(
-      size_t texture_count_pixel, size_t sampler_count_pixel,
-      size_t texture_count_vertex, size_t sampler_count_vertex);
+  const VulkanPipelineCache::PipelineLayoutProvider* GetPipelineLayout(size_t texture_count_pixel,
+                                                                       size_t sampler_count_pixel,
+                                                                       size_t texture_count_vertex,
+                                                                       size_t sampler_count_vertex);
 
   // Returns a single temporary GPU-side buffer within a submission for tasks
   // like texture untiling and resolving. May push a buffer memory barrier into
   // the initial usage. Submission must be open.
-  ScratchBufferAcquisition AcquireScratchGpuBuffer(
-      VkDeviceSize size, VkPipelineStageFlags initial_stage_mask,
-      VkAccessFlags initial_access_mask);
+  ScratchBufferAcquisition AcquireScratchGpuBuffer(VkDeviceSize size,
+                                                   VkPipelineStageFlags initial_stage_mask,
+                                                   VkAccessFlags initial_access_mask);
 
   // Binds a graphics pipeline for host-specific purposes, invalidating the
   // affected state. keep_dynamic_* must be false (to invalidate the dynamic
@@ -238,8 +226,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   // the caller changes the dynamic state bypassing the VulkanCommandProcessor)
   // unless the caller has these state variables as dynamic and uses the
   // tracking in VulkanCommandProcessor to modify them.
-  void BindExternalGraphicsPipeline(VkPipeline pipeline,
-                                    bool keep_dynamic_depth_bias = false,
+  void BindExternalGraphicsPipeline(VkPipeline pipeline, bool keep_dynamic_depth_bias = false,
                                     bool keep_dynamic_blend_constants = false,
                                     bool keep_dynamic_stencil_mask_ref = false);
   void BindExternalComputePipeline(VkPipeline pipeline);
@@ -262,12 +249,10 @@ class VulkanCommandProcessor : public CommandProcessor {
                  uint32_t frontbuffer_height) override;
 
   Shader* LoadShader(xenos::ShaderType shader_type, uint32_t guest_address,
-                     const uint32_t* host_address,
-                     uint32_t dword_count) override;
+                     const uint32_t* host_address, uint32_t dword_count) override;
 
   bool IssueDraw(xenos::PrimitiveType prim_type, uint32_t index_count,
-                 IndexBufferInfo* index_buffer_info,
-                 bool major_mode_explicit) override;
+                 IndexBufferInfo* index_buffer_info, bool major_mode_explicit) override;
   bool IssueCopy() override;
 
   void InitializeTrace() override;
@@ -294,9 +279,7 @@ class VulkanCommandProcessor : public CommandProcessor {
       uint32_t is_vertex : 1;
     };
 
-    TextureDescriptorSetLayoutKey() : key(0) {
-      static_assert_size(*this, sizeof(key));
-    }
+    TextureDescriptorSetLayoutKey() : key(0) { static_assert_size(*this, sizeof(key)); }
 
     struct Hasher {
       size_t operator()(const TextureDescriptorSetLayoutKey& key) const {
@@ -329,28 +312,19 @@ class VulkanCommandProcessor : public CommandProcessor {
         return std::hash<decltype(key.key)>{}(key.key);
       }
     };
-    bool operator==(const PipelineLayoutKey& other_key) const {
-      return key == other_key.key;
-    }
-    bool operator!=(const PipelineLayoutKey& other_key) const {
-      return !(*this == other_key);
-    }
+    bool operator==(const PipelineLayoutKey& other_key) const { return key == other_key.key; }
+    bool operator!=(const PipelineLayoutKey& other_key) const { return !(*this == other_key); }
   };
 
   class PipelineLayout : public VulkanPipelineCache::PipelineLayoutProvider {
    public:
-    explicit PipelineLayout(
-        VkPipelineLayout pipeline_layout,
-        VkDescriptorSetLayout descriptor_set_layout_textures_vertex_ref,
-        VkDescriptorSetLayout descriptor_set_layout_textures_pixel_ref)
+    explicit PipelineLayout(VkPipelineLayout pipeline_layout,
+                            VkDescriptorSetLayout descriptor_set_layout_textures_vertex_ref,
+                            VkDescriptorSetLayout descriptor_set_layout_textures_pixel_ref)
         : pipeline_layout_(pipeline_layout),
-          descriptor_set_layout_textures_vertex_ref_(
-              descriptor_set_layout_textures_vertex_ref),
-          descriptor_set_layout_textures_pixel_ref_(
-              descriptor_set_layout_textures_pixel_ref) {}
-    VkPipelineLayout GetPipelineLayout() const override {
-      return pipeline_layout_;
-    }
+          descriptor_set_layout_textures_vertex_ref_(descriptor_set_layout_textures_vertex_ref),
+          descriptor_set_layout_textures_pixel_ref_(descriptor_set_layout_textures_pixel_ref) {}
+    VkPipelineLayout GetPipelineLayout() const override { return pipeline_layout_; }
     VkDescriptorSetLayout descriptor_set_layout_textures_vertex_ref() const {
       return descriptor_set_layout_textures_vertex_ref_;
     }
@@ -423,8 +397,7 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   void DestroyScratchBuffer();
 
-  void UpdateDynamicState(const draw_util::ViewportInfo& viewport_info,
-                          bool primitive_polygonal,
+  void UpdateDynamicState(const draw_util::ViewportInfo& viewport_info, bool primitive_polygonal,
                           reg::RB_DEPTHCONTROL normalized_depth_control);
   void UpdateSystemConstantValues(
       bool primitive_polygonal,
@@ -432,8 +405,7 @@ class VulkanCommandProcessor : public CommandProcessor {
       bool shader_32bit_index_dma, const draw_util::ViewportInfo& viewport_info,
       uint32_t used_texture_mask, reg::RB_DEPTHCONTROL normalized_depth_control,
       uint32_t normalized_color_mask);
-  bool UpdateBindings(const VulkanShader* vertex_shader,
-                      const VulkanShader* pixel_shader);
+  bool UpdateBindings(const VulkanShader* vertex_shader, const VulkanShader* pixel_shader);
   // Allocates a descriptor set and fills one or two VkWriteDescriptorSet
   // structure instances (for images and samplers).
   // The descriptor set layout must be the one for the given is_vertex,
@@ -442,12 +414,12 @@ class VulkanCommandProcessor : public CommandProcessor {
   // Returns how many VkWriteDescriptorSet structure instances have been
   // written, or 0 if there was a failure to allocate the descriptor set or no
   // bindings were requested.
-  uint32_t WriteTransientTextureBindings(
-      bool is_vertex, uint32_t texture_count, uint32_t sampler_count,
-      VkDescriptorSetLayout descriptor_set_layout,
-      const VkDescriptorImageInfo* texture_image_info,
-      const VkDescriptorImageInfo* sampler_image_info,
-      VkWriteDescriptorSet* descriptor_set_writes_out);
+  uint32_t WriteTransientTextureBindings(bool is_vertex, uint32_t texture_count,
+                                         uint32_t sampler_count,
+                                         VkDescriptorSetLayout descriptor_set_layout,
+                                         const VkDescriptorImageInfo* texture_image_info,
+                                         const VkDescriptorImageInfo* sampler_image_info,
+                                         VkWriteDescriptorSet* descriptor_set_writes_out);
 
   bool device_lost_ = false;
 
@@ -469,8 +441,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   std::vector<VkSemaphore> current_submission_wait_semaphores_;
   std::vector<VkPipelineStageFlags> current_submission_wait_stage_masks_;
   std::vector<VkFence> submissions_in_flight_fences_;
-  std::deque<std::pair<uint64_t, VkSemaphore>>
-      submissions_in_flight_semaphores_;
+  std::deque<std::pair<uint64_t, VkSemaphore>> submissions_in_flight_semaphores_;
 
   static constexpr uint32_t kMaxFramesInFlight = 3;
   bool frame_open_ = false;
@@ -509,19 +480,16 @@ class VulkanCommandProcessor : public CommandProcessor {
   // Descriptor set layouts used by different shaders.
   VkDescriptorSetLayout descriptor_set_layout_empty_ = VK_NULL_HANDLE;
   VkDescriptorSetLayout descriptor_set_layout_constants_ = VK_NULL_HANDLE;
-  std::array<VkDescriptorSetLayout,
-             size_t(SingleTransientDescriptorLayout::kCount)>
+  std::array<VkDescriptorSetLayout, size_t(SingleTransientDescriptorLayout::kCount)>
       descriptor_set_layouts_single_transient_{};
-  VkDescriptorSetLayout descriptor_set_layout_shared_memory_and_edram_ =
-      VK_NULL_HANDLE;
+  VkDescriptorSetLayout descriptor_set_layout_shared_memory_and_edram_ = VK_NULL_HANDLE;
 
   // Descriptor set layouts are referenced by pipeline_layouts_.
   std::unordered_map<TextureDescriptorSetLayoutKey, VkDescriptorSetLayout,
                      TextureDescriptorSetLayoutKey::Hasher>
       descriptor_set_layouts_textures_;
   // Pipeline layouts are referenced by VulkanPipelineCache.
-  std::unordered_map<PipelineLayoutKey, PipelineLayout,
-                     PipelineLayoutKey::Hasher>
+  std::unordered_map<PipelineLayoutKey, PipelineLayout, PipelineLayoutKey::Hasher>
       pipeline_layouts_;
 
   // No specific reason for 32768, just the "too much" descriptor count from
@@ -530,25 +498,18 @@ class VulkanCommandProcessor : public CommandProcessor {
   static const VkDescriptorPoolSize kDescriptorPoolSizeUniformBuffer;
   static const VkDescriptorPoolSize kDescriptorPoolSizeStorageBuffer;
   static const VkDescriptorPoolSize kDescriptorPoolSizeTextures[2];
-  ui::vulkan::LinkedTypeDescriptorSetAllocator
-      transient_descriptor_allocator_uniform_buffer_;
-  ui::vulkan::LinkedTypeDescriptorSetAllocator
-      transient_descriptor_allocator_storage_buffer_;
+  ui::vulkan::LinkedTypeDescriptorSetAllocator transient_descriptor_allocator_uniform_buffer_;
+  ui::vulkan::LinkedTypeDescriptorSetAllocator transient_descriptor_allocator_storage_buffer_;
   std::deque<UsedSingleTransientDescriptor> single_transient_descriptors_used_;
-  std::array<std::vector<VkDescriptorSet>,
-             size_t(SingleTransientDescriptorLayout::kCount)>
+  std::array<std::vector<VkDescriptorSet>, size_t(SingleTransientDescriptorLayout::kCount)>
       single_transient_descriptors_free_;
   // <Usage frame, set>.
-  std::deque<std::pair<uint64_t, VkDescriptorSet>>
-      constants_transient_descriptors_used_;
+  std::deque<std::pair<uint64_t, VkDescriptorSet>> constants_transient_descriptors_used_;
   std::vector<VkDescriptorSet> constants_transient_descriptors_free_;
 
-  ui::vulkan::LinkedTypeDescriptorSetAllocator
-      transient_descriptor_allocator_textures_;
-  std::deque<UsedTextureTransientDescriptorSet>
-      texture_transient_descriptor_sets_used_;
-  std::unordered_map<TextureDescriptorSetLayoutKey,
-                     std::vector<VkDescriptorSet>,
+  ui::vulkan::LinkedTypeDescriptorSetAllocator transient_descriptor_allocator_textures_;
+  std::deque<UsedTextureTransientDescriptorSet> texture_transient_descriptor_sets_used_;
+  std::unordered_map<TextureDescriptorSetLayoutKey, std::vector<VkDescriptorSet>,
                      TextureDescriptorSetLayoutKey::Hasher>
       texture_transient_descriptor_sets_free_;
 
@@ -587,10 +548,8 @@ class VulkanCommandProcessor : public CommandProcessor {
   uint32_t gamma_ramp_256_entry_table_current_frame_ = UINT32_MAX;
   uint32_t gamma_ramp_pwl_current_frame_ = UINT32_MAX;
 
-  VkDescriptorSetLayout swap_descriptor_set_layout_sampled_image_ =
-      VK_NULL_HANDLE;
-  VkDescriptorSetLayout swap_descriptor_set_layout_uniform_texel_buffer_ =
-      VK_NULL_HANDLE;
+  VkDescriptorSetLayout swap_descriptor_set_layout_sampled_image_ = VK_NULL_HANDLE;
+  VkDescriptorSetLayout swap_descriptor_set_layout_uniform_texel_buffer_ = VK_NULL_HANDLE;
 
   // Descriptor pool for allocating descriptors needed for presentation, such as
   // the destination images and the gamma ramps.
@@ -598,8 +557,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   // Interleaved 256-entry table and PWL texel buffer descriptors.
   // kMaxFramesInFlight pairs of gamma ramps if in host-visible memory and
   // uploaded directly, one otherwise.
-  std::array<VkDescriptorSet, 2 * kMaxFramesInFlight>
-      swap_descriptors_gamma_ramp_;
+  std::array<VkDescriptorSet, 2 * kMaxFramesInFlight> swap_descriptors_gamma_ramp_;
   // Sampled images.
   std::array<VkDescriptorSet, kMaxFramesInFlight> swap_descriptors_source_;
 
@@ -611,8 +569,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   VkPipeline swap_apply_gamma_256_entry_table_pipeline_ = VK_NULL_HANDLE;
   VkPipeline swap_apply_gamma_pwl_pipeline_ = VK_NULL_HANDLE;
 
-  std::array<SwapFramebuffer,
-             ui::vulkan::VulkanPresenter::kMaxActiveGuestOutputImageVersions>
+  std::array<SwapFramebuffer, ui::vulkan::VulkanPresenter::kMaxActiveGuestOutputImageVersions>
       swap_framebuffers_;
 
   // Pending pipeline barriers.
@@ -672,10 +629,8 @@ class VulkanCommandProcessor : public CommandProcessor {
   bool dynamic_stencil_reference_back_update_needed_;
 
   // Currently used samplers.
-  std::vector<std::pair<VulkanTextureCache::SamplerParameters, VkSampler>>
-      current_samplers_vertex_;
-  std::vector<std::pair<VulkanTextureCache::SamplerParameters, VkSampler>>
-      current_samplers_pixel_;
+  std::vector<std::pair<VulkanTextureCache::SamplerParameters, VkSampler>> current_samplers_vertex_;
+  std::vector<std::pair<VulkanTextureCache::SamplerParameters, VkSampler>> current_samplers_pixel_;
 
   // Cache render pass currently started in the command buffer with the
   // framebuffer.
@@ -693,13 +648,12 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   // Pipeline layout of the current guest graphics pipeline.
   const PipelineLayout* current_guest_graphics_pipeline_layout_;
-  VkDescriptorBufferInfo current_constant_buffer_infos_
-      [SpirvShaderTranslator::kConstantBufferCount];
+  VkDescriptorBufferInfo
+      current_constant_buffer_infos_[SpirvShaderTranslator::kConstantBufferCount];
   // Whether up-to-date data has been written to constant (uniform) buffers, and
   // the buffer infos in current_constant_buffer_infos_ point to them.
   uint32_t current_constant_buffers_up_to_date_;
-  VkDescriptorSet current_graphics_descriptor_sets_
-      [SpirvShaderTranslator::kDescriptorSetCount];
+  VkDescriptorSet current_graphics_descriptor_sets_[SpirvShaderTranslator::kDescriptorSetCount];
   // Whether descriptor sets in current_graphics_descriptor_sets_ point to
   // up-to-date data.
   uint32_t current_graphics_descriptor_set_values_up_to_date_;
@@ -711,14 +665,12 @@ class VulkanCommandProcessor : public CommandProcessor {
   // non-existent descriptor set layouts may also be set, but need to be ignored
   // when they start to matter.
   uint32_t current_graphics_descriptor_sets_bound_up_to_date_;
-  static_assert(
-      SpirvShaderTranslator::kDescriptorSetCount <=
-          sizeof(current_graphics_descriptor_set_values_up_to_date_) * CHAR_BIT,
-      "Bit fields storing descriptor set validity must be large enough");
-  static_assert(
-      SpirvShaderTranslator::kDescriptorSetCount <=
-          sizeof(current_graphics_descriptor_sets_bound_up_to_date_) * CHAR_BIT,
-      "Bit fields storing descriptor set validity must be large enough");
+  static_assert(SpirvShaderTranslator::kDescriptorSetCount <=
+                    sizeof(current_graphics_descriptor_set_values_up_to_date_) * CHAR_BIT,
+                "Bit fields storing descriptor set validity must be large enough");
+  static_assert(SpirvShaderTranslator::kDescriptorSetCount <=
+                    sizeof(current_graphics_descriptor_sets_bound_up_to_date_) * CHAR_BIT,
+                "Bit fields storing descriptor set validity must be large enough");
 
   // Float constant usage masks of the last draw call.
   uint64_t current_float_constant_map_vertex_[4];
@@ -732,4 +684,3 @@ class VulkanCommandProcessor : public CommandProcessor {
 };
 
 }  // namespace rex::graphics::vulkan
-

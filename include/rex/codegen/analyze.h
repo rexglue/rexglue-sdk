@@ -33,4 +33,4 @@ namespace rex::codegen {
  */
 Result<void> Analyze(CodegenContext& ctx);
 
-} // namespace rex::codegen
+}  // namespace rex::codegen

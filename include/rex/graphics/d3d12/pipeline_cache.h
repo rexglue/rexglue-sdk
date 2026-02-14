@@ -11,7 +11,6 @@
 
 #pragma once
 
-
 #include <condition_variable>
 #include <cstdio>
 #include <deque>
@@ -25,18 +24,18 @@
 #include <vector>
 
 #include <rex/assert.h>
-#include <rex/hash.h>
-#include <rex/platform.h>
-#include <rex/string/buffer.h>
-#include <rex/thread.h>
 #include <rex/graphics/d3d12/render_target_cache.h>
 #include <rex/graphics/d3d12/shader.h>
-#include <rex/graphics/pipeline/shader/dxbc_translator.h>
 #include <rex/graphics/flags.h>
+#include <rex/graphics/pipeline/shader/dxbc_translator.h>
 #include <rex/graphics/primitive_processor.h>
 #include <rex/graphics/register_file.h>
 #include <rex/graphics/registers.h>
 #include <rex/graphics/xenos.h>
+#include <rex/hash.h>
+#include <rex/platform.h>
+#include <rex/string/buffer.h>
+#include <rex/thread.h>
 #include <rex/ui/d3d12/d3d12_api.h>
 
 namespace rex::graphics::d3d12 {
@@ -47,10 +46,8 @@ class PipelineCache {
  public:
   static constexpr size_t kLayoutUIDEmpty = 0;
 
-  PipelineCache(D3D12CommandProcessor& command_processor,
-                const RegisterFile& register_file,
-                const D3D12RenderTargetCache& render_target_cache,
-                bool bindless_resources_used);
+  PipelineCache(D3D12CommandProcessor& command_processor, const RegisterFile& register_file,
+                const D3D12RenderTargetCache& render_target_cache, bool bindless_resources_used);
   ~PipelineCache();
 
   bool Initialize();
@@ -60,25 +57,22 @@ class PipelineCache {
   // takes a long time, and if it's not, there will be heavy stuttering for the
   // rest of the execution of the guest).
 
-  void InitializeShaderStorage(const std::filesystem::path& cache_root,
-                               uint32_t title_id, bool blocking);
+  void InitializeShaderStorage(const std::filesystem::path& cache_root, uint32_t title_id,
+                               bool blocking);
   void ShutdownShaderStorage();
 
   void EndSubmission();
   bool IsCreatingPipelines();
 
-  D3D12Shader* LoadShader(xenos::ShaderType shader_type,
-                          const uint32_t* host_address, uint32_t dword_count);
+  D3D12Shader* LoadShader(xenos::ShaderType shader_type, const uint32_t* host_address,
+                          uint32_t dword_count);
   // Analyze shader microcode on the translator thread.
-  void AnalyzeShaderUcode(Shader& shader) {
-    shader.AnalyzeUcode(ucode_disasm_buffer_);
-  }
+  void AnalyzeShaderUcode(Shader& shader) { shader.AnalyzeUcode(ucode_disasm_buffer_); }
 
   // Retrieves the shader modification for the current state. The shader must
   // have microcode analyzed.
   DxbcShaderTranslator::Modification GetCurrentVertexShaderModification(
-      const Shader& shader,
-      Shader::HostVertexShaderType host_vertex_shader_type,
+      const Shader& shader, Shader::HostVertexShaderType host_vertex_shader_type,
       uint32_t interpolator_mask) const;
   DxbcShaderTranslator::Modification GetCurrentPixelShaderModification(
       const Shader& shader, uint32_t interpolator_mask, uint32_t param_gen_pos,
@@ -86,15 +80,14 @@ class PipelineCache {
 
   // If draw_util::IsRasterizationPotentiallyDone is false, the pixel shader
   // MUST be made nullptr BEFORE calling this!
-  bool ConfigurePipeline(
-      D3D12Shader::D3D12Translation* vertex_shader,
-      D3D12Shader::D3D12Translation* pixel_shader,
-      const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
-      reg::RB_DEPTHCONTROL normalized_depth_control,
-      uint32_t normalized_color_mask,
-      uint32_t bound_depth_and_color_render_target_bits,
-      const uint32_t* bound_depth_and_color_render_targets_formats,
-      void** pipeline_handle_out, ID3D12RootSignature** root_signature_out);
+  bool ConfigurePipeline(D3D12Shader::D3D12Translation* vertex_shader,
+                         D3D12Shader::D3D12Translation* pixel_shader,
+                         const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
+                         reg::RB_DEPTHCONTROL normalized_depth_control,
+                         uint32_t normalized_color_mask,
+                         uint32_t bound_depth_and_color_render_target_bits,
+                         const uint32_t* bound_depth_and_color_render_targets_formats,
+                         void** pipeline_handle_out, ID3D12RootSignature** root_signature_out);
 
   // Returns a pipeline with deferred creation by its handle. May return nullptr
   // if failed to create the pipeline.
@@ -259,17 +252,12 @@ class PipelineCache {
         return std::hash<uint32_t>{}(key.key);
       }
     };
-    bool operator==(const GeometryShaderKey& other_key) const {
-      return key == other_key.key;
-    }
-    bool operator!=(const GeometryShaderKey& other_key) const {
-      return !(*this == other_key);
-    }
+    bool operator==(const GeometryShaderKey& other_key) const { return key == other_key.key; }
+    bool operator!=(const GeometryShaderKey& other_key) const { return !(*this == other_key); }
   };
 
-  D3D12Shader* LoadShader(xenos::ShaderType shader_type,
-                          const uint32_t* host_address, uint32_t dword_count,
-                          uint64_t data_hash);
+  D3D12Shader* LoadShader(xenos::ShaderType shader_type, const uint32_t* host_address,
+                          uint32_t dword_count, uint64_t data_hash);
 
   // Can be called from multiple threads.
   bool TranslateAnalyzedShader(DxbcShaderTranslator& translator,
@@ -282,26 +270,21 @@ class PipelineCache {
   // MUST be made nullptr BEFORE calling this! The shaders must be translated
   // and valid.
   bool GetCurrentStateDescription(
-      D3D12Shader::D3D12Translation* vertex_shader,
-      D3D12Shader::D3D12Translation* pixel_shader,
+      D3D12Shader::D3D12Translation* vertex_shader, D3D12Shader::D3D12Translation* pixel_shader,
       const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
-      reg::RB_DEPTHCONTROL normalized_depth_control,
-      uint32_t normalized_color_mask,
+      reg::RB_DEPTHCONTROL normalized_depth_control, uint32_t normalized_color_mask,
       uint32_t bound_depth_and_color_render_target_bits,
       const uint32_t* bound_depth_and_color_render_target_formats,
       PipelineRuntimeDescription& runtime_description_out);
 
-  static bool GetGeometryShaderKey(
-      PipelineGeometryShader geometry_shader_type,
-      DxbcShaderTranslator::Modification vertex_shader_modification,
-      DxbcShaderTranslator::Modification pixel_shader_modification,
-      GeometryShaderKey& key_out);
-  static void CreateDxbcGeometryShader(GeometryShaderKey key,
-                                       std::vector<uint32_t>& shader_out);
+  static bool GetGeometryShaderKey(PipelineGeometryShader geometry_shader_type,
+                                   DxbcShaderTranslator::Modification vertex_shader_modification,
+                                   DxbcShaderTranslator::Modification pixel_shader_modification,
+                                   GeometryShaderKey& key_out);
+  static void CreateDxbcGeometryShader(GeometryShaderKey key, std::vector<uint32_t>& shader_out);
   const std::vector<uint32_t>& GetGeometryShader(GeometryShaderKey key);
 
-  ID3D12PipelineState* CreateD3D12Pipeline(
-      const PipelineRuntimeDescription& runtime_description);
+  ID3D12PipelineState* CreateD3D12Pipeline(const PipelineRuntimeDescription& runtime_description);
 
   D3D12CommandProcessor& command_processor_;
   const RegisterFile& register_file_;
@@ -320,8 +303,7 @@ class PipelineCache {
   IDxcCompiler* dxc_compiler_ = nullptr;
 
   // Ucode hash -> shader.
-  std::unordered_map<uint64_t, D3D12Shader*, rex::IdentityHasher<uint64_t>>
-      shaders_;
+  std::unordered_map<uint64_t, D3D12Shader*, rex::IdentityHasher<uint64_t>> shaders_;
 
   struct LayoutUID {
     size_t uid;
@@ -334,20 +316,17 @@ class PipelineCache {
   // Map of texture binding layouts used by shaders, for obtaining UIDs. Keys
   // are XXH3 hashes of layouts, values need manual collision resolution using
   // layout_vector_offset:layout_length of texture_binding_layouts_.
-  std::unordered_multimap<uint64_t, LayoutUID,
-                          rex::IdentityHasher<uint64_t>>
+  std::unordered_multimap<uint64_t, LayoutUID, rex::IdentityHasher<uint64_t>>
       texture_binding_layout_map_;
   // Bindless sampler indices of different shaders, for obtaining layout UIDs.
   // For bindful, sampler count is used as the UID instead.
   std::vector<uint32_t> bindless_sampler_layouts_;
   // Keys are XXH3 hashes of used bindless sampler indices.
-  std::unordered_multimap<uint64_t, LayoutUID,
-                          rex::IdentityHasher<uint64_t>>
+  std::unordered_multimap<uint64_t, LayoutUID, rex::IdentityHasher<uint64_t>>
       bindless_sampler_layout_map_;
 
   // Geometry shaders for Xenos primitive types not supported by Direct3D 12.
-  std::unordered_map<GeometryShaderKey, std::vector<uint32_t>,
-                     GeometryShaderKey::Hasher>
+  std::unordered_map<GeometryShaderKey, std::vector<uint32_t>, GeometryShaderKey::Hasher>
       geometry_shaders_;
 
   // Empty depth-only pixel shader for writing to depth buffer via ROV when no
@@ -360,9 +339,7 @@ class PipelineCache {
     PipelineRuntimeDescription description;
   };
   // All previously generated pipelines identified by hash and the description.
-  std::unordered_multimap<uint64_t, Pipeline*,
-                          rex::IdentityHasher<uint64_t>>
-      pipelines_;
+  std::unordered_multimap<uint64_t, Pipeline*, rex::IdentityHasher<uint64_t>> pipelines_;
 
   // Previously used pipeline. This matches our current state settings and
   // allows us to quickly(ish) reuse the pipeline if no registers have been
@@ -424,4 +401,3 @@ class PipelineCache {
 };
 
 }  // namespace rex::graphics::d3d12
-

@@ -9,20 +9,19 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
- // Disable warnings about unused parameters for kernel functions
+// Disable warnings about unused parameters for kernel functions
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
-#include <rex/logging.h>
-#include <rex/kernel/kernel_state.h>
-#include <rex/runtime/guest/function.h>
-#include <rex/runtime/guest/types.h>
 #include <rex/kernel/xboxkrnl/private.h>
-#include <rex/kernel/xtypes.h>
+#include <rex/logging.h>
+#include <rex/ppc/function.h>
+#include <rex/ppc/types.h>
+#include <rex/system/kernel_state.h>
+#include <rex/system/xtypes.h>
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::runtime::guest;
 
-void HalReturnToFirmware_entry(dword_t routine) {
+void HalReturnToFirmware_entry(ppc_u32_t routine) {
   // void
   // IN FIRMWARE_REENTRY  Routine
 
@@ -37,4 +36,4 @@ void HalReturnToFirmware_entry(dword_t routine) {
 
 }  // namespace rex::kernel::xboxkrnl
 
-GUEST_FUNCTION_HOOK(__imp__HalReturnToFirmware, rex::kernel::xboxkrnl::HalReturnToFirmware_entry)
+PPC_HOOK(__imp__HalReturnToFirmware, rex::kernel::xboxkrnl::HalReturnToFirmware_entry)

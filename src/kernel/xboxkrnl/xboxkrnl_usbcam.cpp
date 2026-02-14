@@ -9,19 +9,18 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/logging.h>
-#include <rex/kernel/kernel_state.h>
-#include <rex/runtime/guest/function.h>
-#include <rex/runtime/guest/types.h>
 #include <rex/kernel/xboxkrnl/private.h>
-#include <rex/kernel/xtypes.h>
+#include <rex/logging.h>
+#include <rex/ppc/function.h>
+#include <rex/ppc/types.h>
+#include <rex/system/kernel_state.h>
+#include <rex/system/xtypes.h>
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::runtime::guest;
 
-dword_result_t XUsbcamCreate_entry(dword_t buffer,
-                                   dword_t buffer_size,  // 0x4B000 640x480?
-                                   lpunknown_t unk3_ptr) {
+ppc_u32_result_t XUsbcamCreate_entry(ppc_u32_t buffer,
+                                     ppc_u32_t buffer_size,  // 0x4B000 640x480?
+                                     ppc_pvoid_t unk3_ptr) {
   // This function should return success.
   // It looks like it only allocates space for usbcam support.
   // returning error code might cause games to initialize incorrectly.
@@ -32,12 +31,12 @@ dword_result_t XUsbcamCreate_entry(dword_t buffer,
   return X_STATUS_SUCCESS;
 }
 
-dword_result_t XUsbcamGetState_entry() {
+ppc_u32_result_t XUsbcamGetState_entry() {
   // 0 = not connected.
   return 0;
 }
 
 }  // namespace rex::kernel::xboxkrnl
 
-GUEST_FUNCTION_HOOK(__imp__XUsbcamCreate, rex::kernel::xboxkrnl::XUsbcamCreate_entry)
-GUEST_FUNCTION_HOOK(__imp__XUsbcamGetState, rex::kernel::xboxkrnl::XUsbcamGetState_entry)
+PPC_HOOK(__imp__XUsbcamCreate, rex::kernel::xboxkrnl::XUsbcamCreate_entry)
+PPC_HOOK(__imp__XUsbcamGetState, rex::kernel::xboxkrnl::XUsbcamGetState_entry)

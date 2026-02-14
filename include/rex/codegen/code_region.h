@@ -16,11 +16,11 @@
 namespace rex::codegen {
 
 struct CodeRegion {
-    uint32_t start;
-    uint32_t end;
+  uint32_t start;
+  uint32_t end;
 
-    bool contains(uint32_t addr) const { return addr >= start && addr < end; }
-    uint32_t size() const { return end - start; }
+  bool contains(uint32_t addr) const { return addr >= start && addr < end; }
+  uint32_t size() const { return end - start; }
 };
 
-} // namespace rex::codegen
+}  // namespace rex::codegen

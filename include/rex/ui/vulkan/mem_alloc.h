@@ -10,7 +10,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 // Make sure vulkan.h is included from third_party (rather than from the system
 // include directory) before vk_mem_alloc.h.
 
@@ -30,10 +29,8 @@ namespace rex {
 namespace ui {
 namespace vulkan {
 
-VmaAllocator CreateVmaAllocator(const VulkanDevice* vulkan_device,
-                                bool externally_synchronized);
+VmaAllocator CreateVmaAllocator(const VulkanDevice* vulkan_device, bool externally_synchronized);
 
 }  // namespace vulkan
 }  // namespace ui
-}  // namespace xe
-
+}  // namespace rex

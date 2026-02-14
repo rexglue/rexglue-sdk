@@ -10,7 +10,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <algorithm>
 #include <memory>
 #include <utility>
@@ -28,8 +27,7 @@ class VulkanCommandProcessor;
 class VulkanSharedMemory : public SharedMemory {
  public:
   VulkanSharedMemory(VulkanCommandProcessor& command_processor, memory::Memory& memory,
-                     TraceWriter& trace_writer,
-                     VkPipelineStageFlags guest_shader_pipeline_stages);
+                     TraceWriter& trace_writer, VkPipelineStageFlags guest_shader_pipeline_stages);
   ~VulkanSharedMemory() override;
 
   bool Initialize();
@@ -60,8 +58,7 @@ class VulkanSharedMemory : public SharedMemory {
   bool AllocateSparseHostGpuMemoryRange(uint32_t offset_allocations,
                                         uint32_t length_allocations) override;
 
-  bool UploadRanges(const std::vector<std::pair<uint32_t, uint32_t>>&
-                        upload_page_ranges) override;
+  bool UploadRanges(const std::vector<std::pair<uint32_t, uint32_t>>& upload_page_ranges) override;
 
  private:
   void GetUsageMasks(Usage usage, VkPipelineStageFlags& stage_mask,
@@ -89,4 +86,3 @@ class VulkanSharedMemory : public SharedMemory {
 };
 
 }  // namespace rex::graphics::vulkan
-

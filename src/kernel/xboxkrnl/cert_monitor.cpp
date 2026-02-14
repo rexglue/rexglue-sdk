@@ -9,25 +9,22 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/kernel/xboxkrnl/cert_monitor.h>
-
 #include <vector>
 
-#include <rex/time/clock.h>
-#include <rex/debugging.h>
+#include <rex/chrono/clock.h>
+#include <rex/dbg.h>
+#include <rex/kernel/xboxkrnl/cert_monitor.h>
+#include <rex/kernel/xboxkrnl/private.h>
 #include <rex/logging.h>
 #include <rex/math.h>
-#include <rex/runtime/guest/context.h>
-#include <rex/kernel/kernel_state.h>
-#include <rex/kernel/user_module.h>
-#include <rex/kernel/xboxkrnl/private.h>
-#include <rex/kernel/xthread.h>
+#include <rex/ppc/context.h>
+#include <rex/system/kernel_state.h>
+#include <rex/system/user_module.h>
+#include <rex/system/xthread.h>
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::runtime::guest;
 
-void KeCertMonitorCallback(PPCContext* ppc_context,
-                           rex::kernel::KernelState* kernel_state) {
+void KeCertMonitorCallback(PPCContext* ppc_context, rex::system::KernelState* kernel_state) {
   auto id = ppc_context->r[3];
   auto arg = ppc_context->r[4];
   REXKRNL_DEBUG("KeCertMonitorCallback({}, {:08X})", id, arg);

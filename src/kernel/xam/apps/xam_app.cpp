@@ -10,16 +10,18 @@
  */
 
 #include <rex/kernel/xam/apps/app.h>
-
 #include <rex/logging.h>
+#include <rex/system/kernel_state.h>
+#include <rex/system/xenumerator.h>
 #include <rex/thread.h>
-#include <rex/kernel/kernel_state.h>
-#include <rex/kernel/xenumerator.h>
 
 namespace rex {
 namespace kernel {
 namespace xam {
+using namespace rex::system;
+using namespace rex::system::xam;
 namespace apps {
+using namespace rex::system;
 
 XamApp::XamApp(KernelState* kernel_state) : App(kernel_state, 0xFE) {}
 
@@ -42,15 +44,12 @@ X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       REXKRNL_DEBUG(
           "XamAppEnumerateContentAggregate({}, {:08X}, {:08X}, {:08X}, {}, "
           "{:08X}, {:08X}, {:08X})",
-          (uint32_t)data->user_index, (uint32_t)data->unk_04,
-          (uint32_t)data->extra_ptr, (uint32_t)data->buffer_ptr,
-          (uint32_t)data->buffer_size, (uint32_t)data->unk_14,
+          (uint32_t)data->user_index, (uint32_t)data->unk_04, (uint32_t)data->extra_ptr,
+          (uint32_t)data->buffer_ptr, (uint32_t)data->buffer_size, (uint32_t)data->unk_14,
           (uint32_t)data->length_ptr, (uint32_t)data->unk_1C);
-      auto extra = memory_->TranslateVirtual<X_KENUMERATOR_CONTENT_AGGREGATE*>(
-          data->extra_ptr);
+      auto extra = memory_->TranslateVirtual<X_KENUMERATOR_CONTENT_AGGREGATE*>(data->extra_ptr);
       auto buffer = memory_->TranslateVirtual(data->buffer_ptr);
-      auto e = kernel_state_->object_table()->LookupObject<XEnumerator>(
-          extra->handle);
+      auto e = kernel_state_->object_table()->LookupObject<XEnumerator>(extra->handle);
       if (!e || !buffer || !extra) {
         return X_E_INVALIDARG;
       }
@@ -63,8 +62,7 @@ X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
 
       if (result == X_ERROR_SUCCESS && item_count >= 1) {
         if (data->length_ptr) {
-          auto length_ptr =
-              memory_->TranslateVirtual<be<uint32_t>*>(data->length_ptr);
+          auto length_ptr = memory_->TranslateVirtual<be<uint32_t>*>(data->length_ptr);
           *length_ptr = 1;
         }
         return X_E_SUCCESS;
@@ -82,8 +80,7 @@ X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       auto unk = memory_->TranslateVirtual<rex::be<uint32_t>*>(data->unk_44);
       *unk = 0;
       REXKRNL_DEBUG("XamApp(0x00020021)('{}', {:08X}, {:08X}, {:08X})", data->unk_00,
-             (uint32_t)data->unk_40, (uint32_t)data->unk_44,
-             (uint32_t)data->unk_48);
+                    (uint32_t)data->unk_40, (uint32_t)data->unk_44, (uint32_t)data->unk_48);
       return X_E_SUCCESS;
     }
     case 0x00021012: {
@@ -99,7 +96,7 @@ X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       auto unk = memory_->TranslateVirtual<rex::be<uint32_t>*>(data->unk_00);
       auto adr = *unk;
       REXKRNL_DEBUG("XamApp(0x00022005)(%.8X, %.8X)", (uint32_t)data->unk_00,
-             (uint32_t)data->unk_04);
+                    (uint32_t)data->unk_04);
       return X_E_SUCCESS;
     }
   }
@@ -113,4 +110,4 @@ X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
 }  // namespace apps
 }  // namespace xam
 }  // namespace kernel
-}  // namespace xe
+}  // namespace rex

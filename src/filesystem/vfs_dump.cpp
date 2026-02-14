@@ -13,21 +13,16 @@
 #include <string>
 #include <vector>
 
+#include <rex/cvar.h>
+#include <rex/filesystem/devices/stfs_container_device.h>
+#include <rex/filesystem/file.h>
 #include <rex/literals.h>
 #include <rex/logging.h>
 #include <rex/math.h>
-#include <rex/cvar.h>
 
-#include <rex/filesystem/devices/stfs_container_device.h>
-#include <rex/filesystem/file.h>
+REXCVAR_DEFINE_STRING(dump_source, "", "Specifies the file to dump from", "Filesystem");
 
-REXCVAR_DEFINE_STRING(dump_source, "",
-    "Specifies the file to dump from",
-    "Filesystem");
-
-REXCVAR_DEFINE_STRING(dump_path, "",
-    "Specifies the directory to dump files to",
-    "Filesystem");
+REXCVAR_DEFINE_STRING(dump_path, "", "Specifies the directory to dump files to", "Filesystem");
 
 namespace rex::filesystem {
 

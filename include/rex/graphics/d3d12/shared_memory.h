@@ -11,7 +11,6 @@
 
 #pragma once
 
-
 #include <algorithm>
 #include <memory>
 #include <utility>
@@ -38,9 +37,7 @@ class D3D12SharedMemory : public SharedMemory {
   void ClearCache() override;
 
   ID3D12Resource* GetBuffer() const { return buffer_; }
-  D3D12_GPU_VIRTUAL_ADDRESS GetGPUAddress() const {
-    return buffer_gpu_address_;
-  }
+  D3D12_GPU_VIRTUAL_ADDRESS GetGPUAddress() const { return buffer_gpu_address_; }
 
   void CompletedSubmissionUpdated();
   void BeginSubmission();
@@ -51,19 +48,16 @@ class D3D12SharedMemory : public SharedMemory {
   // Makes the buffer usable for vertices, indices and texture untiling.
   void UseForReading() {
     // Vertex fetch is also allowed in pixel shaders.
-    CommitUAVWritesAndTransitionBuffer(
-        D3D12_RESOURCE_STATE_INDEX_BUFFER |
-        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE |
-        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    CommitUAVWritesAndTransitionBuffer(D3D12_RESOURCE_STATE_INDEX_BUFFER |
+                                       D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE |
+                                       D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
   }
   // Makes the buffer usable for texture tiling after a resolve.
   void UseForWriting() {
     CommitUAVWritesAndTransitionBuffer(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
   }
   // Makes the buffer usable as a source for copy commands.
-  void UseAsCopySource() {
-    CommitUAVWritesAndTransitionBuffer(D3D12_RESOURCE_STATE_COPY_SOURCE);
-  }
+  void UseAsCopySource() { CommitUAVWritesAndTransitionBuffer(D3D12_RESOURCE_STATE_COPY_SOURCE); }
   // Must be called when doing draws/dispatches modifying data within the shared
   // memory buffer as a UAV, to make sure that when UseForWriting is called the
   // next time, a UAV barrier will be done, and subsequent overlapping UAV
@@ -91,8 +85,7 @@ class D3D12SharedMemory : public SharedMemory {
   bool AllocateSparseHostGpuMemoryRange(uint32_t offset_allocations,
                                         uint32_t length_allocations) override;
 
-  bool UploadRanges(const std::vector<std::pair<uint32_t, uint32_t>>&
-                        upload_page_ranges) override;
+  bool UploadRanges(const std::vector<std::pair<uint32_t, uint32_t>>& upload_page_ranges) override;
 
  private:
   D3D12CommandProcessor& command_processor_;
@@ -131,4 +124,3 @@ class D3D12SharedMemory : public SharedMemory {
 };
 
 }  // namespace rex::graphics::d3d12
-

@@ -9,10 +9,10 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/ui/windowed_app.h>
-
 #include <string>
 #include <unordered_map>
+
+#include <rex/ui/windowed_app.h>
 
 namespace rex {
 namespace ui {

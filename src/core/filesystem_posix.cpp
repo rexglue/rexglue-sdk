@@ -9,23 +9,26 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <assert.h>
+#include <stdio.h>
+#include <string.h>
+
+#include <iostream>
+
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
 #include <rex/assert.h>
 #include <rex/filesystem.h>
 #include <rex/logging.h>
 #include <rex/string.h>
 
-#include <assert.h>
 #include <dirent.h>
-#include <fcntl.h>
 #include <ftw.h>
 #include <libgen.h>
 #include <pwd.h>
-#include <stdio.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <iostream>
 
 namespace rex {
 
@@ -37,7 +40,9 @@ std::u16string path_to_utf16(const std::filesystem::path& path) {
   return rex::string::to_utf16(path.string());
 }
 
-std::filesystem::path to_path(const std::string_view source) { return source; }
+std::filesystem::path to_path(const std::string_view source) {
+  return source;
+}
 
 std::filesystem::path to_path(const std::u16string_view source) {
   return rex::string::to_utf8(source);
@@ -87,7 +92,9 @@ bool Seek(FILE* file, int64_t offset, int origin) {
   return fseeko64(file, off64_t(offset), origin) == 0;
 }
 
-int64_t Tell(FILE* file) { return int64_t(ftello64(file)); }
+int64_t Tell(FILE* file) {
+  return int64_t(ftello64(file));
+}
 
 bool TruncateStdioFile(FILE* file, uint64_t length) {
   if (fflush(file)) {
@@ -108,8 +115,8 @@ bool TruncateStdioFile(FILE* file, uint64_t length) {
   return true;
 }
 
-static int removeCallback(const char* fpath, const struct stat* sb,
-                          int typeflag, struct FTW* ftwbuf) {
+static int removeCallback(const char* fpath, const struct stat* sb, int typeflag,
+                          struct FTW* ftwbuf) {
   int rv = remove(fpath);
   return rv;
 }
@@ -153,17 +160,15 @@ class PosixFileHandle : public FileHandle {
     *out_bytes_written = out;
     return out >= 0 ? true : false;
   }
-  bool SetLength(size_t length) override {
-    return ftruncate(handle_, length) >= 0 ? true : false;
-  }
+  bool SetLength(size_t length) override { return ftruncate(handle_, length) >= 0 ? true : false; }
   void Flush() override { fsync(handle_); }
 
  private:
   int handle_ = -1;
 };
 
-std::unique_ptr<FileHandle> FileHandle::OpenExisting(
-    const std::filesystem::path& path, uint32_t desired_access) {
+std::unique_ptr<FileHandle> FileHandle::OpenExisting(const std::filesystem::path& path,
+                                                     uint32_t desired_access) {
   int open_access = 0;
   if (desired_access & FileAccess::kGenericRead) {
     open_access |= O_RDONLY;

@@ -14,18 +14,18 @@
 #include <time.h>
 
 #include <rex/assert.h>
-#include <rex/byte_order.h>
-#include <rex/kernel/util/xex2_info.h>
 #include <rex/memory.h>
 #include <rex/platform.h>
 #include <rex/string/util.h>
-#include <rex/kernel/xcontent.h>
+#include <rex/system/util/xex2_info.h>
+#include <rex/system/xcontent.h>
+#include <rex/types.h>
 
 namespace rex::filesystem {
 
 // Import kernel content types for STFS structures
-using rex::kernel::XLanguage;
-using rex::kernel::XContentType;
+using rex::system::XContentType;
+using rex::system::XLanguage;
 
 // Convert FAT timestamp to 100-nanosecond intervals since January 1, 1601 (UTC)
 inline uint64_t decode_fat_timestamp(const uint32_t date, const uint32_t time) {
@@ -85,9 +85,9 @@ struct StfsVolumeDescriptor {
   union {
     uint8_t as_byte;
     struct {
-      uint8_t read_only_format : 1;  // if set, only uses a single backing-block
-                                     // per hash table (no resiliency),
-                                     // otherwise uses two
+      uint8_t read_only_format : 1;   // if set, only uses a single backing-block
+                                      // per hash table (no resiliency),
+                                      // otherwise uses two
       uint8_t root_active_index : 1;  // if set, uses secondary backing-block
                                       // for the highest-level hash table
 
@@ -101,17 +101,13 @@ struct StfsVolumeDescriptor {
   be<uint32_t> total_block_count;
   be<uint32_t> free_block_count;
 
-  uint32_t file_table_block_number() const {
-    return load_uint24_le(file_table_block_number_raw);
-  }
+  uint32_t file_table_block_number() const { return load_uint24_le(file_table_block_number_raw); }
 
   void set_file_table_block_number(uint32_t value) {
     store_uint24_le(file_table_block_number_raw, value);
   }
 
-  bool is_valid() const {
-    return descriptor_length == sizeof(StfsVolumeDescriptor);
-  }
+  bool is_valid() const { return descriptor_length == sizeof(StfsVolumeDescriptor); }
 };
 static_assert_size(StfsVolumeDescriptor, 0x24);
 #pragma pack(pop)
@@ -144,9 +140,7 @@ struct StfsHashEntry {
     info_raw = (info_raw & ~0x7FFF) | (value & 0x7FFF);
   }
 
-  uint32_t levelN_num_blocks_unk() const {
-    return ((info_raw & 0x3FFF8000) >> 15) & 0x7FFF;
-  }
+  uint32_t levelN_num_blocks_unk() const { return ((info_raw & 0x3FFF8000) >> 15) & 0x7FFF; }
   void set_levelN_num_blocks_unk(uint32_t value) {
     info_raw = (info_raw & ~0x3FFF8000) | ((value & 0x7FFF) << 15);
   }
@@ -192,29 +186,19 @@ struct StfsDirectoryEntry {
   be<uint16_t> modified_date;
   be<uint16_t> modified_time;
 
-  uint32_t valid_data_blocks() const {
-    return load_uint24_le(valid_data_blocks_raw);
-  }
+  uint32_t valid_data_blocks() const { return load_uint24_le(valid_data_blocks_raw); }
 
-  void set_valid_data_blocks(uint32_t value) {
-    store_uint24_le(valid_data_blocks_raw, value);
-  }
+  void set_valid_data_blocks(uint32_t value) { store_uint24_le(valid_data_blocks_raw, value); }
 
-  uint32_t allocated_data_blocks() const {
-    return load_uint24_le(allocated_data_blocks_raw);
-  }
+  uint32_t allocated_data_blocks() const { return load_uint24_le(allocated_data_blocks_raw); }
 
   void set_allocated_data_blocks(uint32_t value) {
     store_uint24_le(allocated_data_blocks_raw, value);
   }
 
-  uint32_t start_block_number() const {
-    return load_uint24_le(start_block_number_raw);
-  }
+  uint32_t start_block_number() const { return load_uint24_le(start_block_number_raw); }
 
-  void set_start_block_number(uint32_t value) {
-    store_uint24_le(start_block_number_raw, value);
-  }
+  void set_start_block_number(uint32_t value) { store_uint24_le(start_block_number_raw, value); }
 };
 static_assert_size(StfsDirectoryEntry, 0x40);
 
@@ -359,8 +343,7 @@ struct XContentMetadata {
     const be<uint16_t>* str = 0;
     if (lang_id >= 0 && lang_id < kNumLanguagesV1) {
       str = display_name_raw.uint[lang_id];
-    } else if (lang_id >= kNumLanguagesV1 && lang_id < kNumLanguagesV2 &&
-               metadata_version >= 2) {
+    } else if (lang_id >= kNumLanguagesV1 && lang_id < kNumLanguagesV2 && metadata_version >= 2) {
       str = display_name_ex_raw.uint[lang_id - kNumLanguagesV1];
     }
 
@@ -385,8 +368,7 @@ struct XContentMetadata {
     const be<uint16_t>* str = 0;
     if (lang_id >= 0 && lang_id < kNumLanguagesV1) {
       str = description_raw.uint[lang_id];
-    } else if (lang_id >= kNumLanguagesV1 && lang_id < kNumLanguagesV2 &&
-               metadata_version >= 2) {
+    } else if (lang_id >= kNumLanguagesV1 && lang_id < kNumLanguagesV2 && metadata_version >= 2) {
       str = description_ex_raw.uint[lang_id - kNumLanguagesV1];
     }
 
@@ -419,8 +401,7 @@ struct XContentMetadata {
     char16_t* str = 0;
     if (lang_id >= 0 && lang_id < kNumLanguagesV1) {
       str = display_name_raw.chars[lang_id];
-    } else if (lang_id >= kNumLanguagesV1 && lang_id < kNumLanguagesV2 &&
-               metadata_version >= 2) {
+    } else if (lang_id >= kNumLanguagesV1 && lang_id < kNumLanguagesV2 && metadata_version >= 2) {
       str = display_name_ex_raw.chars[lang_id - kNumLanguagesV1];
     }
 
@@ -430,8 +411,7 @@ struct XContentMetadata {
       return false;
     }
 
-    rex::string::util_copy_and_swap_truncating(str, value,
-                                          countof(display_name_raw.chars[0]));
+    rex::string::util_copy_and_swap_truncating(str, value, countof(display_name_raw.chars[0]));
     return true;
   }
 
@@ -447,8 +427,7 @@ struct XContentMetadata {
     char16_t* str = 0;
     if (lang_id >= 0 && lang_id < kNumLanguagesV1) {
       str = description_raw.chars[lang_id];
-    } else if (lang_id >= kNumLanguagesV1 && lang_id < kNumLanguagesV2 &&
-               metadata_version >= 2) {
+    } else if (lang_id >= kNumLanguagesV1 && lang_id < kNumLanguagesV2 && metadata_version >= 2) {
       str = description_ex_raw.chars[lang_id - kNumLanguagesV1];
     }
 
@@ -458,19 +437,18 @@ struct XContentMetadata {
       return false;
     }
 
-    rex::string::util_copy_and_swap_truncating(str, value,
-                                          countof(description_raw.chars[0]));
+    rex::string::util_copy_and_swap_truncating(str, value, countof(description_raw.chars[0]));
     return true;
   }
 
   void set_publisher(const std::u16string_view value) {
     rex::string::util_copy_and_swap_truncating(publisher_raw.chars, value,
-                                          countof(publisher_raw.chars));
+                                               countof(publisher_raw.chars));
   }
 
   void set_title_name(const std::u16string_view value) {
     rex::string::util_copy_and_swap_truncating(title_name_raw.chars, value,
-                                          countof(title_name_raw.chars));
+                                               countof(title_name_raw.chars));
   }
 };
 static_assert_size(XContentMetadata, 0x93D6);
@@ -483,8 +461,7 @@ struct XContentHeader {
   be<uint32_t> header_size;
 
   bool is_magic_valid() const {
-    return magic == XContentPackageType::kCon ||
-           magic == XContentPackageType::kLive ||
+    return magic == XContentPackageType::kCon || magic == XContentPackageType::kLive ||
            magic == XContentPackageType::kPirs;
   }
 };
@@ -500,4 +477,3 @@ struct StfsHeader {
 static_assert_size(StfsHeader, 0x971A);
 
 }  // namespace rex::filesystem
-

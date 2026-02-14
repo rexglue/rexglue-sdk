@@ -11,10 +11,11 @@
 
 #pragma once
 
-#include <rex/codegen/codegen_context.h>
-#include <rex/result.h>
 #include <filesystem>
 #include <memory>
+
+#include <rex/codegen/codegen_context.h>
+#include <rex/result.h>
 
 namespace rex {
 class Runtime;
@@ -31,41 +32,41 @@ namespace rex::codegen {
  *   auto result = pipeline->Run();
  */
 class CodegenPipeline {
-public:
-    ~CodegenPipeline();
+ public:
+  ~CodegenPipeline();
 
-    // Non-copyable, movable
-    CodegenPipeline(const CodegenPipeline&) = delete;
-    CodegenPipeline& operator=(const CodegenPipeline&) = delete;
-    CodegenPipeline(CodegenPipeline&&) noexcept;
-    CodegenPipeline& operator=(CodegenPipeline&&) noexcept;
+  // Non-copyable, movable
+  CodegenPipeline(const CodegenPipeline&) = delete;
+  CodegenPipeline& operator=(const CodegenPipeline&) = delete;
+  CodegenPipeline(CodegenPipeline&&) noexcept;
+  CodegenPipeline& operator=(CodegenPipeline&&) noexcept;
 
-    /**
-     * Create pipeline from config file path.
-     * Loads XEX, creates Runtime and CodegenContext.
-     *
-     * @param configPath Path to TOML config file
-     * @return Pipeline on success, error on failure
-     */
-    static Result<CodegenPipeline> Create(const std::filesystem::path& configPath);
+  /**
+   * Create pipeline from config file path.
+   * Loads XEX, creates Runtime and CodegenContext.
+   *
+   * @param configPath Path to TOML config file
+   * @return Pipeline on success, error on failure
+   */
+  static Result<CodegenPipeline> Create(const std::filesystem::path& configPath);
 
-    /**
-     * Run the full pipeline: Analyze -> Recompile.
-     *
-     * @param force If true, generate output even with validation errors
-     * @return Success or error with description
-     */
-    Result<void> Run(bool force = false);
+  /**
+   * Run the full pipeline: Analyze -> Recompile.
+   *
+   * @param force If true, generate output even with validation errors
+   * @return Success or error with description
+   */
+  Result<void> Run(bool force = false);
 
-    /// Access context for CLI needs (output path, project name, etc.)
-    CodegenContext& context() { return *ctx_; }
-    const CodegenContext& context() const { return *ctx_; }
+  /// Access context for CLI needs (output path, project name, etc.)
+  CodegenContext& context() { return *ctx_; }
+  const CodegenContext& context() const { return *ctx_; }
 
-private:
-    CodegenPipeline() = default;
+ private:
+  CodegenPipeline() = default;
 
-    std::unique_ptr<Runtime> runtime_;
-    std::unique_ptr<CodegenContext> ctx_;
+  std::unique_ptr<Runtime> runtime_;
+  std::unique_ptr<CodegenContext> ctx_;
 };
 
-} // namespace rex::codegen
+}  // namespace rex::codegen

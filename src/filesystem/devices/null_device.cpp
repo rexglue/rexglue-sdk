@@ -9,13 +9,13 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/filesystem/devices/null_device.h>
+#include "null_entry.h"
 
 #include <rex/filesystem.h>
+#include <rex/filesystem/devices/null_device.h>
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/string.h>
-#include "null_entry.h"
 
 namespace rex::filesystem {
 

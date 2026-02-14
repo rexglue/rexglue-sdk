@@ -9,28 +9,23 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/kernel/xboxkrnl/debug_monitor.h>
-
 #include <vector>
 
+#include <rex/chrono/clock.h>
 #include <rex/cvar.h>
-#include <rex/time/clock.h>
-#include <rex/debugging.h>
+#include <rex/dbg.h>
+#include <rex/kernel/xboxkrnl/debug_monitor.h>
+#include <rex/kernel/xboxkrnl/private.h>
 #include <rex/logging.h>
 #include <rex/math.h>
-#include <rex/runtime/guest/context.h>
-#include <rex/kernel/kernel_state.h>
-#include <rex/kernel/user_module.h>
-#include <rex/kernel/shim_adapter.h>
-#include <rex/kernel/xboxkrnl/private.h>
-#include <rex/kernel/xthread.h>
+#include <rex/ppc/context.h>
+#include <rex/system/kernel_state.h>
+#include <rex/system/user_module.h>
+#include <rex/system/xthread.h>
 
-REXCVAR_DEFINE_BOOL(kernel_pix, false,
-    "Enable PIX debugging support",
-    "Kernel");
+REXCVAR_DEFINE_BOOL(kernel_pix, false, "Enable PIX debugging support", "Kernel");
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::runtime::guest;
 
 enum class DebugMonitorCommand {
   PIXCommandResult = 27,
@@ -40,8 +35,7 @@ enum class DebugMonitorCommand {
   Unknown94 = 94,
 };
 
-void KeDebugMonitorCallback(PPCContext* ppc_context,
-                            rex::kernel::KernelState* kernel_state) {
+void KeDebugMonitorCallback(PPCContext* ppc_context, rex::system::KernelState* kernel_state) {
   auto id = static_cast<DebugMonitorCommand>(ppc_context->r[3] & 0xFFFFFFFFu);
   auto arg = static_cast<uint32_t>(ppc_context->r[4] & 0xFFFFFFFFu);
 

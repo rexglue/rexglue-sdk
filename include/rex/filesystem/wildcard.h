@@ -37,8 +37,7 @@ class WildcardFlags {
 class WildcardRule {
  public:
   WildcardRule(const std::string_view match, const WildcardFlags& flags);
-  bool Check(const std::string_view lower,
-             std::string_view::size_type* offset) const;
+  bool Check(const std::string_view lower, std::string_view::size_type* offset) const;
 
  private:
   std::string match_;
@@ -59,4 +58,3 @@ class WildcardEngine {
 
 }  // namespace filesystem
 }  // namespace rex
-

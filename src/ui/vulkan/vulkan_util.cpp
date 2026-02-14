@@ -9,30 +9,25 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/ui/vulkan/util.h>
-
 #include <cstdint>
 
 #include <rex/assert.h>
 #include <rex/math.h>
 #include <rex/ui/vulkan/device.h>
+#include <rex/ui/vulkan/util.h>
 
 namespace rex {
 namespace ui {
 namespace vulkan {
 namespace util {
 
-void FlushMappedMemoryRange(const VulkanDevice* const vulkan_device,
-                            const VkDeviceMemory memory,
-                            const uint32_t memory_type,
-                            const VkDeviceSize offset,
-                            const VkDeviceSize memory_size,
-                            const VkDeviceSize size) {
+void FlushMappedMemoryRange(const VulkanDevice* const vulkan_device, const VkDeviceMemory memory,
+                            const uint32_t memory_type, const VkDeviceSize offset,
+                            const VkDeviceSize memory_size, const VkDeviceSize size) {
   assert_false(size != VK_WHOLE_SIZE && memory_size == VK_WHOLE_SIZE);
   assert_true(memory_size == VK_WHOLE_SIZE || offset <= memory_size);
   assert_true(memory_size == VK_WHOLE_SIZE || size <= memory_size - offset);
-  if (!size || (vulkan_device->memory_types().host_coherent &
-                (uint32_t(1) << memory_type))) {
+  if (!size || (vulkan_device->memory_types().host_coherent & (uint32_t(1) << memory_type))) {
     return;
   }
   VkMappedMemoryRange range;
@@ -41,23 +36,20 @@ void FlushMappedMemoryRange(const VulkanDevice* const vulkan_device,
   range.memory = memory;
   range.offset = offset;
   range.size = size;
-  const VkDeviceSize non_coherent_atom_size =
-      vulkan_device->properties().nonCoherentAtomSize;
+  const VkDeviceSize non_coherent_atom_size = vulkan_device->properties().nonCoherentAtomSize;
   range.offset = offset / non_coherent_atom_size * non_coherent_atom_size;
   if (size != VK_WHOLE_SIZE) {
-    range.size = std::min(rex::round_up(offset + size, non_coherent_atom_size),
-                          memory_size) -
-                 range.offset;
+    range.size =
+        std::min(rex::round_up(offset + size, non_coherent_atom_size), memory_size) - range.offset;
   }
-  vulkan_device->functions().vkFlushMappedMemoryRanges(vulkan_device->device(),
-                                                       1, &range);
+  vulkan_device->functions().vkFlushMappedMemoryRanges(vulkan_device->device(), 1, &range);
 }
 
-bool CreateDedicatedAllocationBuffer(
-    const VulkanDevice* const vulkan_device, const VkDeviceSize size,
-    const VkBufferUsageFlags usage, const MemoryPurpose memory_purpose,
-    VkBuffer& buffer_out, VkDeviceMemory& memory_out,
-    uint32_t* const memory_type_out, VkDeviceSize* const memory_size_out) {
+bool CreateDedicatedAllocationBuffer(const VulkanDevice* const vulkan_device,
+                                     const VkDeviceSize size, const VkBufferUsageFlags usage,
+                                     const MemoryPurpose memory_purpose, VkBuffer& buffer_out,
+                                     VkDeviceMemory& memory_out, uint32_t* const memory_type_out,
+                                     VkDeviceSize* const memory_size_out) {
   const VulkanDevice::Functions& dfn = vulkan_device->functions();
   const VkDevice device = vulkan_device->device();
 
@@ -71,16 +63,14 @@ bool CreateDedicatedAllocationBuffer(
   buffer_create_info.queueFamilyIndexCount = 0;
   buffer_create_info.pQueueFamilyIndices = nullptr;
   VkBuffer buffer;
-  if (dfn.vkCreateBuffer(device, &buffer_create_info, nullptr, &buffer) !=
-      VK_SUCCESS) {
+  if (dfn.vkCreateBuffer(device, &buffer_create_info, nullptr, &buffer) != VK_SUCCESS) {
     return false;
   }
 
   VkMemoryRequirements memory_requirements;
   dfn.vkGetBufferMemoryRequirements(device, buffer, &memory_requirements);
-  uint32_t memory_type =
-      ChooseMemoryType(vulkan_device->memory_types(),
-                       memory_requirements.memoryTypeBits, memory_purpose);
+  uint32_t memory_type = ChooseMemoryType(vulkan_device->memory_types(),
+                                          memory_requirements.memoryTypeBits, memory_purpose);
   if (memory_type == UINT32_MAX) {
     dfn.vkDestroyBuffer(device, buffer, nullptr);
     return false;
@@ -95,15 +85,13 @@ bool CreateDedicatedAllocationBuffer(
   if (vulkan_device->extensions().ext_1_1_KHR_dedicated_allocation) {
     memory_dedicated_allocate_info.pNext = memory_allocate_info.pNext;
     memory_allocate_info.pNext = &memory_dedicated_allocate_info;
-    memory_dedicated_allocate_info.sType =
-        VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO;
+    memory_dedicated_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO;
     memory_dedicated_allocate_info.pNext = nullptr;
     memory_dedicated_allocate_info.image = VK_NULL_HANDLE;
     memory_dedicated_allocate_info.buffer = buffer;
   }
   VkDeviceMemory memory;
-  if (dfn.vkAllocateMemory(device, &memory_allocate_info, nullptr, &memory) !=
-      VK_SUCCESS) {
+  if (dfn.vkAllocateMemory(device, &memory_allocate_info, nullptr, &memory) != VK_SUCCESS) {
     dfn.vkDestroyBuffer(device, buffer, nullptr);
     return false;
   }
@@ -127,10 +115,8 @@ bool CreateDedicatedAllocationBuffer(
 
 bool CreateDedicatedAllocationImage(const VulkanDevice* const vulkan_device,
                                     const VkImageCreateInfo& create_info,
-                                    const MemoryPurpose memory_purpose,
-                                    VkImage& image_out,
-                                    VkDeviceMemory& memory_out,
-                                    uint32_t* const memory_type_out,
+                                    const MemoryPurpose memory_purpose, VkImage& image_out,
+                                    VkDeviceMemory& memory_out, uint32_t* const memory_type_out,
                                     VkDeviceSize* const memory_size_out) {
   const VulkanDevice::Functions& dfn = vulkan_device->functions();
   const VkDevice device = vulkan_device->device();
@@ -142,9 +128,8 @@ bool CreateDedicatedAllocationImage(const VulkanDevice* const vulkan_device,
 
   VkMemoryRequirements memory_requirements;
   dfn.vkGetImageMemoryRequirements(device, image, &memory_requirements);
-  uint32_t memory_type =
-      ChooseMemoryType(vulkan_device->memory_types(),
-                       memory_requirements.memoryTypeBits, memory_purpose);
+  uint32_t memory_type = ChooseMemoryType(vulkan_device->memory_types(),
+                                          memory_requirements.memoryTypeBits, memory_purpose);
   if (memory_type == UINT32_MAX) {
     dfn.vkDestroyImage(device, image, nullptr);
     return false;
@@ -159,15 +144,13 @@ bool CreateDedicatedAllocationImage(const VulkanDevice* const vulkan_device,
   if (vulkan_device->extensions().ext_1_1_KHR_dedicated_allocation) {
     memory_dedicated_allocate_info.pNext = memory_allocate_info.pNext;
     memory_allocate_info.pNext = &memory_dedicated_allocate_info;
-    memory_dedicated_allocate_info.sType =
-        VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO;
+    memory_dedicated_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO;
     memory_dedicated_allocate_info.pNext = nullptr;
     memory_dedicated_allocate_info.image = image;
     memory_dedicated_allocate_info.buffer = VK_NULL_HANDLE;
   }
   VkDeviceMemory memory;
-  if (dfn.vkAllocateMemory(device, &memory_allocate_info, nullptr, &memory) !=
-      VK_SUCCESS) {
+  if (dfn.vkAllocateMemory(device, &memory_allocate_info, nullptr, &memory) != VK_SUCCESS) {
     dfn.vkDestroyImage(device, image, nullptr);
     return false;
   }
@@ -189,17 +172,15 @@ bool CreateDedicatedAllocationImage(const VulkanDevice* const vulkan_device,
   return true;
 }
 
-VkPipeline CreateComputePipeline(
-    const VulkanDevice* const vulkan_device, const VkPipelineLayout layout,
-    const VkShaderModule shader,
-    const VkSpecializationInfo* const specialization_info,
-    const char* const entry_point) {
+VkPipeline CreateComputePipeline(const VulkanDevice* const vulkan_device,
+                                 const VkPipelineLayout layout, const VkShaderModule shader,
+                                 const VkSpecializationInfo* const specialization_info,
+                                 const char* const entry_point) {
   VkComputePipelineCreateInfo pipeline_create_info;
   pipeline_create_info.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
   pipeline_create_info.pNext = nullptr;
   pipeline_create_info.flags = 0;
-  pipeline_create_info.stage.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  pipeline_create_info.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   pipeline_create_info.stage.pNext = nullptr;
   pipeline_create_info.stage.flags = 0;
   pipeline_create_info.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
@@ -210,31 +191,30 @@ VkPipeline CreateComputePipeline(
   pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
   pipeline_create_info.basePipelineIndex = -1;
   VkPipeline pipeline;
-  if (vulkan_device->functions().vkCreateComputePipelines(
-          vulkan_device->device(), VK_NULL_HANDLE, 1, &pipeline_create_info,
-          nullptr, &pipeline) != VK_SUCCESS) {
+  if (vulkan_device->functions().vkCreateComputePipelines(vulkan_device->device(), VK_NULL_HANDLE,
+                                                          1, &pipeline_create_info, nullptr,
+                                                          &pipeline) != VK_SUCCESS) {
     return VK_NULL_HANDLE;
   }
   return pipeline;
 }
 
-VkPipeline CreateComputePipeline(
-    const VulkanDevice* const vulkan_device, VkPipelineLayout layout,
-    const uint32_t* shader_code, size_t shader_code_size_bytes,
-    const VkSpecializationInfo* specialization_info, const char* entry_point) {
+VkPipeline CreateComputePipeline(const VulkanDevice* const vulkan_device, VkPipelineLayout layout,
+                                 const uint32_t* shader_code, size_t shader_code_size_bytes,
+                                 const VkSpecializationInfo* specialization_info,
+                                 const char* entry_point) {
   const VkShaderModule shader =
       CreateShaderModule(vulkan_device, shader_code, shader_code_size_bytes);
   if (shader == VK_NULL_HANDLE) {
     return VK_NULL_HANDLE;
   }
-  const VkPipeline pipeline = CreateComputePipeline(
-      vulkan_device, layout, shader, specialization_info, entry_point);
-  vulkan_device->functions().vkDestroyShaderModule(vulkan_device->device(),
-                                                   shader, nullptr);
+  const VkPipeline pipeline =
+      CreateComputePipeline(vulkan_device, layout, shader, specialization_info, entry_point);
+  vulkan_device->functions().vkDestroyShaderModule(vulkan_device->device(), shader, nullptr);
   return pipeline;
 }
 
 }  // namespace util
 }  // namespace vulkan
 }  // namespace ui
-}  // namespace xe
+}  // namespace rex

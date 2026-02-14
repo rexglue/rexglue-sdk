@@ -9,16 +9,8 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/ui/renderdoc_api.h>
-
 #include <rex/logging.h>
-#include <rex/platform.h>
-
-#if REX_PLATFORM_LINUX
-#include <dlfcn.h>
-#elif REX_PLATFORM_WIN32
-#include <rex/platform.h>
-#endif
+#include <rex/ui/renderdoc_api.h>
 
 namespace rex {
 namespace ui {
@@ -28,35 +20,17 @@ std::unique_ptr<RenderDocAPI> RenderDocAPI::CreateIfConnected() {
 
   pRENDERDOC_GetAPI get_api = nullptr;
 
-  // The RenderDoc library should already be loaded into the process if
-  // RenderDoc is attached - this is why RTLD_NOLOAD or GetModuleHandle instead
-  // of LoadLibrary.
-#if REX_PLATFORM_LINUX
-#if REX_PLATFORM_ANDROID
-  const char* const library_name = "libVkLayer_GLES_RenderDoc.so";
-#else
-  const char* const library_name = "librenderdoc.so";
-#endif
-  renderdoc_api->library_ = dlopen(library_name, RTLD_NOW | RTLD_NOLOAD);
-  if (!renderdoc_api->library_) {
+  // Try to load the RenderDoc library. If RenderDoc is attached, the library
+  // should already be loaded into the process and this will increment the
+  // reference count. If not attached, the load will fail and we return nullptr.
+  if (!renderdoc_api->library_.Load(platform::lib_names::kRenderDoc)) {
     return nullptr;
   }
-  get_api =
-      pRENDERDOC_GetAPI(dlsym(renderdoc_api->library_, "RENDERDOC_GetAPI"));
-#elif REX_PLATFORM_WIN32
-  renderdoc_api->library_ = GetModuleHandleW(L"renderdoc.dll");
-  if (!renderdoc_api->library_) {
-    return nullptr;
-  }
-  get_api = pRENDERDOC_GetAPI(
-      GetProcAddress(renderdoc_api->library_, "RENDERDOC_GetAPI"));
-#endif
+  get_api = renderdoc_api->library_.GetSymbol<pRENDERDOC_GetAPI>("RENDERDOC_GetAPI");
 
   // get_api will be null if RenderDoc is not connected, or the API isn't
   // available on this platform, or there was an error.
-  if (!get_api ||
-      !get_api(eRENDERDOC_API_Version_1_0_0,
-               (void**)&renderdoc_api->api_1_0_0_) ||
+  if (!get_api || !get_api(eRENDERDOC_API_Version_1_0_0, (void**)&renderdoc_api->api_1_0_0_) ||
       !renderdoc_api->api_1_0_0_) {
     return nullptr;
   }
@@ -67,14 +41,8 @@ std::unique_ptr<RenderDocAPI> RenderDocAPI::CreateIfConnected() {
 }
 
 RenderDocAPI::~RenderDocAPI() {
-#if REX_PLATFORM_LINUX
-  if (library_) {
-    dlclose(library_);
-  }
-#endif
-  // Not calling FreeLibrary on Windows as GetModuleHandle doesn't increment
-  // the reference count.
+  library_.Close();
 }
 
 }  // namespace ui
-}  // namespace xe
+}  // namespace rex

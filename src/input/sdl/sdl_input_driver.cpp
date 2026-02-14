@@ -9,25 +9,21 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/input/sdl/sdl_input_driver.h>
-
 #include <array>
 #include <filesystem>
 
 #include <rex/assert.h>
+#include <rex/chrono/clock.h>
 #include <rex/cvar.h>
-#include <rex/logging.h>
-#include <rex/time/clock.h>
 #include <rex/input/flags.h>
+#include <rex/input/sdl/sdl_input_driver.h>
+#include <rex/logging.h>
 #include <rex/ui/virtual_key.h>
 
-REXCVAR_DEFINE_BOOL(guide_button, false,
-    "Enable guide button pass-through",
-    "Input");
+REXCVAR_DEFINE_BOOL(guide_button, false, "Input", "Enable guide button pass-through");
 
-REXCVAR_DEFINE_STRING(hid_mappings_file, "gamecontrollerdb.txt",
-    "Path to SDL gamecontroller mappings file",
-    "Input");
+REXCVAR_DEFINE_STRING(hid_mappings_file, "gamecontrollerdb.txt", "Input",
+                      "Path to SDL gamecontroller mappings file");
 
 namespace rex::input::sdl {
 
@@ -113,14 +109,13 @@ X_STATUS SDLInputDriver::Setup() {
         REXLOG_ERROR("SDL GameControllerDB: failed to open file '{}'.",
                      REXCVAR_GET(hid_mappings_file));
       } else {
-        auto mappings_result = SDL_GameControllerAddMappingsFromRW(
-            SDL_RWFromFP(mappings_file, SDL_TRUE), 1);
+        auto mappings_result =
+            SDL_GameControllerAddMappingsFromRW(SDL_RWFromFP(mappings_file, SDL_TRUE), 1);
         if (mappings_result < 0) {
           REXLOG_ERROR("SDL GameControllerDB: error loading file '{}': {}.",
                        REXCVAR_GET(hid_mappings_file), mappings_result);
         } else {
-          REXLOG_INFO("SDL GameControllerDB: loaded {} mappings.",
-                      mappings_result);
+          REXLOG_INFO("SDL GameControllerDB: loaded {} mappings.", mappings_result);
         }
       }
     }
@@ -155,8 +150,7 @@ X_RESULT SDLInputDriver::GetCapabilities(uint32_t user_index, uint32_t flags,
   return X_ERROR_SUCCESS;
 }
 
-X_RESULT SDLInputDriver::GetState(uint32_t user_index,
-                                  X_INPUT_STATE* out_state) {
+X_RESULT SDLInputDriver::GetState(uint32_t user_index, X_INPUT_STATE* out_state) {
   assert(sdl_events_initialized_ && sdl_gamecontroller_initialized_);
   if (user_index >= HID_SDL_USER_COUNT) {
     return X_ERROR_BAD_ARGUMENTS;
@@ -178,8 +172,7 @@ X_RESULT SDLInputDriver::GetState(uint32_t user_index,
   // Make sure packet_number is only incremented by 1, even if there have been
   // multiple updates between GetState calls. Also track `is_active` to
   // increment the packet number if it changed.
-  if ((is_active != controller->is_active) ||
-      (is_active && controller->state_changed)) {
+  if ((is_active != controller->is_active) || (is_active && controller->state_changed)) {
     controller->state.packet_number++;
     controller->is_active = is_active;
     controller->state_changed = false;
@@ -193,8 +186,7 @@ X_RESULT SDLInputDriver::GetState(uint32_t user_index,
   return X_ERROR_SUCCESS;
 }
 
-X_RESULT SDLInputDriver::SetState(uint32_t user_index,
-                                  X_INPUT_VIBRATION* vibration) {
+X_RESULT SDLInputDriver::SetState(uint32_t user_index, X_INPUT_VIBRATION* vibration) {
   assert(sdl_events_initialized_ && sdl_gamecontroller_initialized_);
   if (user_index >= HID_SDL_USER_COUNT) {
     return X_ERROR_BAD_ARGUMENTS;
@@ -301,9 +293,9 @@ X_RESULT SDLInputDriver::GetKeystroke(uint32_t users, uint32_t flags,
     // "unpressed". The algorithm will automatically send UP events when
     // `is_active()` goes low and DOWN events when it goes high again.
     const uint64_t curr_butts =
-        is_active ? (controller->state.gamepad.buttons |
-                     AnalogToKeyfield(controller->state.gamepad))
-                  : uint64_t(0);
+        is_active
+            ? (controller->state.gamepad.buttons | AnalogToKeyfield(controller->state.gamepad))
+            : uint64_t(0);
     KeystrokeState& last = keystroke_states_.at(user_index);
 
     // Handle repeating
@@ -322,8 +314,7 @@ X_RESULT SDLInputDriver::GetKeystroke(uint32_t users, uint32_t flags,
       out_keystroke->unicode = 0;
       out_keystroke->user_index = user_index;
       out_keystroke->hid_code = 0;
-      out_keystroke->flags =
-          X_INPUT_KEYSTROKE_KEYDOWN | X_INPUT_KEYSTROKE_REPEAT;
+      out_keystroke->flags = X_INPUT_KEYSTROKE_KEYDOWN | X_INPUT_KEYSTROKE_REPEAT;
       return X_ERROR_SUCCESS;
     }
 
@@ -335,8 +326,7 @@ X_RESULT SDLInputDriver::GetKeystroke(uint32_t users, uint32_t flags,
     // First try to clear buttons with up events. This is to match xinput
     // behaviour when transitioning thumb sticks, e.g. so that THUMB_UPLEFT is
     // up before THUMB_LEFT is down.
-    for (auto [clear_pass, i] = std::tuple{true, 0}; i < 2;
-         clear_pass = false, i++) {
+    for (auto [clear_pass, i] = std::tuple{true, 0}; i < 2; clear_pass = false, i++) {
       for (uint8_t i = 0; i < uint8_t(std::size(kVkLookup)); i++) {
         auto fbutton = uint64_t(1) << i;
         if (!(butts_changed & fbutton)) {
@@ -380,8 +370,7 @@ void SDLInputDriver::HandleEvent(const SDL_Event& event) {
   // may be a dedicated thread SDL has created for the joystick subsystem.
 
   // Event queue should never be (this) full
-  assert(SDL_PeepEvents(nullptr, 0, SDL_PEEKEVENT, SDL_FIRSTEVENT,
-                        SDL_LASTEVENT) < 0xFFFF);
+  assert(SDL_PeepEvents(nullptr, 0, SDL_PEEKEVENT, SDL_FIRSTEVENT, SDL_LASTEVENT) < 0xFFFF);
 
   // The queue could grow up to 3.5MB since it is never polled.
   if (++sdl_events_unflushed_ > 64) {
@@ -431,8 +420,7 @@ void SDLInputDriver::OnControllerDeviceAdded(const SDL_Event& event) {
       -1,
 #endif
 #if SDL_VERSION_ATLEAST(2, 0, 6)
-      SDL_GameControllerGetVendor(controller),
-      SDL_GameControllerGetProduct(controller));
+      SDL_GameControllerGetVendor(controller), SDL_GameControllerGetProduct(controller));
 #else
       0, 0);
 #endif
@@ -526,8 +514,7 @@ void SDLInputDriver::OnControllerDeviceButtonChanged(const SDL_Event& event) {
 
   // Define a lookup table to map between SDL and XInput button codes.
   // These need to be in the order of the SDL_GameControllerButton enum.
-  static constexpr std::array<
-      std::underlying_type<X_INPUT_GAMEPAD_BUTTON>::type, 21>
+  static constexpr std::array<std::underlying_type<X_INPUT_GAMEPAD_BUTTON>::type, 21>
       xbutton_lookup = {
           // Standard buttons:
           X_INPUT_GAMEPAD_A,
@@ -585,8 +572,7 @@ void SDLInputDriver::OnControllerDeviceButtonChanged(const SDL_Event& event) {
   controller.state_changed = true;
 }
 
-std::optional<size_t> SDLInputDriver::GetControllerIndexFromInstanceID(
-    SDL_JoystickID instance_id) {
+std::optional<size_t> SDLInputDriver::GetControllerIndexFromInstanceID(SDL_JoystickID instance_id) {
   // Loop through our controllers and try to match the given ID.
   for (size_t i = 0; i < controllers_.size(); i++) {
     auto controller = controllers_.at(i).sdl;
@@ -604,8 +590,7 @@ std::optional<size_t> SDLInputDriver::GetControllerIndexFromInstanceID(
   return std::nullopt;
 }
 
-SDLInputDriver::ControllerState* SDLInputDriver::GetControllerState(
-    uint32_t user_index) {
+SDLInputDriver::ControllerState* SDLInputDriver::GetControllerState(uint32_t user_index) {
   if (user_index >= controllers_.size()) {
     return nullptr;
   }
@@ -629,10 +614,9 @@ bool SDLInputDriver::TestSDLVersion() const {
 
   SDL_version ver = {};
   SDL_GetVersion(&ver);
-  if ((ver.major < 2) ||
-      (ver.major == 2 && ver.minor == 0 && ver.patch < min_patchlevel)) {
-    REXLOG_ERROR("SDL: Version {}.{}.{} is too old, need at least 2.0.{}",
-                 ver.major, ver.minor, ver.patch, min_patchlevel);
+  if ((ver.major < 2) || (ver.major == 2 && ver.minor == 0 && ver.patch < min_patchlevel)) {
+    REXLOG_ERROR("SDL: Version {}.{}.{} is too old, need at least 2.0.{}", ver.major, ver.minor,
+                 ver.patch, min_patchlevel);
     return false;
   }
   REXLOG_INFO("SDL: Using version {}.{}.{}", ver.major, ver.minor, ver.patch);
@@ -651,10 +635,8 @@ void SDLInputDriver::UpdateXCapabilities(ControllerState& state) {
   // (env var).
 
   // Guess if we are wireless
-  auto power_level =
-      SDL_JoystickCurrentPowerLevel(SDL_GameControllerGetJoystick(state.sdl));
-  if (power_level >= SDL_JOYSTICK_POWER_EMPTY &&
-      power_level <= SDL_JOYSTICK_POWER_FULL) {
+  auto power_level = SDL_JoystickCurrentPowerLevel(SDL_GameControllerGetJoystick(state.sdl));
+  if (power_level >= SDL_JOYSTICK_POWER_EMPTY && power_level <= SDL_JOYSTICK_POWER_FULL) {
     cap_flags |= X_INPUT_CAPS_WIRELESS;
   }
 
@@ -676,8 +658,7 @@ void SDLInputDriver::UpdateXCapabilities(ControllerState& state) {
   c.type = 0x01;      // XINPUT_DEVTYPE_GAMEPAD
   c.sub_type = 0x01;  // XINPUT_DEVSUBTYPE_GAMEPAD
   c.flags = cap_flags;
-  c.gamepad.buttons =
-      0xF3FF | (REXCVAR_GET(guide_button) ? X_INPUT_GAMEPAD_GUIDE : 0x0);
+  c.gamepad.buttons = 0xF3FF | (REXCVAR_GET(guide_button) ? X_INPUT_GAMEPAD_GUIDE : 0x0);
   c.gamepad.left_trigger = 0xFF;
   c.gamepad.right_trigger = 0xFF;
   c.gamepad.thumb_lx = static_cast<int16_t>(0xFFFFu);
@@ -701,8 +682,7 @@ void SDLInputDriver::QueueControllerUpdate() {
 
 // Check if the analog inputs exceed their thresholds to become a button press
 // and build the bitfield.
-inline uint64_t SDLInputDriver::AnalogToKeyfield(
-    const X_INPUT_GAMEPAD& gamepad) const {
+inline uint64_t SDLInputDriver::AnalogToKeyfield(const X_INPUT_GAMEPAD& gamepad) const {
   uint64_t f = 0;
 
   f |= static_cast<uint64_t>(gamepad.left_trigger > HID_SDL_TRIGG_THRES) << 16;

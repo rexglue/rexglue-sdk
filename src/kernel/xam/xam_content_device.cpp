@@ -9,21 +9,21 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/kernel/xam/content_device.h>
-
+#include <rex/kernel/xam/private.h>
 #include <rex/logging.h>
 #include <rex/math.h>
-#include <rex/kernel/kernel_state.h>
-#include <rex/runtime/guest/function.h>
-#include <rex/runtime/guest/types.h>
-#include <rex/kernel/xam/private.h>
-#include <rex/kernel/xenumerator.h>
-#include <rex/kernel/xtypes.h>
+#include <rex/ppc/function.h>
+#include <rex/ppc/types.h>
+#include <rex/system/kernel_state.h>
+#include <rex/system/xam/content_device.h>
+#include <rex/system/xenumerator.h>
+#include <rex/system/xtypes.h>
 
 namespace rex {
 namespace kernel {
 namespace xam {
-using namespace rex::runtime::guest;
+using namespace rex::system;
+using namespace rex::system::xam;
 
 // TODO(gibbed): real information.
 //
@@ -63,9 +63,8 @@ const DummyDeviceInfo* GetDummyDeviceInfo(uint32_t device_id) {
   return it == end ? nullptr : *it;
 }
 
-dword_result_t XamContentGetDeviceName_entry(dword_t device_id,
-                                             lpu16string_t name_buffer,
-                                             dword_t name_capacity) {
+ppc_u32_result_t XamContentGetDeviceName_entry(ppc_u32_t device_id, ppc_pchar16_t name_buffer,
+                                               ppc_u32_t name_capacity) {
   auto device_info = GetDummyDeviceInfo(device_id);
   if (device_info == nullptr) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
@@ -78,22 +77,19 @@ dword_result_t XamContentGetDeviceName_entry(dword_t device_id,
   return X_ERROR_SUCCESS;
 }
 
-dword_result_t XamContentGetDeviceState_entry(dword_t device_id,
-                                              lpunknown_t overlapped_ptr) {
+ppc_u32_result_t XamContentGetDeviceState_entry(ppc_u32_t device_id, ppc_pvoid_t overlapped_ptr) {
   auto device_info = GetDummyDeviceInfo(device_id);
   if (device_info == nullptr) {
     if (overlapped_ptr) {
       kernel_state()->CompleteOverlappedImmediateEx(
-          overlapped_ptr, X_ERROR_FUNCTION_FAILED, X_ERROR_DEVICE_NOT_CONNECTED,
-          0);
+          overlapped_ptr.guest_address(), X_ERROR_FUNCTION_FAILED, X_ERROR_DEVICE_NOT_CONNECTED, 0);
       return X_ERROR_IO_PENDING;
     } else {
       return X_ERROR_DEVICE_NOT_CONNECTED;
     }
   }
   if (overlapped_ptr) {
-    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr,
-                                                X_ERROR_SUCCESS);
+    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr.guest_address(), X_ERROR_SUCCESS);
     return X_ERROR_IO_PENDING;
   } else {
     return X_ERROR_SUCCESS;
@@ -112,8 +108,8 @@ typedef struct {
 } X_CONTENT_DEVICE_DATA;
 static_assert_size(X_CONTENT_DEVICE_DATA, 0x50);
 
-dword_result_t XamContentGetDeviceData_entry(
-    dword_t device_id, pointer_t<X_CONTENT_DEVICE_DATA> device_data) {
+ppc_u32_result_t XamContentGetDeviceData_entry(ppc_u32_t device_id,
+                                               ppc_ptr_t<X_CONTENT_DEVICE_DATA> device_data) {
   auto device_info = GetDummyDeviceInfo(device_id);
   if (device_info == nullptr) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
@@ -123,25 +119,23 @@ dword_result_t XamContentGetDeviceData_entry(
   device_data->device_type = static_cast<uint32_t>(device_info->device_type);
   device_data->total_bytes = device_info->total_bytes;
   device_data->free_bytes = device_info->free_bytes;
-  rex::string::util_copy_and_swap_truncating(
-      device_data->name_chars, device_info->name,
-      rex::countof(device_data->name_chars));
+  rex::string::util_copy_and_swap_truncating(device_data->name_chars, device_info->name,
+                                             rex::countof(device_data->name_chars));
   return X_ERROR_SUCCESS;
 }
 
-dword_result_t XamContentCreateDeviceEnumerator_entry(dword_t content_type,
-                                                      dword_t content_flags,
-                                                      dword_t max_count,
-                                                      lpdword_t buffer_size_ptr,
-                                                      lpdword_t handle_out) {
+ppc_u32_result_t XamContentCreateDeviceEnumerator_entry(ppc_u32_t content_type,
+                                                        ppc_u32_t content_flags,
+                                                        ppc_u32_t max_count,
+                                                        ppc_pu32_t buffer_size_ptr,
+                                                        ppc_pu32_t handle_out) {
   assert_not_null(handle_out);
 
   if (buffer_size_ptr) {
     *buffer_size_ptr = sizeof(X_CONTENT_DEVICE_DATA) * max_count;
   }
 
-  auto e = make_object<XStaticEnumerator<X_CONTENT_DEVICE_DATA>>(kernel_state(),
-                                                                 max_count);
+  auto e = make_object<XStaticEnumerator<X_CONTENT_DEVICE_DATA>>(kernel_state(), max_count);
   auto result = e->Initialize(0xFE, 0xFE, 0x2000A, 0x20009, 0);
   if (XFAILED(result)) {
     return result;
@@ -153,13 +147,11 @@ dword_result_t XamContentCreateDeviceEnumerator_entry(dword_t content_type,
     assert_not_null(device_data);
     if (device_data) {
       device_data->device_id = static_cast<uint32_t>(device_info->device_id);
-      device_data->device_type =
-          static_cast<uint32_t>(device_info->device_type);
+      device_data->device_type = static_cast<uint32_t>(device_info->device_type);
       device_data->total_bytes = device_info->total_bytes;
       device_data->free_bytes = device_info->free_bytes;
-      rex::string::util_copy_and_swap_truncating(
-          device_data->name_chars, device_info->name,
-          rex::countof(device_data->name_chars));
+      rex::string::util_copy_and_swap_truncating(device_data->name_chars, device_info->name,
+                                                 rex::countof(device_data->name_chars));
     }
   }
 
@@ -171,7 +163,8 @@ dword_result_t XamContentCreateDeviceEnumerator_entry(dword_t content_type,
 }  // namespace kernel
 }  // namespace rex
 
-GUEST_FUNCTION_HOOK(__imp__XamContentGetDeviceName, rex::kernel::xam::XamContentGetDeviceName_entry)
-GUEST_FUNCTION_HOOK(__imp__XamContentGetDeviceState, rex::kernel::xam::XamContentGetDeviceState_entry)
-GUEST_FUNCTION_HOOK(__imp__XamContentGetDeviceData, rex::kernel::xam::XamContentGetDeviceData_entry)
-GUEST_FUNCTION_HOOK(__imp__XamContentCreateDeviceEnumerator, rex::kernel::xam::XamContentCreateDeviceEnumerator_entry)
+PPC_HOOK(__imp__XamContentGetDeviceName, rex::kernel::xam::XamContentGetDeviceName_entry)
+PPC_HOOK(__imp__XamContentGetDeviceState, rex::kernel::xam::XamContentGetDeviceState_entry)
+PPC_HOOK(__imp__XamContentGetDeviceData, rex::kernel::xam::XamContentGetDeviceData_entry)
+PPC_HOOK(__imp__XamContentCreateDeviceEnumerator,
+         rex::kernel::xam::XamContentCreateDeviceEnumerator_entry)

@@ -10,35 +10,35 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <memory>
 #include <vector>
 
 #include <rex/input/input.h>
 #include <rex/input/input_driver.h>
-#include <rex/kernel.h>
+#include <rex/system/interfaces/input.h>
 
-namespace rex::ui { class Window; }
+namespace rex::ui {
+class Window;
+}
 
 namespace rex::input {
 
-class InputSystem {
+class InputSystem : public system::IInputSystem {
  public:
   explicit InputSystem(rex::ui::Window* window);
-  ~InputSystem();
+  ~InputSystem() override;
 
   rex::ui::Window* window() const { return window_; }
 
-  X_STATUS Setup();
+  X_STATUS Setup() override;
+  void Shutdown() override;
 
   void AddDriver(std::unique_ptr<InputDriver> driver);
 
-  X_RESULT GetCapabilities(uint32_t user_index, uint32_t flags,
-                           X_INPUT_CAPABILITIES* out_caps);
+  X_RESULT GetCapabilities(uint32_t user_index, uint32_t flags, X_INPUT_CAPABILITIES* out_caps);
   X_RESULT GetState(uint32_t user_index, X_INPUT_STATE* out_state);
   X_RESULT SetState(uint32_t user_index, X_INPUT_VIBRATION* vibration);
-  X_RESULT GetKeystroke(uint32_t user_index, uint32_t flags,
-                        X_INPUT_KEYSTROKE* out_keystroke);
+  X_RESULT GetKeystroke(uint32_t user_index, uint32_t flags, X_INPUT_KEYSTROKE* out_keystroke);
 
  private:
   rex::ui::Window* window_ = nullptr;
@@ -46,5 +46,8 @@ class InputSystem {
   std::vector<std::unique_ptr<InputDriver>> drivers_;
 };
 
-}  // namespace rex::input
+/// Create a default InputSystem with SDL + NOP drivers.
+/// In tool mode, only the NOP driver is added.
+std::unique_ptr<InputSystem> CreateDefaultInputSystem(bool tool_mode);
 
+}  // namespace rex::input

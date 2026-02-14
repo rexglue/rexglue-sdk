@@ -9,21 +9,18 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/graphics/pipeline/shader/spirv.h>
-
 #include <cstring>
+
+#include <rex/graphics/pipeline/shader/spirv.h>
 
 namespace rex::graphics {
 
-SpirvShader::SpirvShader(xenos::ShaderType shader_type,
-                         uint64_t ucode_data_hash, const uint32_t* ucode_dwords,
-                         size_t ucode_dword_count,
+SpirvShader::SpirvShader(xenos::ShaderType shader_type, uint64_t ucode_data_hash,
+                         const uint32_t* ucode_dwords, size_t ucode_dword_count,
                          std::endian ucode_source_endian)
-    : Shader(shader_type, ucode_data_hash, ucode_dwords, ucode_dword_count,
-             ucode_source_endian) {}
+    : Shader(shader_type, ucode_data_hash, ucode_dwords, ucode_dword_count, ucode_source_endian) {}
 
-Shader::Translation* SpirvShader::CreateTranslationInstance(
-    uint64_t modification) {
+Shader::Translation* SpirvShader::CreateTranslationInstance(uint64_t modification) {
   return new SpirvTranslation(*this, modification);
 }
 

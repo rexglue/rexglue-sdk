@@ -38,12 +38,10 @@ class TraceWriter {
   void WriteIndirectBufferEnd();
   void WritePacketStart(uint32_t base_ptr, uint32_t count);
   void WritePacketEnd();
-  void WriteMemoryRead(uint32_t base_ptr, size_t length,
-                       const void* host_ptr = nullptr);
+  void WriteMemoryRead(uint32_t base_ptr, size_t length, const void* host_ptr = nullptr);
   void WriteMemoryReadCached(uint32_t base_ptr, size_t length);
   void WriteMemoryReadCachedNop(uint32_t base_ptr, size_t length);
-  void WriteMemoryWrite(uint32_t base_ptr, size_t length,
-                        const void* host_ptr = nullptr);
+  void WriteMemoryWrite(uint32_t base_ptr, size_t length, const void* host_ptr = nullptr);
   void WriteEdramSnapshot(const void* snapshot);
   void WriteEvent(EventCommand::Type event_type);
   void WriteRegisters(uint32_t first_register, const uint32_t* register_values,
@@ -53,8 +51,8 @@ class TraceWriter {
                       uint32_t gamma_ramp_rw_component);
 
  private:
-  void WriteMemoryCommand(TraceCommandType type, uint32_t base_ptr,
-                          size_t length, const void* host_ptr = nullptr);
+  void WriteMemoryCommand(TraceCommandType type, uint32_t base_ptr, size_t length,
+                          const void* host_ptr = nullptr);
 
   std::set<uint64_t> cached_memory_reads_;
   uint8_t* membase_;

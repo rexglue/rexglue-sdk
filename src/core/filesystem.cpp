@@ -9,9 +9,9 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/filesystem.h>
-
 #include <algorithm>
+
+#include <rex/filesystem.h>
 
 namespace rex {
 namespace filesystem {

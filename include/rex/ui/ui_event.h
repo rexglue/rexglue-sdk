@@ -10,7 +10,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <cstdint>
 #include <filesystem>
 
@@ -45,12 +44,10 @@ class UISetupEvent : public UIEvent {
 
 class MonitorUpdateEvent : public UISetupEvent {
  public:
-  explicit MonitorUpdateEvent(Window* target,
-                              bool old_monitor_potentially_disconnected,
+  explicit MonitorUpdateEvent(Window* target, bool old_monitor_potentially_disconnected,
                               bool is_initial_setup = false)
       : UISetupEvent(target, is_initial_setup),
-        old_monitor_potentially_disconnected_(
-            old_monitor_potentially_disconnected) {}
+        old_monitor_potentially_disconnected_(old_monitor_potentially_disconnected) {}
 
   bool old_monitor_potentially_disconnected() const {
     return old_monitor_potentially_disconnected_;
@@ -74,10 +71,9 @@ class FileDropEvent : public UIEvent {
 
 class KeyEvent : public UIEvent {
  public:
-  explicit KeyEvent(Window* target, VirtualKey virtual_key, int repeat_count,
-                    bool prev_state, bool modifier_shift_pressed,
-                    bool modifier_ctrl_pressed, bool modifier_alt_pressed,
-                    bool modifier_super_pressed)
+  explicit KeyEvent(Window* target, VirtualKey virtual_key, int repeat_count, bool prev_state,
+                    bool modifier_shift_pressed, bool modifier_ctrl_pressed,
+                    bool modifier_alt_pressed, bool modifier_super_pressed)
       : UIEvent(target),
         virtual_key_(virtual_key),
         repeat_count_(repeat_count),
@@ -129,14 +125,9 @@ class MouseEvent : public UIEvent {
   // Matching Windows WHEEL_DELTA.
   static constexpr uint32_t kScrollPerDetent = 120;
 
-  explicit MouseEvent(Window* target, Button button, int32_t x, int32_t y,
-                      int32_t scroll_x = 0, int32_t scroll_y = 0)
-      : UIEvent(target),
-        button_(button),
-        x_(x),
-        y_(y),
-        scroll_x_(scroll_x),
-        scroll_y_(scroll_y) {}
+  explicit MouseEvent(Window* target, Button button, int32_t x, int32_t y, int32_t scroll_x = 0,
+                      int32_t scroll_y = 0)
+      : UIEvent(target), button_(button), x_(x), y_(y), scroll_x_(scroll_x), scroll_y_(scroll_y) {}
   ~MouseEvent() override = default;
 
   bool is_handled() const { return handled_; }
@@ -173,13 +164,8 @@ class TouchEvent : public UIEvent {
   // pointer, for example.
   static constexpr uint32_t kPointerIDNone = UINT32_MAX;
 
-  explicit TouchEvent(Window* target, uint32_t pointer_id, Action action,
-                      float x, float y)
-      : UIEvent(target),
-        pointer_id_(pointer_id),
-        action_(action),
-        x_(x),
-        y_(y) {}
+  explicit TouchEvent(Window* target, uint32_t pointer_id, Action action, float x, float y)
+      : UIEvent(target), pointer_id_(pointer_id), action_(action), x_(x), y_(y) {}
 
   bool is_handled() const { return handled_; }
   void set_handled(bool value) { handled_ = value; }
@@ -199,5 +185,4 @@ class TouchEvent : public UIEvent {
 };
 
 }  // namespace ui
-}  // namespace xe
-
+}  // namespace rex

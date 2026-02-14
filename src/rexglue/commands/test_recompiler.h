@@ -21,10 +21,7 @@ namespace rexglue::commands {
 /// @param asmDirPath Directory containing .s source files with test specs
 /// @param outDirPath Output directory for generated C++ files
 /// @return true on success
-bool recompile_tests(
-    const std::string_view& binDirPath,
-    const std::string_view& asmDirPath,
-    const std::string_view& outDirPath
-);
+bool recompile_tests(const std::string_view& binDirPath, const std::string_view& asmDirPath,
+                     const std::string_view& outDirPath);
 
-} // namespace rexglue::commands
+}  // namespace rexglue::commands

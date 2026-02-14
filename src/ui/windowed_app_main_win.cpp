@@ -9,22 +9,20 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <cstdlib>
 #include <cstdio>
+#include <cstdlib>
 #include <map>
 #include <memory>
 #include <string>
 #include <vector>
 
 #include <rex/cvar.h>
+#include <rex/logging.h>
 #include <rex/platform.h>
 #include <rex/ui/windowed_app.h>
 #include <rex/ui/windowed_app_context_win.h>
-#include <rex/logging.h>
 
-REXCVAR_DEFINE_BOOL(enable_console, true,
-    "Enable console window on Windows",
-    "UI/Window");
+REXCVAR_DEFINE_BOOL(enable_console, true, "Enable console window on Windows", "UI/Window");
 
 namespace {
 
@@ -38,13 +36,11 @@ std::vector<std::string> WideArgsToUtf8(int argc, wchar_t** wargv) {
       args.emplace_back();
       continue;
     }
-    int size = WideCharToMultiByte(CP_UTF8, 0, wide.data(),
-                                    static_cast<int>(wide.size()),
-                                    nullptr, 0, nullptr, nullptr);
+    int size = WideCharToMultiByte(CP_UTF8, 0, wide.data(), static_cast<int>(wide.size()), nullptr,
+                                   0, nullptr, nullptr);
     std::string utf8(static_cast<size_t>(size), '\0');
-    WideCharToMultiByte(CP_UTF8, 0, wide.data(),
-                        static_cast<int>(wide.size()),
-                        utf8.data(), size, nullptr, nullptr);
+    WideCharToMultiByte(CP_UTF8, 0, wide.data(), static_cast<int>(wide.size()), utf8.data(), size,
+                        nullptr, nullptr);
     args.push_back(std::move(utf8));
   }
   return args;
@@ -52,8 +48,8 @@ std::vector<std::string> WideArgsToUtf8(int argc, wchar_t** wargv) {
 
 }  // namespace
 
-int WINAPI wWinMain(HINSTANCE hinstance, HINSTANCE hinstance_prev,
-                    LPWSTR command_line, int show_cmd) {
+int WINAPI wWinMain(HINSTANCE hinstance, HINSTANCE hinstance_prev, LPWSTR command_line,
+                    int show_cmd) {
   (void)hinstance_prev;
   (void)command_line;
 
@@ -69,8 +65,7 @@ int WINAPI wWinMain(HINSTANCE hinstance, HINSTANCE hinstance_prev,
   for (auto& s : utf8_args) {
     argv_ptrs.push_back(s.data());
   }
-  auto remaining = rex::cvar::Init(static_cast<int>(argv_ptrs.size()),
-                                   argv_ptrs.data());
+  auto remaining = rex::cvar::Init(static_cast<int>(argv_ptrs.size()), argv_ptrs.data());
   rex::cvar::ApplyEnvironment();
 
   // Allocate a console for debugging if enabled
@@ -93,8 +88,7 @@ int WINAPI wWinMain(HINSTANCE hinstance, HINSTANCE hinstance_prev,
       return EXIT_FAILURE;
     }
 
-    std::unique_ptr<rex::ui::WindowedApp> app =
-        rex::ui::GetWindowedAppCreator()(app_context);
+    std::unique_ptr<rex::ui::WindowedApp> app = rex::ui::GetWindowedAppCreator()(app_context);
 
     // Match remaining positional args to app's expected options
     const auto& option_names = app->GetPositionalOptions();
@@ -114,8 +108,7 @@ int WINAPI wWinMain(HINSTANCE hinstance, HINSTANCE hinstance_prev,
     // TODO: Port InitializeWin32App from Xenia
     // rex::InitializeWin32App(app->GetName());
 
-    result =
-        app->OnInitialize() ? app_context.RunMainMessageLoop() : EXIT_FAILURE;
+    result = app->OnInitialize() ? app_context.RunMainMessageLoop() : EXIT_FAILURE;
 
     app->InvokeOnDestroy();
   }

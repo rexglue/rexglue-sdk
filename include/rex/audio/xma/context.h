@@ -15,10 +15,10 @@
 #include <atomic>
 #include <mutex>
 #include <queue>
-//#include <vector>
+// #include <vector>
 
-#include <rex/memory.h>
 #include <rex/kernel.h>
+#include <rex/memory.h>
 
 // XMA audio format:
 // From research, XMA appears to be based on WMA Pro with
@@ -109,15 +109,13 @@ struct XMA_CONTEXT_DATA {
   uint32_t unk_dwords_10_15[6];  // reserved?
 
   explicit XMA_CONTEXT_DATA(const void* ptr) {
-    memory::copy_and_swap(reinterpret_cast<uint32_t*>(this),
-                      reinterpret_cast<const uint32_t*>(ptr),
-                      sizeof(XMA_CONTEXT_DATA) / 4);
+    memory::copy_and_swap(reinterpret_cast<uint32_t*>(this), reinterpret_cast<const uint32_t*>(ptr),
+                          sizeof(XMA_CONTEXT_DATA) / 4);
   }
 
   void Store(void* ptr) {
-    memory::copy_and_swap(reinterpret_cast<uint32_t*>(ptr),
-                      reinterpret_cast<const uint32_t*>(this),
-                      sizeof(XMA_CONTEXT_DATA) / 4);
+    memory::copy_and_swap(reinterpret_cast<uint32_t*>(ptr), reinterpret_cast<const uint32_t*>(this),
+                          sizeof(XMA_CONTEXT_DATA) / 4);
   }
 };
 static_assert_size(XMA_CONTEXT_DATA, 64);
@@ -139,10 +137,8 @@ class XmaContext {
   static const uint32_t kBytesPerSample = 2;
   static const uint32_t kSamplesPerFrame = 512;
   static const uint32_t kSamplesPerSubframe = 128;
-  static const uint32_t kBytesPerFrameChannel =
-      kSamplesPerFrame * kBytesPerSample;
-  static const uint32_t kBytesPerSubframeChannel =
-      kSamplesPerSubframe * kBytesPerSample;
+  static const uint32_t kBytesPerFrameChannel = kSamplesPerFrame * kBytesPerSample;
+  static const uint32_t kBytesPerSubframeChannel = kSamplesPerSubframe * kBytesPerSample;
 
   // static const uint32_t kOutputBytesPerBlock = 256;
   // static const uint32_t kOutputMaxSizeBytes = 31 * kOutputBytesPerBlock;
@@ -171,28 +167,23 @@ class XmaContext {
 
  private:
   static void SwapInputBuffer(XMA_CONTEXT_DATA* data);
-  static bool TrySetupNextLoop(XMA_CONTEXT_DATA* data,
-                               bool ignore_input_buffer_offset);
+  static bool TrySetupNextLoop(XMA_CONTEXT_DATA* data, bool ignore_input_buffer_offset);
   static void NextPacket(XMA_CONTEXT_DATA* data);
   static int GetSampleRate(int id);
   // Get the offset of the next frame. Does not traverse packets.
   static size_t GetNextFrame(uint8_t* block, size_t size, size_t bit_offset);
   // Get the containing packet number of the frame pointed to by the offset.
-  static int GetFramePacketNumber(uint8_t* block, size_t size,
-                                  size_t bit_offset);
+  static int GetFramePacketNumber(uint8_t* block, size_t size, size_t bit_offset);
   // Get the packet number and the index of the frame inside that packet
-  static std::tuple<int, int> GetFrameNumber(uint8_t* block, size_t size,
-                                             size_t bit_offset);
+  static std::tuple<int, int> GetFrameNumber(uint8_t* block, size_t size, size_t bit_offset);
   // Get the number of frames contained in the packet (including truncated) and
   // if the last frame is split.
   static std::tuple<int, bool> GetPacketFrameCount(uint8_t* packet);
 
   // Convert sample format and swap bytes
-  static void ConvertFrame(const uint8_t** samples, bool is_two_channel,
-                           uint8_t* output_buffer);
+  static void ConvertFrame(const uint8_t** samples, bool is_two_channel, uint8_t* output_buffer);
 
-  bool ValidFrameOffset(uint8_t* block, size_t size_bytes,
-                        size_t frame_offset_bits);
+  bool ValidFrameOffset(uint8_t* block, size_t size_bytes, size_t frame_offset_bits);
   void Decode(XMA_CONTEXT_DATA* data);
   int PrepareDecoder(uint8_t* packet, int sample_rate, bool is_two_channel);
 

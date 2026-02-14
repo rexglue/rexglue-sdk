@@ -9,17 +9,18 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/ui/graphics_upload_buffer_pool.h>
-
 #include <algorithm>
 
 #include <rex/assert.h>
 #include <rex/math.h>
+#include <rex/ui/graphics_upload_buffer_pool.h>
 
 namespace rex {
 namespace ui {
 
-GraphicsUploadBufferPool::~GraphicsUploadBufferPool() { ClearCache(); }
+GraphicsUploadBufferPool::~GraphicsUploadBufferPool() {
+  ClearCache();
+}
 
 void GraphicsUploadBufferPool::Reclaim(uint64_t completed_submission_index) {
   while (submitted_first_) {
@@ -89,9 +90,9 @@ void GraphicsUploadBufferPool::FlushWrites() {
   current_page_flushed_ = current_page_used_;
 }
 
-GraphicsUploadBufferPool::Page* GraphicsUploadBufferPool::Request(
-    uint64_t submission_index, size_t size, size_t alignment,
-    size_t& offset_out) {
+GraphicsUploadBufferPool::Page* GraphicsUploadBufferPool::Request(uint64_t submission_index,
+                                                                  size_t size, size_t alignment,
+                                                                  size_t& offset_out) {
   alignment = std::max(alignment, size_t(1));
   assert_true(rex::is_pow2(alignment));
   size = rex::align(size, alignment);
@@ -99,10 +100,8 @@ GraphicsUploadBufferPool::Page* GraphicsUploadBufferPool::Request(
   if (size > page_size_) {
     return nullptr;
   }
-  assert_true(!current_page_used_ ||
-              submission_index >= writable_first_->last_submission_index_);
-  assert_true(!submitted_last_ ||
-              submission_index >= submitted_last_->last_submission_index_);
+  assert_true(!current_page_used_ || submission_index >= writable_first_->last_submission_index_);
+  assert_true(!submitted_last_ || submission_index >= submitted_last_->last_submission_index_);
   size_t current_page_used_aligned = rex::align(current_page_used_, alignment);
   if (current_page_used_aligned + size > page_size_ || !writable_first_) {
     // Start a new page if can't fit all the bytes or don't have an open page.
@@ -144,17 +143,18 @@ GraphicsUploadBufferPool::Page* GraphicsUploadBufferPool::Request(
   return writable_first_;
 }
 
-GraphicsUploadBufferPool::Page* GraphicsUploadBufferPool::RequestPartial(
-    uint64_t submission_index, size_t size, size_t alignment,
-    size_t& offset_out, size_t& size_out) {
+GraphicsUploadBufferPool::Page* GraphicsUploadBufferPool::RequestPartial(uint64_t submission_index,
+                                                                         size_t size,
+                                                                         size_t alignment,
+                                                                         size_t& offset_out,
+                                                                         size_t& size_out) {
   alignment = std::max(alignment, size_t(1));
   assert_true(rex::is_pow2(alignment));
   size = rex::align(size, alignment);
   size = std::min(size, page_size_);
   size_t current_page_used_aligned = rex::align(current_page_used_, alignment);
   if (current_page_used_aligned + alignment <= page_size_) {
-    size = std::min(
-        size, (page_size_ - current_page_used_aligned) & ~(alignment - 1));
+    size = std::min(size, (page_size_ - current_page_used_aligned) & ~(alignment - 1));
   }
   Page* page = Request(submission_index, size, alignment, offset_out);
   if (!page) {
@@ -164,8 +164,7 @@ GraphicsUploadBufferPool::Page* GraphicsUploadBufferPool::RequestPartial(
   return page;
 }
 
-void GraphicsUploadBufferPool::FlushPageWrites(Page* page, size_t offset,
-                                               size_t size) {}
+void GraphicsUploadBufferPool::FlushPageWrites(Page* page, size_t offset, size_t size) {}
 
 }  // namespace ui
-}  // namespace xe
+}  // namespace rex

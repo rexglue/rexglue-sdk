@@ -10,13 +10,12 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <string>
 
-#include <rex/runtime/export_resolver.h>
-#include <rex/kernel/kernel_module.h>
-#include <rex/kernel/kernel_state.h>
 #include <rex/kernel/xam/ordinals.h>
+#include <rex/system/export_resolver.h>
+#include <rex/system/kernel_module.h>
+#include <rex/system/kernel_state.h>
 
 namespace rex {
 namespace kernel {
@@ -24,9 +23,9 @@ namespace xam {
 
 bool xeXamIsUIActive();
 
-class XamModule : public KernelModule {
+class XamModule : public system::KernelModule {
  public:
-  XamModule(Runtime* emulator, KernelState* kernel_state);
+  XamModule(Runtime* emulator, system::KernelState* kernel_state);
   virtual ~XamModule();
 
   static void RegisterExportTable(rex::runtime::ExportResolver* export_resolver);
@@ -48,4 +47,3 @@ class XamModule : public KernelModule {
 }  // namespace xam
 }  // namespace kernel
 }  // namespace rex
-

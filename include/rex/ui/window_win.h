@@ -16,11 +16,16 @@
 #include <rex/ui/menu_item.h>
 #include <rex/ui/window.h>
 
-// Must be included before Windows headers for things like NOMINMAX.
-#include <rex/platform/win.h>
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <dxgi.h>
+#include <windows.h>
 
 #include <ShellScalingApi.h>
-#include <dxgi.h>
 
 namespace rex {
 namespace ui {
@@ -53,12 +58,10 @@ class Win32Window : public Window {
   void CompleteMainMenuItemsUpdateImpl() override;
   void ApplyNewMouseCapture() override;
   void ApplyNewMouseRelease() override;
-  void ApplyNewCursorVisibility(
-      CursorVisibility old_cursor_visibility) override;
+  void ApplyNewCursorVisibility(CursorVisibility old_cursor_visibility) override;
   void FocusImpl() override;
 
-  std::unique_ptr<Surface> CreateSurfaceImpl(
-      Surface::TypeFlags allowed_types) override;
+  std::unique_ptr<Surface> CreateSurfaceImpl(Surface::TypeFlags allowed_types) override;
   void RequestPaintImpl() override;
 
  private:
@@ -66,8 +69,7 @@ class Win32Window : public Window {
     kUserMessageAutoHideCursor = WM_USER,
   };
 
-  BOOL AdjustWindowRectangle(RECT& rect, DWORD style, BOOL menu, DWORD ex_style,
-                             UINT dpi) const;
+  BOOL AdjustWindowRectangle(RECT& rect, DWORD style, BOOL menu, DWORD ex_style, UINT dpi) const;
   BOOL AdjustWindowRectangle(RECT& rect) const;
 
   uint32_t GetCurrentSystemDpi() const;
@@ -90,15 +92,12 @@ class Win32Window : public Window {
 
   void SetCursorIfFocusedOnClientArea(HCURSOR cursor) const;
   void SetCursorAutoHideTimer();
-  static void NTAPI AutoHideCursorTimerCallback(void* parameter,
-                                                BOOLEAN timer_or_wait_fired);
+  static void NTAPI AutoHideCursorTimerCallback(void* parameter, BOOLEAN timer_or_wait_fired);
 
-  static LRESULT CALLBACK WndProcThunk(HWND hWnd, UINT message, WPARAM wParam,
-                                       LPARAM lParam);
+  static LRESULT CALLBACK WndProcThunk(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
   // This can't handle messages sent during CreateWindow (hwnd_ still not
   // assigned to) or after nulling hwnd_ in closing / deleting.
-  virtual LRESULT WndProc(HWND hWnd, UINT message, WPARAM wParam,
-                          LPARAM lParam);
+  virtual LRESULT WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
   HCURSOR arrow_cursor_ = nullptr;
 

@@ -10,29 +10,31 @@
  */
 
 #include "codegen_command.h"
-#include <rex/logging.h>
-#include <rex/codegen/codegen.h>
+
+#include <filesystem>
 
 #include <fmt/format.h>
-#include <filesystem>
+
+#include <rex/codegen/codegen.h>
+#include <rex/logging.h>
 
 namespace rexglue::cli {
 
 Result<void> CodegenFromConfig(const std::string& config_path, const CliContext& ctx) {
-    REXLOG_INFO("Generating code with config: {}", config_path);
+  REXLOG_INFO("Generating code with config: {}", config_path);
 
-    auto pipeline = rex::codegen::CodegenPipeline::Create(config_path);
-    if (!pipeline) {
-        return Err<void>(pipeline.error());
-    }
+  auto pipeline = rex::codegen::CodegenPipeline::Create(config_path);
+  if (!pipeline) {
+    return Err<void>(pipeline.error());
+  }
 
-    // Apply CLI overrides to config
-    if (ctx.enableExceptionHandlers) {
-        pipeline->context().Config().generateExceptionHandlers = true;
-        REXLOG_INFO("Exception handler generation enabled");
-    }
+  // Apply CLI overrides to config
+  if (ctx.enableExceptionHandlers) {
+    pipeline->context().Config().generateExceptionHandlers = true;
+    REXLOG_INFO("Exception handler generation enabled");
+  }
 
-    return pipeline->Run(ctx.force);
+  return pipeline->Run(ctx.force);
 }
 
-} // namespace rexglue::cli
+}  // namespace rexglue::cli

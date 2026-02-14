@@ -9,12 +9,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/memory/utils.h>
-
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <unistd.h>
 #include <cerrno>
 #include <cstddef>
 #include <cstdio>
@@ -22,15 +16,23 @@
 #include <fstream>
 #include <string>
 
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 #include <rex/math.h>
+#include <rex/memory/utils.h>
 #include <rex/platform.h>
 #include <rex/string.h>
 
 #if REX_PLATFORM_ANDROID
-#include <dlfcn.h>
-#include <linux/ashmem.h>
 #include <string.h>
+
+#include <dlfcn.h>
 #include <sys/ioctl.h>
+
+#include <linux/ashmem.h>
 
 // TODO(tomc): Android or maybe na. idk
 // #include "xenia/base/main_android.h"
@@ -41,14 +43,15 @@ namespace memory {
 
 // Convert filesystem path to valid shm_open name (must start with /, no other slashes)
 static std::string MakeShmName(const std::filesystem::path& path) {
-    std::string name = path.string();
-    for (char& c : name) {
-        if (c == '/') c = '_';
-    }
-    if (name.empty() || name[0] != '/') {
-        name.insert(name.begin(), '/');
-    }
-    return name;
+  std::string name = path.string();
+  for (char& c : name) {
+    if (c == '/')
+      c = '_';
+  }
+  if (name.empty() || name[0] != '/') {
+    name.insert(name.begin(), '/');
+  }
+  return name;
 }
 
 #if REX_PLATFORM_ANDROID
@@ -62,9 +65,8 @@ void AndroidInitialize() {
     libandroid_ = dlopen("libandroid.so", RTLD_NOW);
     assert_not_null(libandroid_);
     if (libandroid_) {
-      android_ASharedMemory_create_ =
-          reinterpret_cast<decltype(android_ASharedMemory_create_)>(
-              dlsym(libandroid_, "ASharedMemory_create"));
+      android_ASharedMemory_create_ = reinterpret_cast<decltype(android_ASharedMemory_create_)>(
+          dlsym(libandroid_, "ASharedMemory_create"));
       assert_not_null(android_ASharedMemory_create_);
     }
   }
@@ -79,8 +81,12 @@ void AndroidShutdown() {
 }
 #endif
 
-size_t page_size() { return getpagesize(); }
-size_t allocation_granularity() { return page_size(); }
+size_t page_size() {
+  return getpagesize();
+}
+size_t allocation_granularity() {
+  return page_size();
+}
 
 uint32_t ToPosixProtectFlags(PageAccess access) {
   switch (access) {
@@ -100,7 +106,9 @@ uint32_t ToPosixProtectFlags(PageAccess access) {
   }
 }
 
-bool IsWritableExecutableMemorySupported() { return true; }
+bool IsWritableExecutableMemorySupported() {
+  return true;
+}
 
 // TODO(tomc): this needs to go somewhere else. we should utilize the platform namespace more.
 #if REX_PLATFORM_LINUX
@@ -112,13 +120,14 @@ struct LinuxMapEntry {
   char perms[5] = {};
 };
 
-// Parse a line from /proc/self/maps into a LinuxMapEntry 
+// Parse a line from /proc/self/maps into a LinuxMapEntry
 static bool ParseProcMapsLine(const std::string& line, LinuxMapEntry& out) {
   out = LinuxMapEntry{};
   unsigned long long start = 0, end = 0;
   char perms[5] = {};
   const int matched = std::sscanf(line.c_str(), "%llx-%llx %4s", &start, &end, perms);
-  if (matched < 3) return false;
+  if (matched < 3)
+    return false;
   out.start = static_cast<uintptr_t>(start);
   out.end = static_cast<uintptr_t>(end);
   std::memcpy(out.perms, perms, sizeof(out.perms));
@@ -129,11 +138,13 @@ static bool ParseProcMapsLine(const std::string& line, LinuxMapEntry& out) {
 static bool FindEntryForAddress(void* address, LinuxMapEntry& out_entry) {
   const uintptr_t addr = reinterpret_cast<uintptr_t>(address);
   std::ifstream maps("/proc/self/maps");
-  if (!maps.is_open()) return false;
+  if (!maps.is_open())
+    return false;
   std::string line;
   while (std::getline(maps, line)) {
     LinuxMapEntry e;
-    if (!ParseProcMapsLine(line, e)) continue;
+    if (!ParseProcMapsLine(line, e))
+      continue;
     if (addr >= e.start && addr < e.end) {
       out_entry = e;
       return true;
@@ -144,26 +155,32 @@ static bool FindEntryForAddress(void* address, LinuxMapEntry& out_entry) {
 
 // Check if [base, base+length) is fully covered by existing mappings (no gaps)
 static bool IsRangeFullyMapped(void* base_address, size_t length) {
-  if (!base_address || length == 0) return false;
+  if (!base_address || length == 0)
+    return false;
 
   const uintptr_t begin = reinterpret_cast<uintptr_t>(base_address);
   const uintptr_t end = begin + length;
-  if (end < begin) { // overflow check
-      return false;  
+  if (end < begin) {  // overflow check
+    return false;
   }
 
   std::ifstream maps("/proc/self/maps");
-  if (!maps.is_open()) return false;
+  if (!maps.is_open())
+    return false;
 
   uintptr_t cursor = begin;
   std::string line;
   while (std::getline(maps, line)) {
     LinuxMapEntry e;
-    if (!ParseProcMapsLine(line, e)) continue;
-    if (e.end <= cursor) continue;
-    if (e.start > cursor) return false;  // gap found
+    if (!ParseProcMapsLine(line, e))
+      continue;
+    if (e.end <= cursor)
+      continue;
+    if (e.start > cursor)
+      return false;  // gap found
     cursor = e.end;
-    if (cursor >= end) return true;
+    if (cursor >= end)
+      return true;
   }
   return cursor >= end;
 }
@@ -174,16 +191,18 @@ static PageAccess PermsToPageAccess(const char perms[5]) {
   const bool w = perms[1] == 'w';
   const bool x = perms[2] == 'x';
 
-  if (!r && !w && !x) return PageAccess::kNoAccess;
-  if (x) return w ? PageAccess::kExecuteReadWrite : PageAccess::kExecuteReadOnly;
+  if (!r && !w && !x)
+    return PageAccess::kNoAccess;
+  if (x)
+    return w ? PageAccess::kExecuteReadWrite : PageAccess::kExecuteReadOnly;
   return w ? PageAccess::kReadWrite : PageAccess::kReadOnly;
 }
 
 }  // namespace
 #endif  // REX_PLATFORM_LINUX
 
-void* AllocFixed(void* base_address, size_t length,
-                 AllocationType allocation_type, PageAccess access) {
+void* AllocFixed(void* base_address, size_t length, AllocationType allocation_type,
+                 PageAccess access) {
   // Emulates Windows VirtualAlloc behavior:
   // - Reserve: create PROT_NONE mapping to hold address space
   // - Commit on existing reservation: mprotect to enable access (EEXIST path)
@@ -237,8 +256,7 @@ void* AllocFixed(void* base_address, size_t length,
   return nullptr;
 }
 
-bool DeallocFixed(void* base_address, size_t length,
-                  DeallocationType deallocation_type) {
+bool DeallocFixed(void* base_address, size_t length, DeallocationType deallocation_type) {
   switch (deallocation_type) {
     case DeallocationType::kDecommit: {
       // Decommit: remove access first, then release physical pages
@@ -251,8 +269,8 @@ bool DeallocFixed(void* base_address, size_t length,
       return true;
     }
     case DeallocationType::kRelease: {
-  return munmap(base_address, length) == 0;
-}
+      return munmap(base_address, length) == 0;
+    }
     default:
       // how we get here? :(
       assert_always();
@@ -260,8 +278,7 @@ bool DeallocFixed(void* base_address, size_t length,
   }
 }
 
-bool Protect(void* base_address, size_t length, PageAccess access,
-             PageAccess* out_old_access) {
+bool Protect(void* base_address, size_t length, PageAccess access, PageAccess* out_old_access) {
   if (out_old_access) {
     *out_old_access = PageAccess::kNoAccess;
   }
@@ -306,14 +323,14 @@ bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out) {
 #endif
 }
 
-FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path,
-                                          size_t length, PageAccess access,
-                                          bool commit) {
+FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, size_t length,
+                                          PageAccess access, bool commit) {
 #if REX_PLATFORM_ANDROID
   // TODO(Triang3l): Check if memfd can be used instead on API 30+.
   if (android_ASharedMemory_create_) {
     int sharedmem_fd = android_ASharedMemory_create_(path.c_str(), length);
-    return sharedmem_fd >= 0 ? sharedmem_fd : kFileMappingHandleInvalid;
+    return sharedmem_fd >= 0 ? static_cast<FileMappingHandle>(sharedmem_fd)
+                             : kFileMappingHandleInvalid;
   }
 
   // Use /dev/ashmem on API versions below 26, which added ASharedMemory.
@@ -330,7 +347,7 @@ FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path,
     close(ashmem_fd);
     return kFileMappingHandleInvalid;
   }
-  return ashmem_fd;
+  return static_cast<FileMappingHandle>(ashmem_fd);
 #else
   int oflag;
   switch (access) {
@@ -360,21 +377,20 @@ FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path,
     shm_unlink(full_path.c_str());
     return kFileMappingHandleInvalid;
   }
-  return ret;
+  return static_cast<FileMappingHandle>(ret);
 #endif
 }
 
-void CloseFileMappingHandle(FileMappingHandle handle,
-                            const std::filesystem::path& path) {
-  close(handle);
+void CloseFileMappingHandle(FileMappingHandle handle, const std::filesystem::path& path) {
+  close(static_cast<int>(handle));
 #if !REX_PLATFORM_ANDROID
   auto full_path = MakeShmName(path);
   shm_unlink(full_path.c_str());
 #endif
 }
 
-void* MapFileView(FileMappingHandle handle, void* base_address, size_t length,
-                  PageAccess access, size_t file_offset) {
+void* MapFileView(FileMappingHandle handle, void* base_address, size_t length, PageAccess access,
+                  size_t file_offset) {
   // file_offset must be page-aligned
   const size_t page = page_size();
   if (file_offset % page != 0) {
@@ -391,8 +407,8 @@ void* MapFileView(FileMappingHandle handle, void* base_address, size_t length,
   }
 
   uint32_t prot = ToPosixProtectFlags(access);
-  void* result = mmap64(base_address, length, prot,
-                        flags, handle, static_cast<off_t>(file_offset));
+  void* result = mmap64(base_address, length, prot, flags, static_cast<int>(handle),
+                        static_cast<off_t>(file_offset));
   if (result == MAP_FAILED) {
     return nullptr;
   }
@@ -406,8 +422,7 @@ void* MapFileView(FileMappingHandle handle, void* base_address, size_t length,
   return result;
 }
 
-bool UnmapFileView(FileMappingHandle handle, void* base_address,
-                   size_t length) {
+bool UnmapFileView(FileMappingHandle handle, void* base_address, size_t length) {
   return munmap(base_address, length) == 0;
 }
 

@@ -10,7 +10,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <cstddef>
 #include <cstdint>
 #include <map>
@@ -219,8 +218,7 @@ class Window {
   }
 
   // Round trips are not guaranteed to return the same results.
-  static constexpr uint32_t ConvertSizeDpi(uint32_t size, uint32_t new_dpi,
-                                           uint32_t old_dpi) {
+  static constexpr uint32_t ConvertSizeDpi(uint32_t size, uint32_t new_dpi, uint32_t old_dpi) {
     // Always rounding up to prevent zero sizes (unless the input is zero) as
     // well as gaps at the edge.
     return uint32_t((uint64_t(size) * new_dpi + (old_dpi - 1)) / old_dpi);
@@ -231,8 +229,7 @@ class Window {
   uint32_t SizeToPhysical(uint32_t size) const {
     return ConvertSizeDpi(size, GetDpi(), GetMediumDpi());
   }
-  static constexpr int32_t ConvertPositionDpi(int32_t position,
-                                              uint32_t new_dpi,
+  static constexpr int32_t ConvertPositionDpi(int32_t position, uint32_t new_dpi,
                                               uint32_t old_dpi) {
     // Rounding to the nearest mostly similar to Windows MulDiv.
     // Plus old_dpi / 2 for positive values, minus old_dpi / 2 for negative
@@ -246,8 +243,7 @@ class Window {
     // (0 + 1) / 3 == 0
     // (1 + 1) / 3 == 0
     // (2 + 1) / 3 == 1
-    return int32_t((int64_t(position) * new_dpi +
-                    int32_t(old_dpi >> 1) * (position < 0 ? -1 : 1)) /
+    return int32_t((int64_t(position) * new_dpi + int32_t(old_dpi >> 1) * (position < 0 ? -1 : 1)) /
                    old_dpi);
   }
   int32_t PositionToLogical(int32_t position) const {
@@ -266,18 +262,12 @@ class Window {
 
   // 0 width or height may be returned even in case of an open window with a
   // valid non-zero-area surface depending on the platform.
-  uint32_t GetActualPhysicalWidth() const {
-    return HasActualState() ? actual_physical_width_ : 0;
-  }
+  uint32_t GetActualPhysicalWidth() const { return HasActualState() ? actual_physical_width_ : 0; }
   uint32_t GetActualPhysicalHeight() const {
     return HasActualState() ? actual_physical_height_ : 0;
   }
-  uint32_t GetActualLogicalWidth() const {
-    return SizeToLogical(GetActualPhysicalWidth());
-  }
-  uint32_t GetActualLogicalHeight() const {
-    return SizeToLogical(GetActualPhysicalHeight());
-  }
+  uint32_t GetActualLogicalWidth() const { return SizeToLogical(GetActualPhysicalWidth()); }
+  uint32_t GetActualLogicalHeight() const { return SizeToLogical(GetActualPhysicalHeight()); }
 
   // Desired state stored by the common Window, modifiable both externally and
   // by the implementation (including from SetFullscreen itself).
@@ -304,9 +294,7 @@ class Window {
 
   // Desired state stored by the common Window, externally modifiable, read-only
   // in the implementation.
-  bool IsMouseCaptureRequested() const {
-    return mouse_capture_request_count_ != 0;
-  }
+  bool IsMouseCaptureRequested() const { return mouse_capture_request_count_ != 0; }
   void CaptureMouse();
   void ReleaseMouse();
 
@@ -401,9 +389,7 @@ class Window {
     // Primarily for the implementation (most importantly its native event
     // handler), to stop interacting with the native window given that it was
     // possible before the function call it's guarded with.
-    bool IsWindowDestroyedOrClosed() const {
-      return IsWindowDestroyed() || window_->IsClosed();
-    }
+    bool IsWindowDestroyedOrClosed() const { return IsWindowDestroyed() || window_->IsClosed(); }
     // For guarding Apply* calls if one state setter needs to make multiple of
     // them (or just detecting if it's okay to call Apply*).
     bool IsWindowDestroyedOrStateInapplicable() const {
@@ -509,14 +495,14 @@ class Window {
   // the buffer is null or the size is 0, the icon should be reset to the
   // default one. Returns whether the icon has been updated successfully.
   virtual void LoadAndApplyIcon(const void* buffer, size_t size,
-      bool can_apply_state_in_current_phase) {
-      (void)buffer; (void)size; (void)can_apply_state_in_current_phase;
+                                bool can_apply_state_in_current_phase) {
+    (void)buffer;
+    (void)size;
+    (void)can_apply_state_in_current_phase;
   }
   MenuItem* GetMainMenu() const { return main_menu_.get(); }
   // May be called to add, replace or remove the main menu.
-  virtual void ApplyNewMainMenu(MenuItem* old_main_menu) {
-      (void)old_main_menu;
-  }
+  virtual void ApplyNewMainMenu(MenuItem* old_main_menu) { (void)old_main_menu; }
   // If there's main menu, and state can be applied, will be called to make the
   // implementation's state consistent with the new state of the MenuItems of
   // the main menu after changes have been made to them.
@@ -525,9 +511,8 @@ class Window {
   // captured, in case something has released it in the OS.
   virtual void ApplyNewMouseCapture() {}
   virtual void ApplyNewMouseRelease() {}
-  virtual void ApplyNewCursorVisibility(
-      CursorVisibility old_cursor_visibility) {
-      (void)old_cursor_visibility;
+  virtual void ApplyNewCursorVisibility(CursorVisibility old_cursor_visibility) {
+    (void)old_cursor_visibility;
   }
   // If state can be applied, this is called to request bringing the window into
   // focus (and once that's done by the OS, update the actual focus state). Does
@@ -544,8 +529,7 @@ class Window {
   // This function is nonvirtual itself for this reason as well.
   void OnSurfaceChanged(bool new_surface_potentially_exists);
   // Called only for an open window.
-  virtual std::unique_ptr<Surface> CreateSurfaceImpl(
-      Surface::TypeFlags allowed_types) = 0;
+  virtual std::unique_ptr<Surface> CreateSurfaceImpl(Surface::TypeFlags allowed_types) = 0;
   // Called only if the Surface exists.
   virtual void RequestPaintImpl() = 0;
 
@@ -557,8 +541,7 @@ class Window {
   // from within OpenImpl (directly or through the platform event handler
   // invoked during it) to actualize the state for the newly createad window,
   // especially if it's different than the desired one.
-  void OnDpiChanged(UISetupEvent& e,
-                    WindowDestructionReceiver& destruction_receiver);
+  void OnDpiChanged(UISetupEvent& e, WindowDestructionReceiver& destruction_receiver);
   void OnMonitorUpdate(MonitorUpdateEvent& e);
   // For calling when the platform changes something in the non-maximized,
   // non-fullscreen size of the window.
@@ -575,37 +558,27 @@ class Window {
   // because a resize listener may request another resize, in which case it will
   // be outdated - listeners must query the new physical size from the window
   // explicitly.
-  bool OnActualSizeUpdate(uint32_t new_physical_width,
-                          uint32_t new_physical_height,
+  bool OnActualSizeUpdate(uint32_t new_physical_width, uint32_t new_physical_height,
                           WindowDestructionReceiver& destruction_receiver);
-  void OnDesiredFullscreenUpdate(bool new_fullscreen) {
-    fullscreen_ = new_fullscreen;
-  }
-  void OnFocusUpdate(bool new_has_focus,
-                     WindowDestructionReceiver& destruction_receiver);
+  void OnDesiredFullscreenUpdate(bool new_fullscreen) { fullscreen_ = new_fullscreen; }
+  void OnFocusUpdate(bool new_has_focus, WindowDestructionReceiver& destruction_receiver);
 
   // Pass true as force_paint in case the platform can't retain the image from
   // the previous paint so it won't be skipped if there are no content updates.
   void OnPaint(bool force_paint = false);
 
-  void OnFileDrop(FileDropEvent& e,
-                  WindowDestructionReceiver& destruction_receiver);
+  void OnFileDrop(FileDropEvent& e, WindowDestructionReceiver& destruction_receiver);
 
   void OnKeyDown(KeyEvent& e, WindowDestructionReceiver& destruction_receiver);
   void OnKeyUp(KeyEvent& e, WindowDestructionReceiver& destruction_receiver);
   void OnKeyChar(KeyEvent& e, WindowDestructionReceiver& destruction_receiver);
 
-  void OnMouseDown(MouseEvent& e,
-                   WindowDestructionReceiver& destruction_receiver);
-  void OnMouseMove(MouseEvent& e,
-                   WindowDestructionReceiver& destruction_receiver);
-  void OnMouseUp(MouseEvent& e,
-                 WindowDestructionReceiver& destruction_receiver);
-  void OnMouseWheel(MouseEvent& e,
-                    WindowDestructionReceiver& destruction_receiver);
+  void OnMouseDown(MouseEvent& e, WindowDestructionReceiver& destruction_receiver);
+  void OnMouseMove(MouseEvent& e, WindowDestructionReceiver& destruction_receiver);
+  void OnMouseUp(MouseEvent& e, WindowDestructionReceiver& destruction_receiver);
+  void OnMouseWheel(MouseEvent& e, WindowDestructionReceiver& destruction_receiver);
 
-  void OnTouchEvent(TouchEvent& e,
-                    WindowDestructionReceiver& destruction_receiver);
+  void OnTouchEvent(TouchEvent& e, WindowDestructionReceiver& destruction_receiver);
 
  private:
   struct ListenerIterationContext {
@@ -626,8 +599,7 @@ class Window {
   struct InputListenerIterationContext {
     explicit InputListenerIterationContext(
         InputListenerIterationContext* outer_context,
-        std::multimap<size_t, WindowInputListener*>::const_reverse_iterator
-            first_iterator,
+        std::multimap<size_t, WindowInputListener*>::const_reverse_iterator first_iterator,
         size_t first_z_order = SIZE_MAX)
         : outer_context(outer_context),
           next_iterator(first_iterator),
@@ -637,17 +609,14 @@ class Window {
     // Reverse iterator because input handlers with a higher Z order index may
     // correspond to what's displayed on top of what has a lower Z order index,
     // so what's higher may consum the event.
-    std::multimap<size_t, WindowInputListener*>::const_reverse_iterator
-        next_iterator;
+    std::multimap<size_t, WindowInputListener*>::const_reverse_iterator next_iterator;
     size_t current_z_order;
   };
 
   // If the window is closed, the platform native window is either being
   // destroyed, or doesn't exist anymore, and thus it's in a non-interactive
   // state.
-  bool IsClosed() const {
-    return phase_ < Phase::kOpening || phase_ > Phase::kOpenBeforeClosing;
-  }
+  bool IsClosed() const { return phase_ < Phase::kOpening || phase_ > Phase::kOpenBeforeClosing; }
 
   bool CanApplyState() const {
     // In kOpening, OpenImpl itself pulls the desired state itself and applies
@@ -667,9 +636,8 @@ class Window {
   // calling and stop doing anything accessing *this if that happens.
   void SendEventToListeners(std::function<void(WindowListener*)> fn,
                             WindowDestructionReceiver& destruction_receiver);
-  void PropagateEventThroughInputListeners(
-      std::function<bool(WindowInputListener*)> fn,
-      WindowDestructionReceiver& destruction_receiver);
+  void PropagateEventThroughInputListeners(std::function<bool(WindowInputListener*)> fn,
+                                           WindowDestructionReceiver& destruction_receiver);
 
   std::unique_ptr<Surface> CreateSurface(Surface::TypeFlags allowed_types) {
     // If opening, surface creation is deferred until all the initial setup has
@@ -696,8 +664,7 @@ class Window {
   // Linked list-based stacks of the contexts of the listener iterations
   // currently being done, usually allocated on the stack.
   ListenerIterationContext* innermost_listener_iteration_context_ = nullptr;
-  InputListenerIterationContext* innermost_input_listener_iteration_context_ =
-      nullptr;
+  InputListenerIterationContext* innermost_input_listener_iteration_context_ = nullptr;
 
   uint32_t desired_logical_width_ = 0;
   uint32_t desired_logical_height_ = 0;
@@ -728,5 +695,4 @@ class Window {
 };
 
 }  // namespace ui
-}  // namespace xe
-
+}  // namespace rex

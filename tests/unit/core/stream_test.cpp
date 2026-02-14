@@ -4,11 +4,11 @@
  * Tests bit-level and byte-level stream operations.
  */
 
-#include <catch2/catch_test_macros.hpp>
-
 #include <array>
-#include <cstring>
 #include <cstdint>
+#include <cstring>
+
+#include <catch2/catch_test_macros.hpp>
 
 #include <rex/stream.h>
 

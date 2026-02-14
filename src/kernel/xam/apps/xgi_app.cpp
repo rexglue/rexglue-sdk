@@ -10,14 +10,16 @@
  */
 
 #include <rex/kernel/xam/apps/xgi_app.h>
-
 #include <rex/logging.h>
 #include <rex/thread.h>
 
 namespace rex {
 namespace kernel {
 namespace xam {
+using namespace rex::system;
+using namespace rex::system::xam;
 namespace apps {
+using namespace rex::system;
 
 XgiApp::XgiApp(KernelState* kernel_state) : App(kernel_state, 0xFB) {}
 
@@ -38,8 +40,8 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       uint32_t user_index = memory::load_and_swap<uint32_t>(buffer + 0);
       uint32_t context_id = memory::load_and_swap<uint32_t>(buffer + 16);
       uint32_t context_value = memory::load_and_swap<uint32_t>(buffer + 20);
-      REXKRNL_DEBUG("XGIUserSetContextEx({:08X}, {:08X}, {:08X})", user_index,
-             context_id, context_value);
+      REXKRNL_DEBUG("XGIUserSetContextEx({:08X}, {:08X}, {:08X})", user_index, context_id,
+                    context_value);
       return X_E_SUCCESS;
     }
     case 0x000B0007: {
@@ -47,8 +49,8 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       uint32_t property_id = memory::load_and_swap<uint32_t>(buffer + 16);
       uint32_t value_size = memory::load_and_swap<uint32_t>(buffer + 20);
       uint32_t value_ptr = memory::load_and_swap<uint32_t>(buffer + 24);
-      REXKRNL_DEBUG("XGIUserSetPropertyEx({:08X}, {:08X}, {}, {:08X})", user_index,
-             property_id, value_size, value_ptr);
+      REXKRNL_DEBUG("XGIUserSetPropertyEx({:08X}, {:08X}, {}, {:08X})", user_index, property_id,
+                    value_size, value_ptr);
       return X_E_SUCCESS;
     }
     case 0x000B0008: {
@@ -56,7 +58,7 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       uint32_t achievement_count = memory::load_and_swap<uint32_t>(buffer + 0);
       uint32_t achievements_ptr = memory::load_and_swap<uint32_t>(buffer + 4);
       REXKRNL_DEBUG("XGIUserWriteAchievements({:08X}, {:08X})", achievement_count,
-             achievements_ptr);
+                    achievements_ptr);
       return X_E_SUCCESS;
     }
     case 0x000B0010: {
@@ -77,8 +79,8 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       REXKRNL_DEBUG(
           "XGISessionCreateImpl({:08X}, {:08X}, {}, {}, {:08X}, {:08X}, "
           "{:08X})",
-          session_ptr, flags, num_slots_public, num_slots_private, user_xuid,
-          session_info_ptr, nonce_ptr);
+          session_ptr, flags, num_slots_public, num_slots_private, user_xuid, session_info_ptr,
+          nonce_ptr);
       return X_E_SUCCESS;
     }
     case 0x000B0011: {
@@ -95,8 +97,8 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       uint32_t private_slots_array = memory::load_and_swap<uint32_t>(buffer + 0x10);
 
       assert_zero(unk_0);
-      REXKRNL_DEBUG("XGISessionJoinLocal({:08X}, {}, {}, {:08X}, {:08X})", session_ptr,
-             user_count, unk_0, user_index_array, private_slots_array);
+      REXKRNL_DEBUG("XGISessionJoinLocal({:08X}, {}, {}, {:08X}, {:08X})", session_ptr, user_count,
+                    unk_0, user_index_array, private_slots_array);
       return X_E_SUCCESS;
     }
     case 0x000B0014: {
@@ -115,12 +117,10 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       // 00000000 2789fecc 00000000 00000000 200491e0 00000000 200491f0 20049340
       uint32_t user_index = memory::load_and_swap<uint32_t>(buffer + 0);
       uint32_t context_ptr = memory::load_and_swap<uint32_t>(buffer + 16);
-      auto context =
-          context_ptr ? memory_->TranslateVirtual(context_ptr) : nullptr;
-      uint32_t context_id =
-          context ? memory::load_and_swap<uint32_t>(context + 0) : 0;
-      REXKRNL_DEBUG("XGIUserGetContext({:08X}, {:08X}{:08X}))", user_index,
-             context_ptr, context_id);
+      auto context = context_ptr ? memory_->TranslateVirtual(context_ptr) : nullptr;
+      uint32_t context_id = context ? memory::load_and_swap<uint32_t>(context + 0) : 0;
+      REXKRNL_DEBUG("XGIUserGetContext({:08X}, {:08X}{:08X}))", user_index, context_ptr,
+                    context_id);
       uint32_t value = 0;
       if (context) {
         memory::store_and_swap<uint32_t>(context + 4, value);
@@ -142,4 +142,4 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
 }  // namespace apps
 }  // namespace xam
 }  // namespace kernel
-}  // namespace xe
+}  // namespace rex

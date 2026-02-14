@@ -554,4 +554,4 @@ bool build_vupkhsh(BuilderContext& ctx);
 bool build_vupklsb(BuilderContext& ctx);
 bool build_vupklsh(BuilderContext& ctx);
 
-} // namespace rex::codegen
+}  // namespace rex::codegen

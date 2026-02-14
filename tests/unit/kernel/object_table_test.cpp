@@ -7,12 +7,12 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <rex/logging.h>
-#include <rex/kernel/xobject.h>
-#include <rex/kernel/util/object_table.h>
+#include <rex/system/util/object_table.h>
+#include <rex/system/xobject.h>
 
 using namespace rex;
-using namespace rex::kernel;
-using namespace rex::kernel::util;
+using namespace rex::system;
+using namespace rex::system::util;
 
 // =============================================================================
 // Test Fixtures and Helpers
@@ -372,7 +372,8 @@ TEST_CASE("ObjectTable ReleaseHandle on invalid handle returns error", "[kernel]
   CHECK(status == X_STATUS_INVALID_HANDLE);
 }
 
-TEST_CASE("ObjectTable DuplicateHandle creates new handle for same object", "[kernel][object_table]") {
+TEST_CASE("ObjectTable DuplicateHandle creates new handle for same object",
+          "[kernel][object_table]") {
   InitTestLogging();
 
   ObjectTable table;
@@ -492,7 +493,8 @@ TEST_CASE("ObjectTable name collision is case-insensitive", "[kernel][object_tab
   table.Reset();
 }
 
-TEST_CASE("ObjectTable GetObjectByName returns not found for missing name", "[kernel][object_table]") {
+TEST_CASE("ObjectTable GetObjectByName returns not found for missing name",
+          "[kernel][object_table]") {
   InitTestLogging();
 
   ObjectTable table;

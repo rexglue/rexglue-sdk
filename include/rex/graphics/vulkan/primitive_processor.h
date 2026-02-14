@@ -10,7 +10,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <memory>
 #include <utility>
 
@@ -25,8 +24,7 @@ class VulkanCommandProcessor;
 class VulkanPrimitiveProcessor final : public PrimitiveProcessor {
  public:
   VulkanPrimitiveProcessor(const RegisterFile& register_file, memory::Memory& memory,
-                           TraceWriter& trace_writer,
-                           SharedMemory& shared_memory,
+                           TraceWriter& trace_writer, SharedMemory& shared_memory,
                            VulkanCommandProcessor& command_processor)
       : PrimitiveProcessor(register_file, memory, trace_writer, shared_memory),
         command_processor_(command_processor) {}
@@ -44,23 +42,21 @@ class VulkanPrimitiveProcessor final : public PrimitiveProcessor {
 
   std::pair<VkBuffer, VkDeviceSize> GetBuiltinIndexBuffer(size_t handle) const {
     assert_not_null(builtin_index_buffer_);
-    return std::make_pair(
-        builtin_index_buffer_,
-        VkDeviceSize(GetBuiltinIndexBufferOffsetBytes(handle)));
+    return std::make_pair(builtin_index_buffer_,
+                          VkDeviceSize(GetBuiltinIndexBufferOffsetBytes(handle)));
   }
-  std::pair<VkBuffer, VkDeviceSize> GetConvertedIndexBuffer(
-      size_t handle) const {
+  std::pair<VkBuffer, VkDeviceSize> GetConvertedIndexBuffer(size_t handle) const {
     return frame_index_buffers_[handle];
   }
 
  protected:
-  bool InitializeBuiltinIndexBuffer(
-      size_t size_bytes, std::function<void(void*)> fill_callback) override;
+  bool InitializeBuiltinIndexBuffer(size_t size_bytes,
+                                    std::function<void(void*)> fill_callback) override;
 
-  void* RequestHostConvertedIndexBufferForCurrentFrame(
-      xenos::IndexFormat format, uint32_t index_count, bool coalign_for_simd,
-      uint32_t coalignment_original_address,
-      size_t& backend_handle_out) override;
+  void* RequestHostConvertedIndexBufferForCurrentFrame(xenos::IndexFormat format,
+                                                       uint32_t index_count, bool coalign_for_simd,
+                                                       uint32_t coalignment_original_address,
+                                                       size_t& backend_handle_out) override;
 
  private:
   VulkanCommandProcessor& command_processor_;
@@ -83,4 +79,3 @@ class VulkanPrimitiveProcessor final : public PrimitiveProcessor {
 };
 
 }  // namespace rex::graphics::vulkan
-

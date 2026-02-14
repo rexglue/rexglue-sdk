@@ -9,15 +9,14 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/memory/ring_buffer.h>
-
 #include <algorithm>
 #include <cstring>
 
+#include <rex/memory/ring_buffer.h>
+
 namespace rex::memory {
 
-RingBuffer::RingBuffer(uint8_t* buffer, size_t capacity)
-    : buffer_(buffer), capacity_(capacity) {}
+RingBuffer::RingBuffer(uint8_t* buffer, size_t capacity) : buffer_(buffer), capacity_(capacity) {}
 
 void RingBuffer::AdvanceRead(size_t count) {
   if (read_offset_ + count < capacity_) {

@@ -10,15 +10,13 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
-#include <rex/runtime/export_resolver.h>
+#include <rex/system/export_resolver.h>
 
 // Build an ordinal enum to make it easy to lookup ordinals.
-#include <rex/kernel/util/ordinal_table_pre.inc>
+#include <rex/system/util/ordinal_table_pre.inc>
 namespace ordinals {
 enum {
 #include <rex/kernel/xam/table.inc>
 };
 }  // namespace ordinals
-#include <rex/kernel/util/ordinal_table_post.inc>
-
+#include <rex/system/util/ordinal_table_post.inc>

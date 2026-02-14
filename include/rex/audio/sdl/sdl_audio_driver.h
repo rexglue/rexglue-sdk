@@ -15,10 +15,10 @@
 #include <queue>
 #include <stack>
 
-#include <SDL.h>
-
 #include <rex/audio/audio_driver.h>
 #include <rex/thread.h>
+
+#include <SDL.h>
 
 namespace rex::audio::sdl {
 

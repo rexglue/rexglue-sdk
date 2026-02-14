@@ -9,22 +9,18 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/filesystem/devices/host_path_device.h>
+#include "host_path_entry.h"
 
 #include <rex/filesystem.h>
+#include <rex/filesystem/devices/host_path_device.h>
 #include <rex/logging.h>
 #include <rex/math.h>
-#include "host_path_entry.h"
 
 namespace rex::filesystem {
 
 HostPathDevice::HostPathDevice(const std::string_view mount_path,
-                               const std::filesystem::path& host_path,
-                               bool read_only)
-    : Device(mount_path),
-      name_("STFS"),
-      host_path_(host_path),
-      read_only_(read_only) {}
+                               const std::filesystem::path& host_path, bool read_only)
+    : Device(mount_path), name_("STFS"), host_path_(host_path), read_only_(read_only) {}
 
 HostPathDevice::~HostPathDevice() = default;
 
@@ -62,9 +58,8 @@ Entry* HostPathDevice::ResolvePath(const std::string_view path) {
 void HostPathDevice::PopulateEntry(HostPathEntry* parent_entry) {
   auto child_infos = rex::filesystem::ListFiles(parent_entry->host_path());
   for (auto& child_info : child_infos) {
-    auto child = HostPathEntry::Create(
-        this, parent_entry, parent_entry->host_path() / child_info.name,
-        child_info);
+    auto child = HostPathEntry::Create(this, parent_entry,
+                                       parent_entry->host_path() / child_info.name, child_info);
     parent_entry->children_.push_back(std::unique_ptr<Entry>(child));
 
     if (child_info.type == rex::filesystem::FileInfo::Type::kDirectory) {

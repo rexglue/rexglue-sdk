@@ -9,24 +9,24 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
- // Disable warnings about unused parameters for kernel functions
+// Disable warnings about unused parameters for kernel functions
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
 #include <cstring>
 
+#include <rex/assert.h>
 #include <rex/audio/audio_system.h>
 #include <rex/audio/xma/decoder.h>
-#include <rex/assert.h>
-#include <rex/logging.h>
-#include <rex/runtime.h>
-#include <rex/kernel/kernel_state.h>
-#include <rex/runtime/guest/function.h>
-#include <rex/runtime/guest/types.h>
 #include <rex/kernel/xboxkrnl/private.h>
-#include <rex/kernel/xtypes.h>
+#include <rex/logging.h>
+#include <rex/ppc/function.h>
+#include <rex/ppc/types.h>
+#include <rex/runtime.h>
+#include <rex/system/kernel_state.h>
+#include <rex/system/xtypes.h>
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::runtime::guest;
+using namespace rex::system;
 
 using rex::audio::XMA_CONTEXT_DATA;
 
@@ -63,8 +63,9 @@ using rex::audio::XMA_CONTEXT_DATA;
 // restrictions of frame/subframe/etc:
 // https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.xaudio2.xaudio2_buffer(v=vs.85).aspx
 
-dword_result_t XMACreateContext_entry(lpdword_t context_out_ptr) {
-  auto xma_decoder = kernel_state()->emulator()->audio_system()->xma_decoder();
+ppc_u32_result_t XMACreateContext_entry(ppc_pu32_t context_out_ptr) {
+  auto xma_decoder =
+      static_cast<audio::AudioSystem*>(kernel_state()->emulator()->audio_system())->xma_decoder();
   uint32_t context_ptr = xma_decoder->AllocateContext();
   *context_out_ptr = context_ptr;
   if (!context_ptr) {
@@ -73,21 +74,21 @@ dword_result_t XMACreateContext_entry(lpdword_t context_out_ptr) {
   return X_STATUS_SUCCESS;
 }
 
-dword_result_t XMAReleaseContext_entry(lpvoid_t context_ptr) {
-  auto xma_decoder = kernel_state()->emulator()->audio_system()->xma_decoder();
-  xma_decoder->ReleaseContext(context_ptr);
+ppc_u32_result_t XMAReleaseContext_entry(ppc_pvoid_t context_ptr) {
+  auto xma_decoder =
+      static_cast<audio::AudioSystem*>(kernel_state()->emulator()->audio_system())->xma_decoder();
+  xma_decoder->ReleaseContext(context_ptr.guest_address());
   return 0;
 }
 
-void StoreXmaContextIndexedRegister(KernelState* kernel_state,
-                                    uint32_t base_reg, uint32_t context_ptr) {
-  uint32_t context_physical_address =
-      kernel_memory()->GetPhysicalAddress(context_ptr);
+void StoreXmaContextIndexedRegister(system::KernelState* kernel_state, uint32_t base_reg,
+                                    uint32_t context_ptr) {
+  uint32_t context_physical_address = kernel_memory()->GetPhysicalAddress(context_ptr);
   assert_true(context_physical_address != UINT32_MAX);
-  auto xma_decoder = kernel_state->emulator()->audio_system()->xma_decoder();
+  auto xma_decoder =
+      static_cast<audio::AudioSystem*>(kernel_state->emulator()->audio_system())->xma_decoder();
   uint32_t hw_index =
-      (context_physical_address - xma_decoder->context_array_ptr()) /
-      sizeof(XMA_CONTEXT_DATA);
+      (context_physical_address - xma_decoder->context_array_ptr()) / sizeof(XMA_CONTEXT_DATA);
   uint32_t reg_num = base_reg + (hw_index >> 5) * 4;
   uint32_t reg_value = 1 << (hw_index & 0x1F);
   xma_decoder->WriteRegister(reg_num, rex::byte_swap(reg_value));
@@ -118,34 +119,30 @@ struct XMA_CONTEXT_INIT {
 };
 static_assert_size(XMA_CONTEXT_INIT, 56);
 
-dword_result_t XMAInitializeContext_entry(
-    lpvoid_t context_ptr, pointer_t<XMA_CONTEXT_INIT> context_init) {
+ppc_u32_result_t XMAInitializeContext_entry(ppc_pvoid_t context_ptr,
+                                            ppc_ptr_t<XMA_CONTEXT_INIT> context_init) {
   // Input buffers may be null (buffer 1 in 415607D4).
   // Convert to host endianness.
   uint32_t input_buffer_0_guest_ptr = context_init->input_buffer_0_ptr;
   uint32_t input_buffer_0_physical_address = 0;
   if (input_buffer_0_guest_ptr) {
-    input_buffer_0_physical_address =
-        kernel_memory()->GetPhysicalAddress(input_buffer_0_guest_ptr);
+    input_buffer_0_physical_address = kernel_memory()->GetPhysicalAddress(input_buffer_0_guest_ptr);
     // Xenia-specific safety check.
     assert_true(input_buffer_0_physical_address != UINT32_MAX);
     if (input_buffer_0_physical_address == UINT32_MAX) {
-      REXKRNL_ERROR(
-          "XMAInitializeContext: Invalid input buffer 0 virtual address {:08X}",
-          input_buffer_0_guest_ptr);
+      REXKRNL_ERROR("XMAInitializeContext: Invalid input buffer 0 virtual address {:08X}",
+                    input_buffer_0_guest_ptr);
       return X_E_FALSE;
     }
   }
   uint32_t input_buffer_1_guest_ptr = context_init->input_buffer_1_ptr;
   uint32_t input_buffer_1_physical_address = 0;
   if (input_buffer_1_guest_ptr) {
-    input_buffer_1_physical_address =
-        kernel_memory()->GetPhysicalAddress(input_buffer_1_guest_ptr);
+    input_buffer_1_physical_address = kernel_memory()->GetPhysicalAddress(input_buffer_1_guest_ptr);
     assert_true(input_buffer_1_physical_address != UINT32_MAX);
     if (input_buffer_1_physical_address == UINT32_MAX) {
-      REXKRNL_ERROR(
-          "XMAInitializeContext: Invalid input buffer 1 virtual address {:08X}",
-          input_buffer_1_guest_ptr);
+      REXKRNL_ERROR("XMAInitializeContext: Invalid input buffer 1 virtual address {:08X}",
+                    input_buffer_1_guest_ptr);
       return X_E_FALSE;
     }
   }
@@ -156,7 +153,7 @@ dword_result_t XMAInitializeContext_entry(
   assert_true(output_buffer_physical_address != UINT32_MAX);
   if (output_buffer_physical_address == UINT32_MAX) {
     REXKRNL_ERROR("XMAInitializeContext: Invalid output buffer virtual address {:08X}",
-           output_buffer_guest_ptr);
+                  output_buffer_guest_ptr);
     return X_E_FALSE;
   }
 
@@ -165,11 +162,9 @@ dword_result_t XMAInitializeContext_entry(
   XMA_CONTEXT_DATA context(context_ptr);
 
   context.input_buffer_0_ptr = input_buffer_0_physical_address;
-  context.input_buffer_0_packet_count =
-      context_init->input_buffer_0_packet_count;
+  context.input_buffer_0_packet_count = context_init->input_buffer_0_packet_count;
   context.input_buffer_1_ptr = input_buffer_1_physical_address;
-  context.input_buffer_1_packet_count =
-      context_init->input_buffer_1_packet_count;
+  context.input_buffer_1_packet_count = context_init->input_buffer_1_packet_count;
   context.input_buffer_read_offset = context_init->input_buffer_read_offset;
   context.output_buffer_ptr = output_buffer_physical_address;
   context.output_buffer_block_count = context_init->output_buffer_block_count;
@@ -187,13 +182,13 @@ dword_result_t XMAInitializeContext_entry(
 
   context.Store(context_ptr);
 
-  StoreXmaContextIndexedRegister(kernel_state(), 0x1A80, context_ptr);
+  StoreXmaContextIndexedRegister(kernel_state(), 0x1A80, context_ptr.guest_address());
 
   return 0;
 }
 
-dword_result_t XMASetLoopData_entry(lpvoid_t context_ptr,
-                                    pointer_t<XMA_CONTEXT_DATA> loop_data) {
+ppc_u32_result_t XMASetLoopData_entry(ppc_pvoid_t context_ptr,
+                                      ppc_ptr_t<XMA_CONTEXT_DATA> loop_data) {
   XMA_CONTEXT_DATA context(context_ptr);
 
   context.loop_start = loop_data->loop_start;
@@ -207,13 +202,12 @@ dword_result_t XMASetLoopData_entry(lpvoid_t context_ptr,
   return 0;
 }
 
-dword_result_t XMAGetInputBufferReadOffset_entry(lpvoid_t context_ptr) {
+ppc_u32_result_t XMAGetInputBufferReadOffset_entry(ppc_pvoid_t context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.input_buffer_read_offset;
 }
 
-dword_result_t XMASetInputBufferReadOffset_entry(lpvoid_t context_ptr,
-                                                 dword_t value) {
+ppc_u32_result_t XMASetInputBufferReadOffset_entry(ppc_pvoid_t context_ptr, ppc_u32_t value) {
   XMA_CONTEXT_DATA context(context_ptr);
   context.input_buffer_read_offset = value;
   context.Store(context_ptr);
@@ -221,15 +215,14 @@ dword_result_t XMASetInputBufferReadOffset_entry(lpvoid_t context_ptr,
   return 0;
 }
 
-dword_result_t XMASetInputBuffer0_entry(lpvoid_t context_ptr, lpvoid_t buffer,
-                                        dword_t packet_count) {
-  uint32_t buffer_physical_address =
-      kernel_memory()->GetPhysicalAddress(buffer.guest_address());
+ppc_u32_result_t XMASetInputBuffer0_entry(ppc_pvoid_t context_ptr, ppc_pvoid_t buffer,
+                                          ppc_u32_t packet_count) {
+  uint32_t buffer_physical_address = kernel_memory()->GetPhysicalAddress(buffer.guest_address());
   assert_true(buffer_physical_address != UINT32_MAX);
   if (buffer_physical_address == UINT32_MAX) {
     // Xenia-specific safety check.
     REXKRNL_ERROR("XMASetInputBuffer0: Invalid buffer virtual address {:08X}",
-           buffer.guest_address());
+                  buffer.guest_address());
     return X_E_FALSE;
   }
 
@@ -243,12 +236,12 @@ dword_result_t XMASetInputBuffer0_entry(lpvoid_t context_ptr, lpvoid_t buffer,
   return 0;
 }
 
-dword_result_t XMAIsInputBuffer0Valid_entry(lpvoid_t context_ptr) {
+ppc_u32_result_t XMAIsInputBuffer0Valid_entry(ppc_pvoid_t context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.input_buffer_0_valid;
 }
 
-dword_result_t XMASetInputBuffer0Valid_entry(lpvoid_t context_ptr) {
+ppc_u32_result_t XMASetInputBuffer0Valid_entry(ppc_pvoid_t context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   context.input_buffer_0_valid = 1;
   context.Store(context_ptr);
@@ -256,15 +249,14 @@ dword_result_t XMASetInputBuffer0Valid_entry(lpvoid_t context_ptr) {
   return 0;
 }
 
-dword_result_t XMASetInputBuffer1_entry(lpvoid_t context_ptr, lpvoid_t buffer,
-                                        dword_t packet_count) {
-  uint32_t buffer_physical_address =
-      kernel_memory()->GetPhysicalAddress(buffer.guest_address());
+ppc_u32_result_t XMASetInputBuffer1_entry(ppc_pvoid_t context_ptr, ppc_pvoid_t buffer,
+                                          ppc_u32_t packet_count) {
+  uint32_t buffer_physical_address = kernel_memory()->GetPhysicalAddress(buffer.guest_address());
   assert_true(buffer_physical_address != UINT32_MAX);
   if (buffer_physical_address == UINT32_MAX) {
     // Xenia-specific safety check.
     REXKRNL_ERROR("XMASetInputBuffer1: Invalid buffer virtual address {:08X}",
-           buffer.guest_address());
+                  buffer.guest_address());
     return X_E_FALSE;
   }
 
@@ -278,12 +270,12 @@ dword_result_t XMASetInputBuffer1_entry(lpvoid_t context_ptr, lpvoid_t buffer,
   return 0;
 }
 
-dword_result_t XMAIsInputBuffer1Valid_entry(lpvoid_t context_ptr) {
+ppc_u32_result_t XMAIsInputBuffer1Valid_entry(ppc_pvoid_t context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.input_buffer_1_valid;
 }
 
-dword_result_t XMASetInputBuffer1Valid_entry(lpvoid_t context_ptr) {
+ppc_u32_result_t XMASetInputBuffer1Valid_entry(ppc_pvoid_t context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   context.input_buffer_1_valid = 1;
   context.Store(context_ptr);
@@ -291,12 +283,12 @@ dword_result_t XMASetInputBuffer1Valid_entry(lpvoid_t context_ptr) {
   return 0;
 }
 
-dword_result_t XMAIsOutputBufferValid_entry(lpvoid_t context_ptr) {
+ppc_u32_result_t XMAIsOutputBufferValid_entry(ppc_pvoid_t context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.output_buffer_valid;
 }
 
-dword_result_t XMASetOutputBufferValid_entry(lpvoid_t context_ptr) {
+ppc_u32_result_t XMASetOutputBufferValid_entry(ppc_pvoid_t context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   context.output_buffer_valid = 1;
   context.Store(context_ptr);
@@ -304,13 +296,12 @@ dword_result_t XMASetOutputBufferValid_entry(lpvoid_t context_ptr) {
   return 0;
 }
 
-dword_result_t XMAGetOutputBufferReadOffset_entry(lpvoid_t context_ptr) {
+ppc_u32_result_t XMAGetOutputBufferReadOffset_entry(ppc_pvoid_t context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.output_buffer_read_offset;
 }
 
-dword_result_t XMASetOutputBufferReadOffset_entry(lpvoid_t context_ptr,
-                                                  dword_t value) {
+ppc_u32_result_t XMASetOutputBufferReadOffset_entry(ppc_pvoid_t context_ptr, ppc_u32_t value) {
   XMA_CONTEXT_DATA context(context_ptr);
   context.output_buffer_read_offset = value;
   context.Store(context_ptr);
@@ -318,35 +309,33 @@ dword_result_t XMASetOutputBufferReadOffset_entry(lpvoid_t context_ptr,
   return 0;
 }
 
-dword_result_t XMAGetOutputBufferWriteOffset_entry(lpvoid_t context_ptr) {
+ppc_u32_result_t XMAGetOutputBufferWriteOffset_entry(ppc_pvoid_t context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.output_buffer_write_offset;
 }
 
-dword_result_t XMAGetPacketMetadata_entry(lpvoid_t context_ptr) {
+ppc_u32_result_t XMAGetPacketMetadata_entry(ppc_pvoid_t context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.packet_metadata;
 }
 
-dword_result_t XMAEnableContext_entry(lpvoid_t context_ptr) {
-  StoreXmaContextIndexedRegister(kernel_state(), 0x1940, context_ptr);
+ppc_u32_result_t XMAEnableContext_entry(ppc_pvoid_t context_ptr) {
+  StoreXmaContextIndexedRegister(kernel_state(), 0x1940, context_ptr.guest_address());
   return 0;
 }
 
-dword_result_t XMADisableContext_entry(lpvoid_t context_ptr, dword_t wait) {
+ppc_u32_result_t XMADisableContext_entry(ppc_pvoid_t context_ptr, ppc_u32_t wait) {
   X_HRESULT result = X_E_SUCCESS;
-  StoreXmaContextIndexedRegister(kernel_state(), 0x1A40, context_ptr);
-  if (!kernel_state()
-           ->emulator()
-           ->audio_system()
+  StoreXmaContextIndexedRegister(kernel_state(), 0x1A40, context_ptr.guest_address());
+  if (!static_cast<audio::AudioSystem*>(kernel_state()->emulator()->audio_system())
            ->xma_decoder()
-           ->BlockOnContext(context_ptr, !wait)) {
+           ->BlockOnContext(context_ptr.guest_address(), !wait)) {
     result = X_E_FALSE;
   }
   return result;
 }
 
-dword_result_t XMABlockWhileInUse_entry(lpvoid_t context_ptr) {
+ppc_u32_result_t XMABlockWhileInUse_entry(ppc_pvoid_t context_ptr) {
   do {
     XMA_CONTEXT_DATA context(context_ptr);
     if (!context.input_buffer_0_valid && !context.input_buffer_1_valid) {
@@ -359,24 +348,29 @@ dword_result_t XMABlockWhileInUse_entry(lpvoid_t context_ptr) {
 
 }  // namespace rex::kernel::xboxkrnl
 
-GUEST_FUNCTION_HOOK(__imp__XMACreateContext, rex::kernel::xboxkrnl::XMACreateContext_entry)
-GUEST_FUNCTION_HOOK(__imp__XMAReleaseContext, rex::kernel::xboxkrnl::XMAReleaseContext_entry)
-GUEST_FUNCTION_HOOK(__imp__XMAInitializeContext, rex::kernel::xboxkrnl::XMAInitializeContext_entry)
-GUEST_FUNCTION_HOOK(__imp__XMASetLoopData, rex::kernel::xboxkrnl::XMASetLoopData_entry)
-GUEST_FUNCTION_HOOK(__imp__XMAGetInputBufferReadOffset, rex::kernel::xboxkrnl::XMAGetInputBufferReadOffset_entry)
-GUEST_FUNCTION_HOOK(__imp__XMASetInputBufferReadOffset, rex::kernel::xboxkrnl::XMASetInputBufferReadOffset_entry)
-GUEST_FUNCTION_HOOK(__imp__XMASetInputBuffer0, rex::kernel::xboxkrnl::XMASetInputBuffer0_entry)
-GUEST_FUNCTION_HOOK(__imp__XMAIsInputBuffer0Valid, rex::kernel::xboxkrnl::XMAIsInputBuffer0Valid_entry)
-GUEST_FUNCTION_HOOK(__imp__XMASetInputBuffer0Valid, rex::kernel::xboxkrnl::XMASetInputBuffer0Valid_entry)
-GUEST_FUNCTION_HOOK(__imp__XMASetInputBuffer1, rex::kernel::xboxkrnl::XMASetInputBuffer1_entry)
-GUEST_FUNCTION_HOOK(__imp__XMAIsInputBuffer1Valid, rex::kernel::xboxkrnl::XMAIsInputBuffer1Valid_entry)
-GUEST_FUNCTION_HOOK(__imp__XMASetInputBuffer1Valid, rex::kernel::xboxkrnl::XMASetInputBuffer1Valid_entry)
-GUEST_FUNCTION_HOOK(__imp__XMAIsOutputBufferValid, rex::kernel::xboxkrnl::XMAIsOutputBufferValid_entry)
-GUEST_FUNCTION_HOOK(__imp__XMASetOutputBufferValid, rex::kernel::xboxkrnl::XMASetOutputBufferValid_entry)
-GUEST_FUNCTION_HOOK(__imp__XMAGetOutputBufferReadOffset, rex::kernel::xboxkrnl::XMAGetOutputBufferReadOffset_entry)
-GUEST_FUNCTION_HOOK(__imp__XMASetOutputBufferReadOffset, rex::kernel::xboxkrnl::XMASetOutputBufferReadOffset_entry)
-GUEST_FUNCTION_HOOK(__imp__XMAGetOutputBufferWriteOffset, rex::kernel::xboxkrnl::XMAGetOutputBufferWriteOffset_entry)
-GUEST_FUNCTION_HOOK(__imp__XMAGetPacketMetadata, rex::kernel::xboxkrnl::XMAGetPacketMetadata_entry)
-GUEST_FUNCTION_HOOK(__imp__XMAEnableContext, rex::kernel::xboxkrnl::XMAEnableContext_entry)
-GUEST_FUNCTION_HOOK(__imp__XMADisableContext, rex::kernel::xboxkrnl::XMADisableContext_entry)
-GUEST_FUNCTION_HOOK(__imp__XMABlockWhileInUse, rex::kernel::xboxkrnl::XMABlockWhileInUse_entry)
+PPC_HOOK(__imp__XMACreateContext, rex::kernel::xboxkrnl::XMACreateContext_entry)
+PPC_HOOK(__imp__XMAReleaseContext, rex::kernel::xboxkrnl::XMAReleaseContext_entry)
+PPC_HOOK(__imp__XMAInitializeContext, rex::kernel::xboxkrnl::XMAInitializeContext_entry)
+PPC_HOOK(__imp__XMASetLoopData, rex::kernel::xboxkrnl::XMASetLoopData_entry)
+PPC_HOOK(__imp__XMAGetInputBufferReadOffset,
+         rex::kernel::xboxkrnl::XMAGetInputBufferReadOffset_entry)
+PPC_HOOK(__imp__XMASetInputBufferReadOffset,
+         rex::kernel::xboxkrnl::XMASetInputBufferReadOffset_entry)
+PPC_HOOK(__imp__XMASetInputBuffer0, rex::kernel::xboxkrnl::XMASetInputBuffer0_entry)
+PPC_HOOK(__imp__XMAIsInputBuffer0Valid, rex::kernel::xboxkrnl::XMAIsInputBuffer0Valid_entry)
+PPC_HOOK(__imp__XMASetInputBuffer0Valid, rex::kernel::xboxkrnl::XMASetInputBuffer0Valid_entry)
+PPC_HOOK(__imp__XMASetInputBuffer1, rex::kernel::xboxkrnl::XMASetInputBuffer1_entry)
+PPC_HOOK(__imp__XMAIsInputBuffer1Valid, rex::kernel::xboxkrnl::XMAIsInputBuffer1Valid_entry)
+PPC_HOOK(__imp__XMASetInputBuffer1Valid, rex::kernel::xboxkrnl::XMASetInputBuffer1Valid_entry)
+PPC_HOOK(__imp__XMAIsOutputBufferValid, rex::kernel::xboxkrnl::XMAIsOutputBufferValid_entry)
+PPC_HOOK(__imp__XMASetOutputBufferValid, rex::kernel::xboxkrnl::XMASetOutputBufferValid_entry)
+PPC_HOOK(__imp__XMAGetOutputBufferReadOffset,
+         rex::kernel::xboxkrnl::XMAGetOutputBufferReadOffset_entry)
+PPC_HOOK(__imp__XMASetOutputBufferReadOffset,
+         rex::kernel::xboxkrnl::XMASetOutputBufferReadOffset_entry)
+PPC_HOOK(__imp__XMAGetOutputBufferWriteOffset,
+         rex::kernel::xboxkrnl::XMAGetOutputBufferWriteOffset_entry)
+PPC_HOOK(__imp__XMAGetPacketMetadata, rex::kernel::xboxkrnl::XMAGetPacketMetadata_entry)
+PPC_HOOK(__imp__XMAEnableContext, rex::kernel::xboxkrnl::XMAEnableContext_entry)
+PPC_HOOK(__imp__XMADisableContext, rex::kernel::xboxkrnl::XMADisableContext_entry)
+PPC_HOOK(__imp__XMABlockWhileInUse, rex::kernel::xboxkrnl::XMABlockWhileInUse_entry)

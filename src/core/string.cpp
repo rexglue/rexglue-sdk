@@ -13,17 +13,12 @@
  *              - Renamed xe_* functions to cleaner names
  */
 
-#include <rex/string.h>
-
 #include <string.h>
+
 #include <algorithm>
 #include <locale>
 
-#include <rex/platform.h>
-
-#if !REX_PLATFORM_WIN32
-#include <strings.h>
-#endif  // !REX_PLATFORM_WIN32
+#include <rex/string.h>
 
 #define UTF_CPP_CPLUSPLUS 201703L
 #include <utf8.h>
@@ -31,30 +26,6 @@
 namespace utfcpp = utf8;
 
 namespace rex::string {
-
-int compare_case(const char* string1, const char* string2) {
-#if REX_PLATFORM_WIN32
-  return _stricmp(string1, string2);
-#else
-  return strcasecmp(string1, string2);
-#endif  // REX_PLATFORM_WIN32
-}
-
-int compare_case_n(const char* string1, const char* string2, size_t count) {
-#if REX_PLATFORM_WIN32
-  return _strnicmp(string1, string2, count);
-#else
-  return strncasecmp(string1, string2, count);
-#endif  // REX_PLATFORM_WIN32
-}
-
-char* duplicate(const char* source) {
-#if REX_PLATFORM_WIN32
-  return _strdup(source);
-#else
-  return strdup(source);
-#endif  // REX_PLATFORM_WIN32
-}
 
 std::string to_utf8(const std::u16string_view source) {
   return utfcpp::utf16to8(source);

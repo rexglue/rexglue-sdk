@@ -25,8 +25,7 @@ class NullEntry : public Entry {
   NullEntry(Device* device, Entry* parent, std::string path);
   ~NullEntry() override;
 
-  static NullEntry* Create(Device* device, Entry* parent,
-                           const std::string& path);
+  static NullEntry* Create(Device* device, Entry* parent, const std::string& path);
 
   X_STATUS Open(uint32_t desired_access, File** out_file) override;
 
@@ -37,4 +36,3 @@ class NullEntry : public Entry {
 };
 
 }  // namespace rex::filesystem
-

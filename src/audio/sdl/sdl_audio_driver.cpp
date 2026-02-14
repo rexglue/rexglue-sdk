@@ -9,21 +9,18 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/audio/sdl/sdl_audio_driver.h>
-
 #include <array>
 #include <cstring>
 
-#include <rex/audio/flags.h>
-#include <rex/audio/conversion.h>
 #include <rex/assert.h>
+#include <rex/audio/conversion.h>
+#include <rex/audio/flags.h>
+#include <rex/audio/sdl/sdl_audio_driver.h>
 #include <rex/cvar.h>
+#include <rex/dbg.h>
 #include <rex/logging.h>
-#include <rex/profiling.h>
 
-REXCVAR_DEFINE_BOOL(audio_mute, false,
-    "Mute audio output",
-    "Audio");
+REXCVAR_DEFINE_BOOL(audio_mute, false, "Audio", "Mute audio output");
 
 namespace rex::audio::sdl {
 
@@ -39,7 +36,7 @@ bool SDLAudioDriver::Initialize() {
   SDL_version ver = {};
   SDL_GetVersion(&ver);
   if ((ver.major < 2) || (ver.major == 2 && ver.minor == 0 && ver.patch < 8)) {
-      REXAPU_WARN(
+    REXAPU_WARN(
         "SDL library version {}.{}.{} is outdated. "
         "You may experience choppy audio.",
         ver.major, ver.minor, ver.patch);
@@ -74,8 +71,7 @@ bool SDLAudioDriver::Initialize() {
   // Allow the hardware to decide between 5.1 and stereo
   int allowed_change = SDL_AUDIO_ALLOW_CHANNELS_CHANGE;
   for (int i = 0; i < 2; i++) {
-    sdl_device_id_ = SDL_OpenAudioDevice(nullptr, 0, &desired_spec,
-                                         &obtained_spec, allowed_change);
+    sdl_device_id_ = SDL_OpenAudioDevice(nullptr, 0, &desired_spec, &obtained_spec, allowed_change);
     if (sdl_device_id_ <= 0) {
       REXAPU_ERROR("SDL_OpenAudioDevice() failed: {}", SDL_GetError());
       return false;
@@ -161,12 +157,12 @@ void SDLAudioDriver::SDLCallback(void* userdata, Uint8* stream, int len) {
     } else {
       switch (driver->sdl_device_channels_) {
         case 2:
-          conversion::sequential_6_BE_to_interleaved_2_LE(
-              reinterpret_cast<float*>(stream), buffer, channel_samples_);
+          conversion::sequential_6_BE_to_interleaved_2_LE(reinterpret_cast<float*>(stream), buffer,
+                                                          channel_samples_);
           break;
         case 6:
-          conversion::sequential_6_BE_to_interleaved_6_LE(
-              reinterpret_cast<float*>(stream), buffer, channel_samples_);
+          conversion::sequential_6_BE_to_interleaved_6_LE(reinterpret_cast<float*>(stream), buffer,
+                                                          channel_samples_);
           break;
         default:
           assert_unhandled_case(driver->sdl_device_channels_);

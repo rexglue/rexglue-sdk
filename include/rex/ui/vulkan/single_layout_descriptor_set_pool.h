@@ -10,7 +10,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -28,11 +27,10 @@ class SingleLayoutDescriptorSetPool {
   // each type in a single set with the layout (the multiplication by the pool
   // set count will be done internally). The descriptor set layout must not be
   // destroyed until this object is also destroyed.
-  SingleLayoutDescriptorSetPool(
-      const VulkanDevice* vulkan_device, uint32_t pool_set_count,
-      uint32_t set_layout_descriptor_counts_count,
-      const VkDescriptorPoolSize* set_layout_descriptor_counts,
-      VkDescriptorSetLayout set_layout);
+  SingleLayoutDescriptorSetPool(const VulkanDevice* vulkan_device, uint32_t pool_set_count,
+                                uint32_t set_layout_descriptor_counts_count,
+                                const VkDescriptorPoolSize* set_layout_descriptor_counts,
+                                VkDescriptorSetLayout set_layout);
   ~SingleLayoutDescriptorSetPool();
 
   // Returns SIZE_MAX in case of a failure.
@@ -59,5 +57,4 @@ class SingleLayoutDescriptorSetPool {
 
 }  // namespace vulkan
 }  // namespace ui
-}  // namespace xe
-
+}  // namespace rex

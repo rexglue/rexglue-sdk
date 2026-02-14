@@ -10,7 +10,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <memory>
 #include <mutex>
 #include <vector>
@@ -23,9 +22,10 @@ namespace vulkan {
 
 class VulkanDevice {
  public:
-  static std::unique_ptr<VulkanDevice> CreateIfSupported(
-      const VulkanInstance* vulkan_instance, VkPhysicalDevice physical_device,
-      bool with_gpu_emulation, bool with_swapchain);
+  static std::unique_ptr<VulkanDevice> CreateIfSupported(const VulkanInstance* vulkan_instance,
+                                                         VkPhysicalDevice physical_device,
+                                                         bool with_gpu_emulation,
+                                                         bool with_swapchain);
 
   VulkanDevice(const VulkanDevice&) = delete;
   VulkanDevice& operator=(const VulkanDevice&) = delete;
@@ -44,8 +44,7 @@ class VulkanDevice {
   // designed to use"
   // "The patch version number specified in apiVersion is ignored when creating
   // an instance object"
-  static constexpr uint32_t kHighestUsedApiMinorVersion =
-      VK_MAKE_API_VERSION(0, 1, 3, 0);
+  static constexpr uint32_t kHighestUsedApiMinorVersion = VK_MAKE_API_VERSION(0, 1, 3, 0);
 
   struct Properties {
     // Vulkan 1.0
@@ -77,10 +76,8 @@ class VulkanDevice {
     VkDeviceSize minStorageBufferOffsetAlignment = 256;
     uint32_t maxFramebufferWidth = 4096;
     uint32_t maxFramebufferHeight = 4096;
-    VkSampleCountFlags framebufferColorSampleCounts =
-        VK_SAMPLE_COUNT_1_BIT | VK_SAMPLE_COUNT_4_BIT;
-    VkSampleCountFlags framebufferDepthSampleCounts =
-        VK_SAMPLE_COUNT_1_BIT | VK_SAMPLE_COUNT_4_BIT;
+    VkSampleCountFlags framebufferColorSampleCounts = VK_SAMPLE_COUNT_1_BIT | VK_SAMPLE_COUNT_4_BIT;
+    VkSampleCountFlags framebufferDepthSampleCounts = VK_SAMPLE_COUNT_1_BIT | VK_SAMPLE_COUNT_4_BIT;
     VkSampleCountFlags framebufferStencilSampleCounts =
         VK_SAMPLE_COUNT_1_BIT | VK_SAMPLE_COUNT_4_BIT;
     VkSampleCountFlags framebufferNoAttachmentsSampleCounts =
@@ -212,8 +209,7 @@ class VulkanDevice {
     object_name_info.objectType = object_type;
     object_name_info.objectHandle = (uint64_t)object_handle;
     object_name_info.pObjectName = object_name;
-    vulkan_instance()->functions().vkSetDebugUtilsObjectNameEXT(
-        device(), &object_name_info);
+    vulkan_instance()->functions().vkSetDebugUtilsObjectNameEXT(device(), &object_name_info);
   }
 
   struct Queue {
@@ -225,8 +221,7 @@ class VulkanDevice {
 
     class Acquisition {
      public:
-      explicit Acquisition(Queue& queue)
-          : lock_(queue.mutex), queue_(queue.queue) {}
+      explicit Acquisition(Queue& queue) : lock_(queue.mutex), queue_(queue.queue) {}
 
       VkQueue queue() const { return queue_; }
 
@@ -244,17 +239,11 @@ class VulkanDevice {
     std::vector<std::unique_ptr<Queue>> queues;
   };
 
-  const std::vector<QueueFamily>& queue_families() const {
-    return queue_families_;
-  }
-  uint32_t queue_family_graphics_compute() const {
-    return queue_family_graphics_compute_;
-  }
+  const std::vector<QueueFamily>& queue_families() const { return queue_families_; }
+  uint32_t queue_family_graphics_compute() const { return queue_family_graphics_compute_; }
   // UINT32_MAX if not supported or not enabled.
   // May be the same as queue_family_graphics_compute().
-  uint32_t queue_family_sparse_binding() const {
-    return queue_family_sparse_binding_;
-  }
+  uint32_t queue_family_sparse_binding() const { return queue_family_sparse_binding_; }
 
   Queue::Acquisition AcquireQueue(const uint32_t queue_family_index,
                                   const uint32_t queue_index) const {
@@ -271,8 +260,7 @@ class VulkanDevice {
   const MemoryTypes& memory_types() const { return memory_types_; }
 
  private:
-  explicit VulkanDevice(const VulkanInstance* vulkan_instance,
-                        VkPhysicalDevice physical_device);
+  explicit VulkanDevice(const VulkanInstance* vulkan_instance, VkPhysicalDevice physical_device);
 
   const VulkanInstance* vulkan_instance_ = nullptr;
   VkPhysicalDevice physical_device_ = nullptr;
@@ -293,5 +281,4 @@ class VulkanDevice {
 
 }  // namespace vulkan
 }  // namespace ui
-}  // namespace xe
-
+}  // namespace rex

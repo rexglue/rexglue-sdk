@@ -9,9 +9,9 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/ui/graphics_util.h>
-
 #include <cmath>
+
+#include <rex/ui/graphics_util.h>
 
 namespace rex {
 namespace ui {
@@ -62,4 +62,4 @@ int32_t FloatToD3D11Fixed16p8(float f32) {
 }
 
 }  // namespace ui
-}  // namespace xe
+}  // namespace rex

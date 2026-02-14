@@ -1,0 +1,109 @@
+---
+Language: Cpp
+BasedOnStyle: Google
+
+# Layout
+ColumnLimit: 100
+IndentWidth: 2
+TabWidth: 2
+UseTab: Never
+ContinuationIndentWidth: 4
+ConstructorInitializerIndentWidth: 4
+
+# Braces
+BreakBeforeBraces: Attach
+
+# Alignment
+PointerAlignment: Left
+ReferenceAlignment: Left
+AccessModifierOffset: -1
+IndentAccessModifiers: false
+
+# Namespaces
+NamespaceIndentation: None
+CompactNamespaces: false
+FixNamespaceComments: true
+
+# Includes
+SortIncludes: Never
+IncludeBlocks: Regroup
+IncludeCategories:
+  # 1. Main header (e.g. foo.cpp -> foo.h)
+  - Regex: '^"'
+    Priority: 0
+    SortPriority: 0
+  # 2. C system headers
+  - Regex: '^<(assert|complex|ctype|errno|fenv|float|inttypes|iso646|limits|locale|math|setjmp|signal|stdalign|stdarg|stdatomic|stdbool|stddef|stdint|stdio|stdlib|stdnoreturn|string|tgmath|threads|time|uchar|wchar|wctype)\.h>'
+    Priority: 1
+    SortPriority: 1
+  # 3. C++ standard library
+  - Regex: '^<(algorithm|any|array|atomic|barrier|bit|bitset|cassert|cctype|cerrno|cfenv|cfloat|charconv|chrono|cinttypes|climits|clocale|cmath|compare|complex|concepts|condition_variable|coroutine|csetjmp|csignal|cstdarg|cstddef|cstdint|cstdio|cstdlib|cstring|ctgmath|ctime|cuchar|cwchar|cwctype|deque|exception|execution|expected|filesystem|format|forward_list|fstream|functional|future|initializer_list|iomanip|ios|iosfwd|iostream|istream|iterator|latch|limits|list|locale|map|mdspan|memory|memory_resource|mutex|new|numbers|numeric|optional|ostream|print|queue|random|ranges|ratio|regex|scoped_allocator|semaphore|set|shared_mutex|source_location|span|spanstream|sstream|stack|stacktrace|stdexcept|stop_token|streambuf|string|string_view|strstream|syncstream|system_error|thread|tuple|type_traits|typeindex|typeinfo|unordered_map|unordered_set|utility|valarray|variant|vector|version)>'
+    Priority: 2
+    SortPriority: 2
+  # 4. POSIX / platform headers
+  - Regex: '^<(sys/|unistd|fcntl|poll|pthread|dlfcn|netdb|netinet|arpa|windows|winnt|winbase|winsock|d3d|dxgi|vulkan|vk_)'
+    Priority: 3
+    SortPriority: 3
+  # 5. Third-party headers
+  - Regex: '^<(fmt|spdlog|SDL|imgui|toml|catch2|CLI|volk|glslang|spirv|renderdoc|simde|snappy|date|utfcpp|aes|mspack|xxhash|disruptorplus)/'
+    Priority: 4
+    SortPriority: 4
+  # 6. Project headers
+  - Regex: '^<rex/'
+    Priority: 5
+    SortPriority: 5
+  # 7. Everything else
+  - Regex: '.*'
+    Priority: 6
+    SortPriority: 6
+
+# Short forms
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Empty
+AllowShortEnumsOnASingleLine: true
+AllowShortLambdasOnASingleLine: All
+AllowShortCaseLabelsOnASingleLine: false
+
+# Other
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AlignEscapedNewlines: Left
+AlignOperands: Align
+AlignTrailingComments: true
+AllowAllParametersOfDeclarationOnNextLine: true
+BinPackArguments: true
+BinPackParameters: true
+BreakConstructorInitializers: BeforeColon
+PackConstructorInitializers: NextLine
+DerivePointerAlignment: false
+EmptyLineAfterAccessModifier: Never
+EmptyLineBeforeAccessModifier: LogicalBlock
+IndentCaseBlocks: false
+IndentCaseLabels: true
+IndentPPDirectives: None
+IndentWrappedFunctionNames: false
+InsertBraces: false
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 1
+ReflowComments: true
+SeparateDefinitionBlocks: Leave
+SpaceAfterCStyleCast: false
+SpaceAfterLogicalNot: false
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeCaseColon: false
+SpaceBeforeParens: ControlStatements
+SpaceBeforeRangeBasedForLoopColon: true
+SpaceBeforeSquareBrackets: false
+SpaceInEmptyBlock: false
+SpaceInEmptyParentheses: false
+SpacesBeforeTrailingComments: 2
+SpacesInAngles: Never
+SpacesInConditionalStatement: false
+SpacesInContainerLiterals: false
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+Standard: Latest
+...

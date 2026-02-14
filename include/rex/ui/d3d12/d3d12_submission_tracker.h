@@ -11,7 +11,6 @@
 
 #pragma once
 
-
 #include <rex/ui/d3d12/d3d12_api.h>
 
 namespace rex::ui::d3d12 {
@@ -32,10 +31,8 @@ namespace rex::ui::d3d12 {
 class D3D12SubmissionTracker {
  public:
   D3D12SubmissionTracker() = default;
-  D3D12SubmissionTracker(const D3D12SubmissionTracker& submission_tracker) =
-      delete;
-  D3D12SubmissionTracker& operator=(
-      const D3D12SubmissionTracker& submission_tracker) = delete;
+  D3D12SubmissionTracker(const D3D12SubmissionTracker& submission_tracker) = delete;
+  D3D12SubmissionTracker& operator=(const D3D12SubmissionTracker& submission_tracker) = delete;
   ~D3D12SubmissionTracker() { Shutdown(); }
 
   // The queue may be null if it's going to be set dynamically. Will also take a
@@ -87,4 +84,3 @@ class D3D12SubmissionTracker {
 };
 
 }  // namespace rex::ui::d3d12
-

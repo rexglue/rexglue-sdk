@@ -9,28 +9,28 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
- // Disable warnings about unused parameters for kernel functions
+// Disable warnings about unused parameters for kernel functions
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
+#include <rex/filesystem/device.h>
+#include <rex/kernel/xboxkrnl/private.h>
 #include <rex/logging.h>
 #include <rex/memory.h>
+#include <rex/ppc/function.h>
+#include <rex/ppc/types.h>
+#include <rex/system/info/file.h>
+#include <rex/system/info/volume.h>
+#include <rex/system/kernel_state.h>
+#include <rex/system/xevent.h>
+#include <rex/system/xfile.h>
+#include <rex/system/xiocompletion.h>
+#include <rex/system/xsymboliclink.h>
+#include <rex/system/xthread.h>
+#include <rex/system/xtypes.h>
 #include <rex/thread/mutex.h>
-#include <rex/kernel/info/file.h>
-#include <rex/kernel/info/volume.h>
-#include <rex/kernel/kernel_state.h>
-#include <rex/runtime/guest/function.h>
-#include <rex/runtime/guest/types.h>
-#include <rex/kernel/xboxkrnl/private.h>
-#include <rex/kernel/xevent.h>
-#include <rex/kernel/xfile.h>
-#include <rex/kernel/xiocompletion.h>
-#include <rex/kernel/xsymboliclink.h>
-#include <rex/kernel/xthread.h>
-#include <rex/filesystem/device.h>
-#include <rex/kernel/xtypes.h>
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::runtime::guest;
+using namespace rex::system;
 
 uint32_t GetQueryFileInfoMinimumLength(uint32_t info_class) {
   switch (info_class) {
@@ -58,9 +58,10 @@ uint32_t GetQueryFileInfoMinimumLength(uint32_t info_class) {
   }
 }
 
-dword_result_t NtQueryInformationFile_entry(
-    dword_t file_handle, pointer_t<X_IO_STATUS_BLOCK> io_status_block_ptr,
-    lpvoid_t info_ptr, dword_t info_length, dword_t info_class) {
+ppc_u32_result_t NtQueryInformationFile_entry(ppc_u32_t file_handle,
+                                              ppc_ptr_t<X_IO_STATUS_BLOCK> io_status_block_ptr,
+                                              ppc_pvoid_t info_ptr, ppc_u32_t info_length,
+                                              ppc_u32_t info_class) {
   uint32_t minimum_length = GetQueryFileInfoMinimumLength(info_class);
   if (!minimum_length) {
     return X_STATUS_INVALID_INFO_CLASS;
@@ -182,9 +183,10 @@ uint32_t GetSetFileInfoMinimumLength(uint32_t info_class) {
   }
 }
 
-dword_result_t NtSetInformationFile_entry(
-    dword_t file_handle, pointer_t<X_IO_STATUS_BLOCK> io_status_block,
-    lpvoid_t info_ptr, dword_t info_length, dword_t info_class) {
+ppc_u32_result_t NtSetInformationFile_entry(ppc_u32_t file_handle,
+                                            ppc_ptr_t<X_IO_STATUS_BLOCK> io_status_block,
+                                            ppc_pvoid_t info_ptr, ppc_u32_t info_length,
+                                            ppc_u32_t info_class) {
   uint32_t minimum_length = GetSetFileInfoMinimumLength(info_class);
   if (!minimum_length) {
     return X_STATUS_INVALID_INFO_CLASS;
@@ -208,8 +210,7 @@ dword_result_t NtSetInformationFile_entry(
       auto info = info_ptr.as<X_FILE_DISPOSITION_INFORMATION*>();
       bool delete_on_close = info->delete_file ? true : false;
       out_length = 0;
-      REXKRNL_WARN("NtSetInformationFile ignoring delete on close: {}",
-             delete_on_close);
+      REXKRNL_WARN("NtSetInformationFile ignoring delete on close: {}", delete_on_close);
       break;
     }
     case XFilePositionInformation: {
@@ -238,8 +239,7 @@ dword_result_t NtSetInformationFile_entry(
       auto handle = uint32_t(info->handle);
       auto key = uint32_t(info->key);
       out_length = sizeof(*info);
-      auto port =
-          kernel_state()->object_table()->LookupObject<XIOCompletion>(handle);
+      auto port = kernel_state()->object_table()->LookupObject<XIOCompletion>(handle);
       if (!port) {
         result = X_STATUS_INVALID_HANDLE;
       } else {
@@ -278,9 +278,9 @@ uint32_t GetQueryVolumeInfoMinimumLength(uint32_t info_class) {
   }
 }
 
-dword_result_t NtQueryVolumeInformationFile_entry(
-    dword_t file_handle, pointer_t<X_IO_STATUS_BLOCK> io_status_block_ptr,
-    lpvoid_t info_ptr, dword_t info_length, dword_t info_class) {
+ppc_u32_result_t NtQueryVolumeInformationFile_entry(
+    ppc_u32_t file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_status_block_ptr, ppc_pvoid_t info_ptr,
+    ppc_u32_t info_length, ppc_u32_t info_class) {
   uint32_t minimum_length = GetQueryVolumeInfoMinimumLength(info_class);
   if (!minimum_length) {
     return X_STATUS_INVALID_INFO_CLASS;
@@ -331,8 +331,7 @@ dword_result_t NtQueryVolumeInformationFile_entry(
       info->name_length = uint32_t(name.size());
       if (info_length >= 12 + name.size()) {
         std::memcpy(info->name, name.data(), name.size());
-        out_length =
-            offsetof(X_FILE_FS_ATTRIBUTE_INFORMATION, name) + info->name_length;
+        out_length = offsetof(X_FILE_FS_ATTRIBUTE_INFORMATION, name) + info->name_length;
       } else {
         status = X_STATUS_BUFFER_OVERFLOW;
         out_length = offsetof(X_FILE_FS_ATTRIBUTE_INFORMATION, name);
@@ -358,6 +357,7 @@ dword_result_t NtQueryVolumeInformationFile_entry(
 
 }  // namespace rex::kernel::xboxkrnl
 
-GUEST_FUNCTION_HOOK(__imp__NtQueryInformationFile, rex::kernel::xboxkrnl::NtQueryInformationFile_entry)
-GUEST_FUNCTION_HOOK(__imp__NtSetInformationFile, rex::kernel::xboxkrnl::NtSetInformationFile_entry)
-GUEST_FUNCTION_HOOK(__imp__NtQueryVolumeInformationFile, rex::kernel::xboxkrnl::NtQueryVolumeInformationFile_entry)
+PPC_HOOK(__imp__NtQueryInformationFile, rex::kernel::xboxkrnl::NtQueryInformationFile_entry)
+PPC_HOOK(__imp__NtSetInformationFile, rex::kernel::xboxkrnl::NtSetInformationFile_entry)
+PPC_HOOK(__imp__NtQueryVolumeInformationFile,
+         rex::kernel::xboxkrnl::NtQueryVolumeInformationFile_entry)

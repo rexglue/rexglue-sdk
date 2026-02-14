@@ -9,21 +9,21 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/platform/win.h>
+#include "platform_win.h"
 
 #include <memory>
 #include <mutex>
 #include <vector>
 
-#include <rex/logging.h>
-#include <rex/memory/mapped_memory.h>
-#include <rex/math.h>
-#include <rex/memory/utils.h>
-
 #include <fmt/format.h>
 
-#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP | \
-                            WINAPI_PARTITION_SYSTEM | WINAPI_PARTITION_GAMES)
+#include <rex/logging.h>
+#include <rex/math.h>
+#include <rex/memory/mapped_memory.h>
+#include <rex/memory/utils.h>
+
+#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP | WINAPI_PARTITION_SYSTEM | \
+                            WINAPI_PARTITION_GAMES)
 #define REX_BASE_MAPPED_MEMORY_WIN_USE_DESKTOP_FUNCTIONS
 #endif
 
@@ -60,8 +60,7 @@ class Win32MappedMemory : public MappedMemory {
     if (file_handle != kFileHandleInvalid) {
       if (truncate_size) {
         LONG distance_high = truncate_size >> 32;
-        SetFilePointer(file_handle, truncate_size & 0xFFFFFFFF, &distance_high,
-                       FILE_BEGIN);
+        SetFilePointer(file_handle, truncate_size & 0xFFFFFFFF, &distance_high, FILE_BEGIN);
         SetEndOfFile(file_handle);
       }
 
@@ -80,8 +79,8 @@ class Win32MappedMemory : public MappedMemory {
     data_ = MapViewOfFile(mapping_handle, view_access_, aligned_offset >> 32,
                           aligned_offset & 0xFFFFFFFF, aligned_length);
 #else
-    data_ = MapViewOfFileFromApp(mapping_handle, ULONG(view_access_),
-                                 ULONG64(aligned_offset), aligned_length);
+    data_ = MapViewOfFileFromApp(mapping_handle, ULONG(view_access_), ULONG64(aligned_offset),
+                                 aligned_length);
 #endif
     if (!data_) {
       return false;
@@ -104,9 +103,8 @@ class Win32MappedMemory : public MappedMemory {
   DWORD view_access_ = 0;
 };
 
-std::unique_ptr<MappedMemory> MappedMemory::Open(
-    const std::filesystem::path& path, Mode mode, size_t offset,
-    size_t length) {
+std::unique_ptr<MappedMemory> MappedMemory::Open(const std::filesystem::path& path, Mode mode,
+                                                 size_t offset, size_t length) {
   DWORD file_access = 0;
   DWORD file_share = 0;
   DWORD create_mode = 0;
@@ -139,33 +137,31 @@ std::unique_ptr<MappedMemory> MappedMemory::Open(
   auto mm = std::make_unique<Win32MappedMemory>();
   mm->view_access_ = view_access;
 
-  mm->file_handle = CreateFileW(path.c_str(), file_access, file_share, nullptr,
-                                create_mode, FILE_ATTRIBUTE_NORMAL, nullptr);
+  mm->file_handle = CreateFileW(path.c_str(), file_access, file_share, nullptr, create_mode,
+                                FILE_ATTRIBUTE_NORMAL, nullptr);
   if (mm->file_handle == Win32MappedMemory::kFileHandleInvalid) {
     return nullptr;
   }
 
 #ifdef REX_BASE_MAPPED_MEMORY_WIN_USE_DESKTOP_FUNCTIONS
-  mm->mapping_handle = CreateFileMapping(
-      mm->file_handle, nullptr, mapping_protect, DWORD(aligned_length >> 32),
-      DWORD(aligned_length), nullptr);
-#else
   mm->mapping_handle =
-      CreateFileMappingFromApp(mm->file_handle, nullptr, ULONG(mapping_protect),
-                               ULONG64(aligned_length), nullptr);
+      CreateFileMapping(mm->file_handle, nullptr, mapping_protect, DWORD(aligned_length >> 32),
+                        DWORD(aligned_length), nullptr);
+#else
+  mm->mapping_handle = CreateFileMappingFromApp(mm->file_handle, nullptr, ULONG(mapping_protect),
+                                                ULONG64(aligned_length), nullptr);
 #endif
   if (mm->mapping_handle == Win32MappedMemory::kMappingHandleInvalid) {
     return nullptr;
   }
 
 #ifdef REX_BASE_MAPPED_MEMORY_WIN_USE_DESKTOP_FUNCTIONS
-  mm->data_ = reinterpret_cast<uint8_t*>(MapViewOfFile(
-      mm->mapping_handle, view_access, DWORD(aligned_offset >> 32),
-      DWORD(aligned_offset), aligned_length));
+  mm->data_ = reinterpret_cast<uint8_t*>(MapViewOfFile(mm->mapping_handle, view_access,
+                                                       DWORD(aligned_offset >> 32),
+                                                       DWORD(aligned_offset), aligned_length));
 #else
-  mm->data_ = reinterpret_cast<uint8_t*>(
-      MapViewOfFileFromApp(mm->mapping_handle, ULONG(view_access),
-                           ULONG64(aligned_offset), aligned_length));
+  mm->data_ = reinterpret_cast<uint8_t*>(MapViewOfFileFromApp(
+      mm->mapping_handle, ULONG(view_access), ULONG64(aligned_offset), aligned_length));
 #endif
   if (!mm->data_) {
     return nullptr;
@@ -185,8 +181,8 @@ std::unique_ptr<MappedMemory> MappedMemory::Open(
 
 class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
  public:
-  Win32ChunkedMappedMemoryWriter(const std::filesystem::path& path,
-                                 size_t chunk_size, bool low_address_space)
+  Win32ChunkedMappedMemoryWriter(const std::filesystem::path& path, size_t chunk_size,
+                                 bool low_address_space)
       : ChunkedMappedMemoryWriter(path, chunk_size, low_address_space) {}
 
   ~Win32ChunkedMappedMemoryWriter() override {
@@ -203,8 +199,7 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
       }
     }
     auto chunk = std::make_unique<Chunk>(chunk_size_);
-    auto chunk_path =
-        path_.replace_extension(fmt::format(".{}", chunks_.size()));
+    auto chunk_path = path_.replace_extension(fmt::format(".{}", chunks_.size()));
     if (!chunk->Open(chunk_path, low_address_space_)) {
       return nullptr;
     }
@@ -257,19 +252,17 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
       DWORD mapping_protect = PAGE_READWRITE;
       DWORD view_access = FILE_MAP_READ | FILE_MAP_WRITE;
 
-      file_handle_ = CreateFileW(path.c_str(), file_access, file_share, nullptr,
-                                 create_mode, FILE_ATTRIBUTE_NORMAL, nullptr);
+      file_handle_ = CreateFileW(path.c_str(), file_access, file_share, nullptr, create_mode,
+                                 FILE_ATTRIBUTE_NORMAL, nullptr);
       if (file_handle_ == Win32MappedMemory::kFileHandleInvalid) {
         return false;
       }
 
 #ifdef REX_BASE_MAPPED_MEMORY_WIN_USE_DESKTOP_FUNCTIONS
-      mapping_handle_ =
-          CreateFileMapping(file_handle_, nullptr, mapping_protect,
-                            DWORD(capacity_ >> 32), DWORD(capacity_), nullptr);
+      mapping_handle_ = CreateFileMapping(file_handle_, nullptr, mapping_protect,
+                                          DWORD(capacity_ >> 32), DWORD(capacity_), nullptr);
 #else
-      mapping_handle_ = CreateFileMappingFromApp(file_handle_, nullptr,
-                                                 ULONG(mapping_protect),
+      mapping_handle_ = CreateFileMappingFromApp(file_handle_, nullptr, ULONG(mapping_protect),
                                                  ULONG64(capacity_), nullptr);
 #endif
       if (mapping_handle_ == Win32MappedMemory::kMappingHandleInvalid) {
@@ -286,20 +279,18 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
 #endif
         for (int i = 0; i < 1000; ++i) {
 #ifdef REX_BASE_MAPPED_MEMORY_WIN_USE_DESKTOP_FUNCTIONS
-          if (MapViewOfFileEx(mapping_handle_, view_access, 0, 0, capacity_,
-                              data_)) {
+          if (MapViewOfFileEx(mapping_handle_, view_access, 0, 0, capacity_, data_)) {
             successful = true;
           }
 #else
           // VirtualAlloc2FromApp and MapViewOfFile3FromApp were added in
           // 10.0.17134.0.
           // https://docs.microsoft.com/en-us/uwp/win32-and-com/win32-apis
-          if (VirtualAlloc2FromApp(process, data_, capacity_,
-                                   MEM_RESERVE | MEM_RESERVE_PLACEHOLDER,
+          if (VirtualAlloc2FromApp(process, data_, capacity_, MEM_RESERVE | MEM_RESERVE_PLACEHOLDER,
                                    PAGE_NOACCESS, nullptr, 0)) {
-            if (MapViewOfFile3FromApp(mapping_handle_, process, data_, 0,
-                                      capacity_, MEM_REPLACE_PLACEHOLDER,
-                                      ULONG(mapping_protect), nullptr, 0)) {
+            if (MapViewOfFile3FromApp(mapping_handle_, process, data_, 0, capacity_,
+                                      MEM_REPLACE_PLACEHOLDER, ULONG(mapping_protect), nullptr,
+                                      0)) {
               successful = true;
             } else {
               VirtualFree(data_, capacity_, MEM_RELEASE);
@@ -321,8 +312,8 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
         data_ = reinterpret_cast<uint8_t*>(
             MapViewOfFile(mapping_handle_, view_access, 0, 0, capacity_));
 #else
-        data_ = reinterpret_cast<uint8_t*>(MapViewOfFileFromApp(
-            mapping_handle_, ULONG(view_access), 0, capacity_));
+        data_ = reinterpret_cast<uint8_t*>(
+            MapViewOfFileFromApp(mapping_handle_, ULONG(view_access), 0, capacity_));
 #endif
       }
       if (!data_) {
@@ -362,14 +353,13 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
 };
 
 std::unique_ptr<ChunkedMappedMemoryWriter> ChunkedMappedMemoryWriter::Open(
-    const std::filesystem::path& path, size_t chunk_size,
-    bool low_address_space) {
+    const std::filesystem::path& path, size_t chunk_size, bool low_address_space) {
   SYSTEM_INFO system_info;
   GetSystemInfo(&system_info);
   size_t aligned_chunk_size =
       rex::round_up(chunk_size, size_t(system_info.dwAllocationGranularity));
-  return std::make_unique<Win32ChunkedMappedMemoryWriter>(
-      path, aligned_chunk_size, low_address_space);
+  return std::make_unique<Win32ChunkedMappedMemoryWriter>(path, aligned_chunk_size,
+                                                          low_address_space);
 }
 
 }  // namespace rex::memory

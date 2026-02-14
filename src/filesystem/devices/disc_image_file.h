@@ -26,17 +26,17 @@ class DiscImageFile : public File {
 
   X_STATUS ReadSync(void* buffer, size_t buffer_length, size_t byte_offset,
                     size_t* out_bytes_read) override;
-  X_STATUS WriteSync(const void* buffer, size_t buffer_length,
-                     size_t byte_offset, size_t* out_bytes_written) override {
-      (void)buffer;
-      (void)buffer_length;
-      (void)byte_offset;
-      (void)out_bytes_written;
+  X_STATUS WriteSync(const void* buffer, size_t buffer_length, size_t byte_offset,
+                     size_t* out_bytes_written) override {
+    (void)buffer;
+    (void)buffer_length;
+    (void)byte_offset;
+    (void)out_bytes_written;
     return X_STATUS_ACCESS_DENIED;
   }
-  X_STATUS SetLength(size_t length) override { 
-      (void)length;
-      return X_STATUS_ACCESS_DENIED; 
+  X_STATUS SetLength(size_t length) override {
+    (void)length;
+    return X_STATUS_ACCESS_DENIED;
   }
 
  private:
@@ -44,4 +44,3 @@ class DiscImageFile : public File {
 };
 
 }  // namespace rex::filesystem
-

@@ -14,13 +14,13 @@
 #include <memory>
 #include <string>
 
-#include <gdk/gdk.h>
-#include <gtk/gtk.h>
-#include <xcb/xcb.h>
-
 #include <rex/platform.h>
 #include <rex/ui/menu_item.h>
 #include <rex/ui/window.h>
+
+#include <gdk/gdk.h>
+#include <gtk/gtk.h>
+#include <xcb/xcb.h>
 
 namespace rex {
 namespace ui {
@@ -47,8 +47,7 @@ class GTKWindow : public Window {
   // Mouse capture seems to happen implicitly compared to Windows.
   void FocusImpl() override;
 
-  std::unique_ptr<Surface> CreateSurfaceImpl(
-      Surface::TypeFlags allowed_types) override;
+  std::unique_ptr<Surface> CreateSurfaceImpl(Surface::TypeFlags allowed_types) override;
   void RequestPaintImpl() override;
 
  private:
@@ -61,18 +60,14 @@ class GTKWindow : public Window {
   void EndBatchedSizeUpdate(WindowDestructionReceiver& destruction_receiver);
 
   // Handling events related to the whole window.
-  bool HandleMouse(GdkEvent* event,
-                   WindowDestructionReceiver& destruction_receiver);
-  bool HandleKeyboard(GdkEventKey* event,
-                      WindowDestructionReceiver& destruction_receiver);
+  bool HandleMouse(GdkEvent* event, WindowDestructionReceiver& destruction_receiver);
+  bool HandleKeyboard(GdkEventKey* event, WindowDestructionReceiver& destruction_receiver);
   gboolean WindowEventHandler(GdkEvent* event);
-  static gboolean WindowEventHandlerThunk(GtkWidget* widget, GdkEvent* event,
-                                          gpointer user_data);
+  static gboolean WindowEventHandlerThunk(GtkWidget* widget, GdkEvent* event, gpointer user_data);
 
   // Handling events related specifically to the drawing (client) area.
   gboolean DrawingAreaEventHandler(GdkEvent* event);
-  static gboolean DrawingAreaEventHandlerThunk(GtkWidget* widget,
-                                               GdkEvent* event,
+  static gboolean DrawingAreaEventHandlerThunk(GtkWidget* widget, GdkEvent* event,
                                                gpointer user_data);
   static gboolean DrawHandler(GtkWidget* widget, cairo_t* cr, gpointer data);
 

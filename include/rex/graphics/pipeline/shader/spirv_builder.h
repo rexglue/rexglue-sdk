@@ -10,13 +10,13 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
 
 #include <SPIRV/SpvBuilder.h>
+
 #include <rex/assert.h>
 
 namespace rex::graphics {
@@ -25,29 +25,25 @@ namespace rex::graphics {
 
 class SpirvBuilder : public spv::Builder {
  public:
-  SpirvBuilder(unsigned int spv_version, unsigned int user_number,
-               spv::SpvBuildLogger* logger)
+  SpirvBuilder(unsigned int spv_version, unsigned int user_number, spv::SpvBuildLogger* logger)
       : spv::Builder(spv_version, user_number, logger) {}
 
   // Make public rather than protected.
   using spv::Builder::createSelectionMerge;
 
-  spv::Id createQuadOp(spv::Op op_code, spv::Id type_id, spv::Id operand1,
-                       spv::Id operand2, spv::Id operand3, spv::Id operand4);
+  spv::Id createQuadOp(spv::Op op_code, spv::Id type_id, spv::Id operand1, spv::Id operand2,
+                       spv::Id operand3, spv::Id operand4);
 
-  spv::Id createNoContractionUnaryOp(spv::Op op_code, spv::Id type_id,
-                                     spv::Id operand);
-  spv::Id createNoContractionBinOp(spv::Op op_code, spv::Id type_id,
-                                   spv::Id operand1, spv::Id operand2);
+  spv::Id createNoContractionUnaryOp(spv::Op op_code, spv::Id type_id, spv::Id operand);
+  spv::Id createNoContractionBinOp(spv::Op op_code, spv::Id type_id, spv::Id operand1,
+                                   spv::Id operand2);
 
-  spv::Id createUnaryBuiltinCall(spv::Id result_type, spv::Id builtins,
-                                 int entry_point, spv::Id operand);
-  spv::Id createBinBuiltinCall(spv::Id result_type, spv::Id builtins,
-                               int entry_point, spv::Id operand1,
-                               spv::Id operand2);
-  spv::Id createTriBuiltinCall(spv::Id result_type, spv::Id builtins,
-                               int entry_point, spv::Id operand1,
-                               spv::Id operand2, spv::Id operand3);
+  spv::Id createUnaryBuiltinCall(spv::Id result_type, spv::Id builtins, int entry_point,
+                                 spv::Id operand);
+  spv::Id createBinBuiltinCall(spv::Id result_type, spv::Id builtins, int entry_point,
+                               spv::Id operand1, spv::Id operand2);
+  spv::Id createTriBuiltinCall(spv::Id result_type, spv::Id builtins, int entry_point,
+                               spv::Id operand1, spv::Id operand2, spv::Id operand3);
 
   // Helper to use for building nested control flow with if-then-else with
   // additions over SpvBuilder::If.
@@ -107,8 +103,7 @@ class SpirvBuilder : public spv::Builder {
   // block) compared to makeSwitch.
   class SwitchBuilder {
    public:
-    SwitchBuilder(spv::Id selector, unsigned int selection_control,
-                  SpirvBuilder& builder);
+    SwitchBuilder(spv::Id selector, unsigned int selection_control, SpirvBuilder& builder);
     ~SwitchBuilder() { assert_true(current_branch_ == Branch::kMerge); }
 
     void makeBeginDefault();
@@ -149,4 +144,3 @@ class SpirvBuilder : public spv::Builder {
 };
 
 }  // namespace rex::graphics
-

@@ -31,4 +31,4 @@ namespace rex::codegen {
  */
 Result<void> Recompile(CodegenContext& ctx, bool force = false);
 
-} // namespace rex::codegen
+}  // namespace rex::codegen

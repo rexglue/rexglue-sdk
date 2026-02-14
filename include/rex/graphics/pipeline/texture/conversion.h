@@ -10,7 +10,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <cstring>
 #include <functional>
 #include <memory>
@@ -21,15 +20,11 @@
 
 namespace rex::graphics::texture_conversion {
 
-typedef std::function<void(xenos::Endian, void*, const void*, size_t)>
-    CopyBlockCallback;
+typedef std::function<void(xenos::Endian, void*, const void*, size_t)> CopyBlockCallback;
 
-void CopySwapBlock(xenos::Endian endian, void* output, const void* input,
-                   size_t length);
-void ConvertTexelCTX1ToR8G8(xenos::Endian endian, void* output,
-                            const void* input, size_t length);
-void ConvertTexelDXT3AToDXT3(xenos::Endian endian, void* output,
-                             const void* input, size_t length);
+void CopySwapBlock(xenos::Endian endian, void* output, const void* input, size_t length);
+void ConvertTexelCTX1ToR8G8(xenos::Endian endian, void* output, const void* input, size_t length);
+void ConvertTexelDXT3AToDXT3(xenos::Endian endian, void* output, const void* input, size_t length);
 
 typedef std::function<void(void*, const void*, size_t)> UntileCopyBlockCallback;
 
@@ -45,8 +40,6 @@ typedef struct UntileInfo {
   UntileCopyBlockCallback copy_callback;
 } UntileInfo;
 
-void Untile(uint8_t* output_buffer, const uint8_t* input_buffer,
-            const UntileInfo* untile_info);
+void Untile(uint8_t* output_buffer, const uint8_t* input_buffer, const UntileInfo* untile_info);
 
 }  // namespace rex::graphics::texture_conversion
-

@@ -28,19 +28,35 @@ add_library(rex::core ALIAS rexcore)
 # Platform-specific sources
 if(WIN32)
     target_sources(rexcore PRIVATE
-        debugging_win.cpp
+        atomic_win.cpp
+        clock_win.cpp
+        dbg_win.cpp
+        dynlib_win.cpp
         exception_handler_win.cpp
         filesystem_win.cpp
         mapped_memory_win.cpp
+        math_msvc.cpp
         memory_win.cpp
+        seh_win.cpp
+        socket_win.cpp
+        string_win.cpp
+        threading_win.cpp
     )
 elseif(UNIX)
     target_sources(rexcore PRIVATE
-        debugging_posix.cpp
+        atomic_posix.cpp
+        clock_posix.cpp
+        dbg_posix.cpp
+        dynlib_posix.cpp
         exception_handler_posix.cpp
         filesystem_posix.cpp
         mapped_memory_posix.cpp
+        math_gcc.cpp
         memory_posix.cpp
+        seh_posix.cpp
+        socket_posix.cpp
+        string_posix.cpp
+        threading_posix.cpp
     )
 endif()
 
@@ -55,7 +71,7 @@ target_include_directories(rexcore PRIVATE
 )
 
 if(UNIX)
-    target_link_libraries(rexcore PRIVATE pthread rt)
+    target_link_libraries(rexcore PRIVATE pthread rt dl)
 endif()
 
 target_link_libraries(rexcore

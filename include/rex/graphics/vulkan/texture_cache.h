@@ -10,16 +10,15 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <array>
 #include <memory>
 #include <unordered_map>
 #include <utility>
 
-#include <rex/hash.h>
 #include <rex/graphics/pipeline/texture/cache.h>
 #include <rex/graphics/vulkan/shader.h>
 #include <rex/graphics/vulkan/shared_memory.h>
+#include <rex/hash.h>
 #include <rex/ui/vulkan/mem_alloc.h>
 
 namespace rex::graphics::vulkan {
@@ -53,12 +52,8 @@ class VulkanTextureCache final : public TextureCache {
         return std::hash<uint32_t>{}(parameters.value);
       }
     };
-    bool operator==(const SamplerParameters& parameters) const {
-      return value == parameters.value;
-    }
-    bool operator!=(const SamplerParameters& parameters) const {
-      return value != parameters.value;
-    }
+    bool operator==(const SamplerParameters& parameters) const { return value == parameters.value; }
+    bool operator!=(const SamplerParameters& parameters) const { return value != parameters.value; }
   };
 
   // Transient descriptor set layouts must be initialized in the command
@@ -69,9 +64,8 @@ class VulkanTextureCache final : public TextureCache {
       VulkanCommandProcessor& command_processor,
       VkPipelineStageFlags guest_shader_pipeline_stages) {
     std::unique_ptr<VulkanTextureCache> texture_cache(new VulkanTextureCache(
-        register_file, shared_memory, draw_resolution_scale_x,
-        draw_resolution_scale_y, command_processor,
-        guest_shader_pipeline_stages));
+        register_file, shared_memory, draw_resolution_scale_x, draw_resolution_scale_y,
+        command_processor, guest_shader_pipeline_stages));
     if (!texture_cache->Initialize()) {
       return nullptr;
     }
@@ -93,8 +87,7 @@ class VulkanTextureCache final : public TextureCache {
                                               xenos::FetchOpDimension dimension,
                                               bool is_signed) const;
 
-  SamplerParameters GetSamplerParameters(
-      const VulkanShader::SamplerBinding& binding) const;
+  SamplerParameters GetSamplerParameters(const VulkanShader::SamplerBinding& binding) const;
 
   // Must be called for every used sampler at least once in a single submission,
   // and a submission must be open for this to be callable.
@@ -110,24 +103,20 @@ class VulkanTextureCache final : public TextureCache {
   // case of an overflow within a single submission - in this case, it must be
   // ended, and a new one must be started) in case of sampler count overflow, so
   // samplers may be freed, and UseSamplers may take their slots.
-  uint64_t GetSubmissionToAwaitOnSamplerOverflow(
-      uint32_t overflowed_sampler_count) const;
+  uint64_t GetSubmissionToAwaitOnSamplerOverflow(uint32_t overflowed_sampler_count) const;
 
   // Returns the 2D view of the front buffer texture (for fragment shader
   // reading - the barrier will be pushed in the command processor if needed),
   // or VK_NULL_HANDLE in case of failure. May call LoadTextureData.
-  VkImageView RequestSwapTexture(uint32_t& width_scaled_out,
-                                 uint32_t& height_scaled_out,
+  VkImageView RequestSwapTexture(uint32_t& width_scaled_out, uint32_t& height_scaled_out,
                                  xenos::TextureFormat& format_out);
 
  protected:
   bool IsSignedVersionSeparateForFormat(TextureKey key) const override;
   uint32_t GetHostFormatSwizzle(TextureKey key) const override;
 
-  uint32_t GetMaxHostTextureWidthHeight(
-      xenos::DataDimension dimension) const override;
-  uint32_t GetMaxHostTextureDepthOrArraySize(
-      xenos::DataDimension dimension) const override;
+  uint32_t GetMaxHostTextureWidthHeight(xenos::DataDimension dimension) const override;
+  uint32_t GetMaxHostTextureDepthOrArraySize(xenos::DataDimension dimension) const override;
 
   std::unique_ptr<Texture> CreateTexture(TextureKey key) override;
 
@@ -181,8 +170,7 @@ class VulkanTextureCache final : public TextureCache {
     };
 
     // Takes ownership of the image and its memory.
-    explicit VulkanTexture(VulkanTextureCache& texture_cache,
-                           const TextureKey& key, VkImage image,
+    explicit VulkanTexture(VulkanTextureCache& texture_cache, const TextureKey& key, VkImage image,
                            VmaAllocation allocation);
     ~VulkanTexture();
 
@@ -195,8 +183,7 @@ class VulkanTextureCache final : public TextureCache {
       return old_usage;
     }
 
-    VkImageView GetView(bool is_signed, uint32_t host_swizzle,
-                        bool is_array = true);
+    VkImageView GetView(bool is_signed, uint32_t host_swizzle, bool is_array = true);
 
    private:
     union ViewKey {
@@ -214,21 +201,15 @@ class VulkanTextureCache final : public TextureCache {
           return std::hash<decltype(key.key)>{}(key.key);
         }
       };
-      bool operator==(const ViewKey& other_key) const {
-        return key == other_key.key;
-      }
-      bool operator!=(const ViewKey& other_key) const {
-        return !(*this == other_key);
-      }
+      bool operator==(const ViewKey& other_key) const { return key == other_key.key; }
+      bool operator!=(const ViewKey& other_key) const { return !(*this == other_key); }
     };
 
-    static constexpr VkComponentSwizzle GetComponentSwizzle(
-        uint32_t texture_swizzle, uint32_t component_index) {
+    static constexpr VkComponentSwizzle GetComponentSwizzle(uint32_t texture_swizzle,
+                                                            uint32_t component_index) {
       xenos::XE_GPU_TEXTURE_SWIZZLE texture_component_swizzle =
-          xenos::XE_GPU_TEXTURE_SWIZZLE(
-              (texture_swizzle >> (3 * component_index)) & 0b111);
-      if (texture_component_swizzle ==
-          xenos::XE_GPU_TEXTURE_SWIZZLE(component_index)) {
+          xenos::XE_GPU_TEXTURE_SWIZZLE((texture_swizzle >> (3 * component_index)) & 0b111);
+      if (texture_component_swizzle == xenos::XE_GPU_TEXTURE_SWIZZLE(component_index)) {
         // The portability subset requires all swizzles to be IDENTITY, return
         // IDENTITY specifically, not R, G, B, A.
         return VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -279,9 +260,8 @@ class VulkanTextureCache final : public TextureCache {
     std::pair<const SamplerParameters, Sampler>* used_next;
   };
 
-  static constexpr bool AreDimensionsCompatible(
-      xenos::FetchOpDimension binding_dimension,
-      xenos::DataDimension resource_dimension) {
+  static constexpr bool AreDimensionsCompatible(xenos::FetchOpDimension binding_dimension,
+                                                xenos::DataDimension resource_dimension) {
     switch (binding_dimension) {
       case xenos::FetchOpDimension::k1D:
       case xenos::FetchOpDimension::k2D:
@@ -296,18 +276,16 @@ class VulkanTextureCache final : public TextureCache {
     }
   }
 
-  explicit VulkanTextureCache(
-      const RegisterFile& register_file, VulkanSharedMemory& shared_memory,
-      uint32_t draw_resolution_scale_x, uint32_t draw_resolution_scale_y,
-      VulkanCommandProcessor& command_processor,
-      VkPipelineStageFlags guest_shader_pipeline_stages);
+  explicit VulkanTextureCache(const RegisterFile& register_file, VulkanSharedMemory& shared_memory,
+                              uint32_t draw_resolution_scale_x, uint32_t draw_resolution_scale_y,
+                              VulkanCommandProcessor& command_processor,
+                              VkPipelineStageFlags guest_shader_pipeline_stages);
 
   bool Initialize();
 
   const HostFormatPair& GetHostFormatPair(TextureKey key) const;
 
-  void GetTextureUsageMasks(VulkanTexture::Usage usage,
-                            VkPipelineStageFlags& stage_mask,
+  void GetTextureUsageMasks(VulkanTexture::Usage usage, VkPipelineStageFlags& stage_mask,
                             VkAccessFlags& access_mask, VkImageLayout& layout);
 
   xenos::ClampMode NormalizeClampMode(xenos::ClampMode clamp_mode) const;
@@ -340,18 +318,15 @@ class VulkanTextureCache final : public TextureCache {
   VkImageView null_image_view_3d_ = VK_NULL_HANDLE;
   bool null_images_cleared_ = false;
 
-  std::array<VulkanTextureBinding, xenos::kTextureFetchConstantCount>
-      vulkan_texture_bindings_;
+  std::array<VulkanTextureBinding, xenos::kTextureFetchConstantCount> vulkan_texture_bindings_;
 
   uint32_t sampler_max_count_;
 
   xenos::AnisoFilter max_anisotropy_;
 
-  std::unordered_map<SamplerParameters, Sampler, SamplerParameters::Hasher>
-      samplers_;
+  std::unordered_map<SamplerParameters, Sampler, SamplerParameters::Hasher> samplers_;
   std::pair<const SamplerParameters, Sampler>* sampler_used_first_ = nullptr;
   std::pair<const SamplerParameters, Sampler>* sampler_used_last_ = nullptr;
 };
 
 }  // namespace rex::graphics::vulkan
-

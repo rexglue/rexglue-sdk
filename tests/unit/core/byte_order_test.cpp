@@ -4,11 +4,11 @@
  * Tests endianness conversion and byte swapping operations.
  */
 
-#include <catch2/catch_test_macros.hpp>
-
 #include <cstdint>
 
-#include <rex/byte_order.h>
+#include <catch2/catch_test_macros.hpp>
+
+#include <rex/types.h>
 
 using namespace rex;
 

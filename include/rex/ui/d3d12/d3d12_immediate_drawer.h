@@ -11,7 +11,6 @@
 
 #pragma once
 
-
 #include <deque>
 #include <memory>
 #include <utility>
@@ -27,10 +26,9 @@ namespace rex::ui::d3d12 {
 
 class D3D12ImmediateDrawer final : public ImmediateDrawer {
  public:
-  static std::unique_ptr<D3D12ImmediateDrawer> Create(
-      const D3D12Provider& provider) {
-    auto immediate_drawer = std::unique_ptr<D3D12ImmediateDrawer>(
-        new D3D12ImmediateDrawer(provider));
+  static std::unique_ptr<D3D12ImmediateDrawer> Create(const D3D12Provider& provider) {
+    auto immediate_drawer =
+        std::unique_ptr<D3D12ImmediateDrawer>(new D3D12ImmediateDrawer(provider));
     if (!immediate_drawer->Initialize()) {
       return nullptr;
     }
@@ -39,10 +37,8 @@ class D3D12ImmediateDrawer final : public ImmediateDrawer {
 
   ~D3D12ImmediateDrawer();
 
-  std::unique_ptr<ImmediateTexture> CreateTexture(uint32_t width,
-                                                  uint32_t height,
-                                                  ImmediateTextureFilter filter,
-                                                  bool is_repeated,
+  std::unique_ptr<ImmediateTexture> CreateTexture(uint32_t width, uint32_t height,
+                                                  ImmediateTextureFilter filter, bool is_repeated,
                                                   const uint8_t* data) override;
 
   void Begin(UIDrawContext& ui_draw_context, float coordinate_space_width,
@@ -69,9 +65,8 @@ class D3D12ImmediateDrawer final : public ImmediateDrawer {
   class D3D12ImmediateTexture final : public ImmediateTexture {
    public:
     static constexpr DXGI_FORMAT kFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
-    D3D12ImmediateTexture(uint32_t width, uint32_t height,
-                          ID3D12Resource* resource, SamplerIndex sampler_index,
-                          D3D12ImmediateDrawer* immediate_drawer,
+    D3D12ImmediateTexture(uint32_t width, uint32_t height, ID3D12Resource* resource,
+                          SamplerIndex sampler_index, D3D12ImmediateDrawer* immediate_drawer,
                           size_t immediate_drawer_index);
     ~D3D12ImmediateTexture() override;
 
@@ -79,14 +74,10 @@ class D3D12ImmediateDrawer final : public ImmediateDrawer {
     SamplerIndex sampler_index() const { return sampler_index_; }
 
     size_t immediate_drawer_index() const { return immediate_drawer_index_; }
-    void SetImmediateDrawerIndex(size_t index) {
-      immediate_drawer_index_ = index;
-    }
+    void SetImmediateDrawerIndex(size_t index) { immediate_drawer_index_ = index; }
     void OnImmediateDrawerDestroyed();
 
-    UINT64 last_usage_submission_index() const {
-      return last_usage_submission_index_;
-    }
+    UINT64 last_usage_submission_index() const { return last_usage_submission_index_; }
     void SetLastUsageSubmissionIndex(UINT64 submission_index) {
       last_usage_submission_index_ = submission_index;
     }
@@ -138,19 +129,15 @@ class D3D12ImmediateDrawer final : public ImmediateDrawer {
   std::vector<PendingTextureUpload> texture_uploads_pending_;
 
   struct SubmittedTextureUpload {
-    SubmittedTextureUpload(ID3D12Resource* texture, ID3D12Resource* buffer,
-                           UINT64 submission_index)
-        : texture(texture),
-          buffer(buffer),
-          submission_index(submission_index) {}
+    SubmittedTextureUpload(ID3D12Resource* texture, ID3D12Resource* buffer, UINT64 submission_index)
+        : texture(texture), buffer(buffer), submission_index(submission_index) {}
     Microsoft::WRL::ComPtr<ID3D12Resource> texture;
     Microsoft::WRL::ComPtr<ID3D12Resource> buffer;
     UINT64 submission_index;
   };
   std::deque<SubmittedTextureUpload> texture_uploads_submitted_;
 
-  std::deque<std::pair<Microsoft::WRL::ComPtr<ID3D12Resource>, UINT64>>
-      textures_deleted_;
+  std::deque<std::pair<Microsoft::WRL::ComPtr<ID3D12Resource>, UINT64>> textures_deleted_;
 
   std::unique_ptr<D3D12UploadBufferPool> vertex_buffer_pool_;
   std::unique_ptr<D3D12DescriptorHeapPool> texture_descriptor_pool_;
@@ -172,4 +159,3 @@ class D3D12ImmediateDrawer final : public ImmediateDrawer {
 };
 
 }  // namespace rex::ui::d3d12
-

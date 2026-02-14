@@ -9,24 +9,23 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
- // Disable warnings about unused parameters for kernel functions
+// Disable warnings about unused parameters for kernel functions
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
-#include <rex/kernel/xboxkrnl/video.h>
-
-#include <rex/runtime/export_resolver.h>
-#include <rex/logging.h>
-#include <rex/runtime.h>
 #include <rex/graphics/graphics_system.h>
 #include <rex/graphics/pipeline/texture/info.h>
 #include <rex/graphics/xenos.h>
-#include <rex/kernel/kernel_state.h>
-#include <rex/runtime/guest/function.h>
-#include <rex/runtime/guest/types.h>
 #include <rex/kernel/xboxkrnl/ordinals.h>
 #include <rex/kernel/xboxkrnl/private.h>
 #include <rex/kernel/xboxkrnl/rtl.h>
-#include <rex/kernel/xtypes.h>
+#include <rex/kernel/xboxkrnl/video.h>
+#include <rex/logging.h>
+#include <rex/ppc/function.h>
+#include <rex/ppc/types.h>
+#include <rex/runtime.h>
+#include <rex/system/export_resolver.h>
+#include <rex/system/kernel_state.h>
+#include <rex/system/xtypes.h>
 
 namespace {
 // Display gamma type: 0 - linear, 1 - sRGB (CRT), 2 - BT.709 (HDTV), 3 - power
@@ -36,7 +35,7 @@ constexpr double kDisplayGammaPower = 2.22222233;
 }  // namespace
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::runtime::guest;
+using namespace rex::system;
 
 // https://web.archive.org/web/20150805074003/https://www.tweakoz.com/orkid/
 // http://www.tweakoz.com/orkid/dox/d3/d52/xb360init_8cpp_source.html
@@ -51,7 +50,7 @@ using namespace rex::runtime::guest;
 // https://www.microsoft.com/en-za/download/details.aspx?id=5313 -- "Stripped
 // Down Direct3D: Xbox 360 Command Buffer and Resource Management"
 
-void VdGetCurrentDisplayGamma_entry(lpdword_t type_ptr, lpfloat_t power_ptr) {
+void VdGetCurrentDisplayGamma_entry(ppc_pu32_t type_ptr, ppc_pf32_t power_ptr) {
   // 1 - sRGB.
   // 2 - TV (BT.709).
   // 3 - use the power written to *power_ptr.
@@ -78,36 +77,35 @@ static_assert_size(X_D3DFILTER_PARAMETERS, 0xC);
 
 struct X_D3DPRIVATE_SCALER_PARAMETERS {
   X_D3DPRIVATE_RECT scaler_source_rect;                 // 0x0
-  rex::be<uint32_t> scaled_output_width;                 // 0x10
-  rex::be<uint32_t> scaled_output_height;                // 0x14
-  rex::be<uint32_t> vertical_filter_type;                // 0x18
+  rex::be<uint32_t> scaled_output_width;                // 0x10
+  rex::be<uint32_t> scaled_output_height;               // 0x14
+  rex::be<uint32_t> vertical_filter_type;               // 0x18
   X_D3DFILTER_PARAMETERS vertical_filter_parameters;    // 0x1C
-  rex::be<uint32_t> horizontal_filter_type;              // 0x28
+  rex::be<uint32_t> horizontal_filter_type;             // 0x28
   X_D3DFILTER_PARAMETERS horizontal_filter_parameters;  // 0x2C
 };
 static_assert_size(X_D3DPRIVATE_SCALER_PARAMETERS, 0x38);
 
 struct X_DISPLAY_INFO {
-  rex::be<uint16_t> front_buffer_width;               // 0x0
-  rex::be<uint16_t> front_buffer_height;              // 0x2
+  rex::be<uint16_t> front_buffer_width;              // 0x0
+  rex::be<uint16_t> front_buffer_height;             // 0x2
   uint8_t front_buffer_color_format;                 // 0x4
   uint8_t front_buffer_pixel_format;                 // 0x5
   X_D3DPRIVATE_SCALER_PARAMETERS scaler_parameters;  // 0x8
-  rex::be<uint16_t> display_window_overscan_left;     // 0x40
-  rex::be<uint16_t> display_window_overscan_top;      // 0x42
-  rex::be<uint16_t> display_window_overscan_right;    // 0x44
-  rex::be<uint16_t> display_window_overscan_bottom;   // 0x46
-  rex::be<uint16_t> display_width;                    // 0x48
-  rex::be<uint16_t> display_height;                   // 0x4A
-  rex::be<float> display_refresh_rate;                // 0x4C
-  rex::be<uint32_t> display_interlaced;               // 0x50
+  rex::be<uint16_t> display_window_overscan_left;    // 0x40
+  rex::be<uint16_t> display_window_overscan_top;     // 0x42
+  rex::be<uint16_t> display_window_overscan_right;   // 0x44
+  rex::be<uint16_t> display_window_overscan_bottom;  // 0x46
+  rex::be<uint16_t> display_width;                   // 0x48
+  rex::be<uint16_t> display_height;                  // 0x4A
+  rex::be<float> display_refresh_rate;               // 0x4C
+  rex::be<uint32_t> display_interlaced;              // 0x50
   uint8_t display_color_format;                      // 0x54
-  rex::be<uint16_t> actual_display_width;             // 0x56
+  rex::be<uint16_t> actual_display_width;            // 0x56
 };
 static_assert_size(X_DISPLAY_INFO, 0x58);
 
-void VdGetCurrentDisplayInformation_entry(
-    pointer_t<X_DISPLAY_INFO> display_info) {
+void VdGetCurrentDisplayInformation_entry(ppc_ptr_t<X_DISPLAY_INFO> display_info) {
   X_VIDEO_MODE mode;
   VdQueryVideoMode(&mode);
   display_info.Zero();
@@ -145,11 +143,11 @@ void VdQueryVideoMode(X_VIDEO_MODE* video_mode) {
   video_mode->unknown_0x01 = 0x01;
 }
 
-void VdQueryVideoMode_entry(pointer_t<X_VIDEO_MODE> video_mode) {
+void VdQueryVideoMode_entry(ppc_ptr_t<X_VIDEO_MODE> video_mode) {
   VdQueryVideoMode(video_mode);
 }
 
-dword_result_t VdQueryVideoFlags_entry() {
+ppc_u32_result_t VdQueryVideoFlags_entry() {
   X_VIDEO_MODE mode;
   VdQueryVideoMode(&mode);
 
@@ -161,7 +159,7 @@ dword_result_t VdQueryVideoFlags_entry() {
   return flags;
 }
 
-dword_result_t VdSetDisplayMode_entry(dword_t flags) {
+ppc_u32_result_t VdSetDisplayMode_entry(ppc_u32_t flags) {
   // Often 0x40000000.
 
   // 0?ccf000 00000000 00000000 000000r0
@@ -179,16 +177,15 @@ dword_result_t VdSetDisplayMode_entry(dword_t flags) {
   return 0;
 }
 
-dword_result_t VdSetDisplayModeOverride_entry(unknown_t unk0, unknown_t unk1,
-                                              double_t refresh_rate,
-                                              unknown_t unk3, unknown_t unk4) {
+ppc_u32_result_t VdSetDisplayModeOverride_entry(ppc_unknown_t unk0, ppc_unknown_t unk1,
+                                                ppc_f64_t refresh_rate, ppc_unknown_t unk3,
+                                                ppc_unknown_t unk4) {
   // refresh_rate = 0, 50, 59.9, etc.
   return 0;
 }
 
-dword_result_t VdInitializeEngines_entry(unknown_t unk0, function_t callback,
-                                         lpvoid_t arg, lpdword_t pfp_ptr,
-                                         lpdword_t me_ptr) {
+ppc_u32_result_t VdInitializeEngines_entry(ppc_unknown_t unk0, ppc_fn_t callback, ppc_pvoid_t arg,
+                                           ppc_pu32_t pfp_ptr, ppc_pu32_t me_ptr) {
   // r3 = 0x4F810000
   // r4 = function ptr (cleanup callback?)
   // r5 = function arg
@@ -203,48 +200,49 @@ void VdShutdownEngines_entry() {
   // re-initialize.
 }
 
-dword_result_t VdGetGraphicsAsicID_entry() {
+ppc_u32_result_t VdGetGraphicsAsicID_entry() {
   // Games compare for < 0x10 and do VdInitializeEDRAM, else other
   // (retrain/etc).
   return 0x11;
 }
 
-dword_result_t VdEnableDisableClockGating_entry(dword_t enabled) {
+ppc_u32_result_t VdEnableDisableClockGating_entry(ppc_u32_t enabled) {
   // Ignored, as it really doesn't matter.
   return 0;
 }
 
-void VdSetGraphicsInterruptCallback_entry(function_t callback,
-                                          lpvoid_t user_data) {
+void VdSetGraphicsInterruptCallback_entry(ppc_fn_t callback, ppc_pvoid_t user_data) {
   // callback takes 2 params
   // r3 = bool 0/1 - 0 is normal interrupt, 1 is some acquire/lock mumble
   // r4 = user_data (r4 of VdSetGraphicsInterruptCallback)
-  auto graphics_system = kernel_state()->emulator()->graphics_system();
-  graphics_system->SetInterruptCallback(callback, user_data);
+  auto* graphics_system =
+      static_cast<graphics::GraphicsSystem*>(kernel_state()->emulator()->graphics_system());
+  graphics_system->SetInterruptCallback(callback, user_data.guest_address());
 }
 
-void VdInitializeRingBuffer_entry(lpvoid_t ptr, int_t size_log2) {
+void VdInitializeRingBuffer_entry(ppc_pvoid_t ptr, ppc_i32_t size_log2) {
   // r3 = result of MmGetPhysicalAddress
   // r4 = log2(size)
   // Buffer pointers are from MmAllocatePhysicalMemory with WRITE_COMBINE.
-  auto graphics_system = kernel_state()->emulator()->graphics_system();
-  graphics_system->InitializeRingBuffer(ptr, size_log2);
+  auto* graphics_system =
+      static_cast<graphics::GraphicsSystem*>(kernel_state()->emulator()->graphics_system());
+  graphics_system->InitializeRingBuffer(ptr.guest_address(), size_log2);
 }
 
-void VdEnableRingBufferRPtrWriteBack_entry(lpvoid_t ptr,
-                                           int_t block_size_log2) {
+void VdEnableRingBufferRPtrWriteBack_entry(ppc_pvoid_t ptr, ppc_i32_t block_size_log2) {
   // r4 = log2(block size), 6, usually --- <=19
-  auto graphics_system = kernel_state()->emulator()->graphics_system();
-  graphics_system->EnableReadPointerWriteBack(ptr, block_size_log2);
+  auto* graphics_system =
+      static_cast<graphics::GraphicsSystem*>(kernel_state()->emulator()->graphics_system());
+  graphics_system->EnableReadPointerWriteBack(ptr.guest_address(), block_size_log2);
 }
 
-void VdGetSystemCommandBuffer_entry(lpunknown_t p0_ptr, lpunknown_t p1_ptr) {
+void VdGetSystemCommandBuffer_entry(ppc_pvoid_t p0_ptr, ppc_pvoid_t p1_ptr) {
   p0_ptr.Zero(0x94);
   memory::store_and_swap<uint32_t>(p0_ptr, 0xBEEF0000);
   memory::store_and_swap<uint32_t>(p1_ptr, 0xBEEF0001);
 }
 
-void VdSetSystemCommandBufferGpuIdentifierAddress_entry(lpunknown_t unk) {
+void VdSetSystemCommandBufferGpuIdentifierAddress_entry(ppc_pvoid_t unk) {
   // r3 = 0x2B10(d3d?) + 8
 }
 
@@ -253,20 +251,20 @@ void VdSetSystemCommandBufferGpuIdentifierAddress_entry(lpunknown_t unk) {
 // r4 = 19
 // no op?
 
-dword_result_t VdInitializeScalerCommandBuffer_entry(
-    dword_t scaler_source_xy,      // ((uint16_t)y << 16) | (uint16_t)x
-    dword_t scaler_source_wh,      // ((uint16_t)h << 16) | (uint16_t)w
-    dword_t scaled_output_xy,      // ((uint16_t)y << 16) | (uint16_t)x
-    dword_t scaled_output_wh,      // ((uint16_t)h << 16) | (uint16_t)w
-    dword_t front_buffer_wh,       // ((uint16_t)h << 16) | (uint16_t)w
-    dword_t vertical_filter_type,  // 7?
-    pointer_t<X_D3DFILTER_PARAMETERS> vertical_filter_params,    //
-    dword_t horizontal_filter_type,                              // 7?
-    pointer_t<X_D3DFILTER_PARAMETERS> horizontal_filter_params,  //
-    lpvoid_t unk9,                                               //
-    lpvoid_t dest_ptr,  // Points to the first 80000000h where the memcpy
-                        // sources from.
-    dword_t dest_count  // Count in words.
+ppc_u32_result_t VdInitializeScalerCommandBuffer_entry(
+    ppc_u32_t scaler_source_xy,                                // ((uint16_t)y << 16) | (uint16_t)x
+    ppc_u32_t scaler_source_wh,                                // ((uint16_t)h << 16) | (uint16_t)w
+    ppc_u32_t scaled_output_xy,                                // ((uint16_t)y << 16) | (uint16_t)x
+    ppc_u32_t scaled_output_wh,                                // ((uint16_t)h << 16) | (uint16_t)w
+    ppc_u32_t front_buffer_wh,                                 // ((uint16_t)h << 16) | (uint16_t)w
+    ppc_u32_t vertical_filter_type,                            // 7?
+    ppc_ptr_t<X_D3DFILTER_PARAMETERS> vertical_filter_params,  //
+    ppc_u32_t horizontal_filter_type,                          // 7?
+    ppc_ptr_t<X_D3DFILTER_PARAMETERS> horizontal_filter_params,  //
+    ppc_pvoid_t unk9,                                            //
+    ppc_pvoid_t dest_ptr,  // Points to the first 80000000h where the memcpy
+                           // sources from.
+    ppc_u32_t dest_count   // Count in words.
 ) {
   // We could fake the commands here, but I'm not sure the game checks for
   // anything but success (non-zero ret).
@@ -284,16 +282,14 @@ struct BufferScaling {
   rex::be<uint16_t> bb_width;
   rex::be<uint16_t> bb_height;
 };
-void AppendParam(string::StringBuffer* string_buffer, pointer_t<BufferScaling> param) {
-  string_buffer->AppendFormat(
-      "{:08X}(scale {}x{} -> {}x{}))", param.guest_address(),
-      uint16_t(param->bb_width), uint16_t(param->bb_height),
-      uint16_t(param->fb_width), uint16_t(param->fb_height));
+void AppendParam(string::StringBuffer* string_buffer, ppc_ptr_t<BufferScaling> param) {
+  string_buffer->AppendFormat("{:08X}(scale {}x{} -> {}x{}))", param.guest_address(),
+                              uint16_t(param->bb_width), uint16_t(param->bb_height),
+                              uint16_t(param->fb_width), uint16_t(param->fb_height));
 }
 
-dword_result_t VdCallGraphicsNotificationRoutines_entry(
-    unknown_t unk0, pointer_t<BufferScaling> args_ptr) {
-
+ppc_u32_result_t VdCallGraphicsNotificationRoutines_entry(ppc_unknown_t unk0,
+                                                          ppc_ptr_t<BufferScaling> args_ptr) {
   assert_true(unk0 == 1);
 
   // TODO(benvanik): what does this mean, I forget:
@@ -302,12 +298,12 @@ dword_result_t VdCallGraphicsNotificationRoutines_entry(
   return 0;
 }
 
-dword_result_t VdIsHSIOTrainingSucceeded_entry() {
+ppc_u32_result_t VdIsHSIOTrainingSucceeded_entry() {
   // BOOL return value
   return 1;
 }
 
-dword_result_t VdPersistDisplay_entry(unknown_t unk0, lpdword_t unk1_ptr) {
+ppc_u32_result_t VdPersistDisplay_entry(ppc_unknown_t unk0, ppc_pu32_t unk1_ptr) {
   // unk1_ptr needs to be populated with a pointer passed to
   // MmFreePhysicalMemory(1, *unk1_ptr).
   if (unk1_ptr) {
@@ -321,23 +317,23 @@ dword_result_t VdPersistDisplay_entry(unknown_t unk0, lpdword_t unk1_ptr) {
   return 1;
 }
 
-dword_result_t VdRetrainEDRAMWorker_entry(unknown_t unk0) { return 0; }
-
-dword_result_t VdRetrainEDRAM_entry(unknown_t unk0, unknown_t unk1,
-                                    unknown_t unk2, unknown_t unk3,
-                                    unknown_t unk4, unknown_t unk5) {
+ppc_u32_result_t VdRetrainEDRAMWorker_entry(ppc_unknown_t unk0) {
   return 0;
 }
 
-void VdSwap_entry(
-    lpvoid_t buffer_ptr,        // ptr into primary ringbuffer
-    lpvoid_t fetch_ptr,         // frontbuffer Direct3D 9 texture header fetch
-    lpunknown_t unk2,           // system writeback ptr
-    lpunknown_t unk3,           // buffer from VdGetSystemCommandBuffer
-    lpunknown_t unk4,           // from VdGetSystemCommandBuffer (0xBEEF0001)
-    lpdword_t frontbuffer_ptr,  // ptr to frontbuffer address
-    lpdword_t texture_format_ptr, lpdword_t color_space_ptr, lpdword_t width,
-    lpdword_t height) {
+ppc_u32_result_t VdRetrainEDRAM_entry(ppc_unknown_t unk0, ppc_unknown_t unk1, ppc_unknown_t unk2,
+                                      ppc_unknown_t unk3, ppc_unknown_t unk4, ppc_unknown_t unk5) {
+  return 0;
+}
+
+void VdSwap_entry(ppc_pvoid_t buffer_ptr,      // ptr into primary ringbuffer
+                  ppc_pvoid_t fetch_ptr,       // frontbuffer Direct3D 9 texture header fetch
+                  ppc_pvoid_t unk2,            // system writeback ptr
+                  ppc_pvoid_t unk3,            // buffer from VdGetSystemCommandBuffer
+                  ppc_pvoid_t unk4,            // from VdGetSystemCommandBuffer (0xBEEF0001)
+                  ppc_pu32_t frontbuffer_ptr,  // ptr to frontbuffer address
+                  ppc_pu32_t texture_format_ptr, ppc_pu32_t color_space_ptr, ppc_pu32_t width,
+                  ppc_pu32_t height) {
   // All of these parameters are REQUIRED.
   assert(buffer_ptr);
   assert(fetch_ptr);
@@ -349,8 +345,8 @@ void VdSwap_entry(
   namespace xenos = rex::graphics::xenos;
 
   xenos::xe_gpu_texture_fetch_t gpu_fetch;
-  memory::copy_and_swap_32_unaligned(
-      &gpu_fetch, reinterpret_cast<uint32_t*>(fetch_ptr.host_address()), 6);
+  memory::copy_and_swap_32_unaligned(&gpu_fetch,
+                                     reinterpret_cast<uint32_t*>(fetch_ptr.host_address()), 6);
 
   // The fetch constant passed is not a true GPU fetch constant, but rather, the
   // fetch constant stored in the Direct3D 9 texture header, which contains the
@@ -367,7 +363,7 @@ void VdSwap_entry(
   if (frontbuffer_physical_address == UINT32_MAX) {
     // Xenia-specific safety check.
     REXKRNL_ERROR("VdSwap: Invalid front buffer virtual address 0x{:08X}",
-           frontbuffer_virtual_address);
+                  frontbuffer_virtual_address);
     return;
   }
   gpu_fetch.base_address = frontbuffer_physical_address >> 12;
@@ -375,8 +371,7 @@ void VdSwap_entry(
   auto texture_format = rex::graphics::xenos::TextureFormat(texture_format_ptr.value());
   auto color_space = *color_space_ptr;
   assert_true(texture_format == rex::graphics::xenos::TextureFormat::k_8_8_8_8 ||
-              texture_format ==
-                  rex::graphics::xenos::TextureFormat::k_2_10_10_10_AS_16_16_16_16);
+              texture_format == rex::graphics::xenos::TextureFormat::k_2_10_10_10_AS_16_16_16_16);
   assert_true(color_space == 0);  // RGB(0)
   assert_true(*width == 1 + gpu_fetch.size_2d.width);
   assert_true(*height == 1 + gpu_fetch.size_2d.height);
@@ -421,61 +416,59 @@ void RegisterVideoExports(rex::runtime::ExportResolver* export_resolver,
   // VdGlobalDevice (4b)
   // Pointer to a global D3D device. Games only seem to set this, so we don't
   // have to do anything. We may want to read it back later, though.
-  uint32_t pVdGlobalDevice =
-      memory->SystemHeapAlloc(4, 32, memory::kSystemHeapPhysical);
-  export_resolver->SetVariableMapping("xboxkrnl.exe", ordinals::VdGlobalDevice,
-                                      pVdGlobalDevice);
+  uint32_t pVdGlobalDevice = memory->SystemHeapAlloc(4, 32, memory::kSystemHeapPhysical);
+  export_resolver->SetVariableMapping("xboxkrnl.exe", ordinals::VdGlobalDevice, pVdGlobalDevice);
   memory::store_and_swap<uint32_t>(memory->TranslateVirtual(pVdGlobalDevice), 0);
 
   // VdGlobalXamDevice (4b)
   // Pointer to the XAM D3D device, which we don't have.
-  uint32_t pVdGlobalXamDevice =
-      memory->SystemHeapAlloc(4, 32, memory::kSystemHeapPhysical);
-  export_resolver->SetVariableMapping(
-      "xboxkrnl.exe", ordinals::VdGlobalXamDevice, pVdGlobalXamDevice);
+  uint32_t pVdGlobalXamDevice = memory->SystemHeapAlloc(4, 32, memory::kSystemHeapPhysical);
+  export_resolver->SetVariableMapping("xboxkrnl.exe", ordinals::VdGlobalXamDevice,
+                                      pVdGlobalXamDevice);
   memory::store_and_swap<uint32_t>(memory->TranslateVirtual(pVdGlobalXamDevice), 0);
 
   // VdGpuClockInMHz (4b)
   // GPU clock. Xenos is 500MHz. Hope nothing is relying on this timing...
-  uint32_t pVdGpuClockInMHz =
-      memory->SystemHeapAlloc(4, 32, memory::kSystemHeapPhysical);
-  export_resolver->SetVariableMapping("xboxkrnl.exe", ordinals::VdGpuClockInMHz,
-                                      pVdGpuClockInMHz);
+  uint32_t pVdGpuClockInMHz = memory->SystemHeapAlloc(4, 32, memory::kSystemHeapPhysical);
+  export_resolver->SetVariableMapping("xboxkrnl.exe", ordinals::VdGpuClockInMHz, pVdGpuClockInMHz);
   memory::store_and_swap<uint32_t>(memory->TranslateVirtual(pVdGpuClockInMHz), 500);
 
   // VdHSIOCalibrationLock (28b)
   // CriticalSection.
-  uint32_t pVdHSIOCalibrationLock =
-      memory->SystemHeapAlloc(28, 32, memory::kSystemHeapPhysical);
-  export_resolver->SetVariableMapping(
-      "xboxkrnl.exe", ordinals::VdHSIOCalibrationLock, pVdHSIOCalibrationLock);
-  auto hsio_lock =
-      memory->TranslateVirtual<X_RTL_CRITICAL_SECTION*>(pVdHSIOCalibrationLock);
-  xeRtlInitializeCriticalSectionAndSpinCount(hsio_lock, pVdHSIOCalibrationLock,
-                                             10000);
+  uint32_t pVdHSIOCalibrationLock = memory->SystemHeapAlloc(28, 32, memory::kSystemHeapPhysical);
+  export_resolver->SetVariableMapping("xboxkrnl.exe", ordinals::VdHSIOCalibrationLock,
+                                      pVdHSIOCalibrationLock);
+  auto hsio_lock = memory->TranslateVirtual<X_RTL_CRITICAL_SECTION*>(pVdHSIOCalibrationLock);
+  xeRtlInitializeCriticalSectionAndSpinCount(hsio_lock, pVdHSIOCalibrationLock, 10000);
 }
 
 }  // namespace rex::kernel::xboxkrnl
 
-GUEST_FUNCTION_HOOK(__imp__VdGetCurrentDisplayGamma, rex::kernel::xboxkrnl::VdGetCurrentDisplayGamma_entry)
-GUEST_FUNCTION_HOOK(__imp__VdGetCurrentDisplayInformation, rex::kernel::xboxkrnl::VdGetCurrentDisplayInformation_entry)
-GUEST_FUNCTION_HOOK(__imp__VdQueryVideoMode, rex::kernel::xboxkrnl::VdQueryVideoMode_entry)
-GUEST_FUNCTION_HOOK(__imp__VdQueryVideoFlags, rex::kernel::xboxkrnl::VdQueryVideoFlags_entry)
-GUEST_FUNCTION_HOOK(__imp__VdSetDisplayMode, rex::kernel::xboxkrnl::VdSetDisplayMode_entry)
-GUEST_FUNCTION_HOOK(__imp__VdSetDisplayModeOverride, rex::kernel::xboxkrnl::VdSetDisplayModeOverride_entry)
-GUEST_FUNCTION_HOOK(__imp__VdInitializeEngines, rex::kernel::xboxkrnl::VdInitializeEngines_entry)
-GUEST_FUNCTION_HOOK(__imp__VdShutdownEngines, rex::kernel::xboxkrnl::VdShutdownEngines_entry)
-GUEST_FUNCTION_HOOK(__imp__VdGetGraphicsAsicID, rex::kernel::xboxkrnl::VdGetGraphicsAsicID_entry)
-GUEST_FUNCTION_HOOK(__imp__VdEnableDisableClockGating, rex::kernel::xboxkrnl::VdEnableDisableClockGating_entry)
-GUEST_FUNCTION_HOOK(__imp__VdSetGraphicsInterruptCallback, rex::kernel::xboxkrnl::VdSetGraphicsInterruptCallback_entry)
-GUEST_FUNCTION_HOOK(__imp__VdInitializeRingBuffer, rex::kernel::xboxkrnl::VdInitializeRingBuffer_entry)
-GUEST_FUNCTION_HOOK(__imp__VdEnableRingBufferRPtrWriteBack, rex::kernel::xboxkrnl::VdEnableRingBufferRPtrWriteBack_entry)
-GUEST_FUNCTION_HOOK(__imp__VdGetSystemCommandBuffer, rex::kernel::xboxkrnl::VdGetSystemCommandBuffer_entry)
-GUEST_FUNCTION_HOOK(__imp__VdSetSystemCommandBufferGpuIdentifierAddress, rex::kernel::xboxkrnl::VdSetSystemCommandBufferGpuIdentifierAddress_entry)
-GUEST_FUNCTION_HOOK(__imp__VdInitializeScalerCommandBuffer, rex::kernel::xboxkrnl::VdInitializeScalerCommandBuffer_entry)
-GUEST_FUNCTION_HOOK(__imp__VdCallGraphicsNotificationRoutines, rex::kernel::xboxkrnl::VdCallGraphicsNotificationRoutines_entry)
-GUEST_FUNCTION_HOOK(__imp__VdIsHSIOTrainingSucceeded, rex::kernel::xboxkrnl::VdIsHSIOTrainingSucceeded_entry)
-GUEST_FUNCTION_HOOK(__imp__VdPersistDisplay, rex::kernel::xboxkrnl::VdPersistDisplay_entry)
-GUEST_FUNCTION_HOOK(__imp__VdRetrainEDRAMWorker, rex::kernel::xboxkrnl::VdRetrainEDRAMWorker_entry)
-GUEST_FUNCTION_HOOK(__imp__VdRetrainEDRAM, rex::kernel::xboxkrnl::VdRetrainEDRAM_entry)
-GUEST_FUNCTION_HOOK(__imp__VdSwap, rex::kernel::xboxkrnl::VdSwap_entry)
+PPC_HOOK(__imp__VdGetCurrentDisplayGamma, rex::kernel::xboxkrnl::VdGetCurrentDisplayGamma_entry)
+PPC_HOOK(__imp__VdGetCurrentDisplayInformation,
+         rex::kernel::xboxkrnl::VdGetCurrentDisplayInformation_entry)
+PPC_HOOK(__imp__VdQueryVideoMode, rex::kernel::xboxkrnl::VdQueryVideoMode_entry)
+PPC_HOOK(__imp__VdQueryVideoFlags, rex::kernel::xboxkrnl::VdQueryVideoFlags_entry)
+PPC_HOOK(__imp__VdSetDisplayMode, rex::kernel::xboxkrnl::VdSetDisplayMode_entry)
+PPC_HOOK(__imp__VdSetDisplayModeOverride, rex::kernel::xboxkrnl::VdSetDisplayModeOverride_entry)
+PPC_HOOK(__imp__VdInitializeEngines, rex::kernel::xboxkrnl::VdInitializeEngines_entry)
+PPC_HOOK(__imp__VdShutdownEngines, rex::kernel::xboxkrnl::VdShutdownEngines_entry)
+PPC_HOOK(__imp__VdGetGraphicsAsicID, rex::kernel::xboxkrnl::VdGetGraphicsAsicID_entry)
+PPC_HOOK(__imp__VdEnableDisableClockGating, rex::kernel::xboxkrnl::VdEnableDisableClockGating_entry)
+PPC_HOOK(__imp__VdSetGraphicsInterruptCallback,
+         rex::kernel::xboxkrnl::VdSetGraphicsInterruptCallback_entry)
+PPC_HOOK(__imp__VdInitializeRingBuffer, rex::kernel::xboxkrnl::VdInitializeRingBuffer_entry)
+PPC_HOOK(__imp__VdEnableRingBufferRPtrWriteBack,
+         rex::kernel::xboxkrnl::VdEnableRingBufferRPtrWriteBack_entry)
+PPC_HOOK(__imp__VdGetSystemCommandBuffer, rex::kernel::xboxkrnl::VdGetSystemCommandBuffer_entry)
+PPC_HOOK(__imp__VdSetSystemCommandBufferGpuIdentifierAddress,
+         rex::kernel::xboxkrnl::VdSetSystemCommandBufferGpuIdentifierAddress_entry)
+PPC_HOOK(__imp__VdInitializeScalerCommandBuffer,
+         rex::kernel::xboxkrnl::VdInitializeScalerCommandBuffer_entry)
+PPC_HOOK(__imp__VdCallGraphicsNotificationRoutines,
+         rex::kernel::xboxkrnl::VdCallGraphicsNotificationRoutines_entry)
+PPC_HOOK(__imp__VdIsHSIOTrainingSucceeded, rex::kernel::xboxkrnl::VdIsHSIOTrainingSucceeded_entry)
+PPC_HOOK(__imp__VdPersistDisplay, rex::kernel::xboxkrnl::VdPersistDisplay_entry)
+PPC_HOOK(__imp__VdRetrainEDRAMWorker, rex::kernel::xboxkrnl::VdRetrainEDRAMWorker_entry)
+PPC_HOOK(__imp__VdRetrainEDRAM, rex::kernel::xboxkrnl::VdRetrainEDRAM_entry)
+PPC_HOOK(__imp__VdSwap, rex::kernel::xboxkrnl::VdSwap_entry)

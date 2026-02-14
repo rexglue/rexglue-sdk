@@ -10,7 +10,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <memory>
 
 #include <rex/ui/presenter.h>
@@ -35,8 +34,7 @@ class ImmediateTexture {
   uint32_t height;
 
  protected:
-  ImmediateTexture(uint32_t width, uint32_t height)
-      : width(width), height(height) {}
+  ImmediateTexture(uint32_t width, uint32_t height) : width(width), height(height) {}
 };
 
 // Describes the primitive type used by a draw call.
@@ -99,9 +97,10 @@ class ImmediateDrawer {
   void SetPresenter(Presenter* new_presenter);
 
   // Creates a new texture with the given attributes and R8G8B8A8 data.
-  virtual std::unique_ptr<ImmediateTexture> CreateTexture(
-      uint32_t width, uint32_t height, ImmediateTextureFilter filter,
-      bool is_repeated, const uint8_t* data) = 0;
+  virtual std::unique_ptr<ImmediateTexture> CreateTexture(uint32_t width, uint32_t height,
+                                                          ImmediateTextureFilter filter,
+                                                          bool is_repeated,
+                                                          const uint8_t* data) = 0;
 
   // Begins drawing in immediate mode using the given projection matrix. The
   // presenter that is currently attached to the immediate drawer, as the
@@ -110,8 +109,7 @@ class ImmediateDrawer {
   // width or height to use raw render target pixel coordinates (or this will
   // just be used as a safe fallback when with a non-zero-sized surface the
   // coordinate space size becomes zero somehow).
-  virtual void Begin(UIDrawContext& ui_draw_context,
-                     float coordinate_space_width,
+  virtual void Begin(UIDrawContext& ui_draw_context, float coordinate_space_width,
                      float coordinate_space_height);
   // Starts a draw batch.
   virtual void BeginDrawBatch(const ImmediateDrawBatch& batch) = 0;
@@ -137,9 +135,8 @@ class ImmediateDrawer {
   // Converts and clamps the scissor in the immediate draw to render target
   // coordinates. Returns whether the scissor contains any render target pixels
   // (but a valid scissor is written even if false is returned).
-  bool ScissorToRenderTarget(const ImmediateDraw& immediate_draw,
-                             uint32_t& out_left, uint32_t& out_top,
-                             uint32_t& out_width, uint32_t& out_height);
+  bool ScissorToRenderTarget(const ImmediateDraw& immediate_draw, uint32_t& out_left,
+                             uint32_t& out_top, uint32_t& out_width, uint32_t& out_height);
 
  private:
   Presenter* presenter_ = nullptr;
@@ -150,5 +147,4 @@ class ImmediateDrawer {
 };
 
 }  // namespace ui
-}  // namespace xe
-
+}  // namespace rex

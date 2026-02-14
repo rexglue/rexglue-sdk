@@ -27,8 +27,8 @@ std::unique_ptr<MenuItem> MenuItem::Create(Type type, const std::string& text,
   return MenuItem::Create(type, text, "", std::move(callback));
 }
 
-MenuItem::MenuItem(Type type, const std::string& text,
-                   const std::string& hotkey, std::function<void()> callback)
+MenuItem::MenuItem(Type type, const std::string& text, const std::string& hotkey,
+                   std::function<void()> callback)
     : type_(type),
       parent_item_(nullptr),
       text_(text),
@@ -42,8 +42,7 @@ void MenuItem::AddChild(MenuItem* child_item) {
 }
 
 void MenuItem::AddChild(std::unique_ptr<MenuItem> child_item) {
-  AddChild(
-      MenuItemPtr(child_item.release(), [](MenuItem* item) { delete item; }));
+  AddChild(MenuItemPtr(child_item.release(), [](MenuItem* item) { delete item; }));
 }
 
 void MenuItem::AddChild(MenuItemPtr child_item) {
@@ -62,7 +61,9 @@ void MenuItem::RemoveChild(MenuItem* child_item) {
   }
 }
 
-MenuItem* MenuItem::child(size_t index) { return children_[index].get(); }
+MenuItem* MenuItem::child(size_t index) {
+  return children_[index].get();
+}
 
 void MenuItem::OnSelected() {
   if (callback_) {
@@ -73,4 +74,4 @@ void MenuItem::OnSelected() {
 }
 
 }  // namespace ui
-}  // namespace xe
+}  // namespace rex

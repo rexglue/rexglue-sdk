@@ -9,12 +9,11 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/stream.h>
-
 #include <cstring>
 #include <span>
 
 #include <rex/assert.h>
+#include <rex/stream.h>
 
 namespace rex::stream {
 

@@ -39,17 +39,15 @@ class TimerQueue {
         claim_strategy_(kWaitCount, wait_strategy_),
         consumed_(wait_strategy_) {
     claim_strategy_.add_claim_barrier(consumed_);
-    dispatch_thread_ = std::jthread([this](std::stop_token stop_token) {
-      TimerThreadMain(stop_token);
-    });
+    dispatch_thread_ =
+        std::jthread([this](std::stop_token stop_token) { TimerThreadMain(stop_token); });
   }
 
   ~TimerQueue() {
     dispatch_thread_.request_stop();
 
     // Kick dispatch thread to check stop token
-    auto wait_item = std::make_shared<WaitItem>(nullptr, nullptr, this,
-                                                clock::time_point::min(),
+    auto wait_item = std::make_shared<WaitItem>(nullptr, nullptr, this, clock::time_point::min(),
                                                 clock::duration::zero());
     wait_item->Disarm();
     QueueTimer(std::move(wait_item));
@@ -71,8 +69,7 @@ class TimerQueue {
         // Consume new wait items and add them to sorted wait queue
         dp::sequence_t available = claim_strategy_.wait_until_published(
             next_sequence, next_sequence - 1,
-            wait_queue_.empty() ? clock::time_point::max()
-                                : wait_queue_.front()->due_);
+            wait_queue_.empty() ? clock::time_point::max() : wait_queue_.front()->due_);
 
         // Check for timeout
         if (available != next_sequence - 1) {
@@ -91,16 +88,14 @@ class TimerQueue {
       {
         // Check wait queue, invoke callbacks and reschedule
         std::forward_list<std::shared_ptr<WaitItem>> wait_items;
-        while (!wait_queue_.empty() &&
-               wait_queue_.front()->due_ <= clock::now()) {
+        while (!wait_queue_.empty() && wait_queue_.front()->due_ <= clock::now()) {
           auto wait_item = std::move(wait_queue_.front());
           wait_queue_.pop_front();
 
           // Ensure that it isn't disarmed
           auto state = WaitItem::State::kIdle;
-          if (wait_item->state_.compare_exchange_strong(
-                  state, WaitItem::State::kInCallback,
-                  std::memory_order_acq_rel)) {
+          if (wait_item->state_.compare_exchange_strong(state, WaitItem::State::kInCallback,
+                                                        std::memory_order_acq_rel)) {
             // Possibility to dispatch to a thread pool here
             assert_not_null(wait_item->callback_);
             wait_item->callback_(wait_item->userdata_);
@@ -110,13 +105,11 @@ class TimerQueue {
                     WaitItem::State::kInCallbackSelfDisarmed) {
               // Item is recurring and didn't self-disarm during callback:
               wait_item->due_ += wait_item->interval_;
-              wait_item->state_.store(WaitItem::State::kIdle,
-                                      std::memory_order_release);
+              wait_item->state_.store(WaitItem::State::kIdle, std::memory_order_release);
               wait_item->state_.notify_all();
               wait_items.push_front(std::move(wait_item));
             } else {
-              wait_item->state_.store(WaitItem::State::kDisarmed,
-                                      std::memory_order_release);
+              wait_item->state_.store(WaitItem::State::kDisarmed, std::memory_order_release);
               wait_item->state_.notify_all();
             }
           } else {
@@ -134,8 +127,7 @@ class TimerQueue {
     auto wait_item_weak = std::weak_ptr<WaitItem>(wait_item);
 
     // Mitigate callback flooding
-    wait_item->due_ =
-        std::max(clock::now() - wait_item->interval_, wait_item->due_);
+    wait_item->due_ = std::max(clock::now() - wait_item->interval_, wait_item->due_);
 
     auto sequence = claim_strategy_.claim_one();
     buffer_[sequence] = std::move(wait_item);
@@ -183,8 +175,7 @@ void TimerQueueWaitItem::Disarm() {
   // executes a callback which accesses memory that is freed simultaneously due
   // to this. Therefore, we need to guarantee that no callbacks will be running
   // once Disarm() has returned.
-  while (!state_.compare_exchange_weak(state, State::kDisarmed,
-                                       std::memory_order_acq_rel)) {
+  while (!state_.compare_exchange_weak(state, State::kDisarmed, std::memory_order_acq_rel)) {
     if (state == State::kDisarmed) {
       break;
     }
@@ -197,18 +188,16 @@ void TimerQueueWaitItem::Disarm() {
 }
 
 std::weak_ptr<WaitItem> QueueTimerOnce(std::move_only_function<void(void*)> callback,
-                                       void* userdata,
-                                       WaitItem::clock::time_point due) {
-  return timer_queue_.QueueTimer(
-      std::make_shared<WaitItem>(std::move(callback), userdata, &timer_queue_,
-                                 due, WaitItem::clock::duration::zero()));
+                                       void* userdata, WaitItem::clock::time_point due) {
+  return timer_queue_.QueueTimer(std::make_shared<WaitItem>(
+      std::move(callback), userdata, &timer_queue_, due, WaitItem::clock::duration::zero()));
 }
 
-std::weak_ptr<WaitItem> QueueTimerRecurring(
-    std::move_only_function<void(void*)> callback, void* userdata,
-    WaitItem::clock::time_point due, WaitItem::clock::duration interval) {
-  return timer_queue_.QueueTimer(std::make_shared<WaitItem>(
-      std::move(callback), userdata, &timer_queue_, due, interval));
+std::weak_ptr<WaitItem> QueueTimerRecurring(std::move_only_function<void(void*)> callback,
+                                            void* userdata, WaitItem::clock::time_point due,
+                                            WaitItem::clock::duration interval) {
+  return timer_queue_.QueueTimer(
+      std::make_shared<WaitItem>(std::move(callback), userdata, &timer_queue_, due, interval));
 }
 
 }  // namespace rex::thread

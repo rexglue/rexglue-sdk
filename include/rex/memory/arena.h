@@ -67,4 +67,3 @@ class Arena {
 };
 
 }  // namespace rex::memory
-

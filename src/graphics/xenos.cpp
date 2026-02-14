@@ -9,10 +9,9 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/graphics/xenos.h>
-
 #include <cmath>
 
+#include <rex/graphics/xenos.h>
 #include <rex/math.h>
 #include <rex/memory.h>
 
@@ -120,8 +119,7 @@ float Float7e3To32(uint32_t f10) {
     exponent = uint32_t(1 - int32_t(mantissa_lzcnt));
     mantissa = (mantissa << mantissa_lzcnt) & 0x7F;
   }
-  return rex::memory::Reinterpret<float>(
-      uint32_t(((exponent + 124) << 23) | (mantissa << 3)));
+  return rex::memory::Reinterpret<float>(uint32_t(((exponent + 124) << 23) | (mantissa << 3)));
 }
 
 // Based on CFloat24 from d3dref9.dll and the 6e4 code from:
@@ -167,8 +165,7 @@ float Float20e4To32(uint32_t f24) {
     exponent = uint32_t(1 - int32_t(mantissa_lzcnt));
     mantissa = (mantissa << mantissa_lzcnt) & 0xFFFFF;
   }
-  return rex::memory::Reinterpret<float>(
-      uint32_t(((exponent + 112) << 23) | (mantissa << 3)));
+  return rex::memory::Reinterpret<float>(uint32_t(((exponent + 112) << 23) | (mantissa << 3)));
 }
 
 const char* GetColorRenderTargetFormatName(ColorRenderTargetFormat format) {

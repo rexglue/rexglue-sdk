@@ -9,30 +9,18 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/time/clock.h>
-
 #include <algorithm>
 #include <limits>
 #include <mutex>
 
-#include <rex/assert.h>
+#include <rex/chrono/clock.h>
 #include <rex/cvar.h>
 #include <rex/math.h>
-#include <rex/platform.h>
 
-REXCVAR_DEFINE_BOOL(clock_no_scaling, false,
-    "Disable clock scaling (inverted: false = scaling enabled)",
-    "Clock");
+REXCVAR_DEFINE_BOOL(clock_no_scaling, false, "Clock",
+                    "Disable clock scaling (inverted: false = scaling enabled)");
 
-REXCVAR_DEFINE_BOOL(clock_source_raw, false,
-    "Use raw clock source without scaling",
-    "Clock");
-
-#if REX_PLATFORM_WIN32
-#include <rex/platform/win.h>
-#elif REX_PLATFORM_LINUX || REX_PLATFORM_MAC
-#include <sys/time.h>
-#endif
+REXCVAR_DEFINE_BOOL(clock_source_raw, false, "Clock", "Use raw clock source without scaling");
 
 namespace rex::chrono {
 
@@ -56,8 +44,7 @@ std::mutex tick_mutex_;
 
 void RecomputeGuestTickScalar() {
   // Create a rational number with numerator (first) and denominator (second)
-  auto frac =
-      std::make_pair(guest_tick_frequency_, Clock::QueryHostTickFrequency());
+  auto frac = std::make_pair(guest_tick_frequency_, Clock::QueryHostTickFrequency());
   // Doing it this way ensures we don't mess up our frequency scaling and
   // precisely controls the precision the guest_time_scalar_ can have.
   if (guest_time_scalar_ > 1.0) {
@@ -87,9 +74,8 @@ uint64_t UpdateGuestClock() {
   std::unique_lock<std::mutex> lock(tick_mutex_, std::defer_lock);
   if (lock.try_lock()) {
     // Translate host tick count to guest tick count.
-    uint64_t host_tick_delta = host_tick_count > last_host_tick_count_
-                                   ? host_tick_count - last_host_tick_count_
-                                   : 0;
+    uint64_t host_tick_delta =
+        host_tick_count > last_host_tick_count_ ? host_tick_count - last_host_tick_count_ : 0;
     last_host_tick_count_ = host_tick_count;
     uint64_t guest_tick_delta =
         host_tick_delta * guest_tick_ratio_.first / guest_tick_ratio_.second;
@@ -134,7 +120,9 @@ uint64_t Clock::QueryHostTickCount() {
   return host_tick_count_platform();
 }
 
-double Clock::guest_time_scalar() { return guest_time_scalar_; }
+double Clock::guest_time_scalar() {
+  return guest_time_scalar_;
+}
 
 void Clock::set_guest_time_scalar(double scalar) {
   if (REXCVAR_GET(clock_no_scaling)) {
@@ -150,14 +138,18 @@ std::pair<uint64_t, uint64_t> Clock::guest_tick_ratio() {
   return guest_tick_ratio_;
 }
 
-uint64_t Clock::guest_tick_frequency() { return guest_tick_frequency_; }
+uint64_t Clock::guest_tick_frequency() {
+  return guest_tick_frequency_;
+}
 
 void Clock::set_guest_tick_frequency(uint64_t frequency) {
   guest_tick_frequency_ = frequency;
   RecomputeGuestTickScalar();
 }
 
-uint64_t Clock::guest_system_time_base() { return guest_system_time_base_; }
+uint64_t Clock::guest_system_time_base() {
+  return guest_system_time_base_;
+}
 
 void Clock::set_guest_system_time_base(uint64_t time_base) {
   guest_system_time_base_ = time_base;
@@ -178,9 +170,8 @@ uint64_t Clock::QueryGuestSystemTime() {
 }
 
 uint32_t Clock::QueryGuestUptimeMillis() {
-  return static_cast<uint32_t>(
-      std::min<uint64_t>(QueryGuestSystemTimeOffset() / 10000,
-                         std::numeric_limits<uint32_t>::max()));
+  return static_cast<uint32_t>(std::min<uint64_t>(QueryGuestSystemTimeOffset() / 10000,
+                                                  std::numeric_limits<uint32_t>::max()));
 }
 
 void Clock::SetGuestSystemTime(uint64_t system_time) {
@@ -206,8 +197,8 @@ uint32_t Clock::ScaleGuestDurationMillis(uint32_t guest_ms) {
   } else if (!guest_ms) {
     return 0;
   }
-  uint64_t scaled_ms = static_cast<uint64_t>(
-      (static_cast<uint64_t>(guest_ms) * guest_time_scalar_));
+  uint64_t scaled_ms =
+      static_cast<uint64_t>((static_cast<uint64_t>(guest_ms) * guest_time_scalar_));
   return static_cast<uint32_t>(std::min(scaled_ms, max));
 }
 
@@ -222,13 +213,12 @@ int64_t Clock::ScaleGuestDurationFileTime(int64_t guest_file_time) {
     // Absolute time.
     uint64_t guest_time = Clock::QueryGuestSystemTime();
     int64_t relative_time = guest_file_time - static_cast<int64_t>(guest_time);
-    int64_t scaled_time =
-        static_cast<int64_t>(relative_time * guest_time_scalar_);
+    int64_t scaled_time = static_cast<int64_t>(relative_time * guest_time_scalar_);
     return static_cast<int64_t>(guest_time) + scaled_time;
   } else {
     // Relative time.
-    uint64_t scaled_file_time = static_cast<uint64_t>(
-        (static_cast<uint64_t>(guest_file_time) * guest_time_scalar_));
+    uint64_t scaled_file_time =
+        static_cast<uint64_t>((static_cast<uint64_t>(guest_file_time) * guest_time_scalar_));
     // TODO(benvanik): check for overflow?
     return scaled_file_time;
   }
@@ -239,10 +229,9 @@ void Clock::ScaleGuestDurationTimeval(int32_t* tv_sec, int32_t* tv_usec) {
     return;
   }
 
-  uint64_t scaled_sec = static_cast<uint64_t>(static_cast<uint64_t>(*tv_sec) *
-                                              guest_time_scalar_);
-  uint64_t scaled_usec = static_cast<uint64_t>(static_cast<uint64_t>(*tv_usec) *
-                                               guest_time_scalar_);
+  uint64_t scaled_sec = static_cast<uint64_t>(static_cast<uint64_t>(*tv_sec) * guest_time_scalar_);
+  uint64_t scaled_usec =
+      static_cast<uint64_t>(static_cast<uint64_t>(*tv_usec) * guest_time_scalar_);
   if (scaled_usec > std::numeric_limits<uint32_t>::max()) {
     uint64_t overflow_sec = scaled_usec / 1000000;
     scaled_usec -= overflow_sec * 1000000;
@@ -251,79 +240,5 @@ void Clock::ScaleGuestDurationTimeval(int32_t* tv_sec, int32_t* tv_usec) {
   *tv_sec = int32_t(scaled_sec);
   *tv_usec = int32_t(scaled_usec);
 }
-
-// =============================================================================
-// Platform-specific implementations
-// =============================================================================
-
-#if REX_PLATFORM_WIN32
-
-uint64_t Clock::host_tick_frequency_platform() {
-  LARGE_INTEGER frequency;
-  QueryPerformanceFrequency(&frequency);
-  return frequency.QuadPart;
-}
-
-uint64_t Clock::host_tick_count_platform() {
-  LARGE_INTEGER counter;
-  uint64_t time = 0;
-  if (QueryPerformanceCounter(&counter)) {
-    time = counter.QuadPart;
-  }
-  return time;
-}
-
-uint64_t Clock::QueryHostSystemTime() {
-  FILETIME t;
-  GetSystemTimeAsFileTime(&t);
-  return (uint64_t(t.dwHighDateTime) << 32) | t.dwLowDateTime;
-}
-
-uint64_t Clock::QueryHostUptimeMillis() {
-  return host_tick_count_platform() * 1000 / host_tick_frequency_platform();
-}
-
-#elif REX_PLATFORM_LINUX || REX_PLATFORM_MAC
-
-uint64_t Clock::host_tick_frequency_platform() {
-  timespec res;
-  int error = clock_getres(CLOCK_MONOTONIC_RAW, &res);
-  assert_zero(error);
-  assert_zero(res.tv_sec);  // Sub second resolution is required.
-
-  // Convert nano seconds to hertz. Resolution is 1ns on most systems.
-  return 1000000000ull / res.tv_nsec;
-}
-
-uint64_t Clock::host_tick_count_platform() {
-  timespec tp;
-  int error = clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
-  assert_zero(error);
-
-  return tp.tv_nsec + tp.tv_sec * 1000000000ull;
-}
-
-uint64_t Clock::QueryHostSystemTime() {
-  // https://docs.microsoft.com/en-us/windows/win32/sysinfo/converting-a-time-t-value-to-a-file-time
-  constexpr uint64_t seconds_per_day = 3600 * 24;
-  // Don't forget the 89 leap days.
-  constexpr uint64_t seconds_1601_to_1970 =
-      ((369 * 365 + 89) * seconds_per_day);
-
-  timeval now;
-  int error = gettimeofday(&now, nullptr);
-  assert_zero(error);
-
-  // NT systems use 100ns intervals.
-  return static_cast<uint64_t>(
-      (static_cast<int64_t>(now.tv_sec) + seconds_1601_to_1970) * 10000000ull +
-      now.tv_usec * 10);
-}
-
-uint64_t Clock::QueryHostUptimeMillis() {
-  return host_tick_count_platform() * 1000 / host_tick_frequency_platform();
-}
-
-#endif  // REX_PLATFORM_*
 
 }  // namespace rex::chrono

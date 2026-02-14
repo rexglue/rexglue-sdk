@@ -9,14 +9,13 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/string/buffer.h>
-
 #include <algorithm>
 #include <cstdarg>
 
 #include <rex/assert.h>
 #include <rex/literals.h>
 #include <rex/math.h>
+#include <rex/string/buffer.h>
 
 namespace rex::string {
 
@@ -45,8 +44,7 @@ void StringBuffer::Grow(size_t additional_length) {
   }
   size_t old_capacity = buffer_capacity_;
   size_t new_capacity =
-      std::max(rex::round_up(buffer_offset_ + additional_length, 16_KiB),
-               old_capacity * 2);
+      std::max(rex::round_up(buffer_offset_ + additional_length, 16_KiB), old_capacity * 2);
   auto new_buffer = std::realloc(buffer_, new_capacity);
   assert_not_null(new_buffer);
   buffer_ = reinterpret_cast<char*>(new_buffer);

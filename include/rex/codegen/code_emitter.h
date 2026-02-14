@@ -13,6 +13,7 @@
 
 #include <string>
 #include <string_view>
+
 #include <fmt/core.h>
 
 namespace rex::codegen {
@@ -29,9 +30,9 @@ class RecompilerConfig;
  * - Vmx: Denormals flushed (vector FP)
  */
 enum class CsrState {
-    Unknown,    // Need to check/set on next FP instruction
-    Fpu,        // Flush mode disabled (scalar FP)
-    Vmx         // Flush mode enabled (vector FP)
+  Unknown,  // Need to check/set on next FP instruction
+  Fpu,      // Flush mode disabled (scalar FP)
+  Vmx       // Flush mode enabled (vector FP)
 };
 
 /**
@@ -51,66 +52,66 @@ enum class CsrState {
  * @endcode
  */
 class CodeEmitter {
-public:
-    virtual ~CodeEmitter() = default;
+ public:
+  virtual ~CodeEmitter() = default;
 
-    //=========================================================================
-    // Indentation
-    //=========================================================================
+  //=========================================================================
+  // Indentation
+  //=========================================================================
 
-    /// Increase indentation level
-    virtual void indent() = 0;
+  /// Increase indentation level
+  virtual void indent() = 0;
 
-    /// Decrease indentation level
-    virtual void dedent() = 0;
+  /// Decrease indentation level
+  virtual void dedent() = 0;
 
-    /// Get current indentation string
-    virtual std::string_view indentString() const = 0;
+  /// Get current indentation string
+  virtual std::string_view indentString() const = 0;
 
-    //=========================================================================
-    // Output
-    //=========================================================================
+  //=========================================================================
+  // Output
+  //=========================================================================
 
-    /// Write raw string (no indentation, no newline)
-    virtual void raw(std::string_view text) = 0;
+  /// Write raw string (no indentation, no newline)
+  virtual void raw(std::string_view text) = 0;
 
-    /// Write formatted line with indentation and newline
-    template<typename... Args>
-    void line(fmt::format_string<Args...> fmt, Args&&... args) {
-        raw(indentString());
-        raw(fmt::format(fmt, std::forward<Args>(args)...));
-        raw("\n");
-    }
+  /// Write formatted line with indentation and newline
+  template <typename... Args>
+  void line(fmt::format_string<Args...> fmt, Args&&... args) {
+    raw(indentString());
+    raw(fmt::format(fmt, std::forward<Args>(args)...));
+    raw("\n");
+  }
 
-    /// Write empty line
-    void blankLine() { raw("\n"); }
+  /// Write empty line
+  void blankLine() { raw("\n"); }
 
-    /// Write comment line
-    void comment(std::string_view text) {
-        raw(indentString());
-        raw("// ");
-        raw(text);
-        raw("\n");
-    }
+  /// Write comment line
+  void comment(std::string_view text) {
+    raw(indentString());
+    raw("// ");
+    raw(text);
+    raw("\n");
+  }
 
-    //=========================================================================
-    // CSR State Management
-    //=========================================================================
+  //=========================================================================
+  // CSR State Management
+  //=========================================================================
 
-    /// Get current CSR state
-    CsrState csrState() const { return csrState_; }
+  /// Get current CSR state
+  CsrState csrState() const { return csrState_; }
 
-    /// Set CSR state (called when mode is established)
-    void setCsrState(CsrState state) { csrState_ = state; }
+  /// Set CSR state (called when mode is established)
+  void setCsrState(CsrState state) { csrState_ = state; }
 
-    /// Ensure CSR is in required state, emitting code if needed
-    virtual void ensureCsrState(CsrState required);
+  /// Ensure CSR is in required state, emitting code if needed
+  virtual void ensureCsrState(CsrState required);
 
-    /// Reset CSR state to Unknown (call after function calls)
-    void resetCsrState() { csrState_ = CsrState::Unknown; }
+  /// Reset CSR state to Unknown (call after function calls)
+  void resetCsrState() { csrState_ = CsrState::Unknown; }
 
-protected:
-    CsrState csrState_ = CsrState::Unknown;
+ protected:
+  CsrState csrState_ = CsrState::Unknown;
 };
 
 /**
@@ -119,45 +120,40 @@ protected:
  * Useful for tests and building function bodies before output.
  */
 class StringEmitter : public CodeEmitter {
-public:
-    explicit StringEmitter(int indentWidth = 4) : indentWidth_(indentWidth) {}
+ public:
+  explicit StringEmitter(int indentWidth = 4) : indentWidth_(indentWidth) {}
 
-    void indent() override {
-        indentLevel_++;
-        updateIndentString();
-    }
+  void indent() override {
+    indentLevel_++;
+    updateIndentString();
+  }
 
-    void dedent() override {
-        if (indentLevel_ > 0) indentLevel_--;
-        updateIndentString();
-    }
+  void dedent() override {
+    if (indentLevel_ > 0)
+      indentLevel_--;
+    updateIndentString();
+  }
 
-    std::string_view indentString() const override {
-        return indentStr_;
-    }
+  std::string_view indentString() const override { return indentStr_; }
 
-    void raw(std::string_view text) override {
-        buffer_.append(text);
-    }
+  void raw(std::string_view text) override { buffer_.append(text); }
 
-    /// Get the accumulated output
-    const std::string& str() const { return buffer_; }
+  /// Get the accumulated output
+  const std::string& str() const { return buffer_; }
 
-    /// Clear the buffer
-    void clear() { buffer_.clear(); }
+  /// Clear the buffer
+  void clear() { buffer_.clear(); }
 
-    /// Move the buffer out
-    std::string take() { return std::move(buffer_); }
+  /// Move the buffer out
+  std::string take() { return std::move(buffer_); }
 
-private:
-    void updateIndentString() {
-        indentStr_ = std::string(indentLevel_ * indentWidth_, ' ');
-    }
+ private:
+  void updateIndentString() { indentStr_ = std::string(indentLevel_ * indentWidth_, ' '); }
 
-    std::string buffer_;
-    std::string indentStr_;
-    int indentLevel_ = 0;
-    int indentWidth_ = 4;
+  std::string buffer_;
+  std::string indentStr_;
+  int indentLevel_ = 0;
+  int indentWidth_ = 4;
 };
 
-} // namespace rex::codegen
+}  // namespace rex::codegen

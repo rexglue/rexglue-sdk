@@ -9,26 +9,23 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/audio/xma/decoder.h>
-
 #include <rex/audio/xma/context.h>
+#include <rex/audio/xma/decoder.h>
 #include <rex/cvar.h>
+#include <rex/dbg.h>
 #include <rex/logging.h>
 #include <rex/math.h>
-#include <rex/profiling.h>
 #include <rex/memory/ring_buffer.h>
 #include <rex/string/buffer.h>
-#include <rex/runtime/processor.h>
-#include <rex/runtime/thread_state.h>
-#include <rex/kernel/xthread.h>
+#include <rex/system/processor.h>
+#include <rex/system/thread_state.h>
+#include <rex/system/xthread.h>
 
 extern "C" {
 #include "libavutil/log.h"
 }  // extern "C"
 
-REXCVAR_DEFINE_BOOL(ffmpeg_verbose, false,
-    "Verbose FFmpeg output (debug and above)",
-    "Audio");
+REXCVAR_DEFINE_BOOL(ffmpeg_verbose, false, "Verbose FFmpeg output (debug and above)", "Audio");
 
 // As with normal Microsoft, there are like twelve different ways to access
 // the audio APIs. Early games use XMA*() methods almost exclusively to touch
@@ -88,7 +85,7 @@ void av_log_callback(void* avcl, int level, const char* fmt, va_list va) {
   }
 }
 
-X_STATUS XmaDecoder::Setup(kernel::KernelState* kernel_state) {
+X_STATUS XmaDecoder::Setup(system::KernelState* kernel_state) {
   // Setup ffmpeg logging callback
   av_log_set_callback(av_log_callback);
 
@@ -107,10 +104,9 @@ X_STATUS XmaDecoder::Setup(kernel::KernelState* kernel_state) {
   // The Xbox 360 kernel allocates the contexts with X_PAGE_NOCACHE |
   // X_PAGE_READWRITE and writes MmGetPhysicalAddress for the address to the
   // register.
-  context_data_first_ptr_ = memory()->SystemHeapAlloc(
-      sizeof(XMA_CONTEXT_DATA) * kContextCount, 256, memory::kSystemHeapPhysical);
-  context_data_last_ptr_ =
-      context_data_first_ptr_ + (sizeof(XMA_CONTEXT_DATA) * kContextCount - 1);
+  context_data_first_ptr_ = memory()->SystemHeapAlloc(sizeof(XMA_CONTEXT_DATA) * kContextCount, 256,
+                                                      memory::kSystemHeapPhysical);
+  context_data_last_ptr_ = context_data_first_ptr_ + (sizeof(XMA_CONTEXT_DATA) * kContextCount - 1);
   register_file_[XmaRegister::ContextArrayAddress] =
       memory()->GetPhysicalAddress(context_data_first_ptr_);
 
@@ -128,8 +124,8 @@ X_STATUS XmaDecoder::Setup(kernel::KernelState* kernel_state) {
   worker_running_ = true;
   work_event_ = rex::thread::Event::CreateAutoResetEvent(false);
   assert_not_null(work_event_);
-  worker_thread_ = kernel::object_ref<kernel::XHostThread>(
-      new kernel::XHostThread(kernel_state, 128 * 1024, 0, [this]() {
+  worker_thread_ = system::object_ref<system::XHostThread>(
+      new system::XHostThread(kernel_state, 128 * 1024, 0, [this]() {
         WorkerThreadMain();
         return 0;
       }));
@@ -168,8 +164,7 @@ void XmaDecoder::WorkerThreadMain() {
 
     if (idle_loop_count > 500) {
       // Idle for an extended period. Introduce a 20ms wait.
-      rex::thread::Wait(work_event_.get(), false,
-                          std::chrono::milliseconds(20));
+      rex::thread::Wait(work_event_.get(), false, std::chrono::milliseconds(20));
     }
 
     rex::thread::MaybeYield();
@@ -203,8 +198,7 @@ void XmaDecoder::Shutdown() {
 
 int XmaDecoder::GetContextId(uint32_t guest_ptr) {
   static_assert_size(XMA_CONTEXT_DATA, 64);
-  if (guest_ptr < context_data_first_ptr_ ||
-      guest_ptr > context_data_last_ptr_) {
+  if (guest_ptr < context_data_first_ptr_ || guest_ptr > context_data_last_ptr_) {
     return -1;
   }
   assert_zero(guest_ptr & 0x3F);
@@ -255,10 +249,8 @@ uint32_t XmaDecoder::ReadRegister(uint32_t addr) {
       // context being processed.
       // If bit 200h is set, the locking code will possibly collide on hardware
       // IDs and error out, so we should never set it (I think?).
-      uint32_t& current_context_index =
-          register_file_[XmaRegister::CurrentContextIndex];
-      uint32_t& next_context_index =
-          register_file_[XmaRegister::NextContextIndex];
+      uint32_t& current_context_index = register_file_[XmaRegister::CurrentContextIndex];
+      uint32_t& next_context_index = register_file_[XmaRegister::NextContextIndex];
       // To prevent games from seeing a stuck XMA context, return a rotating
       // number.
       current_context_index = next_context_index;
@@ -268,8 +260,7 @@ uint32_t XmaDecoder::ReadRegister(uint32_t addr) {
     default:
       const auto register_info = register_file_.GetRegisterInfo(r);
       if (register_info) {
-        REXAPU_WARN("XMA: Read from unhandled register ({:04X}, {})", r,
-               register_info->name);
+        REXAPU_WARN("XMA: Read from unhandled register ({:04X}, {})", r, register_info->name);
       } else {
         REXAPU_WARN("XMA: Read from unknown register ({:04X})", r);
       }
@@ -319,8 +310,7 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint32_t value) {
     }
     // Signal the decoder thread to start processing.
     // work_event_->Set();
-  } else if (r >= XmaRegister::Context0Clear &&
-             r <= XmaRegister::Context9Clear) {
+  } else if (r >= XmaRegister::Context0Clear && r <= XmaRegister::Context9Clear) {
     // Context clear command.
     // This will reset the given hardware contexts.
     uint32_t base_context_id = (r - XmaRegister::Context0Clear) * 32;
@@ -339,7 +329,7 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint32_t value) {
         const auto register_info = register_file_.GetRegisterInfo(r);
         if (register_info) {
           REXAPU_WARN("XMA: Write to unhandled register ({:04X}, {}): {:08X}", r,
-                 register_info->name, value);
+                      register_info->name, value);
         } else {
           REXAPU_WARN("XMA: Write to unknown register ({:04X}): {:08X}", r, value);
         }

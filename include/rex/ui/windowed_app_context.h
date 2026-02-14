@@ -10,7 +10,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <cstdint>
 #include <deque>
 #include <functional>
@@ -33,9 +32,7 @@ class WindowedAppContext {
   // The thread where the object is created will be assumed to be the UI thread,
   // for the purpose of being able to perform CallInUIThreadSynchronous before
   // running the loop.
-  bool IsInUIThread() const {
-    return std::this_thread::get_id() == ui_thread_id_;
-  }
+  bool IsInUIThread() const { return std::this_thread::get_id() == ui_thread_id_; }
 
   // CallInUIThreadDeferred and CallInUIThread are fire and forget - will be
   // executed at some point the future when the UI thread is running the loop
@@ -78,9 +75,7 @@ class WindowedAppContext {
   // as in the case of waiting for a pending async CallInUIThreadDeferred
   // described above - the wait may be done inside a CallInUIThreadSynchronous
   // function safely).
-  void ExecutePendingFunctionsFromUIThread() {
-    ExecutePendingFunctionsFromUIThread(false);
-  }
+  void ExecutePendingFunctionsFromUIThread() { ExecutePendingFunctionsFromUIThread(false); }
 
   // If on the target platform, the program itself is supposed to run the UI
   // loop, this may be checked before doing blocking message waits as an
@@ -180,5 +175,4 @@ class WindowedAppContext {
 };
 
 }  // namespace ui
-}  // namespace xe
-
+}  // namespace rex

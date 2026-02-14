@@ -11,8 +11,9 @@
 
 #pragma once
 
-#include <rex/runtime/module.h>
 #include <string>
+
+#include <rex/system/module.h>
 
 namespace rex::codegen {
 
@@ -30,34 +31,34 @@ namespace rex::codegen {
  *   recompiler.module_ = &module;
  */
 class TestModule : public runtime::Module {
-public:
-    TestModule();
-    ~TestModule() override = default;
+ public:
+  TestModule();
+  ~TestModule() override = default;
 
-    /**
-     * @brief Load binary data for analysis
-     * @param base_address Guest virtual address where code is loaded
-     * @param data Pointer to binary data (caller owns, must outlive TestModule usage)
-     * @param size Size of binary data in bytes
-     */
-    void Load(uint32_t base_address, const uint8_t* data, size_t size);
+  /**
+   * @brief Load binary data for analysis
+   * @param base_address Guest virtual address where code is loaded
+   * @param data Pointer to binary data (caller owns, must outlive TestModule usage)
+   * @param size Size of binary data in bytes
+   */
+  void Load(uint32_t base_address, const uint8_t* data, size_t size);
 
-    // Module interface overrides
-    const std::string& name() const override { return name_; }
-    void set_name(const std::string& name) { name_ = name; }
-    bool is_executable() const override { return true; }
-    uint32_t base_address() const override { return base_address_; }
-    uint32_t image_size() const override { return size_; }
-    uint32_t entry_point() const override { return base_address_; }
-    bool ContainsAddress(uint32_t address) override;
+  // Module interface overrides
+  const std::string& name() const override { return name_; }
+  void set_name(const std::string& name) { name_ = name; }
+  bool is_executable() const override { return true; }
+  uint32_t base_address() const override { return base_address_; }
+  uint32_t image_size() const override { return size_; }
+  uint32_t entry_point() const override { return base_address_; }
+  bool ContainsAddress(uint32_t address) override;
 
-protected:
-    std::unique_ptr<runtime::Function> CreateFunction(uint32_t address) override;
+ protected:
+  std::unique_ptr<runtime::Function> CreateFunction(uint32_t address) override;
 
-private:
-    std::string name_{"test"};
-    uint32_t base_address_ = 0;
-    uint32_t size_ = 0;
+ private:
+  std::string name_{"test"};
+  uint32_t base_address_ = 0;
+  uint32_t size_ = 0;
 };
 
 }  // namespace rex::codegen

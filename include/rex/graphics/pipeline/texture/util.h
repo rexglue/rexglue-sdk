@@ -10,12 +10,11 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <algorithm>
 
-#include <rex/math.h>
 #include <rex/graphics/pipeline/texture/info.h>
 #include <rex/graphics/xenos.h>
+#include <rex/math.h>
 
 namespace rex::graphics::texture_util {
 
@@ -25,11 +24,11 @@ namespace rex::graphics::texture_util {
 // Extracts the size from the fetch constant, and also cleans up addresses and
 // mip range based on real presence of the base level and mips. Returns 6 faces
 // for cube textures.
-void GetSubresourcesFromFetchConstant(
-    const xenos::xe_gpu_texture_fetch_t& fetch, uint32_t* width_minus_1_out,
-    uint32_t* height_minus_1_out, uint32_t* depth_or_array_size_minus_1_out,
-    uint32_t* base_page_out, uint32_t* mip_page_out,
-    uint32_t* mip_min_level_out, uint32_t* mip_max_level_out);
+void GetSubresourcesFromFetchConstant(const xenos::xe_gpu_texture_fetch_t& fetch,
+                                      uint32_t* width_minus_1_out, uint32_t* height_minus_1_out,
+                                      uint32_t* depth_or_array_size_minus_1_out,
+                                      uint32_t* base_page_out, uint32_t* mip_page_out,
+                                      uint32_t* mip_min_level_out, uint32_t* mip_max_level_out);
 
 // Gets the number of the mipmap level where the packed mips are stored.
 inline uint32_t GetPackedMipLevel(uint32_t width, uint32_t height) {
@@ -42,9 +41,8 @@ inline uint32_t GetPackedMipLevel(uint32_t width, uint32_t height) {
 // texels. For non-3D textures, set depth to 1.
 // The offset is always within the dimensions of the image rounded to 32.
 bool GetPackedMipOffset(uint32_t width, uint32_t height, uint32_t depth,
-                        xenos::TextureFormat format, uint32_t mip,
-                        uint32_t& x_blocks, uint32_t& y_blocks,
-                        uint32_t& z_blocks);
+                        xenos::TextureFormat format, uint32_t mip, uint32_t& x_blocks,
+                        uint32_t& y_blocks, uint32_t& z_blocks);
 
 // Both tiled and linear textures, as it appears from Direct3D 9 texture
 // alignment disassembly (where the parameter indicating whether the texture is
@@ -182,20 +180,18 @@ struct TextureGuestLayout {
   uint32_t array_size;
 };
 
-TextureGuestLayout GetGuestTextureLayout(
-    xenos::DataDimension dimension, uint32_t base_pitch_texels_div_32,
-    uint32_t width_texels, uint32_t height_texels, uint32_t depth_or_array_size,
-    bool is_tiled, xenos::TextureFormat format, bool has_packed_levels,
-    bool has_base, uint32_t max_level);
+TextureGuestLayout GetGuestTextureLayout(xenos::DataDimension dimension,
+                                         uint32_t base_pitch_texels_div_32, uint32_t width_texels,
+                                         uint32_t height_texels, uint32_t depth_or_array_size,
+                                         bool is_tiled, xenos::TextureFormat format,
+                                         bool has_packed_levels, bool has_base, uint32_t max_level);
 
 // Returns the total size of memory the texture uses starting from its base and
 // mip addresses, in bytes (both are optional).
-void GetTextureTotalSize(xenos::DataDimension dimension,
-                         uint32_t base_pitch_texels_div_32,
+void GetTextureTotalSize(xenos::DataDimension dimension, uint32_t base_pitch_texels_div_32,
                          uint32_t width_texels, uint32_t height_texels,
-                         uint32_t depth_or_array_size, bool is_tiled,
-                         xenos::TextureFormat format, uint32_t mip_max_level,
-                         bool has_packed_mips, uint32_t* base_size_out,
+                         uint32_t depth_or_array_size, bool is_tiled, xenos::TextureFormat format,
+                         uint32_t mip_max_level, bool has_packed_mips, uint32_t* base_size_out,
                          uint32_t* mip_size_out);
 
 // Notes about tiled addresses:
@@ -282,41 +278,33 @@ void GetTextureTotalSize(xenos::DataDimension dimension,
 // bytes_per_block_log2 is log2_floor according to how Direct3D 9 calculates it,
 // but k_32_32_32 textures are never tiled anyway likely.
 
-int32_t GetTiledOffset2D(int32_t x, int32_t y, uint32_t pitch,
+int32_t GetTiledOffset2D(int32_t x, int32_t y, uint32_t pitch, uint32_t bytes_per_block_log2);
+int32_t GetTiledOffset3D(int32_t x, int32_t y, int32_t z, uint32_t pitch, uint32_t height,
                          uint32_t bytes_per_block_log2);
-int32_t GetTiledOffset3D(int32_t x, int32_t y, int32_t z, uint32_t pitch,
-                         uint32_t height, uint32_t bytes_per_block_log2);
 // Because (0, 0, 0) within each 32x32x4-block tile is stored in memory first,
 // and the tiled address grows monotonically with Z/4, then Y/32, then X/32
 // blocks.
-inline uint32_t GetTiledAddressLowerBound2D(uint32_t left, uint32_t top,
-                                            uint32_t pitch,
+inline uint32_t GetTiledAddressLowerBound2D(uint32_t left, uint32_t top, uint32_t pitch,
                                             uint32_t bytes_per_block_log2) {
-  return uint32_t(
-      GetTiledOffset2D(int32_t(left & ~(xenos::kTextureTileWidthHeight - 1)),
-                       int32_t(top & ~(xenos::kTextureTileWidthHeight - 1)),
-                       pitch, bytes_per_block_log2));
+  return uint32_t(GetTiledOffset2D(int32_t(left & ~(xenos::kTextureTileWidthHeight - 1)),
+                                   int32_t(top & ~(xenos::kTextureTileWidthHeight - 1)), pitch,
+                                   bytes_per_block_log2));
 }
-inline uint32_t GetTiledAddressLowerBound3D(uint32_t left, uint32_t top,
-                                            uint32_t front, uint32_t pitch,
-                                            uint32_t height,
+inline uint32_t GetTiledAddressLowerBound3D(uint32_t left, uint32_t top, uint32_t front,
+                                            uint32_t pitch, uint32_t height,
                                             uint32_t bytes_per_block_log2) {
-  return uint32_t(
-      GetTiledOffset3D(int32_t(left & ~(xenos::kTextureTileWidthHeight - 1)),
-                       int32_t(top & ~(xenos::kTextureTileWidthHeight - 1)),
-                       int32_t(front & ~(xenos::kTextureTileDepth)), pitch,
-                       height, bytes_per_block_log2));
+  return uint32_t(GetTiledOffset3D(int32_t(left & ~(xenos::kTextureTileWidthHeight - 1)),
+                                   int32_t(top & ~(xenos::kTextureTileWidthHeight - 1)),
+                                   int32_t(front & ~(xenos::kTextureTileDepth)), pitch, height,
+                                   bytes_per_block_log2));
 }
 // Supporting the right > pitch and bottom > height (in tiles) cases also, for
 // estimation how far addresses can actually go even potentially beyond the
 // subresource stride.
-uint32_t GetTiledAddressUpperBound2D(uint32_t right, uint32_t bottom,
-                                     uint32_t pitch,
+uint32_t GetTiledAddressUpperBound2D(uint32_t right, uint32_t bottom, uint32_t pitch,
                                      uint32_t bytes_per_block_log2);
-uint32_t GetTiledAddressUpperBound3D(uint32_t right, uint32_t bottom,
-                                     uint32_t back, uint32_t pitch,
-                                     uint32_t height,
-                                     uint32_t bytes_per_block_log2);
+uint32_t GetTiledAddressUpperBound3D(uint32_t right, uint32_t bottom, uint32_t back, uint32_t pitch,
+                                     uint32_t height, uint32_t bytes_per_block_log2);
 
 // Returns four packed TextureSign values swizzled according to the swizzle in
 // the fetch constant, so the shader can apply TextureSigns after reading a
@@ -331,17 +319,14 @@ constexpr bool IsAnySignNotSigned(uint8_t packed_signs) {
 }
 constexpr bool IsAnySignSigned(uint8_t packed_signs) {
   // Make signed 00 - check if all are 01, 10 or 11.
-  uint32_t xor_signed =
-      packed_signs ^ (uint32_t(xenos::TextureSign::kSigned) * 0b01010101);
+  uint32_t xor_signed = packed_signs ^ (uint32_t(xenos::TextureSign::kSigned) * 0b01010101);
   return ((xor_signed | (xor_signed >> 1)) & 0b01010101) != 0b01010101;
 }
 
 // Returns normalized clamp modes specified in the fetch constant based on the
 // texture data dimension in it.
 void GetClampModesForDimension(const xenos::xe_gpu_texture_fetch_t& fetch,
-                               xenos::ClampMode& clamp_x_out,
-                               xenos::ClampMode& clamp_y_out,
+                               xenos::ClampMode& clamp_x_out, xenos::ClampMode& clamp_y_out,
                                xenos::ClampMode& clamp_z_out);
 
 }  // namespace rex::graphics::texture_util
-

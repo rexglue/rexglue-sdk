@@ -11,12 +11,13 @@
 
 #pragma once
 
-#include <rex/runtime/module.h>
 #include <cstdint>
 #include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+#include <rex/system/module.h>
 
 namespace rex::codegen {
 
@@ -28,11 +29,11 @@ namespace rex::codegen {
 // A mask of 0xFFFFFFFF means exact match; partial masks allow wildcards.
 
 struct Signature {
-    std::string name;                    // e.g., "__savegprlr_14"
-    std::vector<uint32_t> pattern;       // Instruction words to match
-    std::vector<uint32_t> mask;          // Bits that must match (0xFFFFFFFF = exact)
-    size_t entryOffset = 0;              // Offset from pattern start to entry point
-    std::optional<size_t> size;          // Known size, or nullopt to compute from pattern
+  std::string name;               // e.g., "__savegprlr_14"
+  std::vector<uint32_t> pattern;  // Instruction words to match
+  std::vector<uint32_t> mask;     // Bits that must match (0xFFFFFFFF = exact)
+  size_t entryOffset = 0;         // Offset from pattern start to entry point
+  std::optional<size_t> size;     // Known size, or nullopt to compute from pattern
 };
 
 //=============================================================================
@@ -40,29 +41,27 @@ struct Signature {
 //=============================================================================
 
 class SigScanner {
-public:
-    explicit SigScanner(const runtime::Module& module);
+ public:
+  explicit SigScanner(const runtime::Module& module);
 
-    // Scan for a single signature, return all match entry points
-    std::vector<uint32_t> scan(const Signature& sig);
+  // Scan for a single signature, return all match entry points
+  std::vector<uint32_t> scan(const Signature& sig);
 
-    // Scan for multiple signatures at once (more efficient - single pass)
-    std::unordered_map<std::string, std::vector<uint32_t>>
-    scanAll(const std::vector<Signature>& sigs);
+  // Scan for multiple signatures at once (more efficient - single pass)
+  std::unordered_map<std::string, std::vector<uint32_t>> scanAll(
+      const std::vector<Signature>& sigs);
 
-    // Built-in signature sets
-    static std::vector<Signature> helperSignatures();   // __save/__restore helpers
-    static std::vector<Signature> hleSignatures();      // memset, memmove, etc. (future)
+  // Built-in signature sets
+  static std::vector<Signature> helperSignatures();  // __save/__restore helpers
+  static std::vector<Signature> hleSignatures();     // memset, memmove, etc. (future)
 
-private:
-    const runtime::Module& module_;
+ private:
+  const runtime::Module& module_;
 
-    // Scan a single range for a pattern
-    std::vector<uint32_t> scanRange(
-        uint32_t start, uint32_t end,
-        const std::vector<uint32_t>& pattern,
-        const std::vector<uint32_t>& mask,
-        size_t entryOffset);
+  // Scan a single range for a pattern
+  std::vector<uint32_t> scanRange(uint32_t start, uint32_t end,
+                                  const std::vector<uint32_t>& pattern,
+                                  const std::vector<uint32_t>& mask, size_t entryOffset);
 };
 
-} // namespace rex::codegen
+}  // namespace rex::codegen

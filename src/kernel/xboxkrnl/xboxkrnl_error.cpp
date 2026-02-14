@@ -9,25 +9,24 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
- // Disable warnings about unused parameters for kernel functions
+// Disable warnings about unused parameters for kernel functions
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
 #include <algorithm>
 
-#include <rex/thread/atomic.h>
-#include <rex/logging.h>
-#include <rex/string.h>
-#include <rex/kernel/kernel_state.h>
-#include <rex/kernel/user_module.h>
-#include <rex/runtime/guest/function.h>
-#include <rex/runtime/guest/types.h>
 #include <rex/kernel/xboxkrnl/error.h>
 #include <rex/kernel/xboxkrnl/private.h>
-#include <rex/kernel/xthread.h>
+#include <rex/logging.h>
 #include <rex/math.h>
+#include <rex/ppc/function.h>
+#include <rex/ppc/types.h>
+#include <rex/string.h>
+#include <rex/system/kernel_state.h>
+#include <rex/system/user_module.h>
+#include <rex/system/xthread.h>
+#include <rex/thread/atomic.h>
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::runtime::guest;
 
 struct error_lookup_table {
   uint32_t base_code;
@@ -966,13 +965,11 @@ const uint32_t error_table_0xC0980001[] = {
     0x00000037,  // 0xC0980008
 };
 
-#define MAKE_ENTRY(x) \
-  { x, rex::countof(error_table_##x), error_table_##x }
+#define MAKE_ENTRY(x) {x, rex::countof(error_table_##x), error_table_##x}
 const error_lookup_table error_tables[] = {
-    MAKE_ENTRY(0x00000103), MAKE_ENTRY(0x40000002), MAKE_ENTRY(0x40020056),
-    MAKE_ENTRY(0x400200AF), MAKE_ENTRY(0x80000001), MAKE_ENTRY(0x80000288),
-    MAKE_ENTRY(0x80090300), MAKE_ENTRY(0xC0000001), MAKE_ENTRY(0xC0000202),
-    MAKE_ENTRY(0xC0020001), MAKE_ENTRY(0xC0030001), MAKE_ENTRY(0xC0030059),
+    MAKE_ENTRY(0x00000103), MAKE_ENTRY(0x40000002), MAKE_ENTRY(0x40020056), MAKE_ENTRY(0x400200AF),
+    MAKE_ENTRY(0x80000001), MAKE_ENTRY(0x80000288), MAKE_ENTRY(0x80090300), MAKE_ENTRY(0xC0000001),
+    MAKE_ENTRY(0xC0000202), MAKE_ENTRY(0xC0020001), MAKE_ENTRY(0xC0030001), MAKE_ENTRY(0xC0030059),
     MAKE_ENTRY(0xC0050003), MAKE_ENTRY(0xC0980001), {0, 0, nullptr},
 };
 #undef MAKE_ENTRY
@@ -1017,7 +1014,7 @@ uint32_t xeRtlNtStatusToDosError(uint32_t source_status) {
   return 317;  // ERROR_MR_MID_NOT_FOUND
 }
 
-dword_result_t RtlNtStatusToDosError_entry(dword_t source_status) {
+ppc_u32_result_t RtlNtStatusToDosError_entry(ppc_u32_t source_status) {
   uint32_t result = xeRtlNtStatusToDosError(source_status);
   REXKRNL_IMPORT_TRACE("RtlNtStatusToDosError", "status={:#x} -> {}", source_status, result);
   return result;
@@ -1025,4 +1022,4 @@ dword_result_t RtlNtStatusToDosError_entry(dword_t source_status) {
 
 }  // namespace rex::kernel::xboxkrnl
 
-GUEST_FUNCTION_HOOK(__imp__RtlNtStatusToDosError, rex::kernel::xboxkrnl::RtlNtStatusToDosError_entry)
+PPC_HOOK(__imp__RtlNtStatusToDosError, rex::kernel::xboxkrnl::RtlNtStatusToDosError_entry)

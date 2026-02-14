@@ -9,11 +9,10 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/input/nop/nop_input_driver.h>
-
 #include <cstring>
 
 #include <rex/input/flags.h>
+#include <rex/input/nop/nop_input_driver.h>
 #include <rex/logging.h>
 
 namespace rex::input::nop {
@@ -23,7 +22,9 @@ NopInputDriver::NopInputDriver(rex::ui::Window* window, size_t window_z_order)
 
 NopInputDriver::~NopInputDriver() = default;
 
-X_STATUS NopInputDriver::Setup() { return X_STATUS_SUCCESS; }
+X_STATUS NopInputDriver::Setup() {
+  return X_STATUS_SUCCESS;
+}
 
 // Spoof a connected controller for user 0 so games don't pause
 // waiting for input. Returns idle state (no buttons pressed).
@@ -35,8 +36,8 @@ X_RESULT NopInputDriver::GetCapabilities(uint32_t user_index, uint32_t flags,
   }
   if (out_caps) {
     std::memset(out_caps, 0, sizeof(*out_caps));
-    out_caps->type = 0x01;       // XINPUT_DEVTYPE_GAMEPAD
-    out_caps->sub_type = 0x01;   // XINPUT_DEVSUBTYPE_GAMEPAD
+    out_caps->type = 0x01;      // XINPUT_DEVTYPE_GAMEPAD
+    out_caps->sub_type = 0x01;  // XINPUT_DEVSUBTYPE_GAMEPAD
     out_caps->flags = 0;
     // Report standard gamepad capabilities
     out_caps->gamepad.buttons = 0xFFFF;  // All buttons supported
@@ -52,8 +53,7 @@ X_RESULT NopInputDriver::GetCapabilities(uint32_t user_index, uint32_t flags,
   return X_ERROR_SUCCESS;
 }
 
-X_RESULT NopInputDriver::GetState(uint32_t user_index,
-                                  X_INPUT_STATE* out_state) {
+X_RESULT NopInputDriver::GetState(uint32_t user_index, X_INPUT_STATE* out_state) {
   if (user_index != 0) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
@@ -64,8 +64,7 @@ X_RESULT NopInputDriver::GetState(uint32_t user_index,
   return X_ERROR_SUCCESS;
 }
 
-X_RESULT NopInputDriver::SetState(uint32_t user_index,
-                                  X_INPUT_VIBRATION* vibration) {
+X_RESULT NopInputDriver::SetState(uint32_t user_index, X_INPUT_VIBRATION* vibration) {
   if (user_index != 0) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }

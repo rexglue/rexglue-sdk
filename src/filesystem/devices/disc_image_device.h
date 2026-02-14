@@ -14,8 +14,8 @@
 #include <memory>
 #include <string>
 
-#include <rex/memory/mapped_memory.h>
 #include <rex/filesystem/device.h>
+#include <rex/memory/mapped_memory.h>
 
 namespace rex::filesystem {
 
@@ -23,8 +23,7 @@ class DiscImageEntry;
 
 class DiscImageDevice : public Device {
  public:
-  DiscImageDevice(const std::string_view mount_path,
-                  const std::filesystem::path& host_path);
+  DiscImageDevice(const std::string_view mount_path, const std::filesystem::path& host_path);
   ~DiscImageDevice() override;
 
   bool Initialize() override;
@@ -36,8 +35,7 @@ class DiscImageDevice : public Device {
   uint32_t component_name_max_length() const override { return 255; }
 
   uint32_t total_allocation_units() const override {
-    return uint32_t(mmap_->size() / sectors_per_allocation_unit() /
-                    bytes_per_sector());
+    return uint32_t(mmap_->size() / sectors_per_allocation_unit() / bytes_per_sector());
   }
   uint32_t available_allocation_units() const override { return 0; }
   uint32_t sectors_per_allocation_unit() const override { return 1; }
@@ -69,9 +67,8 @@ class DiscImageDevice : public Device {
   Error Verify(ParseState* state);
   bool VerifyMagic(ParseState* state, size_t offset);
   Error ReadAllEntries(ParseState* state, const uint8_t* root_buffer);
-  bool ReadEntry(ParseState* state, const uint8_t* buffer,
-                 uint16_t entry_ordinal, DiscImageEntry* parent);
+  bool ReadEntry(ParseState* state, const uint8_t* buffer, uint16_t entry_ordinal,
+                 DiscImageEntry* parent);
 };
 
 }  // namespace rex::filesystem
-

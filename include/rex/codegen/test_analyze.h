@@ -34,12 +34,8 @@ class CodegenContext;
  * @param data        Pointer to raw binary data
  * @param dataSize    Size of binary data in bytes
  */
-void AnalyzeTestBinary(
-    CodegenContext& ctx,
-    std::string_view testName,
-    const std::map<size_t, std::string>& symbols,
-    uint32_t baseAddress,
-    const uint8_t* data,
-    size_t dataSize);
+void AnalyzeTestBinary(CodegenContext& ctx, std::string_view testName,
+                       const std::map<size_t, std::string>& symbols, uint32_t baseAddress,
+                       const uint8_t* data, size_t dataSize);
 
 }  // namespace rex::codegen

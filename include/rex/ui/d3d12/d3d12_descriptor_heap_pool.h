@@ -11,7 +11,6 @@
 
 #pragma once
 
-
 #include <cstdint>
 
 #include <rex/ui/d3d12/d3d12_provider.h>
@@ -59,15 +58,13 @@ class D3D12DescriptorHeapPool {
   // (with count_for_partial_update being 0), because a full update may still be
   // required.
   uint64_t Request(uint64_t submission_index, uint64_t previous_heap_index,
-                   uint32_t count_for_partial_update,
-                   uint32_t count_for_full_update, uint32_t& index_out);
+                   uint32_t count_for_partial_update, uint32_t count_for_full_update,
+                   uint32_t& index_out);
 
   // The current heap, for binding and actually writing - may be called only
   // after a successful request because before a request, the heap may not exist
   // yet.
-  ID3D12DescriptorHeap* GetLastRequestHeap() const {
-    return writable_first_->heap.Get();
-  }
+  ID3D12DescriptorHeap* GetLastRequestHeap() const { return writable_first_->heap.Get(); }
   D3D12_CPU_DESCRIPTOR_HANDLE GetLastRequestHeapCPUStart() const {
     return writable_first_->cpu_start;
   }
@@ -104,4 +101,3 @@ class D3D12DescriptorHeapPool {
 };
 
 }  // namespace rex::ui::d3d12
-

@@ -10,7 +10,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <rex/assert.h>  // For Vulkan-Hpp.
 #include <rex/platform.h>
 
@@ -40,16 +39,18 @@
 #endif
 
 #if REX_PLATFORM_WIN32
-// Must be included before including vulkan.h with VK_USE_PLATFORM_WIN32_KHR
-// because it includes Windows.h too.
-#include <rex/platform/win.h>
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
 #ifndef VK_USE_PLATFORM_WIN32_KHR
 #define VK_USE_PLATFORM_WIN32_KHR
 #endif
 #endif
 
 #include <vulkan/vulkan.h>
-
 #include <vulkan/vulkan_hpp_macros.hpp>
 #include <vulkan/vulkan_to_string.hpp>
-

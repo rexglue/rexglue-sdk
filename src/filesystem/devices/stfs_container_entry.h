@@ -29,8 +29,7 @@ class StfsContainerEntry : public Entry {
                      MultiFileHandles* files);
   ~StfsContainerEntry() override;
 
-  static std::unique_ptr<StfsContainerEntry> Create(Device* device,
-                                                    Entry* parent,
+  static std::unique_ptr<StfsContainerEntry> Create(Device* device, Entry* parent,
                                                     const std::string_view name,
                                                     MultiFileHandles* files);
 
@@ -59,4 +58,3 @@ class StfsContainerEntry : public Entry {
 };
 
 }  // namespace rex::filesystem
-

@@ -10,7 +10,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <cstddef>
 #include <cstdint>
 
@@ -52,11 +51,10 @@ class GraphicsUploadBufferPool {
 
   // Request to write data in a single piece, creating a new page if the current
   // one doesn't have enough free space.
-  Page* Request(uint64_t submission_index, size_t size, size_t alignment,
-                size_t& offset_out);
+  Page* Request(uint64_t submission_index, size_t size, size_t alignment, size_t& offset_out);
   // Request to write data in multiple parts, filling the buffer entirely.
-  Page* RequestPartial(uint64_t submission_index, size_t size, size_t alignment,
-                       size_t& offset_out, size_t& size_out);
+  Page* RequestPartial(uint64_t submission_index, size_t size, size_t alignment, size_t& offset_out,
+                       size_t& size_out);
 
   virtual Page* CreatePageImplementation() = 0;
 
@@ -81,5 +79,4 @@ class GraphicsUploadBufferPool {
 };
 
 }  // namespace ui
-}  // namespace xe
-
+}  // namespace rex

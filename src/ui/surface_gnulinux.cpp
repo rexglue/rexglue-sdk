@@ -9,17 +9,16 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/ui/surface_gnulinux.h>
-
 #include <cstdlib>
+
+#include <rex/ui/surface_gnulinux.h>
 
 namespace rex {
 namespace ui {
 
-bool XcbWindowSurface::GetSizeImpl(uint32_t& width_out,
-                                   uint32_t& height_out) const {
-  xcb_get_geometry_reply_t* reply = xcb_get_geometry_reply(
-      connection_, xcb_get_geometry(connection_, window_), nullptr);
+bool XcbWindowSurface::GetSizeImpl(uint32_t& width_out, uint32_t& height_out) const {
+  xcb_get_geometry_reply_t* reply =
+      xcb_get_geometry_reply(connection_, xcb_get_geometry(connection_, window_), nullptr);
   if (!reply) {
     return false;
   }
@@ -30,4 +29,4 @@ bool XcbWindowSurface::GetSizeImpl(uint32_t& width_out,
 }
 
 }  // namespace ui
-}  // namespace xe
+}  // namespace rex

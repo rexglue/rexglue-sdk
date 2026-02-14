@@ -10,19 +10,18 @@
  */
 
 #include "host_path_entry.h"
+#include "host_path_file.h"
 
 #include <rex/filesystem.h>
-#include <rex/logging.h>
-#include <rex/memory/mapped_memory.h>
-#include <rex/math.h>
-#include <rex/string.h>
 #include <rex/filesystem/device.h>
-#include "host_path_file.h"
+#include <rex/logging.h>
+#include <rex/math.h>
+#include <rex/memory/mapped_memory.h>
+#include <rex/string.h>
 
 namespace rex::filesystem {
 
-HostPathEntry::HostPathEntry(Device* device, Entry* parent,
-                             const std::string_view path,
+HostPathEntry::HostPathEntry(Device* device, Entry* parent, const std::string_view path,
                              const std::filesystem::path& host_path)
     : Entry(device, parent, path), host_path_(host_path) {}
 
@@ -31,8 +30,7 @@ HostPathEntry::~HostPathEntry() = default;
 HostPathEntry* HostPathEntry::Create(Device* device, Entry* parent,
                                      const std::filesystem::path& full_path,
                                      rex::filesystem::FileInfo file_info) {
-  auto path = rex::string::utf8_join_guest_paths(parent->path(),
-                                         rex::path_to_utf8(file_info.name));
+  auto path = rex::string::utf8_join_guest_paths(parent->path(), rex::path_to_utf8(file_info.name));
   auto entry = new HostPathEntry(device, parent, path, full_path);
 
   entry->create_timestamp_ = file_info.create_timestamp;
@@ -46,20 +44,18 @@ HostPathEntry* HostPathEntry::Create(Device* device, Entry* parent,
       entry->attributes_ |= kFileAttributeReadOnly;
     }
     entry->size_ = file_info.total_size;
-    entry->allocation_size_ =
-        rex::round_up(file_info.total_size, device->bytes_per_sector());
+    entry->allocation_size_ = rex::round_up(file_info.total_size, device->bytes_per_sector());
   }
   return entry;
 }
 
 X_STATUS HostPathEntry::Open(uint32_t desired_access, File** out_file) {
-  if (is_read_only() && (desired_access & (FileAccess::kFileWriteData |
-                                           FileAccess::kFileAppendData))) {
+  if (is_read_only() &&
+      (desired_access & (FileAccess::kFileWriteData | FileAccess::kFileAppendData))) {
     REXFS_ERROR("Attempting to open file for write access on read-only device");
     return X_STATUS_ACCESS_DENIED;
   }
-  auto file_handle =
-      rex::filesystem::FileHandle::OpenExisting(host_path_, desired_access);
+  auto file_handle = rex::filesystem::FileHandle::OpenExisting(host_path_, desired_access);
   if (!file_handle) {
     // TODO(benvanik): pick correct response.
     return X_STATUS_NO_SUCH_FILE;
@@ -69,13 +65,12 @@ X_STATUS HostPathEntry::Open(uint32_t desired_access, File** out_file) {
 }
 
 std::unique_ptr<memory::MappedMemory> HostPathEntry::OpenMapped(memory::MappedMemory::Mode mode,
-                                                        size_t offset,
-                                                        size_t length) {
+                                                                size_t offset, size_t length) {
   return memory::MappedMemory::Open(host_path_, mode, offset, length);
 }
 
-std::unique_ptr<Entry> HostPathEntry::CreateEntryInternal(
-    const std::string_view name, uint32_t attributes) {
+std::unique_ptr<Entry> HostPathEntry::CreateEntryInternal(const std::string_view name,
+                                                          uint32_t attributes) {
   auto full_path = host_path_ / rex::to_path(name);
   if (attributes & kFileAttributeDirectory) {
     if (!std::filesystem::create_directories(full_path)) {
@@ -92,8 +87,7 @@ std::unique_ptr<Entry> HostPathEntry::CreateEntryInternal(
   if (!rex::filesystem::GetInfo(full_path, &file_info)) {
     return nullptr;
   }
-  return std::unique_ptr<Entry>(
-      HostPathEntry::Create(device_, this, full_path, file_info));
+  return std::unique_ptr<Entry>(HostPathEntry::Create(device_, this, full_path, file_info));
 }
 
 bool HostPathEntry::DeleteEntryInternal(Entry* entry) {
@@ -105,8 +99,7 @@ bool HostPathEntry::DeleteEntryInternal(Entry* entry) {
     return removed >= 1 && removed != static_cast<std::uintmax_t>(-1);
   } else {
     // Delete file.
-    return !std::filesystem::is_directory(full_path) &&
-           std::filesystem::remove(full_path, ec);
+    return !std::filesystem::is_directory(full_path) && std::filesystem::remove(full_path, ec);
   }
 }
 
@@ -117,8 +110,7 @@ void HostPathEntry::update() {
   }
   if (file_info.type == rex::filesystem::FileInfo::Type::kFile) {
     size_ = file_info.total_size;
-    allocation_size_ =
-        rex::round_up(file_info.total_size, device()->bytes_per_sector());
+    allocation_size_ = rex::round_up(file_info.total_size, device()->bytes_per_sector());
   }
 }
 

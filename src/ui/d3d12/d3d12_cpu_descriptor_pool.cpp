@@ -9,17 +9,15 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/ui/d3d12/d3d12_cpu_descriptor_pool.h>
-
 #include <cstdint>
 #include <memory>
 
 #include <rex/logging.h>
+#include <rex/ui/d3d12/d3d12_cpu_descriptor_pool.h>
 
 namespace rex::ui::d3d12 {
 
-D3D12CpuDescriptorPool::Descriptor
-D3D12CpuDescriptorPool::AllocateDescriptor() {
+D3D12CpuDescriptorPool::Descriptor D3D12CpuDescriptorPool::AllocateDescriptor() {
   if (!freed_indices_.empty()) {
     size_t index = freed_indices_.back();
     freed_indices_.pop_back();
@@ -27,8 +25,7 @@ D3D12CpuDescriptorPool::AllocateDescriptor() {
   }
   uint32_t heap_size = uint32_t(1) << heap_size_log2_;
   if (!heaps_.empty() && last_heap_allocated_ < heap_size) {
-    return Descriptor(shared_from_this(),
-                      (heaps_.size() - 1) * heap_size + last_heap_allocated_++);
+    return Descriptor(shared_from_this(), (heaps_.size() - 1) * heap_size + last_heap_allocated_++);
   }
   D3D12_DESCRIPTOR_HEAP_DESC descriptor_heap_desc;
   descriptor_heap_desc.Type = type_;
@@ -36,8 +33,8 @@ D3D12CpuDescriptorPool::AllocateDescriptor() {
   descriptor_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
   descriptor_heap_desc.NodeMask = 0;
   ID3D12DescriptorHeap* descriptor_heap;
-  if (FAILED(provider_.GetDevice()->CreateDescriptorHeap(
-          &descriptor_heap_desc, IID_PPV_ARGS(&descriptor_heap)))) {
+  if (FAILED(provider_.GetDevice()->CreateDescriptorHeap(&descriptor_heap_desc,
+                                                         IID_PPV_ARGS(&descriptor_heap)))) {
     REXLOG_ERROR(
         "Failed to create a non-shader-visible descriptor heap for {} "
         "descriptors",

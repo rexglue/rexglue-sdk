@@ -36,4 +36,3 @@ constexpr size_t operator""_PiB(unsigned long long int x) {
 }
 
 }  // namespace rex::literals
-

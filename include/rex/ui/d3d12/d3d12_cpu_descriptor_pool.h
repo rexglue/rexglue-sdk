@@ -11,7 +11,6 @@
 
 #pragma once
 
-
 #include <cstdint>
 #include <memory>
 #include <utility>
@@ -25,8 +24,7 @@ namespace rex::ui::d3d12 {
 // Single-descriptor pool with reference counting and unique ownership of
 // allocations, safe to use in environments where the order of releasing of the
 // descriptor heap and of allocated descriptors is undefined.
-class D3D12CpuDescriptorPool
-    : public std::enable_shared_from_this<D3D12CpuDescriptorPool> {
+class D3D12CpuDescriptorPool : public std::enable_shared_from_this<D3D12CpuDescriptorPool> {
  public:
   class Descriptor {
    public:
@@ -43,8 +41,7 @@ class D3D12CpuDescriptorPool
       index_ = descriptor.index_;
     }
     Descriptor& operator=(Descriptor&& descriptor) {
-      if (IsValid() && pool_ == descriptor.pool_ &&
-          index_ == descriptor.index_) {
+      if (IsValid() && pool_ == descriptor.pool_ && index_ == descriptor.index_) {
         // If moving to self, don't free.
         return *this;
       }
@@ -73,15 +70,13 @@ class D3D12CpuDescriptorPool
     size_t index_ = 0;
   };
 
-  D3D12CpuDescriptorPool(const ui::d3d12::D3D12Provider& provider,
-                         D3D12_DESCRIPTOR_HEAP_TYPE type,
+  D3D12CpuDescriptorPool(const ui::d3d12::D3D12Provider& provider, D3D12_DESCRIPTOR_HEAP_TYPE type,
                          uint32_t heap_size_log2)
       : provider_(provider), type_(type), heap_size_log2_(heap_size_log2) {
     assert_true(heap_size_log2 <= 31);
   }
   D3D12CpuDescriptorPool(const D3D12CpuDescriptorPool& pool) = delete;
-  D3D12CpuDescriptorPool& operator=(const D3D12CpuDescriptorPool& pool) =
-      delete;
+  D3D12CpuDescriptorPool& operator=(const D3D12CpuDescriptorPool& pool) = delete;
   // No point in moving, created only via make_shared.
   D3D12CpuDescriptorPool(D3D12CpuDescriptorPool&& pool) = delete;
   D3D12CpuDescriptorPool& operator=(D3D12CpuDescriptorPool&& pool) = delete;
@@ -99,8 +94,7 @@ class D3D12CpuDescriptorPool
   D3D12_CPU_DESCRIPTOR_HANDLE GetHandle(size_t index) const {
     D3D12_CPU_DESCRIPTOR_HANDLE heap_start =
         heaps_[index >> heap_size_log2_]->GetCPUDescriptorHandleForHeapStart();
-    uint32_t heap_local_index =
-        uint32_t(index & ((uint32_t(1) << heap_size_log2_) - 1));
+    uint32_t heap_local_index = uint32_t(index & ((uint32_t(1) << heap_size_log2_) - 1));
     return provider_.OffsetDescriptor(type_, heap_start, heap_local_index);
   }
 
@@ -113,4 +107,3 @@ class D3D12CpuDescriptorPool
 };
 
 }  // namespace rex::ui::d3d12
-

@@ -15,4 +15,3 @@
 // Input/HID configuration flags
 REXCVAR_DECLARE(bool, guide_button);
 REXCVAR_DECLARE(std::string, hid_mappings_file);
-

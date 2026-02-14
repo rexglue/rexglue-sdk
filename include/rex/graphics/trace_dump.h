@@ -10,15 +10,14 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <string>
 
-#include <rex/runtime.h>
 #include <rex/graphics/pipeline/shader/shader.h>
 #include <rex/graphics/trace_player.h>
 #include <rex/graphics/trace_protocol.h>
 #include <rex/graphics/xenos.h>
 #include <rex/memory.h>
+#include <rex/runtime.h>
 
 namespace rex::graphics {
 
@@ -53,4 +52,3 @@ class TraceDump {
 };
 
 }  // namespace rex::graphics
-

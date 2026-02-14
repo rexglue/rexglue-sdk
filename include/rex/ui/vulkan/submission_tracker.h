@@ -10,7 +10,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <cstdint>
 #include <deque>
 #include <utility>
@@ -47,11 +46,8 @@ class VulkanSubmissionTracker {
     FenceAcquisition(VulkanSubmissionTracker& submission_tracker, VkFence fence)
         : submission_tracker_(&submission_tracker), fence_(fence) {}
     FenceAcquisition(const FenceAcquisition& fence_acquisition) = delete;
-    FenceAcquisition& operator=(const FenceAcquisition& fence_acquisition) =
-        delete;
-    FenceAcquisition(FenceAcquisition&& fence_acquisition) {
-      *this = std::move(fence_acquisition);
-    }
+    FenceAcquisition& operator=(const FenceAcquisition& fence_acquisition) = delete;
+    FenceAcquisition(FenceAcquisition&& fence_acquisition) { *this = std::move(fence_acquisition); }
     FenceAcquisition& operator=(FenceAcquisition&& fence_acquisition) {
       if (this == &fence_acquisition) {
         return *this;
@@ -89,15 +85,12 @@ class VulkanSubmissionTracker {
     bool signal_failed_ = false;
   };
 
-  VulkanSubmissionTracker(const VulkanDevice* vulkan_device)
-      : vulkan_device_(vulkan_device) {
+  VulkanSubmissionTracker(const VulkanDevice* vulkan_device) : vulkan_device_(vulkan_device) {
     assert_not_null(vulkan_device);
   }
 
-  VulkanSubmissionTracker(const VulkanSubmissionTracker& submission_tracker) =
-      delete;
-  VulkanSubmissionTracker& operator=(
-      const VulkanSubmissionTracker& submission_tracker) = delete;
+  VulkanSubmissionTracker(const VulkanSubmissionTracker& submission_tracker) = delete;
+  VulkanSubmissionTracker& operator=(const VulkanSubmissionTracker& submission_tracker) = delete;
 
   ~VulkanSubmissionTracker() { Shutdown(); }
 
@@ -137,5 +130,4 @@ class VulkanSubmissionTracker {
 
 }  // namespace vulkan
 }  // namespace ui
-}  // namespace xe
-
+}  // namespace rex

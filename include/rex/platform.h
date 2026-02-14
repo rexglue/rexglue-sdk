@@ -60,8 +60,7 @@
 #define REX_ARCH_AMD64 1
 #elif defined(_M_ARM64) || defined(__aarch64__)
 #define REX_ARCH_ARM64 1
-#elif defined(_M_IX86) || defined(__i386__) || defined(_M_ARM) || \
-    defined(__arm__)
+#elif defined(_M_IX86) || defined(__i386__) || defined(_M_ARM) || defined(__arm__)
 #error Rex is not supported on 32-bit platforms.
 #elif defined(_M_PPC) || defined(__powerpc__)
 #define REX_ARCH_PPC 1
@@ -85,7 +84,7 @@
 #if REX_COMPILER_MSVC
 #define _REXPACKEDSCOPE(body) __pragma(pack(push, 1)) body __pragma(pack(pop));
 #else
-#define _REXPACKEDSCOPE(body)     \
+#define _REXPACKEDSCOPE(body)    \
   _Pragma("pack(push, 1)") body; \
   _Pragma("pack(pop)");
 #endif  // REX_COMPILER_MSVC
@@ -93,6 +92,15 @@
 #define REXPACKEDSTRUCT(name, value) _REXPACKEDSCOPE(struct name value)
 #define REXPACKEDSTRUCTANONYMOUS(value) _REXPACKEDSCOPE(struct value)
 #define REXPACKEDUNION(name, value) _REXPACKEDSCOPE(union name value)
+
+// Compiler capability macros
+#if REX_COMPILER_CLANG || REX_COMPILER_GNUC
+#define REX_HAS_BUILTIN_STRLEN 1
+#define REX_LACKS_FLOAT_FROM_CHARS 1
+#else
+#define REX_HAS_BUILTIN_STRLEN 0
+#define REX_LACKS_FLOAT_FROM_CHARS 0
+#endif
 
 namespace rex {
 
@@ -105,11 +113,3 @@ const char kPathSeparator = '/';
 const char kGuestPathSeparator = '\\';
 
 }  // namespace rex
-
-// Auto-include platform-specific headers
-#if REX_PLATFORM_WIN32
-#include <rex/platform/win.h>
-#elif REX_PLATFORM_LINUX
-#include <rex/platform/linux.h>
-#endif
-

@@ -10,15 +10,11 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <memory>
 
-#include <renderdoc_app.h>
-#include <rex/platform.h>
+#include <rex/platform/dynlib.h>
 
-#if REX_PLATFORM_WIN32
-#include <rex/platform/win.h>
-#endif
+#include <renderdoc_app.h>
 
 namespace rex {
 namespace ui {
@@ -38,15 +34,10 @@ class RenderDocAPI {
  private:
   explicit RenderDocAPI() = default;
 
-#if REX_PLATFORM_LINUX
-  void* library_ = nullptr;
-#elif REX_PLATFORM_WIN32
-  HMODULE library_ = nullptr;
-#endif
+  rex::platform::DynamicLibrary library_;
 
   const RENDERDOC_API_1_0_0* api_1_0_0_ = nullptr;
 };
 
 }  // namespace ui
-}  // namespace xe
-
+}  // namespace rex

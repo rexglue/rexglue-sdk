@@ -10,7 +10,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <array>
 #include <memory>
 
@@ -45,9 +44,7 @@ class UISamplers {
     kSamplerCount,
   };
 
-  const std::array<VkSampler, kSamplerCount>& samplers() const {
-    return samplers_;
-  }
+  const std::array<VkSampler, kSamplerCount>& samplers() const { return samplers_; }
 
  private:
   explicit UISamplers(const VulkanDevice* vulkan_device);
@@ -59,5 +56,4 @@ class UISamplers {
 
 }  // namespace vulkan
 }  // namespace ui
-}  // namespace xe
-
+}  // namespace rex

@@ -10,7 +10,6 @@
  */
 
 #include <rex/filesystem/vfs.h>
-
 #include <rex/logging.h>
 #include <rex/string.h>
 
@@ -54,9 +53,9 @@ bool VirtualFileSystem::RegisterSymbolicLink(const std::string_view path,
 
 bool VirtualFileSystem::UnregisterSymbolicLink(const std::string_view path) {
   auto global_lock = global_critical_region_.Acquire();
-  auto it = std::find_if(
-      symlinks_.cbegin(), symlinks_.cend(),
-      [&](const auto& s) { return rex::string::utf8_equal_case(path, s.first); });
+  auto it = std::find_if(symlinks_.cbegin(), symlinks_.cend(), [&](const auto& s) {
+    return rex::string::utf8_equal_case(path, s.first);
+  });
   if (it == symlinks_.end()) {
     return false;
   }
@@ -66,11 +65,10 @@ bool VirtualFileSystem::UnregisterSymbolicLink(const std::string_view path) {
   return true;
 }
 
-bool VirtualFileSystem::FindSymbolicLink(const std::string_view path,
-                                         std::string& target) {
-  auto it = std::find_if(
-      symlinks_.cbegin(), symlinks_.cend(),
-      [&](const auto& s) { return rex::string::utf8_starts_with_case(path, s.first); });
+bool VirtualFileSystem::FindSymbolicLink(const std::string_view path, std::string& target) {
+  auto it = std::find_if(symlinks_.cbegin(), symlinks_.cend(), [&](const auto& s) {
+    return rex::string::utf8_starts_with_case(path, s.first);
+  });
   if (it == symlinks_.cend()) {
     return false;
   }
@@ -78,15 +76,13 @@ bool VirtualFileSystem::FindSymbolicLink(const std::string_view path,
   return true;
 }
 
-bool VirtualFileSystem::ResolveSymbolicLink(const std::string_view path,
-                                            std::string& result) {
+bool VirtualFileSystem::ResolveSymbolicLink(const std::string_view path, std::string& result) {
   result = path;
   bool was_resolved = false;
   while (true) {
-    auto it =
-        std::find_if(symlinks_.cbegin(), symlinks_.cend(), [&](const auto& s) {
-          return rex::string::utf8_starts_with_case(result, s.first);
-        });
+    auto it = std::find_if(symlinks_.cbegin(), symlinks_.cend(), [&](const auto& s) {
+      return rex::string::utf8_starts_with_case(result, s.first);
+    });
     if (it == symlinks_.cend()) {
       break;
     }
@@ -113,10 +109,9 @@ Entry* VirtualFileSystem::ResolvePath(const std::string_view path) {
   }
 
   // Find the device.
-  auto it =
-      std::find_if(devices_.cbegin(), devices_.cend(), [&](const auto& d) {
-        return rex::string::utf8_starts_with(normalized_path, d->mount_path());
-      });
+  auto it = std::find_if(devices_.cbegin(), devices_.cend(), [&](const auto& d) {
+    return rex::string::utf8_starts_with(normalized_path, d->mount_path());
+  });
   if (it == devices_.cend()) {
     REXFS_WARN("VFS: '{}' -> [no device]", path);
     // Supress logging the error for ShaderDumpxe:\CompareBackEnds as this is
@@ -133,19 +128,17 @@ Entry* VirtualFileSystem::ResolvePath(const std::string_view path) {
 
   if (entry) {
     REXFS_INFO("VFS: '{}' -> '{}' -> device '{}' -> host '{}'", path,
-               had_symlink ? normalized_path : "(no symlink)",
-               device->mount_path(), entry->absolute_path());
+               had_symlink ? normalized_path : "(no symlink)", device->mount_path(),
+               entry->absolute_path());
   } else {
     REXFS_WARN("VFS: '{}' -> '{}' -> device '{}' -> [entry not found]", path,
-               had_symlink ? normalized_path : "(no symlink)",
-               device->mount_path());
+               had_symlink ? normalized_path : "(no symlink)", device->mount_path());
   }
 
   return entry;
 }
 
-Entry* VirtualFileSystem::CreatePath(const std::string_view path,
-                                     uint32_t attributes) {
+Entry* VirtualFileSystem::CreatePath(const std::string_view path, uint32_t attributes) {
   // Create all required directories recursively.
   auto path_parts = rex::string::utf8_split_path(path);
   if (path_parts.empty()) {
@@ -161,16 +154,14 @@ Entry* VirtualFileSystem::CreatePath(const std::string_view path,
     partial_path = rex::string::utf8_join_guest_paths(partial_path, path_parts[i]);
     auto child_entry = ResolvePath(partial_path);
     if (!child_entry) {
-      child_entry =
-          parent_entry->CreateEntry(path_parts[i], kFileAttributeDirectory);
+      child_entry = parent_entry->CreateEntry(path_parts[i], kFileAttributeDirectory);
     }
     if (!child_entry) {
       return nullptr;
     }
     parent_entry = child_entry;
   }
-  return parent_entry->CreateEntry(path_parts[path_parts.size() - 1],
-                                   attributes);
+  return parent_entry->CreateEntry(path_parts[path_parts.size() - 1], attributes);
 }
 
 bool VirtualFileSystem::DeletePath(const std::string_view path) {
@@ -186,11 +177,9 @@ bool VirtualFileSystem::DeletePath(const std::string_view path) {
   return parent->Delete(entry);
 }
 
-X_STATUS VirtualFileSystem::OpenFile(Entry* root_entry,
-                                     const std::string_view path,
-                                     FileDisposition creation_disposition,
-                                     uint32_t desired_access, bool is_directory,
-                                     bool is_non_directory, File** out_file,
+X_STATUS VirtualFileSystem::OpenFile(Entry* root_entry, const std::string_view path,
+                                     FileDisposition creation_disposition, uint32_t desired_access,
+                                     bool is_directory, bool is_non_directory, File** out_file,
                                      FileAction* out_action) {
   // TODO(gibbed): should 'is_directory' remain as a bool or should it be
   // flipped to a generic FileAttributeFlags?
@@ -213,8 +202,7 @@ X_STATUS VirtualFileSystem::OpenFile(Entry* root_entry,
 
   auto base_path = rex::string::utf8_find_base_guest_path(path);
   if (!base_path.empty()) {
-    parent_entry = !root_entry ? ResolvePath(base_path)
-                               : root_entry->ResolvePath(base_path);
+    parent_entry = !root_entry ? ResolvePath(base_path) : root_entry->ResolvePath(base_path);
     if (!parent_entry) {
       *out_action = FileAction::kDoesNotExist;
       return X_STATUS_NO_SUCH_FILE;
@@ -255,17 +243,17 @@ X_STATUS VirtualFileSystem::OpenFile(Entry* root_entry,
   }
 
   // Verify permissions.
-  bool wants_write = desired_access & FileAccess::kFileWriteData ||
-                     desired_access & FileAccess::kFileAppendData;
-  if (wants_write && ((parent_entry && parent_entry->is_read_only()) ||
-                      (entry && entry->is_read_only()))) {
+  bool wants_write =
+      desired_access & FileAccess::kFileWriteData || desired_access & FileAccess::kFileAppendData;
+  if (wants_write &&
+      ((parent_entry && parent_entry->is_read_only()) || (entry && entry->is_read_only()))) {
     // Fail if read only device and wants write.
     return X_STATUS_ACCESS_DENIED;
     // TODO(benvanik): figure out why games are opening read-only files with
     // write modes.
-      //    assert_always();
-    //REXFS_WARN("Attempted to open the file/dir for create/write");
-    //desired_access = FileAccess::kGenericRead | FileAccess::kFileReadData;
+    //    assert_always();
+    // REXFS_WARN("Attempted to open the file/dir for create/write");
+    // desired_access = FileAccess::kGenericRead | FileAccess::kFileReadData;
   }
 
   bool created = false;
@@ -306,8 +294,7 @@ X_STATUS VirtualFileSystem::OpenFile(Entry* root_entry,
   }
   if (!entry) {
     // Create if needed (either new or as a replacement).
-    entry = CreatePath(
-        path, !is_directory ? kFileAttributeNormal : kFileAttributeDirectory);
+    entry = CreatePath(path, !is_directory ? kFileAttributeNormal : kFileAttributeDirectory);
     if (!entry) {
       return X_STATUS_ACCESS_DENIED;
     }

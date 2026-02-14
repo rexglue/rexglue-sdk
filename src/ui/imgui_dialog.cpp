@@ -9,18 +9,16 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <rex/assert.h>
 #include <rex/ui/imgui_dialog.h>
+#include <rex/ui/imgui_drawer.h>
 
 #include <imgui.h>
-
-#include <rex/assert.h>
-#include <rex/ui/imgui_drawer.h>
 
 namespace rex {
 namespace ui {
 
-ImGuiDialog::ImGuiDialog(ImGuiDrawer* imgui_drawer)
-    : imgui_drawer_(imgui_drawer) {
+ImGuiDialog::ImGuiDialog(ImGuiDrawer* imgui_drawer) : imgui_drawer_(imgui_drawer) {
   imgui_drawer_->AddDialog(this);
 }
 
@@ -35,9 +33,13 @@ void ImGuiDialog::Then(rex::thread::Fence* fence) {
   waiting_fences_.push_back(fence);
 }
 
-void ImGuiDialog::Close() { has_close_pending_ = true; }
+void ImGuiDialog::Close() {
+  has_close_pending_ = true;
+}
 
-ImGuiIO& ImGuiDialog::GetIO() { return imgui_drawer()->GetIO(); }
+ImGuiIO& ImGuiDialog::GetIO() {
+  return imgui_drawer()->GetIO();
+}
 
 void ImGuiDialog::Draw() {
   // Draw UI.
@@ -52,23 +54,18 @@ void ImGuiDialog::Draw() {
 
 class MessageBoxDialog final : public ImGuiDialog {
  public:
-  MessageBoxDialog(ImGuiDrawer* imgui_drawer, std::string title,
-                   std::string body)
-      : ImGuiDialog(imgui_drawer),
-        title_(std::move(title)),
-        body_(std::move(body)) {}
+  MessageBoxDialog(ImGuiDrawer* imgui_drawer, std::string title, std::string body)
+      : ImGuiDialog(imgui_drawer), title_(std::move(title)), body_(std::move(body)) {}
 
   void OnDraw(ImGuiIO& io) override {
     if (!has_opened_) {
       ImGui::OpenPopup(title_.c_str());
       has_opened_ = true;
     }
-    if (ImGui::BeginPopupModal(title_.c_str(), nullptr,
-                               ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (ImGui::BeginPopupModal(title_.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
       char* text = const_cast<char*>(body_.c_str());
-      ImGui::InputTextMultiline(
-          "##body", text, body_.size(), ImVec2(600, 0),
-          ImGuiInputTextFlags_AutoSelectAll | ImGuiInputTextFlags_ReadOnly);
+      ImGui::InputTextMultiline("##body", text, body_.size(), ImVec2(600, 0),
+                                ImGuiInputTextFlags_AutoSelectAll | ImGuiInputTextFlags_ReadOnly);
       if (ImGui::Button("OK")) {
         ImGui::CloseCurrentPopup();
         Close();
@@ -85,8 +82,8 @@ class MessageBoxDialog final : public ImGuiDialog {
   std::string body_;
 };
 
-ImGuiDialog* ImGuiDialog::ShowMessageBox(ImGuiDrawer* imgui_drawer,
-                                         std::string title, std::string body) {
+ImGuiDialog* ImGuiDialog::ShowMessageBox(ImGuiDrawer* imgui_drawer, std::string title,
+                                         std::string body) {
   return new MessageBoxDialog(imgui_drawer, std::move(title), std::move(body));
 }
 

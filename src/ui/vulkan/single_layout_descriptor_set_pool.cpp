@@ -9,10 +9,9 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/ui/vulkan/single_layout_descriptor_set_pool.h>
-
 #include <rex/assert.h>
 #include <rex/logging.h>
+#include <rex/ui/vulkan/single_layout_descriptor_set_pool.h>
 
 namespace rex {
 namespace ui {
@@ -23,17 +22,13 @@ SingleLayoutDescriptorSetPool::SingleLayoutDescriptorSetPool(
     const uint32_t set_layout_descriptor_counts_count,
     const VkDescriptorPoolSize* const set_layout_descriptor_counts,
     const VkDescriptorSetLayout set_layout)
-    : vulkan_device_(vulkan_device),
-      pool_set_count_(pool_set_count),
-      set_layout_(set_layout) {
+    : vulkan_device_(vulkan_device), pool_set_count_(pool_set_count), set_layout_(set_layout) {
   assert_not_null(vulkan_device);
   assert_not_zero(pool_set_count);
   pool_descriptor_counts_.resize(set_layout_descriptor_counts_count);
   for (uint32_t i = 0; i < set_layout_descriptor_counts_count; ++i) {
-    VkDescriptorPoolSize& pool_descriptor_type_count =
-        pool_descriptor_counts_[i];
-    const VkDescriptorPoolSize& set_layout_descriptor_type_count =
-        set_layout_descriptor_counts[i];
+    VkDescriptorPoolSize& pool_descriptor_type_count = pool_descriptor_counts_[i];
+    const VkDescriptorPoolSize& set_layout_descriptor_type_count = set_layout_descriptor_counts[i];
     pool_descriptor_type_count.type = set_layout_descriptor_type_count.type;
     pool_descriptor_type_count.descriptorCount =
         set_layout_descriptor_type_count.descriptorCount * pool_set_count;
@@ -76,8 +71,8 @@ size_t SingleLayoutDescriptorSetPool::Allocate() {
       pool_create_info.maxSets = pool_set_count_;
       pool_create_info.poolSizeCount = uint32_t(pool_descriptor_counts_.size());
       pool_create_info.pPoolSizes = pool_descriptor_counts_.data();
-      if (dfn.vkCreateDescriptorPool(device, &pool_create_info, nullptr,
-                                     &current_pool_) != VK_SUCCESS) {
+      if (dfn.vkCreateDescriptorPool(device, &pool_create_info, nullptr, &current_pool_) !=
+          VK_SUCCESS) {
         REXLOG_ERROR(
             "SingleLayoutDescriptorSetPool: Failed to create a descriptor "
             "pool");
@@ -87,17 +82,15 @@ size_t SingleLayoutDescriptorSetPool::Allocate() {
     }
 
     VkDescriptorSetAllocateInfo descriptor_set_allocate_info;
-    descriptor_set_allocate_info.sType =
-        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    descriptor_set_allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     descriptor_set_allocate_info.pNext = nullptr;
     descriptor_set_allocate_info.descriptorPool = current_pool_;
     descriptor_set_allocate_info.descriptorSetCount = 1;
     descriptor_set_allocate_info.pSetLayouts = &set_layout_;
     VkDescriptorSet descriptor_set;
-    if (dfn.vkAllocateDescriptorSets(device, &descriptor_set_allocate_info,
-                                     &descriptor_set) != VK_SUCCESS) {
-      REXLOG_ERROR(
-          "SingleLayoutDescriptorSetPool: Failed to allocate a descriptor set");
+    if (dfn.vkAllocateDescriptorSets(device, &descriptor_set_allocate_info, &descriptor_set) !=
+        VK_SUCCESS) {
+      REXLOG_ERROR("SingleLayoutDescriptorSetPool: Failed to allocate a descriptor set");
       if (current_pool_sets_remaining_ >= pool_set_count_) {
         // Failed to allocate in a new pool - something completely wrong, don't
         // store empty pools as full.
@@ -119,4 +112,4 @@ size_t SingleLayoutDescriptorSetPool::Allocate() {
 
 }  // namespace vulkan
 }  // namespace ui
-}  // namespace xe
+}  // namespace rex

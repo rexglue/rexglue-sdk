@@ -10,15 +10,14 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+#include <rex/system/kernel_state.h>
+#include <rex/system/xam/app_manager.h>
 #include <rex/thread/mutex.h>
-#include <rex/kernel/kernel_state.h>
-#include <rex/kernel/xam/app_manager.h>
 
 namespace rex {
 namespace kernel {
@@ -28,7 +27,7 @@ namespace apps {
 // Only source of docs for a lot of these functions:
 // https://github.com/oukiar/freestyledash/blob/master/Freestyle/Scenes/Media/Music/ScnMusic.cpp
 
-class XmpApp : public App {
+class XmpApp : public system::xam::App {
  public:
   enum class State : uint32_t {
     kIdle = 0,
@@ -71,18 +70,16 @@ class XmpApp : public App {
     std::vector<std::unique_ptr<Song>> songs;
   };
 
-  explicit XmpApp(KernelState* kernel_state);
+  explicit XmpApp(system::KernelState* kernel_state);
 
   X_HRESULT XMPGetStatus(uint32_t status_ptr);
 
   X_HRESULT XMPCreateTitlePlaylist(uint32_t songs_ptr, uint32_t song_count,
-                                   uint32_t playlist_name_ptr,
-                                   const std::u16string& playlist_name,
+                                   uint32_t playlist_name_ptr, const std::u16string& playlist_name,
                                    uint32_t flags, uint32_t out_song_handles,
                                    uint32_t out_playlist_handle);
   X_HRESULT XMPDeleteTitlePlaylist(uint32_t playlist_handle);
-  X_HRESULT XMPPlayTitlePlaylist(uint32_t playlist_handle,
-                                 uint32_t song_handle);
+  X_HRESULT XMPPlayTitlePlaylist(uint32_t playlist_handle, uint32_t song_handle);
   X_HRESULT XMPContinue();
   X_HRESULT XMPStop(uint32_t unk);
   X_HRESULT XMPPause();
@@ -117,5 +114,4 @@ class XmpApp : public App {
 }  // namespace apps
 }  // namespace xam
 }  // namespace kernel
-}  // namespace xe
-
+}  // namespace rex

@@ -11,8 +11,8 @@
 
 #pragma once
 
-#include <rex/memory.h>
 #include <rex/kernel.h>
+#include <rex/memory.h>
 
 namespace rex::audio {
 

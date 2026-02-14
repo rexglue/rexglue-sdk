@@ -21,8 +21,8 @@ class HostPathEntry;
 
 class HostPathDevice : public Device {
  public:
-  HostPathDevice(const std::string_view mount_path,
-                 const std::filesystem::path& host_path, bool read_only);
+  HostPathDevice(const std::string_view mount_path, const std::filesystem::path& host_path,
+                 bool read_only);
   ~HostPathDevice() override;
 
   bool Initialize() override;
@@ -51,4 +51,3 @@ class HostPathDevice : public Device {
 };
 
 }  // namespace rex::filesystem
-

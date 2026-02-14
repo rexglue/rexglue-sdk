@@ -9,8 +9,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/ui/vulkan/presenter.h>
-
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -23,6 +21,7 @@
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/platform.h>
+#include <rex/ui/vulkan/presenter.h>
 #include <rex/ui/vulkan/util.h>
 
 #if REX_PLATFORM_ANDROID
@@ -35,21 +34,17 @@
 #include <rex/ui/surface_win.h>
 #endif
 
-REXCVAR_DEFINE_BOOL(present_render_pass_clear, true,
-    "Clear render pass during presentation",
-    "UI/Presenter");
+REXCVAR_DEFINE_BOOL(present_render_pass_clear, true, "Clear render pass during presentation",
+                    "UI/Presenter");
 
 REXCVAR_DEFINE_BOOL(vulkan_allow_present_mode_immediate, true,
-    "Allow immediate present mode (no vsync)",
-    "UI/Vulkan");
+                    "Allow immediate present mode (no vsync)", "UI/Vulkan");
 
 REXCVAR_DEFINE_BOOL(vulkan_allow_present_mode_mailbox, true,
-    "Allow mailbox present mode (triple buffering)",
-    "UI/Vulkan");
+                    "Allow mailbox present mode (triple buffering)", "UI/Vulkan");
 
-REXCVAR_DEFINE_BOOL(vulkan_allow_present_mode_fifo_relaxed, true,
-    "Allow FIFO relaxed present mode",
-    "UI/Vulkan");
+REXCVAR_DEFINE_BOOL(vulkan_allow_present_mode_fifo_relaxed, true, "Allow FIFO relaxed present mode",
+                    "UI/Vulkan");
 
 namespace rex {
 namespace ui {
@@ -93,15 +88,15 @@ bool VulkanPresenter::PaintContext::Submission::Initialize() {
   semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
   semaphore_create_info.pNext = nullptr;
   semaphore_create_info.flags = 0;
-  if (dfn.vkCreateSemaphore(device, &semaphore_create_info, nullptr,
-                            &acquire_semaphore_) != VK_SUCCESS) {
+  if (dfn.vkCreateSemaphore(device, &semaphore_create_info, nullptr, &acquire_semaphore_) !=
+      VK_SUCCESS) {
     REXLOG_ERROR(
         "VulkanPresenter: Failed to create a swapchain image acquisition "
         "semaphore");
     return false;
   }
-  if (dfn.vkCreateSemaphore(device, &semaphore_create_info, nullptr,
-                            &present_semaphore_) != VK_SUCCESS) {
+  if (dfn.vkCreateSemaphore(device, &semaphore_create_info, nullptr, &present_semaphore_) !=
+      VK_SUCCESS) {
     REXLOG_ERROR(
         "VulkanPresenter: Failed to create a swapchain image presentation "
         "semaphore");
@@ -112,24 +107,22 @@ bool VulkanPresenter::PaintContext::Submission::Initialize() {
   command_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
   command_pool_create_info.pNext = nullptr;
   command_pool_create_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
-  command_pool_create_info.queueFamilyIndex =
-      vulkan_device_->queue_family_graphics_compute();
-  if (dfn.vkCreateCommandPool(device, &command_pool_create_info, nullptr,
-                              &draw_command_pool_) != VK_SUCCESS) {
+  command_pool_create_info.queueFamilyIndex = vulkan_device_->queue_family_graphics_compute();
+  if (dfn.vkCreateCommandPool(device, &command_pool_create_info, nullptr, &draw_command_pool_) !=
+      VK_SUCCESS) {
     REXLOG_ERROR(
         "VulkanPresenter: Failed to create a command pool for drawing to a "
         "swapchain");
     return false;
   }
   VkCommandBufferAllocateInfo command_buffer_allocate_info;
-  command_buffer_allocate_info.sType =
-      VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+  command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
   command_buffer_allocate_info.pNext = nullptr;
   command_buffer_allocate_info.commandPool = draw_command_pool_;
   command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
   command_buffer_allocate_info.commandBufferCount = 1;
-  if (dfn.vkAllocateCommandBuffers(device, &command_buffer_allocate_info,
-                                   &draw_command_buffer_) != VK_SUCCESS) {
+  if (dfn.vkAllocateCommandBuffers(device, &command_buffer_allocate_info, &draw_command_buffer_) !=
+      VK_SUCCESS) {
     REXLOG_ERROR(
         "VulkanPresenter: Failed to allocate a command buffer for drawing to a "
         "swapchain");
@@ -162,18 +155,15 @@ VulkanPresenter::~VulkanPresenter() {
   const VkDevice device = vulkan_device_->device();
 
   if (paint_context_.swapchain_render_pass != VK_NULL_HANDLE) {
-    dfn.vkDestroyRenderPass(device, paint_context_.swapchain_render_pass,
-                            nullptr);
+    dfn.vkDestroyRenderPass(device, paint_context_.swapchain_render_pass, nullptr);
   }
 
   for (const PaintContext::UISetupCommandBuffer& ui_setup_command_buffer :
        paint_context_.ui_setup_command_buffers) {
-    dfn.vkDestroyCommandPool(device, ui_setup_command_buffer.command_pool,
-                             nullptr);
+    dfn.vkDestroyCommandPool(device, ui_setup_command_buffer.command_pool, nullptr);
   }
 
-  for (VkFramebuffer& framebuffer :
-       paint_context_.guest_output_intermediate_framebuffers) {
+  for (VkFramebuffer& framebuffer : paint_context_.guest_output_intermediate_framebuffers) {
     util::DestroyAndNullHandle(dfn.vkDestroyFramebuffer, device, framebuffer);
   }
   util::DestroyAndNullHandle(dfn.vkDestroyDescriptorPool, device,
@@ -182,23 +172,18 @@ VulkanPresenter::~VulkanPresenter() {
        paint_context_.guest_output_paint_pipelines) {
     util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
                                guest_output_paint_pipeline.swapchain_pipeline);
-    util::DestroyAndNullHandle(
-        dfn.vkDestroyPipeline, device,
-        guest_output_paint_pipeline.intermediate_pipeline);
+    util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
+                               guest_output_paint_pipeline.intermediate_pipeline);
   }
 
   util::DestroyAndNullHandle(dfn.vkDestroyRenderPass, device,
                              guest_output_intermediate_render_pass_);
   for (VkShaderModule& shader_module : guest_output_paint_fs_) {
-    util::DestroyAndNullHandle(dfn.vkDestroyShaderModule, device,
-                               shader_module);
+    util::DestroyAndNullHandle(dfn.vkDestroyShaderModule, device, shader_module);
   }
-  util::DestroyAndNullHandle(dfn.vkDestroyShaderModule, device,
-                             guest_output_paint_vs_);
-  for (VkPipelineLayout& pipeline_layout :
-       guest_output_paint_pipeline_layouts_) {
-    util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
-                               pipeline_layout);
+  util::DestroyAndNullHandle(dfn.vkDestroyShaderModule, device, guest_output_paint_vs_);
+  for (VkPipelineLayout& pipeline_layout : guest_output_paint_pipeline_layouts_) {
+    util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device, pipeline_layout);
   }
   util::DestroyAndNullHandle(dfn.vkDestroyDescriptorSetLayout, device,
                              guest_output_paint_image_descriptor_set_layout_);
@@ -232,8 +217,7 @@ Surface::TypeFlags VulkanPresenter::GetSupportedSurfaceTypes() const {
   if (!vulkan_device_->extensions().ext_KHR_swapchain) {
     return 0;
   }
-  return GetSurfaceTypesSupportedByInstance(
-      vulkan_device_->vulkan_instance()->extensions());
+  return GetSurfaceTypesSupportedByInstance(vulkan_device_->vulkan_instance()->extensions());
 }
 
 bool VulkanPresenter::CaptureGuestOutput(RawImage& image_out) {
@@ -243,10 +227,8 @@ bool VulkanPresenter::CaptureGuestOutput(RawImage& image_out) {
     std::unique_lock<std::mutex> guest_output_consumer_lock(
         ConsumeGuestOutput(guest_output_mailbox_index, nullptr, nullptr));
     if (guest_output_mailbox_index != UINT32_MAX) {
-      assert_true(guest_output_images_[guest_output_mailbox_index]
-                      .ever_successfully_refreshed);
-      guest_output_image =
-          guest_output_images_[guest_output_mailbox_index].image;
+      assert_true(guest_output_images_[guest_output_mailbox_index].ever_successfully_refreshed);
+      guest_output_image = guest_output_images_[guest_output_mailbox_index].image;
     }
     // Incremented the reference count of the guest output image - safe to leave
     // the consumer critical section now.
@@ -275,11 +257,10 @@ bool VulkanPresenter::CaptureGuestOutput(RawImage& image_out) {
     command_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     command_pool_create_info.pNext = nullptr;
     command_pool_create_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
-    command_pool_create_info.queueFamilyIndex =
-        vulkan_device_->queue_family_graphics_compute();
+    command_pool_create_info.queueFamilyIndex = vulkan_device_->queue_family_graphics_compute();
     VkCommandPool command_pool;
-    if (dfn.vkCreateCommandPool(device, &command_pool_create_info, nullptr,
-                                &command_pool) != VK_SUCCESS) {
+    if (dfn.vkCreateCommandPool(device, &command_pool_create_info, nullptr, &command_pool) !=
+        VK_SUCCESS) {
       REXLOG_ERROR(
           "VulkanPresenter: Failed to create the guest output capturing "
           "command pool");
@@ -289,15 +270,14 @@ bool VulkanPresenter::CaptureGuestOutput(RawImage& image_out) {
     }
 
     VkCommandBufferAllocateInfo command_buffer_allocate_info;
-    command_buffer_allocate_info.sType =
-        VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     command_buffer_allocate_info.pNext = nullptr;
     command_buffer_allocate_info.commandPool = command_pool;
     command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     command_buffer_allocate_info.commandBufferCount = 1;
     VkCommandBuffer command_buffer;
-    if (dfn.vkAllocateCommandBuffers(device, &command_buffer_allocate_info,
-                                     &command_buffer) != VK_SUCCESS) {
+    if (dfn.vkAllocateCommandBuffers(device, &command_buffer_allocate_info, &command_buffer) !=
+        VK_SUCCESS) {
       REXLOG_ERROR(
           "VulkanPresenter: Failed to allocate the guest output capturing "
           "command buffer");
@@ -308,14 +288,11 @@ bool VulkanPresenter::CaptureGuestOutput(RawImage& image_out) {
     }
 
     VkCommandBufferBeginInfo command_buffer_begin_info;
-    command_buffer_begin_info.sType =
-        VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     command_buffer_begin_info.pNext = nullptr;
-    command_buffer_begin_info.flags =
-        VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     command_buffer_begin_info.pInheritanceInfo = nullptr;
-    if (dfn.vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info) !=
-        VK_SUCCESS) {
+    if (dfn.vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info) != VK_SUCCESS) {
       REXLOG_ERROR(
           "VulkanPresenter: Failed to begin recording the guest output "
           "capturing command buffer");
@@ -337,8 +314,8 @@ bool VulkanPresenter::CaptureGuestOutput(RawImage& image_out) {
     image_memory_barrier.image = guest_output_image->image();
     image_memory_barrier.subresourceRange = util::InitializeSubresourceRange();
     dfn.vkCmdPipelineBarrier(command_buffer, kGuestOutputInternalStageMask,
-                             VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
-                             nullptr, 1, &image_memory_barrier);
+                             VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1,
+                             &image_memory_barrier);
 
     VkBufferImageCopy buffer_image_copy = {};
     buffer_image_copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -347,8 +324,7 @@ bool VulkanPresenter::CaptureGuestOutput(RawImage& image_out) {
     buffer_image_copy.imageExtent.height = image_extent.height;
     buffer_image_copy.imageExtent.depth = 1;
     dfn.vkCmdCopyImageToBuffer(command_buffer, guest_output_image->image(),
-                               VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, buffer, 1,
-                               &buffer_image_copy);
+                               VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, buffer, 1, &buffer_image_copy);
 
     // A fence doesn't guarantee host visibility and availability.
     VkBufferMemoryBarrier buffer_memory_barrier;
@@ -361,13 +337,11 @@ bool VulkanPresenter::CaptureGuestOutput(RawImage& image_out) {
     buffer_memory_barrier.buffer = buffer;
     buffer_memory_barrier.offset = 0;
     buffer_memory_barrier.size = VK_WHOLE_SIZE;
-    std::swap(image_memory_barrier.srcAccessMask,
-              image_memory_barrier.dstAccessMask);
+    std::swap(image_memory_barrier.srcAccessMask, image_memory_barrier.dstAccessMask);
     std::swap(image_memory_barrier.oldLayout, image_memory_barrier.newLayout);
-    dfn.vkCmdPipelineBarrier(
-        command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
-        VK_PIPELINE_STAGE_HOST_BIT | kGuestOutputInternalStageMask, 0, 0,
-        nullptr, 1, &buffer_memory_barrier, 1, &image_memory_barrier);
+    dfn.vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_HOST_BIT | kGuestOutputInternalStageMask, 0, 0,
+                             nullptr, 1, &buffer_memory_barrier, 1, &image_memory_barrier);
 
     if (dfn.vkEndCommandBuffer(command_buffer) != VK_SUCCESS) {
       REXLOG_ERROR(
@@ -400,11 +374,9 @@ bool VulkanPresenter::CaptureGuestOutput(RawImage& image_out) {
       VkResult submit_result;
       {
         const VulkanDevice::Queue::Acquisition queue_acquisition =
-            vulkan_device_->AcquireQueue(
-                vulkan_device_->queue_family_graphics_compute(), 0);
+            vulkan_device_->AcquireQueue(vulkan_device_->queue_family_graphics_compute(), 0);
         submit_result =
-            dfn.vkQueueSubmit(queue_acquisition.queue(), 1, &submit_info,
-                              fence_acqusition.fence());
+            dfn.vkQueueSubmit(queue_acquisition.queue(), 1, &submit_info, fence_acqusition.fence());
       }
       if (submit_result != VK_SUCCESS) {
         REXLOG_ERROR(
@@ -418,8 +390,7 @@ bool VulkanPresenter::CaptureGuestOutput(RawImage& image_out) {
       }
     }
     if (!submission_tracker.AwaitAllSubmissionsCompletion()) {
-      REXLOG_ERROR(
-          "VulkanPresenter: Failed to await the guest output capturing fence");
+      REXLOG_ERROR("VulkanPresenter: Failed to await the guest output capturing fence");
       dfn.vkDestroyCommandPool(device, command_pool, nullptr);
       dfn.vkDestroyBuffer(device, buffer, nullptr);
       dfn.vkFreeMemory(device, buffer_memory, nullptr);
@@ -433,8 +404,7 @@ bool VulkanPresenter::CaptureGuestOutput(RawImage& image_out) {
   dfn.vkDestroyBuffer(device, buffer, nullptr);
 
   void* mapping;
-  if (dfn.vkMapMemory(device, buffer_memory, 0, VK_WHOLE_SIZE, 0, &mapping) !=
-      VK_SUCCESS) {
+  if (dfn.vkMapMemory(device, buffer_memory, 0, VK_WHOLE_SIZE, 0, &mapping) != VK_SUCCESS) {
     REXLOG_ERROR("VulkanPresenter: Failed to map the guest output capture memory");
     dfn.vkFreeMemory(device, buffer_memory, nullptr);
     return false;
@@ -444,11 +414,9 @@ bool VulkanPresenter::CaptureGuestOutput(RawImage& image_out) {
   image_out.height = image_extent.height;
   image_out.stride = sizeof(uint32_t) * image_extent.width;
   image_out.data.resize(size_t(buffer_size));
-  uint32_t* image_out_pixels =
-      reinterpret_cast<uint32_t*>(image_out.data.data());
+  uint32_t* image_out_pixels = reinterpret_cast<uint32_t*>(image_out.data.data());
   for (size_t i = 0; i < pixel_count; ++i) {
-    image_out_pixels[i] = Packed10bpcRGBTo8bpcBytes(
-        reinterpret_cast<const uint32_t*>(mapping)[i]);
+    image_out_pixels[i] = Packed10bpcRGBTo8bpcBytes(reinterpret_cast<const uint32_t*>(mapping)[i]);
   }
 
   // Unmapping will be done by freeing.
@@ -460,8 +428,7 @@ bool VulkanPresenter::CaptureGuestOutput(RawImage& image_out) {
 VkCommandBuffer VulkanPresenter::AcquireUISetupCommandBufferFromUIThread() {
   if (paint_context_.ui_setup_command_buffer_current_index != SIZE_MAX) {
     return paint_context_
-        .ui_setup_command_buffers[paint_context_
-                                      .ui_setup_command_buffer_current_index]
+        .ui_setup_command_buffers[paint_context_.ui_setup_command_buffer_current_index]
         .command_buffer;
   }
 
@@ -476,18 +443,14 @@ VkCommandBuffer VulkanPresenter::AcquireUISetupCommandBufferFromUIThread() {
 
   // Try to reuse an existing command buffer.
   if (!paint_context_.ui_setup_command_buffers.empty()) {
-    uint64_t submission_index_completed =
-        ui_submission_tracker_.UpdateAndGetCompletedSubmission();
-    for (size_t i = 0; i < paint_context_.ui_setup_command_buffers.size();
-         ++i) {
+    uint64_t submission_index_completed = ui_submission_tracker_.UpdateAndGetCompletedSubmission();
+    for (size_t i = 0; i < paint_context_.ui_setup_command_buffers.size(); ++i) {
       PaintContext::UISetupCommandBuffer& ui_setup_command_buffer =
           paint_context_.ui_setup_command_buffers[i];
-      if (ui_setup_command_buffer.last_usage_submission_index >
-          submission_index_completed) {
+      if (ui_setup_command_buffer.last_usage_submission_index > submission_index_completed) {
         continue;
       }
-      if (dfn.vkResetCommandPool(device, ui_setup_command_buffer.command_pool,
-                                 0) != VK_SUCCESS) {
+      if (dfn.vkResetCommandPool(device, ui_setup_command_buffer.command_pool, 0) != VK_SUCCESS) {
         REXLOG_ERROR("VulkanPresenter: Failed to reset a UI setup command pool");
         return VK_NULL_HANDLE;
       }
@@ -510,50 +473,45 @@ VkCommandBuffer VulkanPresenter::AcquireUISetupCommandBufferFromUIThread() {
   command_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
   command_pool_create_info.pNext = nullptr;
   command_pool_create_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
-  command_pool_create_info.queueFamilyIndex =
-      vulkan_device_->queue_family_graphics_compute();
+  command_pool_create_info.queueFamilyIndex = vulkan_device_->queue_family_graphics_compute();
   VkCommandPool new_command_pool;
-  if (dfn.vkCreateCommandPool(device, &command_pool_create_info, nullptr,
-                              &new_command_pool) != VK_SUCCESS) {
+  if (dfn.vkCreateCommandPool(device, &command_pool_create_info, nullptr, &new_command_pool) !=
+      VK_SUCCESS) {
     REXLOG_ERROR("VulkanPresenter: Failed to create a UI setup command pool");
     return VK_NULL_HANDLE;
   }
   VkCommandBufferAllocateInfo command_buffer_allocate_info;
-  command_buffer_allocate_info.sType =
-      VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+  command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
   command_buffer_allocate_info.pNext = nullptr;
   command_buffer_allocate_info.commandPool = new_command_pool;
   command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
   command_buffer_allocate_info.commandBufferCount = 1;
   VkCommandBuffer new_command_buffer;
-  if (dfn.vkAllocateCommandBuffers(device, &command_buffer_allocate_info,
-                                   &new_command_buffer) != VK_SUCCESS) {
+  if (dfn.vkAllocateCommandBuffers(device, &command_buffer_allocate_info, &new_command_buffer) !=
+      VK_SUCCESS) {
     REXLOG_ERROR("VulkanPresenter: Failed to allocate a UI setup command buffer");
     dfn.vkDestroyCommandPool(device, new_command_pool, nullptr);
     return VK_NULL_HANDLE;
   }
-  if (dfn.vkBeginCommandBuffer(new_command_buffer,
-                               &command_buffer_begin_info) != VK_SUCCESS) {
-    REXLOG_ERROR(
-        "VulkanPresenter: Failed to begin UI setup command buffer recording");
+  if (dfn.vkBeginCommandBuffer(new_command_buffer, &command_buffer_begin_info) != VK_SUCCESS) {
+    REXLOG_ERROR("VulkanPresenter: Failed to begin UI setup command buffer recording");
     dfn.vkDestroyCommandPool(device, new_command_pool, nullptr);
     return VK_NULL_HANDLE;
   }
   paint_context_.ui_setup_command_buffer_current_index =
       paint_context_.ui_setup_command_buffers.size();
   paint_context_.ui_setup_command_buffers.emplace_back(
-      new_command_pool, new_command_buffer,
-      ui_submission_tracker_.GetCurrentSubmission());
+      new_command_pool, new_command_buffer, ui_submission_tracker_.GetCurrentSubmission());
   return new_command_buffer;
 }
 
 Presenter::SurfacePaintConnectResult
-VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
-    Surface& new_surface, uint32_t new_surface_width,
-    uint32_t new_surface_height, bool was_paintable,
-    bool& is_vsync_implicit_out) {
-  const VulkanInstance* const vulkan_instance =
-      vulkan_device_->vulkan_instance();
+VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(Surface& new_surface,
+                                                                 uint32_t new_surface_width,
+                                                                 uint32_t new_surface_height,
+                                                                 bool was_paintable,
+                                                                 bool& is_vsync_implicit_out) {
+  const VulkanInstance* const vulkan_instance = vulkan_device_->vulkan_instance();
   const VulkanInstance::Functions& ifn = vulkan_instance->functions();
   const VkInstance instance = vulkan_instance->instance();
   const VulkanDevice::Functions& dfn = vulkan_device_->functions();
@@ -570,14 +528,12 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
   // awaiting completion of the usage of the swapchain and the surface on the
   // GPU.
   if (paint_context_.vulkan_surface != VK_NULL_HANDLE) {
-    VkSwapchainKHR old_swapchain =
-        paint_context_.PrepareForSwapchainRetirement();
+    VkSwapchainKHR old_swapchain = paint_context_.PrepareForSwapchainRetirement();
     bool surface_unusable;
     paint_context_.swapchain = PaintContext::CreateSwapchainForVulkanSurface(
-        vulkan_device_, paint_context_.vulkan_surface, new_surface_width,
-        new_surface_height, old_swapchain, paint_context_.present_queue_family,
-        new_swapchain_format, paint_context_.swapchain_extent,
-        paint_context_.swapchain_is_fifo, surface_unusable);
+        vulkan_device_, paint_context_.vulkan_surface, new_surface_width, new_surface_height,
+        old_swapchain, paint_context_.present_queue_family, new_swapchain_format,
+        paint_context_.swapchain_extent, paint_context_.swapchain_is_fifo, surface_unusable);
     // Destroy the old swapchain that may be retired now.
     if (old_swapchain != VK_NULL_HANDLE) {
       dfn.vkDestroySwapchainKHR(device, old_swapchain, nullptr);
@@ -596,8 +552,7 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
     Surface::TypeIndex surface_type = new_surface.GetType();
     // Check if the surface type is supported according to the Vulkan
     // extensions.
-    if (!(GetSupportedSurfaceTypes() &
-          (Surface::TypeFlags(1) << surface_type))) {
+    if (!(GetSupportedSurfaceTypes() & (Surface::TypeFlags(1) << surface_type))) {
       REXLOG_ERROR(
           "VulkanPresenter: Tried to create a Vulkan surface for an "
           "unsupported Xenia surface type");
@@ -610,46 +565,38 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
         auto& android_native_window_surface =
             static_cast<const AndroidNativeWindowSurface&>(new_surface);
         VkAndroidSurfaceCreateInfoKHR surface_create_info;
-        surface_create_info.sType =
-            VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
+        surface_create_info.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
         surface_create_info.pNext = nullptr;
         surface_create_info.flags = 0;
         surface_create_info.window = android_native_window_surface.window();
         vulkan_surface_create_result = ifn.vkCreateAndroidSurfaceKHR(
-            instance, &surface_create_info, nullptr,
-            &paint_context_.vulkan_surface);
+            instance, &surface_create_info, nullptr, &paint_context_.vulkan_surface);
       } break;
 #endif
 #if REX_PLATFORM_GNU_LINUX
       case Surface::kTypeIndex_XcbWindow: {
-        auto& xcb_window_surface =
-            static_cast<const XcbWindowSurface&>(new_surface);
+        auto& xcb_window_surface = static_cast<const XcbWindowSurface&>(new_surface);
         VkXcbSurfaceCreateInfoKHR surface_create_info;
-        surface_create_info.sType =
-            VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
+        surface_create_info.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
         surface_create_info.pNext = nullptr;
         surface_create_info.flags = 0;
         surface_create_info.connection = xcb_window_surface.connection();
         surface_create_info.window = xcb_window_surface.window();
-        vulkan_surface_create_result =
-            ifn.vkCreateXcbSurfaceKHR(instance, &surface_create_info, nullptr,
-                                      &paint_context_.vulkan_surface);
+        vulkan_surface_create_result = ifn.vkCreateXcbSurfaceKHR(
+            instance, &surface_create_info, nullptr, &paint_context_.vulkan_surface);
       } break;
 #endif
 #if REX_PLATFORM_WIN32
       case Surface::kTypeIndex_Win32Hwnd: {
-        auto& win32_hwnd_surface =
-            static_cast<const Win32HwndSurface&>(new_surface);
+        auto& win32_hwnd_surface = static_cast<const Win32HwndSurface&>(new_surface);
         VkWin32SurfaceCreateInfoKHR surface_create_info;
-        surface_create_info.sType =
-            VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+        surface_create_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
         surface_create_info.pNext = nullptr;
         surface_create_info.flags = 0;
         surface_create_info.hinstance = win32_hwnd_surface.hinstance();
         surface_create_info.hwnd = win32_hwnd_surface.hwnd();
-        vulkan_surface_create_result =
-            ifn.vkCreateWin32SurfaceKHR(instance, &surface_create_info, nullptr,
-                                        &paint_context_.vulkan_surface);
+        vulkan_surface_create_result = ifn.vkCreateWin32SurfaceKHR(
+            instance, &surface_create_info, nullptr, &paint_context_.vulkan_surface);
       } break;
 #endif
       default:
@@ -665,18 +612,16 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
     }
     bool surface_unusable;
     paint_context_.swapchain = PaintContext::CreateSwapchainForVulkanSurface(
-        vulkan_device_, paint_context_.vulkan_surface, new_surface_width,
-        new_surface_height, VK_NULL_HANDLE, paint_context_.present_queue_family,
-        new_swapchain_format, paint_context_.swapchain_extent,
-        paint_context_.swapchain_is_fifo, surface_unusable);
+        vulkan_device_, paint_context_.vulkan_surface, new_surface_width, new_surface_height,
+        VK_NULL_HANDLE, paint_context_.present_queue_family, new_swapchain_format,
+        paint_context_.swapchain_extent, paint_context_.swapchain_is_fifo, surface_unusable);
     if (paint_context_.swapchain == VK_NULL_HANDLE) {
       // Failed to create the swapchain for the new Vulkan surface - destroy the
       // Vulkan surface.
       ifn.vkDestroySurfaceKHR(instance, paint_context_.vulkan_surface, nullptr);
       paint_context_.vulkan_surface = VK_NULL_HANDLE;
-      return surface_unusable
-                 ? SurfacePaintConnectResult::kFailureSurfaceUnusable
-                 : SurfacePaintConnectResult::kFailure;
+      return surface_unusable ? SurfacePaintConnectResult::kFailureSurfaceUnusable
+                              : SurfacePaintConnectResult::kFailure;
     }
     // Successfully attached (at least for now).
   }
@@ -706,8 +651,7 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
     render_pass_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
     VkAttachmentReference render_pass_color_attachment;
     render_pass_color_attachment.attachment = 0;
-    render_pass_color_attachment.layout =
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    render_pass_color_attachment.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     VkSubpassDescription render_pass_subpass = {};
     render_pass_subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     render_pass_subpass.colorAttachmentCount = 1;
@@ -716,27 +660,21 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
     render_pass_dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
     render_pass_dependencies[0].dstSubpass = 0;
     // srcStageMask is the semaphore wait stage.
-    render_pass_dependencies[0].srcStageMask =
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    render_pass_dependencies[0].dstStageMask =
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    render_pass_dependencies[0].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    render_pass_dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     render_pass_dependencies[0].srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
     // The main target can be used for UI drawing at any moment, which requires
     // blending, so VK_ACCESS_COLOR_ATTACHMENT_READ_BIT is also included.
     render_pass_dependencies[0].dstAccessMask =
-        VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
-        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     render_pass_dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
     render_pass_dependencies[1].srcSubpass = 0;
     render_pass_dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
-    render_pass_dependencies[1].srcStageMask =
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    render_pass_dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     // Semaphores are signaled at VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT.
-    render_pass_dependencies[1].dstStageMask =
-        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+    render_pass_dependencies[1].dstStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
     render_pass_dependencies[1].srcAccessMask =
-        VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
-        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     render_pass_dependencies[1].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
     render_pass_dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
     VkRenderPassCreateInfo render_pass_create_info;
@@ -747,12 +685,11 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
     render_pass_create_info.pAttachments = &render_pass_attachment;
     render_pass_create_info.subpassCount = 1;
     render_pass_create_info.pSubpasses = &render_pass_subpass;
-    render_pass_create_info.dependencyCount =
-        uint32_t(rex::countof(render_pass_dependencies));
+    render_pass_create_info.dependencyCount = uint32_t(rex::countof(render_pass_dependencies));
     render_pass_create_info.pDependencies = render_pass_dependencies;
     VkRenderPass new_render_pass;
-    if (dfn.vkCreateRenderPass(device, &render_pass_create_info, nullptr,
-                               &new_render_pass) != VK_SUCCESS) {
+    if (dfn.vkCreateRenderPass(device, &render_pass_create_info, nullptr, &new_render_pass) !=
+        VK_SUCCESS) {
       REXLOG_ERROR(
           "VulkanPresenter: Failed to create the render pass for drawing to "
           "swapchain images");
@@ -769,17 +706,14 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
   paint_context_.swapchain_images.clear();
   VkResult swapchain_images_get_result;
   for (;;) {
-    uint32_t swapchain_image_count =
-        uint32_t(paint_context_.swapchain_images.size());
+    uint32_t swapchain_image_count = uint32_t(paint_context_.swapchain_images.size());
     bool swapchain_images_were_empty = !swapchain_image_count;
     swapchain_images_get_result = dfn.vkGetSwapchainImagesKHR(
         device, paint_context_.swapchain, &swapchain_image_count,
-        swapchain_images_were_empty ? nullptr
-                                    : paint_context_.swapchain_images.data());
+        swapchain_images_were_empty ? nullptr : paint_context_.swapchain_images.data());
     // If the original swapchain image count was 0 (first call), SUCCESS is
     // returned, not INCOMPLETE.
-    if (swapchain_images_get_result == VK_SUCCESS ||
-        swapchain_images_get_result == VK_INCOMPLETE) {
+    if (swapchain_images_get_result == VK_SUCCESS || swapchain_images_get_result == VK_INCOMPLETE) {
       paint_context_.swapchain_images.resize(swapchain_image_count);
       if (swapchain_images_get_result == VK_SUCCESS &&
           (!swapchain_images_were_empty || !swapchain_image_count)) {
@@ -797,8 +731,7 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
 
   // Create the image views and the framebuffers.
   assert_true(paint_context_.swapchain_framebuffers.empty());
-  paint_context_.swapchain_framebuffers.reserve(
-      paint_context_.swapchain_images.size());
+  paint_context_.swapchain_framebuffers.reserve(paint_context_.swapchain_images.size());
   VkImageViewCreateInfo image_view_create_info;
   image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
   image_view_create_info.pNext = nullptr;
@@ -809,8 +742,7 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
   image_view_create_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
   image_view_create_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
   image_view_create_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-  image_view_create_info.subresourceRange.aspectMask =
-      VK_IMAGE_ASPECT_COLOR_BIT;
+  image_view_create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
   image_view_create_info.subresourceRange.baseMipLevel = 0;
   image_view_create_info.subresourceRange.levelCount = 1;
   image_view_create_info.subresourceRange.baseArrayLayer = 0;
@@ -828,15 +760,15 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
   framebuffer_create_info.layers = 1;
   for (VkImage image : paint_context_.swapchain_images) {
     image_view_create_info.image = image;
-    if (dfn.vkCreateImageView(device, &image_view_create_info, nullptr,
-                              &image_view) != VK_SUCCESS) {
+    if (dfn.vkCreateImageView(device, &image_view_create_info, nullptr, &image_view) !=
+        VK_SUCCESS) {
       REXLOG_ERROR("VulkanPresenter: Failed to create a swapchain image view");
       paint_context_.DestroySwapchainAndVulkanSurface();
       return SurfacePaintConnectResult::kFailure;
     }
     VkFramebuffer framebuffer;
-    if (dfn.vkCreateFramebuffer(device, &framebuffer_create_info, nullptr,
-                                &framebuffer) != VK_SUCCESS) {
+    if (dfn.vkCreateFramebuffer(device, &framebuffer_create_info, nullptr, &framebuffer) !=
+        VK_SUCCESS) {
       REXLOG_ERROR("VulkanPresenter: Failed to create a swapchain framebuffer");
       dfn.vkDestroyImageView(device, image_view, nullptr);
       paint_context_.DestroySwapchainAndVulkanSurface();
@@ -854,14 +786,11 @@ void VulkanPresenter::DisconnectPaintingFromSurfaceFromUIThreadImpl() {
 }
 
 bool VulkanPresenter::RefreshGuestOutputImpl(
-    uint32_t mailbox_index, uint32_t frontbuffer_width,
-    uint32_t frontbuffer_height,
-    std::function<bool(GuestOutputRefreshContext& context)> refresher,
-    bool& is_8bpc_out_ref) {
+    uint32_t mailbox_index, uint32_t frontbuffer_width, uint32_t frontbuffer_height,
+    std::function<bool(GuestOutputRefreshContext& context)> refresher, bool& is_8bpc_out_ref) {
   assert_not_zero(frontbuffer_width);
   assert_not_zero(frontbuffer_height);
-  VkExtent2D max_framebuffer_extent =
-      util::GetMax2DFramebufferExtent(vulkan_device_->properties());
+  VkExtent2D max_framebuffer_extent = util::GetMax2DFramebufferExtent(vulkan_device_->properties());
   if (frontbuffer_width > max_framebuffer_extent.width ||
       frontbuffer_height > max_framebuffer_extent.height) {
     // Writing the guest output isn't supposed to rescale, and a guest texture
@@ -869,29 +798,25 @@ bool VulkanPresenter::RefreshGuestOutputImpl(
     return false;
   }
 
-  GuestOutputImageInstance& image_instance =
-      guest_output_images_[mailbox_index];
-  if (image_instance.image &&
-      (image_instance.image->extent().width != frontbuffer_width ||
-       image_instance.image->extent().height != frontbuffer_height)) {
+  GuestOutputImageInstance& image_instance = guest_output_images_[mailbox_index];
+  if (image_instance.image && (image_instance.image->extent().width != frontbuffer_width ||
+                               image_instance.image->extent().height != frontbuffer_height)) {
     guest_output_image_refresher_submission_tracker_.AwaitSubmissionCompletion(
         image_instance.last_refresher_submission);
     image_instance.image.reset();
   }
   if (!image_instance.image) {
-    std::unique_ptr<GuestOutputImage> new_image = GuestOutputImage::Create(
-        vulkan_device_, frontbuffer_width, frontbuffer_height);
+    std::unique_ptr<GuestOutputImage> new_image =
+        GuestOutputImage::Create(vulkan_device_, frontbuffer_width, frontbuffer_height);
     if (!new_image) {
       return false;
     }
-    image_instance.SetToNewImage(std::move(new_image),
-                                 guest_output_image_next_version_++);
+    image_instance.SetToNewImage(std::move(new_image), guest_output_image_next_version_++);
   }
 
-  VulkanGuestOutputRefreshContext context(
-      is_8bpc_out_ref, image_instance.image->image(),
-      image_instance.image->view(), image_instance.version,
-      image_instance.ever_successfully_refreshed);
+  VulkanGuestOutputRefreshContext context(is_8bpc_out_ref, image_instance.image->image(),
+                                          image_instance.image->view(), image_instance.version,
+                                          image_instance.ever_successfully_refreshed);
   bool refresher_succeeded = refresher(context);
   if (refresher_succeeded) {
     image_instance.ever_successfully_refreshed = true;
@@ -910,13 +835,11 @@ bool VulkanPresenter::RefreshGuestOutputImpl(
   const VulkanDevice::Functions& dfn = vulkan_device_->functions();
   {
     VulkanSubmissionTracker::FenceAcquisition fence_acqusition(
-        guest_output_image_refresher_submission_tracker_
-            .AcquireFenceToAdvanceSubmission());
+        guest_output_image_refresher_submission_tracker_.AcquireFenceToAdvanceSubmission());
     const VulkanDevice::Queue::Acquisition queue_acquisition =
-        vulkan_device_->AcquireQueue(
-            vulkan_device_->queue_family_graphics_compute(), 0);
-    if (dfn.vkQueueSubmit(queue_acquisition.queue(), 0, nullptr,
-                          fence_acqusition.fence()) != VK_SUCCESS) {
+        vulkan_device_->AcquireQueue(vulkan_device_->queue_family_graphics_compute(), 0);
+    if (dfn.vkQueueSubmit(queue_acquisition.queue(), 0, nullptr, fence_acqusition.fence()) !=
+        VK_SUCCESS) {
       fence_acqusition.SubmissionSucceededSignalFailed();
     }
   }
@@ -925,23 +848,20 @@ bool VulkanPresenter::RefreshGuestOutputImpl(
 }
 
 VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
-    const VulkanDevice* vulkan_device, VkSurfaceKHR surface, uint32_t width,
-    uint32_t height, VkSwapchainKHR old_swapchain,
-    uint32_t& present_queue_family_out, VkFormat& image_format_out,
-    VkExtent2D& image_extent_out, bool& is_fifo_out,
-    bool& ui_surface_unusable_out) {
+    const VulkanDevice* vulkan_device, VkSurfaceKHR surface, uint32_t width, uint32_t height,
+    VkSwapchainKHR old_swapchain, uint32_t& present_queue_family_out, VkFormat& image_format_out,
+    VkExtent2D& image_extent_out, bool& is_fifo_out, bool& ui_surface_unusable_out) {
   ui_surface_unusable_out = false;
 
-  const VulkanInstance::Functions& ifn =
-      vulkan_device->vulkan_instance()->functions();
+  const VulkanInstance::Functions& ifn = vulkan_device->vulkan_instance()->functions();
   const VkPhysicalDevice physical_device = vulkan_device->physical_device();
   const VulkanDevice::Functions& dfn = vulkan_device->functions();
   const VkDevice device = vulkan_device->device();
 
   // Get surface capabilities.
   VkSurfaceCapabilitiesKHR surface_capabilities;
-  if (ifn.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
-          physical_device, surface, &surface_capabilities) != VK_SUCCESS) {
+  if (ifn.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, surface,
+                                                    &surface_capabilities) != VK_SUCCESS) {
     REXLOG_ERROR("VulkanPresenter: Failed to get Vulkan surface capabilities");
     // Some strange error, try again later.
     return VK_NULL_HANDLE;
@@ -959,17 +879,14 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
   // requirements - the maximum 2D framebuffer size on the specific physical
   // device, and the minimum swap chain size on the whole instance - fail to
   // create until the surface becomes smaller).
-  VkExtent2D max_framebuffer_extent =
-      util::GetMax2DFramebufferExtent(vulkan_device->properties());
+  VkExtent2D max_framebuffer_extent = util::GetMax2DFramebufferExtent(vulkan_device->properties());
   VkExtent2D image_extent;
-  image_extent.width =
-      std::min(std::max(std::min(width, max_framebuffer_extent.width),
-                        surface_capabilities.minImageExtent.width),
-               surface_capabilities.maxImageExtent.width);
-  image_extent.height =
-      std::min(std::max(std::min(height, max_framebuffer_extent.height),
-                        surface_capabilities.minImageExtent.height),
-               surface_capabilities.maxImageExtent.height);
+  image_extent.width = std::min(std::max(std::min(width, max_framebuffer_extent.width),
+                                         surface_capabilities.minImageExtent.width),
+                                surface_capabilities.maxImageExtent.width);
+  image_extent.height = std::min(std::max(std::min(height, max_framebuffer_extent.height),
+                                          surface_capabilities.minImageExtent.height),
+                                 surface_capabilities.maxImageExtent.height);
   if (!image_extent.width || !image_extent.height ||
       image_extent.width > max_framebuffer_extent.width ||
       image_extent.height > max_framebuffer_extent.height) {
@@ -978,30 +895,26 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
 
   // Get the queue family for presentation.
   uint32_t queue_family_index_present = UINT32_MAX;
-  const std::vector<VulkanDevice::QueueFamily>& queue_families =
-      vulkan_device->queue_families();
+  const std::vector<VulkanDevice::QueueFamily>& queue_families = vulkan_device->queue_families();
   VkBool32 queue_family_present_supported;
   // First try the graphics and compute queue, prefer it to avoid the concurrent
   // image sharing mode.
-  uint32_t queue_family_index_graphics_compute =
-      vulkan_device->queue_family_graphics_compute();
+  uint32_t queue_family_index_graphics_compute = vulkan_device->queue_family_graphics_compute();
   const VulkanDevice::QueueFamily& queue_family_graphics_compute =
       queue_families[queue_family_index_graphics_compute];
   if (queue_family_graphics_compute.may_support_presentation &&
       !queue_family_graphics_compute.queues.empty() &&
-      ifn.vkGetPhysicalDeviceSurfaceSupportKHR(
-          physical_device, queue_family_index_graphics_compute, surface,
-          &queue_family_present_supported) == VK_SUCCESS &&
+      ifn.vkGetPhysicalDeviceSurfaceSupportKHR(physical_device, queue_family_index_graphics_compute,
+                                               surface,
+                                               &queue_family_present_supported) == VK_SUCCESS &&
       queue_family_present_supported) {
     queue_family_index_present = queue_family_index_graphics_compute;
   } else {
     for (uint32_t i = 0; i < uint32_t(queue_families.size()); ++i) {
       const VulkanDevice::QueueFamily& queue_family = queue_families[i];
-      if (!queue_family.queues.empty() &&
-          queue_family.may_support_presentation &&
-          ifn.vkGetPhysicalDeviceSurfaceSupportKHR(
-              physical_device, i, surface, &queue_family_present_supported) ==
-              VK_SUCCESS &&
+      if (!queue_family.queues.empty() && queue_family.may_support_presentation &&
+          ifn.vkGetPhysicalDeviceSurfaceSupportKHR(physical_device, i, surface,
+                                                   &queue_family_present_supported) == VK_SUCCESS &&
           queue_family_present_supported) {
         queue_family_index_present = i;
         break;
@@ -1016,8 +929,7 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
 
   // TODO(Triang3l): Support transforms.
   if (!(surface_capabilities.supportedTransforms &
-        (VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR |
-         VK_SURFACE_TRANSFORM_INHERIT_BIT_KHR))) {
+        (VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR | VK_SURFACE_TRANSFORM_INHERIT_BIT_KHR))) {
     REXLOG_ERROR(
         "VulkanPresenter: The surface doesn't support identity or "
         "window-system-controlled transform");
@@ -1035,8 +947,7 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
         surface_formats_were_empty ? nullptr : surface_formats.data());
     // If the original presentation mode count was 0 (first call), SUCCESS is
     // returned, not INCOMPLETE.
-    if (surface_formats_get_result == VK_SUCCESS ||
-        surface_formats_get_result == VK_INCOMPLETE) {
+    if (surface_formats_get_result == VK_SUCCESS || surface_formats_get_result == VK_INCOMPLETE) {
       surface_formats.resize(surface_format_count);
       if (surface_formats_get_result == VK_SUCCESS &&
           (!surface_formats_were_empty || !surface_format_count)) {
@@ -1062,8 +973,7 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
 #endif
   VkSurfaceFormatKHR image_format;
   if (surface_formats.empty() ||
-      (surface_formats.size() == 1 ||
-       surface_formats[0].format == VK_FORMAT_UNDEFINED)) {
+      (surface_formats.size() == 1 || surface_formats[0].format == VK_FORMAT_UNDEFINED)) {
     // Can choose any format if the implementation specifies only UNDEFINED.
     image_format.format = kFormat8888Primary;
     image_format.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
@@ -1074,19 +984,16 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
     auto format_8888_primary_it = surface_formats.cend();
     auto format_8888_secondary_it = surface_formats.cend();
     auto any_non_8888_srgb_it = surface_formats.cend();
-    for (auto it = surface_formats.cbegin(); it != surface_formats.cend();
-         ++it) {
-      if (it->format != kFormat8888Primary &&
-          it->format != kFormat8888Secondary) {
+    for (auto it = surface_formats.cbegin(); it != surface_formats.cend(); ++it) {
+      if (it->format != kFormat8888Primary && it->format != kFormat8888Secondary) {
         if (it->colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR &&
             any_non_8888_srgb_it == surface_formats.cend()) {
           any_non_8888_srgb_it = it;
         }
         continue;
       }
-      auto& preferred_8888_it = it->format == kFormat8888Primary
-                                    ? format_8888_primary_it
-                                    : format_8888_secondary_it;
+      auto& preferred_8888_it =
+          it->format == kFormat8888Primary ? format_8888_primary_it : format_8888_secondary_it;
       if (preferred_8888_it == surface_formats.cend()) {
         // First primary or secondary 8888 encounter.
         preferred_8888_it = it;
@@ -1103,10 +1010,8 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
         format_8888_secondary_it != surface_formats.cend()) {
       // Both the primary and the secondary 8888 formats are available - prefer
       // sRGB, if both are sRGB or not, prefer the primary format.
-      if (format_8888_primary_it->colorSpace ==
-              VK_COLOR_SPACE_SRGB_NONLINEAR_KHR ||
-          format_8888_secondary_it->colorSpace !=
-              VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+      if (format_8888_primary_it->colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR ||
+          format_8888_secondary_it->colorSpace != VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
         image_format = *format_8888_primary_it;
       } else {
         image_format = *format_8888_secondary_it;
@@ -1137,8 +1042,7 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
         present_modes_were_empty ? nullptr : present_modes.data());
     // If the original presentation mode count was 0 (first call), SUCCESS is
     // returned, not INCOMPLETE.
-    if (present_modes_get_result == VK_SUCCESS ||
-        present_modes_get_result == VK_INCOMPLETE) {
+    if (present_modes_get_result == VK_SUCCESS || present_modes_get_result == VK_INCOMPLETE) {
       present_modes.resize(present_mode_count);
       if (present_modes_get_result == VK_SUCCESS &&
           (!present_modes_were_empty || !present_mode_count)) {
@@ -1163,8 +1067,7 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
       std::max(kSubmissionCount, surface_capabilities.minImageCount);
   if (surface_capabilities.maxImageCount) {
     swapchain_create_info.minImageCount =
-        std::min(swapchain_create_info.minImageCount,
-                 surface_capabilities.maxImageCount);
+        std::min(swapchain_create_info.minImageCount, surface_capabilities.maxImageCount);
   }
   swapchain_create_info.imageFormat = image_format.format;
   swapchain_create_info.imageColorSpace = image_format.colorSpace;
@@ -1191,24 +1094,20 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
     swapchain_create_info.pQueueFamilyIndices = nullptr;
   }
   swapchain_create_info.preTransform =
-      (surface_capabilities.supportedTransforms &
-       VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
+      (surface_capabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
           ? VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR
           : VK_SURFACE_TRANSFORM_INHERIT_BIT_KHR;
   // Prefer opaque to avoid blending in the window system, or let that be
   // specified via the window system if it can't be forced. As a last resort,
   // just pick any - guest output will write alpha of 1 anyway.
-  if (surface_capabilities.supportedCompositeAlpha &
-      VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR) {
+  if (surface_capabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR) {
     swapchain_create_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-  } else if (surface_capabilities.supportedCompositeAlpha &
-             VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR) {
+  } else if (surface_capabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR) {
     swapchain_create_info.compositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
   } else {
     uint32_t composite_alpha_shift;
-    if (!rex::bit_scan_forward(
-            uint32_t(surface_capabilities.supportedCompositeAlpha),
-            &composite_alpha_shift)) {
+    if (!rex::bit_scan_forward(uint32_t(surface_capabilities.supportedCompositeAlpha),
+                               &composite_alpha_shift)) {
       // Against the Vulkan specification, but breaks the logic here.
       REXLOG_ERROR(
           "VulkanPresenter: The surface doesn't support any composite alpha "
@@ -1224,21 +1123,20 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
   // variable refresh rate may be used where it's available.
   // Note: If the priorities here are changes, update the cvar descriptions.
   if (REXCVAR_GET(vulkan_allow_present_mode_immediate) &&
-      std::find(present_modes.cbegin(), present_modes.cend(),
-                VK_PRESENT_MODE_IMMEDIATE_KHR) != present_modes.cend()) {
+      std::find(present_modes.cbegin(), present_modes.cend(), VK_PRESENT_MODE_IMMEDIATE_KHR) !=
+          present_modes.cend()) {
     // Allowing tearing to reduce latency, and possibly variable refresh rate
     // (though on Windows with borderless fullscreen, GDI copying is used
     // instead of independent flip, so it's not supported there).
     swapchain_create_info.presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
   } else if (REXCVAR_GET(vulkan_allow_present_mode_mailbox) &&
-             std::find(present_modes.cbegin(), present_modes.cend(),
-                       VK_PRESENT_MODE_MAILBOX_KHR) != present_modes.cend()) {
+             std::find(present_modes.cbegin(), present_modes.cend(), VK_PRESENT_MODE_MAILBOX_KHR) !=
+                 present_modes.cend()) {
     // Allowing dropping frames to reduce latency, but no tearing.
     swapchain_create_info.presentMode = VK_PRESENT_MODE_MAILBOX_KHR;
   } else if (REXCVAR_GET(vulkan_allow_present_mode_fifo_relaxed) &&
              std::find(present_modes.cbegin(), present_modes.cend(),
-                       VK_PRESENT_MODE_FIFO_RELAXED_KHR) !=
-                 present_modes.cend()) {
+                       VK_PRESENT_MODE_FIFO_RELAXED_KHR) != present_modes.cend()) {
     // Limiting the frame rate, but lets too long frames cause tearing not to
     // make the latency even worse.
     swapchain_create_info.presentMode = VK_PRESENT_MODE_FIFO_RELAXED_KHR;
@@ -1249,26 +1147,22 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
   swapchain_create_info.clipped = VK_TRUE;
   swapchain_create_info.oldSwapchain = old_swapchain;
   VkSwapchainKHR swapchain;
-  if (dfn.vkCreateSwapchainKHR(device, &swapchain_create_info, nullptr,
-                               &swapchain) != VK_SUCCESS) {
+  if (dfn.vkCreateSwapchainKHR(device, &swapchain_create_info, nullptr, &swapchain) != VK_SUCCESS) {
     REXLOG_ERROR("VulkanPresenter: Failed to create a swapchain");
     return VK_NULL_HANDLE;
   }
   REXLOG_INFO(
       "VulkanPresenter: Created {}x{} swapchain with format {}, color space "
       "{}, presentation mode {}",
-      swapchain_create_info.imageExtent.width,
-      swapchain_create_info.imageExtent.height,
-      uint32_t(swapchain_create_info.imageFormat),
-      uint32_t(swapchain_create_info.imageColorSpace),
+      swapchain_create_info.imageExtent.width, swapchain_create_info.imageExtent.height,
+      uint32_t(swapchain_create_info.imageFormat), uint32_t(swapchain_create_info.imageColorSpace),
       uint32_t(swapchain_create_info.presentMode));
 
   present_queue_family_out = queue_family_index_present;
   image_format_out = swapchain_create_info.imageFormat;
   image_extent_out = swapchain_create_info.imageExtent;
-  is_fifo_out =
-      swapchain_create_info.presentMode == VK_PRESENT_MODE_FIFO_KHR ||
-      swapchain_create_info.presentMode == VK_PRESENT_MODE_FIFO_RELAXED_KHR;
+  is_fifo_out = swapchain_create_info.presentMode == VK_PRESENT_MODE_FIFO_KHR ||
+                swapchain_create_info.presentMode == VK_PRESENT_MODE_FIFO_RELAXED_KHR;
   return swapchain;
 }
 
@@ -1295,14 +1189,14 @@ VkSwapchainKHR VulkanPresenter::PaintContext::PrepareForSwapchainRetirement() {
 void VulkanPresenter::PaintContext::DestroySwapchainAndVulkanSurface() {
   VkSwapchainKHR old_swapchain = PrepareForSwapchainRetirement();
   if (old_swapchain != VK_NULL_HANDLE) {
-    vulkan_device->functions().vkDestroySwapchainKHR(vulkan_device->device(),
-                                                     old_swapchain, nullptr);
+    vulkan_device->functions().vkDestroySwapchainKHR(vulkan_device->device(), old_swapchain,
+                                                     nullptr);
   }
   present_queue_family = UINT32_MAX;
   if (vulkan_surface != VK_NULL_HANDLE) {
     const VulkanInstance* vulkan_instance = vulkan_device->vulkan_instance();
-    vulkan_instance->functions().vkDestroySurfaceKHR(
-        vulkan_instance->instance(), vulkan_surface, nullptr);
+    vulkan_instance->functions().vkDestroySurfaceKHR(vulkan_instance->instance(), vulkan_surface,
+                                                     nullptr);
     vulkan_surface = VK_NULL_HANDLE;
   }
 }
@@ -1335,16 +1229,15 @@ bool VulkanPresenter::GuestOutputImage::Initialize() {
   image_create_info.arrayLayers = 1;
   image_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
   image_create_info.tiling = VK_IMAGE_TILING_OPTIMAL;
-  image_create_info.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                            VK_IMAGE_USAGE_SAMPLED_BIT |
+  image_create_info.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
                             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
   image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
   image_create_info.queueFamilyIndexCount = 0;
   image_create_info.pQueueFamilyIndices = nullptr;
   image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
   if (!ui::vulkan::util::CreateDedicatedAllocationImage(
-          vulkan_device_, image_create_info,
-          ui::vulkan::util::MemoryPurpose::kDeviceLocal, image_, memory_)) {
+          vulkan_device_, image_create_info, ui::vulkan::util::MemoryPurpose::kDeviceLocal, image_,
+          memory_)) {
     REXLOG_ERROR("VulkanPresenter: Failed to create a guest output image");
     return false;
   }
@@ -1363,14 +1256,12 @@ bool VulkanPresenter::GuestOutputImage::Initialize() {
   image_view_create_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
   image_view_create_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
   image_view_create_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-  image_view_create_info.subresourceRange.aspectMask =
-      VK_IMAGE_ASPECT_COLOR_BIT;
+  image_view_create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
   image_view_create_info.subresourceRange.baseMipLevel = 0;
   image_view_create_info.subresourceRange.levelCount = 1;
   image_view_create_info.subresourceRange.baseArrayLayer = 0;
   image_view_create_info.subresourceRange.layerCount = 1;
-  if (dfn.vkCreateImageView(device, &image_view_create_info, nullptr, &view_) !=
-      VK_SUCCESS) {
+  if (dfn.vkCreateImageView(device, &image_view_create_info, nullptr, &view_) != VK_SUCCESS) {
     REXLOG_ERROR("VulkanPresenter: Failed to create a guest output image view");
     return false;
   }
@@ -1378,20 +1269,18 @@ bool VulkanPresenter::GuestOutputImage::Initialize() {
   return true;
 }
 
-Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
-    bool execute_ui_drawers) {
+Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_drawers) {
   // Begin the submission in place of the one not currently potentially used on
   // the GPU.
   uint64_t current_paint_submission_index =
       paint_context_.submission_tracker.GetCurrentSubmission();
   uint64_t paint_submission_count = uint64_t(paint_context_.submissions.size());
   if (current_paint_submission_index >= paint_submission_count) {
-    paint_context_.submission_tracker.AwaitSubmissionCompletion(
-        current_paint_submission_index - paint_submission_count);
+    paint_context_.submission_tracker.AwaitSubmissionCompletion(current_paint_submission_index -
+                                                                paint_submission_count);
   }
   const PaintContext::Submission& paint_submission =
-      *paint_context_.submissions[current_paint_submission_index %
-                                  paint_submission_count];
+      *paint_context_.submissions[current_paint_submission_index % paint_submission_count];
 
   const VulkanDevice::Functions& dfn = vulkan_device_->functions();
   const VkDevice device = vulkan_device_->device();
@@ -1410,8 +1299,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
   command_buffer_begin_info.pNext = nullptr;
   command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
   command_buffer_begin_info.pInheritanceInfo = nullptr;
-  if (dfn.vkBeginCommandBuffer(draw_command_buffer,
-                               &command_buffer_begin_info) != VK_SUCCESS) {
+  if (dfn.vkBeginCommandBuffer(draw_command_buffer, &command_buffer_begin_info) != VK_SUCCESS) {
     REXLOG_ERROR(
         "VulkanPresenter: Failed to being recording the command buffer for "
         "drawing to the swapchain");
@@ -1422,9 +1310,9 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
 
   VkSemaphore acquire_semaphore = paint_submission.acquire_semaphore();
   uint32_t swapchain_image_index;
-  VkResult acquire_result = dfn.vkAcquireNextImageKHR(
-      device, paint_context_.swapchain, UINT64_MAX, acquire_semaphore,
-      VK_NULL_HANDLE, &swapchain_image_index);
+  VkResult acquire_result =
+      dfn.vkAcquireNextImageKHR(device, paint_context_.swapchain, UINT64_MAX, acquire_semaphore,
+                                VK_NULL_HANDLE, &swapchain_image_index);
   switch (acquire_result) {
     case VK_SUCCESS:
     case VK_SUBOPTIMAL_KHR:
@@ -1463,23 +1351,19 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
   swapchain_image_clear_attachment.clearValue.color.float32[3] = 1.0f;
 
   VkRenderPassBeginInfo swapchain_render_pass_begin_info;
-  swapchain_render_pass_begin_info.sType =
-      VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+  swapchain_render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
   swapchain_render_pass_begin_info.pNext = nullptr;
-  swapchain_render_pass_begin_info.renderPass =
-      paint_context_.swapchain_render_pass;
+  swapchain_render_pass_begin_info.renderPass = paint_context_.swapchain_render_pass;
   swapchain_render_pass_begin_info.framebuffer =
       paint_context_.swapchain_framebuffers[swapchain_image_index].framebuffer;
   swapchain_render_pass_begin_info.renderArea.offset.x = 0;
   swapchain_render_pass_begin_info.renderArea.offset.y = 0;
-  swapchain_render_pass_begin_info.renderArea.extent =
-      paint_context_.swapchain_extent;
+  swapchain_render_pass_begin_info.renderArea.extent = paint_context_.swapchain_extent;
   swapchain_render_pass_begin_info.clearValueCount = 0;
   swapchain_render_pass_begin_info.pClearValues = nullptr;
   if (paint_context_.swapchain_render_pass_clear_load_op) {
     swapchain_render_pass_begin_info.clearValueCount = 1;
-    swapchain_render_pass_begin_info.pClearValues =
-        &swapchain_image_clear_attachment.clearValue;
+    swapchain_render_pass_begin_info.pClearValues = &swapchain_image_clear_attachment.clearValue;
     swapchain_image_clear_needed = false;
   }
 
@@ -1490,14 +1374,11 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
   std::shared_ptr<GuestOutputImage> guest_output_image;
   {
     uint32_t guest_output_mailbox_index;
-    std::unique_lock<std::mutex> guest_output_consumer_lock(
-        ConsumeGuestOutput(guest_output_mailbox_index, &guest_output_properties,
-                           &guest_output_paint_config));
+    std::unique_lock<std::mutex> guest_output_consumer_lock(ConsumeGuestOutput(
+        guest_output_mailbox_index, &guest_output_properties, &guest_output_paint_config));
     if (guest_output_mailbox_index != UINT32_MAX) {
-      assert_true(guest_output_images_[guest_output_mailbox_index]
-                      .ever_successfully_refreshed);
-      guest_output_image =
-          guest_output_images_[guest_output_mailbox_index].image;
+      assert_true(guest_output_images_[guest_output_mailbox_index].ever_successfully_refreshed);
+      guest_output_image = guest_output_images_[guest_output_mailbox_index].image;
     }
     // Incremented the reference count of the guest output image - safe to leave
     // the consumer critical section now as everything here either will be using
@@ -1520,18 +1401,15 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
       size_t guest_output_image_paint_ref_new_index = SIZE_MAX;
       // Try to find the existing reference to the same image, or an already
       // released (or a taken, but never actually used) slot.
-      for (size_t i = 0;
-           i < paint_context_.guest_output_image_paint_refs.size(); ++i) {
-        const std::pair<uint64_t, std::shared_ptr<GuestOutputImage>>&
-            guest_output_image_paint_ref =
-                paint_context_.guest_output_image_paint_refs[i];
+      for (size_t i = 0; i < paint_context_.guest_output_image_paint_refs.size(); ++i) {
+        const std::pair<uint64_t, std::shared_ptr<GuestOutputImage>>& guest_output_image_paint_ref =
+            paint_context_.guest_output_image_paint_refs[i];
         if (guest_output_image_paint_ref.second == guest_output_image) {
           guest_output_image_paint_ref_index = i;
           break;
         }
         if (guest_output_image_paint_ref_new_index == SIZE_MAX &&
-            (!guest_output_image_paint_ref.second ||
-             !guest_output_image_paint_ref.first)) {
+            (!guest_output_image_paint_ref.second || !guest_output_image_paint_ref.first)) {
           guest_output_image_paint_ref_new_index = i;
         }
       }
@@ -1540,12 +1418,9 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
         if (guest_output_image_paint_ref_new_index == SIZE_MAX) {
           // Replace the earliest used reference.
           guest_output_image_paint_ref_new_index = 0;
-          for (size_t i = 1;
-               i < paint_context_.guest_output_image_paint_refs.size(); ++i) {
+          for (size_t i = 1; i < paint_context_.guest_output_image_paint_refs.size(); ++i) {
             if (paint_context_.guest_output_image_paint_refs[i].first <
-                paint_context_
-                    .guest_output_image_paint_refs
-                        [guest_output_image_paint_ref_new_index]
+                paint_context_.guest_output_image_paint_refs[guest_output_image_paint_ref_new_index]
                     .first) {
               guest_output_image_paint_ref_new_index = i;
             }
@@ -1553,28 +1428,22 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
           // Await the completion of the usage of the old guest output image and
           // its descriptors.
           paint_context_.submission_tracker.AwaitSubmissionCompletion(
-              paint_context_
-                  .guest_output_image_paint_refs
-                      [guest_output_image_paint_ref_new_index]
+              paint_context_.guest_output_image_paint_refs[guest_output_image_paint_ref_new_index]
                   .first);
         }
-        guest_output_image_paint_ref_index =
-            guest_output_image_paint_ref_new_index;
+        guest_output_image_paint_ref_index = guest_output_image_paint_ref_new_index;
         // The actual submission index will be set if the image is actually
         // used, not dropped due to some error.
-        paint_context_
-            .guest_output_image_paint_refs[guest_output_image_paint_ref_index] =
+        paint_context_.guest_output_image_paint_refs[guest_output_image_paint_ref_index] =
             std::make_pair(uint64_t(0), guest_output_image);
         // Create the descriptors of the new image.
         VkDescriptorImageInfo guest_output_image_descriptor_image_info;
         guest_output_image_descriptor_image_info.sampler = VK_NULL_HANDLE;
-        guest_output_image_descriptor_image_info.imageView =
-            guest_output_image->view();
+        guest_output_image_descriptor_image_info.imageView = guest_output_image->view();
         guest_output_image_descriptor_image_info.imageLayout =
             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         VkWriteDescriptorSet guest_output_image_descriptor_write;
-        guest_output_image_descriptor_write.sType =
-            VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        guest_output_image_descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         guest_output_image_descriptor_write.pNext = nullptr;
         guest_output_image_descriptor_write.dstSet =
             paint_context_.guest_output_descriptor_sets
@@ -1583,14 +1452,11 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
         guest_output_image_descriptor_write.dstBinding = 0;
         guest_output_image_descriptor_write.dstArrayElement = 0;
         guest_output_image_descriptor_write.descriptorCount = 1;
-        guest_output_image_descriptor_write.descriptorType =
-            VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-        guest_output_image_descriptor_write.pImageInfo =
-            &guest_output_image_descriptor_image_info;
+        guest_output_image_descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        guest_output_image_descriptor_write.pImageInfo = &guest_output_image_descriptor_image_info;
         guest_output_image_descriptor_write.pBufferInfo = nullptr;
         guest_output_image_descriptor_write.pTexelBufferView = nullptr;
-        dfn.vkUpdateDescriptorSets(
-            device, 1, &guest_output_image_descriptor_write, 0, nullptr);
+        dfn.vkUpdateDescriptorSets(device, 1, &guest_output_image_descriptor_write, 0, nullptr);
       }
 
       // Make sure intermediate textures of the needed size are available, and
@@ -1603,29 +1469,22 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
         std::unique_ptr<GuestOutputImage>& intermediate_image_ptr_ref =
             paint_context_.guest_output_intermediate_images[i];
         VkExtent2D intermediate_current_extent(
-            intermediate_image_ptr_ref ? intermediate_image_ptr_ref->extent()
-                                       : VkExtent2D{});
-        if (intermediate_current_extent.width !=
-                intermediate_needed_size.first ||
-            intermediate_current_extent.height !=
-                intermediate_needed_size.second) {
-          if (intermediate_needed_size.first &&
-              intermediate_needed_size.second) {
+            intermediate_image_ptr_ref ? intermediate_image_ptr_ref->extent() : VkExtent2D{});
+        if (intermediate_current_extent.width != intermediate_needed_size.first ||
+            intermediate_current_extent.height != intermediate_needed_size.second) {
+          if (intermediate_needed_size.first && intermediate_needed_size.second) {
             // Need to replace immediately as a new image with the requested
             // size is needed.
             if (intermediate_image_ptr_ref) {
               paint_context_.submission_tracker.AwaitSubmissionCompletion(
-                  paint_context_
-                      .guest_output_intermediate_image_last_submission);
+                  paint_context_.guest_output_intermediate_image_last_submission);
               intermediate_image_ptr_ref.reset();
-              util::DestroyAndNullHandle(
-                  dfn.vkDestroyFramebuffer, device,
-                  paint_context_.guest_output_intermediate_framebuffers[i]);
+              util::DestroyAndNullHandle(dfn.vkDestroyFramebuffer, device,
+                                         paint_context_.guest_output_intermediate_framebuffers[i]);
             }
             // Image.
             intermediate_image_ptr_ref = GuestOutputImage::Create(
-                vulkan_device_, intermediate_needed_size.first,
-                intermediate_needed_size.second);
+                vulkan_device_, intermediate_needed_size.first, intermediate_needed_size.second);
             if (!intermediate_image_ptr_ref) {
               // Don't display the guest output, and don't try to create more
               // intermediate textures (only destroy them).
@@ -1633,11 +1492,9 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
               continue;
             }
             // Framebuffer.
-            VkImageView intermediate_framebuffer_attachment =
-                intermediate_image_ptr_ref->view();
+            VkImageView intermediate_framebuffer_attachment = intermediate_image_ptr_ref->view();
             VkFramebufferCreateInfo intermediate_framebuffer_create_info;
-            intermediate_framebuffer_create_info.sType =
-                VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+            intermediate_framebuffer_create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
             intermediate_framebuffer_create_info.pNext = nullptr;
             intermediate_framebuffer_create_info.flags = 0;
             intermediate_framebuffer_create_info.renderPass =
@@ -1645,16 +1502,12 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
             intermediate_framebuffer_create_info.attachmentCount = 1;
             intermediate_framebuffer_create_info.pAttachments =
                 &intermediate_framebuffer_attachment;
-            intermediate_framebuffer_create_info.width =
-                intermediate_needed_size.first;
-            intermediate_framebuffer_create_info.height =
-                intermediate_needed_size.second;
+            intermediate_framebuffer_create_info.width = intermediate_needed_size.first;
+            intermediate_framebuffer_create_info.height = intermediate_needed_size.second;
             intermediate_framebuffer_create_info.layers = 1;
             if (dfn.vkCreateFramebuffer(
                     device, &intermediate_framebuffer_create_info, nullptr,
-                    &paint_context_
-                         .guest_output_intermediate_framebuffers[i]) !=
-                VK_SUCCESS) {
+                    &paint_context_.guest_output_intermediate_framebuffers[i]) != VK_SUCCESS) {
               REXLOG_ERROR(
                   "VulkanPresenter: Failed to create a guest output "
                   "intermediate framebuffer");
@@ -1666,41 +1519,31 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
             // Descriptors.
             VkDescriptorImageInfo intermediate_descriptor_image_info;
             intermediate_descriptor_image_info.sampler = VK_NULL_HANDLE;
-            intermediate_descriptor_image_info.imageView =
-                intermediate_image_ptr_ref->view();
+            intermediate_descriptor_image_info.imageView = intermediate_image_ptr_ref->view();
             intermediate_descriptor_image_info.imageLayout =
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             VkWriteDescriptorSet intermediate_descriptor_write;
-            intermediate_descriptor_write.sType =
-                VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            intermediate_descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             intermediate_descriptor_write.pNext = nullptr;
             intermediate_descriptor_write.dstSet =
                 paint_context_.guest_output_descriptor_sets
-                    [PaintContext ::
-                         kGuestOutputDescriptorSetIntermediate0Sampled +
-                     i];
+                    [PaintContext ::kGuestOutputDescriptorSetIntermediate0Sampled + i];
             intermediate_descriptor_write.dstBinding = 0;
             intermediate_descriptor_write.dstArrayElement = 0;
             intermediate_descriptor_write.descriptorCount = 1;
-            intermediate_descriptor_write.descriptorType =
-                VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-            intermediate_descriptor_write.pImageInfo =
-                &intermediate_descriptor_image_info;
+            intermediate_descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+            intermediate_descriptor_write.pImageInfo = &intermediate_descriptor_image_info;
             intermediate_descriptor_write.pBufferInfo = nullptr;
             intermediate_descriptor_write.pTexelBufferView = nullptr;
-            dfn.vkUpdateDescriptorSets(
-                device, 1, &intermediate_descriptor_write, 0, nullptr);
+            dfn.vkUpdateDescriptorSets(device, 1, &intermediate_descriptor_write, 0, nullptr);
           } else {
             // Was previously needed, but not anymore - destroy when possible.
             if (intermediate_image_ptr_ref &&
-                paint_context_.submission_tracker
-                        .UpdateAndGetCompletedSubmission() >=
-                    paint_context_
-                        .guest_output_intermediate_image_last_submission) {
+                paint_context_.submission_tracker.UpdateAndGetCompletedSubmission() >=
+                    paint_context_.guest_output_intermediate_image_last_submission) {
               intermediate_image_ptr_ref.reset();
-              util::DestroyAndNullHandle(
-                  dfn.vkDestroyFramebuffer, device,
-                  paint_context_.guest_output_intermediate_framebuffers[i]);
+              util::DestroyAndNullHandle(dfn.vkDestroyFramebuffer, device,
+                                         paint_context_.guest_output_intermediate_framebuffers[i]);
             }
           }
         }
@@ -1710,9 +1553,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
         // Check if all the intermediate effects are supported by the
         // implementation.
         for (size_t i = 0; i + 1 < guest_output_flow.effect_count; ++i) {
-          if (paint_context_
-                  .guest_output_paint_pipelines[size_t(
-                      guest_output_flow.effects[i])]
+          if (paint_context_.guest_output_paint_pipelines[size_t(guest_output_flow.effects[i])]
                   .intermediate_pipeline == VK_NULL_HANDLE) {
             guest_output_flow.effect_count = 0;
             break;
@@ -1723,24 +1564,20 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
         GuestOutputPaintEffect swapchain_effect =
             guest_output_flow.effects[guest_output_flow.effect_count - 1];
         PaintContext::GuestOutputPaintPipeline& swapchain_effect_pipeline =
-            paint_context_
-                .guest_output_paint_pipelines[size_t(swapchain_effect)];
+            paint_context_.guest_output_paint_pipelines[size_t(swapchain_effect)];
         if (swapchain_effect_pipeline.swapchain_pipeline != VK_NULL_HANDLE &&
             swapchain_effect_pipeline.swapchain_format !=
                 paint_context_.swapchain_render_pass_format) {
           paint_context_.submission_tracker.AwaitSubmissionCompletion(
               paint_context_.guest_output_image_paint_last_submission);
-          util::DestroyAndNullHandle(
-              dfn.vkDestroyPipeline, device,
-              swapchain_effect_pipeline.swapchain_pipeline);
+          util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
+                                     swapchain_effect_pipeline.swapchain_pipeline);
         }
         if (swapchain_effect_pipeline.swapchain_pipeline == VK_NULL_HANDLE) {
           assert_true(CanGuestOutputPaintEffectBeFinal(swapchain_effect));
-          assert_true(guest_output_paint_fs_[size_t(swapchain_effect)] !=
-                      VK_NULL_HANDLE);
-          swapchain_effect_pipeline.swapchain_pipeline =
-              CreateGuestOutputPaintPipeline(
-                  swapchain_effect, paint_context_.swapchain_render_pass);
+          assert_true(guest_output_paint_fs_[size_t(swapchain_effect)] != VK_NULL_HANDLE);
+          swapchain_effect_pipeline.swapchain_pipeline = CreateGuestOutputPaintPipeline(
+              swapchain_effect, paint_context_.swapchain_render_pass);
           if (swapchain_effect_pipeline.swapchain_pipeline == VK_NULL_HANDLE) {
             guest_output_flow.effect_count = 0;
           }
@@ -1749,11 +1586,9 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
 
       if (guest_output_flow.effect_count) {
         // Actually draw the guest output.
-        paint_context_
-            .guest_output_image_paint_refs[guest_output_image_paint_ref_index]
-            .first = current_paint_submission_index;
-        paint_context_.guest_output_image_paint_last_submission =
+        paint_context_.guest_output_image_paint_refs[guest_output_image_paint_ref_index].first =
             current_paint_submission_index;
+        paint_context_.guest_output_image_paint_last_submission = current_paint_submission_index;
         VkViewport guest_output_viewport;
         guest_output_viewport.x = 0.0f;
         guest_output_viewport.y = 0.0f;
@@ -1770,78 +1605,62 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
           bool is_final_effect = i + 1 >= guest_output_flow.effect_count;
 
           int32_t effect_rect_x, effect_rect_y;
-          std::pair<uint32_t, uint32_t> effect_rect_size =
-              guest_output_flow.effect_output_sizes[i];
+          std::pair<uint32_t, uint32_t> effect_rect_size = guest_output_flow.effect_output_sizes[i];
           if (is_final_effect) {
             effect_rect_x = guest_output_flow.output_x;
             effect_rect_y = guest_output_flow.output_y;
-            dfn.vkCmdBeginRenderPass(draw_command_buffer,
-                                     &swapchain_render_pass_begin_info,
+            dfn.vkCmdBeginRenderPass(draw_command_buffer, &swapchain_render_pass_begin_info,
                                      VK_SUBPASS_CONTENTS_INLINE);
             swapchain_image_pass_begun = true;
-            guest_output_viewport.width =
-                float(paint_context_.swapchain_extent.width);
-            guest_output_viewport.height =
-                float(paint_context_.swapchain_extent.height);
-            guest_output_scissor.extent.width =
-                paint_context_.swapchain_extent.width;
-            guest_output_scissor.extent.height =
-                paint_context_.swapchain_extent.height;
+            guest_output_viewport.width = float(paint_context_.swapchain_extent.width);
+            guest_output_viewport.height = float(paint_context_.swapchain_extent.height);
+            guest_output_scissor.extent.width = paint_context_.swapchain_extent.width;
+            guest_output_scissor.extent.height = paint_context_.swapchain_extent.height;
           } else {
             effect_rect_x = 0;
             effect_rect_y = 0;
             VkRenderPassBeginInfo intermediate_render_pass_begin_info;
-            intermediate_render_pass_begin_info.sType =
-                VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+            intermediate_render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
             intermediate_render_pass_begin_info.pNext = nullptr;
-            intermediate_render_pass_begin_info.renderPass =
-                guest_output_intermediate_render_pass_;
+            intermediate_render_pass_begin_info.renderPass = guest_output_intermediate_render_pass_;
             intermediate_render_pass_begin_info.framebuffer =
                 paint_context_.guest_output_intermediate_framebuffers[i];
             intermediate_render_pass_begin_info.renderArea.offset.x = 0;
             intermediate_render_pass_begin_info.renderArea.offset.y = 0;
-            intermediate_render_pass_begin_info.renderArea.extent.width =
-                effect_rect_size.first;
-            intermediate_render_pass_begin_info.renderArea.extent.height =
-                effect_rect_size.second;
+            intermediate_render_pass_begin_info.renderArea.extent.width = effect_rect_size.first;
+            intermediate_render_pass_begin_info.renderArea.extent.height = effect_rect_size.second;
             intermediate_render_pass_begin_info.clearValueCount = 0;
             intermediate_render_pass_begin_info.pClearValues = nullptr;
-            dfn.vkCmdBeginRenderPass(draw_command_buffer,
-                                     &intermediate_render_pass_begin_info,
+            dfn.vkCmdBeginRenderPass(draw_command_buffer, &intermediate_render_pass_begin_info,
                                      VK_SUBPASS_CONTENTS_INLINE);
             guest_output_viewport.width = float(effect_rect_size.first);
             guest_output_viewport.height = float(effect_rect_size.second);
             guest_output_scissor.extent.width = effect_rect_size.first;
             guest_output_scissor.extent.height = effect_rect_size.second;
           }
-          dfn.vkCmdSetViewport(draw_command_buffer, 0, 1,
-                               &guest_output_viewport);
+          dfn.vkCmdSetViewport(draw_command_buffer, 0, 1, &guest_output_viewport);
           dfn.vkCmdSetScissor(draw_command_buffer, 0, 1, &guest_output_scissor);
 
           GuestOutputPaintEffect effect = guest_output_flow.effects[i];
 
           const PaintContext::GuestOutputPaintPipeline& effect_pipeline =
               paint_context_.guest_output_paint_pipelines[size_t(effect)];
-          VkPipeline effect_vulkan_pipeline =
-              is_final_effect ? effect_pipeline.swapchain_pipeline
-                              : effect_pipeline.intermediate_pipeline;
+          VkPipeline effect_vulkan_pipeline = is_final_effect
+                                                  ? effect_pipeline.swapchain_pipeline
+                                                  : effect_pipeline.intermediate_pipeline;
           assert_true(effect_vulkan_pipeline != VK_NULL_HANDLE);
-          dfn.vkCmdBindPipeline(draw_command_buffer,
-                                VK_PIPELINE_BIND_POINT_GRAPHICS,
+          dfn.vkCmdBindPipeline(draw_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                 effect_vulkan_pipeline);
 
-          GuestOutputPaintPipelineLayoutIndex
-              guest_output_paint_pipeline_layout_index =
-                  GetGuestOutputPaintPipelineLayoutIndex(effect);
+          GuestOutputPaintPipelineLayoutIndex guest_output_paint_pipeline_layout_index =
+              GetGuestOutputPaintPipelineLayoutIndex(effect);
           VkPipelineLayout guest_output_paint_pipeline_layout =
-              guest_output_paint_pipeline_layouts_
-                  [guest_output_paint_pipeline_layout_index];
+              guest_output_paint_pipeline_layouts_[guest_output_paint_pipeline_layout_index];
 
           PaintContext::GuestOutputDescriptorSet effect_src_descriptor_set;
           if (i) {
             effect_src_descriptor_set = PaintContext::GuestOutputDescriptorSet(
-                PaintContext::kGuestOutputDescriptorSetIntermediate0Sampled +
-                (i - 1));
+                PaintContext::kGuestOutputDescriptorSetIntermediate0Sampled + (i - 1));
           } else {
             effect_src_descriptor_set = PaintContext::GuestOutputDescriptorSet(
                 PaintContext::kGuestOutputDescriptorSetGuestOutput0Sampled +
@@ -1850,25 +1669,18 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
           dfn.vkCmdBindDescriptorSets(
               draw_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
               guest_output_paint_pipeline_layout, 0, 1,
-              &paint_context_
-                   .guest_output_descriptor_sets[effect_src_descriptor_set],
-              0, nullptr);
+              &paint_context_.guest_output_descriptor_sets[effect_src_descriptor_set], 0, nullptr);
 
           GuestOutputPaintRectangleConstants effect_rect_constants;
           float effect_x_to_ndc = 2.0f / guest_output_viewport.width;
           float effect_y_to_ndc = 2.0f / guest_output_viewport.height;
-          effect_rect_constants.x =
-              -1.0f + float(effect_rect_x) * effect_x_to_ndc;
-          effect_rect_constants.y =
-              -1.0f + float(effect_rect_y) * effect_y_to_ndc;
-          effect_rect_constants.width =
-              float(effect_rect_size.first) * effect_x_to_ndc;
-          effect_rect_constants.height =
-              float(effect_rect_size.second) * effect_y_to_ndc;
-          dfn.vkCmdPushConstants(
-              draw_command_buffer, guest_output_paint_pipeline_layout,
-              VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(effect_rect_constants),
-              &effect_rect_constants);
+          effect_rect_constants.x = -1.0f + float(effect_rect_x) * effect_x_to_ndc;
+          effect_rect_constants.y = -1.0f + float(effect_rect_y) * effect_y_to_ndc;
+          effect_rect_constants.width = float(effect_rect_size.first) * effect_x_to_ndc;
+          effect_rect_constants.height = float(effect_rect_size.second) * effect_y_to_ndc;
+          dfn.vkCmdPushConstants(draw_command_buffer, guest_output_paint_pipeline_layout,
+                                 VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(effect_rect_constants),
+                                 &effect_rect_constants);
 
           uint32_t effect_constants_size = 0;
           union {
@@ -1885,13 +1697,13 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
             } break;
             case kGuestOutputPaintPipelineLayoutIndexCasSharpen: {
               effect_constants_size = sizeof(effect_constants.cas_sharpen);
-              effect_constants.cas_sharpen.Initialize(
-                  guest_output_flow, i, guest_output_paint_config);
+              effect_constants.cas_sharpen.Initialize(guest_output_flow, i,
+                                                      guest_output_paint_config);
             } break;
             case kGuestOutputPaintPipelineLayoutIndexCasResample: {
               effect_constants_size = sizeof(effect_constants.cas_resample);
-              effect_constants.cas_resample.Initialize(
-                  guest_output_flow, i, guest_output_paint_config);
+              effect_constants.cas_resample.Initialize(guest_output_flow, i,
+                                                       guest_output_paint_config);
             } break;
             case kGuestOutputPaintPipelineLayoutIndexFsrEasu: {
               effect_constants_size = sizeof(effect_constants.fsr_easu);
@@ -1899,17 +1711,15 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
             } break;
             case kGuestOutputPaintPipelineLayoutIndexFsrRcas: {
               effect_constants_size = sizeof(effect_constants.fsr_rcas);
-              effect_constants.fsr_rcas.Initialize(guest_output_flow, i,
-                                                   guest_output_paint_config);
+              effect_constants.fsr_rcas.Initialize(guest_output_flow, i, guest_output_paint_config);
             } break;
             default:
               break;
           }
           if (effect_constants_size) {
-            dfn.vkCmdPushConstants(
-                draw_command_buffer, guest_output_paint_pipeline_layout,
-                VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(effect_rect_constants),
-                effect_constants_size, &effect_constants);
+            dfn.vkCmdPushConstants(draw_command_buffer, guest_output_paint_pipeline_layout,
+                                   VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(effect_rect_constants),
+                                   effect_constants_size, &effect_constants);
           }
 
           dfn.vkCmdDraw(draw_command_buffer, 4, 1, 0, 0);
@@ -1917,17 +1727,14 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
           if (is_final_effect) {
             // Clear the letterbox around the guest output if the guest output
             // doesn't cover the entire swapchain image.
-            if (swapchain_image_clear_needed &&
-                guest_output_flow.letterbox_clear_rectangle_count) {
-              VkClearRect letterbox_clear_vulkan_rectangles
-                  [GuestOutputPaintFlow::kMaxClearRectangles];
-              for (size_t i = 0;
-                   i < guest_output_flow.letterbox_clear_rectangle_count; ++i) {
+            if (swapchain_image_clear_needed && guest_output_flow.letterbox_clear_rectangle_count) {
+              VkClearRect
+                  letterbox_clear_vulkan_rectangles[GuestOutputPaintFlow::kMaxClearRectangles];
+              for (size_t i = 0; i < guest_output_flow.letterbox_clear_rectangle_count; ++i) {
                 VkClearRect& letterbox_clear_vulkan_rectangle =
                     letterbox_clear_vulkan_rectangles[i];
-                const GuestOutputPaintFlow::ClearRectangle&
-                    letterbox_clear_rectangle =
-                        guest_output_flow.letterbox_clear_rectangles[i];
+                const GuestOutputPaintFlow::ClearRectangle& letterbox_clear_rectangle =
+                    guest_output_flow.letterbox_clear_rectangles[i];
                 letterbox_clear_vulkan_rectangle.rect.offset.x =
                     int32_t(letterbox_clear_rectangle.x);
                 letterbox_clear_vulkan_rectangle.rect.offset.y =
@@ -1939,10 +1746,9 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
                 letterbox_clear_vulkan_rectangle.baseArrayLayer = 0;
                 letterbox_clear_vulkan_rectangle.layerCount = 1;
               }
-              dfn.vkCmdClearAttachments(
-                  draw_command_buffer, 1, &swapchain_image_clear_attachment,
-                  uint32_t(guest_output_flow.letterbox_clear_rectangle_count),
-                  letterbox_clear_vulkan_rectangles);
+              dfn.vkCmdClearAttachments(draw_command_buffer, 1, &swapchain_image_clear_attachment,
+                                        uint32_t(guest_output_flow.letterbox_clear_rectangle_count),
+                                        letterbox_clear_vulkan_rectangles);
             }
             swapchain_image_clear_needed = false;
           } else {
@@ -1960,8 +1766,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
   // most actual).
   uint64_t completed_paint_submission =
       paint_context_.submission_tracker.UpdateAndGetCompletedSubmission();
-  for (std::pair<uint64_t, std::shared_ptr<GuestOutputImage>>&
-           guest_output_image_paint_ref :
+  for (std::pair<uint64_t, std::shared_ptr<GuestOutputImage>>& guest_output_image_paint_ref :
        paint_context_.guest_output_image_paint_refs) {
     if (!guest_output_image_paint_ref.second ||
         guest_output_image_paint_ref.second == guest_output_image) {
@@ -1975,20 +1780,17 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
   // If hasn't presented the guest output, begin the pass to clear and, if
   // needed, to draw the UI.
   if (!swapchain_image_pass_begun) {
-    dfn.vkCmdBeginRenderPass(draw_command_buffer,
-                             &swapchain_render_pass_begin_info,
+    dfn.vkCmdBeginRenderPass(draw_command_buffer, &swapchain_render_pass_begin_info,
                              VK_SUBPASS_CONTENTS_INLINE);
   }
   if (swapchain_image_clear_needed) {
     VkClearRect swapchain_image_clear_rectangle;
     swapchain_image_clear_rectangle.rect.offset.x = 0;
     swapchain_image_clear_rectangle.rect.offset.y = 0;
-    swapchain_image_clear_rectangle.rect.extent =
-        paint_context_.swapchain_extent;
+    swapchain_image_clear_rectangle.rect.extent = paint_context_.swapchain_extent;
     swapchain_image_clear_rectangle.baseArrayLayer = 0;
     swapchain_image_clear_rectangle.layerCount = 1;
-    dfn.vkCmdClearAttachments(draw_command_buffer, 1,
-                              &swapchain_image_clear_attachment, 1,
+    dfn.vkCmdClearAttachments(draw_command_buffer, 1, &swapchain_image_clear_attachment, 1,
                               &swapchain_image_clear_rectangle);
     swapchain_image_clear_needed = false;
   }
@@ -1996,12 +1798,10 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
   if (execute_ui_drawers) {
     // Draw the UI.
     VulkanUIDrawContext ui_draw_context(
-        *this, paint_context_.swapchain_extent.width,
-        paint_context_.swapchain_extent.height, draw_command_buffer,
-        ui_submission_tracker_.GetCurrentSubmission(),
+        *this, paint_context_.swapchain_extent.width, paint_context_.swapchain_extent.height,
+        draw_command_buffer, ui_submission_tracker_.GetCurrentSubmission(),
         ui_submission_tracker_.UpdateAndGetCompletedSubmission(),
-        paint_context_.swapchain_render_pass,
-        paint_context_.swapchain_render_pass_format);
+        paint_context_.swapchain_render_pass, paint_context_.swapchain_render_pass_format);
     ExecuteUIDrawersFromUIThread(ui_draw_context);
   }
 
@@ -2009,21 +1809,18 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
 
   dfn.vkEndCommandBuffer(draw_command_buffer);
 
-  VkPipelineStageFlags acquire_semaphore_wait_stage =
-      VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+  VkPipelineStageFlags acquire_semaphore_wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
   VkCommandBuffer command_buffers[2];
   uint32_t command_buffer_count = 0;
   // UI setup command buffers must be accessed only if execute_ui_drawers is not
   // null, to identify the UI thread.
   size_t ui_setup_command_buffer_index =
-      execute_ui_drawers ? paint_context_.ui_setup_command_buffer_current_index
-                         : SIZE_MAX;
+      execute_ui_drawers ? paint_context_.ui_setup_command_buffer_current_index : SIZE_MAX;
   if (ui_setup_command_buffer_index != SIZE_MAX) {
     PaintContext::UISetupCommandBuffer& ui_setup_command_buffer =
         paint_context_.ui_setup_command_buffers[ui_setup_command_buffer_index];
     dfn.vkEndCommandBuffer(ui_setup_command_buffer.command_buffer);
-    command_buffers[command_buffer_count++] =
-        ui_setup_command_buffer.command_buffer;
+    command_buffers[command_buffer_count++] = ui_setup_command_buffer.command_buffer;
     // Release the current UI setup command buffer regardless of submission
     // result. Failed submissions (if the UI submission index wasn't incremented
     // since the previous draw) should be handled by UI drawers themselves by
@@ -2049,18 +1846,15 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
     // callbacks if submission is successful.
     VulkanSubmissionTracker::FenceAcquisition ui_fence_acquisition;
     if (execute_ui_drawers) {
-      ui_fence_acquisition =
-          ui_submission_tracker_.AcquireFenceToAdvanceSubmission();
+      ui_fence_acquisition = ui_submission_tracker_.AcquireFenceToAdvanceSubmission();
     }
     VkResult submit_result;
     {
       const VulkanDevice::Queue::Acquisition queue_acquisition =
-          vulkan_device_->AcquireQueue(
-              vulkan_device_->queue_family_graphics_compute(), 0);
-      submit_result = dfn.vkQueueSubmit(queue_acquisition.queue(), 1,
-                                        &submit_info, fence_acqusition.fence());
-      if (ui_fence_acquisition.fence() != VK_NULL_HANDLE &&
-          submit_result == VK_SUCCESS) {
+          vulkan_device_->AcquireQueue(vulkan_device_->queue_family_graphics_compute(), 0);
+      submit_result =
+          dfn.vkQueueSubmit(queue_acquisition.queue(), 1, &submit_info, fence_acqusition.fence());
+      if (ui_fence_acquisition.fence() != VK_NULL_HANDLE && submit_result == VK_SUCCESS) {
         if (dfn.vkQueueSubmit(queue_acquisition.queue(), 0, nullptr,
                               ui_fence_acquisition.fence()) != VK_SUCCESS) {
           ui_fence_acquisition.SubmissionSucceededSignalFailed();
@@ -2100,8 +1894,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
   {
     const VulkanDevice::Queue::Acquisition queue_acquisition =
         vulkan_device_->AcquireQueue(paint_context_.present_queue_family, 0);
-    present_result =
-        dfn.vkQueuePresentKHR(queue_acquisition.queue(), &present_info);
+    present_result = dfn.vkQueuePresentKHR(queue_acquisition.queue(), &present_info);
   }
   switch (present_result) {
     case VK_SUCCESS:
@@ -2139,24 +1932,18 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
 
   VkDescriptorSetLayoutBinding guest_output_image_sampler_bindings[2];
   guest_output_image_sampler_bindings[0].binding = 0;
-  guest_output_image_sampler_bindings[0].descriptorType =
-      VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+  guest_output_image_sampler_bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
   guest_output_image_sampler_bindings[0].descriptorCount = 1;
-  guest_output_image_sampler_bindings[0].stageFlags =
-      VK_SHADER_STAGE_FRAGMENT_BIT;
+  guest_output_image_sampler_bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
   guest_output_image_sampler_bindings[0].pImmutableSamplers = nullptr;
   const VkSampler sampler_linear_clamp =
       ui_samplers_->samplers()[UISamplers::kSamplerIndexLinearClampToEdge];
   guest_output_image_sampler_bindings[1].binding = 1;
-  guest_output_image_sampler_bindings[1].descriptorType =
-      VK_DESCRIPTOR_TYPE_SAMPLER;
+  guest_output_image_sampler_bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
   guest_output_image_sampler_bindings[1].descriptorCount = 1;
-  guest_output_image_sampler_bindings[1].stageFlags =
-      VK_SHADER_STAGE_FRAGMENT_BIT;
-  guest_output_image_sampler_bindings[1].pImmutableSamplers =
-      &sampler_linear_clamp;
-  VkDescriptorSetLayoutCreateInfo
-      guest_output_paint_image_descriptor_set_layout_create_info;
+  guest_output_image_sampler_bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+  guest_output_image_sampler_bindings[1].pImmutableSamplers = &sampler_linear_clamp;
+  VkDescriptorSetLayoutCreateInfo guest_output_paint_image_descriptor_set_layout_create_info;
   guest_output_paint_image_descriptor_set_layout_create_info.sType =
       VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
   guest_output_paint_image_descriptor_set_layout_create_info.pNext = nullptr;
@@ -2166,8 +1953,7 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
   guest_output_paint_image_descriptor_set_layout_create_info.pBindings =
       guest_output_image_sampler_bindings;
   if (dfn.vkCreateDescriptorSetLayout(
-          device, &guest_output_paint_image_descriptor_set_layout_create_info,
-          nullptr,
+          device, &guest_output_paint_image_descriptor_set_layout_create_info, nullptr,
           &guest_output_paint_image_descriptor_set_layout_) != VK_SUCCESS) {
     REXLOG_ERROR(
         "VulkanPresenter: Failed to create the guest output image descriptor "
@@ -2178,15 +1964,12 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
   VkPushConstantRange guest_output_paint_push_constant_ranges[2];
   VkPushConstantRange& guest_output_paint_push_constant_range_rect =
       guest_output_paint_push_constant_ranges[0];
-  guest_output_paint_push_constant_range_rect.stageFlags =
-      VK_SHADER_STAGE_VERTEX_BIT;
+  guest_output_paint_push_constant_range_rect.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
   guest_output_paint_push_constant_range_rect.offset = 0;
-  guest_output_paint_push_constant_range_rect.size =
-      sizeof(GuestOutputPaintRectangleConstants);
+  guest_output_paint_push_constant_range_rect.size = sizeof(GuestOutputPaintRectangleConstants);
   VkPushConstantRange& guest_output_paint_push_constant_range_ffx =
       guest_output_paint_push_constant_ranges[1];
-  guest_output_paint_push_constant_range_ffx.stageFlags =
-      VK_SHADER_STAGE_FRAGMENT_BIT;
+  guest_output_paint_push_constant_range_ffx.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
   guest_output_paint_push_constant_range_ffx.offset =
       guest_output_paint_push_constant_ranges[0].offset +
       guest_output_paint_push_constant_ranges[0].size;
@@ -2203,24 +1986,19 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
   for (size_t i = 0; i < size_t(kGuestOutputPaintPipelineLayoutCount); ++i) {
     switch (GuestOutputPaintPipelineLayoutIndex(i)) {
       case kGuestOutputPaintPipelineLayoutIndexBilinear:
-        guest_output_paint_push_constant_range_ffx.size =
-            sizeof(BilinearConstants);
+        guest_output_paint_push_constant_range_ffx.size = sizeof(BilinearConstants);
         break;
       case kGuestOutputPaintPipelineLayoutIndexCasSharpen:
-        guest_output_paint_push_constant_range_ffx.size =
-            sizeof(CasSharpenConstants);
+        guest_output_paint_push_constant_range_ffx.size = sizeof(CasSharpenConstants);
         break;
       case kGuestOutputPaintPipelineLayoutIndexCasResample:
-        guest_output_paint_push_constant_range_ffx.size =
-            sizeof(CasResampleConstants);
+        guest_output_paint_push_constant_range_ffx.size = sizeof(CasResampleConstants);
         break;
       case kGuestOutputPaintPipelineLayoutIndexFsrEasu:
-        guest_output_paint_push_constant_range_ffx.size =
-            sizeof(FsrEasuConstants);
+        guest_output_paint_push_constant_range_ffx.size = sizeof(FsrEasuConstants);
         break;
       case kGuestOutputPaintPipelineLayoutIndexFsrRcas:
-        guest_output_paint_push_constant_range_ffx.size =
-            sizeof(FsrRcasConstants);
+        guest_output_paint_push_constant_range_ffx.size = sizeof(FsrRcasConstants);
         break;
       default:
         assert_unhandled_case(GuestOutputPaintPipelineLayoutIndex(i));
@@ -2228,9 +2006,8 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
     }
     guest_output_paint_pipeline_layout_create_info.pushConstantRangeCount =
         1 + uint32_t(guest_output_paint_push_constant_range_ffx.size != 0);
-    if (dfn.vkCreatePipelineLayout(
-            device, &guest_output_paint_pipeline_layout_create_info, nullptr,
-            &guest_output_paint_pipeline_layouts_[i]) != VK_SUCCESS) {
+    if (dfn.vkCreatePipelineLayout(device, &guest_output_paint_pipeline_layout_create_info, nullptr,
+                                   &guest_output_paint_pipeline_layouts_[i]) != VK_SUCCESS) {
       REXLOG_ERROR(
           "VulkanPresenter: Failed to create a guest output presentation "
           "pipeline layout with {} bytes of push constants",
@@ -2244,10 +2021,8 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
   shader_module_create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
   shader_module_create_info.pNext = nullptr;
   shader_module_create_info.flags = 0;
-  shader_module_create_info.codeSize =
-      sizeof(shaders::guest_output_triangle_strip_rect_vs);
-  shader_module_create_info.pCode =
-      shaders::guest_output_triangle_strip_rect_vs;
+  shader_module_create_info.codeSize = sizeof(shaders::guest_output_triangle_strip_rect_vs);
+  shader_module_create_info.pCode = shaders::guest_output_triangle_strip_rect_vs;
   if (dfn.vkCreateShaderModule(device, &shader_module_create_info, nullptr,
                                &guest_output_paint_vs_) != VK_SUCCESS) {
     REXLOG_ERROR(
@@ -2256,59 +2031,45 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
     return false;
   }
   for (size_t i = 0; i < size_t(GuestOutputPaintEffect::kCount); ++i) {
-    GuestOutputPaintEffect guest_output_paint_effect =
-        GuestOutputPaintEffect(i);
+    GuestOutputPaintEffect guest_output_paint_effect = GuestOutputPaintEffect(i);
     switch (guest_output_paint_effect) {
       case GuestOutputPaintEffect::kBilinear:
-        shader_module_create_info.codeSize =
-            sizeof(shaders::guest_output_bilinear_ps);
+        shader_module_create_info.codeSize = sizeof(shaders::guest_output_bilinear_ps);
         shader_module_create_info.pCode = shaders::guest_output_bilinear_ps;
         break;
       case GuestOutputPaintEffect::kBilinearDither:
-        shader_module_create_info.codeSize =
-            sizeof(shaders::guest_output_bilinear_dither_ps);
-        shader_module_create_info.pCode =
-            shaders::guest_output_bilinear_dither_ps;
+        shader_module_create_info.codeSize = sizeof(shaders::guest_output_bilinear_dither_ps);
+        shader_module_create_info.pCode = shaders::guest_output_bilinear_dither_ps;
         break;
       case GuestOutputPaintEffect::kCasSharpen:
-        shader_module_create_info.codeSize =
-            sizeof(shaders::guest_output_ffx_cas_sharpen_ps);
-        shader_module_create_info.pCode =
-            shaders::guest_output_ffx_cas_sharpen_ps;
+        shader_module_create_info.codeSize = sizeof(shaders::guest_output_ffx_cas_sharpen_ps);
+        shader_module_create_info.pCode = shaders::guest_output_ffx_cas_sharpen_ps;
         break;
       case GuestOutputPaintEffect::kCasSharpenDither:
         shader_module_create_info.codeSize =
             sizeof(shaders::guest_output_ffx_cas_sharpen_dither_ps);
-        shader_module_create_info.pCode =
-            shaders::guest_output_ffx_cas_sharpen_dither_ps;
+        shader_module_create_info.pCode = shaders::guest_output_ffx_cas_sharpen_dither_ps;
         break;
       case GuestOutputPaintEffect::kCasResample:
-        shader_module_create_info.codeSize =
-            sizeof(shaders::guest_output_ffx_cas_resample_ps);
-        shader_module_create_info.pCode =
-            shaders::guest_output_ffx_cas_resample_ps;
+        shader_module_create_info.codeSize = sizeof(shaders::guest_output_ffx_cas_resample_ps);
+        shader_module_create_info.pCode = shaders::guest_output_ffx_cas_resample_ps;
         break;
       case GuestOutputPaintEffect::kCasResampleDither:
         shader_module_create_info.codeSize =
             sizeof(shaders::guest_output_ffx_cas_resample_dither_ps);
-        shader_module_create_info.pCode =
-            shaders::guest_output_ffx_cas_resample_dither_ps;
+        shader_module_create_info.pCode = shaders::guest_output_ffx_cas_resample_dither_ps;
         break;
       case GuestOutputPaintEffect::kFsrEasu:
-        shader_module_create_info.codeSize =
-            sizeof(shaders::guest_output_ffx_fsr_easu_ps);
+        shader_module_create_info.codeSize = sizeof(shaders::guest_output_ffx_fsr_easu_ps);
         shader_module_create_info.pCode = shaders::guest_output_ffx_fsr_easu_ps;
         break;
       case GuestOutputPaintEffect::kFsrRcas:
-        shader_module_create_info.codeSize =
-            sizeof(shaders::guest_output_ffx_fsr_rcas_ps);
+        shader_module_create_info.codeSize = sizeof(shaders::guest_output_ffx_fsr_rcas_ps);
         shader_module_create_info.pCode = shaders::guest_output_ffx_fsr_rcas_ps;
         break;
       case GuestOutputPaintEffect::kFsrRcasDither:
-        shader_module_create_info.codeSize =
-            sizeof(shaders::guest_output_ffx_fsr_rcas_dither_ps);
-        shader_module_create_info.pCode =
-            shaders::guest_output_ffx_fsr_rcas_dither_ps;
+        shader_module_create_info.codeSize = sizeof(shaders::guest_output_ffx_fsr_rcas_dither_ps);
+        shader_module_create_info.pCode = shaders::guest_output_ffx_fsr_rcas_dither_ps;
         break;
       default:
         // Not supported by this implementation.
@@ -2330,64 +2091,47 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
   intermediate_render_pass_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
   intermediate_render_pass_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
   intermediate_render_pass_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-  intermediate_render_pass_attachment.stencilLoadOp =
-      VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-  intermediate_render_pass_attachment.stencilStoreOp =
-      VK_ATTACHMENT_STORE_OP_DONT_CARE;
+  intermediate_render_pass_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+  intermediate_render_pass_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
   intermediate_render_pass_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-  intermediate_render_pass_attachment.finalLayout =
-      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+  intermediate_render_pass_attachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
   VkAttachmentReference intermediate_render_pass_color_attachment;
   intermediate_render_pass_color_attachment.attachment = 0;
-  intermediate_render_pass_color_attachment.layout =
-      VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+  intermediate_render_pass_color_attachment.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
   VkSubpassDescription intermediate_render_pass_subpass = {};
-  intermediate_render_pass_subpass.pipelineBindPoint =
-      VK_PIPELINE_BIND_POINT_GRAPHICS;
+  intermediate_render_pass_subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
   intermediate_render_pass_subpass.colorAttachmentCount = 1;
-  intermediate_render_pass_subpass.pColorAttachments =
-      &intermediate_render_pass_color_attachment;
+  intermediate_render_pass_subpass.pColorAttachments = &intermediate_render_pass_color_attachment;
   VkSubpassDependency intermediate_render_pass_dependencies[2];
   intermediate_render_pass_dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
   intermediate_render_pass_dependencies[0].dstSubpass = 0;
-  intermediate_render_pass_dependencies[0].srcStageMask =
-      VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+  intermediate_render_pass_dependencies[0].srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
   intermediate_render_pass_dependencies[0].dstStageMask =
       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-  intermediate_render_pass_dependencies[0].srcAccessMask =
-      VK_ACCESS_SHADER_READ_BIT;
-  intermediate_render_pass_dependencies[0].dstAccessMask =
-      VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+  intermediate_render_pass_dependencies[0].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+  intermediate_render_pass_dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
   intermediate_render_pass_dependencies[0].dependencyFlags = 0;
   intermediate_render_pass_dependencies[1].srcSubpass = 0;
   intermediate_render_pass_dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
   intermediate_render_pass_dependencies[1].srcStageMask =
       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-  intermediate_render_pass_dependencies[1].dstStageMask =
-      VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-  intermediate_render_pass_dependencies[1].srcAccessMask =
-      VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-  intermediate_render_pass_dependencies[1].dstAccessMask =
-      VK_ACCESS_SHADER_READ_BIT;
+  intermediate_render_pass_dependencies[1].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+  intermediate_render_pass_dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+  intermediate_render_pass_dependencies[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
   intermediate_render_pass_dependencies[1].dependencyFlags = 0;
   VkRenderPassCreateInfo intermediate_render_pass_create_info;
-  intermediate_render_pass_create_info.sType =
-      VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+  intermediate_render_pass_create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
   intermediate_render_pass_create_info.pNext = nullptr;
   intermediate_render_pass_create_info.flags = 0;
   intermediate_render_pass_create_info.attachmentCount = 1;
-  intermediate_render_pass_create_info.pAttachments =
-      &intermediate_render_pass_attachment;
+  intermediate_render_pass_create_info.pAttachments = &intermediate_render_pass_attachment;
   intermediate_render_pass_create_info.subpassCount = 1;
-  intermediate_render_pass_create_info.pSubpasses =
-      &intermediate_render_pass_subpass;
+  intermediate_render_pass_create_info.pSubpasses = &intermediate_render_pass_subpass;
   intermediate_render_pass_create_info.dependencyCount =
       uint32_t(rex::countof(intermediate_render_pass_dependencies));
-  intermediate_render_pass_create_info.pDependencies =
-      intermediate_render_pass_dependencies;
-  if (dfn.vkCreateRenderPass(
-          device, &intermediate_render_pass_create_info, nullptr,
-          &guest_output_intermediate_render_pass_) != VK_SUCCESS) {
+  intermediate_render_pass_create_info.pDependencies = intermediate_render_pass_dependencies;
+  if (dfn.vkCreateRenderPass(device, &intermediate_render_pass_create_info, nullptr,
+                             &guest_output_intermediate_render_pass_) != VK_SUCCESS) {
     REXLOG_ERROR(
         "VulkanPresenter: Failed to create the guest output intermediate image "
         "render pass");
@@ -2397,8 +2141,7 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
   // Initialize connection-independent parts of the painting context.
 
   for (size_t i = 0; i < paint_context_.submissions.size(); ++i) {
-    paint_context_.submissions[i] =
-        PaintContext::Submission::Create(vulkan_device_);
+    paint_context_.submissions[i] = PaintContext::Submission::Create(vulkan_device_);
     if (!paint_context_.submissions[i]) {
       return false;
     }
@@ -2412,9 +2155,8 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
         guest_output_paint_fs_[i] == VK_NULL_HANDLE) {
       continue;
     }
-    VkPipeline guest_output_paint_intermediate_pipeline =
-        CreateGuestOutputPaintPipeline(GuestOutputPaintEffect(i),
-                                       guest_output_intermediate_render_pass_);
+    VkPipeline guest_output_paint_intermediate_pipeline = CreateGuestOutputPaintPipeline(
+        GuestOutputPaintEffect(i), guest_output_intermediate_render_pass_);
     if (guest_output_paint_intermediate_pipeline == VK_NULL_HANDLE) {
       return false;
     }
@@ -2424,8 +2166,7 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
 
   // Guest output painting descriptor sets.
   VkDescriptorPoolSize guest_output_paint_descriptor_pool_sizes[2];
-  guest_output_paint_descriptor_pool_sizes[0].type =
-      VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+  guest_output_paint_descriptor_pool_sizes[0].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
   guest_output_paint_descriptor_pool_sizes[0].descriptorCount =
       PaintContext::kGuestOutputDescriptorSetCount;
   // Required even when using immutable samplers, otherwise failing to allocate
@@ -2445,16 +2186,15 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
       uint32_t(rex::countof(guest_output_paint_descriptor_pool_sizes));
   guest_output_paint_descriptor_pool_create_info.pPoolSizes =
       guest_output_paint_descriptor_pool_sizes;
-  if (dfn.vkCreateDescriptorPool(
-          device, &guest_output_paint_descriptor_pool_create_info, nullptr,
-          &paint_context_.guest_output_descriptor_pool) != VK_SUCCESS) {
+  if (dfn.vkCreateDescriptorPool(device, &guest_output_paint_descriptor_pool_create_info, nullptr,
+                                 &paint_context_.guest_output_descriptor_pool) != VK_SUCCESS) {
     REXLOG_ERROR(
         "VulkanPresenter: Failed to create the guest output painting "
         "descriptor pool");
     return false;
   }
-  VkDescriptorSetLayout guest_output_paint_descriptor_set_layouts
-      [PaintContext::kGuestOutputDescriptorSetCount];
+  VkDescriptorSetLayout
+      guest_output_paint_descriptor_set_layouts[PaintContext::kGuestOutputDescriptorSetCount];
   std::fill(guest_output_paint_descriptor_set_layouts,
             guest_output_paint_descriptor_set_layouts +
                 rex::countof(guest_output_paint_descriptor_set_layouts),
@@ -2469,9 +2209,8 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
       PaintContext::kGuestOutputDescriptorSetCount;
   guest_output_paint_descriptor_set_allocate_info.pSetLayouts =
       guest_output_paint_descriptor_set_layouts;
-  if (dfn.vkAllocateDescriptorSets(
-          device, &guest_output_paint_descriptor_set_allocate_info,
-          paint_context_.guest_output_descriptor_sets) != VK_SUCCESS) {
+  if (dfn.vkAllocateDescriptorSets(device, &guest_output_paint_descriptor_set_allocate_info,
+                                   paint_context_.guest_output_descriptor_sets) != VK_SUCCESS) {
     REXLOG_ERROR(
         "VulkanPresenter: Failed to allocate the guest output painting "
         "descriptor sets");
@@ -2481,8 +2220,8 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
   return InitializeCommonSurfaceIndependent();
 }
 
-VkPipeline VulkanPresenter::CreateGuestOutputPaintPipeline(
-    GuestOutputPaintEffect effect, VkRenderPass render_pass) {
+VkPipeline VulkanPresenter::CreateGuestOutputPaintPipeline(GuestOutputPaintEffect effect,
+                                                           VkRenderPass render_pass) {
   VkPipelineShaderStageCreateInfo stages[2] = {};
   for (uint32_t i = 0; i < 2; ++i) {
     VkPipelineShaderStageCreateInfo& stage = stages[i];
@@ -2495,12 +2234,10 @@ VkPipeline VulkanPresenter::CreateGuestOutputPaintPipeline(
   assert_true(stages[1].module != VK_NULL_HANDLE);
 
   VkPipelineVertexInputStateCreateInfo vertex_input_state = {};
-  vertex_input_state.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+  vertex_input_state.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
   VkPipelineInputAssemblyStateCreateInfo input_assembly_state = {};
-  input_assembly_state.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+  input_assembly_state.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
   input_assembly_state.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
 
   VkPipelineViewportStateCreateInfo viewport_state = {};
@@ -2509,25 +2246,22 @@ VkPipeline VulkanPresenter::CreateGuestOutputPaintPipeline(
   viewport_state.scissorCount = 1;
 
   VkPipelineRasterizationStateCreateInfo rasterization_state = {};
-  rasterization_state.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+  rasterization_state.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
   rasterization_state.polygonMode = VK_POLYGON_MODE_FILL;
   rasterization_state.cullMode = VK_CULL_MODE_NONE;
   rasterization_state.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
   rasterization_state.lineWidth = 1.0f;
 
   VkPipelineMultisampleStateCreateInfo multisample_state = {};
-  multisample_state.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+  multisample_state.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
   multisample_state.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
   VkPipelineColorBlendAttachmentState color_blend_attachment_state = {};
-  color_blend_attachment_state.colorWriteMask =
-      VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-      VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  color_blend_attachment_state.colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
+                                                VK_COLOR_COMPONENT_G_BIT |
+                                                VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
   VkPipelineColorBlendStateCreateInfo color_blend_state = {};
-  color_blend_state.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+  color_blend_state.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
   color_blend_state.attachmentCount = 1;
   color_blend_state.pAttachments = &color_blend_attachment_state;
 
@@ -2537,8 +2271,7 @@ VkPipeline VulkanPresenter::CreateGuestOutputPaintPipeline(
   };
   VkPipelineDynamicStateCreateInfo dynamic_state = {};
   dynamic_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-  dynamic_state.dynamicStateCount =
-      uint32_t(rex::countof(kPipelineDynamicStates));
+  dynamic_state.dynamicStateCount = uint32_t(rex::countof(kPipelineDynamicStates));
   dynamic_state.pDynamicStates = kPipelineDynamicStates;
 
   VkGraphicsPipelineCreateInfo pipeline_create_info;
@@ -2556,8 +2289,8 @@ VkPipeline VulkanPresenter::CreateGuestOutputPaintPipeline(
   pipeline_create_info.pDepthStencilState = nullptr;
   pipeline_create_info.pColorBlendState = &color_blend_state;
   pipeline_create_info.pDynamicState = &dynamic_state;
-  pipeline_create_info.layout = guest_output_paint_pipeline_layouts_
-      [GetGuestOutputPaintPipelineLayoutIndex(effect)];
+  pipeline_create_info.layout =
+      guest_output_paint_pipeline_layouts_[GetGuestOutputPaintPipelineLayoutIndex(effect)];
   pipeline_create_info.renderPass = render_pass;
   pipeline_create_info.subpass = 0;
   pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
@@ -2567,8 +2300,7 @@ VkPipeline VulkanPresenter::CreateGuestOutputPaintPipeline(
   const VkDevice device = vulkan_device_->device();
 
   VkPipeline pipeline;
-  if (dfn.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1,
-                                    &pipeline_create_info, nullptr,
+  if (dfn.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipeline_create_info, nullptr,
                                     &pipeline) != VK_SUCCESS) {
     REXLOG_ERROR(
         "VulkanPresenter: Failed to create the guest output painting pipeline "
@@ -2581,4 +2313,4 @@ VkPipeline VulkanPresenter::CreateGuestOutputPaintPipeline(
 
 }  // namespace vulkan
 }  // namespace ui
-}  // namespace xe
+}  // namespace rex

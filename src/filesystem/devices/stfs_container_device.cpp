@@ -10,6 +10,7 @@
  */
 
 #include "stfs_container_device.h"
+#include "stfs_container_entry.h"
 
 #include <algorithm>
 #include <queue>
@@ -17,8 +18,7 @@
 
 #include <rex/logging.h>
 #include <rex/math.h>
-#include <rex/kernel/xio.h>
-#include "stfs_container_entry.h"
+#include <rex/system/xio.h>
 
 namespace rex::filesystem {
 
@@ -34,20 +34,19 @@ StfsContainerDevice::StfsContainerDevice(const std::string_view mount_path,
       blocks_per_hash_table_(1),
       block_step{0, 0} {}
 
-StfsContainerDevice::~StfsContainerDevice() { CloseFiles(); }
+StfsContainerDevice::~StfsContainerDevice() {
+  CloseFiles();
+}
 
 bool StfsContainerDevice::Initialize() {
   // Resolve a valid STFS file if a directory is given.
-  if (std::filesystem::is_directory(host_path_) &&
-      !ResolveFromFolder(host_path_)) {
-    REXFS_ERROR("Could not resolve an STFS container given path {}",
-           rex::path_to_utf8(host_path_));
+  if (std::filesystem::is_directory(host_path_) && !ResolveFromFolder(host_path_)) {
+    REXFS_ERROR("Could not resolve an STFS container given path {}", rex::path_to_utf8(host_path_));
     return false;
   }
 
   if (!std::filesystem::exists(host_path_)) {
-    REXFS_ERROR("Path to STFS container does not exist: {}",
-           rex::path_to_utf8(host_path_));
+    REXFS_ERROR("Path to STFS container does not exist: {}", rex::path_to_utf8(host_path_));
     return false;
   }
 
@@ -66,7 +65,7 @@ bool StfsContainerDevice::Initialize() {
       return ReadSVOD() == Error::kSuccess;
     default:
       REXFS_ERROR("Unknown XContent volume type: {}",
-             rex::byte_swap(uint32_t(header_.metadata.volume_type.value)));
+                  rex::byte_swap(uint32_t(header_.metadata.volume_type.value)));
       return false;
   }
 }
@@ -104,7 +103,7 @@ StfsContainerDevice::Error StfsContainerDevice::OpenFiles() {
   data_fragment_path += ".data";
   if (!std::filesystem::exists(data_fragment_path)) {
     REXFS_ERROR("STFS container is multi-file, but path {} does not exist.",
-           rex::path_to_utf8(data_fragment_path));
+                rex::path_to_utf8(data_fragment_path));
     return Error::kErrorFileMismatch;
   }
 
@@ -117,7 +116,7 @@ StfsContainerDevice::Error StfsContainerDevice::OpenFiles() {
 
   if (fragment_files.size() != header_.metadata.data_file_count) {
     REXFS_ERROR("SVOD expecting {} data fragments, but {} are present.",
-           header_.metadata.data_file_count.get(), fragment_files.size());
+                header_.metadata.data_file_count.get(), fragment_files.size());
     return Error::kErrorFileMismatch;
   }
 
@@ -161,8 +160,7 @@ Entry* StfsContainerDevice::ResolvePath(const std::string_view path) {
   return root_entry_->ResolvePath(path);
 }
 
-StfsContainerDevice::Error StfsContainerDevice::ReadHeaderAndVerify(
-    FILE* header_file) {
+StfsContainerDevice::Error StfsContainerDevice::ReadHeaderAndVerify(FILE* header_file) {
   // Check size of the file is enough to store an STFS header
   rex::filesystem::Seek(header_file, 0L, SEEK_END);
   files_total_size_ = rex::filesystem::Tell(header_file);
@@ -185,12 +183,11 @@ StfsContainerDevice::Error StfsContainerDevice::ReadHeaderAndVerify(
   // Pre-calculate some values used in block number calculations
   if (header_.metadata.volume_type == XContentVolumeType::kStfs) {
     blocks_per_hash_table_ =
-        header_.metadata.volume_descriptor.stfs.flags.bits.read_only_format ? 1
-                                                                            : 2;
+        header_.metadata.volume_descriptor.stfs.flags.bits.read_only_format ? 1 : 2;
 
     block_step[0] = kBlocksPerHashLevel[0] + blocks_per_hash_table_;
-    block_step[1] = kBlocksPerHashLevel[1] +
-                    ((kBlocksPerHashLevel[0] + 1) * blocks_per_hash_table_);
+    block_step[1] =
+        kBlocksPerHashLevel[1] + ((kBlocksPerHashLevel[0] + 1) * blocks_per_hash_table_);
   }
 
   return Error::kSuccess;
@@ -207,15 +204,13 @@ StfsContainerDevice::Error StfsContainerDevice::ReadSVOD() {
   size_t magic_offset;
 
   // Check for EDGF layout
-  if (header_.metadata.volume_descriptor.svod.features.bits
-          .enhanced_gdf_layout) {
+  if (header_.metadata.volume_descriptor.svod.features.bits.enhanced_gdf_layout) {
     // The STFS header has specified that this SVOD system uses the EGDF layout.
     // We can expect the magic block to be located immediately after the hash
     // blocks. We also offset block address calculation by 0x1000 by shifting
     // block indices by +0x2.
     rex::filesystem::Seek(svod_header, 0x2000, SEEK_SET);
-    if (fread(magic_buf, 1, countof(magic_buf), svod_header) !=
-        countof(magic_buf)) {
+    if (fread(magic_buf, 1, countof(magic_buf), svod_header) != countof(magic_buf)) {
       REXFS_ERROR("ReadSVOD failed to read SVOD magic at 0x2000");
       return Error::kErrorReadError;
     }
@@ -231,8 +226,7 @@ StfsContainerDevice::Error StfsContainerDevice::ReadSVOD() {
     }
   } else {
     rex::filesystem::Seek(svod_header, 0x12000, SEEK_SET);
-    if (fread(magic_buf, 1, countof(magic_buf), svod_header) !=
-        countof(magic_buf)) {
+    if (fread(magic_buf, 1, countof(magic_buf), svod_header) != countof(magic_buf)) {
       REXFS_ERROR("ReadSVOD failed to read SVOD magic at 0x12000");
       return Error::kErrorReadError;
     }
@@ -262,8 +256,7 @@ StfsContainerDevice::Error StfsContainerDevice::ReadSVOD() {
       }
     } else {
       rex::filesystem::Seek(svod_header, 0xD000, SEEK_SET);
-      if (fread(magic_buf, 1, countof(magic_buf), svod_header) !=
-          countof(magic_buf)) {
+      if (fread(magic_buf, 1, countof(magic_buf), svod_header) != countof(magic_buf)) {
         REXFS_ERROR("ReadSVOD failed to read SVOD magic at 0xD000");
         return Error::kErrorReadError;
       }
@@ -305,8 +298,7 @@ StfsContainerDevice::Error StfsContainerDevice::ReadSVOD() {
   static_assert_size(root_data, 0x10);
 
   if (fread(&root_data, sizeof(root_data), 1, svod_header) != 1) {
-    REXFS_ERROR("ReadSVOD failed to read root block data at 0x{:X}",
-           magic_offset + 0x14);
+    REXFS_ERROR("ReadSVOD failed to read root block data at 0x{:X}", magic_offset + 0x14);
     return Error::kErrorReadError;
   }
 
@@ -324,8 +316,8 @@ StfsContainerDevice::Error StfsContainerDevice::ReadSVOD() {
   return ReadEntrySVOD(root_data.block, 0, root_entry);
 }
 
-StfsContainerDevice::Error StfsContainerDevice::ReadEntrySVOD(
-    uint32_t block, uint32_t ordinal, StfsContainerEntry* parent) {
+StfsContainerDevice::Error StfsContainerDevice::ReadEntrySVOD(uint32_t block, uint32_t ordinal,
+                                                              StfsContainerEntry* parent) {
   // For games with a large amount of files, the ordinal offset can overrun
   // the current block and potentially hit a hash block.
   size_t ordinal_offset = ordinal * 0x4;
@@ -354,16 +346,13 @@ StfsContainerDevice::Error StfsContainerDevice::ReadEntrySVOD(
 #pragma pack(pop)
 
   if (fread(&dir_entry, sizeof(dir_entry), 1, file) != 1) {
-    REXFS_ERROR("ReadEntrySVOD failed to read directory entry at 0x{:X}",
-           entry_address);
+    REXFS_ERROR("ReadEntrySVOD failed to read directory entry at 0x{:X}", entry_address);
     return Error::kErrorReadError;
   }
 
   auto name_buffer = std::make_unique<char[]>(dir_entry.name_length);
-  if (fread(name_buffer.get(), 1, dir_entry.name_length, file) !=
-      dir_entry.name_length) {
-    REXFS_ERROR("ReadEntrySVOD failed to read directory entry name at 0x{:X}",
-           entry_address);
+  if (fread(name_buffer.get(), 1, dir_entry.name_length, file) != dir_entry.name_length) {
+    REXFS_ERROR("ReadEntrySVOD failed to read directory entry name at 0x{:X}", entry_address);
     return Error::kErrorReadError;
   }
 
@@ -398,8 +387,7 @@ StfsContainerDevice::Error StfsContainerDevice::ReadEntrySVOD(
 
     if (dir_entry.length) {
       // If length is greater than 0, traverse the directory's children
-      auto directory_result =
-          ReadEntrySVOD(dir_entry.data_block, 0, entry.get());
+      auto directory_result = ReadEntrySVOD(dir_entry.data_block, 0, entry.get());
       if (directory_result != Error::kSuccess) {
         return directory_result;
       }
@@ -417,7 +405,7 @@ StfsContainerDevice::Error StfsContainerDevice::ReadEntrySVOD(
     entry->write_timestamp_ = root_entry_->create_timestamp();
 
     // Fill in all block records, sector by sector.
-    if (entry->attributes() & X_FILE_ATTRIBUTE_NORMAL) {
+    if (entry->attributes() & system::X_FILE_ATTRIBUTE_NORMAL) {
       uint32_t block_index = dir_entry.data_block;
       size_t remaining_size = rex::round_up(dir_entry.length, 0x800);
 
@@ -480,8 +468,7 @@ void StfsContainerDevice::BlockToOffsetSVOD(size_t block, size_t* out_address,
   const size_t HASHES_PER_L1_HASH = 0xA1C4;
   const size_t BLOCKS_PER_FILE = 0x14388;
   const size_t MAX_FILE_SIZE = 0xA290000;
-  const size_t BLOCK_OFFSET =
-      header_.metadata.volume_descriptor.svod.start_data_block();
+  const size_t BLOCK_OFFSET = header_.metadata.volume_descriptor.svod.start_data_block();
 
   // Resolve the true block address and file index
   size_t true_block = block - (BLOCK_OFFSET * 2);
@@ -561,8 +548,7 @@ StfsContainerDevice::Error StfsContainerDevice::ReadSTFS() {
 
       std::string name(reinterpret_cast<const char*>(dir_entry.name),
                        dir_entry.flags.name_length & 0x3F);
-      auto entry =
-          StfsContainerEntry::Create(this, parent_entry, name, &files_);
+      auto entry = StfsContainerEntry::Create(this, parent_entry, name, &files_);
 
       if (dir_entry.flags.directory) {
         entry->attributes_ = kFileAttributeDirectory;
@@ -574,10 +560,9 @@ StfsContainerDevice::Error StfsContainerDevice::ReadSTFS() {
       entry->size_ = dir_entry.length;
       entry->allocation_size_ = rex::round_up(dir_entry.length, kBlockSize);
 
-      entry->create_timestamp_ =
-          decode_fat_timestamp(dir_entry.create_date, dir_entry.create_time);
-      entry->write_timestamp_ = decode_fat_timestamp(dir_entry.modified_date,
-                                                     dir_entry.modified_time);
+      entry->create_timestamp_ = decode_fat_timestamp(dir_entry.create_date, dir_entry.create_time);
+      entry->write_timestamp_ =
+          decode_fat_timestamp(dir_entry.modified_date, dir_entry.modified_time);
       entry->access_timestamp_ = entry->write_timestamp_;
 
       all_entries.push_back(entry.get());
@@ -586,12 +571,11 @@ StfsContainerDevice::Error StfsContainerDevice::ReadSTFS() {
       // It's easier to do this now and just look them up later, at the cost
       // of some memory. Nasty chain walk.
       // TODO(benvanik): optimize if flags.contiguous is set.
-      if (entry->attributes() & X_FILE_ATTRIBUTE_NORMAL) {
+      if (entry->attributes() & system::X_FILE_ATTRIBUTE_NORMAL) {
         uint32_t block_index = dir_entry.start_block_number();
         size_t remaining_size = dir_entry.length;
         while (remaining_size && block_index != kEndOfChain) {
-          size_t block_size =
-              std::min(static_cast<size_t>(kBlockSize), remaining_size);
+          size_t block_size = std::min(static_cast<size_t>(kBlockSize), remaining_size);
           size_t offset = BlockToOffsetSTFS(block_index);
           entry->block_list_.push_back({0, offset, block_size});
           remaining_size -= block_size;
@@ -615,8 +599,7 @@ StfsContainerDevice::Error StfsContainerDevice::ReadSTFS() {
           REXFS_WARN(
               "STFS failed to read correct block-chain for entry {}, read {} "
               "blocks, expected {}",
-              entry->name_, entry->block_list_.size(),
-              dir_entry.allocated_data_blocks());
+              entry->name_, entry->block_list_.size(), dir_entry.allocated_data_blocks());
           assert_always();
         }
       }
@@ -632,8 +615,8 @@ StfsContainerDevice::Error StfsContainerDevice::ReadSTFS() {
   }
 
   if (n + 1 != descriptor.file_table_block_count) {
-    REXFS_WARN("STFS read {} file table blocks, but STFS headers expected {}!",
-           n + 1, descriptor.file_table_block_count);
+    REXFS_WARN("STFS read {} file table blocks, but STFS headers expected {}!", n + 1,
+               descriptor.file_table_block_count);
     assert_always();
   }
 
@@ -660,8 +643,8 @@ size_t StfsContainerDevice::BlockToOffsetSTFS(uint64_t block_index) const {
   return rex::round_up(header_.header.header_size, kBlockSize) + (block << 12);
 }
 
-uint32_t StfsContainerDevice::BlockToHashBlockNumberSTFS(
-    uint32_t block_index, uint32_t hash_level) const {
+uint32_t StfsContainerDevice::BlockToHashBlockNumberSTFS(uint32_t block_index,
+                                                         uint32_t hash_level) const {
   uint32_t block = 0;
   if (hash_level == 0) {
     if (block_index < kBlocksPerHashLevel[0]) {
@@ -669,8 +652,7 @@ uint32_t StfsContainerDevice::BlockToHashBlockNumberSTFS(
     }
 
     block = (block_index / kBlocksPerHashLevel[0]) * block_step[0];
-    block +=
-        ((block_index / kBlocksPerHashLevel[1]) + 1) * blocks_per_hash_table_;
+    block += ((block_index / kBlocksPerHashLevel[1]) + 1) * blocks_per_hash_table_;
 
     if (block_index < kBlocksPerHashLevel[1]) {
       return block;
@@ -692,8 +674,8 @@ uint32_t StfsContainerDevice::BlockToHashBlockNumberSTFS(
   return block_step[1];
 }
 
-size_t StfsContainerDevice::BlockToHashBlockOffsetSTFS(
-    uint32_t block_index, uint32_t hash_level) const {
+size_t StfsContainerDevice::BlockToHashBlockOffsetSTFS(uint32_t block_index,
+                                                       uint32_t hash_level) const {
   uint64_t block = BlockToHashBlockNumberSTFS(block_index, hash_level);
   return rex::round_up(header_.header.header_size, kBlockSize) + (block << 12);
 }
@@ -704,8 +686,7 @@ const StfsHashEntry* StfsContainerDevice::GetBlockHash(uint32_t block_index) {
   auto& descriptor = header_.metadata.volume_descriptor.stfs;
 
   // Offset for selecting the secondary hash block, in packages that have them
-  uint32_t secondary_table_offset =
-      descriptor.flags.bits.root_active_index ? kBlockSize : 0;
+  uint32_t secondary_table_offset = descriptor.flags.bits.root_active_index ? kBlockSize : 0;
 
   auto hash_offset_lv0 = BlockToHashBlockOffsetSTFS(block_index, 0);
   if (!cached_hash_tables_.count(hash_offset_lv0)) {
@@ -727,54 +708,45 @@ const StfsHashEntry* StfsContainerDevice::GetBlockHash(uint32_t block_index) {
             auto hash_offset_lv2 = BlockToHashBlockOffsetSTFS(block_index, 2);
 
             if (!cached_hash_tables_.count(hash_offset_lv2)) {
-              rex::filesystem::Seek(
-                  file, hash_offset_lv2 + secondary_table_offset, SEEK_SET);
+              rex::filesystem::Seek(file, hash_offset_lv2 + secondary_table_offset, SEEK_SET);
 
               StfsHashTable table_lv2;
               if (fread(&table_lv2, sizeof(StfsHashTable), 1, file) != 1) {
                 REXFS_ERROR("GetBlockHash failed to read level2 hash table at 0x{:X}",
-                       hash_offset_lv2 + secondary_table_offset);
+                            hash_offset_lv2 + secondary_table_offset);
                 return nullptr;
               }
               cached_hash_tables_[hash_offset_lv2] = table_lv2;
             }
 
-            auto record =
-                (block_index / kBlocksPerHashLevel[1]) % kBlocksPerHashLevel[0];
-            auto record_data =
-                &cached_hash_tables_[hash_offset_lv2].entries[record];
-            secondary_table_offset =
-                record_data->levelN_active_index() ? kBlockSize : 0;
+            auto record = (block_index / kBlocksPerHashLevel[1]) % kBlocksPerHashLevel[0];
+            auto record_data = &cached_hash_tables_[hash_offset_lv2].entries[record];
+            secondary_table_offset = record_data->levelN_active_index() ? kBlockSize : 0;
           }
 
-          rex::filesystem::Seek(file, hash_offset_lv1 + secondary_table_offset,
-                               SEEK_SET);
+          rex::filesystem::Seek(file, hash_offset_lv1 + secondary_table_offset, SEEK_SET);
 
           StfsHashTable table_lv1;
           if (fread(&table_lv1, sizeof(StfsHashTable), 1, file) != 1) {
             REXFS_ERROR("GetBlockHash failed to read level1 hash table at 0x{:X}",
-                   hash_offset_lv1 + secondary_table_offset);
+                        hash_offset_lv1 + secondary_table_offset);
             return nullptr;
           }
           cached_hash_tables_[hash_offset_lv1] = table_lv1;
         }
 
-        auto record =
-            (block_index / kBlocksPerHashLevel[0]) % kBlocksPerHashLevel[0];
-        auto record_data =
-            &cached_hash_tables_[hash_offset_lv1].entries[record];
-        secondary_table_offset =
-            record_data->levelN_active_index() ? kBlockSize : 0;
+        auto record = (block_index / kBlocksPerHashLevel[0]) % kBlocksPerHashLevel[0];
+        auto record_data = &cached_hash_tables_[hash_offset_lv1].entries[record];
+        secondary_table_offset = record_data->levelN_active_index() ? kBlockSize : 0;
       }
     }
 
-    rex::filesystem::Seek(file, hash_offset_lv0 + secondary_table_offset,
-                         SEEK_SET);
+    rex::filesystem::Seek(file, hash_offset_lv0 + secondary_table_offset, SEEK_SET);
 
     StfsHashTable table_lv0;
     if (fread(&table_lv0, sizeof(StfsHashTable), 1, file) != 1) {
       REXFS_ERROR("GetBlockHash failed to read level0 hash table at 0x{:X}",
-          (hash_offset_lv0 + secondary_table_offset));
+                  (hash_offset_lv0 + secondary_table_offset));
       return nullptr;
     }
     cached_hash_tables_[hash_offset_lv0] = table_lv0;
@@ -786,8 +758,7 @@ const StfsHashEntry* StfsContainerDevice::GetBlockHash(uint32_t block_index) {
   return record_data;
 }
 
-XContentPackageType StfsContainerDevice::ReadMagic(
-    const std::filesystem::path& path) {
+XContentPackageType StfsContainerDevice::ReadMagic(const std::filesystem::path& path) {
   auto map = memory::MappedMemory::Open(path, memory::MappedMemory::Mode::kRead, 0, 4);
   return XContentPackageType(memory::load_and_swap<uint32_t>(map->data()));
 }
@@ -815,8 +786,7 @@ bool StfsContainerDevice::ResolveFromFolder(const std::filesystem::path& path) {
       auto path = current_file.path / current_file.name;
       auto magic = ReadMagic(path);
 
-      if (magic == XContentPackageType::kCon ||
-          magic == XContentPackageType::kLive ||
+      if (magic == XContentPackageType::kCon || magic == XContentPackageType::kLive ||
           magic == XContentPackageType::kPirs) {
         host_path_ = current_file.path / current_file.name;
         REXFS_INFO("STFS Package found: {}", rex::path_to_utf8(host_path_));

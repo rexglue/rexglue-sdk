@@ -11,7 +11,6 @@
 
 #pragma once
 
-
 #include <array>
 #include <functional>
 #include <memory>
@@ -22,9 +21,9 @@
 #include <rex/assert.h>
 #include <rex/graphics/d3d12/shader.h>
 #include <rex/graphics/d3d12/shared_memory.h>
-#include <rex/graphics/register_file.h>
 #include <rex/graphics/pipeline/texture/cache.h>
 #include <rex/graphics/pipeline/texture/util.h>
+#include <rex/graphics/register_file.h>
 #include <rex/graphics/xenos.h>
 #include <rex/ui/d3d12/d3d12_api.h>
 #include <rex/ui/d3d12/d3d12_provider.h>
@@ -64,21 +63,19 @@ class D3D12TextureCache final : public TextureCache {
     };
 
     SamplerParameters() : value(0) { static_assert_size(*this, sizeof(value)); }
-    bool operator==(const SamplerParameters& parameters) const {
-      return value == parameters.value;
-    }
-    bool operator!=(const SamplerParameters& parameters) const {
-      return value != parameters.value;
-    }
+    bool operator==(const SamplerParameters& parameters) const { return value == parameters.value; }
+    bool operator!=(const SamplerParameters& parameters) const { return value != parameters.value; }
   };
 
-  static std::unique_ptr<D3D12TextureCache> Create(
-      const RegisterFile& register_file, D3D12SharedMemory& shared_memory,
-      uint32_t draw_resolution_scale_x, uint32_t draw_resolution_scale_y,
-      D3D12CommandProcessor& command_processor, bool bindless_resources_used) {
-    std::unique_ptr<D3D12TextureCache> texture_cache(new D3D12TextureCache(
-        register_file, shared_memory, draw_resolution_scale_x,
-        draw_resolution_scale_y, command_processor, bindless_resources_used));
+  static std::unique_ptr<D3D12TextureCache> Create(const RegisterFile& register_file,
+                                                   D3D12SharedMemory& shared_memory,
+                                                   uint32_t draw_resolution_scale_x,
+                                                   uint32_t draw_resolution_scale_y,
+                                                   D3D12CommandProcessor& command_processor,
+                                                   bool bindless_resources_used) {
+    std::unique_ptr<D3D12TextureCache> texture_cache(
+        new D3D12TextureCache(register_file, shared_memory, draw_resolution_scale_x,
+                              draw_resolution_scale_y, command_processor, bindless_resources_used));
     if (!texture_cache->Initialize()) {
       return nullptr;
     }
@@ -103,50 +100,41 @@ class D3D12TextureCache final : public TextureCache {
   // current bindings and host shader binding layout. Both keys and
   // host_shader_bindings must have host_shader_binding_count elements
   // (otherwise they are incompatible - like if this function returned false).
-  bool AreActiveTextureSRVKeysUpToDate(
-      const TextureSRVKey* keys,
-      const D3D12Shader::TextureBinding* host_shader_bindings,
-      size_t host_shader_binding_count) const;
+  bool AreActiveTextureSRVKeysUpToDate(const TextureSRVKey* keys,
+                                       const D3D12Shader::TextureBinding* host_shader_bindings,
+                                       size_t host_shader_binding_count) const;
   // Exports the current binding data to texture SRV keys so they can be stored
   // for checking whether subsequent draw calls can keep using the same
   // bindings. Write host_shader_binding_count keys.
-  void WriteActiveTextureSRVKeys(
-      TextureSRVKey* keys,
-      const D3D12Shader::TextureBinding* host_shader_bindings,
-      size_t host_shader_binding_count) const;
-  void WriteActiveTextureBindfulSRV(
-      const D3D12Shader::TextureBinding& host_shader_binding,
-      D3D12_CPU_DESCRIPTOR_HANDLE handle);
-  uint32_t GetActiveTextureBindlessSRVIndex(
-      const D3D12Shader::TextureBinding& host_shader_binding);
+  void WriteActiveTextureSRVKeys(TextureSRVKey* keys,
+                                 const D3D12Shader::TextureBinding* host_shader_bindings,
+                                 size_t host_shader_binding_count) const;
+  void WriteActiveTextureBindfulSRV(const D3D12Shader::TextureBinding& host_shader_binding,
+                                    D3D12_CPU_DESCRIPTOR_HANDLE handle);
+  uint32_t GetActiveTextureBindlessSRVIndex(const D3D12Shader::TextureBinding& host_shader_binding);
 
-  SamplerParameters GetSamplerParameters(
-      const D3D12Shader::SamplerBinding& binding) const;
-  void WriteSampler(SamplerParameters parameters,
-                    D3D12_CPU_DESCRIPTOR_HANDLE handle) const;
+  SamplerParameters GetSamplerParameters(const D3D12Shader::SamplerBinding& binding) const;
+  void WriteSampler(SamplerParameters parameters, D3D12_CPU_DESCRIPTOR_HANDLE handle) const;
 
   // Returns whether the actual scale is not smaller than the requested one.
-  static bool ClampDrawResolutionScaleToMaxSupported(
-      uint32_t& scale_x, uint32_t& scale_y,
-      const ui::d3d12::D3D12Provider& provider);
+  static bool ClampDrawResolutionScaleToMaxSupported(uint32_t& scale_x, uint32_t& scale_y,
+                                                     const ui::d3d12::D3D12Provider& provider);
   // Ensures the tiles backing the range in the buffers are allocated.
-  bool EnsureScaledResolveMemoryCommitted(
-      uint32_t start_unscaled, uint32_t length_unscaled,
-      uint32_t length_scaled_alignment_log2 = 0) override;
+  bool EnsureScaledResolveMemoryCommitted(uint32_t start_unscaled, uint32_t length_unscaled,
+                                          uint32_t length_scaled_alignment_log2 = 0) override;
   // Makes the specified range of up to 1-2 GB currently accessible on the GPU.
   // One draw call can access only at most one range - the same memory is
   // accessible through different buffers based on the range needed, so aliasing
   // barriers are required.
-  bool MakeScaledResolveRangeCurrent(uint32_t start_unscaled,
-                                     uint32_t length_unscaled,
+  bool MakeScaledResolveRangeCurrent(uint32_t start_unscaled, uint32_t length_unscaled,
                                      uint32_t length_scaled_alignment_log2 = 0);
   // These functions create a view of the range specified in the last successful
   // MakeScaledResolveRangeCurrent call because that function must be called
   // before this.
-  void CreateCurrentScaledResolveRangeUintPow2SRV(
-      D3D12_CPU_DESCRIPTOR_HANDLE handle, uint32_t element_size_bytes_pow2);
-  void CreateCurrentScaledResolveRangeUintPow2UAV(
-      D3D12_CPU_DESCRIPTOR_HANDLE handle, uint32_t element_size_bytes_pow2);
+  void CreateCurrentScaledResolveRangeUintPow2SRV(D3D12_CPU_DESCRIPTOR_HANDLE handle,
+                                                  uint32_t element_size_bytes_pow2);
+  void CreateCurrentScaledResolveRangeUintPow2UAV(D3D12_CPU_DESCRIPTOR_HANDLE handle,
+                                                  uint32_t element_size_bytes_pow2);
   void TransitionCurrentScaledResolveRange(D3D12_RESOURCE_STATES new_state);
   void MarkCurrentScaledResolveRangeUAVWritesCommitNeeded() {
     assert_true(IsDrawResolutionScaled());
@@ -157,19 +145,16 @@ class D3D12TextureCache final : public TextureCache {
   // NON_PIXEL_SHADER_RESOURCE state), or nullptr in case of failure, and writes
   // the description of its SRV. May call LoadTextureData, so the same
   // restrictions (such as about descriptor heap change possibility) apply.
-  ID3D12Resource* RequestSwapTexture(
-      D3D12_SHADER_RESOURCE_VIEW_DESC& srv_desc_out,
-      xenos::TextureFormat& format_out);
+  ID3D12Resource* RequestSwapTexture(D3D12_SHADER_RESOURCE_VIEW_DESC& srv_desc_out,
+                                     xenos::TextureFormat& format_out);
 
  protected:
   bool IsSignedVersionSeparateForFormat(TextureKey key) const override;
   bool IsScaledResolveSupportedForFormat(TextureKey key) const override;
   uint32_t GetHostFormatSwizzle(TextureKey key) const override;
 
-  uint32_t GetMaxHostTextureWidthHeight(
-      xenos::DataDimension dimension) const override;
-  uint32_t GetMaxHostTextureDepthOrArraySize(
-      xenos::DataDimension dimension) const override;
+  uint32_t GetMaxHostTextureWidthHeight(xenos::DataDimension dimension) const override;
+  uint32_t GetMaxHostTextureDepthOrArraySize(xenos::DataDimension dimension) const override;
 
   std::unique_ptr<Texture> CreateTexture(TextureKey key) override;
 
@@ -240,17 +225,12 @@ class D3D12TextureCache final : public TextureCache {
           return std::hash<decltype(key.key)>{}(key.key);
         }
       };
-      bool operator==(const SRVDescriptorKey& other_key) const {
-        return key == other_key.key;
-      }
-      bool operator!=(const SRVDescriptorKey& other_key) const {
-        return !(*this == other_key);
-      }
+      bool operator==(const SRVDescriptorKey& other_key) const { return key == other_key.key; }
+      bool operator!=(const SRVDescriptorKey& other_key) const { return !(*this == other_key); }
     };
 
-    explicit D3D12Texture(D3D12TextureCache& texture_cache,
-                          const TextureKey& key, ID3D12Resource* resource,
-                          D3D12_RESOURCE_STATES resource_state);
+    explicit D3D12Texture(D3D12TextureCache& texture_cache, const TextureKey& key,
+                          ID3D12Resource* resource, D3D12_RESOURCE_STATES resource_state);
     ~D3D12Texture();
 
     ID3D12Resource* resource() const { return resource_.Get(); }
@@ -266,8 +246,7 @@ class D3D12TextureCache final : public TextureCache {
       return it != srv_descriptors_.cend() ? it->second : UINT32_MAX;
     }
 
-    void AddSRVDescriptorIndex(SRVDescriptorKey descriptor_key,
-                               uint32_t descriptor_index) {
+    void AddSRVDescriptorIndex(SRVDescriptorKey descriptor_key, uint32_t descriptor_index) {
       srv_descriptors_.emplace(descriptor_key, descriptor_index);
     }
 
@@ -279,8 +258,7 @@ class D3D12TextureCache final : public TextureCache {
     // copying to the shader-visible heap (much faster than recreating, which,
     // according to profiling, was often a bottleneck in many games).
     // For bindless - indices in the global shader-visible descriptor heap.
-    std::unordered_map<SRVDescriptorKey, uint32_t, SRVDescriptorKey::Hasher>
-        srv_descriptors_;
+    std::unordered_map<SRVDescriptorKey, uint32_t, SRVDescriptorKey::Hasher> srv_descriptors_;
   };
 
   static constexpr uint32_t kSRVDescriptorCachePageSize = 65536;
@@ -288,11 +266,9 @@ class D3D12TextureCache final : public TextureCache {
   struct SRVDescriptorCachePage {
    public:
     explicit SRVDescriptorCachePage(ID3D12DescriptorHeap* heap)
-        : heap_(heap),
-          heap_start_(heap->GetCPUDescriptorHandleForHeapStart()) {}
+        : heap_(heap), heap_start_(heap->GetCPUDescriptorHandleForHeapStart()) {}
     SRVDescriptorCachePage(const SRVDescriptorCachePage& page) = delete;
-    SRVDescriptorCachePage& operator=(const SRVDescriptorCachePage& page) =
-        delete;
+    SRVDescriptorCachePage& operator=(const SRVDescriptorCachePage& page) = delete;
     SRVDescriptorCachePage(SRVDescriptorCachePage&& page) {
       std::swap(heap_, page.heap_);
       std::swap(heap_start_, page.heap_start_);
@@ -354,10 +330,8 @@ class D3D12TextureCache final : public TextureCache {
     bool uav_barrier_pending_ = false;
   };
 
-  explicit D3D12TextureCache(const RegisterFile& register_file,
-                             D3D12SharedMemory& shared_memory,
-                             uint32_t draw_resolution_scale_x,
-                             uint32_t draw_resolution_scale_y,
+  explicit D3D12TextureCache(const RegisterFile& register_file, D3D12SharedMemory& shared_memory,
+                             uint32_t draw_resolution_scale_x, uint32_t draw_resolution_scale_y,
                              D3D12CommandProcessor& command_processor,
                              bool bindless_resources_used);
 
@@ -365,14 +339,12 @@ class D3D12TextureCache final : public TextureCache {
 
   // Whether decompression is needed on the host (Direct3D only allows creation
   // of block-compressed textures with 4x4-aligned dimensions on PC).
-  bool IsDecompressionNeeded(xenos::TextureFormat format, uint32_t width,
-                             uint32_t height) const;
+  bool IsDecompressionNeeded(xenos::TextureFormat format, uint32_t width, uint32_t height) const;
   DXGI_FORMAT GetDXGIResourceFormat(xenos::TextureFormat format, uint32_t width,
                                     uint32_t height) const {
     const HostFormat& host_format = host_formats_[uint32_t(format)];
-    return IsDecompressionNeeded(format, width, height)
-               ? host_format.dxgi_format_uncompressed
-               : host_format.dxgi_format_resource;
+    return IsDecompressionNeeded(format, width, height) ? host_format.dxgi_format_uncompressed
+                                                        : host_format.dxgi_format_resource;
   }
   DXGI_FORMAT GetDXGIResourceFormat(TextureKey key) const {
     return GetDXGIResourceFormat(key.format, key.GetWidth(), key.GetHeight());
@@ -380,9 +352,8 @@ class D3D12TextureCache final : public TextureCache {
   DXGI_FORMAT GetDXGIUnormFormat(xenos::TextureFormat format, uint32_t width,
                                  uint32_t height) const {
     const HostFormat& host_format = host_formats_[uint32_t(format)];
-    return IsDecompressionNeeded(format, width, height)
-               ? host_format.dxgi_format_uncompressed
-               : host_format.dxgi_format_unsigned;
+    return IsDecompressionNeeded(format, width, height) ? host_format.dxgi_format_uncompressed
+                                                        : host_format.dxgi_format_unsigned;
   }
   DXGI_FORMAT GetDXGIUnormFormat(TextureKey key) const {
     return GetDXGIUnormFormat(key.format, key.GetWidth(), key.GetHeight());
@@ -390,9 +361,8 @@ class D3D12TextureCache final : public TextureCache {
 
   LoadShaderIndex GetLoadShaderIndex(TextureKey key) const;
 
-  static constexpr bool AreDimensionsCompatible(
-      xenos::FetchOpDimension binding_dimension,
-      xenos::DataDimension resource_dimension) {
+  static constexpr bool AreDimensionsCompatible(xenos::FetchOpDimension binding_dimension,
+                                                xenos::DataDimension resource_dimension) {
     switch (binding_dimension) {
       case xenos::FetchOpDimension::k1D:
       case xenos::FetchOpDimension::k2D:
@@ -413,8 +383,7 @@ class D3D12TextureCache final : public TextureCache {
   uint32_t FindOrCreateTextureDescriptor(D3D12Texture& texture, bool is_signed,
                                          uint32_t host_swizzle);
   void ReleaseTextureDescriptor(uint32_t descriptor_index);
-  D3D12_CPU_DESCRIPTOR_HANDLE GetTextureDescriptorCPUHandle(
-      uint32_t descriptor_index) const;
+  D3D12_CPU_DESCRIPTOR_HANDLE GetTextureDescriptorCPUHandle(uint32_t descriptor_index) const;
 
   size_t GetScaledResolveBufferCount() const {
     assert_true(IsDrawResolutionScaled());
@@ -431,16 +400,14 @@ class D3D12TextureCache final : public TextureCache {
     // - 3 GB needs [0 GB ... 2 GB) and [1 GB ... 3 GB) - two buffers.
     // - 3.1 GB needs [0 GB ... 2 GB), [1 GB ... 3 GB) and [2 GB ... 3.1 GB) -
     //   three buffers.
-    uint64_t address_space_size =
-        uint64_t(SharedMemory::kBufferSize) *
-        (draw_resolution_scale_x() * draw_resolution_scale_y());
+    uint64_t address_space_size = uint64_t(SharedMemory::kBufferSize) *
+                                  (draw_resolution_scale_x() * draw_resolution_scale_y());
     return size_t((address_space_size - 1) >> 30);
   }
   // Returns indices of two scaled resolve virtual buffers that the location in
   // memory may be accessible through. May be the same if it's a location near
   // the beginning or the end of the address represented only by one buffer.
-  std::array<size_t, 2> GetPossibleScaledResolveBufferIndices(
-      uint64_t address_scaled) const {
+  std::array<size_t, 2> GetPossibleScaledResolveBufferIndices(uint64_t address_scaled) const {
     assert_true(IsDrawResolutionScaled());
     size_t address_gb = size_t(address_scaled >> 30);
     size_t max_index = GetScaledResolveBufferCount() - 1;
@@ -448,15 +415,13 @@ class D3D12TextureCache final : public TextureCache {
     //  +0.0 +0.5 +1.0 +1.5 +2.0 +2.5 +3.0 +3.5 +4.0 +4.5
     // |12________2________|1_________2________|
     //           |1_________2________|1_________12__|
-    return std::array<size_t, 2>{
-        std::min(address_gb, max_index),
-        std::min(std::max(address_gb, size_t(1)) - size_t(1), max_index)};
+    return std::array<size_t, 2>{std::min(address_gb, max_index),
+                                 std::min(std::max(address_gb, size_t(1)) - size_t(1), max_index)};
   }
   // The index is also the gigabyte offset of the buffer from the start of the
   // scaled physical memory address space.
   size_t GetCurrentScaledResolveBufferIndex() const {
-    return scaled_resolve_1gb_buffer_indices_
-        [scaled_resolve_current_range_start_scaled_ >> 30];
+    return scaled_resolve_1gb_buffer_indices_[scaled_resolve_current_range_start_scaled_ >> 30];
   }
   ScaledResolveVirtualBuffer& GetCurrentScaledResolveBuffer() {
     ScaledResolveVirtualBuffer* scaled_resolve_buffer =
@@ -473,11 +438,9 @@ class D3D12TextureCache final : public TextureCache {
   bool bindless_resources_used_;
 
   Microsoft::WRL::ComPtr<ID3D12RootSignature> load_root_signature_;
-  std::array<Microsoft::WRL::ComPtr<ID3D12PipelineState>, kLoadShaderCount>
-      load_pipelines_;
+  std::array<Microsoft::WRL::ComPtr<ID3D12PipelineState>, kLoadShaderCount> load_pipelines_;
   // Load pipelines for resolution-scaled resolve targets.
-  std::array<Microsoft::WRL::ComPtr<ID3D12PipelineState>, kLoadShaderCount>
-      load_pipelines_scaled_;
+  std::array<Microsoft::WRL::ComPtr<ID3D12PipelineState>, kLoadShaderCount> load_pipelines_scaled_;
 
   std::vector<SRVDescriptorCachePage> srv_descriptor_cache_;
   uint32_t srv_descriptor_cache_allocated_;
@@ -496,8 +459,7 @@ class D3D12TextureCache final : public TextureCache {
   Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> null_srv_descriptor_heap_;
   D3D12_CPU_DESCRIPTOR_HANDLE null_srv_descriptor_heap_start_;
 
-  std::array<D3D12TextureBinding, xenos::kTextureFetchConstantCount>
-      d3d12_texture_bindings_;
+  std::array<D3D12TextureBinding, xenos::kTextureFetchConstantCount> d3d12_texture_bindings_;
 
   // Unsupported texture formats used during this frame (for research and
   // testing).
@@ -526,44 +488,37 @@ class D3D12TextureCache final : public TextureCache {
   // Size is calculated the same as in GetScaledResolveBufferCount.
   std::array<std::unique_ptr<ScaledResolveVirtualBuffer>,
              (uint64_t(SharedMemory::kBufferSize) *
-                  (kMaxDrawResolutionScaleAlongAxis *
-                   kMaxDrawResolutionScaleAlongAxis) -
+                  (kMaxDrawResolutionScaleAlongAxis * kMaxDrawResolutionScaleAlongAxis) -
               1) /
                  (UINT32_C(1) << 30)>
       scaled_resolve_2gb_buffers_;
   // Not very big heaps (16 MB) because they are needed pretty sparsely. One
   // 2x-scaled 1280x720x32bpp texture is slighly bigger than 14 MB.
   static constexpr uint32_t kScaledResolveHeapSizeLog2 = 24;
-  static constexpr uint32_t kScaledResolveHeapSize =
-      uint32_t(1) << kScaledResolveHeapSizeLog2;
-  static_assert(
-      (kScaledResolveHeapSize % D3D12_TILED_RESOURCE_TILE_SIZE_IN_BYTES) == 0,
-      "Scaled resolve heap size must be a multiple of Direct3D tile size");
-  static_assert(
-      kScaledResolveHeapSizeLog2 <= SharedMemory::kBufferSizeLog2,
-      "Scaled resolve heaps are assumed to be wholly mappable irrespective of "
-      "resolution scale, never truncated, for example, if the scaled resolve "
-      "address space is 4.5 GB, but the heap size is 1 GB");
-  static_assert(
-      kScaledResolveHeapSizeLog2 <= 30,
-      "Scaled resolve heaps are assumed to only be wholly mappable to up to "
-      "two 2 GB buffers");
+  static constexpr uint32_t kScaledResolveHeapSize = uint32_t(1) << kScaledResolveHeapSizeLog2;
+  static_assert((kScaledResolveHeapSize % D3D12_TILED_RESOURCE_TILE_SIZE_IN_BYTES) == 0,
+                "Scaled resolve heap size must be a multiple of Direct3D tile size");
+  static_assert(kScaledResolveHeapSizeLog2 <= SharedMemory::kBufferSizeLog2,
+                "Scaled resolve heaps are assumed to be wholly mappable irrespective of "
+                "resolution scale, never truncated, for example, if the scaled resolve "
+                "address space is 4.5 GB, but the heap size is 1 GB");
+  static_assert(kScaledResolveHeapSizeLog2 <= 30,
+                "Scaled resolve heaps are assumed to only be wholly mappable to up to "
+                "two 2 GB buffers");
   // Resident portions of the tiled buffer.
   std::vector<Microsoft::WRL::ComPtr<ID3D12Heap>> scaled_resolve_heaps_;
   // Number of currently resident portions of the tiled buffer, for profiling.
   uint32_t scaled_resolve_heap_count_ = 0;
   // Current scaled resolve state.
   // For aliasing barrier placement, last owning buffer index for each of 1 GB.
-  size_t
-      scaled_resolve_1gb_buffer_indices_[(uint64_t(SharedMemory::kBufferSize) *
-                                              kMaxDrawResolutionScaleAlongAxis *
-                                              kMaxDrawResolutionScaleAlongAxis +
-                                          ((uint32_t(1) << 30) - 1)) >>
-                                         30];
+  size_t scaled_resolve_1gb_buffer_indices_[(uint64_t(SharedMemory::kBufferSize) *
+                                                 kMaxDrawResolutionScaleAlongAxis *
+                                                 kMaxDrawResolutionScaleAlongAxis +
+                                             ((uint32_t(1) << 30) - 1)) >>
+                                            30];
   // Range used in the last successful MakeScaledResolveRangeCurrent call.
   uint64_t scaled_resolve_current_range_start_scaled_;
   uint64_t scaled_resolve_current_range_length_scaled_;
 };
 
 }  // namespace rex::graphics::d3d12
-

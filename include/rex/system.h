@@ -38,4 +38,3 @@ enum class SimpleMessageBoxType {
 void ShowSimpleMessageBox(SimpleMessageBoxType type, std::string_view message);
 
 }  // namespace rex
-

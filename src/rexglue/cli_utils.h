@@ -20,9 +20,9 @@ namespace rexglue::cli {
  * Shared CLI context passed to command handlers
  */
 struct CliContext {
-    bool verbose = false;
-    bool force = false;  // Generate output despite validation errors
-    bool enableExceptionHandlers = false;  // Enable SEH exception handler generation
+  bool verbose = false;
+  bool force = false;                    // Generate output despite validation errors
+  bool enableExceptionHandlers = false;  // Enable SEH exception handler generation
 };
 
-} // namespace rexglue::cli
+}  // namespace rexglue::cli

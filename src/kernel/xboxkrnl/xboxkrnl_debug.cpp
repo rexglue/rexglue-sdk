@@ -9,23 +9,25 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
- // Disable warnings about unused parameters for kernel functions
+// Disable warnings about unused parameters for kernel functions
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
-#include <rex/debugging.h>
-#include <rex/logging.h>
-#include <rex/kernel/kernel_state.h>
-#include <rex/runtime/guest/function.h>
-#include <rex/runtime/guest/types.h>
+#include <rex/dbg.h>
 #include <rex/kernel/xboxkrnl/private.h>
-#include <rex/kernel/xthread.h>
-#include <rex/kernel/xtypes.h>
-#include <rex/kernel/xexception.h>
+#include <rex/logging.h>
+#include <rex/ppc/function.h>
+#include <rex/ppc/types.h>
+#include <rex/system/kernel_state.h>
+#include <rex/system/xexception.h>
+#include <rex/system/xthread.h>
+#include <rex/system/xtypes.h>
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::runtime::guest;
+using namespace rex::system;
 
-void DbgBreakPoint_entry() { rex::debug::Break(); }
+void DbgBreakPoint_entry() {
+  rex::debug::Break();
+}
 
 // https://msdn.microsoft.com/en-us/library/xcb2z8hs.aspx
 typedef struct {
@@ -36,14 +38,13 @@ typedef struct {
 } X_THREADNAME_INFO;
 static_assert_size(X_THREADNAME_INFO, 0x10);
 
-void HandleSetThreadName(pointer_t<X_EXCEPTION_RECORD> record) {
+void HandleSetThreadName(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
   // SetThreadName. FFS.
   // https://msdn.microsoft.com/en-us/library/xcb2z8hs.aspx
 
   // TODO(benvanik): check record->number_parameters to make sure it's a
   // correct size.
-  auto thread_info =
-      reinterpret_cast<X_THREADNAME_INFO*>(&record->exception_information[0]);
+  auto thread_info = reinterpret_cast<X_THREADNAME_INFO*>(&record->exception_information[0]);
 
   assert_true(thread_info->type == 0x1000);
 
@@ -57,10 +58,8 @@ void HandleSetThreadName(pointer_t<X_EXCEPTION_RECORD> record) {
 
   // TODO(gibbed): cvar for thread name encoding for conversion, some games use
   // SJIS and there's no way to automatically know this.
-  auto name = std::string(
-      kernel_memory()->TranslateVirtual<const char*>(thread_info->name_ptr));
-  std::replace_if(
-      name.begin(), name.end(), [](auto c) { return c < 32 || c > 127; }, '?');
+  auto name = std::string(kernel_memory()->TranslateVirtual<const char*>(thread_info->name_ptr));
+  std::replace_if(name.begin(), name.end(), [](auto c) { return c < 32 || c > 127; }, '?');
 
   object_ref<XThread> thread;
   if (thread_info->thread_id == -1) {
@@ -105,7 +104,7 @@ typedef struct {
   rex::be<uint32_t> catchable_type_array_ptr;
 } x_s__ThrowInfo;
 
-void HandleCppException(pointer_t<X_EXCEPTION_RECORD> record) {
+void HandleCppException(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
   // C++ exception.
   // https://blogs.msdn.com/b/oldnewthing/archive/2010/07/30/10044061.aspx
   // http://www.drdobbs.com/visual-c-exception-handling-instrumentat/184416600
@@ -119,16 +118,14 @@ void HandleCppException(pointer_t<X_EXCEPTION_RECORD> record) {
   auto vftable_ptr = *reinterpret_cast<rex::be<uint32_t>*>(thrown);
 
   auto throw_info_ptr = record->exception_information[2];
-  auto throw_info =
-      kernel_memory()->TranslateVirtual<x_s__ThrowInfo*>(throw_info_ptr);
-  auto catchable_types =
-      kernel_memory()->TranslateVirtual<x_s__CatchableTypeArray*>(
-          throw_info->catchable_type_array_ptr);
+  auto throw_info = kernel_memory()->TranslateVirtual<x_s__ThrowInfo*>(throw_info_ptr);
+  auto catchable_types = kernel_memory()->TranslateVirtual<x_s__CatchableTypeArray*>(
+      throw_info->catchable_type_array_ptr);
 
   rex::debug::Break();
 }
 
-void RtlRaiseException_entry(pointer_t<X_EXCEPTION_RECORD> record) {
+void RtlRaiseException_entry(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
   switch (record->code) {
     case 0x406D1388: {
       HandleSetThreadName(record);
@@ -145,20 +142,22 @@ void RtlRaiseException_entry(pointer_t<X_EXCEPTION_RECORD> record) {
   rex::debug::Break();
 }
 
-void KeBugCheckEx_entry(dword_t code, dword_t param1, dword_t param2,
-                        dword_t param3, dword_t param4) {
-  REXKRNL_DEBUG("*** STOP: 0x{:08X} (0x{:08X}, 0x{:08X}, 0x{:08X}, 0x{:08X})", code,
-         param1, param2, param3, param4);
+void KeBugCheckEx_entry(ppc_u32_t code, ppc_u32_t param1, ppc_u32_t param2, ppc_u32_t param3,
+                        ppc_u32_t param4) {
+  REXKRNL_DEBUG("*** STOP: 0x{:08X} (0x{:08X}, 0x{:08X}, 0x{:08X}, 0x{:08X})", code, param1, param2,
+                param3, param4);
   fflush(stdout);
   rex::debug::Break();
   assert_always();
 }
 
-void KeBugCheck_entry(dword_t code) { KeBugCheckEx_entry(code, 0, 0, 0, 0); }
+void KeBugCheck_entry(ppc_u32_t code) {
+  KeBugCheckEx_entry(code, 0, 0, 0, 0);
+}
 
 }  // namespace rex::kernel::xboxkrnl
 
-GUEST_FUNCTION_HOOK(__imp__DbgBreakPoint, rex::kernel::xboxkrnl::DbgBreakPoint_entry)
-GUEST_FUNCTION_HOOK(__imp__RtlRaiseException, rex::kernel::xboxkrnl::RtlRaiseException_entry)
-GUEST_FUNCTION_HOOK(__imp__KeBugCheckEx, rex::kernel::xboxkrnl::KeBugCheckEx_entry)
-GUEST_FUNCTION_HOOK(__imp__KeBugCheck, rex::kernel::xboxkrnl::KeBugCheck_entry)
+PPC_HOOK(__imp__DbgBreakPoint, rex::kernel::xboxkrnl::DbgBreakPoint_entry)
+PPC_HOOK(__imp__RtlRaiseException, rex::kernel::xboxkrnl::RtlRaiseException_entry)
+PPC_HOOK(__imp__KeBugCheckEx, rex::kernel::xboxkrnl::KeBugCheckEx_entry)
+PPC_HOOK(__imp__KeBugCheck, rex::kernel::xboxkrnl::KeBugCheck_entry)

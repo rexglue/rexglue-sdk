@@ -10,22 +10,22 @@
  */
 
 #include <rex/kernel/xam/apps/xlivebase_app.h>
-
 #include <rex/logging.h>
 #include <rex/thread.h>
 
 namespace rex {
 namespace kernel {
 namespace xam {
+using namespace rex::system;
+using namespace rex::system::xam;
 namespace apps {
+using namespace rex::system;
 
-XLiveBaseApp::XLiveBaseApp(KernelState* kernel_state)
-    : App(kernel_state, 0xFC) {}
+XLiveBaseApp::XLiveBaseApp(KernelState* kernel_state) : App(kernel_state, 0xFC) {}
 
 // http://mb.mirage.org/bugzilla/xliveless/main.c
 
-X_HRESULT XLiveBaseApp::DispatchMessageSync(uint32_t message,
-                                            uint32_t buffer_ptr,
+X_HRESULT XLiveBaseApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
                                             uint32_t buffer_length) {
   // NOTE: buffer_length may be zero or valid.
   auto buffer = memory_->TranslateVirtual(buffer_ptr);
@@ -47,8 +47,7 @@ X_HRESULT XLiveBaseApp::DispatchMessageSync(uint32_t message,
       // Occurs if title calls XOnlineGetServiceInfo, expects dwServiceId
       // and pServiceInfo. pServiceInfo should contain pointer to
       // XONLINE_SERVICE_INFO structure.
-      REXKRNL_DEBUG("CXLiveLogon::GetServiceInfo({:08X}, {:08X})", buffer_ptr,
-             buffer_length);
+      REXKRNL_DEBUG("CXLiveLogon::GetServiceInfo({:08X}, {:08X})", buffer_ptr, buffer_length);
       return 0x80151802;  // ERROR_CONNECTION_INVALID
     }
     case 0x00058020: {
@@ -56,8 +55,8 @@ X_HRESULT XLiveBaseApp::DispatchMessageSync(uint32_t message,
       // We should create a XamEnumerate-able empty list here, but I'm not
       // sure of the format.
       // buffer_length seems to be the same ptr sent to 0x00058004.
-      REXKRNL_DEBUG("CXLiveFriends::Enumerate({:08X}, {:08X}) unimplemented",
-             buffer_ptr, buffer_length);
+      REXKRNL_DEBUG("CXLiveFriends::Enumerate({:08X}, {:08X}) unimplemented", buffer_ptr,
+                    buffer_length);
       return X_E_FAIL;
     }
     case 0x00058023: {
@@ -71,8 +70,7 @@ X_HRESULT XLiveBaseApp::DispatchMessageSync(uint32_t message,
       // Required to be successful for 4D530910 to detect signed-in profile
       // Doesn't seem to set anything in the given buffer, probably only takes
       // input
-      REXKRNL_DEBUG("XLiveBaseUnk58046({:08X}, {:08X}) unimplemented", buffer_ptr,
-             buffer_length);
+      REXKRNL_DEBUG("XLiveBaseUnk58046({:08X}, {:08X}) unimplemented", buffer_ptr, buffer_length);
       return X_E_SUCCESS;
     }
   }
@@ -86,4 +84,4 @@ X_HRESULT XLiveBaseApp::DispatchMessageSync(uint32_t message,
 }  // namespace apps
 }  // namespace xam
 }  // namespace kernel
-}  // namespace xe
+}  // namespace rex

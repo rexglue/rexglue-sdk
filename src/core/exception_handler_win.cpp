@@ -13,9 +13,10 @@
 
 #if REX_PLATFORM_WIN32
 
+#include "platform_win.h"
+
 #include <rex/assert.h>
 #include <rex/math.h>
-#include <rex/platform/win.h>
 
 namespace rex::arch {
 
@@ -58,21 +59,18 @@ LONG CALLBACK ExceptionHandlerCallback(PEXCEPTION_POINTERS ex_info) {
       Exception::AccessViolationOperation access_violation_operation;
       switch (ex_info->ExceptionRecord->ExceptionInformation[0]) {
         case 0:
-          access_violation_operation =
-              Exception::AccessViolationOperation::kRead;
+          access_violation_operation = Exception::AccessViolationOperation::kRead;
           break;
         case 1:
-          access_violation_operation =
-              Exception::AccessViolationOperation::kWrite;
+          access_violation_operation = Exception::AccessViolationOperation::kWrite;
           break;
         default:
-          access_violation_operation =
-              Exception::AccessViolationOperation::kUnknown;
+          access_violation_operation = Exception::AccessViolationOperation::kUnknown;
           break;
       }
-      ex.InitializeAccessViolation(
-          &thread_context, ex_info->ExceptionRecord->ExceptionInformation[1],
-          access_violation_operation);
+      ex.InitializeAccessViolation(&thread_context,
+                                   ex_info->ExceptionRecord->ExceptionInformation[1],
+                                   access_violation_operation);
     } break;
     default:
       // Unknown/unhandled type.
@@ -86,21 +84,16 @@ LONG CALLBACK ExceptionHandlerCallback(PEXCEPTION_POINTERS ex_info) {
       ex_info->ContextRecord->EFlags = thread_context.eflags;
       uint32_t modified_register_index;
       uint16_t modified_int_registers_remaining = ex.modified_int_registers();
-      while (rex::bit_scan_forward(modified_int_registers_remaining,
-                                  &modified_register_index)) {
-        modified_int_registers_remaining &=
-            ~(UINT16_C(1) << modified_register_index);
+      while (rex::bit_scan_forward(modified_int_registers_remaining, &modified_register_index)) {
+        modified_int_registers_remaining &= ~(UINT16_C(1) << modified_register_index);
         (&ex_info->ContextRecord->Rax)[modified_register_index] =
             thread_context.int_registers[modified_register_index];
       }
       uint16_t modified_xmm_registers_remaining = ex.modified_xmm_registers();
-      while (rex::bit_scan_forward(modified_xmm_registers_remaining,
-                                  &modified_register_index)) {
-        modified_xmm_registers_remaining &=
-            ~(UINT16_C(1) << modified_register_index);
+      while (rex::bit_scan_forward(modified_xmm_registers_remaining, &modified_register_index)) {
+        modified_xmm_registers_remaining &= ~(UINT16_C(1) << modified_register_index);
         std::memcpy(&ex_info->ContextRecord->Xmm0 + modified_register_index,
-                    &thread_context.xmm_registers[modified_register_index],
-                    sizeof(vec128_t));
+                    &thread_context.xmm_registers[modified_register_index], sizeof(vec128_t));
       }
       return EXCEPTION_CONTINUE_EXECUTION;
     }

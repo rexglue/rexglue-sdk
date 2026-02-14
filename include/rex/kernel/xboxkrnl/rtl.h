@@ -11,16 +11,14 @@
 
 #pragma once
 
-#include <rex/kernel/xtypes.h>
+#include <rex/system/xtypes.h>
 
 namespace rex::kernel::xboxkrnl {
 
 struct X_RTL_CRITICAL_SECTION;
 
-void xeRtlInitializeCriticalSection(X_RTL_CRITICAL_SECTION* cs,
-                                    uint32_t cs_ptr);
-X_STATUS xeRtlInitializeCriticalSectionAndSpinCount(X_RTL_CRITICAL_SECTION* cs,
-                                                    uint32_t cs_ptr,
+void xeRtlInitializeCriticalSection(X_RTL_CRITICAL_SECTION* cs, uint32_t cs_ptr);
+X_STATUS xeRtlInitializeCriticalSectionAndSpinCount(X_RTL_CRITICAL_SECTION* cs, uint32_t cs_ptr,
                                                     uint32_t spin_count);
 
 }  // namespace rex::kernel::xboxkrnl

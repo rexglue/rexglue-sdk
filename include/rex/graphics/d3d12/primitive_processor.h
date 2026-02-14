@@ -11,7 +11,6 @@
 
 #pragma once
 
-
 #include <cstdint>
 #include <deque>
 #include <memory>
@@ -28,8 +27,7 @@ class D3D12CommandProcessor;
 class D3D12PrimitiveProcessor final : public PrimitiveProcessor {
  public:
   D3D12PrimitiveProcessor(const RegisterFile& register_file, memory::Memory& memory,
-                          TraceWriter& trace_writer,
-                          SharedMemory& shared_memory,
+                          TraceWriter& trace_writer, SharedMemory& shared_memory,
                           D3D12CommandProcessor& command_processor)
       : PrimitiveProcessor(register_file, memory, trace_writer, shared_memory),
         command_processor_(command_processor) {}
@@ -44,25 +42,23 @@ class D3D12PrimitiveProcessor final : public PrimitiveProcessor {
   void BeginFrame();
   void EndFrame();
 
-  D3D12_GPU_VIRTUAL_ADDRESS GetBuiltinIndexBufferGpuAddress(
-      size_t handle) const {
+  D3D12_GPU_VIRTUAL_ADDRESS GetBuiltinIndexBufferGpuAddress(size_t handle) const {
     assert_not_null(builtin_index_buffer_);
     return D3D12_GPU_VIRTUAL_ADDRESS(builtin_index_buffer_gpu_address_ +
                                      GetBuiltinIndexBufferOffsetBytes(handle));
   }
-  D3D12_GPU_VIRTUAL_ADDRESS GetConvertedIndexBufferGpuAddress(
-      size_t handle) const {
+  D3D12_GPU_VIRTUAL_ADDRESS GetConvertedIndexBufferGpuAddress(size_t handle) const {
     return frame_index_buffers_[handle];
   }
 
  protected:
-  bool InitializeBuiltinIndexBuffer(
-      size_t size_bytes, std::function<void(void*)> fill_callback) override;
+  bool InitializeBuiltinIndexBuffer(size_t size_bytes,
+                                    std::function<void(void*)> fill_callback) override;
 
-  void* RequestHostConvertedIndexBufferForCurrentFrame(
-      xenos::IndexFormat format, uint32_t index_count, bool coalign_for_simd,
-      uint32_t coalignment_original_address,
-      size_t& backend_handle_out) override;
+  void* RequestHostConvertedIndexBufferForCurrentFrame(xenos::IndexFormat format,
+                                                       uint32_t index_count, bool coalign_for_simd,
+                                                       uint32_t coalignment_original_address,
+                                                       size_t& backend_handle_out) override;
 
  private:
   D3D12CommandProcessor& command_processor_;
@@ -83,4 +79,3 @@ class D3D12PrimitiveProcessor final : public PrimitiveProcessor {
 };
 
 }  // namespace rex::graphics::d3d12
-

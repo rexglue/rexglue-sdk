@@ -89,9 +89,9 @@
 
 #include <charconv>
 #include <cstdint>
-#include <optional>
 #include <filesystem>
 #include <functional>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -118,33 +118,33 @@ enum class FlagType { Boolean, Int32, Int64, Uint32, Uint64, Double, String };
 
 // Lifecycle: when can this flag be modified?
 enum class Lifecycle {
-    kInitOnly,       // Can only be set during initialization (before FinalizeInit)
-    kHotReload,      // Can be changed at runtime with immediate effect
-    kRequiresRestart // Can be changed, but only takes effect after restart
+  kInitOnly,        // Can only be set during initialization (before FinalizeInit)
+  kHotReload,       // Can be changed at runtime with immediate effect
+  kRequiresRestart  // Can be changed, but only takes effect after restart
 };
 
 // Validation constraints
 struct Constraints {
-    std::optional<double> min;
-    std::optional<double> max;
-    std::vector<std::string> allowed_values;
-    std::function<bool(std::string_view)> custom_validator;
+  std::optional<double> min;
+  std::optional<double> max;
+  std::vector<std::string> allowed_values;
+  std::function<bool(std::string_view)> custom_validator;
 
-    bool HasRangeConstraint() const { return min.has_value() || max.has_value(); }
-    bool HasAllowedValues() const { return !allowed_values.empty(); }
+  bool HasRangeConstraint() const { return min.has_value() || max.has_value(); }
+  bool HasAllowedValues() const { return !allowed_values.empty(); }
 };
 
 struct FlagEntry {
-    std::string name;
-    FlagType type;
-    std::string category;
-    std::string description;
-    std::function<bool(std::string_view)> setter;
-    std::function<std::string()> getter;
-    Lifecycle lifecycle = Lifecycle::kHotReload;
-    Constraints constraints;
-    std::string default_value;
-    bool is_debug_only = false;
+  std::string name;
+  FlagType type;
+  std::string category;
+  std::string description;
+  std::function<bool(std::string_view)> setter;
+  std::function<std::string()> getter;
+  Lifecycle lifecycle = Lifecycle::kHotReload;
+  Constraints constraints;
+  std::string default_value;
+  bool is_debug_only = false;
 };
 
 std::vector<FlagEntry>& GetRegistry();
@@ -176,61 +176,62 @@ void RegisterChangeCallback(std::string_view name, ChangeCallback callback);
 void UnregisterChangeCallbacks(std::string_view name);
 
 struct FlagRegistrar {
-    FlagEntry* entry_ptr = nullptr;
+  FlagEntry* entry_ptr = nullptr;
 
-    explicit FlagRegistrar(FlagEntry e) {
-        // Register immediately and store pointer to the registered entry for chaining
-        RegisterFlag(std::move(e));
-        auto& registry = GetRegistry();
-        entry_ptr = &registry.back();
-    }
+  explicit FlagRegistrar(FlagEntry e) {
+    // Register immediately and store pointer to the registered entry for chaining
+    RegisterFlag(std::move(e));
+    auto& registry = GetRegistry();
+    entry_ptr = &registry.back();
+  }
 
-    // Move constructor for copy-initialization in macros
-    FlagRegistrar(FlagRegistrar&& other) noexcept : entry_ptr(other.entry_ptr) {
-        other.entry_ptr = nullptr;
-    }
+  // Move constructor for copy-initialization in macros
+  FlagRegistrar(FlagRegistrar&& other) noexcept : entry_ptr(other.entry_ptr) {
+    other.entry_ptr = nullptr;
+  }
 
-    // Chain methods are rvalue-ref-qualified to work with temporaries
-    FlagRegistrar&& range(double min_val, double max_val) && {
-        entry_ptr->constraints.min = min_val;
-        entry_ptr->constraints.max = max_val;
-        return std::move(*this);
-    }
+  // Chain methods are rvalue-ref-qualified to work with temporaries
+  FlagRegistrar&& range(double min_val, double max_val) && {
+    entry_ptr->constraints.min = min_val;
+    entry_ptr->constraints.max = max_val;
+    return std::move(*this);
+  }
 
-    FlagRegistrar&& allowed(std::initializer_list<std::string> values) && {
-        entry_ptr->constraints.allowed_values = values;
-        return std::move(*this);
-    }
+  FlagRegistrar&& allowed(std::initializer_list<std::string> values) && {
+    entry_ptr->constraints.allowed_values = values;
+    return std::move(*this);
+  }
 
-    FlagRegistrar&& lifecycle(Lifecycle lc) && {
-        entry_ptr->lifecycle = lc;
-        return std::move(*this);
-    }
+  FlagRegistrar&& lifecycle(Lifecycle lc) && {
+    entry_ptr->lifecycle = lc;
+    return std::move(*this);
+  }
 
-    FlagRegistrar&& debug_only() && {
-        entry_ptr->is_debug_only = true;
-        return std::move(*this);
-    }
+  FlagRegistrar&& debug_only() && {
+    entry_ptr->is_debug_only = true;
+    return std::move(*this);
+  }
 
-    FlagRegistrar&& validator(std::function<bool(std::string_view)> fn) && {
-        entry_ptr->constraints.custom_validator = std::move(fn);
-        return std::move(*this);
-    }
+  FlagRegistrar&& validator(std::function<bool(std::string_view)> fn) && {
+    entry_ptr->constraints.custom_validator = std::move(fn);
+    return std::move(*this);
+  }
 
-    ~FlagRegistrar() = default;
+  ~FlagRegistrar() = default;
 
-    // Non-copyable (prevent double registration)
-    FlagRegistrar(const FlagRegistrar&) = delete;
-    FlagRegistrar& operator=(const FlagRegistrar&) = delete;
-    FlagRegistrar& operator=(FlagRegistrar&&) = delete;
+  // Non-copyable (prevent double registration)
+  FlagRegistrar(const FlagRegistrar&) = delete;
+  FlagRegistrar& operator=(const FlagRegistrar&) = delete;
+  FlagRegistrar& operator=(FlagRegistrar&&) = delete;
 };
 
 inline bool ParseDouble(std::string_view s, double& out) {
-    if (s.empty()) return false;
-    char* end = nullptr;
-    std::string str(s);
-    out = std::strtod(str.c_str(), &end);
-    return end != str.c_str() && *end == '\0';
+  if (s.empty())
+    return false;
+  char* end = nullptr;
+  std::string str(s);
+  out = std::strtod(str.c_str(), &end);
+  return end != str.c_str() && *end == '\0';
 }
 
 }  // namespace rex::cvar
@@ -250,136 +251,158 @@ inline bool ParseDouble(std::string_view s, double& out) {
 
 // Define cvars (use in one .cpp file per cvar)
 // The FlagRegistrar registers the flag in its destructor, allowing method chaining.
-#define REXCVAR_DEFINE_BOOL(name, default_val, category, desc) \
-    bool FLAGS_##name = (default_val); \
-    static auto _cvar_reg_##name = ::rex::cvar::FlagRegistrar({ \
-        #name, ::rex::cvar::FlagType::Boolean, category, desc, \
-        [](std::string_view v) { \
-            bool val = (v == "true" || v == "1" || v == "yes"); \
-            FLAGS_##name = val; \
-            return true; \
-        }, \
-        []() { return FLAGS_##name ? "true" : "false"; }, \
-        ::rex::cvar::Lifecycle::kHotReload, \
-        {}, \
-        (default_val) ? "true" : "false", \
-        false \
-    })
+#define REXCVAR_DEFINE_BOOL(name, default_val, category, desc)                          \
+  bool FLAGS_##name = (default_val);                                                    \
+  static auto _cvar_reg_##name =                                                        \
+      ::rex::cvar::FlagRegistrar({#name,                                                \
+                                  ::rex::cvar::FlagType::Boolean,                       \
+                                  category,                                             \
+                                  desc,                                                 \
+                                  [](std::string_view v) {                              \
+                                    bool val = (v == "true" || v == "1" || v == "yes"); \
+                                    FLAGS_##name = val;                                 \
+                                    return true;                                        \
+                                  },                                                    \
+                                  []() { return FLAGS_##name ? "true" : "false"; },     \
+                                  ::rex::cvar::Lifecycle::kHotReload,                   \
+                                  {},                                                   \
+                                  (default_val) ? "true" : "false",                     \
+                                  false})
 
-#define REXCVAR_DEFINE_INT32(name, default_val, category, desc) \
-    int32_t FLAGS_##name = (default_val); \
-    static auto _cvar_reg_##name = ::rex::cvar::FlagRegistrar({ \
-        #name, ::rex::cvar::FlagType::Int32, category, desc, \
-        [](std::string_view v) { \
-            int32_t val = 0; \
-            auto [ptr, ec] = std::from_chars(v.data(), v.data() + v.size(), val); \
-            if (ec != std::errc()) return false; \
-            FLAGS_##name = val; \
-            return true; \
-        }, \
-        []() { return std::to_string(FLAGS_##name); }, \
-        ::rex::cvar::Lifecycle::kHotReload, \
-        {}, \
-        std::to_string(default_val), \
-        false \
-    })
+#define REXCVAR_DEFINE_INT32(name, default_val, category, desc)                              \
+  int32_t FLAGS_##name = (default_val);                                                      \
+  static auto _cvar_reg_##name =                                                             \
+      ::rex::cvar::FlagRegistrar({#name,                                                     \
+                                  ::rex::cvar::FlagType::Int32,                              \
+                                  category,                                                  \
+                                  desc,                                                      \
+                                  [](std::string_view v) {                                   \
+                                    int32_t val = 0;                                         \
+                                    auto [ptr, ec] =                                         \
+                                        std::from_chars(v.data(), v.data() + v.size(), val); \
+                                    if (ec != std::errc())                                   \
+                                      return false;                                          \
+                                    FLAGS_##name = val;                                      \
+                                    return true;                                             \
+                                  },                                                         \
+                                  []() { return std::to_string(FLAGS_##name); },             \
+                                  ::rex::cvar::Lifecycle::kHotReload,                        \
+                                  {},                                                        \
+                                  std::to_string(default_val),                               \
+                                  false})
 
-#define REXCVAR_DEFINE_INT64(name, default_val, category, desc) \
-    int64_t FLAGS_##name = (default_val); \
-    static auto _cvar_reg_##name = ::rex::cvar::FlagRegistrar({ \
-        #name, ::rex::cvar::FlagType::Int64, category, desc, \
-        [](std::string_view v) { \
-            int64_t val = 0; \
-            auto [ptr, ec] = std::from_chars(v.data(), v.data() + v.size(), val); \
-            if (ec != std::errc()) return false; \
-            FLAGS_##name = val; \
-            return true; \
-        }, \
-        []() { return std::to_string(FLAGS_##name); }, \
-        ::rex::cvar::Lifecycle::kHotReload, \
-        {}, \
-        std::to_string(default_val), \
-        false \
-    })
+#define REXCVAR_DEFINE_INT64(name, default_val, category, desc)                              \
+  int64_t FLAGS_##name = (default_val);                                                      \
+  static auto _cvar_reg_##name =                                                             \
+      ::rex::cvar::FlagRegistrar({#name,                                                     \
+                                  ::rex::cvar::FlagType::Int64,                              \
+                                  category,                                                  \
+                                  desc,                                                      \
+                                  [](std::string_view v) {                                   \
+                                    int64_t val = 0;                                         \
+                                    auto [ptr, ec] =                                         \
+                                        std::from_chars(v.data(), v.data() + v.size(), val); \
+                                    if (ec != std::errc())                                   \
+                                      return false;                                          \
+                                    FLAGS_##name = val;                                      \
+                                    return true;                                             \
+                                  },                                                         \
+                                  []() { return std::to_string(FLAGS_##name); },             \
+                                  ::rex::cvar::Lifecycle::kHotReload,                        \
+                                  {},                                                        \
+                                  std::to_string(default_val),                               \
+                                  false})
 
-#define REXCVAR_DEFINE_UINT32(name, default_val, category, desc) \
-    uint32_t FLAGS_##name = (default_val); \
-    static auto _cvar_reg_##name = ::rex::cvar::FlagRegistrar({ \
-        #name, ::rex::cvar::FlagType::Uint32, category, desc, \
-        [](std::string_view v) { \
-            uint32_t val = 0; \
-            auto [ptr, ec] = std::from_chars(v.data(), v.data() + v.size(), val); \
-            if (ec != std::errc()) return false; \
-            FLAGS_##name = val; \
-            return true; \
-        }, \
-        []() { return std::to_string(FLAGS_##name); }, \
-        ::rex::cvar::Lifecycle::kHotReload, \
-        {}, \
-        std::to_string(default_val), \
-        false \
-    })
+#define REXCVAR_DEFINE_UINT32(name, default_val, category, desc)                             \
+  uint32_t FLAGS_##name = (default_val);                                                     \
+  static auto _cvar_reg_##name =                                                             \
+      ::rex::cvar::FlagRegistrar({#name,                                                     \
+                                  ::rex::cvar::FlagType::Uint32,                             \
+                                  category,                                                  \
+                                  desc,                                                      \
+                                  [](std::string_view v) {                                   \
+                                    uint32_t val = 0;                                        \
+                                    auto [ptr, ec] =                                         \
+                                        std::from_chars(v.data(), v.data() + v.size(), val); \
+                                    if (ec != std::errc())                                   \
+                                      return false;                                          \
+                                    FLAGS_##name = val;                                      \
+                                    return true;                                             \
+                                  },                                                         \
+                                  []() { return std::to_string(FLAGS_##name); },             \
+                                  ::rex::cvar::Lifecycle::kHotReload,                        \
+                                  {},                                                        \
+                                  std::to_string(default_val),                               \
+                                  false})
 
-#define REXCVAR_DEFINE_UINT64(name, default_val, category, desc) \
-    uint64_t FLAGS_##name = (default_val); \
-    static auto _cvar_reg_##name = ::rex::cvar::FlagRegistrar({ \
-        #name, ::rex::cvar::FlagType::Uint64, category, desc, \
-        [](std::string_view v) { \
-            uint64_t val = 0; \
-            auto [ptr, ec] = std::from_chars(v.data(), v.data() + v.size(), val); \
-            if (ec != std::errc()) return false; \
-            FLAGS_##name = val; \
-            return true; \
-        }, \
-        []() { return std::to_string(FLAGS_##name); }, \
-        ::rex::cvar::Lifecycle::kHotReload, \
-        {}, \
-        std::to_string(default_val), \
-        false \
-    })
+#define REXCVAR_DEFINE_UINT64(name, default_val, category, desc)                             \
+  uint64_t FLAGS_##name = (default_val);                                                     \
+  static auto _cvar_reg_##name =                                                             \
+      ::rex::cvar::FlagRegistrar({#name,                                                     \
+                                  ::rex::cvar::FlagType::Uint64,                             \
+                                  category,                                                  \
+                                  desc,                                                      \
+                                  [](std::string_view v) {                                   \
+                                    uint64_t val = 0;                                        \
+                                    auto [ptr, ec] =                                         \
+                                        std::from_chars(v.data(), v.data() + v.size(), val); \
+                                    if (ec != std::errc())                                   \
+                                      return false;                                          \
+                                    FLAGS_##name = val;                                      \
+                                    return true;                                             \
+                                  },                                                         \
+                                  []() { return std::to_string(FLAGS_##name); },             \
+                                  ::rex::cvar::Lifecycle::kHotReload,                        \
+                                  {},                                                        \
+                                  std::to_string(default_val),                               \
+                                  false})
 
-#define REXCVAR_DEFINE_DOUBLE(name, default_val, category, desc) \
-    double FLAGS_##name = (default_val); \
-    static auto _cvar_reg_##name = ::rex::cvar::FlagRegistrar({ \
-        #name, ::rex::cvar::FlagType::Double, category, desc, \
-        [](std::string_view v) { \
-            double val = 0; \
-            if (!::rex::cvar::ParseDouble(v, val)) return false; \
-            FLAGS_##name = val; \
-            return true; \
-        }, \
-        []() { return std::to_string(FLAGS_##name); }, \
-        ::rex::cvar::Lifecycle::kHotReload, \
-        {}, \
-        std::to_string(default_val), \
-        false \
-    })
+#define REXCVAR_DEFINE_DOUBLE(name, default_val, category, desc)                 \
+  double FLAGS_##name = (default_val);                                           \
+  static auto _cvar_reg_##name =                                                 \
+      ::rex::cvar::FlagRegistrar({#name,                                         \
+                                  ::rex::cvar::FlagType::Double,                 \
+                                  category,                                      \
+                                  desc,                                          \
+                                  [](std::string_view v) {                       \
+                                    double val = 0;                              \
+                                    if (!::rex::cvar::ParseDouble(v, val))       \
+                                      return false;                              \
+                                    FLAGS_##name = val;                          \
+                                    return true;                                 \
+                                  },                                             \
+                                  []() { return std::to_string(FLAGS_##name); }, \
+                                  ::rex::cvar::Lifecycle::kHotReload,            \
+                                  {},                                            \
+                                  std::to_string(default_val),                   \
+                                  false})
 
-#define REXCVAR_DEFINE_STRING(name, default_val, category, desc) \
-    std::string FLAGS_##name = (default_val); \
-    static auto _cvar_reg_##name = ::rex::cvar::FlagRegistrar({ \
-        #name, ::rex::cvar::FlagType::String, category, desc, \
-        [](std::string_view v) { \
-            FLAGS_##name = std::string(v); \
-            return true; \
-        }, \
-        []() { return FLAGS_##name; }, \
-        ::rex::cvar::Lifecycle::kHotReload, \
-        {}, \
-        default_val, \
-        false \
-    })
+#define REXCVAR_DEFINE_STRING(name, default_val, category, desc)                                 \
+  std::string FLAGS_##name = (default_val);                                                      \
+  static auto _cvar_reg_##name = ::rex::cvar::FlagRegistrar({#name,                              \
+                                                             ::rex::cvar::FlagType::String,      \
+                                                             category,                           \
+                                                             desc,                               \
+                                                             [](std::string_view v) {            \
+                                                               FLAGS_##name = std::string(v);    \
+                                                               return true;                      \
+                                                             },                                  \
+                                                             []() { return FLAGS_##name; },      \
+                                                             ::rex::cvar::Lifecycle::kHotReload, \
+                                                             {},                                 \
+                                                             default_val,                        \
+                                                             false})
 
 namespace rex::cvar {
 namespace testing {
 
 class ScopedLifecycleOverride {
-public:
-    ScopedLifecycleOverride();
-    ~ScopedLifecycleOverride();
+ public:
+  ScopedLifecycleOverride();
+  ~ScopedLifecycleOverride();
 
-    ScopedLifecycleOverride(const ScopedLifecycleOverride&) = delete;
-    ScopedLifecycleOverride& operator=(const ScopedLifecycleOverride&) = delete;
+  ScopedLifecycleOverride(const ScopedLifecycleOverride&) = delete;
+  ScopedLifecycleOverride& operator=(const ScopedLifecycleOverride&) = delete;
 };
 
 void ResetAllForTesting();

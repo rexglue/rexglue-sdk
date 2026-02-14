@@ -10,30 +10,25 @@
  */
 
 #include "stfs_container_entry.h"
-#include <rex/math.h>
 #include "stfs_container_file.h"
 
 #include <map>
 
+#include <rex/math.h>
+
 namespace rex::filesystem {
 
-StfsContainerEntry::StfsContainerEntry(Device* device, Entry* parent,
-                                       const std::string_view path,
+StfsContainerEntry::StfsContainerEntry(Device* device, Entry* parent, const std::string_view path,
                                        MultiFileHandles* files)
-    : Entry(device, parent, path),
-      files_(files),
-      data_offset_(0),
-      data_size_(0),
-      block_(0) {}
+    : Entry(device, parent, path), files_(files), data_offset_(0), data_size_(0), block_(0) {}
 
 StfsContainerEntry::~StfsContainerEntry() = default;
 
-std::unique_ptr<StfsContainerEntry> StfsContainerEntry::Create(
-    Device* device, Entry* parent, const std::string_view name,
-    MultiFileHandles* files) {
+std::unique_ptr<StfsContainerEntry> StfsContainerEntry::Create(Device* device, Entry* parent,
+                                                               const std::string_view name,
+                                                               MultiFileHandles* files) {
   auto path = rex::string::utf8_join_guest_paths(parent->path(), name);
-  auto entry =
-      std::make_unique<StfsContainerEntry>(device, parent, path, files);
+  auto entry = std::make_unique<StfsContainerEntry>(device, parent, path, files);
 
   return std::move(entry);
 }

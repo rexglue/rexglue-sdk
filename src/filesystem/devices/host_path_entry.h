@@ -35,9 +35,8 @@ class HostPathEntry : public Entry {
   X_STATUS Open(uint32_t desired_access, File** out_file) override;
 
   bool can_map() const override { return true; }
-  std::unique_ptr<memory::MappedMemory> OpenMapped(memory::MappedMemory::Mode mode,
-                                           size_t offset,
-                                           size_t length) override;
+  std::unique_ptr<memory::MappedMemory> OpenMapped(memory::MappedMemory::Mode mode, size_t offset,
+                                                   size_t length) override;
   void update() override;
 
  private:
@@ -51,4 +50,3 @@ class HostPathEntry : public Entry {
 };
 
 }  // namespace rex::filesystem
-

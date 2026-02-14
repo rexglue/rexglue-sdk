@@ -18,8 +18,8 @@
 #include <rex/audio/xma/context.h>
 #include <rex/audio/xma/register_file.h>
 #include <rex/bit.h>
-#include <rex/kernel/xthread.h>
 #include <rex/kernel.h>
+#include <rex/system/xthread.h>
 
 namespace rex::runtime {
 class Processor;
@@ -37,12 +37,10 @@ class XmaDecoder {
   memory::Memory* memory() const { return memory_; }
   runtime::Processor* processor() const { return processor_; }
 
-  X_STATUS Setup(kernel::KernelState* kernel_state);
+  X_STATUS Setup(system::KernelState* kernel_state);
   void Shutdown();
 
-  uint32_t context_array_ptr() const {
-    return register_file_[XmaRegister::ContextArrayAddress];
-  }
+  uint32_t context_array_ptr() const { return register_file_[XmaRegister::ContextArrayAddress]; }
 
   uint32_t AllocateContext();
   void ReleaseContext(uint32_t guest_ptr);
@@ -61,12 +59,11 @@ class XmaDecoder {
  private:
   void WorkerThreadMain();
 
-  static uint32_t MMIOReadRegisterThunk(void* ppc_context, XmaDecoder* as,
-                                        uint32_t addr) {
+  static uint32_t MMIOReadRegisterThunk(void* ppc_context, XmaDecoder* as, uint32_t addr) {
     return as->ReadRegister(addr);
   }
-  static void MMIOWriteRegisterThunk(void* ppc_context, XmaDecoder* as,
-                                     uint32_t addr, uint32_t value) {
+  static void MMIOWriteRegisterThunk(void* ppc_context, XmaDecoder* as, uint32_t addr,
+                                     uint32_t value) {
     as->WriteRegister(addr, value);
   }
 
@@ -75,7 +72,7 @@ class XmaDecoder {
   runtime::Processor* processor_ = nullptr;
 
   std::atomic<bool> worker_running_ = {false};
-  kernel::object_ref<kernel::XHostThread> worker_thread_;
+  system::object_ref<system::XHostThread> worker_thread_;
   std::unique_ptr<rex::thread::Event> work_event_ = nullptr;
 
   bool paused_ = false;

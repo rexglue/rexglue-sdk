@@ -13,15 +13,19 @@
 #pragma once
 
 #include <filesystem>
+#include <functional>
 #include <memory>
 
-#include <rex/runtime/export_resolver.h>
-#include <rex/kernel/xobject.h>  // object_ref
-#include <rex/memory.h>
 #include <rex/filesystem/vfs.h>
-#include <rex/kernel.h>
+#include <rex/memory.h>
+#include <rex/system/export_resolver.h>
+#include <rex/system/interfaces/audio.h>
+#include <rex/system/interfaces/graphics.h>
+#include <rex/system/interfaces/input.h>
+#include <rex/system/kernel_state.h>
+#include <rex/system/xobject.h>  // object_ref
 
-// Forward declaration for function mapping (defined in rex/runtime/guest/context.h)
+// Forward declaration for function mapping (defined in rex/ppc/context.h)
 struct PPCFuncMapping;
 
 namespace rex {
@@ -31,21 +35,42 @@ namespace runtime {
 class Processor;
 class ExportResolver;
 }  // namespace runtime
-namespace graphics {
-class GraphicsSystem;
-}  // namespace graphics
-namespace audio {
-class AudioSystem;
-}  // namespace audio
-namespace kernel {
+namespace system {
 class KernelState;
 class XThread;
-}  // namespace kernel
+}  // namespace system
 namespace ui {
 class WindowedAppContext;
 class Window;
 class ImGuiDrawer;
 }  // namespace ui
+
+/// Configuration for Runtime subsystem injection.
+/// Graphics and audio backends are provided by the caller, keeping the runtime
+/// library decoupled from concrete backend implementations.
+/// Audio uses a factory because AudioSystem requires a Processor* at
+/// construction time, which is only available during Setup().
+struct RuntimeConfig {
+  std::unique_ptr<system::IGraphicsSystem> graphics;
+  std::function<std::unique_ptr<system::IAudioSystem>(runtime::Processor*)> audio_factory;
+  std::function<std::unique_ptr<system::IInputSystem>(bool tool_mode)> input_factory;
+  bool tool_mode = false;
+};
+
+/// Helper macros for populating RuntimeConfig with concrete backends.
+/// Usage:
+///   rex::RuntimeConfig config;
+///   config.graphics      = REX_GRAPHICS_BACKEND(rex::graphics::vulkan::VulkanGraphicsSystem);
+///   config.audio_factory = REX_AUDIO_BACKEND(rex::audio::sdl::SDLAudioSystem);
+#define REX_GRAPHICS_BACKEND(Type) std::make_unique<Type>()
+#define REX_AUDIO_BACKEND(Type)                                                          \
+  [](::rex::runtime::Processor* _proc) -> std::unique_ptr<::rex::system::IAudioSystem> { \
+    return Type::Create(_proc);                                                          \
+  }
+#define REX_INPUT_BACKEND(SetupFunc)                                    \
+  [](bool _tool_mode) -> std::unique_ptr<::rex::system::IInputSystem> { \
+    return SetupFunc(_tool_mode);                                       \
+  }
 
 /**
  * Runtime class - the main entry point for recompiled applications.
@@ -72,9 +97,10 @@ class Runtime {
   // Subsystem accessors
   memory::Memory* memory() const { return memory_.get(); }
   rex::filesystem::VirtualFileSystem* file_system() const { return file_system_.get(); }
-  kernel::KernelState* kernel_state() const { return kernel_state_.get(); }
-  graphics::GraphicsSystem* graphics_system() const { return graphics_system_.get(); }
-  audio::AudioSystem* audio_system() const { return audio_system_.get(); }
+  system::KernelState* kernel_state() const { return kernel_state_.get(); }
+  system::IGraphicsSystem* graphics_system() const { return graphics_system_.get(); }
+  system::IAudioSystem* audio_system() const { return audio_system_.get(); }
+  system::IInputSystem* input_system() const { return input_system_.get(); }
 
   // Processor for IRQL and interrupt synchronization
   runtime::Processor* processor() const { return processor_.get(); }
@@ -97,14 +123,13 @@ class Runtime {
   ui::ImGuiDrawer* imgui_drawer() const { return imgui_drawer_; }
 
   // Setup the runtime environment
-  // tool_mode: If true, skips all but core initialization (for analysis tools like codegen)
-  X_STATUS Setup(bool tool_mode = false);
+  // config.tool_mode: If true, skips GPU initialization (for analysis tools)
+  X_STATUS Setup(RuntimeConfig config = {});
 
   // rexglue - initializes function dispatch table
   // func_mappings: null-terminated array of {guest_addr, host_func} pairs
-  X_STATUS Setup(uint32_t code_base, uint32_t code_size,
-                 uint32_t image_base, uint32_t image_size,
-                 const PPCFuncMapping* func_mappings);
+  X_STATUS Setup(uint32_t code_base, uint32_t code_size, uint32_t image_base, uint32_t image_size,
+                 const PPCFuncMapping* func_mappings, RuntimeConfig config = {});
 
   // Check if running in tool mode (no GPU)
   bool is_tool_mode() const { return tool_mode_; }
@@ -116,7 +141,7 @@ class Runtime {
 
   // Launch XEX module and return main thread
   // Call after LoadXexImage to start execution
-  kernel::object_ref<kernel::XThread> LaunchModule();
+  system::object_ref<system::XThread> LaunchModule();
 
   // Access the memory base pointer for recompiled code
   uint8_t* virtual_membase() const;
@@ -137,9 +162,10 @@ class Runtime {
   std::unique_ptr<memory::Memory> memory_;
   std::unique_ptr<runtime::Processor> processor_;
   std::unique_ptr<rex::filesystem::VirtualFileSystem> file_system_;
-  std::unique_ptr<kernel::KernelState> kernel_state_;
-  std::unique_ptr<graphics::GraphicsSystem> graphics_system_;
-  std::unique_ptr<audio::AudioSystem> audio_system_;
+  std::unique_ptr<system::KernelState> kernel_state_;
+  std::unique_ptr<system::IGraphicsSystem> graphics_system_;
+  std::unique_ptr<system::IAudioSystem> audio_system_;
+  std::unique_ptr<system::IInputSystem> input_system_;
   std::unique_ptr<runtime::ExportResolver> export_resolver_;
 
   static Runtime* instance_;
