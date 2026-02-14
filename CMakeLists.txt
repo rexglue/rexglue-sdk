@@ -54,11 +54,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_DEBUG_POSTFIX d)
 set(CMAKE_RELWITHDEBINFO_POSTFIX rd)
 
-# Position-independent code for all targets
-
-
-# Use large code model on Linux for linking with very large recompiled executables (35MB+)
 if(NOT WIN32)
+    # TODO: do we actually need this?
+    # Use large code model on Linux for linking with very large recompiled executables (35MB+)
+    # Position-independent code for all targets
     add_compile_options(-mcmodel=large)
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 endif()
