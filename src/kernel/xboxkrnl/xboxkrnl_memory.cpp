@@ -83,7 +83,10 @@ dword_result_t NtAllocateVirtualMemory_entry(lpdword_t base_addr_ptr,
   assert_not_null(region_size_ptr);
 
   // Set to TRUE when allocation is from devkit memory area.
-  assert_true(debug_memory == 0);
+  // assert_true(debug_memory == 0);
+  // just warn tf am i gunna do about it
+  if((uint32_t)debug_memory != 0)
+    REXKRNL_WARN("attmpted allocation to devkit memory area (debug_memory={})", (uint32_t)debug_memory);
 
   // This allocates memory from the kernel heap, which is initialized on startup
   // and shared by both the kernel implementation and user code.

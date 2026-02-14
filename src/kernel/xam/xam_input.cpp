@@ -19,6 +19,8 @@
 #include <rex/kernel/xam/private.h>
 #include <rex/kernel/xtypes.h>
 
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+
 namespace rex {
 namespace kernel {
 namespace xam {

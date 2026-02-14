@@ -646,7 +646,7 @@ class Window {
   // destroyed, or doesn't exist anymore, and thus it's in a non-interactive
   // state.
   bool IsClosed() const {
-    return phase_ < Phase::kOpening && phase_ > Phase::kOpenBeforeClosing;
+    return phase_ < Phase::kOpening || phase_ > Phase::kOpenBeforeClosing;
   }
 
   bool CanApplyState() const {

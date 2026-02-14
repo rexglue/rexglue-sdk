@@ -1019,7 +1019,7 @@ uint32_t xeRtlNtStatusToDosError(uint32_t source_status) {
 
 dword_result_t RtlNtStatusToDosError_entry(dword_t source_status) {
   uint32_t result = xeRtlNtStatusToDosError(source_status);
-  REXKRNL_IMPORT_INFO("RtlNtStatusToDosError", "status={:#x} -> {}", source_status, result);
+  REXKRNL_IMPORT_TRACE("RtlNtStatusToDosError", "status={:#x} -> {}", source_status, result);
   return result;
 }
 
