@@ -464,6 +464,7 @@ bool build_vsel(BuilderContext& ctx);
 bool build_vcmpbfp(BuilderContext& ctx);
 bool build_vcmpeqfp(BuilderContext& ctx);
 bool build_vcmpequb(BuilderContext& ctx);
+bool build_vcmpequh(BuilderContext& ctx);
 bool build_vcmpequw(BuilderContext& ctx);
 bool build_vcmpgefp(BuilderContext& ctx);
 bool build_vcmpgtfp(BuilderContext& ctx);
