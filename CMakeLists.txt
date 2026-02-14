@@ -8,6 +8,27 @@ project(ReXGlue
     DESCRIPTION "Xbox 360 Recompilation SDK"
 )
 
+#==========================================================
+# Build Options
+#==========================================================
+option(REXGLUE_BUILD_TESTS       "Build PPC instruction and unit tests" OFF)
+option(REXGLUE_ENABLE_SANITIZERS "Enable UndefinedBehaviorSanitizer" OFF)
+
+# Graphics backend selection
+# D3D12: Windows only, ON by default.
+# Vulkan: Cross-platform, ON by default on Linux, OFF by default on Windows.
+if(WIN32)
+    option(REXGLUE_USE_D3D12  "Enable D3D12 graphics backend" ON)
+    option(REXGLUE_USE_VULKAN "Enable Vulkan graphics backend" OFF)
+else()
+    set(REXGLUE_USE_D3D12 OFF)
+    option(REXGLUE_USE_VULKAN "Enable Vulkan graphics backend" ON)
+endif()
+
+if(NOT REXGLUE_USE_D3D12 AND NOT REXGLUE_USE_VULKAN)
+    message(FATAL_ERROR "At least one graphics backend must be enabled (REXGLUE_USE_D3D12 or REXGLUE_USE_VULKAN)")
+endif()
+
 # SDK install support
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
@@ -69,18 +90,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/out/${REX_PLATFORM}")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/out/${REX_PLATFORM}")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/out/${REX_PLATFORM}")
 
-# Build options (must be set before thirdparty for conditional dependencies)
-option(REXGLUE_BUILD_TESTS "Build PPC instruction tests" ON)
-option(REXGLUE_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
-
-# Graphics backend selection: D3D12 on Windows, Vulkan on Linux
-# Can be overridden to test Vulkan on Windows
-if(WIN32)
-    option(REXGLUE_USE_D3D12 "Use D3D12 graphics backend (Windows only)" ON)
-else()
-    option(REXGLUE_USE_D3D12 "Use D3D12 graphics backend (Windows only)" OFF)
-endif()
-
 # Sanitizer support for debugging memory corruption and undefined behavior
 if(REXGLUE_ENABLE_SANITIZERS)
     message(STATUS "Enabling UndefinedBehaviorSanitizer (UBSan only - ASan conflicts with custom memory mapping)")
@@ -129,11 +138,7 @@ message(STATUS "  Compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSIO
 message(STATUS "  Configurations: ${CMAKE_CONFIGURATION_TYPES}")
 message(STATUS "  Output Dir: ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 message(STATUS "  C++ Standard: C++${CMAKE_CXX_STANDARD}")
-if(REXGLUE_USE_D3D12)
-    message(STATUS "  Graphics Backend: D3D12")
-else()
-    message(STATUS "  Graphics Backend: Vulkan")
-endif()
+message(STATUS "  Graphics: D3D12=${REXGLUE_USE_D3D12} Vulkan=${REXGLUE_USE_VULKAN}")
 message(STATUS "===========================================")
 
 #==========================================================
