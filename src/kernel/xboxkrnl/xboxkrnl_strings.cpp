@@ -10,62 +10,335 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
- // Disable warnings about unused parameters for kernel functions
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
-#include <atomic>
-#include <rex/runtime/guest/context.h>
+#include <algorithm>
+#include <cctype>
+#include <cstring>
+
+#include <rex/kernel/format.h>
+#include <rex/kernel/flags.h>
 #include <rex/logging.h>
+#include <rex/memory/utils.h>
 
-// Minimal stub macro that doesn't need full kernel infrastructure
-#define STRING_STUB(name) \
-    extern "C" PPC_FUNC(name) { \
-        (void)base; \
-        static std::atomic<uint32_t> s_counter{0}; \
-        uint32_t call_num = ++s_counter; \
-        if (call_num <= 3) REXKRNL_DEBUG("{} [#{}] STUB - variadic not supported", #name, call_num); \
-        ctx.r3.u64 = 0; \
-    }
+using namespace rex::kernel::format;
 
-// DbgPrint - Debug print (outputs format string only, variadic args not supported)
+//=============================================================================
+// DbgPrint / XamDbgPrint
+//=============================================================================
+
 extern "C" PPC_FUNC(__imp__DbgPrint) {
-    uint32_t format_addr = ctx.r3.u32;
-    const char* format_str = nullptr;
-    if (format_addr != 0) {
-        format_str = reinterpret_cast<const char*>(base + format_addr);
-    }
-
-    if (format_str && format_str[0] != '\0') {
-        REXKRNL_INFO("DbgPrint: {}", format_str);
-    }
-
-    ctx.r3.u64 = 0;  // Return NTSTATUS success
-}
-
-// XamDbgPrint - XAM debug print (outputs format string only, variadic args not supported)
-extern "C" PPC_FUNC(__imp__XamDbgPrint) {
-    uint32_t format_addr = ctx.r3.u32;
-    const char* format_str = nullptr;
-    if (format_addr != 0) {
-        format_str = reinterpret_cast<const char*>(base + format_addr);
-    }
-
-    if (format_str && format_str[0] != '\0') {
-        REXKRNL_INFO("XamDbgPrint: {}", format_str);
-    }
-
+  uint32_t format_ptr = ctx.r3.u32;
+  if (!format_ptr) {
     ctx.r3.u64 = 0;
+    return;
+  }
+  auto format = reinterpret_cast<const uint8_t*>(PPC_RAW_ADDR(format_ptr));
+
+  StackArgList args(ctx, base, 1);
+  StringFormatData data(format);
+
+  int32_t count = format_core(base, data, args, false);
+  if (count > 0) {
+    auto str = data.str();
+    // Trim trailing whitespace
+    while (!str.empty() && std::isspace(static_cast<unsigned char>(str.back()))) {
+      str.pop_back();
+    }
+    REXKRNL_INFO("DbgPrint: {}", str);
+  }
+
+  ctx.r3.u64 = 0;  // NTSTATUS success
 }
 
-// sprintf family (variadic)
-STRING_STUB(__imp__sprintf)
-STRING_STUB(__imp___snprintf)
-STRING_STUB(__imp__swprintf)
-STRING_STUB(__imp___snwprintf)
+extern "C" PPC_FUNC(__imp__XamDbgPrint) {
+  uint32_t format_ptr = ctx.r3.u32;
+  if (!format_ptr) {
+    ctx.r3.u64 = 0;
+    return;
+  }
+  auto format = reinterpret_cast<const uint8_t*>(PPC_RAW_ADDR(format_ptr));
 
-// vsprintf family (va_list based)
-STRING_STUB(__imp__vsprintf)
-STRING_STUB(__imp___vsnprintf)
-STRING_STUB(__imp__vswprintf)
-STRING_STUB(__imp___vsnwprintf)
-STRING_STUB(__imp___vscwprintf)
+  StackArgList args(ctx, base, 1);
+  StringFormatData data(format);
+
+  int32_t count = format_core(base, data, args, false);
+  if (count > 0) {
+    auto str = data.str();
+    while (!str.empty() && std::isspace(static_cast<unsigned char>(str.back()))) {
+      str.pop_back();
+    }
+    REXKRNL_INFO("XamDbgPrint: {}", str);
+  }
+
+  ctx.r3.u64 = 0;
+}
+
+//=============================================================================
+// sprintf / _snprintf (narrow, stack varargs)
+//=============================================================================
+
+extern "C" PPC_FUNC(__imp__sprintf) {
+  uint32_t buffer_ptr = ctx.r3.u32;
+  uint32_t format_ptr = ctx.r4.u32;
+
+  if (buffer_ptr == 0 || format_ptr == 0) {
+    ctx.r3.u64 = static_cast<uint64_t>(-1);
+    return;
+  }
+
+  auto buffer = reinterpret_cast<uint8_t*>(PPC_RAW_ADDR(buffer_ptr));
+  auto format = reinterpret_cast<const uint8_t*>(PPC_RAW_ADDR(format_ptr));
+
+  StackArgList args(ctx, base, 2);
+  StringFormatData data(format);
+
+  int32_t count = format_core(base, data, args, false);
+  if (count <= 0) {
+    buffer[0] = '\0';
+  } else {
+    std::memcpy(buffer, data.str().c_str(), count);
+    buffer[count] = '\0';
+  }
+  ctx.r3.u64 = count;
+}
+
+extern "C" PPC_FUNC(__imp___snprintf) {
+  uint32_t buffer_ptr = ctx.r3.u32;
+  int32_t buffer_count = static_cast<int32_t>(ctx.r4.u32);
+  uint32_t format_ptr = ctx.r5.u32;
+
+  if (buffer_ptr == 0 || buffer_count <= 0 || format_ptr == 0) {
+    ctx.r3.u64 = static_cast<uint64_t>(-1);
+    return;
+  }
+
+  auto buffer = reinterpret_cast<uint8_t*>(PPC_RAW_ADDR(buffer_ptr));
+  auto format = reinterpret_cast<const uint8_t*>(PPC_RAW_ADDR(format_ptr));
+
+  StackArgList args(ctx, base, 3);
+  StringFormatData data(format);
+
+  int32_t count = format_core(base, data, args, false);
+  if (count < 0) {
+    if (buffer_count > 0) {
+      buffer[0] = '\0';
+    }
+  } else if (count <= buffer_count) {
+    std::memcpy(buffer, data.str().c_str(), count);
+    if (count < buffer_count) {
+      buffer[count] = '\0';
+    }
+  } else {
+    std::memcpy(buffer, data.str().c_str(), buffer_count);
+    count = -1;
+  }
+  ctx.r3.u64 = count;
+}
+
+//=============================================================================
+// swprintf / _snwprintf (wide, stack varargs)
+//=============================================================================
+
+extern "C" PPC_FUNC(__imp__swprintf) {
+  uint32_t buffer_ptr = ctx.r3.u32;
+  uint32_t format_ptr = ctx.r4.u32;
+
+  if (buffer_ptr == 0 || format_ptr == 0) {
+    ctx.r3.u64 = static_cast<uint64_t>(-1);
+    return;
+  }
+
+  auto buffer = reinterpret_cast<uint16_t*>(PPC_RAW_ADDR(buffer_ptr));
+  auto format = reinterpret_cast<const uint16_t*>(PPC_RAW_ADDR(format_ptr));
+
+  StackArgList args(ctx, base, 2);
+  WideStringFormatData data(format);
+
+  int32_t count = format_core(base, data, args, true);
+  if (count <= 0) {
+    buffer[0] = '\0';
+  } else {
+    rex::memory::copy_and_swap(buffer, reinterpret_cast<const uint16_t*>(data.wstr().c_str()), count);
+    buffer[count] = '\0';
+  }
+  ctx.r3.u64 = count;
+}
+
+extern "C" PPC_FUNC(__imp___snwprintf) {
+  uint32_t buffer_ptr = ctx.r3.u32;
+  int32_t buffer_count = static_cast<int32_t>(ctx.r4.u32);
+  uint32_t format_ptr = ctx.r5.u32;
+
+  if (buffer_ptr == 0 || buffer_count <= 0 || format_ptr == 0) {
+    ctx.r3.u64 = static_cast<uint64_t>(-1);
+    return;
+  }
+
+  auto buffer = reinterpret_cast<uint16_t*>(PPC_RAW_ADDR(buffer_ptr));
+  auto format = reinterpret_cast<const uint16_t*>(PPC_RAW_ADDR(format_ptr));
+
+  StackArgList args(ctx, base, 3);
+  WideStringFormatData data(format);
+
+  int32_t count = format_core(base, data, args, true);
+  if (count < 0) {
+    if (buffer_count > 0) {
+      buffer[0] = '\0';
+    }
+  } else if (count <= buffer_count) {
+    rex::memory::copy_and_swap(buffer, reinterpret_cast<const uint16_t*>(data.wstr().c_str()), count);
+    if (count < buffer_count) {
+      buffer[count] = '\0';
+    }
+  } else {
+    rex::memory::copy_and_swap(buffer, reinterpret_cast<const uint16_t*>(data.wstr().c_str()), buffer_count);
+    count = -1;
+  }
+  ctx.r3.u64 = count;
+}
+
+//=============================================================================
+// vsprintf / _vsnprintf (narrow, va_list from memory)
+//=============================================================================
+
+extern "C" PPC_FUNC(__imp__vsprintf) {
+  uint32_t buffer_ptr = ctx.r3.u32;
+  uint32_t format_ptr = ctx.r4.u32;
+  uint32_t arg_ptr = ctx.r5.u32;
+
+  if (buffer_ptr == 0 || format_ptr == 0) {
+    ctx.r3.u64 = static_cast<uint64_t>(-1);
+    return;
+  }
+
+  auto buffer = reinterpret_cast<uint8_t*>(PPC_RAW_ADDR(buffer_ptr));
+  auto format = reinterpret_cast<const uint8_t*>(PPC_RAW_ADDR(format_ptr));
+
+  ArrayArgList args(base, arg_ptr);
+  StringFormatData data(format);
+
+  int32_t count = format_core(base, data, args, false);
+  if (count <= 0) {
+    buffer[0] = '\0';
+  } else {
+    std::memcpy(buffer, data.str().c_str(), count);
+    buffer[count] = '\0';
+  }
+  ctx.r3.u64 = count;
+}
+
+extern "C" PPC_FUNC(__imp___vsnprintf) {
+  uint32_t buffer_ptr = ctx.r3.u32;
+  int32_t buffer_count = static_cast<int32_t>(ctx.r4.u32);
+  uint32_t format_ptr = ctx.r5.u32;
+  uint32_t arg_ptr = ctx.r6.u32;
+
+  if (buffer_ptr == 0 || buffer_count <= 0 || format_ptr == 0) {
+    ctx.r3.u64 = static_cast<uint64_t>(-1);
+    return;
+  }
+
+  auto buffer = reinterpret_cast<uint8_t*>(PPC_RAW_ADDR(buffer_ptr));
+  auto format = reinterpret_cast<const uint8_t*>(PPC_RAW_ADDR(format_ptr));
+
+  ArrayArgList args(base, arg_ptr);
+  StringFormatData data(format);
+
+  int32_t count = format_core(base, data, args, false);
+  if (count < 0) {
+    if (buffer_count > 0) {
+      buffer[0] = '\0';
+    }
+  } else if (count <= buffer_count) {
+    std::memcpy(buffer, data.str().c_str(), count);
+    if (count < buffer_count) {
+      buffer[count] = '\0';
+    }
+  } else {
+    std::memcpy(buffer, data.str().c_str(), buffer_count);
+  }
+  ctx.r3.u64 = count;
+}
+
+//=============================================================================
+// vswprintf / _vsnwprintf / _vscwprintf (wide, va_list from memory)
+//=============================================================================
+
+extern "C" PPC_FUNC(__imp__vswprintf) {
+  uint32_t buffer_ptr = ctx.r3.u32;
+  uint32_t format_ptr = ctx.r4.u32;
+  uint32_t arg_ptr = ctx.r5.u32;
+
+  if (buffer_ptr == 0 || format_ptr == 0) {
+    ctx.r3.u64 = static_cast<uint64_t>(-1);
+    return;
+  }
+
+  auto buffer = reinterpret_cast<uint16_t*>(PPC_RAW_ADDR(buffer_ptr));
+  auto format = reinterpret_cast<const uint16_t*>(PPC_RAW_ADDR(format_ptr));
+
+  ArrayArgList args(base, arg_ptr);
+  WideStringFormatData data(format);
+
+  int32_t count = format_core(base, data, args, true);
+  if (count <= 0) {
+    buffer[0] = '\0';
+  } else {
+    rex::memory::copy_and_swap(buffer, reinterpret_cast<const uint16_t*>(data.wstr().c_str()), count);
+    buffer[count] = '\0';
+  }
+  ctx.r3.u64 = count;
+}
+
+extern "C" PPC_FUNC(__imp___vsnwprintf) {
+  uint32_t buffer_ptr = ctx.r3.u32;
+  int32_t buffer_count = static_cast<int32_t>(ctx.r4.u32);
+  uint32_t format_ptr = ctx.r5.u32;
+  uint32_t arg_ptr = ctx.r6.u32;
+
+  if (buffer_ptr == 0 || buffer_count <= 0 || format_ptr == 0) {
+    ctx.r3.u64 = static_cast<uint64_t>(-1);
+    return;
+  }
+
+  auto buffer = reinterpret_cast<uint16_t*>(PPC_RAW_ADDR(buffer_ptr));
+  auto format = reinterpret_cast<const uint16_t*>(PPC_RAW_ADDR(format_ptr));
+
+  ArrayArgList args(base, arg_ptr);
+  WideStringFormatData data(format);
+
+  int32_t count = format_core(base, data, args, true);
+  if (count < 0) {
+    if (buffer_count > 0) {
+      buffer[0] = '\0';
+    }
+  } else if (count <= buffer_count) {
+    rex::memory::copy_and_swap(buffer, reinterpret_cast<const uint16_t*>(data.wstr().c_str()), count);
+    if (count < buffer_count) {
+      buffer[count] = '\0';
+    }
+  } else {
+    rex::memory::copy_and_swap(buffer, reinterpret_cast<const uint16_t*>(data.wstr().c_str()), buffer_count);
+  }
+  ctx.r3.u64 = count;
+}
+
+extern "C" PPC_FUNC(__imp___vscwprintf) {
+  uint32_t format_ptr = ctx.r3.u32;
+  uint32_t arg_ptr = ctx.r4.u32;
+
+  if (format_ptr == 0) {
+    ctx.r3.u64 = static_cast<uint64_t>(-1);
+    return;
+  }
+
+  auto format = reinterpret_cast<const uint16_t*>(PPC_RAW_ADDR(format_ptr));
+
+  ArrayArgList args(base, arg_ptr);
+  WideCountFormatData data(format);
+
+  int32_t count = format_core(base, data, args, true);
+  assert_true(count < 0 || data.count() == count);
+  ctx.r3.u64 = count;
+}
