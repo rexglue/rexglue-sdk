@@ -206,6 +206,7 @@ std::string generate_main_cpp(const AppNameParts& names) {
     content += "#include \"generated/" + names.snake_case + "_config.h\"\n";
     content += "#include \"generated/" + names.snake_case + "_init.h\"\n";
     content += "\n";
+    content += "#include <rex/cvar.h>\n";
     content += "#include <rex/filesystem.h>\n";
     content += "#include <rex/runtime.h>\n";
     content += "#include <rex/logging.h>\n";
@@ -268,9 +269,16 @@ std::string generate_main_cpp(const AppNameParts& names) {
     content += "            game_dir = exe_dir / \"assets\";\n";
     content += "        }\n";
     content += "\n";
-    content += "        // Initialize logging\n";
-    content += "        auto log_file = exe_dir / \"" + names.snake_case + ".log\";\n";
-    content += "        rex::InitLogging(log_file.string().c_str(), spdlog::level::debug);\n";
+    content += "        std::string log_file_cvar = REXCVAR_GET(log_file);\n";
+    content += "        std::string log_level_str = REXCVAR_GET(log_level);\n";
+    content += "        if (REXCVAR_GET(log_verbose) && log_level_str == \"info\") {\n";
+    content += "            log_level_str = \"trace\";\n";
+    content += "        }\n";
+    content += "        auto log_config = rex::BuildLogConfig(\n";
+    content += "            log_file_cvar.empty() ? nullptr : log_file_cvar.c_str(),\n";
+    content += "            log_level_str, {});\n";
+    content += "        rex::InitLogging(log_config);\n";
+    content += "        rex::RegisterLogLevelCallback();\n";
     content += "        REXLOG_INFO(\"" + names.snake_case + " starting\");\n";
     content += "        REXLOG_INFO(\"  Game directory: {}\", game_dir.string());\n";
     content += "\n";
