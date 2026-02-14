@@ -58,8 +58,8 @@ set(REXGRAPHICS_VULKAN_SOURCES
     vulkan/texture_cache.cpp
 )
 
-# D3D12 backend (Windows only)
-if(WIN32)
+# D3D12 backend
+if(REXGLUE_USE_D3D12)
     # DXBC third-party dependency
     set(REXGRAPHICS_DXBC_THIRDPARTY_SOURCES
         ${CMAKE_SOURCE_DIR}/thirdparty/dxbc/DXBCChecksum.cpp
@@ -93,12 +93,13 @@ endif()
 set(REXGRAPHICS_SOURCES
     ${REXGRAPHICS_CORE_SOURCES}
     ${REXGRAPHICS_SYSTEM_SOURCES}
-    ${REXGRAPHICS_SPIRV_SOURCES}
-    ${REXGRAPHICS_VULKAN_SOURCES}
 )
 
-# Add D3D12 sources on Windows
-if(WIN32)
+if(REXGLUE_USE_VULKAN)
+    list(APPEND REXGRAPHICS_SOURCES ${REXGRAPHICS_SPIRV_SOURCES} ${REXGRAPHICS_VULKAN_SOURCES})
+endif()
+
+if(REXGLUE_USE_D3D12)
     list(APPEND REXGRAPHICS_SOURCES ${REXGRAPHICS_DXBC_THIRDPARTY_SOURCES} ${REXGRAPHICS_DXBC_SOURCES} ${REXGRAPHICS_D3D12_SOURCES})
 endif()
 
@@ -118,20 +119,24 @@ target_link_libraries(rexgraphics PUBLIC
     rexcore
     rexkernel
     rexui
-    volk::volk
-    glslang::SPIRV
-    # Snappy::snappy - TODO(tomc): Enable on other platforms once the RTTI linking issue is resolved
     xxHash::xxhash
-    GPUOpen::VulkanMemoryAllocator
+    snappy
 )
 
-# D3D12 dependencies (Windows only)
-if(WIN32)
+if(REXGLUE_USE_VULKAN)
+    target_link_libraries(rexgraphics PUBLIC
+        volk::volk
+        glslang::SPIRV
+        GPUOpen::VulkanMemoryAllocator
+    )
+    target_compile_definitions(rexgraphics PUBLIC REX_HAS_VULKAN=1)
+endif()
+
+if(REXGLUE_USE_D3D12)
     target_link_libraries(rexgraphics PUBLIC
         d3d12
         dxgi
         dxguid
-        snappy
     )
     target_compile_definitions(rexgraphics PUBLIC REX_HAS_D3D12=1)
 endif()
