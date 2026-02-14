@@ -521,6 +521,7 @@ static const std::unordered_map<int, Builder>& GetDispatchTable()
         { PPC_INST_VSLO128, build_vslo },
         { PPC_INST_VSR, build_vsr },
         { PPC_INST_VSRH, build_vsrh },
+        { PPC_INST_VSRAB, build_vsrab },
         { PPC_INST_VSRAH, build_vsrah },
         { PPC_INST_VSRAW, build_vsraw },
         { PPC_INST_VSRAW128, build_vsraw },

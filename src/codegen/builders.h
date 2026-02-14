@@ -500,6 +500,7 @@ bool build_vslw(BuilderContext& ctx);
 bool build_vslo(BuilderContext& ctx);
 bool build_vsr(BuilderContext& ctx);
 bool build_vsrh(BuilderContext& ctx);
+bool build_vsrab(BuilderContext& ctx);
 bool build_vsrah(BuilderContext& ctx);
 bool build_vsraw(BuilderContext& ctx);
 bool build_vsrw(BuilderContext& ctx);

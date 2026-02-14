@@ -751,6 +751,15 @@ bool build_vsrh(BuilderContext& ctx)
     return true;
 }
 
+bool build_vsrab(BuilderContext& ctx)
+{
+    // TODO(tomc): vectorize
+    for (size_t i = 0; i < 16; i++)
+        ctx.println("\t{}.s8[{}] = {}.s8[{}] >> ({}.u8[{}] & 0x7);",
+            ctx.v(ctx.insn.operands[0]), i, ctx.v(ctx.insn.operands[1]), i, ctx.v(ctx.insn.operands[2]), i);
+    return true;
+}
+
 bool build_vsrah(BuilderContext& ctx)
 {
     // TODO(tomc): vectorize
