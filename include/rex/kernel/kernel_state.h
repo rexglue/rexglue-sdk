@@ -55,9 +55,6 @@
 #define REXKRNL_IMPORT_WARN(name, fmt, ...) \
   REXKRNL_WARN("[" name "] " fmt, ##__VA_ARGS__)
 
-#define REXKRNL_IMPORT_INFO(name, fmt, ...) \
-  REXKRNL_INFO("[" name "] " fmt, ##__VA_ARGS__)
-
 namespace rex {
 class Runtime;
 namespace stream {

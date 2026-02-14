@@ -28,7 +28,9 @@
 #include <rex/filesystem/vfs.h>
 #include <rex/filesystem/devices/host_path_device.h>
 #include <rex/filesystem/devices/null_device.h>
+#if REX_HAS_VULKAN
 #include <rex/graphics/vulkan/graphics_system.h>
+#endif
 #if REX_HAS_D3D12
 #include <rex/graphics/d3d12/graphics_system.h>
 #endif
@@ -134,12 +136,13 @@ X_STATUS Runtime::Setup(bool tool_mode) {
   // Create GPU system - with presentation if app_context is set
   bool with_presentation = (app_context_ != nullptr);
 #if REX_HAS_D3D12
-  // Use D3D12 backend on Windows for testing
   graphics_system_ = std::make_unique<graphics::d3d12::D3D12GraphicsSystem>();
   REXKRNL_INFO("Using D3D12 GPU backend");
-#else
+#elif REX_HAS_VULKAN
   graphics_system_ = std::make_unique<graphics::vulkan::VulkanGraphicsSystem>();
   REXKRNL_INFO("Using Vulkan GPU backend");
+#else
+  #error "No graphics backend enabled"
 #endif
   X_STATUS gpu_status = graphics_system_->Setup( processor_.get(), kernel_state_.get(),
                                                  app_context_,

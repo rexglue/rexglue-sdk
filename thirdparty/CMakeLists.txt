@@ -8,7 +8,6 @@ set(REQUIRED_SUBMODULES
     cli11
     libmspack
     FFmpeg
-    glslang
     tomlplusplus
     simde
     xxHash
@@ -17,14 +16,16 @@ set(REQUIRED_SUBMODULES
     date
     snappy
     utfcpp
-    volk
-    vulkan-headers
-    vulkan-memory-allocator
     imgui
     sdl2
-    spirv-headers
-    spirv-tools
 )
+
+if(REXGLUE_USE_VULKAN)
+    list(APPEND REQUIRED_SUBMODULES
+        volk vulkan-headers vulkan-memory-allocator
+        spirv-headers spirv-tools glslang
+    )
+endif()
 
 if(REXGLUE_BUILD_TESTS)
     list(APPEND REQUIRED_SUBMODULES catch2)
@@ -157,28 +158,27 @@ target_compile_options(snappy PRIVATE -w)
 add_subdirectory(utfcpp)
 
 #=============================================================================
-# Vulkan-Headers - Vulkan API headers (must come before volk/VMA)
+# Vulkan dependencies (only when Vulkan backend is enabled)
 #=============================================================================
-set(VULKAN_HEADERS_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
-set(VULKAN_HEADERS_ENABLE_INSTALL ON CACHE BOOL "" FORCE)
-set(VULKAN_HEADERS_ENABLE_MODULE OFF CACHE BOOL "" FORCE)
-add_subdirectory(vulkan-headers)
+if(REXGLUE_USE_VULKAN)
+    # Vulkan-Headers
+    set(VULKAN_HEADERS_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
+    set(VULKAN_HEADERS_ENABLE_INSTALL ON CACHE BOOL "" FORCE)
+    set(VULKAN_HEADERS_ENABLE_MODULE OFF CACHE BOOL "" FORCE)
+    add_subdirectory(vulkan-headers)
 
-#=============================================================================
-# VulkanMemoryAllocator - GPU memory allocator (header-only)
-#=============================================================================
-set(VMA_ENABLE_INSTALL ON CACHE BOOL "" FORCE)
-add_subdirectory(vulkan-memory-allocator)
+    # VulkanMemoryAllocator
+    set(VMA_ENABLE_INSTALL ON CACHE BOOL "" FORCE)
+    add_subdirectory(vulkan-memory-allocator)
 
-#=============================================================================
-# volk - Vulkan meta-loader
-#=============================================================================
-set(VOLK_INSTALL ON CACHE BOOL "" FORCE)
-set(VOLK_PULL_IN_VULKAN OFF CACHE BOOL "" FORCE)
-add_subdirectory(volk)
-target_link_libraries(volk PUBLIC Vulkan::Headers)
-target_link_libraries(volk_headers INTERFACE Vulkan::Headers)
-target_compile_options(volk PRIVATE -w)
+    # volk
+    set(VOLK_INSTALL ON CACHE BOOL "" FORCE)
+    set(VOLK_PULL_IN_VULKAN OFF CACHE BOOL "" FORCE)
+    add_subdirectory(volk)
+    target_link_libraries(volk PUBLIC Vulkan::Headers)
+    target_link_libraries(volk_headers INTERFACE Vulkan::Headers)
+    target_compile_options(volk PRIVATE -w)
+endif()
 
 #=============================================================================
 # imgui - Immediate mode GUI (no CMakeLists.txt, manual target)
@@ -232,7 +232,7 @@ add_subdirectory(sdl2)
 #=============================================================================
 # DXC API headers (vendored from DirectXShaderCompiler, runtime-loaded)
 #=============================================================================
-if(WIN32)
+if(REXGLUE_USE_D3D12)
     add_library(dxc-headers INTERFACE)
     target_include_directories(dxc-headers INTERFACE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/dxc/include>
@@ -240,44 +240,39 @@ if(WIN32)
 endif()
 
 #=============================================================================
-# SPIRV-Headers - SPIR-V header files (must come before SPIRV-Tools)
+# SPIR-V toolchain (only when Vulkan backend is enabled)
 #=============================================================================
-set(SPIRV_HEADERS_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
-set(SPIRV_HEADERS_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
-add_subdirectory(spirv-headers)
+if(REXGLUE_USE_VULKAN)
+    # SPIRV-Headers
+    set(SPIRV_HEADERS_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
+    set(SPIRV_HEADERS_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+    add_subdirectory(spirv-headers)
 
-#=============================================================================
-# SPIRV-Tools - SPIR-V optimizer/validator
-#=============================================================================
-set(SPIRV_SKIP_EXECUTABLES ON CACHE BOOL "" FORCE)
-set(SPIRV_SKIP_TESTS ON CACHE BOOL "" FORCE)
-set(SPIRV_WERROR OFF CACHE BOOL "" FORCE)
-set(SKIP_SPIRV_TOOLS_INSTALL ON CACHE BOOL "" FORCE)
-add_subdirectory(spirv-tools)
-target_compile_options(SPIRV-Tools-static PRIVATE -w)
+    # SPIRV-Tools
+    set(SPIRV_SKIP_EXECUTABLES ON CACHE BOOL "" FORCE)
+    set(SPIRV_SKIP_TESTS ON CACHE BOOL "" FORCE)
+    set(SPIRV_WERROR OFF CACHE BOOL "" FORCE)
+    set(SKIP_SPIRV_TOOLS_INSTALL ON CACHE BOOL "" FORCE)
+    add_subdirectory(spirv-tools)
+    target_compile_options(SPIRV-Tools-static PRIVATE -w)
 
-#=============================================================================
-# glslang/SPIRV - SPIR-V code generation for shader translation
-#=============================================================================
+    # glslang/SPIRV - SPIR-V code generation for shader translation
+    set(ENABLE_GLSLANG_BINARIES OFF CACHE BOOL "" FORCE)
+    set(ENABLE_SPVREMAPPER OFF CACHE BOOL "" FORCE)
+    set(ENABLE_HLSL OFF CACHE BOOL "" FORCE)
+    set(ENABLE_OPT OFF CACHE BOOL "" FORCE)
+    set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+    set(SKIP_GLSLANG_INSTALL ON CACHE BOOL "" FORCE)
+    # Enable RTTI for spv::Builder inheritance in SpirvBuilder
+    set(ENABLE_RTTI ON CACHE BOOL "" FORCE)
 
-# glslang is used only for its SPIR-V building capabilities
-# We disable everything we don't need to minimize build time
-set(ENABLE_GLSLANG_BINARIES OFF CACHE BOOL "" FORCE)
-set(ENABLE_SPVREMAPPER OFF CACHE BOOL "" FORCE)
-set(ENABLE_HLSL OFF CACHE BOOL "" FORCE)
-set(ENABLE_OPT OFF CACHE BOOL "" FORCE)
-set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
-set(SKIP_GLSLANG_INSTALL ON CACHE BOOL "" FORCE)
-# Enable RTTI for spv::Builder inheritance in SpirvBuilder
-set(ENABLE_RTTI ON CACHE BOOL "" FORCE)
-
-# Add glslang subdirectory
-# Set policy minimum for older glslang versions with outdated cmake_minimum_required
-set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "" FORCE)
-add_subdirectory(glslang)
-# Create alias for older glslang versions that don't provide it
-if(NOT TARGET glslang::SPIRV)
-    add_library(glslang::SPIRV ALIAS SPIRV)
+    # Set policy minimum for older glslang versions with outdated cmake_minimum_required
+    set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "" FORCE)
+    add_subdirectory(glslang)
+    # Create alias for older glslang versions that don't provide it
+    if(NOT TARGET glslang::SPIRV)
+        add_library(glslang::SPIRV ALIAS SPIRV)
+    endif()
 endif()
 
 #=============================================================================

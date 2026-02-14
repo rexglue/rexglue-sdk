@@ -107,10 +107,11 @@ dword_result_t NtCreateFile_entry(lpdword_t handle_out, dword_t desired_access,
                                   dword_t file_attributes, dword_t share_access,
                                   dword_t creation_disposition,
                                   dword_t create_options) {
-  uint64_t allocation_size = 0;  // is this correct???
-  if (allocation_size_ptr) {
-    allocation_size = *allocation_size_ptr;
-  }
+  // note used. maybe later
+  //uint64_t allocation_size = 0;  // is this correct???
+  //if (allocation_size_ptr) {
+  //  allocation_size = *allocation_size_ptr;
+  //}
 
   if (!object_attrs) {
     // ..? Some games do this. This parameter is not optional.
@@ -491,7 +492,7 @@ dword_result_t NtRemoveIoCompletion_entry(
     dword_t handle, lpdword_t key_context, lpdword_t apc_context,
     pointer_t<X_IO_STATUS_BLOCK> io_status_block, lpqword_t timeout) {
   X_STATUS status = X_STATUS_SUCCESS;
-  uint32_t info = 0;
+  // uint32_t info = 0;
 
   auto port =
       kernel_state()->object_table()->LookupObject<XIOCompletion>(handle);
@@ -588,7 +589,7 @@ dword_result_t NtQueryDirectoryFile_entry(
   }
 
   if (file) {
-    X_FILE_DIRECTORY_INFORMATION dir_info = {0};
+    // X_FILE_DIRECTORY_INFORMATION dir_info = {0};
     result =
         file->QueryDirectory(file_info_ptr, length, name, restart_scan != 0);
     if (XSUCCEEDED(result)) {

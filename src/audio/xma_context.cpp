@@ -710,13 +710,13 @@ size_t XmaContext::GetNextFrame(uint8_t* block, size_t size,
 
   uint64_t len = stream.Read(15);
   if ((len - 15) > stream.BitsRemaining()) {
-    assert_always("TODO");
+    // assert_always("TODO");
     // *bit_offset = next_packet;
     // return false;
     // return next_packet;
     return 0;
   } else if (len >= xma::kMaxFrameLength) {
-    assert_always("TODO");
+    // assert_always("TODO");
     // *bit_offset = next_packet;
     // return false;
     return 0;

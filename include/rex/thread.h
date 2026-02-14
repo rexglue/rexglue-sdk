@@ -47,19 +47,19 @@ class Fence {
 
   void Signal() {
     std::unique_lock<std::mutex> lock(mutex_);
-    signal_state_ |= SIGMASK_;
+    signal_state_.store(signal_state_.load() | SIGMASK_, std::memory_order_release);
     cond_.notify_all();
   }
 
   // Wait for the Fence to be signaled. Clears the signal on return.
   void Wait() {
     std::unique_lock<std::mutex> lock(mutex_);
-    assert_true((signal_state_ & ~SIGMASK_) < (SIGMASK_ - 1) &&
+    assert_true((signal_state_.load() & ~SIGMASK_) < (SIGMASK_ - 1) &&
                 "Too many threads?");
 
     // keep local copy to minimize loads
-    auto signal_state = ++signal_state_;
-    for (; !(signal_state & SIGMASK_); signal_state = signal_state_) {
+    auto signal_state = signal_state_.fetch_add(1) + 1;
+    for (; !(signal_state & SIGMASK_); signal_state = signal_state_.load()) {
       cond_.wait(lock);
     }
 
@@ -67,11 +67,11 @@ class Fence {
     assert_true((signal_state & ~SIGMASK_) > 0);  // wait_count > 0
     if (signal_state == (1 | SIGMASK_)) {         // wait_count == 1
       // Last one out turn off the lights
-      signal_state_ = 0;
+      signal_state_.store(0, std::memory_order_release);
     } else {
       // Oops, another thread is still waiting, set the new count and keep the
       // signal.
-      signal_state_ = --signal_state;
+      signal_state_.store(--signal_state, std::memory_order_release);
     }
   }
 
@@ -84,7 +84,7 @@ class Fence {
   std::condition_variable cond_;
   // Use the highest bit (sign bit) as the signal flag and the rest to count
   // waiting threads.
-  volatile state_t_ signal_state_;
+  std::atomic<state_t_> signal_state_;
 };
 
 // Returns the total number of logical processors in the host system.

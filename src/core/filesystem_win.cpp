@@ -151,7 +151,7 @@ class Win32FileHandle : public FileHandle {
       return false;
     }
   }
-  bool SetLength(size_t length) {
+  bool SetLength(size_t length) override {
     LARGE_INTEGER position;
     position.QuadPart = length;
     if (!SetFilePointerEx(handle_, position, nullptr, SEEK_SET)) {
@@ -208,7 +208,7 @@ std::unique_ptr<FileHandle> FileHandle::OpenExisting(
 #define COMBINE_TIME(t) (((uint64_t)t.dwHighDateTime << 32) | t.dwLowDateTime)
 
 bool GetInfo(const std::filesystem::path& path, FileInfo* out_info) {
-  std::memset(out_info, 0, sizeof(FileInfo));
+  *out_info = FileInfo{};
   WIN32_FILE_ATTRIBUTE_DATA data = {0};
   if (!GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &data)) {
     return false;

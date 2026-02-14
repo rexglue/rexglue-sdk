@@ -32,8 +32,8 @@ set(REXUI_VULKAN_SOURCES
     vulkan/vulkan_util.cpp
 )
 
-# D3D12 UI backend (Windows only)
-if(WIN32)
+# D3D12 UI backend
+if(REXGLUE_USE_D3D12)
     set(REXUI_D3D12_SOURCES
         d3d12/d3d12_cpu_descriptor_pool.cpp
         d3d12/d3d12_descriptor_heap_pool.cpp
@@ -64,12 +64,14 @@ endif()
 # Combine sources
 set(REXUI_SOURCES
     ${REXUI_CORE_SOURCES}
-    ${REXUI_VULKAN_SOURCES}
     ${REXUI_PLATFORM_SOURCES}
 )
 
-# Add D3D12 sources on Windows
-if(WIN32)
+if(REXGLUE_USE_VULKAN)
+    list(APPEND REXUI_SOURCES ${REXUI_VULKAN_SOURCES})
+endif()
+
+if(REXGLUE_USE_D3D12)
     list(APPEND REXUI_SOURCES ${REXUI_D3D12_SOURCES})
 endif()
 
@@ -86,23 +88,24 @@ target_include_directories(rexui PRIVATE
 
 target_link_libraries(rexui PUBLIC
     rexcore
-    volk::volk
     renderdoc
-    GPUOpen::VulkanMemoryAllocator
-    SPIRV-Tools-static
     imgui::imgui
 )
 
+if(REXGLUE_USE_VULKAN)
+    target_link_libraries(rexui PUBLIC
+        volk::volk
+        GPUOpen::VulkanMemoryAllocator
+        SPIRV-Tools-static
+    )
+endif()
+
 # Platform-specific dependencies
 if(WIN32)
-    # Windows libraries for DPI awareness, window composition, and DXGI
     target_link_libraries(rexui PUBLIC
-        dwmapi      # DwmSetWindowAttribute for window corner preferences
-        Shcore      # Per-monitor DPI awareness APIs
-        dxgi        # CreateDXGIFactory1 for monitor enumeration
+        dwmapi
+        Shcore
     )
-    # DirectXShaderCompiler headers for D3D12 backend (vendored, runtime-loaded)
-    target_link_libraries(rexui PUBLIC dxc-headers)
 else()
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(GTK3 REQUIRED gtk+-3.0)
@@ -115,6 +118,14 @@ else()
     target_link_libraries(rexui PUBLIC
         ${GTK3_LIBRARIES}
         ${X11_XCB_LIBRARIES}
+    )
+endif()
+
+# D3D12 backend dependencies
+if(REXGLUE_USE_D3D12)
+    target_link_libraries(rexui PUBLIC
+        dxgi
+        dxc-headers
     )
 endif()
 

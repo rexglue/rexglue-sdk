@@ -25,32 +25,32 @@ class WindowListener {
   virtual ~WindowListener() = default;
 
   // OnOpened will be followed by various initial setup listeners.
-  virtual void OnOpened(UISetupEvent& e) {}
-  virtual void OnClosing(UIEvent& e) {}
+  virtual void OnOpened(UISetupEvent&) {}
+  virtual void OnClosing(UIEvent&) {}
 
-  virtual void OnDpiChanged(UISetupEvent& e) {}
-  virtual void OnResize(UISetupEvent& e) {}
+  virtual void OnDpiChanged(UISetupEvent&) {}
+  virtual void OnResize(UISetupEvent&) {}
 
-  virtual void OnGotFocus(UISetupEvent& e) {}
-  virtual void OnLostFocus(UISetupEvent& e) {}
+  virtual void OnGotFocus(UISetupEvent&) {}
+  virtual void OnLostFocus(UISetupEvent&) {}
 
-  virtual void OnFileDrop(FileDropEvent& e) {}
+  virtual void OnFileDrop(FileDropEvent&) {}
 };
 
 class WindowInputListener {
  public:
   virtual ~WindowInputListener() = default;
 
-  virtual void OnKeyDown(KeyEvent& e) {}
-  virtual void OnKeyUp(KeyEvent& e) {}
-  virtual void OnKeyChar(KeyEvent& e) {}
+  virtual void OnKeyDown(KeyEvent&) {}
+  virtual void OnKeyUp(KeyEvent&) {}
+  virtual void OnKeyChar(KeyEvent&) {}
 
-  virtual void OnMouseDown(MouseEvent& e) {}
-  virtual void OnMouseMove(MouseEvent& e) {}
-  virtual void OnMouseUp(MouseEvent& e) {}
-  virtual void OnMouseWheel(MouseEvent& e) {}
+  virtual void OnMouseDown(MouseEvent&) {}
+  virtual void OnMouseMove(MouseEvent&) {}
+  virtual void OnMouseUp(MouseEvent&) {}
+  virtual void OnMouseWheel(MouseEvent&) {}
 
-  virtual void OnTouchEvent(TouchEvent& e) {}
+  virtual void OnTouchEvent(TouchEvent&) {}
 };
 
 }  // namespace ui

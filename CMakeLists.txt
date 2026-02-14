@@ -8,6 +8,27 @@ project(ReXGlue
     DESCRIPTION "Xbox 360 Recompilation SDK"
 )
 
+#==========================================================
+# Build Options
+#==========================================================
+option(REXGLUE_BUILD_TESTS       "Build PPC instruction and unit tests" OFF)
+option(REXGLUE_ENABLE_SANITIZERS "Enable UndefinedBehaviorSanitizer" OFF)
+
+# Graphics backend selection
+# D3D12: Windows only, ON by default.
+# Vulkan: Cross-platform, ON by default on Linux, OFF by default on Windows.
+if(WIN32)
+    option(REXGLUE_USE_D3D12  "Enable D3D12 graphics backend" ON)
+    option(REXGLUE_USE_VULKAN "Enable Vulkan graphics backend" OFF)
+else()
+    set(REXGLUE_USE_D3D12 OFF)
+    option(REXGLUE_USE_VULKAN "Enable Vulkan graphics backend" ON)
+endif()
+
+if(NOT REXGLUE_USE_D3D12 AND NOT REXGLUE_USE_VULKAN)
+    message(FATAL_ERROR "At least one graphics backend must be enabled (REXGLUE_USE_D3D12 or REXGLUE_USE_VULKAN)")
+endif()
+
 # SDK install support
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
@@ -33,19 +54,16 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_DEBUG_POSTFIX d)
 set(CMAKE_RELWITHDEBINFO_POSTFIX rd)
 
-# Position-independent code for all targets
-
-
-# Use large code model on Linux for linking with very large recompiled executables (35MB+)
 if(NOT WIN32)
+    # TODO: do we actually need this?
+    # Use large code model on Linux for linking with very large recompiled executables (35MB+)
+    # Position-independent code for all targets
     add_compile_options(-mcmodel=large)
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 endif()
 
 # Global compile options
 add_compile_options(
-    -Wall 
-    -Wextra
     -fno-strict-aliasing
     -ffp-model=strict
     $<$<CONFIG:DEBUG>:-g>
@@ -71,18 +89,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/out/${REX_PLATFORM}")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/out/${REX_PLATFORM}")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/out/${REX_PLATFORM}")
 
-# Build options (must be set before thirdparty for conditional dependencies)
-option(REXGLUE_BUILD_TESTS "Build PPC instruction tests" ON)
-option(REXGLUE_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
-
-# Graphics backend selection: D3D12 on Windows, Vulkan on Linux
-# Can be overridden to test Vulkan on Windows
-if(WIN32)
-    option(REXGLUE_USE_D3D12 "Use D3D12 graphics backend (Windows only)" ON)
-else()
-    option(REXGLUE_USE_D3D12 "Use D3D12 graphics backend (Windows only)" OFF)
-endif()
-
 # Sanitizer support for debugging memory corruption and undefined behavior
 if(REXGLUE_ENABLE_SANITIZERS)
     message(STATUS "Enabling UndefinedBehaviorSanitizer (UBSan only - ASan conflicts with custom memory mapping)")
@@ -98,6 +104,11 @@ endif()
 # Third-party dependencies (vendored sources only)
 add_subdirectory(thirdparty)
 
+# Enable warnings after thirdparty
+add_compile_options(
+    -Wall 
+    -Wextra
+)
 
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
@@ -126,132 +137,8 @@ message(STATUS "  Compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSIO
 message(STATUS "  Configurations: ${CMAKE_CONFIGURATION_TYPES}")
 message(STATUS "  Output Dir: ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 message(STATUS "  C++ Standard: C++${CMAKE_CXX_STANDARD}")
-if(REXGLUE_USE_D3D12)
-    message(STATUS "  Graphics Backend: D3D12")
-else()
-    message(STATUS "  Graphics Backend: Vulkan")
-endif()
+message(STATUS "  Graphics: D3D12=${REXGLUE_USE_D3D12} Vulkan=${REXGLUE_USE_VULKAN}")
 message(STATUS "===========================================")
 
-#==========================================================
-# SDK Install/Export Rules
-#==========================================================
-set_target_properties(rexcore PROPERTIES EXPORT_NAME core)
-set_target_properties(rexfilesystem PROPERTIES EXPORT_NAME filesystem)
-set_target_properties(rexui PROPERTIES EXPORT_NAME ui)
-set_target_properties(rexinput PROPERTIES EXPORT_NAME input)
-set_target_properties(rexaudio PROPERTIES EXPORT_NAME audio)
-set_target_properties(rexgraphics PROPERTIES EXPORT_NAME graphics)
-set_target_properties(rexkernel PROPERTIES EXPORT_NAME kernel)
-set_target_properties(rexruntime PROPERTIES EXPORT_NAME runtime)
-set_target_properties(rexcodegen PROPERTIES EXPORT_NAME codegen)
-
-# Install all library targets, vendored deps, and the rexglue CLI tool
-install(TARGETS
-    # Rex SDK libraries
-    rexcore rexfilesystem rexui rexinput
-    rexaudio rexgraphics rexkernel rexruntime rexcodegen
-    # Vendored thirdparty libraries (required by SDK)
-    disruptorplus renderdoc simde tomlplusplus  # INTERFACE (header-only)
-    aes128 mspack disasm xxhash imgui  # STATIC libraries
-    libavcodec libavutil           # FFmpeg (vendored build)
-    SPIRV glslang MachineIndependent GenericCodeGen OSDependent OGLCompiler  # glslang (vendored build)
-    SPIRV-Tools-static             # SPIRV-Tools (only static lib, install handled here)
-    # CLI tool
-    rexglue
-    EXPORT rexglueTargets
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-)
-
-# DXC headers target (Windows only, required by rexui export)
-if(WIN32)
-    install(TARGETS dxc-headers
-        EXPORT rexglueTargets
-    )
-endif()
-
-# Install public headers
-install(DIRECTORY include/rex
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-)
-
-# Install vendored header-only library headers
-install(DIRECTORY thirdparty/disruptorplus/include/
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/disruptorplus
-)
-install(DIRECTORY thirdparty/renderdoc/
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/renderdoc
-    FILES_MATCHING PATTERN "*.h"
-)
-install(DIRECTORY thirdparty/tomlplusplus/include/
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-)
-install(DIRECTORY thirdparty/simde/simde
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    FILES_MATCHING PATTERN "*.h"
-)
-install(FILES
-    thirdparty/xxHash/xxhash.h
-    thirdparty/xxHash/xxh3.h
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-)
-install(FILES
-    thirdparty/imgui/imgui.h
-    thirdparty/imgui/imconfig.h
-    thirdparty/imgui/imgui_internal.h
-    thirdparty/imgui/imstb_rectpack.h
-    thirdparty/imgui/imstb_textedit.h
-    thirdparty/imgui/imstb_truetype.h
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-)
-
-# Install SPIRV-Tools headers (only the public API, not opt/linker)
-install(FILES
-    thirdparty/spirv-tools/include/spirv-tools/libspirv.h
-    thirdparty/spirv-tools/include/spirv-tools/libspirv.hpp
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/spirv-tools
-)
-
-# Install platform entry point sources for SDK consumers
-install(FILES
-    src/ui/windowed_app_main_win.cpp
-    src/ui/windowed_app_main_posix.cpp
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/rexglue
-)
-
-# Install DXC API headers (vendored, Windows only, for D3D12 backend)
-if(WIN32)
-    install(FILES
-        thirdparty/dxc/include/DxbcConverter.h
-        thirdparty/dxc/include/dxcapi.h
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/dxc
-    )
-endif()
-
-# Generate and install package config files
-configure_package_config_file(
-    cmake/rexglueConfig.cmake.in
-    ${CMAKE_CURRENT_BINARY_DIR}/rexglueConfig.cmake
-    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/rexglue
-)
-
-write_basic_package_version_file(
-    ${CMAKE_CURRENT_BINARY_DIR}/rexglueConfigVersion.cmake
-    VERSION ${PROJECT_VERSION}
-    COMPATIBILITY SameMajorVersion
-)
-
-install(FILES
-    ${CMAKE_CURRENT_BINARY_DIR}/rexglueConfig.cmake
-    ${CMAKE_CURRENT_BINARY_DIR}/rexglueConfigVersion.cmake
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/rexglue
-)
-
-# Export targets with rex:: namespace
-install(EXPORT rexglueTargets
-    FILE rexglueTargets.cmake
-    NAMESPACE rex::
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/rexglue
-)
+# SDK install/export rules
+include(cmake/rexglue_install.cmake)
