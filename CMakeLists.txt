@@ -44,8 +44,6 @@ endif()
 
 # Global compile options
 add_compile_options(
-    -Wall 
-    -Wextra
     -fno-strict-aliasing
     -ffp-model=strict
     $<$<CONFIG:DEBUG>:-g>
@@ -98,6 +96,11 @@ endif()
 # Third-party dependencies (vendored sources only)
 add_subdirectory(thirdparty)
 
+# Enable warnings after thirdparty
+add_compile_options(
+    -Wall 
+    -Wextra
+)
 
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
