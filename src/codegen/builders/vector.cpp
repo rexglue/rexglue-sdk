@@ -298,6 +298,12 @@ bool build_vsubsws(BuilderContext& ctx)
     return true;
 }
 
+bool build_vsububm(BuilderContext& ctx)
+{
+    ctx.emit_vec_int_binary("sub_epi8", "u8");
+    return true;
+}
+
 bool build_vsububs(BuilderContext& ctx)
 {
     ctx.emit_vec_int_binary("subs_epu8", "u8");
