@@ -559,6 +559,8 @@ bool build_vcmpgtuh(BuilderContext& ctx)
 {
     ctx.println("\tsimde_mm_store_si128((simde__m128i*){}.u8, simde_mm_cmpgt_epu16(simde_mm_load_si128((simde__m128i*){}.u16), simde_mm_load_si128((simde__m128i*){}.u16)));",
         ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]), ctx.v(ctx.insn.operands[2]));
+    if (isRecordForm(ctx.insn))
+        ctx.println("\t{}.setFromMask(simde_mm_load_si128((simde__m128i*){}.u16), 0xFFFF);", ctx.cr(6), ctx.v(ctx.insn.operands[0]));
     return true;
 }
 
