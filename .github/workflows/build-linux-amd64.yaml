@@ -1,0 +1,60 @@
+name: Build rexglue-sdk linux
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      CC: clang-20
+      CXX: clang++-20
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Clang 20
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg lsb-release
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 20
+          sudo apt-get install -y clang-20 lld-20
+
+      - name: Update alternatives to use Clang 20
+        run: |
+          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-20 200
+          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-20 200
+          clang --version
+          clang++ --version
+
+      - name: Install build dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y cmake ninja-build build-essential git curl unzip autoconf python3.12-venv \
+          libgtk-3-dev libx11-xcb-dev
+
+      - name: Configure (CMake preset)
+        run: cmake --preset linux-amd64
+
+      - name: Make Install
+        run: cmake --build out/build/linux-amd64 --target install -j20
+
+      - name: Package install directory
+        run: |
+          cd out/install
+          zip -r rexglue-sdk-linux-amd64.zip linux-amd64
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/install/rexglue-sdk-linux-amd64.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

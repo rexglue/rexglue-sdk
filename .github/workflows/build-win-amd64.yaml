@@ -1,0 +1,37 @@
+name: Build rexglue-sdk win
+
+on:
+  push:
+    tags:
+      - "v*"
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install LLVM, CMake, Ninja
+        run: |
+          choco install llvm cmake ninja -y
+
+      - name: Configure (CMake preset)
+        run: cmake --preset win-amd64
+
+      - name: Make Install
+        run: cmake --build out/build/win-amd64 --target install -j20
+      - name: Package
+        run: |
+          cd out/install
+          7z a rexglue-sdk-win-amd64.zip win-amd64
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/install/rexglue-sdk-win-amd64.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
