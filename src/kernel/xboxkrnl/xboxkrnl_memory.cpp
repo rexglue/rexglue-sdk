@@ -162,10 +162,6 @@ dword_result_t NtAllocateVirtualMemory_entry(lpdword_t base_addr_ptr,
     was_commited = heap->QueryRegionInfo(adjusted_base, &prev_alloc_info) &&
                    (prev_alloc_info.state & memory::kMemoryAllocationCommit) != 0;
 
-    // Log was_commited status
-    REXKRNL_DEBUG("[NTALLOC] QueryRegion: base=0x{:08X} prev_state=0x{:X} was_commited={}",
-           adjusted_base, prev_alloc_info.state, was_commited);
-
     if (heap->AllocFixed(adjusted_base, adjusted_size, page_size,
                          allocation_type, protect)) {
       address = adjusted_base;
@@ -196,9 +192,6 @@ dword_result_t NtAllocateVirtualMemory_entry(lpdword_t base_addr_ptr,
       }
     }
   }
-
-  REXKRNL_DEBUG("NtAllocateVirtualMemory = {:08X}", address);
-
   // Stash back.
   // Maybe set X_STATUS_ALREADY_COMMITTED if MEM_COMMIT?
   *base_addr_ptr = address;

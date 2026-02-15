@@ -118,7 +118,7 @@ Entry* VirtualFileSystem::ResolvePath(const std::string_view path) {
         return rex::string::utf8_starts_with(normalized_path, d->mount_path());
       });
   if (it == devices_.cend()) {
-    REXFS_INFO("VFS: '{}' -> [no device]", path);
+    REXFS_WARN("VFS: '{}' -> [no device]", path);
     // Supress logging the error for ShaderDumpxe:\CompareBackEnds as this is
     // not an actual problem nor something we care about.
     if (path != "ShaderDumpxe:\\CompareBackEnds") {
@@ -136,7 +136,7 @@ Entry* VirtualFileSystem::ResolvePath(const std::string_view path) {
                had_symlink ? normalized_path : "(no symlink)",
                device->mount_path(), entry->absolute_path());
   } else {
-    REXFS_INFO("VFS: '{}' -> '{}' -> device '{}' -> [entry not found]", path,
+    REXFS_WARN("VFS: '{}' -> '{}' -> device '{}' -> [entry not found]", path,
                had_symlink ? normalized_path : "(no symlink)",
                device->mount_path());
   }

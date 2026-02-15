@@ -40,7 +40,7 @@ X_HRESULT XmpApp::XMPGetStatus(uint32_t state_ptr) {
     rex::thread::Sleep(std::chrono::milliseconds(1));
   }
 
-  REXKRNL_DEBUG("XMPGetStatus({:08X})", state_ptr);
+  REXKRNL_TRACE("XMPGetStatus({:08X})", state_ptr);
   memory::store_and_swap<uint32_t>(memory_->TranslateVirtual(state_ptr),
                                static_cast<uint32_t>(state_));
   return X_E_SUCCESS;

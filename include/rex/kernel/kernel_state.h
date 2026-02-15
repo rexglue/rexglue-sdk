@@ -44,16 +44,16 @@
 //   REXKRNL_IMPORT_FAIL("NtCreateFile", "path='{}' -> {:#x}", path, result);
 
 #define REXKRNL_IMPORT_TRACE(name, fmt, ...) \
-  REXKRNL_DEBUG("[" name "] " fmt, ##__VA_ARGS__)
+  REXKRNL_TRACE("[" name "] " fmt, ##__VA_ARGS__)
 
 #define REXKRNL_IMPORT_RESULT(name, fmt, ...) \
-  REXKRNL_DEBUG("[" name "] -> " fmt, ##__VA_ARGS__)
+  REXKRNL_TRACE("[" name "] -> " fmt, ##__VA_ARGS__)
 
 #define REXKRNL_IMPORT_FAIL(name, fmt, ...) \
   REXKRNL_WARN("[" name "] FAILED: " fmt, ##__VA_ARGS__)
 
 #define REXKRNL_IMPORT_WARN(name, fmt, ...) \
-  REXKRNL_WARN("[" name "] " fmt, ##__VA_ARGS__)
+  REXKRNL_DEBUG("[" name "] " fmt, ##__VA_ARGS__)
 
 namespace rex {
 class Runtime;

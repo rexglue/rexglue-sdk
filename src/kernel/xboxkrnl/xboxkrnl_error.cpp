@@ -1003,7 +1003,7 @@ uint32_t xeRtlNtStatusToDosError(uint32_t source_status) {
       if (!result) {
         break;
       }
-      REXKRNL_DEBUG("xeRtlNtStatusToDosError {:X} => {:X}", status, result);
+      REXKRNL_IMPORT_TRACE("xeRtlNtStatusToDosError", "status=0x{:X} => 0x{:X}", status, result);
       return result;
     }
     ++error_table;
@@ -1013,7 +1013,7 @@ uint32_t xeRtlNtStatusToDosError(uint32_t source_status) {
     return status & 0xFFFF;
   }
 
-  REXKRNL_ERROR("xeRtlNtStatusToDosError lookup NOT IMPLEMENTED");
+  REXKRNL_IMPORT_TRACE("xeRtlNtStatusToDosError", "lookup failed for 0x{:X}", status);
   return 317;  // ERROR_MR_MID_NOT_FOUND
 }
 
