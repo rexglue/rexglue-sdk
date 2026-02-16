@@ -9,9 +9,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    permissions:
-        contents: write
-
     env:
       CC: clang-20
       CXX: clang++-20
@@ -59,5 +56,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: out/install/rexglue-sdk-linux-amd64.zip
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
