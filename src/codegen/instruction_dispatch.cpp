@@ -188,6 +188,7 @@ static const std::unordered_map<int, Builder>& GetDispatchTable()
         { PPC_INST_LBZ, build_lbz },
         { PPC_INST_LBZU, build_lbzu },
         { PPC_INST_LBZX, build_lbzx },
+        { PPC_INST_LBZUX, build_lbzux },
         { PPC_INST_LHA, build_lha },
         { PPC_INST_LHAU, build_lhau },
         { PPC_INST_LHAX, build_lhax },

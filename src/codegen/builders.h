@@ -257,6 +257,7 @@ bool build_lis(BuilderContext& ctx);
 bool build_lbz(BuilderContext& ctx);
 bool build_lbzu(BuilderContext& ctx);
 bool build_lbzx(BuilderContext& ctx);
+bool build_lbzux(BuilderContext& ctx);
 
 // Halfword loads
 bool build_lha(BuilderContext& ctx);
