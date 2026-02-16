@@ -325,6 +325,7 @@ bool build_stdcx(BuilderContext& ctx);
 bool build_std(BuilderContext& ctx);
 bool build_stdu(BuilderContext& ctx);
 bool build_stdx(BuilderContext& ctx);
+bool build_stdux(BuilderContext& ctx);
 
 // Floating point stores
 bool build_stfd(BuilderContext& ctx);

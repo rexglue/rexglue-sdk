@@ -560,6 +560,22 @@ bool build_stdx(BuilderContext& ctx)
     return true;
 }
 
+bool build_stdux(BuilderContext& ctx)
+{
+    // X-form store with update: EA = rA + rB, store, then rA = EA
+    ctx.println("\t{} = {}.u32 + {}.u32;",
+        ctx.ea(),
+        ctx.r(ctx.insn.operands[1]),
+        ctx.r(ctx.insn.operands[2]));
+    ctx.println("\t{}({}, {}.u64);",
+        ctx.mmio_check_x_form() ? "PPC_MM_STORE_U64" : "PPC_STORE_U64",
+        ctx.ea(),
+        ctx.r(ctx.insn.operands[0]));
+    ctx.println("\t{}.u32 = {};",
+        ctx.r(ctx.insn.operands[1]), ctx.ea());
+    return true;
+}
+
 //=============================================================================
 // Floating Point Stores
 //=============================================================================
