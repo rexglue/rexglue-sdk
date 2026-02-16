@@ -130,10 +130,13 @@ class ContentPackage {
     return content_data_;
   }
 
+  const std::filesystem::path& package_path() const { return package_path_; }
+
  private:
   KernelState* kernel_state_;
   std::string root_name_;
   std::string device_path_;
+  std::filesystem::path package_path_;
   XCONTENT_AGGREGATE_DATA content_data_;
 };
 
@@ -164,6 +167,9 @@ class ContentManager {
   std::filesystem::path ResolveGameUserContentPath();
   bool IsContentOpen(const XCONTENT_AGGREGATE_DATA& data) const;
   void CloseOpenedFilesFromContent(const std::string_view root_name);
+
+  // Returns the host filesystem path for an open content package, or empty.
+  std::filesystem::path GetOpenPackagePath(const std::string_view root_name) const;
 
  private:
   std::filesystem::path ResolvePackageRoot(XContentType content_type,

@@ -36,7 +36,8 @@ ContentPackage::ContentPackage(KernelState* kernel_state,
                                const std::string_view root_name,
                                const XCONTENT_AGGREGATE_DATA& data,
                                const std::filesystem::path& package_path)
-    : kernel_state_(kernel_state), root_name_(root_name) {
+    : kernel_state_(kernel_state), root_name_(root_name),
+      package_path_(package_path) {
   device_path_ = fmt::format("\\Device\\Content\\{0}\\", ++content_device_id_);
   content_data_ = data;
 
@@ -261,6 +262,15 @@ bool ContentManager::IsContentOpen(const XCONTENT_AGGREGATE_DATA& data) const {
                      [data](std::pair<string::string_key, ContentPackage*> content) {
                        return data == content.second->GetPackageContentData();
                      });
+}
+
+std::filesystem::path ContentManager::GetOpenPackagePath(
+    const std::string_view root_name) const {
+  auto it = open_packages_.find(string::string_key(root_name));
+  if (it == open_packages_.end()) {
+    return {};
+  }
+  return it->second->package_path();
 }
 
 void ContentManager::CloseOpenedFilesFromContent(
