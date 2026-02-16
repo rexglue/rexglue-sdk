@@ -335,6 +335,7 @@ bool build_stfdx(BuilderContext& ctx);
 bool build_stfiwx(BuilderContext& ctx);
 bool build_stfs(BuilderContext& ctx);
 bool build_stfsu(BuilderContext& ctx);
+bool build_stfsux(BuilderContext& ctx);
 bool build_stfsx(BuilderContext& ctx);
 
 // Vector loads

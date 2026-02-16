@@ -682,6 +682,25 @@ bool build_stfsu(BuilderContext& ctx)
     return true;
 }
 
+bool build_stfsux(BuilderContext& ctx)
+{
+    // Store Floating-point Single with Update Indexed
+    ctx.emit_set_flush_mode(false);
+    ctx.println("\t{}.f32 = float({}.f64);",
+        ctx.temp(), ctx.f(ctx.insn.operands[0]));
+    ctx.println("\t{} = {}.u32 + {}.u32;",
+        ctx.ea(),
+        ctx.r(ctx.insn.operands[1]),
+        ctx.r(ctx.insn.operands[2]));
+    ctx.println("\t{}({}, {}.u32);",
+        ctx.mmio_check_x_form() ? "PPC_MM_STORE_U32" : "PPC_STORE_U32",
+        ctx.ea(),
+        ctx.temp());
+    ctx.println("\t{}.u32 = {};",
+        ctx.r(ctx.insn.operands[1]), ctx.ea());
+    return true;
+}
+
 //=============================================================================
 // Vector Loads (will be more comprehensive in vector.cpp)
 //=============================================================================

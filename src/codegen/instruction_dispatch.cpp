@@ -248,6 +248,7 @@ static const std::unordered_map<int, Builder>& GetDispatchTable()
         { PPC_INST_STFIWX, build_stfiwx },
         { PPC_INST_STFS, build_stfs },
         { PPC_INST_STFSU, build_stfsu },
+        { PPC_INST_STFSUX, build_stfsux },
         { PPC_INST_STFSX, build_stfsx },
 
         //=====================================================================
