@@ -232,6 +232,20 @@ bool build_ldx(BuilderContext& ctx)
     return true;
 }
 
+bool build_ldux(BuilderContext& ctx)
+{
+    // X-form load with update: EA = rA + rB, then rD = MEM[EA], rA = EA
+    ctx.println("\t{} = {}.u32 + {}.u32;",
+        ctx.ea(),
+        ctx.r(ctx.insn.operands[1]),
+        ctx.r(ctx.insn.operands[2]));
+    ctx.println("\t{}.u64 = PPC_LOAD_U64({});",
+        ctx.r(ctx.insn.operands[0]), ctx.ea());
+    ctx.println("\t{}.u32 = {};",
+        ctx.r(ctx.insn.operands[1]), ctx.ea());
+    return true;
+}
+
 //=============================================================================
 // Atomic Load and Reserve
 //=============================================================================

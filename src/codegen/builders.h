@@ -282,6 +282,7 @@ bool build_lwzx(BuilderContext& ctx);
 bool build_ld(BuilderContext& ctx);
 bool build_ldu(BuilderContext& ctx);
 bool build_ldx(BuilderContext& ctx);
+bool build_ldux(BuilderContext& ctx);
 
 // Atomic load and reserve
 bool build_lwarx(BuilderContext& ctx);
