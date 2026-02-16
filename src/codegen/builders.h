@@ -301,6 +301,7 @@ bool build_lfsx(BuilderContext& ctx);
 bool build_stb(BuilderContext& ctx);
 bool build_stbu(BuilderContext& ctx);
 bool build_stbx(BuilderContext& ctx);
+bool build_stbux(BuilderContext& ctx);
 
 // Halfword stores
 bool build_sth(BuilderContext& ctx);

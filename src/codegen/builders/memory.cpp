@@ -69,6 +69,7 @@ bool build_lbzx(BuilderContext& ctx)
 bool build_lbzux(BuilderContext& ctx)
 {
     // X-form load with update: EA = rA + rB, then rD = MEM[EA], rA = EA
+    // based on lhzux
     ctx.println("\t{} = {}.u32 + {}.u32;",
         ctx.ea(),
         ctx.r(ctx.insn.operands[1]),
@@ -390,6 +391,22 @@ bool build_stbu(BuilderContext& ctx)
 bool build_stbx(BuilderContext& ctx)
 {
     ctx.emit_store_x_form("PPC_STORE_U8", "u8", true);
+    return true;
+}
+
+bool build_stbux(BuilderContext& ctx)
+{
+    // X-form store with update: EA = rA + rB, store, then rA = EA
+    ctx.println("\t{} = {}.u32 + {}.u32;",
+        ctx.ea(),
+        ctx.r(ctx.insn.operands[1]),
+        ctx.r(ctx.insn.operands[2]));
+    ctx.println("\t{}({}, {}.u8);",
+        ctx.mmio_check_x_form() ? "PPC_MM_STORE_U8" : "PPC_STORE_U8",
+        ctx.ea(),
+        ctx.r(ctx.insn.operands[0]));
+    ctx.println("\t{}.u32 = {};",
+        ctx.r(ctx.insn.operands[1]), ctx.ea());
     return true;
 }
 
