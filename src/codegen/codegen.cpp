@@ -50,7 +50,7 @@ Result<CodegenPipeline> CodegenPipeline::Create(const std::filesystem::path& con
 
     // Create Runtime
     auto xexDir = xexPath.parent_path();
-    pipeline.runtime_ = std::make_unique<Runtime>(".", xexDir.string());
+    pipeline.runtime_ = std::make_unique<Runtime>(xexDir.string());
     auto status = pipeline.runtime_->Setup(true);
     if (status != X_STATUS_SUCCESS) {
         return Err<CodegenPipeline>(ErrorCategory::IO, fmt::format("Failed to initialize Runtime: {:#x}", status));
