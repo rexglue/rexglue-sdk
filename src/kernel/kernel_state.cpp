@@ -56,11 +56,11 @@ KernelState::KernelState(Runtime* emulator)
   app_manager_ = std::make_unique<xam::AppManager>();
   user_profile_ = std::make_unique<xam::UserProfile>();
 
-  auto content_root = emulator_->content_root();
-  if (!content_root.empty()) {
-    content_root = std::filesystem::absolute(content_root);
+  auto user_data_root = emulator_->user_data_root();
+  if (!user_data_root.empty()) {
+    user_data_root = std::filesystem::absolute(user_data_root);
   }
-  content_manager_ = std::make_unique<xam::ContentManager>(this, content_root);
+  content_manager_ = std::make_unique<xam::ContentManager>(this, user_data_root);
 
   assert_null(shared_kernel_state_);
   shared_kernel_state_ = this;

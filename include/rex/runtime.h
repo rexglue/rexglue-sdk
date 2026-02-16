@@ -57,8 +57,9 @@ class ImGuiDrawer;
  */
 class Runtime {
  public:
-  explicit Runtime(const std::filesystem::path& storage_root,
-                   const std::filesystem::path& content_root = {});
+  explicit Runtime(const std::filesystem::path& game_data_root,
+                   const std::filesystem::path& user_data_root = {},
+                   const std::filesystem::path& update_data_root = {});
   ~Runtime();
 
   // Non-copyable
@@ -81,8 +82,9 @@ class Runtime {
   runtime::ExportResolver* export_resolver() const { return export_resolver_.get(); }
 
   // Path accessors
-  const std::filesystem::path& storage_root() const { return storage_root_; }
-  const std::filesystem::path& content_root() const { return content_root_; }
+  const std::filesystem::path& game_data_root() const { return game_data_root_; }
+  const std::filesystem::path& user_data_root() const { return user_data_root_; }
+  const std::filesystem::path& update_data_root() const { return update_data_root_; }
 
   // Set the app context for presentation (call before Setup)
   void set_app_context(ui::WindowedAppContext* context) { app_context_ = context; }
@@ -120,12 +122,12 @@ class Runtime {
   uint8_t* virtual_membase() const;
 
  private:
-  // Set up VFS based on content_root
+  // Set up VFS: mounts game_data_root as game:/d:, update_data_root as update:
   bool SetupVfs();
 
-
-  std::filesystem::path storage_root_;
-  std::filesystem::path content_root_;
+  std::filesystem::path game_data_root_;
+  std::filesystem::path user_data_root_;
+  std::filesystem::path update_data_root_;
 
   ui::WindowedAppContext* app_context_ = nullptr;
   ui::Window* display_window_ = nullptr;

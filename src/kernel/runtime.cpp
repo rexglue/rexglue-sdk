@@ -43,10 +43,12 @@ namespace rex {
 // Static instance for global access
 Runtime* Runtime::instance_ = nullptr;
 
-Runtime::Runtime(const std::filesystem::path& storage_root,
-                 const std::filesystem::path& content_root)
-    : storage_root_(storage_root),
-      content_root_(content_root.empty() ? storage_root : content_root) {}
+Runtime::Runtime(const std::filesystem::path& game_data_root,
+                 const std::filesystem::path& user_data_root,
+                 const std::filesystem::path& update_data_root)
+    : game_data_root_(game_data_root),
+      user_data_root_(user_data_root.empty() ? game_data_root : user_data_root),
+      update_data_root_(update_data_root) {}
 
 Runtime::~Runtime() { Shutdown(); }
 
@@ -121,7 +123,7 @@ X_STATUS Runtime::Setup(bool tool_mode) {
     }
   }
 
-  // Set up VFS based on content_root
+  // Set up VFS: game_data_root as game:/d:, update_data_root as update:
   if (!SetupVfs()) {
     REXKRNL_ERROR("Failed to set up VFS");
     return X_STATUS_UNSUCCESSFUL;
@@ -228,22 +230,22 @@ uint8_t* Runtime::virtual_membase() const {
 }
 
 bool Runtime::SetupVfs() {
-  if (content_root_.empty()) {
-    REXKRNL_WARN("Runtime::SetupVfs: No content_root specified, skipping VFS setup");
+  if (game_data_root_.empty()) {
+    REXKRNL_WARN("Runtime::SetupVfs: No game_data_root specified, skipping VFS setup");
     return true;
   }
 
-  auto abs_content_root = std::filesystem::absolute(content_root_);
-  if (!std::filesystem::exists(abs_content_root)) {
-    REXKRNL_ERROR("Runtime::SetupVfs: content_root does not exist: {}",
-           abs_content_root.string());
+  auto abs_game_root = std::filesystem::absolute(game_data_root_);
+  if (!std::filesystem::exists(abs_game_root)) {
+    REXKRNL_ERROR("Runtime::SetupVfs: game_data_root does not exist: {}",
+           abs_game_root.string());
     return false;
   }
 
-  // Mount content_root as \Device\Harddisk0\Partition1
+  // Mount game_data_root as \Device\Harddisk0\Partition1
   auto mount_path = "\\Device\\Harddisk0\\Partition1";
   auto device = std::make_unique<rex::filesystem::HostPathDevice>(mount_path,
-                                                       abs_content_root, true);
+                                                       abs_game_root, true);
   if (!device->Initialize()) {
     REXKRNL_ERROR("Runtime::SetupVfs: Failed to initialize host path device");
     return false;
@@ -252,12 +254,27 @@ bool Runtime::SetupVfs() {
     REXKRNL_ERROR("Runtime::SetupVfs: Failed to register host path device");
     return false;
   }
-  REXKRNL_INFO("  Mounted {} at {}", abs_content_root.string(), mount_path);
+  REXKRNL_INFO("  Mounted {} at {}", abs_game_root.string(), mount_path);
 
   // Register symbolic links for game: and D:
   file_system_->RegisterSymbolicLink("game:", mount_path);
   file_system_->RegisterSymbolicLink("d:", mount_path);
   REXKRNL_DEBUG("  Registered symbolic links: game:, d:");
+
+  // Mount update_data_root as update:\ if provided
+  if (!update_data_root_.empty()) {
+    auto abs_update_root = std::filesystem::absolute(update_data_root_);
+    if (std::filesystem::exists(abs_update_root)) {
+      auto update_mount = "\\Device\\Harddisk0\\PartitionUpdate";
+      auto update_device = std::make_unique<rex::filesystem::HostPathDevice>(
+          update_mount, abs_update_root, true);
+      if (update_device->Initialize() &&
+          file_system_->RegisterDevice(std::move(update_device))) {
+        file_system_->RegisterSymbolicLink("update:", update_mount);
+        REXKRNL_INFO("  Mounted {} at update:", abs_update_root.string());
+      }
+    }
+  }
 
   // Setup NullDevice for raw HDD partition accesses
   // Cache/STFC code baked into games tries reading/writing to these

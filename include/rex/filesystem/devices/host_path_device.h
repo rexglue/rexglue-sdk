@@ -30,6 +30,7 @@ class HostPathDevice : public Device {
   Entry* ResolvePath(const std::string_view path) override;
 
   bool is_read_only() const override { return read_only_; }
+  const std::filesystem::path& host_path() const { return host_path_; }
 
   const std::string& name() const override { return name_; }
   uint32_t attributes() const override { return 0; }
