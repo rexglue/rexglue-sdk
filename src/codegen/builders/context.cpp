@@ -202,7 +202,7 @@ void BuilderContext::emit_function_call(uint32_t address)
         // Save PPCContext for restoration after longjmp
         println("\t{} = ctx;", env());
         // Use custom ppc_setjmp that uses guest address as key
-        println("\t{}.s64 = ::rex::runtime::guest::ppc_setjmp({}.u32);", temp(), r(3));
+        println("\t{}.s64 = ppc_setjmp({}.u32);", temp(), r(3));
         // Restore PPCContext if returning from longjmp
         println("\tif ({}.s64 != 0) ctx = {};", temp(), env());
         println("\t{} = {};", r(3), temp());
