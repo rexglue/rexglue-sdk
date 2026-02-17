@@ -103,11 +103,11 @@ int main(int argc, char** argv) {
         opts.force = ctx.force;
 
         if (opts.app_name.empty()) {
-            REXLOG_ERROR("--app-name is required for init command");
+            REXLOG_ERROR("--app_name is required for init command");
             return 1;
         }
         if (opts.app_root.empty()) {
-            REXLOG_ERROR("--app-root is required for init command");
+            REXLOG_ERROR("--app_root is required for init command");
             return 1;
         }
 
