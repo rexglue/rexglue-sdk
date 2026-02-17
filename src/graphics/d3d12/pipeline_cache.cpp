@@ -100,7 +100,7 @@ PipelineCache::PipelineCache(D3D12CommandProcessor& command_processor,
 
   shader_translator_ = std::make_unique<DxbcShaderTranslator>(
       provider.GetAdapterVendorID(), bindless_resources_used_, edram_rov_used,
-      render_target_cache_.gamma_render_target_as_srgb(),
+      !render_target_cache_.gamma_render_target_as_unorm16(),
       render_target_cache_.msaa_2x_supported(),
       render_target_cache_.draw_resolution_scale_x(),
       render_target_cache_.draw_resolution_scale_y(),
@@ -393,7 +393,7 @@ void PipelineCache::InitializeShaderStorage(
       string::StringBuffer ucode_disasm_buffer;
       DxbcShaderTranslator translator(
           provider.GetAdapterVendorID(), bindless_resources_used_,
-          edram_rov_used, render_target_cache_.gamma_render_target_as_srgb(),
+          edram_rov_used, !render_target_cache_.gamma_render_target_as_unorm16(),
           render_target_cache_.msaa_2x_supported(),
           render_target_cache_.draw_resolution_scale_x(),
           render_target_cache_.draw_resolution_scale_y(),

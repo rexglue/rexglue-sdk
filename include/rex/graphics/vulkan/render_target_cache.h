@@ -191,6 +191,8 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   bool IsHostDepthEncodingDifferent(
       xenos::DepthRenderTargetFormat format) const override;
 
+  bool IsGammaFormatHostStorageSeparate() const override;
+
   void RequestPixelShaderInterlockBarrier() override;
 
  private:
@@ -863,7 +865,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   void DumpRenderTargets(uint32_t dump_base, uint32_t dump_row_length_used,
                          uint32_t dump_rows, uint32_t dump_pitch);
 
-  bool gamma_render_target_as_srgb_ = false;
+  bool gamma_render_target_as_unorm16_ = false;
 
   bool depth_unorm24_vulkan_format_supported_ = false;
   bool depth_float24_round_ = false;

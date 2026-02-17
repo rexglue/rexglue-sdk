@@ -53,8 +53,8 @@ REXCVAR_DEFINE_BOOL(native_stencil_value_output, true,
     "Enable native stencil value output",
     "GPU");
 
-REXCVAR_DEFINE_BOOL(gamma_render_target_as_srgb, true,
-    "Treat gamma render targets as sRGB",
+REXCVAR_DEFINE_BOOL(gamma_render_target_as_unorm16, true,
+    "Use R16G16B16A16_UNORM for gamma render targets (more accurate than sRGB)",
     "GPU");
 
 namespace rex::graphics::d3d12 {
@@ -439,7 +439,7 @@ bool D3D12RenderTargetCache::Initialize() {
   if (path_ == Path::kHostRenderTargets) {
     // Host render targets.
 
-    gamma_render_target_as_srgb_ = REXCVAR_GET(gamma_render_target_as_srgb);
+    gamma_render_target_as_unorm16_ = REXCVAR_GET(gamma_render_target_as_unorm16);
 
     depth_float24_round_ = REXCVAR_GET(depth_float24_round);
     depth_float24_convert_in_pixel_shader_ =
@@ -484,6 +484,21 @@ bool D3D12RenderTargetCache::Initialize() {
       }
     } else {
       msaa_2x_supported_ = false;
+    }
+    if (msaa_2x_supported_ && gamma_render_target_as_unorm16_) {
+      D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS multisample_quality_levels;
+      multisample_quality_levels.SampleCount = 2;
+      multisample_quality_levels.Flags =
+          D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
+      multisample_quality_levels.Format = DXGI_FORMAT_R16G16B16A16_UNORM;
+      multisample_quality_levels.NumQualityLevels = 0;
+      if (FAILED(device->CheckFeatureSupport(
+              D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS,
+              &multisample_quality_levels,
+              sizeof(multisample_quality_levels))) ||
+          !multisample_quality_levels.NumQualityLevels) {
+        msaa_2x_supported_ = false;
+      }
     }
     if (!msaa_2x_supported_) {
       REXGPU_WARN(
@@ -998,7 +1013,7 @@ bool D3D12RenderTargetCache::Initialize() {
     // Pixel shader interlock (rasterizer-ordered view).
 
     // Blending is done in linear space directly in shaders.
-    gamma_render_target_as_srgb_ = false;
+    gamma_render_target_as_unorm16_ = false;
 
     // Always true float24 depth rounded to the nearest even.
     depth_float24_round_ = true;
@@ -1758,12 +1773,10 @@ DXGI_FORMAT D3D12RenderTargetCache::GetColorResourceDXGIFormat(
   // compression.
   switch (format) {
     case xenos::ColorRenderTargetFormat::k_8_8_8_8:
-    case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
-      if (gamma_render_target_as_srgb_) {
-        // Can toggle between UNORM and UNORM_SRGB for the same data.
-        return DXGI_FORMAT_R8G8B8A8_TYPELESS;
-      }
       return DXGI_FORMAT_R8G8B8A8_UNORM;
+    case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
+      return gamma_render_target_as_unorm16_ ? DXGI_FORMAT_R16G16B16A16_UNORM
+                                             : DXGI_FORMAT_R8G8B8A8_UNORM;
     case xenos::ColorRenderTargetFormat::k_2_10_10_10:
     case xenos::ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
       return DXGI_FORMAT_R10G10B10A2_UNORM;
@@ -1796,11 +1809,6 @@ DXGI_FORMAT D3D12RenderTargetCache::GetColorResourceDXGIFormat(
 DXGI_FORMAT D3D12RenderTargetCache::GetColorDrawDXGIFormat(
     xenos::ColorRenderTargetFormat format) const {
   switch (format) {
-    case xenos::ColorRenderTargetFormat::k_8_8_8_8:
-      return DXGI_FORMAT_R8G8B8A8_UNORM;
-    case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
-      return gamma_render_target_as_srgb_ ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB
-                                          : DXGI_FORMAT_R8G8B8A8_UNORM;
     case xenos::ColorRenderTargetFormat::k_16_16:
       return DXGI_FORMAT_R16G16_SNORM;
     case xenos::ColorRenderTargetFormat::k_16_16_16_16:
@@ -1974,7 +1982,6 @@ RenderTargetCache::RenderTarget* D3D12RenderTargetCache::CreateRenderTarget(
   }
   D3D12_CPU_DESCRIPTOR_HANDLE descriptor_draw_handle =
       descriptor_draw.GetHandle();
-  ui::d3d12::D3D12CpuDescriptorPool::Descriptor descriptor_draw_srgb;
   ui::d3d12::D3D12CpuDescriptorPool::Descriptor descriptor_load_separate;
   ui::d3d12::D3D12CpuDescriptorPool::Descriptor descriptor_srv_stencil;
   D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc;
@@ -2033,23 +2040,6 @@ RenderTargetCache::RenderTarget* D3D12RenderTargetCache::CreateRenderTarget(
     }
     device->CreateRenderTargetView(resource.Get(), &rtv_desc,
                                    descriptor_draw_handle);
-    // sRGB drawing RTV.
-    switch (key.GetColorFormat()) {
-      case xenos::ColorRenderTargetFormat::k_8_8_8_8:
-      case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
-        if (gamma_render_target_as_srgb_) {
-          descriptor_draw_srgb = descriptor_pool.AllocateDescriptor();
-          if (!descriptor_draw_srgb.IsValid()) {
-            return nullptr;
-          }
-          rtv_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-          device->CreateRenderTargetView(resource.Get(), &rtv_desc,
-                                         descriptor_draw_srgb.GetHandle());
-        }
-        break;
-      default:
-        break;
-    }
     // Ownership transfer RTV.
     DXGI_FORMAT load_format =
         GetColorOwnershipTransferDXGIFormat(key.GetColorFormat());
@@ -2070,9 +2060,8 @@ RenderTargetCache::RenderTarget* D3D12RenderTargetCache::CreateRenderTarget(
 
   return new D3D12RenderTarget(
       key, resource.Get(), std::move(descriptor_draw),
-      std::move(descriptor_draw_srgb), std::move(descriptor_load_separate),
-      std::move(descriptor_srv), std::move(descriptor_srv_stencil),
-      resource_state);
+      std::move(descriptor_load_separate), std::move(descriptor_srv),
+      std::move(descriptor_srv_stencil), resource_state);
 }
 
 bool D3D12RenderTargetCache::IsHostDepthEncodingDifferent(
@@ -2081,6 +2070,10 @@ bool D3D12RenderTargetCache::IsHostDepthEncodingDifferent(
     return !depth_float24_convert_in_pixel_shader_;
   }
   return false;
+}
+
+bool D3D12RenderTargetCache::IsGammaFormatHostStorageSeparate() const {
+  return gamma_render_target_as_unorm16_;
 }
 
 void D3D12RenderTargetCache::RequestPixelShaderInterlockBarrier() {
@@ -3420,8 +3413,18 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
     bool color_packed_in_r0x_and_r1x = false;
     if (source_is_color) {
       switch (source_color_format) {
-        case xenos::ColorRenderTargetFormat::k_8_8_8_8:
         case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA: {
+          // 8_8_8_8_GAMMA is represented by linear stored in
+          // R16G16B16A16_UNORM.
+          for (uint32_t i = 0; i < 2; ++i) {
+            for (uint32_t j = 0; j < 3; ++j) {
+              DxbcShaderTranslator::PreSaturatedLinearToPWLGamma(a, i, j, i, j,
+                                                                 2, 0, 2, 1);
+            }
+          }
+        }
+          [[fallthrough]];
+        case xenos::ColorRenderTargetFormat::k_8_8_8_8: {
           color_packed_in_r0x_and_r1x = true;
           for (uint32_t i = 0; i < 2; ++i) {
             a.OpMAd(dxbc::Dest::R(i), dxbc::Src::R(i), dxbc::Src::LF(255.0f),
@@ -3573,6 +3576,11 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
         case xenos::ColorRenderTargetFormat::k_8_8_8_8:
         case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA: {
           if (dest_is_stencil_bit) {
+            if (source_color_format ==
+                xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA) {
+              DxbcShaderTranslator::PreSaturatedLinearToPWLGamma(a, 1, 0, 1, 0,
+                                                                 2, 0, 2, 1);
+            }
             a.OpMAd(dxbc::Dest::R(1, 0b0001), dxbc::Src::R(1, dxbc::Src::kXXXX),
                     dxbc::Src::LF(255.0f), dxbc::Src::LF(0.5f));
             a.OpFToU(dxbc::Dest::R(1, 0b0001),
@@ -3582,9 +3590,35 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
                           xenos::ColorRenderTargetFormat::k_8_8_8_8 ||
                       dest_color_format ==
                           xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA)) {
-            // Same format - passthrough.
+            if (source_color_format != dest_color_format) {
+              // Color space conversion between k_8_8_8_8 and
+              // k_8_8_8_8_GAMMA.
+              if (dest_color_format !=
+                  xenos::ColorRenderTargetFormat::k_8_8_8_8) {
+                for (uint32_t i = 0; i < 3; ++i) {
+                  DxbcShaderTranslator::PreSaturatedLinearToPWLGamma(
+                      a, 1, i, 1, i, 2, 0, 2, 1);
+                }
+              } else {
+                for (uint32_t i = 0; i < 3; ++i) {
+                  DxbcShaderTranslator::PWLGammaToLinear(a, 1, i, 1, i, true,
+                                                         2, 0, 2, 1);
+                }
+              }
+            }
+            // Same or converted format - passthrough.
             a.OpMov(dxbc::Dest::O(0), dxbc::Src::R(1));
           } else if (mode.output == TransferOutput::kDepth) {
+            if (source_color_format ==
+                xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA) {
+              for (uint32_t i =
+                       osgn_parameter_index_sv_stencil_ref != UINT32_MAX ? 0
+                                                                         : 1;
+                   i < 3; ++i) {
+                DxbcShaderTranslator::PreSaturatedLinearToPWLGamma(
+                    a, 1, i, 1, i, 2, 0, 2, 1);
+              }
+            }
             // When need only depth, not stencil, skip the red component.
             a.OpMAd(dxbc::Dest::R(
                         1, osgn_parameter_index_sv_stencil_ref != UINT32_MAX
@@ -3608,6 +3642,13 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
                     dxbc::Src::LU(16), dxbc::Src::R(1, dxbc::Src::kWWWW),
                     dxbc::Src::R(1, dxbc::Src::kYYYY));
           } else {
+            if (source_color_format ==
+                xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA) {
+              for (uint32_t i = 0; i < 3; ++i) {
+                DxbcShaderTranslator::PreSaturatedLinearToPWLGamma(
+                    a, 1, i, 1, i, 2, 0, 2, 1);
+              }
+            }
             color_packed_in_r1x = true;
             a.OpMAd(dxbc::Dest::R(1), dxbc::Src::R(1), dxbc::Src::LF(255.0f),
                     dxbc::Src::LF(0.5f));
@@ -3752,14 +3793,30 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
         // this is the end of the shader.
         if (color_packed_in_r1x) {
           switch (dest_color_format) {
-            case xenos::ColorRenderTargetFormat::k_8_8_8_8:
-            case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA: {
+            case xenos::ColorRenderTargetFormat::k_8_8_8_8: {
               a.OpUBFE(dxbc::Dest::R(1), dxbc::Src::LU(8),
                        dxbc::Src::LU(0, 8, 16, 24),
                        dxbc::Src::R(1, dxbc::Src::kXXXX));
               a.OpUToF(dxbc::Dest::R(1), dxbc::Src::R(1));
               a.OpMul(dxbc::Dest::O(0), dxbc::Src::R(1),
                       dxbc::Src::LF(1.0f / 255.0f));
+            } break;
+            case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA: {
+              // 8_8_8_8_GAMMA is represented by linear stored in
+              // R16G16B16A16_UNORM.
+              a.OpUBFE(dxbc::Dest::R(1), dxbc::Src::LU(8),
+                       dxbc::Src::LU(0, 8, 16, 24),
+                       dxbc::Src::R(1, dxbc::Src::kXXXX));
+              a.OpUToF(dxbc::Dest::R(1), dxbc::Src::R(1));
+              a.OpMul(dxbc::Dest::R(1, 0b0111), dxbc::Src::R(1),
+                      dxbc::Src::LF(1.0f / 255.0f));
+              a.OpMul(dxbc::Dest::O(0, 0b1000), dxbc::Src::R(1),
+                      dxbc::Src::LF(1.0f / 255.0f));
+              for (uint32_t i = 0; i < 3; ++i) {
+                DxbcShaderTranslator::PWLGammaToLinear(a, 1, i, 1, i, true, 0,
+                                                       0, 0, 1);
+              }
+              a.OpMov(dxbc::Dest::O(0, 0b0111), dxbc::Src::R(1));
             } break;
             case xenos::ColorRenderTargetFormat::k_2_10_10_10:
             case xenos::ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10: {
@@ -5341,11 +5398,22 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
         float color_clear_value[4] = {};
         bool clear_via_drawing = false;
         switch (dest_rt_key.GetColorFormat()) {
-          case xenos::ColorRenderTargetFormat::k_8_8_8_8:
-          case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA: {
+          case xenos::ColorRenderTargetFormat::k_8_8_8_8: {
             for (uint32_t j = 0; j < 4; ++j) {
               color_clear_value[j] =
                   ((clear_value >> (j * 8)) & 0xFF) * (1.0f / 0xFF);
+            }
+          } break;
+          case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA: {
+            // 8_8_8_8_GAMMA is represented by linear stored in
+            // R16G16B16A16_UNORM.
+            for (uint32_t j = 0; j < 4; ++j) {
+              color_clear_value[j] =
+                  ((clear_value >> (j * 8)) & 0xFF) * (1.0f / 0xFF);
+            }
+            for (uint32_t j = 0; j < 3; ++j) {
+              color_clear_value[j] =
+                  xenos::PWLGammaToLinear(color_clear_value[j]);
             }
           } break;
           case xenos::ColorRenderTargetFormat::k_2_10_10_10:
@@ -5484,17 +5552,6 @@ void D3D12RenderTargetCache::SetCommandListRenderTargets(
                   sizeof(current_command_list_render_targets_))) {
     are_current_command_list_render_targets_valid_ = false;
   }
-  uint32_t render_targets_are_srgb;
-  if (gamma_render_target_as_srgb_) {
-    render_targets_are_srgb = last_update_accumulated_color_targets_are_gamma();
-    if (are_current_command_list_render_targets_srgb_ !=
-        render_targets_are_srgb) {
-      are_current_command_list_render_targets_srgb_ = render_targets_are_srgb;
-      are_current_command_list_render_targets_valid_ = false;
-    }
-  } else {
-    render_targets_are_srgb = 0;
-  }
   if (!are_current_command_list_render_targets_valid_) {
     std::memcpy(current_command_list_render_targets_,
                 depth_and_color_render_targets,
@@ -5521,10 +5578,7 @@ void D3D12RenderTargetCache::SetCommandListRenderTargets(
                 : null_rtv_descriptor_ss_.GetHandle();
       }
       auto& d3d12_rt = *static_cast<const D3D12RenderTarget*>(render_target);
-      rtv_handles[rtv_count++] =
-          (render_targets_are_srgb & (uint32_t(1) << i))
-              ? d3d12_rt.descriptor_draw_srgb().GetHandle()
-              : d3d12_rt.descriptor_draw().GetHandle();
+      rtv_handles[rtv_count++] = d3d12_rt.descriptor_draw().GetHandle();
     }
     command_processor_.GetDeferredCommandList().D3DOMSetRenderTargets(
         rtv_count, rtv_handles, FALSE,
@@ -6210,8 +6264,24 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(
             dxbc::Src::R(1, dxbc::Src::kYYYY));
   } else {
     switch (key.GetColorFormat()) {
-      case xenos::ColorRenderTargetFormat::k_8_8_8_8:
       case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
+        // 8_8_8_8_GAMMA is represented by linear stored in
+        // R16G16B16A16_UNORM.
+        assert_false(source_is_uint);
+        for (uint32_t i = 0; i < 3; ++i) {
+          DxbcShaderTranslator::PreSaturatedLinearToPWLGamma(a, 1, i, 1, i, 0,
+                                                             0, 0, 1);
+        }
+        a.OpMAd(dxbc::Dest::R(1), dxbc::Src::R(1), dxbc::Src::LF(255.0f),
+                dxbc::Src::LF(0.5f));
+        a.OpFToU(dxbc::Dest::R(1), dxbc::Src::R(1));
+        for (uint32_t i = 1; i < 4; ++i) {
+          a.OpBFI(dxbc::Dest::R(1, 0b0001), dxbc::Src::LU(8),
+                  dxbc::Src::LU(i * 8), dxbc::Src::R(1).Select(i),
+                  dxbc::Src::R(1, dxbc::Src::kXXXX));
+        }
+        break;
+      case xenos::ColorRenderTargetFormat::k_8_8_8_8:
         if (!source_is_uint) {
           a.OpMAd(dxbc::Dest::R(1), dxbc::Src::R(1), dxbc::Src::LF(255.0f),
                   dxbc::Src::LF(0.5f));

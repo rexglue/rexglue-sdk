@@ -731,7 +731,7 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
     // Pixel (fragment) shader interlock.
 
     // Blending is done in linear space directly in shaders.
-    gamma_render_target_as_srgb_ = false;
+    gamma_render_target_as_unorm16_ = false;
 
     // Always true float24 depth rounded to the nearest even.
     depth_float24_round_ = true;
@@ -1296,11 +1296,6 @@ bool VulkanRenderTargetCache::Update(
                                        depth_and_color_render_targets,
                                        last_update_transfers());
 
-      uint32_t render_targets_are_srgb =
-          gamma_render_target_as_srgb_
-              ? last_update_accumulated_color_targets_are_gamma()
-              : 0;
-
       if (depth_and_color_render_targets[0]) {
         render_pass_key.depth_and_color_used |= 1 << 0;
         render_pass_key.depth_format =
@@ -1309,30 +1304,22 @@ bool VulkanRenderTargetCache::Update(
       if (depth_and_color_render_targets[1]) {
         render_pass_key.depth_and_color_used |= 1 << 1;
         render_pass_key.color_0_view_format =
-            (render_targets_are_srgb & (1 << 0))
-                ? xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA
-                : depth_and_color_render_targets[1]->key().GetColorFormat();
+            depth_and_color_render_targets[1]->key().GetColorFormat();
       }
       if (depth_and_color_render_targets[2]) {
         render_pass_key.depth_and_color_used |= 1 << 2;
         render_pass_key.color_1_view_format =
-            (render_targets_are_srgb & (1 << 1))
-                ? xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA
-                : depth_and_color_render_targets[2]->key().GetColorFormat();
+            depth_and_color_render_targets[2]->key().GetColorFormat();
       }
       if (depth_and_color_render_targets[3]) {
         render_pass_key.depth_and_color_used |= 1 << 3;
         render_pass_key.color_2_view_format =
-            (render_targets_are_srgb & (1 << 2))
-                ? xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA
-                : depth_and_color_render_targets[3]->key().GetColorFormat();
+            depth_and_color_render_targets[3]->key().GetColorFormat();
       }
       if (depth_and_color_render_targets[4]) {
         render_pass_key.depth_and_color_used |= 1 << 4;
         render_pass_key.color_3_view_format =
-            (render_targets_are_srgb & (1 << 3))
-                ? xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA
-                : depth_and_color_render_targets[4]->key().GetColorFormat();
+            depth_and_color_render_targets[4]->key().GetColorFormat();
       }
 
       const Framebuffer* framebuffer = last_update_framebuffer_;
@@ -1592,8 +1579,7 @@ VkFormat VulkanRenderTargetCache::GetColorVulkanFormat(
     case xenos::ColorRenderTargetFormat::k_8_8_8_8:
       return VK_FORMAT_R8G8B8A8_UNORM;
     case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
-      return gamma_render_target_as_srgb_ ? VK_FORMAT_R8G8B8A8_SRGB
-                                          : VK_FORMAT_R8G8B8A8_UNORM;
+      return VK_FORMAT_R8G8B8A8_UNORM;
     case xenos::ColorRenderTargetFormat::k_2_10_10_10:
     case xenos::ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
       return VK_FORMAT_A8B8G8R8_UNORM_PACK32;
@@ -1736,10 +1722,7 @@ RenderTargetCache::RenderTarget* VulkanRenderTargetCache::CreateRenderTarget(
     xenos::ColorRenderTargetFormat color_format = key.GetColorFormat();
     image_create_info.format = GetColorVulkanFormat(color_format);
     transfer_format = GetColorOwnershipTransferVulkanFormat(color_format);
-    is_srgb_view_needed =
-        gamma_render_target_as_srgb_ &&
-        (color_format == xenos::ColorRenderTargetFormat::k_8_8_8_8 ||
-         color_format == xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA);
+    is_srgb_view_needed = false;
     if (image_create_info.format != transfer_format || is_srgb_view_needed) {
       image_create_info.flags |= VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
     }
@@ -1941,6 +1924,10 @@ bool VulkanRenderTargetCache::IsHostDepthEncodingDifferent(
       return true;
   }
   return false;
+}
+
+bool VulkanRenderTargetCache::IsGammaFormatHostStorageSeparate() const {
+  return gamma_render_target_as_unorm16_;
 }
 
 void VulkanRenderTargetCache::RequestPixelShaderInterlockBarrier() {

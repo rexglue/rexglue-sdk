@@ -2608,7 +2608,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   // Invalidate textures in memexported memory and watch for changes.
   for (const draw_util::MemExportRange& memexport_range : memexport_ranges_) {
     shared_memory_->RangeWrittenByGpu(memexport_range.base_address_dwords << 2,
-                                      memexport_range.size_bytes, false);
+                                      memexport_range.size_bytes);
   }
 
   return true;

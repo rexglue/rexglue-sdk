@@ -34,7 +34,7 @@
 // REXCVAR_DECLARE(bool, depth_float24_round);
 // REXCVAR_DECLARE(bool, depth_float24_convert_in_pixel_shader);
 // REXCVAR_DECLARE(bool, draw_resolution_scaled_texture_offsets);
-// REXCVAR_DECLARE(bool, gamma_render_target_as_srgb);
+// REXCVAR_DECLARE(bool, gamma_render_target_as_unorm16);
 // REXCVAR_DECLARE(bool, native_2x_msaa);
 // REXCVAR_DECLARE(bool, native_stencil_value_output);
 // REXCVAR_DECLARE(bool, snorm16_render_target_full_range);
@@ -91,28 +91,6 @@ class RenderTargetCache {
     // pixel shaders.
     kPixelShaderInterlock,
   };
-
-  // Useful host-specific values.
-  // sRGB conversion from the Direct3D 11.3 functional specification.
-  static constexpr float kSrgbToLinearDenominator1 = 12.92f;
-  static constexpr float kSrgbToLinearDenominator2 = 1.055f;
-  static constexpr float kSrgbToLinearExponent = 2.4f;
-  static constexpr float kSrgbToLinearOffset = 0.055f;
-  static constexpr float kSrgbToLinearThreshold = 0.04045f;
-  static constexpr float SrgbToLinear(float srgb) {
-    // 0 and 1 must be exactly achievable, also convert NaN to 0.
-    if (!(srgb > 0.0f)) {
-      return 0.0f;
-    }
-    if (!(srgb < 1.0f)) {
-      return 1.0f;
-    }
-    if (srgb <= kSrgbToLinearThreshold) {
-      return srgb / kSrgbToLinearDenominator1;
-    }
-    return std::pow((srgb + kSrgbToLinearOffset) / kSrgbToLinearDenominator2,
-                    kSrgbToLinearExponent);
-  }
 
   // Pixel shader interlock implementation helpers.
 
@@ -222,7 +200,6 @@ class RenderTargetCache {
   // formats (resource formats, but if needed, with gamma taken into account) of
   // each.
   uint32_t GetLastUpdateBoundRenderTargets(
-      bool distinguish_gamma_formats,
       uint32_t* depth_and_color_formats_out = nullptr) const;
 
  protected:
@@ -238,6 +215,8 @@ class RenderTargetCache {
   }
 
   const RegisterFile& register_file() const { return register_file_; }
+
+  virtual bool IsGammaFormatHostStorageSeparate() const = 0;
 
   // Call last in implementation-specific initialization (when things like path
   // are initialized by the implementation).
@@ -549,11 +528,6 @@ class RenderTargetCache {
     assert_true(GetPath() == Path::kHostRenderTargets);
     return last_update_accumulated_render_targets_;
   }
-  uint32_t last_update_accumulated_color_targets_are_gamma() const {
-    assert_true(GetPath() == Path::kHostRenderTargets);
-    return last_update_accumulated_color_targets_are_gamma_;
-  }
-
   const std::vector<Transfer>* last_update_transfers() const {
     assert_true(GetPath() == Path::kHostRenderTargets);
     return last_update_transfers_;
@@ -698,11 +672,10 @@ class RenderTargetCache {
     }
   };
 
-  static constexpr xenos::ColorRenderTargetFormat GetColorResourceFormat(
-      xenos::ColorRenderTargetFormat format) {
-    // sRGB, if used on the host, is a view property or global state - linear
-    // and sRGB host render targets can share data directly without transfers.
-    if (format == xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA) {
+  xenos::ColorRenderTargetFormat GetColorResourceFormat(
+      xenos::ColorRenderTargetFormat format) const {
+    if (format == xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA &&
+        !IsGammaFormatHostStorageSeparate()) {
       return xenos::ColorRenderTargetFormat::k_8_8_8_8;
     }
     return xenos::GetStorageColorFormat(format);
@@ -756,10 +729,6 @@ class RenderTargetCache {
   RenderTarget*
       last_update_accumulated_render_targets_[1 +
                                               xenos::kMaxColorRenderTargets];
-  // Whether the color render targets (in bits 0...3) from the last successful
-  // update have k_8_8_8_8_GAMMA format, for sRGB emulation on the host if
-  // needed.
-  uint32_t last_update_accumulated_color_targets_are_gamma_;
   // If false, the next update must copy last_update_used_render_targets_ to
   // last_update_accumulated_render_targets_ - it's not beneficial or even
   // incorrect to keep the previously bound render targets.
