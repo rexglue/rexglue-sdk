@@ -124,7 +124,7 @@ bool build_bctr(BuilderContext& ctx)
 
     if (jt)
     {
-        ctx.println("\tswitch ({}.u64) {{", ctx.r(jt->indexRegister));
+        ctx.println("\tswitch ({}.u32) {{", ctx.r(jt->indexRegister));
 
         for (size_t i = 0; i < jt->targets.size(); i++)
         {
