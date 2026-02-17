@@ -283,7 +283,7 @@ std::string generate_main_cpp(const AppNameParts& names) {
     content += "        REXLOG_INFO(\"  Game directory: {}\", game_dir.string());\n";
     content += "\n";
     content += "        // Create and initialize runtime\n";
-    content += "        runtime_ = std::make_unique<rex::Runtime>(\".\", game_dir);\n";
+    content += "        runtime_ = std::make_unique<rex::Runtime>(game_dir);\n";
     content += "        runtime_->set_app_context(&app_context());\n";
     content += "\n";
     content += "        auto status = runtime_->Setup(\n";
