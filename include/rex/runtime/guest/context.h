@@ -433,10 +433,11 @@ inline std::unordered_map<uint32_t, jmp_buf>& get_jmp_buf_map() {
 
 // Custom setjmp - uses guest address as key, stores in host map
 // Returns 0 on initial call, non-zero value from longjmp on return
-inline int ppc_setjmp(uint32_t guest_buf_addr) {
-    auto& map = get_jmp_buf_map();
-    return setjmp(map[guest_buf_addr]);
-}
+// NOTE: Must be a macro so setjmp captures the caller's stack frame.
+// An inline function wrapper causes MSVC debug builds to crash because
+// setjmp saves the wrapper's frame, which is gone by the time longjmp fires.
+#define ppc_setjmp(guest_buf_addr) \
+    (setjmp(::rex::runtime::guest::get_jmp_buf_map()[(guest_buf_addr)]))
 
 // Custom longjmp - looks up host jmp_buf by guest address
 // Never returns - jumps back to the corresponding setjmp site
