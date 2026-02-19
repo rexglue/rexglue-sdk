@@ -51,11 +51,12 @@ void Fiber::SwitchTo(Fiber* target) {
 }
 
 void Fiber::Destroy() {
-    assert(this != tls_current_ && "Destroy called on the currently running fiber");
+    // Thread fibers are destroyed from the owning thread itself.
     if (is_thread_fiber_) {
         ::ConvertFiberToThread();
         tls_current_ = nullptr;
     } else {
+        assert(this != tls_current_ && "Destroy called on the currently running fiber");
         ::DeleteFiber(handle_);
     }
     delete this;
