@@ -17,11 +17,13 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 #include <rex/bit.h>
 #include <rex/filesystem/vfs.h>
 #include <rex/logging.h>
+#include <rex/thread/fiber.h>
 #include <rex/system/util/native_list.h>
 #include <rex/system/util/object_table.h>
 #include <rex/system/util/xdbf_utils.h>
@@ -177,6 +179,10 @@ class KernelState {
   void OnThreadExit(XThread* thread);
   object_ref<XThread> GetThreadByID(uint32_t thread_id);
 
+  rex::thread::Fiber* LookupFiber(uint32_t guest_addr);
+  void                RegisterFiber(uint32_t guest_addr, rex::thread::Fiber* fiber);
+  void                UnregisterFiber(uint32_t guest_addr);
+
   void RegisterNotifyListener(XNotifyListener* listener);
   void UnregisterNotifyListener(XNotifyListener* listener);
   void BroadcastNotification(XNotificationID id, uint32_t data);
@@ -232,6 +238,9 @@ class KernelState {
   std::unordered_map<uint32_t, XThread*> threads_by_id_;
   std::vector<object_ref<XNotifyListener>> notify_listeners_;
   bool has_notified_startup_ = false;
+
+  // Protected by global_critical_region_.
+  std::unordered_map<uint32_t, rex::thread::Fiber*> fiber_map_;
 
   uint32_t process_type_ = X_PROCTYPE_USER;
   object_ref<UserModule> executable_module_;
