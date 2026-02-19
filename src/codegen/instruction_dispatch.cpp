@@ -459,6 +459,7 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
         { PPC_INST_VMAXUH, build_vmaxuh },
         { PPC_INST_VMINUH, build_vminuh },
         { PPC_INST_VMAXUB, build_vmaxub },
+		{ PPC_INST_VMINUB, build_vminub },
 
       //=====================================================================
       // Vector - Average

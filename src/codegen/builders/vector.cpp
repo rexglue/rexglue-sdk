@@ -410,6 +410,12 @@ bool build_vmaxub(BuilderContext& ctx)
     return true;
 }
 
+bool build_vminub(BuilderContext& ctx)
+{
+    ctx.emit_vec_int_binary("min_epu8", "u8");
+    return true;
+}
+
 bool build_vsubshs(BuilderContext& ctx)
 {
     ctx.emit_vec_int_binary("subs_epi16", "s16");
