@@ -28,6 +28,7 @@
 #include <rex/graphics/flags.h>
 #include <rex/graphics/registers.h>
 #include <rex/graphics/xenos.h>
+#include <rex/kernel/xboxkrnl/video.h>
 #include <rex/ui/d3d12/d3d12_presenter.h>
 #include <rex/ui/d3d12/d3d12_util.h>
 
@@ -1744,8 +1745,8 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
     return;
   }
 
-  // Obtain the actual front buffer size to pass to RefreshGuestOutput,
-  // resolution-scaled if it's a resolve destination, or not otherwise.
+  // Obtain the actual swap source texture size (resolution-scaled if it's a
+  // resolve destination, or not otherwise).
   D3D12_SHADER_RESOURCE_VIEW_DESC swap_texture_srv_desc;
   xenos::TextureFormat frontbuffer_format;
   ID3D12Resource* swap_texture_resource = texture_cache_->RequestSwapTexture(
@@ -1760,12 +1761,25 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
     return;
   }
   D3D12_RESOURCE_DESC swap_texture_desc = swap_texture_resource->GetDesc();
+  uint32_t guest_output_width = frontbuffer_width;
+  uint32_t guest_output_height = frontbuffer_height;
+  // Fall back to the source texture size if the swap command didn't provide a
+  // valid guest frontbuffer size.
+  if (!guest_output_width || !guest_output_height) {
+    guest_output_width = uint32_t(swap_texture_desc.Width);
+    guest_output_height = uint32_t(swap_texture_desc.Height);
+  }
+
+  kernel::X_VIDEO_MODE video_mode;
+  kernel::xboxkrnl::VdQueryVideoMode(&video_mode);
+  uint32_t display_width = std::max(uint32_t(1), uint32_t(video_mode.display_width));
+  uint32_t display_height =
+      std::max(uint32_t(1), uint32_t(video_mode.display_height));
 
   presenter->RefreshGuestOutput(
-      uint32_t(swap_texture_desc.Width), uint32_t(swap_texture_desc.Height),
-      1280, 720,
+      guest_output_width, guest_output_height, display_width, display_height,
       [this, &swap_texture_srv_desc, frontbuffer_format, swap_texture_resource,
-       &swap_texture_desc](
+       guest_output_width, guest_output_height](
           ui::Presenter::GuestOutputRefreshContext& context) -> bool {
         const ui::d3d12::D3D12Provider& provider = GetD3D12Provider();
         ID3D12Device* device = provider.GetDevice();
@@ -1778,8 +1792,8 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
           if (fxaa_source_texture_) {
             D3D12_RESOURCE_DESC fxaa_source_texture_desc =
                 fxaa_source_texture_->GetDesc();
-            if (fxaa_source_texture_desc.Width != swap_texture_desc.Width ||
-                fxaa_source_texture_desc.Height != swap_texture_desc.Height) {
+            if (fxaa_source_texture_desc.Width != guest_output_width ||
+                fxaa_source_texture_desc.Height != guest_output_height) {
               if (submission_completed_ < fxaa_source_texture_submission_) {
                 fxaa_source_texture_->AddRef();
                 resources_for_deletion_.emplace_back(
@@ -1795,8 +1809,8 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
             fxaa_source_texture_desc.Dimension =
                 D3D12_RESOURCE_DIMENSION_TEXTURE2D;
             fxaa_source_texture_desc.Alignment = 0;
-            fxaa_source_texture_desc.Width = swap_texture_desc.Width;
-            fxaa_source_texture_desc.Height = swap_texture_desc.Height;
+            fxaa_source_texture_desc.Width = guest_output_width;
+            fxaa_source_texture_desc.Height = guest_output_height;
             fxaa_source_texture_desc.DepthOrArraySize = 1;
             fxaa_source_texture_desc.MipLevels = 1;
             fxaa_source_texture_desc.Format = kFxaaSourceTextureFormat;
@@ -1950,8 +1964,8 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
         deferred_command_list_.D3DSetComputeRootSignature(
             apply_gamma_root_signature_.Get());
         ApplyGammaConstants apply_gamma_constants;
-        apply_gamma_constants.size[0] = uint32_t(swap_texture_desc.Width);
-        apply_gamma_constants.size[1] = uint32_t(swap_texture_desc.Height);
+        apply_gamma_constants.size[0] = guest_output_width;
+        apply_gamma_constants.size[1] = guest_output_height;
         deferred_command_list_.D3DSetComputeRoot32BitConstants(
             UINT(ApplyGammaRootParameter::kConstants),
             sizeof(apply_gamma_constants) / sizeof(uint32_t),
@@ -1977,8 +1991,8 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
         }
         SetExternalPipeline(apply_gamma_pipeline);
         SubmitBarriers();
-        uint32_t group_count_x = (uint32_t(swap_texture_desc.Width) + 15) / 16;
-        uint32_t group_count_y = (uint32_t(swap_texture_desc.Height) + 7) / 8;
+        uint32_t group_count_x = (guest_output_width + 15) / 16;
+        uint32_t group_count_y = (guest_output_height + 7) / 8;
         deferred_command_list_.D3DDispatch(group_count_x, group_count_y, 1);
 
         // Apply FXAA.
@@ -2021,8 +2035,8 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
             deferred_command_list_.D3DSetComputeRootSignature(
                 fxaa_root_signature_.Get());
             FxaaConstants fxaa_constants;
-            fxaa_constants.size[0] = uint32_t(swap_texture_desc.Width);
-            fxaa_constants.size[1] = uint32_t(swap_texture_desc.Height);
+            fxaa_constants.size[0] = guest_output_width;
+            fxaa_constants.size[1] = guest_output_height;
             fxaa_constants.size_inv[0] = 1.0f / float(fxaa_constants.size[0]);
             fxaa_constants.size_inv[1] = 1.0f / float(fxaa_constants.size[1]);
             deferred_command_list_.D3DSetComputeRoot32BitConstants(

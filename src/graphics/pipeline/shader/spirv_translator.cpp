@@ -116,6 +116,10 @@ void SpirvShaderTranslator::Reset() {
 
   uniform_float_constants_ = spv::NoResult;
 
+  input_vertex_index_ = spv::NoResult;
+  input_primitive_id_ = spv::NoResult;
+  input_tess_coord_ = spv::NoResult;
+  input_patch_control_point_indices_ = spv::NoResult;
   input_point_coordinates_ = spv::NoResult;
   input_fragment_coordinates_ = spv::NoResult;
   input_front_facing_ = spv::NoResult;
@@ -728,9 +732,37 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
     }
   } else {
     assert_true(is_vertex_shader());
-    execution_model = IsSpirvTessEvalShader()
+    bool is_tess_eval_shader = IsSpirvTessEvalShader();
+    execution_model = is_tess_eval_shader
                           ? spv::ExecutionModelTessellationEvaluation
                           : spv::ExecutionModelVertex;
+    if (is_tess_eval_shader) {
+      Modification shader_modification = GetSpirvShaderModification();
+      switch (shader_modification.vertex.host_vertex_shader_type) {
+        case Shader::HostVertexShaderType::kLineDomainCPIndexed:
+        case Shader::HostVertexShaderType::kLineDomainPatchIndexed:
+          builder_->addExecutionMode(function_main_, spv::ExecutionModeIsolines);
+          break;
+        case Shader::HostVertexShaderType::kTriangleDomainCPIndexed:
+        case Shader::HostVertexShaderType::kTriangleDomainPatchIndexed:
+          builder_->addExecutionMode(function_main_, spv::ExecutionModeTriangles);
+          break;
+        case Shader::HostVertexShaderType::kQuadDomainCPIndexed:
+        case Shader::HostVertexShaderType::kQuadDomainPatchIndexed:
+          builder_->addExecutionMode(function_main_, spv::ExecutionModeQuads);
+          break;
+        default:
+          assert_unhandled_case(shader_modification.vertex.host_vertex_shader_type);
+          break;
+      }
+      builder_->addExecutionMode(
+          function_main_,
+          (shader_modification.vertex.tessellation_mode ==
+                   uint32_t(xenos::TessellationMode::kDiscrete))
+              ? spv::ExecutionModeSpacingEqual
+              : spv::ExecutionModeSpacingFractionalEven);
+      builder_->addExecutionMode(function_main_, spv::ExecutionModeVertexOrderCw);
+    }
   }
   if (features_.denorm_flush_to_zero_float32) {
     // Flush to zero, similar to the real hardware, also for things like Shader
@@ -1201,6 +1233,20 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderBeforeMain() {
     builder_->addDecoration(input_primitive_id_, spv::DecorationBuiltIn,
                             spv::BuiltInPrimitiveId);
     main_interface_.push_back(input_primitive_id_);
+    input_tess_coord_ = builder_->createVariable(
+        spv::NoPrecision, spv::StorageClassInput, type_float3_, "gl_TessCoord");
+    builder_->addDecoration(input_tess_coord_, spv::DecorationBuiltIn,
+                            spv::BuiltInTessCoord);
+    main_interface_.push_back(input_tess_coord_);
+    input_patch_control_point_indices_ =
+        builder_->createVariable(spv::NoPrecision, spv::StorageClassInput,
+                                 type_float4_,
+                                 "xe_in_patch_control_point_indices");
+    builder_->addDecoration(input_patch_control_point_indices_,
+                            spv::DecorationLocation, 0);
+    builder_->addDecoration(input_patch_control_point_indices_,
+                            spv::DecorationPatch);
+    main_interface_.push_back(input_patch_control_point_indices_);
   } else {
     input_vertex_index_ = builder_->createVariable(
         spv::NoPrecision, spv::StorageClassInput, type_int_, "gl_VertexIndex");
@@ -1356,7 +1402,75 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderInMain() {
 
   // Load the vertex index or the tessellation parameters.
   if (register_count()) {
-    // TODO(Triang3l): Barycentric coordinates and patch index.
+    if (IsSpirvTessEvalShader()) {
+      auto store_register_component = [this](uint32_t register_index,
+                                             uint32_t component,
+                                             spv::Id value) {
+        id_vector_temp_.clear();
+        id_vector_temp_.push_back(builder_->makeIntConstant(int(register_index)));
+        id_vector_temp_.push_back(builder_->makeIntConstant(int(component)));
+        builder_->createStore(
+            value, builder_->createAccessChain(spv::StorageClassFunction,
+                                               var_main_registers_,
+                                               id_vector_temp_));
+      };
+      auto load_tess_coord_component = [this](uint32_t component) {
+        return builder_->createCompositeExtract(
+            builder_->createLoad(input_tess_coord_, spv::NoPrecision),
+            type_float_, component);
+      };
+      auto load_patch_control_point_index = [this](uint32_t component) {
+        return builder_->createCompositeExtract(
+            builder_->createLoad(input_patch_control_point_indices_,
+                                 spv::NoPrecision),
+            type_float_, component);
+      };
+      switch (shader_modification.vertex.host_vertex_shader_type) {
+        case Shader::HostVertexShaderType::kTriangleDomainCPIndexed:
+          // r0.xyz = domain location zyx, r1.xyz = control point indices.
+          store_register_component(0, 0, load_tess_coord_component(2));
+          store_register_component(0, 1, load_tess_coord_component(1));
+          store_register_component(0, 2, load_tess_coord_component(0));
+          if (register_count() >= 2) {
+            store_register_component(1, 0, load_patch_control_point_index(0));
+            store_register_component(1, 1, load_patch_control_point_index(1));
+            store_register_component(1, 2, load_patch_control_point_index(2));
+          }
+          break;
+        case Shader::HostVertexShaderType::kTriangleDomainPatchIndexed:
+          // r0.xyz = domain location zyx, r1.x = patch index, r1.y = swizzle.
+          store_register_component(0, 0, load_tess_coord_component(2));
+          store_register_component(0, 1, load_tess_coord_component(1));
+          store_register_component(0, 2, load_tess_coord_component(0));
+          if (register_count() >= 2) {
+            store_register_component(1, 0, load_patch_control_point_index(0));
+            store_register_component(1, 1, const_float_0_);
+          }
+          break;
+        case Shader::HostVertexShaderType::kQuadDomainCPIndexed:
+          // r0.xy = domain location xy, r0.z/r1.xyz = control point indices.
+          store_register_component(0, 0, load_tess_coord_component(0));
+          store_register_component(0, 1, load_tess_coord_component(1));
+          store_register_component(0, 2, load_patch_control_point_index(0));
+          if (register_count() >= 2) {
+            store_register_component(1, 0, load_patch_control_point_index(1));
+            store_register_component(1, 1, load_patch_control_point_index(2));
+            store_register_component(1, 2, load_patch_control_point_index(3));
+          }
+          break;
+        case Shader::HostVertexShaderType::kQuadDomainPatchIndexed:
+          // r0.x = patch index, r0.yz = domain location xy, r1.x = swizzle.
+          store_register_component(0, 0, load_patch_control_point_index(0));
+          store_register_component(0, 1, load_tess_coord_component(0));
+          store_register_component(0, 2, load_tess_coord_component(1));
+          if (register_count() >= 2) {
+            store_register_component(1, 0, const_float_0_);
+          }
+          break;
+        default:
+          break;
+      }
+    }
     if (IsSpirvVertexShader()) {
       spv::Id vertex_index = builder_->createUnaryOp(
           spv::OpBitcast, type_uint_,

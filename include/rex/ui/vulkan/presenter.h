@@ -463,6 +463,19 @@ class VulkanPresenter final : public Presenter {
   [[nodiscard]] VkPipeline CreateGuestOutputPaintPipeline(
       GuestOutputPaintEffect effect, VkRenderPass render_pass);
 
+#if defined(REX_HAS_FIDELITYFX_RUNTIME) && REX_HAS_FIDELITYFX_RUNTIME
+  bool EnsureTemporalUpscalerContext(uint32_t render_width,
+                                     uint32_t render_height,
+                                     uint32_t output_width,
+                                     uint32_t output_height);
+  bool DispatchTemporalUpscaler(VkCommandBuffer command_buffer,
+                                VkImage input_image, uint32_t input_width,
+                                uint32_t input_height, VkImage output_image,
+                                uint32_t output_width, uint32_t output_height,
+                                const GuestOutputPaintConfig& config);
+  void DestroyTemporalUpscalerContext();
+#endif
+
   const VulkanDevice* vulkan_device_;
   const UISamplers* ui_samplers_;
 
@@ -501,9 +514,17 @@ class VulkanPresenter final : public Presenter {
   // DisconnectPaintingFromSurfaceFromUIThreadImpl) by the thread doing it, as
   // well as by presenter initialization and shutdown.
   PaintContext paint_context_;
+
+#if defined(REX_HAS_FIDELITYFX_RUNTIME) && REX_HAS_FIDELITYFX_RUNTIME
+  void* temporal_upscaler_context_ = nullptr;
+  uint32_t temporal_upscaler_max_render_width_ = 0;
+  uint32_t temporal_upscaler_max_render_height_ = 0;
+  uint32_t temporal_upscaler_max_output_width_ = 0;
+  uint32_t temporal_upscaler_max_output_height_ = 0;
+  bool temporal_upscaler_provider_logged_ = false;
+#endif
 };
 
 }  // namespace vulkan
 }  // namespace ui
 }  // namespace xe
-

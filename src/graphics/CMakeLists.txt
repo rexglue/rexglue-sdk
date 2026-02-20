@@ -129,6 +129,13 @@ if(REXGLUE_USE_VULKAN)
         glslang::SPIRV
         GPUOpen::VulkanMemoryAllocator
     )
+    target_link_libraries(rexgraphics PRIVATE
+        glslang
+        MachineIndependent
+        GenericCodeGen
+        OSDependent
+        OGLCompiler
+    )
     target_compile_definitions(rexgraphics PUBLIC REX_HAS_VULKAN=1)
 endif()
 
@@ -140,4 +147,3 @@ if(REXGLUE_USE_D3D12)
     )
     target_compile_definitions(rexgraphics PUBLIC REX_HAS_D3D12=1)
 endif()
-

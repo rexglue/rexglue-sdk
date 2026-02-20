@@ -198,6 +198,24 @@ class Presenter {
       // AMD FidelityFX Super Resolution upsampling, Contrast Adaptive
       // Sharpening otherwise.
       kFsr,
+      // FidelityFX FSR2 selection. Uses the runtime temporal upscaler path
+      // where available; currently still experimental due to limited temporal
+      // inputs in the presenter path.
+      kFsr2,
+      // FidelityFX FSR3 selection. Uses the runtime temporal upscaler path
+      // where available; currently still experimental due to limited temporal
+      // inputs in the presenter path.
+      kFsr3,
+    };
+
+    enum class FsrQualityMode {
+      // Keep current behavior and use the guest output size as-is.
+      kAuto,
+      kNativeAa,
+      kQuality,
+      kBalanced,
+      kPerformance,
+      kUltraPerformance,
     };
 
     // This value is used as a lerp factor.
@@ -260,6 +278,11 @@ class Presenter {
           std::max(kFsrSharpnessReductionMin, new_fsr_sharpness_reduction));
     }
 
+    FsrQualityMode GetFsrQualityMode() const { return fsr_quality_mode_; }
+    void SetFsrQualityMode(FsrQualityMode new_fsr_quality_mode) {
+      fsr_quality_mode_ = new_fsr_quality_mode;
+    }
+
     // Very tiny effect, but highly noticeable, for instance, on the sky in the
     // 4D5307E6 main menu (prominently in Custom Games, especially with FSR -
     // banding around the clouds can be clearly seen without dithering with 8bpc
@@ -276,6 +299,7 @@ class Presenter {
     float cas_additional_sharpness_ = kCasAdditionalSharpnessDefault;
     uint32_t fsr_max_upsampling_passes_ = kFsrMaxUpscalingPassesMax;
     float fsr_sharpness_reduction_ = kFsrSharpnessReductionDefault;
+    FsrQualityMode fsr_quality_mode_ = FsrQualityMode::kAuto;
     bool dither_ = false;
   };
 
@@ -1037,4 +1061,3 @@ class Presenter {
 
 }  // namespace ui
 }  // namespace xe
-

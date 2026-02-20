@@ -11,6 +11,23 @@ set_target_properties(rexkernel PROPERTIES EXPORT_NAME kernel)
 set_target_properties(rexruntime PROPERTIES EXPORT_NAME runtime)
 set_target_properties(rexcodegen PROPERTIES EXPORT_NAME codegen)
 
+# Keep all runtime artifacts in lib for a single self-contained location.
+set(REXGLUE_INSTALL_RUNTIME_DEST "${CMAKE_INSTALL_LIBDIR}")
+
+# Ensure installed binaries resolve SDK-shipped shared libs in the same dir.
+set(REXGLUE_INSTALL_LOCAL_LIB_RPATH "")
+if(APPLE)
+    set(REXGLUE_INSTALL_LOCAL_LIB_RPATH "@loader_path")
+elseif(UNIX)
+    set(REXGLUE_INSTALL_LOCAL_LIB_RPATH "\$ORIGIN")
+endif()
+
+if(REXGLUE_INSTALL_LOCAL_LIB_RPATH)
+    set_target_properties(rexglue PROPERTIES
+        INSTALL_RPATH "${REXGLUE_INSTALL_LOCAL_LIB_RPATH}"
+    )
+endif()
+
 # Build install target list dynamically based on backend options
 set(REXGLUE_INSTALL_TARGETS
     # ReX SDK libraries
@@ -35,12 +52,30 @@ if(REXGLUE_USE_D3D12)
     list(APPEND REXGLUE_INSTALL_TARGETS dxc-headers)
 endif()
 
+set(REXGLUE_INSTALL_FIDELITYFX_TARGETS)
+if(TARGET amd_fidelityfx_vk)
+    list(APPEND REXGLUE_INSTALL_FIDELITYFX_TARGETS amd_fidelityfx_vk)
+endif()
+
+if(TARGET amd_fidelityfx_dx12)
+    list(APPEND REXGLUE_INSTALL_FIDELITYFX_TARGETS amd_fidelityfx_dx12)
+endif()
+
 install(TARGETS ${REXGLUE_INSTALL_TARGETS}
     EXPORT rexglueTargets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    RUNTIME DESTINATION ${REXGLUE_INSTALL_RUNTIME_DEST}
 )
+
+if(REXGLUE_INSTALL_FIDELITYFX_TARGETS)
+    install(TARGETS ${REXGLUE_INSTALL_FIDELITYFX_TARGETS}
+        EXPORT rexglueTargets
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${REXGLUE_INSTALL_RUNTIME_DEST}
+    )
+endif()
 
 # Install public headers
 install(DIRECTORY include/rex

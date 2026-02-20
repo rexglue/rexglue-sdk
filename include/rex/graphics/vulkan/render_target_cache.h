@@ -122,6 +122,11 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
                VulkanTextureCache& texture_cache, uint32_t& written_address_out,
                uint32_t& written_length_out);
 
+  // Returns true if any downloads were submitted to the command processor.
+  bool InitializeTraceSubmitDownloads();
+  void InitializeTraceCompleteDownloads();
+  void RestoreEdramSnapshot(const void* snapshot);
+
   bool Update(bool is_rasterization_done,
               reg::RB_DEPTHCONTROL normalized_depth_control,
               uint32_t normalized_color_mask,
@@ -920,6 +925,15 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   std::vector<ResolveCopyDumpRectangle> dump_rectangles_;
   std::vector<DumpInvocation> dump_invocations_;
 
+  // For traces.
+  VkBuffer edram_snapshot_download_buffer_ = VK_NULL_HANDLE;
+  VkDeviceMemory edram_snapshot_download_buffer_memory_ = VK_NULL_HANDLE;
+  uint32_t edram_snapshot_download_buffer_memory_type_ = UINT32_MAX;
+  VkDeviceSize edram_snapshot_download_buffer_memory_size_ = 0;
+  std::unique_ptr<ui::vulkan::VulkanUploadBufferPool>
+      edram_snapshot_restore_pool_;
+  void ResetTraceDownload();
+
   // For pixel (fragment) shader interlock.
 
   VkRenderPass fsi_render_pass_ = VK_NULL_HANDLE;
@@ -931,4 +945,3 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
 };
 
 }  // namespace rex::graphics::vulkan
-

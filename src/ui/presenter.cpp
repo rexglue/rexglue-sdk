@@ -12,6 +12,8 @@
 #include <rex/ui/presenter.h>
 
 #include <algorithm>
+#include <atomic>
+#include <cctype>
 #include <utility>
 
 #include <rex/assert.h>
@@ -19,6 +21,11 @@
 #include <rex/logging.h>
 #include <rex/platform.h>
 #include <rex/ui/window.h>
+
+#if defined(REX_HAS_FIDELITYFX_RUNTIME) && REX_HAS_FIDELITYFX_RUNTIME
+#include <ffx_api/ffx_api.h>
+#include <ffx_api/ffx_upscale.h>
+#endif
 
 #if REX_PLATFORM_WIN32
 #include <rex/ui/window_win.h>
@@ -41,6 +48,241 @@ REXCVAR_DEFINE_INT32(present_safe_area_y, 90,
     "Vertical safe area percentage (0-100)",
     "UI/Presenter")
     .range(0, 100);
+
+REXCVAR_DEFINE_STRING(present_effect, "bilinear",
+    "Guest output effect: bilinear, cas, fsr, fsr2, fsr3",
+    "UI/Presenter")
+    .allowed({"bilinear", "cas", "fsr", "fsr2", "fsr3"})
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+
+REXCVAR_DEFINE_DOUBLE(present_cas_additional_sharpness,
+    rex::ui::Presenter::GuestOutputPaintConfig::kCasAdditionalSharpnessDefault,
+    "Additional CAS sharpness in [0, 1]",
+    "UI/Presenter")
+    .range(rex::ui::Presenter::GuestOutputPaintConfig::kCasAdditionalSharpnessMin,
+           rex::ui::Presenter::GuestOutputPaintConfig::kCasAdditionalSharpnessMax)
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+
+REXCVAR_DEFINE_INT32(present_fsr_max_upsampling_passes,
+    rex::ui::Presenter::GuestOutputPaintConfig::kFsrMaxUpscalingPassesMax,
+    "Maximum chained FSR EASU passes",
+    "UI/Presenter")
+    .range(1, int32_t(rex::ui::Presenter::GuestOutputPaintConfig::kFsrMaxUpscalingPassesMax))
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+
+REXCVAR_DEFINE_DOUBLE(present_fsr_sharpness_reduction,
+    rex::ui::Presenter::GuestOutputPaintConfig::kFsrSharpnessReductionDefault,
+    "FSR RCAS sharpness reduction in stops",
+    "UI/Presenter")
+    .range(rex::ui::Presenter::GuestOutputPaintConfig::kFsrSharpnessReductionMin,
+           rex::ui::Presenter::GuestOutputPaintConfig::kFsrSharpnessReductionMax)
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+
+REXCVAR_DEFINE_STRING(present_fsr_quality_mode, "auto",
+    "Temporal FSR quality mode: auto, nativeaa, quality, balanced, performance, ultra_performance",
+    "UI/Presenter")
+    .allowed({"auto", "nativeaa", "quality", "balanced", "performance",
+              "ultra_performance"})
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+
+REXCVAR_DEFINE_BOOL(present_dither, false,
+    "Enable output dithering in the final present pass",
+    "UI/Presenter")
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+
+REXCVAR_DEFINE_BOOL(present_allow_overscan_cutoff, false,
+    "Allow overscan cutoff based on safe area settings",
+    "UI/Presenter")
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+
+namespace {
+using GuestOutputPaintConfig = rex::ui::Presenter::GuestOutputPaintConfig;
+
+GuestOutputPaintConfig::Effect ParsePresentEffect(
+    const std::string& effect_name) {
+  std::string lowered = effect_name;
+  std::transform(lowered.begin(), lowered.end(), lowered.begin(),
+                 [](unsigned char c) { return char(std::tolower(c)); });
+  if (lowered == "cas") {
+    return GuestOutputPaintConfig::Effect::kCas;
+  }
+  if (lowered == "fsr") {
+    return GuestOutputPaintConfig::Effect::kFsr;
+  }
+  if (lowered == "fsr2") {
+    return GuestOutputPaintConfig::Effect::kFsr2;
+  }
+  if (lowered == "fsr3") {
+    return GuestOutputPaintConfig::Effect::kFsr3;
+  }
+  return GuestOutputPaintConfig::Effect::kBilinear;
+}
+
+bool IsTemporalFsrCompatibilityEffect(GuestOutputPaintConfig::Effect effect) {
+  return effect == GuestOutputPaintConfig::Effect::kFsr2 ||
+         effect == GuestOutputPaintConfig::Effect::kFsr3;
+}
+
+GuestOutputPaintConfig::FsrQualityMode ParsePresentFsrQualityMode(
+    const std::string& mode_name) {
+  std::string lowered = mode_name;
+  std::transform(lowered.begin(), lowered.end(), lowered.begin(),
+                 [](unsigned char c) {
+                   c = static_cast<unsigned char>(std::tolower(c));
+                   return c == '-' ? '_' : char(c);
+                 });
+  if (lowered == "nativeaa" || lowered == "native_aa" ||
+      lowered == "native") {
+    return GuestOutputPaintConfig::FsrQualityMode::kNativeAa;
+  }
+  if (lowered == "quality") {
+    return GuestOutputPaintConfig::FsrQualityMode::kQuality;
+  }
+  if (lowered == "balanced") {
+    return GuestOutputPaintConfig::FsrQualityMode::kBalanced;
+  }
+  if (lowered == "performance") {
+    return GuestOutputPaintConfig::FsrQualityMode::kPerformance;
+  }
+  if (lowered == "ultra_performance" || lowered == "ultra") {
+    return GuestOutputPaintConfig::FsrQualityMode::kUltraPerformance;
+  }
+  return GuestOutputPaintConfig::FsrQualityMode::kAuto;
+}
+
+bool GetFsrQualityModeApiValue(GuestOutputPaintConfig::FsrQualityMode mode,
+                               uint32_t& api_mode_out) {
+  switch (mode) {
+    case GuestOutputPaintConfig::FsrQualityMode::kAuto:
+      return false;
+    case GuestOutputPaintConfig::FsrQualityMode::kNativeAa:
+#if defined(REX_HAS_FIDELITYFX_RUNTIME) && REX_HAS_FIDELITYFX_RUNTIME
+      api_mode_out = FFX_UPSCALE_QUALITY_MODE_NATIVEAA;
+#else
+      api_mode_out = 0;
+#endif
+      return true;
+    case GuestOutputPaintConfig::FsrQualityMode::kQuality:
+#if defined(REX_HAS_FIDELITYFX_RUNTIME) && REX_HAS_FIDELITYFX_RUNTIME
+      api_mode_out = FFX_UPSCALE_QUALITY_MODE_QUALITY;
+#else
+      api_mode_out = 1;
+#endif
+      return true;
+    case GuestOutputPaintConfig::FsrQualityMode::kBalanced:
+#if defined(REX_HAS_FIDELITYFX_RUNTIME) && REX_HAS_FIDELITYFX_RUNTIME
+      api_mode_out = FFX_UPSCALE_QUALITY_MODE_BALANCED;
+#else
+      api_mode_out = 2;
+#endif
+      return true;
+    case GuestOutputPaintConfig::FsrQualityMode::kPerformance:
+#if defined(REX_HAS_FIDELITYFX_RUNTIME) && REX_HAS_FIDELITYFX_RUNTIME
+      api_mode_out = FFX_UPSCALE_QUALITY_MODE_PERFORMANCE;
+#else
+      api_mode_out = 3;
+#endif
+      return true;
+    case GuestOutputPaintConfig::FsrQualityMode::kUltraPerformance:
+#if defined(REX_HAS_FIDELITYFX_RUNTIME) && REX_HAS_FIDELITYFX_RUNTIME
+      api_mode_out = FFX_UPSCALE_QUALITY_MODE_ULTRA_PERFORMANCE;
+#else
+      api_mode_out = 4;
+#endif
+      return true;
+  }
+  return false;
+}
+
+float GetFsrQualityModeRatioFallback(GuestOutputPaintConfig::FsrQualityMode mode) {
+  switch (mode) {
+    case GuestOutputPaintConfig::FsrQualityMode::kNativeAa:
+      return 1.0f;
+    case GuestOutputPaintConfig::FsrQualityMode::kQuality:
+      return 1.5f;
+    case GuestOutputPaintConfig::FsrQualityMode::kBalanced:
+      return 1.7f;
+    case GuestOutputPaintConfig::FsrQualityMode::kPerformance:
+      return 2.0f;
+    case GuestOutputPaintConfig::FsrQualityMode::kUltraPerformance:
+      return 3.0f;
+    case GuestOutputPaintConfig::FsrQualityMode::kAuto:
+    default:
+      return 1.0f;
+  }
+}
+
+bool QueryTemporalFsrRenderResolutionFromQualityMode(
+    uint32_t display_width, uint32_t display_height,
+    GuestOutputPaintConfig::FsrQualityMode mode, uint32_t& render_width_out,
+    uint32_t& render_height_out) {
+  uint32_t api_mode = 0;
+  if (!GetFsrQualityModeApiValue(mode, api_mode)) {
+    return false;
+  }
+
+#if defined(REX_HAS_FIDELITYFX_RUNTIME) && REX_HAS_FIDELITYFX_RUNTIME
+  ffxQueryDescUpscaleGetRenderResolutionFromQualityMode query_desc = {};
+  query_desc.header.type =
+      FFX_API_QUERY_DESC_TYPE_UPSCALE_GETRENDERRESOLUTIONFROMQUALITYMODE;
+  query_desc.header.pNext = nullptr;
+  query_desc.displayWidth = display_width;
+  query_desc.displayHeight = display_height;
+  query_desc.qualityMode = api_mode;
+  query_desc.pOutRenderWidth = &render_width_out;
+  query_desc.pOutRenderHeight = &render_height_out;
+  if (ffxQuery(nullptr, &query_desc.header) == FFX_API_RETURN_OK &&
+      render_width_out && render_height_out) {
+    return true;
+  }
+#endif
+
+  float ratio = GetFsrQualityModeRatioFallback(mode);
+  render_width_out = std::max(uint32_t(1),
+                              uint32_t(float(display_width) / ratio + 0.5f));
+  render_height_out = std::max(uint32_t(1),
+                               uint32_t(float(display_height) / ratio + 0.5f));
+  return true;
+}
+
+void LogTemporalFsrCompatibilityPathOnce() {
+  static std::atomic<bool> temporal_fsr_compatibility_logged = false;
+  if (!temporal_fsr_compatibility_logged.exchange(true)) {
+    REXLOG_WARN(
+        "present_effect=fsr2/fsr3 uses an experimental temporal upscaler path "
+        "with synthesized depth/motion inputs and may fall back to spatial FSR");
+  }
+}
+
+void LogTemporalFsrQualityModeInputLimitOnce() {
+  static std::atomic<bool> temporal_fsr_quality_mode_input_limit_logged = false;
+  if (!temporal_fsr_quality_mode_input_limit_logged.exchange(true)) {
+    REXLOG_WARN(
+        "present_fsr_quality_mode requested a render size larger than the "
+        "guest output; using guest output size");
+  }
+}
+
+GuestOutputPaintConfig BuildGuestOutputPaintConfigFromCVar() {
+  GuestOutputPaintConfig config;
+  GuestOutputPaintConfig::Effect parsed_effect =
+      ParsePresentEffect(REXCVAR_GET(present_effect));
+  if (IsTemporalFsrCompatibilityEffect(parsed_effect)) {
+    LogTemporalFsrCompatibilityPathOnce();
+  }
+  config.SetAllowOverscanCutoff(REXCVAR_GET(present_allow_overscan_cutoff));
+  config.SetEffect(parsed_effect);
+  config.SetCasAdditionalSharpness(float(REXCVAR_GET(present_cas_additional_sharpness)));
+  config.SetFsrMaxUpsamplingPasses(
+      uint32_t(std::max(int32_t(1), REXCVAR_GET(present_fsr_max_upsampling_passes))));
+  config.SetFsrSharpnessReduction(float(REXCVAR_GET(present_fsr_sharpness_reduction)));
+  config.SetFsrQualityMode(
+      ParsePresentFsrQualityMode(REXCVAR_GET(present_fsr_quality_mode)));
+  config.SetDither(REXCVAR_GET(present_dither));
+  return config;
+}
+
+}  // namespace
 
 namespace rex {
 namespace ui {
@@ -445,7 +687,9 @@ void Presenter::SetGuestOutputPaintConfigFromUIThread(
   if (guest_output_paint_config_.GetFsrSharpnessReduction() !=
       new_config.GetFsrSharpnessReduction()) {
     modified = true;
-    if (new_config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr) {
+    if (new_config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr ||
+        new_config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr2 ||
+        new_config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr3) {
       request_repaint = true;
     }
   }
@@ -453,13 +697,23 @@ void Presenter::SetGuestOutputPaintConfigFromUIThread(
       new_config.GetCasAdditionalSharpness()) {
     modified = true;
     if (new_config.GetEffect() == GuestOutputPaintConfig::Effect::kCas ||
-        new_config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr) {
+        new_config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr ||
+        new_config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr2 ||
+        new_config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr3) {
       request_repaint = true;
     }
   }
   if (guest_output_paint_config_.GetDither() != new_config.GetDither()) {
     modified = true;
     request_repaint = true;
+  }
+  if (guest_output_paint_config_.GetFsrQualityMode() !=
+      new_config.GetFsrQualityMode()) {
+    modified = true;
+    if (new_config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr2 ||
+        new_config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr3) {
+      request_repaint = true;
+    }
   }
   if (modified) {
     {
@@ -559,6 +813,11 @@ void Presenter::RequestUIPaintFromUIThread() {
 }
 
 bool Presenter::InitializeCommonSurfaceIndependent() {
+  {
+    std::lock_guard<std::mutex> config_lock(guest_output_paint_config_mutex_);
+    guest_output_paint_config_ = BuildGuestOutputPaintConfigFromCVar();
+  }
+
   // Initialize UI frame rate limiting.
 #if REX_PLATFORM_WIN32
   dxgi_ui_tick_thread_ = std::thread(&Presenter::DXGIUITickThread, this);
@@ -790,6 +1049,25 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
   // extreme values.
   int32_t output_right = flow.output_x + int32_t(output_width);
   int32_t output_bottom = flow.output_y + int32_t(output_height);
+  // In rare cases (for example, when surface and render-target coordinate
+  // spaces diverge unexpectedly), the computed output may become anchored at
+  // the top-left and smaller than the host render target. This results in only
+  // a top-left region being presented with black right/bottom areas.
+  if (flow.output_x >= 0 && flow.output_y >= 0 && flow.output_x <= 1 &&
+      flow.output_y <= 1 && output_width < host_rt_width &&
+      output_height < host_rt_height) {
+    static std::atomic<bool> logged_top_left_expand = false;
+    if (!logged_top_left_expand.exchange(true)) {
+      REXLOG_WARN(
+          "Presenter: expanding guest output from {}x{} to host render target "
+          "{}x{} to avoid top-left-only presentation",
+          output_width, output_height, host_rt_width, host_rt_height);
+    }
+    output_width = host_rt_width;
+    output_height = host_rt_height;
+    output_right = int32_t(output_width);
+    output_bottom = int32_t(output_height);
+  }
   if (!output_width || !output_height || output_right <= 0 ||
       output_bottom <= 0 || flow.output_x >= int32_t(host_rt_width) ||
       flow.output_y >= int32_t(host_rt_height)) {
@@ -808,7 +1086,9 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
   uint32_t output_height_clamped = std::min(output_height, max_rt_height);
 
   if (config.GetEffect() == GuestOutputPaintConfig::Effect::kCas ||
-      config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr) {
+      config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr ||
+      config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr2 ||
+      config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr3) {
     // FidelityFX Super Resolution and Contrast Adaptive Sharpening only work
     // good for up to 2x2 upscaling due to the way they fetch texels.
     // CAS is primarily a sharpening filter, not an upscaling one (its upscaling
@@ -830,26 +1110,82 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
       ffx_last_size.first = properties.frontbuffer_width;
       ffx_last_size.second = properties.frontbuffer_height;
     }
-    if (config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr &&
-        (ffx_last_size.first < output_width_clamped ||
-         ffx_last_size.second < output_height_clamped)) {
+    bool is_temporal_effect =
+        config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr2 ||
+        config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr3;
+    bool temporal_quality_mode_forced =
+        is_temporal_effect &&
+        config.GetFsrQualityMode() !=
+            GuestOutputPaintConfig::FsrQualityMode::kAuto;
+    if ((config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr ||
+         is_temporal_effect) &&
+        ((ffx_last_size.first < output_width_clamped ||
+          ffx_last_size.second < output_height_clamped) ||
+         temporal_quality_mode_forced)) {
       // AMD FidelityFX Super Resolution - upsample along at least one axis.
       // Using the output size clamped to the maximum render target size here as
       // EASU will always write to intermediate images, and RCAS supports only
       // 1:1.
-      uint32_t easu_max_passes = config.GetFsrMaxUpsamplingPasses();
-      uint32_t easu_pass_count = 0;
-      while (easu_pass_count < easu_max_passes &&
-             (ffx_last_size.first < output_width_clamped ||
-              ffx_last_size.second < output_height_clamped)) {
-        ffx_last_size.first =
-            std::min(ffx_last_size.first * uint32_t(2), output_width_clamped);
-        ffx_last_size.second =
-            std::min(ffx_last_size.second * uint32_t(2), output_height_clamped);
+      if (is_temporal_effect) {
+        uint32_t temporal_input_width = ffx_last_size.first;
+        uint32_t temporal_input_height = ffx_last_size.second;
+        uint32_t quality_mode_render_width = 0;
+        uint32_t quality_mode_render_height = 0;
+        if (QueryTemporalFsrRenderResolutionFromQualityMode(
+                output_width_clamped, output_height_clamped,
+                config.GetFsrQualityMode(), quality_mode_render_width,
+                quality_mode_render_height)) {
+          quality_mode_render_width =
+              std::max(uint32_t(1),
+                       std::min(quality_mode_render_width, output_width_clamped));
+          quality_mode_render_height =
+              std::max(uint32_t(1), std::min(quality_mode_render_height,
+                                             output_height_clamped));
+          if (quality_mode_render_width < temporal_input_width ||
+              quality_mode_render_height < temporal_input_height) {
+            temporal_input_width = quality_mode_render_width;
+            temporal_input_height = quality_mode_render_height;
+            if (temporal_input_width != ffx_last_size.first ||
+                temporal_input_height != ffx_last_size.second) {
+              assert_true(flow.effect_count < flow.effects.size());
+              flow.effect_output_sizes[flow.effect_count] = std::make_pair(
+                  temporal_input_width, temporal_input_height);
+              // Pre-temporal quality mode may request a lower render
+              // resolution. Use CAS resample since bilinear is not allowed in
+              // intermediate passes.
+              flow.effects[flow.effect_count++] =
+                  GuestOutputPaintEffect::kCasResample;
+              ffx_last_size.first = temporal_input_width;
+              ffx_last_size.second = temporal_input_height;
+            }
+          } else if (quality_mode_render_width > temporal_input_width ||
+                     quality_mode_render_height > temporal_input_height) {
+            LogTemporalFsrQualityModeInputLimitOnce();
+          }
+        }
+
+        // A single temporal upscaler dispatch can target the final clamped
+        // size directly, unlike the spatial multi-pass chain.
+        ffx_last_size.first = output_width_clamped;
+        ffx_last_size.second = output_height_clamped;
         assert_true(flow.effect_count < flow.effects.size());
         flow.effect_output_sizes[flow.effect_count] = ffx_last_size;
         flow.effects[flow.effect_count++] = GuestOutputPaintEffect::kFsrEasu;
-        ++easu_pass_count;
+      } else {
+        uint32_t easu_max_passes = config.GetFsrMaxUpsamplingPasses();
+        uint32_t easu_pass_count = 0;
+        while (easu_pass_count < easu_max_passes &&
+               (ffx_last_size.first < output_width_clamped ||
+                ffx_last_size.second < output_height_clamped)) {
+          ffx_last_size.first =
+              std::min(ffx_last_size.first * uint32_t(2), output_width_clamped);
+          ffx_last_size.second =
+              std::min(ffx_last_size.second * uint32_t(2), output_height_clamped);
+          assert_true(flow.effect_count < flow.effects.size());
+          flow.effect_output_sizes[flow.effect_count] = ffx_last_size;
+          flow.effects[flow.effect_count++] = GuestOutputPaintEffect::kFsrEasu;
+          ++easu_pass_count;
+        }
       }
       assert_true(flow.effect_count < flow.effects.size());
       flow.effect_output_sizes[flow.effect_count] = ffx_last_size;

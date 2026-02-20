@@ -11,6 +11,8 @@
 
 #include <rex/graphics/graphics_system.h>
 
+#include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -27,6 +29,7 @@
 #include <rex/graphics/flags.h>
 #include <rex/kernel/kernel_state.h>
 #include <rex/kernel/xthread.h>
+#include <rex/kernel/xboxkrnl/video.h>
 #include <rex/ui/graphics_provider.h>
 #include <rex/ui/window.h>
 #include <rex/ui/windowed_app_context.h>
@@ -39,8 +42,31 @@ REXCVAR_DEFINE_BOOL(trace_gpu_stream, false,
     "Enable GPU trace streaming",
     "GPU");
 
+REXCVAR_DEFINE_STRING(swap_post_effect, "none",
+    "Swap post effect: none, fxaa, fxaa_extreme",
+    "GPU")
+    .allowed({"none", "fxaa", "fxaa_extreme"})
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+
 namespace {
 constexpr bool kStoreShaders = true;
+
+rex::graphics::CommandProcessor::SwapPostEffect ParseSwapPostEffect(
+    const std::string& effect_name) {
+  std::string lowered = effect_name;
+  std::transform(lowered.begin(), lowered.end(), lowered.begin(),
+                 [](unsigned char c) {
+                   c = static_cast<unsigned char>(std::tolower(c));
+                   return c == '-' ? '_' : char(c);
+                 });
+  if (lowered == "fxaa") {
+    return rex::graphics::CommandProcessor::SwapPostEffect::kFxaa;
+  }
+  if (lowered == "fxaa_extreme" || lowered == "extreme") {
+    return rex::graphics::CommandProcessor::SwapPostEffect::kFxaaExtreme;
+  }
+  return rex::graphics::CommandProcessor::SwapPostEffect::kNone;
+}
 }  // namespace
 
 namespace rex::graphics {
@@ -98,6 +124,8 @@ X_STATUS GraphicsSystem::Setup(runtime::Processor* processor,
       REXGPU_ERROR("Unable to initialize command processor");
       return X_STATUS_UNSUCCESSFUL;
     }
+  command_processor_->SetDesiredSwapPostEffect(
+      ParseSwapPostEffect(REXCVAR_GET(swap_post_effect)));
 
   // Register GPU MMIO handlers
   // GPU registers are at 0x7FC80000-0x7FCFFFFF
@@ -109,17 +137,24 @@ X_STATUS GraphicsSystem::Setup(runtime::Processor* processor,
       reinterpret_cast<runtime::MMIOReadCallback>(ReadRegisterThunk),
       reinterpret_cast<runtime::MMIOWriteCallback>(WriteRegisterThunk));
 
-  // 60hz vsync timer.
+  // Guest vblank timer based on the configured guest video mode.
   vsync_worker_running_ = true;
   vsync_worker_thread_ = kernel::object_ref<kernel::XHostThread>(
       new kernel::XHostThread(kernel_state_, 128 * 1024, 0, [this]() {
-        uint64_t vsync_duration = REXCVAR_GET(vsync) ? 16 : 1;
+        kernel::X_VIDEO_MODE video_mode;
+        kernel::xboxkrnl::VdQueryVideoMode(&video_mode);
+        double refresh_rate_hz = std::max(1.0, double(float(video_mode.refresh_rate)));
+        uint64_t guest_tick_frequency = chrono::Clock::guest_tick_frequency();
+        uint64_t vsync_interval_ticks = std::max(
+            uint64_t(1), uint64_t(double(guest_tick_frequency) / refresh_rate_hz));
+        uint64_t no_vsync_interval_ticks =
+            std::max(uint64_t(1), guest_tick_frequency / 1000);
         uint64_t last_frame_time = chrono::Clock::QueryGuestTickCount();
         while (vsync_worker_running_) {
           uint64_t current_time = chrono::Clock::QueryGuestTickCount();
-          uint64_t elapsed = (current_time - last_frame_time) /
-                             (chrono::Clock::guest_tick_frequency() / 1000);
-          if (elapsed >= vsync_duration) {
+          uint64_t interval_ticks =
+              REXCVAR_GET(vsync) ? vsync_interval_ticks : no_vsync_interval_ticks;
+          if (current_time - last_frame_time >= interval_ticks) {
             MarkVblank();
             last_frame_time = current_time;
           }
@@ -201,14 +236,23 @@ uint32_t GraphicsSystem::ReadRegister(uint32_t addr) {
       return 0x08100748;
     case 0x0F01:  // RB_BC_CONTROL
       return 0x0000200E;
-    case 0x194C:  // R500_D1MODE_V_COUNTER
-      return 0x000002D0;
+    case 0x194C: {  // R500_D1MODE_V_COUNTER
+      kernel::X_VIDEO_MODE video_mode;
+      kernel::xboxkrnl::VdQueryVideoMode(&video_mode);
+      return std::min(uint32_t(video_mode.display_height), uint32_t(0x0FFF));
+    }
     case 0x1951:  // interrupt status
       return 1;   // vblank
-    case 0x1961:  // AVIVO_D1MODE_VIEWPORT_SIZE
-                  // Screen res - 1280x720
-                  // maximum [width(0x0FFF), height(0x0FFF)]
-      return 0x050002D0;
+    case 0x1961: {  // AVIVO_D1MODE_VIEWPORT_SIZE
+      // Maximum [width(0x0FFF), height(0x0FFF)].
+      kernel::X_VIDEO_MODE video_mode;
+      kernel::xboxkrnl::VdQueryVideoMode(&video_mode);
+      uint32_t viewport_width =
+          std::min(uint32_t(video_mode.display_width), uint32_t(0x0FFF));
+      uint32_t viewport_height =
+          std::min(uint32_t(video_mode.display_height), uint32_t(0x0FFF));
+      return (viewport_width << 16) | viewport_height;
+    }
     default:
       if (!register_file_.GetRegisterInfo(r)) {
         REXGPU_ERROR("GPU: Read from unknown register ({:04X})", r);

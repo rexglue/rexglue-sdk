@@ -18,6 +18,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -136,6 +137,8 @@ class VulkanCommandProcessor : public CommandProcessor {
   ~VulkanCommandProcessor();
 
   void ClearCaches() override;
+  void InitializeShaderStorage(const std::filesystem::path& cache_root,
+                               uint32_t title_id, bool blocking) override;
 
   void TracePlaybackWroteMemory(uint32_t base_ptr, uint32_t length) override;
 
@@ -146,6 +149,10 @@ class VulkanCommandProcessor : public CommandProcessor {
                graphics_system_->provider())
         ->vulkan_device();
   }
+
+  bool CompileGlslToSpirv(VkShaderStageFlagBits stage, std::string_view source,
+                          std::vector<uint32_t>& spirv_out,
+                          std::string& error_out) const;
 
   // Returns the deferred drawing command list for the currently open
   // submission.
@@ -382,6 +389,26 @@ class VulkanCommandProcessor : public CommandProcessor {
 
     kSwapApplyGammaDescriptorSetCount,
   };
+  enum SwapApplyGammaComputeDescriptorSet : uint32_t {
+    kSwapApplyGammaComputeDescriptorSetRamp,
+    kSwapApplyGammaComputeDescriptorSetSource,
+    kSwapApplyGammaComputeDescriptorSetDestination,
+
+    kSwapApplyGammaComputeDescriptorSetCount,
+  };
+  struct SwapApplyGammaConstants {
+    uint32_t size[2];
+  };
+  enum SwapFxaaDescriptorSet : uint32_t {
+    kSwapFxaaDescriptorSetSource,
+    kSwapFxaaDescriptorSetDestination,
+
+    kSwapFxaaDescriptorSetCount,
+  };
+  struct SwapFxaaConstants {
+    uint32_t size[2];
+    float size_inv[2];
+  };
 
   // Framebuffer for the current presenter's guest output image revision, and
   // its usage tracking.
@@ -422,6 +449,8 @@ class VulkanCommandProcessor : public CommandProcessor {
   void SplitPendingBarrier();
 
   void DestroyScratchBuffer();
+  bool EnsureSwapFxaaSourceImage(uint32_t width, uint32_t height);
+  void DestroySwapFxaaSourceImage();
 
   void UpdateDynamicState(const draw_util::ViewportInfo& viewport_info,
                           bool primitive_polygonal,
@@ -484,6 +513,8 @@ class VulkanCommandProcessor : public CommandProcessor {
   // <Submission where last used, resource>, sorted by the submission number.
   std::deque<std::pair<uint64_t, VkDeviceMemory>> destroy_memory_;
   std::deque<std::pair<uint64_t, VkBuffer>> destroy_buffers_;
+  std::deque<std::pair<uint64_t, VkImageView>> destroy_image_views_;
+  std::deque<std::pair<uint64_t, VkImage>> destroy_images_;
   std::deque<std::pair<uint64_t, VkFramebuffer>> destroy_framebuffers_;
 
   std::vector<CommandBuffer> command_buffers_writable_;
@@ -589,6 +620,10 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   VkDescriptorSetLayout swap_descriptor_set_layout_sampled_image_ =
       VK_NULL_HANDLE;
+  VkDescriptorSetLayout swap_descriptor_set_layout_combined_image_sampler_ =
+      VK_NULL_HANDLE;
+  VkDescriptorSetLayout swap_descriptor_set_layout_storage_image_ =
+      VK_NULL_HANDLE;
   VkDescriptorSetLayout swap_descriptor_set_layout_uniform_texel_buffer_ =
       VK_NULL_HANDLE;
 
@@ -602,14 +637,48 @@ class VulkanCommandProcessor : public CommandProcessor {
       swap_descriptors_gamma_ramp_;
   // Sampled images.
   std::array<VkDescriptorSet, kMaxFramesInFlight> swap_descriptors_source_;
+  // Combined image sampler descriptors for FXAA.
+  std::array<VkDescriptorSet, kMaxFramesInFlight> swap_descriptors_fxaa_source_;
+  // Storage image descriptors for the apply-gamma compute pass destination.
+  std::array<VkDescriptorSet, kMaxFramesInFlight>
+      swap_descriptors_destination_storage_;
+  // Separate storage image descriptors for the FXAA compute destination.
+  std::array<VkDescriptorSet, kMaxFramesInFlight>
+      swap_descriptors_fxaa_destination_storage_;
+
+  VkSampler swap_sampler_linear_clamp_ = VK_NULL_HANDLE;
 
   VkPipelineLayout swap_apply_gamma_pipeline_layout_ = VK_NULL_HANDLE;
+  VkPipelineLayout swap_apply_gamma_compute_pipeline_layout_ = VK_NULL_HANDLE;
+  VkPipelineLayout swap_fxaa_pipeline_layout_ = VK_NULL_HANDLE;
   // Has no dependencies on specific pipeline stages on both ends to simplify
   // use in different scenarios with different pipelines - use explicit barriers
   // for synchronization.
   VkRenderPass swap_apply_gamma_render_pass_ = VK_NULL_HANDLE;
   VkPipeline swap_apply_gamma_256_entry_table_pipeline_ = VK_NULL_HANDLE;
   VkPipeline swap_apply_gamma_pwl_pipeline_ = VK_NULL_HANDLE;
+  VkPipeline swap_apply_gamma_256_entry_table_fxaa_luma_pipeline_ =
+      VK_NULL_HANDLE;
+  VkPipeline swap_apply_gamma_pwl_fxaa_luma_pipeline_ = VK_NULL_HANDLE;
+  VkPipeline swap_apply_gamma_compute_256_entry_table_pipeline_ =
+      VK_NULL_HANDLE;
+  VkPipeline swap_apply_gamma_compute_pwl_pipeline_ = VK_NULL_HANDLE;
+  VkPipeline swap_apply_gamma_compute_256_entry_table_fxaa_luma_pipeline_ =
+      VK_NULL_HANDLE;
+  VkPipeline swap_apply_gamma_compute_pwl_fxaa_luma_pipeline_ =
+      VK_NULL_HANDLE;
+  VkPipeline swap_fxaa_pipeline_ = VK_NULL_HANDLE;
+  VkPipeline swap_fxaa_extreme_pipeline_ = VK_NULL_HANDLE;
+
+  VkImage swap_fxaa_source_image_ = VK_NULL_HANDLE;
+  VkDeviceMemory swap_fxaa_source_image_memory_ = VK_NULL_HANDLE;
+  VkImageView swap_fxaa_source_image_view_ = VK_NULL_HANDLE;
+  uint32_t swap_fxaa_source_image_width_ = 0;
+  uint32_t swap_fxaa_source_image_height_ = 0;
+  uint64_t swap_fxaa_source_image_submission_ = 0;
+  VkPipelineStageFlags swap_fxaa_source_stage_mask_ = 0;
+  VkAccessFlags swap_fxaa_source_access_mask_ = 0;
+  VkImageLayout swap_fxaa_source_layout_ = VK_IMAGE_LAYOUT_UNDEFINED;
 
   std::array<SwapFramebuffer,
              ui::vulkan::VulkanPresenter::kMaxActiveGuestOutputImageVersions>
@@ -732,4 +801,3 @@ class VulkanCommandProcessor : public CommandProcessor {
 };
 
 }  // namespace rex::graphics::vulkan
-

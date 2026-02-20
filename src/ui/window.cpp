@@ -17,10 +17,23 @@
 #include <imgui.h>
 
 #include <rex/assert.h>
+#include <rex/cvar.h>
 #include <rex/time/clock.h>
 #include <rex/logging.h>
 #include <rex/ui/imgui_drawer.h>
 #include <rex/ui/presenter.h>
+
+REXCVAR_DEFINE_INT32(window_width, 0,
+    "Startup window width in logical pixels (0 = use app default)",
+    "UI/Window")
+    .range(0, 8192)
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+
+REXCVAR_DEFINE_INT32(window_height, 0,
+    "Startup window height in logical pixels (0 = use app default)",
+    "UI/Window")
+    .range(0, 8192)
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
 namespace rex {
 namespace ui {

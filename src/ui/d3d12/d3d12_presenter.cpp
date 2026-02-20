@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <climits>
+#include <cmath>
 #include <memory>
 #include <utility>
 
@@ -23,6 +24,12 @@
 #include <rex/ui/d3d12/d3d12_provider.h>
 #include <rex/ui/d3d12/d3d12_util.h>
 #include <rex/ui/surface_win.h>
+
+#if defined(REX_HAS_FIDELITYFX_RUNTIME) && REX_HAS_FIDELITYFX_RUNTIME
+#include <ffx_api/dx12/ffx_api_dx12.h>
+#include <ffx_api/ffx_api.h>
+#include <ffx_api/ffx_upscale.h>
+#endif
 
 REXCVAR_DEFINE_BOOL(d3d12_allow_variable_refresh_rate_and_tearing, true,
     "Allow variable refresh rate and tearing",
@@ -51,7 +58,148 @@ D3D12Presenter::~D3D12Presenter() {
   paint_context_.AwaitSwapChainUsageCompletion();
   guest_output_resource_refresher_submission_tracker_.Shutdown();
   ui_submission_tracker_.Shutdown();
+#if defined(REX_HAS_FIDELITYFX_RUNTIME) && REX_HAS_FIDELITYFX_RUNTIME
+  DestroyTemporalUpscalerContext();
+#endif
 }
+
+#if defined(REX_HAS_FIDELITYFX_RUNTIME) && REX_HAS_FIDELITYFX_RUNTIME
+void D3D12Presenter::DestroyTemporalUpscalerContext() {
+  if (!temporal_upscaler_context_) {
+    return;
+  }
+  ffxContext* context = reinterpret_cast<ffxContext*>(&temporal_upscaler_context_);
+  ffxDestroyContext(context, nullptr);
+  temporal_upscaler_context_ = nullptr;
+  temporal_upscaler_max_render_width_ = 0;
+  temporal_upscaler_max_render_height_ = 0;
+  temporal_upscaler_max_output_width_ = 0;
+  temporal_upscaler_max_output_height_ = 0;
+}
+
+bool D3D12Presenter::EnsureTemporalUpscalerContext(uint32_t render_width,
+                                                   uint32_t render_height,
+                                                   uint32_t output_width,
+                                                   uint32_t output_height) {
+  if (!temporal_upscaler_context_ ||
+      temporal_upscaler_max_render_width_ != render_width ||
+      temporal_upscaler_max_render_height_ != render_height ||
+      temporal_upscaler_max_output_width_ != output_width ||
+      temporal_upscaler_max_output_height_ != output_height) {
+    DestroyTemporalUpscalerContext();
+
+    ffxCreateContextDescUpscale create_desc = {};
+    create_desc.header.type = FFX_API_CREATE_CONTEXT_DESC_TYPE_UPSCALE;
+    create_desc.header.pNext = nullptr;
+    create_desc.flags =
+        FFX_UPSCALE_ENABLE_HIGH_DYNAMIC_RANGE | FFX_UPSCALE_ENABLE_AUTO_EXPOSURE;
+    create_desc.maxRenderSize.width = render_width;
+    create_desc.maxRenderSize.height = render_height;
+    create_desc.maxUpscaleSize.width = output_width;
+    create_desc.maxUpscaleSize.height = output_height;
+    create_desc.fpMessage = nullptr;
+
+    ffxCreateBackendDX12Desc backend_desc = {};
+    backend_desc.header.type = FFX_API_CREATE_CONTEXT_DESC_TYPE_BACKEND_DX12;
+    backend_desc.header.pNext = nullptr;
+    backend_desc.device = provider_.GetDevice();
+
+    create_desc.header.pNext = &backend_desc.header;
+
+    ffxContext* context = reinterpret_cast<ffxContext*>(&temporal_upscaler_context_);
+    if (ffxCreateContext(context, &create_desc.header, nullptr) !=
+        FFX_API_RETURN_OK) {
+      REXLOG_WARN("D3D12Presenter: Failed to create FidelityFX temporal upscaler context");
+      temporal_upscaler_context_ = nullptr;
+      return false;
+    }
+
+    temporal_upscaler_max_render_width_ = render_width;
+    temporal_upscaler_max_render_height_ = render_height;
+    temporal_upscaler_max_output_width_ = output_width;
+    temporal_upscaler_max_output_height_ = output_height;
+    temporal_upscaler_provider_logged_ = false;
+  }
+
+  if (!temporal_upscaler_provider_logged_) {
+    ffxQueryGetProviderVersion provider_version = {};
+    provider_version.header.type = FFX_API_QUERY_DESC_TYPE_GET_PROVIDER_VERSION;
+    provider_version.header.pNext = nullptr;
+    ffxContext* context = reinterpret_cast<ffxContext*>(&temporal_upscaler_context_);
+    if (ffxQuery(context, &provider_version.header) == FFX_API_RETURN_OK &&
+        provider_version.versionName) {
+      REXLOG_INFO("D3D12Presenter: FidelityFX upscaler provider {}", provider_version.versionName);
+    }
+    temporal_upscaler_provider_logged_ = true;
+  }
+
+  return temporal_upscaler_context_ != nullptr;
+}
+
+bool D3D12Presenter::DispatchTemporalUpscaler(
+    ID3D12GraphicsCommandList* command_list, ID3D12Resource* input_resource,
+    uint32_t input_width, uint32_t input_height, ID3D12Resource* output_resource,
+    uint32_t output_width, uint32_t output_height,
+    const GuestOutputPaintConfig& config) {
+  if (!command_list || !input_resource || !output_resource || !input_width ||
+      !input_height || !output_width || !output_height) {
+    return false;
+  }
+  if (!EnsureTemporalUpscalerContext(input_width, input_height, output_width,
+                                     output_height)) {
+    return false;
+  }
+
+  ffxDispatchDescUpscale dispatch_desc = {};
+  dispatch_desc.header.type = FFX_API_DISPATCH_DESC_TYPE_UPSCALE;
+  dispatch_desc.header.pNext = nullptr;
+  dispatch_desc.commandList = command_list;
+  dispatch_desc.color = ffxApiGetResourceDX12(
+      input_resource, FFX_API_RESOURCE_STATE_PIXEL_COMPUTE_READ);
+  dispatch_desc.depth = ffxApiGetResourceDX12(
+      input_resource, FFX_API_RESOURCE_STATE_PIXEL_COMPUTE_READ,
+      FFX_API_RESOURCE_USAGE_DEPTHTARGET);
+  dispatch_desc.motionVectors = ffxApiGetResourceDX12(
+      input_resource, FFX_API_RESOURCE_STATE_PIXEL_COMPUTE_READ);
+  dispatch_desc.exposure =
+      ffxApiGetResourceDX12(nullptr, FFX_API_RESOURCE_STATE_PIXEL_COMPUTE_READ);
+  dispatch_desc.reactive =
+      ffxApiGetResourceDX12(nullptr, FFX_API_RESOURCE_STATE_PIXEL_COMPUTE_READ);
+  dispatch_desc.transparencyAndComposition =
+      ffxApiGetResourceDX12(nullptr, FFX_API_RESOURCE_STATE_PIXEL_COMPUTE_READ);
+  dispatch_desc.output = ffxApiGetResourceDX12(
+      output_resource, FFX_API_RESOURCE_STATE_UNORDERED_ACCESS,
+      FFX_API_RESOURCE_USAGE_UAV);
+  dispatch_desc.jitterOffset.x = 0.0f;
+  dispatch_desc.jitterOffset.y = 0.0f;
+  dispatch_desc.motionVectorScale.x = float(input_width);
+  dispatch_desc.motionVectorScale.y = float(input_height);
+  dispatch_desc.renderSize.width = input_width;
+  dispatch_desc.renderSize.height = input_height;
+  dispatch_desc.upscaleSize.width = output_width;
+  dispatch_desc.upscaleSize.height = output_height;
+  dispatch_desc.enableSharpening = true;
+  dispatch_desc.sharpness = std::clamp(
+      1.0f - config.GetFsrSharpnessReduction() * 0.5f, 0.0f, 1.0f);
+  // The presenter path doesn't currently provide accurate temporal inputs,
+  // so run in reset mode each frame to avoid history artifacts.
+  dispatch_desc.reset = true;
+  dispatch_desc.frameTimeDelta = 16.666f;
+  dispatch_desc.preExposure = 1.0f;
+  dispatch_desc.cameraNear = 0.1f;
+  dispatch_desc.cameraFar = 1000.0f;
+  dispatch_desc.cameraFovAngleVertical = 1.0472f;
+  dispatch_desc.viewSpaceToMetersFactor = 1.0f;
+  dispatch_desc.flags = 0;
+
+  ffxContext* context = reinterpret_cast<ffxContext*>(&temporal_upscaler_context_);
+  if (ffxDispatch(context, &dispatch_desc.header) != FFX_API_RETURN_OK) {
+    return false;
+  }
+
+  return true;
+}
+#endif
 
 Surface::TypeFlags D3D12Presenter::GetSupportedSurfaceTypes() const {
   Surface::TypeFlags types = 0;
@@ -641,7 +789,8 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(
             intermediate_desc.SampleDesc.Count = 1;
             intermediate_desc.SampleDesc.Quality = 0;
             intermediate_desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-            intermediate_desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+            intermediate_desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET |
+                                      D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
             if (FAILED(device->CreateCommittedResource(
                     &util::kHeapPropertiesDefault,
                     provider_.GetHeapFlagCreateNotZeroed(), &intermediate_desc,
@@ -716,13 +865,34 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(
       // involved are consistent.
       D3D12_GPU_DESCRIPTOR_HANDLE view_heap_gpu_start =
           view_heap->GetGPUDescriptorHandleForHeapStart();
+      bool temporal_effect_selected = false;
+#if defined(REX_HAS_FIDELITYFX_RUNTIME) && REX_HAS_FIDELITYFX_RUNTIME
+      temporal_effect_selected =
+          guest_output_paint_config.GetEffect() ==
+              GuestOutputPaintConfig::Effect::kFsr2 ||
+          guest_output_paint_config.GetEffect() ==
+              GuestOutputPaintConfig::Effect::kFsr3;
+#endif
+      auto is_temporal_easu_effect = [&](size_t effect_index) {
+        return temporal_effect_selected &&
+               guest_output_flow.effects[effect_index] ==
+                   GuestOutputPaintEffect::kFsrEasu;
+      };
       for (size_t i = 0; i < guest_output_flow.effect_count; ++i) {
         bool is_final_effect = i + 1 >= guest_output_flow.effect_count;
 
         GuestOutputPaintEffect effect = guest_output_flow.effects[i];
+#if defined(REX_HAS_FIDELITYFX_RUNTIME) && REX_HAS_FIDELITYFX_RUNTIME
+        bool use_temporal_upscaler = is_temporal_easu_effect(i);
+#else
+        bool use_temporal_upscaler = false;
+#endif
 
         ID3D12Resource* effect_dest_resource;
         int32_t effect_rect_x, effect_rect_y;
+        D3D12_RESOURCE_STATES non_final_write_state =
+            use_temporal_upscaler ? D3D12_RESOURCE_STATE_UNORDERED_ACCESS
+                                  : D3D12_RESOURCE_STATE_RENDER_TARGET;
         if (is_final_effect) {
           effect_dest_resource = back_buffer;
           if (!back_buffer_acquired) {
@@ -748,210 +918,257 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(
           if (!i) {
             // If this is not the first effect, the transition has been done at
             // the end of the previous effect in a single command.
-            D3D12_RESOURCE_BARRIER barrier_srv_to_rtv;
-            barrier_srv_to_rtv.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-            barrier_srv_to_rtv.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-            barrier_srv_to_rtv.Transition.pResource = effect_dest_resource;
-            barrier_srv_to_rtv.Transition.Subresource =
+            D3D12_RESOURCE_BARRIER barrier_srv_to_write;
+            barrier_srv_to_write.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+            barrier_srv_to_write.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+            barrier_srv_to_write.Transition.pResource = effect_dest_resource;
+            barrier_srv_to_write.Transition.Subresource =
                 D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-            barrier_srv_to_rtv.Transition.StateBefore =
+            barrier_srv_to_write.Transition.StateBefore =
                 D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
-            barrier_srv_to_rtv.Transition.StateAfter =
-                D3D12_RESOURCE_STATE_RENDER_TARGET;
-            command_list->ResourceBarrier(1, &barrier_srv_to_rtv);
+            barrier_srv_to_write.Transition.StateAfter = non_final_write_state;
+            command_list->ResourceBarrier(1, &barrier_srv_to_write);
           }
-          command_list->DiscardResource(effect_dest_resource, nullptr);
+          if (!use_temporal_upscaler) {
+            command_list->DiscardResource(effect_dest_resource, nullptr);
+          }
           effect_rect_x = 0;
           effect_rect_y = 0;
         }
 
-        if (is_final_effect) {
-          if (!back_buffer_bound) {
-            command_list->OMSetRenderTargets(1, &back_buffer_rtv, TRUE,
+#if defined(REX_HAS_FIDELITYFX_RUNTIME) && REX_HAS_FIDELITYFX_RUNTIME
+        bool temporal_dispatch_done = false;
+        if (use_temporal_upscaler) {
+          uint32_t effect_input_width = 0, effect_input_height = 0;
+          guest_output_flow.GetEffectInputSize(i, effect_input_width,
+                                               effect_input_height);
+          ID3D12Resource* effect_source_resource =
+              i ? paint_context_.guest_output_intermediate_textures[i - 1].Get()
+                : guest_output_resource.Get();
+          temporal_dispatch_done = DispatchTemporalUpscaler(
+              command_list, effect_source_resource, effect_input_width,
+              effect_input_height, effect_dest_resource,
+              guest_output_flow.effect_output_sizes[i].first,
+              guest_output_flow.effect_output_sizes[i].second,
+              guest_output_paint_config);
+          if (!temporal_dispatch_done) {
+            D3D12_RESOURCE_BARRIER barrier_uav_to_rtv;
+            barrier_uav_to_rtv.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+            barrier_uav_to_rtv.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+            barrier_uav_to_rtv.Transition.pResource = effect_dest_resource;
+            barrier_uav_to_rtv.Transition.Subresource =
+                D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+            barrier_uav_to_rtv.Transition.StateBefore =
+                D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+            barrier_uav_to_rtv.Transition.StateAfter =
+                D3D12_RESOURCE_STATE_RENDER_TARGET;
+            command_list->ResourceBarrier(1, &barrier_uav_to_rtv);
+          }
+        }
+#else
+        bool temporal_dispatch_done = false;
+#endif
+
+        bool drew_graphics_effect = false;
+        if (!temporal_dispatch_done) {
+          if (is_final_effect) {
+            if (!back_buffer_bound) {
+              command_list->OMSetRenderTargets(1, &back_buffer_rtv, TRUE,
+                                               nullptr);
+              back_buffer_bound = true;
+            }
+          } else {
+            D3D12_CPU_DESCRIPTOR_HANDLE intermediate_rtv =
+                provider_.OffsetRTVDescriptor(
+                    rtv_heap_start,
+                    uint32_t(PaintContext::kRTVIndexGuestOutputIntermediate0 +
+                             i));
+            command_list->OMSetRenderTargets(1, &intermediate_rtv, TRUE,
                                              nullptr);
+            back_buffer_bound = false;
+          }
+          if (is_final_effect) {
             back_buffer_bound = true;
           }
-        } else {
-          D3D12_CPU_DESCRIPTOR_HANDLE intermediate_rtv =
-              provider_.OffsetRTVDescriptor(
-                  rtv_heap_start,
-                  uint32_t(PaintContext::kRTVIndexGuestOutputIntermediate0 +
-                           i));
-          command_list->OMSetRenderTargets(1, &intermediate_rtv, TRUE, nullptr);
-          back_buffer_bound = false;
-        }
-        if (is_final_effect) {
-          back_buffer_bound = true;
-        }
-        D3D12_RESOURCE_DESC effect_dest_resource_desc =
-            effect_dest_resource->GetDesc();
-        D3D12_VIEWPORT viewport;
-        viewport.TopLeftX = 0.0f;
-        viewport.TopLeftY = 0.0f;
-        viewport.Width = float(effect_dest_resource_desc.Width);
-        viewport.Height = float(effect_dest_resource_desc.Height);
-        viewport.MinDepth = 0.0f;
-        viewport.MaxDepth = 1.0f;
-        command_list->RSSetViewports(1, &viewport);
-        D3D12_RECT scissor;
-        scissor.left = 0;
-        scissor.top = 0;
-        scissor.right = LONG(effect_dest_resource_desc.Width);
-        scissor.bottom = LONG(effect_dest_resource_desc.Height);
-        command_list->RSSetScissorRects(1, &scissor);
+          D3D12_RESOURCE_DESC effect_dest_resource_desc =
+              effect_dest_resource->GetDesc();
+          D3D12_VIEWPORT viewport;
+          viewport.TopLeftX = 0.0f;
+          viewport.TopLeftY = 0.0f;
+          viewport.Width = float(effect_dest_resource_desc.Width);
+          viewport.Height = float(effect_dest_resource_desc.Height);
+          viewport.MinDepth = 0.0f;
+          viewport.MaxDepth = 1.0f;
+          command_list->RSSetViewports(1, &viewport);
+          D3D12_RECT scissor;
+          scissor.left = 0;
+          scissor.top = 0;
+          scissor.right = LONG(effect_dest_resource_desc.Width);
+          scissor.bottom = LONG(effect_dest_resource_desc.Height);
+          command_list->RSSetScissorRects(1, &scissor);
 
-        command_list->SetPipelineState(
-            is_final_effect
-                ? guest_output_paint_final_pipelines_[size_t(effect)].Get()
-                : guest_output_paint_intermediate_pipelines_[size_t(effect)]
+          command_list->SetPipelineState(
+              is_final_effect
+                  ? guest_output_paint_final_pipelines_[size_t(effect)].Get()
+                  : guest_output_paint_intermediate_pipelines_[size_t(effect)]
+                        .Get());
+          GuestOutputPaintRootSignatureIndex
+              guest_output_paint_root_signature_index =
+                  GetGuestOutputPaintRootSignatureIndex(effect);
+          command_list->SetGraphicsRootSignature(
+              guest_output_paint_root_signatures_
+                  [size_t(guest_output_paint_root_signature_index)]
                       .Get());
-        GuestOutputPaintRootSignatureIndex
-            guest_output_paint_root_signature_index =
-                GetGuestOutputPaintRootSignatureIndex(effect);
-        command_list->SetGraphicsRootSignature(
-            guest_output_paint_root_signatures_
-                [size_t(guest_output_paint_root_signature_index)]
-                    .Get());
 
-        UINT effect_src_view_index = UINT(
-            i ? (PaintContext::kViewIndexGuestOutputIntermediate0Srv + (i - 1))
-              : (PaintContext::kViewIndexGuestOutput0Srv +
-                 guest_output_resource_paint_ref_index));
-        command_list->SetGraphicsRootDescriptorTable(
-            UINT(GuestOutputPaintRootParameter::kSource),
-            provider_.OffsetViewDescriptor(view_heap_gpu_start,
-                                           effect_src_view_index));
+          UINT effect_src_view_index = UINT(
+              i ? (PaintContext::kViewIndexGuestOutputIntermediate0Srv + (i - 1))
+                : (PaintContext::kViewIndexGuestOutput0Srv +
+                   guest_output_resource_paint_ref_index));
+          command_list->SetGraphicsRootDescriptorTable(
+              UINT(GuestOutputPaintRootParameter::kSource),
+              provider_.OffsetViewDescriptor(view_heap_gpu_start,
+                                             effect_src_view_index));
 
-        GuestOutputPaintRectangleConstants effect_rect_constants;
-        float effect_x_to_ndc = 2.0f / viewport.Width;
-        float effect_y_to_ndc = 2.0f / viewport.Height;
-        effect_rect_constants.x =
-            -1.0f + float(effect_rect_x) * effect_x_to_ndc;
-        // +Y is -V.
-        effect_rect_constants.y = 1.0f - float(effect_rect_y) * effect_y_to_ndc;
-        effect_rect_constants.width =
-            float(guest_output_flow.effect_output_sizes[i].first) *
-            effect_x_to_ndc;
-        effect_rect_constants.height =
-            -float(guest_output_flow.effect_output_sizes[i].second) *
-            effect_y_to_ndc;
-        command_list->SetGraphicsRoot32BitConstants(
-            UINT(GuestOutputPaintRootParameter::kRectangle),
-            sizeof(effect_rect_constants) / sizeof(uint32_t),
-            &effect_rect_constants, 0);
-
-        UINT effect_constants_size = 0;
-        union {
-          BilinearConstants bilinear;
-          CasSharpenConstants cas_sharpen;
-          CasResampleConstants cas_resample;
-          FsrEasuConstants fsr_easu;
-          FsrRcasConstants fsr_rcas;
-        } effect_constants;
-        switch (guest_output_paint_root_signature_index) {
-          case kGuestOutputPaintRootSignatureIndexBilinear: {
-            effect_constants_size = sizeof(effect_constants.bilinear);
-            effect_constants.bilinear.Initialize(guest_output_flow, i);
-          } break;
-          case kGuestOutputPaintRootSignatureIndexCasSharpen: {
-            effect_constants_size = sizeof(effect_constants.cas_sharpen);
-            effect_constants.cas_sharpen.Initialize(guest_output_flow, i,
-                                                    guest_output_paint_config);
-          } break;
-          case kGuestOutputPaintRootSignatureIndexCasResample: {
-            effect_constants_size = sizeof(effect_constants.cas_resample);
-            effect_constants.cas_resample.Initialize(guest_output_flow, i,
-                                                     guest_output_paint_config);
-          } break;
-          case kGuestOutputPaintRootSignatureIndexFsrEasu: {
-            effect_constants_size = sizeof(effect_constants.fsr_easu);
-            effect_constants.fsr_easu.Initialize(guest_output_flow, i);
-          } break;
-          case kGuestOutputPaintRootSignatureIndexFsrRcas: {
-            effect_constants_size = sizeof(effect_constants.fsr_rcas);
-            effect_constants.fsr_rcas.Initialize(guest_output_flow, i,
-                                                 guest_output_paint_config);
-          } break;
-          default:
-            break;
-        }
-        if (effect_constants_size) {
+          GuestOutputPaintRectangleConstants effect_rect_constants;
+          float effect_x_to_ndc = 2.0f / viewport.Width;
+          float effect_y_to_ndc = 2.0f / viewport.Height;
+          effect_rect_constants.x =
+              -1.0f + float(effect_rect_x) * effect_x_to_ndc;
+          // +Y is -V.
+          effect_rect_constants.y =
+              1.0f - float(effect_rect_y) * effect_y_to_ndc;
+          effect_rect_constants.width =
+              float(guest_output_flow.effect_output_sizes[i].first) *
+              effect_x_to_ndc;
+          effect_rect_constants.height =
+              -float(guest_output_flow.effect_output_sizes[i].second) *
+              effect_y_to_ndc;
           command_list->SetGraphicsRoot32BitConstants(
-              UINT(GuestOutputPaintRootParameter::kEffectConstants),
-              effect_constants_size / sizeof(uint32_t), &effect_constants, 0);
-        }
+              UINT(GuestOutputPaintRootParameter::kRectangle),
+              sizeof(effect_rect_constants) / sizeof(uint32_t),
+              &effect_rect_constants, 0);
 
-        command_list->IASetPrimitiveTopology(
-            D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-        command_list->DrawInstanced(4, 1, 0, 0);
+          UINT effect_constants_size = 0;
+          union {
+            BilinearConstants bilinear;
+            CasSharpenConstants cas_sharpen;
+            CasResampleConstants cas_resample;
+            FsrEasuConstants fsr_easu;
+            FsrRcasConstants fsr_rcas;
+          } effect_constants;
+          switch (guest_output_paint_root_signature_index) {
+            case kGuestOutputPaintRootSignatureIndexBilinear: {
+              effect_constants_size = sizeof(effect_constants.bilinear);
+              effect_constants.bilinear.Initialize(guest_output_flow, i);
+            } break;
+            case kGuestOutputPaintRootSignatureIndexCasSharpen: {
+              effect_constants_size = sizeof(effect_constants.cas_sharpen);
+              effect_constants.cas_sharpen.Initialize(guest_output_flow, i,
+                                                      guest_output_paint_config);
+            } break;
+            case kGuestOutputPaintRootSignatureIndexCasResample: {
+              effect_constants_size = sizeof(effect_constants.cas_resample);
+              effect_constants.cas_resample.Initialize(
+                  guest_output_flow, i, guest_output_paint_config);
+            } break;
+            case kGuestOutputPaintRootSignatureIndexFsrEasu: {
+              effect_constants_size = sizeof(effect_constants.fsr_easu);
+              effect_constants.fsr_easu.Initialize(guest_output_flow, i);
+            } break;
+            case kGuestOutputPaintRootSignatureIndexFsrRcas: {
+              effect_constants_size = sizeof(effect_constants.fsr_rcas);
+              effect_constants.fsr_rcas.Initialize(guest_output_flow, i,
+                                                   guest_output_paint_config);
+            } break;
+            default:
+              break;
+          }
+          if (effect_constants_size) {
+            command_list->SetGraphicsRoot32BitConstants(
+                UINT(GuestOutputPaintRootParameter::kEffectConstants),
+                effect_constants_size / sizeof(uint32_t), &effect_constants, 0);
+          }
+
+          command_list->IASetPrimitiveTopology(
+              D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+          command_list->DrawInstanced(4, 1, 0, 0);
+          drew_graphics_effect = true;
+        }
 
         if (is_final_effect) {
-          // Clear the letterbox around the guest output if the guest output
-          // doesn't cover the entire back buffer.
-          if (guest_output_flow.letterbox_clear_rectangle_count) {
-            D3D12_RECT letterbox_clear_d3d12_rectangles
-                [GuestOutputPaintFlow::kMaxClearRectangles];
-            for (size_t i = 0;
-                 i < guest_output_flow.letterbox_clear_rectangle_count; ++i) {
-              D3D12_RECT& letterbox_clear_d3d12_rectangle =
-                  letterbox_clear_d3d12_rectangles[i];
-              const GuestOutputPaintFlow::ClearRectangle&
-                  letterbox_clear_rectangle =
-                      guest_output_flow.letterbox_clear_rectangles[i];
-              letterbox_clear_d3d12_rectangle.left =
-                  LONG(letterbox_clear_rectangle.x);
-              letterbox_clear_d3d12_rectangle.top =
-                  LONG(letterbox_clear_rectangle.y);
-              letterbox_clear_d3d12_rectangle.right =
-                  LONG(letterbox_clear_rectangle.x +
-                       letterbox_clear_rectangle.width);
-              letterbox_clear_d3d12_rectangle.bottom =
-                  LONG(letterbox_clear_rectangle.y +
-                       letterbox_clear_rectangle.height);
+          if (drew_graphics_effect) {
+            // Clear the letterbox around the guest output if the guest output
+            // doesn't cover the entire back buffer.
+            if (guest_output_flow.letterbox_clear_rectangle_count) {
+              D3D12_RECT letterbox_clear_d3d12_rectangles
+                  [GuestOutputPaintFlow::kMaxClearRectangles];
+              for (size_t i = 0;
+                   i < guest_output_flow.letterbox_clear_rectangle_count; ++i) {
+                D3D12_RECT& letterbox_clear_d3d12_rectangle =
+                    letterbox_clear_d3d12_rectangles[i];
+                const GuestOutputPaintFlow::ClearRectangle&
+                    letterbox_clear_rectangle =
+                        guest_output_flow.letterbox_clear_rectangles[i];
+                letterbox_clear_d3d12_rectangle.left =
+                    LONG(letterbox_clear_rectangle.x);
+                letterbox_clear_d3d12_rectangle.top =
+                    LONG(letterbox_clear_rectangle.y);
+                letterbox_clear_d3d12_rectangle.right =
+                    LONG(letterbox_clear_rectangle.x +
+                         letterbox_clear_rectangle.width);
+                letterbox_clear_d3d12_rectangle.bottom =
+                    LONG(letterbox_clear_rectangle.y +
+                         letterbox_clear_rectangle.height);
+              }
+              command_list->ClearRenderTargetView(
+                  back_buffer_rtv, kBackBufferClearColor,
+                  UINT(guest_output_flow.letterbox_clear_rectangle_count),
+                  letterbox_clear_d3d12_rectangles);
             }
-            command_list->ClearRenderTargetView(
-                back_buffer_rtv, kBackBufferClearColor,
-                UINT(guest_output_flow.letterbox_clear_rectangle_count),
-                letterbox_clear_d3d12_rectangles);
+            back_buffer_clear_needed = false;
           }
-          back_buffer_clear_needed = false;
         } else {
           D3D12_RESOURCE_BARRIER barriers[2];
           UINT barrier_count = 0;
+          D3D12_RESOURCE_STATES effect_write_state =
+              drew_graphics_effect ? D3D12_RESOURCE_STATE_RENDER_TARGET
+                                   : D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
           // Transition the newly written intermediate image to SRV for use as
           // the source in the next effect.
           {
             assert_true(barrier_count < rex::countof(barriers));
-            D3D12_RESOURCE_BARRIER& barrier_rtv_to_srv =
+            D3D12_RESOURCE_BARRIER& barrier_write_to_srv =
                 barriers[barrier_count++];
-            barrier_rtv_to_srv.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-            barrier_rtv_to_srv.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-            barrier_rtv_to_srv.Transition.pResource = effect_dest_resource;
-            barrier_rtv_to_srv.Transition.Subresource =
+            barrier_write_to_srv.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+            barrier_write_to_srv.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+            barrier_write_to_srv.Transition.pResource = effect_dest_resource;
+            barrier_write_to_srv.Transition.Subresource =
                 D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-            barrier_rtv_to_srv.Transition.StateBefore =
-                D3D12_RESOURCE_STATE_RENDER_TARGET;
-            barrier_rtv_to_srv.Transition.StateAfter =
+            barrier_write_to_srv.Transition.StateBefore = effect_write_state;
+            barrier_write_to_srv.Transition.StateAfter =
                 D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
           }
           // Merge the current destination > next source transition with the
           // acquisition of the destination for the next effect.
           if (i + 2 < guest_output_flow.effect_count) {
             // The next effect won't be the last - transition the next
-            // intermediate destination to RTV.
+            // intermediate destination to its write state.
+            D3D12_RESOURCE_STATES next_write_state =
+                is_temporal_easu_effect(i + 1)
+                    ? D3D12_RESOURCE_STATE_UNORDERED_ACCESS
+                    : D3D12_RESOURCE_STATE_RENDER_TARGET;
             assert_true(barrier_count < rex::countof(barriers));
-            D3D12_RESOURCE_BARRIER& barrier_srv_to_rtv =
+            D3D12_RESOURCE_BARRIER& barrier_srv_to_write =
                 barriers[barrier_count++];
-            barrier_srv_to_rtv.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-            barrier_srv_to_rtv.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-            barrier_srv_to_rtv.Transition.pResource =
+            barrier_srv_to_write.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+            barrier_srv_to_write.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+            barrier_srv_to_write.Transition.pResource =
                 paint_context_.guest_output_intermediate_textures[i + 1].Get();
-            barrier_srv_to_rtv.Transition.Subresource =
+            barrier_srv_to_write.Transition.Subresource =
                 D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-            barrier_srv_to_rtv.Transition.StateBefore =
+            barrier_srv_to_write.Transition.StateBefore =
                 D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
-            barrier_srv_to_rtv.Transition.StateAfter =
-                D3D12_RESOURCE_STATE_RENDER_TARGET;
+            barrier_srv_to_write.Transition.StateAfter = next_write_state;
           } else {
             // The next effect draws to the back buffer - merge into one
             // ResourceBarrier command.

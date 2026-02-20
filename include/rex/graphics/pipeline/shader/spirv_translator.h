@@ -34,7 +34,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
     // TODO(Triang3l): Change to 0xYYYYMMDD once it's out of the rapid
     // prototyping stage (easier to do small granular updates with an
     // incremental counter).
-    static constexpr uint32_t kVersion = 6;
+    static constexpr uint32_t kVersion = 7;
 
     enum class DepthStencilMode : uint32_t {
       kNoModifiers,
@@ -60,6 +60,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
       // Pipeline stage and input configuration.
       Shader::HostVertexShaderType host_vertex_shader_type
           : Shader::kHostVertexShaderTypeBitCount;
+      // For domain host vertex shader types only, xenos::TessellationMode.
+      uint32_t tessellation_mode : 2;
     } vertex;
     struct PixelShaderModification {
       // uint32_t 0.
@@ -252,6 +254,12 @@ class SpirvShaderTranslator : public ShaderTranslator {
 
     // The constant blend factor for the respective modes.
     float edram_blend_constant[4];
+
+    // Tessellation helper shader constants.
+    uint32_t vertex_index_min;
+    uint32_t vertex_index_max;
+    float tessellation_factor_range_min;
+    float tessellation_factor_range_max;
   };
 
   enum ConstantBuffer : uint32_t {
@@ -853,6 +861,10 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id input_vertex_index_;
   // VS as TES only - int.
   spv::Id input_primitive_id_;
+  // VS as TES only - float3.
+  spv::Id input_tess_coord_;
+  // VS as TES only - patch float4.
+  spv::Id input_patch_control_point_indices_;
   // PS, only when needed - float2.
   spv::Id input_point_coordinates_;
   // PS, only when needed - float4.
@@ -999,4 +1011,3 @@ class SpirvShaderTranslator : public ShaderTranslator {
 };
 
 }  // namespace rex::graphics
-

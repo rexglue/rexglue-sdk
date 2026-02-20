@@ -62,6 +62,12 @@ REXCVAR_DEFINE_INT32(draw_resolution_scale_y, 1,
     .range(1, 8)
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
+REXCVAR_DEFINE_INT32(resolution_scale, 1,
+    "Draw resolution scale for both X and Y axes (same as setting draw_resolution_scale_x and draw_resolution_scale_y)",
+    "GPU")
+    .range(1, 8)
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+
 // DEFINE_int32(
 //     draw_resolution_scale_x, 1,
 //     "Integer pixel width scale used for scaling the rendering resolution "
@@ -219,10 +225,17 @@ TextureCache::~TextureCache() {
 
 bool TextureCache::GetConfigDrawResolutionScale(uint32_t& x_out,
                                                 uint32_t& y_out) {
+  uint32_t shared_scale =
+      uint32_t(std::max(INT32_C(1), REXCVAR_GET(resolution_scale)));
+  bool use_shared_scale = rex::cvar::HasNonDefaultValue("resolution_scale");
   uint32_t config_x =
-      uint32_t(std::max(INT32_C(1), REXCVAR_GET(draw_resolution_scale_x)));
+      use_shared_scale && !rex::cvar::HasNonDefaultValue("draw_resolution_scale_x")
+          ? shared_scale
+          : uint32_t(std::max(INT32_C(1), REXCVAR_GET(draw_resolution_scale_x)));
   uint32_t config_y =
-      uint32_t(std::max(INT32_C(1), REXCVAR_GET(draw_resolution_scale_y)));
+      use_shared_scale && !rex::cvar::HasNonDefaultValue("draw_resolution_scale_y")
+          ? shared_scale
+          : uint32_t(std::max(INT32_C(1), REXCVAR_GET(draw_resolution_scale_y)));
   uint32_t clamped_x = std::min(kMaxDrawResolutionScaleAlongAxis, config_x);
   uint32_t clamped_y = std::min(kMaxDrawResolutionScaleAlongAxis, config_y);
   x_out = clamped_x;

@@ -14,6 +14,13 @@
 
 #include <rex/kernel/xboxkrnl/video.h>
 
+#include <algorithm>
+#include <charconv>
+#include <cctype>
+#include <string>
+#include <string_view>
+
+#include <rex/cvar.h>
 #include <rex/runtime/export_resolver.h>
 #include <rex/logging.h>
 #include <rex/runtime.h>
@@ -28,11 +35,195 @@
 #include <rex/kernel/xboxkrnl/rtl.h>
 #include <rex/kernel/xtypes.h>
 
+REXCVAR_DEFINE_INT32(video_mode_width, 1280,
+    "Guest video mode width in pixels",
+    "GPU")
+    .range(640, 0x0FFF)
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+
+REXCVAR_DEFINE_INT32(video_mode_height, 720,
+    "Guest video mode height in pixels",
+    "GPU")
+    .range(480, 0x0FFF)
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+
+REXCVAR_DEFINE_STRING(resolution, "",
+    "Common resolution preset for both guest video mode and startup window (for example: 720p, 1080p, 1440p, 4k, 1280x720)",
+    "GPU")
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+
+REXCVAR_DEFINE_DOUBLE(video_mode_refresh_rate, 60.0,
+    "Guest video mode refresh rate in Hz",
+    "GPU")
+    .range(24.0, 240.0)
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+
 namespace {
 // Display gamma type: 0 - linear, 1 - sRGB (CRT), 2 - BT.709 (HDTV), 3 - power
 constexpr uint32_t kDisplayGammaType = 2;
 // Display gamma power (used with gamma type 3)
 constexpr double kDisplayGammaPower = 2.22222233;
+
+bool TryGetInt32FlagValue(std::string_view flag_name, int32_t& value_out) {
+  std::string flag_value = rex::cvar::GetFlagByName(flag_name);
+  if (flag_value.empty()) {
+    return false;
+  }
+  int32_t parsed_value = 0;
+  auto [parse_end, parse_error] = std::from_chars(
+      flag_value.data(), flag_value.data() + flag_value.size(), parsed_value);
+  if (parse_error != std::errc() ||
+      parse_end != flag_value.data() + flag_value.size()) {
+    return false;
+  }
+  value_out = parsed_value;
+  return true;
+}
+
+bool TryParsePositiveInt32(std::string_view value, int32_t& value_out) {
+  if (value.empty()) {
+    return false;
+  }
+  int32_t parsed_value = 0;
+  auto [parse_end, parse_error] =
+      std::from_chars(value.data(), value.data() + value.size(), parsed_value);
+  if (parse_error != std::errc() ||
+      parse_end != value.data() + value.size() || parsed_value <= 0) {
+    return false;
+  }
+  value_out = parsed_value;
+  return true;
+}
+
+bool TryParseResolutionPreset(std::string_view resolution_value,
+                              int32_t& width_out, int32_t& height_out) {
+  std::string normalized;
+  normalized.reserve(resolution_value.size());
+  for (char c : resolution_value) {
+    unsigned char c_unsigned = static_cast<unsigned char>(c);
+    if (std::isspace(c_unsigned) || c == '_' || c == '-') {
+      continue;
+    }
+    normalized.push_back(char(std::tolower(c_unsigned)));
+  }
+  if (normalized.empty()) {
+    return false;
+  }
+
+  size_t x_position = normalized.find('x');
+  if (x_position != std::string::npos && x_position > 0 &&
+      (x_position + 1) < normalized.size()) {
+    int32_t parsed_width = 0;
+    int32_t parsed_height = 0;
+    if (!TryParsePositiveInt32(std::string_view(normalized).substr(0, x_position),
+                               parsed_width) ||
+        !TryParsePositiveInt32(
+            std::string_view(normalized).substr(x_position + 1),
+            parsed_height)) {
+      return false;
+    }
+    width_out = parsed_width;
+    height_out = parsed_height;
+    return true;
+  }
+
+  if (normalized == "480p") {
+    width_out = 640;
+    height_out = 480;
+    return true;
+  }
+  if (normalized == "540p") {
+    width_out = 960;
+    height_out = 540;
+    return true;
+  }
+  if (normalized == "720p") {
+    width_out = 1280;
+    height_out = 720;
+    return true;
+  }
+  if (normalized == "900p") {
+    width_out = 1600;
+    height_out = 900;
+    return true;
+  }
+  if (normalized == "1080p") {
+    width_out = 1920;
+    height_out = 1080;
+    return true;
+  }
+  if (normalized == "1440p") {
+    width_out = 2560;
+    height_out = 1440;
+    return true;
+  }
+  if (normalized == "1800p") {
+    width_out = 3200;
+    height_out = 1800;
+    return true;
+  }
+  if (normalized == "2160p" || normalized == "4k") {
+    width_out = 3840;
+    height_out = 2160;
+    return true;
+  }
+  return false;
+}
+
+bool TryGetResolutionPreset(int32_t& width_out, int32_t& height_out) {
+  if (!rex::cvar::HasNonDefaultValue("resolution")) {
+    return false;
+  }
+  std::string resolution_value = rex::cvar::GetFlagByName("resolution");
+  if (resolution_value.empty()) {
+    return false;
+  }
+  return TryParseResolutionPreset(resolution_value, width_out, height_out);
+}
+
+uint32_t GetConfiguredVideoModeWidth() {
+  int32_t configured_width = REXCVAR_GET(video_mode_width);
+  if (!rex::cvar::HasNonDefaultValue("video_mode_width")) {
+    int32_t linked_width = 0;
+    if (rex::cvar::HasNonDefaultValue("window_width") &&
+        TryGetInt32FlagValue("window_width", linked_width) &&
+        linked_width > 0) {
+      configured_width = linked_width;
+    } else {
+      int32_t preset_width = 0;
+      int32_t preset_height = 0;
+      if (TryGetResolutionPreset(preset_width, preset_height)) {
+        configured_width = preset_width;
+      }
+    }
+  }
+  return uint32_t(std::clamp(configured_width, 640, 0x0FFF));
+}
+
+uint32_t GetConfiguredVideoModeHeight() {
+  int32_t configured_height = REXCVAR_GET(video_mode_height);
+  if (!rex::cvar::HasNonDefaultValue("video_mode_height")) {
+    int32_t linked_height = 0;
+    if (rex::cvar::HasNonDefaultValue("window_height") &&
+        TryGetInt32FlagValue("window_height", linked_height) &&
+        linked_height > 0) {
+      configured_height = linked_height;
+    } else {
+      int32_t preset_width = 0;
+      int32_t preset_height = 0;
+      if (TryGetResolutionPreset(preset_width, preset_height)) {
+        configured_height = preset_height;
+      }
+    }
+  }
+  return uint32_t(std::clamp(configured_height, 480, 0x0FFF));
+}
+
+float GetConfiguredVideoModeRefreshRate() {
+  double refresh_rate_hz =
+      std::clamp(REXCVAR_GET(video_mode_refresh_rate), 24.0, 240.0);
+  return float(refresh_rate_hz);
+}
 }  // namespace
 
 namespace rex::kernel::xboxkrnl {
@@ -121,10 +312,12 @@ void VdGetCurrentDisplayInformation_entry(
   display_info->scaler_parameters.horizontal_filter_type = 1;
   display_info->scaler_parameters.vertical_filter_type = 1;
 
-  display_info->display_window_overscan_left = 320;
-  display_info->display_window_overscan_top = 180;
-  display_info->display_window_overscan_right = 320;
-  display_info->display_window_overscan_bottom = 180;
+  uint16_t overscan_x = uint16_t(uint32_t(mode.display_width) / 4);
+  uint16_t overscan_y = uint16_t(uint32_t(mode.display_height) / 4);
+  display_info->display_window_overscan_left = overscan_x;
+  display_info->display_window_overscan_top = overscan_y;
+  display_info->display_window_overscan_right = overscan_x;
+  display_info->display_window_overscan_bottom = overscan_y;
   display_info->display_width = (uint16_t)mode.display_width;
   display_info->display_height = (uint16_t)mode.display_height;
   display_info->display_refresh_rate = mode.refresh_rate;
@@ -132,14 +325,18 @@ void VdGetCurrentDisplayInformation_entry(
 }
 
 void VdQueryVideoMode(X_VIDEO_MODE* video_mode) {
-  // TODO(benvanik): get info from actual display.
+  // Exposed as CVARs so the guest can observe custom display settings.
+  uint32_t display_width = GetConfiguredVideoModeWidth();
+  uint32_t display_height = GetConfiguredVideoModeHeight();
+  float refresh_rate_hz = GetConfiguredVideoModeRefreshRate();
+
   std::memset(video_mode, 0, sizeof(X_VIDEO_MODE));
-  video_mode->display_width = 1280;
-  video_mode->display_height = 720;
+  video_mode->display_width = display_width;
+  video_mode->display_height = display_height;
   video_mode->is_interlaced = 0;
-  video_mode->is_widescreen = 1;
-  video_mode->is_hi_def = 1;
-  video_mode->refresh_rate = 60.0f;
+  video_mode->is_widescreen = display_width * 3 >= display_height * 4;
+  video_mode->is_hi_def = display_width >= 1280 || display_height >= 720;
+  video_mode->refresh_rate = refresh_rate_hz;
   video_mode->video_standard = 1;  // NTSC
   video_mode->unknown_0x8a = 0x4A;
   video_mode->unknown_0x01 = 0x01;
