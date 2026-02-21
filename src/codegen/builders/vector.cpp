@@ -299,15 +299,23 @@ bool build_vadduws(BuilderContext& ctx) {
   return true;
 }
 
-bool build_vsubsws(BuilderContext& ctx) {
-  // TODO: vectorize
-  for (size_t i = 0; i < 4; i++) {
-    ctx.println("\t{}.s64 = int64_t({}.s32[{}]) - int64_t({}.s32[{}]);", ctx.temp(),
-                ctx.v(ctx.insn.operands[1]), i, ctx.v(ctx.insn.operands[2]), i);
-    ctx.println("\t{}.s32[{}] = {}.s64 > INT_MAX ? INT_MAX : {}.s64 < INT_MIN ? INT_MIN : {}.s64;",
-                ctx.v(ctx.insn.operands[0]), i, ctx.temp(), ctx.temp(), ctx.temp());
-  }
-  return true;
+bool build_vadduhs(BuilderContext& ctx)
+{
+    ctx.emit_vec_int_binary("adds_epu16", "u16");
+    return true;
+}
+
+bool build_vsubsws(BuilderContext& ctx)
+{
+    // TODO: vectorize
+    for (size_t i = 0; i < 4; i++)
+    {
+        ctx.println("\t{}.s64 = int64_t({}.s32[{}]) - int64_t({}.s32[{}]);",
+            ctx.temp(), ctx.v(ctx.insn.operands[1]), i, ctx.v(ctx.insn.operands[2]), i);
+        ctx.println("\t{}.s32[{}] = {}.s64 > INT_MAX ? INT_MAX : {}.s64 < INT_MIN ? INT_MIN : {}.s64;",
+            ctx.v(ctx.insn.operands[0]), i, ctx.temp(), ctx.temp(), ctx.temp());
+    }
+    return true;
 }
 
 bool build_vsububm(BuilderContext& ctx) {
