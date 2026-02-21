@@ -205,7 +205,9 @@ bool build_lwzux(BuilderContext& ctx)
 
 bool build_lwbrx(BuilderContext& ctx)
 {
-    ctx.print("\t{}.u64 = __builtin_bswap32(PPC_LOAD_U32(", ctx.r(ctx.insn.operands[0]));
+    ctx.print("\t{}.u64 = __builtin_bswap32({}(",
+        ctx.r(ctx.insn.operands[0]),
+        ctx.mmio_check_x_form() ? "PPC_MM_LOAD_U32" : "PPC_LOAD_U32");
     if (ctx.insn.operands[1] != 0)
         ctx.print("{}.u32 + ", ctx.r(ctx.insn.operands[1]));
     ctx.println("{}.u32));", ctx.r(ctx.insn.operands[2]));
