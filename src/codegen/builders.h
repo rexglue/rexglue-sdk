@@ -459,6 +459,7 @@ bool build_vsubuhs(BuilderContext& ctx);
 bool build_vsubuhm(BuilderContext& ctx);
 bool build_vsubuwm(BuilderContext& ctx);
 bool build_vmaxsh(BuilderContext& ctx);
+bool build_vmaxsb(BuilderContext& ctx);
 bool build_vmaxsw(BuilderContext& ctx);
 bool build_vmaxuh(BuilderContext& ctx);
 bool build_vminsh(BuilderContext& ctx);
