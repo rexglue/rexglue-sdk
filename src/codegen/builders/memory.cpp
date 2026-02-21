@@ -146,7 +146,9 @@ bool build_lhau(BuilderContext& ctx)
 bool build_lhbrx(BuilderContext& ctx)
 {
     // Load Halfword Byte-Reverse Indexed
-    ctx.print("\t{}.u64 = __builtin_bswap16(PPC_LOAD_U16(", ctx.r(ctx.insn.operands[0]));
+    ctx.print("\t{}.u64 = __builtin_bswap16({}(",
+        ctx.r(ctx.insn.operands[0]),
+        ctx.mmio_check_x_form() ? "PPC_MM_LOAD_U16" : "PPC_LOAD_U16");
     if (ctx.insn.operands[1] != 0)
         ctx.print("{}.u32 + ", ctx.r(ctx.insn.operands[1]));
     ctx.println("{}.u32));", ctx.r(ctx.insn.operands[2]));
