@@ -100,6 +100,14 @@ bool build_or(BuilderContext& ctx)
         ctx.r(ctx.insn.operands[1]),
         ctx.r(ctx.insn.operands[2]));
     emitRecordFormCompare(ctx);
+
+    // Propagates MMIO base flag if either source register is marked MMIO 
+    // covers mr rD,rS which assembles as or rD,rS,rS
+    if (ctx.locals.is_mmio_base(ctx.insn.operands[1]) || ctx.locals.is_mmio_base(ctx.insn.operands[2]))
+        ctx.locals.set_mmio_base(ctx.insn.operands[0]);
+    else
+        ctx.locals.clear_mmio_base(ctx.insn.operands[0]);
+
     return true;
 }
 
@@ -118,6 +126,13 @@ bool build_ori(BuilderContext& ctx)
         ctx.r(ctx.insn.operands[0]),
         ctx.r(ctx.insn.operands[1]),
         ctx.insn.operands[2]);
+
+    // ori only sets low bits - propagate MMIO base from source
+    if (ctx.locals.is_mmio_base(ctx.insn.operands[1]))
+        ctx.locals.set_mmio_base(ctx.insn.operands[0]);
+    else
+        ctx.locals.clear_mmio_base(ctx.insn.operands[0]);
+
     return true;
 }
 

@@ -199,6 +199,13 @@ bool build_mr(BuilderContext& ctx)
         ctx.r(ctx.insn.operands[0]),
         ctx.r(ctx.insn.operands[1]));
     emitRecordFormCompare(ctx);
+
+    // Propagates MMIO base flag from source to destination register
+    if (ctx.locals.is_mmio_base(ctx.insn.operands[1]))
+        ctx.locals.set_mmio_base(ctx.insn.operands[0]);
+    else
+        ctx.locals.clear_mmio_base(ctx.insn.operands[0]);
+
     return true;
 }
 
