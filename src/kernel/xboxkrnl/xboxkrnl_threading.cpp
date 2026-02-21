@@ -222,35 +222,21 @@ ppc_u32_result_t NtSuspendThread_entry(ppc_u32_t handle, ppc_pu32_t suspend_coun
 
 namespace {
 
-// Fiber start parameter offset in the guest context buffer.
-// CreateFiber stores lpParameter at buf[0]
-// same slot ConvertThreadToFiber uses, accessible via GetFiberData
-static constexpr uint32_t kFiberCtxR3Offset = 0x00;
-
 struct FiberArgs {
   PPCFunc*      start_fn;
-  uint32_t      guest_r1;    // initial SP from ctx buf + 0x30
-  uint32_t      guest_r13;   // PCR - copied from current context at creation
-  uint32_t      guest_r3;    // fiber start parameter from ctx buf + kFiberCtxR3Offset
-  KernelState*  kernel_state;
 };
 
 static void FiberEntryPoint(void* raw_arg) {
   auto args   = std::unique_ptr<FiberArgs>(static_cast<FiberArgs*>(raw_arg));
-  auto* mem   = args->kernel_state->memory();
+  auto* current_thread = XThread::GetCurrentThread();
 
-  PPCContext ctx{};
-  ctx.r1.u64       = args->guest_r1;
-  ctx.r13.u64      = args->guest_r13;
-  ctx.r3.u64       = args->guest_r3;
-  ctx.kernel_state = args->kernel_state;
-  ctx.fpscr.InitHost();
+  PPCContext& ctx = *current_thread->thread_state()->context();
+  auto* mem   = ctx.kernel_state->memory();
 
   args->start_fn(ctx, mem->virtual_membase());
 
   // Fiber returned without switching away - switch back to the main
   // execution context as a safe fallback.
-  auto* current_thread = XThread::GetCurrentThread();
   if (current_thread && current_thread->main_fiber()) {
     rex::thread::Fiber::SwitchTo(current_thread->main_fiber());
   }
@@ -296,11 +282,6 @@ void KeSetCurrentStackPointers_entry(ppc_pvoid_t stack_ptr,
 
       if (start_fn) {
         // First switch to a newly created fiber - lazily create host fiber.
-        uint32_t guest_r1 = memory::load_and_swap<uint32_t>(
-            kernel_memory()->TranslateVirtual(target_guest_addr) + 0x30);
-        uint32_t guest_r3 = memory::load_and_swap<uint32_t>(
-            kernel_memory()->TranslateVirtual(target_guest_addr) + kFiberCtxR3Offset);
-
         size_t host_stack = std::max(
             static_cast<size_t>(stack_base.value() - stack_limit.value()),
             static_cast<size_t>(256u * 1024u));
@@ -309,10 +290,6 @@ void KeSetCurrentStackPointers_entry(ppc_pvoid_t stack_ptr,
         // Create succeeds so we don't leak if Create fails.
         auto args_owner = std::make_unique<FiberArgs>(FiberArgs{
             start_fn,
-            guest_r1,
-            static_cast<uint32_t>(context->r13.u64),
-            guest_r3,
-            ks,
         });
         target = rex::thread::Fiber::Create(host_stack, FiberEntryPoint,
                                             args_owner.get());

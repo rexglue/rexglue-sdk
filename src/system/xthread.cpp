@@ -531,7 +531,7 @@ void XThread::Execute() {
   }
 
   // Set up the PPCContext for execution
-  PPCContext ctx{};
+  PPCContext& ctx = *thread_state_->context();
   uint8_t* base = memory->virtual_membase();
 
   // Initialize critical registers (must match Xenia's ThreadState constructor)
