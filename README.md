@@ -1,14 +1,36 @@
 > [!CAUTION]
 > This project is in early development. Expect things to not work quite right and there to be significant changes and breaking public API updates as development progresses. Contributions and feedback are welcome, but please be aware that the codebase is still evolving rapidly.
 
-# ReXGlue
-![Banner](https://github.com/rexglue/rexglue-media/blob/main/ReX_Banner.png)
-
-**Static recompilation runtime SDK for Xbox 360**
+<h1 align="center">
+  <br>
+  <a href="https://github.com/rexglue/rexglue-sdk">
+    <img src="https://github.com/rexglue/rexglue-media/blob/main/ReX_Banner.png" alt="ReXGlue banner">
+  </a>
+  <br>
+  <b>Recomp SDK for Xbox 360</b>
+  <br>
+  <br>
+  <a href="https://discord.gg/CNTxwSNZfT">
+    <img src="https://img.shields.io/badge/Discord-Join%20Server-5865F2?logo=discord&logoColor=white" alt="Discord">
+  </a>
+  <a href="https://github.com/rexglue/rexglue-sdk/actions/workflows/build-win-amd64.yaml">
+    <img src="https://github.com/rexglue/rexglue-sdk/actions/workflows/build-win-amd64.yaml/badge.svg" alt="win-amd64 build status">
+  </a>
+  <a href="https://github.com/rexglue/rexglue-sdk/stargazers">
+    <img src="https://img.shields.io/github/stars/rexglue/rexglue-sdk" alt="rexglue-sdk stargazers">
+  </a>
+</h1>
 
 ReXGlue converts Xbox 360 PowerPC code into portable C++ that runs natively on modern platforms.
 
 ReXGlue is heavily rooted on the foundations of [Xenia](https://github.com/xenia-project), the Xbox 360 emulator. Rather than interpreting or JIT-compiling PPC instructions at runtime, ReXGlue takes a different path: it generates C++ source code ahead of time, an approach inspired by [XenonRecomp](https://github.com/hedge-dev/XenonRecomp) and [rexdex's recompiler](https://github.com/rexdex/recompiler).
+
+Latest SDK builds and releases are published on [GitHub Releases](https://github.com/rexglue/rexglue-sdk/releases). Join the [Discord server](https://discord.gg/CNTxwSNZfT) for updates and support.
+
+## Example Projects
+
+- [demo-iruka](https://github.com/rexglue/demo-iruka)
+- [reblue](https://github.com/rexglue/reblue)
 
 ## Quickstart
 
