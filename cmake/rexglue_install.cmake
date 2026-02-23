@@ -86,10 +86,11 @@ if(REXGLUE_USE_VULKAN)
     )
 endif()
 
-# Install platform entry point sources for SDK consumers
+# Install platform entry point sources and ReXApp for SDK consumers
 install(FILES
     src/ui/windowed_app_main_win.cpp
     src/ui/windowed_app_main_posix.cpp
+    src/ui/rex_app.cpp
     DESTINATION ${CMAKE_INSTALL_DATADIR}/rexglue
 )
 
