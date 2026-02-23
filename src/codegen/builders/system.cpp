@@ -66,6 +66,13 @@ bool build_cctpm(BuilderContext& ctx) {
   return true;
 }
 
+bool build_cctph(BuilderContext& ctx)
+{
+    // Xenon-specific cache control thread priority medium, no effect in recompiled code
+    (void)ctx;
+    return true;
+}
+
 //=============================================================================
 // Trap Instructions
 // PPC trap instructions are assertion/debug checks. The TO field (bits 21-25)

@@ -376,6 +376,7 @@ bool build_eieio(BuilderContext& ctx);
 bool build_db16cyc(BuilderContext& ctx);
 bool build_cctpl(BuilderContext& ctx);
 bool build_cctpm(BuilderContext& ctx);
+bool build_cctph(BuilderContext& ctx);
 
 // Trap instructions (generic builders - all specific variants map to these)
 bool build_twi(BuilderContext& ctx);  // Trap word immediate

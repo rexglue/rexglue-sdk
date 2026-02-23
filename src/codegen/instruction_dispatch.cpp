@@ -308,6 +308,7 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_DB16CYC, build_db16cyc},
       {PPC_INST_CCTPL, build_cctpl},
       {PPC_INST_CCTPM, build_cctpm},
+	  {PPC_INST_CCTPH, build_cctph},
       // Trap word immediate (all variants map to generic TWI)
       {PPC_INST_TWI, build_twi},
       {PPC_INST_TWLGTI, build_twi},
