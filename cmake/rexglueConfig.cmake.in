@@ -5,6 +5,9 @@ set(REXGLUE_SHARE_DIR "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_DATADIR@/rexglue")
 
 include(CMakeFindDependencyMacro)
 
+# Helper functions for consumer projects
+include("${CMAKE_CURRENT_LIST_DIR}/rexglue_helpers.cmake")
+
 # Ensure bundled dependencies are found from the SDK install prefix
 list(PREPEND CMAKE_PREFIX_PATH "${PACKAGE_PREFIX_DIR}")
 

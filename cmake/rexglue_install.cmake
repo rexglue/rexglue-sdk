@@ -121,6 +121,11 @@ install(FILES
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/rexglue
 )
 
+install(FILES
+    ${CMAKE_SOURCE_DIR}/cmake/rexglue_helpers.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/rexglue
+)
+
 # Export targets with rex:: namespace
 install(EXPORT rexglueTargets
     FILE rexglueTargets.cmake
