@@ -921,14 +921,25 @@ bool build_vrlh(BuilderContext& ctx) {
   return true;
 }
 
-bool build_vsl(BuilderContext& ctx) {
-  // Vector Shift Left (128-bit) - shift entire vector left by bits specified in low 3 bits of vB
-  ctx.println(
-      "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
-      "rex::simde_mm_vsl(simde_mm_load_si128((simde__m128i*){}.u8), "
-      "simde_mm_load_si128((simde__m128i*){}.u8)));",
-      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]), ctx.v(ctx.insn.operands[2]));
-  return true;
+bool build_vrlw(BuilderContext& ctx)
+{
+    // TODO(tomc): vectorize
+    for (size_t i = 0; i < 4; i++)
+    {
+        ctx.println("\t{{ uint32_t sh = {}.u32[{}] & 0x1F;",
+            ctx.v(ctx.insn.operands[2]), i);
+        ctx.println("\t{}.u32[{}] = ({}.u32[{}] << sh) | ({}.u32[{}] >> (32 - sh)); }}",
+            ctx.v(ctx.insn.operands[0]), i, ctx.v(ctx.insn.operands[1]), i, ctx.v(ctx.insn.operands[1]), i);
+    }
+    return true;
+}
+
+bool build_vsl(BuilderContext& ctx)
+{
+    // Vector Shift Left (128-bit) - shift entire vector left by bits specified in low 3 bits of vB
+    ctx.println("\tsimde_mm_store_si128((simde__m128i*){}.u8, simde_mm_vsl(simde_mm_load_si128((simde__m128i*){}.u8), simde_mm_load_si128((simde__m128i*){}.u8)));",
+        ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]), ctx.v(ctx.insn.operands[2]));
+    return true;
 }
 
 bool build_vslo(BuilderContext& ctx) {

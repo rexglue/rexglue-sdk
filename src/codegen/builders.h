@@ -533,6 +533,7 @@ bool build_vsraw(BuilderContext& ctx);
 bool build_vsrw(BuilderContext& ctx);
 bool build_vsro(BuilderContext& ctx);
 bool build_vrlh(BuilderContext& ctx);
+bool build_vrlw(BuilderContext& ctx);
 
 // Vector splat
 bool build_vspltb(BuilderContext& ctx);

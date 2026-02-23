@@ -537,30 +537,32 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_VPERMWI128, build_vpermwi128},
       {PPC_INST_VRLIMI128, build_vrlimi128},
 
-      //=====================================================================
-      // Vector - Shift
-      //=====================================================================
-      {PPC_INST_VSL, build_vsl},
-      {PPC_INST_VSLB, build_vslb},
-      {PPC_INST_VSLH, build_vslh},
-      {PPC_INST_VSLDOI, build_vsldoi},
-      {PPC_INST_VSLDOI128, build_vsldoi},
-      {PPC_INST_VSLW, build_vslw},
-      {PPC_INST_VSLW128, build_vslw},
-      {PPC_INST_VSLO, build_vslo},
-      {PPC_INST_VSLO128, build_vslo},
-      {PPC_INST_VSR, build_vsr},
-      {PPC_INST_VSRH, build_vsrh},
-      {PPC_INST_VSRB, build_vsrb},
-      {PPC_INST_VSRAB, build_vsrab},
-      {PPC_INST_VSRAH, build_vsrah},
-      {PPC_INST_VSRAW, build_vsraw},
-      {PPC_INST_VSRAW128, build_vsraw},
-      {PPC_INST_VSRW, build_vsrw},
-      {PPC_INST_VSRW128, build_vsrw},
-      {PPC_INST_VSRO, build_vsro},
-      {PPC_INST_VSRO128, build_vsro},
-      {PPC_INST_VRLH, build_vrlh},
+        //=====================================================================
+        // Vector - Shift
+        //=====================================================================
+        { PPC_INST_VSL, build_vsl },
+        { PPC_INST_VSLB, build_vslb },
+        { PPC_INST_VSLH, build_vslh },
+        { PPC_INST_VSLDOI, build_vsldoi },
+        { PPC_INST_VSLDOI128, build_vsldoi },
+        { PPC_INST_VSLW, build_vslw },
+        { PPC_INST_VSLW128, build_vslw },
+        { PPC_INST_VSLO, build_vslo },
+        { PPC_INST_VSLO128, build_vslo },
+        { PPC_INST_VSR, build_vsr },
+        { PPC_INST_VSRH, build_vsrh },
+        { PPC_INST_VSRB, build_vsrb },
+        { PPC_INST_VSRAB, build_vsrab },
+        { PPC_INST_VSRAH, build_vsrah },
+        { PPC_INST_VSRAW, build_vsraw },
+        { PPC_INST_VSRAW128, build_vsraw },
+        { PPC_INST_VSRW, build_vsrw },
+        { PPC_INST_VSRW128, build_vsrw },
+        { PPC_INST_VSRO, build_vsro },
+        { PPC_INST_VSRO128, build_vsro },
+        { PPC_INST_VRLH, build_vrlh },
+        { PPC_INST_VRLW, build_vrlw },
+        { PPC_INST_VRLW128, build_vrlw },
 
       //=====================================================================
       // Vector - Splat
