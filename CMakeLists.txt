@@ -140,5 +140,7 @@ message(STATUS "  C++ Standard: C++${CMAKE_CXX_STANDARD}")
 message(STATUS "  Graphics: D3D12=${REXGLUE_USE_D3D12} Vulkan=${REXGLUE_USE_VULKAN}")
 message(STATUS "===========================================")
 
-# SDK install/export rules
-include(cmake/rexglue_install.cmake)
+# SDK install/export rules (skipped when consumed as a subdirectory)
+if(PROJECT_IS_TOP_LEVEL)
+    include(cmake/rexglue_install.cmake)
+endif()
