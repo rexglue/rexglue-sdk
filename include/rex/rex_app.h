@@ -12,6 +12,7 @@
 #pragma once
 
 #include <atomic>
+#include <cstdint>
 #include <memory>
 #include <string_view>
 #include <thread>
@@ -24,17 +25,26 @@
 #include <rex/ui/window_listener.h>
 #include <rex/ui/windowed_app.h>
 
+struct PPCFuncMapping;
+
 namespace rex {
 
-/// Built-in debug overlay showing FPS counter.
-/// Managed internally by ReXApp; users can add custom dialogs via OnCreateDialogs().
-class DebugOverlayDialog : public ui::ImGuiDialog {
- public:
-  explicit DebugOverlayDialog(ui::ImGuiDrawer* imgui_drawer);
+class LogCaptureSink;
 
- protected:
-  void OnDraw(ImGuiIO& io) override;
+/// PPC image layout passed from the generated config header into ReXApp.
+struct PPCImageInfo {
+  uint32_t code_base;
+  uint32_t code_size;
+  uint32_t image_base;
+  uint32_t image_size;
+  const PPCFuncMapping* func_mappings;
 };
+
+namespace ui {
+class DebugOverlayDialog;
+class ConsoleDialog;
+class SettingsDialog;
+}  // namespace ui
 
 /// Base class for recompiled Xbox 360 applications.
 ///
@@ -47,19 +57,21 @@ class DebugOverlayDialog : public ui::ImGuiDialog {
 ///   class MyApp : public rex::ReXApp {
 ///   public:
 ///       using rex::ReXApp::ReXApp;
+///       static std::unique_ptr<rex::ui::WindowedApp> Create(
+///           rex::ui::WindowedAppContext& ctx) {
+///         return std::unique_ptr<MyApp>(new MyApp(ctx, "my_app",
+///             {PPC_CODE_BASE, PPC_CODE_SIZE, PPC_IMAGE_BASE,
+///              PPC_IMAGE_SIZE, PPCFuncMappings}));
+///       }
 ///   };
 ///   REX_DEFINE_APP(my_app, MyApp::Create)
 /// @endcode
-class ReXApp : public ui::WindowedApp, public ui::WindowListener {
+class ReXApp : public ui::WindowedApp, public ui::WindowListener, public ui::WindowInputListener {
  public:
-  /// Factory function for the windowed app system.
-  /// Subclasses don't need to override this unless they need custom construction.
-  static std::unique_ptr<ui::WindowedApp> Create(ui::WindowedAppContext& ctx);
-
-  ~ReXApp() override = default;
+  ~ReXApp() override;
 
  protected:
-  ReXApp(ui::WindowedAppContext& ctx, std::string_view name,
+  ReXApp(ui::WindowedAppContext& ctx, std::string_view name, PPCImageInfo ppc_info,
          std::string_view usage = "[game_directory]");
 
   // --- Virtual hooks for customization ---
@@ -89,13 +101,22 @@ class ReXApp : public ui::WindowedApp, public ui::WindowListener {
   // WindowListener overrides
   void OnClosing(ui::UIEvent& e) override;
 
+  // WindowInputListener overrides
+  void OnKeyDown(ui::KeyEvent& e) override;
+
+  PPCImageInfo ppc_info_;
   std::unique_ptr<Runtime> runtime_;
   std::unique_ptr<ui::Window> window_;
   std::thread module_thread_;
   std::atomic<bool> shutting_down_{false};
   std::unique_ptr<ui::ImmediateDrawer> immediate_drawer_;
   std::unique_ptr<ui::ImGuiDrawer> imgui_drawer_;
-  std::unique_ptr<DebugOverlayDialog> debug_overlay_;
+
+  // Built-in overlays
+  std::shared_ptr<LogCaptureSink> log_sink_;
+  std::unique_ptr<ui::DebugOverlayDialog> debug_overlay_;
+  std::unique_ptr<ui::ConsoleDialog> console_overlay_;
+  std::unique_ptr<ui::SettingsDialog> settings_overlay_;
 };
 
 }  // namespace rex

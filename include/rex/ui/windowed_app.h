@@ -165,18 +165,18 @@ class WindowedApp {
 
 #if XE_UI_WINDOWED_APPS_IN_LIBRARY
 // Multiple apps in a single library.
-#define REX_DEFINE_APP(identifier, creator)                                    \
-  namespace rex {                                                              \
-  namespace ui {                                                               \
-  namespace windowed_app_creator_registrations {                               \
-  rex::ui::WindowedApp::CreatorRegistration identifier(#identifier, creator);  \
-  }                                                                            \
-  }                                                                            \
+#define REX_DEFINE_APP(identifier, creator)                                   \
+  namespace rex {                                                             \
+  namespace ui {                                                              \
+  namespace windowed_app_creator_registrations {                              \
+  rex::ui::WindowedApp::CreatorRegistration identifier(#identifier, creator); \
+  }                                                                           \
+  }                                                                           \
   }
 #else
 // Separate executables for each app.
 std::unique_ptr<WindowedApp> (*GetWindowedAppCreator())(WindowedAppContext& app_context);
-#define REX_DEFINE_APP(identifier, creator)                         \
+#define REX_DEFINE_APP(identifier, creator)                        \
   rex::ui::WindowedApp::Creator rex::ui::GetWindowedAppCreator() { \
     return creator;                                                \
   }

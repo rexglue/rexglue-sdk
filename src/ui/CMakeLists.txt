@@ -7,12 +7,20 @@ set(REXUI_CORE_SOURCES
     imgui_dialog.cpp
     imgui_drawer.cpp
     immediate_drawer.cpp
+    keybinds.cpp
     menu_item.cpp
     presenter.cpp
     renderdoc_api.cpp
     window.cpp
     windowed_app.cpp
     windowed_app_context.cpp
+)
+
+# Optional overlay dialogs
+set(REXUI_OVERLAY_SOURCES
+    overlay/debug_overlay.cpp
+    overlay/console_overlay.cpp
+    overlay/settings_overlay.cpp
 )
 
 # Vulkan UI backend
@@ -64,6 +72,7 @@ endif()
 # Combine sources
 set(REXUI_SOURCES
     ${REXUI_CORE_SOURCES}
+    ${REXUI_OVERLAY_SOURCES}
     ${REXUI_PLATFORM_SOURCES}
 )
 

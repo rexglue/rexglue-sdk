@@ -50,8 +50,12 @@ std::string generate_cmakelists(const AppNameParts& names) {
   content += "#   2. REXSDK environment variable (legacy)\n";
   content += "#   3. CMake user package registry (auto-populated by cmake --install)\n";
   content += "#   4. System CMAKE_PREFIX_PATH and standard search paths\n";
-  content += "set(REXSDK \"\" CACHE PATH \"Path to ReXGlue SDK install prefix (overrides auto-discovery)\")\n";
-  content += "set(REXSDK_VERSION \"\" CACHE STRING \"Required ReXGlue SDK version, e.g. 0.2.0 (empty = any)\")\n";
+  content +=
+      "set(REXSDK \"\" CACHE PATH \"Path to ReXGlue SDK install prefix (overrides "
+      "auto-discovery)\")\n";
+  content +=
+      "set(REXSDK_VERSION \"\" CACHE STRING \"Required ReXGlue SDK version, e.g. 0.2.0 (empty = "
+      "any)\")\n";
   content += "if(REXSDK)\n";
   content += "    list(PREPEND CMAKE_PREFIX_PATH \"${REXSDK}\")\n";
   content += "elseif(DEFINED ENV{REXSDK})\n";
@@ -71,7 +75,8 @@ std::string generate_cmakelists(const AppNameParts& names) {
   content += "endif()\n";
   content += "\n";
   content += "if(WIN32)\n";
-  content += "    add_executable(" + names.snake_case + " WIN32 ${" + names.upper_case + "_SOURCES})\n";
+  content +=
+      "    add_executable(" + names.snake_case + " WIN32 ${" + names.upper_case + "_SOURCES})\n";
   content += "else()\n";
   content += "    add_executable(" + names.snake_case + " ${" + names.upper_case + "_SOURCES})\n";
   content += "endif()\n";
@@ -123,6 +128,14 @@ std::string generate_main_cpp(const AppNameParts& names) {
   content += "class " + class_name + " : public rex::ReXApp {\n";
   content += " public:\n";
   content += "  using rex::ReXApp::ReXApp;\n";
+  content += "\n";
+  content += "  static std::unique_ptr<rex::ui::WindowedApp> Create(\n";
+  content += "      rex::ui::WindowedAppContext& ctx) {\n";
+  content += "    return std::unique_ptr<" + class_name + ">(new " + class_name + "(ctx, \"" +
+             names.snake_case + "\",\n";
+  content += "        {PPC_CODE_BASE, PPC_CODE_SIZE, PPC_IMAGE_BASE,\n";
+  content += "         PPC_IMAGE_SIZE, PPCFuncMappings}));\n";
+  content += "  }\n";
   content += "};\n";
   content += "\n";
   content += "REX_DEFINE_APP(" + names.snake_case + ", " + class_name + "::Create)\n";

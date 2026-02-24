@@ -13,7 +13,11 @@
 
 #include <rex/cvar.h>
 #include <rex/filesystem.h>
+#include <rex/log_capture.h>
 #include <rex/logging.h>
+#include <rex/ui/overlay/console_overlay.h>
+#include <rex/ui/overlay/debug_overlay.h>
+#include <rex/ui/overlay/settings_overlay.h>
 #include <rex/graphics/graphics_system.h>
 #if REX_HAS_VULKAN
 #include <rex/graphics/vulkan/graphics_system.h>
@@ -27,48 +31,21 @@
 #include <rex/system/kernel_state.h>
 #include <rex/system/xthread.h>
 #include <rex/ui/graphics_provider.h>
+#include <rex/ui/keybinds.h>
 
 #include <imgui.h>
 
 #include <filesystem>
 
-// These are defined by the generated *_config.h / *_init.h headers
-// that the consumer includes before rex_app.h in their main.cpp.
-extern const uint64_t PPC_CODE_BASE;
-extern const uint64_t PPC_CODE_SIZE;
-extern const uint64_t PPC_IMAGE_BASE;
-extern const uint64_t PPC_IMAGE_SIZE;
-extern const PPCFuncMapping PPCFuncMappings[];
-
 namespace rex {
-
-// --- DebugOverlayDialog ---
-
-DebugOverlayDialog::DebugOverlayDialog(ui::ImGuiDrawer* imgui_drawer)
-    : ImGuiDialog(imgui_drawer) {}
-
-void DebugOverlayDialog::OnDraw(ImGuiIO& io) {
-  ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
-  ImGui::SetNextWindowSize(ImVec2(220, 60), ImGuiCond_FirstUseEver);
-  ImGui::SetNextWindowBgAlpha(0.5f);
-  if (ImGui::Begin("Debug##overlay", nullptr, ImGuiWindowFlags_NoCollapse)) {
-    ImGui::Text("%.1f FPS (%.2f ms)", io.Framerate, 1000.0f / io.Framerate);
-  }
-  ImGui::End();
-}
 
 // --- ReXApp ---
 
-std::unique_ptr<ui::WindowedApp> ReXApp::Create(ui::WindowedAppContext& ctx) {
-  // Note: subclasses that need custom construction should override Create().
-  // This default creates the base ReXApp — but typically the consumer's
-  // subclass inherits the constructor via `using rex::ReXApp::ReXApp;`
-  // and the generated code uses SubclassName::Create instead.
-  return std::make_unique<ReXApp>(ctx);
-}
+ReXApp::~ReXApp() = default;
 
-ReXApp::ReXApp(ui::WindowedAppContext& ctx, std::string_view name, std::string_view usage)
-    : WindowedApp(ctx, name, usage) {
+ReXApp::ReXApp(ui::WindowedAppContext& ctx, std::string_view name, PPCImageInfo ppc_info,
+               std::string_view usage)
+    : WindowedApp(ctx, name, usage), ppc_info_(ppc_info) {
   AddPositionalOption("game_directory");
 }
 
@@ -89,10 +66,19 @@ bool ReXApp::OnInitialize() {
   if (REXCVAR_GET(log_verbose) && log_level_str == "info") {
     log_level_str = "trace";
   }
-  auto log_config = rex::BuildLogConfig(
-      log_file_cvar.empty() ? nullptr : log_file_cvar.c_str(), log_level_str, {});
+  auto log_config = rex::BuildLogConfig(log_file_cvar.empty() ? nullptr : log_file_cvar.c_str(),
+                                        log_level_str, {});
   rex::InitLogging(log_config);
   rex::RegisterLogLevelCallback();
+
+  // Attach log capture sink to all loggers for the console overlay
+  log_sink_ = std::make_shared<rex::LogCaptureSink>();
+  for (size_t i = 0; i < static_cast<size_t>(rex::LogCategory::Count); ++i) {
+    auto logger = rex::GetLogger(static_cast<rex::LogCategory>(i));
+    if (logger) {
+      logger->sinks().push_back(log_sink_);
+    }
+  }
 
   REXLOG_INFO("{} starting", GetName());
   REXLOG_INFO("  Game directory: {}", game_dir.string());
@@ -114,10 +100,8 @@ bool ReXApp::OnInitialize() {
   // Allow subclass to customize config
   OnPreSetup(config);
 
-  auto status = runtime_->Setup(
-      static_cast<uint32_t>(PPC_CODE_BASE), static_cast<uint32_t>(PPC_CODE_SIZE),
-      static_cast<uint32_t>(PPC_IMAGE_BASE), static_cast<uint32_t>(PPC_IMAGE_SIZE),
-      PPCFuncMappings, std::move(config));
+  auto status = runtime_->Setup(ppc_info_.code_base, ppc_info_.code_size, ppc_info_.image_base,
+                                ppc_info_.image_size, ppc_info_.func_mappings, std::move(config));
   if (XFAILED(status)) {
     REXLOG_ERROR("Runtime setup failed: {:08X}", status);
     return false;
@@ -141,11 +125,11 @@ bool ReXApp::OnInitialize() {
   }
 
   window_->AddListener(this);
+  window_->AddInputListener(this, 0);
   window_->Open();
 
   // Setup graphics presenter and ImGui
-  auto* graphics_system =
-      static_cast<rex::graphics::GraphicsSystem*>(runtime_->graphics_system());
+  auto* graphics_system = static_cast<rex::graphics::GraphicsSystem*>(runtime_->graphics_system());
   if (graphics_system && graphics_system->presenter()) {
     auto* presenter = graphics_system->presenter();
     auto* provider = graphics_system->provider();
@@ -155,8 +139,11 @@ bool ReXApp::OnInitialize() {
         immediate_drawer_->SetPresenter(presenter);
         imgui_drawer_ = std::make_unique<rex::ui::ImGuiDrawer>(window_.get(), 64);
         imgui_drawer_->SetPresenterAndImmediateDrawer(presenter, immediate_drawer_.get());
-        debug_overlay_ =
-            std::unique_ptr<DebugOverlayDialog>(new DebugOverlayDialog(imgui_drawer_.get()));
+        // Built-in overlays
+        debug_overlay_ = std::make_unique<ui::DebugOverlayDialog>(imgui_drawer_.get());
+        console_overlay_ = std::make_unique<ui::ConsoleDialog>(imgui_drawer_.get(), log_sink_);
+        settings_overlay_ = std::make_unique<ui::SettingsDialog>(
+            imgui_drawer_.get(), exe_dir / (std::string(GetName()) + ".toml"));
 
         // Allow subclass to add custom dialogs
         OnCreateDialogs(imgui_drawer_.get());
@@ -189,6 +176,10 @@ bool ReXApp::OnInitialize() {
   return true;
 }
 
+void ReXApp::OnKeyDown(ui::KeyEvent& e) {
+  rex::ui::ProcessKeyEvent(e);
+}
+
 void ReXApp::OnClosing(ui::UIEvent& e) {
   (void)e;
   REXLOG_INFO("Window closing, shutting down...");
@@ -204,6 +195,8 @@ void ReXApp::OnDestroy() {
   OnShutdown();
 
   // ImGui cleanup (reverse of setup)
+  settings_overlay_.reset();
+  console_overlay_.reset();
   debug_overlay_.reset();
   if (imgui_drawer_) {
     imgui_drawer_->SetPresenterAndImmediateDrawer(nullptr, nullptr);
@@ -225,6 +218,7 @@ void ReXApp::OnDestroy() {
     module_thread_.join();
   }
   if (window_) {
+    window_->RemoveInputListener(this);
     window_->RemoveListener(this);
   }
   window_.reset();

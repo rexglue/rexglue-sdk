@@ -63,7 +63,8 @@ inline AppNameParts parse_app_name(const std::string& input) {
 
   AppNameParts parts;
   for (size_t i = 0; i < words.size(); ++i) {
-    if (i > 0) parts.snake_case += '_';
+    if (i > 0)
+      parts.snake_case += '_';
     parts.snake_case += words[i];
   }
   for (const auto& w : words) {
