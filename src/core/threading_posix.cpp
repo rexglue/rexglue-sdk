@@ -733,7 +733,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
     if (is_current_thread) {
       pthread_exit(reinterpret_cast<void*>(exit_code));
     } else {
-#ifdef REX_PLATFORM_ANDROID
+#if REX_PLATFORM_ANDROID
       if (pthread_kill(thread_, GetSystemSignal(SignalType::kThreadTerminate)) != 0) {
         assert_always();
       }

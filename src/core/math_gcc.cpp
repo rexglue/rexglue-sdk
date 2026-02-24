@@ -1,7 +1,7 @@
 #include <rex/math.h>
 #include <rex/platform.h>
 
-#ifdef REX_PLATFORM_WIN32
+#if REX_PLATFORM_WIN32
 static_assert(false, "This file is non-MSVC only");
 #endif
 

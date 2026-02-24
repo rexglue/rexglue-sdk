@@ -42,6 +42,24 @@
 #error Unsupported target OS.
 #endif
 
+// Ensure all platform macros are always defined (0 when inactive)
+// so they can be used in static_assert and regular expressions.
+#ifndef REX_PLATFORM_MAC
+#define REX_PLATFORM_MAC 0
+#endif
+#ifndef REX_PLATFORM_WIN32
+#define REX_PLATFORM_WIN32 0
+#endif
+#ifndef REX_PLATFORM_ANDROID
+#define REX_PLATFORM_ANDROID 0
+#endif
+#ifndef REX_PLATFORM_GNU_LINUX
+#define REX_PLATFORM_GNU_LINUX 0
+#endif
+#ifndef REX_PLATFORM_LINUX
+#define REX_PLATFORM_LINUX 0
+#endif
+
 #if defined(__clang__)
 #define REX_COMPILER_CLANG 1
 #elif defined(__GNUC__)

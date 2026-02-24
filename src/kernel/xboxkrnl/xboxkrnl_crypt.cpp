@@ -22,7 +22,7 @@
 #include <rex/system/kernel_state.h>
 #include <rex/system/xtypes.h>
 
-#ifdef REX_PLATFORM_WIN32
+#if REX_PLATFORM_WIN32
 #include <windows.h>
 
 #include <bcrypt.h>
@@ -226,7 +226,7 @@ static_assert_size(XECRYPT_RSA, 0x10);
 ppc_u32_result_t XeCryptBnQwNeRsaPubCrypt_entry(ppc_ptr_t<uint64_t> qw_a, ppc_ptr_t<uint64_t> qw_b,
                                                 ppc_ptr_t<XECRYPT_RSA> rsa) {
   // 0 indicates failure (but not a BOOL return value)
-#ifndef REX_PLATFORM_WIN32
+#if !REX_PLATFORM_WIN32
   REXKRNL_ERROR(
       "XeCryptBnQwNeRsaPubCrypt called but no implementation available for "
       "this platform!");
@@ -317,7 +317,7 @@ ppc_u32_result_t XeCryptBnQwNeRsaPubCrypt_entry(ppc_ptr_t<uint64_t> qw_a, ppc_pt
   return BCRYPT_SUCCESS(status) ? 1 : 0;
 #endif
 }
-#ifdef REX_PLATFORM_WIN32
+#if REX_PLATFORM_WIN32
 
 #else
 

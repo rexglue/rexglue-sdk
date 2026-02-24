@@ -29,7 +29,7 @@
 #include <rex/system/xthread.h>
 #include <rex/system/xtypes.h>
 
-#ifdef REX_PLATFORM_WIN32
+#if REX_PLATFORM_WIN32
 // NOTE: must be included last as it expects windows.h to already be included.
 #define _WINSOCK_DEPRECATED_NO_WARNINGS  // inet_addr
 #include <winsock2.h>                    // NOLINT(build/include_order)
@@ -238,7 +238,7 @@ ppc_u32_result_t NetDll_XNetRandom_entry(ppc_u32_t caller, ppc_pvoid_t buffer_pt
 ppc_u32_result_t NetDll_WSAStartup_entry(ppc_u32_t caller, ppc_u16_t version,
                                          ppc_ptr_t<X_WSADATA> data_ptr) {
 // TODO(benvanik): abstraction layer needed.
-#ifdef REX_PLATFORM_WIN32
+#if REX_PLATFORM_WIN32
   WSADATA wsaData;
   ZeroMemory(&wsaData, sizeof(WSADATA));
   int ret = WSAStartup(version, &wsaData);
@@ -626,7 +626,7 @@ ppc_i32_result_t NetDll_shutdown_entry(ppc_u32_t caller, ppc_u32_t socket_handle
 
   auto ret = socket->Shutdown(how);
   if (ret == -1) {
-#ifdef REX_PLATFORM_WIN32
+#if REX_PLATFORM_WIN32
     uint32_t error_code = WSAGetLastError();
     XThread::SetLastError(error_code);
 #else
@@ -896,7 +896,7 @@ ppc_u32_result_t NetDll_recvfrom_entry(ppc_u32_t caller, ppc_u32_t socket_handle
 
   if (ret == -1) {
 // TODO: Better way of getting the error code
-#ifdef REX_PLATFORM_WIN32
+#if REX_PLATFORM_WIN32
     uint32_t error_code = WSAGetLastError();
     XThread::SetLastError(error_code);
 #else
