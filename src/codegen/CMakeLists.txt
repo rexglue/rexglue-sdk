@@ -53,10 +53,10 @@ add_library(rex::codegen ALIAS rexcodegen)
 
 target_include_directories(rexcodegen
     PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${REXGLUE_ROOT}/include>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     PRIVATE
-        ${CMAKE_SOURCE_DIR}/thirdparty/disasm
+        ${REXGLUE_ROOT}/thirdparty/disasm
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/builders
 )

@@ -88,11 +88,11 @@ add_library(rexui STATIC ${REXUI_SOURCES})
 add_library(rex::ui ALIAS rexui)
 
 target_include_directories(rexui PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${REXGLUE_ROOT}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 target_include_directories(rexui PRIVATE
-    ${CMAKE_SOURCE_DIR}/src  # For ui/shaders/bytecode includes
+    ${REXGLUE_ROOT}/src  # For ui/shaders/bytecode includes
 )
 
 target_link_libraries(rexui PUBLIC

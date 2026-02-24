@@ -58,11 +58,11 @@ add_library(rexkernel STATIC ${REXKERNEL_SOURCES})
 add_library(rex::kernel ALIAS rexkernel)
 
 target_include_directories(rexkernel PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${REXGLUE_ROOT}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 target_include_directories(rexkernel PRIVATE
-    ${CMAKE_SOURCE_DIR}/thirdparty
+    ${REXGLUE_ROOT}/thirdparty
 )
 
 target_link_libraries(rexkernel

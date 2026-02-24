@@ -62,7 +62,7 @@ set(REXGRAPHICS_VULKAN_SOURCES
 if(REXGLUE_USE_D3D12)
     # DXBC third-party dependency
     set(REXGRAPHICS_DXBC_THIRDPARTY_SOURCES
-        ${CMAKE_SOURCE_DIR}/thirdparty/dxbc/DXBCChecksum.cpp
+        ${REXGLUE_ROOT}/thirdparty/dxbc/DXBCChecksum.cpp
     )
 
     # DXBC shader translation (required for D3D12)
@@ -107,12 +107,12 @@ add_library(rexgraphics STATIC ${REXGRAPHICS_SOURCES})
 add_library(rex::graphics ALIAS rexgraphics)
 
 target_include_directories(rexgraphics PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${REXGLUE_ROOT}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 target_include_directories(rexgraphics PRIVATE
-    ${CMAKE_SOURCE_DIR}/thirdparty/renderdoc
-    ${CMAKE_SOURCE_DIR}  # For thirdparty/dxbc/DXBCChecksum.h include
+    ${REXGLUE_ROOT}/thirdparty/renderdoc
+    ${REXGLUE_ROOT}  # For thirdparty/dxbc/DXBCChecksum.h include
 )
 
 target_link_libraries(rexgraphics PUBLIC

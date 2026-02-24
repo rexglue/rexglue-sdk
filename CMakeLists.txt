@@ -29,6 +29,9 @@ if(NOT REXGLUE_USE_D3D12 AND NOT REXGLUE_USE_VULKAN)
     message(FATAL_ERROR "At least one graphics backend must be enabled (REXGLUE_USE_D3D12 or REXGLUE_USE_VULKAN)")
 endif()
 
+# Root of the SDK source tree
+set(REXGLUE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}")
+
 # SDK install support
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
@@ -85,9 +88,9 @@ else()
 endif()
 
 # Output directories (multi-config appends /<Config>/ automatically)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/out/${REX_PLATFORM}")
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/out/${REX_PLATFORM}")
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/out/${REX_PLATFORM}")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${REXGLUE_ROOT}/out/${REX_PLATFORM}")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${REXGLUE_ROOT}/out/${REX_PLATFORM}")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${REXGLUE_ROOT}/out/${REX_PLATFORM}")
 
 # Sanitizer support for debugging memory corruption and undefined behavior
 if(REXGLUE_ENABLE_SANITIZERS)
@@ -98,7 +101,7 @@ if(REXGLUE_ENABLE_SANITIZERS)
 endif()
 
 if(REXGLUE_BUILD_TESTS)
-    list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/thirdparty/catch2/extras")
+    list(APPEND CMAKE_MODULE_PATH "${REXGLUE_ROOT}/thirdparty/catch2/extras")
 endif()
 
 # Third-party dependencies (vendored sources only)
@@ -110,7 +113,7 @@ add_compile_options(
     -Wextra
 )
 
-include_directories(${CMAKE_SOURCE_DIR}/include)
+include_directories(${REXGLUE_ROOT}/include)
 
 add_subdirectory(src/core)
 add_subdirectory(src/filesystem)
@@ -143,4 +146,10 @@ message(STATUS "===========================================")
 # SDK install/export rules (skipped when consumed as a subdirectory)
 if(PROJECT_IS_TOP_LEVEL)
     include(cmake/rexglue_install.cmake)
+else()
+    # When consumed via add_subdirectory(), provide the same interface as find_package().
+    # This sets REXGLUE_SHARE_DIR and makes rexglue_configure_target() available.
+    set(REXGLUE_SHARE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/ui" PARENT_SCOPE)
+    set(REXGLUE_SHARE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/ui")
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_helpers.cmake)
 endif()

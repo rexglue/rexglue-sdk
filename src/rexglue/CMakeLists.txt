@@ -10,8 +10,8 @@ add_executable(rexglue
 
 target_include_directories(rexglue
     PRIVATE
-        ${CMAKE_SOURCE_DIR}/src
-        ${CMAKE_SOURCE_DIR}/thirdparty/disasm
+        ${REXGLUE_ROOT}/src
+        ${REXGLUE_ROOT}/thirdparty/disasm
 )
 
 target_link_libraries(rexglue
