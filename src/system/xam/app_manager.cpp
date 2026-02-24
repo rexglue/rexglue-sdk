@@ -9,6 +9,10 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <rex/kernel/xam/apps/app.h>
+#include <rex/kernel/xam/apps/xgi_app.h>
+#include <rex/kernel/xam/apps/xlivebase_app.h>
+#include <rex/kernel/xam/apps/xmp_app.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xam/app_manager.h>
 
@@ -18,6 +22,13 @@ namespace xam {
 
 App::App(KernelState* kernel_state, uint32_t app_id)
     : kernel_state_(kernel_state), memory_(kernel_state->memory()), app_id_(app_id) {}
+
+void AppManager::RegisterApps(KernelState* kernel_state, AppManager* manager) {
+  manager->RegisterApp(std::make_unique<kernel::xam::apps::XmpApp>(kernel_state));
+  manager->RegisterApp(std::make_unique<kernel::xam::apps::XgiApp>(kernel_state));
+  manager->RegisterApp(std::make_unique<kernel::xam::apps::XLiveBaseApp>(kernel_state));
+  manager->RegisterApp(std::make_unique<kernel::xam::apps::XamApp>(kernel_state));
+}
 
 void AppManager::RegisterApp(std::unique_ptr<App> app) {
   assert_zero(app_lookup_.count(app->app_id()));
