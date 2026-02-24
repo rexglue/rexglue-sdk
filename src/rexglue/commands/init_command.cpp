@@ -44,24 +44,20 @@ std::string generate_cmakelists(const AppNameParts& names) {
   content += "set(CMAKE_CXX_STANDARD 23)\n";
   content += "set(CMAKE_CXX_STANDARD_REQUIRED ON)\n";
   content += "\n";
-  content += "# Find ReXGlue SDK\n";
-  content += "# Discovery priority:\n";
-  content += "#   1. REXSDK cache variable (set in CMakeUserPresets.json, gitignored)\n";
-  content += "#   2. REXSDK environment variable (legacy)\n";
-  content += "#   3. CMake user package registry (auto-populated by cmake --install)\n";
-  content += "#   4. System CMAKE_PREFIX_PATH and standard search paths\n";
+  content += "set(REXSDK_DIR \"\" CACHE PATH \"Path to rexglue-sdk source tree\")\n";
+  content += "if(REXSDK_DIR)\n";
+  content += "    add_subdirectory(\"${REXSDK_DIR}\" rexglue-sdk)\n";
+  content += "else()\n";
+  content += "    find_package(rexglue QUIET CONFIG)\n";
+  content += "    if(NOT rexglue_FOUND)\n";
+  content += "        message(FATAL_ERROR\n";
+  content += "            \"ReXGlue SDK not found. Either:\\n\"\n";
   content +=
-      "set(REXSDK \"\" CACHE PATH \"Path to ReXGlue SDK install prefix (overrides "
-      "auto-discovery)\")\n";
-  content +=
-      "set(REXSDK_VERSION \"\" CACHE STRING \"Required ReXGlue SDK version, e.g. 0.2.0 (empty = "
-      "any)\")\n";
-  content += "if(REXSDK)\n";
-  content += "    list(PREPEND CMAKE_PREFIX_PATH \"${REXSDK}\")\n";
-  content += "elseif(DEFINED ENV{REXSDK})\n";
-  content += "    list(PREPEND CMAKE_PREFIX_PATH \"$ENV{REXSDK}\")\n";
+      "            \"  - Set REXSDK_DIR to the rexglue-sdk source tree (e.g. "
+      "thirdparty/rexglue-sdk)\\n\"\n";
+  content += "            \"  - Install the SDK package and ensure it is on CMAKE_PREFIX_PATH\")\n";
+  content += "    endif()\n";
   content += "endif()\n";
-  content += "find_package(rexglue ${REXSDK_VERSION} REQUIRED CONFIG)\n";
   content += "\n";
   content += "# Sources\n";
   content += "set(" + names.upper_case + "_SOURCES\n";
