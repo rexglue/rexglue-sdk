@@ -9,6 +9,7 @@
 #include "cli_utils.h"
 #include "commands/codegen_command.h"
 #include "commands/init_command.h"
+#include "commands/migrate_command.h"
 #include "commands/test_recompiler.h"
 
 #include <iostream>
@@ -46,6 +47,7 @@ void PrintUsage() {
   std::cerr << "Commands:\n";
   std::cerr << "  codegen <config.toml>   Analyze XEX and generate C++ code\n";
   std::cerr << "  init                    Initialize a new project\n";
+  std::cerr << "  migrate                 Migrate project to current SDK version\n";
   std::cerr << "  recompile-tests         Generate Catch2 tests from PPC assembly\n\n";
   std::cerr << "Run 'rexglue --help' for flag details.\n";
 }
@@ -138,6 +140,17 @@ int main(int argc, char** argv) {
       REXLOG_ERROR("Test recompilation failed");
       return 1;
     }
+  } else if (command == "migrate") {
+    rexglue::cli::MigrateOptions opts;
+    opts.app_root = REXCVAR_GET(app_root);
+    opts.force = ctx.force;
+
+    if (opts.app_root.empty()) {
+      REXLOG_ERROR("--app_root is required for migrate command");
+      return 1;
+    }
+
+    result = rexglue::cli::MigrateProject(opts, ctx);
   } else {
     REXLOG_ERROR("Unknown command: {}", command);
     PrintUsage();

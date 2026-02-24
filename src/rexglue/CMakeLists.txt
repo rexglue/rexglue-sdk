@@ -4,6 +4,7 @@ add_executable(rexglue
     main.cpp
     commands/codegen_command.cpp
     commands/init_command.cpp
+    commands/migrate_command.cpp
     commands/test_recompiler.cpp
 )
 
