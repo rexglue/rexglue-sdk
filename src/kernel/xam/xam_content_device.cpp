@@ -163,6 +163,19 @@ ppc_u32_result_t XamContentCreateDeviceEnumerator_entry(ppc_u32_t content_type,
 }  // namespace kernel
 }  // namespace rex
 
+// fix me later
+namespace rex {
+namespace system {
+namespace xam {
+
+const DummyDeviceInfo* GetDummyDeviceInfo(uint32_t device_id) {
+  return rex::kernel::xam::GetDummyDeviceInfo(device_id);
+}
+
+}  // namespace xam
+}  // namespace system
+}  // namespace rex
+
 PPC_HOOK(__imp__XamContentGetDeviceName, rex::kernel::xam::XamContentGetDeviceName_entry)
 PPC_HOOK(__imp__XamContentGetDeviceState, rex::kernel::xam::XamContentGetDeviceState_entry)
 PPC_HOOK(__imp__XamContentGetDeviceData, rex::kernel::xam::XamContentGetDeviceData_entry)
