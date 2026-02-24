@@ -11,7 +11,6 @@
 
 #include <cstring>
 
-#include <rex/kernel/xam/module.h>
 #include <rex/platform.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xsocket.h>

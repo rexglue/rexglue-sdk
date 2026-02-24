@@ -1,6 +1,6 @@
 /**
  * @file        ui/rex_app.cpp
- * @brief       ReXApp implementation — compiled as part of the consumer executable
+ * @brief       ReXApp implementation - compiled as part of the consumer executable
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -12,6 +12,7 @@
 #include <rex/rex_app.h>
 
 #include <rex/cvar.h>
+#include <rex/kernel/kernel_init.h>
 #include <rex/filesystem.h>
 #include <rex/log_capture.h>
 #include <rex/logging.h>
@@ -106,6 +107,9 @@ bool ReXApp::OnInitialize() {
     REXLOG_ERROR("Runtime setup failed: {:08X}", status);
     return false;
   }
+
+  // Initialize HLE kernel modules and apps (must happen after Setup)
+  rex::kernel::InitKernel(runtime_.get());
 
   // Load XEX image
   status = runtime_->LoadXexImage("game:\\default.xex");

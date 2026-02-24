@@ -14,8 +14,7 @@
 #include <fmt/format.h>
 
 #include <rex/assert.h>
-#include <rex/kernel/xboxkrnl/module.h>
-#include <rex/kernel/xboxkrnl/ordinals.h>
+#include <rex/system/kernel_constants.h>
 #include <rex/logging.h>
 #include <rex/runtime.h>
 #include <rex/stream.h>
@@ -66,8 +65,6 @@ KernelState::KernelState(Runtime* emulator)
 
   // Hardcoded maximum of 2048 TLS slots.
   tls_bitmap_.Resize(2048);
-
-  xam::AppManager::RegisterApps(this, app_manager_.get());
 }
 
 KernelState::~KernelState() {
@@ -336,7 +333,7 @@ void KernelState::SetExecutableModule(object_ref<UserModule> module) {
 
   // Setup the kernel's XexExecutableModuleHandle field.
   auto export_entry = emulator_->processor()->export_resolver()->GetExportByOrdinal(
-      "xboxkrnl.exe", kernel::xboxkrnl::ordinals::XexExecutableModuleHandle);
+      "xboxkrnl.exe", system::kOrdinal_XexExecutableModuleHandle);
   if (export_entry) {
     assert_not_zero(export_entry->variable_ptr);
     auto variable_ptr = memory_->TranslateVirtual<be<uint32_t>*>(export_entry->variable_ptr);
@@ -345,11 +342,11 @@ void KernelState::SetExecutableModule(object_ref<UserModule> module) {
 
   // Setup the kernel's ExLoadedImageName field
   export_entry = emulator_->processor()->export_resolver()->GetExportByOrdinal(
-      "xboxkrnl.exe", kernel::xboxkrnl::ordinals::ExLoadedImageName);
+      "xboxkrnl.exe", system::kOrdinal_ExLoadedImageName);
   if (export_entry) {
     char* variable_ptr = memory_->TranslateVirtual<char*>(export_entry->variable_ptr);
     rex::string::util_copy_truncating(variable_ptr, executable_module_->path(),
-                                      kernel::xboxkrnl::XboxkrnlModule::kExLoadedImageNameSize);
+                                      system::kExLoadedImageNameSize);
   }
 
   // Spin up deferred dispatch worker.

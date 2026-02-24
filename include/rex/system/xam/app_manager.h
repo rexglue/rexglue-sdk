@@ -49,8 +49,6 @@ class App {
 
 class AppManager {
  public:
-  static void RegisterApps(KernelState* kernel_state, AppManager* manager);
-
   void RegisterApp(std::unique_ptr<App> app);
 
   X_HRESULT DispatchMessageSync(uint32_t app_id, uint32_t message, uint32_t buffer_ptr,
