@@ -19,4 +19,14 @@ target_link_libraries(rexglue
         rexcodegen
 )
 
+# TODO: fix the circular dependency with rexsystem and rexkernel (init/ordinals)
+if(UNIX)
+    target_link_libraries(rexglue PRIVATE
+        -Wl,--start-group
+        rexsystem
+        rexkernel
+        -Wl,--end-group
+    )
+endif()
+
 add_executable(rex::rexglue ALIAS rexglue)
