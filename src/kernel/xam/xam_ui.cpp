@@ -546,6 +546,12 @@ uint32_t XamShowMessageBoxUIEx_entry() {
   return 0;
 }
 
+
+ppc_u32_result_t XamShowAchievementsUI_entry() {
+    REXKRNL_WARN("[STUB] XamShowAchievementsUI - not implemented");
+	return X_ERROR_FUNCTION_FAILED;
+}
+
 }  // namespace xam
 }  // namespace kernel
 }  // namespace rex
@@ -558,3 +564,4 @@ PPC_HOOK(__imp__XamShowDirtyDiscErrorUI, rex::kernel::xam::XamShowDirtyDiscError
 PPC_HOOK(__imp__XamShowPartyUI, rex::kernel::xam::XamShowPartyUI_entry)
 PPC_HOOK(__imp__XamShowCommunitySessionsUI, rex::kernel::xam::XamShowCommunitySessionsUI_entry)
 PPC_HOOK(__imp__XamShowMessageBoxUIEx, rex::kernel::xam::XamShowMessageBoxUIEx_entry)
+PPC_HOOK(__imp__XamShowAchievementsUI, rex::kernel::xam::XamShowAchievementsUI_entry)

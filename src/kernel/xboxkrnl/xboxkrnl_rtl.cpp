@@ -577,6 +577,11 @@ void __C_specific_handler_entry() {
   REXKRNL_WARN("[STUB] __C_specific_handler called - not implemented");
 }
 
+
+void RtlUpcaseUnicodeChar_entry(ppc_ptr_t<X_UNICODE_STRING> string) {
+    REXKRNL_WARN("[STUB] RtlUpcaseUnicodeChar called - not implemented");
+}
+
 }  // namespace rex::kernel::xboxkrnl
 
 PPC_HOOK(__imp__RtlCompareMemory, rex::kernel::xboxkrnl::RtlCompareMemory_entry)
@@ -608,6 +613,7 @@ PPC_HOOK(__imp__RtlLeaveCriticalSection, rex::kernel::xboxkrnl::RtlLeaveCritical
 PPC_HOOK(__imp__RtlTimeToTimeFields, rex::kernel::xboxkrnl::RtlTimeToTimeFields_entry)
 PPC_HOOK(__imp__RtlTimeFieldsToTime, rex::kernel::xboxkrnl::RtlTimeFieldsToTime_entry)
 PPC_HOOK(__imp__RtlComputeCrc32, rex::kernel::xboxkrnl::RtlComputeCrc32_entry)
+PPC_HOOK(__imp__RtlUpcaseUnicodeChar, rex::kernel::xboxkrnl::RtlUpcaseUnicodeChar_entry)
 
 // Exception handling stubs
 PPC_HOOK(__imp__RtlCaptureContext, rex::kernel::xboxkrnl::RtlCaptureContext_entry)

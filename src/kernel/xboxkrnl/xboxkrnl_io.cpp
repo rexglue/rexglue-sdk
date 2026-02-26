@@ -762,6 +762,42 @@ ppc_u32_result_t StfsControlDevice_entry(ppc_pvoid_t device_object, ppc_u32_t io
   return X_STATUS_SUCCESS;
 }
 
+ppc_u32_result_t IoDismountVolume_entry(ppc_pvoid_t device_object) {
+  REXKRNL_WARN("IoDismountVolume - stub");
+  return X_STATUS_SUCCESS;
+}
+
+ppc_u32_result_t IoInvalidDeviceRequest_entry(ppc_pvoid_t device_object, ppc_pvoid_t irp) {
+    REXKRNL_WARN("IoInvalidDeviceRequest - stub");
+    return X_STATUS_SUCCESS;
+}
+
+ppc_u32_result_t IoDeleteDevice_entry(ppc_pvoid_t device_object) {
+    REXKRNL_WARN("IoDeleteDevice - stub");
+    return X_STATUS_SUCCESS;
+}
+
+ppc_u32_result_t IoCompleteRequest_entry(ppc_pvoid_t irp, ppc_u32_t priority_boost) {
+    REXKRNL_WARN("IoCompleteRequest - stub");
+    return X_STATUS_SUCCESS;
+}
+
+ppc_u32_result_t IoCheckShareAccess_entry() {
+    REXKRNL_WARN("IoCheckShareAccess - stub");
+    return X_STATUS_SUCCESS;
+}
+
+ppc_u32_result_t IoSetShareAccess_entry() {
+	REXKRNLFN_WARN("IoSetShareAccess - stub");
+	return X_STATUS_SUCCESS;
+}
+
+ppc_u32_result_t IoRemoveShareAccess_entry() {
+    REXKRNLFN_WARN("IoRemoveShareAccess - stub");
+	return X_STATUS_SUCCESS;
+}
+
+
 }  // namespace rex::kernel::xboxkrnl
 
 PPC_HOOK(__imp__NtCreateFile, rex::kernel::xboxkrnl::NtCreateFile_entry)
@@ -788,3 +824,10 @@ PPC_HOOK(__imp__IoSynchronousDeviceIoControlRequest,
          rex::kernel::xboxkrnl::IoSynchronousDeviceIoControlRequest_entry)
 PPC_HOOK(__imp__StfsCreateDevice, rex::kernel::xboxkrnl::StfsCreateDevice_entry)
 PPC_HOOK(__imp__StfsControlDevice, rex::kernel::xboxkrnl::StfsControlDevice_entry)
+PPC_HOOK(__imp__IoDismountVolume, rex::kernel::xboxkrnl::IoDismountVolume_entry)
+PPC_HOOK(__imp__IoInvalidDeviceRequest, rex::kernel::xboxkrnl::IoInvalidDeviceRequest_entry)
+PPC_HOOK(__imp__IoDeleteDevice, rex::kernel::xboxkrnl::IoDeleteDevice_entry)
+PPC_HOOK(__imp__IoCompleteRequest, rex::kernel::xboxkrnl::IoCompleteRequest_entry)
+PPC_HOOK(__imp__IoCheckShareAccess, rex::kernel::xboxkrnl::IoCheckShareAccess_entry)
+PPC_HOOK(__imp__IoSetShareAccess, rex::kernel::xboxkrnl::IoSetShareAccess_entry)
+PPC_HOOK(__imp__IoRemoveShareAccess, rex::kernel::xboxkrnl::IoRemoveShareAccess_entry)

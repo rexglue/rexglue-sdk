@@ -200,6 +200,22 @@ ppc_u32_result_t NtClose_entry(ppc_u32_t handle) {
   return result;
 }
 
+
+ppc_u32_result_t ObReferenceObject_entry() {
+    REXKRNL_WARN("ObReferenceObject - stub");
+    return X_STATUS_SUCCESS;
+}
+
+ppc_u32_result_t NtWriteFileGather_entry() {
+    REXKRNL_WARN("NtWriteFileGather - stub");
+	return X_STATUS_SUCCESS;
+}
+
+ppc_u32_result_t ObIsTitleObject_entry() {
+    REXKRNL_WARN("ObIsTitleObject - stub");
+	return 0;
+}
+
 }  // namespace rex::kernel::xboxkrnl
 
 PPC_HOOK(__imp__ObOpenObjectByName, rex::kernel::xboxkrnl::ObOpenObjectByName_entry)
@@ -212,3 +228,6 @@ PPC_HOOK(__imp__ObCreateSymbolicLink, rex::kernel::xboxkrnl::ObCreateSymbolicLin
 PPC_HOOK(__imp__ObDeleteSymbolicLink, rex::kernel::xboxkrnl::ObDeleteSymbolicLink_entry)
 PPC_HOOK(__imp__NtDuplicateObject, rex::kernel::xboxkrnl::NtDuplicateObject_entry)
 PPC_HOOK(__imp__NtClose, rex::kernel::xboxkrnl::NtClose_entry)
+PPC_HOOK(__imp__ObReferenceObject, rex::kernel::xboxkrnl::ObReferenceObject_entry)
+PPC_HOOK(__imp__ObIsTitleObject, rex::kernel::xboxkrnl::ObIsTitleObject_entry)
+PPC_HOOK(__imp__NtWriteFileGather, rex::kernel::xboxkrnl::NtWriteFileGather_entry)
