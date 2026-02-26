@@ -1,6 +1,21 @@
 # Third-party vendored dependencies for ReXGlue
 
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+
+#=============================================================================
+# Architecture detection
+#=============================================================================
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|ARM64)$")
+    set(IS_ARM64 TRUE)
+    set(IS_X86_64 FALSE)
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64)$")
+    set(IS_ARM64 FALSE)
+    set(IS_X86_64 TRUE)
+else()
+    set(IS_ARM64 FALSE)
+    set(IS_X86_64 FALSE)
+endif()
+
 #=============================================================================
 # Verify git submodules are initialized (only vendored ones)
 #=============================================================================
@@ -306,6 +321,14 @@ else()
     set(FFMPEG_ATOMICS_INCLUDE "${FFMPEG_DIR}/compat/atomics/gcc")
 endif()
 
+#=============================================================================
+# ARM64 setup for FFmpeg (NEON optimizations)
+#=============================================================================
+if(IS_ARM64)
+    enable_language(ASM)
+    set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} -march=armv8-a")
+endif()
+
 # libavutil - FFmpeg utility library (must build first)
 add_library(libavutil STATIC
     ${FFMPEG_DIR}/libavutil/adler32.c
@@ -386,14 +409,28 @@ add_library(libavutil STATIC
     ${FFMPEG_DIR}/libavutil/film_grain_params.c
 )
 
-# Add x86 optimizations on Windows/Linux
-if(WIN32 OR (UNIX AND NOT APPLE))
+# Add x86 optimizations (ONLY on x86_64)
+if(IS_X86_64 AND (WIN32 OR (UNIX AND NOT APPLE)))
     target_sources(libavutil PRIVATE
         ${FFMPEG_DIR}/libavutil/x86/cpu.c
         ${FFMPEG_DIR}/libavutil/x86/fixed_dsp_init.c
         ${FFMPEG_DIR}/libavutil/x86/float_dsp_init.c
         ${FFMPEG_DIR}/libavutil/x86/imgutils_init.c
         ${FFMPEG_DIR}/libavutil/x86/lls_init.c
+    )
+endif()
+
+# ARM64 optimizations for libavutil
+if(IS_ARM64)
+    target_sources(libavutil PRIVATE
+        ${FFMPEG_DIR}/libavutil/aarch64/cpu.c
+        ${FFMPEG_DIR}/libavutil/aarch64/float_dsp_init.c
+        ${FFMPEG_DIR}/libavutil/aarch64/float_dsp_neon.S
+    )
+    target_compile_definitions(libavutil PRIVATE 
+        HAVE_NEON=1 
+        HAVE_ARMV8=1 
+        HAVE_INLINE_ASM=1
     )
 endif()
 
@@ -404,7 +441,7 @@ target_include_directories(libavutil
     PRIVATE ${FFMPEG_ATOMICS_INCLUDE}
 )
 target_compile_definitions(libavutil PRIVATE ${FFMPEG_COMMON_DEFINES})
-target_compile_options(libavutil PRIVATE -w)  # Suppress warnings in third-party code
+target_compile_options(libavutil PRIVATE -w)
 if(WIN32)
     target_link_libraries(libavutil PRIVATE bcrypt)
 endif()
@@ -475,14 +512,31 @@ if(WIN32)
     )
 endif()
 
-# Add x86 optimizations on Windows/Linux
-if(WIN32 OR (UNIX AND NOT APPLE))
+# Add x86 optimizations (ONLY on x86_64)
+if(IS_X86_64)
     target_sources(libavcodec PRIVATE
         ${FFMPEG_DIR}/libavcodec/x86/constants.c
         ${FFMPEG_DIR}/libavcodec/x86/fdctdsp_init.c
         ${FFMPEG_DIR}/libavcodec/x86/fft_init.c
         ${FFMPEG_DIR}/libavcodec/x86/idctdsp_init.c
         ${FFMPEG_DIR}/libavcodec/x86/fdct.c
+    )
+endif()
+
+# ARM64 optimizations for libavcodec
+if(IS_ARM64)
+    target_sources(libavcodec PRIVATE
+        ${FFMPEG_DIR}/libavcodec/aarch64/fft_init_aarch64.c
+        ${FFMPEG_DIR}/libavcodec/aarch64/fft_neon.S
+        ${FFMPEG_DIR}/libavcodec/aarch64/mdct_neon.S
+        ${FFMPEG_DIR}/libavcodec/aarch64/simple_idct_neon.S
+        ${FFMPEG_DIR}/libavcodec/aarch64/videodsp.S
+        ${FFMPEG_DIR}/libavcodec/aarch64/neon.S
+    )
+    target_compile_definitions(libavcodec PRIVATE 
+        HAVE_NEON=1 
+        HAVE_ARMV8=1 
+        HAVE_INLINE_ASM=1
     )
 endif()
 
@@ -493,7 +547,7 @@ target_include_directories(libavcodec
     PRIVATE ${FFMPEG_ATOMICS_INCLUDE}
 )
 target_compile_definitions(libavcodec PRIVATE ${FFMPEG_COMMON_DEFINES})
-target_compile_options(libavcodec PRIVATE -w)  # Suppress warnings in third-party code
+target_compile_options(libavcodec PRIVATE -w)
 target_link_libraries(libavcodec PUBLIC libavutil)
 if(WIN32)
     target_link_libraries(libavcodec PRIVATE bcrypt)

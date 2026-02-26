@@ -37,8 +37,6 @@
             "cacheVariables": {
                 "CMAKE_C_COMPILER": "clang",
                 "CMAKE_CXX_COMPILER": "clang++",
-                "CMAKE_C_FLAGS": "-march=x86-64-v3",
-                "CMAKE_CXX_FLAGS": "-march=x86-64-v3",
                 "CMAKE_CXX_STANDARD": "23",
                 "CMAKE_CONFIGURATION_TYPES": "Debug;Release;RelWithDebInfo",
                 "CMAKE_CROSS_CONFIGS": "all",
@@ -53,6 +51,15 @@
             }
         },
         {
+            "name": "linux-arm64-base",
+            "hidden": true,
+            "inherits": "linux-base",
+            "cacheVariables": {
+                "CMAKE_C_FLAGS": "-march=armv8-a",
+                "CMAKE_CXX_FLAGS": "-march=armv8-a"
+            }
+        },
+        {
             "name": "win-amd64",
             "displayName": "Windows AMD64",
             "description": "Multi-config build for Windows AMD64 using Clang",
@@ -61,71 +68,282 @@
         {
             "name": "linux-amd64",
             "displayName": "Linux AMD64",
-            "description": "Multi-config build for Linux AMD64 using Clang 20",
-            "inherits": "linux-base"
+            "description": "Multi-config build for Linux AMD64 using Clang",
+            "inherits": "linux-base",
+            "cacheVariables": {
+                "CMAKE_C_FLAGS": "-march=x86-64-v3",
+                "CMAKE_CXX_FLAGS": "-march=x86-64-v3"
+            }
+        },
+        {
+            "name": "linux-arm64",
+            "displayName": "Linux ARM64",
+            "description": "Multi-config build for Linux ARM64 using Clang",
+            "inherits": "linux-arm64-base"
+        },
+        {
+            "name": "win-amd64-debug",
+            "displayName": "Windows AMD64 Debug",
+            "description": "Debug build for Windows AMD64",
+            "inherits": "win-amd64",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "win-amd64-release",
+            "displayName": "Windows AMD64 Release",
+            "description": "Release build for Windows AMD64",
+            "inherits": "win-amd64",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        },
+        {
+            "name": "win-amd64-relwithdebinfo",
+            "displayName": "Windows AMD64 RelWithDebInfo",
+            "description": "Release with Debug Info build for Windows AMD64",
+            "inherits": "win-amd64",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+            }
+        },
+        {
+            "name": "linux-amd64-debug",
+            "displayName": "Linux AMD64 Debug",
+            "description": "Debug build for Linux AMD64",
+            "inherits": "linux-amd64",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "linux-amd64-release",
+            "displayName": "Linux AMD64 Release",
+            "description": "Release build for Linux AMD64",
+            "inherits": "linux-amd64",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        },
+        {
+            "name": "linux-amd64-relwithdebinfo",
+            "displayName": "Linux AMD64 RelWithDebInfo",
+            "description": "Release with Debug Info build for Linux AMD64",
+            "inherits": "linux-amd64",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+            }
+        },
+        {
+            "name": "linux-arm64-debug",
+            "displayName": "Linux ARM64 Debug",
+            "description": "Debug build for Linux ARM64",
+            "inherits": "linux-arm64",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "linux-arm64-release",
+            "displayName": "Linux ARM64 Release",
+            "description": "Release build for Linux ARM64",
+            "inherits": "linux-arm64",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        },
+        {
+            "name": "linux-arm64-relwithdebinfo",
+            "displayName": "Linux ARM64 RelWithDebInfo",
+            "description": "Release with Debug Info build for Linux ARM64",
+            "inherits": "linux-arm64",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+            }
         }
     ],
     "buildPresets": [
         {
             "name": "win-amd64-debug",
-            "configurePreset": "win-amd64",
+            "configurePreset": "win-amd64-debug",
             "configuration": "Debug"
         },
         {
             "name": "win-amd64-release",
-            "configurePreset": "win-amd64",
+            "configurePreset": "win-amd64-release",
             "configuration": "Release"
         },
         {
             "name": "win-amd64-relwithdebinfo",
+            "configurePreset": "win-amd64-relwithdebinfo",
+            "configuration": "RelWithDebInfo"
+        },
+        {
+            "name": "win-amd64-multi-debug",
+            "configurePreset": "win-amd64",
+            "configuration": "Debug"
+        },
+        {
+            "name": "win-amd64-multi-release",
+            "configurePreset": "win-amd64",
+            "configuration": "Release"
+        },
+        {
+            "name": "win-amd64-multi-relwithdebinfo",
             "configurePreset": "win-amd64",
             "configuration": "RelWithDebInfo"
         },
         {
             "name": "linux-amd64-debug",
-            "configurePreset": "linux-amd64",
+            "configurePreset": "linux-amd64-debug",
             "configuration": "Debug"
         },
         {
             "name": "linux-amd64-release",
-            "configurePreset": "linux-amd64",
+            "configurePreset": "linux-amd64-release",
             "configuration": "Release"
         },
         {
             "name": "linux-amd64-relwithdebinfo",
+            "configurePreset": "linux-amd64-relwithdebinfo",
+            "configuration": "RelWithDebInfo"
+        },
+        {
+            "name": "linux-amd64-multi-debug",
             "configurePreset": "linux-amd64",
+            "configuration": "Debug"
+        },
+        {
+            "name": "linux-amd64-multi-release",
+            "configurePreset": "linux-amd64",
+            "configuration": "Release"
+        },
+        {
+            "name": "linux-amd64-multi-relwithdebinfo",
+            "configurePreset": "linux-amd64",
+            "configuration": "RelWithDebInfo"
+        },
+        {
+            "name": "linux-arm64-debug",
+            "configurePreset": "linux-arm64-debug",
+            "configuration": "Debug"
+        },
+        {
+            "name": "linux-arm64-release",
+            "configurePreset": "linux-arm64-release",
+            "configuration": "Release"
+        },
+        {
+            "name": "linux-arm64-relwithdebinfo",
+            "configurePreset": "linux-arm64-relwithdebinfo",
+            "configuration": "RelWithDebInfo"
+        },
+        {
+            "name": "linux-arm64-multi-debug",
+            "configurePreset": "linux-arm64",
+            "configuration": "Debug"
+        },
+        {
+            "name": "linux-arm64-multi-release",
+            "configurePreset": "linux-arm64",
+            "configuration": "Release"
+        },
+        {
+            "name": "linux-arm64-multi-relwithdebinfo",
+            "configurePreset": "linux-arm64",
             "configuration": "RelWithDebInfo"
         }
     ],
     "testPresets": [
         {
             "name": "win-amd64-debug",
-            "configurePreset": "win-amd64",
+            "configurePreset": "win-amd64-debug",
             "configuration": "Debug"
         },
         {
             "name": "win-amd64-release",
-            "configurePreset": "win-amd64",
+            "configurePreset": "win-amd64-release",
             "configuration": "Release"
         },
         {
             "name": "win-amd64-relwithdebinfo",
+            "configurePreset": "win-amd64-relwithdebinfo",
+            "configuration": "RelWithDebInfo"
+        },
+        {
+            "name": "win-amd64-multi-debug",
+            "configurePreset": "win-amd64",
+            "configuration": "Debug"
+        },
+        {
+            "name": "win-amd64-multi-release",
+            "configurePreset": "win-amd64",
+            "configuration": "Release"
+        },
+        {
+            "name": "win-amd64-multi-relwithdebinfo",
             "configurePreset": "win-amd64",
             "configuration": "RelWithDebInfo"
         },
         {
             "name": "linux-amd64-debug",
-            "configurePreset": "linux-amd64",
+            "configurePreset": "linux-amd64-debug",
             "configuration": "Debug"
         },
         {
             "name": "linux-amd64-release",
-            "configurePreset": "linux-amd64",
+            "configurePreset": "linux-amd64-release",
             "configuration": "Release"
         },
         {
             "name": "linux-amd64-relwithdebinfo",
+            "configurePreset": "linux-amd64-relwithdebinfo",
+            "configuration": "RelWithDebInfo"
+        },
+        {
+            "name": "linux-amd64-multi-debug",
             "configurePreset": "linux-amd64",
+            "configuration": "Debug"
+        },
+        {
+            "name": "linux-amd64-multi-release",
+            "configurePreset": "linux-amd64",
+            "configuration": "Release"
+        },
+        {
+            "name": "linux-amd64-multi-relwithdebinfo",
+            "configurePreset": "linux-amd64",
+            "configuration": "RelWithDebInfo"
+        },
+        {
+            "name": "linux-arm64-debug",
+            "configurePreset": "linux-arm64-debug",
+            "configuration": "Debug"
+        },
+        {
+            "name": "linux-arm64-release",
+            "configurePreset": "linux-arm64-release",
+            "configuration": "Release"
+        },
+        {
+            "name": "linux-arm64-relwithdebinfo",
+            "configurePreset": "linux-arm64-relwithdebinfo",
+            "configuration": "RelWithDebInfo"
+        },
+        {
+            "name": "linux-arm64-multi-debug",
+            "configurePreset": "linux-arm64",
+            "configuration": "Debug"
+        },
+        {
+            "name": "linux-arm64-multi-release",
+            "configurePreset": "linux-arm64",
+            "configuration": "Release"
+        },
+        {
+            "name": "linux-arm64-multi-relwithdebinfo",
+            "configurePreset": "linux-arm64",
             "configuration": "RelWithDebInfo"
         }
     ]
