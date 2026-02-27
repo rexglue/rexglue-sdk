@@ -1,0 +1,97 @@
+name: Bug Report
+description: Report a bug or unexpected behavior
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please fill out as much detail as possible.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Clear description of the bug
+      placeholder: When I do X, Y happens instead of Z.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: Minimal steps to reproduce the behavior
+      placeholder: |
+        1. Build with '...'
+        2. Run '...'
+        3. Observe error in log, set breakpoint here and inspect, etc.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected Behavior
+      description: What should happen instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: Actual Behavior
+      description: What actually happens? Include error messages, stack traces, or logs if available.
+      placeholder: |
+        The program crashes with:
+        ```
+        error message here
+        ```
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      description: What platform are you running on?
+      options:
+        - Windows
+        - Linux
+    validations:
+      required: true
+
+  - type: input
+    id: compiler
+    attributes:
+      label: Clang version
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Version / Commit
+      description: Version number or git commit hash
+      placeholder: v0.1.0 or abc1234
+    validations:
+      required: false
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Additional Environment Info
+      description: Any other relevant environment details (dev tool versions, GPU, etc.)
+    validations:
+      required: false
+
+  - type: textarea
+    id: related
+    attributes:
+      label: Related
+      description: Links to related issues, code, or documentation
+      placeholder: |
+        - Possibly related to #69
+        - Relevant code: `src/foo/bar.cpp:420`
+    validations:
+      required: false
