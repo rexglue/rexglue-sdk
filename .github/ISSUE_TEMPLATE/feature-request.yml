@@ -1,0 +1,93 @@
+name: Feature Request
+description: Propose a new feature or enhancement
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to propose a feature!
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Brief description of the feature and why it's needed
+      placeholder: |
+        Implement X to enable Y.
+
+        The current system lacks Z, which means we can't do A, B, or C.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed Solution
+      description: How should this be implemented? Include key features and design decisions.
+      placeholder: |
+        Build on **library X** with a custom layer for Y.
+
+        ### Key Features
+        - **Feature A**: Description
+        - **Feature B**: Description
+    validations:
+      required: true
+
+  - type: textarea
+    id: requirements
+    attributes:
+      label: Requirements
+      description: Checklist of requirements needed to implement this feature. Use `- [ ]` for checkboxes.
+      placeholder: |
+        ### Requirement 1
+        - [ ] Function A
+        - [ ] Function B
+
+        ### Requirement 2
+        - [ ] Function C
+        - [ ] Function D
+    validations:
+      required: true
+
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of Scope
+      description: What is explicitly NOT part of this feature request?
+      placeholder: |
+        - Feature X (separate effort)
+        - Support for Y (deferred)
+    validations:
+      required: false
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Modified Dependencies
+      description: Any new or changed dependencies required for this feature
+      placeholder: |
+        - **new_library** - For X functionality
+        - **existing_lib** - Already in project
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance Criteria
+      description: How do we know this feature is complete? Use `- [ ]` for checkboxes.
+      placeholder: |
+        - [ ] Feature X works as described
+        - [ ] All tests pass
+        - [ ] Documentation updated
+    validations:
+      required: true
+
+  - type: textarea
+    id: related
+    attributes:
+      label: Related
+      description: Links to design docs, related issues, or relevant code
+    validations:
+      required: false
