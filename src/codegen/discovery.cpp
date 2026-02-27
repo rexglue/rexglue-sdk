@@ -328,6 +328,10 @@ std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, uint32_t bctrAd
       // Check common instruction forms that write to a register
       if (insn->opcode == Opcode::rlwinm) {
         destReg = insn->M.RA;
+      } else if (insn->opcode == Opcode::srawi || insn->opcode == Opcode::sraw ||
+                 insn->opcode == Opcode::srw || insn->opcode == Opcode::slw) {
+        // X-form shift instructions: destination is RA (bits 11-15)
+        destReg = insn->X.RA;
       } else if (insn->opcode == Opcode::lbz || insn->opcode == Opcode::lhz ||
                  insn->opcode == Opcode::lwz || insn->opcode == Opcode::li ||
                  insn->opcode == Opcode::lis || insn->opcode == Opcode::addi ||
