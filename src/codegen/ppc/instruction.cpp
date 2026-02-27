@@ -319,8 +319,8 @@ Instruction decode_instruction(guest_addr_t address, u32 code) {
     instr.opcode = Opcode::lis;
   }
 
-  // mr rA, rS = or rA, rS, rS
-  if (instr.opcode == Opcode::or_ && instr.X.RA == instr.X.RB) {
+  // mr rA, rS = or rA, rS, rS (both source operands are the same register)
+  if (instr.opcode == Opcode::or_ && instr.X.RT == instr.X.RB) {
     instr.opcode = Opcode::mr;
   }
 
