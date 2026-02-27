@@ -1038,11 +1038,17 @@ bool build_vpkuhum(BuilderContext& ctx) {
 
 bool build_vpkuhus(BuilderContext& ctx) {
   // Vector Pack Unsigned Halfword Unsigned Saturate
-  ctx.println(
-      "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
-      "simde_mm_packus_epi16(simde_mm_load_si128((simde__m128i*){}.u16), "
-      "simde_mm_load_si128((simde__m128i*){}.u16)));",
-      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[2]), ctx.v(ctx.insn.operands[1]));
+  // NOTE(tomc): _mm_packus_epi16 treats inputs as signed, so we need custom saturation for
+  // unsigned. Unsigned halfwords >= 0x8000 would be interpreted as negative and clamped to 0
+  // instead of 0xFF.
+  for (size_t i = 0; i < 8; i++) {
+    ctx.println("\t{}.u8[{}] = {}.u16[{}] > 0xFF ? 0xFF : (uint8_t){}.u16[{}];",
+                ctx.v(ctx.insn.operands[0]), 15 - i, ctx.v(ctx.insn.operands[1]), 7 - i,
+                ctx.v(ctx.insn.operands[1]), 7 - i);
+    ctx.println("\t{}.u8[{}] = {}.u16[{}] > 0xFF ? 0xFF : (uint8_t){}.u16[{}];",
+                ctx.v(ctx.insn.operands[0]), 7 - i, ctx.v(ctx.insn.operands[2]), 7 - i,
+                ctx.v(ctx.insn.operands[2]), 7 - i);
+  }
   return true;
 }
 
