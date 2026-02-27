@@ -224,7 +224,7 @@ bool build_neg(BuilderContext& ctx) {
 //=============================================================================
 
 bool build_subf(BuilderContext& ctx) {
-  ctx.println("\t{}.s64 = {}.s64 - {}.s64;", ctx.r(ctx.insn.operands[0]),
+  ctx.println("\t{}.u64 = {}.u64 - {}.u64;", ctx.r(ctx.insn.operands[0]),
               ctx.r(ctx.insn.operands[2]), ctx.r(ctx.insn.operands[1]));
   emitRecordFormCompare(ctx);
   return true;
@@ -233,7 +233,7 @@ bool build_subf(BuilderContext& ctx) {
 bool build_subfc(BuilderContext& ctx) {
   ctx.println("\t{}.ca = {}.u32 >= {}.u32;", ctx.xer(), ctx.r(ctx.insn.operands[2]),
               ctx.r(ctx.insn.operands[1]));
-  ctx.println("\t{}.s64 = {}.s64 - {}.s64;", ctx.r(ctx.insn.operands[0]),
+  ctx.println("\t{}.u64 = {}.u64 - {}.u64;", ctx.r(ctx.insn.operands[0]),
               ctx.r(ctx.insn.operands[2]), ctx.r(ctx.insn.operands[1]));
   emitRecordFormCompare(ctx);
   return true;
@@ -254,7 +254,7 @@ bool build_subfe(BuilderContext& ctx) {
 bool build_subfic(BuilderContext& ctx) {
   ctx.println("\t{}.ca = {}.u32 <= {};", ctx.xer(), ctx.r(ctx.insn.operands[1]),
               ctx.insn.operands[2]);
-  ctx.println("\t{}.s64 = {} - {}.s64;", ctx.r(ctx.insn.operands[0]),
+  ctx.println("\t{}.u64 = static_cast<uint64_t>({}) - {}.u64;", ctx.r(ctx.insn.operands[0]),
               static_cast<int32_t>(ctx.insn.operands[2]), ctx.r(ctx.insn.operands[1]));
   return true;
 }
