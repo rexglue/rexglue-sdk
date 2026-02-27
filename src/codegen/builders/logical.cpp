@@ -399,8 +399,8 @@ bool build_crandc(BuilderContext& ctx) {
 }
 
 bool build_creqv(BuilderContext& ctx) {
-  // creqv: CR[crD] = CR[crA] = CR[crB]
-  emitCRBitOperation(ctx, "=");
+  // creqv: CR[crD] = ~(CR[crA] ^ CR[crB])  (XNOR)
+  emitCRBitOperation(ctx, "^", false, false, true);
   return true;
 }
 
