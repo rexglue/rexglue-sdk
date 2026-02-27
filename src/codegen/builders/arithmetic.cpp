@@ -99,11 +99,13 @@ bool build_addc(BuilderContext& ctx) {
 
 bool build_divd(BuilderContext& ctx) {
   // divd rD,rA,rB: rD = rA / rB (64-bit signed)
-  // Safe division: return 0 if divisor is zero
+  // Safe division: return 0 if divisor is zero or INT64_MIN / -1 (UB in C)
   auto rD = ctx.r(ctx.insn.operands[0]);
   auto rA = ctx.r(ctx.insn.operands[1]);
   auto rB = ctx.r(ctx.insn.operands[2]);
-  ctx.println("\t{}.s64 = {}.s64 ? {}.s64 / {}.s64 : 0;", rD, rB, rA, rB);
+  ctx.println(
+      "\t{}.s64 = ({}.s64 && !({}.s64 == INT64_MIN && {}.s64 == -1)) ? {}.s64 / {}.s64 : 0;", rD,
+      rB, rA, rB, rA, rB);
   emitRecordFormCompare(ctx);
   return true;
 }
@@ -121,11 +123,13 @@ bool build_divdu(BuilderContext& ctx) {
 
 bool build_divw(BuilderContext& ctx) {
   // divw rD,rA,rB: rD = rA / rB (32-bit signed)
-  // Safe division: return 0 if divisor is zero
+  // Safe division: return 0 if divisor is zero or INT32_MIN / -1 (UB in C)
   auto rD = ctx.r(ctx.insn.operands[0]);
   auto rA = ctx.r(ctx.insn.operands[1]);
   auto rB = ctx.r(ctx.insn.operands[2]);
-  ctx.println("\t{}.s32 = {}.s32 ? {}.s32 / {}.s32 : 0;", rD, rB, rA, rB);
+  ctx.println(
+      "\t{}.s32 = ({}.s32 && !({}.s32 == INT32_MIN && {}.s32 == -1)) ? {}.s32 / {}.s32 : 0;", rD,
+      rB, rA, rB, rA, rB);
   emitRecordFormCompare(ctx);
   return true;
 }
