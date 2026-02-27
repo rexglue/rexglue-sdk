@@ -1,0 +1,128 @@
+name: New Instruction
+description: Add a new instruction to the rexglue codegen
+title: "instruction: "
+labels: ["instruction"]
+body:
+  - type: input
+    id: mnemonic
+    attributes:
+      label: Mnemonic
+      description: Assembly mnemonic
+      placeholder: "addze"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What the instruction does in plain language.
+      placeholder: "Add to Zero Extended - adds the contents of rA and the CA bit of the XER to rT."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: format
+    attributes:
+      label: Instruction Format
+      options:
+        - I   (Branch - LI, AA, LK)
+        - B   (Conditional branch - BO, BI, BD, AA, LK)
+        - D   (Immediate - RT, RA, d/SIMM/UIMM)
+        - DS  (Double-word - RT, RA, DS, XO)
+        - X   (General - RT, RA, RB, XO, Rc)
+        - XL  (Branch to LR/CTR - BO, BI, XO, LK)
+        - XFX (SPR access - RT, SPR, XO)
+        - XO  (Arithmetic w/ overflow - RT, RA, RB, OE, XO, Rc)
+        - M   (Rotate/mask - RS, RA, SH/RB, MB, ME, Rc)
+        - MD  (Rotate double-word - RS, RA, sh, mb, XO, Rc)
+        - A   (FP arithmetic - FRT, FRA, FRB, FRC, XO, Rc)
+        - VA  (Vector 4-operand - VRT, VRA, VRB, VRC, XO)
+        - VX  (Vector 3-operand - VRT, VRA, VRB, XO)
+        - VXR (Vector w/ record - VRT, VRA, VRB, Rc, XO)
+        - VMX128 (Xbox 360 extended vector)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: group
+    attributes:
+      label: Opcode Group
+      options:
+        - General (ALU/logical)
+        - Branch (control flow)
+        - Memory (load/store)
+        - Special (SPR access)
+        - Sync (synchronization)
+        - System (syscall/trap)
+        - Float (floating-point)
+        - Vector (VMX/VMX128)
+    validations:
+      required: true
+
+  - type: input
+    id: primary_opcode
+    attributes:
+      label: Primary Opcode (bits 0-5)
+      placeholder: "31"
+    validations:
+      required: true
+
+  - type: input
+    id: extended_opcode
+    attributes:
+      label: Extended Opcode
+      description: Leave blank if none.
+      placeholder: "266"
+
+  - type: textarea
+    id: decoding
+    attributes:
+      label: Bit Layout & Decoding
+      description: Show the bit fields and how operands are extracted. Include all variants (Rc=0/1, OE=0/1).
+    validations:
+      required: true
+
+  - type: textarea
+    id: simplified_mnemonics
+    attributes:
+      label: Simplified Mnemonics
+      description: Any simplified forms this maps to/from.
+
+  - type: textarea
+    id: operation
+    attributes:
+      label: Operation (pseudocode)
+      description: Precise semantics including side effects (CR0, XER, etc).
+      value: |
+        ```
+        rT <- rA + rB
+        if Rc then CR0 <- compare(rT, 0)
+        if OE then XER[SO,OV] <- overflow
+        ```
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: flags
+    attributes:
+      label: Instruction Properties
+      options:
+        - label: "Record form (Rc=1 sets CR0)"
+        - label: "Overflow form (OE=1 sets XER[SO,OV])"
+        - label: "Reads memory"
+        - label: "Writes memory"
+        - label: "Reads/writes LR"
+        - label: "Reads/writes CTR"
+        - label: "Reads/writes XER (carry, overflow)"
+        - label: "Reads/writes FPSCR"
+        - label: "Needs CSR flush mode change (FPU vs VMX)"
+        - label: "Xbox 360 specific (not in standard PPC ISA)"
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What game was this encountered in? Provide context around how it is used, including example use cases.
+    validations:
+      required: true
