@@ -104,6 +104,7 @@ bool build_divd(BuilderContext& ctx) {
   auto rA = ctx.r(ctx.insn.operands[1]);
   auto rB = ctx.r(ctx.insn.operands[2]);
   ctx.println("\t{}.s64 = {}.s64 ? {}.s64 / {}.s64 : 0;", rD, rB, rA, rB);
+  emitRecordFormCompare(ctx);
   return true;
 }
 
@@ -147,6 +148,7 @@ bool build_divwu(BuilderContext& ctx) {
 bool build_mulhw(BuilderContext& ctx) {
   ctx.println("\t{}.s64 = (int64_t({}.s32) * int64_t({}.s32)) >> 32;", ctx.r(ctx.insn.operands[0]),
               ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]));
+  emitRecordFormCompare(ctx);
   return true;
 }
 
@@ -162,6 +164,7 @@ bool build_mulld(BuilderContext& ctx) {
   // Use unsigned multiplication to avoid signed overflow UB (PPC wraps on overflow)
   ctx.println("\t{}.s64 = static_cast<int64_t>({}.u64 * {}.u64);", ctx.r(ctx.insn.operands[0]),
               ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]));
+  emitRecordFormCompare(ctx);
   return true;
 }
 
