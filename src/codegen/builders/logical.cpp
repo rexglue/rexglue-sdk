@@ -56,12 +56,14 @@ bool build_andis(BuilderContext& ctx) {
 bool build_nand(BuilderContext& ctx) {
   ctx.println("\t{}.u64 = ~({}.u64 & {}.u64);", ctx.r(ctx.insn.operands[0]),
               ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]));
+  emitRecordFormCompare(ctx);
   return true;
 }
 
 bool build_nor(BuilderContext& ctx) {
   ctx.println("\t{}.u64 = ~({}.u64 | {}.u64);", ctx.r(ctx.insn.operands[0]),
               ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]));
+  emitRecordFormCompare(ctx);
   return true;
 }
 
@@ -90,6 +92,7 @@ bool build_or(BuilderContext& ctx) {
 bool build_orc(BuilderContext& ctx) {
   ctx.println("\t{}.u64 = {}.u64 | ~{}.u64;", ctx.r(ctx.insn.operands[0]),
               ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]));
+  emitRecordFormCompare(ctx);
   return true;
 }
 
@@ -158,12 +161,14 @@ bool build_eqv(BuilderContext& ctx) {
 bool build_cntlzd(BuilderContext& ctx) {
   ctx.println("\t{0}.u64 = {1}.u64 == 0 ? 64 : __builtin_clzll({1}.u64);",
               ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]));
+  emitRecordFormCompare(ctx);
   return true;
 }
 
 bool build_cntlzw(BuilderContext& ctx) {
   ctx.println("\t{0}.u64 = {1}.u32 == 0 ? 32 : __builtin_clz({1}.u32);",
               ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]));
+  emitRecordFormCompare(ctx);
   return true;
 }
 
@@ -208,6 +213,7 @@ bool build_rldicl(BuilderContext& ctx) {
   ctx.println("\t{}.u64 = __builtin_rotateleft64({}.u64, {}) & 0x{:X};",
               ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]), ctx.insn.operands[2],
               compute_mask(ctx.insn.operands[3], 63));
+  emitRecordFormCompare(ctx);
   return true;
 }
 
@@ -215,6 +221,7 @@ bool build_rldicr(BuilderContext& ctx) {
   ctx.println("\t{}.u64 = __builtin_rotateleft64({}.u64, {}) & 0x{:X};",
               ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]), ctx.insn.operands[2],
               compute_mask(0, ctx.insn.operands[3]));
+  emitRecordFormCompare(ctx);
   return true;
 }
 
@@ -223,12 +230,14 @@ bool build_rldimi(BuilderContext& ctx) {
   ctx.println("\t{}.u64 = (__builtin_rotateleft64({}.u64, {}) & 0x{:X}) | ({}.u64 & 0x{:X});",
               ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]), ctx.insn.operands[2], mask,
               ctx.r(ctx.insn.operands[0]), ~mask);
+  emitRecordFormCompare(ctx);
   return true;
 }
 
 bool build_rotldi(BuilderContext& ctx) {
   ctx.println("\t{}.u64 = __builtin_rotateleft64({}.u64, {});", ctx.r(ctx.insn.operands[0]),
               ctx.r(ctx.insn.operands[1]), ctx.insn.operands[2]);
+  emitRecordFormCompare(ctx);
   return true;
 }
 
@@ -241,6 +250,7 @@ bool build_rlwimi(BuilderContext& ctx) {
   ctx.println("\t{}.u64 = (__builtin_rotateleft32({}.u32, {}) & 0x{:X}) | ({}.u64 & 0x{:X});",
               ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]), ctx.insn.operands[2], mask,
               ctx.r(ctx.insn.operands[0]), ~mask);
+  emitRecordFormCompare(ctx);
   return true;
 }
 
@@ -267,6 +277,7 @@ bool build_rotlw(BuilderContext& ctx) {
   ctx.println("\t{}.u64 = __builtin_rotateleft32({}.u32, {}.u8 & 0x1F);",
               ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]),
               ctx.r(ctx.insn.operands[2]));
+  emitRecordFormCompare(ctx);
   return true;
 }
 
@@ -285,6 +296,7 @@ bool build_sld(BuilderContext& ctx) {
   ctx.println("\t{}.u64 = {}.u8 & 0x40 ? 0 : ({}.u64 << ({}.u8 & 0x7F));",
               ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[2]), ctx.r(ctx.insn.operands[1]),
               ctx.r(ctx.insn.operands[2]));
+  emitRecordFormCompare(ctx);
   return true;
 }
 
@@ -308,6 +320,7 @@ bool build_srad(BuilderContext& ctx) {
               ctx.r(ctx.insn.operands[1]));
   ctx.println("\t{}.s64 = {}.s64 >> {}.u64;", ctx.r(ctx.insn.operands[0]),
               ctx.r(ctx.insn.operands[1]), ctx.temp());
+  emitRecordFormCompare(ctx);
   return true;
 }
 
@@ -322,6 +335,7 @@ bool build_sradi(BuilderContext& ctx) {
     ctx.println("\t{}.ca = 0;", ctx.xer());
     ctx.println("\t{}.s64 = {}.s64;", ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[1]));
   }
+  emitRecordFormCompare(ctx);
   return true;
 }
 
@@ -360,6 +374,7 @@ bool build_srd(BuilderContext& ctx) {
   ctx.println("\t{}.u64 = {}.u8 & 0x40 ? 0 : ({}.u64 >> ({}.u8 & 0x7F));",
               ctx.r(ctx.insn.operands[0]), ctx.r(ctx.insn.operands[2]), ctx.r(ctx.insn.operands[1]),
               ctx.r(ctx.insn.operands[2]));
+  emitRecordFormCompare(ctx);
   return true;
 }
 
