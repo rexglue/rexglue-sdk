@@ -105,15 +105,19 @@ struct BoundsInfo {
 };
 
 BoundsInfo scanForBounds(DecodedBinary& decoded, uint32_t bctrAddr, const CodeRegion& region,
-                         uint8_t expectedReg) {
+                         uint8_t expectedReg, uint32_t funcStart) {
   BoundsInfo result;
   constexpr int kMaxBackwardScan = 64;
 
-  REXCODEGEN_TRACE("scanForBounds: bctr=0x{:08X} region=[0x{:08X}-0x{:08X}] expectedReg=r{}",
-                   bctrAddr, region.start, region.end, expectedReg);
+  // Use funcStart as lower bound to avoid scanning into other functions
+  uint32_t scanLowerBound = std::max(region.start, funcStart);
+
+  REXCODEGEN_TRACE(
+      "scanForBounds: bctr=0x{:08X} region=[0x{:08X}-0x{:08X}] funcStart=0x{:08X} expectedReg=r{}",
+      bctrAddr, region.start, region.end, funcStart, expectedReg);
 
   uint32_t scanAddr = bctrAddr;
-  for (int i = 0; i < kMaxBackwardScan && scanAddr >= region.start + 4; i++) {
+  for (int i = 0; i < kMaxBackwardScan && scanAddr >= scanLowerBound + 4; i++) {
     scanAddr -= 4;
     auto* insn = decoded.get(scanAddr);
     if (!insn)
@@ -490,7 +494,7 @@ std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, uint32_t bctrAd
   }
 
   // Find bounds
-  auto bounds = scanForBounds(decoded, bctrAddr, containingRegion, finalIndexReg);
+  auto bounds = scanForBounds(decoded, bctrAddr, containingRegion, finalIndexReg, funcStart);
   // If bounds not found (e.g., state machine pattern with forward bounds check),
   // use max entries and let the validation loop determine actual table size
   uint32_t entryCount = bounds.found ? bounds.maxEntries : kMaxTableEntries;
