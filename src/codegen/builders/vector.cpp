@@ -299,23 +299,20 @@ bool build_vadduws(BuilderContext& ctx) {
   return true;
 }
 
-bool build_vadduhs(BuilderContext& ctx)
-{
-    ctx.emit_vec_int_binary("adds_epu16", "u16");
-    return true;
+bool build_vadduhs(BuilderContext& ctx) {
+  ctx.emit_vec_int_binary("adds_epu16", "u16");
+  return true;
 }
 
-bool build_vsubsws(BuilderContext& ctx)
-{
-    // TODO: vectorize
-    for (size_t i = 0; i < 4; i++)
-    {
-        ctx.println("\t{}.s64 = int64_t({}.s32[{}]) - int64_t({}.s32[{}]);",
-            ctx.temp(), ctx.v(ctx.insn.operands[1]), i, ctx.v(ctx.insn.operands[2]), i);
-        ctx.println("\t{}.s32[{}] = {}.s64 > INT_MAX ? INT_MAX : {}.s64 < INT_MIN ? INT_MIN : {}.s64;",
-            ctx.v(ctx.insn.operands[0]), i, ctx.temp(), ctx.temp(), ctx.temp());
-    }
-    return true;
+bool build_vsubsws(BuilderContext& ctx) {
+  // TODO: vectorize
+  for (size_t i = 0; i < 4; i++) {
+    ctx.println("\t{}.s64 = int64_t({}.s32[{}]) - int64_t({}.s32[{}]);", ctx.temp(),
+                ctx.v(ctx.insn.operands[1]), i, ctx.v(ctx.insn.operands[2]), i);
+    ctx.println("\t{}.s32[{}] = {}.s64 > INT_MAX ? INT_MAX : {}.s64 < INT_MIN ? INT_MIN : {}.s64;",
+                ctx.v(ctx.insn.operands[0]), i, ctx.temp(), ctx.temp(), ctx.temp());
+  }
+  return true;
 }
 
 bool build_vsububm(BuilderContext& ctx) {
@@ -355,7 +352,7 @@ bool build_vsubuwm(BuilderContext& ctx) {
 }
 
 bool build_vmaxsw(BuilderContext& ctx) {
-  ctx.emit_vec_int_binary("max_epi32", "u32");
+  ctx.emit_vec_int_binary("max_epi32", "s32");
   return true;
 }
 
@@ -364,29 +361,24 @@ bool build_vmaxsh(BuilderContext& ctx) {
   return true;
 }
 
-
-bool build_vmaxsb(BuilderContext& ctx)
-{
-    ctx.emit_vec_int_binary("max_epi8", "s8");
-    return true;
+bool build_vmaxsb(BuilderContext& ctx) {
+  ctx.emit_vec_int_binary("max_epi8", "s8");
+  return true;
 }
 
-bool build_vminsh(BuilderContext& ctx)
-{
-    ctx.emit_vec_int_binary("min_epi16", "s16");
-    return true;
+bool build_vminsh(BuilderContext& ctx) {
+  ctx.emit_vec_int_binary("min_epi16", "s16");
+  return true;
 }
 
-bool build_vminsb(BuilderContext& ctx)
-{
-    ctx.emit_vec_int_binary("min_epi8", "s8");
-    return true;
+bool build_vminsb(BuilderContext& ctx) {
+  ctx.emit_vec_int_binary("min_epi8", "s8");
+  return true;
 }
 
-bool build_vminsw(BuilderContext& ctx)
-{
-    ctx.emit_vec_int_binary("min_epi32", "s32");
-    return true;
+bool build_vminsw(BuilderContext& ctx) {
+  ctx.emit_vec_int_binary("min_epi32", "s32");
+  return true;
 }
 
 bool build_vmaxuh(BuilderContext& ctx) {
@@ -404,22 +396,19 @@ bool build_vsubsbs(BuilderContext& ctx) {
   return true;
 }
 
-bool build_vmaxub(BuilderContext& ctx)
-{
-    ctx.emit_vec_int_binary("max_epu8", "u8");
-    return true;
+bool build_vmaxub(BuilderContext& ctx) {
+  ctx.emit_vec_int_binary("max_epu8", "u8");
+  return true;
 }
 
-bool build_vminub(BuilderContext& ctx)
-{
-    ctx.emit_vec_int_binary("min_epu8", "u8");
-    return true;
+bool build_vminub(BuilderContext& ctx) {
+  ctx.emit_vec_int_binary("min_epu8", "u8");
+  return true;
 }
 
-bool build_vsubshs(BuilderContext& ctx)
-{
-    ctx.emit_vec_int_binary("subs_epi16", "s16");
-    return true;
+bool build_vsubshs(BuilderContext& ctx) {
+  ctx.emit_vec_int_binary("subs_epi16", "s16");
+  return true;
 }
 
 //=============================================================================
@@ -883,23 +872,20 @@ bool build_vsrh(BuilderContext& ctx) {
   return true;
 }
 
-
-bool build_vsrb(BuilderContext& ctx)
-{
-    // TODO(tomc): vectorize
-    for (size_t i = 0; i < 16; i++)
-        ctx.println("\t{}.u8[{}] = {}.u8[{}] >> ({}.u8[{}] & 0x7);",
-            ctx.v(ctx.insn.operands[0]), i, ctx.v(ctx.insn.operands[1]), i, ctx.v(ctx.insn.operands[2]), i);
-    return true;
+bool build_vsrb(BuilderContext& ctx) {
+  // TODO(tomc): vectorize
+  for (size_t i = 0; i < 16; i++)
+    ctx.println("\t{}.u8[{}] = {}.u8[{}] >> ({}.u8[{}] & 0x7);", ctx.v(ctx.insn.operands[0]), i,
+                ctx.v(ctx.insn.operands[1]), i, ctx.v(ctx.insn.operands[2]), i);
+  return true;
 }
 
-bool build_vsrab(BuilderContext& ctx)
-{
-    // TODO(tomc): vectorize
-    for (size_t i = 0; i < 16; i++)
-        ctx.println("\t{}.s8[{}] = {}.s8[{}] >> ({}.u8[{}] & 0x7);",
-            ctx.v(ctx.insn.operands[0]), i, ctx.v(ctx.insn.operands[1]), i, ctx.v(ctx.insn.operands[2]), i);
-    return true;
+bool build_vsrab(BuilderContext& ctx) {
+  // TODO(tomc): vectorize
+  for (size_t i = 0; i < 16; i++)
+    ctx.println("\t{}.s8[{}] = {}.s8[{}] >> ({}.u8[{}] & 0x7);", ctx.v(ctx.insn.operands[0]), i,
+                ctx.v(ctx.insn.operands[1]), i, ctx.v(ctx.insn.operands[2]), i);
+  return true;
 }
 
 bool build_vsrah(BuilderContext& ctx) {
@@ -921,25 +907,25 @@ bool build_vrlh(BuilderContext& ctx) {
   return true;
 }
 
-bool build_vrlw(BuilderContext& ctx)
-{
-    // TODO(tomc): vectorize
-    for (size_t i = 0; i < 4; i++)
-    {
-        ctx.println("\t{{ uint32_t sh = {}.u32[{}] & 0x1F;",
-            ctx.v(ctx.insn.operands[2]), i);
-        ctx.println("\t{}.u32[{}] = ({}.u32[{}] << sh) | ({}.u32[{}] >> (32 - sh)); }}",
-            ctx.v(ctx.insn.operands[0]), i, ctx.v(ctx.insn.operands[1]), i, ctx.v(ctx.insn.operands[1]), i);
-    }
-    return true;
+bool build_vrlw(BuilderContext& ctx) {
+  // TODO(tomc): vectorize
+  for (size_t i = 0; i < 4; i++) {
+    ctx.println("\t{{ uint32_t sh = {}.u32[{}] & 0x1F;", ctx.v(ctx.insn.operands[2]), i);
+    ctx.println("\t{}.u32[{}] = ({}.u32[{}] << sh) | ({}.u32[{}] >> (32 - sh)); }}",
+                ctx.v(ctx.insn.operands[0]), i, ctx.v(ctx.insn.operands[1]), i,
+                ctx.v(ctx.insn.operands[1]), i);
+  }
+  return true;
 }
 
-bool build_vsl(BuilderContext& ctx)
-{
-    // Vector Shift Left (128-bit) - shift entire vector left by bits specified in low 3 bits of vB
-    ctx.println("\tsimde_mm_store_si128((simde__m128i*){}.u8, simde_mm_vsl(simde_mm_load_si128((simde__m128i*){}.u8), simde_mm_load_si128((simde__m128i*){}.u8)));",
-        ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]), ctx.v(ctx.insn.operands[2]));
-    return true;
+bool build_vsl(BuilderContext& ctx) {
+  // Vector Shift Left (128-bit) - shift entire vector left by bits specified in low 3 bits of vB
+  ctx.println(
+      "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
+      "rex::simde_mm_vsl(simde_mm_load_si128((simde__m128i*){}.u8), "
+      "simde_mm_load_si128((simde__m128i*){}.u8)));",
+      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]), ctx.v(ctx.insn.operands[2]));
+  return true;
 }
 
 bool build_vslo(BuilderContext& ctx) {
