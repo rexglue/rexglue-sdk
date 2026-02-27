@@ -334,14 +334,17 @@ std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, uint32_t bctrAd
         destReg = insn->X.RA;
       } else if (insn->opcode == Opcode::lbz || insn->opcode == Opcode::lhz ||
                  insn->opcode == Opcode::lwz || insn->opcode == Opcode::li ||
-                 insn->opcode == Opcode::lis || insn->opcode == Opcode::addi ||
-                 insn->opcode == Opcode::mr) {
+                 insn->opcode == Opcode::lis || insn->opcode == Opcode::addi) {
         destReg = insn->D.RT;
       } else if (insn->opcode == Opcode::lbzx || insn->opcode == Opcode::lhzx ||
-                 insn->opcode == Opcode::lwzx || insn->opcode == Opcode::or_ ||
-                 insn->opcode == Opcode::and_ || insn->opcode == Opcode::xor_) {
-        // X-form instructions (loads, or, and, xor)
+                 insn->opcode == Opcode::lwzx) {
+        // X-form load instructions: destination is RT (bits 6-10)
         destReg = insn->X.RT;
+      } else if (insn->opcode == Opcode::or_ || insn->opcode == Opcode::and_ ||
+                 insn->opcode == Opcode::xor_ || insn->opcode == Opcode::mr) {
+        // X-form logical instructions: destination is RA (bits 11-15), NOT RT
+        // (RT is RS/source for these instructions)
+        destReg = insn->X.RA;
       } else if (insn->opcode == Opcode::add || insn->opcode == Opcode::subf) {
         // XO-form instructions (add, subf)
         destReg = insn->XO.RT;
