@@ -306,6 +306,7 @@ bool build_mtxer(BuilderContext& ctx) {
 bool build_clrldi(BuilderContext& ctx) {
   ctx.println("\t{}.u64 = {}.u64 & 0x{:X};", ctx.r(ctx.insn.operands[0]),
               ctx.r(ctx.insn.operands[1]), (1ull << (64 - ctx.insn.operands[2])) - 1);
+  emitRecordFormCompare(ctx);
   return true;
 }
 
