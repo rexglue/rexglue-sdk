@@ -883,7 +883,7 @@ bool build_vrlh(BuilderContext& ctx) {
   // TODO(tomc): vectorize
   for (size_t i = 0; i < 8; i++) {
     ctx.println("\t{{ uint16_t sh = {}.u16[{}] & 0xF;", ctx.v(ctx.insn.operands[2]), i);
-    ctx.println("\t{}.u16[{}] = ({}.u16[{}] << sh) | ({}.u16[{}] >> (16 - sh)); }}",
+    ctx.println("\t{}.u16[{}] = ({}.u16[{}] << sh) | (sh ? ({}.u16[{}] >> (16 - sh)) : 0); }}",
                 ctx.v(ctx.insn.operands[0]), i, ctx.v(ctx.insn.operands[1]), i,
                 ctx.v(ctx.insn.operands[1]), i);
   }
