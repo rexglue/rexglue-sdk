@@ -62,6 +62,26 @@ std::unordered_set<uint32_t> buildKnownFunctions(const FunctionGraph& graph,
   return result;
 }
 
+// Forward declaration (defined later in the file)
+void discoverFunction(CodegenContext& ctx, uint32_t funcAddr,
+                      const std::unordered_set<uint32_t>& knownFunctions);
+
+/// Collect all functions awaiting discovery and discover their blocks.
+/// @return Number of functions discovered
+size_t discoverPendingFunctions(CodegenContext& ctx,
+                                const std::unordered_set<uint32_t>& knownFunctions) {
+  std::vector<uint32_t> pending;
+  for (const auto& [addr, node] : ctx.graph.functions()) {
+    if (node->canDiscover()) {
+      pending.push_back(addr);
+    }
+  }
+  for (uint32_t funcAddr : pending) {
+    discoverFunction(ctx, funcAddr, knownFunctions);
+  }
+  return pending.size();
+}
+
 //=============================================================================
 // PE Structures
 //=============================================================================
@@ -1030,9 +1050,8 @@ void discoverAllFunctions(CodegenContext& ctx) {
     lastFunctionCount = currentFunctionCount;
 
     auto knownFunctions = buildKnownFunctions(graph);
-
-    for (uint32_t funcAddr : needsDiscovery) {
-      discoverFunction(ctx, funcAddr, knownFunctions);
+    if (discoverPendingFunctions(ctx, knownFunctions) == 0) {
+      break;
     }
   }
 
@@ -1070,21 +1089,9 @@ void discoverAllFunctions(CodegenContext& ctx) {
       while (vtableIteration < MAX_VTABLE_ITERATIONS) {
         vtableIteration++;
 
-        std::vector<uint32_t> needsDiscovery;
-        for (const auto& [addr, node] : graph.functions()) {
-          if (node->canDiscover()) {
-            needsDiscovery.push_back(addr);
-          }
-        }
-
-        if (needsDiscovery.empty())
-          break;
-
         auto knownFunctions = buildKnownFunctions(graph);
-
-        for (uint32_t funcAddr : needsDiscovery) {
-          discoverFunction(ctx, funcAddr, knownFunctions);
-        }
+        if (discoverPendingFunctions(ctx, knownFunctions) == 0)
+          break;
 
         if (graph.functionCount() == lastFunctionCount)
           break;
@@ -1626,25 +1633,10 @@ Result<void> Analyze(CodegenContext& ctx) {
   gapFillCodeRegions(ctx);
 
   // 5. Discover blocks for gap-filled functions
-  // (They need their blocks discovered too... don't be selfish)
   {
-    auto& graph = ctx.graph;
-
-    auto knownFunctions = buildKnownFunctions(graph, /*excludeGapFill=*/true);
-
-    std::vector<uint32_t> needsDiscovery;
-    for (const auto& [addr, node] : graph.functions()) {
-      if (node->canDiscover()) {
-        needsDiscovery.push_back(addr);
-      }
-    }
-
-    for (uint32_t funcAddr : needsDiscovery) {
-      discoverFunction(ctx, funcAddr, knownFunctions);
-    }
-
-    REXCODEGEN_INFO("Analyze: discovered blocks for {} gap-filled functions",
-                    needsDiscovery.size());
+    auto knownFunctions = buildKnownFunctions(ctx.graph, /*excludeGapFill=*/true);
+    size_t discovered = discoverPendingFunctions(ctx, knownFunctions);
+    REXCODEGEN_INFO("Analyze: discovered blocks for {} gap-filled functions", discovered);
   }
 
   // 5.5. Remove absorbed GAP_FILL functions
