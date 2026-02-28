@@ -416,3 +416,6 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# CMake User Overrides
+CMakeUserPresets.json
