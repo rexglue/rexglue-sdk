@@ -22,6 +22,9 @@
 #include <rex/string/buffer.h>
 #include <rex/system/thread_state.h>
 #include <rex/thread.h>
+#include <rex/cvar.h>
+
+REXCVAR_DEFINE_INT32(audio_maxqframes, 64, "Audio", "Adjust audio maximum queued frames");
 
 // As with normal Microsoft, there are like twelve different ways to access
 // the audio APIs. Early games use XMA*() methods almost exclusively to touch
@@ -42,7 +45,7 @@ AudioSystem::AudioSystem(runtime::Processor* processor)
   std::memset(clients_, 0, sizeof(clients_));
 
   for (size_t i = 0; i < kMaximumClientCount; ++i) {
-    client_semaphores_[i] = rex::thread::Semaphore::Create(0, kMaximumQueuedFrames);
+    client_semaphores_[i] = rex::thread::Semaphore::Create(0, REXCVAR_GET(audio_maxqframes));
     assert_not_null(client_semaphores_[i]);
     wait_handles_[i] = client_semaphores_[i].get();
   }
@@ -191,7 +194,7 @@ X_STATUS AudioSystem::RegisterClient(uint32_t callback, uint32_t callback_arg, s
   assert_true(index >= 0);
 
   auto client_semaphore = client_semaphores_[index].get();
-  auto ret = client_semaphore->Release(kMaximumQueuedFrames, nullptr);
+  auto ret = client_semaphore->Release(REXCVAR_GET(audio_maxqframes), nullptr);
   assert_true(ret);
 
   AudioDriver* driver;
@@ -293,7 +296,7 @@ bool AudioSystem::Restore(stream::ByteStream* stream) {
     client.in_use = true;
 
     auto client_semaphore = client_semaphores_[id].get();
-    auto ret = client_semaphore->Release(kMaximumQueuedFrames, nullptr);
+    auto ret = client_semaphore->Release(REXCVAR_GET(audio_maxqframes), nullptr);
     assert_true(ret);
 
     AudioDriver* driver = nullptr;
