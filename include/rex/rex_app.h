@@ -13,6 +13,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <filesystem>
 #include <memory>
 #include <string_view>
 #include <thread>
@@ -38,6 +39,15 @@ struct PPCImageInfo {
   uint32_t image_base;
   uint32_t image_size;
   const PPCFuncMapping* func_mappings;
+};
+
+/// Content path configuration, passed to OnConfigurePaths().
+/// All paths start with sensible defaults derived from CLI args and cvars.
+/// Subclasses may override any field before Runtime is constructed.
+struct PathConfig {
+  std::filesystem::path game_data_root;
+  std::filesystem::path user_data_root;
+  std::filesystem::path update_data_root;
 };
 
 namespace ui {
@@ -88,10 +98,18 @@ class ReXApp : public ui::WindowedApp, public ui::WindowListener, public ui::Win
   /// Called before cleanup begins. Release custom resources here.
   virtual void OnShutdown() {}
 
+  /// Called after path defaults are computed, before Runtime is constructed.
+  /// Override to adjust game/user/update data paths programmatically.
+  virtual void OnConfigurePaths(PathConfig& paths) { (void)paths; }
+
   // --- Accessors for subclass use ---
   Runtime* runtime() const { return runtime_.get(); }
   ui::Window* window() const { return window_.get(); }
   ui::ImGuiDrawer* imgui_drawer() const { return imgui_drawer_.get(); }
+
+  const std::filesystem::path& game_data_root() const { return game_data_root_; }
+  const std::filesystem::path& user_data_root() const { return user_data_root_; }
+  const std::filesystem::path& update_data_root() const { return update_data_root_; }
 
  private:
   // WindowedApp overrides
@@ -105,6 +123,9 @@ class ReXApp : public ui::WindowedApp, public ui::WindowListener, public ui::Win
   void OnKeyDown(ui::KeyEvent& e) override;
 
   PPCImageInfo ppc_info_;
+  std::filesystem::path game_data_root_;
+  std::filesystem::path user_data_root_;
+  std::filesystem::path update_data_root_;
   std::unique_ptr<Runtime> runtime_;
   std::unique_ptr<ui::Window> window_;
   std::thread module_thread_;

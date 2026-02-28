@@ -37,6 +37,9 @@
 
 #include <filesystem>
 
+REXCVAR_DEFINE_STRING(user_data_root, "", "Runtime", "Override user data path");
+REXCVAR_DEFINE_STRING(update_data_root, "", "Runtime", "Override update data path");
+
 namespace rex {
 
 // --- ReXApp ---
@@ -60,6 +63,29 @@ bool ReXApp::OnInitialize() {
     game_dir = exe_dir / "assets";
   }
 
+  // User data: cvar override, or platform default
+  std::filesystem::path user_dir;
+  std::string user_data_cvar = REXCVAR_GET(user_data_root);
+  if (!user_data_cvar.empty()) {
+    user_dir = user_data_cvar;
+  } else {
+    user_dir = rex::filesystem::GetUserFolder() / GetName();
+  }
+
+  // Update data: cvar override, or empty (opt-in)
+  std::filesystem::path update_dir;
+  std::string update_data_cvar = REXCVAR_GET(update_data_root);
+  if (!update_data_cvar.empty()) {
+    update_dir = update_data_cvar;
+  }
+
+  // Allow subclass to override path defaults
+  PathConfig path_config{game_dir, user_dir, update_dir};
+  OnConfigurePaths(path_config);
+  game_data_root_ = std::move(path_config.game_data_root);
+  user_data_root_ = std::move(path_config.user_data_root);
+  update_data_root_ = std::move(path_config.update_data_root);
+
   // Logging setup from CVARs
   std::string log_file_cvar = REXCVAR_GET(log_file);
   std::string log_level_str = REXCVAR_GET(log_level);
@@ -81,10 +107,16 @@ bool ReXApp::OnInitialize() {
   }
 
   REXLOG_INFO("{} starting", GetName());
-  REXLOG_INFO("  Game directory: {}", game_dir.string());
+  REXLOG_INFO("  Game directory: {}", game_data_root_.string());
+  if (!user_data_root_.empty()) {
+    REXLOG_INFO("  User data:      {}", user_data_root_.string());
+  }
+  if (!update_data_root_.empty()) {
+    REXLOG_INFO("  Update data:    {}", update_data_root_.string());
+  }
 
   // Create runtime
-  runtime_ = std::make_unique<rex::Runtime>(game_dir);
+  runtime_ = std::make_unique<rex::Runtime>(game_data_root_, user_data_root_, update_data_root_);
   runtime_->set_app_context(&app_context());
 
   // Build runtime config with default platform backends
