@@ -59,12 +59,7 @@ bool build_lbzx(BuilderContext& ctx) {
 }
 
 bool build_lbzux(BuilderContext& ctx) {
-  // X-form load with update: EA = rA + rB, then rD = MEM[EA], rA = EA
-  // based on lhzux
-  ctx.println("\t{} = {}.u32 + {}.u32;", ctx.ea(), ctx.r(ctx.insn.operands[1]),
-              ctx.r(ctx.insn.operands[2]));
-  ctx.println("\t{}.u64 = PPC_LOAD_U8({});", ctx.r(ctx.insn.operands[0]), ctx.ea());
-  ctx.println("\t{}.u32 = {};", ctx.r(ctx.insn.operands[1]), ctx.ea());
+  emitLoadXFormWithUpdate(ctx, "PPC_LOAD_U8");
   return true;
 }
 
@@ -98,11 +93,7 @@ bool build_lhzu(BuilderContext& ctx) {
 }
 
 bool build_lhzux(BuilderContext& ctx) {
-  // X-form load with update: EA = rA + rB, then rD = MEM[EA], rA = EA
-  ctx.println("\t{} = {}.u32 + {}.u32;", ctx.ea(), ctx.r(ctx.insn.operands[1]),
-              ctx.r(ctx.insn.operands[2]));
-  ctx.println("\t{}.u64 = PPC_LOAD_U16({});", ctx.r(ctx.insn.operands[0]), ctx.ea());
-  ctx.println("\t{}.u32 = {};", ctx.r(ctx.insn.operands[1]), ctx.ea());
+  emitLoadXFormWithUpdate(ctx, "PPC_LOAD_U16");
   return true;
 }
 
@@ -155,11 +146,7 @@ bool build_lwzx(BuilderContext& ctx) {
 }
 
 bool build_lwzux(BuilderContext& ctx) {
-  // X-form load with update: EA = rA + rB, then rD = MEM[EA], rA = EA
-  ctx.println("\t{} = {}.u32 + {}.u32;", ctx.ea(), ctx.r(ctx.insn.operands[1]),
-              ctx.r(ctx.insn.operands[2]));
-  ctx.println("\t{}.u64 = PPC_LOAD_U32({});", ctx.r(ctx.insn.operands[0]), ctx.ea());
-  ctx.println("\t{}.u32 = {};", ctx.r(ctx.insn.operands[1]), ctx.ea());
+  emitLoadXFormWithUpdate(ctx, "PPC_LOAD_U32");
   return true;
 }
 
@@ -192,11 +179,7 @@ bool build_ldx(BuilderContext& ctx) {
 }
 
 bool build_ldux(BuilderContext& ctx) {
-  // X-form load with update: EA = rA + rB, then rD = MEM[EA], rA = EA
-  ctx.println("\t{} = {}.u32 + {}.u32;", ctx.ea(), ctx.r(ctx.insn.operands[1]),
-              ctx.r(ctx.insn.operands[2]));
-  ctx.println("\t{}.u64 = PPC_LOAD_U64({});", ctx.r(ctx.insn.operands[0]), ctx.ea());
-  ctx.println("\t{}.u32 = {};", ctx.r(ctx.insn.operands[1]), ctx.ea());
+  emitLoadXFormWithUpdate(ctx, "PPC_LOAD_U64");
   return true;
 }
 
@@ -205,24 +188,12 @@ bool build_ldux(BuilderContext& ctx) {
 //=============================================================================
 
 bool build_lwarx(BuilderContext& ctx) {
-  // Compute effective address first, then apply physical offset
-  ctx.print("\t{} = ", ctx.ea());
-  if (ctx.insn.operands[1] != 0)
-    ctx.print("{}.u32 + ", ctx.r(ctx.insn.operands[1]));
-  ctx.println("{}.u32;", ctx.r(ctx.insn.operands[2]));
-  ctx.println("\t{}.u32 = *(uint32_t*)PPC_RAW_ADDR({});", ctx.reserved(), ctx.ea());
-  ctx.println("\t{}.u64 = __builtin_bswap32({}.u32);", ctx.r(ctx.insn.operands[0]), ctx.reserved());
+  emitAtomicLoadReserve(ctx, "uint32_t", "__builtin_bswap32", "u32");
   return true;
 }
 
 bool build_ldarx(BuilderContext& ctx) {
-  // Compute effective address first, then apply physical offset
-  ctx.print("\t{} = ", ctx.ea());
-  if (ctx.insn.operands[1] != 0)
-    ctx.print("{}.u32 + ", ctx.r(ctx.insn.operands[1]));
-  ctx.println("{}.u32;", ctx.r(ctx.insn.operands[2]));
-  ctx.println("\t{}.u64 = *(uint64_t*)PPC_RAW_ADDR({});", ctx.reserved(), ctx.ea());
-  ctx.println("\t{}.u64 = __builtin_bswap64({}.u64);", ctx.r(ctx.insn.operands[0]), ctx.reserved());
+  emitAtomicLoadReserve(ctx, "uint64_t", "__builtin_bswap64", "u64");
   return true;
 }
 
@@ -330,12 +301,7 @@ bool build_stbx(BuilderContext& ctx) {
 }
 
 bool build_stbux(BuilderContext& ctx) {
-  // X-form store with update: EA = rA + rB, store, then rA = EA
-  ctx.println("\t{} = {}.u32 + {}.u32;", ctx.ea(), ctx.r(ctx.insn.operands[1]),
-              ctx.r(ctx.insn.operands[2]));
-  ctx.println("\t{}({}, {}.u8);", ctx.mmio_check_x_form() ? "PPC_MM_STORE_U8" : "PPC_STORE_U8",
-              ctx.ea(), ctx.r(ctx.insn.operands[0]));
-  ctx.println("\t{}.u32 = {};", ctx.r(ctx.insn.operands[1]), ctx.ea());
+  emitStoreXFormWithUpdate(ctx, "PPC_STORE_U8", "PPC_MM_STORE_U8", "u8");
   return true;
 }
 
@@ -368,11 +334,7 @@ bool build_sthu(BuilderContext& ctx) {
 }
 
 bool build_sthux(BuilderContext& ctx) {
-  // X-form store with update: EA = rA + rB, store, then rA = EA
-  ctx.println("\t{} = {}.u32 + {}.u32;", ctx.ea(), ctx.r(ctx.insn.operands[1]),
-              ctx.r(ctx.insn.operands[2]));
-  ctx.println("\tPPC_STORE_U16({}, {}.u16);", ctx.ea(), ctx.r(ctx.insn.operands[0]));
-  ctx.println("\t{}.u32 = {};", ctx.r(ctx.insn.operands[1]), ctx.ea());
+  emitStoreXFormWithUpdate(ctx, "PPC_STORE_U16", "PPC_MM_STORE_U16", "u16");
   return true;
 }
 
@@ -391,10 +353,7 @@ bool build_stwu(BuilderContext& ctx) {
 }
 
 bool build_stwux(BuilderContext& ctx) {
-  ctx.println("\t{} = {}.u32 + {}.u32;", ctx.ea(), ctx.r(ctx.insn.operands[1]),
-              ctx.r(ctx.insn.operands[2]));
-  ctx.println("\tPPC_STORE_U32({}, {}.u32);", ctx.ea(), ctx.r(ctx.insn.operands[0]));
-  ctx.println("\t{}.u32 = {};", ctx.r(ctx.insn.operands[1]), ctx.ea());
+  emitStoreXFormWithUpdate(ctx, "PPC_STORE_U32", "PPC_MM_STORE_U32", "u32");
   return true;
 }
 
@@ -417,34 +376,12 @@ bool build_stwbrx(BuilderContext& ctx) {
 //=============================================================================
 
 bool build_stwcx(BuilderContext& ctx) {
-  // Compute effective address first, then apply physical offset
-  ctx.print("\t{} = ", ctx.ea());
-  if (ctx.insn.operands[1] != 0)
-    ctx.print("{}.u32 + ", ctx.r(ctx.insn.operands[1]));
-  ctx.println("{}.u32;", ctx.r(ctx.insn.operands[2]));
-  ctx.println("\t{}.lt = 0;", ctx.cr(0));
-  ctx.println("\t{}.gt = 0;", ctx.cr(0));
-  ctx.println(
-      "\t{}.eq = __sync_bool_compare_and_swap(reinterpret_cast<uint32_t*>(PPC_RAW_ADDR({})), "
-      "{}.s32, __builtin_bswap32({}.s32));",
-      ctx.cr(0), ctx.ea(), ctx.reserved(), ctx.r(ctx.insn.operands[0]));
-  ctx.println("\t{}.so = {}.so;", ctx.cr(0), ctx.xer());
+  emitAtomicStoreConditional(ctx, "uint32_t", "__builtin_bswap32", "s32");
   return true;
 }
 
 bool build_stdcx(BuilderContext& ctx) {
-  // Compute effective address first, then apply physical offset
-  ctx.print("\t{} = ", ctx.ea());
-  if (ctx.insn.operands[1] != 0)
-    ctx.print("{}.u32 + ", ctx.r(ctx.insn.operands[1]));
-  ctx.println("{}.u32;", ctx.r(ctx.insn.operands[2]));
-  ctx.println("\t{}.lt = 0;", ctx.cr(0));
-  ctx.println("\t{}.gt = 0;", ctx.cr(0));
-  ctx.println(
-      "\t{}.eq = __sync_bool_compare_and_swap(reinterpret_cast<uint64_t*>(PPC_RAW_ADDR({})), "
-      "{}.s64, __builtin_bswap64({}.s64));",
-      ctx.cr(0), ctx.ea(), ctx.reserved(), ctx.r(ctx.insn.operands[0]));
-  ctx.println("\t{}.so = {}.so;", ctx.cr(0), ctx.xer());
+  emitAtomicStoreConditional(ctx, "uint64_t", "__builtin_bswap64", "s64");
   return true;
 }
 
@@ -471,12 +408,7 @@ bool build_stdx(BuilderContext& ctx) {
 }
 
 bool build_stdux(BuilderContext& ctx) {
-  // X-form store with update: EA = rA + rB, store, then rA = EA
-  ctx.println("\t{} = {}.u32 + {}.u32;", ctx.ea(), ctx.r(ctx.insn.operands[1]),
-              ctx.r(ctx.insn.operands[2]));
-  ctx.println("\t{}({}, {}.u64);", ctx.mmio_check_x_form() ? "PPC_MM_STORE_U64" : "PPC_STORE_U64",
-              ctx.ea(), ctx.r(ctx.insn.operands[0]));
-  ctx.println("\t{}.u32 = {};", ctx.r(ctx.insn.operands[1]), ctx.ea());
+  emitStoreXFormWithUpdate(ctx, "PPC_STORE_U64", "PPC_MM_STORE_U64", "u64");
   return true;
 }
 

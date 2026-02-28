@@ -19,14 +19,12 @@ namespace rex::codegen {
 //=============================================================================
 
 bool build_cmpd(BuilderContext& ctx) {
-  ctx.println("\t{}.compare<int64_t>({}.s64, {}.s64, {});", ctx.cr(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]), ctx.xer());
+  emitCompareRegister(ctx, "int64_t", "s64");
   return true;
 }
 
 bool build_cmpdi(BuilderContext& ctx) {
-  ctx.println("\t{}.compare<int64_t>({}.s64, {}, {});", ctx.cr(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), static_cast<int32_t>(ctx.insn.operands[2]), ctx.xer());
+  emitCompareImmediate(ctx, "int64_t", "s64", true);
   return true;
 }
 
@@ -35,14 +33,12 @@ bool build_cmpdi(BuilderContext& ctx) {
 //=============================================================================
 
 bool build_cmpld(BuilderContext& ctx) {
-  ctx.println("\t{}.compare<uint64_t>({}.u64, {}.u64, {});", ctx.cr(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]), ctx.xer());
+  emitCompareRegister(ctx, "uint64_t", "u64");
   return true;
 }
 
 bool build_cmpldi(BuilderContext& ctx) {
-  ctx.println("\t{}.compare<uint64_t>({}.u64, {}, {});", ctx.cr(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), ctx.insn.operands[2], ctx.xer());
+  emitCompareImmediate(ctx, "uint64_t", "u64", false);
   return true;
 }
 
@@ -51,14 +47,12 @@ bool build_cmpldi(BuilderContext& ctx) {
 //=============================================================================
 
 bool build_cmplw(BuilderContext& ctx) {
-  ctx.println("\t{}.compare<uint32_t>({}.u32, {}.u32, {});", ctx.cr(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]), ctx.xer());
+  emitCompareRegister(ctx, "uint32_t", "u32");
   return true;
 }
 
 bool build_cmplwi(BuilderContext& ctx) {
-  ctx.println("\t{}.compare<uint32_t>({}.u32, {}, {});", ctx.cr(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), ctx.insn.operands[2], ctx.xer());
+  emitCompareImmediate(ctx, "uint32_t", "u32", false);
   return true;
 }
 
@@ -67,14 +61,12 @@ bool build_cmplwi(BuilderContext& ctx) {
 //=============================================================================
 
 bool build_cmpw(BuilderContext& ctx) {
-  ctx.println("\t{}.compare<int32_t>({}.s32, {}.s32, {});", ctx.cr(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), ctx.r(ctx.insn.operands[2]), ctx.xer());
+  emitCompareRegister(ctx, "int32_t", "s32");
   return true;
 }
 
 bool build_cmpwi(BuilderContext& ctx) {
-  ctx.println("\t{}.compare<int32_t>({}.s32, {}, {});", ctx.cr(ctx.insn.operands[0]),
-              ctx.r(ctx.insn.operands[1]), static_cast<int32_t>(ctx.insn.operands[2]), ctx.xer());
+  emitCompareImmediate(ctx, "int32_t", "s32", true);
   return true;
 }
 
