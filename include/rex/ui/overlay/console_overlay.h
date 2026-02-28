@@ -10,7 +10,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 #pragma once
-#include <rex/log_capture.h>
+#include <rex/logging/sink.h>
 #include <rex/ui/imgui_dialog.h>
 #include <imgui.h>
 #include <deque>

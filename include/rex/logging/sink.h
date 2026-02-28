@@ -1,7 +1,6 @@
 /**
- * @file        rex/log_capture.h
- *
- * @brief       Thread-safe ring-buffer spdlog sink for in-memory log capture.
+ * @file        rex/logging/sink.h
+ * @brief       Thread-safe ring-buffer spdlog sink for in-memory log capture
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -10,13 +9,16 @@
  *              See LICENSE file in the project root for full license text.
  */
 #pragma once
-#include <rex/logging.h>
+
+#include <rex/logging/types.h>
+
 #include <spdlog/sinks/base_sink.h>
+
 #include <array>
+#include <cstddef>
 #include <mutex>
 #include <string>
 #include <vector>
-#include <cstddef>
 
 namespace rex {
 

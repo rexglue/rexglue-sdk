@@ -13,7 +13,7 @@
 
 #include <rex/cvar.h>
 #include <rex/filesystem.h>
-#include <rex/log_capture.h>
+#include <rex/logging/sink.h>
 #include <rex/logging.h>
 #include <rex/ui/overlay/console_overlay.h>
 #include <rex/ui/overlay/debug_overlay.h>

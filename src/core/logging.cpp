@@ -15,6 +15,9 @@
 #include <unordered_map>
 #include <vector>
 
+#include <spdlog/sinks/basic_file_sink.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
+
 #include <rex/cvar.h>
 #include <rex/logging.h>
 
