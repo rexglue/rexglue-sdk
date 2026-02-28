@@ -37,7 +37,7 @@ struct BlockDiscoveryResult {
   std::vector<Block> blocks;
   std::vector<UnresolvedBranch> unresolvedBranches;
   std::vector<JumpTable> jumpTables;
-  std::set<uint32_t> internalLabels;
+  std::set<uint32_t> labels;
 
   // Collected instruction pointers (for FunctionNode ownership)
   std::vector<rex::codegen::ppc::Instruction*> instructions;

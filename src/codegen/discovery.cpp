@@ -698,7 +698,7 @@ BlockDiscoveryResult discoverBlocks(DecodedBinary& decoded, uint32_t entryPoint,
               if (t >= funcEnd && t < containingRegion.end) {
                 funcEnd = t + 4;  // Extend to include this target
               }
-              result.internalLabels.insert(t);
+              result.labels.insert(t);
               if (!visited.contains(t) && !blockStarts.contains(t)) {
                 blockStarts.insert(t);
                 worklist.push(t);
@@ -710,7 +710,7 @@ BlockDiscoveryResult discoverBlocks(DecodedBinary& decoded, uint32_t entryPoint,
         } else if (isConditional(*insn)) {
           // Conditional branch - follow both paths
           if (target && isInternalTarget(*target)) {
-            result.internalLabels.insert(*target);
+            result.labels.insert(*target);
             if (!visited.contains(*target) && !blockStarts.contains(*target)) {
               blockStarts.insert(*target);
               worklist.push(*target);
@@ -722,7 +722,7 @@ BlockDiscoveryResult discoverBlocks(DecodedBinary& decoded, uint32_t entryPoint,
           // CRITICAL: Fall-through also needs a label
           uint32_t fallthrough = addr + 4;
           if (isInternalTarget(fallthrough)) {
-            result.internalLabels.insert(fallthrough);
+            result.labels.insert(fallthrough);
             if (!visited.contains(fallthrough) && !blockStarts.contains(fallthrough)) {
               blockStarts.insert(fallthrough);
               worklist.push(fallthrough);
@@ -733,7 +733,7 @@ BlockDiscoveryResult discoverBlocks(DecodedBinary& decoded, uint32_t entryPoint,
           if (target) {
             if (isInternalTarget(*target)) {
               // Internal unconditional branch (includes backward branches)
-              result.internalLabels.insert(*target);
+              result.labels.insert(*target);
               if (!visited.contains(*target) && !blockStarts.contains(*target)) {
                 blockStarts.insert(*target);
                 worklist.push(*target);
@@ -786,7 +786,7 @@ BlockDiscoveryResult discoverBlocks(DecodedBinary& decoded, uint32_t entryPoint,
                             result.instructions.end());
 
   REXCODEGEN_TRACE("discoverBlocks: entry=0x{:08X} blocks={} instructions={} labels={}", entryPoint,
-                   result.blocks.size(), result.instructions.size(), result.internalLabels.size());
+                   result.blocks.size(), result.instructions.size(), result.labels.size());
 
   return result;
 }

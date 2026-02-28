@@ -14,6 +14,7 @@
 #include <bitset>
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <memory>
 #include <optional>
 #include <set>
@@ -240,9 +241,6 @@ struct FunctionAnalysis {
 
   // CSR state needed
   CsrRequirement csrRequirement = CsrRequirement::None;
-
-  // Labels needed for internal branches (computed from instructions)
-  std::set<uint32_t> internalLabels;
 };
 
 //=============================================================================
@@ -332,7 +330,7 @@ class FunctionNode {
   /// For non-imports: blocks must not be empty
   void discover(std::vector<Block> blocks,
                 std::vector<rex::codegen::ppc::Instruction*> instructions,
-                std::set<uint32_t> internalLabels);
+                std::set<uint32_t> labels);
 
   /// Transition kRegistered -> kDiscovered for import functions (no blocks)
   void discoverAsImport();
@@ -367,9 +365,6 @@ class FunctionNode {
 
   /// Get owned instructions (pointers into DecodedBinary)
   std::span<rex::codegen::ppc::Instruction* const> instructions() const { return instructions_; }
-
-  /// Get internal labels (branch targets within function)
-  const std::set<uint32_t>& internalLabels() const { return internalLabels_; }
 
   // Blocks
   const std::vector<Block>& blocks() const { return blocks_; }
@@ -451,10 +446,7 @@ class FunctionNode {
   // Populated at discover()
   std::vector<Block> blocks_;
   std::vector<rex::codegen::ppc::Instruction*> instructions_;  // Pointers into DecodedBinary
-  std::set<uint32_t> internalLabels_;  // Branch targets within this function
-
-  // Legacy labels (will merge with internalLabels_)
-  std::set<uint32_t> labels_;
+  std::set<uint32_t> labels_;  // Branch targets within this function
 
   std::vector<CallEdge> calls_;
   std::vector<CallEdge> tailCalls_;

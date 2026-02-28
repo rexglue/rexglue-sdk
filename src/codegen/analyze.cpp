@@ -921,7 +921,7 @@ void discoverFunction(CodegenContext& ctx, uint32_t funcAddr,
 
   // snooper the function with the discovered blocks and instructions
   node->discover(std::move(result.blocks), std::move(result.instructions),
-                 std::move(result.internalLabels));
+                 std::move(result.labels));
 
   // Add jump tables (targets become labels in the function)
   for (const auto& jt : result.jumpTables) {
@@ -1028,18 +1028,6 @@ void discoverAllFunctions(CodegenContext& ctx) {
     }
 
     lastFunctionCount = currentFunctionCount;
-
-    // Find functions that need discovery (still in kRegistered state)
-    std::vector<uint32_t> needsDiscovery;
-    for (const auto& [addr, node] : graph.functions()) {
-      if (node->canDiscover()) {
-        needsDiscovery.push_back(addr);
-      }
-    }
-
-    if (needsDiscovery.empty()) {
-      break;
-    }
 
     auto knownFunctions = buildKnownFunctions(graph);
 
