@@ -14,6 +14,8 @@
 #include "ppc/instruction.h"
 
 #include <algorithm>
+#include <array>
+#include <bitset>
 #include <map>
 #include <unordered_map>
 #include <unordered_set>
@@ -38,6 +40,27 @@ using rex::memory::load_and_swap;
 namespace rex::codegen {
 
 namespace {
+
+//=============================================================================
+// Helpers
+//=============================================================================
+
+/// Build set of non-helper function entry points for boundary detection.
+/// @param graph The function graph to scan
+/// @param excludeGapFill If true, also exclude GAP_FILL authority functions
+std::unordered_set<uint32_t> buildKnownFunctions(const FunctionGraph& graph,
+                                                 bool excludeGapFill = false) {
+  std::unordered_set<uint32_t> result;
+  for (const auto& [addr, node] : graph.functions()) {
+    auto auth = node->authority();
+    if (auth == FunctionAuthority::HELPER)
+      continue;
+    if (excludeGapFill && auth == FunctionAuthority::GAP_FILL)
+      continue;
+    result.insert(addr);
+  }
+  return result;
+}
 
 //=============================================================================
 // PE Structures
@@ -1018,14 +1041,7 @@ void discoverAllFunctions(CodegenContext& ctx) {
       break;
     }
 
-    // Build set of known functions for boundary detection
-    // HELPER functions intentionally overlap - don't treat as hard boundaries
-    std::unordered_set<uint32_t> knownFunctions;
-    for (const auto& [addr, node] : graph.functions()) {
-      if (node->authority() != FunctionAuthority::HELPER) {
-        knownFunctions.insert(addr);
-      }
-    }
+    auto knownFunctions = buildKnownFunctions(graph);
 
     for (uint32_t funcAddr : needsDiscovery) {
       discoverFunction(ctx, funcAddr, knownFunctions);
@@ -1076,12 +1092,7 @@ void discoverAllFunctions(CodegenContext& ctx) {
         if (needsDiscovery.empty())
           break;
 
-        std::unordered_set<uint32_t> knownFunctions;
-        for (const auto& [addr, node] : graph.functions()) {
-          if (node->authority() != FunctionAuthority::HELPER) {
-            knownFunctions.insert(addr);
-          }
-        }
+        auto knownFunctions = buildKnownFunctions(graph);
 
         for (uint32_t funcAddr : needsDiscovery) {
           discoverFunction(ctx, funcAddr, knownFunctions);
@@ -1124,12 +1135,14 @@ void functionPointerScan(CodegenContext& ctx) {
 
   // Track lis values: register -> (high_value, lis_address)
   // We scan linearly and track the most recent lis for each register
-  std::unordered_map<uint8_t, std::pair<uint32_t, uint32_t>> lisValues;
+  // PPC has exactly 32 GPRs, so a fixed-size array is more efficient than a map
+  std::array<std::pair<uint32_t, uint32_t>, 32> lisValues{};
+  std::bitset<32> lisValid;
 
   size_t foundCount = 0;
 
   for (const auto& region : codeRegions) {
-    lisValues.clear();  // Reset tracking at region boundaries
+    lisValid.reset();  // Reset tracking at region boundaries
 
     for (uint32_t addr = region.start; addr < region.end; addr += 4) {
       auto* insn = decoded.get(addr);
@@ -1141,6 +1154,7 @@ void functionPointerScan(CodegenContext& ctx) {
         uint8_t rd = static_cast<uint8_t>(insn->D.RT);
         uint32_t hi = static_cast<uint32_t>(static_cast<int16_t>(insn->D.d)) << 16;
         lisValues[rd] = {hi, addr};
+        lisValid.set(rd);
         continue;
       }
 
@@ -1150,11 +1164,10 @@ void functionPointerScan(CodegenContext& ctx) {
         if (ra == 0)
           continue;  // li pseudo-op, not addi
 
-        auto it = lisValues.find(ra);
-        if (it == lisValues.end())
+        if (!lisValid.test(ra))
           continue;
 
-        uint32_t hi = it->second.first;
+        uint32_t hi = lisValues[ra].first;
         int16_t lo = static_cast<int16_t>(insn->D.d);
         uint32_t fullAddr = hi + lo;  // Sign-extended add
 
@@ -1191,11 +1204,10 @@ void functionPointerScan(CodegenContext& ctx) {
       // Also check ori rD, rA, IMM (alternative to addi for unsigned)
       if (insn->opcode == rex::codegen::ppc::Opcode::ori) {
         uint8_t ra = static_cast<uint8_t>(insn->D.RA);
-        auto it = lisValues.find(ra);
-        if (it == lisValues.end())
+        if (!lisValid.test(ra))
           continue;
 
-        uint32_t hi = it->second.first;
+        uint32_t hi = lisValues[ra].first;
         uint16_t lo = static_cast<uint16_t>(insn->D.d);
         uint32_t fullAddr = hi | lo;  // Unsigned OR
 
@@ -1630,15 +1642,7 @@ Result<void> Analyze(CodegenContext& ctx) {
   {
     auto& graph = ctx.graph;
 
-    // Build set of known functions for boundary detection
-    // GAP_FILL can be absorbed, HELPER intentionally overlaps - don't treat as hard boundaries
-    std::unordered_set<uint32_t> knownFunctions;
-    for (const auto& [addr, node] : graph.functions()) {
-      auto auth = node->authority();
-      if (auth != FunctionAuthority::GAP_FILL && auth != FunctionAuthority::HELPER) {
-        knownFunctions.insert(addr);
-      }
-    }
+    auto knownFunctions = buildKnownFunctions(graph, /*excludeGapFill=*/true);
 
     std::vector<uint32_t> needsDiscovery;
     for (const auto& [addr, node] : graph.functions()) {

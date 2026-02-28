@@ -599,8 +599,8 @@ BlockDiscoveryResult discoverBlocks(DecodedBinary& decoded, uint32_t entryPoint,
                                     const std::unordered_set<uint32_t>& knownFunctions,
                                     uint32_t pdataSize) {
   BlockDiscoveryResult result;
-  std::set<uint32_t> visited;
-  std::set<uint32_t> blockStarts;
+  std::unordered_set<uint32_t> visited;
+  std::unordered_set<uint32_t> blockStarts;
   std::queue<uint32_t> worklist;
 
   // Function extent - use pdataSize when available
