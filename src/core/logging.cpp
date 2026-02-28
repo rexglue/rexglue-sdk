@@ -137,8 +137,11 @@ void InitLogging(const LogConfig& config) {
   // Populate extra global sinks from config
   g_extra_sinks = config.extra_sinks;
 
-  // Pre-allocate registry for built-in categories
-  g_registry.resize(log::kBuiltinCount);
+  // Ensure registry has room for built-in categories (don't truncate
+  // any consumer categories that were registered during static init).
+  if (g_registry.size() < log::kBuiltinCount) {
+    g_registry.resize(log::kBuiltinCount);
+  }
   for (uint16_t i = 0; i < log::kBuiltinCount; ++i) {
     g_registry[i].name = kBuiltinNames[i];
     g_registry[i].logger = CreateCategoryLogger(kBuiltinNames[i]);
@@ -149,7 +152,13 @@ void InitLogging(const LogConfig& config) {
 
   g_initialized = true;
 
-  REXLOG_DEBUG("Rex logging initialized with {} built-in categories", log::kBuiltinCount);
+  // Create loggers for any categories registered during static init
+  // (they have a name but no logger since sinks didn't exist yet).
+  for (size_t i = log::kBuiltinCount; i < g_registry.size(); ++i) {
+    if (!g_registry[i].name.empty() && !g_registry[i].logger) {
+      g_registry[i].logger = CreateCategoryLogger(g_registry[i].name);
+    }
+  }
 }
 
 void InitLogging(const char* log_file, spdlog::level::level_enum level) {
@@ -180,6 +189,13 @@ void ShutdownLogging() {
 
 LogCategoryId RegisterLogCategory(const char* name) {
   std::lock_guard lock(g_mutex);
+
+  // Reserve indices 0..kBuiltinCount-1 for SDK built-in categories so
+  // consumer categories never collide with built-in IDs even when
+  // registered during static initialization (before InitLogging).
+  if (g_registry.size() < log::kBuiltinCount) {
+    g_registry.resize(log::kBuiltinCount);
+  }
 
   // Check for duplicates
   for (size_t i = 0; i < g_registry.size(); ++i) {
