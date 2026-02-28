@@ -138,8 +138,13 @@ bool ReXApp::OnInitialize() {
     return false;
   }
 
+  std::string xex_image = "game:\\default.xex";
+
+  // Allow subclass to override xex image
+  OnLoadXexImage(xex_image);
+
   // Load XEX image
-  status = runtime_->LoadXexImage("game:\\default.xex");
+  status = runtime_->LoadXexImage(xex_image);
   if (XFAILED(status)) {
     REXLOG_ERROR("Failed to load XEX: {:08X}", status);
     return false;
