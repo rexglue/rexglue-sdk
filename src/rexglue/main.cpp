@@ -20,10 +20,9 @@
 #include <rex/logging.h>
 #include <rex/result.h>
 
-// Analyze/Codegen flags
-REXCVAR_DEFINE_BOOL(force, false, "Codegen", "Generate output even if validation errors occur");
-REXCVAR_DEFINE_BOOL(enable_exception_handlers, false, "Codegen",
-                    "Enable generation of SEH exception handler code");
+// Codegen flags (definitions in codegen_flags.cpp)
+REXCVAR_DECLARE(bool, force);
+REXCVAR_DECLARE(bool, enable_exception_handlers);
 
 // Recompile-tests flags
 REXCVAR_DEFINE_STRING(bin_dir, "", "RecompileTests",

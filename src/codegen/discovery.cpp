@@ -8,6 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
+#include "codegen_flags.h"
 #include "decoded_binary.h"
 #include "discovery.h"
 
@@ -107,7 +108,7 @@ struct BoundsInfo {
 BoundsInfo scanForBounds(DecodedBinary& decoded, uint32_t bctrAddr, const CodeRegion& region,
                          uint8_t expectedReg, uint32_t funcStart) {
   BoundsInfo result;
-  constexpr int kMaxBackwardScan = 64;
+  const int backwardScanLimit = static_cast<int>(REXCVAR_GET(backward_scan_limit));
 
   // Use funcStart as lower bound to avoid scanning into other functions
   uint32_t scanLowerBound = std::max(region.start, funcStart);
@@ -117,7 +118,7 @@ BoundsInfo scanForBounds(DecodedBinary& decoded, uint32_t bctrAddr, const CodeRe
       bctrAddr, region.start, region.end, funcStart, expectedReg);
 
   uint32_t scanAddr = bctrAddr;
-  for (int i = 0; i < kMaxBackwardScan && scanAddr >= scanLowerBound + 4; i++) {
+  for (int i = 0; i < backwardScanLimit && scanAddr >= scanLowerBound + 4; i++) {
     scanAddr -= 4;
     auto* insn = decoded.get(scanAddr);
     if (!insn)
@@ -184,8 +185,8 @@ std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, uint32_t bctrAd
                                          uint32_t funcEnd) {
   using namespace rex::codegen::ppc;
 
-  constexpr int kMaxBackwardScan = 64;
-  constexpr int kMaxTableEntries = 512;
+  const int kMaxBackwardScan = static_cast<int>(REXCVAR_GET(backward_scan_limit));
+  const uint32_t kMaxTableEntries = REXCVAR_GET(max_jump_table_entries);
 
   // State for backward scan
   uint8_t ctrSourceReg = 0xFF;

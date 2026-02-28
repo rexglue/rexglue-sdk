@@ -26,6 +26,8 @@
 #include <rex/codegen/output.h>
 #include <rex/logging.h>
 
+#include "codegen_flags.h"
+
 namespace rex::codegen {
 
 //=============================================================================
@@ -184,7 +186,7 @@ bool RecompilerOutput::write_recomp_files(const std::filesystem::path& dir) {
 
   // Calculate number of files needed
   size_t num_files =
-      (func_list.size() + config_.functions_per_file - 1) / config_.functions_per_file;
+      (func_list.size() + REXCVAR_GET(functions_per_file) - 1) / REXCVAR_GET(functions_per_file);
 
   for (size_t file_idx = 0; file_idx < num_files; ++file_idx) {
     auto filename = fmt::format("{}_recomp.{}.cpp", config_.project_name, file_idx);
@@ -202,8 +204,8 @@ bool RecompilerOutput::write_recomp_files(const std::filesystem::path& dir) {
     out << fmt::format("#include \"{}_init.h\"\n\n", config_.project_name);
 
     // Write functions for this file
-    size_t start_idx = file_idx * config_.functions_per_file;
-    size_t end_idx = std::min(start_idx + config_.functions_per_file, func_list.size());
+    size_t start_idx = file_idx * REXCVAR_GET(functions_per_file);
+    size_t end_idx = std::min(start_idx + REXCVAR_GET(functions_per_file), func_list.size());
 
     for (size_t i = start_idx; i < end_idx; ++i) {
       const auto& func = *func_list[i];

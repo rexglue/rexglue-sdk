@@ -8,6 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
+#include "codegen_flags.h"
 #include "ppc/instruction.h"
 #include "ppc/opcode.h"
 
@@ -497,7 +498,7 @@ std::optional<JumpTable> FunctionScanner::detect_jump_table(guest_addr_t bctr_ad
     return std::nullopt;  // Will be handled by the pre-loaded config
   }
 
-  constexpr int MAX_SCAN_BACK = 64;  // Scan up to 256 bytes backward
+  const int MAX_SCAN_BACK = static_cast<int>(REXCVAR_GET(backward_scan_limit));
 
   JumpTableMatch match;
 
@@ -856,7 +857,7 @@ FunctionBlocks FunctionScanner::discover_blocks(rex::guest_addr_t entry_point,
   entry_block.projectedSize = -1;  // No limit
   block_stack.push_back(entry_block);
 
-  constexpr size_t MAX_BLOCKS = 10000;  // Safety limit
+  const size_t MAX_BLOCKS = REXCVAR_GET(max_blocks_per_function);  // Safety limit
 
   while (!block_stack.empty() && result.blocks.size() < MAX_BLOCKS) {
     // Get current block from stack (by reference for in-place modification)

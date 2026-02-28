@@ -9,6 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
+#include "codegen_flags.h"
 #include "decoded_binary.h"
 #include "discovery.h"
 #include "ppc/instruction.h"
@@ -259,7 +260,9 @@ std::optional<ParsedExceptionInfo> parseCxxFuncInfo(uint32_t handlerThunk, uint3
     return std::nullopt;
   }
 
-  if (cxxInfo.maxState > 100 || nTryBlocks > 50 || nIPMapEntries > 200) {
+  if (cxxInfo.maxState > REXCVAR_GET(max_eh_states) ||
+      nTryBlocks > REXCVAR_GET(max_eh_try_blocks) ||
+      nIPMapEntries > REXCVAR_GET(max_eh_ip_map_entries)) {
     return std::nullopt;
   }
 
@@ -386,7 +389,7 @@ std::optional<ParsedExceptionInfo> parseExceptionInfo(const BinaryView& binary,
                             functionBeginAddr, discoveredFuncs);
   } else {
     uint32_t count = firstWord;
-    if (count == 0 || count > 100) {
+    if (count == 0 || count > REXCVAR_GET(max_seh_scope_entries)) {
       return std::nullopt;
     }
     return parseSehScopeTable(handlerThunk, tableAddr, count, rdataBase, rdataStart, rdataSize,
@@ -1035,9 +1038,9 @@ void discoverAllFunctions(CodegenContext& ctx) {
   // Iterative discovery
   size_t iteration = 0;
   size_t lastFunctionCount = 0;
-  constexpr size_t MAX_ITERATIONS = 1000;
+  const size_t maxIterations = REXCVAR_GET(max_discovery_iterations);
 
-  while (iteration < MAX_ITERATIONS) {
+  while (iteration < maxIterations) {
     iteration++;
 
     size_t currentFunctionCount = graph.functionCount();
@@ -1084,9 +1087,9 @@ void discoverAllFunctions(CodegenContext& ctx) {
     // Continue discovery for vtable functions
     if (newFunctions > 0) {
       size_t vtableIteration = 0;
-      constexpr size_t MAX_VTABLE_ITERATIONS = 100;
+      const size_t maxVtableIterations = REXCVAR_GET(max_vtable_iterations);
 
-      while (vtableIteration < MAX_VTABLE_ITERATIONS) {
+      while (vtableIteration < maxVtableIterations) {
         vtableIteration++;
 
         auto knownFunctions = buildKnownFunctions(graph);
@@ -1442,9 +1445,9 @@ void mergeAndSeal(CodegenContext& ctx) {
 
   size_t iteration = 0;
   size_t totalResolved = 0;
-  constexpr size_t MAX_ITERATIONS = 100;
+  const size_t maxResolveIterations = REXCVAR_GET(max_resolve_iterations);
 
-  while (iteration < MAX_ITERATIONS) {
+  while (iteration < maxResolveIterations) {
     iteration++;
     size_t changesThisIteration = 0;
 

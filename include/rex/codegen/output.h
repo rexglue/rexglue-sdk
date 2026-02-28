@@ -36,7 +36,6 @@ struct OutputConfig {
   uint64_t code_size = 0;
 
   // Output options
-  uint32_t functions_per_file = 256;
   std::string project_name = "rex";
   bool emit_comments = true;
   bool emit_cmake = true;
@@ -67,7 +66,7 @@ struct CompiledFunction {
  * - ppc_config.h - Image constants
  * - ppc_context.h - PPCContext structure (copies from ppc_runtime.h)
  * - ppc_init.h - Forward declarations for all functions
- * - ppc_recomp.N.cpp - Function implementation files (256 per file)
+ * - ppc_recomp.N.cpp - Function implementation files
  * - ppc_func_mapping.cpp - Function lookup table
  * - CMakeLists.txt - Build configuration
  *

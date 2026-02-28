@@ -13,6 +13,7 @@
 
 #include "builder_context.h"
 #include "builders.h"
+#include "codegen_flags.h"
 #include "ppc/disasm.h"
 
 #include <cstdint>
@@ -80,8 +81,6 @@ namespace rex::codegen {
 
 // Output configuration constants
 constexpr size_t kOutputBufferReserveSize = 32 * 1024 * 1024;  // 32 MB
-constexpr size_t kFunctionsPerOutputFile = 500;
-constexpr size_t kProgressLogFrequency = 100;
 
 Recompiler::Recompiler() = default;
 Recompiler::~Recompiler() = default;
@@ -863,7 +862,7 @@ bool Recompiler::recompile(bool force) {
   // TODO: Add fancy single-line progress indicator
   REXCODEGEN_INFO("Recompiling {} functions...", functions.size());
   for (size_t i = 0; i < functions.size(); i++) {
-    if ((i % kFunctionsPerOutputFile) == 0) {
+    if ((i % REXCVAR_GET(functions_per_file)) == 0) {
       SaveCurrentOutData();
       println("#include \"{}_init.h\"\n", projectName);
     }

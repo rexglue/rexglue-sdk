@@ -3,6 +3,7 @@
 # Core recompiler sources
 set(CODEGEN_CORE_SOURCES
     codegen.cpp
+    codegen_flags.cpp
     analyze.cpp
     code_emitter.cpp
     decoded_binary.cpp
