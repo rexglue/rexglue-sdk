@@ -90,7 +90,8 @@ void AudioSystem::WorkerThreadMain() {
     // These handles signify the number of submitted samples. Once we reach
     // 64 samples, we wait until our audio backend releases a semaphore
     // (signaling a sample has finished playing)
-    auto result = rex::thread::WaitAny(wait_handles_, rex::countof(wait_handles_), true);
+    auto result = rex::thread::WaitAny(wait_handles_, rex::countof(wait_handles_), true,
+                                       std::chrono::milliseconds(500));
     if (result.first == rex::thread::WaitResult::kFailed) {
       // TODO: Assert?
       continue;
@@ -154,11 +155,32 @@ int AudioSystem::FindFreeClient() {
 void AudioSystem::Initialize() {}
 
 void AudioSystem::Shutdown() {
+  if (!worker_running_) {
+    return;
+  }
+
+  // Shut down XMA decoder first - its worker can stall in FFmpeg
+  if (xma_decoder_) {
+    xma_decoder_->Shutdown();
+  }
+
   worker_running_ = false;
   shutdown_event_->Set();
   if (worker_thread_) {
     worker_thread_->Wait(0, 0, 0, nullptr);
     worker_thread_.reset();
+  }
+
+  // Destroy all active client drivers (closes SDL audio devices, stopping
+  // callback threads) before the semaphores they reference are destroyed.
+  for (size_t i = 0; i < kMaximumClientCount; i++) {
+    if (clients_[i].in_use) {
+      DestroyDriver(clients_[i].driver);
+      if (clients_[i].wrapped_callback_arg) {
+        memory()->SystemHeapFree(clients_[i].wrapped_callback_arg);
+      }
+      clients_[i] = {nullptr, 0, 0, 0, false};
+    }
   }
 }
 
