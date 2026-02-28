@@ -272,45 +272,53 @@ void KeSetCurrentStackPointers_entry(ppc_pvoid_t stack_ptr,
 
     uint32_t target_guest_addr = static_cast<uint32_t>(thread->fiber_ptr);
     rex::thread::Fiber* target = ks->LookupFiber(target_guest_addr);
+    bool is_target_registered = target != nullptr;
 
+    // Distinguish a newly created fiber (saved LR = valid function entry)
+    // from a switch back to the main thread (saved LR = mid-function addr).
+    uint32_t saved_lr = memory::load_and_swap<uint32_t>(
+        kernel_memory()->TranslateVirtual(target_guest_addr) + 0x1C);
+    PPCFunc* start_fn = processor->GetFunction(saved_lr);
+
+    if (start_fn) {
+      if (is_target_registered) {
+        ks->UnregisterFiber(target_guest_addr);
+        is_target_registered = false;
+        target->Destroy();
+        target = nullptr;
+      }
+
+      // First switch to a newly created fiber - lazily create host fiber.
+      size_t host_stack = std::max(
+          static_cast<size_t>(stack_base.value() - stack_limit.value()),
+          static_cast<size_t>(256u * 1024u));
+
+      // Use unique_ptr to guard the heap allocation; release() only after
+      // Create succeeds so we don't leak if Create fails.
+      auto args_owner = std::make_unique<FiberArgs>(FiberArgs{
+          start_fn,
+      });
+      target = rex::thread::Fiber::Create(host_stack, FiberEntryPoint,
+                                          args_owner.get());
+      if (target) {
+        args_owner.release();  // FiberEntryPoint takes ownership via unique_ptr
+      }
+      REXKRNL_DEBUG("KeSetCurrentStackPointers: created host fiber {:p} "
+                    "for guest ctx {:#010x} start_fn {:#010x}",
+                    static_cast<void*>(target), target_guest_addr, saved_lr);
+    } else if (!target) {
+      // LR is not a function entry - switch back to the main thread context.
+      target = current_thread->main_fiber();
+      REXKRNL_DEBUG("KeSetCurrentStackPointers: resuming main fiber {:p} "
+                    "for guest ctx {:#010x}",
+                    static_cast<void*>(target), target_guest_addr);
+    }
     if (!target) {
-      // Distinguish a newly created fiber (saved LR = valid function entry)
-      // from a switch back to the main thread (saved LR = mid-function addr).
-      uint32_t saved_lr = memory::load_and_swap<uint32_t>(
-          kernel_memory()->TranslateVirtual(target_guest_addr) + 0x1C);
-      PPCFunc* start_fn = processor->GetFunction(saved_lr);
-
-      if (start_fn) {
-        // First switch to a newly created fiber - lazily create host fiber.
-        size_t host_stack = std::max(
-            static_cast<size_t>(stack_base.value() - stack_limit.value()),
-            static_cast<size_t>(256u * 1024u));
-
-        // Use unique_ptr to guard the heap allocation; release() only after
-        // Create succeeds so we don't leak if Create fails.
-        auto args_owner = std::make_unique<FiberArgs>(FiberArgs{
-            start_fn,
-        });
-        target = rex::thread::Fiber::Create(host_stack, FiberEntryPoint,
-                                            args_owner.get());
-        if (target) {
-          args_owner.release();  // FiberEntryPoint takes ownership via unique_ptr
-        }
-        REXKRNL_DEBUG("KeSetCurrentStackPointers: created host fiber {:p} "
-                      "for guest ctx {:#010x} start_fn {:#010x}",
-                      static_cast<void*>(target), target_guest_addr, saved_lr);
-      } else {
-        // LR is not a function entry - switch back to the main thread context.
-        target = current_thread->main_fiber();
-        REXKRNL_DEBUG("KeSetCurrentStackPointers: resuming main fiber {:p} "
-                      "for guest ctx {:#010x}",
-                      static_cast<void*>(target), target_guest_addr);
-      }
-      if (!target) {
-        REXKRNL_WARN("KeSetCurrentStackPointers: no valid fiber for guest "
-                     "ctx {:#010x}, skipping switch", target_guest_addr);
-        return;
-      }
+      REXKRNL_WARN("KeSetCurrentStackPointers: no valid fiber for guest "
+                   "ctx {:#010x}, skipping switch", target_guest_addr);
+      return;
+    }
+    if (!is_target_registered) {
       ks->RegisterFiber(target_guest_addr, target);
     }
 
