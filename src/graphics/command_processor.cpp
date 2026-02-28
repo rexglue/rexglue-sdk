@@ -32,10 +32,10 @@
 #include <rex/system/kernel_state.h>
 #include <rex/system/user_module.h>
 
-REXCVAR_DEFINE_BOOL(vsync, true, "Enable vertical sync", "GPU");
+REXCVAR_DEFINE_BOOL(vsync, true, "GPU", "Enable vertical sync");
 
-REXCVAR_DEFINE_INT32(query_occlusion_fake_sample_count, 1000,
-                     "Fake sample count for occlusion queries", "GPU")
+REXCVAR_DEFINE_INT32(query_occlusion_fake_sample_count, 1000, "GPU",
+                     "Fake sample count for occlusion queries")
     .range(1, 100000);
 
 namespace rex::graphics {

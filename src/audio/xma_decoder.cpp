@@ -25,7 +25,7 @@ extern "C" {
 #include "libavutil/log.h"
 }  // extern "C"
 
-REXCVAR_DEFINE_BOOL(ffmpeg_verbose, false, "Verbose FFmpeg output (debug and above)", "Audio");
+REXCVAR_DEFINE_BOOL(ffmpeg_verbose, false, "Audio", "Verbose FFmpeg output (debug and above)");
 
 // As with normal Microsoft, there are like twelve different ways to access
 // the audio APIs. Early games use XMA*() methods almost exclusively to touch

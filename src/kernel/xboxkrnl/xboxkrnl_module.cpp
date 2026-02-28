@@ -36,14 +36,14 @@
 #include <rex/system/user_module.h>
 #include <rex/system/xthread.h>
 
-REXCVAR_DEFINE_BOOL(log_high_frequency_kernel_calls, false,
-                    "Log kernel calls with the kHighFrequency tag", "Kernel");
+REXCVAR_DEFINE_BOOL(log_high_frequency_kernel_calls, false, "Kernel",
+                    "Log kernel calls with the kHighFrequency tag");
 
-REXCVAR_DEFINE_STRING(cl, "", "Specify additional command-line provided to guest", "Kernel");
+REXCVAR_DEFINE_STRING(cl, "", "Kernel", "Specify additional command-line provided to guest");
 
-REXCVAR_DEFINE_BOOL(kernel_debug_monitor, false, "Enable debug monitor", "Kernel");
+REXCVAR_DEFINE_BOOL(kernel_debug_monitor, false, "Kernel", "Enable debug monitor");
 
-REXCVAR_DEFINE_BOOL(kernel_cert_monitor, false, "Enable cert monitor", "Kernel");
+REXCVAR_DEFINE_BOOL(kernel_cert_monitor, false, "Kernel", "Enable cert monitor");
 
 namespace rex::kernel::xboxkrnl {
 using namespace rex::system;

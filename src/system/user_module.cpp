@@ -23,7 +23,7 @@
 #include <rex/system/xfile.h>
 #include <rex/system/xthread.h>
 
-REXCVAR_DEFINE_BOOL(xex_apply_patches, true, "Apply XEX patches", "Kernel");
+REXCVAR_DEFINE_BOOL(xex_apply_patches, true, "Kernel", "Apply XEX patches");
 
 namespace rex::system {
 

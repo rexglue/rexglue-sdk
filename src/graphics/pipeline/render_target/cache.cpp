@@ -28,14 +28,14 @@
 #include <rex/logging.h>
 #include <rex/math.h>
 
-REXCVAR_DEFINE_BOOL(mrt_edram_used_range_clamp_to_min, false,
-                    "Clamp MRT EDRAM used range to minimum", "GPU");
+REXCVAR_DEFINE_BOOL(mrt_edram_used_range_clamp_to_min, false, "GPU",
+                    "Clamp MRT EDRAM used range to minimum");
 
-REXCVAR_DEFINE_BOOL(execute_unclipped_draw_vs_on_cpu_for_psi_render_backend, false,
-                    "Execute unclipped draw VS on CPU for PSI render backend", "GPU");
+REXCVAR_DEFINE_BOOL(execute_unclipped_draw_vs_on_cpu_for_psi_render_backend, false, "GPU",
+                    "Execute unclipped draw VS on CPU for PSI render backend");
 
-REXCVAR_DEFINE_BOOL(snorm16_render_target_full_range, false,
-                    "Use full range for SNORM16 render targets", "GPU");
+REXCVAR_DEFINE_BOOL(snorm16_render_target_full_range, false, "GPU",
+                    "Use full range for SNORM16 render targets");
 
 namespace rex::graphics {
 

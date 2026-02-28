@@ -21,7 +21,7 @@
 #include <rex/system/xthread.h>
 #include <rex/system/xtypes.h>
 
-REXCVAR_DEFINE_UINT32(user_country, 103, "User's country ID", "Kernel");
+REXCVAR_DEFINE_UINT32(user_country, 103, "Kernel", "User's country ID");
 
 // TODO(gibbed): put these forward decls in a header somewhere.
 

@@ -21,7 +21,7 @@
 #include <rex/system/xenumerator.h>
 #include <rex/system/xtypes.h>
 
-REXCVAR_DEFINE_UINT32(license_mask, 0, "Set license mask for activated content", "Kernel");
+REXCVAR_DEFINE_UINT32(license_mask, 0, "Kernel", "Set license mask for activated content");
 
 namespace rex {
 namespace kernel {

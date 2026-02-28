@@ -47,18 +47,18 @@
 #include <rex/types.h>
 #include <rex/ui/d3d12/d3d12_util.h>
 
-REXCVAR_DEFINE_BOOL(d3d12_dxbc_disasm, false, "Dump DXBC disassembly", "GPU/D3D12");
+REXCVAR_DEFINE_BOOL(d3d12_dxbc_disasm, false, "GPU/D3D12", "Dump DXBC disassembly");
 
-REXCVAR_DEFINE_BOOL(d3d12_dxbc_disasm_dxilconv, false, "Dump DXIL conversion disassembly",
-                    "GPU/D3D12");
+REXCVAR_DEFINE_BOOL(d3d12_dxbc_disasm_dxilconv, false, "GPU/D3D12",
+                    "Dump DXIL conversion disassembly");
 
-REXCVAR_DEFINE_INT32(d3d12_pipeline_creation_threads, -1,
-                     "Number of pipeline creation threads (-1 for auto)", "GPU/D3D12")
+REXCVAR_DEFINE_INT32(d3d12_pipeline_creation_threads, -1, "GPU/D3D12",
+                     "Number of pipeline creation threads (-1 for auto)")
     .range(-1, 32)
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
-REXCVAR_DEFINE_BOOL(d3d12_tessellation_wireframe, false, "Render tessellation as wireframe",
-                    "GPU/D3D12");
+REXCVAR_DEFINE_BOOL(d3d12_tessellation_wireframe, false, "GPU/D3D12",
+                    "Render tessellation as wireframe");
 
 namespace rex::graphics::d3d12 {
 

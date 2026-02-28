@@ -18,8 +18,8 @@
 
 #include <imgui.h>
 
-REXCVAR_DEFINE_BOOL(headless, false, "Don't display any UI, using defaults for prompts as needed",
-                    "Kernel");
+REXCVAR_DEFINE_BOOL(headless, false, "Kernel",
+                    "Don't display any UI, using defaults for prompts as needed");
 #include <rex/kernel/xam/private.h>
 #include <rex/ppc/function.h>
 #include <rex/ppc/types.h>

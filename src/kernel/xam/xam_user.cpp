@@ -28,7 +28,7 @@
 #include <rex/system/xthread.h>
 #include <rex/system/xtypes.h>
 
-REXCVAR_DEFINE_UINT32(user_language, 1, "User's language ID", "Kernel");
+REXCVAR_DEFINE_UINT32(user_language, 1, "Kernel", "User's language ID");
 
 namespace rex {
 namespace kernel {

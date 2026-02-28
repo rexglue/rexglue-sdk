@@ -20,9 +20,9 @@
 #include <rex/logging.h>
 #include <rex/math.h>
 
-REXCVAR_DEFINE_STRING(dump_source, "", "Specifies the file to dump from", "Filesystem");
+REXCVAR_DEFINE_STRING(dump_source, "", "Filesystem", "Specifies the file to dump from");
 
-REXCVAR_DEFINE_STRING(dump_path, "", "Specifies the directory to dump files to", "Filesystem");
+REXCVAR_DEFINE_STRING(dump_path, "", "Filesystem", "Specifies the directory to dump files to");
 
 namespace rex::filesystem {
 

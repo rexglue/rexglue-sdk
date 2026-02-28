@@ -26,10 +26,10 @@
 #include <rex/memory.h>
 #include <rex/ui/graphics_util.h>
 
-REXCVAR_DEFINE_BOOL(half_pixel_offset, true, "Enable half pixel offset", "GPU");
+REXCVAR_DEFINE_BOOL(half_pixel_offset, true, "GPU", "Enable half pixel offset");
 
-REXCVAR_DEFINE_BOOL(resolve_resolution_scale_fill_half_pixel_offset, false,
-                    "Fill half pixel offset during resolution scale resolve", "GPU");
+REXCVAR_DEFINE_BOOL(resolve_resolution_scale_fill_half_pixel_offset, false, "GPU",
+                    "Fill half pixel offset during resolution scale resolve");
 
 // Very prominent in 545407F2.
 // DEFINE_bool(

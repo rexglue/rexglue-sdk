@@ -21,7 +21,7 @@
 #include <rex/ui/vulkan/instance.h>
 #include <rex/ui/vulkan/presenter.h>
 
-REXCVAR_DEFINE_BOOL(vulkan_log_debug_messages, true, "Log Vulkan debug messages", "UI/Vulkan");
+REXCVAR_DEFINE_BOOL(vulkan_log_debug_messages, true, "UI/Vulkan", "Log Vulkan debug messages");
 
 namespace rex {
 namespace ui {

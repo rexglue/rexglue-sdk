@@ -24,9 +24,9 @@
 #include <rex/math.h>
 #include <rex/ui/graphics_provider.h>
 
-REXCVAR_DEFINE_BOOL(dxbc_switch, true, "Use switch statements in DXBC", "GPU/Shader");
+REXCVAR_DEFINE_BOOL(dxbc_switch, true, "GPU/Shader", "Use switch statements in DXBC");
 
-REXCVAR_DEFINE_BOOL(dxbc_source_map, false, "Generate source maps for DXBC", "GPU/Shader");
+REXCVAR_DEFINE_BOOL(dxbc_source_map, false, "GPU/Shader", "Generate source maps for DXBC");
 
 namespace rex::graphics {
 using namespace ucode;

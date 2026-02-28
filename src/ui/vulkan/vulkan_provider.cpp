@@ -17,11 +17,11 @@
 #include <rex/ui/vulkan/presenter.h>
 #include <rex/ui/vulkan/provider.h>
 
-REXCVAR_DEFINE_BOOL(vulkan_validation_enabled, false, "Enable Vulkan validation layers",
-                    "UI/Vulkan")
+REXCVAR_DEFINE_BOOL(vulkan_validation_enabled, false, "UI/Vulkan",
+                    "Enable Vulkan validation layers")
     .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
-REXCVAR_DEFINE_INT32(vulkan_device, -1, "Vulkan device index (-1 for auto selection)", "UI/Vulkan")
+REXCVAR_DEFINE_INT32(vulkan_device, -1, "UI/Vulkan", "Vulkan device index (-1 for auto selection)")
     .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
 namespace rex {

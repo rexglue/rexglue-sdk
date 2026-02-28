@@ -26,30 +26,30 @@
 #include <rex/logging.h>
 #include <rex/math.h>
 
-REXCVAR_DEFINE_INT32(texture_cache_memory_limit_render_to_texture, 24,
-                     "Texture cache memory limit for render-to-texture (MB)", "GPU")
+REXCVAR_DEFINE_INT32(texture_cache_memory_limit_render_to_texture, 24, "GPU",
+                     "Texture cache memory limit for render-to-texture (MB)")
     .range(1, 256)
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
-REXCVAR_DEFINE_INT32(texture_cache_memory_limit_soft, 384, "Soft texture cache memory limit (MB)",
-                     "GPU")
+REXCVAR_DEFINE_INT32(texture_cache_memory_limit_soft, 384, "GPU",
+                     "Soft texture cache memory limit (MB)")
     .range(64, 4096)
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
-REXCVAR_DEFINE_INT32(texture_cache_memory_limit_hard, 768, "Hard texture cache memory limit (MB)",
-                     "GPU")
+REXCVAR_DEFINE_INT32(texture_cache_memory_limit_hard, 768, "GPU",
+                     "Hard texture cache memory limit (MB)")
     .range(128, 8192)
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
-REXCVAR_DEFINE_INT32(texture_cache_memory_limit_soft_lifetime, 30,
-                     "Soft texture cache memory limit lifetime (seconds)", "GPU")
+REXCVAR_DEFINE_INT32(texture_cache_memory_limit_soft_lifetime, 30, "GPU",
+                     "Soft texture cache memory limit lifetime (seconds)")
     .range(1, 3600);
 
-REXCVAR_DEFINE_INT32(draw_resolution_scale_x, 1, "Draw resolution scale X (1 = no scaling)", "GPU")
+REXCVAR_DEFINE_INT32(draw_resolution_scale_x, 1, "GPU", "Draw resolution scale X (1 = no scaling)")
     .range(1, 8)
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
-REXCVAR_DEFINE_INT32(draw_resolution_scale_y, 1, "Draw resolution scale Y (1 = no scaling)", "GPU")
+REXCVAR_DEFINE_INT32(draw_resolution_scale_y, 1, "GPU", "Draw resolution scale Y (1 = no scaling)")
     .range(1, 8)
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 

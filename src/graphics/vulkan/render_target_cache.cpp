@@ -37,8 +37,8 @@
 #include <rex/math.h>
 #include <rex/ui/vulkan/util.h>
 
-REXCVAR_DEFINE_STRING(render_target_path_vulkan, "", "Vulkan render target implementation path",
-                      "GPU/Vulkan")
+REXCVAR_DEFINE_STRING(render_target_path_vulkan, "", "GPU/Vulkan",
+                      "Vulkan render target implementation path")
     .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
 // DEFINE_string(

@@ -13,8 +13,8 @@
 #include <rex/memory/utils.h>
 #include <rex/platform.h>
 
-REXCVAR_DEFINE_BOOL(writable_executable_memory, true, "Allow executable memory to be writable",
-                    "Memory")
+REXCVAR_DEFINE_BOOL(writable_executable_memory, true, "Memory",
+                    "Allow executable memory to be writable")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
 #if REX_ARCH_ARM64

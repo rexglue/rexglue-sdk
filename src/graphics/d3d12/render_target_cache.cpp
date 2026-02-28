@@ -39,18 +39,17 @@
 #include <rex/ui/d3d12/d3d12_provider.h>
 #include <rex/ui/d3d12/d3d12_util.h>
 
-REXCVAR_DEFINE_BOOL(native_stencil_value_output_d3d12_intel, false,
-                    "Native stencil value output for Intel D3D12", "GPU/D3D12");
+REXCVAR_DEFINE_BOOL(native_stencil_value_output_d3d12_intel, false, "GPU/D3D12",
+                    "Native stencil value output for Intel D3D12");
 
-REXCVAR_DEFINE_STRING(render_target_path_d3d12, "", "D3D12 render target implementation path",
-                      "GPU/D3D12")
+REXCVAR_DEFINE_STRING(render_target_path_d3d12, "", "GPU/D3D12",
+                      "D3D12 render target implementation path")
     .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
-REXCVAR_DEFINE_BOOL(native_stencil_value_output, true, "Enable native stencil value output", "GPU");
+REXCVAR_DEFINE_BOOL(native_stencil_value_output, true, "GPU", "Enable native stencil value output");
 
-REXCVAR_DEFINE_BOOL(gamma_render_target_as_unorm16, true,
-                    "Use R16G16B16A16_UNORM for gamma render targets (more accurate than sRGB)",
-                    "GPU");
+REXCVAR_DEFINE_BOOL(gamma_render_target_as_unorm16, true, "GPU",
+                    "Use R16G16B16A16_UNORM for gamma render targets (more accurate than sRGB)");
 
 namespace rex::graphics::d3d12 {
 

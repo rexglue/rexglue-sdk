@@ -23,18 +23,18 @@
 #include <rex/ui/window_win.h>
 #endif
 
-REXCVAR_DEFINE_BOOL(host_present_from_non_ui_thread, true, "Allow presentation from non-UI thread",
-                    "UI/Presenter");
+REXCVAR_DEFINE_BOOL(host_present_from_non_ui_thread, true, "UI/Presenter",
+                    "Allow presentation from non-UI thread");
 
-REXCVAR_DEFINE_BOOL(present_letterbox, true, "Enable letterboxing for non-native aspect ratios",
-                    "UI/Presenter");
+REXCVAR_DEFINE_BOOL(present_letterbox, true, "UI/Presenter",
+                    "Enable letterboxing for non-native aspect ratios");
 
-REXCVAR_DEFINE_INT32(present_safe_area_x, 90, "Horizontal safe area percentage (0-100)",
-                     "UI/Presenter")
+REXCVAR_DEFINE_INT32(present_safe_area_x, 90, "UI/Presenter",
+                     "Horizontal safe area percentage (0-100)")
     .range(0, 100);
 
-REXCVAR_DEFINE_INT32(present_safe_area_y, 90, "Vertical safe area percentage (0-100)",
-                     "UI/Presenter")
+REXCVAR_DEFINE_INT32(present_safe_area_y, 90, "UI/Presenter",
+                     "Vertical safe area percentage (0-100)")
     .range(0, 100);
 
 namespace rex {

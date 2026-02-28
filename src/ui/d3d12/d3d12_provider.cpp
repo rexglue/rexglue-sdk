@@ -20,22 +20,21 @@
 
 #include <malloc.h>
 
-REXCVAR_DEFINE_BOOL(d3d12_debug, false, "Enable Direct3D 12 and DXGI debug layer", "UI/D3D12")
+REXCVAR_DEFINE_BOOL(d3d12_debug, false, "UI/D3D12", "Enable Direct3D 12 and DXGI debug layer")
     .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
-REXCVAR_DEFINE_BOOL(d3d12_break_on_error, false, "Break on Direct3D 12 validation errors",
-                    "UI/D3D12");
+REXCVAR_DEFINE_BOOL(d3d12_break_on_error, false, "UI/D3D12",
+                    "Break on Direct3D 12 validation errors");
 
-REXCVAR_DEFINE_BOOL(d3d12_break_on_warning, false, "Break on Direct3D 12 validation warnings",
-                    "UI/D3D12");
+REXCVAR_DEFINE_BOOL(d3d12_break_on_warning, false, "UI/D3D12",
+                    "Break on Direct3D 12 validation warnings");
 
-REXCVAR_DEFINE_INT32(d3d12_adapter, -1,
-                     "Index of the DXGI adapter to use (-1 for any physical, -2 for WARP)",
-                     "UI/D3D12")
+REXCVAR_DEFINE_INT32(d3d12_adapter, -1, "UI/D3D12",
+                     "Index of the DXGI adapter to use (-1 for any physical, -2 for WARP)")
     .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
-REXCVAR_DEFINE_INT32(d3d12_queue_priority, 1,
-                     "Graphics command queue priority (0=normal, 1=high, 2=realtime)", "UI/D3D12")
+REXCVAR_DEFINE_INT32(d3d12_queue_priority, 1, "UI/D3D12",
+                     "Graphics command queue priority (0=normal, 1=high, 2=realtime)")
     .range(0, 2);
 
 namespace rex::ui::d3d12 {

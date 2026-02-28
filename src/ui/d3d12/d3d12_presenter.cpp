@@ -23,8 +23,8 @@
 #include <rex/ui/d3d12/d3d12_util.h>
 #include <rex/ui/surface_win.h>
 
-REXCVAR_DEFINE_BOOL(d3d12_allow_variable_refresh_rate_and_tearing, true,
-                    "Allow variable refresh rate and tearing", "UI/D3D12");
+REXCVAR_DEFINE_BOOL(d3d12_allow_variable_refresh_rate_and_tearing, true, "UI/D3D12",
+                    "Allow variable refresh rate and tearing");
 
 namespace rex::ui::d3d12 {
 

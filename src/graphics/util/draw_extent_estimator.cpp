@@ -24,11 +24,11 @@
 #include <rex/memory.h>
 #include <rex/ui/graphics_util.h>
 
-REXCVAR_DEFINE_BOOL(execute_unclipped_draw_vs_on_cpu, false,
-                    "Execute unclipped draw vertex shader on CPU", "GPU");
+REXCVAR_DEFINE_BOOL(execute_unclipped_draw_vs_on_cpu, false, "GPU",
+                    "Execute unclipped draw vertex shader on CPU");
 
-REXCVAR_DEFINE_BOOL(execute_unclipped_draw_vs_on_cpu_with_scissor, false,
-                    "Execute unclipped draw VS on CPU with scissor", "GPU");
+REXCVAR_DEFINE_BOOL(execute_unclipped_draw_vs_on_cpu_with_scissor, false, "GPU",
+                    "Execute unclipped draw VS on CPU with scissor");
 
 // DEFINE_bool(
 //     execute_unclipped_draw_vs_on_cpu, true,

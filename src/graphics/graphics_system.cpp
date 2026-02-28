@@ -30,9 +30,9 @@
 #include <rex/ui/window.h>
 #include <rex/ui/windowed_app_context.h>
 
-REXCVAR_DEFINE_STRING(trace_gpu_prefix, "", "GPU trace file prefix", "GPU");
+REXCVAR_DEFINE_STRING(trace_gpu_prefix, "", "GPU", "GPU trace file prefix");
 
-REXCVAR_DEFINE_BOOL(trace_gpu_stream, false, "Enable GPU trace streaming", "GPU");
+REXCVAR_DEFINE_BOOL(trace_gpu_stream, false, "GPU", "Enable GPU trace streaming");
 
 namespace {
 constexpr bool kStoreShaders = true;

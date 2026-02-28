@@ -31,17 +31,17 @@
 #include <rex/ui/d3d12/d3d12_presenter.h>
 #include <rex/ui/d3d12/d3d12_util.h>
 
-REXCVAR_DEFINE_BOOL(d3d12_bindless, true, "Use bindless resources where available", "GPU/D3D12")
+REXCVAR_DEFINE_BOOL(d3d12_bindless, true, "GPU/D3D12", "Use bindless resources where available")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
-REXCVAR_DEFINE_BOOL(d3d12_readback_memexport, false,
-                    "Read data written by memory export in shaders on the CPU", "GPU/D3D12");
+REXCVAR_DEFINE_BOOL(d3d12_readback_memexport, false, "GPU/D3D12",
+                    "Read data written by memory export in shaders on the CPU");
 
-REXCVAR_DEFINE_BOOL(d3d12_readback_resolve, false, "Read render-to-texture results on the CPU",
-                    "GPU/D3D12");
+REXCVAR_DEFINE_BOOL(d3d12_readback_resolve, false, "GPU/D3D12",
+                    "Read render-to-texture results on the CPU");
 
-REXCVAR_DEFINE_BOOL(d3d12_submit_on_primary_buffer_end, true,
-                    "Submit command list when PM4 primary buffer ends", "GPU/D3D12");
+REXCVAR_DEFINE_BOOL(d3d12_submit_on_primary_buffer_end, true, "GPU/D3D12",
+                    "Submit command list when PM4 primary buffer ends");
 
 namespace rex::graphics::d3d12 {
 

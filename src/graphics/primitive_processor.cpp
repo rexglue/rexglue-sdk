@@ -28,17 +28,17 @@
 #include <rex/math.h>
 #include <rex/types.h>
 
-REXCVAR_DEFINE_BOOL(force_convert_line_loops_to_strips, false, "Force convert line loops to strips",
-                    "GPU");
+REXCVAR_DEFINE_BOOL(force_convert_line_loops_to_strips, false, "GPU",
+                    "Force convert line loops to strips");
 
-REXCVAR_DEFINE_BOOL(force_convert_quad_lists_to_triangle_lists, false,
-                    "Force convert quad lists to triangle lists", "GPU");
+REXCVAR_DEFINE_BOOL(force_convert_quad_lists_to_triangle_lists, false, "GPU",
+                    "Force convert quad lists to triangle lists");
 
-REXCVAR_DEFINE_BOOL(force_convert_triangle_fans_to_lists, false,
-                    "Force convert triangle fans to lists", "GPU");
+REXCVAR_DEFINE_BOOL(force_convert_triangle_fans_to_lists, false, "GPU",
+                    "Force convert triangle fans to lists");
 
-REXCVAR_DEFINE_INT32(primitive_processor_cache_min_indices, 0,
-                     "Minimum indices for primitive processor cache", "GPU")
+REXCVAR_DEFINE_INT32(primitive_processor_cache_min_indices, 0, "GPU",
+                     "Minimum indices for primitive processor cache")
     .range(0, 1000000);
 
 // All these overrides are always safe to use as all backends are expected to

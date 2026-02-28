@@ -28,13 +28,13 @@
 // TODO(benvanik): move xbox.h out
 #include <rex/system/xtypes.h>
 
-REXCVAR_DEFINE_BOOL(protect_zero, true, "Protect the zero page from reads and writes", "Memory")
+REXCVAR_DEFINE_BOOL(protect_zero, true, "Memory", "Protect the zero page from reads and writes")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
-REXCVAR_DEFINE_BOOL(protect_on_release, false, "Protect released memory to prevent accesses",
-                    "Memory");
+REXCVAR_DEFINE_BOOL(protect_on_release, false, "Memory",
+                    "Protect released memory to prevent accesses");
 
-REXCVAR_DEFINE_BOOL(scribble_heap, false, "Scribble 0xCD into all allocated heap memory", "Memory");
+REXCVAR_DEFINE_BOOL(scribble_heap, false, "Memory", "Scribble 0xCD into all allocated heap memory");
 
 namespace rex::memory {
 

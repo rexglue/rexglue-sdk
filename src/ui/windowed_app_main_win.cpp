@@ -22,7 +22,7 @@
 #include <rex/ui/windowed_app.h>
 #include <rex/ui/windowed_app_context_win.h>
 
-REXCVAR_DEFINE_BOOL(enable_console, true, "Enable console window on Windows", "UI/Window");
+REXCVAR_DEFINE_BOOL(enable_console, true, "UI/Window", "Enable console window on Windows");
 
 namespace {
 

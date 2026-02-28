@@ -23,7 +23,7 @@
 #include <rex/system/user_module.h>
 #include <rex/system/xthread.h>
 
-REXCVAR_DEFINE_BOOL(kernel_pix, false, "Enable PIX debugging support", "Kernel");
+REXCVAR_DEFINE_BOOL(kernel_pix, false, "Kernel", "Enable PIX debugging support");
 
 namespace rex::kernel::xboxkrnl {
 

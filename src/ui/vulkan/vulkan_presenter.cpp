@@ -34,17 +34,17 @@
 #include <rex/ui/surface_win.h>
 #endif
 
-REXCVAR_DEFINE_BOOL(present_render_pass_clear, true, "Clear render pass during presentation",
-                    "UI/Presenter");
+REXCVAR_DEFINE_BOOL(present_render_pass_clear, true, "UI/Presenter",
+                    "Clear render pass during presentation");
 
-REXCVAR_DEFINE_BOOL(vulkan_allow_present_mode_immediate, true,
-                    "Allow immediate present mode (no vsync)", "UI/Vulkan");
+REXCVAR_DEFINE_BOOL(vulkan_allow_present_mode_immediate, true, "UI/Vulkan",
+                    "Allow immediate present mode (no vsync)");
 
-REXCVAR_DEFINE_BOOL(vulkan_allow_present_mode_mailbox, true,
-                    "Allow mailbox present mode (triple buffering)", "UI/Vulkan");
+REXCVAR_DEFINE_BOOL(vulkan_allow_present_mode_mailbox, true, "UI/Vulkan",
+                    "Allow mailbox present mode (triple buffering)");
 
-REXCVAR_DEFINE_BOOL(vulkan_allow_present_mode_fifo_relaxed, true, "Allow FIFO relaxed present mode",
-                    "UI/Vulkan");
+REXCVAR_DEFINE_BOOL(vulkan_allow_present_mode_fifo_relaxed, true, "UI/Vulkan",
+                    "Allow FIFO relaxed present mode");
 
 namespace rex {
 namespace ui {

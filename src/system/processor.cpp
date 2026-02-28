@@ -25,7 +25,7 @@
 #include <rex/thread/atomic.h>
 #include <rex/types.h>
 
-REXCVAR_DEFINE_BOOL(disable_global_lock, false, "Disable global threading lock", "Runtime");
+REXCVAR_DEFINE_BOOL(disable_global_lock, false, "Runtime", "Disable global threading lock");
 
 namespace rex::runtime {
 
