@@ -188,6 +188,7 @@ inline std::string generate_app_header(const AppNameParts& names) {
   content += "\n";
   content += "  // Override virtual hooks for customization:\n";
   content += "  // void OnPreSetup(rex::RuntimeConfig& config) override {}\n";
+  content += "  // void OnLoadXexImage(std::string& xex_image) override {}\n";
   content += "  // void OnPostSetup() override {}\n";
   content += "  // void OnCreateDialogs(rex::ui::ImGuiDrawer* drawer) override {}\n";
   content += "  // void OnShutdown() override {}\n";
