@@ -412,6 +412,7 @@ FunctionNode* FunctionGraph::addFunction(uint32_t base, uint32_t size, FunctionA
   auto node = std::make_unique<FunctionNode>(base, size, authority);
   FunctionNode* nodePtr = node.get();
   functions_[base] = std::move(node);
+  functionsByBase_[base] = nodePtr;
 
   // Track xrefs for merge eligibility
   functionHasXrefs_[base] = hasXrefs;
@@ -454,25 +455,30 @@ bool FunctionGraph::removeFunction(uint32_t entryPoint) {
     return false;
   }
   REXCODEGEN_TRACE("FunctionGraph: removing absorbed function 0x{:08X}", entryPoint);
+  functionsByBase_.erase(entryPoint);
   functions_.erase(it);
   functionHasXrefs_.erase(entryPoint);  // Clean up xref tracking
   return true;
 }
 
 FunctionNode* FunctionGraph::getFunctionContaining(uint32_t addr) {
-  // Linear search for now - can optimize with interval tree if needed
-  for (auto& [base, node] : functions_) {
-    if (node->containsAddress(addr)) {
-      return node.get();
+  // O(log f) lookup via sorted base index: find last function with base <= addr
+  auto it = functionsByBase_.upper_bound(addr);
+  if (it != functionsByBase_.begin()) {
+    --it;
+    if (it->second->containsAddress(addr)) {
+      return it->second;
     }
   }
   return nullptr;
 }
 
 const FunctionNode* FunctionGraph::getFunctionContaining(uint32_t addr) const {
-  for (const auto& [base, node] : functions_) {
-    if (node->containsAddress(addr)) {
-      return node.get();
+  auto it = functionsByBase_.upper_bound(addr);
+  if (it != functionsByBase_.begin()) {
+    --it;
+    if (it->second->containsAddress(addr)) {
+      return it->second;
     }
   }
   return nullptr;

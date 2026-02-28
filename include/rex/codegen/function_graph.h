@@ -519,7 +519,7 @@ class FunctionGraph {
   // Remove function from graph (for cleanup of absorbed GAP_FILLs)
   bool removeFunction(uint32_t entryPoint);
 
-  // Get function containing address (O(n) - could optimize with interval tree)
+  // Get function containing address (O(log f) via sorted base index)
   FunctionNode* getFunctionContaining(uint32_t addr);
   const FunctionNode* getFunctionContaining(uint32_t addr) const;
 
@@ -634,6 +634,8 @@ class FunctionGraph {
  private:
   std::vector<CodeBuffer> codeBuffers_;
   std::unordered_map<uint32_t, std::unique_ptr<FunctionNode>> functions_;
+  std::map<uint32_t, FunctionNode*>
+      functionsByBase_;  // sorted by base for O(log f) interval lookup
   std::unordered_map<uint32_t, bool> functionHasXrefs_;  // entry -> hasXrefs
   std::vector<std::pair<uint32_t, uint32_t>> chunks_;    // base, size pairs
   MemoryReader memoryReader_;
