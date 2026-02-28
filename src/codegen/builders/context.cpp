@@ -16,6 +16,8 @@
 
 #include <rex/codegen/recompiler.h>
 #include <rex/logging.h>
+
+#include "../codegen_logging.h"
 #include <rex/runtime.h>
 #include <rex/system/export_resolver.h>
 

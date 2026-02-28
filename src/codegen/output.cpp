@@ -27,6 +27,7 @@
 #include <rex/logging.h>
 
 #include "codegen_flags.h"
+#include "codegen_logging.h"
 
 namespace rex::codegen {
 

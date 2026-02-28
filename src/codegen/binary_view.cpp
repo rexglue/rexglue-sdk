@@ -12,6 +12,8 @@
 
 #include <rex/codegen/binary_view.h>
 #include <rex/logging.h>
+
+#include "codegen_logging.h"
 #include <rex/system/binary_types.h>
 #include <rex/system/module.h>
 

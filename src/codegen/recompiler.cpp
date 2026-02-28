@@ -31,6 +31,9 @@
 #include <rex/codegen/recompiled_function.h>
 #include <rex/codegen/recompiler.h>
 #include <rex/logging.h>
+
+#include "codegen_logging.h"
+
 #include <rex/memory/utils.h>
 #include <rex/runtime.h>
 #include <rex/system/kernel_state.h>

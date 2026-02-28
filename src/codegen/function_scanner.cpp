@@ -23,6 +23,8 @@
 #include <rex/codegen/codegen_context.h>
 #include <rex/codegen/recompiled_function.h>
 #include <rex/logging.h>
+
+#include "codegen_logging.h"
 #include <rex/memory/utils.h>
 #include <rex/types.h>
 

@@ -28,6 +28,8 @@
 #include <rex/codegen/config.h>
 #include <rex/codegen/vtable_scanner.h>
 #include <rex/logging.h>
+
+#include "codegen_logging.h"
 #include <rex/memory/utils.h>
 #include <rex/system/export_resolver.h>
 #include <rex/types.h>

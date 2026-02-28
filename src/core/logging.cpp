@@ -31,82 +31,125 @@ REXCVAR_DEFINE_BOOL(log_verbose, false, "Log", "Enable verbose logging (sets lev
 namespace rex {
 
 namespace {
-// Per-category loggers
-std::array<std::shared_ptr<spdlog::logger>, static_cast<size_t>(LogCategory::Count)> g_loggers;
 
-// Shared sinks for all loggers
-std::vector<spdlog::sink_ptr> g_sinks;
+// Category registry — indices 0..kBuiltinCount-1 are SDK built-ins.
+std::vector<LogCategoryEntry> g_registry;
+
+// Shared default sinks (stored for pattern changes)
+spdlog::sink_ptr g_console_sink;
+spdlog::sink_ptr g_file_sink;
+
+// Extra global sinks added via AddSink()
+std::vector<spdlog::sink_ptr> g_extra_sinks;
 
 // Initialization state
 bool g_initialized = false;
-std::mutex g_init_mutex;
+std::mutex g_mutex;
 
-// Stored configuration
+// Stored config (for resolving category_levels/category_sinks on late registration)
 LogConfig g_config;
+
+// Collect the default sinks into a vector for logger construction
+std::vector<spdlog::sink_ptr> BuildDefaultSinks() {
+  std::vector<spdlog::sink_ptr> sinks;
+  if (g_console_sink)
+    sinks.push_back(g_console_sink);
+  if (g_file_sink)
+    sinks.push_back(g_file_sink);
+  for (auto& s : g_extra_sinks)
+    sinks.push_back(s);
+  return sinks;
+}
+
+// Build sinks for a specific category (handles per-category sinks from config)
+std::vector<spdlog::sink_ptr> BuildCategorySinks(const std::string& name) {
+  auto it = g_config.category_sinks.find(name);
+  if (it != g_config.category_sinks.end()) {
+    if (g_config.category_sinks_exclusive) {
+      // Replace default sinks entirely
+      return it->second;
+    }
+    // Additive: default sinks + category-specific sinks
+    auto sinks = BuildDefaultSinks();
+    for (auto& s : it->second)
+      sinks.push_back(s);
+    return sinks;
+  }
+  return BuildDefaultSinks();
+}
+
+// Resolve per-category level from config, or return default
+spdlog::level::level_enum ResolveCategoryLevel(const std::string& name) {
+  auto it = g_config.category_levels.find(name);
+  if (it != g_config.category_levels.end())
+    return it->second;
+  return g_config.default_level;
+}
+
+// Create a logger and register it
+std::shared_ptr<spdlog::logger> CreateCategoryLogger(const std::string& name) {
+  auto sinks = BuildCategorySinks(name);
+  auto logger = std::make_shared<spdlog::logger>(name, sinks.begin(), sinks.end());
+  logger->set_level(ResolveCategoryLevel(name));
+  logger->flush_on(g_config.flush_level);
+  spdlog::register_logger(logger);
+  return logger;
+}
+
 }  // namespace
 
+// ---- Built-in category short names (must match log:: constant IDs) ----
+static constexpr const char* kBuiltinNames[] = {"core", "cpu", "apu", "gpu", "krnl", "sys", "fs"};
+
 void InitLogging(const LogConfig& config) {
-  std::lock_guard<std::mutex> lock(g_init_mutex);
+  std::lock_guard lock(g_mutex);
 
   if (g_initialized) {
-    // Re-initialization: update levels only
-    for (size_t i = 0; i < static_cast<size_t>(LogCategory::Count); ++i) {
-      auto level = config.category_levels[i].value_or(config.default_level);
-      if (g_loggers[i]) {
-        g_loggers[i]->set_level(level);
+    // Re-initialization: update levels and config only
+    g_config = config;
+    for (auto& entry : g_registry) {
+      if (entry.logger) {
+        entry.logger->set_level(ResolveCategoryLevel(entry.name));
+        entry.logger->flush_on(config.flush_level);
       }
     }
-    g_config = config;
     return;
   }
 
   g_config = config;
 
-  // Create shared sinks
+  // Create console sink
   if (config.log_to_console) {
-    auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-    console_sink->set_level(spdlog::level::trace);        // Let logger control filtering
-    console_sink->set_pattern("[%^%l%$] [%n] [t%t] %v");  // Include logger name and thread ID
-    g_sinks.push_back(console_sink);
+    auto sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+    sink->set_level(spdlog::level::trace);
+    sink->set_pattern(config.console_pattern);
+    g_console_sink = sink;
   }
 
+  // Create file sink
   if (config.log_file) {
-    auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(config.log_file, true);
-    file_sink->set_level(spdlog::level::trace);
-    file_sink->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] [%n] [t%t] %v");
-    g_sinks.push_back(file_sink);
+    auto sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(config.log_file, true);
+    sink->set_level(spdlog::level::trace);
+    sink->set_pattern(config.file_pattern);
+    g_file_sink = sink;
   }
 
-  // Create per-category loggers
-  for (size_t i = 0; i < static_cast<size_t>(LogCategory::Count); ++i) {
-    auto cat = static_cast<LogCategory>(i);
-    std::string name = CategoryName(cat);
+  // Populate extra global sinks from config
+  g_extra_sinks = config.extra_sinks;
 
-    auto logger = std::make_shared<spdlog::logger>(name, g_sinks.begin(), g_sinks.end());
-
-    // Set level from config or default
-    auto level = config.category_levels[i].value_or(config.default_level);
-    logger->set_level(level);
-
-    // Configure flush behavior
-    if (level <= spdlog::level::debug) {
-      logger->flush_on(spdlog::level::trace);
-    } else {
-      logger->flush_on(spdlog::level::warn);
-    }
-
-    // Register with spdlog for global access
-    spdlog::register_logger(logger);
-    g_loggers[i] = logger;
+  // Pre-allocate registry for built-in categories
+  g_registry.resize(log::kBuiltinCount);
+  for (uint16_t i = 0; i < log::kBuiltinCount; ++i) {
+    g_registry[i].name = kBuiltinNames[i];
+    g_registry[i].logger = CreateCategoryLogger(kBuiltinNames[i]);
   }
 
   // Set core as default logger for spdlog
-  spdlog::set_default_logger(g_loggers[static_cast<size_t>(LogCategory::Core)]);
+  spdlog::set_default_logger(g_registry[0].logger);
 
   g_initialized = true;
 
-  REXLOG_DEBUG("Rex logging initialized with {} categories",
-               static_cast<size_t>(LogCategory::Count));
+  REXLOG_DEBUG("Rex logging initialized with {} built-in categories", log::kBuiltinCount);
 }
 
 void InitLogging(const char* log_file, spdlog::level::level_enum level) {
@@ -117,51 +160,93 @@ void InitLogging(const char* log_file, spdlog::level::level_enum level) {
 }
 
 void ShutdownLogging() {
-  std::lock_guard<std::mutex> lock(g_init_mutex);
-
+  std::lock_guard lock(g_mutex);
   if (!g_initialized)
     return;
 
-  // Flush all loggers
-  for (auto& logger : g_loggers) {
-    if (logger) {
-      logger->flush();
-    }
+  for (auto& entry : g_registry) {
+    if (entry.logger)
+      entry.logger->flush();
   }
 
-  // Drop all loggers from spdlog registry
   spdlog::shutdown();
 
-  // Clear our state
-  for (auto& logger : g_loggers) {
-    logger.reset();
-  }
-  g_sinks.clear();
+  g_registry.clear();
+  g_console_sink.reset();
+  g_file_sink.reset();
+  g_extra_sinks.clear();
   g_initialized = false;
 }
 
-std::shared_ptr<spdlog::logger> GetLogger(LogCategory category) {
-  if (!g_initialized) {
-    InitLogging();
+LogCategoryId RegisterLogCategory(const char* name) {
+  std::lock_guard lock(g_mutex);
+
+  // Check for duplicates
+  for (size_t i = 0; i < g_registry.size(); ++i) {
+    if (g_registry[i].name == name) {
+      return LogCategoryId{static_cast<uint16_t>(i)};
+    }
   }
-  return g_loggers[static_cast<size_t>(category)];
+
+  uint16_t id = static_cast<uint16_t>(g_registry.size());
+  LogCategoryEntry entry;
+  entry.name = name;
+  if (g_initialized) {
+    entry.logger = CreateCategoryLogger(name);
+  }
+  g_registry.push_back(std::move(entry));
+  return LogCategoryId{id};
+}
+
+std::optional<LogCategoryId> FindCategory(const std::string& name) {
+  std::lock_guard lock(g_mutex);
+  for (size_t i = 0; i < g_registry.size(); ++i) {
+    if (g_registry[i].name == name) {
+      return LogCategoryId{static_cast<uint16_t>(i)};
+    }
+  }
+  return std::nullopt;
+}
+
+std::span<const LogCategoryEntry> GetAllCategories() {
+  // No lock: only safe to call from main thread or after init.
+  return {g_registry.data(), g_registry.size()};
+}
+
+spdlog::logger* GetLoggerRaw(LogCategoryId category) {
+  if (!g_initialized)
+    InitLogging();
+  if (category.id < g_registry.size()) {
+    return g_registry[category.id].logger.get();
+  }
+  return nullptr;
+}
+
+std::shared_ptr<spdlog::logger> GetLogger(LogCategoryId category) {
+  if (!g_initialized)
+    InitLogging();
+  if (category.id < g_registry.size()) {
+    return g_registry[category.id].logger;
+  }
+  return nullptr;
 }
 
 std::shared_ptr<spdlog::logger> GetLogger() {
-  return GetLogger(LogCategory::Core);
+  return GetLogger(log::Core);
 }
 
-void SetCategoryLevel(LogCategory category, spdlog::level::level_enum level) {
-  if (auto logger = g_loggers[static_cast<size_t>(category)]) {
-    logger->set_level(level);
+void SetCategoryLevel(LogCategoryId category, spdlog::level::level_enum level) {
+  if (category.id < g_registry.size()) {
+    if (auto& logger = g_registry[category.id].logger) {
+      logger->set_level(level);
+    }
   }
 }
 
 void SetAllLevels(spdlog::level::level_enum level) {
-  for (auto& logger : g_loggers) {
-    if (logger) {
-      logger->set_level(level);
-    }
+  for (auto& entry : g_registry) {
+    if (entry.logger)
+      entry.logger->set_level(level);
   }
 }
 
@@ -174,9 +259,55 @@ void RegisterLogLevelCallback() {
   });
 }
 
-//=============================================================================
-// CLI Helper Functions
-//=============================================================================
+void AddSink(spdlog::sink_ptr sink) {
+  std::lock_guard lock(g_mutex);
+  g_extra_sinks.push_back(sink);
+  for (auto& entry : g_registry) {
+    if (entry.logger)
+      entry.logger->sinks().push_back(sink);
+  }
+}
+
+void AddSink(LogCategoryId category, spdlog::sink_ptr sink) {
+  std::lock_guard lock(g_mutex);
+  if (category.id < g_registry.size()) {
+    if (auto& logger = g_registry[category.id].logger) {
+      logger->sinks().push_back(sink);
+    }
+  }
+}
+
+void RemoveSink(spdlog::sink_ptr sink) {
+  std::lock_guard lock(g_mutex);
+  std::erase(g_extra_sinks, sink);
+  for (auto& entry : g_registry) {
+    if (entry.logger)
+      std::erase(entry.logger->sinks(), sink);
+  }
+}
+
+void RemoveSink(LogCategoryId category, spdlog::sink_ptr sink) {
+  std::lock_guard lock(g_mutex);
+  if (category.id < g_registry.size()) {
+    if (auto& logger = g_registry[category.id].logger) {
+      std::erase(logger->sinks(), sink);
+    }
+  }
+}
+
+void SetConsolePattern(const std::string& pattern) {
+  if (g_console_sink)
+    g_console_sink->set_pattern(pattern);
+}
+
+void SetFilePattern(const std::string& pattern) {
+  if (g_file_sink)
+    g_file_sink->set_pattern(pattern);
+}
+
+// ==========================================================================
+// CLI Helpers
+// ==========================================================================
 
 std::optional<spdlog::level::level_enum> ParseLogLevel(const std::string& level_str) {
   static const std::unordered_map<std::string, spdlog::level::level_enum> level_map = {
@@ -192,9 +323,8 @@ std::optional<spdlog::level::level_enum> ParseLogLevel(const std::string& level_
                  [](unsigned char c) { return std::tolower(c); });
 
   auto it = level_map.find(lower);
-  if (it != level_map.end()) {
+  if (it != level_map.end())
     return it->second;
-  }
   return std::nullopt;
 }
 
@@ -203,83 +333,88 @@ spdlog::level::level_enum ParseLogLevelOr(const std::string& level_str,
   return ParseLogLevel(level_str).value_or(default_level);
 }
 
-std::optional<LogCategory> CategoryFromName(const std::string& name) {
-  std::string lower = name;
-  std::transform(lower.begin(), lower.end(), lower.begin(),
-                 [](unsigned char c) { return std::tolower(c); });
-
-  // Map various names to categories
-  static const std::unordered_map<std::string, LogCategory> name_map = {
-      {"core", LogCategory::Core},      {"cpu", LogCategory::CPU},
-      {"ppc", LogCategory::CPU},                                         // Alias
-      {"apu", LogCategory::APU},        {"audio", LogCategory::APU},     // Alias
-      {"gpu", LogCategory::GPU},        {"graphics", LogCategory::GPU},  // Alias
-      {"kernel", LogCategory::Kernel},  {"krnl", LogCategory::Kernel},   // Alias
-      {"runtime", LogCategory::Kernel},  // Alias (maps legacy category)
-      {"system", LogCategory::System},  {"sys", LogCategory::System},     // Alias
-      {"fs", LogCategory::FS},          {"filesystem", LogCategory::FS},  // Alias
-      {"vfs", LogCategory::FS},                                           // Alias
-  };
-
-  auto it = name_map.find(lower);
-  if (it != name_map.end()) {
-    return it->second;
-  }
-  return std::nullopt;
-}
-
 LogConfig BuildLogConfig(const char* log_file, const std::string& cli_level,
                          const std::map<std::string, std::string>& category_levels) {
   LogConfig config;
   config.log_file = log_file;
 
-  // Step 1: Start with build-type default
+  // Build-type default
   config.default_level = kDefaultLogLevel;
 
-  // Step 2: Check environment variable
+  // Environment variable
   if (const char* env_level = std::getenv("REX_LOG_LEVEL")) {
-    if (auto level = ParseLogLevel(env_level)) {
+    if (auto level = ParseLogLevel(env_level))
       config.default_level = *level;
-    }
-  } else if (const char* env_level = std::getenv("SPDLOG_LEVEL")) {
-    // Only use SPDLOG_LEVEL for global level if it's a simple level string
-    if (auto level = ParseLogLevel(env_level)) {
+  } else if (const char* env_level2 = std::getenv("SPDLOG_LEVEL")) {
+    if (auto level = ParseLogLevel(env_level2))
       config.default_level = *level;
-    }
   }
 
-  // Step 3: CLI global level overrides environment
+  // CLI global level overrides environment
   if (!cli_level.empty()) {
-    if (auto level = ParseLogLevel(cli_level)) {
+    if (auto level = ParseLogLevel(cli_level))
       config.default_level = *level;
-    }
   }
 
-  // Step 4: Per-category CLI levels
+  // Per-category CLI levels (string-keyed)
   for (const auto& [cat_name, level_str] : category_levels) {
     if (level_str.empty())
       continue;
-
-    auto cat = CategoryFromName(cat_name);
-    auto level = ParseLogLevel(level_str);
-
-    if (cat && level) {
-      config.category_levels[static_cast<size_t>(*cat)] = *level;
+    if (auto level = ParseLogLevel(level_str)) {
+      config.category_levels[cat_name] = *level;
     }
   }
 
   return config;
 }
 
-//=============================================================================
-// Guest Thread ID (stub - real implementation in runtime)
-//=============================================================================
+// ==========================================================================
+// Guest Thread ID
+// ==========================================================================
 
-// This is a weak symbol that can be overridden by the runtime library
-// when running in guest context. Default returns 0.
 uint32_t GetLogGuestThreadId() {
   // TODO: Link to actual guest context when available
   return 0;
+}
+
+// ==========================================================================
+// Deprecated Compatibility Layer
+// ==========================================================================
+
+// Map old LogCategory enum to new LogCategoryId
+static LogCategoryId CategoryToId(LogCategory category) {
+  auto idx = static_cast<uint16_t>(std::to_underlying(category));
+  return LogCategoryId{idx};
+}
+
+std::optional<LogCategory> CategoryFromName(const std::string& name) {
+  std::string lower = name;
+  std::transform(lower.begin(), lower.end(), lower.begin(),
+                 [](unsigned char c) { return std::tolower(c); });
+
+  static const std::unordered_map<std::string, LogCategory> name_map = {
+      {"core", LogCategory::Core},     {"cpu", LogCategory::CPU},
+      {"ppc", LogCategory::CPU},       {"apu", LogCategory::APU},
+      {"audio", LogCategory::APU},     {"gpu", LogCategory::GPU},
+      {"graphics", LogCategory::GPU},  {"kernel", LogCategory::Kernel},
+      {"krnl", LogCategory::Kernel},   {"runtime", LogCategory::Kernel},
+      {"system", LogCategory::System}, {"sys", LogCategory::System},
+      {"fs", LogCategory::FS},         {"filesystem", LogCategory::FS},
+      {"vfs", LogCategory::FS},
+  };
+
+  auto it = name_map.find(lower);
+  if (it != name_map.end())
+    return it->second;
+  return std::nullopt;
+}
+
+std::shared_ptr<spdlog::logger> GetLogger(LogCategory category) {
+  return GetLogger(CategoryToId(category));
+}
+
+void SetCategoryLevel(LogCategory category, spdlog::level::level_enum level) {
+  SetCategoryLevel(CategoryToId(category), level);
 }
 
 }  // namespace rex

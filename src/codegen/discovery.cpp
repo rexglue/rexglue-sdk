@@ -16,6 +16,8 @@
 #include <queue>
 
 #include <rex/logging.h>
+
+#include "codegen_logging.h"
 #include <rex/types.h>
 
 namespace rex::codegen {

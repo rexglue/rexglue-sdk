@@ -20,6 +20,8 @@
 #include <rex/codegen/config.h>
 #include <rex/logging.h>
 
+#include "codegen_logging.h"
+
 #include <toml++/toml.hpp>
 
 namespace rex::codegen {

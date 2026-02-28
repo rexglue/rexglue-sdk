@@ -99,12 +99,7 @@ bool ReXApp::OnInitialize() {
 
   // Attach log capture sink to all loggers for the console overlay
   log_sink_ = std::make_shared<rex::LogCaptureSink>();
-  for (size_t i = 0; i < static_cast<size_t>(rex::LogCategory::Count); ++i) {
-    auto logger = rex::GetLogger(static_cast<rex::LogCategory>(i));
-    if (logger) {
-      logger->sinks().push_back(log_sink_);
-    }
-  }
+  rex::AddSink(log_sink_);
 
   REXLOG_INFO("{} starting", GetName());
   REXLOG_INFO("  Game directory: {}", game_data_root_.string());

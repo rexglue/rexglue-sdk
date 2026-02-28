@@ -18,6 +18,8 @@
 
 #include <rex/logging.h>
 
+#include "../codegen_logging.h"
+
 #include <ppc.h>
 
 namespace rex::codegen {
