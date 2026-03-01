@@ -124,6 +124,11 @@ BoundsInfo scanForBounds(DecodedBinary& decoded, uint32_t bctrAddr, const CodeRe
     if (!insn)
       break;
 
+    // Stop at unconditional terminators - scanning past basic block boundaries
+    // risks finding unrelated comparisons on the index register
+    if (isTerminator(*insn) && !isConditional(*insn))
+      break;
+
     using namespace rex::codegen::ppc;
 
     // Look for cmpli/cmpi followed by conditional branch
