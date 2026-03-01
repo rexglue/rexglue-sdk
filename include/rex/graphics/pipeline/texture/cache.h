@@ -16,6 +16,7 @@
 #include <cstring>
 #include <memory>
 #include <unordered_map>
+#include <vector>
 
 #include <rex/assert.h>
 #include <rex/graphics/pipeline/texture/util.h>
@@ -89,8 +90,22 @@ class TextureCache {
 
   static uint32_t GuestToHostSwizzle(uint32_t guest_swizzle, uint32_t host_format_swizzle);
 
-  void TextureFetchConstantWritten(uint32_t index) {
-    texture_bindings_in_sync_ &= ~(UINT32_C(1) << index);
+  void TextureFetchConstantWritten(uint32_t index) { TextureFetchConstantsWritten(index, index); }
+  void TextureFetchConstantsWritten(uint32_t first_index, uint32_t last_index) {
+    if (first_index > last_index) {
+      uint32_t swap_index = first_index;
+      first_index = last_index;
+      last_index = swap_index;
+    }
+    if (first_index > 31) {
+      return;
+    }
+    if (last_index > 31) {
+      last_index = 31;
+    }
+    uint32_t bit_count = last_index - first_index + 1;
+    uint32_t mask = bit_count == 32 ? UINT32_MAX : ((UINT32_C(1) << bit_count) - 1) << first_index;
+    texture_bindings_in_sync_ &= ~mask;
   }
 
   virtual void RequestTextures(uint32_t used_texture_mask);
@@ -191,10 +206,18 @@ class TextureCache {
     uint32_t GetGuestBaseSize() const { return guest_layout().base.level_data_extent_bytes; }
     uint32_t GetGuestMipsSize() const { return guest_layout().mips_total_extent_bytes; }
 
+    // For 3D-as-2D wrappers: the host texture is 2D, but guest memory tiling
+    // may still need to be interpreted as 3D.
+    bool force_load_3d_tiling() const { return force_load_3d_tiling_; }
+    void SetForceLoad3DTiling(bool force) { force_load_3d_tiling_ = force; }
+
     uint64_t GetHostMemoryUsage() const { return host_memory_usage_; }
 
     uint64_t last_usage_submission_index() const { return last_usage_submission_index_; }
     uint64_t last_usage_time() const { return last_usage_time_; }
+    static constexpr uint32_t kOutdatedBitBase = UINT32_C(1) << 0;
+    static constexpr uint32_t kOutdatedBitMips = UINT32_C(1) << 1;
+    uint32_t outdated_mask() const { return outdated_mask_.load(std::memory_order_acquire); }
 
     bool base_outdated(const std::unique_lock<std::recursive_mutex>& global_lock) const {
       return base_outdated_;
@@ -215,7 +238,8 @@ class TextureCache {
     void LogAction(const char* action) const;
 
    protected:
-    explicit Texture(TextureCache& texture_cache, const TextureKey& key);
+    // If track_usage is false, the texture won't be added to the LRU list.
+    explicit Texture(TextureCache& texture_cache, const TextureKey& key, bool track_usage = true);
 
     void SetHostMemoryUsage(uint64_t new_host_memory_usage) {
       texture_cache_.UpdateTexturesTotalHostMemoryUsage(new_host_memory_usage, host_memory_usage_);
@@ -235,6 +259,8 @@ class TextureCache {
     uint64_t last_usage_time_;
     Texture* used_previous_;
     Texture* used_next_;
+    bool in_usage_list_;
+    bool force_load_3d_tiling_ = false;
 
     // These are to be accessed within the global critical region to synchronize
     // with shared memory.
@@ -242,6 +268,7 @@ class TextureCache {
     bool base_outdated_ = false;
     // Whether the recent mip data needs reloading from the memory.
     bool mips_outdated_ = false;
+    std::atomic<uint32_t> outdated_mask_{0};
     // Watch handles for the memory ranges.
     SharedMemory::WatchHandle base_watch_handle_ = nullptr;
     SharedMemory::WatchHandle mips_watch_handle_ = nullptr;
@@ -518,6 +545,20 @@ class TextureCache {
   virtual void UpdateTextureBindingsImpl(uint32_t fetch_constant_mask) {}
 
  private:
+  struct PendingTextureLoad {
+    Texture* texture = nullptr;
+    bool load_base = false;
+    bool load_mips = false;
+  };
+  struct PendingSharedMemoryRange {
+    uint32_t start = 0;
+    uint32_t length = 0;
+  };
+  bool PrepareTextureLoad(Texture& texture, PendingTextureLoad& pending_load_out,
+                          PendingSharedMemoryRange* pending_ranges_out,
+                          size_t& pending_range_count_out);
+  bool CommitPreparedTextureLoad(const PendingTextureLoad& pending_load);
+
   void UpdateTexturesTotalHostMemoryUsage(uint64_t add, uint64_t subtract);
 
   // Shared memory callback for texture data invalidation.

@@ -37,6 +37,10 @@ REXCVAR_DEFINE_BOOL(execute_unclipped_draw_vs_on_cpu_for_psi_render_backend, fal
 REXCVAR_DEFINE_BOOL(snorm16_render_target_full_range, false, "GPU",
                     "Use full range for SNORM16 render targets");
 
+REXCVAR_DEFINE_BOOL(direct_host_resolve, true, "GPU",
+                    "Resolve from host render targets directly to shared memory when possible")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
 namespace rex::graphics {
 
 void RenderTargetCache::GetPSIColorFormatInfo(xenos::ColorRenderTargetFormat format,
@@ -909,6 +913,24 @@ void RenderTargetCache::GetResolveCopyRectanglesToDump(
     // The resolve area goes to the next EDRAM addressing period.
     get_rectangles_in_extent(0, std::min(resolve_area_end & (xenos::kEdramTileCount - 1), base),
                              xenos::kEdramTileCount);
+  }
+}
+
+void RenderTargetCache::GetResolveCopyDispatchesToDump(
+    uint32_t base, uint32_t row_length, uint32_t rows, uint32_t pitch,
+    std::vector<ResolveCopyDumpRectangle>& rectangles_out,
+    std::vector<ResolveCopyDispatch>& dispatches_out) const {
+  GetResolveCopyRectanglesToDump(base, row_length, rows, pitch, rectangles_out);
+  dispatches_out.clear();
+  for (uint32_t rectangle_index = 0; rectangle_index < uint32_t(rectangles_out.size());
+       ++rectangle_index) {
+    const ResolveCopyDumpRectangle& rectangle = rectangles_out[rectangle_index];
+    ResolveCopyDumpRectangle::Dispatch
+        rectangle_dispatches[ResolveCopyDumpRectangle::kMaxDispatches];
+    uint32_t dispatch_count = rectangle.GetDispatches(pitch, row_length, rectangle_dispatches);
+    for (uint32_t i = 0; i < dispatch_count; ++i) {
+      dispatches_out.emplace_back(rectangle_index, rectangle_dispatches[i]);
+    }
   }
 }
 

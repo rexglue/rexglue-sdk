@@ -973,10 +973,65 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
       rex::bit_scan_forward(coordinates_needed_components, &coordinate_component_index);
       coordinates[coordinate_component_index] = coordinates_operand;
     }
-
-    // TODO(Triang3l): Reverting the resolution scale.
+    spv::Id texture_resolution_scaled = spv::NoResult;
+    uint32_t revert_resolution_scale_axes =
+        uint32_t(draw_resolution_scale_x_ > 1) | (uint32_t(draw_resolution_scale_y_ > 1) << 1);
+    spv::Id const_texture_resolution_scale[] = {spv::NoResult, spv::NoResult};
+    spv::Id const_texture_resolution_scale_reciprocal[] = {spv::NoResult, spv::NoResult};
+    if (revert_resolution_scale_axes) {
+      id_vector_temp_.clear();
+      id_vector_temp_.push_back(builder_->makeIntConstant(kSystemConstantTexturesResolutionScaled));
+      spv::Id textures_resolution_scaled = builder_->createLoad(
+          builder_->createAccessChain(spv::StorageClassUniform, uniform_system_constants_,
+                                      id_vector_temp_),
+          spv::NoPrecision);
+      texture_resolution_scaled = builder_->createBinOp(
+          spv::OpINotEqual, type_bool_,
+          builder_->createBinOp(spv::OpBitwiseAnd, type_uint_, textures_resolution_scaled,
+                                builder_->makeUintConstant(UINT32_C(1) << fetch_constant_index)),
+          const_uint_0_);
+      if (revert_resolution_scale_axes & 0b001) {
+        const_texture_resolution_scale[0] =
+            builder_->makeFloatConstant(float(draw_resolution_scale_x_));
+        const_texture_resolution_scale_reciprocal[0] =
+            builder_->makeFloatConstant(1.0f / float(draw_resolution_scale_x_));
+      }
+      if (revert_resolution_scale_axes & 0b010) {
+        const_texture_resolution_scale[1] =
+            builder_->makeFloatConstant(float(draw_resolution_scale_y_));
+        const_texture_resolution_scale_reciprocal[1] =
+            builder_->makeFloatConstant(1.0f / float(draw_resolution_scale_y_));
+      }
+    }
 
     if (instr.opcode == ucode::FetchOpcode::kGetTextureWeights) {
+      uint32_t resolution_scaled_result_components =
+          used_result_nonzero_components & revert_resolution_scale_axes;
+      uint32_t resolution_scaled_coord_components =
+          instr.attributes.unnormalized_coordinates ? resolution_scaled_result_components : 0b000;
+      uint32_t resolution_scaled_size_components =
+          size_needed_components & resolution_scaled_result_components;
+      if (texture_resolution_scaled != spv::NoResult &&
+          (resolution_scaled_coord_components || resolution_scaled_size_components)) {
+        for (uint32_t i = 0; i < 2; ++i) {
+          if (resolution_scaled_coord_components & (UINT32_C(1) << i)) {
+            coordinates[i] = builder_->createTriOp(
+                spv::OpSelect, type_float_, texture_resolution_scaled,
+                builder_->createNoContractionBinOp(spv::OpFMul, type_float_, coordinates[i],
+                                                   const_texture_resolution_scale[i]),
+                coordinates[i]);
+          }
+          if (resolution_scaled_size_components & (UINT32_C(1) << i)) {
+            assert_true(size[i] != spv::NoResult);
+            size[i] = builder_->createTriOp(
+                spv::OpSelect, type_float_, texture_resolution_scaled,
+                builder_->createNoContractionBinOp(spv::OpFMul, type_float_, size[i],
+                                                   const_texture_resolution_scale[i]),
+                size[i]);
+          }
+        }
+      }
+
       // FIXME(Triang3l): Filtering modes should possibly be taken into account,
       // but for simplicity, not doing that - from a high level point of view,
       // would be useless to get weights that will always be zero.
@@ -1011,6 +1066,15 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
         spv::Id& coordinate_ref = coordinates[i];
         spv::Id component_offset =
             offset_values[i] ? builder_->makeFloatConstant(offset_values[i]) : spv::NoResult;
+        if (component_offset != spv::NoResult && texture_resolution_scaled != spv::NoResult &&
+            (revert_resolution_scale_axes & (UINT32_C(1) << i))) {
+          spv::Id component_offset_resolution_scaled =
+              builder_->createNoContractionBinOp(spv::OpFMul, type_float_, component_offset,
+                                                 const_texture_resolution_scale_reciprocal[i]);
+          component_offset =
+              builder_->createTriOp(spv::OpSelect, type_float_, texture_resolution_scaled,
+                                    component_offset_resolution_scaled, component_offset);
+        }
         spv::Id size_component = size[i];
         if (instr.attributes.unnormalized_coordinates) {
           if (component_offset != spv::NoResult) {
@@ -1935,7 +1999,9 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
             builder_->createBranch(&block_sign_merge);
             // Gamma.
             builder_->setBuildPoint(&block_sign_gamma_start);
-            // TODO(Triang3l): Gamma resolve target as sRGB sampling.
+            // Keep parity with D3D12 by applying explicit Xenos PWL
+            // gamma-to-linear conversion in shader code rather than relying on
+            // host sRGB sampling semantics.
             spv::Id sample_result_component_gamma =
                 PWLGammaToLinear(sample_result_component_unsigned, false);
             // Get the current build point for the phi operation not to assume

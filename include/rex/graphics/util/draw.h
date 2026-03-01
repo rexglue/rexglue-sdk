@@ -238,9 +238,11 @@ inline bool DoesCoverageDependOnAlpha(reg::RB_COLORCONTROL rb_colorcontrol) {
 // some reason in different games with a leftover pixel shader from the previous
 // draw, but with SQ_PROGRAM_CNTL destroyed, reducing the number of
 // unpredictable unneeded translations of random shaders with different host
-// modification bits, such as register count and depth format-related (though
-// shaders with side effects on depth or memory export will still be preserved).
-bool IsPixelShaderNeededWithRasterization(const Shader& shader, const RegisterFile& regs);
+// modification bits, such as register count and depth format-related.
+// include_memory_export may be set to false to evaluate whether the pixel
+// shader has any side effects other than memexport.
+bool IsPixelShaderNeededWithRasterization(const Shader& shader, const RegisterFile& regs,
+                                          bool include_memory_export = true);
 
 struct ViewportInfo {
   // Offset from render target UV = 0 to +UV.

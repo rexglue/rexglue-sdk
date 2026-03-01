@@ -10,6 +10,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <atomic>
 #include <cstdint>
 #include <mutex>
 #include <utility>
@@ -31,6 +32,8 @@ class SharedMemory {
   virtual ~SharedMemory();
   // Call in the implementation-specific ClearCache.
   virtual void ClearCache();
+  void SetSystemPageBlocksValidWithGpuDataWritten();
+  void InvalidateAllPages();
 
   typedef void (*GlobalWatchCallback)(const std::unique_lock<std::recursive_mutex>& global_lock,
                                       void* context, uint32_t address_first, uint32_t address_last,
@@ -74,6 +77,7 @@ class SharedMemory {
   // Checks if the range has been updated, uploads new data if needed and
   // ensures the host GPU memory backing the range are resident. Returns true if
   // the range has been fully updated and is usable.
+  bool RequestRanges(const std::pair<uint32_t, uint32_t>* ranges, size_t count);
   bool RequestRange(uint32_t start, uint32_t length);
 
   // Marks the range and, if not exact_range, potentially its surroundings
@@ -185,16 +189,17 @@ class SharedMemory {
   // Things below should be fully protected by global_critical_region.
   // ***************************************************************************
 
-  struct SystemPageFlagsBlock {
-    // Whether each page is up to date in the GPU buffer.
-    uint64_t valid;
-    // Subset of valid pages - whether each page in the GPU buffer contains data
-    // that was written on the GPU, thus should not be invalidated spuriously.
-    uint64_t valid_and_gpu_written;
-  };
-  // Flags for each 64 system pages, interleaved as blocks, so bit scan can be
-  // used to quickly extract ranges.
-  std::vector<SystemPageFlagsBlock> system_page_flags_;
+  // Double-buffered valid-page flags for lockless checks in RequestRanges.
+  std::vector<uint64_t> valid_buffer_a_;
+  std::vector<uint64_t> valid_buffer_b_;
+  std::atomic<uint64_t*> active_valid_flags_{nullptr};
+  std::atomic<uint64_t*> staging_valid_flags_{nullptr};
+  // Subset of valid pages containing data written by the GPU.
+  std::vector<uint64_t> system_page_flags_valid_and_gpu_written_;
+  // Dirty state tracking for frame-end page-state refresh.
+  std::atomic<bool> gpu_written_data_dirty_{false};
+  std::atomic<uint32_t> dirty_blocks_{0};
+  uint32_t num_system_page_flags_ = 0;
 
   static std::pair<uint32_t, uint32_t> MemoryInvalidationCallbackThunk(
       void* context_ptr, uint32_t physical_address_start, uint32_t length, bool exact_range);

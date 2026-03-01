@@ -111,7 +111,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     // If anything in this is structure is changed in a way not compatible with
     // the previous layout, invalidate the pipeline storages by increasing this
     // version number (0xYYYYMMDD)!
-    static constexpr uint32_t kVersion = 0x20220720;
+    static constexpr uint32_t kVersion = 0x20260226;
 
     enum class DepthStencilMode : uint32_t {
       kNoModifiers,
@@ -153,7 +153,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
       uint32_t output_point_size : 1;
       // Dynamically indexable register count from SQ_PROGRAM_CNTL.
       uint32_t dynamic_addressable_register_count : 8;
-      uint32_t : 2;
+      // PA_CL_CLIP_CNTL::ps_ucp_mode for point primitives.
+      uint32_t point_ps_ucp_mode : 2;
       // uint32_t 1.
       // Pipeline stage and input configuration.
       Shader::HostVertexShaderType host_vertex_shader_type : Shader::kHostVertexShaderTypeBitCount;

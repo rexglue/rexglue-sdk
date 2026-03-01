@@ -95,7 +95,8 @@ void SpirvShaderTranslator::ProcessAluInstruction(const ParsedAluInstruction& in
     }
   }
 
-  StoreResult(instr.vector_and_constant_result, vector_result);
+  StoreResult(instr.vector_and_constant_result, vector_result,
+              instr.GetMemExportStreamConstant() != UINT32_MAX);
   StoreResult(instr.scalar_result, scalar_result);
 
   if (predicate_written_vector || predicate_written_scalar) {

@@ -21,23 +21,12 @@
 #include <fmt/format.h>
 
 #include <rex/assert.h>
-#include <rex/cvar.h>
 #include <rex/graphics/pipeline/shader/shader.h>
 #include <rex/graphics/register_file.h>
 #include <rex/graphics/registers.h>
 #include <rex/graphics/util/draw.h>
 #include <rex/graphics/util/draw_extent_estimator.h>
 #include <rex/graphics/xenos.h>
-
-// DECLARE_bool macros removed - cvars defined in rex/gpu/flags.h
-// REXCVAR_DECLARE(bool, depth_transfer_not_equal_test);
-// REXCVAR_DECLARE(bool, depth_float24_round);
-// REXCVAR_DECLARE(bool, depth_float24_convert_in_pixel_shader);
-// REXCVAR_DECLARE(bool, draw_resolution_scaled_texture_offsets);
-// REXCVAR_DECLARE(bool, gamma_render_target_as_unorm16);
-// REXCVAR_DECLARE(bool, native_2x_msaa);
-// REXCVAR_DECLARE(bool, native_stencil_value_output);
-// REXCVAR_DECLARE(bool, snorm16_render_target_full_range);
 
 namespace rex::graphics {
 
@@ -463,6 +452,15 @@ class RenderTargetCache {
     }
   };
 
+  // A flattened dispatch extracted from ResolveCopyDumpRectangle.
+  struct ResolveCopyDispatch {
+    uint32_t rectangle_index;
+    ResolveCopyDumpRectangle::Dispatch dispatch;
+    ResolveCopyDispatch(uint32_t rectangle_index,
+                        const ResolveCopyDumpRectangle::Dispatch& dispatch)
+        : rectangle_index(rectangle_index), dispatch(dispatch) {}
+  };
+
   virtual uint32_t GetMaxRenderTargetWidth() const = 0;
   virtual uint32_t GetMaxRenderTargetHeight() const = 0;
 
@@ -525,6 +523,10 @@ class RenderTargetCache {
   void GetResolveCopyRectanglesToDump(uint32_t base, uint32_t row_length, uint32_t rows,
                                       uint32_t pitch,
                                       std::vector<ResolveCopyDumpRectangle>& rectangles_out) const;
+  void GetResolveCopyDispatchesToDump(uint32_t base, uint32_t row_length, uint32_t rows,
+                                      uint32_t pitch,
+                                      std::vector<ResolveCopyDumpRectangle>& rectangles_out,
+                                      std::vector<ResolveCopyDispatch>& dispatches_out) const;
 
   // Sets up the needed render targets and transfers to perform a clear in a
   // resolve operation via a host render target clear. resolve_info is expected

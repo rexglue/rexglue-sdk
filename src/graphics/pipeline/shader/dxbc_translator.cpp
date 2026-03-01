@@ -1417,6 +1417,9 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result, const dx
       dest = dxbc::Dest::R(system_temp_point_size_edge_flag_kill_vertex_);
       break;
     case InstructionStorageTarget::kExportAddress:
+      if (!can_store_memexport_address) {
+        return;
+      }
       if (!current_shader().memexport_eM_written()) {
         return;
       }

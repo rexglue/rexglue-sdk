@@ -881,6 +881,39 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
           }
         }
       }
+
+      // For host vertex shader types that don't support manually reading 32-bit
+      // guest DMA indices in the shader path on some backends (notably Vulkan
+      // without fullDrawIndexUint32), pre-convert to host-endian 24-bit indices.
+      if (cacheable.index_buffer_type == ProcessedIndexBufferType::kGuestDMA &&
+          guest_index_format == xenos::IndexFormat::kInt32 && !full_32bit_vertex_indices_used_ &&
+          host_vertex_shader_type != Shader::HostVertexShaderType::kVertex) {
+        trace_writer_.WriteMemoryRead(guest_index_base, guest_index_buffer_needed_bytes);
+        // No primitive-type conversion, just index normalization.
+        CacheTransaction cache_transaction(
+            *this, CacheKey(guest_index_base, guest_draw_vertex_count, guest_index_format,
+                            guest_index_endian, guest_primitive_reset_enabled,
+                            xenos::PrimitiveType::kNone, true));
+        if (cache_transaction.GetFoundResult()) {
+          cacheable = *cache_transaction.GetFoundResult();
+        } else {
+          auto guest_indices = memory_.TranslatePhysical<const uint32_t*>(guest_index_base);
+          auto host_indices =
+              reinterpret_cast<uint32_t*>(RequestHostConvertedIndexBufferForCurrentFrame(
+                  xenos::IndexFormat::kInt32, guest_draw_vertex_count, true, guest_index_base,
+                  cacheable.host_index_buffer_handle));
+          if (!host_indices) {
+            return false;
+          }
+          for (uint32_t i = 0; i < guest_draw_vertex_count; ++i) {
+            host_indices[i] =
+                xenos::GpuSwap(guest_indices[i], guest_index_endian) & xenos::kVertexIndexMask;
+          }
+          cacheable.index_buffer_type = ProcessedIndexBufferType::kHostConverted;
+          cacheable.host_shader_index_endian = xenos::Endian::kNone;
+          cache_transaction.SetNewResult(cacheable);
+        }
+      }
     }
   }
 
@@ -903,6 +936,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
   result_out.host_primitive_type = host_primitive_type;
   result_out.host_vertex_shader_type = host_vertex_shader_type;
   result_out.tessellation_mode = tessellation_mode;
+  result_out.guest_draw_vertex_count = guest_draw_vertex_count;
   result_out.host_draw_vertex_count = cacheable.host_draw_vertex_count;
   result_out.line_loop_closing_index = line_loop_closing_index;
   result_out.index_buffer_type = cacheable.index_buffer_type;
