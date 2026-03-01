@@ -19,4 +19,7 @@ REXCVAR_DEFINE_BOOL(depth_float24_convert_in_pixel_shader, false, "GPU",
                     "Convert float24 depth in pixel shader");
 REXCVAR_DEFINE_BOOL(depth_transfer_not_equal_test, false, "GPU",
                     "Use not-equal test for depth transfer");
+REXCVAR_DEFINE_BOOL(gamma_render_target_as_unorm16, true, "GPU",
+                    "Use R16G16B16A16_UNORM for gamma render targets (more accurate than sRGB)")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
 REXCVAR_DEFINE_STRING(dump_shaders, "", "GPU", "Path to dump shaders to");

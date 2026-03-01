@@ -76,6 +76,7 @@ class GraphicsSystem : public system::IGraphicsSystem {
   void DispatchInterruptCallback(uint32_t source, uint32_t cpu);
 
   virtual void ClearCaches();
+  virtual void InvalidateGpuMemory();
 
   void InitializeShaderStorage(const std::filesystem::path& cache_root, uint32_t title_id,
                                bool blocking);

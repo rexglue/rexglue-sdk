@@ -13,6 +13,7 @@
 #include <cinttypes>
 #include <cmath>
 #include <cstring>
+#include <string_view>
 
 #include <fmt/format.h>
 
@@ -34,13 +35,69 @@
 
 REXCVAR_DEFINE_BOOL(vsync, true, "GPU", "Enable vertical sync");
 
+REXCVAR_DEFINE_BOOL(clear_memory_page_state, true, "GPU",
+                    "Refresh page-valid state from GPU-written memory at frame end. "
+                    "Disable for minor CPU overhead reduction, but may break memory coherency.")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
+REXCVAR_DEFINE_BOOL(occlusion_query_enable, true, "GPU", "Enable host occlusion query handling")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
+REXCVAR_DEFINE_STRING(readback_resolve, "none", "GPU",
+                      "Controls CPU readback of render-to-texture resolve results.\n"
+                      " none: Disable readback (default)\n"
+                      " fast: Read previous frame (delayed, copy every frame)\n"
+                      " some: Read previous frame (delayed, copy on cache miss)\n"
+                      " full: Immediate sync readback (accurate but stalls)")
+    .allowed({"none", "fast", "some", "full"})
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
+REXCVAR_DEFINE_BOOL(readback_resolve_half_pixel_offset, false, "GPU",
+                    "When draw resolution scaling is active, sample from the center of each "
+                    "scaled block during resolve readback downscale")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
+REXCVAR_DEFINE_BOOL(readback_memexport, true, "GPU",
+                    "Enable CPU readback of shader memexport writes for guest memory "
+                    "coherency (can reduce correctness issues, but may add GPU/CPU sync cost)")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
+REXCVAR_DEFINE_BOOL(readback_memexport_fast, true, "GPU",
+                    "Use fast double-buffered memexport readback when possible, with "
+                    "automatic fallback to full synchronous readback")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
 REXCVAR_DEFINE_INT32(query_occlusion_fake_sample_count, 1000, "GPU",
                      "Fake sample count for occlusion queries")
-    .range(1, 100000);
+    .range(1, 100000)
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
+REXCVAR_DEFINE_BOOL(async_shader_compilation, true, "GPU",
+                    "Compile shaders and create pipelines asynchronously in background "
+                    "threads. This reduces stutter but may cause brief visual artifacts while "
+                    "pipelines are being prepared.")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
 namespace rex::graphics {
 
 using namespace rex::graphics::xenos;
+
+namespace {
+
+ReadbackResolveMode ParseReadbackResolveMode(std::string_view value) {
+  if (value == "fast") {
+    return ReadbackResolveMode::kFast;
+  }
+  if (value == "some") {
+    return ReadbackResolveMode::kSome;
+  }
+  if (value == "full") {
+    return ReadbackResolveMode::kFull;
+  }
+  return ReadbackResolveMode::kDisabled;
+}
+
+}  // namespace
 
 CommandProcessor::CommandProcessor(GraphicsSystem* graphics_system,
                                    system::KernelState* kernel_state)
@@ -181,6 +238,28 @@ void CommandProcessor::CallInThread(std::function<void()> fn) {
 }
 
 void CommandProcessor::ClearCaches() {}
+
+void CommandProcessor::InvalidateGpuMemory() {}
+
+ReadbackResolveMode CommandProcessor::GetReadbackResolveMode(
+    bool legacy_readback_resolve_enabled) const {
+  ReadbackResolveMode shared_mode = ParseReadbackResolveMode(REXCVAR_GET(readback_resolve));
+  bool shared_mode_overrides_legacy = shared_mode != ReadbackResolveMode::kDisabled ||
+                                      rex::cvar::HasNonDefaultValue("readback_resolve");
+  if (shared_mode_overrides_legacy) {
+    return shared_mode;
+  }
+  return legacy_readback_resolve_enabled ? ReadbackResolveMode::kFast
+                                         : ReadbackResolveMode::kDisabled;
+}
+
+bool CommandProcessor::IsReadbackMemexportEnabled(bool legacy_backend_flag) const {
+  if (legacy_readback_memexport_cvar_name_ &&
+      rex::cvar::HasNonDefaultValue(legacy_readback_memexport_cvar_name_)) {
+    return legacy_backend_flag;
+  }
+  return REXCVAR_GET(readback_memexport);
+}
 
 void CommandProcessor::SetDesiredSwapPostEffect(SwapPostEffect swap_post_effect) {
   if (swap_post_effect_desired_ == swap_post_effect) {
@@ -468,6 +547,83 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
       } break;
     }
   }
+}
+
+void CommandProcessor::WriteRegistersFromMem(uint32_t start_index, uint32_t* base,
+                                             uint32_t num_registers) {
+  for (uint32_t i = 0; i < num_registers; ++i) {
+    uint32_t data = memory::load_and_swap<uint32_t>(base + i);
+    WriteRegister(start_index + i, data);
+  }
+}
+
+void CommandProcessor::WriteRegisterRangeFromRing(memory::RingBuffer* ring, uint32_t base,
+                                                  uint32_t num_registers) {
+  if (!num_registers) {
+    return;
+  }
+  memory::RingBuffer::ReadRange range = ring->BeginRead(size_t(num_registers) * sizeof(uint32_t));
+  if (range.first_length != 0) {
+    uint32_t first_count = uint32_t(range.first_length / sizeof(uint32_t));
+    WriteRegistersFromMem(base, reinterpret_cast<uint32_t*>(const_cast<uint8_t*>(range.first)),
+                          first_count);
+    base += first_count;
+  }
+  if (range.second_length != 0) {
+    WriteRegistersFromMem(base, reinterpret_cast<uint32_t*>(const_cast<uint8_t*>(range.second)),
+                          uint32_t(range.second_length / sizeof(uint32_t)));
+  }
+  ring->EndRead(range);
+}
+
+void CommandProcessor::WriteALURangeFromRing(memory::RingBuffer* ring, uint32_t base,
+                                             uint32_t num_registers) {
+  WriteRegisterRangeFromRing(ring, base + 0x4000, num_registers);
+}
+
+void CommandProcessor::WriteFetchRangeFromRing(memory::RingBuffer* ring, uint32_t base,
+                                               uint32_t num_registers) {
+  WriteRegisterRangeFromRing(ring, base + 0x4800, num_registers);
+}
+
+void CommandProcessor::WriteBoolRangeFromRing(memory::RingBuffer* ring, uint32_t base,
+                                              uint32_t num_registers) {
+  WriteRegisterRangeFromRing(ring, base + 0x4900, num_registers);
+}
+
+void CommandProcessor::WriteLoopRangeFromRing(memory::RingBuffer* ring, uint32_t base,
+                                              uint32_t num_registers) {
+  WriteRegisterRangeFromRing(ring, base + 0x4908, num_registers);
+}
+
+void CommandProcessor::WriteREGISTERSRangeFromRing(memory::RingBuffer* ring, uint32_t base,
+                                                   uint32_t num_registers) {
+  WriteRegisterRangeFromRing(ring, base + 0x2000, num_registers);
+}
+
+void CommandProcessor::WriteALURangeFromMem(uint32_t start_index, uint32_t* base,
+                                            uint32_t num_registers) {
+  WriteRegistersFromMem(start_index + 0x4000, base, num_registers);
+}
+
+void CommandProcessor::WriteFetchRangeFromMem(uint32_t start_index, uint32_t* base,
+                                              uint32_t num_registers) {
+  WriteRegistersFromMem(start_index + 0x4800, base, num_registers);
+}
+
+void CommandProcessor::WriteBoolRangeFromMem(uint32_t start_index, uint32_t* base,
+                                             uint32_t num_registers) {
+  WriteRegistersFromMem(start_index + 0x4900, base, num_registers);
+}
+
+void CommandProcessor::WriteLoopRangeFromMem(uint32_t start_index, uint32_t* base,
+                                             uint32_t num_registers) {
+  WriteRegistersFromMem(start_index + 0x4908, base, num_registers);
+}
+
+void CommandProcessor::WriteREGISTERSRangeFromMem(uint32_t start_index, uint32_t* base,
+                                                  uint32_t num_registers) {
+  WriteRegistersFromMem(start_index + 0x2000, base, num_registers);
 }
 
 void CommandProcessor::MakeCoherent() {
@@ -1227,6 +1383,9 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffer* re
   if (fake_sample_count >= 0) {
     auto* pSampleCounts = memory_->TranslatePhysical<xe_gpu_depth_sample_counts*>(
         register_file_->values[XE_GPU_REG_RB_SAMPLE_COUNT_ADDR]);
+    if (!pSampleCounts) {
+      return true;
+    }
     // 0xFFFFFEED is written to this two locations by D3D only on D3DISSUE_END
     // and used to detect a finished query.
     bool is_end_via_z_pass =
@@ -1391,30 +1550,27 @@ bool CommandProcessor::ExecutePacketType3_SET_CONSTANT(memory::RingBuffer* reade
   uint32_t offset_type = reader->ReadAndSwap<uint32_t>();
   uint32_t index = offset_type & 0x7FF;
   uint32_t type = (offset_type >> 16) & 0xFF;
+  uint32_t count_registers = count - 1;
   switch (type) {
     case 0:  // ALU
-      index += 0x4000;
+      WriteALURangeFromRing(reader, index, count_registers);
       break;
     case 1:  // FETCH
-      index += 0x4800;
+      WriteFetchRangeFromRing(reader, index, count_registers);
       break;
     case 2:  // BOOL
-      index += 0x4900;
+      WriteBoolRangeFromRing(reader, index, count_registers);
       break;
     case 3:  // LOOP
-      index += 0x4908;
+      WriteLoopRangeFromRing(reader, index, count_registers);
       break;
     case 4:  // REGISTERS
-      index += 0x2000;
+      WriteREGISTERSRangeFromRing(reader, index, count_registers);
       break;
     default:
       assert_always();
       reader->AdvanceRead((count - 1) * sizeof(uint32_t));
       return true;
-  }
-  for (uint32_t n = 0; n < count - 1; n++, index++) {
-    uint32_t data = reader->ReadAndSwap<uint32_t>();
-    WriteRegister(index, data);
   }
   return true;
 }
@@ -1423,10 +1579,7 @@ bool CommandProcessor::ExecutePacketType3_SET_CONSTANT2(memory::RingBuffer* read
                                                         uint32_t count) {
   uint32_t offset_type = reader->ReadAndSwap<uint32_t>();
   uint32_t index = offset_type & 0xFFFF;
-  for (uint32_t n = 0; n < count - 1; n++, index++) {
-    uint32_t data = reader->ReadAndSwap<uint32_t>();
-    WriteRegister(index, data);
-  }
+  WriteRegisterRangeFromRing(reader, index, count - 1);
   return true;
 }
 
@@ -1440,30 +1593,31 @@ bool CommandProcessor::ExecutePacketType3_LOAD_ALU_CONSTANT(memory::RingBuffer* 
   uint32_t size_dwords = reader->ReadAndSwap<uint32_t>();
   size_dwords &= 0xFFF;
   uint32_t type = (offset_type >> 16) & 0xFF;
+  uint32_t* xlat_address = memory_->TranslatePhysical<uint32_t*>(address);
   switch (type) {
     case 0:  // ALU
-      index += 0x4000;
+      trace_writer_.WriteMemoryRead(CpuToGpu(address), size_dwords * 4);
+      WriteALURangeFromMem(index, xlat_address, size_dwords);
       break;
     case 1:  // FETCH
-      index += 0x4800;
+      trace_writer_.WriteMemoryRead(CpuToGpu(address), size_dwords * 4);
+      WriteFetchRangeFromMem(index, xlat_address, size_dwords);
       break;
     case 2:  // BOOL
-      index += 0x4900;
+      trace_writer_.WriteMemoryRead(CpuToGpu(address), size_dwords * 4);
+      WriteBoolRangeFromMem(index, xlat_address, size_dwords);
       break;
     case 3:  // LOOP
-      index += 0x4908;
+      trace_writer_.WriteMemoryRead(CpuToGpu(address), size_dwords * 4);
+      WriteLoopRangeFromMem(index, xlat_address, size_dwords);
       break;
     case 4:  // REGISTERS
-      index += 0x2000;
+      trace_writer_.WriteMemoryRead(CpuToGpu(address), size_dwords * 4);
+      WriteREGISTERSRangeFromMem(index, xlat_address, size_dwords);
       break;
     default:
       assert_always();
       return true;
-  }
-  trace_writer_.WriteMemoryRead(CpuToGpu(address), size_dwords * 4);
-  for (uint32_t n = 0; n < size_dwords; n++, index++) {
-    uint32_t data = memory::load_and_swap<uint32_t>(memory_->TranslatePhysical(address + n * 4));
-    WriteRegister(index, data);
   }
   return true;
 }
@@ -1472,10 +1626,7 @@ bool CommandProcessor::ExecutePacketType3_SET_SHADER_CONSTANTS(memory::RingBuffe
                                                                uint32_t packet, uint32_t count) {
   uint32_t offset_type = reader->ReadAndSwap<uint32_t>();
   uint32_t index = offset_type & 0xFFFF;
-  for (uint32_t n = 0; n < count - 1; n++, index++) {
-    uint32_t data = reader->ReadAndSwap<uint32_t>();
-    WriteRegister(index, data);
-  }
+  WriteRegisterRangeFromRing(reader, index, count - 1);
   return true;
 }
 

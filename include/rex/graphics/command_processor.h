@@ -39,6 +39,13 @@ namespace rex::graphics {
 class GraphicsSystem;
 class Shader;
 
+enum class ReadbackResolveMode {
+  kDisabled,
+  kFast,
+  kSome,
+  kFull,
+};
+
 struct SwapState {
   // Lock must be held when changing data in this structure.
   std::mutex mutex;
@@ -89,6 +96,7 @@ class CommandProcessor {
   void CallInThread(std::function<void()> fn);
 
   virtual void ClearCaches();
+  virtual void InvalidateGpuMemory();
 
   // "Desired" is for the external thread managing the post-processing effect.
   SwapPostEffect GetDesiredSwapPostEffect() const { return swap_post_effect_desired_; }
@@ -148,6 +156,19 @@ class CommandProcessor {
   virtual void ShutdownContext() = 0;
 
   virtual void WriteRegister(uint32_t index, uint32_t value);
+  virtual void WriteRegistersFromMem(uint32_t start_index, uint32_t* base, uint32_t num_registers);
+  virtual void WriteRegisterRangeFromRing(memory::RingBuffer* ring, uint32_t base,
+                                          uint32_t num_registers);
+  void WriteALURangeFromRing(memory::RingBuffer* ring, uint32_t base, uint32_t num_registers);
+  void WriteFetchRangeFromRing(memory::RingBuffer* ring, uint32_t base, uint32_t num_registers);
+  void WriteBoolRangeFromRing(memory::RingBuffer* ring, uint32_t base, uint32_t num_registers);
+  void WriteLoopRangeFromRing(memory::RingBuffer* ring, uint32_t base, uint32_t num_registers);
+  void WriteREGISTERSRangeFromRing(memory::RingBuffer* ring, uint32_t base, uint32_t num_registers);
+  void WriteALURangeFromMem(uint32_t start_index, uint32_t* base, uint32_t num_registers);
+  void WriteFetchRangeFromMem(uint32_t start_index, uint32_t* base, uint32_t num_registers);
+  void WriteBoolRangeFromMem(uint32_t start_index, uint32_t* base, uint32_t num_registers);
+  void WriteLoopRangeFromMem(uint32_t start_index, uint32_t* base, uint32_t num_registers);
+  void WriteREGISTERSRangeFromMem(uint32_t start_index, uint32_t* base, uint32_t num_registers);
 
   const reg::DC_LUT_30_COLOR* gamma_ramp_256_entry_table() const {
     return gamma_ramp_256_entry_table_;
@@ -184,8 +205,8 @@ class CommandProcessor {
                                           uint32_t count);
   bool ExecutePacketType3_EVENT_WRITE_EXT(memory::RingBuffer* reader, uint32_t packet,
                                           uint32_t count);
-  bool ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffer* reader, uint32_t packet,
-                                          uint32_t count);
+  virtual bool ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffer* reader, uint32_t packet,
+                                                  uint32_t count);
   bool ExecutePacketType3Draw(memory::RingBuffer* reader, uint32_t packet, const char* opcode_name,
                               uint32_t viz_query_condition, uint32_t count_remaining);
   bool ExecutePacketType3_DRAW_INDX(memory::RingBuffer* reader, uint32_t packet, uint32_t count);
@@ -217,6 +238,11 @@ class CommandProcessor {
   SwapPostEffect GetActualSwapPostEffect() const { return swap_post_effect_actual_; }
 
   virtual void InitializeTrace();
+
+  // Shared readback resolve mode with backend legacy-flag alias support.
+  ReadbackResolveMode GetReadbackResolveMode(bool legacy_readback_resolve_enabled) const;
+  // Shared memexport readback enable state with backend legacy-flag override support.
+  bool IsReadbackMemexportEnabled(bool legacy_backend_flag) const;
 
   memory::Memory* memory_ = nullptr;
   system::KernelState* kernel_state_ = nullptr;
@@ -265,6 +291,10 @@ class CommandProcessor {
   // "Desired" is for the external thread managing the post-processing effect.
   SwapPostEffect swap_post_effect_desired_ = SwapPostEffect::kNone;
   SwapPostEffect swap_post_effect_actual_ = SwapPostEffect::kNone;
+
+  // Set by backend command processors to their legacy memexport readback cvar
+  // name (for explicit-override compatibility).
+  const char* legacy_readback_memexport_cvar_name_ = nullptr;
 
  private:
   reg::DC_LUT_30_COLOR gamma_ramp_256_entry_table_[256] = {};
