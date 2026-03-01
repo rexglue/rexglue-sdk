@@ -18,6 +18,7 @@
 
 #include <rex/logging.h>
 #include <rex/memory/utils.h>
+#include <rex/ppc/function.h>
 #include <rex/system/flags.h>
 #include <rex/system/format.h>
 
@@ -348,3 +349,11 @@ extern "C" PPC_FUNC(__imp___vscwprintf) {
   assert_true(count < 0 || data.count() == count);
   ctx.r3.u64 = count;
 }
+
+//=============================================================================
+// Export stubs
+//=============================================================================
+
+XBOXKRNL_EXPORT_STUB(__imp___scprintf);
+XBOXKRNL_EXPORT_STUB(__imp___scwprintf);
+XBOXKRNL_EXPORT_STUB(__imp___vscprintf);

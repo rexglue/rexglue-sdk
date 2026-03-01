@@ -656,35 +656,166 @@ ppc_u32_result_t XeKeysConsoleSignatureVerification_entry(ppc_pvoid_t hash, ppc_
   return 0;  // Success (signature valid)
 }
 
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysGetConsoleCertificate);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptBnDwLeDhEqualBase);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptBnDwLeDhInvalBase);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptBnDwLeDhModExp);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptBnDw_Copy);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptBnDw_SwapLeBe);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptBnDw_Zero);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptBnDwLePkcs1Format);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptBnQwBeSigCreate);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptBnQwBeSigFormat);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptBnQwBeSigVerify);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptBnQwNeModExp);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptBnQwNeModExpRoot);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptBnQwNeModInv);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptBnQwNeModMul);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptBnQwNeRsaKeyGen);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptBnQwNeRsaPrvCrypt);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptBnQw_Copy);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptBnQw_SwapDwQw);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptBnQw_SwapLeBe);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptBnQw_Zero);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptChainAndSumMac);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptDesKey);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptDesEcb);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptDesCbc);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptHmacMd5Init);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptHmacMd5Update);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptHmacMd5Final);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptHmacMd5);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptHmacShaInit);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptHmacShaUpdate);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptHmacShaFinal);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptHmacShaVerify);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptMd5Init);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptMd5Update);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptMd5Final);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptMd5);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptParveEcb);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptParveCbcMac);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptRotSumSha);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptSha256);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptSha384Init);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptSha384Update);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptSha384Final);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptSha384);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptSha512Init);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptSha512Update);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptSha512Final);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptSha512);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptBnQwNeCompare);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysGetFactoryChallenge);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysSetFactoryResponse);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysInitializeFuses);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysSaveBootLoader);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysSaveKeyVault);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysGetStatus);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysGeneratePrivateKey);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysGetKeyProperties);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysSetKey);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysGenerateRandomKey);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysGetKey);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysGetDigest);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysGetConsoleID);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysGetConsoleType);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysQwNeRsaPrvCrypt);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysAesCbc);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysDes2Cbc);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysDesCbc);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysSaveBootLoaderEx);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysDes2CbcUsingKey);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysDesCbcUsingKey);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysObfuscate);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysUnObfuscate);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysVerifyRSASignature);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysSaveSystemUpdate);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysLockSystemUpdate);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysExecute);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysGetVersions);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysSetRevocationList);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysExSaveKeyVault);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysExSetKey);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysExGetKey);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysSecurityInitialize);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysSecurityLoadSettings);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysSecuritySaveSettings);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysSecuritySetDetected);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysSecurityGetDetected);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysSecuritySetActivated);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysSecurityGetActivated);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysDvdAuthAP25InstallTable);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysDvdAuthAP25GetTableVersion);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysGetProtectedFlag);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysSetProtectedFlag);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysGetUpdateSequence);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysDvdAuthExActivate);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysRevokeSaveSettings);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysGetMediaID);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysLoadKeyVault);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysRevokeUpdateDynamic);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysSecuritySetStat);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysFcrtLoad);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysFcrtSave);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysFcrtSet);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysRevokeIsDeviceRevoked);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysDvdAuthExSave);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysDvdAuthExInstall);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysObfuscateEx);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysUnObfuscateEx);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysVerifyPIRSSignature);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptAesCtr);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptAesCbcMac);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptAesDmMac);
+XBOXKRNL_EXPORT_STUB(__imp__XeKeysGetTruncatedSecondaryConsoleId);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptSha224Init);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptAesCreateKeySchedule);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptAesEncryptOne);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptAesDecryptOne);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptAesCbcEncrypt);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptAesCbcDecrypt);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptAesGcmInitialize);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptAesGcmUpdate);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptAesGcmFinalize);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptEccGetCurveParameters);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptEccEcdhGenerateKeypair);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptEccEcdhExponentiate);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptEccEcdsaGenerateSignature);
+XBOXKRNL_EXPORT_STUB(__imp__XeCryptEccEcdsaVerifySignature);
+
 }  // namespace rex::kernel::xboxkrnl
 
-PPC_HOOK(__imp__XeCryptRc4Key, rex::kernel::xboxkrnl::XeCryptRc4Key_entry)
-PPC_HOOK(__imp__XeCryptRc4Ecb, rex::kernel::xboxkrnl::XeCryptRc4Ecb_entry)
-PPC_HOOK(__imp__XeCryptRc4, rex::kernel::xboxkrnl::XeCryptRc4_entry)
-PPC_HOOK(__imp__XeCryptShaInit, rex::kernel::xboxkrnl::XeCryptShaInit_entry)
-PPC_HOOK(__imp__XeCryptShaUpdate, rex::kernel::xboxkrnl::XeCryptShaUpdate_entry)
-PPC_HOOK(__imp__XeCryptShaFinal, rex::kernel::xboxkrnl::XeCryptShaFinal_entry)
-PPC_HOOK(__imp__XeCryptSha, rex::kernel::xboxkrnl::XeCryptSha_entry)
-PPC_HOOK(__imp__XeCryptSha256Init, rex::kernel::xboxkrnl::XeCryptSha256Init_entry)
-PPC_HOOK(__imp__XeCryptSha256Update, rex::kernel::xboxkrnl::XeCryptSha256Update_entry)
-PPC_HOOK(__imp__XeCryptSha256Final, rex::kernel::xboxkrnl::XeCryptSha256Final_entry)
-PPC_HOOK(__imp__XeCryptBnQw_SwapDwQwLeBe, rex::kernel::xboxkrnl::XeCryptBnQw_SwapDwQwLeBe_entry)
-PPC_HOOK(__imp__XeCryptBnQwNeRsaPubCrypt, rex::kernel::xboxkrnl::XeCryptBnQwNeRsaPubCrypt_entry)
-PPC_HOOK(__imp__XeCryptBnDwLePkcs1Verify, rex::kernel::xboxkrnl::XeCryptBnDwLePkcs1Verify_entry)
-PPC_HOOK(__imp__XeCryptRandom, rex::kernel::xboxkrnl::XeCryptRandom_entry)
-PPC_HOOK(__imp__XeCryptDesParity, rex::kernel::xboxkrnl::XeCryptDesParity_entry)
-PPC_HOOK(__imp__XeCryptDes3Key, rex::kernel::xboxkrnl::XeCryptDes3Key_entry)
-PPC_HOOK(__imp__XeCryptDes3Ecb, rex::kernel::xboxkrnl::XeCryptDes3Ecb_entry)
-PPC_HOOK(__imp__XeCryptDes3Cbc, rex::kernel::xboxkrnl::XeCryptDes3Cbc_entry)
-PPC_HOOK(__imp__XeCryptAesKey, rex::kernel::xboxkrnl::XeCryptAesKey_entry)
-PPC_HOOK(__imp__XeCryptAesEcb, rex::kernel::xboxkrnl::XeCryptAesEcb_entry)
-PPC_HOOK(__imp__XeCryptAesCbc, rex::kernel::xboxkrnl::XeCryptAesCbc_entry)
-PPC_HOOK(__imp__XeCryptHmacSha, rex::kernel::xboxkrnl::XeCryptHmacSha_entry)
-PPC_HOOK(__imp__XeKeysHmacSha, rex::kernel::xboxkrnl::XeKeysHmacSha_entry)
-PPC_HOOK(__imp__XeKeysAesCbcUsingKey, rex::kernel::xboxkrnl::XeKeysAesCbcUsingKey_entry)
-PPC_HOOK(__imp__XeKeysObscureKey, rex::kernel::xboxkrnl::XeKeysObscureKey_entry)
-PPC_HOOK(__imp__XeKeysHmacShaUsingKey, rex::kernel::xboxkrnl::XeKeysHmacShaUsingKey_entry)
-PPC_HOOK(__imp__XeKeysConsolePrivateKeySign,
-         rex::kernel::xboxkrnl::XeKeysConsolePrivateKeySign_entry)
-PPC_HOOK(__imp__XeKeysConsoleSignatureVerification,
-         rex::kernel::xboxkrnl::XeKeysConsoleSignatureVerification_entry)
+XBOXKRNL_EXPORT(__imp__XeCryptRc4Key, rex::kernel::xboxkrnl::XeCryptRc4Key_entry)
+XBOXKRNL_EXPORT(__imp__XeCryptRc4Ecb, rex::kernel::xboxkrnl::XeCryptRc4Ecb_entry)
+XBOXKRNL_EXPORT(__imp__XeCryptRc4, rex::kernel::xboxkrnl::XeCryptRc4_entry)
+XBOXKRNL_EXPORT(__imp__XeCryptShaInit, rex::kernel::xboxkrnl::XeCryptShaInit_entry)
+XBOXKRNL_EXPORT(__imp__XeCryptShaUpdate, rex::kernel::xboxkrnl::XeCryptShaUpdate_entry)
+XBOXKRNL_EXPORT(__imp__XeCryptShaFinal, rex::kernel::xboxkrnl::XeCryptShaFinal_entry)
+XBOXKRNL_EXPORT(__imp__XeCryptSha, rex::kernel::xboxkrnl::XeCryptSha_entry)
+XBOXKRNL_EXPORT(__imp__XeCryptSha256Init, rex::kernel::xboxkrnl::XeCryptSha256Init_entry)
+XBOXKRNL_EXPORT(__imp__XeCryptSha256Update, rex::kernel::xboxkrnl::XeCryptSha256Update_entry)
+XBOXKRNL_EXPORT(__imp__XeCryptSha256Final, rex::kernel::xboxkrnl::XeCryptSha256Final_entry)
+XBOXKRNL_EXPORT(__imp__XeCryptBnQw_SwapDwQwLeBe,
+                rex::kernel::xboxkrnl::XeCryptBnQw_SwapDwQwLeBe_entry)
+XBOXKRNL_EXPORT(__imp__XeCryptBnQwNeRsaPubCrypt,
+                rex::kernel::xboxkrnl::XeCryptBnQwNeRsaPubCrypt_entry)
+XBOXKRNL_EXPORT(__imp__XeCryptBnDwLePkcs1Verify,
+                rex::kernel::xboxkrnl::XeCryptBnDwLePkcs1Verify_entry)
+XBOXKRNL_EXPORT(__imp__XeCryptRandom, rex::kernel::xboxkrnl::XeCryptRandom_entry)
+XBOXKRNL_EXPORT(__imp__XeCryptDesParity, rex::kernel::xboxkrnl::XeCryptDesParity_entry)
+XBOXKRNL_EXPORT(__imp__XeCryptDes3Key, rex::kernel::xboxkrnl::XeCryptDes3Key_entry)
+XBOXKRNL_EXPORT(__imp__XeCryptDes3Ecb, rex::kernel::xboxkrnl::XeCryptDes3Ecb_entry)
+XBOXKRNL_EXPORT(__imp__XeCryptDes3Cbc, rex::kernel::xboxkrnl::XeCryptDes3Cbc_entry)
+XBOXKRNL_EXPORT(__imp__XeCryptAesKey, rex::kernel::xboxkrnl::XeCryptAesKey_entry)
+XBOXKRNL_EXPORT(__imp__XeCryptAesEcb, rex::kernel::xboxkrnl::XeCryptAesEcb_entry)
+XBOXKRNL_EXPORT(__imp__XeCryptAesCbc, rex::kernel::xboxkrnl::XeCryptAesCbc_entry)
+XBOXKRNL_EXPORT(__imp__XeCryptHmacSha, rex::kernel::xboxkrnl::XeCryptHmacSha_entry)
+XBOXKRNL_EXPORT(__imp__XeKeysHmacSha, rex::kernel::xboxkrnl::XeKeysHmacSha_entry)
+XBOXKRNL_EXPORT(__imp__XeKeysAesCbcUsingKey, rex::kernel::xboxkrnl::XeKeysAesCbcUsingKey_entry)
+XBOXKRNL_EXPORT(__imp__XeKeysObscureKey, rex::kernel::xboxkrnl::XeKeysObscureKey_entry)
+XBOXKRNL_EXPORT(__imp__XeKeysHmacShaUsingKey, rex::kernel::xboxkrnl::XeKeysHmacShaUsingKey_entry)
+XBOXKRNL_EXPORT(__imp__XeKeysConsolePrivateKeySign,
+                rex::kernel::xboxkrnl::XeKeysConsolePrivateKeySign_entry)
+XBOXKRNL_EXPORT(__imp__XeKeysConsoleSignatureVerification,
+                rex::kernel::xboxkrnl::XeKeysConsoleSignatureVerification_entry)

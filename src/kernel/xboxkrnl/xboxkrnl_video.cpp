@@ -15,7 +15,6 @@
 #include <rex/graphics/graphics_system.h>
 #include <rex/graphics/pipeline/texture/info.h>
 #include <rex/graphics/xenos.h>
-#include <rex/kernel/xboxkrnl/ordinals.h>
 #include <rex/kernel/xboxkrnl/private.h>
 #include <rex/kernel/xboxkrnl/rtl.h>
 #include <rex/kernel/xboxkrnl/video.h>
@@ -36,6 +35,52 @@ constexpr double kDisplayGammaPower = 2.22222233;
 
 namespace rex::kernel::xboxkrnl {
 using namespace rex::system;
+
+XBOXKRNL_EXPORT_STUB(__imp__VdBlockUntilGUIIdle);
+XBOXKRNL_EXPORT_STUB(__imp__VdDisplayFatalError);
+XBOXKRNL_EXPORT_STUB(__imp__VdEnableClosedCaption);
+XBOXKRNL_EXPORT_STUB(__imp__VdEnableDisablePowerSavingMode);
+XBOXKRNL_EXPORT_STUB(__imp__VdGenerateGPUCSCCoefficients);
+XBOXKRNL_EXPORT_STUB(__imp__VdGetClosedCaptionReadyStatus);
+XBOXKRNL_EXPORT_STUB(__imp__VdGetDisplayModeOverride);
+XBOXKRNL_EXPORT_STUB(__imp__VdInitializeScaler);
+XBOXKRNL_EXPORT_STUB(__imp__VdQuerySystemCommandBuffer);
+XBOXKRNL_EXPORT_STUB(__imp__VdReadDVERegisterUlong);
+XBOXKRNL_EXPORT_STUB(__imp__VdReadWriteHSIOCalibrationFlag);
+XBOXKRNL_EXPORT_STUB(__imp__VdRegisterGraphicsNotification);
+XBOXKRNL_EXPORT_STUB(__imp__VdRegisterXamGraphicsNotification);
+XBOXKRNL_EXPORT_STUB(__imp__VdSendClosedCaptionData);
+XBOXKRNL_EXPORT_STUB(__imp__VdSetCGMSOption);
+XBOXKRNL_EXPORT_STUB(__imp__VdSetColorProfileAdjustment);
+XBOXKRNL_EXPORT_STUB(__imp__VdSetCscMatricesOverride);
+XBOXKRNL_EXPORT_STUB(__imp__VdSetHDCPOption);
+XBOXKRNL_EXPORT_STUB(__imp__VdSetMacrovisionOption);
+XBOXKRNL_EXPORT_STUB(__imp__VdSetSystemCommandBuffer);
+XBOXKRNL_EXPORT_STUB(__imp__VdSetWSSData);
+XBOXKRNL_EXPORT_STUB(__imp__VdSetWSSOption);
+XBOXKRNL_EXPORT_STUB(__imp__VdTurnDisplayOff);
+XBOXKRNL_EXPORT_STUB(__imp__VdTurnDisplayOn);
+XBOXKRNL_EXPORT_STUB(__imp__VdWriteDVERegisterUlong);
+XBOXKRNL_EXPORT_STUB(__imp__VdInitializeEDRAM);
+XBOXKRNL_EXPORT_STUB(__imp__VdReadEEDIDBlock);
+XBOXKRNL_EXPORT_STUB(__imp__VdEnumerateVideoModes);
+XBOXKRNL_EXPORT_STUB(__imp__VdEnableHDCP);
+XBOXKRNL_EXPORT_STUB(__imp__VdRegisterHDCPNotification);
+XBOXKRNL_EXPORT_STUB(__imp__VdGetDisplayDiscoveryData);
+XBOXKRNL_EXPORT_STUB(__imp__VdStartDisplayDiscovery);
+XBOXKRNL_EXPORT_STUB(__imp__VdSetHDCPRevocationList);
+XBOXKRNL_EXPORT_STUB(__imp__VdEnableWMAProOverHDMI);
+XBOXKRNL_EXPORT_STUB(__imp__VdQueryRealVideoMode);
+XBOXKRNL_EXPORT_STUB(__imp__VdSetCGMSState);
+XBOXKRNL_EXPORT_STUB(__imp__VdSetSCMSState);
+XBOXKRNL_EXPORT_STUB(__imp__VdGetOption);
+XBOXKRNL_EXPORT_STUB(__imp__VdSetOption);
+XBOXKRNL_EXPORT_STUB(__imp__VdQueryVideoCapabilities);
+XBOXKRNL_EXPORT_STUB(__imp__VdGet3dVideoFormat);
+XBOXKRNL_EXPORT_STUB(__imp__VdGetWSS2Data);
+XBOXKRNL_EXPORT_STUB(__imp__VdSet3dVideoFormat);
+XBOXKRNL_EXPORT_STUB(__imp__VdSetWSS2Data);
+XBOXKRNL_EXPORT_STUB(__imp__VdSetStudioRGBMode);
 
 // https://web.archive.org/web/20150805074003/https://www.tweakoz.com/orkid/
 // http://www.tweakoz.com/orkid/dox/d3/d52/xb360init_8cpp_source.html
@@ -417,58 +462,61 @@ void RegisterVideoExports(rex::runtime::ExportResolver* export_resolver,
   // Pointer to a global D3D device. Games only seem to set this, so we don't
   // have to do anything. We may want to read it back later, though.
   uint32_t pVdGlobalDevice = memory->SystemHeapAlloc(4, 32, memory::kSystemHeapPhysical);
-  export_resolver->SetVariableMapping("xboxkrnl.exe", ordinals::VdGlobalDevice, pVdGlobalDevice);
+  export_resolver->SetVariableMapping("xboxkrnl.exe", 0x01BE, pVdGlobalDevice);
   memory::store_and_swap<uint32_t>(memory->TranslateVirtual(pVdGlobalDevice), 0);
 
   // VdGlobalXamDevice (4b)
   // Pointer to the XAM D3D device, which we don't have.
   uint32_t pVdGlobalXamDevice = memory->SystemHeapAlloc(4, 32, memory::kSystemHeapPhysical);
-  export_resolver->SetVariableMapping("xboxkrnl.exe", ordinals::VdGlobalXamDevice,
-                                      pVdGlobalXamDevice);
+  export_resolver->SetVariableMapping("xboxkrnl.exe", 0x01BF, pVdGlobalXamDevice);
   memory::store_and_swap<uint32_t>(memory->TranslateVirtual(pVdGlobalXamDevice), 0);
 
   // VdGpuClockInMHz (4b)
   // GPU clock. Xenos is 500MHz. Hope nothing is relying on this timing...
   uint32_t pVdGpuClockInMHz = memory->SystemHeapAlloc(4, 32, memory::kSystemHeapPhysical);
-  export_resolver->SetVariableMapping("xboxkrnl.exe", ordinals::VdGpuClockInMHz, pVdGpuClockInMHz);
+  export_resolver->SetVariableMapping("xboxkrnl.exe", 0x01C0, pVdGpuClockInMHz);
   memory::store_and_swap<uint32_t>(memory->TranslateVirtual(pVdGpuClockInMHz), 500);
 
   // VdHSIOCalibrationLock (28b)
   // CriticalSection.
   uint32_t pVdHSIOCalibrationLock = memory->SystemHeapAlloc(28, 32, memory::kSystemHeapPhysical);
-  export_resolver->SetVariableMapping("xboxkrnl.exe", ordinals::VdHSIOCalibrationLock,
-                                      pVdHSIOCalibrationLock);
+  export_resolver->SetVariableMapping("xboxkrnl.exe", 0x01C1, pVdHSIOCalibrationLock);
   auto hsio_lock = memory->TranslateVirtual<X_RTL_CRITICAL_SECTION*>(pVdHSIOCalibrationLock);
   xeRtlInitializeCriticalSectionAndSpinCount(hsio_lock, pVdHSIOCalibrationLock, 10000);
 }
 
 }  // namespace rex::kernel::xboxkrnl
 
-PPC_HOOK(__imp__VdGetCurrentDisplayGamma, rex::kernel::xboxkrnl::VdGetCurrentDisplayGamma_entry)
-PPC_HOOK(__imp__VdGetCurrentDisplayInformation,
-         rex::kernel::xboxkrnl::VdGetCurrentDisplayInformation_entry)
-PPC_HOOK(__imp__VdQueryVideoMode, rex::kernel::xboxkrnl::VdQueryVideoMode_entry)
-PPC_HOOK(__imp__VdQueryVideoFlags, rex::kernel::xboxkrnl::VdQueryVideoFlags_entry)
-PPC_HOOK(__imp__VdSetDisplayMode, rex::kernel::xboxkrnl::VdSetDisplayMode_entry)
-PPC_HOOK(__imp__VdSetDisplayModeOverride, rex::kernel::xboxkrnl::VdSetDisplayModeOverride_entry)
-PPC_HOOK(__imp__VdInitializeEngines, rex::kernel::xboxkrnl::VdInitializeEngines_entry)
-PPC_HOOK(__imp__VdShutdownEngines, rex::kernel::xboxkrnl::VdShutdownEngines_entry)
-PPC_HOOK(__imp__VdGetGraphicsAsicID, rex::kernel::xboxkrnl::VdGetGraphicsAsicID_entry)
-PPC_HOOK(__imp__VdEnableDisableClockGating, rex::kernel::xboxkrnl::VdEnableDisableClockGating_entry)
-PPC_HOOK(__imp__VdSetGraphicsInterruptCallback,
-         rex::kernel::xboxkrnl::VdSetGraphicsInterruptCallback_entry)
-PPC_HOOK(__imp__VdInitializeRingBuffer, rex::kernel::xboxkrnl::VdInitializeRingBuffer_entry)
-PPC_HOOK(__imp__VdEnableRingBufferRPtrWriteBack,
-         rex::kernel::xboxkrnl::VdEnableRingBufferRPtrWriteBack_entry)
-PPC_HOOK(__imp__VdGetSystemCommandBuffer, rex::kernel::xboxkrnl::VdGetSystemCommandBuffer_entry)
-PPC_HOOK(__imp__VdSetSystemCommandBufferGpuIdentifierAddress,
-         rex::kernel::xboxkrnl::VdSetSystemCommandBufferGpuIdentifierAddress_entry)
-PPC_HOOK(__imp__VdInitializeScalerCommandBuffer,
-         rex::kernel::xboxkrnl::VdInitializeScalerCommandBuffer_entry)
-PPC_HOOK(__imp__VdCallGraphicsNotificationRoutines,
-         rex::kernel::xboxkrnl::VdCallGraphicsNotificationRoutines_entry)
-PPC_HOOK(__imp__VdIsHSIOTrainingSucceeded, rex::kernel::xboxkrnl::VdIsHSIOTrainingSucceeded_entry)
-PPC_HOOK(__imp__VdPersistDisplay, rex::kernel::xboxkrnl::VdPersistDisplay_entry)
-PPC_HOOK(__imp__VdRetrainEDRAMWorker, rex::kernel::xboxkrnl::VdRetrainEDRAMWorker_entry)
-PPC_HOOK(__imp__VdRetrainEDRAM, rex::kernel::xboxkrnl::VdRetrainEDRAM_entry)
-PPC_HOOK(__imp__VdSwap, rex::kernel::xboxkrnl::VdSwap_entry)
+XBOXKRNL_EXPORT(__imp__VdGetCurrentDisplayGamma,
+                rex::kernel::xboxkrnl::VdGetCurrentDisplayGamma_entry)
+XBOXKRNL_EXPORT(__imp__VdGetCurrentDisplayInformation,
+                rex::kernel::xboxkrnl::VdGetCurrentDisplayInformation_entry)
+XBOXKRNL_EXPORT(__imp__VdQueryVideoMode, rex::kernel::xboxkrnl::VdQueryVideoMode_entry)
+XBOXKRNL_EXPORT(__imp__VdQueryVideoFlags, rex::kernel::xboxkrnl::VdQueryVideoFlags_entry)
+XBOXKRNL_EXPORT(__imp__VdSetDisplayMode, rex::kernel::xboxkrnl::VdSetDisplayMode_entry)
+XBOXKRNL_EXPORT(__imp__VdSetDisplayModeOverride,
+                rex::kernel::xboxkrnl::VdSetDisplayModeOverride_entry)
+XBOXKRNL_EXPORT(__imp__VdInitializeEngines, rex::kernel::xboxkrnl::VdInitializeEngines_entry)
+XBOXKRNL_EXPORT(__imp__VdShutdownEngines, rex::kernel::xboxkrnl::VdShutdownEngines_entry)
+XBOXKRNL_EXPORT(__imp__VdGetGraphicsAsicID, rex::kernel::xboxkrnl::VdGetGraphicsAsicID_entry)
+XBOXKRNL_EXPORT(__imp__VdEnableDisableClockGating,
+                rex::kernel::xboxkrnl::VdEnableDisableClockGating_entry)
+XBOXKRNL_EXPORT(__imp__VdSetGraphicsInterruptCallback,
+                rex::kernel::xboxkrnl::VdSetGraphicsInterruptCallback_entry)
+XBOXKRNL_EXPORT(__imp__VdInitializeRingBuffer, rex::kernel::xboxkrnl::VdInitializeRingBuffer_entry)
+XBOXKRNL_EXPORT(__imp__VdEnableRingBufferRPtrWriteBack,
+                rex::kernel::xboxkrnl::VdEnableRingBufferRPtrWriteBack_entry)
+XBOXKRNL_EXPORT(__imp__VdGetSystemCommandBuffer,
+                rex::kernel::xboxkrnl::VdGetSystemCommandBuffer_entry)
+XBOXKRNL_EXPORT(__imp__VdSetSystemCommandBufferGpuIdentifierAddress,
+                rex::kernel::xboxkrnl::VdSetSystemCommandBufferGpuIdentifierAddress_entry)
+XBOXKRNL_EXPORT(__imp__VdInitializeScalerCommandBuffer,
+                rex::kernel::xboxkrnl::VdInitializeScalerCommandBuffer_entry)
+XBOXKRNL_EXPORT(__imp__VdCallGraphicsNotificationRoutines,
+                rex::kernel::xboxkrnl::VdCallGraphicsNotificationRoutines_entry)
+XBOXKRNL_EXPORT(__imp__VdIsHSIOTrainingSucceeded,
+                rex::kernel::xboxkrnl::VdIsHSIOTrainingSucceeded_entry)
+XBOXKRNL_EXPORT(__imp__VdPersistDisplay, rex::kernel::xboxkrnl::VdPersistDisplay_entry)
+XBOXKRNL_EXPORT(__imp__VdRetrainEDRAMWorker, rex::kernel::xboxkrnl::VdRetrainEDRAMWorker_entry)
+XBOXKRNL_EXPORT(__imp__VdRetrainEDRAM, rex::kernel::xboxkrnl::VdRetrainEDRAM_entry)
+XBOXKRNL_EXPORT(__imp__VdSwap, rex::kernel::xboxkrnl::VdSwap_entry)

@@ -196,13 +196,49 @@ ppc_u32_result_t XexLoadImageHeaders_entry(ppc_pchar_t path, ppc_pvoid_t headers
 
 }  // namespace rex::kernel::xboxkrnl
 
-PPC_HOOK(__imp__XexCheckExecutablePrivilege,
-         rex::kernel::xboxkrnl::XexCheckExecutablePrivilege_entry)
-PPC_HOOK(__imp__XexGetModuleHandle, rex::kernel::xboxkrnl::XexGetModuleHandle_entry)
-PPC_HOOK(__imp__XexGetModuleSection, rex::kernel::xboxkrnl::XexGetModuleSection_entry)
-PPC_HOOK(__imp__XexLoadImage, rex::kernel::xboxkrnl::XexLoadImage_entry)
-PPC_HOOK(__imp__XexUnloadImage, rex::kernel::xboxkrnl::XexUnloadImage_entry)
-PPC_HOOK(__imp__XexGetProcedureAddress, rex::kernel::xboxkrnl::XexGetProcedureAddress_entry)
-PPC_HOOK(__imp__ExRegisterTitleTerminateNotification,
-         rex::kernel::xboxkrnl::ExRegisterTitleTerminateNotification_entry)
-PPC_HOOK(__imp__XexLoadImageHeaders, rex::kernel::xboxkrnl::XexLoadImageHeaders_entry)
+XBOXKRNL_EXPORT(__imp__XexCheckExecutablePrivilege,
+                rex::kernel::xboxkrnl::XexCheckExecutablePrivilege_entry)
+XBOXKRNL_EXPORT(__imp__XexGetModuleHandle, rex::kernel::xboxkrnl::XexGetModuleHandle_entry)
+XBOXKRNL_EXPORT(__imp__XexGetModuleSection, rex::kernel::xboxkrnl::XexGetModuleSection_entry)
+XBOXKRNL_EXPORT(__imp__XexLoadImage, rex::kernel::xboxkrnl::XexLoadImage_entry)
+XBOXKRNL_EXPORT(__imp__XexUnloadImage, rex::kernel::xboxkrnl::XexUnloadImage_entry)
+XBOXKRNL_EXPORT(__imp__XexGetProcedureAddress, rex::kernel::xboxkrnl::XexGetProcedureAddress_entry)
+XBOXKRNL_EXPORT(__imp__ExRegisterTitleTerminateNotification,
+                rex::kernel::xboxkrnl::ExRegisterTitleTerminateNotification_entry)
+XBOXKRNL_EXPORT(__imp__XexLoadImageHeaders, rex::kernel::xboxkrnl::XexLoadImageHeaders_entry)
+
+XBOXKRNL_EXPORT_STUB(__imp__XexLoadExecutable);
+XBOXKRNL_EXPORT_STUB(__imp__XexLoadImageFromMemory);
+XBOXKRNL_EXPORT_STUB(__imp__XexPcToFileHeader);
+XBOXKRNL_EXPORT_STUB(__imp__XexRegisterPatchDescriptor);
+XBOXKRNL_EXPORT_STUB(__imp__XexSendDeferredNotifications);
+XBOXKRNL_EXPORT_STUB(__imp__XexStartExecutable);
+XBOXKRNL_EXPORT_STUB(__imp__XexUnloadImageAndExitThread);
+XBOXKRNL_EXPORT_STUB(__imp__XexUnloadTitleModules);
+XBOXKRNL_EXPORT_STUB(__imp__XexVerifyImageHeaders);
+XBOXKRNL_EXPORT_STUB(__imp__XexGetModuleImportVersions);
+XBOXKRNL_EXPORT_STUB(__imp__XexActivationGetNonce);
+XBOXKRNL_EXPORT_STUB(__imp__XexActivationSetLicense);
+XBOXKRNL_EXPORT_STUB(__imp__XexActivationVerifyOwnership);
+XBOXKRNL_EXPORT_STUB(__imp__XexDisableVerboseDbgPrint);
+XBOXKRNL_EXPORT_STUB(__imp__XexImportTraceEnable);
+XBOXKRNL_EXPORT_STUB(__imp__XexSetExecutablePrivilege);
+XBOXKRNL_EXPORT_STUB(__imp__XexSetLastKdcTime);
+XBOXKRNL_EXPORT_STUB(__imp__XexTransformImageKey);
+XBOXKRNL_EXPORT_STUB(__imp__XexShimDisable);
+XBOXKRNL_EXPORT_STUB(__imp__XexShimEnable);
+XBOXKRNL_EXPORT_STUB(__imp__XexShimEntryDisable);
+XBOXKRNL_EXPORT_STUB(__imp__XexShimEntryEnable);
+XBOXKRNL_EXPORT_STUB(__imp__XexShimEntryRegister);
+XBOXKRNL_EXPORT_STUB(__imp__XexShimLock);
+XBOXKRNL_EXPORT_STUB(__imp__XexTitleHash);
+XBOXKRNL_EXPORT_STUB(__imp__XexTitleHashClose);
+XBOXKRNL_EXPORT_STUB(__imp__XexTitleHashContinue);
+XBOXKRNL_EXPORT_STUB(__imp__XexTitleHashOpen);
+XBOXKRNL_EXPORT_STUB(__imp__XexReserveCodeBuffer);
+XBOXKRNL_EXPORT_STUB(__imp__XexCommitCodeBuffer);
+XBOXKRNL_EXPORT_STUB(__imp__XexRegisterUsermodeModule);
+XBOXKRNL_EXPORT_STUB(__imp__LDICreateDecompression);
+XBOXKRNL_EXPORT_STUB(__imp__LDIDecompress);
+XBOXKRNL_EXPORT_STUB(__imp__LDIDestroyDecompression);
+XBOXKRNL_EXPORT_STUB(__imp__LDIResetDecompression);

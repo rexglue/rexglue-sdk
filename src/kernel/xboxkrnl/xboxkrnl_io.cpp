@@ -764,27 +764,64 @@ ppc_u32_result_t StfsControlDevice_entry(ppc_pvoid_t device_object, ppc_u32_t io
 
 }  // namespace rex::kernel::xboxkrnl
 
-PPC_HOOK(__imp__NtCreateFile, rex::kernel::xboxkrnl::NtCreateFile_entry)
-PPC_HOOK(__imp__NtOpenFile, rex::kernel::xboxkrnl::NtOpenFile_entry)
-PPC_HOOK(__imp__NtReadFile, rex::kernel::xboxkrnl::NtReadFile_entry)
-PPC_HOOK(__imp__NtReadFileScatter, rex::kernel::xboxkrnl::NtReadFileScatter_entry)
-PPC_HOOK(__imp__NtWriteFile, rex::kernel::xboxkrnl::NtWriteFile_entry)
-PPC_HOOK(__imp__NtCreateIoCompletion, rex::kernel::xboxkrnl::NtCreateIoCompletion_entry)
-PPC_HOOK(__imp__NtSetIoCompletion, rex::kernel::xboxkrnl::NtSetIoCompletion_entry)
-PPC_HOOK(__imp__NtRemoveIoCompletion, rex::kernel::xboxkrnl::NtRemoveIoCompletion_entry)
-PPC_HOOK(__imp__NtQueryFullAttributesFile, rex::kernel::xboxkrnl::NtQueryFullAttributesFile_entry)
-PPC_HOOK(__imp__NtQueryDirectoryFile, rex::kernel::xboxkrnl::NtQueryDirectoryFile_entry)
-PPC_HOOK(__imp__NtFlushBuffersFile, rex::kernel::xboxkrnl::NtFlushBuffersFile_entry)
-PPC_HOOK(__imp__NtOpenSymbolicLinkObject, rex::kernel::xboxkrnl::NtOpenSymbolicLinkObject_entry)
-PPC_HOOK(__imp__NtQuerySymbolicLinkObject, rex::kernel::xboxkrnl::NtQuerySymbolicLinkObject_entry)
-PPC_HOOK(__imp__FscGetCacheElementCount, rex::kernel::xboxkrnl::FscGetCacheElementCount_entry)
-PPC_HOOK(__imp__FscSetCacheElementCount, rex::kernel::xboxkrnl::FscSetCacheElementCount_entry)
-PPC_HOOK(__imp__NtDeviceIoControlFile, rex::kernel::xboxkrnl::NtDeviceIoControlFile_entry)
-PPC_HOOK(__imp__IoCreateDevice, rex::kernel::xboxkrnl::IoCreateDevice_entry)
-PPC_HOOK(__imp__IoDismountVolumeByFileHandle,
-         rex::kernel::xboxkrnl::IoDismountVolumeByFileHandle_entry)
-PPC_HOOK(__imp__IoDismountVolumeByName, rex::kernel::xboxkrnl::IoDismountVolumeByName_entry)
-PPC_HOOK(__imp__IoSynchronousDeviceIoControlRequest,
-         rex::kernel::xboxkrnl::IoSynchronousDeviceIoControlRequest_entry)
-PPC_HOOK(__imp__StfsCreateDevice, rex::kernel::xboxkrnl::StfsCreateDevice_entry)
-PPC_HOOK(__imp__StfsControlDevice, rex::kernel::xboxkrnl::StfsControlDevice_entry)
+XBOXKRNL_EXPORT(__imp__NtCreateFile, rex::kernel::xboxkrnl::NtCreateFile_entry)
+XBOXKRNL_EXPORT(__imp__NtOpenFile, rex::kernel::xboxkrnl::NtOpenFile_entry)
+XBOXKRNL_EXPORT(__imp__NtReadFile, rex::kernel::xboxkrnl::NtReadFile_entry)
+XBOXKRNL_EXPORT(__imp__NtReadFileScatter, rex::kernel::xboxkrnl::NtReadFileScatter_entry)
+XBOXKRNL_EXPORT(__imp__NtWriteFile, rex::kernel::xboxkrnl::NtWriteFile_entry)
+XBOXKRNL_EXPORT(__imp__NtCreateIoCompletion, rex::kernel::xboxkrnl::NtCreateIoCompletion_entry)
+XBOXKRNL_EXPORT(__imp__NtSetIoCompletion, rex::kernel::xboxkrnl::NtSetIoCompletion_entry)
+XBOXKRNL_EXPORT(__imp__NtRemoveIoCompletion, rex::kernel::xboxkrnl::NtRemoveIoCompletion_entry)
+XBOXKRNL_EXPORT(__imp__NtQueryFullAttributesFile,
+                rex::kernel::xboxkrnl::NtQueryFullAttributesFile_entry)
+XBOXKRNL_EXPORT(__imp__NtQueryDirectoryFile, rex::kernel::xboxkrnl::NtQueryDirectoryFile_entry)
+XBOXKRNL_EXPORT(__imp__NtFlushBuffersFile, rex::kernel::xboxkrnl::NtFlushBuffersFile_entry)
+XBOXKRNL_EXPORT(__imp__NtOpenSymbolicLinkObject,
+                rex::kernel::xboxkrnl::NtOpenSymbolicLinkObject_entry)
+XBOXKRNL_EXPORT(__imp__NtQuerySymbolicLinkObject,
+                rex::kernel::xboxkrnl::NtQuerySymbolicLinkObject_entry)
+XBOXKRNL_EXPORT(__imp__FscGetCacheElementCount,
+                rex::kernel::xboxkrnl::FscGetCacheElementCount_entry)
+XBOXKRNL_EXPORT(__imp__FscSetCacheElementCount,
+                rex::kernel::xboxkrnl::FscSetCacheElementCount_entry)
+XBOXKRNL_EXPORT(__imp__NtDeviceIoControlFile, rex::kernel::xboxkrnl::NtDeviceIoControlFile_entry)
+XBOXKRNL_EXPORT(__imp__IoCreateDevice, rex::kernel::xboxkrnl::IoCreateDevice_entry)
+XBOXKRNL_EXPORT(__imp__IoDismountVolumeByFileHandle,
+                rex::kernel::xboxkrnl::IoDismountVolumeByFileHandle_entry)
+XBOXKRNL_EXPORT(__imp__IoDismountVolumeByName, rex::kernel::xboxkrnl::IoDismountVolumeByName_entry)
+XBOXKRNL_EXPORT(__imp__IoSynchronousDeviceIoControlRequest,
+                rex::kernel::xboxkrnl::IoSynchronousDeviceIoControlRequest_entry)
+XBOXKRNL_EXPORT(__imp__StfsCreateDevice, rex::kernel::xboxkrnl::StfsCreateDevice_entry)
+XBOXKRNL_EXPORT(__imp__StfsControlDevice, rex::kernel::xboxkrnl::StfsControlDevice_entry)
+
+XBOXKRNL_EXPORT_STUB(__imp__IoAcquireDeviceObjectLock);
+XBOXKRNL_EXPORT_STUB(__imp__IoAllocateIrp);
+XBOXKRNL_EXPORT_STUB(__imp__IoBuildAsynchronousFsdRequest);
+XBOXKRNL_EXPORT_STUB(__imp__IoBuildDeviceIoControlRequest);
+XBOXKRNL_EXPORT_STUB(__imp__IoBuildSynchronousFsdRequest);
+XBOXKRNL_EXPORT_STUB(__imp__IoCallDriver);
+XBOXKRNL_EXPORT_STUB(__imp__IoCheckShareAccess);
+XBOXKRNL_EXPORT_STUB(__imp__IoCompleteRequest);
+XBOXKRNL_EXPORT_STUB(__imp__IoCreateFile);
+XBOXKRNL_EXPORT_STUB(__imp__IoDeleteDevice);
+XBOXKRNL_EXPORT_STUB(__imp__IoDismountVolume);
+XBOXKRNL_EXPORT_STUB(__imp__IoFreeIrp);
+XBOXKRNL_EXPORT_STUB(__imp__IoInitializeIrp);
+XBOXKRNL_EXPORT_STUB(__imp__IoInvalidDeviceRequest);
+XBOXKRNL_EXPORT_STUB(__imp__IoQueueThreadIrp);
+XBOXKRNL_EXPORT_STUB(__imp__IoReleaseDeviceObjectLock);
+XBOXKRNL_EXPORT_STUB(__imp__IoRemoveShareAccess);
+XBOXKRNL_EXPORT_STUB(__imp__IoSetIoCompletion);
+XBOXKRNL_EXPORT_STUB(__imp__IoSetShareAccess);
+XBOXKRNL_EXPORT_STUB(__imp__IoStartNextPacket);
+XBOXKRNL_EXPORT_STUB(__imp__IoStartNextPacketByKey);
+XBOXKRNL_EXPORT_STUB(__imp__IoStartPacket);
+XBOXKRNL_EXPORT_STUB(__imp__IoSynchronousFsdRequest);
+XBOXKRNL_EXPORT_STUB(__imp__NtDeleteFile);
+XBOXKRNL_EXPORT_STUB(__imp__NtSetSystemTime);
+XBOXKRNL_EXPORT_STUB(__imp__NtWriteFileGather);
+XBOXKRNL_EXPORT_STUB(__imp__IoAcquireCancelSpinLock);
+XBOXKRNL_EXPORT_STUB(__imp__IoReleaseCancelSpinLock);
+XBOXKRNL_EXPORT_STUB(__imp__NtCancelIoFile);
+XBOXKRNL_EXPORT_STUB(__imp__NtCancelIoFileEx);
+XBOXKRNL_EXPORT_STUB(__imp__SvodCreateDevice);

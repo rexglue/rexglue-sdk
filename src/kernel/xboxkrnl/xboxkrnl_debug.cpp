@@ -157,7 +157,13 @@ void KeBugCheck_entry(ppc_u32_t code) {
 
 }  // namespace rex::kernel::xboxkrnl
 
-PPC_HOOK(__imp__DbgBreakPoint, rex::kernel::xboxkrnl::DbgBreakPoint_entry)
-PPC_HOOK(__imp__RtlRaiseException, rex::kernel::xboxkrnl::RtlRaiseException_entry)
-PPC_HOOK(__imp__KeBugCheckEx, rex::kernel::xboxkrnl::KeBugCheckEx_entry)
-PPC_HOOK(__imp__KeBugCheck, rex::kernel::xboxkrnl::KeBugCheck_entry)
+XBOXKRNL_EXPORT(__imp__DbgBreakPoint, rex::kernel::xboxkrnl::DbgBreakPoint_entry)
+XBOXKRNL_EXPORT(__imp__RtlRaiseException, rex::kernel::xboxkrnl::RtlRaiseException_entry)
+XBOXKRNL_EXPORT(__imp__KeBugCheckEx, rex::kernel::xboxkrnl::KeBugCheckEx_entry)
+XBOXKRNL_EXPORT(__imp__KeBugCheck, rex::kernel::xboxkrnl::KeBugCheck_entry)
+
+XBOXKRNL_EXPORT_STUB(__imp__DbgBreakPointWithStatus);
+XBOXKRNL_EXPORT_STUB(__imp__DbgPrompt);
+XBOXKRNL_EXPORT_STUB(__imp__DbgLoadImageSymbols);
+XBOXKRNL_EXPORT_STUB(__imp__DbgUnLoadImageSymbols);
+XBOXKRNL_EXPORT_STUB(__imp__DmPrintData);

@@ -577,39 +577,64 @@ void __C_specific_handler_entry() {
   REXKRNL_WARN("[STUB] __C_specific_handler called - not implemented");
 }
 
+XBOXKRNL_EXPORT_STUB(__imp__RtlAnsiStringToUnicodeString);
+XBOXKRNL_EXPORT_STUB(__imp__RtlAppendStringToString);
+XBOXKRNL_EXPORT_STUB(__imp__RtlAppendUnicodeStringToString);
+XBOXKRNL_EXPORT_STUB(__imp__RtlAppendUnicodeToString);
+XBOXKRNL_EXPORT_STUB(__imp__RtlCompareUnicodeString);
+XBOXKRNL_EXPORT_STUB(__imp__RtlCompareUnicodeStringN);
+XBOXKRNL_EXPORT_STUB(__imp__RtlCompareUtf8ToUnicode);
+XBOXKRNL_EXPORT_STUB(__imp__RtlCreateUnicodeString);
+XBOXKRNL_EXPORT_STUB(__imp__RtlDowncaseUnicodeChar);
+XBOXKRNL_EXPORT_STUB(__imp__RtlGetCallersAddress);
+XBOXKRNL_EXPORT_STUB(__imp__RtlGetStackLimits);
+XBOXKRNL_EXPORT_STUB(__imp__RtlLookupFunctionEntry);
+XBOXKRNL_EXPORT_STUB(__imp__RtlMultiByteToUnicodeSize);
+XBOXKRNL_EXPORT_STUB(__imp__RtlUnicodeToMultiByteSize);
+XBOXKRNL_EXPORT_STUB(__imp__RtlUnicodeToUtf8);
+XBOXKRNL_EXPORT_STUB(__imp__RtlUnicodeToUtf8Size);
+XBOXKRNL_EXPORT_STUB(__imp__RtlUnwind2);
+XBOXKRNL_EXPORT_STUB(__imp__RtlUpcaseUnicodeChar);
+XBOXKRNL_EXPORT_STUB(__imp__RtlVirtualUnwind);
+XBOXKRNL_EXPORT_STUB(__imp__RtlImageDirectoryEntryToData);
+XBOXKRNL_EXPORT_STUB(__imp__RtlCaptureStackBackTrace);
+XBOXKRNL_EXPORT_STUB(__imp__RtlSetVectoredExceptionHandler);
+XBOXKRNL_EXPORT_STUB(__imp__RtlClearVectoredExceptionHandler);
+
 }  // namespace rex::kernel::xboxkrnl
 
-PPC_HOOK(__imp__RtlCompareMemory, rex::kernel::xboxkrnl::RtlCompareMemory_entry)
-PPC_HOOK(__imp__RtlCompareMemoryUlong, rex::kernel::xboxkrnl::RtlCompareMemoryUlong_entry)
-PPC_HOOK(__imp__RtlFillMemoryUlong, rex::kernel::xboxkrnl::RtlFillMemoryUlong_entry)
-PPC_HOOK(__imp__RtlUpperChar, rex::kernel::xboxkrnl::RtlUpperChar_entry)
-PPC_HOOK(__imp__RtlLowerChar, rex::kernel::xboxkrnl::RtlLowerChar_entry)
-PPC_HOOK(__imp__RtlCompareString, rex::kernel::xboxkrnl::RtlCompareString_entry)
-PPC_HOOK(__imp__RtlCompareStringN, rex::kernel::xboxkrnl::RtlCompareStringN_entry)
-PPC_HOOK(__imp__RtlInitAnsiString, rex::kernel::xboxkrnl::RtlInitAnsiString_entry)
-PPC_HOOK(__imp__RtlFreeAnsiString, rex::kernel::xboxkrnl::RtlFreeAnsiString_entry)
-PPC_HOOK(__imp__RtlInitUnicodeString, rex::kernel::xboxkrnl::RtlInitUnicodeString_entry)
-PPC_HOOK(__imp__RtlFreeUnicodeString, rex::kernel::xboxkrnl::RtlFreeUnicodeString_entry)
-PPC_HOOK(__imp__RtlCopyString, rex::kernel::xboxkrnl::RtlCopyString_entry)
-PPC_HOOK(__imp__RtlCopyUnicodeString, rex::kernel::xboxkrnl::RtlCopyUnicodeString_entry)
-PPC_HOOK(__imp__RtlUnicodeStringToAnsiString,
-         rex::kernel::xboxkrnl::RtlUnicodeStringToAnsiString_entry)
-PPC_HOOK(__imp__RtlMultiByteToUnicodeN, rex::kernel::xboxkrnl::RtlMultiByteToUnicodeN_entry)
-PPC_HOOK(__imp__RtlUnicodeToMultiByteN, rex::kernel::xboxkrnl::RtlUnicodeToMultiByteN_entry)
-PPC_HOOK(__imp__RtlImageNtHeader, rex::kernel::xboxkrnl::RtlImageNtHeader_entry)
-PPC_HOOK(__imp__RtlImageXexHeaderField, rex::kernel::xboxkrnl::RtlImageXexHeaderField_entry)
-PPC_HOOK(__imp__RtlInitializeCriticalSection,
-         rex::kernel::xboxkrnl::RtlInitializeCriticalSection_entry)
-PPC_HOOK(__imp__RtlInitializeCriticalSectionAndSpinCount,
-         rex::kernel::xboxkrnl::RtlInitializeCriticalSectionAndSpinCount_entry)
-PPC_HOOK(__imp__RtlEnterCriticalSection, rex::kernel::xboxkrnl::RtlEnterCriticalSection_entry)
-PPC_HOOK(__imp__RtlTryEnterCriticalSection, rex::kernel::xboxkrnl::RtlTryEnterCriticalSection_entry)
-PPC_HOOK(__imp__RtlLeaveCriticalSection, rex::kernel::xboxkrnl::RtlLeaveCriticalSection_entry)
-PPC_HOOK(__imp__RtlTimeToTimeFields, rex::kernel::xboxkrnl::RtlTimeToTimeFields_entry)
-PPC_HOOK(__imp__RtlTimeFieldsToTime, rex::kernel::xboxkrnl::RtlTimeFieldsToTime_entry)
-PPC_HOOK(__imp__RtlComputeCrc32, rex::kernel::xboxkrnl::RtlComputeCrc32_entry)
-
-// Exception handling stubs
-PPC_HOOK(__imp__RtlCaptureContext, rex::kernel::xboxkrnl::RtlCaptureContext_entry)
-PPC_HOOK(__imp__RtlUnwind, rex::kernel::xboxkrnl::RtlUnwind_entry)
-PPC_HOOK(__imp____C_specific_handler, rex::kernel::xboxkrnl::__C_specific_handler_entry)
+XBOXKRNL_EXPORT(__imp__RtlCompareMemory, rex::kernel::xboxkrnl::RtlCompareMemory_entry)
+XBOXKRNL_EXPORT(__imp__RtlCompareMemoryUlong, rex::kernel::xboxkrnl::RtlCompareMemoryUlong_entry)
+XBOXKRNL_EXPORT(__imp__RtlFillMemoryUlong, rex::kernel::xboxkrnl::RtlFillMemoryUlong_entry)
+XBOXKRNL_EXPORT(__imp__RtlUpperChar, rex::kernel::xboxkrnl::RtlUpperChar_entry)
+XBOXKRNL_EXPORT(__imp__RtlLowerChar, rex::kernel::xboxkrnl::RtlLowerChar_entry)
+XBOXKRNL_EXPORT(__imp__RtlCompareString, rex::kernel::xboxkrnl::RtlCompareString_entry)
+XBOXKRNL_EXPORT(__imp__RtlCompareStringN, rex::kernel::xboxkrnl::RtlCompareStringN_entry)
+XBOXKRNL_EXPORT(__imp__RtlInitAnsiString, rex::kernel::xboxkrnl::RtlInitAnsiString_entry)
+XBOXKRNL_EXPORT(__imp__RtlFreeAnsiString, rex::kernel::xboxkrnl::RtlFreeAnsiString_entry)
+XBOXKRNL_EXPORT(__imp__RtlInitUnicodeString, rex::kernel::xboxkrnl::RtlInitUnicodeString_entry)
+XBOXKRNL_EXPORT(__imp__RtlFreeUnicodeString, rex::kernel::xboxkrnl::RtlFreeUnicodeString_entry)
+XBOXKRNL_EXPORT(__imp__RtlCopyString, rex::kernel::xboxkrnl::RtlCopyString_entry)
+XBOXKRNL_EXPORT(__imp__RtlCopyUnicodeString, rex::kernel::xboxkrnl::RtlCopyUnicodeString_entry)
+XBOXKRNL_EXPORT(__imp__RtlUnicodeStringToAnsiString,
+                rex::kernel::xboxkrnl::RtlUnicodeStringToAnsiString_entry)
+XBOXKRNL_EXPORT(__imp__RtlMultiByteToUnicodeN, rex::kernel::xboxkrnl::RtlMultiByteToUnicodeN_entry)
+XBOXKRNL_EXPORT(__imp__RtlUnicodeToMultiByteN, rex::kernel::xboxkrnl::RtlUnicodeToMultiByteN_entry)
+XBOXKRNL_EXPORT(__imp__RtlImageNtHeader, rex::kernel::xboxkrnl::RtlImageNtHeader_entry)
+XBOXKRNL_EXPORT(__imp__RtlImageXexHeaderField, rex::kernel::xboxkrnl::RtlImageXexHeaderField_entry)
+XBOXKRNL_EXPORT(__imp__RtlInitializeCriticalSection,
+                rex::kernel::xboxkrnl::RtlInitializeCriticalSection_entry)
+XBOXKRNL_EXPORT(__imp__RtlInitializeCriticalSectionAndSpinCount,
+                rex::kernel::xboxkrnl::RtlInitializeCriticalSectionAndSpinCount_entry)
+XBOXKRNL_EXPORT(__imp__RtlEnterCriticalSection,
+                rex::kernel::xboxkrnl::RtlEnterCriticalSection_entry)
+XBOXKRNL_EXPORT(__imp__RtlTryEnterCriticalSection,
+                rex::kernel::xboxkrnl::RtlTryEnterCriticalSection_entry)
+XBOXKRNL_EXPORT(__imp__RtlLeaveCriticalSection,
+                rex::kernel::xboxkrnl::RtlLeaveCriticalSection_entry)
+XBOXKRNL_EXPORT(__imp__RtlTimeToTimeFields, rex::kernel::xboxkrnl::RtlTimeToTimeFields_entry)
+XBOXKRNL_EXPORT(__imp__RtlTimeFieldsToTime, rex::kernel::xboxkrnl::RtlTimeFieldsToTime_entry)
+XBOXKRNL_EXPORT(__imp__RtlComputeCrc32, rex::kernel::xboxkrnl::RtlComputeCrc32_entry)
+XBOXKRNL_EXPORT(__imp__RtlCaptureContext, rex::kernel::xboxkrnl::RtlCaptureContext_entry)
+XBOXKRNL_EXPORT(__imp__RtlUnwind, rex::kernel::xboxkrnl::RtlUnwind_entry)
+XBOXKRNL_EXPORT(__imp____C_specific_handler, rex::kernel::xboxkrnl::__C_specific_handler_entry)

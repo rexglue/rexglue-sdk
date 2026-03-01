@@ -622,24 +622,51 @@ ppc_u32_result_t MmDeleteKernelStack_entry(ppc_pvoid_t stack_base, ppc_pvoid_t s
 
 }  // namespace rex::kernel::xboxkrnl
 
-PPC_HOOK(__imp__NtAllocateVirtualMemory, rex::kernel::xboxkrnl::NtAllocateVirtualMemory_entry)
-PPC_HOOK(__imp__NtProtectVirtualMemory, rex::kernel::xboxkrnl::NtProtectVirtualMemory_entry)
-PPC_HOOK(__imp__NtFreeVirtualMemory, rex::kernel::xboxkrnl::NtFreeVirtualMemory_entry)
-PPC_HOOK(__imp__NtQueryVirtualMemory, rex::kernel::xboxkrnl::NtQueryVirtualMemory_entry)
-PPC_HOOK(__imp__MmAllocatePhysicalMemoryEx, rex::kernel::xboxkrnl::MmAllocatePhysicalMemoryEx_entry)
-PPC_HOOK(__imp__MmAllocatePhysicalMemory, rex::kernel::xboxkrnl::MmAllocatePhysicalMemory_entry)
-PPC_HOOK(__imp__MmFreePhysicalMemory, rex::kernel::xboxkrnl::MmFreePhysicalMemory_entry)
-PPC_HOOK(__imp__MmQueryAddressProtect, rex::kernel::xboxkrnl::MmQueryAddressProtect_entry)
-PPC_HOOK(__imp__MmSetAddressProtect, rex::kernel::xboxkrnl::MmSetAddressProtect_entry)
-PPC_HOOK(__imp__MmQueryAllocationSize, rex::kernel::xboxkrnl::MmQueryAllocationSize_entry)
-PPC_HOOK(__imp__MmQueryStatistics, rex::kernel::xboxkrnl::MmQueryStatistics_entry)
-PPC_HOOK(__imp__MmGetPhysicalAddress, rex::kernel::xboxkrnl::MmGetPhysicalAddress_entry)
-PPC_HOOK(__imp__MmMapIoSpace, rex::kernel::xboxkrnl::MmMapIoSpace_entry)
-PPC_HOOK(__imp__ExAllocatePoolTypeWithTag, rex::kernel::xboxkrnl::ExAllocatePoolTypeWithTag_entry)
-PPC_HOOK(__imp__ExAllocatePool, rex::kernel::xboxkrnl::ExAllocatePool_entry)
-PPC_HOOK(__imp__ExFreePool, rex::kernel::xboxkrnl::ExFreePool_entry)
-PPC_HOOK(__imp__KeGetImagePageTableEntry, rex::kernel::xboxkrnl::KeGetImagePageTableEntry_entry)
-PPC_HOOK(__imp__KeLockL2, rex::kernel::xboxkrnl::KeLockL2_entry)
-PPC_HOOK(__imp__KeUnlockL2, rex::kernel::xboxkrnl::KeUnlockL2_entry)
-PPC_HOOK(__imp__MmCreateKernelStack, rex::kernel::xboxkrnl::MmCreateKernelStack_entry)
-PPC_HOOK(__imp__MmDeleteKernelStack, rex::kernel::xboxkrnl::MmDeleteKernelStack_entry)
+XBOXKRNL_EXPORT(__imp__NtAllocateVirtualMemory,
+                rex::kernel::xboxkrnl::NtAllocateVirtualMemory_entry)
+XBOXKRNL_EXPORT(__imp__NtProtectVirtualMemory, rex::kernel::xboxkrnl::NtProtectVirtualMemory_entry)
+XBOXKRNL_EXPORT(__imp__NtFreeVirtualMemory, rex::kernel::xboxkrnl::NtFreeVirtualMemory_entry)
+XBOXKRNL_EXPORT(__imp__NtQueryVirtualMemory, rex::kernel::xboxkrnl::NtQueryVirtualMemory_entry)
+XBOXKRNL_EXPORT(__imp__MmAllocatePhysicalMemoryEx,
+                rex::kernel::xboxkrnl::MmAllocatePhysicalMemoryEx_entry)
+XBOXKRNL_EXPORT(__imp__MmAllocatePhysicalMemory,
+                rex::kernel::xboxkrnl::MmAllocatePhysicalMemory_entry)
+XBOXKRNL_EXPORT(__imp__MmFreePhysicalMemory, rex::kernel::xboxkrnl::MmFreePhysicalMemory_entry)
+XBOXKRNL_EXPORT(__imp__MmQueryAddressProtect, rex::kernel::xboxkrnl::MmQueryAddressProtect_entry)
+XBOXKRNL_EXPORT(__imp__MmSetAddressProtect, rex::kernel::xboxkrnl::MmSetAddressProtect_entry)
+XBOXKRNL_EXPORT(__imp__MmQueryAllocationSize, rex::kernel::xboxkrnl::MmQueryAllocationSize_entry)
+XBOXKRNL_EXPORT(__imp__MmQueryStatistics, rex::kernel::xboxkrnl::MmQueryStatistics_entry)
+XBOXKRNL_EXPORT(__imp__MmGetPhysicalAddress, rex::kernel::xboxkrnl::MmGetPhysicalAddress_entry)
+XBOXKRNL_EXPORT(__imp__MmMapIoSpace, rex::kernel::xboxkrnl::MmMapIoSpace_entry)
+XBOXKRNL_EXPORT(__imp__ExAllocatePoolTypeWithTag,
+                rex::kernel::xboxkrnl::ExAllocatePoolTypeWithTag_entry)
+XBOXKRNL_EXPORT(__imp__ExAllocatePool, rex::kernel::xboxkrnl::ExAllocatePool_entry)
+XBOXKRNL_EXPORT(__imp__ExFreePool, rex::kernel::xboxkrnl::ExFreePool_entry)
+XBOXKRNL_EXPORT(__imp__KeGetImagePageTableEntry,
+                rex::kernel::xboxkrnl::KeGetImagePageTableEntry_entry)
+XBOXKRNL_EXPORT(__imp__KeLockL2, rex::kernel::xboxkrnl::KeLockL2_entry)
+XBOXKRNL_EXPORT(__imp__KeUnlockL2, rex::kernel::xboxkrnl::KeUnlockL2_entry)
+XBOXKRNL_EXPORT(__imp__MmCreateKernelStack, rex::kernel::xboxkrnl::MmCreateKernelStack_entry)
+XBOXKRNL_EXPORT(__imp__MmDeleteKernelStack, rex::kernel::xboxkrnl::MmDeleteKernelStack_entry)
+
+XBOXKRNL_EXPORT_STUB(__imp__ExAllocatePoolWithTag);
+XBOXKRNL_EXPORT_STUB(__imp__ExQueryPoolBlockSize);
+XBOXKRNL_EXPORT_STUB(__imp__MmDoubleMapMemory);
+XBOXKRNL_EXPORT_STUB(__imp__MmUnmapMemory);
+XBOXKRNL_EXPORT_STUB(__imp__MmIsAddressValid);
+XBOXKRNL_EXPORT_STUB(__imp__MmLockAndMapSegmentArray);
+XBOXKRNL_EXPORT_STUB(__imp__MmLockUnlockBufferPages);
+XBOXKRNL_EXPORT_STUB(__imp__MmPersistPhysicalMemoryAllocation);
+XBOXKRNL_EXPORT_STUB(__imp__MmSplitPhysicalMemoryAllocation);
+XBOXKRNL_EXPORT_STUB(__imp__MmUnlockAndUnmapSegmentArray);
+XBOXKRNL_EXPORT_STUB(__imp__MmUnmapIoSpace);
+XBOXKRNL_EXPORT_STUB(__imp__NtAllocateEncryptedMemory);
+XBOXKRNL_EXPORT_STUB(__imp__NtFreeEncryptedMemory);
+XBOXKRNL_EXPORT_STUB(__imp__ExDebugMonitorService);
+XBOXKRNL_EXPORT_STUB(__imp__MmDbgReadCheck);
+XBOXKRNL_EXPORT_STUB(__imp__MmDbgReleaseAddress);
+XBOXKRNL_EXPORT_STUB(__imp__MmDbgWriteCheck);
+XBOXKRNL_EXPORT_STUB(__imp__MmGetPoolPagesType);
+XBOXKRNL_EXPORT_STUB(__imp__ExExpansionInstall);
+XBOXKRNL_EXPORT_STUB(__imp__ExExpansionCall);
+XBOXKRNL_EXPORT_STUB(__imp__MmResetLowestAvailablePages);

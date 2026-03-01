@@ -357,7 +357,7 @@ ppc_u32_result_t NtQueryVolumeInformationFile_entry(
 
 }  // namespace rex::kernel::xboxkrnl
 
-PPC_HOOK(__imp__NtQueryInformationFile, rex::kernel::xboxkrnl::NtQueryInformationFile_entry)
-PPC_HOOK(__imp__NtSetInformationFile, rex::kernel::xboxkrnl::NtSetInformationFile_entry)
-PPC_HOOK(__imp__NtQueryVolumeInformationFile,
-         rex::kernel::xboxkrnl::NtQueryVolumeInformationFile_entry)
+XBOXKRNL_EXPORT(__imp__NtQueryInformationFile, rex::kernel::xboxkrnl::NtQueryInformationFile_entry)
+XBOXKRNL_EXPORT(__imp__NtSetInformationFile, rex::kernel::xboxkrnl::NtSetInformationFile_entry)
+XBOXKRNL_EXPORT(__imp__NtQueryVolumeInformationFile,
+                rex::kernel::xboxkrnl::NtQueryVolumeInformationFile_entry)
