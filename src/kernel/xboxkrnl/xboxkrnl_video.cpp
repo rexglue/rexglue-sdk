@@ -12,8 +12,14 @@
 // Disable warnings about unused parameters for kernel functions
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
+#include <algorithm>
+#include <string>
+
+#include <rex/cvar.h>
+#include <rex/graphics/flags.h>
 #include <rex/graphics/graphics_system.h>
 #include <rex/graphics/pipeline/texture/info.h>
+#include <rex/graphics/video_mode_util.h>
 #include <rex/graphics/xenos.h>
 #include <rex/kernel/xboxkrnl/ordinals.h>
 #include <rex/kernel/xboxkrnl/private.h>
@@ -26,12 +32,69 @@
 #include <rex/system/export_resolver.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xtypes.h>
+#include <rex/ui/flags.h>
+
+REXCVAR_DEFINE_INT32(video_mode_width, 1280, "GPU", "Guest video mode width in pixels")
+    .range(640, 0x0FFF)
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+
+REXCVAR_DEFINE_INT32(video_mode_height, 720, "GPU", "Guest video mode height in pixels")
+    .range(480, 0x0FFF)
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+
+REXCVAR_DEFINE_STRING(resolution, "", "GPU",
+                      "Common resolution preset for both guest video mode and startup window (for "
+                      "example: 720p, 1080p, 1440p, 4k, 1280x720)")
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+
+REXCVAR_DEFINE_DOUBLE(video_mode_refresh_rate, 60.0, "GPU", "Guest video mode refresh rate in Hz")
+    .range(24.0, 240.0)
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
 namespace {
 // Display gamma type: 0 - linear, 1 - sRGB (CRT), 2 - BT.709 (HDTV), 3 - power
 constexpr uint32_t kDisplayGammaType = 2;
 // Display gamma power (used with gamma type 3)
 constexpr double kDisplayGammaPower = 2.22222233;
+
+uint32_t GetConfiguredVideoModeWidth() {
+  int32_t configured_width = REXCVAR_GET(video_mode_width);
+  if (!rex::cvar::HasNonDefaultValue("video_mode_width")) {
+    if (rex::cvar::HasNonDefaultValue("window_width") && REXCVAR_GET(window_width) > 0) {
+      configured_width = REXCVAR_GET(window_width);
+    } else {
+      int32_t preset_width = 0;
+      int32_t preset_height = 0;
+      if (rex::graphics::video_mode_util::TryGetResolutionPresetFromCVar(preset_width,
+                                                                         preset_height)) {
+        configured_width = preset_width;
+      }
+    }
+  }
+  return uint32_t(std::clamp(configured_width, 640, 0x0FFF));
+}
+
+uint32_t GetConfiguredVideoModeHeight() {
+  int32_t configured_height = REXCVAR_GET(video_mode_height);
+  if (!rex::cvar::HasNonDefaultValue("video_mode_height")) {
+    if (rex::cvar::HasNonDefaultValue("window_height") && REXCVAR_GET(window_height) > 0) {
+      configured_height = REXCVAR_GET(window_height);
+    } else {
+      int32_t preset_width = 0;
+      int32_t preset_height = 0;
+      if (rex::graphics::video_mode_util::TryGetResolutionPresetFromCVar(preset_width,
+                                                                         preset_height)) {
+        configured_height = preset_height;
+      }
+    }
+  }
+  return uint32_t(std::clamp(configured_height, 480, 0x0FFF));
+}
+
+float GetConfiguredVideoModeRefreshRate() {
+  double refresh_rate_hz = std::clamp(REXCVAR_GET(video_mode_refresh_rate), 24.0, 240.0);
+  return float(refresh_rate_hz);
+}
 }  // namespace
 
 namespace rex::kernel::xboxkrnl {
@@ -119,10 +182,12 @@ void VdGetCurrentDisplayInformation_entry(ppc_ptr_t<X_DISPLAY_INFO> display_info
   display_info->scaler_parameters.horizontal_filter_type = 1;
   display_info->scaler_parameters.vertical_filter_type = 1;
 
-  display_info->display_window_overscan_left = 320;
-  display_info->display_window_overscan_top = 180;
-  display_info->display_window_overscan_right = 320;
-  display_info->display_window_overscan_bottom = 180;
+  uint16_t overscan_x = uint16_t(uint32_t(mode.display_width) / 4);
+  uint16_t overscan_y = uint16_t(uint32_t(mode.display_height) / 4);
+  display_info->display_window_overscan_left = overscan_x;
+  display_info->display_window_overscan_top = overscan_y;
+  display_info->display_window_overscan_right = overscan_x;
+  display_info->display_window_overscan_bottom = overscan_y;
   display_info->display_width = (uint16_t)mode.display_width;
   display_info->display_height = (uint16_t)mode.display_height;
   display_info->display_refresh_rate = mode.refresh_rate;
@@ -130,14 +195,18 @@ void VdGetCurrentDisplayInformation_entry(ppc_ptr_t<X_DISPLAY_INFO> display_info
 }
 
 void VdQueryVideoMode(X_VIDEO_MODE* video_mode) {
-  // TODO(benvanik): get info from actual display.
+  // Exposed as CVARs so the guest can observe custom display settings.
+  uint32_t display_width = GetConfiguredVideoModeWidth();
+  uint32_t display_height = GetConfiguredVideoModeHeight();
+  float refresh_rate_hz = GetConfiguredVideoModeRefreshRate();
+
   std::memset(video_mode, 0, sizeof(X_VIDEO_MODE));
-  video_mode->display_width = 1280;
-  video_mode->display_height = 720;
+  video_mode->display_width = display_width;
+  video_mode->display_height = display_height;
   video_mode->is_interlaced = 0;
-  video_mode->is_widescreen = 1;
-  video_mode->is_hi_def = 1;
-  video_mode->refresh_rate = 60.0f;
+  video_mode->is_widescreen = display_width * 3 >= display_height * 4;
+  video_mode->is_hi_def = display_width >= 1280 || display_height >= 720;
+  video_mode->refresh_rate = refresh_rate_hz;
   video_mode->video_standard = 1;  // NTSC
   video_mode->unknown_0x8a = 0x4A;
   video_mode->unknown_0x01 = 0x01;

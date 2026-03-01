@@ -13,8 +13,12 @@
 #include <string>
 
 #include <rex/assert.h>
+#include <rex/cvar.h>
+#include <rex/graphics/flags.h>
+#include <rex/graphics/video_mode_util.h>
 #include <rex/logging.h>
 #include <rex/platform.h>
+#include <rex/ui/flags.h>
 #include <rex/ui/surface_gnulinux.h>
 #include <rex/ui/virtual_key.h>
 #include <rex/ui/window_gtk.h>
@@ -23,12 +27,286 @@
 #include <gdk/gdkx.h>
 #include <xcb/xcb.h>
 
+namespace {
+
+uint32_t ResolveWindowWidth(uint32_t requested_width) {
+  if (REXCVAR_GET(window_width) > 0) {
+    return uint32_t(REXCVAR_GET(window_width));
+  }
+  if (!rex::cvar::HasNonDefaultValue("window_width")) {
+    if (rex::cvar::HasNonDefaultValue("video_mode_width") && REXCVAR_GET(video_mode_width) > 0) {
+      return uint32_t(std::clamp(REXCVAR_GET(video_mode_width), 1, 8192));
+    }
+    int32_t preset_width = 0;
+    int32_t preset_height = 0;
+    if (rex::graphics::video_mode_util::TryGetResolutionPresetFromCVar(preset_width,
+                                                                       preset_height)) {
+      return uint32_t(std::clamp(preset_width, 1, 8192));
+    }
+  }
+  return requested_width;
+}
+
+uint32_t ResolveWindowHeight(uint32_t requested_height) {
+  if (REXCVAR_GET(window_height) > 0) {
+    return uint32_t(REXCVAR_GET(window_height));
+  }
+  if (!rex::cvar::HasNonDefaultValue("window_height")) {
+    if (rex::cvar::HasNonDefaultValue("video_mode_height") && REXCVAR_GET(video_mode_height) > 0) {
+      return uint32_t(std::clamp(REXCVAR_GET(video_mode_height), 1, 8192));
+    }
+    int32_t preset_width = 0;
+    int32_t preset_height = 0;
+    if (rex::graphics::video_mode_util::TryGetResolutionPresetFromCVar(preset_width,
+                                                                       preset_height)) {
+      return uint32_t(std::clamp(preset_height, 1, 8192));
+    }
+  }
+  return requested_height;
+}
+
+using rex::ui::VirtualKey;
+
+VirtualKey TranslateGdkKeyvalToVirtualKey(guint keyval) {
+  switch (keyval) {
+    // Function keys.
+    case GDK_KEY_F1:
+      return VirtualKey::kF1;
+    case GDK_KEY_F2:
+      return VirtualKey::kF2;
+    case GDK_KEY_F3:
+      return VirtualKey::kF3;
+    case GDK_KEY_F4:
+      return VirtualKey::kF4;
+    case GDK_KEY_F5:
+      return VirtualKey::kF5;
+    case GDK_KEY_F6:
+      return VirtualKey::kF6;
+    case GDK_KEY_F7:
+      return VirtualKey::kF7;
+    case GDK_KEY_F8:
+      return VirtualKey::kF8;
+    case GDK_KEY_F9:
+      return VirtualKey::kF9;
+    case GDK_KEY_F10:
+      return VirtualKey::kF10;
+    case GDK_KEY_F11:
+      return VirtualKey::kF11;
+    case GDK_KEY_F12:
+      return VirtualKey::kF12;
+    case GDK_KEY_F13:
+      return VirtualKey::kF13;
+    case GDK_KEY_F14:
+      return VirtualKey::kF14;
+    case GDK_KEY_F15:
+      return VirtualKey::kF15;
+    case GDK_KEY_F16:
+      return VirtualKey::kF16;
+    case GDK_KEY_F17:
+      return VirtualKey::kF17;
+    case GDK_KEY_F18:
+      return VirtualKey::kF18;
+    case GDK_KEY_F19:
+      return VirtualKey::kF19;
+    case GDK_KEY_F20:
+      return VirtualKey::kF20;
+    case GDK_KEY_F21:
+      return VirtualKey::kF21;
+    case GDK_KEY_F22:
+      return VirtualKey::kF22;
+    case GDK_KEY_F23:
+      return VirtualKey::kF23;
+    case GDK_KEY_F24:
+      return VirtualKey::kF24;
+
+    // Control and navigation.
+    case GDK_KEY_Escape:
+      return VirtualKey::kEscape;
+    case GDK_KEY_Return:
+    case GDK_KEY_ISO_Enter:
+    case GDK_KEY_KP_Enter:
+      return VirtualKey::kReturn;
+    case GDK_KEY_space:
+    case GDK_KEY_KP_Space:
+      return VirtualKey::kSpace;
+    case GDK_KEY_Tab:
+    case GDK_KEY_ISO_Left_Tab:
+      return VirtualKey::kTab;
+    case GDK_KEY_BackSpace:
+      return VirtualKey::kBack;
+    case GDK_KEY_Delete:
+    case GDK_KEY_KP_Delete:
+      return VirtualKey::kDelete;
+    case GDK_KEY_Insert:
+    case GDK_KEY_KP_Insert:
+      return VirtualKey::kInsert;
+    case GDK_KEY_Home:
+    case GDK_KEY_KP_Home:
+      return VirtualKey::kHome;
+    case GDK_KEY_End:
+    case GDK_KEY_KP_End:
+      return VirtualKey::kEnd;
+    case GDK_KEY_Page_Up:
+    case GDK_KEY_KP_Page_Up:
+      return VirtualKey::kPrior;
+    case GDK_KEY_Page_Down:
+    case GDK_KEY_KP_Page_Down:
+      return VirtualKey::kNext;
+    case GDK_KEY_Left:
+    case GDK_KEY_KP_Left:
+      return VirtualKey::kLeft;
+    case GDK_KEY_Right:
+    case GDK_KEY_KP_Right:
+      return VirtualKey::kRight;
+    case GDK_KEY_Up:
+    case GDK_KEY_KP_Up:
+      return VirtualKey::kUp;
+    case GDK_KEY_Down:
+    case GDK_KEY_KP_Down:
+      return VirtualKey::kDown;
+
+    // Modifiers and lock keys.
+    case GDK_KEY_Shift_L:
+    case GDK_KEY_Shift_R:
+      return VirtualKey::kShift;
+    case GDK_KEY_Control_L:
+    case GDK_KEY_Control_R:
+      return VirtualKey::kControl;
+    case GDK_KEY_Alt_L:
+    case GDK_KEY_Alt_R:
+    case GDK_KEY_Meta_L:
+    case GDK_KEY_Meta_R:
+      return VirtualKey::kMenu;
+    case GDK_KEY_Super_L:
+      return VirtualKey::kLWin;
+    case GDK_KEY_Super_R:
+      return VirtualKey::kRWin;
+    case GDK_KEY_Menu:
+      return VirtualKey::kApps;
+    case GDK_KEY_Caps_Lock:
+      return VirtualKey::kCapital;
+    case GDK_KEY_Num_Lock:
+      return VirtualKey::kNumLock;
+    case GDK_KEY_Scroll_Lock:
+      return VirtualKey::kScroll;
+    case GDK_KEY_Print:
+      return VirtualKey::kSnapshot;
+    case GDK_KEY_Pause:
+      return VirtualKey::kPause;
+
+    // Numeric row.
+    case GDK_KEY_0:
+      return VirtualKey::k0;
+    case GDK_KEY_1:
+      return VirtualKey::k1;
+    case GDK_KEY_2:
+      return VirtualKey::k2;
+    case GDK_KEY_3:
+      return VirtualKey::k3;
+    case GDK_KEY_4:
+      return VirtualKey::k4;
+    case GDK_KEY_5:
+      return VirtualKey::k5;
+    case GDK_KEY_6:
+      return VirtualKey::k6;
+    case GDK_KEY_7:
+      return VirtualKey::k7;
+    case GDK_KEY_8:
+      return VirtualKey::k8;
+    case GDK_KEY_9:
+      return VirtualKey::k9;
+
+    // Numpad.
+    case GDK_KEY_KP_0:
+      return VirtualKey::kNumpad0;
+    case GDK_KEY_KP_1:
+      return VirtualKey::kNumpad1;
+    case GDK_KEY_KP_2:
+      return VirtualKey::kNumpad2;
+    case GDK_KEY_KP_3:
+      return VirtualKey::kNumpad3;
+    case GDK_KEY_KP_4:
+      return VirtualKey::kNumpad4;
+    case GDK_KEY_KP_5:
+      return VirtualKey::kNumpad5;
+    case GDK_KEY_KP_6:
+      return VirtualKey::kNumpad6;
+    case GDK_KEY_KP_7:
+      return VirtualKey::kNumpad7;
+    case GDK_KEY_KP_8:
+      return VirtualKey::kNumpad8;
+    case GDK_KEY_KP_9:
+      return VirtualKey::kNumpad9;
+    case GDK_KEY_KP_Add:
+      return VirtualKey::kAdd;
+    case GDK_KEY_KP_Subtract:
+      return VirtualKey::kSubtract;
+    case GDK_KEY_KP_Multiply:
+      return VirtualKey::kMultiply;
+    case GDK_KEY_KP_Divide:
+      return VirtualKey::kDivide;
+    case GDK_KEY_KP_Decimal:
+      return VirtualKey::kDecimal;
+
+    // Punctuation.
+    case GDK_KEY_grave:
+    case GDK_KEY_asciitilde:
+      return VirtualKey::kOem3;
+    case GDK_KEY_minus:
+    case GDK_KEY_underscore:
+      return VirtualKey::kOemMinus;
+    case GDK_KEY_equal:
+    case GDK_KEY_plus:
+      return VirtualKey::kOemPlus;
+    case GDK_KEY_comma:
+    case GDK_KEY_less:
+      return VirtualKey::kOemComma;
+    case GDK_KEY_period:
+    case GDK_KEY_greater:
+      return VirtualKey::kOemPeriod;
+    case GDK_KEY_semicolon:
+    case GDK_KEY_colon:
+      return VirtualKey::kOem1;
+    case GDK_KEY_slash:
+    case GDK_KEY_question:
+      return VirtualKey::kOem2;
+    case GDK_KEY_backslash:
+    case GDK_KEY_bar:
+      return VirtualKey::kOem5;
+    case GDK_KEY_bracketleft:
+    case GDK_KEY_braceleft:
+      return VirtualKey::kOem4;
+    case GDK_KEY_bracketright:
+    case GDK_KEY_braceright:
+      return VirtualKey::kOem6;
+    case GDK_KEY_apostrophe:
+    case GDK_KEY_quotedbl:
+      return VirtualKey::kOem7;
+
+    default:
+      break;
+  }
+
+  if (keyval >= GDK_KEY_a && keyval <= GDK_KEY_z) {
+    return VirtualKey(uint16_t(VirtualKey::kA) + uint16_t(keyval - GDK_KEY_a));
+  }
+  if (keyval >= GDK_KEY_A && keyval <= GDK_KEY_Z) {
+    return VirtualKey(uint16_t(VirtualKey::kA) + uint16_t(keyval - GDK_KEY_A));
+  }
+
+  return VirtualKey::kNone;
+}
+
+}  // namespace
+
 namespace rex {
 namespace ui {
 
 std::unique_ptr<Window> Window::Create(WindowedAppContext& app_context,
                                        const std::string_view title, uint32_t desired_logical_width,
                                        uint32_t desired_logical_height) {
+  desired_logical_width = ResolveWindowWidth(desired_logical_width);
+  desired_logical_height = ResolveWindowHeight(desired_logical_height);
   return std::make_unique<GTKWindow>(app_context, title, desired_logical_width,
                                      desired_logical_height);
 }
@@ -420,11 +698,10 @@ bool GTKWindow::HandleKeyboard(GdkEventKey* event,
   unsigned int modifiers = event->state;
   bool shift_pressed = modifiers & GDK_SHIFT_MASK;
   bool ctrl_pressed = modifiers & GDK_CONTROL_MASK;
-  bool alt_pressed = modifiers & GDK_META_MASK;
+  bool alt_pressed = modifiers & (GDK_MOD1_MASK | GDK_META_MASK);
   bool super_pressed = modifiers & GDK_SUPER_MASK;
   uint32_t key_char = gdk_keyval_to_unicode(event->keyval);
-  // TODO(Triang3l): event->hardware_keycode to VirtualKey translation.
-  KeyEvent e(this, VirtualKey(event->hardware_keycode), 1, event->type == GDK_KEY_RELEASE,
+  KeyEvent e(this, TranslateGdkKeyvalToVirtualKey(event->keyval), 1, event->type == GDK_KEY_RELEASE,
              shift_pressed, ctrl_pressed, alt_pressed, super_pressed);
   switch (event->type) {
     case GDK_KEY_PRESS:
@@ -433,7 +710,12 @@ bool GTKWindow::HandleKeyboard(GdkEventKey* event,
         return e.is_handled();
       }
       if (key_char > 0) {
-        OnKeyChar(e, destruction_receiver);
+        KeyEvent char_event(this, VirtualKey(key_char), 1, false, shift_pressed, ctrl_pressed,
+                            alt_pressed, super_pressed);
+        OnKeyChar(char_event, destruction_receiver);
+        if (char_event.is_handled()) {
+          e.set_handled(true);
+        }
       }
       break;
     case GDK_KEY_RELEASE:
