@@ -575,6 +575,19 @@ std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, uint32_t bctrAd
       break;
     }
 
+    // Validate target points to valid code, not null padding
+    // TODO(tomc): look into this more. what is the expected behavior when the processor executes
+    // a null instruction.
+    auto targetInsn = decoded.read<uint32_t>(target);
+    if (targetInsn && (*targetInsn == 0x00000000 || *targetInsn == 0xFFFFFFFF)) {
+      REXCODEGEN_TRACE(
+          "detectJumpTable: bctr=0x{:08X} entry[{}] target=0x{:08X} points to null/padding "
+          "(0x{:08X})",
+          bctrAddr, i, target, *targetInsn);
+      jt.targets.push_back(0);  // sentinel, handled in codegen as __builtin_trap()
+      continue;
+    }
+
     jt.targets.push_back(target);
   }
 
@@ -696,6 +709,8 @@ BlockDiscoveryResult discoverBlocks(DecodedBinary& decoded, uint32_t entryPoint,
             // Extend funcEnd if any target exceeds it (within region bounds)
             // This handles out-of-line switch case code
             for (uint32_t t : jt->targets) {
+              if (t == 0)
+                continue;  // sentinel from null-padding detection
               if (t >= funcEnd && t < containingRegion.end) {
                 funcEnd = t + 4;  // Extend to include this target
               }
