@@ -12,6 +12,7 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <deque>
 #include <memory>
@@ -50,6 +51,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   ~D3D12CommandProcessor();
 
   void ClearCaches() override;
+  void InvalidateGpuMemory() override;
 
   void InitializeShaderStorage(const std::filesystem::path& cache_root, uint32_t title_id,
                                bool blocking) override;
@@ -204,6 +206,9 @@ class D3D12CommandProcessor : public CommandProcessor {
   void ShutdownContext() override;
 
   void WriteRegister(uint32_t index, uint32_t value) override;
+  void WriteRegistersFromMem(uint32_t start_index, uint32_t* base, uint32_t num_registers) override;
+  bool ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffer* reader, uint32_t packet,
+                                          uint32_t count) override;
 
   void OnGammaRamp256EntryTableValueWritten() override;
   void OnGammaRampPWLValueWritten() override;
@@ -360,10 +365,56 @@ class D3D12CommandProcessor : public CommandProcessor {
                                   uint32_t normalized_color_mask);
   bool UpdateBindings(const D3D12Shader* vertex_shader, const D3D12Shader* pixel_shader,
                       ID3D12RootSignature* root_signature, bool shared_memory_is_uav);
+  bool IssueCopy_ReadbackResolvePath();
+  bool IssueDraw_MemexportReadbackFullPath(uint32_t total_size);
+  bool IssueDraw_MemexportReadbackFastPath(uint32_t total_size);
 
   // Returns a buffer for reading GPU data back to the CPU. Assuming
   // synchronizing immediately after use. Always in COPY_DEST state.
   ID3D12Resource* RequestReadbackBuffer(uint32_t size);
+  struct ReadbackBuffer {
+    ID3D12Resource* buffers[2] = {nullptr, nullptr};
+    uint32_t sizes[2] = {0, 0};
+    void* mapped_data[2] = {nullptr, nullptr};
+    uint64_t submission_written[2] = {0, 0};
+    uint32_t written_size[2] = {0, 0};
+    uint32_t current_index = 0;
+    uint64_t last_used_frame = 0;
+  };
+  void EvictOldReadbackBuffers(std::unordered_map<uint64_t, ReadbackBuffer>& buffer_map);
+  static constexpr uint32_t kReadbackBufferSizeIncrement = 16 * 1024 * 1024;
+  static constexpr size_t kMaxReadbackBuffers = 256;
+  static constexpr uint64_t kReadbackBufferEvictionAgeFrames = 60;
+  static inline uint32_t AlignReadbackBufferSize(uint32_t size) {
+    if (size < 1 * 1024 * 1024) {
+      return rex::align(size, 256u * 1024u);
+    }
+    if (size < 4 * 1024 * 1024) {
+      return rex::align(size, 1u * 1024u * 1024u);
+    }
+    return rex::align(size, kReadbackBufferSizeIncrement);
+  }
+  static inline uint64_t MakeReadbackResolveKey(uint32_t address, uint32_t length) {
+    return (uint64_t(address) << 32) | uint64_t(length);
+  }
+  static inline uint64_t MakeMemexportReadbackKey(uint32_t first_base_address_dwords,
+                                                  uint32_t total_size) {
+    return (uint64_t(first_base_address_dwords) << 32) | uint64_t(total_size);
+  }
+
+  bool InitializeOcclusionQueryResources();
+  void ShutdownOcclusionQueryResources();
+  bool BeginGuestOcclusionQuery(uint32_t sample_count_address);
+  bool EndGuestOcclusionQuery(uint32_t sample_count_address,
+                              xenos::xe_gpu_depth_sample_counts* sample_counts);
+  bool AcquireOcclusionQueryIndex(uint32_t& host_index_out);
+  void DisableHostOcclusionQueries();
+  uint64_t NormalizeOcclusionSamples(uint64_t samples) const;
+  void WriteGuestOcclusionResult(xenos::xe_gpu_depth_sample_counts* sample_counts,
+                                 uint64_t samples);
+  void InvalidateAllVertexBufferResidency();
+  void InvalidateVertexBufferResidency(uint32_t vfetch_index);
+  void InvalidateVertexBufferResidencyRange(uint32_t first_vfetch, uint32_t last_vfetch);
 
   void WriteGammaRampSRV(bool is_pwl, D3D12_CPU_DESCRIPTOR_HANDLE handle) const;
 
@@ -527,6 +578,25 @@ class D3D12CommandProcessor : public CommandProcessor {
   Microsoft::WRL::ComPtr<ID3D12PipelineState> fxaa_pipeline_;
   Microsoft::WRL::ComPtr<ID3D12PipelineState> fxaa_extreme_pipeline_;
 
+  struct ResolveDownscaleConstants {
+    uint32_t scale_x;
+    uint32_t scale_y;
+    uint32_t pixel_size_log2;
+    uint32_t tile_count;
+    uint32_t half_pixel_offset;
+  };
+  enum class ResolveDownscaleRootParameter : UINT {
+    kConstants,
+    kSource,
+    kDestination,
+
+    kCount,
+  };
+  Microsoft::WRL::ComPtr<ID3D12RootSignature> resolve_downscale_root_signature_;
+  Microsoft::WRL::ComPtr<ID3D12PipelineState> resolve_downscale_pipeline_;
+  Microsoft::WRL::ComPtr<ID3D12Resource> resolve_downscale_buffer_;
+  uint32_t resolve_downscale_buffer_size_ = 0;
+
   // PWL gamma ramp can result in values with more precision than 10bpc. Though
   // those sub-10bpc bits don't have any noticeable visual effect, so normally
   // R10G10B10A2_UNORM is enough. But what's the most important is that for the
@@ -554,9 +624,28 @@ class D3D12CommandProcessor : public CommandProcessor {
   D3D12_RESOURCE_STATES scratch_buffer_state_;
   bool scratch_buffer_used_ = false;
 
-  static constexpr uint32_t kReadbackBufferSizeIncrement = 16 * 1024 * 1024;
   ID3D12Resource* readback_buffer_ = nullptr;
   uint32_t readback_buffer_size_ = 0;
+  std::unordered_map<uint64_t, ReadbackBuffer> readback_buffers_;
+  std::unordered_map<uint64_t, ReadbackBuffer> memexport_readback_buffers_;
+
+  static constexpr uint32_t kMaxOcclusionQueries = 8192;
+  Microsoft::WRL::ComPtr<ID3D12QueryHeap> occlusion_query_heap_;
+  Microsoft::WRL::ComPtr<ID3D12Resource> occlusion_query_readback_;
+  uint64_t* occlusion_query_readback_mapping_ = nullptr;
+  uint32_t occlusion_query_cursor_ = 0;
+  bool occlusion_query_resources_available_ = false;
+  struct ActiveOcclusionQuery {
+    uint32_t sample_count_address = 0;
+    uint32_t host_index = UINT32_MAX;
+    bool valid = false;
+  } active_occlusion_query_;
+  struct VertexBufferState {
+    uint32_t address = UINT32_MAX;
+    uint32_t size = UINT32_MAX;
+  };
+  std::array<VertexBufferState, 96> vertex_buffer_states_{};
+  uint64_t vertex_buffers_in_sync_[2] = {};
 
   std::atomic<bool> pix_capture_requested_ = false;
   bool pix_capturing_;

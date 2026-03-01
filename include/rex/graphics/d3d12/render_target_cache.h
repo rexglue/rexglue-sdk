@@ -591,6 +591,32 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
     }
   };
 
+  struct DirectResolvePushConstants {
+    draw_util::ResolveCopyShaderConstants resolve;
+    uint32_t source_base_tiles;
+    uint32_t source_pitch_tiles;
+    uint32_t dispatch_first_tile;
+  };
+
+  struct DirectResolvePipelineKey {
+    DumpPipelineKey dump_pipeline_key;
+    draw_util::ResolveCopyShaderIndex copy_shader;
+    bool draw_resolution_scaled;
+
+    uint64_t packed() const {
+      return uint64_t(dump_pipeline_key.key) | (uint64_t(size_t(copy_shader)) << 32) |
+             (uint64_t(draw_resolution_scaled ? 1 : 0) << 40);
+    }
+    struct Hasher {
+      size_t operator()(const DirectResolvePipelineKey& key) const {
+        return std::hash<uint64_t>{}(key.packed());
+      }
+    };
+    bool operator==(const DirectResolvePipelineKey& other_key) const {
+      return packed() == other_key.packed();
+    }
+  };
+
   // Returns:
   // - A pointer to 1 pipeline for writing color or depth (or stencil via
   //   SV_StencilRef).
@@ -632,10 +658,14 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   void SetCommandListRenderTargets(RenderTarget* const* depth_and_color_render_targets);
 
   ID3D12PipelineState* GetOrCreateDumpPipeline(DumpPipelineKey key);
+  ID3D12PipelineState* GetOrCreateDirectResolvePipeline(DirectResolvePipelineKey key);
+  bool TryResolveCopyDirectly(const draw_util::ResolveInfo& resolve_info,
+                              draw_util::ResolveCopyShaderIndex copy_shader,
+                              bool draw_resolution_scaled);
 
   // Writes contents of host render targets within rectangles from
   // ResolveInfo::GetCopyEdramTileSpan to edram_buffer_.
-  void DumpRenderTargets(uint32_t dump_base, uint32_t dump_row_length_used, uint32_t dump_rows,
+  bool DumpRenderTargets(uint32_t dump_base, uint32_t dump_row_length_used, uint32_t dump_rows,
                          uint32_t dump_pitch);
 
   bool use_stencil_reference_output_ = false;
@@ -700,6 +730,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   // Temporary storage for DumpRenderTargets.
   std::vector<ResolveCopyDumpRectangle> dump_rectangles_;
   std::vector<DumpInvocation> dump_invocations_;
+  std::vector<ResolveCopyDispatch> direct_resolve_dispatches_;
 
   ID3D12RootSignature* dump_root_signature_color_ = nullptr;
   ID3D12RootSignature* dump_root_signature_depth_ = nullptr;
@@ -707,6 +738,14 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   // buffer. May be null if failed to create.
   std::unordered_map<DumpPipelineKey, ID3D12PipelineState*, DumpPipelineKey::Hasher>
       dump_pipelines_;
+  ID3D12RootSignature* direct_resolve_root_signature_color_ = nullptr;
+  ID3D12RootSignature* direct_resolve_root_signature_depth_ = nullptr;
+  std::unordered_map<DirectResolvePipelineKey, ID3D12PipelineState*,
+                     DirectResolvePipelineKey::Hasher>
+      direct_resolve_pipelines_;
+  uint64_t direct_resolve_attempt_count_ = 0;
+  uint64_t direct_resolve_success_count_ = 0;
+  uint64_t direct_resolve_fallback_count_ = 0;
 
   // Parameter 0 - 2 root constants (red, green).
   ID3D12RootSignature* uint32_rtv_clear_root_signature_ = nullptr;

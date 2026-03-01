@@ -136,6 +136,18 @@ class D3D12TextureCache final : public TextureCache {
   void CreateCurrentScaledResolveRangeUintPow2UAV(D3D12_CPU_DESCRIPTOR_HANDLE handle,
                                                   uint32_t element_size_bytes_pow2);
   void TransitionCurrentScaledResolveRange(D3D12_RESOURCE_STATES new_state);
+  uint64_t GetCurrentScaledResolveRangeStartScaled() const {
+    return scaled_resolve_current_range_start_scaled_;
+  }
+  uint64_t GetCurrentScaledResolveRangeLengthScaled() const {
+    return scaled_resolve_current_range_length_scaled_;
+  }
+  ID3D12Resource* GetCurrentScaledResolveBufferResource() {
+    return GetCurrentScaledResolveBuffer().resource();
+  }
+  size_t GetCurrentScaledResolveBufferIndexPublic() const {
+    return GetCurrentScaledResolveBufferIndex();
+  }
   void MarkCurrentScaledResolveRangeUAVWritesCommitNeeded() {
     assert_true(IsDrawResolutionScaled());
     GetCurrentScaledResolveBuffer().SetUAVBarrierPending();
@@ -146,7 +158,9 @@ class D3D12TextureCache final : public TextureCache {
   // the description of its SRV. May call LoadTextureData, so the same
   // restrictions (such as about descriptor heap change possibility) apply.
   ID3D12Resource* RequestSwapTexture(D3D12_SHADER_RESOURCE_VIEW_DESC& srv_desc_out,
-                                     xenos::TextureFormat& format_out);
+                                     xenos::TextureFormat& format_out,
+                                     uint32_t* width_unscaled_out = nullptr,
+                                     uint32_t* height_unscaled_out = nullptr);
 
  protected:
   bool IsSignedVersionSeparateForFormat(TextureKey key) const override;
@@ -216,6 +230,7 @@ class D3D12TextureCache final : public TextureCache {
       struct {
         uint32_t is_signed : 1;
         uint32_t host_swizzle : 12;
+        uint32_t dimension : 2;
       };
 
       SRVDescriptorKey() : key(0) { static_assert_size(*this, sizeof(key)); }
@@ -229,8 +244,11 @@ class D3D12TextureCache final : public TextureCache {
       bool operator!=(const SRVDescriptorKey& other_key) const { return !(*this == other_key); }
     };
 
+    ID3D12Resource* GetOrCreate3DAs2DResource(D3D12_RESOURCE_STATES end_state);
+
     explicit D3D12Texture(D3D12TextureCache& texture_cache, const TextureKey& key,
-                          ID3D12Resource* resource, D3D12_RESOURCE_STATES resource_state);
+                          ID3D12Resource* resource, D3D12_RESOURCE_STATES resource_state,
+                          bool track_usage = true);
     ~D3D12Texture();
 
     ID3D12Resource* resource() const { return resource_.Get(); }
@@ -253,6 +271,7 @@ class D3D12TextureCache final : public TextureCache {
    private:
     Microsoft::WRL::ComPtr<ID3D12Resource> resource_;
     D3D12_RESOURCE_STATES resource_state_;
+    std::unique_ptr<D3D12Texture> texture_3d_as_2d_;
 
     // For bindful - indices in the non-shader-visible descriptor cache for
     // copying to the shader-visible heap (much faster than recreating, which,
@@ -367,7 +386,8 @@ class D3D12TextureCache final : public TextureCache {
       case xenos::FetchOpDimension::k1D:
       case xenos::FetchOpDimension::k2D:
         return resource_dimension == xenos::DataDimension::k1D ||
-               resource_dimension == xenos::DataDimension::k2DOrStacked;
+               resource_dimension == xenos::DataDimension::k2DOrStacked ||
+               resource_dimension == xenos::DataDimension::k3D;
       case xenos::FetchOpDimension::k3DOrStacked:
         return resource_dimension == xenos::DataDimension::k3D;
       case xenos::FetchOpDimension::kCube:
@@ -380,8 +400,8 @@ class D3D12TextureCache final : public TextureCache {
   // Returns the index of an existing of a newly created non-shader-visible
   // cached (for bindful) or a shader-visible global (for bindless) descriptor,
   // or UINT32_MAX if failed to create.
-  uint32_t FindOrCreateTextureDescriptor(D3D12Texture& texture, bool is_signed,
-                                         uint32_t host_swizzle);
+  uint32_t FindOrCreateTextureDescriptor(D3D12Texture& texture, xenos::DataDimension dimension,
+                                         bool is_signed, uint32_t host_swizzle);
   void ReleaseTextureDescriptor(uint32_t descriptor_index);
   D3D12_CPU_DESCRIPTOR_HANDLE GetTextureDescriptorCPUHandle(uint32_t descriptor_index) const;
 

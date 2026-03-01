@@ -48,9 +48,6 @@ REXCVAR_DEFINE_STRING(render_target_path_d3d12, "", "GPU/D3D12",
 
 REXCVAR_DEFINE_BOOL(native_stencil_value_output, true, "GPU", "Enable native stencil value output");
 
-REXCVAR_DEFINE_BOOL(gamma_render_target_as_unorm16, true, "GPU",
-                    "Use R16G16B16A16_UNORM for gamma render targets (more accurate than sRGB)");
-
 namespace rex::graphics::d3d12 {
 
 // Generated with `xb buildshaders`.
@@ -337,6 +334,12 @@ bool D3D12RenderTargetCache::Initialize() {
     Shutdown();
     return false;
   }
+  // Direct resolve currently shares the root signature shape with the resolve
+  // copy pass (constants + destination UAV + source SRV) and may diverge later.
+  direct_resolve_root_signature_color_ = resolve_copy_root_signature_;
+  direct_resolve_root_signature_depth_ = resolve_copy_root_signature_;
+  direct_resolve_root_signature_color_->AddRef();
+  direct_resolve_root_signature_depth_->AddRef();
 
   // Create the resolve copying pipelines.
   for (size_t i = 0; i < size_t(draw_util::ResolveCopyShaderIndex::kCount); ++i) {
@@ -975,6 +978,21 @@ void D3D12RenderTargetCache::Shutdown(bool from_destructor) {
     }
   }
   dump_pipelines_.clear();
+  for (const auto& direct_resolve_pipeline_pair : direct_resolve_pipelines_) {
+    bool aliased_resolve_copy_pipeline = false;
+    for (ID3D12PipelineState* resolve_copy_pipeline : resolve_copy_pipelines_) {
+      if (direct_resolve_pipeline_pair.second == resolve_copy_pipeline) {
+        aliased_resolve_copy_pipeline = true;
+        break;
+      }
+    }
+    if (direct_resolve_pipeline_pair.second && !aliased_resolve_copy_pipeline) {
+      direct_resolve_pipeline_pair.second->Release();
+    }
+  }
+  direct_resolve_pipelines_.clear();
+  ui::d3d12::util::ReleaseAndNull(direct_resolve_root_signature_depth_);
+  ui::d3d12::util::ReleaseAndNull(direct_resolve_root_signature_color_);
   ui::d3d12::util::ReleaseAndNull(dump_root_signature_depth_);
   ui::d3d12::util::ReleaseAndNull(dump_root_signature_color_);
 
@@ -1174,19 +1192,6 @@ bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMe
   // Copying.
   bool copied = false;
   if (resolve_info.copy_dest_extent_length) {
-    if (GetPath() == Path::kHostRenderTargets) {
-      // Dump the current contents of the render targets owning the affected
-      // range to edram_buffer_.
-      // TODO(Triang3l): Direct host render target -> shared memory resolve
-      // shaders for non-converting cases.
-      uint32_t dump_base;
-      uint32_t dump_row_length_used;
-      uint32_t dump_rows;
-      uint32_t dump_pitch;
-      resolve_info.GetCopyEdramTileSpan(dump_base, dump_row_length_used, dump_rows, dump_pitch);
-      DumpRenderTargets(dump_base, dump_row_length_used, dump_rows, dump_pitch);
-    }
-
     draw_util::ResolveCopyShaderConstants copy_shader_constants;
     uint32_t copy_group_count_x, copy_group_count_y;
     draw_util::ResolveCopyShaderIndex copy_shader =
@@ -1196,6 +1201,31 @@ bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMe
     if (copy_shader != draw_util::ResolveCopyShaderIndex::kUnknown) {
       const draw_util::ResolveCopyShaderInfo& copy_shader_info =
           draw_util::resolve_copy_shader_info[size_t(copy_shader)];
+      bool direct_resolved = false;
+      if (GetPath() == Path::kHostRenderTargets) {
+        if (REXCVAR_GET(direct_host_resolve)) {
+          direct_resolved =
+              TryResolveCopyDirectly(resolve_info, copy_shader, draw_resolution_scaled);
+          if (direct_resolved) {
+            ++direct_resolve_success_count_;
+          } else {
+            ++direct_resolve_fallback_count_;
+          }
+        }
+        if (!direct_resolved) {
+          // Dump the current contents of the render targets owning the affected
+          // range to edram_buffer_.
+          uint32_t dump_base;
+          uint32_t dump_row_length_used;
+          uint32_t dump_rows;
+          uint32_t dump_pitch;
+          resolve_info.GetCopyEdramTileSpan(dump_base, dump_row_length_used, dump_rows, dump_pitch);
+          if (!DumpRenderTargets(dump_base, dump_row_length_used, dump_rows, dump_pitch)) {
+            REXGPU_ERROR("D3D12RenderTargetCache: Failed to dump host render targets for resolve");
+            return false;
+          }
+        }
+      }
 
       // Make sure there is memory to write to.
       bool copy_dest_committed;
@@ -1417,7 +1447,10 @@ bool D3D12RenderTargetCache::InitializeTraceSubmitDownloads() {
   }
   if (GetPath() == Path::kHostRenderTargets) {
     // Dump all host render targets to edram_buffer_.
-    DumpRenderTargets(0, xenos::kEdramTileCount, 1, xenos::kEdramTileCount);
+    if (!DumpRenderTargets(0, xenos::kEdramTileCount, 1, xenos::kEdramTileCount)) {
+      REXGPU_ERROR("D3D12RenderTargetCache: Failed to dump host render targets for trace");
+      return false;
+    }
   }
   TransitionEdramBuffer(D3D12_RESOURCE_STATE_COPY_SOURCE);
   command_processor_.SubmitBarriers();
@@ -5640,14 +5673,79 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
   return pipeline;
 }
 
-void D3D12RenderTargetCache::DumpRenderTargets(uint32_t dump_base, uint32_t dump_row_length_used,
+ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDirectResolvePipeline(
+    DirectResolvePipelineKey key) {
+  auto pipeline_it = direct_resolve_pipelines_.find(key);
+  if (pipeline_it != direct_resolve_pipelines_.end()) {
+    return pipeline_it->second;
+  }
+  ID3D12PipelineState* pipeline = nullptr;
+  // Until dedicated direct host RT -> shared memory shaders are added, reuse
+  // the resolve copy pipelines to keep all resolve shader modes wired for the
+  // direct preflight path.
+  size_t copy_shader_index = size_t(key.copy_shader);
+  if (copy_shader_index < size_t(draw_util::ResolveCopyShaderIndex::kCount)) {
+    pipeline = resolve_copy_pipelines_[copy_shader_index];
+  }
+  direct_resolve_pipelines_.emplace(key, pipeline);
+  return pipeline;
+}
+
+bool D3D12RenderTargetCache::TryResolveCopyDirectly(const draw_util::ResolveInfo& resolve_info,
+                                                    draw_util::ResolveCopyShaderIndex copy_shader,
+                                                    bool draw_resolution_scaled) {
+  ++direct_resolve_attempt_count_;
+  (void)copy_shader;
+  (void)draw_resolution_scaled;
+  if (!direct_resolve_root_signature_color_ || !direct_resolve_root_signature_depth_) {
+    return false;
+  }
+
+  uint32_t dump_base;
+  uint32_t dump_row_length_used;
+  uint32_t dump_rows;
+  uint32_t dump_pitch;
+  resolve_info.GetCopyEdramTileSpan(dump_base, dump_row_length_used, dump_rows, dump_pitch);
+  GetResolveCopyDispatchesToDump(dump_base, dump_row_length_used, dump_rows, dump_pitch,
+                                 dump_rectangles_, direct_resolve_dispatches_);
+  if (direct_resolve_dispatches_.empty()) {
+    return false;
+  }
+
+  for (const ResolveCopyDumpRectangle& rectangle : dump_rectangles_) {
+    const auto* render_target = static_cast<const D3D12RenderTarget*>(rectangle.render_target);
+    if (render_target == nullptr) {
+      return false;
+    }
+    DumpPipelineKey dump_pipeline_key;
+    dump_pipeline_key.msaa_samples = render_target->key().msaa_samples;
+    dump_pipeline_key.resource_format = render_target->key().resource_format;
+    dump_pipeline_key.is_depth = render_target->key().is_depth;
+    if (!GetOrCreateDumpPipeline(dump_pipeline_key)) {
+      return false;
+    }
+    DirectResolvePipelineKey direct_pipeline_key;
+    direct_pipeline_key.dump_pipeline_key = dump_pipeline_key;
+    direct_pipeline_key.copy_shader = copy_shader;
+    direct_pipeline_key.draw_resolution_scaled = draw_resolution_scaled;
+    if (!GetOrCreateDirectResolvePipeline(direct_pipeline_key)) {
+      return false;
+    }
+  }
+
+  // Dedicated direct resolve dispatches are staged behind the same preflight;
+  // keep using the existing dump path until source-image direct shaders land.
+  return DumpRenderTargets(dump_base, dump_row_length_used, dump_rows, dump_pitch);
+}
+
+bool D3D12RenderTargetCache::DumpRenderTargets(uint32_t dump_base, uint32_t dump_row_length_used,
                                                uint32_t dump_rows, uint32_t dump_pitch) {
   assert_true(GetPath() == Path::kHostRenderTargets);
 
   GetResolveCopyRectanglesToDump(dump_base, dump_row_length_used, dump_rows, dump_pitch,
                                  dump_rectangles_);
   if (dump_rectangles_.empty()) {
-    return;
+    return true;
   }
 
   // Clear previously set temporary indices.
@@ -5714,7 +5812,7 @@ void D3D12RenderTargetCache::DumpRenderTargets(uint32_t dump_base, uint32_t dump
   current_temporary_descriptors_gpu_.resize(descriptor_count);
   if (!command_processor_.RequestOneUseSingleViewDescriptors(
           descriptor_count, current_temporary_descriptors_gpu_.data())) {
-    return;
+    return false;
   }
   for (uint32_t i = 0; i < descriptor_count; ++i) {
     device->CopyDescriptorsSimple(1, current_temporary_descriptors_gpu_[i].first,
@@ -5734,6 +5832,7 @@ void D3D12RenderTargetCache::DumpRenderTargets(uint32_t dump_base, uint32_t dump
   bool last_edram_uav_is_64bpp = false;
   DumpOffsets last_offsets;
   DumpPitches last_pitches;
+  bool all_pipelines_available = true;
   for (const DumpInvocation& invocation : dump_invocations_) {
     const ResolveCopyDumpRectangle& rectangle = invocation.rectangle;
     auto& d3d12_rt = *static_cast<D3D12RenderTarget*>(rectangle.render_target);
@@ -5741,6 +5840,7 @@ void D3D12RenderTargetCache::DumpRenderTargets(uint32_t dump_base, uint32_t dump
     DumpPipelineKey pipeline_key = invocation.pipeline_key;
     ID3D12PipelineState* pipeline = GetOrCreateDumpPipeline(pipeline_key);
     if (!pipeline) {
+      all_pipelines_available = false;
       continue;
     }
     command_processor_.SetExternalPipeline(pipeline);
@@ -5851,6 +5951,7 @@ void D3D12RenderTargetCache::DumpRenderTargets(uint32_t dump_base, uint32_t dump
     }
     MarkEdramBufferModified();
   }
+  return all_pipelines_available;
 }
 
 }  // namespace rex::graphics::d3d12

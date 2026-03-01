@@ -167,6 +167,35 @@ class DeferredCommandList {
     args.start_instance_location = start_instance_location;
   }
 
+  void D3DBeginQuery(ID3D12QueryHeap* query_heap, D3D12_QUERY_TYPE type, UINT index) {
+    auto& args = *reinterpret_cast<D3DQueryArguments*>(
+        WriteCommand(Command::kD3DBeginQuery, sizeof(D3DQueryArguments)));
+    args.query_heap = query_heap;
+    args.type = type;
+    args.index = index;
+  }
+
+  void D3DEndQuery(ID3D12QueryHeap* query_heap, D3D12_QUERY_TYPE type, UINT index) {
+    auto& args = *reinterpret_cast<D3DQueryArguments*>(
+        WriteCommand(Command::kD3DEndQuery, sizeof(D3DQueryArguments)));
+    args.query_heap = query_heap;
+    args.type = type;
+    args.index = index;
+  }
+
+  void D3DResolveQueryData(ID3D12QueryHeap* query_heap, D3D12_QUERY_TYPE type, UINT start_index,
+                           UINT num_queries, ID3D12Resource* destination_buffer,
+                           UINT64 aligned_destination_buffer_offset) {
+    auto& args = *reinterpret_cast<D3DResolveQueryDataArguments*>(
+        WriteCommand(Command::kD3DResolveQueryData, sizeof(D3DResolveQueryDataArguments)));
+    args.query_heap = query_heap;
+    args.type = type;
+    args.start_index = start_index;
+    args.num_queries = num_queries;
+    args.destination_buffer = destination_buffer;
+    args.aligned_destination_buffer_offset = aligned_destination_buffer_offset;
+  }
+
   void D3DIASetIndexBuffer(const D3D12_INDEX_BUFFER_VIEW* view) {
     auto& args = *reinterpret_cast<D3D12_INDEX_BUFFER_VIEW*>(
         WriteCommand(Command::kD3DIASetIndexBuffer, sizeof(D3D12_INDEX_BUFFER_VIEW)));
@@ -379,6 +408,9 @@ class DeferredCommandList {
     kD3DDispatch,
     kD3DDrawIndexedInstanced,
     kD3DDrawInstanced,
+    kD3DBeginQuery,
+    kD3DEndQuery,
+    kD3DResolveQueryData,
     kD3DIASetIndexBuffer,
     kD3DIASetPrimitiveTopology,
     kD3DIASetVertexBuffers,
@@ -481,6 +513,21 @@ class DeferredCommandList {
     UINT instance_count;
     UINT start_vertex_location;
     UINT start_instance_location;
+  };
+
+  struct D3DQueryArguments {
+    ID3D12QueryHeap* query_heap;
+    D3D12_QUERY_TYPE type;
+    UINT index;
+  };
+
+  struct D3DResolveQueryDataArguments {
+    ID3D12QueryHeap* query_heap;
+    D3D12_QUERY_TYPE type;
+    UINT start_index;
+    UINT num_queries;
+    ID3D12Resource* destination_buffer;
+    UINT64 aligned_destination_buffer_offset;
   };
 
   struct D3DIASetVertexBuffersHeader {

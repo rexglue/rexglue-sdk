@@ -11,12 +11,14 @@
 
 #pragma once
 
+#include <atomic>
 #include <condition_variable>
 #include <cstdio>
 #include <deque>
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <queue>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -92,7 +94,7 @@ class PipelineCache {
   // Returns a pipeline with deferred creation by its handle. May return nullptr
   // if failed to create the pipeline.
   ID3D12PipelineState* GetD3D12PipelineByHandle(void* handle) const {
-    return reinterpret_cast<const Pipeline*>(handle)->state;
+    return reinterpret_cast<const Pipeline*>(handle)->state.load(std::memory_order_acquire);
   }
 
  private:
@@ -233,6 +235,8 @@ class PipelineCache {
     PipelineDescription description;
   };
 
+  struct Pipeline;
+
   union GeometryShaderKey {
     uint32_t key;
     struct {
@@ -243,6 +247,8 @@ class PipelineCache {
       uint32_t has_vertex_kill_and : 1;
       uint32_t has_point_size : 1;
       uint32_t has_point_coordinates : 1;
+      // PA_CL_CLIP_CNTL::ps_ucp_mode for point primitives.
+      uint32_t point_ps_ucp_mode : 2;
     };
 
     GeometryShaderKey() : key(0) { static_assert_size(*this, sizeof(key)); }
@@ -268,14 +274,14 @@ class PipelineCache {
 
   // If draw_util::IsRasterizationPotentiallyDone is false, the pixel shader
   // MUST be made nullptr BEFORE calling this! The shaders must be translated
-  // and valid.
+  // and valid unless for_placeholder is true.
   bool GetCurrentStateDescription(
       D3D12Shader::D3D12Translation* vertex_shader, D3D12Shader::D3D12Translation* pixel_shader,
       const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
       reg::RB_DEPTHCONTROL normalized_depth_control, uint32_t normalized_color_mask,
       uint32_t bound_depth_and_color_render_target_bits,
       const uint32_t* bound_depth_and_color_render_target_formats,
-      PipelineRuntimeDescription& runtime_description_out);
+      PipelineRuntimeDescription& runtime_description_out, bool for_placeholder = false);
 
   static bool GetGeometryShaderKey(PipelineGeometryShader geometry_shader_type,
                                    DxbcShaderTranslator::Modification vertex_shader_modification,
@@ -285,6 +291,8 @@ class PipelineCache {
   const std::vector<uint32_t>& GetGeometryShader(GeometryShaderKey key);
 
   ID3D12PipelineState* CreateD3D12Pipeline(const PipelineRuntimeDescription& runtime_description);
+  bool PrepareRuntimeDescriptionForQueuedCreation(Pipeline* pipeline,
+                                                  PipelineRuntimeDescription& runtime_description);
 
   D3D12CommandProcessor& command_processor_;
   const RegisterFile& register_file_;
@@ -295,6 +303,7 @@ class PipelineCache {
   string::StringBuffer ucode_disasm_buffer_;
   // Reusable shader translator for the processor thread.
   std::unique_ptr<DxbcShaderTranslator> shader_translator_;
+  std::mutex translation_request_lock_;
 
   // Command processor thread DXIL conversion/disassembly interfaces, if DXIL
   // disassembly is enabled.
@@ -335,8 +344,19 @@ class PipelineCache {
 
   struct Pipeline {
     // nullptr if creation has failed.
-    ID3D12PipelineState* state;
+    std::atomic<ID3D12PipelineState*> state{nullptr};
+    std::atomic<ID3D12RootSignature*> root_signature{nullptr};
     PipelineRuntimeDescription description;
+    D3D12Shader::D3D12Translation* pending_vertex_shader = nullptr;
+    D3D12Shader::D3D12Translation* pending_pixel_shader = nullptr;
+    uint8_t priority = 0;
+  };
+  struct PipelineCreationPriorityComparator {
+    bool operator()(const Pipeline* a, const Pipeline* b) const {
+      uint8_t priority_a = a ? a->priority : 0;
+      uint8_t priority_b = b ? b->priority : 0;
+      return priority_a < priority_b;
+    }
   };
   // All previously generated pipelines identified by hash and the description.
   std::unordered_multimap<uint64_t, Pipeline*, rex::IdentityHasher<uint64_t>> pipelines_;
@@ -381,7 +401,8 @@ class PipelineCache {
   std::condition_variable creation_request_cond_;
   // Protected with creation_request_lock_, notify_one creation_request_cond_
   // when set.
-  std::deque<Pipeline*> creation_queue_;
+  std::priority_queue<Pipeline*, std::vector<Pipeline*>, PipelineCreationPriorityComparator>
+      creation_queue_;
   // Number of threads that are currently creating a pipeline - incremented when
   // a pipeline is dequeued (the completion event can't be triggered before this
   // is zero). Protected with creation_request_lock_.
