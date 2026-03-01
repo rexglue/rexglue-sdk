@@ -140,5 +140,5 @@ ppc_u32_result_t XamContentAggregateCreateEnumerator_entry(ppc_u64_t xuid, ppc_u
 }  // namespace kernel
 }  // namespace rex
 
-PPC_HOOK(__imp__XamContentAggregateCreateEnumerator,
-         rex::kernel::xam::XamContentAggregateCreateEnumerator_entry)
+XAM_EXPORT(__imp__XamContentAggregateCreateEnumerator,
+           rex::kernel::xam::XamContentAggregateCreateEnumerator_entry)

@@ -44,7 +44,7 @@ ppc_u32_result_t XamPartyGetBandwidth_entry(ppc_u32_t r3, ppc_u32_t r4) {
 }  // namespace kernel
 }  // namespace rex
 
-PPC_HOOK(__imp__XamPartyGetUserList, rex::kernel::xam::XamPartyGetUserList_entry)
-PPC_HOOK(__imp__XamPartySendGameInvites, rex::kernel::xam::XamPartySendGameInvites_entry)
-PPC_HOOK(__imp__XamPartySetCustomData, rex::kernel::xam::XamPartySetCustomData_entry)
-PPC_HOOK(__imp__XamPartyGetBandwidth, rex::kernel::xam::XamPartyGetBandwidth_entry)
+XAM_EXPORT(__imp__XamPartyGetUserList, rex::kernel::xam::XamPartyGetUserList_entry)
+XAM_EXPORT(__imp__XamPartySendGameInvites, rex::kernel::xam::XamPartySendGameInvites_entry)
+XAM_EXPORT(__imp__XamPartySetCustomData, rex::kernel::xam::XamPartySetCustomData_entry)
+XAM_EXPORT(__imp__XamPartyGetBandwidth, rex::kernel::xam::XamPartyGetBandwidth_entry)

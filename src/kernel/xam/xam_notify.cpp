@@ -110,9 +110,9 @@ void XNotifyPositionUI_entry(ppc_u32_t position) {
 }  // namespace kernel
 }  // namespace rex
 
-PPC_HOOK(__imp__XamNotifyCreateListener, rex::kernel::xam::XamNotifyCreateListener_entry)
-PPC_HOOK(__imp__XamNotifyCreateListenerInternal,
-         rex::kernel::xam::XamNotifyCreateListenerInternal_entry)
-PPC_HOOK(__imp__XNotifyGetNext, rex::kernel::xam::XNotifyGetNext_entry)
-PPC_HOOK(__imp__XNotifyDelayUI, rex::kernel::xam::XNotifyDelayUI_entry)
-PPC_HOOK(__imp__XNotifyPositionUI, rex::kernel::xam::XNotifyPositionUI_entry)
+XAM_EXPORT(__imp__XamNotifyCreateListener, rex::kernel::xam::XamNotifyCreateListener_entry)
+XAM_EXPORT(__imp__XamNotifyCreateListenerInternal,
+           rex::kernel::xam::XamNotifyCreateListenerInternal_entry)
+XAM_EXPORT(__imp__XNotifyGetNext, rex::kernel::xam::XNotifyGetNext_entry)
+XAM_EXPORT(__imp__XNotifyDelayUI, rex::kernel::xam::XNotifyDelayUI_entry)
+XAM_EXPORT(__imp__XNotifyPositionUI, rex::kernel::xam::XNotifyPositionUI_entry)

@@ -69,5 +69,5 @@ ppc_u32_result_t XamShowNuiTroubleshooterUI_entry(ppc_unknown_t unk1, ppc_unknow
 }  // namespace kernel
 }  // namespace rex
 
-PPC_HOOK(__imp__XamNuiGetDeviceStatus, rex::kernel::xam::XamNuiGetDeviceStatus_entry)
-PPC_HOOK(__imp__XamShowNuiTroubleshooterUI, rex::kernel::xam::XamShowNuiTroubleshooterUI_entry)
+XAM_EXPORT(__imp__XamNuiGetDeviceStatus, rex::kernel::xam::XamNuiGetDeviceStatus_entry)
+XAM_EXPORT(__imp__XamShowNuiTroubleshooterUI, rex::kernel::xam::XamShowNuiTroubleshooterUI_entry)

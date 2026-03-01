@@ -48,7 +48,7 @@ ppc_u32_result_t XamVoiceHeadsetPresent_entry(ppc_pvoid_t voice_ptr) {
 }  // namespace kernel
 }  // namespace rex
 
-PPC_HOOK(__imp__XamVoiceIsActiveProcess, rex::kernel::xam::XamVoiceIsActiveProcess_entry)
-PPC_HOOK(__imp__XamVoiceCreate, rex::kernel::xam::XamVoiceCreate_entry)
-PPC_HOOK(__imp__XamVoiceClose, rex::kernel::xam::XamVoiceClose_entry)
-PPC_HOOK(__imp__XamVoiceHeadsetPresent, rex::kernel::xam::XamVoiceHeadsetPresent_entry)
+XAM_EXPORT(__imp__XamVoiceIsActiveProcess, rex::kernel::xam::XamVoiceIsActiveProcess_entry)
+XAM_EXPORT(__imp__XamVoiceCreate, rex::kernel::xam::XamVoiceCreate_entry)
+XAM_EXPORT(__imp__XamVoiceClose, rex::kernel::xam::XamVoiceClose_entry)
+XAM_EXPORT(__imp__XamVoiceHeadsetPresent, rex::kernel::xam::XamVoiceHeadsetPresent_entry)

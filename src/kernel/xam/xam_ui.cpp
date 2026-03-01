@@ -550,11 +550,11 @@ uint32_t XamShowMessageBoxUIEx_entry() {
 }  // namespace kernel
 }  // namespace rex
 
-PPC_HOOK(__imp__XamIsUIActive, rex::kernel::xam::XamIsUIActive_entry)
-PPC_HOOK(__imp__XamShowMessageBoxUI, rex::kernel::xam::XamShowMessageBoxUI_entry)
-PPC_HOOK(__imp__XamShowKeyboardUI, rex::kernel::xam::XamShowKeyboardUI_entry)
-PPC_HOOK(__imp__XamShowDeviceSelectorUI, rex::kernel::xam::XamShowDeviceSelectorUI_entry)
-PPC_HOOK(__imp__XamShowDirtyDiscErrorUI, rex::kernel::xam::XamShowDirtyDiscErrorUI_entry)
-PPC_HOOK(__imp__XamShowPartyUI, rex::kernel::xam::XamShowPartyUI_entry)
-PPC_HOOK(__imp__XamShowCommunitySessionsUI, rex::kernel::xam::XamShowCommunitySessionsUI_entry)
-PPC_HOOK(__imp__XamShowMessageBoxUIEx, rex::kernel::xam::XamShowMessageBoxUIEx_entry)
+XAM_EXPORT(__imp__XamIsUIActive, rex::kernel::xam::XamIsUIActive_entry)
+XAM_EXPORT(__imp__XamShowMessageBoxUI, rex::kernel::xam::XamShowMessageBoxUI_entry)
+XAM_EXPORT(__imp__XamShowKeyboardUI, rex::kernel::xam::XamShowKeyboardUI_entry)
+XAM_EXPORT(__imp__XamShowDeviceSelectorUI, rex::kernel::xam::XamShowDeviceSelectorUI_entry)
+XAM_EXPORT(__imp__XamShowDirtyDiscErrorUI, rex::kernel::xam::XamShowDirtyDiscErrorUI_entry)
+XAM_EXPORT(__imp__XamShowPartyUI, rex::kernel::xam::XamShowPartyUI_entry)
+XAM_EXPORT(__imp__XamShowCommunitySessionsUI, rex::kernel::xam::XamShowCommunitySessionsUI_entry)
+XAM_EXPORT(__imp__XamShowMessageBoxUIEx, rex::kernel::xam::XamShowMessageBoxUIEx_entry)

@@ -718,29 +718,30 @@ ppc_u32_result_t XamSessionRefObjByHandle_entry(ppc_u32_t handle, ppc_pu32_t obj
 }  // namespace kernel
 }  // namespace rex
 
-PPC_HOOK(__imp__XamUserGetXUID, rex::kernel::xam::XamUserGetXUID_entry)
-PPC_HOOK(__imp__XamUserGetSigninState, rex::kernel::xam::XamUserGetSigninState_entry)
-PPC_HOOK(__imp__XamUserGetSigninInfo, rex::kernel::xam::XamUserGetSigninInfo_entry)
-PPC_HOOK(__imp__XamUserGetName, rex::kernel::xam::XamUserGetName_entry)
-PPC_HOOK(__imp__XamUserGetGamerTag, rex::kernel::xam::XamUserGetGamerTag_entry)
-PPC_HOOK(__imp__XamUserReadProfileSettings, rex::kernel::xam::XamUserReadProfileSettings_entry)
-PPC_HOOK(__imp__XamUserReadProfileSettingsEx, rex::kernel::xam::XamUserReadProfileSettingsEx_entry)
-PPC_HOOK(__imp__XamUserWriteProfileSettings, rex::kernel::xam::XamUserWriteProfileSettings_entry)
-PPC_HOOK(__imp__XamUserCheckPrivilege, rex::kernel::xam::XamUserCheckPrivilege_entry)
-PPC_HOOK(__imp__XamUserContentRestrictionGetFlags,
-         rex::kernel::xam::XamUserContentRestrictionGetFlags_entry)
-PPC_HOOK(__imp__XamUserContentRestrictionGetRating,
-         rex::kernel::xam::XamUserContentRestrictionGetRating_entry)
-PPC_HOOK(__imp__XamUserContentRestrictionCheckAccess,
-         rex::kernel::xam::XamUserContentRestrictionCheckAccess_entry)
-PPC_HOOK(__imp__XamUserIsOnlineEnabled, rex::kernel::xam::XamUserIsOnlineEnabled_entry)
-PPC_HOOK(__imp__XamUserGetMembershipTier, rex::kernel::xam::XamUserGetMembershipTier_entry)
-PPC_HOOK(__imp__XamUserAreUsersFriends, rex::kernel::xam::XamUserAreUsersFriends_entry)
-PPC_HOOK(__imp__XamShowSigninUI, rex::kernel::xam::XamShowSigninUI_entry)
-PPC_HOOK(__imp__XamUserCreateAchievementEnumerator,
-         rex::kernel::xam::XamUserCreateAchievementEnumerator_entry)
-PPC_HOOK(__imp__XamParseGamerTileKey, rex::kernel::xam::XamParseGamerTileKey_entry)
-PPC_HOOK(__imp__XamReadTileToTexture, rex::kernel::xam::XamReadTileToTexture_entry)
-PPC_HOOK(__imp__XamWriteGamerTile, rex::kernel::xam::XamWriteGamerTile_entry)
-PPC_HOOK(__imp__XamSessionCreateHandle, rex::kernel::xam::XamSessionCreateHandle_entry)
-PPC_HOOK(__imp__XamSessionRefObjByHandle, rex::kernel::xam::XamSessionRefObjByHandle_entry)
+XAM_EXPORT(__imp__XamUserGetXUID, rex::kernel::xam::XamUserGetXUID_entry)
+XAM_EXPORT(__imp__XamUserGetSigninState, rex::kernel::xam::XamUserGetSigninState_entry)
+XAM_EXPORT(__imp__XamUserGetSigninInfo, rex::kernel::xam::XamUserGetSigninInfo_entry)
+XAM_EXPORT(__imp__XamUserGetName, rex::kernel::xam::XamUserGetName_entry)
+XAM_EXPORT(__imp__XamUserGetGamerTag, rex::kernel::xam::XamUserGetGamerTag_entry)
+XAM_EXPORT(__imp__XamUserReadProfileSettings, rex::kernel::xam::XamUserReadProfileSettings_entry)
+XAM_EXPORT(__imp__XamUserReadProfileSettingsEx,
+           rex::kernel::xam::XamUserReadProfileSettingsEx_entry)
+XAM_EXPORT(__imp__XamUserWriteProfileSettings, rex::kernel::xam::XamUserWriteProfileSettings_entry)
+XAM_EXPORT(__imp__XamUserCheckPrivilege, rex::kernel::xam::XamUserCheckPrivilege_entry)
+XAM_EXPORT(__imp__XamUserContentRestrictionGetFlags,
+           rex::kernel::xam::XamUserContentRestrictionGetFlags_entry)
+XAM_EXPORT(__imp__XamUserContentRestrictionGetRating,
+           rex::kernel::xam::XamUserContentRestrictionGetRating_entry)
+XAM_EXPORT(__imp__XamUserContentRestrictionCheckAccess,
+           rex::kernel::xam::XamUserContentRestrictionCheckAccess_entry)
+XAM_EXPORT(__imp__XamUserIsOnlineEnabled, rex::kernel::xam::XamUserIsOnlineEnabled_entry)
+XAM_EXPORT(__imp__XamUserGetMembershipTier, rex::kernel::xam::XamUserGetMembershipTier_entry)
+XAM_EXPORT(__imp__XamUserAreUsersFriends, rex::kernel::xam::XamUserAreUsersFriends_entry)
+XAM_EXPORT(__imp__XamShowSigninUI, rex::kernel::xam::XamShowSigninUI_entry)
+XAM_EXPORT(__imp__XamUserCreateAchievementEnumerator,
+           rex::kernel::xam::XamUserCreateAchievementEnumerator_entry)
+XAM_EXPORT(__imp__XamParseGamerTileKey, rex::kernel::xam::XamParseGamerTileKey_entry)
+XAM_EXPORT(__imp__XamReadTileToTexture, rex::kernel::xam::XamReadTileToTexture_entry)
+XAM_EXPORT(__imp__XamWriteGamerTile, rex::kernel::xam::XamWriteGamerTile_entry)
+XAM_EXPORT(__imp__XamSessionCreateHandle, rex::kernel::xam::XamSessionCreateHandle_entry)
+XAM_EXPORT(__imp__XamSessionRefObjByHandle, rex::kernel::xam::XamSessionRefObjByHandle_entry)

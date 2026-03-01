@@ -39,5 +39,5 @@ void XamAvatarShutdown_entry() {
 }  // namespace kernel
 }  // namespace rex
 
-PPC_HOOK(__imp__XamAvatarInitialize, rex::kernel::xam::XamAvatarInitialize_entry)
-PPC_HOOK(__imp__XamAvatarShutdown, rex::kernel::xam::XamAvatarShutdown_entry)
+XAM_EXPORT(__imp__XamAvatarInitialize, rex::kernel::xam::XamAvatarInitialize_entry)
+XAM_EXPORT(__imp__XamAvatarShutdown, rex::kernel::xam::XamAvatarShutdown_entry)

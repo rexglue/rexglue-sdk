@@ -83,6 +83,6 @@ ppc_u32_result_t XamTaskCloseHandle_entry(ppc_u32_t handle) {
 }  // namespace kernel
 }  // namespace rex
 
-PPC_HOOK(__imp__XamTaskSchedule, rex::kernel::xam::XamTaskSchedule_entry)
-PPC_HOOK(__imp__XamTaskShouldExit, rex::kernel::xam::XamTaskShouldExit_entry)
-PPC_HOOK(__imp__XamTaskCloseHandle, rex::kernel::xam::XamTaskCloseHandle_entry)
+XAM_EXPORT(__imp__XamTaskSchedule, rex::kernel::xam::XamTaskSchedule_entry)
+XAM_EXPORT(__imp__XamTaskShouldExit, rex::kernel::xam::XamTaskShouldExit_entry)
+XAM_EXPORT(__imp__XamTaskCloseHandle, rex::kernel::xam::XamTaskCloseHandle_entry)

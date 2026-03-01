@@ -176,8 +176,8 @@ const DummyDeviceInfo* GetDummyDeviceInfo(uint32_t device_id) {
 }  // namespace system
 }  // namespace rex
 
-PPC_HOOK(__imp__XamContentGetDeviceName, rex::kernel::xam::XamContentGetDeviceName_entry)
-PPC_HOOK(__imp__XamContentGetDeviceState, rex::kernel::xam::XamContentGetDeviceState_entry)
-PPC_HOOK(__imp__XamContentGetDeviceData, rex::kernel::xam::XamContentGetDeviceData_entry)
-PPC_HOOK(__imp__XamContentCreateDeviceEnumerator,
-         rex::kernel::xam::XamContentCreateDeviceEnumerator_entry)
+XAM_EXPORT(__imp__XamContentGetDeviceName, rex::kernel::xam::XamContentGetDeviceName_entry)
+XAM_EXPORT(__imp__XamContentGetDeviceState, rex::kernel::xam::XamContentGetDeviceState_entry)
+XAM_EXPORT(__imp__XamContentGetDeviceData, rex::kernel::xam::XamContentGetDeviceData_entry)
+XAM_EXPORT(__imp__XamContentCreateDeviceEnumerator,
+           rex::kernel::xam::XamContentCreateDeviceEnumerator_entry)

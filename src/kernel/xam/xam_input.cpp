@@ -205,13 +205,13 @@ ppc_hresult_result_t XamUserGetDeviceContext_entry(ppc_u32_t user_index, ppc_u32
 }  // namespace kernel
 }  // namespace rex
 
-PPC_HOOK(__imp__XamResetInactivity, rex::kernel::xam::XamResetInactivity_entry)
-PPC_HOOK(__imp__XamEnableInactivityProcessing,
-         rex::kernel::xam::XamEnableInactivityProcessing_entry)
-PPC_HOOK(__imp__XamInputGetCapabilities, rex::kernel::xam::XamInputGetCapabilities_entry)
-PPC_HOOK(__imp__XamInputGetCapabilitiesEx, rex::kernel::xam::XamInputGetCapabilitiesEx_entry)
-PPC_HOOK(__imp__XamInputGetState, rex::kernel::xam::XamInputGetState_entry)
-PPC_HOOK(__imp__XamInputSetState, rex::kernel::xam::XamInputSetState_entry)
-PPC_HOOK(__imp__XamInputGetKeystroke, rex::kernel::xam::XamInputGetKeystroke_entry)
-PPC_HOOK(__imp__XamInputGetKeystrokeEx, rex::kernel::xam::XamInputGetKeystrokeEx_entry)
-PPC_HOOK(__imp__XamUserGetDeviceContext, rex::kernel::xam::XamUserGetDeviceContext_entry)
+XAM_EXPORT(__imp__XamResetInactivity, rex::kernel::xam::XamResetInactivity_entry)
+XAM_EXPORT(__imp__XamEnableInactivityProcessing,
+           rex::kernel::xam::XamEnableInactivityProcessing_entry)
+XAM_EXPORT(__imp__XamInputGetCapabilities, rex::kernel::xam::XamInputGetCapabilities_entry)
+XAM_EXPORT(__imp__XamInputGetCapabilitiesEx, rex::kernel::xam::XamInputGetCapabilitiesEx_entry)
+XAM_EXPORT(__imp__XamInputGetState, rex::kernel::xam::XamInputGetState_entry)
+XAM_EXPORT(__imp__XamInputSetState, rex::kernel::xam::XamInputSetState_entry)
+XAM_EXPORT(__imp__XamInputGetKeystroke, rex::kernel::xam::XamInputGetKeystroke_entry)
+XAM_EXPORT(__imp__XamInputGetKeystrokeEx, rex::kernel::xam::XamInputGetKeystrokeEx_entry)
+XAM_EXPORT(__imp__XamUserGetDeviceContext, rex::kernel::xam::XamUserGetDeviceContext_entry)
