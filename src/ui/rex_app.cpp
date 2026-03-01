@@ -28,6 +28,7 @@
 #include <rex/audio/audio_system.h>
 #include <rex/audio/sdl/sdl_audio_system.h>
 #include <rex/input/input_system.h>
+#include <rex/kernel/init.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xthread.h>
 #include <rex/ui/graphics_provider.h>
@@ -128,6 +129,7 @@ bool ReXApp::OnInitialize() {
 #endif
   config.audio_factory = REX_AUDIO_BACKEND(rex::audio::sdl::SDLAudioSystem);
   config.input_factory = REX_INPUT_BACKEND(rex::input::CreateDefaultInputSystem);
+  config.kernel_init = rex::kernel::InitializeKernel;
 
   // Allow subclass to customize config
   OnPreSetup(config);

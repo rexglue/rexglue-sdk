@@ -65,8 +65,6 @@ KernelState::KernelState(Runtime* emulator)
 
   // Hardcoded maximum of 2048 TLS slots.
   tls_bitmap_.Resize(2048);
-
-  xam::AppManager::RegisterApps(this, app_manager_.get());
 }
 
 KernelState::~KernelState() {
