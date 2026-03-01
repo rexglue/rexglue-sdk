@@ -16,9 +16,27 @@
 #include <vector>
 
 #include <rex/assert.h>
+#include <rex/cvar.h>
 #include <rex/logging.h>
 #include <rex/platform.h>
 #include <rex/ui/vulkan/device.h>
+
+REXCVAR_DEFINE_BOOL(vulkan_require_fragment_stores_and_atomics, true, "UI/Vulkan",
+                    "Deprecated and ignored for parity; fragmentStoresAndAtomics is always "
+                    "required for Vulkan GPU emulation")
+    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
+REXCVAR_DEFINE_BOOL(vulkan_require_vertex_pipeline_stores_and_atomics, true, "UI/Vulkan",
+                    "Deprecated and ignored for parity; vertexPipelineStoresAndAtomics is always "
+                    "required for Vulkan GPU emulation")
+    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
+REXCVAR_DEFINE_BOOL(vulkan_require_geometry_shader, true, "UI/Vulkan",
+                    "Require geometryShader support for Vulkan GPU emulation (disable to allow "
+                    "fallback primitive emulation paths)")
+    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
+REXCVAR_DEFINE_BOOL(vulkan_require_fill_mode_non_solid, true, "UI/Vulkan",
+                    "Require fillModeNonSolid support for Vulkan GPU emulation (disable to "
+                    "allow fallback to solid fill for line/point polygon modes)")
+    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
 namespace rex {
 namespace ui {
@@ -88,6 +106,34 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
           properties.deviceName);
       return nullptr;
     }
+    if (!supported_features.fragmentStoresAndAtomics) {
+      REXLOG_WARN(
+          "Vulkan device '{}' doesn't support fragmentStoresAndAtomics, which "
+          "is required for Vulkan GPU emulation parity",
+          properties.deviceName);
+      return nullptr;
+    }
+    if (!supported_features.vertexPipelineStoresAndAtomics) {
+      REXLOG_WARN(
+          "Vulkan device '{}' doesn't support vertexPipelineStoresAndAtomics, which "
+          "is required for Vulkan GPU emulation parity",
+          properties.deviceName);
+      return nullptr;
+    }
+    if (REXCVAR_GET(vulkan_require_geometry_shader) && !supported_features.geometryShader) {
+      REXLOG_WARN(
+          "Vulkan device '{}' doesn't support geometryShader, but "
+          "vulkan_require_geometry_shader=true",
+          properties.deviceName);
+      return nullptr;
+    }
+    if (REXCVAR_GET(vulkan_require_fill_mode_non_solid) && !supported_features.fillModeNonSolid) {
+      REXLOG_WARN(
+          "Vulkan device '{}' doesn't support fillModeNonSolid, but "
+          "vulkan_require_fill_mode_non_solid=true",
+          properties.deviceName);
+      return nullptr;
+    }
   }
 
   // Enable needed extensions.
@@ -145,6 +191,8 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   if (properties.apiVersion >= VK_MAKE_API_VERSION(0, 1, 1, 0)) {
     // #414.
     XE_UI_VULKAN_STRUCT_PROMOTED_EXTENSION(KHR_maintenance4, 1, 3)
+    // #55.
+    XE_UI_VULKAN_STRUCT_PROMOTED_EXTENSION(KHR_dynamic_rendering, 1, 3)
   }
 
   if (with_swapchain) {
@@ -157,6 +205,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   bool ext_1_2_KHR_shader_float_controls = false;
   bool ext_EXT_fragment_shader_interlock = false;
   bool ext_1_3_EXT_shader_demote_to_helper_invocation = false;
+  bool ext_1_3_KHR_dynamic_rendering = false;
   bool ext_EXT_non_seamless_cube_map = false;
   if (with_gpu_emulation) {
     // #15.
@@ -174,10 +223,16 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
       XE_UI_VULKAN_LOCAL_PROMOTED_EXTENSION(KHR_shader_float_controls, 1, 2)
       // #252.
       XE_UI_VULKAN_LOCAL_EXTENSION(EXT_fragment_shader_interlock)
+      // #55.
+      XE_UI_VULKAN_LOCAL_PROMOTED_EXTENSION(KHR_dynamic_rendering, 1, 3)
       // #277.
       XE_UI_VULKAN_LOCAL_PROMOTED_EXTENSION(EXT_shader_demote_to_helper_invocation, 1, 3)
       // #423.
       XE_UI_VULKAN_LOCAL_EXTENSION(EXT_non_seamless_cube_map)
+      // Required for non-black YCbCr border color parity with D3D12.
+      XE_UI_VULKAN_STRUCT_EXTENSION(EXT_custom_border_color)
+      // Required for true null descriptors in bindless texture bindings.
+      XE_UI_VULKAN_STRUCT_EXTENSION(EXT_robustness2)
     }
     if (properties.apiVersion >= VK_MAKE_API_VERSION(0, 1, 1, 0)) {
       // #237.
@@ -260,12 +315,23 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   VulkanFeatures<VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT,
                  VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_INTERLOCK_FEATURES_EXT>
       features_EXT_fragment_shader_interlock;
+  VulkanFeatures<VkPhysicalDeviceDynamicRenderingFeaturesKHR,
+                 VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR>
+      features_1_3_KHR_dynamic_rendering;
   VulkanFeatures<VkPhysicalDeviceShaderDemoteToHelperInvocationFeaturesEXT,
                  VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DEMOTE_TO_HELPER_INVOCATION_FEATURES_EXT>
       features_1_3_EXT_shader_demote_to_helper_invocation;
   VulkanFeatures<VkPhysicalDeviceNonSeamlessCubeMapFeaturesEXT,
                  VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_NON_SEAMLESS_CUBE_MAP_FEATURES_EXT>
       features_EXT_non_seamless_cube_map;
+  VulkanFeatures<VkPhysicalDeviceCustomBorderColorFeaturesEXT,
+                 VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CUSTOM_BORDER_COLOR_FEATURES_EXT>
+      features_EXT_custom_border_color;
+  VkPhysicalDeviceCustomBorderColorPropertiesEXT properties_EXT_custom_border_color = {
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CUSTOM_BORDER_COLOR_PROPERTIES_EXT};
+  VulkanFeatures<VkPhysicalDeviceRobustness2FeaturesEXT,
+                 VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_EXT>
+      features_EXT_robustness2;
 
   if (get_physical_device_properties2_supported) {
     if (properties.apiVersion >= VK_MAKE_API_VERSION(0, 1, 2, 0)) {
@@ -274,6 +340,9 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
     if (properties.apiVersion >= VK_MAKE_API_VERSION(0, 1, 3, 0)) {
       features_1_3.Link(supported_features_2, device_create_info);
     } else {
+      if (ext_1_3_KHR_dynamic_rendering) {
+        features_1_3_KHR_dynamic_rendering.Link(supported_features_2, device_create_info);
+      }
       if (ext_1_3_EXT_shader_demote_to_helper_invocation) {
         features_1_3_EXT_shader_demote_to_helper_invocation.Link(supported_features_2,
                                                                  device_create_info);
@@ -295,6 +364,14 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
     }
     if (ext_EXT_non_seamless_cube_map) {
       features_EXT_non_seamless_cube_map.Link(supported_features_2, device_create_info);
+    }
+    if (device->extensions_.ext_EXT_custom_border_color) {
+      features_EXT_custom_border_color.Link(supported_features_2, device_create_info);
+      properties_EXT_custom_border_color.pNext = properties_2.pNext;
+      properties_2.pNext = &properties_EXT_custom_border_color;
+    }
+    if (device->extensions_.ext_EXT_robustness2) {
+      features_EXT_robustness2.Link(supported_features_2, device_create_info);
     }
     ifn.vkGetPhysicalDeviceProperties2(physical_device, &properties_2);
     ifn.vkGetPhysicalDeviceFeatures2(physical_device, &supported_features_2);
@@ -577,8 +654,14 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   if (properties.apiVersion >= VK_MAKE_API_VERSION(0, 1, 3, 0)) {
     if (with_gpu_emulation) {
       XE_UI_VULKAN_FEATURE_2(features_1_3, shaderDemoteToHelperInvocation);
+      XE_UI_VULKAN_FEATURE_2(features_1_3, dynamicRendering);
     }
   } else {
+    if (ext_1_3_KHR_dynamic_rendering) {
+      if (with_gpu_emulation) {
+        XE_UI_VULKAN_FEATURE_2(features_1_3_KHR_dynamic_rendering, dynamicRendering);
+      }
+    }
     if (ext_1_3_EXT_shader_demote_to_helper_invocation) {
       if (with_gpu_emulation) {
         XE_UI_VULKAN_FEATURE_2(features_1_3_EXT_shader_demote_to_helper_invocation,
@@ -596,7 +679,6 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
       XE_UI_VULKAN_FEATURE_2(features_KHR_portability_subset, separateStencilMaskRef)
       XE_UI_VULKAN_FEATURE_2(features_KHR_portability_subset,
                              shaderSampleRateInterpolationFunctions)
-      XE_UI_VULKAN_FEATURE_2(features_KHR_portability_subset, triangleFans)
     }
   } else {
     // Not a portability subset device.
@@ -606,7 +688,6 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
     XE_UI_VULKAN_FEATURE_IMPLIED(pointPolygons)
     XE_UI_VULKAN_FEATURE_IMPLIED(separateStencilMaskRef)
     XE_UI_VULKAN_FEATURE_IMPLIED(shaderSampleRateInterpolationFunctions)
-    XE_UI_VULKAN_FEATURE_IMPLIED(triangleFans)
   }
 
   if (ext_1_2_KHR_shader_float_controls) {
@@ -627,6 +708,20 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   if (ext_EXT_non_seamless_cube_map) {
     if (with_gpu_emulation) {
       XE_UI_VULKAN_FEATURE_2(features_EXT_non_seamless_cube_map, nonSeamlessCubeMap)
+    }
+  }
+
+  if (device->extensions_.ext_EXT_custom_border_color) {
+    if (with_gpu_emulation) {
+      XE_UI_VULKAN_FEATURE_2(features_EXT_custom_border_color, customBorderColors)
+      XE_UI_VULKAN_FEATURE_2(features_EXT_custom_border_color, customBorderColorWithoutFormat)
+    }
+    XE_UI_VULKAN_PROPERTY_2(properties_EXT_custom_border_color, maxCustomBorderColorSamplers)
+  }
+
+  if (device->extensions_.ext_EXT_robustness2) {
+    if (with_gpu_emulation) {
+      XE_UI_VULKAN_FEATURE_2(features_EXT_robustness2, nullDescriptor)
     }
   }
 
@@ -672,6 +767,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
 #include <rex/ui/vulkan/functions/device_1_1_khr_get_memory_requirements2.inc>
   }
   if (properties.apiVersion >= VK_MAKE_API_VERSION(0, 1, 3, 0)) {
+#include <rex/ui/vulkan/functions/device_1_3_khr_dynamic_rendering.inc>
 #include <rex/ui/vulkan/functions/device_1_3_khr_maintenance4.inc>
   }
 #undef XE_UI_VULKAN_FUNCTION_PROMOTED
@@ -690,6 +786,9 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
     }
   }
   if (properties.apiVersion < VK_MAKE_API_VERSION(0, 1, 3, 0)) {
+    if (device->extensions_.ext_1_3_KHR_dynamic_rendering) {
+#include <rex/ui/vulkan/functions/device_1_3_khr_dynamic_rendering.inc>
+    }
     if (device->extensions_.ext_1_3_KHR_maintenance4) {
 #include <rex/ui/vulkan/functions/device_1_3_khr_maintenance4.inc>
     }
