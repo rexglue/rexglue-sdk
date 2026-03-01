@@ -3,6 +3,8 @@
 # System emulation layer has moved to rexsystem (rex::system)
 
 set(REXKERNEL_SOURCES
+    kernel_init.cpp
+
     # XAM subsystem - provides __imp__Xam* symbols
     xam/xam_module.cpp
     xam/xam_avatar.cpp

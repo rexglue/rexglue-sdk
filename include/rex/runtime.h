@@ -54,6 +54,7 @@ struct RuntimeConfig {
   std::unique_ptr<system::IGraphicsSystem> graphics;
   std::function<std::unique_ptr<system::IAudioSystem>(runtime::Processor*)> audio_factory;
   std::function<std::unique_ptr<system::IInputSystem>(bool tool_mode)> input_factory;
+  std::function<void(Runtime*, system::KernelState*)> kernel_init;
   bool tool_mode = false;
 };
 
