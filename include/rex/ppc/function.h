@@ -568,7 +568,6 @@ T GuestToHostFunction(const TFunction& func, TArgs&&... argv) {
     uint32_t call_num = ++s_counter;                        \
     if (call_num <= 3)                                      \
       REXKRNL_WARN("{} [#{}] STUB", #subroutine, call_num); \
-    ctx.r3.u64 = 0;                                         \
   }
 
 // Create a stub that logs when called (with call counter)
@@ -579,7 +578,6 @@ T GuestToHostFunction(const TFunction& func, TArgs&&... argv) {
     uint32_t call_num = ++s_counter;                                   \
     if (call_num <= 3)                                                 \
       REXKRNL_DEBUG("{} [#{}] STUB - {}", #subroutine, call_num, msg); \
-    ctx.r3.u64 = 0;                                                    \
   }
 
 // Create a stub that returns a specific value (with call counter)
