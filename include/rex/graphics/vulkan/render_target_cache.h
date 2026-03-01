@@ -110,29 +110,42 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
                VulkanTextureCache& texture_cache, uint32_t& written_address_out,
                uint32_t& written_length_out);
 
+  // Returns true if any downloads were submitted to the command processor.
+  bool InitializeTraceSubmitDownloads();
+  void InitializeTraceCompleteDownloads();
+  void RestoreEdramSnapshot(const void* snapshot);
+
   bool Update(bool is_rasterization_done, reg::RB_DEPTHCONTROL normalized_depth_control,
               uint32_t normalized_color_mask, const Shader& vertex_shader) override;
   // Binding information for the last successful update.
   RenderPassKey last_update_render_pass_key() const { return last_update_render_pass_key_; }
   VkRenderPass last_update_render_pass() const { return last_update_render_pass_; }
   const Framebuffer* last_update_framebuffer() const { return last_update_framebuffer_; }
+  void GetLastUpdateRenderingAttachments(VkRenderingAttachmentInfo* color_attachments,
+                                         uint32_t* color_attachment_count_out,
+                                         VkRenderingAttachmentInfo* depth_attachment,
+                                         VkRenderingAttachmentInfo* stencil_attachment) const;
 
   // Using R16G16[B16A16]_SNORM, which are -1...1, not the needed -32...32.
   // Persistent data doesn't depend on this, so can be overriden by per-game
   // configuration.
   bool IsFixedRG16TruncatedToMinus1To1() const {
-    // TODO(Triang3l): Not float16 condition.
-    return GetPath() == Path::kHostRenderTargets && !REXCVAR_GET(snorm16_render_target_full_range);
+    return GetPath() == Path::kHostRenderTargets && !color_rg16_draw_format_fallback_to_float_ &&
+           !REXCVAR_GET(snorm16_render_target_full_range);
   }
   bool IsFixedRGBA16TruncatedToMinus1To1() const {
-    // TODO(Triang3l): Not float16 condition.
-    return GetPath() == Path::kHostRenderTargets && !REXCVAR_GET(snorm16_render_target_full_range);
+    return GetPath() == Path::kHostRenderTargets && !color_rgba16_draw_format_fallback_to_float_ &&
+           !REXCVAR_GET(snorm16_render_target_full_range);
   }
+  bool gamma_render_target_as_unorm16() const { return gamma_render_target_as_unorm16_; }
 
   bool depth_unorm24_vulkan_format_supported() const {
     return depth_unorm24_vulkan_format_supported_;
   }
   bool depth_float24_round() const { return depth_float24_round_; }
+  bool depth_float24_convert_in_pixel_shader() const {
+    return depth_float24_convert_in_pixel_shader_;
+  }
 
   bool msaa_2x_attachments_supported() const { return msaa_2x_attachments_supported_; }
   bool msaa_2x_no_attachments_supported() const { return msaa_2x_no_attachments_supported_; }
@@ -152,8 +165,10 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
 
   VkFormat GetDepthVulkanFormat(xenos::DepthRenderTargetFormat format) const;
   VkFormat GetColorVulkanFormat(xenos::ColorRenderTargetFormat format) const;
-  VkFormat GetColorOwnershipTransferVulkanFormat(xenos::ColorRenderTargetFormat format,
-                                                 bool* is_integer_out = nullptr) const;
+  VkFormat GetColorOwnershipTransferVulkanFormat(
+      xenos::ColorRenderTargetFormat format,
+      xenos::MsaaSamples msaa_samples = xenos::MsaaSamples::k1X,
+      bool* is_integer_out = nullptr) const;
 
  protected:
   uint32_t GetMaxRenderTargetWidth() const override;
@@ -228,6 +243,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
 
   static void GetEdramBufferUsageMasks(EdramBufferUsage usage, VkPipelineStageFlags& stage_mask_out,
                                        VkAccessFlags& access_mask_out);
+  bool IsColor16FormatFloatLike(xenos::ColorRenderTargetFormat format) const;
   void UseEdramBuffer(EdramBufferUsage new_usage);
   void MarkEdramBufferModified(EdramBufferModificationStatus modification_status =
                                    EdramBufferModificationStatus::kViaUnordered);
@@ -746,6 +762,31 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     }
   };
 
+  struct DirectResolvePushConstants {
+    draw_util::ResolveCopyShaderConstants resolve;
+    uint32_t source_base_tiles;
+    uint32_t source_pitch_tiles;
+    uint32_t dispatch_first_tile;
+  };
+
+  struct DirectResolvePipelineKey {
+    DumpPipelineKey dump_pipeline_key;
+    draw_util::ResolveCopyShaderIndex copy_shader;
+    bool draw_resolution_scaled;
+    uint64_t packed() const {
+      return uint64_t(dump_pipeline_key.key) | (uint64_t(size_t(copy_shader)) << 32) |
+             (uint64_t(draw_resolution_scaled ? 1 : 0) << 40);
+    }
+    struct Hasher {
+      size_t operator()(const DirectResolvePipelineKey& key) const {
+        return std::hash<uint64_t>{}(key.packed());
+      }
+    };
+    bool operator==(const DirectResolvePipelineKey& other_key) const {
+      return packed() == other_key.packed();
+    }
+  };
+
   // Returns the framebuffer object, or VK_NULL_HANDLE if failed to create.
   const Framebuffer* GetHostRenderTargetsFramebuffer(
       RenderPassKey render_pass_key, uint32_t pitch_tiles_at_32bpp,
@@ -769,19 +810,28 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
       const Transfer::Rectangle* resolve_clear_rectangle = nullptr);
 
   VkPipeline GetDumpPipeline(DumpPipelineKey key);
+  VkPipeline GetDirectResolvePipeline(DirectResolvePipelineKey key);
+  bool TryResolveCopyDirectly(const draw_util::ResolveInfo& resolve_info,
+                              draw_util::ResolveCopyShaderIndex copy_shader,
+                              bool draw_resolution_scaled);
 
   // Writes contents of host render targets within rectangles from
   // ResolveInfo::GetCopyEdramTileSpan to edram_buffer_.
-  void DumpRenderTargets(uint32_t dump_base, uint32_t dump_row_length_used, uint32_t dump_rows,
+  bool DumpRenderTargets(uint32_t dump_base, uint32_t dump_row_length_used, uint32_t dump_rows,
                          uint32_t dump_pitch);
 
   bool gamma_render_target_as_unorm16_ = false;
 
   bool depth_unorm24_vulkan_format_supported_ = false;
   bool depth_float24_round_ = false;
+  bool depth_float24_convert_in_pixel_shader_ = false;
 
   bool msaa_2x_attachments_supported_ = false;
   bool msaa_2x_no_attachments_supported_ = false;
+  bool color_16bit_transfer_uint_formats_supported_ = true;
+  bool color_32bit_transfer_uint_formats_supported_ = true;
+  bool color_rg16_draw_format_fallback_to_float_ = false;
+  bool color_rgba16_draw_format_fallback_to_float_ = false;
 
   // VK_NULL_HANDLE if failed to create.
   std::unordered_map<RenderPassKey, VkRenderPass, RenderPassKey::Hasher> render_passes_;
@@ -811,6 +861,10 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   // Compute pipelines for copying host render target contents to the EDRAM
   // buffer. VK_NULL_HANDLE if failed to create.
   std::unordered_map<DumpPipelineKey, VkPipeline, DumpPipelineKey::Hasher> dump_pipelines_;
+  VkPipelineLayout direct_resolve_pipeline_layout_color_ = VK_NULL_HANDLE;
+  VkPipelineLayout direct_resolve_pipeline_layout_depth_ = VK_NULL_HANDLE;
+  std::unordered_map<DirectResolvePipelineKey, VkPipeline, DirectResolvePipelineKey::Hasher>
+      direct_resolve_pipelines_;
 
   // Temporary storage for Resolve.
   std::vector<Transfer> clear_transfers_[2];
@@ -821,6 +875,18 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   // Temporary storage for DumpRenderTargets.
   std::vector<ResolveCopyDumpRectangle> dump_rectangles_;
   std::vector<DumpInvocation> dump_invocations_;
+  std::vector<ResolveCopyDispatch> direct_resolve_dispatches_;
+  uint64_t direct_resolve_attempt_count_ = 0;
+  uint64_t direct_resolve_success_count_ = 0;
+  uint64_t direct_resolve_fallback_count_ = 0;
+
+  // For traces.
+  VkBuffer edram_snapshot_download_buffer_ = VK_NULL_HANDLE;
+  VkDeviceMemory edram_snapshot_download_buffer_memory_ = VK_NULL_HANDLE;
+  uint32_t edram_snapshot_download_buffer_memory_type_ = UINT32_MAX;
+  VkDeviceSize edram_snapshot_download_buffer_memory_size_ = 0;
+  std::unique_ptr<ui::vulkan::VulkanUploadBufferPool> edram_snapshot_restore_pool_;
+  void ResetTraceDownload();
 
   // For pixel (fragment) shader interlock.
 

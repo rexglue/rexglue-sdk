@@ -14,37 +14,553 @@
 #include <cstdint>
 #include <cstring>
 #include <iterator>
+#include <mutex>
+#include <string>
+#include <string_view>
 #include <tuple>
 #include <utility>
+#include <vector>
 
+#include <SPIRV/GlslangToSpv.h>
+#include <glslang/Public/ShaderLang.h>
 #include <rex/assert.h>
+#include <rex/cvar.h>
 #include <rex/dbg.h>
+#include <rex/logging.h>
+#include <rex/math.h>
+#include <rex/graphics/util/draw.h>
 #include <rex/graphics/flags.h>
 #include <rex/graphics/pipeline/shader/shader.h>
 #include <rex/graphics/pipeline/shader/spirv_translator.h>
 #include <rex/graphics/registers.h>
-#include <rex/graphics/util/draw.h>
 #include <rex/graphics/vulkan/command_processor.h>
 #include <rex/graphics/vulkan/pipeline_cache.h>
 #include <rex/graphics/vulkan/render_target_cache.h>
 #include <rex/graphics/vulkan/shader.h>
 #include <rex/graphics/vulkan/shared_memory.h>
 #include <rex/graphics/xenos.h>
-#include <rex/logging.h>
-#include <rex/math.h>
+#include <rex/kernel/xboxkrnl/video.h>
 #include <rex/types.h>
+#include <rex/memory/utils.h>
+#include <rex/ui/flags.h>
 #include <rex/ui/vulkan/presenter.h>
 #include <rex/ui/vulkan/util.h>
 
+// Legacy backend compatibility aliases for shared readback controls.
+REXCVAR_DEFINE_BOOL(vulkan_readback_resolve, false, "GPU/Vulkan",
+                    "Read render-to-texture results on the CPU")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
+REXCVAR_DEFINE_BOOL(vulkan_readback_memexport, false, "GPU/Vulkan",
+                    "Read data written by memory export in shaders on the CPU")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
+REXCVAR_DEFINE_BOOL(vulkan_async_skip_incomplete_frames, true, "GPU/Vulkan",
+                    "When async shader compilation is enabled, skip presenting frames that "
+                    "used placeholder pipelines to avoid visible flashing")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
+REXCVAR_DEFINE_BOOL(vulkan_submit_on_primary_buffer_end, true, "GPU/Vulkan",
+                    "Submit command buffer when PM4 primary buffer ends")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
+REXCVAR_DEFINE_BOOL(vulkan_dynamic_rendering, true, "GPU/Vulkan",
+                    "Use VK_KHR_dynamic_rendering for Vulkan GPU emulation when supported by the "
+                    "device (falls back to render passes otherwise)")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
 namespace rex::graphics::vulkan {
+
+namespace {
+
+// glslang default built-in resource limits.
+constexpr TBuiltInResource kGlslangDefaultTBuiltInResource = {
+    /* .maxLights = */ 32,
+    /* .maxClipPlanes = */ 6,
+    /* .maxTextureUnits = */ 32,
+    /* .maxTextureCoords = */ 32,
+    /* .maxVertexAttribs = */ 64,
+    /* .maxVertexUniformComponents = */ 4096,
+    /* .maxVaryingFloats = */ 64,
+    /* .maxVertexTextureImageUnits = */ 32,
+    /* .maxCombinedTextureImageUnits = */ 80,
+    /* .maxTextureImageUnits = */ 32,
+    /* .maxFragmentUniformComponents = */ 4096,
+    /* .maxDrawBuffers = */ 32,
+    /* .maxVertexUniformVectors = */ 128,
+    /* .maxVaryingVectors = */ 8,
+    /* .maxFragmentUniformVectors = */ 16,
+    /* .maxVertexOutputVectors = */ 16,
+    /* .maxFragmentInputVectors = */ 15,
+    /* .minProgramTexelOffset = */ -8,
+    /* .maxProgramTexelOffset = */ 7,
+    /* .maxClipDistances = */ 8,
+    /* .maxComputeWorkGroupCountX = */ 65535,
+    /* .maxComputeWorkGroupCountY = */ 65535,
+    /* .maxComputeWorkGroupCountZ = */ 65535,
+    /* .maxComputeWorkGroupSizeX = */ 1024,
+    /* .maxComputeWorkGroupSizeY = */ 1024,
+    /* .maxComputeWorkGroupSizeZ = */ 64,
+    /* .maxComputeUniformComponents = */ 1024,
+    /* .maxComputeTextureImageUnits = */ 16,
+    /* .maxComputeImageUniforms = */ 8,
+    /* .maxComputeAtomicCounters = */ 8,
+    /* .maxComputeAtomicCounterBuffers = */ 1,
+    /* .maxVaryingComponents = */ 60,
+    /* .maxVertexOutputComponents = */ 64,
+    /* .maxGeometryInputComponents = */ 64,
+    /* .maxGeometryOutputComponents = */ 128,
+    /* .maxFragmentInputComponents = */ 128,
+    /* .maxImageUnits = */ 8,
+    /* .maxCombinedImageUnitsAndFragmentOutputs = */ 8,
+    /* .maxCombinedShaderOutputResources = */ 8,
+    /* .maxImageSamples = */ 0,
+    /* .maxVertexImageUniforms = */ 0,
+    /* .maxTessControlImageUniforms = */ 0,
+    /* .maxTessEvaluationImageUniforms = */ 0,
+    /* .maxGeometryImageUniforms = */ 0,
+    /* .maxFragmentImageUniforms = */ 8,
+    /* .maxCombinedImageUniforms = */ 8,
+    /* .maxGeometryTextureImageUnits = */ 16,
+    /* .maxGeometryOutputVertices = */ 256,
+    /* .maxGeometryTotalOutputComponents = */ 1024,
+    /* .maxGeometryUniformComponents = */ 1024,
+    /* .maxGeometryVaryingComponents = */ 64,
+    /* .maxTessControlInputComponents = */ 128,
+    /* .maxTessControlOutputComponents = */ 128,
+    /* .maxTessControlTextureImageUnits = */ 16,
+    /* .maxTessControlUniformComponents = */ 1024,
+    /* .maxTessControlTotalOutputComponents = */ 4096,
+    /* .maxTessEvaluationInputComponents = */ 128,
+    /* .maxTessEvaluationOutputComponents = */ 128,
+    /* .maxTessEvaluationTextureImageUnits = */ 16,
+    /* .maxTessEvaluationUniformComponents = */ 1024,
+    /* .maxTessPatchComponents = */ 120,
+    /* .maxPatchVertices = */ 32,
+    /* .maxTessGenLevel = */ 64,
+    /* .maxViewports = */ 16,
+    /* .maxVertexAtomicCounters = */ 0,
+    /* .maxTessControlAtomicCounters = */ 0,
+    /* .maxTessEvaluationAtomicCounters = */ 0,
+    /* .maxGeometryAtomicCounters = */ 0,
+    /* .maxFragmentAtomicCounters = */ 8,
+    /* .maxCombinedAtomicCounters = */ 8,
+    /* .maxAtomicCounterBindings = */ 1,
+    /* .maxVertexAtomicCounterBuffers = */ 0,
+    /* .maxTessControlAtomicCounterBuffers = */ 0,
+    /* .maxTessEvaluationAtomicCounterBuffers = */ 0,
+    /* .maxGeometryAtomicCounterBuffers = */ 0,
+    /* .maxFragmentAtomicCounterBuffers = */ 1,
+    /* .maxCombinedAtomicCounterBuffers = */ 1,
+    /* .maxAtomicCounterBufferSize = */ 16384,
+    /* .maxTransformFeedbackBuffers = */ 4,
+    /* .maxTransformFeedbackInterleavedComponents = */ 64,
+    /* .maxCullDistances = */ 8,
+    /* .maxCombinedClipAndCullDistances = */ 8,
+    /* .maxSamples = */ 4,
+    /* .maxMeshOutputVerticesNV = */ 256,
+    /* .maxMeshOutputPrimitivesNV = */ 512,
+    /* .maxMeshWorkGroupSizeX_NV = */ 32,
+    /* .maxMeshWorkGroupSizeY_NV = */ 1,
+    /* .maxMeshWorkGroupSizeZ_NV = */ 1,
+    /* .maxTaskWorkGroupSizeX_NV = */ 32,
+    /* .maxTaskWorkGroupSizeY_NV = */ 1,
+    /* .maxTaskWorkGroupSizeZ_NV = */ 1,
+    /* .maxMeshViewCountNV = */ 4,
+    /* .maxDualSourceDrawBuffersEXT = */ 1,
+    /* .limits = */
+    {
+        /* .nonInductiveForLoops = */ 1,
+        /* .whileLoops = */ 1,
+        /* .doWhileLoops = */ 1,
+        /* .generalUniformIndexing = */ 1,
+        /* .generalAttributeMatrixVectorIndexing = */ 1,
+        /* .generalVaryingIndexing = */ 1,
+        /* .generalSamplerIndexing = */ 1,
+        /* .generalVariableIndexing = */ 1,
+        /* .generalConstantMatrixVectorIndexing = */ 1,
+    },
+};
+
+const char* GetSwapFxaaComputeSource(bool extreme_quality) {
+  return extreme_quality ? R"(#version 450
+layout(local_size_x = 16, local_size_y = 8, local_size_z = 1) in;
+
+layout(push_constant) uniform XeApplyGammaRampConstants {
+  uvec2 xe_fxaa_size;
+  vec2 xe_fxaa_size_inv;
+};
+
+layout(set = 0, binding = 0) uniform sampler2D xe_fxaa_source;
+layout(set = 1, binding = 0, rgb10_a2) writeonly uniform image2D xe_fxaa_dest;
+
+const vec3 kLumaWeights = vec3(0.299, 0.587, 0.114);
+const float kEdgeThreshold = 0.063;
+const float kEdgeThresholdMin = 0.0312;
+const float kSpanMax = 12.0;
+const float kDirReduceMul = 0.125;
+const float kDirReduceMin = 1.0 / 128.0;
+
+float SampleLuma(vec2 uv) {
+  return textureLod(xe_fxaa_source, uv, 0.0).a;
+}
+
+void main() {
+  uvec2 pixel = gl_GlobalInvocationID.xy;
+  if (any(greaterThanEqual(pixel, xe_fxaa_size))) {
+    return;
+  }
+
+  vec2 uv = (vec2(pixel) + vec2(0.5)) * xe_fxaa_size_inv;
+  vec2 texel = xe_fxaa_size_inv;
+  vec4 rgbm = textureLod(xe_fxaa_source, uv, 0.0);
+
+  float lumaM = rgbm.a;
+  float lumaNW = SampleLuma(uv + vec2(-texel.x, -texel.y));
+  float lumaNE = SampleLuma(uv + vec2( texel.x, -texel.y));
+  float lumaSW = SampleLuma(uv + vec2(-texel.x,  texel.y));
+  float lumaSE = SampleLuma(uv + vec2( texel.x,  texel.y));
+
+  float lumaMin = min(lumaM, min(min(lumaNW, lumaNE), min(lumaSW, lumaSE)));
+  float lumaMax = max(lumaM, max(max(lumaNW, lumaNE), max(lumaSW, lumaSE)));
+  float lumaRange = lumaMax - lumaMin;
+
+  vec3 result = rgbm.rgb;
+  if (lumaRange >= max(kEdgeThresholdMin, lumaMax * kEdgeThreshold)) {
+    vec2 dir;
+    dir.x = -((lumaNW + lumaNE) - (lumaSW + lumaSE));
+    dir.y =  ((lumaNW + lumaSW) - (lumaNE + lumaSE));
+
+    float dirReduce = max(
+        (lumaNW + lumaNE + lumaSW + lumaSE) * (0.25 * kDirReduceMul),
+        kDirReduceMin);
+    float rcpDirMin = 1.0 / (min(abs(dir.x), abs(dir.y)) + dirReduce);
+    dir = clamp(dir * rcpDirMin, vec2(-kSpanMax), vec2(kSpanMax)) * texel;
+
+    vec3 rgbA =
+        0.5 *
+        (textureLod(xe_fxaa_source, uv + dir * (1.0 / 3.0 - 0.5), 0.0).rgb +
+         textureLod(xe_fxaa_source, uv + dir * (2.0 / 3.0 - 0.5), 0.0).rgb);
+    vec3 rgbB =
+        rgbA * 0.5 +
+        0.25 *
+            (textureLod(xe_fxaa_source, uv + dir * -0.5, 0.0).rgb +
+             textureLod(xe_fxaa_source, uv + dir * 0.5, 0.0).rgb);
+    float lumaB = dot(rgbB, kLumaWeights);
+    result = (lumaB < lumaMin || lumaB > lumaMax) ? rgbA : rgbB;
+  }
+
+  imageStore(xe_fxaa_dest, ivec2(pixel), vec4(result, 1.0));
+}
+)"
+                         : R"(#version 450
+layout(local_size_x = 16, local_size_y = 8, local_size_z = 1) in;
+
+layout(push_constant) uniform XeApplyGammaRampConstants {
+  uvec2 xe_fxaa_size;
+  vec2 xe_fxaa_size_inv;
+};
+
+layout(set = 0, binding = 0) uniform sampler2D xe_fxaa_source;
+layout(set = 1, binding = 0, rgb10_a2) writeonly uniform image2D xe_fxaa_dest;
+
+const vec3 kLumaWeights = vec3(0.299, 0.587, 0.114);
+const float kEdgeThreshold = 0.166;
+const float kEdgeThresholdMin = 0.0833;
+const float kSpanMax = 8.0;
+const float kDirReduceMul = 0.125;
+const float kDirReduceMin = 1.0 / 128.0;
+
+float SampleLuma(vec2 uv) {
+  return textureLod(xe_fxaa_source, uv, 0.0).a;
+}
+
+void main() {
+  uvec2 pixel = gl_GlobalInvocationID.xy;
+  if (any(greaterThanEqual(pixel, xe_fxaa_size))) {
+    return;
+  }
+
+  vec2 uv = (vec2(pixel) + vec2(0.5)) * xe_fxaa_size_inv;
+  vec2 texel = xe_fxaa_size_inv;
+  vec4 rgbm = textureLod(xe_fxaa_source, uv, 0.0);
+
+  float lumaM = rgbm.a;
+  float lumaNW = SampleLuma(uv + vec2(-texel.x, -texel.y));
+  float lumaNE = SampleLuma(uv + vec2( texel.x, -texel.y));
+  float lumaSW = SampleLuma(uv + vec2(-texel.x,  texel.y));
+  float lumaSE = SampleLuma(uv + vec2( texel.x,  texel.y));
+
+  float lumaMin = min(lumaM, min(min(lumaNW, lumaNE), min(lumaSW, lumaSE)));
+  float lumaMax = max(lumaM, max(max(lumaNW, lumaNE), max(lumaSW, lumaSE)));
+  float lumaRange = lumaMax - lumaMin;
+
+  vec3 result = rgbm.rgb;
+  if (lumaRange >= max(kEdgeThresholdMin, lumaMax * kEdgeThreshold)) {
+    vec2 dir;
+    dir.x = -((lumaNW + lumaNE) - (lumaSW + lumaSE));
+    dir.y =  ((lumaNW + lumaSW) - (lumaNE + lumaSE));
+
+    float dirReduce = max(
+        (lumaNW + lumaNE + lumaSW + lumaSE) * (0.25 * kDirReduceMul),
+        kDirReduceMin);
+    float rcpDirMin = 1.0 / (min(abs(dir.x), abs(dir.y)) + dirReduce);
+    dir = clamp(dir * rcpDirMin, vec2(-kSpanMax), vec2(kSpanMax)) * texel;
+
+    vec3 rgbA =
+        0.5 *
+        (textureLod(xe_fxaa_source, uv + dir * (1.0 / 3.0 - 0.5), 0.0).rgb +
+         textureLod(xe_fxaa_source, uv + dir * (2.0 / 3.0 - 0.5), 0.0).rgb);
+    vec3 rgbB =
+        rgbA * 0.5 +
+        0.25 *
+            (textureLod(xe_fxaa_source, uv + dir * -0.5, 0.0).rgb +
+             textureLod(xe_fxaa_source, uv + dir * 0.5, 0.0).rgb);
+    float lumaB = dot(rgbB, kLumaWeights);
+    result = (lumaB < lumaMin || lumaB > lumaMax) ? rgbA : rgbB;
+  }
+
+  imageStore(xe_fxaa_dest, ivec2(pixel), vec4(result, 1.0));
+}
+)";
+}
+
+const char* GetSwapApplyGammaTablePixelRbSwapSource() {
+  return R"(#version 450
+layout(set = 0, binding = 0) uniform textureBuffer xe_apply_gamma_ramp;
+layout(set = 1, binding = 0) uniform texture2D xe_apply_gamma_source;
+
+layout(location = 0) out vec4 xe_apply_gamma_color;
+
+void main() {
+  ivec2 pixel = ivec2(gl_FragCoord.xy);
+  uvec3 source = uvec3(texelFetch(xe_apply_gamma_source, pixel, 0).rgb * 255.0 + vec3(0.5)).bgr;
+  xe_apply_gamma_color = vec4(
+      texelFetch(xe_apply_gamma_ramp, int(source.r)).b,
+      texelFetch(xe_apply_gamma_ramp, int(source.g)).g,
+      texelFetch(xe_apply_gamma_ramp, int(source.b)).r,
+      1.0);
+}
+)";
+}
+
+const char* GetSwapApplyGammaPwlPixelRbSwapSource() {
+  return R"(#version 450
+layout(set = 0, binding = 0) uniform utextureBuffer xe_apply_gamma_ramp;
+layout(set = 1, binding = 0) uniform texture2D xe_apply_gamma_source;
+
+layout(location = 0) out vec4 xe_apply_gamma_color;
+
+float ApplyPwl(uint source_value_10b, uint channel) {
+  uint source_value_base = source_value_10b >> 3u;
+  uvec4 pwl = texelFetch(xe_apply_gamma_ramp, int(source_value_base * 3u + channel));
+  float value = float(pwl.x) + float((source_value_10b & 7u) * pwl.y) * 0.125;
+  return clamp(value * 1.52737048e-05, 0.0, 1.0);
+}
+
+void main() {
+  ivec2 pixel = ivec2(gl_FragCoord.xy);
+  uvec3 source = uvec3(texelFetch(xe_apply_gamma_source, pixel, 0).rgb * 1023.0 + vec3(0.5)).bgr;
+  xe_apply_gamma_color = vec4(
+      ApplyPwl(source.r, 0u),
+      ApplyPwl(source.g, 1u),
+      ApplyPwl(source.b, 2u),
+      1.0);
+}
+)";
+}
+
+const char* GetSwapApplyGammaTableComputeRbSwapSource() {
+  return R"(#version 450
+layout(local_size_x = 16, local_size_y = 8, local_size_z = 1) in;
+
+layout(push_constant) uniform XeApplyGammaRampConstants {
+  uvec2 xe_apply_gamma_size;
+};
+
+layout(set = 0, binding = 0) uniform textureBuffer xe_apply_gamma_ramp;
+layout(set = 1, binding = 0) uniform texture2D xe_apply_gamma_source;
+layout(set = 2, binding = 0, rgb10_a2) writeonly uniform image2D xe_apply_gamma_dest;
+
+void main() {
+  ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+  if (any(greaterThanEqual(uvec2(pixel), xe_apply_gamma_size))) {
+    return;
+  }
+
+  uvec3 source = uvec3(texelFetch(xe_apply_gamma_source, pixel, 0).rgb * 255.0 + vec3(0.5)).bgr;
+  imageStore(
+      xe_apply_gamma_dest, pixel,
+      vec4(texelFetch(xe_apply_gamma_ramp, int(source.r)).b,
+           texelFetch(xe_apply_gamma_ramp, int(source.g)).g,
+           texelFetch(xe_apply_gamma_ramp, int(source.b)).r, 1.0));
+}
+)";
+}
+
+const char* GetSwapApplyGammaPwlComputeRbSwapSource() {
+  return R"(#version 450
+layout(local_size_x = 16, local_size_y = 8, local_size_z = 1) in;
+
+layout(push_constant) uniform XeApplyGammaRampConstants {
+  uvec2 xe_apply_gamma_size;
+};
+
+layout(set = 0, binding = 0) uniform utextureBuffer xe_apply_gamma_ramp;
+layout(set = 1, binding = 0) uniform texture2D xe_apply_gamma_source;
+layout(set = 2, binding = 0, rgb10_a2) writeonly uniform image2D xe_apply_gamma_dest;
+
+float ApplyPwl(uint source_value_10b, uint channel) {
+  uint source_value_base = source_value_10b >> 3u;
+  uvec4 pwl = texelFetch(xe_apply_gamma_ramp, int(source_value_base * 3u + channel));
+  float value = float(pwl.x) + float((source_value_10b & 7u) * pwl.y) * 0.125;
+  return clamp(value * 1.52737048e-05, 0.0, 1.0);
+}
+
+void main() {
+  ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+  if (any(greaterThanEqual(uvec2(pixel), xe_apply_gamma_size))) {
+    return;
+  }
+
+  uvec3 source = uvec3(texelFetch(xe_apply_gamma_source, pixel, 0).rgb * 1023.0 + vec3(0.5)).bgr;
+  imageStore(xe_apply_gamma_dest, pixel,
+             vec4(ApplyPwl(source.r, 0u), ApplyPwl(source.g, 1u),
+                  ApplyPwl(source.b, 2u), 1.0));
+}
+)";
+}
+
+const char* GetSwapApplyGammaTableFxaaLumaComputeRbSwapSource() {
+  return R"(#version 450
+layout(local_size_x = 16, local_size_y = 8, local_size_z = 1) in;
+
+layout(push_constant) uniform XeApplyGammaRampConstants {
+  uvec2 xe_apply_gamma_size;
+};
+
+layout(set = 0, binding = 0) uniform textureBuffer xe_apply_gamma_ramp;
+layout(set = 1, binding = 0) uniform texture2D xe_apply_gamma_source;
+layout(set = 2, binding = 0, rgba16f) writeonly uniform image2D xe_apply_gamma_dest;
+
+const vec3 kLumaWeights = vec3(0.299, 0.587, 0.114);
+
+void main() {
+  ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+  if (any(greaterThanEqual(uvec2(pixel), xe_apply_gamma_size))) {
+    return;
+  }
+
+  uvec3 source = uvec3(texelFetch(xe_apply_gamma_source, pixel, 0).rgb * 255.0 + vec3(0.5)).bgr;
+  vec3 rgb = vec3(texelFetch(xe_apply_gamma_ramp, int(source.r)).b,
+                  texelFetch(xe_apply_gamma_ramp, int(source.g)).g,
+                  texelFetch(xe_apply_gamma_ramp, int(source.b)).r);
+  imageStore(xe_apply_gamma_dest, pixel, vec4(rgb, dot(rgb, kLumaWeights)));
+}
+)";
+}
+
+const char* GetSwapApplyGammaPwlFxaaLumaComputeRbSwapSource() {
+  return R"(#version 450
+layout(local_size_x = 16, local_size_y = 8, local_size_z = 1) in;
+
+layout(push_constant) uniform XeApplyGammaRampConstants {
+  uvec2 xe_apply_gamma_size;
+};
+
+layout(set = 0, binding = 0) uniform utextureBuffer xe_apply_gamma_ramp;
+layout(set = 1, binding = 0) uniform texture2D xe_apply_gamma_source;
+layout(set = 2, binding = 0, rgba16f) writeonly uniform image2D xe_apply_gamma_dest;
+
+const vec3 kLumaWeights = vec3(0.299, 0.587, 0.114);
+
+float ApplyPwl(uint source_value_10b, uint channel) {
+  uint source_value_base = source_value_10b >> 3u;
+  uvec4 pwl = texelFetch(xe_apply_gamma_ramp, int(source_value_base * 3u + channel));
+  float value = float(pwl.x) + float((source_value_10b & 7u) * pwl.y) * 0.125;
+  return clamp(value * 1.52737048e-05, 0.0, 1.0);
+}
+
+void main() {
+  ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+  if (any(greaterThanEqual(uvec2(pixel), xe_apply_gamma_size))) {
+    return;
+  }
+
+  uvec3 source = uvec3(texelFetch(xe_apply_gamma_source, pixel, 0).rgb * 1023.0 + vec3(0.5)).bgr;
+  vec3 rgb = vec3(ApplyPwl(source.r, 0u), ApplyPwl(source.g, 1u),
+                  ApplyPwl(source.b, 2u));
+  imageStore(xe_apply_gamma_dest, pixel, vec4(rgb, dot(rgb, kLumaWeights)));
+}
+)";
+}
+
+bool CompileGlslToSpirvInternal(EShLanguage stage, std::string_view source,
+                                std::vector<uint32_t>& spirv_out, std::string& error_out) {
+  static std::once_flag glslang_initialize_once;
+  std::call_once(glslang_initialize_once, []() { glslang::InitializeProcess(); });
+
+  const char* source_c_str = source.data();
+  glslang::TShader shader(stage);
+  shader.setStrings(&source_c_str, 1);
+  shader.setEnvInput(glslang::EShSourceGlsl, stage, glslang::EShClientVulkan, 450);
+  shader.setEnvClient(glslang::EShClientVulkan, glslang::EShTargetVulkan_1_0);
+  shader.setEnvTarget(glslang::EShTargetSpv, glslang::EShTargetSpv_1_0);
+
+  EShMessages messages = EShMessages(EShMsgSpvRules | EShMsgVulkanRules);
+  if (!shader.parse(&kGlslangDefaultTBuiltInResource, 450, false, messages)) {
+    error_out = "glslang shader parse failed";
+    if (const char* shader_log = shader.getInfoLog();
+        shader_log != nullptr && shader_log[0] != '\0') {
+      error_out += ": ";
+      error_out += shader_log;
+    }
+    return false;
+  }
+
+  glslang::TProgram program;
+  program.addShader(&shader);
+  if (!program.link(messages)) {
+    error_out = "glslang program link failed";
+    if (const char* program_log = program.getInfoLog();
+        program_log != nullptr && program_log[0] != '\0') {
+      error_out += ": ";
+      error_out += program_log;
+    }
+    return false;
+  }
+
+  const glslang::TIntermediate* intermediate = program.getIntermediate(stage);
+  if (intermediate == nullptr) {
+    error_out = "glslang produced no stage intermediate";
+    return false;
+  }
+
+  glslang::SpvOptions spv_options = {};
+  spv_options.disableOptimizer = true;
+  spv_options.optimizeSize = false;
+  glslang::GlslangToSpv(*intermediate, spirv_out, &spv_options);
+  if (spirv_out.empty()) {
+    error_out = "glslang produced empty SPIR-V";
+    return false;
+  }
+  return true;
+}
+
+}  // namespace
 
 // Generated with `xb buildshaders`.
 namespace shaders {
+#include "../shaders/vulkan_spirv/apply_gamma_pwl_cs.h"
 #include "../shaders/vulkan_spirv/apply_gamma_pwl_fxaa_luma_ps.h"
+#include "../shaders/vulkan_spirv/apply_gamma_pwl_fxaa_luma_cs.h"
 #include "../shaders/vulkan_spirv/apply_gamma_pwl_ps.h"
+#include "../shaders/vulkan_spirv/apply_gamma_table_cs.h"
 #include "../shaders/vulkan_spirv/apply_gamma_table_fxaa_luma_ps.h"
+#include "../shaders/vulkan_spirv/apply_gamma_table_fxaa_luma_cs.h"
 #include "../shaders/vulkan_spirv/apply_gamma_table_ps.h"
 #include "../shaders/vulkan_spirv/fullscreen_cw_vs.h"
+#include "../shaders/vulkan_spirv/resolve_downscale_cs.h"
 }  // namespace shaders
 
 const VkDescriptorPoolSize VulkanCommandProcessor::kDescriptorPoolSizeUniformBuffer = {
@@ -52,7 +568,7 @@ const VkDescriptorPoolSize VulkanCommandProcessor::kDescriptorPoolSizeUniformBuf
     SpirvShaderTranslator::kConstantBufferCount* kLinkedTypeDescriptorPoolSetCount};
 
 const VkDescriptorPoolSize VulkanCommandProcessor::kDescriptorPoolSizeStorageBuffer = {
-    VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, kLinkedTypeDescriptorPoolSetCount};
+    VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2 * kLinkedTypeDescriptorPoolSetCount};
 
 // 2x descriptors for texture images because of unsigned and signed bindings.
 const VkDescriptorPoolSize VulkanCommandProcessor::kDescriptorPoolSizeTextures[2] = {
@@ -76,13 +592,58 @@ VulkanCommandProcessor::VulkanCommandProcessor(VulkanGraphicsSystem* graphics_sy
           static_cast<const ui::vulkan::VulkanProvider*>(graphics_system->provider())
               ->vulkan_device(),
           kDescriptorPoolSizeTextures, uint32_t(rex::countof(kDescriptorPoolSizeTextures)),
-          kLinkedTypeDescriptorPoolSetCount) {}
+          kLinkedTypeDescriptorPoolSetCount) {
+  legacy_readback_memexport_cvar_name_ = "vulkan_readback_memexport";
+}
 
 VulkanCommandProcessor::~VulkanCommandProcessor() = default;
 
 void VulkanCommandProcessor::ClearCaches() {
   CommandProcessor::ClearCaches();
+  InvalidateAllVertexBufferResidency();
   cache_clear_requested_ = true;
+}
+
+void VulkanCommandProcessor::InvalidateGpuMemory() {
+  if (shared_memory_) {
+    shared_memory_->InvalidateAllPages();
+  }
+}
+
+void VulkanCommandProcessor::InvalidateAllVertexBufferResidency() {
+  vertex_buffers_in_sync_[0] = 0;
+  vertex_buffers_in_sync_[1] = 0;
+  for (VertexBufferState& state : vertex_buffer_states_) {
+    state.address = UINT32_MAX;
+    state.size = UINT32_MAX;
+  }
+}
+
+void VulkanCommandProcessor::InvalidateVertexBufferResidency(uint32_t vfetch_index) {
+  if (vfetch_index >= vertex_buffer_states_.size()) {
+    return;
+  }
+  vertex_buffers_in_sync_[vfetch_index >> 6] &= ~(uint64_t(1) << (vfetch_index & 63));
+}
+
+void VulkanCommandProcessor::InvalidateVertexBufferResidencyRange(uint32_t first_vfetch,
+                                                                  uint32_t last_vfetch) {
+  if (first_vfetch > last_vfetch) {
+    std::swap(first_vfetch, last_vfetch);
+  }
+  if (first_vfetch >= vertex_buffer_states_.size()) {
+    return;
+  }
+  last_vfetch = std::min(last_vfetch, uint32_t(vertex_buffer_states_.size() - 1));
+  for (uint32_t vfetch_index = first_vfetch; vfetch_index <= last_vfetch; ++vfetch_index) {
+    InvalidateVertexBufferResidency(vfetch_index);
+  }
+}
+
+void VulkanCommandProcessor::InitializeShaderStorage(const std::filesystem::path& cache_root,
+                                                     uint32_t title_id, bool blocking) {
+  CommandProcessor::InitializeShaderStorage(cache_root, title_id, blocking);
+  pipeline_cache_->InitializeShaderStorage(cache_root, title_id, blocking);
 }
 
 void VulkanCommandProcessor::TracePlaybackWroteMemory(uint32_t base_ptr, uint32_t length) {
@@ -90,7 +651,78 @@ void VulkanCommandProcessor::TracePlaybackWroteMemory(uint32_t base_ptr, uint32_
   primitive_processor_->MemoryInvalidationCallback(base_ptr, length, true);
 }
 
-void VulkanCommandProcessor::RestoreEdramSnapshot(const void* snapshot) {}
+void VulkanCommandProcessor::RestoreEdramSnapshot(const void* snapshot) {
+  if (!BeginSubmission(true)) {
+    return;
+  }
+  render_target_cache_->RestoreEdramSnapshot(snapshot);
+}
+
+bool VulkanCommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffer* reader,
+                                                                uint32_t packet, uint32_t count) {
+  if (!REXCVAR_GET(occlusion_query_enable) || !occlusion_query_resources_available_) {
+    return CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(reader, packet, count);
+  }
+
+  const uint32_t kQueryFinished = rex::byte_swap(0xFFFFFEED);
+  assert_true(count == 1);
+  uint32_t initiator = reader->ReadAndSwap<uint32_t>();
+  WriteRegister(XE_GPU_REG_VGT_EVENT_INITIATOR, initiator & 0x3F);
+
+  uint32_t sample_count_addr = register_file_->values[XE_GPU_REG_RB_SAMPLE_COUNT_ADDR];
+  auto* sample_counts =
+      memory_->TranslatePhysical<xenos::xe_gpu_depth_sample_counts*>(sample_count_addr);
+  if (!sample_counts) {
+    DisableHostOcclusionQueries();
+    return true;
+  }
+
+  auto write_fallback_result = [sample_counts]() -> bool {
+    auto fake_sample_count = REXCVAR_GET(query_occlusion_fake_sample_count);
+    if (fake_sample_count < 0) {
+      return true;
+    }
+    bool is_end_via_z_pass =
+        sample_counts->ZPass_A == kQueryFinished && sample_counts->ZPass_B == kQueryFinished;
+    bool is_end_via_z_fail =
+        sample_counts->ZFail_A == kQueryFinished && sample_counts->ZFail_B == kQueryFinished;
+    std::memset(sample_counts, 0, sizeof(xenos::xe_gpu_depth_sample_counts));
+    if (is_end_via_z_pass || is_end_via_z_fail) {
+      sample_counts->ZPass_A = fake_sample_count;
+      sample_counts->Total_A = fake_sample_count;
+    }
+    return true;
+  };
+
+  bool is_end_via_z_pass =
+      sample_counts->ZPass_A == kQueryFinished && sample_counts->ZPass_B == kQueryFinished;
+  bool is_end_via_z_fail =
+      sample_counts->ZFail_A == kQueryFinished && sample_counts->ZFail_B == kQueryFinished;
+  bool is_end = is_end_via_z_pass || is_end_via_z_fail;
+
+  if (!is_end) {
+    if (active_occlusion_query_.valid &&
+        active_occlusion_query_.sample_count_address != sample_count_addr) {
+      DisableHostOcclusionQueries();
+      return write_fallback_result();
+    }
+    if (!BeginGuestOcclusionQuery(sample_count_addr)) {
+      return write_fallback_result();
+    }
+    return true;
+  }
+
+  if (!active_occlusion_query_.valid ||
+      active_occlusion_query_.sample_count_address != sample_count_addr) {
+    DisableHostOcclusionQueries();
+    return write_fallback_result();
+  }
+
+  if (!EndGuestOcclusionQuery(sample_count_addr)) {
+    return write_fallback_result();
+  }
+  return true;
+}
 
 std::string VulkanCommandProcessor::GetWindowTitleText() const {
   std::ostringstream title;
@@ -118,11 +750,43 @@ std::string VulkanCommandProcessor::GetWindowTitleText() const {
   return title.str();
 }
 
+bool VulkanCommandProcessor::CompileGlslToSpirv(VkShaderStageFlagBits stage,
+                                                std::string_view source,
+                                                std::vector<uint32_t>& spirv_out,
+                                                std::string& error_out) const {
+  EShLanguage glslang_stage;
+  switch (stage) {
+    case VK_SHADER_STAGE_VERTEX_BIT:
+      glslang_stage = EShLangVertex;
+      break;
+    case VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT:
+      glslang_stage = EShLangTessControl;
+      break;
+    case VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT:
+      glslang_stage = EShLangTessEvaluation;
+      break;
+    case VK_SHADER_STAGE_GEOMETRY_BIT:
+      glslang_stage = EShLangGeometry;
+      break;
+    case VK_SHADER_STAGE_FRAGMENT_BIT:
+      glslang_stage = EShLangFragment;
+      break;
+    case VK_SHADER_STAGE_COMPUTE_BIT:
+      glslang_stage = EShLangCompute;
+      break;
+    default:
+      error_out = fmt::format("Unsupported Vulkan shader stage mask {}", uint32_t(stage));
+      return false;
+  }
+  return CompileGlslToSpirvInternal(glslang_stage, source, spirv_out, error_out);
+}
+
 bool VulkanCommandProcessor::SetupContext() {
   if (!CommandProcessor::SetupContext()) {
     REXGPU_ERROR("Failed to initialize base command processor context");
     return false;
   }
+  InvalidateAllVertexBufferResidency();
 
   const ui::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
   const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
@@ -137,8 +801,10 @@ bool VulkanCommandProcessor::SetupContext() {
       VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
   guest_shader_vertex_stages_ = VK_SHADER_STAGE_VERTEX_BIT;
   if (device_properties.tessellationShader) {
-    guest_shader_pipeline_stages_ |= VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT;
-    guest_shader_vertex_stages_ |= VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
+    guest_shader_pipeline_stages_ |= VK_PIPELINE_STAGE_TESSELLATION_CONTROL_SHADER_BIT |
+                                     VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT;
+    guest_shader_vertex_stages_ |=
+        VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT | VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
   }
   if (!device_properties.vertexPipelineStoresAndAtomics) {
     // For memory export from vertex shaders converted to compute shaders.
@@ -219,6 +885,22 @@ bool VulkanCommandProcessor::SetupContext() {
         "bound to the compute shader");
     return false;
   }
+  // Transient: two storage buffers for compute shaders.
+  VkDescriptorSetLayoutBinding descriptor_set_layout_bindings_transient_pair[2];
+  descriptor_set_layout_bindings_transient_pair[0] = descriptor_set_layout_binding_transient;
+  descriptor_set_layout_bindings_transient_pair[1] = descriptor_set_layout_binding_transient;
+  descriptor_set_layout_bindings_transient_pair[1].binding = 1;
+  descriptor_set_layout_create_info.bindingCount = 2;
+  descriptor_set_layout_create_info.pBindings = descriptor_set_layout_bindings_transient_pair;
+  if (dfn.vkCreateDescriptorSetLayout(
+          device, &descriptor_set_layout_create_info, nullptr,
+          &descriptor_set_layouts_single_transient_[size_t(
+              SingleTransientDescriptorLayout::kStorageBufferPairCompute)]) != VK_SUCCESS) {
+    REXGPU_ERROR(
+        "Failed to create a Vulkan descriptor set layout for two storage "
+        "buffers bound to the compute shader");
+    return false;
+  }
 
   shared_memory_ = std::make_unique<VulkanSharedMemory>(*this, *memory_, trace_writer_,
                                                         guest_shader_pipeline_stages_);
@@ -239,11 +921,61 @@ bool VulkanCommandProcessor::SetupContext() {
           device_properties.maxStorageBufferRange);
   uint32_t shared_memory_binding_count = UINT32_C(1) << shared_memory_binding_count_log2;
 
+  uint32_t draw_resolution_scale_x, draw_resolution_scale_y;
+  bool draw_resolution_scale_not_clamped =
+      TextureCache::GetConfigDrawResolutionScale(draw_resolution_scale_x, draw_resolution_scale_y);
+  if (!draw_resolution_scale_not_clamped) {
+    REXGPU_WARN(
+        "The requested draw resolution scale is not supported by the "
+        "emulator, reducing to {}x{}",
+        draw_resolution_scale_x, draw_resolution_scale_y);
+  }
+  if (draw_resolution_scale_x > 1 || draw_resolution_scale_y > 1) {
+    REXGPU_WARN(
+        "Vulkan draw resolution scaling is experimental and may not affect all "
+        "titles correctly");
+  }
+  if (!device_properties.fragmentStoresAndAtomics) {
+    REXGPU_ERROR(
+        "Vulkan fragmentStoresAndAtomics is required for GPU emulation and "
+        "D3D12 parity, but unsupported by the selected device");
+    return false;
+  }
+  if (!device_properties.vertexPipelineStoresAndAtomics) {
+    REXGPU_ERROR(
+        "Vulkan vertexPipelineStoresAndAtomics is required for GPU emulation and "
+        "D3D12 parity, but unsupported by the selected device");
+    return false;
+  }
+  if (!device_properties.geometryShader) {
+    if (REXCVAR_GET(vulkan_require_geometry_shader)) {
+      REXGPU_ERROR(
+          "Vulkan geometryShader is required for GPU emulation "
+          "(vulkan_require_geometry_shader=true), but unsupported by the "
+          "selected device");
+      return false;
+    }
+    REXGPU_WARN(
+        "Vulkan geometryShader is not supported by the device; primitive "
+        "fallback conversion/expansion paths will be used");
+  }
+  if (!device_properties.fillModeNonSolid) {
+    if (REXCVAR_GET(vulkan_require_fill_mode_non_solid)) {
+      REXGPU_ERROR(
+          "Vulkan fillModeNonSolid is required for GPU emulation "
+          "(vulkan_require_fill_mode_non_solid=true), but unsupported by the "
+          "selected device");
+      return false;
+    }
+    REXGPU_WARN(
+        "Vulkan fillModeNonSolid is not supported by the device; line/point "
+        "polygon modes will fall back to solid fill");
+  }
+
   // Requires the transient descriptor set layouts.
-  // TODO(Triang3l): Get the actual draw resolution scale when the texture cache
-  // supports resolution scaling.
-  render_target_cache_ = std::make_unique<VulkanRenderTargetCache>(*register_file_, *memory_,
-                                                                   trace_writer_, 1, 1, *this);
+  render_target_cache_ = std::make_unique<VulkanRenderTargetCache>(
+      *register_file_, *memory_, trace_writer_, draw_resolution_scale_x, draw_resolution_scale_y,
+      *this);
   if (!render_target_cache_->Initialize(shared_memory_binding_count)) {
     REXGPU_ERROR("Failed to initialize the render target cache");
     return false;
@@ -297,9 +1029,9 @@ bool VulkanCommandProcessor::SetupContext() {
   }
 
   // Requires the transient descriptor set layouts.
-  // TODO(Triang3l): Actual draw resolution scale.
-  texture_cache_ = VulkanTextureCache::Create(*register_file_, *shared_memory_, 1, 1, *this,
-                                              guest_shader_pipeline_stages_);
+  texture_cache_ =
+      VulkanTextureCache::Create(*register_file_, *shared_memory_, draw_resolution_scale_x,
+                                 draw_resolution_scale_y, *this, guest_shader_pipeline_stages_);
   if (!texture_cache_) {
     REXGPU_ERROR("Failed to initialize the texture cache");
     return false;
@@ -522,7 +1254,8 @@ bool VulkanCommandProcessor::SetupContext() {
   VkDescriptorSetLayoutBinding swap_descriptor_set_layout_binding;
   swap_descriptor_set_layout_binding.binding = 0;
   swap_descriptor_set_layout_binding.descriptorCount = 1;
-  swap_descriptor_set_layout_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+  swap_descriptor_set_layout_binding.stageFlags =
+      VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
   swap_descriptor_set_layout_binding.pImmutableSamplers = nullptr;
   VkDescriptorSetLayoutCreateInfo swap_descriptor_set_layout_create_info;
   swap_descriptor_set_layout_create_info.sType =
@@ -548,9 +1281,27 @@ bool VulkanCommandProcessor::SetupContext() {
         "layout");
     return false;
   }
+  swap_descriptor_set_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+  swap_descriptor_set_layout_binding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+  if (dfn.vkCreateDescriptorSetLayout(device, &swap_descriptor_set_layout_create_info, nullptr,
+                                      &swap_descriptor_set_layout_combined_image_sampler_) !=
+      VK_SUCCESS) {
+    REXGPU_ERROR(
+        "Failed to create the presentation combined image sampler descriptor "
+        "set layout");
+    return false;
+  }
+  swap_descriptor_set_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+  if (dfn.vkCreateDescriptorSetLayout(device, &swap_descriptor_set_layout_create_info, nullptr,
+                                      &swap_descriptor_set_layout_storage_image_) != VK_SUCCESS) {
+    REXGPU_ERROR(
+        "Failed to create the presentation storage image descriptor set "
+        "layout");
+    return false;
+  }
 
   // Swap descriptor pool.
-  std::array<VkDescriptorPoolSize, 2> swap_descriptor_pool_sizes;
+  std::array<VkDescriptorPoolSize, 4> swap_descriptor_pool_sizes;
   VkDescriptorPoolCreateInfo swap_descriptor_pool_create_info;
   swap_descriptor_pool_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
   swap_descriptor_pool_create_info.pNext = nullptr;
@@ -558,7 +1309,6 @@ bool VulkanCommandProcessor::SetupContext() {
   swap_descriptor_pool_create_info.maxSets = 0;
   swap_descriptor_pool_create_info.poolSizeCount = 0;
   swap_descriptor_pool_create_info.pPoolSizes = swap_descriptor_pool_sizes.data();
-  // TODO(Triang3l): FXAA combined image and sampler sources.
   {
     VkDescriptorPoolSize& swap_descriptor_pool_size_sampled_image =
         swap_descriptor_pool_sizes[swap_descriptor_pool_create_info.poolSizeCount++];
@@ -566,6 +1316,21 @@ bool VulkanCommandProcessor::SetupContext() {
     // Source images.
     swap_descriptor_pool_size_sampled_image.descriptorCount = kMaxFramesInFlight;
     swap_descriptor_pool_create_info.maxSets += kMaxFramesInFlight;
+  }
+  {
+    VkDescriptorPoolSize& swap_descriptor_pool_size_combined_image_sampler =
+        swap_descriptor_pool_sizes[swap_descriptor_pool_create_info.poolSizeCount++];
+    swap_descriptor_pool_size_combined_image_sampler.type =
+        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    swap_descriptor_pool_size_combined_image_sampler.descriptorCount = kMaxFramesInFlight;
+    swap_descriptor_pool_create_info.maxSets += kMaxFramesInFlight;
+  }
+  {
+    VkDescriptorPoolSize& swap_descriptor_pool_size_storage_image =
+        swap_descriptor_pool_sizes[swap_descriptor_pool_create_info.poolSizeCount++];
+    swap_descriptor_pool_size_storage_image.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    swap_descriptor_pool_size_storage_image.descriptorCount = kMaxFramesInFlight * 2;
+    swap_descriptor_pool_create_info.maxSets += kMaxFramesInFlight * 2;
   }
   // 256-entry table and PWL gamma ramps. If the gamma ramp buffer is
   // host-visible, for multiple frames.
@@ -605,6 +1370,37 @@ bool VulkanCommandProcessor::SetupContext() {
       return false;
     }
   }
+  swap_descriptor_set_allocate_info.pSetLayouts =
+      &swap_descriptor_set_layout_combined_image_sampler_;
+  for (uint32_t i = 0; i < kMaxFramesInFlight; ++i) {
+    if (dfn.vkAllocateDescriptorSets(device, &swap_descriptor_set_allocate_info,
+                                     &swap_descriptors_fxaa_source_[i]) != VK_SUCCESS) {
+      REXGPU_ERROR(
+          "Failed to allocate the presentation FXAA source image descriptor "
+          "sets");
+      return false;
+    }
+  }
+  swap_descriptor_set_allocate_info.pSetLayouts = &swap_descriptor_set_layout_storage_image_;
+  for (uint32_t i = 0; i < kMaxFramesInFlight; ++i) {
+    if (dfn.vkAllocateDescriptorSets(device, &swap_descriptor_set_allocate_info,
+                                     &swap_descriptors_destination_storage_[i]) != VK_SUCCESS) {
+      REXGPU_ERROR(
+          "Failed to allocate the presentation destination storage image "
+          "descriptor sets");
+      return false;
+    }
+  }
+  for (uint32_t i = 0; i < kMaxFramesInFlight; ++i) {
+    if (dfn.vkAllocateDescriptorSets(device, &swap_descriptor_set_allocate_info,
+                                     &swap_descriptors_fxaa_destination_storage_[i]) !=
+        VK_SUCCESS) {
+      REXGPU_ERROR(
+          "Failed to allocate the presentation FXAA destination storage image "
+          "descriptor sets");
+      return false;
+    }
+  }
 
   // Gamma ramp descriptor sets.
   VkWriteDescriptorSet gamma_ramp_write_descriptor_set;
@@ -620,6 +1416,32 @@ bool VulkanCommandProcessor::SetupContext() {
     gamma_ramp_write_descriptor_set.dstSet = swap_descriptors_gamma_ramp_[i];
     gamma_ramp_write_descriptor_set.pTexelBufferView = &gamma_ramp_buffer_views_[i];
     dfn.vkUpdateDescriptorSets(device, 1, &gamma_ramp_write_descriptor_set, 0, nullptr);
+  }
+
+  // Linear sampler for FXAA.
+  VkSamplerCreateInfo swap_sampler_create_info;
+  swap_sampler_create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+  swap_sampler_create_info.pNext = nullptr;
+  swap_sampler_create_info.flags = 0;
+  swap_sampler_create_info.magFilter = VK_FILTER_LINEAR;
+  swap_sampler_create_info.minFilter = VK_FILTER_LINEAR;
+  swap_sampler_create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+  swap_sampler_create_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  swap_sampler_create_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  swap_sampler_create_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  swap_sampler_create_info.mipLodBias = 0.0f;
+  swap_sampler_create_info.anisotropyEnable = VK_FALSE;
+  swap_sampler_create_info.maxAnisotropy = 1.0f;
+  swap_sampler_create_info.compareEnable = VK_FALSE;
+  swap_sampler_create_info.compareOp = VK_COMPARE_OP_NEVER;
+  swap_sampler_create_info.minLod = 0.0f;
+  swap_sampler_create_info.maxLod = 0.0f;
+  swap_sampler_create_info.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+  swap_sampler_create_info.unnormalizedCoordinates = VK_FALSE;
+  if (dfn.vkCreateSampler(device, &swap_sampler_create_info, nullptr,
+                          &swap_sampler_linear_clamp_) != VK_SUCCESS) {
+    REXGPU_ERROR("Failed to create the presentation FXAA sampler");
+    return false;
   }
 
   // Gamma ramp application pipeline layout.
@@ -643,6 +1465,54 @@ bool VulkanCommandProcessor::SetupContext() {
   if (dfn.vkCreatePipelineLayout(device, &swap_apply_gamma_pipeline_layout_create_info, nullptr,
                                  &swap_apply_gamma_pipeline_layout_) != VK_SUCCESS) {
     REXGPU_ERROR("Failed to create the gamma ramp application pipeline layout");
+    return false;
+  }
+
+  // Gamma ramp application compute pipeline layout.
+  std::array<VkDescriptorSetLayout, kSwapApplyGammaComputeDescriptorSetCount>
+      swap_apply_gamma_compute_descriptor_set_layouts{};
+  swap_apply_gamma_compute_descriptor_set_layouts[kSwapApplyGammaComputeDescriptorSetRamp] =
+      swap_descriptor_set_layout_uniform_texel_buffer_;
+  swap_apply_gamma_compute_descriptor_set_layouts[kSwapApplyGammaComputeDescriptorSetSource] =
+      swap_descriptor_set_layout_sampled_image_;
+  swap_apply_gamma_compute_descriptor_set_layouts[kSwapApplyGammaComputeDescriptorSetDestination] =
+      swap_descriptor_set_layout_storage_image_;
+  VkPushConstantRange swap_apply_gamma_compute_push_constant_range;
+  swap_apply_gamma_compute_push_constant_range.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+  swap_apply_gamma_compute_push_constant_range.offset = 0;
+  swap_apply_gamma_compute_push_constant_range.size = sizeof(SwapApplyGammaConstants);
+  swap_apply_gamma_pipeline_layout_create_info.setLayoutCount =
+      uint32_t(swap_apply_gamma_compute_descriptor_set_layouts.size());
+  swap_apply_gamma_pipeline_layout_create_info.pSetLayouts =
+      swap_apply_gamma_compute_descriptor_set_layouts.data();
+  swap_apply_gamma_pipeline_layout_create_info.pushConstantRangeCount = 1;
+  swap_apply_gamma_pipeline_layout_create_info.pPushConstantRanges =
+      &swap_apply_gamma_compute_push_constant_range;
+  if (dfn.vkCreatePipelineLayout(device, &swap_apply_gamma_pipeline_layout_create_info, nullptr,
+                                 &swap_apply_gamma_compute_pipeline_layout_) != VK_SUCCESS) {
+    REXGPU_ERROR("Failed to create the gamma ramp application compute pipeline layout");
+    return false;
+  }
+
+  // FXAA compute pipeline layout.
+  std::array<VkDescriptorSetLayout, kSwapFxaaDescriptorSetCount> swap_fxaa_descriptor_set_layouts{};
+  swap_fxaa_descriptor_set_layouts[kSwapFxaaDescriptorSetSource] =
+      swap_descriptor_set_layout_combined_image_sampler_;
+  swap_fxaa_descriptor_set_layouts[kSwapFxaaDescriptorSetDestination] =
+      swap_descriptor_set_layout_storage_image_;
+  VkPushConstantRange swap_fxaa_push_constant_range;
+  swap_fxaa_push_constant_range.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+  swap_fxaa_push_constant_range.offset = 0;
+  swap_fxaa_push_constant_range.size = sizeof(SwapFxaaConstants);
+  swap_apply_gamma_pipeline_layout_create_info.setLayoutCount =
+      uint32_t(swap_fxaa_descriptor_set_layouts.size());
+  swap_apply_gamma_pipeline_layout_create_info.pSetLayouts =
+      swap_fxaa_descriptor_set_layouts.data();
+  swap_apply_gamma_pipeline_layout_create_info.pushConstantRangeCount = 1;
+  swap_apply_gamma_pipeline_layout_create_info.pPushConstantRanges = &swap_fxaa_push_constant_range;
+  if (dfn.vkCreatePipelineLayout(device, &swap_apply_gamma_pipeline_layout_create_info, nullptr,
+                                 &swap_fxaa_pipeline_layout_) != VK_SUCCESS) {
+    REXGPU_ERROR("Failed to create the FXAA compute pipeline layout");
     return false;
   }
 
@@ -706,6 +1576,8 @@ bool VulkanCommandProcessor::SetupContext() {
   enum SwapApplyGammaPixelShader {
     kSwapApplyGammaPixelShader256EntryTable,
     kSwapApplyGammaPixelShaderPWL,
+    kSwapApplyGammaPixelShader256EntryTableFxaaLuma,
+    kSwapApplyGammaPixelShaderPWLFxaaLuma,
 
     kSwapApplyGammaPixelShaderCount,
   };
@@ -718,7 +1590,15 @@ bool VulkanCommandProcessor::SetupContext() {
       (swap_apply_gamma_pixel_shaders[kSwapApplyGammaPixelShaderPWL] =
            ui::vulkan::util::CreateShaderModule(vulkan_device, shaders::apply_gamma_pwl_ps,
                                                 sizeof(shaders::apply_gamma_pwl_ps))) !=
-          VK_NULL_HANDLE;
+          VK_NULL_HANDLE &&
+      (swap_apply_gamma_pixel_shaders[kSwapApplyGammaPixelShader256EntryTableFxaaLuma] =
+           ui::vulkan::util::CreateShaderModule(
+               vulkan_device, shaders::apply_gamma_table_fxaa_luma_ps,
+               sizeof(shaders::apply_gamma_table_fxaa_luma_ps))) != VK_NULL_HANDLE &&
+      (swap_apply_gamma_pixel_shaders[kSwapApplyGammaPixelShaderPWLFxaaLuma] =
+           ui::vulkan::util::CreateShaderModule(
+               vulkan_device, shaders::apply_gamma_pwl_fxaa_luma_ps,
+               sizeof(shaders::apply_gamma_pwl_fxaa_luma_ps))) != VK_NULL_HANDLE;
   if (!swap_apply_gamma_pixel_shaders_created) {
     REXGPU_ERROR("Failed to create the gamma ramp application pixel shader modules");
     for (VkShaderModule swap_apply_gamma_pixel_shader : swap_apply_gamma_pixel_shaders) {
@@ -742,6 +1622,7 @@ bool VulkanCommandProcessor::SetupContext() {
       assert_true(swap_apply_gamma_pixel_shader != VK_NULL_HANDLE);
       dfn.vkDestroyShaderModule(device, swap_apply_gamma_pixel_shader, nullptr);
     }
+    return false;
   }
   swap_apply_gamma_pipeline_stages[0].pName = "main";
   swap_apply_gamma_pipeline_stages[0].pSpecializationInfo = nullptr;
@@ -838,26 +1719,189 @@ bool VulkanCommandProcessor::SetupContext() {
   swap_apply_gamma_pipeline_create_info.subpass = 0;
   swap_apply_gamma_pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
   swap_apply_gamma_pipeline_create_info.basePipelineIndex = -1;
-  swap_apply_gamma_pipeline_stages[1].module =
-      swap_apply_gamma_pixel_shaders[kSwapApplyGammaPixelShader256EntryTable];
-  VkResult swap_apply_gamma_pipeline_256_entry_table_create_result = dfn.vkCreateGraphicsPipelines(
-      device, VK_NULL_HANDLE, 1, &swap_apply_gamma_pipeline_create_info, nullptr,
-      &swap_apply_gamma_256_entry_table_pipeline_);
-  swap_apply_gamma_pipeline_stages[1].module =
-      swap_apply_gamma_pixel_shaders[kSwapApplyGammaPixelShaderPWL];
-  VkResult swap_apply_gamma_pipeline_pwl_create_result = dfn.vkCreateGraphicsPipelines(
-      device, VK_NULL_HANDLE, 1, &swap_apply_gamma_pipeline_create_info, nullptr,
-      &swap_apply_gamma_pwl_pipeline_);
+  std::array<VkShaderModule, 4> swap_apply_gamma_pipeline_pixel_shaders = {
+      swap_apply_gamma_pixel_shaders[kSwapApplyGammaPixelShader256EntryTable],
+      swap_apply_gamma_pixel_shaders[kSwapApplyGammaPixelShaderPWL],
+      swap_apply_gamma_pixel_shaders[kSwapApplyGammaPixelShader256EntryTableFxaaLuma],
+      swap_apply_gamma_pixel_shaders[kSwapApplyGammaPixelShaderPWLFxaaLuma],
+  };
+  std::array<VkPipeline*, 4> swap_apply_gamma_pipelines = {
+      &swap_apply_gamma_256_entry_table_pipeline_,
+      &swap_apply_gamma_pwl_pipeline_,
+      &swap_apply_gamma_256_entry_table_fxaa_luma_pipeline_,
+      &swap_apply_gamma_pwl_fxaa_luma_pipeline_,
+  };
+  std::array<VkResult, 4> swap_apply_gamma_pipeline_create_results;
+  for (size_t i = 0; i < swap_apply_gamma_pipelines.size(); ++i) {
+    swap_apply_gamma_pipeline_stages[1].module = swap_apply_gamma_pipeline_pixel_shaders[i];
+    swap_apply_gamma_pipeline_create_results[i] = dfn.vkCreateGraphicsPipelines(
+        device, VK_NULL_HANDLE, 1, &swap_apply_gamma_pipeline_create_info, nullptr,
+        swap_apply_gamma_pipelines[i]);
+  }
+  if (!vulkan_device->properties().imageViewFormatSwizzle) {
+    auto create_rb_swap_pipeline = [&](const char* source, VkPipeline& pipeline_out,
+                                       const char* pipeline_name) {
+      std::vector<uint32_t> pixel_spirv;
+      std::string compile_error;
+      if (!CompileGlslToSpirv(VK_SHADER_STAGE_FRAGMENT_BIT, source, pixel_spirv, compile_error)) {
+        REXGPU_WARN("Failed to compile {} shader to SPIR-V: {}", pipeline_name, compile_error);
+        return;
+      }
+      VkShaderModule pixel_shader_module = ui::vulkan::util::CreateShaderModule(
+          vulkan_device, pixel_spirv.data(), sizeof(uint32_t) * pixel_spirv.size());
+      if (pixel_shader_module == VK_NULL_HANDLE) {
+        REXGPU_WARN("Failed to create {} shader module", pipeline_name);
+        return;
+      }
+      swap_apply_gamma_pipeline_stages[1].module = pixel_shader_module;
+      if (dfn.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1,
+                                        &swap_apply_gamma_pipeline_create_info, nullptr,
+                                        &pipeline_out) != VK_SUCCESS) {
+        REXGPU_WARN("Failed to create {} pipeline", pipeline_name);
+        pipeline_out = VK_NULL_HANDLE;
+      }
+      dfn.vkDestroyShaderModule(device, pixel_shader_module, nullptr);
+    };
+    create_rb_swap_pipeline(GetSwapApplyGammaTablePixelRbSwapSource(),
+                            swap_apply_gamma_256_entry_table_rb_swap_pipeline_,
+                            "swap gamma table red/blue fallback");
+    create_rb_swap_pipeline(GetSwapApplyGammaPwlPixelRbSwapSource(),
+                            swap_apply_gamma_pwl_rb_swap_pipeline_,
+                            "swap gamma PWL red/blue fallback");
+  }
   dfn.vkDestroyShaderModule(device, swap_apply_gamma_pipeline_stages[0].module, nullptr);
   for (VkShaderModule swap_apply_gamma_pixel_shader : swap_apply_gamma_pixel_shaders) {
     assert_true(swap_apply_gamma_pixel_shader != VK_NULL_HANDLE);
     dfn.vkDestroyShaderModule(device, swap_apply_gamma_pixel_shader, nullptr);
   }
-  if (swap_apply_gamma_pipeline_256_entry_table_create_result != VK_SUCCESS ||
-      swap_apply_gamma_pipeline_pwl_create_result != VK_SUCCESS) {
+  if (std::any_of(swap_apply_gamma_pipeline_create_results.begin(),
+                  swap_apply_gamma_pipeline_create_results.end(),
+                  [](VkResult result) { return result != VK_SUCCESS; })) {
     REXGPU_ERROR("Failed to create the gamma ramp application pipelines");
     return false;
   }
+
+  // Gamma ramp application compute pipelines.
+  swap_apply_gamma_compute_256_entry_table_pipeline_ = ui::vulkan::util::CreateComputePipeline(
+      vulkan_device, swap_apply_gamma_compute_pipeline_layout_, shaders::apply_gamma_table_cs,
+      sizeof(shaders::apply_gamma_table_cs));
+  if (swap_apply_gamma_compute_256_entry_table_pipeline_ == VK_NULL_HANDLE) {
+    REXGPU_WARN(
+        "Failed to create the 256-entry table gamma ramp application compute "
+        "pipeline, keeping graphics fallback");
+  }
+  swap_apply_gamma_compute_256_entry_table_fxaa_luma_pipeline_ =
+      ui::vulkan::util::CreateComputePipeline(
+          vulkan_device, swap_apply_gamma_compute_pipeline_layout_,
+          shaders::apply_gamma_table_fxaa_luma_cs, sizeof(shaders::apply_gamma_table_fxaa_luma_cs));
+  if (swap_apply_gamma_compute_256_entry_table_fxaa_luma_pipeline_ == VK_NULL_HANDLE) {
+    REXGPU_WARN(
+        "Failed to create the 256-entry table gamma ramp application compute "
+        "pipeline with luma output");
+  }
+  swap_apply_gamma_compute_pwl_pipeline_ = ui::vulkan::util::CreateComputePipeline(
+      vulkan_device, swap_apply_gamma_compute_pipeline_layout_, shaders::apply_gamma_pwl_cs,
+      sizeof(shaders::apply_gamma_pwl_cs));
+  if (swap_apply_gamma_compute_pwl_pipeline_ == VK_NULL_HANDLE) {
+    REXGPU_WARN("Failed to create the PWL gamma ramp application compute pipeline");
+  }
+  swap_apply_gamma_compute_pwl_fxaa_luma_pipeline_ = ui::vulkan::util::CreateComputePipeline(
+      vulkan_device, swap_apply_gamma_compute_pipeline_layout_,
+      shaders::apply_gamma_pwl_fxaa_luma_cs, sizeof(shaders::apply_gamma_pwl_fxaa_luma_cs));
+  if (swap_apply_gamma_compute_pwl_fxaa_luma_pipeline_ == VK_NULL_HANDLE) {
+    REXGPU_WARN(
+        "Failed to create the PWL gamma ramp application compute pipeline with "
+        "luma output");
+  }
+  if (!vulkan_device->properties().imageViewFormatSwizzle) {
+    auto create_rb_swap_compute_pipeline = [&](const char* source, VkPipeline& pipeline_out,
+                                               const char* pipeline_name) {
+      std::vector<uint32_t> compute_spirv;
+      std::string compile_error;
+      if (!CompileGlslToSpirv(VK_SHADER_STAGE_COMPUTE_BIT, source, compute_spirv, compile_error)) {
+        REXGPU_WARN("Failed to compile {} shader to SPIR-V: {}", pipeline_name, compile_error);
+        return;
+      }
+      pipeline_out = ui::vulkan::util::CreateComputePipeline(
+          vulkan_device, swap_apply_gamma_compute_pipeline_layout_, compute_spirv.data(),
+          sizeof(uint32_t) * compute_spirv.size());
+      if (pipeline_out == VK_NULL_HANDLE) {
+        REXGPU_WARN("Failed to create {} pipeline", pipeline_name);
+      }
+    };
+    create_rb_swap_compute_pipeline(GetSwapApplyGammaTableComputeRbSwapSource(),
+                                    swap_apply_gamma_compute_256_entry_table_rb_swap_pipeline_,
+                                    "swap gamma table compute red/blue fallback");
+    create_rb_swap_compute_pipeline(GetSwapApplyGammaPwlComputeRbSwapSource(),
+                                    swap_apply_gamma_compute_pwl_rb_swap_pipeline_,
+                                    "swap gamma PWL compute red/blue fallback");
+    create_rb_swap_compute_pipeline(
+        GetSwapApplyGammaTableFxaaLumaComputeRbSwapSource(),
+        swap_apply_gamma_compute_256_entry_table_fxaa_luma_rb_swap_pipeline_,
+        "swap gamma table FXAA-luma compute red/blue fallback");
+    create_rb_swap_compute_pipeline(GetSwapApplyGammaPwlFxaaLumaComputeRbSwapSource(),
+                                    swap_apply_gamma_compute_pwl_fxaa_luma_rb_swap_pipeline_,
+                                    "swap gamma PWL FXAA-luma compute red/blue fallback");
+  }
+
+  // FXAA compute pipelines, compiled to SPIR-V at runtime.
+  std::vector<uint32_t> swap_fxaa_spirv;
+  std::string swap_fxaa_compile_error;
+  if (!CompileGlslToSpirv(VK_SHADER_STAGE_COMPUTE_BIT, GetSwapFxaaComputeSource(false),
+                          swap_fxaa_spirv, swap_fxaa_compile_error)) {
+    REXGPU_WARN("Failed to compile FXAA compute shader to SPIR-V: {}", swap_fxaa_compile_error);
+  } else {
+    swap_fxaa_pipeline_ = ui::vulkan::util::CreateComputePipeline(
+        vulkan_device, swap_fxaa_pipeline_layout_, swap_fxaa_spirv.data(),
+        sizeof(uint32_t) * swap_fxaa_spirv.size());
+    if (swap_fxaa_pipeline_ == VK_NULL_HANDLE) {
+      REXGPU_WARN("Failed to create the FXAA compute pipeline");
+    }
+  }
+
+  std::vector<uint32_t> swap_fxaa_extreme_spirv;
+  std::string swap_fxaa_extreme_compile_error;
+  if (!CompileGlslToSpirv(VK_SHADER_STAGE_COMPUTE_BIT, GetSwapFxaaComputeSource(true),
+                          swap_fxaa_extreme_spirv, swap_fxaa_extreme_compile_error)) {
+    REXGPU_WARN("Failed to compile extreme FXAA compute shader to SPIR-V: {}",
+                swap_fxaa_extreme_compile_error);
+  } else {
+    swap_fxaa_extreme_pipeline_ = ui::vulkan::util::CreateComputePipeline(
+        vulkan_device, swap_fxaa_pipeline_layout_, swap_fxaa_extreme_spirv.data(),
+        sizeof(uint32_t) * swap_fxaa_extreme_spirv.size());
+    if (swap_fxaa_extreme_pipeline_ == VK_NULL_HANDLE) {
+      REXGPU_WARN("Failed to create the extreme-quality FXAA compute pipeline");
+    }
+  }
+
+  VkPipelineLayoutCreateInfo resolve_downscale_layout_create_info = {};
+  resolve_downscale_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  VkDescriptorSetLayout resolve_downscale_set_layout =
+      descriptor_set_layouts_single_transient_[size_t(
+          SingleTransientDescriptorLayout::kStorageBufferPairCompute)];
+  resolve_downscale_layout_create_info.setLayoutCount = 1;
+  resolve_downscale_layout_create_info.pSetLayouts = &resolve_downscale_set_layout;
+  VkPushConstantRange resolve_downscale_push_constant_range = {};
+  resolve_downscale_push_constant_range.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+  resolve_downscale_push_constant_range.offset = 0;
+  resolve_downscale_push_constant_range.size = sizeof(ResolveDownscaleConstants);
+  resolve_downscale_layout_create_info.pushConstantRangeCount = 1;
+  resolve_downscale_layout_create_info.pPushConstantRanges = &resolve_downscale_push_constant_range;
+  if (dfn.vkCreatePipelineLayout(device, &resolve_downscale_layout_create_info, nullptr,
+                                 &resolve_downscale_pipeline_layout_) == VK_SUCCESS) {
+    resolve_downscale_pipeline_ = ui::vulkan::util::CreateComputePipeline(
+        vulkan_device, resolve_downscale_pipeline_layout_, shaders::resolve_downscale_cs,
+        sizeof(shaders::resolve_downscale_cs));
+    if (resolve_downscale_pipeline_ == VK_NULL_HANDLE) {
+      REXGPU_WARN("Failed to create Vulkan resolve-downscale readback pipeline");
+      ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
+                                             resolve_downscale_pipeline_layout_);
+    }
+  } else {
+    REXGPU_WARN("Failed to create Vulkan resolve-downscale pipeline layout");
+  }
+
+  occlusion_query_resources_available_ = InitializeOcclusionQueryResources();
 
   // Just not to expose uninitialized memory.
   std::memset(&system_constants_, 0, sizeof(system_constants_));
@@ -867,6 +1911,8 @@ bool VulkanCommandProcessor::SetupContext() {
 
 void VulkanCommandProcessor::ShutdownContext() {
   AwaitAllQueueOperationsCompletion();
+  InvalidateAllVertexBufferResidency();
+  ShutdownOcclusionQueryResources();
 
   const ui::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
   const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
@@ -874,25 +1920,103 @@ void VulkanCommandProcessor::ShutdownContext() {
 
   DestroyScratchBuffer();
 
+  for (auto& readback_pair : readback_buffers_) {
+    ReadbackBuffer& readback = readback_pair.second;
+    for (uint32_t i = 0; i < 2; ++i) {
+      if (readback.mapped_data[i] && readback.memories[i] != VK_NULL_HANDLE) {
+        dfn.vkUnmapMemory(device, readback.memories[i]);
+      }
+      ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device, readback.buffers[i]);
+      ui::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device, readback.memories[i]);
+      readback.mapped_data[i] = nullptr;
+      readback.sizes[i] = 0;
+      readback.submission_written[i] = 0;
+      readback.written_size[i] = 0;
+    }
+  }
+  readback_buffers_.clear();
+  for (auto& readback_pair : memexport_readback_buffers_) {
+    ReadbackBuffer& readback = readback_pair.second;
+    for (uint32_t i = 0; i < 2; ++i) {
+      if (readback.mapped_data[i] && readback.memories[i] != VK_NULL_HANDLE) {
+        dfn.vkUnmapMemory(device, readback.memories[i]);
+      }
+      ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device, readback.buffers[i]);
+      ui::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device, readback.memories[i]);
+      readback.mapped_data[i] = nullptr;
+      readback.sizes[i] = 0;
+      readback.submission_written[i] = 0;
+      readback.written_size[i] = 0;
+    }
+  }
+  memexport_readback_buffers_.clear();
+
+  resolve_downscale_buffer_size_ = 0;
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device, resolve_downscale_buffer_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device,
+                                         resolve_downscale_buffer_memory_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
+                                         resolve_downscale_pipeline_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
+                                         resolve_downscale_pipeline_layout_);
+
   for (SwapFramebuffer& swap_framebuffer : swap_framebuffers_) {
     ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyFramebuffer, device,
                                            swap_framebuffer.framebuffer);
   }
+  DestroySwapFxaaSourceImage();
 
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
+                                         swap_fxaa_extreme_pipeline_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device, swap_fxaa_pipeline_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
+                                         swap_apply_gamma_compute_pwl_fxaa_luma_pipeline_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
+                                         swap_apply_gamma_compute_pwl_pipeline_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
+                                         swap_apply_gamma_compute_pwl_fxaa_luma_rb_swap_pipeline_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
+                                         swap_apply_gamma_compute_pwl_rb_swap_pipeline_);
+  ui::vulkan::util::DestroyAndNullHandle(
+      dfn.vkDestroyPipeline, device, swap_apply_gamma_compute_256_entry_table_fxaa_luma_pipeline_);
+  ui::vulkan::util::DestroyAndNullHandle(
+      dfn.vkDestroyPipeline, device,
+      swap_apply_gamma_compute_256_entry_table_fxaa_luma_rb_swap_pipeline_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
+                                         swap_apply_gamma_compute_256_entry_table_pipeline_);
+  ui::vulkan::util::DestroyAndNullHandle(
+      dfn.vkDestroyPipeline, device, swap_apply_gamma_compute_256_entry_table_rb_swap_pipeline_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
+                                         swap_apply_gamma_pwl_rb_swap_pipeline_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
+                                         swap_apply_gamma_256_entry_table_rb_swap_pipeline_);
   ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
                                          swap_apply_gamma_pwl_pipeline_);
   ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
+                                         swap_apply_gamma_pwl_fxaa_luma_pipeline_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
                                          swap_apply_gamma_256_entry_table_pipeline_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
+                                         swap_apply_gamma_256_entry_table_fxaa_luma_pipeline_);
   ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyRenderPass, device,
                                          swap_apply_gamma_render_pass_);
   ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
+                                         swap_fxaa_pipeline_layout_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
+                                         swap_apply_gamma_compute_pipeline_layout_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
                                          swap_apply_gamma_pipeline_layout_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroySampler, device, swap_sampler_linear_clamp_);
 
   ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyDescriptorPool, device,
                                          swap_descriptor_pool_);
 
   ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyDescriptorSetLayout, device,
                                          swap_descriptor_set_layout_uniform_texel_buffer_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyDescriptorSetLayout, device,
+                                         swap_descriptor_set_layout_storage_image_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyDescriptorSetLayout, device,
+                                         swap_descriptor_set_layout_combined_image_sampler_);
   ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyDescriptorSetLayout, device,
                                          swap_descriptor_set_layout_sampled_image_);
   for (VkBufferView& gamma_ramp_buffer_view : gamma_ramp_buffer_views_) {
@@ -960,10 +2084,18 @@ void VulkanCommandProcessor::ShutdownContext() {
     dfn.vkDestroyFramebuffer(device, destroy_pair.second, nullptr);
   }
   destroy_framebuffers_.clear();
+  for (const auto& destroy_pair : destroy_image_views_) {
+    dfn.vkDestroyImageView(device, destroy_pair.second, nullptr);
+  }
+  destroy_image_views_.clear();
   for (const auto& destroy_pair : destroy_buffers_) {
     dfn.vkDestroyBuffer(device, destroy_pair.second, nullptr);
   }
   destroy_buffers_.clear();
+  for (const auto& destroy_pair : destroy_images_) {
+    dfn.vkDestroyImage(device, destroy_pair.second, nullptr);
+  }
+  destroy_images_.clear();
   for (const auto& destroy_pair : destroy_memory_) {
     dfn.vkFreeMemory(device, destroy_pair.second, nullptr);
   }
@@ -1037,7 +2169,94 @@ void VulkanCommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
       texture_cache_->TextureFetchConstantWritten((index - XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0) /
                                                   6);
     }
+    InvalidateVertexBufferResidency((index - XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0) / 2);
   }
+}
+
+void VulkanCommandProcessor::WriteRegistersFromMem(uint32_t start_index, uint32_t* base,
+                                                   uint32_t num_registers) {
+  if (!num_registers) {
+    return;
+  }
+  uint32_t end_index = start_index + num_registers - 1;
+
+  auto range_has_any_constant_usage = [](const uint64_t* usage_map, uint32_t first_constant,
+                                         uint32_t last_constant) -> bool {
+    if (first_constant > last_constant) {
+      return false;
+    }
+    uint32_t first_word = first_constant >> 6;
+    uint32_t last_word = last_constant >> 6;
+    uint32_t first_bit = first_constant & 63;
+    uint32_t last_bit = last_constant & 63;
+    if (first_word == last_word) {
+      uint32_t bit_count = last_bit - first_bit + 1;
+      uint64_t mask = bit_count == 64 ? UINT64_MAX : ((UINT64_C(1) << bit_count) - 1) << first_bit;
+      return (usage_map[first_word] & mask) != 0;
+    }
+    if (usage_map[first_word] & (UINT64_MAX << first_bit)) {
+      return true;
+    }
+    for (uint32_t word = first_word + 1; word < last_word; ++word) {
+      if (usage_map[word]) {
+        return true;
+      }
+    }
+    uint64_t last_mask = last_bit == 63 ? UINT64_MAX : ((UINT64_C(1) << (last_bit + 1)) - 1);
+    return (usage_map[last_word] & last_mask) != 0;
+  };
+
+  if (start_index >= XE_GPU_REG_SHADER_CONSTANT_000_X &&
+      end_index <= XE_GPU_REG_SHADER_CONSTANT_511_W) {
+    memory::copy_and_swap(register_file_->values + start_index, base, num_registers);
+    if (frame_open_) {
+      uint32_t first_float_constant = (start_index - XE_GPU_REG_SHADER_CONSTANT_000_X) >> 2;
+      uint32_t last_float_constant = (end_index - XE_GPU_REG_SHADER_CONSTANT_000_X) >> 2;
+      if (first_float_constant < 256) {
+        uint32_t last_vertex_constant = std::min(last_float_constant, 255u);
+        if (range_has_any_constant_usage(current_float_constant_map_vertex_, first_float_constant,
+                                         last_vertex_constant)) {
+          current_constant_buffers_up_to_date_ &=
+              ~(UINT32_C(1) << SpirvShaderTranslator::kConstantBufferFloatVertex);
+        }
+      }
+      if (last_float_constant >= 256) {
+        uint32_t first_pixel_constant =
+            first_float_constant >= 256 ? first_float_constant - 256 : 0;
+        uint32_t last_pixel_constant = last_float_constant - 256;
+        if (range_has_any_constant_usage(current_float_constant_map_pixel_, first_pixel_constant,
+                                         last_pixel_constant)) {
+          current_constant_buffers_up_to_date_ &=
+              ~(UINT32_C(1) << SpirvShaderTranslator::kConstantBufferFloatPixel);
+        }
+      }
+    }
+    return;
+  }
+
+  if (start_index >= XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031 &&
+      end_index <= XE_GPU_REG_SHADER_CONSTANT_LOOP_31) {
+    memory::copy_and_swap(register_file_->values + start_index, base, num_registers);
+    current_constant_buffers_up_to_date_ &=
+        ~(UINT32_C(1) << SpirvShaderTranslator::kConstantBufferBoolLoop);
+    return;
+  }
+
+  if (start_index >= XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 &&
+      end_index <= XE_GPU_REG_SHADER_CONSTANT_FETCH_31_5) {
+    memory::copy_and_swap(register_file_->values + start_index, base, num_registers);
+    current_constant_buffers_up_to_date_ &=
+        ~(UINT32_C(1) << SpirvShaderTranslator::kConstantBufferFetch);
+    uint32_t first_fetch_dword = start_index - XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0;
+    uint32_t last_fetch_dword = end_index - XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0;
+    if (texture_cache_) {
+      texture_cache_->TextureFetchConstantsWritten(first_fetch_dword / 6, last_fetch_dword / 6);
+    }
+    InvalidateVertexBufferResidencyRange(first_fetch_dword / 2, last_fetch_dword / 2);
+    return;
+  }
+
+  CommandProcessor::WriteRegistersFromMem(start_index, base, num_registers);
 }
 
 void VulkanCommandProcessor::SparseBindBuffer(VkBuffer buffer, uint32_t bind_count,
@@ -1066,6 +2285,8 @@ void VulkanCommandProcessor::OnGammaRampPWLValueWritten() {
 void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
                                        uint32_t frontbuffer_height) {
   SCOPE_profile_cpu_f("gpu");
+  vertex_buffers_in_sync_[0] = 0;
+  vertex_buffers_in_sync_[1] = 0;
 
   ui::Presenter* presenter = graphics_system_->presenter();
   if (!presenter) {
@@ -1079,24 +2300,130 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
     return;
   }
 
-  // Obtaining the actual front buffer size to pass to RefreshGuestOutput,
-  // resolution-scaled if it's a resolve destination, or not otherwise.
+  bool skip_present_due_async_placeholder = REXCVAR_GET(async_shader_compilation) &&
+                                            REXCVAR_GET(vulkan_async_skip_incomplete_frames) &&
+                                            frame_used_async_placeholder_pipeline_;
+  if (skip_present_due_async_placeholder) {
+    static bool skipped_incomplete_frame_logged = false;
+    if (!skipped_incomplete_frame_logged) {
+      skipped_incomplete_frame_logged = true;
+      REXGPU_WARN(
+          "Skipping Vulkan frame presentation due to async placeholder draw "
+          "usage in this frame");
+    }
+    EndSubmission(true);
+    return;
+  }
+
+  SwapPostEffect swap_post_effect = GetActualSwapPostEffect();
+
+  // Obtain the actual swap source texture size (resolution-scaled if it's a
+  // resolve destination, or not otherwise).
   uint32_t frontbuffer_width_scaled, frontbuffer_height_scaled;
+  uint32_t frontbuffer_width_unscaled = 0, frontbuffer_height_unscaled = 0;
   xenos::TextureFormat frontbuffer_format;
+  bool swap_source_needs_rb_swap = false;
   VkImageView swap_texture_view = texture_cache_->RequestSwapTexture(
-      frontbuffer_width_scaled, frontbuffer_height_scaled, frontbuffer_format);
+      frontbuffer_width_scaled, frontbuffer_height_scaled, frontbuffer_format,
+      &frontbuffer_width_unscaled, &frontbuffer_height_unscaled, &swap_source_needs_rb_swap);
   if (swap_texture_view == VK_NULL_HANDLE) {
     REXGPU_ERROR("XELOG_GPU PRESENT: swap_texture_view=NULL");
     return;
   }
-  REXGPU_DEBUG("XELOG_GPU PRESENT: swap_texture_view={:p} scaled_size={}x{} format={}",
-               static_cast<void*>(swap_texture_view), frontbuffer_width_scaled,
-               frontbuffer_height_scaled, static_cast<uint32_t>(frontbuffer_format));
+  // The swap gamma / FXAA pass samples source texels by pixel index, but swap
+  // textures may be allocation-padded. Prefer the active frontbuffer region
+  // from the swap packet, scaled proportionally to the actual source texture.
+  auto get_active_swap_dimension = [](uint32_t packet_unscaled, uint32_t source_unscaled,
+                                      uint32_t source_scaled) -> uint32_t {
+    if (!source_scaled) {
+      return 0;
+    }
+    uint32_t active_unscaled = packet_unscaled ? packet_unscaled : source_unscaled;
+    if (!active_unscaled) {
+      return source_scaled;
+    }
+    if (source_unscaled) {
+      active_unscaled = std::min(active_unscaled, source_unscaled);
+      uint64_t active_scaled =
+          (uint64_t(active_unscaled) * source_scaled + (source_unscaled >> 1)) / source_unscaled;
+      return uint32_t(std::clamp<uint64_t>(active_scaled, 1, source_scaled));
+    }
+    return std::min(active_unscaled, source_scaled);
+  };
+  uint32_t guest_output_width = get_active_swap_dimension(
+      frontbuffer_width, frontbuffer_width_unscaled, frontbuffer_width_scaled);
+  uint32_t guest_output_height = get_active_swap_dimension(
+      frontbuffer_height, frontbuffer_height_unscaled, frontbuffer_height_scaled);
+  if (!guest_output_width) {
+    guest_output_width = frontbuffer_width_scaled
+                             ? frontbuffer_width_scaled
+                             : (frontbuffer_width ? frontbuffer_width : frontbuffer_width_unscaled);
+  }
+  if (!guest_output_height) {
+    guest_output_height =
+        frontbuffer_height_scaled
+            ? frontbuffer_height_scaled
+            : (frontbuffer_height ? frontbuffer_height : frontbuffer_height_unscaled);
+  }
+  bool swap_source_scaled = frontbuffer_width_unscaled && frontbuffer_height_unscaled &&
+                            (frontbuffer_width_scaled != frontbuffer_width_unscaled ||
+                             frontbuffer_height_scaled != frontbuffer_height_unscaled);
+  if (texture_cache_->IsDrawResolutionScaled()) {
+    static bool draw_scale_cache_mismatch_logged = false;
+    uint32_t texture_scale_x = texture_cache_->draw_resolution_scale_x();
+    uint32_t texture_scale_y = texture_cache_->draw_resolution_scale_y();
+    uint32_t rt_scale_x =
+        render_target_cache_ ? render_target_cache_->draw_resolution_scale_x() : texture_scale_x;
+    uint32_t rt_scale_y =
+        render_target_cache_ ? render_target_cache_->draw_resolution_scale_y() : texture_scale_y;
+    if (!draw_scale_cache_mismatch_logged &&
+        (texture_scale_x != rt_scale_x || texture_scale_y != rt_scale_y)) {
+      draw_scale_cache_mismatch_logged = true;
+      REXGPU_WARN(
+          "Vulkan draw-scale mismatch: texture cache is {}x{}, render target "
+          "cache is {}x{}",
+          texture_scale_x, texture_scale_y, rt_scale_x, rt_scale_y);
+    }
+    static bool draw_scale_swap_sizes_logged = false;
+    if (!draw_scale_swap_sizes_logged) {
+      draw_scale_swap_sizes_logged = true;
+      REXGPU_WARN(
+          "Vulkan draw-scale swap sizing: packet={}x{}, src_scaled={}x{}, "
+          "src_unscaled={}x{}, active={}x{}",
+          frontbuffer_width, frontbuffer_height, frontbuffer_width_scaled,
+          frontbuffer_height_scaled, frontbuffer_width_unscaled, frontbuffer_height_unscaled,
+          guest_output_width, guest_output_height);
+    }
+  }
+  if (texture_cache_->IsDrawResolutionScaled() && !swap_source_scaled) {
+    static bool draw_scale_swap_unscaled_logged = false;
+    if (!draw_scale_swap_unscaled_logged) {
+      draw_scale_swap_unscaled_logged = true;
+      REXGPU_WARN(
+          "Vulkan draw resolution scaling is enabled, but the swap source is "
+          "unscaled ({}x{}). This title may be presenting from an unscaled "
+          "resolve path.",
+          frontbuffer_width_scaled, frontbuffer_height_scaled);
+    }
+  }
+  REXGPU_DEBUG(
+      "XELOG_GPU PRESENT: swap_texture_view={:p} packet_size={}x{} src_size={}x{} "
+      "src_unscaled={}x{} guest_output_size={}x{} format={}",
+      static_cast<void*>(swap_texture_view), frontbuffer_width, frontbuffer_height,
+      frontbuffer_width_scaled, frontbuffer_height_scaled, frontbuffer_width_unscaled,
+      frontbuffer_height_unscaled, guest_output_width, guest_output_height,
+      static_cast<uint32_t>(frontbuffer_format));
+
+  system::X_VIDEO_MODE video_mode;
+  kernel::xboxkrnl::VdQueryVideoMode(&video_mode);
+  uint32_t display_width = std::max(uint32_t(1), uint32_t(video_mode.display_width));
+  uint32_t display_height = std::max(uint32_t(1), uint32_t(video_mode.display_height));
 
   presenter->RefreshGuestOutput(
-      frontbuffer_width_scaled, frontbuffer_height_scaled, 1280, 720,
-      [this, frontbuffer_width_scaled, frontbuffer_height_scaled, frontbuffer_format,
-       swap_texture_view](ui::Presenter::GuestOutputRefreshContext& context) -> bool {
+      guest_output_width, guest_output_height, display_width, display_height,
+      [this, guest_output_width, guest_output_height, frontbuffer_format, swap_texture_view,
+       swap_post_effect,
+       swap_source_needs_rb_swap](ui::Presenter::GuestOutputRefreshContext& context) -> bool {
         // In case the swap command is the only one in the frame.
         if (!BeginSubmission(true)) {
           return false;
@@ -1111,6 +2438,8 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
         const VkDevice device = vulkan_device->device();
 
         uint32_t swap_frame_index = uint32_t(frame_current_ % kMaxFramesInFlight);
+        bool use_fxaa = swap_post_effect == SwapPostEffect::kFxaa ||
+                        swap_post_effect == SwapPostEffect::kFxaaExtreme;
 
         // This is according to D3D::InitializePresentationParameters from a
         // game executable, which initializes the 256-entry table gamma ramp for
@@ -1121,9 +2450,82 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
         bool use_pwl_gamma_ramp =
             frontbuffer_format == xenos::TextureFormat::k_2_10_10_10 ||
             frontbuffer_format == xenos::TextureFormat::k_2_10_10_10_AS_16_16_16_16;
+        bool swap_source_requires_compute_rb_swap =
+            !vulkan_device->properties().imageViewFormatSwizzle && swap_source_needs_rb_swap;
+        auto select_swap_apply_gamma_compute_pipeline = [&](bool use_pwl,
+                                                            bool use_fxaa_luma) -> VkPipeline {
+          if (use_pwl) {
+            if (use_fxaa_luma) {
+              return swap_source_requires_compute_rb_swap
+                         ? swap_apply_gamma_compute_pwl_fxaa_luma_rb_swap_pipeline_
+                         : swap_apply_gamma_compute_pwl_fxaa_luma_pipeline_;
+            }
+            return swap_source_requires_compute_rb_swap
+                       ? swap_apply_gamma_compute_pwl_rb_swap_pipeline_
+                       : swap_apply_gamma_compute_pwl_pipeline_;
+          }
+          if (use_fxaa_luma) {
+            return swap_source_requires_compute_rb_swap
+                       ? swap_apply_gamma_compute_256_entry_table_fxaa_luma_rb_swap_pipeline_
+                       : swap_apply_gamma_compute_256_entry_table_fxaa_luma_pipeline_;
+          }
+          return swap_source_requires_compute_rb_swap
+                     ? swap_apply_gamma_compute_256_entry_table_rb_swap_pipeline_
+                     : swap_apply_gamma_compute_256_entry_table_pipeline_;
+        };
+        VkPipeline swap_apply_gamma_compute_pipeline =
+            select_swap_apply_gamma_compute_pipeline(use_pwl_gamma_ramp, use_fxaa);
+
+        if (use_fxaa) {
+          if (swap_apply_gamma_compute_pipeline == VK_NULL_HANDLE ||
+              swap_fxaa_pipeline_ == VK_NULL_HANDLE ||
+              swap_fxaa_extreme_pipeline_ == VK_NULL_HANDLE) {
+            static bool fxaa_pipelines_unavailable_logged = false;
+            if (!fxaa_pipelines_unavailable_logged) {
+              if (swap_source_requires_compute_rb_swap) {
+                REXGPU_WARN(
+                    "Vulkan FXAA swap effect requested but FXAA compute "
+                    "pipelines (including RB-swap fallback) are unavailable, "
+                    "falling back to gamma only");
+              } else {
+                REXGPU_WARN(
+                    "Vulkan FXAA swap effect requested but FXAA compute "
+                    "pipelines are unavailable, falling back to gamma only");
+              }
+              fxaa_pipelines_unavailable_logged = true;
+            }
+            use_fxaa = false;
+          } else if (!EnsureSwapFxaaSourceImage(guest_output_width, guest_output_height)) {
+            static bool fxaa_source_image_failed_logged = false;
+            if (!fxaa_source_image_failed_logged) {
+              REXGPU_WARN(
+                  "Failed to create the Vulkan FXAA source image, falling "
+                  "back to gamma-only presentation");
+              fxaa_source_image_failed_logged = true;
+            }
+            use_fxaa = false;
+          }
+        }
+        if (!use_fxaa) {
+          swap_apply_gamma_compute_pipeline =
+              select_swap_apply_gamma_compute_pipeline(use_pwl_gamma_ramp, false);
+        }
+        if (swap_source_requires_compute_rb_swap &&
+            swap_apply_gamma_compute_pipeline == VK_NULL_HANDLE) {
+          static bool compute_rb_swap_fallback_missing_logged = false;
+          if (!compute_rb_swap_fallback_missing_logged) {
+            compute_rb_swap_fallback_missing_logged = true;
+            REXGPU_WARN(
+                "Vulkan imageViewFormatSwizzle is unavailable and the swap "
+                "source needs red/blue swizzle, but the compute fallback "
+                "pipeline is unavailable; falling back to graphics "
+                "presentation path");
+          }
+        }
+        bool use_compute_gamma = swap_apply_gamma_compute_pipeline != VK_NULL_HANDLE;
 
         // TODO(Triang3l): FXAA can result in more than 8 bits of precision.
-        context.SetIs8bpc(!use_pwl_gamma_ramp);
+        context.SetIs8bpc(!use_pwl_gamma_ramp && !use_fxaa);
 
         // Update the gamma ramp if it's out of date.
         uint32_t& gamma_ramp_frame_index_ref = use_pwl_gamma_ramp
@@ -1162,6 +2564,8 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
                         gamma_ramp_size);
           }
           bool gamma_ramp_has_upload_buffer = gamma_ramp_upload_buffer_memory_ != VK_NULL_HANDLE;
+          VkPipelineStageFlags gamma_ramp_read_stage_mask =
+              VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
           ui::vulkan::util::FlushMappedMemoryRange(
               vulkan_device,
               gamma_ramp_has_upload_buffer ? gamma_ramp_upload_buffer_memory_
@@ -1171,10 +2575,9 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
           if (gamma_ramp_has_upload_buffer) {
             // Copy from the host-visible buffer to the device-local one.
             PushBufferMemoryBarrier(gamma_ramp_buffer_, gamma_ramp_offset_in_frame, gamma_ramp_size,
-                                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                                    VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_SHADER_READ_BIT,
-                                    VK_ACCESS_TRANSFER_WRITE_BIT, VK_QUEUE_FAMILY_IGNORED,
-                                    VK_QUEUE_FAMILY_IGNORED, false);
+                                    gamma_ramp_read_stage_mask, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                    VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+                                    VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, false);
             SubmitBarriers(true);
             VkBufferCopy gamma_ramp_buffer_copy;
             gamma_ramp_buffer_copy.srcOffset = gamma_ramp_upload_offset;
@@ -1183,8 +2586,7 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
             deferred_command_buffer_.CmdVkCopyBuffer(gamma_ramp_upload_buffer_, gamma_ramp_buffer_,
                                                      1, &gamma_ramp_buffer_copy);
             PushBufferMemoryBarrier(gamma_ramp_buffer_, gamma_ramp_offset_in_frame, gamma_ramp_size,
-                                    VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                                    VK_PIPELINE_STAGE_TRANSFER_BIT, gamma_ramp_read_stage_mask,
                                     VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
                                     VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, false);
           }
@@ -1192,123 +2594,6 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
           // have per-frame sets of gamma ramps.
           gamma_ramp_frame_index_ref = gamma_ramp_has_upload_buffer ? 0 : swap_frame_index;
         }
-
-        // Make sure a framebuffer is available for the current guest output
-        // image version.
-        size_t swap_framebuffer_index = SIZE_MAX;
-        size_t swap_framebuffer_new_index = SIZE_MAX;
-        // Try to find the existing framebuffer for the current guest output
-        // image version, or an unused (without an existing framebuffer, or with
-        // one, but that has never actually been used dynamically) slot.
-        for (size_t i = 0; i < swap_framebuffers_.size(); ++i) {
-          const SwapFramebuffer& existing_swap_framebuffer = swap_framebuffers_[i];
-          if (existing_swap_framebuffer.framebuffer != VK_NULL_HANDLE &&
-              existing_swap_framebuffer.version == guest_output_image_version) {
-            swap_framebuffer_index = i;
-            break;
-          }
-          if (existing_swap_framebuffer.framebuffer == VK_NULL_HANDLE ||
-              !existing_swap_framebuffer.last_submission) {
-            swap_framebuffer_new_index = i;
-          }
-        }
-        if (swap_framebuffer_index == SIZE_MAX) {
-          if (swap_framebuffer_new_index == SIZE_MAX) {
-            // Replace the earliest used framebuffer.
-            swap_framebuffer_new_index = 0;
-            for (size_t i = 1; i < swap_framebuffers_.size(); ++i) {
-              if (swap_framebuffers_[i].last_submission <
-                  swap_framebuffers_[swap_framebuffer_new_index].last_submission) {
-                swap_framebuffer_new_index = i;
-              }
-            }
-          }
-          swap_framebuffer_index = swap_framebuffer_new_index;
-          SwapFramebuffer& new_swap_framebuffer = swap_framebuffers_[swap_framebuffer_new_index];
-          if (new_swap_framebuffer.framebuffer != VK_NULL_HANDLE) {
-            if (submission_completed_ >= new_swap_framebuffer.last_submission) {
-              dfn.vkDestroyFramebuffer(device, new_swap_framebuffer.framebuffer, nullptr);
-            } else {
-              destroy_framebuffers_.emplace_back(new_swap_framebuffer.last_submission,
-                                                 new_swap_framebuffer.framebuffer);
-            }
-            new_swap_framebuffer.framebuffer = VK_NULL_HANDLE;
-          }
-          VkImageView guest_output_image_view = vulkan_context.image_view();
-          VkFramebufferCreateInfo swap_framebuffer_create_info;
-          swap_framebuffer_create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-          swap_framebuffer_create_info.pNext = nullptr;
-          swap_framebuffer_create_info.flags = 0;
-          swap_framebuffer_create_info.renderPass = swap_apply_gamma_render_pass_;
-          swap_framebuffer_create_info.attachmentCount = 1;
-          swap_framebuffer_create_info.pAttachments = &guest_output_image_view;
-          swap_framebuffer_create_info.width = frontbuffer_width_scaled;
-          swap_framebuffer_create_info.height = frontbuffer_height_scaled;
-          swap_framebuffer_create_info.layers = 1;
-          if (dfn.vkCreateFramebuffer(device, &swap_framebuffer_create_info, nullptr,
-                                      &new_swap_framebuffer.framebuffer) != VK_SUCCESS) {
-            REXGPU_ERROR("Failed to create the Vulkan framebuffer for presentation");
-            return false;
-          }
-          new_swap_framebuffer.version = guest_output_image_version;
-          // The actual submission index will be set if the framebuffer is
-          // actually used, not dropped due to some error.
-          new_swap_framebuffer.last_submission = 0;
-        }
-
-        if (vulkan_context.image_ever_written_previously()) {
-          // Insert a barrier after the last presenter's usage of the guest
-          // output image. Will be overwriting all the contents, so oldLayout
-          // layout is UNDEFINED. The render pass will do the layout transition,
-          // but newLayout must not be UNDEFINED.
-          PushImageMemoryBarrier(vulkan_context.image(),
-                                 ui::vulkan::util::InitializeSubresourceRange(),
-                                 ui::vulkan::VulkanPresenter::kGuestOutputInternalStageMask,
-                                 VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                 ui::vulkan::VulkanPresenter::kGuestOutputInternalAccessMask,
-                                 VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
-                                 VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-        }
-
-        // End the current render pass before inserting barriers and starting a
-        // new one, and insert the barrier.
-        SubmitBarriers(true);
-
-        SwapFramebuffer& swap_framebuffer = swap_framebuffers_[swap_framebuffer_index];
-        swap_framebuffer.last_submission = GetCurrentSubmission();
-
-        VkRenderPassBeginInfo render_pass_begin_info;
-        render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        render_pass_begin_info.pNext = nullptr;
-        render_pass_begin_info.renderPass = swap_apply_gamma_render_pass_;
-        render_pass_begin_info.framebuffer = swap_framebuffer.framebuffer;
-        render_pass_begin_info.renderArea.offset.x = 0;
-        render_pass_begin_info.renderArea.offset.y = 0;
-        render_pass_begin_info.renderArea.extent.width = frontbuffer_width_scaled;
-        render_pass_begin_info.renderArea.extent.height = frontbuffer_height_scaled;
-        render_pass_begin_info.clearValueCount = 0;
-        render_pass_begin_info.pClearValues = nullptr;
-        deferred_command_buffer_.CmdVkBeginRenderPass(&render_pass_begin_info,
-                                                      VK_SUBPASS_CONTENTS_INLINE);
-
-        VkViewport viewport;
-        viewport.x = 0.0f;
-        viewport.y = 0.0f;
-        viewport.width = float(frontbuffer_width_scaled);
-        viewport.height = float(frontbuffer_height_scaled);
-        viewport.minDepth = 0.0f;
-        viewport.maxDepth = 1.0f;
-        SetViewport(viewport);
-        VkRect2D scissor;
-        scissor.offset.x = 0;
-        scissor.offset.y = 0;
-        scissor.extent.width = frontbuffer_width_scaled;
-        scissor.extent.height = frontbuffer_height_scaled;
-        SetScissor(scissor);
-
-        BindExternalGraphicsPipeline(use_pwl_gamma_ramp
-                                         ? swap_apply_gamma_pwl_pipeline_
-                                         : swap_apply_gamma_256_entry_table_pipeline_);
 
         VkDescriptorSet swap_descriptor_source = swap_descriptors_source_[swap_frame_index];
         VkDescriptorImageInfo swap_descriptor_source_image_info;
@@ -1328,29 +2613,320 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
         swap_descriptor_source_write.pTexelBufferView = nullptr;
         dfn.vkUpdateDescriptorSets(device, 1, &swap_descriptor_source_write, 0, nullptr);
 
-        std::array<VkDescriptorSet, kSwapApplyGammaDescriptorSetCount> swap_descriptor_sets{};
-        swap_descriptor_sets[kSwapApplyGammaDescriptorSetRamp] =
-            swap_descriptors_gamma_ramp_[2 * gamma_ramp_frame_index_ref +
-                                         uint32_t(use_pwl_gamma_ramp)];
-        swap_descriptor_sets[kSwapApplyGammaDescriptorSetSource] = swap_descriptor_source;
-        // TODO(Triang3l): Red / blue swap without imageViewFormatSwizzle.
-        deferred_command_buffer_.CmdVkBindDescriptorSets(
-            VK_PIPELINE_BIND_POINT_GRAPHICS, swap_apply_gamma_pipeline_layout_, 0,
-            uint32_t(swap_descriptor_sets.size()), swap_descriptor_sets.data(), 0, nullptr);
+        VkImageSubresourceRange guest_output_subresource_range =
+            ui::vulkan::util::InitializeSubresourceRange();
+        if (use_compute_gamma) {
+          // Transition the destination image for compute writes. Contents are
+          // fully overwritten, so old layout can always be UNDEFINED.
+          PushImageMemoryBarrier(vulkan_context.image(), guest_output_subresource_range,
+                                 vulkan_context.image_ever_written_previously()
+                                     ? ui::vulkan::VulkanPresenter::kGuestOutputInternalStageMask
+                                     : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                 VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                 vulkan_context.image_ever_written_previously()
+                                     ? ui::vulkan::VulkanPresenter::kGuestOutputInternalAccessMask
+                                     : 0,
+                                 VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+                                 VK_IMAGE_LAYOUT_GENERAL);
+          if (use_fxaa) {
+            PushImageMemoryBarrier(swap_fxaa_source_image_, guest_output_subresource_range,
+                                   swap_fxaa_source_stage_mask_ ? swap_fxaa_source_stage_mask_
+                                                                : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                   VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                   swap_fxaa_source_access_mask_, VK_ACCESS_SHADER_WRITE_BIT,
+                                   swap_fxaa_source_layout_, VK_IMAGE_LAYOUT_GENERAL);
+          }
+          SubmitBarriers(true);
 
-        deferred_command_buffer_.CmdVkDraw(3, 1, 0, 0);
+          if (use_fxaa) {
+            swap_fxaa_source_stage_mask_ = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+            swap_fxaa_source_access_mask_ = VK_ACCESS_SHADER_WRITE_BIT;
+            swap_fxaa_source_layout_ = VK_IMAGE_LAYOUT_GENERAL;
+            swap_fxaa_source_image_submission_ = GetCurrentSubmission();
+          }
 
-        deferred_command_buffer_.CmdVkEndRenderPass();
+          VkDescriptorSet swap_descriptor_destination_storage =
+              swap_descriptors_destination_storage_[swap_frame_index];
+          VkDescriptorImageInfo swap_descriptor_destination_storage_image_info;
+          swap_descriptor_destination_storage_image_info.sampler = VK_NULL_HANDLE;
+          swap_descriptor_destination_storage_image_info.imageView =
+              use_fxaa ? swap_fxaa_source_image_view_ : vulkan_context.image_view();
+          swap_descriptor_destination_storage_image_info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+          VkWriteDescriptorSet swap_descriptor_destination_storage_write;
+          swap_descriptor_destination_storage_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+          swap_descriptor_destination_storage_write.pNext = nullptr;
+          swap_descriptor_destination_storage_write.dstSet = swap_descriptor_destination_storage;
+          swap_descriptor_destination_storage_write.dstBinding = 0;
+          swap_descriptor_destination_storage_write.dstArrayElement = 0;
+          swap_descriptor_destination_storage_write.descriptorCount = 1;
+          swap_descriptor_destination_storage_write.descriptorType =
+              VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+          swap_descriptor_destination_storage_write.pImageInfo =
+              &swap_descriptor_destination_storage_image_info;
+          swap_descriptor_destination_storage_write.pBufferInfo = nullptr;
+          swap_descriptor_destination_storage_write.pTexelBufferView = nullptr;
+          dfn.vkUpdateDescriptorSets(device, 1, &swap_descriptor_destination_storage_write, 0,
+                                     nullptr);
 
-        // Insert the release barrier.
-        PushImageMemoryBarrier(vulkan_context.image(),
-                               ui::vulkan::util::InitializeSubresourceRange(),
-                               VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                               ui::vulkan::VulkanPresenter::kGuestOutputInternalStageMask,
-                               VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                               ui::vulkan::VulkanPresenter::kGuestOutputInternalAccessMask,
-                               VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                               ui::vulkan::VulkanPresenter::kGuestOutputInternalLayout);
+          std::array<VkDescriptorSet, kSwapApplyGammaComputeDescriptorSetCount>
+              swap_apply_gamma_compute_descriptor_sets{};
+          swap_apply_gamma_compute_descriptor_sets[kSwapApplyGammaComputeDescriptorSetRamp] =
+              swap_descriptors_gamma_ramp_[2 * gamma_ramp_frame_index_ref +
+                                           uint32_t(use_pwl_gamma_ramp)];
+          swap_apply_gamma_compute_descriptor_sets[kSwapApplyGammaComputeDescriptorSetSource] =
+              swap_descriptor_source;
+          swap_apply_gamma_compute_descriptor_sets[kSwapApplyGammaComputeDescriptorSetDestination] =
+              swap_descriptor_destination_storage;
+          deferred_command_buffer_.CmdVkBindDescriptorSets(
+              VK_PIPELINE_BIND_POINT_COMPUTE, swap_apply_gamma_compute_pipeline_layout_, 0,
+              uint32_t(swap_apply_gamma_compute_descriptor_sets.size()),
+              swap_apply_gamma_compute_descriptor_sets.data(), 0, nullptr);
+          SwapApplyGammaConstants swap_apply_gamma_constants = {
+              {guest_output_width, guest_output_height}};
+          deferred_command_buffer_.CmdVkPushConstants(
+              swap_apply_gamma_compute_pipeline_layout_, VK_SHADER_STAGE_COMPUTE_BIT, 0,
+              sizeof(swap_apply_gamma_constants), &swap_apply_gamma_constants);
+          BindExternalComputePipeline(swap_apply_gamma_compute_pipeline);
+          uint32_t group_count_x = (guest_output_width + 15) / 16;
+          uint32_t group_count_y = (guest_output_height + 7) / 8;
+          deferred_command_buffer_.CmdVkDispatch(group_count_x, group_count_y, 1);
+
+          if (use_fxaa) {
+            // Make the FXAA source image readable and bind a separate
+            // destination storage descriptor targeting the guest output image.
+            PushImageMemoryBarrier(swap_fxaa_source_image_, guest_output_subresource_range,
+                                   VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                   VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
+                                   VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_GENERAL,
+                                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+            SubmitBarriers(true);
+            swap_fxaa_source_stage_mask_ = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+            swap_fxaa_source_access_mask_ = VK_ACCESS_SHADER_READ_BIT;
+            swap_fxaa_source_layout_ = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            swap_fxaa_source_image_submission_ = GetCurrentSubmission();
+
+            VkDescriptorSet swap_descriptor_fxaa_source =
+                swap_descriptors_fxaa_source_[swap_frame_index];
+            VkDescriptorImageInfo swap_descriptor_fxaa_source_image_info;
+            swap_descriptor_fxaa_source_image_info.sampler = swap_sampler_linear_clamp_;
+            swap_descriptor_fxaa_source_image_info.imageView = swap_fxaa_source_image_view_;
+            swap_descriptor_fxaa_source_image_info.imageLayout =
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            VkWriteDescriptorSet swap_descriptor_fxaa_source_write;
+            swap_descriptor_fxaa_source_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            swap_descriptor_fxaa_source_write.pNext = nullptr;
+            swap_descriptor_fxaa_source_write.dstSet = swap_descriptor_fxaa_source;
+            swap_descriptor_fxaa_source_write.dstBinding = 0;
+            swap_descriptor_fxaa_source_write.dstArrayElement = 0;
+            swap_descriptor_fxaa_source_write.descriptorCount = 1;
+            swap_descriptor_fxaa_source_write.descriptorType =
+                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            swap_descriptor_fxaa_source_write.pImageInfo = &swap_descriptor_fxaa_source_image_info;
+            swap_descriptor_fxaa_source_write.pBufferInfo = nullptr;
+            swap_descriptor_fxaa_source_write.pTexelBufferView = nullptr;
+            dfn.vkUpdateDescriptorSets(device, 1, &swap_descriptor_fxaa_source_write, 0, nullptr);
+
+            VkDescriptorSet swap_descriptor_fxaa_destination_storage =
+                swap_descriptors_fxaa_destination_storage_[swap_frame_index];
+            VkDescriptorImageInfo swap_descriptor_fxaa_destination_storage_image_info;
+            swap_descriptor_fxaa_destination_storage_image_info.sampler = VK_NULL_HANDLE;
+            swap_descriptor_fxaa_destination_storage_image_info.imageView =
+                vulkan_context.image_view();
+            swap_descriptor_fxaa_destination_storage_image_info.imageLayout =
+                VK_IMAGE_LAYOUT_GENERAL;
+            VkWriteDescriptorSet swap_descriptor_fxaa_destination_storage_write =
+                swap_descriptor_destination_storage_write;
+            swap_descriptor_fxaa_destination_storage_write.dstSet =
+                swap_descriptor_fxaa_destination_storage;
+            swap_descriptor_fxaa_destination_storage_write.pImageInfo =
+                &swap_descriptor_fxaa_destination_storage_image_info;
+            dfn.vkUpdateDescriptorSets(device, 1, &swap_descriptor_fxaa_destination_storage_write,
+                                       0, nullptr);
+
+            std::array<VkDescriptorSet, kSwapFxaaDescriptorSetCount> swap_fxaa_descriptor_sets{};
+            swap_fxaa_descriptor_sets[kSwapFxaaDescriptorSetSource] = swap_descriptor_fxaa_source;
+            swap_fxaa_descriptor_sets[kSwapFxaaDescriptorSetDestination] =
+                swap_descriptor_fxaa_destination_storage;
+            deferred_command_buffer_.CmdVkBindDescriptorSets(
+                VK_PIPELINE_BIND_POINT_COMPUTE, swap_fxaa_pipeline_layout_, 0,
+                uint32_t(swap_fxaa_descriptor_sets.size()), swap_fxaa_descriptor_sets.data(), 0,
+                nullptr);
+            SwapFxaaConstants swap_fxaa_constants = {
+                {guest_output_width, guest_output_height},
+                {1.0f / float(guest_output_width), 1.0f / float(guest_output_height)}};
+            deferred_command_buffer_.CmdVkPushConstants(
+                swap_fxaa_pipeline_layout_, VK_SHADER_STAGE_COMPUTE_BIT, 0,
+                sizeof(swap_fxaa_constants), &swap_fxaa_constants);
+            BindExternalComputePipeline(swap_post_effect == SwapPostEffect::kFxaaExtreme
+                                            ? swap_fxaa_extreme_pipeline_
+                                            : swap_fxaa_pipeline_);
+            deferred_command_buffer_.CmdVkDispatch(group_count_x, group_count_y, 1);
+          }
+
+          // Insert the release barrier.
+          PushImageMemoryBarrier(vulkan_context.image(), guest_output_subresource_range,
+                                 VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                 ui::vulkan::VulkanPresenter::kGuestOutputInternalStageMask,
+                                 VK_ACCESS_SHADER_WRITE_BIT,
+                                 ui::vulkan::VulkanPresenter::kGuestOutputInternalAccessMask,
+                                 VK_IMAGE_LAYOUT_GENERAL,
+                                 ui::vulkan::VulkanPresenter::kGuestOutputInternalLayout);
+        } else {
+          // Make sure a framebuffer is available for the current guest output
+          // image version.
+          size_t swap_framebuffer_index = SIZE_MAX;
+          size_t swap_framebuffer_new_index = SIZE_MAX;
+          // Try to find the existing framebuffer for the current guest output
+          // image version, or an unused (without an existing framebuffer, or
+          // with one, but that has never actually been used dynamically) slot.
+          for (size_t i = 0; i < swap_framebuffers_.size(); ++i) {
+            const SwapFramebuffer& existing_swap_framebuffer = swap_framebuffers_[i];
+            if (existing_swap_framebuffer.framebuffer != VK_NULL_HANDLE &&
+                existing_swap_framebuffer.version == guest_output_image_version) {
+              swap_framebuffer_index = i;
+              break;
+            }
+            if (existing_swap_framebuffer.framebuffer == VK_NULL_HANDLE ||
+                !existing_swap_framebuffer.last_submission) {
+              swap_framebuffer_new_index = i;
+            }
+          }
+          if (swap_framebuffer_index == SIZE_MAX) {
+            if (swap_framebuffer_new_index == SIZE_MAX) {
+              // Replace the earliest used framebuffer.
+              swap_framebuffer_new_index = 0;
+              for (size_t i = 1; i < swap_framebuffers_.size(); ++i) {
+                if (swap_framebuffers_[i].last_submission <
+                    swap_framebuffers_[swap_framebuffer_new_index].last_submission) {
+                  swap_framebuffer_new_index = i;
+                }
+              }
+            }
+            swap_framebuffer_index = swap_framebuffer_new_index;
+            SwapFramebuffer& new_swap_framebuffer = swap_framebuffers_[swap_framebuffer_new_index];
+            if (new_swap_framebuffer.framebuffer != VK_NULL_HANDLE) {
+              if (submission_completed_ >= new_swap_framebuffer.last_submission) {
+                dfn.vkDestroyFramebuffer(device, new_swap_framebuffer.framebuffer, nullptr);
+              } else {
+                destroy_framebuffers_.emplace_back(new_swap_framebuffer.last_submission,
+                                                   new_swap_framebuffer.framebuffer);
+              }
+              new_swap_framebuffer.framebuffer = VK_NULL_HANDLE;
+            }
+            VkImageView guest_output_image_view = vulkan_context.image_view();
+            VkFramebufferCreateInfo swap_framebuffer_create_info;
+            swap_framebuffer_create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+            swap_framebuffer_create_info.pNext = nullptr;
+            swap_framebuffer_create_info.flags = 0;
+            swap_framebuffer_create_info.renderPass = swap_apply_gamma_render_pass_;
+            swap_framebuffer_create_info.attachmentCount = 1;
+            swap_framebuffer_create_info.pAttachments = &guest_output_image_view;
+            swap_framebuffer_create_info.width = guest_output_width;
+            swap_framebuffer_create_info.height = guest_output_height;
+            swap_framebuffer_create_info.layers = 1;
+            if (dfn.vkCreateFramebuffer(device, &swap_framebuffer_create_info, nullptr,
+                                        &new_swap_framebuffer.framebuffer) != VK_SUCCESS) {
+              REXGPU_ERROR("Failed to create the Vulkan framebuffer for presentation");
+              return false;
+            }
+            new_swap_framebuffer.version = guest_output_image_version;
+            // The actual submission index will be set if the framebuffer is
+            // actually used, not dropped due to some error.
+            new_swap_framebuffer.last_submission = 0;
+          }
+
+          if (vulkan_context.image_ever_written_previously()) {
+            // Insert a barrier after the last presenter's usage of the guest
+            // output image. Will be overwriting all the contents, so oldLayout
+            // layout is UNDEFINED. The render pass will do the layout
+            // transition, but newLayout must not be UNDEFINED.
+            PushImageMemoryBarrier(vulkan_context.image(), guest_output_subresource_range,
+                                   ui::vulkan::VulkanPresenter::kGuestOutputInternalStageMask,
+                                   VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                   ui::vulkan::VulkanPresenter::kGuestOutputInternalAccessMask,
+                                   VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+          }
+
+          // End the current render pass before inserting barriers and starting
+          // a new one, and insert the barrier.
+          SubmitBarriers(true);
+
+          SwapFramebuffer& swap_framebuffer = swap_framebuffers_[swap_framebuffer_index];
+          swap_framebuffer.last_submission = GetCurrentSubmission();
+
+          VkRenderPassBeginInfo render_pass_begin_info;
+          render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+          render_pass_begin_info.pNext = nullptr;
+          render_pass_begin_info.renderPass = swap_apply_gamma_render_pass_;
+          render_pass_begin_info.framebuffer = swap_framebuffer.framebuffer;
+          render_pass_begin_info.renderArea.offset.x = 0;
+          render_pass_begin_info.renderArea.offset.y = 0;
+          render_pass_begin_info.renderArea.extent.width = guest_output_width;
+          render_pass_begin_info.renderArea.extent.height = guest_output_height;
+          render_pass_begin_info.clearValueCount = 0;
+          render_pass_begin_info.pClearValues = nullptr;
+          deferred_command_buffer_.CmdVkBeginRenderPass(&render_pass_begin_info,
+                                                        VK_SUBPASS_CONTENTS_INLINE);
+
+          VkViewport viewport;
+          viewport.x = 0.0f;
+          viewport.y = 0.0f;
+          viewport.width = float(guest_output_width);
+          viewport.height = float(guest_output_height);
+          viewport.minDepth = 0.0f;
+          viewport.maxDepth = 1.0f;
+          SetViewport(viewport);
+          VkRect2D scissor;
+          scissor.offset.x = 0;
+          scissor.offset.y = 0;
+          scissor.extent.width = guest_output_width;
+          scissor.extent.height = guest_output_height;
+          SetScissor(scissor);
+
+          VkPipeline swap_apply_gamma_pipeline = use_pwl_gamma_ramp
+                                                     ? swap_apply_gamma_pwl_pipeline_
+                                                     : swap_apply_gamma_256_entry_table_pipeline_;
+          if (!vulkan_device->properties().imageViewFormatSwizzle && swap_source_needs_rb_swap) {
+            VkPipeline swap_apply_gamma_rb_swap_pipeline =
+                use_pwl_gamma_ramp ? swap_apply_gamma_pwl_rb_swap_pipeline_
+                                   : swap_apply_gamma_256_entry_table_rb_swap_pipeline_;
+            if (swap_apply_gamma_rb_swap_pipeline != VK_NULL_HANDLE) {
+              swap_apply_gamma_pipeline = swap_apply_gamma_rb_swap_pipeline;
+            } else {
+              static bool swap_rb_swap_fallback_missing_logged = false;
+              if (!swap_rb_swap_fallback_missing_logged) {
+                swap_rb_swap_fallback_missing_logged = true;
+                REXGPU_WARN(
+                    "Vulkan imageViewFormatSwizzle is unavailable and the "
+                    "swap source needs red/blue swizzle, but the graphics "
+                    "fallback RB-swap shader pipeline is unavailable");
+              }
+            }
+          }
+          BindExternalGraphicsPipeline(swap_apply_gamma_pipeline);
+
+          std::array<VkDescriptorSet, kSwapApplyGammaDescriptorSetCount> swap_descriptor_sets{};
+          swap_descriptor_sets[kSwapApplyGammaDescriptorSetRamp] =
+              swap_descriptors_gamma_ramp_[2 * gamma_ramp_frame_index_ref +
+                                           uint32_t(use_pwl_gamma_ramp)];
+          swap_descriptor_sets[kSwapApplyGammaDescriptorSetSource] = swap_descriptor_source;
+          deferred_command_buffer_.CmdVkBindDescriptorSets(
+              VK_PIPELINE_BIND_POINT_GRAPHICS, swap_apply_gamma_pipeline_layout_, 0,
+              uint32_t(swap_descriptor_sets.size()), swap_descriptor_sets.data(), 0, nullptr);
+
+          deferred_command_buffer_.CmdVkDraw(3, 1, 0, 0);
+          deferred_command_buffer_.CmdVkEndRenderPass();
+
+          // Insert the release barrier.
+          PushImageMemoryBarrier(vulkan_context.image(), guest_output_subresource_range,
+                                 VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                 ui::vulkan::VulkanPresenter::kGuestOutputInternalStageMask,
+                                 VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                                 ui::vulkan::VulkanPresenter::kGuestOutputInternalAccessMask,
+                                 VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                                 ui::vulkan::VulkanPresenter::kGuestOutputInternalLayout);
+        }
 
         // Need to submit all the commands before giving the image back to the
         // presenter so it can submit its own commands for displaying it to the
@@ -1526,38 +3102,181 @@ bool VulkanCommandProcessor::SubmitBarriers(bool force_end_render_pass) {
 void VulkanCommandProcessor::SubmitBarriersAndEnterRenderTargetCacheRenderPass(
     VkRenderPass render_pass, const VulkanRenderTargetCache::Framebuffer* framebuffer) {
   SubmitBarriers(false);
-  if (current_render_pass_ == render_pass && current_framebuffer_ == framebuffer) {
-    return;
+  const ui::vulkan::VulkanDevice* vulkan_device = GetVulkanDevice();
+  bool use_dynamic_rendering =
+      REXCVAR_GET(vulkan_dynamic_rendering) && vulkan_device->properties().dynamicRendering;
+
+  if (use_dynamic_rendering) {
+    if (in_render_pass_ && current_framebuffer_ == framebuffer &&
+        current_render_pass_ == VK_NULL_HANDLE) {
+      return;
+    }
+  } else {
+    if (current_render_pass_ == render_pass && current_framebuffer_ == framebuffer) {
+      return;
+    }
   }
-  if (current_render_pass_ != VK_NULL_HANDLE) {
-    deferred_command_buffer_.CmdVkEndRenderPass();
+
+  if (in_render_pass_) {
+    if (use_dynamic_rendering) {
+      deferred_command_buffer_.CmdVkEndRendering();
+    } else {
+      deferred_command_buffer_.CmdVkEndRenderPass();
+    }
+    in_render_pass_ = false;
   }
-  current_render_pass_ = render_pass;
+
+  current_render_pass_ = use_dynamic_rendering ? VK_NULL_HANDLE : render_pass;
   current_framebuffer_ = framebuffer;
-  VkRenderPassBeginInfo render_pass_begin_info;
-  render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-  render_pass_begin_info.pNext = nullptr;
-  render_pass_begin_info.renderPass = render_pass;
-  render_pass_begin_info.framebuffer = framebuffer->framebuffer;
-  render_pass_begin_info.renderArea.offset.x = 0;
-  render_pass_begin_info.renderArea.offset.y = 0;
-  // TODO(Triang3l): Actual dirty width / height in the deferred command
-  // buffer.
-  render_pass_begin_info.renderArea.extent = framebuffer->host_extent;
-  render_pass_begin_info.clearValueCount = 0;
-  render_pass_begin_info.pClearValues = nullptr;
-  deferred_command_buffer_.CmdVkBeginRenderPass(&render_pass_begin_info,
-                                                VK_SUBPASS_CONTENTS_INLINE);
+
+  if (use_dynamic_rendering) {
+    VkRenderingAttachmentInfo color_attachments[xenos::kMaxColorRenderTargets];
+    VkRenderingAttachmentInfo depth_attachment;
+    VkRenderingAttachmentInfo stencil_attachment;
+    uint32_t color_attachment_count = 0;
+    render_target_cache_->GetLastUpdateRenderingAttachments(
+        color_attachments, &color_attachment_count, &depth_attachment, &stencil_attachment);
+    bool has_depth = depth_attachment.sType == VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    bool has_stencil = stencil_attachment.sType == VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+
+    VkRenderingInfo rendering_info = {};
+    rendering_info.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+    rendering_info.pNext = nullptr;
+    rendering_info.flags = 0;
+    rendering_info.renderArea.offset.x = 0;
+    rendering_info.renderArea.offset.y = 0;
+    rendering_info.renderArea.extent = framebuffer->host_extent;
+    rendering_info.layerCount = 1;
+    rendering_info.viewMask = 0;
+    rendering_info.colorAttachmentCount = color_attachment_count;
+    rendering_info.pColorAttachments = color_attachment_count ? color_attachments : nullptr;
+    rendering_info.pDepthAttachment = has_depth ? &depth_attachment : nullptr;
+    rendering_info.pStencilAttachment = has_stencil ? &stencil_attachment : nullptr;
+    deferred_command_buffer_.CmdVkBeginRendering(&rendering_info);
+  } else {
+    VkRenderPassBeginInfo render_pass_begin_info;
+    render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    render_pass_begin_info.pNext = nullptr;
+    render_pass_begin_info.renderPass = render_pass;
+    render_pass_begin_info.framebuffer = framebuffer->framebuffer;
+    render_pass_begin_info.renderArea.offset.x = 0;
+    render_pass_begin_info.renderArea.offset.y = 0;
+    // TODO(Triang3l): Actual dirty width / height in the deferred command
+    // buffer.
+    render_pass_begin_info.renderArea.extent = framebuffer->host_extent;
+    render_pass_begin_info.clearValueCount = 0;
+    render_pass_begin_info.pClearValues = nullptr;
+    deferred_command_buffer_.CmdVkBeginRenderPass(&render_pass_begin_info,
+                                                  VK_SUBPASS_CONTENTS_INLINE);
+  }
+  in_render_pass_ = true;
+}
+
+void VulkanCommandProcessor::SubmitBarriersAndEnterRenderTargetCacheRenderPass(
+    VkRenderPass render_pass, const VulkanRenderTargetCache::Framebuffer* framebuffer,
+    VkImageView transfer_dest_view, bool transfer_dest_is_depth) {
+  SubmitBarriers(false);
+  const ui::vulkan::VulkanDevice* vulkan_device = GetVulkanDevice();
+  bool use_dynamic_rendering =
+      REXCVAR_GET(vulkan_dynamic_rendering) && vulkan_device->properties().dynamicRendering;
+
+  if (use_dynamic_rendering) {
+    if (in_render_pass_ && current_framebuffer_ == framebuffer &&
+        current_render_pass_ == VK_NULL_HANDLE) {
+      return;
+    }
+  } else {
+    if (current_render_pass_ == render_pass && current_framebuffer_ == framebuffer) {
+      return;
+    }
+  }
+
+  if (in_render_pass_) {
+    if (use_dynamic_rendering) {
+      deferred_command_buffer_.CmdVkEndRendering();
+    } else {
+      deferred_command_buffer_.CmdVkEndRenderPass();
+    }
+    in_render_pass_ = false;
+  }
+
+  current_render_pass_ = use_dynamic_rendering ? VK_NULL_HANDLE : render_pass;
+  current_framebuffer_ = framebuffer;
+
+  if (use_dynamic_rendering) {
+    VkRenderingAttachmentInfo color_attachment = {};
+    VkRenderingAttachmentInfo depth_attachment = {};
+    VkRenderingAttachmentInfo stencil_attachment = {};
+
+    if (transfer_dest_is_depth) {
+      depth_attachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+      depth_attachment.pNext = nullptr;
+      depth_attachment.imageView = transfer_dest_view;
+      depth_attachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+      depth_attachment.resolveMode = VK_RESOLVE_MODE_NONE;
+      depth_attachment.resolveImageView = VK_NULL_HANDLE;
+      depth_attachment.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+      depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+      depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+      depth_attachment.clearValue = {};
+      stencil_attachment = depth_attachment;
+    } else {
+      color_attachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+      color_attachment.pNext = nullptr;
+      color_attachment.imageView = transfer_dest_view;
+      color_attachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+      color_attachment.resolveMode = VK_RESOLVE_MODE_NONE;
+      color_attachment.resolveImageView = VK_NULL_HANDLE;
+      color_attachment.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+      color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+      color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+      color_attachment.clearValue = {};
+    }
+
+    VkRenderingInfo rendering_info = {};
+    rendering_info.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+    rendering_info.pNext = nullptr;
+    rendering_info.flags = 0;
+    rendering_info.renderArea.offset.x = 0;
+    rendering_info.renderArea.offset.y = 0;
+    rendering_info.renderArea.extent = framebuffer->host_extent;
+    rendering_info.layerCount = 1;
+    rendering_info.viewMask = 0;
+    rendering_info.colorAttachmentCount = transfer_dest_is_depth ? 0 : 1;
+    rendering_info.pColorAttachments = transfer_dest_is_depth ? nullptr : &color_attachment;
+    rendering_info.pDepthAttachment = transfer_dest_is_depth ? &depth_attachment : nullptr;
+    rendering_info.pStencilAttachment = transfer_dest_is_depth ? &stencil_attachment : nullptr;
+    deferred_command_buffer_.CmdVkBeginRendering(&rendering_info);
+  } else {
+    VkRenderPassBeginInfo render_pass_begin_info;
+    render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    render_pass_begin_info.pNext = nullptr;
+    render_pass_begin_info.renderPass = render_pass;
+    render_pass_begin_info.framebuffer = framebuffer->framebuffer;
+    render_pass_begin_info.renderArea.offset.x = 0;
+    render_pass_begin_info.renderArea.offset.y = 0;
+    render_pass_begin_info.renderArea.extent = framebuffer->host_extent;
+    render_pass_begin_info.clearValueCount = 0;
+    render_pass_begin_info.pClearValues = nullptr;
+    deferred_command_buffer_.CmdVkBeginRenderPass(&render_pass_begin_info,
+                                                  VK_SUBPASS_CONTENTS_INLINE);
+  }
+  in_render_pass_ = true;
 }
 
 void VulkanCommandProcessor::EndRenderPass() {
   assert_true(submission_open_);
-  if (current_render_pass_ == VK_NULL_HANDLE) {
+  if (!in_render_pass_) {
     return;
   }
-  deferred_command_buffer_.CmdVkEndRenderPass();
+  if (current_render_pass_ == VK_NULL_HANDLE) {
+    deferred_command_buffer_.CmdVkEndRendering();
+  } else {
+    deferred_command_buffer_.CmdVkEndRenderPass();
+  }
   current_render_pass_ = VK_NULL_HANDLE;
   current_framebuffer_ = nullptr;
+  in_render_pass_ = false;
 }
 
 VkDescriptorSet VulkanCommandProcessor::AllocateSingleTransientDescriptor(
@@ -1571,17 +3290,21 @@ VkDescriptorSet VulkanCommandProcessor::AllocateSingleTransientDescriptor(
     transient_descriptors_free.pop_back();
   } else {
     const ui::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
-    const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
-    const VkDevice device = vulkan_device->device();
+    [[maybe_unused]] const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+    [[maybe_unused]] const VkDevice device = vulkan_device->device();
     bool is_storage_buffer =
-        transient_descriptor_layout == SingleTransientDescriptorLayout::kStorageBufferCompute;
+        transient_descriptor_layout == SingleTransientDescriptorLayout::kStorageBufferCompute ||
+        transient_descriptor_layout == SingleTransientDescriptorLayout::kStorageBufferPairCompute;
     ui::vulkan::LinkedTypeDescriptorSetAllocator& transient_descriptor_allocator =
         is_storage_buffer ? transient_descriptor_allocator_storage_buffer_
                           : transient_descriptor_allocator_uniform_buffer_;
     VkDescriptorPoolSize descriptor_count;
     descriptor_count.type =
         is_storage_buffer ? VK_DESCRIPTOR_TYPE_STORAGE_BUFFER : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    descriptor_count.descriptorCount = 1;
+    descriptor_count.descriptorCount =
+        transient_descriptor_layout == SingleTransientDescriptorLayout::kStorageBufferPairCompute
+            ? 2
+            : 1;
     descriptor_set = transient_descriptor_allocator.Allocate(
         GetSingleTransientDescriptorLayout(transient_descriptor_layout), &descriptor_count, 1);
     if (descriptor_set == VK_NULL_HANDLE) {
@@ -1863,6 +3586,13 @@ void VulkanCommandProcessor::SetScissor(const VkRect2D& scissor) {
   }
 }
 
+void VulkanCommandProcessor::OnPrimaryBufferEnd() {
+  if (REXCVAR_GET(vulkan_submit_on_primary_buffer_end) && submission_open_ &&
+      CanEndSubmissionImmediately()) {
+    EndSubmission(false);
+  }
+}
+
 Shader* VulkanCommandProcessor::LoadShader(xenos::ShaderType shader_type, uint32_t guest_address,
                                            const uint32_t* host_address, uint32_t dword_count) {
   return pipeline_cache_->LoadShader(shader_type, host_address, dword_count);
@@ -1883,6 +3613,8 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
     return IssueCopy();
   }
 
+  bool surface_pitch_is_zero = regs.Get<reg::RB_SURFACE_INFO>().surface_pitch == 0;
+
   const ui::vulkan::VulkanDevice::Properties& device_properties = GetVulkanDevice()->properties();
 
   memexport_ranges_.clear();
@@ -1894,18 +3626,25 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
     return false;
   }
   pipeline_cache_->AnalyzeShaderUcode(*vertex_shader);
-  // TODO(Triang3l): If the shader uses memory export, but
-  // vertexPipelineStoresAndAtomics is not supported, convert the vertex shader
-  // to a compute shader and dispatch it after the draw if the draw doesn't use
-  // tessellation.
-  if (vertex_shader->memexport_eM_written() != 0 &&
-      device_properties.vertexPipelineStoresAndAtomics) {
+  bool memexport_used_vertex = vertex_shader->memexport_eM_written() != 0;
+  if (memexport_used_vertex) {
+    if (!device_properties.vertexPipelineStoresAndAtomics) {
+      REXGPU_ERROR(
+          "Vertex shader memexport draw encountered without "
+          "vertexPipelineStoresAndAtomics support");
+      return false;
+    }
     draw_util::AddMemExportRanges(regs, *vertex_shader, memexport_ranges_);
   }
 
   // Pixel shader analysis.
   bool primitive_polygonal = draw_util::IsPrimitivePolygonal(regs);
   bool is_rasterization_done = draw_util::IsRasterizationPotentiallyDone(regs, primitive_polygonal);
+  if (surface_pitch_is_zero && is_rasterization_done) {
+    // Doesn't actually draw.
+    // Unlikely that zero would even really be legal though.
+    return true;
+  }
   VulkanShader* pixel_shader = nullptr;
   if (is_rasterization_done) {
     // See xenos::EdramMode for explanation why the pixel shader is only used
@@ -1922,15 +3661,22 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
   } else {
     // Disabling pixel shader for this case is also required by the pipeline
     // cache.
-    if (memexport_ranges_.empty()) {
+    if (!memexport_used_vertex) {
       // This draw has no effect.
       return true;
     }
   }
-  if (pixel_shader && pixel_shader->memexport_eM_written() != 0 &&
-      device_properties.fragmentStoresAndAtomics) {
+  bool memexport_used_pixel = pixel_shader && (pixel_shader->memexport_eM_written() != 0);
+  if (memexport_used_pixel) {
+    if (!device_properties.fragmentStoresAndAtomics) {
+      REXGPU_ERROR(
+          "Pixel shader memexport draw encountered without "
+          "fragmentStoresAndAtomics support");
+      return false;
+    }
     draw_util::AddMemExportRanges(regs, *pixel_shader, memexport_ranges_);
   }
+  reg::RB_DEPTHCONTROL normalized_depth_control = draw_util::GetNormalizedDepthControl(regs);
 
   uint32_t ps_param_gen_pos = UINT32_MAX;
   uint32_t interpolator_mask =
@@ -1945,6 +3691,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
   SpirvShaderTranslator::Modification pixel_shader_modification;
   VulkanShader::VulkanTranslation* vertex_shader_translation;
   VulkanShader::VulkanTranslation* pixel_shader_translation;
+  bool memexport_writes_possible = memexport_used_vertex || memexport_used_pixel;
 
   // Two iterations because a submission (even the current one - in which case
   // it needs to be ended, and a new one must be started) may need to be awaited
@@ -1965,12 +3712,25 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
       // Nothing to draw.
       return true;
     }
-    // TODO(Triang3l): Tessellation, geometry-type-specific vertex shader,
-    // vertex shader as compute.
-    if (primitive_processing_result.host_vertex_shader_type !=
-            Shader::HostVertexShaderType::kVertex &&
-        primitive_processing_result.host_vertex_shader_type !=
-            Shader::HostVertexShaderType::kPointListAsTriangleStrip) {
+    if (primitive_processing_result.host_primitive_type == xenos::PrimitiveType::kTriangleFan) {
+      // Vulkan uses the same fan-to-list conversion policy as D3D12.
+      REXGPU_ERROR(
+          "PrimitiveProcessor returned triangle fan for Vulkan draw; expected "
+          "triangle list conversion for D3D12 parity");
+      assert_always();
+      return false;
+    }
+    // Tessellation and rectangle expansion variants for rasterization are
+    // produced by the primitive processor and are handled by the Vulkan
+    // pipeline cache.
+    Shader::HostVertexShaderType host_vertex_shader_type =
+        primitive_processing_result.host_vertex_shader_type;
+    if (host_vertex_shader_type != Shader::HostVertexShaderType::kVertex &&
+        host_vertex_shader_type != Shader::HostVertexShaderType::kPointListAsTriangleStrip &&
+        host_vertex_shader_type != Shader::HostVertexShaderType::kRectangleListAsTriangleStrip &&
+        !Shader::IsHostVertexShaderTypeDomain(host_vertex_shader_type)) {
+      REXGPU_ERROR("Unsupported Vulkan host vertex shader type {}",
+                   uint32_t(host_vertex_shader_type));
       return false;
     }
 
@@ -1978,10 +3738,10 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
     vertex_shader_modification = pipeline_cache_->GetCurrentVertexShaderModification(
         *vertex_shader, primitive_processing_result.host_vertex_shader_type, interpolator_mask,
         ps_param_gen_pos != UINT32_MAX);
-    pixel_shader_modification = pixel_shader
-                                    ? pipeline_cache_->GetCurrentPixelShaderModification(
-                                          *pixel_shader, interpolator_mask, ps_param_gen_pos)
-                                    : SpirvShaderTranslator::Modification(0);
+    pixel_shader_modification = pixel_shader ? pipeline_cache_->GetCurrentPixelShaderModification(
+                                                   *pixel_shader, interpolator_mask,
+                                                   ps_param_gen_pos, normalized_depth_control)
+                                             : SpirvShaderTranslator::Modification(0);
 
     // Translate the shaders now to obtain the sampler bindings.
     vertex_shader_translation = static_cast<VulkanShader::VulkanTranslation*>(
@@ -2062,28 +3822,9 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
     CheckSubmissionFenceAndDeviceLoss(sampler_overflow_await_submission);
   }
 
-  // Set up the render targets - this may perform dispatches and draws.
-  reg::RB_DEPTHCONTROL normalized_depth_control = draw_util::GetNormalizedDepthControl(regs);
   uint32_t normalized_color_mask =
       pixel_shader ? draw_util::GetNormalizedColorMask(regs, pixel_shader->writes_color_targets())
                    : 0;
-  if (!render_target_cache_->Update(is_rasterization_done, normalized_depth_control,
-                                    normalized_color_mask, *vertex_shader)) {
-    return false;
-  }
-
-  // Create the pipeline (for this, need the render pass from the render target
-  // cache), translating the shaders - doing this now to obtain the used
-  // textures.
-  VkPipeline pipeline;
-  const VulkanPipelineCache::PipelineLayoutProvider* pipeline_layout_provider;
-  if (!pipeline_cache_->ConfigurePipeline(vertex_shader_translation, pixel_shader_translation,
-                                          primitive_processing_result, normalized_depth_control,
-                                          normalized_color_mask,
-                                          render_target_cache_->last_update_render_pass_key(),
-                                          pipeline, pipeline_layout_provider)) {
-    return false;
-  }
 
   // Update the textures before most other work in the submission because
   // samplers depend on this (and in case of sampler overflow in a submission,
@@ -2093,14 +3834,46 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
       (pixel_shader != nullptr ? pixel_shader->GetUsedTextureMaskAfterTranslation() : 0);
   texture_cache_->RequestTextures(used_texture_mask);
 
-  // Update the graphics pipeline, and if the new graphics pipeline has a
-  // different layout, invalidate incompatible descriptor sets before updating
-  // current_guest_graphics_pipeline_layout_.
+  const VulkanPipelineCache::PipelineLayoutProvider* pipeline_layout_provider;
+  // Set up the render targets - this may perform dispatches and draws.
+  if (!render_target_cache_->Update(is_rasterization_done, normalized_depth_control,
+                                    normalized_color_mask, *vertex_shader)) {
+    return false;
+  }
+
+  // Create the pipeline (for this, need the render pass from the render target
+  // cache), translating the shaders - doing this now to obtain the used
+  // textures.
+  VkPipeline pipeline;
+  void* pipeline_handle = nullptr;
+  if (!pipeline_cache_->ConfigurePipeline(vertex_shader_translation, pixel_shader_translation,
+                                          primitive_processing_result, normalized_depth_control,
+                                          normalized_color_mask,
+                                          render_target_cache_->last_update_render_pass_key(),
+                                          pipeline, pipeline_layout_provider, &pipeline_handle)) {
+    return false;
+  }
+  bool pipeline_is_placeholder = false;
+  // Reload the current handle state to observe async hot-swap completions that
+  // may happen between pipeline configuration and binding.
+  pipeline_cache_->GetPipelineAndLayoutByHandle(pipeline_handle, pipeline, pipeline_layout_provider,
+                                                &pipeline_is_placeholder);
+  if (REXCVAR_GET(async_shader_compilation) && pipeline_is_placeholder) {
+    frame_used_async_placeholder_pipeline_ = true;
+    return true;
+  }
+  if (pipeline == VK_NULL_HANDLE || pipeline_layout_provider == nullptr) {
+    return false;
+  }
   if (current_guest_graphics_pipeline_ != pipeline) {
     deferred_command_buffer_.CmdVkBindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
     current_guest_graphics_pipeline_ = pipeline;
     current_external_graphics_pipeline_ = VK_NULL_HANDLE;
   }
+
+  // Update the graphics pipeline, and if the new graphics pipeline has a
+  // different layout, invalidate incompatible descriptor sets before updating
+  // current_guest_graphics_pipeline_layout_.
   auto pipeline_layout = static_cast<const PipelineLayout*>(pipeline_layout_provider);
   if (current_guest_graphics_pipeline_layout_ != pipeline_layout) {
     if (current_guest_graphics_pipeline_layout_) {
@@ -2128,6 +3901,8 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
 
   bool host_render_targets_used =
       render_target_cache_->GetPath() == RenderTargetCache::Path::kHostRenderTargets;
+  uint32_t draw_resolution_scale_x = texture_cache_->draw_resolution_scale_x();
+  uint32_t draw_resolution_scale_y = texture_cache_->draw_resolution_scale_y();
 
   // Get dynamic rasterizer state.
   draw_util::ViewportInfo viewport_info;
@@ -2147,10 +3922,12 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
   // life. Or even disregard the viewport bounds range in the fragment shader
   // interlocks case completely - apply the viewport and the scissor offset
   // directly to pixel address and to things like ps_param_gen.
-  draw_util::GetHostViewportInfo(regs, 1, 1, false, device_properties.maxViewportDimensions[0],
-                                 device_properties.maxViewportDimensions[1], true,
-                                 normalized_depth_control, false, host_render_targets_used,
-                                 pixel_shader && pixel_shader->writes_depth(), viewport_info);
+  draw_util::GetHostViewportInfo(
+      regs, draw_resolution_scale_x, draw_resolution_scale_y, false,
+      device_properties.maxViewportDimensions[0], device_properties.maxViewportDimensions[1], true,
+      normalized_depth_control,
+      host_render_targets_used && render_target_cache_->depth_float24_convert_in_pixel_shader(),
+      host_render_targets_used, pixel_shader && pixel_shader->writes_depth(), viewport_info);
 
   // Update dynamic graphics pipeline state.
   UpdateDynamicState(viewport_info, primitive_polygonal, normalized_depth_control);
@@ -2166,10 +3943,29 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
           PrimitiveProcessor::ProcessedIndexBufferType::kGuestDMA &&
       vgt_draw_initiator.index_size == xenos::IndexFormat::kInt32 &&
       primitive_processing_result.host_vertex_shader_type == Shader::HostVertexShaderType::kVertex;
+  if (!device_properties.fullDrawIndexUint32 &&
+      primitive_processing_result.index_buffer_type ==
+          PrimitiveProcessor::ProcessedIndexBufferType::kGuestDMA &&
+      vgt_draw_initiator.index_size == xenos::IndexFormat::kInt32 &&
+      primitive_processing_result.host_vertex_shader_type !=
+          Shader::HostVertexShaderType::kVertex) {
+    // PrimitiveProcessor is expected to pre-convert this case to
+    // ProcessedIndexBufferType::kHostConverted with host-endian 24-bit
+    // indices. Keep drawing, but report if that pre-conversion didn't happen.
+    static bool non_vertex_32bit_guest_dma_no_full_uint32_logged = false;
+    if (!non_vertex_32bit_guest_dma_no_full_uint32_logged) {
+      REXGPU_WARN(
+          "Vulkan draw has host vertex shader type {} with guest DMA 32-bit "
+          "indices on a device without fullDrawIndexUint32; expected "
+          "PrimitiveProcessor to return host-converted indices",
+          uint32_t(primitive_processing_result.host_vertex_shader_type));
+      non_vertex_32bit_guest_dma_no_full_uint32_logged = true;
+    }
+  }
 
   // Update system constants before uploading them.
   UpdateSystemConstantValues(primitive_polygonal, primitive_processing_result,
-                             shader_32bit_index_dma, viewport_info, used_texture_mask,
+                             shader_32bit_index_dma, 0, viewport_info, used_texture_mask,
                              normalized_depth_control, normalized_color_mask);
 
   // Update uniform buffers and descriptor sets after binding the pipeline with
@@ -2179,42 +3975,53 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
   }
 
   // Ensure vertex buffers are resident.
-  // TODO(Triang3l): Cache residency for ranges in a way similar to how texture
-  // validity is tracked.
-  uint64_t vertex_buffers_resident[2] = {};
-  for (const Shader::VertexBinding& vertex_binding : vertex_shader->vertex_bindings()) {
-    uint32_t vfetch_index = vertex_binding.fetch_constant;
-    if (vertex_buffers_resident[vfetch_index >> 6] & (uint64_t(1) << (vfetch_index & 63))) {
-      continue;
-    }
-    xenos::xe_gpu_vertex_fetch_t vfetch_constant = regs.GetVertexFetch(vfetch_index);
-    switch (vfetch_constant.type) {
-      case xenos::FetchConstantType::kVertex:
-        break;
-      case xenos::FetchConstantType::kInvalidVertex:
-        if (REXCVAR_GET(gpu_allow_invalid_fetch_constants)) {
+  const Shader::ConstantRegisterMap& constant_map_vertex = vertex_shader->constant_register_map();
+  for (uint32_t i = 0; i < rex::countof(constant_map_vertex.vertex_fetch_bitmap); ++i) {
+    uint32_t vfetch_bits_remaining = constant_map_vertex.vertex_fetch_bitmap[i];
+    uint32_t j;
+    while (rex::bit_scan_forward(vfetch_bits_remaining, &j)) {
+      vfetch_bits_remaining &= ~(uint32_t(1) << j);
+      uint32_t vfetch_index = i * 32 + j;
+      uint64_t vfetch_bit = uint64_t(1) << (vfetch_index & 63);
+      if (vertex_buffers_in_sync_[vfetch_index >> 6] & vfetch_bit) {
+        continue;
+      }
+      xenos::xe_gpu_vertex_fetch_t vfetch_constant = regs.GetVertexFetch(vfetch_index);
+      switch (vfetch_constant.type) {
+        case xenos::FetchConstantType::kVertex:
           break;
-        }
-        REXGPU_WARN(
-            "Vertex fetch constant {} ({:08X} {:08X}) has \"invalid\" type! "
-            "This "
-            "is incorrect behavior, but you can try bypassing this by "
-            "launching Xenia with --gpu_allow_invalid_fetch_constants=true.",
-            vfetch_index, vfetch_constant.dword_0, vfetch_constant.dword_1);
+        case xenos::FetchConstantType::kInvalidVertex:
+          if (REXCVAR_GET(gpu_allow_invalid_fetch_constants)) {
+            break;
+          }
+          REXGPU_WARN(
+              "Vertex fetch constant {} ({:08X} {:08X}) has \"invalid\" type! "
+              "This "
+              "is incorrect behavior, but you can try bypassing this by "
+              "launching Xenia with --gpu_allow_invalid_fetch_constants=true.",
+              vfetch_index, vfetch_constant.dword_0, vfetch_constant.dword_1);
+          return false;
+        default:
+          REXGPU_WARN("Vertex fetch constant {} ({:08X} {:08X}) is completely invalid!",
+                      vfetch_index, vfetch_constant.dword_0, vfetch_constant.dword_1);
+          return false;
+      }
+      VertexBufferState& state = vertex_buffer_states_[vfetch_index];
+      if (state.address == vfetch_constant.address && state.size == vfetch_constant.size) {
+        vertex_buffers_in_sync_[vfetch_index >> 6] |= vfetch_bit;
+        continue;
+      }
+      if (!shared_memory_->RequestRange(vfetch_constant.address << 2, vfetch_constant.size << 2)) {
+        REXGPU_ERROR(
+            "Failed to request vertex buffer at 0x{:08X} (size {}) in the shared "
+            "memory",
+            vfetch_constant.address << 2, vfetch_constant.size << 2);
         return false;
-      default:
-        REXGPU_WARN("Vertex fetch constant {} ({:08X} {:08X}) is completely invalid!", vfetch_index,
-                    vfetch_constant.dword_0, vfetch_constant.dword_1);
-        return false;
+      }
+      state.address = vfetch_constant.address;
+      state.size = vfetch_constant.size;
+      vertex_buffers_in_sync_[vfetch_index >> 6] |= vfetch_bit;
     }
-    if (!shared_memory_->RequestRange(vfetch_constant.address << 2, vfetch_constant.size << 2)) {
-      REXGPU_ERROR(
-          "Failed to request vertex buffer at 0x{:08X} (size {}) in the shared "
-          "memory",
-          vfetch_constant.address << 2, vfetch_constant.size << 2);
-      return false;
-    }
-    vertex_buffers_resident[vfetch_index >> 6] |= uint64_t(1) << (vfetch_index & 63);
   }
 
   // Synchronize the memory pages backing memory scatter export streams, and
@@ -2233,6 +4040,52 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
     memexport_extent_end =
         std::max(memexport_extent_end, memexport_range_base_bytes + memexport_range.size_bytes);
   }
+  if (memexport_writes_possible && memexport_ranges_.empty()) {
+    if (!shared_memory_->RequestRange(0, SharedMemory::kBufferSize)) {
+      REXGPU_ERROR(
+          "Failed to request full shared memory residency for unresolved "
+          "memexport destinations");
+      return false;
+    }
+  }
+
+  ScratchBufferAcquisition guest_dma_index_scratch_buffer;
+  if (primitive_processing_result.index_buffer_type ==
+          PrimitiveProcessor::ProcessedIndexBufferType::kGuestDMA &&
+      !shader_32bit_index_dma && memexport_writes_possible) {
+    // Align with D3D12 behavior where memexporting draws using guest DMA indices
+    // read a snapshot of indices to avoid read/write aliasing through shared
+    // memory.
+    VkDeviceSize guest_dma_index_size =
+        VkDeviceSize(primitive_processing_result.host_draw_vertex_count) *
+        (primitive_processing_result.host_index_format == xenos::IndexFormat::kInt16
+             ? sizeof(uint16_t)
+             : sizeof(uint32_t));
+    if (guest_dma_index_size) {
+      guest_dma_index_scratch_buffer = AcquireScratchGpuBuffer(
+          guest_dma_index_size, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT);
+      if (guest_dma_index_scratch_buffer.buffer() == VK_NULL_HANDLE) {
+        return false;
+      }
+
+      shared_memory_->Use(VulkanSharedMemory::Usage::kRead);
+      SubmitBarriers(true);
+
+      VkBufferCopy guest_dma_index_copy_region = {};
+      guest_dma_index_copy_region.srcOffset = primitive_processing_result.guest_index_base;
+      guest_dma_index_copy_region.dstOffset = 0;
+      guest_dma_index_copy_region.size = guest_dma_index_size;
+      deferred_command_buffer_.CmdVkCopyBuffer(shared_memory_->buffer(),
+                                               guest_dma_index_scratch_buffer.buffer(), 1,
+                                               &guest_dma_index_copy_region);
+      PushBufferMemoryBarrier(
+          guest_dma_index_scratch_buffer.buffer(), 0, guest_dma_index_size,
+          guest_dma_index_scratch_buffer.GetStageMask(), VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
+          guest_dma_index_scratch_buffer.GetAccessMask(), VK_ACCESS_INDEX_READ_BIT);
+      guest_dma_index_scratch_buffer.SetStageMask(VK_PIPELINE_STAGE_VERTEX_INPUT_BIT);
+      guest_dma_index_scratch_buffer.SetAccessMask(VK_ACCESS_INDEX_READ_BIT);
+    }
+  }
 
   // Insert the shared memory barrier if needed.
   // TODO(Triang3l): Find some PM4 command that can be used for indication of
@@ -2242,13 +4095,19 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
     shared_memory_->Use(
         VulkanSharedMemory::Usage::kGuestDrawReadWrite,
         std::make_pair(memexport_extent_start, memexport_extent_end - memexport_extent_start));
+  } else if (memexport_writes_possible) {
+    // Stream constants can be invalid or dynamic, making the exact destination
+    // unknown. Keep synchronization conservative similarly to D3D12 UAV
+    // handling for memexport-capable draws.
+    shared_memory_->Use(VulkanSharedMemory::Usage::kGuestDrawReadWrite,
+                        std::make_pair(0u, SharedMemory::kBufferSize));
   } else {
     shared_memory_->Use(VulkanSharedMemory::Usage::kRead);
   }
 
-  // After all commands that may dispatch, copy or insert barriers, submit the
-  // barriers (may end the render pass), and (re)enter the render pass before
-  // drawing.
+  // After all commands that may dispatch, copy or insert barriers, submit
+  // the barriers (may end the render pass), and (re)enter the render pass
+  // before drawing.
   SubmitBarriersAndEnterRenderTargetCacheRenderPass(
       render_target_cache_->last_update_render_pass(),
       render_target_cache_->last_update_framebuffer());
@@ -2262,8 +4121,13 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
     std::pair<VkBuffer, VkDeviceSize> index_buffer;
     switch (primitive_processing_result.index_buffer_type) {
       case PrimitiveProcessor::ProcessedIndexBufferType::kGuestDMA:
-        index_buffer.first = shared_memory_->buffer();
-        index_buffer.second = primitive_processing_result.guest_index_base;
+        if (guest_dma_index_scratch_buffer.buffer() != VK_NULL_HANDLE) {
+          index_buffer.first = guest_dma_index_scratch_buffer.buffer();
+          index_buffer.second = 0;
+        } else {
+          index_buffer.first = shared_memory_->buffer();
+          index_buffer.second = primitive_processing_result.guest_index_base;
+        }
         break;
       case PrimitiveProcessor::ProcessedIndexBufferType::kHostConverted:
         index_buffer = primitive_processor_->GetConvertedIndexBuffer(
@@ -2288,11 +4152,229 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
   }
 
   // Invalidate textures in memexported memory and watch for changes.
-  for (const draw_util::MemExportRange& memexport_range : memexport_ranges_) {
-    shared_memory_->RangeWrittenByGpu(memexport_range.base_address_dwords << 2,
-                                      memexport_range.size_bytes);
+  if (!memexport_ranges_.empty()) {
+    for (const draw_util::MemExportRange& memexport_range : memexport_ranges_) {
+      shared_memory_->RangeWrittenByGpu(memexport_range.base_address_dwords << 2,
+                                        memexport_range.size_bytes);
+    }
+  } else if (memexport_writes_possible) {
+    // Stream constants can be invalid or dynamic, so exact destinations may be
+    // unknown. Keep invalidation conservative in this case.
+    shared_memory_->RangeWrittenByGpu(0, SharedMemory::kBufferSize);
   }
 
+  if (IsReadbackMemexportEnabled(REXCVAR_GET(vulkan_readback_memexport)) &&
+      !memexport_ranges_.empty()) {
+    uint32_t memexport_total_size = 0;
+    for (const draw_util::MemExportRange& memexport_range : memexport_ranges_) {
+      memexport_total_size += memexport_range.size_bytes;
+    }
+    if (memexport_total_size) {
+      if (REXCVAR_GET(readback_memexport_fast)) {
+        IssueDraw_MemexportReadbackFastPath(memexport_total_size);
+      } else {
+        IssueDraw_MemexportReadbackFullPath(memexport_total_size);
+      }
+    }
+  }
+
+  return true;
+}
+
+bool VulkanCommandProcessor::IssueDraw_MemexportReadbackFullPath(uint32_t total_size) {
+  if (!total_size || memexport_ranges_.empty()) {
+    return true;
+  }
+
+  const ui::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
+  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+  const VkDevice device = vulkan_device->device();
+
+  VkBuffer readback_buffer = VK_NULL_HANDLE;
+  VkDeviceMemory readback_memory = VK_NULL_HANDLE;
+  uint32_t readback_memory_type = UINT32_MAX;
+  VkDeviceSize readback_memory_size = 0;
+  if (!ui::vulkan::util::CreateDedicatedAllocationBuffer(
+          vulkan_device, total_size, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+          ui::vulkan::util::MemoryPurpose::kReadback, readback_buffer, readback_memory,
+          &readback_memory_type, &readback_memory_size)) {
+    REXGPU_ERROR("Failed to create a Vulkan memexport readback buffer");
+    return true;
+  }
+
+  shared_memory_->Use(VulkanSharedMemory::Usage::kRead);
+  SubmitBarriers(true);
+
+  uint32_t readback_offset = 0;
+  for (const draw_util::MemExportRange& memexport_range : memexport_ranges_) {
+    VkBufferCopy readback_region = {};
+    readback_region.srcOffset = memexport_range.base_address_dwords << 2;
+    readback_region.dstOffset = readback_offset;
+    readback_region.size = memexport_range.size_bytes;
+    deferred_command_buffer_.CmdVkCopyBuffer(shared_memory_->buffer(), readback_buffer, 1,
+                                             &readback_region);
+    readback_offset += memexport_range.size_bytes;
+  }
+  PushBufferMemoryBarrier(readback_buffer, 0, total_size, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                          VK_PIPELINE_STAGE_HOST_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+                          VK_ACCESS_HOST_READ_BIT);
+
+  if (!AwaitAllQueueOperationsCompletion()) {
+    REXGPU_ERROR("Failed to await completion of Vulkan memexport readback");
+    dfn.vkDestroyBuffer(device, readback_buffer, nullptr);
+    dfn.vkFreeMemory(device, readback_memory, nullptr);
+    return true;
+  }
+
+  void* readback_mapping = nullptr;
+  if (dfn.vkMapMemory(device, readback_memory, 0, VK_WHOLE_SIZE, 0, &readback_mapping) !=
+      VK_SUCCESS) {
+    REXGPU_ERROR("Failed to map a Vulkan memexport readback buffer");
+    dfn.vkDestroyBuffer(device, readback_buffer, nullptr);
+    dfn.vkFreeMemory(device, readback_memory, nullptr);
+    return true;
+  }
+
+  if (!(vulkan_device->memory_types().host_coherent & (uint32_t(1) << readback_memory_type))) {
+    VkMappedMemoryRange readback_memory_range = {};
+    readback_memory_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+    readback_memory_range.memory = readback_memory;
+    readback_memory_range.offset = 0;
+    readback_memory_range.size = std::min(
+        rex::round_up(VkDeviceSize(total_size), vulkan_device->properties().nonCoherentAtomSize),
+        readback_memory_size);
+    dfn.vkInvalidateMappedMemoryRanges(device, 1, &readback_memory_range);
+  }
+
+  const uint8_t* readback_bytes = reinterpret_cast<const uint8_t*>(readback_mapping);
+  for (const draw_util::MemExportRange& memexport_range : memexport_ranges_) {
+    std::memcpy(memory_->TranslatePhysical(memexport_range.base_address_dwords << 2),
+                readback_bytes, memexport_range.size_bytes);
+    readback_bytes += memexport_range.size_bytes;
+  }
+  dfn.vkUnmapMemory(device, readback_memory);
+  dfn.vkDestroyBuffer(device, readback_buffer, nullptr);
+  dfn.vkFreeMemory(device, readback_memory, nullptr);
+  return true;
+}
+
+bool VulkanCommandProcessor::IssueDraw_MemexportReadbackFastPath(uint32_t total_size) {
+  if (!total_size || memexport_ranges_.empty()) {
+    return true;
+  }
+
+  const ui::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
+  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+  const VkDevice device = vulkan_device->device();
+
+  const uint64_t readback_key =
+      MakeMemexportReadbackKey(memexport_ranges_.front().base_address_dwords, total_size);
+  ReadbackBuffer& readback = memexport_readback_buffers_[readback_key];
+  readback.last_used_frame = frame_current_;
+
+  auto ensure_readback_slot = [&](uint32_t index, uint32_t size) -> bool {
+    if (readback.buffers[index] != VK_NULL_HANDLE && readback.memories[index] != VK_NULL_HANDLE &&
+        readback.mapped_data[index] != nullptr && size <= readback.sizes[index]) {
+      return true;
+    }
+
+    VkBuffer new_buffer = VK_NULL_HANDLE;
+    VkDeviceMemory new_memory = VK_NULL_HANDLE;
+    if (!ui::vulkan::util::CreateDedicatedAllocationBuffer(
+            vulkan_device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            ui::vulkan::util::MemoryPurpose::kReadback, new_buffer, new_memory)) {
+      return false;
+    }
+
+    void* new_mapping = nullptr;
+    if (dfn.vkMapMemory(device, new_memory, 0, VK_WHOLE_SIZE, 0, &new_mapping) != VK_SUCCESS) {
+      dfn.vkDestroyBuffer(device, new_buffer, nullptr);
+      dfn.vkFreeMemory(device, new_memory, nullptr);
+      return false;
+    }
+
+    if (readback.buffers[index] != VK_NULL_HANDLE || readback.memories[index] != VK_NULL_HANDLE) {
+      if (!AwaitAllQueueOperationsCompletion()) {
+        dfn.vkUnmapMemory(device, new_memory);
+        dfn.vkDestroyBuffer(device, new_buffer, nullptr);
+        dfn.vkFreeMemory(device, new_memory, nullptr);
+        return false;
+      }
+      if (readback.mapped_data[index] != nullptr && readback.memories[index] != VK_NULL_HANDLE) {
+        dfn.vkUnmapMemory(device, readback.memories[index]);
+      }
+      if (readback.buffers[index] != VK_NULL_HANDLE) {
+        dfn.vkDestroyBuffer(device, readback.buffers[index], nullptr);
+      }
+      if (readback.memories[index] != VK_NULL_HANDLE) {
+        dfn.vkFreeMemory(device, readback.memories[index], nullptr);
+      }
+    }
+
+    readback.buffers[index] = new_buffer;
+    readback.memories[index] = new_memory;
+    readback.mapped_data[index] = new_mapping;
+    readback.sizes[index] = size;
+    readback.submission_written[index] = 0;
+    readback.written_size[index] = 0;
+    return true;
+  };
+
+  const uint32_t write_index = readback.current_index;
+  const uint32_t read_index = 1 - write_index;
+  const uint32_t readback_size = AlignReadbackBufferSize(total_size);
+  if (!ensure_readback_slot(write_index, readback_size)) {
+    return IssueDraw_MemexportReadbackFullPath(total_size);
+  }
+
+  shared_memory_->Use(VulkanSharedMemory::Usage::kRead);
+  SubmitBarriers(true);
+
+  uint32_t readback_offset = 0;
+  for (const draw_util::MemExportRange& memexport_range : memexport_ranges_) {
+    VkBufferCopy readback_region = {};
+    readback_region.srcOffset = memexport_range.base_address_dwords << 2;
+    readback_region.dstOffset = readback_offset;
+    readback_region.size = memexport_range.size_bytes;
+    deferred_command_buffer_.CmdVkCopyBuffer(shared_memory_->buffer(),
+                                             readback.buffers[write_index], 1, &readback_region);
+    readback_offset += memexport_range.size_bytes;
+  }
+  PushBufferMemoryBarrier(readback.buffers[write_index], 0, total_size,
+                          VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
+                          VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT);
+  readback.submission_written[write_index] = GetCurrentSubmission();
+  readback.written_size[write_index] = total_size;
+
+  CheckSubmissionFenceAndDeviceLoss(0);
+  bool previous_slot_ready =
+      readback.buffers[read_index] != VK_NULL_HANDLE &&
+      readback.memories[read_index] != VK_NULL_HANDLE &&
+      readback.mapped_data[read_index] != nullptr && total_size <= readback.sizes[read_index] &&
+      total_size <= readback.written_size[read_index] && readback.submission_written[read_index] &&
+      readback.submission_written[read_index] <= submission_completed_;
+  if (!previous_slot_ready) {
+    IssueDraw_MemexportReadbackFullPath(total_size);
+    readback.current_index = read_index;
+    return true;
+  }
+
+  VkMappedMemoryRange readback_memory_range = {};
+  readback_memory_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+  readback_memory_range.memory = readback.memories[read_index];
+  readback_memory_range.offset = 0;
+  readback_memory_range.size = VK_WHOLE_SIZE;
+  dfn.vkInvalidateMappedMemoryRanges(device, 1, &readback_memory_range);
+
+  const uint8_t* readback_bytes =
+      reinterpret_cast<const uint8_t*>(readback.mapped_data[read_index]);
+  for (const draw_util::MemExportRange& memexport_range : memexport_ranges_) {
+    std::memcpy(memory_->TranslatePhysical(memexport_range.base_address_dwords << 2),
+                readback_bytes, memexport_range.size_bytes);
+    readback_bytes += memexport_range.size_bytes;
+  }
+
+  readback.current_index = read_index;
   return true;
 }
 
@@ -2305,14 +4387,557 @@ bool VulkanCommandProcessor::IssueCopy() {
     return false;
   }
 
+  ReadbackResolveMode readback_mode = GetReadbackResolveMode(REXCVAR_GET(vulkan_readback_resolve));
+  if (readback_mode == ReadbackResolveMode::kDisabled) {
+    uint32_t written_address, written_length;
+    return render_target_cache_->Resolve(*memory_, *shared_memory_, *texture_cache_,
+                                         written_address, written_length);
+  }
+
+  return IssueCopy_ReadbackResolvePath();
+}
+
+bool VulkanCommandProcessor::IssueCopy_ReadbackResolvePath() {
+  const ui::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
+  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+  const VkDevice device = vulkan_device->device();
+
   uint32_t written_address, written_length;
   if (!render_target_cache_->Resolve(*memory_, *shared_memory_, *texture_cache_, written_address,
                                      written_length)) {
     return false;
   }
-  // TODO(Triang3l): CPU readback.
 
+  if (!written_length) {
+    return true;
+  }
+
+  if (!memory_->TranslatePhysical(written_address)) {
+    return true;
+  }
+
+  ReadbackResolveMode readback_mode = GetReadbackResolveMode(REXCVAR_GET(vulkan_readback_resolve));
+  if (readback_mode == ReadbackResolveMode::kDisabled) {
+    return true;
+  }
+
+  auto ensure_readback_slot = [&](ReadbackBuffer& readback, uint32_t index, uint32_t size) -> bool {
+    if (readback.buffers[index] != VK_NULL_HANDLE && size <= readback.sizes[index] &&
+        readback.mapped_data[index] != nullptr) {
+      return true;
+    }
+
+    VkBuffer new_buffer = VK_NULL_HANDLE;
+    VkDeviceMemory new_memory = VK_NULL_HANDLE;
+    if (!ui::vulkan::util::CreateDedicatedAllocationBuffer(
+            vulkan_device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            ui::vulkan::util::MemoryPurpose::kReadback, new_buffer, new_memory)) {
+      REXGPU_ERROR("Failed to create a {} MB Vulkan resolve readback buffer", size >> 20);
+      return false;
+    }
+
+    void* new_mapping = nullptr;
+    if (dfn.vkMapMemory(device, new_memory, 0, VK_WHOLE_SIZE, 0, &new_mapping) != VK_SUCCESS) {
+      REXGPU_ERROR("Failed to map a Vulkan resolve readback buffer");
+      dfn.vkDestroyBuffer(device, new_buffer, nullptr);
+      dfn.vkFreeMemory(device, new_memory, nullptr);
+      return false;
+    }
+
+    if (readback.buffers[index] != VK_NULL_HANDLE || readback.memories[index] != VK_NULL_HANDLE) {
+      if (!AwaitAllQueueOperationsCompletion()) {
+        dfn.vkUnmapMemory(device, new_memory);
+        dfn.vkDestroyBuffer(device, new_buffer, nullptr);
+        dfn.vkFreeMemory(device, new_memory, nullptr);
+        return false;
+      }
+      if (readback.mapped_data[index] != nullptr && readback.memories[index] != VK_NULL_HANDLE) {
+        dfn.vkUnmapMemory(device, readback.memories[index]);
+      }
+      if (readback.buffers[index] != VK_NULL_HANDLE) {
+        dfn.vkDestroyBuffer(device, readback.buffers[index], nullptr);
+      }
+      if (readback.memories[index] != VK_NULL_HANDLE) {
+        dfn.vkFreeMemory(device, readback.memories[index], nullptr);
+      }
+    }
+
+    readback.buffers[index] = new_buffer;
+    readback.memories[index] = new_memory;
+    readback.mapped_data[index] = new_mapping;
+    readback.sizes[index] = size;
+    return true;
+  };
+
+  bool is_scaled = texture_cache_->IsDrawResolutionScaled();
+  uint64_t resolve_key = MakeReadbackResolveKey(written_address, written_length);
+  ReadbackBuffer& readback = readback_buffers_[resolve_key];
+  readback.last_used_frame = frame_current_;
+  uint32_t write_index = readback.current_index;
+  uint32_t readback_size = AlignReadbackBufferSize(written_length);
+  if (!ensure_readback_slot(readback, write_index, readback_size)) {
+    return true;
+  }
+
+  if (is_scaled) {
+    if (!resolve_downscale_pipeline_ || !resolve_downscale_pipeline_layout_) {
+      return true;
+    }
+
+    reg::RB_COPY_DEST_INFO copy_dest_info = register_file_->Get<reg::RB_COPY_DEST_INFO>();
+    const FormatInfo* format_info = FormatInfo::Get(uint32_t(copy_dest_info.copy_dest_format));
+    uint32_t bits_per_pixel = format_info->bits_per_pixel;
+    if (bits_per_pixel != 8 && bits_per_pixel != 16 && bits_per_pixel != 32 &&
+        bits_per_pixel != 64) {
+      return true;
+    }
+
+    uint32_t pixel_size_log2;
+    if (!rex::bit_scan_forward(bits_per_pixel >> 3, &pixel_size_log2)) {
+      return true;
+    }
+    uint32_t tile_size_1x = 32 * 32 * (uint32_t(1) << pixel_size_log2);
+    uint32_t tile_count = written_length / tile_size_1x;
+    if (!tile_count) {
+      return true;
+    }
+
+    uint64_t scaled_start = 0, scaled_length = 0;
+    if (!texture_cache_->GetScaledResolveRange(written_address, written_length, 0, scaled_start,
+                                               scaled_length)) {
+      return true;
+    }
+    if (!scaled_length) {
+      return true;
+    }
+
+    VkBuffer scaled_resolve_buffer = texture_cache_->scaled_resolve_buffer();
+    if (scaled_resolve_buffer == VK_NULL_HANDLE || scaled_start > uint64_t(UINT32_MAX)) {
+      return true;
+    }
+
+    uint32_t downscale_buffer_size = AlignReadbackBufferSize(written_length);
+    if (downscale_buffer_size > resolve_downscale_buffer_size_) {
+      VkBuffer new_buffer = VK_NULL_HANDLE;
+      VkDeviceMemory new_memory = VK_NULL_HANDLE;
+      if (!ui::vulkan::util::CreateDedicatedAllocationBuffer(
+              vulkan_device, downscale_buffer_size,
+              VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+              ui::vulkan::util::MemoryPurpose::kDeviceLocal, new_buffer, new_memory)) {
+        REXGPU_ERROR("Failed to create a {} MB Vulkan resolve downscale buffer",
+                     downscale_buffer_size >> 20);
+        return true;
+      }
+      if (resolve_downscale_buffer_ != VK_NULL_HANDLE ||
+          resolve_downscale_buffer_memory_ != VK_NULL_HANDLE) {
+        if (!AwaitAllQueueOperationsCompletion()) {
+          dfn.vkDestroyBuffer(device, new_buffer, nullptr);
+          dfn.vkFreeMemory(device, new_memory, nullptr);
+          return true;
+        }
+        if (resolve_downscale_buffer_ != VK_NULL_HANDLE) {
+          dfn.vkDestroyBuffer(device, resolve_downscale_buffer_, nullptr);
+        }
+        if (resolve_downscale_buffer_memory_ != VK_NULL_HANDLE) {
+          dfn.vkFreeMemory(device, resolve_downscale_buffer_memory_, nullptr);
+        }
+      }
+      resolve_downscale_buffer_ = new_buffer;
+      resolve_downscale_buffer_memory_ = new_memory;
+      resolve_downscale_buffer_size_ = downscale_buffer_size;
+    }
+    if (resolve_downscale_buffer_ == VK_NULL_HANDLE) {
+      return true;
+    }
+
+    VkDescriptorSet descriptor_set = AllocateSingleTransientDescriptor(
+        SingleTransientDescriptorLayout::kStorageBufferPairCompute);
+    if (descriptor_set == VK_NULL_HANDLE) {
+      return true;
+    }
+
+    VkDescriptorBufferInfo buffer_infos[2] = {};
+    buffer_infos[0].buffer = scaled_resolve_buffer;
+    buffer_infos[0].offset = 0;
+    buffer_infos[0].range = VK_WHOLE_SIZE;
+    buffer_infos[1].buffer = resolve_downscale_buffer_;
+    buffer_infos[1].offset = 0;
+    buffer_infos[1].range = written_length;
+
+    VkWriteDescriptorSet descriptor_writes[2] = {};
+    for (uint32_t i = 0; i < 2; ++i) {
+      descriptor_writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+      descriptor_writes[i].dstSet = descriptor_set;
+      descriptor_writes[i].dstBinding = i;
+      descriptor_writes[i].descriptorCount = 1;
+      descriptor_writes[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+      descriptor_writes[i].pBufferInfo = &buffer_infos[i];
+    }
+    dfn.vkUpdateDescriptorSets(device, 2, descriptor_writes, 0, nullptr);
+
+    texture_cache_->UseScaledResolveBufferForRead();
+    SubmitBarriers(true);
+
+    VkBufferMemoryBarrier pre_barrier = {};
+    pre_barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+    pre_barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+    pre_barrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    pre_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    pre_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    pre_barrier.buffer = resolve_downscale_buffer_;
+    pre_barrier.offset = 0;
+    pre_barrier.size = written_length;
+    deferred_command_buffer_.CmdVkPipelineBarrier(
+        VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1, &pre_barrier, 0, nullptr);
+
+    BindExternalComputePipeline(resolve_downscale_pipeline_);
+
+    ResolveDownscaleConstants constants;
+    constants.scale_x = texture_cache_->draw_resolution_scale_x();
+    constants.scale_y = texture_cache_->draw_resolution_scale_y();
+    constants.pixel_size_log2 = pixel_size_log2;
+    constants.tile_count = tile_count;
+    constants.source_offset_bytes = uint32_t(scaled_start);
+    constants.half_pixel_offset = (REXCVAR_GET(readback_resolve_half_pixel_offset) &&
+                                   (constants.scale_x > 1 || constants.scale_y > 1))
+                                      ? 1u
+                                      : 0u;
+    deferred_command_buffer_.CmdVkPushConstants(resolve_downscale_pipeline_layout_,
+                                                VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants),
+                                                &constants);
+    deferred_command_buffer_.CmdVkBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE,
+                                                     resolve_downscale_pipeline_layout_, 0, 1,
+                                                     &descriptor_set, 0, nullptr);
+    deferred_command_buffer_.CmdVkDispatch(tile_count, 1, 1);
+
+    VkBufferMemoryBarrier downscale_barrier = {};
+    downscale_barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+    downscale_barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    downscale_barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    downscale_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    downscale_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    downscale_barrier.buffer = resolve_downscale_buffer_;
+    downscale_barrier.offset = 0;
+    downscale_barrier.size = written_length;
+    deferred_command_buffer_.CmdVkPipelineBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                                  VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 1,
+                                                  &downscale_barrier, 0, nullptr);
+
+    VkBufferCopy readback_region = {};
+    readback_region.srcOffset = 0;
+    readback_region.dstOffset = 0;
+    readback_region.size = written_length;
+    deferred_command_buffer_.CmdVkCopyBuffer(resolve_downscale_buffer_,
+                                             readback.buffers[write_index], 1, &readback_region);
+  } else {
+    shared_memory_->Use(VulkanSharedMemory::Usage::kRead);
+    SubmitBarriers(true);
+
+    VkBufferCopy readback_region = {};
+    readback_region.srcOffset = written_address;
+    readback_region.dstOffset = 0;
+    readback_region.size = written_length;
+    deferred_command_buffer_.CmdVkCopyBuffer(shared_memory_->buffer(),
+                                             readback.buffers[write_index], 1, &readback_region);
+  }
+
+  PushBufferMemoryBarrier(readback.buffers[write_index], 0, written_length,
+                          VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
+                          VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT);
+
+  bool use_delayed_sync =
+      readback_mode == ReadbackResolveMode::kFast || readback_mode == ReadbackResolveMode::kSome;
+  uint32_t read_index = write_index;
+  if (use_delayed_sync) {
+    read_index = 1 - write_index;
+  } else if (!AwaitAllQueueOperationsCompletion()) {
+    return true;
+  }
+
+  bool is_cache_miss = false;
+  if (use_delayed_sync && (readback.buffers[read_index] == VK_NULL_HANDLE ||
+                           written_length > readback.sizes[read_index] ||
+                           readback.mapped_data[read_index] == nullptr)) {
+    is_cache_miss = true;
+    read_index = write_index;
+    if (!AwaitAllQueueOperationsCompletion()) {
+      return true;
+    }
+  }
+
+  bool should_copy = (readback_mode == ReadbackResolveMode::kSome) ? is_cache_miss : true;
+  if (should_copy && readback.buffers[read_index] != VK_NULL_HANDLE &&
+      written_length <= readback.sizes[read_index] && readback.mapped_data[read_index] != nullptr) {
+    VkMappedMemoryRange readback_memory_range = {};
+    readback_memory_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+    readback_memory_range.memory = readback.memories[read_index];
+    readback_memory_range.offset = 0;
+    readback_memory_range.size = VK_WHOLE_SIZE;
+    dfn.vkInvalidateMappedMemoryRanges(device, 1, &readback_memory_range);
+
+    uint8_t* destination = memory_->TranslatePhysical(written_address);
+    if (destination) {
+      std::memcpy(destination, readback.mapped_data[read_index], written_length);
+    }
+  }
+
+  readback.current_index = 1 - readback.current_index;
   return true;
+}
+
+void VulkanCommandProcessor::EvictOldReadbackBuffers(
+    std::unordered_map<uint64_t, ReadbackBuffer>& buffer_map) {
+  if (buffer_map.empty()) {
+    return;
+  }
+
+  const uint64_t eviction_frame_floor = (frame_current_ > kReadbackBufferEvictionAgeFrames)
+                                            ? (frame_current_ - kReadbackBufferEvictionAgeFrames)
+                                            : 0;
+  const ui::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
+  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+  const VkDevice device = vulkan_device->device();
+  for (auto it = buffer_map.begin(); it != buffer_map.end();) {
+    ReadbackBuffer& readback = it->second;
+    bool evict =
+        buffer_map.size() > kMaxReadbackBuffers || readback.last_used_frame < eviction_frame_floor;
+    if (!evict) {
+      ++it;
+      continue;
+    }
+    for (uint32_t i = 0; i < 2; ++i) {
+      if (readback.mapped_data[i] && readback.memories[i] != VK_NULL_HANDLE) {
+        dfn.vkUnmapMemory(device, readback.memories[i]);
+      }
+      if (readback.buffers[i] != VK_NULL_HANDLE) {
+        dfn.vkDestroyBuffer(device, readback.buffers[i], nullptr);
+      }
+      if (readback.memories[i] != VK_NULL_HANDLE) {
+        dfn.vkFreeMemory(device, readback.memories[i], nullptr);
+      }
+      readback.buffers[i] = VK_NULL_HANDLE;
+      readback.memories[i] = VK_NULL_HANDLE;
+      readback.mapped_data[i] = nullptr;
+      readback.sizes[i] = 0;
+      readback.submission_written[i] = 0;
+      readback.written_size[i] = 0;
+    }
+    it = buffer_map.erase(it);
+  }
+}
+
+bool VulkanCommandProcessor::InitializeOcclusionQueryResources() {
+  active_occlusion_query_ = {};
+  occlusion_query_cursor_ = 0;
+  occlusion_query_resources_available_ = false;
+  occlusion_query_pool_ = VK_NULL_HANDLE;
+  occlusion_query_readback_buffer_ = VK_NULL_HANDLE;
+  occlusion_query_readback_memory_ = VK_NULL_HANDLE;
+  occlusion_query_readback_memory_type_ = UINT32_MAX;
+  occlusion_query_readback_memory_size_ = 0;
+  occlusion_query_readback_mapping_ = nullptr;
+
+  const ui::vulkan::VulkanDevice* vulkan_device = GetVulkanDevice();
+  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+  VkDevice device = vulkan_device->device();
+
+  VkQueryPoolCreateInfo pool_info = {};
+  pool_info.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+  pool_info.queryType = VK_QUERY_TYPE_OCCLUSION;
+  pool_info.queryCount = kMaxOcclusionQueries;
+  if (dfn.vkCreateQueryPool(device, &pool_info, nullptr, &occlusion_query_pool_) != VK_SUCCESS) {
+    REXGPU_WARN(
+        "VulkanCommandProcessor: Failed to create occlusion query pool, using fake sample counts");
+    return false;
+  }
+
+  if (!ui::vulkan::util::CreateDedicatedAllocationBuffer(
+          vulkan_device, sizeof(uint64_t) * kMaxOcclusionQueries, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+          ui::vulkan::util::MemoryPurpose::kReadback, occlusion_query_readback_buffer_,
+          occlusion_query_readback_memory_, &occlusion_query_readback_memory_type_,
+          &occlusion_query_readback_memory_size_)) {
+    REXGPU_WARN(
+        "VulkanCommandProcessor: Failed to create occlusion query readback buffer, using fake "
+        "sample counts");
+    ShutdownOcclusionQueryResources();
+    return false;
+  }
+
+  if (dfn.vkMapMemory(device, occlusion_query_readback_memory_, 0, VK_WHOLE_SIZE, 0,
+                      reinterpret_cast<void**>(&occlusion_query_readback_mapping_)) != VK_SUCCESS) {
+    REXGPU_WARN(
+        "VulkanCommandProcessor: Failed to map occlusion query readback buffer, using fake sample "
+        "counts");
+    ShutdownOcclusionQueryResources();
+    return false;
+  }
+
+  occlusion_query_resources_available_ = true;
+  return true;
+}
+
+void VulkanCommandProcessor::ShutdownOcclusionQueryResources() {
+  DisableHostOcclusionQueries();
+
+  const ui::vulkan::VulkanDevice* vulkan_device = GetVulkanDevice();
+  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+  VkDevice device = vulkan_device->device();
+
+  if (occlusion_query_readback_mapping_ && occlusion_query_readback_memory_ != VK_NULL_HANDLE) {
+    dfn.vkUnmapMemory(device, occlusion_query_readback_memory_);
+  }
+  occlusion_query_readback_mapping_ = nullptr;
+  if (occlusion_query_readback_buffer_ != VK_NULL_HANDLE) {
+    dfn.vkDestroyBuffer(device, occlusion_query_readback_buffer_, nullptr);
+  }
+  if (occlusion_query_readback_memory_ != VK_NULL_HANDLE) {
+    dfn.vkFreeMemory(device, occlusion_query_readback_memory_, nullptr);
+  }
+  if (occlusion_query_pool_ != VK_NULL_HANDLE) {
+    dfn.vkDestroyQueryPool(device, occlusion_query_pool_, nullptr);
+  }
+
+  occlusion_query_pool_ = VK_NULL_HANDLE;
+  occlusion_query_readback_buffer_ = VK_NULL_HANDLE;
+  occlusion_query_readback_memory_ = VK_NULL_HANDLE;
+  occlusion_query_readback_memory_type_ = UINT32_MAX;
+  occlusion_query_readback_memory_size_ = 0;
+}
+
+bool VulkanCommandProcessor::AcquireOcclusionQueryIndex(uint32_t& host_index_out) {
+  if (occlusion_query_cursor_ >= kMaxOcclusionQueries) {
+    occlusion_query_cursor_ = 0;
+  }
+  host_index_out = occlusion_query_cursor_++;
+  return true;
+}
+
+void VulkanCommandProcessor::DisableHostOcclusionQueries() {
+  if (active_occlusion_query_.valid && occlusion_query_pool_ != VK_NULL_HANDLE) {
+    if (BeginSubmission(true)) {
+      deferred_command_buffer_.CmdVkEndQuery(occlusion_query_pool_,
+                                             active_occlusion_query_.host_index);
+      EndSubmission(false);
+    }
+  }
+  active_occlusion_query_ = {};
+  occlusion_query_cursor_ = 0;
+  occlusion_query_resources_available_ = false;
+}
+
+bool VulkanCommandProcessor::BeginGuestOcclusionQuery(uint32_t sample_count_address) {
+  if (!REXCVAR_GET(occlusion_query_enable) || !occlusion_query_resources_available_ ||
+      occlusion_query_pool_ == VK_NULL_HANDLE || occlusion_query_readback_mapping_ == nullptr) {
+    return false;
+  }
+  if (active_occlusion_query_.valid) {
+    REXGPU_WARN(
+        "VulkanCommandProcessor: Occlusion query begin issued while another query is active");
+    DisableHostOcclusionQueries();
+    return false;
+  }
+
+  uint32_t host_index = 0;
+  if (!AcquireOcclusionQueryIndex(host_index)) {
+    return false;
+  }
+  if (!BeginSubmission(true)) {
+    return false;
+  }
+
+  EndRenderPass();
+
+  DeferredCommandBuffer& command_buffer = deferred_command_buffer();
+  command_buffer.CmdVkResetQueryPool(occlusion_query_pool_, host_index, 1);
+  command_buffer.CmdVkBeginQuery(occlusion_query_pool_, host_index, 0);
+  active_occlusion_query_.sample_count_address = sample_count_address;
+  active_occlusion_query_.host_index = host_index;
+  active_occlusion_query_.valid = true;
+  return true;
+}
+
+bool VulkanCommandProcessor::EndGuestOcclusionQuery(uint32_t sample_count_address) {
+  if (!REXCVAR_GET(occlusion_query_enable) || !occlusion_query_resources_available_ ||
+      !active_occlusion_query_.valid || occlusion_query_pool_ == VK_NULL_HANDLE ||
+      occlusion_query_readback_mapping_ == nullptr) {
+    return false;
+  }
+
+  uint32_t host_index = active_occlusion_query_.host_index;
+  active_occlusion_query_ = {};
+
+  if (!BeginSubmission(true)) {
+    return false;
+  }
+
+  EndRenderPass();
+
+  DeferredCommandBuffer& command_buffer = deferred_command_buffer();
+  command_buffer.CmdVkEndQuery(occlusion_query_pool_, host_index);
+  command_buffer.CmdVkCopyQueryPoolResults(occlusion_query_pool_, host_index, 1,
+                                           occlusion_query_readback_buffer_,
+                                           sizeof(uint64_t) * host_index, sizeof(uint64_t),
+                                           VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
+
+  if (!EndSubmission(false)) {
+    return false;
+  }
+  if (!AwaitAllQueueOperationsCompletion()) {
+    return false;
+  }
+
+  const ui::vulkan::VulkanDevice* vulkan_device = GetVulkanDevice();
+  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+  const VkDevice device = vulkan_device->device();
+  if (!(vulkan_device->memory_types().host_coherent &
+        (uint32_t(1) << occlusion_query_readback_memory_type_))) {
+    VkMappedMemoryRange memory_range = {};
+    memory_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+    memory_range.memory = occlusion_query_readback_memory_;
+    memory_range.offset = 0;
+    memory_range.size =
+        std::min(rex::round_up(VkDeviceSize(sizeof(uint64_t) * kMaxOcclusionQueries),
+                               vulkan_device->properties().nonCoherentAtomSize),
+                 occlusion_query_readback_memory_size_);
+    dfn.vkInvalidateMappedMemoryRanges(device, 1, &memory_range);
+  }
+
+  const uint64_t* results = reinterpret_cast<const uint64_t*>(occlusion_query_readback_mapping_);
+  uint64_t samples = NormalizeOcclusionSamples(results[host_index]);
+  WriteGuestOcclusionResult(sample_count_address, samples);
+  return true;
+}
+
+uint64_t VulkanCommandProcessor::NormalizeOcclusionSamples(uint64_t samples) const {
+  if (samples == 0 || !texture_cache_) {
+    return samples;
+  }
+  uint64_t scale_x = texture_cache_->draw_resolution_scale_x();
+  uint64_t scale_y = texture_cache_->draw_resolution_scale_y();
+  uint64_t scale = scale_x * scale_y;
+  if (scale <= 1) {
+    return samples;
+  }
+  return (samples + (scale >> 1)) / scale;
+}
+
+void VulkanCommandProcessor::WriteGuestOcclusionResult(uint32_t sample_count_address,
+                                                       uint64_t samples) {
+  auto* sample_counts =
+      memory_->TranslatePhysical<xenos::xe_gpu_depth_sample_counts*>(sample_count_address);
+  if (!sample_counts) {
+    return;
+  }
+  uint32_t clamped = samples > uint64_t(UINT32_MAX) ? UINT32_MAX : uint32_t(samples);
+  sample_counts->Total_A = clamped;
+  sample_counts->Total_B = 0;
+  sample_counts->ZPass_A = clamped;
+  sample_counts->ZPass_B = 0;
+  sample_counts->ZFail_A = 0;
+  sample_counts->ZFail_B = 0;
+  sample_counts->StencilFail_A = 0;
+  sample_counts->StencilFail_B = 0;
 }
 
 void VulkanCommandProcessor::InitializeTrace() {
@@ -2321,12 +4946,15 @@ void VulkanCommandProcessor::InitializeTrace() {
   if (!BeginSubmission(true)) {
     return;
   }
-  // TODO(Triang3l): Write the EDRAM.
+  bool render_target_submitted = render_target_cache_->InitializeTraceSubmitDownloads();
   bool shared_memory_submitted = shared_memory_->InitializeTraceSubmitDownloads();
-  if (!shared_memory_submitted) {
+  if (!render_target_submitted && !shared_memory_submitted) {
     return;
   }
   AwaitAllQueueOperationsCompletion();
+  if (render_target_submitted) {
+    render_target_cache_->InitializeTraceCompleteDownloads();
+  }
   if (shared_memory_submitted) {
     shared_memory_->InitializeTraceCompleteDownloads();
   }
@@ -2440,6 +5068,14 @@ void VulkanCommandProcessor::CheckSubmissionFenceAndDeviceLoss(uint64_t await_su
     dfn.vkDestroyFramebuffer(device, destroy_pair.second, nullptr);
     destroy_framebuffers_.pop_front();
   }
+  while (!destroy_image_views_.empty()) {
+    const auto& destroy_pair = destroy_image_views_.front();
+    if (destroy_pair.first > submission_completed_) {
+      break;
+    }
+    dfn.vkDestroyImageView(device, destroy_pair.second, nullptr);
+    destroy_image_views_.pop_front();
+  }
   while (!destroy_buffers_.empty()) {
     const auto& destroy_pair = destroy_buffers_.front();
     if (destroy_pair.first > submission_completed_) {
@@ -2447,6 +5083,14 @@ void VulkanCommandProcessor::CheckSubmissionFenceAndDeviceLoss(uint64_t await_su
     }
     dfn.vkDestroyBuffer(device, destroy_pair.second, nullptr);
     destroy_buffers_.pop_front();
+  }
+  while (!destroy_images_.empty()) {
+    const auto& destroy_pair = destroy_images_.front();
+    if (destroy_pair.first > submission_completed_) {
+      break;
+    }
+    dfn.vkDestroyImage(device, destroy_pair.second, nullptr);
+    destroy_images_.pop_front();
   }
   while (!destroy_memory_.empty()) {
     const auto& destroy_pair = destroy_memory_.front();
@@ -2456,6 +5100,10 @@ void VulkanCommandProcessor::CheckSubmissionFenceAndDeviceLoss(uint64_t await_su
     dfn.vkFreeMemory(device, destroy_pair.second, nullptr);
     destroy_memory_.pop_front();
   }
+}
+
+bool VulkanCommandProcessor::CanEndSubmissionImmediately() const {
+  return !submission_open_ || (!scratch_buffer_used_ && !pipeline_cache_->IsCreatingPipelines());
 }
 
 bool VulkanCommandProcessor::BeginSubmission(bool is_guest_command) {
@@ -2517,6 +5165,7 @@ bool VulkanCommandProcessor::BeginSubmission(bool is_guest_command) {
     dynamic_stencil_reference_back_update_needed_ = true;
     current_render_pass_ = VK_NULL_HANDLE;
     current_framebuffer_ = nullptr;
+    in_render_pass_ = false;
     current_guest_graphics_pipeline_ = VK_NULL_HANDLE;
     current_external_graphics_pipeline_ = VK_NULL_HANDLE;
     current_external_compute_pipeline_ = VK_NULL_HANDLE;
@@ -2530,6 +5179,7 @@ bool VulkanCommandProcessor::BeginSubmission(bool is_guest_command) {
 
   if (is_opening_frame) {
     frame_open_ = true;
+    frame_used_async_placeholder_pipeline_ = false;
 
     // Reset bindings that depend on transient data.
     std::memset(current_float_constant_map_vertex_, 0, sizeof(current_float_constant_map_vertex_));
@@ -2582,6 +5232,9 @@ bool VulkanCommandProcessor::BeginSubmission(bool is_guest_command) {
       it->second.push_back(used_transient_descriptor_set.set);
       texture_transient_descriptor_sets_used_.pop_front();
     }
+
+    EvictOldReadbackBuffers(readback_buffers_);
+    EvictOldReadbackBuffers(memexport_readback_buffers_);
 
     primitive_processor_->BeginFrame();
 
@@ -2656,13 +5309,23 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
   bool is_closing_frame = is_swap && frame_open_;
 
   if (is_closing_frame) {
+    texture_cache_->EndFrame();
+
     primitive_processor_->EndFrame();
   }
 
   if (submission_open_) {
     assert_false(scratch_buffer_used_);
 
+    if (active_occlusion_query_.valid && occlusion_query_pool_ != VK_NULL_HANDLE) {
+      deferred_command_buffer_.CmdVkEndQuery(occlusion_query_pool_,
+                                             active_occlusion_query_.host_index);
+      active_occlusion_query_ = {};
+    }
+
     EndRenderPass();
+
+    pipeline_cache_->EndSubmission();
 
     render_target_cache_->EndSubmission();
 
@@ -2795,6 +5458,9 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
   }
 
   if (is_closing_frame) {
+    if (REXCVAR_GET(clear_memory_page_state) && shared_memory_) {
+      shared_memory_->SetSystemPageBlocksValidWithGpuDataWritten();
+    }
     frame_open_ = false;
     // Submission already closed now, so minus 1.
     closed_frame_submissions_[(frame_current_++) % kMaxFramesInFlight] = GetCurrentSubmission() - 1;
@@ -2882,6 +5548,123 @@ void VulkanCommandProcessor::DestroyScratchBuffer() {
   ui::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device, scratch_buffer_memory_);
 }
 
+bool VulkanCommandProcessor::EnsureSwapFxaaSourceImage(uint32_t width, uint32_t height) {
+  assert_true(submission_open_);
+  if (!width || !height) {
+    return false;
+  }
+  if (swap_fxaa_source_image_ != VK_NULL_HANDLE && swap_fxaa_source_image_width_ == width &&
+      swap_fxaa_source_image_height_ == height) {
+    return true;
+  }
+
+  const ui::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
+  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+  const VkDevice device = vulkan_device->device();
+
+  if (swap_fxaa_source_image_ != VK_NULL_HANDLE) {
+    const uint64_t destroy_submission = swap_fxaa_source_image_submission_;
+    const uint64_t deferred_destroy_submission = GetCurrentSubmission();
+    if (submission_completed_ >= destroy_submission) {
+      ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyImageView, device,
+                                             swap_fxaa_source_image_view_);
+      ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyImage, device, swap_fxaa_source_image_);
+      ui::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device,
+                                             swap_fxaa_source_image_memory_);
+    } else {
+      if (swap_fxaa_source_image_view_ != VK_NULL_HANDLE) {
+        destroy_image_views_.emplace_back(deferred_destroy_submission,
+                                          swap_fxaa_source_image_view_);
+        swap_fxaa_source_image_view_ = VK_NULL_HANDLE;
+      }
+      if (swap_fxaa_source_image_ != VK_NULL_HANDLE) {
+        destroy_images_.emplace_back(deferred_destroy_submission, swap_fxaa_source_image_);
+        swap_fxaa_source_image_ = VK_NULL_HANDLE;
+      }
+      if (swap_fxaa_source_image_memory_ != VK_NULL_HANDLE) {
+        destroy_memory_.emplace_back(deferred_destroy_submission, swap_fxaa_source_image_memory_);
+        swap_fxaa_source_image_memory_ = VK_NULL_HANDLE;
+      }
+    }
+  }
+  swap_fxaa_source_image_width_ = 0;
+  swap_fxaa_source_image_height_ = 0;
+  swap_fxaa_source_image_submission_ = 0;
+  swap_fxaa_source_stage_mask_ = 0;
+  swap_fxaa_source_access_mask_ = 0;
+  swap_fxaa_source_layout_ = VK_IMAGE_LAYOUT_UNDEFINED;
+
+  VkImageCreateInfo image_create_info;
+  image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+  image_create_info.pNext = nullptr;
+  image_create_info.flags = 0;
+  image_create_info.imageType = VK_IMAGE_TYPE_2D;
+  image_create_info.format = VK_FORMAT_R16G16B16A16_SFLOAT;
+  image_create_info.extent.width = width;
+  image_create_info.extent.height = height;
+  image_create_info.extent.depth = 1;
+  image_create_info.mipLevels = 1;
+  image_create_info.arrayLayers = 1;
+  image_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
+  image_create_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+  image_create_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
+  image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+  image_create_info.queueFamilyIndexCount = 0;
+  image_create_info.pQueueFamilyIndices = nullptr;
+  image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+  if (!ui::vulkan::util::CreateDedicatedAllocationImage(
+          vulkan_device, image_create_info, ui::vulkan::util::MemoryPurpose::kDeviceLocal,
+          swap_fxaa_source_image_, swap_fxaa_source_image_memory_)) {
+    REXGPU_ERROR("Failed to create the FXAA source image");
+    return false;
+  }
+
+  VkImageViewCreateInfo image_view_create_info;
+  image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+  image_view_create_info.pNext = nullptr;
+  image_view_create_info.flags = 0;
+  image_view_create_info.image = swap_fxaa_source_image_;
+  image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+  image_view_create_info.format = image_create_info.format;
+  image_view_create_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+  image_view_create_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+  image_view_create_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+  image_view_create_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+  image_view_create_info.subresourceRange = ui::vulkan::util::InitializeSubresourceRange();
+  if (dfn.vkCreateImageView(device, &image_view_create_info, nullptr,
+                            &swap_fxaa_source_image_view_) != VK_SUCCESS) {
+    REXGPU_ERROR("Failed to create the FXAA source image view");
+    ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyImage, device, swap_fxaa_source_image_);
+    ui::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device,
+                                           swap_fxaa_source_image_memory_);
+    return false;
+  }
+
+  swap_fxaa_source_image_width_ = width;
+  swap_fxaa_source_image_height_ = height;
+  swap_fxaa_source_image_submission_ = 0;
+  swap_fxaa_source_stage_mask_ = 0;
+  swap_fxaa_source_access_mask_ = 0;
+  swap_fxaa_source_layout_ = VK_IMAGE_LAYOUT_UNDEFINED;
+  return true;
+}
+
+void VulkanCommandProcessor::DestroySwapFxaaSourceImage() {
+  const ui::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
+  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+  const VkDevice device = vulkan_device->device();
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyImageView, device,
+                                         swap_fxaa_source_image_view_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyImage, device, swap_fxaa_source_image_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device, swap_fxaa_source_image_memory_);
+  swap_fxaa_source_image_width_ = 0;
+  swap_fxaa_source_image_height_ = 0;
+  swap_fxaa_source_image_submission_ = 0;
+  swap_fxaa_source_stage_mask_ = 0;
+  swap_fxaa_source_access_mask_ = 0;
+  swap_fxaa_source_layout_ = VK_IMAGE_LAYOUT_UNDEFINED;
+}
+
 void VulkanCommandProcessor::UpdateDynamicState(const draw_util::ViewportInfo& viewport_info,
                                                 bool primitive_polygonal,
                                                 reg::RB_DEPTHCONTROL normalized_depth_control) {
@@ -2890,6 +5673,8 @@ void VulkanCommandProcessor::UpdateDynamicState(const draw_util::ViewportInfo& v
 #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
 
   const RegisterFile& regs = *register_file_;
+  uint32_t draw_resolution_scale_x = texture_cache_ ? texture_cache_->draw_resolution_scale_x() : 1;
+  uint32_t draw_resolution_scale_y = texture_cache_ ? texture_cache_->draw_resolution_scale_y() : 1;
 
   // Window parameters.
   // http://ftp.tku.edu.tw/NetBSD/NetBSD-current/xsrc/external/mit/xf86-video-ati/dist/src/r600_reg_auto_r6xx.h
@@ -2920,6 +5705,10 @@ void VulkanCommandProcessor::UpdateDynamicState(const draw_util::ViewportInfo& v
   // Scissor.
   draw_util::Scissor scissor;
   draw_util::GetScissor(regs, scissor);
+  scissor.offset[0] *= draw_resolution_scale_x;
+  scissor.offset[1] *= draw_resolution_scale_y;
+  scissor.extent[0] *= draw_resolution_scale_x;
+  scissor.extent[1] *= draw_resolution_scale_y;
   VkRect2D scissor_rect;
   scissor_rect.offset.x = int32_t(scissor.offset[0]);
   scissor_rect.offset.y = int32_t(scissor.offset[1]);
@@ -2941,8 +5730,7 @@ void VulkanCommandProcessor::UpdateDynamicState(const draw_util::ViewportInfo& v
     // better than less bias, because less bias means Z fighting with the
     // background is more likely.
     depth_bias_slope_factor *= xenos::kPolygonOffsetScaleSubpixelUnit *
-                               float(std::max(render_target_cache_->draw_resolution_scale_x(),
-                                              render_target_cache_->draw_resolution_scale_y()));
+                               float(std::max(draw_resolution_scale_x, draw_resolution_scale_y));
     // std::memcmp instead of != so in case of NaN, every draw won't be
     // invalidating it.
     dynamic_depth_bias_update_needed_ |=
@@ -3087,14 +5875,15 @@ void VulkanCommandProcessor::UpdateDynamicState(const draw_util::ViewportInfo& v
 void VulkanCommandProcessor::UpdateSystemConstantValues(
     bool primitive_polygonal,
     const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
-    bool shader_32bit_index_dma, const draw_util::ViewportInfo& viewport_info,
-    uint32_t used_texture_mask, reg::RB_DEPTHCONTROL normalized_depth_control,
-    uint32_t normalized_color_mask) {
+    bool shader_32bit_index_dma, uint32_t compute_memexport_vertex_count,
+    const draw_util::ViewportInfo& viewport_info, uint32_t used_texture_mask,
+    reg::RB_DEPTHCONTROL normalized_depth_control, uint32_t normalized_color_mask) {
 #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
 
   const RegisterFile& regs = *register_file_;
+  auto pa_cl_clip_cntl = regs.Get<reg::PA_CL_CLIP_CNTL>();
   auto pa_cl_vte_cntl = regs.Get<reg::PA_CL_VTE_CNTL>();
   auto pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
   auto rb_alpha_ref = regs.Get<float>(XE_GPU_REG_RB_ALPHA_REF);
@@ -3103,8 +5892,11 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
   auto rb_stencilrefmask = regs.Get<reg::RB_STENCILREFMASK>();
   auto rb_stencilrefmask_bf = regs.Get<reg::RB_STENCILREFMASK>(XE_GPU_REG_RB_STENCILREFMASK_BF);
   auto rb_surface_info = regs.Get<reg::RB_SURFACE_INFO>();
+  auto vgt_dma_size = regs.Get<reg::VGT_DMA_SIZE>();
   auto vgt_draw_initiator = regs.Get<reg::VGT_DRAW_INITIATOR>();
   auto vgt_indx_offset = regs.Get<int32_t>(XE_GPU_REG_VGT_INDX_OFFSET);
+  auto vgt_max_vtx_indx = regs.Get<uint32_t>(XE_GPU_REG_VGT_MAX_VTX_INDX);
+  auto vgt_min_vtx_indx = regs.Get<uint32_t>(XE_GPU_REG_VGT_MIN_VTX_INDX);
 
   bool edram_fragment_shader_interlock =
       render_target_cache_->GetPath() == RenderTargetCache::Path::kPixelShaderInterlock;
@@ -3155,11 +5947,44 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
     flags |= SpirvShaderTranslator::kSysFlag_VertexIndexLoad;
   }
   if (primitive_processing_result.index_buffer_type ==
-      PrimitiveProcessor::ProcessedIndexBufferType::kHostBuiltinForDMA) {
+          PrimitiveProcessor::ProcessedIndexBufferType::kHostBuiltinForDMA ||
+      primitive_processing_result.index_buffer_type ==
+          PrimitiveProcessor::ProcessedIndexBufferType::kGuestDMA ||
+      primitive_processing_result.index_buffer_type ==
+          PrimitiveProcessor::ProcessedIndexBufferType::kHostConverted) {
     flags |= SpirvShaderTranslator::kSysFlag_ComputeOrPrimitiveVertexIndexLoad;
     if (vgt_draw_initiator.index_size == xenos::IndexFormat::kInt32) {
       flags |= SpirvShaderTranslator ::kSysFlag_ComputeOrPrimitiveVertexIndexLoad32Bit;
     }
+    // Point and rectangle expansion uses primitive restart only in the host
+    // built-in strip index buffer; guest indices are not reset-based there.
+    bool compute_or_primitive_vertex_index_reset =
+        primitive_processing_result.host_primitive_reset_enabled &&
+        primitive_processing_result.host_vertex_shader_type !=
+            Shader::HostVertexShaderType::kPointListAsTriangleStrip &&
+        primitive_processing_result.host_vertex_shader_type !=
+            Shader::HostVertexShaderType::kRectangleListAsTriangleStrip;
+    if (compute_or_primitive_vertex_index_reset) {
+      flags |= SpirvShaderTranslator::kSysFlag_ComputeOrPrimitiveVertexIndexReset;
+    }
+  }
+  if (primitive_processing_result.host_vertex_shader_type ==
+      Shader::HostVertexShaderType::kTriangleDomainPatchIndexed) {
+    flags |= SpirvShaderTranslator::kSysFlag_ComputeMemExportPatchIndexInRegister1;
+  }
+  if (primitive_processing_result.host_vertex_shader_type ==
+      Shader::HostVertexShaderType::kTriangleDomainCPIndexed) {
+    flags |= SpirvShaderTranslator::kSysFlag_ComputeMemExportTriangleCPIndexed;
+  } else if (primitive_processing_result.host_vertex_shader_type ==
+             Shader::HostVertexShaderType::kQuadDomainCPIndexed) {
+    flags |= SpirvShaderTranslator::kSysFlag_ComputeMemExportQuadCPIndexed;
+  }
+  if (primitive_processing_result.tessellation_mode == xenos::TessellationMode::kAdaptive &&
+      (primitive_processing_result.host_vertex_shader_type ==
+           Shader::HostVertexShaderType::kTriangleDomainPatchIndexed ||
+       primitive_processing_result.host_vertex_shader_type ==
+           Shader::HostVertexShaderType::kQuadDomainPatchIndexed)) {
+    flags |= SpirvShaderTranslator::kSysFlag_ComputeMemExportPatchIndexFromInvocation;
   }
   // W0 division control.
   // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
@@ -3199,10 +6024,14 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
                                                    : xenos::CompareFunction::kAlways;
   flags |= uint32_t(alpha_test_function) << SpirvShaderTranslator::kSysFlag_AlphaPassIfLess_Shift;
   // Gamma writing.
-  // TODO(Triang3l): Gamma as sRGB check.
-  for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
-    if (color_infos[i].color_format == xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA) {
-      flags |= SpirvShaderTranslator::kSysFlag_ConvertColor0ToGamma << i;
+  if (!render_target_cache_->gamma_render_target_as_unorm16()) {
+    // Keep parity with D3D12: gamma targets in this path are converted via
+    // explicit Xenos PWL gamma logic in shaders rather than via host sRGB
+    // attachment conversion semantics.
+    for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
+      if (color_infos[i].color_format == xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA) {
+        flags |= SpirvShaderTranslator::kSysFlag_ConvertColor0ToGamma << i;
+      }
     }
   }
   if (edram_fragment_shader_interlock && depth_stencil_enabled) {
@@ -3240,14 +6069,71 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
     system_constants_.vertex_index_load_address = primitive_processing_result.guest_index_base;
   }
 
+  // Primitive reset index for shader-side index loading.
+  uint32_t vertex_index_reset =
+      (flags & SpirvShaderTranslator::kSysFlag_ComputeOrPrimitiveVertexIndexReset)
+          ? regs.Get<reg::VGT_MULTI_PRIM_IB_RESET_INDX>().reset_indx
+          : 0;
+  dirty |= system_constants_.vertex_index_reset != vertex_index_reset;
+  system_constants_.vertex_index_reset = vertex_index_reset;
+  dirty |= system_constants_.compute_memexport_vertex_count != compute_memexport_vertex_count;
+  system_constants_.compute_memexport_vertex_count = compute_memexport_vertex_count;
+
   // Index or tessellation edge factor buffer endianness.
-  dirty |=
-      system_constants_.vertex_index_endian != primitive_processing_result.host_shader_index_endian;
-  system_constants_.vertex_index_endian = primitive_processing_result.host_shader_index_endian;
+  xenos::Endian guest_index_endian = vgt_dma_size.swap_mode;
+  if (vgt_draw_initiator.index_size == xenos::IndexFormat::kInt16 &&
+      guest_index_endian != xenos::Endian::kNone && guest_index_endian != xenos::Endian::k8in16) {
+    guest_index_endian =
+        guest_index_endian == xenos::Endian::k8in32 ? xenos::Endian::k8in16 : xenos::Endian::kNone;
+  }
+  xenos::Endian index_endian =
+      (flags & SpirvShaderTranslator::kSysFlag_ComputeOrPrimitiveVertexIndexLoad)
+          ? guest_index_endian
+          : primitive_processing_result.host_shader_index_endian;
+  dirty |= system_constants_.vertex_index_endian != index_endian;
+  system_constants_.vertex_index_endian = index_endian;
+
+  dirty |= system_constants_.line_loop_closing_index !=
+           primitive_processing_result.line_loop_closing_index;
+  system_constants_.line_loop_closing_index = primitive_processing_result.line_loop_closing_index;
 
   // Vertex index offset.
   dirty |= system_constants_.vertex_base_index != vgt_indx_offset;
   system_constants_.vertex_base_index = vgt_indx_offset;
+
+  // Vertex index range.
+  dirty |= system_constants_.vertex_index_min != vgt_min_vtx_indx;
+  dirty |= system_constants_.vertex_index_max != vgt_max_vtx_indx;
+  system_constants_.vertex_index_min = vgt_min_vtx_indx;
+  system_constants_.vertex_index_max = vgt_max_vtx_indx;
+
+  // User clip planes (UCP_ENA_#), when not CLIP_DISABLE.
+  // The shader knows only the total count - tightly packing the user clip
+  // planes that are actually used.
+  if (!pa_cl_clip_cntl.clip_disable) {
+    float* user_clip_plane_write_ptr = system_constants_.user_clip_planes[0];
+    uint32_t user_clip_planes_remaining = pa_cl_clip_cntl.ucp_ena;
+    uint32_t user_clip_plane_index;
+    while (rex::bit_scan_forward(user_clip_planes_remaining, &user_clip_plane_index)) {
+      user_clip_planes_remaining &= ~(UINT32_C(1) << user_clip_plane_index);
+      const void* user_clip_plane_regs =
+          &regs[XE_GPU_REG_PA_CL_UCP_0_X + user_clip_plane_index * 4];
+      if (std::memcmp(user_clip_plane_write_ptr, user_clip_plane_regs, 4 * sizeof(float))) {
+        dirty = true;
+        std::memcpy(user_clip_plane_write_ptr, user_clip_plane_regs, 4 * sizeof(float));
+      }
+      user_clip_plane_write_ptr += 4;
+    }
+  }
+
+  // Tessellation factor range, plus 1.0 according to
+  // https://www.slideshare.net/blackdevilvikas/next-generation-graphics-programming-on-xbox-360.
+  float tessellation_factor_min = regs.Get<float>(XE_GPU_REG_VGT_HOS_MIN_TESS_LEVEL) + 1.0f;
+  float tessellation_factor_max = regs.Get<float>(XE_GPU_REG_VGT_HOS_MAX_TESS_LEVEL) + 1.0f;
+  dirty |= system_constants_.tessellation_factor_range_min != tessellation_factor_min;
+  dirty |= system_constants_.tessellation_factor_range_max != tessellation_factor_max;
+  system_constants_.tessellation_factor_range_min = tessellation_factor_min;
+  system_constants_.tessellation_factor_range_max = tessellation_factor_max;
 
   // Conversion to host normalized device coordinates.
   for (uint32_t i = 0; i < 3; ++i) {
@@ -3293,6 +6179,7 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
   }
 
   // Texture signedness / gamma.
+  uint32_t textures_resolution_scaled = 0;
   {
     uint32_t textures_remaining = used_texture_mask;
     uint32_t texture_index;
@@ -3305,8 +6192,12 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
       uint32_t texture_signs_mask = ((UINT32_C(1) << 8) - 1) << texture_signs_shift;
       dirty |= (texture_signs_uint & texture_signs_mask) != texture_signs_shifted;
       texture_signs_uint = (texture_signs_uint & ~texture_signs_mask) | texture_signs_shifted;
+      textures_resolution_scaled |=
+          uint32_t(texture_cache_->IsActiveTextureResolutionScaled(texture_index)) << texture_index;
     }
   }
+  dirty |= system_constants_.textures_resolution_scaled != textures_resolution_scaled;
+  system_constants_.textures_resolution_scaled = textures_resolution_scaled;
 
   // Texture host swizzle in the shader.
   if (!GetVulkanDevice()->properties().imageViewFormatSwizzle) {
@@ -3328,6 +6219,10 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
   // Alpha test.
   dirty |= system_constants_.alpha_test_reference != rb_alpha_ref;
   system_constants_.alpha_test_reference = rb_alpha_ref;
+  uint32_t alpha_to_mask =
+      rb_colorcontrol.alpha_to_mask_enable ? (rb_colorcontrol.value >> 24) | (UINT32_C(1) << 8) : 0;
+  dirty |= system_constants_.alpha_to_mask != alpha_to_mask;
+  system_constants_.alpha_to_mask = alpha_to_mask;
 
   uint32_t edram_tile_dwords_scaled = xenos::kEdramTileWidthSamples *
                                       xenos::kEdramTileHeightSamples *
@@ -3708,7 +6603,9 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
       descriptor_image_info.imageView = texture_cache_->GetActiveBindingOrNullImageView(
           texture_binding.fetch_constant, texture_binding.dimension,
           bool(texture_binding.is_signed));
-      descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+      descriptor_image_info.imageLayout = descriptor_image_info.imageView != VK_NULL_HANDLE
+                                              ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                                              : VK_IMAGE_LAYOUT_UNDEFINED;
     }
   }
   size_t vertex_sampler_image_info_offset = descriptor_write_image_info_.size();
@@ -3726,7 +6623,9 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
       descriptor_image_info.imageView = texture_cache_->GetActiveBindingOrNullImageView(
           texture_binding.fetch_constant, texture_binding.dimension,
           bool(texture_binding.is_signed));
-      descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+      descriptor_image_info.imageLayout = descriptor_image_info.imageView != VK_NULL_HANDLE
+                                              ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                                              : VK_IMAGE_LAYOUT_UNDEFINED;
     }
   }
   size_t pixel_sampler_image_info_offset = descriptor_write_image_info_.size();
@@ -3843,8 +6742,6 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
   while (rex::bit_scan_forward(descriptor_sets_remaining, &descriptor_set_index)) {
     uint32_t descriptor_set_mask_tzcnt =
         rex::tzcnt(~(descriptor_sets_remaining | ((UINT32_C(1) << descriptor_set_index) - 1)));
-    // TODO(Triang3l): Bind to compute for memexport emulation without vertex
-    // shader memory stores.
     deferred_command_buffer_.CmdVkBindDescriptorSets(
         VK_PIPELINE_BIND_POINT_GRAPHICS,
         current_guest_graphics_pipeline_layout_->GetPipelineLayout(), descriptor_set_index,

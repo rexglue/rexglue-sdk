@@ -14,11 +14,26 @@
 #include <memory>
 
 #include <rex/assert.h>
+#include <rex/graphics/flags.h>
 #include <rex/graphics/vulkan/command_processor.h>
 #include <rex/graphics/vulkan/deferred_command_buffer.h>
 #include <rex/graphics/vulkan/primitive_processor.h>
 #include <rex/logging.h>
 #include <rex/ui/vulkan/util.h>
+
+REXCVAR_DEFINE_BOOL(vulkan_force_expand_point_sprites_in_vs, false, "GPU/Vulkan",
+                    "Force Vulkan point sprite expansion in the vertex shader, even when geometry "
+                    "shaders are available")
+    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
+REXCVAR_DEFINE_BOOL(
+    vulkan_force_expand_rectangle_lists_in_vs, false, "GPU/Vulkan",
+    "Force Vulkan rectangle list expansion in the vertex shader, even when geometry "
+    "shaders are available")
+    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
+REXCVAR_DEFINE_BOOL(vulkan_force_convert_quad_lists_to_triangle_lists, false, "GPU/Vulkan",
+                    "Force Vulkan quad list conversion to triangle lists in primitive processing, "
+                    "even when geometry shaders are available")
+    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
 namespace rex::graphics::vulkan {
 
@@ -29,9 +44,28 @@ VulkanPrimitiveProcessor::~VulkanPrimitiveProcessor() {
 bool VulkanPrimitiveProcessor::Initialize() {
   const ui::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
   const ui::vulkan::VulkanDevice::Properties& device_properties = vulkan_device->properties();
-  if (!InitializeCommon(device_properties.fullDrawIndexUint32, device_properties.triangleFans,
-                        false, device_properties.geometryShader, device_properties.geometryShader,
-                        device_properties.geometryShader)) {
+  // Keep triangle fan handling aligned with D3D12 by always converting fans to
+  // lists in the shared primitive processor path.
+  constexpr bool triangle_fans_supported_without_conversion = false;
+
+  // Default to D3D12-like geometry-shader-based handling when available, but
+  // allow opting into Vulkan fallback paths for debugging and downlevel
+  // compatibility testing.
+  bool geometry_shader_primitive_emulation_allowed = device_properties.geometryShader;
+  bool quad_lists_supported_without_conversion =
+      geometry_shader_primitive_emulation_allowed &&
+      !REXCVAR_GET(vulkan_force_convert_quad_lists_to_triangle_lists);
+  bool point_sprites_supported_without_vs_expansion =
+      geometry_shader_primitive_emulation_allowed &&
+      !REXCVAR_GET(vulkan_force_expand_point_sprites_in_vs);
+  bool rectangle_lists_supported_without_vs_expansion =
+      geometry_shader_primitive_emulation_allowed &&
+      !REXCVAR_GET(vulkan_force_expand_rectangle_lists_in_vs);
+
+  if (!InitializeCommon(
+          device_properties.fullDrawIndexUint32, triangle_fans_supported_without_conversion, false,
+          quad_lists_supported_without_conversion, point_sprites_supported_without_vs_expansion,
+          rectangle_lists_supported_without_vs_expansion)) {
     Shutdown();
     return false;
   }

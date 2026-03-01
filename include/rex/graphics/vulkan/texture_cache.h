@@ -14,6 +14,7 @@
 #include <memory>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include <rex/graphics/pipeline/texture/cache.h>
 #include <rex/graphics/vulkan/shader.h>
@@ -75,6 +76,8 @@ class VulkanTextureCache final : public TextureCache {
   ~VulkanTextureCache();
 
   void BeginSubmission(uint64_t new_submission_index) override;
+  void BeginFrame() override;
+  void EndFrame();
 
   // Must be called within a frame - creates and untiles textures needed by
   // shaders, and enqueues transitioning them into the sampled usage. This may
@@ -84,8 +87,7 @@ class VulkanTextureCache final : public TextureCache {
   void RequestTextures(uint32_t used_texture_mask) override;
 
   VkImageView GetActiveBindingOrNullImageView(uint32_t fetch_constant_index,
-                                              xenos::FetchOpDimension dimension,
-                                              bool is_signed) const;
+                                              xenos::FetchOpDimension dimension, bool is_signed);
 
   SamplerParameters GetSamplerParameters(const VulkanShader::SamplerBinding& binding) const;
 
@@ -108,17 +110,41 @@ class VulkanTextureCache final : public TextureCache {
   // Returns the 2D view of the front buffer texture (for fragment shader
   // reading - the barrier will be pushed in the command processor if needed),
   // or VK_NULL_HANDLE in case of failure. May call LoadTextureData.
+  // If swap_source_needs_rb_swap_out is not nullptr, writes whether the final
+  // guest-to-host swizzle requires swapping red and blue (R <- B, B <- R) with
+  // green preserved, which is needed by the presentation fallback path on
+  // devices without imageViewFormatSwizzle.
   VkImageView RequestSwapTexture(uint32_t& width_scaled_out, uint32_t& height_scaled_out,
-                                 xenos::TextureFormat& format_out);
+                                 xenos::TextureFormat& format_out,
+                                 uint32_t* width_unscaled_out = nullptr,
+                                 uint32_t* height_unscaled_out = nullptr,
+                                 bool* swap_source_needs_rb_swap_out = nullptr);
+
+  bool GetScaledResolveRange(uint32_t start_unscaled, uint32_t length_unscaled,
+                             uint32_t length_scaled_alignment_log2, uint64_t& start_scaled_out,
+                             uint64_t& length_scaled_out) const;
+  bool CommitScaledResolveRange(uint32_t start_unscaled, uint32_t length_unscaled,
+                                uint32_t length_scaled_alignment_log2 = 0) {
+    return EnsureScaledResolveMemoryCommitted(start_unscaled, length_unscaled,
+                                              length_scaled_alignment_log2);
+  }
+  VkBuffer scaled_resolve_buffer() const { return scaled_resolve_buffer_; }
+  void UseScaledResolveBufferForRead();
+  void UseScaledResolveBufferForWrite(uint64_t written_start_scaled,
+                                      uint64_t written_length_scaled);
 
  protected:
   bool IsSignedVersionSeparateForFormat(TextureKey key) const override;
+  bool IsScaledResolveSupportedForFormat(TextureKey key) const override;
   uint32_t GetHostFormatSwizzle(TextureKey key) const override;
 
   uint32_t GetMaxHostTextureWidthHeight(xenos::DataDimension dimension) const override;
   uint32_t GetMaxHostTextureDepthOrArraySize(xenos::DataDimension dimension) const override;
 
   std::unique_ptr<Texture> CreateTexture(TextureKey key) override;
+
+  bool EnsureScaledResolveMemoryCommitted(uint32_t start_unscaled, uint32_t length_unscaled,
+                                          uint32_t length_scaled_alignment_log2 = 0) override;
 
   bool LoadTextureDataFromResidentMemoryImpl(Texture& texture, bool load_base,
                                              bool load_mips) override;
@@ -171,7 +197,7 @@ class VulkanTextureCache final : public TextureCache {
 
     // Takes ownership of the image and its memory.
     explicit VulkanTexture(VulkanTextureCache& texture_cache, const TextureKey& key, VkImage image,
-                           VmaAllocation allocation);
+                           VmaAllocation allocation, bool track_usage = true);
     ~VulkanTexture();
 
     VkImage image() const { return image_; }
@@ -184,6 +210,7 @@ class VulkanTextureCache final : public TextureCache {
     }
 
     VkImageView GetView(bool is_signed, uint32_t host_swizzle, bool is_array = true);
+    VkImageView GetOrCreate3DAs2DImageView(bool is_signed, uint32_t host_swizzle);
 
    private:
     union ViewKey {
@@ -239,6 +266,9 @@ class VulkanTextureCache final : public TextureCache {
     Usage usage_ = Usage::kUndefined;
 
     std::unordered_map<ViewKey, VkImageView, ViewKey::Hasher> views_;
+    std::unique_ptr<VulkanTexture> texture_3d_as_2d_;
+    VkImageView image_view_3d_as_2d_unsigned_ = VK_NULL_HANDLE;
+    VkImageView image_view_3d_as_2d_signed_ = VK_NULL_HANDLE;
   };
 
   struct VulkanTextureBinding {
@@ -255,6 +285,7 @@ class VulkanTextureCache final : public TextureCache {
 
   struct Sampler {
     VkSampler sampler;
+    bool uses_custom_border_color;
     uint64_t last_usage_submission;
     std::pair<const SamplerParameters, Sampler>* used_previous;
     std::pair<const SamplerParameters, Sampler>* used_next;
@@ -266,7 +297,8 @@ class VulkanTextureCache final : public TextureCache {
       case xenos::FetchOpDimension::k1D:
       case xenos::FetchOpDimension::k2D:
         return resource_dimension == xenos::DataDimension::k1D ||
-               resource_dimension == xenos::DataDimension::k2DOrStacked;
+               resource_dimension == xenos::DataDimension::k2DOrStacked ||
+               resource_dimension == xenos::DataDimension::k3D;
       case xenos::FetchOpDimension::k3DOrStacked:
         return resource_dimension == xenos::DataDimension::k3D;
       case xenos::FetchOpDimension::kCube:
@@ -282,11 +314,16 @@ class VulkanTextureCache final : public TextureCache {
                               VkPipelineStageFlags guest_shader_pipeline_stages);
 
   bool Initialize();
+  bool InitializeScaledResolveBuffer();
+  void ShutdownScaledResolveBuffer();
 
   const HostFormatPair& GetHostFormatPair(TextureKey key) const;
 
   void GetTextureUsageMasks(VulkanTexture::Usage usage, VkPipelineStageFlags& stage_mask,
                             VkAccessFlags& access_mask, VkImageLayout& layout);
+  bool EnsureScaledResolveBufferAllocated(uint64_t start_scaled, uint64_t length_scaled);
+  void GetScaledResolveUsageMasks(VkPipelineStageFlags& stage_mask_out,
+                                  VkAccessFlags& access_mask_out, bool write) const;
 
   xenos::ClampMode NormalizeClampMode(xenos::ClampMode clamp_mode) const;
 
@@ -302,6 +339,11 @@ class VulkanTextureCache final : public TextureCache {
   static const HostFormatPair kBestHostFormats[64];
   static const HostFormatPair kHostFormatGBGRUnaligned;
   static const HostFormatPair kHostFormatBGRGUnaligned;
+  static const HostFormatPair kHostFormatDXT1Unaligned;
+  static const HostFormatPair kHostFormatDXT2_3Unaligned;
+  static const HostFormatPair kHostFormatDXT4_5Unaligned;
+  static const HostFormatPair kHostFormatDXNUnaligned;
+  static const HostFormatPair kHostFormatDXT5AUnaligned;
   HostFormatPair host_formats_[64];
 
   VkPipelineLayout load_pipeline_layout_ = VK_NULL_HANDLE;
@@ -320,6 +362,15 @@ class VulkanTextureCache final : public TextureCache {
 
   std::array<VulkanTextureBinding, xenos::kTextureFetchConstantCount> vulkan_texture_bindings_;
 
+  // Unsupported texture formats used during this frame (for research and
+  // testing).
+  enum : uint8_t {
+    kUnsupportedResourceBit = 1,
+    kUnsupportedUnormBit = kUnsupportedResourceBit << 1,
+    kUnsupportedSnormBit = kUnsupportedUnormBit << 1,
+  };
+  uint8_t unsupported_format_features_used_[64] = {};
+
   uint32_t sampler_max_count_;
 
   xenos::AnisoFilter max_anisotropy_;
@@ -327,6 +378,17 @@ class VulkanTextureCache final : public TextureCache {
   std::unordered_map<SamplerParameters, Sampler, SamplerParameters::Hasher> samplers_;
   std::pair<const SamplerParameters, Sampler>* sampler_used_first_ = nullptr;
   std::pair<const SamplerParameters, Sampler>* sampler_used_last_ = nullptr;
+  uint32_t custom_border_color_sampler_count_ = 0;
+
+  VkBuffer scaled_resolve_buffer_ = VK_NULL_HANDLE;
+  uint64_t scaled_resolve_buffer_size_ = 0;
+  bool scaled_resolve_buffer_sparse_ = false;
+  uint32_t scaled_resolve_buffer_memory_type_ = UINT32_MAX;
+  std::vector<VkDeviceMemory> scaled_resolve_buffer_memory_;
+  uint32_t scaled_resolve_sparse_granularity_log2_ = UINT32_MAX;
+  std::vector<uint64_t> scaled_resolve_sparse_allocated_;
+  bool scaled_resolve_last_usage_write_ = false;
+  std::pair<uint64_t, uint64_t> scaled_resolve_last_written_range_{0, 0};
 };
 
 }  // namespace rex::graphics::vulkan

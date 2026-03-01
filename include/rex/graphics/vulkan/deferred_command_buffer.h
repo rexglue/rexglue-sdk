@@ -181,6 +181,14 @@ class DeferredCommandBuffer {
                 sizeof(VkBufferCopy) * region_count);
   }
 
+  void CmdVkBeginQuery(VkQueryPool query_pool, uint32_t query, VkQueryControlFlags flags) {
+    auto& args = *reinterpret_cast<ArgsVkBeginQuery*>(
+        WriteCommand(Command::kVkBeginQuery, sizeof(ArgsVkBeginQuery)));
+    args.query_pool = query_pool;
+    args.query = query;
+    args.flags = flags;
+  }
+
   VkBufferImageCopy* CmdCopyBufferToImageEmplace(VkBuffer src_buffer, VkImage dst_image,
                                                  VkImageLayout dst_image_layout,
                                                  uint32_t region_count) {
@@ -200,6 +208,20 @@ class DeferredCommandBuffer {
                               const VkBufferImageCopy* regions) {
     std::memcpy(CmdCopyBufferToImageEmplace(src_buffer, dst_image, dst_image_layout, region_count),
                 regions, sizeof(VkBufferImageCopy) * region_count);
+  }
+
+  void CmdVkCopyQueryPoolResults(VkQueryPool query_pool, uint32_t first_query, uint32_t query_count,
+                                 VkBuffer dst_buffer, VkDeviceSize dst_offset, VkDeviceSize stride,
+                                 VkQueryResultFlags flags) {
+    auto& args = *reinterpret_cast<ArgsVkCopyQueryPoolResults*>(
+        WriteCommand(Command::kVkCopyQueryPoolResults, sizeof(ArgsVkCopyQueryPoolResults)));
+    args.query_pool = query_pool;
+    args.first_query = first_query;
+    args.query_count = query_count;
+    args.dst_buffer = dst_buffer;
+    args.dst_offset = dst_offset;
+    args.stride = stride;
+    args.flags = flags;
   }
 
   void CmdVkDispatch(uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z) {
@@ -230,7 +252,26 @@ class DeferredCommandBuffer {
     args.first_instance = first_instance;
   }
 
+  void CmdVkEndQuery(VkQueryPool query_pool, uint32_t query) {
+    auto& args = *reinterpret_cast<ArgsVkEndQuery*>(
+        WriteCommand(Command::kVkEndQuery, sizeof(ArgsVkEndQuery)));
+    args.query_pool = query_pool;
+    args.query = query;
+  }
+
   void CmdVkEndRenderPass() { WriteCommand(Command::kVkEndRenderPass, 0); }
+
+  // Dynamic rendering (VK_KHR_dynamic_rendering / Vulkan 1.3).
+  void CmdVkBeginRendering(const VkRenderingInfo* rendering_info);
+  void CmdVkEndRendering() { WriteCommand(Command::kVkEndRendering, 0); }
+
+  void CmdVkResetQueryPool(VkQueryPool query_pool, uint32_t first_query, uint32_t query_count) {
+    auto& args = *reinterpret_cast<ArgsVkResetQueryPool*>(
+        WriteCommand(Command::kVkResetQueryPool, sizeof(ArgsVkResetQueryPool)));
+    args.query_pool = query_pool;
+    args.first_query = first_query;
+    args.query_count = query_count;
+  }
 
   // pNext of all barriers must be null.
   void CmdVkPipelineBarrier(VkPipelineStageFlags src_stage_mask,
@@ -313,6 +354,7 @@ class DeferredCommandBuffer {
  private:
   enum class Command {
     kVkBeginRenderPass,
+    kVkBeginQuery,
     kVkBindDescriptorSets,
     kVkBindIndexBuffer,
     kVkBindPipeline,
@@ -321,12 +363,17 @@ class DeferredCommandBuffer {
     kVkClearColorImage,
     kVkCopyBuffer,
     kVkCopyBufferToImage,
+    kVkCopyQueryPoolResults,
     kVkDispatch,
     kVkDraw,
     kVkDrawIndexed,
+    kVkEndQuery,
     kVkEndRenderPass,
+    kVkBeginRendering,
+    kVkEndRendering,
     kVkPipelineBarrier,
     kVkPushConstants,
+    kVkResetQueryPool,
     kVkSetBlendConstants,
     kVkSetDepthBias,
     kVkSetScissor,
@@ -351,6 +398,27 @@ class DeferredCommandBuffer {
     VkSubpassContents contents;
     // Followed by aligned optional VkClearValue[].
     static_assert(alignof(VkClearValue) <= alignof(uintmax_t));
+  };
+
+  struct ArgsVkBeginRendering {
+    VkRenderingFlags flags;
+    VkRect2D render_area;
+    uint32_t layer_count;
+    uint32_t view_mask;
+    uint32_t color_attachment_count;
+    bool has_depth_attachment;
+    bool has_stencil_attachment;
+    // Followed by:
+    // - VkRenderingAttachmentInfo[color_attachment_count]
+    // - VkRenderingAttachmentInfo depth (if has_depth_attachment)
+    // - VkRenderingAttachmentInfo stencil (if has_stencil_attachment)
+    static_assert(alignof(VkRenderingAttachmentInfo) <= alignof(uintmax_t));
+  };
+
+  struct ArgsVkBeginQuery {
+    VkQueryPool query_pool;
+    uint32_t query;
+    VkQueryControlFlags flags;
   };
 
   struct ArgsVkBindDescriptorSets {
@@ -416,6 +484,16 @@ class DeferredCommandBuffer {
     static_assert(alignof(VkBufferImageCopy) <= alignof(uintmax_t));
   };
 
+  struct ArgsVkCopyQueryPoolResults {
+    VkQueryPool query_pool;
+    uint32_t first_query;
+    uint32_t query_count;
+    VkBuffer dst_buffer;
+    VkDeviceSize dst_offset;
+    VkDeviceSize stride;
+    VkQueryResultFlags flags;
+  };
+
   struct ArgsVkDispatch {
     uint32_t group_count_x;
     uint32_t group_count_y;
@@ -435,6 +513,17 @@ class DeferredCommandBuffer {
     uint32_t first_index;
     int32_t vertex_offset;
     uint32_t first_instance;
+  };
+
+  struct ArgsVkEndQuery {
+    VkQueryPool query_pool;
+    uint32_t query;
+  };
+
+  struct ArgsVkResetQueryPool {
+    VkQueryPool query_pool;
+    uint32_t first_query;
+    uint32_t query_count;
   };
 
   struct ArgsVkPipelineBarrier {
