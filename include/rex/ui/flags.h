@@ -18,7 +18,16 @@ REXCVAR_DECLARE(bool, present_render_pass_clear);
 REXCVAR_DECLARE(bool, present_letterbox);
 REXCVAR_DECLARE(int32_t, present_safe_area_x);
 REXCVAR_DECLARE(int32_t, present_safe_area_y);
+REXCVAR_DECLARE(std::string, present_effect);
+REXCVAR_DECLARE(double, present_cas_additional_sharpness);
+REXCVAR_DECLARE(int32_t, present_fsr_max_upsampling_passes);
+REXCVAR_DECLARE(double, present_fsr_sharpness_reduction);
+REXCVAR_DECLARE(std::string, present_fsr_quality_mode);
+REXCVAR_DECLARE(bool, present_dither);
+REXCVAR_DECLARE(bool, present_allow_overscan_cutoff);
 REXCVAR_DECLARE(bool, host_present_from_non_ui_thread);
+REXCVAR_DECLARE(int32_t, window_width);
+REXCVAR_DECLARE(int32_t, window_height);
 
 // D3D12
 REXCVAR_DECLARE(bool, d3d12_debug);
@@ -35,3 +44,11 @@ REXCVAR_DECLARE(bool, vulkan_allow_present_mode_mailbox);
 REXCVAR_DECLARE(bool, vulkan_allow_present_mode_fifo_relaxed);
 REXCVAR_DECLARE(bool, vulkan_validation_enabled);
 REXCVAR_DECLARE(int32_t, vulkan_device);
+REXCVAR_DECLARE(bool, vulkan_prefer_geometry_shader);
+REXCVAR_DECLARE(bool, vulkan_prefer_fragment_stores_and_atomics);
+REXCVAR_DECLARE(bool, vulkan_prefer_vertex_pipeline_stores_and_atomics);
+REXCVAR_DECLARE(bool, vulkan_prefer_fill_mode_non_solid);
+REXCVAR_DECLARE(bool, vulkan_require_geometry_shader);
+REXCVAR_DECLARE(bool, vulkan_require_fragment_stores_and_atomics);
+REXCVAR_DECLARE(bool, vulkan_require_vertex_pipeline_stores_and_atomics);
+REXCVAR_DECLARE(bool, vulkan_require_fill_mode_non_solid);
