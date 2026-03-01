@@ -593,3 +593,26 @@ T GuestToHostFunction(const TFunction& func, TArgs&&... argv) {
                     static_cast<uint32_t>(value));                            \
     ctx.r3.u64 = (value);                                                     \
   }
+
+//=============================================================================
+// Kernel Export Constants & Convenience Macros
+//=============================================================================
+
+/// Maximum size of the loaded image name buffer (255 chars + NUL).
+constexpr size_t kExLoadedImageNameSize = 255 + 1;
+
+// Implemented function export: wraps PPC_HOOK for an xboxkrnl.exe export.
+// Usage: XBOXKRNL_EXPORT(__imp__FunctionName, handler_function)
+#define XBOXKRNL_EXPORT(name, function) PPC_HOOK(name, function)
+
+// Stub function export: wraps PPC_STUB for an xboxkrnl.exe export.
+// Usage: XBOXKRNL_EXPORT_STUB(__imp__FunctionName)
+#define XBOXKRNL_EXPORT_STUB(name) PPC_STUB(name)
+
+// Implemented function export: wraps PPC_HOOK for a xam.xex export.
+// Usage: XAM_EXPORT(__imp__FunctionName, handler_function)
+#define XAM_EXPORT(name, function) PPC_HOOK(name, function)
+
+// Stub function export: wraps PPC_STUB for a xam.xex export.
+// Usage: XAM_EXPORT_STUB(__imp__FunctionName)
+#define XAM_EXPORT_STUB(name) PPC_STUB(name)

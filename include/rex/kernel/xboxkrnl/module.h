@@ -13,7 +13,7 @@
 
 #include <memory>
 
-#include <rex/kernel/xboxkrnl/ordinals.h>
+#include <rex/ppc/function.h>
 #include <rex/system/export_resolver.h>
 #include <rex/system/kernel_module.h>
 #include <rex/system/kernel_state.h>
@@ -26,8 +26,6 @@ namespace rex::kernel::xboxkrnl {
 
 class XboxkrnlModule : public system::KernelModule {
  public:
-  static constexpr size_t kExLoadedImageNameSize = 255 + 1;
-
   XboxkrnlModule(Runtime* emulator, system::KernelState* kernel_state);
   virtual ~XboxkrnlModule();
 

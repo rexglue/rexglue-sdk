@@ -12,7 +12,7 @@
 
 #include <string>
 
-#include <rex/kernel/xam/ordinals.h>
+#include <rex/ppc/function.h>
 #include <rex/system/export_resolver.h>
 #include <rex/system/kernel_module.h>
 #include <rex/system/kernel_state.h>
