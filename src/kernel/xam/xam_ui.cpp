@@ -558,3 +558,4 @@ PPC_HOOK(__imp__XamShowDirtyDiscErrorUI, rex::kernel::xam::XamShowDirtyDiscError
 PPC_HOOK(__imp__XamShowPartyUI, rex::kernel::xam::XamShowPartyUI_entry)
 PPC_HOOK(__imp__XamShowCommunitySessionsUI, rex::kernel::xam::XamShowCommunitySessionsUI_entry)
 PPC_HOOK(__imp__XamShowMessageBoxUIEx, rex::kernel::xam::XamShowMessageBoxUIEx_entry)
+PPC_STUB_RETURN(__imp__XamShowAchievementsUI, 0x0000065BL) // X_ERROR_FUNCTION_FAILED

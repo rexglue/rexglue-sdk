@@ -212,3 +212,6 @@ PPC_HOOK(__imp__ObCreateSymbolicLink, rex::kernel::xboxkrnl::ObCreateSymbolicLin
 PPC_HOOK(__imp__ObDeleteSymbolicLink, rex::kernel::xboxkrnl::ObDeleteSymbolicLink_entry)
 PPC_HOOK(__imp__NtDuplicateObject, rex::kernel::xboxkrnl::NtDuplicateObject_entry)
 PPC_HOOK(__imp__NtClose, rex::kernel::xboxkrnl::NtClose_entry)
+PPC_STUB_RETURN(__imp__ObReferenceObject, 0)
+PPC_STUB_RETURN(__imp__ObIsTitleObject, 0)
+PPC_STUB_RETURN(__imp__NtWriteFileGather, 0)

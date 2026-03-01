@@ -608,6 +608,7 @@ PPC_HOOK(__imp__RtlLeaveCriticalSection, rex::kernel::xboxkrnl::RtlLeaveCritical
 PPC_HOOK(__imp__RtlTimeToTimeFields, rex::kernel::xboxkrnl::RtlTimeToTimeFields_entry)
 PPC_HOOK(__imp__RtlTimeFieldsToTime, rex::kernel::xboxkrnl::RtlTimeFieldsToTime_entry)
 PPC_HOOK(__imp__RtlComputeCrc32, rex::kernel::xboxkrnl::RtlComputeCrc32_entry)
+PPC_STUB(__imp__RtlUpcaseUnicodeChar)
 
 // Exception handling stubs
 PPC_HOOK(__imp__RtlCaptureContext, rex::kernel::xboxkrnl::RtlCaptureContext_entry)
