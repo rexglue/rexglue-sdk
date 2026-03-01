@@ -125,13 +125,34 @@ bool build_bctr(BuilderContext& ctx) {
     for (size_t i = 0; i < jt->targets.size(); i++) {
       ctx.println("\tcase {}:", i);
       auto label = jt->targets[i];
-      if (label < ctx.fn.base() || label >= ctx.fn.end()) {
-        REXCODEGEN_ERROR("Jump target 0x{:08X} outside function bounds at bctr 0x{:08X}", label,
-                         ctx.base);
-        ctx.println("\t\t// ERROR: jump target 0x{:08X} outside function bounds", label);
-        ctx.println("\t\treturn;");
-      } else {
-        ctx.println("\t\tgoto loc_{:X};", label);
+
+      // Handle sentinel entries from null-padding detection
+      if (label == 0) {
+        ctx.println("\t\t__builtin_trap(); // Jump table entry points to invalid code");
+        break;
+      }
+
+      auto kind = ctx.graph().classifyTarget(label, ctx.base, false);
+      switch (kind) {
+        case TargetKind::InternalLabel:
+          ctx.println("\t\tgoto loc_{:X};", label);
+          break;
+        case TargetKind::Function:
+        case TargetKind::Import:
+          // Tail call via jump table
+          ctx.emit_function_call(label);
+          ctx.println("\t\treturn;");
+          break;
+        case TargetKind::Unknown:
+          if (label >= ctx.fn.base() && label < ctx.fn.end()) {
+            ctx.println("\t\tgoto loc_{:X};", label);
+          } else {
+            REXCODEGEN_ERROR("Jump target 0x{:08X} outside function bounds at bctr 0x{:08X}", label,
+                             ctx.base);
+            ctx.println("\t\t// ERROR: jump target 0x{:08X} outside function bounds", label);
+            ctx.println("\t\treturn;");
+          }
+          break;
       }
     }
 
