@@ -101,6 +101,27 @@ target_link_libraries(rexui PUBLIC
     imgui::imgui
 )
 
+if(EXISTS "${CMAKE_SOURCE_DIR}/thirdparty/FidelityFX/sdk/include")
+    target_include_directories(rexui PRIVATE
+        "${CMAKE_SOURCE_DIR}/thirdparty/FidelityFX/sdk/include"
+        "${CMAKE_SOURCE_DIR}/thirdparty/FidelityFX/ffx-api/include"
+    )
+    target_compile_definitions(rexui PRIVATE REX_HAS_FIDELITYFX_SDK=1)
+endif()
+
+set(REXUI_HAS_FIDELITYFX_RUNTIME OFF)
+if(TARGET amd_fidelityfx_vk)
+    target_link_libraries(rexui PRIVATE amd_fidelityfx_vk)
+    set(REXUI_HAS_FIDELITYFX_RUNTIME ON)
+endif()
+if(TARGET amd_fidelityfx_dx12)
+    target_link_libraries(rexui PRIVATE amd_fidelityfx_dx12)
+    set(REXUI_HAS_FIDELITYFX_RUNTIME ON)
+endif()
+if(REXUI_HAS_FIDELITYFX_RUNTIME)
+    target_compile_definitions(rexui PRIVATE REX_HAS_FIDELITYFX_RUNTIME=1)
+endif()
+
 if(REXGLUE_USE_VULKAN)
     target_link_libraries(rexui PUBLIC
         volk::volk

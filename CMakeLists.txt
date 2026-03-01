@@ -13,6 +13,7 @@ project(ReXGlue
 #==========================================================
 option(REXGLUE_BUILD_TESTS       "Build PPC instruction and unit tests" OFF)
 option(REXGLUE_ENABLE_SANITIZERS "Enable UndefinedBehaviorSanitizer" OFF)
+option(REXGLUE_ENABLE_FIDELITYFX "Enable optional AMD FidelityFX integration (experimental)" ON)
 
 # Graphics backend selection
 # D3D12: Windows only, ON by default.
@@ -27,6 +28,12 @@ endif()
 
 if(NOT REXGLUE_USE_D3D12 AND NOT REXGLUE_USE_VULKAN)
     message(FATAL_ERROR "At least one graphics backend must be enabled (REXGLUE_USE_D3D12 or REXGLUE_USE_VULKAN)")
+endif()
+
+if (REXGLUE_ENABLE_FIDELITYFX AND
+    NOT (REXGLUE_USE_VULKAN OR REXGLUE_USE_D3D12))
+    message(FATAL_ERROR
+        "REXGLUE_ENABLE_FIDELITYFX requires at least one graphics backend")
 endif()
 
 # Root of the SDK source tree
@@ -141,6 +148,7 @@ message(STATUS "  Configurations: ${CMAKE_CONFIGURATION_TYPES}")
 message(STATUS "  Output Dir: ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 message(STATUS "  C++ Standard: C++${CMAKE_CXX_STANDARD}")
 message(STATUS "  Graphics: D3D12=${REXGLUE_USE_D3D12} Vulkan=${REXGLUE_USE_VULKAN}")
+message(STATUS "  FidelityFX: ${REXGLUE_ENABLE_FIDELITYFX}")
 message(STATUS "===========================================")
 
 # SDK install/export rules (skipped when consumed as a subdirectory)
