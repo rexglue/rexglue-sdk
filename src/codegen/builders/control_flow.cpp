@@ -126,6 +126,13 @@ bool build_bctr(BuilderContext& ctx) {
       ctx.println("\tcase {}:", i);
       auto label = jt->targets[i];
 
+      // TODO(tomc): Figure out if this actually is triggered on real hardware and what would
+      // happen?
+      if (label == 0) {
+        ctx.println("\t\t__builtin_trap(); // ERROR - detected jump to null value");
+        continue;
+      }
+
       auto kind = ctx.graph().classifyTarget(label, ctx.base, false);
       switch (kind) {
         case TargetKind::InternalLabel:
@@ -139,16 +146,17 @@ bool build_bctr(BuilderContext& ctx) {
             REXCODEGEN_ERROR(
                 "Jump target 0x{:08X} classified as function but not in graph at bctr 0x{:08X}",
                 label, ctx.base);
-            ctx.println("\t\tREX_FATAL(\"Jump target 0x{:08X} classified as function but not "
-                        "in graph at bctr 0x{:08X}\");",
-                        label, ctx.base);
+            ctx.println(
+                "\t\tREX_FATAL(\"Jump target 0x{:08X} classified as function but not "
+                "in graph at bctr 0x{:08X}\");",
+                label, ctx.base);
           }
           ctx.println("\t\treturn;");
           break;
         default:
           REXCODEGEN_ERROR("Jump target 0x{:08X} unresolved at bctr 0x{:08X}", label, ctx.base);
-          ctx.println("\t\tREX_FATAL(\"Jump target 0x{:08X} unresolved at bctr 0x{:08X}\");",
-                      label, ctx.base);
+          ctx.println("\t\tREX_FATAL(\"Jump target 0x{:08X} unresolved at bctr 0x{:08X}\");", label,
+                      ctx.base);
           break;
       }
     }
