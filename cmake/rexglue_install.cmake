@@ -90,6 +90,7 @@ endif()
 install(FILES
     src/ui/windowed_app_main_win.cpp
     src/ui/windowed_app_main_posix.cpp
+    src/ui/windowed_app_main_macos.mm
     src/ui/rex_app.cpp
     DESTINATION ${CMAKE_INSTALL_DATADIR}/rexglue
 )
@@ -97,8 +98,8 @@ install(FILES
 # Install DXC API headers (vendored, for D3D12 backend)
 if(REXGLUE_USE_D3D12)
     install(FILES
-        thirdparty/dxc/include/DxbcConverter.h
-        thirdparty/dxc/include/dxcapi.h
+        include/rex/graphics/metal/DxbcConverter.h
+        thirdparty/dxc/include/dxc/dxcapi.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/dxc
     )
 endif()

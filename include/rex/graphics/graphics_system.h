@@ -14,6 +14,7 @@
 #include "rex/system/processor.h"
 
 #include <atomic>
+#include <condition_variable>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -72,6 +73,11 @@ class GraphicsSystem : public system::IGraphicsSystem {
   virtual void InitializeRingBuffer(uint32_t ptr, uint32_t size_log2);
   virtual void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size_log2);
 
+  // Wait for GPU command processor context setup to complete.
+  // This must be called after InitializeRingBuffer/EnableReadPointerWriteBack
+  // and before any texture/resource creation to avoid race conditions.
+  virtual void WaitForContextSetup();
+
   virtual void SetInterruptCallback(uint32_t callback, uint32_t user_data);
   void DispatchInterruptCallback(uint32_t source, uint32_t cpu);
 
@@ -105,6 +111,9 @@ class GraphicsSystem : public system::IGraphicsSystem {
 
   void MarkVblank();
 
+  // Called by CommandProcessor after SetupContext() completes
+  void SignalContextSetupComplete();
+
   memory::Memory* memory_ = nullptr;
   runtime::Processor* processor_ = nullptr;
   system::KernelState* kernel_state_ = nullptr;
@@ -122,6 +131,11 @@ class GraphicsSystem : public system::IGraphicsSystem {
 
   bool paused_ = false;
 
+    // Synchronization for GPU context setup completion
+  std::mutex context_setup_mutex_;
+  std::condition_variable context_setup_cv_;
+  std::atomic<bool> context_setup_complete_{false};
+  
  private:
   std::unique_ptr<::rex::ui::Presenter> presenter_;
 

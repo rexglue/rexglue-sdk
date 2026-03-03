@@ -26,6 +26,14 @@ if(REXGLUE_USE_VULKAN)
     )
 endif()
 
+if(REXGLUE_USE_D3D12)
+    list(APPEND REQUIRED_SUBMODULES dxc)
+endif()
+
+if(APPLE AND REXGLUE_USE_METAL)
+    list(APPEND REQUIRED_SUBMODULES metal-shader-converter metal-cpp)
+endif()
+
 if(REXGLUE_BUILD_TESTS)
     list(APPEND REQUIRED_SUBMODULES catch2)
 endif()
@@ -191,6 +199,7 @@ target_compile_options(imgui PRIVATE -w)
 # SDL2 - Cross-platform media layer
 #=============================================================================
 set(SDL2_DISABLE_INSTALL OFF CACHE BOOL "" FORCE)
+set(SDL2_DISABLE_SDL2MAIN ON CACHE BOOL "" FORCE)
 set(SDL_SHARED OFF CACHE BOOL "" FORCE)
 set(SDL_STATIC ON CACHE BOOL "" FORCE)
 set(SDL_TEST OFF CACHE BOOL "" FORCE)
@@ -225,7 +234,9 @@ add_subdirectory(sdl2)
 if(REXGLUE_USE_D3D12)
     add_library(dxc-headers INTERFACE)
     target_include_directories(dxc-headers INTERFACE
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/dxc/include/dxc>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/dxc/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/dxc/projects/dxilconv/include>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/dxc>)
 endif()
 

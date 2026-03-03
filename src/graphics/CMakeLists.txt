@@ -58,8 +58,38 @@ set(REXGRAPHICS_VULKAN_SOURCES
     vulkan/texture_cache.cpp
 )
 
+# Metal backend
+if(APPLE AND REXGLUE_USE_METAL)
+    set(REXGRAPHICS_DXBC_THIRDPARTY_SOURCES_METAL
+        ${REXGLUE_ROOT}/thirdparty/dxbc/DXBCChecksum.cpp
+    )
+
+    set(REXGRAPHICS_DXBC_SOURCES_METAL
+        pipeline/shader/dxbc.cpp
+        pipeline/shader/dxbc_translator.cpp
+        pipeline/shader/dxbc_translator_alu.cpp
+        pipeline/shader/dxbc_translator_fetch.cpp
+        pipeline/shader/dxbc_translator_memexport.cpp
+        pipeline/shader/dxbc_translator_om.cpp
+    )
+
+    set(REXGRAPHICS_METAL_SOURCES
+        metal/graphics_system.mm
+        metal/command_processor.mm
+        metal/pipeline_cache.mm
+        metal/primitive_processor.mm
+        metal/render_target_cache.mm
+        metal/shader.mm
+        metal/shared_memory.mm
+        metal/texture_cache.mm
+        metal/dxbc_to_dxil_converter.mm
+        metal/metal_shader_converter.mm
+        metal/shader_cache.mm
+    )
+endif()
+
 # D3D12 backend
-if(REXGLUE_USE_D3D12)
+if(WIN32 AND REXGLUE_USE_D3D12)
     # DXBC third-party dependency
     set(REXGRAPHICS_DXBC_THIRDPARTY_SOURCES
         ${REXGLUE_ROOT}/thirdparty/dxbc/DXBCChecksum.cpp
@@ -99,7 +129,15 @@ if(REXGLUE_USE_VULKAN)
     list(APPEND REXGRAPHICS_SOURCES ${REXGRAPHICS_SPIRV_SOURCES} ${REXGRAPHICS_VULKAN_SOURCES})
 endif()
 
-if(REXGLUE_USE_D3D12)
+if(APPLE AND REXGLUE_USE_METAL)
+    list(APPEND REXGRAPHICS_SOURCES
+        ${REXGRAPHICS_DXBC_THIRDPARTY_SOURCES_METAL}
+        ${REXGRAPHICS_DXBC_SOURCES_METAL}
+        ${REXGRAPHICS_METAL_SOURCES}
+    )
+endif()
+
+if(WIN32 AND REXGLUE_USE_D3D12)
     list(APPEND REXGRAPHICS_SOURCES ${REXGRAPHICS_DXBC_THIRDPARTY_SOURCES} ${REXGRAPHICS_DXBC_SOURCES} ${REXGRAPHICS_D3D12_SOURCES})
 endif()
 
@@ -114,6 +152,20 @@ target_include_directories(rexgraphics PRIVATE
     ${REXGLUE_ROOT}/thirdparty/renderdoc
     ${REXGLUE_ROOT}  # For thirdparty/dxbc/DXBCChecksum.h include
 )
+
+if(APPLE)
+    target_include_directories(rexgraphics PRIVATE
+        ${REXGLUE_ROOT}/thirdparty/metal-shader-converter/include
+        ${REXGLUE_ROOT}/thirdparty/metal-cpp
+    )
+
+    if(REXGLUE_USE_METAL)
+        set_source_files_properties(
+            ${REXGRAPHICS_METAL_SOURCES}
+            PROPERTIES COMPILE_FLAGS "-fobjc-arc"
+        )
+    endif()
+endif()
 
 target_link_libraries(rexgraphics PUBLIC
     rexcore
@@ -141,3 +193,12 @@ if(REXGLUE_USE_D3D12)
     target_compile_definitions(rexgraphics PUBLIC REX_HAS_D3D12=1)
 endif()
 
+if(APPLE AND REXGLUE_USE_METAL)
+    target_link_libraries(rexgraphics PUBLIC
+        "-framework Foundation"
+        "-framework Metal"
+        "-framework MetalKit"
+        "-framework QuartzCore"
+    )
+    target_compile_definitions(rexgraphics PUBLIC REX_HAS_METAL=1)
+endif()
