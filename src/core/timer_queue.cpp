@@ -187,13 +187,13 @@ void TimerQueueWaitItem::Disarm() {
   }
 }
 
-std::weak_ptr<WaitItem> QueueTimerOnce(std::move_only_function<void(void*)> callback,
+std::weak_ptr<WaitItem> QueueTimerOnce(rex::move_only_function<void(void*)> callback,
                                        void* userdata, WaitItem::clock::time_point due) {
   return timer_queue_.QueueTimer(std::make_shared<WaitItem>(
       std::move(callback), userdata, &timer_queue_, due, WaitItem::clock::duration::zero()));
 }
 
-std::weak_ptr<WaitItem> QueueTimerRecurring(std::move_only_function<void(void*)> callback,
+std::weak_ptr<WaitItem> QueueTimerRecurring(rex::move_only_function<void(void*)> callback,
                                             void* userdata, WaitItem::clock::time_point due,
                                             WaitItem::clock::duration interval) {
   return timer_queue_.QueueTimer(

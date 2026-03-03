@@ -19,8 +19,12 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 #include <memory>
 
 #include <pthread.h>
+#if REX_PLATFORM_LINUX
 #include <sys/eventfd.h>
+#endif
+#if !REX_PLATFORM_MAC
 #include <sys/syscall.h>
+#endif
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -104,13 +108,45 @@ enum class SignalType {
 };
 
 int GetSystemSignal(SignalType num) {
+#if REX_PLATFORM_MAC
+  switch (num) {
+    case SignalType::kThreadSuspend:
+      return SIGUSR1;
+    case SignalType::kThreadUserCallback:
+      return SIGUSR2;
+#if REX_PLATFORM_ANDROID
+    case SignalType::kThreadTerminate:
+      return SIGTERM;
+#endif
+    default:
+      assert_always();
+      return SIGUSR1;
+  }
+#else
   auto result = SIGRTMIN + static_cast<int>(num);
   assert_true(result < SIGRTMAX);
   return result;
+#endif
 }
 
 SignalType GetSystemSignalType(int num) {
+#if REX_PLATFORM_MAC
+  if (num == SIGUSR1) {
+    return SignalType::kThreadSuspend;
+  }
+  if (num == SIGUSR2) {
+    return SignalType::kThreadUserCallback;
+  }
+#if REX_PLATFORM_ANDROID
+  if (num == SIGTERM) {
+    return SignalType::kThreadTerminate;
+  }
+#endif
+  assert_always();
+  return SignalType::kThreadSuspend;
+#else
   return static_cast<SignalType>(num - SIGRTMIN);
+#endif
 }
 
 thread_local std::array<bool, static_cast<size_t>(SignalType::k_Count)> signal_handler_installed =
@@ -135,7 +171,13 @@ void EnableAffinityConfiguration() {}
 // uint64_t ticks() { return mach_absolute_time(); }
 
 uint32_t current_thread_system_id() {
+#if REX_PLATFORM_MAC
+  uint64_t thread_id = 0;
+  pthread_threadid_np(nullptr, &thread_id);
+  return static_cast<uint32_t>(thread_id);
+#else
   return static_cast<uint32_t>(syscall(SYS_gettid));
+#endif
 }
 
 void MaybeYield() {
@@ -574,7 +616,11 @@ class PosixCondition<Thread> : public PosixConditionBase {
     WaitStarted();
     std::unique_lock<std::mutex> lock(state_mutex_);
     if (state_ != State::kUninitialized && state_ != State::kFinished) {
+#if REX_PLATFORM_MAC
+      pthread_setname_np(std::string(name).c_str());
+#else
       pthread_setname_np(thread_, std::string(name).c_str());
+#endif
 #if REX_PLATFORM_ANDROID
       SetAndroidPreApi26Name(name);
 #endif
@@ -592,10 +638,13 @@ class PosixCondition<Thread> : public PosixConditionBase {
   }
 #endif
 
-  uint32_t system_id() const { return static_cast<uint32_t>(thread_); }
+  uint32_t system_id() const { return static_cast<uint32_t>(std::hash<pthread_t>{}(thread_)); }
 
   uint64_t affinity_mask() {
     WaitStarted();
+#if REX_PLATFORM_MAC
+    return 0;
+#else
     cpu_set_t cpu_set;
 #if REX_PLATFORM_ANDROID
     if (sched_getaffinity(pthread_gettid_np(thread_), sizeof(cpu_set_t), &cpu_set) != 0) {
@@ -613,10 +662,14 @@ class PosixCondition<Thread> : public PosixConditionBase {
       result |= set << i;
     }
     return result;
+#endif
   }
 
   void set_affinity_mask(uint64_t mask) {
     WaitStarted();
+#if REX_PLATFORM_MAC
+    (void)mask;
+#else
     cpu_set_t cpu_set;
     CPU_ZERO(&cpu_set);
     for (auto i = 0u; i < 64; i++) {
@@ -632,6 +685,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
     if (pthread_setaffinity_np(thread_, sizeof(cpu_set_t), &cpu_set) != 0) {
       assert_always();
     }
+#endif
 #endif
   }
 
@@ -659,12 +713,16 @@ class PosixCondition<Thread> : public PosixConditionBase {
     WaitStarted();
     std::unique_lock<std::mutex> lock(callback_mutex_);
     user_callback_ = std::move(callback);
+#if REX_PLATFORM_MAC
+    pthread_kill(thread_, GetSystemSignal(SignalType::kThreadUserCallback));
+#else
     sigval value{};
     value.sival_ptr = this;
 #if REX_PLATFORM_ANDROID
     sigqueue(pthread_gettid_np(thread_), GetSystemSignal(SignalType::kThreadUserCallback), value);
 #else
     pthread_sigqueue(thread_, GetSystemSignal(SignalType::kThreadUserCallback), value);
+#endif
 #endif
   }
 
@@ -948,7 +1006,7 @@ class PosixTimer : public PosixConditionHandle<Timer> {
   }
   bool SetOnceAt(WClock_::time_point due_time,
                  std::function<void()> opt_callback = nullptr) override {
-    return SetOnceAt(std::chrono::clock_cast<GClock_>(due_time), std::move(opt_callback));
+    return SetOnceAt(rex::chrono::clock_cast<GClock_>(due_time), std::move(opt_callback));
   };
   bool SetOnceAt(GClock_::time_point due_time,
                  std::function<void()> opt_callback = nullptr) override {
@@ -962,7 +1020,7 @@ class PosixTimer : public PosixConditionHandle<Timer> {
   }
   bool SetRepeatingAt(WClock_::time_point due_time, std::chrono::milliseconds period,
                       std::function<void()> opt_callback = nullptr) override {
-    return SetRepeatingAt(std::chrono::clock_cast<GClock_>(due_time), period,
+    return SetRepeatingAt(rex::chrono::clock_cast<GClock_>(due_time), period,
                           std::move(opt_callback));
   }
   bool SetRepeatingAt(GClock_::time_point due_time, std::chrono::milliseconds period,
@@ -1027,6 +1085,7 @@ class PosixThread : public PosixConditionHandle<Thread> {
   void Terminate(int exit_code) override { handle_.Terminate(exit_code); }
 
   void WaitSuspended() { handle_.WaitSuspended(); }
+  void CallUserCallback() { handle_.CallUserCallback(); }
 };
 
 thread_local PosixThread* current_thread_ = nullptr;
@@ -1122,7 +1181,11 @@ void Thread::Exit(int exit_code) {
 }
 
 void set_current_thread_name(const std::string_view name) {
+#if REX_PLATFORM_MAC
+  pthread_setname_np(std::string(name).c_str());
+#else
   pthread_setname_np(pthread_self(), std::string(name).c_str());
+#endif
 #if REX_PLATFORM_ANDROID
   if (!android_pthread_getname_np_ && current_thread_) {
     current_thread_->condition().SetAndroidPreApi26Name(name);
@@ -1137,11 +1200,18 @@ static void signal_handler(int signal, siginfo_t* info, void* /*context*/) {
       current_thread_->WaitSuspended();
     } break;
     case SignalType::kThreadUserCallback: {
+#if REX_PLATFORM_MAC
+      if (alertable_state_) {
+        assert_not_null(current_thread_);
+        current_thread_->CallUserCallback();
+      }
+#else
       assert_not_null(info->si_value.sival_ptr);
       auto p_thread = static_cast<PosixCondition<Thread>*>(info->si_value.sival_ptr);
       if (alertable_state_) {
         p_thread->CallUserCallback();
       }
+#endif
     } break;
 #if REX_PLATFORM_ANDROID
     case SignalType::kThreadTerminate: {

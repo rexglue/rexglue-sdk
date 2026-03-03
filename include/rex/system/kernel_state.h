@@ -21,6 +21,7 @@
 
 #include <rex/bit.h>
 #include <rex/filesystem/vfs.h>
+#include <rex/functional.h>
 #include <rex/logging.h>
 #include <rex/system/util/native_list.h>
 #include <rex/system/util/object_table.h>
@@ -191,24 +192,24 @@ class KernelState {
   void CompleteOverlappedImmediateEx(uint32_t overlapped_ptr, X_RESULT result,
                                      uint32_t extended_error, uint32_t length);
 
-  void CompleteOverlappedDeferred(std::move_only_function<void()> completion_callback,
+  void CompleteOverlappedDeferred(rex::move_only_function<void()> completion_callback,
                                   uint32_t overlapped_ptr, X_RESULT result,
-                                  std::move_only_function<void()> pre_callback = nullptr,
-                                  std::move_only_function<void()> post_callback = nullptr);
-  void CompleteOverlappedDeferredEx(std::move_only_function<void()> completion_callback,
+                                  rex::move_only_function<void()> pre_callback = nullptr,
+                                  rex::move_only_function<void()> post_callback = nullptr);
+  void CompleteOverlappedDeferredEx(rex::move_only_function<void()> completion_callback,
                                     uint32_t overlapped_ptr, X_RESULT result,
                                     uint32_t extended_error, uint32_t length,
-                                    std::move_only_function<void()> pre_callback = nullptr,
-                                    std::move_only_function<void()> post_callback = nullptr);
+                                    rex::move_only_function<void()> pre_callback = nullptr,
+                                    rex::move_only_function<void()> post_callback = nullptr);
 
-  void CompleteOverlappedDeferred(std::move_only_function<X_RESULT()> completion_callback,
+  void CompleteOverlappedDeferred(rex::move_only_function<X_RESULT()> completion_callback,
                                   uint32_t overlapped_ptr,
-                                  std::move_only_function<void()> pre_callback = nullptr,
-                                  std::move_only_function<void()> post_callback = nullptr);
+                                  rex::move_only_function<void()> pre_callback = nullptr,
+                                  rex::move_only_function<void()> post_callback = nullptr);
   void CompleteOverlappedDeferredEx(
-      std::move_only_function<X_RESULT(uint32_t&, uint32_t&)> completion_callback,
-      uint32_t overlapped_ptr, std::move_only_function<void()> pre_callback = nullptr,
-      std::move_only_function<void()> post_callback = nullptr);
+      rex::move_only_function<X_RESULT(uint32_t&, uint32_t&)> completion_callback,
+      uint32_t overlapped_ptr, rex::move_only_function<void()> pre_callback = nullptr,
+      rex::move_only_function<void()> post_callback = nullptr);
 
   bool Save(stream::ByteStream* stream);
   bool Restore(stream::ByteStream* stream);
@@ -246,7 +247,7 @@ class KernelState {
   // Must be guarded by the global critical region.
   util::NativeList dpc_list_;
   std::condition_variable_any dispatch_cond_;
-  std::list<std::move_only_function<void()>> dispatch_queue_;
+  std::list<rex::move_only_function<void()>> dispatch_queue_;
 
   bit::BitMap tls_bitmap_;
 

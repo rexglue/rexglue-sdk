@@ -52,9 +52,9 @@ X_STATUS XTimer::SetTimer(int64_t due_time, uint32_t period_ms, uint32_t routine
     // Any timer implementation uses absolute times eventually, convert as early
     // as possible for increased accuracy
     auto after = rex::chrono::hundrednanoseconds(-due_time);
-    due_tp = std::chrono::clock_cast<WinSystemClock>(XSystemClock::now() + after);
+    due_tp = rex::chrono::clock_cast<WinSystemClock>(XSystemClock::now() + after);
   } else {
-    due_tp = std::chrono::clock_cast<WinSystemClock>(XSystemClock::from_file_time(due_time));
+    due_tp = rex::chrono::clock_cast<WinSystemClock>(XSystemClock::from_file_time(due_time));
   }
 
   // Stash routine for callback.

@@ -16,6 +16,8 @@
 #include <functional>
 #include <memory>
 
+#include <rex/functional.h>
+
 // This is a platform independent implementation of a timer queue similar to
 // Windows CreateTimerQueueTimer with WT_EXECUTEINTIMERTHREAD.
 
@@ -26,7 +28,7 @@ class TimerQueue;
 struct TimerQueueWaitItem {
   using clock = std::chrono::steady_clock;
 
-  TimerQueueWaitItem(std::move_only_function<void(void*)> callback, void* userdata,
+  TimerQueueWaitItem(rex::move_only_function<void(void*)> callback, void* userdata,
                      TimerQueue* parent_queue, clock::time_point due, clock::duration interval)
       : callback_(std::move(callback)),
         userdata_(userdata),
@@ -55,7 +57,7 @@ struct TimerQueueWaitItem {
   };
   static_assert(std::atomic<State>::is_always_lock_free);
 
-  std::move_only_function<void(void*)> callback_;
+  rex::move_only_function<void(void*)> callback_;
   void* userdata_;
   TimerQueue* parent_queue_;
   clock::time_point due_;
@@ -63,14 +65,14 @@ struct TimerQueueWaitItem {
   std::atomic<State> state_;
 };
 
-std::weak_ptr<TimerQueueWaitItem> QueueTimerOnce(std::move_only_function<void(void*)> callback,
+std::weak_ptr<TimerQueueWaitItem> QueueTimerOnce(rex::move_only_function<void(void*)> callback,
                                                  void* userdata,
                                                  TimerQueueWaitItem::clock::time_point due);
 
 // Callback is first executed at due, then again repeatedly after interval
 // passes (unless interval == 0). The first callback will be scheduled at
 // `max(now() - interval, due)` to mitigate callback flooding.
-std::weak_ptr<TimerQueueWaitItem> QueueTimerRecurring(std::move_only_function<void(void*)> callback,
+std::weak_ptr<TimerQueueWaitItem> QueueTimerRecurring(rex::move_only_function<void(void*)> callback,
                                                       void* userdata,
                                                       TimerQueueWaitItem::clock::time_point due,
                                                       TimerQueueWaitItem::clock::duration interval);
