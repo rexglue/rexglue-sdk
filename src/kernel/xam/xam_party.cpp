@@ -48,3 +48,29 @@ XAM_EXPORT(__imp__XamPartyGetUserList, rex::kernel::xam::XamPartyGetUserList_ent
 XAM_EXPORT(__imp__XamPartySendGameInvites, rex::kernel::xam::XamPartySendGameInvites_entry)
 XAM_EXPORT(__imp__XamPartySetCustomData, rex::kernel::xam::XamPartySetCustomData_entry)
 XAM_EXPORT(__imp__XamPartyGetBandwidth, rex::kernel::xam::XamPartyGetBandwidth_entry)
+
+XAM_EXPORT_STUB(__imp__XamPartyAddLocalUsers);
+XAM_EXPORT_STUB(__imp__XamPartyAutomationInprocCall);
+XAM_EXPORT_STUB(__imp__XamPartyCreate);
+XAM_EXPORT_STUB(__imp__XamPartyGetAccessLevel);
+XAM_EXPORT_STUB(__imp__XamPartyGetFormation);
+XAM_EXPORT_STUB(__imp__XamPartyGetInfo);
+XAM_EXPORT_STUB(__imp__XamPartyGetInfoEx);
+XAM_EXPORT_STUB(__imp__XamPartyGetJoinable);
+XAM_EXPORT_STUB(__imp__XamPartyGetNetworkCounters);
+XAM_EXPORT_STUB(__imp__XamPartyGetRoutingTable);
+XAM_EXPORT_STUB(__imp__XamPartyGetState);
+XAM_EXPORT_STUB(__imp__XamPartyGetUserListInternal);
+XAM_EXPORT_STUB(__imp__XamPartyIsCoordinator);
+XAM_EXPORT_STUB(__imp__XamPartyJoin);
+XAM_EXPORT_STUB(__imp__XamPartyJoinEx);
+XAM_EXPORT_STUB(__imp__XamPartyKickUser);
+XAM_EXPORT_STUB(__imp__XamPartyLeave);
+XAM_EXPORT_STUB(__imp__XamPartyOverrideNatType);
+XAM_EXPORT_STUB(__imp__XamPartyRemoveLocalUsers);
+XAM_EXPORT_STUB(__imp__XamPartySendInvite);
+XAM_EXPORT_STUB(__imp__XamPartySendInviteDeprecated);
+XAM_EXPORT_STUB(__imp__XamPartySetConnectivityGraph);
+XAM_EXPORT_STUB(__imp__XamPartySetJoinable);
+XAM_EXPORT_STUB(__imp__XamPartySetTestDelay);
+XAM_EXPORT_STUB(__imp__XamPartySetTestFlags);

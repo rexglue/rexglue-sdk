@@ -86,3 +86,17 @@ ppc_u32_result_t XamTaskCloseHandle_entry(ppc_u32_t handle) {
 XAM_EXPORT(__imp__XamTaskSchedule, rex::kernel::xam::XamTaskSchedule_entry)
 XAM_EXPORT(__imp__XamTaskShouldExit, rex::kernel::xam::XamTaskShouldExit_entry)
 XAM_EXPORT(__imp__XamTaskCloseHandle, rex::kernel::xam::XamTaskCloseHandle_entry)
+
+XAM_EXPORT_STUB(__imp__XamTaskCancel);
+XAM_EXPORT_STUB(__imp__XamTaskCancelWaitAndCloseWaitTask);
+XAM_EXPORT_STUB(__imp__XamTaskCreateQueue);
+XAM_EXPORT_STUB(__imp__XamTaskCreateQueueEx);
+XAM_EXPORT_STUB(__imp__XamTaskGetAttributes);
+XAM_EXPORT_STUB(__imp__XamTaskGetCompletionStatus);
+XAM_EXPORT_STUB(__imp__XamTaskGetCurrentTask);
+XAM_EXPORT_STUB(__imp__XamTaskGetStatus);
+XAM_EXPORT_STUB(__imp__XamTaskModify);
+XAM_EXPORT_STUB(__imp__XamTaskQueryProperty);
+XAM_EXPORT_STUB(__imp__XamTaskReschedule);
+XAM_EXPORT_STUB(__imp__XamTaskSetCancelSubTasks);
+XAM_EXPORT_STUB(__imp__XamTaskWaitOnCompletion);

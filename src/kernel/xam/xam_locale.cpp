@@ -419,3 +419,20 @@ XAM_EXPORT(__imp__XamGetOnlineLanguageString, rex::kernel::xam::XamGetOnlineLang
 XAM_EXPORT(__imp__XamGetCountryFromOnlineCountry,
            rex::kernel::xam::XamGetCountryFromOnlineCountry_entry)
 XAM_EXPORT(__imp__XamGetLocaleEx, rex::kernel::xam::XamGetLocaleEx_entry)
+
+XAM_EXPORT_STUB(__imp__XamFormatCurrency);
+XAM_EXPORT_STUB(__imp__XamFormatMessage);
+XAM_EXPORT_STUB(__imp__XamFormatSystemDateString);
+XAM_EXPORT_STUB(__imp__XamGetCountry);
+XAM_EXPORT_STUB(__imp__XamGetCurrencyFormat);
+XAM_EXPORT_STUB(__imp__XamGetLanguage);
+XAM_EXPORT_STUB(__imp__XamGetLanguageLocaleFallbackString);
+XAM_EXPORT_STUB(__imp__XamGetLanguageTypeface);
+XAM_EXPORT_STUB(__imp__XamGetLanguageTypefacePatch);
+XAM_EXPORT_STUB(__imp__XamGetLocaleDateFormat);
+XAM_EXPORT_STUB(__imp__XamGetLocaleTimeFormat);
+XAM_EXPORT_STUB(__imp__XamGetOnlineCountryFeatures);
+XAM_EXPORT_STUB(__imp__XamGetOnlineLanguageAndCountry);
+XAM_EXPORT_STUB(__imp__XamGetStoreFront);
+XAM_EXPORT_STUB(__imp__XamUniSortCmpString);
+XAM_EXPORT_STUB(__imp__XamValidateCountry);

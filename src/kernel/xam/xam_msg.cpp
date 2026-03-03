@@ -142,3 +142,7 @@ XAM_EXPORT(__imp__XMsgStartIORequest, rex::kernel::xam::XMsgStartIORequest_entry
 XAM_EXPORT(__imp__XMsgCancelIORequest, rex::kernel::xam::XMsgCancelIORequest_entry)
 XAM_EXPORT(__imp__XMsgCompleteIORequest, rex::kernel::xam::XMsgCompleteIORequest_entry)
 XAM_EXPORT(__imp__XamGetOverlappedResult, rex::kernel::xam::XamGetOverlappedResult_entry)
+
+XAM_EXPORT_STUB(__imp__XMsgAcquireAsyncMessageFromOverlapped);
+XAM_EXPORT_STUB(__imp__XMsgProcessRequest);
+XAM_EXPORT_STUB(__imp__XMsgReleaseAsyncMessageToOverlapped);

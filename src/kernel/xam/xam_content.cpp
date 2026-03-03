@@ -390,3 +390,39 @@ XAM_EXPORT(__imp__XamContentGetThumbnail, rex::kernel::xam::XamContentGetThumbna
 XAM_EXPORT(__imp__XamContentSetThumbnail, rex::kernel::xam::XamContentSetThumbnail_entry)
 XAM_EXPORT(__imp__XamContentDelete, rex::kernel::xam::XamContentDelete_entry)
 XAM_EXPORT(__imp__XamContentDeleteInternal, rex::kernel::xam::XamContentDeleteInternal_entry)
+
+XAM_EXPORT_STUB(__imp__XamContentClosePackageFile);
+XAM_EXPORT_STUB(__imp__XamContentCopyInternal);
+XAM_EXPORT_STUB(__imp__XamContentCreateAndMountPackage);
+XAM_EXPORT_STUB(__imp__XamContentCreateEnumeratorInternal);
+XAM_EXPORT_STUB(__imp__XamContentDismountAndClosePackage);
+XAM_EXPORT_STUB(__imp__XamContentDuplicateFileHandle);
+XAM_EXPORT_STUB(__imp__XamContentExistsOnDeviceInternal);
+XAM_EXPORT_STUB(__imp__XamContentFlushPackage);
+XAM_EXPORT_STUB(__imp__XamContentGetAttributes);
+XAM_EXPORT_STUB(__imp__XamContentGetAttributesInternal);
+XAM_EXPORT_STUB(__imp__XamContentGetHeaderInternal);
+XAM_EXPORT_STUB(__imp__XamContentGetLocalizedString);
+XAM_EXPORT_STUB(__imp__XamContentGetMetaDataInternal);
+XAM_EXPORT_STUB(__imp__XamContentGetMountedPackageByRootName);
+XAM_EXPORT_STUB(__imp__XamContentGetOnlineCreator);
+XAM_EXPORT_STUB(__imp__XamContentInstall);
+XAM_EXPORT_STUB(__imp__XamContentInstallInternal);
+XAM_EXPORT_STUB(__imp__XamContentIsGameInstalledToHDD);
+XAM_EXPORT_STUB(__imp__XamContentLaunchImage);
+XAM_EXPORT_STUB(__imp__XamContentLaunchImageFromFileInternal);
+XAM_EXPORT_STUB(__imp__XamContentLaunchImageInternal);
+XAM_EXPORT_STUB(__imp__XamContentLaunchImageInternalEx);
+XAM_EXPORT_STUB(__imp__XamContentLockUnlockPackageHeaders);
+XAM_EXPORT_STUB(__imp__XamContentMountInstalledGame);
+XAM_EXPORT_STUB(__imp__XamContentMountPackage);
+XAM_EXPORT_STUB(__imp__XamContentMoveInternal);
+XAM_EXPORT_STUB(__imp__XamContentOpenFileInternal);
+XAM_EXPORT_STUB(__imp__XamContentOpenPackageFile);
+XAM_EXPORT_STUB(__imp__XamContentQueryLicenseInternal);
+XAM_EXPORT_STUB(__imp__XamContentRegisterChangeCallback);
+XAM_EXPORT_STUB(__imp__XamContentResolveInternal);
+XAM_EXPORT_STUB(__imp__XamContentSetAttributes);
+XAM_EXPORT_STUB(__imp__XamContentSetMediaMetaDataInternal);
+XAM_EXPORT_STUB(__imp__XamContentSetThumbnailInternal);
+XAM_EXPORT_STUB(__imp__XamContentWritePackageHeader);

@@ -52,3 +52,19 @@ XAM_EXPORT(__imp__XamVoiceIsActiveProcess, rex::kernel::xam::XamVoiceIsActivePro
 XAM_EXPORT(__imp__XamVoiceCreate, rex::kernel::xam::XamVoiceCreate_entry)
 XAM_EXPORT(__imp__XamVoiceClose, rex::kernel::xam::XamVoiceClose_entry)
 XAM_EXPORT(__imp__XamVoiceHeadsetPresent, rex::kernel::xam::XamVoiceHeadsetPresent_entry)
+
+XAM_EXPORT_STUB(__imp__XamMuteSound);
+XAM_EXPORT_STUB(__imp__XamVoiceDisableMicArray);
+XAM_EXPORT_STUB(__imp__XamVoiceGetBatteryStatus);
+XAM_EXPORT_STUB(__imp__XamVoiceGetDirectionalData);
+XAM_EXPORT_STUB(__imp__XamVoiceGetMicArrayAudio);
+XAM_EXPORT_STUB(__imp__XamVoiceGetMicArrayAudioEx);
+XAM_EXPORT_STUB(__imp__XamVoiceGetMicArrayFilenameDesc);
+XAM_EXPORT_STUB(__imp__XamVoiceGetMicArrayStatus);
+XAM_EXPORT_STUB(__imp__XamVoiceGetMicArrayUnderrunStatus);
+XAM_EXPORT_STUB(__imp__XamVoiceMuteMicArray);
+XAM_EXPORT_STUB(__imp__XamVoiceRecordUserPrivileges);
+XAM_EXPORT_STUB(__imp__XamVoiceSetAudioCaptureRoutine);
+XAM_EXPORT_STUB(__imp__XamVoiceSetMicArrayBeamAngle);
+XAM_EXPORT_STUB(__imp__XamVoiceSetMicArrayIdleUsers);
+XAM_EXPORT_STUB(__imp__XamVoiceSubmitPacket);

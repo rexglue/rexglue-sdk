@@ -37,3 +37,8 @@ ppc_u32_result_t XGetVideoCapabilities_entry() {
 
 XAM_EXPORT(__imp__XGetVideoMode, rex::kernel::xam::XGetVideoMode_entry)
 XAM_EXPORT(__imp__XGetVideoCapabilities, rex::kernel::xam::XGetVideoCapabilities_entry)
+
+XAM_EXPORT_STUB(__imp__XGetVideoFlags);
+XAM_EXPORT_STUB(__imp__XGetVideoStandard);
+XAM_EXPORT_STUB(__imp__XamLoadExtraAVCodecs2);
+XAM_EXPORT_STUB(__imp__XamUnloadExtraAVCodecs2);

@@ -819,3 +819,6 @@ XBOXKRNL_EXPORT(__imp__XeKeysConsolePrivateKeySign,
                 rex::kernel::xboxkrnl::XeKeysConsolePrivateKeySign_entry)
 XBOXKRNL_EXPORT(__imp__XeKeysConsoleSignatureVerification,
                 rex::kernel::xboxkrnl::XeKeysConsoleSignatureVerification_entry)
+
+XBOXKRNL_EXPORT_STUB(__imp__DevAuthGetStatistics);
+XBOXKRNL_EXPORT_STUB(__imp__DevAuthShouldAlwaysEnforce);

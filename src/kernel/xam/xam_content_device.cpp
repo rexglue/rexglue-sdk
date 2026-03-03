@@ -181,3 +181,11 @@ XAM_EXPORT(__imp__XamContentGetDeviceState, rex::kernel::xam::XamContentGetDevic
 XAM_EXPORT(__imp__XamContentGetDeviceData, rex::kernel::xam::XamContentGetDeviceData_entry)
 XAM_EXPORT(__imp__XamContentCreateDeviceEnumerator,
            rex::kernel::xam::XamContentCreateDeviceEnumerator_entry)
+
+XAM_EXPORT_STUB(__imp__XamContentAddCacheDevice);
+XAM_EXPORT_STUB(__imp__XamContentDeviceCheckUpdates);
+XAM_EXPORT_STUB(__imp__XamContentGetDefaultDevice);
+XAM_EXPORT_STUB(__imp__XamContentGetDeviceSerialNumber);
+XAM_EXPORT_STUB(__imp__XamContentGetDeviceVolumePath);
+XAM_EXPORT_STUB(__imp__XamContentGetLocalizedDeviceData);
+XAM_EXPORT_STUB(__imp__XamContentRemoveCacheDevice);

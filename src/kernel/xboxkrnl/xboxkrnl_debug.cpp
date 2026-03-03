@@ -167,3 +167,13 @@ XBOXKRNL_EXPORT_STUB(__imp__DbgPrompt);
 XBOXKRNL_EXPORT_STUB(__imp__DbgLoadImageSymbols);
 XBOXKRNL_EXPORT_STUB(__imp__DbgUnLoadImageSymbols);
 XBOXKRNL_EXPORT_STUB(__imp__DmPrintData);
+
+XBOXKRNL_EXPORT_STUB(__imp__DumpGetRawDumpInfo);
+XBOXKRNL_EXPORT_STUB(__imp__DumpRegisterDedicatedDataBlock);
+XBOXKRNL_EXPORT_STUB(__imp__DumpSetCollectionFacility);
+XBOXKRNL_EXPORT_STUB(__imp__DumpUpdateDumpSettings);
+XBOXKRNL_EXPORT_STUB(__imp__DumpWriteDump);
+XBOXKRNL_EXPORT_STUB(__imp__DumpXitThread);
+XBOXKRNL_EXPORT_STUB(__imp__RtlAssert);
+XBOXKRNL_EXPORT_STUB(__imp__RtlRaiseStatus);
+XBOXKRNL_EXPORT_STUB(__imp__RtlRip);

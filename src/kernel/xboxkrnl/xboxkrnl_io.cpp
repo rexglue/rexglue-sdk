@@ -825,3 +825,5 @@ XBOXKRNL_EXPORT_STUB(__imp__IoReleaseCancelSpinLock);
 XBOXKRNL_EXPORT_STUB(__imp__NtCancelIoFile);
 XBOXKRNL_EXPORT_STUB(__imp__NtCancelIoFileEx);
 XBOXKRNL_EXPORT_STUB(__imp__SvodCreateDevice);
+
+XBOXKRNL_EXPORT_STUB(__imp__SataCdRomRecordReset);

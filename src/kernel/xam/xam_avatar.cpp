@@ -41,3 +41,26 @@ void XamAvatarShutdown_entry() {
 
 XAM_EXPORT(__imp__XamAvatarInitialize, rex::kernel::xam::XamAvatarInitialize_entry)
 XAM_EXPORT(__imp__XamAvatarShutdown, rex::kernel::xam::XamAvatarShutdown_entry)
+
+XAM_EXPORT_STUB(__imp__XamAvatarBeginEnumAssets);
+XAM_EXPORT_STUB(__imp__XamAvatarEndEnumAssets);
+XAM_EXPORT_STUB(__imp__XamAvatarEnumAssets);
+XAM_EXPORT_STUB(__imp__XamAvatarGenerateMipMaps);
+XAM_EXPORT_STUB(__imp__XamAvatarGetAssetBinary);
+XAM_EXPORT_STUB(__imp__XamAvatarGetAssetIcon);
+XAM_EXPORT_STUB(__imp__XamAvatarGetAssets);
+XAM_EXPORT_STUB(__imp__XamAvatarGetAssetsResultSize);
+XAM_EXPORT_STUB(__imp__XamAvatarGetInstalledAssetPackageDescription);
+XAM_EXPORT_STUB(__imp__XamAvatarGetInstrumentation);
+XAM_EXPORT_STUB(__imp__XamAvatarGetManifestLocalUser);
+XAM_EXPORT_STUB(__imp__XamAvatarGetManifestsByXuid);
+XAM_EXPORT_STUB(__imp__XamAvatarGetMetadataRandom);
+XAM_EXPORT_STUB(__imp__XamAvatarGetMetadataSignedOutProfile);
+XAM_EXPORT_STUB(__imp__XamAvatarGetMetadataSignedOutProfileCount);
+XAM_EXPORT_STUB(__imp__XamAvatarLoadAnimation);
+XAM_EXPORT_STUB(__imp__XamAvatarManifestGetBodyType);
+XAM_EXPORT_STUB(__imp__XamAvatarReinstallAwardedAsset);
+XAM_EXPORT_STUB(__imp__XamAvatarSetCustomAsset);
+XAM_EXPORT_STUB(__imp__XamAvatarSetManifest);
+XAM_EXPORT_STUB(__imp__XamAvatarSetMocks);
+XAM_EXPORT_STUB(__imp__XamAvatarWearNow);

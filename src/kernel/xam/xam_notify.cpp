@@ -116,3 +116,12 @@ XAM_EXPORT(__imp__XamNotifyCreateListenerInternal,
 XAM_EXPORT(__imp__XNotifyGetNext, rex::kernel::xam::XNotifyGetNext_entry)
 XAM_EXPORT(__imp__XNotifyDelayUI, rex::kernel::xam::XNotifyDelayUI_entry)
 XAM_EXPORT(__imp__XNotifyPositionUI, rex::kernel::xam::XNotifyPositionUI_entry)
+
+XAM_EXPORT_STUB(__imp__XNotifyBroadcast);
+XAM_EXPORT_STUB(__imp__XNotifyQueueUI);
+XAM_EXPORT_STUB(__imp__XNotifyQueueUIEx);
+XAM_EXPORT_STUB(__imp__XNotifyRegisterArea);
+XAM_EXPORT_STUB(__imp__XNotifyUIGetOptions);
+XAM_EXPORT_STUB(__imp__XNotifyUISetOptions);
+XAM_EXPORT_STUB(__imp__XamNotifyCreateListenerRangeInternal);
+XAM_EXPORT_STUB(__imp__XamNotifyDelayUIInternal);
