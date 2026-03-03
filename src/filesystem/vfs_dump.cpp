@@ -14,7 +14,7 @@
 #include <vector>
 
 #include <rex/cvar.h>
-#include <rex/filesystem/devices/stfs_container_device.h>
+#include "devices/stfs_container_device.h"
 #include <rex/filesystem/file.h>
 #include <rex/literals.h>
 #include <rex/logging.h>
@@ -36,17 +36,17 @@ int vfs_dump_main(const std::vector<std::string>& args) {
 
   std::filesystem::path source = rex::to_path(REXCVAR_GET(dump_source));
   std::filesystem::path base_path = rex::to_path(REXCVAR_GET(dump_path));
-  std::unique_ptr<vfs::Device> device;
+  std::unique_ptr<Device> device;
 
   // TODO: Flags specifying the type of device.
-  device = std::make_unique<vfs::StfsContainerDevice>("", source);
+  device = std::make_unique<StfsContainerDevice>("", source);
   if (!device->Initialize()) {
     REXFS_ERROR("Failed to initialize device");
     return 1;
   }
 
   // Run through all the files, breadth-first style.
-  std::queue<vfs::Entry*> queue;
+  std::queue<Entry*> queue;
   auto root = device->ResolvePath("/");
   queue.push(root);
 
@@ -68,7 +68,7 @@ int vfs_dump_main(const std::vector<std::string>& args) {
       continue;
     }
 
-    vfs::File* in_file = nullptr;
+    File* in_file = nullptr;
     if (entry->Open(FileAccess::kFileReadData, &in_file) != X_STATUS_SUCCESS) {
       continue;
     }

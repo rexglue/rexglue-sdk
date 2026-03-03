@@ -312,7 +312,7 @@ namespace disruptorplus
                         return false;
                     }
                 }
-                reducedCount = std::min(count, static_cast<sequence_t>(diff + 1));
+                reducedCount = std::min(count, static_cast<size_t>(diff + 1));
             } while (!m_nextClaimable.compare_exchange_weak(
                 sequence,
                 static_cast<sequence_t>(sequence + reducedCount),
