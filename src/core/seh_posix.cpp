@@ -30,13 +30,46 @@ int seh_filter(uint32_t /*code*/, void* /*ep*/) {
 }
 
 /// Signal handler for SIGSEGV/SIGBUS/SIGFPE/SIGILL
-static void signal_handler(int sig, siginfo_t* info, void* /*ucontext*/) {
+static void signal_handler(int sig, siginfo_t* info, void* ucontext) {
   // Only handle if we're in SEH-protected code
   if (!tls_seh_active) {
     // Not in SEH region - restore default handler and re-raise
     signal(sig, SIG_DFL);
     raise(sig);
     return;
+  }
+
+  // Get fault address.
+  uintptr_t address = info ? reinterpret_cast<uintptr_t>(info->si_addr) : 0;
+
+  // Recover null indirect calls by skipping to the return address / link
+  // register instead of throwing. This matches the guarded indirect-call path
+  // used by generated code.
+  if (address == 0 && sig == SIGSEGV && ucontext) {
+    auto* uc = reinterpret_cast<ucontext_t*>(ucontext);
+#if REX_ARCH_ARM64
+#if REX_PLATFORM_MAC
+    uint64_t lr = uc->uc_mcontext->__ss.__lr;
+    uc->uc_mcontext->__ss.__pc = lr;
+#else
+    uint64_t lr = uc->uc_mcontext.regs[30];
+    uc->uc_mcontext.pc = lr;
+#endif
+    return;
+#elif REX_ARCH_AMD64
+#if REX_PLATFORM_MAC
+    uint64_t rsp = uc->uc_mcontext->__ss.__rsp;
+    uint64_t ret_addr = *reinterpret_cast<uint64_t*>(rsp);
+    uc->uc_mcontext->__ss.__rip = ret_addr;
+    uc->uc_mcontext->__ss.__rsp = rsp + sizeof(uint64_t);
+#else
+    uint64_t rsp = uc->uc_mcontext.gregs[REG_RSP];
+    uint64_t ret_addr = *reinterpret_cast<uint64_t*>(rsp);
+    uc->uc_mcontext.gregs[REG_RIP] = ret_addr;
+    uc->uc_mcontext.gregs[REG_RSP] = rsp + sizeof(uint64_t);
+#endif
+    return;
+#endif
   }
 
   // Determine exception code based on signal
@@ -58,9 +91,6 @@ static void signal_handler(int sig, siginfo_t* info, void* /*ucontext*/) {
       code = SehException::UNKNOWN;
       break;
   }
-
-  // Get fault address
-  uintptr_t address = info ? reinterpret_cast<uintptr_t>(info->si_addr) : 0;
 
   // Store in thread state for potential rethrow
   tls_seh_state.code = static_cast<uint32_t>(code);

@@ -450,6 +450,9 @@ void _translate_args_to_guest(PPCContext& ctx, uint8_t* base, std::tuple<TArgs..
 // Calls a native C++ function with arguments extracted from PPC context
 
 extern thread_local PPCContext* g_current_ppc_context;
+// Backward-compatible alias for older host hooks that still reference
+// g_ppcContext directly.
+inline PPCContext*& g_ppcContext = g_current_ppc_context;
 
 template <auto Func>
 __attribute__((noinline)) void HostToGuestFunction(PPCContext& ctx, uint8_t* base) {

@@ -112,6 +112,10 @@ class Runtime {
   const std::filesystem::path& user_data_root() const { return user_data_root_; }
   const std::filesystem::path& update_data_root() const { return update_data_root_; }
 
+  // Inject a pre-existing memory system before Setup().
+  // If the memory object is not initialized yet, Setup() will initialize it.
+  void set_memory(std::unique_ptr<memory::Memory> memory) { memory_ = std::move(memory); }
+
   // Set the app context for presentation (call before Setup)
   void set_app_context(ui::WindowedAppContext* context) { app_context_ = context; }
   ui::WindowedAppContext* app_context() const { return app_context_; }

@@ -23,6 +23,20 @@
 
 namespace rex::system {
 
+// Thrown by ExTerminateThread to unwind cleanly through SEH catch(...) blocks
+// back to XThread::Execute.  On macOS, pthread_exit() triggers C++ stack
+// unwinding that is caught by catch(...), corrupting thread state.  Using a
+// C++ exception instead keeps thread state intact during unwinding.
+class thread_terminate_exception {
+ public:
+  thread_terminate_exception(int exit_code) : exit_code_(exit_code){};
+  virtual ~thread_terminate_exception(){};
+  int exit_code() const { return exit_code_; }
+
+ private:
+  int exit_code_;
+};
+
 constexpr memory::fourcc_t kThreadSaveSignature = memory::make_fourcc("THRD");
 
 class XEvent;

@@ -140,6 +140,8 @@ class MMIOHandler {
     ptrdiff_t mem_displacement;
     bool is_constant;
     int32_t constant;
+    // Memory access size in bytes. Used for scaling ARM64 offsets.
+    uint8_t access_size;
   };
 
   static bool TryDecodeLoadStore(const uint8_t* p, DecodedLoadStore& decoded_out);

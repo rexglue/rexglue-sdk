@@ -21,6 +21,11 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#if defined(__APPLE__)
+#include <mach/mach.h>
+#include <mach/mach_vm.h>
+#endif
+
 #include <rex/math.h>
 #include <rex/memory/utils.h>
 #include <rex/platform.h>
@@ -51,6 +56,16 @@ static std::string MakeShmName(const std::filesystem::path& path) {
   if (name.empty() || name[0] != '/') {
     name.insert(name.begin(), '/');
   }
+#if defined(__APPLE__)
+  // macOS has a short shm name limit, so hash long names deterministically.
+  constexpr size_t kMacShmNameLimit = 30;
+  if (name.size() > kMacShmNameLimit) {
+    const size_t hash = std::hash<std::string>{}(name);
+    char hash_name[32] = {};
+    std::snprintf(hash_name, sizeof(hash_name), "/xe_%016zx", hash);
+    name = hash_name;
+  }
+#endif
   return name;
 }
 
@@ -269,6 +284,10 @@ bool DeallocFixed(void* base_address, size_t length, DeallocationType deallocati
       return true;
     }
     case DeallocationType::kRelease: {
+      if (length == 0) {
+        // File-backed guest views stay mapped for the lifetime of the mapping.
+        return true;
+      }
       return munmap(base_address, length) == 0;
     }
     default:
@@ -295,6 +314,11 @@ bool Protect(void* base_address, size_t length, PageAccess access, PageAccess* o
       *out_old_access = PermsToPageAccess(e.perms);
     }
   }
+#elif defined(__APPLE__)
+  if (out_old_access) {
+    size_t old_length = 0;
+    (void)QueryProtect(base_address, old_length, *out_old_access);
+  }
 #endif
 
   uint32_t prot = ToPosixProtectFlags(access);
@@ -302,7 +326,35 @@ bool Protect(void* base_address, size_t length, PageAccess access, PageAccess* o
 }
 
 bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out) {
-#if !REX_PLATFORM_LINUX
+#if defined(__APPLE__)
+  access_out = PageAccess::kNoAccess;
+  length = 0;
+
+  mach_vm_address_t address = reinterpret_cast<mach_vm_address_t>(base_address);
+  mach_vm_size_t region_size = 0;
+  vm_region_basic_info_data_64_t info;
+  mach_msg_type_number_t info_count = VM_REGION_BASIC_INFO_COUNT_64;
+  mach_port_t object_name = MACH_PORT_NULL;
+  kern_return_t kr = mach_vm_region(mach_task_self(), &address, &region_size,
+                                    VM_REGION_BASIC_INFO_64,
+                                    reinterpret_cast<vm_region_info_t>(&info), &info_count,
+                                    &object_name);
+  if (kr != KERN_SUCCESS) {
+    return false;
+  }
+
+  const vm_prot_t protection = info.protection;
+  length = static_cast<size_t>(region_size);
+  if (protection & VM_PROT_EXECUTE) {
+    access_out = (protection & VM_PROT_WRITE) ? PageAccess::kExecuteReadWrite
+                                              : PageAccess::kExecuteReadOnly;
+  } else if (protection & VM_PROT_WRITE) {
+    access_out = PageAccess::kReadWrite;
+  } else if (protection & VM_PROT_READ) {
+    access_out = PageAccess::kReadOnly;
+  }
+  return true;
+#elif !REX_PLATFORM_LINUX
   access_out = PageAccess::kNoAccess;
   length = 0;
   return false;
@@ -372,7 +424,11 @@ FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, siz
   if (ret < 0) {
     return kFileMappingHandleInvalid;
   }
+#if defined(__APPLE__)
+  if (ftruncate(ret, static_cast<off_t>(length)) != 0) {
+#else
   if (ftruncate64(ret, static_cast<off_t>(length)) != 0) {
+#endif
     close(ret);
     shm_unlink(full_path.c_str());
     return kFileMappingHandleInvalid;
@@ -407,8 +463,13 @@ void* MapFileView(FileMappingHandle handle, void* base_address, size_t length, P
   }
 
   uint32_t prot = ToPosixProtectFlags(access);
+#if defined(__APPLE__)
+  void* result = mmap(base_address, length, prot, flags, static_cast<int>(handle),
+                      static_cast<off_t>(file_offset));
+#else
   void* result = mmap64(base_address, length, prot, flags, static_cast<int>(handle),
                         static_cast<off_t>(file_offset));
+#endif
   if (result == MAP_FAILED) {
     return nullptr;
   }

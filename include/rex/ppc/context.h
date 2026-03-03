@@ -106,6 +106,8 @@ using PPCFunc = void(PPCContext& ctx, uint8_t* base);
 
 #ifndef PPC_CONFIG_H_INCLUDED
 
+#define PPC_LOOKUP_FUNC_RAW(x, y) ((PPCFunc*)nullptr)
+
 #define PPC_LOOKUP_FUNC(x, y) ((PPCFunc*)nullptr)
 
 #define PPC_CALL_INDIRECT_FUNC(x) __builtin_debugtrap()
@@ -119,12 +121,27 @@ using PPCFunc = void(PPCContext& ctx, uint8_t* base);
 
 #ifdef PPC_CONFIG_H_INCLUDED
 // Function table lookup: indexed by (addr - CODE_BASE)
+#undef PPC_LOOKUP_FUNC_RAW
+#define PPC_LOOKUP_FUNC_RAW(x, y)                                                            \
+  (*(PPCFunc**)(x + PPC_IMAGE_BASE + PPC_IMAGE_SIZE +                                        \
+                (uint64_t(uint32_t(y) - PPC_CODE_BASE) * 2)))
+
 #undef PPC_LOOKUP_FUNC
 #define PPC_LOOKUP_FUNC(x, y) \
-  (*(PPCFunc**)(x + PPC_IMAGE_BASE + PPC_IMAGE_SIZE + (uint64_t(uint32_t(y) - PPC_CODE_BASE) * 2)))
+  ((uint32_t(y) >= PPC_CODE_BASE && uint32_t(y) < (PPC_CODE_BASE + PPC_CODE_SIZE))           \
+       ? PPC_LOOKUP_FUNC_RAW(x, y)                                                            \
+       : (PPCFunc*)nullptr)
 
 #undef PPC_CALL_INDIRECT_FUNC
-#define PPC_CALL_INDIRECT_FUNC(x) PPC_LOOKUP_FUNC(base, x)(ctx, base);
+#define PPC_CALL_INDIRECT_FUNC(x)       \
+  do {                                  \
+    PPCFunc* _fn = PPC_LOOKUP_FUNC(base, x); \
+    if (_fn) {                          \
+      _fn(ctx, base);                   \
+    } else {                            \
+      ctx.r3.u64 = 0;                   \
+    }                                   \
+  } while (0)
 
 #endif  // PPC_CONFIG_H_INCLUDED
 

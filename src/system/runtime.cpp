@@ -56,20 +56,26 @@ X_STATUS Runtime::Setup(RuntimeConfig config) {
   // Enable threading affinity configuration
   thread::EnableAffinityConfiguration();
 
-  // Guard against reinitialization
-  if (memory_) {
+  // Guard against reinitialization. An injected memory_ is allowed before Setup(),
+  // but no other subsystem should already exist.
+  if (processor_ || file_system_ || kernel_state_ || input_system_ || audio_system_ ||
+      graphics_system_ || export_resolver_) {
     REXSYS_ERROR("Runtime::Setup() called but already initialized");
     return X_STATUS_UNSUCCESSFUL;
   }
 
   tool_mode_ = config.tool_mode;
 
-  // Create memory system first
-  memory_ = std::make_unique<memory::Memory>();
-  if (!memory_->Initialize()) {
-    REXSYS_ERROR("Failed to initialize memory system");
-    memory_.reset();
-    return X_STATUS_UNSUCCESSFUL;
+  // Create or adopt the memory system first.
+  if (!memory_) {
+    memory_ = std::make_unique<memory::Memory>();
+  }
+  if (!memory_->virtual_membase()) {
+    if (!memory_->Initialize()) {
+      REXSYS_ERROR("Failed to initialize memory system");
+      memory_.reset();
+      return X_STATUS_UNSUCCESSFUL;
+    }
   }
 
   export_resolver_ = std::make_unique<runtime::ExportResolver>();

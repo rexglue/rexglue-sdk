@@ -301,6 +301,22 @@ uint32_t GetLogGuestThreadId();
                    __FUNCTION__ __VA_OPT__(, ) __VA_ARGS__)
 
 //=============================================================================
+// Flush Macro — force all buffered log output to sink immediately
+//=============================================================================
+
+/// Flush all category loggers. Use at phase boundaries in long-running
+/// pipelines so progress is visible even under sustained CPU load.
+inline void FlushAllLoggers() {
+    for (size_t i = 0; i < std::to_underlying(LogCategory::Count); ++i) {
+        if (auto l = GetLogger(static_cast<LogCategory>(i))) {
+            l->flush();
+        }
+    }
+}
+
+#define REX_LOG_FLUSH() ::rex::FlushAllLoggers()
+
+//=============================================================================
 // Fatal Error Macros
 //=============================================================================
 

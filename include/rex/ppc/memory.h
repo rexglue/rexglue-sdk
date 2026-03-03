@@ -38,10 +38,10 @@
 // everywhere and adding it to every single memory access.
 // Maybe a separate base pointer for the 0xE0 heap?
 //=============================================================================
-#if REX_PLATFORM_WIN32
+#if REX_PLATFORM_WIN32 || (REX_PLATFORM_MAC && REX_ARCH_ARM64)
 #define PPC_PHYS_HOST_OFFSET(addr) (((uint32_t)(addr) >= 0xE0000000u) ? 0x1000u : 0u)
 #else
-#define PPC_PHYS_HOST_OFFSET(addr) 0u  // Linux has 4KB granularity, file offset works
+#define PPC_PHYS_HOST_OFFSET(addr) 0u  // 4KB granularity platforms keep the file offset intact
 #endif
 
 // Raw address calculation with physical offset (for operations that don't use PPC_LOAD/PPC_STORE)
@@ -452,9 +452,11 @@ inline simde__m128i simde_mm_vsl(simde__m128i a, simde__m128i b) {
   int shift = simde_mm_extract_epi8(b, 15) & 0x7;  // Get low 3 bits from byte 15 (BE: byte 0)
   if (shift == 0)
     return a;
-  // Split into high and low 64-bit parts
-  simde__m128i low_shifted = simde_mm_slli_epi64(a, shift);
-  simde__m128i high_carry = simde_mm_srli_epi64(a, 64 - shift);
+  // Use variable-count shifts because the shift amount is computed at runtime.
+  simde__m128i shift_vec = simde_mm_cvtsi64_si128(shift);
+  simde__m128i inv_shift_vec = simde_mm_cvtsi64_si128(64 - shift);
+  simde__m128i low_shifted = simde_mm_sll_epi64(a, shift_vec);
+  simde__m128i high_carry = simde_mm_srl_epi64(a, inv_shift_vec);
   // Shift the carry from low qword to high qword position
   high_carry = simde_mm_slli_si128(high_carry, 8);
   return simde_mm_or_si128(low_shifted, high_carry);
