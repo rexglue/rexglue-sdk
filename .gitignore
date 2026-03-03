@@ -419,3 +419,4 @@ FodyWeavers.xsd
 
 # CMake User Overrides
 CMakeUserPresets.json
+/demo-test

@@ -2,6 +2,21 @@
 # Modern C++23 cross-platform SDK for recompiling Xbox 360 executables
 cmake_minimum_required(VERSION 3.25)
 
+if(APPLE AND NOT DEFINED CMAKE_OSX_ARCHITECTURES)
+    execute_process(
+        COMMAND /usr/sbin/sysctl -in hw.optional.arm64
+        OUTPUT_VARIABLE REXGLUE_HW_ARM64
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+    if(REXGLUE_HW_ARM64 STREQUAL "1")
+        # Prefer a native Apple Silicon target even if the cmake executable
+        # itself is running as x86_64.
+        set(CMAKE_APPLE_SILICON_PROCESSOR "arm64" CACHE STRING "" FORCE)
+        set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "Target macOS architectures" FORCE)
+    endif()
+endif()
+
 project(ReXGlue
     VERSION 0.2.2
     LANGUAGES C CXX
@@ -61,9 +76,9 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION
     message(FATAL_ERROR "ReXGlue requires Clang 18 or newer (found ${CMAKE_CXX_COMPILER_VERSION})")
 endif()
 
-# Enforce x64 architecture
+# Enforce 64-bit architecture
 if(NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
-    message(FATAL_ERROR "ReXGlue only supports x64 architecture")
+    message(FATAL_ERROR "ReXGlue only supports 64-bit targets")
 endif()
 
 # Set C++23 standard
@@ -100,7 +115,17 @@ if(WIN32)
     set(REX_PLATFORM "win-amd64")
     add_compile_definitions(REX_PLATFORM_WINDOWS=1)
 elseif(APPLE)
-    set(REX_PLATFORM "macos-${CMAKE_SYSTEM_PROCESSOR}")
+    if(CMAKE_OSX_ARCHITECTURES)
+        list(LENGTH CMAKE_OSX_ARCHITECTURES REXGLUE_APPLE_ARCH_COUNT)
+        if(REXGLUE_APPLE_ARCH_COUNT GREATER 1)
+            set(REXGLUE_APPLE_TARGET_ARCH "universal")
+        else()
+            list(GET CMAKE_OSX_ARCHITECTURES 0 REXGLUE_APPLE_TARGET_ARCH)
+        endif()
+    else()
+        set(REXGLUE_APPLE_TARGET_ARCH "${CMAKE_SYSTEM_PROCESSOR}")
+    endif()
+    set(REX_PLATFORM "macos-${REXGLUE_APPLE_TARGET_ARCH}")
     add_compile_definitions(REX_PLATFORM_MAC=1)
 elseif(UNIX AND NOT APPLE)
     set(REX_PLATFORM "linux-amd64")
@@ -159,6 +184,9 @@ message(STATUS "===========================================")
 message(STATUS "ReXGlue Configuration Summary:")
 message(STATUS "  Platform: ${REX_PLATFORM}")
 message(STATUS "  Compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
+if(APPLE)
+    message(STATUS "  macOS Arch: ${CMAKE_OSX_ARCHITECTURES}")
+endif()
 message(STATUS "  Configurations: ${CMAKE_CONFIGURATION_TYPES}")
 message(STATUS "  Output Dir: ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 message(STATUS "  C++ Standard: C++${CMAKE_CXX_STANDARD}")
