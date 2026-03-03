@@ -1,6 +1,7 @@
 add_library(rexfilesystem STATIC
     device.cpp
     entry.cpp
+    vfs_dump.cpp
     virtual_file_system.cpp
     devices/disc_image_device.cpp
     devices/disc_image_entry.cpp

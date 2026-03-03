@@ -15,6 +15,13 @@ function(rexglue_configure_target target_name)
     if(WIN32)
         target_sources(${target_name} PRIVATE
             ${REXGLUE_SHARE_DIR}/windowed_app_main_win.cpp)
+    elseif(APPLE)
+        target_sources(${target_name} PRIVATE
+            ${REXGLUE_SHARE_DIR}/windowed_app_main_macos.mm)
+        set_source_files_properties(
+            ${REXGLUE_SHARE_DIR}/windowed_app_main_macos.mm
+            PROPERTIES COMPILE_FLAGS "-fobjc-arc"
+        )
     else()
         target_sources(${target_name} PRIVATE
             ${REXGLUE_SHARE_DIR}/windowed_app_main_posix.cpp)
@@ -40,6 +47,11 @@ function(rexglue_configure_target target_name)
         # Large executable support
         target_link_options(${target_name} PRIVATE -Wl,--no-relax)
         target_compile_options(${target_name} PRIVATE -mcmodel=large)
+    elseif(APPLE)
+        target_link_libraries(${target_name} PRIVATE
+            "-framework Cocoa"
+            "-framework QuartzCore"
+        )
     endif()
 
     if(NOT MSVC)

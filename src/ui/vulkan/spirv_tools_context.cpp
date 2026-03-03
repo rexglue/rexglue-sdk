@@ -29,8 +29,20 @@ bool SpirvToolsContext::Initialize(unsigned int spirv_version) {
   }
   std::filesystem::path vulkan_sdk_path(vulkan_sdk_env);
   auto library_path = vulkan_sdk_path / platform::lib_names::kSpirvToolsSdkPath;
-  if (!library_.Load(library_path)) {
+  bool library_loaded = library_.Load(library_path);
+#if REX_PLATFORM_MAC
+  const auto fallback_library_path = vulkan_sdk_path / "bin/libSPIRV-Tools-shared.dylib";
+  if (!library_loaded) {
+    library_loaded = library_.Load(fallback_library_path);
+  }
+#endif
+  if (!library_loaded) {
+#if REX_PLATFORM_MAC
+    REXLOG_ERROR("SPIRV-Tools: Failed to load {} or {}", library_path.string(),
+                 fallback_library_path.string());
+#else
     REXLOG_ERROR("SPIRV-Tools: Failed to load {}", library_path.string());
+#endif
     Shutdown();
     return false;
   }

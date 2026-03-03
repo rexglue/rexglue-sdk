@@ -50,6 +50,12 @@ inline constexpr const char* kVulkanLoader = "libvulkan.so";
 inline constexpr const char* kRenderDoc = "libVkLayer_GLES_RenderDoc.so";
 inline constexpr const char* kSpirvToolsSdkPath = "bin/libSPIRV-Tools-shared.so";
 
+#elif REX_PLATFORM_MAC
+
+inline constexpr const char* kVulkanLoader = "libvulkan.1.dylib";
+inline constexpr const char* kRenderDoc = "librenderdoc.dylib";
+inline constexpr const char* kSpirvToolsSdkPath = "lib/libSPIRV-Tools-shared.dylib";
+
 #elif REX_PLATFORM_LINUX
 
 inline constexpr const char* kVulkanLoader = "libvulkan.so.1";

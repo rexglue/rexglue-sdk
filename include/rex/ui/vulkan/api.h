@@ -38,6 +38,12 @@
 #endif
 #endif
 
+#if REX_PLATFORM_MAC
+#ifndef VK_USE_PLATFORM_METAL_EXT
+#define VK_USE_PLATFORM_METAL_EXT
+#endif
+#endif
+
 #if REX_PLATFORM_WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN

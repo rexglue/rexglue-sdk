@@ -8,6 +8,11 @@ project(ReXGlue
     DESCRIPTION "Xbox 360 Recompilation SDK"
 )
 
+if(APPLE)
+    enable_language(OBJC)
+    enable_language(OBJCXX)
+endif()
+
 #==========================================================
 # Build Options
 #==========================================================
@@ -16,17 +21,28 @@ option(REXGLUE_ENABLE_SANITIZERS "Enable UndefinedBehaviorSanitizer" OFF)
 
 # Graphics backend selection
 # D3D12: Windows only, ON by default.
-# Vulkan: Cross-platform, ON by default on Linux, OFF by default on Windows.
+# Vulkan: Cross-platform, ON by default on non-Windows.
+# Metal: macOS only, ON by default on Apple platforms.
 if(WIN32)
     option(REXGLUE_USE_D3D12  "Enable D3D12 graphics backend" ON)
     option(REXGLUE_USE_VULKAN "Enable Vulkan graphics backend" OFF)
+    set(REXGLUE_USE_METAL OFF)
+elseif(APPLE)
+    set(REXGLUE_USE_D3D12 OFF)
+    option(REXGLUE_USE_VULKAN "Enable Vulkan graphics backend" ON)
+    option(REXGLUE_USE_METAL  "Enable Metal graphics backend" ON)
 else()
     set(REXGLUE_USE_D3D12 OFF)
     option(REXGLUE_USE_VULKAN "Enable Vulkan graphics backend" ON)
+    set(REXGLUE_USE_METAL OFF)
 endif()
 
-if(NOT REXGLUE_USE_D3D12 AND NOT REXGLUE_USE_VULKAN)
-    message(FATAL_ERROR "At least one graphics backend must be enabled (REXGLUE_USE_D3D12 or REXGLUE_USE_VULKAN)")
+if(WIN32 AND NOT REXGLUE_USE_D3D12 AND NOT REXGLUE_USE_VULKAN)
+    message(FATAL_ERROR "At least one graphics backend must be enabled on Windows (REXGLUE_USE_D3D12 or REXGLUE_USE_VULKAN)")
+elseif(APPLE AND NOT REXGLUE_USE_VULKAN AND NOT REXGLUE_USE_METAL)
+    message(FATAL_ERROR "At least one graphics backend must be enabled on macOS (REXGLUE_USE_VULKAN or REXGLUE_USE_METAL)")
+elseif(NOT WIN32 AND NOT APPLE AND NOT REXGLUE_USE_VULKAN)
+    message(FATAL_ERROR "At least one graphics backend must be enabled on this platform (REXGLUE_USE_VULKAN)")
 endif()
 
 # Root of the SDK source tree
@@ -36,12 +52,12 @@ set(REXGLUE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}")
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
-# Enforce Clang18 compiler
-if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    message(FATAL_ERROR "ReXGlue requires Clang compiler. Please set CMAKE_CXX_COMPILER to clang++")
+# Enforce Clang-family compiler
+if(NOT (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang"))
+    message(FATAL_ERROR "ReXGlue requires Clang-family compiler. Please set CMAKE_CXX_COMPILER to clang++")
 endif()
 
-if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "18.0")
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "18.0")
     message(FATAL_ERROR "ReXGlue requires Clang 18 or newer (found ${CMAKE_CXX_COMPILER_VERSION})")
 endif()
 
@@ -57,11 +73,14 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_DEBUG_POSTFIX d)
 set(CMAKE_RELWITHDEBINFO_POSTFIX rd)
 
-if(NOT WIN32)
+if(UNIX AND NOT APPLE)
     # TODO: do we actually need this?
     # Use large code model on Linux for linking with very large recompiled executables (35MB+)
-    # Position-independent code for all targets
     add_compile_options(-mcmodel=large)
+endif()
+
+if(NOT WIN32)
+    # Position-independent code for non-Windows targets.
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 endif()
 
@@ -80,11 +99,14 @@ add_compile_options(
 if(WIN32)
     set(REX_PLATFORM "win-amd64")
     add_compile_definitions(REX_PLATFORM_WINDOWS=1)
+elseif(APPLE)
+    set(REX_PLATFORM "macos-${CMAKE_SYSTEM_PROCESSOR}")
+    add_compile_definitions(REX_PLATFORM_MAC=1)
 elseif(UNIX AND NOT APPLE)
     set(REX_PLATFORM "linux-amd64")
     add_compile_definitions(REX_PLATFORM_LINUX=1)
 else()
-    message(FATAL_ERROR "Unsupported platform. ReXGlue supports Windows and Linux only.")
+    message(FATAL_ERROR "Unsupported platform. ReXGlue supports Windows, Linux, and macOS.")
 endif()
 
 # Output directories (multi-config appends /<Config>/ automatically)
@@ -140,7 +162,7 @@ message(STATUS "  Compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSIO
 message(STATUS "  Configurations: ${CMAKE_CONFIGURATION_TYPES}")
 message(STATUS "  Output Dir: ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 message(STATUS "  C++ Standard: C++${CMAKE_CXX_STANDARD}")
-message(STATUS "  Graphics: D3D12=${REXGLUE_USE_D3D12} Vulkan=${REXGLUE_USE_VULKAN}")
+message(STATUS "  Graphics: D3D12=${REXGLUE_USE_D3D12} Vulkan=${REXGLUE_USE_VULKAN} Metal=${REXGLUE_USE_METAL}")
 message(STATUS "===========================================")
 
 # SDK install/export rules (skipped when consumed as a subdirectory)

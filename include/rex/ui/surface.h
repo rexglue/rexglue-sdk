@@ -31,6 +31,8 @@ class Surface {
     kTypeIndex_AndroidNativeWindow,
     // GNU/Linux.
     kTypeIndex_XcbWindow,
+    // Mac
+    kTypeIndex_MacOSMetalLayer,
     // Windows.
     kTypeIndex_Win32Hwnd,
   };
@@ -39,6 +41,7 @@ class Surface {
     kTypeFlag_AndroidNativeWindow = TypeFlags(1) << kTypeIndex_AndroidNativeWindow,
     kTypeFlag_XcbWindow = TypeFlags(1) << kTypeIndex_XcbWindow,
     kTypeFlag_Win32Hwnd = TypeFlags(1) << kTypeIndex_Win32Hwnd,
+    kTypeFlag_MacOSMetalLayer = TypeFlags(1) << kTypeIndex_MacOSMetalLayer,
   };
 
   Surface(const Surface& surface) = delete;

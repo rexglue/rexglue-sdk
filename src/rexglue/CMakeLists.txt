@@ -20,12 +20,18 @@ target_link_libraries(rexglue
 )
 
 # TODO: fix the circular dependency with rexsystem and rexkernel (init/ordinals)
-if(UNIX)
+if(UNIX AND NOT APPLE)
     target_link_libraries(rexglue PRIVATE
         -Wl,--start-group
         rexsystem
         rexkernel
         -Wl,--end-group
+    )
+elseif(APPLE)
+    target_link_libraries(rexglue PRIVATE
+        rexsystem
+        rexkernel
+        rexsystem
     )
 endif()
 

@@ -25,8 +25,15 @@
 #if REX_HAS_D3D12
 #include <rex/graphics/d3d12/graphics_system.h>
 #endif
+#if REX_HAS_METAL
+#include <rex/graphics/metal/graphics_system.h>
+#endif
 #include <rex/audio/audio_system.h>
+#if REX_HAS_SDL_AUDIO
 #include <rex/audio/sdl/sdl_audio_system.h>
+#else
+#include <rex/audio/nop/nop_audio_system.h>
+#endif
 #include <rex/input/input_system.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xthread.h>
@@ -123,10 +130,16 @@ bool ReXApp::OnInitialize() {
   rex::RuntimeConfig config;
 #if REX_HAS_D3D12
   config.graphics = REX_GRAPHICS_BACKEND(rex::graphics::d3d12::D3D12GraphicsSystem);
+#elif REX_HAS_METAL
+  config.graphics = REX_GRAPHICS_BACKEND(rex::graphics::metal::MetalGraphicsSystem);
 #elif REX_HAS_VULKAN
   config.graphics = REX_GRAPHICS_BACKEND(rex::graphics::vulkan::VulkanGraphicsSystem);
 #endif
+#if REX_HAS_SDL_AUDIO
   config.audio_factory = REX_AUDIO_BACKEND(rex::audio::sdl::SDLAudioSystem);
+#else
+  config.audio_factory = REX_AUDIO_BACKEND(rex::audio::nop::NopAudioSystem);
+#endif
   config.input_factory = REX_INPUT_BACKEND(rex::input::CreateDefaultInputSystem);
 
   // Allow subclass to customize config

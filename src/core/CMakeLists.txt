@@ -71,7 +71,10 @@ target_include_directories(rexcore PRIVATE
 )
 
 if(UNIX)
-    target_link_libraries(rexcore PRIVATE pthread rt dl)
+    target_link_libraries(rexcore PRIVATE pthread)
+    if(NOT APPLE)
+        target_link_libraries(rexcore PRIVATE rt dl)
+    endif()
 endif()
 
 target_link_libraries(rexcore

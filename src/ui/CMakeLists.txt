@@ -54,12 +54,27 @@ if(REXGLUE_USE_D3D12)
     )
 endif()
 
+# Metal UI backend (macOS only)
+if(APPLE)
+    set(REXUI_METAL_SOURCES
+        metal/metal_provider.mm
+        metal/metal_presenter.mm
+        metal/metal_immediate_drawer.mm
+    )
+endif()
+
 # Platform-specific sources
 if(WIN32)
     set(REXUI_PLATFORM_SOURCES
         surface_win.cpp
         window_win.cpp
         windowed_app_context_win.cpp
+    )
+elseif(APPLE)
+    set(REXUI_PLATFORM_SOURCES
+        surface_macos.mm
+        window_macos.mm
+        windowed_app_context_macos.mm
     )
 else()
     set(REXUI_PLATFORM_SOURCES
@@ -82,6 +97,15 @@ endif()
 
 if(REXGLUE_USE_D3D12)
     list(APPEND REXUI_SOURCES ${REXUI_D3D12_SOURCES})
+endif()
+
+if(APPLE)
+    list(APPEND REXUI_SOURCES ${REXUI_METAL_SOURCES})
+    set_source_files_properties(
+        ${REXUI_PLATFORM_SOURCES}
+        ${REXUI_METAL_SOURCES}
+        PROPERTIES COMPILE_FLAGS "-fobjc-arc"
+    )
 endif()
 
 add_library(rexui STATIC ${REXUI_SOURCES})
@@ -115,6 +139,15 @@ if(WIN32)
         dwmapi
         Shcore
     )
+elseif(APPLE)
+    target_link_libraries(rexui PUBLIC
+        "-framework Cocoa"
+        "-framework QuartzCore"
+        "-framework Metal"
+        "-framework MetalKit"
+        "-framework IOKit"
+        "-framework IOSurface"
+    )
 else()
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(GTK3 REQUIRED gtk+-3.0)
@@ -137,5 +170,4 @@ if(REXGLUE_USE_D3D12)
         dxc-headers
     )
 endif()
-
 
