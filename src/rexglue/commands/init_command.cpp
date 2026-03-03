@@ -54,6 +54,10 @@ std::string generate_cmakelists(const AppNameParts& names) {
   content += "    endif()\n";
   content += "endif()\n";
   content += "project(" + names.snake_case + " LANGUAGES C CXX)\n";
+  content += "if(APPLE)\n";
+  content += "    enable_language(OBJC)\n";
+  content += "    enable_language(OBJCXX)\n";
+  content += "endif()\n";
   content += "\n";
   content += "set(CMAKE_CXX_STANDARD 23)\n";
   content += "set(CMAKE_CXX_STANDARD_REQUIRED ON)\n";
