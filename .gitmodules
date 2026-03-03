@@ -6,7 +6,8 @@
 	url = https://github.com/KhronosGroup/glslang.git
 [submodule "thirdparty/FFmpeg"]
 	path = thirdparty/FFmpeg
-	url = https://github.com/xenia-project/FFmpeg.git
+	url = https://github.com/wmarti/FFmpeg.git
+	branch = xenia-ffmpeg-canary-full
 [submodule "thirdparty/tomlplusplus"]
 	path = thirdparty/tomlplusplus
 	url = https://github.com/marzer/tomlplusplus.git
@@ -56,3 +57,12 @@
 [submodule "thirdparty/cli11"]
 	path = thirdparty/cli11
 	url = https://github.com/CLIUtils/CLI11
+[submodule "thirdparty/dxc"]
+	path = thirdparty/dxc
+	url = https://github.com/wmarti/DirectXShaderCompiler.git
+[submodule "thirdparty/metal-shader-converter"]
+	path = thirdparty/metal-shader-converter
+	url = https://github.com/wmarti/metal-shader-converter.git
+[submodule "thirdparty/metal-cpp"]
+	path = thirdparty/metal-cpp
+	url = https://github.com/wmarti/metal-cpp.git
