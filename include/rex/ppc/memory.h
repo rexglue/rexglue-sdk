@@ -468,28 +468,27 @@ inline simde__m128i simde_mm_vsl(simde__m128i a, simde__m128i b) {
   // ARM64 NEON implementation using vld1/vst1 for conversion
   uint64_t vals[2];
   uint64_t res[2] = {0, 0};
-  
+
   // Store simde__m128i to memory
   simde_mm_store_si128((simde__m128i*)vals, a);
-  
+
   // Load as NEON vector
   uint64x2_t va = vld1q_u64(vals);
-  
+
   // vshlq_u64 accepts variable shift per lane
   int64x2_t shift_vector = vdupq_n_s64(shift);
   uint64x2_t low_shifted = vshlq_u64(va, shift_vector);
-  
+
   // For the carry, we need right shift
   int64x2_t rshift_vector = vdupq_n_s64(64 - shift);
   uint64x2_t high_carry = vshlq_u64(va, rshift_vector);
-  
+
   // Combine results
   uint64x2_t result_vec = vdupq_n_u64(0);
   result_vec = vsetq_lane_u64(vgetq_lane_u64(low_shifted, 0), result_vec, 0);
-  result_vec = vsetq_lane_u64(
-      vgetq_lane_u64(low_shifted, 1) | vgetq_lane_u64(high_carry, 0),
-      result_vec, 1);
-  
+  result_vec =
+      vsetq_lane_u64(vgetq_lane_u64(low_shifted, 1) | vgetq_lane_u64(high_carry, 0), result_vec, 1);
+
   // Store back to memory and reload as simde__m128i
   vst1q_u64(res, result_vec);
   return simde_mm_load_si128((simde__m128i*)res);
@@ -506,7 +505,7 @@ inline simde__m128i simde_mm_vsl(simde__m128i a, simde__m128i b) {
   alignas(16) uint64_t vals[2];
   alignas(16) uint64_t res[2] = {0, 0};
   simde_mm_store_si128((simde__m128i*)vals, a);
-  
+
   if (shift < 64) {
     uint64_t low = vals[0];
     uint64_t high = vals[1];
@@ -515,7 +514,7 @@ inline simde__m128i simde_mm_vsl(simde__m128i a, simde__m128i b) {
     res[0] = low_shifted;
     res[1] = high_shifted;
   }
-  
+
   return simde_mm_load_si128((simde__m128i*)res);
 #endif
 }
@@ -535,10 +534,10 @@ inline simde__m128i simde_mm_vslo(simde__m128i a, simde__m128i b) {
   // ARM64 NEON implementation using memory for conversion
   uint8_t src[16];
   uint8_t dst[16] = {0};
-  
+
   simde_mm_store_si128((simde__m128i*)src, a);
   memcpy(dst + shift_bytes, src, 16 - shift_bytes);
-  
+
   return simde_mm_load_si128((simde__m128i*)dst);
 
 #else
@@ -566,10 +565,10 @@ inline simde__m128i simde_mm_vsro(simde__m128i a, simde__m128i b) {
   // ARM64 NEON implementation using memory for conversion
   uint8_t src[16];
   uint8_t dst[16] = {0};
-  
+
   simde_mm_store_si128((simde__m128i*)src, a);
   memcpy(dst, src + shift_bytes, 16 - shift_bytes);
-  
+
   return simde_mm_load_si128((simde__m128i*)dst);
 
 #else
