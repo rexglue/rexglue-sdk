@@ -183,8 +183,14 @@ set_target_properties(ppc_tests PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests/bin
 )
 
-# Enable SSE4.1 for vector intrinsics used in generated code
-target_compile_options(ppc_tests PRIVATE -msse4.1 -mssse3)
+# Enable architecture-specific SIMD for generated code helpers.
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64)$"
+   AND NOT (APPLE AND CMAKE_OSX_ARCHITECTURES MATCHES "arm64"))
+    target_compile_options(ppc_tests PRIVATE -msse4.1 -mssse3)
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$"
+       OR (APPLE AND CMAKE_OSX_ARCHITECTURES MATCHES "arm64"))
+    target_compile_options(ppc_tests PRIVATE -march=armv8-a)
+endif()
 
 include(Catch)
 

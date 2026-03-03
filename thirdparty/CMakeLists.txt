@@ -1,6 +1,18 @@
 # Third-party vendored dependencies for ReXGlue
 
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+
+if(UNIX AND NOT APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
+    set(REXGLUE_LINUX_ARM64 TRUE)
+else()
+    set(REXGLUE_LINUX_ARM64 FALSE)
+endif()
+
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64)$")
+    set(REXGLUE_X86_64 TRUE)
+else()
+    set(REXGLUE_X86_64 FALSE)
+endif()
 #=============================================================================
 # Verify git submodules are initialized (only vendored ones)
 #=============================================================================
@@ -289,6 +301,15 @@ endif()
 #=============================================================================
 
 set(FFMPEG_DIR "${CMAKE_CURRENT_SOURCE_DIR}/FFmpeg")
+set(FFMPEG_OVERLAY_DIR "${CMAKE_CURRENT_BINARY_DIR}/ffmpeg-overlay/libavcodec")
+
+file(MAKE_DIRECTORY "${FFMPEG_OVERLAY_DIR}")
+configure_file("${REXGLUE_ROOT}/cmake/ffmpeg/codec_list.c"
+               "${FFMPEG_OVERLAY_DIR}/codec_list.c" COPYONLY)
+configure_file("${REXGLUE_ROOT}/cmake/ffmpeg/parser_list.c"
+               "${FFMPEG_OVERLAY_DIR}/parser_list.c" COPYONLY)
+configure_file("${REXGLUE_ROOT}/cmake/ffmpeg/bsf_list.c"
+               "${FFMPEG_OVERLAY_DIR}/bsf_list.c" COPYONLY)
 
 # Common defines for both libraries
 set(FFMPEG_COMMON_DEFINES
@@ -383,8 +404,8 @@ add_library(libavutil STATIC
     ${FFMPEG_DIR}/libavutil/film_grain_params.c
 )
 
-# Add x86 optimizations on Windows/Linux
-if(WIN32 OR (UNIX AND NOT APPLE))
+# Add x86 optimizations on x86_64 targets only
+if(REXGLUE_X86_64 AND (WIN32 OR (UNIX AND NOT APPLE)))
     target_sources(libavutil PRIVATE
         ${FFMPEG_DIR}/libavutil/x86/cpu.c
         ${FFMPEG_DIR}/libavutil/x86/fixed_dsp_init.c
@@ -392,6 +413,15 @@ if(WIN32 OR (UNIX AND NOT APPLE))
         ${FFMPEG_DIR}/libavutil/x86/imgutils_init.c
         ${FFMPEG_DIR}/libavutil/x86/lls_init.c
     )
+endif()
+
+if(REXGLUE_LINUX_ARM64)
+    target_sources(libavutil PRIVATE
+        ${FFMPEG_DIR}/libavutil/aarch64/cpu.c
+        ${FFMPEG_DIR}/libavutil/aarch64/float_dsp_init.c
+        ${FFMPEG_DIR}/libavutil/aarch64/float_dsp_neon.S
+    )
+    target_compile_definitions(libavutil PRIVATE HAVE_NEON=1 HAVE_ARMV8=1 HAVE_INLINE_ASM=1)
 endif()
 
 target_include_directories(libavutil
@@ -463,6 +493,9 @@ add_library(libavcodec STATIC
     ${FFMPEG_DIR}/libavcodec/fft_float.c
     ${FFMPEG_DIR}/libavcodec/fft_fixed_32.c
     ${FFMPEG_DIR}/libavcodec/fft_init_table.c
+    ${FFMPEG_DIR}/libavcodec/mpegaudiodec_fixed.c
+    ${FFMPEG_DIR}/libavcodec/mpegaudiodec_float.c
+    ${FFMPEG_DIR}/libavcodec/wmadec.c
 )
 
 # Windows-specific source
@@ -472,8 +505,8 @@ if(WIN32)
     )
 endif()
 
-# Add x86 optimizations on Windows/Linux
-if(WIN32 OR (UNIX AND NOT APPLE))
+# Add x86 optimizations on x86_64 targets only
+if(REXGLUE_X86_64 AND (WIN32 OR (UNIX AND NOT APPLE)))
     target_sources(libavcodec PRIVATE
         ${FFMPEG_DIR}/libavcodec/x86/constants.c
         ${FFMPEG_DIR}/libavcodec/x86/fdctdsp_init.c
@@ -482,6 +515,20 @@ if(WIN32 OR (UNIX AND NOT APPLE))
         ${FFMPEG_DIR}/libavcodec/x86/fdct.c
     )
 endif()
+
+if(REXGLUE_LINUX_ARM64)
+    target_sources(libavcodec PRIVATE
+        ${FFMPEG_DIR}/libavcodec/aarch64/fft_init_aarch64.c
+        ${FFMPEG_DIR}/libavcodec/aarch64/fft_neon.S
+        ${FFMPEG_DIR}/libavcodec/aarch64/mdct_neon.S
+        ${FFMPEG_DIR}/libavcodec/aarch64/simple_idct_neon.S
+        ${FFMPEG_DIR}/libavcodec/aarch64/videodsp.S
+        ${FFMPEG_DIR}/libavcodec/aarch64/neon.S
+    )
+    target_compile_definitions(libavcodec PRIVATE HAVE_NEON=1 HAVE_ARMV8=1 HAVE_INLINE_ASM=1)
+endif()
+
+target_include_directories(libavcodec BEFORE PRIVATE ${FFMPEG_OVERLAY_DIR})
 
 target_include_directories(libavcodec
     PUBLIC

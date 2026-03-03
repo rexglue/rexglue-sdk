@@ -28,6 +28,11 @@ if(APPLE)
     enable_language(OBJCXX)
 endif()
 
+if(UNIX AND NOT APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
+    enable_language(ASM)
+    string(APPEND CMAKE_ASM_FLAGS " -march=armv8-a")
+endif()
+
 #==========================================================
 # Build Options
 #==========================================================
@@ -90,8 +95,13 @@ set(CMAKE_RELWITHDEBINFO_POSTFIX rd)
 
 if(UNIX AND NOT APPLE)
     # TODO: do we actually need this?
-    # Use large code model on Linux for linking with very large recompiled executables (35MB+)
-    add_compile_options(-mcmodel=large)
+    # Use the large code model on x86_64 for very large recompiled executables.
+    # AArch64 does not support it, so keep the small model there instead.
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64)$")
+        add_compile_options(-mcmodel=large)
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
+        add_compile_options(-mcmodel=small)
+    endif()
 endif()
 
 if(NOT WIN32)
@@ -128,7 +138,13 @@ elseif(APPLE)
     set(REX_PLATFORM "macos-${REXGLUE_APPLE_TARGET_ARCH}")
     add_compile_definitions(REX_PLATFORM_MAC=1)
 elseif(UNIX AND NOT APPLE)
-    set(REX_PLATFORM "linux-amd64")
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
+        set(REX_PLATFORM "linux-arm64")
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64)$")
+        set(REX_PLATFORM "linux-amd64")
+    else()
+        set(REX_PLATFORM "linux-${CMAKE_SYSTEM_PROCESSOR}")
+    endif()
     add_compile_definitions(REX_PLATFORM_LINUX=1)
 else()
     message(FATAL_ERROR "Unsupported platform. ReXGlue supports Windows, Linux, and macOS.")

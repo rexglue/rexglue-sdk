@@ -372,8 +372,14 @@ bool RecompilerOutput::write_cmake(const std::filesystem::path& dir) {
   out << fmt::format("    target_compile_options({} PRIVATE\n", lib_name);
   out << "        -fno-strict-aliasing\n";
   out << "        -ffp-model=strict\n";
-  out << "        -msse4.1\n";
   out << "    )\n";
+  out << "    if(CMAKE_SYSTEM_PROCESSOR MATCHES \"^(x86_64|AMD64)$\"\n";
+  out << "       AND NOT (APPLE AND CMAKE_OSX_ARCHITECTURES MATCHES \"arm64\"))\n";
+  out << fmt::format("        target_compile_options({} PRIVATE -msse4.1)\n", lib_name);
+  out << "    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES \"^(aarch64|arm64|ARM64)$\"\n";
+  out << "           OR (APPLE AND CMAKE_OSX_ARCHITECTURES MATCHES \"arm64\"))\n";
+  out << fmt::format("        target_compile_options({} PRIVATE -march=armv8-a)\n", lib_name);
+  out << "    endif()\n";
   out << "endif()\n\n";
 
   out << "# Precompiled headers for faster builds\n";

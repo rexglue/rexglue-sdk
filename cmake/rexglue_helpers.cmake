@@ -44,9 +44,12 @@ function(rexglue_configure_target target_name)
             $<TARGET_FILE:rex::kernel>
             -Wl,--no-whole-archive
         )
-        # Large executable support
-        target_link_options(${target_name} PRIVATE -Wl,--no-relax)
-        target_compile_options(${target_name} PRIVATE -mcmodel=large)
+        if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64)$")
+            target_link_options(${target_name} PRIVATE -Wl,--no-relax)
+            target_compile_options(${target_name} PRIVATE -mcmodel=large)
+        elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
+            target_compile_options(${target_name} PRIVATE -march=armv8-a)
+        endif()
     elseif(APPLE)
         target_link_libraries(${target_name} PRIVATE
             "-framework Cocoa"
@@ -54,7 +57,9 @@ function(rexglue_configure_target target_name)
         )
     endif()
 
-    if(NOT MSVC)
+    if(NOT MSVC
+       AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64)$"
+       AND NOT (APPLE AND CMAKE_OSX_ARCHITECTURES MATCHES "arm64"))
         target_compile_options(${target_name} PRIVATE -msse4.1)
     endif()
 endfunction()
