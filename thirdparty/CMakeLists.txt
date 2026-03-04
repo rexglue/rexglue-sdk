@@ -663,14 +663,27 @@ add_library(
   ${FFMPEG_DIR}/libavcodec/idctdsp.c
   ${FFMPEG_DIR}/libavcodec/simple_idct.c
   ${FFMPEG_DIR}/libavcodec/jrevdct.c
+  ${FFMPEG_DIR}/libavcodec/dct.c
+  ${FFMPEG_DIR}/libavcodec/dct32_fixed.c
+  ${FFMPEG_DIR}/libavcodec/dct32_float.c
   ${FFMPEG_DIR}/libavcodec/mdct_float.c
   ${FFMPEG_DIR}/libavcodec/mdct_fixed_32.c
+  ${FFMPEG_DIR}/libavcodec/rdft.c
   ${FFMPEG_DIR}/libavcodec/sinewin.c
+  ${FFMPEG_DIR}/libavcodec/mpegaudio.c
+  ${FFMPEG_DIR}/libavcodec/mpegaudiodec_common.c
+  ${FFMPEG_DIR}/libavcodec/mpegaudiodsp.c
+  ${FFMPEG_DIR}/libavcodec/mpegaudiodsp_data.c
+  ${FFMPEG_DIR}/libavcodec/mpegaudiodsp_fixed.c
+  ${FFMPEG_DIR}/libavcodec/mpegaudiodsp_float.c
+  ${FFMPEG_DIR}/libavcodec/mpegaudiodecheader.c
+  ${FFMPEG_DIR}/libavcodec/mpegaudiodata.c
   ${FFMPEG_DIR}/libavcodec/wma_freqs.c
   ${FFMPEG_DIR}/libavcodec/wmaprodec.c
   ${FFMPEG_DIR}/libavcodec/wma.c
   ${FFMPEG_DIR}/libavcodec/wma_common.c
   ${FFMPEG_DIR}/libavcodec/null_bsf.c
+  ${FFMPEG_DIR}/libavcodec/mpegaudio_parser.c
   ${FFMPEG_DIR}/libavcodec/pthread.c
   ${FFMPEG_DIR}/libavcodec/pthread_slice.c
   ${FFMPEG_DIR}/libavcodec/pthread_frame.c
@@ -681,6 +694,7 @@ add_library(
   ${FFMPEG_DIR}/libavcodec/mpegaudiodec_fixed.c
   ${FFMPEG_DIR}/libavcodec/mpegaudiodec_float.c
   ${FFMPEG_DIR}/libavcodec/wmadec.c
+  ${FFMPEG_DIR}/libavcodec/aactab.c
 )
 
 # Windows-specific source
@@ -694,6 +708,7 @@ if (IS_X86_64)
     libavcodec
     PRIVATE ${FFMPEG_DIR}/libavcodec/x86/constants.c ${FFMPEG_DIR}/libavcodec/x86/fdctdsp_init.c
             ${FFMPEG_DIR}/libavcodec/x86/fft_init.c ${FFMPEG_DIR}/libavcodec/x86/idctdsp_init.c
+            ${FFMPEG_DIR}/libavcodec/x86/dct_init.c ${FFMPEG_DIR}/libavcodec/x86/mpegaudiodsp.c
             ${FFMPEG_DIR}/libavcodec/x86/fdct.c
   )
 endif ()
