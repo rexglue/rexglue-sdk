@@ -18,7 +18,7 @@ set(REXGLUE_INSTALL_TARGETS
     rexaudio rexgraphics rexsystem rexkernel rexcodegen
     # Vendored thirdparty libraries (required by SDK)
     disruptorplus renderdoc simde tomlplusplus  # INTERFACE (header-only)
-    aes128 mspack disasm xxhash imgui  # STATIC libraries
+    aes128 mspack o1heap disasm xxhash imgui  # STATIC libraries
     libavcodec libavutil           # FFmpeg (vendored build)
     # CLI tool
     rexglue
@@ -65,6 +65,10 @@ install(DIRECTORY thirdparty/simde/simde
 install(FILES
     thirdparty/xxHash/xxhash.h
     thirdparty/xxHash/xxh3.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+install(FILES
+    thirdparty/o1heap/o1heap/o1heap.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 install(FILES

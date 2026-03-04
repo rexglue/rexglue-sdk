@@ -103,6 +103,20 @@ target_include_directories(mspack PUBLIC
 # Suppress warnings in third-party C code
 target_compile_options(mspack PRIVATE -w)
 
+# o1heap - O(1) heap allocator for real-time systems (used by rexcrt heap)
+# NOTE: o1heap.c auto-detects CLZ via __builtin_clzl when __clang__/__GNUC__
+# are defined, but on Windows unsigned long is 32-bit even on x64.  We inject
+# a config header that provides a correct 64-bit CLZ
+add_library(o1heap STATIC
+    o1heap/o1heap/o1heap.c
+)
+target_include_directories(o1heap PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/o1heap/o1heap>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+target_compile_definitions(o1heap PRIVATE
+    "O1HEAP_CONFIG_HEADER=\"${CMAKE_CURRENT_SOURCE_DIR}/../include/rex/o1heap_config.h\"")
+target_compile_options(o1heap PRIVATE -w)
+
 # xxHash - extremely fast non-cryptographic hash (git submodule)
 set(XXHASH_BUILD_XXHSUM OFF CACHE BOOL "" FORCE)
 add_subdirectory(xxHash/cmake_unofficial)

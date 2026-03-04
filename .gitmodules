@@ -56,3 +56,6 @@
 [submodule "thirdparty/cli11"]
 	path = thirdparty/cli11
 	url = https://github.com/CLIUtils/CLI11
+[submodule "thirdparty/o1heap"]
+	path = thirdparty/o1heap
+	url = https://github.com/pavel-kirienko/o1heap.git
