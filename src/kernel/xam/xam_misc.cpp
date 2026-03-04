@@ -395,7 +395,6 @@ XAM_EXPORT_STUB(__imp__XamDataCenterGetDhcpOptionResponseHostnameAndPort);
 XAM_EXPORT_STUB(__imp__XamDataCenterLog);
 XAM_EXPORT_STUB(__imp__XamDataCenterLogEvent);
 XAM_EXPORT_STUB(__imp__XamDataCenterShowForceSignInMessage);
-XAM_EXPORT_STUB(__imp__XamDbgPrint);
 XAM_EXPORT_STUB(__imp__XamDbgSetBreakLevel);
 XAM_EXPORT_STUB(__imp__XamDbgSetOutputLevel);
 XAM_EXPORT_STUB(__imp__XamDeactivateCounterMeasure);
