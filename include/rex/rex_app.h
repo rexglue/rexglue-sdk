@@ -18,6 +18,7 @@
 #include <string_view>
 #include <thread>
 
+#include <rex/ppc/image_info.h>
 #include <rex/runtime.h>
 #include <rex/ui/imgui_dialog.h>
 #include <rex/ui/imgui_drawer.h>
@@ -26,21 +27,9 @@
 #include <rex/ui/window_listener.h>
 #include <rex/ui/windowed_app.h>
 
-struct PPCFuncMapping;
-
 namespace rex {
 
 class LogCaptureSink;
-
-/// PPC image layout passed from the generated config header into ReXApp.
-struct PPCImageInfo {
-  uint32_t code_base;
-  uint32_t code_size;
-  uint32_t image_base;
-  uint32_t image_size;
-  const PPCFuncMapping* func_mappings;
-  bool rexcrt_heap = false;  ///< Set by codegen when [rexcrt] has heap functions
-};
 
 /// Content path configuration, passed to OnConfigurePaths().
 /// All paths start with sensible defaults derived from CLI args and cvars.
@@ -71,8 +60,7 @@ class SettingsDialog;
 ///       static std::unique_ptr<rex::ui::WindowedApp> Create(
 ///           rex::ui::WindowedAppContext& ctx) {
 ///         return std::unique_ptr<MyApp>(new MyApp(ctx, "my_app",
-///             {PPC_CODE_BASE, PPC_CODE_SIZE, PPC_IMAGE_BASE,
-///              PPC_IMAGE_SIZE, PPCFuncMappings}));
+///             PPCImageConfig));
 ///       }
 ///   };
 ///   REX_DEFINE_APP(my_app, MyApp::Create)

@@ -82,6 +82,8 @@ bool RecompilerOutput::write_all(const std::filesystem::path& output_dir) {
   // Write all output files
   if (!write_config_h(output_dir))
     return false;
+  if (!write_config_cpp(output_dir))
+    return false;
   if (!write_shared_h(output_dir))
     return false;
   if (!write_recomp_files(output_dir))
@@ -118,6 +120,44 @@ bool RecompilerOutput::write_config_h(const std::filesystem::path& dir) {
   out << fmt::format("#define PPC_CODE_BASE 0x{:08X}ull\n", config_.code_base);
   out << fmt::format("#define PPC_CODE_SIZE 0x{:X}ull\n", config_.code_size);
   out << "\n";
+  out << fmt::format("#define REXCRT_HEAP {}\n", config_.rexcrt_heap ? 1 : 0);
+  out << "\n";
+
+  // Prebuilt PPCImageInfo (defined in {project}_config.cpp)
+  out << "#include <rex/ppc/image_info.h>\n";
+  out << "extern const rex::PPCImageInfo PPCImageConfig;\n";
+  out << "\n";
+
+  generated_files_.push_back(filename);
+  return true;
+}
+
+//=============================================================================
+// {project_name}_config.cpp
+//=============================================================================
+
+bool RecompilerOutput::write_config_cpp(const std::filesystem::path& dir) {
+  auto filename = fmt::format("{}_config.cpp", config_.project_name);
+  auto path = dir / filename;
+  std::ofstream out(path);
+  if (!out) {
+    REXCODEGEN_ERROR("Failed to create: {}", path.string());
+    return false;
+  }
+
+  out << "//=============================================================================\n";
+  out << fmt::format("// ReXGlue Generated - {} Image Configuration\n", config_.project_name);
+  out << "//=============================================================================\n\n";
+  out << fmt::format("#include \"{}_init.h\"\n\n", config_.project_name);
+  out << "#include <rex/ppc/image_info.h>\n\n";
+  out << "const rex::PPCImageInfo PPCImageConfig = {\n";
+  out << "    PPC_CODE_BASE,      // code_base\n";
+  out << "    PPC_CODE_SIZE,      // code_size\n";
+  out << "    PPC_IMAGE_BASE,     // image_base\n";
+  out << "    PPC_IMAGE_SIZE,     // image_size\n";
+  out << "    PPCFuncMappings,    // func_mappings\n";
+  out << "    REXCRT_HEAP,        // rexcrt_heap\n";
+  out << "};\n";
 
   generated_files_.push_back(filename);
   return true;

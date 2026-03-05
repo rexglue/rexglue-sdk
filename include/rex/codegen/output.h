@@ -39,6 +39,7 @@ struct OutputConfig {
   std::string project_name = "rex";
   bool emit_comments = true;
   bool emit_cmake = true;
+  bool rexcrt_heap = false;
 };
 
 //=============================================================================
@@ -139,6 +140,7 @@ class RecompilerOutput {
 
   // File generators
   bool write_config_h(const std::filesystem::path& dir);
+  bool write_config_cpp(const std::filesystem::path& dir);
   bool write_shared_h(const std::filesystem::path& dir);
   bool write_recomp_files(const std::filesystem::path& dir);
   bool write_init(const std::filesystem::path& dir);  // Combined func mapping + table init

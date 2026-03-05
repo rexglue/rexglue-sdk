@@ -55,8 +55,7 @@ std::string generate_main_cpp(const AppNameParts& names) {
   content += "      rex::ui::WindowedAppContext& ctx) {\n";
   content += "    return std::unique_ptr<" + class_name + ">(new " + class_name + "(ctx, \"" +
              names.snake_case + "\",\n";
-  content += "        {PPC_CODE_BASE, PPC_CODE_SIZE, PPC_IMAGE_BASE,\n";
-  content += "         PPC_IMAGE_SIZE, PPCFuncMappings}));\n";
+  content += "        PPCImageConfig));\n";
   content += "  }\n";
   content += "};\n";
   content += "\n";

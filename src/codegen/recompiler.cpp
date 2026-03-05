@@ -789,6 +789,10 @@ bool Recompiler::recompile(bool force) {
 
     println("");
 
+    // Prebuilt PPCImageInfo (defined in {project}_init.cpp)
+    println("#include <rex/ppc/image_info.h>");
+    println("extern const rex::PPCImageInfo PPCImageConfig;");
+
     println("\n#endif");
 
     REXCODEGEN_TRACE("  {}_config.h: step 5 - saving", projectName);
@@ -888,6 +892,26 @@ bool Recompiler::recompile(bool force) {
     SaveCurrentOutData(fmt::format("{}_init.cpp", projectName));
   }
 
+  REXCODEGEN_TRACE("Recompile: generating {}_config.cpp (PPCImageConfig)", projectName);
+  {
+    println("//=============================================================================");
+    println("// ReXGlue Generated - {} Image Configuration", projectName);
+    println("//=============================================================================\n");
+    println("#include \"{}_init.h\"\n", projectName);
+    println("#include <rex/ppc/image_info.h>");
+    println("");
+    println("const rex::PPCImageInfo PPCImageConfig = {{");
+    println("    PPC_CODE_BASE,      // code_base");
+    println("    PPC_CODE_SIZE,      // code_size");
+    println("    PPC_IMAGE_BASE,     // image_base");
+    println("    PPC_IMAGE_SIZE,     // image_size");
+    println("    PPCFuncMappings,    // func_mappings");
+    println("    REXCRT_HEAP,        // rexcrt_heap");
+    println("}};");
+
+    SaveCurrentOutData(fmt::format("{}_config.cpp", projectName));
+  }
+
   std::erase_if(functions, [](const FunctionNode* fn) {
     return fn->authority() == FunctionAuthority::IMPORT;
   });
@@ -922,6 +946,7 @@ bool Recompiler::recompile(bool force) {
     println("#   target_compile_options(your_target PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/EHa>)");
     println("#");
     println("set(GENERATED_SOURCES");
+    println("    ${{CMAKE_CURRENT_LIST_DIR}}/{}_config.cpp", projectName);
     println("    ${{CMAKE_CURRENT_LIST_DIR}}/{}_init.cpp", projectName);
     for (size_t i = 0; i < cppFileIndex; ++i) {
       println("    ${{CMAKE_CURRENT_LIST_DIR}}/{}_recomp.{}.cpp", projectName, i);
