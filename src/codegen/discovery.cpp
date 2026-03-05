@@ -559,6 +559,16 @@ std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, uint32_t bctrAd
       }
     }
 
+    // PPC instructions must be 4-byte aligned
+    if (target & 3) {
+      REXCODEGEN_TRACE(
+          "detectJumpTable: bctr=0x{:08X} entry[{}] target=0x{:08X} not 4-byte aligned", bctrAddr,
+          i, target);
+      if (jt.targets.empty())
+        return std::nullopt;
+      break;
+    }
+
     // Validate target is within code region - jump table targets help DEFINE function extent
     // Don't constrain by funcEnd since that's just PDATA which may not include out-of-line code
     if (target == 0 || !containingRegion.contains(target)) {

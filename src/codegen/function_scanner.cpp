@@ -416,6 +416,10 @@ std::vector<guest_addr_t> read_table_entries(const FunctionScanner& scanner,
       }
     }
 
+    // PPC instructions must be 4-byte aligned
+    if (target & 3)
+      goto done;
+
     // Validate target (stop on null or invalid for absolute type)
     if (target == 0 && match.type == JumpTableType::kAbsolute)
       goto done;
