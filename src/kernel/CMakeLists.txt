@@ -55,6 +55,8 @@ set(REXKERNEL_SOURCES
     xboxkrnl/xboxkrnl_xconfig.cpp
     xboxkrnl/xboxkrnl_audio.cpp
     xboxkrnl/xboxkrnl_audio_xma.cpp
+
+    crt/heap.cpp
 )
 
 add_library(rexkernel STATIC ${REXKERNEL_SOURCES})

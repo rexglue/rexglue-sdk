@@ -16,6 +16,7 @@
 #include <rex/logging.h>
 #include <rex/ppc/context.h>     // PPCFuncMapping
 #include <rex/ppc/exceptions.h>  // SEH exception support
+#include <rex/kernel/crt/heap.h>
 #include <rex/runtime.h>
 #include <rex/system/export_resolver.h>
 #include <rex/system/kernel_state.h>

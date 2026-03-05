@@ -39,6 +39,7 @@ struct PPCImageInfo {
   uint32_t image_base;
   uint32_t image_size;
   const PPCFuncMapping* func_mappings;
+  bool rexcrt_heap = false;  ///< Set by codegen when [rexcrt] has heap functions
 };
 
 /// Content path configuration, passed to OnConfigurePaths().

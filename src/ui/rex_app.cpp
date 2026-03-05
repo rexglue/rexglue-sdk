@@ -12,6 +12,7 @@
 #include <rex/rex_app.h>
 
 #include <rex/cvar.h>
+#include <rex/kernel/crt/heap.h>
 #include <rex/filesystem.h>
 #include <rex/logging/sink.h>
 #include <rex/logging.h>
@@ -141,6 +142,17 @@ bool ReXApp::OnInitialize() {
   if (XFAILED(status)) {
     REXLOG_ERROR("Failed to load XEX: {:08X}", status);
     return false;
+  }
+
+  // Initialize rexcrt heap after LoadXexImage to avoid guest memory writes
+  // corrupting the heap region. rexcrt_heap is set by codegen (REXCRT_HEAP)
+  // when [rexcrt] contains heap functions -- originals are stripped so init
+  // is required. Size is controlled by the rexcrt_heap_size_mb CVAR.
+  if (ppc_info_.rexcrt_heap) {
+    if (!rex::kernel::crt::InitHeap(REXCVAR_GET(rexcrt_heap_size_mb))) {
+      REXLOG_ERROR("Failed to initialize rexcrt heap");
+      return false;
+    }
   }
 
   // Notify subclass
