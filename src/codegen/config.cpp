@@ -394,10 +394,6 @@ RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
     };
 
     checkGroup("heap", {"RtlAllocateHeap", "RtlFreeHeap", "RtlSizeHeap", "RtlReAllocateHeap"});
-    checkGroup("file", {"CreateFileA", "CloseHandle", "ReadFile", "WriteFile", "SetFilePointer",
-                        "GetFileSize", "GetFileAttributesA", "GetFileAttributesExA",
-                        "FindFirstFileA", "FindNextFileA", "FindClose", "CreateDirectoryA",
-                        "RemoveDirectoryA", "DeleteFileA", "GetCurrentDirectoryA"});
   }
 
   // Check required fields
