@@ -52,8 +52,9 @@ class SettingsDialog;
 /// module launch, and shutdown. Consumer projects inherit this and optionally
 /// override virtual hooks for customization.
 ///
-/// The generated main.cpp from `rexglue init` / `rexglue migrate` uses this:
+/// The generated src/{name}_app.h from `rexglue init` uses this:
 /// @code
+///   // src/my_app_app.h (yours to customize)
 ///   class MyApp : public rex::ReXApp {
 ///   public:
 ///       using rex::ReXApp::ReXApp;
@@ -62,7 +63,13 @@ class SettingsDialog;
 ///         return std::unique_ptr<MyApp>(new MyApp(ctx, "my_app",
 ///             PPCImageConfig));
 ///       }
+///       // Override hooks: OnPreSetup, OnPostSetup, OnCreateDialogs, etc.
 ///   };
+///
+///   // src/main.cpp
+///   #include "generated/my_app_config.h"
+///   #include "generated/my_app_init.h"
+///   #include "my_app_app.h"
 ///   REX_DEFINE_APP(my_app, MyApp::Create)
 /// @endcode
 class ReXApp : public ui::WindowedApp, public ui::WindowListener, public ui::WindowInputListener {
