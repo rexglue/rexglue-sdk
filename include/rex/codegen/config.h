@@ -101,6 +101,11 @@ struct RecompilerConfig {
   uint32_t longJmpAddress = 0;
   uint32_t setJmpAddress = 0;
 
+  // === rexcrt: CRT function address overrides ===
+  // Maps function name -> guest address (e.g. "CreateFileA" -> 0x8248B780)
+  // Parsed from [rexcrt] TOML table. Codegen generates rexcrt_<Name> entries.
+  std::unordered_map<std::string, uint32_t> rexcrtFunctions;
+
   // === User hints (merged with analysis results in AnalysisState) ===
   std::unordered_map<uint32_t, uint32_t> invalidInstructionHints;  ///< addr -> size
   std::unordered_set<uint32_t>

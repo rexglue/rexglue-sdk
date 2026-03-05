@@ -400,12 +400,13 @@ class FunctionNode {
   const std::optional<ExceptionInfo>& exceptionInfo() const { return exceptionInfo_; }
   bool hasExceptionInfo() const { return exceptionInfo_.has_value() && exceptionInfo_->hasInfo(); }
 
+  void setName(std::string name) { name_ = std::move(name); }
+
  private:
   //=========================================================================
   // Mutation methods - only FunctionGraph can call these
   //=========================================================================
 
-  void setName(std::string name) { name_ = std::move(name); }
   void setCode(const uint8_t* ptr) { code_ = ptr; }
   void setHasExceptionHandler(bool val) { hasExceptionHandler_ = val; }
   void setExceptionInfo(ExceptionInfo info) { exceptionInfo_ = std::move(info); }

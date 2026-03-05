@@ -714,6 +714,17 @@ bool Recompiler::recompile(bool force) {
   std::sort(functions.begin(), functions.end(),
             [](const auto* a, const auto* b) { return a->base() < b->base(); });
 
+  // Build rexcrt reverse map and rename graph nodes so all call sites
+  // emit the rexcrt_ name instead of sub_XXXXXXXX.
+  std::unordered_map<uint32_t, std::string> rexcrtByAddr;
+  for (const auto& [name, addr] : config().rexcrtFunctions) {
+    auto crtName = fmt::format("rexcrt_{}", name);
+    rexcrtByAddr[addr] = crtName;
+    if (auto* node = graph().getFunction(addr)) {
+      node->setName(std::move(crtName));
+    }
+  }
+
   // Use project name for all output file naming (default: "rex")
   const std::string& projectName = config().projectName;
 
@@ -769,6 +780,13 @@ bool Recompiler::recompile(bool force) {
     println("#define PPC_CODE_BASE 0x{:X}ull", codeMin);
     println("#define PPC_CODE_SIZE 0x{:X}ull", codeMax - codeMin);
 
+    // Emit rexcrt heap flag -- set to 1 when [rexcrt] contains heap functions,
+    // 0 otherwise. Consumed by PPCImageInfo to auto-init the heap after
+    // LoadXexImage (originals are stripped so init is required).
+    bool hasRexcrtHeap = config().rexcrtFunctions.contains("RtlAllocateHeap");
+    println("");
+    println("#define REXCRT_HEAP {}", hasRexcrtHeap ? 1 : 0);
+
     println("");
 
     println("\n#endif");
@@ -786,6 +804,12 @@ bool Recompiler::recompile(bool force) {
     println("#include <rex/logging.h>  // For REX_FATAL on unresolved calls");
 
     for (const auto* fn : functions) {
+      auto crtIt = rexcrtByAddr.find(static_cast<uint32_t>(fn->base()));
+      if (crtIt != rexcrtByAddr.end()) {
+        println("PPC_EXTERN_FUNC({});", crtIt->second);
+        continue;
+      }
+
       std::string func_name;
       if (fn->base() == analysisState().entryPoint) {
         func_name = "xstart";
@@ -833,6 +857,12 @@ bool Recompiler::recompile(bool force) {
       if (fn->base() < funcMappingCodeMin)
         continue;
 
+      auto crtIt = rexcrtByAddr.find(static_cast<uint32_t>(fn->base()));
+      if (crtIt != rexcrtByAddr.end()) {
+        println("\t{{ 0x{:X}, {} }},", fn->base(), crtIt->second);
+        continue;
+      }
+
       std::string func_name;
       if (fn->base() == analysisState().entryPoint) {
         func_name = "xstart";
@@ -860,6 +890,11 @@ bool Recompiler::recompile(bool force) {
 
   std::erase_if(functions, [](const FunctionNode* fn) {
     return fn->authority() == FunctionAuthority::IMPORT;
+  });
+
+  // Remove rexcrt functions -- SDK provides these, no need to recompile
+  std::erase_if(functions, [&rexcrtByAddr](const FunctionNode* fn) {
+    return rexcrtByAddr.contains(static_cast<uint32_t>(fn->base()));
   });
 
   // TODO: Add fancy single-line progress indicator

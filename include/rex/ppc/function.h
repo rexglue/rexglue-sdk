@@ -604,3 +604,11 @@ constexpr size_t kExLoadedImageNameSize = 255 + 1;
 // Stub function export: wraps PPC_STUB for a xam.xex export.
 // Usage: XAM_EXPORT_STUB(__imp__FunctionName)
 #define XAM_EXPORT_STUB(name) PPC_STUB(name)
+
+// Implemented rexcrt hook: wraps PPC_HOOK for a rexcrt CRT replacement.
+// Usage: REXCRT_EXPORT(rexcrt_FunctionName, handler_function)
+#define REXCRT_EXPORT(name, function) PPC_HOOK(name, function)
+
+// Stub rexcrt hook: wraps PPC_STUB for a rexcrt CRT replacement.
+// Usage: REXCRT_EXPORT_STUB(rexcrt_FunctionName)
+#define REXCRT_EXPORT_STUB(name) PPC_STUB(name)

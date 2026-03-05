@@ -78,7 +78,7 @@ using PPCFunc = void(PPCContext& ctx, uint8_t* base);
 #define PPC_STRINGIFY(x) PPC_XSTRINGIFY(x)
 #define PPC_FUNC(x) void x([[maybe_unused]] PPCContext& __restrict ctx, uint8_t* base)
 #define PPC_FUNC_IMPL(x) extern "C" PPC_FUNC(x)
-#define PPC_EXTERN_FUNC(x) extern PPC_FUNC(x)
+#define PPC_EXTERN_FUNC(x) extern "C" PPC_FUNC(x)
 #define PPC_EXTERN_IMPORT(x) extern "C" PPC_FUNC(x)  // For __imp__ kernel imports
 #define PPC_WEAK_FUNC(x) __attribute__((weak, noinline)) PPC_FUNC(x)
 
