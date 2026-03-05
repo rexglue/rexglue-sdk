@@ -59,6 +59,7 @@ set(REXKERNEL_SOURCES
     crt/heap.cpp
     crt/file.cpp
     crt/memory.cpp
+    crt/string.cpp
 )
 
 add_library(rexkernel STATIC ${REXKERNEL_SOURCES})
@@ -79,5 +80,6 @@ target_link_libraries(rexkernel
         rexgraphics
         rexinput
         rexaudio
+        o1heap
 )
 
