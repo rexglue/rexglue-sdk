@@ -415,6 +415,71 @@ bool GTKWindow::HandleMouse(GdkEvent* event, WindowDestructionReceiver& destruct
   return e.is_handled();
 }
 
+static VirtualKey GdkKeyvalToVirtualKey(guint keyval) {
+  // Normalize case for letter keys so Shift doesn't change the VK code.
+  guint kv = gdk_keyval_to_upper(keyval);
+
+  // ASCII printable range shared between GDK keysyms and VirtualKey:
+  //   Digits 0-9: GDK 0x30-0x39 == VK 0x30-0x39
+  //   Letters A-Z: GDK 0x41-0x5A == VK 0x41-0x5A (after to_upper above)
+  //   Space: GDK 0x20 == VK_SPACE 0x20
+  if ((kv >= 0x30 && kv <= 0x39) ||  // 0-9
+      (kv >= 0x41 && kv <= 0x5A) ||  // A-Z
+      kv == 0x20) {                   // Space
+    return static_cast<VirtualKey>(kv);
+  }
+
+  // Numpad digits: GDK_KEY_KP_0..9 = 0xFF B0..B9, VK_NUMPAD0..9 = 0x60..69
+  if (kv >= 0xFFB0 && kv <= 0xFFB9) {
+    return static_cast<VirtualKey>(0x60 + (kv - 0xFFB0));
+  }
+
+  // Function keys: GDK_KEY_F1..F24 = 0xFF BE..D5, VK_F1..F24 = 0x70..87
+  if (kv >= 0xFFBE && kv <= 0xFFD5) {
+    return static_cast<VirtualKey>(0x70 + (kv - 0xFFBE));
+  }
+
+  switch (kv) {
+    // --- Navigation cluster ---
+    case 0xFF50: return VirtualKey::kHome;
+    case 0xFF51: return VirtualKey::kLeft;
+    case 0xFF52: return VirtualKey::kUp;
+    case 0xFF53: return VirtualKey::kRight;
+    case 0xFF54: return VirtualKey::kDown;
+    case 0xFF55: return VirtualKey::kPrior;   // Page Up
+    case 0xFF56: return VirtualKey::kNext;    // Page Down
+    case 0xFF57: return VirtualKey::kEnd;
+    case 0xFF63: return VirtualKey::kInsert;
+    case 0xFFFF: return VirtualKey::kDelete;
+    // --- Common keys ---
+    case 0xFF08: return VirtualKey::kBack;    // Backspace
+    case 0xFF09: return VirtualKey::kTab;
+    case 0xFF0D: return VirtualKey::kReturn;  // Enter
+    case 0xFF8D: return VirtualKey::kSeparator; // KP_Enter
+    case 0xFF1B: return VirtualKey::kEscape;
+    case 0xFF13: return VirtualKey::kPause;
+    case 0xFF14: return VirtualKey::kScroll;  // Scroll Lock
+    case 0xFF7F: return VirtualKey::kNumLock;
+    case 0xFFE5: return VirtualKey::kCapital; // Caps Lock
+    // --- Modifier keys ---
+    case 0xFFE1: return VirtualKey::kLShift;
+    case 0xFFE2: return VirtualKey::kRShift;
+    case 0xFFE3: return VirtualKey::kLControl;
+    case 0xFFE4: return VirtualKey::kRControl;
+    case 0xFFE9: return VirtualKey::kLMenu;   // Left Alt
+    case 0xFFEA: return VirtualKey::kRMenu;   // Right Alt
+    case 0xFFEB: return VirtualKey::kLWin;    // Left Super
+    case 0xFFEC: return VirtualKey::kRWin;    // Right Super
+    // --- Numpad operators ---
+    case 0xFFAA: return VirtualKey::kMultiply;
+    case 0xFFAB: return VirtualKey::kAdd;
+    case 0xFFAD: return VirtualKey::kSubtract;
+    case 0xFFAE: return VirtualKey::kDecimal;
+    case 0xFFAF: return VirtualKey::kDivide;
+    default:     return VirtualKey::kNone;
+  }
+}
+
 bool GTKWindow::HandleKeyboard(GdkEventKey* event,
                                WindowDestructionReceiver& destruction_receiver) {
   unsigned int modifiers = event->state;
@@ -423,8 +488,8 @@ bool GTKWindow::HandleKeyboard(GdkEventKey* event,
   bool alt_pressed = modifiers & GDK_META_MASK;
   bool super_pressed = modifiers & GDK_SUPER_MASK;
   uint32_t key_char = gdk_keyval_to_unicode(event->keyval);
-  // TODO(Triang3l): event->hardware_keycode to VirtualKey translation.
-  KeyEvent e(this, VirtualKey(event->hardware_keycode), 1, event->type == GDK_KEY_RELEASE,
+  VirtualKey vk = GdkKeyvalToVirtualKey(event->keyval);
+  KeyEvent e(this, vk, 1, event->type == GDK_KEY_RELEASE,
              shift_pressed, ctrl_pressed, alt_pressed, super_pressed);
   switch (event->type) {
     case GDK_KEY_PRESS:
