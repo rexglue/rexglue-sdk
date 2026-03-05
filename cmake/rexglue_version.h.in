@@ -1,0 +1,10 @@
+#pragma once
+
+namespace rexglue::build {
+
+inline constexpr int kVersionMajor = @PROJECT_VERSION_MAJOR@;
+inline constexpr int kVersionMinor = @PROJECT_VERSION_MINOR@;
+inline constexpr int kVersionPatch = @PROJECT_VERSION_PATCH@;
+inline constexpr char kVersionString[] = "@PROJECT_VERSION@";
+
+}  // namespace rexglue::build

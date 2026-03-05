@@ -12,6 +12,8 @@
 #include "commands/migrate_command.h"
 #include "commands/test_recompiler.h"
 
+#include <rexglue/version.h>
+
 #include <chrono>
 #include <iostream>
 #include <map>
@@ -86,8 +88,7 @@ int main(int argc, char** argv) {
   // Register callback for runtime level changes
   rex::RegisterLogLevelCallback();
 
-  // TODO(tomc): make the version dynamic (at least, not baked into a string)
-  REXLOG_INFO("ReXGlue v0.1.0 - Xbox 360 Recompilation Toolkit");
+  REXLOG_INFO("ReXGlue v{} - Xbox 360 Recompilation Toolkit", rexglue::build::kVersionString);
 
   // Set up CLI context
   rexglue::cli::CliContext ctx;

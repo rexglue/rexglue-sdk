@@ -2,8 +2,10 @@
 # Modern C++23 cross-platform SDK for recompiling Xbox 360 executables
 cmake_minimum_required(VERSION 3.25)
 
+set(REXGLUE_VERSION "0.2.3")
+
 project(ReXGlue
-    VERSION 0.2.3
+    VERSION ${REXGLUE_VERSION}
     LANGUAGES C CXX
     DESCRIPTION "Xbox 360 Recompilation SDK"
 )
@@ -31,6 +33,13 @@ endif()
 
 # Root of the SDK source tree
 set(REXGLUE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}")
+set(REXGLUE_GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/include")
+file(MAKE_DIRECTORY "${REXGLUE_GENERATED_INCLUDE_DIR}/rexglue")
+configure_file(
+    "${REXGLUE_ROOT}/cmake/rexglue_version.h.in"
+    "${REXGLUE_GENERATED_INCLUDE_DIR}/rexglue/version.h"
+    @ONLY
+)
 
 # SDK install support
 include(GNUInstallDirs)
@@ -113,7 +122,10 @@ add_compile_options(
     -Wextra
 )
 
-include_directories(${REXGLUE_ROOT}/include)
+include_directories(
+    ${REXGLUE_ROOT}/include
+    ${REXGLUE_GENERATED_INCLUDE_DIR}
+)
 
 add_subdirectory(src/core)
 add_subdirectory(src/filesystem)
@@ -135,6 +147,7 @@ endif()
 # Print configuration summary
 message(STATUS "===========================================")
 message(STATUS "ReXGlue Configuration Summary:")
+message(STATUS "  Version: ${PROJECT_VERSION}")
 message(STATUS "  Platform: ${REX_PLATFORM}")
 message(STATUS "  Compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
 message(STATUS "  Configurations: ${CMAKE_CONFIGURATION_TYPES}")
