@@ -42,8 +42,12 @@ REXCVAR_DEFINE_BOOL(sdk_example, false, "Init", "Create as SDK example (omit vcp
 using rex::Ok;
 using rex::Result;
 
+std::string GetTitleString() {
+  return fmt::format("ReXGlue v{} - Xbox 360 Recompilation Toolkit", REXGLUE_VERSION_STRING);
+}
+
 void PrintUsage() {
-  std::cerr << "ReXGlue - Xbox 360 Recompilation Toolkit\n\n";
+  std::cerr << GetTitleString() + "\n\n";
   std::cerr << "Usage: rexglue <command> [flags] [args]\n\n";
   std::cerr << "Commands:\n";
   std::cerr << "  codegen <config.toml>   Analyze XEX and generate C++ code\n";
@@ -87,7 +91,7 @@ int main(int argc, char** argv) {
   // Register callback for runtime level changes
   rex::RegisterLogLevelCallback();
 
-  REXLOG_INFO("ReXGlue {} - Xbox 360 Recompilation Toolkit", REXGLUE_VERSION_STRING);
+  REXLOG_INFO(GetTitleString());
 
   // Set up CLI context
   rexglue::cli::CliContext ctx;
