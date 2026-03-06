@@ -47,6 +47,12 @@ install(DIRECTORY include/rex
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
+# Install generated version header
+install(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/include/rex/version.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/rex
+)
+
 # Install vendored header-only library headers
 install(DIRECTORY thirdparty/disruptorplus/include/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/disruptorplus

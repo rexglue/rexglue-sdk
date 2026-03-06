@@ -29,6 +29,10 @@
 #include "codegen_flags.h"
 #include "codegen_logging.h"
 
+// Minimum SDK version required by code this codegen version emits.
+// Bump this when codegen starts emitting code that uses new SDK APIs.
+static constexpr const char* kMinSdkVersion = "0.3.0";
+
 namespace rex::codegen {
 
 //=============================================================================

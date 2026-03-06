@@ -17,6 +17,7 @@
 #include <rex/codegen/config.h>
 #include <rex/logging.h>
 #include <rex/result.h>
+#include <rex/version.h>
 
 namespace fs = std::filesystem;
 
@@ -161,7 +162,7 @@ Result<void> MigrateProject(const MigrateOptions& opts, const CliContext& ctx) {
   bool old_style = is_old_style_project(root);
 
   // --- SDK-managed file: always regenerate ---
-  std::string new_rexglue_cmake = generate_rexglue_cmake(names);
+  std::string new_rexglue_cmake = generate_rexglue_cmake(names, REXGLUE_VERSION_STRING);
   std::string old_rexglue_cmake = read_file_content(root / "generated" / "rexglue.cmake");
 
   if (old_rexglue_cmake != new_rexglue_cmake) {

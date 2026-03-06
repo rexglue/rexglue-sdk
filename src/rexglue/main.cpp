@@ -19,6 +19,7 @@
 #include <rex/cvar.h>
 #include <rex/logging.h>
 #include <rex/result.h>
+#include <rex/version.h>
 
 // Codegen flags (definitions in codegen_flags.cpp)
 REXCVAR_DECLARE(bool, force);
@@ -86,8 +87,7 @@ int main(int argc, char** argv) {
   // Register callback for runtime level changes
   rex::RegisterLogLevelCallback();
 
-  // TODO(tomc): make the version dynamic (at least, not baked into a string)
-  REXLOG_INFO("ReXGlue v0.1.0 - Xbox 360 Recompilation Toolkit");
+  REXLOG_INFO("ReXGlue {} - Xbox 360 Recompilation Toolkit", REXGLUE_VERSION_STRING);
 
   // Set up CLI context
   rexglue::cli::CliContext ctx;

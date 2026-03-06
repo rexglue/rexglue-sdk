@@ -8,6 +8,13 @@ project(ReXGlue
     DESCRIPTION "Xbox 360 Recompilation SDK"
 )
 
+# Generate version header from CMake project version
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/rex/version.h.in
+    ${CMAKE_CURRENT_BINARY_DIR}/include/rex/version.h
+    @ONLY
+)
+
 #==========================================================
 # Build Options
 #==========================================================

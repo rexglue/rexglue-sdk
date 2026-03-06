@@ -17,6 +17,7 @@
 
 #include <rex/logging.h>
 #include <rex/result.h>
+#include <rex/version.h>
 
 namespace fs = std::filesystem;
 
@@ -267,7 +268,8 @@ Result<void> InitProject(const InitOptions& opts, const CliContext& ctx) {
   REXLOG_DEBUG("  Created CMakeLists.txt");
 
   // generated/rexglue.cmake (SDK-managed)
-  if (!write_file(root / "generated" / "rexglue.cmake", generate_rexglue_cmake(names))) {
+  if (!write_file(root / "generated" / "rexglue.cmake",
+                  generate_rexglue_cmake(names, REXGLUE_VERSION_STRING))) {
     return Err<void>(ErrorCategory::IO, "Failed to write generated/rexglue.cmake");
   }
   REXLOG_DEBUG("  Created generated/rexglue.cmake");
