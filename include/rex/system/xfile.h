@@ -107,6 +107,15 @@ class XFile : public XObject {
 
   bool is_synchronous() const { return is_synchronous_; }
 
+  void SetFindPattern(const std::string_view pattern) {
+    find_engine_.SetRule(pattern);
+    find_index_ = 0;
+  }
+
+  rex::filesystem::Entry* FindNext() {
+    return file_->entry()->IterateChildren(find_engine_, &find_index_);
+  }
+
  protected:
   void NotifyIOCompletionPorts(XIOCompletion::IONotification& notification);
 
