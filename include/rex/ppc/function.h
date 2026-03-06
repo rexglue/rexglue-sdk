@@ -17,8 +17,11 @@
 #include <atomic>
 #include <concepts>
 #include <cstdint>
+#include <cstring>
 #include <tuple>
 #include <type_traits>
+#include <utility>
+#include <vector>
 
 #include <rex/logging.h>
 #include <rex/ppc/context.h>
@@ -28,6 +31,32 @@
 #include <rex/types.h>
 
 namespace rex {
+
+//=============================================================================
+// Global PPC Function Registry (for runtime ordinal lookup)
+//=============================================================================
+// Populated by static constructors from XAM_EXPORT / XBOXKRNL_EXPORT macros.
+
+inline std::vector<std::pair<const char*, PPCFunc*>>& GetPPCFuncRegistry() {
+  static std::vector<std::pair<const char*, PPCFunc*>> registry;
+  return registry;
+}
+
+inline PPCFunc* FindPPCFuncByName(const char* name) {
+  for (auto& [n, f] : GetPPCFuncRegistry()) {
+    if (std::strcmp(n, name) == 0)
+      return f;
+  }
+  return nullptr;
+}
+
+namespace detail {
+struct PPCFuncRegistrar {
+  PPCFuncRegistrar(const char* name, PPCFunc* func) {
+    GetPPCFuncRegistry().emplace_back(name, func);
+  }
+};
+}  // namespace detail
 
 //=============================================================================
 // Type Traits (additional, types.h has is_be_type)
@@ -591,19 +620,27 @@ constexpr size_t kExLoadedImageNameSize = 255 + 1;
 
 // Implemented function export: wraps PPC_HOOK for an xboxkrnl.exe export.
 // Usage: XBOXKRNL_EXPORT(__imp__FunctionName, handler_function)
-#define XBOXKRNL_EXPORT(name, function) PPC_HOOK(name, function)
+#define XBOXKRNL_EXPORT(name, function) \
+  PPC_HOOK(name, function)              \
+  static rex::detail::PPCFuncRegistrar _ppc_reg_##name(#name, &name);
 
 // Stub function export: wraps PPC_STUB for an xboxkrnl.exe export.
 // Usage: XBOXKRNL_EXPORT_STUB(__imp__FunctionName)
-#define XBOXKRNL_EXPORT_STUB(name) PPC_STUB(name)
+#define XBOXKRNL_EXPORT_STUB(name) \
+  PPC_STUB(name)                   \
+  static rex::detail::PPCFuncRegistrar _ppc_reg_##name(#name, &name);
 
 // Implemented function export: wraps PPC_HOOK for a xam.xex export.
 // Usage: XAM_EXPORT(__imp__FunctionName, handler_function)
-#define XAM_EXPORT(name, function) PPC_HOOK(name, function)
+#define XAM_EXPORT(name, function) \
+  PPC_HOOK(name, function)         \
+  static rex::detail::PPCFuncRegistrar _ppc_reg_##name(#name, &name);
 
 // Stub function export: wraps PPC_STUB for a xam.xex export.
 // Usage: XAM_EXPORT_STUB(__imp__FunctionName)
-#define XAM_EXPORT_STUB(name) PPC_STUB(name)
+#define XAM_EXPORT_STUB(name) \
+  PPC_STUB(name)              \
+  static rex::detail::PPCFuncRegistrar _ppc_reg_##name(#name, &name);
 
 // Implemented rexcrt hook: wraps PPC_HOOK for a rexcrt CRT replacement.
 // Usage: REXCRT_EXPORT(rexcrt_FunctionName, handler_function)

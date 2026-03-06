@@ -257,6 +257,10 @@ bool Processor::InitializeFunctionTable(uint32_t code_base, uint32_t code_size, 
   image_base_ = image_base;
   image_size_ = image_size;
   function_table_initialized_ = true;
+
+  // Initialize thunk allocation region (immediately after code section)
+  next_thunk_address_ = code_base + code_size;
+  thunk_limit_ = next_thunk_address_ + 0x10000;
   REXLOG_INFO("Processor function table initialized: code={:08X}-{:08X}, image={:08X}-{:08X}",
               code_base, code_base + code_size, image_base, image_base + image_size);
   return true;
@@ -278,6 +282,17 @@ void Processor::SetFunction(uint32_t guest_address, ::PPCFunc* func) {
     return it->second;
   }
   return nullptr;
+}
+
+uint32_t Processor::AllocateThunk(::PPCFunc* func) {
+  if (next_thunk_address_ >= thunk_limit_) {
+    REXLOG_ERROR("Thunk address space exhausted");
+    return 0;
+  }
+  uint32_t addr = next_thunk_address_;
+  next_thunk_address_ += 4;  // 4-byte aligned
+  SetFunction(addr, func);
+  return addr;
 }
 
 }  // namespace rex::runtime

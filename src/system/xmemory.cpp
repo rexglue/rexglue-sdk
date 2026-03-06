@@ -597,15 +597,20 @@ bool Memory::InitializeFunctionTable(uint32_t code_base, uint32_t code_size, uin
 
   // The function table lives at IMAGE_BASE + IMAGE_SIZE in guest address space.
   // Each 4-byte-aligned guest address gets an 8-byte slot for a host function pointer.
-  // Table size = code_size * 2 bytes (since offset = (addr - code_base) * 2).
+  // Table size = (code_size + thunk_reserve) * 2 bytes (since offset = (addr - code_base) * 2).
+  // The thunk reserve provides space for runtime-allocated thunks (e.g. XexGetProcedureAddress).
+  constexpr uint32_t kThunkReserveSize = 0x10000;  // 64KB = up to 16K thunks
   function_table_base_ = image_base + image_size;
   function_code_base_ = code_base;
   function_code_size_ = code_size;
+  function_thunk_reserve_ = kThunkReserveSize;
 
-  uint32_t table_size = code_size * 2;
+  uint32_t table_size = (code_size + kThunkReserveSize) * 2;
 
-  REXSYS_DEBUG("Initializing function table at {:08X}, size {:08X} for code {:08X}-{:08X}",
-               function_table_base_, table_size, code_base, code_base + code_size);
+  REXSYS_DEBUG(
+      "Initializing function table at {:08X}, size {:08X} for code {:08X}-{:08X} "
+      "(+{:08X} thunk reserve)",
+      function_table_base_, table_size, code_base, code_base + code_size, kThunkReserveSize);
 
   // Allocate the function table region in guest memory.
   // Use the 64k page heap (v80000000) since that's where XEX code lives.
@@ -630,12 +635,14 @@ void Memory::SetFunction(uint32_t guest_address, PPCFunc* host_function) {
     return;
   }
 
-  // Bounds check - addresses outside code section are expected (IAT imports)
-  // These are called directly via __imp__ symbols, not through function table
+  // Bounds check - addresses outside code section + thunk reserve are unexpected.
+  // IAT imports are called directly via __imp__ symbols, not through function table.
+  // Thunk reserve extends past code section for runtime-allocated thunks.
   if (guest_address < function_code_base_ ||
-      guest_address >= function_code_base_ + function_code_size_) {
-    REXSYS_DEBUG("SetFunction: skipping {:08X} (outside code section [{:08X}, {:08X}))",
-                 guest_address, function_code_base_, function_code_base_ + function_code_size_);
+      guest_address >= function_code_base_ + function_code_size_ + function_thunk_reserve_) {
+    REXSYS_DEBUG("SetFunction: skipping {:08X} (outside code+thunk range [{:08X}, {:08X}))",
+                 guest_address, function_code_base_,
+                 function_code_base_ + function_code_size_ + function_thunk_reserve_);
     return;
   }
 
@@ -655,9 +662,9 @@ PPCFunc* Memory::GetFunction(uint32_t guest_address) const {
     return nullptr;
   }
 
-  // Bounds check
+  // Bounds check (includes thunk reserve for runtime-allocated thunks)
   if (guest_address < function_code_base_ ||
-      guest_address >= function_code_base_ + function_code_size_) {
+      guest_address >= function_code_base_ + function_code_size_ + function_thunk_reserve_) {
     return nullptr;
   }
 

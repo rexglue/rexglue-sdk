@@ -10,6 +10,8 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <unordered_map>
+
 #include <rex/system/export_resolver.h>
 #include <rex/system/xmodule.h>
 
@@ -40,6 +42,9 @@ class KernelModule : public XModule {
   std::string path_;
 
   rex::thread::global_critical_region global_critical_region_;
+
+  // Cache of ordinal -> thunk guest address (for XexGetProcedureAddress)
+  std::unordered_map<uint16_t, uint32_t> thunk_cache_;
 };
 
 }  // namespace system

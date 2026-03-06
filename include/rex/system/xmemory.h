@@ -510,6 +510,7 @@ class Memory {
   uint32_t function_table_base_ = 0;  // Guest address of function table (IMAGE_BASE + IMAGE_SIZE)
   uint32_t function_code_base_ = 0;   // CODE_BASE for offset calculation
   uint32_t function_code_size_ = 0;   // CODE_SIZE for bounds checking
+  uint32_t function_thunk_reserve_ = 0;  // Extra space reserved for runtime thunks
 
   rex::memory::FileMappingHandle mapping_ = rex::memory::kFileMappingHandleInvalid;
   uint8_t* mapping_base_ = nullptr;

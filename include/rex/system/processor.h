@@ -104,6 +104,7 @@ class Processor {
   void SetFunction(uint32_t guest_address, ::PPCFunc* func);
   ::PPCFunc* GetFunction(uint32_t guest_address);
   bool HasFunctionTable() const { return function_table_initialized_; }
+  uint32_t AllocateThunk(::PPCFunc* func);
 
  private:
   memory::Memory* memory_ = nullptr;
@@ -122,6 +123,10 @@ class Processor {
   uint32_t image_base_ = 0;
   uint32_t image_size_ = 0;
   bool function_table_initialized_ = false;
+
+  // Runtime thunk allocation (for XexGetProcedureAddress)
+  uint32_t next_thunk_address_ = 0;
+  uint32_t thunk_limit_ = 0;
 };
 
 }  // namespace rex::runtime
