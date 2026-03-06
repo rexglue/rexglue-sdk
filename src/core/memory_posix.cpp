@@ -13,8 +13,8 @@
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
-#include <fstream>
 #include <string>
+#include <vector>
 
 #include <fcntl.h>
 #include <sys/mman.h>
@@ -82,10 +82,19 @@ void AndroidShutdown() {
 #endif
 
 size_t page_size() {
-  return getpagesize();
+  static const size_t value = []() -> size_t {
+    long sysconf_page_size = sysconf(_SC_PAGESIZE);
+    if (sysconf_page_size > 0) {
+      return static_cast<size_t>(sysconf_page_size);
+    }
+    return static_cast<size_t>(getpagesize());
+  }();
+  return value;
 }
 size_t allocation_granularity() {
-  return page_size();
+  // Mirrors current POSIX behavior where granularity equals page size.
+  static const size_t value = page_size();
+  return value;
 }
 
 uint32_t ToPosixProtectFlags(PageAccess access) {
@@ -110,6 +119,28 @@ bool IsWritableExecutableMemorySupported() {
   return true;
 }
 
+namespace {
+
+static bool AlignRangeToPageBounds(void* base_address, size_t length, void*& aligned_base_address,
+                                   size_t& aligned_length) {
+  if (!base_address || !length) {
+    return false;
+  }
+  const uintptr_t page = page_size();
+  const uintptr_t addr = reinterpret_cast<uintptr_t>(base_address);
+  const uintptr_t start = addr & ~(page - 1);
+  const uintptr_t end_unaligned = addr + length;
+  if (end_unaligned < addr) {
+    return false;
+  }
+  const uintptr_t end = rex::round_up(end_unaligned, page);
+  aligned_base_address = reinterpret_cast<void*>(start);
+  aligned_length = static_cast<size_t>(end - start);
+  return aligned_length != 0;
+}
+
+}  // namespace
+
 // TODO(tomc): this needs to go somewhere else. we should utilize the platform namespace more.
 #if REX_PLATFORM_LINUX
 namespace {
@@ -120,12 +151,12 @@ struct LinuxMapEntry {
   char perms[5] = {};
 };
 
-// Parse a line from /proc/self/maps into a LinuxMapEntry
-static bool ParseProcMapsLine(const std::string& line, LinuxMapEntry& out) {
+// Parse a line from /proc/self/maps into a LinuxMapEntry.
+static bool ParseProcMapsLine(const char* line, LinuxMapEntry& out) {
   out = LinuxMapEntry{};
   unsigned long long start = 0, end = 0;
   char perms[5] = {};
-  const int matched = std::sscanf(line.c_str(), "%llx-%llx %4s", &start, &end, perms);
+  const int matched = std::sscanf(line, "%llx-%llx %4s", &start, &end, perms);
   if (matched < 3)
     return false;
   out.start = static_cast<uintptr_t>(start);
@@ -134,23 +165,31 @@ static bool ParseProcMapsLine(const std::string& line, LinuxMapEntry& out) {
   return out.start < out.end;
 }
 
-// Find the mapping entry in /proc/self/maps that contains the given address
-static bool FindEntryForAddress(void* address, LinuxMapEntry& out_entry) {
-  const uintptr_t addr = reinterpret_cast<uintptr_t>(address);
-  std::ifstream maps("/proc/self/maps");
-  if (!maps.is_open())
+static std::vector<LinuxMapEntry>& GetMapsScratch() {
+  thread_local std::vector<LinuxMapEntry> entries;
+  return entries;
+}
+
+static bool ReadProcMaps(std::vector<LinuxMapEntry>& out_entries) {
+  out_entries.clear();
+  if (out_entries.capacity() < 2048) {
+    out_entries.reserve(2048);
+  }
+
+  FILE* maps = std::fopen("/proc/self/maps", "r");
+  if (!maps) {
     return false;
-  std::string line;
-  while (std::getline(maps, line)) {
-    LinuxMapEntry e;
-    if (!ParseProcMapsLine(line, e))
-      continue;
-    if (addr >= e.start && addr < e.end) {
-      out_entry = e;
-      return true;
+  }
+
+  char line[512];
+  while (std::fgets(line, sizeof(line), maps)) {
+    LinuxMapEntry entry;
+    if (ParseProcMapsLine(line, entry)) {
+      out_entries.push_back(entry);
     }
   }
-  return false;
+  std::fclose(maps);
+  return !out_entries.empty();
 }
 
 // Check if [base, base+length) is fully covered by existing mappings (no gaps)
@@ -164,23 +203,22 @@ static bool IsRangeFullyMapped(void* base_address, size_t length) {
     return false;
   }
 
-  std::ifstream maps("/proc/self/maps");
-  if (!maps.is_open())
+  auto& entries = GetMapsScratch();
+  if (!ReadProcMaps(entries)) {
     return false;
-
+  }
   uintptr_t cursor = begin;
-  std::string line;
-  while (std::getline(maps, line)) {
-    LinuxMapEntry e;
-    if (!ParseProcMapsLine(line, e))
+  for (const LinuxMapEntry& entry : entries) {
+    if (entry.end <= cursor) {
       continue;
-    if (e.end <= cursor)
-      continue;
-    if (e.start > cursor)
+    }
+    if (entry.start > cursor) {
       return false;  // gap found
-    cursor = e.end;
-    if (cursor >= end)
+    }
+    cursor = entry.end;
+    if (cursor >= end) {
       return true;
+    }
   }
   return cursor >= end;
 }
@@ -196,6 +234,49 @@ static PageAccess PermsToPageAccess(const char perms[5]) {
   if (x)
     return w ? PageAccess::kExecuteReadWrite : PageAccess::kExecuteReadOnly;
   return w ? PageAccess::kReadWrite : PageAccess::kReadOnly;
+}
+
+static bool FindRegionForAddress(void* address, uintptr_t& out_region_start,
+                                 uintptr_t& out_region_end, PageAccess& out_access) {
+  const uintptr_t addr = reinterpret_cast<uintptr_t>(address);
+  auto& entries = GetMapsScratch();
+  if (!ReadProcMaps(entries)) {
+    return false;
+  }
+
+  size_t found_index = size_t(-1);
+  for (size_t i = 0; i < entries.size(); ++i) {
+    if (addr >= entries[i].start && addr < entries[i].end) {
+      found_index = i;
+      break;
+    }
+  }
+  if (found_index == size_t(-1)) {
+    return false;
+  }
+
+  out_access = PermsToPageAccess(entries[found_index].perms);
+  out_region_start = entries[found_index].start;
+  out_region_end = entries[found_index].end;
+
+  for (size_t i = found_index; i > 0; --i) {
+    const auto& prev = entries[i - 1];
+    const auto& cur = entries[i];
+    if (prev.end != cur.start || PermsToPageAccess(prev.perms) != out_access) {
+      break;
+    }
+    out_region_start = prev.start;
+  }
+  for (size_t i = found_index + 1; i < entries.size(); ++i) {
+    const auto& prev = entries[i - 1];
+    const auto& cur = entries[i];
+    if (prev.end != cur.start || PermsToPageAccess(cur.perms) != out_access) {
+      break;
+    }
+    out_region_end = cur.end;
+  }
+
+  return true;
 }
 
 }  // namespace
@@ -259,12 +340,17 @@ void* AllocFixed(void* base_address, size_t length, AllocationType allocation_ty
 bool DeallocFixed(void* base_address, size_t length, DeallocationType deallocation_type) {
   switch (deallocation_type) {
     case DeallocationType::kDecommit: {
+      void* aligned_base_address = nullptr;
+      size_t aligned_length = 0;
+      if (!AlignRangeToPageBounds(base_address, length, aligned_base_address, aligned_length)) {
+        return false;
+      }
       // Decommit: remove access first, then release physical pages
-      if (mprotect(base_address, length, PROT_NONE) != 0) {
+      if (mprotect(aligned_base_address, aligned_length, PROT_NONE) != 0) {
         return false;
       }
 #if defined(MADV_DONTNEED)
-      (void)madvise(base_address, length, MADV_DONTNEED);
+      (void)madvise(aligned_base_address, aligned_length, MADV_DONTNEED);
 #endif
       return true;
     }
@@ -283,6 +369,12 @@ bool Protect(void* base_address, size_t length, PageAccess access, PageAccess* o
     *out_old_access = PageAccess::kNoAccess;
   }
 
+  void* aligned_base_address = nullptr;
+  size_t aligned_length = 0;
+  if (!AlignRangeToPageBounds(base_address, length, aligned_base_address, aligned_length)) {
+    return false;
+  }
+
 #if REX_PLATFORM_LINUX
   // NOTE(tomc): we may want to look at doing this differently. it should work for now
   //             but there is a TOCTOU window between reading and changing.
@@ -290,15 +382,17 @@ bool Protect(void* base_address, size_t length, PageAccess access, PageAccess* o
   //             atomic in a mutli-threaded process either, but it's something to be aware of.
   // Query old access before changing, if the caller needs it
   if (out_old_access) {
-    LinuxMapEntry e;
-    if (FindEntryForAddress(base_address, e)) {
-      *out_old_access = PermsToPageAccess(e.perms);
+    uintptr_t region_start = 0;
+    uintptr_t region_end = 0;
+    PageAccess region_access = PageAccess::kNoAccess;
+    if (FindRegionForAddress(aligned_base_address, region_start, region_end, region_access)) {
+      *out_old_access = region_access;
     }
   }
 #endif
 
   uint32_t prot = ToPosixProtectFlags(access);
-  return mprotect(base_address, length, prot) == 0;
+  return mprotect(aligned_base_address, aligned_length, prot) == 0;
 }
 
 bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out) {
@@ -310,14 +404,13 @@ bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out) {
   access_out = PageAccess::kNoAccess;
   length = 0;
 
-  LinuxMapEntry e;
-  if (!FindEntryForAddress(base_address, e)) {
+  uintptr_t region_start = 0;
+  uintptr_t region_end = 0;
+  if (!FindRegionForAddress(base_address, region_start, region_end, access_out)) {
     return false;
   }
 
-  const uintptr_t addr = reinterpret_cast<uintptr_t>(base_address);
-  length = static_cast<size_t>(e.end - addr);
-  access_out = PermsToPageAccess(e.perms);
+  length = static_cast<size_t>(region_end - region_start);
 
   return true;
 #endif
@@ -349,30 +442,18 @@ FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, siz
   }
   return static_cast<FileMappingHandle>(ashmem_fd);
 #else
-  int oflag;
-  switch (access) {
-    case PageAccess::kNoAccess:
-      oflag = 0;
-      break;
-    case PageAccess::kReadOnly:
-    case PageAccess::kExecuteReadOnly:
-      oflag = O_RDONLY;
-      break;
-    case PageAccess::kReadWrite:
-    case PageAccess::kExecuteReadWrite:
-      oflag = O_RDWR;
-      break;
-    default:
-      assert_always();
-      return kFileMappingHandleInvalid;
-  }
-  oflag |= O_CREAT;
+  (void)access;
+  (void)commit;
+  int oflag = O_CREAT | O_RDWR;
   auto full_path = MakeShmName(path);
   int ret = shm_open(full_path.c_str(), oflag, 0777);
   if (ret < 0) {
     return kFileMappingHandleInvalid;
   }
-  if (ftruncate64(ret, static_cast<off_t>(length)) != 0) {
+  // Windows rounds mapping object size to page granularity internally.
+  // Do the same on POSIX to preserve cross-platform map range behavior.
+  const size_t aligned_length = rex::round_up(length, page_size());
+  if (aligned_length < length || ftruncate64(ret, static_cast<off_t>(aligned_length)) != 0) {
     close(ret);
     shm_unlink(full_path.c_str());
     return kFileMappingHandleInvalid;
@@ -396,6 +477,16 @@ void* MapFileView(FileMappingHandle handle, void* base_address, size_t length, P
   if (file_offset % page != 0) {
     return nullptr;
   }
+  const int fd = static_cast<int>(handle);
+  struct stat64 file_stat;
+  if (fstat64(fd, &file_stat) != 0) {
+    return nullptr;
+  }
+  const uint64_t mapped_size = uint64_t(rex::round_up(size_t(file_stat.st_size), page));
+  const uint64_t mapping_end = uint64_t(file_offset) + uint64_t(length);
+  if (mapping_end < file_offset || mapping_end > mapped_size) {
+    return nullptr;
+  }
 
   int flags = MAP_SHARED;
 
@@ -407,8 +498,7 @@ void* MapFileView(FileMappingHandle handle, void* base_address, size_t length, P
   }
 
   uint32_t prot = ToPosixProtectFlags(access);
-  void* result = mmap64(base_address, length, prot, flags, static_cast<int>(handle),
-                        static_cast<off_t>(file_offset));
+  void* result = mmap64(base_address, length, prot, flags, fd, static_cast<off_t>(file_offset));
   if (result == MAP_FAILED) {
     return nullptr;
   }
@@ -423,6 +513,7 @@ void* MapFileView(FileMappingHandle handle, void* base_address, size_t length, P
 }
 
 bool UnmapFileView(FileMappingHandle handle, void* base_address, size_t length) {
+  (void)handle;
   return munmap(base_address, length) == 0;
 }
 

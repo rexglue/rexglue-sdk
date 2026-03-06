@@ -131,10 +131,17 @@ bool Memory::Initialize() {
 
   // Create main page file-backed mapping. This is all reserved but
   // uncommitted (so it shouldn't expand page file).
-  mapping_ =
-      rex::memory::CreateFileMappingHandle(file_name_,
-                                           // entire 4gb space + 512mb physical:
-                                           0x11FFFFFFF, rex::memory::PageAccess::kReadWrite, false);
+  //
+  // Base space is 4 GB virtual + 512 MB physical = 0x120000000 bytes.
+  // On systems with 4 KB allocation granularity, the 0xE0000000 view keeps a
+  // +0x1000 file offset (see map_info / host_address_offset handling), so the
+  // mapping object must include an extra page.
+  uint64_t mapping_length = 0x120000000ull;
+  if (system_allocation_granularity_ <= 0x1000) {
+    mapping_length += 0x1000ull;
+  }
+  mapping_ = rex::memory::CreateFileMappingHandle(file_name_, mapping_length,
+                                                  rex::memory::PageAccess::kReadWrite, false);
   if (mapping_ == rex::memory::kFileMappingHandleInvalid) {
     REXSYS_ERROR("Unable to reserve the 4gb guest address space.");
     assert_always();
@@ -284,6 +291,14 @@ int Memory::MapViews(uint8_t* mapping_base) {
         map_info[n].virtual_address_end - map_info[n].virtual_address_start + 1,
         rex::memory::PageAccess::kReadWrite, map_info[n].target_address & granularity_mask));
     if (!views_.all_views[n]) {
+      REXSYS_WARN(
+          "MapViews failed at segment {}: base={} length={:08X} file_offset={:016X} "
+          "granularity={:08X}",
+          n, fmt::ptr(mapping_base + map_info[n].virtual_address_start),
+          static_cast<uint32_t>(map_info[n].virtual_address_end -
+                                map_info[n].virtual_address_start + 1),
+          static_cast<uint64_t>(map_info[n].target_address & granularity_mask),
+          system_allocation_granularity_);
       // Failed, so bail and try again.
       UnmapViews();
       return 1;
