@@ -17,7 +17,7 @@
 
 namespace rex::runtime {
 
-enum class BinarySymbolType { Function, Data, Import, Unknown };
+enum class BinarySymbolType { Function, Data, Import, Export, Unknown };
 
 struct BinarySymbol {
   std::string name;

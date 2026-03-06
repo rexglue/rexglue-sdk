@@ -39,6 +39,7 @@ class Module {
 
   virtual const std::string& name() const = 0;
   virtual bool is_executable() const = 0;
+  virtual bool is_dll() const { return false; }
 
   virtual bool ContainsAddress(uint32_t address);
 

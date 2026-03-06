@@ -81,6 +81,8 @@ using PPCFunc = void(PPCContext& ctx, uint8_t* base);
 #define PPC_EXTERN_FUNC(x) extern PPC_FUNC(x)
 #define PPC_EXTERN_IMPORT(x) extern "C" PPC_FUNC(x)  // For __imp__ kernel imports
 #define PPC_WEAK_FUNC(x) __attribute__((weak, noinline)) PPC_FUNC(x)
+/// Marks a recompiled function as a DLL export (visible to dlsym)
+#define PPC_EXPORT_FUNC(x) extern "C" __attribute__((visibility("default"))) PPC_FUNC(x)
 
 // Compiler-specific assume hint for alignment
 #if defined(__clang__)

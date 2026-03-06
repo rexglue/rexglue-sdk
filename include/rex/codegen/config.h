@@ -79,6 +79,7 @@ struct RecompilerConfig {
   std::string patchedFilePath;
 
   // === Code generation options (optional) ===
+  bool isDll = false;   ///< Override: treat output as DLL shared library (auto-detected from XEX flags if false)
   bool skipLr = false;
   bool ctrAsLocalVariable = false;
   bool xerAsLocalVariable = false;

@@ -27,6 +27,7 @@ BinaryView BinaryView::fromModule(const runtime::Module& module) {
   view.exceptionDirectoryAddr_ = module.exception_directory_address();
   view.exceptionDirectorySize_ = module.exception_directory_size();
   view.exportTableAddr_ = module.export_table_address();
+  view.isDll_ = module.is_dll();
 
   // Copy import symbols and calculate import thunk table start
   // The import thunk table (and export table after it) extends to end of .text
@@ -40,6 +41,17 @@ BinaryView BinaryView::fromModule(const runtime::Module& module) {
       if (sym.address != 0 && sym.address < minImportAddr) {
         minImportAddr = sym.address;
       }
+    } else if (sym.type == runtime::BinarySymbolType::Export) {
+      // Parse ordinal from name ("__export_ord_N" format) or use 0 for named exports
+      uint16_t ordinal = 0;
+      if (sym.name.starts_with("__export_ord_")) {
+        try {
+          ordinal = static_cast<uint16_t>(std::stoul(sym.name.substr(13)));
+        } catch (...) {
+        }
+      }
+      view.exportSymbols_.push_back(ExportSymbol{
+          .ordinal = ordinal, .address = sym.address, .name = sym.name});
     }
   }
   if (minImportAddr != std::numeric_limits<uint32_t>::max()) {
@@ -58,6 +70,9 @@ BinaryView BinaryView::fromModule(const runtime::Module& module) {
     }
   }
   REXCODEGEN_DEBUG("BinaryView: copied {} import symbols", view.importSymbols_.size());
+  if (view.isDll_) {
+    REXCODEGEN_DEBUG("BinaryView: DLL module with {} export symbols", view.exportSymbols_.size());
+  }
 
   // Copy section data
   const auto& binarySections = module.binary_sections();

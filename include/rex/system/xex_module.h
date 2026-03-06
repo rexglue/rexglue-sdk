@@ -167,6 +167,10 @@ class XexModule : public Module {
     return (xex_header()->module_flags & XEX_MODULE_TITLE) != 0;
   }
 
+  bool is_dll() const override {
+    return (xex_header()->module_flags & XEX_MODULE_DLL_MODULE) != 0;
+  }
+
   bool is_valid_executable() const {
     assert_not_zero(base_address_);
     if (!base_address_) {

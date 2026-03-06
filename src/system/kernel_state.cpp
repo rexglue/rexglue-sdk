@@ -9,6 +9,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <filesystem>
 #include <string>
 
 #include <fmt/format.h>
@@ -429,11 +430,41 @@ object_ref<UserModule> KernelState::LoadUserModule(const std::string_view raw_na
 
   module->Dump();
 
-  if (module->is_dll_module() && module->entry_point() && call_entry) {
-    // TODO(tomc): add support for this. sort of coupled with the rest of the guest module loading.
-    //              impl of GetProcAddressByOrdinal is critical to the impl of the dll loading.
+  if (module->is_dll_module()) {
+    // Attempt to load the recompiled shared library (.so/.dylib/.dll) alongside the .xex.
+    // The shared lib is expected to live at the same path with the extension replaced.
+    std::filesystem::path xexPath(module->path());
+    std::filesystem::path soPath = xexPath;
 
-    REXSYS_WARN("LoadUserModule: DllMain(DLL_PROCESS_ATTACH) not implemented");
+#if defined(_WIN32)
+    soPath.replace_extension(".dll");
+#elif defined(__APPLE__)
+    soPath.replace_extension(".dylib");
+#else
+    soPath.replace_extension(".so");
+#endif
+
+    REXSYS_DEBUG("LoadUserModule: attempting to load recompiled DLL from '{}'",
+                 soPath.string());
+
+    rex::platform::DynamicLibrary dynlib;
+    if (dynlib.Load(soPath)) {
+      // Call init_function_table() to register all guest→host mappings
+      using InitFuncTableFn = void (*)();
+      auto init_fn = dynlib.GetSymbol<InitFuncTableFn>("init_function_table");
+      if (init_fn) {
+        init_fn();
+        REXSYS_INFO("LoadUserModule: registered function table from '{}'", soPath.string());
+      } else {
+        REXSYS_WARN("LoadUserModule: '{}' has no init_function_table symbol", soPath.string());
+      }
+
+      // Keep the library handle alive for the lifetime of the module
+      dll_libs_.emplace(module->path(), std::move(dynlib));
+    } else {
+      REXSYS_WARN("LoadUserModule: no recompiled shared lib found at '{}' (XEX-only path)",
+                  soPath.string());
+    }
   }
 
   return module;
@@ -446,6 +477,9 @@ void KernelState::UnloadUserModule(const object_ref<UserModule>& module, bool ca
     // TODO(tomc): add support for this. see comment in LoadUserModule
     REXSYS_WARN("UnloadUserModule: DllMain(DLL_PROCESS_DETACH) not implemented");
   }
+
+  // Release the associated recompiled shared library handle if one was loaded
+  dll_libs_.erase(module->path());
 
   auto iter = std::find_if(user_modules_.begin(), user_modules_.end(),
                            [&module](const auto& e) { return e->path() == module->path(); });

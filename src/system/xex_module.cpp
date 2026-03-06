@@ -1181,6 +1181,67 @@ void XexModule::PopulateBinaryData() {
       binary_symbols_.push_back(std::move(sym));
     }
   }
+
+  // Populate export symbols from xex2 export table (ordinal-keyed)
+  if (xex_security_info()->export_table) {
+    auto export_table =
+        memory()->TranslateVirtual<const xex2_export_table*>(xex_security_info()->export_table);
+    uint32_t base_ordinal = export_table->base;
+    uint32_t count = export_table->count;
+
+    for (uint32_t i = 0; i < count; ++i) {
+      uint32_t ordinal_offset = export_table->ordOffset[i];
+      if (ordinal_offset == 0) {
+        continue;  // Null/gap entry
+      }
+      uint32_t addr = ordinal_offset + (static_cast<uint32_t>(export_table->imagebaseaddr) << 16);
+      uint16_t ordinal = static_cast<uint16_t>(base_ordinal + i);
+
+      BinarySymbol sym;
+      sym.name = fmt::format("__export_ord_{}", ordinal);
+      sym.address = addr;
+      sym.size = 0;
+      sym.type = BinarySymbolType::Export;
+      binary_symbols_.push_back(std::move(sym));
+    }
+  }
+
+  // Augment ordinal-only exports with names from PE export-by-name directory
+  xex2_opt_data_directory* pe_export_dir = nullptr;
+  if (GetOptHeader(XEX_HEADER_EXPORTS_BY_NAME, &pe_export_dir) && pe_export_dir) {
+    auto e = memory()->TranslateVirtual<const X_IMAGE_EXPORT_DIRECTORY*>(
+        base_address_ + pe_export_dir->offset);
+    if (e && e->NumberOfNames > 0) {
+      auto* fn_table = reinterpret_cast<const uint32_t*>(uintptr_t(e) + e->AddressOfFunctions);
+      auto* name_table = reinterpret_cast<const uint32_t*>(uintptr_t(e) + e->AddressOfNames);
+      auto* ordinal_table =
+          reinterpret_cast<const uint16_t*>(uintptr_t(e) + e->AddressOfNameOrdinals);
+
+      for (uint32_t i = 0; i < e->NumberOfNames; ++i) {
+        auto fn_name = reinterpret_cast<const char*>(uintptr_t(e) + name_table[i]);
+        uint16_t ordinal = ordinal_table[i];
+        uint32_t addr = base_address_ + fn_table[ordinal];
+
+        // Update existing ordinal-keyed entry with proper name, or add new entry
+        bool updated = false;
+        for (auto& sym : binary_symbols_) {
+          if (sym.type == BinarySymbolType::Export && sym.address == addr) {
+            sym.name = fn_name;
+            updated = true;
+            break;
+          }
+        }
+        if (!updated) {
+          BinarySymbol sym;
+          sym.name = fn_name;
+          sym.address = addr;
+          sym.size = 0;
+          sym.type = BinarySymbolType::Export;
+          binary_symbols_.push_back(std::move(sym));
+        }
+      }
+    }
+  }
 }
 
 std::span<const BinarySection> XexModule::binary_sections() const {

@@ -48,6 +48,13 @@ struct ImportSymbol {
   std::string name;  ///< "libname@ordinal" format
 };
 
+/// Export symbol from a DLL binary (ordinal + function address + optional name)
+struct ExportSymbol {
+  uint16_t ordinal;   ///< Ordinal number
+  uint32_t address;   ///< Guest function address
+  std::string name;   ///< Function name (may be "__export_ord_N" for ordinal-only exports)
+};
+
 /// Self-contained binary view that owns all section data
 class BinaryView {
  public:
@@ -89,6 +96,12 @@ class BinaryView {
   /// Import symbols (thunk addresses + names)
   std::span<const ImportSymbol> importSymbols() const { return importSymbols_; }
 
+  /// Export symbols (ordinal + guest address + name); non-empty only for DLL binaries
+  std::span<const ExportSymbol> exportSymbols() const { return exportSymbols_; }
+
+  /// True if the binary has the DLL module flag set (XEX_MODULE_DLL_MODULE)
+  bool isDll() const { return isDll_; }
+
  public:
   BinaryView() = default;
 
@@ -110,6 +123,10 @@ class BinaryView {
 
   // Import symbols
   std::vector<ImportSymbol> importSymbols_;
+
+  // Export symbols (populated for DLL binaries)
+  std::vector<ExportSymbol> exportSymbols_;
+  bool isDll_ = false;
 };
 
 }  // namespace rex::codegen

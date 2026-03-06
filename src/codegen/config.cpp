@@ -47,6 +47,9 @@ void RecompilerConfig::Load(const std::string_view& configFilePath) {
   patchFilePath = toml["patch_file_path"].value_or<std::string>("");
   patchedFilePath = toml["patched_file_path"].value_or<std::string>("");
 
+  // DLL mode override (normally auto-detected from XEX module flags)
+  isDll = toml["is_dll"].value_or(false);
+
   // Optimization options
   skipLr = toml["skip_lr"].value_or(false);
   skipMsr = toml["skip_msr"].value_or(false);

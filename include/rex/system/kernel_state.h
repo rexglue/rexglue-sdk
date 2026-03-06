@@ -17,9 +17,11 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 #include <rex/bit.h>
+#include <rex/platform/dynlib.h>
 #include <rex/filesystem/vfs.h>
 #include <rex/functional.h>
 #include <rex/logging.h>
@@ -241,6 +243,9 @@ class KernelState {
   std::vector<TerminateNotification> terminate_notifications_;
 
   uint32_t process_info_block_address_ = 0;
+
+  // Loaded DLL shared libraries: maps module name → open DynamicLibrary handle
+  std::unordered_map<std::string, rex::platform::DynamicLibrary> dll_libs_;
 
   std::atomic<bool> dispatch_thread_running_;
   object_ref<XHostThread> dispatch_thread_;

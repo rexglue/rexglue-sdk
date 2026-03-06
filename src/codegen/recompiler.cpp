@@ -714,6 +714,9 @@ bool Recompiler::recompile(bool force) {
   // Use project name for all output file naming (default: "rex")
   const std::string& projectName = config().projectName;
 
+  // DLL mode: set by TOML override or auto-detected from XEX module flags
+  const bool isDllMode = config().isDll || binary().isDll();
+
   REXCODEGEN_TRACE("Recompile: generating {}_config.h", projectName);
   {
     REXCODEGEN_TRACE("  {}_config.h: step 1", projectName);
@@ -739,6 +742,8 @@ bool Recompiler::recompile(bool force) {
       println("#define PPC_CONFIG_NON_ARGUMENT_AS_LOCAL");
     if (config().nonVolatileRegistersAsLocalVariables)
       println("#define PPC_CONFIG_NON_VOLATILE_AS_LOCAL");
+    if (isDllMode)
+      println("#define PPC_DLL_MODULE");
 
     println("");
 
@@ -855,6 +860,69 @@ bool Recompiler::recompile(bool force) {
     SaveCurrentOutData(fmt::format("{}_init.cpp", projectName));
   }
 
+  if (isDllMode) {
+    REXCODEGEN_TRACE("Recompile: generating {}_dllmain.cpp (DLL bootstrap)", projectName);
+    {
+      println("//=============================================================================");
+      println("// ReXGlue Generated - {} DLL Bootstrap", projectName);
+      println("//=============================================================================\n");
+      println("#include \"{}_init.h\"", projectName);
+      println("#include <rex/runtime.h>\n");
+
+      // Ordinal → host function map for GetProcAddress-by-ordinal support
+      println("// Ordinal -> host function pointer map");
+      println("struct DllExportEntry {{ uint16_t ordinal; PPCFunc* func; }};");
+      println("static const DllExportEntry kOrdinalMap[] = {{");
+
+      for (const auto& exportSym : binary().exportSymbols()) {
+        // Resolve host function name from graph
+        std::string func_name;
+        auto it = graph().functions().find(exportSym.address);
+        if (it != graph().functions().end()) {
+          const auto* fn = it->second.get();
+          if (fn->base() == analysisState().entryPoint) {
+            func_name = "xstart";
+          } else if (!fn->name().empty()) {
+            func_name = fn->name();
+          } else {
+            func_name = fmt::format("sub_{:08X}", fn->base());
+          }
+        } else {
+          func_name = fmt::format("sub_{:08X}", exportSym.address);
+        }
+        println("\t{{ {}, {} }},", exportSym.ordinal, func_name);
+      }
+
+      println("\t{{ 0, nullptr }}");
+      println("}};");
+
+      println("");
+      println("// Register all recompiled functions with the processor.");
+      println("// Called by KernelState::LoadUserModule immediately after dlopen.");
+      println("extern \"C\" __attribute__((visibility(\"default\")))");
+      println("void init_function_table() {{");
+      println("\tauto* proc = rex::Runtime::instance()->processor();");
+      println("\tfor (const PPCFuncMapping* e = PPCFuncMappings; e->host != nullptr; ++e) {{");
+      println("\t\tproc->SetFunction(static_cast<uint32_t>(e->guest), e->host);");
+      println("\t}}");
+      println("}}");
+
+      println("");
+      println("// Ordinal-keyed export lookup for XexGetProcedureAddress.");
+      println("extern \"C\" __attribute__((visibility(\"default\")))");
+      println("PPCFunc* get_export_by_ordinal(uint16_t ordinal) {{");
+      println("\tfor (const DllExportEntry* e = kOrdinalMap; e->func != nullptr; ++e) {{");
+      println("\t\tif (e->ordinal == ordinal) return e->func;");
+      println("\t}}");
+      println("\treturn nullptr;");
+      println("}}");
+
+      SaveCurrentOutData(fmt::format("{}_dllmain.cpp", projectName));
+    }
+    REXCODEGEN_DEBUG("Recompile: generated {}_dllmain.cpp with {} export entries", projectName,
+                     binary().exportSymbols().size());
+  }
+
   std::erase_if(functions, [](const FunctionNode* fn) {
     return fn->authority() == FunctionAuthority::IMPORT;
   });
@@ -888,7 +956,15 @@ bool Recompiler::recompile(bool force) {
     for (size_t i = 0; i < cppFileIndex; ++i) {
       println("    ${{CMAKE_CURRENT_LIST_DIR}}/{}_recomp.{}.cpp", projectName, i);
     }
+    if (isDllMode) {
+      println("    ${{CMAKE_CURRENT_LIST_DIR}}/{}_dllmain.cpp", projectName);
+    }
     println(")");
+
+    if (isDllMode) {
+      println("\n# DLL mode: target should be built as SHARED library");
+      println("set(GENERATED_IS_DLL TRUE)");
+    }
 
     SaveCurrentOutData("sources.cmake");
   }

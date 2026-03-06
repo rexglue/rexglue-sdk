@@ -63,3 +63,43 @@ function(rexglue_configure_target target_name)
         target_compile_options(${target_name} PRIVATE -msse4.1)
     endif()
 endfunction()
+
+#==========================================================
+# rexglue_configure_dll_target() - Configure a consumer
+# target as a recompiled XEX DLL shared library.
+#
+# Usage:
+#   rexglue_configure_dll_target(<target>)
+#
+# Adds:
+#   - -fvisibility=hidden so only __attribute__((visibility("default")))
+#     symbols are exported (init_function_table, get_export_by_ordinal)
+#   - Platform-specific shared library link settings
+#   - Whole-archive linking for kernel hooks (Linux)
+#==========================================================
+function(rexglue_configure_dll_target target_name)
+    # Hide all symbols by default; only explicitly exported ones are visible
+    target_compile_options(${target_name} PRIVATE -fvisibility=hidden)
+
+    # Linux platform settings
+    if(UNIX AND NOT APPLE)
+        # Whole-archive linking for kernel hooks
+        target_link_options(${target_name} PRIVATE
+            -Wl,--whole-archive
+            $<TARGET_FILE:rex::kernel>
+            -Wl,--no-whole-archive
+        )
+        if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64)$")
+            target_link_options(${target_name} PRIVATE -Wl,--no-relax)
+            target_compile_options(${target_name} PRIVATE -mcmodel=large)
+        elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
+            target_compile_options(${target_name} PRIVATE -march=armv8-a)
+        endif()
+    endif()
+
+    if(NOT MSVC
+       AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64)$"
+       AND NOT (APPLE AND CMAKE_OSX_ARCHITECTURES MATCHES "arm64"))
+        target_compile_options(${target_name} PRIVATE -msse4.1)
+    endif()
+endfunction()
