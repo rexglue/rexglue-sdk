@@ -66,3 +66,6 @@
 [submodule "thirdparty/metal-cpp"]
 	path = thirdparty/metal-cpp
 	url = https://github.com/wmarti/metal-cpp.git
+[submodule "thirdparty/o1heap"]
+	path = thirdparty/o1heap
+	url = https://github.com/pavel-kirienko/o1heap.git

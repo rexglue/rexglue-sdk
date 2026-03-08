@@ -360,6 +360,13 @@ inline simde__m128i simde_mm_avg_epi16(simde__m128i a, simde__m128i b) {
                             simde_mm_avg_epu16(simde_mm_xor_si128(c, a), simde_mm_xor_si128(c, b)));
 }
 
+// Signed 32-bit average
+inline simde__m128i simde_mm_avg_epi32(simde__m128i a, simde__m128i b) {
+  simde__m128i sum = simde_mm_add_epi32(simde_mm_srai_epi32(a, 1), simde_mm_srai_epi32(b, 1));
+  return simde_mm_add_epi32(sum,
+                            simde_mm_and_si128(simde_mm_or_si128(a, b), simde_mm_set1_epi32(1)));
+}
+
 // Convert unsigned 32-bit integers to floats
 inline simde__m128 simde_mm_cvtepu32_ps_(simde__m128i src1) {
   simde__m128i xmm1 = simde_mm_add_epi32(src1, simde_mm_set1_epi32(127));

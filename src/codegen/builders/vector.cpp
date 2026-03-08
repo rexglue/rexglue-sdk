@@ -18,6 +18,8 @@
 
 #include <rex/logging.h>
 
+#include "../codegen_logging.h"
+
 #include <ppc.h>
 
 namespace rex::codegen {
@@ -429,6 +431,16 @@ bool build_vavgsh(BuilderContext& ctx) {
       "\tsimde_mm_store_si128((simde__m128i*){}.u16, "
       "rex::simde_mm_avg_epi16(simde_mm_load_si128((simde__m128i*){}.u16), "
       "simde_mm_load_si128((simde__m128i*){}.u16)));",
+      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]), ctx.v(ctx.insn.operands[2]));
+  return true;
+}
+
+bool build_vavgsw(BuilderContext& ctx) {
+  ctx.println(
+      "\tsimde_mm_store_si128((simde__m128i*){}.s32, "
+      "rex::simde_mm_avg_epi32("
+      "simde_mm_load_si128((simde__m128i*){}.s32), "
+      "simde_mm_load_si128((simde__m128i*){}.s32)));",
       ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]), ctx.v(ctx.insn.operands[2]));
   return true;
 }

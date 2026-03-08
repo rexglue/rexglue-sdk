@@ -718,29 +718,88 @@ ppc_u32_result_t XamSessionRefObjByHandle_entry(ppc_u32_t handle, ppc_pu32_t obj
 }  // namespace kernel
 }  // namespace rex
 
-PPC_HOOK(__imp__XamUserGetXUID, rex::kernel::xam::XamUserGetXUID_entry)
-PPC_HOOK(__imp__XamUserGetSigninState, rex::kernel::xam::XamUserGetSigninState_entry)
-PPC_HOOK(__imp__XamUserGetSigninInfo, rex::kernel::xam::XamUserGetSigninInfo_entry)
-PPC_HOOK(__imp__XamUserGetName, rex::kernel::xam::XamUserGetName_entry)
-PPC_HOOK(__imp__XamUserGetGamerTag, rex::kernel::xam::XamUserGetGamerTag_entry)
-PPC_HOOK(__imp__XamUserReadProfileSettings, rex::kernel::xam::XamUserReadProfileSettings_entry)
-PPC_HOOK(__imp__XamUserReadProfileSettingsEx, rex::kernel::xam::XamUserReadProfileSettingsEx_entry)
-PPC_HOOK(__imp__XamUserWriteProfileSettings, rex::kernel::xam::XamUserWriteProfileSettings_entry)
-PPC_HOOK(__imp__XamUserCheckPrivilege, rex::kernel::xam::XamUserCheckPrivilege_entry)
-PPC_HOOK(__imp__XamUserContentRestrictionGetFlags,
-         rex::kernel::xam::XamUserContentRestrictionGetFlags_entry)
-PPC_HOOK(__imp__XamUserContentRestrictionGetRating,
-         rex::kernel::xam::XamUserContentRestrictionGetRating_entry)
-PPC_HOOK(__imp__XamUserContentRestrictionCheckAccess,
-         rex::kernel::xam::XamUserContentRestrictionCheckAccess_entry)
-PPC_HOOK(__imp__XamUserIsOnlineEnabled, rex::kernel::xam::XamUserIsOnlineEnabled_entry)
-PPC_HOOK(__imp__XamUserGetMembershipTier, rex::kernel::xam::XamUserGetMembershipTier_entry)
-PPC_HOOK(__imp__XamUserAreUsersFriends, rex::kernel::xam::XamUserAreUsersFriends_entry)
-PPC_HOOK(__imp__XamShowSigninUI, rex::kernel::xam::XamShowSigninUI_entry)
-PPC_HOOK(__imp__XamUserCreateAchievementEnumerator,
-         rex::kernel::xam::XamUserCreateAchievementEnumerator_entry)
-PPC_HOOK(__imp__XamParseGamerTileKey, rex::kernel::xam::XamParseGamerTileKey_entry)
-PPC_HOOK(__imp__XamReadTileToTexture, rex::kernel::xam::XamReadTileToTexture_entry)
-PPC_HOOK(__imp__XamWriteGamerTile, rex::kernel::xam::XamWriteGamerTile_entry)
-PPC_HOOK(__imp__XamSessionCreateHandle, rex::kernel::xam::XamSessionCreateHandle_entry)
-PPC_HOOK(__imp__XamSessionRefObjByHandle, rex::kernel::xam::XamSessionRefObjByHandle_entry)
+XAM_EXPORT(__imp__XamUserGetXUID, rex::kernel::xam::XamUserGetXUID_entry)
+XAM_EXPORT(__imp__XamUserGetSigninState, rex::kernel::xam::XamUserGetSigninState_entry)
+XAM_EXPORT(__imp__XamUserGetSigninInfo, rex::kernel::xam::XamUserGetSigninInfo_entry)
+XAM_EXPORT(__imp__XamUserGetName, rex::kernel::xam::XamUserGetName_entry)
+XAM_EXPORT(__imp__XamUserGetGamerTag, rex::kernel::xam::XamUserGetGamerTag_entry)
+XAM_EXPORT(__imp__XamUserReadProfileSettings, rex::kernel::xam::XamUserReadProfileSettings_entry)
+XAM_EXPORT(__imp__XamUserReadProfileSettingsEx,
+           rex::kernel::xam::XamUserReadProfileSettingsEx_entry)
+XAM_EXPORT(__imp__XamUserWriteProfileSettings, rex::kernel::xam::XamUserWriteProfileSettings_entry)
+XAM_EXPORT(__imp__XamUserCheckPrivilege, rex::kernel::xam::XamUserCheckPrivilege_entry)
+XAM_EXPORT(__imp__XamUserContentRestrictionGetFlags,
+           rex::kernel::xam::XamUserContentRestrictionGetFlags_entry)
+XAM_EXPORT(__imp__XamUserContentRestrictionGetRating,
+           rex::kernel::xam::XamUserContentRestrictionGetRating_entry)
+XAM_EXPORT(__imp__XamUserContentRestrictionCheckAccess,
+           rex::kernel::xam::XamUserContentRestrictionCheckAccess_entry)
+XAM_EXPORT(__imp__XamUserIsOnlineEnabled, rex::kernel::xam::XamUserIsOnlineEnabled_entry)
+XAM_EXPORT(__imp__XamUserGetMembershipTier, rex::kernel::xam::XamUserGetMembershipTier_entry)
+XAM_EXPORT(__imp__XamUserAreUsersFriends, rex::kernel::xam::XamUserAreUsersFriends_entry)
+XAM_EXPORT(__imp__XamShowSigninUI, rex::kernel::xam::XamShowSigninUI_entry)
+XAM_EXPORT(__imp__XamUserCreateAchievementEnumerator,
+           rex::kernel::xam::XamUserCreateAchievementEnumerator_entry)
+XAM_EXPORT(__imp__XamParseGamerTileKey, rex::kernel::xam::XamParseGamerTileKey_entry)
+XAM_EXPORT(__imp__XamReadTileToTexture, rex::kernel::xam::XamReadTileToTexture_entry)
+XAM_EXPORT(__imp__XamWriteGamerTile, rex::kernel::xam::XamWriteGamerTile_entry)
+XAM_EXPORT(__imp__XamSessionCreateHandle, rex::kernel::xam::XamSessionCreateHandle_entry)
+XAM_EXPORT(__imp__XamSessionRefObjByHandle, rex::kernel::xam::XamSessionRefObjByHandle_entry)
+
+XAM_EXPORT_STUB(__imp__XamUserAddRecentPlayer);
+XAM_EXPORT_STUB(__imp__XamUserAllowedToPostToSocialNetwork);
+XAM_EXPORT_STUB(__imp__XamUserCreateAvatarAssetEnumerator);
+XAM_EXPORT_STUB(__imp__XamUserCreatePlayerEnumerator);
+XAM_EXPORT_STUB(__imp__XamUserCreateStatsEnumerator);
+XAM_EXPORT_STUB(__imp__XamUserCreateTitlesPlayedEnumerator);
+XAM_EXPORT_STUB(__imp__XamUserFlushLogonQueue);
+XAM_EXPORT_STUB(__imp__XamUserGetAge);
+XAM_EXPORT_STUB(__imp__XamUserGetAgeGroup);
+XAM_EXPORT_STUB(__imp__XamUserGetCachedUserFlags);
+XAM_EXPORT_STUB(__imp__XamUserGetDeviceId);
+XAM_EXPORT_STUB(__imp__XamUserGetIndexFromXUID);
+XAM_EXPORT_STUB(__imp__XamUserGetMembershipTierFromXUID);
+XAM_EXPORT_STUB(__imp__XamUserGetOnlineCountryFromXUID);
+XAM_EXPORT_STUB(__imp__XamUserGetOnlineLanguageFromXUID);
+XAM_EXPORT_STUB(__imp__XamUserGetOnlineXUIDFromOfflineXUID);
+XAM_EXPORT_STUB(__imp__XamUserGetReportingInfo);
+XAM_EXPORT_STUB(__imp__XamUserGetRequestedUserIndexMask);
+XAM_EXPORT_STUB(__imp__XamUserGetSubscriptionType);
+XAM_EXPORT_STUB(__imp__XamUserGetUserFlags);
+XAM_EXPORT_STUB(__imp__XamUserGetUserFlagsFromXUID);
+XAM_EXPORT_STUB(__imp__XamUserGetUserIndexMask);
+XAM_EXPORT_STUB(__imp__XamUserGetUserTenure);
+XAM_EXPORT_STUB(__imp__XamUserGetUsersMissingAvatars);
+XAM_EXPORT_STUB(__imp__XamUserGetXUIDForTFA);
+XAM_EXPORT_STUB(__imp__XamUserInvalidateProfileSetting);
+XAM_EXPORT_STUB(__imp__XamUserIsGuest);
+XAM_EXPORT_STUB(__imp__XamUserIsLogonPreviewModeEnabled);
+XAM_EXPORT_STUB(__imp__XamUserIsParentalControlled);
+XAM_EXPORT_STUB(__imp__XamUserIsPartial);
+XAM_EXPORT_STUB(__imp__XamUserIsPartialProfile);
+XAM_EXPORT_STUB(__imp__XamUserIsUnsafeProgrammingAllowed);
+XAM_EXPORT_STUB(__imp__XamUserLockLogonPreviewMode);
+XAM_EXPORT_STUB(__imp__XamUserLogon);
+XAM_EXPORT_STUB(__imp__XamUserLogonEx);
+XAM_EXPORT_STUB(__imp__XamUserLookupDevice);
+XAM_EXPORT_STUB(__imp__XamUserNuiBind);
+XAM_EXPORT_STUB(__imp__XamUserNuiEnableBiometric);
+XAM_EXPORT_STUB(__imp__XamUserNuiGetEnrollmentIndex);
+XAM_EXPORT_STUB(__imp__XamUserNuiGetUserIndex);
+XAM_EXPORT_STUB(__imp__XamUserNuiGetUserIndexForBind);
+XAM_EXPORT_STUB(__imp__XamUserNuiGetUserIndexForSignin);
+XAM_EXPORT_STUB(__imp__XamUserNuiIsBiometricEnabled);
+XAM_EXPORT_STUB(__imp__XamUserNuiUnbind);
+XAM_EXPORT_STUB(__imp__XamUserOverrideBindingCallbacks);
+XAM_EXPORT_STUB(__imp__XamUserOverrideDeviceBindings);
+XAM_EXPORT_STUB(__imp__XamUserOverrideGlobalState);
+XAM_EXPORT_STUB(__imp__XamUserOverrideUserInfo);
+XAM_EXPORT_STUB(__imp__XamUserPrefetchProfileSettings);
+XAM_EXPORT_STUB(__imp__XamUserProfileSync);
+XAM_EXPORT_STUB(__imp__XamUserReadUserPreference);
+XAM_EXPORT_STUB(__imp__XamUserResetSubscriptionType);
+XAM_EXPORT_STUB(__imp__XamUserUnlockLogonPreviewMode);
+XAM_EXPORT_STUB(__imp__XamUserUpdateRecentPlayer);
+XAM_EXPORT_STUB(__imp__XamUserValidateAvatarManifest);
+XAM_EXPORT_STUB(__imp__XamUserWriteUserPreference);
+XAM_EXPORT_STUB(__imp__XamVerifyPasscode);

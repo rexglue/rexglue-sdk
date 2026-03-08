@@ -90,15 +90,44 @@ ppc_u32_result_t XAudioSubmitRenderDriverFrame_entry(ppc_pvoid_t driver_ptr,
 
 }  // namespace rex::kernel::xboxkrnl
 
-PPC_HOOK(__imp__XAudioGetSpeakerConfig, rex::kernel::xboxkrnl::XAudioGetSpeakerConfig_entry)
-PPC_HOOK(__imp__XAudioGetVoiceCategoryVolumeChangeMask,
-         rex::kernel::xboxkrnl::XAudioGetVoiceCategoryVolumeChangeMask_entry)
-PPC_HOOK(__imp__XAudioGetVoiceCategoryVolume,
-         rex::kernel::xboxkrnl::XAudioGetVoiceCategoryVolume_entry)
-PPC_HOOK(__imp__XAudioEnableDucker, rex::kernel::xboxkrnl::XAudioEnableDucker_entry)
-PPC_HOOK(__imp__XAudioRegisterRenderDriverClient,
-         rex::kernel::xboxkrnl::XAudioRegisterRenderDriverClient_entry)
-PPC_HOOK(__imp__XAudioUnregisterRenderDriverClient,
-         rex::kernel::xboxkrnl::XAudioUnregisterRenderDriverClient_entry)
-PPC_HOOK(__imp__XAudioSubmitRenderDriverFrame,
-         rex::kernel::xboxkrnl::XAudioSubmitRenderDriverFrame_entry)
+XBOXKRNL_EXPORT(__imp__XAudioGetSpeakerConfig, rex::kernel::xboxkrnl::XAudioGetSpeakerConfig_entry)
+XBOXKRNL_EXPORT(__imp__XAudioGetVoiceCategoryVolumeChangeMask,
+                rex::kernel::xboxkrnl::XAudioGetVoiceCategoryVolumeChangeMask_entry)
+XBOXKRNL_EXPORT(__imp__XAudioGetVoiceCategoryVolume,
+                rex::kernel::xboxkrnl::XAudioGetVoiceCategoryVolume_entry)
+XBOXKRNL_EXPORT(__imp__XAudioEnableDucker, rex::kernel::xboxkrnl::XAudioEnableDucker_entry)
+XBOXKRNL_EXPORT(__imp__XAudioRegisterRenderDriverClient,
+                rex::kernel::xboxkrnl::XAudioRegisterRenderDriverClient_entry)
+XBOXKRNL_EXPORT(__imp__XAudioUnregisterRenderDriverClient,
+                rex::kernel::xboxkrnl::XAudioUnregisterRenderDriverClient_entry)
+XBOXKRNL_EXPORT(__imp__XAudioSubmitRenderDriverFrame,
+                rex::kernel::xboxkrnl::XAudioSubmitRenderDriverFrame_entry)
+
+XBOXKRNL_EXPORT_STUB(__imp__XAudioRenderDriverInitialize);
+XBOXKRNL_EXPORT_STUB(__imp__XAudioRenderDriverLock);
+XBOXKRNL_EXPORT_STUB(__imp__XAudioSetVoiceCategoryVolume);
+XBOXKRNL_EXPORT_STUB(__imp__XAudioBeginDigitalBypassMode);
+XBOXKRNL_EXPORT_STUB(__imp__XAudioEndDigitalBypassMode);
+XBOXKRNL_EXPORT_STUB(__imp__XAudioSubmitDigitalPacket);
+XBOXKRNL_EXPORT_STUB(__imp__XAudioQueryDriverPerformance);
+XBOXKRNL_EXPORT_STUB(__imp__XAudioGetRenderDriverThread);
+XBOXKRNL_EXPORT_STUB(__imp__XAudioSetSpeakerConfig);
+XBOXKRNL_EXPORT_STUB(__imp__XAudioOverrideSpeakerConfig);
+XBOXKRNL_EXPORT_STUB(__imp__XAudioSuspendRenderDriverClients);
+XBOXKRNL_EXPORT_STUB(__imp__XAudioRegisterRenderDriverMECClient);
+XBOXKRNL_EXPORT_STUB(__imp__XAudioUnregisterRenderDriverMECClient);
+XBOXKRNL_EXPORT_STUB(__imp__XAudioCaptureRenderDriverFrame);
+XBOXKRNL_EXPORT_STUB(__imp__XAudioGetRenderDriverTic);
+XBOXKRNL_EXPORT_STUB(__imp__XAudioSetDuckerLevel);
+XBOXKRNL_EXPORT_STUB(__imp__XAudioIsDuckerEnabled);
+XBOXKRNL_EXPORT_STUB(__imp__XAudioGetDuckerLevel);
+XBOXKRNL_EXPORT_STUB(__imp__XAudioGetDuckerThreshold);
+XBOXKRNL_EXPORT_STUB(__imp__XAudioSetDuckerThreshold);
+XBOXKRNL_EXPORT_STUB(__imp__XAudioGetDuckerAttackTime);
+XBOXKRNL_EXPORT_STUB(__imp__XAudioSetDuckerAttackTime);
+XBOXKRNL_EXPORT_STUB(__imp__XAudioGetDuckerReleaseTime);
+XBOXKRNL_EXPORT_STUB(__imp__XAudioSetDuckerReleaseTime);
+XBOXKRNL_EXPORT_STUB(__imp__XAudioGetDuckerHoldTime);
+XBOXKRNL_EXPORT_STUB(__imp__XAudioSetDuckerHoldTime);
+XBOXKRNL_EXPORT_STUB(__imp__XAudioGetUnderrunCount);
+XBOXKRNL_EXPORT_STUB(__imp__XAudioSetProcessFrameCallback);

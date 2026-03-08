@@ -338,33 +338,33 @@ ppc_u32_result_t XamSwapDisc_entry(ppc_u32_t disc_number) {
 }  // namespace kernel
 }  // namespace rex
 
-PPC_HOOK(__imp__XamFeatureEnabled, rex::kernel::xam::XamFeatureEnabled_entry)
-PPC_HOOK(__imp__XamGetOnlineSchema, rex::kernel::xam::XamGetOnlineSchema_entry)
-PPC_HOOK(__imp__XamFormatDateString, rex::kernel::xam::XamFormatDateString_entry)
-PPC_HOOK(__imp__XamFormatTimeString, rex::kernel::xam::XamFormatTimeString_entry)
-PPC_HOOK(__imp__XamBuildResourceLocator, rex::kernel::xam::XamBuildResourceLocator_entry)
-PPC_HOOK(__imp__XamBuildGamercardResourceLocator,
-         rex::kernel::xam::XamBuildGamercardResourceLocator_entry)
-PPC_HOOK(__imp__XamBuildSharedSystemResourceLocator,
-         rex::kernel::xam::XamBuildSharedSystemResourceLocator_entry)
-PPC_HOOK(__imp__XamBuildLegacySystemResourceLocator,
-         rex::kernel::xam::XamBuildLegacySystemResourceLocator_entry)
-PPC_HOOK(__imp__XamBuildXamResourceLocator, rex::kernel::xam::XamBuildXamResourceLocator_entry)
-PPC_HOOK(__imp__XamGetSystemVersion, rex::kernel::xam::XamGetSystemVersion_entry)
-PPC_HOOK(__imp__XCustomRegisterDynamicActions,
-         rex::kernel::xam::XCustomRegisterDynamicActions_entry)
-PPC_HOOK(__imp__XGetAVPack, rex::kernel::xam::XGetAVPack_entry)
-PPC_HOOK(__imp__XGetGameRegion, rex::kernel::xam::XGetGameRegion_entry)
-PPC_HOOK(__imp__XGetLanguage, rex::kernel::xam::XGetLanguage_entry)
-PPC_HOOK(__imp__XamGetCurrentTitleId, rex::kernel::xam::XamGetCurrentTitleId_entry)
-PPC_HOOK(__imp__XamGetExecutionId, rex::kernel::xam::XamGetExecutionId_entry)
-PPC_HOOK(__imp__XamLoaderSetLaunchData, rex::kernel::xam::XamLoaderSetLaunchData_entry)
-PPC_HOOK(__imp__XamLoaderGetLaunchDataSize, rex::kernel::xam::XamLoaderGetLaunchDataSize_entry)
-PPC_HOOK(__imp__XamLoaderGetLaunchData, rex::kernel::xam::XamLoaderGetLaunchData_entry)
-PPC_HOOK(__imp__XamLoaderLaunchTitle, rex::kernel::xam::XamLoaderLaunchTitle_entry)
-PPC_HOOK(__imp__XamLoaderTerminateTitle, rex::kernel::xam::XamLoaderTerminateTitle_entry)
-PPC_HOOK(__imp__XamAlloc, rex::kernel::xam::XamAlloc_entry)
-PPC_HOOK(__imp__XamFree, rex::kernel::xam::XamFree_entry)
-PPC_HOOK(__imp__XamQueryLiveHiveW, rex::kernel::xam::XamQueryLiveHiveW_entry)
-PPC_HOOK(__imp__XamLoaderGetDvdTrayState, rex::kernel::xam::XamLoaderGetDvdTrayState_entry)
-PPC_HOOK(__imp__XamSwapDisc, rex::kernel::xam::XamSwapDisc_entry)
+XAM_EXPORT(__imp__XamFeatureEnabled, rex::kernel::xam::XamFeatureEnabled_entry)
+XAM_EXPORT(__imp__XamGetOnlineSchema, rex::kernel::xam::XamGetOnlineSchema_entry)
+XAM_EXPORT(__imp__XamFormatDateString, rex::kernel::xam::XamFormatDateString_entry)
+XAM_EXPORT(__imp__XamFormatTimeString, rex::kernel::xam::XamFormatTimeString_entry)
+XAM_EXPORT(__imp__XamBuildResourceLocator, rex::kernel::xam::XamBuildResourceLocator_entry)
+XAM_EXPORT(__imp__XamBuildGamercardResourceLocator,
+           rex::kernel::xam::XamBuildGamercardResourceLocator_entry)
+XAM_EXPORT(__imp__XamBuildSharedSystemResourceLocator,
+           rex::kernel::xam::XamBuildSharedSystemResourceLocator_entry)
+XAM_EXPORT(__imp__XamBuildLegacySystemResourceLocator,
+           rex::kernel::xam::XamBuildLegacySystemResourceLocator_entry)
+XAM_EXPORT(__imp__XamBuildXamResourceLocator, rex::kernel::xam::XamBuildXamResourceLocator_entry)
+XAM_EXPORT(__imp__XamGetSystemVersion, rex::kernel::xam::XamGetSystemVersion_entry)
+XAM_EXPORT(__imp__XCustomRegisterDynamicActions,
+           rex::kernel::xam::XCustomRegisterDynamicActions_entry)
+XAM_EXPORT(__imp__XGetAVPack, rex::kernel::xam::XGetAVPack_entry)
+XAM_EXPORT(__imp__XGetGameRegion, rex::kernel::xam::XGetGameRegion_entry)
+XAM_EXPORT(__imp__XGetLanguage, rex::kernel::xam::XGetLanguage_entry)
+XAM_EXPORT(__imp__XamGetCurrentTitleId, rex::kernel::xam::XamGetCurrentTitleId_entry)
+XAM_EXPORT(__imp__XamGetExecutionId, rex::kernel::xam::XamGetExecutionId_entry)
+XAM_EXPORT(__imp__XamLoaderSetLaunchData, rex::kernel::xam::XamLoaderSetLaunchData_entry)
+XAM_EXPORT(__imp__XamLoaderGetLaunchDataSize, rex::kernel::xam::XamLoaderGetLaunchDataSize_entry)
+XAM_EXPORT(__imp__XamLoaderGetLaunchData, rex::kernel::xam::XamLoaderGetLaunchData_entry)
+XAM_EXPORT(__imp__XamLoaderLaunchTitle, rex::kernel::xam::XamLoaderLaunchTitle_entry)
+XAM_EXPORT(__imp__XamLoaderTerminateTitle, rex::kernel::xam::XamLoaderTerminateTitle_entry)
+XAM_EXPORT(__imp__XamAlloc, rex::kernel::xam::XamAlloc_entry)
+XAM_EXPORT(__imp__XamFree, rex::kernel::xam::XamFree_entry)
+XAM_EXPORT(__imp__XamQueryLiveHiveW, rex::kernel::xam::XamQueryLiveHiveW_entry)
+XAM_EXPORT(__imp__XamLoaderGetDvdTrayState, rex::kernel::xam::XamLoaderGetDvdTrayState_entry)
+XAM_EXPORT(__imp__XamSwapDisc, rex::kernel::xam::XamSwapDisc_entry)

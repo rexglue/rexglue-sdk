@@ -113,7 +113,7 @@ ppc_u32_result_t XamGetPrivateEnumStructureFromHandle_entry(ppc_u32_t handle,
 }  // namespace kernel
 }  // namespace rex
 
-PPC_HOOK(__imp__XamEnumerate, rex::kernel::xam::XamEnumerate_entry)
-PPC_HOOK(__imp__XamCreateEnumeratorHandle, rex::kernel::xam::XamCreateEnumeratorHandle_entry)
-PPC_HOOK(__imp__XamGetPrivateEnumStructureFromHandle,
-         rex::kernel::xam::XamGetPrivateEnumStructureFromHandle_entry)
+XAM_EXPORT(__imp__XamEnumerate, rex::kernel::xam::XamEnumerate_entry)
+XAM_EXPORT(__imp__XamCreateEnumeratorHandle, rex::kernel::xam::XamCreateEnumeratorHandle_entry)
+XAM_EXPORT(__imp__XamGetPrivateEnumStructureFromHandle,
+           rex::kernel::xam::XamGetPrivateEnumStructureFromHandle_entry)

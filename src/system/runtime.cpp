@@ -13,12 +13,10 @@
 #include <rex/filesystem/devices/host_path_device.h>
 #include <rex/filesystem/devices/null_device.h>
 #include <rex/filesystem/vfs.h>
-#include <rex/kernel/xam/module.h>
-#include <rex/kernel/xboxkrnl/module.h>
-#include <rex/kernel/xboxkrnl/video.h>
 #include <rex/logging.h>
 #include <rex/ppc/context.h>     // PPCFuncMapping
 #include <rex/ppc/exceptions.h>  // SEH exception support
+#include <rex/kernel/crt/heap.h>
 #include <rex/runtime.h>
 #include <rex/system/export_resolver.h>
 #include <rex/system/kernel_state.h>
@@ -104,11 +102,10 @@ X_STATUS Runtime::Setup(RuntimeConfig config) {
     }
   }
 
-  // HLE kernel modules.
-#define LOAD_KERNEL_MODULE(t) static_cast<void>(kernel_state_->LoadKernelModule<kernel::t>())
-  LOAD_KERNEL_MODULE(xboxkrnl::XboxkrnlModule);
-  LOAD_KERNEL_MODULE(xam::XamModule);
-#undef LOAD_KERNEL_MODULE
+  // HLE kernel modules and apps.
+  if (config.kernel_init) {
+    config.kernel_init(this, kernel_state_.get());
+  }
 
   // Initialize the APU (Audio Processing Unit) from injected config
   if (config.audio_factory) {

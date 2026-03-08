@@ -202,13 +202,35 @@ ppc_u32_result_t NtClose_entry(ppc_u32_t handle) {
 
 }  // namespace rex::kernel::xboxkrnl
 
-PPC_HOOK(__imp__ObOpenObjectByName, rex::kernel::xboxkrnl::ObOpenObjectByName_entry)
-PPC_HOOK(__imp__ObOpenObjectByPointer, rex::kernel::xboxkrnl::ObOpenObjectByPointer_entry)
-PPC_HOOK(__imp__ObLookupThreadByThreadId, rex::kernel::xboxkrnl::ObLookupThreadByThreadId_entry)
-PPC_HOOK(__imp__ObReferenceObjectByHandle, rex::kernel::xboxkrnl::ObReferenceObjectByHandle_entry)
-PPC_HOOK(__imp__ObReferenceObjectByName, rex::kernel::xboxkrnl::ObReferenceObjectByName_entry)
-PPC_HOOK(__imp__ObDereferenceObject, rex::kernel::xboxkrnl::ObDereferenceObject_entry)
-PPC_HOOK(__imp__ObCreateSymbolicLink, rex::kernel::xboxkrnl::ObCreateSymbolicLink_entry)
-PPC_HOOK(__imp__ObDeleteSymbolicLink, rex::kernel::xboxkrnl::ObDeleteSymbolicLink_entry)
-PPC_HOOK(__imp__NtDuplicateObject, rex::kernel::xboxkrnl::NtDuplicateObject_entry)
-PPC_HOOK(__imp__NtClose, rex::kernel::xboxkrnl::NtClose_entry)
+XBOXKRNL_EXPORT(__imp__ObOpenObjectByName, rex::kernel::xboxkrnl::ObOpenObjectByName_entry)
+XBOXKRNL_EXPORT(__imp__ObOpenObjectByPointer, rex::kernel::xboxkrnl::ObOpenObjectByPointer_entry)
+XBOXKRNL_EXPORT(__imp__ObLookupThreadByThreadId,
+                rex::kernel::xboxkrnl::ObLookupThreadByThreadId_entry)
+XBOXKRNL_EXPORT(__imp__ObReferenceObjectByHandle,
+                rex::kernel::xboxkrnl::ObReferenceObjectByHandle_entry)
+XBOXKRNL_EXPORT(__imp__ObReferenceObjectByName,
+                rex::kernel::xboxkrnl::ObReferenceObjectByName_entry)
+XBOXKRNL_EXPORT(__imp__ObDereferenceObject, rex::kernel::xboxkrnl::ObDereferenceObject_entry)
+XBOXKRNL_EXPORT(__imp__ObCreateSymbolicLink, rex::kernel::xboxkrnl::ObCreateSymbolicLink_entry)
+XBOXKRNL_EXPORT(__imp__ObDeleteSymbolicLink, rex::kernel::xboxkrnl::ObDeleteSymbolicLink_entry)
+XBOXKRNL_EXPORT(__imp__NtDuplicateObject, rex::kernel::xboxkrnl::NtDuplicateObject_entry)
+XBOXKRNL_EXPORT(__imp__NtClose, rex::kernel::xboxkrnl::NtClose_entry)
+
+XBOXKRNL_EXPORT_STUB(__imp__ObCreateObject);
+XBOXKRNL_EXPORT_STUB(__imp__ObGetWaitableObject);
+XBOXKRNL_EXPORT_STUB(__imp__ObInsertObject);
+XBOXKRNL_EXPORT_STUB(__imp__ObIsTitleObject);
+XBOXKRNL_EXPORT_STUB(__imp__ObLookupAnyThreadByThreadId);
+XBOXKRNL_EXPORT_STUB(__imp__ObMakeTemporaryObject);
+XBOXKRNL_EXPORT_STUB(__imp__ObReferenceObject);
+XBOXKRNL_EXPORT_STUB(__imp__ObTranslateSymbolicLink);
+XBOXKRNL_EXPORT_STUB(__imp__NtCreateDirectoryObject);
+XBOXKRNL_EXPORT_STUB(__imp__NtCreateSymbolicLinkObject);
+XBOXKRNL_EXPORT_STUB(__imp__NtMakeTemporaryObject);
+XBOXKRNL_EXPORT_STUB(__imp__NtOpenDirectoryObject);
+XBOXKRNL_EXPORT_STUB(__imp__NtQueryDirectoryObject);
+XBOXKRNL_EXPORT_STUB(__imp__NtQueryEvent);
+XBOXKRNL_EXPORT_STUB(__imp__NtQueryIoCompletion);
+XBOXKRNL_EXPORT_STUB(__imp__NtQueryMutant);
+XBOXKRNL_EXPORT_STUB(__imp__NtQuerySemaphore);
+XBOXKRNL_EXPORT_STUB(__imp__NtQueryTimer);

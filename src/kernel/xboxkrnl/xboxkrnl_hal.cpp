@@ -36,4 +36,31 @@ void HalReturnToFirmware_entry(ppc_u32_t routine) {
 
 }  // namespace rex::kernel::xboxkrnl
 
-PPC_HOOK(__imp__HalReturnToFirmware, rex::kernel::xboxkrnl::HalReturnToFirmware_entry)
+XBOXKRNL_EXPORT(__imp__HalReturnToFirmware, rex::kernel::xboxkrnl::HalReturnToFirmware_entry)
+
+XBOXKRNL_EXPORT_STUB(__imp__HalGetCurrentAVPack);
+XBOXKRNL_EXPORT_STUB(__imp__HalGpioControl);
+XBOXKRNL_EXPORT_STUB(__imp__HalOpenCloseODDTray);
+XBOXKRNL_EXPORT_STUB(__imp__HalReadWritePCISpace);
+XBOXKRNL_EXPORT_STUB(__imp__HalRegisterPowerDownNotification);
+XBOXKRNL_EXPORT_STUB(__imp__HalRegisterSMCNotification);
+XBOXKRNL_EXPORT_STUB(__imp__HalSendSMCMessage);
+XBOXKRNL_EXPORT_STUB(__imp__HalSetAudioEnable);
+XBOXKRNL_EXPORT_STUB(__imp__HalIsExecutingPowerDownDpc);
+XBOXKRNL_EXPORT_STUB(__imp__HalGetPowerUpCause);
+XBOXKRNL_EXPORT_STUB(__imp__HalRegisterPowerDownCallback);
+XBOXKRNL_EXPORT_STUB(__imp__HalRegisterBackgroundModeTransitionCallback);
+XBOXKRNL_EXPORT_STUB(__imp__HalClampUnclampOutputDACs);
+XBOXKRNL_EXPORT_STUB(__imp__HalPowerDownToBackgroundMode);
+XBOXKRNL_EXPORT_STUB(__imp__HalNotifyAddRemoveBackgroundTask);
+XBOXKRNL_EXPORT_STUB(__imp__HalCallBackgroundModeNotificationRoutines);
+XBOXKRNL_EXPORT_STUB(__imp__HalGetMemoryInformation);
+XBOXKRNL_EXPORT_STUB(__imp__HalNotifyBackgroundModeTransitionComplete);
+XBOXKRNL_EXPORT_STUB(__imp__HalFinalizePowerLossRecovery);
+XBOXKRNL_EXPORT_STUB(__imp__HalSetPowerLossRecovery);
+XBOXKRNL_EXPORT_STUB(__imp__HalRegisterXamPowerDownCallback);
+XBOXKRNL_EXPORT_STUB(__imp__HalRegisterHdDvdRomNotification);
+XBOXKRNL_EXPORT_STUB(__imp__HalGetNotedArgonErrors);
+XBOXKRNL_EXPORT_STUB(__imp__HalReadArgonEeprom);
+XBOXKRNL_EXPORT_STUB(__imp__HalWriteArgonEeprom);
+XBOXKRNL_EXPORT_STUB(__imp__HalConfigureVeDevice);

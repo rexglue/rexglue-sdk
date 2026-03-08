@@ -120,4 +120,5 @@ ppc_u32_result_t ExGetXConfigSetting_entry(ppc_u16_t category, ppc_u16_t setting
 
 }  // namespace rex::kernel::xboxkrnl
 
-PPC_HOOK(__imp__ExGetXConfigSetting, rex::kernel::xboxkrnl::ExGetXConfigSetting_entry)
+XBOXKRNL_EXPORT(__imp__ExGetXConfigSetting, rex::kernel::xboxkrnl::ExGetXConfigSetting_entry)
+XBOXKRNL_EXPORT_STUB(__imp__ExSetXConfigSetting);

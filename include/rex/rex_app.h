@@ -18,6 +18,7 @@
 #include <string_view>
 #include <thread>
 
+#include <rex/ppc/image_info.h>
 #include <rex/runtime.h>
 #include <rex/ui/imgui_dialog.h>
 #include <rex/ui/imgui_drawer.h>
@@ -26,20 +27,9 @@
 #include <rex/ui/window_listener.h>
 #include <rex/ui/windowed_app.h>
 
-struct PPCFuncMapping;
-
 namespace rex {
 
 class LogCaptureSink;
-
-/// PPC image layout passed from the generated config header into ReXApp.
-struct PPCImageInfo {
-  uint32_t code_base;
-  uint32_t code_size;
-  uint32_t image_base;
-  uint32_t image_size;
-  const PPCFuncMapping* func_mappings;
-};
 
 /// Content path configuration, passed to OnConfigurePaths().
 /// All paths start with sensible defaults derived from CLI args and cvars.
@@ -62,18 +52,24 @@ class SettingsDialog;
 /// module launch, and shutdown. Consumer projects inherit this and optionally
 /// override virtual hooks for customization.
 ///
-/// The generated main.cpp from `rexglue init` / `rexglue migrate` uses this:
+/// The generated src/{name}_app.h from `rexglue init` uses this:
 /// @code
+///   // src/my_app_app.h (yours to customize)
 ///   class MyApp : public rex::ReXApp {
 ///   public:
 ///       using rex::ReXApp::ReXApp;
 ///       static std::unique_ptr<rex::ui::WindowedApp> Create(
 ///           rex::ui::WindowedAppContext& ctx) {
 ///         return std::unique_ptr<MyApp>(new MyApp(ctx, "my_app",
-///             {PPC_CODE_BASE, PPC_CODE_SIZE, PPC_IMAGE_BASE,
-///              PPC_IMAGE_SIZE, PPCFuncMappings}));
+///             PPCImageConfig));
 ///       }
+///       // Override hooks: OnPreSetup, OnPostSetup, OnCreateDialogs, etc.
 ///   };
+///
+///   // src/main.cpp
+///   #include "generated/my_app_config.h"
+///   #include "generated/my_app_init.h"
+///   #include "my_app_app.h"
 ///   REX_DEFINE_APP(my_app, MyApp::Create)
 /// @endcode
 class ReXApp : public ui::WindowedApp, public ui::WindowListener, public ui::WindowInputListener {

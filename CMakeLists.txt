@@ -18,7 +18,7 @@ if(APPLE AND NOT DEFINED CMAKE_OSX_ARCHITECTURES)
 endif()
 
 project(ReXGlue
-    VERSION 0.2.2
+    VERSION 0.3.0
     LANGUAGES C CXX
     DESCRIPTION "Xbox 360 Recompilation SDK"
 )
@@ -32,6 +32,12 @@ if(UNIX AND NOT APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)
     enable_language(ASM)
     string(APPEND CMAKE_ASM_FLAGS " -march=armv8-a")
 endif()
+# Generate version header from CMake project version
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/rex/version.h.in
+    ${CMAKE_CURRENT_BINARY_DIR}/include/rex/version.h
+    @ONLY
+)
 
 #==========================================================
 # Build Options

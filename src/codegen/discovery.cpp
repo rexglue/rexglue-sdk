@@ -16,6 +16,8 @@
 #include <queue>
 
 #include <rex/logging.h>
+
+#include "codegen_logging.h"
 #include <rex/types.h>
 
 namespace rex::codegen {
@@ -557,9 +559,31 @@ std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, uint32_t bctrAd
       }
     }
 
+    // PPC instructions must be 4-byte aligned
+    if (target & 3) {
+      REXCODEGEN_TRACE(
+          "detectJumpTable: bctr=0x{:08X} entry[{}] target=0x{:08X} not 4-byte aligned", bctrAddr,
+          i, target);
+      if (jt.targets.empty())
+        return std::nullopt;
+      break;
+    }
+
     // Validate target is within code region - jump table targets help DEFINE function extent
     // Don't constrain by funcEnd since that's just PDATA which may not include out-of-line code
     if (target == 0 || !containingRegion.contains(target)) {
+      // TODO(tomc): Figure out what this voodoo does on real hardware. Its a jump target that
+      // points to a null value..?
+      if (target != 0) {
+        auto outsideInsn = decoded.read<uint32_t>(target);
+        if (outsideInsn && (*outsideInsn == 0x00000000 || *outsideInsn == 0xFFFFFFFF)) {
+          REXCODEGEN_TRACE(
+              "detectJumpTable: bctr=0x{:08X} entry[{}] target=0x{:08X} null jump sentinel",
+              bctrAddr, i, target);
+          jt.targets.push_back(0);  // sentinel
+          continue;
+        }
+      }
       // End of valid entries
       REXCODEGEN_TRACE(
           "detectJumpTable: bctr=0x{:08X} entry[{}] target=0x{:08X} invalid (region "

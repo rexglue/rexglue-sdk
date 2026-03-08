@@ -477,6 +477,7 @@ bool build_vminub(BuilderContext& ctx);
 // Vector average
 bool build_vavgsb(BuilderContext& ctx);
 bool build_vavgsh(BuilderContext& ctx);
+bool build_vavgsw(BuilderContext& ctx);
 bool build_vavgub(BuilderContext& ctx);
 bool build_vavguh(BuilderContext& ctx);
 

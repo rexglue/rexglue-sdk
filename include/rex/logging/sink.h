@@ -1,7 +1,6 @@
 /**
- * @file        rex/log_capture.h
- *
- * @brief       Thread-safe ring-buffer spdlog sink for in-memory log capture.
+ * @file        rex/logging/sink.h
+ * @brief       Thread-safe ring-buffer spdlog sink for in-memory log capture
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -10,13 +9,16 @@
  *              See LICENSE file in the project root for full license text.
  */
 #pragma once
-#include <rex/logging.h>
+
+#include <rex/logging/types.h>
+
 #include <spdlog/sinks/base_sink.h>
+
 #include <array>
+#include <cstddef>
 #include <mutex>
 #include <string>
 #include <vector>
-#include <cstddef>
 
 namespace rex {
 
@@ -60,11 +62,7 @@ class LogCaptureSink : public spdlog::sinks::base_sink<std::mutex> {
 
  protected:
   void sink_it_(const spdlog::details::log_msg& msg) override {
-    // Extract category from logger name: "rex.core" -> "core"
     std::string cat(msg.logger_name.begin(), msg.logger_name.end());
-    auto dot = cat.rfind('.');
-    if (dot != std::string::npos)
-      cat = cat.substr(dot + 1);
 
     // Format just the payload (no timestamp, level, or logger name).
     spdlog::memory_buf_t formatted;

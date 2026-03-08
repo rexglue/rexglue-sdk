@@ -535,47 +535,33 @@ void XThread::Execute() {
     return;
   }
 
-  // Set up the PPCContext for execution
-  PPCContext ctx{};
+  auto* ctx = thread_state_->context();
   uint8_t* base = memory->virtual_membase();
 
-  // Initialize critical registers (must match Xenia's ThreadState constructor)
-  // r1 = stack pointer (top of stack)
-  ctx.r1.u64 = stack_base_;
-  // r13 = PCR address (PCR contains tls_ptr which points to tls_static_address_)
-  ctx.r13.u64 = pcr_address_;
-
   // Pass arguments in r3, r4, ... per PPC calling convention
-  // PPCContext has individual register members, not an array
   if (args.size() > 0)
-    ctx.r3.u64 = args[0];
+    ctx->r3.u64 = args[0];
   if (args.size() > 1)
-    ctx.r4.u64 = args[1];
+    ctx->r4.u64 = args[1];
   if (args.size() > 2)
-    ctx.r5.u64 = args[2];
+    ctx->r5.u64 = args[2];
   if (args.size() > 3)
-    ctx.r6.u64 = args[3];
+    ctx->r6.u64 = args[3];
   if (args.size() > 4)
-    ctx.r7.u64 = args[4];
+    ctx->r7.u64 = args[4];
   if (args.size() > 5)
-    ctx.r8.u64 = args[5];
+    ctx->r8.u64 = args[5];
   if (args.size() > 6)
-    ctx.r9.u64 = args[6];
+    ctx->r9.u64 = args[6];
   if (args.size() > 7)
-    ctx.r10.u64 = args[7];
+    ctx->r10.u64 = args[7];
 
-  // Set the kernel state pointer in the context for kernel callbacks
-  ctx.kernel_state = kernel_state();
+  ctx->fpscr.InitHost();
 
-  // Initialize host FPSCR with all FP exceptions masked
-  ctx.fpscr.InitHost();
-
-  // Execute the function
   REXSYS_DEBUG("XThread::Execute - Calling function at {:08X}", address);
-  func(ctx, base);
+  func(*ctx, base);
 
-  // Get the return value from r3
-  exit_code = static_cast<int>(ctx.r3.u32);
+  exit_code = static_cast<int>(ctx->r3.u32);
 
   // If we got here it means the execute completed without an exit being called.
   // Treat the return code as an implicit exit code (if desired).

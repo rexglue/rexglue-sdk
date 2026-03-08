@@ -20,6 +20,8 @@
 #include <rex/codegen/config.h>
 #include <rex/logging.h>
 
+#include "codegen_logging.h"
+
 #include <toml++/toml.hpp>
 
 namespace rex::codegen {
@@ -63,6 +65,15 @@ void RecompilerConfig::Load(const std::string_view& configFilePath) {
   // Special addresses (user overrides)
   longJmpAddress = toml["longjmp_address"].value_or(0u);
   setJmpAddress = toml["setjmp_address"].value_or(0u);
+
+  // rexcrt function addresses
+  if (auto* rexcrt = toml["rexcrt"].as_table()) {
+    for (const auto& [name, val] : *rexcrt) {
+      if (auto addr = val.value<int64_t>()) {
+        rexcrtFunctions[std::string(name)] = static_cast<uint32_t>(*addr);
+      }
+    }
+  }
 
   // Helper to parse hex address from string key
   auto parseHexAddress = [](const std::string& keyStr) -> std::optional<uint32_t> {
@@ -304,6 +315,14 @@ RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
   checkAlignment(longJmpAddress, "longjmp");
   checkAlignment(setJmpAddress, "setjmp");
 
+  for (const auto& [name, addr] : rexcrtFunctions) {
+    if (addr & 0x3) {
+      result.errors.push_back(
+          fmt::format("rexcrt function '{}' address 0x{:08X} is not 4-byte aligned", name, addr));
+      result.valid = false;
+    }
+  }
+
   // Check function address alignment
   for (const auto& [addr, size] : functions) {
     if (addr & 0x3) {
@@ -350,6 +369,34 @@ RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
         result.valid = false;
       }
     }
+  }
+
+  // Validate rexcrt all-or-nothing groups -- originals are stripped so partial
+  // sets would leave the game with missing CRT functions at runtime.
+  if (!rexcrtFunctions.empty()) {
+    auto checkGroup = [&](const char* groupName, std::initializer_list<const char*> required) {
+      size_t found = 0;
+      for (const char* name : required) {
+        if (rexcrtFunctions.contains(name))
+          ++found;
+      }
+      if (found > 0 && found < required.size()) {
+        std::string missing;
+        for (const char* name : required) {
+          if (!rexcrtFunctions.contains(name)) {
+            if (!missing.empty())
+              missing += ", ";
+            missing += name;
+          }
+        }
+        result.errors.push_back(
+            fmt::format("[rexcrt] {} group is incomplete ({}/{} specified), missing: {}", groupName,
+                        found, required.size(), missing));
+        result.valid = false;
+      }
+    };
+
+    checkGroup("heap", {"RtlAllocateHeap", "RtlFreeHeap", "RtlSizeHeap", "RtlReAllocateHeap"});
   }
 
   // Check required fields

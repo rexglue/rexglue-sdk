@@ -1,6 +1,6 @@
 /**
  * @file        logging.h
- * @brief       Unified spdlog-based logging infrastructure
+ * @brief       Logging subsystem umbrella header
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -11,28 +11,17 @@
 
 #pragma once
 
-#include <array>
-#include <cassert>
-#include <cstdlib>
-#include <map>
-#include <memory>
-#include <optional>
-#include <string>
-#include <utility>
+// Category types, constants, configuration, deprecated enum compat
+#include <rex/logging/types.h>
 
-#include <spdlog/fmt/fmt.h>
-#include <spdlog/sinks/basic_file_sink.h>
-#include <spdlog/sinks/stdout_color_sinks.h>
-#include <spdlog/spdlog.h>
+// Function declarations, CVAR declarations
+#include <rex/logging/api.h>
 
-#include <rex/cvar.h>
+// Logging macros (parameterized, legacy aliases, FN, TID)
+#include <rex/logging/macros.h>
 
-// Logging CVAR declarations (defined in flags.cpp)
-REXCVAR_DECLARE(std::string, log_level);
-REXCVAR_DECLARE(std::string, log_file);
-REXCVAR_DECLARE(bool, log_verbose);
-REXCVAR_DECLARE(bool, enable_console);
-namespace rex {
+// Fatal error and assertion macros
+#include <rex/logging/assert.h>
 
 //=============================================================================
 // Log Level Guidelines
@@ -427,3 +416,5 @@ inline const char* boolean(bool b) {
 }  // namespace log
 
 }  // namespace rex
+// Formatting helpers (ptr, hex, boolean)
+#include <rex/logging/format.h>

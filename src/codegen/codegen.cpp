@@ -14,6 +14,7 @@
 #include <rex/codegen/analyze.h>
 #include <rex/codegen/codegen.h>
 #include <rex/codegen/recompile.h>
+#include <rex/kernel/init.h>
 #include <rex/logging.h>
 #include <rex/runtime.h>
 
@@ -53,7 +54,10 @@ Result<CodegenPipeline> CodegenPipeline::Create(const std::filesystem::path& con
   // Create Runtime
   auto xexDir = xexPath.parent_path();
   pipeline.runtime_ = std::make_unique<Runtime>(xexDir.string());
-  auto status = pipeline.runtime_->Setup(rex::RuntimeConfig{.tool_mode = true});
+  auto status = pipeline.runtime_->Setup(rex::RuntimeConfig{
+      .kernel_init = rex::kernel::InitializeKernel,
+      .tool_mode = true,
+  });
   if (status != X_STATUS_SUCCESS) {
     return Err<CodegenPipeline>(ErrorCategory::IO,
                                 fmt::format("Failed to initialize Runtime: {:#x}", status));

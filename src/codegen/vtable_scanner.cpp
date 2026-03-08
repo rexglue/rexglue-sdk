@@ -10,6 +10,8 @@
 
 #include <rex/codegen/vtable_scanner.h>
 #include <rex/logging.h>
+
+#include "codegen_logging.h"
 #include <rex/memory/utils.h>
 #include <rex/types.h>
 

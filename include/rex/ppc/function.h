@@ -17,8 +17,11 @@
 #include <atomic>
 #include <concepts>
 #include <cstdint>
+#include <cstring>
 #include <tuple>
 #include <type_traits>
+#include <utility>
+#include <vector>
 
 #include <rex/logging.h>
 #include <rex/ppc/context.h>
@@ -28,6 +31,32 @@
 #include <rex/types.h>
 
 namespace rex {
+
+//=============================================================================
+// Global PPC Function Registry (for runtime ordinal lookup)
+//=============================================================================
+// Populated by static constructors from XAM_EXPORT / XBOXKRNL_EXPORT macros.
+
+inline std::vector<std::pair<const char*, PPCFunc*>>& GetPPCFuncRegistry() {
+  static std::vector<std::pair<const char*, PPCFunc*>> registry;
+  return registry;
+}
+
+inline PPCFunc* FindPPCFuncByName(const char* name) {
+  for (auto& [n, f] : GetPPCFuncRegistry()) {
+    if (std::strcmp(n, name) == 0)
+      return f;
+  }
+  return nullptr;
+}
+
+namespace detail {
+struct PPCFuncRegistrar {
+  PPCFuncRegistrar(const char* name, PPCFunc* func) {
+    GetPPCFuncRegistry().emplace_back(name, func);
+  }
+};
+}  // namespace detail
 
 //=============================================================================
 // Type Traits (additional, types.h has is_be_type)
@@ -563,36 +592,63 @@ T GuestToHostFunction(const TFunction& func, TArgs&&... argv) {
     rex::HostToGuestFunction<function>(ctx, base); \
   }
 
-// Create a simple stub that does nothing (with call counter)
-#define PPC_STUB(subroutine)                                \
-  extern "C" PPC_FUNC(subroutine) {                         \
-    (void)base;                                             \
-    static std::atomic<uint32_t> s_counter{0};              \
-    uint32_t call_num = ++s_counter;                        \
-    if (call_num <= 3)                                      \
-      REXKRNL_WARN("{} [#{}] STUB", #subroutine, call_num); \
-    ctx.r3.u64 = 0;                                         \
+// Create a simple stub that does nothing
+#define PPC_STUB(subroutine)               \
+  extern "C" PPC_FUNC(subroutine) {        \
+    (void)base;                            \
+    REXKRNL_DEBUG("{} STUB", #subroutine); \
   }
 
-// Create a stub that logs when called (with call counter)
-#define PPC_STUB_LOG(subroutine, msg)                                  \
-  extern "C" PPC_FUNC(subroutine) {                                    \
-    (void)base;                                                        \
-    static std::atomic<uint32_t> s_counter{0};                         \
-    uint32_t call_num = ++s_counter;                                   \
-    if (call_num <= 3)                                                 \
-      REXKRNL_DEBUG("{} [#{}] STUB - {}", #subroutine, call_num, msg); \
-    ctx.r3.u64 = 0;                                                    \
+// Create a stub that logs a message when called
+#define PPC_STUB_LOG(subroutine, msg)                \
+  extern "C" PPC_FUNC(subroutine) {                  \
+    (void)base;                                      \
+    REXKRNL_DEBUG("{} STUB - {}", #subroutine, msg); \
   }
 
-// Create a stub that returns a specific value (with call counter)
-#define PPC_STUB_RETURN(subroutine, value)                                    \
-  extern "C" PPC_FUNC(subroutine) {                                           \
-    (void)base;                                                               \
-    static std::atomic<uint32_t> s_counter{0};                                \
-    uint32_t call_num = ++s_counter;                                          \
-    if (call_num <= 3)                                                        \
-      REXKRNL_DEBUG("{} [#{}] STUB - returning {:#x}", #subroutine, call_num, \
-                    static_cast<uint32_t>(value));                            \
-    ctx.r3.u64 = (value);                                                     \
+// Create a stub that returns a specific value
+#define PPC_STUB_RETURN(subroutine, value)                                                 \
+  extern "C" PPC_FUNC(subroutine) {                                                        \
+    (void)base;                                                                            \
+    REXKRNL_DEBUG("{} STUB - returning {:#x}", #subroutine, static_cast<uint32_t>(value)); \
+    ctx.r3.u64 = (value);                                                                  \
   }
+
+//=============================================================================
+// Kernel Export Constants & Convenience Macros
+//=============================================================================
+
+/// Maximum size of the loaded image name buffer (255 chars + NUL).
+constexpr size_t kExLoadedImageNameSize = 255 + 1;
+
+// Implemented function export: wraps PPC_HOOK for an xboxkrnl.exe export.
+// Usage: XBOXKRNL_EXPORT(__imp__FunctionName, handler_function)
+#define XBOXKRNL_EXPORT(name, function) \
+  PPC_HOOK(name, function)              \
+  static rex::detail::PPCFuncRegistrar _ppc_reg_##name(#name, &name);
+
+// Stub function export: wraps PPC_STUB for an xboxkrnl.exe export.
+// Usage: XBOXKRNL_EXPORT_STUB(__imp__FunctionName)
+#define XBOXKRNL_EXPORT_STUB(name) \
+  PPC_STUB(name)                   \
+  static rex::detail::PPCFuncRegistrar _ppc_reg_##name(#name, &name);
+
+// Implemented function export: wraps PPC_HOOK for a xam.xex export.
+// Usage: XAM_EXPORT(__imp__FunctionName, handler_function)
+#define XAM_EXPORT(name, function) \
+  PPC_HOOK(name, function)         \
+  static rex::detail::PPCFuncRegistrar _ppc_reg_##name(#name, &name);
+
+// Stub function export: wraps PPC_STUB for a xam.xex export.
+// Usage: XAM_EXPORT_STUB(__imp__FunctionName)
+#define XAM_EXPORT_STUB(name) \
+  PPC_STUB(name)              \
+  static rex::detail::PPCFuncRegistrar _ppc_reg_##name(#name, &name);
+
+// Implemented rexcrt hook: wraps PPC_HOOK for a rexcrt CRT replacement.
+// Usage: REXCRT_EXPORT(rexcrt_FunctionName, handler_function)
+#define REXCRT_EXPORT(name, function) PPC_HOOK(name, function)
+
+// Stub rexcrt hook: wraps PPC_STUB for a rexcrt CRT replacement.
+// Usage: REXCRT_EXPORT_STUB(rexcrt_FunctionName)
+#define REXCRT_EXPORT_STUB(name) PPC_STUB(name)

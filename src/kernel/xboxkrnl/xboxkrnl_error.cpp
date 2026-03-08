@@ -1022,4 +1022,4 @@ ppc_u32_result_t RtlNtStatusToDosError_entry(ppc_u32_t source_status) {
 
 }  // namespace rex::kernel::xboxkrnl
 
-PPC_HOOK(__imp__RtlNtStatusToDosError, rex::kernel::xboxkrnl::RtlNtStatusToDosError_entry)
+XBOXKRNL_EXPORT(__imp__RtlNtStatusToDosError, rex::kernel::xboxkrnl::RtlNtStatusToDosError_entry)

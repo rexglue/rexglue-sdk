@@ -10,9 +10,11 @@
  */
 
 #include <rex/logging.h>
+#include <rex/ppc/function.h>
 #include <rex/runtime.h>
 #include <rex/system/kernel_module.h>
 #include <rex/system/kernel_state.h>
+#include <rex/system/processor.h>
 #include <rex/thread/mutex.h>
 
 namespace rex::system {
@@ -49,11 +51,31 @@ uint32_t KernelModule::GetProcAddressByOrdinal(uint16_t ordinal) {
     return export_entry->variable_ptr;
   }
 
-  // For functions in rexglue's compile-time linking model, we don't have
-  // guest-addressable thunks. The GUEST_FUNCTION_HOOK creates host-side
-  // functions that are linked at compile time, not runtime-callable guest addresses.
-  // Games that need this (multi-module titles) would require a thunk generation system.
-  REXSYS_WARN("GetProcAddressByOrdinal: function {} ({:04X}) in {} - no guest thunk available",
+  // Check thunk cache first (already allocated)
+  auto thunk_it = thunk_cache_.find(ordinal);
+  if (thunk_it != thunk_cache_.end()) {
+    REXSYS_DEBUG("GetProcAddressByOrdinal: {} ({:04X}) in {} -> cached thunk {:08X}",
+                 export_entry->name, ordinal, name_, thunk_it->second);
+    return thunk_it->second;
+  }
+
+  // Look up native implementation by name from the auto-registry
+  std::string imp_name = std::string("__imp__") + export_entry->name;
+  REXSYS_DEBUG("GetProcAddressByOrdinal: searching registry for '{}'", imp_name);
+  PPCFunc* func = rex::FindPPCFuncByName(imp_name.c_str());
+  if (func) {
+    auto* processor = emulator_->processor();
+    uint32_t thunk_addr = processor->AllocateThunk(func);
+    if (thunk_addr) {
+      thunk_cache_[ordinal] = thunk_addr;
+      REXSYS_INFO("GetProcAddressByOrdinal: {} ({:04X}) in {} -> thunk at {:08X}",
+                  export_entry->name, ordinal, name_, thunk_addr);
+      return thunk_addr;
+    }
+  }
+
+  // No native implementation available
+  REXSYS_WARN("GetProcAddressByOrdinal: function {} ({:04X}) in {} - no native implementation",
               export_entry->name, ordinal, name_);
   return 0;
 }

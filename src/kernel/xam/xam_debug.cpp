@@ -63,7 +63,7 @@ void RtlDebugTrace_entry(ppc_pchar_t string) {
 }  // namespace rex
 
 // Hook registrations
-PPC_HOOK(__imp__OutputDebugStringA, rex::kernel::xam::OutputDebugStringA_entry)
-PPC_HOOK(__imp__OutputDebugStringW, rex::kernel::xam::OutputDebugStringW_entry)
-PPC_HOOK(__imp__RtlOutputDebugString, rex::kernel::xam::RtlOutputDebugString_entry)
-PPC_HOOK(__imp__RtlDebugTrace, rex::kernel::xam::RtlDebugTrace_entry)
+XAM_EXPORT(__imp__OutputDebugStringA, rex::kernel::xam::OutputDebugStringA_entry)
+XAM_EXPORT(__imp__OutputDebugStringW, rex::kernel::xam::OutputDebugStringW_entry)
+XAM_EXPORT(__imp__RtlOutputDebugString, rex::kernel::xam::RtlOutputDebugString_entry)
+XAM_EXPORT(__imp__RtlDebugTrace, rex::kernel::xam::RtlDebugTrace_entry)

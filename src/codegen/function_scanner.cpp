@@ -23,6 +23,8 @@
 #include <rex/codegen/codegen_context.h>
 #include <rex/codegen/recompiled_function.h>
 #include <rex/logging.h>
+
+#include "codegen_logging.h"
 #include <rex/memory/utils.h>
 #include <rex/types.h>
 
@@ -413,6 +415,10 @@ std::vector<guest_addr_t> read_table_entries(const FunctionScanner& scanner,
         break;
       }
     }
+
+    // PPC instructions must be 4-byte aligned
+    if (target & 3)
+      goto done;
 
     // Validate target (stop on null or invalid for absolute type)
     if (target == 0 && match.type == JumpTableType::kAbsolute)

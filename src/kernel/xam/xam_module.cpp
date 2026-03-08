@@ -14,6 +14,7 @@
 #include <rex/kernel/xam/module.h>
 #include <rex/kernel/xam/private.h>
 #include <rex/math.h>
+#include <rex/ppc/function.h>
 #include <rex/system/kernel_state.h>
 
 namespace rex {
@@ -51,11 +52,11 @@ void XamModule::RegisterExportTable(rex::runtime::ExportResolver* export_resolve
   assert_not_null(export_resolver);
 
 // Build the export table used for resolution.
-#include <rex/system/util/export_table_pre.inc>
+#include "../export_table_pre.inc"
   static rex::runtime::Export xam_export_table[] = {
-#include <rex/kernel/xam/table.inc>
+#include "export_table.inc"
   };
-#include <rex/system/util/export_table_post.inc>
+#include "../export_table_post.inc"
   for (size_t i = 0; i < rex::countof(xam_export_table); ++i) {
     auto& export_entry = xam_export_table[i];
     assert_true(export_entry.ordinal < xam_exports.size());

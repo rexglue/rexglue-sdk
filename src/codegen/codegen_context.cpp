@@ -14,6 +14,8 @@
 
 #include <rex/codegen/codegen_context.h>
 #include <rex/logging.h>
+
+#include "codegen_logging.h"
 #include <rex/runtime.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/user_module.h>

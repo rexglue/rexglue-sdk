@@ -38,5 +38,15 @@ ppc_u32_result_t XUsbcamGetState_entry() {
 
 }  // namespace rex::kernel::xboxkrnl
 
-PPC_HOOK(__imp__XUsbcamCreate, rex::kernel::xboxkrnl::XUsbcamCreate_entry)
-PPC_HOOK(__imp__XUsbcamGetState, rex::kernel::xboxkrnl::XUsbcamGetState_entry)
+XBOXKRNL_EXPORT(__imp__XUsbcamCreate, rex::kernel::xboxkrnl::XUsbcamCreate_entry)
+XBOXKRNL_EXPORT(__imp__XUsbcamGetState, rex::kernel::xboxkrnl::XUsbcamGetState_entry)
+
+XBOXKRNL_EXPORT_STUB(__imp__XUsbcamSetCaptureMode);
+XBOXKRNL_EXPORT_STUB(__imp__XUsbcamGetConfig);
+XBOXKRNL_EXPORT_STUB(__imp__XUsbcamSetConfig);
+XBOXKRNL_EXPORT_STUB(__imp__XUsbcamReadFrame);
+XBOXKRNL_EXPORT_STUB(__imp__XUsbcamSnapshot);
+XBOXKRNL_EXPORT_STUB(__imp__XUsbcamSetView);
+XBOXKRNL_EXPORT_STUB(__imp__XUsbcamGetView);
+XBOXKRNL_EXPORT_STUB(__imp__XUsbcamDestroy);
+XBOXKRNL_EXPORT_STUB(__imp__XUsbcamReset);

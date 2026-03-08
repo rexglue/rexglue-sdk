@@ -1286,82 +1286,147 @@ ppc_ptr_result_t InterlockedFlushSList_entry(ppc_ptr_t<X_SLIST_HEADER> plist_ptr
   return first;
 }
 
+XBOXKRNL_EXPORT_STUB(__imp__KeInsertByKeyDeviceQueue);
+XBOXKRNL_EXPORT_STUB(__imp__KeInsertDeviceQueue);
+XBOXKRNL_EXPORT_STUB(__imp__KeInsertHeadQueue);
+XBOXKRNL_EXPORT_STUB(__imp__KeInsertQueue);
+XBOXKRNL_EXPORT_STUB(__imp__KeReleaseMutant);
+XBOXKRNL_EXPORT_STUB(__imp__KeRemoveByKeyDeviceQueue);
+XBOXKRNL_EXPORT_STUB(__imp__KeRemoveDeviceQueue);
+XBOXKRNL_EXPORT_STUB(__imp__KeRemoveEntryDeviceQueue);
+XBOXKRNL_EXPORT_STUB(__imp__KeRemoveQueue);
+XBOXKRNL_EXPORT_STUB(__imp__KeSetEventBoostPriority);
+XBOXKRNL_EXPORT_STUB(__imp__KiApcNormalRoutineNop_);
+
 }  // namespace rex::kernel::xboxkrnl
 
-PPC_HOOK(__imp__ExCreateThread, rex::kernel::xboxkrnl::ExCreateThread_entry)
-PPC_HOOK(__imp__ExTerminateThread, rex::kernel::xboxkrnl::ExTerminateThread_entry)
-PPC_HOOK(__imp__NtResumeThread, rex::kernel::xboxkrnl::NtResumeThread_entry)
-PPC_HOOK(__imp__KeResumeThread, rex::kernel::xboxkrnl::KeResumeThread_entry)
-PPC_HOOK(__imp__NtSuspendThread, rex::kernel::xboxkrnl::NtSuspendThread_entry)
-PPC_HOOK(__imp__KeSetCurrentStackPointers, rex::kernel::xboxkrnl::KeSetCurrentStackPointers_entry)
-PPC_HOOK(__imp__KeSetAffinityThread, rex::kernel::xboxkrnl::KeSetAffinityThread_entry)
-PPC_HOOK(__imp__KeQueryBasePriorityThread, rex::kernel::xboxkrnl::KeQueryBasePriorityThread_entry)
-PPC_HOOK(__imp__KeSetBasePriorityThread, rex::kernel::xboxkrnl::KeSetBasePriorityThread_entry)
-PPC_HOOK(__imp__KeSetDisableBoostThread, rex::kernel::xboxkrnl::KeSetDisableBoostThread_entry)
-PPC_HOOK(__imp__KeGetCurrentProcessType, rex::kernel::xboxkrnl::KeGetCurrentProcessType_entry)
-PPC_HOOK(__imp__KeSetCurrentProcessType, rex::kernel::xboxkrnl::KeSetCurrentProcessType_entry)
-PPC_HOOK(__imp__KeQueryPerformanceFrequency,
-         rex::kernel::xboxkrnl::KeQueryPerformanceFrequency_entry)
-PPC_HOOK(__imp__KeDelayExecutionThread, rex::kernel::xboxkrnl::KeDelayExecutionThread_entry)
-PPC_HOOK(__imp__NtYieldExecution, rex::kernel::xboxkrnl::NtYieldExecution_entry)
-PPC_HOOK(__imp__KeQuerySystemTime, rex::kernel::xboxkrnl::KeQuerySystemTime_entry)
-PPC_HOOK(__imp__KeTlsAlloc, rex::kernel::xboxkrnl::KeTlsAlloc_entry)
-PPC_HOOK(__imp__KeTlsFree, rex::kernel::xboxkrnl::KeTlsFree_entry)
-PPC_HOOK(__imp__KeTlsGetValue, rex::kernel::xboxkrnl::KeTlsGetValue_entry)
-PPC_HOOK(__imp__KeTlsSetValue, rex::kernel::xboxkrnl::KeTlsSetValue_entry)
-PPC_HOOK(__imp__KeInitializeEvent, rex::kernel::xboxkrnl::KeInitializeEvent_entry)
-PPC_HOOK(__imp__KeSetEvent, rex::kernel::xboxkrnl::KeSetEvent_entry)
-PPC_HOOK(__imp__KePulseEvent, rex::kernel::xboxkrnl::KePulseEvent_entry)
-PPC_HOOK(__imp__KeResetEvent, rex::kernel::xboxkrnl::KeResetEvent_entry)
-PPC_HOOK(__imp__NtCreateEvent, rex::kernel::xboxkrnl::NtCreateEvent_entry)
-PPC_HOOK(__imp__NtSetEvent, rex::kernel::xboxkrnl::NtSetEvent_entry)
-PPC_HOOK(__imp__NtPulseEvent, rex::kernel::xboxkrnl::NtPulseEvent_entry)
-PPC_HOOK(__imp__NtClearEvent, rex::kernel::xboxkrnl::NtClearEvent_entry)
-PPC_HOOK(__imp__KeInitializeSemaphore, rex::kernel::xboxkrnl::KeInitializeSemaphore_entry)
-PPC_HOOK(__imp__KeReleaseSemaphore, rex::kernel::xboxkrnl::KeReleaseSemaphore_entry)
-PPC_HOOK(__imp__NtCreateSemaphore, rex::kernel::xboxkrnl::NtCreateSemaphore_entry)
-PPC_HOOK(__imp__NtReleaseSemaphore, rex::kernel::xboxkrnl::NtReleaseSemaphore_entry)
-PPC_HOOK(__imp__NtCreateMutant, rex::kernel::xboxkrnl::NtCreateMutant_entry)
-PPC_HOOK(__imp__NtReleaseMutant, rex::kernel::xboxkrnl::NtReleaseMutant_entry)
-PPC_HOOK(__imp__NtCreateTimer, rex::kernel::xboxkrnl::NtCreateTimer_entry)
-PPC_HOOK(__imp__NtSetTimerEx, rex::kernel::xboxkrnl::NtSetTimerEx_entry)
-PPC_HOOK(__imp__NtCancelTimer, rex::kernel::xboxkrnl::NtCancelTimer_entry)
-PPC_HOOK(__imp__KeWaitForSingleObject, rex::kernel::xboxkrnl::KeWaitForSingleObject_entry)
-PPC_HOOK(__imp__NtWaitForSingleObjectEx, rex::kernel::xboxkrnl::NtWaitForSingleObjectEx_entry)
-PPC_HOOK(__imp__KeWaitForMultipleObjects, rex::kernel::xboxkrnl::KeWaitForMultipleObjects_entry)
-PPC_HOOK(__imp__NtWaitForMultipleObjectsEx, rex::kernel::xboxkrnl::NtWaitForMultipleObjectsEx_entry)
-PPC_HOOK(__imp__NtSignalAndWaitForSingleObjectEx,
-         rex::kernel::xboxkrnl::NtSignalAndWaitForSingleObjectEx_entry)
-PPC_HOOK(__imp__KfAcquireSpinLock, rex::kernel::xboxkrnl::KfAcquireSpinLock_entry)
-PPC_HOOK(__imp__KfReleaseSpinLock, rex::kernel::xboxkrnl::KfReleaseSpinLock_entry)
-PPC_HOOK(__imp__KeAcquireSpinLockAtRaisedIrql,
-         rex::kernel::xboxkrnl::KeAcquireSpinLockAtRaisedIrql_entry)
-PPC_HOOK(__imp__KeTryToAcquireSpinLockAtRaisedIrql,
-         rex::kernel::xboxkrnl::KeTryToAcquireSpinLockAtRaisedIrql_entry)
-PPC_HOOK(__imp__KeReleaseSpinLockFromRaisedIrql,
-         rex::kernel::xboxkrnl::KeReleaseSpinLockFromRaisedIrql_entry)
-PPC_HOOK(__imp__KeEnterCriticalRegion, rex::kernel::xboxkrnl::KeEnterCriticalRegion_entry)
-PPC_HOOK(__imp__KeLeaveCriticalRegion, rex::kernel::xboxkrnl::KeLeaveCriticalRegion_entry)
-PPC_HOOK(__imp__KeRaiseIrqlToDpcLevel, rex::kernel::xboxkrnl::KeRaiseIrqlToDpcLevel_entry)
-PPC_HOOK(__imp__KfLowerIrql, rex::kernel::xboxkrnl::KfLowerIrql_entry)
-PPC_HOOK(__imp__NtQueueApcThread, rex::kernel::xboxkrnl::NtQueueApcThread_entry)
-PPC_HOOK(__imp__KeInitializeApc, rex::kernel::xboxkrnl::KeInitializeApc_entry)
-PPC_HOOK(__imp__KeInsertQueueApc, rex::kernel::xboxkrnl::KeInsertQueueApc_entry)
-PPC_HOOK(__imp__KeRemoveQueueApc, rex::kernel::xboxkrnl::KeRemoveQueueApc_entry)
-PPC_HOOK(__imp__KiApcNormalRoutineNop, rex::kernel::xboxkrnl::KiApcNormalRoutineNop_entry)
-PPC_HOOK(__imp__KeInitializeDpc, rex::kernel::xboxkrnl::KeInitializeDpc_entry)
-PPC_HOOK(__imp__KeInsertQueueDpc, rex::kernel::xboxkrnl::KeInsertQueueDpc_entry)
-PPC_HOOK(__imp__KeRemoveQueueDpc, rex::kernel::xboxkrnl::KeRemoveQueueDpc_entry)
-PPC_HOOK(__imp__ExInitializeReadWriteLock, rex::kernel::xboxkrnl::ExInitializeReadWriteLock_entry)
-PPC_HOOK(__imp__ExAcquireReadWriteLockExclusive,
-         rex::kernel::xboxkrnl::ExAcquireReadWriteLockExclusive_entry)
-PPC_HOOK(__imp__ExTryToAcquireReadWriteLockExclusive,
-         rex::kernel::xboxkrnl::ExTryToAcquireReadWriteLockExclusive_entry)
-PPC_HOOK(__imp__ExAcquireReadWriteLockShared,
-         rex::kernel::xboxkrnl::ExAcquireReadWriteLockShared_entry)
-PPC_HOOK(__imp__ExTryToAcquireReadWriteLockShared,
-         rex::kernel::xboxkrnl::ExTryToAcquireReadWriteLockShared_entry)
-PPC_HOOK(__imp__ExReleaseReadWriteLock, rex::kernel::xboxkrnl::ExReleaseReadWriteLock_entry)
-PPC_HOOK(__imp__InterlockedPushEntrySList, rex::kernel::xboxkrnl::InterlockedPushEntrySList_entry)
-PPC_HOOK(__imp__InterlockedPopEntrySList, rex::kernel::xboxkrnl::InterlockedPopEntrySList_entry)
-PPC_HOOK(__imp__InterlockedFlushSList, rex::kernel::xboxkrnl::InterlockedFlushSList_entry)
+XBOXKRNL_EXPORT(__imp__ExCreateThread, rex::kernel::xboxkrnl::ExCreateThread_entry)
+XBOXKRNL_EXPORT(__imp__ExTerminateThread, rex::kernel::xboxkrnl::ExTerminateThread_entry)
+XBOXKRNL_EXPORT(__imp__NtResumeThread, rex::kernel::xboxkrnl::NtResumeThread_entry)
+XBOXKRNL_EXPORT(__imp__KeResumeThread, rex::kernel::xboxkrnl::KeResumeThread_entry)
+XBOXKRNL_EXPORT(__imp__NtSuspendThread, rex::kernel::xboxkrnl::NtSuspendThread_entry)
+XBOXKRNL_EXPORT(__imp__KeSetCurrentStackPointers,
+                rex::kernel::xboxkrnl::KeSetCurrentStackPointers_entry)
+XBOXKRNL_EXPORT(__imp__KeSetAffinityThread, rex::kernel::xboxkrnl::KeSetAffinityThread_entry)
+XBOXKRNL_EXPORT(__imp__KeQueryBasePriorityThread,
+                rex::kernel::xboxkrnl::KeQueryBasePriorityThread_entry)
+XBOXKRNL_EXPORT(__imp__KeSetBasePriorityThread,
+                rex::kernel::xboxkrnl::KeSetBasePriorityThread_entry)
+XBOXKRNL_EXPORT(__imp__KeSetDisableBoostThread,
+                rex::kernel::xboxkrnl::KeSetDisableBoostThread_entry)
+XBOXKRNL_EXPORT(__imp__KeGetCurrentProcessType,
+                rex::kernel::xboxkrnl::KeGetCurrentProcessType_entry)
+XBOXKRNL_EXPORT(__imp__KeSetCurrentProcessType,
+                rex::kernel::xboxkrnl::KeSetCurrentProcessType_entry)
+XBOXKRNL_EXPORT(__imp__KeQueryPerformanceFrequency,
+                rex::kernel::xboxkrnl::KeQueryPerformanceFrequency_entry)
+XBOXKRNL_EXPORT(__imp__KeDelayExecutionThread, rex::kernel::xboxkrnl::KeDelayExecutionThread_entry)
+XBOXKRNL_EXPORT(__imp__NtYieldExecution, rex::kernel::xboxkrnl::NtYieldExecution_entry)
+XBOXKRNL_EXPORT(__imp__KeQuerySystemTime, rex::kernel::xboxkrnl::KeQuerySystemTime_entry)
+XBOXKRNL_EXPORT(__imp__KeTlsAlloc, rex::kernel::xboxkrnl::KeTlsAlloc_entry)
+XBOXKRNL_EXPORT(__imp__KeTlsFree, rex::kernel::xboxkrnl::KeTlsFree_entry)
+XBOXKRNL_EXPORT(__imp__KeTlsGetValue, rex::kernel::xboxkrnl::KeTlsGetValue_entry)
+XBOXKRNL_EXPORT(__imp__KeTlsSetValue, rex::kernel::xboxkrnl::KeTlsSetValue_entry)
+XBOXKRNL_EXPORT(__imp__KeInitializeEvent, rex::kernel::xboxkrnl::KeInitializeEvent_entry)
+XBOXKRNL_EXPORT(__imp__KeSetEvent, rex::kernel::xboxkrnl::KeSetEvent_entry)
+XBOXKRNL_EXPORT(__imp__KePulseEvent, rex::kernel::xboxkrnl::KePulseEvent_entry)
+XBOXKRNL_EXPORT(__imp__KeResetEvent, rex::kernel::xboxkrnl::KeResetEvent_entry)
+XBOXKRNL_EXPORT(__imp__NtCreateEvent, rex::kernel::xboxkrnl::NtCreateEvent_entry)
+XBOXKRNL_EXPORT(__imp__NtSetEvent, rex::kernel::xboxkrnl::NtSetEvent_entry)
+XBOXKRNL_EXPORT(__imp__NtPulseEvent, rex::kernel::xboxkrnl::NtPulseEvent_entry)
+XBOXKRNL_EXPORT(__imp__NtClearEvent, rex::kernel::xboxkrnl::NtClearEvent_entry)
+XBOXKRNL_EXPORT(__imp__KeInitializeSemaphore, rex::kernel::xboxkrnl::KeInitializeSemaphore_entry)
+XBOXKRNL_EXPORT(__imp__KeReleaseSemaphore, rex::kernel::xboxkrnl::KeReleaseSemaphore_entry)
+XBOXKRNL_EXPORT(__imp__NtCreateSemaphore, rex::kernel::xboxkrnl::NtCreateSemaphore_entry)
+XBOXKRNL_EXPORT(__imp__NtReleaseSemaphore, rex::kernel::xboxkrnl::NtReleaseSemaphore_entry)
+XBOXKRNL_EXPORT(__imp__NtCreateMutant, rex::kernel::xboxkrnl::NtCreateMutant_entry)
+XBOXKRNL_EXPORT(__imp__NtReleaseMutant, rex::kernel::xboxkrnl::NtReleaseMutant_entry)
+XBOXKRNL_EXPORT(__imp__NtCreateTimer, rex::kernel::xboxkrnl::NtCreateTimer_entry)
+XBOXKRNL_EXPORT(__imp__NtSetTimerEx, rex::kernel::xboxkrnl::NtSetTimerEx_entry)
+XBOXKRNL_EXPORT(__imp__NtCancelTimer, rex::kernel::xboxkrnl::NtCancelTimer_entry)
+XBOXKRNL_EXPORT(__imp__KeWaitForSingleObject, rex::kernel::xboxkrnl::KeWaitForSingleObject_entry)
+XBOXKRNL_EXPORT(__imp__NtWaitForSingleObjectEx,
+                rex::kernel::xboxkrnl::NtWaitForSingleObjectEx_entry)
+XBOXKRNL_EXPORT(__imp__KeWaitForMultipleObjects,
+                rex::kernel::xboxkrnl::KeWaitForMultipleObjects_entry)
+XBOXKRNL_EXPORT(__imp__NtWaitForMultipleObjectsEx,
+                rex::kernel::xboxkrnl::NtWaitForMultipleObjectsEx_entry)
+XBOXKRNL_EXPORT(__imp__NtSignalAndWaitForSingleObjectEx,
+                rex::kernel::xboxkrnl::NtSignalAndWaitForSingleObjectEx_entry)
+XBOXKRNL_EXPORT(__imp__KfAcquireSpinLock, rex::kernel::xboxkrnl::KfAcquireSpinLock_entry)
+XBOXKRNL_EXPORT(__imp__KfReleaseSpinLock, rex::kernel::xboxkrnl::KfReleaseSpinLock_entry)
+XBOXKRNL_EXPORT(__imp__KeAcquireSpinLockAtRaisedIrql,
+                rex::kernel::xboxkrnl::KeAcquireSpinLockAtRaisedIrql_entry)
+XBOXKRNL_EXPORT(__imp__KeTryToAcquireSpinLockAtRaisedIrql,
+                rex::kernel::xboxkrnl::KeTryToAcquireSpinLockAtRaisedIrql_entry)
+XBOXKRNL_EXPORT(__imp__KeReleaseSpinLockFromRaisedIrql,
+                rex::kernel::xboxkrnl::KeReleaseSpinLockFromRaisedIrql_entry)
+XBOXKRNL_EXPORT(__imp__KeEnterCriticalRegion, rex::kernel::xboxkrnl::KeEnterCriticalRegion_entry)
+XBOXKRNL_EXPORT(__imp__KeLeaveCriticalRegion, rex::kernel::xboxkrnl::KeLeaveCriticalRegion_entry)
+XBOXKRNL_EXPORT(__imp__KeRaiseIrqlToDpcLevel, rex::kernel::xboxkrnl::KeRaiseIrqlToDpcLevel_entry)
+XBOXKRNL_EXPORT(__imp__KfLowerIrql, rex::kernel::xboxkrnl::KfLowerIrql_entry)
+XBOXKRNL_EXPORT(__imp__NtQueueApcThread, rex::kernel::xboxkrnl::NtQueueApcThread_entry)
+XBOXKRNL_EXPORT(__imp__KeInitializeApc, rex::kernel::xboxkrnl::KeInitializeApc_entry)
+XBOXKRNL_EXPORT(__imp__KeInsertQueueApc, rex::kernel::xboxkrnl::KeInsertQueueApc_entry)
+XBOXKRNL_EXPORT(__imp__KeRemoveQueueApc, rex::kernel::xboxkrnl::KeRemoveQueueApc_entry)
+XBOXKRNL_EXPORT(__imp__KiApcNormalRoutineNop, rex::kernel::xboxkrnl::KiApcNormalRoutineNop_entry)
+XBOXKRNL_EXPORT(__imp__KeInitializeDpc, rex::kernel::xboxkrnl::KeInitializeDpc_entry)
+XBOXKRNL_EXPORT(__imp__KeInsertQueueDpc, rex::kernel::xboxkrnl::KeInsertQueueDpc_entry)
+XBOXKRNL_EXPORT(__imp__KeRemoveQueueDpc, rex::kernel::xboxkrnl::KeRemoveQueueDpc_entry)
+XBOXKRNL_EXPORT(__imp__ExInitializeReadWriteLock,
+                rex::kernel::xboxkrnl::ExInitializeReadWriteLock_entry)
+XBOXKRNL_EXPORT(__imp__ExAcquireReadWriteLockExclusive,
+                rex::kernel::xboxkrnl::ExAcquireReadWriteLockExclusive_entry)
+XBOXKRNL_EXPORT(__imp__ExTryToAcquireReadWriteLockExclusive,
+                rex::kernel::xboxkrnl::ExTryToAcquireReadWriteLockExclusive_entry)
+XBOXKRNL_EXPORT(__imp__ExAcquireReadWriteLockShared,
+                rex::kernel::xboxkrnl::ExAcquireReadWriteLockShared_entry)
+XBOXKRNL_EXPORT(__imp__ExTryToAcquireReadWriteLockShared,
+                rex::kernel::xboxkrnl::ExTryToAcquireReadWriteLockShared_entry)
+XBOXKRNL_EXPORT(__imp__ExReleaseReadWriteLock, rex::kernel::xboxkrnl::ExReleaseReadWriteLock_entry)
+XBOXKRNL_EXPORT(__imp__InterlockedPushEntrySList,
+                rex::kernel::xboxkrnl::InterlockedPushEntrySList_entry)
+XBOXKRNL_EXPORT(__imp__InterlockedPopEntrySList,
+                rex::kernel::xboxkrnl::InterlockedPopEntrySList_entry)
+XBOXKRNL_EXPORT(__imp__InterlockedFlushSList, rex::kernel::xboxkrnl::InterlockedFlushSList_entry)
+
+XBOXKRNL_EXPORT_STUB(__imp__KeAlertResumeThread);
+XBOXKRNL_EXPORT_STUB(__imp__KeAlertThread);
+XBOXKRNL_EXPORT_STUB(__imp__KeBoostPriorityThread);
+XBOXKRNL_EXPORT_STUB(__imp__KeCancelTimer);
+XBOXKRNL_EXPORT_STUB(__imp__KeConnectInterrupt);
+XBOXKRNL_EXPORT_STUB(__imp__KeContextFromKframes);
+XBOXKRNL_EXPORT_STUB(__imp__KeContextToKframes);
+XBOXKRNL_EXPORT_STUB(__imp__KeDisconnectInterrupt);
+XBOXKRNL_EXPORT_STUB(__imp__KeFlushCacheRange);
+XBOXKRNL_EXPORT_STUB(__imp__KeFlushCurrentEntireTb);
+XBOXKRNL_EXPORT_STUB(__imp__KeFlushEntireTb);
+XBOXKRNL_EXPORT_STUB(__imp__KeFlushMultipleTb);
+XBOXKRNL_EXPORT_STUB(__imp__KeFlushUserModeCurrentTb);
+XBOXKRNL_EXPORT_STUB(__imp__KeFlushUserModeTb);
+XBOXKRNL_EXPORT_STUB(__imp__KeInitializeDeviceQueue);
+XBOXKRNL_EXPORT_STUB(__imp__KeInitializeInterrupt);
+XBOXKRNL_EXPORT_STUB(__imp__KeInitializeMutant);
+XBOXKRNL_EXPORT_STUB(__imp__KeInitializeQueue);
+XBOXKRNL_EXPORT_STUB(__imp__KeInitializeTimerEx);
+XBOXKRNL_EXPORT_STUB(__imp__KeIpiGenericCall);
+XBOXKRNL_EXPORT_STUB(__imp__KeQueryBackgroundProcessors);
+XBOXKRNL_EXPORT_STUB(__imp__KeQueryInterruptTime);
+XBOXKRNL_EXPORT_STUB(__imp__KeRegisterDriverNotification);
+XBOXKRNL_EXPORT_STUB(__imp__KeRestoreFloatingPointState);
+XBOXKRNL_EXPORT_STUB(__imp__KeRestoreVectorUnitState);
+XBOXKRNL_EXPORT_STUB(__imp__KeRetireDpcList);
+XBOXKRNL_EXPORT_STUB(__imp__KeRundownQueue);
+XBOXKRNL_EXPORT_STUB(__imp__KeSaveFloatingPointState);
+XBOXKRNL_EXPORT_STUB(__imp__KeSaveVectorUnitState);
+XBOXKRNL_EXPORT_STUB(__imp__KeSetBackgroundProcessors);
+XBOXKRNL_EXPORT_STUB(__imp__KeSetPriorityClassThread);
+XBOXKRNL_EXPORT_STUB(__imp__KeSetPriorityThread);
+XBOXKRNL_EXPORT_STUB(__imp__KeSetTimer);
+XBOXKRNL_EXPORT_STUB(__imp__KeSetTimerEx);
+XBOXKRNL_EXPORT_STUB(__imp__KeStallExecutionProcessor);
+XBOXKRNL_EXPORT_STUB(__imp__KeSuspendThread);
+XBOXKRNL_EXPORT_STUB(__imp__KeSweepDcacheRange);
+XBOXKRNL_EXPORT_STUB(__imp__KeSweepIcacheRange);
+XBOXKRNL_EXPORT_STUB(__imp__KeTestAlertThread);
+XBOXKRNL_EXPORT_STUB(__imp__KfRaiseIrql);

@@ -19,6 +19,8 @@
 #include <rex/codegen/recompiler.h>
 #include <rex/logging.h>
 
+#include "../codegen_logging.h"
+
 #include <dis-asm.h>
 #include <ppc-inst.h>
 

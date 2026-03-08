@@ -85,8 +85,7 @@ XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
     // lpKeDebugMonitorData->callback_fn =
     //     GenerateTrampoline("KeDebugMonitorCallback", KeDebugMonitorCallback);
   }
-  export_resolver_->SetVariableMapping("xboxkrnl.exe", ordinals::KeDebugMonitorData,
-                                       pKeDebugMonitorData);
+  export_resolver_->SetVariableMapping("xboxkrnl.exe", 0x0059, pKeDebugMonitorData);
 
   // KeCertMonitorData (?*)
   // Always set to zero, ignored.
@@ -106,8 +105,7 @@ XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
     // lpKeCertMonitorData->callback_fn =
     //     GenerateTrampoline("KeCertMonitorCallback", KeCertMonitorCallback);
   }
-  export_resolver_->SetVariableMapping("xboxkrnl.exe", ordinals::KeCertMonitorData,
-                                       pKeCertMonitorData);
+  export_resolver_->SetVariableMapping("xboxkrnl.exe", 0x0266, pKeCertMonitorData);
 
   // XboxHardwareInfo (XboxHardwareInfo_t, 16b)
   // flags       cpu#  ?     ?     ?     ?           ?       ?
@@ -122,8 +120,7 @@ XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
   // XboxHardwareInfo flags is set with flag 5 (0x20).
   uint32_t pXboxHardwareInfo = memory_->SystemHeapAlloc(16);
   auto lpXboxHardwareInfo = memory_->TranslateVirtual(pXboxHardwareInfo);
-  export_resolver_->SetVariableMapping("xboxkrnl.exe", ordinals::XboxHardwareInfo,
-                                       pXboxHardwareInfo);
+  export_resolver_->SetVariableMapping("xboxkrnl.exe", 0x0156, pXboxHardwareInfo);
   memory::store_and_swap<uint32_t>(lpXboxHardwareInfo + 0, 0x20);  // flags
   memory::store_and_swap<uint8_t>(lpXboxHardwareInfo + 4, 0x06);   // cpu count
   // Remaining 11b are zeroes?
@@ -132,8 +129,7 @@ XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
   // Just return all 0xFF, should satisfy anything that checks it
   uint32_t pExConsoleGameRegion = memory_->SystemHeapAlloc(4);
   auto lpExConsoleGameRegion = memory_->TranslateVirtual(pExConsoleGameRegion);
-  export_resolver_->SetVariableMapping("xboxkrnl.exe", ordinals::ExConsoleGameRegion,
-                                       pExConsoleGameRegion);
+  export_resolver_->SetVariableMapping("xboxkrnl.exe", 0x000C, pExConsoleGameRegion);
   memory::store<uint32_t>(lpExConsoleGameRegion, 0xFFFFFFFF);
 
   // XexExecutableModuleHandle (?**)
@@ -146,8 +142,7 @@ XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
   // 0x80101058 <- pointer to xex header
   // 0x80101100 <- xex header base
   uint32_t ppXexExecutableModuleHandle = memory_->SystemHeapAlloc(4);
-  export_resolver_->SetVariableMapping("xboxkrnl.exe", ordinals::XexExecutableModuleHandle,
-                                       ppXexExecutableModuleHandle);
+  export_resolver_->SetVariableMapping("xboxkrnl.exe", 0x0193, ppXexExecutableModuleHandle);
 
   // ExLoadedImageName (char*)
   // The full path to loaded image/xex including its name.
@@ -155,8 +150,7 @@ XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
   // Todo(Gliniak): Confirm that official kernel always allocate space for this
   // variable.
   uint32_t ppExLoadedImageName = memory_->SystemHeapAlloc(kExLoadedImageNameSize);
-  export_resolver_->SetVariableMapping("xboxkrnl.exe", ordinals::ExLoadedImageName,
-                                       ppExLoadedImageName);
+  export_resolver_->SetVariableMapping("xboxkrnl.exe", 0x01AF, ppExLoadedImageName);
 
   // ExLoadedCommandLine (char*)
   // The name of the xex. Not sure this is ever really used on real devices.
@@ -171,8 +165,7 @@ XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
       rex::align(static_cast<uint32_t>(command_line.length()) + 1, 1024u);
   uint32_t pExLoadedCommandLine = memory_->SystemHeapAlloc(command_line_length);
   auto lpExLoadedCommandLine = memory_->TranslateVirtual(pExLoadedCommandLine);
-  export_resolver_->SetVariableMapping("xboxkrnl.exe", ordinals::ExLoadedCommandLine,
-                                       pExLoadedCommandLine);
+  export_resolver_->SetVariableMapping("xboxkrnl.exe", 0x01AE, pExLoadedCommandLine);
   std::memset(lpExLoadedCommandLine, 0, command_line_length);
   std::memcpy(lpExLoadedCommandLine, command_line.c_str(), command_line.length());
 
@@ -181,7 +174,7 @@ XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
   // I've only seen games check >=, so we just fake something here.
   uint32_t pXboxKrnlVersion = memory_->SystemHeapAlloc(8);
   auto lpXboxKrnlVersion = memory_->TranslateVirtual(pXboxKrnlVersion);
-  export_resolver_->SetVariableMapping("xboxkrnl.exe", ordinals::XboxKrnlVersion, pXboxKrnlVersion);
+  export_resolver_->SetVariableMapping("xboxkrnl.exe", 0x0158, pXboxKrnlVersion);
   memory::store_and_swap<uint16_t>(lpXboxKrnlVersion + 0, 2);
   memory::store_and_swap<uint16_t>(lpXboxKrnlVersion + 2, 0xFFFF);
   memory::store_and_swap<uint16_t>(lpXboxKrnlVersion + 4, 0xFFFF);
@@ -193,8 +186,7 @@ XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
   // We setup a system timer here to do that.
   uint32_t pKeTimeStampBundle = memory_->SystemHeapAlloc(24);
   auto lpKeTimeStampBundle = memory_->TranslateVirtual(pKeTimeStampBundle);
-  export_resolver_->SetVariableMapping("xboxkrnl.exe", ordinals::KeTimeStampBundle,
-                                       pKeTimeStampBundle);
+  export_resolver_->SetVariableMapping("xboxkrnl.exe", 0x00AD, pKeTimeStampBundle);
   memory::store_and_swap<uint64_t>(lpKeTimeStampBundle + 0, 0);
   memory::store_and_swap<uint64_t>(lpKeTimeStampBundle + 8, 0);
   memory::store_and_swap<uint32_t>(lpKeTimeStampBundle + 16,
@@ -223,11 +215,11 @@ void XboxkrnlModule::RegisterExportTable(rex::runtime::ExportResolver* export_re
   assert_not_null(export_resolver);
 
 // Build the export table used for resolution.
-#include <rex/system/util/export_table_pre.inc>
+#include "../export_table_pre.inc"
   static rex::runtime::Export xboxkrnl_export_table[] = {
-#include <rex/kernel/xboxkrnl/xboxkrnl_table.inc>
+#include "export_table.inc"
   };
-#include <rex/system/util/export_table_post.inc>
+#include "../export_table_post.inc"
   auto& xboxkrnl_exports = get_xboxkrnl_exports();
   for (size_t i = 0; i < rex::countof(xboxkrnl_export_table); ++i) {
     auto& export_entry = xboxkrnl_export_table[i];

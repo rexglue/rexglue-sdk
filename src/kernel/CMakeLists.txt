@@ -3,6 +3,8 @@
 # System emulation layer has moved to rexsystem (rex::system)
 
 set(REXKERNEL_SOURCES
+    kernel_init.cpp
+
     # XAM subsystem - provides __imp__Xam* symbols
     xam/xam_module.cpp
     xam/xam_avatar.cpp
@@ -24,6 +26,7 @@ set(REXKERNEL_SOURCES
     xam/xam_user.cpp
     xam/xam_video.cpp
     xam/xam_voice.cpp
+    xam/xam_misc.cpp
     xam/apps/xam_app.cpp
     xam/apps/xgi_app.cpp
     xam/apps/xlivebase_app.cpp
@@ -52,6 +55,11 @@ set(REXKERNEL_SOURCES
     xboxkrnl/xboxkrnl_xconfig.cpp
     xboxkrnl/xboxkrnl_audio.cpp
     xboxkrnl/xboxkrnl_audio_xma.cpp
+
+    crt/heap.cpp
+    crt/file.cpp
+    crt/memory.cpp
+    crt/string.cpp
 )
 
 add_library(rexkernel STATIC ${REXKERNEL_SOURCES})
@@ -72,5 +80,6 @@ target_link_libraries(rexkernel
         rexgraphics
         rexinput
         rexaudio
+        o1heap
 )
 
