@@ -32,6 +32,8 @@ class XEvent : public XObject {
   void Initialize(bool manual_reset, bool initial_state);
   void InitializeNative(void* native_ptr, X_DISPATCH_HEADER* header);
 
+  void Query(uint32_t* out_type, uint32_t* out_state);
+
   int32_t Set(uint32_t priority_increment, bool wait);
   int32_t Pulse(uint32_t priority_increment, bool wait);
   int32_t Reset();

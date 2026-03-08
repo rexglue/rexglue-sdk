@@ -56,6 +56,23 @@ void XEvent::InitializeNative(void* native_ptr, X_DISPATCH_HEADER* header) {
   assert_not_null(event_);
 }
 
+void XEvent::Query(uint32_t* out_type, uint32_t* out_state) {
+  if (out_type) {
+    *out_type = manual_reset_ ? 0x00 : 0x01;
+  }
+  if (out_state) {
+    // Query the live host event, not the stale guest header
+    auto result = rex::thread::Wait(event_.get(), false, std::chrono::milliseconds(0));
+    if (result == rex::thread::WaitResult::kSuccess) {
+      *out_state = 1;
+      // Re-signal since we consumed the signal by waiting
+      event_->Set();
+    } else {
+      *out_state = 0;
+    }
+  }
+}
+
 int32_t XEvent::Set(uint32_t priority_increment, bool wait) {
   event_->Set();
   return 1;

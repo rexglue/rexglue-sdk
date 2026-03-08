@@ -19,6 +19,7 @@
 #include <rex/ppc/types.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/util/string_utils.h>
+#include <rex/system/xevent.h>
 #include <rex/system/xobject.h>
 #include <rex/system/xsemaphore.h>
 #include <rex/system/xthread.h>
@@ -200,6 +201,22 @@ ppc_u32_result_t NtClose_entry(ppc_u32_t handle) {
   return result;
 }
 
+ppc_u32_result_t NtQueryEvent_entry(ppc_u32_t handle, ppc_pu32_t out_struc) {
+  X_STATUS result = X_STATUS_SUCCESS;
+
+  auto ev = kernel_state()->object_table()->LookupObject<XEvent>(handle);
+  if (ev) {
+    uint32_t type_tmp, state_tmp;
+    ev->Query(&type_tmp, &state_tmp);
+    out_struc[0] = type_tmp;
+    out_struc[1] = state_tmp;
+  } else {
+    result = X_STATUS_INVALID_HANDLE;
+  }
+
+  return result;
+}
+
 }  // namespace rex::kernel::xboxkrnl
 
 XBOXKRNL_EXPORT(__imp__ObOpenObjectByName, rex::kernel::xboxkrnl::ObOpenObjectByName_entry)
@@ -215,6 +232,7 @@ XBOXKRNL_EXPORT(__imp__ObCreateSymbolicLink, rex::kernel::xboxkrnl::ObCreateSymb
 XBOXKRNL_EXPORT(__imp__ObDeleteSymbolicLink, rex::kernel::xboxkrnl::ObDeleteSymbolicLink_entry)
 XBOXKRNL_EXPORT(__imp__NtDuplicateObject, rex::kernel::xboxkrnl::NtDuplicateObject_entry)
 XBOXKRNL_EXPORT(__imp__NtClose, rex::kernel::xboxkrnl::NtClose_entry)
+XBOXKRNL_EXPORT(__imp__NtQueryEvent, rex::kernel::xboxkrnl::NtQueryEvent_entry)
 
 XBOXKRNL_EXPORT_STUB(__imp__ObCreateObject);
 XBOXKRNL_EXPORT_STUB(__imp__ObGetWaitableObject);
@@ -229,7 +247,6 @@ XBOXKRNL_EXPORT_STUB(__imp__NtCreateSymbolicLinkObject);
 XBOXKRNL_EXPORT_STUB(__imp__NtMakeTemporaryObject);
 XBOXKRNL_EXPORT_STUB(__imp__NtOpenDirectoryObject);
 XBOXKRNL_EXPORT_STUB(__imp__NtQueryDirectoryObject);
-XBOXKRNL_EXPORT_STUB(__imp__NtQueryEvent);
 XBOXKRNL_EXPORT_STUB(__imp__NtQueryIoCompletion);
 XBOXKRNL_EXPORT_STUB(__imp__NtQueryMutant);
 XBOXKRNL_EXPORT_STUB(__imp__NtQuerySemaphore);
