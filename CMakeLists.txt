@@ -50,6 +50,17 @@ set(REXGLUE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}")
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
+if(UNIX AND NOT APPLE)
+    # Keep installed binaries self-contained by resolving shared libs relative
+    # to the install prefix (for example, bin -> ../lib).
+    set(CMAKE_BUILD_RPATH_USE_ORIGIN ON)
+    list(APPEND CMAKE_INSTALL_RPATH
+        "$ORIGIN"
+        "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}"
+    )
+    set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON)
+endif()
+
 # Enforce Clang18 compiler
 if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     message(FATAL_ERROR "ReXGlue requires Clang compiler. Please set CMAKE_CXX_COMPILER to clang++")
