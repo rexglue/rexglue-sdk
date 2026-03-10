@@ -1038,14 +1038,18 @@ bool build_vsplth(BuilderContext& ctx) {
 }
 
 bool build_vspltisb(BuilderContext& ctx) {
+  // Sign-extend 5-bit immediate to 8-bit
+  int8_t imm5 = static_cast<int8_t>(ctx.insn.operands[1] << 3) >> 3;
   ctx.println("\tsimde_mm_store_si128((simde__m128i*){}.u8, simde_mm_set1_epi8(char(0x{:X})));",
-              ctx.v(ctx.insn.operands[0]), ctx.insn.operands[1]);
+              ctx.v(ctx.insn.operands[0]), static_cast<uint8_t>(imm5));
   return true;
 }
 
 bool build_vspltisw(BuilderContext& ctx) {
+  // Sign-extend 5-bit immediate to 32-bit
+  int8_t imm5 = static_cast<int8_t>(ctx.insn.operands[1] << 3) >> 3;
   ctx.println("\tsimde_mm_store_si128((simde__m128i*){}.u32, simde_mm_set1_epi32(int(0x{:X})));",
-              ctx.v(ctx.insn.operands[0]), ctx.insn.operands[1]);
+              ctx.v(ctx.insn.operands[0]), static_cast<uint32_t>(static_cast<int32_t>(imm5)));
   return true;
 }
 
