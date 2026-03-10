@@ -97,7 +97,12 @@ bool build_blr(BuilderContext& ctx) {
 }
 
 bool build_blrl(BuilderContext& ctx) {
-  ctx.println("__builtin_debugtrap();");
+  // BLRL: save return address, then branch-and-link to current LR
+  ctx.println("\t{{ auto old_lr = ctx.lr;");
+  if (!ctx.config().skipLr)
+    ctx.println("\tctx.lr = 0x{:X};", ctx.base + 4);
+  ctx.println("\tPPC_CALL_INDIRECT_FUNC(uint32_t(old_lr)); }}");
+  ctx.csrState = CSRState::Unknown;
   return true;
 }
 
