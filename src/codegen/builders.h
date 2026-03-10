@@ -509,6 +509,7 @@ bool build_vcmpgtfp(BuilderContext& ctx);
 bool build_vcmpgtub(BuilderContext& ctx);
 bool build_vcmpgtuh(BuilderContext& ctx);
 bool build_vcmpgtuw(BuilderContext& ctx);
+bool build_vcmpgtsb(BuilderContext& ctx);
 bool build_vcmpgtsh(BuilderContext& ctx);
 bool build_vcmpgtsw(BuilderContext& ctx);
 
