@@ -541,6 +541,32 @@ bool build_lvx(BuilderContext& ctx) {
   return true;
 }
 
+bool build_lvebx(BuilderContext& ctx) {
+  emitVectorEA(ctx);
+  ctx.println("\tmemset({}.u8, 0, 16);", ctx.v(ctx.insn.operands[0]));
+  ctx.println("\t{}.u8[15 - ({} & 0xF)] = *(uint8_t*)PPC_RAW_ADDR({});",
+              ctx.v(ctx.insn.operands[0]), ctx.ea(), ctx.ea());
+  return true;
+}
+
+bool build_lvehx(BuilderContext& ctx) {
+  emitVectorEA(ctx);
+  ctx.println("\tmemset({}.u8, 0, 16);", ctx.v(ctx.insn.operands[0]));
+  ctx.println("\t{{ uint32_t idx = ({} >> 1) & 0x7;", ctx.ea());
+  ctx.println("\t{}.u16[7 - idx] = PPC_LOAD_U16({} & ~1); }}", ctx.v(ctx.insn.operands[0]),
+              ctx.ea());
+  return true;
+}
+
+bool build_lvewx(BuilderContext& ctx) {
+  emitVectorEA(ctx);
+  ctx.println("\tmemset({}.u8, 0, 16);", ctx.v(ctx.insn.operands[0]));
+  ctx.println("\t{{ uint32_t idx = ({} >> 2) & 0x3;", ctx.ea());
+  ctx.println("\t{}.u32[3 - idx] = PPC_LOAD_U32({} & ~3); }}", ctx.v(ctx.insn.operands[0]),
+              ctx.ea());
+  return true;
+}
+
 bool build_lvlx(BuilderContext& ctx) {
   emitVectorTempEA(ctx);
   ctx.println(

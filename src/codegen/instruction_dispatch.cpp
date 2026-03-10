@@ -287,10 +287,10 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_LVRX128, build_lvrx},
       {PPC_INST_LVSL, build_lvsl},
       {PPC_INST_LVSR, build_lvsr},
-      {PPC_INST_LVEBX, build_lvx},  // Same as LVX for our purposes
-      {PPC_INST_LVEHX, build_lvx},  // Same as LVX for our purposes
-      {PPC_INST_LVEWX, build_lvx},  // Same as LVX for our purposes
-      {PPC_INST_LVEWX128, build_lvx},
+      {PPC_INST_LVEBX, build_lvebx},
+      {PPC_INST_LVEHX, build_lvehx},
+      {PPC_INST_LVEWX, build_lvewx},
+      {PPC_INST_LVEWX128, build_lvewx},
 
       //=====================================================================
       // Memory - Vector Stores

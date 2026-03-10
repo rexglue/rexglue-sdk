@@ -357,6 +357,9 @@ bool build_stfsux(BuilderContext& ctx);
 bool build_stfsx(BuilderContext& ctx);
 
 // Vector loads
+bool build_lvebx(BuilderContext& ctx);
+bool build_lvehx(BuilderContext& ctx);
+bool build_lvewx(BuilderContext& ctx);
 bool build_lvx(BuilderContext& ctx);
 bool build_lvlx(BuilderContext& ctx);
 bool build_lvrx(BuilderContext& ctx);
