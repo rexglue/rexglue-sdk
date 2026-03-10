@@ -939,7 +939,7 @@ bool build_vrlw(BuilderContext& ctx) {
   // TODO(tomc): vectorize
   for (size_t i = 0; i < 4; i++) {
     ctx.println("\t{{ uint32_t sh = {}.u32[{}] & 0x1F;", ctx.v(ctx.insn.operands[2]), i);
-    ctx.println("\t{}.u32[{}] = ({}.u32[{}] << sh) | ({}.u32[{}] >> (32 - sh)); }}",
+    ctx.println("\t{}.u32[{}] = ({}.u32[{}] << sh) | (sh ? ({}.u32[{}] >> (32 - sh)) : 0); }}",
                 ctx.v(ctx.insn.operands[0]), i, ctx.v(ctx.insn.operands[1]), i,
                 ctx.v(ctx.insn.operands[1]), i);
   }
