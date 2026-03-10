@@ -174,6 +174,7 @@ bool build_bdzf(BuilderContext& ctx);
 bool build_bdzlr(BuilderContext& ctx);
 bool build_bdnz(BuilderContext& ctx);
 bool build_bdnzf(BuilderContext& ctx);
+bool build_bdnzlr(BuilderContext& ctx);
 bool build_bdnzt(BuilderContext& ctx);
 
 // Conditional branch (eq)

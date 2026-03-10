@@ -139,6 +139,7 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_BDZLR, build_bdzlr},
       {PPC_INST_BDNZ, build_bdnz},
       {PPC_INST_BDNZF, build_bdnzf},
+      {PPC_INST_BDNZLR, build_bdnzlr},
       {PPC_INST_BDNZT, build_bdnzt},
       {PPC_INST_BEQ, build_beq},
       {PPC_INST_BEQLR, build_beqlr},

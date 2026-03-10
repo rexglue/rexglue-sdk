@@ -217,6 +217,12 @@ bool build_bdzlr(BuilderContext& ctx) {
   return true;
 }
 
+bool build_bdnzlr(BuilderContext& ctx) {
+  ctx.println("\t--{}.u64;", ctx.ctr());
+  ctx.println("\tif ({}.u32 != 0) return;", ctx.ctr());
+  return true;
+}
+
 bool build_bdnz(BuilderContext& ctx) {
   ctx.println("\t--{}.u64;", ctx.ctr());
   emitBranchWithBoundsCheck(ctx, ctx.insn.operands[0], fmt::format("{}.u32 != 0", ctx.ctr()),
