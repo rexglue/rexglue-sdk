@@ -106,6 +106,15 @@ bool build_lhau(BuilderContext& ctx) {
   return true;
 }
 
+bool build_lhaux(BuilderContext& ctx) {
+  // Load Halfword Algebraic with Update Indexed: EA = rA + rB; rD = EXTS(MEM16(EA)); rA = EA
+  ctx.println("\t{} = {}.u32 + {}.u32;", ctx.ea(), ctx.r(ctx.insn.operands[1]),
+              ctx.r(ctx.insn.operands[2]));
+  ctx.println("\t{}.s64 = int16_t(PPC_LOAD_U16({}));", ctx.r(ctx.insn.operands[0]), ctx.ea());
+  ctx.println("\t{}.u32 = {};", ctx.r(ctx.insn.operands[1]), ctx.ea());
+  return true;
+}
+
 bool build_lhbrx(BuilderContext& ctx) {
   // Load Halfword Byte-Reverse Indexed
   ctx.print("\t{}.u64 = __builtin_bswap16({}(", ctx.r(ctx.insn.operands[0]),
@@ -122,6 +131,15 @@ bool build_lhbrx(BuilderContext& ctx) {
 
 bool build_lwa(BuilderContext& ctx) {
   emitSignExtendLoadDForm(ctx, "int32_t", "PPC_LOAD_U32");
+  return true;
+}
+
+bool build_lwaux(BuilderContext& ctx) {
+  // Load Word Algebraic with Update Indexed: EA = rA + rB; rD = EXTS(MEM32(EA)); rA = EA
+  ctx.println("\t{} = {}.u32 + {}.u32;", ctx.ea(), ctx.r(ctx.insn.operands[1]),
+              ctx.r(ctx.insn.operands[2]));
+  ctx.println("\t{}.s64 = int32_t(PPC_LOAD_U32({}));", ctx.r(ctx.insn.operands[0]), ctx.ea());
+  ctx.println("\t{}.u32 = {};", ctx.r(ctx.insn.operands[1]), ctx.ea());
   return true;
 }
 

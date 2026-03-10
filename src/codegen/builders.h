@@ -277,6 +277,7 @@ bool build_lbzux(BuilderContext& ctx);
 // Halfword loads
 bool build_lha(BuilderContext& ctx);
 bool build_lhau(BuilderContext& ctx);
+bool build_lhaux(BuilderContext& ctx);
 bool build_lhax(BuilderContext& ctx);
 bool build_lhbrx(BuilderContext& ctx);
 bool build_lhz(BuilderContext& ctx);
@@ -286,6 +287,7 @@ bool build_lhzx(BuilderContext& ctx);
 
 // Word loads
 bool build_lwa(BuilderContext& ctx);
+bool build_lwaux(BuilderContext& ctx);
 bool build_lwax(BuilderContext& ctx);
 bool build_lwbrx(BuilderContext& ctx);
 bool build_lwz(BuilderContext& ctx);
