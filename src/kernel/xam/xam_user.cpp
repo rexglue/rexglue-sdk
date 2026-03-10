@@ -67,8 +67,6 @@ ppc_hresult_result_t XamUserGetXUID_entry(ppc_u32_t user_index, ppc_u32_t type_m
 }
 
 ppc_u32_result_t XamUserGetSigninState_entry(ppc_u32_t user_index) {
-  // Yield, as some games spam this.
-  rex::thread::MaybeYield();
   uint32_t signin_state = 0;
   if (user_index < 4) {
     if (user_index == 0) {

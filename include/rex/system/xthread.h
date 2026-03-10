@@ -279,6 +279,8 @@ class XThread : public XObject {
 
   int32_t priority_ = 0;
 
+  std::mutex thread_lock_;
+
   rex::thread::global_critical_region global_critical_region_;
   std::atomic<uint32_t> irql_ = {0};
   util::NativeList apc_list_;

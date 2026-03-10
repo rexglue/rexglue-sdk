@@ -75,7 +75,7 @@ class XmaDecoder {
   system::object_ref<system::XHostThread> worker_thread_;
   std::unique_ptr<rex::thread::Event> work_event_ = nullptr;
 
-  bool paused_ = false;
+  std::atomic<bool> paused_ = false;
   rex::thread::Fence pause_fence_;   // Signaled when worker paused.
   rex::thread::Fence resume_fence_;  // Signaled when resume requested.
 

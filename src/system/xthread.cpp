@@ -146,6 +146,7 @@ void XThread::set_last_error(uint32_t error_code) {
 }
 
 void XThread::set_name(const std::string_view name) {
+  std::lock_guard<std::mutex> lock(thread_lock_);
   thread_name_ = fmt::format("{} ({:08X})", name, handle());
 
   if (thread_) {
@@ -508,11 +509,6 @@ void XThread::Execute() {
 
   // Let the kernel know we are starting.
   kernel_state()->OnThreadExecute(this);
-
-  // All threads get a mandatory sleep. This is to deal with some buggy
-  // games that are assuming the 360 is so slow to create threads that they
-  // have time to initialize shared structures AFTER CreateThread (RR).
-  rex::thread::Sleep(std::chrono::milliseconds(10));
 
   // Dispatch any APCs that were queued before the thread was created first.
   DeliverAPCs();

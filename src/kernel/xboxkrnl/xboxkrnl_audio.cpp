@@ -33,7 +33,7 @@ ppc_u32_result_t XAudioGetVoiceCategoryVolumeChangeMask_entry(ppc_pvoid_t driver
                                                               ppc_pu32_t out_ptr) {
   assert_true((driver_ptr.guest_address() & 0xFFFF0000) == 0x41550000);
 
-  rex::thread::MaybeYield();
+  rex::thread::Sleep(std::chrono::microseconds(1));
 
   // Checking these bits to see if any voice volume changed.
   // I think.
