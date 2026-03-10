@@ -128,8 +128,9 @@ bool build_divw(BuilderContext& ctx) {
   auto rA = ctx.r(ctx.insn.operands[1]);
   auto rB = ctx.r(ctx.insn.operands[2]);
   ctx.println(
-      "\t{}.s32 = ({}.s32 && !({}.s32 == INT32_MIN && {}.s32 == -1)) ? {}.s32 / {}.s32 : 0;", rD,
-      rB, rA, rB, rA, rB);
+      "\t{}.u64 = uint32_t(({}.s32 && !({}.s32 == INT32_MIN && {}.s32 == -1)) ? {}.s32 / {}.s32 : "
+      "0);",
+      rD, rB, rA, rB, rA, rB);
   emitRecordFormCompare(ctx);
   return true;
 }
@@ -140,7 +141,7 @@ bool build_divwu(BuilderContext& ctx) {
   auto rD = ctx.r(ctx.insn.operands[0]);
   auto rA = ctx.r(ctx.insn.operands[1]);
   auto rB = ctx.r(ctx.insn.operands[2]);
-  ctx.println("\t{}.u32 = {}.u32 ? {}.u32 / {}.u32 : 0;", rD, rB, rA, rB);
+  ctx.println("\t{}.u64 = uint32_t({}.u32 ? {}.u32 / {}.u32 : 0);", rD, rB, rA, rB);
   emitRecordFormCompare(ctx);
   return true;
 }
