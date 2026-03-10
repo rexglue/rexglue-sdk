@@ -259,6 +259,12 @@ bool build_mftb(BuilderContext& ctx) {
   return true;
 }
 
+bool build_mftbu(BuilderContext& ctx) {
+  // Upper 32 bits of timebase
+  ctx.println("\t{}.u64 = PPC_QUERY_TIMEBASE() >> 32;", ctx.r(ctx.insn.operands[0]));
+  return true;
+}
+
 //=============================================================================
 // Move To Special Registers
 //=============================================================================

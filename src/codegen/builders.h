@@ -405,6 +405,7 @@ bool build_mflr(BuilderContext& ctx);
 bool build_mfmsr(BuilderContext& ctx);
 bool build_mffs(BuilderContext& ctx);
 bool build_mftb(BuilderContext& ctx);
+bool build_mftbu(BuilderContext& ctx);
 
 // Move to special registers
 bool build_mtcr(BuilderContext& ctx);
