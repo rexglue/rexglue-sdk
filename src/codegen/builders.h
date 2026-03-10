@@ -127,6 +127,9 @@ bool build_extsw(BuilderContext& ctx);
 bool build_clrlwi(BuilderContext& ctx);
 
 // Rotate left double word
+bool build_rldcl(BuilderContext& ctx);
+bool build_rldcr(BuilderContext& ctx);
+bool build_rldic(BuilderContext& ctx);
 bool build_rldicl(BuilderContext& ctx);
 bool build_rldicr(BuilderContext& ctx);
 bool build_rldimi(BuilderContext& ctx);
