@@ -453,6 +453,16 @@ bool build_stfdx(BuilderContext& ctx) {
   return true;
 }
 
+bool build_stfdux(BuilderContext& ctx) {
+  // Store Floating-point Double with Update Indexed: EA = rA + rB; MEM(EA) = FRS; rA = EA
+  ctx.emit_set_flush_mode(false);
+  ctx.println("\t{} = {}.u32 + {}.u32;", ctx.ea(), ctx.r(ctx.insn.operands[1]),
+              ctx.r(ctx.insn.operands[2]));
+  ctx.println("\tPPC_STORE_U64({}, {}.u64);", ctx.ea(), ctx.f(ctx.insn.operands[0]));
+  ctx.println("\t{}.u32 = {};", ctx.r(ctx.insn.operands[1]), ctx.ea());
+  return true;
+}
+
 bool build_stfiwx(BuilderContext& ctx) {
   ctx.emit_set_flush_mode(false);
   ctx.print("{}", ctx.mmio_check_x_form() ? "\tPPC_MM_STORE_U32(" : "\tPPC_STORE_U32(");
