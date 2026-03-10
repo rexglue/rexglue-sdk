@@ -310,7 +310,19 @@ bool build_mtmsrd(BuilderContext& ctx) {
 }
 
 bool build_mtfsf(BuilderContext& ctx) {
-  ctx.println("\tctx.fpscr.storeFromGuest({}.u32);", ctx.f(ctx.insn.operands[1]));
+  uint32_t fm = ctx.insn.operands[0];
+  uint32_t mask = 0;
+  for (int j = 0; j < 8; j++) {
+    if (fm & (1 << (7 - j)))
+      mask |= 0xF << (4 * j);
+  }
+  if (mask == 0xFFFFFFFF) {
+    ctx.println("\tctx.fpscr.storeFromGuest({}.u32);", ctx.f(ctx.insn.operands[1]));
+  } else {
+    ctx.println(
+        "\tctx.fpscr.storeFromGuest((ctx.fpscr.loadFromHost() & 0x{:08X}) | ({}.u32 & 0x{:08X}));",
+        ~mask, ctx.f(ctx.insn.operands[1]), mask);
+  }
   return true;
 }
 
