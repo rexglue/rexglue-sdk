@@ -257,18 +257,15 @@ bool build_fnmsubs(BuilderContext& ctx) {
 
 bool build_fres(BuilderContext& ctx) {
   ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.f64 = float(1.0 / {}.f64);", ctx.f(ctx.insn.operands[0]),
+  ctx.println("\t{}.f64 = double(float(1.0 / {}.f64));", ctx.f(ctx.insn.operands[0]),
               ctx.f(ctx.insn.operands[1]));
   return true;
 }
 
 bool build_frsqrte(BuilderContext& ctx) {
-  // frsqrte: Floating reciprocal square root estimate
-  // Uses lookup table approach from RPCS3
-  // Credit: https://github.com/RPCS3/rpcs3/blob/master/rpcs3/Emu/Cell/PPUInterpreter.cpp
   ctx.emit_set_flush_mode(false);
-  ctx.println("\t{}.u64 = uint64_t(rex::ppu_frsqrte_lut.data[{}.u64 >> 49]) << 32;",
-              ctx.f(ctx.insn.operands[0]), ctx.f(ctx.insn.operands[1]));
+  ctx.println("\t{}.f64 = 1.0 / sqrt({}.f64);", ctx.f(ctx.insn.operands[0]),
+              ctx.f(ctx.insn.operands[1]));
   return true;
 }
 
