@@ -135,6 +135,10 @@ class BaseHeap {
   uint32_t GetTotalPageCount();
   uint32_t GetUnreservedPageCount();
 
+  uint32_t total_page_count() const { return uint32_t(page_table_.size()); }
+  uint32_t unreserved_page_count() const { return unreserved_page_count_; }
+  uint32_t reserved_page_count() const { return total_page_count() - unreserved_page_count(); }
+
   // Allocates pages with the given properties and allocation strategy.
   // This can reserve and commit the pages as well as set protection modes.
   // This will fail if not enough contiguous pages can be found.
@@ -153,6 +157,11 @@ class BaseHeap {
   virtual bool AllocRange(uint32_t low_address, uint32_t high_address, uint32_t size,
                           uint32_t alignment, uint32_t allocation_type, uint32_t protect,
                           bool top_down, uint32_t* out_address);
+
+  // Allocates from the system portion of the heap (top of virtual heaps).
+  // Physical heaps delegate to regular Alloc since there is no split.
+  virtual bool AllocSystemHeap(uint32_t size, uint32_t alignment, uint32_t allocation_type,
+                               uint32_t protect, bool top_down, uint32_t* out_address);
 
   // Decommits pages in the given range.
   // Partial overlapping pages will also be decommitted.
@@ -200,7 +209,9 @@ class BaseHeap {
   uint32_t heap_base_;
   uint32_t heap_size_;
   uint32_t page_size_;
+  uint32_t page_size_shift_ = 0;
   uint32_t host_address_offset_;
+  uint32_t unreserved_page_count_ = 0;
   rex::thread::global_critical_region global_critical_region_;
   std::vector<PageEntry> page_table_;
 };
@@ -239,6 +250,8 @@ class PhysicalHeap : public BaseHeap {
   bool AllocRange(uint32_t low_address, uint32_t high_address, uint32_t size, uint32_t alignment,
                   uint32_t allocation_type, uint32_t protect, bool top_down,
                   uint32_t* out_address) override;
+  bool AllocSystemHeap(uint32_t size, uint32_t alignment, uint32_t allocation_type,
+                       uint32_t protect, bool top_down, uint32_t* out_address) override;
   bool Decommit(uint32_t address, uint32_t size) override;
   bool Release(uint32_t base_address, uint32_t* out_region_size = nullptr) override;
   bool Protect(uint32_t address, uint32_t size, uint32_t protect,
@@ -441,7 +454,7 @@ class Memory {
                            uint32_t system_heap_flags = kSystemHeapDefault);
 
   // Frees memory allocated with SystemHeapAlloc.
-  void SystemHeapFree(uint32_t address);
+  void SystemHeapFree(uint32_t address, uint32_t* out_region_size = nullptr);
 
   // Gets the heap for the address space containing the given address.
   const BaseHeap* LookupHeap(uint32_t address) const;
@@ -452,6 +465,11 @@ class Memory {
 
   // Gets the heap with the given properties.
   BaseHeap* LookupHeapByType(bool physical, uint32_t page_size);
+
+  // Aggregates page statistics across the given heaps.
+  void GetHeapsPageStatsSummary(const BaseHeap* const* provided_heaps, size_t heaps_count,
+                                uint32_t& unreserved_pages, uint32_t& reserved_pages,
+                                uint32_t& used_pages, uint32_t& reserved_bytes);
 
   // Gets the physical base heap.
   VirtualHeap* GetPhysicalHeap();
