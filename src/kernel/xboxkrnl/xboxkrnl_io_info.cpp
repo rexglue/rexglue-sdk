@@ -21,6 +21,7 @@
 #include <rex/system/info/file.h>
 #include <rex/system/info/volume.h>
 #include <rex/system/kernel_state.h>
+#include <rex/system/util/string_utils.h>
 #include <rex/system/xevent.h>
 #include <rex/system/xfile.h>
 #include <rex/system/xiocompletion.h>
@@ -31,6 +32,51 @@
 
 namespace rex::kernel::xboxkrnl {
 using namespace rex::system;
+
+static bool IsValidPath(const std::string_view s, bool is_pattern) {
+  // TODO(gibbed): validate path components individually.
+  bool got_asterisk = false;
+  for (const auto& c : s) {
+    if (c <= 31 || c >= 127) {
+      return false;
+    }
+    if (got_asterisk) {
+      if (c != '.') {
+        return false;
+      }
+      got_asterisk = false;
+    }
+    switch (c) {
+      case '"':
+      case '+':
+      case ',':
+      case ';':
+      case '<':
+      case '=':
+      case '>':
+      case '|': {
+        return false;
+      }
+      case '*': {
+        if (!is_pattern) {
+          return false;
+        }
+        got_asterisk = true;
+        break;
+      }
+      case '?': {
+        if (!is_pattern) {
+          return false;
+        }
+        break;
+      }
+      default: {
+        break;
+      }
+    }
+  }
+  return true;
+}
 
 uint32_t GetQueryFileInfoMinimumLength(uint32_t info_class) {
   switch (info_class) {
@@ -158,21 +204,24 @@ ppc_u32_result_t NtQueryInformationFile_entry(ppc_u32_t file_handle,
 
 uint32_t GetSetFileInfoMinimumLength(uint32_t info_class) {
   switch (info_class) {
+    case XFileRenameInformation:
+      return sizeof(X_FILE_RENAME_INFORMATION);
     case XFileDispositionInformation:
       return sizeof(X_FILE_DISPOSITION_INFORMATION);
     case XFilePositionInformation:
       return sizeof(X_FILE_POSITION_INFORMATION);
     case XFileCompletionInformation:
       return sizeof(X_FILE_COMPLETION_INFORMATION);
+    case XFileAllocationInformation:
+      return sizeof(X_FILE_ALLOCATION_INFORMATION);
+    case XFileEndOfFileInformation:
+      return sizeof(X_FILE_END_OF_FILE_INFORMATION);
     // TODO(gibbed): structures to get the size of.
     case XFileModeInformation:
     case XFileIoPriorityInformation:
       return 4;
-    case XFileAllocationInformation:
-    case XFileEndOfFileInformation:
     case XFileMountPartitionInformation:
       return 8;
-    case XFileRenameInformation:
     case XFileLinkInformation:
       return 16;
     case XFileBasicInformation:
@@ -245,9 +294,29 @@ ppc_u32_result_t NtSetInformationFile_entry(ppc_u32_t file_handle,
       out_length = sizeof(*info);
       break;
     }
+    case XFileRenameInformation: {
+      auto info = info_ptr.as<X_FILE_RENAME_INFORMATION*>();
+      auto target_path = util::TranslateAnsiPath(kernel_memory(), &info->ansi_string);
+      if (!IsValidPath(target_path, false)) {
+        return X_STATUS_OBJECT_NAME_INVALID;
+      }
+
+      auto target_file_path = rex::to_path(target_path);
+      if (!target_file_path.has_filename()) {
+        return X_STATUS_INVALID_PARAMETER;
+      }
+
+      result = file->Rename(target_file_path);
+      out_length = sizeof(*info);
+      break;
+    }
     case XFileAllocationInformation: {
-      REXKRNL_WARN("NtSetInformationFile ignoring alloc");
-      out_length = 8;
+      auto info = info_ptr.as<X_FILE_ALLOCATION_INFORMATION*>();
+      result = file->SetLength(info->allocation_size);
+      out_length = sizeof(*info);
+
+      // Update the file entry information.
+      file->entry()->update();
       break;
     }
     case XFileEndOfFileInformation: {
@@ -271,12 +340,6 @@ ppc_u32_result_t NtSetInformationFile_entry(ppc_u32_t file_handle,
       } else {
         file->RegisterIOCompletionPort(key, port);
       }
-      break;
-    }
-    case XFileRenameInformation: {
-      REXKRNL_WARN("NtSetInformationFile(XFileRenameInformation) unimplemented");
-      result = X_STATUS_NOT_IMPLEMENTED;
-      out_length = 0;
       break;
     }
     default:

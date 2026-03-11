@@ -13,6 +13,8 @@
 #include <rex/logging.h>
 #include <rex/string.h>
 
+#include "devices/host_path_entry.h"
+
 namespace rex::filesystem {
 
 VirtualFileSystem::VirtualFileSystem() {}
@@ -110,7 +112,7 @@ Entry* VirtualFileSystem::ResolvePath(const std::string_view path) {
 
   // Find the device.
   auto it = std::find_if(devices_.cbegin(), devices_.cend(), [&](const auto& d) {
-    return rex::string::utf8_starts_with(normalized_path, d->mount_path());
+    return rex::string::utf8_starts_with_case(normalized_path, d->mount_path());
   });
   if (it == devices_.cend()) {
     REXFS_WARN("VFS: '{}' -> [no device]", path);
@@ -218,6 +220,18 @@ X_STATUS VirtualFileSystem::OpenFile(Entry* root_entry, const std::string_view p
     if (entry->attributes() & kFileAttributeDirectory && is_non_directory) {
       return X_STATUS_FILE_IS_A_DIRECTORY;
     }
+
+    // If the cached entry does not exist on host anymore, invalidate it.
+    if (parent_entry) {
+      const auto* host_path_entry = dynamic_cast<const HostPathEntry*>(parent_entry);
+      if (host_path_entry) {
+        const auto file_path = host_path_entry->host_path() / rex::to_path(entry->name());
+        if (!std::filesystem::exists(file_path)) {
+          entry->Delete();
+          entry = nullptr;
+        }
+      }
+    }
   }
 
   // Check if exists (if we need it to), or that it doesn't (if it shouldn't).
@@ -247,13 +261,9 @@ X_STATUS VirtualFileSystem::OpenFile(Entry* root_entry, const std::string_view p
       desired_access & FileAccess::kFileWriteData || desired_access & FileAccess::kFileAppendData;
   if (wants_write &&
       ((parent_entry && parent_entry->is_read_only()) || (entry && entry->is_read_only()))) {
-    // Fail if read only device and wants write.
-    return X_STATUS_ACCESS_DENIED;
-    // TODO(benvanik): figure out why games are opening read-only files with
-    // write modes.
-    //    assert_always();
-    // REXFS_WARN("Attempted to open the file/dir for create/write");
-    // desired_access = FileAccess::kGenericRead | FileAccess::kFileReadData;
+    // Match Xenia behavior: downgrade to read access instead of failing.
+    REXFS_WARN("Attempted to open read-only file/dir for write: {}", path);
+    desired_access = FileAccess::kGenericRead | FileAccess::kFileReadData;
   }
 
   bool created = false;

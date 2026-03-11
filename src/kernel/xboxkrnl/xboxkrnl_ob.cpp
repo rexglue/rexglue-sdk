@@ -175,10 +175,10 @@ ppc_u32_result_t ObDereferenceObject_entry(ppc_u32_t native_ptr) {
 
 ppc_u32_result_t ObCreateSymbolicLink_entry(ppc_ptr_t<X_ANSI_STRING> path_ptr,
                                             ppc_ptr_t<X_ANSI_STRING> target_ptr) {
-  auto path = rex::string::utf8_canonicalize_guest_path(
-      util::TranslateAnsiString(kernel_memory(), path_ptr));
+  auto path =
+      rex::string::utf8_canonicalize_guest_path(util::TranslateAnsiPath(kernel_memory(), path_ptr));
   auto target = rex::string::utf8_canonicalize_guest_path(
-      util::TranslateAnsiString(kernel_memory(), target_ptr));
+      util::TranslateAnsiPath(kernel_memory(), target_ptr));
 
   if (rex::string::utf8_starts_with(path, u8"\\??\\")) {
     path = path.substr(4);  // Strip the full qualifier
@@ -192,7 +192,7 @@ ppc_u32_result_t ObCreateSymbolicLink_entry(ppc_ptr_t<X_ANSI_STRING> path_ptr,
 }
 
 ppc_u32_result_t ObDeleteSymbolicLink_entry(ppc_ptr_t<X_ANSI_STRING> path_ptr) {
-  auto path = util::TranslateAnsiString(kernel_memory(), path_ptr);
+  auto path = util::TranslateAnsiPath(kernel_memory(), path_ptr);
   if (!kernel_state()->file_system()->UnregisterSymbolicLink(path)) {
     return X_STATUS_UNSUCCESSFUL;
   }

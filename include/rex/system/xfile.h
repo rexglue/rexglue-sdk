@@ -11,6 +11,8 @@
  */
 
 #include <string>
+#include <filesystem>
+#include <mutex>
 
 #include <rex/filesystem/device.h>
 #include <rex/filesystem/entry.h>
@@ -79,8 +81,8 @@ class XFile : public XObject {
   const std::string& path() const { return file_->entry()->path(); }
   const std::string& name() const { return file_->entry()->name(); }
 
-  uint64_t position() const { return position_; }
-  void set_position(uint64_t value) { position_ = value; }
+  uint64_t position() const;
+  void set_position(uint64_t value);
 
   X_STATUS QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info, size_t length,
                           const std::string_view file_name, bool restart);
@@ -98,6 +100,7 @@ class XFile : public XObject {
                  uint32_t* out_bytes_written, uint32_t apc_context);
 
   X_STATUS SetLength(size_t length);
+  X_STATUS Rename(const std::filesystem::path& file_path);
 
   void RegisterIOCompletionPort(uint32_t key, object_ref<XIOCompletion> port);
   void RemoveIOCompletionPort(uint32_t key);
@@ -124,9 +127,13 @@ class XFile : public XObject {
  private:
   XFile();
 
+  X_STATUS ReadInternal(uint32_t buffer_guest_address, uint32_t buffer_length, uint64_t byte_offset,
+                        uint32_t* out_bytes_read, uint32_t apc_context, bool notify_completion);
+
   rex::filesystem::File* file_ = nullptr;
   std::unique_ptr<rex::thread::Event> async_event_ = nullptr;
 
+  mutable std::mutex file_lock_;
   std::mutex completion_port_lock_;
   std::vector<std::pair<uint32_t, object_ref<XIOCompletion>>> completion_ports_;
 

@@ -30,7 +30,7 @@ class HostPathEntry : public Entry {
                                const std::filesystem::path& full_path,
                                rex::filesystem::FileInfo file_info);
 
-  const std::filesystem::path& host_path() { return host_path_; }
+  const std::filesystem::path& host_path() const { return host_path_; }
 
   X_STATUS Open(uint32_t desired_access, File** out_file) override;
 
@@ -38,6 +38,10 @@ class HostPathEntry : public Entry {
   std::unique_ptr<memory::MappedMemory> OpenMapped(memory::MappedMemory::Mode mode, size_t offset,
                                                    size_t length) override;
   void update() override;
+  bool SetAttributes(uint64_t attributes) override;
+  bool SetCreateTimestamp(uint64_t timestamp) override;
+  bool SetAccessTimestamp(uint64_t timestamp) override;
+  bool SetWriteTimestamp(uint64_t timestamp) override;
 
  private:
   friend class HostPathDevice;
@@ -45,6 +49,7 @@ class HostPathEntry : public Entry {
   std::unique_ptr<Entry> CreateEntryInternal(const std::string_view name,
                                              uint32_t attributes) override;
   bool DeleteEntryInternal(Entry* entry) override;
+  void RenameEntryInternal(const std::vector<std::string_view>& path_parts) override;
 
   std::filesystem::path host_path_;
 };

@@ -132,6 +132,23 @@ bool Entry::Delete() {
   return parent_->Delete(this);
 }
 
+void Entry::Rename(const std::filesystem::path& file_path) {
+  // Store the string so split path string_views remain valid.
+  const std::string path_str = rex::path_to_utf8(file_path);
+  std::vector<std::string_view> path_parts = rex::string::utf8_split_path(path_str);
+  if (!path_parts.empty()) {
+    // Drop root path (for example, "game:").
+    path_parts.erase(path_parts.begin());
+  }
+
+  RenameEntryInternal(path_parts);
+
+  const std::string guest_path = rex::string::utf8_join_guest_paths(path_parts);
+  absolute_path_ = rex::string::utf8_join_guest_paths(device_->mount_path(), guest_path);
+  path_ = guest_path;
+  name_ = rex::path_to_utf8(file_path.filename());
+}
+
 void Entry::Touch() {
   // TODO(benvanik): update timestamps.
 }

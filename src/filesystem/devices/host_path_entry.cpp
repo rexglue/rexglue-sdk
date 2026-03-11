@@ -14,6 +14,7 @@
 
 #include <rex/filesystem.h>
 #include <rex/filesystem/device.h>
+#include <rex/filesystem/devices/host_path_device.h>
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/memory/mapped_memory.h>
@@ -103,6 +104,23 @@ bool HostPathEntry::DeleteEntryInternal(Entry* entry) {
   }
 }
 
+void HostPathEntry::RenameEntryInternal(const std::vector<std::string_view>& path_parts) {
+  auto new_host_path = static_cast<HostPathDevice*>(device_)->host_path();
+  for (const auto& path_part : path_parts) {
+    new_host_path /= rex::to_path(path_part);
+  }
+
+  std::error_code ec;
+  std::filesystem::rename(host_path_, new_host_path, ec);
+  if (ec) {
+    REXFS_ERROR("RenameEntryInternal: failed to rename '{}' to '{}': {}",
+                rex::path_to_utf8(host_path_), rex::path_to_utf8(new_host_path), ec.message());
+    return;
+  }
+
+  host_path_ = new_host_path;
+}
+
 void HostPathEntry::update() {
   rex::filesystem::FileInfo file_info;
   if (!rex::filesystem::GetInfo(host_path_, &file_info)) {
@@ -112,6 +130,38 @@ void HostPathEntry::update() {
     size_ = file_info.total_size;
     allocation_size_ = rex::round_up(file_info.total_size, device()->bytes_per_sector());
   }
+}
+
+bool HostPathEntry::SetAttributes(uint64_t attributes) {
+  if (device_->is_read_only()) {
+    return false;
+  }
+  attributes_ = static_cast<uint32_t>(attributes);
+  return true;
+}
+
+bool HostPathEntry::SetCreateTimestamp(uint64_t timestamp) {
+  if (device_->is_read_only()) {
+    return false;
+  }
+  create_timestamp_ = timestamp;
+  return true;
+}
+
+bool HostPathEntry::SetAccessTimestamp(uint64_t timestamp) {
+  if (device_->is_read_only()) {
+    return false;
+  }
+  access_timestamp_ = timestamp;
+  return true;
+}
+
+bool HostPathEntry::SetWriteTimestamp(uint64_t timestamp) {
+  if (device_->is_read_only()) {
+    return false;
+  }
+  write_timestamp_ = timestamp;
+  return true;
 }
 
 }  // namespace rex::filesystem

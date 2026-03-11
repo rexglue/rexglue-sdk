@@ -66,7 +66,7 @@ bool ReXApp::OnInitialize() {
     game_dir = exe_dir / "assets";
   }
 
-  // User data: cvar override, or platform default
+  // User data: cvar override, or platform user directory
   std::filesystem::path user_dir;
   std::string user_data_cvar = REXCVAR_GET(user_data_root);
   if (!user_data_cvar.empty()) {
