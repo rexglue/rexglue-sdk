@@ -147,6 +147,9 @@ class ContentManager {
                                                  const XCONTENT_AGGREGATE_DATA& data);
 
   bool ContentExists(const XCONTENT_AGGREGATE_DATA& data);
+  X_RESULT WriteContentHeaderFile(XCONTENT_AGGREGATE_DATA data);
+  X_RESULT ReadContentHeaderFile(const std::string_view file_name, const uint32_t title_id,
+                                 XContentType content_type, XCONTENT_AGGREGATE_DATA& data);
   X_RESULT CreateContent(const std::string_view root_name, const XCONTENT_AGGREGATE_DATA& data);
   X_RESULT OpenContent(const std::string_view root_name, const XCONTENT_AGGREGATE_DATA& data);
   X_RESULT CloseContent(const std::string_view root_name);
@@ -163,6 +166,9 @@ class ContentManager {
  private:
   std::filesystem::path ResolvePackageRoot(XContentType content_type, uint32_t title_id = -1);
   std::filesystem::path ResolvePackagePath(const XCONTENT_AGGREGATE_DATA& data);
+  std::filesystem::path ResolvePackageHeaderPath(const std::string_view file_name,
+                                                 uint32_t title_id,
+                                                 const XContentType content_type);
 
   KernelState* kernel_state_;
   std::filesystem::path root_path_;

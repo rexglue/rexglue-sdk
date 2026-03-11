@@ -88,7 +88,8 @@ ppc_u32_result_t XamContentCreateEnumerator_entry(ppc_u32_t user_index, ppc_u32_
   if (!device_info || device_info->device_id == DummyDeviceId::HDD) {
     // Get all content data.
     auto content_datas = kernel_state()->content_manager()->ListContent(
-        static_cast<uint32_t>(DummyDeviceId::HDD), XContentType(uint32_t(content_type)));
+        static_cast<uint32_t>(DummyDeviceId::HDD), XContentType(uint32_t(content_type)),
+        kernel_state()->title_id());
     for (const auto& content_data : content_datas) {
       auto item = e->AppendItem();
       *item = content_data;
@@ -180,6 +181,9 @@ ppc_u32_result_t xeXamContentCreate(ppc_u32_t user_index, ppc_pchar_t root_name,
 
     if (disposition == kDispositionState::Create) {
       result = content_manager->CreateContent(root_name, content_data);
+      if (XSUCCEEDED(result)) {
+        content_manager->WriteContentHeaderFile(content_data);
+      }
     } else if (disposition == kDispositionState::Open) {
       result = content_manager->OpenContent(root_name, content_data);
     }

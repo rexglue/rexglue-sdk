@@ -27,6 +27,8 @@ namespace xam {
 
 static const char* kThumbnailFileName = "__thumbnail.png";
 
+static const char* kGameContentHeaderDirName = "Headers";
+
 static const char* kGameUserContentDirName = "profile";
 
 static int content_device_id_ = 0;
@@ -95,13 +97,19 @@ std::vector<XCONTENT_AGGREGATE_DATA> ContentManager::ListContent(uint32_t device
       // Directories only.
       continue;
     }
+
     XCONTENT_AGGREGATE_DATA content_data;
-    content_data.device_id = device_id;
-    content_data.content_type = content_type;
-    content_data.set_display_name(rex::path_to_utf16(file_info.name));
-    content_data.set_file_name(rex::path_to_utf8(file_info.name));
-    content_data.title_id = title_id;
-    result.emplace_back(std::move(content_data));
+    if (XSUCCEEDED(ReadContentHeaderFile(rex::path_to_utf8(file_info.name), title_id, content_type,
+                                         content_data))) {
+      result.emplace_back(std::move(content_data));
+    } else {
+      content_data.device_id = device_id;
+      content_data.content_type = content_type;
+      content_data.set_display_name(rex::path_to_utf16(file_info.name));
+      content_data.set_file_name(rex::path_to_utf8(file_info.name));
+      content_data.title_id = title_id;
+      result.emplace_back(std::move(content_data));
+    }
   }
 
   return result;
@@ -120,9 +128,80 @@ std::unique_ptr<ContentPackage> ContentManager::ResolvePackage(
   return package;
 }
 
+std::filesystem::path ContentManager::ResolvePackageHeaderPath(const std::string_view file_name,
+                                                               uint32_t title_id,
+                                                               const XContentType content_type) {
+  if (title_id == kCurrentlyRunningTitleId) {
+    title_id = kernel_state_->title_id();
+  }
+
+  auto title_id_str = std::format("{:08X}", title_id);
+  auto content_type_str = std::format("{:08X}", uint32_t(content_type));
+  std::string final_name = std::filesystem::path(file_name).filename().u8string() + ".header";
+
+  // Header root path:
+  // content_root/title_id/Headers/content_type/
+  return root_path_ / title_id_str / kGameContentHeaderDirName / content_type_str / final_name;
+}
+
 bool ContentManager::ContentExists(const XCONTENT_AGGREGATE_DATA& data) {
   auto path = ResolvePackagePath(data);
   return std::filesystem::exists(path);
+}
+
+X_RESULT ContentManager::WriteContentHeaderFile(XCONTENT_AGGREGATE_DATA data) {
+  if (data.title_id == -1) {
+    data.title_id = kernel_state_->title_id();
+  }
+
+  auto header_path = ResolvePackageHeaderPath(data.file_name(), data.title_id, data.content_type);
+  auto parent_path = header_path.parent_path();
+
+  if (!std::filesystem::exists(parent_path)) {
+    if (!std::filesystem::create_directories(parent_path)) {
+      return X_STATUS_ACCESS_DENIED;
+    }
+  }
+
+  rex::filesystem::CreateEmptyFile(header_path);
+
+  if (std::filesystem::exists(header_path)) {
+    auto file = rex::filesystem::OpenFile(header_path, "wb");
+    fwrite(&data, 1, sizeof(XCONTENT_AGGREGATE_DATA), file);
+    fclose(file);
+    return X_STATUS_SUCCESS;
+  }
+  return X_STATUS_NO_SUCH_FILE;
+}
+
+X_RESULT ContentManager::ReadContentHeaderFile(const std::string_view file_name,
+                                               const uint32_t title_id, XContentType content_type,
+                                               XCONTENT_AGGREGATE_DATA& data) {
+  auto header_file_path = ResolvePackageHeaderPath(file_name, title_id, content_type);
+  constexpr uint32_t header_size = sizeof(XCONTENT_AGGREGATE_DATA);
+
+  if (std::filesystem::exists(header_file_path)) {
+    auto file = rex::filesystem::OpenFile(header_file_path, "rb");
+
+    std::array<uint8_t, header_size> buffer;
+
+    auto file_size = std::filesystem::file_size(header_file_path);
+    if (file_size < header_size) {
+      fclose(file);
+      return X_STATUS_END_OF_FILE;
+    }
+
+    size_t result = fread(buffer.data(), 1, header_size, file);
+    if (result != header_size) {
+      fclose(file);
+      return X_STATUS_END_OF_FILE;
+    }
+
+    fclose(file);
+    std::memcpy(&data, buffer.data(), buffer.size());
+    return X_STATUS_SUCCESS;
+  }
+  return X_STATUS_NO_SUCH_FILE;
 }
 
 X_RESULT ContentManager::CreateContent(const std::string_view root_name,
