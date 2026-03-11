@@ -146,6 +146,10 @@ X_STATUS XFile::Read(uint32_t buffer_guest_address, uint32_t buffer_length, uint
                   rex::thread::global_critical_region::AcquireDirect(), buffer_guest_address,
                   buffer_length, true, true);
             }
+
+            if (byte_offset) {
+              position_ = byte_offset;
+            }
             position_ += bytes_read;
           }
         }

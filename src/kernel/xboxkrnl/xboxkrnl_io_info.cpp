@@ -97,10 +97,11 @@ ppc_u32_result_t NtQueryInformationFile_entry(ppc_u32_t file_handle,
       break;
     }
     case XFileSectorInformation: {
-      // TODO(benvanik): return sector this file's on.
-      REXKRNL_ERROR("NtQueryInformationFile(XFileSectorInformation) unimplemented");
-      status = X_STATUS_INVALID_PARAMETER;
-      out_length = 0;
+      REXKRNL_DEBUG("Stub XFileSectorInformation!");
+      auto info = info_ptr.as<uint32_t*>();
+      size_t fname_hash = rex::memory::hash_combine(82589933LL, file->path());
+      *info = static_cast<uint32_t>(fname_hash ^ (fname_hash >> 32));
+      out_length = sizeof(uint32_t);
       break;
     }
     case XFileXctdCompressionInformation: {
@@ -205,12 +206,37 @@ ppc_u32_result_t NtSetInformationFile_entry(ppc_u32_t file_handle,
   uint32_t out_length;
 
   switch (info_class) {
+    case XFileBasicInformation: {
+      auto info = info_ptr.as<X_FILE_BASIC_INFORMATION*>();
+
+      bool basic_result = true;
+      if (info->creation_time) {
+        basic_result &= file->entry()->SetCreateTimestamp(info->creation_time);
+      }
+
+      if (info->last_access_time) {
+        basic_result &= file->entry()->SetAccessTimestamp(info->last_access_time);
+      }
+
+      if (info->last_write_time) {
+        basic_result &= file->entry()->SetWriteTimestamp(info->last_write_time);
+      }
+
+      basic_result &= file->entry()->SetAttributes(info->attributes);
+      if (!basic_result) {
+        result = X_STATUS_UNSUCCESSFUL;
+      }
+
+      out_length = sizeof(*info);
+      break;
+    }
     case XFileDispositionInformation: {
-      // Used to set deletion flag. Which we don't support. Probably?
       auto info = info_ptr.as<X_FILE_DISPOSITION_INFORMATION*>();
       bool delete_on_close = info->delete_file ? true : false;
+      file->entry()->SetForDeletion(delete_on_close);
       out_length = 0;
-      REXKRNL_WARN("NtSetInformationFile ignoring delete on close: {}", delete_on_close);
+      REXKRNL_WARN("NtSetInformationFile set deleting flag for {} on close to: {}", file->name(),
+                   delete_on_close);
       break;
     }
     case XFilePositionInformation: {
@@ -247,6 +273,12 @@ ppc_u32_result_t NtSetInformationFile_entry(ppc_u32_t file_handle,
       }
       break;
     }
+    case XFileRenameInformation: {
+      REXKRNL_WARN("NtSetInformationFile(XFileRenameInformation) unimplemented");
+      result = X_STATUS_NOT_IMPLEMENTED;
+      out_length = 0;
+      break;
+    }
     default:
       // Unsupported, for now.
       assert_always();
@@ -268,12 +300,12 @@ uint32_t GetQueryVolumeInfoMinimumLength(uint32_t info_class) {
       return sizeof(X_FILE_FS_VOLUME_INFORMATION);
     case XFileFsSizeInformation:
       return sizeof(X_FILE_FS_SIZE_INFORMATION);
+    case XFileFsDeviceInformation:
+      return sizeof(X_FILE_FS_DEVICE_INFORMATION);
     case XFileFsAttributeInformation:
       return sizeof(X_FILE_FS_ATTRIBUTE_INFORMATION);
-    // TODO(gibbed): structures to get the size of.
-    case XFileFsDeviceInformation:
-      return 8;
     default:
+      REXKRNL_WARN("Unimplemented Info Class: 0x{:08x}", info_class);
       return 0;
   }
 }
@@ -338,7 +370,14 @@ ppc_u32_result_t NtQueryVolumeInformationFile_entry(
       }
       break;
     }
-    case XFileFsDeviceInformation:
+    case XFileFsDeviceInformation: {
+      auto info = info_ptr.as<X_FILE_FS_DEVICE_INFORMATION*>();
+      REXKRNL_WARN("Stub XFileFsDeviceInformation!");
+      info->device_type = FILE_DEVICE_UNKNOWN;
+      info->characteristics = 0;
+      out_length = sizeof(X_FILE_FS_DEVICE_INFORMATION);
+      break;
+    }
     default: {
       // Unsupported, for now.
       assert_always();

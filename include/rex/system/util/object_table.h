@@ -49,7 +49,10 @@ class ObjectTable {
   object_ref<T> LookupObject(X_HANDLE handle) {
     auto object = LookupObject(handle, false);
     if (object) {
-      assert_true(object->type() == T::kObjectType);
+      if (object->type() != T::kObjectType) {
+        object->Release();
+        return object_ref<T>();
+      }
     }
     auto result = object_ref<T>(reinterpret_cast<T*>(object));
     return result;

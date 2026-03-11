@@ -94,6 +94,24 @@ class Entry {
 
   bool is_read_only() const;
 
+  bool SetCreateTimestamp(uint64_t value) {
+    create_timestamp_ = value;
+    return true;
+  }
+  bool SetAccessTimestamp(uint64_t value) {
+    access_timestamp_ = value;
+    return true;
+  }
+  bool SetWriteTimestamp(uint64_t value) {
+    write_timestamp_ = value;
+    return true;
+  }
+  bool SetAttributes(uint32_t value) {
+    attributes_ = value;
+    return true;
+  }
+  void SetForDeletion(bool delete_on_close) { delete_on_close_ = delete_on_close; }
+
   Entry* GetChild(const std::string_view name);
   Entry* ResolvePath(const std::string_view path);
 
@@ -147,6 +165,7 @@ class Entry {
   uint64_t access_timestamp_;
   uint64_t write_timestamp_;
   std::vector<std::unique_ptr<Entry>> children_;
+  bool delete_on_close_ = false;
 };
 
 }  // namespace rex::filesystem

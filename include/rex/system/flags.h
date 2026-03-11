@@ -25,7 +25,6 @@ REXCVAR_DECLARE(bool, kernel_debug_monitor);
 REXCVAR_DECLARE(bool, kernel_cert_monitor);
 REXCVAR_DECLARE(bool, ignore_thread_priorities);
 REXCVAR_DECLARE(bool, ignore_thread_affinities);
-REXCVAR_DECLARE(bool, disable_global_lock);
 REXCVAR_DECLARE(bool, writable_executable_memory);
 REXCVAR_DECLARE(bool, protect_zero);
 REXCVAR_DECLARE(bool, protect_on_release);

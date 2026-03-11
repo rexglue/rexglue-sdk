@@ -22,6 +22,11 @@ enum X_FILE_FS_INFORMATION_CLASS {
   XFileFsAttributeInformation = 5,
 };
 
+enum X_FILE_DEVICE_TYPE : uint32_t {
+  FILE_DEVICE_UNKNOWN = 0x00000022,
+  FILE_DEVICE_EHSTOR = 0x00000046,
+};
+
 #pragma pack(push, 1)
 
 // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddk/ns-ntddk-_file_fs_volume_information
@@ -53,6 +58,12 @@ struct X_FILE_FS_ATTRIBUTE_INFORMATION {
   uint8_t pad[3];
 };
 static_assert_size(X_FILE_FS_ATTRIBUTE_INFORMATION, 16);
+
+struct X_FILE_FS_DEVICE_INFORMATION {
+  be<X_FILE_DEVICE_TYPE> device_type;
+  be<uint32_t> characteristics;
+};
+static_assert_size(X_FILE_FS_DEVICE_INFORMATION, 8);
 
 #pragma pack(pop)
 
