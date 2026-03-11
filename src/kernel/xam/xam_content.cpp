@@ -70,14 +70,14 @@ ppc_u32_result_t XamContentCreateEnumerator_entry(ppc_u32_t user_index, ppc_u32_
     if (buffer_size_ptr) {
       *buffer_size_ptr = 0;
     }
-
-    // TODO(benvanik): memset 0 the data?
     return X_E_INVALIDARG;
   }
 
   if (buffer_size_ptr) {
     *buffer_size_ptr = sizeof(XCONTENT_DATA) * items_per_enumerate;
   }
+
+  uint64_t xuid = kernel_state()->user_profile()->xuid();
 
   auto e = make_object<XStaticEnumerator<XCONTENT_DATA>>(kernel_state(), items_per_enumerate);
   auto result = e->Initialize(0xFF, 0xFE, 0x20005, 0x20007, 0);
@@ -86,12 +86,22 @@ ppc_u32_result_t XamContentCreateEnumerator_entry(ppc_u32_t user_index, ppc_u32_
   }
 
   if (!device_info || device_info->device_id == DummyDeviceId::HDD) {
-    // Get all content data.
+    // Enumerate user-specific content
     auto content_datas = kernel_state()->content_manager()->ListContent(
-        static_cast<uint32_t>(DummyDeviceId::HDD), XContentType(uint32_t(content_type)));
+        static_cast<uint32_t>(DummyDeviceId::HDD), xuid, XContentType(uint32_t(content_type)));
     for (const auto& content_data : content_datas) {
       auto item = e->AppendItem();
       *item = content_data;
+    }
+
+    // Also enumerate common content (xuid=0)
+    if (xuid != 0) {
+      auto common_datas = kernel_state()->content_manager()->ListContent(
+          static_cast<uint32_t>(DummyDeviceId::HDD), 0, XContentType(uint32_t(content_type)));
+      for (const auto& content_data : common_datas) {
+        auto item = e->AppendItem();
+        *item = content_data;
+      }
     }
   }
 
@@ -112,6 +122,8 @@ ppc_u32_result_t xeXamContentCreate(ppc_u32_t user_index, ppc_pchar_t root_name,
                                     ppc_u32_t flags, ppc_pu32_t disposition_ptr,
                                     ppc_pu32_t license_mask_ptr, ppc_u32_t cache_size,
                                     ppc_u64_t content_size, ppc_pvoid_t overlapped_ptr) {
+  uint64_t xuid = kernel_state()->user_profile()->xuid();
+
   XCONTENT_AGGREGATE_DATA content_data;
   if (content_data_size == sizeof(XCONTENT_DATA)) {
     content_data = *content_data_ptr.as<XCONTENT_DATA*>();
@@ -122,20 +134,25 @@ ppc_u32_result_t xeXamContentCreate(ppc_u32_t user_index, ppc_pchar_t root_name,
     return X_ERROR_INVALID_PARAMETER;
   }
 
+  if (content_data.content_type == XContentType::kMarketplaceContent) {
+    xuid = 0;
+  }
+
   auto content_manager = kernel_state()->content_manager();
 
   if (overlapped_ptr && disposition_ptr) {
     *disposition_ptr = 0;
   }
 
-  auto run = [content_manager, root_name = root_name.value(), flags, content_data, disposition_ptr,
+  auto run = [content_manager, xuid, root_name = root_name.value(), flags, content_data,
+              disposition_ptr,
               license_mask_ptr](uint32_t& extended_error, uint32_t& length) -> X_RESULT {
     X_RESULT result = X_ERROR_INVALID_PARAMETER;
     kDispositionState disposition = kDispositionState::Unknown;
     switch (flags & 0xF) {
       case 1:  // CREATE_NEW
                // Fail if exists.
-        if (content_manager->ContentExists(content_data)) {
+        if (content_manager->ContentExists(xuid, content_data)) {
           result = X_ERROR_ALREADY_EXISTS;
         } else {
           disposition = kDispositionState::Create;
@@ -143,14 +160,14 @@ ppc_u32_result_t xeXamContentCreate(ppc_u32_t user_index, ppc_pchar_t root_name,
         break;
       case 2:  // CREATE_ALWAYS
                // Overwrite existing, if any.
-        if (content_manager->ContentExists(content_data)) {
-          content_manager->DeleteContent(content_data);
+        if (content_manager->ContentExists(xuid, content_data)) {
+          content_manager->DeleteContent(xuid, content_data);
         }
         disposition = kDispositionState::Create;
         break;
       case 3:  // OPEN_EXISTING
                // Open only if exists.
-        if (!content_manager->ContentExists(content_data)) {
+        if (!content_manager->ContentExists(xuid, content_data)) {
           result = X_ERROR_PATH_NOT_FOUND;
         } else {
           disposition = kDispositionState::Open;
@@ -158,7 +175,7 @@ ppc_u32_result_t xeXamContentCreate(ppc_u32_t user_index, ppc_pchar_t root_name,
         break;
       case 4:  // OPEN_ALWAYS
                // Create if needed.
-        if (!content_manager->ContentExists(content_data)) {
+        if (!content_manager->ContentExists(xuid, content_data)) {
           disposition = kDispositionState::Create;
         } else {
           disposition = kDispositionState::Open;
@@ -166,10 +183,10 @@ ppc_u32_result_t xeXamContentCreate(ppc_u32_t user_index, ppc_pchar_t root_name,
         break;
       case 5:  // TRUNCATE_EXISTING
                // Fail if doesn't exist, if does exist delete and recreate.
-        if (!content_manager->ContentExists(content_data)) {
+        if (!content_manager->ContentExists(xuid, content_data)) {
           result = X_ERROR_PATH_NOT_FOUND;
         } else {
-          content_manager->DeleteContent(content_data);
+          content_manager->DeleteContent(xuid, content_data);
           disposition = kDispositionState::Create;
         }
         break;
@@ -178,18 +195,22 @@ ppc_u32_result_t xeXamContentCreate(ppc_u32_t user_index, ppc_pchar_t root_name,
         break;
     }
 
+    uint32_t content_license = 0;
     if (disposition == kDispositionState::Create) {
-      result = content_manager->CreateContent(root_name, content_data);
+      result = content_manager->CreateContent(root_name, xuid, content_data);
+      if (XSUCCEEDED(result)) {
+        content_manager->WriteContentHeaderFile(xuid, content_data);
+      }
     } else if (disposition == kDispositionState::Open) {
-      result = content_manager->OpenContent(root_name, content_data);
+      result = content_manager->OpenContent(root_name, xuid, content_data, content_license);
+    }
+
+    if (license_mask_ptr && XSUCCEEDED(result)) {
+      *license_mask_ptr = content_license;
     }
 
     if (disposition_ptr) {
       *disposition_ptr = static_cast<uint32_t>(disposition);
-    }
-
-    if (license_mask_ptr && XSUCCEEDED(result)) {
-      *license_mask_ptr = 0;  // Stub!
     }
 
     extended_error = X_HRESULT_FROM_WIN32(result);
@@ -269,16 +290,17 @@ ppc_u32_result_t XamContentGetCreator_entry(ppc_u32_t user_index, ppc_pvoid_t co
                                             ppc_pvoid_t overlapped_ptr) {
   auto result = X_ERROR_SUCCESS;
 
+  uint64_t xuid = kernel_state()->user_profile()->xuid();
   XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_DATA*>();
 
-  bool content_exists = kernel_state()->content_manager()->ContentExists(content_data);
+  bool content_exists = kernel_state()->content_manager()->ContentExists(xuid, content_data);
 
   if (content_exists) {
     if (content_data.content_type == XContentType::kSavedGame) {
       // User always creates saves.
       *is_creator_ptr = 1;
       if (creator_xuid_ptr) {
-        *creator_xuid_ptr = kernel_state()->user_profile()->xuid();
+        *creator_xuid_ptr = xuid;
       }
     } else {
       *is_creator_ptr = 0;
@@ -303,11 +325,12 @@ ppc_u32_result_t XamContentGetThumbnail_entry(ppc_u32_t user_index, ppc_pvoid_t 
                                               ppc_pvoid_t overlapped_ptr) {
   assert_not_null(buffer_size_ptr);
   uint32_t buffer_size = *buffer_size_ptr;
+  uint64_t xuid = kernel_state()->user_profile()->xuid();
   XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_DATA*>();
 
   // Get thumbnail (if it exists).
   std::vector<uint8_t> buffer;
-  auto result = kernel_state()->content_manager()->GetContentThumbnail(content_data, &buffer);
+  auto result = kernel_state()->content_manager()->GetContentThumbnail(xuid, content_data, &buffer);
 
   *buffer_size_ptr = uint32_t(buffer.size());
 
@@ -336,12 +359,13 @@ ppc_u32_result_t XamContentGetThumbnail_entry(ppc_u32_t user_index, ppc_pvoid_t 
 ppc_u32_result_t XamContentSetThumbnail_entry(ppc_u32_t user_index, ppc_pvoid_t content_data_ptr,
                                               ppc_pvoid_t buffer_ptr, ppc_u32_t buffer_size,
                                               ppc_pvoid_t overlapped_ptr) {
+  uint64_t xuid = kernel_state()->user_profile()->xuid();
   XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_DATA*>();
 
   // Buffer is PNG data.
   auto buffer = std::vector<uint8_t>((uint8_t*)buffer_ptr, (uint8_t*)buffer_ptr + buffer_size);
   auto result =
-      kernel_state()->content_manager()->SetContentThumbnail(content_data, std::move(buffer));
+      kernel_state()->content_manager()->SetContentThumbnail(xuid, content_data, std::move(buffer));
 
   if (overlapped_ptr) {
     kernel_state()->CompleteOverlappedImmediate(overlapped_ptr.guest_address(), result);
@@ -353,9 +377,10 @@ ppc_u32_result_t XamContentSetThumbnail_entry(ppc_u32_t user_index, ppc_pvoid_t 
 
 ppc_u32_result_t XamContentDelete_entry(ppc_u32_t user_index, ppc_pvoid_t content_data_ptr,
                                         ppc_pvoid_t overlapped_ptr) {
+  uint64_t xuid = kernel_state()->user_profile()->xuid();
   XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_DATA*>();
 
-  auto result = kernel_state()->content_manager()->DeleteContent(content_data);
+  auto result = kernel_state()->content_manager()->DeleteContent(xuid, content_data);
 
   if (overlapped_ptr) {
     kernel_state()->CompleteOverlappedImmediate(overlapped_ptr.guest_address(), result);
@@ -369,7 +394,17 @@ ppc_u32_result_t XamContentDeleteInternal_entry(ppc_pvoid_t content_data_ptr,
                                                 ppc_pvoid_t overlapped_ptr) {
   // INFO: Analysis of xam.xex shows that "internal" functions are wrappers with
   // 0xFE as user_index
-  return XamContentDelete_entry(0xFE, content_data_ptr, overlapped_ptr);
+  uint64_t xuid = kernel_state()->user_profile()->xuid();
+  XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_AGGREGATE_DATA*>();
+
+  auto result = kernel_state()->content_manager()->DeleteContent(xuid, content_data);
+
+  if (overlapped_ptr) {
+    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr.guest_address(), result);
+    return X_ERROR_IO_PENDING;
+  } else {
+    return result;
+  }
 }
 
 }  // namespace xam
