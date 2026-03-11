@@ -404,10 +404,24 @@ void CommandProcessor::UpdateWritePointer(uint32_t value) {
   write_ptr_index_event_->Set();
 }
 
+uint32_t CommandProcessor::ReadRegisterValue(uint32_t index) const {
+  if (index < RegisterFile::kRegisterCount) {
+    return register_file_->values[index];
+  }
+  auto it = extended_register_values_.find(index);
+  return it != extended_register_values_.end() ? it->second : 0;
+}
+
 void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
   RegisterFile& regs = *register_file_;
   if (index >= RegisterFile::kRegisterCount) {
-    REXGPU_WARN("CommandProcessor::WriteRegister index out of bounds: {}", index);
+    auto [it, inserted] = extended_register_values_.insert_or_assign(index, value);
+    (void)it;
+    if (inserted) {
+      REXGPU_WARN(
+          "CommandProcessor::WriteRegister index out of bounds: {} (stored as extended register)",
+          index);
+    }
     return;
   }
 
@@ -1096,22 +1110,19 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reade
 
   bool is_memory = (wait_info & 0x10) != 0;
 
-  assert_true(is_memory || poll_reg_addr < RegisterFile::kRegisterCount);
-  const volatile uint32_t& value_ref =
-      is_memory
-          ? *reinterpret_cast<uint32_t*>(memory_->TranslatePhysical(poll_reg_addr & ~uint32_t(0x3)))
-          : register_file_->values[poll_reg_addr];
-
   bool matched = false;
   do {
-    uint32_t value = value_ref;
+    uint32_t value = 0;
     if (is_memory) {
+      value =
+          *reinterpret_cast<uint32_t*>(memory_->TranslatePhysical(poll_reg_addr & ~uint32_t(0x3)));
       trace_writer_.WriteMemoryRead(CpuToGpu(poll_reg_addr & ~uint32_t(0x3)), sizeof(uint32_t));
       value = xenos::GpuSwap(value, static_cast<xenos::Endian>(poll_reg_addr & 0x3));
     } else {
+      value = ReadRegisterValue(poll_reg_addr);
       if (poll_reg_addr == XE_GPU_REG_COHER_STATUS_HOST) {
         MakeCoherent();
-        value = value_ref;
+        value = ReadRegisterValue(poll_reg_addr);
       }
     }
     switch (wait_info & 0x7) {
@@ -1200,10 +1211,7 @@ bool CommandProcessor::ExecutePacketType3_REG_TO_MEM(memory::RingBuffer* reader,
   uint32_t reg_addr = reader->ReadAndSwap<uint32_t>();
   uint32_t mem_addr = reader->ReadAndSwap<uint32_t>();
 
-  uint32_t reg_val;
-
-  assert_true(reg_addr < RegisterFile::kRegisterCount);
-  reg_val = register_file_->values[reg_addr];
+  uint32_t reg_val = ReadRegisterValue(reg_addr);
 
   auto endianness = static_cast<xenos::Endian>(mem_addr & 0x3);
   mem_addr &= ~0x3;
@@ -1250,8 +1258,7 @@ bool CommandProcessor::ExecutePacketType3_COND_WRITE(memory::RingBuffer* reader,
     value = GpuSwap(value, endianness);
   } else {
     // Register.
-    assert_true(poll_reg_addr < RegisterFile::kRegisterCount);
-    value = register_file_->values[poll_reg_addr];
+    value = ReadRegisterValue(poll_reg_addr);
   }
   bool matched = false;
   switch (wait_info & 0x7) {
@@ -1497,15 +1504,22 @@ bool CommandProcessor::ExecutePacketType3Draw(memory::RingBuffer* reader, uint32
       // TODO(Triang3l || JoelLinn): Handle this properly in the render
       // backends.
 
-      draw_succeeded = IssueDraw(
-          vgt_draw_initiator.prim_type, vgt_draw_initiator.num_indices,
-          is_indexed ? &index_buffer_info : nullptr,
-          xenos::IsMajorModeExplicit(vgt_draw_initiator.major_mode, vgt_draw_initiator.prim_type));
+      bool major_mode_explicit =
+          xenos::IsMajorModeExplicit(vgt_draw_initiator.major_mode, vgt_draw_initiator.prim_type);
+      draw_succeeded = IssueDraw(vgt_draw_initiator.prim_type, vgt_draw_initiator.num_indices,
+                                 is_indexed ? &index_buffer_info : nullptr, major_mode_explicit);
       if (!draw_succeeded) {
-        REXGPU_ERROR("{}({}, {}, {}): Failed in backend", opcode_name,
-                     static_cast<uint32_t>(vgt_draw_initiator.num_indices),
-                     uint32_t(vgt_draw_initiator.prim_type),
-                     uint32_t(vgt_draw_initiator.source_select));
+        auto vgt_output_path_cntl = register_file_->Get<reg::VGT_OUTPUT_PATH_CNTL>();
+        auto vgt_hos_cntl = register_file_->Get<reg::VGT_HOS_CNTL>();
+        auto rb_modecontrol = register_file_->Get<reg::RB_MODECONTROL>();
+        REXGPU_ERROR(
+            "{}({}, {}, {}): Failed in backend "
+            "(major_mode={}, explicit_major={}, path_select={}, tess_mode={}, edram_mode={})",
+            opcode_name, static_cast<uint32_t>(vgt_draw_initiator.num_indices),
+            uint32_t(vgt_draw_initiator.prim_type), uint32_t(vgt_draw_initiator.source_select),
+            uint32_t(vgt_draw_initiator.major_mode), uint32_t(major_mode_explicit),
+            uint32_t(vgt_output_path_cntl.path_select), uint32_t(vgt_hos_cntl.tess_mode),
+            uint32_t(rb_modecontrol.edram_mode));
       }
     }
   }

@@ -3606,6 +3606,20 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
 #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
 
   const RegisterFile& regs = *register_file_;
+  (void)index_buffer_info;
+  auto draw_fail = [&](const char* stage) {
+    auto vgt_draw_initiator = regs.Get<reg::VGT_DRAW_INITIATOR>();
+    REXGPU_ERROR(
+        "Vulkan IssueDraw failed at {} "
+        "(prim_type={}, index_count={}, source_select={}, major_mode={}, explicit_major={}, "
+        "path_select={}, tess_mode={}, edram_mode={})",
+        stage, uint32_t(prim_type), index_count, uint32_t(vgt_draw_initiator.source_select),
+        uint32_t(vgt_draw_initiator.major_mode), uint32_t(major_mode_explicit),
+        uint32_t(regs.Get<reg::VGT_OUTPUT_PATH_CNTL>().path_select),
+        uint32_t(regs.Get<reg::VGT_HOS_CNTL>().tess_mode),
+        uint32_t(regs.Get<reg::RB_MODECONTROL>().edram_mode));
+    return false;
+  };
 
   xenos::EdramMode edram_mode = regs.Get<reg::RB_MODECONTROL>().edram_mode;
   if (edram_mode == xenos::EdramMode::kCopy) {
@@ -3623,7 +3637,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
   auto vertex_shader = static_cast<VulkanShader*>(active_vertex_shader());
   if (!vertex_shader) {
     // Always need a vertex shader.
-    return false;
+    return draw_fail("missing_vertex_shader");
   }
   pipeline_cache_->AnalyzeShaderUcode(*vertex_shader);
   bool memexport_used_vertex = vertex_shader->memexport_eM_written() != 0;
@@ -3701,12 +3715,12 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
   // CompletedSubmissionUpdated.
   for (uint32_t i = 0; i < 2; ++i) {
     if (!BeginSubmission(true)) {
-      return false;
+      return draw_fail("begin_submission");
     }
 
     // Process primitives.
     if (!primitive_processor_->Process(primitive_processing_result)) {
-      return false;
+      return draw_fail("primitive_processing");
     }
     if (!primitive_processing_result.host_draw_vertex_count) {
       // Nothing to draw.
@@ -3752,7 +3766,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
                      : nullptr;
     if (!pipeline_cache_->EnsureShadersTranslated(vertex_shader_translation,
                                                   pixel_shader_translation)) {
-      return false;
+      return draw_fail("shader_translation");
     }
 
     // Obtain the samplers. Note that the bindings don't depend on the shader
@@ -3800,7 +3814,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
             // anymore (would enter an infinite loop otherwise if the number of
             // attempts was not limited to 2). Possibly too many unique samplers
             // in one draw, or failed to await submission completion.
-            return false;
+            return draw_fail("sampler_acquisition");
           }
           ++samplers_overflowed_count;
         }
@@ -3838,7 +3852,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
   // Set up the render targets - this may perform dispatches and draws.
   if (!render_target_cache_->Update(is_rasterization_done, normalized_depth_control,
                                     normalized_color_mask, *vertex_shader)) {
-    return false;
+    return draw_fail("render_target_update");
   }
 
   // Create the pipeline (for this, need the render pass from the render target
@@ -3851,7 +3865,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
                                           normalized_color_mask,
                                           render_target_cache_->last_update_render_pass_key(),
                                           pipeline, pipeline_layout_provider, &pipeline_handle)) {
-    return false;
+    return draw_fail("configure_pipeline");
   }
   bool pipeline_is_placeholder = false;
   // Reload the current handle state to observe async hot-swap completions that
@@ -3863,7 +3877,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
     return true;
   }
   if (pipeline == VK_NULL_HANDLE || pipeline_layout_provider == nullptr) {
-    return false;
+    return draw_fail("pipeline_lookup");
   }
   if (current_guest_graphics_pipeline_ != pipeline) {
     deferred_command_buffer_.CmdVkBindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
@@ -3971,7 +3985,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
   // Update uniform buffers and descriptor sets after binding the pipeline with
   // the new layout.
   if (!UpdateBindings(vertex_shader, pixel_shader)) {
-    return false;
+    return draw_fail("update_bindings");
   }
 
   // Ensure vertex buffers are resident.
@@ -4065,7 +4079,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
       guest_dma_index_scratch_buffer = AcquireScratchGpuBuffer(
           guest_dma_index_size, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT);
       if (guest_dma_index_scratch_buffer.buffer() == VK_NULL_HANDLE) {
-        return false;
+        return draw_fail("guest_dma_index_scratch_buffer");
       }
 
       shared_memory_->Use(VulkanSharedMemory::Usage::kRead);
@@ -4140,7 +4154,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
         break;
       default:
         assert_unhandled_case(primitive_processing_result.index_buffer_type);
-        return false;
+        return draw_fail("unexpected_index_buffer_type");
     }
     deferred_command_buffer_.CmdVkBindIndexBuffer(
         index_buffer.first, index_buffer.second,

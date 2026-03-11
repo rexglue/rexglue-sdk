@@ -188,12 +188,9 @@ std::string GetTessellationControlShaderGlsl(Shader::HostVertexShaderType host_v
   source += GetTessellationSystemConstantsBlockGlsl();
   source += "layout(location = 0) in float xe_input_value[];\n";
   source += "layout(location = 0) patch out vec4 xe_out_patch_control_point_indices;\n";
-  source += fmt::format(
-      "layout({}, {}, cw, vertices = {}) out;\n",
-      IsTriangleDomainHostVertexShaderType(host_vertex_shader_type) ? "triangles" : "quads",
-      tessellation_mode == xenos::TessellationMode::kDiscrete ? "equal_spacing"
-                                                              : "fractional_even_spacing",
-      output_control_points);
+  // In GLSL, primitive mode / spacing / winding are TES layout qualifiers.
+  // TCS only supports `layout(vertices = N) out`.
+  source += fmt::format("layout(vertices = {}) out;\n", output_control_points);
 
   source += R"(
 void main() {
@@ -1089,6 +1086,15 @@ bool VulkanPipelineCache::ConfigurePipeline(
   if (!GetCurrentStateDescription(vertex_shader, pixel_shader, primitive_processing_result,
                                   normalized_depth_control, normalized_color_mask, render_pass_key,
                                   description)) {
+    REXGPU_ERROR(
+        "VulkanPipelineCache: GetCurrentStateDescription failed "
+        "(guest_prim={}, host_prim={}, host_vs_type={}, tess_mode={}, host_reset={}, "
+        "render_pass_key=0x{:08X})",
+        uint32_t(primitive_processing_result.guest_primitive_type),
+        uint32_t(primitive_processing_result.host_primitive_type),
+        uint32_t(primitive_processing_result.host_vertex_shader_type),
+        uint32_t(primitive_processing_result.tessellation_mode),
+        uint32_t(primitive_processing_result.host_primitive_reset_enabled), render_pass_key.key);
     return false;
   }
   if (last_pipeline_ && last_pipeline_->first == description) {
@@ -1563,14 +1569,12 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
 }
 
 bool VulkanPipelineCache::ArePipelineRequirementsMet(const PipelineDescription& description) const {
-  SpirvShaderTranslator::Modification vertex_shader_modification(
-      description.vertex_shader_modification);
-  Shader::HostVertexShaderType host_vertex_shader_type =
-      vertex_shader_modification.vertex.host_vertex_shader_type;
-  bool tessellated = Shader::IsHostVertexShaderTypeDomain(host_vertex_shader_type);
-
   VkShaderStageFlags vertex_shader_stage =
-      tessellated ? VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT : VK_SHADER_STAGE_VERTEX_BIT;
+      Shader::IsHostVertexShaderTypeDomain(
+          SpirvShaderTranslator::Modification(description.vertex_shader_modification)
+              .vertex.host_vertex_shader_type)
+          ? VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT
+          : VK_SHADER_STAGE_VERTEX_BIT;
   if (!(guest_shader_vertex_stages_ & vertex_shader_stage)) {
     return false;
   }
@@ -1578,59 +1582,11 @@ bool VulkanPipelineCache::ArePipelineRequirementsMet(const PipelineDescription& 
   const ui::vulkan::VulkanDevice::Properties& device_properties =
       command_processor_.GetVulkanDevice()->properties();
 
-  if (tessellated) {
-    if (!device_properties.tessellationShader) {
-      return false;
-    }
-    if (description.primitive_topology != PipelinePrimitiveTopology::kPatchList) {
-      return false;
-    }
-    if (description.geometry_shader != PipelineGeometryShader::kNone) {
-      return false;
-    }
-    switch (description.tessellation_mode) {
-      case xenos::TessellationMode::kDiscrete:
-      case xenos::TessellationMode::kContinuous:
-        switch (host_vertex_shader_type) {
-          case Shader::HostVertexShaderType::kTriangleDomainCPIndexed:
-          case Shader::HostVertexShaderType::kTriangleDomainPatchIndexed:
-          case Shader::HostVertexShaderType::kQuadDomainCPIndexed:
-          case Shader::HostVertexShaderType::kQuadDomainPatchIndexed:
-            break;
-          default:
-            return false;
-        }
-        break;
-      case xenos::TessellationMode::kAdaptive:
-        switch (host_vertex_shader_type) {
-          case Shader::HostVertexShaderType::kTriangleDomainPatchIndexed:
-          case Shader::HostVertexShaderType::kQuadDomainPatchIndexed:
-            break;
-          default:
-            return false;
-        }
-        break;
-      default:
-        return false;
-    }
-  } else {
-    if (description.primitive_topology == PipelinePrimitiveTopology::kPatchList) {
-      return false;
-    }
-  }
-
   if (!device_properties.geometryShader &&
       description.geometry_shader != PipelineGeometryShader::kNone) {
     return false;
   }
-  if (host_vertex_shader_type == Shader::HostVertexShaderType::kPointListAsTriangleStrip ||
-      host_vertex_shader_type == Shader::HostVertexShaderType::kRectangleListAsTriangleStrip) {
-    if (description.geometry_shader != PipelineGeometryShader::kNone ||
-        description.primitive_topology != PipelinePrimitiveTopology::kTriangleStrip ||
-        !description.primitive_restart) {
-      return false;
-    }
-  }
+
   // Keep fan handling consistent with D3D12 by always using primitive
   // processor conversion to triangle lists instead of native fan topologies.
   if (description.primitive_topology == PipelinePrimitiveTopology::kTriangleFan) {
@@ -1647,10 +1603,6 @@ bool VulkanPipelineCache::ArePipelineRequirementsMet(const PipelineDescription& 
 
   if (!device_properties.fillModeNonSolid &&
       description.polygon_mode != PipelinePolygonMode::kFill) {
-    return false;
-  }
-
-  if (description.sample_rate_shading && !device_properties.sampleRateShading) {
     return false;
   }
 
@@ -2929,21 +2881,33 @@ bool VulkanPipelineCache::TryGetPipelineCreationArgumentsForDescription(
     const PipelineDescription& description,
     std::pair<const PipelineDescription, Pipeline>* pipeline,
     PipelineCreationArguments& creation_arguments, bool for_placeholder) {
-  if (!pipeline) {
+  auto fail = [&](const char* reason) {
+    REXGPU_ERROR(
+        "VulkanPipelineCache: TryGetPipelineCreationArgumentsForDescription "
+        "failed: {} (vs={:016X}, ps={:016X}, topo={}, geom={}, tess_mode={}, "
+        "for_placeholder={}, render_pass_key=0x{:08X})",
+        reason, description.vertex_shader_hash, description.pixel_shader_hash,
+        uint32_t(description.primitive_topology), uint32_t(description.geometry_shader),
+        uint32_t(description.tessellation_mode), uint32_t(for_placeholder),
+        description.render_pass_key.key);
     return false;
+  };
+
+  if (!pipeline) {
+    return fail("null_pipeline_storage");
   }
   if (!ArePipelineRequirementsMet(description)) {
-    return false;
+    return fail("pipeline_requirements_not_met");
   }
 
   auto vertex_shader_it = shaders_.find(description.vertex_shader_hash);
   if (vertex_shader_it == shaders_.end()) {
-    return false;
+    return fail("vertex_shader_not_found");
   }
   auto* vertex_shader = static_cast<VulkanShader::VulkanTranslation*>(
       vertex_shader_it->second->GetTranslation(description.vertex_shader_modification));
   if (!vertex_shader || !vertex_shader->is_translated() || !vertex_shader->is_valid()) {
-    return false;
+    return fail("vertex_shader_translation_missing_or_invalid");
   }
   SpirvShaderTranslator::Modification vertex_shader_modification(
       description.vertex_shader_modification);
@@ -2955,12 +2919,12 @@ bool VulkanPipelineCache::TryGetPipelineCreationArgumentsForDescription(
   if (description.pixel_shader_hash && !for_placeholder) {
     auto pixel_shader_it = shaders_.find(description.pixel_shader_hash);
     if (pixel_shader_it == shaders_.end()) {
-      return false;
+      return fail("pixel_shader_not_found");
     }
     pixel_shader = static_cast<VulkanShader::VulkanTranslation*>(
         pixel_shader_it->second->GetTranslation(description.pixel_shader_modification));
     if (!pixel_shader || !pixel_shader->is_translated() || !pixel_shader->is_valid()) {
-      return false;
+      return fail("pixel_shader_translation_missing_or_invalid");
     }
   }
   SpirvShaderTranslator::Modification pixel_shader_modification(
@@ -2974,17 +2938,17 @@ bool VulkanPipelineCache::TryGetPipelineCreationArgumentsForDescription(
     tessellation_patch_control_points =
         GetTessellationPatchControlPointCount(host_vertex_shader_type, tessellation_mode);
     if (!tessellation_patch_control_points) {
-      return false;
+      return fail("tessellation_patch_control_points_zero");
     }
     tessellation_vertex_shader =
         GetTessellationVertexShader(tessellation_mode == xenos::TessellationMode::kAdaptive);
     if (tessellation_vertex_shader == VK_NULL_HANDLE) {
-      return false;
+      return fail("tessellation_vertex_shader_unavailable");
     }
     tessellation_control_shader =
         GetTessellationControlShader(host_vertex_shader_type, tessellation_mode);
     if (tessellation_control_shader == VK_NULL_HANDLE) {
-      return false;
+      return fail("tessellation_control_shader_unavailable");
     }
   }
 
@@ -2994,7 +2958,7 @@ bool VulkanPipelineCache::TryGetPipelineCreationArgumentsForDescription(
                            pixel_shader_modification, geometry_shader_key)) {
     geometry_shader = GetGeometryShader(geometry_shader_key);
     if (geometry_shader == VK_NULL_HANDLE) {
-      return false;
+      return fail("geometry_shader_unavailable");
     }
   }
 
@@ -3008,7 +2972,7 @@ bool VulkanPipelineCache::TryGetPipelineCreationArgumentsForDescription(
             ? render_target_cache_.GetFragmentShaderInterlockRenderPass()
             : render_target_cache_.GetHostRenderTargetsRenderPass(description.render_pass_key);
     if (render_pass == VK_NULL_HANDLE) {
-      return false;
+      return fail("render_pass_unavailable");
     }
   }
 
@@ -3028,7 +2992,7 @@ bool VulkanPipelineCache::TryGetPipelineCreationArgumentsForDescription(
           .GetSamplerBindingsAfterTranslation()
           .size());
   if (!pipeline_layout) {
-    return false;
+    return fail("pipeline_layout_unavailable");
   }
 
   creation_arguments.pipeline = pipeline;
@@ -3517,18 +3481,21 @@ bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments&
   const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
   const VkDevice device = vulkan_device->device();
   VkPipeline pipeline;
-  if (dfn.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipeline_create_info, nullptr,
-                                    &pipeline) != VK_SUCCESS) {
-    // TODO(Triang3l): Move these error messages outside.
-    /* if (creation_arguments.pixel_shader) {
-      REXGPU_ERROR(
-          "Failed to create graphics pipeline with VS {:016X}, PS {:016X}",
-          creation_arguments.vertex_shader->shader().ucode_data_hash(),
-          creation_arguments.pixel_shader->shader().ucode_data_hash());
-    } else {
-      REXGPU_ERROR("Failed to create graphics pipeline with VS {:016X}",
-             creation_arguments.vertex_shader->shader().ucode_data_hash());
-    } */
+  VkResult create_result = dfn.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1,
+                                                         &pipeline_create_info, nullptr, &pipeline);
+  if (create_result != VK_SUCCESS) {
+    uint64_t ps_hash = creation_arguments.pixel_shader
+                           ? creation_arguments.pixel_shader->shader().ucode_data_hash()
+                           : 0;
+    REXGPU_ERROR(
+        "VulkanPipelineCache: vkCreateGraphicsPipelines failed (result={}, vs={:016X}, "
+        "ps={:016X}, topo={}, geom={}, tess_mode={}, patch_cp={}, render_pass_key=0x{:08X}, "
+        "dynamic_rendering={})",
+        int32_t(create_result), creation_arguments.vertex_shader->shader().ucode_data_hash(),
+        ps_hash, uint32_t(description.primitive_topology), uint32_t(description.geometry_shader),
+        uint32_t(description.tessellation_mode),
+        creation_arguments.tessellation_patch_control_points, description.render_pass_key.key,
+        uint32_t(use_dynamic_rendering));
     return false;
   }
   bool was_placeholder =
