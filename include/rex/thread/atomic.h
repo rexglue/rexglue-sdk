@@ -26,6 +26,7 @@ int64_t atomic_exchange_add(int64_t amount, volatile int64_t* value);
 
 bool atomic_cas(int32_t old_value, int32_t new_value, volatile int32_t* value);
 bool atomic_cas(int64_t old_value, int64_t new_value, volatile int64_t* value);
+void atomic_store_release(int32_t new_value, volatile int32_t* value);
 
 inline uint32_t atomic_inc(volatile uint32_t* value) {
   return static_cast<uint32_t>(atomic_inc(reinterpret_cast<volatile int32_t*>(value)));
@@ -59,6 +60,10 @@ inline bool atomic_cas(uint32_t old_value, uint32_t new_value, volatile uint32_t
 inline bool atomic_cas(uint64_t old_value, uint64_t new_value, volatile uint64_t* value) {
   return atomic_cas(static_cast<int64_t>(old_value), static_cast<int64_t>(new_value),
                     reinterpret_cast<volatile int64_t*>(value));
+}
+
+inline void atomic_store_release(uint32_t new_value, volatile uint32_t* value) {
+  atomic_store_release(static_cast<int32_t>(new_value), reinterpret_cast<volatile int32_t*>(value));
 }
 
 }  // namespace rex::thread

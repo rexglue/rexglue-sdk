@@ -22,6 +22,7 @@
 #include <rex/stream.h>
 #include <rex/string.h>
 #include <rex/string/util.h>
+#include <rex/kernel/xboxkrnl/threading.h>
 #include <rex/system/kernel_module.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/processor.h>
@@ -65,9 +66,6 @@ KernelState::KernelState(Runtime* emulator)
   assert_null(shared_kernel_state_);
   shared_kernel_state_ = this;
 
-  // Hardcoded maximum of 2048 TLS slots.
-  tls_bitmap_.Resize(2048);
-
   // Allocate KernelGuestGlobals early so xboxkrnl module can wire exports.
   kernel_guest_globals_ = memory_->SystemHeapAlloc(sizeof(KernelGuestGlobals));
   auto globals = memory_->TranslateVirtual<KernelGuestGlobals*>(kernel_guest_globals_);
@@ -94,7 +92,8 @@ KernelState::KernelState(Runtime* emulator)
   uint32_t oddobject_offset = kernel_guest_globals_ + offsetof(KernelGuestGlobals, OddObj);
   globals->OddObj.field0 = 0x1000000;
   globals->OddObj.field4 = 1;
-  globals->OddObj.points_to_self = oddobject_offset + offsetof(X_UNKNOWN_TYPE_REFED, points_to_self);
+  globals->OddObj.points_to_self =
+      oddobject_offset + offsetof(X_UNKNOWN_TYPE_REFED, points_to_self);
   globals->OddObj.points_to_prior = globals->OddObj.points_to_self;
 
   // Initialize process structs
@@ -110,8 +109,8 @@ KernelState::KernelState(Runtime* emulator)
   InitializeProcess(&globals->title_process, X_PROCTYPE_USER, 0, 0, 0);
 }
 
-void KernelState::InitializeProcess(X_KPROCESS* process, uint32_t process_type,
-                                    uint8_t unk_18, uint8_t unk_19, uint8_t unk_1A) {
+void KernelState::InitializeProcess(X_KPROCESS* process, uint32_t process_type, uint8_t unk_18,
+                                    uint8_t unk_19, uint8_t unk_1A) {
   process->unk_18 = unk_18;
   process->unk_19 = unk_19;
   process->unk_1A = unk_1A;
@@ -126,8 +125,8 @@ void KernelState::InitializeProcess(X_KPROCESS* process, uint32_t process_type,
   util::XeInitializeListHead(&process->unk_54, memory_);
 }
 
-void KernelState::SetProcessTLSVars(X_KPROCESS* process, uint32_t num_slots,
-                                    uint32_t tls_data_size, uint32_t tls_raw_data_address) {
+void KernelState::SetProcessTLSVars(X_KPROCESS* process, uint32_t num_slots, uint32_t tls_data_size,
+                                    uint32_t tls_raw_data_address) {
   uint32_t slots_padded = (num_slots + 3) & ~uint32_t(3);
   process->tls_slot_size = static_cast<uint16_t>(4 * slots_padded);
   process->tls_static_data_address = tls_raw_data_address;
@@ -137,12 +136,12 @@ void KernelState::SetProcessTLSVars(X_KPROCESS* process, uint32_t num_slots,
   uint32_t bitmap_slots = slots_padded / 32;
   for (uint32_t i = 0; i < 8; i++) {
     if (i < bitmap_slots) {
-      process->bitmap[i] = 0xFFFFFFFF;
+      process->tls_slot_bitmap[i] = 0xFFFFFFFF;
     } else if (i == bitmap_slots) {
       uint32_t remaining = slots_padded % 32;
-      process->bitmap[i] = remaining ? ~0u << (32 - remaining) : 0;
+      process->tls_slot_bitmap[i] = remaining ? ~0u << (32 - remaining) : 0;
     } else {
-      process->bitmap[i] = 0;
+      process->tls_slot_bitmap[i] = 0;
     }
   }
 }
@@ -214,19 +213,114 @@ void KernelState::set_process_type(uint32_t value) {
   globals->title_process.process_type = uint8_t(value);
 }
 
-uint32_t KernelState::AllocateTLS() {
-  return uint32_t(tls_bitmap_.Acquire());
+uint32_t KernelState::AllocateTLS(PPCContext* context) {
+  if (!context) {
+    REXSYS_ERROR("AllocateTLS: null PPCContext");
+    return X_TLS_OUT_OF_INDEXES;
+  }
+
+  auto globals = memory()->TranslateVirtual<KernelGuestGlobals*>(GetKernelGuestGlobals());
+  auto tls_lock = &globals->tls_lock;
+  auto old_irql = kernel::xboxkrnl::xeKeKfAcquireSpinLock(context, tls_lock);
+
+  uint32_t result = X_TLS_OUT_OF_INDEXES;
+
+  auto current_thread = XThread::GetCurrentThread();
+  if (!current_thread) {
+    REXSYS_ERROR("AllocateTLS: no current thread");
+    kernel::xboxkrnl::xeKeKfReleaseSpinLock(context, tls_lock, old_irql);
+    return X_TLS_OUT_OF_INDEXES;
+  }
+
+  auto process_ptr = memory()->TranslateVirtual<X_KPROCESS*>(
+      static_cast<uint32_t>(current_thread->guest_object<X_KTHREAD>()->process));
+  if (!process_ptr) {
+    REXSYS_ERROR("AllocateTLS: failed to resolve current process");
+    kernel::xboxkrnl::xeKeKfReleaseSpinLock(context, tls_lock, old_irql);
+    return X_TLS_OUT_OF_INDEXES;
+  }
+
+  for (uint32_t bitmap_index = 0; bitmap_index < 8; ++bitmap_index) {
+    uint32_t bitmap_value = static_cast<uint32_t>(process_ptr->tls_slot_bitmap[bitmap_index]);
+    uint32_t leading_zeros = rex::lzcnt(bitmap_value);
+    if (leading_zeros == 32) {
+      continue;
+    }
+
+    uint32_t slot = bitmap_index * 32 + leading_zeros;
+    if (slot >= 256) {
+      continue;
+    }
+
+    uint32_t bit_index = 31 - leading_zeros;
+    process_ptr->tls_slot_bitmap[bitmap_index] = bitmap_value & ~(1U << bit_index);
+    result = slot;
+    break;
+  }
+
+  kernel::xboxkrnl::xeKeKfReleaseSpinLock(context, tls_lock, old_irql);
+  return result;
 }
 
-void KernelState::FreeTLS(uint32_t slot) {
+void KernelState::FreeTLS(PPCContext* context, uint32_t slot) {
+  if (!context) {
+    REXSYS_ERROR("FreeTLS: null PPCContext");
+    return;
+  }
+  if (slot >= 256) {
+    REXSYS_WARN("FreeTLS: invalid TLS slot {}", slot);
+    return;
+  }
+
+  auto current_thread = XThread::GetCurrentThread();
+  if (!current_thread) {
+    REXSYS_ERROR("FreeTLS: no current thread");
+    return;
+  }
+
+  auto current_kthread = current_thread->guest_object<X_KTHREAD>();
+  if (!current_kthread) {
+    REXSYS_ERROR("FreeTLS: failed to resolve current KTHREAD");
+    return;
+  }
+
+  auto process_ptr =
+      memory()->TranslateVirtual<X_KPROCESS*>(static_cast<uint32_t>(current_kthread->process));
+  if (!process_ptr) {
+    REXSYS_ERROR("FreeTLS: failed to resolve current process");
+    return;
+  }
+
+  auto globals = memory()->TranslateVirtual<KernelGuestGlobals*>(GetKernelGuestGlobals());
+  auto tls_lock = &globals->tls_lock;
+  auto old_irql = kernel::xboxkrnl::xeKeKfAcquireSpinLock(context, tls_lock);
+
+  uint32_t bitmap_index = slot / 32;
+  uint32_t bit_mask = 1U << (31 - (slot % 32));
+  uint32_t bitmap_value = static_cast<uint32_t>(process_ptr->tls_slot_bitmap[bitmap_index]);
+
+  if (bitmap_value & bit_mask) {
+    REXSYS_WARN("FreeTLS: slot {} already free", slot);
+    kernel::xboxkrnl::xeKeKfReleaseSpinLock(context, tls_lock, old_irql);
+    return;
+  }
+
   const std::vector<object_ref<XThread>> threads = object_table()->GetObjectsByType<XThread>();
+  uint32_t current_process_ptr = static_cast<uint32_t>(current_kthread->process);
 
   for (const object_ref<XThread>& thread : threads) {
-    if (thread->is_guest_thread()) {
+    if (!thread || !thread->is_guest_thread()) {
+      continue;
+    }
+    auto thread_kthread = thread->guest_object<X_KTHREAD>();
+    if (thread_kthread && static_cast<uint32_t>(thread_kthread->process) == current_process_ptr) {
       thread->SetTLSValue(slot, 0);
     }
   }
-  tls_bitmap_.Release(slot);
+
+  process_ptr->tls_slot_bitmap[bitmap_index] = bitmap_value | bit_mask;
+
+  kernel::xboxkrnl::xeKeKfReleaseSpinLock(context, tls_lock, old_irql);
 }
 
 void KernelState::RegisterTitleTerminateNotification(uint32_t routine, uint32_t priority) {
@@ -601,9 +695,6 @@ void KernelState::TerminateTitle() {
   // Unregister all notify listeners.
   notify_listeners_.clear();
 
-  // Clear the TLS map.
-  tls_bitmap_.Reset();
-
   // Unset the executable module.
   executable_module_ = nullptr;
 
@@ -854,12 +945,8 @@ bool KernelState::Save(stream::ByteStream* stream) {
   // Save the object table
   object_table_.Save(stream);
 
-  // Write the TLS allocation bitmap
-  auto tls_bitmap = tls_bitmap_.data();
-  stream->Write(uint32_t(tls_bitmap.size()));
-  for (size_t i = 0; i < tls_bitmap.size(); i++) {
-    stream->Write<uint64_t>(tls_bitmap[i]);
-  }
+  // Legacy save-state field (global TLS bitmap) no longer used.
+  stream->Write(uint32_t(0));
 
   // We save XThreads absolutely first, as they will execute code upon save
   // (which could modify the kernel state)
@@ -924,12 +1011,10 @@ bool KernelState::Restore(stream::ByteStream* stream) {
   // Restore the object table
   object_table_.Restore(stream);
 
-  // Read the TLS allocation bitmap
+  // Global TLS bitmap field is kept for old save-state compatibility.
   auto num_bitmap_entries = stream->Read<uint32_t>();
-  auto& tls_bitmap = tls_bitmap_.data();
-  tls_bitmap.resize(num_bitmap_entries);
   for (uint32_t i = 0; i < num_bitmap_entries; i++) {
-    tls_bitmap[i] = stream->Read<uint64_t>();
+    stream->Read<uint64_t>();
   }
 
   uint32_t num_threads = stream->Read<uint32_t>();

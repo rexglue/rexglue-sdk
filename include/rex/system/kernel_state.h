@@ -19,7 +19,6 @@
 #include <string_view>
 #include <vector>
 
-#include <rex/bit.h>
 #include <rex/filesystem/vfs.h>
 #include <rex/logging.h>
 #include <rex/system/util/native_list.h>
@@ -62,6 +61,8 @@ class Processor;
 }  // namespace runtime
 }  // namespace rex
 
+struct PPCContext;
+
 namespace rex::system {
 
 constexpr memory::fourcc_t kKernelSaveSignature = memory::make_fourcc("KRNL");
@@ -96,7 +97,7 @@ struct X_KPROCESS {
   rex::be<uint16_t> tls_slot_size;            // 0x2C
   uint8_t is_terminating;                     // 0x2E
   uint8_t process_type;                       // 0x2F
-  rex::be<uint32_t> bitmap[8];                // 0x30
+  rex::be<uint32_t> tls_slot_bitmap[8];       // 0x30
   rex::be<uint32_t> unk_50;                   // 0x50
   X_LIST_ENTRY unk_54;                        // 0x54
   rex::be<uint32_t> unk_5C;                   // 0x5C
@@ -133,6 +134,7 @@ struct KernelGuestGlobals {
   X_KPROCESS system_process;
   X_KSPINLOCK dispatcher_lock;
   X_KSPINLOCK ob_lock;
+  X_KSPINLOCK tls_lock;  // protects per-process TLS slot allocation bitmap
   // UsbdBootEnumerationDoneEvent uses X_DISPATCH_HEADER layout (0x10 bytes)
   uint8_t UsbdBootEnumerationDoneEvent[0x10];
 };
@@ -192,8 +194,8 @@ class KernelState {
   DPCImpersonationScope BeginDPCImpersonation();
   void EndDPCImpersonation(const DPCImpersonationScope& scope);
 
-  uint32_t AllocateTLS();
-  void FreeTLS(uint32_t slot);
+  uint32_t AllocateTLS(PPCContext* context);
+  void FreeTLS(PPCContext* context, uint32_t slot);
 
   void RegisterTitleTerminateNotification(uint32_t routine, uint32_t priority);
   void RemoveTitleTerminateNotification(uint32_t routine);
@@ -272,10 +274,10 @@ class KernelState {
 
  private:
   void LoadKernelModule(object_ref<KernelModule> kernel_module);
-  void InitializeProcess(X_KPROCESS* process, uint32_t process_type,
-                         uint8_t unk_18, uint8_t unk_19, uint8_t unk_1A);
-  void SetProcessTLSVars(X_KPROCESS* process, uint32_t num_slots,
-                         uint32_t tls_data_size, uint32_t tls_raw_data_address);
+  void InitializeProcess(X_KPROCESS* process, uint32_t process_type, uint8_t unk_18, uint8_t unk_19,
+                         uint8_t unk_1A);
+  void SetProcessTLSVars(X_KPROCESS* process, uint32_t num_slots, uint32_t tls_data_size,
+                         uint32_t tls_raw_data_address);
 
   Runtime* emulator_;
   memory::Memory* memory_;
@@ -308,8 +310,6 @@ class KernelState {
   util::NativeList dpc_list_;
   std::condition_variable_any dispatch_cond_;
   std::list<std::move_only_function<void()>> dispatch_queue_;
-
-  bit::BitMap tls_bitmap_;
 
   friend class XObject;
 };

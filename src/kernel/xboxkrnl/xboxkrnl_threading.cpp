@@ -222,7 +222,19 @@ ppc_u32_result_t NtSuspendThread_entry(ppc_u32_t handle, ppc_pu32_t suspend_coun
     }
 
     REXKRNL_TRACE("[NtSuspendThread] handle={:08X} thread={}", uint32_t(handle), thread->name());
+#if REX_PLATFORM_LINUX
+    auto* current_thread = XThread::GetCurrentThread();
+    bool is_self_suspend = current_thread && current_thread == thread.get();
+    if (is_self_suspend) {
+      REXKRNL_TRACE("[NtSuspendThread] self-suspend for thread={:08X}", uint32_t(handle));
+      suspend_count = thread->SelfSuspend();
+      result = X_STATUS_SUCCESS;
+    } else {
+      result = thread->Suspend(&suspend_count);
+    }
+#else
     result = thread->Suspend(&suspend_count);
+#endif
   } else {
     REXKRNL_WARN("[NtSuspendThread] handle={:08X} NOT FOUND", uint32_t(handle));
     result = X_STATUS_INVALID_HANDLE;
@@ -268,18 +280,16 @@ ppc_u32_result_t KeSetAffinityThread_entry(ppc_pvoid_t thread_ptr, ppc_u32_t aff
   if (!affinity) {
     return X_STATUS_INVALID_PARAMETER;
   }
-  auto obj = XObject::GetNativeObject<XObject>(kernel_state(), thread_ptr);
-  if (obj && obj->type() == XObject::Type::Thread) {
-    auto thread = object_ref<XThread>(reinterpret_cast<XThread*>(obj.release()));
-    if (previous_affinity_ptr) {
-      *previous_affinity_ptr = uint32_t(1) << thread->active_cpu();
-    }
-    thread->SetAffinity(affinity);
-  } else {
-    REXKRNL_IMPORT_WARN("KeSetAffinityThread",
-                        "thread_ptr={:#x} resolved to non-thread object (type={})",
-                        thread_ptr.guest_address(), obj ? static_cast<uint32_t>(obj->type()) : 0xFFFF);
+  auto thread = XObject::GetNativeObject<XThread>(kernel_state(), thread_ptr);
+  if (!thread) {
+    REXKRNL_IMPORT_WARN("KeSetAffinityThread", "invalid thread handle ptr={:#x}",
+                        thread_ptr.guest_address());
+    return X_STATUS_INVALID_HANDLE;
   }
+  if (previous_affinity_ptr) {
+    *previous_affinity_ptr = uint32_t(1) << thread->active_cpu();
+  }
+  thread->SetAffinity(affinity);
   REXKRNL_IMPORT_RESULT("KeSetAffinityThread", "0x0");
   return X_STATUS_SUCCESS;
 }
@@ -314,9 +324,8 @@ ppc_u32_result_t KeSetBasePriorityThread_entry(ppc_pvoid_t thread_ptr, ppc_u32_t
 
 ppc_u32_result_t KeSetDisableBoostThread_entry(ppc_ptr_t<X_KTHREAD> thread_ptr,
                                                ppc_u32_t disabled) {
-  auto old_boost_disabled =
-      reinterpret_cast<std::atomic_uint8_t*>(&thread_ptr->boost_disabled)
-          ->exchange(static_cast<uint8_t>(disabled));
+  auto old_boost_disabled = reinterpret_cast<std::atomic_uint8_t*>(&thread_ptr->boost_disabled)
+                                ->exchange(static_cast<uint8_t>(disabled));
   return old_boost_disabled;
 }
 
@@ -371,9 +380,8 @@ ppc_u32_result_t KeDelayExecutionThread_entry(ppc_u32_t processor_mode, ppc_u32_
 }
 
 ppc_u32_result_t NtYieldExecution_entry() {
-  auto thread = XThread::GetCurrentThread();
-  thread->Delay(0, 0, 0);
-  return 0;
+  rex::thread::MaybeYield();
+  return X_STATUS_SUCCESS;
 }
 
 void KeQuerySystemTime_entry(ppc_pu64_t time_ptr) {
@@ -385,8 +393,10 @@ void KeQuerySystemTime_entry(ppc_pu64_t time_ptr) {
 
 // https://msdn.microsoft.com/en-us/library/ms686801
 ppc_u32_result_t KeTlsAlloc_entry() {
-  uint32_t slot = kernel_state()->AllocateTLS();
-  XThread::GetCurrentThread()->SetTLSValue(slot, 0);
+  uint32_t slot = kernel_state()->AllocateTLS(g_current_ppc_context);
+  if (slot != X_TLS_OUT_OF_INDEXES) {
+    XThread::GetCurrentThread()->SetTLSValue(slot, 0);
+  }
   REXKRNL_IMPORT_RESULT("KeTlsAlloc", "slot={}", slot);
   return slot;
 }
@@ -399,7 +409,7 @@ ppc_u32_result_t KeTlsFree_entry(ppc_u32_t tls_index) {
     return 0;
   }
 
-  kernel_state()->FreeTLS(tls_index);
+  kernel_state()->FreeTLS(g_current_ppc_context, tls_index);
   REXKRNL_IMPORT_RESULT("KeTlsFree", "1");
   return 1;
 }
@@ -590,7 +600,10 @@ uint32_t xeKeReleaseSemaphore(X_KSEMAPHORE* semaphore_ptr, uint32_t increment, u
   // TODO(benvanik): increment thread priority?
   // TODO(benvanik): wait?
 
-  return sem->ReleaseSemaphore(adjustment);
+  int32_t previous_count = 0;
+  [[maybe_unused]] bool success =
+      sem->ReleaseSemaphore(static_cast<int32_t>(adjustment), &previous_count);
+  return static_cast<uint32_t>(previous_count);
 }
 
 ppc_u32_result_t KeReleaseSemaphore_entry(ppc_ptr_t<X_KSEMAPHORE> semaphore_ptr,
@@ -644,7 +657,10 @@ ppc_u32_result_t NtReleaseSemaphore_entry(ppc_u32_t sem_handle, ppc_u32_t releas
 
   auto sem = kernel_state()->object_table()->LookupObject<XSemaphore>(sem_handle);
   if (sem) {
-    previous_count = sem->ReleaseSemaphore((int32_t)release_count);
+    bool success = sem->ReleaseSemaphore(static_cast<int32_t>(release_count), &previous_count);
+    if (!success) {
+      result = X_STATUS_SEMAPHORE_LIMIT_EXCEEDED;
+    }
   } else {
     result = X_STATUS_INVALID_HANDLE;
   }
@@ -962,9 +978,9 @@ uint32_t xeKeKfAcquireSpinLock(PPCContext* ctx, X_KSPINLOCK* lock, bool change_i
 }
 
 void xeKeKfReleaseSpinLock(PPCContext* ctx, X_KSPINLOCK* lock, uint32_t old_irql,
-                            bool change_irql) {
+                           bool change_irql) {
   assert_true(lock->prcb_of_owner == static_cast<uint32_t>(ctx->r13.u64));
-  lock->prcb_of_owner.value = 0;
+  rex::thread::atomic_store_release(0u, &lock->prcb_of_owner.value);
   if (change_irql && old_irql < IRQL_DISPATCH) {
     xeKfLowerIrql(ctx, static_cast<unsigned char>(old_irql));
   }
@@ -972,8 +988,8 @@ void xeKeKfReleaseSpinLock(PPCContext* ctx, X_KSPINLOCK* lock, uint32_t old_irql
 
 // Guest-memory APC helpers
 void xeKeInitializeApc(XAPC* apc, uint32_t thread_ptr, uint32_t kernel_routine,
-                        uint32_t rundown_routine, uint32_t normal_routine, uint32_t apc_mode,
-                        uint32_t normal_context) {
+                       uint32_t rundown_routine, uint32_t normal_routine, uint32_t apc_mode,
+                       uint32_t normal_context) {
   apc->thread_ptr = thread_ptr;
   apc->kernel_routine = kernel_routine;
   apc->rundown_routine = rundown_routine;
@@ -989,8 +1005,8 @@ void xeKeInitializeApc(XAPC* apc, uint32_t thread_ptr, uint32_t kernel_routine,
   apc->enqueued = 0;
 }
 
-uint32_t xeKeInsertQueueApc(XAPC* apc, uint32_t arg1, uint32_t arg2,
-                             uint32_t priority_increment, PPCContext* ctx) {
+uint32_t xeKeInsertQueueApc(XAPC* apc, uint32_t arg1, uint32_t arg2, uint32_t priority_increment,
+                            PPCContext* ctx) {
   uint32_t thread_guest_pointer = apc->thread_ptr;
   if (!thread_guest_pointer) {
     return 0;
@@ -1021,8 +1037,7 @@ uint32_t xeKeInsertQueueApc(XAPC* apc, uint32_t arg1, uint32_t arg2,
       if (!insertion_pos) {
         which_list.InsertHead(apc, mem);
       } else {
-        util::XeInsertHeadList(insertion_pos->list_entry.blink_ptr,
-                               &apc->list_entry, mem);
+        util::XeInsertHeadList(insertion_pos->list_entry.blink_ptr, &apc->list_entry, mem);
       }
     }
 
@@ -1076,11 +1091,13 @@ ppc_u32_result_t KeRaiseIrqlToDpcLevel_entry() {
 }
 
 void KfLowerIrql_entry(ppc_u32_t old_value) {
-  xeKfLowerIrql(g_current_ppc_context, static_cast<unsigned char>(static_cast<uint32_t>(old_value)));
+  xeKfLowerIrql(g_current_ppc_context,
+                static_cast<unsigned char>(static_cast<uint32_t>(old_value)));
 }
 
 ppc_u32_result_t KfRaiseIrql_entry(ppc_u32_t new_irql) {
-  return xeKfRaiseIrql(g_current_ppc_context, static_cast<unsigned char>(static_cast<uint32_t>(new_irql)));
+  return xeKfRaiseIrql(g_current_ppc_context,
+                       static_cast<unsigned char>(static_cast<uint32_t>(new_irql)));
 }
 
 void NtQueueApcThread_entry(ppc_u32_t thread_handle, ppc_pvoid_t apc_routine,
@@ -1112,7 +1129,8 @@ void NtQueueApcThread_entry(ppc_u32_t thread_handle, ppc_pvoid_t apc_routine,
     mem->SystemHeapFree(apc_ptr);
     return;
   }
-  // Wake up sleeping alertable thread to process APCs
+  // Match Edge/Canary behavior: callback is only a wakeup hint.
+  // APC delivery happens via alertable wait handling.
   thread->thread()->QueueUserCallback([]() {});
 }
 

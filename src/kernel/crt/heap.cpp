@@ -13,6 +13,7 @@
 #include <o1heap.h>
 
 #include <rex/cvar.h>
+#include <rex/platform.h>
 #include <rex/ppc/function.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xmemory.h>
@@ -76,11 +77,41 @@ bool ReXHeap::Init(uint32_t heap_size_bytes) {
 
   membase_ = mem->virtual_membase();
 
-  uint32_t guest_base = mem->SystemHeapAlloc(heap_size_bytes);
-  if (!guest_base) {
-    REXKRNL_ERROR("rexcrt_heap: SystemHeapAlloc({}) failed", heap_size_bytes);
+  uint32_t guest_base = 0;
+  auto alloc_regular_virtual_heap = [&]() -> bool {
+    auto* heap = mem->LookupHeapByType(false, 4096);
+    if (!heap ||
+        !heap->Alloc(heap_size_bytes, O1HEAP_ALIGNMENT,
+                     rex::memory::kMemoryAllocationReserve | rex::memory::kMemoryAllocationCommit,
+                     rex::memory::kMemoryProtectRead | rex::memory::kMemoryProtectWrite, true,
+                     &guest_base)) {
+      REXKRNL_ERROR("rexcrt_heap: regular virtual heap allocation of {} bytes failed",
+                    heap_size_bytes);
+      return false;
+    }
+    return true;
+  };
+
+#if REX_PLATFORM_LINUX
+  // Linux: always use the 4K virtual heap for rexcrt to avoid system-heap
+  // fragmentation and contiguous-range failures during startup.
+  if (!alloc_regular_virtual_heap()) {
     return false;
   }
+  REXKRNL_INFO("rexcrt_heap: using regular virtual heap range on Linux");
+#else
+  guest_base = mem->SystemHeapAlloc(heap_size_bytes);
+  if (!guest_base) {
+    if (!alloc_regular_virtual_heap()) {
+      REXKRNL_ERROR(
+          "rexcrt_heap: failed to allocate {} bytes from both system and regular virtual heaps",
+          heap_size_bytes);
+      return false;
+    }
+    REXKRNL_WARN("rexcrt_heap: SystemHeapAlloc({}) failed, using regular virtual heap range",
+                 heap_size_bytes);
+  }
+#endif
 
   uint8_t* host_base = mem->TranslateVirtual<uint8_t*>(guest_base);
   heap_base_ = guest_base;

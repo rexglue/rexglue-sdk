@@ -35,4 +35,8 @@ bool atomic_cas(int64_t old_value, int64_t new_value, volatile int64_t* value) {
                                       new_value);
 }
 
+void atomic_store_release(int32_t new_value, volatile int32_t* value) {
+  __atomic_store_n(value, new_value, __ATOMIC_RELEASE);
+}
+
 }  // namespace rex::thread
