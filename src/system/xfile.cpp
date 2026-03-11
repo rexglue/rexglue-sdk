@@ -19,6 +19,8 @@
 #include <rex/system/xfile.h>
 #include <rex/thread/mutex.h>
 
+#include <span>
+
 namespace rex::system {
 
 XFile::XFile(KernelState* kernel_state, rex::filesystem::File* file, bool synchronous)
@@ -135,11 +137,13 @@ X_STATUS XFile::Read(uint32_t buffer_guest_address, uint32_t buffer_length, uint
           result = X_STATUS_ACCESS_VIOLATION;
         } else {
           result = file_->ReadSync(
-              buffer_physical_heap
-                  ? memory()->TranslatePhysical(
-                        buffer_physical_heap->GetPhysicalAddress(buffer_guest_address))
-                  : memory()->TranslateVirtual(buffer_guest_address),
-              buffer_length, size_t(byte_offset), &bytes_read);
+              std::span<uint8_t>(
+                  buffer_physical_heap
+                      ? memory()->TranslatePhysical(
+                            buffer_physical_heap->GetPhysicalAddress(buffer_guest_address))
+                      : memory()->TranslateVirtual(buffer_guest_address),
+                  buffer_length),
+              size_t(byte_offset), &bytes_read);
           if (XSUCCEEDED(result)) {
             if (buffer_physical_heap) {
               buffer_physical_heap->TriggerCallbacks(
@@ -237,8 +241,10 @@ X_STATUS XFile::Write(uint32_t buffer_guest_address, uint32_t buffer_length, uin
   }
 
   size_t bytes_written = 0;
-  X_STATUS result = file_->WriteSync(memory()->TranslateVirtual(buffer_guest_address),
-                                     buffer_length, size_t(byte_offset), &bytes_written);
+  X_STATUS result = file_->WriteSync(
+      std::span<const uint8_t>(memory()->TranslateVirtual(buffer_guest_address),
+                               buffer_length),
+      size_t(byte_offset), &bytes_written);
   if (XSUCCEEDED(result)) {
     position_ += bytes_written;
   }

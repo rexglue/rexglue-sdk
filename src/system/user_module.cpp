@@ -87,7 +87,7 @@ X_STATUS UserModule::LoadFromFile(const std::string_view path) {
     // Read entire file into memory.
     // Ugh.
     size_t bytes_read = 0;
-    result = file->ReadSync(buffer.data(), buffer.size(), 0, &bytes_read);
+    result = file->ReadSync(std::span<uint8_t>(buffer), 0, &bytes_read);
     if (XFAILED(result)) {
       return result;
     }

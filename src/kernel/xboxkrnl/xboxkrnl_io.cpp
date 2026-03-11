@@ -69,9 +69,9 @@ static bool IsValidPath(const std::string_view s, bool is_pattern) {
       case '+':
       case ',':
       // case ':':
-      case ';':
+      // case ';':
       case '<':
-      case '=':
+      // case '=':
       case '>':
       // case '?':
       case '|': {
@@ -228,14 +228,14 @@ ppc_u32_result_t NtReadFile_entry(ppc_u32_t file_handle, ppc_u32_t event_handle,
       // though were are completing immediately.
       // Low bit probably means do not queue to IO ports.
       if ((uint32_t)apc_routine_ptr & ~1) {
-        if (apc_context) {
+        if (apc_context && result == X_STATUS_SUCCESS) {
           auto thread = XThread::GetCurrentThread();
           thread->EnqueueApc(static_cast<uint32_t>(apc_routine_ptr) & ~1u,
                              apc_context.guest_address(), io_status_block.guest_address(), 0);
         }
       }
 
-      if (!file->is_synchronous()) {
+      if (!file->is_synchronous() && result != X_STATUS_END_OF_FILE) {
         result = X_STATUS_PENDING;
       }
 

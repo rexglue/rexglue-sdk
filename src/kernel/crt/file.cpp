@@ -10,6 +10,7 @@
 
 #include <cstring>
 #include <memory>
+#include <span>
 
 #include <rex/filesystem.h>
 #include <rex/filesystem/device.h>
@@ -479,12 +480,13 @@ ppc_u32_result_t CopyFileA_entry(ppc_pchar_t lpExistingFileName, ppc_pchar_t lpN
   bool ok = true;
   for (;;) {
     size_t bytes_read = 0;
-    status = src_file->ReadSync(buf.get(), kBufSize, offset, &bytes_read);
+    status = src_file->ReadSync(std::span<uint8_t>(buf.get(), kBufSize), offset, &bytes_read);
     if (XFAILED(status) || bytes_read == 0)
       break;
 
     size_t bytes_written = 0;
-    status = dst_file->WriteSync(buf.get(), bytes_read, offset, &bytes_written);
+    status = dst_file->WriteSync(std::span<const uint8_t>(buf.get(), bytes_read), offset,
+                                 &bytes_written);
     if (XFAILED(status) || bytes_written != bytes_read) {
       ok = false;
       break;

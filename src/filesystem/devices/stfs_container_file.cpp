@@ -28,15 +28,15 @@ void StfsContainerFile::Destroy() {
   delete this;
 }
 
-X_STATUS StfsContainerFile::ReadSync(void* buffer, size_t buffer_length, size_t byte_offset,
+X_STATUS StfsContainerFile::ReadSync(std::span<uint8_t> buffer, size_t byte_offset,
                                      size_t* out_bytes_read) {
   if (byte_offset >= entry_->size()) {
     return X_STATUS_END_OF_FILE;
   }
 
   size_t src_offset = 0;
-  uint8_t* p = reinterpret_cast<uint8_t*>(buffer);
-  size_t remaining_length = std::min(buffer_length, entry_->size() - byte_offset);
+  uint8_t* p = buffer.data();
+  size_t remaining_length = std::min(buffer.size(), entry_->size() - byte_offset);
 
   *out_bytes_read = 0;
   for (size_t i = 0; i < entry_->block_list().size(); i++) {

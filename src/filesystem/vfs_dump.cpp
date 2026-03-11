@@ -10,6 +10,7 @@
  */
 
 #include <queue>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -97,7 +98,7 @@ int vfs_dump_main(const std::vector<std::string>& args) {
       }
 
       size_t bytes_read = 0;
-      in_file->ReadSync(buffer, entry->size(), 0, &bytes_read);
+      in_file->ReadSync(std::span<uint8_t>(buffer, entry->size()), 0, &bytes_read);
       fwrite(buffer, bytes_read, 1, file);
     }
 

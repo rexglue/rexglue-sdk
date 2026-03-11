@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include <span>
+
 #include <rex/filesystem/file.h>
 
 namespace rex::filesystem {
@@ -24,12 +26,10 @@ class DiscImageFile : public File {
 
   void Destroy() override;
 
-  X_STATUS ReadSync(void* buffer, size_t buffer_length, size_t byte_offset,
-                    size_t* out_bytes_read) override;
-  X_STATUS WriteSync(const void* buffer, size_t buffer_length, size_t byte_offset,
+  X_STATUS ReadSync(std::span<uint8_t> buffer, size_t byte_offset, size_t* out_bytes_read) override;
+  X_STATUS WriteSync(std::span<const uint8_t> buffer, size_t byte_offset,
                      size_t* out_bytes_written) override {
     (void)buffer;
-    (void)buffer_length;
     (void)byte_offset;
     (void)out_bytes_written;
     return X_STATUS_ACCESS_DENIED;
