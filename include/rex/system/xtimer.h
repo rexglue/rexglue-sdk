@@ -16,6 +16,16 @@
 
 namespace rex::system {
 
+struct X_KTIMER {
+  X_DISPATCH_HEADER header;
+  rex::be<uint64_t> due_time;
+  rex::be<uint32_t> timer_list_flink;
+  rex::be<uint32_t> timer_list_blink;
+  rex::be<uint32_t> dpc;
+  rex::be<uint32_t> period;
+};
+static_assert_size(X_KTIMER, 0x28);
+
 class XThread;
 
 class XTimer : public XObject {

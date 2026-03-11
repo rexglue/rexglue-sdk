@@ -117,6 +117,13 @@ ppc_u32_result_t ExCreateThread_entry(ppc_pu32_t handle_ptr, ppc_u32_t stack_siz
   // LPVOID   StartContext,
   // DWORD    CreationFlags // 0x80?
 
+  // Determine target process based on creation flags.
+  uint32_t guest_process = kernel_state()->GetTitleProcess();
+  if (creation_flags & 2) {
+    REXKRNL_WARN("[ExCreateThread] Guest is creating a system thread!");
+    guest_process = kernel_state()->GetSystemProcess();
+  }
+
   // Inherit default stack size
   uint32_t actual_stack_size = stack_size;
 
@@ -129,7 +136,7 @@ ppc_u32_result_t ExCreateThread_entry(ppc_pu32_t handle_ptr, ppc_u32_t stack_siz
 
   auto thread = object_ref<XThread>(new XThread(
       kernel_state(), actual_stack_size, xapi_thread_startup, start_address.guest_address(),
-      start_context.guest_address(), creation_flags, true));
+      start_context.guest_address(), creation_flags, true, false, guest_process));
 
   X_STATUS result = thread->Create();
   if (XFAILED(result)) {
@@ -204,6 +211,15 @@ ppc_u32_result_t NtSuspendThread_entry(ppc_u32_t handle, ppc_pu32_t suspend_coun
 
   auto thread = kernel_state()->object_table()->LookupObject<XThread>(handle);
   if (thread) {
+    if (thread->type() != XObject::Type::Thread) {
+      return X_STATUS_OBJECT_TYPE_MISMATCH;
+    }
+
+    auto guest_thread = thread->guest_object<X_KTHREAD>();
+    if (guest_thread->terminated) {
+      return X_STATUS_THREAD_IS_TERMINATING;
+    }
+
     REXKRNL_TRACE("[NtSuspendThread] handle={:08X} thread={}", uint32_t(handle), thread->name());
     result = thread->Suspend(&suspend_count);
   } else {
@@ -300,15 +316,31 @@ ppc_u32_result_t KeSetDisableBoostThread_entry(ppc_pvoid_t thread_ptr, ppc_u32_t
 }
 
 ppc_u32_result_t KeGetCurrentProcessType_entry() {
-  return kernel_state()->process_type();
+  auto current_thread = XThread::GetCurrentThread();
+  auto context = current_thread->thread_state()->context();
+  auto pcr = kernel_memory()->TranslateVirtual<X_KPCR*>(static_cast<uint32_t>(context->r13.u64));
+
+  if (pcr->dpc_active) {
+    return pcr->processtype_value_in_dpc;
+  }
+
+  auto thread = kernel_memory()->TranslateVirtual<X_KTHREAD*>(pcr->current_thread);
+  return thread->process_type;
 }
 
 void KeSetCurrentProcessType_entry(ppc_u32_t type) {
   // One of X_PROCTYPE_?
-
   assert_true(type <= 2);
 
   kernel_state()->set_process_type(type);
+
+  auto current_thread = XThread::GetCurrentThread();
+  auto context = current_thread->thread_state()->context();
+  auto pcr = kernel_memory()->TranslateVirtual<X_KPCR*>(static_cast<uint32_t>(context->r13.u64));
+
+  if (pcr->dpc_active) {
+    pcr->processtype_value_in_dpc = static_cast<uint8_t>(type);
+  }
 }
 
 ppc_u32_result_t KeQueryPerformanceFrequency_entry() {
@@ -319,7 +351,16 @@ ppc_u32_result_t KeQueryPerformanceFrequency_entry() {
 ppc_u32_result_t KeDelayExecutionThread_entry(ppc_u32_t processor_mode, ppc_u32_t alertable,
                                               ppc_pu64_t interval_ptr) {
   XThread* thread = XThread::GetCurrentThread();
+
+  if (alertable) {
+    thread->DeliverAPCs();
+  }
+
   X_STATUS result = thread->Delay(processor_mode, alertable, *interval_ptr);
+
+  if (alertable && result == X_STATUS_USER_APC) {
+    thread->DeliverAPCs();
+  }
 
   return result;
 }
@@ -699,6 +740,24 @@ ppc_u32_result_t NtCreateTimer_entry(ppc_pu32_t handle_ptr, ppc_pvoid_t obj_attr
   return X_STATUS_SUCCESS;
 }
 
+void KeInitializeTimerEx_entry(ppc_ptr_t<X_KTIMER> timer_ptr, ppc_u32_t timer_type,
+                               ppc_u32_t proc_type) {
+  assert_true(timer_type == 0 || timer_type == 1);
+  assert_true(proc_type < 3);
+  // Other fields are unmodified; they must carry through multiple calls.
+  timer_ptr->header.process_type = static_cast<uint8_t>(proc_type & 0xFF);
+  timer_ptr->header.inserted = 0;
+  timer_ptr->header.type = static_cast<uint8_t>(timer_type + 8);
+  timer_ptr->header.signal_state = 0;
+  // Initialize wait list to point to itself (empty list).
+  uint32_t wait_list_addr =
+      timer_ptr.guest_address() + offsetof(X_DISPATCH_HEADER, wait_list_flink);
+  timer_ptr->header.wait_list_flink = wait_list_addr;
+  timer_ptr->header.wait_list_blink = wait_list_addr;
+  timer_ptr->due_time = 0;
+  timer_ptr->period = 0;
+}
+
 ppc_u32_result_t NtSetTimerEx_entry(ppc_u32_t timer_handle, ppc_pu64_t due_time_ptr,
                                     ppc_pvoid_t routine_ptr /*PTIMERAPCROUTINE*/, ppc_u32_t unk_one,
                                     ppc_pvoid_t routine_arg, ppc_u32_t resume, ppc_u32_t period_ms,
@@ -749,6 +808,10 @@ uint32_t xeKeWaitForSingleObject(void* object_ptr, uint32_t wait_reason, uint32_
 
   X_STATUS result = object->Wait(wait_reason, processor_mode, alertable, timeout_ptr);
 
+  if (alertable && result == X_STATUS_USER_APC) {
+    XThread::GetCurrentThread()->DeliverAPCs();
+  }
+
   return result;
 }
 
@@ -775,6 +838,9 @@ ppc_u32_result_t NtWaitForSingleObjectEx_entry(ppc_u32_t object_handle, ppc_u32_
   if (object) {
     uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
     result = object->Wait(3, wait_mode, alertable, timeout_ptr ? &timeout : nullptr);
+    if (alertable && result == X_STATUS_USER_APC) {
+      XThread::GetCurrentThread()->DeliverAPCs();
+    }
   } else {
     result = X_STATUS_INVALID_HANDLE;
   }
@@ -801,9 +867,13 @@ ppc_u32_result_t KeWaitForMultipleObjects_entry(ppc_u32_t count, ppc_pu32_t obje
   }
 
   uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
-  return XObject::WaitMultiple(uint32_t(objects.size()),
-                               reinterpret_cast<XObject**>(objects.data()), wait_type, wait_reason,
-                               processor_mode, alertable, timeout_ptr ? &timeout : nullptr);
+  X_STATUS result = XObject::WaitMultiple(
+      uint32_t(objects.size()), reinterpret_cast<XObject**>(objects.data()), wait_type, wait_reason,
+      processor_mode, alertable, timeout_ptr ? &timeout : nullptr);
+  if (alertable && result == X_STATUS_USER_APC) {
+    XThread::GetCurrentThread()->DeliverAPCs();
+  }
+  return result;
 }
 
 uint32_t xeNtWaitForMultipleObjectsEx(uint32_t count, rex::be<uint32_t>* handles,
@@ -821,8 +891,12 @@ uint32_t xeNtWaitForMultipleObjectsEx(uint32_t count, rex::be<uint32_t>* handles
     objects.push_back(std::move(object));
   }
 
-  return XObject::WaitMultiple(count, reinterpret_cast<XObject**>(objects.data()), wait_type, 6,
-                               wait_mode, alertable, timeout_ptr);
+  auto result = XObject::WaitMultiple(count, reinterpret_cast<XObject**>(objects.data()), wait_type,
+                                      6, wait_mode, alertable, timeout_ptr);
+  if (alertable && result == X_STATUS_USER_APC) {
+    XThread::GetCurrentThread()->DeliverAPCs();
+  }
+  return result;
 }
 
 ppc_u32_result_t NtWaitForMultipleObjectsEx_entry(ppc_u32_t count, ppc_pu32_t handles,
@@ -846,6 +920,10 @@ ppc_u32_result_t NtSignalAndWaitForSingleObjectEx_entry(ppc_u32_t signal_handle,
                                     timeout_ptr ? &timeout : nullptr);
   } else {
     result = X_STATUS_INVALID_HANDLE;
+  }
+
+  if (alertable && result == X_STATUS_USER_APC) {
+    XThread::GetCurrentThread()->DeliverAPCs();
   }
 
   return result;
@@ -1298,6 +1376,19 @@ XBOXKRNL_EXPORT_STUB(__imp__KeRemoveQueue);
 XBOXKRNL_EXPORT_STUB(__imp__KeSetEventBoostPriority);
 XBOXKRNL_EXPORT_STUB(__imp__KiApcNormalRoutineNop_);
 
+ppc_u32_result_t KeSuspendThread_entry(ppc_pvoid_t kthread_ptr) {
+  auto thread = XObject::GetNativeObject<XThread>(kernel_state(), kthread_ptr);
+  uint32_t old_suspend_count = 0;
+
+  if (thread) {
+    old_suspend_count = thread->suspend_count();
+    uint32_t discarded = 0;
+    thread->Suspend(&discarded);
+  }
+
+  return old_suspend_count;
+}
+
 }  // namespace rex::kernel::xboxkrnl
 
 XBOXKRNL_EXPORT(__imp__ExCreateThread, rex::kernel::xboxkrnl::ExCreateThread_entry)
@@ -1305,6 +1396,7 @@ XBOXKRNL_EXPORT(__imp__ExTerminateThread, rex::kernel::xboxkrnl::ExTerminateThre
 XBOXKRNL_EXPORT(__imp__NtResumeThread, rex::kernel::xboxkrnl::NtResumeThread_entry)
 XBOXKRNL_EXPORT(__imp__KeResumeThread, rex::kernel::xboxkrnl::KeResumeThread_entry)
 XBOXKRNL_EXPORT(__imp__NtSuspendThread, rex::kernel::xboxkrnl::NtSuspendThread_entry)
+XBOXKRNL_EXPORT(__imp__KeSuspendThread, rex::kernel::xboxkrnl::KeSuspendThread_entry)
 XBOXKRNL_EXPORT(__imp__KeSetCurrentStackPointers,
                 rex::kernel::xboxkrnl::KeSetCurrentStackPointers_entry)
 XBOXKRNL_EXPORT(__imp__KeSetAffinityThread, rex::kernel::xboxkrnl::KeSetAffinityThread_entry)
@@ -1344,6 +1436,7 @@ XBOXKRNL_EXPORT(__imp__NtReleaseMutant, rex::kernel::xboxkrnl::NtReleaseMutant_e
 XBOXKRNL_EXPORT(__imp__NtCreateTimer, rex::kernel::xboxkrnl::NtCreateTimer_entry)
 XBOXKRNL_EXPORT(__imp__NtSetTimerEx, rex::kernel::xboxkrnl::NtSetTimerEx_entry)
 XBOXKRNL_EXPORT(__imp__NtCancelTimer, rex::kernel::xboxkrnl::NtCancelTimer_entry)
+XBOXKRNL_EXPORT(__imp__KeInitializeTimerEx, rex::kernel::xboxkrnl::KeInitializeTimerEx_entry)
 XBOXKRNL_EXPORT(__imp__KeWaitForSingleObject, rex::kernel::xboxkrnl::KeWaitForSingleObject_entry)
 XBOXKRNL_EXPORT(__imp__NtWaitForSingleObjectEx,
                 rex::kernel::xboxkrnl::NtWaitForSingleObjectEx_entry)
@@ -1408,7 +1501,7 @@ XBOXKRNL_EXPORT_STUB(__imp__KeInitializeDeviceQueue);
 XBOXKRNL_EXPORT_STUB(__imp__KeInitializeInterrupt);
 XBOXKRNL_EXPORT_STUB(__imp__KeInitializeMutant);
 XBOXKRNL_EXPORT_STUB(__imp__KeInitializeQueue);
-XBOXKRNL_EXPORT_STUB(__imp__KeInitializeTimerEx);
+// XBOXKRNL_EXPORT_STUB(__imp__KeInitializeTimerEx); -- implemented below
 XBOXKRNL_EXPORT_STUB(__imp__KeIpiGenericCall);
 XBOXKRNL_EXPORT_STUB(__imp__KeQueryBackgroundProcessors);
 XBOXKRNL_EXPORT_STUB(__imp__KeQueryInterruptTime);
@@ -1425,7 +1518,6 @@ XBOXKRNL_EXPORT_STUB(__imp__KeSetPriorityThread);
 XBOXKRNL_EXPORT_STUB(__imp__KeSetTimer);
 XBOXKRNL_EXPORT_STUB(__imp__KeSetTimerEx);
 XBOXKRNL_EXPORT_STUB(__imp__KeStallExecutionProcessor);
-XBOXKRNL_EXPORT_STUB(__imp__KeSuspendThread);
 XBOXKRNL_EXPORT_STUB(__imp__KeSweepDcacheRange);
 XBOXKRNL_EXPORT_STUB(__imp__KeSweepIcacheRange);
 XBOXKRNL_EXPORT_STUB(__imp__KeTestAlertThread);

@@ -70,7 +70,9 @@ struct XAPC {
 // Processor Control Region
 struct X_KPCR {
   rex::be<uint32_t> tls_ptr;         // 0x0
-  uint8_t unk_04[0x2C];              // 0x4
+  uint8_t unk_04[0x8];               // 0x4
+  uint8_t processtype_value_in_dpc;  // 0xC
+  uint8_t unk_0D[0x23];              // 0xD
   rex::be<uint32_t> pcr_ptr;         // 0x30
   uint8_t unk_34[0x3C];              // 0x34
   rex::be<uint32_t> stack_base_ptr;  // 0x70 Stack base address (high addr)
@@ -101,7 +103,10 @@ struct X_KTHREAD {
   uint8_t unk_64[0x4];                 // 0x64
   rex::be<uint32_t> tls_address;       // 0x68
   uint8_t unk_6C;                      // 0x6C
-  uint8_t unk_6D[0x7];                 // 0x6D
+  uint8_t unk_6D[0x4];                 // 0x6D
+  uint8_t process_type_dup;            // 0x71
+  uint8_t process_type;                // 0x72
+  uint8_t unk_73;                      // 0x73
   rex::be<uint32_t> unk_74;            // 0x74
   rex::be<uint32_t> unk_78;            // 0x78
   rex::be<uint32_t> unk_7C;            // 0x7C
@@ -116,7 +121,7 @@ struct X_KTHREAD {
   uint8_t unk_B4[0x8];                 // 0xB4
   uint8_t suspend_count;               // 0xBC
   uint8_t unk_BD;                      // 0xBD
-  uint8_t unk_BE;                      // 0xBE
+  uint8_t terminated;                  // 0xBE
   uint8_t current_cpu;                 // 0xBF
   uint8_t unk_C0[0x10];                // 0xC0
   rex::be<uint32_t> stack_alloc_base;  // 0xD0
@@ -156,12 +161,13 @@ class XThread : public XObject {
     uint32_t start_address;
     uint32_t start_context;
     uint32_t creation_flags;
+    uint32_t guest_process;
   };
 
   XThread(KernelState* kernel_state);
   XThread(KernelState* kernel_state, uint32_t stack_size, uint32_t xapi_thread_startup,
           uint32_t start_address, uint32_t start_context, uint32_t creation_flags,
-          bool guest_thread, bool main_thread = false);
+          bool guest_thread, bool main_thread = false, uint32_t guest_process = 0);
   ~XThread() override;
 
   static bool IsInThread(XThread* other);
@@ -200,6 +206,7 @@ class XThread : public XObject {
   void LowerIrql(uint32_t new_irql);
 
   void CheckApcs();
+  void DeliverAPCs();
   void LockApc();
   void UnlockApc(bool queue_delivery);
   util::NativeList* apc_list() { return &apc_list_; }
@@ -244,12 +251,11 @@ class XThread : public XObject {
   void FreeStack();
   void InitializeGuestObject();
 
-  void DeliverAPCs();
   void RundownAPCs();
 
   rex::thread::WaitHandle* GetWaitHandle() override { return thread_.get(); }
 
-  CreationParams creation_params_ = {0, 0, 0, 0, 0};
+  CreationParams creation_params_ = {0, 0, 0, 0, 0, 0};
 
   std::vector<object_ref<XMutant>> pending_mutant_acquires_;
 

@@ -53,7 +53,7 @@ XThread::XThread(KernelState* kernel_state)
 
 XThread::XThread(KernelState* kernel_state, uint32_t stack_size, uint32_t xapi_thread_startup,
                  uint32_t start_address, uint32_t start_context, uint32_t creation_flags,
-                 bool guest_thread, bool main_thread)
+                 bool guest_thread, bool main_thread, uint32_t guest_process)
     : XObject(kernel_state, kObjectType),
       thread_id_(++next_xthread_id_),
       guest_thread_(guest_thread),
@@ -67,6 +67,7 @@ XThread::XThread(KernelState* kernel_state, uint32_t stack_size, uint32_t xapi_t
   // top 8 bits = processor ID (or 0 for default)
   // bit 0 = 1 to create suspended
   creation_params_.creation_flags = creation_flags;
+  creation_params_.guest_process = guest_process;
 
   // Adjust stack size - min of 16k.
   if (creation_params_.stack_size < 16 * 1024) {
@@ -200,8 +201,22 @@ void XThread::InitializeGuestObject() {
   memory::store_and_swap<uint32_t>(p + 0x078, guest_object() + 0x074);
   memory::store_and_swap<uint32_t>(p + 0x07C, guest_object() + 0x07C);
   memory::store_and_swap<uint32_t>(p + 0x080, guest_object() + 0x07C);
-  memory::store_and_swap<uint32_t>(p + 0x084, kernel_state_->process_info_block_address());
+  // Set process pointer - use guest_process if provided, else default to title process.
+  uint32_t process_ptr = creation_params_.guest_process
+                             ? creation_params_.guest_process
+                             : kernel_state_->process_info_block_address();
+  memory::store_and_swap<uint32_t>(p + 0x084, process_ptr);
   memory::store_and_swap<uint8_t>(p + 0x08B, 1);
+
+  // Set per-thread process type from the target process (if available).
+  if (process_ptr) {
+    auto target_process = memory()->TranslateVirtual<ProcessInfoBlock*>(process_ptr);
+    guest_thread->process_type = target_process->process_type;
+    guest_thread->process_type_dup = target_process->process_type;
+  } else {
+    guest_thread->process_type = X_PROCTYPE_USER;
+    guest_thread->process_type_dup = X_PROCTYPE_USER;
+  }
   // 0xD4 = APC
   // 0xFC = semaphore (ptr, 0, 2)
   // 0xA88 = APC
@@ -427,6 +442,10 @@ X_STATUS XThread::Exit(int exit_code) {
   // This may only be called on the thread itself.
   assert_true(XThread::GetCurrentThread() == this);
 
+  // Mark as terminated before running down APCs.
+  auto kthread = guest_object<X_KTHREAD>();
+  kthread->terminated = 1;
+
   // TODO(benvanik): dispatch events? waiters? etc?
   RundownAPCs();
 
@@ -584,7 +603,8 @@ void XThread::LeaveCriticalRegion() {
   auto kthread = guest_object<X_KTHREAD>();
   auto apc_disable_count = ++kthread->apc_disable_count;
   if (apc_disable_count == 0) {
-    CheckApcs();
+    // NOTE: intentionally not calling CheckApcs() here.
+    // Delivering APCs here can cause them to fire in wrong contexts.
   }
 }
 

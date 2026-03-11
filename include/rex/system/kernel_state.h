@@ -135,6 +135,12 @@ class KernelState {
   void set_process_type(uint32_t value);
   uint32_t process_info_block_address() const { return process_info_block_address_; }
 
+  // Returns guest pointer to the title (user) process structure.
+  uint32_t GetTitleProcess() const { return process_info_block_address_; }
+  // Returns guest pointer to the system process structure.
+  // TODO: allocate a separate system process with process_type = X_PROCTYPE_SYSTEM
+  uint32_t GetSystemProcess() const { return process_info_block_address_; }
+
   uint32_t AllocateTLS();
   void FreeTLS(uint32_t slot);
 
