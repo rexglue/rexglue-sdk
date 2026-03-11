@@ -65,6 +65,7 @@ X_STATUS SDLInputDriver::Setup() {
     return X_STATUS_UNSUCCESSFUL;
   }
   sdl_events_initialized_ = true;
+  pending_events_.reserve(64);
 
   // With an event watch we will always get notified, even if the event queue
   // is full, which can happen if another subsystem does not clear its events.
@@ -134,7 +135,7 @@ X_RESULT SDLInputDriver::GetCapabilities(uint32_t user_index, uint32_t flags,
 
   QueueControllerUpdate();
 
-  std::unique_lock<std::mutex> guard(controllers_mutex_);
+  auto guard = DrainAndLock();
 
   auto controller = GetControllerState(user_index);
   if (!controller) {
@@ -162,7 +163,7 @@ X_RESULT SDLInputDriver::GetState(uint32_t user_index, X_INPUT_STATE* out_state)
     QueueControllerUpdate();
   }
 
-  std::unique_lock<std::mutex> guard(controllers_mutex_);
+  auto guard = DrainAndLock();
 
   auto controller = GetControllerState(user_index);
   if (!controller) {
@@ -194,7 +195,7 @@ X_RESULT SDLInputDriver::SetState(uint32_t user_index, X_INPUT_VIBRATION* vibrat
 
   QueueControllerUpdate();
 
-  std::unique_lock<std::mutex> guard(controllers_mutex_);
+  auto guard = DrainAndLock();
 
   auto controller = GetControllerState(user_index);
   if (!controller) {
@@ -276,7 +277,7 @@ X_RESULT SDLInputDriver::GetKeystroke(uint32_t users, uint32_t flags,
     QueueControllerUpdate();
   }
 
-  std::unique_lock<std::mutex> guard(controllers_mutex_);
+  auto guard = DrainAndLock();
 
   for (uint32_t user_index = (user_any ? 0 : users);
        user_index < (user_any ? HID_SDL_USER_COUNT : users + 1); user_index++) {
@@ -377,29 +378,48 @@ void SDLInputDriver::HandleEvent(const SDL_Event& event) {
     SDL_FlushEvents(SDL_JOYAXISMOTION, SDL_FINGERDOWN - 1);
     sdl_events_unflushed_ = 0;
   }
+
+  // Buffer only - no controllers_mutex_ acquisition here.
+  // This breaks the lock ordering inversion between controllers_mutex_ and
+  // SDL's internal joystick lock that caused deadlocks.
+  std::lock_guard<std::mutex> guard(event_queue_mutex_);
+  pending_events_.push_back(event);
+}
+
+std::unique_lock<std::mutex> SDLInputDriver::DrainAndLock() {
+  std::vector<SDL_Event> events;
+  {
+    std::lock_guard<std::mutex> guard(event_queue_mutex_);
+    events.swap(pending_events_);
+  }
+  std::unique_lock<std::mutex> guard(controllers_mutex_);
+  for (const auto& event : events) {
+    ProcessEventLocked(event);
+  }
+  return guard;
+}
+
+void SDLInputDriver::ProcessEventLocked(const SDL_Event& event) {
   switch (event.type) {
     case SDL_CONTROLLERDEVICEADDED:
-      OnControllerDeviceAdded(event);
+      OnControllerDeviceAddedLocked(event);
       break;
     case SDL_CONTROLLERDEVICEREMOVED:
-      OnControllerDeviceRemoved(event);
+      OnControllerDeviceRemovedLocked(event);
       break;
     case SDL_CONTROLLERAXISMOTION:
-      OnControllerDeviceAxisMotion(event);
+      OnControllerDeviceAxisMotionLocked(event);
       break;
     case SDL_CONTROLLERBUTTONDOWN:
     case SDL_CONTROLLERBUTTONUP:
-      OnControllerDeviceButtonChanged(event);
+      OnControllerDeviceButtonChangedLocked(event);
       break;
     default:
       break;
   }
-  return;
 }
 
-void SDLInputDriver::OnControllerDeviceAdded(const SDL_Event& event) {
-  std::unique_lock<std::mutex> guard(controllers_mutex_);
-
+void SDLInputDriver::OnControllerDeviceAddedLocked(const SDL_Event& event) {
   // Open the controller.
   const auto controller = SDL_GameControllerOpen(event.cdevice.which);
   if (!controller) {
@@ -461,9 +481,7 @@ void SDLInputDriver::OnControllerDeviceAdded(const SDL_Event& event) {
   }
 }
 
-void SDLInputDriver::OnControllerDeviceRemoved(const SDL_Event& event) {
-  std::unique_lock<std::mutex> guard(controllers_mutex_);
-
+void SDLInputDriver::OnControllerDeviceRemovedLocked(const SDL_Event& event) {
   // Find the disconnected gamecontroller and close it.
   auto idx = GetControllerIndexFromInstanceID(event.cdevice.which);
   if (idx) {
@@ -477,9 +495,7 @@ void SDLInputDriver::OnControllerDeviceRemoved(const SDL_Event& event) {
   }
 }
 
-void SDLInputDriver::OnControllerDeviceAxisMotion(const SDL_Event& event) {
-  std::unique_lock<std::mutex> guard(controllers_mutex_);
-
+void SDLInputDriver::OnControllerDeviceAxisMotionLocked(const SDL_Event& event) {
   auto idx = GetControllerIndexFromInstanceID(event.caxis.which);
   assert(idx);
   auto& pad = controllers_.at(*idx).state.gamepad;
@@ -509,9 +525,7 @@ void SDLInputDriver::OnControllerDeviceAxisMotion(const SDL_Event& event) {
   controllers_.at(*idx).state_changed = true;
 }
 
-void SDLInputDriver::OnControllerDeviceButtonChanged(const SDL_Event& event) {
-  std::unique_lock<std::mutex> guard(controllers_mutex_);
-
+void SDLInputDriver::OnControllerDeviceButtonChangedLocked(const SDL_Event& event) {
   // Define a lookup table to map between SDL and XInput button codes.
   // These need to be in the order of the SDL_GameControllerButton enum.
   static constexpr std::array<std::underlying_type<X_INPUT_GAMEPAD_BUTTON>::type, 21>

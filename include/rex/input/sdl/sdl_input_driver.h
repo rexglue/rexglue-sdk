@@ -15,6 +15,7 @@
 #include <atomic>
 #include <mutex>
 #include <optional>
+#include <vector>
 
 #include <rex/input/input_driver.h>
 
@@ -66,10 +67,12 @@ class SDLInputDriver final : public InputDriver {
   };
 
   void HandleEvent(const SDL_Event& event);
-  void OnControllerDeviceAdded(const SDL_Event& event);
-  void OnControllerDeviceRemoved(const SDL_Event& event);
-  void OnControllerDeviceAxisMotion(const SDL_Event& event);
-  void OnControllerDeviceButtonChanged(const SDL_Event& event);
+  std::unique_lock<std::mutex> DrainAndLock();
+  void ProcessEventLocked(const SDL_Event& event);
+  void OnControllerDeviceAddedLocked(const SDL_Event& event);
+  void OnControllerDeviceRemovedLocked(const SDL_Event& event);
+  void OnControllerDeviceAxisMotionLocked(const SDL_Event& event);
+  void OnControllerDeviceButtonChangedLocked(const SDL_Event& event);
 
   inline uint64_t AnalogToKeyfield(const X_INPUT_GAMEPAD& gamepad) const;
   std::optional<size_t> GetControllerIndexFromInstanceID(SDL_JoystickID instance_id);
@@ -80,10 +83,12 @@ class SDLInputDriver final : public InputDriver {
 
   bool sdl_events_initialized_;
   bool sdl_gamecontroller_initialized_;
-  int sdl_events_unflushed_;
+  std::atomic<int> sdl_events_unflushed_;
   std::atomic<bool> sdl_pumpevents_queued_;
   std::array<ControllerState, HID_SDL_USER_COUNT> controllers_;
   std::mutex controllers_mutex_;
+  std::mutex event_queue_mutex_;
+  std::vector<SDL_Event> pending_events_;
   std::array<KeystrokeState, HID_SDL_USER_COUNT> keystroke_states_;
 };
 
