@@ -110,6 +110,13 @@ void SDLAudioDriver::SubmitFrame(uint32_t frame_ptr) {
 
   std::memcpy(output_frame, input_frame, frame_samples_ * sizeof(float));
 
+  static uint32_t sdl_submit_count = 0;
+  if (sdl_submit_count < 10) {
+    REXAPU_DEBUG("SDLAudioDriver::SubmitFrame: frame_ptr={:08X} queued_count={}", frame_ptr,
+                 frames_queued_.size() + 1);
+    sdl_submit_count++;
+  }
+
   {
     std::unique_lock<std::mutex> guard(frames_mutex_);
     frames_queued_.push(output_frame);
@@ -146,8 +153,13 @@ void SDLAudioDriver::SDLCallback(void* userdata, Uint8* stream, int len) {
   assert_true(len ==
               static_cast<int>(sizeof(float) * channel_samples_ * driver->sdl_device_channels_));
 
+  static uint32_t sdl_callback_count = 0;
   std::unique_lock<std::mutex> guard(driver->frames_mutex_);
   if (driver->frames_queued_.empty()) {
+    if (sdl_callback_count < 10) {
+      REXAPU_DEBUG("SDLCallback: no frames queued (silence)");
+      sdl_callback_count++;
+    }
     std::memset(stream, 0, len);
   } else {
     auto buffer = driver->frames_queued_.front();

@@ -64,6 +64,7 @@ using rex::audio::XMA_CONTEXT_DATA;
 // https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.xaudio2.xaudio2_buffer(v=vs.85).aspx
 
 ppc_u32_result_t XMACreateContext_entry(ppc_pu32_t context_out_ptr) {
+  REXKRNL_DEBUG("XMACreateContext called!");
   auto xma_decoder =
       static_cast<audio::AudioSystem*>(kernel_state()->emulator()->audio_system())->xma_decoder();
   uint32_t context_ptr = xma_decoder->AllocateContext();
@@ -339,6 +340,9 @@ ppc_u32_result_t XMABlockWhileInUse_entry(ppc_pvoid_t context_ptr) {
   do {
     XMA_CONTEXT_DATA context(context_ptr);
     if (!context.input_buffer_0_valid && !context.input_buffer_1_valid) {
+      break;
+    }
+    if (!context.work_buffer_ptr) {
       break;
     }
     rex::thread::Sleep(std::chrono::milliseconds(1));

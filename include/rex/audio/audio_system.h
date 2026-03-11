@@ -66,13 +66,12 @@ class AudioSystem : public system::IAudioSystem {
                                 AudioDriver** out_driver) = 0;
   virtual void DestroyDriver(AudioDriver* driver) = 0;
 
-  // TODO(gibbed): respect XAUDIO2_MAX_QUEUED_BUFFERS somehow (ie min(64,
-  // XAUDIO2_MAX_QUEUED_BUFFERS))
-  // static const size_t kMaximumQueuedFrames = 64;
+  static constexpr size_t kMaximumQueuedFrames = 64;
 
   memory::Memory* memory_ = nullptr;
   runtime::Processor* processor_ = nullptr;
   std::unique_ptr<XmaDecoder> xma_decoder_;
+  uint32_t queued_frames_;
 
   std::atomic<bool> worker_running_ = {false};
   system::object_ref<system::XHostThread> worker_thread_;

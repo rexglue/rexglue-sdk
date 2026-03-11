@@ -137,18 +137,16 @@ X_STATUS XmaDecoder::Setup(system::KernelState* kernel_state) {
 }
 
 void XmaDecoder::WorkerThreadMain() {
-  uint32_t idle_loop_count = 0;
   while (worker_running_) {
     // Okay, let's loop through XMA contexts to find ones we need to decode!
     bool did_work = false;
     for (uint32_t n = 0; n < kContextCount && worker_running_; n++) {
       XmaContext& context = contexts_[n];
-      did_work = context.Work() || did_work;
-
-      // TODO: Need thread safety to do this.
-      // Probably not too important though.
-      // registers_.current_context = n;
-      // registers_.next_context = (n + 1) % kContextCount;
+      bool worked = context.Work();
+      if (worked) {
+        context.SignalWorkDone();
+      }
+      did_work = did_work || worked;
     }
 
     if (paused_) {
@@ -156,18 +154,11 @@ void XmaDecoder::WorkerThreadMain() {
       resume_fence_.Wait();
     }
 
-    if (!did_work) {
-      idle_loop_count++;
-    } else {
-      idle_loop_count = 0;
+    if (did_work) {
+      continue;
     }
-
-    if (idle_loop_count > 500) {
-      // Idle for an extended period. Introduce a 20ms wait.
-      rex::thread::Wait(work_event_.get(), false, std::chrono::milliseconds(20));
-    }
-
-    rex::thread::MaybeYield();
+    // No work done this iteration, block until signaled.
+    rex::thread::Wait(work_event_.get(), false);
   }
 }
 
@@ -292,6 +283,7 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint32_t value) {
 
     // The context ID is a bit in the range of the entire context array.
     uint32_t base_context_id = (r - XmaRegister::Context0Kick) * 32;
+    uint32_t kicked_value = value;
     for (int i = 0; value && i < 32; ++i, value >>= 1) {
       if (value & 1) {
         uint32_t context_id = base_context_id + i;
@@ -301,6 +293,13 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint32_t value) {
     }
     // Signal the decoder thread to start processing.
     work_event_->Set();
+    // Block until the worker finishes, so the game sees updated context data.
+    for (int i = 0; kicked_value && i < 32; ++i, kicked_value >>= 1) {
+      if (kicked_value & 1) {
+        uint32_t context_id = base_context_id + i;
+        contexts_[context_id].WaitForWorkDone();
+      }
+    }
   } else if (r >= XmaRegister::Context0Lock && r <= XmaRegister::Context9Lock) {
     // Context lock command.
     // This requests a lock by flagging the context.

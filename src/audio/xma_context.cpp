@@ -39,7 +39,8 @@ namespace rex::audio {
 
 using stream::BitStream;
 
-XmaContext::XmaContext() = default;
+XmaContext::XmaContext()
+    : work_completion_event_(rex::thread::Event::CreateAutoResetEvent(false)) {}
 
 XmaContext::~XmaContext() {
   if (av_context_) {
