@@ -460,6 +460,9 @@ bool Memory::AccessViolationCallback(std::unique_lock<std::recursive_mutex> glob
   }
   uint32_t virtual_address = HostToGuestVirtual(host_address);
   BaseHeap* heap = LookupHeap(virtual_address);
+  if (!heap) {
+    return false;
+  }
   if (heap->heap_type() != memory::HeapType::kGuestPhysical) {
     return false;
   }
@@ -470,8 +473,82 @@ bool Memory::AccessViolationCallback(std::unique_lock<std::recursive_mutex> glob
   // Will be rounded to physical page boundaries internally, so just pass 1 as
   // the length - guranteed not to cross page boundaries also.
   auto physical_heap = static_cast<PhysicalHeap*>(heap);
-  return physical_heap->TriggerCallbacks(std::move(global_lock_locked_once), virtual_address, 1,
-                                         is_write, false);
+  if (physical_heap->TriggerCallbacks(std::move(global_lock_locked_once), virtual_address, 1,
+                                      is_write, false)) {
+    return true;
+  }
+
+  // Recovery path for stale host protection state in physical memory:
+  // if guest metadata says the page is writable but host protection is still
+  // read-only / no-access, restore write access and resume execution.
+  if (is_write) {
+    constexpr uint32_t kWriteProtectMask =
+        memory::kMemoryProtectWrite | memory::kMemoryProtectWriteCombine;
+    uint32_t guest_protect = 0;
+    bool allow_write = false;
+    if (heap->QueryProtect(virtual_address, &guest_protect) &&
+        (guest_protect & kWriteProtectMask)) {
+      allow_write = true;
+    } else {
+      // If write-watch left current protect stale, trust committed allocation
+      // metadata first for this alias.
+      HeapAllocationInfo guest_info{};
+      if (heap->QueryRegionInfo(virtual_address, &guest_info) &&
+          (guest_info.state & memory::kMemoryAllocationCommit) &&
+          (guest_info.allocation_protect & kWriteProtectMask)) {
+        guest_protect = guest_info.protect;
+        allow_write = true;
+      } else {
+        // Alias-aware fallback: consult canonical 0x00000000 physical heap
+        // metadata when this alias has stale tracking.
+        uint32_t physical_address = GetPhysicalAddress(virtual_address);
+        if (physical_address != UINT32_MAX) {
+          uint32_t physical_protect = 0;
+          if (heaps_.physical.QueryProtect(physical_address, &physical_protect) &&
+              (physical_protect & kWriteProtectMask)) {
+            guest_protect = physical_protect;
+            allow_write = true;
+          } else {
+            HeapAllocationInfo physical_info{};
+            if (heaps_.physical.QueryRegionInfo(physical_address, &physical_info) &&
+                (physical_info.state & memory::kMemoryAllocationCommit) &&
+                (physical_info.allocation_protect & kWriteProtectMask)) {
+              guest_protect = physical_info.protect;
+              allow_write = true;
+            }
+          }
+        }
+      }
+    }
+    if (allow_write) {
+      size_t host_page_size = rex::memory::page_size();
+      uintptr_t page_base =
+          reinterpret_cast<uintptr_t>(host_address) & ~(uintptr_t(host_page_size - 1));
+      if (rex::memory::Protect(reinterpret_cast<void*>(page_base), host_page_size,
+                               rex::memory::PageAccess::kReadWrite, nullptr)) {
+        REXSYS_WARN(
+            "Recovered stale physical page protection for guest {:08X} (host {:016X}, "
+            "guest_protect {:08X})",
+            virtual_address, static_cast<uint64_t>(page_base), guest_protect);
+        return true;
+      }
+    }
+
+    uint32_t current_guest_protect = 0;
+    heap->QueryProtect(virtual_address, &current_guest_protect);
+    uint32_t physical_address = GetPhysicalAddress(virtual_address);
+    uint32_t physical_protect = 0;
+    if (physical_address != UINT32_MAX) {
+      heaps_.physical.QueryProtect(physical_address, &physical_protect);
+    }
+    REXSYS_ERROR(
+        "Unhandled guest physical write fault: guest={:08X} host={:016X} phys={:08X} "
+        "guest_protect={:08X} physical_protect={:08X}",
+        virtual_address, static_cast<uint64_t>(reinterpret_cast<uintptr_t>(host_address)),
+        physical_address, current_guest_protect, physical_protect);
+  }
+
+  return false;
 }
 
 bool Memory::AccessViolationCallbackThunk(
@@ -485,6 +562,9 @@ bool Memory::TriggerPhysicalMemoryCallbacks(
     std::unique_lock<std::recursive_mutex> global_lock_locked_once, uint32_t virtual_address,
     uint32_t length, bool is_write, bool unwatch_exact_range, bool unprotect) {
   BaseHeap* heap = LookupHeap(virtual_address);
+  if (!heap) {
+    return false;
+  }
   if (heap->heap_type() == memory::HeapType::kGuestPhysical) {
     auto physical_heap = static_cast<PhysicalHeap*>(heap);
     return physical_heap->TriggerCallbacks(std::move(global_lock_locked_once), virtual_address,
@@ -972,8 +1052,23 @@ bool BaseHeap::AllocSystemHeap(uint32_t size, uint32_t alignment, uint32_t alloc
 bool BaseHeap::AllocFixed(uint32_t base_address, uint32_t size, uint32_t alignment,
                           uint32_t allocation_type, uint32_t protect) {
   alignment = rex::round_up(alignment, page_size_);
+  if (base_address % alignment != 0) {
+    if (base_address % page_size_ != 0) {
+      REXSYS_ERROR(
+          "BaseHeap::AllocFixed invalid base alignment: base={:08X} page_size={:08X} "
+          "requested_alignment={:08X} heap={:08X}-{:08X}",
+          base_address, page_size_, alignment, heap_base_, heap_base_ + (heap_size_ - 1));
+      return false;
+    }
+    // Fixed allocations can only be guaranteed page-aligned. If callers provide
+    // a stricter alignment for an already-fixed address, fall back to page size.
+    REXSYS_WARN(
+        "BaseHeap::AllocFixed clamping alignment from {:08X} to page size {:08X} for "
+        "base={:08X}",
+        alignment, page_size_, base_address);
+    alignment = page_size_;
+  }
   size = rex::align(size, alignment);
-  assert_true(base_address % alignment == 0);
   uint32_t page_count = get_page_count(size, page_size_, page_size_shift_);
   uint32_t start_page_number = (base_address - heap_base_) >> page_size_shift_;
   uint32_t end_page_number = start_page_number + page_count - 1;
@@ -1055,12 +1150,21 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address, uint32_t 
   uint32_t page_count = get_page_count(size, page_size_, page_size_shift_);
   low_address = std::max(heap_base_, rex::align(low_address, alignment));
   high_address = std::min(heap_base_ + (heap_size_ - 1), rex::align(high_address, alignment));
+  if (high_address < low_address) {
+    REXSYS_ERROR("BaseHeap::Alloc invalid requested range");
+    return false;
+  }
   uint32_t low_page_number = (low_address - heap_base_) >> page_size_shift_;
   uint32_t high_page_number = (high_address - heap_base_) >> page_size_shift_;
   low_page_number = std::min(uint32_t(page_table_.size()) - 1, low_page_number);
   high_page_number = std::min(uint32_t(page_table_.size()) - 1, high_page_number);
+  if (high_page_number < low_page_number) {
+    REXSYS_ERROR("BaseHeap::Alloc invalid requested page range");
+    return false;
+  }
 
-  if (page_count > (high_page_number - low_page_number)) {
+  uint32_t available_page_count = high_page_number - low_page_number + 1;
+  if (!page_count || page_count > available_page_count) {
     REXSYS_ERROR("BaseHeap::Alloc page count too big for requested range");
     return false;
   }
@@ -1074,10 +1178,11 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address, uint32_t 
   uint32_t start_page_number = UINT_MAX;
   uint32_t end_page_number = UINT_MAX;
   uint32_t page_scan_stride = alignment >> page_size_shift_;
-  high_page_number = high_page_number - (high_page_number % page_scan_stride);
+  uint32_t max_base_page_number = high_page_number + 1 - page_count;
   if (top_down) {
-    for (int64_t base_page_number = high_page_number - rex::round_up(page_count, page_scan_stride);
-         base_page_number >= low_page_number; base_page_number -= page_scan_stride) {
+    max_base_page_number -= max_base_page_number % page_scan_stride;
+    for (int64_t base_page_number = max_base_page_number; base_page_number >= low_page_number;
+         base_page_number -= page_scan_stride) {
       if (page_table_[base_page_number].state != 0) {
         // Base page not free, skip to next usable page.
         continue;
@@ -1114,8 +1219,8 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address, uint32_t 
       start_page_number = end_page_number = UINT_MAX;
     }
   } else {
-    for (uint32_t base_page_number = low_page_number;
-         base_page_number <= high_page_number - page_count; base_page_number += page_scan_stride) {
+    for (uint32_t base_page_number = low_page_number; base_page_number <= max_base_page_number;
+         base_page_number += page_scan_stride) {
       if (page_table_[base_page_number].state != 0) {
         // Base page not free, skip to next usable page.
         continue;
@@ -1568,7 +1673,7 @@ bool PhysicalHeap::AllocFixed(uint32_t base_address, uint32_t size, uint32_t ali
   // Given the address we've reserved in the parent heap, pin that here.
   // Shouldn't be possible for it to be allocated already.
   uint32_t address = heap_base_ + parent_base_address - GetPhysicalAddress(heap_base_);
-  if (!BaseHeap::AllocFixed(address, size, alignment, allocation_type, protect)) {
+  if (!BaseHeap::AllocFixed(address, size, page_size_, allocation_type, protect)) {
     REXSYS_ERROR("PhysicalHeap::Alloc unable to pin physical memory in physical heap");
     // TODO(benvanik): don't leak parent memory.
     return false;
@@ -1603,7 +1708,7 @@ bool PhysicalHeap::AllocRange(uint32_t low_address, uint32_t high_address, uint3
   // Given the address we've reserved in the parent heap, pin that here.
   // Shouldn't be possible for it to be allocated already.
   uint32_t address = heap_base_ + parent_address - GetPhysicalAddress(heap_base_);
-  if (!BaseHeap::AllocFixed(address, size, alignment, allocation_type, protect)) {
+  if (!BaseHeap::AllocFixed(address, size, page_size_, allocation_type, protect)) {
     REXSYS_ERROR("PhysicalHeap::Alloc unable to pin physical memory in physical heap");
     // TODO(benvanik): don't leak parent memory.
     return false;
