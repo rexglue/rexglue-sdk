@@ -438,9 +438,8 @@ ppc_u32_result_t MmQueryAddressProtect_entry(ppc_u32_t base_address) {
 
 void MmSetAddressProtect_entry(ppc_pvoid_t base_address, ppc_u32_t region_size,
                                ppc_u32_t protect_bits) {
-  constexpr uint32_t required_protect_bits =
-      X_PAGE_NOACCESS | X_PAGE_READONLY | X_PAGE_READWRITE |
-      X_PAGE_EXECUTE_READ | X_PAGE_EXECUTE_READWRITE;
+  constexpr uint32_t required_protect_bits = X_PAGE_NOACCESS | X_PAGE_READONLY | X_PAGE_READWRITE |
+                                             X_PAGE_EXECUTE_READ | X_PAGE_EXECUTE_READWRITE;
 
   if (rex::bit_count(uint32_t(protect_bits) & required_protect_bits) != 1) {
     assert_false(rex::bit_count(uint32_t(protect_bits) & required_protect_bits) > 1);
@@ -521,14 +520,13 @@ ppc_u32_result_t MmQueryStatistics_entry(ppc_ptr_t<X_MM_QUERY_STATISTICS_RESULT>
   uint32_t unreserved_pages = 0;
   uint32_t used_pages = 0;
   uint32_t reserved_pages_bytes = 0;
-  const memory::BaseHeap* physical_heaps[3] = {
-      kernel_memory()->LookupHeapByType(true, 0x1000),
-      kernel_memory()->LookupHeapByType(true, 0x10000),
-      kernel_memory()->LookupHeapByType(true, 0x1000000)};
+  const memory::BaseHeap* physical_heaps[3] = {kernel_memory()->LookupHeapByType(true, 0x1000),
+                                               kernel_memory()->LookupHeapByType(true, 0x10000),
+                                               kernel_memory()->LookupHeapByType(true, 0x1000000)};
 
-  kernel_memory()->GetHeapsPageStatsSummary(
-      physical_heaps, std::size(physical_heaps), unreserved_pages,
-      reserved_pages, used_pages, reserved_pages_bytes);
+  kernel_memory()->GetHeapsPageStatsSummary(physical_heaps, std::size(physical_heaps),
+                                            unreserved_pages, reserved_pages, used_pages,
+                                            reserved_pages_bytes);
 
   assert_true(used_pages < stats_ptr->total_physical_pages);
 
@@ -536,7 +534,7 @@ ppc_u32_result_t MmQueryStatistics_entry(ppc_ptr_t<X_MM_QUERY_STATISTICS_RESULT>
       stats_ptr->total_physical_pages - stats_ptr->kernel_pages - used_pages;
   stats_ptr->title.total_virtual_memory_bytes = 0x2FFE0000;
   stats_ptr->title.reserved_virtual_memory_bytes = reserved_pages_bytes;
-  stats_ptr->title.physical_pages = 0x00001000;                 // TODO(gibbed): FIXME
+  stats_ptr->title.physical_pages = 0x00001000;  // TODO(gibbed): FIXME
   stats_ptr->title.pool_pages = 0x00000010;
   stats_ptr->title.stack_pages = 0x00000100;
   stats_ptr->title.image_pages = 0x00000100;
@@ -684,7 +682,7 @@ ppc_u32_result_t MmIsAddressValid_entry(ppc_u32_t address) {
 }
 
 ppc_u32_result_t NtAllocateEncryptedMemory_entry(ppc_u32_t unk, ppc_u32_t region_size,
-                                                  ppc_pu32_t base_addr_ptr) {
+                                                 ppc_pu32_t base_addr_ptr) {
   if (!region_size) {
     return X_STATUS_INVALID_PARAMETER;
   }
@@ -699,10 +697,9 @@ ppc_u32_result_t NtAllocateEncryptedMemory_entry(ppc_u32_t unk, ppc_u32_t region
   if (!heap) {
     return X_STATUS_UNSUCCESSFUL;
   }
-  if (!heap->AllocRange(0x8C000000, 0x8FFFFFFF, region_size_adjusted, 64 * 1024,
-                        memory::kMemoryAllocationCommit,
-                        memory::kMemoryProtectRead | memory::kMemoryProtectWrite,
-                        false, &out_address)) {
+  if (!heap->AllocRange(
+          0x8C000000, 0x8FFFFFFF, region_size_adjusted, 64 * 1024, memory::kMemoryAllocationCommit,
+          memory::kMemoryProtectRead | memory::kMemoryProtectWrite, false, &out_address)) {
     return X_STATUS_UNSUCCESSFUL;
   }
 
@@ -711,8 +708,7 @@ ppc_u32_result_t NtAllocateEncryptedMemory_entry(ppc_u32_t unk, ppc_u32_t region
   return X_STATUS_SUCCESS;
 }
 
-ppc_u32_result_t NtFreeEncryptedMemory_entry(ppc_u32_t region_type,
-                                              ppc_pu32_t base_address_ptr) {
+ppc_u32_result_t NtFreeEncryptedMemory_entry(ppc_u32_t region_type, ppc_pu32_t base_address_ptr) {
   if (!base_address_ptr) {
     return X_STATUS_INVALID_PARAMETER;
   }
@@ -721,8 +717,7 @@ ppc_u32_result_t NtFreeEncryptedMemory_entry(ppc_u32_t region_type,
   if (!heap) {
     return X_STATUS_INVALID_PARAMETER;
   }
-  const uint32_t encrypt_address =
-      heap->heap_base() + heap->page_size() * (*base_address_ptr);
+  const uint32_t encrypt_address = heap->heap_base() + heap->page_size() * (*base_address_ptr);
 
   auto encrypt_heap = kernel_memory()->LookupHeap(encrypt_address);
   if (!encrypt_heap || encrypt_heap->heap_type() != memory::HeapType::kGuestXex) {
@@ -762,8 +757,7 @@ XBOXKRNL_EXPORT(__imp__KeUnlockL2, rex::kernel::xboxkrnl::KeUnlockL2_entry)
 XBOXKRNL_EXPORT(__imp__MmCreateKernelStack, rex::kernel::xboxkrnl::MmCreateKernelStack_entry)
 XBOXKRNL_EXPORT(__imp__MmDeleteKernelStack, rex::kernel::xboxkrnl::MmDeleteKernelStack_entry)
 
-XBOXKRNL_EXPORT(__imp__ExAllocatePoolWithTag,
-                rex::kernel::xboxkrnl::ExAllocatePoolWithTag_entry)
+XBOXKRNL_EXPORT(__imp__ExAllocatePoolWithTag, rex::kernel::xboxkrnl::ExAllocatePoolWithTag_entry)
 XBOXKRNL_EXPORT_STUB(__imp__ExQueryPoolBlockSize);
 XBOXKRNL_EXPORT_STUB(__imp__MmDoubleMapMemory);
 XBOXKRNL_EXPORT_STUB(__imp__MmUnmapMemory);
@@ -776,8 +770,7 @@ XBOXKRNL_EXPORT_STUB(__imp__MmUnlockAndUnmapSegmentArray);
 XBOXKRNL_EXPORT_STUB(__imp__MmUnmapIoSpace);
 XBOXKRNL_EXPORT(__imp__NtAllocateEncryptedMemory,
                 rex::kernel::xboxkrnl::NtAllocateEncryptedMemory_entry)
-XBOXKRNL_EXPORT(__imp__NtFreeEncryptedMemory,
-                rex::kernel::xboxkrnl::NtFreeEncryptedMemory_entry)
+XBOXKRNL_EXPORT(__imp__NtFreeEncryptedMemory, rex::kernel::xboxkrnl::NtFreeEncryptedMemory_entry)
 XBOXKRNL_EXPORT_STUB(__imp__ExDebugMonitorService);
 XBOXKRNL_EXPORT_STUB(__imp__MmDbgReadCheck);
 XBOXKRNL_EXPORT_STUB(__imp__MmDbgReleaseAddress);

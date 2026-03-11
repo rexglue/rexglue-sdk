@@ -16,13 +16,14 @@
 
 namespace rex::system {
 
+struct XDPC;
+
 struct X_KTIMER {
-  X_DISPATCH_HEADER header;
-  rex::be<uint64_t> due_time;
-  rex::be<uint32_t> timer_list_flink;
-  rex::be<uint32_t> timer_list_blink;
-  rex::be<uint32_t> dpc;
-  rex::be<uint32_t> period;
+  X_DISPATCH_HEADER header;         // 0x0
+  rex::be<uint64_t> due_time;       // 0x10
+  X_LIST_ENTRY table_bucket_entry;  // 0x18
+  TypedGuestPointer<XDPC> dpc;      // 0x20
+  rex::be<uint32_t> period;         // 0x24
 };
 static_assert_size(X_KTIMER, 0x28);
 

@@ -171,4 +171,22 @@ struct X_SLIST_HEADER {
 };
 static_assert_size(X_SLIST_HEADER, 8);
 
+struct X_KSPINLOCK {
+  be<uint32_t> prcb_of_owner;
+};
+static_assert_size(X_KSPINLOCK, 4);
+
+// Typed guest pointer - holds a guest address but provides type documentation.
+// Implicitly converts to/from uint32_t via the be<uint32_t> member.
+template <typename T>
+struct TypedGuestPointer {
+  be<uint32_t> value;
+
+  operator uint32_t() const { return value; }
+  TypedGuestPointer& operator=(uint32_t v) {
+    value = v;
+    return *this;
+  }
+};
+
 }  // namespace rex

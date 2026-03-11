@@ -85,27 +85,56 @@ ppc_u32_result_t ObReferenceObjectByHandle_entry(ppc_u32_t handle, ppc_u32_t obj
                                                  ppc_pu32_t out_object_ptr) {
   REXKRNL_IMPORT_TRACE("ObReferenceObjectByHandle", "handle={:#x} type={:#x}", (uint32_t)handle,
                        (uint32_t)object_type_ptr);
-  // These values come from how Xenia handles uninitialized kernel data exports.
-  // D###BEEF where ### is the ordinal.
-  const static std::unordered_map<XObject::Type, uint32_t> object_types = {
-      {XObject::Type::Event, 0xD00EBEEF},
-      {XObject::Type::Semaphore, 0xD017BEEF},
-      {XObject::Type::Thread, 0xD01BBEEF}};
-  auto object = kernel_state()->object_table()->LookupObject<XObject>(handle);
+
+  object_ref<XObject> object;
+
+  // Handle pseudo-handles.
+  uint32_t handle_val = static_cast<uint32_t>(handle);
+  if (handle_val == 0xFFFFFFFE) {
+    // CurrentThread pseudo-handle.
+    auto thread = XThread::GetCurrentThread();
+    if (!thread) {
+      return X_STATUS_INVALID_HANDLE;
+    }
+    object = retain_object(static_cast<XObject*>(thread));
+  } else {
+    object = kernel_state()->object_table()->LookupObject<XObject>(handle);
+  }
+
   if (!object) {
     return X_STATUS_INVALID_HANDLE;
   }
 
   uint32_t native_ptr = object->guest_object();
-  auto object_type = object_types.find(object->type());
-  if (object_type != object_types.end()) {
-    if (object_type_ptr && object_type_ptr != object_type->second) {
+
+  // Type check using real KernelGuestGlobals addresses.
+  if (object_type_ptr) {
+    uint32_t globals_base = kernel_state()->GetKernelGuestGlobals();
+    uint32_t expected_type = 0;
+    switch (object->type()) {
+      case XObject::Type::Thread:
+        expected_type = globals_base + offsetof(KernelGuestGlobals, ExThreadObjectType);
+        break;
+      case XObject::Type::Event:
+        expected_type = globals_base + offsetof(KernelGuestGlobals, ExEventObjectType);
+        break;
+      case XObject::Type::Mutant:
+        expected_type = globals_base + offsetof(KernelGuestGlobals, ExMutantObjectType);
+        break;
+      case XObject::Type::Semaphore:
+        expected_type = globals_base + offsetof(KernelGuestGlobals, ExSemaphoreObjectType);
+        break;
+      case XObject::Type::Timer:
+        expected_type = globals_base + offsetof(KernelGuestGlobals, ExTimerObjectType);
+        break;
+      default:
+        break;
+    }
+    if (expected_type && object_type_ptr != expected_type) {
       return X_STATUS_OBJECT_TYPE_MISMATCH;
     }
-  } else {
-    assert_unhandled_case(object->type());
-    native_ptr = 0xDEADF00D;
   }
+
   // Caller takes the reference.
   // It's released in ObDereferenceObject.
   object->RetainHandle();

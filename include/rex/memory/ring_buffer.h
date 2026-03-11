@@ -35,7 +35,9 @@ class RingBuffer {
 
   ring_size_t read_offset() const { return read_offset_; }
   uintptr_t read_ptr() const { return uintptr_t(buffer_) + static_cast<uintptr_t>(read_offset_); }
-  void set_read_offset(size_t offset) { read_offset_ = static_cast<ring_size_t>(offset) % capacity_; }
+  void set_read_offset(size_t offset) {
+    read_offset_ = static_cast<ring_size_t>(offset) % capacity_;
+  }
   ring_size_t read_count() const {
     ring_size_t read_offs = read_offset_;
     ring_size_t write_offs = write_offset_;
@@ -49,7 +51,9 @@ class RingBuffer {
 
   ring_size_t write_offset() const { return write_offset_; }
   uintptr_t write_ptr() const { return uintptr_t(buffer_) + static_cast<uintptr_t>(write_offset_); }
-  void set_write_offset(size_t offset) { write_offset_ = static_cast<ring_size_t>(offset) % capacity_; }
+  void set_write_offset(size_t offset) {
+    write_offset_ = static_cast<ring_size_t>(offset) % capacity_;
+  }
   ring_size_t write_count() const {
     ring_size_t read_offs = read_offset_;
     ring_size_t write_offs = write_offset_;

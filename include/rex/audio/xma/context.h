@@ -166,9 +166,7 @@ class XmaContext {
   void set_is_allocated(bool is_allocated) {
     is_allocated_.store(is_allocated, std::memory_order_release);
   }
-  void set_is_enabled(bool is_enabled) {
-    is_enabled_.store(is_enabled, std::memory_order_release);
-  }
+  void set_is_enabled(bool is_enabled) { is_enabled_.store(is_enabled, std::memory_order_release); }
 
   void SignalWorkDone() {
     if (work_completion_event_) {

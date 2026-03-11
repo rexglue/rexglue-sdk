@@ -9,6 +9,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <algorithm>
 #include <cstring>
 
 #include <fmt/format.h>
@@ -27,6 +28,7 @@
 #include <rex/system/processor.h>
 #include <rex/system/thread_state.h>
 #include <rex/system/user_module.h>
+#include <rex/kernel/xboxkrnl/threading.h>
 #include <rex/system/xevent.h>
 #include <rex/system/xmutant.h>
 #include <rex/system/xthread.h>
@@ -58,7 +60,7 @@ XThread::XThread(KernelState* kernel_state, uint32_t stack_size, uint32_t xapi_t
       thread_id_(++next_xthread_id_),
       guest_thread_(guest_thread),
       main_thread_(main_thread),
-      apc_list_(kernel_state->memory()) {
+      apc_lock_old_irql_(0) {
   creation_params_.stack_size = stack_size;
   creation_params_.xapi_thread_startup = xapi_thread_startup;
   creation_params_.start_address = start_address;
@@ -178,63 +180,84 @@ static uint8_t GetFakeCpuNumber(uint8_t proc_mask) {
 
 void XThread::InitializeGuestObject() {
   auto guest_thread = guest_object<X_KTHREAD>();
+  uint32_t guest_ptr = guest_object();
 
-  // Setup the thread state block (last error/etc).
-  uint8_t* p = memory()->TranslateVirtual(guest_object());
-  guest_thread->header.type = 6;
+  guest_thread->header.type = 6;  // ThreadObject
   guest_thread->suspend_count = (creation_params_.creation_flags & X_CREATE_SUSPENDED) ? 1 : 0;
 
-  memory::store_and_swap<uint32_t>(p + 0x010, guest_object() + 0x010);
-  memory::store_and_swap<uint32_t>(p + 0x014, guest_object() + 0x010);
+  // Self-referencing pointers for wait timeout timer/block
+  guest_thread->unk_10 = guest_ptr + 0x010;
+  guest_thread->unk_14 = guest_ptr + 0x010;
 
-  memory::store_and_swap<uint32_t>(p + 0x040, guest_object() + 0x018 + 8);
-  memory::store_and_swap<uint32_t>(p + 0x044, guest_object() + 0x018 + 8);
-  memory::store_and_swap<uint32_t>(p + 0x048, guest_object());
-  memory::store_and_swap<uint32_t>(p + 0x04C, guest_object() + 0x018);
+  guest_thread->wait_timeout_block.wait_list_entry.flink_ptr = guest_ptr + 0x20;
+  guest_thread->wait_timeout_block.wait_list_entry.blink_ptr = guest_ptr + 0x20;
+  guest_thread->wait_timeout_block.thread = guest_ptr;
+  guest_thread->wait_timeout_block.object = guest_ptr + 0x18;
+  guest_thread->wait_timeout_block.wait_result_xstatus = 0x0100;
+  guest_thread->wait_timeout_block.wait_type = 0x0201;
 
-  memory::store_and_swap<uint16_t>(p + 0x054, 0x102);
-  memory::store_and_swap<uint16_t>(p + 0x056, 1);
-  memory::store_and_swap<uint32_t>(p + 0x05C, stack_base_);
-  memory::store_and_swap<uint32_t>(p + 0x060, stack_limit_);
-  memory::store_and_swap<uint32_t>(p + 0x068, tls_static_address_);
-  memory::store_and_swap<uint8_t>(p + 0x06C, 0);
-  memory::store_and_swap<uint32_t>(p + 0x074, guest_object() + 0x074);
-  memory::store_and_swap<uint32_t>(p + 0x078, guest_object() + 0x074);
-  memory::store_and_swap<uint32_t>(p + 0x07C, guest_object() + 0x07C);
-  memory::store_and_swap<uint32_t>(p + 0x080, guest_object() + 0x07C);
+  guest_thread->stack_base = stack_base_;
+  guest_thread->stack_limit = stack_limit_;
+  guest_thread->stack_kernel = stack_base_ - 240;
+  guest_thread->tls_address = tls_static_address_;
+  guest_thread->thread_state = 0;
+
+  // Initialize APC lists (kernel + user mode)
+  guest_thread->apc_lists[0].Initialize(memory());
+  guest_thread->apc_lists[1].Initialize(memory());
+
   // Set process pointer - use guest_process if provided, else default to title process.
   uint32_t process_ptr = creation_params_.guest_process
                              ? creation_params_.guest_process
                              : kernel_state_->process_info_block_address();
-  memory::store_and_swap<uint32_t>(p + 0x084, process_ptr);
-  memory::store_and_swap<uint8_t>(p + 0x08B, 1);
+  guest_thread->process = process_ptr;
+  guest_thread->may_queue_apcs = 1;
 
-  // Set per-thread process type from the target process (if available).
+  // Set PRCB pointers (derived from this thread's PCR).
+  uint32_t kpcrb = pcr_address_ + offsetof(X_KPCR, prcb_data);
+  guest_thread->a_prcb_ptr = kpcrb;
+  guest_thread->another_prcb_ptr = kpcrb;
+
+  // PPCContext for spinlock helpers (valid before thread runs; r13 set at construction).
+  auto* ctx = thread_state_->context();
+
+  // Set per-thread process type and link into process thread list.
   if (process_ptr) {
-    auto target_process = memory()->TranslateVirtual<ProcessInfoBlock*>(process_ptr);
+    auto target_process = memory()->TranslateVirtual<X_KPROCESS*>(process_ptr);
     guest_thread->process_type = target_process->process_type;
     guest_thread->process_type_dup = target_process->process_type;
+
+    auto old_irql = kernel::xboxkrnl::xeKeKfAcquireSpinLock(
+        ctx, &target_process->thread_list_spinlock);
+    util::XeInsertTailList(&target_process->thread_list,
+                           &guest_thread->process_threads, memory());
+    target_process->thread_count = target_process->thread_count + 1;
+    kernel::xboxkrnl::xeKeKfReleaseSpinLock(
+        ctx, &target_process->thread_list_spinlock, old_irql);
   } else {
     guest_thread->process_type = X_PROCTYPE_USER;
     guest_thread->process_type_dup = X_PROCTYPE_USER;
   }
-  // 0xD4 = APC
-  // 0xFC = semaphore (ptr, 0, 2)
-  // 0xA88 = APC
-  // 0x18 = timer
-  memory::store_and_swap<uint32_t>(p + 0x09C, 0xFDFFD7FF);
+
+  guest_thread->msr_mask = 0xFDFFD7FF;
   // current_cpu is expected to be initialized externally via SetActiveCpu.
-  memory::store_and_swap<uint32_t>(p + 0x0D0, stack_base_);
-  memory::store_and_swap<uint64_t>(p + 0x130, chrono::Clock::QueryGuestSystemTime());
-  memory::store_and_swap<uint32_t>(p + 0x144, guest_object() + 0x144);
-  memory::store_and_swap<uint32_t>(p + 0x148, guest_object() + 0x144);
-  memory::store_and_swap<uint32_t>(p + 0x14C, thread_id_);
-  memory::store_and_swap<uint32_t>(p + 0x150, creation_params_.start_address);
-  memory::store_and_swap<uint32_t>(p + 0x154, guest_object() + 0x154);
-  memory::store_and_swap<uint32_t>(p + 0x158, guest_object() + 0x154);
-  memory::store_and_swap<uint32_t>(p + 0x160, 0);  // last error
-  memory::store_and_swap<uint32_t>(p + 0x16C, creation_params_.creation_flags);
-  memory::store_and_swap<uint32_t>(p + 0x17C, 1);
+  guest_thread->stack_alloc_base = stack_base_;
+  guest_thread->create_time = chrono::Clock::QueryGuestSystemTime();
+
+  // Initialize timer_list as self-referencing
+  guest_thread->timer_list.flink_ptr = guest_ptr + offsetof(X_KTHREAD, timer_list);
+  guest_thread->timer_list.blink_ptr = guest_ptr + offsetof(X_KTHREAD, timer_list);
+
+  guest_thread->thread_id = thread_id_;
+  guest_thread->start_address = creation_params_.start_address;
+
+  // Initialize unk_154 list as self-referencing
+  guest_thread->unk_154.flink_ptr = guest_ptr + offsetof(X_KTHREAD, unk_154);
+  guest_thread->unk_154.blink_ptr = guest_ptr + offsetof(X_KTHREAD, unk_154);
+
+  guest_thread->last_error = 0;
+  guest_thread->creation_flags = creation_params_.creation_flags;
+  guest_thread->unk_17C = 1;
 }
 
 bool XThread::AllocateStack(uint32_t size) {
@@ -373,12 +396,15 @@ X_STATUS XThread::Create() {
 
   pcr->tls_ptr = tls_static_address_;
   pcr->pcr_ptr = pcr_address_;
-  pcr->current_thread = guest_object();
+  pcr->prcb_data.current_thread = guest_object();
+  pcr->prcb = pcr_address_ + offsetof(X_KPCR, prcb_data);
+  pcr->host_stash = reinterpret_cast<uint64_t>(thread_state_->context());
+  pcr->current_irql = 0;
 
   pcr->stack_base_ptr = stack_base_;
   pcr->stack_end_ptr = stack_limit_;
 
-  pcr->dpc_active = 0;  // DPC active bool?
+  pcr->prcb_data.dpc_active = 0;
 
   // Always retain when starting - the thread owns itself until exited.
   RetainHandle();
@@ -454,6 +480,19 @@ X_STATUS XThread::Exit(int exit_code) {
   X_KTHREAD* thread = guest_object<X_KTHREAD>();
   thread->header.signal_state = 1;
   thread->exit_status = exit_code;
+
+  // Unlink thread from process thread list.
+  uint32_t process_guest = thread->process;
+  if (process_guest) {
+    auto* ctx = thread_state_->context();
+    auto kprocess = memory()->TranslateVirtual<X_KPROCESS*>(process_guest);
+    auto old_irql = kernel::xboxkrnl::xeKeKfAcquireSpinLock(
+        ctx, &kprocess->thread_list_spinlock);
+    util::XeRemoveEntryList(&thread->process_threads, memory());
+    kprocess->thread_count = kprocess->thread_count - 1;
+    kernel::xboxkrnl::xeKeKfReleaseSpinLock(
+        ctx, &kprocess->thread_list_spinlock, old_irql);
+  }
 
   kernel_state()->OnThreadExit(this);
 
@@ -604,25 +643,19 @@ void XThread::LeaveCriticalRegion() {
   }
 }
 
-uint32_t XThread::RaiseIrql(uint32_t new_irql) {
-  return irql_.exchange(new_irql);
-}
-
-void XThread::LowerIrql(uint32_t new_irql) {
-  irql_ = new_irql;
-}
-
-void XThread::CheckApcs() {
-  DeliverAPCs();
-}
-
 void XThread::LockApc() {
-  global_critical_region_.mutex().lock();
+  auto kthread = guest_object<X_KTHREAD>();
+  apc_lock_old_irql_ = kernel::xboxkrnl::xeKeKfAcquireSpinLock(
+      thread_state_->context(), &kthread->apc_lock);
 }
 
 void XThread::UnlockApc(bool queue_delivery) {
-  bool needs_apc = apc_list_.HasPending();
-  global_critical_region_.mutex().unlock();
+  auto kthread = guest_object<X_KTHREAD>();
+  auto mem = memory();
+  bool needs_apc =
+      !kthread->apc_lists[0].empty(mem) || !kthread->apc_lists[1].empty(mem);
+  kernel::xboxkrnl::xeKeKfReleaseSpinLock(
+      thread_state_->context(), &kthread->apc_lock, apc_lock_old_irql_);
   if (needs_apc && queue_delivery) {
     thread_->QueueUserCallback([this]() { DeliverAPCs(); });
   }
@@ -630,142 +663,145 @@ void XThread::UnlockApc(bool queue_delivery) {
 
 void XThread::EnqueueApc(uint32_t normal_routine, uint32_t normal_context, uint32_t arg1,
                          uint32_t arg2) {
-  LockApc();
-
-  // Allocate APC.
-  // We'll tag it as special and free it when dispatched.
   uint32_t apc_ptr = memory()->SystemHeapAlloc(XAPC::kSize);
-  auto apc = reinterpret_cast<XAPC*>(memory()->TranslateVirtual(apc_ptr));
+  if (!apc_ptr) {
+    return;
+  }
+  auto apc = memory()->TranslateVirtual<XAPC*>(apc_ptr);
+  kernel::xboxkrnl::xeKeInitializeApc(apc, guest_object(), XAPC::kDummyKernelRoutine,
+                                       XAPC::kDummyRundownRoutine, normal_routine,
+                                       1 /* user apc mode */, normal_context);
 
-  apc->Initialize();
-  apc->kernel_routine = XAPC::kDummyKernelRoutine;
-  apc->rundown_routine = XAPC::kDummyRundownRoutine;
-  apc->normal_routine = normal_routine;
-  apc->normal_context = normal_context;
-  apc->arg1 = arg1;
-  apc->arg2 = arg2;
-  apc->enqueued = 1;
-
-  uint32_t list_entry_ptr = apc_ptr + 8;
-  apc_list_.Insert(list_entry_ptr);
-
-  UnlockApc(true);
+  if (!kernel::xboxkrnl::xeKeInsertQueueApc(apc, arg1, arg2, 0,
+                                             thread_state_->context())) {
+    memory()->SystemHeapFree(apc_ptr);
+    return;
+  }
+  thread_->QueueUserCallback([this]() { DeliverAPCs(); });
 }
 
 void XThread::DeliverAPCs() {
-  // https://www.drdobbs.com/inside-nts-asynchronous-procedure-call/184416590?pgno=1
-  // https://www.drdobbs.com/inside-nts-asynchronous-procedure-call/184416590?pgno=7
-  // TODO(tomc): uh I think this needs to be fixed. without the processor object managing things,
-  //             I don't think any apcs are being delivered...
-  // !critical
-
-  LockApc();
+  auto mem = memory();
   auto kthread = guest_object<X_KTHREAD>();
-  while (apc_list_.HasPending() && kthread->apc_disable_count == 0) {
-    // Get APC entry (offset for LIST_ENTRY offset) and cache what we need.
-    // Calling the routine may delete the memory/overwrite it.
-    uint32_t apc_ptr = apc_list_.Shift() - 8;
-    auto apc = reinterpret_cast<XAPC*>(memory()->TranslateVirtual(apc_ptr));
+  auto* ctx = thread_state_->context();
+
+  // Process user APCs (list[1]).
+  auto old_irql = kernel::xboxkrnl::xeKeKfAcquireSpinLock(ctx, &kthread->apc_lock);
+  auto& user_apc_queue = kthread->apc_lists[1];
+
+  while (!user_apc_queue.empty(mem) && kthread->apc_disable_count == 0) {
+    XAPC* apc = user_apc_queue.HeadObject(mem);
+    uint32_t apc_ptr = mem->HostToGuestVirtual(apc);
     bool needs_freeing = apc->kernel_routine == XAPC::kDummyKernelRoutine;
 
     REXSYS_DEBUG("Delivering APC to {:08X}", uint32_t(apc->normal_routine));
 
-    // Mark as uninserted so that it can be reinserted again by the routine.
+    // Dequeue and mark as uninserted.
+    util::XeRemoveEntryList(&apc->list_entry, mem);
     apc->enqueued = 0;
 
-    // TODO(tomc): review this. i think its right but I am not 100% on it.
+    kernel::xboxkrnl::xeKeKfReleaseSpinLock(ctx, &kthread->apc_lock, old_irql);
+
     // Call kernel routine.
     // The routine can modify all of its arguments before passing it on.
     // Since we need to give guest accessible pointers over, we copy things
     // into and out of scratch.
-    uint8_t* scratch_ptr = memory()->TranslateVirtual(scratch_address_);
+    uint8_t* scratch_ptr = mem->TranslateVirtual(scratch_address_);
     memory::store_and_swap<uint32_t>(scratch_ptr + 0, apc->normal_routine);
     memory::store_and_swap<uint32_t>(scratch_ptr + 4, apc->normal_context);
     memory::store_and_swap<uint32_t>(scratch_ptr + 8, apc->arg1);
     memory::store_and_swap<uint32_t>(scratch_ptr + 12, apc->arg2);
     if (apc->kernel_routine != XAPC::kDummyKernelRoutine) {
-      // kernel_routine(apc_address, &normal_routine, &normal_context, &arg1, &arg2)
       auto fn = kernel_state()->processor()->GetFunction(apc->kernel_routine);
       if (fn) {
         auto* ctx = thread_state_->context();
         ctx->r3.u64 = apc_ptr;
-        ctx->r4.u64 = scratch_address_ + 0;   // &normal_routine
-        ctx->r5.u64 = scratch_address_ + 4;   // &normal_context
-        ctx->r6.u64 = scratch_address_ + 8;   // &arg1
-        ctx->r7.u64 = scratch_address_ + 12;  // &arg2
-        fn(*ctx, memory()->virtual_membase());
+        ctx->r4.u64 = scratch_address_ + 0;
+        ctx->r5.u64 = scratch_address_ + 4;
+        ctx->r6.u64 = scratch_address_ + 8;
+        ctx->r7.u64 = scratch_address_ + 12;
+        fn(*ctx, mem->virtual_membase());
       } else {
         REXSYS_WARN("DeliverAPCs: kernel_routine {:08X} not found", uint32_t(apc->kernel_routine));
       }
+    } else {
+      mem->SystemHeapFree(apc_ptr);
+      needs_freeing = false;
     }
+
     uint32_t normal_routine = memory::load_and_swap<uint32_t>(scratch_ptr + 0);
     uint32_t normal_context = memory::load_and_swap<uint32_t>(scratch_ptr + 4);
     uint32_t arg1 = memory::load_and_swap<uint32_t>(scratch_ptr + 8);
     uint32_t arg2 = memory::load_and_swap<uint32_t>(scratch_ptr + 12);
 
-    // Call the normal routine. Note that it may have been killed by the kernel
-    // routine.
     if (normal_routine) {
-      UnlockApc(false);
       auto fn = kernel_state()->processor()->GetFunction(normal_routine);
       if (fn) {
         auto* ctx = thread_state_->context();
         ctx->r3.u64 = normal_context;
         ctx->r4.u64 = arg1;
         ctx->r5.u64 = arg2;
-        fn(*ctx, memory()->virtual_membase());
+        fn(*ctx, mem->virtual_membase());
       } else {
         REXSYS_WARN("DeliverAPCs: normal_routine {:08X} not found", normal_routine);
       }
-      LockApc();
     }
 
     REXSYS_DEBUG("Completed delivery of APC to {:08X} ({:08X}, {:08X}, {:08X})", normal_routine,
                  normal_context, arg1, arg2);
 
-    // If special, free it.
     if (needs_freeing) {
-      memory()->SystemHeapFree(apc_ptr);
+      mem->SystemHeapFree(apc_ptr);
     }
+
+    old_irql = kernel::xboxkrnl::xeKeKfAcquireSpinLock(ctx, &kthread->apc_lock);
   }
-  UnlockApc(true);
+  kernel::xboxkrnl::xeKeKfReleaseSpinLock(ctx, &kthread->apc_lock, old_irql);
 }
 
 void XThread::RundownAPCs() {
   assert_true(XThread::GetCurrentThread() == this);
-  LockApc();
-  while (apc_list_.HasPending()) {
-    // Get APC entry (offset for LIST_ENTRY offset) and cache what we need.
-    // Calling the routine may delete the memory/overwrite it.
-    uint32_t apc_ptr = apc_list_.Shift() - 8;
-    auto apc = reinterpret_cast<XAPC*>(memory()->TranslateVirtual(apc_ptr));
-    bool needs_freeing = apc->kernel_routine == XAPC::kDummyKernelRoutine;
+  auto mem = memory();
+  auto kthread = guest_object<X_KTHREAD>();
+  auto* ctx = thread_state_->context();
 
-    // Mark as uninserted so that it can be reinserted again by the routine.
-    apc->enqueued = 0;
+  // Rundown both user (1) and kernel (0) APC lists.
+  for (int mode = 1; mode >= 0; --mode) {
+    auto old_irql = kernel::xboxkrnl::xeKeKfAcquireSpinLock(ctx, &kthread->apc_lock);
+    auto& apc_queue = kthread->apc_lists[mode];
 
-    // Call the rundown routine.
-    if (apc->rundown_routine == XAPC::kDummyRundownRoutine) {
-      // No-op.
-    } else if (apc->rundown_routine) {
-      // TODO(tomc): review this for APC/DPC functionality.
-      auto fn = kernel_state()->processor()->GetFunction(apc->rundown_routine);
-      if (fn) {
-        auto* ctx = thread_state_->context();
-        ctx->r3.u64 = apc_ptr;
-        fn(*ctx, memory()->virtual_membase());
-      } else {
-        REXSYS_WARN("RundownAPCs: rundown_routine {:08X} not found",
-                    uint32_t(apc->rundown_routine));
+    while (!apc_queue.empty(mem)) {
+      XAPC* apc = apc_queue.HeadObject(mem);
+      uint32_t apc_ptr = mem->HostToGuestVirtual(apc);
+      bool needs_freeing = apc->kernel_routine == XAPC::kDummyKernelRoutine;
+
+      util::XeRemoveEntryList(&apc->list_entry, mem);
+      apc->enqueued = 0;
+
+      kernel::xboxkrnl::xeKeKfReleaseSpinLock(ctx, &kthread->apc_lock, old_irql);
+
+      if (apc->rundown_routine == XAPC::kDummyRundownRoutine) {
+        // No-op.
+      } else if (apc->rundown_routine) {
+        auto fn = kernel_state()->processor()->GetFunction(apc->rundown_routine);
+        if (fn) {
+          auto* ctx = thread_state_->context();
+          ctx->r3.u64 = apc_ptr;
+          fn(*ctx, mem->virtual_membase());
+        } else {
+          REXSYS_WARN("RundownAPCs: rundown_routine {:08X} not found",
+                      uint32_t(apc->rundown_routine));
+        }
       }
-    }
 
-    // If special, free it.
-    if (needs_freeing) {
-      memory()->SystemHeapFree(apc_ptr);
+      if (needs_freeing) {
+        mem->SystemHeapFree(apc_ptr);
+      }
+
+      old_irql = kernel::xboxkrnl::xeKeKfAcquireSpinLock(ctx, &kthread->apc_lock);
     }
+    kernel::xboxkrnl::xeKeKfReleaseSpinLock(ctx, &kthread->apc_lock, old_irql);
   }
-  UnlockApc(true);
 }
 
 int32_t XThread::QueryPriority() {
@@ -774,6 +810,11 @@ int32_t XThread::QueryPriority() {
 
 void XThread::SetPriority(int32_t increment) {
   priority_ = increment;
+
+  // Write priority to guest X_KTHREAD struct.
+  auto kthread = guest_object<X_KTHREAD>();
+  kthread->priority = static_cast<uint8_t>(std::clamp(increment, 0, 31));
+
   int32_t target_priority = 0;
   if (increment > 0x22) {
     target_priority = rex::thread::ThreadPriority::kHighest;
@@ -796,8 +837,18 @@ void XThread::SetAffinity(uint32_t affinity) {
 }
 
 uint8_t XThread::active_cpu() const {
+  // Prefer reading from guest KTHREAD (always available for guest threads,
+  // kept in sync by SetActiveCpu). Avoids dependency on pcr_address_ which
+  // may not be set yet if the thread is mid-creation.
+  if (is_guest_thread()) {
+    auto* kthread = memory()->TranslateVirtual<const X_KTHREAD*>(guest_object());
+    return kthread->current_cpu;
+  }
+  if (!pcr_address_) {
+    return 0;
+  }
   const X_KPCR& pcr = *memory()->TranslateVirtual<const X_KPCR*>(pcr_address_);
-  return pcr.current_cpu;
+  return pcr.prcb_data.current_cpu;
 }
 
 void XThread::SetActiveCpu(uint8_t cpu_index) {
@@ -805,12 +856,16 @@ void XThread::SetActiveCpu(uint8_t cpu_index) {
 
   assert_true(cpu_index < 6);
 
-  X_KPCR& pcr = *memory()->TranslateVirtual<X_KPCR*>(pcr_address_);
-  pcr.current_cpu = cpu_index;
-
+  // Write to guest KTHREAD (always available for guest threads).
   if (is_guest_thread()) {
     X_KTHREAD& thread_object = *memory()->TranslateVirtual<X_KTHREAD*>(guest_object());
     thread_object.current_cpu = cpu_index;
+  }
+
+  // Write to PCR if allocated (may not be during early creation).
+  if (pcr_address_) {
+    X_KPCR& pcr = *memory()->TranslateVirtual<X_KPCR*>(pcr_address_);
+    pcr.prcb_data.current_cpu = cpu_index;
   }
 
   if (rex::thread::logical_processor_count() >= 6) {
@@ -1405,7 +1460,7 @@ bool XThread::Save(stream::ByteStream* stream) {
   state.thread_id = thread_id_;
   state.is_main_thread = main_thread_;
   state.is_running = running_;
-  state.apc_head = apc_list_.head();
+  state.apc_head = 0;  // APCs now live in guest-memory typed lists
   state.tls_static_address = tls_static_address_;
   state.tls_dynamic_address = tls_dynamic_address_;
   state.tls_total_size = tls_total_size_;
@@ -1449,7 +1504,7 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state, stream::ByteStre
   thread->thread_id_ = state.thread_id;
   thread->main_thread_ = state.is_main_thread;
   thread->running_ = state.is_running;
-  thread->apc_list_.set_head(state.apc_head);
+  // state.apc_head is ignored - APCs live in guest-memory typed lists
   thread->tls_static_address_ = state.tls_static_address;
   thread->tls_dynamic_address_ = state.tls_dynamic_address;
   thread->tls_total_size_ = state.tls_total_size;
@@ -1458,8 +1513,6 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state, stream::ByteStre
   thread->stack_limit_ = state.stack_limit;
   thread->stack_alloc_base_ = state.stack_alloc_base;
   thread->stack_alloc_size_ = state.stack_alloc_size;
-
-  thread->apc_list_.set_memory(kernel_state->memory());
 
   // Register now that we know our thread ID.
   kernel_state->RegisterThread(thread);
