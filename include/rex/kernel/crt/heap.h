@@ -10,6 +10,7 @@
 
 #include <cstdint>
 #include <mutex>
+#include <vector>
 
 #include <rex/cvar.h>
 
@@ -42,14 +43,24 @@ class ReXHeap {
   HeapDiagnostics GetDiagnostics() const;
 
  private:
-  O1HeapInstance* heap_ = nullptr;
-  std::mutex mutex_;
+  struct HeapSegment {
+    O1HeapInstance* heap = nullptr;
+    uint32_t guest_base = 0;
+    uint32_t guest_end = 0;
+  };
+
+  mutable std::mutex mutex_;
+  std::vector<HeapSegment> segments_;
   uint8_t* membase_ = nullptr;
-  uint32_t heap_base_ = 0;
-  uint32_t heap_end_ = 0;
+  uint32_t initial_segment_size_ = 0;
 
   void* GuestToHost(uint32_t guest_addr) const;
   uint32_t HostToGuest(void* host_ptr) const;
+  bool AllocateSegmentLocked(uint32_t segment_size_bytes);
+  uint32_t AllocLocked(uint32_t size, bool zero = false);
+  HeapSegment* FindSegmentByGuestLocked(uint32_t guest_addr);
+  const HeapSegment* FindSegmentByGuestLocked(uint32_t guest_addr) const;
+  HeapDiagnostics GetDiagnosticsLocked() const;
 };
 
 /// Initialize the global rexcrt heap. Called by Runtime::Setup() when enabled.
