@@ -160,6 +160,7 @@ message(STATUS "===========================================")
 
 # SDK install/export rules (skipped when consumed as a subdirectory)
 if(PROJECT_IS_TOP_LEVEL)
+    include(cmake/rexglue_devenv.cmake)
     include(cmake/rexglue_install.cmake)
 else()
     # When consumed via add_subdirectory(), provide the same interface as find_package().
