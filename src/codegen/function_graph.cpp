@@ -715,8 +715,11 @@ size_t FunctionGraph::sealAllReady() {
         sealed++;
       } else {
         couldNotSeal++;
-        REXCODEGEN_TRACE("FunctionGraph::sealAllReady: 0x{:08X} cannot seal ({} unresolved)", base,
-                         node->unresolvedJumps().size());
+        REXCODEGEN_WARN("FunctionGraph::sealAllReady: 0x{:08X} ({}) cannot seal ({} unresolved)",
+                        base, node->name(), node->unresolvedJumps().size());
+        for (const auto& jump : node->unresolvedJumps()) {
+          REXCODEGEN_WARN("  0x{:08X} -> 0x{:08X}", jump.site, jump.target);
+        }
       }
     }
   }
