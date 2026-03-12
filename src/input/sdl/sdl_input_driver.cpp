@@ -20,8 +20,6 @@
 #include <rex/logging.h>
 #include <rex/ui/virtual_key.h>
 
-REXCVAR_DEFINE_BOOL(guide_button, false, "Input", "Enable guide button pass-through");
-
 REXCVAR_DEFINE_STRING(hid_mappings_file, "gamecontrollerdb.txt", "Input",
                       "Path to SDL gamecontroller mappings file");
 
