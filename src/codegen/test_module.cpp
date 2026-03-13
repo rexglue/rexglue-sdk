@@ -33,11 +33,4 @@ bool TestModule::ContainsAddress(uint32_t address) {
   return address >= base_address_ && address < base_address_ + size_;
 }
 
-std::unique_ptr<runtime::Function> TestModule::CreateFunction(uint32_t /*address*/) {
-  // NOTE(tomc) - this is done else where in the codegen tests,
-  // and we don't need actual Function objects for the test cases, so just return null.
-  // !cleanme
-  return nullptr;
-}
-
 }  // namespace rex::codegen

@@ -52,9 +52,6 @@ class TestModule : public runtime::Module {
   uint32_t entry_point() const override { return base_address_; }
   bool ContainsAddress(uint32_t address) override;
 
- protected:
-  std::unique_ptr<runtime::Function> CreateFunction(uint32_t address) override;
-
  private:
   std::string name_{"test"};
   uint32_t base_address_ = 0;

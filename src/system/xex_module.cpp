@@ -25,7 +25,6 @@
 #include <rex/runtime.h>
 #include <rex/system/export_resolver.h>
 #include <rex/system/flags.h>
-#include <rex/system/function.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/lzx.h>
 #include <rex/system/processor.h>
@@ -795,7 +794,7 @@ int XexModule::ReadPEHeaders() {
 
 // The macros in pe_image.h don't work with clang, for some reason.
 // offsetof seems to be unable to find OptionalHeader.
-#define offsetof1(type, member) ((std::size_t)&(((type*)0)->member))
+#define offsetof1(type, member) ((std::size_t) & (((type*)0)->member))
 #define IMAGE_FIRST_SECTION1(ntheader)                                                        \
   ((PIMAGE_SECTION_HEADER)((uint8_t*)ntheader + offsetof1(IMAGE_NT_HEADERS, OptionalHeader) + \
                            ((PIMAGE_NT_HEADERS)(ntheader))->FileHeader.SizeOfOptionalHeader))
@@ -1140,17 +1139,6 @@ bool XexModule::SetupLibraryImports(const std::string_view name,
 
 bool XexModule::ContainsAddress(uint32_t address) {
   return address >= low_address_ && address < high_address_;
-}
-
-std::unique_ptr<Function> XexModule::CreateFunction(uint32_t address) {
-  // NOTE(tomc): this used to be a JIT function. now a cousin of it lives in the codegen lib.
-  (void)address;
-  return nullptr;
-}
-
-bool XexModule::FindSaveRest() {
-  // NOTE(tomc): see XexModule::CreateFunction
-  return true;
 }
 
 // Binary introspection implementation

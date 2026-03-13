@@ -185,9 +185,6 @@ class XexModule : public Module {
             (XEX_MODULE_MODULE_PATCH | XEX_MODULE_PATCH_DELTA | XEX_MODULE_PATCH_FULL));
   }
 
- protected:
-  std::unique_ptr<Function> CreateFunction(uint32_t address) override;
-
  private:
   void ReadSecurityInfo();
 
@@ -199,7 +196,6 @@ class XexModule : public Module {
   int ReadPEHeaders();
 
   bool SetupLibraryImports(const std::string_view name, const xex2_import_library* library);
-  bool FindSaveRest();
 
   void PopulateBinaryData();
 

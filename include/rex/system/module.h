@@ -11,19 +11,13 @@
 
 #pragma once
 
-#include <functional>
-#include <memory>
 #include <span>
 #include <string>
 #include <string_view>
-#include <unordered_map>
 #include <vector>
 
 #include <rex/memory.h>
 #include <rex/system/binary_types.h>
-#include <rex/system/function.h>
-#include <rex/system/symbol.h>
-#include <rex/thread/mutex.h>
 
 namespace rex::runtime {
 
@@ -41,19 +35,6 @@ class Module {
   virtual bool is_executable() const = 0;
 
   virtual bool ContainsAddress(uint32_t address);
-
-  Symbol* LookupSymbol(uint32_t address, bool wait = true);
-  virtual Symbol::Status DeclareFunction(uint32_t address, Function** out_function);
-  virtual Symbol::Status DeclareVariable(uint32_t address, Symbol** out_symbol);
-
-  Symbol::Status DefineFunction(Function* symbol);
-  Symbol::Status DefineVariable(Symbol* symbol);
-
-  void ForEachFunction(std::function<void(Function*)> callback);
-  void ForEachSymbol(size_t start_index, size_t end_index, std::function<void(Symbol*)> callback);
-  size_t QuerySymbolCount();
-
-  bool ReadMap(const char* file_name);
 
   // Binary introspection interface (virtual with defaults for backwards compat)
   virtual uint32_t base_address() const { return 0; }
@@ -86,23 +67,12 @@ class Module {
   void ClearBinarySymbols();
 
  protected:
-  virtual std::unique_ptr<Function> CreateFunction(uint32_t address) = 0;
-
   Processor* processor_ = nullptr;
   memory::Memory* memory_ = nullptr;
 
   // Storage for binary introspection (populated by derived classes)
   std::vector<BinarySection> binary_sections_;
   std::vector<BinarySymbol> binary_symbols_;
-
- private:
-  Symbol::Status DeclareSymbol(Symbol::Type type, uint32_t address, Symbol** out_symbol);
-  Symbol::Status DefineSymbol(Symbol* symbol);
-
-  rex::thread::global_critical_region global_critical_region_;
-  // TODO(benvanik): replace with a better data structure.
-  std::unordered_map<uint32_t, Symbol*> map_;
-  std::vector<std::unique_ptr<Symbol>> list_;
 };
 
 }  // namespace rex::runtime
