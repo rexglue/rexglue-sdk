@@ -196,10 +196,10 @@ bool Win32Window::OpenImpl() {
   // Create the window. Though WM_NCCREATE will assign to `hwnd_` too, still do
   // the assignment here to handle the case of a failure after WM_NCCREATE, for
   // instance.
+  auto wide_title = rex::string::to_utf16(GetTitle());
   hwnd_ = CreateWindowExW(
-      window_ex_style, L"RexWindowClass",
-      reinterpret_cast<LPCWSTR>(rex::string::to_utf16(GetTitle()).c_str()), window_style,
-      CW_USEDEFAULT, CW_USEDEFAULT, window_size_rect.right - window_size_rect.left,
+      window_ex_style, L"RexWindowClass", reinterpret_cast<LPCWSTR>(wide_title.c_str()),
+      window_style, CW_USEDEFAULT, CW_USEDEFAULT, window_size_rect.right - window_size_rect.left,
       window_size_rect.bottom - window_size_rect.top, nullptr, nullptr, hinstance, this);
   if (!hwnd_) {
     REXLOG_ERROR("CreateWindowExW failed");
@@ -496,7 +496,8 @@ void Win32Window::ApplyNewFullscreen() {
 }
 
 void Win32Window::ApplyNewTitle() {
-  SetWindowTextW(hwnd_, reinterpret_cast<LPCWSTR>(rex::string::to_utf16(GetTitle()).c_str()));
+  auto wide_title = rex::string::to_utf16(GetTitle());
+  SetWindowTextW(hwnd_, reinterpret_cast<LPCWSTR>(wide_title.c_str()));
 }
 
 void Win32Window::LoadAndApplyIcon(const void* buffer, size_t size,
@@ -1033,7 +1034,7 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
     // destruction_receiver.IsWindowDestroyed() afterwards.
     return HandleMouse(message, wParam, lParam, destruction_receiver)
                ? 0
-               : DefWindowProc(hWnd, message, wParam, lParam);
+               : DefWindowProcW(hWnd, message, wParam, lParam);
   }
   if (message >= WM_KEYFIRST && message <= WM_KEYLAST) {
     WindowDestructionReceiver destruction_receiver(this);
@@ -1041,7 +1042,7 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
     // destruction_receiver.IsWindowDestroyed() afterwards.
     return HandleKeyboard(message, wParam, lParam, destruction_receiver)
                ? 0
-               : DefWindowProc(hWnd, message, wParam, lParam);
+               : DefWindowProcW(hWnd, message, wParam, lParam);
   }
 
   switch (message) {
@@ -1274,7 +1275,7 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
   // have been closed or destroyed by a handler, making hwnd_ null even though
   // DefWindowProc still needs to be called to propagate the closing-related
   // messages needed by Windows, or inaccessible (due to use-after-free) at all.
-  return DefWindowProc(hWnd, message, wParam, lParam);
+  return DefWindowProcW(hWnd, message, wParam, lParam);
 }
 
 LRESULT CALLBACK Win32Window::WndProcThunk(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
@@ -1314,7 +1315,7 @@ LRESULT CALLBACK Win32Window::WndProcThunk(HWND hWnd, UINT message, WPARAM wPara
       }
     }
   }
-  return DefWindowProc(hWnd, message, wParam, lParam);
+  return DefWindowProcW(hWnd, message, wParam, lParam);
 }
 
 std::unique_ptr<ui::MenuItem> MenuItem::Create(Type type, const std::string& text,
@@ -1368,10 +1369,11 @@ void Win32MenuItem::OnChildAdded(MenuItem* generic_child_item) {
     case MenuItem::Type::kNormal:
       // Nothing special.
       break;
-    case MenuItem::Type::kPopup:
+    case MenuItem::Type::kPopup: {
+      auto wide_text = rex::string::to_utf16(child_item->text());
       AppendMenuW(handle_, MF_POPUP, reinterpret_cast<UINT_PTR>(child_item->handle()),
-                  reinterpret_cast<LPCWSTR>(rex::string::to_utf16(child_item->text()).c_str()));
-      break;
+                  reinterpret_cast<LPCWSTR>(wide_text.c_str()));
+    } break;
     case MenuItem::Type::kSeparator:
       AppendMenuW(handle_, MF_SEPARATOR, UINT_PTR(child_item->handle_), 0);
       break;
@@ -1380,8 +1382,9 @@ void Win32MenuItem::OnChildAdded(MenuItem* generic_child_item) {
       if (!child_item->hotkey().empty()) {
         full_name += "\t" + child_item->hotkey();
       }
+      auto wide_name = rex::string::to_utf16(full_name);
       AppendMenuW(handle_, MF_STRING, UINT_PTR(child_item->handle_),
-                  reinterpret_cast<LPCWSTR>(rex::string::to_utf16(full_name).c_str()));
+                  reinterpret_cast<LPCWSTR>(wide_name.c_str()));
       break;
   }
 }
