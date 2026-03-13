@@ -66,8 +66,11 @@ MMIOHandler::MMIOHandler(uint8_t* virtual_membase, uint8_t* physical_membase, ui
 MMIOHandler::~MMIOHandler() {
   arch::ExceptionHandler::Uninstall(ExceptionCallbackThunk, this);
 
-  assert_true(global_handler_ == this);
-  global_handler_ = nullptr;
+  if (global_handler_ == this) {
+    global_handler_ = nullptr;
+  } else {
+    REXLOG_ERROR("~MMIOHandler: global_handler_ does not match this instance");
+  }
 }
 
 bool MMIOHandler::RegisterRange(uint32_t virtual_address, uint32_t mask, uint32_t size,

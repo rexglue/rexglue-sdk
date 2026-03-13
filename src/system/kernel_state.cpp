@@ -63,7 +63,10 @@ KernelState::KernelState(Runtime* emulator)
   }
   content_manager_ = std::make_unique<xam::ContentManager>(this, user_data_root);
 
-  assert_null(shared_kernel_state_);
+  if (shared_kernel_state_ != nullptr) {
+    REXSYS_ERROR("KernelState constructed but shared_kernel_state_ already set");
+    rex::FatalError("Double initialization of KernelState");
+  }
   shared_kernel_state_ = this;
 
   // Allocate KernelGuestGlobals early so xboxkrnl module can wire exports.
@@ -165,8 +168,11 @@ KernelState::~KernelState() {
   // Shutdown apps.
   app_manager_.reset();
 
-  assert_true(shared_kernel_state_ == this);
-  shared_kernel_state_ = nullptr;
+  if (shared_kernel_state_ == this) {
+    shared_kernel_state_ = nullptr;
+  } else {
+    REXSYS_ERROR("~KernelState: shared_kernel_state_ does not match this instance");
+  }
 }
 
 KernelState* KernelState::shared() {
@@ -405,9 +411,9 @@ object_ref<XModule> KernelState::GetModule(const std::string_view name, bool use
     return nullptr;
   }
 
-  auto global_lock = global_critical_region_.Acquire();
-
+  // Search kernel modules under lock
   if (!user_only) {
+    auto global_lock = global_critical_region_.Acquire();
     for (auto kernel_module : kernel_modules_) {
       if (kernel_module->Matches(name)) {
         return retain_object(kernel_module.get());
@@ -415,17 +421,20 @@ object_ref<XModule> KernelState::GetModule(const std::string_view name, bool use
     }
   }
 
+  // Resolve path WITHOUT lock
   auto path(name);
-
-  // Resolve the path to an absolute path.
   auto entry = file_system_->ResolvePath(name);
   if (entry) {
     path = entry->absolute_path();
   }
 
-  for (auto user_module : user_modules_) {
-    if (user_module->Matches(path)) {
-      return retain_object(user_module.get());
+  // Search user modules under lock
+  {
+    auto global_lock = global_critical_region_.Acquire();
+    for (auto user_module : user_modules_) {
+      if (user_module->Matches(path)) {
+        return retain_object(user_module.get());
+      }
     }
   }
   return nullptr;
@@ -796,10 +805,14 @@ void KernelState::UnregisterNotifyListener(XNotifyListener* listener) {
 }
 
 void KernelState::BroadcastNotification(XNotificationID id, uint32_t data) {
-  REXSYS_DEBUG("BroadcastNotification(id={:#x}, data={}) to {} listeners",
-               static_cast<uint32_t>(id), data, notify_listeners_.size());
-  auto global_lock = global_critical_region_.Acquire();
-  for (const auto& notify_listener : notify_listeners_) {
+  std::vector<object_ref<XNotifyListener>> snapshot;
+  {
+    auto global_lock = global_critical_region_.Acquire();
+    REXSYS_DEBUG("BroadcastNotification(id={:#x}, data={}) to {} listeners",
+                 static_cast<uint32_t>(id), data, notify_listeners_.size());
+    snapshot = notify_listeners_;
+  }
+  for (const auto& notify_listener : snapshot) {
     notify_listener->EnqueueNotification(id, data);
   }
 }
