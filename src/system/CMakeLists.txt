@@ -42,8 +42,6 @@ set(REXSYSTEM_SOURCES
     map_parser.cpp
     module.cpp
     processor.cpp
-    raw_module.cpp
-    # test_module.cpp  # TODO: Implement soon
     thread.cpp
     thread_state.cpp
     xex_module.cpp
