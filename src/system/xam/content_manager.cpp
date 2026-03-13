@@ -176,9 +176,6 @@ std::unique_ptr<ContentPackage> ContentManager::ResolvePackage(
   if (!std::filesystem::exists(package_path)) {
     return nullptr;
   }
-
-  auto global_lock = global_critical_region_.Acquire();
-
   auto package = std::make_unique<ContentPackage>(kernel_state_, root_name, data, package_path);
   return package;
 }
@@ -253,75 +250,77 @@ X_RESULT ContentManager::ReadContentHeaderFile(const std::string_view file_name,
 
 X_RESULT ContentManager::CreateContent(const std::string_view root_name, uint64_t xuid,
                                        const XCONTENT_AGGREGATE_DATA& data) {
-  auto global_lock = global_critical_region_.Acquire();
-
-  if (open_packages_.count(string::string_key_case(root_name))) {
-    // Already content open with this root name.
-    return X_ERROR_ALREADY_EXISTS;
+  {
+    auto global_lock = global_critical_region_.Acquire();
+    if (open_packages_.count(string::string_key_case(root_name))) {
+      return X_ERROR_ALREADY_EXISTS;
+    }
   }
 
   auto package_path = ResolvePackagePath(xuid, data);
   if (std::filesystem::exists(package_path)) {
-    // Exists, must not!
     return X_ERROR_ALREADY_EXISTS;
   }
-
   if (!std::filesystem::create_directories(package_path)) {
     return X_ERROR_ACCESS_DENIED;
   }
-
   auto package = ResolvePackage(root_name, xuid, data);
   assert_not_null(package);
 
-  open_packages_.insert({string::string_key_case::create(root_name), package.release()});
-
+  {
+    auto global_lock = global_critical_region_.Acquire();
+    if (open_packages_.count(string::string_key_case(root_name))) {
+      return X_ERROR_ALREADY_EXISTS;
+    }
+    open_packages_.insert({string::string_key_case::create(root_name), package.release()});
+  }
   return X_ERROR_SUCCESS;
 }
 
 X_RESULT ContentManager::OpenContent(const std::string_view root_name, uint64_t xuid,
                                      const XCONTENT_AGGREGATE_DATA& data,
                                      uint32_t& content_license) {
-  auto global_lock = global_critical_region_.Acquire();
-
-  if (open_packages_.count(string::string_key_case(root_name))) {
-    // Already content open with this root name.
-    return X_ERROR_ALREADY_EXISTS;
+  {
+    auto global_lock = global_critical_region_.Acquire();
+    if (open_packages_.count(string::string_key_case(root_name))) {
+      return X_ERROR_ALREADY_EXISTS;
+    }
   }
 
   auto package_path = ResolvePackagePath(xuid, data);
   if (!std::filesystem::exists(package_path)) {
-    // Does not exist, must be created.
     return X_ERROR_FILE_NOT_FOUND;
   }
-
-  // Open package.
   auto package = ResolvePackage(root_name, xuid, data);
   assert_not_null(package);
-
   package->LoadPackageLicenseMask(ResolvePackageHeaderPath(
       data.file_name(), xuid, kernel_state_->title_id(), data.content_type));
-
   content_license = package->GetPackageLicense();
 
-  open_packages_.insert({string::string_key_case::create(root_name), package.release()});
-
+  {
+    auto global_lock = global_critical_region_.Acquire();
+    if (open_packages_.count(string::string_key_case(root_name))) {
+      return X_ERROR_ALREADY_EXISTS;
+    }
+    open_packages_.insert({string::string_key_case::create(root_name), package.release()});
+  }
   return X_ERROR_SUCCESS;
 }
 
 X_RESULT ContentManager::CloseContent(const std::string_view root_name) {
-  auto global_lock = global_critical_region_.Acquire();
-
-  // Some games use different casing between Create and Close (e.g. "save" vs "SAVE")
-  auto it = open_packages_.find(string::string_key_case(root_name));
-  if (it == open_packages_.end()) {
-    return X_ERROR_FILE_NOT_FOUND;
+  ContentPackage* package = nullptr;
+  {
+    auto global_lock = global_critical_region_.Acquire();
+    // Some games use different casing between Create and Close (e.g. "save" vs "SAVE")
+    auto it = open_packages_.find(string::string_key_case(root_name));
+    if (it == open_packages_.end()) {
+      return X_ERROR_FILE_NOT_FOUND;
+    }
+    CloseOpenedFilesFromContent(root_name);
+    package = it->second;
+    open_packages_.erase(it);
   }
-  CloseOpenedFilesFromContent(root_name);
-
-  auto package = it->second;
-  open_packages_.erase(it);
   delete package;
-
   return X_ERROR_SUCCESS;
 }
 
