@@ -165,6 +165,14 @@ KernelState::~KernelState() {
   // Delete all objects.
   object_table_.Reset();
 
+  // Destroy any host fibers that were not explicitly cleaned up.
+  for (auto& [guest_addr, fiber] : fiber_map_) {
+    if (fiber) {
+      fiber->Destroy();
+    }
+  }
+  fiber_map_.clear();
+
   // Shutdown apps.
   app_manager_.reset();
 
@@ -1055,6 +1063,23 @@ bool KernelState::Restore(stream::ByteStream* stream) {
   }
 
   return true;
+}
+
+rex::thread::Fiber* KernelState::LookupFiber(uint32_t guest_addr) {
+  auto lock = global_critical_region_.Acquire();
+  auto it = fiber_map_.find(guest_addr);
+  return it != fiber_map_.end() ? it->second : nullptr;
+}
+
+void KernelState::RegisterFiber(uint32_t guest_addr, rex::thread::Fiber* fiber) {
+  auto lock = global_critical_region_.Acquire();
+  assert_true(fiber_map_.find(guest_addr) == fiber_map_.end());
+  fiber_map_[guest_addr] = fiber;
+}
+
+void KernelState::UnregisterFiber(uint32_t guest_addr) {
+  auto lock = global_critical_region_.Acquire();
+  fiber_map_.erase(guest_addr);
 }
 
 }  // namespace rex::system
