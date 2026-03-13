@@ -90,6 +90,11 @@ XThread::XThread(KernelState* kernel_state, uint32_t stack_size, uint32_t xapi_t
 }
 
 XThread::~XThread() {
+  if (main_fiber_) {
+    main_fiber_->Destroy();
+    main_fiber_ = nullptr;
+  }
+
   // Unregister first to prevent lookups while deleting.
   kernel_state_->UnregisterThread(this);
 
@@ -540,16 +545,6 @@ X_STATUS XThread::Terminate(int exit_code) {
   return X_STATUS_SUCCESS;
 }
 
-class reenter_exception {
- public:
-  reenter_exception(uint32_t address) : address_(address) {};
-  virtual ~reenter_exception() {};
-  uint32_t address() const { return address_; }
-
- private:
-  uint32_t address_;
-};
-
 void XThread::Execute() {
   REXSYS_DEBUG("Execute thid {} (handle={:08X}, '{}', native={:08X})", thread_id_, handle(),
                thread_name_, thread_->system_id());
@@ -620,6 +615,12 @@ void XThread::Execute() {
 
   ctx->fpscr.InitHost();
 
+  // Convert this host thread to a fiber so SwitchTo works bidirectionally.
+  // Required on Windows before any CreateFiber; provides the fallback handle
+  // when another fiber switches back to the main execution context.
+  main_fiber_ = rex::thread::Fiber::ConvertCurrentThread();
+
+  // Execute the function
   REXSYS_DEBUG("XThread::Execute - Calling function at {:08X}", address);
   func(*ctx, base);
 
@@ -628,14 +629,6 @@ void XThread::Execute() {
   // If we got here it means the execute completed without an exit being called.
   // Treat the return code as an implicit exit code (if desired).
   Exit(!want_exit_code ? 0 : exit_code);
-}
-
-void XThread::Reenter(uint32_t address) {
-  // TODO(gibbed): Maybe use setjmp/longjmp on Windows?
-  // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/longjmp#remarks
-  // On Windows with /EH, setjmp/longjmp do stack unwinding.
-  // Is there a better solution than exceptions for stack unwinding?
-  throw reenter_exception(address);
 }
 
 void XThread::EnterCriticalRegion() {

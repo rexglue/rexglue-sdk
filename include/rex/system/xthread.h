@@ -15,6 +15,7 @@
 #include <string>
 
 #include <rex/platform.h>
+#include <rex/thread/fiber.h>
 #include <rex/system/thread_state.h>
 #include <rex/system/util/native_list.h>
 #include <rex/system/xmutant.h>
@@ -321,7 +322,7 @@ class XThread : public XObject {
 
   virtual void Execute();
 
-  virtual void Reenter(uint32_t address);
+  rex::thread::Fiber* main_fiber() const { return main_fiber_; }
 
   void EnterCriticalRegion();
   void LeaveCriticalRegion();
@@ -413,6 +414,7 @@ class XThread : public XObject {
   uint32_t apc_lock_old_irql_ = 0;
 
   std::unique_ptr<rex::thread::Thread> thread_ = nullptr;
+  rex::thread::Fiber* main_fiber_ = nullptr;
 };
 
 class XHostThread : public XThread {
