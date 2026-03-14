@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <map>
+#include <set>
 
 #include <fmt/format.h>
 
@@ -26,70 +27,159 @@
 
 namespace rex::codegen {
 
-void RecompilerConfig::Load(const std::string_view& configFilePath) {
-  toml::table toml;
+namespace {
 
+/// Maximum nesting depth for include chains.
+constexpr uint32_t kMaxIncludeDepth = 32;
+
+/// Parse a hex address string (with or without "0x"/"0X" prefix).
+std::optional<uint32_t> ParseHexAddress(const std::string& keyStr) {
   try {
-    toml = toml::parse_file(configFilePath);
-  } catch (const toml::parse_error& e) {
-    REXCODEGEN_ERROR("Failed to parse config file '{}': {}", configFilePath, e.what());
+    if (keyStr.starts_with("0x") || keyStr.starts_with("0X")) {
+      return static_cast<uint32_t>(std::stoul(keyStr.substr(2), nullptr, 16));
+    } else {
+      return static_cast<uint32_t>(std::stoul(keyStr, nullptr, 16));
+    }
+  } catch (...) {
+    return std::nullopt;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Scalar merge helpers -- log overrides at debug level
+// ---------------------------------------------------------------------------
+
+template <typename T>
+void MergeScalar(T& dst, const T& src, const char* name) {
+  if (src != T{} && src != dst) {
+    if (dst != T{}) {
+      if constexpr (std::is_same_v<T, bool>) {
+        REXCODEGEN_DEBUG("[config]   {}: {} -> {} (overridden)", name, dst, src);
+      } else if constexpr (std::is_same_v<T, std::string>) {
+        REXCODEGEN_DEBUG("[config]   {}: \"{}\" -> \"{}\" (overridden)", name, dst, src);
+      } else {
+        REXCODEGEN_DEBUG("[config]   {}: {} -> {} (overridden)", name, dst, src);
+      }
+    }
+    dst = src;
+  }
+}
+
+/// Overload for booleans where the "zero" state (false) is meaningful.
+/// Only skip the merge when the overlay explicitly did not set the key.
+void MergeBool(bool& dst, bool src, bool present, const char* name) {
+  if (!present)
     return;
+  if (src != dst) {
+    REXCODEGEN_DEBUG("[config]   {}: {} -> {} (overridden)", name, dst ? "true" : "false",
+                     src ? "true" : "false");
+  }
+  dst = src;
+}
+
+// ---------------------------------------------------------------------------
+// Apply a single parsed TOML table onto the config (merge semantics)
+// ---------------------------------------------------------------------------
+
+void ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string& filePath) {
+  // --- Scalars: last wins ---
+
+  // String scalars (only override if present in this file)
+  if (auto v = toml["project_name"].value<std::string>()) {
+    MergeScalar(cfg.projectName, *v, "project_name");
+  }
+  if (auto v = toml["file_path"].value<std::string>()) {
+    MergeScalar(cfg.filePath, *v, "file_path");
+  }
+  if (auto v = toml["out_directory_path"].value<std::string>()) {
+    MergeScalar(cfg.outDirectoryPath, *v, "out_directory_path");
+  }
+  if (auto v = toml["patch_file_path"].value<std::string>()) {
+    MergeScalar(cfg.patchFilePath, *v, "patch_file_path");
+  }
+  if (auto v = toml["patched_file_path"].value<std::string>()) {
+    MergeScalar(cfg.patchedFilePath, *v, "patched_file_path");
   }
 
-  // Required fields (flat format)
-  projectName = toml["project_name"].value_or<std::string>("rex");
-  filePath = toml["file_path"].value_or<std::string>("");
-  outDirectoryPath = toml["out_directory_path"].value_or<std::string>("generated");
+  // Bool scalars
+  auto hasBool = [&](const char* key) -> bool { return toml[key].is_boolean(); };
+  MergeBool(cfg.skipLr, toml["skip_lr"].value_or(false), hasBool("skip_lr"), "skip_lr");
+  MergeBool(cfg.skipMsr, toml["skip_msr"].value_or(false), hasBool("skip_msr"), "skip_msr");
+  MergeBool(cfg.ctrAsLocalVariable, toml["ctr_as_local"].value_or(false), hasBool("ctr_as_local"),
+            "ctr_as_local");
+  MergeBool(cfg.xerAsLocalVariable, toml["xer_as_local"].value_or(false), hasBool("xer_as_local"),
+            "xer_as_local");
+  MergeBool(cfg.reservedRegisterAsLocalVariable, toml["reserved_as_local"].value_or(false),
+            hasBool("reserved_as_local"), "reserved_as_local");
+  MergeBool(cfg.crRegistersAsLocalVariables, toml["cr_as_local"].value_or(false),
+            hasBool("cr_as_local"), "cr_as_local");
+  MergeBool(cfg.nonArgumentRegistersAsLocalVariables, toml["non_argument_as_local"].value_or(false),
+            hasBool("non_argument_as_local"), "non_argument_as_local");
+  MergeBool(cfg.nonVolatileRegistersAsLocalVariables, toml["non_volatile_as_local"].value_or(false),
+            hasBool("non_volatile_as_local"), "non_volatile_as_local");
+  MergeBool(cfg.generateExceptionHandlers, toml["generate_exception_handlers"].value_or(false),
+            hasBool("generate_exception_handlers"), "generate_exception_handlers");
 
-  if (filePath.empty()) {
-    REXCODEGEN_ERROR("Missing required field: file_path");
+  // Integer scalars (only override if present)
+  if (auto v = toml["longjmp_address"].value<int64_t>()) {
+    uint32_t addr = static_cast<uint32_t>(*v);
+    MergeScalar(cfg.longJmpAddress, addr, "longjmp_address");
+  }
+  if (auto v = toml["setjmp_address"].value<int64_t>()) {
+    uint32_t addr = static_cast<uint32_t>(*v);
+    MergeScalar(cfg.setJmpAddress, addr, "setjmp_address");
   }
 
-  // Optional patch fields
-  patchFilePath = toml["patch_file_path"].value_or<std::string>("");
-  patchedFilePath = toml["patched_file_path"].value_or<std::string>("");
+  // --- [analysis] section scalars ---
+  if (auto* analysisTable = toml["analysis"].as_table()) {
+    if (auto v = (*analysisTable)["max_jump_extension"].value<uint32_t>()) {
+      MergeScalar(cfg.maxJumpExtension, *v, "analysis.max_jump_extension");
+    }
+    if (auto v = (*analysisTable)["data_region_threshold"].value<uint32_t>()) {
+      MergeScalar(cfg.dataRegionThreshold, *v, "analysis.data_region_threshold");
+    }
+    if (auto v = (*analysisTable)["large_function_threshold"].value<uint32_t>()) {
+      MergeScalar(cfg.largeFunctionThreshold, *v, "analysis.large_function_threshold");
+    }
 
-  // Optimization options
-  skipLr = toml["skip_lr"].value_or(false);
-  skipMsr = toml["skip_msr"].value_or(false);
-  ctrAsLocalVariable = toml["ctr_as_local"].value_or(false);
-  xerAsLocalVariable = toml["xer_as_local"].value_or(false);
-  reservedRegisterAsLocalVariable = toml["reserved_as_local"].value_or(false);
-  crRegistersAsLocalVariables = toml["cr_as_local"].value_or(false);
-  nonArgumentRegistersAsLocalVariables = toml["non_argument_as_local"].value_or(false);
-  nonVolatileRegistersAsLocalVariables = toml["non_volatile_as_local"].value_or(false);
+    // exceptionHandlerFuncHints -- push_back then deduplicate at end
+    if (auto handlers = (*analysisTable)["exception_handler_funcs"].as_array()) {
+      for (const auto& elem : *handlers) {
+        if (auto val = elem.value<int64_t>()) {
+          cfg.exceptionHandlerFuncHints.push_back(static_cast<uint32_t>(*val));
+        }
+      }
+    }
+  }
 
-  // Special addresses (user overrides)
-  longJmpAddress = toml["longjmp_address"].value_or(0u);
-  setJmpAddress = toml["setjmp_address"].value_or(0u);
+  // --- Keyed tables: additive, same key = last wins ---
 
-  // rexcrt function addresses
+  // [rexcrt]
   if (auto* rexcrt = toml["rexcrt"].as_table()) {
+    size_t added = 0;
     for (const auto& [name, val] : *rexcrt) {
       if (auto addr = val.value<int64_t>()) {
-        rexcrtFunctions[std::string(name)] = static_cast<uint32_t>(*addr);
+        auto key = std::string(name);
+        auto it = cfg.rexcrtFunctions.find(key);
+        if (it != cfg.rexcrtFunctions.end()) {
+          REXCODEGEN_DEBUG("[config]   [rexcrt] {} overridden: 0x{:08X} -> 0x{:08X}", key,
+                           it->second, static_cast<uint32_t>(*addr));
+        }
+        cfg.rexcrtFunctions[key] = static_cast<uint32_t>(*addr);
+        ++added;
       }
+    }
+    if (added > 0) {
+      REXCODEGEN_DEBUG("[config]   [rexcrt] added/updated {} entries from {}", added, filePath);
     }
   }
 
-  // Helper to parse hex address from string key
-  auto parseHexAddress = [](const std::string& keyStr) -> std::optional<uint32_t> {
-    try {
-      if (keyStr.starts_with("0x") || keyStr.starts_with("0X")) {
-        return static_cast<uint32_t>(std::stoul(keyStr.substr(2), nullptr, 16));
-      } else {
-        return static_cast<uint32_t>(std::stoul(keyStr, nullptr, 16));
-      }
-    } catch (...) {
-      return std::nullopt;
-    }
-  };
-
-  // Format: address = { size = N } or { end = N } or { parent = P, end = N } etc.
+  // [functions]
   if (auto functionsTable = toml["functions"].as_table()) {
+    size_t added = 0;
     for (auto& [key, value] : *functionsTable) {
       std::string keyStr(key.str());
-      auto addrOpt = parseHexAddress(keyStr);
+      auto addrOpt = ParseHexAddress(keyStr);
       if (!addrOpt) {
         REXCODEGEN_ERROR("Invalid function address key: {}", keyStr);
         continue;
@@ -102,41 +192,37 @@ void RecompilerConfig::Load(const std::string_view& configFilePath) {
         continue;
       }
 
-      FunctionConfig cfg;
-      cfg.size = (*table)["size"].value_or(0u);
-      cfg.end = (*table)["end"].value_or(0u);
-      cfg.name = (*table)["name"].value_or(std::string{});
-      cfg.parent = (*table)["parent"].value_or(0u);
+      FunctionConfig fcfg;
+      fcfg.size = (*table)["size"].value_or(0u);
+      fcfg.end = (*table)["end"].value_or(0u);
+      fcfg.name = (*table)["name"].value_or(std::string{});
+      fcfg.parent = (*table)["parent"].value_or(0u);
 
-      // Validation: can't have both size and end
-      if (cfg.size && cfg.end) {
+      if (fcfg.size && fcfg.end) {
         REXCODEGEN_ERROR("Function 0x{:08X}: cannot specify both 'size' and 'end'", address);
         continue;
       }
-
-      // Validation: end must be > address
-      if (cfg.end && cfg.end <= address) {
+      if (fcfg.end && fcfg.end <= address) {
         REXCODEGEN_ERROR("Function 0x{:08X}: 'end' (0x{:08X}) must be greater than address",
-                         address, cfg.end);
+                         address, fcfg.end);
         continue;
       }
 
-      functions.emplace(address, std::move(cfg));
-    }
-
-    if (!functions.empty()) {
-      size_t chunks_count = 0;
-      for (const auto& [addr, cfg] : functions) {
-        if (cfg.isChunk())
-          chunks_count++;
+      auto it = cfg.functions.find(address);
+      if (it != cfg.functions.end()) {
+        REXCODEGEN_DEBUG("[config]   [functions] 0x{:08X} overridden from {}", address, filePath);
       }
-      REXCODEGEN_INFO("Loaded {} function configs ({} standalone, {} chunks)", functions.size(),
-                      functions.size() - chunks_count, chunks_count);
+      cfg.functions.insert_or_assign(address, std::move(fcfg));
+      ++added;
+    }
+    if (added > 0) {
+      REXCODEGEN_DEBUG("[config]   [functions] added/updated {} entries from {}", added, filePath);
     }
   }
 
-  // Invalid instruction hints
-  // Data patterns that look like code but aren't (e.g., embedded constants)
+  // --- Arrays of tables: deduplicated by primary key (address), last wins ---
+
+  // [[invalid_instructions]] -- keyed by "data" address
   if (auto invalidArray = toml["invalid_instructions"].as_array()) {
     for (auto& entry : *invalidArray) {
       auto* table = entry.as_table();
@@ -157,22 +243,16 @@ void RecompilerConfig::Load(const std::string_view& configFilePath) {
         continue;
       }
 
-      invalidInstructionHints.emplace(*data_opt, *size_opt);
-    }
-  }
-
-  // Known indirect call hints (vtable dispatch, computed jumps - not switch tables)
-  // These are bctr instructions where the target is loaded from runtime-computed addresses
-  if (auto indirectCallArray = toml["indirect_calls"].as_array()) {
-    for (auto& entry : *indirectCallArray) {
-      if (auto addr = entry.value<int64_t>()) {
-        knownIndirectCallHints.insert(static_cast<uint32_t>(*addr));
-        REXCODEGEN_DEBUG("Loaded known indirect call hint at 0x{:08X}", *addr);
+      auto it = cfg.invalidInstructionHints.find(*data_opt);
+      if (it != cfg.invalidInstructionHints.end()) {
+        REXCODEGEN_DEBUG("[config]   [[invalid_instructions]] 0x{:08X} overridden from {}",
+                         *data_opt, filePath);
       }
+      cfg.invalidInstructionHints.insert_or_assign(*data_opt, *size_opt);
     }
   }
 
-  // Manual switch table definitions (when auto-detection fails)
+  // [[switch_tables]] -- keyed by "address"
   if (auto switchTableArray = toml["switch_tables"].as_array()) {
     for (auto& entry : *switchTableArray) {
       auto* table = entry.as_table();
@@ -200,11 +280,10 @@ void RecompilerConfig::Load(const std::string_view& configFilePath) {
 
       JumpTable jt;
       jt.bctrAddress = *address_opt;
-      jt.tableAddress = 0;  // Not specified in config
+      jt.tableAddress = 0;
       jt.indexRegister = static_cast<uint8_t>(*register_opt);
 
       for (auto& label : *labels_array) {
-        // TOML integers are int64_t, cast to uint32_t for addresses
         if (auto label_val = label.value<int64_t>()) {
           jt.targets.push_back(static_cast<uint32_t>(*label_val));
         }
@@ -215,14 +294,19 @@ void RecompilerConfig::Load(const std::string_view& configFilePath) {
         continue;
       }
 
+      auto it = cfg.switchTables.find(*address_opt);
+      if (it != cfg.switchTables.end()) {
+        REXCODEGEN_DEBUG("[config]   [[switch_tables]] 0x{:08X} overridden from {}", *address_opt,
+                         filePath);
+      }
       size_t label_count = jt.targets.size();
-      switchTables.emplace(*address_opt, std::move(jt));
+      cfg.switchTables.insert_or_assign(*address_opt, std::move(jt));
       REXCODEGEN_DEBUG("Loaded manual switch table at 0x{:08X} with {} labels", *address_opt,
                        label_count);
     }
   }
 
-  // Mid-asm hooks
+  // [[midasm_hook]] -- keyed by "address"
   if (auto midAsmHookArray = toml["midasm_hook"].as_array()) {
     for (auto& entry : *midAsmHookArray) {
       auto* table = entry.as_table();
@@ -276,25 +360,142 @@ void RecompilerConfig::Load(const std::string_view& configFilePath) {
 
       midAsmHook.afterInstruction = (*table)["after_instruction"].value_or(false);
 
-      midAsmHooks.emplace(*address_opt, std::move(midAsmHook));
+      auto it = cfg.midAsmHooks.find(*address_opt);
+      if (it != cfg.midAsmHooks.end()) {
+        REXCODEGEN_DEBUG("[config]   [[midasm_hook]] 0x{:08X} overridden from {}", *address_opt,
+                         filePath);
+      }
+      cfg.midAsmHooks.insert_or_assign(*address_opt, std::move(midAsmHook));
     }
   }
 
-  // Analysis pipeline settings: [analysis] section
-  if (auto analysisTable = toml["analysis"].as_table()) {
-    maxJumpExtension = (*analysisTable)["max_jump_extension"].value_or(65536u);
-    dataRegionThreshold = (*analysisTable)["data_region_threshold"].value_or(16u);
-    largeFunctionThreshold = (*analysisTable)["large_function_threshold"].value_or(1048576u);
+  // --- Sets: additive ---
 
-    // Exception handler function addresses for code region segmentation
-    if (auto handlers = (*analysisTable)["exception_handler_funcs"].as_array()) {
-      for (const auto& elem : *handlers) {
-        if (auto val = elem.value<int64_t>()) {
-          exceptionHandlerFuncHints.push_back(static_cast<uint32_t>(*val));
+  // indirect_calls -> knownIndirectCallHints (set)
+  if (auto indirectCallArray = toml["indirect_calls"].as_array()) {
+    for (auto& entry : *indirectCallArray) {
+      if (auto addr = entry.value<int64_t>()) {
+        cfg.knownIndirectCallHints.insert(static_cast<uint32_t>(*addr));
+        REXCODEGEN_DEBUG("Loaded known indirect call hint at 0x{:08X}", *addr);
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Recursive include loader
+// ---------------------------------------------------------------------------
+
+bool LoadRecursive(const std::filesystem::path& filePath, RecompilerConfig& cfg,
+                   std::set<std::string>& visited, uint32_t depth) {
+  // Depth check
+  if (depth > kMaxIncludeDepth) {
+    REXCODEGEN_ERROR("[config] include depth exceeds maximum ({}) at: {}", kMaxIncludeDepth,
+                     filePath.string());
+    return false;
+  }
+
+  // Canonical path for cycle detection
+  std::error_code ec;
+  auto canonical = std::filesystem::canonical(filePath, ec);
+  if (ec) {
+    REXCODEGEN_ERROR("[config] cannot resolve path '{}': {}", filePath.string(), ec.message());
+    return false;
+  }
+  std::string canonicalStr = canonical.string();
+
+  // Circular include detection
+  if (visited.contains(canonicalStr)) {
+    REXCODEGEN_ERROR("[config] circular include detected: {}", canonicalStr);
+    return false;
+  }
+  visited.insert(canonicalStr);
+
+  // Parse this file
+  toml::table toml;
+  try {
+    toml = toml::parse_file(canonicalStr);
+  } catch (const toml::parse_error& e) {
+    REXCODEGEN_ERROR("Failed to parse config file '{}': {}", canonicalStr, e.what());
+    return false;
+  }
+
+  REXCODEGEN_DEBUG("[config] loaded: {}", filePath.filename().string());
+
+  // Process includes first (depth-first), before applying this file's values.
+  // This means this file's values override anything set by included files.
+  auto parentDir = canonical.parent_path();
+
+  if (auto* includesArray = toml["includes"].as_array()) {
+    for (const auto& elem : *includesArray) {
+      if (auto includePath = elem.value<std::string>()) {
+        auto resolved = parentDir / *includePath;
+        if (!std::filesystem::exists(resolved)) {
+          REXCODEGEN_ERROR("[config] included file not found: {} (resolved from {})", *includePath,
+                           canonicalStr);
+          return false;
+        }
+        if (!LoadRecursive(resolved, cfg, visited, depth + 1)) {
+          return false;
         }
       }
     }
   }
+
+  // Apply this file's config (after includes, so this file wins)
+  ApplyToml(toml, cfg, filePath.filename().string());
+
+  return true;
+}
+
+}  // namespace
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+bool RecompilerConfig::Load(const std::string_view& configFilePath) {
+  std::set<std::string> visited;
+  std::filesystem::path path(configFilePath);
+
+  if (!LoadRecursive(path, *this, visited, 0)) {
+    return false;
+  }
+
+  // Post-load summary logging
+  if (!functions.empty()) {
+    size_t chunks_count = 0;
+    for (const auto& [addr, cfg] : functions) {
+      if (cfg.isChunk())
+        chunks_count++;
+    }
+    REXCODEGEN_INFO("Loaded {} function configs ({} standalone, {} chunks)", functions.size(),
+                    functions.size() - chunks_count, chunks_count);
+  }
+
+  // Deduplicate exceptionHandlerFuncHints (push_back from multiple files)
+  if (!exceptionHandlerFuncHints.empty()) {
+    std::sort(exceptionHandlerFuncHints.begin(), exceptionHandlerFuncHints.end());
+    exceptionHandlerFuncHints.erase(
+        std::unique(exceptionHandlerFuncHints.begin(), exceptionHandlerFuncHints.end()),
+        exceptionHandlerFuncHints.end());
+  }
+
+  // Required field check
+  if (filePath.empty()) {
+    REXCODEGEN_ERROR("Missing required field: file_path");
+  }
+
+  // Validate assembled config
+  auto result = Validate();
+  for (const auto& warning : result.warnings) {
+    REXCODEGEN_WARN("[config] {}", warning);
+  }
+  for (const auto& error : result.errors) {
+    REXCODEGEN_ERROR("[config] {}", error);
+  }
+
+  return true;
 }
 
 RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {

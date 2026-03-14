@@ -145,7 +145,9 @@ Result<void> MigrateProject(const MigrateOptions& opts, const CliContext& ctx) {
 
   // Read project name from config
   rex::codegen::RecompilerConfig config;
-  config.Load(config_path.string());
+  if (!config.Load(config_path.string())) {
+    return Err<void>(ErrorCategory::Config, "Failed to load config: " + config_path.string());
+  }
   if (config.projectName.empty() || config.projectName == "rex") {
     return Err<void>(ErrorCategory::Config,
                      "Could not read project_name from " + config_path.filename().string());

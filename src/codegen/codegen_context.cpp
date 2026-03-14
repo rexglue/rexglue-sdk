@@ -28,7 +28,10 @@ Result<CodegenContext> CodegenContext::Create(const std::filesystem::path& confi
   CodegenContext ctx;
 
   // Load configuration
-  ctx.config_.Load(configPath.string());
+  if (!ctx.config_.Load(configPath.string())) {
+    return Err<CodegenContext>(ErrorCategory::Config,
+                               fmt::format("Failed to load config: {}", configPath.string()));
+  }
   ctx.configDir_ = configPath.parent_path();
 
   // Determine XEX path
