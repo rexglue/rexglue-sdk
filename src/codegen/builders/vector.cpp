@@ -540,7 +540,7 @@ bool build_vcmpbfp(BuilderContext& ctx) {
       "\tsimde_mm_store_ps({}.f32, simde_mm_and_ps(simde_mm_cmpgt_ps(simde_mm_load_ps({}.f32), "
       "simde_mm_load_ps({}.f32)), simde_mm_castsi128_ps(simde_mm_set1_epi32(int(0x80000000)))));",
       ctx.v_temp(), vA, vB);
-  // neg_vB stored in vD temporarily, then compute lt_neg_mask = (vA < neg_vB) & 0x40000000
+  // lt_neg_mask = (vA < -vB) & 0x40000000
   ctx.println(
       "\tsimde_mm_store_ps({}.f32, simde_mm_and_ps(simde_mm_cmplt_ps(simde_mm_load_ps({}.f32), "
       "simde_mm_xor_ps(simde_mm_load_ps({}.f32), "
@@ -553,8 +553,15 @@ bool build_vcmpbfp(BuilderContext& ctx) {
       "simde_mm_load_ps({}.f32)));",
       vD, ctx.v_temp(), vD);
 
+  // CR6 from vD: movemask_ps only checks bit 31, but lower-bound violations only
+  // set bit 30. Shift left by 1 to move bit 30 into bit 31, then OR with original
+  // so movemask detects both upper and lower bound violations.
   if (isRecordForm(ctx.insn))
-    ctx.println("\t{}.setFromMask(simde_mm_load_ps({}.f32), 0xF);", ctx.cr(6), vD);
+    ctx.println(
+        "\t{}.setFromMask(simde_mm_castsi128_ps(simde_mm_or_si128("
+        "simde_mm_load_si128((simde__m128i*){}.f32), "
+        "simde_mm_slli_epi32(simde_mm_load_si128((simde__m128i*){}.f32), 1))), 0xF);",
+        ctx.cr(6), vD, vD);
   return true;
 }
 
