@@ -142,7 +142,7 @@ add_custom_command(
     OUTPUT ${CMAKE_BINARY_DIR}/tests/ppc/generated/ppc_test_functions.cpp
            ${CMAKE_BINARY_DIR}/tests/ppc/generated/ppc_test_cases.cpp
            ${CMAKE_BINARY_DIR}/tests/ppc/generated/ppc_test_decls.h
-    COMMAND ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}/rexglue${CMAKE_EXECUTABLE_SUFFIX} recompile-tests
+    COMMAND $<TARGET_FILE:rexglue> recompile-tests
             --output=${CMAKE_BINARY_DIR}/tests/ppc/generated
             --bin_dir=${CMAKE_BINARY_DIR}/tests/ppc/bin
             --asm_dir=${CMAKE_CURRENT_SOURCE_DIR}/asm
@@ -178,6 +178,21 @@ target_link_libraries(ppc_tests PRIVATE
     fmt::fmt
     Catch2::Catch2WithMain
 )
+
+# Delay-load FidelityFX DLLs so ppc_tests can run without them.
+if(WIN32)
+    if(TARGET amd_fidelityfx_vk)
+        target_link_options(ppc_tests PRIVATE
+            "LINKER:/DELAYLOAD:$<TARGET_FILE_NAME:amd_fidelityfx_vk>")
+    endif()
+    if(TARGET amd_fidelityfx_dx12)
+        target_link_options(ppc_tests PRIVATE
+            "LINKER:/DELAYLOAD:$<TARGET_FILE_NAME:amd_fidelityfx_dx12>")
+    endif()
+    if(TARGET amd_fidelityfx_vk OR TARGET amd_fidelityfx_dx12)
+        target_link_libraries(ppc_tests PRIVATE delayimp)
+    endif()
+endif()
 
 set_target_properties(ppc_tests PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests/bin

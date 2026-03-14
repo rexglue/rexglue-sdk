@@ -23,10 +23,11 @@
 
 #include <fmt/format.h>
 
-#include <rex/codegen/recompiled_function.h>
-#include <rex/codegen/recompiler.h>
-#include <rex/codegen/test_analyze.h>
-#include <rex/codegen/test_module.h>
+#include <rex/codegen/binary_view.h>
+#include <rex/codegen/codegen_context.h>
+#include <rex/codegen/function_graph.h>
+#include <rex/codegen/function_scanner.h>
+#include <rex/codegen/test_support.h>
 #include <rex/logging.h>
 #include <rex/runtime.h>  // For rex::Runtime complete type
 #include <rex/string.h>
@@ -368,41 +369,42 @@ bool recompile_tests(const std::string_view& binDirPath, const std::string_view&
     module.Load(TEST_BASE_ADDRESS, fileData.data(), fileData.size());
     module.set_name(stem);
 
-    // Create recompiler and CodegenContext from our module
-    codegen::Recompiler recompiler;
+    // Create CodegenContext from our module
     codegen::RecompilerConfig config;
     config.outDirectoryPath = std::string(outDirPath);
     auto ctx =
         codegen::CodegenContext::Create(codegen::BinaryView::fromModule(module), std::move(config));
-    recompiler.ctx_ = &ctx;
 
     // Analyze functions using test_ prefixed symbols from map
     codegen::AnalyzeTestBinary(ctx, stem, symbols, TEST_BASE_ADDRESS, fileData.data(),
                                fileData.size());
 
-    REXLOG_DEBUG("  Found {} functions", recompiler.ctx_->graph.functionCount());
+    REXLOG_DEBUG("  Found {} functions", ctx.graph.functionCount());
 
     // Build sorted function list from graph
     std::vector<const codegen::FunctionNode*> functions;
-    for (const auto& [addr, node] : recompiler.ctx_->graph.functions()) {
+    for (const auto& [addr, node] : ctx.graph.functions()) {
       functions.push_back(node.get());
     }
     std::sort(functions.begin(), functions.end(),
               [](const auto* a, const auto* b) { return a->base() < b->base(); });
 
+    // Build EmitContext for FunctionNode::emitCpp()
+    codegen::EmitContext emitCtx{ctx.binary(), ctx.Config(), ctx.graph, 0, nullptr};
+
     // Recompile each function
+    std::string recompiledCode;
     for (const auto* fn : functions) {
-      if (recompiler.recompile(*fn)) {
+      std::string code = fn->emitCpp(emitCtx);
+      if (!code.empty()) {
         functionsByFile[stem].emplace(fn->base());
-        // Collect function name for forward declaration
         allFunctionNames.push_back(fmt::format("{}_{:X}", stem, fn->base()));
-      } else {
-        REXLOG_WARN("Function {:X} in {} has unimplemented instructions", fn->base(), stem);
+        recompiledCode += code;
       }
     }
 
-    // Get recompiled code and append to output
-    functionsOut << recompiler.out;
+    // Append to output
+    functionsOut << recompiledCode;
     functionsOut << "\n";
   }
 

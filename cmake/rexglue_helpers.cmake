@@ -52,5 +52,21 @@ function(rexglue_configure_target target_name)
             COMMAND "$<$<BOOL:$<TARGET_RUNTIME_DLLS:${target_name}>>:${CMAKE_COMMAND};-E;copy_if_different;$<TARGET_RUNTIME_DLLS:${target_name}>;$<TARGET_FILE_DIR:${target_name}>>"
             COMMAND_EXPAND_LISTS
         )
+        # FidelityFX is linked PRIVATE by rexui (to avoid propagating DLL
+        # requirements to tool-mode targets), so copy its DLLs explicitly.
+        if(TARGET amd_fidelityfx_vk)
+            add_custom_command(TARGET ${target_name} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    $<TARGET_FILE:amd_fidelityfx_vk>
+                    $<TARGET_FILE_DIR:${target_name}>
+            )
+        endif()
+        if(TARGET amd_fidelityfx_dx12)
+            add_custom_command(TARGET ${target_name} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    $<TARGET_FILE:amd_fidelityfx_dx12>
+                    $<TARGET_FILE_DIR:${target_name}>
+            )
+        endif()
     endif()
 endfunction()
