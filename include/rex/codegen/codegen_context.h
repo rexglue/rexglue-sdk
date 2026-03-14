@@ -70,6 +70,7 @@ struct AnalysisState {
   std::unordered_map<uint32_t, uint32_t> invalidInstructions;  ///< addr -> size
   std::unordered_set<uint32_t> knownIndirectCalls;             ///< bctr addresses
   std::vector<uint32_t> exceptionHandlerFuncs;                 ///< Handler addresses
+  std::vector<uint32_t> ehDiscoveredFuncs;                     ///< EH-discovered function addresses
 };
 
 /**
