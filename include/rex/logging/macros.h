@@ -155,6 +155,27 @@
   REXLOG_CAT_FN_CRITICAL(::rex::log::Core, fmt __VA_OPT__(, ) __VA_ARGS__)
 /** @} */
 
+/* --- Custom Category Definition ----------------------------------------- */
+
+/**
+ * Define a custom log category with Meyers singleton, guaranteed to
+ * initialize on first use regardless of static init order.
+ *
+ * Usage (in a header):
+ *   REXLOG_DEFINE_CATEGORY(codegen)
+ *   #define REXCODEGEN_TRACE(...) REXLOG_CAT_TRACE(::rex::log::codegen(), __VA_ARGS__)
+ *   // ... etc for DEBUG, INFO, WARN, ERROR, CRITICAL
+ *
+ * Expands to an inline function rex::log::codegen() returning LogCategoryId.
+ */
+#define REXLOG_DEFINE_CATEGORY(name)                                          \
+  namespace rex::log {                                                        \
+  inline ::rex::LogCategoryId name() {                                        \
+    static const ::rex::LogCategoryId id = ::rex::RegisterLogCategory(#name); \
+    return id;                                                                \
+  }                                                                           \
+  }
+
 /* --- Legacy Kernel Thread-ID -------------------------------------------- */
 
 /** @{ */

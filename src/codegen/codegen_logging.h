@@ -13,23 +13,13 @@
 
 #include <rex/logging.h>
 
-namespace rex::log {
-
-/**
- * Log category for the code generation/recompilation subsystem.
- *
- * Registered at runtime via RegisterLogCategory(). The inline global
- * ensures registration happens exactly once (on first ODR-use).
- */
-inline const LogCategoryId Codegen = RegisterLogCategory("codegen");
-
-}  // namespace rex::log
+REXLOG_DEFINE_CATEGORY(codegen)
 
 /** @{ Codegen subsystem logging macros */
-#define REXCODEGEN_TRACE(...) REXLOG_CAT_TRACE(::rex::log::Codegen, __VA_ARGS__)
-#define REXCODEGEN_DEBUG(...) REXLOG_CAT_DEBUG(::rex::log::Codegen, __VA_ARGS__)
-#define REXCODEGEN_INFO(...) REXLOG_CAT_INFO(::rex::log::Codegen, __VA_ARGS__)
-#define REXCODEGEN_WARN(...) REXLOG_CAT_WARN(::rex::log::Codegen, __VA_ARGS__)
-#define REXCODEGEN_ERROR(...) REXLOG_CAT_ERROR(::rex::log::Codegen, __VA_ARGS__)
-#define REXCODEGEN_CRITICAL(...) REXLOG_CAT_CRITICAL(::rex::log::Codegen, __VA_ARGS__)
+#define REXCODEGEN_TRACE(...) REXLOG_CAT_TRACE(::rex::log::codegen(), __VA_ARGS__)
+#define REXCODEGEN_DEBUG(...) REXLOG_CAT_DEBUG(::rex::log::codegen(), __VA_ARGS__)
+#define REXCODEGEN_INFO(...) REXLOG_CAT_INFO(::rex::log::codegen(), __VA_ARGS__)
+#define REXCODEGEN_WARN(...) REXLOG_CAT_WARN(::rex::log::codegen(), __VA_ARGS__)
+#define REXCODEGEN_ERROR(...) REXLOG_CAT_ERROR(::rex::log::codegen(), __VA_ARGS__)
+#define REXCODEGEN_CRITICAL(...) REXLOG_CAT_CRITICAL(::rex::log::codegen(), __VA_ARGS__)
 /** @} */
