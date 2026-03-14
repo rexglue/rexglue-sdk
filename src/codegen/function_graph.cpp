@@ -9,15 +9,30 @@
  */
 
 #include "ppc/instruction.h"
+#include "ppc/disasm.h"
+#include "builders/builder_context.h"
+#include "builders.h"
 
 #include <algorithm>
 #include <cassert>
+#include <unordered_set>
 
+#include <fmt/format.h>
+
+#include <rex/codegen/binary_view.h>
 #include <rex/codegen/code_emitter.h>
 #include <rex/codegen/function_graph.h>
+#include <rex/codegen/function_scanner.h>
 #include <rex/logging.h>
+#include <rex/memory/utils.h>
 
 #include "codegen_logging.h"
+
+#include <dis-asm.h>
+#include <ppc.h>
+
+using rex::codegen::ppc::Disassemble;
+using rex::memory::load_and_swap;
 
 namespace rex::codegen {
 
@@ -312,42 +327,370 @@ void FunctionNode::seal() {
 }
 
 //=============================================================================
-// FunctionGraph - Code Buffer Management (WIP)
+// FunctionNode - C++ Code Emission
 //=============================================================================
-void FunctionNode::emitCpp(CodeEmitter& emit) const {
-  // WIP(tomc) - needs a big refactor for this to actually work.
-  assert_always("FunctionNode::emitCpp not implemented. Recompiler with builders");
-  return;
-  // assert(state_ == FunctionState::kSealed && "emitCpp requires sealed function");
 
-  // if (isImport()) {
-  //     // Imports emit a simple declaration/macro
-  //     emit.line("// Import: {}", name_);
-  //     emit.line("PPC_IMPORT_FUNC({});", name_);
-  //     return;
-  // }
+namespace {
 
-  //// Function header
-  // emit.line("PPC_FUNC({}) {{", name_);
-  // emit.indent();
+// Helper: append formatted text to a raw string (matches Recompiler::println pattern)
+template <class... Args>
+void emit_println(std::string& out, fmt::format_string<Args...> fmt, Args&&... args) {
+  fmt::vformat_to(std::back_inserter(out), fmt.get(), fmt::make_format_args(args...));
+  out += '\n';
+}
 
-  //// Emit block labels placeholder
-  //// Full instruction emission requires BuilderContext/Recompiler integration
-  //// which will be added incrementally
-  // for (const auto& block : blocks_) {
-  //     emit.line("// Block 0x{:08X} - 0x{:08X}", block.base, block.end());
-  // }
+template <class... Args>
+void emit_print(std::string& out, fmt::format_string<Args...> fmt, Args&&... args) {
+  fmt::vformat_to(std::back_inserter(out), fmt.get(), fmt::make_format_args(args...));
+}
 
-  // if (blocks_.empty()) {
-  //     emit.comment("WARNING: No blocks in sealed function");
-  // }
+}  // namespace
 
-  //// TODO: Full instruction emission via instruction builders
-  //// For now, emit placeholder that existing recompiler can fill
-  // emit.comment("Instruction emission delegated to Recompiler");
+std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
+  if (authority() == FunctionAuthority::IMPORT) {
+    return "";
+  }
 
-  // emit.dedent();
-  // emit.line("}}");
+  std::string out;
+
+  // --- Empty stub for functions with no blocks ---
+  if (blocks().empty()) {
+    REXCODEGEN_WARN("Function 0x{:08X} has no blocks - generating stub", base());
+
+    std::string name;
+    if (base() == ctx.entryPoint) {
+      name = "xstart";
+    } else if (!name_.empty()) {
+      name = name_;
+    } else {
+      name = fmt::format("sub_{:08X}", base());
+    }
+
+    emit_println(out, "// STUB: Function at 0x{:08X} has no discovered code blocks", base());
+    emit_println(out, "__attribute__((alias(\"__imp__{}\"))) PPC_WEAK_FUNC({});", name, name);
+    emit_println(out, "PPC_FUNC_IMPL(__imp__{}) {{", name);
+    emit_println(out, "\tPPC_FUNC_PROLOGUE();");
+    emit_println(out, "}}\n");
+    return out;
+  }
+
+  // --- Check for SEH exception info ---
+  const SehExceptionInfo* sehInfo = nullptr;
+  if (hasExceptionInfo()) {
+    sehInfo = exceptionInfo()->asSeh();
+    if (sehInfo && !sehInfo->scopes.empty()) {
+      REXCODEGEN_TRACE("Function 0x{:08X} has {} SEH scopes", base(), sehInfo->scopes.size());
+    }
+  }
+
+  // --- First pass: collect labels from all blocks ---
+  std::unordered_set<size_t> labels;
+  labels.reserve(64);
+
+  for (const auto& block : blocks()) {
+    auto* blockData = reinterpret_cast<const uint32_t*>(ctx.binary.translate(block.base));
+    if (!blockData)
+      continue;
+
+    for (size_t addr = block.base; addr < block.end(); addr += 4) {
+      const uint32_t instruction =
+          load_and_swap<uint32_t>((const uint8_t*)blockData + addr - block.base);
+      if (!PPC_BL(instruction)) {
+        const size_t op = PPC_OP(instruction);
+        if (op == PPC_OP_B)
+          labels.emplace(addr + PPC_BI(instruction));
+        else if (op == PPC_OP_BC)
+          labels.emplace(addr + PPC_BD(instruction));
+      }
+
+      // Labels from config switch tables
+      auto stIt = ctx.config.switchTables.find(static_cast<uint32_t>(addr));
+      if (stIt != ctx.config.switchTables.end()) {
+        for (auto label : stIt->second.targets)
+          labels.emplace(label);
+      }
+
+      // Labels and extern declarations from mid-asm hooks
+      auto hookIt = ctx.config.midAsmHooks.find(static_cast<uint32_t>(addr));
+      if (hookIt != ctx.config.midAsmHooks.end()) {
+        if (hookIt->second.returnOnFalse || hookIt->second.returnOnTrue ||
+            hookIt->second.jumpAddressOnFalse != 0 || hookIt->second.jumpAddressOnTrue != 0) {
+          emit_print(out, "extern bool ");
+        } else {
+          emit_print(out, "extern void ");
+        }
+
+        emit_print(out, "{}(", hookIt->second.name);
+        for (auto& reg : hookIt->second.registers) {
+          if (out.back() != '(')
+            out += ", ";
+
+          switch (reg[0]) {
+            case 'c':
+              if (reg == "ctr")
+                emit_print(out, "PPCRegister& ctr");
+              else
+                emit_print(out, "PPCCRRegister& {}", reg);
+              break;
+            case 'x':
+              emit_print(out, "PPCXERRegister& xer");
+              break;
+            case 'r':
+              emit_print(out, "PPCRegister& {}", reg);
+              break;
+            case 'f':
+              if (reg == "fpscr")
+                emit_print(out, "PPCFPSCRRegister& fpscr");
+              else
+                emit_print(out, "PPCRegister& {}", reg);
+              break;
+            case 'v':
+              emit_print(out, "PPCVRegister& {}", reg);
+              break;
+          }
+        }
+
+        emit_println(out, ");\n");
+
+        if (hookIt->second.jumpAddress != 0)
+          labels.emplace(hookIt->second.jumpAddress);
+        if (hookIt->second.jumpAddressOnTrue != 0)
+          labels.emplace(hookIt->second.jumpAddressOnTrue);
+        if (hookIt->second.jumpAddressOnFalse != 0)
+          labels.emplace(hookIt->second.jumpAddressOnFalse);
+      }
+    }
+  }
+
+  // Collect labels from auto-detected jump tables
+  for (const auto& jt : jumpTables()) {
+    for (auto label : jt.targets) {
+      labels.emplace(label);
+    }
+  }
+
+  // --- Function name ---
+  std::string name;
+  if (base() == ctx.entryPoint) {
+    name = "xstart";
+  } else if (!name_.empty()) {
+    name = name_;
+  } else {
+    name = fmt::format("sub_{:08X}", base());
+  }
+
+  // Function signature with weak/alias pattern
+  emit_println(out, "__attribute__((alias(\"__imp__{}\"))) PPC_WEAK_FUNC({});", name, name);
+  emit_println(out, "PPC_FUNC_IMPL(__imp__{}) {{", name);
+  emit_println(out, "\tPPC_FUNC_PROLOGUE();");
+
+  // --- Second pass: emit instruction code ---
+  const JumpTable* activeJt = nullptr;
+  bool allRecompiled = true;
+  CSRState csrState = CSRState::Unknown;
+  RecompilerLocalVariables localVariables;
+
+  // Local map for late-detected jump tables (can't mutate const config)
+  std::unordered_map<uint32_t, JumpTable> lateJumpTables;
+
+  std::string body;
+  body.reserve(4096);
+
+  ppc_insn insn;
+  std::unordered_set<size_t> emittedLabels;
+
+  for (const auto& block : blocks()) {
+    auto blockBase = block.base;
+    auto blockEnd = block.end();
+    auto* data = reinterpret_cast<const uint32_t*>(ctx.binary.translate(block.base));
+    if (!data) {
+      REXCODEGEN_WARN("Block 0x{:08X} in function 0x{:08X} has no mapped data - skipping",
+                      block.base, base());
+      continue;
+    }
+
+    while (blockBase < blockEnd) {
+      // Only emit each label once
+      if (labels.find(blockBase) != labels.end() && emittedLabels.insert(blockBase).second) {
+        emit_println(body, "loc_{:X}:", blockBase);
+        csrState = CSRState::Unknown;
+      }
+
+      // Look up switch table for this address
+      activeJt = nullptr;
+      auto stIt = ctx.config.switchTables.find(blockBase);
+      if (stIt != ctx.config.switchTables.end()) {
+        activeJt = &stIt->second;
+      } else {
+        auto lateIt = lateJumpTables.find(blockBase);
+        if (lateIt != lateJumpTables.end()) {
+          activeJt = &lateIt->second;
+        }
+      }
+
+      Disassemble(data, 4, blockBase, insn);
+
+      if (insn.opcode == nullptr) {
+        emit_println(body, "\t// {}", insn.op_str);
+        if (*data != 0)
+          REXCODEGEN_WARN("Unable to decode instruction {:X} at {:X}", *data, blockBase);
+      } else {
+        // Late jump table detection for bctr
+        if (insn.opcode->id == PPC_INST_BCTR && !activeJt) {
+          bool is_switch_pattern = false;
+          constexpr uint32_t MTCTR_MASK = 0xFC1FFFFF;
+          constexpr uint32_t MTCTR_OPCODE = 0x7C0003A6;
+          constexpr uint32_t NOP = 0x60000000;
+
+          for (int i = 1; i <= 3 && !is_switch_pattern; i++) {
+            uint32_t prev_insn = load_and_swap<uint32_t>(data - i);
+            if ((prev_insn & MTCTR_MASK) == MTCTR_OPCODE) {
+              is_switch_pattern = true;
+              for (int j = 1; j < i; j++) {
+                if (load_and_swap<uint32_t>(data - j) != NOP) {
+                  is_switch_pattern = false;
+                  break;
+                }
+              }
+            } else if (prev_insn != NOP) {
+              break;
+            }
+          }
+
+          if (is_switch_pattern) {
+            FunctionScanner scanner(ctx.binary);
+            auto jt_opt = scanner.detect_jump_table(blockBase);
+            if (jt_opt.has_value()) {
+              lateJumpTables.emplace(blockBase, std::move(*jt_opt));
+              activeJt = &lateJumpTables.at(blockBase);
+              for (auto label : activeJt->targets) {
+                labels.emplace(label);
+              }
+              REXCODEGEN_INFO("Late-detected jump table at 0x{:08X} with {} entries", blockBase,
+                              activeJt->targets.size());
+            }
+          }
+        }
+
+        // Emit comment with instruction disassembly
+        emit_println(body, "\t// {} {}", insn.opcode->name, insn.op_str);
+
+        // Check for mid-asm hook BEFORE instruction
+        auto hookIt = ctx.config.midAsmHooks.find(blockBase);
+        bool hasHookBefore =
+            (hookIt != ctx.config.midAsmHooks.end() && !hookIt->second.afterInstruction);
+
+        // Dispatch instruction to builder
+        int id = insn.opcode->id;
+        BuilderContext builderCtx{body,           ctx,      *this,   insn, blockBase, data,
+                                  localVariables, csrState, activeJt};
+
+        if (hasHookBefore) {
+          builderCtx.emit_mid_asm_hook();
+        }
+
+        if (!DispatchInstruction(id, builderCtx)) {
+          REXCODEGEN_WARN("Unrecognized instruction at 0x{:X}: {}", blockBase, insn.opcode->name);
+          allRecompiled = false;
+        }
+
+        // Check for mid-asm hook AFTER instruction
+        if (hookIt != ctx.config.midAsmHooks.end() && hookIt->second.afterInstruction) {
+          builderCtx.emit_mid_asm_hook();
+        }
+      }
+
+      blockBase += 4;
+      ++data;
+    }
+  }
+
+  // --- Close function body (or SEH try block) ---
+  bool generateSeh = sehInfo && !sehInfo->scopes.empty() && ctx.config.generateExceptionHandlers;
+  if (generateSeh) {
+    emit_println(body, "\t\t}} SEH_CATCH_ALL {{");
+    emit_println(body, "\t\t\tREXLOG_WARN(\"SEH exception caught in sub_{:08X}\");", base());
+
+    if (sehInfo->frameSize > 0) {
+      emit_println(body, "\t\t\tctx.r12.s64 = ctx.r31.s64 + {};  // Establisher frame pointer",
+                   sehInfo->frameSize);
+    }
+
+    for (auto it = sehInfo->scopes.rbegin(); it != sehInfo->scopes.rend(); ++it) {
+      const auto& scope = *it;
+      if (scope.filter == 0 && scope.handler != 0) {
+        emit_println(body, "\t\t\tsub_{:08X}(ctx, base);  // __finally handler", scope.handler);
+      }
+    }
+
+    if (sehInfo->restoreHelper != 0) {
+      auto* restoreFn = ctx.graph.getFunction(sehInfo->restoreHelper);
+      if (restoreFn && !restoreFn->name().empty()) {
+        emit_println(body, "\t\t\t{}(ctx, base);  // Restore caller registers", restoreFn->name());
+      }
+    }
+
+    emit_println(body, "\t\t\tSEH_RETHROW;");
+    emit_println(body, "\t\t}} SEH_END");
+    emit_println(body, "\t}}\n");
+  } else {
+    emit_println(body, "}}\n");
+  }
+
+  // --- Emit local variable declarations, then body ---
+  if (localVariables.ctr)
+    emit_println(out, "\tPPCRegister ctr{{}};");
+  if (localVariables.xer)
+    emit_println(out, "\tPPCXERRegister xer{{}};");
+  if (localVariables.reserved)
+    emit_println(out, "\tPPCRegister reserved{{}};");
+
+  for (size_t i = 0; i < 8; i++) {
+    if (localVariables.cr[i])
+      emit_println(out, "\tPPCCRRegister cr{}{{}};", i);
+  }
+
+  for (size_t i = 0; i < 32; i++) {
+    if (localVariables.r[i])
+      emit_println(out, "\tPPCRegister r{}{{}};", i);
+  }
+
+  for (size_t i = 0; i < 32; i++) {
+    if (localVariables.f[i])
+      emit_println(out, "\tPPCRegister f{}{{}};", i);
+  }
+
+  for (size_t i = 0; i < 128; i++) {
+    if (localVariables.v[i])
+      emit_println(out, "\tPPCVRegister v{}{{}};", i);
+  }
+
+  if (localVariables.env)
+    emit_println(out, "\tPPCContext env{{}};");
+  if (localVariables.temp)
+    emit_println(out, "\tPPCRegister temp{{}};");
+  if (localVariables.v_temp)
+    emit_println(out, "\tPPCVRegister vTemp{{}};");
+  if (localVariables.ea)
+    emit_println(out, "\tuint32_t ea{{}};");
+
+  // If SEH, emit SEH_TRY and indent body
+  if (generateSeh) {
+    emit_println(out, "\tSEH_TRY {{");
+    std::string indentedBody;
+    indentedBody.reserve(body.size() + body.size() / 20);
+    for (size_t i = 0; i < body.size(); ++i) {
+      indentedBody += body[i];
+      if (body[i] == '\n' && i + 1 < body.size() && body[i + 1] == '\t') {
+        indentedBody += '\t';
+      }
+    }
+    out += indentedBody;
+  } else {
+    out += body;
+  }
+
+  return out;
 }
 
 void FunctionGraph::addCodeBuffer(uint32_t baseAddress, const uint8_t* data, size_t size) {
