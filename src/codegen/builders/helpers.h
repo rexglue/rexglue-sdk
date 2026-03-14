@@ -11,12 +11,11 @@
 
 #pragma once
 
-#include "../builder_context.h"
+#include "builder_context.h"
 
 #include <cstring>
 
-#include <rex/codegen/recompiled_function.h>
-#include <rex/codegen/recompiler.h>
+#include <rex/codegen/function_scanner.h>
 #include <rex/logging.h>
 
 #include "../codegen_logging.h"

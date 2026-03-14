@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include "../builder_context.h"
+#include "builder_context.h"
 #include "helpers.h"
 
 namespace rex::codegen {
@@ -413,10 +413,7 @@ bool build_std(BuilderContext& ctx) {
 }
 
 bool build_stdu(BuilderContext& ctx) {
-  ctx.println("\t{} = {} + {}.u32;", ctx.ea(), static_cast<int32_t>(ctx.insn.operands[1]),
-              ctx.r(ctx.insn.operands[2]));
-  ctx.println("\tPPC_STORE_U64({}, {}.u64);", ctx.ea(), ctx.r(ctx.insn.operands[0]));
-  ctx.println("\t{}.u32 = {};", ctx.r(ctx.insn.operands[2]), ctx.ea());
+  emitStoreWithUpdate(ctx, "PPC_STORE_U64", "u64");
   return true;
 }
 

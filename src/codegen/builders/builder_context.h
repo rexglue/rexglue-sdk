@@ -24,8 +24,35 @@ struct ppc_insn;
 namespace rex::codegen {
 
 class FunctionNode;
-struct Recompiler;
-struct RecompilerLocalVariables;
+
+struct RecompilerLocalVariables {
+  bool ctr{};
+  bool xer{};
+  bool reserved{};
+  bool cr[8]{};
+  bool r[32]{};
+  bool f[32]{};
+  bool v[128]{};
+  bool env{};
+  bool temp{};
+  bool v_temp{};
+  bool ea{};
+
+  /// Tracks which GPRs contain MMIO base addresses (bit N = rN is MMIO base)
+  /// Set when lis loads a value with upper 16 bits >= 0x7F00 (address >= 0x7F000000)
+  /// or when oris sets upper bits >= 0xC800 (address >= 0xC8000000)
+  uint32_t mmio_base_regs{0};
+
+  void set_mmio_base(size_t reg) {
+    if (reg < 32)
+      mmio_base_regs |= (1u << reg);
+  }
+  void clear_mmio_base(size_t reg) {
+    if (reg < 32)
+      mmio_base_regs &= ~(1u << reg);
+  }
+  bool is_mmio_base(size_t reg) const { return reg < 32 && (mmio_base_regs & (1u << reg)); }
+};
 
 /**
  * @brief CSR (Control/Status Register) flush mode state.
@@ -38,14 +65,17 @@ struct RecompilerLocalVariables;
  * - **VMX**: Denormals flushed to zero. Used by vector floating-point
  *   instructions (vaddfp, vmaddfp, etc.)
  */
-enum class CSRState;
+enum class CSRState { Unknown, FPU, VMX };
 
 /**
  * @brief Context passed to instruction builders during code generation.
  */
 struct BuilderContext {
-  /// Reference to the parent recompiler instance
-  Recompiler& recompiler;
+  /// Raw output buffer for code generation
+  std::string& out;
+
+  /// Emission context (binary, config, graph, resolver)
+  const EmitContext& emitCtx;
 
   /// The function currently being recompiled (FunctionNode from graph)
   const FunctionNode& fn;
@@ -65,8 +95,8 @@ struct BuilderContext {
   /// Current CSR state for flush mode (FPU vs VMX)
   CSRState& csrState;
 
-  /// Iterator to current switch table, or end() if none
-  std::unordered_map<uint32_t, JumpTable>::iterator& switchTable;
+  /// Pointer to active jump table for bctr dispatch, or nullptr
+  const JumpTable* activeJumpTable = nullptr;
 
   /// Get the recompiler configuration
   const RecompilerConfig& config() const;
@@ -139,7 +169,7 @@ struct BuilderContext {
    */
   template <class... Args>
   void print(fmt::format_string<Args...> fmt, Args&&... args) {
-    fmt::vformat_to(std::back_inserter(out()), fmt.get(), fmt::make_format_args(args...));
+    fmt::vformat_to(std::back_inserter(out), fmt.get(), fmt::make_format_args(args...));
   }
 
   /**
@@ -150,8 +180,8 @@ struct BuilderContext {
    */
   template <class... Args>
   void println(fmt::format_string<Args...> fmt, Args&&... args) {
-    fmt::vformat_to(std::back_inserter(out()), fmt.get(), fmt::make_format_args(args...));
-    out() += '\n';
+    fmt::vformat_to(std::back_inserter(out), fmt.get(), fmt::make_format_args(args...));
+    out += '\n';
   }
 
   //=========================================================================
@@ -217,8 +247,8 @@ struct BuilderContext {
   /// Check if mid-asm hook exists for current address
   bool has_mid_asm_hook() const;
 
-  /// Reset switchTable iterator to end (used after processing a switch)
-  void reset_switch_table();
+  /// Clear active jump table pointer (used after processing a switch)
+  void reset_switch_table() { activeJumpTable = nullptr; }
 
   //=========================================================================
   // Vector (SIMD) Code Generation Helpers
@@ -308,9 +338,5 @@ struct BuilderContext {
    * Uses operands[0]=rS, operands[1]=rA, operands[2]=rB from current instruction.
    */
   void emit_store_x_form(const char* store_macro, const char* src_type, bool check_mmio = true);
-
- private:
-  /// Access to output buffer (used by print/println templates)
-  std::string& out();
 };
 }  // namespace rex::codegen

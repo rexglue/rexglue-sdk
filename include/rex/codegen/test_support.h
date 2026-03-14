@@ -1,6 +1,6 @@
 /**
- * @file        rex/codegen/test_module.h
- * @brief       Lightweight Module implementation for test binary loading
+ * @file        rex/codegen/test_support.h
+ * @brief       Test support utilities
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -11,7 +11,10 @@
 
 #pragma once
 
+#include <cstdint>
+#include <map>
 #include <string>
+#include <string_view>
 
 #include <rex/system/module.h>
 
@@ -60,5 +63,25 @@ class TestModule : public runtime::Module {
   uint32_t base_address_ = 0;
   uint32_t size_ = 0;
 };
+
+class CodegenContext;
+
+/**
+ * @brief Analyze a test binary using map symbols as function entry points.
+ *
+ * Filters symbols to test_ prefixed entries, adds them as functions to
+ * ctx.graph with single blocks, then scans for bl instructions and
+ * registers call edges.
+ *
+ * @param ctx         Codegen context whose graph will be populated
+ * @param testName    Stem name used for function naming (e.g. "addi")
+ * @param symbols     Address-to-name map from parse_map_file()
+ * @param baseAddress Base address the binary was linked at
+ * @param data        Pointer to raw binary data
+ * @param dataSize    Size of binary data in bytes
+ */
+void AnalyzeTestBinary(CodegenContext& ctx, std::string_view testName,
+                       const std::map<size_t, std::string>& symbols, uint32_t baseAddress,
+                       const uint8_t* data, size_t dataSize);
 
 }  // namespace rex::codegen

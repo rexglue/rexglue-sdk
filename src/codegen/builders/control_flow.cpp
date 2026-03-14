@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include "../builder_context.h"
+#include "builder_context.h"
 #include "helpers.h"
 
 #include <fmt/format.h>
@@ -111,12 +111,10 @@ bool build_blrl(BuilderContext& ctx) {
 //=============================================================================
 
 bool build_bctr(BuilderContext& ctx) {
-  // Check config first (manual override), then auto-detected
-  const JumpTable* jt = nullptr;
+  // Check active jump table (set by emitCpp before dispatch), then auto-detected
+  const JumpTable* jt = ctx.activeJumpTable;
 
-  if (ctx.switchTable != ctx.config().switchTables.end()) {
-    jt = &ctx.switchTable->second;
-  } else {
+  if (!jt) {
     // Check auto-detected jump tables from function analysis
     for (const auto& autoJt : ctx.fn.jumpTables()) {
       if (autoJt.bctrAddress == ctx.base) {

@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include "../builder_context.h"
+#include "builder_context.h"
 #include "helpers.h"
 
 #include <cmath>
@@ -128,20 +128,15 @@ bool build_vminfp(BuilderContext& ctx) {
 bool build_vrefp(BuilderContext& ctx) {
   // TODO: see if we can use rcp safely
   ctx.emit_set_flush_mode(true);
-  ctx.println(
-      "\tsimde_mm_store_ps({}.f32, simde_mm_div_ps(simde_mm_set1_ps(1), "
-      "simde_mm_load_ps({}.f32)));",
-      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]));
+  ctx.emit_vec_fp_unary_expr("simde_mm_div_ps(simde_mm_set1_ps(1), simde_mm_load_ps({vA}.f32))");
   return true;
 }
 
 bool build_vrsqrtefp(BuilderContext& ctx) {
   // TODO: see if we can use rsqrt safely
   ctx.emit_set_flush_mode(true);
-  ctx.println(
-      "\tsimde_mm_store_ps({}.f32, simde_mm_div_ps(simde_mm_set1_ps(1), "
-      "simde_mm_sqrt_ps(simde_mm_load_ps({}.f32))));",
-      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]));
+  ctx.emit_vec_fp_unary_expr(
+      "simde_mm_div_ps(simde_mm_set1_ps(1), simde_mm_sqrt_ps(simde_mm_load_ps({vA}.f32)))");
   return true;
 }
 
@@ -194,37 +189,33 @@ bool build_vmsum4fp128(BuilderContext& ctx) {
 
 bool build_vrfim(BuilderContext& ctx) {
   ctx.emit_set_flush_mode(true);
-  ctx.println(
-      "\tsimde_mm_store_ps({}.f32, simde_mm_round_ps(simde_mm_load_ps({}.f32), "
-      "SIMDE_MM_FROUND_TO_NEG_INF | SIMDE_MM_FROUND_NO_EXC));",
-      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]));
+  ctx.emit_vec_fp_unary_expr(
+      "simde_mm_round_ps(simde_mm_load_ps({vA}.f32), "
+      "SIMDE_MM_FROUND_TO_NEG_INF | SIMDE_MM_FROUND_NO_EXC)");
   return true;
 }
 
 bool build_vrfin(BuilderContext& ctx) {
   ctx.emit_set_flush_mode(true);
-  ctx.println(
-      "\tsimde_mm_store_ps({}.f32, simde_mm_round_ps(simde_mm_load_ps({}.f32), "
-      "SIMDE_MM_FROUND_TO_NEAREST_INT | SIMDE_MM_FROUND_NO_EXC));",
-      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]));
+  ctx.emit_vec_fp_unary_expr(
+      "simde_mm_round_ps(simde_mm_load_ps({vA}.f32), "
+      "SIMDE_MM_FROUND_TO_NEAREST_INT | SIMDE_MM_FROUND_NO_EXC)");
   return true;
 }
 
 bool build_vrfip(BuilderContext& ctx) {
   ctx.emit_set_flush_mode(true);
-  ctx.println(
-      "\tsimde_mm_store_ps({}.f32, simde_mm_round_ps(simde_mm_load_ps({}.f32), "
-      "SIMDE_MM_FROUND_TO_POS_INF | SIMDE_MM_FROUND_NO_EXC));",
-      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]));
+  ctx.emit_vec_fp_unary_expr(
+      "simde_mm_round_ps(simde_mm_load_ps({vA}.f32), "
+      "SIMDE_MM_FROUND_TO_POS_INF | SIMDE_MM_FROUND_NO_EXC)");
   return true;
 }
 
 bool build_vrfiz(BuilderContext& ctx) {
   ctx.emit_set_flush_mode(true);
-  ctx.println(
-      "\tsimde_mm_store_ps({}.f32, simde_mm_round_ps(simde_mm_load_ps({}.f32), "
-      "SIMDE_MM_FROUND_TO_ZERO | SIMDE_MM_FROUND_NO_EXC));",
-      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]));
+  ctx.emit_vec_fp_unary_expr(
+      "simde_mm_round_ps(simde_mm_load_ps({vA}.f32), "
+      "SIMDE_MM_FROUND_TO_ZERO | SIMDE_MM_FROUND_NO_EXC)");
   return true;
 }
 
@@ -569,10 +560,7 @@ bool build_vcmpbfp(BuilderContext& ctx) {
 
 bool build_vcmpeqfp(BuilderContext& ctx) {
   ctx.emit_set_flush_mode(true);
-  ctx.println(
-      "\tsimde_mm_store_ps({}.f32, simde_mm_cmpeq_ps(simde_mm_load_ps({}.f32), "
-      "simde_mm_load_ps({}.f32)));",
-      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]), ctx.v(ctx.insn.operands[2]));
+  ctx.emit_vec_fp_binary("cmpeq");
   if (isRecordForm(ctx.insn))
     ctx.println("\t{}.setFromMask(simde_mm_load_ps({}.f32), 0xF);", ctx.cr(6),
                 ctx.v(ctx.insn.operands[0]));
@@ -580,11 +568,7 @@ bool build_vcmpeqfp(BuilderContext& ctx) {
 }
 
 bool build_vcmpequb(BuilderContext& ctx) {
-  ctx.println(
-      "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
-      "simde_mm_cmpeq_epi8(simde_mm_load_si128((simde__m128i*){}.u8), "
-      "simde_mm_load_si128((simde__m128i*){}.u8)));",
-      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]), ctx.v(ctx.insn.operands[2]));
+  ctx.emit_vec_int_binary("cmpeq_epi8", "u8");
   if (isRecordForm(ctx.insn))
     ctx.println("\t{}.setFromMask(simde_mm_load_si128((simde__m128i*){}.u8), 0xFFFF);", ctx.cr(6),
                 ctx.v(ctx.insn.operands[0]));
@@ -617,10 +601,7 @@ bool build_vcmpequw(BuilderContext& ctx) {
 
 bool build_vcmpgefp(BuilderContext& ctx) {
   ctx.emit_set_flush_mode(true);
-  ctx.println(
-      "\tsimde_mm_store_ps({}.f32, simde_mm_cmpge_ps(simde_mm_load_ps({}.f32), "
-      "simde_mm_load_ps({}.f32)));",
-      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]), ctx.v(ctx.insn.operands[2]));
+  ctx.emit_vec_fp_binary("cmpge");
   if (isRecordForm(ctx.insn))
     ctx.println("\t{}.setFromMask(simde_mm_load_ps({}.f32), 0xF);", ctx.cr(6),
                 ctx.v(ctx.insn.operands[0]));
@@ -629,10 +610,7 @@ bool build_vcmpgefp(BuilderContext& ctx) {
 
 bool build_vcmpgtfp(BuilderContext& ctx) {
   ctx.emit_set_flush_mode(true);
-  ctx.println(
-      "\tsimde_mm_store_ps({}.f32, simde_mm_cmpgt_ps(simde_mm_load_ps({}.f32), "
-      "simde_mm_load_ps({}.f32)));",
-      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]), ctx.v(ctx.insn.operands[2]));
+  ctx.emit_vec_fp_binary("cmpgt");
   if (isRecordForm(ctx.insn))
     ctx.println("\t{}.setFromMask(simde_mm_load_ps({}.f32), 0xF);", ctx.cr(6),
                 ctx.v(ctx.insn.operands[0]));
@@ -680,11 +658,7 @@ bool build_vcmpgtuw(BuilderContext& ctx) {
 }
 
 bool build_vcmpgtsb(BuilderContext& ctx) {
-  ctx.println(
-      "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
-      "simde_mm_cmpgt_epi8(simde_mm_load_si128((simde__m128i*){}.u8), "
-      "simde_mm_load_si128((simde__m128i*){}.u8)));",
-      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]), ctx.v(ctx.insn.operands[2]));
+  ctx.emit_vec_int_binary("cmpgt_epi8", "u8");
   if (isRecordForm(ctx.insn))
     ctx.println("\t{}.setFromMask(simde_mm_load_si128((simde__m128i*){}.u8), 0xFFFF);", ctx.cr(6),
                 ctx.v(ctx.insn.operands[0]));
@@ -704,11 +678,7 @@ bool build_vcmpgtsh(BuilderContext& ctx) {
 }
 
 bool build_vcmpgtsw(BuilderContext& ctx) {
-  ctx.println(
-      "\tsimde_mm_store_si128((simde__m128i*){}.u32, "
-      "simde_mm_cmpgt_epi32(simde_mm_load_si128((simde__m128i*){}.u32), "
-      "simde_mm_load_si128((simde__m128i*){}.u32)));",
-      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]), ctx.v(ctx.insn.operands[2]));
+  ctx.emit_vec_int_binary("cmpgt_epi32", "u32");
   if (isRecordForm(ctx.insn))
     ctx.println(
         "\t{}.setFromMask(simde_mm_castsi128_ps(simde_mm_load_si128((simde__m128i*){}.u32)), 0xF);",
@@ -782,56 +752,32 @@ bool build_vctuxs(BuilderContext& ctx) {
 //=============================================================================
 
 bool build_vmrghb(BuilderContext& ctx) {
-  ctx.println(
-      "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
-      "simde_mm_unpackhi_epi8(simde_mm_load_si128((simde__m128i*){}.u8), "
-      "simde_mm_load_si128((simde__m128i*){}.u8)));",
-      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[2]), ctx.v(ctx.insn.operands[1]));
+  ctx.emit_vec_int_binary_swapped("unpackhi_epi8", "u8");
   return true;
 }
 
 bool build_vmrghh(BuilderContext& ctx) {
-  ctx.println(
-      "\tsimde_mm_store_si128((simde__m128i*){}.u16, "
-      "simde_mm_unpackhi_epi16(simde_mm_load_si128((simde__m128i*){}.u16), "
-      "simde_mm_load_si128((simde__m128i*){}.u16)));",
-      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[2]), ctx.v(ctx.insn.operands[1]));
+  ctx.emit_vec_int_binary_swapped("unpackhi_epi16", "u16");
   return true;
 }
 
 bool build_vmrghw(BuilderContext& ctx) {
-  ctx.println(
-      "\tsimde_mm_store_si128((simde__m128i*){}.u32, "
-      "simde_mm_unpackhi_epi32(simde_mm_load_si128((simde__m128i*){}.u32), "
-      "simde_mm_load_si128((simde__m128i*){}.u32)));",
-      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[2]), ctx.v(ctx.insn.operands[1]));
+  ctx.emit_vec_int_binary_swapped("unpackhi_epi32", "u32");
   return true;
 }
 
 bool build_vmrglb(BuilderContext& ctx) {
-  ctx.println(
-      "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
-      "simde_mm_unpacklo_epi8(simde_mm_load_si128((simde__m128i*){}.u8), "
-      "simde_mm_load_si128((simde__m128i*){}.u8)));",
-      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[2]), ctx.v(ctx.insn.operands[1]));
+  ctx.emit_vec_int_binary_swapped("unpacklo_epi8", "u8");
   return true;
 }
 
 bool build_vmrglh(BuilderContext& ctx) {
-  ctx.println(
-      "\tsimde_mm_store_si128((simde__m128i*){}.u16, "
-      "simde_mm_unpacklo_epi16(simde_mm_load_si128((simde__m128i*){}.u16), "
-      "simde_mm_load_si128((simde__m128i*){}.u16)));",
-      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[2]), ctx.v(ctx.insn.operands[1]));
+  ctx.emit_vec_int_binary_swapped("unpacklo_epi16", "u16");
   return true;
 }
 
 bool build_vmrglw(BuilderContext& ctx) {
-  ctx.println(
-      "\tsimde_mm_store_si128((simde__m128i*){}.u32, "
-      "simde_mm_unpacklo_epi32(simde_mm_load_si128((simde__m128i*){}.u32), "
-      "simde_mm_load_si128((simde__m128i*){}.u32)));",
-      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[2]), ctx.v(ctx.insn.operands[1]));
+  ctx.emit_vec_int_binary_swapped("unpacklo_epi32", "u32");
   return true;
 }
 

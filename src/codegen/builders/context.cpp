@@ -9,34 +9,33 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include "../builder_context.h"
+#include "builder_context.h"
 #include "helpers.h"
 
 #include <algorithm>
 
-#include <rex/codegen/recompiler.h>
+#include <rex/codegen/binary_view.h>
 #include <rex/logging.h>
 
 #include "../codegen_logging.h"
-#include <rex/runtime.h>
 #include <rex/system/export_resolver.h>
 
 namespace rex::codegen {
+
+/// eieio instruction encoding (big-endian). Used for MMIO detection:
+/// if the next instruction after a load/store is eieio, the access is MMIO.
+static constexpr uint32_t kEieioEncoding = 0xAC06007C;
 
 //=============================================================================
 // Convenience Accessors
 //=============================================================================
 
 const RecompilerConfig& BuilderContext::config() const {
-  return recompiler.ctx_->Config();
+  return emitCtx.config;
 }
 
 const FunctionGraph& BuilderContext::graph() const {
-  return recompiler.ctx_->graph;
-}
-
-std::string& BuilderContext::out() {
-  return recompiler.out;
+  return emitCtx.graph;
 }
 
 //=============================================================================
@@ -139,13 +138,13 @@ const char* BuilderContext::ea() {
 //=============================================================================
 
 bool BuilderContext::mmio_check_d_form() {
-  if (base + 4 < fn.end() && *(data + 1) == Recompiler::c_eieio)
+  if (base + 4 < fn.end() && *(data + 1) == kEieioEncoding)
     return true;
   return locals.is_mmio_base(insn.operands[2]);
 }
 
 bool BuilderContext::mmio_check_x_form() {
-  if (base + 4 < fn.end() && *(data + 1) == Recompiler::c_eieio)
+  if (base + 4 < fn.end() && *(data + 1) == kEieioEncoding)
     return true;
   return locals.is_mmio_base(insn.operands[1]) || locals.is_mmio_base(insn.operands[2]);
 }
@@ -211,19 +210,17 @@ void BuilderContext::emit_function_call(uint32_t address) {
 
       // Try to resolve ordinal to actual function name
       auto at_pos = importTarget.name.find('@');
-      if (at_pos != std::string::npos && recompiler.runtime) {
+      if (at_pos != std::string::npos && emitCtx.resolver) {
         auto lib_name = importTarget.name.substr(0, at_pos);
         auto ordinal_str = importTarget.name.substr(at_pos + 1);
         uint16_t ordinal = static_cast<uint16_t>(std::stoul(ordinal_str));
 
-        if (auto* resolver = recompiler.runtime->export_resolver()) {
-          auto* exp = resolver->GetExportByOrdinal(lib_name + ".xex", ordinal);
-          if (!exp)
-            exp = resolver->GetExportByOrdinal(lib_name, ordinal);
+        auto* exp = emitCtx.resolver->GetExportByOrdinal(lib_name + ".xex", ordinal);
+        if (!exp)
+          exp = emitCtx.resolver->GetExportByOrdinal(lib_name, ordinal);
 
-          if (exp) {
-            func_name = "__imp__" + std::string(exp->name);
-          }
+        if (exp) {
+          func_name = "__imp__" + std::string(exp->name);
         }
       }
 
@@ -331,36 +328,66 @@ void BuilderContext::emit_mid_asm_hook() {
   if (returnsBool)
     print("if (");
 
-  print("{}(ctx, base", midAsmHook->second.name);
-  for (const auto& reg : midAsmHook->second.registers) {
-    print(", {}", reg);
+  // Build call -- no ctx/base prefix, just register arguments resolved through accessors
+  print("{}(", midAsmHook->second.name);
+  for (auto& reg : midAsmHook->second.registers) {
+    if (out.back() != '(')
+      out += ", ";
+
+    switch (reg[0]) {
+      case 'c':
+        if (reg == "ctr")
+          out += ctr();
+        else
+          out += cr(std::atoi(reg.c_str() + 2));
+        break;
+      case 'x':
+        out += xer();
+        break;
+      case 'r':
+        if (reg == "reserved")
+          out += reserved();
+        else
+          out += r(std::atoi(reg.c_str() + 1));
+        break;
+      case 'f':
+        if (reg == "fpscr")
+          out += "ctx.fpscr";
+        else
+          out += f(std::atoi(reg.c_str() + 1));
+        break;
+      case 'v':
+        out += v(std::atoi(reg.c_str() + 1));
+        break;
+    }
   }
-  print(")");
 
-  if (returnsBool)
-    print(") ");
+  if (returnsBool) {
+    println(")) {{");
 
-  if (midAsmHook->second.returnOnTrue || midAsmHook->second.returnOnFalse) {
+    if (midAsmHook->second.returnOnTrue)
+      println("\t\treturn;");
+    else if (midAsmHook->second.jumpAddressOnTrue != 0)
+      println("\t\tgoto loc_{:X};", midAsmHook->second.jumpAddressOnTrue);
+
+    println("\t}}");
+
+    println("\telse {{");
+
     if (midAsmHook->second.returnOnFalse)
-      print("{{ ");
-    println("return;");
-    if (midAsmHook->second.returnOnFalse)
-      println("\t}}");
-  } else if (midAsmHook->second.jumpAddress != 0) {
-    println("goto loc_{:X};", midAsmHook->second.jumpAddress);
-  } else if (midAsmHook->second.jumpAddressOnTrue != 0) {
-    println("goto loc_{:X};", midAsmHook->second.jumpAddressOnTrue);
-  } else if (midAsmHook->second.jumpAddressOnFalse != 0) {
-    println("{{ goto loc_{:X}; }}", midAsmHook->second.jumpAddressOnFalse);
-  } else if (midAsmHook->second.ret) {
-    println("return;");
+      println("\t\treturn;");
+    else if (midAsmHook->second.jumpAddressOnFalse != 0)
+      println("\t\tgoto loc_{:X};", midAsmHook->second.jumpAddressOnFalse);
+
+    println("\t}}");
   } else {
-    println(";");
-  }
-}
+    println(");");
 
-void BuilderContext::reset_switch_table() {
-  switchTable = recompiler.ctx_->Config().switchTables.end();
+    if (midAsmHook->second.ret)
+      println("\treturn;");
+    else if (midAsmHook->second.jumpAddress != 0)
+      println("\tgoto loc_{:X};", midAsmHook->second.jumpAddress);
+  }
 }
 
 //=============================================================================

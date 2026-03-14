@@ -7,9 +7,7 @@ set(CODEGEN_CORE_SOURCES
     analyze.cpp
     code_emitter.cpp
     decoded_binary.cpp
-    discovery.cpp
-    recompile.cpp
-    recompiler.cpp
+    codegen_writer.cpp
     config.cpp
     function_graph.cpp
     function_scanner.cpp
@@ -17,10 +15,14 @@ set(CODEGEN_CORE_SOURCES
     vtable_scanner.cpp
     binary_view.cpp
     instruction_dispatch.cpp
-    output.cpp
-    test_module.cpp
-    test_analyze.cpp
+    test_support.cpp
     codegen_context.cpp
+    phase_register.cpp
+    phase_scan.cpp
+    phase_discover.cpp
+    phase_gapfill.cpp
+    phase_merge.cpp
+    phase_validate.cpp
 )
 
 # PPC architecture sources (merged from rexarch)
