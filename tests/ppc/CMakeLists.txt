@@ -142,7 +142,7 @@ add_custom_command(
     OUTPUT ${CMAKE_BINARY_DIR}/tests/ppc/generated/ppc_test_functions.cpp
            ${CMAKE_BINARY_DIR}/tests/ppc/generated/ppc_test_cases.cpp
            ${CMAKE_BINARY_DIR}/tests/ppc/generated/ppc_test_decls.h
-    COMMAND $<TARGET_FILE:rexglue> recompile-tests
+    COMMAND ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}/rexglue${CMAKE_EXECUTABLE_SUFFIX} recompile-tests
             --output=${CMAKE_BINARY_DIR}/tests/ppc/generated
             --bin_dir=${CMAKE_BINARY_DIR}/tests/ppc/bin
             --asm_dir=${CMAKE_CURRENT_SOURCE_DIR}/asm
