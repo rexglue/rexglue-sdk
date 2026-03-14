@@ -13,7 +13,7 @@
 
 #include <rex/codegen/analyze.h>
 #include <rex/codegen/codegen.h>
-#include <rex/codegen/recompile.h>
+#include <rex/codegen/codegen_writer.h>
 #include <rex/kernel/init.h>
 #include <rex/logging.h>
 #include <rex/runtime.h>
@@ -29,7 +29,10 @@ Result<CodegenPipeline> CodegenPipeline::Create(const std::filesystem::path& con
 
   // Load config to get XEX path
   RecompilerConfig tempConfig;
-  tempConfig.Load(configPath.string());
+  if (!tempConfig.Load(configPath.string())) {
+    return Err<CodegenPipeline>(ErrorCategory::Config,
+                                fmt::format("Failed to load config: {}", configPath.string()));
+  }
 
   auto configDir = configPath.parent_path();
 
@@ -81,8 +84,11 @@ Result<void> CodegenPipeline::Run(bool force) {
     return analyzeResult;
   }
 
-  // Phase 2: Recompile (generates C++ code)
-  return Recompile(*ctx_, force);
+  // Phase 2: Generate C++ output
+  CodegenWriter writer(*ctx_, runtime_.get());
+  if (!writer.write(force))
+    return Err(ErrorCategory::Validation, "Code generation failed.");
+  return Ok();
 }
 
 }  // namespace rex::codegen

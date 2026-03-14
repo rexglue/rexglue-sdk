@@ -29,10 +29,10 @@ REXCVAR_DEFINE_BOOL(enable_exception_handlers, false, "Codegen",
 // Codegen/Output
 //=============================================================================
 
-REXCVAR_DEFINE_UINT32(functions_per_file, 500, "Codegen",
-                      "Functions per generated .cpp file")
+REXCVAR_DEFINE_UINT32(max_file_size_bytes, 2097152, "Codegen",
+                      "Target maximum source file size in bytes")
     .lifecycle(rex::cvar::Lifecycle::kInitOnly)
-    .range(1, 100000);
+    .range(65536, 67108864);
 
 REXCVAR_DEFINE_UINT32(progress_log_frequency, 100, "Codegen",
                       "Log progress every N functions")

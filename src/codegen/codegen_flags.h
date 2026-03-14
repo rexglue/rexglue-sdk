@@ -17,7 +17,7 @@
 #include <rex/cvar.h>
 
 // Codegen/Output
-REXCVAR_DECLARE(uint32_t, functions_per_file);
+REXCVAR_DECLARE(uint32_t, max_file_size_bytes);
 REXCVAR_DECLARE(uint32_t, progress_log_frequency);
 
 // Codegen/Analysis

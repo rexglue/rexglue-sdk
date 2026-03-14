@@ -8,7 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include "builder_context.h"
+#include "builders/builder_context.h"
 #include "builders.h"
 
 #include <unordered_map>
@@ -633,6 +633,15 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
 }
 
 bool DispatchInstruction(int id, BuilderContext& ctx) {
+  // VUPKHSB128/VUPKLSB128 misidentification fixup (moved from recompiler.cpp).
+  // Only fires when operands[2]==0x60; table entries for *128 variants
+  // still serve the non-0x60 case.
+  if (id == PPC_INST_VUPKHSB128 && ctx.insn.operands[2] == 0x60) {
+    id = PPC_INST_VUPKHSH128;
+  } else if (id == PPC_INST_VUPKLSB128 && ctx.insn.operands[2] == 0x60) {
+    id = PPC_INST_VUPKLSH128;
+  }
+
   const auto& table = GetDispatchTable();
   auto it = table.find(id);
   if (it != table.end()) {
