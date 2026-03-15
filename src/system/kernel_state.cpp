@@ -458,9 +458,8 @@ object_ref<XThread> KernelState::LaunchModule(object_ref<UserModule> module) {
 
   // Create a thread to run in.
   // We start suspended so we can run the debugger prep.
-  auto thread =
-      object_ref<XThread>(new XThread(kernel_state(), module->stack_size(), 0,
-                                      module->entry_point(), 0, X_CREATE_SUSPENDED, true, true));
+  auto thread = object_ref<XThread>(new XThread(
+      this, module->stack_size(), 0, module->entry_point(), 0, X_CREATE_SUSPENDED, true, true));
 
   // We know this is the 'main thread'.
   thread->set_name("Main XThread");

@@ -96,9 +96,9 @@ XThread::~XThread() {
 
   thread_.reset();
 
-  kernel_state()->memory()->SystemHeapFree(scratch_address_);
-  kernel_state()->memory()->SystemHeapFree(tls_static_address_);
-  kernel_state()->memory()->SystemHeapFree(pcr_address_);
+  kernel_state_->memory()->SystemHeapFree(scratch_address_);
+  kernel_state_->memory()->SystemHeapFree(tls_static_address_);
+  kernel_state_->memory()->SystemHeapFree(pcr_address_);
   FreeStack();
 
   if (thread_) {
@@ -327,7 +327,7 @@ X_STATUS XThread::Create() {
   // Allocate TLS block.
   // Games will specify a certain number of 4b slots that each thread will get.
   xex2_opt_tls_info* tls_header = nullptr;
-  auto module = kernel_state()->GetExecutableModule();
+  auto module = kernel_state_->GetExecutableModule();
   if (module) {
     module->GetOptHeader(XEX_HEADER_TLS_INFO, &tls_header);
   }
@@ -501,7 +501,7 @@ X_STATUS XThread::Exit(int exit_code) {
     kernel::xboxkrnl::xeKeKfReleaseSpinLock(ctx, &kprocess->thread_list_spinlock, old_irql);
   }
 
-  kernel_state()->OnThreadExit(this);
+  kernel_state_->OnThreadExit(this);
 
   // TODO(tomc): do we need thread notifications (related to processor thread management)?
 
@@ -547,7 +547,7 @@ void XThread::Execute() {
                thread_name_, thread_->system_id());
 
   // Let the kernel know we are starting.
-  kernel_state()->OnThreadExecute(this);
+  kernel_state_->OnThreadExecute(this);
 
   // Dispatch any APCs that were queued before the thread was created first.
   DeliverAPCs();
@@ -695,7 +695,7 @@ void XThread::DeliverAPCs() {
   auto mem = memory();
   auto* ctx = thread_state_->context();
   auto kthread = guest_object<X_KTHREAD>();
-  auto* dispatcher = kernel_state()->function_dispatcher();
+  auto* dispatcher = kernel_state_->function_dispatcher();
 
   auto old_irql = kernel::xboxkrnl::xeKeKfAcquireSpinLock(ctx, &kthread->apc_lock);
   auto& user_apc_queue = kthread->apc_lists[1];
@@ -782,7 +782,7 @@ void XThread::RundownAPCs() {
       if (apc->rundown_routine == XAPC::kDummyRundownRoutine) {
         // No-op.
       } else if (apc->rundown_routine) {
-        auto fn = kernel_state()->function_dispatcher()->GetFunction(apc->rundown_routine);
+        auto fn = kernel_state_->function_dispatcher()->GetFunction(apc->rundown_routine);
         if (fn) {
           auto* ctx = thread_state_->context();
           ctx->r3.u64 = apc_ptr;
@@ -1638,7 +1638,7 @@ void XHostThread::Execute() {
               handle(), thread_name_, thread_->system_id());
 
   // Let the kernel know we are starting.
-  kernel_state()->OnThreadExecute(this);
+  kernel_state_->OnThreadExecute(this);
 
   int ret = host_fn_();
 
