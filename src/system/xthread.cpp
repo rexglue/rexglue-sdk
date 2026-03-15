@@ -422,6 +422,7 @@ X_STATUS XThread::Create() {
   params.create_suspended = true;
   thread_ = rex::thread::Thread::Create(params, [this]() {
     rex::initialize_seh_thread();
+    runtime::ThreadState::Bind(thread_state_.get());
 
     // Set thread ID override. This is used by logging.
     rex::thread::set_current_thread_id(handle());
@@ -1591,6 +1592,7 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state, stream::ByteStre
     thread->thread_ = rex::thread::Thread::Create(params, [thread, state]() {
       // Set thread ID override. This is used by logging.
       rex::thread::set_current_thread_id(thread->handle());
+      runtime::ThreadState::Bind(thread->thread_state_.get());
 
       // Set name immediately, if we have one.
       thread->thread_->set_name(thread->name());
