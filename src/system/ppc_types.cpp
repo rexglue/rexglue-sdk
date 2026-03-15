@@ -13,10 +13,6 @@
 
 namespace rex {
 
-// Thread-local base pointer for guest address computation
-// Set by HostToGuestFunction wrapper before calling entry functions
-thread_local uint8_t* g_memory_base = nullptr;
-
 // Thread-local current PPC context for GuestToHostFunction
 thread_local PPCContext* g_current_ppc_context = nullptr;
 

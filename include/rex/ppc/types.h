@@ -44,10 +44,6 @@ struct is_be_type<rex::be<T>> : std::true_type {};
 template <typename T>
 inline constexpr bool is_be_type_v = is_be_type<T>::value;
 
-// Thread-local base pointer for PPC address computation
-// Set by HostToGuestFunction wrapper before calling _entry functions
-extern thread_local uint8_t* g_memory_base;
-
 //=============================================================================
 // PPCValue - Wrapper for scalar types with .value() method
 //=============================================================================

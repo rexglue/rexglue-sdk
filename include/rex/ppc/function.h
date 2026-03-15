@@ -322,7 +322,6 @@ struct ArgTranslator {
   static T GetValue(PPCContext& ctx, uint8_t* base, size_t idx) noexcept {
     using inner_t = typename ppc_pointer_inner_type<T>::type;
     const auto v = GetIntegerArgumentValue(ctx, base, idx);
-    g_memory_base = base;
     if (!v) {
       return T(nullptr);
     }
@@ -487,7 +486,6 @@ __attribute__((noinline)) void HostToGuestFunction(PPCContext& ctx, uint8_t* bas
   // Set thread-local state so called code can use GuestToHostFunction
   PPCContext* prev_ctx = g_current_ppc_context;
   g_current_ppc_context = &ctx;
-  g_memory_base = base;
 
   auto args = function_args(Func);
   _translate_args_to_host<Func>(ctx, base, args);
