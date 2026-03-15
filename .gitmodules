@@ -43,10 +43,6 @@
 [submodule "thirdparty/imgui"]
 	path = thirdparty/imgui
 	url = https://github.com/ocornut/imgui.git
-[submodule "thirdparty/sdl2"]
-	path = thirdparty/sdl2
-	url = https://github.com/libsdl-org/SDL.git
-	branch = release-2.32.x
 [submodule "thirdparty/spirv-tools"]
 	path = thirdparty/spirv-tools
 	url = https://github.com/KhronosGroup/SPIRV-Tools.git
@@ -62,3 +58,7 @@
 [submodule "thirdparty/FidelityFX"]
 	path = thirdparty/FidelityFX
 	url = https://github.com/rexglue/FidelityFX-SDK.git
+[submodule "thirdparty/sdl3"]
+	path = thirdparty/sdl3
+	url = https://github.com/libsdl-org/SDL
+	branch = release-3.4.x

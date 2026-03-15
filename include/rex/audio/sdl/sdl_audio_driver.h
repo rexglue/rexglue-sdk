@@ -18,7 +18,7 @@
 #include <rex/audio/audio_driver.h>
 #include <rex/thread.h>
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 namespace rex::audio::sdl {
 
@@ -32,11 +32,12 @@ class SDLAudioDriver : public AudioDriver {
   void Shutdown();
 
  protected:
-  static void SDLCallback(void* userdata, Uint8* stream, int len);
+  static void SDLCallback(void* userdata, SDL_AudioStream* stream, int additional_amount,
+                          int total_amount);
 
   rex::thread::Semaphore* semaphore_ = nullptr;
 
-  SDL_AudioDeviceID sdl_device_id_ = -1;
+  SDL_AudioStream* sdl_stream_ = nullptr;
   bool sdl_initialized_ = false;
   uint8_t sdl_device_channels_ = 0;
 

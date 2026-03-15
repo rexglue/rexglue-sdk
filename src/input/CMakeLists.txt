@@ -17,4 +17,4 @@ else()
     target_sources(rexinput PRIVATE sdl/sdl_input_driver.cpp)
 endif()
 
-target_link_libraries(rexinput PUBLIC rexcore SDL2::SDL2)
+target_link_libraries(rexinput PUBLIC rexcore SDL3::SDL3)

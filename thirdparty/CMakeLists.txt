@@ -16,7 +16,7 @@ set(REQUIRED_SUBMODULES
     snappy
     utfcpp
     imgui
-    sdl2
+    sdl3
 )
 
 if(REXGLUE_USE_VULKAN)
@@ -280,12 +280,13 @@ target_include_directories(imgui PUBLIC
 target_compile_options(imgui PRIVATE -w)
 
 #=============================================================================
-# SDL2 - Cross-platform media layer
+# SDL3 - Cross-platform media layer
 #=============================================================================
-set(SDL2_DISABLE_INSTALL OFF CACHE BOOL "" FORCE)
+set(SDL_INSTALL ON CACHE BOOL "" FORCE)
 set(SDL_SHARED OFF CACHE BOOL "" FORCE)
 set(SDL_STATIC ON CACHE BOOL "" FORCE)
 set(SDL_TEST OFF CACHE BOOL "" FORCE)
+set(SDL_UNIX_CONSOLE_BUILD ON CACHE BOOL "" FORCE)
 
 # Disable unused subsystems
 set(SDL_VIDEO OFF CACHE BOOL "" FORCE)
@@ -309,7 +310,7 @@ set(SDL_DISKAUDIO OFF CACHE BOOL "" FORCE)
 set(SDL_DUMMYAUDIO OFF CACHE BOOL "" FORCE)
 set(SDL_DUMMYVIDEO OFF CACHE BOOL "" FORCE)
 
-add_subdirectory(sdl2)
+add_subdirectory(sdl3)
 
 #=============================================================================
 # DXC API headers (vendored from DirectXShaderCompiler, runtime-loaded)

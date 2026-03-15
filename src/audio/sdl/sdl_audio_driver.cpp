@@ -19,6 +19,7 @@
 #include <rex/cvar.h>
 #include <rex/dbg.h>
 #include <rex/logging.h>
+#include <SDL3/SDL.h>
 
 REXCVAR_DEFINE_BOOL(audio_mute, false, "Audio", "Mute audio output");
 
@@ -33,15 +34,6 @@ SDLAudioDriver::~SDLAudioDriver() {
 }
 
 bool SDLAudioDriver::Initialize() {
-  SDL_version ver = {};
-  SDL_GetVersion(&ver);
-  if ((ver.major < 2) || (ver.major == 2 && ver.minor == 0 && ver.patch < 8)) {
-    REXAPU_WARN(
-        "SDL library version {}.{}.{} is outdated. "
-        "You may experience choppy audio.",
-        ver.major, ver.minor, ver.patch);
-  }
-
   // Prevent SDL from interfering with timer resolution (causes FPS drops)
   SDL_SetHintWithPriority(SDL_HINT_TIMER_RESOLUTION, "0", SDL_HINT_OVERRIDE);
 
@@ -49,12 +41,9 @@ bool SDLAudioDriver::Initialize() {
   SDL_SetHint(SDL_HINT_AUDIO_CATEGORY, "playback");
 
   // Set app name for audio device identification
-#if !SDL_VERSION_ATLEAST(2, 0, 14)
-#define SDL_HINT_AUDIO_DEVICE_APP_NAME "SDL_AUDIO_DEVICE_APP_NAME"
-#endif
-  SDL_SetHint(SDL_HINT_AUDIO_DEVICE_APP_NAME, "rexglue");
+  SDL_SetAppMetadataProperty(SDL_PROP_APP_METADATA_NAME_STRING, "rexglue");
 
-  if (SDL_InitSubSystem(SDL_INIT_AUDIO) < 0) {
+  if (!SDL_InitSubSystem(SDL_INIT_AUDIO)) {
     REXAPU_ERROR("SDL_InitSubSystem(SDL_INIT_AUDIO) failed: {}", SDL_GetError());
     return false;
   }
@@ -63,34 +52,24 @@ bool SDLAudioDriver::Initialize() {
   SDL_AudioSpec desired_spec = {};
   SDL_AudioSpec obtained_spec;
   desired_spec.freq = frame_frequency_;
-  desired_spec.format = AUDIO_F32;
+  desired_spec.format = SDL_AUDIO_F32LE;
   desired_spec.channels = frame_channels_;
-  desired_spec.samples = channel_samples_;
-  desired_spec.callback = SDLCallback;
-  desired_spec.userdata = this;
-  // Allow the hardware to decide between 5.1 and stereo
-  int allowed_change = SDL_AUDIO_ALLOW_CHANNELS_CHANGE;
-  for (int i = 0; i < 2; i++) {
-    sdl_device_id_ = SDL_OpenAudioDevice(nullptr, 0, &desired_spec, &obtained_spec, allowed_change);
-    if (sdl_device_id_ <= 0) {
-      REXAPU_ERROR("SDL_OpenAudioDevice() failed: {}", SDL_GetError());
-      return false;
-    }
-    if (obtained_spec.channels == 2 || obtained_spec.channels == 6) {
-      break;
-    }
-    // If the system is 4 or 7.1, let SDL convert
-    allowed_change = 0;
-    SDL_CloseAudioDevice(sdl_device_id_);
-    sdl_device_id_ = -1;
-  }
-  if (sdl_device_id_ <= 0) {
-    REXAPU_ERROR("Failed to get a compatible SDL Audio Device.");
+  sdl_device_channels_ = frame_channels_;
+  sdl_stream_ = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &desired_spec,
+                                          SDLCallback, this);
+  if (!sdl_stream_) {
+    REXAPU_ERROR("SDL_OpenAudioDevice() failed: {}", SDL_GetError());
     return false;
   }
-  sdl_device_channels_ = obtained_spec.channels;
-
-  SDL_PauseAudioDevice(sdl_device_id_, 0);
+  SDL_GetAudioDeviceFormat(SDL_GetAudioStreamDevice(sdl_stream_), &obtained_spec, NULL);
+  if (obtained_spec.channels == 2) {
+    SDL_DestroyAudioStream(sdl_stream_);
+    desired_spec.channels = 2;
+    sdl_device_channels_ = 2;
+    sdl_stream_ = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &desired_spec,
+                                            SDLCallback, this);
+  }
+  SDL_ResumeAudioDevice(SDL_GetAudioStreamDevice(sdl_stream_));
 
   return true;
 }
@@ -124,9 +103,9 @@ void SDLAudioDriver::SubmitFrame(uint32_t frame_ptr) {
 }
 
 void SDLAudioDriver::Shutdown() {
-  if (sdl_device_id_ > 0) {
-    SDL_CloseAudioDevice(sdl_device_id_);
-    sdl_device_id_ = -1;
+  if (sdl_stream_) {
+    SDL_DestroyAudioStream(sdl_stream_);
+    sdl_stream_ = nullptr;
   }
   if (sdl_initialized_) {
     SDL_QuitSubSystem(SDL_INIT_AUDIO);
@@ -143,49 +122,49 @@ void SDLAudioDriver::Shutdown() {
   }
 }
 
-void SDLAudioDriver::SDLCallback(void* userdata, Uint8* stream, int len) {
+void SDLAudioDriver::SDLCallback(void* userdata, SDL_AudioStream* stream, int additional_amount,
+                                 int total_amount) {
   SCOPE_profile_cpu_f("apu");
   if (!userdata || !stream) {
     REXAPU_ERROR("SDLAudioDriver::SDLCallback called with nullptr.");
     return;
   }
   const auto driver = static_cast<SDLAudioDriver*>(userdata);
-  assert_true(len ==
-              static_cast<int>(sizeof(float) * channel_samples_ * driver->sdl_device_channels_));
-
-  static uint32_t sdl_callback_count = 0;
-  std::unique_lock<std::mutex> guard(driver->frames_mutex_);
-  if (driver->frames_queued_.empty()) {
-    if (sdl_callback_count < 10) {
-      REXAPU_DEBUG("SDLCallback: no frames queued (silence)");
-      sdl_callback_count++;
-    }
-    std::memset(stream, 0, len);
-  } else {
-    auto buffer = driver->frames_queued_.front();
-    driver->frames_queued_.pop();
-    if (REXCVAR_GET(audio_mute)) {
-      std::memset(stream, 0, len);
-    } else {
-      switch (driver->sdl_device_channels_) {
-        case 2:
-          conversion::sequential_6_BE_to_interleaved_2_LE(reinterpret_cast<float*>(stream), buffer,
-                                                          channel_samples_);
-          break;
-        case 6:
-          conversion::sequential_6_BE_to_interleaved_6_LE(reinterpret_cast<float*>(stream), buffer,
-                                                          channel_samples_);
-          break;
-        default:
-          assert_unhandled_case(driver->sdl_device_channels_);
-          break;
+  const int len = static_cast<int>(sizeof(float) * channel_samples_ * driver->sdl_device_channels_);
+  float* data = SDL_stack_alloc(float, len);
+  while (additional_amount > 0) {
+    static uint32_t sdl_callback_count = 0;
+    std::unique_lock<std::mutex> guard(driver->frames_mutex_);
+    if (driver->frames_queued_.empty()) {
+      if (sdl_callback_count < 10) {
+        REXAPU_DEBUG("SDLCallback: no frames queued (silence)");
+        sdl_callback_count++;
       }
-    }
-    driver->frames_unused_.push(buffer);
+    } else {
+      auto buffer = driver->frames_queued_.front();
+      driver->frames_queued_.pop();
+      if (!REXCVAR_GET(audio_mute)) {
+        switch (driver->sdl_device_channels_) {
+          case 2:
+            conversion::sequential_6_BE_to_interleaved_2_LE(data, buffer, channel_samples_);
+            break;
+          case 6:
+            conversion::sequential_6_BE_to_interleaved_6_LE(data, buffer, channel_samples_);
+            break;
+          default:
+            assert_unhandled_case(driver->sdl_device_channels_);
+            break;
+        }
+        SDL_PutAudioStreamData(stream, data, len);
+      }
+      driver->frames_unused_.push(buffer);
 
-    auto ret = driver->semaphore_->Release(1, nullptr);
-    assert_true(ret);
+      auto ret = driver->semaphore_->Release(1, nullptr);
+      assert_true(ret);
+      additional_amount -= len;
+    }
   }
+  SDL_stack_free(data);
 }
 
 }  // namespace rex::audio::sdl

@@ -19,7 +19,7 @@
 
 #include <rex/input/input_driver.h>
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 #define HID_SDL_USER_COUNT 4
 #define HID_SDL_THUMB_THRES 0x4E00
@@ -45,7 +45,7 @@ class SDLInputDriver final : public InputDriver {
 
  private:
   struct ControllerState {
-    SDL_GameController* sdl;
+    SDL_Gamepad* sdl;
     X_INPUT_CAPABILITIES caps;
     X_INPUT_STATE state;
     bool state_changed;
@@ -82,7 +82,7 @@ class SDLInputDriver final : public InputDriver {
   void QueueControllerUpdate();
 
   bool sdl_events_initialized_;
-  bool sdl_gamecontroller_initialized_;
+  bool SDL_Gamepad_initialized_;
   std::atomic<int> sdl_events_unflushed_;
   std::atomic<bool> sdl_pumpevents_queued_;
   std::array<ControllerState, HID_SDL_USER_COUNT> controllers_;

@@ -28,7 +28,7 @@ namespace rex::input::sdl {
 SDLInputDriver::SDLInputDriver(rex::ui::Window* window, size_t window_z_order)
     : InputDriver(window, window_z_order),
       sdl_events_initialized_(false),
-      sdl_gamecontroller_initialized_(false),
+      SDL_Gamepad_initialized_(false),
       sdl_events_unflushed_(0),
       sdl_pumpevents_queued_(false),
       controllers_(),
@@ -38,13 +38,13 @@ SDLInputDriver::SDLInputDriver(rex::ui::Window* window, size_t window_z_order)
 SDLInputDriver::~SDLInputDriver() {
   for (size_t i = 0; i < controllers_.size(); i++) {
     if (controllers_.at(i).sdl) {
-      SDL_GameControllerClose(controllers_.at(i).sdl);
+      SDL_CloseGamepad(controllers_.at(i).sdl);
       controllers_.at(i) = {};
     }
   }
-  if (sdl_gamecontroller_initialized_) {
-    SDL_QuitSubSystem(SDL_INIT_GAMECONTROLLER);
-    sdl_gamecontroller_initialized_ = false;
+  if (SDL_Gamepad_initialized_) {
+    SDL_QuitSubSystem(SDL_INIT_GAMEPAD);
+    SDL_Gamepad_initialized_ = false;
   }
   if (sdl_events_initialized_) {
     SDL_QuitSubSystem(SDL_INIT_EVENTS);
@@ -58,7 +58,7 @@ X_STATUS SDLInputDriver::Setup() {
   }
 
   // Initialize SDL events subsystem
-  if (SDL_InitSubSystem(SDL_INIT_EVENTS) < 0) {
+  if (!SDL_InitSubSystem(SDL_INIT_EVENTS)) {
     REXLOG_ERROR("SDL: Failed to init events subsystem: {}", SDL_GetError());
     return X_STATUS_UNSUCCESSFUL;
   }
@@ -68,15 +68,15 @@ X_STATUS SDLInputDriver::Setup() {
   // With an event watch we will always get notified, even if the event queue
   // is full, which can happen if another subsystem does not clear its events.
   SDL_AddEventWatch(
-      [](void* userdata, SDL_Event* event) -> int {
+      [](void* userdata, SDL_Event* event) -> bool {
         if (!userdata || !event) {
           assert_always();
-          return 0;
+          return false;
         }
 
         const auto type = event->type;
-        if (type < SDL_JOYAXISMOTION || type >= SDL_FINGERDOWN) {
-          return 0;
+        if (type < SDL_EVENT_JOYSTICK_AXIS_MOTION || type >= SDL_EVENT_FINGER_DOWN) {
+          return false;
         }
 
         // If another part of rex uses another SDL subsystem that generates
@@ -85,16 +85,16 @@ X_STATUS SDLInputDriver::Setup() {
         const auto driver = static_cast<SDLInputDriver*>(userdata);
         driver->HandleEvent(*event);
 
-        return 0;
+        return false;
       },
       this);
 
   // Initialize game controller subsystem
-  if (SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER) < 0) {
+  if (!SDL_InitSubSystem(SDL_INIT_GAMEPAD)) {
     REXLOG_ERROR("SDL: Failed to init gamecontroller subsystem: {}", SDL_GetError());
     return X_STATUS_UNSUCCESSFUL;
   }
-  sdl_gamecontroller_initialized_ = true;
+  SDL_Gamepad_initialized_ = true;
 
   // Load custom controller mappings if available
   if (!REXCVAR_GET(hid_mappings_file).empty()) {
@@ -103,19 +103,12 @@ X_STATUS SDLInputDriver::Setup() {
       REXLOG_WARN("SDL GameControllerDB: file '{}' does not exist.",
                   REXCVAR_GET(hid_mappings_file));
     } else {
-      auto mappings_file = fopen(REXCVAR_GET(hid_mappings_file).c_str(), "rb");
-      if (!mappings_file) {
-        REXLOG_ERROR("SDL GameControllerDB: failed to open file '{}'.",
-                     REXCVAR_GET(hid_mappings_file));
+      auto mappings_result = SDL_AddGamepadMappingsFromFile(REXCVAR_GET(hid_mappings_file).c_str());
+      if (mappings_result < 0) {
+        REXLOG_ERROR("SDL GameControllerDB: error loading file '{}': {}.",
+                     REXCVAR_GET(hid_mappings_file), mappings_result);
       } else {
-        auto mappings_result =
-            SDL_GameControllerAddMappingsFromRW(SDL_RWFromFP(mappings_file, SDL_TRUE), 1);
-        if (mappings_result < 0) {
-          REXLOG_ERROR("SDL GameControllerDB: error loading file '{}': {}.",
-                       REXCVAR_GET(hid_mappings_file), mappings_result);
-        } else {
-          REXLOG_INFO("SDL GameControllerDB: loaded {} mappings.", mappings_result);
-        }
+        REXLOG_INFO("SDL GameControllerDB: loaded {} mappings.", mappings_result);
       }
     }
   }
@@ -126,7 +119,7 @@ X_STATUS SDLInputDriver::Setup() {
 
 X_RESULT SDLInputDriver::GetCapabilities(uint32_t user_index, uint32_t flags,
                                          X_INPUT_CAPABILITIES* out_caps) {
-  assert(sdl_events_initialized_ && sdl_gamecontroller_initialized_);
+  assert(sdl_events_initialized_ && SDL_Gamepad_initialized_);
   if (user_index >= HID_SDL_USER_COUNT || !out_caps) {
     return X_ERROR_BAD_ARGUMENTS;
   }
@@ -150,7 +143,7 @@ X_RESULT SDLInputDriver::GetCapabilities(uint32_t user_index, uint32_t flags,
 }
 
 X_RESULT SDLInputDriver::GetState(uint32_t user_index, X_INPUT_STATE* out_state) {
-  assert(sdl_events_initialized_ && sdl_gamecontroller_initialized_);
+  assert(sdl_events_initialized_ && SDL_Gamepad_initialized_);
   if (user_index >= HID_SDL_USER_COUNT) {
     return X_ERROR_BAD_ARGUMENTS;
   }
@@ -186,7 +179,7 @@ X_RESULT SDLInputDriver::GetState(uint32_t user_index, X_INPUT_STATE* out_state)
 }
 
 X_RESULT SDLInputDriver::SetState(uint32_t user_index, X_INPUT_VIBRATION* vibration) {
-  assert(sdl_events_initialized_ && sdl_gamecontroller_initialized_);
+  assert(sdl_events_initialized_ && SDL_Gamepad_initialized_);
   if (user_index >= HID_SDL_USER_COUNT) {
     return X_ERROR_BAD_ARGUMENTS;
   }
@@ -201,8 +194,8 @@ X_RESULT SDLInputDriver::SetState(uint32_t user_index, X_INPUT_VIBRATION* vibrat
   }
 
 #if SDL_VERSION_ATLEAST(2, 0, 9)
-  if (SDL_GameControllerRumble(controller->sdl, vibration->left_motor_speed,
-                               vibration->right_motor_speed, 0)) {
+  if (SDL_RumbleGamepad(controller->sdl, vibration->left_motor_speed, vibration->right_motor_speed,
+                        0)) {
     return X_ERROR_FUNCTION_FAILED;
   } else {
     return X_ERROR_SUCCESS;
@@ -216,7 +209,7 @@ X_RESULT SDLInputDriver::GetKeystroke(uint32_t users, uint32_t flags,
                                       X_INPUT_KEYSTROKE* out_keystroke) {
   // TODO(JoelLinn): Figure out the flags
   // https://github.com/evilC/UCR/blob/0489929e2a8e39caa3484c67f3993d3fba39e46f/Libraries/XInput.ahk#L85-L98
-  assert(sdl_events_initialized_ && sdl_gamecontroller_initialized_);
+  assert(sdl_events_initialized_ && SDL_Gamepad_initialized_);
   bool user_any = users == 0xFF;
   if (users >= HID_SDL_USER_COUNT && !user_any) {
     return X_ERROR_BAD_ARGUMENTS;
@@ -369,11 +362,11 @@ void SDLInputDriver::HandleEvent(const SDL_Event& event) {
   // may be a dedicated thread SDL has created for the joystick subsystem.
 
   // Event queue should never be (this) full
-  assert(SDL_PeepEvents(nullptr, 0, SDL_PEEKEVENT, SDL_FIRSTEVENT, SDL_LASTEVENT) < 0xFFFF);
+  assert(SDL_PeepEvents(nullptr, 0, SDL_PEEKEVENT, SDL_EVENT_FIRST, SDL_EVENT_LAST) < 0xFFFF);
 
   // The queue could grow up to 3.5MB since it is never polled.
   if (++sdl_events_unflushed_ > 64) {
-    SDL_FlushEvents(SDL_JOYAXISMOTION, SDL_FINGERDOWN - 1);
+    SDL_FlushEvents(SDL_EVENT_JOYSTICK_AXIS_MOTION, SDL_EVENT_FINGER_DOWN - 1);
     sdl_events_unflushed_ = 0;
   }
 
@@ -399,17 +392,17 @@ std::unique_lock<std::mutex> SDLInputDriver::DrainAndLock() {
 
 void SDLInputDriver::ProcessEventLocked(const SDL_Event& event) {
   switch (event.type) {
-    case SDL_CONTROLLERDEVICEADDED:
+    case SDL_EVENT_GAMEPAD_ADDED:
       OnControllerDeviceAddedLocked(event);
       break;
-    case SDL_CONTROLLERDEVICEREMOVED:
+    case SDL_EVENT_GAMEPAD_REMOVED:
       OnControllerDeviceRemovedLocked(event);
       break;
-    case SDL_CONTROLLERAXISMOTION:
+    case SDL_EVENT_GAMEPAD_AXIS_MOTION:
       OnControllerDeviceAxisMotionLocked(event);
       break;
-    case SDL_CONTROLLERBUTTONDOWN:
-    case SDL_CONTROLLERBUTTONUP:
+    case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+    case SDL_EVENT_GAMEPAD_BUTTON_UP:
       OnControllerDeviceButtonChangedLocked(event);
       break;
     default:
@@ -419,7 +412,7 @@ void SDLInputDriver::ProcessEventLocked(const SDL_Event& event) {
 
 void SDLInputDriver::OnControllerDeviceAddedLocked(const SDL_Event& event) {
   // Open the controller.
-  const auto controller = SDL_GameControllerOpen(event.cdevice.which);
+  const auto controller = SDL_OpenGamepad(event.cdevice.which);
   if (!controller) {
     assert_always();
     return;
@@ -430,35 +423,25 @@ void SDLInputDriver::OnControllerDeviceAddedLocked(const SDL_Event& event) {
       "GameControllerType({}), "
       "VendorID(0x{:04X}), "
       "ProductID(0x{:04X})",
-      SDL_GameControllerName(controller),
-      static_cast<int>(SDL_JoystickGetType(SDL_GameControllerGetJoystick(controller))),
-#if SDL_VERSION_ATLEAST(2, 0, 12)
-      static_cast<int>(SDL_GameControllerGetType(controller)),
-#else
-      -1,
-#endif
-#if SDL_VERSION_ATLEAST(2, 0, 6)
-      SDL_GameControllerGetVendor(controller), SDL_GameControllerGetProduct(controller));
-#else
-      0, 0);
-#endif
+      SDL_GetGamepadName(controller),
+      static_cast<int>(SDL_GetJoystickType(SDL_GetGamepadJoystick(controller))),
+      static_cast<int>(SDL_GetGamepadType(controller)), SDL_GetGamepadVendor(controller),
+      SDL_GetGamepadProduct(controller));
   int user_id = -1;
-#if SDL_VERSION_ATLEAST(2, 0, 9)
   // Check if the controller has a player index LED.
-  user_id = SDL_GameControllerGetPlayerIndex(controller);
+  user_id = SDL_GetGamepadPlayerIndex(controller);
   // Is that id already taken?
   if (user_id < 0 || user_id >= static_cast<int>(controllers_.size()) ||
       controllers_.at(user_id).sdl) {
     user_id = -1;
   }
-#endif
   // No player index or already taken, just take the first free slot.
   if (user_id < 0) {
     for (size_t i = 0; i < controllers_.size(); i++) {
       if (!controllers_.at(i).sdl) {
         user_id = static_cast<int>(i);
 #if SDL_VERSION_ATLEAST(2, 0, 12)
-        SDL_GameControllerSetPlayerIndex(controller, user_id);
+        SDL_SetGamepadPlayerIndex(controller, user_id);
 #endif
         break;
       }
@@ -474,7 +457,7 @@ void SDLInputDriver::OnControllerDeviceAddedLocked(const SDL_Event& event) {
     REXLOG_INFO("SDL OnControllerDeviceAdded: Added at index {}.", user_id);
   } else {
     // No more controllers needed, close it.
-    SDL_GameControllerClose(controller);
+    SDL_CloseGamepad(controller);
     REXLOG_WARN("SDL OnControllerDeviceAdded: Ignored. No free slots.");
   }
 }
@@ -483,7 +466,7 @@ void SDLInputDriver::OnControllerDeviceRemovedLocked(const SDL_Event& event) {
   // Find the disconnected gamecontroller and close it.
   auto idx = GetControllerIndexFromInstanceID(event.cdevice.which);
   if (idx) {
-    SDL_GameControllerClose(controllers_.at(*idx).sdl);
+    SDL_CloseGamepad(controllers_.at(*idx).sdl);
     controllers_.at(*idx) = {};
     keystroke_states_.at(*idx) = {};
     REXLOG_INFO("SDL OnControllerDeviceRemoved: Removed at player index {}.", *idx);
@@ -494,27 +477,27 @@ void SDLInputDriver::OnControllerDeviceRemovedLocked(const SDL_Event& event) {
 }
 
 void SDLInputDriver::OnControllerDeviceAxisMotionLocked(const SDL_Event& event) {
-  auto idx = GetControllerIndexFromInstanceID(event.caxis.which);
+  auto idx = GetControllerIndexFromInstanceID(event.gaxis.which);
   assert(idx);
   auto& pad = controllers_.at(*idx).state.gamepad;
-  switch (event.caxis.axis) {
-    case SDL_CONTROLLER_AXIS_LEFTX:
-      pad.thumb_lx = event.caxis.value;
+  switch (event.gaxis.axis) {
+    case SDL_GAMEPAD_AXIS_LEFTX:
+      pad.thumb_lx = event.gaxis.value;
       break;
-    case SDL_CONTROLLER_AXIS_LEFTY:
-      pad.thumb_ly = ~event.caxis.value;
+    case SDL_GAMEPAD_AXIS_LEFTY:
+      pad.thumb_ly = ~event.gaxis.value;
       break;
-    case SDL_CONTROLLER_AXIS_RIGHTX:
-      pad.thumb_rx = event.caxis.value;
+    case SDL_GAMEPAD_AXIS_RIGHTX:
+      pad.thumb_rx = event.gaxis.value;
       break;
-    case SDL_CONTROLLER_AXIS_RIGHTY:
-      pad.thumb_ry = ~event.caxis.value;
+    case SDL_GAMEPAD_AXIS_RIGHTY:
+      pad.thumb_ry = ~event.gaxis.value;
       break;
-    case SDL_CONTROLLER_AXIS_TRIGGERLEFT:
-      pad.left_trigger = static_cast<uint8_t>(event.caxis.value >> 7);
+    case SDL_GAMEPAD_AXIS_LEFT_TRIGGER:
+      pad.left_trigger = static_cast<uint8_t>(event.gaxis.value >> 7);
       break;
-    case SDL_CONTROLLER_AXIS_TRIGGERRIGHT:
-      pad.right_trigger = static_cast<uint8_t>(event.caxis.value >> 7);
+    case SDL_GAMEPAD_AXIS_RIGHT_TRIGGER:
+      pad.right_trigger = static_cast<uint8_t>(event.gaxis.value >> 7);
       break;
     default:
       assert_always();
@@ -525,7 +508,7 @@ void SDLInputDriver::OnControllerDeviceAxisMotionLocked(const SDL_Event& event) 
 
 void SDLInputDriver::OnControllerDeviceButtonChangedLocked(const SDL_Event& event) {
   // Define a lookup table to map between SDL and XInput button codes.
-  // These need to be in the order of the SDL_GameControllerButton enum.
+  // These need to be in the order of the SDL_GamepadButton enum.
   static constexpr std::array<std::underlying_type<X_INPUT_GAMEPAD_BUTTON>::type, 21>
       xbutton_lookup = {
           // Standard buttons:
@@ -556,23 +539,23 @@ void SDLInputDriver::OnControllerDeviceButtonChangedLocked(const SDL_Event& even
           // PS touchpad button
           X_INPUT_GAMEPAD_GUIDE,
       };
-  static_assert(SDL_CONTROLLER_BUTTON_A == 0);
-  static_assert(SDL_CONTROLLER_BUTTON_DPAD_RIGHT == 14);
+  static_assert(SDL_GAMEPAD_BUTTON_SOUTH == 0);
+  static_assert(SDL_GAMEPAD_BUTTON_DPAD_RIGHT == 14);
 
-  auto idx = GetControllerIndexFromInstanceID(event.cbutton.which);
+  auto idx = GetControllerIndexFromInstanceID(event.gdevice.which);
   assert(idx);
   auto& controller = controllers_.at(*idx);
 
   uint16_t xbuttons = controller.state.gamepad.buttons;
   // Lookup the XInput button code.
-  if (event.cbutton.button >= xbutton_lookup.size()) {
+  if (event.gbutton.button >= xbutton_lookup.size()) {
     // A newer SDL Version may have added new buttons.
-    REXLOG_INFO("SDL HID: Unknown button was pressed: {}.", event.cbutton.button);
+    REXLOG_INFO("SDL HID: Unknown button was pressed: {}.", event.gbutton.button);
     return;
   }
-  auto xbutton = xbutton_lookup.at(event.cbutton.button);
+  auto xbutton = xbutton_lookup.at(event.gbutton.button);
   // Pressed or released?
-  if (event.cbutton.state == SDL_PRESSED) {
+  if (event.gbutton.down) {
     if (xbutton == X_INPUT_GAMEPAD_GUIDE && !REXCVAR_GET(guide_button)) {
       return;
     }
@@ -591,9 +574,9 @@ std::optional<size_t> SDLInputDriver::GetControllerIndexFromInstanceID(SDL_Joyst
     if (!controller) {
       continue;
     }
-    auto joystick = SDL_GameControllerGetJoystick(controller);
+    auto joystick = SDL_GetGamepadJoystick(controller);
     assert(joystick);
-    auto joy_instance_id = SDL_JoystickInstanceID(joystick);
+    auto joy_instance_id = SDL_GetJoystickID(joystick);
     assert(joy_instance_id >= 0);
     if (joy_instance_id == instance_id) {
       return i;
@@ -614,24 +597,8 @@ SDLInputDriver::ControllerState* SDLInputDriver::GetControllerState(uint32_t use
 }
 
 bool SDLInputDriver::TestSDLVersion() const {
-#if SDL_VERSION_ATLEAST(2, 0, 9)
-  // SDL 2.0.9 or newer is required for simple rumble support and player
-  // index.
-  const Uint8 min_patchlevel = 9;
-#else
-  // SDL 2.0.4 or newer is required to read game controller mappings from
-  // file.
-  const Uint8 min_patchlevel = 4;
-#endif
-
-  SDL_version ver = {};
-  SDL_GetVersion(&ver);
-  if ((ver.major < 2) || (ver.major == 2 && ver.minor == 0 && ver.patch < min_patchlevel)) {
-    REXLOG_ERROR("SDL: Version {}.{}.{} is too old, need at least 2.0.{}", ver.major, ver.minor,
-                 ver.patch, min_patchlevel);
-    return false;
-  }
-  REXLOG_INFO("SDL: Using version {}.{}.{}", ver.major, ver.minor, ver.patch);
+  REXLOG_INFO("SDL: Using version {}.{}.{}", SDL_MAJOR_VERSION, SDL_MINOR_VERSION,
+              SDL_MICRO_VERSION);
   return true;
 }
 
@@ -646,21 +613,18 @@ void SDLInputDriver::UpdateXCapabilities(ControllerState& state) {
   // should not be a problem, when in doubt disable the RAWINPUT driver via hint
   // (env var).
 
-  // Guess if we are wireless
-  auto power_level = SDL_JoystickCurrentPowerLevel(SDL_GameControllerGetJoystick(state.sdl));
-  if (power_level >= SDL_JOYSTICK_POWER_EMPTY && power_level <= SDL_JOYSTICK_POWER_FULL) {
+  if (SDL_GetJoystickConnectionState(SDL_GetGamepadJoystick(state.sdl)) ==
+      SDL_JOYSTICK_CONNECTION_WIRELESS) {
     cap_flags |= X_INPUT_CAPS_WIRELESS;
   }
 
   // Check if all navigational buttons are present
-  static constexpr std::array<SDL_GameControllerButton, 6> nav_buttons = {
-      SDL_CONTROLLER_BUTTON_START,     SDL_CONTROLLER_BUTTON_BACK,
-      SDL_CONTROLLER_BUTTON_DPAD_UP,   SDL_CONTROLLER_BUTTON_DPAD_DOWN,
-      SDL_CONTROLLER_BUTTON_DPAD_LEFT, SDL_CONTROLLER_BUTTON_DPAD_RIGHT,
+  static constexpr std::array<SDL_GamepadButton, 6> nav_buttons = {
+      SDL_GAMEPAD_BUTTON_START,     SDL_GAMEPAD_BUTTON_BACK,      SDL_GAMEPAD_BUTTON_DPAD_UP,
+      SDL_GAMEPAD_BUTTON_DPAD_DOWN, SDL_GAMEPAD_BUTTON_DPAD_LEFT, SDL_GAMEPAD_BUTTON_DPAD_RIGHT,
   };
   for (auto it = nav_buttons.begin(); it < nav_buttons.end(); it++) {
-    auto bind = SDL_GameControllerGetBindForButton(state.sdl, *it);
-    if (bind.bindType == SDL_CONTROLLER_BINDTYPE_NONE) {
+    if (!SDL_GamepadHasButton(state.sdl, *it)) {
       cap_flags |= X_INPUT_CAPS_NO_NAVIGATION;
       break;
     }

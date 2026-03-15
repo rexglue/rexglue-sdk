@@ -16,7 +16,7 @@ find_dependency(fmt CONFIG)
 find_dependency(spdlog CONFIG)
 find_dependency(Snappy CONFIG)
 find_dependency(utf8cpp CONFIG)
-find_dependency(SDL2 CONFIG)
+find_dependency(SDL3 CONFIG)
 
 # Vulkan dependencies
 set(REXGLUE_USE_VULKAN @REXGLUE_USE_VULKAN@)
