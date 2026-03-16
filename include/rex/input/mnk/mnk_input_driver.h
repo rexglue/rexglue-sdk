@@ -36,6 +36,8 @@ class MnkInputDriver final : public InputDriver,
   X_RESULT GetKeystroke(uint32_t user_index, uint32_t flags,
                         X_INPUT_KEYSTROKE* out_keystroke) override;
 
+  void OnWindowAvailable(rex::ui::Window* window) override;
+
   // WindowInputListener
   void OnKeyDown(rex::ui::KeyEvent& e) override;
   void OnKeyUp(rex::ui::KeyEvent& e) override;
@@ -53,6 +55,8 @@ class MnkInputDriver final : public InputDriver,
   void UpdateMouseCapture();
   void SetKeyState(uint16_t vk, bool down);
   void EnqueueKeystroke(uint16_t vk_pad, bool down);
+
+  rex::ui::Window* attached_window_ = nullptr;
 
   std::mutex state_mutex_;
   bool key_down_[256] = {};

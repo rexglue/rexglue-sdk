@@ -56,19 +56,23 @@ MnkInputDriver::MnkInputDriver(rex::ui::Window* window, size_t window_z_order)
     : InputDriver(window, window_z_order) {}
 
 MnkInputDriver::~MnkInputDriver() {
-  if (window()) {
-    window()->RemoveInputListener(this);
-    window()->RemoveListener(this);
+  if (attached_window_) {
+    attached_window_->RemoveInputListener(this);
+    attached_window_->RemoveListener(this);
   }
 }
 
 X_STATUS MnkInputDriver::Setup() {
-  if (window()) {
-    window()->AddInputListener(this, window_z_order());
-    window()->AddListener(this);
-  }
   REXLOG_INFO("MnK input driver initialized");
   return X_STATUS_SUCCESS;
+}
+
+void MnkInputDriver::OnWindowAvailable(rex::ui::Window* window) {
+  if (window) {
+    attached_window_ = window;
+    window->AddInputListener(this, window_z_order());
+    window->AddListener(this);
+  }
 }
 
 uint32_t MnkInputDriver::UserIndex() const {

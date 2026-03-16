@@ -173,6 +173,12 @@ bool ReXApp::OnInitialize() {
 
   window_->AddListener(this);
   window_->AddInputListener(this, 0);
+
+  // Attach window to input system so deferred drivers (e.g. MnK) can register
+  if (runtime_ && runtime_->input_system()) {
+    static_cast<rex::input::InputSystem*>(runtime_->input_system())->AttachWindow(window_.get());
+  }
+
   if (REXCVAR_GET(fullscreen)) {
     window_->SetFullscreen(true);
   }

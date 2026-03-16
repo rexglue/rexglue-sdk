@@ -13,6 +13,7 @@
 #include <rex/input/flags.h>
 #include <rex/input/input_driver.h>
 #include <rex/input/input_system.h>
+#include <rex/input/mnk/mnk_input_driver.h>
 #include <rex/input/nop/nop_input_driver.h>
 #include <rex/input/sdl/sdl_input_driver.h>
 #include <rex/input/xinput/xinput_input_driver.h>
@@ -38,6 +39,13 @@ void InputSystem::Shutdown() {
 
 void InputSystem::AddDriver(std::unique_ptr<InputDriver> driver) {
   drivers_.push_back(std::move(driver));
+}
+
+void InputSystem::AttachWindow(rex::ui::Window* window) {
+  window_ = window;
+  for (auto& driver : drivers_) {
+    driver->OnWindowAvailable(window);
+  }
 }
 
 X_RESULT InputSystem::GetCapabilities(uint32_t user_index, uint32_t flags,
@@ -124,6 +132,12 @@ std::unique_ptr<InputSystem> CreateDefaultInputSystem(bool tool_mode) {
       if (sdl_driver->Setup() == X_STATUS_SUCCESS) {
         input->AddDriver(std::move(sdl_driver));
       }
+    }
+
+    // MnK driver (keyboard/mouse -> controller emulation)
+    auto mnk_driver = std::make_unique<mnk::MnkInputDriver>(nullptr, 0);
+    if (mnk_driver->Setup() == X_STATUS_SUCCESS) {
+      input->AddDriver(std::move(mnk_driver));
     }
   }
 
