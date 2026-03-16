@@ -33,6 +33,7 @@ class HostPathEntry : public Entry {
   const std::filesystem::path& host_path() const { return host_path_; }
 
   X_STATUS Open(uint32_t desired_access, File** out_file) override;
+  bool Truncate() override;
 
   bool can_map() const override { return true; }
   std::unique_ptr<memory::MappedMemory> OpenMapped(memory::MappedMemory::Mode mode, size_t offset,

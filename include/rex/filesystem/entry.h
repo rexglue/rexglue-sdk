@@ -112,6 +112,7 @@ class Entry {
   Entry* CreateEntry(const std::string_view name, uint32_t attributes);
   bool Delete(Entry* entry);
   bool Delete();
+  virtual bool Truncate() { return false; }
   void Rename(const std::filesystem::path& file_path);
   void Touch();
 

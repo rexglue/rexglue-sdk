@@ -293,11 +293,13 @@ X_STATUS VirtualFileSystem::OpenFile(Entry* root_entry, const std::string_view p
         break;
       case FileDisposition::kOverwrite:
       case FileDisposition::kOverwriteIf:
-        // Overwrite (we do by delete + recreate).
-        if (!entry->Delete()) {
+        // Overwrite by delete + recreate, or truncate if delete fails
+        // (host file may be briefly locked by cloud sync, AV, etc.).
+        if (entry->Delete()) {
+          entry = nullptr;
+        } else if (!entry->Truncate()) {
           return X_STATUS_ACCESS_DENIED;
         }
-        entry = nullptr;
         *out_action = FileAction::kOverwritten;
         break;
     }

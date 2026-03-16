@@ -160,10 +160,19 @@ ppc_u32_result_t xeXamContentCreate(ppc_u32_t user_index, ppc_pchar_t root_name,
         break;
       case 2:  // CREATE_ALWAYS
                // Overwrite existing, if any.
+        // Close any existing mount under this root name first.
+        // Games may reuse the same root without explicitly closing.
+        content_manager->CloseContent(root_name);
         if (content_manager->ContentExists(xuid, content_data)) {
           content_manager->DeleteContent(xuid, content_data);
         }
-        disposition = kDispositionState::Create;
+        // Check filesystem state after deletion attempt to decide
+        // whether to create fresh or open existing.
+        if (content_manager->ContentExists(xuid, content_data)) {
+          disposition = kDispositionState::Open;
+        } else {
+          disposition = kDispositionState::Create;
+        }
         break;
       case 3:  // OPEN_EXISTING
                // Open only if exists.
@@ -186,8 +195,13 @@ ppc_u32_result_t xeXamContentCreate(ppc_u32_t user_index, ppc_pchar_t root_name,
         if (!content_manager->ContentExists(xuid, content_data)) {
           result = X_ERROR_PATH_NOT_FOUND;
         } else {
+          content_manager->CloseContent(root_name);
           content_manager->DeleteContent(xuid, content_data);
-          disposition = kDispositionState::Create;
+          if (content_manager->ContentExists(xuid, content_data)) {
+            disposition = kDispositionState::Open;
+          } else {
+            disposition = kDispositionState::Create;
+          }
         }
         break;
       default:

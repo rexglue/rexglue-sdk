@@ -368,7 +368,12 @@ X_RESULT ContentManager::DeleteContent(uint64_t xuid, const XCONTENT_AGGREGATE_D
   }
 
   auto package_path = ResolvePackagePath(xuid, data);
-  if (std::filesystem::remove_all(package_path) > 0) {
+  std::error_code ec;
+  auto removed = std::filesystem::remove_all(package_path, ec);
+  if (ec) {
+    return X_ERROR_ACCESS_DENIED;
+  }
+  if (removed > 0) {
     return X_ERROR_SUCCESS;
   } else {
     return X_ERROR_FILE_NOT_FOUND;

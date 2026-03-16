@@ -70,6 +70,20 @@ std::unique_ptr<memory::MappedMemory> HostPathEntry::OpenMapped(memory::MappedMe
   return memory::MappedMemory::Open(host_path_, mode, offset, length);
 }
 
+bool HostPathEntry::Truncate() {
+  if (is_read_only() || (attributes_ & kFileAttributeDirectory)) {
+    return false;
+  }
+  auto file = rex::filesystem::OpenFile(host_path_, "wb");
+  if (!file) {
+    return false;
+  }
+  fclose(file);
+  size_ = 0;
+  allocation_size_ = 0;
+  return true;
+}
+
 std::unique_ptr<Entry> HostPathEntry::CreateEntryInternal(const std::string_view name,
                                                           uint32_t attributes) {
   auto full_path = host_path_ / rex::to_path(name);
