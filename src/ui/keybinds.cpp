@@ -12,8 +12,8 @@
 #include <rex/cvar.h>
 #include <mutex>
 #include <string>
+#include <deque>
 #include <unordered_map>
-#include <vector>
 
 namespace rex::ui {
 
@@ -153,7 +153,7 @@ struct BindEntry {
 };
 
 static std::mutex g_binds_mutex;
-static std::vector<BindEntry> g_binds;
+static std::deque<BindEntry> g_binds;
 
 void RegisterBind(std::string_view name, std::string_view default_key, std::string_view description,
                   std::function<void()> callback) {
