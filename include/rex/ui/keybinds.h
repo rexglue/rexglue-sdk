@@ -44,6 +44,13 @@ namespace rex::ui {
 VirtualKey ParseVirtualKey(std::string_view name);
 
 /**
+ * Convert a VirtualKey to its human-readable string name.
+ * @param vk  VirtualKey to convert.
+ * @return    Key name string (e.g. "F3", "LMB"), or empty if unrecognized.
+ */
+std::string VirtualKeyToString(VirtualKey vk);
+
+/**
  * Register a named keybind with a default key and callback.
  *
  * Creates a string CVAR named @p name in the "Keybinds" category so the

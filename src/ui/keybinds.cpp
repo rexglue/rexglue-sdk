@@ -137,11 +137,24 @@ static const std::unordered_map<std::string, VirtualKey> kKeyNames = {
     {"CapsLock", VirtualKey::kCapital},
     {"NumLock", VirtualKey::kNumLock},
     {"ScrollLock", VirtualKey::kScroll},
+    // Mouse buttons
+    {"LMB", VirtualKey::kLButton},
+    {"RMB", VirtualKey::kRButton},
+    {"MMB", VirtualKey::kMButton},
 };
 
 VirtualKey ParseVirtualKey(std::string_view name) {
   auto it = kKeyNames.find(std::string(name));
   return (it != kKeyNames.end()) ? it->second : VirtualKey::kNone;
+}
+
+std::string VirtualKeyToString(VirtualKey vk) {
+  for (const auto& [name, key] : kKeyNames) {
+    if (key == vk) {
+      return name;
+    }
+  }
+  return {};
 }
 
 /* ---- Bind registry ---- */
