@@ -51,6 +51,12 @@ void InputSystem::AttachWindow(rex::ui::Window* window) {
   }
 }
 
+void InputSystem::SetActiveCallback(std::function<bool()> callback) {
+  for (auto& driver : drivers_) {
+    driver->set_is_active_callback(callback);
+  }
+}
+
 X_RESULT InputSystem::GetCapabilities(uint32_t user_index, uint32_t flags,
                                       X_INPUT_CAPABILITIES* out_caps) {
   SCOPE_profile_cpu_f("hid");
