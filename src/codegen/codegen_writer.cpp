@@ -18,15 +18,103 @@
 #include <unordered_map>
 
 #include <fmt/format.h>
+#include <inja/inja.hpp>
 
 #include <rex/codegen/function_graph.h>
+#include <rex/codegen/template_registry.h>
 #include <rex/logging.h>
 #include <rex/runtime.h>
 #include <rex/system/export_resolver.h>
 
 #include "codegen_logging.h"
+#include "template_registry_internal.h"
 
 #include <xxhash.h>
+
+namespace {
+
+nlohmann::json buildTemplateData(const rex::codegen::CodegenContext& ctx,
+                                 const std::vector<const rex::codegen::FunctionNode*>& functions,
+                                 const std::unordered_map<uint32_t, std::string>& rexcrtByAddr) {
+  const auto& cfg = ctx.Config();
+
+  // Compute code_base and code_size from binary sections
+  size_t codeMin = ~size_t(0);
+  size_t codeMax = 0;
+  for (const auto& section : ctx.binary().sections()) {
+    if (section.executable) {
+      if (section.baseAddress < codeMin)
+        codeMin = section.baseAddress;
+      if ((section.baseAddress + section.size) > codeMax)
+        codeMax = section.baseAddress + section.size;
+    }
+  }
+
+  // Build functions JSON array
+  nlohmann::json functionsJson = nlohmann::json::array();
+  for (const auto* fn : functions) {
+    std::string funcName;
+    bool isRexcrt = false;
+
+    auto crtIt = rexcrtByAddr.find(static_cast<uint32_t>(fn->base()));
+    if (crtIt != rexcrtByAddr.end()) {
+      funcName = crtIt->second;
+      isRexcrt = true;
+    } else if (fn->base() == ctx.analysisState().entryPoint) {
+      funcName = "xstart";
+    } else if (!fn->name().empty()) {
+      funcName = fn->name();
+    } else {
+      funcName = fmt::format("sub_{:08X}", fn->base());
+    }
+
+    functionsJson.push_back({
+        {"address", fmt::format("0x{:X}", fn->base())},
+        {"name", funcName},
+        {"is_rexcrt", isRexcrt},
+        {"below_code_base", (fn->base() < codeMin)},
+        {"is_import", false},
+    });
+  }
+
+  // Build imports JSON array
+  nlohmann::json importsJson = nlohmann::json::array();
+  for (const auto& [addr, node] : ctx.graph.functions()) {
+    if (node->authority() != rex::codegen::FunctionAuthority::IMPORT)
+      continue;
+    importsJson.push_back({
+        {"address", fmt::format("0x{:X}", addr)},
+        {"name", node->name()},
+    });
+  }
+
+  // Build config flags
+  nlohmann::json configFlags = {
+      {"skip_lr", cfg.skipLr},
+      {"ctr_as_local", cfg.ctrAsLocalVariable},
+      {"xer_as_local", cfg.xerAsLocalVariable},
+      {"reserved_as_local", cfg.reservedRegisterAsLocalVariable},
+      {"skip_msr", cfg.skipMsr},
+      {"cr_as_local", cfg.crRegistersAsLocalVariables},
+      {"non_argument_as_local", cfg.nonArgumentRegistersAsLocalVariables},
+      {"non_volatile_as_local", cfg.nonVolatileRegistersAsLocalVariables},
+  };
+
+  return {
+      {"project", cfg.projectName},
+      {"image_base", fmt::format("0x{:X}", ctx.binary().baseAddress())},
+      {"image_size", fmt::format("0x{:X}", ctx.binary().imageSize())},
+      {"code_base", fmt::format("0x{:X}", codeMin)},
+      {"code_size", fmt::format("0x{:X}", codeMax - codeMin)},
+      {"rexcrt_heap", cfg.rexcrtFunctions.contains("RtlAllocateHeap") ? 1 : 0},
+      {"config_flags", configFlags},
+      {"functions", functionsJson},
+      {"imports", importsJson},
+      {"recomp_files", nlohmann::json::array()},
+  };
+}
+
+}  // namespace
 
 namespace rex::codegen {
 
@@ -110,184 +198,31 @@ bool CodegenWriter::write(bool force) {
 
   const std::string& projectName = config().projectName;
 
+  TemplateRegistry registry;
+  if (!config().templateDir.empty())
+    registry.loadOverrides(config().templateDir);
+
+  auto tmplData = buildTemplateData(ctx_, functions, rexcrtByAddr);
+
   // Generate {project}_config.h
   REXCODEGEN_TRACE("Recompile: generating {}_config.h", projectName);
-  {
-    REXCODEGEN_TRACE("  {}_config.h: step 1", projectName);
-    println("#pragma once");
-
-    println("#ifndef PPC_CONFIG_H_INCLUDED");
-    println("#define PPC_CONFIG_H_INCLUDED\n");
-    REXCODEGEN_TRACE("  {}_config.h: step 2", projectName);
-
-    if (config().skipLr)
-      println("#define PPC_CONFIG_SKIP_LR");
-    if (config().ctrAsLocalVariable)
-      println("#define PPC_CONFIG_CTR_AS_LOCAL");
-    if (config().xerAsLocalVariable)
-      println("#define PPC_CONFIG_XER_AS_LOCAL");
-    if (config().reservedRegisterAsLocalVariable)
-      println("#define PPC_CONFIG_RESERVED_AS_LOCAL");
-    if (config().skipMsr)
-      println("#define PPC_CONFIG_SKIP_MSR");
-    if (config().crRegistersAsLocalVariables)
-      println("#define PPC_CONFIG_CR_AS_LOCAL");
-    if (config().nonArgumentRegistersAsLocalVariables)
-      println("#define PPC_CONFIG_NON_ARGUMENT_AS_LOCAL");
-    if (config().nonVolatileRegistersAsLocalVariables)
-      println("#define PPC_CONFIG_NON_VOLATILE_AS_LOCAL");
-
-    println("");
-
-    REXCODEGEN_TRACE(
-        "  ppc_config.h: step 3 - binary().baseAddress()=0x{:X}, binary().imageSize()={}",
-        binary().baseAddress(), binary().imageSize());
-    println("#define PPC_IMAGE_BASE 0x{:X}ull", binary().baseAddress());
-    println("#define PPC_IMAGE_SIZE 0x{:X}ull", binary().imageSize());
-
-    REXCODEGEN_TRACE("  ppc_config.h: step 4 - iterating sections");
-    size_t codeMin = ~0;
-    size_t codeMax = 0;
-
-    for (const auto& section : binary().sections()) {
-      if (section.executable) {
-        if (section.baseAddress < codeMin)
-          codeMin = section.baseAddress;
-        if ((section.baseAddress + section.size) > codeMax)
-          codeMax = (section.baseAddress + section.size);
-      }
-    }
-
-    println("#define PPC_CODE_BASE 0x{:X}ull", codeMin);
-    println("#define PPC_CODE_SIZE 0x{:X}ull", codeMax - codeMin);
-
-    bool hasRexcrtHeap = config().rexcrtFunctions.contains("RtlAllocateHeap");
-    println("");
-    println("#define REXCRT_HEAP {}", hasRexcrtHeap ? 1 : 0);
-
-    println("");
-
-    println("#include <rex/ppc/image_info.h>");
-    println("extern const rex::PPCImageInfo PPCImageConfig;");
-
-    println("\n#endif");
-
-    REXCODEGEN_TRACE("  {}_config.h: step 5 - saving", projectName);
-    SaveCurrentOutData(fmt::format("{}_config.h", projectName));
-    REXCODEGEN_TRACE("  {}_config.h: done", projectName);
-  }
+  out = renderWithJson(registry, "codegen/config_h", tmplData);
+  SaveCurrentOutData(fmt::format("{}_config.h", projectName));
 
   // Generate {project}_init.h
   REXCODEGEN_TRACE("Recompile: generating {}_init.h", projectName);
-  {
-    println("#pragma once\n");
-    println("#include \"{}_config.h\"", projectName);
-    println("#include <rex/ppc.h>");
-    println("#include <rex/logging.h>  // For REX_FATAL on unresolved calls");
-
-    for (const auto* fn : functions) {
-      auto crtIt = rexcrtByAddr.find(static_cast<uint32_t>(fn->base()));
-      if (crtIt != rexcrtByAddr.end()) {
-        println("PPC_EXTERN_FUNC({});", crtIt->second);
-        continue;
-      }
-
-      std::string func_name;
-      if (fn->base() == analysisState().entryPoint) {
-        func_name = "xstart";
-      } else if (!fn->name().empty()) {
-        func_name = fn->name();
-      } else {
-        func_name = fmt::format("sub_{:08X}", fn->base());
-      }
-
-      println("PPC_EXTERN_IMPORT({});", func_name);
-    }
-
-    println("\n// Import function declarations");
-    for (const auto& [addr, node] : graph().functions()) {
-      if (node->authority() != FunctionAuthority::IMPORT)
-        continue;
-      println("PPC_EXTERN_IMPORT({});", node->name());
-    }
-
-    println("\n// Function mapping table - iterate to register functions with FunctionDispatcher");
-
-    SaveCurrentOutData(fmt::format("{}_init.h", projectName));
-  }
+  out = renderWithJson(registry, "codegen/init_h", tmplData);
+  SaveCurrentOutData(fmt::format("{}_init.h", projectName));
 
   // Generate {project}_init.cpp
   REXCODEGEN_TRACE("Recompile: generating {}_init.cpp (function mapping table)", projectName);
-  {
-    println("//=============================================================================");
-    println("// ReXGlue Generated - {} Function Mapping Table", projectName);
-    println("//=============================================================================\n");
-    println("#include \"{}_init.h\"\n", projectName);
-
-    size_t funcMappingCodeMin = ~0ull;
-    for (const auto& section : binary().sections()) {
-      if (section.executable) {
-        if (section.baseAddress < funcMappingCodeMin)
-          funcMappingCodeMin = section.baseAddress;
-      }
-    }
-
-    println("PPCFuncMapping PPCFuncMappings[] = {{");
-
-    for (const auto* fn : functions) {
-      if (fn->base() < funcMappingCodeMin)
-        continue;
-
-      auto crtIt = rexcrtByAddr.find(static_cast<uint32_t>(fn->base()));
-      if (crtIt != rexcrtByAddr.end()) {
-        println("\t{{ 0x{:X}, {} }},", fn->base(), crtIt->second);
-        continue;
-      }
-
-      std::string func_name;
-      if (fn->base() == analysisState().entryPoint) {
-        func_name = "xstart";
-      } else if (!fn->name().empty()) {
-        func_name = fn->name();
-      } else {
-        func_name = fmt::format("sub_{:08X}", fn->base());
-      }
-
-      println("\t{{ 0x{:X}, {} }},", fn->base(), func_name);
-    }
-
-    for (const auto& [addr, node] : graph().functions()) {
-      if (node->authority() != FunctionAuthority::IMPORT)
-        continue;
-      println("\t{{ 0x{:X}, {} }},", addr, node->name());
-    }
-
-    println("\t{{ 0, nullptr }}");
-    println("}};");
-
-    SaveCurrentOutData(fmt::format("{}_init.cpp", projectName));
-  }
+  out = renderWithJson(registry, "codegen/init_cpp", tmplData);
+  SaveCurrentOutData(fmt::format("{}_init.cpp", projectName));
 
   // Generate {project}_config.cpp
   REXCODEGEN_TRACE("Recompile: generating {}_config.cpp (PPCImageConfig)", projectName);
-  {
-    println("//=============================================================================");
-    println("// ReXGlue Generated - {} Image Configuration", projectName);
-    println("//=============================================================================\n");
-    println("#include \"{}_init.h\"\n", projectName);
-    println("#include <rex/ppc/image_info.h>");
-    println("");
-    println("const rex::PPCImageInfo PPCImageConfig = {{");
-    println("    PPC_CODE_BASE,      // code_base");
-    println("    PPC_CODE_SIZE,      // code_size");
-    println("    PPC_IMAGE_BASE,     // image_base");
-    println("    PPC_IMAGE_SIZE,     // image_size");
-    println("    PPCFuncMappings,    // func_mappings");
-    println("    REXCRT_HEAP,        // rexcrt_heap");
-    println("}};");
-
-    SaveCurrentOutData(fmt::format("{}_config.cpp", projectName));
-  }
+  out = renderWithJson(registry, "codegen/config_cpp", tmplData);
+  SaveCurrentOutData(fmt::format("{}_config.cpp", projectName));
 
   // Filter out imports and rexcrt functions before recompilation
   std::erase_if(functions, [](const FunctionNode* fn) {
@@ -332,20 +267,12 @@ bool CodegenWriter::write(bool force) {
   // Generate sources.cmake
   REXCODEGEN_TRACE("Recompile: generating sources.cmake");
   {
-    println("# Auto-generated by rexglue codegen - DO NOT EDIT");
-    println("#");
-    println("# IMPORTANT: For SEH (Structured Exception Handling) support on Windows,");
-    println("# add /EHa to your compile options:");
-    println("#   target_compile_options(your_target PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/EHa>)");
-    println("#");
-    println("set(GENERATED_SOURCES");
-    println("    ${{CMAKE_CURRENT_LIST_DIR}}/{}_config.cpp", projectName);
-    println("    ${{CMAKE_CURRENT_LIST_DIR}}/{}_init.cpp", projectName);
+    auto& recompFiles = tmplData["recomp_files"];
+    recompFiles = nlohmann::json::array();
     for (size_t i = 0; i < cppFileIndex; ++i) {
-      println("    ${{CMAKE_CURRENT_LIST_DIR}}/{}_recomp.{}.cpp", projectName, i);
+      recompFiles.push_back(fmt::format("{}_recomp.{}.cpp", projectName, i));
     }
-    println(")");
-
+    out = renderWithJson(registry, "codegen/sources_cmake", tmplData);
     SaveCurrentOutData("sources.cmake");
   }
 
