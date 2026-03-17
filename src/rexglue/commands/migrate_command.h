@@ -18,7 +18,8 @@ namespace rexglue::cli {
 
 struct MigrateOptions {
   std::string app_root;
-  bool force = false;  // Skip confirmation prompt
+  std::string template_dir;  ///< Optional custom template directory
+  bool force = false;        // Skip confirmation prompt
 };
 
 /**

@@ -29,6 +29,7 @@ struct InitOptions {
   std::string app_root;      // Project root directory (required)
   std::string app_desc;      // Optional project description
   std::string app_author;    // Optional author name
+  std::string template_dir;  ///< Optional custom template directory
   bool sdk_example = false;  // If true, omit vcpkg.json (child of rexglue)
   bool force = false;        // Overwrite existing directory contents
 };

@@ -38,6 +38,7 @@ REXCVAR_DEFINE_STRING(app_root, "", "Init", "Project root directory for init com
 REXCVAR_DEFINE_STRING(app_desc, "", "Init", "Project description (optional)");
 REXCVAR_DEFINE_STRING(app_author, "", "Init", "Project author (optional)");
 REXCVAR_DEFINE_BOOL(sdk_example, false, "Init", "Create as SDK example (omit vcpkg.json)");
+REXCVAR_DEFINE_STRING(template_dir, "", "Init", "Custom template directory for overrides");
 
 using rex::Ok;
 using rex::Result;
@@ -109,6 +110,7 @@ int main(int argc, char** argv) {
     opts.app_desc = REXCVAR_GET(app_desc);
     opts.app_author = REXCVAR_GET(app_author);
     opts.sdk_example = REXCVAR_GET(sdk_example);
+    opts.template_dir = REXCVAR_GET(template_dir);
     opts.force = ctx.force;
 
     if (opts.app_name.empty()) {
@@ -149,6 +151,7 @@ int main(int argc, char** argv) {
   } else if (command == "migrate") {
     rexglue::cli::MigrateOptions opts;
     opts.app_root = REXCVAR_GET(app_root);
+    opts.template_dir = REXCVAR_GET(template_dir);
     opts.force = ctx.force;
 
     if (opts.app_root.empty()) {

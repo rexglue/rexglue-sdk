@@ -15,9 +15,12 @@
 #include <sstream>
 
 #include <rex/codegen/config.h>
+#include <rex/codegen/template_registry.h>
 #include <rex/logging.h>
 #include <rex/result.h>
 #include <rex/version.h>
+
+#include <nlohmann/json.hpp>
 
 namespace fs = std::filesystem;
 
@@ -28,59 +31,6 @@ using rex::ErrorCategory;
 using rex::Ok;
 using rex::Result;
 namespace {
-
-// New-style slim main.cpp
-std::string generate_main_cpp(const AppNameParts& names) {
-  std::string class_name = names.pascal_case + "App";
-  std::string content;
-
-  content += "// " + names.snake_case + " - ReXGlue Recompiled Project\n";
-  content += "//\n";
-  content += "// This file is yours to edit. 'rexglue migrate' will NOT overwrite it.\n";
-  content += "\n";
-  content += "#include \"generated/" + names.snake_case + "_config.h\"\n";
-  content += "#include \"generated/" + names.snake_case + "_init.h\"\n";
-  content += "\n";
-  content += "#include \"" + names.snake_case + "_app.h\"\n";
-  content += "\n";
-  content += "REX_DEFINE_APP(" + names.snake_case + ", " + class_name + "::Create)\n";
-
-  return content;
-}
-
-// New-style slim CMakeLists.txt
-std::string generate_cmakelists(const AppNameParts& names) {
-  std::string content;
-
-  content += "# " + names.snake_case + " - ReXGlue Recompiled Project\n";
-  content += "#\n";
-  content += "# This file is yours to edit. 'rexglue migrate' will NOT overwrite it.\n";
-  content += "\n";
-  content += "cmake_minimum_required(VERSION 3.25)\n";
-  content += "project(" + names.snake_case + " LANGUAGES CXX)\n";
-  content += "\n";
-  content += "set(CMAKE_CXX_STANDARD 23)\n";
-  content += "set(CMAKE_CXX_STANDARD_REQUIRED ON)\n";
-  content += "\n";
-  content += "include(generated/rexglue.cmake)\n";
-  content += "\n";
-  content += "# Sources\n";
-  content += "set(" + names.upper_case + "_SOURCES\n";
-  content += "    src/main.cpp\n";
-  content += ")\n";
-  content += "\n";
-  content += "if(WIN32)\n";
-  content +=
-      "    add_executable(" + names.snake_case + " WIN32 ${" + names.upper_case + "_SOURCES})\n";
-  content += "else()\n";
-  content += "    add_executable(" + names.snake_case + " ${" + names.upper_case + "_SOURCES})\n";
-  content += "endif()\n";
-  content += "\n";
-  content += "rexglue_setup_target(" + names.snake_case + ")\n";
-  content += "\n";
-
-  return content;
-}
 
 std::string read_file_content(const fs::path& path) {
   std::ifstream file(path);
@@ -155,6 +105,13 @@ Result<void> MigrateProject(const MigrateOptions& opts, const CliContext& ctx) {
 
   auto names = parse_app_name(config.projectName);
 
+  rex::codegen::TemplateRegistry registry;
+  if (!opts.template_dir.empty())
+    registry.loadOverrides(opts.template_dir);
+
+  nlohmann::json data = {{"names", names_to_json(names)}, {"sdk_version", REXGLUE_VERSION_STRING}};
+  std::string jsonStr = data.dump();
+
   REXLOG_INFO("Migrating project '{}' at: {}", names.snake_case, root.string());
 
   // Ensure generated/ directory exists
@@ -164,7 +121,7 @@ Result<void> MigrateProject(const MigrateOptions& opts, const CliContext& ctx) {
   bool old_style = is_old_style_project(root);
 
   // --- SDK-managed file: always regenerate ---
-  std::string new_rexglue_cmake = generate_rexglue_cmake(names, REXGLUE_VERSION_STRING);
+  std::string new_rexglue_cmake = registry.render("init/rexglue_cmake", jsonStr);
   std::string old_rexglue_cmake = read_file_content(root / "generated" / "rexglue.cmake");
 
   if (old_rexglue_cmake != new_rexglue_cmake) {
@@ -210,13 +167,13 @@ Result<void> MigrateProject(const MigrateOptions& opts, const CliContext& ctx) {
       return Err<void>(ErrorCategory::IO, "Failed to back up CMakeLists.txt");
 
     // Write new slim main.cpp
-    if (!write_file(main_cpp_path, generate_main_cpp(names))) {
+    if (!write_file(main_cpp_path, registry.render("init/main_cpp", jsonStr))) {
       return Err<void>(ErrorCategory::IO, "Failed to write src/main.cpp");
     }
     REXLOG_INFO("  Wrote src/main.cpp");
 
     // Write new slim CMakeLists.txt
-    if (!write_file(cmakelists_path, generate_cmakelists(names))) {
+    if (!write_file(cmakelists_path, registry.render("init/cmakelists", jsonStr))) {
       return Err<void>(ErrorCategory::IO, "Failed to write CMakeLists.txt");
     }
     REXLOG_INFO("  Wrote CMakeLists.txt");
@@ -228,7 +185,7 @@ Result<void> MigrateProject(const MigrateOptions& opts, const CliContext& ctx) {
         if (!backup_file(app_header_path))
           return Err<void>(ErrorCategory::IO, "Failed to back up src/" + app_header_name);
       }
-      if (!write_file(app_header_path, generate_app_header(names))) {
+      if (!write_file(app_header_path, registry.render("init/app_header", jsonStr))) {
         return Err<void>(ErrorCategory::IO, "Failed to write src/" + app_header_name);
       }
       REXLOG_INFO("  Wrote src/{}", app_header_name);
