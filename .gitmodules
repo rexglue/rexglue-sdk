@@ -62,3 +62,6 @@
 	path = thirdparty/sdl3
 	url = https://github.com/libsdl-org/SDL
 	branch = release-3.4.x
+[submodule "thirdparty/inja"]
+	path = thirdparty/inja
+	url = https://github.com/pantor/inja.git
