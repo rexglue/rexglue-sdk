@@ -186,7 +186,7 @@ void RegisterBind(std::string_view name, std::string_view default_key, std::stri
   rex::cvar::RegisterFlag({
       .name = std::string(name),
       .type = rex::cvar::FlagType::String,
-      .category = "Keybinds",
+      .category = "Input/Keybinds/System",
       .description = std::string(description),
       .setter = [key_ptr](std::string_view v) -> bool {
         *key_ptr = std::string(v);
