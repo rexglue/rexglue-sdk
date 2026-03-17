@@ -46,12 +46,14 @@ class MnkInputDriver final : public InputDriver,
   void OnMouseMove(rex::ui::MouseEvent& e) override;
 
   // WindowListener
+  void OnClosing(rex::ui::UIEvent& e) override;
   void OnLostFocus(rex::ui::UISetupEvent& e) override;
   void OnGotFocus(rex::ui::UISetupEvent& e) override;
 
  private:
   uint32_t UserIndex() const;
   bool IsEnabled() const;
+  void CenterCursor();
   void UpdateMouseCapture();
   void SetKeyState(uint16_t vk, bool down);
   void EnqueueKeystroke(uint16_t vk_pad, bool down);

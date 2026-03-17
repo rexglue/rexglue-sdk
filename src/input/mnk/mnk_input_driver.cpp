@@ -21,32 +21,38 @@
 #include <cmath>
 #include <cstring>
 
-REXCVAR_DEFINE_BOOL(mnk_mode, true, "Input", "Enable keyboard/mouse controller emulation");
+#if REX_PLATFORM_WIN32
+#include <rex/ui/window_win.h>
+#include <Windows.h>
+#endif
+
+REXCVAR_DEFINE_BOOL(mnk_mode, false, "Input", "Enable keyboard/mouse controller emulation");
 REXCVAR_DEFINE_INT32(mnk_user_index, 0, "Input", "Controller slot (0-3) for MnK").range(0, 3);
 REXCVAR_DEFINE_DOUBLE(mnk_sensitivity, 1.0, "Input", "Mouse sensitivity for right stick")
     .range(0.01, 10.0);
 
-REXCVAR_DEFINE_STRING(keybind_a, "Space", "Keybinds", "A button");
-REXCVAR_DEFINE_STRING(keybind_b, "Shift", "Keybinds", "B button");
-REXCVAR_DEFINE_STRING(keybind_x, "R", "Keybinds", "X button");
-REXCVAR_DEFINE_STRING(keybind_y, "E", "Keybinds", "Y button");
-REXCVAR_DEFINE_STRING(keybind_left_trigger, "RMB", "Keybinds", "Left trigger");
-REXCVAR_DEFINE_STRING(keybind_right_trigger, "LMB", "Keybinds", "Right trigger");
-REXCVAR_DEFINE_STRING(keybind_left_shoulder, "Q", "Keybinds", "Left shoulder");
-REXCVAR_DEFINE_STRING(keybind_right_shoulder, "F", "Keybinds", "Right shoulder");
-REXCVAR_DEFINE_STRING(keybind_lstick_up, "W", "Keybinds", "Left stick up");
-REXCVAR_DEFINE_STRING(keybind_lstick_down, "S", "Keybinds", "Left stick down");
-REXCVAR_DEFINE_STRING(keybind_lstick_left, "A", "Keybinds", "Left stick left");
-REXCVAR_DEFINE_STRING(keybind_lstick_right, "D", "Keybinds", "Left stick right");
-REXCVAR_DEFINE_STRING(keybind_lstick_press, "C", "Keybinds", "Left stick press");
-REXCVAR_DEFINE_STRING(keybind_rstick_press, "MMB", "Keybinds", "Right stick press");
-REXCVAR_DEFINE_STRING(keybind_dpad_up, "Up", "Keybinds", "D-pad up");
-REXCVAR_DEFINE_STRING(keybind_dpad_down, "Down", "Keybinds", "D-pad down");
-REXCVAR_DEFINE_STRING(keybind_dpad_left, "Left", "Keybinds", "D-pad left");
-REXCVAR_DEFINE_STRING(keybind_dpad_right, "Right", "Keybinds", "D-pad right");
-REXCVAR_DEFINE_STRING(keybind_back, "Tab", "Keybinds", "Back button");
-REXCVAR_DEFINE_STRING(keybind_start, "Escape", "Keybinds", "Start button");
-REXCVAR_DEFINE_STRING(keybind_guide, "", "Keybinds", "Guide button");
+REXCVAR_DEFINE_STRING(keybind_a, "Space", "Input/Keybinds/Controller", "A button");
+REXCVAR_DEFINE_STRING(keybind_b, "Shift", "Input/Keybinds/Controller", "B button");
+REXCVAR_DEFINE_STRING(keybind_x, "R", "Input/Keybinds/Controller", "X button");
+REXCVAR_DEFINE_STRING(keybind_y, "E", "Input/Keybinds/Controller", "Y button");
+REXCVAR_DEFINE_STRING(keybind_left_trigger, "RMB", "Input/Keybinds/Controller", "Left trigger");
+REXCVAR_DEFINE_STRING(keybind_right_trigger, "LMB", "Input/Keybinds/Controller", "Right trigger");
+REXCVAR_DEFINE_STRING(keybind_left_shoulder, "Q", "Input/Keybinds/Controller", "Left shoulder");
+REXCVAR_DEFINE_STRING(keybind_right_shoulder, "F", "Input/Keybinds/Controller", "Right shoulder");
+REXCVAR_DEFINE_STRING(keybind_lstick_up, "W", "Input/Keybinds/Controller", "Left stick up");
+REXCVAR_DEFINE_STRING(keybind_lstick_down, "S", "Input/Keybinds/Controller", "Left stick down");
+REXCVAR_DEFINE_STRING(keybind_lstick_left, "A", "Input/Keybinds/Controller", "Left stick left");
+REXCVAR_DEFINE_STRING(keybind_lstick_right, "D", "Input/Keybinds/Controller", "Left stick right");
+REXCVAR_DEFINE_STRING(keybind_lstick_press, "C", "Input/Keybinds/Controller", "Left stick press");
+REXCVAR_DEFINE_STRING(keybind_rstick_press, "MMB", "Input/Keybinds/Controller",
+                      "Right stick press");
+REXCVAR_DEFINE_STRING(keybind_dpad_up, "Up", "Input/Keybinds/Controller", "D-pad up");
+REXCVAR_DEFINE_STRING(keybind_dpad_down, "Down", "Input/Keybinds/Controller", "D-pad down");
+REXCVAR_DEFINE_STRING(keybind_dpad_left, "Left", "Input/Keybinds/Controller", "D-pad left");
+REXCVAR_DEFINE_STRING(keybind_dpad_right, "Right", "Input/Keybinds/Controller", "D-pad right");
+REXCVAR_DEFINE_STRING(keybind_back, "Tab", "Input/Keybinds/Controller", "Back button");
+REXCVAR_DEFINE_STRING(keybind_start, "Escape", "Input/Keybinds/Controller", "Start button");
+REXCVAR_DEFINE_STRING(keybind_guide, "", "Input/Keybinds/Controller", "Guide button");
 
 namespace rex::input::mnk {
 
@@ -56,9 +62,11 @@ MnkInputDriver::MnkInputDriver(rex::ui::Window* window, size_t window_z_order)
     : InputDriver(window, window_z_order) {}
 
 MnkInputDriver::~MnkInputDriver() {
+  // Detach handled by OnClosing; if window outlives the driver, clean up here.
   if (attached_window_) {
     attached_window_->RemoveInputListener(this);
     attached_window_->RemoveListener(this);
+    attached_window_ = nullptr;
   }
 }
 
@@ -72,6 +80,19 @@ void MnkInputDriver::OnWindowAvailable(rex::ui::Window* window) {
     attached_window_ = window;
     window->AddInputListener(this, window_z_order());
     window->AddListener(this);
+  }
+}
+
+void MnkInputDriver::OnClosing(rex::ui::UIEvent&) {
+  if (attached_window_) {
+    if (mouse_captured_) {
+      mouse_captured_ = false;
+      attached_window_->SetCursorVisibility(rex::ui::Window::CursorVisibility::kVisible);
+      attached_window_->ReleaseMouse();
+    }
+    attached_window_->RemoveInputListener(this);
+    attached_window_->RemoveListener(this);
+    attached_window_ = nullptr;
   }
 }
 
@@ -118,6 +139,9 @@ X_RESULT MnkInputDriver::GetState(uint32_t user_index, X_INPUT_STATE* out_state)
   if (!IsEnabled() || user_index != UserIndex()) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
+
+  UpdateMouseCapture();
+
   if (!is_active() || !has_focus_) {
     if (out_state) {
       std::memset(out_state, 0, sizeof(*out_state));
@@ -233,8 +257,46 @@ void MnkInputDriver::EnqueueKeystroke(uint16_t vk_pad, bool down) {
   keystroke_queue_.push(ks);
 }
 
+void MnkInputDriver::CenterCursor() {
+  if (!attached_window_)
+    return;
+  int32_t cx = static_cast<int32_t>(attached_window_->GetActualLogicalWidth() / 2);
+  int32_t cy = static_cast<int32_t>(attached_window_->GetActualLogicalHeight() / 2);
+  prev_mouse_x_ = cx;
+  prev_mouse_y_ = cy;
+#if REX_PLATFORM_WIN32
+  auto* win32_window = dynamic_cast<rex::ui::Win32Window*>(attached_window_);
+  if (win32_window && win32_window->hwnd()) {
+    POINT pt = {static_cast<LONG>(cx), static_cast<LONG>(cy)};
+    ClientToScreen(win32_window->hwnd(), &pt);
+    SetCursorPos(pt.x, pt.y);
+  }
+#endif
+}
+
 void MnkInputDriver::UpdateMouseCapture() {
-  // TODO(follow-up): Implement cursor hide/re-center for mouse capture.
+  if (!attached_window_)
+    return;
+
+  bool should_capture = IsEnabled() && has_focus_ && is_active();
+
+  if (should_capture && !mouse_captured_) {
+    mouse_captured_ = true;
+    attached_window_->SetCursorVisibility(rex::ui::Window::CursorVisibility::kHidden);
+    attached_window_->CaptureMouse();
+    // Reset deltas to avoid a spike on capture start
+    mouse_dx_ = 0;
+    mouse_dy_ = 0;
+  } else if (!should_capture && mouse_captured_) {
+    mouse_captured_ = false;
+    attached_window_->SetCursorVisibility(rex::ui::Window::CursorVisibility::kVisible);
+    attached_window_->ReleaseMouse();
+  }
+
+  // Re-center cursor each frame while captured to prevent edge clamping
+  if (mouse_captured_) {
+    CenterCursor();
+  }
 }
 
 void MnkInputDriver::SetKeyState(uint16_t vk, bool down) {
@@ -315,6 +377,11 @@ void MnkInputDriver::OnLostFocus(rex::ui::UISetupEvent&) {
   std::memset(key_down_, 0, sizeof(key_down_));
   mouse_dx_ = 0;
   mouse_dy_ = 0;
+  if (mouse_captured_ && attached_window_) {
+    mouse_captured_ = false;
+    attached_window_->SetCursorVisibility(rex::ui::Window::CursorVisibility::kVisible);
+    attached_window_->ReleaseMouse();
+  }
 }
 
 void MnkInputDriver::OnGotFocus(rex::ui::UISetupEvent&) {
