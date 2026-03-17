@@ -1,0 +1,11 @@
+//=============================================================================
+// ReXGlue Generated - {{ project }} Function Mapping Table
+//=============================================================================
+
+#include "{{ project }}_init.h"
+
+PPCFuncMapping PPCFuncMappings[] = {
+{% for fn in functions %}{% if not fn.below_code_base %}	{ {{ fn.address }}, {{ fn.name }} },
+{% endif %}{% endfor %}{% for imp in imports %}	{ {{ imp.address }}, {{ imp.name }} },
+{% endfor %}	{ 0, nullptr }
+};

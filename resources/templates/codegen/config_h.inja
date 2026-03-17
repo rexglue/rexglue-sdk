@@ -1,0 +1,25 @@
+#pragma once
+
+#ifndef PPC_CONFIG_H_INCLUDED
+#define PPC_CONFIG_H_INCLUDED
+
+{% if config_flags.skip_lr %}#define PPC_CONFIG_SKIP_LR
+{% endif %}{% if config_flags.ctr_as_local %}#define PPC_CONFIG_CTR_AS_LOCAL
+{% endif %}{% if config_flags.xer_as_local %}#define PPC_CONFIG_XER_AS_LOCAL
+{% endif %}{% if config_flags.reserved_as_local %}#define PPC_CONFIG_RESERVED_AS_LOCAL
+{% endif %}{% if config_flags.skip_msr %}#define PPC_CONFIG_SKIP_MSR
+{% endif %}{% if config_flags.cr_as_local %}#define PPC_CONFIG_CR_AS_LOCAL
+{% endif %}{% if config_flags.non_argument_as_local %}#define PPC_CONFIG_NON_ARGUMENT_AS_LOCAL
+{% endif %}{% if config_flags.non_volatile_as_local %}#define PPC_CONFIG_NON_VOLATILE_AS_LOCAL
+{% endif %}
+#define PPC_IMAGE_BASE {{ image_base }}ull
+#define PPC_IMAGE_SIZE {{ image_size }}ull
+#define PPC_CODE_BASE {{ code_base }}ull
+#define PPC_CODE_SIZE {{ code_size }}ull
+
+#define REXCRT_HEAP {% if rexcrt_heap %}1{% else %}0{% endif %}
+
+#include <rex/ppc/image_info.h>
+extern const rex::PPCImageInfo PPCImageConfig;
+
+#endif
