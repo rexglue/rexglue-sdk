@@ -13,7 +13,11 @@
 #include <rex/cvar.h>
 #include <rex/ui/keybinds.h>
 #include <imgui.h>
+REXCVAR_DECLARE(bool, mnk_mode);
+
 #include <algorithm>
+#include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -161,14 +165,42 @@ void SettingsDialog::OnDraw(ImGuiIO& /*io*/) {
 
   auto& registry = rex::cvar::GetRegistry();
 
-  // Collect sorted unique category names.
-  std::vector<std::string> categories;
+  // Collect sorted unique category paths.
+  std::set<std::string> category_set;
   for (auto& entry : registry) {
-    if (std::find(categories.begin(), categories.end(), entry.category) == categories.end()) {
-      categories.push_back(entry.category);
+    category_set.insert(entry.category);
+  }
+
+  // Build tree: for each category path like "Input/Keybinds/Controller",
+  // also register the parent paths "Input" and "Input/Keybinds" as nodes.
+  struct CatNode {
+    std::string full_path;
+    std::string label;  // leaf segment (e.g. "Controller")
+    std::map<std::string, CatNode> children;
+    bool has_direct_entries = false;
+  };
+  std::map<std::string, CatNode> tree;
+
+  for (auto& cat : category_set) {
+    std::map<std::string, CatNode>* level = &tree;
+    std::string path_so_far;
+    size_t start = 0;
+    while (start < cat.size()) {
+      size_t slash = cat.find('/', start);
+      std::string segment =
+          (slash == std::string::npos) ? cat.substr(start) : cat.substr(start, slash - start);
+      if (!path_so_far.empty())
+        path_so_far += "/";
+      path_so_far += segment;
+      auto& node = (*level)[segment];
+      node.full_path = path_so_far;
+      node.label = segment;
+      if (path_so_far == cat)
+        node.has_direct_entries = true;
+      level = &node.children;
+      start = (slash == std::string::npos) ? cat.size() : slash + 1;
     }
   }
-  std::sort(categories.begin(), categories.end());
 
   const std::string search(search_buf_);
   const bool searching = !search.empty();
@@ -188,23 +220,86 @@ void SettingsDialog::OnDraw(ImGuiIO& /*io*/) {
 
   ImGui::Separator();
 
-  const float panel_width = 140.0f;
+  const float panel_width = 160.0f;
   ImGui::BeginChild("##cats", ImVec2(panel_width, -30.0f), true);
-  for (int i = 0; i < static_cast<int>(categories.size()); ++i) {
-    if (ImGui::Selectable(categories[i].c_str(), selected_category_ == i)) {
-      selected_category_ = i;
+
+  // Recursive lambda to draw the category tree.
+  std::function<void(const std::map<std::string, CatNode>&, int)> draw_tree;
+  draw_tree = [&](const std::map<std::string, CatNode>& nodes, int depth) {
+    for (auto& [key, node] : nodes) {
+      if (node.children.empty()) {
+        // Leaf node - selectable
+        bool selected = (selected_category_ == node.full_path);
+        if (depth > 0)
+          ImGui::Indent(8.0f);
+        if (ImGui::Selectable(node.label.c_str(), selected)) {
+          selected_category_ = node.full_path;
+        }
+        if (depth > 0)
+          ImGui::Unindent(8.0f);
+      } else {
+        // Parent node with children - use tree node
+        ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_OpenOnArrow;
+        if (node.has_direct_entries) {
+          // Can be selected as well as expanded
+          if (selected_category_ == node.full_path)
+            flags |= ImGuiTreeNodeFlags_Selected;
+        }
+        bool open = ImGui::TreeNodeEx(node.label.c_str(), flags);
+        if (ImGui::IsItemClicked() && node.has_direct_entries) {
+          selected_category_ = node.full_path;
+        }
+        if (open) {
+          draw_tree(node.children, depth + 1);
+          ImGui::TreePop();
+        }
+      }
     }
+  };
+  // Root node named after the config file
+  std::string root_label = config_path_.stem().string();
+  ImGuiTreeNodeFlags root_flags = ImGuiTreeNodeFlags_DefaultOpen;
+  if (selected_category_.empty())
+    root_flags |= ImGuiTreeNodeFlags_Selected;
+  bool root_open = ImGui::TreeNodeEx(root_label.c_str(), root_flags);
+  if (ImGui::IsItemClicked()) {
+    selected_category_.clear();
   }
+  if (root_open) {
+    draw_tree(tree, 1);
+    ImGui::TreePop();
+  }
+
   ImGui::EndChild();
 
   ImGui::SameLine();
+
+  // Helper: check if a CVAR's category matches the selected category.
+  // Exact match or prefix match (e.g. selecting "Input" shows all "Input/*").
+  auto category_matches = [&](const std::string& cat) -> bool {
+    if (selected_category_.empty())
+      return true;  // Root selected - show all
+    if (cat == selected_category_)
+      return true;
+    if (cat.size() > selected_category_.size() &&
+        cat.compare(0, selected_category_.size(), selected_category_) == 0 &&
+        cat[selected_category_.size()] == '/') {
+      return true;
+    }
+    return false;
+  };
+
+  // Helper: check if a category is a keybind category.
+  auto is_keybind_category = [](const std::string& cat) -> bool {
+    return cat == "Input/Keybinds" ||
+           (cat.size() > 15 && cat.compare(0, 15, "Input/Keybinds/") == 0);
+  };
 
   ImGui::BeginChild("##cvars", ImVec2(0, -30.0f), false);
   for (auto& entry : registry) {
     // Filter by category (unless searching).
     if (!searching) {
-      if (selected_category_ >= 0 && selected_category_ < static_cast<int>(categories.size()) &&
-          entry.category != categories[selected_category_]) {
+      if (!category_matches(entry.category)) {
         continue;
       }
     } else {
@@ -227,19 +322,29 @@ void SettingsDialog::OnDraw(ImGuiIO& /*io*/) {
 
     ImGui::PushID(entry.name.c_str());
 
-    // Value control - width is right portion of the row.
-    ImGui::SetNextItemWidth(160.0f);
     if (read_only)
       ImGui::BeginDisabled();
 
     std::string current_val = entry.getter();
 
-    if (entry.category == "Keybinds") {
-      ImGui::SetNextItemWidth(100.0f);
+    // Use description as display label if available, otherwise CVAR name
+    const char* display_label =
+        (!entry.description.empty()) ? entry.description.c_str() : entry.name.c_str();
+
+    if (is_keybind_category(entry.category)) {
+      // Grey out controller keybinds when MnK mode is disabled
+      bool mnk_disabled = (entry.category == "Input/Keybinds/Controller" && !REXCVAR_GET(mnk_mode));
+      if (mnk_disabled)
+        ImGui::BeginDisabled();
+
+      // Show description as label (e.g. "A button"), not the raw CVAR name
+      ImGui::Text("%-20s", entry.description.c_str());
+      ImGui::SameLine(240.0f);
+
       bool is_capturing = (capturing_bind_name_ == entry.name);
 
       if (is_capturing) {
-        ImGui::Button("Press any key...##v", ImVec2(160.0f, 0));
+        ImGui::Button("Press any key...##v", ImVec2(140.0f, 0));
 
         if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
           capturing_bind_name_.clear();
@@ -268,13 +373,14 @@ void SettingsDialog::OnDraw(ImGuiIO& /*io*/) {
           }
         }
       } else {
-        ImGui::Text("[%s]", current_val.c_str());
+        ImGui::SetNextItemWidth(80.0f);
+        ImGui::Text("%-10s", current_val.c_str());
         ImGui::SameLine();
-        if (ImGui::Button("Rebind##v")) {
+        if (ImGui::SmallButton("Rebind##v")) {
           capturing_bind_name_ = entry.name;
         }
         ImGui::SameLine();
-        if (ImGui::Button("Reset##v")) {
+        if (ImGui::SmallButton("Reset##v")) {
           rex::cvar::SetFlagByName(entry.name, entry.default_value);
         }
       }
@@ -283,7 +389,7 @@ void SettingsDialog::OnDraw(ImGuiIO& /*io*/) {
       if (!current_val.empty()) {
         int conflict_count = 0;
         for (auto& other : registry) {
-          if (other.category == "Keybinds" && other.name != entry.name &&
+          if (is_keybind_category(other.category) && other.name != entry.name &&
               other.getter() == current_val) {
             conflict_count++;
           }
@@ -297,78 +403,99 @@ void SettingsDialog::OnDraw(ImGuiIO& /*io*/) {
           }
         }
       }
-    } else if (entry.type == rex::cvar::FlagType::Boolean) {
-      bool v = (current_val == "true");
-      if (ImGui::Checkbox("##v", &v)) {
-        rex::cvar::SetFlagByName(entry.name, v ? "true" : "false");
-      }
-    } else if (entry.type == rex::cvar::FlagType::String &&
-               !entry.constraints.allowed_values.empty()) {
-      const auto& opts = entry.constraints.allowed_values;
-      int cur_idx = 0;
-      for (int i = 0; i < static_cast<int>(opts.size()); ++i) {
-        if (opts[i] == current_val) {
-          cur_idx = i;
-          break;
-        }
-      }
-      if (ImGui::BeginCombo("##v", opts[cur_idx].c_str())) {
-        for (int i = 0; i < static_cast<int>(opts.size()); ++i) {
-          bool sel = (i == cur_idx);
-          if (ImGui::Selectable(opts[i].c_str(), sel)) {
-            rex::cvar::SetFlagByName(entry.name, opts[i]);
-          }
-          if (sel)
-            ImGui::SetItemDefaultFocus();
-        }
-        ImGui::EndCombo();
-      }
-    } else if (entry.type == rex::cvar::FlagType::Int32 ||
-               entry.type == rex::cvar::FlagType::Int64 ||
-               entry.type == rex::cvar::FlagType::Uint32 ||
-               entry.type == rex::cvar::FlagType::Uint64) {
-      int v = std::atoi(current_val.c_str());
-      int vmin =
-          entry.constraints.min.has_value() ? static_cast<int>(*entry.constraints.min) : INT_MIN;
-      int vmax =
-          entry.constraints.max.has_value() ? static_cast<int>(*entry.constraints.max) : INT_MAX;
-      if (ImGui::InputInt("##v", &v)) {
-        v = std::clamp(v, vmin, vmax);
-        rex::cvar::SetFlagByName(entry.name, std::to_string(v));
-      }
-    } else if (entry.type == rex::cvar::FlagType::Double) {
-      double v = std::atof(current_val.c_str());
-      if (ImGui::InputDouble("##v", &v, 0.0, 0.0, "%.4f")) {
-        if (entry.constraints.min)
-          v = std::max(v, *entry.constraints.min);
-        if (entry.constraints.max)
-          v = std::min(v, *entry.constraints.max);
-        rex::cvar::SetFlagByName(entry.name, std::to_string(v));
-      }
+
+      // Skip the generic name + lifecycle badge rendering for keybinds
+      if (mnk_disabled)
+        ImGui::EndDisabled();
+      if (read_only)
+        ImGui::EndDisabled();
+      ImGui::PopID();
+      continue;
     } else {
-      // String (no allowed values)
-      char buf[256];
-      std::strncpy(buf, current_val.c_str(), sizeof(buf) - 1);
-      buf[sizeof(buf) - 1] = '\0';
-      if (ImGui::InputText("##v", buf, sizeof(buf), ImGuiInputTextFlags_EnterReturnsTrue)) {
-        rex::cvar::SetFlagByName(entry.name, buf);
+      // Non-keybind CVARs: colored label on left, value widget on right
+      ImGui::TextColored(LifecycleColor(entry.lifecycle), "%-20s", entry.name.c_str());
+      if (ImGui::IsItemHovered()) {
+        const char* lifecycle_label = "";
+        switch (entry.lifecycle) {
+          case rex::cvar::Lifecycle::kHotReload:
+            lifecycle_label = "Live - changes apply immediately";
+            break;
+          case rex::cvar::Lifecycle::kRequiresRestart:
+            lifecycle_label = "Requires restart to take effect";
+            break;
+          case rex::cvar::Lifecycle::kInitOnly:
+            lifecycle_label = "Read-only - set at initialization only";
+            break;
+        }
+        if (!entry.description.empty()) {
+          ImGui::SetTooltip("%s\n[%s]", entry.description.c_str(), lifecycle_label);
+        } else {
+          ImGui::SetTooltip("[%s]", lifecycle_label);
+        }
+      }
+      ImGui::SameLine(240.0f);
+
+      ImGui::SetNextItemWidth(160.0f);
+      if (entry.type == rex::cvar::FlagType::Boolean) {
+        bool v = (current_val == "true");
+        if (ImGui::Checkbox("##v", &v)) {
+          rex::cvar::SetFlagByName(entry.name, v ? "true" : "false");
+        }
+      } else if (entry.type == rex::cvar::FlagType::String &&
+                 !entry.constraints.allowed_values.empty()) {
+        const auto& opts = entry.constraints.allowed_values;
+        int cur_idx = 0;
+        for (int i = 0; i < static_cast<int>(opts.size()); ++i) {
+          if (opts[i] == current_val) {
+            cur_idx = i;
+            break;
+          }
+        }
+        if (ImGui::BeginCombo("##v", opts[cur_idx].c_str())) {
+          for (int i = 0; i < static_cast<int>(opts.size()); ++i) {
+            bool sel = (i == cur_idx);
+            if (ImGui::Selectable(opts[i].c_str(), sel)) {
+              rex::cvar::SetFlagByName(entry.name, opts[i]);
+            }
+            if (sel)
+              ImGui::SetItemDefaultFocus();
+          }
+          ImGui::EndCombo();
+        }
+      } else if (entry.type == rex::cvar::FlagType::Int32 ||
+                 entry.type == rex::cvar::FlagType::Int64 ||
+                 entry.type == rex::cvar::FlagType::Uint32 ||
+                 entry.type == rex::cvar::FlagType::Uint64) {
+        int v = std::atoi(current_val.c_str());
+        int vmin =
+            entry.constraints.min.has_value() ? static_cast<int>(*entry.constraints.min) : INT_MIN;
+        int vmax =
+            entry.constraints.max.has_value() ? static_cast<int>(*entry.constraints.max) : INT_MAX;
+        if (ImGui::InputInt("##v", &v)) {
+          v = std::clamp(v, vmin, vmax);
+          rex::cvar::SetFlagByName(entry.name, std::to_string(v));
+        }
+      } else if (entry.type == rex::cvar::FlagType::Double) {
+        double v = std::atof(current_val.c_str());
+        if (ImGui::InputDouble("##v", &v, 0.0, 0.0, "%.4f")) {
+          if (entry.constraints.min)
+            v = std::max(v, *entry.constraints.min);
+          if (entry.constraints.max)
+            v = std::min(v, *entry.constraints.max);
+          rex::cvar::SetFlagByName(entry.name, std::to_string(v));
+        }
+      } else {
+        char buf[256];
+        std::strncpy(buf, current_val.c_str(), sizeof(buf) - 1);
+        buf[sizeof(buf) - 1] = '\0';
+        if (ImGui::InputText("##v", buf, sizeof(buf), ImGuiInputTextFlags_EnterReturnsTrue)) {
+          rex::cvar::SetFlagByName(entry.name, buf);
+        }
       }
     }
 
     if (read_only)
       ImGui::EndDisabled();
-
-    ImGui::SameLine();
-    ImGui::Text("%s", entry.name.c_str());
-
-    // Lifecycle badge.
-    ImGui::SameLine();
-    ImGui::TextColored(LifecycleColor(entry.lifecycle), "%s", LifecycleBadge(entry.lifecycle));
-
-    // Description tooltip.
-    if (!entry.description.empty() && ImGui::IsItemHovered()) {
-      ImGui::SetTooltip("%s", entry.description.c_str());
-    }
 
     ImGui::PopID();
   }
