@@ -73,6 +73,7 @@ struct RecompilerConfig {
   std::string projectName = "rex";  ///< Project name for output files
   std::string filePath;             ///< Path to XEX/ELF file
   std::string outDirectoryPath;     ///< Output directory for generated code
+  std::string templateDir;          ///< Optional custom template directory for overrides
 
   // Patch file paths (TODO: implement patching workflow)
   std::string patchFilePath;
