@@ -23,6 +23,7 @@ set(CODEGEN_CORE_SOURCES
     phase_gapfill.cpp
     phase_merge.cpp
     phase_validate.cpp
+    template_registry.cpp
 )
 
 # PPC architecture sources (merged from rexarch)
@@ -45,6 +46,9 @@ set(CODEGEN_BUILDER_SOURCES
     builders/vector.cpp
 )
 
+# Embed .inja templates as constexpr string_views at configure time
+include(${REXGLUE_ROOT}/cmake/embed_templates.cmake)
+
 add_library(rexcodegen STATIC
     ${CODEGEN_CORE_SOURCES}
     ${CODEGEN_PPC_SOURCES}
@@ -57,11 +61,14 @@ add_library(rex::codegen ALIAS rexcodegen)
 target_include_directories(rexcodegen
     PUBLIC
         $<BUILD_INTERFACE:${REXGLUE_ROOT}/include>
+        $<BUILD_INTERFACE:${REXGLUE_ROOT}/thirdparty/inja/single_include>
+        $<BUILD_INTERFACE:${REXGLUE_ROOT}/thirdparty/inja/third_party/include>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     PRIVATE
         ${REXGLUE_ROOT}/thirdparty/disasm
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/builders
+        ${CMAKE_CURRENT_BINARY_DIR}/generated/templates
 )
 
 target_link_libraries(rexcodegen
