@@ -55,9 +55,6 @@
 [submodule "thirdparty/o1heap"]
 	path = thirdparty/o1heap
 	url = https://github.com/pavel-kirienko/o1heap.git
-[submodule "thirdparty/FidelityFX"]
-	path = thirdparty/FidelityFX
-	url = https://github.com/rexglue/FidelityFX-SDK.git
 [submodule "thirdparty/sdl3"]
 	path = thirdparty/sdl3
 	url = https://github.com/libsdl-org/SDL
