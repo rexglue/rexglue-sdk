@@ -633,7 +633,7 @@ void Memory::SystemHeapFree(uint32_t address, uint32_t* out_region_size) {
 void Memory::GetHeapsPageStatsSummary(const BaseHeap* const* provided_heaps, size_t heaps_count,
                                       uint32_t& unreserved_pages, uint32_t& reserved_pages,
                                       uint32_t& used_pages, uint32_t& reserved_bytes) {
-  auto lock = global_critical_region_.Acquire();
+  // Heap array is fixed after init; page counts are approximate statistics.
   for (size_t i = 0; i < heaps_count; i++) {
     const BaseHeap* heap = provided_heaps[i];
     uint32_t heap_unreserved = heap->unreserved_page_count();
@@ -857,7 +857,7 @@ void BaseHeap::Dispose() {
 }
 
 void BaseHeap::DumpMap() {
-  auto global_lock = global_critical_region_.Acquire();
+  std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
   REXSYS_ERROR("------------------------------------------------------------------");
   REXSYS_ERROR("Heap: {:08X}-{:08X}", heap_base_, heap_base_ + (heap_size_ - 1));
   REXSYS_ERROR("------------------------------------------------------------------");
@@ -910,7 +910,7 @@ uint32_t BaseHeap::GetTotalPageCount() {
 }
 
 uint32_t BaseHeap::GetUnreservedPageCount() {
-  auto global_lock = global_critical_region_.Acquire();
+  std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
   uint32_t count = 0;
   bool is_empty_span = false;
   uint32_t empty_span_start = 0;
@@ -1077,7 +1077,7 @@ bool BaseHeap::AllocFixed(uint32_t base_address, uint32_t size, uint32_t alignme
     return false;
   }
 
-  auto global_lock = global_critical_region_.Acquire();
+  std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
 
   // - If we are reserving the entire range requested must not be already
   //   reserved.
@@ -1169,7 +1169,7 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address, uint32_t 
     return false;
   }
 
-  auto global_lock = global_critical_region_.Acquire();
+  std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
 
   // Find a free page range.
   // The base page must match the requested alignment, so we first scan for
@@ -1300,7 +1300,7 @@ bool BaseHeap::Decommit(uint32_t address, uint32_t size) {
   start_page_number = std::min(uint32_t(page_table_.size()) - 1, start_page_number);
   end_page_number = std::min(uint32_t(page_table_.size()) - 1, end_page_number);
 
-  auto global_lock = global_critical_region_.Acquire();
+  std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
 
   // Release from host.
   // TODO(benvanik): find a way to actually decommit memory;
@@ -1323,7 +1323,7 @@ bool BaseHeap::Decommit(uint32_t address, uint32_t size) {
 }
 
 bool BaseHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
-  auto global_lock = global_critical_region_.Acquire();
+  std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
 
   // Given address must be a region base address.
   uint32_t base_page_number = (base_address - heap_base_) >> page_size_shift_;
@@ -1410,7 +1410,7 @@ bool BaseHeap::Protect(uint32_t address, uint32_t size, uint32_t protect, uint32
     return false;
   }
 
-  auto global_lock = global_critical_region_.Acquire();
+  std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
 
   // Ensure all pages are in the same reserved region and all are committed.
   uint32_t first_base_address = UINT_MAX;
@@ -1466,7 +1466,7 @@ bool BaseHeap::QueryRegionInfo(uint32_t base_address, HeapAllocationInfo* out_in
     return false;
   }
 
-  auto global_lock = global_critical_region_.Acquire();
+  std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
 
   auto start_page_entry = page_table_[start_page_number];
   out_info->base_address = base_address;
@@ -1519,7 +1519,7 @@ bool BaseHeap::QuerySize(uint32_t address, uint32_t* out_size) {
     *out_size = 0;
     return false;
   }
-  auto global_lock = global_critical_region_.Acquire();
+  std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
   auto page_entry = page_table_[page_number];
   *out_size = (page_entry.region_page_count << page_size_shift_);
   return true;
@@ -1532,7 +1532,7 @@ bool BaseHeap::QueryBaseAndSize(uint32_t* in_out_address, uint32_t* out_size) {
     *out_size = 0;
     return false;
   }
-  auto global_lock = global_critical_region_.Acquire();
+  std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
   auto page_entry = page_table_[page_number];
   *in_out_address = (page_entry.base_address << page_size_shift_);
   *out_size = (page_entry.region_page_count << page_size_shift_);
@@ -1546,7 +1546,7 @@ bool BaseHeap::QueryProtect(uint32_t address, uint32_t* out_protect) {
     *out_protect = 0;
     return false;
   }
-  auto global_lock = global_critical_region_.Acquire();
+  std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
   auto page_entry = page_table_[page_number];
   *out_protect = page_entry.current_protect;
   return true;
@@ -1562,7 +1562,7 @@ rex::memory::PageAccess BaseHeap::QueryRangeAccess(uint32_t low_address, uint32_
   bool all_readable = true;
   bool all_writable = true;
   {
-    auto global_lock = global_critical_region_.Acquire();
+    std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
     for (uint32_t i = low_page_number; i <= high_page_number; ++i) {
       uint32_t page_protect = page_table_[i].current_protect;
       if (!(page_protect & memory::kMemoryProtectRead)) {
@@ -1628,7 +1628,7 @@ bool PhysicalHeap::Alloc(uint32_t size, uint32_t alignment, uint32_t allocation_
   size = rex::round_up(size, page_size_);
   alignment = rex::round_up(alignment, page_size_);
 
-  auto global_lock = global_critical_region_.Acquire();
+  std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
 
   // Allocate from parent heap (gets our physical address in 0-512mb).
   uint32_t parent_heap_start = GetPhysicalAddress(heap_base_);
@@ -1658,7 +1658,7 @@ bool PhysicalHeap::AllocFixed(uint32_t base_address, uint32_t size, uint32_t ali
   size = rex::round_up(size, page_size_);
   alignment = rex::round_up(alignment, page_size_);
 
-  auto global_lock = global_critical_region_.Acquire();
+  std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
 
   // Allocate from parent heap (gets our physical address in 0-512mb).
   // NOTE: this can potentially overwrite heap contents if there are already
@@ -1691,7 +1691,7 @@ bool PhysicalHeap::AllocRange(uint32_t low_address, uint32_t high_address, uint3
   size = rex::round_up(size, page_size_);
   alignment = rex::round_up(alignment, page_size_);
 
-  auto global_lock = global_critical_region_.Acquire();
+  std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
 
   // Allocate from parent heap (gets our physical address in 0-512mb).
   low_address = std::max(heap_base_, low_address);

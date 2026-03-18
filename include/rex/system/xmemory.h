@@ -213,6 +213,7 @@ class BaseHeap {
   uint32_t host_address_offset_;
   uint32_t unreserved_page_count_ = 0;
   rex::thread::global_critical_region global_critical_region_;
+  std::recursive_mutex heap_mutex_;
   std::vector<PageEntry> page_table_;
 };
 
