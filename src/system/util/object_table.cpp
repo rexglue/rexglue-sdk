@@ -328,7 +328,7 @@ X_HANDLE ObjectTable::TranslateHandle(X_HANDLE handle) {
 }
 
 X_STATUS ObjectTable::AddNameMapping(const std::string_view name, X_HANDLE handle) {
-  auto global_lock = global_critical_region_.Acquire();
+  std::lock_guard<std::mutex> name_lock(name_mutex_);
   if (name_table_.count(string::string_key_case(name))) {
     return X_STATUS_OBJECT_NAME_COLLISION;
   }
@@ -338,7 +338,7 @@ X_STATUS ObjectTable::AddNameMapping(const std::string_view name, X_HANDLE handl
 
 void ObjectTable::RemoveNameMapping(const std::string_view name) {
   // Names are case-insensitive.
-  auto global_lock = global_critical_region_.Acquire();
+  std::lock_guard<std::mutex> name_lock(name_mutex_);
   auto it = name_table_.find(string::string_key_case(name));
   if (it != name_table_.end()) {
     name_table_.erase(it);
@@ -347,16 +347,24 @@ void ObjectTable::RemoveNameMapping(const std::string_view name) {
 
 X_STATUS ObjectTable::GetObjectByName(const std::string_view name, X_HANDLE* out_handle) {
   // Names are case-insensitive.
-  auto global_lock = global_critical_region_.Acquire();
-  auto it = name_table_.find(string::string_key_case(name));
-  if (it == name_table_.end()) {
-    *out_handle = X_INVALID_HANDLE_VALUE;
-    return X_STATUS_OBJECT_NAME_NOT_FOUND;
+  // Look up handle under name lock only -- do NOT hold name_mutex_ while
+  // acquiring global lock (RemoveHandle takes global -> name ordering).
+  X_HANDLE handle;
+  {
+    std::lock_guard<std::mutex> name_lock(name_mutex_);
+    auto it = name_table_.find(string::string_key_case(name));
+    if (it == name_table_.end()) {
+      *out_handle = X_INVALID_HANDLE_VALUE;
+      return X_STATUS_OBJECT_NAME_NOT_FOUND;
+    }
+    handle = it->second;
   }
-  *out_handle = it->second;
+  *out_handle = handle;
 
-  // We need to ref the handle. I think.
-  auto obj = LookupObject(it->second, true);
+  // Retain under global lock via normal LookupObject path.
+  // The handle may have been removed between releasing name_mutex_ and
+  // acquiring global lock -- LookupObject returns nullptr in that case.
+  auto obj = LookupObject(handle, false);
   if (obj) {
     obj->RetainHandle();
     obj->Release();

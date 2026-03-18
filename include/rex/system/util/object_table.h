@@ -96,6 +96,7 @@ class ObjectTable {
   bool Resize(uint32_t new_capacity);
 
   rex::thread::global_critical_region global_critical_region_;
+  std::mutex name_mutex_;
   uint32_t table_capacity_ = 0;
   ObjectTableEntry* table_ = nullptr;
   uint32_t last_free_entry_ = 0;
