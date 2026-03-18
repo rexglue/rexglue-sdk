@@ -31,7 +31,6 @@
 #include <rex/math.h>
 #include <rex/memory.h>
 #include <rex/platform.h>
-#include <rex/thread/mutex.h>
 
 #if REX_ARCH_AMD64
 // 128-bit SSSE3-level (SSE2+ for integer comparison, SSSE3 for pshufb) or AVX
@@ -791,7 +790,7 @@ class PrimitiveProcessor {
 
   void* memory_invalidation_callback_handle_ = nullptr;
 
-  rex::thread::global_critical_region global_critical_region_;
+  std::mutex cache_mutex_;
   // Modified by both the processor and the invalidation callback.
   std::unordered_map<CacheKey, size_t, CacheKey::Hasher> cache_map_;
   // The conversion is performed while the lock is released since it may take a
@@ -814,7 +813,7 @@ class PrimitiveProcessor {
   // Must be called in a global critical region.
   void UpdateCacheBucketsNonEmptyL2(
       uint32_t bucket_index_div_64,
-      [[maybe_unused]] const std::unique_lock<std::recursive_mutex>& global_lock) {
+      [[maybe_unused]] const std::lock_guard<std::mutex>& cache_lock) {
     uint64_t& cache_buckets_non_empty_l2_ref =
         cache_buckets_non_empty_l2_[bucket_index_div_64 >> 6];
     uint64_t cache_buckets_non_empty_l2_bit = uint64_t(1) << (bucket_index_div_64 & 63);
