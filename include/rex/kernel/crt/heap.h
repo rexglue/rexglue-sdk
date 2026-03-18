@@ -19,6 +19,10 @@ REXCVAR_DECLARE(uint32_t, rexcrt_heap_size_mb);
 
 struct O1HeapInstance;
 
+namespace rex::memory {
+class Memory;
+}
+
 namespace rex::kernel::crt {
 
 /// Mirrors O1HeapDiagnostics without requiring o1heap.h in consumer headers.
@@ -32,7 +36,7 @@ struct HeapDiagnostics {
 
 class ReXHeap {
  public:
-  bool Init(uint32_t heap_size_bytes);
+  bool Init(uint32_t heap_size_bytes, rex::memory::Memory* memory);
 
   uint32_t Alloc(uint32_t size, bool zero = false);
   void Free(uint32_t guest_addr);
@@ -53,6 +57,7 @@ class ReXHeap {
   std::vector<HeapSegment> segments_;
   uint8_t* membase_ = nullptr;
   uint32_t initial_segment_size_ = 0;
+  rex::memory::Memory* memory_ = nullptr;
 
   void* GuestToHost(uint32_t guest_addr) const;
   uint32_t HostToGuest(void* host_ptr) const;
@@ -64,7 +69,7 @@ class ReXHeap {
 };
 
 /// Initialize the global rexcrt heap. Called by Runtime::Setup() when enabled.
-bool InitHeap(uint32_t heap_size_mb);
+bool InitHeap(uint32_t heap_size_mb, rex::memory::Memory* memory);
 
 /// Access the global heap instance (valid after InitHeap).
 ReXHeap& GetHeap();

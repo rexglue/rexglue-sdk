@@ -162,7 +162,7 @@ bool ReXApp::OnInitialize() {
   // when [rexcrt] contains heap functions -- originals are stripped so init
   // is required. Size is controlled by the rexcrt_heap_size_mb CVAR.
   if (ppc_info_.rexcrt_heap) {
-    if (!rex::kernel::crt::InitHeap(REXCVAR_GET(rexcrt_heap_size_mb))) {
+    if (!rex::kernel::crt::InitHeap(REXCVAR_GET(rexcrt_heap_size_mb), runtime_->memory())) {
       REXLOG_ERROR("Failed to initialize rexcrt heap");
       return false;
     }

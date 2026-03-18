@@ -124,7 +124,7 @@ UserProfile::Setting* UserProfile::GetSetting(uint32_t setting_id) {
   if (setting->is_title_specific()) {
     // If what we have loaded in memory isn't for the title that is running
     // right now, then load it from disk.
-    if (kernel_state()->title_id() != setting->loaded_title_id) {
+    if (kernel_state_->title_id() != setting->loaded_title_id) {
       LoadSetting(setting);
     }
   }
@@ -133,7 +133,7 @@ UserProfile::Setting* UserProfile::GetSetting(uint32_t setting_id) {
 
 void UserProfile::LoadSetting(UserProfile::Setting* setting) {
   if (setting->is_title_specific()) {
-    auto content_dir = kernel_state()->content_manager()->ResolveGameUserContentPath();
+    auto content_dir = kernel_state_->content_manager()->ResolveGameUserContentPath();
     auto setting_id = fmt::format("{:08X}", setting->setting_id);
     auto file_path = content_dir / setting_id;
     auto file = rex::filesystem::OpenFile(file_path, "rb");
@@ -146,7 +146,7 @@ void UserProfile::LoadSetting(UserProfile::Setting* setting) {
       fread(serialized_data.data(), 1, serialized_data.size(), file);
       fclose(file);
       setting->Deserialize(serialized_data);
-      setting->loaded_title_id = kernel_state()->title_id();
+      setting->loaded_title_id = kernel_state_->title_id();
     }
   } else {
     // Unsupported for now.  Other settings aren't per-game and need to be
@@ -158,7 +158,7 @@ void UserProfile::LoadSetting(UserProfile::Setting* setting) {
 void UserProfile::SaveSetting(UserProfile::Setting* setting) {
   if (setting->is_title_specific()) {
     auto serialized_setting = setting->Serialize();
-    auto content_dir = kernel_state()->content_manager()->ResolveGameUserContentPath();
+    auto content_dir = kernel_state_->content_manager()->ResolveGameUserContentPath();
     std::filesystem::create_directories(content_dir);
     auto setting_id = fmt::format("{:08X}", setting->setting_id);
     auto file_path = content_dir / setting_id;

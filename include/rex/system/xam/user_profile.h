@@ -22,6 +22,10 @@
 #include <rex/stream.h>
 #include <rex/system/xtypes.h>
 
+namespace rex::system {
+class KernelState;
+}
+
 namespace rex {
 namespace system {
 namespace xam {
@@ -217,6 +221,8 @@ class UserProfile {
   uint32_t signin_state() const { return 1; }
   uint32_t type() const { return 1 | 2; /* local | online profile? */ }
 
+  void set_kernel_state(KernelState* ks) { kernel_state_ = ks; }
+
   void AddSetting(std::unique_ptr<Setting> setting);
   Setting* GetSetting(uint32_t setting_id);
 
@@ -225,6 +231,7 @@ class UserProfile {
   std::string name_;
   std::vector<std::unique_ptr<Setting>> setting_list_;
   std::unordered_map<uint32_t, Setting*> settings_;
+  KernelState* kernel_state_ = nullptr;
 
   void LoadSetting(UserProfile::Setting*);
   void SaveSetting(UserProfile::Setting*);

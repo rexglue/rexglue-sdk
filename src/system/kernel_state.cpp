@@ -56,6 +56,7 @@ KernelState::KernelState(Runtime* emulator)
 
   app_manager_ = std::make_unique<xam::AppManager>();
   user_profile_ = std::make_unique<xam::UserProfile>();
+  user_profile_->set_kernel_state(this);
 
   auto user_data_root = emulator_->user_data_root();
   if (!user_data_root.empty()) {

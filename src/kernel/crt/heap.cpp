@@ -17,7 +17,6 @@
 #include <rex/math.h>
 #include <rex/platform.h>
 #include <rex/ppc/function.h>
-#include <rex/system/kernel_state.h>
 #include <rex/system/xmemory.h>
 #include <rex/logging.h>
 
@@ -73,8 +72,9 @@ bool ReXHeap::InHeap(uint32_t guest_addr) const {
   return FindSegmentByGuestLocked(guest_addr) != nullptr;
 }
 
-bool ReXHeap::Init(uint32_t heap_size_bytes) {
-  auto* mem = rex::system::kernel_state()->memory();
+bool ReXHeap::Init(uint32_t heap_size_bytes, rex::memory::Memory* memory) {
+  memory_ = memory;
+  auto* mem = memory_;
   if (!mem) {
     REXKRNL_ERROR("rexcrt_heap: kernel_memory() is null");
     return false;
@@ -192,7 +192,7 @@ HeapDiagnostics ReXHeap::GetDiagnostics() const {
 }
 
 bool ReXHeap::AllocateSegmentLocked(uint32_t segment_size_bytes) {
-  auto* mem = rex::system::kernel_state()->memory();
+  auto* mem = memory_;
   if (!mem) {
     REXKRNL_ERROR("rexcrt_heap: kernel memory is null during segment allocation");
     return false;
@@ -372,8 +372,8 @@ ppc_u32_result_t RtlReAllocateHeap_entry(ppc_u32_t hHeap, ppc_u32_t dwFlags, ppc
   return g_heap.Realloc(static_cast<uint32_t>(ptr), dwBytes, dwFlags & HEAP_ZERO_MEMORY);
 }
 
-bool InitHeap(uint32_t heap_size_mb) {
-  return g_heap.Init(heap_size_mb * 1024u * 1024u);
+bool InitHeap(uint32_t heap_size_mb, rex::memory::Memory* memory) {
+  return g_heap.Init(heap_size_mb * 1024u * 1024u, memory);
 }
 
 ReXHeap& GetHeap() {
