@@ -149,7 +149,7 @@ void RtlInitAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> destination, ppc_pchar_t s
 // https://msdn.microsoft.com/en-us/library/ff561899
 void RtlFreeAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> string) {
   if (string->pointer) {
-    kernel_memory()->SystemHeapFree(string->pointer);
+    REX_KERNEL_MEMORY()->SystemHeapFree(string->pointer);
   }
 
   string->reset();
@@ -169,7 +169,7 @@ void RtlInitUnicodeString_entry(ppc_ptr_t<X_UNICODE_STRING> destination, ppc_pch
 // https://msdn.microsoft.com/en-us/library/ff561903
 void RtlFreeUnicodeString_entry(ppc_ptr_t<X_UNICODE_STRING> string) {
   if (string->pointer) {
-    kernel_memory()->SystemHeapFree(string->pointer);
+    REX_KERNEL_MEMORY()->SystemHeapFree(string->pointer);
   }
 
   string->reset();
@@ -183,8 +183,8 @@ void RtlCopyString_entry(ppc_ptr_t<X_ANSI_STRING> destination, ppc_ptr_t<X_ANSI_
 
   auto length = std::min(destination->maximum_length, source->length);
   if (length > 0) {
-    auto dst_buf = kernel_memory()->TranslateVirtual(destination->pointer);
-    auto src_buf = kernel_memory()->TranslateVirtual(source->pointer);
+    auto dst_buf = REX_KERNEL_MEMORY()->TranslateVirtual(destination->pointer);
+    auto src_buf = REX_KERNEL_MEMORY()->TranslateVirtual(source->pointer);
     std::memcpy(dst_buf, src_buf, length);
   }
   destination->length = length;
@@ -199,8 +199,8 @@ void RtlCopyUnicodeString_entry(ppc_ptr_t<X_UNICODE_STRING> destination,
 
   auto length = std::min(destination->maximum_length, source->length);
   if (length > 0) {
-    auto dst_buf = kernel_memory()->TranslateVirtual(destination->pointer);
-    auto src_buf = kernel_memory()->TranslateVirtual(source->pointer);
+    auto dst_buf = REX_KERNEL_MEMORY()->TranslateVirtual(destination->pointer);
+    auto src_buf = REX_KERNEL_MEMORY()->TranslateVirtual(source->pointer);
     std::memcpy(dst_buf, src_buf, length * 2);
   }
   destination->length = length;
@@ -215,7 +215,7 @@ ppc_u32_result_t RtlUnicodeStringToAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> des
   // _In_     PCUNICODE_STRING SourceString,
   // _In_     BOOLEAN AllocateDestinationString
 
-  std::u16string unicode_str = util::TranslateUnicodeString(kernel_memory(), source_ptr);
+  std::u16string unicode_str = util::TranslateUnicodeString(REX_KERNEL_MEMORY(), source_ptr);
   std::string ansi_str = rex::string::to_utf8(unicode_str);
   if (ansi_str.size() > 0xFFFF - 1) {
     return X_STATUS_INVALID_PARAMETER_2;
@@ -223,15 +223,15 @@ ppc_u32_result_t RtlUnicodeStringToAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> des
 
   X_STATUS result = X_STATUS_SUCCESS;
   if (alloc_dest) {
-    uint32_t buffer_ptr = kernel_memory()->SystemHeapAlloc(uint32_t(ansi_str.size() + 1));
+    uint32_t buffer_ptr = REX_KERNEL_MEMORY()->SystemHeapAlloc(uint32_t(ansi_str.size() + 1));
 
-    memcpy(kernel_memory()->TranslateVirtual(buffer_ptr), ansi_str.data(), ansi_str.size() + 1);
+    memcpy(REX_KERNEL_MEMORY()->TranslateVirtual(buffer_ptr), ansi_str.data(), ansi_str.size() + 1);
     destination_ptr->length = static_cast<uint16_t>(ansi_str.size());
     destination_ptr->maximum_length = static_cast<uint16_t>(ansi_str.size() + 1);
     destination_ptr->pointer = static_cast<uint32_t>(buffer_ptr);
   } else {
     uint32_t buffer_capacity = destination_ptr->maximum_length;
-    auto buffer_ptr = kernel_memory()->TranslateVirtual(destination_ptr->pointer);
+    auto buffer_ptr = REX_KERNEL_MEMORY()->TranslateVirtual(destination_ptr->pointer);
     if (buffer_capacity < ansi_str.size() + 1) {
       // Too large - we just write what we can.
       result = X_STATUS_BUFFER_OVERFLOW;
@@ -304,7 +304,7 @@ ppc_ptr_result_t RtlImageNtHeader_entry(ppc_pvoid_t module) {
   if (nt_magic != 0x4550) {  // 'PE'
     return 0;
   }
-  return kernel_memory()->HostToGuestVirtual(nt_header);
+  return REX_KERNEL_MEMORY()->HostToGuestVirtual(nt_header);
 }
 
 ppc_ptr_result_t RtlImageXexHeaderField_entry(ppc_ptr_t<xex2_header> xex_header,
@@ -312,7 +312,7 @@ ppc_ptr_result_t RtlImageXexHeaderField_entry(ppc_ptr_t<xex2_header> xex_header,
   uint32_t field_value = 0;
   uint32_t field = field_dword;  // VS acts weird going from ppc_u32_t -> enum
 
-  UserModule::GetOptHeader(kernel_memory(), xex_header, xex2_header_keys(field), &field_value);
+  UserModule::GetOptHeader(REX_KERNEL_MEMORY(), xex_header, xex2_header_keys(field), &field_value);
 
   return field_value;
 }

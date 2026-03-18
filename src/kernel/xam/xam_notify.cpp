@@ -30,7 +30,7 @@ uint32_t xeXamNotifyCreateListener(uint64_t mask, uint32_t is_system, uint32_t m
     max_version = 10;
   }
 
-  auto listener = object_ref<XNotifyListener>(new XNotifyListener(kernel_state()));
+  auto listener = object_ref<XNotifyListener>(new XNotifyListener(REX_KERNEL_STATE()));
   listener->Initialize(mask, max_version);
 
   // Handle ref is incremented, so return that.
@@ -65,7 +65,7 @@ ppc_u32_result_t XNotifyGetNext_entry(ppc_u32_t handle, ppc_u32_t match_id, ppc_
   *id_ptr = 0;
 
   // Grab listener.
-  auto listener = kernel_state()->object_table()->LookupObject<XNotifyListener>(handle);
+  auto listener = REX_KERNEL_OBJECTS()->LookupObject<XNotifyListener>(handle);
   if (!listener) {
     return 0;
   }

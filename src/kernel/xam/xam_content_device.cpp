@@ -81,7 +81,7 @@ ppc_u32_result_t XamContentGetDeviceState_entry(ppc_u32_t device_id, ppc_pvoid_t
   auto device_info = GetDummyDeviceInfo(device_id);
   if (device_info == nullptr) {
     if (overlapped_ptr) {
-      kernel_state()->CompleteOverlappedImmediateEx(
+      REX_KERNEL_STATE()->CompleteOverlappedImmediateEx(
           overlapped_ptr.guest_address(), X_ERROR_FUNCTION_FAILED, X_ERROR_DEVICE_NOT_CONNECTED, 0);
       return X_ERROR_IO_PENDING;
     } else {
@@ -89,7 +89,8 @@ ppc_u32_result_t XamContentGetDeviceState_entry(ppc_u32_t device_id, ppc_pvoid_t
     }
   }
   if (overlapped_ptr) {
-    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr.guest_address(), X_ERROR_SUCCESS);
+    REX_KERNEL_STATE()->CompleteOverlappedImmediate(overlapped_ptr.guest_address(),
+                                                    X_ERROR_SUCCESS);
     return X_ERROR_IO_PENDING;
   } else {
     return X_ERROR_SUCCESS;
@@ -135,7 +136,7 @@ ppc_u32_result_t XamContentCreateDeviceEnumerator_entry(ppc_u32_t content_type,
     *buffer_size_ptr = sizeof(X_CONTENT_DEVICE_DATA) * max_count;
   }
 
-  auto e = make_object<XStaticEnumerator<X_CONTENT_DEVICE_DATA>>(kernel_state(), max_count);
+  auto e = make_object<XStaticEnumerator<X_CONTENT_DEVICE_DATA>>(REX_KERNEL_STATE(), max_count);
   auto result = e->Initialize(0xFE, 0xFE, 0x2000A, 0x20009, 0);
   if (XFAILED(result)) {
     return result;

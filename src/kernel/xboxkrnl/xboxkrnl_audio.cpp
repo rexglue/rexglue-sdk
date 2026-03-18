@@ -67,7 +67,8 @@ ppc_u32_result_t XAudioRegisterRenderDriverClient_entry(ppc_pu32_t callback_ptr,
   }
   uint32_t callback_arg = callback_ptr[1];
 
-  auto* audio_system = static_cast<audio::AudioSystem*>(kernel_state()->emulator()->audio_system());
+  auto* audio_system =
+      static_cast<audio::AudioSystem*>(REX_KERNEL_STATE()->emulator()->audio_system());
 
   size_t index;
   auto result = audio_system->RegisterClient(callback, callback_arg, &index);
@@ -83,7 +84,8 @@ ppc_u32_result_t XAudioRegisterRenderDriverClient_entry(ppc_pu32_t callback_ptr,
 ppc_u32_result_t XAudioUnregisterRenderDriverClient_entry(ppc_pvoid_t driver_ptr) {
   assert_true((driver_ptr.guest_address() & 0xFFFF0000) == 0x41550000);
 
-  auto* audio_system = static_cast<audio::AudioSystem*>(kernel_state()->emulator()->audio_system());
+  auto* audio_system =
+      static_cast<audio::AudioSystem*>(REX_KERNEL_STATE()->emulator()->audio_system());
   audio_system->UnregisterClient(driver_ptr.guest_address() & 0x0000FFFF);
   return X_ERROR_SUCCESS;
 }
@@ -99,7 +101,8 @@ ppc_u32_result_t XAudioSubmitRenderDriverFrame_entry(ppc_pvoid_t driver_ptr,
     submit_krnl_count++;
   }
 
-  auto* audio_system = static_cast<audio::AudioSystem*>(kernel_state()->emulator()->audio_system());
+  auto* audio_system =
+      static_cast<audio::AudioSystem*>(REX_KERNEL_STATE()->emulator()->audio_system());
   audio_system->SubmitFrame(driver_ptr.guest_address() & 0x0000FFFF, samples_ptr.guest_address());
 
   return X_ERROR_SUCCESS;

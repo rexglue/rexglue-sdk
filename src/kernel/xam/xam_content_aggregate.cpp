@@ -30,7 +30,7 @@ using namespace rex::system::xam;
 
 void AddODDContentTest(object_ref<XStaticEnumerator<XCONTENT_AGGREGATE_DATA>> e,
                        XContentType content_type) {
-  auto root_entry = kernel_state()->file_system()->ResolvePath("game:\\Content\\0000000000000000");
+  auto root_entry = REX_KERNEL_FS()->ResolvePath("game:\\Content\\0000000000000000");
   if (!root_entry) {
     return;
   }
@@ -89,7 +89,7 @@ ppc_u32_result_t XamContentAggregateCreateEnumerator_entry(ppc_u64_t xuid, ppc_u
     return X_E_INVALIDARG;
   }
 
-  auto e = make_object<XStaticEnumerator<XCONTENT_AGGREGATE_DATA>>(kernel_state(), 1);
+  auto e = make_object<XStaticEnumerator<XCONTENT_AGGREGATE_DATA>>(REX_KERNEL_STATE(), 1);
   X_KENUMERATOR_CONTENT_AGGREGATE* extra;
   auto result = e->Initialize(0xFF, 0xFE, 0x2000E, 0x20010, 0, &extra);
   if (XFAILED(result)) {
@@ -101,13 +101,13 @@ ppc_u32_result_t XamContentAggregateCreateEnumerator_entry(ppc_u64_t xuid, ppc_u
 
   auto content_type_enum = XContentType(uint32_t(content_type));
 
-  uint64_t userxuid = kernel_state()->user_profile()->xuid();
+  uint64_t userxuid = REX_KERNEL_STATE()->user_profile()->xuid();
 
   if (!device_info || device_info->device_type == DeviceType::HDD) {
     // Fetch any alternate title IDs defined in the XEX header
     // (used by games to load saves from other titles, etc)
     std::vector<uint32_t> title_ids{kCurrentlyRunningTitleId};
-    auto exe_module = kernel_state()->GetExecutableModule();
+    auto exe_module = REX_KERNEL_STATE()->GetExecutableModule();
     if (exe_module && exe_module->xex_module()) {
       const auto& alt_ids = exe_module->xex_module()->opt_alternate_title_ids();
       std::copy(alt_ids.cbegin(), alt_ids.cend(), std::back_inserter(title_ids));
@@ -115,7 +115,7 @@ ppc_u32_result_t XamContentAggregateCreateEnumerator_entry(ppc_u64_t xuid, ppc_u
 
     for (auto& title_id : title_ids) {
       // Get user-specific content
-      auto content_datas = kernel_state()->content_manager()->ListContent(
+      auto content_datas = REX_KERNEL_STATE()->content_manager()->ListContent(
           static_cast<uint32_t>(DummyDeviceId::HDD), xuid, content_type_enum, title_id);
       for (const auto& content_data : content_datas) {
         auto item = e->AppendItem();
@@ -127,7 +127,7 @@ ppc_u32_result_t XamContentAggregateCreateEnumerator_entry(ppc_u64_t xuid, ppc_u
 
       // Also get common content (xuid=0)
       if (userxuid != 0) {
-        auto common_datas = kernel_state()->content_manager()->ListContent(
+        auto common_datas = REX_KERNEL_STATE()->content_manager()->ListContent(
             static_cast<uint32_t>(DummyDeviceId::HDD), 0, content_type_enum, title_id);
         for (const auto& content_data : common_datas) {
           auto item = e->AppendItem();

@@ -49,13 +49,14 @@ ppc_u32_result_t XamTaskSchedule_entry(ppc_pvoid_t callback, ppc_ptr_t<XTASK_MES
   // TODO(gibbed): figure out what this is for
   *handle_ptr = 12345;
 
-  uint32_t stack_size = kernel_state()->GetExecutableModule()->stack_size();
+  uint32_t stack_size = REX_KERNEL_STATE()->GetExecutableModule()->stack_size();
 
   // Stack must be aligned to 16kb pages
   stack_size = std::max((uint32_t)0x4000, ((stack_size + 0xFFF) & 0xFFFFF000));
 
-  auto thread = object_ref<XThread>(new XThread(
-      kernel_state(), stack_size, 0, callback.guest_address(), message.guest_address(), 0, true));
+  auto thread =
+      object_ref<XThread>(new XThread(REX_KERNEL_STATE(), stack_size, 0, callback.guest_address(),
+                                      message.guest_address(), 0, true));
 
   X_STATUS result = thread->Create();
 

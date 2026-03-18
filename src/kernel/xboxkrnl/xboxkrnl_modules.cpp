@@ -30,7 +30,7 @@ ppc_u32_result_t XexCheckExecutablePrivilege_entry(ppc_u32_t privilege) {
   // Privilege=6 -> 0x00000040 -> XEX_SYSTEM_INSECURE_SOCKETS
   uint32_t mask = 1 << privilege;
 
-  auto module = kernel_state()->GetExecutableModule();
+  auto module = REX_KERNEL_STATE()->GetExecutableModule();
   if (!module) {
     return 0;
   }
@@ -45,9 +45,9 @@ ppc_u32_result_t XexGetModuleHandle_entry(ppc_pchar_t module_name, ppc_pu32_t hm
   object_ref<XModule> module;
 
   if (!module_name) {
-    module = kernel_state()->GetExecutableModule();
+    module = REX_KERNEL_STATE()->GetExecutableModule();
   } else {
-    module = kernel_state()->GetModule(module_name.value());
+    module = REX_KERNEL_STATE()->GetModule(module_name.value());
   }
 
   if (!module) {
@@ -65,7 +65,7 @@ ppc_u32_result_t XexGetModuleSection_entry(ppc_pvoid_t hmodule, ppc_pchar_t name
                                            ppc_pu32_t data_ptr, ppc_pu32_t size_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto module = XModule::GetFromHModule(kernel_state(), hmodule);
+  auto module = XModule::GetFromHModule(REX_KERNEL_STATE(), hmodule);
   if (module) {
     uint32_t section_data = 0;
     uint32_t section_size = 0;
@@ -86,14 +86,14 @@ ppc_u32_result_t XexLoadImage_entry(ppc_pchar_t module_name, ppc_u32_t module_fl
   X_STATUS result = X_STATUS_NO_SUCH_FILE;
 
   uint32_t hmodule = 0;
-  auto module = kernel_state()->GetModule(module_name.value());
+  auto module = REX_KERNEL_STATE()->GetModule(module_name.value());
   if (module) {
     // Existing module found.
     hmodule = module->hmodule_ptr();
     result = X_STATUS_SUCCESS;
   } else {
     // Not found; attempt to load as a user module.
-    auto user_module = kernel_state()->LoadUserModule(module_name.value());
+    auto user_module = REX_KERNEL_STATE()->LoadUserModule(module_name.value());
     if (user_module) {
       // Give up object ownership, this reference will be released by the last
       // XexUnloadImage call
@@ -105,7 +105,7 @@ ppc_u32_result_t XexLoadImage_entry(ppc_pchar_t module_name, ppc_u32_t module_fl
 
   // Increment the module's load count.
   if (hmodule) {
-    auto ldr_data = kernel_memory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(hmodule);
+    auto ldr_data = REX_KERNEL_MEMORY()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(hmodule);
     ldr_data->load_count++;
   }
 
@@ -115,7 +115,7 @@ ppc_u32_result_t XexLoadImage_entry(ppc_pchar_t module_name, ppc_u32_t module_fl
 }
 
 ppc_u32_result_t XexUnloadImage_entry(ppc_pvoid_t hmodule) {
-  auto module = XModule::GetFromHModule(kernel_state(), hmodule);
+  auto module = XModule::GetFromHModule(REX_KERNEL_STATE(), hmodule);
   if (!module) {
     return X_STATUS_INVALID_HANDLE;
   }
@@ -126,7 +126,7 @@ ppc_u32_result_t XexUnloadImage_entry(ppc_pvoid_t hmodule) {
     if (--ldr_data->load_count == 0) {
       // No more references, free it.
       module->Release();
-      kernel_state()->UnloadUserModule(
+      REX_KERNEL_STATE()->UnloadUserModule(
           object_ref<UserModule>(reinterpret_cast<UserModule*>(module.release())));
     }
   }
@@ -140,15 +140,15 @@ ppc_u32_result_t XexGetProcedureAddress_entry(ppc_pvoid_t hmodule, ppc_u32_t ord
   assert_not_zero(ordinal);
 
   bool is_string_name = (ordinal & 0xFFFF0000) != 0;
-  auto string_name = reinterpret_cast<const char*>(kernel_memory()->TranslateVirtual(ordinal));
+  auto string_name = reinterpret_cast<const char*>(REX_KERNEL_MEMORY()->TranslateVirtual(ordinal));
 
   X_STATUS result = X_STATUS_INVALID_HANDLE;
 
   object_ref<XModule> module;
   if (!hmodule) {
-    module = kernel_state()->GetExecutableModule();
+    module = REX_KERNEL_STATE()->GetExecutableModule();
   } else {
-    module = XModule::GetFromHModule(kernel_state(), hmodule);
+    module = XModule::GetFromHModule(REX_KERNEL_STATE(), hmodule);
   }
   if (module) {
     uint32_t ptr;
@@ -182,10 +182,11 @@ void ExRegisterTitleTerminateNotification_entry(ppc_ptr_t<X_EX_TITLE_TERMINATE_R
                                                 ppc_u32_t create) {
   if (create) {
     // Adding.
-    kernel_state()->RegisterTitleTerminateNotification(reg->notification_routine, reg->priority);
+    REX_KERNEL_STATE()->RegisterTitleTerminateNotification(reg->notification_routine,
+                                                           reg->priority);
   } else {
     // Removing.
-    kernel_state()->RemoveTitleTerminateNotification(reg->notification_routine);
+    REX_KERNEL_STATE()->RemoveTitleTerminateNotification(reg->notification_routine);
   }
 }
 

@@ -22,6 +22,7 @@
 
 #include <rex/filesystem/vfs.h>
 #include <rex/logging.h>
+#include <rex/system/thread_state.h>
 #include <rex/thread/fiber.h>
 #include <rex/system/util/native_list.h>
 #include <rex/system/util/object_table.h>
@@ -52,6 +53,18 @@
 #define REXKRNL_IMPORT_FAIL(name, fmt, ...) REXKRNL_WARN("[" name "] FAILED: " fmt, ##__VA_ARGS__)
 
 #define REXKRNL_IMPORT_WARN(name, fmt, ...) REXKRNL_DEBUG("[" name "] " fmt, ##__VA_ARGS__)
+
+//=============================================================================
+// Kernel State Access Macros
+//=============================================================================
+// Convenience macros for accessing the current thread's kernel state and
+// subsystems from kernel export (_entry) functions. These use the ThreadState
+// bound to the current thread via ThreadState::Bind().
+
+#define REX_KERNEL_STATE() (::rex::runtime::current_kernel_state())
+#define REX_KERNEL_MEMORY() (REX_KERNEL_STATE()->memory())
+#define REX_KERNEL_OBJECTS() (REX_KERNEL_STATE()->object_table())
+#define REX_KERNEL_FS() (REX_KERNEL_STATE()->file_system())
 
 namespace rex {
 class Runtime;

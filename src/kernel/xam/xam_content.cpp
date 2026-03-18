@@ -36,7 +36,8 @@ ppc_u32_result_t XamContentGetLicenseMask_entry(ppc_pu32_t mask_ptr, ppc_pvoid_t
   *mask_ptr = REXCVAR_GET(license_mask);
 
   if (overlapped_ptr) {
-    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr.guest_address(), X_ERROR_SUCCESS);
+    REX_KERNEL_STATE()->CompleteOverlappedImmediate(overlapped_ptr.guest_address(),
+                                                    X_ERROR_SUCCESS);
     return X_ERROR_IO_PENDING;
   } else {
     return X_ERROR_SUCCESS;
@@ -77,9 +78,9 @@ ppc_u32_result_t XamContentCreateEnumerator_entry(ppc_u32_t user_index, ppc_u32_
     *buffer_size_ptr = sizeof(XCONTENT_DATA) * items_per_enumerate;
   }
 
-  uint64_t xuid = kernel_state()->user_profile()->xuid();
+  uint64_t xuid = REX_KERNEL_STATE()->user_profile()->xuid();
 
-  auto e = make_object<XStaticEnumerator<XCONTENT_DATA>>(kernel_state(), items_per_enumerate);
+  auto e = make_object<XStaticEnumerator<XCONTENT_DATA>>(REX_KERNEL_STATE(), items_per_enumerate);
   auto result = e->Initialize(0xFF, 0xFE, 0x20005, 0x20007, 0);
   if (XFAILED(result)) {
     return result;
@@ -87,7 +88,7 @@ ppc_u32_result_t XamContentCreateEnumerator_entry(ppc_u32_t user_index, ppc_u32_
 
   if (!device_info || device_info->device_id == DummyDeviceId::HDD) {
     // Enumerate user-specific content
-    auto content_datas = kernel_state()->content_manager()->ListContent(
+    auto content_datas = REX_KERNEL_STATE()->content_manager()->ListContent(
         static_cast<uint32_t>(DummyDeviceId::HDD), xuid, XContentType(uint32_t(content_type)));
     for (const auto& content_data : content_datas) {
       auto item = e->AppendItem();
@@ -96,7 +97,7 @@ ppc_u32_result_t XamContentCreateEnumerator_entry(ppc_u32_t user_index, ppc_u32_
 
     // Also enumerate common content (xuid=0)
     if (xuid != 0) {
-      auto common_datas = kernel_state()->content_manager()->ListContent(
+      auto common_datas = REX_KERNEL_STATE()->content_manager()->ListContent(
           static_cast<uint32_t>(DummyDeviceId::HDD), 0, XContentType(uint32_t(content_type)));
       for (const auto& content_data : common_datas) {
         auto item = e->AppendItem();
@@ -122,7 +123,7 @@ ppc_u32_result_t xeXamContentCreate(ppc_u32_t user_index, ppc_pchar_t root_name,
                                     ppc_u32_t flags, ppc_pu32_t disposition_ptr,
                                     ppc_pu32_t license_mask_ptr, ppc_u32_t cache_size,
                                     ppc_u64_t content_size, ppc_pvoid_t overlapped_ptr) {
-  uint64_t xuid = kernel_state()->user_profile()->xuid();
+  uint64_t xuid = REX_KERNEL_STATE()->user_profile()->xuid();
 
   XCONTENT_AGGREGATE_DATA content_data;
   if (content_data_size == sizeof(XCONTENT_DATA)) {
@@ -138,7 +139,7 @@ ppc_u32_result_t xeXamContentCreate(ppc_u32_t user_index, ppc_pchar_t root_name,
     xuid = 0;
   }
 
-  auto content_manager = kernel_state()->content_manager();
+  auto content_manager = REX_KERNEL_STATE()->content_manager();
 
   if (overlapped_ptr && disposition_ptr) {
     *disposition_ptr = 0;
@@ -236,7 +237,7 @@ ppc_u32_result_t xeXamContentCreate(ppc_u32_t user_index, ppc_pchar_t root_name,
     uint32_t extended_error, length;
     return run(extended_error, length);
   } else {
-    kernel_state()->CompleteOverlappedDeferredEx(run, overlapped_ptr.guest_address());
+    REX_KERNEL_STATE()->CompleteOverlappedDeferredEx(run, overlapped_ptr.guest_address());
     return X_ERROR_IO_PENDING;
   }
 }
@@ -280,7 +281,7 @@ ppc_u32_result_t XamContentOpenFile_entry(ppc_u32_t user_index, ppc_pchar_t root
 ppc_u32_result_t XamContentFlush_entry(ppc_pchar_t root_name, ppc_pvoid_t overlapped_ptr) {
   X_RESULT result = X_ERROR_SUCCESS;
   if (overlapped_ptr) {
-    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr.guest_address(), result);
+    REX_KERNEL_STATE()->CompleteOverlappedImmediate(overlapped_ptr.guest_address(), result);
     return X_ERROR_IO_PENDING;
   } else {
     return result;
@@ -289,10 +290,10 @@ ppc_u32_result_t XamContentFlush_entry(ppc_pchar_t root_name, ppc_pvoid_t overla
 
 ppc_u32_result_t XamContentClose_entry(ppc_pchar_t root_name, ppc_pvoid_t overlapped_ptr) {
   // Closes a previously opened root from XamContentCreate*.
-  auto result = kernel_state()->content_manager()->CloseContent(root_name.value());
+  auto result = REX_KERNEL_STATE()->content_manager()->CloseContent(root_name.value());
 
   if (overlapped_ptr) {
-    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr.guest_address(), result);
+    REX_KERNEL_STATE()->CompleteOverlappedImmediate(overlapped_ptr.guest_address(), result);
     return X_ERROR_IO_PENDING;
   } else {
     return result;
@@ -304,10 +305,10 @@ ppc_u32_result_t XamContentGetCreator_entry(ppc_u32_t user_index, ppc_pvoid_t co
                                             ppc_pvoid_t overlapped_ptr) {
   auto result = X_ERROR_SUCCESS;
 
-  uint64_t xuid = kernel_state()->user_profile()->xuid();
+  uint64_t xuid = REX_KERNEL_STATE()->user_profile()->xuid();
   XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_DATA*>();
 
-  bool content_exists = kernel_state()->content_manager()->ContentExists(xuid, content_data);
+  bool content_exists = REX_KERNEL_STATE()->content_manager()->ContentExists(xuid, content_data);
 
   if (content_exists) {
     if (content_data.content_type == XContentType::kSavedGame) {
@@ -327,7 +328,7 @@ ppc_u32_result_t XamContentGetCreator_entry(ppc_u32_t user_index, ppc_pvoid_t co
   }
 
   if (overlapped_ptr) {
-    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr.guest_address(), result);
+    REX_KERNEL_STATE()->CompleteOverlappedImmediate(overlapped_ptr.guest_address(), result);
     return X_ERROR_IO_PENDING;
   } else {
     return result;
@@ -339,12 +340,13 @@ ppc_u32_result_t XamContentGetThumbnail_entry(ppc_u32_t user_index, ppc_pvoid_t 
                                               ppc_pvoid_t overlapped_ptr) {
   assert_not_null(buffer_size_ptr);
   uint32_t buffer_size = *buffer_size_ptr;
-  uint64_t xuid = kernel_state()->user_profile()->xuid();
+  uint64_t xuid = REX_KERNEL_STATE()->user_profile()->xuid();
   XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_DATA*>();
 
   // Get thumbnail (if it exists).
   std::vector<uint8_t> buffer;
-  auto result = kernel_state()->content_manager()->GetContentThumbnail(xuid, content_data, &buffer);
+  auto result =
+      REX_KERNEL_STATE()->content_manager()->GetContentThumbnail(xuid, content_data, &buffer);
 
   *buffer_size_ptr = uint32_t(buffer.size());
 
@@ -363,7 +365,7 @@ ppc_u32_result_t XamContentGetThumbnail_entry(ppc_u32_t user_index, ppc_pvoid_t 
   }
 
   if (overlapped_ptr) {
-    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr.guest_address(), result);
+    REX_KERNEL_STATE()->CompleteOverlappedImmediate(overlapped_ptr.guest_address(), result);
     return X_ERROR_IO_PENDING;
   } else {
     return result;
@@ -373,16 +375,16 @@ ppc_u32_result_t XamContentGetThumbnail_entry(ppc_u32_t user_index, ppc_pvoid_t 
 ppc_u32_result_t XamContentSetThumbnail_entry(ppc_u32_t user_index, ppc_pvoid_t content_data_ptr,
                                               ppc_pvoid_t buffer_ptr, ppc_u32_t buffer_size,
                                               ppc_pvoid_t overlapped_ptr) {
-  uint64_t xuid = kernel_state()->user_profile()->xuid();
+  uint64_t xuid = REX_KERNEL_STATE()->user_profile()->xuid();
   XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_DATA*>();
 
   // Buffer is PNG data.
   auto buffer = std::vector<uint8_t>((uint8_t*)buffer_ptr, (uint8_t*)buffer_ptr + buffer_size);
-  auto result =
-      kernel_state()->content_manager()->SetContentThumbnail(xuid, content_data, std::move(buffer));
+  auto result = REX_KERNEL_STATE()->content_manager()->SetContentThumbnail(xuid, content_data,
+                                                                           std::move(buffer));
 
   if (overlapped_ptr) {
-    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr.guest_address(), result);
+    REX_KERNEL_STATE()->CompleteOverlappedImmediate(overlapped_ptr.guest_address(), result);
     return X_ERROR_IO_PENDING;
   } else {
     return result;
@@ -391,13 +393,13 @@ ppc_u32_result_t XamContentSetThumbnail_entry(ppc_u32_t user_index, ppc_pvoid_t 
 
 ppc_u32_result_t XamContentDelete_entry(ppc_u32_t user_index, ppc_pvoid_t content_data_ptr,
                                         ppc_pvoid_t overlapped_ptr) {
-  uint64_t xuid = kernel_state()->user_profile()->xuid();
+  uint64_t xuid = REX_KERNEL_STATE()->user_profile()->xuid();
   XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_DATA*>();
 
-  auto result = kernel_state()->content_manager()->DeleteContent(xuid, content_data);
+  auto result = REX_KERNEL_STATE()->content_manager()->DeleteContent(xuid, content_data);
 
   if (overlapped_ptr) {
-    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr.guest_address(), result);
+    REX_KERNEL_STATE()->CompleteOverlappedImmediate(overlapped_ptr.guest_address(), result);
     return X_ERROR_IO_PENDING;
   } else {
     return result;
@@ -408,13 +410,13 @@ ppc_u32_result_t XamContentDeleteInternal_entry(ppc_pvoid_t content_data_ptr,
                                                 ppc_pvoid_t overlapped_ptr) {
   // INFO: Analysis of xam.xex shows that "internal" functions are wrappers with
   // 0xFE as user_index
-  uint64_t xuid = kernel_state()->user_profile()->xuid();
+  uint64_t xuid = REX_KERNEL_STATE()->user_profile()->xuid();
   XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_AGGREGATE_DATA*>();
 
-  auto result = kernel_state()->content_manager()->DeleteContent(xuid, content_data);
+  auto result = REX_KERNEL_STATE()->content_manager()->DeleteContent(xuid, content_data);
 
   if (overlapped_ptr) {
-    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr.guest_address(), result);
+    REX_KERNEL_STATE()->CompleteOverlappedImmediate(overlapped_ptr.guest_address(), result);
     return X_ERROR_IO_PENDING;
   } else {
     return result;

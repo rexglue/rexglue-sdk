@@ -122,24 +122,24 @@ ppc_u32_result_t ExCreateThread_entry(ppc_pu32_t handle_ptr, ppc_u32_t stack_siz
   // DWORD    CreationFlags // 0x80?
 
   // Determine target process based on creation flags.
-  uint32_t guest_process = kernel_state()->GetTitleProcess();
+  uint32_t guest_process = REX_KERNEL_STATE()->GetTitleProcess();
   if (creation_flags & 2) {
     REXKRNL_WARN("[ExCreateThread] Guest is creating a system thread!");
-    guest_process = kernel_state()->GetSystemProcess();
+    guest_process = REX_KERNEL_STATE()->GetSystemProcess();
   }
 
   // Inherit default stack size
   uint32_t actual_stack_size = stack_size;
 
   if (actual_stack_size == 0) {
-    actual_stack_size = kernel_state()->GetExecutableModule()->stack_size();
+    actual_stack_size = REX_KERNEL_STATE()->GetExecutableModule()->stack_size();
   }
 
   // Stack must be aligned to 16kb pages
   actual_stack_size = std::max((uint32_t)0x4000, ((actual_stack_size + 0xFFF) & 0xFFFFF000));
 
   auto thread = object_ref<XThread>(new XThread(
-      kernel_state(), actual_stack_size, xapi_thread_startup, start_address.guest_address(),
+      REX_KERNEL_STATE(), actual_stack_size, xapi_thread_startup, start_address.guest_address(),
       start_context.guest_address(), creation_flags, true, false, guest_process));
 
   X_STATUS result = thread->Create();
@@ -178,7 +178,7 @@ ppc_u32_result_t NtResumeThread_entry(ppc_u32_t handle, ppc_pu32_t suspend_count
   X_RESULT result = X_STATUS_INVALID_HANDLE;
   uint32_t suspend_count = 0;
 
-  auto thread = kernel_state()->object_table()->LookupObject<XThread>(handle);
+  auto thread = REX_KERNEL_OBJECTS()->LookupObject<XThread>(handle);
   if (thread) {
     REXKRNL_TRACE("[NtResumeThread] handle={:08X} thread={}", uint32_t(handle), thread->name());
     result = thread->Resume(&suspend_count);
@@ -195,7 +195,7 @@ ppc_u32_result_t NtResumeThread_entry(ppc_u32_t handle, ppc_pu32_t suspend_count
 
 ppc_u32_result_t KeResumeThread_entry(ppc_pvoid_t thread_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
-  auto thread = XObject::GetNativeObject<XThread>(kernel_state(), thread_ptr);
+  auto thread = XObject::GetNativeObject<XThread>(REX_KERNEL_STATE(), thread_ptr);
   if (thread) {
     REXKRNL_TRACE("[KeResumeThread] ptr={:08X} thread={}", thread_ptr.guest_address(),
                   thread->name());
@@ -213,7 +213,7 @@ ppc_u32_result_t NtSuspendThread_entry(ppc_u32_t handle, ppc_pu32_t suspend_coun
   X_RESULT result = X_STATUS_SUCCESS;
   uint32_t suspend_count = 0;
 
-  auto thread = kernel_state()->object_table()->LookupObject<XThread>(handle);
+  auto thread = REX_KERNEL_OBJECTS()->LookupObject<XThread>(handle);
   if (thread) {
     if (thread->type() != XObject::Type::Thread) {
       return X_STATUS_OBJECT_TYPE_MISMATCH;
@@ -285,7 +285,8 @@ void KeSetCurrentStackPointers_entry(ppc_pvoid_t stack_ptr, ppc_ptr_t<X_KTHREAD>
                                      ppc_pvoid_t stack_limit) {
   auto current_thread = XThread::GetCurrentThread();
   auto context = current_thread->thread_state()->context();
-  auto pcr = kernel_memory()->TranslateVirtual<X_KPCR*>(static_cast<uint32_t>(context->r13.u64));
+  auto pcr =
+      REX_KERNEL_MEMORY()->TranslateVirtual<X_KPCR*>(static_cast<uint32_t>(context->r13.u64));
 
   thread->stack_alloc_base = stack_alloc_base.value();
   thread->stack_base = stack_base.value();
@@ -305,7 +306,7 @@ void KeSetCurrentStackPointers_entry(ppc_pvoid_t stack_ptr, ppc_ptr_t<X_KTHREAD>
     // Distinguish a newly created fiber (saved LR = valid function entry)
     // from a switch back to the main thread (saved LR = mid-function addr).
     uint32_t saved_lr = memory::load_and_swap<uint32_t>(
-        kernel_memory()->TranslateVirtual(target_guest_addr) + 0x1C);
+        REX_KERNEL_MEMORY()->TranslateVirtual(target_guest_addr) + 0x1C);
     PPCFunc* start_fn = dispatcher->GetFunction(saved_lr);
 
     if (start_fn) {
@@ -368,7 +369,7 @@ ppc_u32_result_t KeSetAffinityThread_entry(ppc_pvoid_t thread_ptr, ppc_u32_t aff
   if (!affinity) {
     return X_STATUS_INVALID_PARAMETER;
   }
-  auto thread = XObject::GetNativeObject<XThread>(kernel_state(), thread_ptr);
+  auto thread = XObject::GetNativeObject<XThread>(REX_KERNEL_STATE(), thread_ptr);
   if (!thread) {
     REXKRNL_IMPORT_WARN("KeSetAffinityThread", "invalid thread handle ptr={:#x}",
                         thread_ptr.guest_address());
@@ -386,7 +387,7 @@ ppc_u32_result_t KeQueryBasePriorityThread_entry(ppc_pvoid_t thread_ptr) {
   REXKRNL_IMPORT_TRACE("KeQueryBasePriorityThread", "thread={:#x}", thread_ptr.guest_address());
   int32_t priority = 0;
 
-  auto thread = XObject::GetNativeObject<XThread>(kernel_state(), thread_ptr);
+  auto thread = XObject::GetNativeObject<XThread>(REX_KERNEL_STATE(), thread_ptr);
   if (thread) {
     priority = thread->QueryPriority();
   }
@@ -399,7 +400,7 @@ ppc_u32_result_t KeSetBasePriorityThread_entry(ppc_pvoid_t thread_ptr, ppc_u32_t
   REXKRNL_IMPORT_TRACE("KeSetBasePriorityThread", "thread={:#x} increment={}",
                        thread_ptr.guest_address(), (int32_t)increment);
   int32_t prev_priority = 0;
-  auto thread = XObject::GetNativeObject<XThread>(kernel_state(), thread_ptr);
+  auto thread = XObject::GetNativeObject<XThread>(REX_KERNEL_STATE(), thread_ptr);
 
   if (thread) {
     prev_priority = thread->QueryPriority();
@@ -420,13 +421,14 @@ ppc_u32_result_t KeSetDisableBoostThread_entry(ppc_ptr_t<X_KTHREAD> thread_ptr,
 ppc_u32_result_t KeGetCurrentProcessType_entry() {
   auto current_thread = XThread::GetCurrentThread();
   auto context = current_thread->thread_state()->context();
-  auto pcr = kernel_memory()->TranslateVirtual<X_KPCR*>(static_cast<uint32_t>(context->r13.u64));
+  auto pcr =
+      REX_KERNEL_MEMORY()->TranslateVirtual<X_KPCR*>(static_cast<uint32_t>(context->r13.u64));
 
   if (pcr->prcb_data.dpc_active) {
     return pcr->processtype_value_in_dpc;
   }
 
-  auto thread = kernel_memory()->TranslateVirtual<X_KTHREAD*>(pcr->prcb_data.current_thread);
+  auto thread = REX_KERNEL_MEMORY()->TranslateVirtual<X_KTHREAD*>(pcr->prcb_data.current_thread);
   return thread->process_type;
 }
 
@@ -434,11 +436,12 @@ void KeSetCurrentProcessType_entry(ppc_u32_t type) {
   // One of X_PROCTYPE_?
   assert_true(type <= 2);
 
-  kernel_state()->set_process_type(type);
+  REX_KERNEL_STATE()->set_process_type(type);
 
   auto current_thread = XThread::GetCurrentThread();
   auto context = current_thread->thread_state()->context();
-  auto pcr = kernel_memory()->TranslateVirtual<X_KPCR*>(static_cast<uint32_t>(context->r13.u64));
+  auto pcr =
+      REX_KERNEL_MEMORY()->TranslateVirtual<X_KPCR*>(static_cast<uint32_t>(context->r13.u64));
 
   if (pcr->prcb_data.dpc_active) {
     pcr->processtype_value_in_dpc = static_cast<uint8_t>(type);
@@ -481,7 +484,7 @@ void KeQuerySystemTime_entry(ppc_pu64_t time_ptr) {
 
 // https://msdn.microsoft.com/en-us/library/ms686801
 ppc_u32_result_t KeTlsAlloc_entry() {
-  uint32_t slot = kernel_state()->AllocateTLS(current_ppc_context());
+  uint32_t slot = REX_KERNEL_STATE()->AllocateTLS(current_ppc_context());
   if (slot != X_TLS_OUT_OF_INDEXES) {
     XThread::GetCurrentThread()->SetTLSValue(slot, 0);
   }
@@ -497,7 +500,7 @@ ppc_u32_result_t KeTlsFree_entry(ppc_u32_t tls_index) {
     return 0;
   }
 
-  kernel_state()->FreeTLS(current_ppc_context(), tls_index);
+  REX_KERNEL_STATE()->FreeTLS(current_ppc_context(), tls_index);
   REXKRNL_IMPORT_RESULT("KeTlsFree", "1");
   return 1;
 }
@@ -534,7 +537,7 @@ void KeInitializeEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, ppc_u32_t event_type
   event_ptr.Zero();
   event_ptr->header.type = event_type;
   event_ptr->header.signal_state = (uint32_t)initial_state;
-  auto ev = XObject::GetNativeObject<XEvent>(kernel_state(), event_ptr, event_type);
+  auto ev = XObject::GetNativeObject<XEvent>(REX_KERNEL_STATE(), event_ptr, event_type);
   if (!ev) {
     assert_always();
     return;
@@ -542,7 +545,7 @@ void KeInitializeEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, ppc_u32_t event_type
 }
 
 uint32_t xeKeSetEvent(X_KEVENT* event_ptr, uint32_t increment, uint32_t wait) {
-  auto ev = XObject::GetNativeObject<XEvent>(kernel_state(), event_ptr);
+  auto ev = XObject::GetNativeObject<XEvent>(REX_KERNEL_STATE(), event_ptr);
   if (!ev) {
     assert_always();
     return 0;
@@ -558,7 +561,7 @@ ppc_u32_result_t KeSetEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, ppc_u32_t incre
 
 ppc_u32_result_t KePulseEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, ppc_u32_t increment,
                                     ppc_u32_t wait) {
-  auto ev = XObject::GetNativeObject<XEvent>(kernel_state(), event_ptr);
+  auto ev = XObject::GetNativeObject<XEvent>(REX_KERNEL_STATE(), event_ptr);
   if (!ev) {
     assert_always();
     return 0;
@@ -568,7 +571,7 @@ ppc_u32_result_t KePulseEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, ppc_u32_t inc
 }
 
 ppc_u32_result_t KeResetEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr) {
-  auto ev = XObject::GetNativeObject<XEvent>(kernel_state(), event_ptr);
+  auto ev = XObject::GetNativeObject<XEvent>(REX_KERNEL_STATE(), event_ptr);
   if (!ev) {
     assert_always();
     return 0;
@@ -582,7 +585,7 @@ ppc_u32_result_t NtCreateEvent_entry(ppc_pu32_t handle_ptr,
                                      ppc_u32_t event_type, ppc_u32_t initial_state) {
   // Check for an existing timer with the same name.
   auto existing_object =
-      LookupNamedObject<XEvent>(kernel_state(), obj_attributes_ptr.guest_address());
+      LookupNamedObject<XEvent>(REX_KERNEL_STATE(), obj_attributes_ptr.guest_address());
   if (existing_object) {
     if (existing_object->type() == XObject::Type::Event) {
       if (handle_ptr) {
@@ -595,7 +598,7 @@ ppc_u32_result_t NtCreateEvent_entry(ppc_pu32_t handle_ptr,
     }
   }
 
-  auto ev = object_ref<XEvent>(new XEvent(kernel_state()));
+  auto ev = object_ref<XEvent>(new XEvent(REX_KERNEL_STATE()));
   ev->Initialize(!event_type, !!initial_state);
 
   // obj_attributes may have a name inside of it, if != NULL.
@@ -612,7 +615,7 @@ ppc_u32_result_t NtCreateEvent_entry(ppc_pu32_t handle_ptr,
 uint32_t xeNtSetEvent(uint32_t handle, rex::be<uint32_t>* previous_state_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto ev = kernel_state()->object_table()->LookupObject<XEvent>(handle);
+  auto ev = REX_KERNEL_OBJECTS()->LookupObject<XEvent>(handle);
   if (ev) {
     int32_t was_signalled = ev->Set(0, false);
     if (previous_state_ptr) {
@@ -632,7 +635,7 @@ ppc_u32_result_t NtSetEvent_entry(ppc_u32_t handle, ppc_pu32_t previous_state_pt
 ppc_u32_result_t NtPulseEvent_entry(ppc_u32_t handle, ppc_pu32_t previous_state_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto ev = kernel_state()->object_table()->LookupObject<XEvent>(handle);
+  auto ev = REX_KERNEL_OBJECTS()->LookupObject<XEvent>(handle);
   if (ev) {
     int32_t was_signalled = ev->Pulse(0, false);
     if (previous_state_ptr) {
@@ -648,7 +651,7 @@ ppc_u32_result_t NtPulseEvent_entry(ppc_u32_t handle, ppc_pu32_t previous_state_
 uint32_t xeNtClearEvent(uint32_t handle) {
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto ev = kernel_state()->object_table()->LookupObject<XEvent>(handle);
+  auto ev = REX_KERNEL_OBJECTS()->LookupObject<XEvent>(handle);
   if (ev) {
     ev->Reset();
   } else {
@@ -669,8 +672,8 @@ void KeInitializeSemaphore_entry(ppc_ptr_t<X_KSEMAPHORE> semaphore_ptr, ppc_u32_
   semaphore_ptr->header.signal_state = (uint32_t)count;
   semaphore_ptr->limit = (uint32_t)limit;
 
-  auto sem =
-      XObject::GetNativeObject<XSemaphore>(kernel_state(), semaphore_ptr, 5 /* SemaphoreObject */);
+  auto sem = XObject::GetNativeObject<XSemaphore>(REX_KERNEL_STATE(), semaphore_ptr,
+                                                  5 /* SemaphoreObject */);
   if (!sem) {
     assert_always();
     return;
@@ -679,7 +682,7 @@ void KeInitializeSemaphore_entry(ppc_ptr_t<X_KSEMAPHORE> semaphore_ptr, ppc_u32_
 
 uint32_t xeKeReleaseSemaphore(X_KSEMAPHORE* semaphore_ptr, uint32_t increment, uint32_t adjustment,
                               uint32_t wait) {
-  auto sem = XObject::GetNativeObject<XSemaphore>(kernel_state(), semaphore_ptr);
+  auto sem = XObject::GetNativeObject<XSemaphore>(REX_KERNEL_STATE(), semaphore_ptr);
   if (!sem) {
     assert_always();
     return 0;
@@ -704,7 +707,7 @@ ppc_u32_result_t NtCreateSemaphore_entry(ppc_pu32_t handle_ptr, ppc_pvoid_t obj_
                                          ppc_u32_t count, ppc_u32_t limit) {
   // Check for an existing semaphore with the same name.
   auto existing_object =
-      LookupNamedObject<XSemaphore>(kernel_state(), obj_attributes_ptr.guest_address());
+      LookupNamedObject<XSemaphore>(REX_KERNEL_STATE(), obj_attributes_ptr.guest_address());
   if (existing_object) {
     if (existing_object->type() == XObject::Type::Semaphore) {
       if (handle_ptr) {
@@ -717,7 +720,7 @@ ppc_u32_result_t NtCreateSemaphore_entry(ppc_pu32_t handle_ptr, ppc_pvoid_t obj_
     }
   }
 
-  auto sem = object_ref<XSemaphore>(new XSemaphore(kernel_state()));
+  auto sem = object_ref<XSemaphore>(new XSemaphore(REX_KERNEL_STATE()));
   if (!sem->Initialize((int32_t)count, (int32_t)limit)) {
     if (handle_ptr) {
       *handle_ptr = 0;
@@ -743,7 +746,7 @@ ppc_u32_result_t NtReleaseSemaphore_entry(ppc_u32_t sem_handle, ppc_u32_t releas
   X_STATUS result = X_STATUS_SUCCESS;
   int32_t previous_count = 0;
 
-  auto sem = kernel_state()->object_table()->LookupObject<XSemaphore>(sem_handle);
+  auto sem = REX_KERNEL_OBJECTS()->LookupObject<XSemaphore>(sem_handle);
   if (sem) {
     bool success = sem->ReleaseSemaphore(static_cast<int32_t>(release_count), &previous_count);
     if (!success) {
@@ -763,7 +766,8 @@ ppc_u32_result_t NtCreateMutant_entry(ppc_pu32_t handle_out,
                                       ppc_ptr_t<X_OBJECT_ATTRIBUTES> obj_attributes,
                                       ppc_u32_t initial_owner) {
   // Check for an existing timer with the same name.
-  auto existing_object = LookupNamedObject<XMutant>(kernel_state(), obj_attributes.guest_address());
+  auto existing_object =
+      LookupNamedObject<XMutant>(REX_KERNEL_STATE(), obj_attributes.guest_address());
   if (existing_object) {
     if (existing_object->type() == XObject::Type::Mutant) {
       if (handle_out) {
@@ -776,7 +780,7 @@ ppc_u32_result_t NtCreateMutant_entry(ppc_pu32_t handle_out,
     }
   }
 
-  auto mutant = object_ref<XMutant>(new XMutant(kernel_state()));
+  auto mutant = object_ref<XMutant>(new XMutant(REX_KERNEL_STATE()));
   mutant->Initialize(initial_owner ? true : false);
 
   // obj_attributes may have a name inside of it, if != NULL.
@@ -805,7 +809,7 @@ ppc_u32_result_t NtReleaseMutant_entry(ppc_u32_t mutant_handle, ppc_u32_t unknow
 
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto mutant = kernel_state()->object_table()->LookupObject<XMutant>(mutant_handle);
+  auto mutant = REX_KERNEL_OBJECTS()->LookupObject<XMutant>(mutant_handle);
   if (mutant) {
     result = mutant->ReleaseMutant(priority_increment, abandon, wait);
   } else {
@@ -821,7 +825,7 @@ ppc_u32_result_t NtCreateTimer_entry(ppc_pu32_t handle_ptr, ppc_pvoid_t obj_attr
 
   // Check for an existing timer with the same name.
   auto existing_object =
-      LookupNamedObject<XTimer>(kernel_state(), obj_attributes_ptr.guest_address());
+      LookupNamedObject<XTimer>(REX_KERNEL_STATE(), obj_attributes_ptr.guest_address());
   if (existing_object) {
     if (existing_object->type() == XObject::Type::Timer) {
       if (handle_ptr) {
@@ -834,7 +838,7 @@ ppc_u32_result_t NtCreateTimer_entry(ppc_pu32_t handle_ptr, ppc_pvoid_t obj_attr
     }
   }
 
-  auto timer = object_ref<XTimer>(new XTimer(kernel_state()));
+  auto timer = object_ref<XTimer>(new XTimer(REX_KERNEL_STATE()));
   timer->Initialize(timer_type);
 
   // obj_attributes may have a name inside of it, if != NULL.
@@ -878,7 +882,7 @@ ppc_u32_result_t NtSetTimerEx_entry(ppc_u32_t timer_handle, ppc_pu64_t due_time_
 
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto timer = kernel_state()->object_table()->LookupObject<XTimer>(timer_handle);
+  auto timer = REX_KERNEL_OBJECTS()->LookupObject<XTimer>(timer_handle);
   if (timer) {
     result = timer->SetTimer(due_time, period_ms, routine_ptr.guest_address(),
                              routine_arg.guest_address(), resume ? true : false);
@@ -892,7 +896,7 @@ ppc_u32_result_t NtSetTimerEx_entry(ppc_u32_t timer_handle, ppc_pu64_t due_time_
 ppc_u32_result_t NtCancelTimer_entry(ppc_u32_t timer_handle, ppc_pu32_t current_state_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto timer = kernel_state()->object_table()->LookupObject<XTimer>(timer_handle);
+  auto timer = REX_KERNEL_OBJECTS()->LookupObject<XTimer>(timer_handle);
   if (timer) {
     result = timer->Cancel();
   } else {
@@ -907,7 +911,7 @@ ppc_u32_result_t NtCancelTimer_entry(ppc_u32_t timer_handle, ppc_pu32_t current_
 
 uint32_t xeKeWaitForSingleObject(void* object_ptr, uint32_t wait_reason, uint32_t processor_mode,
                                  uint32_t alertable, uint64_t* timeout_ptr) {
-  auto object = XObject::GetNativeObject<XObject>(kernel_state(), object_ptr);
+  auto object = XObject::GetNativeObject<XObject>(REX_KERNEL_STATE(), object_ptr);
 
   if (!object) {
     // The only kind-of failure code (though this should never happen)
@@ -943,7 +947,7 @@ ppc_u32_result_t NtWaitForSingleObjectEx_entry(ppc_u32_t object_handle, ppc_u32_
                                                ppc_u32_t alertable, ppc_pu64_t timeout_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto object = kernel_state()->object_table()->LookupObject<XObject>(object_handle);
+  auto object = REX_KERNEL_OBJECTS()->LookupObject<XObject>(object_handle);
   if (object) {
     uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
     result = object->Wait(3, wait_mode, alertable, timeout_ptr ? &timeout : nullptr);
@@ -966,8 +970,8 @@ ppc_u32_result_t KeWaitForMultipleObjects_entry(ppc_u32_t count, ppc_pu32_t obje
 
   std::vector<object_ref<XObject>> objects;
   for (uint32_t n = 0; n < count; n++) {
-    auto object_ptr = kernel_memory()->TranslateVirtual(objects_ptr[n]);
-    auto object_ref = XObject::GetNativeObject<XObject>(kernel_state(), object_ptr);
+    auto object_ptr = REX_KERNEL_MEMORY()->TranslateVirtual(objects_ptr[n]);
+    auto object_ref = XObject::GetNativeObject<XObject>(REX_KERNEL_STATE(), object_ptr);
     if (!object_ref) {
       return X_STATUS_INVALID_PARAMETER;
     }
@@ -993,7 +997,7 @@ uint32_t xeNtWaitForMultipleObjectsEx(uint32_t count, rex::be<uint32_t>* handles
   std::vector<object_ref<XObject>> objects;
   for (uint32_t n = 0; n < count; n++) {
     uint32_t object_handle = handles[n];
-    auto object = kernel_state()->object_table()->LookupObject<XObject>(object_handle);
+    auto object = REX_KERNEL_OBJECTS()->LookupObject<XObject>(object_handle);
     if (!object) {
       return X_STATUS_INVALID_PARAMETER;
     }
@@ -1021,8 +1025,8 @@ ppc_u32_result_t NtSignalAndWaitForSingleObjectEx_entry(ppc_u32_t signal_handle,
                                                         ppc_u32_t r6, ppc_pu64_t timeout_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto signal_object = kernel_state()->object_table()->LookupObject<XObject>(signal_handle);
-  auto wait_object = kernel_state()->object_table()->LookupObject<XObject>(wait_handle);
+  auto signal_object = REX_KERNEL_OBJECTS()->LookupObject<XObject>(signal_handle);
+  auto wait_object = REX_KERNEL_OBJECTS()->LookupObject<XObject>(wait_handle);
   if (signal_object && wait_object) {
     uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
     result = XObject::SignalAndWait(signal_object.get(), wait_object.get(), 3, 1, alertable,
@@ -1042,14 +1046,16 @@ ppc_u32_result_t NtSignalAndWaitForSingleObjectEx_entry(ppc_u32_t signal_handle,
 // Take PPCContext* explicitly so they work from any thread (including host threads
 // during InitializeGuestObject, dispatch thread creation, etc.).
 static unsigned char xeKfRaiseIrql(PPCContext* ctx, unsigned char new_irql) {
-  auto pcr = kernel_memory()->TranslateVirtual<X_KPCR*>(static_cast<uint32_t>(ctx->r13.u64));
+  auto* mem = ctx->kernel_state->memory();
+  auto pcr = mem->TranslateVirtual<X_KPCR*>(static_cast<uint32_t>(ctx->r13.u64));
   uint8_t old_irql = pcr->current_irql;
   pcr->current_irql = new_irql;
   return old_irql;
 }
 
 static void xeKfLowerIrql(PPCContext* ctx, unsigned char new_irql) {
-  auto pcr = kernel_memory()->TranslateVirtual<X_KPCR*>(static_cast<uint32_t>(ctx->r13.u64));
+  auto* mem = ctx->kernel_state->memory();
+  auto pcr = mem->TranslateVirtual<X_KPCR*>(static_cast<uint32_t>(ctx->r13.u64));
   pcr->current_irql = new_irql;
 }
 
@@ -1099,7 +1105,7 @@ uint32_t xeKeInsertQueueApc(XAPC* apc, uint32_t arg1, uint32_t arg2, uint32_t pr
   if (!thread_guest_pointer) {
     return 0;
   }
-  auto mem = kernel_memory();
+  auto* mem = ctx->kernel_state->memory();
   auto target_thread = mem->TranslateVirtual<X_KTHREAD*>(thread_guest_pointer);
   auto old_irql = xeKeKfAcquireSpinLock(ctx, &target_thread->apc_lock);
   uint32_t result;
@@ -1190,8 +1196,8 @@ ppc_u32_result_t KfRaiseIrql_entry(ppc_u32_t new_irql) {
 
 void NtQueueApcThread_entry(ppc_u32_t thread_handle, ppc_pvoid_t apc_routine,
                             ppc_pvoid_t apc_routine_context, ppc_pvoid_t arg1, ppc_pvoid_t arg2) {
-  auto mem = kernel_memory();
-  auto thread = kernel_state()->object_table()->LookupObject<XThread>(thread_handle);
+  auto mem = REX_KERNEL_MEMORY();
+  auto thread = REX_KERNEL_OBJECTS()->LookupObject<XThread>(thread_handle);
 
   if (!thread) {
     REXKRNL_ERROR("NtQueueApcThread: Incorrect thread handle! Might cause crash");
@@ -1242,7 +1248,7 @@ ppc_u32_result_t KeRemoveQueueApc_entry(ppc_ptr_t<XAPC> apc) {
     return 0;
   }
   auto* ctx = current_ppc_context();
-  auto mem = kernel_memory();
+  auto mem = REX_KERNEL_MEMORY();
   auto target_thread = mem->TranslateVirtual<X_KTHREAD*>(thread_guest_pointer);
   auto old_irql = xeKeKfAcquireSpinLock(ctx, &target_thread->apc_lock);
 
@@ -1273,7 +1279,7 @@ ppc_u32_result_t KeInsertQueueDpc_entry(ppc_ptr_t<XDPC> dpc, ppc_u32_t arg1, ppc
 
   // Lock dispatcher.
   auto global_lock = rex::thread::global_critical_region::AcquireDirect();
-  auto dpc_list = kernel_state()->dpc_list();
+  auto dpc_list = REX_KERNEL_STATE()->dpc_list();
 
   // If already in a queue, abort.
   if (dpc_list->IsQueued(list_entry_ptr)) {
@@ -1295,7 +1301,7 @@ ppc_u32_result_t KeRemoveQueueDpc_entry(ppc_ptr_t<XDPC> dpc) {
   uint32_t list_entry_ptr = dpc.guest_address() + 4;
 
   auto global_lock = rex::thread::global_critical_region::AcquireDirect();
-  auto dpc_list = kernel_state()->dpc_list();
+  auto dpc_list = REX_KERNEL_STATE()->dpc_list();
   if (dpc_list->IsQueued(list_entry_ptr)) {
     dpc_list->Remove(list_entry_ptr);
     result = true;
@@ -1463,7 +1469,7 @@ ppc_ptr_result_t InterlockedPopEntrySList_entry(ppc_ptr_t<X_SLIST_HEADER> plist_
   alignas(8) X_SLIST_HEADER new_hdr = {0};
   do {
     old_hdr = *plist_ptr;
-    auto next = kernel_memory()->TranslateVirtual<X_SINGLE_LIST_ENTRY*>(old_hdr.next.next);
+    auto next = REX_KERNEL_MEMORY()->TranslateVirtual<X_SINGLE_LIST_ENTRY*>(old_hdr.next.next);
     if (!old_hdr.next.next) {
       return 0;
     }
@@ -1509,7 +1515,7 @@ XBOXKRNL_EXPORT_STUB(__imp__KeSetEventBoostPriority);
 XBOXKRNL_EXPORT_STUB(__imp__KiApcNormalRoutineNop_);
 
 ppc_u32_result_t KeSuspendThread_entry(ppc_pvoid_t kthread_ptr) {
-  auto thread = XObject::GetNativeObject<XThread>(kernel_state(), kthread_ptr);
+  auto thread = XObject::GetNativeObject<XThread>(REX_KERNEL_STATE(), kthread_ptr);
   uint32_t old_suspend_count = 0;
 
   if (thread) {

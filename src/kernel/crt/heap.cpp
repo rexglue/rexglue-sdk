@@ -76,7 +76,7 @@ bool ReXHeap::Init(uint32_t heap_size_bytes, rex::memory::Memory* memory) {
   memory_ = memory;
   auto* mem = memory_;
   if (!mem) {
-    REXKRNL_ERROR("rexcrt_heap: kernel_memory() is null");
+    REXKRNL_ERROR("rexcrt_heap: memory is null");
     return false;
   }
 

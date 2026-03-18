@@ -22,6 +22,7 @@
 #include <rex/ppc/types.h>
 #include <rex/string.h>
 #include <rex/system/kernel_state.h>
+#include <rex/system/thread_state.h>
 #include <rex/system/xfile.h>
 #include <rex/system/xtypes.h>
 
@@ -60,16 +61,12 @@ static rex::filesystem::FileDisposition MapDisposition(uint32_t win32_disp) {
   }
 }
 
-static rex::system::KernelState* KS() {
-  return rex::system::kernel_state();
-}
-
 ppc_u32_result_t CreateFileA_entry(ppc_pchar_t lpFileName, ppc_u32_t dwDesiredAccess,
                                    ppc_u32_t dwShareMode, ppc_pvoid_t lpSecurityAttributes,
                                    ppc_u32_t dwCreationDisposition, ppc_u32_t dwFlagsAndAttributes,
                                    ppc_u32_t hTemplateFile) {
   const char* path = static_cast<const char*>(lpFileName);
-  auto* ks = KS();
+  auto* ks = REX_KERNEL_STATE();
   auto disposition = MapDisposition(static_cast<uint32_t>(dwCreationDisposition));
 
   rex::filesystem::File* vfs_file = nullptr;
@@ -92,7 +89,7 @@ ppc_u32_result_t CreateFileA_entry(ppc_pchar_t lpFileName, ppc_u32_t dwDesiredAc
 ppc_u32_result_t ReadFile_entry(ppc_u32_t hFile, ppc_pvoid_t lpBuffer,
                                 ppc_u32_t nNumberOfBytesToRead, ppc_pu32_t lpNumberOfBytesRead,
                                 ppc_pvoid_t lpOverlapped) {
-  auto file = KS()->object_table()->LookupObject<rex::system::XFile>(static_cast<uint32_t>(hFile));
+  auto file = REX_KERNEL_OBJECTS()->LookupObject<rex::system::XFile>(static_cast<uint32_t>(hFile));
   if (!file) {
     REXKRNL_WARN("rexcrt_ReadFile: invalid handle {:#x}", static_cast<uint32_t>(hFile));
     if (lpNumberOfBytesRead)
@@ -127,7 +124,7 @@ ppc_u32_result_t ReadFile_entry(ppc_u32_t hFile, ppc_pvoid_t lpBuffer,
 ppc_u32_result_t WriteFile_entry(ppc_u32_t hFile, ppc_pvoid_t lpBuffer,
                                  ppc_u32_t nNumberOfBytesToWrite, ppc_pu32_t lpNumberOfBytesWritten,
                                  ppc_pvoid_t lpOverlapped) {
-  auto file = KS()->object_table()->LookupObject<rex::system::XFile>(static_cast<uint32_t>(hFile));
+  auto file = REX_KERNEL_OBJECTS()->LookupObject<rex::system::XFile>(static_cast<uint32_t>(hFile));
   if (!file) {
     if (lpNumberOfBytesWritten)
       *lpNumberOfBytesWritten = 0;
@@ -161,7 +158,7 @@ ppc_u32_result_t WriteFile_entry(ppc_u32_t hFile, ppc_pvoid_t lpBuffer,
 
 ppc_u32_result_t SetFilePointer_entry(ppc_u32_t hFile, ppc_u32_t lDistanceToMove,
                                       ppc_pu32_t lpDistanceToMoveHigh, ppc_u32_t dwMoveMethod) {
-  auto file = KS()->object_table()->LookupObject<rex::system::XFile>(static_cast<uint32_t>(hFile));
+  auto file = REX_KERNEL_OBJECTS()->LookupObject<rex::system::XFile>(static_cast<uint32_t>(hFile));
   if (!file)
     return kInvalidHandleValue;
 
@@ -194,7 +191,7 @@ ppc_u32_result_t SetFilePointer_entry(ppc_u32_t hFile, ppc_u32_t lDistanceToMove
 }
 
 ppc_u32_result_t GetFileSize_entry(ppc_u32_t hFile, ppc_pu32_t lpFileSizeHigh) {
-  auto file = KS()->object_table()->LookupObject<rex::system::XFile>(static_cast<uint32_t>(hFile));
+  auto file = REX_KERNEL_OBJECTS()->LookupObject<rex::system::XFile>(static_cast<uint32_t>(hFile));
   if (!file)
     return kInvalidHandleValue;
 
@@ -205,7 +202,7 @@ ppc_u32_result_t GetFileSize_entry(ppc_u32_t hFile, ppc_pu32_t lpFileSizeHigh) {
 }
 
 ppc_u32_result_t GetFileSizeEx_entry(ppc_u32_t hFile, ppc_pvoid_t lpFileSize) {
-  auto file = KS()->object_table()->LookupObject<rex::system::XFile>(static_cast<uint32_t>(hFile));
+  auto file = REX_KERNEL_OBJECTS()->LookupObject<rex::system::XFile>(static_cast<uint32_t>(hFile));
   if (!file)
     return 0;
 
@@ -220,7 +217,7 @@ ppc_u32_result_t GetFileSizeEx_entry(ppc_u32_t hFile, ppc_pvoid_t lpFileSize) {
 }
 
 ppc_u32_result_t SetEndOfFile_entry(ppc_u32_t hFile) {
-  auto file = KS()->object_table()->LookupObject<rex::system::XFile>(static_cast<uint32_t>(hFile));
+  auto file = REX_KERNEL_OBJECTS()->LookupObject<rex::system::XFile>(static_cast<uint32_t>(hFile));
   if (!file)
     return 0;
   X_STATUS status = file->SetLength(file->position());
@@ -234,7 +231,7 @@ ppc_u32_result_t FlushFileBuffers_entry(ppc_u32_t hFile) {
 
 ppc_u32_result_t DeleteFileA_entry(ppc_pchar_t lpFileName) {
   const char* path = static_cast<const char*>(lpFileName);
-  bool ok = KS()->file_system()->DeletePath(path);
+  bool ok = REX_KERNEL_FS()->DeletePath(path);
   if (!ok)
     REXKRNL_DEBUG("rexcrt_DeleteFileA: FAILED '{}'", path);
   return ok ? 1u : 0u;
@@ -244,7 +241,7 @@ ppc_u32_result_t CloseHandle_entry(ppc_u32_t hObject) {
   uint32_t h = static_cast<uint32_t>(hObject);
   if (h == kInvalidHandleValue || h == 0)
     return 0;
-  auto status = KS()->object_table()->ReleaseHandle(h);
+  auto status = REX_KERNEL_OBJECTS()->ReleaseHandle(h);
   if (XFAILED(status)) {
     REXKRNL_WARN("rexcrt_CloseHandle: unknown handle {:#x}", h);
     return 0;
@@ -282,7 +279,7 @@ ppc_u32_result_t FindFirstFileA_entry(ppc_pchar_t lpFileName, ppc_pvoid_t lpFind
   auto dir = rex::string::utf8_find_base_guest_path(path);
   auto pattern = rex::string::utf8_find_name_from_guest_path(path);
 
-  auto* ks = KS();
+  auto* ks = REX_KERNEL_STATE();
   rex::filesystem::File* vfs_file = nullptr;
   rex::filesystem::FileAction action;
   X_STATUS status = ks->file_system()->OpenFile(
@@ -298,7 +295,7 @@ ppc_u32_result_t FindFirstFileA_entry(ppc_pchar_t lpFileName, ppc_pvoid_t lpFind
   auto* entry = xfile->FindNext();
   if (!entry) {
     REXKRNL_DEBUG("rexcrt_FindFirstFileA: no matches for '{}' in '{}'", pattern, dir);
-    KS()->object_table()->ReleaseHandle(xfile->handle());
+    REX_KERNEL_OBJECTS()->ReleaseHandle(xfile->handle());
     return kInvalidHandleValue;
   }
 
@@ -310,7 +307,7 @@ ppc_u32_result_t FindFirstFileA_entry(ppc_pchar_t lpFileName, ppc_pvoid_t lpFind
 
 ppc_u32_result_t FindNextFileA_entry(ppc_u32_t hFindFile, ppc_pvoid_t lpFindFileData) {
   auto file =
-      KS()->object_table()->LookupObject<rex::system::XFile>(static_cast<uint32_t>(hFindFile));
+      REX_KERNEL_OBJECTS()->LookupObject<rex::system::XFile>(static_cast<uint32_t>(hFindFile));
   if (!file)
     return 0;
 
@@ -328,7 +325,7 @@ ppc_u32_result_t FindClose_entry(ppc_u32_t hFindFile) {
 
 ppc_u32_result_t CreateDirectoryA_entry(ppc_pchar_t lpPathName, ppc_pvoid_t lpSecurityAttributes) {
   const char* path = static_cast<const char*>(lpPathName);
-  auto* entry = KS()->file_system()->CreatePath(path, rex::filesystem::kFileAttributeDirectory);
+  auto* entry = REX_KERNEL_FS()->CreatePath(path, rex::filesystem::kFileAttributeDirectory);
   return entry ? 1u : 0u;
 }
 
@@ -346,7 +343,7 @@ ppc_u32_result_t SetFileAttributesA_entry(ppc_pchar_t lpFileName, ppc_u32_t dwFi
 
 ppc_u32_result_t GetFileAttributesA_entry(ppc_pchar_t lpFileName) {
   const char* path = static_cast<const char*>(lpFileName);
-  auto* entry = KS()->file_system()->ResolvePath(path);
+  auto* entry = REX_KERNEL_FS()->ResolvePath(path);
   if (!entry) {
     REXKRNL_DEBUG("rexcrt_GetFileAttributesA: not found '{}'", path);
     return kInvalidHandleValue;  // INVALID_FILE_ATTRIBUTES
@@ -358,7 +355,7 @@ ppc_u32_result_t GetFileAttributesA_entry(ppc_pchar_t lpFileName) {
 ppc_u32_result_t GetFileAttributesExA_entry(ppc_u32_t fInfoLevelId, ppc_pchar_t lpFileName,
                                             ppc_pvoid_t lpFileInformation) {
   const char* path = static_cast<const char*>(lpFileName);
-  auto* entry = KS()->file_system()->ResolvePath(path);
+  auto* entry = REX_KERNEL_FS()->ResolvePath(path);
   if (!entry) {
     REXKRNL_DEBUG("rexcrt_GetFileAttributesExA: not found '{}'", path);
     return 0;
@@ -381,7 +378,7 @@ ppc_u32_result_t GetFileAttributesExA_entry(ppc_u32_t fInfoLevelId, ppc_pchar_t 
 
 ppc_u32_result_t SetFilePointerEx_entry(ppc_u32_t hFile, ppc_u32_t distHigh, ppc_u32_t distLow,
                                         ppc_pvoid_t lpNewFilePointer, ppc_u32_t dwMoveMethod) {
-  auto file = KS()->object_table()->LookupObject<rex::system::XFile>(static_cast<uint32_t>(hFile));
+  auto file = REX_KERNEL_OBJECTS()->LookupObject<rex::system::XFile>(static_cast<uint32_t>(hFile));
   if (!file)
     return 0;
 
@@ -447,7 +444,7 @@ ppc_u32_result_t CopyFileA_entry(ppc_pchar_t lpExistingFileName, ppc_pchar_t lpN
   const char* src = static_cast<const char*>(lpExistingFileName);
   const char* dst = static_cast<const char*>(lpNewFileName);
 
-  auto* ks = KS();
+  auto* ks = REX_KERNEL_STATE();
 
   // Open source for reading
   rex::filesystem::File* src_file = nullptr;
@@ -502,14 +499,14 @@ ppc_u32_result_t CopyFileA_entry(ppc_pchar_t lpExistingFileName, ppc_pchar_t lpN
 
 ppc_u32_result_t RemoveDirectoryA_entry(ppc_pchar_t lpPathName) {
   const char* path = static_cast<const char*>(lpPathName);
-  bool ok = KS()->file_system()->DeletePath(path);
+  bool ok = REX_KERNEL_FS()->DeletePath(path);
   if (!ok)
     REXKRNL_DEBUG("rexcrt_RemoveDirectoryA: FAILED '{}'", path);
   return ok ? 1u : 0u;
 }
 
 ppc_u32_result_t GetFileType_entry(ppc_u32_t hFile) {
-  auto file = KS()->object_table()->LookupObject<rex::system::XFile>(static_cast<uint32_t>(hFile));
+  auto file = REX_KERNEL_OBJECTS()->LookupObject<rex::system::XFile>(static_cast<uint32_t>(hFile));
   if (!file)
     return 0;  // FILE_TYPE_UNKNOWN
   return 1;    // FILE_TYPE_DISK
@@ -520,7 +517,7 @@ ppc_u32_result_t GetDiskFreeSpaceExA_entry(ppc_pchar_t lpDirectoryName,
                                            ppc_pvoid_t lpTotalNumberOfBytes,
                                            ppc_pvoid_t lpTotalNumberOfFreeBytes) {
   const char* path = static_cast<const char*>(lpDirectoryName);
-  auto* entry = KS()->file_system()->ResolvePath(path);
+  auto* entry = REX_KERNEL_FS()->ResolvePath(path);
   if (!entry) {
     REXKRNL_DEBUG("rexcrt_GetDiskFreeSpaceExA: path not found '{}'", path);
     return 0;

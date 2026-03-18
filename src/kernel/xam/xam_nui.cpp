@@ -45,7 +45,7 @@ ppc_u32_result_t XamShowNuiTroubleshooterUI_entry(ppc_unknown_t unk1, ppc_unknow
     return 0;
   }
   // TODO(tomc): Implement imgui stuff
-  // const Runtime* emulator = kernel_state()->emulator();
+  // const Runtime* emulator = REX_KERNEL_STATE()->emulator();
   // ui::Window* display_window = emulator->display_window();
   // ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
   // if (display_window && imgui_drawer) {

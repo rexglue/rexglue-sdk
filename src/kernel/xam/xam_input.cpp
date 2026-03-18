@@ -35,7 +35,7 @@ constexpr uint32_t XINPUT_FLAG_GAMEPAD = 0x01;
 constexpr uint32_t XINPUT_FLAG_ANY_USER = 1 << 30;
 
 rex::input::InputSystem* input_system() {
-  return static_cast<rex::input::InputSystem*>(kernel_state()->emulator()->input_system());
+  return static_cast<rex::input::InputSystem*>(REX_KERNEL_STATE()->emulator()->input_system());
 }
 
 void XamResetInactivity_entry() {

@@ -117,7 +117,7 @@ ppc_u32_result_t NtQueryInformationFile_entry(ppc_u32_t file_handle,
     return X_STATUS_INFO_LENGTH_MISMATCH;
   }
 
-  auto file = kernel_state()->object_table()->LookupObject<XFile>(file_handle);
+  auto file = REX_KERNEL_OBJECTS()->LookupObject<XFile>(file_handle);
   if (!file) {
     return X_STATUS_INVALID_HANDLE;
   }
@@ -246,7 +246,7 @@ ppc_u32_result_t NtSetInformationFile_entry(ppc_u32_t file_handle,
     return X_STATUS_INFO_LENGTH_MISMATCH;
   }
 
-  auto file = kernel_state()->object_table()->LookupObject<XFile>(file_handle);
+  auto file = REX_KERNEL_OBJECTS()->LookupObject<XFile>(file_handle);
   if (!file) {
     return X_STATUS_INVALID_HANDLE;
   }
@@ -296,7 +296,7 @@ ppc_u32_result_t NtSetInformationFile_entry(ppc_u32_t file_handle,
     }
     case XFileRenameInformation: {
       auto info = info_ptr.as<X_FILE_RENAME_INFORMATION*>();
-      auto target_path = util::TranslateAnsiPath(kernel_memory(), &info->ansi_string);
+      auto target_path = util::TranslateAnsiPath(REX_KERNEL_MEMORY(), &info->ansi_string);
       if (!IsValidPath(target_path, false)) {
         return X_STATUS_OBJECT_NAME_INVALID;
       }
@@ -334,7 +334,7 @@ ppc_u32_result_t NtSetInformationFile_entry(ppc_u32_t file_handle,
       auto handle = uint32_t(info->handle);
       auto key = uint32_t(info->key);
       out_length = sizeof(*info);
-      auto port = kernel_state()->object_table()->LookupObject<XIOCompletion>(handle);
+      auto port = REX_KERNEL_OBJECTS()->LookupObject<XIOCompletion>(handle);
       if (!port) {
         result = X_STATUS_INVALID_HANDLE;
       } else {
@@ -385,7 +385,7 @@ ppc_u32_result_t NtQueryVolumeInformationFile_entry(
     return X_STATUS_INFO_LENGTH_MISMATCH;
   }
 
-  auto file = kernel_state()->object_table()->LookupObject<XFile>(file_handle);
+  auto file = REX_KERNEL_OBJECTS()->LookupObject<XFile>(file_handle);
   if (!file) {
     return X_STATUS_INVALID_HANDLE;
   }

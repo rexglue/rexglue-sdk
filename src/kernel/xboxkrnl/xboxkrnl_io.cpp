@@ -118,12 +118,12 @@ ppc_u32_result_t NtCreateFile_entry(ppc_pu32_t handle_out, ppc_u32_t desired_acc
   }
   assert_not_null(handle_out);
 
-  auto object_name = kernel_memory()->TranslateVirtual<X_ANSI_STRING*>(object_attrs->name_ptr);
+  auto object_name = REX_KERNEL_MEMORY()->TranslateVirtual<X_ANSI_STRING*>(object_attrs->name_ptr);
 
   rex::filesystem::Entry* root_entry = nullptr;
 
   // Compute path, possibly attrs relative.
-  auto target_path = util::TranslateAnsiPath(kernel_memory(), object_name);
+  auto target_path = util::TranslateAnsiPath(REX_KERNEL_MEMORY(), object_name);
   REXKRNL_IMPORT_TRACE(
       "NtCreateFile", "path={} access={:#x} attrs={:#x} share={:#x} disp={:#x} options={:#x}",
       target_path, (uint32_t)desired_access, (uint32_t)file_attributes, (uint32_t)share_access,
@@ -136,8 +136,7 @@ ppc_u32_result_t NtCreateFile_entry(ppc_pu32_t handle_out, ppc_u32_t desired_acc
 
   if (object_attrs->root_directory != 0xFFFFFFFD &&  // ObDosDevices
       object_attrs->root_directory != 0) {
-    auto root_file =
-        kernel_state()->object_table()->LookupObject<XFile>(object_attrs->root_directory);
+    auto root_file = REX_KERNEL_OBJECTS()->LookupObject<XFile>(object_attrs->root_directory);
     assert_not_null(root_file);
     assert_true(root_file->type() == XObject::Type::File);
 
@@ -147,7 +146,7 @@ ppc_u32_result_t NtCreateFile_entry(ppc_pu32_t handle_out, ppc_u32_t desired_acc
   // Attempt open (or create).
   rex::filesystem::File* vfs_file;
   rex::filesystem::FileAction file_action;
-  X_STATUS result = kernel_state()->file_system()->OpenFile(
+  X_STATUS result = REX_KERNEL_FS()->OpenFile(
       root_entry, target_path, rex::filesystem::FileDisposition((uint32_t)creation_disposition),
       desired_access, (create_options & CreateOptions::FILE_DIRECTORY_FILE) != 0,
       (create_options & CreateOptions::FILE_NON_DIRECTORY_FILE) != 0, &vfs_file, &file_action);
@@ -158,7 +157,7 @@ ppc_u32_result_t NtCreateFile_entry(ppc_pu32_t handle_out, ppc_u32_t desired_acc
     // If true, desired_access SYNCHRONIZE flag must be set.
     bool synchronous = (create_options & CreateOptions::FILE_SYNCHRONOUS_IO_ALERT) ||
                        (create_options & CreateOptions::FILE_SYNCHRONOUS_IO_NONALERT);
-    file = object_ref<XFile>(new XFile(kernel_state(), vfs_file, synchronous));
+    file = object_ref<XFile>(new XFile(REX_KERNEL_STATE(), vfs_file, synchronous));
 
     // Handle ref is incremented, so return that.
     handle = file->handle();
@@ -203,12 +202,12 @@ ppc_u32_result_t NtReadFile_entry(ppc_u32_t file_handle, ppc_u32_t event_handle,
   bool apc_queued = false;
 
   bool signal_event = false;
-  auto ev = kernel_state()->object_table()->LookupObject<XEvent>(event_handle);
+  auto ev = REX_KERNEL_OBJECTS()->LookupObject<XEvent>(event_handle);
   if (event_handle && !ev) {
     result = X_STATUS_INVALID_HANDLE;
   }
 
-  auto file = kernel_state()->object_table()->LookupObject<XFile>(file_handle);
+  auto file = REX_KERNEL_OBJECTS()->LookupObject<XFile>(file_handle);
   if (!file) {
     result = X_STATUS_INVALID_HANDLE;
   }
@@ -308,12 +307,12 @@ ppc_u32_result_t NtReadFileScatter_entry(ppc_u32_t file_handle, ppc_u32_t event_
   X_STATUS result = X_STATUS_SUCCESS;
 
   bool signal_event = false;
-  auto ev = kernel_state()->object_table()->LookupObject<XEvent>(event_handle);
+  auto ev = REX_KERNEL_OBJECTS()->LookupObject<XEvent>(event_handle);
   if (event_handle && !ev) {
     result = X_STATUS_INVALID_HANDLE;
   }
 
-  auto file = kernel_state()->object_table()->LookupObject<XFile>(file_handle);
+  auto file = REX_KERNEL_OBJECTS()->LookupObject<XFile>(file_handle);
   if (!file) {
     result = X_STATUS_INVALID_HANDLE;
   }
@@ -393,13 +392,13 @@ ppc_u32_result_t NtWriteFile_entry(ppc_u32_t file_handle, ppc_u32_t event_handle
 
   // Grab event to signal.
   bool signal_event = false;
-  auto ev = kernel_state()->object_table()->LookupObject<XEvent>(event_handle);
+  auto ev = REX_KERNEL_OBJECTS()->LookupObject<XEvent>(event_handle);
   if (event_handle && !ev) {
     result = X_STATUS_INVALID_HANDLE;
   }
 
   // Grab file.
-  auto file = kernel_state()->object_table()->LookupObject<XFile>(file_handle);
+  auto file = REX_KERNEL_OBJECTS()->LookupObject<XFile>(file_handle);
   if (!file) {
     result = X_STATUS_INVALID_HANDLE;
   }
@@ -463,7 +462,7 @@ ppc_u32_result_t NtWriteFile_entry(ppc_u32_t file_handle, ppc_u32_t event_handle
 ppc_u32_result_t NtCreateIoCompletion_entry(ppc_pu32_t out_handle, ppc_u32_t desired_access,
                                             ppc_pvoid_t object_attribs,
                                             ppc_u32_t num_concurrent_threads) {
-  auto completion = new XIOCompletion(kernel_state());
+  auto completion = new XIOCompletion(REX_KERNEL_STATE());
   if (out_handle) {
     *out_handle = completion->handle();
   }
@@ -474,7 +473,7 @@ ppc_u32_result_t NtCreateIoCompletion_entry(ppc_pu32_t out_handle, ppc_u32_t des
 ppc_u32_result_t NtSetIoCompletion_entry(ppc_u32_t handle, ppc_u32_t key_context,
                                          ppc_u32_t apc_context, ppc_u32_t completion_status,
                                          ppc_u32_t num_bytes) {
-  auto port = kernel_state()->object_table()->LookupObject<XIOCompletion>(handle);
+  auto port = REX_KERNEL_OBJECTS()->LookupObject<XIOCompletion>(handle);
   if (!port) {
     return X_STATUS_INVALID_HANDLE;
   }
@@ -497,7 +496,7 @@ ppc_u32_result_t NtRemoveIoCompletion_entry(ppc_u32_t handle, ppc_pu32_t key_con
   X_STATUS status = X_STATUS_SUCCESS;
   // uint32_t info = 0;
 
-  auto port = kernel_state()->object_table()->LookupObject<XIOCompletion>(handle);
+  auto port = REX_KERNEL_OBJECTS()->LookupObject<XIOCompletion>(handle);
   if (!port) {
     status = X_STATUS_INVALID_HANDLE;
   }
@@ -527,20 +526,20 @@ ppc_u32_result_t NtRemoveIoCompletion_entry(ppc_u32_t handle, ppc_pu32_t key_con
 ppc_u32_result_t NtQueryFullAttributesFile_entry(
     ppc_ptr_t<X_OBJECT_ATTRIBUTES> obj_attribs,
     ppc_ptr_t<X_FILE_NETWORK_OPEN_INFORMATION> file_info) {
-  auto object_name = kernel_memory()->TranslateVirtual<X_ANSI_STRING*>(obj_attribs->name_ptr);
-  auto path_str = util::TranslateAnsiPath(kernel_memory(), object_name);
+  auto object_name = REX_KERNEL_MEMORY()->TranslateVirtual<X_ANSI_STRING*>(obj_attribs->name_ptr);
+  auto path_str = util::TranslateAnsiPath(REX_KERNEL_MEMORY(), object_name);
   REXKRNL_IMPORT_TRACE("NtQueryFullAttributesFile", "path={}", path_str);
 
   object_ref<XFile> root_file;
   if (obj_attribs->root_directory != 0xFFFFFFFD &&  // ObDosDevices
       obj_attribs->root_directory != 0) {
-    root_file = kernel_state()->object_table()->LookupObject<XFile>(obj_attribs->root_directory);
+    root_file = REX_KERNEL_OBJECTS()->LookupObject<XFile>(obj_attribs->root_directory);
     assert_not_null(root_file);
     assert_true(root_file->type() == XObject::Type::File);
     assert_always();
   }
 
-  auto target_path = util::TranslateAnsiPath(kernel_memory(), object_name);
+  auto target_path = util::TranslateAnsiPath(REX_KERNEL_MEMORY(), object_name);
 
   // Enforce that the path is ASCII.
   if (!IsValidPath(target_path, false)) {
@@ -548,7 +547,7 @@ ppc_u32_result_t NtQueryFullAttributesFile_entry(
   }
 
   // Resolve the file using the virtual file system.
-  auto entry = kernel_state()->file_system()->ResolvePath(target_path);
+  auto entry = REX_KERNEL_FS()->ResolvePath(target_path);
   if (entry) {
     // Found.
     file_info->creation_time = entry->create_timestamp();
@@ -580,8 +579,8 @@ ppc_u32_result_t NtQueryDirectoryFile_entry(ppc_u32_t file_handle, ppc_u32_t eve
   X_STATUS result = X_STATUS_UNSUCCESSFUL;
   uint32_t info = 0;
 
-  auto file = kernel_state()->object_table()->LookupObject<XFile>(file_handle);
-  auto name = util::TranslateAnsiPath(kernel_memory(), file_name);
+  auto file = REX_KERNEL_OBJECTS()->LookupObject<XFile>(file_handle);
+  auto name = util::TranslateAnsiPath(REX_KERNEL_MEMORY(), file_name);
 
   // Enforce that the path is ASCII.
   if (!IsValidPath(name, true)) {
@@ -632,9 +631,9 @@ ppc_u32_result_t NtOpenSymbolicLinkObject_entry(ppc_pu32_t handle_out,
 
   assert_true(object_attrs->attributes == 64);  // case insensitive
 
-  auto object_name = kernel_memory()->TranslateVirtual<X_ANSI_STRING*>(object_attrs->name_ptr);
+  auto object_name = REX_KERNEL_MEMORY()->TranslateVirtual<X_ANSI_STRING*>(object_attrs->name_ptr);
 
-  auto target_path = util::TranslateAnsiPath(kernel_memory(), object_name);
+  auto target_path = util::TranslateAnsiPath(REX_KERNEL_MEMORY(), object_name);
 
   // Enforce that the path is ASCII.
   if (!IsValidPath(target_path, false)) {
@@ -650,11 +649,11 @@ ppc_u32_result_t NtOpenSymbolicLinkObject_entry(ppc_pu32_t handle_out,
   }
 
   std::string link_path;
-  if (!kernel_state()->file_system()->FindSymbolicLink(target_path, link_path)) {
+  if (!REX_KERNEL_FS()->FindSymbolicLink(target_path, link_path)) {
     return X_STATUS_NO_SUCH_FILE;
   }
 
-  object_ref<XSymbolicLink> symlink(new XSymbolicLink(kernel_state()));
+  object_ref<XSymbolicLink> symlink(new XSymbolicLink(REX_KERNEL_STATE()));
   symlink->Initialize(target_path, link_path);
 
   *handle_out = symlink->handle();
@@ -665,13 +664,13 @@ ppc_u32_result_t NtOpenSymbolicLinkObject_entry(ppc_pu32_t handle_out,
 // https://docs.microsoft.com/en-us/windows/win32/devnotes/ntquerysymboliclinkobject
 ppc_u32_result_t NtQuerySymbolicLinkObject_entry(ppc_u32_t handle,
                                                  ppc_ptr_t<X_ANSI_STRING> target) {
-  auto symlink = kernel_state()->object_table()->LookupObject<XSymbolicLink>(handle);
+  auto symlink = REX_KERNEL_OBJECTS()->LookupObject<XSymbolicLink>(handle);
   if (!symlink) {
     return X_STATUS_NO_SUCH_FILE;
   }
   auto length = std::min(static_cast<size_t>(target->maximum_length), symlink->target().size());
   if (length > 0) {
-    auto target_buf = kernel_memory()->TranslateVirtual(target->pointer);
+    auto target_buf = REX_KERNEL_MEMORY()->TranslateVirtual(target->pointer);
     std::memcpy(target_buf, symlink->target().c_str(), length);
   }
   target->length = static_cast<uint16_t>(length);
@@ -732,14 +731,14 @@ ppc_u32_result_t IoCreateDevice_entry(ppc_u32_t device_struct, ppc_u32_t r4, ppc
   // We'll alloc some scratch space for it so it doesn't cause any exceptions
 
   // 0x24 is guessed size from accesses to out_struct - likely incorrect
-  auto out_guest = kernel_memory()->SystemHeapAlloc(0x24);
+  auto out_guest = REX_KERNEL_MEMORY()->SystemHeapAlloc(0x24);
 
-  auto out = kernel_memory()->TranslateVirtual<uint8_t*>(out_guest);
+  auto out = REX_KERNEL_MEMORY()->TranslateVirtual<uint8_t*>(out_guest);
   memset(out, 0, 0x24);
 
   // XMountUtilityDrive writes some kind of header here
   // 0x1000 bytes should be enough to store it
-  auto out_guest2 = kernel_memory()->SystemHeapAlloc(0x1000);
+  auto out_guest2 = REX_KERNEL_MEMORY()->SystemHeapAlloc(0x1000);
   memory::store_and_swap(out + 0x18, out_guest2);
 
   *out_struct = out_guest;

@@ -36,7 +36,7 @@ uint32_t xeXamEnumerate(uint32_t handle, uint32_t flags, ppc_pvoid_t buffer_ptr,
                         uint32_t buffer_size, uint32_t* items_returned, uint32_t overlapped_ptr) {
   assert_true(flags == 0);
 
-  auto e = kernel_state()->object_table()->LookupObject<XEnumerator>(handle);
+  auto e = REX_KERNEL_OBJECTS()->LookupObject<XEnumerator>(handle);
   if (!e) {
     return X_ERROR_INVALID_HANDLE;
   }
@@ -63,7 +63,7 @@ uint32_t xeXamEnumerate(uint32_t handle, uint32_t flags, ppc_pvoid_t buffer_ptr,
     return result;
   } else if (overlapped_ptr) {
     assert_true(!items_returned);
-    kernel_state()->CompleteOverlappedDeferredEx(run, overlapped_ptr);
+    REX_KERNEL_STATE()->CompleteOverlappedDeferredEx(run, overlapped_ptr);
     return X_ERROR_IO_PENDING;
   } else {
     assert_always();
@@ -93,7 +93,7 @@ ppc_u32_result_t XamCreateEnumeratorHandle_entry(ppc_unknown_t unk1, ppc_unknown
 
 ppc_u32_result_t XamGetPrivateEnumStructureFromHandle_entry(ppc_u32_t handle,
                                                             ppc_pu32_t out_object_ptr) {
-  auto e = kernel_state()->object_table()->LookupObject<XEnumerator>(handle);
+  auto e = REX_KERNEL_OBJECTS()->LookupObject<XEnumerator>(handle);
   if (!e) {
     return X_STATUS_INVALID_HANDLE;
   }

@@ -184,11 +184,11 @@ ppc_u32_result_t NetDll_XNetStartup_entry(ppc_u32_t caller, ppc_ptr_t<XNetStartu
     std::memcpy(&xnet_startup_params, params, sizeof(XNetStartupParams));
   }
 
-  auto xam = kernel_state()->GetKernelModule<XamModule>("xam.xex");
+  auto xam = REX_KERNEL_STATE()->GetKernelModule<XamModule>("xam.xex");
 
   /*
   if (!xam->xnet()) {
-    auto xnet = new XNet(kernel_state());
+    auto xnet = new XNet(REX_KERNEL_STATE());
     xnet->Initialize();
 
     xam->set_xnet(xnet);
@@ -199,7 +199,7 @@ ppc_u32_result_t NetDll_XNetStartup_entry(ppc_u32_t caller, ppc_ptr_t<XNetStartu
 }
 
 ppc_u32_result_t NetDll_XNetCleanup_entry(ppc_u32_t caller, ppc_pvoid_t params) {
-  auto xam = kernel_state()->GetKernelModule<XamModule>("xam.xex");
+  auto xam = REX_KERNEL_STATE()->GetKernelModule<XamModule>("xam.xex");
   // auto xnet = xam->xnet();
   // xam->set_xnet(nullptr);
 
@@ -243,7 +243,7 @@ ppc_u32_result_t NetDll_WSAStartup_entry(ppc_u32_t caller, ppc_u16_t version,
   ZeroMemory(&wsaData, sizeof(WSADATA));
   int ret = WSAStartup(version, &wsaData);
 
-  auto data_out = kernel_state()->memory()->TranslateVirtual(data_ptr.guest_address());
+  auto data_out = REX_KERNEL_MEMORY()->TranslateVirtual(data_ptr.guest_address());
 
   if (data_ptr) {
     data_ptr->version = wsaData.wVersion;
@@ -272,9 +272,9 @@ ppc_u32_result_t NetDll_WSAStartup_entry(ppc_u32_t caller, ppc_u16_t version,
 
   // DEBUG
   /*
-  auto xam = kernel_state()->GetKernelModule<XamModule>("xam.xex");
+  auto xam = REX_KERNEL_STATE()->GetKernelModule<XamModule>("xam.xex");
   if (!xam->xnet()) {
-    auto xnet = new XNet(kernel_state());
+    auto xnet = new XNet(REX_KERNEL_STATE());
     xnet->Initialize();
 
     xam->set_xnet(xnet);
@@ -300,7 +300,7 @@ ppc_u32_result_t NetDll_WSARecvFrom_entry(ppc_u32_t caller, ppc_u32_t socket,
                                           ppc_ptr_t<XWSAOVERLAPPED> overlapped_ptr,
                                           ppc_pvoid_t completion_routine_ptr) {
   if (overlapped_ptr) {
-    // auto evt = kernel_state()->object_table()->LookupObject<XEvent>(
+    // auto evt = REX_KERNEL_OBJECTS()->LookupObject<XEvent>(
     //    overlapped_ptr->event_handle);
 
     // if (evt) {
@@ -324,7 +324,7 @@ ppc_u32_result_t NetDll_WSASendTo_entry(ppc_u32_t caller, ppc_u32_t socket_handl
   assert(!overlapped);
   assert(!completion_routine);
 
-  auto socket = kernel_state()->object_table()->LookupObject<XSocket>(socket_handle);
+  auto socket = REX_KERNEL_OBJECTS()->LookupObject<XSocket>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
     XThread::SetLastError(0x2736);
@@ -342,7 +342,7 @@ ppc_u32_result_t NetDll_WSASendTo_entry(ppc_u32_t caller, ppc_u32_t socket_handl
     uint8_t* combined_buffer = combined_buffer_mem.data();
 
     std::memcpy(combined_buffer + combined_buffer_offset,
-                kernel_memory()->TranslateVirtual(buffers[i].buf_ptr), buffers[i].len);
+                REX_KERNEL_MEMORY()->TranslateVirtual(buffers[i].buf_ptr), buffers[i].len);
     combined_buffer_offset += buffers[i].len;
   }
 
@@ -379,13 +379,13 @@ ppc_u32_result_t NetDll_WSAWaitForMultipleEvents_entry(ppc_u32_t num_events, ppc
 }
 
 ppc_u32_result_t NetDll_WSACreateEvent_entry() {
-  XEvent* ev = new XEvent(kernel_state());
+  XEvent* ev = new XEvent(REX_KERNEL_STATE());
   ev->Initialize(true, false);
   return ev->handle();
 }
 
 ppc_u32_result_t NetDll_WSACloseEvent_entry(ppc_u32_t event_handle) {
-  X_STATUS result = kernel_state()->object_table()->ReleaseHandle(event_handle);
+  X_STATUS result = REX_KERNEL_OBJECTS()->ReleaseHandle(event_handle);
   if (XFAILED(result)) {
     uint32_t error = xboxkrnl::xeRtlNtStatusToDosError(result);
     XThread::SetLastError(error);
@@ -516,13 +516,13 @@ ppc_u32_result_t NetDll_XNetDnsLookup_entry(ppc_u32_t caller, ppc_pchar_t host,
                                             ppc_u32_t event_handle, ppc_pu32_t pdns) {
   // TODO(gibbed): actually implement this
   if (pdns) {
-    auto dns_guest = kernel_memory()->SystemHeapAlloc(sizeof(XNDNS));
-    auto dns = kernel_memory()->TranslateVirtual<XNDNS*>(dns_guest);
+    auto dns_guest = REX_KERNEL_MEMORY()->SystemHeapAlloc(sizeof(XNDNS));
+    auto dns = REX_KERNEL_MEMORY()->TranslateVirtual<XNDNS*>(dns_guest);
     dns->status = 1;  // non-zero = error
     *pdns = dns_guest;
   }
   if (event_handle) {
-    auto ev = kernel_state()->object_table()->LookupObject<XEvent>(event_handle);
+    auto ev = REX_KERNEL_OBJECTS()->LookupObject<XEvent>(event_handle);
     assert_not_null(ev);
     ev->Set(0, false);
   }
@@ -533,7 +533,7 @@ ppc_u32_result_t NetDll_XNetDnsRelease_entry(ppc_u32_t caller, ppc_ptr_t<XNDNS> 
   if (!dns) {
     return X_STATUS_INVALID_PARAMETER;
   }
-  kernel_memory()->SystemHeapFree(dns.guest_address());
+  REX_KERNEL_MEMORY()->SystemHeapFree(dns.guest_address());
   return 0;
 }
 
@@ -541,13 +541,13 @@ ppc_u32_result_t NetDll_XNetQosServiceLookup_entry(ppc_u32_t caller, ppc_u32_t f
                                                    ppc_u32_t event_handle, ppc_pu32_t pqos) {
   // Set pqos as some games will try accessing it despite non-successful result
   if (pqos) {
-    auto qos_guest = kernel_memory()->SystemHeapAlloc(sizeof(XNQOS));
-    auto qos = kernel_memory()->TranslateVirtual<XNQOS*>(qos_guest);
+    auto qos_guest = REX_KERNEL_MEMORY()->SystemHeapAlloc(sizeof(XNQOS));
+    auto qos = REX_KERNEL_MEMORY()->TranslateVirtual<XNQOS*>(qos_guest);
     qos->count = qos->count_pending = 0;
     *pqos = qos_guest;
   }
   if (event_handle) {
-    auto ev = kernel_state()->object_table()->LookupObject<XEvent>(event_handle);
+    auto ev = REX_KERNEL_OBJECTS()->LookupObject<XEvent>(event_handle);
     assert_not_null(ev);
     ev->Set(0, false);
   }
@@ -558,7 +558,7 @@ ppc_u32_result_t NetDll_XNetQosRelease_entry(ppc_u32_t caller, ppc_ptr_t<XNQOS> 
   if (!qos) {
     return X_STATUS_INVALID_PARAMETER;
   }
-  kernel_memory()->SystemHeapFree(qos.guest_address());
+  REX_KERNEL_MEMORY()->SystemHeapFree(qos.guest_address());
   return 0;
 }
 
@@ -585,7 +585,7 @@ ppc_u32_result_t NetDll_inet_addr_entry(ppc_pchar_t addr_ptr) {
 
 ppc_u32_result_t NetDll_socket_entry(ppc_u32_t caller, ppc_u32_t af, ppc_u32_t type,
                                      ppc_u32_t protocol) {
-  XSocket* socket = new XSocket(kernel_state());
+  XSocket* socket = new XSocket(REX_KERNEL_STATE());
   X_STATUS result =
       socket->Initialize(XSocket::AddressFamily((uint32_t)af), XSocket::Type((uint32_t)type),
                          XSocket::Protocol((uint32_t)protocol));
@@ -602,7 +602,7 @@ ppc_u32_result_t NetDll_socket_entry(ppc_u32_t caller, ppc_u32_t af, ppc_u32_t t
 }
 
 ppc_u32_result_t NetDll_closesocket_entry(ppc_u32_t caller, ppc_u32_t socket_handle) {
-  auto socket = kernel_state()->object_table()->LookupObject<XSocket>(socket_handle);
+  auto socket = REX_KERNEL_OBJECTS()->LookupObject<XSocket>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
     XThread::SetLastError(0x2736);
@@ -617,7 +617,7 @@ ppc_u32_result_t NetDll_closesocket_entry(ppc_u32_t caller, ppc_u32_t socket_han
 }
 
 ppc_i32_result_t NetDll_shutdown_entry(ppc_u32_t caller, ppc_u32_t socket_handle, ppc_i32_t how) {
-  auto socket = kernel_state()->object_table()->LookupObject<XSocket>(socket_handle);
+  auto socket = REX_KERNEL_OBJECTS()->LookupObject<XSocket>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
     XThread::SetLastError(0x2736);
@@ -639,7 +639,7 @@ ppc_i32_result_t NetDll_shutdown_entry(ppc_u32_t caller, ppc_u32_t socket_handle
 ppc_u32_result_t NetDll_setsockopt_entry(ppc_u32_t caller, ppc_u32_t socket_handle, ppc_u32_t level,
                                          ppc_u32_t optname, ppc_pvoid_t optval_ptr,
                                          ppc_u32_t optlen) {
-  auto socket = kernel_state()->object_table()->LookupObject<XSocket>(socket_handle);
+  auto socket = REX_KERNEL_OBJECTS()->LookupObject<XSocket>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
     XThread::SetLastError(0x2736);
@@ -652,7 +652,7 @@ ppc_u32_result_t NetDll_setsockopt_entry(ppc_u32_t caller, ppc_u32_t socket_hand
 
 ppc_u32_result_t NetDll_ioctlsocket_entry(ppc_u32_t caller, ppc_u32_t socket_handle, ppc_u32_t cmd,
                                           ppc_pvoid_t arg_ptr) {
-  auto socket = kernel_state()->object_table()->LookupObject<XSocket>(socket_handle);
+  auto socket = REX_KERNEL_OBJECTS()->LookupObject<XSocket>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
     XThread::SetLastError(0x2736);
@@ -671,7 +671,7 @@ ppc_u32_result_t NetDll_ioctlsocket_entry(ppc_u32_t caller, ppc_u32_t socket_han
 
 ppc_u32_result_t NetDll_bind_entry(ppc_u32_t caller, ppc_u32_t socket_handle,
                                    ppc_ptr_t<XSOCKADDR_IN> name, ppc_u32_t namelen) {
-  auto socket = kernel_state()->object_table()->LookupObject<XSocket>(socket_handle);
+  auto socket = REX_KERNEL_OBJECTS()->LookupObject<XSocket>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
     XThread::SetLastError(0x2736);
@@ -690,7 +690,7 @@ ppc_u32_result_t NetDll_bind_entry(ppc_u32_t caller, ppc_u32_t socket_handle,
 
 ppc_u32_result_t NetDll_connect_entry(ppc_u32_t caller, ppc_u32_t socket_handle,
                                       ppc_ptr_t<XSOCKADDR> name, ppc_u32_t namelen) {
-  auto socket = kernel_state()->object_table()->LookupObject<XSocket>(socket_handle);
+  auto socket = REX_KERNEL_OBJECTS()->LookupObject<XSocket>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
     XThread::SetLastError(0x2736);
@@ -708,7 +708,7 @@ ppc_u32_result_t NetDll_connect_entry(ppc_u32_t caller, ppc_u32_t socket_handle,
 }
 
 ppc_u32_result_t NetDll_listen_entry(ppc_u32_t caller, ppc_u32_t socket_handle, ppc_i32_t backlog) {
-  auto socket = kernel_state()->object_table()->LookupObject<XSocket>(socket_handle);
+  auto socket = REX_KERNEL_OBJECTS()->LookupObject<XSocket>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
     XThread::SetLastError(0x2736);
@@ -732,7 +732,7 @@ ppc_u32_result_t NetDll_accept_entry(ppc_u32_t caller, ppc_u32_t socket_handle,
     return -1;
   }
 
-  auto socket = kernel_state()->object_table()->LookupObject<XSocket>(socket_handle);
+  auto socket = REX_KERNEL_OBJECTS()->LookupObject<XSocket>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
     XThread::SetLastError(0x2736);
@@ -772,7 +772,7 @@ struct host_set {
         break;
       }
       // Convert from Xenia -> native
-      auto socket = kernel_state()->object_table()->LookupObject<XSocket>(socket_handle);
+      auto socket = REX_KERNEL_OBJECTS()->LookupObject<XSocket>(socket_handle);
       assert_not_null(socket);
       this->sockets[i] = socket;
     }
@@ -856,7 +856,7 @@ ppc_i32_result_t NetDll_select_entry(ppc_i32_t caller, ppc_i32_t nfds, ppc_ptr_t
 
 ppc_u32_result_t NetDll_recv_entry(ppc_u32_t caller, ppc_u32_t socket_handle, ppc_pvoid_t buf_ptr,
                                    ppc_u32_t buf_len, ppc_u32_t flags) {
-  auto socket = kernel_state()->object_table()->LookupObject<XSocket>(socket_handle);
+  auto socket = REX_KERNEL_OBJECTS()->LookupObject<XSocket>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
     XThread::SetLastError(0x2736);
@@ -869,7 +869,7 @@ ppc_u32_result_t NetDll_recv_entry(ppc_u32_t caller, ppc_u32_t socket_handle, pp
 ppc_u32_result_t NetDll_recvfrom_entry(ppc_u32_t caller, ppc_u32_t socket_handle,
                                        ppc_pvoid_t buf_ptr, ppc_u32_t buf_len, ppc_u32_t flags,
                                        ppc_ptr_t<XSOCKADDR_IN> from_ptr, ppc_pu32_t fromlen_ptr) {
-  auto socket = kernel_state()->object_table()->LookupObject<XSocket>(socket_handle);
+  auto socket = REX_KERNEL_OBJECTS()->LookupObject<XSocket>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
     XThread::SetLastError(0x2736);
@@ -909,7 +909,7 @@ ppc_u32_result_t NetDll_recvfrom_entry(ppc_u32_t caller, ppc_u32_t socket_handle
 
 ppc_u32_result_t NetDll_send_entry(ppc_u32_t caller, ppc_u32_t socket_handle, ppc_pvoid_t buf_ptr,
                                    ppc_u32_t buf_len, ppc_u32_t flags) {
-  auto socket = kernel_state()->object_table()->LookupObject<XSocket>(socket_handle);
+  auto socket = REX_KERNEL_OBJECTS()->LookupObject<XSocket>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
     XThread::SetLastError(0x2736);
@@ -922,7 +922,7 @@ ppc_u32_result_t NetDll_send_entry(ppc_u32_t caller, ppc_u32_t socket_handle, pp
 ppc_u32_result_t NetDll_sendto_entry(ppc_u32_t caller, ppc_u32_t socket_handle, ppc_pvoid_t buf_ptr,
                                      ppc_u32_t buf_len, ppc_u32_t flags,
                                      ppc_ptr_t<XSOCKADDR_IN> to_ptr, ppc_u32_t to_len) {
-  auto socket = kernel_state()->object_table()->LookupObject<XSocket>(socket_handle);
+  auto socket = REX_KERNEL_OBJECTS()->LookupObject<XSocket>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
     XThread::SetLastError(0x2736);

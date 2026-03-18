@@ -330,7 +330,7 @@ void VdSetGraphicsInterruptCallback_entry(ppc_fn_t callback, ppc_pvoid_t user_da
   // r3 = bool 0/1 - 0 is normal interrupt, 1 is some acquire/lock mumble
   // r4 = user_data (r4 of VdSetGraphicsInterruptCallback)
   auto* graphics_system =
-      static_cast<graphics::GraphicsSystem*>(kernel_state()->emulator()->graphics_system());
+      static_cast<graphics::GraphicsSystem*>(REX_KERNEL_STATE()->emulator()->graphics_system());
   graphics_system->SetInterruptCallback(callback, user_data.guest_address());
 }
 
@@ -339,14 +339,14 @@ void VdInitializeRingBuffer_entry(ppc_pvoid_t ptr, ppc_i32_t size_log2) {
   // r4 = log2(size)
   // Buffer pointers are from MmAllocatePhysicalMemory with WRITE_COMBINE.
   auto* graphics_system =
-      static_cast<graphics::GraphicsSystem*>(kernel_state()->emulator()->graphics_system());
+      static_cast<graphics::GraphicsSystem*>(REX_KERNEL_STATE()->emulator()->graphics_system());
   graphics_system->InitializeRingBuffer(ptr.guest_address(), size_log2);
 }
 
 void VdEnableRingBufferRPtrWriteBack_entry(ppc_pvoid_t ptr, ppc_i32_t block_size_log2) {
   // r4 = log2(block size), 6, usually --- <=19
   auto* graphics_system =
-      static_cast<graphics::GraphicsSystem*>(kernel_state()->emulator()->graphics_system());
+      static_cast<graphics::GraphicsSystem*>(REX_KERNEL_STATE()->emulator()->graphics_system());
   graphics_system->EnableReadPointerWriteBack(ptr.guest_address(), block_size_log2);
 }
 
@@ -421,7 +421,7 @@ ppc_u32_result_t VdPersistDisplay_entry(ppc_unknown_t unk0, ppc_pu32_t unk1_ptr)
   // unk1_ptr needs to be populated with a pointer passed to
   // MmFreePhysicalMemory(1, *unk1_ptr).
   if (unk1_ptr) {
-    auto heap = kernel_memory()->LookupHeapByType(true, 16 * 1024);
+    auto heap = REX_KERNEL_MEMORY()->LookupHeapByType(true, 16 * 1024);
     uint32_t unk1_value;
     heap->Alloc(64, 32, memory::kMemoryAllocationReserve | memory::kMemoryAllocationCommit,
                 memory::kMemoryProtectNoAccess, false, &unk1_value);
@@ -472,7 +472,7 @@ void VdSwap_entry(ppc_pvoid_t buffer_ptr,      // ptr into primary ringbuffer
   uint32_t frontbuffer_virtual_address = gpu_fetch.base_address << 12;
   assert_true(*frontbuffer_ptr == frontbuffer_virtual_address);
   uint32_t frontbuffer_physical_address =
-      kernel_memory()->GetPhysicalAddress(frontbuffer_virtual_address);
+      REX_KERNEL_MEMORY()->GetPhysicalAddress(frontbuffer_virtual_address);
   assert_true(frontbuffer_physical_address != UINT32_MAX);
   if (frontbuffer_physical_address == UINT32_MAX) {
     // Xenia-specific safety check.

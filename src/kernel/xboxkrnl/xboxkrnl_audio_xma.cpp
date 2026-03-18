@@ -66,7 +66,8 @@ using rex::audio::XMA_CONTEXT_DATA;
 ppc_u32_result_t XMACreateContext_entry(ppc_pu32_t context_out_ptr) {
   REXKRNL_DEBUG("XMACreateContext called!");
   auto xma_decoder =
-      static_cast<audio::AudioSystem*>(kernel_state()->emulator()->audio_system())->xma_decoder();
+      static_cast<audio::AudioSystem*>(REX_KERNEL_STATE()->emulator()->audio_system())
+          ->xma_decoder();
   uint32_t context_ptr = xma_decoder->AllocateContext();
   *context_out_ptr = context_ptr;
   if (!context_ptr) {
@@ -77,14 +78,15 @@ ppc_u32_result_t XMACreateContext_entry(ppc_pu32_t context_out_ptr) {
 
 ppc_u32_result_t XMAReleaseContext_entry(ppc_pvoid_t context_ptr) {
   auto xma_decoder =
-      static_cast<audio::AudioSystem*>(kernel_state()->emulator()->audio_system())->xma_decoder();
+      static_cast<audio::AudioSystem*>(REX_KERNEL_STATE()->emulator()->audio_system())
+          ->xma_decoder();
   xma_decoder->ReleaseContext(context_ptr.guest_address());
   return 0;
 }
 
 void StoreXmaContextIndexedRegister(system::KernelState* kernel_state, uint32_t base_reg,
                                     uint32_t context_ptr) {
-  uint32_t context_physical_address = kernel_memory()->GetPhysicalAddress(context_ptr);
+  uint32_t context_physical_address = REX_KERNEL_MEMORY()->GetPhysicalAddress(context_ptr);
   assert_true(context_physical_address != UINT32_MAX);
   auto xma_decoder =
       static_cast<audio::AudioSystem*>(kernel_state->emulator()->audio_system())->xma_decoder();
@@ -127,7 +129,8 @@ ppc_u32_result_t XMAInitializeContext_entry(ppc_pvoid_t context_ptr,
   uint32_t input_buffer_0_guest_ptr = context_init->input_buffer_0_ptr;
   uint32_t input_buffer_0_physical_address = 0;
   if (input_buffer_0_guest_ptr) {
-    input_buffer_0_physical_address = kernel_memory()->GetPhysicalAddress(input_buffer_0_guest_ptr);
+    input_buffer_0_physical_address =
+        REX_KERNEL_MEMORY()->GetPhysicalAddress(input_buffer_0_guest_ptr);
     // Xenia-specific safety check.
     assert_true(input_buffer_0_physical_address != UINT32_MAX);
     if (input_buffer_0_physical_address == UINT32_MAX) {
@@ -139,7 +142,8 @@ ppc_u32_result_t XMAInitializeContext_entry(ppc_pvoid_t context_ptr,
   uint32_t input_buffer_1_guest_ptr = context_init->input_buffer_1_ptr;
   uint32_t input_buffer_1_physical_address = 0;
   if (input_buffer_1_guest_ptr) {
-    input_buffer_1_physical_address = kernel_memory()->GetPhysicalAddress(input_buffer_1_guest_ptr);
+    input_buffer_1_physical_address =
+        REX_KERNEL_MEMORY()->GetPhysicalAddress(input_buffer_1_guest_ptr);
     assert_true(input_buffer_1_physical_address != UINT32_MAX);
     if (input_buffer_1_physical_address == UINT32_MAX) {
       REXKRNL_ERROR("XMAInitializeContext: Invalid input buffer 1 virtual address {:08X}",
@@ -150,7 +154,7 @@ ppc_u32_result_t XMAInitializeContext_entry(ppc_pvoid_t context_ptr,
   uint32_t output_buffer_guest_ptr = context_init->output_buffer_ptr;
   assert_not_zero(output_buffer_guest_ptr);
   uint32_t output_buffer_physical_address =
-      kernel_memory()->GetPhysicalAddress(output_buffer_guest_ptr);
+      REX_KERNEL_MEMORY()->GetPhysicalAddress(output_buffer_guest_ptr);
   assert_true(output_buffer_physical_address != UINT32_MAX);
   if (output_buffer_physical_address == UINT32_MAX) {
     REXKRNL_ERROR("XMAInitializeContext: Invalid output buffer virtual address {:08X}",
@@ -183,7 +187,7 @@ ppc_u32_result_t XMAInitializeContext_entry(ppc_pvoid_t context_ptr,
 
   context.Store(context_ptr);
 
-  StoreXmaContextIndexedRegister(kernel_state(), 0x1A80, context_ptr.guest_address());
+  StoreXmaContextIndexedRegister(REX_KERNEL_STATE(), 0x1A80, context_ptr.guest_address());
 
   return 0;
 }
@@ -218,7 +222,8 @@ ppc_u32_result_t XMASetInputBufferReadOffset_entry(ppc_pvoid_t context_ptr, ppc_
 
 ppc_u32_result_t XMASetInputBuffer0_entry(ppc_pvoid_t context_ptr, ppc_pvoid_t buffer,
                                           ppc_u32_t packet_count) {
-  uint32_t buffer_physical_address = kernel_memory()->GetPhysicalAddress(buffer.guest_address());
+  uint32_t buffer_physical_address =
+      REX_KERNEL_MEMORY()->GetPhysicalAddress(buffer.guest_address());
   assert_true(buffer_physical_address != UINT32_MAX);
   if (buffer_physical_address == UINT32_MAX) {
     // Xenia-specific safety check.
@@ -252,7 +257,8 @@ ppc_u32_result_t XMASetInputBuffer0Valid_entry(ppc_pvoid_t context_ptr) {
 
 ppc_u32_result_t XMASetInputBuffer1_entry(ppc_pvoid_t context_ptr, ppc_pvoid_t buffer,
                                           ppc_u32_t packet_count) {
-  uint32_t buffer_physical_address = kernel_memory()->GetPhysicalAddress(buffer.guest_address());
+  uint32_t buffer_physical_address =
+      REX_KERNEL_MEMORY()->GetPhysicalAddress(buffer.guest_address());
   assert_true(buffer_physical_address != UINT32_MAX);
   if (buffer_physical_address == UINT32_MAX) {
     // Xenia-specific safety check.
@@ -321,14 +327,14 @@ ppc_u32_result_t XMAGetPacketMetadata_entry(ppc_pvoid_t context_ptr) {
 }
 
 ppc_u32_result_t XMAEnableContext_entry(ppc_pvoid_t context_ptr) {
-  StoreXmaContextIndexedRegister(kernel_state(), 0x1940, context_ptr.guest_address());
+  StoreXmaContextIndexedRegister(REX_KERNEL_STATE(), 0x1940, context_ptr.guest_address());
   return 0;
 }
 
 ppc_u32_result_t XMADisableContext_entry(ppc_pvoid_t context_ptr, ppc_u32_t wait) {
   X_HRESULT result = X_E_SUCCESS;
-  StoreXmaContextIndexedRegister(kernel_state(), 0x1A40, context_ptr.guest_address());
-  if (!static_cast<audio::AudioSystem*>(kernel_state()->emulator()->audio_system())
+  StoreXmaContextIndexedRegister(REX_KERNEL_STATE(), 0x1A40, context_ptr.guest_address());
+  if (!static_cast<audio::AudioSystem*>(REX_KERNEL_STATE()->emulator()->audio_system())
            ->xma_decoder()
            ->BlockOnContext(context_ptr.guest_address(), !wait)) {
     result = X_E_FALSE;

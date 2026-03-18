@@ -58,7 +58,8 @@ void HandleSetThreadName(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
 
   // TODO(gibbed): cvar for thread name encoding for conversion, some games use
   // SJIS and there's no way to automatically know this.
-  auto name = std::string(kernel_memory()->TranslateVirtual<const char*>(thread_info->name_ptr));
+  auto name =
+      std::string(REX_KERNEL_MEMORY()->TranslateVirtual<const char*>(thread_info->name_ptr));
   std::replace_if(name.begin(), name.end(), [](auto c) { return c < 32 || c > 127; }, '?');
 
   object_ref<XThread> thread;
@@ -67,7 +68,7 @@ void HandleSetThreadName(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
     thread = retain_object(XThread::GetCurrentThread());
   } else {
     // Lookup thread by ID.
-    thread = kernel_state()->GetThreadByID(thread_info->thread_id);
+    thread = REX_KERNEL_STATE()->GetThreadByID(thread_info->thread_id);
   }
 
   if (thread) {
@@ -114,12 +115,12 @@ void HandleCppException(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
   assert_true(record->exception_information[0] == 0x19930520);
 
   auto thrown_ptr = record->exception_information[1];
-  auto thrown = kernel_memory()->TranslateVirtual(thrown_ptr);
+  auto thrown = REX_KERNEL_MEMORY()->TranslateVirtual(thrown_ptr);
   auto vftable_ptr = *reinterpret_cast<rex::be<uint32_t>*>(thrown);
 
   auto throw_info_ptr = record->exception_information[2];
-  auto throw_info = kernel_memory()->TranslateVirtual<x_s__ThrowInfo*>(throw_info_ptr);
-  auto catchable_types = kernel_memory()->TranslateVirtual<x_s__CatchableTypeArray*>(
+  auto throw_info = REX_KERNEL_MEMORY()->TranslateVirtual<x_s__ThrowInfo*>(throw_info_ptr);
+  auto catchable_types = REX_KERNEL_MEMORY()->TranslateVirtual<x_s__CatchableTypeArray*>(
       throw_info->catchable_type_array_ptr);
 
   rex::debug::Break();

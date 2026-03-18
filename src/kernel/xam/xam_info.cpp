@@ -48,8 +48,8 @@ ppc_u32_result_t XamGetOnlineSchema_entry() {
   static uint32_t schema_guest = 0;
 
   if (!schema_guest) {
-    schema_guest = system::kernel_state()->memory()->SystemHeapAlloc(8 + sizeof(schema_bin));
-    auto schema = system::kernel_state()->memory()->TranslateVirtual(schema_guest);
+    schema_guest = REX_KERNEL_MEMORY()->SystemHeapAlloc(8 + sizeof(schema_bin));
+    auto schema = REX_KERNEL_MEMORY()->TranslateVirtual(schema_guest);
     std::memcpy(schema + 8, schema_bin, sizeof(schema_bin));
     memory::store_and_swap<uint32_t>(schema + 0, schema_guest + 8);
     memory::store_and_swap<uint32_t>(schema + 4, sizeof(schema_bin));
@@ -207,7 +207,7 @@ ppc_u32_result_t XGetLanguage_entry() {
 ppc_u32_result_t XamGetCurrentTitleId_entry() {
   // NOTE(tomc): Switched this up to get title ID from executable module instead of runtime
   // (emulator)
-  auto module = kernel_state()->GetExecutableModule();
+  auto module = REX_KERNEL_STATE()->GetExecutableModule();
   if (module) {
     return module->title_id();
   }
@@ -215,7 +215,7 @@ ppc_u32_result_t XamGetCurrentTitleId_entry() {
 }
 
 ppc_u32_result_t XamGetExecutionId_entry(ppc_pu32_t info_ptr) {
-  auto module = kernel_state()->GetExecutableModule();
+  auto module = REX_KERNEL_STATE()->GetExecutableModule();
   assert_not_null(module);
 
   uint32_t guest_hdr_ptr;
@@ -230,7 +230,7 @@ ppc_u32_result_t XamGetExecutionId_entry(ppc_pu32_t info_ptr) {
 }
 
 ppc_u32_result_t XamLoaderSetLaunchData_entry(ppc_pvoid_t data, ppc_u32_t size) {
-  auto xam = kernel_state()->GetKernelModule<XamModule>("xam.xex");
+  auto xam = REX_KERNEL_STATE()->GetKernelModule<XamModule>("xam.xex");
   auto& loader_data = xam->loader_data();
   loader_data.launch_data_present = size ? true : false;
   loader_data.launch_data.resize(size);
@@ -243,7 +243,7 @@ ppc_u32_result_t XamLoaderGetLaunchDataSize_entry(ppc_pu32_t size_ptr) {
     return X_ERROR_INVALID_PARAMETER;
   }
 
-  auto xam = kernel_state()->GetKernelModule<XamModule>("xam.xex");
+  auto xam = REX_KERNEL_STATE()->GetKernelModule<XamModule>("xam.xex");
   auto& loader_data = xam->loader_data();
   if (!loader_data.launch_data_present) {
     *size_ptr = 0;
@@ -255,7 +255,7 @@ ppc_u32_result_t XamLoaderGetLaunchDataSize_entry(ppc_pu32_t size_ptr) {
 }
 
 ppc_u32_result_t XamLoaderGetLaunchData_entry(ppc_pvoid_t buffer_ptr, ppc_u32_t buffer_size) {
-  auto xam = kernel_state()->GetKernelModule<XamModule>("xam.xex");
+  auto xam = REX_KERNEL_STATE()->GetKernelModule<XamModule>("xam.xex");
   auto& loader_data = xam->loader_data();
   if (!loader_data.launch_data_present) {
     return X_ERROR_NOT_FOUND;
@@ -267,7 +267,7 @@ ppc_u32_result_t XamLoaderGetLaunchData_entry(ppc_pvoid_t buffer_ptr, ppc_u32_t 
 }
 
 void XamLoaderLaunchTitle_entry(ppc_pchar_t raw_name_ptr, ppc_u32_t flags) {
-  auto xam = kernel_state()->GetKernelModule<XamModule>("xam.xex");
+  auto xam = REX_KERNEL_STATE()->GetKernelModule<XamModule>("xam.xex");
 
   auto& loader_data = xam->loader_data();
   loader_data.launch_flags = flags;
@@ -280,7 +280,8 @@ void XamLoaderLaunchTitle_entry(ppc_pchar_t raw_name_ptr, ppc_u32_t flags) {
     } else {
       if (rex::string::utf8_find_name_from_guest_path(path) == path) {
         path = rex::string::utf8_join_guest_paths(
-            rex::string::utf8_find_base_guest_path(kernel_state()->GetExecutableModule()->path()),
+            rex::string::utf8_find_base_guest_path(
+                REX_KERNEL_STATE()->GetExecutableModule()->path()),
             path);
       }
       loader_data.launch_path = path;
@@ -290,12 +291,12 @@ void XamLoaderLaunchTitle_entry(ppc_pchar_t raw_name_ptr, ppc_u32_t flags) {
   }
 
   // This function does not return.
-  kernel_state()->TerminateTitle();
+  REX_KERNEL_STATE()->TerminateTitle();
 }
 
 void XamLoaderTerminateTitle_entry() {
   // This function does not return.
-  kernel_state()->TerminateTitle();
+  REX_KERNEL_STATE()->TerminateTitle();
 }
 
 ppc_u32_result_t XamAlloc_entry(ppc_u32_t unk, ppc_u32_t size, ppc_pu32_t out_ptr) {
@@ -303,14 +304,14 @@ ppc_u32_result_t XamAlloc_entry(ppc_u32_t unk, ppc_u32_t size, ppc_pu32_t out_pt
 
   // Allocate from the heap. Not sure why XAM does this specially, perhaps
   // it keeps stuff in a separate heap?
-  uint32_t ptr = kernel_state()->memory()->SystemHeapAlloc(size);
+  uint32_t ptr = REX_KERNEL_MEMORY()->SystemHeapAlloc(size);
   *out_ptr = ptr;
 
   return X_ERROR_SUCCESS;
 }
 
 ppc_u32_result_t XamFree_entry(ppc_pu32_t ptr) {
-  kernel_state()->memory()->SystemHeapFree(ptr.guest_address());
+  REX_KERNEL_MEMORY()->SystemHeapFree(ptr.guest_address());
 
   return X_ERROR_SUCCESS;
 }
