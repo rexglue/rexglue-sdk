@@ -25,6 +25,7 @@
 #include <rex/ppc/types.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/function_dispatcher.h>
+#include <rex/system/thread_state.h>
 #include <rex/system/user_module.h>
 #include <rex/system/util/string_utils.h>
 #include <rex/system/xevent.h>
@@ -38,6 +39,7 @@
 
 namespace rex::kernel::xboxkrnl {
 using namespace rex::system;
+using rex::runtime::current_ppc_context;
 
 // r13 + 0x100: pointer to thread local state
 // Thread local state:
@@ -479,7 +481,7 @@ void KeQuerySystemTime_entry(ppc_pu64_t time_ptr) {
 
 // https://msdn.microsoft.com/en-us/library/ms686801
 ppc_u32_result_t KeTlsAlloc_entry() {
-  uint32_t slot = kernel_state()->AllocateTLS(g_current_ppc_context);
+  uint32_t slot = kernel_state()->AllocateTLS(current_ppc_context());
   if (slot != X_TLS_OUT_OF_INDEXES) {
     XThread::GetCurrentThread()->SetTLSValue(slot, 0);
   }
@@ -495,7 +497,7 @@ ppc_u32_result_t KeTlsFree_entry(ppc_u32_t tls_index) {
     return 0;
   }
 
-  kernel_state()->FreeTLS(g_current_ppc_context, tls_index);
+  kernel_state()->FreeTLS(current_ppc_context(), tls_index);
   REXKRNL_IMPORT_RESULT("KeTlsFree", "1");
   return 1;
 }
@@ -1136,22 +1138,22 @@ uint32_t xeKeInsertQueueApc(XAPC* apc, uint32_t arg1, uint32_t arg2, uint32_t pr
 
 ppc_u32_result_t KfAcquireSpinLock_entry(ppc_pu32_t lock_ptr) {
   auto lock = reinterpret_cast<X_KSPINLOCK*>(lock_ptr.host_address());
-  return xeKeKfAcquireSpinLock(g_current_ppc_context, lock);
+  return xeKeKfAcquireSpinLock(current_ppc_context(), lock);
 }
 
 void KfReleaseSpinLock_entry(ppc_pu32_t lock_ptr, ppc_u32_t old_irql) {
   auto lock = reinterpret_cast<X_KSPINLOCK*>(lock_ptr.host_address());
-  xeKeKfReleaseSpinLock(g_current_ppc_context, lock, old_irql);
+  xeKeKfReleaseSpinLock(current_ppc_context(), lock, old_irql);
 }
 
 void KeAcquireSpinLockAtRaisedIrql_entry(ppc_pu32_t lock_ptr) {
   auto lock = reinterpret_cast<X_KSPINLOCK*>(lock_ptr.host_address());
-  xeKeKfAcquireSpinLock(g_current_ppc_context, lock, false);
+  xeKeKfAcquireSpinLock(current_ppc_context(), lock, false);
 }
 
 ppc_u32_result_t KeTryToAcquireSpinLockAtRaisedIrql_entry(ppc_pu32_t lock_ptr) {
   auto lock = reinterpret_cast<X_KSPINLOCK*>(lock_ptr.host_address());
-  auto* ctx = g_current_ppc_context;
+  auto* ctx = current_ppc_context();
   uint32_t pcr_addr = static_cast<uint32_t>(ctx->r13.u64);
   if (!rex::thread::atomic_cas(0u, rex::byte_swap(pcr_addr), &lock->prcb_of_owner.value)) {
     return 0;
@@ -1161,7 +1163,7 @@ ppc_u32_result_t KeTryToAcquireSpinLockAtRaisedIrql_entry(ppc_pu32_t lock_ptr) {
 
 void KeReleaseSpinLockFromRaisedIrql_entry(ppc_pu32_t lock_ptr) {
   auto lock = reinterpret_cast<X_KSPINLOCK*>(lock_ptr.host_address());
-  xeKeKfReleaseSpinLock(g_current_ppc_context, lock, 0, false);
+  xeKeKfReleaseSpinLock(current_ppc_context(), lock, 0, false);
 }
 
 void KeEnterCriticalRegion_entry() {
@@ -1173,16 +1175,16 @@ void KeLeaveCriticalRegion_entry() {
 }
 
 ppc_u32_result_t KeRaiseIrqlToDpcLevel_entry() {
-  return xeKfRaiseIrql(g_current_ppc_context, IRQL_DISPATCH);
+  return xeKfRaiseIrql(current_ppc_context(), IRQL_DISPATCH);
 }
 
 void KfLowerIrql_entry(ppc_u32_t old_value) {
-  xeKfLowerIrql(g_current_ppc_context,
+  xeKfLowerIrql(current_ppc_context(),
                 static_cast<unsigned char>(static_cast<uint32_t>(old_value)));
 }
 
 ppc_u32_result_t KfRaiseIrql_entry(ppc_u32_t new_irql) {
-  return xeKfRaiseIrql(g_current_ppc_context,
+  return xeKfRaiseIrql(current_ppc_context(),
                        static_cast<unsigned char>(static_cast<uint32_t>(new_irql)));
 }
 
@@ -1211,7 +1213,7 @@ void NtQueueApcThread_entry(ppc_u32_t thread_handle, ppc_pvoid_t apc_routine,
                     apc_routine_context.guest_address());
 
   if (!xeKeInsertQueueApc(apc, arg1.guest_address(), arg2.guest_address(), 0,
-                          g_current_ppc_context)) {
+                          current_ppc_context())) {
     mem->SystemHeapFree(apc_ptr);
     return;
   }
@@ -1231,7 +1233,7 @@ void KeInitializeApc_entry(ppc_ptr_t<XAPC> apc, ppc_pvoid_t thread_ptr, ppc_pvoi
 ppc_u32_result_t KeInsertQueueApc_entry(ppc_ptr_t<XAPC> apc, ppc_pvoid_t arg1, ppc_pvoid_t arg2,
                                         ppc_u32_t priority_increment) {
   return xeKeInsertQueueApc(apc.host_address(), arg1.guest_address(), arg2.guest_address(),
-                            priority_increment, g_current_ppc_context);
+                            priority_increment, current_ppc_context());
 }
 
 ppc_u32_result_t KeRemoveQueueApc_entry(ppc_ptr_t<XAPC> apc) {
@@ -1239,7 +1241,7 @@ ppc_u32_result_t KeRemoveQueueApc_entry(ppc_ptr_t<XAPC> apc) {
   if (!thread_guest_pointer) {
     return 0;
   }
-  auto* ctx = g_current_ppc_context;
+  auto* ctx = current_ppc_context();
   auto mem = kernel_memory();
   auto target_thread = mem->TranslateVirtual<X_KTHREAD*>(thread_guest_pointer);
   auto old_irql = xeKeKfAcquireSpinLock(ctx, &target_thread->apc_lock);
@@ -1330,7 +1332,7 @@ void ExInitializeReadWriteLock_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
 }
 
 void ExAcquireReadWriteLockExclusive_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
-  auto* ctx = g_current_ppc_context;
+  auto* ctx = current_ppc_context();
   auto old_irql = xeKeKfAcquireSpinLock(ctx, &lock_ptr->spin_lock);
 
   int32_t lock_count = ++lock_ptr->lock_count;
@@ -1346,7 +1348,7 @@ void ExAcquireReadWriteLockExclusive_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
 }
 
 ppc_u32_result_t ExTryToAcquireReadWriteLockExclusive_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
-  auto* ctx = g_current_ppc_context;
+  auto* ctx = current_ppc_context();
   auto old_irql = xeKeKfAcquireSpinLock(ctx, &lock_ptr->spin_lock);
 
   uint32_t result;
@@ -1362,7 +1364,7 @@ ppc_u32_result_t ExTryToAcquireReadWriteLockExclusive_entry(ppc_ptr_t<X_ERWLOCK>
 }
 
 void ExAcquireReadWriteLockShared_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
-  auto* ctx = g_current_ppc_context;
+  auto* ctx = current_ppc_context();
   auto old_irql = xeKeKfAcquireSpinLock(ctx, &lock_ptr->spin_lock);
 
   int32_t lock_count = ++lock_ptr->lock_count;
@@ -1379,7 +1381,7 @@ void ExAcquireReadWriteLockShared_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
 }
 
 ppc_u32_result_t ExTryToAcquireReadWriteLockShared_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
-  auto* ctx = g_current_ppc_context;
+  auto* ctx = current_ppc_context();
   auto old_irql = xeKeKfAcquireSpinLock(ctx, &lock_ptr->spin_lock);
 
   uint32_t result;
@@ -1397,7 +1399,7 @@ ppc_u32_result_t ExTryToAcquireReadWriteLockShared_entry(ppc_ptr_t<X_ERWLOCK> lo
 }
 
 void ExReleaseReadWriteLock_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
-  auto* ctx = g_current_ppc_context;
+  auto* ctx = current_ppc_context();
   auto old_irql = xeKeKfAcquireSpinLock(ctx, &lock_ptr->spin_lock);
 
   int32_t lock_count = --lock_ptr->lock_count;

@@ -41,10 +41,6 @@ REXCVAR_DEFINE_BOOL(ignore_thread_priorities, true, "Kernel",
 REXCVAR_DEFINE_BOOL(ignore_thread_affinities, true, "Kernel",
                     "Ignores game-specified thread affinities");
 
-namespace rex {
-extern thread_local PPCContext* g_current_ppc_context;
-}
-
 namespace rex::system {
 
 const uint32_t XAPC::kSize;
@@ -679,10 +675,8 @@ void XThread::EnqueueApc(uint32_t normal_routine, uint32_t normal_context, uint3
 
   // Important: use the caller PPC context when queuing to another thread.
   // Using the target thread context here can corrupt APC lock/IRQL bookkeeping.
-  PPCContext* queue_ctx = rex::g_current_ppc_context;
-  if (!queue_ctx) {
-    queue_ctx = thread_state_->context();
-  }
+  PPCContext* queue_ctx =
+      runtime::ThreadState::Get() ? runtime::current_ppc_context() : thread_state_->context();
 
   if (!kernel::xboxkrnl::xeKeInsertQueueApc(apc, arg1, arg2, 0, queue_ctx)) {
     memory()->SystemHeapFree(apc_ptr);

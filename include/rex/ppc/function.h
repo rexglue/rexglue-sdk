@@ -27,6 +27,7 @@
 #include <rex/ppc/context.h>
 #include <rex/ppc/types.h>
 #include <rex/system/kernel_state.h>
+#include <rex/system/thread_state.h>
 #include <rex/system/xmemory.h>
 #include <rex/types.h>
 
@@ -477,15 +478,9 @@ void _translate_args_to_guest(PPCContext& ctx, uint8_t* base, std::tuple<TArgs..
 //=============================================================================
 // Calls a native C++ function with arguments extracted from PPC context
 
-extern thread_local PPCContext* g_current_ppc_context;
-
 template <auto Func>
 __attribute__((noinline)) void HostToGuestFunction(PPCContext& ctx, uint8_t* base) {
   using ret_t = decltype(std::apply(Func, function_args(Func)));
-
-  // Set thread-local state so called code can use GuestToHostFunction
-  PPCContext* prev_ctx = g_current_ppc_context;
-  g_current_ppc_context = &ctx;
 
   auto args = function_args(Func);
   _translate_args_to_host<Func>(ctx, base, args);
@@ -511,8 +506,6 @@ __attribute__((noinline)) void HostToGuestFunction(PPCContext& ctx, uint8_t* bas
       ctx.r3.u64 = static_cast<uint64_t>(v);
     }
   }
-
-  g_current_ppc_context = prev_ctx;
 }
 
 //=============================================================================
@@ -524,16 +517,17 @@ template <typename T, typename TFunction, typename... TArgs>
 T GuestToHostFunction(const TFunction& func, TArgs&&... argv) {
   auto args = std::make_tuple(std::forward<TArgs>(argv)...);
 
-  PPCContext* currentCtx = g_current_ppc_context;
-  if (!currentCtx) {
+  auto* ts = runtime::ThreadState::Get();
+  if (!ts) {
     if constexpr (std::is_void_v<T>) {
       return;
     } else {
       return T{};
     }
   }
+  PPCContext* currentCtx = ts->context();
 
-  auto* ks = ::rex::system::kernel_state();
+  auto* ks = currentCtx->kernel_state;
   if (!ks || !ks->memory()) {
     if constexpr (std::is_void_v<T>) {
       return;
@@ -550,8 +544,6 @@ T GuestToHostFunction(const TFunction& func, TArgs&&... argv) {
 
   _translate_args_to_guest(newCtx, base, args);
 
-  g_current_ppc_context = &newCtx;
-
   if constexpr (std::is_function_v<TFunction>) {
     func(newCtx, base);
   } else if constexpr (std::is_integral_v<TFunction>) {
@@ -561,7 +553,6 @@ T GuestToHostFunction(const TFunction& func, TArgs&&... argv) {
   }
 
   currentCtx->fpscr = newCtx.fpscr;
-  g_current_ppc_context = currentCtx;
 
   if constexpr (std::is_void_v<T>) {
     return;

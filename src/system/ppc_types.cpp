@@ -10,10 +10,3 @@
  */
 
 #include <rex/ppc/function.h>
-
-namespace rex {
-
-// Thread-local current PPC context for GuestToHostFunction
-thread_local PPCContext* g_current_ppc_context = nullptr;
-
-}  // namespace rex
