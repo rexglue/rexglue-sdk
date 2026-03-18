@@ -192,6 +192,41 @@ endif()
 # FidelityFX (optional)
 #=============================================================================
 if(REXGLUE_ENABLE_FIDELITYFX)
+    # ── Dependency validation ────────────────────────────────────────────
+    if(NOT WIN32)
+        find_package(Vulkan QUIET)
+        if(NOT Vulkan_FOUND)
+            message(WARNING
+                "REXGLUE_ENABLE_FIDELITYFX requires the Vulkan SDK but it was not found.\n"
+                "Install the LunarG Vulkan SDK: https://vulkan.lunarg.com/sdk/home\n"
+                "Disabling FidelityFX.")
+            set(REXGLUE_ENABLE_FIDELITYFX OFF CACHE BOOL "" FORCE)
+        elseif(Vulkan_VERSION VERSION_LESS "1.3.250")
+            message(WARNING
+                "REXGLUE_ENABLE_FIDELITYFX requires Vulkan SDK >= 1.3.250 "
+                "(found ${Vulkan_VERSION}).\n"
+                "Update via: https://vulkan.lunarg.com/sdk/home\n"
+                "Disabling FidelityFX.")
+            set(REXGLUE_ENABLE_FIDELITYFX OFF CACHE BOOL "" FORCE)
+        else()
+            find_program(_rexglue_glslc glslc)
+            find_program(_rexglue_glslang glslangValidator)
+            if(NOT _rexglue_glslc AND NOT _rexglue_glslang)
+                message(WARNING
+                    "REXGLUE_ENABLE_FIDELITYFX requires Vulkan shader tools "
+                    "(glslc or glslangValidator) but neither was found.\n"
+                    "Install the full LunarG Vulkan SDK: https://vulkan.lunarg.com/sdk/home\n"
+                    "Disabling FidelityFX.")
+                set(REXGLUE_ENABLE_FIDELITYFX OFF CACHE BOOL "" FORCE)
+            endif()
+            unset(_rexglue_glslc CACHE)
+            unset(_rexglue_glslang CACHE)
+        endif()
+    endif()
+endif()
+
+# Proceed only if still enabled after validation.
+if(REXGLUE_ENABLE_FIDELITYFX)
     set(REXGLUE_FIDELITYFX_BACKEND "auto" CACHE STRING
         "FidelityFX backend to build (auto, vk, dx12)")
     set_property(CACHE REXGLUE_FIDELITYFX_BACKEND PROPERTY STRINGS auto vk dx12)
