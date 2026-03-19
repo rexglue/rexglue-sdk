@@ -1,6 +1,21 @@
 # Third-party vendored dependencies for ReXGlue
 
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+
+#=============================================================================
+# Architecture detection
+#=============================================================================
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64)$")
+    set(IS_ARM64 FALSE)
+    set(IS_X86_64 TRUE)
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|ARM64)$")
+    set(IS_ARM64 TRUE)
+    set(IS_X86_64 FALSE)
+else()
+    set(IS_ARM64 FALSE)
+    set(IS_X86_64 FALSE)
+endif()
+
 #=============================================================================
 # Verify git submodules are initialized (only vendored ones)
 #=============================================================================
@@ -300,6 +315,23 @@ endif()
 
 set(FFMPEG_DIR "${CMAKE_CURRENT_SOURCE_DIR}/FFmpeg")
 
+# Overlay generated FFmpeg list files
+set(FFMPEG_OVERLAY_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ffmpeg-overlay")
+set(FFMPEG_OVERLAY_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/ffmpeg-overlay")
+file(MAKE_DIRECTORY "${FFMPEG_OVERLAY_BUILD_DIR}/libavcodec")
+configure_file(
+  "${FFMPEG_OVERLAY_SRC_DIR}/codec_list.c" "${FFMPEG_OVERLAY_BUILD_DIR}/libavcodec/codec_list.c"
+  COPYONLY
+)
+configure_file(
+  "${FFMPEG_OVERLAY_SRC_DIR}/parser_list.c" "${FFMPEG_OVERLAY_BUILD_DIR}/libavcodec/parser_list.c"
+  COPYONLY
+)
+configure_file(
+  "${FFMPEG_OVERLAY_SRC_DIR}/bsf_list.c" "${FFMPEG_OVERLAY_BUILD_DIR}/libavcodec/bsf_list.c"
+  COPYONLY
+)
+
 # Common defines for both libraries
 set(FFMPEG_COMMON_DEFINES
     HAVE_AV_CONFIG_H
@@ -311,6 +343,14 @@ if(WIN32)
     set(FFMPEG_ATOMICS_INCLUDE "${FFMPEG_DIR}/compat/atomics/win32")
 else()
     set(FFMPEG_ATOMICS_INCLUDE "${FFMPEG_DIR}/compat/atomics/gcc")
+endif()
+
+#=============================================================================
+# ARM64 setup for FFmpeg (NEON optimizations)
+#=============================================================================
+if(IS_ARM64)
+  enable_language(ASM)
+  set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} -march=armv8-a")
 endif()
 
 # libavutil - FFmpeg utility library (must build first)
@@ -393,14 +433,28 @@ add_library(libavutil STATIC
     ${FFMPEG_DIR}/libavutil/film_grain_params.c
 )
 
-# Add x86 optimizations on Windows/Linux
-if(WIN32 OR (UNIX AND NOT APPLE))
+# Add x86 optimizations
+if(IS_X86_64)
     target_sources(libavutil PRIVATE
         ${FFMPEG_DIR}/libavutil/x86/cpu.c
         ${FFMPEG_DIR}/libavutil/x86/fixed_dsp_init.c
         ${FFMPEG_DIR}/libavutil/x86/float_dsp_init.c
         ${FFMPEG_DIR}/libavutil/x86/imgutils_init.c
         ${FFMPEG_DIR}/libavutil/x86/lls_init.c
+    )
+endif()
+
+# ARM64 optimizations for libavutil
+if(IS_ARM64)
+    target_sources(libavutil PRIVATE
+        ${FFMPEG_DIR}/libavutil/aarch64/cpu.c
+        ${FFMPEG_DIR}/libavutil/aarch64/float_dsp_init.c
+        ${FFMPEG_DIR}/libavutil/aarch64/float_dsp_neon.S
+    )
+    target_compile_definitions(libavutil PRIVATE
+        HAVE_NEON=1
+        HAVE_ARMV8=1
+        HAVE_INLINE_ASM=1
     )
 endif()
 
@@ -482,8 +536,8 @@ if(WIN32)
     )
 endif()
 
-# Add x86 optimizations on Windows/Linux
-if(WIN32 OR (UNIX AND NOT APPLE))
+# Add x86 optimizations 
+if(IS_X86_64)
     target_sources(libavcodec PRIVATE
         ${FFMPEG_DIR}/libavcodec/x86/constants.c
         ${FFMPEG_DIR}/libavcodec/x86/fdctdsp_init.c
@@ -492,6 +546,25 @@ if(WIN32 OR (UNIX AND NOT APPLE))
         ${FFMPEG_DIR}/libavcodec/x86/fdct.c
     )
 endif()
+
+# ARM64 optimizations for libavcodec
+if(IS_ARM64)
+    target_sources(libavcodec PRIVATE
+        ${FFMPEG_DIR}/libavcodec/aarch64/fft_init_aarch64.c
+        ${FFMPEG_DIR}/libavcodec/aarch64/fft_neon.S
+        ${FFMPEG_DIR}/libavcodec/aarch64/mdct_neon.S
+        ${FFMPEG_DIR}/libavcodec/aarch64/simple_idct_neon.S
+        ${FFMPEG_DIR}/libavcodec/aarch64/videodsp.S
+        ${FFMPEG_DIR}/libavcodec/aarch64/neon.S
+    )
+    target_compile_definitions(libavcodec PRIVATE
+        HAVE_NEON=1
+        HAVE_ARMV8=1
+        HAVE_INLINE_ASM=1
+    )
+endif()
+
+target_include_directories(libavcodec BEFORE PRIVATE "${FFMPEG_OVERLAY_BUILD_DIR}")
 
 target_include_directories(libavcodec
     PUBLIC

@@ -38,12 +38,19 @@ function(rexglue_configure_target target_name)
             -Wl,--no-whole-archive
         )
         # Large executable support
-        target_link_options(${target_name} PRIVATE -Wl,--no-relax)
-        target_compile_options(${target_name} PRIVATE -mcmodel=large)
+        if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+            target_link_options(${target_name} PRIVATE -Wl,--no-relax)
+            target_compile_options(${target_name} PRIVATE -mcmodel=large)
+        elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|ARM64")
+            target_compile_options(${target_name} PRIVATE -march=armv8-a)
+        endif()
     endif()
 
     if(NOT MSVC)
-        target_compile_options(${target_name} PRIVATE -msse4.1)
+        if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+            target_compile_options(${target_name} PRIVATE -msse4.1)
+        endif()
+        # ARM64 NEON is enabled via -march=armv8-a above
     endif()
 
     # Copy runtime DLLs next to the executable

@@ -6,7 +6,8 @@
 	url = https://github.com/KhronosGroup/glslang.git
 [submodule "thirdparty/FFmpeg"]
 	path = thirdparty/FFmpeg
-	url = https://github.com/xenia-project/FFmpeg.git
+	url = https://github.com/wmarti/FFmpeg.git
+	branch = xenia-ffmpeg-canary-full
 [submodule "thirdparty/tomlplusplus"]
 	path = thirdparty/tomlplusplus
 	url = https://github.com/marzer/tomlplusplus.git
