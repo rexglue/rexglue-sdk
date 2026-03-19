@@ -295,4 +295,10 @@ void ReXApp::OnDestroy() {
   runtime_.reset();
 }
 
+void ReXApp::SetGuestFrameStats(ui::DebugOverlayDialog::FrameStatsProvider provider) {
+  if (debug_overlay_) {
+    debug_overlay_->SetStatsProvider(std::move(provider));
+  }
+}
+
 }  // namespace rex

@@ -23,6 +23,7 @@
 #include <rex/ui/imgui_dialog.h>
 #include <rex/ui/imgui_drawer.h>
 #include <rex/ui/immediate_drawer.h>
+#include <rex/ui/overlay/debug_overlay.h>
 #include <rex/ui/window.h>
 #include <rex/ui/window_listener.h>
 #include <rex/ui/windowed_app.h>
@@ -41,7 +42,6 @@ struct PathConfig {
 };
 
 namespace ui {
-class DebugOverlayDialog;
 class ConsoleDialog;
 class SettingsDialog;
 }  // namespace ui
@@ -109,6 +109,9 @@ class ReXApp : public ui::WindowedApp, public ui::WindowListener, public ui::Win
   const std::filesystem::path& game_data_root() const { return game_data_root_; }
   const std::filesystem::path& user_data_root() const { return user_data_root_; }
   const std::filesystem::path& update_data_root() const { return update_data_root_; }
+
+  /// Set a callback that provides guest frame stats to the debug overlay.
+  void SetGuestFrameStats(ui::DebugOverlayDialog::FrameStatsProvider provider);
 
  private:
   // WindowedApp overrides

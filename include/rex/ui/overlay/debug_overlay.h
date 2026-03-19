@@ -31,6 +31,7 @@ class DebugOverlayDialog : public ImGuiDialog {
 
   void ToggleVisible() { visible_ = !visible_; }
   bool IsVisible() const { return visible_; }
+  void SetStatsProvider(FrameStatsProvider provider) { stats_provider_ = std::move(provider); }
 
  protected:
   void OnDraw(ImGuiIO& io) override;
