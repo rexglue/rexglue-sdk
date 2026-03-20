@@ -517,8 +517,25 @@ add_library(libavcodec STATIC
     ${FFMPEG_DIR}/libavcodec/sinewin.c
     ${FFMPEG_DIR}/libavcodec/wma_freqs.c
     ${FFMPEG_DIR}/libavcodec/wmaprodec.c
+    ${FFMPEG_DIR}/libavcodec/wmadec.c
     ${FFMPEG_DIR}/libavcodec/wma.c
     ${FFMPEG_DIR}/libavcodec/wma_common.c
+    ${FFMPEG_DIR}/libavcodec/mpegaudio.c
+    ${FFMPEG_DIR}/libavcodec/mpegaudiodata.c
+    ${FFMPEG_DIR}/libavcodec/mpegaudiodecheader.c
+    ${FFMPEG_DIR}/libavcodec/mpegaudiodec_common.c
+    ${FFMPEG_DIR}/libavcodec/mpegaudiodec_float.c
+    ${FFMPEG_DIR}/libavcodec/mpegaudiodec_fixed.c
+    ${FFMPEG_DIR}/libavcodec/mpegaudiodsp.c
+    ${FFMPEG_DIR}/libavcodec/mpegaudiodsp_data.c
+    ${FFMPEG_DIR}/libavcodec/mpegaudiodsp_float.c
+    ${FFMPEG_DIR}/libavcodec/mpegaudiodsp_fixed.c
+    ${FFMPEG_DIR}/libavcodec/mpegaudio_parser.c
+    ${FFMPEG_DIR}/libavcodec/dct.c
+    ${FFMPEG_DIR}/libavcodec/dct32_float.c
+    ${FFMPEG_DIR}/libavcodec/dct32_fixed.c
+    ${FFMPEG_DIR}/libavcodec/rdft.c
+    ${FFMPEG_DIR}/libavcodec/aactab.c
     ${FFMPEG_DIR}/libavcodec/null_bsf.c
     ${FFMPEG_DIR}/libavcodec/pthread.c
     ${FFMPEG_DIR}/libavcodec/pthread_slice.c
@@ -544,6 +561,8 @@ if(IS_X86_64)
         ${FFMPEG_DIR}/libavcodec/x86/fft_init.c
         ${FFMPEG_DIR}/libavcodec/x86/idctdsp_init.c
         ${FFMPEG_DIR}/libavcodec/x86/fdct.c
+        ${FFMPEG_DIR}/libavcodec/x86/mpegaudiodsp.c
+        ${FFMPEG_DIR}/libavcodec/x86/dct_init.c
     )
 endif()
 
@@ -556,6 +575,8 @@ if(IS_ARM64)
         ${FFMPEG_DIR}/libavcodec/aarch64/simple_idct_neon.S
         ${FFMPEG_DIR}/libavcodec/aarch64/videodsp.S
         ${FFMPEG_DIR}/libavcodec/aarch64/neon.S
+        ${FFMPEG_DIR}/libavcodec/aarch64/mpegaudiodsp_init.c
+        ${FFMPEG_DIR}/libavcodec/aarch64/mpegaudiodsp_neon.S
     )
     target_compile_definitions(libavcodec PRIVATE
         HAVE_NEON=1
