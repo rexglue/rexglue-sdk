@@ -310,6 +310,11 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint32_t value) {
         uint32_t context_id = base_context_id + i;
         auto& context = contexts_[context_id];
         context.Disable();
+        // [XMA fix] Added Block(false) after Disable(). Without this, the game
+        // could call XMADisableContext and start modifying the context struct
+        // while a decode was still in progress on the worker thread. Block()
+        // waits for the context mutex to be free (poll=false means wait, not spin).
+        context.Block(false);
       }
     }
     // Signal the decoder thread to start processing.
@@ -350,6 +355,9 @@ void XmaDecoder::Pause() {
   }
   paused_ = true;
 
+  if (work_event_) {
+    work_event_->Set();
+  }
   pause_fence_.Wait();
 }
 

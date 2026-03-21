@@ -27,6 +27,7 @@ extern "C" {
 #pragma warning(disable : 4101 4244 5033)
 #endif
 #include "libavcodec/avcodec.h"
+#include "libavutil/error.h"
 #if REX_COMPILER_MSVC
 #pragma warning(pop)
 #endif
@@ -44,10 +45,7 @@ XmaContext::XmaContext()
 
 XmaContext::~XmaContext() {
   if (av_context_) {
-    if (avcodec_is_open(av_context_)) {
-      avcodec_close(av_context_);
-    }
-    av_free(av_context_);
+    avcodec_free_context(&av_context_);
   }
   if (av_frame_) {
     av_frame_free(&av_frame_);
@@ -62,6 +60,7 @@ int XmaContext::Setup(uint32_t id, memory::Memory* memory, uint32_t guest_ptr) {
   // Allocate ffmpeg stuff:
   av_packet_ = av_packet_alloc();
   assert_not_null(av_packet_);
+  av_packet_->buf = av_buffer_alloc(128 * 1024);
 
   // find the XMA2 audio decoder
   av_codec_ = avcodec_find_decoder(AV_CODEC_ID_XMAFRAMES);
@@ -451,12 +450,14 @@ int XmaContext::PrepareDecoder(int sample_rate, bool is_two_channel) {
   uint32_t channels = is_two_channel ? 2 : 1;
   if (av_context_->sample_rate != sample_rate ||
       av_context_->channels != static_cast<int>(channels)) {
-    avcodec_close(av_context_);
-    av_free(av_context_);
+    REXAPU_DEBUG("XmaContext {}: Codec reinit: rate {} -> {}, channels {} -> {}", id(),
+                 av_context_->sample_rate, sample_rate, av_context_->channels, channels);
+    avcodec_free_context(&av_context_);
     av_context_ = avcodec_alloc_context3(av_codec_);
 
     av_context_->sample_rate = sample_rate;
     av_context_->channels = channels;
+    av_context_->flags2 |= AV_CODEC_FLAG2_SKIP_MANUAL;
 
     if (avcodec_open2(av_context_, av_codec_, NULL) < 0) {
       REXAPU_ERROR("XmaContext: Failed to reopen FFmpeg context");
@@ -481,7 +482,9 @@ bool XmaContext::DecodePacket(AVCodecContext* av_context, const AVPacket* av_pac
                               AVFrame* av_frame) {
   auto ret = avcodec_send_packet(av_context, av_packet);
   if (ret < 0) {
-    REXAPU_ERROR("XmaContext {}: Error sending packet for decoding ({})", id(), ret);
+    char errbuf[AV_ERROR_MAX_STRING_SIZE];
+    av_strerror(ret, errbuf, sizeof(errbuf));
+    REXAPU_ERROR("XmaContext {}: Error sending packet for decoding: {} ({})", id(), errbuf, ret);
     return false;
   }
   ret = avcodec_receive_frame(av_context, av_frame);
@@ -490,7 +493,9 @@ bool XmaContext::DecodePacket(AVCodecContext* av_context, const AVPacket* av_pac
     return false;
   }
   if (ret < 0) {
-    REXAPU_ERROR("XmaContext {}: Error during decoding ({})", id(), ret);
+    char errbuf[AV_ERROR_MAX_STRING_SIZE];
+    av_strerror(ret, errbuf, sizeof(errbuf));
+    REXAPU_ERROR("XmaContext {}: Error during decoding: {} ({})", id(), errbuf, ret);
     return false;
   }
   return true;
