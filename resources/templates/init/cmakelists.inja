@@ -17,9 +17,9 @@ set({{ names.upper_case }}_SOURCES
 )
 
 if(WIN32)
-    add_executable({{ names.snake_case }} WIN32 {{ cmake_var(names.upper_case ~ "_SOURCES") }})
+    add_executable({{ names.snake_case }} WIN32 {{ cmake_var(names.upper_case + "_SOURCES") }})
 else()
-    add_executable({{ names.snake_case }} {{ cmake_var(names.upper_case ~ "_SOURCES") }})
+    add_executable({{ names.snake_case }} {{ cmake_var(names.upper_case + "_SOURCES") }})
 endif()
 
 rexglue_setup_target({{ names.snake_case }})
