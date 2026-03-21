@@ -63,3 +63,6 @@
 [submodule "thirdparty/inja"]
 	path = thirdparty/inja
 	url = https://github.com/pantor/inja.git
+[submodule "thirdparty/tracy"]
+	path = thirdparty/tracy
+	url = https://github.com/wolfpld/tracy.git
