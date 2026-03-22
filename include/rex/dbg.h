@@ -15,6 +15,8 @@
 
 #include <fmt/format.h>
 
+#include <cstring>
+
 namespace rex::debug {
 
 // Returns true if a debugger is attached to this process.
@@ -39,6 +41,32 @@ void DebugPrint(fmt::string_view format, const Args&... args) {
   detail::DebugPrint(fmt::vformat(format, fmt::make_format_args(args...)).c_str());
 }
 
+}  // namespace rex::debug
+
+#ifdef REXGLUE_ENABLE_PROFILING
+
+#include <tracy/Tracy.hpp>
+
+// CPU profiling zones
+#define SCOPE_profile_cpu_f(name) ZoneNamedN(___tracy_cpu_zone, name, true)
+#define SCOPE_profile_cpu_i(name, detail)      \
+  ZoneNamedN(___tracy_cpu_zone_i, name, true); \
+  ZoneTextV(___tracy_cpu_zone_i, detail, std::strlen(detail))
+
+// GPU profiling stubs -- backend code uses TracyVkZone/TracyD3D12Zone directly.
+#define SCOPE_profile_gpu_f(name)
+#define SCOPE_profile_gpu_i(name, detail)
+
+// Thread profiling
+#define PROFILE_THREAD_ENTER(name) tracy::SetThreadName(name)
+#define PROFILE_THREAD_EXIT()
+
+// Counter profiling -- plot to Tracy
+#define COUNT_profile_set(name, value) TracyPlot(name, static_cast<int64_t>(value))
+#define COUNT_profile_add(name, value) TracyPlot(name, static_cast<int64_t>(value))
+
+#else  // !REXGLUE_ENABLE_PROFILING
+
 // CPU profiling stubs
 #define SCOPE_profile_cpu_f(name)
 #define SCOPE_profile_cpu_i(name, detail)
@@ -55,17 +83,4 @@ void DebugPrint(fmt::string_view format, const Args&... args) {
 #define COUNT_profile_set(name, value)
 #define COUNT_profile_add(name, value)
 
-// Stub Profiler class for compatibility
-class Profiler {
- public:
-  static void OnThreadEnter(const char* name = nullptr) { (void)name; }
-  static void OnThreadExit() {}
-  static void ThreadEnter(const char* name = nullptr) { (void)name; }
-  static void ThreadExit() {}
-  static void Flip() {}
-  static void Flush() {}
-  static void Shutdown() {}
-  static bool is_enabled() { return false; }
-};
-
-}  // namespace rex::debug
+#endif  // REXGLUE_ENABLE_PROFILING
