@@ -12,7 +12,7 @@
  * REXCVAR_DEFINE_STRING(my_string, "default", "Category", "A string setting");
  * @endcode
  *
- * Available types: BOOL, INT32, INT64, UINT32, UINT64, DOUBLE, STRING
+ * Available types: BOOL, INT32, INT64, UINT32, UINT64, DOUBLE, STRING, COMMAND
  *
  * @section cvar_declaring Declaring CVars (for use in other files)
  *
@@ -114,7 +114,7 @@ void SaveConfig(const std::filesystem::path& config_path);
 // Flag Registry
 //=============================================================================
 
-enum class FlagType { Boolean, Int32, Int64, Uint32, Uint64, Double, String };
+enum class FlagType { Boolean, Int32, Int64, Uint32, Uint64, Double, String, Command };
 
 // Lifecycle: when can this flag be modified?
 enum class Lifecycle {
@@ -141,6 +141,7 @@ struct FlagEntry {
   std::string description;
   std::function<bool(std::string_view)> setter;
   std::function<std::string()> getter;
+  std::function<void()> command_callback;
   Lifecycle lifecycle = Lifecycle::kHotReload;
   Constraints constraints;
   std::string default_value;
@@ -264,6 +265,7 @@ inline bool ParseDouble(std::string_view s, double& out) {
                                     return true;                                        \
                                   },                                                    \
                                   []() { return FLAGS_##name ? "true" : "false"; },     \
+                                  []() { return; },                                     \
                                   ::rex::cvar::Lifecycle::kHotReload,                   \
                                   {},                                                   \
                                   (default_val) ? "true" : "false",                     \
@@ -286,13 +288,14 @@ inline bool ParseDouble(std::string_view s, double& out) {
                                     return true;                                             \
                                   },                                                         \
                                   []() { return std::to_string(FLAGS_##name); },             \
+                                  []() { return; },                                          \
                                   ::rex::cvar::Lifecycle::kHotReload,                        \
                                   {},                                                        \
                                   std::to_string(default_val),                               \
                                   false})
 
-#define REXCVAR_DEFINE_INT64(name, default_val, category, desc)                              \
-  int64_t FLAGS_##name = (default_val);                                                      \
+#define REXCVAR_DEFINE_INT64(name, default_val, category, desc) \
+  int64_t FLAGS_##name = (default_val);                         \
   static auto _cvar_reg_##name =                                                             \
       ::rex::cvar::FlagRegistrar({#name,                                                     \
                                   ::rex::cvar::FlagType::Int64,                              \
@@ -308,6 +311,7 @@ inline bool ParseDouble(std::string_view s, double& out) {
                                     return true;                                             \
                                   },                                                         \
                                   []() { return std::to_string(FLAGS_##name); },             \
+                                  []() { return; },                                          \ 
                                   ::rex::cvar::Lifecycle::kHotReload,                        \
                                   {},                                                        \
                                   std::to_string(default_val),                               \
@@ -330,6 +334,7 @@ inline bool ParseDouble(std::string_view s, double& out) {
                                     return true;                                             \
                                   },                                                         \
                                   []() { return std::to_string(FLAGS_##name); },             \
+                                  []() { return; },                                          \
                                   ::rex::cvar::Lifecycle::kHotReload,                        \
                                   {},                                                        \
                                   std::to_string(default_val),                               \
@@ -352,6 +357,7 @@ inline bool ParseDouble(std::string_view s, double& out) {
                                     return true;                                             \
                                   },                                                         \
                                   []() { return std::to_string(FLAGS_##name); },             \
+                                  []() { return; },                                          \
                                   ::rex::cvar::Lifecycle::kHotReload,                        \
                                   {},                                                        \
                                   std::to_string(default_val),                               \
@@ -372,6 +378,7 @@ inline bool ParseDouble(std::string_view s, double& out) {
                                     return true;                                 \
                                   },                                             \
                                   []() { return std::to_string(FLAGS_##name); }, \
+                                  []() { return; },                              \
                                   ::rex::cvar::Lifecycle::kHotReload,            \
                                   {},                                            \
                                   std::to_string(default_val),                   \
@@ -388,10 +395,26 @@ inline bool ParseDouble(std::string_view s, double& out) {
                                                                return true;                      \
                                                              },                                  \
                                                              []() { return FLAGS_##name; },      \
+                                                             []() { return; },                   \
                                                              ::rex::cvar::Lifecycle::kHotReload, \
                                                              {},                                 \
                                                              default_val,                        \
                                                              false})
+
+#define REXCVAR_DEFINE_COMMAND(name, callback, category, desc)            \
+  std::function<void()> FLAGS_##name = (callback);                        \
+  static auto _cvar_reg_##name =                                          \
+      ::rex::cvar::FlagRegistrar({#name,                                  \
+                                  ::rex::cvar::FlagType::Command,         \
+                                  category,                               \
+                                  desc,                                   \
+                                  [](std::string_view) { return false; }, \
+                                  []() { return "<command>"; },           \
+                                  callback,                               \
+                                  ::rex::cvar::Lifecycle::kHotReload,     \
+                                  {},                                     \
+                                  "<command>",                            \
+                                  false})
 
 namespace rex::cvar {
 namespace testing {
