@@ -28,19 +28,25 @@ function(rexglue_configure_target target_name)
     target_compile_definitions(${target_name} PRIVATE
         REXGLUE_BUILD_CONFIG="$<CONFIG>")
 
+    # Whole-archive linking for kernel hooks
+    if(WIN32)
+        target_link_options(${target_name} PRIVATE
+            "LINKER:/WHOLEARCHIVE:$<TARGET_FILE:rex::kernel>"
+        )
+    else()
+        target_link_options(${target_name} PRIVATE
+            -Wl,--whole-archive
+            $<TARGET_FILE:rex::kernel>
+            -Wl,--no-whole-archive
+        )
+    endif()
+
     # Linux platform settings
     if(UNIX AND NOT APPLE)
         find_package(PkgConfig REQUIRED)
         pkg_check_modules(GTK3 REQUIRED gtk+-3.0)
         target_include_directories(${target_name} PRIVATE ${GTK3_INCLUDE_DIRS})
         target_link_libraries(${target_name} PRIVATE ${GTK3_LIBRARIES})
-
-        # Whole-archive linking for kernel hooks
-        target_link_options(${target_name} PRIVATE
-            -Wl,--whole-archive
-            $<TARGET_FILE:rex::kernel>
-            -Wl,--no-whole-archive
-        )
         # Large executable support
         if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
             target_link_options(${target_name} PRIVATE -Wl,--no-relax)
