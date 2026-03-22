@@ -82,7 +82,25 @@ using PPCFunc = void(PPCContext& ctx, uint8_t* base);
 #define PPC_EXTERN_IMPORT(x) extern "C" PPC_FUNC(x)  // For __imp__ kernel imports
 #define PPC_WEAK_FUNC(x) __attribute__((weak, noinline)) PPC_FUNC(x)
 
-// Compiler-specific assume hint for alignment
+// Compiler-specific assume hint for alignment, with optional Tracy zone
+#if defined(REXGLUE_PROFILE_GUEST_FUNCTIONS) && defined(REXGLUE_ENABLE_PROFILING)
+#include <tracy/Tracy.hpp>
+#if defined(__clang__)
+#define PPC_FUNC_PROLOGUE()                     \
+  __builtin_assume(((size_t)base & 0x1F) == 0); \
+  ZoneNamedN(___tracy_guest_zone, __func__, true)
+#elif defined(__GNUC__)
+#define PPC_FUNC_PROLOGUE()         \
+  do {                              \
+    if (((size_t)base & 0x1F) != 0) \
+      __builtin_unreachable();      \
+  } while (0);                      \
+  ZoneNamedN(___tracy_guest_zone, __func__, true)
+#else
+#define PPC_FUNC_PROLOGUE() ZoneNamedN(___tracy_guest_zone, __func__, true)
+#endif
+#else
+// Original alignment-hint-only expansion
 #if defined(__clang__)
 #define PPC_FUNC_PROLOGUE() __builtin_assume(((size_t)base & 0x1F) == 0)
 #elif defined(__GNUC__)
@@ -93,6 +111,7 @@ using PPCFunc = void(PPCContext& ctx, uint8_t* base);
   } while (0)
 #else
 #define PPC_FUNC_PROLOGUE() ((void)0)
+#endif
 #endif
 
 #ifndef PPC_CALL_FUNC
@@ -124,7 +143,10 @@ using PPCFunc = void(PPCContext& ctx, uint8_t* base);
   (*(PPCFunc**)(x + PPC_IMAGE_BASE + PPC_IMAGE_SIZE + (uint64_t(uint32_t(y) - PPC_CODE_BASE) * 2)))
 
 #undef PPC_CALL_INDIRECT_FUNC
-#define PPC_CALL_INDIRECT_FUNC(x) PPC_LOOKUP_FUNC(base, x)(ctx, base);
+#include <rex/perf/counter.h>
+#define PPC_CALL_INDIRECT_FUNC(x) \
+  PROFILE_FUNCTION_DISPATCHED();  \
+  PPC_LOOKUP_FUNC(base, x)(ctx, base);
 
 #endif  // PPC_CONFIG_H_INCLUDED
 

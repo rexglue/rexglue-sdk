@@ -573,10 +573,19 @@ T GuestToHostFunction(const TFunction& func, TArgs&&... argv) {
 //=============================================================================
 
 // Hook a PPC function name to a native C++ function
+#ifdef REXGLUE_ENABLE_PROFILING
+#include <tracy/Tracy.hpp>
+#define PPC_HOOK(subroutine, function)                 \
+  extern "C" PPC_FUNC(subroutine) {                    \
+    ZoneNamedN(___tracy_hook_zone, #subroutine, true); \
+    rex::HostToGuestFunction<function>(ctx, base);     \
+  }
+#else
 #define PPC_HOOK(subroutine, function)             \
   extern "C" PPC_FUNC(subroutine) {                \
     rex::HostToGuestFunction<function>(ctx, base); \
   }
+#endif
 
 // Create a simple stub that does nothing
 #define PPC_STUB(subroutine)              \
