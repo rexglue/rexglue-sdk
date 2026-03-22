@@ -155,6 +155,9 @@ class CodegenContext {
 
   const std::filesystem::path& configDir() const { return configDir_; }
 
+  /// Absolute path to the TOML file passed to Create(); empty if unknown (e.g. test helpers).
+  const std::filesystem::path& configFilePath() const { return configFilePath_; }
+
  private:
   CodegenContext() = default;
 
@@ -163,7 +166,8 @@ class CodegenContext {
   AnalysisState analysisState_;             ///< Analysis state (populated during analysis)
   std::unique_ptr<DecodedBinary> decoded_;  ///< Decoded instructions (created via initDecoded())
   runtime::ExportResolver* resolver_ = nullptr;  ///< For runtime resolution (borrowed)
-  std::filesystem::path configDir_;  ///< Directory containing config file (for relative paths)
+  std::filesystem::path configDir_;       ///< Directory containing config file (for relative paths)
+  std::filesystem::path configFilePath_;  ///< Config file path (for persistence, e.g. jmp addresses)
 };
 
 }  // namespace rex::codegen

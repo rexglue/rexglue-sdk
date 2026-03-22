@@ -17,6 +17,10 @@
 
 #include <fmt/format.h>
 
+#include <fstream>
+#include <regex>
+#include <sstream>
+
 #include <rex/codegen/config.h>
 #include <rex/logging.h>
 
@@ -353,6 +357,172 @@ std::optional<ParsedExceptionInfo> parseExceptionInfo(const BinaryView& binary,
 // Helper Detection
 //=============================================================================
 
+// setjmp: bytes 3C 80 ? ? 80 04  -> lis r4,imm16 ; instruction with high half 0x8004
+// longjmp: 7C 08 02 A6 94 21 -> mflr r0 ; stwu r1,imm(r1) prologue
+void collectSetjmpLongjmpMatches(const BinaryView& binary, std::vector<uint32_t>& setjmpMatches,
+                                 std::vector<uint32_t>& longjmpMatches) {
+  setjmpMatches.clear();
+  longjmpMatches.clear();
+
+  for (const auto& section : binary.sections()) {
+    if (!section.executable)
+      continue;
+
+    const uint8_t* data = section.data;
+    const size_t size = section.size;
+    const size_t base = section.baseAddress;
+
+    for (size_t offset = 0; offset + 8 <= size; offset += 4) {
+      uint32_t w0 = load_and_swap<uint32_t>(data + offset);
+      uint32_t w1 = load_and_swap<uint32_t>(data + offset + 4);
+
+      if ((w0 & 0xFFFF0000u) == 0x3C800000u && (w1 & 0xFFFF0000u) == 0x80040000u) {
+        setjmpMatches.push_back(static_cast<uint32_t>(base + offset));
+      }
+      if (w0 == 0x7C0802A6u && (w1 & 0xFFFF0000u) == 0x94210000u) {
+        longjmpMatches.push_back(static_cast<uint32_t>(base + offset));
+      }
+    }
+  }
+}
+
+bool writeJmpAddressesToConfigToml(const std::filesystem::path& path, uint32_t setjmp,
+                                   uint32_t longjmp) {
+  std::ifstream in(path, std::ios::binary);
+  if (!in)
+    return false;
+
+  std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  std::vector<std::string> lines;
+  {
+    std::istringstream stream(content);
+    std::string line;
+    while (std::getline(stream, line)) {
+      if (!line.empty() && line.back() == '\r')
+        line.pop_back();
+      lines.push_back(std::move(line));
+    }
+  }
+
+  const std::string sjLine = fmt::format("setjmp_address = 0x{:08X}", setjmp);
+  const std::string ljLine = fmt::format("longjmp_address = 0x{:08X}", longjmp);
+
+  const std::regex reSj(R"(^\s*setjmp_address\s*=)", std::regex::ECMAScript);
+  const std::regex reLj(R"(^\s*longjmp_address\s*=)", std::regex::ECMAScript);
+
+  bool haveSj = false;
+  bool haveLj = false;
+  for (auto& l : lines) {
+    if (std::regex_search(l, reSj)) {
+      l = sjLine;
+      haveSj = true;
+    }
+    if (std::regex_search(l, reLj)) {
+      l = ljLine;
+      haveLj = true;
+    }
+  }
+
+  if (!haveSj || !haveLj) {
+    size_t anchorIdx = lines.size();
+    for (size_t i = 0; i < lines.size(); ++i) {
+      if (lines[i].find("out_directory_path") != std::string::npos) {
+        anchorIdx = i;
+        break;
+      }
+    }
+
+    if (anchorIdx == lines.size()) {
+      if (!lines.empty() && !lines.back().empty())
+        lines.push_back("");
+      if (!haveSj)
+        lines.push_back(sjLine);
+      if (!haveLj)
+        lines.push_back(ljLine);
+    } else {
+      size_t ins = anchorIdx + 1;
+      if (ins < lines.size() && lines[ins].empty()) {
+        ++ins;
+      } else {
+        lines.insert(lines.begin() + static_cast<std::ptrdiff_t>(ins), "");
+        ++ins;
+      }
+      std::vector<std::string> chunk;
+      if (!haveSj)
+        chunk.push_back(sjLine);
+      if (!haveLj)
+        chunk.push_back(ljLine);
+      lines.insert(lines.begin() + static_cast<std::ptrdiff_t>(ins), chunk.begin(), chunk.end());
+    }
+  }
+
+  std::ofstream out(path, std::ios::binary);
+  if (!out)
+    return false;
+
+  for (size_t i = 0; i < lines.size(); ++i) {
+    if (i)
+      out.put('\n');
+    out << lines[i];
+  }
+  out.put('\n');
+  return true;
+}
+
+void detectAndPersistJmpAddresses(CodegenContext& ctx) {
+  std::vector<uint32_t> sj;
+  std::vector<uint32_t> lj;
+  collectSetjmpLongjmpMatches(ctx.binary(), sj, lj);
+
+  auto& config = ctx.Config();
+
+  if (sj.empty()) {
+    REXCODEGEN_ERROR(
+        "Analyze: setjmp signature not found (expected 3C 80 ?? ?? 80 04 ?? ?? at instruction "
+        "boundary)");
+    return;
+  }
+  if (lj.empty()) {
+    REXCODEGEN_ERROR(
+        "Analyze: longjmp signature not found (expected 7C 08 02 A6 94 21 ?? ?? at instruction "
+        "boundary)");
+    return;
+  }
+  if (sj.size() > 1) {
+    REXCODEGEN_ERROR("Analyze: setjmp signature matched {} times (expected 1); not updating config",
+                     sj.size());
+    return;
+  }
+  if (lj.size() > 1) {
+    REXCODEGEN_ERROR("Analyze: longjmp signature matched {} times (expected 1); not updating config",
+                     lj.size());
+    return;
+  }
+
+  const uint32_t setjmpAddr = sj[0];
+  const uint32_t longjmpAddr = lj[0];
+
+  config.setJmpAddress = setjmpAddr;
+  config.longJmpAddress = longjmpAddr;
+
+  if (ctx.configFilePath().empty()) {
+    REXCODEGEN_INFO(
+        "Analyze: setjmp_address=0x{:08X}, longjmp_address=0x{:08X} (no config file path; TOML not "
+        "updated)",
+        setjmpAddr, longjmpAddr);
+    return;
+  }
+
+  if (!writeJmpAddressesToConfigToml(ctx.configFilePath(), setjmpAddr, longjmpAddr)) {
+    REXCODEGEN_ERROR("Analyze: detected setjmp/longjmp but failed to write {}",
+                     ctx.configFilePath().string());
+    return;
+  }
+
+  REXCODEGEN_INFO("Analyze: wrote setjmp_address = 0x{:08X} and longjmp_address = 0x{:08X} to {}",
+                  setjmpAddr, longjmpAddr, ctx.configFilePath().string());
+}
+
 void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
   struct HelperPattern {
     uint32_t pattern;
@@ -445,6 +615,8 @@ VoidResult registerEntryPoints(CodegenContext& ctx) {
   }
 
   detectSaveRestoreHelpers(binary, state);
+
+  detectAndPersistJmpAddresses(ctx);
 
   // Register imports
   {

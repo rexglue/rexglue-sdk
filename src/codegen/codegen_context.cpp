@@ -33,6 +33,7 @@ Result<CodegenContext> CodegenContext::Create(const std::filesystem::path& confi
                                fmt::format("Failed to load config: {}", configPath.string()));
   }
   ctx.configDir_ = configPath.parent_path();
+  ctx.configFilePath_ = std::filesystem::absolute(configPath);
 
   // Determine XEX path
   std::filesystem::path xexPath;
