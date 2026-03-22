@@ -40,6 +40,9 @@ namespace rex::audio {
 
 using stream::BitStream;
 
+const uint32_t XmaContext::kBitsPerPacketHeader;
+const uint32_t XmaContext::kOutputMaxSizeBytes;
+
 XmaContext::XmaContext()
     : work_completion_event_(rex::thread::Event::CreateAutoResetEvent(false)) {}
 
