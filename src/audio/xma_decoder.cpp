@@ -14,6 +14,7 @@
 #include <rex/cvar.h>
 #include <rex/dbg.h>
 #include <rex/logging.h>
+#include <rex/perf/counter.h>
 #include <rex/math.h>
 #include <rex/memory/ring_buffer.h>
 #include <rex/string/buffer.h>
@@ -145,6 +146,7 @@ void XmaDecoder::WorkerThreadMain() {
       bool worked = context.Work();
       if (worked) {
         context.SignalWorkDone();
+        PROFILE_XMA_FRAME_DECODED();
       }
       did_work = did_work || worked;
     }
