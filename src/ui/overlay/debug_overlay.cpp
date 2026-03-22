@@ -13,6 +13,10 @@
 #include <rex/ui/keybinds.h>
 #include <rex/version.h>
 #include <imgui.h>
+#ifdef REXGLUE_ENABLE_PERF_COUNTERS
+#include <rex/perf/counter.h>
+#include <cinttypes>
+#endif
 
 namespace rex::ui {
 
@@ -30,7 +34,11 @@ void DebugOverlayDialog::OnDraw(ImGuiIO& io) {
     return;
 
   ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
+#ifdef REXGLUE_ENABLE_PERF_COUNTERS
+  ImGui::SetNextWindowSize(ImVec2(280, 280), ImGuiCond_FirstUseEver);
+#else
   ImGui::SetNextWindowSize(ImVec2(220, 60), ImGuiCond_FirstUseEver);
+#endif
   ImGui::SetNextWindowBgAlpha(0.5f);
   if (ImGui::Begin("Debug##overlay", nullptr, ImGuiWindowFlags_NoCollapse)) {
     ImGui::Text("Host:  %.1f FPS (%.2f ms)", io.Framerate, 1000.0f / io.Framerate);
@@ -40,6 +48,51 @@ void DebugOverlayDialog::OnDraw(ImGuiIO& io) {
         ImGui::Text("Guest: %.1f FPS (%.2f ms)", stats.fps, stats.frame_time_ms);
       }
     }
+#ifdef REXGLUE_ENABLE_PERF_COUNTERS
+    ImGui::Separator();
+
+    // Frame time graph
+    auto ft_us = rex::perf::GetSnapshotCounter(rex::perf::CounterId::kFrameTimeUs);
+    float ft_ms = static_cast<float>(ft_us) / 1000.0f;
+    frame_time_history_[frame_history_idx_] = ft_ms;
+    frame_history_idx_ = (frame_history_idx_ + 1) % kFrameHistorySize;
+    ImGui::PlotLines("##ft", frame_time_history_.data(), kFrameHistorySize,
+                     static_cast<int>(frame_history_idx_), "Frame (ms)", 0.0f, 50.0f,
+                     ImVec2(200, 40));
+
+    // GPU
+    ImGui::Text("Draw: %" PRId64 "  Stalls: %" PRId64 "  Verts: %" PRId64,
+                rex::perf::GetSnapshotCounter(rex::perf::CounterId::kDrawCalls),
+                rex::perf::GetSnapshotCounter(rex::perf::CounterId::kCommandBufferStalls),
+                rex::perf::GetSnapshotCounter(rex::perf::CounterId::kVerticesProcessed));
+
+    // Audio
+    ImGui::Text("XMA: %" PRId64 "  Lat: %.1fms  BufQ: %" PRId64,
+                rex::perf::GetSnapshotCounter(rex::perf::CounterId::kXmaFramesDecoded),
+                static_cast<float>(
+                    rex::perf::GetSnapshotCounter(rex::perf::CounterId::kAudioFrameLatencyUs)) /
+                    1000.0f,
+                rex::perf::GetSnapshotCounter(rex::perf::CounterId::kBufferQueueDepth));
+
+    // Dispatch
+    ImGui::Text("Dispatch: %" PRId64 "  IRQ: %" PRId64,
+                rex::perf::GetSnapshotCounter(rex::perf::CounterId::kFunctionsDispatched),
+                rex::perf::GetSnapshotCounter(rex::perf::CounterId::kInterruptDispatches));
+
+    // Threading
+    ImGui::Text("Threads: %" PRId64 "  APC: %" PRId64 "  Contention: %" PRId64,
+                rex::perf::GetSnapshotCounter(rex::perf::CounterId::kActiveThreads),
+                rex::perf::GetSnapshotCounter(rex::perf::CounterId::kApcQueueDepth),
+                rex::perf::GetSnapshotCounter(rex::perf::CounterId::kCriticalRegionContentions));
+
+    // Caches
+    auto tex_h = rex::perf::GetSnapshotCounter(rex::perf::CounterId::kTextureCacheHits);
+    auto tex_m = rex::perf::GetSnapshotCounter(rex::perf::CounterId::kTextureCacheMisses);
+    auto pip_h = rex::perf::GetSnapshotCounter(rex::perf::CounterId::kPipelineCacheHits);
+    auto pip_m = rex::perf::GetSnapshotCounter(rex::perf::CounterId::kPipelineCacheMisses);
+    ImGui::Text("TexCache: %" PRId64 "/%" PRId64 "  PipeCache: %" PRId64 "/%" PRId64, tex_h,
+                tex_h + tex_m, pip_h, pip_h + pip_m);
+#endif
   }
   ImGui::End();
 

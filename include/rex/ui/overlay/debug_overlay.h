@@ -11,6 +11,7 @@
  */
 #pragma once
 #include <rex/ui/imgui_dialog.h>
+#include <array>
 #include <cstdint>
 #include <functional>
 
@@ -39,6 +40,11 @@ class DebugOverlayDialog : public ImGuiDialog {
  private:
   bool visible_ = false;
   FrameStatsProvider stats_provider_;
+#ifdef REXGLUE_ENABLE_PERF_COUNTERS
+  static constexpr size_t kFrameHistorySize = 120;
+  std::array<float, kFrameHistorySize> frame_time_history_{};
+  size_t frame_history_idx_ = 0;
+#endif
 };
 
 }  // namespace rex::ui
