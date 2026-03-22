@@ -14,6 +14,23 @@ project(ReXGlue
 option(REXGLUE_BUILD_TESTS       "Build PPC instruction and unit tests" OFF)
 option(REXGLUE_ENABLE_SANITIZERS "Enable UndefinedBehaviorSanitizer" OFF)
 option(REXGLUE_ENABLE_FIDELITYFX "Enable optional AMD FidelityFX integration (experimental)" OFF)
+option(REXGLUE_ENABLE_TRACY                "Enable Tracy profiler integration" OFF)
+option(REXGLUE_ENABLE_PERF_COUNTERS        "Enable lightweight perf counter registry and overlay" OFF)
+option(REXGLUE_PROFILE_GUEST_FUNCTIONS     "Enable per-function Tracy zones in recompiled guest code (high overhead)" OFF)
+
+# Propagate profiling defines globally
+if(REXGLUE_ENABLE_TRACY)
+    add_compile_definitions(REXGLUE_ENABLE_PROFILING)
+endif()
+if(REXGLUE_ENABLE_PERF_COUNTERS)
+    add_compile_definitions(REXGLUE_ENABLE_PERF_COUNTERS)
+endif()
+if(REXGLUE_PROFILE_GUEST_FUNCTIONS)
+    if(NOT REXGLUE_ENABLE_TRACY)
+        message(FATAL_ERROR "REXGLUE_PROFILE_GUEST_FUNCTIONS requires REXGLUE_ENABLE_TRACY=ON")
+    endif()
+    add_compile_definitions(REXGLUE_PROFILE_GUEST_FUNCTIONS)
+endif()
 
 # Graphics backend selection
 # D3D12: Windows only, ON by default.
@@ -189,6 +206,8 @@ message(STATUS "  Output Dir: ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 message(STATUS "  C++ Standard: C++${CMAKE_CXX_STANDARD}")
 message(STATUS "  Graphics: D3D12=${REXGLUE_USE_D3D12} Vulkan=${REXGLUE_USE_VULKAN}")
 message(STATUS "  FidelityFX: ${REXGLUE_ENABLE_FIDELITYFX}")
+message(STATUS "  Tracy: ${REXGLUE_ENABLE_TRACY}")
+message(STATUS "  Perf Counters: ${REXGLUE_ENABLE_PERF_COUNTERS}")
 message(STATUS "===========================================")
 
 # SDK install/export rules (skipped when consumed as a subdirectory)

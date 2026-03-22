@@ -87,3 +87,17 @@ target_link_libraries(rexcore
         disruptorplus
         utf8cpp
 )
+
+if(REXGLUE_ENABLE_TRACY)
+    target_link_libraries(rexcore PUBLIC TracyClient)
+    target_compile_definitions(rexcore PUBLIC REXGLUE_ENABLE_PROFILING)
+endif()
+
+if(REXGLUE_ENABLE_PERF_COUNTERS)
+    target_sources(rexcore PRIVATE perf/counter.cpp)
+    target_compile_definitions(rexcore PUBLIC REXGLUE_ENABLE_PERF_COUNTERS)
+endif()
+
+if(REXGLUE_PROFILE_GUEST_FUNCTIONS)
+    target_compile_definitions(rexcore PUBLIC REXGLUE_PROFILE_GUEST_FUNCTIONS)
+endif()

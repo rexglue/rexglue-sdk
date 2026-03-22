@@ -42,6 +42,10 @@ if(REXGLUE_USE_VULKAN)
 endif()
 
 
+if(REXGLUE_ENABLE_TRACY)
+    list(APPEND REQUIRED_SUBMODULES tracy)
+endif()
+
 if(REXGLUE_BUILD_TESTS)
     list(APPEND REQUIRED_SUBMODULES catch2)
 endif()
@@ -306,6 +310,18 @@ endif()
 #=============================================================================
 if(REXGLUE_BUILD_TESTS)
     add_subdirectory(catch2)
+endif()
+
+#=============================================================================
+# Tracy Profiler (optional)
+#=============================================================================
+if(REXGLUE_ENABLE_TRACY)
+    set(TRACY_ENABLE ON CACHE BOOL "" FORCE)
+    set(TRACY_ON_DEMAND ON CACHE BOOL "" FORCE)
+    set(TRACY_DELAYED_INIT ON CACHE BOOL "" FORCE)
+    set(TRACY_MANUAL_LIFETIME ON CACHE BOOL "" FORCE)
+    add_subdirectory(tracy)
+    target_compile_options(TracyClient PRIVATE -w)
 endif()
 
 #=============================================================================
