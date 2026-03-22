@@ -27,6 +27,7 @@
 #include <rex/graphics/pipeline/texture/util.h>
 #include <rex/graphics/xenos.h>
 #include <rex/logging.h>
+#include <rex/perf/counter.h>
 #include <rex/math.h>
 #include <rex/ui/d3d12/d3d12_upload_buffer_pool.h>
 #include <rex/ui/d3d12/d3d12_util.h>
@@ -2044,8 +2045,10 @@ uint32_t D3D12TextureCache::FindOrCreateTextureDescriptor(D3D12Texture& texture,
   // Try to find an existing descriptor.
   uint32_t existing_descriptor_index = texture.GetSRVDescriptorIndex(descriptor_key);
   if (existing_descriptor_index != UINT32_MAX) {
+    PROFILE_TEXTURE_CACHE_HIT();
     return existing_descriptor_index;
   }
+  PROFILE_TEXTURE_CACHE_MISS();
 
   TextureKey texture_key = texture.key();
 

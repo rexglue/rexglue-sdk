@@ -18,6 +18,7 @@
 #include <rex/assert.h>
 #include <rex/cvar.h>
 #include <rex/dbg.h>
+#include <rex/perf/counter.h>
 #include <rex/graphics/d3d12/command_processor.h>
 #include <rex/graphics/d3d12/graphics_system.h>
 #include <rex/graphics/d3d12/shader.h>
@@ -2647,6 +2648,8 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
       shared_memory_->UseForReading();
     }
     SubmitBarriers();
+    PROFILE_DRAW_CALL();
+    PROFILE_VERTICES(primitive_processing_result.host_draw_vertex_count);
     deferred_command_list_.D3DDrawInstanced(primitive_processing_result.host_draw_vertex_count, 1,
                                             0, 0);
   } else {
@@ -2704,6 +2707,8 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
       shared_memory_->UseForReading();
     }
     SubmitBarriers();
+    PROFILE_DRAW_CALL();
+    PROFILE_VERTICES(primitive_processing_result.host_draw_vertex_count);
     deferred_command_list_.D3DDrawIndexedInstanced(
         primitive_processing_result.host_draw_vertex_count, 1, 0, 0, 0);
     if (scratch_index_buffer != nullptr) {
@@ -3154,6 +3159,7 @@ void D3D12CommandProcessor::CheckSubmissionFence(uint64_t await_submission) {
       if (SUCCEEDED(direct_queue->Signal(queue_operations_since_submission_fence_, fence_value) &&
                     SUCCEEDED(queue_operations_since_submission_fence_->SetEventOnCompletion(
                         fence_value, fence_completion_event_)))) {
+        PROFILE_CMD_BUFFER_STALL();
         WaitForSingleObject(fence_completion_event_, INFINITE);
         queue_operations_done_since_submission_signal_ = false;
       } else {
@@ -3172,6 +3178,7 @@ void D3D12CommandProcessor::CheckSubmissionFence(uint64_t await_submission) {
   if (submission_completed_ < await_submission) {
     if (SUCCEEDED(
             submission_fence_->SetEventOnCompletion(await_submission, fence_completion_event_))) {
+      PROFILE_CMD_BUFFER_STALL();
       WaitForSingleObject(fence_completion_event_, INFINITE);
       submission_completed_ = submission_fence_->GetCompletedValue();
     }

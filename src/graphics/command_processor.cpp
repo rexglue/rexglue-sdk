@@ -19,6 +19,8 @@
 
 #include <rex/cvar.h>
 #include <rex/dbg.h>
+#include <rex/perf/counter.h>
+#include <rex/chrono/clock.h>
 #include <rex/graphics/command_processor.h>
 #include <rex/graphics/flags.h>
 #include <rex/graphics/graphics_system.h>
@@ -1064,7 +1066,20 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(memory::RingBuffer* reader, ui
                                                   uint32_t count) {
   SCOPE_profile_cpu_f("gpu");
 
-  rex::debug::Profiler::Flip();
+#ifdef REXGLUE_ENABLE_PERF_COUNTERS
+  {
+    static uint64_t last_frame_tick = 0;
+    uint64_t now = rex::chrono::Clock::QueryHostTickCount();
+    if (last_frame_tick) {
+      uint64_t freq = rex::chrono::Clock::QueryHostTickFrequency();
+      int64_t dt_us = static_cast<int64_t>((now - last_frame_tick) * 1000000 / freq);
+      PROFILE_FRAME_TIME_US(dt_us);
+      PROFILE_FPS(freq / (now - last_frame_tick));
+    }
+    last_frame_tick = now;
+  }
+#endif
+  rex::perf::Profiler::Flip();
 
   // Xenia-specific VdSwap hook.
   // VdSwap will post this to tell us we need to swap the screen/fire an

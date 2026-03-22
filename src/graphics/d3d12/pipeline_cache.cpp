@@ -28,6 +28,7 @@
 #include <rex/chrono/clock.h>
 #include <rex/cvar.h>
 #include <rex/dbg.h>
+#include <rex/perf/counter.h>
 #include <rex/filesystem.h>
 #include <rex/graphics/d3d12/command_processor.h>
 #include <rex/graphics/d3d12/pipeline_cache.h>
@@ -999,12 +1000,14 @@ bool PipelineCache::ConfigurePipeline(
   for (auto it = found_range.first; it != found_range.second; ++it) {
     Pipeline* found_pipeline = it->second;
     if (!std::memcmp(&found_pipeline->description.description, &description, sizeof(description))) {
+      PROFILE_PIPELINE_CACHE_HIT();
       current_pipeline_ = found_pipeline;
       *pipeline_handle_out = found_pipeline;
       *root_signature_out = found_pipeline->root_signature.load(std::memory_order_acquire);
       return true;
     }
   }
+  PROFILE_PIPELINE_CACHE_MISS();
 
   Pipeline* new_pipeline = new Pipeline;
   std::memcpy(&new_pipeline->description, &runtime_description, sizeof(runtime_description));
