@@ -18,6 +18,7 @@
 #include <rex/chrono/clock.h>
 #include <rex/cvar.h>
 #include <rex/dbg.h>
+#include <rex/perf/counter.h>
 #include <rex/literals.h>
 #include <rex/logging.h>
 #include <rex/math.h>
@@ -427,6 +428,7 @@ X_STATUS XThread::Create() {
     thread_->set_name(thread_name_);
 
     PROFILE_THREAD_ENTER(thread_name_.c_str());
+    PROFILE_THREAD_CREATED();
 
     // Execute user code.
     current_xthread_tls_ = this;
@@ -435,6 +437,7 @@ X_STATUS XThread::Create() {
     running_ = false;
     current_xthread_tls_ = nullptr;
 
+    PROFILE_THREAD_EXITED();
     PROFILE_THREAD_EXIT();
 
     // Release the self-reference to the thread.
@@ -701,6 +704,7 @@ void XThread::DeliverAPCs() {
   auto& user_apc_queue = kthread->apc_lists[1];
 
   while (!user_apc_queue.empty(mem) && kthread->apc_disable_count == 0) {
+    PERF_counter_inc(kApcQueueDepth);
     XAPC* apc = user_apc_queue.HeadObject(mem);
     uint32_t apc_ptr = mem->HostToGuestVirtual(apc);
     bool needs_freeing = apc->kernel_routine != XAPC::kDummyKernelRoutine;

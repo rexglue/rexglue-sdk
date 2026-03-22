@@ -16,6 +16,7 @@
 #include <rex/assert.h>
 #include <rex/dbg.h>
 #include <rex/logging.h>
+#include <rex/perf/counter.h>
 #include <rex/memory.h>
 #include <rex/ppc/context.h>
 #include <rex/system/function_dispatcher.h>
@@ -30,6 +31,7 @@ FunctionDispatcher::~FunctionDispatcher() = default;
 
 bool FunctionDispatcher::Execute(ThreadState* thread_state, uint32_t address) {
   SCOPE_profile_cpu_f("cpu");
+  PROFILE_FUNCTION_DISPATCHED();
 
   // rexglue: Look up pre-compiled function
   auto fn = GetFunction(address);
@@ -102,6 +104,7 @@ uint64_t FunctionDispatcher::Execute(ThreadState* thread_state, uint32_t address
 uint64_t FunctionDispatcher::ExecuteInterrupt(ThreadState* thread_state, uint32_t address,
                                               uint64_t args[], size_t arg_count) {
   SCOPE_profile_cpu_f("cpu");
+  PROFILE_INTERRUPT_DISPATCHED();
 
   // Hold the global lock during interrupt dispatch.
   // This will block if any code is in a critical region (has interrupts

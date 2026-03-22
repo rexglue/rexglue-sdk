@@ -14,6 +14,7 @@
 #include <rex/filesystem/devices/null_device.h>
 #include <rex/filesystem/vfs.h>
 #include <rex/logging.h>
+#include <rex/perf/counter.h>
 #include <rex/ppc/context.h>     // PPCFuncMapping
 #include <rex/ppc/exceptions.h>  // SEH exception support
 #include <rex/kernel/crt/heap.h>
@@ -43,6 +44,9 @@ Runtime::~Runtime() {
 }
 
 X_STATUS Runtime::Setup(RuntimeConfig config) {
+  // Start profiler (Tracy network threads, counter init)
+  rex::perf::Profiler::Startup();
+
   // Initialize SEH exception support for hardware exception handling
   rex::initialize_seh();
 
@@ -214,6 +218,8 @@ void Runtime::Shutdown() {
   export_resolver_.reset();
   file_system_.reset();
   memory_.reset();
+
+  rex::perf::Profiler::Shutdown();
 }
 
 uint8_t* Runtime::virtual_membase() const {
