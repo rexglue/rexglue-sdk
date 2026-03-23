@@ -61,6 +61,15 @@ void DebugPrint(fmt::string_view format, const Args&... args) {
 #define PROFILE_THREAD_ENTER(name) tracy::SetThreadName(name)
 #define PROFILE_THREAD_EXIT()
 
+// Fiber profiling
+#ifdef TRACY_FIBERS
+#define PROFILE_FIBER_ENTER(name) TracyFiberEnter(name)
+#define PROFILE_FIBER_LEAVE TracyFiberLeave
+#else
+#define PROFILE_FIBER_ENTER(name)
+#define PROFILE_FIBER_LEAVE
+#endif
+
 // Counter profiling -- plot to Tracy
 #define COUNT_profile_set(name, value) TracyPlot(name, static_cast<int64_t>(value))
 #define COUNT_profile_add(name, value) TracyPlot(name, static_cast<int64_t>(value))
@@ -78,6 +87,10 @@ void DebugPrint(fmt::string_view format, const Args&... args) {
 // Thread profiling stubs
 #define PROFILE_THREAD_ENTER(name)
 #define PROFILE_THREAD_EXIT()
+
+// Fiber profiling stubs
+#define PROFILE_FIBER_ENTER(name)
+#define PROFILE_FIBER_LEAVE
 
 // Counter profiling stubs
 #define COUNT_profile_set(name, value)

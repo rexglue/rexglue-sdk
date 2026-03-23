@@ -60,6 +60,7 @@ set(REXKERNEL_SOURCES
     crt/file.cpp
     crt/memory.cpp
     crt/string.cpp
+    crt/threading.cpp
 )
 
 add_library(rexkernel STATIC ${REXKERNEL_SOURCES})

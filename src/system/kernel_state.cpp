@@ -167,9 +167,15 @@ KernelState::~KernelState() {
   object_table_.Reset();
 
   // Destroy any host fibers that were not explicitly cleaned up.
-  for (auto& [guest_addr, fiber] : fiber_map_) {
-    if (fiber) {
-      fiber->Destroy();
+  for (auto& [guest_addr, info] : fiber_map_) {
+    if (info.host_fiber) {
+      info.host_fiber->Destroy();
+    }
+    if (!info.is_thread_fiber && info.guest_stack_bottom) {
+      memory_->LookupHeap(0x70000000)->Release(info.guest_stack_bottom);
+    }
+    if (info.guest_context_addr) {
+      memory_->SystemHeapFree(info.guest_context_addr);
     }
   }
   fiber_map_.clear();
@@ -1065,21 +1071,34 @@ bool KernelState::Restore(stream::ByteStream* stream) {
   return true;
 }
 
-rex::thread::Fiber* KernelState::LookupFiber(uint32_t guest_addr) {
+FiberInfo* KernelState::LookupFiber(uint32_t guest_addr) {
   auto lock = global_critical_region_.Acquire();
   auto it = fiber_map_.find(guest_addr);
-  return it != fiber_map_.end() ? it->second : nullptr;
+  return it != fiber_map_.end() ? &it->second : nullptr;
 }
 
-void KernelState::RegisterFiber(uint32_t guest_addr, rex::thread::Fiber* fiber) {
+void KernelState::RegisterFiber(uint32_t guest_addr, const FiberInfo& info) {
   auto lock = global_critical_region_.Acquire();
-  assert_true(fiber_map_.find(guest_addr) == fiber_map_.end());
-  fiber_map_[guest_addr] = fiber;
+  fiber_map_[guest_addr] = info;
 }
 
 void KernelState::UnregisterFiber(uint32_t guest_addr) {
   auto lock = global_critical_region_.Acquire();
   fiber_map_.erase(guest_addr);
+}
+
+const char* KernelState::GetOrCreateFiberName(uint32_t guest_addr, const char* thread_name) {
+  std::lock_guard lock(fiber_name_pool_mutex_);
+  auto it = fiber_name_pool_.find(guest_addr);
+  if (it != fiber_name_pool_.end()) {
+    return it->second.get();
+  }
+  auto name = fmt::format("Fiber {:08X} ({})", guest_addr, thread_name);
+  auto buf = std::make_unique<char[]>(name.size() + 1);
+  std::memcpy(buf.get(), name.c_str(), name.size() + 1);
+  const char* ptr = buf.get();
+  fiber_name_pool_.emplace(guest_addr, std::move(buf));
+  return ptr;
 }
 
 }  // namespace rex::system

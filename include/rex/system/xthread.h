@@ -109,6 +109,20 @@ struct XAPC {
 };
 static_assert_size(XAPC, 40);
 
+/// Guest fiber context buffer layout.
+struct X_FIBER_CONTEXT {
+  rex::be<uint32_t> fiber_data;              // 0x00  lpParameter
+  rex::be<uint32_t> stack_alloc_base;        // 0x04  KTHREAD.stack_alloc_base (0xD0)
+  rex::be<uint32_t> stack_base;              // 0x08  KTHREAD.stack_base (0x5C), PCR.stack_base_ptr
+  rex::be<uint32_t> stack_limit;             // 0x0C  KTHREAD.stack_limit (0x60), PCR.stack_end_ptr
+  uint8_t reserved_10[0x0C];                 // 0x10  padding
+  rex::be<uint32_t> lr_save;                 // 0x1C  saved LR (zeroed, unused by host)
+  uint8_t reserved_20[0x10];                 // 0x20  padding
+  rex::be<uint64_t> sp_save;                 // 0x30  saved r1
+  uint8_t register_save_area[0xA50 - 0x38];  // non-volatile PPCContext register save area
+};
+static_assert_size(X_FIBER_CONTEXT, 0xA50);
+
 struct X_KTHREAD;
 struct X_KPROCESS;
 
@@ -323,6 +337,7 @@ class XThread : public XObject {
   virtual void Execute();
 
   rex::thread::Fiber* main_fiber() const { return main_fiber_; }
+  void set_main_fiber(rex::thread::Fiber* fiber) { main_fiber_ = fiber; }
 
   void EnterCriticalRegion();
   void LeaveCriticalRegion();
