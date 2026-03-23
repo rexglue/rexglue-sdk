@@ -33,6 +33,24 @@
             }
         },
         {
+            "name": "windows-arm64-base",
+            "hidden": true,
+            "inherits": "windows-base",
+            "cacheVariables": {
+                "CMAKE_C_FLAGS": "-march=armv8-a",
+                "CMAKE_CXX_FLAGS": "-march=armv8-a"
+            }
+        },
+        {
+            "name": "linux-arm64-base",
+            "hidden": true,
+            "inherits": "linux-base",
+            "cacheVariables": {
+                "CMAKE_C_FLAGS": "-march=armv8-a",
+                "CMAKE_CXX_FLAGS": "-march=armv8-a"
+            }
+        },
+        {
             "name": "win-amd64-debug",
             "displayName": "Windows AMD64 Debug",
             "inherits": "windows-base",
@@ -67,6 +85,42 @@
             "displayName": "Linux AMD64 RelWithDebInfo",
             "inherits": "linux-base",
             "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo" }
+        },
+        {
+            "name": "win-arm64-debug",
+            "displayName": "Windows ARM64 Debug",
+            "inherits": "windows-arm64-base",
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+        },
+        {
+            "name": "win-arm64-release",
+            "displayName": "Windows ARM64 Release",
+            "inherits": "windows-arm64-base",
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+        },
+        {
+            "name": "win-arm64-relwithdebinfo",
+            "displayName": "Windows ARM64 RelWithDebInfo",
+            "inherits": "windows-arm64-base",
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo" }
+        },
+        {
+            "name": "linux-arm64-debug",
+            "displayName": "Linux ARM64 Debug",
+            "inherits": "linux-arm64-base",
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+        },
+        {
+            "name": "linux-arm64-release",
+            "displayName": "Linux ARM64 Release",
+            "inherits": "linux-arm64-base",
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+        },
+        {
+            "name": "linux-arm64-relwithdebinfo",
+            "displayName": "Linux ARM64 RelWithDebInfo",
+            "inherits": "linux-arm64-base",
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo" }
         }
     ],
     "buildPresets": [
@@ -75,6 +129,12 @@
         { "name": "win-amd64-relwithdebinfo", "configurePreset": "win-amd64-relwithdebinfo" },
         { "name": "linux-amd64-debug", "configurePreset": "linux-amd64-debug" },
         { "name": "linux-amd64-release", "configurePreset": "linux-amd64-release" },
-        { "name": "linux-amd64-relwithdebinfo", "configurePreset": "linux-amd64-relwithdebinfo" }
+        { "name": "linux-amd64-relwithdebinfo", "configurePreset": "linux-amd64-relwithdebinfo" },
+        { "name": "win-arm64-debug", "configurePreset": "win-arm64-debug" },
+        { "name": "win-arm64-release", "configurePreset": "win-arm64-release" },
+        { "name": "win-arm64-relwithdebinfo", "configurePreset": "win-arm64-relwithdebinfo" },
+        { "name": "linux-arm64-debug", "configurePreset": "linux-arm64-debug" },
+        { "name": "linux-arm64-release", "configurePreset": "linux-arm64-release" },
+        { "name": "linux-arm64-relwithdebinfo", "configurePreset": "linux-arm64-relwithdebinfo" }
     ]
 }
