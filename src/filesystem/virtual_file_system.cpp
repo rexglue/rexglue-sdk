@@ -15,6 +15,11 @@
 
 #include "devices/host_path_entry.h"
 
+REXCVAR_DEFINE_BOOL(allow_game_relative_writes, false, "Filesystem",
+                    "Not useful to non-developers. Allows code to write to paths "
+                    "relative to game://. Used for "
+                    "generating test data to compare with original hardware.");
+
 namespace rex::filesystem {
 
 VirtualFileSystem::VirtualFileSystem() {}
