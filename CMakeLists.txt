@@ -18,18 +18,18 @@ option(REXGLUE_ENABLE_TRACY                "Enable Tracy profiler integration" O
 option(REXGLUE_ENABLE_PERF_COUNTERS        "Enable lightweight perf counter registry and overlay" OFF)
 option(REXGLUE_PROFILE_GUEST_FUNCTIONS     "Enable per-function Tracy zones in recompiled guest code (high overhead)" OFF)
 
-# Propagate profiling defines globally
+# Propagate profiling defines globally (compiled out in Release)
 if(REXGLUE_ENABLE_TRACY)
-    add_compile_definitions(REXGLUE_ENABLE_PROFILING)
+    add_compile_definitions($<$<NOT:$<CONFIG:Release>>:REXGLUE_ENABLE_PROFILING>)
 endif()
 if(REXGLUE_ENABLE_PERF_COUNTERS)
-    add_compile_definitions(REXGLUE_ENABLE_PERF_COUNTERS)
+    add_compile_definitions($<$<NOT:$<CONFIG:Release>>:REXGLUE_ENABLE_PERF_COUNTERS>)
 endif()
 if(REXGLUE_PROFILE_GUEST_FUNCTIONS)
     if(NOT REXGLUE_ENABLE_TRACY)
         message(FATAL_ERROR "REXGLUE_PROFILE_GUEST_FUNCTIONS requires REXGLUE_ENABLE_TRACY=ON")
     endif()
-    add_compile_definitions(REXGLUE_PROFILE_GUEST_FUNCTIONS)
+    add_compile_definitions($<$<NOT:$<CONFIG:Release>>:REXGLUE_PROFILE_GUEST_FUNCTIONS>)
 endif()
 
 # Graphics backend selection
