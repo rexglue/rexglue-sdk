@@ -380,6 +380,21 @@ bool build_stwx(BuilderContext& ctx) {
   return true;
 }
 
+bool build_stmw(BuilderContext& ctx) {
+  // EA = (rA == 0 ? 0 : r[rA]) + EXTS(d); store r[rS]..r[31] at EA, EA+4, ...
+  uint32_t rS = ctx.insn.operands[0];
+  int32_t offset = static_cast<int32_t>(ctx.insn.operands[1]);
+  uint32_t rA = ctx.insn.operands[2];
+  if (rA != 0)
+    ctx.println("\t{} = {}.u32 + {};", ctx.ea(), ctx.r(rA), offset);
+  else
+    ctx.println("\t{} = {};", ctx.ea(), offset);
+  for (uint32_t i = rS; i <= 31; ++i) {
+    ctx.println("\tPPC_STORE_U32({} + {}, {}.u32);", ctx.ea(), (i - rS) * 4, ctx.r(i));
+  }
+  return true;
+}
+
 bool build_stwbrx(BuilderContext& ctx) {
   ctx.print("{}", ctx.mmio_check_x_form() ? "\tPPC_MM_STORE_U32(" : "\tPPC_STORE_U32(");
   if (ctx.insn.operands[1] != 0)

@@ -335,6 +335,7 @@ bool build_stwu(BuilderContext& ctx);
 bool build_stwux(BuilderContext& ctx);
 bool build_stwx(BuilderContext& ctx);
 bool build_stwbrx(BuilderContext& ctx);
+bool build_stmw(BuilderContext& ctx);
 
 // Atomic store conditional
 bool build_stwcx(BuilderContext& ctx);
