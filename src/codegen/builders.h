@@ -218,6 +218,7 @@ bool build_fmr(BuilderContext& ctx);
 bool build_fcfid(BuilderContext& ctx);
 bool build_fctid(BuilderContext& ctx);
 bool build_fctidz(BuilderContext& ctx);
+bool build_fctiw(BuilderContext& ctx);
 bool build_fctiwz(BuilderContext& ctx);
 bool build_frsp(BuilderContext& ctx);
 

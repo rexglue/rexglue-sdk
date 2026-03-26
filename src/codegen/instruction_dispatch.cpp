@@ -171,6 +171,7 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_FCFID, build_fcfid},
       {PPC_INST_FCTID, build_fctid},
       {PPC_INST_FCTIDZ, build_fctidz},
+      {PPC_INST_FCTIW, build_fctiw},
       {PPC_INST_FCTIWZ, build_fctiwz},
       {PPC_INST_FRSP, build_frsp},
       {PPC_INST_FCMPU, build_fcmpu},
