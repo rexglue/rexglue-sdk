@@ -366,6 +366,7 @@ bool build_lvsl(BuilderContext& ctx);
 bool build_lvsr(BuilderContext& ctx);
 
 // Vector stores
+bool build_stvebx(BuilderContext& ctx);
 bool build_stvehx(BuilderContext& ctx);
 bool build_stvewx(BuilderContext& ctx);
 bool build_stvlx(BuilderContext& ctx);

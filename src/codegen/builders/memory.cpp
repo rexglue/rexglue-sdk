@@ -596,6 +596,15 @@ bool build_lvsr(BuilderContext& ctx) {
 // Vector Stores
 //=============================================================================
 
+bool build_stvebx(BuilderContext& ctx) {
+  // TODO(tomc): vectorize
+  // NOTE: accounting for the full vector reversal here
+  emitVectorEA(ctx);
+  ctx.println("\tPPC_STORE_U8({}, {}.u8[15 - ({} & 0xF)]);", ctx.ea(), ctx.v(ctx.insn.operands[0]),
+              ctx.ea());
+  return true;
+}
+
 bool build_stvehx(BuilderContext& ctx) {
   // TODO(tomc): vectorize
   // NOTE: accounting for the full vector reversal here

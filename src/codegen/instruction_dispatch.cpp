@@ -298,6 +298,7 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       //=====================================================================
       // Memory - Vector Stores
       //=====================================================================
+      {PPC_INST_STVEBX, build_stvebx},
       {PPC_INST_STVEHX, build_stvehx},
       {PPC_INST_STVEWX, build_stvewx},
       {PPC_INST_STVEWX128, build_stvewx},
