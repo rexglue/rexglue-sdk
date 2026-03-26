@@ -308,6 +308,7 @@ static const std::unordered_map<int, Builder>& GetDispatchTable() {
       {PPC_INST_STVRX128, build_stvrx},
       {PPC_INST_STVX, build_stvx},
       {PPC_INST_STVX128, build_stvx},
+      {PPC_INST_STVXL, build_stvx},
 
       //=====================================================================
       // System
