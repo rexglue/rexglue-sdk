@@ -145,6 +145,8 @@ X_STATUS Runtime::Setup(RuntimeConfig config) {
       return gpu_status;
     }
     REXSYS_INFO("GPU system initialized (presentation={})", with_presentation);
+  } else {
+    REXSYS_INFO("Runtime initialized without graphics system (native rendering mode)");
   }
 
   REXSYS_INFO("Runtime initialized successfully");
