@@ -14,6 +14,7 @@ existing entry metadata (parent, size, etc.).
              See LICENSE file in the project root for full license text.
 """
 
+import fnmatch
 import json
 import os
 import re
@@ -38,6 +39,8 @@ def load_config():
     defaults = {
         "toml_path": "",
         "prefix": "rex_",
+        "name_filter": "",
+        "name_exclude": "",
         "export_group": 0x3,
         "sync_group": 0xF,
         "skip_group": 0x7,
@@ -232,6 +235,8 @@ class ExportOptionsForm(ida_kernwin.Form):
 Export Functions to ReXGlue TOML
 
 <Output name prefix\::{iPrefix}>
+<Function name filter (glob)\::{iNameFilter}>
+<Function name exclude (glob)\::{iNameExclude}>
 
 Export Options
 <Extract All Named Functions:{cNamed}>
@@ -265,6 +270,8 @@ Output
                     "cIgnoreThunks",
                 )),
                 "iPrefix": ida_kernwin.Form.StringInput(value="rex_"),
+                "iNameFilter": ida_kernwin.Form.StringInput(value=""),
+                "iNameExclude": ida_kernwin.Form.StringInput(value=""),
             },
         )
 
@@ -295,6 +302,8 @@ def show_options():
     form.cSyncGroup.value = cfg["sync_group"]
     form.cSkipGroup.value = cfg["skip_group"]
     form.iPrefix.value = cfg["prefix"]
+    form.iNameFilter.value = cfg["name_filter"]
+    form.iNameExclude.value = cfg["name_exclude"]
     ok = form.Execute()
     if not ok:
         form.Free()
@@ -304,6 +313,8 @@ def show_options():
     sync_val = form.cSyncGroup.value
     skip_val = form.cSkipGroup.value
     name_prefix = form.iPrefix.value
+    name_filter = form.iNameFilter.value
+    name_exclude = form.iNameExclude.value
     form.Free()
 
     do_named = bool(export_val & (1 << 0))
@@ -329,6 +340,8 @@ def show_options():
         "export_group": export_val,
         "sync_group": sync_val,
         "skip_group": skip_val,
+        "name_filter": name_filter,
+        "name_exclude": name_exclude,
     })
 
     # Build ignore prefixes from checkbox state
@@ -360,6 +373,8 @@ def show_options():
         "remove_stale": remove_stale,
         "update_sizes": update_sizes,
         "update_names": update_names,
+        "name_filter": name_filter,
+        "name_exclude": name_exclude,
     }
 
 
@@ -412,6 +427,8 @@ def run_export(settings):
     remove_stale = settings["remove_stale"]
     update_sizes = settings["update_sizes"]
     update_names = settings["update_names"]
+    name_filter = settings["name_filter"]
+    name_exclude = settings["name_exclude"]
 
     # Step 1 — Load & parse TOML
     result = load_toml_functions(toml_path)
@@ -432,13 +449,17 @@ def run_export(settings):
                 continue
             if ea in import_eas:
                 continue
+            if name_filter and not fnmatch.fnmatchcase(name, name_filter):
+                continue
+            if name_exclude and fnmatch.fnmatchcase(name, name_exclude):
+                continue
             func = ida_funcs.get_func(ea)
             if not func:
                 continue
             size = func.end_ea - func.start_ea
             ida_funcs_map[ea] = (name, size)
 
-    if do_func_ptrs:
+    if do_func_ptrs and not name_filter:
         func_ptrs = collect_func_ptr_args()
         for ea, size in func_ptrs.items():
             if ea not in ida_funcs_map:
