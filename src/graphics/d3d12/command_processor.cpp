@@ -1921,6 +1921,8 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbu
   vertex_buffers_in_sync_[0] = 0;
   vertex_buffers_in_sync_[1] = 0;
 
+  if (!graphics_system_)
+    return;
   ui::Presenter* presenter = graphics_system_->presenter();
   if (!presenter) {
     REXGPU_ERROR("IssueSwap: presenter is null");
@@ -3309,8 +3311,10 @@ bool D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
   if (FAILED(device_removed_reason)) {
     device_removed_ = true;
     LogDeviceRemovalDiagnostics(device, device_removed_reason);
-    graphics_system_->OnHostGpuLossFromAnyThread(device_removed_reason !=
-                                                 DXGI_ERROR_DEVICE_REMOVED);
+    if (graphics_system_) {
+      graphics_system_->OnHostGpuLossFromAnyThread(device_removed_reason !=
+                                                   DXGI_ERROR_DEVICE_REMOVED);
+    }
     return false;
   }
 

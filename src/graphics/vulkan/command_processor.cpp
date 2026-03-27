@@ -2288,6 +2288,8 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
   vertex_buffers_in_sync_[0] = 0;
   vertex_buffers_in_sync_[1] = 0;
 
+  if (!graphics_system_)
+    return;
   ui::Presenter* presenter = graphics_system_->presenter();
   if (!presenter) {
     REXGPU_ERROR("XELOG_GPU PRESENT: NO PRESENTER");
@@ -5028,7 +5030,9 @@ void VulkanCommandProcessor::CheckSubmissionFenceAndDeviceLoss(uint64_t await_su
     ++fences_awaited;
   }
   if (device_lost_) {
-    graphics_system_->OnHostGpuLossFromAnyThread(true);
+    if (graphics_system_) {
+      graphics_system_->OnHostGpuLossFromAnyThread(true);
+    }
     return;
   }
   if (!fences_awaited) {
@@ -5452,7 +5456,9 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
       REXGPU_ERROR("Failed to submit a Vulkan command buffer");
       if (submit_result == VK_ERROR_DEVICE_LOST && !device_lost_) {
         device_lost_ = true;
-        graphics_system_->OnHostGpuLossFromAnyThread(true);
+        if (graphics_system_) {
+          graphics_system_->OnHostGpuLossFromAnyThread(true);
+        }
       }
       return false;
     }

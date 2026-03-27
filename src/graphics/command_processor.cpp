@@ -1056,7 +1056,9 @@ bool CommandProcessor::ExecutePacketType3_INTERRUPT(memory::RingBuffer* reader, 
   uint32_t cpu_mask = reader->ReadAndSwap<uint32_t>();
   for (int n = 0; n < 6; n++) {
     if (cpu_mask & (1 << n)) {
-      graphics_system_->DispatchInterruptCallback(1, n);
+      if (graphics_system_) {
+        graphics_system_->DispatchInterruptCallback(1, n);
+      }
     }
   }
   return true;
