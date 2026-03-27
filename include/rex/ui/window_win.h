@@ -42,6 +42,8 @@ class Win32Window : public Window {
   // closed.
   HWND hwnd() const { return hwnd_; }
 
+  void* GetNativeWindowHandle() const override { return reinterpret_cast<void*>(hwnd_); }
+
   uint32_t GetMediumDpi() const override;
 
  protected:

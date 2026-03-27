@@ -286,6 +286,10 @@ class Window {
   void SetIcon(const void* buffer, size_t size);
   void ResetIcon() { SetIcon(nullptr, 0); }
 
+  /// Returns the platform-native window handle (HWND on Windows), or nullptr.
+  /// Valid after Open() returns successfully.
+  virtual void* GetNativeWindowHandle() const { return nullptr; }
+
   // Desired state stored by the common Window, externally modifiable, read-only
   // in the implementation.
   void SetMainMenu(std::unique_ptr<MenuItem> new_main_menu);

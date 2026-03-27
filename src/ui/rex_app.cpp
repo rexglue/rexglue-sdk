@@ -196,6 +196,10 @@ bool ReXApp::OnInitialize() {
   }
   window_->Open();
 
+  // Always expose the window to the runtime so hooks (native rendering, etc.)
+  // can obtain the native handle even when the SDK graphics system is disabled.
+  runtime_->set_display_window(window_.get());
+
   // Setup graphics presenter and ImGui
   auto* graphics_system = static_cast<rex::graphics::GraphicsSystem*>(runtime_->graphics_system());
   if (graphics_system && graphics_system->presenter()) {
@@ -216,7 +220,6 @@ bool ReXApp::OnInitialize() {
         // Allow subclass to add custom dialogs
         OnCreateDialogs(imgui_drawer_.get());
 
-        runtime_->set_display_window(window_.get());
         runtime_->set_imgui_drawer(imgui_drawer_.get());
 
         // Tell input drivers to suppress input when ImGui wants the mouse
