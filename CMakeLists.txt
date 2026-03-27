@@ -142,6 +142,19 @@ endif()
 # Build config as compile definition (multi-config generators don't know config at configure time)
 add_compile_definitions(REXGLUE_BUILD_CONFIG="$<CONFIG>")
 
+# Detect dev builds -- append "-dev" suffix when HEAD is not on a version tag
+execute_process(
+    COMMAND git describe --tags --exact-match
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_QUIET ERROR_QUIET
+    RESULT_VARIABLE REXGLUE_TAG_RESULT
+)
+if(REXGLUE_TAG_RESULT EQUAL 0)
+    set(REXGLUE_VERSION_SUFFIX "")
+else()
+    set(REXGLUE_VERSION_SUFFIX "-dev")
+endif()
+
 # Generate version header -- must run after REX_PLATFORM is set
 # Timestamp is set at configure time -- intentionally not updated on every rebuild
 string(TIMESTAMP REXGLUE_BUILD_TIMESTAMP "%Y%m%d_%H%M")

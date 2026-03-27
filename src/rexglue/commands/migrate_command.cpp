@@ -109,7 +109,7 @@ Result<void> MigrateProject(const MigrateOptions& opts, const CliContext& ctx) {
   if (!opts.template_dir.empty())
     registry.loadOverrides(opts.template_dir);
 
-  nlohmann::json data = {{"names", names_to_json(names)}, {"sdk_version", REXGLUE_VERSION_STRING}};
+  nlohmann::json data = {{"names", names_to_json(names)}, {"sdk_version", REXGLUE_VERSION_NUMERIC}};
   std::string jsonStr = data.dump();
 
   REXLOG_INFO("Migrating project '{}' at: {}", names.snake_case, root.string());
