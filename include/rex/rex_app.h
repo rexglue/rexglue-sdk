@@ -101,6 +101,23 @@ class ReXApp : public ui::WindowedApp, public ui::WindowListener, public ui::Win
   /// Override to adjust game/user/update data paths programmatically.
   virtual void OnConfigurePaths(PathConfig& paths) { (void)paths; }
 
+  /// Called after Runtime::LoadXexImage() succeeds. The XEX is loaded and
+  /// mapped into guest memory but the module has not launched.
+  /// Use this for data patches on the loaded image.
+  virtual void OnPostLoadXexImage() {}
+
+  /// Called immediately before the main guest thread is created.
+  /// Everything is set up -- last chance to patch guest memory/code.
+  virtual void OnPreLaunchModule() {}
+
+  /// Called after the main guest thread is created but before it starts
+  /// executing. The thread is suspended -- attach debuggers/monitors here.
+  virtual void OnPostLaunchModule(system::XThread* thread) { (void)thread; }
+
+  /// Called when the main guest thread exits. The runtime is still alive.
+  /// Use for cleanup that depends on runtime resources.
+  virtual void OnGuestThreadExit(system::XThread* thread) { (void)thread; }
+
   // --- Accessors for subclass use ---
   Runtime* runtime() const { return runtime_.get(); }
   ui::Window* window() const { return window_.get(); }
