@@ -73,6 +73,10 @@ class LogCaptureSink : public spdlog::sinks::base_sink<std::mutex> {
       text.pop_back();
     }
 
+    // Lock mutable_mutex_ so writes to buf_ are synchronized with
+    // CopyEntries() and generation() which also lock this mutex.
+    // (base_sink::mutex_ alone is insufficient -- CopyEntries doesn't hold it.)
+    std::lock_guard lock(mutable_mutex_);
     buf_[write_pos_] = LogEntry{msg.level, std::move(cat), std::move(text)};
     write_pos_ = (write_pos_ + 1) % kCapacity;
     if (count_ < kCapacity)
