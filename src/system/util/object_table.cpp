@@ -252,7 +252,7 @@ ObjectTable::ObjectTableEntry* ObjectTable::LookupTable(X_HANDLE handle) {
 
   // Lower 2 bits are ignored.
   uint32_t slot = GetHandleSlot(handle);
-  if (slot <= table_capacity_) {
+  if (slot < table_capacity_) {
     return &table_[slot];
   }
 
@@ -396,9 +396,9 @@ bool ObjectTable::Restore(stream::ByteStream* stream) {
 
 X_STATUS ObjectTable::RestoreHandle(X_HANDLE handle, XObject* object) {
   uint32_t slot = GetHandleSlot(handle);
-  assert_true(table_capacity_ >= slot);
+  assert_true(table_capacity_ > slot);
 
-  if (table_capacity_ >= slot) {
+  if (table_capacity_ > slot) {
     auto& entry = table_[slot];
     entry.object = object;
     object->Retain();
