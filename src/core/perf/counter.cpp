@@ -28,7 +28,7 @@ namespace {
 constexpr size_t kNumCounters = static_cast<size_t>(CounterId::kCount);
 
 std::array<std::atomic<int64_t>, kNumCounters> g_counters{};
-std::array<int64_t, kNumCounters> g_snapshot{};
+std::array<std::atomic<int64_t>, kNumCounters> g_snapshot{};
 
 constexpr const char* kCounterNames[] = {
     "frame_time_us",
@@ -104,22 +104,24 @@ void ResetFrameCounters() {
   for (size_t i = 0; i < kNumCounters; ++i) {
     if (kIsGauge[i]) {
       // Gauges: snapshot the current value, don't zero
-      g_snapshot[i] = g_counters[i].load(std::memory_order_relaxed);
+      g_snapshot[i].store(g_counters[i].load(std::memory_order_relaxed), std::memory_order_relaxed);
     } else {
       // Accumulators: snapshot and zero for next frame
-      g_snapshot[i] = g_counters[i].exchange(0, std::memory_order_relaxed);
+      g_snapshot[i].store(g_counters[i].exchange(0, std::memory_order_relaxed),
+                          std::memory_order_relaxed);
     }
   }
 }
 
 int64_t GetSnapshotCounter(CounterId id) {
-  return g_snapshot[static_cast<size_t>(id)];
+  return g_snapshot[static_cast<size_t>(id)].load(std::memory_order_relaxed);
 }
 
 void Init() {
   for (auto& c : g_counters)
     c.store(0, std::memory_order_relaxed);
-  std::memset(g_snapshot.data(), 0, sizeof(g_snapshot));
+  for (auto& s : g_snapshot)
+    s.store(0, std::memory_order_relaxed);
 }
 
 void SetCsvLogPath(const std::string& path) {
@@ -157,7 +159,8 @@ void WriteCsvFrame() {
   for (size_t i = 0; i < kNumCounters; ++i) {
     if (i > 0)
       std::fputc(',', g_csv_file);
-    std::fprintf(g_csv_file, "%lld", static_cast<long long>(g_snapshot[i]));
+    std::fprintf(g_csv_file, "%lld",
+                 static_cast<long long>(g_snapshot[i].load(std::memory_order_relaxed)));
   }
   std::fputc('\n', g_csv_file);
 
