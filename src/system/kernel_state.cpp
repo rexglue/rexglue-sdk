@@ -455,16 +455,16 @@ object_ref<XModule> KernelState::GetModule(const std::string_view name, bool use
   return nullptr;
 }
 
-object_ref<XThread> KernelState::LaunchModule(object_ref<UserModule> module) {
+object_ref<XThread> KernelState::PrepareModuleLaunch(object_ref<UserModule> module) {
   if (!module->is_executable()) {
     return nullptr;
   }
 
   SetExecutableModule(module);
-  REXSYS_INFO("KernelState: Launching module...");
+  REXSYS_INFO("KernelState: Preparing module launch...");
 
   // Create a thread to run in.
-  // We start suspended so we can run the debugger prep.
+  // We start suspended so the caller can inspect/attach before resume.
   auto thread = object_ref<XThread>(new XThread(
       this, module->stack_size(), 0, module->entry_point(), 0, X_CREATE_SUSPENDED, true, true));
 
@@ -477,14 +477,14 @@ object_ref<XThread> KernelState::LaunchModule(object_ref<UserModule> module) {
     return nullptr;
   }
 
-  // TODO(tomc): do we need this for rexglue? more of a nice utility than a requirement like in JIT.
-  // emulator()->function_dispatcher()->PreLaunch();
+  return thread;
+}
 
-  // Resume the thread now.
-  // If the debugger has requested a suspend this will just decrement the
-  // suspend count without resuming it until the debugger wants.
-  thread->Resume();
-
+object_ref<XThread> KernelState::LaunchModule(object_ref<UserModule> module) {
+  auto thread = PrepareModuleLaunch(std::move(module));
+  if (thread) {
+    thread->Resume();
+  }
   return thread;
 }
 
