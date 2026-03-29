@@ -72,7 +72,6 @@ void DebugPrint(fmt::string_view format, const Args&... args) {
 
 // Counter profiling -- plot to Tracy
 #define COUNT_profile_set(name, value) TracyPlot(name, static_cast<int64_t>(value))
-#define COUNT_profile_add(name, value) TracyPlot(name, static_cast<int64_t>(value))
 
 #else  // !REXGLUE_ENABLE_PROFILING
 
@@ -94,6 +93,5 @@ void DebugPrint(fmt::string_view format, const Args&... args) {
 
 // Counter profiling stubs
 #define COUNT_profile_set(name, value)
-#define COUNT_profile_add(name, value)
 
 #endif  // REXGLUE_ENABLE_PROFILING
