@@ -144,6 +144,10 @@ class Runtime {
   // Call after LoadXexImage to start execution
   system::object_ref<system::XThread> LaunchModule();
 
+  // Prepare module launch: creates suspended main thread without resuming.
+  // Call thread->Resume() after any pre-launch hooks.
+  system::object_ref<system::XThread> PrepareModuleLaunch();
+
   // Access the memory base pointer for recompiled code
   uint8_t* virtual_membase() const;
 
