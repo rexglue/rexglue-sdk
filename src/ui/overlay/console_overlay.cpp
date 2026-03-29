@@ -118,7 +118,7 @@ void ConsoleDialog::ExecuteCommand(std::string_view cmd) {
       std::string line = "  " + n;
       if (info)
         line += " = " + info->getter() + "  (" + info->description + ")";
-      entries_.push_back({spdlog::level::info, "console", line});
+      local_entries_.push_back({spdlog::level::info, "console", line});
     }
     return;
   }
@@ -129,10 +129,10 @@ void ConsoleDialog::ExecuteCommand(std::string_view cmd) {
     // No space: treat as "get" - show current value.
     std::string val = rex::cvar::GetFlagByName(cmd);
     if (val.empty() && !rex::cvar::GetFlagInfo(cmd)) {
-      entries_.push_back(
+      local_entries_.push_back(
           {spdlog::level::warn, "console", "[console] unknown cvar: " + std::string(cmd)});
     } else {
-      entries_.push_back(
+      local_entries_.push_back(
           {spdlog::level::info, "console", "[console] " + std::string(cmd) + " = " + val});
     }
     return;
@@ -144,9 +144,9 @@ void ConsoleDialog::ExecuteCommand(std::string_view cmd) {
     value.erase(value.begin());
 
   if (rex::cvar::SetFlagByName(name, value)) {
-    entries_.push_back({spdlog::level::info, "console", "[console] " + name + " = " + value});
+    local_entries_.push_back({spdlog::level::info, "console", "[console] " + name + " = " + value});
   } else {
-    entries_.push_back({spdlog::level::warn, "console", "[console] unknown cvar: " + name});
+    local_entries_.push_back({spdlog::level::warn, "console", "[console] unknown cvar: " + name});
   }
   scroll_to_bottom_ = true;
 }
@@ -160,6 +160,8 @@ void ConsoleDialog::OnDraw(ImGuiIO& io) {
     uint64_t gen = sink_->generation();
     if (gen != last_generation_) {
       sink_->CopyEntries(entries_);
+      // Re-append console-local entries (command feedback) that aren't in the sink.
+      entries_.insert(entries_.end(), local_entries_.begin(), local_entries_.end());
       last_generation_ = gen;
       RefreshCategories();
     }
