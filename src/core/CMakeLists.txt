@@ -99,3 +99,8 @@ if(REXGLUE_ENABLE_PERF_COUNTERS)
     target_compile_definitions(rexcore PUBLIC
         $<$<NOT:$<CONFIG:Release>>:REXGLUE_ENABLE_PERF_COUNTERS>)
 endif()
+
+if(REXGLUE_PROFILE_GUEST_FUNCTIONS)
+    target_compile_definitions(rexcore PUBLIC
+        $<$<NOT:$<CONFIG:Release>>:REXGLUE_PROFILE_GUEST_FUNCTIONS>)
+endif()
