@@ -158,6 +158,8 @@ bool ReXApp::OnInitialize() {
     return false;
   }
 
+  OnPostLoadXexImage();
+
   // Initialize rexcrt heap after LoadXexImage to avoid guest memory writes
   // corrupting the heap region. rexcrt_heap is set by codegen (REXCRT_HEAP)
   // when [rexcrt] contains heap functions -- originals are stripped so init
@@ -235,15 +237,21 @@ bool ReXApp::OnInitialize() {
 
   // Launch module in background
   app_context().CallInUIThreadDeferred([this]() {
-    auto main_thread = runtime_->LaunchModule();
+    OnPreLaunchModule();
+
+    auto main_thread = runtime_->PrepareModuleLaunch();
     if (!main_thread) {
       REXLOG_ERROR("Failed to launch module");
       app_context().QuitFromUIThread();
       return;
     }
 
+    OnPostLaunchModule(main_thread.get());
+    main_thread->Resume();
+
     module_thread_ = std::thread([this, main_thread = std::move(main_thread)]() mutable {
       main_thread->Wait(0, 0, 0, nullptr);
+      OnGuestThreadExit(main_thread.get());
       REXLOG_INFO("Execution complete");
       if (!shutting_down_.load(std::memory_order_acquire)) {
         app_context().CallInUIThread([this]() { app_context().QuitFromUIThread(); });
