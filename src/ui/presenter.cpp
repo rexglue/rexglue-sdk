@@ -1435,6 +1435,59 @@ void Presenter::UpdateSurfaceMonitorFromUIThread(bool old_monitor_potentially_di
   // too) must be the condition for a non-null monitor, not just the existence
   // of `window_`.
   
+#if REX_PLATFORM_WIN32 && defined(REX_HAS_D3D12) && REX_HAS_D3D12
+    HMONITOR surface_new_win32_monitor = nullptr;
+    if (surface_) {
+      HWND hwnd = static_cast<const Win32Window*>(window_)->hwnd();
+      // The HWND may be non-existent if the window has been closed and destroyed
+      // (the HWND, not the rex::ui::Window) already.
+      if (hwnd) {
+        surface_new_win32_monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONULL);
+      }
+    }
+    if (old_monitor_potentially_disconnected ||
+        surface_win32_monitor_ != surface_new_win32_monitor) {
+      surface_win32_monitor_ = surface_new_win32_monitor;
+      if (dxgi_ui_tick_factory_ && !dxgi_ui_tick_factory_->IsCurrent()) {
+        // If a monitor has been newly connected, it won't appear in the old
+        // factory, need to recreate it.
+        {
+          Microsoft::WRL::ComPtr<IDXGIOutput> old_factory_output_to_release;
+          {
+            std::scoped_lock<std::mutex> dxgi_ui_tick_lock(dxgi_ui_tick_mutex_);
+            old_factory_output_to_release = std::move(dxgi_ui_tick_output_);
+          }
+        }
+        dxgi_ui_tick_factory_.Reset();
+      }
+      if (!dxgi_ui_tick_factory_) {
+        if (FAILED(CreateDXGIFactory1(IID_PPV_ARGS(&dxgi_ui_tick_factory_)))) {
+          REXLOG_ERROR("Presenter: Failed to create a DXGI factory");
+        }
+      }
+      Microsoft::WRL::ComPtr<IDXGIOutput> new_dxgi_output;
+      if (dxgi_ui_tick_factory_ && surface_new_win32_monitor) {
+        new_dxgi_output =
+            GetDXGIOutputForMonitor(dxgi_ui_tick_factory_.Get(), surface_new_win32_monitor);
+      }
+      // If the adapter was recreated, and the old output was released before its
+      // destruction, notifying is still required - the vertical blank wait thread
+      // might have entered the condition variable wait already as the output was
+      // null.
+      bool signal_dxgi_ui_tick_control;
+      {
+        std::unique_lock<std::mutex> dxgi_ui_tick_lock(dxgi_ui_tick_mutex_);
+        bool dxgi_output_was_null = (dxgi_ui_tick_output_ == nullptr);
+        dxgi_ui_tick_output_ = new_dxgi_output;
+        signal_dxgi_ui_tick_control =
+            dxgi_output_was_null && AreDXGIUITicksWaitable(dxgi_ui_tick_lock);
+      }
+      if (signal_dxgi_ui_tick_control) {
+        dxgi_ui_tick_control_condition_.notify_all();
+      }
+    }
+  
+#endif  // XE_PLATFORM
 }
 
 bool Presenter::InSurfaceOnMonitorFromUIThread() const {
