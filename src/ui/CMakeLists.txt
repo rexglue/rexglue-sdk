@@ -135,6 +135,7 @@ if(WIN32)
     target_link_libraries(rexui PUBLIC
         dwmapi
         Shcore
+        dxgi
     )
 else()
     find_package(PkgConfig REQUIRED)
@@ -153,8 +154,8 @@ endif()
 
 # D3D12 backend dependencies
 if(REXGLUE_USE_D3D12)
+    target_compile_definitions(rexui PRIVATE REX_HAS_D3D12=1)
     target_link_libraries(rexui PUBLIC
-        dxgi
         dxc-headers
     )
 endif()
