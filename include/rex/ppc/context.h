@@ -13,21 +13,12 @@
 
 #pragma once
 
-#include <atomic>
 #include <bit>
-#include <cassert>
-#include <csetjmp>
 #include <cstdint>
-#include <cstdlib>
-#include <stdexcept>
-#include <unordered_map>
+#include <cstring>
 
-#include <rex/chrono/clock.h>  // For mftb timebase access
-#include <rex/logging.h>
 #include <rex/platform/fpscr.h>
-#include <rex/ppc/memory.h>
 #include <rex/types.h>
-#include <rex/thread/mutex.h>
 
 #include <simde/x86/avx.h>
 #include <simde/x86/sse.h>
@@ -46,30 +37,6 @@ struct PPCContext;
 using PPCFunc = void(PPCContext& ctx, uint8_t* base);
 
 //=============================================================================
-// Compiler-Specific Intrinsics
-//=============================================================================
-
-#if defined(__clang__)
-// Clang has builtin rotate functions and debugtrap
-#elif defined(__GNUC__)
-// GCC doesn't have __builtin_rotateleft*, use C++20 std::rotl
-#ifndef __builtin_rotateleft32
-#define __builtin_rotateleft32(x, n) std::rotl(static_cast<uint32_t>(x), static_cast<int>(n))
-#endif
-#ifndef __builtin_rotateleft64
-#define __builtin_rotateleft64(x, n) std::rotl(static_cast<uint64_t>(x), static_cast<int>(n))
-#endif
-// GCC doesn't have __builtin_debugtrap, use __builtin_trap or int3 on x86
-#ifndef __builtin_debugtrap
-#if defined(__x86_64__) || defined(__i386__)
-#define __builtin_debugtrap() __asm__ __volatile__("int3")
-#else
-#define __builtin_debugtrap() __builtin_trap()
-#endif
-#endif
-#endif
-
-//=============================================================================
 // PPC Function Macros
 //=============================================================================
 
@@ -79,98 +46,6 @@ using PPCFunc = void(PPCContext& ctx, uint8_t* base);
 #define REX_FUNC(x) void x([[maybe_unused]] PPCContext& __restrict ctx, uint8_t* base)
 #define REX_EXTERN(x) extern "C" REX_FUNC(x)
 #define REX_WEAK_FUNC(x) __attribute__((weak, noinline)) REX_FUNC(x)
-
-// Compiler-specific assume hint for alignment, with optional Tracy zone
-#if defined(REXGLUE_PROFILE_GUEST_FUNCTIONS) && defined(REXGLUE_ENABLE_PROFILING)
-#include <tracy/Tracy.hpp>
-#if defined(__clang__)
-#define REX_FUNC_PROLOGUE()                     \
-  __builtin_assume(((size_t)base & 0x1F) == 0); \
-  ZoneNamedN(___tracy_guest_zone, __func__, true)
-#elif defined(__GNUC__)
-#define REX_FUNC_PROLOGUE()         \
-  do {                              \
-    if (((size_t)base & 0x1F) != 0) \
-      __builtin_unreachable();      \
-  } while (0);                      \
-  ZoneNamedN(___tracy_guest_zone, __func__, true)
-#else
-#define REX_FUNC_PROLOGUE() ZoneNamedN(___tracy_guest_zone, __func__, true)
-#endif
-#else
-// Original alignment-hint-only expansion
-#if defined(__clang__)
-#define REX_FUNC_PROLOGUE() __builtin_assume(((size_t)base & 0x1F) == 0)
-#elif defined(__GNUC__)
-#define REX_FUNC_PROLOGUE()         \
-  do {                              \
-    if (((size_t)base & 0x1F) != 0) \
-      __builtin_unreachable();      \
-  } while (0)
-#else
-#define REX_FUNC_PROLOGUE() ((void)0)
-#endif
-#endif
-
-#ifndef REX_CALL_FUNC
-#define REX_CALL_FUNC(x) x(ctx, base)
-#endif
-
-//=============================================================================
-// Library Mode Stubs
-//=============================================================================
-// Safe fallbacks when ppc_config.h is not included.
-
-#if !defined(PPC_CONFIG_H_INCLUDED) && !defined(REX_CONFIG_H_INCLUDED)
-
-#define REX_LOOKUP_FUNC(x, y) ((PPCFunc*)nullptr)
-
-#define REX_CALL_INDIRECT_FUNC(x) __builtin_debugtrap()
-
-#endif  // !PPC_CONFIG_H_INCLUDED && !REX_CONFIG_H_INCLUDED
-
-//=============================================================================
-// Recompiled Code Mode
-//=============================================================================
-// Requires ppc_config.h to be included first.
-
-#if defined(PPC_CONFIG_H_INCLUDED) || defined(REX_CONFIG_H_INCLUDED)
-
-// Bridge old config names to new (for pre-regen generated configs)
-#if defined(PPC_IMAGE_BASE) && !defined(REX_IMAGE_BASE)
-#define REX_IMAGE_BASE PPC_IMAGE_BASE
-#define REX_IMAGE_SIZE PPC_IMAGE_SIZE
-#define REX_CODE_BASE PPC_CODE_BASE
-#define REX_CODE_SIZE PPC_CODE_SIZE
-#endif
-
-// Function table lookup: indexed by (addr - CODE_BASE)
-#undef REX_LOOKUP_FUNC
-#define REX_LOOKUP_FUNC(x, y) \
-  (*(PPCFunc**)(x + REX_IMAGE_BASE + REX_IMAGE_SIZE + (uint64_t(uint32_t(y) - REX_CODE_BASE) * 2)))
-
-#undef REX_CALL_INDIRECT_FUNC
-#include <rex/perf/counter.h>
-#define REX_CALL_INDIRECT_FUNC(x) \
-  PROFILE_FUNCTION_DISPATCHED();  \
-  REX_LOOKUP_FUNC(base, x)(ctx, base);
-
-#endif  // PPC_CONFIG_H_INCLUDED || REX_CONFIG_H_INCLUDED
-
-//=============================================================================
-// Unimplemented Instruction Exception
-//=============================================================================
-
-#ifndef REX_UNIMPLEMENTED
-#define REX_UNIMPLEMENTED(addr, opcode) \
-  throw std::runtime_error("Unimplemented PPC instruction: " opcode)
-#endif
-
-//=============================================================================
-// Timebase Access
-//=============================================================================
-
-#define REX_QUERY_TIMEBASE() rex::chrono::Clock::QueryGuestTickCount()
 
 //=============================================================================
 // Function Mapping
@@ -192,7 +67,7 @@ constexpr float kPack2101010_Max10 = std::bit_cast<float>(0x404001FFu);
 constexpr float kPack2101010_Min2 = std::bit_cast<float>(0x40400000u);
 constexpr float kPack2101010_Max2 = std::bit_cast<float>(0x40400003u);
 
-namespace rex {
+namespace rex::ppc {
 
 //=============================================================================
 // General Purpose Register
@@ -357,19 +232,19 @@ struct FPSCRRegister {
   }
 };
 
-}  // namespace rex
+}  // namespace rex::ppc
 
-using PPCRegister = rex::Register;
-using PPCXERRegister = rex::XERRegister;
-using PPCCRRegister = rex::CRRegister;
-using PPCVRegister = rex::VRegister;
-using PPCFPSCRRegister = rex::FPSCRRegister;
+using PPCRegister = rex::ppc::Register;
+using PPCXERRegister = rex::ppc::XERRegister;
+using PPCCRRegister = rex::ppc::CRRegister;
+using PPCVRegister = rex::ppc::VRegister;
+using PPCFPSCRRegister = rex::ppc::FPSCRRegister;
 
-#define PPC_ROUND_NEAREST rex::kRoundNearest
-#define PPC_ROUND_TOWARD_ZERO rex::kRoundTowardZero
-#define PPC_ROUND_UP rex::kRoundUp
-#define PPC_ROUND_DOWN rex::kRoundDown
-#define PPC_ROUND_MASK rex::kRoundMask
+#define PPC_ROUND_NEAREST rex::ppc::kRoundNearest
+#define PPC_ROUND_TOWARD_ZERO rex::ppc::kRoundTowardZero
+#define PPC_ROUND_UP rex::ppc::kRoundUp
+#define PPC_ROUND_DOWN rex::ppc::kRoundDown
+#define PPC_ROUND_MASK rex::ppc::kRoundMask
 
 //=============================================================================
 // PPCContext Structure
@@ -652,117 +527,8 @@ struct alignas(0x40) PPCContext {
 };
 
 //=============================================================================
-// PPC setjmp/longjmp Support
-//=============================================================================
-// Native setjmp/longjmp with host-side jmp_buf storage.
-// Guest jmp_buf address is used as a key, not for actual storage.
-//
-// Problem: Xbox 360's jmp_buf format stores PPC registers (GPRs, LR, CR, etc.)
-// but native x86-64 jmp_buf expects x86-64 registers (RBP, RSP, RBX, etc.).
-// Using guest memory as jmp_buf storage causes crashes.
-//
-// Solution: Use the guest jmp_buf address as a key into a host-side map that
-// stores the actual x86-64 jmp_buf. The guest memory is ignored.
-
-namespace rex {
-
-// Thread-local storage for jmp_buf mapping
-// Maps guest jmp_buf address -> host jmp_buf
-inline std::unordered_map<uint32_t, jmp_buf>& get_jmp_buf_map() {
-  static thread_local std::unordered_map<uint32_t, jmp_buf> map;
-  return map;
-}
-
-// Custom setjmp - uses guest address as key, stores in host map
-// Returns 0 on initial call, non-zero value from longjmp on return
-// NOTE: Must be a macro so setjmp captures the caller's stack frame.
-// An inline function wrapper causes MSVC debug builds to crash because
-// setjmp saves the wrapper's frame, which is gone by the time longjmp fires.
-#define ppc_setjmp(guest_buf_addr) (setjmp(::rex::get_jmp_buf_map()[(guest_buf_addr)]))
-
-// Custom longjmp - looks up host jmp_buf by guest address
-// Never returns - jumps back to the corresponding setjmp site
-[[noreturn]] inline void ppc_longjmp(uint32_t guest_buf_addr, int val) {
-  auto& map = get_jmp_buf_map();
-  auto it = map.find(guest_buf_addr);
-  if (it != map.end()) {
-    longjmp(it->second, val);
-  }
-  // setjmp was never called for this address - abort
-  std::abort();
-}
-
-}  // namespace rex
-
-//=============================================================================
-// PPC Interrupt and Exception Handling
-//=============================================================================
-
-// Global lock count storage - tracks nesting depth
-inline std::atomic<int32_t>& ppc_global_lock_count_() {
-  static std::atomic<int32_t> count{0};
-  return count;
-}
-
-// Check global lock state (for mfmsr)
-// Returns 0x8000 if unlocked (interrupts enabled), 0 if locked
-#define REX_CHECK_GLOBAL_LOCK()                                        \
-  ([&]() -> uint64_t {                                                 \
-    auto lock_ = rex::thread::global_critical_region::AcquireDirect(); \
-    return ppc_global_lock_count_().load() ? 0 : 0x8000;               \
-  }())
-
-// Enter global lock (for mtmsrd from r13)
-#define REX_ENTER_GLOBAL_LOCK()                          \
-  do {                                                   \
-    rex::thread::global_critical_region::mutex().lock(); \
-    ppc_global_lock_count_().fetch_add(1);               \
-  } while (0)
-
-// Leave global lock (for mtmsrd from non-r13)
-#define REX_LEAVE_GLOBAL_LOCK()                                                           \
-  do {                                                                                    \
-    auto old_count_ = ppc_global_lock_count_().fetch_sub(1);                              \
-    assert(old_count_ >= 1 && "LeaveGlobalLock called without matching EnterGlobalLock"); \
-    rex::thread::global_critical_region::mutex().unlock();                                \
-  } while (0)
-
-//=============================================================================
-// PPC Trap Handling
-//=============================================================================
-// Trap instructions (tw/twi/td/tdi) generate a Program Exception on PPC.
-// The kernel inspects the trap type and dispatches to the appropriate handler.
-// Unconditional traps (twi 31, r0, <imm>) encode a service code in the immediate:
-//   20, 26 = Debug print (r3 = string ptr, r4 = length)
-//   0, 22  = Debug break
-//   25     = No-op
-// Conditional traps are inline assertions that continue on the exception return path.
-inline void ppc_trap(PPCContext& ctx, uint8_t* base, uint16_t trap_type) {
-  switch (trap_type) {
-    case 20:
-    case 26: {
-      auto str = PPC_LOAD_STRING(ctx.r3.u32, ctx.r4.u16);
-      REXCPU_DEBUG("(service trap) {}", str);
-      break;
-    }
-    case 0:
-    case 22:
-      REXCPU_WARN("tw/td trap hit (type {})", trap_type);
-      break;
-    case 25:
-      break;
-    default:
-      REXCPU_WARN("Unknown trap type {}", trap_type);
-      break;
-  }
-}
-
-//=============================================================================
 // Legacy Compat Aliases
 //=============================================================================
-// Old PPC_ names map to new REX_ names. Consumed by generated code until
-// the next codegen run. Remove these once all downstream projects are
-// regenerated with updated templates.
 
 #define PPC_FUNC(x) REX_FUNC(x)
 #define PPC_FUNC_IMPL(x) REX_EXTERN(x)
@@ -772,12 +538,3 @@ inline void ppc_trap(PPCContext& ctx, uint8_t* base, uint16_t trap_type) {
 #define PPC_JOIN(x, y) REX_JOIN(x, y)
 #define PPC_XSTRINGIFY(x) REX_XSTRINGIFY(x)
 #define PPC_STRINGIFY(x) REX_STRINGIFY(x)
-#define PPC_FUNC_PROLOGUE REX_FUNC_PROLOGUE
-#define PPC_CALL_FUNC(x) REX_CALL_FUNC(x)
-#define PPC_LOOKUP_FUNC(x, y) REX_LOOKUP_FUNC(x, y)
-#define PPC_CALL_INDIRECT_FUNC(x) REX_CALL_INDIRECT_FUNC(x)
-#define PPC_UNIMPLEMENTED(addr, opcode) REX_UNIMPLEMENTED(addr, opcode)
-#define PPC_QUERY_TIMEBASE() REX_QUERY_TIMEBASE()
-#define PPC_CHECK_GLOBAL_LOCK() REX_CHECK_GLOBAL_LOCK()
-#define PPC_ENTER_GLOBAL_LOCK() REX_ENTER_GLOBAL_LOCK()
-#define PPC_LEAVE_GLOBAL_LOCK() REX_LEAVE_GLOBAL_LOCK()

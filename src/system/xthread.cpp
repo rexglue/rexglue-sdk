@@ -23,7 +23,7 @@
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/ppc/context.h>
-#include <rex/ppc/exceptions.h>
+#include <rex/platform/exceptions.h>
 #include <rex/runtime.h>
 #include <rex/stream.h>
 #include <rex/system/kernel_state.h>

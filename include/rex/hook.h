@@ -20,6 +20,8 @@
 #include <rex/logging.h>
 #include <rex/ppc/context.h>
 #include <rex/ppc/function.h>
+#include <rex/system/kernel_state.h>
+#include <rex/system/thread_state.h>
 #include <rex/types.h>
 
 //=============================================================================
@@ -31,15 +33,15 @@
 // HostToGuestFunction handles register translation automatically.
 #ifdef REXGLUE_ENABLE_PROFILING
 #include <tracy/Tracy.hpp>
-#define REX_HOOK(subroutine, function)                 \
-  extern "C" REX_FUNC(subroutine) {                    \
-    ZoneNamedN(___tracy_hook_zone, #subroutine, true); \
-    rex::HostToGuestFunction<function>(ctx, base);     \
+#define REX_HOOK(subroutine, function)                  \
+  extern "C" REX_FUNC(subroutine) {                     \
+    ZoneNamedN(___tracy_hook_zone, #subroutine, true);  \
+    rex::ppc::HostToGuestFunction<function>(ctx, base); \
   }
 #else
-#define REX_HOOK(subroutine, function)             \
-  extern "C" REX_FUNC(subroutine) {                \
-    rex::HostToGuestFunction<function>(ctx, base); \
+#define REX_HOOK(subroutine, function)                  \
+  extern "C" REX_FUNC(subroutine) {                     \
+    rex::ppc::HostToGuestFunction<function>(ctx, base); \
   }
 #endif
 
@@ -69,11 +71,11 @@
 // Export: hook + register in global registry for kernel ordinal lookup.
 #define REX_EXPORT(name, function) \
   REX_HOOK(name, function)         \
-  static rex::detail::PPCFuncRegistrar _ppc_reg_##name(#name, &name);
+  static rex::ppc::detail::PPCFuncRegistrar _ppc_reg_##name(#name, &name);
 
 #define REX_EXPORT_STUB(name) \
   REX_STUB(name)              \
-  static rex::detail::PPCFuncRegistrar _ppc_reg_##name(#name, &name);
+  static rex::ppc::detail::PPCFuncRegistrar _ppc_reg_##name(#name, &name);
 
 namespace rex {
 
@@ -102,6 +104,10 @@ struct CallFrame {
   CallFrame& operator=(const CallFrame&) = delete;
 };
 
+}  // namespace rex
+
+namespace rex::ppc {
+
 //=============================================================================
 // ImportFunction - Zero-overhead typed callable for recompiled functions
 //=============================================================================
@@ -126,16 +132,50 @@ struct ImportFunction<R(Args...)> {
     }
   }
 
-  R operator()(CallFrame& frame, uint8_t* base, Args... args) const {
+  R operator()(rex::CallFrame& frame, uint8_t* base, Args... args) const {
     return (*this)(frame.ctx, base, args...);
   }
+
+  /// Auto-isolating call: retrieves ctx/base internally, creates isolated
+  /// context with 0x70 frame, calls function, returns result.
+  R operator()(Args... args) const {
+    auto* ts = rex::runtime::ThreadState::Get();
+    PPCContext* parentCtx = ts->context();
+
+    auto* ks = rex::system::kernel_state();
+    uint8_t* base = ks->memory()->virtual_membase();
+
+    PPCContext ctx{};
+    ctx.r1 = parentCtx->r1;
+    ctx.r1.u32 -= 0x70;
+    ctx.r13 = parentCtx->r13;
+    ctx.fpscr = parentCtx->fpscr;
+
+    auto tpl = std::make_tuple(args...);
+    _translate_args_to_guest(ctx, base, tpl);
+    fn(ctx, base);
+
+    parentCtx->fpscr = ctx.fpscr;
+
+    if constexpr (std::is_void_v<R>) {
+      return;
+    } else if constexpr (is_precise_v<R>) {
+      return static_cast<R>(ctx.f1.f64);
+    } else {
+      return static_cast<R>(ctx.r3.u64);
+    }
+  }
 };
+
+}  // namespace rex::ppc
+
+namespace rex {
 
 //=============================================================================
 // StackFrame - RAII guest stack allocation
 //=============================================================================
 
-class StackFrame {
+class [[deprecated("Use rex::ppc::stack_push / stack_guard instead")]] StackFrame {
   PPCContext& ctx_;
   u32 size_;
 
@@ -147,17 +187,17 @@ class StackFrame {
   u32 addr() const { return ctx_.r1.u32; }
   u32 addr(u32 offset) const { return ctx_.r1.u32 + offset; }
 
-  void write_string(u32 offset, const char* str, uint8_t* base) const {
-    std::memcpy(base + addr(offset), str, std::strlen(str) + 1);
+  void write_string(u32 offset, const char* str, u8* base) const {
+    std::memcpy(rex::memory::GuestPtr(base, addr(offset)), str, std::strlen(str) + 1);
   }
 
-  void write(u32 offset, const void* data, size_t len, uint8_t* base) const {
-    std::memcpy(base + addr(offset), data, len);
+  void write(u32 offset, const void* data, size_t len, u8* base) const {
+    std::memcpy(rex::memory::GuestPtr(base, addr(offset)), data, len);
   }
 
   template <typename... A>
-  size_t write_fmt(u32 offset, uint8_t* base, fmt::format_string<A...> fmtstr, A&&... args) const {
-    char* dst = reinterpret_cast<char*>(base + addr(offset));
+  size_t write_fmt(u32 offset, u8* base, fmt::format_string<A...> fmtstr, A&&... args) const {
+    char* dst = rex::memory::GuestPtr<char*>(base, addr(offset));
     auto result = fmt::format_to_n(dst, size_ - offset - 1, fmtstr, std::forward<A>(args)...);
     *result.out = '\0';
     return result.size;
@@ -177,10 +217,10 @@ class StackFrame {
 //   callable: the name of the typed callable variable
 //   sig:      the function signature (e.g. u32(u32, u32))
 
-#define REX_IMPORT(symbol, callable, sig)    \
-  REX_EXTERN(symbol);                        \
-  inline rex::ImportFunction<sig> callable { \
-    symbol                                   \
+#define REX_IMPORT(symbol, callable, sig)         \
+  REX_EXTERN(symbol);                             \
+  inline rex::ppc::ImportFunction<sig> callable { \
+    symbol                                        \
   }
 
 //=============================================================================

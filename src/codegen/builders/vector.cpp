@@ -307,7 +307,7 @@ bool build_vadduwm(BuilderContext& ctx) {
 bool build_vadduws(BuilderContext& ctx) {
   ctx.println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u32, "
-      "rex::simde_mm_adds_epu32(simde_mm_load_si128((simde__m128i*){}.u32), "
+      "rex::ppc::simde_mm_adds_epu32(simde_mm_load_si128((simde__m128i*){}.u32), "
       "simde_mm_load_si128((simde__m128i*){}.u32)));",
       ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]), ctx.v(ctx.insn.operands[2]));
   return true;
@@ -437,7 +437,7 @@ bool build_vsubshs(BuilderContext& ctx) {
 bool build_vavgsb(BuilderContext& ctx) {
   ctx.println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
-      "rex::simde_mm_avg_epi8(simde_mm_load_si128((simde__m128i*){}.u8), "
+      "rex::ppc::simde_mm_avg_epi8(simde_mm_load_si128((simde__m128i*){}.u8), "
       "simde_mm_load_si128((simde__m128i*){}.u8)));",
       ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]), ctx.v(ctx.insn.operands[2]));
   return true;
@@ -446,7 +446,7 @@ bool build_vavgsb(BuilderContext& ctx) {
 bool build_vavgsh(BuilderContext& ctx) {
   ctx.println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u16, "
-      "rex::simde_mm_avg_epi16(simde_mm_load_si128((simde__m128i*){}.u16), "
+      "rex::ppc::simde_mm_avg_epi16(simde_mm_load_si128((simde__m128i*){}.u16), "
       "simde_mm_load_si128((simde__m128i*){}.u16)));",
       ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]), ctx.v(ctx.insn.operands[2]));
   return true;
@@ -455,7 +455,7 @@ bool build_vavgsh(BuilderContext& ctx) {
 bool build_vavgsw(BuilderContext& ctx) {
   ctx.println(
       "\tsimde_mm_store_si128((simde__m128i*){}.s32, "
-      "rex::simde_mm_avg_epi32("
+      "rex::ppc::simde_mm_avg_epi32("
       "simde_mm_load_si128((simde__m128i*){}.s32), "
       "simde_mm_load_si128((simde__m128i*){}.s32)));",
       ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]), ctx.v(ctx.insn.operands[2]));
@@ -653,7 +653,7 @@ bool build_vcmpgtfp(BuilderContext& ctx) {
 bool build_vcmpgtub(BuilderContext& ctx) {
   ctx.println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
-      "rex::simde_mm_cmpgt_epu8(simde_mm_load_si128((simde__m128i*){}.u8), "
+      "rex::ppc::simde_mm_cmpgt_epu8(simde_mm_load_si128((simde__m128i*){}.u8), "
       "simde_mm_load_si128((simde__m128i*){}.u8)));",
       ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]), ctx.v(ctx.insn.operands[2]));
   if (isRecordForm(ctx.insn))
@@ -665,7 +665,7 @@ bool build_vcmpgtub(BuilderContext& ctx) {
 bool build_vcmpgtuh(BuilderContext& ctx) {
   ctx.println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
-      "rex::simde_mm_cmpgt_epu16(simde_mm_load_si128((simde__m128i*){}.u16), "
+      "rex::ppc::simde_mm_cmpgt_epu16(simde_mm_load_si128((simde__m128i*){}.u16), "
       "simde_mm_load_si128((simde__m128i*){}.u16)));",
       ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]), ctx.v(ctx.insn.operands[2]));
   if (isRecordForm(ctx.insn))
@@ -725,7 +725,7 @@ bool build_vcmpgtsw(BuilderContext& ctx) {
 
 bool build_vctsxs(BuilderContext& ctx) {
   ctx.emit_set_flush_mode(true);
-  ctx.print("\tsimde_mm_store_si128((simde__m128i*){}.s32, rex::simde_mm_vctsxs(",
+  ctx.print("\tsimde_mm_store_si128((simde__m128i*){}.s32, rex::ppc::simde_mm_vctsxs(",
             ctx.v(ctx.insn.operands[0]));
   if (ctx.insn.operands[2] != 0)
     ctx.println("simde_mm_mul_ps(simde_mm_load_ps({}.f32), simde_mm_set1_ps({}))));",
@@ -757,11 +757,12 @@ bool build_vcfux(BuilderContext& ctx) {
   if (ctx.insn.operands[2] != 0) {
     const float value = std::ldexp(1.0f, -static_cast<int32_t>(ctx.insn.operands[2]));
     ctx.println(
-        "simde_mm_mul_ps(rex::simde_mm_cvtepu32_ps_(simde_mm_load_si128((simde__m128i*){}.u32)), "
+        "simde_mm_mul_ps(rex::ppc::simde_mm_cvtepu32_ps_(simde_mm_load_si128((simde__m128i*){}.u32)"
+        "), "
         "simde_mm_castsi128_ps(simde_mm_set1_epi32(int(0x{:X})))));",
         ctx.v(ctx.insn.operands[1]), *reinterpret_cast<const uint32_t*>(&value));
   } else {
-    ctx.println("rex::simde_mm_cvtepu32_ps_(simde_mm_load_si128((simde__m128i*){}.u32)));",
+    ctx.println("rex::ppc::simde_mm_cvtepu32_ps_(simde_mm_load_si128((simde__m128i*){}.u32)));",
                 ctx.v(ctx.insn.operands[1]));
   }
   return true;
@@ -770,7 +771,7 @@ bool build_vcfux(BuilderContext& ctx) {
 bool build_vctuxs(BuilderContext& ctx) {
   // Vector Convert To Unsigned Fixed-Point Word Saturate
   ctx.emit_set_flush_mode(true);
-  ctx.print("\tsimde_mm_store_si128((simde__m128i*){}.u32, rex::simde_mm_vctuxs(",
+  ctx.print("\tsimde_mm_store_si128((simde__m128i*){}.u32, rex::ppc::simde_mm_vctuxs(",
             ctx.v(ctx.insn.operands[0]));
   if (ctx.insn.operands[2] != 0)
     ctx.println("simde_mm_mul_ps(simde_mm_load_ps({}.f32), simde_mm_set1_ps({}))));",
@@ -821,7 +822,7 @@ bool build_vmrglw(BuilderContext& ctx) {
 bool build_vperm(BuilderContext& ctx) {
   ctx.println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
-      "rex::simde_mm_perm_epi8_(simde_mm_load_si128((simde__m128i*){}.u8), "
+      "rex::ppc::simde_mm_perm_epi8_(simde_mm_load_si128((simde__m128i*){}.u8), "
       "simde_mm_load_si128((simde__m128i*){}.u8), simde_mm_load_si128((simde__m128i*){}.u8)));",
       ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]), ctx.v(ctx.insn.operands[2]),
       ctx.v(ctx.insn.operands[3]));
@@ -913,8 +914,8 @@ bool build_vrlh(BuilderContext& ctx) {
   ctx.println("\t\t\tsimde_mm_load_si128((simde__m128i*){}.u8), simde_mm_set1_epi16(0xF));", vB);
   ctx.println("\t\tsimde__m128i rsh = simde_mm_sub_epi16(simde_mm_set1_epi16(16), sh);");
   ctx.println("\t\tsimde__m128i result = simde_mm_or_si128(");
-  ctx.println("\t\t\trex::simde_mm_sllv_epi16(a, sh),");
-  ctx.println("\t\t\trex::simde_mm_srlv_epi16(a, rsh));");
+  ctx.println("\t\t\trex::ppc::simde_mm_sllv_epi16(a, sh),");
+  ctx.println("\t\t\trex::ppc::simde_mm_srlv_epi16(a, rsh));");
   ctx.println("\t\tsimde_mm_store_si128((simde__m128i*){}.u8, result);", vD);
   ctx.println("\t}}");
   return true;
@@ -935,7 +936,7 @@ bool build_vsl(BuilderContext& ctx) {
   // Vector Shift Left (128-bit) - shift entire vector left by bits specified in low 3 bits of vB
   ctx.println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
-      "rex::simde_mm_vsl(simde_mm_load_si128((simde__m128i*){}.u8), "
+      "rex::ppc::simde_mm_vsl(simde_mm_load_si128((simde__m128i*){}.u8), "
       "simde_mm_load_si128((simde__m128i*){}.u8)));",
       ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]), ctx.v(ctx.insn.operands[2]));
   return true;
@@ -945,7 +946,7 @@ bool build_vslo(BuilderContext& ctx) {
   // Vector Shift Left by Octet - shift entire vector left by bytes specified in bits 121:124 of vB
   ctx.println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
-      "rex::simde_mm_vslo(simde_mm_load_si128((simde__m128i*){}.u8), "
+      "rex::ppc::simde_mm_vslo(simde_mm_load_si128((simde__m128i*){}.u8), "
       "simde_mm_load_si128((simde__m128i*){}.u8)));",
       ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]), ctx.v(ctx.insn.operands[2]));
   return true;
@@ -956,7 +957,7 @@ bool build_vsro(BuilderContext& ctx) {
   // vB
   ctx.println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
-      "rex::simde_mm_vsro(simde_mm_load_si128((simde__m128i*){}.u8), "
+      "rex::ppc::simde_mm_vsro(simde_mm_load_si128((simde__m128i*){}.u8), "
       "simde_mm_load_si128((simde__m128i*){}.u8)));",
       ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]), ctx.v(ctx.insn.operands[2]));
   return true;
@@ -981,7 +982,7 @@ bool build_vslw(BuilderContext& ctx) {
 bool build_vsr(BuilderContext& ctx) {
   ctx.println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
-      "rex::simde_mm_vsr(simde_mm_load_si128((simde__m128i*){}.u8), "
+      "rex::ppc::simde_mm_vsr(simde_mm_load_si128((simde__m128i*){}.u8), "
       "simde_mm_load_si128((simde__m128i*){}.u8)));",
       ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]), ctx.v(ctx.insn.operands[2]));
   return true;

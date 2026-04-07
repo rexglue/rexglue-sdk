@@ -15,8 +15,8 @@
 #include <rex/filesystem/vfs.h>
 #include <rex/logging.h>
 #include <rex/perf/counter.h>
-#include <rex/ppc/context.h>     // PPCFuncMapping
-#include <rex/ppc/exceptions.h>  // SEH exception support
+#include <rex/ppc/context.h>          // PPCFuncMapping
+#include <rex/platform/exceptions.h>  // SEH exception support
 #include <rex/kernel/crt/heap.h>
 #include <rex/runtime.h>
 #include <rex/system/export_resolver.h>

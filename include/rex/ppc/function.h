@@ -30,7 +30,7 @@
 #include <rex/system/xmemory.h>
 #include <rex/types.h>
 
-namespace rex {
+namespace rex::ppc {
 
 //=============================================================================
 // Global PPC Function Registry (for runtime ordinal lookup)
@@ -97,23 +97,6 @@ struct arg_count_t {
 };
 
 //=============================================================================
-// Physical Heap Offset (Windows Granularity Workaround)
-//=============================================================================
-// On Windows, allocation granularity is 64KB, so the 0x1000 file offset for
-// the 0xE0 physical heap gets masked away. We compensate by adding 0x1000
-// to host addresses when the guest address is >= 0xE0000000.
-
-namespace detail {
-constexpr uint32_t PhysicalHostOffset([[maybe_unused]] uint32_t guest_addr) noexcept {
-#if REX_PLATFORM_WIN32
-  return (guest_addr >= 0xE0000000u) ? 0x1000u : 0u;
-#else
-  return 0u;  // Linux has 4KB granularity, file offset works directly
-#endif
-}
-}  // namespace detail
-
-//=============================================================================
 // Argument Translator
 //=============================================================================
 
@@ -145,7 +128,7 @@ struct ArgTranslator {
     }
     // Stack arguments at r1 + 0x54 + ((arg - 8) * 8)
     return __builtin_bswap32(
-        *reinterpret_cast<uint32_t*>(base + ctx.r1.u32 + 0x54 + ((arg - 8) * 8)));
+        *rex::memory::GuestPtr<uint32_t*>(base, ctx.r1.u32 + 0x54 + ((arg - 8) * 8)));
   }
 
   // Get float/double argument value from FPR
@@ -185,8 +168,8 @@ struct ArgTranslator {
   }
 
   // Set integer argument value
-  static constexpr void SetIntegerArgumentValue(PPCContext& ctx, [[maybe_unused]] uint8_t* base,
-                                                size_t arg, uint64_t value) noexcept {
+  static constexpr void SetIntegerArgumentValue(PPCContext& ctx, uint8_t* base, size_t arg,
+                                                uint64_t value) noexcept {
     if (arg <= 7) {
       switch (arg) {
         case 0:
@@ -217,6 +200,9 @@ struct ArgTranslator {
           break;
       }
     }
+    // Stack-passed arguments (mirrors GetIntegerArgumentValue layout)
+    *rex::memory::GuestPtr<uint32_t*>(base, ctx.r1.u32 + 0x54 + ((arg - 8) * 8)) =
+        __builtin_bswap32(static_cast<uint32_t>(value));
   }
 
   // Set float/double argument value
@@ -284,8 +270,7 @@ struct ArgTranslator {
       return T(nullptr);
     }
     uint32_t guest_addr = static_cast<uint32_t>(v);
-    inner_t* host_ptr =
-        reinterpret_cast<inner_t*>(base + guest_addr + detail::PhysicalHostOffset(guest_addr));
+    inner_t* host_ptr = rex::memory::GuestPtr<inner_t*>(base, guest_addr);
     return T(host_ptr, guest_addr);
   }
 
@@ -308,7 +293,7 @@ struct ArgTranslator {
       return nullptr;
     }
     uint32_t guest_addr = static_cast<uint32_t>(v);
-    return reinterpret_cast<T>(base + guest_addr + detail::PhysicalHostOffset(guest_addr));
+    return rex::memory::GuestPtr<T>(base, guest_addr);
   }
 
   // Set typed value
@@ -456,7 +441,7 @@ template <typename T, typename TFunction, typename... TArgs>
 T GuestToHostFunction(const TFunction& func, TArgs&&... argv) {
   auto args = std::make_tuple(std::forward<TArgs>(argv)...);
 
-  auto* ts = runtime::ThreadState::Get();
+  auto* ts = rex::runtime::ThreadState::Get();
   if (!ts) {
     if constexpr (std::is_void_v<T>) {
       return;
@@ -466,7 +451,7 @@ T GuestToHostFunction(const TFunction& func, TArgs&&... argv) {
   }
   PPCContext* currentCtx = ts->context();
 
-  auto* ks = system::kernel_state();
+  auto* ks = rex::system::kernel_state();
   if (!ks || !ks->memory()) {
     if constexpr (std::is_void_v<T>) {
       return;
@@ -478,6 +463,7 @@ T GuestToHostFunction(const TFunction& func, TArgs&&... argv) {
 
   PPCContext newCtx{};
   newCtx.r1 = currentCtx->r1;
+  newCtx.r1.u32 -= 0x70;  // PPC64 minimum frame: linkage + param save
   newCtx.r13 = currentCtx->r13;
   newCtx.fpscr = currentCtx->fpscr;
 
@@ -497,7 +483,7 @@ T GuestToHostFunction(const TFunction& func, TArgs&&... argv) {
     return;
   } else if constexpr (std::is_pointer_v<T>) {
     uint32_t guest_addr = newCtx.r3.u32;
-    return guest_addr ? reinterpret_cast<T>(base + guest_addr) : nullptr;
+    return guest_addr ? rex::memory::GuestPtr<T>(base, guest_addr) : nullptr;
   } else if constexpr (is_precise_v<T>) {
     return static_cast<T>(newCtx.f1.f64);
   } else {
@@ -505,7 +491,7 @@ T GuestToHostFunction(const TFunction& func, TArgs&&... argv) {
   }
 }
 
-}  // namespace rex
+}  // namespace rex::ppc
 
 /// Maximum size of the loaded image name buffer (255 chars + NUL).
 constexpr size_t kExLoadedImageNameSize = 255 + 1;

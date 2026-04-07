@@ -62,7 +62,7 @@ uint32_t KernelModule::GetProcAddressByOrdinal(uint16_t ordinal) {
   // Look up native implementation by name from the auto-registry
   std::string imp_name = std::string("__imp__") + export_entry->name;
   REXSYS_DEBUG("GetProcAddressByOrdinal: searching registry for '{}'", imp_name);
-  PPCFunc* func = rex::FindPPCFuncByName(imp_name.c_str());
+  PPCFunc* func = rex::ppc::FindPPCFuncByName(imp_name.c_str());
   if (func) {
     auto* dispatcher = emulator_->function_dispatcher();
     uint32_t thunk_addr = dispatcher->AllocateThunk(func);

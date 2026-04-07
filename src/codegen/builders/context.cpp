@@ -172,7 +172,7 @@ void BuilderContext::emit_function_call(uint32_t address) {
 
   if (address == cfg.longJmpAddress) {
     // Use custom ppc_longjmp that uses guest address as key (not for storage)
-    println("\t::rex::ppc_longjmp({}.u32, {}.s32);", r(3), r(4));
+    println("\tppc_longjmp({}.u32, {}.s32);", r(3), r(4));
     return;
   }
 
@@ -447,7 +447,7 @@ void BuilderContext::emit_vec_var_shift(const char* shift_dir, const char* eleme
           mask_value);
   println(
       "\t\tsimde_mm_store_si128((simde__m128i*){}.u8, "
-      "rex::simde_mm_{}_{}"
+      "rex::ppc::simde_mm_{}_{}"
       "(a, shift));",
       vD, shift_dir, element_type);
   println("\t}}");
