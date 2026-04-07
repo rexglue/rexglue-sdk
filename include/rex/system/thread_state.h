@@ -52,13 +52,18 @@ inline PPCContext* current_ppc_context() {
   return ts->context();
 }
 
-// Returns the KernelState* from the current thread's PPCContext.
-// context.h already forward-declares rex::system::KernelState (lines 32-34),
-// and PPCContext::kernel_state is typed as rex::system::KernelState*.
-inline system::KernelState* current_kernel_state() {
-  auto* ctx = current_ppc_context();
-  assert(ctx->kernel_state && "current_kernel_state(): kernel_state not set on context");
-  return ctx->kernel_state;
+}  // namespace rex::runtime
+
+// Forward declaration in correct namespace
+namespace rex::system {
+class KernelState;
+KernelState* kernel_state();
+}  // namespace rex::system
+
+namespace rex::runtime {
+
+inline rex::system::KernelState* current_kernel_state() {
+  return rex::system::kernel_state();
 }
 
 }  // namespace rex::runtime
