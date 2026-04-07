@@ -85,7 +85,8 @@ class Runtime {
  public:
   explicit Runtime(const std::filesystem::path& game_data_root,
                    const std::filesystem::path& user_data_root = {},
-                   const std::filesystem::path& update_data_root = {});
+                   const std::filesystem::path& update_data_root = {},
+                   const std::filesystem::path& cache_root = {});
   ~Runtime();
 
   // Non-copyable
@@ -112,6 +113,7 @@ class Runtime {
   const std::filesystem::path& game_data_root() const { return game_data_root_; }
   const std::filesystem::path& user_data_root() const { return user_data_root_; }
   const std::filesystem::path& update_data_root() const { return update_data_root_; }
+  const std::filesystem::path& cache_root() const { return cache_root_; }
 
   // Set the app context for presentation (call before Setup)
   void set_app_context(ui::WindowedAppContext* context) { app_context_ = context; }
@@ -158,6 +160,7 @@ class Runtime {
   std::filesystem::path game_data_root_;
   std::filesystem::path user_data_root_;
   std::filesystem::path update_data_root_;
+  std::filesystem::path cache_root_;
 
   ui::WindowedAppContext* app_context_ = nullptr;
   ui::Window* display_window_ = nullptr;

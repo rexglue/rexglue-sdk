@@ -34,10 +34,12 @@ Runtime* Runtime::instance_ = nullptr;
 
 Runtime::Runtime(const std::filesystem::path& game_data_root,
                  const std::filesystem::path& user_data_root,
-                 const std::filesystem::path& update_data_root)
+                 const std::filesystem::path& update_data_root,
+                 const std::filesystem::path& cache_root)
     : game_data_root_(game_data_root),
       user_data_root_(user_data_root.empty() ? game_data_root : user_data_root),
-      update_data_root_(update_data_root) {}
+      update_data_root_(update_data_root),
+      cache_root_(cache_root) {}
 
 Runtime::~Runtime() {
   Shutdown();
