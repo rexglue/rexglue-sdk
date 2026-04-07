@@ -23,6 +23,7 @@
 #include <rex/system/format.h>
 
 using namespace rex::system::format;
+using rex::memory::GuestPtr;
 
 //=============================================================================
 // DbgPrint / XamDbgPrint
@@ -34,7 +35,7 @@ REX_HOOK_RAW(__imp__DbgPrint) {
     ctx.r3.u64 = 0;
     return;
   }
-  auto format = reinterpret_cast<const uint8_t*>(PPC_RAW_ADDR(format_ptr));
+  auto format = GuestPtr<const u8*>(base, format_ptr);
 
   StackArgList args(ctx, base, 1);
   StringFormatData data(format);
@@ -58,7 +59,7 @@ REX_HOOK_RAW(__imp__XamDbgPrint) {
     ctx.r3.u64 = 0;
     return;
   }
-  auto format = reinterpret_cast<const uint8_t*>(PPC_RAW_ADDR(format_ptr));
+  auto format = GuestPtr<const u8*>(base, format_ptr);
 
   StackArgList args(ctx, base, 1);
   StringFormatData data(format);
@@ -88,8 +89,8 @@ REX_HOOK_RAW(__imp__sprintf) {
     return;
   }
 
-  auto buffer = reinterpret_cast<uint8_t*>(PPC_RAW_ADDR(buffer_ptr));
-  auto format = reinterpret_cast<const uint8_t*>(PPC_RAW_ADDR(format_ptr));
+  auto buffer = GuestPtr<u8*>(base, buffer_ptr);
+  auto format = GuestPtr<const u8*>(base, format_ptr);
 
   StackArgList args(ctx, base, 2);
   StringFormatData data(format);
@@ -114,8 +115,8 @@ REX_HOOK_RAW(__imp___snprintf) {
     return;
   }
 
-  auto buffer = reinterpret_cast<uint8_t*>(PPC_RAW_ADDR(buffer_ptr));
-  auto format = reinterpret_cast<const uint8_t*>(PPC_RAW_ADDR(format_ptr));
+  auto buffer = GuestPtr<u8*>(base, buffer_ptr);
+  auto format = GuestPtr<const u8*>(base, format_ptr);
 
   StackArgList args(ctx, base, 3);
   StringFormatData data(format);
@@ -150,8 +151,8 @@ REX_HOOK_RAW(__imp__swprintf) {
     return;
   }
 
-  auto buffer = reinterpret_cast<uint16_t*>(PPC_RAW_ADDR(buffer_ptr));
-  auto format = reinterpret_cast<const uint16_t*>(PPC_RAW_ADDR(format_ptr));
+  auto buffer = GuestPtr<u16*>(base, buffer_ptr);
+  auto format = GuestPtr<const u16*>(base, format_ptr);
 
   StackArgList args(ctx, base, 2);
   WideStringFormatData data(format);
@@ -177,8 +178,8 @@ REX_HOOK_RAW(__imp___snwprintf) {
     return;
   }
 
-  auto buffer = reinterpret_cast<uint16_t*>(PPC_RAW_ADDR(buffer_ptr));
-  auto format = reinterpret_cast<const uint16_t*>(PPC_RAW_ADDR(format_ptr));
+  auto buffer = GuestPtr<u16*>(base, buffer_ptr);
+  auto format = GuestPtr<const u16*>(base, format_ptr);
 
   StackArgList args(ctx, base, 3);
   WideStringFormatData data(format);
@@ -216,8 +217,8 @@ REX_HOOK_RAW(__imp__vsprintf) {
     return;
   }
 
-  auto buffer = reinterpret_cast<uint8_t*>(PPC_RAW_ADDR(buffer_ptr));
-  auto format = reinterpret_cast<const uint8_t*>(PPC_RAW_ADDR(format_ptr));
+  auto buffer = GuestPtr<u8*>(base, buffer_ptr);
+  auto format = GuestPtr<const u8*>(base, format_ptr);
 
   ArrayArgList args(base, arg_ptr);
   StringFormatData data(format);
@@ -243,8 +244,8 @@ REX_HOOK_RAW(__imp___vsnprintf) {
     return;
   }
 
-  auto buffer = reinterpret_cast<uint8_t*>(PPC_RAW_ADDR(buffer_ptr));
-  auto format = reinterpret_cast<const uint8_t*>(PPC_RAW_ADDR(format_ptr));
+  auto buffer = GuestPtr<u8*>(base, buffer_ptr);
+  auto format = GuestPtr<const u8*>(base, format_ptr);
 
   ArrayArgList args(base, arg_ptr);
   StringFormatData data(format);
@@ -279,8 +280,8 @@ REX_HOOK_RAW(__imp__vswprintf) {
     return;
   }
 
-  auto buffer = reinterpret_cast<uint16_t*>(PPC_RAW_ADDR(buffer_ptr));
-  auto format = reinterpret_cast<const uint16_t*>(PPC_RAW_ADDR(format_ptr));
+  auto buffer = GuestPtr<u16*>(base, buffer_ptr);
+  auto format = GuestPtr<const u16*>(base, format_ptr);
 
   ArrayArgList args(base, arg_ptr);
   WideStringFormatData data(format);
@@ -307,8 +308,8 @@ REX_HOOK_RAW(__imp___vsnwprintf) {
     return;
   }
 
-  auto buffer = reinterpret_cast<uint16_t*>(PPC_RAW_ADDR(buffer_ptr));
-  auto format = reinterpret_cast<const uint16_t*>(PPC_RAW_ADDR(format_ptr));
+  auto buffer = GuestPtr<u16*>(base, buffer_ptr);
+  auto format = GuestPtr<const u16*>(base, format_ptr);
 
   ArrayArgList args(base, arg_ptr);
   WideStringFormatData data(format);
@@ -340,7 +341,7 @@ REX_HOOK_RAW(__imp___vscwprintf) {
     return;
   }
 
-  auto format = reinterpret_cast<const uint16_t*>(PPC_RAW_ADDR(format_ptr));
+  auto format = GuestPtr<const u16*>(base, format_ptr);
 
   ArrayArgList args(base, arg_ptr);
   WideCountFormatData data(format);

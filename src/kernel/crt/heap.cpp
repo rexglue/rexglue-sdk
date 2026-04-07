@@ -27,8 +27,6 @@ REXCVAR_DEFINE_UINT32(rexcrt_heap_size_mb, 256, "crt", "Heap size in megabytes")
     .lifecycle(rex::cvar::Lifecycle::kInitOnly)
     .range(1, 2048);
 
-using namespace rex::ppc;
-
 // ---------------------------------------------------------------------------
 // Size header: prepended to every allocation so we can answer RtlSizeHeap
 // without o1heap exposing per-allocation usable size.

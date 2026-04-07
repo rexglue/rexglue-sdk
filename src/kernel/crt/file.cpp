@@ -27,7 +27,6 @@
 #include <rex/system/xtypes.h>
 
 using rex::X_STATUS;
-using namespace rex::ppc;
 
 namespace rex::kernel::crt {
 
