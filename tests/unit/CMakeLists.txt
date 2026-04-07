@@ -11,6 +11,8 @@ add_executable(unit_tests
     core/chrono_test.cpp
     codegen/config_test.cpp
     codegen/template_registry_test.cpp
+    ppc/import_function_test.cpp
+    ppc/stack_test.cpp
 )
 
 target_include_directories(unit_tests PRIVATE
@@ -21,13 +23,14 @@ target_link_libraries(unit_tests PRIVATE
     rexcore
     rexcodegen
     rexkernel
+    rexsystem
     Catch2::Catch2WithMain
 )
 
 # Strip Tracy/profiling instrumentation from test targets
 target_compile_options(unit_tests PRIVATE
     -UTRACY_ENABLE -UREXGLUE_ENABLE_PROFILING
-    -UREXGLUE_ENABLE_PERF_COUNTERS -UREXGLUE_PROFILE_GUEST_FUNCTIONS
+    -UREXGLUE_ENABLE_PERF_COUNTERS
 )
 
 set_target_properties(unit_tests PROPERTIES
