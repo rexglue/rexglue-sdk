@@ -48,6 +48,7 @@ class StfsContainerDevice : public Device {
   const std::string& name() const override { return name_; }
   uint32_t attributes() const override { return 0; }
   uint32_t component_name_max_length() const override { return 40; }
+  const StfsHeader& header() const { return header_; }
 
   uint32_t total_allocation_units() const override {
     if (header_.metadata.volume_type == XContentVolumeType::kStfs) {
