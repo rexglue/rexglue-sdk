@@ -14,8 +14,10 @@
 
 #pragma once
 
+#include <rex/hook.h>
+#include <rex/types.h>
+
 #include <rex/ppc/context.h>
 #include <rex/ppc/exceptions.h>
 #include <rex/ppc/function.h>
 #include <rex/ppc/memory.h>
-#include <rex/ppc/types.h>
