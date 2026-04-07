@@ -32,12 +32,12 @@ static void WriteTempFile(const fs::path& path, const std::string& content) {
   f << content;
 }
 
-TEST_CASE("TemplateRegistry: registeredIds returns all 11 template IDs", "[TemplateRegistry]") {
+TEST_CASE("TemplateRegistry: registeredIds returns all 13 template IDs", "[TemplateRegistry]") {
   rex::codegen::TemplateRegistry registry;
   auto ids = registry.registeredIds();
 
-  // Should have all 11 templates
-  REQUIRE(ids.size() == 11);
+  // Should have all 13 templates
+  REQUIRE(ids.size() == 13);
 
   // Check specific IDs exist
   auto has = [&](const std::string& id) {
@@ -49,11 +49,13 @@ TEST_CASE("TemplateRegistry: registeredIds returns all 11 template IDs", "[Templ
   CHECK(has("init/app_header"));
   CHECK(has("init/config_toml"));
   CHECK(has("init/rexglue_cmake"));
-  CHECK(has("codegen/config_h"));
   CHECK(has("codegen/init_h"));
   CHECK(has("codegen/init_cpp"));
-  CHECK(has("codegen/config_cpp"));
   CHECK(has("codegen/sources_cmake"));
+  CHECK(has("test/ppc_config_h"));
+  CHECK(has("test/ppc_test_cases_cpp"));
+  CHECK(has("test/ppc_test_decls_h"));
+  CHECK(has("test/ppc_test_functions_cpp"));
 }
 
 TEST_CASE("TemplateRegistry: render with simple CLI data", "[TemplateRegistry]") {
@@ -79,7 +81,7 @@ TEST_CASE("TemplateRegistry: render with codegen data", "[TemplateRegistry]") {
     "imports": []
   })";
 
-  std::string result = registry.render("codegen/config_cpp", json);
+  std::string result = registry.render("codegen/init_cpp", json);
   CHECK(result.find("PPCImageConfig") != std::string::npos);
   CHECK(result.find("test_proj") != std::string::npos);
 }
