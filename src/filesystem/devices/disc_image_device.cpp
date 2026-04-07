@@ -9,8 +9,8 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include "disc_image_device.h"
-#include "disc_image_entry.h"
+#include <rex/filesystem/devices/disc_image_device.h>
+#include <rex/filesystem/devices/disc_image_entry.h>
 
 #include <rex/literals.h>
 #include <rex/logging.h>

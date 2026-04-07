@@ -9,8 +9,8 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include "host_path_entry.h"
-#include "host_path_file.h"
+#include <rex/filesystem/devices/host_path_entry.h>
+#include <rex/filesystem/devices/host_path_file.h>
 
 namespace rex::filesystem {
 

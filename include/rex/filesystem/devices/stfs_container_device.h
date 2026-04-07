@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include "stfs_xbox.h"
+#include <rex/filesystem/devices/stfs_xbox.h>
 
 #include <map>
 #include <memory>

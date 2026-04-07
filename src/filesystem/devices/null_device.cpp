@@ -9,7 +9,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include "null_entry.h"
+#include <rex/filesystem/devices/null_entry.h>
 
 #include <rex/filesystem.h>
 #include <rex/filesystem/devices/null_device.h>

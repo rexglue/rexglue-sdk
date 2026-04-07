@@ -9,8 +9,8 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include "stfs_container_entry.h"
-#include "stfs_container_file.h"
+#include <rex/filesystem/devices/stfs_container_entry.h>
+#include <rex/filesystem/devices/stfs_container_file.h>
 
 #include <algorithm>
 #include <cmath>

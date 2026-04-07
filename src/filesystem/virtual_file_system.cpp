@@ -13,7 +13,7 @@
 #include <rex/logging.h>
 #include <rex/string.h>
 
-#include "devices/host_path_entry.h"
+#include <rex/filesystem/devices/host_path_entry.h>
 
 REXCVAR_DEFINE_BOOL(allow_game_relative_writes, false, "Filesystem",
                     "Not useful to non-developers. Allows code to write to paths "
