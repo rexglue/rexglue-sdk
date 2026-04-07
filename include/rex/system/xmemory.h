@@ -26,7 +26,30 @@ namespace rex::stream {
 class ByteStream;
 }  // namespace rex::stream
 
+namespace rex::memory::detail {
+
+/// Compensates for Windows 64KB allocation granularity on the 0xE0 physical heap.
+/// The backing file maps the 0xE0 heap at a 0x1000-byte offset, but MapViewOfFileEx
+/// rounds down to 64KB boundaries. Linux mmap handles 4KB offsets natively.
+constexpr u32 PhysicalHostOffset([[maybe_unused]] u32 guest_addr) noexcept {
+#if REX_PLATFORM_WIN32
+  return (guest_addr >= 0xE0000000u) ? 0x1000u : 0u;
+#else
+  return 0u;
+#endif
+}
+
+}  // namespace rex::memory::detail
+
 namespace rex::memory {
+
+/// Lightweight guest-to-host pointer translation using the memory base.
+/// For hooks and kernel code operating with the base pointer directly.
+/// Same raw arithmetic as recompiled code; no Memory* or heap lookup needed.
+template <typename T = u8*>
+inline T GuestPtr(u8* base, u32 guest_address) noexcept {
+  return reinterpret_cast<T>(base + guest_address + detail::PhysicalHostOffset(guest_address));
+}
 
 class Memory;
 
