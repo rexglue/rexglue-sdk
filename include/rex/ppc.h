@@ -16,7 +16,7 @@
 
 #include <rex/ppc/context.h>
 #include <rex/ppc/function.h>
-#include <rex/ppc/memory.h>
+#include <rex/ppc/intrinsics.h>
 #include <rex/ppc/stack.h>
 
 // Consumer-facing using declarations
