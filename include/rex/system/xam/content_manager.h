@@ -164,7 +164,8 @@ class ContentManager {
                                std::vector<uint8_t> buffer);
   X_RESULT DeleteContent(uint64_t xuid, const XCONTENT_AGGREGATE_DATA& data);
 
-  X_RESULT WriteContentHeaderFile(uint64_t xuid, XCONTENT_AGGREGATE_DATA data);
+  X_RESULT WriteContentHeaderFile(uint64_t xuid, XCONTENT_AGGREGATE_DATA data,
+                                  uint32_t license_mask = 0);
   X_RESULT ReadContentHeaderFile(const std::string_view file_name, uint64_t xuid, uint32_t title_id,
                                  XContentType content_type, XCONTENT_AGGREGATE_DATA& data) const;
 
@@ -174,6 +175,11 @@ class ContentManager {
 
   // Returns the host filesystem path for an open content package, or empty.
   std::filesystem::path GetOpenPackagePath(const std::string_view root_name) const;
+
+  // Installs an STFS content package from an arbitrary host path.
+  // Extracts the package into root_path_/0000000000000000/{title_id}/00000002/{filename}/
+  // and writes a .header file for XAM enumeration.
+  X_RESULT InstallContent(const std::filesystem::path& package_path);
 
  private:
   std::filesystem::path ResolvePackageRoot(uint64_t xuid, XContentType content_type,
