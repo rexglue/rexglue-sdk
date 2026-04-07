@@ -24,14 +24,14 @@
 
 #include <rex/chrono/clock.h>  // For mftb timebase access
 #include <rex/logging.h>
+#include <rex/ppc/detail/fpscr.h>
 #include <rex/ppc/memory.h>
-#include <rex/ppc/types.h>
+#include <rex/types.h>
 #include <rex/thread/mutex.h>
 
-// Forward declarations for kernel state access
-namespace rex::system {
-class KernelState;
-}  // namespace rex::system
+#include <simde/x86/avx.h>
+#include <simde/x86/sse.h>
+#include <simde/x86/sse4.1.h>
 
 //=============================================================================
 // PPCFunc Type Definition
@@ -73,49 +73,47 @@ using PPCFunc = void(PPCContext& ctx, uint8_t* base);
 // PPC Function Macros
 //=============================================================================
 
-#define PPC_JOIN(x, y) x##y
-#define PPC_XSTRINGIFY(x) #x
-#define PPC_STRINGIFY(x) PPC_XSTRINGIFY(x)
-#define PPC_FUNC(x) void x([[maybe_unused]] PPCContext& __restrict ctx, uint8_t* base)
-#define PPC_FUNC_IMPL(x) extern "C" PPC_FUNC(x)
-#define PPC_EXTERN_FUNC(x) extern "C" PPC_FUNC(x)
-#define PPC_EXTERN_IMPORT(x) extern "C" PPC_FUNC(x)  // For __imp__ kernel imports
-#define PPC_WEAK_FUNC(x) __attribute__((weak, noinline)) PPC_FUNC(x)
+#define REX_JOIN(x, y) x##y
+#define REX_XSTRINGIFY(x) #x
+#define REX_STRINGIFY(x) REX_XSTRINGIFY(x)
+#define REX_FUNC(x) void x([[maybe_unused]] PPCContext& __restrict ctx, uint8_t* base)
+#define REX_EXTERN(x) extern "C" REX_FUNC(x)
+#define REX_WEAK_FUNC(x) __attribute__((weak, noinline)) REX_FUNC(x)
 
 // Compiler-specific assume hint for alignment, with optional Tracy zone
 #if defined(REXGLUE_PROFILE_GUEST_FUNCTIONS) && defined(REXGLUE_ENABLE_PROFILING)
 #include <tracy/Tracy.hpp>
 #if defined(__clang__)
-#define PPC_FUNC_PROLOGUE()                     \
+#define REX_FUNC_PROLOGUE()                     \
   __builtin_assume(((size_t)base & 0x1F) == 0); \
   ZoneNamedN(___tracy_guest_zone, __func__, true)
 #elif defined(__GNUC__)
-#define PPC_FUNC_PROLOGUE()         \
+#define REX_FUNC_PROLOGUE()         \
   do {                              \
     if (((size_t)base & 0x1F) != 0) \
       __builtin_unreachable();      \
   } while (0);                      \
   ZoneNamedN(___tracy_guest_zone, __func__, true)
 #else
-#define PPC_FUNC_PROLOGUE() ZoneNamedN(___tracy_guest_zone, __func__, true)
+#define REX_FUNC_PROLOGUE() ZoneNamedN(___tracy_guest_zone, __func__, true)
 #endif
 #else
 // Original alignment-hint-only expansion
 #if defined(__clang__)
-#define PPC_FUNC_PROLOGUE() __builtin_assume(((size_t)base & 0x1F) == 0)
+#define REX_FUNC_PROLOGUE() __builtin_assume(((size_t)base & 0x1F) == 0)
 #elif defined(__GNUC__)
-#define PPC_FUNC_PROLOGUE()         \
+#define REX_FUNC_PROLOGUE()         \
   do {                              \
     if (((size_t)base & 0x1F) != 0) \
       __builtin_unreachable();      \
   } while (0)
 #else
-#define PPC_FUNC_PROLOGUE() ((void)0)
+#define REX_FUNC_PROLOGUE() ((void)0)
 #endif
 #endif
 
-#ifndef PPC_CALL_FUNC
-#define PPC_CALL_FUNC(x) x(ctx, base)
+#ifndef REX_CALL_FUNC
+#define REX_CALL_FUNC(x) x(ctx, base)
 #endif
 
 //=============================================================================
@@ -123,39 +121,48 @@ using PPCFunc = void(PPCContext& ctx, uint8_t* base);
 //=============================================================================
 // Safe fallbacks when ppc_config.h is not included.
 
-#ifndef PPC_CONFIG_H_INCLUDED
+#if !defined(PPC_CONFIG_H_INCLUDED) && !defined(REX_CONFIG_H_INCLUDED)
 
-#define PPC_LOOKUP_FUNC(x, y) ((PPCFunc*)nullptr)
+#define REX_LOOKUP_FUNC(x, y) ((PPCFunc*)nullptr)
 
-#define PPC_CALL_INDIRECT_FUNC(x) __builtin_debugtrap()
+#define REX_CALL_INDIRECT_FUNC(x) __builtin_debugtrap()
 
-#endif  // !PPC_CONFIG_H_INCLUDED
+#endif  // !PPC_CONFIG_H_INCLUDED && !REX_CONFIG_H_INCLUDED
 
 //=============================================================================
 // Recompiled Code Mode
 //=============================================================================
 // Requires ppc_config.h to be included first.
 
-#ifdef PPC_CONFIG_H_INCLUDED
+#if defined(PPC_CONFIG_H_INCLUDED) || defined(REX_CONFIG_H_INCLUDED)
+
+// Bridge old config names to new (for pre-regen generated configs)
+#if defined(PPC_IMAGE_BASE) && !defined(REX_IMAGE_BASE)
+#define REX_IMAGE_BASE PPC_IMAGE_BASE
+#define REX_IMAGE_SIZE PPC_IMAGE_SIZE
+#define REX_CODE_BASE PPC_CODE_BASE
+#define REX_CODE_SIZE PPC_CODE_SIZE
+#endif
+
 // Function table lookup: indexed by (addr - CODE_BASE)
-#undef PPC_LOOKUP_FUNC
-#define PPC_LOOKUP_FUNC(x, y) \
-  (*(PPCFunc**)(x + PPC_IMAGE_BASE + PPC_IMAGE_SIZE + (uint64_t(uint32_t(y) - PPC_CODE_BASE) * 2)))
+#undef REX_LOOKUP_FUNC
+#define REX_LOOKUP_FUNC(x, y) \
+  (*(PPCFunc**)(x + REX_IMAGE_BASE + REX_IMAGE_SIZE + (uint64_t(uint32_t(y) - REX_CODE_BASE) * 2)))
 
-#undef PPC_CALL_INDIRECT_FUNC
+#undef REX_CALL_INDIRECT_FUNC
 #include <rex/perf/counter.h>
-#define PPC_CALL_INDIRECT_FUNC(x) \
+#define REX_CALL_INDIRECT_FUNC(x) \
   PROFILE_FUNCTION_DISPATCHED();  \
-  PPC_LOOKUP_FUNC(base, x)(ctx, base);
+  REX_LOOKUP_FUNC(base, x)(ctx, base);
 
-#endif  // PPC_CONFIG_H_INCLUDED
+#endif  // PPC_CONFIG_H_INCLUDED || REX_CONFIG_H_INCLUDED
 
 //=============================================================================
 // Unimplemented Instruction Exception
 //=============================================================================
 
-#ifndef PPC_UNIMPLEMENTED
-#define PPC_UNIMPLEMENTED(addr, opcode) \
+#ifndef REX_UNIMPLEMENTED
+#define REX_UNIMPLEMENTED(addr, opcode) \
   throw std::runtime_error("Unimplemented PPC instruction: " opcode)
 #endif
 
@@ -163,7 +170,7 @@ using PPCFunc = void(PPCContext& ctx, uint8_t* base);
 // Timebase Access
 //=============================================================================
 
-#define PPC_QUERY_TIMEBASE() rex::chrono::Clock::QueryGuestTickCount()
+#define REX_QUERY_TIMEBASE() rex::chrono::Clock::QueryGuestTickCount()
 
 //=============================================================================
 // Function Mapping
@@ -185,20 +192,196 @@ constexpr float kPack2101010_Max10 = std::bit_cast<float>(0x404001FFu);
 constexpr float kPack2101010_Min2 = std::bit_cast<float>(0x40400000u);
 constexpr float kPack2101010_Max2 = std::bit_cast<float>(0x40400003u);
 
+namespace rex {
+
+//=============================================================================
+// General Purpose Register
+//=============================================================================
+
+union Register {
+  int8_t s8;
+  uint8_t u8;
+  int16_t s16;
+  uint16_t u16;
+  int32_t s32;
+  uint32_t u32;
+  int64_t s64;
+  uint64_t u64;
+  float f32;
+  double f64;
+};
+
+//=============================================================================
+// Fixed-Point Exception Register (XER)
+//=============================================================================
+
+struct XERRegister {
+  uint8_t so;
+  uint8_t ov;
+  uint8_t ca;
+};
+
+//=============================================================================
+// Condition Register (CR) Field
+//=============================================================================
+
+struct CRRegister {
+  uint8_t lt;
+  uint8_t gt;
+  uint8_t eq;
+  union {
+    uint8_t so;
+    uint8_t un;
+  };
+
+  inline uint32_t raw() const noexcept { return (lt << 3) | (gt << 2) | (eq << 1) | so; }
+
+  inline void set_raw(uint32_t value) noexcept {
+    lt = (value >> 3) & 1;
+    gt = (value >> 2) & 1;
+    eq = (value >> 1) & 1;
+    so = value & 1;
+  }
+
+  template <typename T>
+  inline void compare(T left, T right, const XERRegister& xer) noexcept {
+    lt = left < right;
+    gt = left > right;
+    eq = left == right;
+    so = xer.so;
+  }
+
+  inline void compare(double left, double right) noexcept {
+    un = __builtin_isnan(left) || __builtin_isnan(right);
+    lt = !un && (left < right);
+    gt = !un && (left > right);
+    eq = !un && (left == right);
+  }
+
+  inline void setFromMask(simde__m128 mask, int imm) noexcept {
+    int m = simde_mm_movemask_ps(mask);
+    lt = m == imm;
+    gt = 0;
+    eq = m == 0;
+    so = 0;
+  }
+
+  inline void setFromMask(simde__m128i mask, int imm) noexcept {
+    int m = simde_mm_movemask_epi8(mask);
+    lt = m == imm;
+    gt = 0;
+    eq = m == 0;
+    so = 0;
+  }
+};
+
+//=============================================================================
+// Vector Register (128-bit)
+//=============================================================================
+
+union alignas(0x10) VRegister {
+  int8_t s8[16];
+  uint8_t u8[16];
+  int16_t s16[8];
+  uint16_t u16[8];
+  int32_t s32[4];
+  uint32_t u32[4];
+  int64_t s64[2];
+  uint64_t u64[2];
+  float f32[4];
+  double f64[2];
+};
+
+//=============================================================================
+// Floating-Point Status and Control Register (FPSCR)
+//=============================================================================
+
+constexpr uint32_t kRoundNearest = 0x00;
+constexpr uint32_t kRoundTowardZero = 0x01;
+constexpr uint32_t kRoundUp = 0x02;
+constexpr uint32_t kRoundDown = 0x03;
+constexpr uint32_t kRoundMask = 0x03;
+
+struct FPSCRRegister {
+  uint32_t csr;
+
+  static constexpr size_t HostToGuest[] = {kRoundNearest, kRoundDown, kRoundUp, kRoundTowardZero};
+
+  using Platform = ppc::detail::FPSCRPlatform;
+  static constexpr size_t RoundShift = Platform::RoundShift;
+  static constexpr size_t RoundMaskVal = Platform::RoundMaskVal;
+  static constexpr size_t FlushMask = Platform::FlushMask;
+
+  inline uint32_t getcsr() noexcept { return Platform::getcsr(); }
+  inline void setcsr(uint32_t csr) noexcept { Platform::setcsr(csr); }
+
+  inline uint32_t loadFromHost() noexcept {
+    csr = getcsr();
+    return HostToGuest[(csr & RoundMaskVal) >> RoundShift];
+  }
+
+  inline void storeFromGuest(uint32_t value) noexcept {
+    csr &= ~RoundMaskVal;
+    csr |= Platform::GuestToHost[value & kRoundMask];
+    setcsr(csr);
+  }
+
+  inline void enableFlushModeUnconditional() noexcept {
+    csr |= FlushMask;
+    setcsr(csr);
+  }
+
+  inline void disableFlushModeUnconditional() noexcept {
+    csr &= ~FlushMask;
+    setcsr(csr);
+  }
+
+  inline void enableFlushMode() noexcept {
+    if ((csr & FlushMask) != FlushMask) [[unlikely]] {
+      csr |= FlushMask;
+      setcsr(csr);
+    }
+  }
+
+  inline void disableFlushMode() noexcept {
+    if ((csr & FlushMask) != 0) [[unlikely]] {
+      csr &= ~FlushMask;
+      setcsr(csr);
+    }
+  }
+
+  inline void InitHost() noexcept {
+    csr = getcsr();
+    Platform::InitHostExceptions(csr);
+    setcsr(csr);
+  }
+};
+
+}  // namespace rex
+
+using PPCRegister = rex::Register;
+using PPCXERRegister = rex::XERRegister;
+using PPCCRRegister = rex::CRRegister;
+using PPCVRegister = rex::VRegister;
+using PPCFPSCRRegister = rex::FPSCRRegister;
+
+#define PPC_ROUND_NEAREST rex::kRoundNearest
+#define PPC_ROUND_TOWARD_ZERO rex::kRoundTowardZero
+#define PPC_ROUND_UP rex::kRoundUp
+#define PPC_ROUND_DOWN rex::kRoundDown
+#define PPC_ROUND_MASK rex::kRoundMask
+
 //=============================================================================
 // PPCContext Structure
 //=============================================================================
 
 struct alignas(0x40) PPCContext {
-  // Kernel state pointer for easy access from exports
-  rex::system::KernelState* kernel_state = nullptr;
-
   PPCRegister r3;
-#ifndef PPC_CONFIG_NON_ARGUMENT_AS_LOCAL
+#if !defined(PPC_CONFIG_NON_ARGUMENT_AS_LOCAL) && !defined(REX_CONFIG_NON_ARGUMENT_AS_LOCAL)
   PPCRegister r0;
 #endif
   PPCRegister r1;
-#ifndef PPC_CONFIG_NON_ARGUMENT_AS_LOCAL
+#if !defined(PPC_CONFIG_NON_ARGUMENT_AS_LOCAL) && !defined(REX_CONFIG_NON_ARGUMENT_AS_LOCAL)
   PPCRegister r2;
 #endif
   PPCRegister r4;
@@ -208,12 +391,12 @@ struct alignas(0x40) PPCContext {
   PPCRegister r8;
   PPCRegister r9;
   PPCRegister r10;
-#ifndef PPC_CONFIG_NON_ARGUMENT_AS_LOCAL
+#if !defined(PPC_CONFIG_NON_ARGUMENT_AS_LOCAL) && !defined(REX_CONFIG_NON_ARGUMENT_AS_LOCAL)
   PPCRegister r11;
   PPCRegister r12;
 #endif
   PPCRegister r13;
-#ifndef PPC_CONFIG_NON_VOLATILE_AS_LOCAL
+#if !defined(PPC_CONFIG_NON_VOLATILE_AS_LOCAL) && !defined(REX_CONFIG_NON_VOLATILE_AS_LOCAL)
   PPCRegister r14;
   PPCRegister r15;
   PPCRegister r16;
@@ -234,22 +417,22 @@ struct alignas(0x40) PPCContext {
   PPCRegister r31;
 #endif
 
-#ifndef PPC_CONFIG_SKIP_LR
+#if !defined(PPC_CONFIG_SKIP_LR) && !defined(REX_CONFIG_SKIP_LR)
   uint64_t lr;
 #endif
-#ifndef PPC_CONFIG_CTR_AS_LOCAL
+#if !defined(PPC_CONFIG_CTR_AS_LOCAL) && !defined(REX_CONFIG_CTR_AS_LOCAL)
   PPCRegister ctr;
 #endif
-#ifndef PPC_CONFIG_XER_AS_LOCAL
+#if !defined(PPC_CONFIG_XER_AS_LOCAL) && !defined(REX_CONFIG_XER_AS_LOCAL)
   PPCXERRegister xer;
 #endif
-#ifndef PPC_CONFIG_RESERVED_AS_LOCAL
+#if !defined(PPC_CONFIG_RESERVED_AS_LOCAL) && !defined(REX_CONFIG_RESERVED_AS_LOCAL)
   PPCRegister reserved;
 #endif
-#ifndef PPC_CONFIG_SKIP_MSR
+#if !defined(PPC_CONFIG_SKIP_MSR) && !defined(REX_CONFIG_SKIP_MSR)
   uint32_t msr = 0x200A000;
 #endif
-#ifndef PPC_CONFIG_CR_AS_LOCAL
+#if !defined(PPC_CONFIG_CR_AS_LOCAL) && !defined(REX_CONFIG_CR_AS_LOCAL)
   PPCCRRegister cr0;
   PPCCRRegister cr1;
   PPCCRRegister cr2;
@@ -262,7 +445,7 @@ struct alignas(0x40) PPCContext {
   PPCFPSCRRegister fpscr;
   uint8_t vscr_sat = 0;  // VSCR saturation flag (for vector ops)
 
-#ifndef PPC_CONFIG_NON_ARGUMENT_AS_LOCAL
+#if !defined(PPC_CONFIG_NON_ARGUMENT_AS_LOCAL) && !defined(REX_CONFIG_NON_ARGUMENT_AS_LOCAL)
   PPCRegister f0;
 #endif
   PPCRegister f1;
@@ -278,7 +461,7 @@ struct alignas(0x40) PPCContext {
   PPCRegister f11;
   PPCRegister f12;
   PPCRegister f13;
-#ifndef PPC_CONFIG_NON_VOLATILE_AS_LOCAL
+#if !defined(PPC_CONFIG_NON_VOLATILE_AS_LOCAL) && !defined(REX_CONFIG_NON_VOLATILE_AS_LOCAL)
   PPCRegister f14;
   PPCRegister f15;
   PPCRegister f16;
@@ -313,7 +496,7 @@ struct alignas(0x40) PPCContext {
   PPCVRegister v11;
   PPCVRegister v12;
   PPCVRegister v13;
-#ifndef PPC_CONFIG_NON_VOLATILE_AS_LOCAL
+#if !defined(PPC_CONFIG_NON_VOLATILE_AS_LOCAL) && !defined(REX_CONFIG_NON_VOLATILE_AS_LOCAL)
   PPCVRegister v14;
   PPCVRegister v15;
   PPCVRegister v16;
@@ -333,7 +516,7 @@ struct alignas(0x40) PPCContext {
   PPCVRegister v30;
   PPCVRegister v31;
 #endif
-#ifndef PPC_CONFIG_NON_ARGUMENT_AS_LOCAL
+#if !defined(PPC_CONFIG_NON_ARGUMENT_AS_LOCAL) && !defined(REX_CONFIG_NON_ARGUMENT_AS_LOCAL)
   PPCVRegister v32;
   PPCVRegister v33;
   PPCVRegister v34;
@@ -367,7 +550,7 @@ struct alignas(0x40) PPCContext {
   PPCVRegister v62;
   PPCVRegister v63;
 #endif
-#ifndef PPC_CONFIG_NON_VOLATILE_AS_LOCAL
+#if !defined(PPC_CONFIG_NON_VOLATILE_AS_LOCAL) && !defined(REX_CONFIG_NON_VOLATILE_AS_LOCAL)
   PPCVRegister v64;
   PPCVRegister v65;
   PPCVRegister v66;
@@ -434,7 +617,7 @@ struct alignas(0x40) PPCContext {
   PPCVRegister v127;
 #endif
 
-#ifndef PPC_CONFIG_NON_VOLATILE_AS_LOCAL
+#if !defined(PPC_CONFIG_NON_VOLATILE_AS_LOCAL) && !defined(REX_CONFIG_NON_VOLATILE_AS_LOCAL)
   //--- Non-volatile register save/restore --------
   // Layout: r14-r31 (144) | f14-f31 (144) | v14-v31 (288) | v64-v127 (1024)
   // Total: 1600 bytes.  Buffer must be at least this large.
@@ -523,21 +706,21 @@ inline std::atomic<int32_t>& ppc_global_lock_count_() {
 
 // Check global lock state (for mfmsr)
 // Returns 0x8000 if unlocked (interrupts enabled), 0 if locked
-#define PPC_CHECK_GLOBAL_LOCK()                                        \
+#define REX_CHECK_GLOBAL_LOCK()                                        \
   ([&]() -> uint64_t {                                                 \
     auto lock_ = rex::thread::global_critical_region::AcquireDirect(); \
     return ppc_global_lock_count_().load() ? 0 : 0x8000;               \
   }())
 
 // Enter global lock (for mtmsrd from r13)
-#define PPC_ENTER_GLOBAL_LOCK()                          \
+#define REX_ENTER_GLOBAL_LOCK()                          \
   do {                                                   \
     rex::thread::global_critical_region::mutex().lock(); \
     ppc_global_lock_count_().fetch_add(1);               \
   } while (0)
 
 // Leave global lock (for mtmsrd from non-r13)
-#define PPC_LEAVE_GLOBAL_LOCK()                                                           \
+#define REX_LEAVE_GLOBAL_LOCK()                                                           \
   do {                                                                                    \
     auto old_count_ = ppc_global_lock_count_().fetch_sub(1);                              \
     assert(old_count_ >= 1 && "LeaveGlobalLock called without matching EnterGlobalLock"); \
@@ -573,3 +756,28 @@ inline void ppc_trap(PPCContext& ctx, uint8_t* base, uint16_t trap_type) {
       break;
   }
 }
+
+//=============================================================================
+// Legacy Compat Aliases
+//=============================================================================
+// Old PPC_ names map to new REX_ names. Consumed by generated code until
+// the next codegen run. Remove these once all downstream projects are
+// regenerated with updated templates.
+
+#define PPC_FUNC(x) REX_FUNC(x)
+#define PPC_FUNC_IMPL(x) REX_EXTERN(x)
+#define PPC_EXTERN_FUNC(x) REX_EXTERN(x)
+#define PPC_EXTERN_IMPORT(x) REX_EXTERN(x)
+#define PPC_WEAK_FUNC(x) REX_WEAK_FUNC(x)
+#define PPC_JOIN(x, y) REX_JOIN(x, y)
+#define PPC_XSTRINGIFY(x) REX_XSTRINGIFY(x)
+#define PPC_STRINGIFY(x) REX_STRINGIFY(x)
+#define PPC_FUNC_PROLOGUE REX_FUNC_PROLOGUE
+#define PPC_CALL_FUNC(x) REX_CALL_FUNC(x)
+#define PPC_LOOKUP_FUNC(x, y) REX_LOOKUP_FUNC(x, y)
+#define PPC_CALL_INDIRECT_FUNC(x) REX_CALL_INDIRECT_FUNC(x)
+#define PPC_UNIMPLEMENTED(addr, opcode) REX_UNIMPLEMENTED(addr, opcode)
+#define PPC_QUERY_TIMEBASE() REX_QUERY_TIMEBASE()
+#define PPC_CHECK_GLOBAL_LOCK() REX_CHECK_GLOBAL_LOCK()
+#define PPC_ENTER_GLOBAL_LOCK() REX_ENTER_GLOBAL_LOCK()
+#define PPC_LEAVE_GLOBAL_LOCK() REX_LEAVE_GLOBAL_LOCK()

@@ -39,45 +39,45 @@
 // the 0xE0 physical heap gets masked away. We compensate by adding 0x1000
 // to host addresses when the guest address is >= 0xE0000000.
 //=============================================================================
-// TODO(tomc): there has to be a better way to handle this than shlittering PPC_PHYS_HOST_OFFSET()
+// TODO(tomc): there has to be a better way to handle this than shlittering REX_PHYS_HOST_OFFSET()
 // everywhere and adding it to every single memory access.
 // Maybe a separate base pointer for the 0xE0 heap?
 //=============================================================================
 #if REX_PLATFORM_WIN32
-#define PPC_PHYS_HOST_OFFSET(addr) (((uint32_t)(addr) >= 0xE0000000u) ? 0x1000u : 0u)
+#define REX_PHYS_HOST_OFFSET(addr) (((uint32_t)(addr) >= 0xE0000000u) ? 0x1000u : 0u)
 #else
-#define PPC_PHYS_HOST_OFFSET(addr) 0u  // Linux has 4KB granularity, file offset works
+#define REX_PHYS_HOST_OFFSET(addr) 0u  // Linux has 4KB granularity, file offset works
 #endif
 
-// Raw address calculation with physical offset (for operations that don't use PPC_LOAD/PPC_STORE)
-#define PPC_RAW_ADDR(x) (base + (uint32_t)(x) + PPC_PHYS_HOST_OFFSET(x))
+// Raw address calculation with physical offset (for operations that don't use REX_LOAD/REX_STORE)
+#define REX_RAW_ADDR(x) (base + (uint32_t)(x) + REX_PHYS_HOST_OFFSET(x))
 
 //=============================================================================
 // Load Macros (Big-Endian to Host)
 //=============================================================================
 
-#ifndef PPC_LOAD_U8
-#define PPC_LOAD_U8(x) (*(volatile uint8_t*)(base + (uint32_t)(x) + PPC_PHYS_HOST_OFFSET(x)))
+#ifndef REX_LOAD_U8
+#define REX_LOAD_U8(x) (*(volatile uint8_t*)(base + (uint32_t)(x) + REX_PHYS_HOST_OFFSET(x)))
 #endif
 
-#ifndef PPC_LOAD_U16
-#define PPC_LOAD_U16(x) \
-  __builtin_bswap16(*(volatile uint16_t*)(base + (uint32_t)(x) + PPC_PHYS_HOST_OFFSET(x)))
+#ifndef REX_LOAD_U16
+#define REX_LOAD_U16(x) \
+  __builtin_bswap16(*(volatile uint16_t*)(base + (uint32_t)(x) + REX_PHYS_HOST_OFFSET(x)))
 #endif
 
-#ifndef PPC_LOAD_U32
-#define PPC_LOAD_U32(x) \
-  __builtin_bswap32(*(volatile uint32_t*)(base + (uint32_t)(x) + PPC_PHYS_HOST_OFFSET(x)))
+#ifndef REX_LOAD_U32
+#define REX_LOAD_U32(x) \
+  __builtin_bswap32(*(volatile uint32_t*)(base + (uint32_t)(x) + REX_PHYS_HOST_OFFSET(x)))
 #endif
 
-#ifndef PPC_LOAD_U64
-#define PPC_LOAD_U64(x) \
-  __builtin_bswap64(*(volatile uint64_t*)(base + (uint32_t)(x) + PPC_PHYS_HOST_OFFSET(x)))
+#ifndef REX_LOAD_U64
+#define REX_LOAD_U64(x) \
+  __builtin_bswap64(*(volatile uint64_t*)(base + (uint32_t)(x) + REX_PHYS_HOST_OFFSET(x)))
 #endif
 
-#ifndef PPC_LOAD_STRING
-#define PPC_LOAD_STRING(x, len)                                                                   \
-  std::string_view(reinterpret_cast<const char*>(base + (uint32_t)(x) + PPC_PHYS_HOST_OFFSET(x)), \
+#ifndef REX_LOAD_STRING
+#define REX_LOAD_STRING(x, len)                                                                   \
+  std::string_view(reinterpret_cast<const char*>(base + (uint32_t)(x) + REX_PHYS_HOST_OFFSET(x)), \
                    (len))
 #endif
 
@@ -85,31 +85,31 @@
 // Store Macros (Host to Big-Endian)
 //=============================================================================
 
-#ifndef PPC_STORE_U8
-#define PPC_STORE_U8(x, y) \
-  (*(volatile uint8_t*)(base + (uint32_t)(x) + PPC_PHYS_HOST_OFFSET(x)) = (y))
+#ifndef REX_STORE_U8
+#define REX_STORE_U8(x, y) \
+  (*(volatile uint8_t*)(base + (uint32_t)(x) + REX_PHYS_HOST_OFFSET(x)) = (y))
 #endif
 
-#ifndef PPC_STORE_U16
-#define PPC_STORE_U16(x, y) \
-  (*(volatile uint16_t*)(base + (uint32_t)(x) + PPC_PHYS_HOST_OFFSET(x)) = __builtin_bswap16(y))
+#ifndef REX_STORE_U16
+#define REX_STORE_U16(x, y) \
+  (*(volatile uint16_t*)(base + (uint32_t)(x) + REX_PHYS_HOST_OFFSET(x)) = __builtin_bswap16(y))
 #endif
 
-#ifndef PPC_STORE_U32
-#define PPC_STORE_U32(x, y) \
-  (*(volatile uint32_t*)(base + (uint32_t)(x) + PPC_PHYS_HOST_OFFSET(x)) = __builtin_bswap32(y))
+#ifndef REX_STORE_U32
+#define REX_STORE_U32(x, y) \
+  (*(volatile uint32_t*)(base + (uint32_t)(x) + REX_PHYS_HOST_OFFSET(x)) = __builtin_bswap32(y))
 #endif
 
-#ifndef PPC_STORE_U64
-#define PPC_STORE_U64(x, y) \
-  (*(volatile uint64_t*)(base + (uint32_t)(x) + PPC_PHYS_HOST_OFFSET(x)) = __builtin_bswap64(y))
+#ifndef REX_STORE_U64
+#define REX_STORE_U64(x, y) \
+  (*(volatile uint64_t*)(base + (uint32_t)(x) + REX_PHYS_HOST_OFFSET(x)) = __builtin_bswap64(y))
 #endif
 
 //=============================================================================
 // Memory Size Constant
 //=============================================================================
 
-#define PPC_MEMORY_SIZE 0x100000000ull
+#define REX_MEMORY_SIZE 0x100000000ull
 
 //=============================================================================
 // MMIO Address Range (per Xenia memory.cc)
@@ -121,7 +121,7 @@
 //   0xE0000000 - 0xFFFFFFFF - physical 4k pages
 // NOTE: 0xC0000000+ is PHYSICAL MEMORY, not MMIO!
 
-#define PPC_IS_MMIO_ADDR(addr) ((addr) >= 0x7F000000u && (addr) < 0x80000000u)
+#define REX_IS_MMIO_ADDR(addr) ((addr) >= 0x7F000000u && (addr) < 0x80000000u)
 
 //=============================================================================
 // MMIO Store Macros
@@ -129,52 +129,52 @@
 // If the address is in MMIO range, dispatch to MMIOHandler.
 // Otherwise, perform a regular memory store with physical offset compensation.
 
-#define PPC_MM_STORE_U8(addr, val)                                                         \
+#define REX_MM_STORE_U8(addr, val)                                                         \
   do {                                                                                     \
     uint32_t _mmio_addr = (addr);                                                          \
-    if (PPC_IS_MMIO_ADDR(_mmio_addr)) {                                                    \
+    if (REX_IS_MMIO_ADDR(_mmio_addr)) {                                                    \
       rex::runtime::MMIOHandler::global_handler()->CheckStore(_mmio_addr,                  \
                                                               static_cast<uint32_t>(val)); \
     } else {                                                                               \
-      *(volatile uint8_t*)(base + _mmio_addr + PPC_PHYS_HOST_OFFSET(_mmio_addr)) = (val);  \
+      *(volatile uint8_t*)(base + _mmio_addr + REX_PHYS_HOST_OFFSET(_mmio_addr)) = (val);  \
     }                                                                                      \
   } while (0)
 
-#define PPC_MM_STORE_U16(addr, val)                                                        \
+#define REX_MM_STORE_U16(addr, val)                                                        \
   do {                                                                                     \
     uint32_t _mmio_addr = (addr);                                                          \
-    if (PPC_IS_MMIO_ADDR(_mmio_addr)) {                                                    \
+    if (REX_IS_MMIO_ADDR(_mmio_addr)) {                                                    \
       rex::runtime::MMIOHandler::global_handler()->CheckStore(_mmio_addr,                  \
                                                               static_cast<uint32_t>(val)); \
     } else {                                                                               \
-      *(volatile uint16_t*)(base + _mmio_addr + PPC_PHYS_HOST_OFFSET(_mmio_addr)) =        \
+      *(volatile uint16_t*)(base + _mmio_addr + REX_PHYS_HOST_OFFSET(_mmio_addr)) =        \
           __builtin_bswap16(val);                                                          \
     }                                                                                      \
   } while (0)
 
-#define PPC_MM_STORE_U32(addr, val)                                                        \
+#define REX_MM_STORE_U32(addr, val)                                                        \
   do {                                                                                     \
     uint32_t _mmio_addr = (addr);                                                          \
-    if (PPC_IS_MMIO_ADDR(_mmio_addr)) {                                                    \
+    if (REX_IS_MMIO_ADDR(_mmio_addr)) {                                                    \
       rex::runtime::MMIOHandler::global_handler()->CheckStore(_mmio_addr,                  \
                                                               static_cast<uint32_t>(val)); \
     } else {                                                                               \
-      *(volatile uint32_t*)(base + _mmio_addr + PPC_PHYS_HOST_OFFSET(_mmio_addr)) =        \
+      *(volatile uint32_t*)(base + _mmio_addr + REX_PHYS_HOST_OFFSET(_mmio_addr)) =        \
           __builtin_bswap32(val);                                                          \
     }                                                                                      \
   } while (0)
 
-#define PPC_MM_STORE_U64(addr, val)                                                               \
+#define REX_MM_STORE_U64(addr, val)                                                               \
   do {                                                                                            \
     uint32_t _mmio_addr = (addr);                                                                 \
-    if (PPC_IS_MMIO_ADDR(_mmio_addr)) {                                                           \
+    if (REX_IS_MMIO_ADDR(_mmio_addr)) {                                                           \
       uint64_t _v64 = static_cast<uint64_t>(val);                                                 \
       rex::runtime::MMIOHandler::global_handler()->CheckStore(_mmio_addr,                         \
                                                               static_cast<uint32_t>(_v64 >> 32)); \
       rex::runtime::MMIOHandler::global_handler()->CheckStore(_mmio_addr + 4,                     \
                                                               static_cast<uint32_t>(_v64));       \
     } else {                                                                                      \
-      *(volatile uint64_t*)(base + _mmio_addr + PPC_PHYS_HOST_OFFSET(_mmio_addr)) =               \
+      *(volatile uint64_t*)(base + _mmio_addr + REX_PHYS_HOST_OFFSET(_mmio_addr)) =               \
           __builtin_bswap64(val);                                                                 \
     }                                                                                             \
   } while (0)
@@ -185,41 +185,41 @@
 // If the address is in MMIO range, dispatch to MMIOHandler.
 // Otherwise, perform a regular memory load with physical offset compensation.
 
-#define PPC_MM_LOAD_U8(addr)                                           \
-  (PPC_IS_MMIO_ADDR(addr) ? ({                                         \
+#define REX_MM_LOAD_U8(addr)                                           \
+  (REX_IS_MMIO_ADDR(addr) ? ({                                         \
     uint32_t _v;                                                       \
     rex::runtime::MMIOHandler::global_handler()->CheckLoad(addr, &_v); \
     static_cast<uint8_t>(_v);                                          \
   })                                                                   \
-                          : *(volatile uint8_t*)(base + (addr) + PPC_PHYS_HOST_OFFSET(addr)))
+                          : *(volatile uint8_t*)(base + (addr) + REX_PHYS_HOST_OFFSET(addr)))
 
-#define PPC_MM_LOAD_U16(addr)                                                 \
-  (PPC_IS_MMIO_ADDR(addr)                                                     \
+#define REX_MM_LOAD_U16(addr)                                                 \
+  (REX_IS_MMIO_ADDR(addr)                                                     \
        ? ({                                                                   \
            uint32_t _v;                                                       \
            rex::runtime::MMIOHandler::global_handler()->CheckLoad(addr, &_v); \
            static_cast<uint16_t>(_v);                                         \
          })                                                                   \
-       : __builtin_bswap16(*(volatile uint16_t*)(base + (addr) + PPC_PHYS_HOST_OFFSET(addr))))
+       : __builtin_bswap16(*(volatile uint16_t*)(base + (addr) + REX_PHYS_HOST_OFFSET(addr))))
 
-#define PPC_MM_LOAD_U32(addr)                                                 \
-  (PPC_IS_MMIO_ADDR(addr)                                                     \
+#define REX_MM_LOAD_U32(addr)                                                 \
+  (REX_IS_MMIO_ADDR(addr)                                                     \
        ? ({                                                                   \
            uint32_t _v;                                                       \
            rex::runtime::MMIOHandler::global_handler()->CheckLoad(addr, &_v); \
            _v;                                                                \
          })                                                                   \
-       : __builtin_bswap32(*(volatile uint32_t*)(base + (addr) + PPC_PHYS_HOST_OFFSET(addr))))
+       : __builtin_bswap32(*(volatile uint32_t*)(base + (addr) + REX_PHYS_HOST_OFFSET(addr))))
 
-#define PPC_MM_LOAD_U64(addr)                                                        \
-  (PPC_IS_MMIO_ADDR(addr)                                                            \
+#define REX_MM_LOAD_U64(addr)                                                        \
+  (REX_IS_MMIO_ADDR(addr)                                                            \
        ? ({                                                                          \
            uint32_t _hi, _lo;                                                        \
            rex::runtime::MMIOHandler::global_handler()->CheckLoad(addr, &_hi);       \
            rex::runtime::MMIOHandler::global_handler()->CheckLoad((addr) + 4, &_lo); \
            (static_cast<uint64_t>(_hi) << 32) | _lo;                                 \
          })                                                                          \
-       : __builtin_bswap64(*(volatile uint64_t*)(base + (addr) + PPC_PHYS_HOST_OFFSET(addr))))
+       : __builtin_bswap64(*(volatile uint64_t*)(base + (addr) + REX_PHYS_HOST_OFFSET(addr))))
 
 namespace rex {
 
@@ -651,3 +651,26 @@ using rex::VectorMaskL;
 using rex::VectorMaskR;
 using rex::VectorShiftTableL;
 using rex::VectorShiftTableR;
+
+// Legacy compat aliases
+#define PPC_PHYS_HOST_OFFSET(addr) REX_PHYS_HOST_OFFSET(addr)
+#define PPC_RAW_ADDR(x) REX_RAW_ADDR(x)
+#define PPC_LOAD_U8(x) REX_LOAD_U8(x)
+#define PPC_LOAD_U16(x) REX_LOAD_U16(x)
+#define PPC_LOAD_U32(x) REX_LOAD_U32(x)
+#define PPC_LOAD_U64(x) REX_LOAD_U64(x)
+#define PPC_LOAD_STRING(...) REX_LOAD_STRING(__VA_ARGS__)
+#define PPC_STORE_U8(x, y) REX_STORE_U8(x, y)
+#define PPC_STORE_U16(x, y) REX_STORE_U16(x, y)
+#define PPC_STORE_U32(x, y) REX_STORE_U32(x, y)
+#define PPC_STORE_U64(x, y) REX_STORE_U64(x, y)
+#define PPC_MEMORY_SIZE REX_MEMORY_SIZE
+#define PPC_IS_MMIO_ADDR(addr) REX_IS_MMIO_ADDR(addr)
+#define PPC_MM_STORE_U8(addr, val) REX_MM_STORE_U8(addr, val)
+#define PPC_MM_STORE_U16(addr, val) REX_MM_STORE_U16(addr, val)
+#define PPC_MM_STORE_U32(addr, val) REX_MM_STORE_U32(addr, val)
+#define PPC_MM_STORE_U64(addr, val) REX_MM_STORE_U64(addr, val)
+#define PPC_MM_LOAD_U8(addr) REX_MM_LOAD_U8(addr)
+#define PPC_MM_LOAD_U16(addr) REX_MM_LOAD_U16(addr)
+#define PPC_MM_LOAD_U32(addr) REX_MM_LOAD_U32(addr)
+#define PPC_MM_LOAD_U64(addr) REX_MM_LOAD_U64(addr)

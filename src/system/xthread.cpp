@@ -386,9 +386,6 @@ X_STATUS XThread::Create() {
   thread_state_ =
       std::make_unique<runtime::ThreadState>(thread_id_, stack_base_, pcr_address_, memory());
 
-  // Set kernel state in context for kernel callbacks
-  thread_state_->context()->kernel_state = kernel_state_;
-
   REXSYS_DEBUG("XThread{:08X} ({:X}) Stack: {:08X}-{:08X}", handle(), thread_id_, stack_limit_,
                stack_base_);
 
@@ -1358,7 +1355,6 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state, stream::ByteStre
 
   if (state.is_running) {
     auto context = thread->thread_state_->context();
-    context->kernel_state = kernel_state;
     LoadContext(context, state);
 
     // Always retain when starting - the thread owns itself until exited.

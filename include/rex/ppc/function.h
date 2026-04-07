@@ -25,7 +25,6 @@
 
 #include <rex/logging.h>
 #include <rex/ppc/context.h>
-#include <rex/ppc/types.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/thread_state.h>
 #include <rex/system/xmemory.h>
@@ -63,44 +62,6 @@ struct PPCFuncRegistrar {
 // Type Traits (additional, types.h has is_be_type)
 //=============================================================================
 
-// PPCPointer Detection
-template <typename T>
-struct is_ppc_pointer : std::false_type {};
-
-template <typename T>
-struct is_ppc_pointer<PPCPointer<T>> : std::true_type {};
-
-template <typename T>
-inline constexpr bool is_ppc_pointer_v = is_ppc_pointer<T>::value;
-
-// Extract the inner type from PPCPointer<T>
-template <typename T>
-struct ppc_pointer_inner_type;
-
-template <typename T>
-struct ppc_pointer_inner_type<PPCPointer<T>> {
-  using type = T;
-};
-
-// PPCValue Detection
-template <typename T>
-struct is_ppc_value : std::false_type {};
-
-template <typename T>
-struct is_ppc_value<PPCValue<T>> : std::true_type {};
-
-template <typename T>
-inline constexpr bool is_ppc_value_v = is_ppc_value<T>::value;
-
-// Extract the inner type from PPCValue<T>
-template <typename T>
-struct ppc_value_inner_type;
-
-template <typename T>
-struct ppc_value_inner_type<PPCValue<T>> {
-  using type = T;
-};
-
 // Function argument helpers
 template <typename R, typename... T>
 constexpr std::tuple<T...> function_args(R (*)(T...)) noexcept {
@@ -121,18 +82,14 @@ template <typename T>
 concept BigEndianType = is_be_type_v<T>;
 
 template <typename T>
-concept PPCPointerType = is_ppc_pointer_v<T>;
-
-template <typename T>
-concept PPCValueType = is_ppc_value_v<T>;
+concept MappedPtrType = is_mapped_ptr_v<T>;
 
 template <typename T>
 concept PreciseType = is_precise_v<T>;
 
-// A "plain" type: not a pointer, not be<T>, not PPCPointer, not PPCValue
+// A "plain" type: not a pointer, not be<T>, not MappedPtr
 template <typename T>
-concept PlainType =
-    !std::is_pointer_v<T> && !BigEndianType<T> && !PPCPointerType<T> && !PPCValueType<T>;
+concept PlainType = !std::is_pointer_v<T> && !BigEndianType<T> && !MappedPtrType<T>;
 
 template <auto Func>
 struct arg_count_t {
@@ -318,10 +275,10 @@ struct ArgTranslator {
     return result;
   }
 
-  // Get typed value (PPCPointer<T>)
-  template <PPCPointerType T>
+  // Get typed value (MappedPtr<T>)
+  template <MappedPtrType T>
   static T GetValue(PPCContext& ctx, uint8_t* base, size_t idx) noexcept {
-    using inner_t = typename ppc_pointer_inner_type<T>::type;
+    using inner_t = typename mapped_ptr_inner_type<T>::type;
     const auto v = GetIntegerArgumentValue(ctx, base, idx);
     if (!v) {
       return T(nullptr);
@@ -332,18 +289,7 @@ struct ArgTranslator {
     return T(host_ptr, guest_addr);
   }
 
-  // Get typed value (PPCValue<T>)
-  template <PPCValueType T>
-  static constexpr T GetValue(PPCContext& ctx, uint8_t* base, size_t idx) noexcept {
-    using inner_t = typename ppc_value_inner_type<T>::type;
-    if constexpr (is_precise_v<inner_t>) {
-      return T(static_cast<inner_t>(GetPrecisionArgumentValue(ctx, base, idx)));
-    } else {
-      return T(static_cast<inner_t>(GetIntegerArgumentValue(ctx, base, idx)));
-    }
-  }
-
-  // Get typed value (non-pointer, non-be<T>, non-PPCPointer, non-PPCValue)
+  // Get typed value (non-pointer, non-be<T>, non-MappedPtr)
   template <PlainType T>
   static constexpr T GetValue(PPCContext& ctx, uint8_t* base, size_t idx) noexcept {
     if constexpr (is_precise_v<T>) {
@@ -391,17 +337,10 @@ struct Argument {
   int ordinal{};  // Position in integer or float argument list
 };
 
-// Helper to detect precise types (including PPCValue<float/double>)
+// Helper to detect precise types
 template <typename T>
 constexpr bool is_precise_type() {
-  if constexpr (is_precise_v<T>) {
-    return true;
-  } else if constexpr (is_ppc_value_v<T>) {
-    using inner_t = typename ppc_value_inner_type<T>::type;
-    return is_precise_v<inner_t>;
-  } else {
-    return false;
-  }
+  return is_precise_v<T>;
 }
 
 // Type-only gather helper - doesn't require constexpr-constructible types
@@ -527,7 +466,7 @@ T GuestToHostFunction(const TFunction& func, TArgs&&... argv) {
   }
   PPCContext* currentCtx = ts->context();
 
-  auto* ks = currentCtx->kernel_state;
+  auto* ks = system::kernel_state();
   if (!ks || !ks->memory()) {
     if constexpr (std::is_void_v<T>) {
       return;
@@ -568,82 +507,5 @@ T GuestToHostFunction(const TFunction& func, TArgs&&... argv) {
 
 }  // namespace rex
 
-//=============================================================================
-// PPC Function Hooking and Aliasing Macros
-//=============================================================================
-
-// Hook a PPC function name to a native C++ function
-#ifdef REXGLUE_ENABLE_PROFILING
-#include <tracy/Tracy.hpp>
-#define PPC_HOOK(subroutine, function)                 \
-  extern "C" PPC_FUNC(subroutine) {                    \
-    ZoneNamedN(___tracy_hook_zone, #subroutine, true); \
-    rex::HostToGuestFunction<function>(ctx, base);     \
-  }
-#else
-#define PPC_HOOK(subroutine, function)             \
-  extern "C" PPC_FUNC(subroutine) {                \
-    rex::HostToGuestFunction<function>(ctx, base); \
-  }
-#endif
-
-// Create a simple stub that does nothing
-#define PPC_STUB(subroutine)              \
-  extern "C" PPC_WEAK_FUNC(subroutine) {  \
-    (void)base;                           \
-    REXKRNL_WARN("{} STUB", #subroutine); \
-  }
-
-// Create a stub that logs a message when called
-#define PPC_STUB_LOG(subroutine, msg)               \
-  extern "C" PPC_WEAK_FUNC(subroutine) {            \
-    (void)base;                                     \
-    REXKRNL_WARN("{} STUB - {}", #subroutine, msg); \
-  }
-
-// Create a stub that returns a specific value
-#define PPC_STUB_RETURN(subroutine, value)                                                \
-  extern "C" PPC_WEAK_FUNC(subroutine) {                                                  \
-    (void)base;                                                                           \
-    REXKRNL_WARN("{} STUB - returning {:#x}", #subroutine, static_cast<uint32_t>(value)); \
-    ctx.r3.u64 = (value);                                                                 \
-  }
-
-//=============================================================================
-// Kernel Export Constants & Convenience Macros
-//=============================================================================
-
 /// Maximum size of the loaded image name buffer (255 chars + NUL).
 constexpr size_t kExLoadedImageNameSize = 255 + 1;
-
-// Implemented function export: wraps PPC_HOOK for an xboxkrnl.exe export.
-// Usage: XBOXKRNL_EXPORT(__imp__FunctionName, handler_function)
-#define XBOXKRNL_EXPORT(name, function) \
-  PPC_HOOK(name, function)              \
-  static rex::detail::PPCFuncRegistrar _ppc_reg_##name(#name, &name);
-
-// Stub function export: wraps PPC_STUB for an xboxkrnl.exe export.
-// Usage: XBOXKRNL_EXPORT_STUB(__imp__FunctionName)
-#define XBOXKRNL_EXPORT_STUB(name) \
-  PPC_STUB(name)                   \
-  static rex::detail::PPCFuncRegistrar _ppc_reg_##name(#name, &name);
-
-// Implemented function export: wraps PPC_HOOK for a xam.xex export.
-// Usage: XAM_EXPORT(__imp__FunctionName, handler_function)
-#define XAM_EXPORT(name, function) \
-  PPC_HOOK(name, function)         \
-  static rex::detail::PPCFuncRegistrar _ppc_reg_##name(#name, &name);
-
-// Stub function export: wraps PPC_STUB for a xam.xex export.
-// Usage: XAM_EXPORT_STUB(__imp__FunctionName)
-#define XAM_EXPORT_STUB(name) \
-  PPC_STUB(name)              \
-  static rex::detail::PPCFuncRegistrar _ppc_reg_##name(#name, &name);
-
-// Implemented rexcrt hook: wraps PPC_HOOK for a rexcrt CRT replacement.
-// Usage: REXCRT_EXPORT(rexcrt_FunctionName, handler_function)
-#define REXCRT_EXPORT(name, function) PPC_HOOK(name, function)
-
-// Stub rexcrt hook: wraps PPC_STUB for a rexcrt CRT replacement.
-// Usage: REXCRT_EXPORT_STUB(rexcrt_FunctionName)
-#define REXCRT_EXPORT_STUB(name) PPC_STUB(name)
