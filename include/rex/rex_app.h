@@ -18,7 +18,7 @@
 #include <string_view>
 #include <thread>
 
-#include <rex/ppc/image_info.h>
+#include <rex/image_info.h>
 #include <rex/runtime.h>
 #include <rex/ui/imgui_dialog.h>
 #include <rex/ui/imgui_drawer.h>

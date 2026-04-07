@@ -7,13 +7,13 @@
  */
 
 #include <rex/platform.h>
-#include <rex/ppc/detail/seh.h>
+#include <rex/platform/seh.h>
 
 static_assert(REX_PLATFORM_WIN32, "This file is Windows-only");
 
 #include "platform_win.h"
 
-namespace rex::ppc::detail {
+namespace rex::platform {
 
 static thread_local SehThreadState tls_seh_state;
 static thread_local bool tls_seh_active = false;
@@ -69,4 +69,4 @@ bool& seh_active() {
   return tls_seh_active;
 }
 
-}  // namespace rex::ppc::detail
+}  // namespace rex::platform

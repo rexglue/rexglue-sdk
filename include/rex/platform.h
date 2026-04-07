@@ -99,6 +99,31 @@
 #include <libkern/OSByteOrder.h>
 #endif  // REX_PLATFORM_MAC
 
+#include <bit>
+#include <cstdint>
+
+//=============================================================================
+// Compiler Polyfills
+//=============================================================================
+
+#if defined(__clang__)
+// Clang has builtin rotate functions and debugtrap
+#elif defined(__GNUC__)
+#ifndef __builtin_rotateleft32
+#define __builtin_rotateleft32(x, n) std::rotl(static_cast<uint32_t>(x), static_cast<int>(n))
+#endif
+#ifndef __builtin_rotateleft64
+#define __builtin_rotateleft64(x, n) std::rotl(static_cast<uint64_t>(x), static_cast<int>(n))
+#endif
+#ifndef __builtin_debugtrap
+#if defined(__x86_64__) || defined(__i386__)
+#define __builtin_debugtrap() __asm__ __volatile__("int3")
+#else
+#define __builtin_debugtrap() __builtin_trap()
+#endif
+#endif
+#endif
+
 #if REX_COMPILER_MSVC
 #define _REXPACKEDSCOPE(body) __pragma(pack(push, 1)) body __pragma(pack(pop));
 #else

@@ -1,6 +1,6 @@
 /**
- * @file        rex/ppc/image_info.h
- * @brief       PPC image layout descriptor
+ * @file        image_info.h
+ * @brief       Image layout descriptor for recompiled binaries
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include <cstdint>
+#include <rex/types.h>
 
 struct PPCFuncMapping;
 
@@ -19,10 +19,10 @@ namespace rex {
 
 /// PPC image layout passed from the generated config header into ReXApp.
 struct PPCImageInfo {
-  uint32_t code_base;
-  uint32_t code_size;
-  uint32_t image_base;
-  uint32_t image_size;
+  u32 code_base;
+  u32 code_size;
+  u32 image_base;
+  u32 image_size;
   const PPCFuncMapping* func_mappings;
   bool rexcrt_heap = false;  ///< Set by codegen when [rexcrt] has heap functions
 };

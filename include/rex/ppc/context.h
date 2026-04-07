@@ -24,7 +24,7 @@
 
 #include <rex/chrono/clock.h>  // For mftb timebase access
 #include <rex/logging.h>
-#include <rex/ppc/detail/fpscr.h>
+#include <rex/platform/fpscr.h>
 #include <rex/ppc/memory.h>
 #include <rex/types.h>
 #include <rex/thread/mutex.h>
@@ -307,7 +307,7 @@ struct FPSCRRegister {
 
   static constexpr size_t HostToGuest[] = {kRoundNearest, kRoundDown, kRoundUp, kRoundTowardZero};
 
-  using Platform = ppc::detail::FPSCRPlatform;
+  using Platform = platform::FPSCRPlatform;
   static constexpr size_t RoundShift = Platform::RoundShift;
   static constexpr size_t RoundMaskVal = Platform::RoundMaskVal;
   static constexpr size_t FlushMask = Platform::FlushMask;
