@@ -5,5 +5,5 @@
 #include <rex/ppc.h>
 
 ## for func in functions
-PPC_EXTERN_FUNC({{ func.name }});
+REX_EXTERN({{ func.name }});
 ## endfor

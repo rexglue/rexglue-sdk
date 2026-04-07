@@ -460,13 +460,13 @@ void BuilderContext::emit_vec_var_shift(const char* shift_dir, const char* eleme
 void BuilderContext::emit_load_d_form(const char* load_macro, const char* dest_type,
                                       bool check_mmio) {
   // D-form: rD = LOAD(rA + D) where operands[0]=rD, operands[1]=D, operands[2]=rA
-  // load_macro should be like "PPC_LOAD_U8" - we replace PPC_LOAD with PPC_MM_LOAD for MMIO
+  // load_macro should be like "REX_LOAD_U8" - we replace REX_LOAD with REX_MM_LOAD for MMIO
   const char* macro = load_macro;
   static char mm_macro[64];
   if (check_mmio && mmio_check_d_form()) {
-    // Replace "PPC_LOAD_" with "PPC_MM_LOAD_"
-    if (strncmp(load_macro, "PPC_LOAD_", 9) == 0) {
-      snprintf(mm_macro, sizeof(mm_macro), "PPC_MM_LOAD_%s", load_macro + 9);
+    // Replace "REX_LOAD_" with "REX_MM_LOAD_"
+    if (strncmp(load_macro, "REX_LOAD_", 9) == 0) {
+      snprintf(mm_macro, sizeof(mm_macro), "REX_MM_LOAD_%s", load_macro + 9);
       macro = mm_macro;
     }
   }
@@ -480,13 +480,13 @@ void BuilderContext::emit_load_d_form(const char* load_macro, const char* dest_t
 void BuilderContext::emit_load_x_form(const char* load_macro, const char* dest_type,
                                       bool check_mmio) {
   // X-form: rD = LOAD(rA + rB) where operands[0]=rD, operands[1]=rA, operands[2]=rB
-  // load_macro should be like "PPC_LOAD_U8" - we replace PPC_LOAD with PPC_MM_LOAD for MMIO
+  // load_macro should be like "REX_LOAD_U8" - we replace REX_LOAD with REX_MM_LOAD for MMIO
   const char* macro = load_macro;
   static char mm_macro[64];
   if (check_mmio && mmio_check_x_form()) {
-    // Replace "PPC_LOAD_" with "PPC_MM_LOAD_"
-    if (strncmp(load_macro, "PPC_LOAD_", 9) == 0) {
-      snprintf(mm_macro, sizeof(mm_macro), "PPC_MM_LOAD_%s", load_macro + 9);
+    // Replace "REX_LOAD_" with "REX_MM_LOAD_"
+    if (strncmp(load_macro, "REX_LOAD_", 9) == 0) {
+      snprintf(mm_macro, sizeof(mm_macro), "REX_MM_LOAD_%s", load_macro + 9);
       macro = mm_macro;
     }
   }
@@ -500,13 +500,13 @@ void BuilderContext::emit_load_x_form(const char* load_macro, const char* dest_t
 void BuilderContext::emit_store_d_form(const char* store_macro, const char* src_type,
                                        bool check_mmio) {
   // D-form: STORE(rA + D, rS) where operands[0]=rS, operands[1]=D, operands[2]=rA
-  // store_macro should be like "PPC_STORE_U8" - we replace PPC_STORE with PPC_MM_STORE for MMIO
+  // store_macro should be like "REX_STORE_U8" - we replace REX_STORE with REX_MM_STORE for MMIO
   const char* macro = store_macro;
   static char mm_macro[64];
   if (check_mmio && mmio_check_d_form()) {
-    // Replace "PPC_STORE_" with "PPC_MM_STORE_"
-    if (strncmp(store_macro, "PPC_STORE_", 10) == 0) {
-      snprintf(mm_macro, sizeof(mm_macro), "PPC_MM_STORE_%s", store_macro + 10);
+    // Replace "REX_STORE_" with "REX_MM_STORE_"
+    if (strncmp(store_macro, "REX_STORE_", 10) == 0) {
+      snprintf(mm_macro, sizeof(mm_macro), "REX_MM_STORE_%s", store_macro + 10);
       macro = mm_macro;
     }
   }
@@ -520,13 +520,13 @@ void BuilderContext::emit_store_d_form(const char* store_macro, const char* src_
 void BuilderContext::emit_store_x_form(const char* store_macro, const char* src_type,
                                        bool check_mmio) {
   // X-form: STORE(rA + rB, rS) where operands[0]=rS, operands[1]=rA, operands[2]=rB
-  // store_macro should be like "PPC_STORE_U8" - we replace PPC_STORE with PPC_MM_STORE for MMIO
+  // store_macro should be like "REX_STORE_U8" - we replace REX_STORE with REX_MM_STORE for MMIO
   const char* macro = store_macro;
   static char mm_macro[64];
   if (check_mmio && mmio_check_x_form()) {  // Use X-form specific check (operands[1] is base)
-    // Replace "PPC_STORE_" with "PPC_MM_STORE_"
-    if (strncmp(store_macro, "PPC_STORE_", 10) == 0) {
-      snprintf(mm_macro, sizeof(mm_macro), "PPC_MM_STORE_%s", store_macro + 10);
+    // Replace "REX_STORE_" with "REX_MM_STORE_"
+    if (strncmp(store_macro, "REX_STORE_", 10) == 0) {
+      snprintf(mm_macro, sizeof(mm_macro), "REX_MM_STORE_%s", store_macro + 10);
       macro = mm_macro;
     }
   }

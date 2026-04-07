@@ -367,9 +367,9 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
     }
 
     emit_println(out, "// STUB: Function at 0x{:08X} has no discovered code blocks", base());
-    emit_println(out, "__attribute__((alias(\"__imp__{}\"))) PPC_WEAK_FUNC({});", name, name);
-    emit_println(out, "PPC_FUNC_IMPL(__imp__{}) {{", name);
-    emit_println(out, "\tPPC_FUNC_PROLOGUE();");
+    emit_println(out, "__attribute__((alias(\"__imp__{}\"))) REX_WEAK_FUNC({});", name, name);
+    emit_println(out, "REX_EXTERN(__imp__{}) {{", name);
+    emit_println(out, "\tREX_FUNC_PROLOGUE();");
     emit_println(out, "}}\n");
     return out;
   }
@@ -480,9 +480,9 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
   }
 
   // Function signature with weak/alias pattern
-  emit_println(out, "__attribute__((alias(\"__imp__{}\"))) PPC_WEAK_FUNC({});", name, name);
-  emit_println(out, "PPC_FUNC_IMPL(__imp__{}) {{", name);
-  emit_println(out, "\tPPC_FUNC_PROLOGUE();");
+  emit_println(out, "__attribute__((alias(\"__imp__{}\"))) REX_WEAK_FUNC({});", name, name);
+  emit_println(out, "REX_EXTERN(__imp__{}) {{", name);
+  emit_println(out, "\tREX_FUNC_PROLOGUE();");
 
   // --- Second pass: emit instruction code ---
   const JumpTable* activeJt = nullptr;

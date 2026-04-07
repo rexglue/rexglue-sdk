@@ -179,7 +179,7 @@ inline void emitCompareImmediate(BuilderContext& ctx, const char* type_name, con
  * Used by: lbzu, lwzu, ldu, etc.
  *
  * @param ctx The builder context
- * @param load_macro The PPC_LOAD_* macro to use (e.g., "PPC_LOAD_U8")
+ * @param load_macro The REX_LOAD_* macro to use (e.g., "REX_LOAD_U8")
  */
 inline void emitLoadWithUpdate(BuilderContext& ctx, const char* load_macro) {
   // EA = displacement + rA
@@ -198,7 +198,7 @@ inline void emitLoadWithUpdate(BuilderContext& ctx, const char* load_macro) {
  * Used by: lbzux, lhzux, lwzux, ldux
  *
  * @param ctx The builder context
- * @param load_macro The PPC_LOAD_* macro to use (e.g., "PPC_LOAD_U8")
+ * @param load_macro The REX_LOAD_* macro to use (e.g., "REX_LOAD_U8")
  */
 inline void emitLoadXFormWithUpdate(BuilderContext& ctx, const char* load_macro) {
   ctx.println("\t{} = {}.u32 + {}.u32;", ctx.ea(), ctx.r(ctx.insn.operands[1]),
@@ -214,7 +214,7 @@ inline void emitLoadXFormWithUpdate(BuilderContext& ctx, const char* load_macro)
  * Used by: stbu, stwu, stdu, etc.
  *
  * @param ctx The builder context
- * @param store_macro The PPC_STORE_* macro to use (e.g., "PPC_STORE_U8")
+ * @param store_macro The REX_STORE_* macro to use (e.g., "REX_STORE_U8")
  * @param field The register field to store (e.g., "u8", "u32", "u64")
  */
 inline void emitStoreWithUpdate(BuilderContext& ctx, const char* store_macro, const char* field) {
@@ -234,8 +234,8 @@ inline void emitStoreWithUpdate(BuilderContext& ctx, const char* store_macro, co
  * Used by: stbux, sthux, stwux, stdux
  *
  * @param ctx The builder context
- * @param store_macro The PPC_STORE_* normal macro (e.g., "PPC_STORE_U8")
- * @param mmio_macro The PPC_MM_STORE_* MMIO macro (e.g., "PPC_MM_STORE_U8")
+ * @param store_macro The REX_STORE_* normal macro (e.g., "REX_STORE_U8")
+ * @param mmio_macro The REX_MM_STORE_* MMIO macro (e.g., "REX_MM_STORE_U8")
  * @param field The register field to store (e.g., "u8", "u32", "u64")
  */
 inline void emitStoreXFormWithUpdate(BuilderContext& ctx, const char* store_macro,
@@ -251,8 +251,8 @@ inline void emitStoreXFormWithUpdate(BuilderContext& ctx, const char* store_macr
  * Get the appropriate store macro based on MMIO context.
  *
  * @param ctx The builder context
- * @param normal_macro Normal store macro (e.g., "PPC_STORE_U32")
- * @param mmio_macro MMIO store macro (e.g., "PPC_MM_STORE_U32")
+ * @param normal_macro Normal store macro (e.g., "REX_STORE_U32")
+ * @param mmio_macro MMIO store macro (e.g., "REX_MM_STORE_U32")
  * @return The appropriate macro string
  */
 inline const char* getStoreMacro(BuilderContext& ctx, const char* normal_macro,
@@ -267,7 +267,7 @@ inline const char* getStoreMacro(BuilderContext& ctx, const char* normal_macro,
 /**
  * Emit atomic load-and-reserve instruction (lwarx/ldarx pattern).
  *
- * Pattern: EA = rA + rB; reserved = *(T*)PPC_RAW_ADDR(EA); rD = bswap(reserved)
+ * Pattern: EA = rA + rB; reserved = *(T*)REX_RAW_ADDR(EA); rD = bswap(reserved)
  *
  * @param ctx The builder context
  * @param ptr_type The pointer type (e.g., "uint32_t", "uint64_t")
@@ -280,7 +280,7 @@ inline void emitAtomicLoadReserve(BuilderContext& ctx, const char* ptr_type, con
   if (ctx.insn.operands[1] != 0)
     ctx.print("{}.u32 + ", ctx.r(ctx.insn.operands[1]));
   ctx.println("{}.u32;", ctx.r(ctx.insn.operands[2]));
-  ctx.println("\t{}.{} = *({}*)PPC_RAW_ADDR({});", ctx.reserved(), reserved_field, ptr_type,
+  ctx.println("\t{}.{} = *({}*)REX_RAW_ADDR({});", ctx.reserved(), reserved_field, ptr_type,
               ctx.ea());
   ctx.println("\t{}.u64 = {}({}.{});", ctx.r(ctx.insn.operands[0]), bswap_func, ctx.reserved(),
               reserved_field);
@@ -305,7 +305,7 @@ inline void emitAtomicStoreConditional(BuilderContext& ctx, const char* ptr_type
   ctx.println("\t{}.lt = 0;", ctx.cr(0));
   ctx.println("\t{}.gt = 0;", ctx.cr(0));
   ctx.println(
-      "\t{}.eq = __sync_bool_compare_and_swap(reinterpret_cast<{}*>(PPC_RAW_ADDR({})), "
+      "\t{}.eq = __sync_bool_compare_and_swap(reinterpret_cast<{}*>(REX_RAW_ADDR({})), "
       "{}.{}, {}({}.{}));",
       ctx.cr(0), ptr_type, ctx.ea(), ctx.reserved(), field, bswap_func, ctx.r(ctx.insn.operands[0]),
       field);
@@ -324,7 +324,7 @@ inline void emitAtomicStoreConditional(BuilderContext& ctx, const char* ptr_type
  *
  * @param ctx The builder context
  * @param cast_type The cast for sign extension (e.g., "int16_t", "int32_t")
- * @param load_macro The PPC_LOAD_* macro to use
+ * @param load_macro The REX_LOAD_* macro to use
  */
 inline void emitSignExtendLoadDForm(BuilderContext& ctx, const char* cast_type,
                                     const char* load_macro) {
@@ -342,7 +342,7 @@ inline void emitSignExtendLoadDForm(BuilderContext& ctx, const char* cast_type,
  *
  * @param ctx The builder context
  * @param cast_type The cast for sign extension (e.g., "int16_t", "int32_t")
- * @param load_macro The PPC_LOAD_* macro to use
+ * @param load_macro The REX_LOAD_* macro to use
  */
 inline void emitSignExtendLoadXForm(BuilderContext& ctx, const char* cast_type,
                                     const char* load_macro) {

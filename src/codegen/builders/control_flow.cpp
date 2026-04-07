@@ -101,7 +101,7 @@ bool build_blrl(BuilderContext& ctx) {
   ctx.println("\t{{ auto old_lr = ctx.lr;");
   if (!ctx.config().skipLr)
     ctx.println("\tctx.lr = 0x{:X};", ctx.base + 4);
-  ctx.println("\tPPC_CALL_INDIRECT_FUNC(uint32_t(old_lr)); }}");
+  ctx.println("\tREX_CALL_INDIRECT_FUNC(uint32_t(old_lr)); }}");
   ctx.csrState = CSRState::Unknown;
   return true;
 }
@@ -176,7 +176,7 @@ bool build_bctr(BuilderContext& ctx) {
     // NOTE(tomc): If this is actually an unresolved switch table, the code after
     // will be unreachable. This is caught during analysis by discover_blocks.
     // The validation phase will report missing switch tables.
-    ctx.println("\tPPC_CALL_INDIRECT_FUNC({}.u32);", ctx.ctr());
+    ctx.println("\tREX_CALL_INDIRECT_FUNC({}.u32);", ctx.ctr());
     ctx.println("\treturn;");
   }
   return true;
@@ -185,14 +185,14 @@ bool build_bctr(BuilderContext& ctx) {
 bool build_bctrl(BuilderContext& ctx) {
   if (!ctx.config().skipLr)
     ctx.println("\tctx.lr = 0x{:X};", ctx.base + 4);
-  ctx.println("\tPPC_CALL_INDIRECT_FUNC({}.u32);", ctx.ctr());
+  ctx.println("\tREX_CALL_INDIRECT_FUNC({}.u32);", ctx.ctr());
   ctx.csrState = CSRState::Unknown;  // the call could change it
   return true;
 }
 
 bool build_bnectr(BuilderContext& ctx) {
   ctx.println("\tif (!{}.eq) {{", ctx.cr(ctx.insn.operands[0]));
-  ctx.println("\t\tPPC_CALL_INDIRECT_FUNC({}.u32);", ctx.ctr());
+  ctx.println("\t\tREX_CALL_INDIRECT_FUNC({}.u32);", ctx.ctr());
   ctx.println("\t\treturn;");
   ctx.println("\t}}");
   return true;

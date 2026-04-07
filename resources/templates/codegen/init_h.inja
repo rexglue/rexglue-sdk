@@ -3,12 +3,11 @@
 #include "{{ project }}_config.h"
 #include <rex/ppc.h>
 #include <rex/logging.h>  // For REX_FATAL on unresolved calls
-{% for fn in functions %}{% if fn.is_rexcrt %}
-PPC_EXTERN_FUNC({{ fn.name }});{% else %}
-PPC_EXTERN_IMPORT({{ fn.name }});{% endif %}{% endfor %}
+{% for fn in functions %}
+REX_EXTERN({{ fn.name }});{% endfor %}
 
 // Import function declarations
 {% for imp in imports %}
-PPC_EXTERN_IMPORT({{ imp.name }});{% endfor %}
+REX_EXTERN({{ imp.name }});{% endfor %}
 
 // Function mapping table - iterate to register functions with FunctionDispatcher
