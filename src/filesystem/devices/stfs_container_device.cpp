@@ -38,6 +38,35 @@ StfsContainerDevice::~StfsContainerDevice() {
   CloseFiles();
 }
 
+std::unique_ptr<StfsHeader> StfsContainerDevice::ReadPackageHeader(
+    const std::filesystem::path& file_path) {
+  if (!std::filesystem::exists(file_path)) {
+    return nullptr;
+  }
+
+  if (std::filesystem::file_size(file_path) < sizeof(StfsHeader)) {
+    return nullptr;
+  }
+
+  auto file = rex::filesystem::OpenFile(file_path, "rb");
+  if (!file) {
+    return nullptr;
+  }
+
+  auto header = std::make_unique<StfsHeader>();
+  if (fread(header.get(), sizeof(StfsHeader), 1, file) != 1) {
+    fclose(file);
+    return nullptr;
+  }
+  fclose(file);
+
+  if (!header->header.is_magic_valid()) {
+    return nullptr;
+  }
+
+  return header;
+}
+
 bool StfsContainerDevice::Initialize() {
   // Resolve a valid STFS file if a directory is given.
   if (std::filesystem::is_directory(host_path_) && !ResolveFromFolder(host_path_)) {

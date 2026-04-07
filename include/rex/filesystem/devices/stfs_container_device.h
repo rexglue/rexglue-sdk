@@ -50,6 +50,11 @@ class StfsContainerDevice : public Device {
   uint32_t component_name_max_length() const override { return 40; }
   const StfsHeader& header() const { return header_; }
 
+  // Reads and validates the StfsHeader from an STFS package file without
+  // mounting the device. Returns nullptr if the file is missing, too small,
+  // or has an invalid magic.
+  static std::unique_ptr<StfsHeader> ReadPackageHeader(const std::filesystem::path& file_path);
+
   uint32_t total_allocation_units() const override {
     if (header_.metadata.volume_type == XContentVolumeType::kStfs) {
       return header_.metadata.volume_descriptor.stfs.total_block_count;
