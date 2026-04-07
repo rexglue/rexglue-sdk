@@ -12,8 +12,8 @@
 #include <rex/kernel/xam/private.h>
 #include <rex/kernel/xboxkrnl/video.h>
 #include <rex/logging.h>
-#include <rex/ppc/function.h>
-#include <rex/ppc/types.h>
+#include <rex/hook.h>
+#include <rex/types.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xtypes.h>
 
@@ -27,7 +27,7 @@ void XGetVideoMode_entry(ppc_ptr_t<X_VIDEO_MODE> video_mode) {
   xboxkrnl::VdQueryVideoMode(std::move(video_mode));
 }
 
-ppc_u32_result_t XGetVideoCapabilities_entry() {
+u32 XGetVideoCapabilities_entry() {
   return 0;
 }
 
@@ -35,10 +35,10 @@ ppc_u32_result_t XGetVideoCapabilities_entry() {
 }  // namespace kernel
 }  // namespace rex
 
-XAM_EXPORT(__imp__XGetVideoMode, rex::kernel::xam::XGetVideoMode_entry)
-XAM_EXPORT(__imp__XGetVideoCapabilities, rex::kernel::xam::XGetVideoCapabilities_entry)
+REX_EXPORT(__imp__XGetVideoMode, rex::kernel::xam::XGetVideoMode_entry)
+REX_EXPORT(__imp__XGetVideoCapabilities, rex::kernel::xam::XGetVideoCapabilities_entry)
 
-XAM_EXPORT_STUB(__imp__XGetVideoFlags);
-XAM_EXPORT_STUB(__imp__XGetVideoStandard);
-XAM_EXPORT_STUB(__imp__XamLoadExtraAVCodecs2);
-XAM_EXPORT_STUB(__imp__XamUnloadExtraAVCodecs2);
+REX_EXPORT_STUB(__imp__XGetVideoFlags);
+REX_EXPORT_STUB(__imp__XGetVideoStandard);
+REX_EXPORT_STUB(__imp__XamLoadExtraAVCodecs2);
+REX_EXPORT_STUB(__imp__XamUnloadExtraAVCodecs2);

@@ -14,8 +14,8 @@
 #include <rex/cvar.h>
 #include <rex/kernel/xam/private.h>
 #include <rex/logging.h>
-#include <rex/ppc/function.h>
-#include <rex/ppc/types.h>
+#include <rex/hook.h>
+#include <rex/types.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xenumerator.h>
 #include <rex/system/xthread.h>
@@ -213,16 +213,15 @@ uint8_t xeXamGetLocale() {
 
 // Exports.
 
-ppc_u32_result_t XamGetLocale_entry() {
+u32 XamGetLocale_entry() {
   return static_cast<uint8_t>(xeXamGetLocale());
 }
 
-ppc_u32_result_t XamGetOnlineCountryFromLocale_entry(ppc_u32_t id) {
+u32 XamGetOnlineCountryFromLocale_entry(u32 id) {
   return xeXamGetOnlineCountryFromLocale(id);
 }
 
-ppc_u32_result_t XamGetOnlineCountryString_entry(ppc_u32_t id, ppc_u32_t buffer_length,
-                                                 ppc_pchar16_t buffer) {
+u32 XamGetOnlineCountryString_entry(u32 id, u32 buffer_length, mapped_wstring buffer) {
   if (buffer_length >= 0x80000000u) {
     return X_E_INVALIDARG;
   }
@@ -242,8 +241,7 @@ ppc_u32_result_t XamGetOnlineCountryString_entry(ppc_u32_t id, ppc_u32_t buffer_
   return X_E_SUCCESS;
 }
 
-ppc_u32_result_t XamGetCountryString_entry(ppc_u32_t id, ppc_u32_t buffer_length,
-                                           ppc_pchar16_t buffer) {
+u32 XamGetCountryString_entry(u32 id, u32 buffer_length, mapped_wstring buffer) {
   if (buffer_length >= 0x80000000u) {
     return X_E_INVALIDARG;
   }
@@ -263,8 +261,7 @@ ppc_u32_result_t XamGetCountryString_entry(ppc_u32_t id, ppc_u32_t buffer_length
   return X_E_SUCCESS;
 }
 
-ppc_u32_result_t XamGetLanguageString_entry(ppc_u32_t id, ppc_u32_t buffer_length,
-                                            ppc_pchar16_t buffer) {
+u32 XamGetLanguageString_entry(u32 id, u32 buffer_length, mapped_wstring buffer) {
   if (buffer_length >= 0x80000000u) {
     return X_E_INVALIDARG;
   }
@@ -284,8 +281,8 @@ ppc_u32_result_t XamGetLanguageString_entry(ppc_u32_t id, ppc_u32_t buffer_lengt
   return X_E_SUCCESS;
 }
 
-ppc_u32_result_t XamGetLanguageLocaleString_entry(ppc_u32_t language_id, ppc_u32_t locale_id,
-                                                  ppc_u32_t buffer_length, ppc_pchar16_t buffer) {
+u32 XamGetLanguageLocaleString_entry(u32 language_id, u32 locale_id, u32 buffer_length,
+                                     mapped_wstring buffer) {
   if (buffer_length >= 0x80000000u) {
     return X_E_INVALIDARG;
   }
@@ -310,10 +307,8 @@ ppc_u32_result_t XamGetLanguageLocaleString_entry(ppc_u32_t language_id, ppc_u32
   return X_E_SUCCESS;
 }
 
-ppc_u32_result_t XamGetOnlineLanguageAndCountryString_entry(ppc_u32_t language_id,
-                                                            ppc_u32_t country_id,
-                                                            ppc_u32_t buffer_length,
-                                                            ppc_pchar16_t buffer) {
+u32 XamGetOnlineLanguageAndCountryString_entry(u32 language_id, u32 country_id, u32 buffer_length,
+                                               mapped_wstring buffer) {
   if (buffer_length >= 0x80000000u) {
     return X_E_INVALIDARG;
   }
@@ -338,8 +333,7 @@ ppc_u32_result_t XamGetOnlineLanguageAndCountryString_entry(ppc_u32_t language_i
   return X_E_SUCCESS;
 }
 
-ppc_u32_result_t XamGetLocaleString_entry(ppc_u32_t id, ppc_u32_t buffer_length,
-                                          ppc_pchar16_t buffer) {
+u32 XamGetLocaleString_entry(u32 id, u32 buffer_length, mapped_wstring buffer) {
   if (buffer_length >= 0x80000000u) {
     return X_E_INVALIDARG;
   }
@@ -359,16 +353,15 @@ ppc_u32_result_t XamGetLocaleString_entry(ppc_u32_t id, ppc_u32_t buffer_length,
   return X_E_SUCCESS;
 }
 
-ppc_u32_result_t XamGetLocaleFromOnlineCountry_entry(ppc_u32_t id) {
+u32 XamGetLocaleFromOnlineCountry_entry(u32 id) {
   return xeXamGetLocaleFromOnlineCountry(static_cast<uint8_t>(id));
 }
 
-ppc_u32_result_t XamGetLanguageFromOnlineLanguage_entry(ppc_u32_t id) {
+u32 XamGetLanguageFromOnlineLanguage_entry(u32 id) {
   return xeXamGetLanguageFromOnlineLanguage(static_cast<uint8_t>(id));
 }
 
-ppc_u32_result_t XamGetOnlineLanguageString_entry(ppc_u32_t id, ppc_u32_t buffer_length,
-                                                  ppc_pchar16_t buffer) {
+u32 XamGetOnlineLanguageString_entry(u32 id, u32 buffer_length, mapped_wstring buffer) {
   if (buffer_length >= 0x80000000u) {
     return X_E_INVALIDARG;
   }
@@ -388,11 +381,11 @@ ppc_u32_result_t XamGetOnlineLanguageString_entry(ppc_u32_t id, ppc_u32_t buffer
   return X_E_SUCCESS;
 }
 
-ppc_u32_result_t XamGetCountryFromOnlineCountry_entry(ppc_u32_t id) {
+u32 XamGetCountryFromOnlineCountry_entry(u32 id) {
   return xeXamGetCountryFromOnlineCountry(static_cast<uint8_t>(id));
 }
 
-ppc_u32_result_t XamGetLocaleEx_entry(ppc_u32_t max_country_id, ppc_u32_t max_locale_id) {
+u32 XamGetLocaleEx_entry(u32 max_country_id, u32 max_locale_id) {
   return xeXamGetLocaleEx(static_cast<uint8_t>(max_country_id),
                           static_cast<uint8_t>(max_locale_id));
 }
@@ -401,38 +394,38 @@ ppc_u32_result_t XamGetLocaleEx_entry(ppc_u32_t max_country_id, ppc_u32_t max_lo
 }  // namespace kernel
 }  // namespace rex
 
-XAM_EXPORT(__imp__XamGetLocale, rex::kernel::xam::XamGetLocale_entry)
-XAM_EXPORT(__imp__XamGetOnlineCountryFromLocale,
+REX_EXPORT(__imp__XamGetLocale, rex::kernel::xam::XamGetLocale_entry)
+REX_EXPORT(__imp__XamGetOnlineCountryFromLocale,
            rex::kernel::xam::XamGetOnlineCountryFromLocale_entry)
-XAM_EXPORT(__imp__XamGetOnlineCountryString, rex::kernel::xam::XamGetOnlineCountryString_entry)
-XAM_EXPORT(__imp__XamGetCountryString, rex::kernel::xam::XamGetCountryString_entry)
-XAM_EXPORT(__imp__XamGetLanguageString, rex::kernel::xam::XamGetLanguageString_entry)
-XAM_EXPORT(__imp__XamGetLanguageLocaleString, rex::kernel::xam::XamGetLanguageLocaleString_entry)
-XAM_EXPORT(__imp__XamGetOnlineLanguageAndCountryString,
+REX_EXPORT(__imp__XamGetOnlineCountryString, rex::kernel::xam::XamGetOnlineCountryString_entry)
+REX_EXPORT(__imp__XamGetCountryString, rex::kernel::xam::XamGetCountryString_entry)
+REX_EXPORT(__imp__XamGetLanguageString, rex::kernel::xam::XamGetLanguageString_entry)
+REX_EXPORT(__imp__XamGetLanguageLocaleString, rex::kernel::xam::XamGetLanguageLocaleString_entry)
+REX_EXPORT(__imp__XamGetOnlineLanguageAndCountryString,
            rex::kernel::xam::XamGetOnlineLanguageAndCountryString_entry)
-XAM_EXPORT(__imp__XamGetLocaleString, rex::kernel::xam::XamGetLocaleString_entry)
-XAM_EXPORT(__imp__XamGetLocaleFromOnlineCountry,
+REX_EXPORT(__imp__XamGetLocaleString, rex::kernel::xam::XamGetLocaleString_entry)
+REX_EXPORT(__imp__XamGetLocaleFromOnlineCountry,
            rex::kernel::xam::XamGetLocaleFromOnlineCountry_entry)
-XAM_EXPORT(__imp__XamGetLanguageFromOnlineLanguage,
+REX_EXPORT(__imp__XamGetLanguageFromOnlineLanguage,
            rex::kernel::xam::XamGetLanguageFromOnlineLanguage_entry)
-XAM_EXPORT(__imp__XamGetOnlineLanguageString, rex::kernel::xam::XamGetOnlineLanguageString_entry)
-XAM_EXPORT(__imp__XamGetCountryFromOnlineCountry,
+REX_EXPORT(__imp__XamGetOnlineLanguageString, rex::kernel::xam::XamGetOnlineLanguageString_entry)
+REX_EXPORT(__imp__XamGetCountryFromOnlineCountry,
            rex::kernel::xam::XamGetCountryFromOnlineCountry_entry)
-XAM_EXPORT(__imp__XamGetLocaleEx, rex::kernel::xam::XamGetLocaleEx_entry)
+REX_EXPORT(__imp__XamGetLocaleEx, rex::kernel::xam::XamGetLocaleEx_entry)
 
-XAM_EXPORT_STUB(__imp__XamFormatCurrency);
-XAM_EXPORT_STUB(__imp__XamFormatMessage);
-XAM_EXPORT_STUB(__imp__XamFormatSystemDateString);
-XAM_EXPORT_STUB(__imp__XamGetCountry);
-XAM_EXPORT_STUB(__imp__XamGetCurrencyFormat);
-XAM_EXPORT_STUB(__imp__XamGetLanguage);
-XAM_EXPORT_STUB(__imp__XamGetLanguageLocaleFallbackString);
-XAM_EXPORT_STUB(__imp__XamGetLanguageTypeface);
-XAM_EXPORT_STUB(__imp__XamGetLanguageTypefacePatch);
-XAM_EXPORT_STUB(__imp__XamGetLocaleDateFormat);
-XAM_EXPORT_STUB(__imp__XamGetLocaleTimeFormat);
-XAM_EXPORT_STUB(__imp__XamGetOnlineCountryFeatures);
-XAM_EXPORT_STUB(__imp__XamGetOnlineLanguageAndCountry);
-XAM_EXPORT_STUB(__imp__XamGetStoreFront);
-XAM_EXPORT_STUB(__imp__XamUniSortCmpString);
-XAM_EXPORT_STUB(__imp__XamValidateCountry);
+REX_EXPORT_STUB(__imp__XamFormatCurrency);
+REX_EXPORT_STUB(__imp__XamFormatMessage);
+REX_EXPORT_STUB(__imp__XamFormatSystemDateString);
+REX_EXPORT_STUB(__imp__XamGetCountry);
+REX_EXPORT_STUB(__imp__XamGetCurrencyFormat);
+REX_EXPORT_STUB(__imp__XamGetLanguage);
+REX_EXPORT_STUB(__imp__XamGetLanguageLocaleFallbackString);
+REX_EXPORT_STUB(__imp__XamGetLanguageTypeface);
+REX_EXPORT_STUB(__imp__XamGetLanguageTypefacePatch);
+REX_EXPORT_STUB(__imp__XamGetLocaleDateFormat);
+REX_EXPORT_STUB(__imp__XamGetLocaleTimeFormat);
+REX_EXPORT_STUB(__imp__XamGetOnlineCountryFeatures);
+REX_EXPORT_STUB(__imp__XamGetOnlineLanguageAndCountry);
+REX_EXPORT_STUB(__imp__XamGetStoreFront);
+REX_EXPORT_STUB(__imp__XamUniSortCmpString);
+REX_EXPORT_STUB(__imp__XamValidateCountry);

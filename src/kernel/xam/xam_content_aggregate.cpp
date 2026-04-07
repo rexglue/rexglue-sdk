@@ -13,8 +13,8 @@
 #include <rex/kernel/xam/private.h>
 #include <rex/logging.h>
 #include <rex/math.h>
-#include <rex/ppc/function.h>
-#include <rex/ppc/types.h>
+#include <rex/hook.h>
+#include <rex/types.h>
 #include <rex/string/util.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/user_module.h>
@@ -78,10 +78,8 @@ void AddODDContentTest(object_ref<XStaticEnumerator<XCONTENT_AGGREGATE_DATA>> e,
   }
 }
 
-ppc_u32_result_t XamContentAggregateCreateEnumerator_entry(ppc_u64_t xuid, ppc_u32_t device_id,
-                                                           ppc_u32_t content_type,
-                                                           ppc_unknown_t unk3,
-                                                           ppc_pu32_t handle_out) {
+u32 XamContentAggregateCreateEnumerator_entry(u64 xuid, u32 device_id, u32 content_type, u32 unk3,
+                                              mapped_u32 handle_out) {
   assert_not_null(handle_out);
 
   auto device_info = device_id == 0 ? nullptr : GetDummyDeviceInfo(device_id);
@@ -155,5 +153,5 @@ ppc_u32_result_t XamContentAggregateCreateEnumerator_entry(ppc_u64_t xuid, ppc_u
 }  // namespace kernel
 }  // namespace rex
 
-XAM_EXPORT(__imp__XamContentAggregateCreateEnumerator,
+REX_EXPORT(__imp__XamContentAggregateCreateEnumerator,
            rex::kernel::xam::XamContentAggregateCreateEnumerator_entry)

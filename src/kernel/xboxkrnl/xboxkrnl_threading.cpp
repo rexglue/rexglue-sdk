@@ -22,8 +22,8 @@
 #include <rex/kernel/xboxkrnl/private.h>
 #include <rex/kernel/xboxkrnl/threading.h>
 #include <rex/logging.h>
-#include <rex/ppc/function.h>
-#include <rex/ppc/types.h>
+#include <rex/hook.h>
+#include <rex/types.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/function_dispatcher.h>
 #include <rex/system/thread_state.h>
@@ -104,10 +104,9 @@ object_ref<T> LookupNamedObject(KernelState* kernel_state, uint32_t obj_attribut
   return nullptr;
 }
 
-ppc_u32_result_t ExCreateThread_entry(ppc_pu32_t handle_ptr, ppc_u32_t stack_size,
-                                      ppc_pu32_t thread_id_ptr, ppc_u32_t xapi_thread_startup,
-                                      ppc_pvoid_t start_address, ppc_pvoid_t start_context,
-                                      ppc_u32_t creation_flags) {
+u32 ExCreateThread_entry(mapped_u32 handle_ptr, u32 stack_size, mapped_u32 thread_id_ptr,
+                         u32 xapi_thread_startup, mapped_void start_address,
+                         mapped_void start_context, u32 creation_flags) {
   REXKRNL_IMPORT_TRACE(
       "ExCreateThread", "stack={:#x} xapi_startup={:#x} start={:#x} context={:#x} flags={:#x}",
       (uint32_t)stack_size, (uint32_t)xapi_thread_startup, start_address.guest_address(),
@@ -168,14 +167,14 @@ ppc_u32_result_t ExCreateThread_entry(ppc_pu32_t handle_ptr, ppc_u32_t stack_siz
   return result;
 }
 
-ppc_u32_result_t ExTerminateThread_entry(ppc_u32_t exit_code) {
+u32 ExTerminateThread_entry(u32 exit_code) {
   XThread* thread = XThread::GetCurrentThread();
 
   // NOTE: this kills us right now. We won't return from it.
   return thread->Exit(exit_code);
 }
 
-ppc_u32_result_t NtResumeThread_entry(ppc_u32_t handle, ppc_pu32_t suspend_count_ptr) {
+u32 NtResumeThread_entry(u32 handle, mapped_u32 suspend_count_ptr) {
   X_RESULT result = X_STATUS_INVALID_HANDLE;
   uint32_t suspend_count = 0;
 
@@ -194,7 +193,7 @@ ppc_u32_result_t NtResumeThread_entry(ppc_u32_t handle, ppc_pu32_t suspend_count
   return result;
 }
 
-ppc_u32_result_t KeResumeThread_entry(ppc_pvoid_t thread_ptr) {
+u32 KeResumeThread_entry(mapped_void thread_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
   auto thread = XObject::GetNativeObject<XThread>(REX_KERNEL_STATE(), thread_ptr);
   if (thread) {
@@ -210,7 +209,7 @@ ppc_u32_result_t KeResumeThread_entry(ppc_pvoid_t thread_ptr) {
   return result;
 }
 
-ppc_u32_result_t NtSuspendThread_entry(ppc_u32_t handle, ppc_pu32_t suspend_count_ptr) {
+u32 NtSuspendThread_entry(u32 handle, mapped_u32 suspend_count_ptr) {
   X_RESULT result = X_STATUS_SUCCESS;
   uint32_t suspend_count = 0;
 
@@ -267,9 +266,9 @@ void UpdateGuestStackPointers(X_KTHREAD* kthread, X_KPCR* pcr, PPCContext* ctx, 
 
 }  // namespace
 
-void KeSetCurrentStackPointers_entry(ppc_pvoid_t stack_ptr, ppc_ptr_t<X_KTHREAD> thread,
-                                     ppc_pvoid_t stack_alloc_base, ppc_pvoid_t stack_base,
-                                     ppc_pvoid_t stack_limit) {
+void KeSetCurrentStackPointers_entry(mapped_void stack_ptr, ppc_ptr_t<X_KTHREAD> thread,
+                                     mapped_void stack_alloc_base, mapped_void stack_base,
+                                     mapped_void stack_limit) {
   auto current_thread = XThread::GetCurrentThread();
   auto context = current_thread->thread_state()->context();
   auto pcr =
@@ -279,8 +278,8 @@ void KeSetCurrentStackPointers_entry(ppc_pvoid_t stack_ptr, ppc_ptr_t<X_KTHREAD>
                            stack_alloc_base.value(), stack_base.value(), stack_limit.value());
 }
 
-ppc_u32_result_t KeSetAffinityThread_entry(ppc_pvoid_t thread_ptr, ppc_u32_t affinity,
-                                           ppc_pu32_t previous_affinity_ptr) {
+u32 KeSetAffinityThread_entry(mapped_void thread_ptr, u32 affinity,
+                              mapped_u32 previous_affinity_ptr) {
   REXKRNL_IMPORT_TRACE("KeSetAffinityThread", "thread={:#x} affinity={:#x}",
                        thread_ptr.guest_address(), (uint32_t)affinity);
   // The Xbox 360, according to disassembly of KeSetAffinityThread, unlike
@@ -304,7 +303,7 @@ ppc_u32_result_t KeSetAffinityThread_entry(ppc_pvoid_t thread_ptr, ppc_u32_t aff
   return X_STATUS_SUCCESS;
 }
 
-ppc_u32_result_t KeQueryBasePriorityThread_entry(ppc_pvoid_t thread_ptr) {
+u32 KeQueryBasePriorityThread_entry(mapped_void thread_ptr) {
   REXKRNL_IMPORT_TRACE("KeQueryBasePriorityThread", "thread={:#x}", thread_ptr.guest_address());
   int32_t priority = 0;
 
@@ -317,7 +316,7 @@ ppc_u32_result_t KeQueryBasePriorityThread_entry(ppc_pvoid_t thread_ptr) {
   return priority;
 }
 
-ppc_u32_result_t KeSetBasePriorityThread_entry(ppc_pvoid_t thread_ptr, ppc_u32_t increment) {
+u32 KeSetBasePriorityThread_entry(mapped_void thread_ptr, u32 increment) {
   REXKRNL_IMPORT_TRACE("KeSetBasePriorityThread", "thread={:#x} increment={}",
                        thread_ptr.guest_address(), (int32_t)increment);
   int32_t prev_priority = 0;
@@ -332,14 +331,13 @@ ppc_u32_result_t KeSetBasePriorityThread_entry(ppc_pvoid_t thread_ptr, ppc_u32_t
   return prev_priority;
 }
 
-ppc_u32_result_t KeSetDisableBoostThread_entry(ppc_ptr_t<X_KTHREAD> thread_ptr,
-                                               ppc_u32_t disabled) {
+u32 KeSetDisableBoostThread_entry(ppc_ptr_t<X_KTHREAD> thread_ptr, u32 disabled) {
   auto old_boost_disabled = reinterpret_cast<std::atomic_uint8_t*>(&thread_ptr->boost_disabled)
                                 ->exchange(static_cast<uint8_t>(disabled));
   return old_boost_disabled;
 }
 
-ppc_u32_result_t KeGetCurrentProcessType_entry() {
+u32 KeGetCurrentProcessType_entry() {
   auto current_thread = XThread::GetCurrentThread();
   auto context = current_thread->thread_state()->context();
   auto pcr =
@@ -353,7 +351,7 @@ ppc_u32_result_t KeGetCurrentProcessType_entry() {
   return thread->process_type;
 }
 
-void KeSetCurrentProcessType_entry(ppc_u32_t type) {
+void KeSetCurrentProcessType_entry(u32 type) {
   // One of X_PROCTYPE_?
   assert_true(type <= 2);
 
@@ -369,13 +367,12 @@ void KeSetCurrentProcessType_entry(ppc_u32_t type) {
   }
 }
 
-ppc_u32_result_t KeQueryPerformanceFrequency_entry() {
+u32 KeQueryPerformanceFrequency_entry() {
   uint64_t result = chrono::Clock::guest_tick_frequency();
   return static_cast<uint32_t>(result);
 }
 
-ppc_u32_result_t KeDelayExecutionThread_entry(ppc_u32_t processor_mode, ppc_u32_t alertable,
-                                              ppc_pu64_t interval_ptr) {
+u32 KeDelayExecutionThread_entry(u32 processor_mode, u32 alertable, mapped_u64 interval_ptr) {
   XThread* thread = XThread::GetCurrentThread();
 
   if (alertable) {
@@ -391,12 +388,12 @@ ppc_u32_result_t KeDelayExecutionThread_entry(ppc_u32_t processor_mode, ppc_u32_
   return result;
 }
 
-ppc_u32_result_t NtYieldExecution_entry() {
+u32 NtYieldExecution_entry() {
   rex::thread::MaybeYield();
   return X_STATUS_SUCCESS;
 }
 
-void KeQuerySystemTime_entry(ppc_pu64_t time_ptr) {
+void KeQuerySystemTime_entry(mapped_u64 time_ptr) {
   uint64_t time = chrono::Clock::QueryGuestSystemTime();
   if (time_ptr) {
     *time_ptr = time;
@@ -404,7 +401,7 @@ void KeQuerySystemTime_entry(ppc_pu64_t time_ptr) {
 }
 
 // https://msdn.microsoft.com/en-us/library/ms686801
-ppc_u32_result_t KeTlsAlloc_entry() {
+u32 KeTlsAlloc_entry() {
   uint32_t slot = REX_KERNEL_STATE()->AllocateTLS(current_ppc_context());
   if (slot != X_TLS_OUT_OF_INDEXES) {
     XThread::GetCurrentThread()->SetTLSValue(slot, 0);
@@ -414,7 +411,7 @@ ppc_u32_result_t KeTlsAlloc_entry() {
 }
 
 // https://msdn.microsoft.com/en-us/library/ms686804
-ppc_u32_result_t KeTlsFree_entry(ppc_u32_t tls_index) {
+u32 KeTlsFree_entry(u32 tls_index) {
   REXKRNL_IMPORT_TRACE("KeTlsFree", "slot={}", (uint32_t)tls_index);
   if (tls_index == X_TLS_OUT_OF_INDEXES) {
     REXKRNL_IMPORT_RESULT("KeTlsFree", "0 (invalid)");
@@ -427,7 +424,7 @@ ppc_u32_result_t KeTlsFree_entry(ppc_u32_t tls_index) {
 }
 
 // https://msdn.microsoft.com/en-us/library/ms686812
-ppc_u32_result_t KeTlsGetValue_entry(ppc_u32_t tls_index) {
+u32 KeTlsGetValue_entry(u32 tls_index) {
   // xboxkrnl doesn't actually have an error branch - it always succeeds, even
   // if it overflows the TLS.
   uint32_t value = 0;
@@ -439,7 +436,7 @@ ppc_u32_result_t KeTlsGetValue_entry(ppc_u32_t tls_index) {
 }
 
 // https://msdn.microsoft.com/en-us/library/ms686818
-ppc_u32_result_t KeTlsSetValue_entry(ppc_u32_t tls_index, ppc_u32_t tls_value) {
+u32 KeTlsSetValue_entry(u32 tls_index, u32 tls_value) {
   REXKRNL_IMPORT_TRACE("KeTlsSetValue", "slot={} value={:#x}", (uint32_t)tls_index,
                        (uint32_t)tls_value);
   // xboxkrnl doesn't actually have an error branch - it always succeeds, even
@@ -453,8 +450,7 @@ ppc_u32_result_t KeTlsSetValue_entry(ppc_u32_t tls_index, ppc_u32_t tls_value) {
   return 0;
 }
 
-void KeInitializeEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, ppc_u32_t event_type,
-                             ppc_u32_t initial_state) {
+void KeInitializeEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, u32 event_type, u32 initial_state) {
   event_ptr.Zero();
   event_ptr->header.type = event_type;
   event_ptr->header.signal_state = (uint32_t)initial_state;
@@ -475,13 +471,11 @@ uint32_t xeKeSetEvent(X_KEVENT* event_ptr, uint32_t increment, uint32_t wait) {
   return ev->Set(increment, !!wait);
 }
 
-ppc_u32_result_t KeSetEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, ppc_u32_t increment,
-                                  ppc_u32_t wait) {
+u32 KeSetEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, u32 increment, u32 wait) {
   return xeKeSetEvent(event_ptr, increment, wait);
 }
 
-ppc_u32_result_t KePulseEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, ppc_u32_t increment,
-                                    ppc_u32_t wait) {
+u32 KePulseEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, u32 increment, u32 wait) {
   auto ev = XObject::GetNativeObject<XEvent>(REX_KERNEL_STATE(), event_ptr);
   if (!ev) {
     assert_always();
@@ -491,7 +485,7 @@ ppc_u32_result_t KePulseEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, ppc_u32_t inc
   return ev->Pulse(increment, !!wait);
 }
 
-ppc_u32_result_t KeResetEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr) {
+u32 KeResetEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr) {
   auto ev = XObject::GetNativeObject<XEvent>(REX_KERNEL_STATE(), event_ptr);
   if (!ev) {
     assert_always();
@@ -501,9 +495,8 @@ ppc_u32_result_t KeResetEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr) {
   return ev->Reset();
 }
 
-ppc_u32_result_t NtCreateEvent_entry(ppc_pu32_t handle_ptr,
-                                     ppc_ptr_t<X_OBJECT_ATTRIBUTES> obj_attributes_ptr,
-                                     ppc_u32_t event_type, ppc_u32_t initial_state) {
+u32 NtCreateEvent_entry(mapped_u32 handle_ptr, ppc_ptr_t<X_OBJECT_ATTRIBUTES> obj_attributes_ptr,
+                        u32 event_type, u32 initial_state) {
   // Check for an existing timer with the same name.
   auto existing_object =
       LookupNamedObject<XEvent>(REX_KERNEL_STATE(), obj_attributes_ptr.guest_address());
@@ -549,11 +542,11 @@ uint32_t xeNtSetEvent(uint32_t handle, rex::be<uint32_t>* previous_state_ptr) {
   return result;
 }
 
-ppc_u32_result_t NtSetEvent_entry(ppc_u32_t handle, ppc_pu32_t previous_state_ptr) {
+u32 NtSetEvent_entry(u32 handle, mapped_u32 previous_state_ptr) {
   return xeNtSetEvent(handle, previous_state_ptr);
 }
 
-ppc_u32_result_t NtPulseEvent_entry(ppc_u32_t handle, ppc_pu32_t previous_state_ptr) {
+u32 NtPulseEvent_entry(u32 handle, mapped_u32 previous_state_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
   auto ev = REX_KERNEL_OBJECTS()->LookupObject<XEvent>(handle);
@@ -582,13 +575,12 @@ uint32_t xeNtClearEvent(uint32_t handle) {
   return result;
 }
 
-ppc_u32_result_t NtClearEvent_entry(ppc_u32_t handle) {
+u32 NtClearEvent_entry(u32 handle) {
   return xeNtClearEvent(handle);
 }
 
 // https://msdn.microsoft.com/en-us/library/windows/hardware/ff552150(v=vs.85).aspx
-void KeInitializeSemaphore_entry(ppc_ptr_t<X_KSEMAPHORE> semaphore_ptr, ppc_u32_t count,
-                                 ppc_u32_t limit) {
+void KeInitializeSemaphore_entry(ppc_ptr_t<X_KSEMAPHORE> semaphore_ptr, u32 count, u32 limit) {
   semaphore_ptr->header.type = 5;  // SemaphoreObject
   semaphore_ptr->header.signal_state = (uint32_t)count;
   semaphore_ptr->limit = (uint32_t)limit;
@@ -618,14 +610,13 @@ uint32_t xeKeReleaseSemaphore(X_KSEMAPHORE* semaphore_ptr, uint32_t increment, u
   return static_cast<uint32_t>(previous_count);
 }
 
-ppc_u32_result_t KeReleaseSemaphore_entry(ppc_ptr_t<X_KSEMAPHORE> semaphore_ptr,
-                                          ppc_u32_t increment, ppc_u32_t adjustment,
-                                          ppc_u32_t wait) {
+u32 KeReleaseSemaphore_entry(ppc_ptr_t<X_KSEMAPHORE> semaphore_ptr, u32 increment, u32 adjustment,
+                             u32 wait) {
   return xeKeReleaseSemaphore(semaphore_ptr, increment, adjustment, wait);
 }
 
-ppc_u32_result_t NtCreateSemaphore_entry(ppc_pu32_t handle_ptr, ppc_pvoid_t obj_attributes_ptr,
-                                         ppc_u32_t count, ppc_u32_t limit) {
+u32 NtCreateSemaphore_entry(mapped_u32 handle_ptr, mapped_void obj_attributes_ptr, u32 count,
+                            u32 limit) {
   // Check for an existing semaphore with the same name.
   auto existing_object =
       LookupNamedObject<XSemaphore>(REX_KERNEL_STATE(), obj_attributes_ptr.guest_address());
@@ -662,8 +653,7 @@ ppc_u32_result_t NtCreateSemaphore_entry(ppc_pu32_t handle_ptr, ppc_pvoid_t obj_
   return X_STATUS_SUCCESS;
 }
 
-ppc_u32_result_t NtReleaseSemaphore_entry(ppc_u32_t sem_handle, ppc_u32_t release_count,
-                                          ppc_pu32_t previous_count_ptr) {
+u32 NtReleaseSemaphore_entry(u32 sem_handle, u32 release_count, mapped_u32 previous_count_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
   int32_t previous_count = 0;
 
@@ -683,9 +673,8 @@ ppc_u32_result_t NtReleaseSemaphore_entry(ppc_u32_t sem_handle, ppc_u32_t releas
   return result;
 }
 
-ppc_u32_result_t NtCreateMutant_entry(ppc_pu32_t handle_out,
-                                      ppc_ptr_t<X_OBJECT_ATTRIBUTES> obj_attributes,
-                                      ppc_u32_t initial_owner) {
+u32 NtCreateMutant_entry(mapped_u32 handle_out, ppc_ptr_t<X_OBJECT_ATTRIBUTES> obj_attributes,
+                         u32 initial_owner) {
   // Check for an existing timer with the same name.
   auto existing_object =
       LookupNamedObject<XMutant>(REX_KERNEL_STATE(), obj_attributes.guest_address());
@@ -716,7 +705,7 @@ ppc_u32_result_t NtCreateMutant_entry(ppc_pu32_t handle_out,
   return X_STATUS_SUCCESS;
 }
 
-ppc_u32_result_t NtReleaseMutant_entry(ppc_u32_t mutant_handle, ppc_u32_t unknown) {
+u32 NtReleaseMutant_entry(u32 mutant_handle, u32 unknown) {
   // This doesn't seem to be supported.
   // int32_t previous_count_ptr = SHIM_GET_ARG_32(2);
 
@@ -740,8 +729,7 @@ ppc_u32_result_t NtReleaseMutant_entry(ppc_u32_t mutant_handle, ppc_u32_t unknow
   return result;
 }
 
-ppc_u32_result_t NtCreateTimer_entry(ppc_pu32_t handle_ptr, ppc_pvoid_t obj_attributes_ptr,
-                                     ppc_u32_t timer_type) {
+u32 NtCreateTimer_entry(mapped_u32 handle_ptr, mapped_void obj_attributes_ptr, u32 timer_type) {
   // timer_type = NotificationTimer (0) or SynchronizationTimer (1)
 
   // Check for an existing timer with the same name.
@@ -774,8 +762,7 @@ ppc_u32_result_t NtCreateTimer_entry(ppc_pu32_t handle_ptr, ppc_pvoid_t obj_attr
   return X_STATUS_SUCCESS;
 }
 
-void KeInitializeTimerEx_entry(ppc_ptr_t<X_KTIMER> timer_ptr, ppc_u32_t timer_type,
-                               ppc_u32_t proc_type) {
+void KeInitializeTimerEx_entry(ppc_ptr_t<X_KTIMER> timer_ptr, u32 timer_type, u32 proc_type) {
   assert_true(timer_type == 0 || timer_type == 1);
   assert_true(proc_type < 3);
   // Other fields are unmodified; they must carry through multiple calls.
@@ -792,10 +779,9 @@ void KeInitializeTimerEx_entry(ppc_ptr_t<X_KTIMER> timer_ptr, ppc_u32_t timer_ty
   timer_ptr->period = 0;
 }
 
-ppc_u32_result_t NtSetTimerEx_entry(ppc_u32_t timer_handle, ppc_pu64_t due_time_ptr,
-                                    ppc_pvoid_t routine_ptr /*PTIMERAPCROUTINE*/, ppc_u32_t unk_one,
-                                    ppc_pvoid_t routine_arg, ppc_u32_t resume, ppc_u32_t period_ms,
-                                    ppc_u32_t unk_zero) {
+u32 NtSetTimerEx_entry(u32 timer_handle, mapped_u64 due_time_ptr,
+                       mapped_void routine_ptr /*PTIMERAPCROUTINE*/, u32 unk_one,
+                       mapped_void routine_arg, u32 resume, u32 period_ms, u32 unk_zero) {
   assert_true(unk_one == 1);
   assert_true(unk_zero == 0);
 
@@ -814,7 +800,7 @@ ppc_u32_result_t NtSetTimerEx_entry(ppc_u32_t timer_handle, ppc_pu64_t due_time_
   return result;
 }
 
-ppc_u32_result_t NtCancelTimer_entry(ppc_u32_t timer_handle, ppc_pu32_t current_state_ptr) {
+u32 NtCancelTimer_entry(u32 timer_handle, mapped_u32 current_state_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
   auto timer = REX_KERNEL_OBJECTS()->LookupObject<XTimer>(timer_handle);
@@ -849,9 +835,8 @@ uint32_t xeKeWaitForSingleObject(void* object_ptr, uint32_t wait_reason, uint32_
   return result;
 }
 
-ppc_u32_result_t KeWaitForSingleObject_entry(ppc_pvoid_t object_ptr, ppc_u32_t wait_reason,
-                                             ppc_u32_t processor_mode, ppc_u32_t alertable,
-                                             ppc_pu64_t timeout_ptr) {
+u32 KeWaitForSingleObject_entry(mapped_void object_ptr, u32 wait_reason, u32 processor_mode,
+                                u32 alertable, mapped_u64 timeout_ptr) {
   uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
   // REXKRNL_IMPORT_TRACE("KeWaitForSingleObject", "obj={:#x} reason={} mode={} alertable={}
   // timeout={}",
@@ -864,8 +849,8 @@ ppc_u32_result_t KeWaitForSingleObject_entry(ppc_pvoid_t object_ptr, ppc_u32_t w
   return result;
 }
 
-ppc_u32_result_t NtWaitForSingleObjectEx_entry(ppc_u32_t object_handle, ppc_u32_t wait_mode,
-                                               ppc_u32_t alertable, ppc_pu64_t timeout_ptr) {
+u32 NtWaitForSingleObjectEx_entry(u32 object_handle, u32 wait_mode, u32 alertable,
+                                  mapped_u64 timeout_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
   auto object = REX_KERNEL_OBJECTS()->LookupObject<XObject>(object_handle);
@@ -882,11 +867,9 @@ ppc_u32_result_t NtWaitForSingleObjectEx_entry(ppc_u32_t object_handle, ppc_u32_
   return result;
 }
 
-ppc_u32_result_t KeWaitForMultipleObjects_entry(ppc_u32_t count, ppc_pu32_t objects_ptr,
-                                                ppc_u32_t wait_type, ppc_u32_t wait_reason,
-                                                ppc_u32_t processor_mode, ppc_u32_t alertable,
-                                                ppc_pu64_t timeout_ptr,
-                                                ppc_pvoid_t wait_block_array_ptr) {
+u32 KeWaitForMultipleObjects_entry(u32 count, mapped_u32 objects_ptr, u32 wait_type,
+                                   u32 wait_reason, u32 processor_mode, u32 alertable,
+                                   mapped_u64 timeout_ptr, mapped_void wait_block_array_ptr) {
   assert_true(wait_type <= 1);
 
   std::vector<object_ref<XObject>> objects;
@@ -933,17 +916,15 @@ uint32_t xeNtWaitForMultipleObjectsEx(uint32_t count, rex::be<uint32_t>* handles
   return result;
 }
 
-ppc_u32_result_t NtWaitForMultipleObjectsEx_entry(ppc_u32_t count, ppc_pu32_t handles,
-                                                  ppc_u32_t wait_type, ppc_u32_t wait_mode,
-                                                  ppc_u32_t alertable, ppc_pu64_t timeout_ptr) {
+u32 NtWaitForMultipleObjectsEx_entry(u32 count, mapped_u32 handles, u32 wait_type, u32 wait_mode,
+                                     u32 alertable, mapped_u64 timeout_ptr) {
   uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
   return xeNtWaitForMultipleObjectsEx(count, handles, wait_type, wait_mode, alertable,
                                       timeout_ptr ? &timeout : nullptr);
 }
 
-ppc_u32_result_t NtSignalAndWaitForSingleObjectEx_entry(ppc_u32_t signal_handle,
-                                                        ppc_u32_t wait_handle, ppc_u32_t alertable,
-                                                        ppc_u32_t r6, ppc_pu64_t timeout_ptr) {
+u32 NtSignalAndWaitForSingleObjectEx_entry(u32 signal_handle, u32 wait_handle, u32 alertable,
+                                           u32 r6, mapped_u64 timeout_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
   auto signal_object = REX_KERNEL_OBJECTS()->LookupObject<XObject>(signal_handle);
@@ -967,7 +948,7 @@ ppc_u32_result_t NtSignalAndWaitForSingleObjectEx_entry(ppc_u32_t signal_handle,
 // Take PPCContext* explicitly so they work from any thread (including host threads
 // during InitializeGuestObject, dispatch thread creation, etc.).
 static unsigned char xeKfRaiseIrql(PPCContext* ctx, unsigned char new_irql) {
-  auto* mem = ctx->kernel_state->memory();
+  auto* mem = rex::system::kernel_state()->memory();
   auto pcr = mem->TranslateVirtual<X_KPCR*>(static_cast<uint32_t>(ctx->r13.u64));
   uint8_t old_irql = pcr->current_irql;
   pcr->current_irql = new_irql;
@@ -975,7 +956,7 @@ static unsigned char xeKfRaiseIrql(PPCContext* ctx, unsigned char new_irql) {
 }
 
 static void xeKfLowerIrql(PPCContext* ctx, unsigned char new_irql) {
-  auto* mem = ctx->kernel_state->memory();
+  auto* mem = rex::system::kernel_state()->memory();
   auto pcr = mem->TranslateVirtual<X_KPCR*>(static_cast<uint32_t>(ctx->r13.u64));
   pcr->current_irql = new_irql;
 }
@@ -1026,7 +1007,7 @@ uint32_t xeKeInsertQueueApc(XAPC* apc, uint32_t arg1, uint32_t arg2, uint32_t pr
   if (!thread_guest_pointer) {
     return 0;
   }
-  auto* mem = ctx->kernel_state->memory();
+  auto* mem = rex::system::kernel_state()->memory();
   auto target_thread = mem->TranslateVirtual<X_KTHREAD*>(thread_guest_pointer);
   auto old_irql = xeKeKfAcquireSpinLock(ctx, &target_thread->apc_lock);
   uint32_t result;
@@ -1063,22 +1044,22 @@ uint32_t xeKeInsertQueueApc(XAPC* apc, uint32_t arg1, uint32_t arg2, uint32_t pr
   return result;
 }
 
-ppc_u32_result_t KfAcquireSpinLock_entry(ppc_pu32_t lock_ptr) {
+u32 KfAcquireSpinLock_entry(mapped_u32 lock_ptr) {
   auto lock = reinterpret_cast<X_KSPINLOCK*>(lock_ptr.host_address());
   return xeKeKfAcquireSpinLock(current_ppc_context(), lock);
 }
 
-void KfReleaseSpinLock_entry(ppc_pu32_t lock_ptr, ppc_u32_t old_irql) {
+void KfReleaseSpinLock_entry(mapped_u32 lock_ptr, u32 old_irql) {
   auto lock = reinterpret_cast<X_KSPINLOCK*>(lock_ptr.host_address());
   xeKeKfReleaseSpinLock(current_ppc_context(), lock, old_irql);
 }
 
-void KeAcquireSpinLockAtRaisedIrql_entry(ppc_pu32_t lock_ptr) {
+void KeAcquireSpinLockAtRaisedIrql_entry(mapped_u32 lock_ptr) {
   auto lock = reinterpret_cast<X_KSPINLOCK*>(lock_ptr.host_address());
   xeKeKfAcquireSpinLock(current_ppc_context(), lock, false);
 }
 
-ppc_u32_result_t KeTryToAcquireSpinLockAtRaisedIrql_entry(ppc_pu32_t lock_ptr) {
+u32 KeTryToAcquireSpinLockAtRaisedIrql_entry(mapped_u32 lock_ptr) {
   auto lock = reinterpret_cast<X_KSPINLOCK*>(lock_ptr.host_address());
   auto* ctx = current_ppc_context();
   uint32_t pcr_addr = static_cast<uint32_t>(ctx->r13.u64);
@@ -1088,7 +1069,7 @@ ppc_u32_result_t KeTryToAcquireSpinLockAtRaisedIrql_entry(ppc_pu32_t lock_ptr) {
   return 1;
 }
 
-void KeReleaseSpinLockFromRaisedIrql_entry(ppc_pu32_t lock_ptr) {
+void KeReleaseSpinLockFromRaisedIrql_entry(mapped_u32 lock_ptr) {
   auto lock = reinterpret_cast<X_KSPINLOCK*>(lock_ptr.host_address());
   xeKeKfReleaseSpinLock(current_ppc_context(), lock, 0, false);
 }
@@ -1101,22 +1082,22 @@ void KeLeaveCriticalRegion_entry() {
   XThread::GetCurrentThread()->LeaveCriticalRegion();
 }
 
-ppc_u32_result_t KeRaiseIrqlToDpcLevel_entry() {
+u32 KeRaiseIrqlToDpcLevel_entry() {
   return xeKfRaiseIrql(current_ppc_context(), IRQL_DISPATCH);
 }
 
-void KfLowerIrql_entry(ppc_u32_t old_value) {
+void KfLowerIrql_entry(u32 old_value) {
   xeKfLowerIrql(current_ppc_context(),
                 static_cast<unsigned char>(static_cast<uint32_t>(old_value)));
 }
 
-ppc_u32_result_t KfRaiseIrql_entry(ppc_u32_t new_irql) {
+u32 KfRaiseIrql_entry(u32 new_irql) {
   return xeKfRaiseIrql(current_ppc_context(),
                        static_cast<unsigned char>(static_cast<uint32_t>(new_irql)));
 }
 
-void NtQueueApcThread_entry(ppc_u32_t thread_handle, ppc_pvoid_t apc_routine,
-                            ppc_pvoid_t apc_routine_context, ppc_pvoid_t arg1, ppc_pvoid_t arg2) {
+void NtQueueApcThread_entry(u32 thread_handle, mapped_void apc_routine,
+                            mapped_void apc_routine_context, mapped_void arg1, mapped_void arg2) {
   auto mem = REX_KERNEL_MEMORY();
   auto thread = REX_KERNEL_OBJECTS()->LookupObject<XThread>(thread_handle);
 
@@ -1149,21 +1130,21 @@ void NtQueueApcThread_entry(ppc_u32_t thread_handle, ppc_pvoid_t apc_routine,
   thread->thread()->QueueUserCallback([]() {});
 }
 
-void KeInitializeApc_entry(ppc_ptr_t<XAPC> apc, ppc_pvoid_t thread_ptr, ppc_pvoid_t kernel_routine,
-                           ppc_pvoid_t rundown_routine, ppc_pvoid_t normal_routine,
-                           ppc_u32_t processor_mode, ppc_pvoid_t normal_context) {
+void KeInitializeApc_entry(ppc_ptr_t<XAPC> apc, mapped_void thread_ptr, mapped_void kernel_routine,
+                           mapped_void rundown_routine, mapped_void normal_routine,
+                           u32 processor_mode, mapped_void normal_context) {
   xeKeInitializeApc(apc.host_address(), thread_ptr.guest_address(), kernel_routine.guest_address(),
                     rundown_routine.guest_address(), normal_routine.guest_address(), processor_mode,
                     normal_context.guest_address());
 }
 
-ppc_u32_result_t KeInsertQueueApc_entry(ppc_ptr_t<XAPC> apc, ppc_pvoid_t arg1, ppc_pvoid_t arg2,
-                                        ppc_u32_t priority_increment) {
+u32 KeInsertQueueApc_entry(ppc_ptr_t<XAPC> apc, mapped_void arg1, mapped_void arg2,
+                           u32 priority_increment) {
   return xeKeInsertQueueApc(apc.host_address(), arg1.guest_address(), arg2.guest_address(),
                             priority_increment, current_ppc_context());
 }
 
-ppc_u32_result_t KeRemoveQueueApc_entry(ppc_ptr_t<XAPC> apc) {
+u32 KeRemoveQueueApc_entry(ppc_ptr_t<XAPC> apc) {
   uint32_t thread_guest_pointer = apc->thread_ptr;
   if (!thread_guest_pointer) {
     return 0;
@@ -1184,16 +1165,15 @@ ppc_u32_result_t KeRemoveQueueApc_entry(ppc_ptr_t<XAPC> apc) {
   return result ? 1 : 0;
 }
 
-ppc_u32_result_t KiApcNormalRoutineNop_entry(ppc_u32_t unk0 /* output? */,
-                                             ppc_u32_t unk1 /* 0x13 */) {
+u32 KiApcNormalRoutineNop_entry(u32 unk0 /* output? */, u32 unk1 /* 0x13 */) {
   return 0;
 }
 
-void KeInitializeDpc_entry(ppc_ptr_t<XDPC> dpc, ppc_pvoid_t routine, ppc_pvoid_t context) {
+void KeInitializeDpc_entry(ppc_ptr_t<XDPC> dpc, mapped_void routine, mapped_void context) {
   dpc->Initialize(routine.guest_address(), context.guest_address());
 }
 
-ppc_u32_result_t KeInsertQueueDpc_entry(ppc_ptr_t<XDPC> dpc, ppc_u32_t arg1, ppc_u32_t arg2) {
+u32 KeInsertQueueDpc_entry(ppc_ptr_t<XDPC> dpc, u32 arg1, u32 arg2) {
   assert_always("DPC does not dispatch yet; going to hang!");
 
   uint32_t list_entry_ptr = dpc.guest_address() + 4;
@@ -1216,7 +1196,7 @@ ppc_u32_result_t KeInsertQueueDpc_entry(ppc_ptr_t<XDPC> dpc, ppc_u32_t arg1, ppc
   return 1;
 }
 
-ppc_u32_result_t KeRemoveQueueDpc_entry(ppc_ptr_t<XDPC> dpc) {
+u32 KeRemoveQueueDpc_entry(ppc_ptr_t<XDPC> dpc) {
   bool result = false;
 
   uint32_t list_entry_ptr = dpc.guest_address() + 4;
@@ -1274,7 +1254,7 @@ void ExAcquireReadWriteLockExclusive_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
   xeKeWaitForSingleObject(&lock_ptr->writer_event, 7, 0, 0, nullptr);
 }
 
-ppc_u32_result_t ExTryToAcquireReadWriteLockExclusive_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
+u32 ExTryToAcquireReadWriteLockExclusive_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
   auto* ctx = current_ppc_context();
   auto old_irql = xeKeKfAcquireSpinLock(ctx, &lock_ptr->spin_lock);
 
@@ -1307,7 +1287,7 @@ void ExAcquireReadWriteLockShared_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
   xeKeWaitForSingleObject(&lock_ptr->reader_semaphore, 7, 0, 0, nullptr);
 }
 
-ppc_u32_result_t ExTryToAcquireReadWriteLockShared_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
+u32 ExTryToAcquireReadWriteLockShared_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
   auto* ctx = current_ppc_context();
   auto old_irql = xeKeKfAcquireSpinLock(ctx, &lock_ptr->spin_lock);
 
@@ -1360,8 +1340,8 @@ void ExReleaseReadWriteLock_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
 }
 
 // NOTE: This function is very commonly inlined, and probably won't be called!
-ppc_ptr_result_t InterlockedPushEntrySList_entry(ppc_ptr_t<X_SLIST_HEADER> plist_ptr,
-                                                 ppc_ptr_t<X_SINGLE_LIST_ENTRY> entry) {
+u32 InterlockedPushEntrySList_entry(ppc_ptr_t<X_SLIST_HEADER> plist_ptr,
+                                    ppc_ptr_t<X_SINGLE_LIST_ENTRY> entry) {
   assert_not_null(plist_ptr);
   assert_not_null(entry);
 
@@ -1382,7 +1362,7 @@ ppc_ptr_result_t InterlockedPushEntrySList_entry(ppc_ptr_t<X_SLIST_HEADER> plist
   return old_head;
 }
 
-ppc_ptr_result_t InterlockedPopEntrySList_entry(ppc_ptr_t<X_SLIST_HEADER> plist_ptr) {
+u32 InterlockedPopEntrySList_entry(ppc_ptr_t<X_SLIST_HEADER> plist_ptr) {
   assert_not_null(plist_ptr);
 
   uint32_t popped = 0;
@@ -1405,7 +1385,7 @@ ppc_ptr_result_t InterlockedPopEntrySList_entry(ppc_ptr_t<X_SLIST_HEADER> plist_
   return popped;
 }
 
-ppc_ptr_result_t InterlockedFlushSList_entry(ppc_ptr_t<X_SLIST_HEADER> plist_ptr) {
+u32 InterlockedFlushSList_entry(ppc_ptr_t<X_SLIST_HEADER> plist_ptr) {
   assert_not_null(plist_ptr);
 
   alignas(8) X_SLIST_HEADER old_hdr = *plist_ptr;
@@ -1423,19 +1403,19 @@ ppc_ptr_result_t InterlockedFlushSList_entry(ppc_ptr_t<X_SLIST_HEADER> plist_ptr
   return first;
 }
 
-XBOXKRNL_EXPORT_STUB(__imp__KeInsertByKeyDeviceQueue);
-XBOXKRNL_EXPORT_STUB(__imp__KeInsertDeviceQueue);
-XBOXKRNL_EXPORT_STUB(__imp__KeInsertHeadQueue);
-XBOXKRNL_EXPORT_STUB(__imp__KeInsertQueue);
-XBOXKRNL_EXPORT_STUB(__imp__KeReleaseMutant);
-XBOXKRNL_EXPORT_STUB(__imp__KeRemoveByKeyDeviceQueue);
-XBOXKRNL_EXPORT_STUB(__imp__KeRemoveDeviceQueue);
-XBOXKRNL_EXPORT_STUB(__imp__KeRemoveEntryDeviceQueue);
-XBOXKRNL_EXPORT_STUB(__imp__KeRemoveQueue);
-XBOXKRNL_EXPORT_STUB(__imp__KeSetEventBoostPriority);
-XBOXKRNL_EXPORT_STUB(__imp__KiApcNormalRoutineNop_);
+REX_EXPORT_STUB(__imp__KeInsertByKeyDeviceQueue);
+REX_EXPORT_STUB(__imp__KeInsertDeviceQueue);
+REX_EXPORT_STUB(__imp__KeInsertHeadQueue);
+REX_EXPORT_STUB(__imp__KeInsertQueue);
+REX_EXPORT_STUB(__imp__KeReleaseMutant);
+REX_EXPORT_STUB(__imp__KeRemoveByKeyDeviceQueue);
+REX_EXPORT_STUB(__imp__KeRemoveDeviceQueue);
+REX_EXPORT_STUB(__imp__KeRemoveEntryDeviceQueue);
+REX_EXPORT_STUB(__imp__KeRemoveQueue);
+REX_EXPORT_STUB(__imp__KeSetEventBoostPriority);
+REX_EXPORT_STUB(__imp__KiApcNormalRoutineNop_);
 
-ppc_u32_result_t KeSuspendThread_entry(ppc_pvoid_t kthread_ptr) {
+u32 KeSuspendThread_entry(mapped_void kthread_ptr) {
   auto thread = XObject::GetNativeObject<XThread>(REX_KERNEL_STATE(), kthread_ptr);
   uint32_t old_suspend_count = 0;
 
@@ -1450,134 +1430,123 @@ ppc_u32_result_t KeSuspendThread_entry(ppc_pvoid_t kthread_ptr) {
 
 }  // namespace rex::kernel::xboxkrnl
 
-XBOXKRNL_EXPORT(__imp__ExCreateThread, rex::kernel::xboxkrnl::ExCreateThread_entry)
-XBOXKRNL_EXPORT(__imp__ExTerminateThread, rex::kernel::xboxkrnl::ExTerminateThread_entry)
-XBOXKRNL_EXPORT(__imp__NtResumeThread, rex::kernel::xboxkrnl::NtResumeThread_entry)
-XBOXKRNL_EXPORT(__imp__KeResumeThread, rex::kernel::xboxkrnl::KeResumeThread_entry)
-XBOXKRNL_EXPORT(__imp__NtSuspendThread, rex::kernel::xboxkrnl::NtSuspendThread_entry)
-XBOXKRNL_EXPORT(__imp__KeSuspendThread, rex::kernel::xboxkrnl::KeSuspendThread_entry)
-XBOXKRNL_EXPORT(__imp__KeSetCurrentStackPointers,
-                rex::kernel::xboxkrnl::KeSetCurrentStackPointers_entry)
-XBOXKRNL_EXPORT(__imp__KeSetAffinityThread, rex::kernel::xboxkrnl::KeSetAffinityThread_entry)
-XBOXKRNL_EXPORT(__imp__KeQueryBasePriorityThread,
-                rex::kernel::xboxkrnl::KeQueryBasePriorityThread_entry)
-XBOXKRNL_EXPORT(__imp__KeSetBasePriorityThread,
-                rex::kernel::xboxkrnl::KeSetBasePriorityThread_entry)
-XBOXKRNL_EXPORT(__imp__KeSetDisableBoostThread,
-                rex::kernel::xboxkrnl::KeSetDisableBoostThread_entry)
-XBOXKRNL_EXPORT(__imp__KeGetCurrentProcessType,
-                rex::kernel::xboxkrnl::KeGetCurrentProcessType_entry)
-XBOXKRNL_EXPORT(__imp__KeSetCurrentProcessType,
-                rex::kernel::xboxkrnl::KeSetCurrentProcessType_entry)
-XBOXKRNL_EXPORT(__imp__KeQueryPerformanceFrequency,
-                rex::kernel::xboxkrnl::KeQueryPerformanceFrequency_entry)
-XBOXKRNL_EXPORT(__imp__KeDelayExecutionThread, rex::kernel::xboxkrnl::KeDelayExecutionThread_entry)
-XBOXKRNL_EXPORT(__imp__NtYieldExecution, rex::kernel::xboxkrnl::NtYieldExecution_entry)
-XBOXKRNL_EXPORT(__imp__KeQuerySystemTime, rex::kernel::xboxkrnl::KeQuerySystemTime_entry)
-XBOXKRNL_EXPORT(__imp__KeTlsAlloc, rex::kernel::xboxkrnl::KeTlsAlloc_entry)
-XBOXKRNL_EXPORT(__imp__KeTlsFree, rex::kernel::xboxkrnl::KeTlsFree_entry)
-XBOXKRNL_EXPORT(__imp__KeTlsGetValue, rex::kernel::xboxkrnl::KeTlsGetValue_entry)
-XBOXKRNL_EXPORT(__imp__KeTlsSetValue, rex::kernel::xboxkrnl::KeTlsSetValue_entry)
-XBOXKRNL_EXPORT(__imp__KeInitializeEvent, rex::kernel::xboxkrnl::KeInitializeEvent_entry)
-XBOXKRNL_EXPORT(__imp__KeSetEvent, rex::kernel::xboxkrnl::KeSetEvent_entry)
-XBOXKRNL_EXPORT(__imp__KePulseEvent, rex::kernel::xboxkrnl::KePulseEvent_entry)
-XBOXKRNL_EXPORT(__imp__KeResetEvent, rex::kernel::xboxkrnl::KeResetEvent_entry)
-XBOXKRNL_EXPORT(__imp__NtCreateEvent, rex::kernel::xboxkrnl::NtCreateEvent_entry)
-XBOXKRNL_EXPORT(__imp__NtSetEvent, rex::kernel::xboxkrnl::NtSetEvent_entry)
-XBOXKRNL_EXPORT(__imp__NtPulseEvent, rex::kernel::xboxkrnl::NtPulseEvent_entry)
-XBOXKRNL_EXPORT(__imp__NtClearEvent, rex::kernel::xboxkrnl::NtClearEvent_entry)
-XBOXKRNL_EXPORT(__imp__KeInitializeSemaphore, rex::kernel::xboxkrnl::KeInitializeSemaphore_entry)
-XBOXKRNL_EXPORT(__imp__KeReleaseSemaphore, rex::kernel::xboxkrnl::KeReleaseSemaphore_entry)
-XBOXKRNL_EXPORT(__imp__NtCreateSemaphore, rex::kernel::xboxkrnl::NtCreateSemaphore_entry)
-XBOXKRNL_EXPORT(__imp__NtReleaseSemaphore, rex::kernel::xboxkrnl::NtReleaseSemaphore_entry)
-XBOXKRNL_EXPORT(__imp__NtCreateMutant, rex::kernel::xboxkrnl::NtCreateMutant_entry)
-XBOXKRNL_EXPORT(__imp__NtReleaseMutant, rex::kernel::xboxkrnl::NtReleaseMutant_entry)
-XBOXKRNL_EXPORT(__imp__NtCreateTimer, rex::kernel::xboxkrnl::NtCreateTimer_entry)
-XBOXKRNL_EXPORT(__imp__NtSetTimerEx, rex::kernel::xboxkrnl::NtSetTimerEx_entry)
-XBOXKRNL_EXPORT(__imp__NtCancelTimer, rex::kernel::xboxkrnl::NtCancelTimer_entry)
-XBOXKRNL_EXPORT(__imp__KeInitializeTimerEx, rex::kernel::xboxkrnl::KeInitializeTimerEx_entry)
-XBOXKRNL_EXPORT(__imp__KeWaitForSingleObject, rex::kernel::xboxkrnl::KeWaitForSingleObject_entry)
-XBOXKRNL_EXPORT(__imp__NtWaitForSingleObjectEx,
-                rex::kernel::xboxkrnl::NtWaitForSingleObjectEx_entry)
-XBOXKRNL_EXPORT(__imp__KeWaitForMultipleObjects,
-                rex::kernel::xboxkrnl::KeWaitForMultipleObjects_entry)
-XBOXKRNL_EXPORT(__imp__NtWaitForMultipleObjectsEx,
-                rex::kernel::xboxkrnl::NtWaitForMultipleObjectsEx_entry)
-XBOXKRNL_EXPORT(__imp__NtSignalAndWaitForSingleObjectEx,
-                rex::kernel::xboxkrnl::NtSignalAndWaitForSingleObjectEx_entry)
-XBOXKRNL_EXPORT(__imp__KfAcquireSpinLock, rex::kernel::xboxkrnl::KfAcquireSpinLock_entry)
-XBOXKRNL_EXPORT(__imp__KfReleaseSpinLock, rex::kernel::xboxkrnl::KfReleaseSpinLock_entry)
-XBOXKRNL_EXPORT(__imp__KeAcquireSpinLockAtRaisedIrql,
-                rex::kernel::xboxkrnl::KeAcquireSpinLockAtRaisedIrql_entry)
-XBOXKRNL_EXPORT(__imp__KeTryToAcquireSpinLockAtRaisedIrql,
-                rex::kernel::xboxkrnl::KeTryToAcquireSpinLockAtRaisedIrql_entry)
-XBOXKRNL_EXPORT(__imp__KeReleaseSpinLockFromRaisedIrql,
-                rex::kernel::xboxkrnl::KeReleaseSpinLockFromRaisedIrql_entry)
-XBOXKRNL_EXPORT(__imp__KeEnterCriticalRegion, rex::kernel::xboxkrnl::KeEnterCriticalRegion_entry)
-XBOXKRNL_EXPORT(__imp__KeLeaveCriticalRegion, rex::kernel::xboxkrnl::KeLeaveCriticalRegion_entry)
-XBOXKRNL_EXPORT(__imp__KeRaiseIrqlToDpcLevel, rex::kernel::xboxkrnl::KeRaiseIrqlToDpcLevel_entry)
-XBOXKRNL_EXPORT(__imp__KfLowerIrql, rex::kernel::xboxkrnl::KfLowerIrql_entry)
-XBOXKRNL_EXPORT(__imp__NtQueueApcThread, rex::kernel::xboxkrnl::NtQueueApcThread_entry)
-XBOXKRNL_EXPORT(__imp__KeInitializeApc, rex::kernel::xboxkrnl::KeInitializeApc_entry)
-XBOXKRNL_EXPORT(__imp__KeInsertQueueApc, rex::kernel::xboxkrnl::KeInsertQueueApc_entry)
-XBOXKRNL_EXPORT(__imp__KeRemoveQueueApc, rex::kernel::xboxkrnl::KeRemoveQueueApc_entry)
-XBOXKRNL_EXPORT(__imp__KiApcNormalRoutineNop, rex::kernel::xboxkrnl::KiApcNormalRoutineNop_entry)
-XBOXKRNL_EXPORT(__imp__KeInitializeDpc, rex::kernel::xboxkrnl::KeInitializeDpc_entry)
-XBOXKRNL_EXPORT(__imp__KeInsertQueueDpc, rex::kernel::xboxkrnl::KeInsertQueueDpc_entry)
-XBOXKRNL_EXPORT(__imp__KeRemoveQueueDpc, rex::kernel::xboxkrnl::KeRemoveQueueDpc_entry)
-XBOXKRNL_EXPORT(__imp__ExInitializeReadWriteLock,
-                rex::kernel::xboxkrnl::ExInitializeReadWriteLock_entry)
-XBOXKRNL_EXPORT(__imp__ExAcquireReadWriteLockExclusive,
-                rex::kernel::xboxkrnl::ExAcquireReadWriteLockExclusive_entry)
-XBOXKRNL_EXPORT(__imp__ExTryToAcquireReadWriteLockExclusive,
-                rex::kernel::xboxkrnl::ExTryToAcquireReadWriteLockExclusive_entry)
-XBOXKRNL_EXPORT(__imp__ExAcquireReadWriteLockShared,
-                rex::kernel::xboxkrnl::ExAcquireReadWriteLockShared_entry)
-XBOXKRNL_EXPORT(__imp__ExTryToAcquireReadWriteLockShared,
-                rex::kernel::xboxkrnl::ExTryToAcquireReadWriteLockShared_entry)
-XBOXKRNL_EXPORT(__imp__ExReleaseReadWriteLock, rex::kernel::xboxkrnl::ExReleaseReadWriteLock_entry)
-XBOXKRNL_EXPORT(__imp__InterlockedPushEntrySList,
-                rex::kernel::xboxkrnl::InterlockedPushEntrySList_entry)
-XBOXKRNL_EXPORT(__imp__InterlockedPopEntrySList,
-                rex::kernel::xboxkrnl::InterlockedPopEntrySList_entry)
-XBOXKRNL_EXPORT(__imp__InterlockedFlushSList, rex::kernel::xboxkrnl::InterlockedFlushSList_entry)
+REX_EXPORT(__imp__ExCreateThread, rex::kernel::xboxkrnl::ExCreateThread_entry)
+REX_EXPORT(__imp__ExTerminateThread, rex::kernel::xboxkrnl::ExTerminateThread_entry)
+REX_EXPORT(__imp__NtResumeThread, rex::kernel::xboxkrnl::NtResumeThread_entry)
+REX_EXPORT(__imp__KeResumeThread, rex::kernel::xboxkrnl::KeResumeThread_entry)
+REX_EXPORT(__imp__NtSuspendThread, rex::kernel::xboxkrnl::NtSuspendThread_entry)
+REX_EXPORT(__imp__KeSuspendThread, rex::kernel::xboxkrnl::KeSuspendThread_entry)
+REX_EXPORT(__imp__KeSetCurrentStackPointers, rex::kernel::xboxkrnl::KeSetCurrentStackPointers_entry)
+REX_EXPORT(__imp__KeSetAffinityThread, rex::kernel::xboxkrnl::KeSetAffinityThread_entry)
+REX_EXPORT(__imp__KeQueryBasePriorityThread, rex::kernel::xboxkrnl::KeQueryBasePriorityThread_entry)
+REX_EXPORT(__imp__KeSetBasePriorityThread, rex::kernel::xboxkrnl::KeSetBasePriorityThread_entry)
+REX_EXPORT(__imp__KeSetDisableBoostThread, rex::kernel::xboxkrnl::KeSetDisableBoostThread_entry)
+REX_EXPORT(__imp__KeGetCurrentProcessType, rex::kernel::xboxkrnl::KeGetCurrentProcessType_entry)
+REX_EXPORT(__imp__KeSetCurrentProcessType, rex::kernel::xboxkrnl::KeSetCurrentProcessType_entry)
+REX_EXPORT(__imp__KeQueryPerformanceFrequency,
+           rex::kernel::xboxkrnl::KeQueryPerformanceFrequency_entry)
+REX_EXPORT(__imp__KeDelayExecutionThread, rex::kernel::xboxkrnl::KeDelayExecutionThread_entry)
+REX_EXPORT(__imp__NtYieldExecution, rex::kernel::xboxkrnl::NtYieldExecution_entry)
+REX_EXPORT(__imp__KeQuerySystemTime, rex::kernel::xboxkrnl::KeQuerySystemTime_entry)
+REX_EXPORT(__imp__KeTlsAlloc, rex::kernel::xboxkrnl::KeTlsAlloc_entry)
+REX_EXPORT(__imp__KeTlsFree, rex::kernel::xboxkrnl::KeTlsFree_entry)
+REX_EXPORT(__imp__KeTlsGetValue, rex::kernel::xboxkrnl::KeTlsGetValue_entry)
+REX_EXPORT(__imp__KeTlsSetValue, rex::kernel::xboxkrnl::KeTlsSetValue_entry)
+REX_EXPORT(__imp__KeInitializeEvent, rex::kernel::xboxkrnl::KeInitializeEvent_entry)
+REX_EXPORT(__imp__KeSetEvent, rex::kernel::xboxkrnl::KeSetEvent_entry)
+REX_EXPORT(__imp__KePulseEvent, rex::kernel::xboxkrnl::KePulseEvent_entry)
+REX_EXPORT(__imp__KeResetEvent, rex::kernel::xboxkrnl::KeResetEvent_entry)
+REX_EXPORT(__imp__NtCreateEvent, rex::kernel::xboxkrnl::NtCreateEvent_entry)
+REX_EXPORT(__imp__NtSetEvent, rex::kernel::xboxkrnl::NtSetEvent_entry)
+REX_EXPORT(__imp__NtPulseEvent, rex::kernel::xboxkrnl::NtPulseEvent_entry)
+REX_EXPORT(__imp__NtClearEvent, rex::kernel::xboxkrnl::NtClearEvent_entry)
+REX_EXPORT(__imp__KeInitializeSemaphore, rex::kernel::xboxkrnl::KeInitializeSemaphore_entry)
+REX_EXPORT(__imp__KeReleaseSemaphore, rex::kernel::xboxkrnl::KeReleaseSemaphore_entry)
+REX_EXPORT(__imp__NtCreateSemaphore, rex::kernel::xboxkrnl::NtCreateSemaphore_entry)
+REX_EXPORT(__imp__NtReleaseSemaphore, rex::kernel::xboxkrnl::NtReleaseSemaphore_entry)
+REX_EXPORT(__imp__NtCreateMutant, rex::kernel::xboxkrnl::NtCreateMutant_entry)
+REX_EXPORT(__imp__NtReleaseMutant, rex::kernel::xboxkrnl::NtReleaseMutant_entry)
+REX_EXPORT(__imp__NtCreateTimer, rex::kernel::xboxkrnl::NtCreateTimer_entry)
+REX_EXPORT(__imp__NtSetTimerEx, rex::kernel::xboxkrnl::NtSetTimerEx_entry)
+REX_EXPORT(__imp__NtCancelTimer, rex::kernel::xboxkrnl::NtCancelTimer_entry)
+REX_EXPORT(__imp__KeInitializeTimerEx, rex::kernel::xboxkrnl::KeInitializeTimerEx_entry)
+REX_EXPORT(__imp__KeWaitForSingleObject, rex::kernel::xboxkrnl::KeWaitForSingleObject_entry)
+REX_EXPORT(__imp__NtWaitForSingleObjectEx, rex::kernel::xboxkrnl::NtWaitForSingleObjectEx_entry)
+REX_EXPORT(__imp__KeWaitForMultipleObjects, rex::kernel::xboxkrnl::KeWaitForMultipleObjects_entry)
+REX_EXPORT(__imp__NtWaitForMultipleObjectsEx,
+           rex::kernel::xboxkrnl::NtWaitForMultipleObjectsEx_entry)
+REX_EXPORT(__imp__NtSignalAndWaitForSingleObjectEx,
+           rex::kernel::xboxkrnl::NtSignalAndWaitForSingleObjectEx_entry)
+REX_EXPORT(__imp__KfAcquireSpinLock, rex::kernel::xboxkrnl::KfAcquireSpinLock_entry)
+REX_EXPORT(__imp__KfReleaseSpinLock, rex::kernel::xboxkrnl::KfReleaseSpinLock_entry)
+REX_EXPORT(__imp__KeAcquireSpinLockAtRaisedIrql,
+           rex::kernel::xboxkrnl::KeAcquireSpinLockAtRaisedIrql_entry)
+REX_EXPORT(__imp__KeTryToAcquireSpinLockAtRaisedIrql,
+           rex::kernel::xboxkrnl::KeTryToAcquireSpinLockAtRaisedIrql_entry)
+REX_EXPORT(__imp__KeReleaseSpinLockFromRaisedIrql,
+           rex::kernel::xboxkrnl::KeReleaseSpinLockFromRaisedIrql_entry)
+REX_EXPORT(__imp__KeEnterCriticalRegion, rex::kernel::xboxkrnl::KeEnterCriticalRegion_entry)
+REX_EXPORT(__imp__KeLeaveCriticalRegion, rex::kernel::xboxkrnl::KeLeaveCriticalRegion_entry)
+REX_EXPORT(__imp__KeRaiseIrqlToDpcLevel, rex::kernel::xboxkrnl::KeRaiseIrqlToDpcLevel_entry)
+REX_EXPORT(__imp__KfLowerIrql, rex::kernel::xboxkrnl::KfLowerIrql_entry)
+REX_EXPORT(__imp__NtQueueApcThread, rex::kernel::xboxkrnl::NtQueueApcThread_entry)
+REX_EXPORT(__imp__KeInitializeApc, rex::kernel::xboxkrnl::KeInitializeApc_entry)
+REX_EXPORT(__imp__KeInsertQueueApc, rex::kernel::xboxkrnl::KeInsertQueueApc_entry)
+REX_EXPORT(__imp__KeRemoveQueueApc, rex::kernel::xboxkrnl::KeRemoveQueueApc_entry)
+REX_EXPORT(__imp__KiApcNormalRoutineNop, rex::kernel::xboxkrnl::KiApcNormalRoutineNop_entry)
+REX_EXPORT(__imp__KeInitializeDpc, rex::kernel::xboxkrnl::KeInitializeDpc_entry)
+REX_EXPORT(__imp__KeInsertQueueDpc, rex::kernel::xboxkrnl::KeInsertQueueDpc_entry)
+REX_EXPORT(__imp__KeRemoveQueueDpc, rex::kernel::xboxkrnl::KeRemoveQueueDpc_entry)
+REX_EXPORT(__imp__ExInitializeReadWriteLock, rex::kernel::xboxkrnl::ExInitializeReadWriteLock_entry)
+REX_EXPORT(__imp__ExAcquireReadWriteLockExclusive,
+           rex::kernel::xboxkrnl::ExAcquireReadWriteLockExclusive_entry)
+REX_EXPORT(__imp__ExTryToAcquireReadWriteLockExclusive,
+           rex::kernel::xboxkrnl::ExTryToAcquireReadWriteLockExclusive_entry)
+REX_EXPORT(__imp__ExAcquireReadWriteLockShared,
+           rex::kernel::xboxkrnl::ExAcquireReadWriteLockShared_entry)
+REX_EXPORT(__imp__ExTryToAcquireReadWriteLockShared,
+           rex::kernel::xboxkrnl::ExTryToAcquireReadWriteLockShared_entry)
+REX_EXPORT(__imp__ExReleaseReadWriteLock, rex::kernel::xboxkrnl::ExReleaseReadWriteLock_entry)
+REX_EXPORT(__imp__InterlockedPushEntrySList, rex::kernel::xboxkrnl::InterlockedPushEntrySList_entry)
+REX_EXPORT(__imp__InterlockedPopEntrySList, rex::kernel::xboxkrnl::InterlockedPopEntrySList_entry)
+REX_EXPORT(__imp__InterlockedFlushSList, rex::kernel::xboxkrnl::InterlockedFlushSList_entry)
 
-XBOXKRNL_EXPORT_STUB(__imp__KeAlertResumeThread);
-XBOXKRNL_EXPORT_STUB(__imp__KeAlertThread);
-XBOXKRNL_EXPORT_STUB(__imp__KeBoostPriorityThread);
-XBOXKRNL_EXPORT_STUB(__imp__KeCancelTimer);
-XBOXKRNL_EXPORT_STUB(__imp__KeConnectInterrupt);
-XBOXKRNL_EXPORT_STUB(__imp__KeContextFromKframes);
-XBOXKRNL_EXPORT_STUB(__imp__KeContextToKframes);
-XBOXKRNL_EXPORT_STUB(__imp__KeDisconnectInterrupt);
-XBOXKRNL_EXPORT_STUB(__imp__KeFlushCacheRange);
-XBOXKRNL_EXPORT_STUB(__imp__KeFlushCurrentEntireTb);
-XBOXKRNL_EXPORT_STUB(__imp__KeFlushEntireTb);
-XBOXKRNL_EXPORT_STUB(__imp__KeFlushMultipleTb);
-XBOXKRNL_EXPORT_STUB(__imp__KeFlushUserModeCurrentTb);
-XBOXKRNL_EXPORT_STUB(__imp__KeFlushUserModeTb);
-XBOXKRNL_EXPORT_STUB(__imp__KeInitializeDeviceQueue);
-XBOXKRNL_EXPORT_STUB(__imp__KeInitializeInterrupt);
-XBOXKRNL_EXPORT_STUB(__imp__KeInitializeMutant);
-XBOXKRNL_EXPORT_STUB(__imp__KeInitializeQueue);
-// XBOXKRNL_EXPORT_STUB(__imp__KeInitializeTimerEx); -- implemented below
-XBOXKRNL_EXPORT_STUB(__imp__KeIpiGenericCall);
-XBOXKRNL_EXPORT_STUB(__imp__KeQueryBackgroundProcessors);
-XBOXKRNL_EXPORT_STUB(__imp__KeQueryInterruptTime);
-XBOXKRNL_EXPORT_STUB(__imp__KeRegisterDriverNotification);
-XBOXKRNL_EXPORT_STUB(__imp__KeRestoreFloatingPointState);
-XBOXKRNL_EXPORT_STUB(__imp__KeRestoreVectorUnitState);
-XBOXKRNL_EXPORT_STUB(__imp__KeRetireDpcList);
-XBOXKRNL_EXPORT_STUB(__imp__KeRundownQueue);
-XBOXKRNL_EXPORT_STUB(__imp__KeSaveFloatingPointState);
-XBOXKRNL_EXPORT_STUB(__imp__KeSaveVectorUnitState);
-XBOXKRNL_EXPORT_STUB(__imp__KeSetBackgroundProcessors);
-XBOXKRNL_EXPORT_STUB(__imp__KeSetPriorityClassThread);
-XBOXKRNL_EXPORT_STUB(__imp__KeSetPriorityThread);
-XBOXKRNL_EXPORT_STUB(__imp__KeSetTimer);
-XBOXKRNL_EXPORT_STUB(__imp__KeSetTimerEx);
-XBOXKRNL_EXPORT_STUB(__imp__KeStallExecutionProcessor);
-XBOXKRNL_EXPORT_STUB(__imp__KeSweepDcacheRange);
-XBOXKRNL_EXPORT_STUB(__imp__KeSweepIcacheRange);
-XBOXKRNL_EXPORT_STUB(__imp__KeTestAlertThread);
-XBOXKRNL_EXPORT(__imp__KfRaiseIrql, rex::kernel::xboxkrnl::KfRaiseIrql_entry)
+REX_EXPORT_STUB(__imp__KeAlertResumeThread);
+REX_EXPORT_STUB(__imp__KeAlertThread);
+REX_EXPORT_STUB(__imp__KeBoostPriorityThread);
+REX_EXPORT_STUB(__imp__KeCancelTimer);
+REX_EXPORT_STUB(__imp__KeConnectInterrupt);
+REX_EXPORT_STUB(__imp__KeContextFromKframes);
+REX_EXPORT_STUB(__imp__KeContextToKframes);
+REX_EXPORT_STUB(__imp__KeDisconnectInterrupt);
+REX_EXPORT_STUB(__imp__KeFlushCacheRange);
+REX_EXPORT_STUB(__imp__KeFlushCurrentEntireTb);
+REX_EXPORT_STUB(__imp__KeFlushEntireTb);
+REX_EXPORT_STUB(__imp__KeFlushMultipleTb);
+REX_EXPORT_STUB(__imp__KeFlushUserModeCurrentTb);
+REX_EXPORT_STUB(__imp__KeFlushUserModeTb);
+REX_EXPORT_STUB(__imp__KeInitializeDeviceQueue);
+REX_EXPORT_STUB(__imp__KeInitializeInterrupt);
+REX_EXPORT_STUB(__imp__KeInitializeMutant);
+REX_EXPORT_STUB(__imp__KeInitializeQueue);
+// REX_EXPORT_STUB(__imp__KeInitializeTimerEx); -- implemented below
+REX_EXPORT_STUB(__imp__KeIpiGenericCall);
+REX_EXPORT_STUB(__imp__KeQueryBackgroundProcessors);
+REX_EXPORT_STUB(__imp__KeQueryInterruptTime);
+REX_EXPORT_STUB(__imp__KeRegisterDriverNotification);
+REX_EXPORT_STUB(__imp__KeRestoreFloatingPointState);
+REX_EXPORT_STUB(__imp__KeRestoreVectorUnitState);
+REX_EXPORT_STUB(__imp__KeRetireDpcList);
+REX_EXPORT_STUB(__imp__KeRundownQueue);
+REX_EXPORT_STUB(__imp__KeSaveFloatingPointState);
+REX_EXPORT_STUB(__imp__KeSaveVectorUnitState);
+REX_EXPORT_STUB(__imp__KeSetBackgroundProcessors);
+REX_EXPORT_STUB(__imp__KeSetPriorityClassThread);
+REX_EXPORT_STUB(__imp__KeSetPriorityThread);
+REX_EXPORT_STUB(__imp__KeSetTimer);
+REX_EXPORT_STUB(__imp__KeSetTimerEx);
+REX_EXPORT_STUB(__imp__KeStallExecutionProcessor);
+REX_EXPORT_STUB(__imp__KeSweepDcacheRange);
+REX_EXPORT_STUB(__imp__KeSweepIcacheRange);
+REX_EXPORT_STUB(__imp__KeTestAlertThread);
+REX_EXPORT(__imp__KfRaiseIrql, rex::kernel::xboxkrnl::KfRaiseIrql_entry)

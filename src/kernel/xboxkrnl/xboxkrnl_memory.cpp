@@ -18,8 +18,8 @@
 #include <rex/kernel/xboxkrnl/private.h>
 #include <rex/logging.h>
 #include <rex/math.h>
-#include <rex/ppc/function.h>
-#include <rex/ppc/types.h>
+#include <rex/hook.h>
+#include <rex/types.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xtypes.h>
 
@@ -60,9 +60,8 @@ uint32_t FromXdkProtectFlags(uint32_t protect) {
   return result;
 }
 
-ppc_u32_result_t NtAllocateVirtualMemory_entry(ppc_pu32_t base_addr_ptr, ppc_pu32_t region_size_ptr,
-                                               ppc_u32_t alloc_type, ppc_u32_t protect_bits,
-                                               ppc_u32_t debug_memory) {
+u32 NtAllocateVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_size_ptr,
+                                  u32 alloc_type, u32 protect_bits, u32 debug_memory) {
   uint32_t input_base = base_addr_ptr ? static_cast<uint32_t>(*base_addr_ptr) : 0;
   uint32_t input_size = region_size_ptr ? static_cast<uint32_t>(*region_size_ptr) : 0;
   REXKRNL_IMPORT_TRACE(
@@ -201,9 +200,8 @@ ppc_u32_result_t NtAllocateVirtualMemory_entry(ppc_pu32_t base_addr_ptr, ppc_pu3
   return X_STATUS_SUCCESS;
 }
 
-ppc_u32_result_t NtProtectVirtualMemory_entry(ppc_pu32_t base_addr_ptr, ppc_pu32_t region_size_ptr,
-                                              ppc_u32_t protect_bits, ppc_pu32_t old_protect,
-                                              ppc_u32_t debug_memory) {
+u32 NtProtectVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_size_ptr,
+                                 u32 protect_bits, mapped_u32 old_protect, u32 debug_memory) {
   // Set to TRUE when this memory refers to devkit memory area.
   assert_true(debug_memory == 0);
 
@@ -247,8 +245,8 @@ ppc_u32_result_t NtProtectVirtualMemory_entry(ppc_pu32_t base_addr_ptr, ppc_pu32
   return X_STATUS_SUCCESS;
 }
 
-ppc_u32_result_t NtFreeVirtualMemory_entry(ppc_pu32_t base_addr_ptr, ppc_pu32_t region_size_ptr,
-                                           ppc_u32_t free_type, ppc_u32_t debug_memory) {
+u32 NtFreeVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_size_ptr, u32 free_type,
+                              u32 debug_memory) {
   uint32_t base_addr_value = *base_addr_ptr;
   uint32_t region_size_value = *region_size_ptr;
   REXKRNL_IMPORT_TRACE("NtFreeVirtualMemory", "base={:#x} size={:#x} type={:#x} debug={}",
@@ -303,9 +301,9 @@ struct X_MEMORY_BASIC_INFORMATION {
   be<uint32_t> type;
 };
 
-ppc_u32_result_t NtQueryVirtualMemory_entry(
-    ppc_u32_t base_address, ppc_ptr_t<X_MEMORY_BASIC_INFORMATION> memory_basic_information_ptr,
-    ppc_u32_t region_type) {
+u32 NtQueryVirtualMemory_entry(u32 base_address,
+                               ppc_ptr_t<X_MEMORY_BASIC_INFORMATION> memory_basic_information_ptr,
+                               u32 region_type) {
   switch ((uint32_t)region_type) {
     case 0:
     case 1:
@@ -346,9 +344,8 @@ ppc_u32_result_t NtQueryVirtualMemory_entry(
   return X_STATUS_SUCCESS;
 }
 
-ppc_u32_result_t MmAllocatePhysicalMemoryEx_entry(ppc_u32_t flags, ppc_u32_t region_size,
-                                                  ppc_u32_t protect_bits, ppc_u32_t min_addr_range,
-                                                  ppc_u32_t max_addr_range, ppc_u32_t alignment) {
+u32 MmAllocatePhysicalMemoryEx_entry(u32 flags, u32 region_size, u32 protect_bits,
+                                     u32 min_addr_range, u32 max_addr_range, u32 alignment) {
   REXKRNL_IMPORT_TRACE("MmAllocatePhysicalMemoryEx",
                        "flags={:#x} size={:#x} protect={:#x} min={:#x} max={:#x} align={:#x}",
                        (uint32_t)flags, (uint32_t)region_size, (uint32_t)protect_bits,
@@ -394,8 +391,8 @@ ppc_u32_result_t MmAllocatePhysicalMemoryEx_entry(ppc_u32_t flags, ppc_u32_t reg
   // for title 545108B4 where min_addr_range comparison fails due to 0x1000 offset.
   // If needed, set heap_physical_address_offset = 0 when min_addr_range && max_addr_range.
   // Reference: xenia-canary 81aaf98e0.
-  uint32_t heap_min_addr = rex::sat_sub(min_addr_range.value(), heap_physical_address_offset);
-  uint32_t heap_max_addr = rex::sat_sub(max_addr_range.value(), heap_physical_address_offset);
+  uint32_t heap_min_addr = rex::sat_sub(min_addr_range, heap_physical_address_offset);
+  uint32_t heap_max_addr = rex::sat_sub(max_addr_range, heap_physical_address_offset);
   uint32_t heap_size = heap->heap_size();
   heap_min_addr = heap_base + std::min(heap_min_addr, heap_size - 1);
   heap_max_addr = heap_base + std::min(heap_max_addr, heap_size - 1);
@@ -410,12 +407,11 @@ ppc_u32_result_t MmAllocatePhysicalMemoryEx_entry(ppc_u32_t flags, ppc_u32_t reg
   return base_address;
 }
 
-ppc_u32_result_t MmAllocatePhysicalMemory_entry(ppc_u32_t flags, ppc_u32_t region_size,
-                                                ppc_u32_t protect_bits) {
+u32 MmAllocatePhysicalMemory_entry(u32 flags, u32 region_size, u32 protect_bits) {
   return MmAllocatePhysicalMemoryEx_entry(flags, region_size, protect_bits, 0, 0xFFFFFFFFu, 0);
 }
 
-void MmFreePhysicalMemory_entry(ppc_u32_t type, ppc_u32_t base_address) {
+void MmFreePhysicalMemory_entry(u32 type, u32 base_address) {
   REXKRNL_IMPORT_TRACE("MmFreePhysicalMemory", "type={:#x} addr={:#x}", (uint32_t)type,
                        (uint32_t)base_address);
 
@@ -425,7 +421,7 @@ void MmFreePhysicalMemory_entry(ppc_u32_t type, ppc_u32_t base_address) {
   heap->Release(base_address);
 }
 
-ppc_u32_result_t MmQueryAddressProtect_entry(ppc_u32_t base_address) {
+u32 MmQueryAddressProtect_entry(u32 base_address) {
   auto heap = REX_KERNEL_MEMORY()->LookupHeap(base_address);
   uint32_t access;
   if (!heap->QueryProtect(base_address, &access)) {
@@ -436,8 +432,7 @@ ppc_u32_result_t MmQueryAddressProtect_entry(ppc_u32_t base_address) {
   return access;
 }
 
-void MmSetAddressProtect_entry(ppc_pvoid_t base_address, ppc_u32_t region_size,
-                               ppc_u32_t protect_bits) {
+void MmSetAddressProtect_entry(mapped_void base_address, u32 region_size, u32 protect_bits) {
   constexpr uint32_t required_protect_bits = X_PAGE_NOACCESS | X_PAGE_READONLY | X_PAGE_READWRITE |
                                              X_PAGE_EXECUTE_READ | X_PAGE_EXECUTE_READWRITE;
 
@@ -458,7 +453,7 @@ void MmSetAddressProtect_entry(ppc_pvoid_t base_address, ppc_u32_t region_size,
   heap->Protect(base_address.guest_address(), region_size, protect);
 }
 
-ppc_u32_result_t MmQueryAllocationSize_entry(ppc_pvoid_t base_address) {
+u32 MmQueryAllocationSize_entry(mapped_void base_address) {
   auto heap = REX_KERNEL_MEMORY()->LookupHeap(base_address.guest_address());
   uint32_t size;
   if (!heap->QuerySize(base_address.guest_address(), &size)) {
@@ -493,7 +488,7 @@ struct X_MM_QUERY_STATISTICS_RESULT {
 };
 static_assert_size(X_MM_QUERY_STATISTICS_RESULT, 104);
 
-ppc_u32_result_t MmQueryStatistics_entry(ppc_ptr_t<X_MM_QUERY_STATISTICS_RESULT> stats_ptr) {
+u32 MmQueryStatistics_entry(ppc_ptr_t<X_MM_QUERY_STATISTICS_RESULT> stats_ptr) {
   if (!stats_ptr) {
     return X_STATUS_INVALID_PARAMETER;
   }
@@ -562,7 +557,7 @@ ppc_u32_result_t MmQueryStatistics_entry(ppc_ptr_t<X_MM_QUERY_STATISTICS_RESULT>
 }
 
 // https://msdn.microsoft.com/en-us/library/windows/hardware/ff554547(v=vs.85).aspx
-ppc_u32_result_t MmGetPhysicalAddress_entry(ppc_u32_t base_address) {
+u32 MmGetPhysicalAddress_entry(u32 base_address) {
   // base_address = result of MmAllocatePhysicalMemory.
   uint32_t physical_address = REX_KERNEL_MEMORY()->GetPhysicalAddress(base_address);
   assert_true(physical_address != UINT32_MAX);
@@ -574,8 +569,7 @@ ppc_u32_result_t MmGetPhysicalAddress_entry(ppc_u32_t base_address) {
   return physical_address;
 }
 
-ppc_u32_result_t MmMapIoSpace_entry(ppc_u32_t unk0, ppc_pvoid_t src_address, ppc_u32_t size,
-                                    ppc_u32_t flags) {
+u32 MmMapIoSpace_entry(u32 unk0, mapped_void src_address, u32 size, u32 flags) {
   // I've only seen this used to map XMA audio contexts.
   // The code seems fine with taking the src address, so this just returns that.
   // If others start using it there could be problems.
@@ -595,7 +589,7 @@ struct X_POOL_ALLOC_HEADER {
 };
 static_assert_size(X_POOL_ALLOC_HEADER, 8);
 
-ppc_u32_result_t ExAllocatePoolTypeWithTag_entry(ppc_u32_t size, ppc_u32_t tag, ppc_u32_t zero) {
+u32 ExAllocatePoolTypeWithTag_entry(u32 size, u32 tag, u32 zero) {
   if (size <= 0xFD8) {
     uint32_t adjusted_size = size + sizeof(X_POOL_ALLOC_HEADER);
     uint32_t addr = REX_KERNEL_MEMORY()->SystemHeapAlloc(adjusted_size, 64);
@@ -610,12 +604,12 @@ ppc_u32_result_t ExAllocatePoolTypeWithTag_entry(ppc_u32_t size, ppc_u32_t tag, 
   }
 }
 
-ppc_u32_result_t ExAllocatePool_entry(ppc_u32_t size) {
+u32 ExAllocatePool_entry(u32 size) {
   const uint32_t none = 0x656E6F4E;  // 'None'
   return ExAllocatePoolTypeWithTag_entry(size, none, 0);
 }
 
-void ExFreePool_entry(ppc_pvoid_t base_address) {
+void ExFreePool_entry(mapped_void base_address) {
   uint32_t addr = base_address.guest_address();
   if ((addr & (4096 - 1)) == 0) {
     // Page-aligned: large allocation with no pool header.
@@ -626,7 +620,7 @@ void ExFreePool_entry(ppc_pvoid_t base_address) {
   }
 }
 
-ppc_u32_result_t KeGetImagePageTableEntry_entry(ppc_pvoid_t address) {
+u32 KeGetImagePageTableEntry_entry(mapped_void address) {
   auto heap = REX_KERNEL_MEMORY()->LookupHeap(address.guest_address());
   if (!heap || heap->heap_type() != memory::HeapType::kGuestXex) {
     return 0;
@@ -639,14 +633,14 @@ ppc_u32_result_t KeGetImagePageTableEntry_entry(ppc_pvoid_t address) {
   return result & 0x400FFFFF;
 }
 
-ppc_u32_result_t KeLockL2_entry() {
+u32 KeLockL2_entry() {
   // TODO
   return 0;
 }
 
 void KeUnlockL2_entry() {}
 
-ppc_u32_result_t MmCreateKernelStack_entry(ppc_u32_t stack_size, ppc_u32_t r4) {
+u32 MmCreateKernelStack_entry(u32 stack_size, u32 r4) {
   assert_zero(r4);  // Unknown argument.
 
   auto stack_size_aligned = (stack_size + 0xFFF) & 0xFFFFF000;
@@ -662,7 +656,7 @@ ppc_u32_result_t MmCreateKernelStack_entry(ppc_u32_t stack_size, ppc_u32_t r4) {
   return stack_address + stack_size;
 }
 
-ppc_u32_result_t MmDeleteKernelStack_entry(ppc_pvoid_t stack_base, ppc_pvoid_t stack_end) {
+u32 MmDeleteKernelStack_entry(mapped_void stack_base, mapped_void stack_end) {
   // Release the stack (where stack_end is the low address)
   if (REX_KERNEL_STATE()->memory()->LookupHeap(0x70000000)->Release(stack_end.guest_address())) {
     return X_STATUS_SUCCESS;
@@ -671,11 +665,11 @@ ppc_u32_result_t MmDeleteKernelStack_entry(ppc_pvoid_t stack_base, ppc_pvoid_t s
   return X_STATUS_UNSUCCESSFUL;
 }
 
-ppc_u32_result_t ExAllocatePoolWithTag_entry(ppc_u32_t numbytes, ppc_u32_t tag, ppc_u32_t zero) {
+u32 ExAllocatePoolWithTag_entry(u32 numbytes, u32 tag, u32 zero) {
   return ExAllocatePoolTypeWithTag_entry(numbytes, tag, zero);
 }
 
-ppc_u32_result_t MmIsAddressValid_entry(ppc_u32_t address) {
+u32 MmIsAddressValid_entry(u32 address) {
   auto heap = REX_KERNEL_MEMORY()->LookupHeap(address);
   if (!heap) {
     return 0;
@@ -683,8 +677,7 @@ ppc_u32_result_t MmIsAddressValid_entry(ppc_u32_t address) {
   return heap->QueryRangeAccess(address, address) != rex::memory::PageAccess::kNoAccess;
 }
 
-ppc_u32_result_t NtAllocateEncryptedMemory_entry(ppc_u32_t unk, ppc_u32_t region_size,
-                                                 ppc_pu32_t base_addr_ptr) {
+u32 NtAllocateEncryptedMemory_entry(u32 unk, u32 region_size, mapped_u32 base_addr_ptr) {
   if (!region_size) {
     return X_STATUS_INVALID_PARAMETER;
   }
@@ -710,7 +703,7 @@ ppc_u32_result_t NtAllocateEncryptedMemory_entry(ppc_u32_t unk, ppc_u32_t region
   return X_STATUS_SUCCESS;
 }
 
-ppc_u32_result_t NtFreeEncryptedMemory_entry(ppc_u32_t region_type, ppc_pu32_t base_address_ptr) {
+u32 NtFreeEncryptedMemory_entry(u32 region_type, mapped_u32 base_address_ptr) {
   if (!base_address_ptr) {
     return X_STATUS_INVALID_PARAMETER;
   }
@@ -732,52 +725,47 @@ ppc_u32_result_t NtFreeEncryptedMemory_entry(ppc_u32_t region_type, ppc_pu32_t b
 
 }  // namespace rex::kernel::xboxkrnl
 
-XBOXKRNL_EXPORT(__imp__NtAllocateVirtualMemory,
-                rex::kernel::xboxkrnl::NtAllocateVirtualMemory_entry)
-XBOXKRNL_EXPORT(__imp__NtProtectVirtualMemory, rex::kernel::xboxkrnl::NtProtectVirtualMemory_entry)
-XBOXKRNL_EXPORT(__imp__NtFreeVirtualMemory, rex::kernel::xboxkrnl::NtFreeVirtualMemory_entry)
-XBOXKRNL_EXPORT(__imp__NtQueryVirtualMemory, rex::kernel::xboxkrnl::NtQueryVirtualMemory_entry)
-XBOXKRNL_EXPORT(__imp__MmAllocatePhysicalMemoryEx,
-                rex::kernel::xboxkrnl::MmAllocatePhysicalMemoryEx_entry)
-XBOXKRNL_EXPORT(__imp__MmAllocatePhysicalMemory,
-                rex::kernel::xboxkrnl::MmAllocatePhysicalMemory_entry)
-XBOXKRNL_EXPORT(__imp__MmFreePhysicalMemory, rex::kernel::xboxkrnl::MmFreePhysicalMemory_entry)
-XBOXKRNL_EXPORT(__imp__MmQueryAddressProtect, rex::kernel::xboxkrnl::MmQueryAddressProtect_entry)
-XBOXKRNL_EXPORT(__imp__MmSetAddressProtect, rex::kernel::xboxkrnl::MmSetAddressProtect_entry)
-XBOXKRNL_EXPORT(__imp__MmQueryAllocationSize, rex::kernel::xboxkrnl::MmQueryAllocationSize_entry)
-XBOXKRNL_EXPORT(__imp__MmQueryStatistics, rex::kernel::xboxkrnl::MmQueryStatistics_entry)
-XBOXKRNL_EXPORT(__imp__MmGetPhysicalAddress, rex::kernel::xboxkrnl::MmGetPhysicalAddress_entry)
-XBOXKRNL_EXPORT(__imp__MmMapIoSpace, rex::kernel::xboxkrnl::MmMapIoSpace_entry)
-XBOXKRNL_EXPORT(__imp__ExAllocatePoolTypeWithTag,
-                rex::kernel::xboxkrnl::ExAllocatePoolTypeWithTag_entry)
-XBOXKRNL_EXPORT(__imp__ExAllocatePool, rex::kernel::xboxkrnl::ExAllocatePool_entry)
-XBOXKRNL_EXPORT(__imp__ExFreePool, rex::kernel::xboxkrnl::ExFreePool_entry)
-XBOXKRNL_EXPORT(__imp__KeGetImagePageTableEntry,
-                rex::kernel::xboxkrnl::KeGetImagePageTableEntry_entry)
-XBOXKRNL_EXPORT(__imp__KeLockL2, rex::kernel::xboxkrnl::KeLockL2_entry)
-XBOXKRNL_EXPORT(__imp__KeUnlockL2, rex::kernel::xboxkrnl::KeUnlockL2_entry)
-XBOXKRNL_EXPORT(__imp__MmCreateKernelStack, rex::kernel::xboxkrnl::MmCreateKernelStack_entry)
-XBOXKRNL_EXPORT(__imp__MmDeleteKernelStack, rex::kernel::xboxkrnl::MmDeleteKernelStack_entry)
+REX_EXPORT(__imp__NtAllocateVirtualMemory, rex::kernel::xboxkrnl::NtAllocateVirtualMemory_entry)
+REX_EXPORT(__imp__NtProtectVirtualMemory, rex::kernel::xboxkrnl::NtProtectVirtualMemory_entry)
+REX_EXPORT(__imp__NtFreeVirtualMemory, rex::kernel::xboxkrnl::NtFreeVirtualMemory_entry)
+REX_EXPORT(__imp__NtQueryVirtualMemory, rex::kernel::xboxkrnl::NtQueryVirtualMemory_entry)
+REX_EXPORT(__imp__MmAllocatePhysicalMemoryEx,
+           rex::kernel::xboxkrnl::MmAllocatePhysicalMemoryEx_entry)
+REX_EXPORT(__imp__MmAllocatePhysicalMemory, rex::kernel::xboxkrnl::MmAllocatePhysicalMemory_entry)
+REX_EXPORT(__imp__MmFreePhysicalMemory, rex::kernel::xboxkrnl::MmFreePhysicalMemory_entry)
+REX_EXPORT(__imp__MmQueryAddressProtect, rex::kernel::xboxkrnl::MmQueryAddressProtect_entry)
+REX_EXPORT(__imp__MmSetAddressProtect, rex::kernel::xboxkrnl::MmSetAddressProtect_entry)
+REX_EXPORT(__imp__MmQueryAllocationSize, rex::kernel::xboxkrnl::MmQueryAllocationSize_entry)
+REX_EXPORT(__imp__MmQueryStatistics, rex::kernel::xboxkrnl::MmQueryStatistics_entry)
+REX_EXPORT(__imp__MmGetPhysicalAddress, rex::kernel::xboxkrnl::MmGetPhysicalAddress_entry)
+REX_EXPORT(__imp__MmMapIoSpace, rex::kernel::xboxkrnl::MmMapIoSpace_entry)
+REX_EXPORT(__imp__ExAllocatePoolTypeWithTag, rex::kernel::xboxkrnl::ExAllocatePoolTypeWithTag_entry)
+REX_EXPORT(__imp__ExAllocatePool, rex::kernel::xboxkrnl::ExAllocatePool_entry)
+REX_EXPORT(__imp__ExFreePool, rex::kernel::xboxkrnl::ExFreePool_entry)
+REX_EXPORT(__imp__KeGetImagePageTableEntry, rex::kernel::xboxkrnl::KeGetImagePageTableEntry_entry)
+REX_EXPORT(__imp__KeLockL2, rex::kernel::xboxkrnl::KeLockL2_entry)
+REX_EXPORT(__imp__KeUnlockL2, rex::kernel::xboxkrnl::KeUnlockL2_entry)
+REX_EXPORT(__imp__MmCreateKernelStack, rex::kernel::xboxkrnl::MmCreateKernelStack_entry)
+REX_EXPORT(__imp__MmDeleteKernelStack, rex::kernel::xboxkrnl::MmDeleteKernelStack_entry)
 
-XBOXKRNL_EXPORT(__imp__ExAllocatePoolWithTag, rex::kernel::xboxkrnl::ExAllocatePoolWithTag_entry)
-XBOXKRNL_EXPORT_STUB(__imp__ExQueryPoolBlockSize);
-XBOXKRNL_EXPORT_STUB(__imp__MmDoubleMapMemory);
-XBOXKRNL_EXPORT_STUB(__imp__MmUnmapMemory);
-XBOXKRNL_EXPORT(__imp__MmIsAddressValid, rex::kernel::xboxkrnl::MmIsAddressValid_entry)
-XBOXKRNL_EXPORT_STUB(__imp__MmLockAndMapSegmentArray);
-XBOXKRNL_EXPORT_STUB(__imp__MmLockUnlockBufferPages);
-XBOXKRNL_EXPORT_STUB(__imp__MmPersistPhysicalMemoryAllocation);
-XBOXKRNL_EXPORT_STUB(__imp__MmSplitPhysicalMemoryAllocation);
-XBOXKRNL_EXPORT_STUB(__imp__MmUnlockAndUnmapSegmentArray);
-XBOXKRNL_EXPORT_STUB(__imp__MmUnmapIoSpace);
-XBOXKRNL_EXPORT(__imp__NtAllocateEncryptedMemory,
-                rex::kernel::xboxkrnl::NtAllocateEncryptedMemory_entry)
-XBOXKRNL_EXPORT(__imp__NtFreeEncryptedMemory, rex::kernel::xboxkrnl::NtFreeEncryptedMemory_entry)
-XBOXKRNL_EXPORT_STUB(__imp__ExDebugMonitorService);
-XBOXKRNL_EXPORT_STUB(__imp__MmDbgReadCheck);
-XBOXKRNL_EXPORT_STUB(__imp__MmDbgReleaseAddress);
-XBOXKRNL_EXPORT_STUB(__imp__MmDbgWriteCheck);
-XBOXKRNL_EXPORT_STUB(__imp__MmGetPoolPagesType);
-XBOXKRNL_EXPORT_STUB(__imp__ExExpansionInstall);
-XBOXKRNL_EXPORT_STUB(__imp__ExExpansionCall);
-XBOXKRNL_EXPORT_STUB(__imp__MmResetLowestAvailablePages);
+REX_EXPORT(__imp__ExAllocatePoolWithTag, rex::kernel::xboxkrnl::ExAllocatePoolWithTag_entry)
+REX_EXPORT_STUB(__imp__ExQueryPoolBlockSize);
+REX_EXPORT_STUB(__imp__MmDoubleMapMemory);
+REX_EXPORT_STUB(__imp__MmUnmapMemory);
+REX_EXPORT(__imp__MmIsAddressValid, rex::kernel::xboxkrnl::MmIsAddressValid_entry)
+REX_EXPORT_STUB(__imp__MmLockAndMapSegmentArray);
+REX_EXPORT_STUB(__imp__MmLockUnlockBufferPages);
+REX_EXPORT_STUB(__imp__MmPersistPhysicalMemoryAllocation);
+REX_EXPORT_STUB(__imp__MmSplitPhysicalMemoryAllocation);
+REX_EXPORT_STUB(__imp__MmUnlockAndUnmapSegmentArray);
+REX_EXPORT_STUB(__imp__MmUnmapIoSpace);
+REX_EXPORT(__imp__NtAllocateEncryptedMemory, rex::kernel::xboxkrnl::NtAllocateEncryptedMemory_entry)
+REX_EXPORT(__imp__NtFreeEncryptedMemory, rex::kernel::xboxkrnl::NtFreeEncryptedMemory_entry)
+REX_EXPORT_STUB(__imp__ExDebugMonitorService);
+REX_EXPORT_STUB(__imp__MmDbgReadCheck);
+REX_EXPORT_STUB(__imp__MmDbgReleaseAddress);
+REX_EXPORT_STUB(__imp__MmDbgWriteCheck);
+REX_EXPORT_STUB(__imp__MmGetPoolPagesType);
+REX_EXPORT_STUB(__imp__ExExpansionInstall);
+REX_EXPORT_STUB(__imp__ExExpansionCall);
+REX_EXPORT_STUB(__imp__MmResetLowestAvailablePages);

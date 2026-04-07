@@ -25,8 +25,8 @@
 #include <rex/kernel/xboxkrnl/rtl.h>
 #include <rex/kernel/xboxkrnl/video.h>
 #include <rex/logging.h>
-#include <rex/ppc/function.h>
-#include <rex/ppc/types.h>
+#include <rex/hook.h>
+#include <rex/types.h>
 #include <rex/runtime.h>
 #include <rex/system/export_resolver.h>
 #include <rex/system/kernel_state.h>
@@ -99,51 +99,51 @@ float GetConfiguredVideoModeRefreshRate() {
 namespace rex::kernel::xboxkrnl {
 using namespace rex::system;
 
-XBOXKRNL_EXPORT_STUB(__imp__VdBlockUntilGUIIdle);
-XBOXKRNL_EXPORT_STUB(__imp__VdDisplayFatalError);
-XBOXKRNL_EXPORT_STUB(__imp__VdEnableClosedCaption);
-XBOXKRNL_EXPORT_STUB(__imp__VdEnableDisablePowerSavingMode);
-XBOXKRNL_EXPORT_STUB(__imp__VdGenerateGPUCSCCoefficients);
-XBOXKRNL_EXPORT_STUB(__imp__VdGetClosedCaptionReadyStatus);
-XBOXKRNL_EXPORT_STUB(__imp__VdGetDisplayModeOverride);
-XBOXKRNL_EXPORT_STUB(__imp__VdInitializeScaler);
-XBOXKRNL_EXPORT_STUB(__imp__VdQuerySystemCommandBuffer);
-XBOXKRNL_EXPORT_STUB(__imp__VdReadDVERegisterUlong);
-XBOXKRNL_EXPORT_STUB(__imp__VdReadWriteHSIOCalibrationFlag);
-XBOXKRNL_EXPORT_STUB(__imp__VdRegisterGraphicsNotification);
-XBOXKRNL_EXPORT_STUB(__imp__VdRegisterXamGraphicsNotification);
-XBOXKRNL_EXPORT_STUB(__imp__VdSendClosedCaptionData);
-XBOXKRNL_EXPORT_STUB(__imp__VdSetCGMSOption);
-XBOXKRNL_EXPORT_STUB(__imp__VdSetColorProfileAdjustment);
-XBOXKRNL_EXPORT_STUB(__imp__VdSetCscMatricesOverride);
-XBOXKRNL_EXPORT_STUB(__imp__VdSetHDCPOption);
-XBOXKRNL_EXPORT_STUB(__imp__VdSetMacrovisionOption);
-XBOXKRNL_EXPORT_STUB(__imp__VdSetSystemCommandBuffer);
-XBOXKRNL_EXPORT_STUB(__imp__VdSetWSSData);
-XBOXKRNL_EXPORT_STUB(__imp__VdSetWSSOption);
-XBOXKRNL_EXPORT_STUB(__imp__VdTurnDisplayOff);
-XBOXKRNL_EXPORT_STUB(__imp__VdTurnDisplayOn);
-XBOXKRNL_EXPORT_STUB(__imp__VdWriteDVERegisterUlong);
-XBOXKRNL_EXPORT_STUB(__imp__VdInitializeEDRAM);
-XBOXKRNL_EXPORT_STUB(__imp__VdReadEEDIDBlock);
-XBOXKRNL_EXPORT_STUB(__imp__VdEnumerateVideoModes);
-XBOXKRNL_EXPORT_STUB(__imp__VdEnableHDCP);
-XBOXKRNL_EXPORT_STUB(__imp__VdRegisterHDCPNotification);
-XBOXKRNL_EXPORT_STUB(__imp__VdGetDisplayDiscoveryData);
-XBOXKRNL_EXPORT_STUB(__imp__VdStartDisplayDiscovery);
-XBOXKRNL_EXPORT_STUB(__imp__VdSetHDCPRevocationList);
-XBOXKRNL_EXPORT_STUB(__imp__VdEnableWMAProOverHDMI);
-XBOXKRNL_EXPORT_STUB(__imp__VdQueryRealVideoMode);
-XBOXKRNL_EXPORT_STUB(__imp__VdSetCGMSState);
-XBOXKRNL_EXPORT_STUB(__imp__VdSetSCMSState);
-XBOXKRNL_EXPORT_STUB(__imp__VdGetOption);
-XBOXKRNL_EXPORT_STUB(__imp__VdSetOption);
-XBOXKRNL_EXPORT_STUB(__imp__VdQueryVideoCapabilities);
-XBOXKRNL_EXPORT_STUB(__imp__VdGet3dVideoFormat);
-XBOXKRNL_EXPORT_STUB(__imp__VdGetWSS2Data);
-XBOXKRNL_EXPORT_STUB(__imp__VdSet3dVideoFormat);
-XBOXKRNL_EXPORT_STUB(__imp__VdSetWSS2Data);
-XBOXKRNL_EXPORT_STUB(__imp__VdSetStudioRGBMode);
+REX_EXPORT_STUB(__imp__VdBlockUntilGUIIdle);
+REX_EXPORT_STUB(__imp__VdDisplayFatalError);
+REX_EXPORT_STUB(__imp__VdEnableClosedCaption);
+REX_EXPORT_STUB(__imp__VdEnableDisablePowerSavingMode);
+REX_EXPORT_STUB(__imp__VdGenerateGPUCSCCoefficients);
+REX_EXPORT_STUB(__imp__VdGetClosedCaptionReadyStatus);
+REX_EXPORT_STUB(__imp__VdGetDisplayModeOverride);
+REX_EXPORT_STUB(__imp__VdInitializeScaler);
+REX_EXPORT_STUB(__imp__VdQuerySystemCommandBuffer);
+REX_EXPORT_STUB(__imp__VdReadDVERegisterUlong);
+REX_EXPORT_STUB(__imp__VdReadWriteHSIOCalibrationFlag);
+REX_EXPORT_STUB(__imp__VdRegisterGraphicsNotification);
+REX_EXPORT_STUB(__imp__VdRegisterXamGraphicsNotification);
+REX_EXPORT_STUB(__imp__VdSendClosedCaptionData);
+REX_EXPORT_STUB(__imp__VdSetCGMSOption);
+REX_EXPORT_STUB(__imp__VdSetColorProfileAdjustment);
+REX_EXPORT_STUB(__imp__VdSetCscMatricesOverride);
+REX_EXPORT_STUB(__imp__VdSetHDCPOption);
+REX_EXPORT_STUB(__imp__VdSetMacrovisionOption);
+REX_EXPORT_STUB(__imp__VdSetSystemCommandBuffer);
+REX_EXPORT_STUB(__imp__VdSetWSSData);
+REX_EXPORT_STUB(__imp__VdSetWSSOption);
+REX_EXPORT_STUB(__imp__VdTurnDisplayOff);
+REX_EXPORT_STUB(__imp__VdTurnDisplayOn);
+REX_EXPORT_STUB(__imp__VdWriteDVERegisterUlong);
+REX_EXPORT_STUB(__imp__VdInitializeEDRAM);
+REX_EXPORT_STUB(__imp__VdReadEEDIDBlock);
+REX_EXPORT_STUB(__imp__VdEnumerateVideoModes);
+REX_EXPORT_STUB(__imp__VdEnableHDCP);
+REX_EXPORT_STUB(__imp__VdRegisterHDCPNotification);
+REX_EXPORT_STUB(__imp__VdGetDisplayDiscoveryData);
+REX_EXPORT_STUB(__imp__VdStartDisplayDiscovery);
+REX_EXPORT_STUB(__imp__VdSetHDCPRevocationList);
+REX_EXPORT_STUB(__imp__VdEnableWMAProOverHDMI);
+REX_EXPORT_STUB(__imp__VdQueryRealVideoMode);
+REX_EXPORT_STUB(__imp__VdSetCGMSState);
+REX_EXPORT_STUB(__imp__VdSetSCMSState);
+REX_EXPORT_STUB(__imp__VdGetOption);
+REX_EXPORT_STUB(__imp__VdSetOption);
+REX_EXPORT_STUB(__imp__VdQueryVideoCapabilities);
+REX_EXPORT_STUB(__imp__VdGet3dVideoFormat);
+REX_EXPORT_STUB(__imp__VdGetWSS2Data);
+REX_EXPORT_STUB(__imp__VdSet3dVideoFormat);
+REX_EXPORT_STUB(__imp__VdSetWSS2Data);
+REX_EXPORT_STUB(__imp__VdSetStudioRGBMode);
 
 // https://web.archive.org/web/20150805074003/https://www.tweakoz.com/orkid/
 // http://www.tweakoz.com/orkid/dox/d3/d52/xb360init_8cpp_source.html
@@ -158,7 +158,7 @@ XBOXKRNL_EXPORT_STUB(__imp__VdSetStudioRGBMode);
 // https://www.microsoft.com/en-za/download/details.aspx?id=5313 -- "Stripped
 // Down Direct3D: Xbox 360 Command Buffer and Resource Management"
 
-void VdGetCurrentDisplayGamma_entry(ppc_pu32_t type_ptr, ppc_pf32_t power_ptr) {
+void VdGetCurrentDisplayGamma_entry(mapped_u32 type_ptr, mapped_f32 power_ptr) {
   // 1 - sRGB.
   // 2 - TV (BT.709).
   // 3 - use the power written to *power_ptr.
@@ -261,7 +261,7 @@ void VdQueryVideoMode_entry(ppc_ptr_t<X_VIDEO_MODE> video_mode) {
   VdQueryVideoMode(video_mode);
 }
 
-ppc_u32_result_t VdQueryVideoFlags_entry() {
+u32 VdQueryVideoFlags_entry() {
   X_VIDEO_MODE mode;
   VdQueryVideoMode(&mode);
 
@@ -273,7 +273,7 @@ ppc_u32_result_t VdQueryVideoFlags_entry() {
   return flags;
 }
 
-ppc_u32_result_t VdSetDisplayMode_entry(ppc_u32_t flags) {
+u32 VdSetDisplayMode_entry(u32 flags) {
   // Often 0x40000000.
 
   // 0?ccf000 00000000 00000000 000000r0
@@ -291,15 +291,13 @@ ppc_u32_result_t VdSetDisplayMode_entry(ppc_u32_t flags) {
   return 0;
 }
 
-ppc_u32_result_t VdSetDisplayModeOverride_entry(ppc_unknown_t unk0, ppc_unknown_t unk1,
-                                                ppc_f64_t refresh_rate, ppc_unknown_t unk3,
-                                                ppc_unknown_t unk4) {
+u32 VdSetDisplayModeOverride_entry(u32 unk0, u32 unk1, f64 refresh_rate, u32 unk3, u32 unk4) {
   // refresh_rate = 0, 50, 59.9, etc.
   return 0;
 }
 
-ppc_u32_result_t VdInitializeEngines_entry(ppc_unknown_t unk0, ppc_fn_t callback, ppc_pvoid_t arg,
-                                           ppc_pu32_t pfp_ptr, ppc_pu32_t me_ptr) {
+u32 VdInitializeEngines_entry(u32 unk0, u32 callback, mapped_void arg, mapped_u32 pfp_ptr,
+                              mapped_u32 me_ptr) {
   // r3 = 0x4F810000
   // r4 = function ptr (cleanup callback?)
   // r5 = function arg
@@ -314,18 +312,18 @@ void VdShutdownEngines_entry() {
   // re-initialize.
 }
 
-ppc_u32_result_t VdGetGraphicsAsicID_entry() {
+u32 VdGetGraphicsAsicID_entry() {
   // Games compare for < 0x10 and do VdInitializeEDRAM, else other
   // (retrain/etc).
   return 0x11;
 }
 
-ppc_u32_result_t VdEnableDisableClockGating_entry(ppc_u32_t enabled) {
+u32 VdEnableDisableClockGating_entry(u32 enabled) {
   // Ignored, as it really doesn't matter.
   return 0;
 }
 
-void VdSetGraphicsInterruptCallback_entry(ppc_fn_t callback, ppc_pvoid_t user_data) {
+void VdSetGraphicsInterruptCallback_entry(u32 callback, mapped_void user_data) {
   // callback takes 2 params
   // r3 = bool 0/1 - 0 is normal interrupt, 1 is some acquire/lock mumble
   // r4 = user_data (r4 of VdSetGraphicsInterruptCallback)
@@ -336,7 +334,7 @@ void VdSetGraphicsInterruptCallback_entry(ppc_fn_t callback, ppc_pvoid_t user_da
   graphics_system->SetInterruptCallback(callback, user_data.guest_address());
 }
 
-void VdInitializeRingBuffer_entry(ppc_pvoid_t ptr, ppc_i32_t size_log2) {
+void VdInitializeRingBuffer_entry(mapped_void ptr, i32 size_log2) {
   // r3 = result of MmGetPhysicalAddress
   // r4 = log2(size)
   // Buffer pointers are from MmAllocatePhysicalMemory with WRITE_COMBINE.
@@ -347,7 +345,7 @@ void VdInitializeRingBuffer_entry(ppc_pvoid_t ptr, ppc_i32_t size_log2) {
   graphics_system->InitializeRingBuffer(ptr.guest_address(), size_log2);
 }
 
-void VdEnableRingBufferRPtrWriteBack_entry(ppc_pvoid_t ptr, ppc_i32_t block_size_log2) {
+void VdEnableRingBufferRPtrWriteBack_entry(mapped_void ptr, i32 block_size_log2) {
   // r4 = log2(block size), 6, usually --- <=19
   auto* graphics_system =
       static_cast<graphics::GraphicsSystem*>(REX_KERNEL_STATE()->emulator()->graphics_system());
@@ -356,13 +354,13 @@ void VdEnableRingBufferRPtrWriteBack_entry(ppc_pvoid_t ptr, ppc_i32_t block_size
   graphics_system->EnableReadPointerWriteBack(ptr.guest_address(), block_size_log2);
 }
 
-void VdGetSystemCommandBuffer_entry(ppc_pvoid_t p0_ptr, ppc_pvoid_t p1_ptr) {
+void VdGetSystemCommandBuffer_entry(mapped_void p0_ptr, mapped_void p1_ptr) {
   p0_ptr.Zero(0x94);
   memory::store_and_swap<uint32_t>(p0_ptr, 0xBEEF0000);
   memory::store_and_swap<uint32_t>(p1_ptr, 0xBEEF0001);
 }
 
-void VdSetSystemCommandBufferGpuIdentifierAddress_entry(ppc_pvoid_t unk) {
+void VdSetSystemCommandBufferGpuIdentifierAddress_entry(mapped_void unk) {
   // r3 = 0x2B10(d3d?) + 8
 }
 
@@ -371,20 +369,20 @@ void VdSetSystemCommandBufferGpuIdentifierAddress_entry(ppc_pvoid_t unk) {
 // r4 = 19
 // no op?
 
-ppc_u32_result_t VdInitializeScalerCommandBuffer_entry(
-    ppc_u32_t scaler_source_xy,                                // ((uint16_t)y << 16) | (uint16_t)x
-    ppc_u32_t scaler_source_wh,                                // ((uint16_t)h << 16) | (uint16_t)w
-    ppc_u32_t scaled_output_xy,                                // ((uint16_t)y << 16) | (uint16_t)x
-    ppc_u32_t scaled_output_wh,                                // ((uint16_t)h << 16) | (uint16_t)w
-    ppc_u32_t front_buffer_wh,                                 // ((uint16_t)h << 16) | (uint16_t)w
-    ppc_u32_t vertical_filter_type,                            // 7?
+u32 VdInitializeScalerCommandBuffer_entry(
+    u32 scaler_source_xy,                                      // ((uint16_t)y << 16) | (uint16_t)x
+    u32 scaler_source_wh,                                      // ((uint16_t)h << 16) | (uint16_t)w
+    u32 scaled_output_xy,                                      // ((uint16_t)y << 16) | (uint16_t)x
+    u32 scaled_output_wh,                                      // ((uint16_t)h << 16) | (uint16_t)w
+    u32 front_buffer_wh,                                       // ((uint16_t)h << 16) | (uint16_t)w
+    u32 vertical_filter_type,                                  // 7?
     ppc_ptr_t<X_D3DFILTER_PARAMETERS> vertical_filter_params,  //
-    ppc_u32_t horizontal_filter_type,                          // 7?
+    u32 horizontal_filter_type,                                // 7?
     ppc_ptr_t<X_D3DFILTER_PARAMETERS> horizontal_filter_params,  //
-    ppc_pvoid_t unk9,                                            //
-    ppc_pvoid_t dest_ptr,  // Points to the first 80000000h where the memcpy
+    mapped_void unk9,                                            //
+    mapped_void dest_ptr,  // Points to the first 80000000h where the memcpy
                            // sources from.
-    ppc_u32_t dest_count   // Count in words.
+    u32 dest_count         // Count in words.
 ) {
   // We could fake the commands here, but I'm not sure the game checks for
   // anything but success (non-zero ret).
@@ -408,8 +406,7 @@ void AppendParam(string::StringBuffer* string_buffer, ppc_ptr_t<BufferScaling> p
                               uint16_t(param->fb_width), uint16_t(param->fb_height));
 }
 
-ppc_u32_result_t VdCallGraphicsNotificationRoutines_entry(ppc_unknown_t unk0,
-                                                          ppc_ptr_t<BufferScaling> args_ptr) {
+u32 VdCallGraphicsNotificationRoutines_entry(u32 unk0, ppc_ptr_t<BufferScaling> args_ptr) {
   assert_true(unk0 == 1);
 
   // TODO(benvanik): what does this mean, I forget:
@@ -418,12 +415,12 @@ ppc_u32_result_t VdCallGraphicsNotificationRoutines_entry(ppc_unknown_t unk0,
   return 0;
 }
 
-ppc_u32_result_t VdIsHSIOTrainingSucceeded_entry() {
+u32 VdIsHSIOTrainingSucceeded_entry() {
   // BOOL return value
   return 1;
 }
 
-ppc_u32_result_t VdPersistDisplay_entry(ppc_unknown_t unk0, ppc_pu32_t unk1_ptr) {
+u32 VdPersistDisplay_entry(u32 unk0, mapped_u32 unk1_ptr) {
   // unk1_ptr needs to be populated with a pointer passed to
   // MmFreePhysicalMemory(1, *unk1_ptr).
   if (unk1_ptr) {
@@ -437,23 +434,22 @@ ppc_u32_result_t VdPersistDisplay_entry(ppc_unknown_t unk0, ppc_pu32_t unk1_ptr)
   return 1;
 }
 
-ppc_u32_result_t VdRetrainEDRAMWorker_entry(ppc_unknown_t unk0) {
+u32 VdRetrainEDRAMWorker_entry(u32 unk0) {
   return 0;
 }
 
-ppc_u32_result_t VdRetrainEDRAM_entry(ppc_unknown_t unk0, ppc_unknown_t unk1, ppc_unknown_t unk2,
-                                      ppc_unknown_t unk3, ppc_unknown_t unk4, ppc_unknown_t unk5) {
+u32 VdRetrainEDRAM_entry(u32 unk0, u32 unk1, u32 unk2, u32 unk3, u32 unk4, u32 unk5) {
   return 0;
 }
 
-void VdSwap_entry(ppc_pvoid_t buffer_ptr,      // ptr into primary ringbuffer
-                  ppc_pvoid_t fetch_ptr,       // frontbuffer Direct3D 9 texture header fetch
-                  ppc_pvoid_t unk2,            // system writeback ptr
-                  ppc_pvoid_t unk3,            // buffer from VdGetSystemCommandBuffer
-                  ppc_pvoid_t unk4,            // from VdGetSystemCommandBuffer (0xBEEF0001)
-                  ppc_pu32_t frontbuffer_ptr,  // ptr to frontbuffer address
-                  ppc_pu32_t texture_format_ptr, ppc_pu32_t color_space_ptr, ppc_pu32_t width,
-                  ppc_pu32_t height) {
+void VdSwap_entry(mapped_void buffer_ptr,      // ptr into primary ringbuffer
+                  mapped_void fetch_ptr,       // frontbuffer Direct3D 9 texture header fetch
+                  mapped_void unk2,            // system writeback ptr
+                  mapped_void unk3,            // buffer from VdGetSystemCommandBuffer
+                  mapped_void unk4,            // from VdGetSystemCommandBuffer (0xBEEF0001)
+                  mapped_u32 frontbuffer_ptr,  // ptr to frontbuffer address
+                  mapped_u32 texture_format_ptr, mapped_u32 color_space_ptr, mapped_u32 width,
+                  mapped_u32 height) {
   // All of these parameters are REQUIRED.
   assert(buffer_ptr);
   assert(fetch_ptr);
@@ -562,36 +558,32 @@ void RegisterVideoExports(rex::runtime::ExportResolver* export_resolver,
 
 }  // namespace rex::kernel::xboxkrnl
 
-XBOXKRNL_EXPORT(__imp__VdGetCurrentDisplayGamma,
-                rex::kernel::xboxkrnl::VdGetCurrentDisplayGamma_entry)
-XBOXKRNL_EXPORT(__imp__VdGetCurrentDisplayInformation,
-                rex::kernel::xboxkrnl::VdGetCurrentDisplayInformation_entry)
-XBOXKRNL_EXPORT(__imp__VdQueryVideoMode, rex::kernel::xboxkrnl::VdQueryVideoMode_entry)
-XBOXKRNL_EXPORT(__imp__VdQueryVideoFlags, rex::kernel::xboxkrnl::VdQueryVideoFlags_entry)
-XBOXKRNL_EXPORT(__imp__VdSetDisplayMode, rex::kernel::xboxkrnl::VdSetDisplayMode_entry)
-XBOXKRNL_EXPORT(__imp__VdSetDisplayModeOverride,
-                rex::kernel::xboxkrnl::VdSetDisplayModeOverride_entry)
-XBOXKRNL_EXPORT(__imp__VdInitializeEngines, rex::kernel::xboxkrnl::VdInitializeEngines_entry)
-XBOXKRNL_EXPORT(__imp__VdShutdownEngines, rex::kernel::xboxkrnl::VdShutdownEngines_entry)
-XBOXKRNL_EXPORT(__imp__VdGetGraphicsAsicID, rex::kernel::xboxkrnl::VdGetGraphicsAsicID_entry)
-XBOXKRNL_EXPORT(__imp__VdEnableDisableClockGating,
-                rex::kernel::xboxkrnl::VdEnableDisableClockGating_entry)
-XBOXKRNL_EXPORT(__imp__VdSetGraphicsInterruptCallback,
-                rex::kernel::xboxkrnl::VdSetGraphicsInterruptCallback_entry)
-XBOXKRNL_EXPORT(__imp__VdInitializeRingBuffer, rex::kernel::xboxkrnl::VdInitializeRingBuffer_entry)
-XBOXKRNL_EXPORT(__imp__VdEnableRingBufferRPtrWriteBack,
-                rex::kernel::xboxkrnl::VdEnableRingBufferRPtrWriteBack_entry)
-XBOXKRNL_EXPORT(__imp__VdGetSystemCommandBuffer,
-                rex::kernel::xboxkrnl::VdGetSystemCommandBuffer_entry)
-XBOXKRNL_EXPORT(__imp__VdSetSystemCommandBufferGpuIdentifierAddress,
-                rex::kernel::xboxkrnl::VdSetSystemCommandBufferGpuIdentifierAddress_entry)
-XBOXKRNL_EXPORT(__imp__VdInitializeScalerCommandBuffer,
-                rex::kernel::xboxkrnl::VdInitializeScalerCommandBuffer_entry)
-XBOXKRNL_EXPORT(__imp__VdCallGraphicsNotificationRoutines,
-                rex::kernel::xboxkrnl::VdCallGraphicsNotificationRoutines_entry)
-XBOXKRNL_EXPORT(__imp__VdIsHSIOTrainingSucceeded,
-                rex::kernel::xboxkrnl::VdIsHSIOTrainingSucceeded_entry)
-XBOXKRNL_EXPORT(__imp__VdPersistDisplay, rex::kernel::xboxkrnl::VdPersistDisplay_entry)
-XBOXKRNL_EXPORT(__imp__VdRetrainEDRAMWorker, rex::kernel::xboxkrnl::VdRetrainEDRAMWorker_entry)
-XBOXKRNL_EXPORT(__imp__VdRetrainEDRAM, rex::kernel::xboxkrnl::VdRetrainEDRAM_entry)
-XBOXKRNL_EXPORT(__imp__VdSwap, rex::kernel::xboxkrnl::VdSwap_entry)
+REX_EXPORT(__imp__VdGetCurrentDisplayGamma, rex::kernel::xboxkrnl::VdGetCurrentDisplayGamma_entry)
+REX_EXPORT(__imp__VdGetCurrentDisplayInformation,
+           rex::kernel::xboxkrnl::VdGetCurrentDisplayInformation_entry)
+REX_EXPORT(__imp__VdQueryVideoMode, rex::kernel::xboxkrnl::VdQueryVideoMode_entry)
+REX_EXPORT(__imp__VdQueryVideoFlags, rex::kernel::xboxkrnl::VdQueryVideoFlags_entry)
+REX_EXPORT(__imp__VdSetDisplayMode, rex::kernel::xboxkrnl::VdSetDisplayMode_entry)
+REX_EXPORT(__imp__VdSetDisplayModeOverride, rex::kernel::xboxkrnl::VdSetDisplayModeOverride_entry)
+REX_EXPORT(__imp__VdInitializeEngines, rex::kernel::xboxkrnl::VdInitializeEngines_entry)
+REX_EXPORT(__imp__VdShutdownEngines, rex::kernel::xboxkrnl::VdShutdownEngines_entry)
+REX_EXPORT(__imp__VdGetGraphicsAsicID, rex::kernel::xboxkrnl::VdGetGraphicsAsicID_entry)
+REX_EXPORT(__imp__VdEnableDisableClockGating,
+           rex::kernel::xboxkrnl::VdEnableDisableClockGating_entry)
+REX_EXPORT(__imp__VdSetGraphicsInterruptCallback,
+           rex::kernel::xboxkrnl::VdSetGraphicsInterruptCallback_entry)
+REX_EXPORT(__imp__VdInitializeRingBuffer, rex::kernel::xboxkrnl::VdInitializeRingBuffer_entry)
+REX_EXPORT(__imp__VdEnableRingBufferRPtrWriteBack,
+           rex::kernel::xboxkrnl::VdEnableRingBufferRPtrWriteBack_entry)
+REX_EXPORT(__imp__VdGetSystemCommandBuffer, rex::kernel::xboxkrnl::VdGetSystemCommandBuffer_entry)
+REX_EXPORT(__imp__VdSetSystemCommandBufferGpuIdentifierAddress,
+           rex::kernel::xboxkrnl::VdSetSystemCommandBufferGpuIdentifierAddress_entry)
+REX_EXPORT(__imp__VdInitializeScalerCommandBuffer,
+           rex::kernel::xboxkrnl::VdInitializeScalerCommandBuffer_entry)
+REX_EXPORT(__imp__VdCallGraphicsNotificationRoutines,
+           rex::kernel::xboxkrnl::VdCallGraphicsNotificationRoutines_entry)
+REX_EXPORT(__imp__VdIsHSIOTrainingSucceeded, rex::kernel::xboxkrnl::VdIsHSIOTrainingSucceeded_entry)
+REX_EXPORT(__imp__VdPersistDisplay, rex::kernel::xboxkrnl::VdPersistDisplay_entry)
+REX_EXPORT(__imp__VdRetrainEDRAMWorker, rex::kernel::xboxkrnl::VdRetrainEDRAMWorker_entry)
+REX_EXPORT(__imp__VdRetrainEDRAM, rex::kernel::xboxkrnl::VdRetrainEDRAM_entry)
+REX_EXPORT(__imp__VdSwap, rex::kernel::xboxkrnl::VdSwap_entry)

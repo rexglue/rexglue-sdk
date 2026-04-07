@@ -17,8 +17,8 @@
 
 #include <rex/dbg.h>
 #include <rex/logging.h>
-#include <rex/ppc/function.h>
-#include <rex/ppc/types.h>
+#include <rex/hook.h>
+#include <rex/types.h>
 #include <rex/system/function_dispatcher.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xmemory.h>
@@ -96,7 +96,7 @@ static void FiberEntryPoint(void* raw_arg) {
 
 /// Helper for ConvertFiberToThread logic, shared by ConvertFiberToThread_entry
 /// and DeleteFiber_entry (self-delete case).
-ppc_u32_result_t ConvertFiberToThread_impl(XThread* thread) {
+u32 ConvertFiberToThread_impl(XThread* thread) {
   auto* ks = thread->kernel_state();
   auto [kthread, pcr, ctx, mem] = GetGuestThreadPtrs(thread);
 
@@ -127,7 +127,7 @@ ppc_u32_result_t ConvertFiberToThread_impl(XThread* thread) {
 // XAPI Fiber Function Implementations
 //=============================================================================
 
-ppc_ptr_result_t ConvertThreadToFiber_entry(ppc_pvoid_t lpParameter) {
+u32 ConvertThreadToFiber_entry(mapped_void lpParameter) {
   auto* thread = XThread::GetCurrentThread();
   auto* ks = thread->kernel_state();
   auto [kthread, pcr, ctx, mem] = GetGuestThreadPtrs(thread);
@@ -170,7 +170,7 @@ ppc_ptr_result_t ConvertThreadToFiber_entry(ppc_pvoid_t lpParameter) {
   return buf_addr;
 }
 
-ppc_u32_result_t ConvertFiberToThread_entry() {
+u32 ConvertFiberToThread_entry() {
   auto* thread = XThread::GetCurrentThread();
   auto result = ConvertFiberToThread_impl(thread);
   if (result) {
@@ -179,14 +179,13 @@ ppc_u32_result_t ConvertFiberToThread_entry() {
   return result;
 }
 
-ppc_ptr_result_t CreateFiber_entry(ppc_u32_t dwStackSize, ppc_fn_t lpStartAddress,
-                                   ppc_pvoid_t lpParameter) {
+u32 CreateFiber_entry(u32 dwStackSize, u32 lpStartAddress, mapped_void lpParameter) {
   auto* thread = XThread::GetCurrentThread();
   auto* ks = thread->kernel_state();
   auto* mem = ks->memory();
 
   // Determine guest stack size
-  uint32_t guest_stack_size = dwStackSize.value();
+  uint32_t guest_stack_size = dwStackSize;
   if (guest_stack_size == 0)
     guest_stack_size = 0x10000;                            // 64KB default
   guest_stack_size = (guest_stack_size + 0xFFF) & ~0xFFF;  // page-align
@@ -214,7 +213,7 @@ ppc_ptr_result_t CreateFiber_entry(ppc_u32_t dwStackSize, ppc_fn_t lpStartAddres
   std::memset(mem->TranslateVirtual(initial_sp), 0, 0x50);
 
   // Resolve start address to host function pointer
-  PPCFunc* start_fn = ks->function_dispatcher()->GetFunction(lpStartAddress.value());
+  PPCFunc* start_fn = ks->function_dispatcher()->GetFunction(lpStartAddress);
 
   // Allocate guest fiber context buffer
   uint32_t buf_addr = mem->SystemHeapAlloc(sizeof(X_FIBER_CONTEXT));
@@ -250,11 +249,11 @@ ppc_ptr_result_t CreateFiber_entry(ppc_u32_t dwStackSize, ppc_fn_t lpStartAddres
                                         stack_bottom, false});
 
   REXKRNL_DEBUG("CreateFiber: fiber={:#010x} start={:#010x} stack={:#x} param={:#010x}", buf_addr,
-                lpStartAddress.value(), guest_stack_size, lpParameter.guest_address());
+                lpStartAddress, guest_stack_size, lpParameter.guest_address());
   return buf_addr;
 }
 
-void DeleteFiber_entry(ppc_pvoid_t lpFiber) {
+void DeleteFiber_entry(mapped_void lpFiber) {
   auto* thread = XThread::GetCurrentThread();
   auto* ks = thread->kernel_state();
   auto* mem = ks->memory();
@@ -285,7 +284,7 @@ void DeleteFiber_entry(ppc_pvoid_t lpFiber) {
   mem->SystemHeapFree(fiber_addr);
 }
 
-void SwitchToFiber_entry(ppc_pvoid_t lpFiber) {
+void SwitchToFiber_entry(mapped_void lpFiber) {
   auto* thread = XThread::GetCurrentThread();
   auto* ks = thread->kernel_state();
   auto* mem = ks->memory();
@@ -336,8 +335,8 @@ void SwitchToFiber_entry(ppc_pvoid_t lpFiber) {
 // REXCRT_EXPORT wiring
 //=============================================================================
 
-REXCRT_EXPORT(rexcrt_ConvertThreadToFiber, rex::kernel::crt::ConvertThreadToFiber_entry)
-REXCRT_EXPORT(rexcrt_ConvertFiberToThread, rex::kernel::crt::ConvertFiberToThread_entry)
-REXCRT_EXPORT(rexcrt_CreateFiber, rex::kernel::crt::CreateFiber_entry)
-REXCRT_EXPORT(rexcrt_DeleteFiber, rex::kernel::crt::DeleteFiber_entry)
-REXCRT_EXPORT(rexcrt_SwitchToFiber, rex::kernel::crt::SwitchToFiber_entry)
+REX_HOOK(rexcrt_ConvertThreadToFiber, rex::kernel::crt::ConvertThreadToFiber_entry)
+REX_HOOK(rexcrt_ConvertFiberToThread, rex::kernel::crt::ConvertFiberToThread_entry)
+REX_HOOK(rexcrt_CreateFiber, rex::kernel::crt::CreateFiber_entry)
+REX_HOOK(rexcrt_DeleteFiber, rex::kernel::crt::DeleteFiber_entry)
+REX_HOOK(rexcrt_SwitchToFiber, rex::kernel::crt::SwitchToFiber_entry)

@@ -15,7 +15,7 @@
 #include <strings.h>
 #endif
 
-#include <rex/ppc/function.h>
+#include <rex/hook.h>
 
 namespace rex::kernel::crt {
 
@@ -105,16 +105,16 @@ static int native_lstrcmpiA(const char* s1, const char* s2) {
 
 }  // namespace rex::kernel::crt
 
-REXCRT_EXPORT(rexcrt_strncmp, rex::kernel::crt::native_strncmp)
-REXCRT_EXPORT(rexcrt_strncpy, rex::kernel::crt::native_strncpy)
-REXCRT_EXPORT(rexcrt_strchr, rex::kernel::crt::native_strchr)
-REXCRT_EXPORT(rexcrt_strstr, rex::kernel::crt::native_strstr)
-REXCRT_EXPORT(rexcrt_strrchr, rex::kernel::crt::native_strrchr)
-REXCRT_EXPORT(rexcrt_strtok, rex::kernel::crt::native_strtok)
-REXCRT_EXPORT(rexcrt__stricmp, rex::kernel::crt::native_stricmp)
-REXCRT_EXPORT(rexcrt_strcpy_s, rex::kernel::crt::native_strcpy_s)
-REXCRT_EXPORT(rexcrt_lstrlenA, rex::kernel::crt::native_lstrlenA)
-REXCRT_EXPORT(rexcrt_lstrcpyA, rex::kernel::crt::native_lstrcpyA)
-REXCRT_EXPORT(rexcrt_lstrcpynA, rex::kernel::crt::native_lstrcpynA)
-REXCRT_EXPORT(rexcrt_lstrcatA, rex::kernel::crt::native_lstrcatA)
-REXCRT_EXPORT(rexcrt_lstrcmpiA, rex::kernel::crt::native_lstrcmpiA)
+REX_HOOK(rexcrt_strncmp, rex::kernel::crt::native_strncmp)
+REX_HOOK(rexcrt_strncpy, rex::kernel::crt::native_strncpy)
+REX_HOOK(rexcrt_strchr, rex::kernel::crt::native_strchr)
+REX_HOOK(rexcrt_strstr, rex::kernel::crt::native_strstr)
+REX_HOOK(rexcrt_strrchr, rex::kernel::crt::native_strrchr)
+REX_HOOK(rexcrt_strtok, rex::kernel::crt::native_strtok)
+REX_HOOK(rexcrt__stricmp, rex::kernel::crt::native_stricmp)
+REX_HOOK(rexcrt_strcpy_s, rex::kernel::crt::native_strcpy_s)
+REX_HOOK(rexcrt_lstrlenA, rex::kernel::crt::native_lstrlenA)
+REX_HOOK(rexcrt_lstrcpyA, rex::kernel::crt::native_lstrcpyA)
+REX_HOOK(rexcrt_lstrcpynA, rex::kernel::crt::native_lstrcpynA)
+REX_HOOK(rexcrt_lstrcatA, rex::kernel::crt::native_lstrcatA)
+REX_HOOK(rexcrt_lstrcmpiA, rex::kernel::crt::native_lstrcmpiA)

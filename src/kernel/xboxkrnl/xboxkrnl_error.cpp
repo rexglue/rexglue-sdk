@@ -18,8 +18,8 @@
 #include <rex/kernel/xboxkrnl/private.h>
 #include <rex/logging.h>
 #include <rex/math.h>
-#include <rex/ppc/function.h>
-#include <rex/ppc/types.h>
+#include <rex/hook.h>
+#include <rex/types.h>
 #include <rex/string.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/user_module.h>
@@ -1014,7 +1014,7 @@ uint32_t xeRtlNtStatusToDosError(uint32_t source_status) {
   return 317;  // ERROR_MR_MID_NOT_FOUND
 }
 
-ppc_u32_result_t RtlNtStatusToDosError_entry(ppc_u32_t source_status) {
+u32 RtlNtStatusToDosError_entry(u32 source_status) {
   uint32_t result = xeRtlNtStatusToDosError(source_status);
   REXKRNL_IMPORT_TRACE("RtlNtStatusToDosError", "status={:#x} -> {}", source_status, result);
   return result;
@@ -1022,4 +1022,4 @@ ppc_u32_result_t RtlNtStatusToDosError_entry(ppc_u32_t source_status) {
 
 }  // namespace rex::kernel::xboxkrnl
 
-XBOXKRNL_EXPORT(__imp__RtlNtStatusToDosError, rex::kernel::xboxkrnl::RtlNtStatusToDosError_entry)
+REX_EXPORT(__imp__RtlNtStatusToDosError, rex::kernel::xboxkrnl::RtlNtStatusToDosError_entry)

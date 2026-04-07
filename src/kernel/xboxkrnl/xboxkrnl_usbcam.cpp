@@ -11,16 +11,16 @@
 
 #include <rex/kernel/xboxkrnl/private.h>
 #include <rex/logging.h>
-#include <rex/ppc/function.h>
-#include <rex/ppc/types.h>
+#include <rex/hook.h>
+#include <rex/types.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xtypes.h>
 
 namespace rex::kernel::xboxkrnl {
 
-ppc_u32_result_t XUsbcamCreate_entry(ppc_u32_t buffer,
-                                     ppc_u32_t buffer_size,  // 0x4B000 640x480?
-                                     ppc_pvoid_t unk3_ptr) {
+u32 XUsbcamCreate_entry(u32 buffer,
+                        u32 buffer_size,  // 0x4B000 640x480?
+                        mapped_void unk3_ptr) {
   // This function should return success.
   // It looks like it only allocates space for usbcam support.
   // returning error code might cause games to initialize incorrectly.
@@ -31,22 +31,22 @@ ppc_u32_result_t XUsbcamCreate_entry(ppc_u32_t buffer,
   return X_STATUS_SUCCESS;
 }
 
-ppc_u32_result_t XUsbcamGetState_entry() {
+u32 XUsbcamGetState_entry() {
   // 0 = not connected.
   return 0;
 }
 
 }  // namespace rex::kernel::xboxkrnl
 
-XBOXKRNL_EXPORT(__imp__XUsbcamCreate, rex::kernel::xboxkrnl::XUsbcamCreate_entry)
-XBOXKRNL_EXPORT(__imp__XUsbcamGetState, rex::kernel::xboxkrnl::XUsbcamGetState_entry)
+REX_EXPORT(__imp__XUsbcamCreate, rex::kernel::xboxkrnl::XUsbcamCreate_entry)
+REX_EXPORT(__imp__XUsbcamGetState, rex::kernel::xboxkrnl::XUsbcamGetState_entry)
 
-XBOXKRNL_EXPORT_STUB(__imp__XUsbcamSetCaptureMode);
-XBOXKRNL_EXPORT_STUB(__imp__XUsbcamGetConfig);
-XBOXKRNL_EXPORT_STUB(__imp__XUsbcamSetConfig);
-XBOXKRNL_EXPORT_STUB(__imp__XUsbcamReadFrame);
-XBOXKRNL_EXPORT_STUB(__imp__XUsbcamSnapshot);
-XBOXKRNL_EXPORT_STUB(__imp__XUsbcamSetView);
-XBOXKRNL_EXPORT_STUB(__imp__XUsbcamGetView);
-XBOXKRNL_EXPORT_STUB(__imp__XUsbcamDestroy);
-XBOXKRNL_EXPORT_STUB(__imp__XUsbcamReset);
+REX_EXPORT_STUB(__imp__XUsbcamSetCaptureMode);
+REX_EXPORT_STUB(__imp__XUsbcamGetConfig);
+REX_EXPORT_STUB(__imp__XUsbcamSetConfig);
+REX_EXPORT_STUB(__imp__XUsbcamReadFrame);
+REX_EXPORT_STUB(__imp__XUsbcamSnapshot);
+REX_EXPORT_STUB(__imp__XUsbcamSetView);
+REX_EXPORT_STUB(__imp__XUsbcamGetView);
+REX_EXPORT_STUB(__imp__XUsbcamDestroy);
+REX_EXPORT_STUB(__imp__XUsbcamReset);

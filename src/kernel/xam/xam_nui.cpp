@@ -10,7 +10,7 @@
  */
 
 #include <rex/logging.h>
-#include <rex/ppc/function.h>
+#include <rex/hook.h>
 #include <rex/runtime.h>
 #include <rex/system/flags.h>
 #include <rex/system/kernel_state.h>
@@ -36,8 +36,7 @@ void XamNuiGetDeviceStatus_entry(ppc_ptr_t<X_NUI_DEVICE_STATUS> status_ptr) {
   status_ptr->status = 0;  // Not connected.
 }
 
-ppc_u32_result_t XamShowNuiTroubleshooterUI_entry(ppc_unknown_t unk1, ppc_unknown_t unk2,
-                                                  ppc_unknown_t unk3) {
+u32 XamShowNuiTroubleshooterUI_entry(u32 unk1, u32 unk2, u32 unk3) {
   // unk1 is 0xFF - possibly user index?
   // unk2, unk3 appear to always be zero.
 
@@ -69,58 +68,58 @@ ppc_u32_result_t XamShowNuiTroubleshooterUI_entry(ppc_unknown_t unk1, ppc_unknow
 }  // namespace kernel
 }  // namespace rex
 
-XAM_EXPORT(__imp__XamNuiGetDeviceStatus, rex::kernel::xam::XamNuiGetDeviceStatus_entry)
-XAM_EXPORT(__imp__XamShowNuiTroubleshooterUI, rex::kernel::xam::XamShowNuiTroubleshooterUI_entry)
+REX_EXPORT(__imp__XamNuiGetDeviceStatus, rex::kernel::xam::XamNuiGetDeviceStatus_entry)
+REX_EXPORT(__imp__XamShowNuiTroubleshooterUI, rex::kernel::xam::XamShowNuiTroubleshooterUI_entry)
 
-XAM_EXPORT_STUB(__imp__XamEnableNatalPlayback);
-XAM_EXPORT_STUB(__imp__XamEnableNuiAutomation);
-XAM_EXPORT_STUB(__imp__XamKinectGetHardwareType);
-XAM_EXPORT_STUB(__imp__XamNatalDeviceAudioCalibrate);
-XAM_EXPORT_STUB(__imp__XamNuiCameraAdjustTilt);
-XAM_EXPORT_STUB(__imp__XamNuiCameraElevationAutoTilt);
-XAM_EXPORT_STUB(__imp__XamNuiCameraElevationGetAngle);
-XAM_EXPORT_STUB(__imp__XamNuiCameraElevationReverseAutoTilt);
-XAM_EXPORT_STUB(__imp__XamNuiCameraElevationSetAngle);
-XAM_EXPORT_STUB(__imp__XamNuiCameraElevationSetCallback);
-XAM_EXPORT_STUB(__imp__XamNuiCameraElevationStopMovement);
-XAM_EXPORT_STUB(__imp__XamNuiCameraGetTiltControllerType);
-XAM_EXPORT_STUB(__imp__XamNuiCameraRememberFloor);
-XAM_EXPORT_STUB(__imp__XamNuiCameraSetFlags);
-XAM_EXPORT_STUB(__imp__XamNuiCameraTiltGetStatus);
-XAM_EXPORT_STUB(__imp__XamNuiCameraTiltReportStatus);
-XAM_EXPORT_STUB(__imp__XamNuiCameraTiltSetCallback);
-XAM_EXPORT_STUB(__imp__XamNuiEnableChatMic);
-XAM_EXPORT_STUB(__imp__XamNuiGetCameraIntrinsics);
-XAM_EXPORT_STUB(__imp__XamNuiGetDepthCalibration);
-XAM_EXPORT_STUB(__imp__XamNuiGetDeviceSerialNumber);
-XAM_EXPORT_STUB(__imp__XamNuiGetFanRate);
-XAM_EXPORT_STUB(__imp__XamNuiGetLoadedDepthCalibration);
-XAM_EXPORT_STUB(__imp__XamNuiGetSupportString);
-XAM_EXPORT_STUB(__imp__XamNuiGetSystemGestureControl);
-XAM_EXPORT_STUB(__imp__XamNuiGetTrueColorInfo);
-XAM_EXPORT_STUB(__imp__XamNuiHudEnableInputFilter);
-XAM_EXPORT_STUB(__imp__XamNuiHudGetEngagedEnrollmentIndex);
-XAM_EXPORT_STUB(__imp__XamNuiHudGetEngagedTrackingID);
-XAM_EXPORT_STUB(__imp__XamNuiHudGetInitializeFlags);
-XAM_EXPORT_STUB(__imp__XamNuiHudGetVersions);
-XAM_EXPORT_STUB(__imp__XamNuiHudInterpretFrame);
-XAM_EXPORT_STUB(__imp__XamNuiHudIsEnabled);
-XAM_EXPORT_STUB(__imp__XamNuiHudSetEngagedTrackingID);
-XAM_EXPORT_STUB(__imp__XamNuiIdentityAbort);
-XAM_EXPORT_STUB(__imp__XamNuiIdentityEnrollForSignIn);
-XAM_EXPORT_STUB(__imp__XamNuiIdentityGetColorTexture);
-XAM_EXPORT_STUB(__imp__XamNuiIdentityGetEnrollmentInfo);
-XAM_EXPORT_STUB(__imp__XamNuiIdentityGetQualityFlags);
-XAM_EXPORT_STUB(__imp__XamNuiIdentityGetQualityFlagsMessage);
-XAM_EXPORT_STUB(__imp__XamNuiIdentityGetSessionId);
-XAM_EXPORT_STUB(__imp__XamNuiIdentityIdentifyWithBiometric);
-XAM_EXPORT_STUB(__imp__XamNuiIdentityUnenroll);
-XAM_EXPORT_STUB(__imp__XamNuiIsChatMicEnabled);
-XAM_EXPORT_STUB(__imp__XamNuiIsDeviceReady);
-XAM_EXPORT_STUB(__imp__XamNuiNatalCameraUpdateComplete);
-XAM_EXPORT_STUB(__imp__XamNuiNatalCameraUpdateStarting);
-XAM_EXPORT_STUB(__imp__XamNuiPlayerEngagementUpdate);
-XAM_EXPORT_STUB(__imp__XamNuiSetForceDeviceOff);
-XAM_EXPORT_STUB(__imp__XamNuiSkeletonGetBestSkeletonIndex);
-XAM_EXPORT_STUB(__imp__XamNuiSkeletonScoreUpdate);
-XAM_EXPORT_STUB(__imp__XamNuiStoreDepthCalibration);
+REX_EXPORT_STUB(__imp__XamEnableNatalPlayback);
+REX_EXPORT_STUB(__imp__XamEnableNuiAutomation);
+REX_EXPORT_STUB(__imp__XamKinectGetHardwareType);
+REX_EXPORT_STUB(__imp__XamNatalDeviceAudioCalibrate);
+REX_EXPORT_STUB(__imp__XamNuiCameraAdjustTilt);
+REX_EXPORT_STUB(__imp__XamNuiCameraElevationAutoTilt);
+REX_EXPORT_STUB(__imp__XamNuiCameraElevationGetAngle);
+REX_EXPORT_STUB(__imp__XamNuiCameraElevationReverseAutoTilt);
+REX_EXPORT_STUB(__imp__XamNuiCameraElevationSetAngle);
+REX_EXPORT_STUB(__imp__XamNuiCameraElevationSetCallback);
+REX_EXPORT_STUB(__imp__XamNuiCameraElevationStopMovement);
+REX_EXPORT_STUB(__imp__XamNuiCameraGetTiltControllerType);
+REX_EXPORT_STUB(__imp__XamNuiCameraRememberFloor);
+REX_EXPORT_STUB(__imp__XamNuiCameraSetFlags);
+REX_EXPORT_STUB(__imp__XamNuiCameraTiltGetStatus);
+REX_EXPORT_STUB(__imp__XamNuiCameraTiltReportStatus);
+REX_EXPORT_STUB(__imp__XamNuiCameraTiltSetCallback);
+REX_EXPORT_STUB(__imp__XamNuiEnableChatMic);
+REX_EXPORT_STUB(__imp__XamNuiGetCameraIntrinsics);
+REX_EXPORT_STUB(__imp__XamNuiGetDepthCalibration);
+REX_EXPORT_STUB(__imp__XamNuiGetDeviceSerialNumber);
+REX_EXPORT_STUB(__imp__XamNuiGetFanRate);
+REX_EXPORT_STUB(__imp__XamNuiGetLoadedDepthCalibration);
+REX_EXPORT_STUB(__imp__XamNuiGetSupportString);
+REX_EXPORT_STUB(__imp__XamNuiGetSystemGestureControl);
+REX_EXPORT_STUB(__imp__XamNuiGetTrueColorInfo);
+REX_EXPORT_STUB(__imp__XamNuiHudEnableInputFilter);
+REX_EXPORT_STUB(__imp__XamNuiHudGetEngagedEnrollmentIndex);
+REX_EXPORT_STUB(__imp__XamNuiHudGetEngagedTrackingID);
+REX_EXPORT_STUB(__imp__XamNuiHudGetInitializeFlags);
+REX_EXPORT_STUB(__imp__XamNuiHudGetVersions);
+REX_EXPORT_STUB(__imp__XamNuiHudInterpretFrame);
+REX_EXPORT_STUB(__imp__XamNuiHudIsEnabled);
+REX_EXPORT_STUB(__imp__XamNuiHudSetEngagedTrackingID);
+REX_EXPORT_STUB(__imp__XamNuiIdentityAbort);
+REX_EXPORT_STUB(__imp__XamNuiIdentityEnrollForSignIn);
+REX_EXPORT_STUB(__imp__XamNuiIdentityGetColorTexture);
+REX_EXPORT_STUB(__imp__XamNuiIdentityGetEnrollmentInfo);
+REX_EXPORT_STUB(__imp__XamNuiIdentityGetQualityFlags);
+REX_EXPORT_STUB(__imp__XamNuiIdentityGetQualityFlagsMessage);
+REX_EXPORT_STUB(__imp__XamNuiIdentityGetSessionId);
+REX_EXPORT_STUB(__imp__XamNuiIdentityIdentifyWithBiometric);
+REX_EXPORT_STUB(__imp__XamNuiIdentityUnenroll);
+REX_EXPORT_STUB(__imp__XamNuiIsChatMicEnabled);
+REX_EXPORT_STUB(__imp__XamNuiIsDeviceReady);
+REX_EXPORT_STUB(__imp__XamNuiNatalCameraUpdateComplete);
+REX_EXPORT_STUB(__imp__XamNuiNatalCameraUpdateStarting);
+REX_EXPORT_STUB(__imp__XamNuiPlayerEngagementUpdate);
+REX_EXPORT_STUB(__imp__XamNuiSetForceDeviceOff);
+REX_EXPORT_STUB(__imp__XamNuiSkeletonGetBestSkeletonIndex);
+REX_EXPORT_STUB(__imp__XamNuiSkeletonScoreUpdate);
+REX_EXPORT_STUB(__imp__XamNuiStoreDepthCalibration);

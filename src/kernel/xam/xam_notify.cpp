@@ -11,8 +11,8 @@
 
 #include <rex/kernel/xam/private.h>
 #include <rex/logging.h>
-#include <rex/ppc/function.h>
-#include <rex/ppc/types.h>
+#include <rex/hook.h>
+#include <rex/types.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xnotifylistener.h>
 #include <rex/system/xtypes.h>
@@ -43,18 +43,16 @@ uint32_t xeXamNotifyCreateListener(uint64_t mask, uint32_t is_system, uint32_t m
   return handle;
 }
 
-ppc_u32_result_t XamNotifyCreateListener_entry(ppc_u64_t mask, ppc_u32_t max_version) {
+u32 XamNotifyCreateListener_entry(u64 mask, u32 max_version) {
   return xeXamNotifyCreateListener(mask, 0, max_version);
 }
 
-ppc_u32_result_t XamNotifyCreateListenerInternal_entry(ppc_u64_t mask, ppc_u32_t is_system,
-                                                       ppc_u32_t max_version) {
+u32 XamNotifyCreateListenerInternal_entry(u64 mask, u32 is_system, u32 max_version) {
   return xeXamNotifyCreateListener(mask, is_system, max_version);
 }
 
 // https://github.com/CodeAsm/ffplay360/blob/master/Common/AtgSignIn.cpp
-ppc_u32_result_t XNotifyGetNext_entry(ppc_u32_t handle, ppc_u32_t match_id, ppc_pu32_t id_ptr,
-                                      ppc_pu32_t param_ptr) {
+u32 XNotifyGetNext_entry(u32 handle, u32 match_id, mapped_u32 id_ptr, mapped_u32 param_ptr) {
   if (param_ptr) {
     *param_ptr = 0;
   }
@@ -97,12 +95,12 @@ ppc_u32_result_t XNotifyGetNext_entry(ppc_u32_t handle, ppc_u32_t match_id, ppc_
   return dequeued ? 1 : 0;
 }
 
-ppc_u32_result_t XNotifyDelayUI_entry(ppc_u32_t delay_ms) {
+u32 XNotifyDelayUI_entry(u32 delay_ms) {
   // Ignored.
   return 0;
 }
 
-void XNotifyPositionUI_entry(ppc_u32_t position) {
+void XNotifyPositionUI_entry(u32 position) {
   // Ignored.
 }
 
@@ -110,18 +108,18 @@ void XNotifyPositionUI_entry(ppc_u32_t position) {
 }  // namespace kernel
 }  // namespace rex
 
-XAM_EXPORT(__imp__XamNotifyCreateListener, rex::kernel::xam::XamNotifyCreateListener_entry)
-XAM_EXPORT(__imp__XamNotifyCreateListenerInternal,
+REX_EXPORT(__imp__XamNotifyCreateListener, rex::kernel::xam::XamNotifyCreateListener_entry)
+REX_EXPORT(__imp__XamNotifyCreateListenerInternal,
            rex::kernel::xam::XamNotifyCreateListenerInternal_entry)
-XAM_EXPORT(__imp__XNotifyGetNext, rex::kernel::xam::XNotifyGetNext_entry)
-XAM_EXPORT(__imp__XNotifyDelayUI, rex::kernel::xam::XNotifyDelayUI_entry)
-XAM_EXPORT(__imp__XNotifyPositionUI, rex::kernel::xam::XNotifyPositionUI_entry)
+REX_EXPORT(__imp__XNotifyGetNext, rex::kernel::xam::XNotifyGetNext_entry)
+REX_EXPORT(__imp__XNotifyDelayUI, rex::kernel::xam::XNotifyDelayUI_entry)
+REX_EXPORT(__imp__XNotifyPositionUI, rex::kernel::xam::XNotifyPositionUI_entry)
 
-XAM_EXPORT_STUB(__imp__XNotifyBroadcast);
-XAM_EXPORT_STUB(__imp__XNotifyQueueUI);
-XAM_EXPORT_STUB(__imp__XNotifyQueueUIEx);
-XAM_EXPORT_STUB(__imp__XNotifyRegisterArea);
-XAM_EXPORT_STUB(__imp__XNotifyUIGetOptions);
-XAM_EXPORT_STUB(__imp__XNotifyUISetOptions);
-XAM_EXPORT_STUB(__imp__XamNotifyCreateListenerRangeInternal);
-XAM_EXPORT_STUB(__imp__XamNotifyDelayUIInternal);
+REX_EXPORT_STUB(__imp__XNotifyBroadcast);
+REX_EXPORT_STUB(__imp__XNotifyQueueUI);
+REX_EXPORT_STUB(__imp__XNotifyQueueUIEx);
+REX_EXPORT_STUB(__imp__XNotifyRegisterArea);
+REX_EXPORT_STUB(__imp__XNotifyUIGetOptions);
+REX_EXPORT_STUB(__imp__XNotifyUISetOptions);
+REX_EXPORT_STUB(__imp__XamNotifyCreateListenerRangeInternal);
+REX_EXPORT_STUB(__imp__XamNotifyDelayUIInternal);

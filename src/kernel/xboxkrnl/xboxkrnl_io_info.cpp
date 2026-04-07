@@ -16,8 +16,8 @@
 #include <rex/kernel/xboxkrnl/private.h>
 #include <rex/logging.h>
 #include <rex/memory.h>
-#include <rex/ppc/function.h>
-#include <rex/ppc/types.h>
+#include <rex/hook.h>
+#include <rex/types.h>
 #include <rex/system/info/file.h>
 #include <rex/system/info/volume.h>
 #include <rex/system/kernel_state.h>
@@ -104,10 +104,8 @@ uint32_t GetQueryFileInfoMinimumLength(uint32_t info_class) {
   }
 }
 
-ppc_u32_result_t NtQueryInformationFile_entry(ppc_u32_t file_handle,
-                                              ppc_ptr_t<X_IO_STATUS_BLOCK> io_status_block_ptr,
-                                              ppc_pvoid_t info_ptr, ppc_u32_t info_length,
-                                              ppc_u32_t info_class) {
+u32 NtQueryInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_status_block_ptr,
+                                 mapped_void info_ptr, u32 info_length, u32 info_class) {
   uint32_t minimum_length = GetQueryFileInfoMinimumLength(info_class);
   if (!minimum_length) {
     return X_STATUS_INVALID_INFO_CLASS;
@@ -233,10 +231,8 @@ uint32_t GetSetFileInfoMinimumLength(uint32_t info_class) {
   }
 }
 
-ppc_u32_result_t NtSetInformationFile_entry(ppc_u32_t file_handle,
-                                            ppc_ptr_t<X_IO_STATUS_BLOCK> io_status_block,
-                                            ppc_pvoid_t info_ptr, ppc_u32_t info_length,
-                                            ppc_u32_t info_class) {
+u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_status_block,
+                               mapped_void info_ptr, u32 info_length, u32 info_class) {
   uint32_t minimum_length = GetSetFileInfoMinimumLength(info_class);
   if (!minimum_length) {
     return X_STATUS_INVALID_INFO_CLASS;
@@ -373,9 +369,9 @@ uint32_t GetQueryVolumeInfoMinimumLength(uint32_t info_class) {
   }
 }
 
-ppc_u32_result_t NtQueryVolumeInformationFile_entry(
-    ppc_u32_t file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_status_block_ptr, ppc_pvoid_t info_ptr,
-    ppc_u32_t info_length, ppc_u32_t info_class) {
+u32 NtQueryVolumeInformationFile_entry(u32 file_handle,
+                                       ppc_ptr_t<X_IO_STATUS_BLOCK> io_status_block_ptr,
+                                       mapped_void info_ptr, u32 info_length, u32 info_class) {
   uint32_t minimum_length = GetQueryVolumeInfoMinimumLength(info_class);
   if (!minimum_length) {
     return X_STATUS_INVALID_INFO_CLASS;
@@ -459,7 +455,7 @@ ppc_u32_result_t NtQueryVolumeInformationFile_entry(
 
 }  // namespace rex::kernel::xboxkrnl
 
-XBOXKRNL_EXPORT(__imp__NtQueryInformationFile, rex::kernel::xboxkrnl::NtQueryInformationFile_entry)
-XBOXKRNL_EXPORT(__imp__NtSetInformationFile, rex::kernel::xboxkrnl::NtSetInformationFile_entry)
-XBOXKRNL_EXPORT(__imp__NtQueryVolumeInformationFile,
-                rex::kernel::xboxkrnl::NtQueryVolumeInformationFile_entry)
+REX_EXPORT(__imp__NtQueryInformationFile, rex::kernel::xboxkrnl::NtQueryInformationFile_entry)
+REX_EXPORT(__imp__NtSetInformationFile, rex::kernel::xboxkrnl::NtSetInformationFile_entry)
+REX_EXPORT(__imp__NtQueryVolumeInformationFile,
+           rex::kernel::xboxkrnl::NtQueryVolumeInformationFile_entry)

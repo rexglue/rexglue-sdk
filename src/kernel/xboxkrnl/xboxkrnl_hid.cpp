@@ -14,14 +14,14 @@
 
 #include <rex/kernel/xboxkrnl/private.h>
 #include <rex/logging.h>
-#include <rex/ppc/function.h>
-#include <rex/ppc/types.h>
+#include <rex/hook.h>
+#include <rex/types.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xtypes.h>
 
 namespace rex::kernel::xboxkrnl {
 
-ppc_u32_result_t HidReadKeys_entry(ppc_u32_t unk1, ppc_unknown_t unk2, ppc_unknown_t unk3) {
+u32 HidReadKeys_entry(u32 unk1, u32 unk2, u32 unk3) {
   /* TODO(gibbed):
    * Games check for the following errors:
    *   0xC000009D - translated to 0x48F  - ERROR_DEVICE_NOT_CONNECTED
@@ -35,14 +35,14 @@ ppc_u32_result_t HidReadKeys_entry(ppc_u32_t unk1, ppc_unknown_t unk2, ppc_unkno
   return 0xC000009D;
 }
 
-ppc_u32_result_t HidGetCapabilities_entry(ppc_u32_t unk1, ppc_unknown_t caps_ptr) {
+u32 HidGetCapabilities_entry(u32 unk1, u32 caps_ptr) {
   // HidGetCapabilities - ordinal 0x01EA
   // Returns capabilities for HID device (keyboard/mouse)
   // Not supported in rexglue - return unsuccessful
   return X_STATUS_UNSUCCESSFUL;
 }
 
-ppc_u32_result_t HidGetLastInputTime_entry(ppc_pu32_t time_ptr) {
+u32 HidGetLastInputTime_entry(mapped_u32 time_ptr) {
   // HidGetLastInputTime - ordinal 0x01F1
   // Returns the last time any HID input was received
   if (time_ptr) {
@@ -51,7 +51,7 @@ ppc_u32_result_t HidGetLastInputTime_entry(ppc_pu32_t time_ptr) {
   return X_STATUS_SUCCESS;
 }
 
-ppc_u32_result_t HidReadMouseChanges_entry(ppc_u32_t unk1, ppc_unknown_t unk2) {
+u32 HidReadMouseChanges_entry(u32 unk1, u32 unk2) {
   // HidReadMouseChanges - ordinal 0x0273
   // Reads mouse input changes - not supported in rexglue
   return X_STATUS_UNSUCCESSFUL;
@@ -59,54 +59,54 @@ ppc_u32_result_t HidReadMouseChanges_entry(ppc_u32_t unk1, ppc_unknown_t unk2) {
 
 }  // namespace rex::kernel::xboxkrnl
 
-XBOXKRNL_EXPORT(__imp__HidReadKeys, rex::kernel::xboxkrnl::HidReadKeys_entry)
-XBOXKRNL_EXPORT(__imp__HidGetCapabilities, rex::kernel::xboxkrnl::HidGetCapabilities_entry)
-XBOXKRNL_EXPORT(__imp__HidGetLastInputTime, rex::kernel::xboxkrnl::HidGetLastInputTime_entry)
-XBOXKRNL_EXPORT(__imp__HidReadMouseChanges, rex::kernel::xboxkrnl::HidReadMouseChanges_entry)
+REX_EXPORT(__imp__HidReadKeys, rex::kernel::xboxkrnl::HidReadKeys_entry)
+REX_EXPORT(__imp__HidGetCapabilities, rex::kernel::xboxkrnl::HidGetCapabilities_entry)
+REX_EXPORT(__imp__HidGetLastInputTime, rex::kernel::xboxkrnl::HidGetLastInputTime_entry)
+REX_EXPORT(__imp__HidReadMouseChanges, rex::kernel::xboxkrnl::HidReadMouseChanges_entry)
 
 // XInputd stubs
-XBOXKRNL_EXPORT_STUB(__imp__XInputdGetCapabilities);
-XBOXKRNL_EXPORT_STUB(__imp__XInputdReadState);
-XBOXKRNL_EXPORT_STUB(__imp__XInputdWriteState);
-XBOXKRNL_EXPORT_STUB(__imp__XInputdNotify);
-XBOXKRNL_EXPORT_STUB(__imp__XInputdRawState);
-XBOXKRNL_EXPORT_STUB(__imp__XInputdGetDeviceStats);
-XBOXKRNL_EXPORT_STUB(__imp__XInputdResetDevice);
-XBOXKRNL_EXPORT_STUB(__imp__XInputdSetRingOfLight);
-XBOXKRNL_EXPORT_STUB(__imp__XInputdSetRFPowerMode);
-XBOXKRNL_EXPORT_STUB(__imp__XInputdSetRadioFrequency);
-XBOXKRNL_EXPORT_STUB(__imp__XInputdPassThroughRFCommand);
-XBOXKRNL_EXPORT_STUB(__imp__XInputdPowerDownDevice);
-XBOXKRNL_EXPORT_STUB(__imp__XInputdReadTextKeystroke);
-XBOXKRNL_EXPORT_STUB(__imp__XInputdSendStayAliveRequest);
-XBOXKRNL_EXPORT_STUB(__imp__XInputdFFGetDeviceInfo);
-XBOXKRNL_EXPORT_STUB(__imp__XInputdFFSetEffect);
-XBOXKRNL_EXPORT_STUB(__imp__XInputdFFUpdateEffect);
-XBOXKRNL_EXPORT_STUB(__imp__XInputdFFEffectOperation);
-XBOXKRNL_EXPORT_STUB(__imp__XInputdFFDeviceControl);
-XBOXKRNL_EXPORT_STUB(__imp__XInputdFFSetDeviceGain);
-XBOXKRNL_EXPORT_STUB(__imp__XInputdFFCancelIo);
-XBOXKRNL_EXPORT_STUB(__imp__XInputdFFSetRumble);
-XBOXKRNL_EXPORT_STUB(__imp__XInputdGetLastTextInputTime);
-XBOXKRNL_EXPORT_STUB(__imp__XInputdSetTextMessengerIndicator);
-XBOXKRNL_EXPORT_STUB(__imp__XInputdSetTextDeviceKeyLocks);
-XBOXKRNL_EXPORT_STUB(__imp__XInputdGetTextDeviceKeyLocks);
-XBOXKRNL_EXPORT_STUB(__imp__XInputdControl);
-XBOXKRNL_EXPORT_STUB(__imp__XInputdSetWifiChannel);
-XBOXKRNL_EXPORT_STUB(__imp__XInputdGetDevicePid);
-XBOXKRNL_EXPORT_STUB(__imp__XInputdGetFailedConnectionOrBind);
-XBOXKRNL_EXPORT_STUB(__imp__XInputdSetFailedConnectionOrBindCallback);
-XBOXKRNL_EXPORT_STUB(__imp__XInputdSetMinMaxAuthDelay);
+REX_EXPORT_STUB(__imp__XInputdGetCapabilities);
+REX_EXPORT_STUB(__imp__XInputdReadState);
+REX_EXPORT_STUB(__imp__XInputdWriteState);
+REX_EXPORT_STUB(__imp__XInputdNotify);
+REX_EXPORT_STUB(__imp__XInputdRawState);
+REX_EXPORT_STUB(__imp__XInputdGetDeviceStats);
+REX_EXPORT_STUB(__imp__XInputdResetDevice);
+REX_EXPORT_STUB(__imp__XInputdSetRingOfLight);
+REX_EXPORT_STUB(__imp__XInputdSetRFPowerMode);
+REX_EXPORT_STUB(__imp__XInputdSetRadioFrequency);
+REX_EXPORT_STUB(__imp__XInputdPassThroughRFCommand);
+REX_EXPORT_STUB(__imp__XInputdPowerDownDevice);
+REX_EXPORT_STUB(__imp__XInputdReadTextKeystroke);
+REX_EXPORT_STUB(__imp__XInputdSendStayAliveRequest);
+REX_EXPORT_STUB(__imp__XInputdFFGetDeviceInfo);
+REX_EXPORT_STUB(__imp__XInputdFFSetEffect);
+REX_EXPORT_STUB(__imp__XInputdFFUpdateEffect);
+REX_EXPORT_STUB(__imp__XInputdFFEffectOperation);
+REX_EXPORT_STUB(__imp__XInputdFFDeviceControl);
+REX_EXPORT_STUB(__imp__XInputdFFSetDeviceGain);
+REX_EXPORT_STUB(__imp__XInputdFFCancelIo);
+REX_EXPORT_STUB(__imp__XInputdFFSetRumble);
+REX_EXPORT_STUB(__imp__XInputdGetLastTextInputTime);
+REX_EXPORT_STUB(__imp__XInputdSetTextMessengerIndicator);
+REX_EXPORT_STUB(__imp__XInputdSetTextDeviceKeyLocks);
+REX_EXPORT_STUB(__imp__XInputdGetTextDeviceKeyLocks);
+REX_EXPORT_STUB(__imp__XInputdControl);
+REX_EXPORT_STUB(__imp__XInputdSetWifiChannel);
+REX_EXPORT_STUB(__imp__XInputdGetDevicePid);
+REX_EXPORT_STUB(__imp__XInputdGetFailedConnectionOrBind);
+REX_EXPORT_STUB(__imp__XInputdSetFailedConnectionOrBindCallback);
+REX_EXPORT_STUB(__imp__XInputdSetMinMaxAuthDelay);
 
 // Drv stubs
-XBOXKRNL_EXPORT_STUB(__imp__DrvSetSysReqCallback);
-XBOXKRNL_EXPORT_STUB(__imp__DrvSetUserBindingCallback);
-XBOXKRNL_EXPORT_STUB(__imp__DrvSetContentStorageCallback);
-XBOXKRNL_EXPORT_STUB(__imp__DrvSetAutobind);
-XBOXKRNL_EXPORT_STUB(__imp__DrvGetContentStorageNotification);
-XBOXKRNL_EXPORT_STUB(__imp__DrvXenonButtonPressed);
-XBOXKRNL_EXPORT_STUB(__imp__DrvBindToUser);
-XBOXKRNL_EXPORT_STUB(__imp__DrvSetDeviceConfigChangeCallback);
-XBOXKRNL_EXPORT_STUB(__imp__DrvDeviceConfigChange);
-XBOXKRNL_EXPORT_STUB(__imp__DrvSetMicArrayStartCallback);
-XBOXKRNL_EXPORT_STUB(__imp__DrvSetAudioLatencyCallback);
+REX_EXPORT_STUB(__imp__DrvSetSysReqCallback);
+REX_EXPORT_STUB(__imp__DrvSetUserBindingCallback);
+REX_EXPORT_STUB(__imp__DrvSetContentStorageCallback);
+REX_EXPORT_STUB(__imp__DrvSetAutobind);
+REX_EXPORT_STUB(__imp__DrvGetContentStorageNotification);
+REX_EXPORT_STUB(__imp__DrvXenonButtonPressed);
+REX_EXPORT_STUB(__imp__DrvBindToUser);
+REX_EXPORT_STUB(__imp__DrvSetDeviceConfigChangeCallback);
+REX_EXPORT_STUB(__imp__DrvDeviceConfigChange);
+REX_EXPORT_STUB(__imp__DrvSetMicArrayStartCallback);
+REX_EXPORT_STUB(__imp__DrvSetAudioLatencyCallback);

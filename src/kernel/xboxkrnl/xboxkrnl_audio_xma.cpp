@@ -19,8 +19,8 @@
 #include <rex/audio/xma/decoder.h>
 #include <rex/kernel/xboxkrnl/private.h>
 #include <rex/logging.h>
-#include <rex/ppc/function.h>
-#include <rex/ppc/types.h>
+#include <rex/hook.h>
+#include <rex/types.h>
 #include <rex/runtime.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xtypes.h>
@@ -63,7 +63,7 @@ using rex::audio::XMA_CONTEXT_DATA;
 // restrictions of frame/subframe/etc:
 // https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.xaudio2.xaudio2_buffer(v=vs.85).aspx
 
-ppc_u32_result_t XMACreateContext_entry(ppc_pu32_t context_out_ptr) {
+u32 XMACreateContext_entry(mapped_u32 context_out_ptr) {
   REXKRNL_DEBUG("XMACreateContext called!");
   auto xma_decoder =
       static_cast<audio::AudioSystem*>(REX_KERNEL_STATE()->emulator()->audio_system())
@@ -76,7 +76,7 @@ ppc_u32_result_t XMACreateContext_entry(ppc_pu32_t context_out_ptr) {
   return X_STATUS_SUCCESS;
 }
 
-ppc_u32_result_t XMAReleaseContext_entry(ppc_pvoid_t context_ptr) {
+u32 XMAReleaseContext_entry(mapped_void context_ptr) {
   auto xma_decoder =
       static_cast<audio::AudioSystem*>(REX_KERNEL_STATE()->emulator()->audio_system())
           ->xma_decoder();
@@ -122,8 +122,7 @@ struct XMA_CONTEXT_INIT {
 };
 static_assert_size(XMA_CONTEXT_INIT, 56);
 
-ppc_u32_result_t XMAInitializeContext_entry(ppc_pvoid_t context_ptr,
-                                            ppc_ptr_t<XMA_CONTEXT_INIT> context_init) {
+u32 XMAInitializeContext_entry(mapped_void context_ptr, ppc_ptr_t<XMA_CONTEXT_INIT> context_init) {
   // Input buffers may be null (buffer 1 in 415607D4).
   // Convert to host endianness.
   uint32_t input_buffer_0_guest_ptr = context_init->input_buffer_0_ptr;
@@ -192,8 +191,7 @@ ppc_u32_result_t XMAInitializeContext_entry(ppc_pvoid_t context_ptr,
   return 0;
 }
 
-ppc_u32_result_t XMASetLoopData_entry(ppc_pvoid_t context_ptr,
-                                      ppc_ptr_t<XMA_CONTEXT_DATA> loop_data) {
+u32 XMASetLoopData_entry(mapped_void context_ptr, ppc_ptr_t<XMA_CONTEXT_DATA> loop_data) {
   XMA_CONTEXT_DATA context(context_ptr);
 
   context.loop_start = loop_data->loop_start;
@@ -207,12 +205,12 @@ ppc_u32_result_t XMASetLoopData_entry(ppc_pvoid_t context_ptr,
   return 0;
 }
 
-ppc_u32_result_t XMAGetInputBufferReadOffset_entry(ppc_pvoid_t context_ptr) {
+u32 XMAGetInputBufferReadOffset_entry(mapped_void context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.input_buffer_read_offset;
 }
 
-ppc_u32_result_t XMASetInputBufferReadOffset_entry(ppc_pvoid_t context_ptr, ppc_u32_t value) {
+u32 XMASetInputBufferReadOffset_entry(mapped_void context_ptr, u32 value) {
   XMA_CONTEXT_DATA context(context_ptr);
   context.input_buffer_read_offset = value;
   context.Store(context_ptr);
@@ -220,8 +218,7 @@ ppc_u32_result_t XMASetInputBufferReadOffset_entry(ppc_pvoid_t context_ptr, ppc_
   return 0;
 }
 
-ppc_u32_result_t XMASetInputBuffer0_entry(ppc_pvoid_t context_ptr, ppc_pvoid_t buffer,
-                                          ppc_u32_t packet_count) {
+u32 XMASetInputBuffer0_entry(mapped_void context_ptr, mapped_void buffer, u32 packet_count) {
   uint32_t buffer_physical_address =
       REX_KERNEL_MEMORY()->GetPhysicalAddress(buffer.guest_address());
   assert_true(buffer_physical_address != UINT32_MAX);
@@ -242,12 +239,12 @@ ppc_u32_result_t XMASetInputBuffer0_entry(ppc_pvoid_t context_ptr, ppc_pvoid_t b
   return 0;
 }
 
-ppc_u32_result_t XMAIsInputBuffer0Valid_entry(ppc_pvoid_t context_ptr) {
+u32 XMAIsInputBuffer0Valid_entry(mapped_void context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.input_buffer_0_valid;
 }
 
-ppc_u32_result_t XMASetInputBuffer0Valid_entry(ppc_pvoid_t context_ptr) {
+u32 XMASetInputBuffer0Valid_entry(mapped_void context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   context.input_buffer_0_valid = 1;
   context.Store(context_ptr);
@@ -255,8 +252,7 @@ ppc_u32_result_t XMASetInputBuffer0Valid_entry(ppc_pvoid_t context_ptr) {
   return 0;
 }
 
-ppc_u32_result_t XMASetInputBuffer1_entry(ppc_pvoid_t context_ptr, ppc_pvoid_t buffer,
-                                          ppc_u32_t packet_count) {
+u32 XMASetInputBuffer1_entry(mapped_void context_ptr, mapped_void buffer, u32 packet_count) {
   uint32_t buffer_physical_address =
       REX_KERNEL_MEMORY()->GetPhysicalAddress(buffer.guest_address());
   assert_true(buffer_physical_address != UINT32_MAX);
@@ -277,12 +273,12 @@ ppc_u32_result_t XMASetInputBuffer1_entry(ppc_pvoid_t context_ptr, ppc_pvoid_t b
   return 0;
 }
 
-ppc_u32_result_t XMAIsInputBuffer1Valid_entry(ppc_pvoid_t context_ptr) {
+u32 XMAIsInputBuffer1Valid_entry(mapped_void context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.input_buffer_1_valid;
 }
 
-ppc_u32_result_t XMASetInputBuffer1Valid_entry(ppc_pvoid_t context_ptr) {
+u32 XMASetInputBuffer1Valid_entry(mapped_void context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   context.input_buffer_1_valid = 1;
   context.Store(context_ptr);
@@ -290,12 +286,12 @@ ppc_u32_result_t XMASetInputBuffer1Valid_entry(ppc_pvoid_t context_ptr) {
   return 0;
 }
 
-ppc_u32_result_t XMAIsOutputBufferValid_entry(ppc_pvoid_t context_ptr) {
+u32 XMAIsOutputBufferValid_entry(mapped_void context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.output_buffer_valid;
 }
 
-ppc_u32_result_t XMASetOutputBufferValid_entry(ppc_pvoid_t context_ptr) {
+u32 XMASetOutputBufferValid_entry(mapped_void context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   context.output_buffer_valid = 1;
   context.Store(context_ptr);
@@ -303,12 +299,12 @@ ppc_u32_result_t XMASetOutputBufferValid_entry(ppc_pvoid_t context_ptr) {
   return 0;
 }
 
-ppc_u32_result_t XMAGetOutputBufferReadOffset_entry(ppc_pvoid_t context_ptr) {
+u32 XMAGetOutputBufferReadOffset_entry(mapped_void context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.output_buffer_read_offset;
 }
 
-ppc_u32_result_t XMASetOutputBufferReadOffset_entry(ppc_pvoid_t context_ptr, ppc_u32_t value) {
+u32 XMASetOutputBufferReadOffset_entry(mapped_void context_ptr, u32 value) {
   XMA_CONTEXT_DATA context(context_ptr);
   context.output_buffer_read_offset = value;
   context.Store(context_ptr);
@@ -316,22 +312,22 @@ ppc_u32_result_t XMASetOutputBufferReadOffset_entry(ppc_pvoid_t context_ptr, ppc
   return 0;
 }
 
-ppc_u32_result_t XMAGetOutputBufferWriteOffset_entry(ppc_pvoid_t context_ptr) {
+u32 XMAGetOutputBufferWriteOffset_entry(mapped_void context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.output_buffer_write_offset;
 }
 
-ppc_u32_result_t XMAGetPacketMetadata_entry(ppc_pvoid_t context_ptr) {
+u32 XMAGetPacketMetadata_entry(mapped_void context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.packet_metadata;
 }
 
-ppc_u32_result_t XMAEnableContext_entry(ppc_pvoid_t context_ptr) {
+u32 XMAEnableContext_entry(mapped_void context_ptr) {
   StoreXmaContextIndexedRegister(REX_KERNEL_STATE(), 0x1940, context_ptr.guest_address());
   return 0;
 }
 
-ppc_u32_result_t XMADisableContext_entry(ppc_pvoid_t context_ptr, ppc_u32_t wait) {
+u32 XMADisableContext_entry(mapped_void context_ptr, u32 wait) {
   X_HRESULT result = X_E_SUCCESS;
   StoreXmaContextIndexedRegister(REX_KERNEL_STATE(), 0x1A40, context_ptr.guest_address());
   if (!static_cast<audio::AudioSystem*>(REX_KERNEL_STATE()->emulator()->audio_system())
@@ -342,7 +338,7 @@ ppc_u32_result_t XMADisableContext_entry(ppc_pvoid_t context_ptr, ppc_u32_t wait
   return result;
 }
 
-ppc_u32_result_t XMABlockWhileInUse_entry(ppc_pvoid_t context_ptr) {
+u32 XMABlockWhileInUse_entry(mapped_void context_ptr) {
   do {
     XMA_CONTEXT_DATA context(context_ptr);
     if (!context.input_buffer_0_valid && !context.input_buffer_1_valid) {
@@ -358,32 +354,29 @@ ppc_u32_result_t XMABlockWhileInUse_entry(ppc_pvoid_t context_ptr) {
 
 }  // namespace rex::kernel::xboxkrnl
 
-XBOXKRNL_EXPORT(__imp__XMACreateContext, rex::kernel::xboxkrnl::XMACreateContext_entry)
-XBOXKRNL_EXPORT(__imp__XMAReleaseContext, rex::kernel::xboxkrnl::XMAReleaseContext_entry)
-XBOXKRNL_EXPORT(__imp__XMAInitializeContext, rex::kernel::xboxkrnl::XMAInitializeContext_entry)
-XBOXKRNL_EXPORT(__imp__XMASetLoopData, rex::kernel::xboxkrnl::XMASetLoopData_entry)
-XBOXKRNL_EXPORT(__imp__XMAGetInputBufferReadOffset,
-                rex::kernel::xboxkrnl::XMAGetInputBufferReadOffset_entry)
-XBOXKRNL_EXPORT(__imp__XMASetInputBufferReadOffset,
-                rex::kernel::xboxkrnl::XMASetInputBufferReadOffset_entry)
-XBOXKRNL_EXPORT(__imp__XMASetInputBuffer0, rex::kernel::xboxkrnl::XMASetInputBuffer0_entry)
-XBOXKRNL_EXPORT(__imp__XMAIsInputBuffer0Valid, rex::kernel::xboxkrnl::XMAIsInputBuffer0Valid_entry)
-XBOXKRNL_EXPORT(__imp__XMASetInputBuffer0Valid,
-                rex::kernel::xboxkrnl::XMASetInputBuffer0Valid_entry)
-XBOXKRNL_EXPORT(__imp__XMASetInputBuffer1, rex::kernel::xboxkrnl::XMASetInputBuffer1_entry)
-XBOXKRNL_EXPORT(__imp__XMAIsInputBuffer1Valid, rex::kernel::xboxkrnl::XMAIsInputBuffer1Valid_entry)
-XBOXKRNL_EXPORT(__imp__XMASetInputBuffer1Valid,
-                rex::kernel::xboxkrnl::XMASetInputBuffer1Valid_entry)
-XBOXKRNL_EXPORT(__imp__XMAIsOutputBufferValid, rex::kernel::xboxkrnl::XMAIsOutputBufferValid_entry)
-XBOXKRNL_EXPORT(__imp__XMASetOutputBufferValid,
-                rex::kernel::xboxkrnl::XMASetOutputBufferValid_entry)
-XBOXKRNL_EXPORT(__imp__XMAGetOutputBufferReadOffset,
-                rex::kernel::xboxkrnl::XMAGetOutputBufferReadOffset_entry)
-XBOXKRNL_EXPORT(__imp__XMASetOutputBufferReadOffset,
-                rex::kernel::xboxkrnl::XMASetOutputBufferReadOffset_entry)
-XBOXKRNL_EXPORT(__imp__XMAGetOutputBufferWriteOffset,
-                rex::kernel::xboxkrnl::XMAGetOutputBufferWriteOffset_entry)
-XBOXKRNL_EXPORT(__imp__XMAGetPacketMetadata, rex::kernel::xboxkrnl::XMAGetPacketMetadata_entry)
-XBOXKRNL_EXPORT(__imp__XMAEnableContext, rex::kernel::xboxkrnl::XMAEnableContext_entry)
-XBOXKRNL_EXPORT(__imp__XMADisableContext, rex::kernel::xboxkrnl::XMADisableContext_entry)
-XBOXKRNL_EXPORT(__imp__XMABlockWhileInUse, rex::kernel::xboxkrnl::XMABlockWhileInUse_entry)
+REX_EXPORT(__imp__XMACreateContext, rex::kernel::xboxkrnl::XMACreateContext_entry)
+REX_EXPORT(__imp__XMAReleaseContext, rex::kernel::xboxkrnl::XMAReleaseContext_entry)
+REX_EXPORT(__imp__XMAInitializeContext, rex::kernel::xboxkrnl::XMAInitializeContext_entry)
+REX_EXPORT(__imp__XMASetLoopData, rex::kernel::xboxkrnl::XMASetLoopData_entry)
+REX_EXPORT(__imp__XMAGetInputBufferReadOffset,
+           rex::kernel::xboxkrnl::XMAGetInputBufferReadOffset_entry)
+REX_EXPORT(__imp__XMASetInputBufferReadOffset,
+           rex::kernel::xboxkrnl::XMASetInputBufferReadOffset_entry)
+REX_EXPORT(__imp__XMASetInputBuffer0, rex::kernel::xboxkrnl::XMASetInputBuffer0_entry)
+REX_EXPORT(__imp__XMAIsInputBuffer0Valid, rex::kernel::xboxkrnl::XMAIsInputBuffer0Valid_entry)
+REX_EXPORT(__imp__XMASetInputBuffer0Valid, rex::kernel::xboxkrnl::XMASetInputBuffer0Valid_entry)
+REX_EXPORT(__imp__XMASetInputBuffer1, rex::kernel::xboxkrnl::XMASetInputBuffer1_entry)
+REX_EXPORT(__imp__XMAIsInputBuffer1Valid, rex::kernel::xboxkrnl::XMAIsInputBuffer1Valid_entry)
+REX_EXPORT(__imp__XMASetInputBuffer1Valid, rex::kernel::xboxkrnl::XMASetInputBuffer1Valid_entry)
+REX_EXPORT(__imp__XMAIsOutputBufferValid, rex::kernel::xboxkrnl::XMAIsOutputBufferValid_entry)
+REX_EXPORT(__imp__XMASetOutputBufferValid, rex::kernel::xboxkrnl::XMASetOutputBufferValid_entry)
+REX_EXPORT(__imp__XMAGetOutputBufferReadOffset,
+           rex::kernel::xboxkrnl::XMAGetOutputBufferReadOffset_entry)
+REX_EXPORT(__imp__XMASetOutputBufferReadOffset,
+           rex::kernel::xboxkrnl::XMASetOutputBufferReadOffset_entry)
+REX_EXPORT(__imp__XMAGetOutputBufferWriteOffset,
+           rex::kernel::xboxkrnl::XMAGetOutputBufferWriteOffset_entry)
+REX_EXPORT(__imp__XMAGetPacketMetadata, rex::kernel::xboxkrnl::XMAGetPacketMetadata_entry)
+REX_EXPORT(__imp__XMAEnableContext, rex::kernel::xboxkrnl::XMAEnableContext_entry)
+REX_EXPORT(__imp__XMADisableContext, rex::kernel::xboxkrnl::XMADisableContext_entry)
+REX_EXPORT(__imp__XMABlockWhileInUse, rex::kernel::xboxkrnl::XMABlockWhileInUse_entry)

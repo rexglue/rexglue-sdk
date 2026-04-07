@@ -9,7 +9,7 @@
  */
 #include <cstring>
 
-#include <rex/ppc/function.h>
+#include <rex/hook.h>
 
 namespace rex::kernel::crt {
 
@@ -73,13 +73,13 @@ static int native_memmove_s(void* dst, size_t dstsz, const void* src, size_t cou
 
 }  // namespace rex::kernel::crt
 
-REXCRT_EXPORT(rexcrt_memcpy, rex::kernel::crt::native_memcpy)
-REXCRT_EXPORT(rexcrt_memmove, rex::kernel::crt::native_memmove)
-REXCRT_EXPORT(rexcrt_memset, rex::kernel::crt::native_memset)
-REXCRT_EXPORT(rexcrt_memchr, rex::kernel::crt::native_memchr)
-REXCRT_EXPORT(rexcrt_XMemCpy, rex::kernel::crt::native_XMemCpy)
-REXCRT_EXPORT(rexcrt_XMemSet, rex::kernel::crt::native_XMemSet)
-REXCRT_EXPORT(rexcrt_XMemSet128, rex::kernel::crt::native_XMemSet128)
-REXCRT_EXPORT(rexcrt_memset_vmx, rex::kernel::crt::native_memset_vmx)
-REXCRT_EXPORT(rexcrt_memcpy_s, rex::kernel::crt::native_memcpy_s)
-REXCRT_EXPORT(rexcrt_memmove_s, rex::kernel::crt::native_memmove_s)
+REX_HOOK(rexcrt_memcpy, rex::kernel::crt::native_memcpy)
+REX_HOOK(rexcrt_memmove, rex::kernel::crt::native_memmove)
+REX_HOOK(rexcrt_memset, rex::kernel::crt::native_memset)
+REX_HOOK(rexcrt_memchr, rex::kernel::crt::native_memchr)
+REX_HOOK(rexcrt_XMemCpy, rex::kernel::crt::native_XMemCpy)
+REX_HOOK(rexcrt_XMemSet, rex::kernel::crt::native_XMemSet)
+REX_HOOK(rexcrt_XMemSet128, rex::kernel::crt::native_XMemSet128)
+REX_HOOK(rexcrt_memset_vmx, rex::kernel::crt::native_memset_vmx)
+REX_HOOK(rexcrt_memcpy_s, rex::kernel::crt::native_memcpy_s)
+REX_HOOK(rexcrt_memmove_s, rex::kernel::crt::native_memmove_s)

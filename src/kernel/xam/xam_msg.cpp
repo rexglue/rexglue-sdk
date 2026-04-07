@@ -15,8 +15,8 @@
 #include <rex/kernel/xam/private.h>
 #include <rex/kernel/xboxkrnl/error.h>
 #include <rex/logging.h>
-#include <rex/ppc/function.h>
-#include <rex/ppc/types.h>
+#include <rex/hook.h>
+#include <rex/types.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xevent.h>
 #include <rex/system/xio.h>
@@ -29,8 +29,7 @@ namespace xam {
 using namespace rex::system;
 using namespace rex::system::xam;
 
-ppc_u32_result_t XMsgInProcessCall_entry(ppc_u32_t app, ppc_u32_t message, ppc_u32_t arg1,
-                                         ppc_u32_t arg2) {
+u32 XMsgInProcessCall_entry(u32 app, u32 message, u32 arg1, u32 arg2) {
   auto result = REX_KERNEL_STATE()->app_manager()->DispatchMessageSync(app, message, arg1, arg2);
   if (result == X_ERROR_NOT_FOUND) {
     REXKRNL_ERROR("XMsgInProcessCall: app {:08X} undefined", app);
@@ -38,8 +37,7 @@ ppc_u32_result_t XMsgInProcessCall_entry(ppc_u32_t app, ppc_u32_t message, ppc_u
   return result;
 }
 
-ppc_u32_result_t XMsgSystemProcessCall_entry(ppc_u32_t app, ppc_u32_t message, ppc_u32_t buffer,
-                                             ppc_u32_t buffer_length) {
+u32 XMsgSystemProcessCall_entry(u32 app, u32 message, u32 buffer, u32 buffer_length) {
   auto result =
       REX_KERNEL_STATE()->app_manager()->DispatchMessageAsync(app, message, buffer, buffer_length);
   if (result == X_ERROR_NOT_FOUND) {
@@ -73,23 +71,20 @@ X_HRESULT xeXMsgStartIORequestEx(uint32_t app, uint32_t message, uint32_t overla
   return result;
 }
 
-ppc_u32_result_t XMsgStartIORequestEx_entry(ppc_u32_t app, ppc_u32_t message,
-                                            ppc_ptr_t<XAM_OVERLAPPED> overlapped_ptr,
-                                            ppc_u32_t buffer_ptr, ppc_u32_t buffer_length,
-                                            ppc_ptr_t<XMSGSTARTIOREQUEST_UNKNOWNARG> unknown_ptr) {
+u32 XMsgStartIORequestEx_entry(u32 app, u32 message, ppc_ptr_t<XAM_OVERLAPPED> overlapped_ptr,
+                               u32 buffer_ptr, u32 buffer_length,
+                               ppc_ptr_t<XMSGSTARTIOREQUEST_UNKNOWNARG> unknown_ptr) {
   return xeXMsgStartIORequestEx(app, message, overlapped_ptr.guest_address(), buffer_ptr,
                                 buffer_length, unknown_ptr);
 }
 
-ppc_u32_result_t XMsgStartIORequest_entry(ppc_u32_t app, ppc_u32_t message,
-                                          ppc_ptr_t<XAM_OVERLAPPED> overlapped_ptr,
-                                          ppc_u32_t buffer_ptr, ppc_u32_t buffer_length) {
+u32 XMsgStartIORequest_entry(u32 app, u32 message, ppc_ptr_t<XAM_OVERLAPPED> overlapped_ptr,
+                             u32 buffer_ptr, u32 buffer_length) {
   return xeXMsgStartIORequestEx(app, message, overlapped_ptr.guest_address(), buffer_ptr,
                                 buffer_length, nullptr);
 }
 
-ppc_u32_result_t XMsgCancelIORequest_entry(ppc_ptr_t<XAM_OVERLAPPED> overlapped_ptr,
-                                           ppc_u32_t wait) {
+u32 XMsgCancelIORequest_entry(ppc_ptr_t<XAM_OVERLAPPED> overlapped_ptr, u32 wait) {
   X_HANDLE event_handle = XOverlappedGetEvent(overlapped_ptr);
   if (event_handle && wait) {
     auto ev = REX_KERNEL_OBJECTS()->LookupObject<XEvent>(event_handle);
@@ -101,16 +96,15 @@ ppc_u32_result_t XMsgCancelIORequest_entry(ppc_ptr_t<XAM_OVERLAPPED> overlapped_
   return 0;
 }
 
-ppc_u32_result_t XMsgCompleteIORequest_entry(ppc_ptr_t<XAM_OVERLAPPED> overlapped_ptr,
-                                             ppc_u32_t result, ppc_u32_t extended_error,
-                                             ppc_u32_t length) {
+u32 XMsgCompleteIORequest_entry(ppc_ptr_t<XAM_OVERLAPPED> overlapped_ptr, u32 result,
+                                u32 extended_error, u32 length) {
   REX_KERNEL_STATE()->CompleteOverlappedImmediateEx(overlapped_ptr.guest_address(), result,
                                                     extended_error, length);
   return X_ERROR_SUCCESS;
 }
 
-ppc_u32_result_t XamGetOverlappedResult_entry(ppc_ptr_t<XAM_OVERLAPPED> overlapped_ptr,
-                                              ppc_pu32_t length_ptr, ppc_u32_t unknown) {
+u32 XamGetOverlappedResult_entry(ppc_ptr_t<XAM_OVERLAPPED> overlapped_ptr, mapped_u32 length_ptr,
+                                 u32 unknown) {
   uint32_t result;
   if (overlapped_ptr->result != X_ERROR_IO_PENDING) {
     result = overlapped_ptr->result;
@@ -135,14 +129,14 @@ ppc_u32_result_t XamGetOverlappedResult_entry(ppc_ptr_t<XAM_OVERLAPPED> overlapp
 }  // namespace kernel
 }  // namespace rex
 
-XAM_EXPORT(__imp__XMsgInProcessCall, rex::kernel::xam::XMsgInProcessCall_entry)
-XAM_EXPORT(__imp__XMsgSystemProcessCall, rex::kernel::xam::XMsgSystemProcessCall_entry)
-XAM_EXPORT(__imp__XMsgStartIORequestEx, rex::kernel::xam::XMsgStartIORequestEx_entry)
-XAM_EXPORT(__imp__XMsgStartIORequest, rex::kernel::xam::XMsgStartIORequest_entry)
-XAM_EXPORT(__imp__XMsgCancelIORequest, rex::kernel::xam::XMsgCancelIORequest_entry)
-XAM_EXPORT(__imp__XMsgCompleteIORequest, rex::kernel::xam::XMsgCompleteIORequest_entry)
-XAM_EXPORT(__imp__XamGetOverlappedResult, rex::kernel::xam::XamGetOverlappedResult_entry)
+REX_EXPORT(__imp__XMsgInProcessCall, rex::kernel::xam::XMsgInProcessCall_entry)
+REX_EXPORT(__imp__XMsgSystemProcessCall, rex::kernel::xam::XMsgSystemProcessCall_entry)
+REX_EXPORT(__imp__XMsgStartIORequestEx, rex::kernel::xam::XMsgStartIORequestEx_entry)
+REX_EXPORT(__imp__XMsgStartIORequest, rex::kernel::xam::XMsgStartIORequest_entry)
+REX_EXPORT(__imp__XMsgCancelIORequest, rex::kernel::xam::XMsgCancelIORequest_entry)
+REX_EXPORT(__imp__XMsgCompleteIORequest, rex::kernel::xam::XMsgCompleteIORequest_entry)
+REX_EXPORT(__imp__XamGetOverlappedResult, rex::kernel::xam::XamGetOverlappedResult_entry)
 
-XAM_EXPORT_STUB(__imp__XMsgAcquireAsyncMessageFromOverlapped);
-XAM_EXPORT_STUB(__imp__XMsgProcessRequest);
-XAM_EXPORT_STUB(__imp__XMsgReleaseAsyncMessageToOverlapped);
+REX_EXPORT_STUB(__imp__XMsgAcquireAsyncMessageFromOverlapped);
+REX_EXPORT_STUB(__imp__XMsgProcessRequest);
+REX_EXPORT_STUB(__imp__XMsgReleaseAsyncMessageToOverlapped);

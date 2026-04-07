@@ -11,8 +11,8 @@
  */
 
 #include <rex/logging.h>
-#include <rex/ppc/function.h>
-#include <rex/ppc/types.h>
+#include <rex/hook.h>
+#include <rex/types.h>
 #include <rex/system/kernel_state.h>
 
 namespace rex {
@@ -20,14 +20,14 @@ namespace kernel {
 namespace xam {
 
 // OutputDebugStringA - ANSI debug string output
-void OutputDebugStringA_entry(ppc_pchar_t string) {
+void OutputDebugStringA_entry(mapped_string string) {
   if (string) {
     REXKRNL_INFO("OutputDebugStringA: {}", string.value());
   }
 }
 
 // OutputDebugStringW - Unicode debug string output
-void OutputDebugStringW_entry(ppc_pchar16_t string) {
+void OutputDebugStringW_entry(mapped_wstring string) {
   if (string) {
     // Convert char16_t to UTF-8 for logging (simple ASCII fallback)
     std::u16string_view sv = string.value();
@@ -45,14 +45,14 @@ void OutputDebugStringW_entry(ppc_pchar16_t string) {
 }
 
 // RtlOutputDebugString - Same as OutputDebugStringA
-void RtlOutputDebugString_entry(ppc_pchar_t string) {
+void RtlOutputDebugString_entry(mapped_string string) {
   if (string) {
     REXKRNL_INFO("RtlOutputDebugString: {}", string.value());
   }
 }
 
 // RtlDebugTrace - Debug trace output
-void RtlDebugTrace_entry(ppc_pchar_t string) {
+void RtlDebugTrace_entry(mapped_string string) {
   if (string) {
     REXKRNL_INFO("RtlDebugTrace: {}", string.value());
   }
@@ -63,7 +63,7 @@ void RtlDebugTrace_entry(ppc_pchar_t string) {
 }  // namespace rex
 
 // Hook registrations
-XAM_EXPORT(__imp__OutputDebugStringA, rex::kernel::xam::OutputDebugStringA_entry)
-XAM_EXPORT(__imp__OutputDebugStringW, rex::kernel::xam::OutputDebugStringW_entry)
-XAM_EXPORT(__imp__RtlOutputDebugString, rex::kernel::xam::RtlOutputDebugString_entry)
-XAM_EXPORT(__imp__RtlDebugTrace, rex::kernel::xam::RtlDebugTrace_entry)
+REX_EXPORT(__imp__OutputDebugStringA, rex::kernel::xam::OutputDebugStringA_entry)
+REX_EXPORT(__imp__OutputDebugStringW, rex::kernel::xam::OutputDebugStringW_entry)
+REX_EXPORT(__imp__RtlOutputDebugString, rex::kernel::xam::RtlOutputDebugString_entry)
+REX_EXPORT(__imp__RtlDebugTrace, rex::kernel::xam::RtlDebugTrace_entry)

@@ -20,8 +20,8 @@
 #include <rex/kernel/xboxkrnl/rtl.h>
 #include <rex/kernel/xboxkrnl/threading.h>
 #include <rex/logging.h>
-#include <rex/ppc/function.h>
-#include <rex/ppc/types.h>
+#include <rex/hook.h>
+#include <rex/types.h>
 #include <rex/string.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/user_module.h>
@@ -35,8 +35,7 @@ namespace rex::kernel::xboxkrnl {
 using namespace rex::system;
 
 // https://msdn.microsoft.com/en-us/library/ff561778
-ppc_u32_result_t RtlCompareMemory_entry(ppc_pvoid_t source1, ppc_pvoid_t source2,
-                                        ppc_u32_t length) {
+u32 RtlCompareMemory_entry(mapped_void source1, mapped_void source2, u32 length) {
   uint8_t* p1 = source1;
   uint8_t* p2 = source2;
 
@@ -55,8 +54,7 @@ ppc_u32_result_t RtlCompareMemory_entry(ppc_pvoid_t source1, ppc_pvoid_t source2
 }
 
 // https://msdn.microsoft.com/en-us/library/ff552123
-ppc_u32_result_t RtlCompareMemoryUlong_entry(ppc_pvoid_t source, ppc_u32_t length,
-                                             ppc_u32_t pattern) {
+u32 RtlCompareMemoryUlong_entry(mapped_void source, u32 length, u32 pattern) {
   // Return 0 if source/length not aligned
   if (source.guest_address() % 4 || length % 4) {
     return 0;
@@ -75,18 +73,18 @@ ppc_u32_result_t RtlCompareMemoryUlong_entry(ppc_pvoid_t source, ppc_u32_t lengt
 }
 
 // https://msdn.microsoft.com/en-us/library/ff552263
-void RtlFillMemoryUlong_entry(ppc_pvoid_t destination, ppc_u32_t length, ppc_u32_t pattern) {
+void RtlFillMemoryUlong_entry(mapped_void destination, u32 length, u32 pattern) {
   // NOTE: length must be % 4, so we can work on uint32s.
   uint32_t count = length >> 2;
 
   uint32_t* p = destination.as<uint32_t*>();
-  uint32_t swapped_pattern = rex::byte_swap(pattern.value());
+  uint32_t swapped_pattern = rex::byte_swap(pattern);
   for (uint32_t n = 0; n < count; n++, p++) {
     *p = swapped_pattern;
   }
 }
 
-ppc_u32_result_t RtlUpperChar_entry(ppc_u32_t in) {
+u32 RtlUpperChar_entry(u32 in) {
   char c = in & 0xFF;
   if (c >= 'a' && c <= 'z') {
     return c ^ 0x20;
@@ -95,7 +93,7 @@ ppc_u32_result_t RtlUpperChar_entry(ppc_u32_t in) {
   return c;
 }
 
-ppc_u32_result_t RtlLowerChar_entry(ppc_u32_t in) {
+u32 RtlLowerChar_entry(u32 in) {
   char c = in & 0xFF;
   if (c >= 'A' && c <= 'Z') {
     return c ^ 0x20;
@@ -104,17 +102,15 @@ ppc_u32_result_t RtlLowerChar_entry(ppc_u32_t in) {
   return c;
 }
 
-ppc_u32_result_t RtlCompareString_entry(ppc_pchar_t string_1, ppc_pchar_t string_2,
-                                        ppc_u32_t case_insensitive) {
+u32 RtlCompareString_entry(mapped_string string_1, mapped_string string_2, u32 case_insensitive) {
   int ret = case_insensitive ? rex::string::compare_case(string_1, string_2)
                              : std::strcmp(string_1, string_2);
 
   return ret;
 }
 
-ppc_u32_result_t RtlCompareStringN_entry(ppc_pchar_t string_1, ppc_u32_t string_1_len,
-                                         ppc_pchar_t string_2, ppc_u32_t string_2_len,
-                                         ppc_u32_t case_insensitive) {
+u32 RtlCompareStringN_entry(mapped_string string_1, u32 string_1_len, mapped_string string_2,
+                            u32 string_2_len, u32 case_insensitive) {
   uint32_t len1 = string_1_len;
   uint32_t len2 = string_2_len;
 
@@ -133,7 +129,7 @@ ppc_u32_result_t RtlCompareStringN_entry(ppc_pchar_t string_1, ppc_u32_t string_
 }
 
 // https://msdn.microsoft.com/en-us/library/ff561918
-void RtlInitAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> destination, ppc_pchar_t source) {
+void RtlInitAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> destination, mapped_string source) {
   REXKRNL_IMPORT_TRACE("RtlInitAnsiString", "str={}", source ? source.value() : "(null)");
   if (source) {
     uint16_t length = (uint16_t)strlen(source);
@@ -156,7 +152,7 @@ void RtlFreeAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> string) {
 }
 
 // https://msdn.microsoft.com/en-us/library/ff561934
-void RtlInitUnicodeString_entry(ppc_ptr_t<X_UNICODE_STRING> destination, ppc_pchar16_t source) {
+void RtlInitUnicodeString_entry(ppc_ptr_t<X_UNICODE_STRING> destination, mapped_wstring source) {
   if (source) {
     destination->length = (uint16_t)source.value().size() * 2;
     destination->maximum_length = (uint16_t)(source.value().size() + 1) * 2;
@@ -207,9 +203,8 @@ void RtlCopyUnicodeString_entry(ppc_ptr_t<X_UNICODE_STRING> destination,
 }
 
 // https://msdn.microsoft.com/en-us/library/ff562969
-ppc_u32_result_t RtlUnicodeStringToAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> destination_ptr,
-                                                    ppc_ptr_t<X_UNICODE_STRING> source_ptr,
-                                                    ppc_u32_t alloc_dest) {
+u32 RtlUnicodeStringToAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> destination_ptr,
+                                       ppc_ptr_t<X_UNICODE_STRING> source_ptr, u32 alloc_dest) {
   // NTSTATUS
   // _Inout_  PANSI_STRING DestinationString,
   // _In_     PCUNICODE_STRING SourceString,
@@ -245,11 +240,11 @@ ppc_u32_result_t RtlUnicodeStringToAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> des
 }
 
 // https://msdn.microsoft.com/en-us/library/ff553113
-ppc_u32_result_t RtlMultiByteToUnicodeN_entry(ppc_pu16_t destination_ptr, ppc_u32_t destination_len,
-                                              ppc_pu32_t written_ptr, ppc_ptr_t<uint8_t> source_ptr,
-                                              ppc_u32_t source_len) {
+u32 RtlMultiByteToUnicodeN_entry(mapped_u16 destination_ptr, u32 destination_len,
+                                 mapped_u32 written_ptr, ppc_ptr_t<uint8_t> source_ptr,
+                                 u32 source_len) {
   uint32_t copy_len = destination_len >> 1;
-  copy_len = copy_len < source_len ? copy_len : source_len.value();
+  copy_len = copy_len < source_len ? copy_len : source_len;
 
   // TODO(benvanik): maybe use MultiByteToUnicode on Win32? would require
   // swapping.
@@ -266,11 +261,10 @@ ppc_u32_result_t RtlMultiByteToUnicodeN_entry(ppc_pu16_t destination_ptr, ppc_u3
 }
 
 // https://msdn.microsoft.com/en-us/library/ff553261
-ppc_u32_result_t RtlUnicodeToMultiByteN_entry(ppc_ptr_t<uint8_t> destination_ptr,
-                                              ppc_u32_t destination_len, ppc_pu32_t written_ptr,
-                                              ppc_pu16_t source_ptr, ppc_u32_t source_len) {
+u32 RtlUnicodeToMultiByteN_entry(ppc_ptr_t<uint8_t> destination_ptr, u32 destination_len,
+                                 mapped_u32 written_ptr, mapped_u16 source_ptr, u32 source_len) {
   uint32_t copy_len = source_len >> 1;
-  copy_len = copy_len < destination_len ? copy_len : destination_len.value();
+  copy_len = copy_len < destination_len ? copy_len : destination_len;
 
   // TODO(benvanik): maybe use UnicodeToMultiByte on Win32?
   for (uint32_t i = 0; i < copy_len; i++) {
@@ -285,7 +279,7 @@ ppc_u32_result_t RtlUnicodeToMultiByteN_entry(ppc_ptr_t<uint8_t> destination_ptr
 }
 
 // https://undocumented.ntinternals.net/UserMode/Undocumented%20Functions/Executable%20Images/RtlImageNtHeader.html
-ppc_ptr_result_t RtlImageNtHeader_entry(ppc_pvoid_t module) {
+u32 RtlImageNtHeader_entry(mapped_void module) {
   if (!module) {
     return 0;
   }
@@ -307,10 +301,9 @@ ppc_ptr_result_t RtlImageNtHeader_entry(ppc_pvoid_t module) {
   return REX_KERNEL_MEMORY()->HostToGuestVirtual(nt_header);
 }
 
-ppc_ptr_result_t RtlImageXexHeaderField_entry(ppc_ptr_t<xex2_header> xex_header,
-                                              ppc_u32_t field_dword) {
+u32 RtlImageXexHeaderField_entry(ppc_ptr_t<xex2_header> xex_header, u32 field_dword) {
   uint32_t field_value = 0;
-  uint32_t field = field_dword;  // VS acts weird going from ppc_u32_t -> enum
+  uint32_t field = field_dword;  // VS acts weird going from u32 -> enum
 
   UserModule::GetOptHeader(REX_KERNEL_MEMORY(), xex_header, xex2_header_keys(field), &field_value);
 
@@ -378,8 +371,8 @@ X_STATUS xeRtlInitializeCriticalSectionAndSpinCount(X_RTL_CRITICAL_SECTION* cs, 
   return X_STATUS_SUCCESS;
 }
 
-ppc_u32_result_t RtlInitializeCriticalSectionAndSpinCount_entry(
-    ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs, ppc_u32_t spin_count) {
+u32 RtlInitializeCriticalSectionAndSpinCount_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs,
+                                                   u32 spin_count) {
   return xeRtlInitializeCriticalSectionAndSpinCount(cs, cs.guest_address(), spin_count);
 }
 
@@ -414,7 +407,7 @@ void RtlEnterCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
   cs->recursion_count = 1;
 }
 
-ppc_u32_result_t RtlTryEnterCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
+u32 RtlTryEnterCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
   uint32_t thread = XThread::GetCurrentThread()->guest_object();
 
   if (rex::thread::atomic_cas(-1, 0, &cs->lock_count)) {
@@ -466,7 +459,7 @@ struct X_TIME_FIELDS {
 static_assert_size(X_TIME_FIELDS, 16);
 
 // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtltimetotimefields
-void RtlTimeToTimeFields_entry(ppc_pu64_t time_ptr, ppc_ptr_t<X_TIME_FIELDS> time_fields_ptr) {
+void RtlTimeToTimeFields_entry(mapped_u64 time_ptr, ppc_ptr_t<X_TIME_FIELDS> time_fields_ptr) {
   // Use host clock because we don't want scaling to be applied, just conversion
   using rex::chrono::WinSystemClock;
   auto tp = WinSystemClock::to_sys(WinSystemClock::from_file_time(time_ptr.value()));
@@ -485,8 +478,7 @@ void RtlTimeToTimeFields_entry(ppc_pu64_t time_ptr, ppc_ptr_t<X_TIME_FIELDS> tim
 }
 
 // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtltimefieldstotime
-ppc_u32_result_t RtlTimeFieldsToTime_entry(ppc_ptr_t<X_TIME_FIELDS> time_fields_ptr,
-                                           ppc_pu64_t time_ptr) {
+u32 RtlTimeFieldsToTime_entry(ppc_ptr_t<X_TIME_FIELDS> time_fields_ptr, mapped_u64 time_ptr) {
   using rex::chrono::WinSystemClock;
   if (time_fields_ptr->year < 1601 || time_fields_ptr->month < 1 || time_fields_ptr->month > 12 ||
       time_fields_ptr->day < 1 || time_fields_ptr->day > 31 || time_fields_ptr->hour > 23 ||
@@ -551,9 +543,9 @@ static uint32_t crc32_table[256] = {
     0xB40BBE37u, 0xC30C8EA1u, 0x5A05DF1Bu, 0x2D02EF8Du,
 };
 
-ppc_u32_result_t RtlComputeCrc32_entry(ppc_u32_t seed, ppc_pvoid_t buffer, ppc_u32_t length) {
+u32 RtlComputeCrc32_entry(u32 seed, mapped_void buffer, u32 length) {
   if (!length) {
-    return seed.value();
+    return seed;
   }
   uint32_t hash = ~seed;
   for (uint32_t i = 0; i < length; ++i) {
@@ -577,64 +569,62 @@ void __C_specific_handler_entry() {
   REXKRNL_WARN("[STUB] __C_specific_handler called - not implemented");
 }
 
-XBOXKRNL_EXPORT_STUB(__imp__RtlAnsiStringToUnicodeString);
-XBOXKRNL_EXPORT_STUB(__imp__RtlAppendStringToString);
-XBOXKRNL_EXPORT_STUB(__imp__RtlAppendUnicodeStringToString);
-XBOXKRNL_EXPORT_STUB(__imp__RtlAppendUnicodeToString);
-XBOXKRNL_EXPORT_STUB(__imp__RtlCompareUnicodeString);
-XBOXKRNL_EXPORT_STUB(__imp__RtlCompareUnicodeStringN);
-XBOXKRNL_EXPORT_STUB(__imp__RtlCompareUtf8ToUnicode);
-XBOXKRNL_EXPORT_STUB(__imp__RtlCreateUnicodeString);
-XBOXKRNL_EXPORT_STUB(__imp__RtlDowncaseUnicodeChar);
-XBOXKRNL_EXPORT_STUB(__imp__RtlGetCallersAddress);
-XBOXKRNL_EXPORT_STUB(__imp__RtlGetStackLimits);
-XBOXKRNL_EXPORT_STUB(__imp__RtlLookupFunctionEntry);
-XBOXKRNL_EXPORT_STUB(__imp__RtlMultiByteToUnicodeSize);
-XBOXKRNL_EXPORT_STUB(__imp__RtlUnicodeToMultiByteSize);
-XBOXKRNL_EXPORT_STUB(__imp__RtlUnicodeToUtf8);
-XBOXKRNL_EXPORT_STUB(__imp__RtlUnicodeToUtf8Size);
-XBOXKRNL_EXPORT_STUB(__imp__RtlUnwind2);
-XBOXKRNL_EXPORT_STUB(__imp__RtlUpcaseUnicodeChar);
-XBOXKRNL_EXPORT_STUB(__imp__RtlVirtualUnwind);
-XBOXKRNL_EXPORT_STUB(__imp__RtlImageDirectoryEntryToData);
-XBOXKRNL_EXPORT_STUB(__imp__RtlCaptureStackBackTrace);
-XBOXKRNL_EXPORT_STUB(__imp__RtlSetVectoredExceptionHandler);
-XBOXKRNL_EXPORT_STUB(__imp__RtlClearVectoredExceptionHandler);
+REX_EXPORT_STUB(__imp__RtlAnsiStringToUnicodeString);
+REX_EXPORT_STUB(__imp__RtlAppendStringToString);
+REX_EXPORT_STUB(__imp__RtlAppendUnicodeStringToString);
+REX_EXPORT_STUB(__imp__RtlAppendUnicodeToString);
+REX_EXPORT_STUB(__imp__RtlCompareUnicodeString);
+REX_EXPORT_STUB(__imp__RtlCompareUnicodeStringN);
+REX_EXPORT_STUB(__imp__RtlCompareUtf8ToUnicode);
+REX_EXPORT_STUB(__imp__RtlCreateUnicodeString);
+REX_EXPORT_STUB(__imp__RtlDowncaseUnicodeChar);
+REX_EXPORT_STUB(__imp__RtlGetCallersAddress);
+REX_EXPORT_STUB(__imp__RtlGetStackLimits);
+REX_EXPORT_STUB(__imp__RtlLookupFunctionEntry);
+REX_EXPORT_STUB(__imp__RtlMultiByteToUnicodeSize);
+REX_EXPORT_STUB(__imp__RtlUnicodeToMultiByteSize);
+REX_EXPORT_STUB(__imp__RtlUnicodeToUtf8);
+REX_EXPORT_STUB(__imp__RtlUnicodeToUtf8Size);
+REX_EXPORT_STUB(__imp__RtlUnwind2);
+REX_EXPORT_STUB(__imp__RtlUpcaseUnicodeChar);
+REX_EXPORT_STUB(__imp__RtlVirtualUnwind);
+REX_EXPORT_STUB(__imp__RtlImageDirectoryEntryToData);
+REX_EXPORT_STUB(__imp__RtlCaptureStackBackTrace);
+REX_EXPORT_STUB(__imp__RtlSetVectoredExceptionHandler);
+REX_EXPORT_STUB(__imp__RtlClearVectoredExceptionHandler);
 
 }  // namespace rex::kernel::xboxkrnl
 
-XBOXKRNL_EXPORT(__imp__RtlCompareMemory, rex::kernel::xboxkrnl::RtlCompareMemory_entry)
-XBOXKRNL_EXPORT(__imp__RtlCompareMemoryUlong, rex::kernel::xboxkrnl::RtlCompareMemoryUlong_entry)
-XBOXKRNL_EXPORT(__imp__RtlFillMemoryUlong, rex::kernel::xboxkrnl::RtlFillMemoryUlong_entry)
-XBOXKRNL_EXPORT(__imp__RtlUpperChar, rex::kernel::xboxkrnl::RtlUpperChar_entry)
-XBOXKRNL_EXPORT(__imp__RtlLowerChar, rex::kernel::xboxkrnl::RtlLowerChar_entry)
-XBOXKRNL_EXPORT(__imp__RtlCompareString, rex::kernel::xboxkrnl::RtlCompareString_entry)
-XBOXKRNL_EXPORT(__imp__RtlCompareStringN, rex::kernel::xboxkrnl::RtlCompareStringN_entry)
-XBOXKRNL_EXPORT(__imp__RtlInitAnsiString, rex::kernel::xboxkrnl::RtlInitAnsiString_entry)
-XBOXKRNL_EXPORT(__imp__RtlFreeAnsiString, rex::kernel::xboxkrnl::RtlFreeAnsiString_entry)
-XBOXKRNL_EXPORT(__imp__RtlInitUnicodeString, rex::kernel::xboxkrnl::RtlInitUnicodeString_entry)
-XBOXKRNL_EXPORT(__imp__RtlFreeUnicodeString, rex::kernel::xboxkrnl::RtlFreeUnicodeString_entry)
-XBOXKRNL_EXPORT(__imp__RtlCopyString, rex::kernel::xboxkrnl::RtlCopyString_entry)
-XBOXKRNL_EXPORT(__imp__RtlCopyUnicodeString, rex::kernel::xboxkrnl::RtlCopyUnicodeString_entry)
-XBOXKRNL_EXPORT(__imp__RtlUnicodeStringToAnsiString,
-                rex::kernel::xboxkrnl::RtlUnicodeStringToAnsiString_entry)
-XBOXKRNL_EXPORT(__imp__RtlMultiByteToUnicodeN, rex::kernel::xboxkrnl::RtlMultiByteToUnicodeN_entry)
-XBOXKRNL_EXPORT(__imp__RtlUnicodeToMultiByteN, rex::kernel::xboxkrnl::RtlUnicodeToMultiByteN_entry)
-XBOXKRNL_EXPORT(__imp__RtlImageNtHeader, rex::kernel::xboxkrnl::RtlImageNtHeader_entry)
-XBOXKRNL_EXPORT(__imp__RtlImageXexHeaderField, rex::kernel::xboxkrnl::RtlImageXexHeaderField_entry)
-XBOXKRNL_EXPORT(__imp__RtlInitializeCriticalSection,
-                rex::kernel::xboxkrnl::RtlInitializeCriticalSection_entry)
-XBOXKRNL_EXPORT(__imp__RtlInitializeCriticalSectionAndSpinCount,
-                rex::kernel::xboxkrnl::RtlInitializeCriticalSectionAndSpinCount_entry)
-XBOXKRNL_EXPORT(__imp__RtlEnterCriticalSection,
-                rex::kernel::xboxkrnl::RtlEnterCriticalSection_entry)
-XBOXKRNL_EXPORT(__imp__RtlTryEnterCriticalSection,
-                rex::kernel::xboxkrnl::RtlTryEnterCriticalSection_entry)
-XBOXKRNL_EXPORT(__imp__RtlLeaveCriticalSection,
-                rex::kernel::xboxkrnl::RtlLeaveCriticalSection_entry)
-XBOXKRNL_EXPORT(__imp__RtlTimeToTimeFields, rex::kernel::xboxkrnl::RtlTimeToTimeFields_entry)
-XBOXKRNL_EXPORT(__imp__RtlTimeFieldsToTime, rex::kernel::xboxkrnl::RtlTimeFieldsToTime_entry)
-XBOXKRNL_EXPORT(__imp__RtlComputeCrc32, rex::kernel::xboxkrnl::RtlComputeCrc32_entry)
-XBOXKRNL_EXPORT(__imp__RtlCaptureContext, rex::kernel::xboxkrnl::RtlCaptureContext_entry)
-XBOXKRNL_EXPORT(__imp__RtlUnwind, rex::kernel::xboxkrnl::RtlUnwind_entry)
-XBOXKRNL_EXPORT(__imp____C_specific_handler, rex::kernel::xboxkrnl::__C_specific_handler_entry)
+REX_EXPORT(__imp__RtlCompareMemory, rex::kernel::xboxkrnl::RtlCompareMemory_entry)
+REX_EXPORT(__imp__RtlCompareMemoryUlong, rex::kernel::xboxkrnl::RtlCompareMemoryUlong_entry)
+REX_EXPORT(__imp__RtlFillMemoryUlong, rex::kernel::xboxkrnl::RtlFillMemoryUlong_entry)
+REX_EXPORT(__imp__RtlUpperChar, rex::kernel::xboxkrnl::RtlUpperChar_entry)
+REX_EXPORT(__imp__RtlLowerChar, rex::kernel::xboxkrnl::RtlLowerChar_entry)
+REX_EXPORT(__imp__RtlCompareString, rex::kernel::xboxkrnl::RtlCompareString_entry)
+REX_EXPORT(__imp__RtlCompareStringN, rex::kernel::xboxkrnl::RtlCompareStringN_entry)
+REX_EXPORT(__imp__RtlInitAnsiString, rex::kernel::xboxkrnl::RtlInitAnsiString_entry)
+REX_EXPORT(__imp__RtlFreeAnsiString, rex::kernel::xboxkrnl::RtlFreeAnsiString_entry)
+REX_EXPORT(__imp__RtlInitUnicodeString, rex::kernel::xboxkrnl::RtlInitUnicodeString_entry)
+REX_EXPORT(__imp__RtlFreeUnicodeString, rex::kernel::xboxkrnl::RtlFreeUnicodeString_entry)
+REX_EXPORT(__imp__RtlCopyString, rex::kernel::xboxkrnl::RtlCopyString_entry)
+REX_EXPORT(__imp__RtlCopyUnicodeString, rex::kernel::xboxkrnl::RtlCopyUnicodeString_entry)
+REX_EXPORT(__imp__RtlUnicodeStringToAnsiString,
+           rex::kernel::xboxkrnl::RtlUnicodeStringToAnsiString_entry)
+REX_EXPORT(__imp__RtlMultiByteToUnicodeN, rex::kernel::xboxkrnl::RtlMultiByteToUnicodeN_entry)
+REX_EXPORT(__imp__RtlUnicodeToMultiByteN, rex::kernel::xboxkrnl::RtlUnicodeToMultiByteN_entry)
+REX_EXPORT(__imp__RtlImageNtHeader, rex::kernel::xboxkrnl::RtlImageNtHeader_entry)
+REX_EXPORT(__imp__RtlImageXexHeaderField, rex::kernel::xboxkrnl::RtlImageXexHeaderField_entry)
+REX_EXPORT(__imp__RtlInitializeCriticalSection,
+           rex::kernel::xboxkrnl::RtlInitializeCriticalSection_entry)
+REX_EXPORT(__imp__RtlInitializeCriticalSectionAndSpinCount,
+           rex::kernel::xboxkrnl::RtlInitializeCriticalSectionAndSpinCount_entry)
+REX_EXPORT(__imp__RtlEnterCriticalSection, rex::kernel::xboxkrnl::RtlEnterCriticalSection_entry)
+REX_EXPORT(__imp__RtlTryEnterCriticalSection,
+           rex::kernel::xboxkrnl::RtlTryEnterCriticalSection_entry)
+REX_EXPORT(__imp__RtlLeaveCriticalSection, rex::kernel::xboxkrnl::RtlLeaveCriticalSection_entry)
+REX_EXPORT(__imp__RtlTimeToTimeFields, rex::kernel::xboxkrnl::RtlTimeToTimeFields_entry)
+REX_EXPORT(__imp__RtlTimeFieldsToTime, rex::kernel::xboxkrnl::RtlTimeFieldsToTime_entry)
+REX_EXPORT(__imp__RtlComputeCrc32, rex::kernel::xboxkrnl::RtlComputeCrc32_entry)
+REX_EXPORT(__imp__RtlCaptureContext, rex::kernel::xboxkrnl::RtlCaptureContext_entry)
+REX_EXPORT(__imp__RtlUnwind, rex::kernel::xboxkrnl::RtlUnwind_entry)
+REX_EXPORT(__imp____C_specific_handler, rex::kernel::xboxkrnl::__C_specific_handler_entry)

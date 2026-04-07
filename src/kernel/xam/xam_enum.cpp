@@ -12,8 +12,8 @@
 #include <rex/kernel/xam/module.h>
 #include <rex/kernel/xam/private.h>
 #include <rex/logging.h>
-#include <rex/ppc/function.h>
-#include <rex/ppc/types.h>
+#include <rex/hook.h>
+#include <rex/types.h>
 #include <rex/string/util.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xenumerator.h>
@@ -32,7 +32,7 @@ using namespace rex::system;
 using namespace rex::system::xam;
 
 // https://github.com/LestaD/SourceEngine2007/blob/master/se2007/engine/xboxsystem.cpp#L518
-uint32_t xeXamEnumerate(uint32_t handle, uint32_t flags, ppc_pvoid_t buffer_ptr,
+uint32_t xeXamEnumerate(uint32_t handle, uint32_t flags, mapped_void buffer_ptr,
                         uint32_t buffer_size, uint32_t* items_returned, uint32_t overlapped_ptr) {
   assert_true(flags == 0);
 
@@ -71,9 +71,8 @@ uint32_t xeXamEnumerate(uint32_t handle, uint32_t flags, ppc_pvoid_t buffer_ptr,
   }
 }
 
-ppc_u32_result_t XamEnumerate_entry(ppc_u32_t handle, ppc_u32_t flags, ppc_pvoid_t buffer,
-                                    ppc_u32_t buffer_length, ppc_pu32_t items_returned,
-                                    ppc_ptr_t<XAM_OVERLAPPED> overlapped) {
+u32 XamEnumerate_entry(u32 handle, u32 flags, mapped_void buffer, u32 buffer_length,
+                       mapped_u32 items_returned, ppc_ptr_t<XAM_OVERLAPPED> overlapped) {
   uint32_t dummy;
   auto result =
       xeXamEnumerate(handle, flags, buffer, buffer_length,
@@ -84,15 +83,12 @@ ppc_u32_result_t XamEnumerate_entry(ppc_u32_t handle, ppc_u32_t flags, ppc_pvoid
   return result;
 }
 
-ppc_u32_result_t XamCreateEnumeratorHandle_entry(ppc_unknown_t unk1, ppc_unknown_t unk2,
-                                                 ppc_unknown_t unk3, ppc_unknown_t unk4,
-                                                 ppc_unknown_t unk5, ppc_unknown_t unk6,
-                                                 ppc_unknown_t unk7, ppc_unknown_t unk8) {
+u32 XamCreateEnumeratorHandle_entry(u32 unk1, u32 unk2, u32 unk3, u32 unk4, u32 unk5, u32 unk6,
+                                    u32 unk7, u32 unk8) {
   return X_ERROR_INVALID_PARAMETER;
 }
 
-ppc_u32_result_t XamGetPrivateEnumStructureFromHandle_entry(ppc_u32_t handle,
-                                                            ppc_pu32_t out_object_ptr) {
+u32 XamGetPrivateEnumStructureFromHandle_entry(u32 handle, mapped_u32 out_object_ptr) {
   auto e = REX_KERNEL_OBJECTS()->LookupObject<XEnumerator>(handle);
   if (!e) {
     return X_STATUS_INVALID_HANDLE;
@@ -113,7 +109,7 @@ ppc_u32_result_t XamGetPrivateEnumStructureFromHandle_entry(ppc_u32_t handle,
 }  // namespace kernel
 }  // namespace rex
 
-XAM_EXPORT(__imp__XamEnumerate, rex::kernel::xam::XamEnumerate_entry)
-XAM_EXPORT(__imp__XamCreateEnumeratorHandle, rex::kernel::xam::XamCreateEnumeratorHandle_entry)
-XAM_EXPORT(__imp__XamGetPrivateEnumStructureFromHandle,
+REX_EXPORT(__imp__XamEnumerate, rex::kernel::xam::XamEnumerate_entry)
+REX_EXPORT(__imp__XamCreateEnumeratorHandle, rex::kernel::xam::XamCreateEnumeratorHandle_entry)
+REX_EXPORT(__imp__XamGetPrivateEnumStructureFromHandle,
            rex::kernel::xam::XamGetPrivateEnumStructureFromHandle_entry)

@@ -14,7 +14,7 @@
 #include <rex/kernel/xam/module.h>
 #include <rex/kernel/xam/private.h>
 #include <rex/math.h>
-#include <rex/ppc/function.h>
+#include <rex/hook.h>
 #include <rex/system/kernel_state.h>
 
 namespace rex {

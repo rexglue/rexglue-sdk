@@ -14,8 +14,8 @@
 
 #include <rex/kernel/xam/private.h>
 #include <rex/logging.h>
-#include <rex/ppc/function.h>
-#include <rex/ppc/types.h>
+#include <rex/hook.h>
+#include <rex/types.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xtypes.h>
 
@@ -23,24 +23,24 @@ namespace rex {
 namespace kernel {
 namespace xam {
 
-ppc_u32_result_t XamVoiceIsActiveProcess_entry() {
+u32 XamVoiceIsActiveProcess_entry() {
   // Returning 0 here will short-circuit a bunch of voice stuff.
   return 0;
 }
 
-ppc_u32_result_t XamVoiceCreate_entry(ppc_unknown_t unk1,  // 0
-                                      ppc_unknown_t unk2,  // 0xF
-                                      ppc_pu32_t out_voice_ptr) {
+u32 XamVoiceCreate_entry(u32 unk1,  // 0
+                         u32 unk2,  // 0xF
+                         mapped_u32 out_voice_ptr) {
   // Null out the ptr.
   out_voice_ptr.Zero();
   return X_ERROR_ACCESS_DENIED;
 }
 
-ppc_u32_result_t XamVoiceClose_entry(ppc_pvoid_t voice_ptr) {
+u32 XamVoiceClose_entry(mapped_void voice_ptr) {
   return 0;
 }
 
-ppc_u32_result_t XamVoiceHeadsetPresent_entry(ppc_pvoid_t voice_ptr) {
+u32 XamVoiceHeadsetPresent_entry(mapped_void voice_ptr) {
   return 0;
 }
 
@@ -48,23 +48,23 @@ ppc_u32_result_t XamVoiceHeadsetPresent_entry(ppc_pvoid_t voice_ptr) {
 }  // namespace kernel
 }  // namespace rex
 
-XAM_EXPORT(__imp__XamVoiceIsActiveProcess, rex::kernel::xam::XamVoiceIsActiveProcess_entry)
-XAM_EXPORT(__imp__XamVoiceCreate, rex::kernel::xam::XamVoiceCreate_entry)
-XAM_EXPORT(__imp__XamVoiceClose, rex::kernel::xam::XamVoiceClose_entry)
-XAM_EXPORT(__imp__XamVoiceHeadsetPresent, rex::kernel::xam::XamVoiceHeadsetPresent_entry)
+REX_EXPORT(__imp__XamVoiceIsActiveProcess, rex::kernel::xam::XamVoiceIsActiveProcess_entry)
+REX_EXPORT(__imp__XamVoiceCreate, rex::kernel::xam::XamVoiceCreate_entry)
+REX_EXPORT(__imp__XamVoiceClose, rex::kernel::xam::XamVoiceClose_entry)
+REX_EXPORT(__imp__XamVoiceHeadsetPresent, rex::kernel::xam::XamVoiceHeadsetPresent_entry)
 
-XAM_EXPORT_STUB(__imp__XamMuteSound);
-XAM_EXPORT_STUB(__imp__XamVoiceDisableMicArray);
-XAM_EXPORT_STUB(__imp__XamVoiceGetBatteryStatus);
-XAM_EXPORT_STUB(__imp__XamVoiceGetDirectionalData);
-XAM_EXPORT_STUB(__imp__XamVoiceGetMicArrayAudio);
-XAM_EXPORT_STUB(__imp__XamVoiceGetMicArrayAudioEx);
-XAM_EXPORT_STUB(__imp__XamVoiceGetMicArrayFilenameDesc);
-XAM_EXPORT_STUB(__imp__XamVoiceGetMicArrayStatus);
-XAM_EXPORT_STUB(__imp__XamVoiceGetMicArrayUnderrunStatus);
-XAM_EXPORT_STUB(__imp__XamVoiceMuteMicArray);
-XAM_EXPORT_STUB(__imp__XamVoiceRecordUserPrivileges);
-XAM_EXPORT_STUB(__imp__XamVoiceSetAudioCaptureRoutine);
-XAM_EXPORT_STUB(__imp__XamVoiceSetMicArrayBeamAngle);
-XAM_EXPORT_STUB(__imp__XamVoiceSetMicArrayIdleUsers);
-XAM_EXPORT_STUB(__imp__XamVoiceSubmitPacket);
+REX_EXPORT_STUB(__imp__XamMuteSound);
+REX_EXPORT_STUB(__imp__XamVoiceDisableMicArray);
+REX_EXPORT_STUB(__imp__XamVoiceGetBatteryStatus);
+REX_EXPORT_STUB(__imp__XamVoiceGetDirectionalData);
+REX_EXPORT_STUB(__imp__XamVoiceGetMicArrayAudio);
+REX_EXPORT_STUB(__imp__XamVoiceGetMicArrayAudioEx);
+REX_EXPORT_STUB(__imp__XamVoiceGetMicArrayFilenameDesc);
+REX_EXPORT_STUB(__imp__XamVoiceGetMicArrayStatus);
+REX_EXPORT_STUB(__imp__XamVoiceGetMicArrayUnderrunStatus);
+REX_EXPORT_STUB(__imp__XamVoiceMuteMicArray);
+REX_EXPORT_STUB(__imp__XamVoiceRecordUserPrivileges);
+REX_EXPORT_STUB(__imp__XamVoiceSetAudioCaptureRoutine);
+REX_EXPORT_STUB(__imp__XamVoiceSetMicArrayBeamAngle);
+REX_EXPORT_STUB(__imp__XamVoiceSetMicArrayIdleUsers);
+REX_EXPORT_STUB(__imp__XamVoiceSubmitPacket);

@@ -15,7 +15,7 @@
 
 #include <rex/cvar.h>
 #include <rex/math.h>
-#include <rex/ppc/function.h>
+#include <rex/hook.h>
 #include <rex/system/xmemory.h>
 #include <rex/logging.h>
 
@@ -332,21 +332,20 @@ HeapDiagnostics ReXHeap::GetDiagnosticsLocked() const {
 
 ReXHeap g_heap;
 
-ppc_u32_result_t RtlAllocateHeap_entry(ppc_u32_t hHeap, ppc_u32_t dwFlags, ppc_u32_t dwBytes) {
+u32 RtlAllocateHeap_entry(u32 hHeap, u32 dwFlags, u32 dwBytes) {
   return g_heap.Alloc(dwBytes, dwFlags & HEAP_ZERO_MEMORY);
 }
 
-ppc_u32_result_t RtlFreeHeap_entry(ppc_u32_t hHeap, ppc_u32_t dwFlags, ppc_u32_t ptr) {
+u32 RtlFreeHeap_entry(u32 hHeap, u32 dwFlags, u32 ptr) {
   g_heap.Free(static_cast<uint32_t>(ptr));
   return 1;
 }
 
-ppc_u32_result_t RtlSizeHeap_entry(ppc_u32_t hHeap, ppc_u32_t dwFlags, ppc_u32_t ptr) {
+u32 RtlSizeHeap_entry(u32 hHeap, u32 dwFlags, u32 ptr) {
   return g_heap.Size(static_cast<uint32_t>(ptr));
 }
 
-ppc_u32_result_t RtlReAllocateHeap_entry(ppc_u32_t hHeap, ppc_u32_t dwFlags, ppc_u32_t ptr,
-                                         ppc_u32_t dwBytes) {
+u32 RtlReAllocateHeap_entry(u32 hHeap, u32 dwFlags, u32 ptr, u32 dwBytes) {
   return g_heap.Realloc(static_cast<uint32_t>(ptr), dwBytes, dwFlags & HEAP_ZERO_MEMORY);
 }
 
@@ -360,7 +359,7 @@ ReXHeap& GetHeap() {
 
 }  // namespace rex::kernel::crt
 
-REXCRT_EXPORT(rexcrt_RtlAllocateHeap, rex::kernel::crt::RtlAllocateHeap_entry)
-REXCRT_EXPORT(rexcrt_RtlFreeHeap, rex::kernel::crt::RtlFreeHeap_entry)
-REXCRT_EXPORT(rexcrt_RtlSizeHeap, rex::kernel::crt::RtlSizeHeap_entry)
-REXCRT_EXPORT(rexcrt_RtlReAllocateHeap, rex::kernel::crt::RtlReAllocateHeap_entry)
+REX_HOOK(rexcrt_RtlAllocateHeap, rex::kernel::crt::RtlAllocateHeap_entry)
+REX_HOOK(rexcrt_RtlFreeHeap, rex::kernel::crt::RtlFreeHeap_entry)
+REX_HOOK(rexcrt_RtlSizeHeap, rex::kernel::crt::RtlSizeHeap_entry)
+REX_HOOK(rexcrt_RtlReAllocateHeap, rex::kernel::crt::RtlReAllocateHeap_entry)

@@ -11,8 +11,8 @@
 
 #include <rex/kernel/xboxkrnl/private.h>
 #include <rex/logging.h>
-#include <rex/ppc/function.h>
-#include <rex/ppc/types.h>
+#include <rex/hook.h>
+#include <rex/types.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/user_module.h>
 #include <rex/system/xexception.h>
@@ -21,7 +21,7 @@
 namespace rex::kernel::xboxkrnl {
 using namespace rex::system;
 
-ppc_u32_result_t XexCheckExecutablePrivilege_entry(ppc_u32_t privilege) {
+u32 XexCheckExecutablePrivilege_entry(u32 privilege) {
   REXKRNL_IMPORT_TRACE("XexCheckExecutablePrivilege", "priv={}", (uint32_t)privilege);
   // BOOL
   // DWORD Privilege
@@ -41,7 +41,7 @@ ppc_u32_result_t XexCheckExecutablePrivilege_entry(ppc_u32_t privilege) {
   return (flags & mask) > 0;
 }
 
-ppc_u32_result_t XexGetModuleHandle_entry(ppc_pchar_t module_name, ppc_pu32_t hmodule_ptr) {
+u32 XexGetModuleHandle_entry(mapped_string module_name, mapped_u32 hmodule_ptr) {
   object_ref<XModule> module;
 
   if (!module_name) {
@@ -61,8 +61,8 @@ ppc_u32_result_t XexGetModuleHandle_entry(ppc_pchar_t module_name, ppc_pu32_t hm
   return X_ERROR_SUCCESS;
 }
 
-ppc_u32_result_t XexGetModuleSection_entry(ppc_pvoid_t hmodule, ppc_pchar_t name,
-                                           ppc_pu32_t data_ptr, ppc_pu32_t size_ptr) {
+u32 XexGetModuleSection_entry(mapped_void hmodule, mapped_string name, mapped_u32 data_ptr,
+                              mapped_u32 size_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
   auto module = XModule::GetFromHModule(REX_KERNEL_STATE(), hmodule);
@@ -81,8 +81,8 @@ ppc_u32_result_t XexGetModuleSection_entry(ppc_pvoid_t hmodule, ppc_pchar_t name
   return result;
 }
 
-ppc_u32_result_t XexLoadImage_entry(ppc_pchar_t module_name, ppc_u32_t module_flags,
-                                    ppc_u32_t min_version, ppc_pu32_t hmodule_ptr) {
+u32 XexLoadImage_entry(mapped_string module_name, u32 module_flags, u32 min_version,
+                       mapped_u32 hmodule_ptr) {
   X_STATUS result = X_STATUS_NO_SUCH_FILE;
 
   uint32_t hmodule = 0;
@@ -114,7 +114,7 @@ ppc_u32_result_t XexLoadImage_entry(ppc_pchar_t module_name, ppc_u32_t module_fl
   return result;
 }
 
-ppc_u32_result_t XexUnloadImage_entry(ppc_pvoid_t hmodule) {
+u32 XexUnloadImage_entry(mapped_void hmodule) {
   auto module = XModule::GetFromHModule(REX_KERNEL_STATE(), hmodule);
   if (!module) {
     return X_STATUS_INVALID_HANDLE;
@@ -134,8 +134,7 @@ ppc_u32_result_t XexUnloadImage_entry(ppc_pvoid_t hmodule) {
   return X_STATUS_SUCCESS;
 }
 
-ppc_u32_result_t XexGetProcedureAddress_entry(ppc_pvoid_t hmodule, ppc_u32_t ordinal,
-                                              ppc_pu32_t out_function_ptr) {
+u32 XexGetProcedureAddress_entry(mapped_void hmodule, u32 ordinal, mapped_u32 out_function_ptr) {
   // May be entry point?
   assert_not_zero(ordinal);
 
@@ -179,7 +178,7 @@ ppc_u32_result_t XexGetProcedureAddress_entry(ppc_pvoid_t hmodule, ppc_u32_t ord
 }
 
 void ExRegisterTitleTerminateNotification_entry(ppc_ptr_t<X_EX_TITLE_TERMINATE_REGISTRATION> reg,
-                                                ppc_u32_t create) {
+                                                u32 create) {
   if (create) {
     // Adding.
     REX_KERNEL_STATE()->RegisterTitleTerminateNotification(reg->notification_routine,
@@ -190,56 +189,56 @@ void ExRegisterTitleTerminateNotification_entry(ppc_ptr_t<X_EX_TITLE_TERMINATE_R
   }
 }
 
-ppc_u32_result_t XexLoadImageHeaders_entry(ppc_pchar_t path, ppc_pvoid_t headers) {
+u32 XexLoadImageHeaders_entry(mapped_string path, mapped_void headers) {
   REXKRNL_DEBUG("XexLoadImageHeaders({}) - stub", path.value());
   return X_STATUS_NOT_IMPLEMENTED;
 }
 
 }  // namespace rex::kernel::xboxkrnl
 
-XBOXKRNL_EXPORT(__imp__XexCheckExecutablePrivilege,
-                rex::kernel::xboxkrnl::XexCheckExecutablePrivilege_entry)
-XBOXKRNL_EXPORT(__imp__XexGetModuleHandle, rex::kernel::xboxkrnl::XexGetModuleHandle_entry)
-XBOXKRNL_EXPORT(__imp__XexGetModuleSection, rex::kernel::xboxkrnl::XexGetModuleSection_entry)
-XBOXKRNL_EXPORT(__imp__XexLoadImage, rex::kernel::xboxkrnl::XexLoadImage_entry)
-XBOXKRNL_EXPORT(__imp__XexUnloadImage, rex::kernel::xboxkrnl::XexUnloadImage_entry)
-XBOXKRNL_EXPORT(__imp__XexGetProcedureAddress, rex::kernel::xboxkrnl::XexGetProcedureAddress_entry)
-XBOXKRNL_EXPORT(__imp__ExRegisterTitleTerminateNotification,
-                rex::kernel::xboxkrnl::ExRegisterTitleTerminateNotification_entry)
-XBOXKRNL_EXPORT(__imp__XexLoadImageHeaders, rex::kernel::xboxkrnl::XexLoadImageHeaders_entry)
+REX_EXPORT(__imp__XexCheckExecutablePrivilege,
+           rex::kernel::xboxkrnl::XexCheckExecutablePrivilege_entry)
+REX_EXPORT(__imp__XexGetModuleHandle, rex::kernel::xboxkrnl::XexGetModuleHandle_entry)
+REX_EXPORT(__imp__XexGetModuleSection, rex::kernel::xboxkrnl::XexGetModuleSection_entry)
+REX_EXPORT(__imp__XexLoadImage, rex::kernel::xboxkrnl::XexLoadImage_entry)
+REX_EXPORT(__imp__XexUnloadImage, rex::kernel::xboxkrnl::XexUnloadImage_entry)
+REX_EXPORT(__imp__XexGetProcedureAddress, rex::kernel::xboxkrnl::XexGetProcedureAddress_entry)
+REX_EXPORT(__imp__ExRegisterTitleTerminateNotification,
+           rex::kernel::xboxkrnl::ExRegisterTitleTerminateNotification_entry)
+REX_EXPORT(__imp__XexLoadImageHeaders, rex::kernel::xboxkrnl::XexLoadImageHeaders_entry)
 
-XBOXKRNL_EXPORT_STUB(__imp__XexLoadExecutable);
-XBOXKRNL_EXPORT_STUB(__imp__XexLoadImageFromMemory);
-XBOXKRNL_EXPORT_STUB(__imp__XexPcToFileHeader);
-XBOXKRNL_EXPORT_STUB(__imp__XexRegisterPatchDescriptor);
-XBOXKRNL_EXPORT_STUB(__imp__XexSendDeferredNotifications);
-XBOXKRNL_EXPORT_STUB(__imp__XexStartExecutable);
-XBOXKRNL_EXPORT_STUB(__imp__XexUnloadImageAndExitThread);
-XBOXKRNL_EXPORT_STUB(__imp__XexUnloadTitleModules);
-XBOXKRNL_EXPORT_STUB(__imp__XexVerifyImageHeaders);
-XBOXKRNL_EXPORT_STUB(__imp__XexGetModuleImportVersions);
-XBOXKRNL_EXPORT_STUB(__imp__XexActivationGetNonce);
-XBOXKRNL_EXPORT_STUB(__imp__XexActivationSetLicense);
-XBOXKRNL_EXPORT_STUB(__imp__XexActivationVerifyOwnership);
-XBOXKRNL_EXPORT_STUB(__imp__XexDisableVerboseDbgPrint);
-XBOXKRNL_EXPORT_STUB(__imp__XexImportTraceEnable);
-XBOXKRNL_EXPORT_STUB(__imp__XexSetExecutablePrivilege);
-XBOXKRNL_EXPORT_STUB(__imp__XexSetLastKdcTime);
-XBOXKRNL_EXPORT_STUB(__imp__XexTransformImageKey);
-XBOXKRNL_EXPORT_STUB(__imp__XexShimDisable);
-XBOXKRNL_EXPORT_STUB(__imp__XexShimEnable);
-XBOXKRNL_EXPORT_STUB(__imp__XexShimEntryDisable);
-XBOXKRNL_EXPORT_STUB(__imp__XexShimEntryEnable);
-XBOXKRNL_EXPORT_STUB(__imp__XexShimEntryRegister);
-XBOXKRNL_EXPORT_STUB(__imp__XexShimLock);
-XBOXKRNL_EXPORT_STUB(__imp__XexTitleHash);
-XBOXKRNL_EXPORT_STUB(__imp__XexTitleHashClose);
-XBOXKRNL_EXPORT_STUB(__imp__XexTitleHashContinue);
-XBOXKRNL_EXPORT_STUB(__imp__XexTitleHashOpen);
-XBOXKRNL_EXPORT_STUB(__imp__XexReserveCodeBuffer);
-XBOXKRNL_EXPORT_STUB(__imp__XexCommitCodeBuffer);
-XBOXKRNL_EXPORT_STUB(__imp__XexRegisterUsermodeModule);
-XBOXKRNL_EXPORT_STUB(__imp__LDICreateDecompression);
-XBOXKRNL_EXPORT_STUB(__imp__LDIDecompress);
-XBOXKRNL_EXPORT_STUB(__imp__LDIDestroyDecompression);
-XBOXKRNL_EXPORT_STUB(__imp__LDIResetDecompression);
+REX_EXPORT_STUB(__imp__XexLoadExecutable);
+REX_EXPORT_STUB(__imp__XexLoadImageFromMemory);
+REX_EXPORT_STUB(__imp__XexPcToFileHeader);
+REX_EXPORT_STUB(__imp__XexRegisterPatchDescriptor);
+REX_EXPORT_STUB(__imp__XexSendDeferredNotifications);
+REX_EXPORT_STUB(__imp__XexStartExecutable);
+REX_EXPORT_STUB(__imp__XexUnloadImageAndExitThread);
+REX_EXPORT_STUB(__imp__XexUnloadTitleModules);
+REX_EXPORT_STUB(__imp__XexVerifyImageHeaders);
+REX_EXPORT_STUB(__imp__XexGetModuleImportVersions);
+REX_EXPORT_STUB(__imp__XexActivationGetNonce);
+REX_EXPORT_STUB(__imp__XexActivationSetLicense);
+REX_EXPORT_STUB(__imp__XexActivationVerifyOwnership);
+REX_EXPORT_STUB(__imp__XexDisableVerboseDbgPrint);
+REX_EXPORT_STUB(__imp__XexImportTraceEnable);
+REX_EXPORT_STUB(__imp__XexSetExecutablePrivilege);
+REX_EXPORT_STUB(__imp__XexSetLastKdcTime);
+REX_EXPORT_STUB(__imp__XexTransformImageKey);
+REX_EXPORT_STUB(__imp__XexShimDisable);
+REX_EXPORT_STUB(__imp__XexShimEnable);
+REX_EXPORT_STUB(__imp__XexShimEntryDisable);
+REX_EXPORT_STUB(__imp__XexShimEntryEnable);
+REX_EXPORT_STUB(__imp__XexShimEntryRegister);
+REX_EXPORT_STUB(__imp__XexShimLock);
+REX_EXPORT_STUB(__imp__XexTitleHash);
+REX_EXPORT_STUB(__imp__XexTitleHashClose);
+REX_EXPORT_STUB(__imp__XexTitleHashContinue);
+REX_EXPORT_STUB(__imp__XexTitleHashOpen);
+REX_EXPORT_STUB(__imp__XexReserveCodeBuffer);
+REX_EXPORT_STUB(__imp__XexCommitCodeBuffer);
+REX_EXPORT_STUB(__imp__XexRegisterUsermodeModule);
+REX_EXPORT_STUB(__imp__LDICreateDecompression);
+REX_EXPORT_STUB(__imp__LDIDecompress);
+REX_EXPORT_STUB(__imp__LDIDestroyDecompression);
+REX_EXPORT_STUB(__imp__LDIResetDecompression);
