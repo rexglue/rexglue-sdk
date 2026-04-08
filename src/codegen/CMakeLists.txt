@@ -46,8 +46,49 @@ set(CODEGEN_BUILDER_SOURCES
     builders/vector.cpp
 )
 
-# Embed .inja templates as constexpr string_views at configure time
-include(${REXGLUE_ROOT}/cmake/embed_templates.cmake)
+# Inja templates
+set(TEMPLATE_SOURCE_DIR "${REXGLUE_ROOT}/resources/templates")
+set(TEMPLATE_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/templates")
+
+set(INJA_TEMPLATE_FILES
+    ${TEMPLATE_SOURCE_DIR}/init/app_header.inja
+    ${TEMPLATE_SOURCE_DIR}/init/config_toml.inja
+    ${TEMPLATE_SOURCE_DIR}/init/main_cpp.inja
+    ${TEMPLATE_SOURCE_DIR}/init/cmakelists.inja
+    ${TEMPLATE_SOURCE_DIR}/init/cmake_presets.inja
+    ${TEMPLATE_SOURCE_DIR}/init/rexglue_cmake.inja
+    ${TEMPLATE_SOURCE_DIR}/codegen/init_cpp.inja
+    ${TEMPLATE_SOURCE_DIR}/codegen/init_h.inja
+    ${TEMPLATE_SOURCE_DIR}/codegen/sources_cmake.inja
+    ${TEMPLATE_SOURCE_DIR}/test/ppc_test_cases_cpp.inja
+    ${TEMPLATE_SOURCE_DIR}/test/ppc_test_decls_h.inja
+    ${TEMPLATE_SOURCE_DIR}/test/ppc_test_functions_cpp.inja
+    ${TEMPLATE_SOURCE_DIR}/test/ppc_config_h.inja
+)
+
+# Build output header paths
+set(EMBEDDED_HEADERS "")
+foreach(TEMPLATE_FILE ${INJA_TEMPLATE_FILES})
+    file(RELATIVE_PATH REL_PATH "${TEMPLATE_SOURCE_DIR}" "${TEMPLATE_FILE}")
+    string(REGEX REPLACE "\\.inja$" "" CANONICAL_ID "${REL_PATH}")
+    string(REPLACE "/" "_" VAR_NAME "${CANONICAL_ID}")
+    string(REPLACE "-" "_" VAR_NAME "${VAR_NAME}")
+    list(APPEND EMBEDDED_HEADERS "${TEMPLATE_OUTPUT_DIR}/${VAR_NAME}.inja.h")
+endforeach()
+list(APPEND EMBEDDED_HEADERS "${TEMPLATE_OUTPUT_DIR}/embedded_templates.h")
+
+add_custom_command(
+    OUTPUT ${EMBEDDED_HEADERS}
+    COMMAND ${CMAKE_COMMAND}
+        -DTEMPLATE_SOURCE_DIR=${TEMPLATE_SOURCE_DIR}
+        -DTEMPLATE_OUTPUT_DIR=${TEMPLATE_OUTPUT_DIR}
+        -P ${REXGLUE_ROOT}/cmake/embed_templates.cmake
+    DEPENDS ${INJA_TEMPLATE_FILES} ${REXGLUE_ROOT}/cmake/embed_templates.cmake
+    COMMENT "Embedding inja templates"
+    VERBATIM
+)
+
+add_custom_target(embed_templates DEPENDS ${EMBEDDED_HEADERS})
 
 add_library(rexcodegen STATIC
     ${CODEGEN_CORE_SOURCES}
@@ -55,7 +96,7 @@ add_library(rexcodegen STATIC
     ${CODEGEN_BUILDER_SOURCES}
 )
 add_library(rex::codegen ALIAS rexcodegen)
-
+add_dependencies(rexcodegen embed_templates)
 
 
 target_include_directories(rexcodegen

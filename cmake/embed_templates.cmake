@@ -1,17 +1,12 @@
 # cmake/embed_templates.cmake
 # Converts resources/templates/**/*.inja into C++ headers with constexpr string_view.
-#
 # Generates:
-#   - One header per .inja file (e.g., cli_cmakelists.inja.h)
+#   - One header per .inja file (e.g., init_app_header.inja.h)
 #   - A master embedded_templates.h with a map of canonical ID -> content
-#
-# Output goes to ${CMAKE_CURRENT_BINARY_DIR}/generated/templates/
-#
-# Note: Runs at configure time. Editing .inja files requires re-running
-# CMake configure to pick up changes.
 
-set(TEMPLATE_SOURCE_DIR "${REXGLUE_ROOT}/resources/templates")
-set(TEMPLATE_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/templates")
+if(NOT DEFINED TEMPLATE_SOURCE_DIR OR NOT DEFINED TEMPLATE_OUTPUT_DIR)
+    message(FATAL_ERROR "embed_templates.cmake requires -DTEMPLATE_SOURCE_DIR and -DTEMPLATE_OUTPUT_DIR")
+endif()
 
 file(GLOB_RECURSE INJA_TEMPLATE_FILES "${TEMPLATE_SOURCE_DIR}/*.inja")
 

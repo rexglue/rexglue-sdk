@@ -14,7 +14,7 @@
 
 #include "codegen_logging.h"
 
-// Generated at configure time by cmake/embed_templates.cmake
+// Generated at build time by cmake/embed_templates.cmake
 #include "embedded_templates.h"
 
 #include <algorithm>
