@@ -205,6 +205,7 @@ endif()
 # Print configuration summary
 message(STATUS "===========================================")
 message(STATUS "ReXGlue Configuration Summary:")
+message(STATUS "  Version: ${PROJECT_VERSION}${REXGLUE_VERSION_SUFFIX}")
 message(STATUS "  Platform: ${REX_PLATFORM}")
 message(STATUS "  Compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
 message(STATUS "  Configurations: ${CMAKE_CONFIGURATION_TYPES}")
