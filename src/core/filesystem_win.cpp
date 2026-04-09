@@ -192,7 +192,7 @@ std::unique_ptr<FileHandle> FileHandle::OpenExisting(const std::filesystem::path
   if (desired_access & FileAccess::kFileAppendData) {
     open_access |= FILE_APPEND_DATA;
   }
-  DWORD share_mode = FILE_SHARE_READ | FILE_SHARE_WRITE;
+  DWORD share_mode = FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;
   // We assume we've already created the file in the caller.
   DWORD creation_disposition = OPEN_EXISTING;
   HANDLE handle = CreateFileW(path.c_str(), open_access, share_mode, nullptr, creation_disposition,

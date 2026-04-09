@@ -163,6 +163,8 @@ class ContentManager {
   X_RESULT SetContentThumbnail(uint64_t xuid, const XCONTENT_AGGREGATE_DATA& data,
                                std::vector<uint8_t> buffer);
   X_RESULT DeleteContent(uint64_t xuid, const XCONTENT_AGGREGATE_DATA& data);
+  X_RESULT UnmountContent(uint64_t xuid, const XCONTENT_AGGREGATE_DATA& data);
+  X_RESULT UnmountAndDeleteContent(uint64_t xuid, const XCONTENT_AGGREGATE_DATA& data);
 
   X_RESULT WriteContentHeaderFile(uint64_t xuid, XCONTENT_AGGREGATE_DATA data,
                                   uint32_t license_mask = 0);
@@ -188,6 +190,12 @@ class ContentManager {
   std::filesystem::path ResolvePackageHeaderPath(const std::string_view file_name, uint64_t xuid,
                                                  uint32_t title_id,
                                                  XContentType content_type) const;
+
+  std::unordered_map<string::string_key_case, ContentPackage*,
+                     string::string_key_case::Hash>::iterator
+  FindOpenPackageByData(const XCONTENT_AGGREGATE_DATA& data);
+  ContentPackage* DetachPackage(std::unordered_map<string::string_key_case, ContentPackage*,
+                                                   string::string_key_case::Hash>::iterator it);
 
   KernelState* kernel_state_;
   std::filesystem::path root_path_;

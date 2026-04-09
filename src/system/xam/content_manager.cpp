@@ -323,9 +323,7 @@ X_RESULT ContentManager::CloseContent(const std::string_view root_name) {
     if (it == open_packages_.end()) {
       return X_ERROR_FILE_NOT_FOUND;
     }
-    CloseOpenedFilesFromContent(root_name);
-    package = it->second;
-    open_packages_.erase(it);
+    package = DetachPackage(it);
   }
   delete package;
   return X_ERROR_SUCCESS;
@@ -376,15 +374,70 @@ X_RESULT ContentManager::DeleteContent(uint64_t xuid, const XCONTENT_AGGREGATE_D
 
   auto package_path = ResolvePackagePath(xuid, data);
   std::error_code ec;
-  auto removed = std::filesystem::remove_all(package_path, ec);
+  auto dir_removed = std::filesystem::remove_all(package_path, ec);
   if (ec) {
     return X_ERROR_ACCESS_DENIED;
   }
-  if (removed > 0) {
+
+  uint64_t used_xuid = (data.xuid != uint64_t(-1) && data.xuid != 0) ? uint64_t(data.xuid) : xuid;
+  auto header_path =
+      ResolvePackageHeaderPath(data.file_name(), used_xuid, data.title_id, data.content_type);
+  std::error_code ec2;
+  bool header_removed = std::filesystem::remove(header_path, ec2);
+
+  if (dir_removed > 0 || header_removed) {
     return X_ERROR_SUCCESS;
-  } else {
-    return X_ERROR_FILE_NOT_FOUND;
   }
+  return X_ERROR_FILE_NOT_FOUND;
+}
+
+X_RESULT ContentManager::UnmountContent(uint64_t xuid, const XCONTENT_AGGREGATE_DATA& data) {
+  ContentPackage* package = nullptr;
+  {
+    auto global_lock = global_critical_region_.Acquire();
+    auto it = FindOpenPackageByData(data);
+    if (it == open_packages_.end()) {
+      return X_ERROR_FILE_NOT_FOUND;
+    }
+    package = DetachPackage(it);
+  }
+  delete package;
+  return X_ERROR_SUCCESS;
+}
+
+X_RESULT ContentManager::UnmountAndDeleteContent(uint64_t xuid,
+                                                 const XCONTENT_AGGREGATE_DATA& data) {
+  // Unmount phase: tolerant of not-mounted state
+  ContentPackage* package = nullptr;
+  {
+    auto global_lock = global_critical_region_.Acquire();
+    auto it = FindOpenPackageByData(data);
+    if (it != open_packages_.end()) {
+      package = DetachPackage(it);
+    }
+  }
+  delete package;
+
+  // Delete phase: remove package directory and .header file
+  auto package_path = ResolvePackagePath(xuid, data);
+
+  uint64_t used_xuid = (data.xuid != uint64_t(-1) && data.xuid != 0) ? uint64_t(data.xuid) : xuid;
+  auto header_path =
+      ResolvePackageHeaderPath(data.file_name(), used_xuid, data.title_id, data.content_type);
+
+  std::error_code ec;
+  auto dir_removed = std::filesystem::remove_all(package_path, ec);
+  if (ec) {
+    return X_ERROR_ACCESS_DENIED;
+  }
+
+  std::error_code ec2;
+  bool header_removed = std::filesystem::remove(header_path, ec2);
+
+  if (dir_removed > 0 || header_removed) {
+    return X_ERROR_SUCCESS;
+  }
+  return X_ERROR_FILE_NOT_FOUND;
 }
 
 std::filesystem::path ContentManager::ResolveGameUserContentPath() {
@@ -396,11 +449,46 @@ std::filesystem::path ContentManager::ResolveGameUserContentPath() {
   return root_path_ / title_id / kGameUserContentDirName / user_name;
 }
 
+std::unordered_map<string::string_key_case, ContentPackage*,
+                   string::string_key_case::Hash>::iterator
+ContentManager::FindOpenPackageByData(const XCONTENT_AGGREGATE_DATA& data) {
+  // Resolve kCurrentlyRunningTitleId so both sides compare actual title IDs.
+  uint32_t query_title = data.title_id;
+  if (query_title == kCurrentlyRunningTitleId) {
+    query_title = kernel_state_->title_id();
+  }
+
+  for (auto it = open_packages_.begin(); it != open_packages_.end(); ++it) {
+    const auto& pkg = it->second->GetPackageContentData();
+
+    uint32_t pkg_title = pkg.title_id;
+    if (pkg_title == kCurrentlyRunningTitleId) {
+      pkg_title = kernel_state_->title_id();
+    }
+
+    // Match on content_type + file_name + resolved title_id.
+    // device_id is a virtual storage selector, not a content identifier.
+    if (data.content_type == pkg.content_type && data.file_name() == pkg.file_name() &&
+        query_title == pkg_title) {
+      return it;
+    }
+  }
+  return open_packages_.end();
+}
+
+ContentPackage* ContentManager::DetachPackage(
+    std::unordered_map<string::string_key_case, ContentPackage*,
+                       string::string_key_case::Hash>::iterator it) {
+  CloseOpenedFilesFromContent(it->first.view());
+  ContentPackage* package = it->second;
+  open_packages_.erase(it);
+  return package;
+}
+
 bool ContentManager::IsContentOpen(const XCONTENT_AGGREGATE_DATA& data) const {
-  return std::any_of(open_packages_.cbegin(), open_packages_.cend(),
-                     [data](std::pair<string::string_key_case, ContentPackage*> content) {
-                       return data == content.second->GetPackageContentData();
-                     });
+  return std::any_of(open_packages_.cbegin(), open_packages_.cend(), [&data](const auto& content) {
+    return data == content.second->GetPackageContentData();
+  });
 }
 
 std::filesystem::path ContentManager::GetOpenPackagePath(const std::string_view root_name) const {
