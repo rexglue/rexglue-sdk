@@ -424,7 +424,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
   if (vulkan_instance->extensions_.ext_EXT_debug_utils && REXCVAR_GET(vulkan_log_debug_messages)) {
     VkDebugUtilsMessengerCreateInfoEXT debug_utils_messenger_create_info = {
         VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT};
-    auto gpu_logger = rex::GetLogger(rex::log::GPU);
+    auto gpu_logger = rex::GetLogger(rex::log::gpu());
     if (gpu_logger) {
       if (gpu_logger->should_log(spdlog::level::debug)) {
         debug_utils_messenger_create_info.messageSeverity |=

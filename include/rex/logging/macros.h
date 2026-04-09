@@ -1,6 +1,6 @@
 /**
  * @file        rex/logging/macros.h
- * @brief       Logging macros - parameterized, legacy aliases, function-prefixed, thread-ID
+ * @brief       Logging macros - parameterized, per-subsystem aliases, category definition
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -22,6 +22,13 @@
       rex_log_ptr_->log(spdlog::source_loc{__FILE__, __LINE__, __FUNCTION__}, lvl, __VA_ARGS__); \
   } while (0)
 
+#define REX_LOG_NOISY_IMPL(cat, lvl, ...) \
+  do {                                    \
+    if (!REXCVAR_GET(log_noisy))          \
+      break;                              \
+    REX_LOG_IMPL(cat, lvl, __VA_ARGS__);  \
+  } while (0)
+
 /* --- Parameterized Macros (Primary API) --------------------------------- */
 
 /** @{ */
@@ -33,127 +40,94 @@
 #define REXLOG_CAT_CRITICAL(cat, ...) REX_LOG_IMPL(cat, spdlog::level::critical, __VA_ARGS__)
 /** @} */
 
-/* --- Function-Prefixed Parameterized Macros ----------------------------- */
+/* --- Noisy Parameterized Macros (cvar-gated) ------------------------------ */
+
+#define REXLOG_CAT_NOISY_TRACE(cat, ...) REX_LOG_NOISY_IMPL(cat, spdlog::level::trace, __VA_ARGS__)
+#define REXLOG_CAT_NOISY_DEBUG(cat, ...) REX_LOG_NOISY_IMPL(cat, spdlog::level::debug, __VA_ARGS__)
+
+/* --- Per-Subsystem Alias Macros - Core Category -------------------------- */
 
 /** @{ */
-#define REXLOG_CAT_FN_TRACE(cat, fmt, ...) \
-  REXLOG_CAT_TRACE(cat, "{}: " fmt, __FUNCTION__ __VA_OPT__(, ) __VA_ARGS__)
-#define REXLOG_CAT_FN_DEBUG(cat, fmt, ...) \
-  REXLOG_CAT_DEBUG(cat, "{}: " fmt, __FUNCTION__ __VA_OPT__(, ) __VA_ARGS__)
-#define REXLOG_CAT_FN_INFO(cat, fmt, ...) \
-  REXLOG_CAT_INFO(cat, "{}: " fmt, __FUNCTION__ __VA_OPT__(, ) __VA_ARGS__)
-#define REXLOG_CAT_FN_WARN(cat, fmt, ...) \
-  REXLOG_CAT_WARN(cat, "{}: " fmt, __FUNCTION__ __VA_OPT__(, ) __VA_ARGS__)
-#define REXLOG_CAT_FN_ERROR(cat, fmt, ...) \
-  REXLOG_CAT_ERROR(cat, "{}: " fmt, __FUNCTION__ __VA_OPT__(, ) __VA_ARGS__)
-#define REXLOG_CAT_FN_CRITICAL(cat, fmt, ...) \
-  REXLOG_CAT_CRITICAL(cat, "{}: " fmt, __FUNCTION__ __VA_OPT__(, ) __VA_ARGS__)
+#define REXLOG_TRACE(...) REXLOG_CAT_TRACE(::rex::log::core(), __VA_ARGS__)
+#define REXLOG_DEBUG(...) REXLOG_CAT_DEBUG(::rex::log::core(), __VA_ARGS__)
+#define REXLOG_INFO(...) REXLOG_CAT_INFO(::rex::log::core(), __VA_ARGS__)
+#define REXLOG_WARN(...) REXLOG_CAT_WARN(::rex::log::core(), __VA_ARGS__)
+#define REXLOG_ERROR(...) REXLOG_CAT_ERROR(::rex::log::core(), __VA_ARGS__)
+#define REXLOG_CRITICAL(...) REXLOG_CAT_CRITICAL(::rex::log::core(), __VA_ARGS__)
 /** @} */
 
-/* --- Thread-ID Parameterized Macros ------------------------------------- */
-
-/** @{ */
-#define REXLOG_CAT_TID_TRACE(cat, fmt, ...)                                  \
-  REXLOG_CAT_TRACE(cat, "[T:{:08X}] {}: " fmt, ::rex::GetLogGuestThreadId(), \
-                   __FUNCTION__ __VA_OPT__(, ) __VA_ARGS__)
-#define REXLOG_CAT_TID_DEBUG(cat, fmt, ...)                                  \
-  REXLOG_CAT_DEBUG(cat, "[T:{:08X}] {}: " fmt, ::rex::GetLogGuestThreadId(), \
-                   __FUNCTION__ __VA_OPT__(, ) __VA_ARGS__)
-#define REXLOG_CAT_TID_INFO(cat, fmt, ...)                                  \
-  REXLOG_CAT_INFO(cat, "[T:{:08X}] {}: " fmt, ::rex::GetLogGuestThreadId(), \
-                  __FUNCTION__ __VA_OPT__(, ) __VA_ARGS__)
-#define REXLOG_CAT_TID_WARN(cat, fmt, ...)                                  \
-  REXLOG_CAT_WARN(cat, "[T:{:08X}] {}: " fmt, ::rex::GetLogGuestThreadId(), \
-                  __FUNCTION__ __VA_OPT__(, ) __VA_ARGS__)
-#define REXLOG_CAT_TID_ERROR(cat, fmt, ...)                                  \
-  REXLOG_CAT_ERROR(cat, "[T:{:08X}] {}: " fmt, ::rex::GetLogGuestThreadId(), \
-                   __FUNCTION__ __VA_OPT__(, ) __VA_ARGS__)
-#define REXLOG_CAT_TID_CRITICAL(cat, fmt, ...)                                  \
-  REXLOG_CAT_CRITICAL(cat, "[T:{:08X}] {}: " fmt, ::rex::GetLogGuestThreadId(), \
-                      __FUNCTION__ __VA_OPT__(, ) __VA_ARGS__)
-/** @} */
-
-/* --- Legacy Alias Macros - Core Category -------------------------------- */
-
-/** @{ */
-#define REXLOG_TRACE(...) REXLOG_CAT_TRACE(::rex::log::Core, __VA_ARGS__)
-#define REXLOG_DEBUG(...) REXLOG_CAT_DEBUG(::rex::log::Core, __VA_ARGS__)
-#define REXLOG_INFO(...) REXLOG_CAT_INFO(::rex::log::Core, __VA_ARGS__)
-#define REXLOG_WARN(...) REXLOG_CAT_WARN(::rex::log::Core, __VA_ARGS__)
-#define REXLOG_ERROR(...) REXLOG_CAT_ERROR(::rex::log::Core, __VA_ARGS__)
-#define REXLOG_CRITICAL(...) REXLOG_CAT_CRITICAL(::rex::log::Core, __VA_ARGS__)
-/** @} */
-
-/* --- Legacy Alias Macros - Per-Subsystem -------------------------------- */
+/* --- Per-Subsystem Alias Macros ------------------------------------------ */
 
 /** @{ CPU */
-#define REXCPU_TRACE(...) REXLOG_CAT_TRACE(::rex::log::CPU, __VA_ARGS__)
-#define REXCPU_DEBUG(...) REXLOG_CAT_DEBUG(::rex::log::CPU, __VA_ARGS__)
-#define REXCPU_INFO(...) REXLOG_CAT_INFO(::rex::log::CPU, __VA_ARGS__)
-#define REXCPU_WARN(...) REXLOG_CAT_WARN(::rex::log::CPU, __VA_ARGS__)
-#define REXCPU_ERROR(...) REXLOG_CAT_ERROR(::rex::log::CPU, __VA_ARGS__)
-#define REXCPU_CRITICAL(...) REXLOG_CAT_CRITICAL(::rex::log::CPU, __VA_ARGS__)
+#define REXCPU_TRACE(...) REXLOG_CAT_TRACE(::rex::log::cpu(), __VA_ARGS__)
+#define REXCPU_DEBUG(...) REXLOG_CAT_DEBUG(::rex::log::cpu(), __VA_ARGS__)
+#define REXCPU_INFO(...) REXLOG_CAT_INFO(::rex::log::cpu(), __VA_ARGS__)
+#define REXCPU_WARN(...) REXLOG_CAT_WARN(::rex::log::cpu(), __VA_ARGS__)
+#define REXCPU_ERROR(...) REXLOG_CAT_ERROR(::rex::log::cpu(), __VA_ARGS__)
+#define REXCPU_CRITICAL(...) REXLOG_CAT_CRITICAL(::rex::log::cpu(), __VA_ARGS__)
 /** @} */
 
 /** @{ APU */
-#define REXAPU_TRACE(...) REXLOG_CAT_TRACE(::rex::log::APU, __VA_ARGS__)
-#define REXAPU_DEBUG(...) REXLOG_CAT_DEBUG(::rex::log::APU, __VA_ARGS__)
-#define REXAPU_INFO(...) REXLOG_CAT_INFO(::rex::log::APU, __VA_ARGS__)
-#define REXAPU_WARN(...) REXLOG_CAT_WARN(::rex::log::APU, __VA_ARGS__)
-#define REXAPU_ERROR(...) REXLOG_CAT_ERROR(::rex::log::APU, __VA_ARGS__)
-#define REXAPU_CRITICAL(...) REXLOG_CAT_CRITICAL(::rex::log::APU, __VA_ARGS__)
+#define REXAPU_TRACE(...) REXLOG_CAT_TRACE(::rex::log::apu(), __VA_ARGS__)
+#define REXAPU_DEBUG(...) REXLOG_CAT_DEBUG(::rex::log::apu(), __VA_ARGS__)
+#define REXAPU_INFO(...) REXLOG_CAT_INFO(::rex::log::apu(), __VA_ARGS__)
+#define REXAPU_WARN(...) REXLOG_CAT_WARN(::rex::log::apu(), __VA_ARGS__)
+#define REXAPU_ERROR(...) REXLOG_CAT_ERROR(::rex::log::apu(), __VA_ARGS__)
+#define REXAPU_CRITICAL(...) REXLOG_CAT_CRITICAL(::rex::log::apu(), __VA_ARGS__)
 /** @} */
 
 /** @{ GPU */
-#define REXGPU_TRACE(...) REXLOG_CAT_TRACE(::rex::log::GPU, __VA_ARGS__)
-#define REXGPU_DEBUG(...) REXLOG_CAT_DEBUG(::rex::log::GPU, __VA_ARGS__)
-#define REXGPU_INFO(...) REXLOG_CAT_INFO(::rex::log::GPU, __VA_ARGS__)
-#define REXGPU_WARN(...) REXLOG_CAT_WARN(::rex::log::GPU, __VA_ARGS__)
-#define REXGPU_ERROR(...) REXLOG_CAT_ERROR(::rex::log::GPU, __VA_ARGS__)
-#define REXGPU_CRITICAL(...) REXLOG_CAT_CRITICAL(::rex::log::GPU, __VA_ARGS__)
+#define REXGPU_TRACE(...) REXLOG_CAT_TRACE(::rex::log::gpu(), __VA_ARGS__)
+#define REXGPU_DEBUG(...) REXLOG_CAT_DEBUG(::rex::log::gpu(), __VA_ARGS__)
+#define REXGPU_INFO(...) REXLOG_CAT_INFO(::rex::log::gpu(), __VA_ARGS__)
+#define REXGPU_WARN(...) REXLOG_CAT_WARN(::rex::log::gpu(), __VA_ARGS__)
+#define REXGPU_ERROR(...) REXLOG_CAT_ERROR(::rex::log::gpu(), __VA_ARGS__)
+#define REXGPU_CRITICAL(...) REXLOG_CAT_CRITICAL(::rex::log::gpu(), __VA_ARGS__)
 /** @} */
 
 /** @{ Kernel */
-#define REXKRNL_TRACE(...) REXLOG_CAT_TRACE(::rex::log::Kernel, __VA_ARGS__)
-#define REXKRNL_DEBUG(...) REXLOG_CAT_DEBUG(::rex::log::Kernel, __VA_ARGS__)
-#define REXKRNL_INFO(...) REXLOG_CAT_INFO(::rex::log::Kernel, __VA_ARGS__)
-#define REXKRNL_WARN(...) REXLOG_CAT_WARN(::rex::log::Kernel, __VA_ARGS__)
-#define REXKRNL_ERROR(...) REXLOG_CAT_ERROR(::rex::log::Kernel, __VA_ARGS__)
-#define REXKRNL_CRITICAL(...) REXLOG_CAT_CRITICAL(::rex::log::Kernel, __VA_ARGS__)
+#define REXKRNL_TRACE(...) REXLOG_CAT_TRACE(::rex::log::krnl(), __VA_ARGS__)
+#define REXKRNL_DEBUG(...) REXLOG_CAT_DEBUG(::rex::log::krnl(), __VA_ARGS__)
+#define REXKRNL_INFO(...) REXLOG_CAT_INFO(::rex::log::krnl(), __VA_ARGS__)
+#define REXKRNL_WARN(...) REXLOG_CAT_WARN(::rex::log::krnl(), __VA_ARGS__)
+#define REXKRNL_ERROR(...) REXLOG_CAT_ERROR(::rex::log::krnl(), __VA_ARGS__)
+#define REXKRNL_CRITICAL(...) REXLOG_CAT_CRITICAL(::rex::log::krnl(), __VA_ARGS__)
 /** @} */
 
 /** @{ System */
-#define REXSYS_TRACE(...) REXLOG_CAT_TRACE(::rex::log::System, __VA_ARGS__)
-#define REXSYS_DEBUG(...) REXLOG_CAT_DEBUG(::rex::log::System, __VA_ARGS__)
-#define REXSYS_INFO(...) REXLOG_CAT_INFO(::rex::log::System, __VA_ARGS__)
-#define REXSYS_WARN(...) REXLOG_CAT_WARN(::rex::log::System, __VA_ARGS__)
-#define REXSYS_ERROR(...) REXLOG_CAT_ERROR(::rex::log::System, __VA_ARGS__)
-#define REXSYS_CRITICAL(...) REXLOG_CAT_CRITICAL(::rex::log::System, __VA_ARGS__)
+#define REXSYS_TRACE(...) REXLOG_CAT_TRACE(::rex::log::sys(), __VA_ARGS__)
+#define REXSYS_DEBUG(...) REXLOG_CAT_DEBUG(::rex::log::sys(), __VA_ARGS__)
+#define REXSYS_INFO(...) REXLOG_CAT_INFO(::rex::log::sys(), __VA_ARGS__)
+#define REXSYS_WARN(...) REXLOG_CAT_WARN(::rex::log::sys(), __VA_ARGS__)
+#define REXSYS_ERROR(...) REXLOG_CAT_ERROR(::rex::log::sys(), __VA_ARGS__)
+#define REXSYS_CRITICAL(...) REXLOG_CAT_CRITICAL(::rex::log::sys(), __VA_ARGS__)
 /** @} */
 
 /** @{ Filesystem */
-#define REXFS_TRACE(...) REXLOG_CAT_TRACE(::rex::log::FS, __VA_ARGS__)
-#define REXFS_DEBUG(...) REXLOG_CAT_DEBUG(::rex::log::FS, __VA_ARGS__)
-#define REXFS_INFO(...) REXLOG_CAT_INFO(::rex::log::FS, __VA_ARGS__)
-#define REXFS_WARN(...) REXLOG_CAT_WARN(::rex::log::FS, __VA_ARGS__)
-#define REXFS_ERROR(...) REXLOG_CAT_ERROR(::rex::log::FS, __VA_ARGS__)
-#define REXFS_CRITICAL(...) REXLOG_CAT_CRITICAL(::rex::log::FS, __VA_ARGS__)
+#define REXFS_TRACE(...) REXLOG_CAT_TRACE(::rex::log::fs(), __VA_ARGS__)
+#define REXFS_DEBUG(...) REXLOG_CAT_DEBUG(::rex::log::fs(), __VA_ARGS__)
+#define REXFS_INFO(...) REXLOG_CAT_INFO(::rex::log::fs(), __VA_ARGS__)
+#define REXFS_WARN(...) REXLOG_CAT_WARN(::rex::log::fs(), __VA_ARGS__)
+#define REXFS_ERROR(...) REXLOG_CAT_ERROR(::rex::log::fs(), __VA_ARGS__)
+#define REXFS_CRITICAL(...) REXLOG_CAT_CRITICAL(::rex::log::fs(), __VA_ARGS__)
 /** @} */
 
-/* --- Legacy Function-Prefixed (Core) ------------------------------------ */
+/* --- Noisy Aliases - Per-Subsystem ---------------------------------------- */
 
-/** @{ */
-#define REXLOGFN_TRACE(fmt, ...) \
-  REXLOG_CAT_FN_TRACE(::rex::log::Core, fmt __VA_OPT__(, ) __VA_ARGS__)
-#define REXLOGFN_DEBUG(fmt, ...) \
-  REXLOG_CAT_FN_DEBUG(::rex::log::Core, fmt __VA_OPT__(, ) __VA_ARGS__)
-#define REXLOGFN_INFO(fmt, ...) REXLOG_CAT_FN_INFO(::rex::log::Core, fmt __VA_OPT__(, ) __VA_ARGS__)
-#define REXLOGFN_WARN(fmt, ...) REXLOG_CAT_FN_WARN(::rex::log::Core, fmt __VA_OPT__(, ) __VA_ARGS__)
-#define REXLOGFN_ERROR(fmt, ...) \
-  REXLOG_CAT_FN_ERROR(::rex::log::Core, fmt __VA_OPT__(, ) __VA_ARGS__)
-#define REXLOGFN_CRITICAL(fmt, ...) \
-  REXLOG_CAT_FN_CRITICAL(::rex::log::Core, fmt __VA_OPT__(, ) __VA_ARGS__)
-/** @} */
+#define REXLOG_NOISY_TRACE(...) REXLOG_CAT_NOISY_TRACE(::rex::log::core(), __VA_ARGS__)
+#define REXLOG_NOISY_DEBUG(...) REXLOG_CAT_NOISY_DEBUG(::rex::log::core(), __VA_ARGS__)
+#define REXCPU_NOISY_TRACE(...) REXLOG_CAT_NOISY_TRACE(::rex::log::cpu(), __VA_ARGS__)
+#define REXCPU_NOISY_DEBUG(...) REXLOG_CAT_NOISY_DEBUG(::rex::log::cpu(), __VA_ARGS__)
+#define REXAPU_NOISY_TRACE(...) REXLOG_CAT_NOISY_TRACE(::rex::log::apu(), __VA_ARGS__)
+#define REXAPU_NOISY_DEBUG(...) REXLOG_CAT_NOISY_DEBUG(::rex::log::apu(), __VA_ARGS__)
+#define REXGPU_NOISY_TRACE(...) REXLOG_CAT_NOISY_TRACE(::rex::log::gpu(), __VA_ARGS__)
+#define REXGPU_NOISY_DEBUG(...) REXLOG_CAT_NOISY_DEBUG(::rex::log::gpu(), __VA_ARGS__)
+#define REXKRNL_NOISY_TRACE(...) REXLOG_CAT_NOISY_TRACE(::rex::log::krnl(), __VA_ARGS__)
+#define REXKRNL_NOISY_DEBUG(...) REXLOG_CAT_NOISY_DEBUG(::rex::log::krnl(), __VA_ARGS__)
+#define REXSYS_NOISY_TRACE(...) REXLOG_CAT_NOISY_TRACE(::rex::log::sys(), __VA_ARGS__)
+#define REXSYS_NOISY_DEBUG(...) REXLOG_CAT_NOISY_DEBUG(::rex::log::sys(), __VA_ARGS__)
+#define REXFS_NOISY_TRACE(...) REXLOG_CAT_NOISY_TRACE(::rex::log::fs(), __VA_ARGS__)
+#define REXFS_NOISY_DEBUG(...) REXLOG_CAT_NOISY_DEBUG(::rex::log::fs(), __VA_ARGS__)
 
 /* --- Custom Category Definition ----------------------------------------- */
 
@@ -176,19 +150,22 @@
   }                                                                           \
   }
 
-/* --- Legacy Kernel Thread-ID -------------------------------------------- */
+// For dynamic parents (defined via REXLOG_DEFINE_CATEGORY)
+#define REXLOG_DEFINE_SUBCATEGORY(child, parent)                     \
+  namespace rex::log {                                               \
+  inline ::rex::LogCategoryId parent##_##child() {                   \
+    static const ::rex::LogCategoryId id =                           \
+        ::rex::RegisterLogSubcategory(#child, ::rex::log::parent()); \
+    return id;                                                       \
+  }                                                                  \
+  }
 
-/** @{ */
-#define REXKRNLFN_TRACE(fmt, ...) \
-  REXLOG_CAT_TID_TRACE(::rex::log::Kernel, fmt __VA_OPT__(, ) __VA_ARGS__)
-#define REXKRNLFN_DEBUG(fmt, ...) \
-  REXLOG_CAT_TID_DEBUG(::rex::log::Kernel, fmt __VA_OPT__(, ) __VA_ARGS__)
-#define REXKRNLFN_INFO(fmt, ...) \
-  REXLOG_CAT_TID_INFO(::rex::log::Kernel, fmt __VA_OPT__(, ) __VA_ARGS__)
-#define REXKRNLFN_WARN(fmt, ...) \
-  REXLOG_CAT_TID_WARN(::rex::log::Kernel, fmt __VA_OPT__(, ) __VA_ARGS__)
-#define REXKRNLFN_ERROR(fmt, ...) \
-  REXLOG_CAT_TID_ERROR(::rex::log::Kernel, fmt __VA_OPT__(, ) __VA_ARGS__)
-#define REXKRNLFN_CRITICAL(fmt, ...) \
-  REXLOG_CAT_TID_CRITICAL(::rex::log::Kernel, fmt __VA_OPT__(, ) __VA_ARGS__)
-/** @} */
+/* --- Built-in SDK Categories ---------------------------------------------- */
+
+REXLOG_DEFINE_CATEGORY(core)
+REXLOG_DEFINE_CATEGORY(cpu)
+REXLOG_DEFINE_CATEGORY(apu)
+REXLOG_DEFINE_CATEGORY(gpu)
+REXLOG_DEFINE_CATEGORY(krnl)
+REXLOG_DEFINE_CATEGORY(sys)
+REXLOG_DEFINE_CATEGORY(fs)

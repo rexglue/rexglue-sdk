@@ -11,16 +11,12 @@
 
 #include <cstdio>
 #include <cstdlib>
-#include <filesystem>
 #include <map>
 #include <memory>
 #include <string>
 #include <vector>
 
-#include <spdlog/common.h>
-
 #include <rex/cvar.h>
-#include <rex/filesystem.h>
 #include <rex/logging.h>
 #include <rex/ui/windowed_app.h>
 #include <rex/ui/windowed_app_context_gtk.h>
@@ -48,6 +44,7 @@ extern "C" int main(int argc_pre_gtk, char** argv_pre_gtk) {
 
   auto remaining = rex::cvar::Init(argc_post_gtk, argv_post_gtk);
   rex::cvar::ApplyEnvironment();
+  rex::InitLoggingEarly();
 
   int result;
 
@@ -64,20 +61,6 @@ extern "C" int main(int argc_pre_gtk, char** argv_pre_gtk) {
       parsed[option_names[i]] = remaining[i];
     }
     app->SetParsedArguments(std::move(parsed));
-
-    // Initialize logging.
-    // Never use the bare app name as a file path (can collide with the executable).
-    std::filesystem::path exe_dir = rex::filesystem::GetExecutableFolder();
-    std::filesystem::path log_path = exe_dir / (app->GetName() + ".log");
-
-    try {
-      rex::InitLogging(log_path.string().c_str());
-    } catch (const spdlog::spdlog_ex& e) {
-      // If file logging fails (permissions, ETXTBSY, etc), fall back to console-only.
-      std::fprintf(stderr, "Logging init failed for '%s': %s\n", log_path.string().c_str(),
-                   e.what());
-      rex::InitLogging(nullptr);
-    }
 
     if (app->OnInitialize()) {
       app_context.RunMainGTKLoop();

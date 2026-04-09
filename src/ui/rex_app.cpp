@@ -101,27 +101,34 @@ bool ReXApp::OnInitialize() {
   update_data_root_ = std::move(path_config.update_data_root);
   cache_root_ = std::move(path_config.cache_root);
 
-  // Logging setup from CVARs
+  // Load config FIRST so log cvars have final values
+  auto config_path = exe_dir / (std::string(GetName()) + ".toml");
+  if (std::filesystem::exists(config_path))
+    rex::cvar::LoadConfig(config_path);
+
+  // Late-phase logging
   std::string log_file_cvar = REXCVAR_GET(log_file);
   std::string log_level_str = REXCVAR_GET(log_level);
-  if (REXCVAR_GET(log_verbose) && log_level_str == "info") {
+  if (REXCVAR_GET(log_verbose) && log_level_str == "info")
     log_level_str = "trace";
-  }
+
+  auto category_levels = rex::ParseCategoryLevelsFromConfig(config_path);
   auto log_config = rex::BuildLogConfig(log_file_cvar.empty() ? nullptr : log_file_cvar.c_str(),
-                                        log_level_str, {});
+                                        log_level_str, category_levels);
+  log_config.log_to_console = REXCVAR_GET(enable_console);
+  if (log_file_cvar.empty()) {
+    log_config.app_name = std::string(GetName());
+    log_config.log_dir = (exe_dir / "logs").string();
+  }
+
   rex::InitLogging(log_config);
   rex::RegisterLogLevelCallback();
 
-  // Attach log capture sink to all loggers for the console overlay
   log_sink_ = std::make_shared<rex::LogCaptureSink>();
   rex::AddSink(log_sink_);
 
-  // Load saved config (CVARs) before anything reads them
-  auto config_path = exe_dir / (std::string(GetName()) + ".toml");
-  if (std::filesystem::exists(config_path)) {
-    rex::cvar::LoadConfig(config_path);
+  if (std::filesystem::exists(config_path))
     REXLOG_INFO("Loaded config: {}", config_path.filename().string());
-  }
 
   REXLOG_INFO("{} starting", GetName());
   REXLOG_INFO("  Game directory: {}", game_data_root_.string());

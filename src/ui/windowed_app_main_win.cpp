@@ -22,7 +22,7 @@
 #include <rex/ui/windowed_app.h>
 #include <rex/ui/windowed_app_context_win.h>
 
-REXCVAR_DEFINE_BOOL(enable_console, true, "UI/Window", "Enable console window on Windows");
+REXCVAR_DECLARE(bool, enable_console);
 
 namespace {
 
@@ -67,6 +67,7 @@ int WINAPI wWinMain(HINSTANCE hinstance, HINSTANCE hinstance_prev, LPWSTR comman
   }
   auto remaining = rex::cvar::Init(static_cast<int>(argv_ptrs.size()), argv_ptrs.data());
   rex::cvar::ApplyEnvironment();
+  rex::InitLoggingEarly();
 
   // Allocate a console for debugging if enabled
   if (REXCVAR_GET(enable_console)) {
