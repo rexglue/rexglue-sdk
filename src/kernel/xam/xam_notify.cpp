@@ -89,8 +89,8 @@ u32 XNotifyGetNext_entry(u32 handle, u32 match_id, mapped_u32 id_ptr, mapped_u32
   }
 
   if (dequeued) {
-    REXKRNL_DEBUG("XNotifyGetNext({:08X}, {:08X}) -> id={:#x}, param={}", uint32_t(handle),
-                  uint32_t(match_id), id, param);
+    REXKRNL_NOISY_DEBUG("XNotifyGetNext({:08X}, {:08X}) -> id={:#x}, param={}", uint32_t(handle),
+                        uint32_t(match_id), id, param);
   }
   return dequeued ? 1 : 0;
 }

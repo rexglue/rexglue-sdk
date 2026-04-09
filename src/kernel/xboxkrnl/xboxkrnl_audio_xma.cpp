@@ -64,7 +64,7 @@ using rex::audio::XMA_CONTEXT_DATA;
 // https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.xaudio2.xaudio2_buffer(v=vs.85).aspx
 
 u32 XMACreateContext_entry(mapped_u32 context_out_ptr) {
-  REXKRNL_DEBUG("XMACreateContext called!");
+  REXKRNL_NOISY_DEBUG("XMACreateContext called!");
   auto xma_decoder =
       static_cast<audio::AudioSystem*>(REX_KERNEL_STATE()->emulator()->audio_system())
           ->xma_decoder();

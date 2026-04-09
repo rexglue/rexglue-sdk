@@ -117,7 +117,7 @@ X_STATUS ObjectTable::AddHandle(XObject* object, X_HANDLE* out_handle) {
       // Retain so long as the object is in the table.
       object->Retain();
 
-      REXSYS_DEBUG("Added handle:{:08X} for {}", handle, typeid(*object).name());
+      REXSYS_NOISY_DEBUG("Added handle:{:08X} for {}", handle, typeid(*object).name());
     }
   }
 
@@ -201,7 +201,7 @@ X_STATUS ObjectTable::RemoveHandle(X_HANDLE handle) {
       object->handles().erase(handle_entry);
     }
 
-    REXSYS_DEBUG("Removed handle:{:08X} for {}", handle, typeid(*object).name());
+    REXSYS_NOISY_DEBUG("Removed handle:{:08X} for {}", handle, typeid(*object).name());
 
     // Remove object name from mapping to prevent naming collision.
     if (!object->name().empty()) {

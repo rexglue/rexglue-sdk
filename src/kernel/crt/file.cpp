@@ -74,13 +74,13 @@ u32 CreateFileA_entry(mapped_string lpFileName, u32 dwDesiredAccess, u32 dwShare
                                                 &vfs_file, &action);
 
   if (XFAILED(status) || !vfs_file) {
-    REXKRNL_DEBUG("rexcrt_CreateFileA: FAILED path='{}' status={:#x}", path, status);
+    REXKRNL_NOISY_DEBUG("rexcrt_CreateFileA: FAILED path='{}' status={:#x}", path, status);
     return kInvalidHandleValue;
   }
 
   auto* xfile = new rex::system::XFile(ks, vfs_file, true);
   auto handle = xfile->handle();
-  REXKRNL_DEBUG("rexcrt_CreateFileA: '{}' -> handle={:#x}", path, handle);
+  REXKRNL_NOISY_DEBUG("rexcrt_CreateFileA: '{}' -> handle={:#x}", path, handle);
   return handle;
 }
 
@@ -229,7 +229,7 @@ u32 DeleteFileA_entry(mapped_string lpFileName) {
   const char* path = static_cast<const char*>(lpFileName);
   bool ok = REX_KERNEL_FS()->DeletePath(path);
   if (!ok)
-    REXKRNL_DEBUG("rexcrt_DeleteFileA: FAILED '{}'", path);
+    REXKRNL_NOISY_DEBUG("rexcrt_DeleteFileA: FAILED '{}'", path);
   return ok ? 1u : 0u;
 }
 

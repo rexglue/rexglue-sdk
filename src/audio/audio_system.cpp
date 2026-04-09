@@ -111,7 +111,7 @@ void AudioSystem::WorkerThreadMain() {
 
     if (result.first == rex::thread::WaitResult::kTimeout) {
       if (diag_pump_count < 5) {
-        REXAPU_DEBUG("AudioWorker: WaitAny timed out (no semaphore signals)");
+        REXAPU_NOISY_DEBUG("AudioWorker: WaitAny timed out (no semaphore signals)");
       }
     }
 

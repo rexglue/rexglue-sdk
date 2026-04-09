@@ -386,8 +386,8 @@ X_STATUS XThread::Create() {
   thread_state_ =
       std::make_unique<runtime::ThreadState>(thread_id_, stack_base_, pcr_address_, memory());
 
-  REXSYS_DEBUG("XThread{:08X} ({:X}) Stack: {:08X}-{:08X}", handle(), thread_id_, stack_limit_,
-               stack_base_);
+  REXSYS_NOISY_DEBUG("XThread{:08X} ({:X}) Stack: {:08X}-{:08X}", handle(), thread_id_,
+                     stack_limit_, stack_base_);
 
   uint8_t cpu_index = GetFakeCpuNumber(static_cast<uint8_t>(creation_params_.creation_flags >> 24));
 
@@ -543,8 +543,8 @@ X_STATUS XThread::Terminate(int exit_code) {
 }
 
 void XThread::Execute() {
-  REXSYS_DEBUG("Execute thid {} (handle={:08X}, '{}', native={:08X})", thread_id_, handle(),
-               thread_name_, thread_->system_id());
+  REXSYS_NOISY_DEBUG("Execute thid {} (handle={:08X}, '{}', native={:08X})", thread_id_, handle(),
+                     thread_name_, thread_->system_id());
 
   // Let the kernel know we are starting.
   kernel_state_->OnThreadExecute(this);
@@ -618,7 +618,7 @@ void XThread::Execute() {
   main_fiber_ = rex::thread::Fiber::ConvertCurrentThread();
 
   // Execute the function
-  REXSYS_DEBUG("XThread::Execute - Calling function at {:08X}", address);
+  REXSYS_NOISY_DEBUG("XThread::Execute - Calling function at {:08X}", address);
   func(*ctx, base);
 
   exit_code = static_cast<int>(ctx->r3.u32);

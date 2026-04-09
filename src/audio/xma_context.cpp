@@ -169,7 +169,7 @@ bool XmaContext::Block(bool poll) {
 
 void XmaContext::Clear() {
   std::lock_guard<std::mutex> lock(lock_);
-  REXAPU_DEBUG("XmaContext: reset context {}", id());
+  REXAPU_NOISY_DEBUG("XmaContext: reset context {}", id());
 
   auto context_ptr = memory()->TranslateVirtual(guest_ptr());
   XMA_CONTEXT_DATA data(context_ptr);
@@ -453,8 +453,8 @@ int XmaContext::PrepareDecoder(int sample_rate, bool is_two_channel) {
   uint32_t channels = is_two_channel ? 2 : 1;
   if (av_context_->sample_rate != sample_rate ||
       av_context_->channels != static_cast<int>(channels)) {
-    REXAPU_DEBUG("XmaContext {}: Codec reinit: rate {} -> {}, channels {} -> {}", id(),
-                 av_context_->sample_rate, sample_rate, av_context_->channels, channels);
+    REXAPU_NOISY_DEBUG("XmaContext {}: Codec reinit: rate {} -> {}, channels {} -> {}", id(),
+                       av_context_->sample_rate, sample_rate, av_context_->channels, channels);
     avcodec_free_context(&av_context_);
     av_context_ = avcodec_alloc_context3(av_codec_);
 

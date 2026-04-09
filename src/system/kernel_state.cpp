@@ -585,12 +585,12 @@ void KernelState::SetExecutableModule(object_ref<UserModule> module) {
         }
         auto fn = std::move(dispatch_queue_.front());
         dispatch_queue_.pop_front();
-        REXSYS_DEBUG("Dispatch thread processing queued item ({} remaining)",
-                     dispatch_queue_.size());
+        REXSYS_NOISY_DEBUG("Dispatch thread processing queued item ({} remaining)",
+                           dispatch_queue_.size());
         global_lock.unlock();
 
         fn();
-        REXSYS_DEBUG("Dispatch thread completed item");
+        REXSYS_NOISY_DEBUG("Dispatch thread completed item");
       }
       return 0;
     }));
