@@ -1098,9 +1098,9 @@ bool PipelineCache::TranslateAnalyzedShader(DxbcShaderTranslator& translator,
   } else {
     host_shader_type = "pixel";
   }
-  REXGPU_INFO("Generated {} shader ({}b) - hash {:016X}:\n{}\n", host_shader_type,
-              shader.ucode_dword_count() * sizeof(uint32_t), shader.ucode_data_hash(),
-              shader.ucode_disassembly().c_str());
+  REXGPU_NOISY_DEBUG("Generated {} shader ({}b) - hash {:016X}:\n{}\n", host_shader_type,
+                     shader.ucode_dword_count() * sizeof(uint32_t), shader.ucode_data_hash(),
+                     shader.ucode_disassembly().c_str());
 
   // Set up texture and sampler binding layouts.
   if (shader.EnterBindingLayoutUserUIDSetup()) {

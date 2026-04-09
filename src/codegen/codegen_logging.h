@@ -23,3 +23,8 @@ REXLOG_DEFINE_CATEGORY(codegen)
 #define REXCODEGEN_ERROR(...) REXLOG_CAT_ERROR(::rex::log::codegen(), __VA_ARGS__)
 #define REXCODEGEN_CRITICAL(...) REXLOG_CAT_CRITICAL(::rex::log::codegen(), __VA_ARGS__)
 /** @} */
+
+/** @{ Codegen subsystem noisy logging macros */
+#define REXCODEGEN_NOISY_TRACE(...) REXLOG_CAT_NOISY_TRACE(::rex::log::codegen(), __VA_ARGS__)
+#define REXCODEGEN_NOISY_DEBUG(...) REXLOG_CAT_NOISY_DEBUG(::rex::log::codegen(), __VA_ARGS__)
+/** @} */
