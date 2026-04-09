@@ -15,7 +15,7 @@ jobs:
 
     steps:
       - name: Checkout (with submodules)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -53,7 +53,7 @@ jobs:
           zip -r rexglue-sdk-linux-arm64.zip linux-arm64
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: rexglue-sdk-linux-arm64
           path: out/install/rexglue-sdk-linux-arm64.zip
@@ -65,7 +65,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Download artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: rexglue-sdk-linux-arm64
           path: .
