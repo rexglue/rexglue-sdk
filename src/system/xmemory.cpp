@@ -1138,6 +1138,12 @@ bool BaseHeap::AllocFixed(uint32_t base_address, uint32_t size, uint32_t alignme
     page_entry.state = memory::kMemoryAllocationReserve | allocation_type;
   }
 
+  // Trace all successful allocations on the physical parent heap (heap_base_==0)
+  if (heap_base_ == 0 && heap_type_ == memory::HeapType::kGuestPhysical) {
+    REXSYS_ERROR("phys AllocFixed: base={:#x} size={:#x} pages={}-{} alloc_type={:#x}",
+                 base_address, size, start_page_number, end_page_number, allocation_type);
+  }
+
   return true;
 }
 
@@ -1179,6 +1185,10 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address, uint32_t 
   uint32_t end_page_number = UINT_MAX;
   uint32_t page_scan_stride = alignment >> page_size_shift_;
   uint32_t max_base_page_number = high_page_number + 1 - page_count;
+  if (heap_base_ == 0 && heap_type_ == memory::HeapType::kGuestPhysical) {
+    REXSYS_ERROR("AllocRange entry: top_down={} max_base={} low={} high={} stride={} size={:#x}",
+                 top_down, max_base_page_number, low_page_number, high_page_number, page_scan_stride, size);
+  }
   if (top_down) {
     max_base_page_number -= max_base_page_number % page_scan_stride;
     for (int64_t base_page_number = max_base_page_number; base_page_number >= low_page_number;
@@ -1249,10 +1259,50 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address, uint32_t 
       start_page_number = end_page_number = UINT_MAX;
     }
   }
-  if (start_page_number == UINT_MAX || end_page_number == UINT_MAX) {
+  /*if (start_page_number == UINT_MAX || end_page_number == UINT_MAX) {
     // Out of memory.
     REXSYS_ERROR("BaseHeap::Alloc failed to find contiguous range");
     assert_always("Heap exhausted!");
+    return false;
+  }*/
+  if (start_page_number == UINT_MAX || end_page_number == UINT_MAX) {
+    if (heap_type_ == memory::HeapType::kGuestPhysical) {
+      REXSYS_ERROR("BaseHeap::Alloc failed (physical heap={:#x} size={:#x} align={:#x} "
+                   "low_page={} high_page={} page_count={} stride={})",
+                   heap_base_, size, alignment,
+                   low_page_number, high_page_number, page_count, page_scan_stride);
+      // Dump occupied page ranges (as runs) to diagnose, skipping first GPU writeback pages
+      // Find first free page then dump what's around it
+      {
+        // Show all distinct occupied runs in the scan range
+        uint32_t run_count = 0;
+        uint32_t p = low_page_number;
+        while (p <= high_page_number && run_count < 16) {
+          if (page_table_[p].state != 0) {
+            uint32_t run_start = p;
+            uint32_t run_state = page_table_[p].state;
+            while (p <= high_page_number && page_table_[p].state != 0) ++p;
+            REXSYS_ERROR("  occupied run pages {}-{} (addr {:#x}-{:#x}) state={:#x}",
+                         run_start, p - 1,
+                         heap_base_ + (run_start << page_size_shift_),
+                         heap_base_ + ((p - 1) << page_size_shift_),
+                         run_state);
+            ++run_count;
+          } else {
+            uint32_t free_start = p;
+            while (p <= high_page_number && page_table_[p].state == 0) ++p;
+            REXSYS_ERROR("  free run pages {}-{} (addr {:#x}-{:#x})",
+                         free_start, p - 1,
+                         heap_base_ + (free_start << page_size_shift_),
+                         heap_base_ + ((p - 1) << page_size_shift_));
+            ++run_count;
+          }
+        }
+      }
+    } else {
+      REXSYS_ERROR("BaseHeap::Alloc failed (virtual heap={:#x} size={:#x} align={:#x} pages_needed={})",
+                   heap_base_, size, alignment, page_count);
+    }
     return false;
   }
 
@@ -1290,6 +1340,13 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address, uint32_t 
   }
 
   *out_address = heap_base_ + (start_page_number << page_size_shift_);
+
+  // Trace all successful allocations on the physical parent heap (heap_base_==0)
+  if (heap_base_ == 0 && heap_type_ == memory::HeapType::kGuestPhysical) {
+    REXSYS_ERROR("phys AllocRange: addr={:#x} size={:#x} pages={}-{} alloc_type={:#x}",
+                 *out_address, size, start_page_number, end_page_number, allocation_type);
+  }
+
   return true;
 }
 

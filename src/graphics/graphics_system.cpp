@@ -19,6 +19,11 @@
 #include <mutex>
 #include <utility>
 
+#ifdef _WIN32
+#include <timeapi.h>
+#pragma comment(lib, "winmm.lib")
+#endif
+
 #include <rex/cvar.h>
 #include <rex/graphics/command_processor.h>
 #include <rex/graphics/flags.h>
@@ -135,6 +140,11 @@ X_STATUS GraphicsSystem::Setup(runtime::FunctionDispatcher* function_dispatcher,
             std::max(uint64_t(1), uint64_t(double(guest_tick_frequency) / refresh_rate_hz));
         uint64_t no_vsync_interval_ticks = std::max(uint64_t(1), guest_tick_frequency / 1000);
         uint64_t last_frame_time = chrono::Clock::QueryGuestTickCount();
+#ifdef _WIN32
+        // Ensure 1ms Sleep granularity so vblanks fire at true 60Hz.
+        // Without this, Sleep(1) sleeps ~15ms and vblanks fire at ~32Hz.
+        timeBeginPeriod(1);
+#endif
         while (vsync_worker_running_) {
           uint64_t current_time = chrono::Clock::QueryGuestTickCount();
           uint64_t interval_ticks =
@@ -145,6 +155,9 @@ X_STATUS GraphicsSystem::Setup(runtime::FunctionDispatcher* function_dispatcher,
           }
           rex::thread::Sleep(std::chrono::milliseconds(1));
         }
+#ifdef _WIN32
+        timeEndPeriod(1);
+#endif
         return 0;
       }));
   // TODO: set_can_debugger_suspend not yet ported

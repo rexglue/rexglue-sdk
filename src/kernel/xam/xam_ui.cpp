@@ -550,14 +550,14 @@ ppc_u32_result_t XamShowCommunitySessionsUI_entry(ppc_unknown_t r3, ppc_unknown_
   return X_ERROR_FUNCTION_FAILED;
 }
 
-uint32_t XamShowMessageBoxUIEx_entry() {
-  // TODO(tomc): implement properly
-  static bool warned = false;
-  if (!warned) {
-    REXKRNL_WARN("[STUB] XamShowMessageBoxUIEx - not implemented");
-    warned = true;
-  }
-  return 0;
+ppc_u32_result_t XamShowMessageBoxUIEx_entry(ppc_u32_t user_index, ppc_pchar16_t title_ptr,
+                                              ppc_pchar16_t text_ptr, ppc_u32_t button_count,
+                                              ppc_pu32_t button_ptrs, ppc_u32_t active_button,
+                                              ppc_u32_t flags, ppc_pu32_t result_ptr,
+                                              ppc_pvoid_t overlapped) {
+  // XamShowMessageBoxUIEx has the same signature as XamShowMessageBoxUI.
+  return XamShowMessageBoxUI_entry(user_index, title_ptr, text_ptr, button_count, button_ptrs,
+                                   active_button, flags, result_ptr, overlapped);
 }
 
 }  // namespace xam

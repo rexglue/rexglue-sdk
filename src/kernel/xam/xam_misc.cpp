@@ -8,6 +8,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
+#include <rex/chrono/clock.h>
 #include <rex/kernel/xam/private.h>
 #include <rex/logging.h>
 #include <rex/ppc/function.h>
@@ -123,8 +124,25 @@ XAM_EXPORT_STUB(__imp__GetModuleHandleA);
 XAM_EXPORT_STUB(__imp__GetOverlappedResult);
 XAM_EXPORT_STUB(__imp__GetProcessHeap);
 XAM_EXPORT_STUB(__imp__GetSystemTime);
-XAM_EXPORT_STUB(__imp__GetSystemTimeAsFileTime);
-XAM_EXPORT_STUB(__imp__GetTickCount);
+
+// GetSystemTimeAsFileTime - writes guest FILETIME to pointer
+static void GetSystemTimeAsFileTime_impl(ppc_pu64_t filetime_ptr) {
+  static bool logged = false;
+  if (!logged) { REXSYS_INFO("XAM GetSystemTimeAsFileTime called"); logged = true; }
+  if (filetime_ptr) {
+    *filetime_ptr = rex::chrono::Clock::QueryGuestSystemTime();
+  }
+}
+XAM_EXPORT(__imp__GetSystemTimeAsFileTime, GetSystemTimeAsFileTime_impl);
+
+// GetTickCount - returns milliseconds since guest boot
+static ppc_u32_result_t GetTickCount_impl() {
+  static bool logged = false;
+  if (!logged) { REXSYS_INFO("XAM GetTickCount called - returning {} ms",
+                              rex::chrono::Clock::QueryGuestUptimeMillis()); logged = true; }
+  return rex::chrono::Clock::QueryGuestUptimeMillis();
+}
+XAM_EXPORT(__imp__GetTickCount, GetTickCount_impl);
 XAM_EXPORT_STUB(__imp__GetTimeZoneInformation);
 XAM_EXPORT_STUB(__imp__InjectConnectionServerNotification);
 XAM_EXPORT_STUB(__imp__IsBadReadPtr);
@@ -138,8 +156,25 @@ XAM_EXPORT_STUB(__imp__PIXAddCounter);
 XAM_EXPORT_STUB(__imp__PIXBeginCapture);
 XAM_EXPORT_STUB(__imp__PIXEndCapture);
 XAM_EXPORT_STUB(__imp__PIXGetGPUSlot);
-XAM_EXPORT_STUB(__imp__QueryPerformanceCounter);
-XAM_EXPORT_STUB(__imp__QueryPerformanceFrequency);
+// QueryPerformanceCounter - returns guest tick count via pointer to LARGE_INTEGER
+static ppc_u32_result_t QueryPerformanceCounter_impl(ppc_pu64_t counter_ptr) {
+  static bool logged = false;
+  if (!logged) { REXSYS_INFO("XAM QueryPerformanceCounter called"); logged = true; }
+  if (counter_ptr) {
+    *counter_ptr = rex::chrono::Clock::QueryGuestTickCount();
+  }
+  return 1;  // TRUE = success
+}
+XAM_EXPORT(__imp__QueryPerformanceCounter, QueryPerformanceCounter_impl);
+
+// QueryPerformanceFrequency - returns guest tick frequency via pointer to LARGE_INTEGER
+static ppc_u32_result_t QueryPerformanceFrequency_impl(ppc_pu64_t frequency_ptr) {
+  if (frequency_ptr) {
+    *frequency_ptr = rex::chrono::Clock::guest_tick_frequency();
+  }
+  return 1;  // TRUE = success
+}
+XAM_EXPORT(__imp__QueryPerformanceFrequency, QueryPerformanceFrequency_impl);
 XAM_EXPORT_STUB(__imp__RaiseException);
 XAM_EXPORT_STUB(__imp__Refresh);
 XAM_EXPORT_STUB(__imp__Refresh_);

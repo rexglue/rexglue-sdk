@@ -13,7 +13,9 @@
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
 #include <algorithm>
+#include <chrono>
 #include <string>
+#include <thread>
 
 #include <rex/cvar.h>
 #include <rex/graphics/flags.h>

@@ -26,6 +26,14 @@
 namespace rex::kernel::xboxkrnl {
 using namespace rex::system;
 
+static inline ppc_u32_t NormalizeDebugMemory(const char* fn, ppc_u32_t debug_memory) {
+  if ((uint32_t)debug_memory != 0) {
+    REXKRNL_WARN("{}: forcing debug_memory {} -> 0", fn, (uint32_t)debug_memory);
+    return 0;
+  }
+  return debug_memory;
+}
+
 uint32_t ToXdkProtectFlags(uint32_t protect) {
   uint32_t result = 0;
   if (!(protect & memory::kMemoryProtectRead) && !(protect & memory::kMemoryProtectWrite)) {
@@ -68,6 +76,7 @@ ppc_u32_result_t NtAllocateVirtualMemory_entry(ppc_pu32_t base_addr_ptr, ppc_pu3
   REXKRNL_IMPORT_TRACE(
       "NtAllocateVirtualMemory", "base={:#x} size={:#x} type={:#x} protect={:#x} debug={}",
       input_base, input_size, (uint32_t)alloc_type, (uint32_t)protect_bits, (uint32_t)debug_memory);
+  
 
   // NTSTATUS
   // _Inout_  PVOID *BaseAddress,
@@ -83,8 +92,13 @@ ppc_u32_result_t NtAllocateVirtualMemory_entry(ppc_pu32_t base_addr_ptr, ppc_pu3
   // assert_true(debug_memory == 0);
   // just warn tf am i gunna do about it
   if ((uint32_t)debug_memory != 0)
-    REXKRNL_WARN("attmpted allocation to devkit memory area (debug_memory={})",
-                 (uint32_t)debug_memory);
+  {
+    debug_memory = NormalizeDebugMemory("NtAllocateVirtualMemory", debug_memory);
+  }
+  //original code
+  /*REXKRNL_WARN("attmpted allocation to devkit memory area (debug_memory={})",
+                 (uint32_t)debug_memory);*/
+    
 
   // This allocates memory from the kernel heap, which is initialized on startup
   // and shared by both the kernel implementation and user code.
@@ -174,7 +188,16 @@ ppc_u32_result_t NtAllocateVirtualMemory_entry(ppc_pu32_t base_addr_ptr, ppc_pu3
   }
   if (!address) {
     // Failed - assume no memory available.
+    REXKRNL_WARN("NtAllocateVirtualMemory FAILED: input_base={:#x} adjusted_size={:#x} page_size={:#x} alloc_type={:#x} (large_pages={})",
+                 input_base, adjusted_size, page_size, (uint32_t)alloc_type,
+                 !!(alloc_type & X_MEM_LARGE_PAGES));
     return X_STATUS_NO_MEMORY;
+  }
+  // Log large-page (64KB) virtual allocations at INFO so they are visible even when
+  // warnings are filtered. These are typically audio voice/XAudio2 allocations.
+  if (alloc_type & X_MEM_LARGE_PAGES) {
+    REXKRNL_INFO("NtAllocateVirtualMemory OK (large_pages): addr={:#x} size={:#x} alloc_type={:#x}",
+                 address, adjusted_size, (uint32_t)alloc_type);
   }
 
   // Zero memory, if needed.
@@ -205,7 +228,8 @@ ppc_u32_result_t NtProtectVirtualMemory_entry(ppc_pu32_t base_addr_ptr, ppc_pu32
                                               ppc_u32_t protect_bits, ppc_pu32_t old_protect,
                                               ppc_u32_t debug_memory) {
   // Set to TRUE when this memory refers to devkit memory area.
-  assert_true(debug_memory == 0);
+  //assert_true(debug_memory == 0); <-- original code
+  debug_memory = NormalizeDebugMemory("NtProtectVirtualMemory", debug_memory);
 
   // Must request a size.
   if (!base_addr_ptr || !region_size_ptr || !*region_size_ptr) {
@@ -263,7 +287,8 @@ ppc_u32_result_t NtFreeVirtualMemory_entry(ppc_pu32_t base_addr_ptr, ppc_pu32_t 
   // _In_     BOOLEAN DebugMemory
 
   // Set to TRUE when freeing external devkit memory.
-  assert_true(debug_memory == 0);
+  //assert_true(debug_memory == 0);<- original code
+  debug_memory = NormalizeDebugMemory("NtFreeVirtualMemory", debug_memory);
 
   if (!base_addr_value) {
     return X_STATUS_MEMORY_NOT_ALLOCATED;
@@ -390,6 +415,7 @@ ppc_u32_result_t MmAllocatePhysicalMemoryEx_entry(ppc_u32_t flags, ppc_u32_t reg
   // min_addr_range/max_addr_range are bounds in physical memory, not virtual.
   uint32_t heap_base = heap->heap_base();
   uint32_t heap_physical_address_offset = heap->GetPhysicalAddress(heap_base);
+
   // NOTE: xenia-canary has a per-title workaround (ignore_offset_for_ranged_allocations cvar)
   // for title 545108B4 where min_addr_range comparison fails due to 0x1000 offset.
   // If needed, set heap_physical_address_offset = 0 when min_addr_range && max_addr_range.
@@ -399,14 +425,19 @@ ppc_u32_result_t MmAllocatePhysicalMemoryEx_entry(ppc_u32_t flags, ppc_u32_t reg
   uint32_t heap_size = heap->heap_size();
   heap_min_addr = heap_base + std::min(heap_min_addr, heap_size - 1);
   heap_max_addr = heap_base + std::min(heap_max_addr, heap_size - 1);
-  uint32_t base_address;
+
+  uint32_t base_address = 0;
   if (!heap->AllocRange(heap_min_addr, heap_max_addr, adjusted_size, adjusted_alignment,
                         allocation_type, protect, top_down, &base_address)) {
-    // Failed - assume no memory available.
+    REXKRNL_ERROR(
+        "MmAllocatePhysicalMemoryEx FAILED: size={:#x} align={:#x} min={:#x} max={:#x} "
+        "heap_min={:#x} heap_max={:#x} page_size={:#x}",
+        adjusted_size, adjusted_alignment,
+        (uint32_t)min_addr_range, (uint32_t)max_addr_range,
+        heap_min_addr, heap_max_addr, page_size);
     return 0;
   }
   REXKRNL_IMPORT_RESULT("MmAllocatePhysicalMemoryEx", "addr={:#x}", base_address);
-
   return base_address;
 }
 
@@ -577,13 +608,22 @@ ppc_u32_result_t MmGetPhysicalAddress_entry(ppc_u32_t base_address) {
 ppc_u32_result_t MmMapIoSpace_entry(ppc_u32_t unk0, ppc_pvoid_t src_address, ppc_u32_t size,
                                     ppc_u32_t flags) {
   // I've only seen this used to map XMA audio contexts.
-  // The code seems fine with taking the src address, so this just returns that.
-  // If others start using it there could be problems.
+  // src_address is a physical address obtained from MmGetPhysicalAddress.
+  // We must return the corresponding vE0000000 virtual address so the caller
+  // can access the data via normal guest virtual memory loads/stores.
+  // Returning the physical address unchanged causes the game to use it as a
+  // v00000000 virtual address, which is uncommitted (SEC_RESERVE) at that
+  // offset and reads garbage instead of the actual XMA context data.
+  //
+  // vE0000000 physical address formula: phys = (virt - 0xE0000000) + 0x1000
+  // Inverse: virt = phys - 0x1000 + 0xE0000000
   assert_true(unk0 == 2);
   assert_true(size == 0x40);
   assert_true(flags == 0x404);
 
-  return src_address.guest_address();
+  uint32_t physical_address = src_address.guest_address();
+  uint32_t virtual_address = physical_address - 0x1000 + 0xE0000000;
+  return virtual_address;
 }
 
 struct X_POOL_ALLOC_HEADER {

@@ -144,9 +144,18 @@ using PPCFunc = void(PPCContext& ctx, uint8_t* base);
 
 #undef PPC_CALL_INDIRECT_FUNC
 #include <rex/perf/counter.h>
-#define PPC_CALL_INDIRECT_FUNC(x) \
-  PROFILE_FUNCTION_DISPATCHED();  \
-  PPC_LOOKUP_FUNC(base, x)(ctx, base);
+#define PPC_CALL_INDIRECT_FUNC(x)                                          \
+  PROFILE_FUNCTION_DISPATCHED();                                           \
+  {                                                                        \
+    PPCFunc* __ppc_fn = PPC_LOOKUP_FUNC(base, x);                         \
+    if (__ppc_fn) {                                                        \
+      __ppc_fn(ctx, base);                                                 \
+    } else {                                                               \
+      REXSYS_ERROR("PPC_CALL_INDIRECT_FUNC: missing function at guest "   \
+                   "address {:#010x}, returning 0", (uint32_t)(x));        \
+      ctx.r3.s64 = 0;                                                     \
+    }                                                                      \
+  }
 
 #endif  // PPC_CONFIG_H_INCLUDED
 

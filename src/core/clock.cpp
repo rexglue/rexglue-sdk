@@ -54,6 +54,7 @@ void RecomputeGuestTickScalar() {
     frac.first *= 10;
     frac.second *= static_cast<uint64_t>(10.0 / guest_time_scalar_);
   }
+
   // Keep this a rational calculation and reduce the fraction
   reduce_fraction(frac);
 
@@ -80,6 +81,7 @@ uint64_t UpdateGuestClock() {
     uint64_t guest_tick_delta =
         host_tick_delta * guest_tick_ratio_.first / guest_tick_ratio_.second;
     last_guest_tick_count_ += guest_tick_delta;
+
     return last_guest_tick_count_;
   } else {
     // Wait until another thread has finished updating the clock.

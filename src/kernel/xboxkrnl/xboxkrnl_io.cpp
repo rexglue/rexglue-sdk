@@ -764,8 +764,8 @@ ppc_u32_result_t IoSynchronousDeviceIoControlRequest_entry(
 
 ppc_u32_result_t StfsCreateDevice_entry(ppc_pvoid_t device_object, ppc_u32_t flags,
                                         ppc_pu32_t out_device) {
-  REXKRNL_WARN("StfsCreateDevice - stub");
-  // if (out_device) *out_device = 0;
+  REXKRNL_WARN("StfsCreateDevice(device_object={:#x}, flags={:#x}) - stub",
+               (uint32_t)device_object, (uint32_t)flags);
   return X_STATUS_SUCCESS;
 }
 
