@@ -32,6 +32,10 @@ set(REXKERNEL_SOURCES
     xam/apps/xlivebase_app.cpp
     xam/apps/xmp_app.cpp
 
+    # XBDM subsystem - provides __imp__Xbdm* symbols
+    xbdm/xbdm_module.cpp
+    xbdm/xbdm_misc.cpp
+
     # xboxkrnl exports - provides __imp__ symbols for generated code
     # xboxkrnl/cert_monitor.cpp    # TODO: Translate JIT methods for AOT
     # xboxkrnl/debug_monitor.cpp   # TODO: Translate JIT methods for AOT

@@ -15,6 +15,7 @@
 #include <rex/kernel/xam/apps/xlivebase_app.h>
 #include <rex/kernel/xam/apps/xmp_app.h>
 #include <rex/kernel/xam/module.h>
+#include <rex/kernel/xbdm/module.h>
 #include <rex/kernel/xboxkrnl/module.h>
 #include <rex/runtime.h>
 #include <rex/system/kernel_state.h>
@@ -30,6 +31,7 @@ void InitializeKernel(Runtime* runtime, system::KernelState* kernel_state) {
 
   kernel_state->LoadKernelModule<xboxkrnl::XboxkrnlModule>();
   kernel_state->LoadKernelModule<xam::XamModule>();
+  kernel_state->LoadKernelModule<xbdm::XbdmModule>();
 }
 
 }  // namespace rex::kernel
