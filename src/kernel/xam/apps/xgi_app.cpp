@@ -353,7 +353,7 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       uint32_t context_ptr = memory::load_and_swap<uint32_t>(buffer + 16);
       auto context = context_ptr ? memory_->TranslateVirtual(context_ptr) : nullptr;
       uint32_t context_id = context ? memory::load_and_swap<uint32_t>(context + 0) : 0;
-      REXKRNL_DEBUG("XGIUserGetContext({:08X}, {:08X}{:08X}))", user_index, context_ptr,
+      REXKRNL_DEBUG("XGIUserGetContext({:08X}, {:08X}, {:08X}))", user_index, context_ptr,
                     context_id);
       uint32_t value = 0;
       if (context) {
@@ -373,7 +373,7 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       uint32_t reserved2 = memory::load_and_swap<uint32_t>(buffer + 24);
       uint32_t reserved3 = memory::load_and_swap<uint32_t>(buffer + 28);
 
-      REXKRNL_DEBUG("XSessionSearchByIds({:08X}, {:08X}, {:08X}, {:08X})", user_index,
+      REXKRNL_DEBUG("XSessionSearchByIds({:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {}, {}, {})", user_index,
                     num_session_ids, session_ids_ptr, results_buffer_size, search_results_ptr,
                     reserved1, reserved2, reserved3);
 
