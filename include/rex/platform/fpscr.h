@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include <cmath>
+
 #include <rex/types.h>
 
 #include <simde/x86/sse.h>

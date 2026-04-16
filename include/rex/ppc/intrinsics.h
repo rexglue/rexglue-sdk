@@ -14,6 +14,7 @@
 #pragma once
 
 #include <climits>
+#include <cmath>
 #include <cstring>
 
 #include <simde/x86/avx.h>
