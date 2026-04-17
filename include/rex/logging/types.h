@@ -65,16 +65,15 @@ struct LogConfig {
   /** Global default log level applied to all categories unless overridden. */
   spdlog::level::level_enum default_level = spdlog::level::info;
 
-  /** Whether to create a console (stdout) sink. */
+  /** Whether to create a colored stdout sink. Intended for console-subsystem
+   *  processes (CLI tools). Windowed apps should leave this false and rely on
+   *  the platform debug sink created by InitLoggingEarly(). */
   bool log_to_console = false;
-
-  /** Whether the console sink uses ANSI color codes. */
-  bool use_colors = true;
 
   /** Path to a log file, or nullptr for no file logging. */
   const char* log_file = nullptr;
 
-  /** spdlog pattern string for the console sink. */
+  /** spdlog pattern string for the stdout console sink. */
   std::string console_pattern = "[%^%l%$] [%n] [t%t] %v";
 
   /** spdlog pattern string for the file sink. */

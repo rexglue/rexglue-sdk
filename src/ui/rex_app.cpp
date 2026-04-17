@@ -115,7 +115,6 @@ bool ReXApp::OnInitialize() {
   auto category_levels = rex::ParseCategoryLevelsFromConfig(config_path);
   auto log_config = rex::BuildLogConfig(log_file_cvar.empty() ? nullptr : log_file_cvar.c_str(),
                                         log_level_str, category_levels);
-  log_config.log_to_console = REXCVAR_GET(enable_console);
   if (log_file_cvar.empty()) {
     log_config.app_name = std::string(GetName());
     log_config.log_dir = (exe_dir / "logs").string();
