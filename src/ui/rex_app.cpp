@@ -126,6 +126,8 @@ bool ReXApp::OnInitialize() {
   log_sink_ = std::make_shared<rex::LogCaptureSink>();
   rex::AddSink(log_sink_);
 
+  OnPostInitLogging();
+
   if (std::filesystem::exists(config_path))
     REXLOG_INFO("Loaded config: {}", config_path.filename().string());
 
