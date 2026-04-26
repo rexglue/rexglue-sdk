@@ -77,6 +77,10 @@
   REX_STUB(name)              \
   static rex::ppc::detail::PPCFuncRegistrar _ppc_reg_##name(#name, &name);
 
+#define REX_EXPORT_STUB_RETURN(name, retval) \
+  REX_STUB_RETURN(name, retval)              \
+  static rex::ppc::detail::PPCFuncRegistrar _ppc_reg_##name(#name, &name);
+
 namespace rex {
 
 //=============================================================================
