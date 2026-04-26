@@ -57,7 +57,6 @@ REX_EXPORT_STUB(__imp__DmStopOn);
 REX_EXPORT_STUB(__imp__DmSuspendThread);
 REX_EXPORT_STUB(__imp__DmThreadUserData);
 REX_EXPORT_STUB(__imp__DmUnloadExtension);
-REX_EXPORT_STUB(__imp__DmWalkLoadedModules);
 REX_EXPORT_STUB(__imp__DmWalkModuleSections);
 REX_EXPORT_STUB(__imp__DmWalkPerformanceCounters);
 REX_EXPORT_STUB(__imp__DmCloseCounters_0);
@@ -74,7 +73,6 @@ REX_EXPORT_STUB(__imp____CAP_Start_Profiling);
 REX_EXPORT_STUB(__imp____CAP_End_Profiling);
 REX_EXPORT_STUB(__imp____CAP_Enter_Function);
 REX_EXPORT_STUB(__imp____CAP_Exit_Function);
-REX_EXPORT_STUB(__imp__DmRegisterCommandProcessorEx);
 REX_EXPORT_STUB(__imp__DmStartProfiling);
 REX_EXPORT_STUB(__imp__DmStopProfiling);
 REX_EXPORT_STUB(__imp__DmQueryMemoryStatistics);
@@ -268,3 +266,25 @@ REX_EXPORT_STUB(__imp__XLockFreeGetErrorHandler);
 REX_EXPORT_STUB(__imp__XLockFreeSetErrorHandler);
 REX_EXPORT_STUB(__imp__DmExecuteThreadRPC);
 REX_EXPORT_STUB(__imp__DmGetDebuggerConnection);
+
+namespace rex {
+namespace kernel {
+namespace xbdm {
+
+u32 DmWalkLoadedModules_entry(mapped_void unk0_ptr, mapped_u32 unk1_ptr) {
+  // XBDM_ENDOFLIST, Some games will loop forever unless this code is returned
+  return 0x82DA0104;
+}
+
+u32 DmRegisterCommandProcessorEx_entry(mapped_u32 name_ptr, mapped_u32 handler_fn, u32 unk3) {
+  // Return success to prevent some games from stalling
+  return X_ERROR_SUCCESS;
+}
+
+}  // namespace xbdm
+}  // namespace kernel
+}  // namespace rex
+
+REX_EXPORT(__imp__DmWalkLoadedModules, rex::kernel::xbdm::DmWalkLoadedModules_entry)
+REX_EXPORT(__imp__DmRegisterCommandProcessorEx,
+           rex::kernel::xbdm::DmRegisterCommandProcessorEx_entry)
