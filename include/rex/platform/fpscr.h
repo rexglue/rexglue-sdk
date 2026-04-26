@@ -43,7 +43,7 @@ struct FPSCRPlatform {
 
   static inline u32 getcsr() noexcept { return simde_mm_getcsr(); }
 
-  static inline void setcsr(u32 csr) noexcept { simde_mm_setcsr(csr); }
+  static inline void setcsr(u32 csr) noexcept { simde_mm_setcsr(csr | ExceptionMask); }
 
   static inline void InitHostExceptions(u32& csr) noexcept {
     csr |= ExceptionMask;  // Set mask bits to disable exceptions
