@@ -48,6 +48,21 @@ bool build_b(BuilderContext& ctx) {
       // Unknown target - fall back to range check
       if (target >= ctx.fn.base() && target < ctx.fn.end()) {
         ctx.println("\tgoto loc_{:X};", target);
+      } else if (const auto* containingFn = ctx.graph().getFunctionContaining(target);
+                 containingFn != nullptr && containingFn != &ctx.fn) {
+        // Target lives inside ANOTHER known function (analyzer falsely split a
+        // single PPC function into two). Falling through to emit_function_call
+        // would produce REX_FATAL because no CallEdge exists. Instead, emit an
+        // indirect dispatch via the function table -- the runtime fallback
+        // handler in xmemory.cpp resolves the target by finding the nearest
+        // entry and jumping there, mirroring the build_bl Unknown path.
+        REXCODEGEN_WARN(
+            "Unresolved b target 0x{:08X} from 0x{:08X} lives inside sub_{:08X}: "
+            "emitting indirect dispatch",
+            target, ctx.base, containingFn->base());
+        ctx.println("\tctx.ctr.u32 = 0x{:08X};", target);
+        ctx.println("\tREX_CALL_INDIRECT_FUNC(0x{:08X});", target);
+        ctx.println("\treturn;");
       } else {
         REXCODEGEN_WARN("Unresolved b target 0x{:08X} from 0x{:08X}", target, ctx.base);
         ctx.emit_function_call(target);
