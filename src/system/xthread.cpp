@@ -1420,6 +1420,18 @@ void XHostThread::Execute() {
   // Let the kernel know we are starting.
   kernel_state_->OnThreadExecute(this);
 
+  // Match XThread::Execute: initialize the host's FP exception mask so PPC
+  // FP operations dispatched via FunctionDispatcher::Execute don't trap on
+  // inexact/denormal/underflow results that PPC normally masks. Without this,
+  // host threads that re-enter guest code (audio worker, GPU commands, etc.)
+  // crash on STATUS_FLOAT_INEXACT_RESULT (0xC000008F) the first time the
+  // dispatched PPC code does fdivs/etc. Repro: Hexic HD's audio mixer at
+  // sub_9219F7F0+0x3a0 (a divss xmm0, xmm1) faults when called from
+  // AudioSystem::WorkerThreadMain via FunctionDispatcher::Execute.
+  if (auto* ctx = thread_state_->context()) {
+    ctx->fpscr.InitHost();
+  }
+
   int ret = host_fn_();
 
   // Exit.
