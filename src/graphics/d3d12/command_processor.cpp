@@ -2918,16 +2918,48 @@ bool D3D12CommandProcessor::IssueCopy() {
 #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
+  // Diagnostic instrumentation: snapshot the EDRAM-resolve registers on entry
+  // so consumers can observe the resolve pipeline without forking the SDK.
+  // Gated to keep overhead negligible (~16 lines/min at 60Hz). See:
+  //   https://github.com/xdzleo/skate3-rexglue/blob/main/docs/contributions/pr01-issuecopy-diagnostics/PR_BODY.md
+  static std::atomic<uint64_t> issue_copy_n{0};
+  uint64_t my_n = issue_copy_n.fetch_add(1, std::memory_order_relaxed) + 1;
+  {
+    const RegisterFile& regs = *register_file_;
+    uint32_t rb_modecontrol = regs[XE_GPU_REG_RB_MODECONTROL];
+    uint32_t rb_copy_control = regs[XE_GPU_REG_RB_COPY_CONTROL];
+    uint32_t rb_copy_dest_base = regs[XE_GPU_REG_RB_COPY_DEST_BASE];
+    uint32_t rb_copy_dest_pitch = regs[XE_GPU_REG_RB_COPY_DEST_PITCH];
+    uint32_t rb_copy_dest_info = regs[XE_GPU_REG_RB_COPY_DEST_INFO];
+    if (my_n <= 32 || (my_n % 240) == 0) {
+      REXGPU_INFO(
+          "[IssueCopy] entry #{} MODECONTROL={:08X} COPY_CONTROL={:08X} "
+          "COPY_DEST_BASE={:08X} COPY_DEST_PITCH={:08X} COPY_DEST_INFO={:08X}",
+          my_n, rb_modecontrol, rb_copy_control, rb_copy_dest_base,
+          rb_copy_dest_pitch, rb_copy_dest_info);
+    }
+  }
   if (!BeginSubmission(true)) {
+    REXGPU_ERROR("[IssueCopy] entry #{}: BeginSubmission failed", my_n);
     return false;
   }
   ReadbackResolveMode readback_mode = GetReadbackResolveMode(REXCVAR_GET(d3d12_readback_resolve));
   if (readback_mode == ReadbackResolveMode::kDisabled) {
     uint32_t written_address, written_length;
-    return render_target_cache_->Resolve(*memory_, *shared_memory_, *texture_cache_,
-                                         written_address, written_length);
+    bool ok = render_target_cache_->Resolve(*memory_, *shared_memory_, *texture_cache_,
+                                            written_address, written_length);
+    if (my_n <= 32 || (my_n % 240) == 0) {
+      REXGPU_INFO("[IssueCopy] kDisabled #{} ok={} written_addr={:08X} written_len={}",
+                  my_n, ok, written_address, written_length);
+    }
+    return ok;
   }
-  return IssueCopy_ReadbackResolvePath();
+  bool rb = IssueCopy_ReadbackResolvePath();
+  if (my_n <= 32 || (my_n % 240) == 0) {
+    REXGPU_INFO("[IssueCopy] readback-path #{} returned={} mode={}",
+                my_n, rb, uint32_t(readback_mode));
+  }
+  return rb;
 }
 
 bool D3D12CommandProcessor::IssueCopy_ReadbackResolvePath() {
