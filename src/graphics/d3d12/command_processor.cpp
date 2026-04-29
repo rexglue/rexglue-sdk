@@ -2932,8 +2932,20 @@ bool D3D12CommandProcessor::IssueCopy() {
 
 bool D3D12CommandProcessor::IssueCopy_ReadbackResolvePath() {
   uint32_t written_address, written_length;
-  if (!render_target_cache_->Resolve(*memory_, *shared_memory_, *texture_cache_, written_address,
-                                     written_length)) {
+  bool resolve_ok = render_target_cache_->Resolve(*memory_, *shared_memory_, *texture_cache_,
+                                                  written_address, written_length);
+  // Diagnostic: surface Resolve()'s output (success flag, written address,
+  // written length) so callers running with d3d12_readback_resolve != kDisabled
+  // have visibility into the resolve pipeline. Gated for low overhead. See:
+  //   https://github.com/xdzleo/skate3-rexglue/blob/main/docs/contributions/pr02-readback-path-logging/PR_BODY.md
+  static std::atomic<uint64_t> readback_n{0};
+  uint64_t rn = readback_n.fetch_add(1, std::memory_order_relaxed) + 1;
+  if (rn <= 32 || (rn % 240) == 0) {
+    REXGPU_INFO(
+        "[ReadbackPath] #{} resolve_ok={} written_addr={:08X} written_len={}",
+        rn, resolve_ok, written_address, written_length);
+  }
+  if (!resolve_ok) {
     return false;
   }
 
