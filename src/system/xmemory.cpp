@@ -725,13 +725,26 @@ bool Memory::InitializeFunctionTable(uint32_t code_base, uint32_t code_size, uin
       "(+{:08X} thunk reserve)",
       function_table_base_, table_size, code_base, code_base + code_size, kThunkReserveSize);
 
-  // Allocate the function table region in guest memory.
-  // Use the 64k page heap (v80000000) since that's where XEX code lives.
-  if (!heaps_.v80000000.AllocFixed(
-          function_table_base_, table_size, 0x10000,
+  // Allocate the function table region in guest memory. The XEX guest
+  // address layout uses two heaps for code: v80000000 (64KB pages, e.g.
+  // 0x82000000-base XBLA titles) and v90000000 (4KB pages, e.g. Hexic HD's
+  // 0x92000000 base). Hardcoding v80000000 fails for the latter with
+  // "BaseHeap::AllocFixed invalid base alignment". Look up the right heap
+  // dynamically and use its declared page_size() for alignment.
+  BaseHeap* table_heap = LookupHeap(function_table_base_);
+  if (!table_heap) {
+    REXSYS_ERROR("No heap covers function_table_base={:08X}", function_table_base_);
+    function_table_base_ = 0;
+    return false;
+  }
+  uint32_t table_alignment = table_heap->page_size();
+  if (!table_heap->AllocFixed(
+          function_table_base_, table_size, table_alignment,
           memory::kMemoryAllocationReserve | memory::kMemoryAllocationCommit,
           memory::kMemoryProtectRead | memory::kMemoryProtectWrite)) {
-    REXSYS_ERROR("Failed to allocate function table at {:08X}", function_table_base_);
+    REXSYS_ERROR("Failed to allocate function table at {:08X} (heap={:08X}-{:08X}, align={:X})",
+                 function_table_base_, table_heap->heap_base(),
+                 table_heap->heap_base() + table_heap->heap_size(), table_alignment);
     function_table_base_ = 0;
     return false;
   }
