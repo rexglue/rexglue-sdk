@@ -2303,6 +2303,30 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
   const RegisterFile& regs = *register_file_;
 
   xenos::EdramMode edram_mode = regs.Get<reg::RB_MODECONTROL>().edram_mode;
+  // Diagnostic: trace edram_mode dispatch so consumers can answer the question
+  // "what mode is the title actually using right now?" without forking the SDK.
+  // Logs first-occurrence of each mode + every kCopy + every 4096th draw. See:
+  //   https://github.com/xdzleo/skate3-rexglue/blob/main/docs/contributions/pr03-issuedraw-edram-mode-trace/PR_BODY.md
+  {
+    static std::atomic<uint32_t> seen_mask{0};
+    static std::atomic<uint64_t> draw_n{0};
+    uint32_t mode_bit = 1u << uint32_t(edram_mode);
+    uint32_t prev = seen_mask.fetch_or(mode_bit, std::memory_order_relaxed);
+    uint64_t n = draw_n.fetch_add(1, std::memory_order_relaxed) + 1;
+    bool first_seen = (prev & mode_bit) == 0;
+    if (first_seen || edram_mode == xenos::EdramMode::kCopy || (n % 4096) == 0) {
+      uint32_t rb_modecontrol = regs[XE_GPU_REG_RB_MODECONTROL];
+      uint32_t rb_copy_control = regs[XE_GPU_REG_RB_COPY_CONTROL];
+      uint32_t rb_copy_dest_base = regs[XE_GPU_REG_RB_COPY_DEST_BASE];
+      uint32_t rb_copy_dest_pitch = regs[XE_GPU_REG_RB_COPY_DEST_PITCH];
+      REXGPU_INFO(
+          "[DIAG] IssueDraw #{} edram_mode={} (first_seen={}) "
+          "RB_MODECONTROL={:08X} RB_COPY_CONTROL={:08X} "
+          "RB_COPY_DEST_BASE={:08X} RB_COPY_DEST_PITCH={:08X}",
+          n, uint32_t(edram_mode), first_seen, rb_modecontrol,
+          rb_copy_control, rb_copy_dest_base, rb_copy_dest_pitch);
+    }
+  }
   if (edram_mode == xenos::EdramMode::kCopy) {
     // Special copy handling.
     return IssueCopy();
