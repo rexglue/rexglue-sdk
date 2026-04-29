@@ -148,12 +148,28 @@ bool build_dcbtst(BuilderContext& ctx) {
 }
 
 bool build_dcbz(BuilderContext& ctx) {
-  // Compute EA, align to 32-byte cache line, apply physical offset
+  // FIX: Xbox 360's Xenon CPU has 128-byte L1 cache lines, NOT 32-byte.
+  // The Xenon's PowerPC variant always treats `dcbz` as clearing one full
+  // 128-byte cache line (architecturally allowed: PPC mandates dcbz uses
+  // the implementation cache-line size, and Xenon defines 128 bytes).
+  // Compilers targeting the Xenon toolchain emit dcbz expecting 128-byte
+  // clears, often as part of fast object-zero or constructor paths. With
+  // the previous 32-byte impl, only the first 32 of every 128-byte line
+  // got cleared, leaving stale heap bytes (e.g., recycled vtable slots)
+  // that cause downstream null-vtable cascades.
+  //
+  // Symptom this fix addresses (Final Exam): a freshly-allocated 0x4408xxxx
+  // bank object has its vtable bytes 32+ in length not zeroed, so when
+  // the constructor proceeds and only writes some fields, the reads of
+  // unzeroed slots return non-zero garbage in some cases or zero in others
+  // depending on prior heap content.
+  //
+  // Now identical to dcbzl: clears 128 bytes aligned to 128.
   ctx.print("\t{} = (", ctx.ea());
   if (ctx.insn.operands[0] != 0)
     ctx.print("{}.u32 + ", ctx.r(ctx.insn.operands[0]));
-  ctx.println("{}.u32) & ~31;", ctx.r(ctx.insn.operands[1]));
-  ctx.println("\tmemset((void*)REX_RAW_ADDR({}), 0, 32);", ctx.ea());
+  ctx.println("{}.u32) & ~127;", ctx.r(ctx.insn.operands[1]));
+  ctx.println("\tmemset((void*)REX_RAW_ADDR({}), 0, 128);", ctx.ea());
   return true;
 }
 
