@@ -1542,7 +1542,7 @@ REX_EXPORT_STUB(__imp__KeSaveFloatingPointState);
 REX_EXPORT_STUB(__imp__KeSaveVectorUnitState);
 REX_EXPORT_STUB(__imp__KeSetBackgroundProcessors);
 REX_EXPORT_STUB(__imp__KeSetPriorityClassThread);
-REX_EXPORT_STUB(__imp__KeSetPriorityThread);
+REX_EXPORT_STUB_RETURN(__imp__KeSetPriorityThread, 0);
 REX_EXPORT_STUB(__imp__KeSetTimer);
 REX_EXPORT_STUB(__imp__KeSetTimerEx);
 REX_EXPORT_STUB(__imp__KeStallExecutionProcessor);
