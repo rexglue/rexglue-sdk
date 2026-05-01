@@ -475,7 +475,7 @@ void SettingsDialog::OnDraw(ImGuiIO& /*io*/) {
             v = std::max(v, *entry.constraints.min);
           if (entry.constraints.max)
             v = std::min(v, *entry.constraints.max);
-          rex::cvar::SetFlagByName(entry.name, std::to_string(v));
+          rex::cvar::SetFlagByName(entry.name, rex::cvar::DoubleToString(v));
         }
       } else if (entry.type == rex::cvar::FlagType::Command) {
         if (ImGui::Button(std::string(entry.name + "##v").c_str())) {

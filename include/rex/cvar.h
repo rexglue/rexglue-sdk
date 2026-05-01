@@ -235,6 +235,13 @@ inline bool ParseDouble(std::string_view s, double& out) {
   return end != str.c_str() && *end == '\0';
 }
 
+// Locale-independent double → string (TOML requires '.' as decimal separator).
+inline std::string DoubleToString(double v) {
+  char buf[32];
+  auto [ptr, ec] = std::to_chars(buf, buf + sizeof(buf), v);
+  return ec == std::errc{} ? std::string(buf, ptr) : std::to_string(v);
+}
+
 }  // namespace rex::cvar
 
 //=============================================================================
@@ -363,25 +370,25 @@ inline bool ParseDouble(std::string_view s, double& out) {
                                   std::to_string(default_val),                               \
                                   false})
 
-#define REXCVAR_DEFINE_DOUBLE(name, default_val, category, desc)                 \
-  double FLAGS_##name = (default_val);                                           \
-  static auto _cvar_reg_##name =                                                 \
-      ::rex::cvar::FlagRegistrar({#name,                                         \
-                                  ::rex::cvar::FlagType::Double,                 \
-                                  category,                                      \
-                                  desc,                                          \
-                                  [](std::string_view v) {                       \
-                                    double val = 0;                              \
-                                    if (!::rex::cvar::ParseDouble(v, val))       \
-                                      return false;                              \
-                                    FLAGS_##name = val;                          \
-                                    return true;                                 \
-                                  },                                             \
-                                  []() { return std::to_string(FLAGS_##name); }, \
-                                  []() { return; },                              \
-                                  ::rex::cvar::Lifecycle::kHotReload,            \
-                                  {},                                            \
-                                  std::to_string(default_val),                   \
+#define REXCVAR_DEFINE_DOUBLE(name, default_val, category, desc)                              \
+  double FLAGS_##name = (default_val);                                                        \
+  static auto _cvar_reg_##name =                                                              \
+      ::rex::cvar::FlagRegistrar({#name,                                                      \
+                                  ::rex::cvar::FlagType::Double,                              \
+                                  category,                                                   \
+                                  desc,                                                       \
+                                  [](std::string_view v) {                                    \
+                                    double val = 0;                                           \
+                                    if (!::rex::cvar::ParseDouble(v, val))                    \
+                                      return false;                                           \
+                                    FLAGS_##name = val;                                       \
+                                    return true;                                              \
+                                  },                                                          \
+                                  []() { return ::rex::cvar::DoubleToString(FLAGS_##name); }, \
+                                  []() { return; },                                           \
+                                  ::rex::cvar::Lifecycle::kHotReload,                         \
+                                  {},                                                         \
+                                  ::rex::cvar::DoubleToString(default_val),                   \
                                   false})
 
 #define REXCVAR_DEFINE_STRING(name, default_val, category, desc)                                 \
