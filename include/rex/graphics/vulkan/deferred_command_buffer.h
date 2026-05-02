@@ -210,6 +210,22 @@ class DeferredCommandBuffer {
                 regions, sizeof(VkBufferImageCopy) * region_count);
   }
 
+  // Inline-data buffer update. Useful as a workaround on Tegra L4T where
+  // vkCmdCopyBuffer with non-zero dstOffset appears to drop writes — this
+  // path goes through the kernel-mode driver's inline-update fast path
+  // instead of a buffer-to-buffer DMA.
+  void CmdVkUpdateBuffer(VkBuffer dst_buffer, VkDeviceSize dst_offset, VkDeviceSize data_size,
+                         const void* data) {
+    const size_t header_size = rex::align(sizeof(ArgsVkUpdateBuffer), alignof(uint32_t));
+    uint8_t* args_ptr = reinterpret_cast<uint8_t*>(
+        WriteCommand(Command::kVkUpdateBuffer, header_size + size_t(data_size)));
+    auto& args = *reinterpret_cast<ArgsVkUpdateBuffer*>(args_ptr);
+    args.dst_buffer = dst_buffer;
+    args.dst_offset = dst_offset;
+    args.data_size = data_size;
+    std::memcpy(args_ptr + header_size, data, data_size);
+  }
+
   void CmdVkCopyQueryPoolResults(VkQueryPool query_pool, uint32_t first_query, uint32_t query_count,
                                  VkBuffer dst_buffer, VkDeviceSize dst_offset, VkDeviceSize stride,
                                  VkQueryResultFlags flags) {
@@ -363,6 +379,7 @@ class DeferredCommandBuffer {
     kVkClearColorImage,
     kVkCopyBuffer,
     kVkCopyBufferToImage,
+    kVkUpdateBuffer,
     kVkCopyQueryPoolResults,
     kVkDispatch,
     kVkDraw,
@@ -482,6 +499,13 @@ class DeferredCommandBuffer {
     uint32_t region_count;
     // Followed by aligned VkBufferImageCopy[].
     static_assert(alignof(VkBufferImageCopy) <= alignof(uintmax_t));
+  };
+
+  struct ArgsVkUpdateBuffer {
+    VkBuffer dst_buffer;
+    VkDeviceSize dst_offset;
+    VkDeviceSize data_size;
+    // Followed by aligned data bytes (data_size, max VK_MAX_UPDATE_BUFFER_SIZE = 65536).
   };
 
   struct ArgsVkCopyQueryPoolResults {
