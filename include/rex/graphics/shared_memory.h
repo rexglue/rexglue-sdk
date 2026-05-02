@@ -34,6 +34,12 @@ class SharedMemory {
   virtual void ClearCache();
   void SetSystemPageBlocksValidWithGpuDataWritten();
   void InvalidateAllPages();
+  // Invalidates only CPU-authoritative pages (those NOT marked GPU-written by
+  // a Resolve). Use on platforms where mprotect-based write-watch is broken
+  // and CPU writes to guest memory cannot be detected via SIGSEGV — the GPU
+  // would otherwise sample stale pre-CPU-write data. GPU-written pages are
+  // left alone so resolves don't get clobbered by stale CPU memory.
+  void InvalidateCpuAuthoritativePages();
 
   typedef void (*GlobalWatchCallback)(const std::unique_lock<std::recursive_mutex>& global_lock,
                                       void* context, uint32_t address_first, uint32_t address_last,
