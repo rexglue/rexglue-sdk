@@ -46,8 +46,16 @@ bool SDLAudioDriver::Initialize() {
   SDL_SetAppMetadataProperty(SDL_PROP_APP_METADATA_NAME_STRING, "rexglue");
 
   if (!SDL_InitSubSystem(SDL_INIT_AUDIO)) {
-    REXAPU_ERROR("SDL_InitSubSystem(SDL_INIT_AUDIO) failed: {}", SDL_GetError());
-    return false;
+    // Headless / no audio device (tty session, container, CI). Don't fail —
+    // the guest game (e.g. Kameo) treats RegisterRenderDriverClient failure
+    // as fatal and refuses to boot. Return success with sdl_stream_ left
+    // null; SubmitFrame will silently drop frames and the worker will still
+    // pump the guest callback so the game progresses.
+    REXAPU_WARN("SDL_InitSubSystem(SDL_INIT_AUDIO) failed: {} — running without audio",
+                SDL_GetError());
+    sdl_initialized_ = false;
+    sdl_stream_ = nullptr;
+    return true;
   }
   sdl_initialized_ = true;
 
