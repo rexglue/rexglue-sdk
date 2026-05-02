@@ -30,6 +30,9 @@
 #include <rex/math.h>
 #include <rex/graphics/util/draw.h>
 #include <rex/graphics/flags.h>
+#include <rex/ui/vulkan/instance.h>
+#include <rex/ui/vulkan/provider.h>
+#include <rex/ui/renderdoc_api.h>
 #include <rex/graphics/pipeline/shader/shader.h>
 #include <rex/graphics/pipeline/shader/spirv_translator.h>
 #include <rex/graphics/registers.h>
@@ -5257,6 +5260,28 @@ bool VulkanCommandProcessor::BeginSubmission(bool is_guest_command) {
     primitive_processor_->BeginFrame();
 
     texture_cache_->BeginFrame();
+
+    // Auto-trigger a multi-frame RenderDoc capture once after init when
+    // RENDERDOC_AUTOCAPTURE_FRAMES=N is set in the environment. RenderDoc
+    // must be loaded (LD_PRELOAD=/path/to/librenderdoc.so) for this to
+    // do anything.
+    [[maybe_unused]] static bool s_renderdoc_capture_attempted = [&] {
+      if (const char* n_str = std::getenv("RENDERDOC_AUTOCAPTURE_FRAMES")) {
+        int n = std::atoi(n_str);
+        if (n > 0) {
+          auto* provider = static_cast<const ui::vulkan::VulkanProvider*>(
+              graphics_system_->provider());
+          auto* vinst = provider ? provider->vulkan_instance() : nullptr;
+          if (auto* rdc = vinst ? vinst->renderdoc_api() : nullptr) {
+            if (auto* api = rdc->api_1_0_0()) {
+              REXGPU_INFO("RenderDoc: triggering auto-capture (1 frame; ignored N={})", n);
+              api->TriggerCapture();
+            }
+          }
+        }
+      }
+      return true;
+    }();
   }
 
   return true;
