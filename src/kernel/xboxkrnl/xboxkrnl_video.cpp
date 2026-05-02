@@ -13,7 +13,11 @@
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
 #include <algorithm>
+#include <atomic>
+#include <cstdio>
+#include <filesystem>
 #include <string>
+#include <vector>
 
 #include <rex/cvar.h>
 #include <rex/graphics/flags.h>
@@ -32,6 +36,17 @@
 #include <rex/system/kernel_state.h>
 #include <rex/system/xtypes.h>
 #include <rex/ui/flags.h>
+
+REXCVAR_DEFINE_STRING(dump_swaps, "", "GPU",
+                      "If set, dump each VdSwap source buffer to "
+                      "<dump_swaps>/swap_NNNNNN_<W>x<H>_fmt<F>.bin (raw "
+                      "guest bytes, possibly tiled - decode offline). "
+                      "Only useful for titles whose GPU resolve writes the "
+                      "swap source to guest memory; titles that render fully "
+                      "Vulkan-side leave the guest VA empty and the dumps "
+                      "will be all zero - capture the window directly in "
+                      "that case.");
+
 
 namespace {
 // Display gamma type: 0 - linear, 1 - sRGB (CRT), 2 - BT.709 (HDTV), 3 - power
@@ -442,6 +457,40 @@ void VdSwap_entry(mapped_void buffer_ptr,      // ptr into primary ringbuffer
   assert(height);
 
   namespace xenos = rex::graphics::xenos;
+
+  // Optional headless capture: dump the swap source's guest bytes to disk
+  // when `dump_swaps` is set to a directory path. Bytes are written verbatim
+  // (probably in the Xenos tile layout) — decode offline if needed. Useful
+  // when scripted screenshot tools can't grab the window (e.g. KDE-Wayland
+  // portal blanking) but you want to verify what the GPU actually rendered.
+  {
+    static std::atomic<uint64_t> dump_seq{0};
+    std::string dump_dir = REXCVAR_GET(dump_swaps);
+    if (!dump_dir.empty()) {
+      uint64_t seq = dump_seq.fetch_add(1);
+      uint32_t va = (uint32_t)*frontbuffer_ptr;
+      uint32_t fmt = (uint32_t)*texture_format_ptr;
+      uint32_t w = (uint32_t)*width;
+      uint32_t h = (uint32_t)*height;
+      auto* mem = REX_KERNEL_MEMORY();
+      const uint8_t* src = mem ? mem->TranslateVirtual<const uint8_t*>(va) : nullptr;
+      // Assume RGBA8 / RGB10A2-style 4 bpp (the only formats VdSwap accepts);
+      // round dim up to nearest 32 (Xenos tile width) before sizing.
+      uint32_t bytes = ((w + 31u) & ~31u) * ((h + 31u) & ~31u) * 4u;
+      if (src && bytes != 0) {
+        std::error_code ec;
+        std::filesystem::create_directories(dump_dir, ec);
+        char name[160];
+        std::snprintf(name, sizeof(name), "/swap_%06llu_%ux%u_fmt%u.bin",
+                      (unsigned long long)seq, w, h, fmt);
+        std::string path = dump_dir + name;
+        if (FILE* f = std::fopen(path.c_str(), "wb")) {
+          std::fwrite(src, 1, bytes, f);
+          std::fclose(f);
+        }
+      }
+    }
+  }
 
   xenos::xe_gpu_texture_fetch_t gpu_fetch;
   memory::copy_and_swap_32_unaligned(&gpu_fetch,
