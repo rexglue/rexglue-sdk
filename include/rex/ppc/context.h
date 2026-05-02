@@ -192,7 +192,17 @@ struct FPSCRRegister {
   static constexpr size_t FlushMask = Platform::FlushMask;
 
   inline uint32_t getcsr() noexcept { return Platform::getcsr(); }
-  inline void setcsr(uint32_t csr) noexcept { Platform::setcsr(csr); }
+  inline void setcsr(uint32_t csr) noexcept {
+    // Always keep host FP exceptions masked. Recompiled guest code can route
+    // into setcsr via storeFromGuest / enableFlushMode / etc., and if the
+    // saved csr value ever had exception-enable bits cleared (e.g. a fresh
+    // context whose fpscr.csr field was zero-initialized before InitHost ran)
+    // we'd hit SIGFPE on the next FP op. Re-mask defensively here so the host
+    // never raises FE_INVALID/FE_INEXACT/etc on benign ops like vcfsx → simde
+    // _mm_cvtepi32_ps. Cost: one OR per setcsr.
+    csr |= Platform::ExceptionMask;
+    Platform::setcsr(csr);
+  }
 
   inline uint32_t loadFromHost() noexcept {
     csr = getcsr();
