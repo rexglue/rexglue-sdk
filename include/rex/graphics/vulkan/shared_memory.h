@@ -72,6 +72,10 @@ class VulkanSharedMemory : public SharedMemory {
   uint32_t buffer_memory_type_;
   // Single for non-sparse, every allocation so far for sparse.
   std::vector<VkDeviceMemory> buffer_memory_;
+  // True when the buffer's backing was imported via VK_EXT_external_memory_host
+  // (the buffer aliases physical_membase()). When set, CPU writes into guest
+  // memory are already GPU-visible so the upload-from-CPU path is skipped.
+  bool external_host_imported_ = false;
 
   Usage last_usage_;
   std::pair<uint32_t, uint32_t> last_written_range_;
