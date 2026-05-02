@@ -35,7 +35,33 @@ std::unique_ptr<RenderDocAPI> RenderDocAPI::CreateIfConnected() {
     return nullptr;
   }
 
-  REXLOG_INFO("RenderDoc API initialized");
+  // Establish a known capture-file path. Without this, RenderDoc dumps
+  // .rdc files into the game's working directory with a generic prefix,
+  // making them easy to miss. RENDERDOC_CAPFILE may override. (1.0.0 API
+  // calls this `SetLogFilePathTemplate`; 1.1.2+ renamed to
+  // SetCaptureFilePathTemplate.)
+  const char* capfile = std::getenv("RENDERDOC_CAPFILE");
+  if (renderdoc_api->api_1_0_0_->SetLogFilePathTemplate) {
+    renderdoc_api->api_1_0_0_->SetLogFilePathTemplate(
+        capfile && *capfile ? capfile : "/tmp/Kameo_capture");
+  }
+  // Disable RenderDoc's own keypress-capture binding — on KDE/X11 the F12
+  // key is often grabbed by the compositor and we drive captures
+  // programmatically anyway.
+  if (renderdoc_api->api_1_0_0_->SetCaptureKeys) {
+    renderdoc_api->api_1_0_0_->SetCaptureKeys(nullptr, 0);
+  }
+
+  // Touch the API early so renderdoccmd's launcher target-control handshake
+  // has a server to connect to. Without this, the launcher hits its connect
+  // timeout while we're still inside SDL/Vulkan init and reports "Couldn't
+  // connect to target program." (1.0.0 spelling: IsRemoteAccessConnected.)
+  if (renderdoc_api->api_1_0_0_->IsRemoteAccessConnected) {
+    (void)renderdoc_api->api_1_0_0_->IsRemoteAccessConnected();
+  }
+
+  REXLOG_INFO("RenderDoc API initialized (capture path: {})",
+              capfile && *capfile ? capfile : "/tmp/Kameo_capture");
 
   return renderdoc_api;
 }

@@ -18,6 +18,7 @@
 
 #include <rex/cvar.h>
 #include <rex/logging.h>
+#include <rex/ui/renderdoc_api.h>
 #include <rex/ui/windowed_app.h>
 #include <rex/ui/windowed_app_context_gtk.h>
 
@@ -27,6 +28,16 @@ extern "C" int main(int argc_pre_gtk, char** argv_pre_gtk) {
   // Before touching anything GTK+, make sure that when running on Wayland,
   // we'll still get an X11 (Xwayland) window
   setenv("GDK_BACKEND", "x11", 1);
+
+  // If RenderDoc was loaded via LD_PRELOAD or `renderdoccmd capture`, touch
+  // its API as the very first thing — this dlopen's librenderdoc.so and
+  // initializes the target-control server that the launcher hands shake
+  // with. Without this, renderdoccmd's connect-timeout fires before the
+  // SDK's deferred initialization (during VulkanInstance::Create) gets to
+  // it. The returned object is leaked deliberately; subsequent
+  // RenderDocAPI::CreateIfConnected() calls will reload the same library
+  // and find the same singleton.
+  (void)rex::ui::RenderDocAPI::CreateIfConnected().release();
 
   // Initialize GTK+, which will handle and remove its own arguments from argv.
   // Both GTK+ and Xenia use --option=value argument format (see man
