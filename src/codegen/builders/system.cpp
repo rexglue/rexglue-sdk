@@ -31,20 +31,25 @@ bool build_attn(BuilderContext& ctx) {
 }
 
 bool build_sync(BuilderContext& ctx) {
-  // Memory barrier, x86 has strong ordering so this is a no-op
-  (void)ctx;
+  // Full memory barrier. On x86 (TSO) the compiler/CPU still need a fence
+  // to prevent compile-time reordering and StoreLoad reordering; on ARM
+  // (weak ordering) a real DMB SY is required or producer/consumer
+  // handshakes deadlock.
+  ctx.println("\tstd::atomic_thread_fence(std::memory_order_seq_cst);");
   return true;
 }
 
 bool build_lwsync(BuilderContext& ctx) {
-  // Lightweight memory barrier, x86 has strong ordering so this is a no-op
-  (void)ctx;
+  // Lightweight memory barrier (no StoreLoad). acq_rel matches PPC lwsync
+  // semantics. Critical on aarch64 where it lowers to DMB ISH.
+  ctx.println("\tstd::atomic_thread_fence(std::memory_order_acq_rel);");
   return true;
 }
 
 bool build_eieio(BuilderContext& ctx) {
-  // Enforce in-order execution of I/O, x86 has strong ordering so this is a no-op
-  (void)ctx;
+  // Enforce in-order execution of I/O. release fence is sufficient; on
+  // aarch64 lowers to DMB ISHST.
+  ctx.println("\tstd::atomic_thread_fence(std::memory_order_release);");
   return true;
 }
 
