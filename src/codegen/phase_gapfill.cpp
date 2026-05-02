@@ -135,33 +135,64 @@ void gapFillCodeRegions(CodegenContext& ctx) {
   size_t gapsFound = 0;
   size_t segmentsCreated = 0;
 
-  for (const auto& region : scan.codeRegions) {
-    // Split region on terminators (blr, tail calls), then check each segment
-    auto segments = splitRegionOnTerminators(region, binary, knownCallables);
+  // Iterative gap-fill: each pass picks up tail calls into functions that were
+  // registered in earlier passes. Without this, a region processed early in
+  // the loop misses tail-calls to functions registered by later regions, and
+  // the bytes after such a tail call get absorbed into a single oversized
+  // function — leaving any vtable / function-pointer dispatch into those
+  // bytes pointing at a NULL function-table entry.
+  //
+  // After pass 0, we also allow shrinking GAP_FILL parents: if a later pass
+  // discovers a tail-call boundary inside a GAP_FILL function's registered
+  // span, the bytes after the boundary become a new function and the parent's
+  // size is trimmed back so it no longer "contains" the new entry.
+  constexpr int kMaxPasses = 4;
+  for (int pass = 0; pass < kMaxPasses; ++pass) {
+    size_t passCreated = 0;
+    for (const auto& region : scan.codeRegions) {
+      // Split region on terminators (blr, tail calls), then check each segment
+      auto segments = splitRegionOnTerminators(region, binary, knownCallables);
 
-    for (const auto& segment : segments) {
-      // Skip if this segment's start is already a registered function entry
-      if (graph.isEntryPoint(segment.start))
-        continue;
+      for (const auto& segment : segments) {
+        // Skip if this segment's start is already a registered function entry
+        if (graph.isEntryPoint(segment.start))
+          continue;
 
-      // Skip if this segment's start is inside another function
-      if (auto* containingFunc = graph.getFunctionContaining(segment.start)) {
-        continue;
+        // If the segment's start lives inside an existing function, normally
+        // we'd skip — but for a GAP_FILL parent we instead trim the parent
+        // and let the new segment carve itself out. PDATA / CONFIG / HELPER
+        // functions are authoritative and stay untouched.
+        if (auto* containingFunc = graph.getFunctionContaining(segment.start)) {
+          if (containingFunc->authority() != FunctionAuthority::GAP_FILL)
+            continue;
+          uint32_t parentBase = containingFunc->base();
+          uint32_t newParentSize = segment.start - parentBase;
+          if (newParentSize == 0)
+            continue;
+          containingFunc->setSize(newParentSize);
+        }
+
+        // Skip if this looks like exception handler data (handler ptr + rdata ptr)
+        if (looksLikeExceptionData(binary, graph, segment.start))
+          continue;
+
+        uint32_t segmentSize = segment.size();
+        graph.addFunction(segment.start, segmentSize, FunctionAuthority::GAP_FILL, false);
+        knownCallables.insert(segment.start);
+
+        REXCODEGEN_TRACE("GapFill: registered sub_{:08X} (0x{:08X}-0x{:08X}, {} bytes) pass={}",
+                         segment.start, segment.start, segment.end, segmentSize, pass);
+        passCreated++;
       }
 
-      // Skip if this looks like exception handler data (handler ptr + rdata ptr)
-      if (looksLikeExceptionData(binary, graph, segment.start))
-        continue;
-
-      uint32_t segmentSize = segment.size();
-      graph.addFunction(segment.start, segmentSize, FunctionAuthority::GAP_FILL, false);
-
-      REXCODEGEN_TRACE("GapFill: registered sub_{:08X} (0x{:08X}-0x{:08X}, {} bytes)",
-                       segment.start, segment.start, segment.end, segmentSize);
-      segmentsCreated++;
+      if (pass == 0) {
+        gapsFound++;
+      }
     }
-
-    gapsFound++;
+    segmentsCreated += passCreated;
+    if (passCreated == 0)
+      break;
+    REXCODEGEN_DEBUG("Analyze: gap-fill pass {} added {} new functions", pass, passCreated);
   }
 
   if (segmentsCreated > 0) {
@@ -193,10 +224,16 @@ void cleanupAbsorbedGapFills(CodegenContext& ctx) {
       // This GAP_FILL is inside another function's blocks
       if (otherNode->authority() != FunctionAuthority::GAP_FILL) {
         // Absorbed by higher authority - remove
+        REXCODEGEN_TRACE("cleanupAbsorbed: 0x{:08X} absorbed by 0x{:08X} (auth={}, base+size={:08X})",
+                         addr, otherAddr, AuthorityName(otherNode->authority()),
+                         otherNode->base() + otherNode->size());
         toRemove.push_back(addr);
         break;
       } else if (otherAddr < addr) {
         // Both GAP_FILL, other has lower address - it survives
+        REXCODEGEN_TRACE("cleanupAbsorbed: 0x{:08X} absorbed by GAP_FILL 0x{:08X} (size={}, base+size={:08X})",
+                         addr, otherAddr, otherNode->size(),
+                         otherNode->base() + otherNode->size());
         toRemove.push_back(addr);
         break;
       }

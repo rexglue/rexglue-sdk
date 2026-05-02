@@ -141,6 +141,11 @@ class FunctionNode {
 
   void setName(std::string name) { name_ = std::move(name); }
 
+  // Trim a GAP_FILL function's tail when a later pass discovers a tail-call
+  // boundary inside its registered span. Caller is responsible for ensuring
+  // the function is still in kRegistered state and authority is GAP_FILL.
+  void setSize(uint32_t size) { size_ = size; }
+
  private:
   //=========================================================================
   // Mutation methods - only FunctionGraph can call these
