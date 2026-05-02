@@ -34,5 +34,13 @@
       ctx.last_indirect_target = rex_indirect_target_;                                     \
       rex_indirect_func_ = rex::runtime::ResolveIndirectFunction(rex_indirect_target_);    \
     }                                                                                      \
-    rex_indirect_func_(ctx, base);                                                         \
+    if (rex_indirect_func_) [[likely]] {                                                   \
+      rex_indirect_func_(ctx, base);                                                       \
+    } else {                                                                               \
+      static std::atomic<int> rex_indirect_warn_{0};                                       \
+      if (rex_indirect_warn_.fetch_add(1, std::memory_order_relaxed) < 8) {                \
+        REXLOG_WARN("[INDIRECT-NULL] tried to call unmapped guest 0x{:08X} — skipping",    \
+                    rex_indirect_target_);                                                 \
+      }                                                                                    \
+    }                                                                                      \
   } while (0)
