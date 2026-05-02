@@ -538,6 +538,12 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   static constexpr uint32_t kMaxFramesInFlight = 3;
   bool frame_open_ = false;
+  // RenderDoc StartFrameCapture/EndFrameCapture state. Auto-bracketed
+  // capture mode is opted into via the RENDERDOC_AUTOCAPTURE_FRAMES env
+  // var and brackets one frame's GPU work even when Kameo never reaches
+  // vkQueuePresentKHR.
+  bool renderdoc_capture_active_ = false;
+  uint32_t renderdoc_capture_frames_emitted_ = 0;
   // Tracks whether any draw in the current frame used an async placeholder
   // graphics pipeline and may have produced incomplete output.
   bool frame_used_async_placeholder_pipeline_ = false;

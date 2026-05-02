@@ -5261,27 +5261,44 @@ bool VulkanCommandProcessor::BeginSubmission(bool is_guest_command) {
 
     texture_cache_->BeginFrame();
 
-    // Auto-trigger a multi-frame RenderDoc capture once after init when
-    // RENDERDOC_AUTOCAPTURE_FRAMES=N is set in the environment. RenderDoc
-    // must be loaded (LD_PRELOAD=/path/to/librenderdoc.so) for this to
-    // do anything.
-    [[maybe_unused]] static bool s_renderdoc_capture_attempted = [&] {
-      if (const char* n_str = std::getenv("RENDERDOC_AUTOCAPTURE_FRAMES")) {
-        int n = std::atoi(n_str);
-        if (n > 0) {
-          auto* provider = static_cast<const ui::vulkan::VulkanProvider*>(
-              graphics_system_->provider());
-          auto* vinst = provider ? provider->vulkan_instance() : nullptr;
-          if (auto* rdc = vinst ? vinst->renderdoc_api() : nullptr) {
-            if (auto* api = rdc->api_1_0_0()) {
-              REXGPU_INFO("RenderDoc: triggering auto-capture (1 frame; ignored N={})", n);
-              api->TriggerCapture();
-            }
-          }
+    // Auto-trigger a RenderDoc capture once when env vars opt in. Because
+    // Kameo reliably stalls before any vkQueuePresentKHR under the
+    // RenderDoc Vulkan wrapper, TriggerCapture (which captures the *next*
+    // frame) never fires. Use StartFrameCapture(...) here and pair it with
+    // an EndFrameCapture in the next BeginSubmission, bracketing exactly
+    // one frame's worth of GPU work — this still produces a .rdc even if
+    // the host never sees a present.
+    [[maybe_unused]] static bool s_renderdoc_capture_started = [&] {
+      if (std::getenv("RENDERDOC_AUTOCAPTURE_FRAMES") == nullptr) {
+        return false;
+      }
+      auto* provider =
+          static_cast<const ui::vulkan::VulkanProvider*>(graphics_system_->provider());
+      auto* vinst = provider ? provider->vulkan_instance() : nullptr;
+      if (auto* rdc = vinst ? vinst->renderdoc_api() : nullptr) {
+        if (auto* api = rdc->api_1_0_0()) {
+          REXGPU_INFO("RenderDoc: StartFrameCapture (frame-bracketed capture)");
+          api->StartFrameCapture(nullptr, nullptr);
+          renderdoc_capture_active_ = true;
         }
       }
       return true;
     }();
+    if (renderdoc_capture_active_ && renderdoc_capture_frames_emitted_ >= 1) {
+      auto* provider =
+          static_cast<const ui::vulkan::VulkanProvider*>(graphics_system_->provider());
+      auto* vinst = provider ? provider->vulkan_instance() : nullptr;
+      if (auto* rdc = vinst ? vinst->renderdoc_api() : nullptr) {
+        if (auto* api = rdc->api_1_0_0()) {
+          REXGPU_INFO("RenderDoc: EndFrameCapture");
+          api->EndFrameCapture(nullptr, nullptr);
+        }
+      }
+      renderdoc_capture_active_ = false;
+    }
+    if (renderdoc_capture_active_) {
+      ++renderdoc_capture_frames_emitted_;
+    }
   }
 
   return true;
