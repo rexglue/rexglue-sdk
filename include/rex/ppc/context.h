@@ -199,8 +199,10 @@ struct FPSCRRegister {
     // context whose fpscr.csr field was zero-initialized before InitHost ran)
     // we'd hit SIGFPE on the next FP op. Re-mask defensively here so the host
     // never raises FE_INVALID/FE_INEXACT/etc on benign ops like vcfsx → simde
-    // _mm_cvtepi32_ps. Cost: one OR per setcsr.
-    csr |= Platform::ExceptionMask;
+    // _mm_cvtepi32_ps. Cost: one OR (x86) or AND-NOT (aarch64) per setcsr.
+    // ExceptionMask polarity is platform-dependent (x86: 1=mask, ARM: 1=enable),
+    // so route through InitHostExceptions which inverts as needed.
+    Platform::InitHostExceptions(csr);
     Platform::setcsr(csr);
   }
 
