@@ -297,6 +297,29 @@ bool Runtime::SetupVfs() {
     }
   }
 
+  // Mount user_data_root/saves as save:\ — host-writable. Games use save: for
+  // XContent / NtCreateFile path lookups; without this mount the call returns
+  // STATUS_OBJECT_NAME_COLLISION (0xc0000035) and saves silently fail.
+  if (!user_data_root_.empty()) {
+    auto abs_save_root = std::filesystem::absolute(user_data_root_) / "saves";
+    std::error_code ec;
+    std::filesystem::create_directories(abs_save_root, ec);
+    if (ec) {
+      REXSYS_WARN("Runtime::SetupVfs: failed to create save dir {}: {}",
+                  abs_save_root.string(), ec.message());
+    } else {
+      auto save_mount = "\\Device\\Harddisk0\\PartitionSave";
+      auto save_device = std::make_unique<rex::filesystem::HostPathDevice>(
+          save_mount, abs_save_root, /*read_only=*/false);
+      if (save_device->Initialize() && file_system_->RegisterDevice(std::move(save_device))) {
+        file_system_->RegisterSymbolicLink("save:", save_mount);
+        REXSYS_INFO("  Mounted {} at save:", abs_save_root.string());
+      } else {
+        REXSYS_WARN("Runtime::SetupVfs: failed to mount save: -> {}", abs_save_root.string());
+      }
+    }
+  }
+
   // Setup NullDevice for raw HDD partition accesses
   // Cache/STFC code baked into games tries reading/writing to these
   // Using a NullDevice returns success to all IO requests, allowing games
