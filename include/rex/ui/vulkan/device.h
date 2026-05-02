@@ -168,6 +168,13 @@ class VulkanDevice {
     // VK_EXT_robustness2
 
     bool nullDescriptor = false;
+
+    // VK_EXT_external_memory_host
+
+    // 0 if the extension wasn't enabled. Otherwise the smallest alignment a
+    // host pointer (and its mapped size) must have to be importable as Vulkan
+    // device memory.
+    VkDeviceSize minImportedHostPointerAlignment = 0;
   };
 
   // Properties of the core API and enabled extensions, and enabled features.
@@ -199,6 +206,10 @@ class VulkanDevice {
     bool ext_1_3_KHR_maintenance4 = false;  // #414
     // Has optional features not implied by this being true.
     bool ext_1_3_KHR_dynamic_rendering = false;  // #55
+    // VK_EXT_external_memory_host (#179) — used on Tegra/L4T to import the
+    // guest physical memory shm allocation directly as a Vulkan buffer
+    // backing store. Avoids the SIGSEGV-based GPU write-watch path entirely.
+    bool ext_EXT_external_memory_host = false;
   };
 
   const Extensions& extensions() const { return extensions_; }
@@ -220,6 +231,8 @@ class VulkanDevice {
 #include <rex/ui/vulkan/functions/device_1_3_khr_maintenance4.inc>
     // VK_KHR_dynamic_rendering (#55, promoted to 1.3)
 #include <rex/ui/vulkan/functions/device_1_3_khr_dynamic_rendering.inc>
+    // VK_EXT_external_memory_host (#179)
+#include <rex/ui/vulkan/functions/device_ext_external_memory_host.inc>
 #undef XE_UI_VULKAN_FUNCTION_PROMOTED
 #undef XE_UI_VULKAN_FUNCTION
   };

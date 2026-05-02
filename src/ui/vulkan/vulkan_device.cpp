@@ -233,6 +233,10 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
       XE_UI_VULKAN_STRUCT_EXTENSION(EXT_custom_border_color)
       // Required for true null descriptors in bindless texture bindings.
       XE_UI_VULKAN_STRUCT_EXTENSION(EXT_robustness2)
+      // #179. Lets us import the guest physical-memory shm allocation
+      // directly as a Vulkan buffer backing on UMA devices (Tegra X1),
+      // bypassing the SIGSEGV-based GPU write-watch path.
+      XE_UI_VULKAN_STRUCT_EXTENSION(EXT_external_memory_host)
     }
     if (properties.apiVersion >= VK_MAKE_API_VERSION(0, 1, 1, 0)) {
       // #237.
@@ -329,6 +333,8 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
       features_EXT_custom_border_color;
   VkPhysicalDeviceCustomBorderColorPropertiesEXT properties_EXT_custom_border_color = {
       VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CUSTOM_BORDER_COLOR_PROPERTIES_EXT};
+  VkPhysicalDeviceExternalMemoryHostPropertiesEXT properties_EXT_external_memory_host = {
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_MEMORY_HOST_PROPERTIES_EXT};
   VulkanFeatures<VkPhysicalDeviceRobustness2FeaturesEXT,
                  VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_EXT>
       features_EXT_robustness2;
@@ -369,6 +375,10 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
       features_EXT_custom_border_color.Link(supported_features_2, device_create_info);
       properties_EXT_custom_border_color.pNext = properties_2.pNext;
       properties_2.pNext = &properties_EXT_custom_border_color;
+    }
+    if (device->extensions_.ext_EXT_external_memory_host) {
+      properties_EXT_external_memory_host.pNext = properties_2.pNext;
+      properties_2.pNext = &properties_EXT_external_memory_host;
     }
     if (device->extensions_.ext_EXT_robustness2) {
       features_EXT_robustness2.Link(supported_features_2, device_create_info);
@@ -727,6 +737,10 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
     }
   }
 
+  if (device->extensions_.ext_EXT_external_memory_host) {
+    XE_UI_VULKAN_PROPERTY_2(properties_EXT_external_memory_host, minImportedHostPointerAlignment)
+  }
+
 #undef XE_UI_VULKAN_LIMIT
 #undef XE_UI_VULKAN_ENUM_LIMIT
 #undef XE_UI_VULKAN_FEATURE
@@ -797,6 +811,9 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   }
   if (device->extensions_.ext_KHR_swapchain) {
 #include <rex/ui/vulkan/functions/device_khr_swapchain.inc>
+  }
+  if (device->extensions_.ext_EXT_external_memory_host) {
+#include <rex/ui/vulkan/functions/device_ext_external_memory_host.inc>
   }
 #undef XE_UI_VULKAN_FUNCTION_PROMOTED
 
