@@ -306,11 +306,14 @@ void MnkInputDriver::SetKeyState(uint16_t vk, bool down) {
 }
 
 void MnkInputDriver::OnKeyDown(rex::ui::KeyEvent& e) {
-  if (!IsEnabled() || !has_focus_)
+  // Skip the focus gate. KDE/Wayland does not reliably deliver
+  // GDK_FOCUS_CHANGE to the toplevel window's "event" signal, so has_focus_
+  // stays false even when the window is interactable. Trust the fact that
+  // the key event was delivered to us — the OS already routed it here.
+  if (!IsEnabled())
     return;
   std::lock_guard lock(state_mutex_);
-  uint16_t vk = static_cast<uint16_t>(e.virtual_key());
-  SetKeyState(vk, true);
+  SetKeyState(static_cast<uint16_t>(e.virtual_key()), true);
 }
 
 void MnkInputDriver::OnKeyUp(rex::ui::KeyEvent& e) {
