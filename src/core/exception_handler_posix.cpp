@@ -30,6 +30,7 @@ namespace rex::arch {
 bool signal_handlers_installed_ = false;
 struct sigaction original_sigill_handler_;
 struct sigaction original_sigsegv_handler_;
+struct sigaction original_sigbus_handler_;
 
 // This can be as large as needed, but isn't often needed.
 // As we will be sometimes firing many exceptions we want to avoid having to
@@ -105,6 +106,7 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
     case SIGILL:
       ex.InitializeIllegalInstruction(&thread_context);
       break;
+    case SIGBUS:  // aarch64: catch unaligned/coherency aborts as access violations.
     case SIGSEGV: {
       Exception::AccessViolationOperation access_violation_operation;
 #if REX_ARCH_AMD64
@@ -156,8 +158,10 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
       assert_unhandled_case(signal_number);
   }
 
+  bool handled = false;
   for (size_t i = 0; i < rex::countof(handlers_) && handlers_[i].first; ++i) {
     if (handlers_[i].first(&ex, handlers_[i].second)) {
+      handled = true;
       // Exception handled.
 #if REX_ARCH_AMD64
       mcontext.gregs[REG_RIP] = greg_t(thread_context.rip);
@@ -198,11 +202,33 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
           modified_v_registers_remaining &= ~(UINT32_C(1) << modified_register_index);
           std::memcpy(&mcontext_fpsimd->vregs[modified_register_index],
                       &thread_context.v[modified_register_index], sizeof(vec128_t));
-          mcontext.regs[modified_register_index] = thread_context.x[modified_register_index];
         }
       }
 #endif  // REX_ARCH
       return;
+    }
+  }
+  // No installed handler claimed the exception. If we leave SIGBUS unhandled
+  // here the kernel will re-deliver it to us forever (we never advanced PC
+  // and the underlying fault wasn't fixed), pegging a core in a SIGBUS loop.
+  // Forward to the original disposition so the process either crashes
+  // visibly or whatever userland cleanup the previous handler does runs.
+  if (!handled && (signal_number == SIGBUS || signal_number == SIGSEGV)) {
+    const struct sigaction& original =
+        signal_number == SIGBUS ? original_sigbus_handler_ : original_sigsegv_handler_;
+    if (original.sa_flags & SA_SIGINFO) {
+      if (original.sa_sigaction) {
+        original.sa_sigaction(signal_number, signal_info, signal_context);
+      }
+    } else if (original.sa_handler == SIG_DFL) {
+      // Re-raise with default handler — terminate cleanly so we don't spin.
+      struct sigaction default_action;
+      std::memset(&default_action, 0, sizeof(default_action));
+      default_action.sa_handler = SIG_DFL;
+      sigaction(signal_number, &default_action, nullptr);
+      raise(signal_number);
+    } else if (original.sa_handler != SIG_IGN && original.sa_handler) {
+      original.sa_handler(signal_number);
     }
   }
 }
@@ -220,6 +246,13 @@ void ExceptionHandler::Install(Handler fn, void* data) {
     }
     if (sigaction(SIGSEGV, &signal_handler, &original_sigsegv_handler_) != 0) {
       assert_always("Failed to install new SIGSEGV handler");
+    }
+    // L4T / Tegra X1 kernel can deliver SIGBUS for some access faults that
+    // would be SIGSEGV elsewhere (and Kameo's recompiled aarch64 code can
+    // hit unaligned accesses that surface as SIGBUS too). Without this the
+    // process dies with `Bus error (core dumped)` mid-init.
+    if (sigaction(SIGBUS, &signal_handler, &original_sigbus_handler_) != 0) {
+      assert_always("Failed to install new SIGBUS handler");
     }
     signal_handlers_installed_ = true;
   }
@@ -260,6 +293,9 @@ void ExceptionHandler::Uninstall(Handler fn, void* data) {
       }
       if (sigaction(SIGSEGV, &original_sigsegv_handler_, NULL) != 0) {
         assert_always("Failed to restore original SIGSEGV handler");
+      }
+      if (sigaction(SIGBUS, &original_sigbus_handler_, NULL) != 0) {
+        assert_always("Failed to restore original SIGBUS handler");
       }
       signal_handlers_installed_ = false;
     }
