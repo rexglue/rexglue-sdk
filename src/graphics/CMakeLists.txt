@@ -148,3 +148,6 @@ if(REXGLUE_USE_D3D12)
     target_compile_definitions(rexgraphics PUBLIC REX_HAS_D3D12=1)
 endif()
 
+if(UNIX)
+    target_compile_options(rexgraphics PRIVATE -mssse3)
+endif()

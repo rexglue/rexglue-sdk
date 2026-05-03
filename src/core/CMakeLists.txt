@@ -100,3 +100,6 @@ if(REXGLUE_ENABLE_PERF_COUNTERS)
         $<$<NOT:$<CONFIG:Release>>:REXGLUE_ENABLE_PERF_COUNTERS>)
 endif()
 
+if(UNIX)
+    target_compile_options(rexcore PRIVATE -mssse3)
+endif()

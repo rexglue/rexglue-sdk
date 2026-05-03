@@ -25,3 +25,7 @@ target_link_libraries(rexaudio
     PUBLIC rexcore SDL3::SDL3
     PRIVATE libavcodec libavutil
 )
+
+if(UNIX)
+    target_compile_options(rexaudio PRIVATE -mssse3)
+endif()
