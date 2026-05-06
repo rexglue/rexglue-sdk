@@ -34,13 +34,6 @@ REXCVAR_DEFINE_BOOL(vulkan_import_guest_memory, false, "GPU/Vulkan",
                     "coherency story isn't finished. Enable for experimentation.")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
-REXCVAR_DEFINE_BOOL(vulkan_upload_via_update_buffer, false, "GPU/Vulkan",
-                    "Use vkCmdUpdateBuffer instead of vkCmdCopyBuffer for shared-memory "
-                    "uploads. Workaround on Tegra X1 / L4T 32.7.6 if vkCmdCopyBuffer at "
-                    "non-zero dstOffset is dropped (the same bug pattern as compute-shader "
-                    "storage-buffer writes). Slower per call but goes through a different "
-                    "driver path. Off by default since the diagnosis isn't confirmed.");
-
 namespace rex::graphics::vulkan {
 
 VulkanSharedMemory::VulkanSharedMemory(VulkanCommandProcessor& command_processor,
@@ -500,32 +493,11 @@ bool VulkanSharedMemory::UploadRanges(
   bool successful = true;
   upload_regions_.clear();
   VkBuffer upload_buffer_previous = VK_NULL_HANDLE;
-
-  const bool use_update_buffer = REXCVAR_GET(vulkan_upload_via_update_buffer);
-  static constexpr VkDeviceSize kUpdateBufferChunk = 65536;  // Vulkan spec max
-
   for (auto upload_range : upload_page_ranges) {
     uint32_t upload_range_start = upload_range.first;
     uint32_t upload_range_length = upload_range.second;
     trace_writer_.WriteMemoryRead(upload_range_start << page_size_log2(),
                                   upload_range_length << page_size_log2());
-    if (use_update_buffer) {
-      VkDeviceSize bytes_remaining = VkDeviceSize(upload_range_length) << page_size_log2();
-      VkDeviceSize dst_offset = VkDeviceSize(upload_range_start) << page_size_log2();
-      const uint8_t* src =
-          memory().TranslatePhysical<const uint8_t*>(upload_range_start << page_size_log2());
-      MakeRangeValid(upload_range_start << page_size_log2(), uint32_t(bytes_remaining), false);
-      while (bytes_remaining) {
-        VkDeviceSize chunk = std::min<VkDeviceSize>(bytes_remaining, kUpdateBufferChunk);
-        chunk &= ~VkDeviceSize(3);  // vkCmdUpdateBuffer requires 4-byte alignment
-        if (!chunk) break;
-        command_buffer.CmdVkUpdateBuffer(buffer_, dst_offset, chunk, src);
-        src += chunk;
-        dst_offset += chunk;
-        bytes_remaining -= chunk;
-      }
-      continue;
-    }
     while (upload_range_length) {
       VkBuffer upload_buffer;
       VkDeviceSize upload_buffer_offset, upload_buffer_size;
