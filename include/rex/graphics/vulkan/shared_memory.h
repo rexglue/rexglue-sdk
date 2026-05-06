@@ -50,16 +50,6 @@ class VulkanSharedMemory : public SharedMemory {
 
   VkBuffer buffer() const { return buffer_; }
 
-  // True when the buffer aliases guest physical memory via
-  // VK_EXT_external_memory_host. Callers that touch the buffer at the start
-  // of a frame should issue a host->target barrier to make CPU writes visible
-  // — see EmitHostWriteBarrier().
-  bool is_external_host_imported() const { return external_host_imported_; }
-  // Pushes a HOST_WRITE → ALL_COMMANDS barrier on the imported buffer. Cheap
-  // no-op when not using imported memory. Should be called once per frame
-  // before any GPU work reads the shared-memory buffer.
-  void EmitHostWriteBarrier();
-
   // Returns true if any downloads were submitted to the command processor.
   bool InitializeTraceSubmitDownloads();
   void InitializeTraceCompleteDownloads();

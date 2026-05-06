@@ -310,21 +310,6 @@ void VulkanSharedMemory::EndSubmission() {
   upload_buffer_pool_->FlushWrites();
 }
 
-void VulkanSharedMemory::EmitHostWriteBarrier() {
-  if (!external_host_imported_ || buffer_ == VK_NULL_HANDLE) {
-    return;
-  }
-  // CPU writes into physical_membase before the frame opened need to be
-  // visible to all subsequent GPU work. HOST_COHERENT memory is supposed to
-  // make this implicit but Tegra L4T 32.7.6 misses some of these writes
-  // without an explicit HOST_BIT->ALL barrier.
-  command_processor_.PushBufferMemoryBarrier(
-      buffer_, 0, VK_WHOLE_SIZE, VK_PIPELINE_STAGE_HOST_BIT,
-      VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_ACCESS_HOST_WRITE_BIT,
-      VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT, VK_QUEUE_FAMILY_IGNORED,
-      VK_QUEUE_FAMILY_IGNORED, false);
-}
-
 void VulkanSharedMemory::Use(Usage usage, std::pair<uint32_t, uint32_t> written_range) {
   written_range.first = std::min(written_range.first, kBufferSize);
   written_range.second = std::min(written_range.second, kBufferSize - written_range.first);
