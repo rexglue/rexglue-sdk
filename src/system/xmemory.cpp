@@ -1785,18 +1785,6 @@ void PhysicalHeap::EnableAccessCallbacks(uint32_t physical_address, uint32_t len
   if (!enable_invalidation_notifications && !enable_data_providers) {
     return;
   }
-#if defined(__aarch64__)
-  // L4T 4.9 / Tegra X1: SIGSEGV-based write-watch enables but actual signal
-  // delivery is broken (no Recovered/Unhandled warnings ever fire even when
-  // the guest is clearly writing protected pages). Pair this stub with
-  // `clear_memory_page_state = false` in the runtime config so frame-end
-  // doesn't steamroll valid_flags either; the GPU then renders geometry
-  // (vertex/index buffers stay valid) although textures whose contents are
-  // overwritten by CPU after upload may stay stale.
-  (void)physical_address;
-  (void)length;
-  return;
-#endif
   uint32_t physical_address_offset = GetPhysicalAddress(heap_base_);
   if (physical_address < physical_address_offset) {
     if (physical_address_offset - physical_address >= length) {
