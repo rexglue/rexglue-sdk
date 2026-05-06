@@ -81,7 +81,10 @@ Result<void> CodegenPipeline::Run(bool force) {
   auto analyzeResult = Analyze(*ctx_);
   if (!analyzeResult) {
     REXLOG_ERROR("Analysis failed: {}", analyzeResult.error().message);
-    return analyzeResult;
+    if (!force) {
+      return analyzeResult;
+    }
+    REXLOG_WARN("Analysis errors ignored due to --force; output may be incomplete");
   }
 
   // Phase 2: Generate C++ output
