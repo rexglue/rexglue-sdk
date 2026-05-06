@@ -123,35 +123,6 @@ void SharedMemory::InvalidateAllPages() {
   gpu_written_data_dirty_.store(true, std::memory_order_relaxed);
 }
 
-void SharedMemory::InvalidateCpuAuthoritativePages() {
-  auto global_lock = global_critical_region_.Acquire();
-
-  uint64_t* active = active_valid_flags_.load(std::memory_order_relaxed);
-  if (!active || !num_system_page_flags_) {
-    return;
-  }
-  // Clear valid bits only where the page is NOT GPU-written. GPU-written
-  // pages came from a Resolve and the CPU copy is stale; reuploading them
-  // would clobber the resolve. CPU-authoritative pages (everything else) get
-  // re-uploaded on the next RequestRanges since their valid bit is now 0,
-  // ensuring the GPU sees the latest CPU writes even when SIGSEGV-based
-  // write-watch is broken.
-  bool any_dirty = false;
-  for (uint32_t i = 0; i < num_system_page_flags_; ++i) {
-    uint64_t gpu_written = system_page_flags_valid_and_gpu_written_[i];
-    uint64_t old_valid = active[i];
-    uint64_t new_valid = old_valid & gpu_written;
-    if (new_valid != old_valid) {
-      active[i] = new_valid;
-      dirty_blocks_.fetch_or(uint32_t(1) << (i >> 6), std::memory_order_relaxed);
-      any_dirty = true;
-    }
-  }
-  if (any_dirty) {
-    gpu_written_data_dirty_.store(true, std::memory_order_relaxed);
-  }
-}
-
 void SharedMemory::SetSystemPageBlocksValidWithGpuDataWritten() {
   if (!gpu_written_data_dirty_.load(std::memory_order_relaxed)) {
     return;
