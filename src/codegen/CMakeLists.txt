@@ -23,6 +23,7 @@ set(CODEGEN_CORE_SOURCES
     phase_gapfill.cpp
     phase_merge.cpp
     phase_validate.cpp
+    emit_type_headers.cpp
     template_registry.cpp
 )
 

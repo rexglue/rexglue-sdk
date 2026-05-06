@@ -14,6 +14,7 @@
 #include <rex/codegen/analyze.h>
 #include <rex/codegen/codegen.h>
 #include <rex/codegen/codegen_writer.h>
+#include <rex/codegen/emit_type_headers.h>
 #include <rex/kernel/init.h>
 #include <rex/logging.h>
 #include <rex/runtime.h>
@@ -86,6 +87,13 @@ Result<void> CodegenPipeline::Run(bool force) {
     }
     REXLOG_WARN("Analysis errors ignored due to --force; output may be incomplete");
   }
+
+  // Phase 1.5: Emit type / enum headers if the config supplied them.
+  // Independent of the analyzer (types come from config, not the
+  // binary) but placed here so a single codegen invocation produces
+  // self-consistent output. No-op when no [[types]] / [[enums]] are
+  // configured.
+  EmitTypeHeaders(*ctx_);
 
   // Phase 2: Generate C++ output
   CodegenWriter writer(*ctx_, runtime_.get());

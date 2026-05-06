@@ -32,6 +32,42 @@ namespace {
 /// Maximum nesting depth for include chains.
 constexpr uint32_t kMaxIncludeDepth = 32;
 
+// Sanitize a producer-supplied type / enum display name into a C++
+// identifier. Same opinion as the function-name sanitizer except no
+// address suffix (types and enums are name-keyed, not address-keyed)
+// and a hard reject for anonymous PDB tags (`<unnamed-tag>`,
+// `<unnamed-type-foo>`) -- those cannot be surfaced at file scope
+// without a synthesized stable identifier, and the producer doesn't
+// give us one for the leaf shape. Returns empty string when the
+// input cannot be sanitized; callers count and report.
+std::string SanitizeTypeName(std::string_view raw) {
+  if (raw.empty())
+    return {};
+  if (raw.front() == '<')
+    return {};
+
+  std::string out;
+  out.reserve(raw.size());
+  for (size_t i = 0; i < raw.size();) {
+    if (i + 1 < raw.size() && raw[i] == ':' && raw[i + 1] == ':') {
+      out.append("__");
+      i += 2;
+    } else {
+      out.push_back(raw[i]);
+      ++i;
+    }
+  }
+  for (char& c : out) {
+    const bool ok = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+                    (c >= '0' && c <= '9') || c == '_';
+    if (!ok)
+      c = '_';
+  }
+  if (out.empty() || (out[0] >= '0' && out[0] <= '9'))
+    return {};
+  return out;
+}
+
 /// Parse a hex address string (with or without "0x"/"0X" prefix).
 std::optional<uint32_t> ParseHexAddress(const std::string& keyStr) {
   try {
@@ -372,6 +408,136 @@ void ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
     }
   }
 
+  // [[types]] -- producer-supplied PDB-derived type entries; consumed
+  // by EmitTypeHeaders() to write mappings_generated/types.h. Schema
+  // documented in docs/types_and_enums.md. Each entry is keyed
+  // logically by `name` (sanitized -> C++ identifier); duplicates
+  // after sanitization are dropped first-wins (matches the producer
+  // declaration order). Anonymous PDB tags (`<unnamed-tag>`, ...)
+  // cannot be surfaced at file scope and are skipped.
+  if (auto typesArray = toml["types"].as_array()) {
+    std::unordered_set<std::string> seenTypeNames;
+    for (const auto& existing : cfg.types)
+      seenTypeNames.insert(existing.name);
+
+    size_t added = 0;
+    size_t skipped = 0;
+    size_t collisions = 0;
+    for (auto& entry : *typesArray) {
+      auto* table = entry.as_table();
+      if (!table) {
+        ++skipped;
+        continue;
+      }
+
+      auto rawName = (*table)["name"].value<std::string>().value_or("");
+      auto sanitized = SanitizeTypeName(rawName);
+      if (sanitized.empty()) {
+        ++skipped;
+        continue;
+      }
+
+      if (!seenTypeNames.insert(sanitized).second) {
+        ++collisions;
+        continue;
+      }
+
+      RecompilerType rt;
+      rt.name = std::move(sanitized);
+      rt.rawName = rawName;
+      rt.uniqueName = (*table)["unique_name"].value<std::string>().value_or("");
+      rt.kind = (*table)["kind"].value<std::string>().value_or("struct");
+      rt.size = (*table)["size"].value<uint32_t>().value_or(0u);
+
+      if (auto fieldArray = (*table)["fields"].as_array()) {
+        rt.fields.reserve(fieldArray->size());
+        for (auto& f : *fieldArray) {
+          auto* ft = f.as_table();
+          if (!ft)
+            continue;
+          RecompilerTypeField rf;
+          rf.name = (*ft)["name"].value<std::string>().value_or("");
+          rf.typeExpr = (*ft)["type_expr"].value<std::string>().value_or("");
+          rf.offset = (*ft)["offset"].value<uint32_t>().value_or(0u);
+          rt.fields.push_back(std::move(rf));
+        }
+      }
+
+      cfg.types.push_back(std::move(rt));
+      ++added;
+    }
+    if (added > 0 || skipped > 0 || collisions > 0) {
+      REXCODEGEN_DEBUG(
+          "[config]   [[types]] +{} from {}{}{}", added, filePath,
+          skipped ? fmt::format(" ({} skipped: anonymous or unsanitizable)", skipped) : std::string(),
+          collisions ? fmt::format(" ({} collisions dropped)", collisions) : std::string());
+    }
+  }
+
+  // [[enums]] -- producer-supplied PDB-derived enum entries;
+  // consumed by EmitTypeHeaders() to write
+  // mappings_generated/enums.h. Same dedupe / sanitization rules as
+  // [[types]]. Per-value dedupe (two enumerators with the same name
+  // would be a hard C++ error) happens at emission time.
+  if (auto enumsArray = toml["enums"].as_array()) {
+    std::unordered_set<std::string> seenEnumNames;
+    for (const auto& existing : cfg.enums)
+      seenEnumNames.insert(existing.name);
+
+    size_t added = 0;
+    size_t skipped = 0;
+    size_t collisions = 0;
+    for (auto& entry : *enumsArray) {
+      auto* table = entry.as_table();
+      if (!table) {
+        ++skipped;
+        continue;
+      }
+
+      auto rawName = (*table)["name"].value<std::string>().value_or("");
+      auto sanitized = SanitizeTypeName(rawName);
+      if (sanitized.empty()) {
+        ++skipped;
+        continue;
+      }
+
+      if (!seenEnumNames.insert(sanitized).second) {
+        ++collisions;
+        continue;
+      }
+
+      RecompilerEnum re;
+      re.name = std::move(sanitized);
+      re.rawName = rawName;
+      re.uniqueName = (*table)["unique_name"].value<std::string>().value_or("");
+      re.underlying = (*table)["underlying"].value<std::string>().value_or("int");
+
+      if (auto valueArray = (*table)["values"].as_array()) {
+        re.values.reserve(valueArray->size());
+        for (auto& v : *valueArray) {
+          auto* vt = v.as_table();
+          if (!vt)
+            continue;
+          RecompilerEnumValue rv;
+          rv.name = (*vt)["name"].value<std::string>().value_or("");
+          rv.value = (*vt)["value"].value<int64_t>().value_or(0);
+          if (rv.name.empty())
+            continue;
+          re.values.push_back(std::move(rv));
+        }
+      }
+
+      cfg.enums.push_back(std::move(re));
+      ++added;
+    }
+    if (added > 0 || skipped > 0 || collisions > 0) {
+      REXCODEGEN_DEBUG(
+          "[config]   [[enums]] +{} from {}{}{}", added, filePath,
+          skipped ? fmt::format(" ({} skipped: anonymous or unsanitizable)", skipped) : std::string(),
+          collisions ? fmt::format(" ({} collisions dropped)", collisions) : std::string());
+    }
+  }
+
   // --- Sets: additive ---
 
   // indirect_calls -> knownIndirectCallHints (set)
@@ -474,6 +640,12 @@ bool RecompilerConfig::Load(const std::string_view& configFilePath) {
     }
     REXCODEGEN_INFO("Loaded {} function configs ({} standalone, {} chunks)", functions.size(),
                     functions.size() - chunks_count, chunks_count);
+  }
+  if (!types.empty()) {
+    REXCODEGEN_INFO("Loaded {} type definitions for header emission", types.size());
+  }
+  if (!enums.empty()) {
+    REXCODEGEN_INFO("Loaded {} enum definitions for header emission", enums.size());
   }
 
   // Deduplicate exceptionHandlerFuncHints (push_back from multiple files)

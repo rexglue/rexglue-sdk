@@ -22,6 +22,55 @@
 
 namespace rex::codegen {
 
+// One field inside a [[types]] entry. The `type_expr` is the raw
+// MSVC type expression from the producer (e.g. `unsigned long:2`,
+// `void(_KTHREAD*, unsigned long)*`); it is preserved verbatim and
+// emitted as a comment beside the offset constant. The emitter does
+// not parse type expressions -- translating them into self-consistent
+// C++ would require a dialect-aware parser plus dependency-sorting
+// tens of thousands of UDTs, which is intentionally deferred.
+struct RecompilerTypeField {
+  std::string name;
+  std::string typeExpr;
+  uint32_t offset = 0;
+};
+
+// One [[types]] entry. Pairs with the producer schema documented in
+// docs/types_and_enums.md. `kind` carries `struct` / `union` /
+// `class` as a comment-only marker -- the emitter always produces an
+// opaque `struct` of the right size regardless. `size` is reproduced
+// in the generated header as `static_assert(sizeof(T) == size)`, so
+// any drift between producer and reality fails the compile.
+struct RecompilerType {
+  std::string name;        // sanitized C++ identifier
+  std::string rawName;     // original producer display name (header comment)
+  std::string uniqueName;  // optional dedupe / debug hint
+  std::string kind;        // "struct" | "union" | "class"
+  uint32_t size = 0;
+  std::vector<RecompilerTypeField> fields;
+};
+
+// One enumerator inside a [[enums]] entry. `value` is signed-widened
+// so it accommodates either signed or unsigned underlyings without
+// information loss; narrowing into the chosen `enum class` underlying
+// happens at emission time.
+struct RecompilerEnumValue {
+  std::string name;
+  int64_t value = 0;
+};
+
+// One [[enums]] entry. `underlying` is the producer's integer-type
+// string (`int`, `unsigned long`, `char`, ...); the emitter maps it
+// to a fixed-width type for `enum class : T`. Defaults to `int` per
+// the MSVC convention if the producer omits it.
+struct RecompilerEnum {
+  std::string name;        // sanitized C++ identifier
+  std::string rawName;
+  std::string uniqueName;
+  std::string underlying;  // raw producer string, mapped at emit time
+  std::vector<RecompilerEnumValue> values;
+};
+
 struct MidAsmHook {
   std::string name;
   std::vector<std::string> registers;
@@ -99,6 +148,16 @@ struct RecompilerConfig {
   std::unordered_map<uint32_t, FunctionConfig> functions;  ///< Function/chunk configuration
   std::unordered_map<uint32_t, JumpTable> switchTables;
   std::unordered_map<uint32_t, MidAsmHook> midAsmHooks;
+
+  /// Type / enum overrides loaded from `[[types]]` / `[[enums]]`
+  /// arrays in the user's config (or any included file). Consumed
+  /// by EmitTypeHeaders() which writes
+  /// `<outDirectoryPath>/mappings_generated/{types,enums}.h` when
+  /// either vector is non-empty. Empty when no producer config
+  /// supplies them (emit step becomes a no-op). See
+  /// `docs/types_and_enums.md` for the schema.
+  std::vector<RecompilerType> types;
+  std::vector<RecompilerEnum> enums;
   uint32_t longJmpAddress = 0;
   uint32_t setJmpAddress = 0;
 
