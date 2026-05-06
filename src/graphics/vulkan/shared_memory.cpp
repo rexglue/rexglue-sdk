@@ -27,13 +27,6 @@ REXCVAR_DEFINE_BOOL(vulkan_sparse_shared_memory, true, "GPU/Vulkan",
                     "Use sparse shared memory on Vulkan")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
-REXCVAR_DEFINE_BOOL(vulkan_import_guest_memory, false, "GPU/Vulkan",
-                    "Import guest physical memory as the Vulkan shared-memory buffer via "
-                    "VK_EXT_external_memory_host (UMA fast path). Off by default — known to "
-                    "produce black frames on Tegra X1 because the resolve-vs-host-cache "
-                    "coherency story isn't finished. Enable for experimentation.")
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-
 namespace rex::graphics::vulkan {
 
 VulkanSharedMemory::VulkanSharedMemory(VulkanCommandProcessor& command_processor,
@@ -108,164 +101,61 @@ bool VulkanSharedMemory::Initialize() {
 
   // Create a non-sparse buffer if there were issues with the sparse buffer.
   if (buffer_ == VK_NULL_HANDLE) {
-    // VK_EXT_external_memory_host fast path: import the existing guest
-    // physical-memory shm allocation (memory().physical_membase()) directly
-    // as the buffer's backing. CPU writes to guest memory become GPU-visible
-    // immediately — no upload step, no SIGSEGV-based write-watch needed.
-    // Critical on Tegra X1 / L4T 4.9 where mprotect-based watchpoints don't
-    // deliver signals reliably; harmless elsewhere as long as the host
-    // pointer alignment requirement is met. Gated by an opt-in cvar because
-    // on some drivers the imported memory still needs explicit flush/cache
-    // management we haven't wired up yet, producing all-black frames.
-    const bool try_external_host =
-        REXCVAR_GET(vulkan_import_guest_memory) &&
-        vulkan_device->extensions().ext_EXT_external_memory_host &&
-        vulkan_device->properties().minImportedHostPointerAlignment != 0 &&
-        vulkan_device->functions().vkGetMemoryHostPointerPropertiesEXT != nullptr;
-    bool used_external_host = false;
-    if (try_external_host) {
-      const VkDeviceSize align = vulkan_device->properties().minImportedHostPointerAlignment;
-      uint8_t* const host_ptr = memory().physical_membase();
-      const bool ptr_aligned = (reinterpret_cast<uintptr_t>(host_ptr) % align) == 0;
-      const bool size_aligned = (kBufferSize % align) == 0;
-      if (host_ptr && ptr_aligned && size_aligned) {
-        VkExternalMemoryBufferCreateInfo external_buffer_info{};
-        external_buffer_info.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO;
-        external_buffer_info.handleTypes =
-            VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT;
-        VkBufferCreateInfo external_buffer_create_info = buffer_create_info;
-        external_buffer_create_info.flags &= ~sparse_flags;
-        external_buffer_create_info.pNext = &external_buffer_info;
-        if (dfn.vkCreateBuffer(device, &external_buffer_create_info, nullptr, &buffer_) ==
-            VK_SUCCESS) {
-          VkMemoryRequirements req;
-          dfn.vkGetBufferMemoryRequirements(device, buffer_, &req);
-          VkMemoryHostPointerPropertiesEXT host_ptr_props{};
-          host_ptr_props.sType = VK_STRUCTURE_TYPE_MEMORY_HOST_POINTER_PROPERTIES_EXT;
-          if (vulkan_device->functions().vkGetMemoryHostPointerPropertiesEXT(
-                  device, VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT, host_ptr,
-                  &host_ptr_props) == VK_SUCCESS) {
-            const uint32_t compatible =
-                req.memoryTypeBits & host_ptr_props.memoryTypeBits;
-            uint32_t mem_type;
-            // Prefer device-local + host-coherent (UMA fast path); fall back to any
-            // host-visible type.
-            if (rex::bit_scan_forward(compatible & vulkan_device->memory_types().device_local &
-                                          vulkan_device->memory_types().host_coherent,
-                                      &mem_type) ||
-                rex::bit_scan_forward(compatible & vulkan_device->memory_types().host_visible,
-                                      &mem_type)) {
-              VkImportMemoryHostPointerInfoEXT import_info{};
-              import_info.sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_HOST_POINTER_INFO_EXT;
-              import_info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT;
-              import_info.pHostPointer = host_ptr;
-              VkMemoryAllocateInfo alloc_info{};
-              alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-              alloc_info.pNext = &import_info;
-              alloc_info.allocationSize = kBufferSize;
-              alloc_info.memoryTypeIndex = mem_type;
-              VkDeviceMemory imported_memory;
-              if (dfn.vkAllocateMemory(device, &alloc_info, nullptr, &imported_memory) ==
-                      VK_SUCCESS &&
-                  dfn.vkBindBufferMemory(device, buffer_, imported_memory, 0) == VK_SUCCESS) {
-                buffer_memory_type_ = mem_type;
-                buffer_memory_.push_back(imported_memory);
-                used_external_host = true;
-                external_host_imported_ = true;
-                REXGPU_INFO(
-                    "Shared memory: imported guest physical heap via "
-                    "VK_EXT_external_memory_host (memory type {}, {} MB) — CPU "
-                    "writes are GPU-coherent, GPU write-watch disabled",
-                    mem_type, kBufferSize >> 20);
-              } else {
-                if (imported_memory != VK_NULL_HANDLE) {
-                  dfn.vkFreeMemory(device, imported_memory, nullptr);
-                }
-                REXGPU_WARN(
-                    "Shared memory: VK_EXT_external_memory_host import failed at "
-                    "Allocate/Bind; falling back to device-local copy");
-                dfn.vkDestroyBuffer(device, buffer_, nullptr);
-                buffer_ = VK_NULL_HANDLE;
-              }
-            } else {
-              REXGPU_WARN(
-                  "Shared memory: no compatible host-visible memory type for "
-                  "external_memory_host import; falling back");
-              dfn.vkDestroyBuffer(device, buffer_, nullptr);
-              buffer_ = VK_NULL_HANDLE;
-            }
-          } else {
-            dfn.vkDestroyBuffer(device, buffer_, nullptr);
-            buffer_ = VK_NULL_HANDLE;
-          }
-        }
-      } else {
-        REXGPU_WARN(
-            "Shared memory: VK_EXT_external_memory_host present but guest "
-            "physical_membase ({:p}) or kBufferSize ({}) isn't aligned to "
-            "minImportedHostPointerAlignment ({}); falling back",
-            static_cast<void*>(host_ptr), kBufferSize, align);
-      }
+    REXGPU_INFO(
+        "Vulkan sparse binding is not used for shared memory emulation - video "
+        "memory usage may increase significantly because a full {} MB buffer "
+        "will be created",
+        kBufferSize >> 20);
+    buffer_create_info.flags &= ~sparse_flags;
+    if (dfn.vkCreateBuffer(device, &buffer_create_info, nullptr, &buffer_) != VK_SUCCESS) {
+      REXGPU_ERROR("Shared memory: Failed to create the {} MB Vulkan buffer", kBufferSize >> 20);
+      Shutdown();
+      return false;
     }
-
-    if (buffer_ == VK_NULL_HANDLE) {
-      REXGPU_INFO(
-          "Vulkan sparse binding is not used for shared memory emulation - video "
-          "memory usage may increase significantly because a full {} MB buffer "
-          "will be created",
+    VkMemoryRequirements buffer_memory_requirements;
+    dfn.vkGetBufferMemoryRequirements(device, buffer_, &buffer_memory_requirements);
+    if (!rex::bit_scan_forward(
+            buffer_memory_requirements.memoryTypeBits & vulkan_device->memory_types().device_local,
+            &buffer_memory_type_)) {
+      REXGPU_ERROR(
+          "Shared memory: Failed to get a device-local Vulkan memory type for "
+          "the buffer");
+      Shutdown();
+      return false;
+    }
+    VkMemoryAllocateInfo buffer_memory_allocate_info;
+    VkMemoryAllocateInfo* buffer_memory_allocate_info_last = &buffer_memory_allocate_info;
+    buffer_memory_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    buffer_memory_allocate_info.pNext = nullptr;
+    buffer_memory_allocate_info.allocationSize = buffer_memory_requirements.size;
+    buffer_memory_allocate_info.memoryTypeIndex = buffer_memory_type_;
+    VkMemoryDedicatedAllocateInfo buffer_memory_dedicated_allocate_info;
+    if (vulkan_device->extensions().ext_1_1_KHR_dedicated_allocation) {
+      buffer_memory_allocate_info_last->pNext = &buffer_memory_dedicated_allocate_info;
+      buffer_memory_allocate_info_last =
+          reinterpret_cast<VkMemoryAllocateInfo*>(&buffer_memory_dedicated_allocate_info);
+      buffer_memory_dedicated_allocate_info.sType =
+          VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO;
+      buffer_memory_dedicated_allocate_info.pNext = nullptr;
+      buffer_memory_dedicated_allocate_info.image = VK_NULL_HANDLE;
+      buffer_memory_dedicated_allocate_info.buffer = buffer_;
+    }
+    VkDeviceMemory buffer_memory;
+    if (dfn.vkAllocateMemory(device, &buffer_memory_allocate_info, nullptr, &buffer_memory) !=
+        VK_SUCCESS) {
+      REXGPU_ERROR(
+          "Shared memory: Failed to allocate {} MB of memory for the Vulkan "
+          "buffer",
           kBufferSize >> 20);
-      buffer_create_info.flags &= ~sparse_flags;
-      if (dfn.vkCreateBuffer(device, &buffer_create_info, nullptr, &buffer_) != VK_SUCCESS) {
-        REXGPU_ERROR("Shared memory: Failed to create the {} MB Vulkan buffer", kBufferSize >> 20);
-        Shutdown();
-        return false;
-      }
-      VkMemoryRequirements buffer_memory_requirements;
-      dfn.vkGetBufferMemoryRequirements(device, buffer_, &buffer_memory_requirements);
-      if (!rex::bit_scan_forward(
-              buffer_memory_requirements.memoryTypeBits & vulkan_device->memory_types().device_local,
-              &buffer_memory_type_)) {
-        REXGPU_ERROR(
-            "Shared memory: Failed to get a device-local Vulkan memory type for "
-            "the buffer");
-        Shutdown();
-        return false;
-      }
-      VkMemoryAllocateInfo buffer_memory_allocate_info;
-      VkMemoryAllocateInfo* buffer_memory_allocate_info_last = &buffer_memory_allocate_info;
-      buffer_memory_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-      buffer_memory_allocate_info.pNext = nullptr;
-      buffer_memory_allocate_info.allocationSize = buffer_memory_requirements.size;
-      buffer_memory_allocate_info.memoryTypeIndex = buffer_memory_type_;
-      VkMemoryDedicatedAllocateInfo buffer_memory_dedicated_allocate_info;
-      if (vulkan_device->extensions().ext_1_1_KHR_dedicated_allocation) {
-        buffer_memory_allocate_info_last->pNext = &buffer_memory_dedicated_allocate_info;
-        buffer_memory_allocate_info_last =
-            reinterpret_cast<VkMemoryAllocateInfo*>(&buffer_memory_dedicated_allocate_info);
-        buffer_memory_dedicated_allocate_info.sType =
-            VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO;
-        buffer_memory_dedicated_allocate_info.pNext = nullptr;
-        buffer_memory_dedicated_allocate_info.image = VK_NULL_HANDLE;
-        buffer_memory_dedicated_allocate_info.buffer = buffer_;
-      }
-      VkDeviceMemory buffer_memory;
-      if (dfn.vkAllocateMemory(device, &buffer_memory_allocate_info, nullptr, &buffer_memory) !=
-          VK_SUCCESS) {
-        REXGPU_ERROR(
-            "Shared memory: Failed to allocate {} MB of memory for the Vulkan "
-            "buffer",
-            kBufferSize >> 20);
-        Shutdown();
-        return false;
-      }
-      buffer_memory_.push_back(buffer_memory);
-      if (dfn.vkBindBufferMemory(device, buffer_, buffer_memory, 0) != VK_SUCCESS) {
-        REXGPU_ERROR("Shared memory: Failed to bind memory to the Vulkan buffer");
-        Shutdown();
-        return false;
-      }
+      Shutdown();
+      return false;
     }
-    (void)used_external_host;
+    buffer_memory_.push_back(buffer_memory);
+    if (dfn.vkBindBufferMemory(device, buffer_, buffer_memory, 0) != VK_SUCCESS) {
+      REXGPU_ERROR("Shared memory: Failed to bind memory to the Vulkan buffer");
+      Shutdown();
+      return false;
+    }
   }
 
   // The first usage will likely be uploading.
@@ -453,16 +343,6 @@ bool VulkanSharedMemory::AllocateSparseHostGpuMemoryRange(uint32_t offset_alloca
 bool VulkanSharedMemory::UploadRanges(
     const std::vector<std::pair<uint32_t, uint32_t>>& upload_page_ranges) {
   if (upload_page_ranges.empty()) {
-    return true;
-  }
-  if (external_host_imported_) {
-    // The buffer is already a view onto guest physical memory; CPU writes
-    // are GPU-visible. Just mark the ranges valid so the cache stops
-    // requesting re-uploads — no actual copy work needed.
-    for (auto upload_range : upload_page_ranges) {
-      MakeRangeValid(upload_range.first << page_size_log2(),
-                     upload_range.second << page_size_log2(), false);
-    }
     return true;
   }
   // upload_page_ranges are sorted, use them to determine the range for the
