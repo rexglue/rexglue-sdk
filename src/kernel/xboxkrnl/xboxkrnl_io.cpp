@@ -13,11 +13,13 @@
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
 #include <rex/filesystem/device.h>
+#include <rex/filesystem/devices/host_path_entry.h>
 #include <rex/kernel/xboxkrnl/private.h>
 #include <rex/logging.h>
 #include <rex/memory.h>
 #include <rex/hook.h>
 #include <rex/types.h>
+#include <rex/system/bink_overlay.h>
 #include <rex/system/info/file.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/util/string_utils.h>
@@ -160,6 +162,18 @@ u32 NtCreateFile_entry(mapped_u32 handle_out, u32 desired_access,
 
     // Handle ref is incremented, so return that.
     handle = file->handle();
+
+    // Notify the cinematic overlay of any .bik file the guest opens. The
+    // overlay decodes the same file via host libavformat in parallel and
+    // composites over the swap chain — so cinematics render even when the
+    // recompiled Bink runtime's CPU decode output never invalidates the
+    // texture cache. Filter for HostPathEntry so we don't try to decode
+    // something we can't open() ourselves.
+    if (auto* host_entry =
+            dynamic_cast<const rex::filesystem::HostPathEntry*>(vfs_file->entry())) {
+      rex::system::BinkOverlay::Get()->OnFileOpened(
+          host_entry->host_path().string());
+    }
   }
 
   if (io_status_block) {
