@@ -310,6 +310,10 @@ bool ReXApp::SetupPresentation() {
         imgui_drawer_ = std::make_unique<rex::ui::ImGuiDrawer>(
             window_.get(), 64, [this](ImFontAtlas* atlas) { OnConfigureFonts(atlas); });
         imgui_drawer_->SetPresenterAndImmediateDrawer(presenter, immediate_drawer_.get());
+        // Cinematic overlay -- composites Bink-decoded frames over the swap
+        // (z-order below ImGui so menus stay on top).
+        bink_ui_drawer_ = std::make_unique<rex::ui::BinkUIDrawer>();
+        bink_ui_drawer_->SetPresenter(presenter, immediate_drawer_.get());
         rex::ui::RegisterBind("bind_debug_overlay", "F3", "Toggle debug overlay", [this] {
           if (debug_overlay_) {
             debug_overlay_.reset();
@@ -417,6 +421,10 @@ void ReXApp::OnDestroy() {
   settings_overlay_.reset();
   console_overlay_.reset();
   debug_overlay_.reset();
+  if (bink_ui_drawer_) {
+    bink_ui_drawer_->SetPresenter(nullptr, nullptr);
+    bink_ui_drawer_.reset();
+  }
   if (imgui_drawer_) {
     imgui_drawer_->SetPresenterAndImmediateDrawer(nullptr, nullptr);
     imgui_drawer_.reset();

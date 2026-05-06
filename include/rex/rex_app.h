@@ -23,6 +23,7 @@
 #include <rex/image_info.h>
 #include <rex/runtime.h>
 #include <rex/ui/imgui_dialog.h>
+#include <rex/ui/bink_ui_drawer.h>
 #include <rex/ui/imgui_drawer.h>
 #include <rex/ui/immediate_drawer.h>
 #include <rex/ui/overlay/debug_overlay.h>
@@ -215,6 +216,7 @@ class ReXApp : public ui::WindowedApp, public ui::WindowListener, public ui::Win
   std::atomic<bool> shutting_down_{false};
   std::unique_ptr<ui::ImmediateDrawer> immediate_drawer_;
   std::unique_ptr<ui::ImGuiDrawer> imgui_drawer_;
+  std::unique_ptr<ui::BinkUIDrawer> bink_ui_drawer_;
 
   // Built-in overlays
   std::shared_ptr<LogCaptureSink> log_sink_;
