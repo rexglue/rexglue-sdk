@@ -236,6 +236,7 @@ void ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
       fcfg.end = (*table)["end"].value_or(0u);
       fcfg.name = (*table)["name"].value_or(std::string{});
       fcfg.parent = (*table)["parent"].value_or(0u);
+      fcfg.import = (*table)["import"].value_or(false);
 
       if (fcfg.size && fcfg.end) {
         REXCODEGEN_ERROR("Function 0x{:08X}: cannot specify both 'size' and 'end'", address);
@@ -244,6 +245,16 @@ void ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
       if (fcfg.end && fcfg.end <= address) {
         REXCODEGEN_ERROR("Function 0x{:08X}: 'end' (0x{:08X}) must be greater than address",
                          address, fcfg.end);
+        continue;
+      }
+      if (fcfg.import && fcfg.name.empty()) {
+        REXCODEGEN_ERROR("Function 0x{:08X}: 'import = true' requires an explicit 'name' "
+                         "(used as the __imp__ binding target)", address);
+        continue;
+      }
+      if (fcfg.import && fcfg.isChunk()) {
+        REXCODEGEN_ERROR("Function 0x{:08X}: 'import = true' is incompatible with 'parent' "
+                         "(imports are external; they have no chunked body)", address);
         continue;
       }
 

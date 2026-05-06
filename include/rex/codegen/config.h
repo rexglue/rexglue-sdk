@@ -93,6 +93,13 @@ struct FunctionConfig {
   uint32_t end = 0;     // End address, exclusive (mutually exclusive with size)
   std::string name;     // Custom symbol name (empty = auto-generate sub_XXXXXXXX)
   uint32_t parent = 0;  // Parent function address (0 = standalone, non-zero = chunk)
+  bool import = false;  // True = promote to IMPORT authority, bind callers to
+                        // __imp__<name>. Used for kernel syscall thunks that
+                        // aren't reachable via the XEX import table (Xbox 360
+                        // `b kernel_dispatcher` thunks where the PDB names the
+                        // thunk after its kernel API). The thunk body is not
+                        // analyzed; emit_function_call routes callers to the
+                        // host runtime's __imp__ symbol.
 
   // Get effective size (prefers size over end)
   uint32_t getSize(uint32_t address) const {

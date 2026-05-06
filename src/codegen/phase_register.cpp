@@ -545,8 +545,29 @@ VoidResult registerEntryPoints(CodegenContext& ctx) {
   }
 
   // Register CONFIG functions
-  size_t configFuncs = 0, configChunks = 0;
+  size_t configFuncs = 0, configChunks = 0, configImports = 0;
   for (const auto& [address, cfg] : config.functions) {
+    if (cfg.import) {
+      // CONFIG-declared imports — Xbox 360 syscall thunks and similar
+      // kernel-API functions whose bodies are unanalysable from the
+      // user's perspective (`b kernel_dispatcher`, etc.) and whose
+      // semantics live in the host runtime under __imp__<name>.
+      //
+      // These are registered with IMPORT authority (above CONFIG) so
+      // any later PDATA/discovery pass cannot demote them, and
+      // emit_function_call routes callers to __imp__<name> directly
+      // without trying to recompile the thunk body.
+      std::string importName = "__imp__" + cfg.name;
+      auto* node = graph.addImportFunction(address, importName);
+      if (node && node->canDiscover()) {
+        node->discoverAsImport();
+        if (node->canSeal()) {
+          node->seal();
+        }
+      }
+      configImports++;
+      continue;
+    }
     uint32_t size = cfg.getSize(address);
     std::string name = cfg.name.empty() ? fmt::format("sub_{:08X}", address) : cfg.name;
     graph.addFunction(address, size, FunctionAuthority::CONFIG, true);
@@ -558,8 +579,9 @@ VoidResult registerEntryPoints(CodegenContext& ctx) {
       configChunks++;
     }
   }
-  if (configFuncs > 0) {
-    REXCODEGEN_DEBUG("Analyze: {} CONFIG functions, {} chunks", configFuncs, configChunks);
+  if (configFuncs > 0 || configImports > 0) {
+    REXCODEGEN_DEBUG("Analyze: {} CONFIG functions, {} chunks, {} imports",
+                     configFuncs, configChunks, configImports);
   }
 
   // Register PDATA functions
