@@ -16,6 +16,7 @@
 // GPU Core
 REXCVAR_DECLARE(bool, vsync);
 REXCVAR_DECLARE(bool, clear_memory_page_state);
+REXCVAR_DECLARE(bool, invalidate_shared_memory_per_frame);
 REXCVAR_DECLARE(bool, half_pixel_offset);
 REXCVAR_DECLARE(bool, async_shader_compilation);
 REXCVAR_DECLARE(int32_t, video_mode_width);

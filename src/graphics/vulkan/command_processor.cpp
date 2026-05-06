@@ -5259,6 +5259,24 @@ bool VulkanCommandProcessor::BeginSubmission(bool is_guest_command) {
 
     primitive_processor_->BeginFrame();
 
+    // On hosts where mprotect SIGSEGV write-watch doesn't fire for guest
+    // CPU writes (some aarch64 kernels — Tegra L4T and several mainline
+    // configs deliver the signal to the kernel but never to the SDK's
+    // handler), the texture cache never sees CPU-decoded pixel data
+    // appear. The recompiled Bink runtime is the visible casualty: it
+    // decodes every frame but the GPU samples stale memory, so cinematics
+    // render as solid black even though audio plays correctly.
+    //
+    // When the cvar is on, treat every frame as if the entire shared
+    // memory region was just rewritten by the CPU. The texture cache
+    // then re-uploads anything it samples from CPU-authoritative pages.
+    // Frames written by the GPU stay valid because the gpu_written
+    // bitmap is independent of the valid bits we're clearing here.
+    if (REXCVAR_GET(invalidate_shared_memory_per_frame) && shared_memory_) {
+      shared_memory_->MemoryInvalidationCallback(
+          0, rex::graphics::SharedMemory::kBufferSize, /*exact_range=*/true);
+    }
+
     texture_cache_->BeginFrame();
 
     // Auto-trigger a RenderDoc capture once when env vars opt in. Because

@@ -42,6 +42,15 @@ REXCVAR_DEFINE_BOOL(clear_memory_page_state, true, "GPU",
                     "Disable for minor CPU overhead reduction, but may break memory coherency.")
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
+REXCVAR_DEFINE_BOOL(invalidate_shared_memory_per_frame, false, "GPU",
+                    "Invalidate the entire shared-memory region every frame, forcing the "
+                    "texture cache to re-upload from CPU memory. Set true on hosts where "
+                    "mprotect-based write-watch doesn't fire reliably (some aarch64 kernels "
+                    "where SIGSEGV-on-write isn't delivered to the SDK handler) so CPU-decoded "
+                    "video frames (e.g. recompiled Bink runtime output) actually reach the GPU. "
+                    "Costs a full re-upload per frame; expect higher CPU/PCIe load.")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
 REXCVAR_DEFINE_BOOL(occlusion_query_enable, true, "GPU", "Enable host occlusion query handling")
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
