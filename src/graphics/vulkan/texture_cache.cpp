@@ -1435,8 +1435,17 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
       }
       write_descriptor_set_source_base_buffer_info.buffer = vulkan_shared_memory.buffer();
     }
-    write_descriptor_set_source_base_buffer_info.offset = source_base_start;
-    write_descriptor_set_source_base_buffer_info.range = source_base_range;
+    // Tegra X1: storage-buffer descriptors at non-zero offset misbehave for
+    // compute access (writes silently dropped, reads return zero in some
+    // configs). Bind the whole shared-memory buffer at offset 0 and add the
+    // texture's start as an absolute byte offset via load_constants below.
+    if (!texture_key.scaled_resolve) {
+      write_descriptor_set_source_base_buffer_info.offset = 0;
+      write_descriptor_set_source_base_buffer_info.range = SharedMemory::kBufferSize;
+    } else {
+      write_descriptor_set_source_base_buffer_info.offset = source_base_start;
+      write_descriptor_set_source_base_buffer_info.range = source_base_range;
+    }
     VkWriteDescriptorSet& write_descriptor_set_source_base =
         write_descriptor_sets[write_descriptor_set_count++];
     write_descriptor_set_source_base.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1475,8 +1484,14 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
       }
       write_descriptor_set_source_mips_buffer_info.buffer = vulkan_shared_memory.buffer();
     }
-    write_descriptor_set_source_mips_buffer_info.offset = source_mips_start;
-    write_descriptor_set_source_mips_buffer_info.range = source_mips_range;
+    // Same Tegra-offset-zero pattern as source_base above.
+    if (!texture_key.scaled_resolve) {
+      write_descriptor_set_source_mips_buffer_info.offset = 0;
+      write_descriptor_set_source_mips_buffer_info.range = SharedMemory::kBufferSize;
+    } else {
+      write_descriptor_set_source_mips_buffer_info.offset = source_mips_start;
+      write_descriptor_set_source_mips_buffer_info.range = source_mips_range;
+    }
     VkWriteDescriptorSet& write_descriptor_set_source_mips =
         write_descriptor_sets[write_descriptor_set_count++];
     write_descriptor_set_source_mips.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1535,8 +1550,16 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
                                              &descriptor_set_source, 0, nullptr);
     }
 
-    // TODO(Triang3l): guest_offset relative to the storage buffer origin.
-    load_constants.guest_offset = 0;
+    // guest_offset is now ABSOLUTE bytes into the bound buffer (the source
+    // is bound at offset 0 to dodge the Tegra non-zero-offset bug — see the
+    // descriptor-write code above). For scaled-resolve textures the source
+    // binding still uses a sub-region, so guest_offset stays 0 there.
+    if (texture_key.scaled_resolve) {
+      load_constants.guest_offset = 0;
+    } else {
+      load_constants.guest_offset =
+          is_base ? (texture_key.base_page << 12) : (texture_key.mip_page << 12);
+    }
     if (!is_base) {
       load_constants.guest_offset += guest_layout.mip_offsets_bytes[level] *
                                      (texture_resolution_scale_x * texture_resolution_scale_y);
