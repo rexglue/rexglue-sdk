@@ -1435,25 +1435,13 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
         VkDescriptorSet descriptor_set_dest = command_processor_.AllocateSingleTransientDescriptor(
             VulkanCommandProcessor::SingleTransientDescriptorLayout ::kStorageBufferCompute);
         if (descriptor_set_dest != VK_NULL_HANDLE) {
-          // Write the destination descriptor. Bind the entire shared-memory
-          // buffer at offset 0 instead of carving it at copy_dest_base — on
-          // Tegra X1 / L4T 32.7.6 the compute shader's storage-buffer writes
-          // are silently dropped when the descriptor's offset is non-zero
-          // (RenderDoc capture confirmed: the resolve dispatch executes but
-          // the bytes never appear at the bound offset). The shader's
-          // dest_base push constant is now the absolute byte offset into
-          // the buffer, so it does the addressing itself.
+          // Write the destination descriptor.
           VkDescriptorBufferInfo write_descriptor_set_dest_buffer_info;
           write_descriptor_set_dest_buffer_info.buffer = draw_resolution_scaled
                                                              ? texture_cache.scaled_resolve_buffer()
                                                              : shared_memory.buffer();
-          if (draw_resolution_scaled) {
-            write_descriptor_set_dest_buffer_info.offset = copy_dest_base;
-            write_descriptor_set_dest_buffer_info.range = copy_dest_range_length;
-          } else {
-            write_descriptor_set_dest_buffer_info.offset = 0;
-            write_descriptor_set_dest_buffer_info.range = VK_WHOLE_SIZE;
-          }
+          write_descriptor_set_dest_buffer_info.offset = copy_dest_base;
+          write_descriptor_set_dest_buffer_info.range = copy_dest_range_length;
           VkWriteDescriptorSet write_descriptor_set_dest;
           write_descriptor_set_dest.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
           write_descriptor_set_dest.pNext = nullptr;
@@ -1489,9 +1477,9 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
                 resolve_copy_pipeline_layout_, VK_SHADER_STAGE_COMPUTE_BIT, 0,
                 sizeof(copy_shader_constants.dest_relative), &copy_shader_constants.dest_relative);
           } else {
-            // dest_base is already the absolute byte offset into the bound
-            // buffer (which now starts at offset 0 — see descriptor write
-            // above). No subtraction needed.
+            // TODO(Triang3l): Proper dest_base in case of one 512 MB shared
+            // memory binding, or multiple shared memory bindings in case of
+            // splitting due to maxStorageBufferRange overflow.
             copy_shader_constants.dest_base -=
                 uint32_t(write_descriptor_set_dest_buffer_info.offset);
             command_buffer.CmdVkPushConstants(
