@@ -79,6 +79,15 @@ struct RecompilerConfig {
   std::string patchFilePath;
   std::string patchedFilePath;
 
+  /// Optional path to a TOML carrying a `[[function]]` array of
+  /// (address, display) entries used to override the default
+  /// sub_XXXXXXXX symbol names emitted by codegen. Resolved at
+  /// Load() time: relative paths bind to the directory of the file
+  /// that introduced them (same semantics as `includes`); absolute
+  /// paths and CLI overrides pass through unchanged. Empty when no
+  /// mapping is configured (rename pass becomes a no-op).
+  std::string mappingFilePath;
+
   // === Code generation options (optional) ===
   bool skipLr = false;
   bool ctrAsLocalVariable = false;
@@ -99,6 +108,17 @@ struct RecompilerConfig {
   std::unordered_map<uint32_t, FunctionConfig> functions;  ///< Function/chunk configuration
   std::unordered_map<uint32_t, JumpTable> switchTables;
   std::unordered_map<uint32_t, MidAsmHook> midAsmHooks;
+
+  /// Address -> sanitized C++ identifier sourced from the
+  /// `[[function]]` array of `mappingFilePath`. Populated by
+  /// LoadMappings(); empty when no mapping is loaded. Consumed by
+  /// ApplyMappingNames() (see codegen.cpp) which overrides the
+  /// auto-generated sub_XXXXXXXX names on FunctionNodes after
+  /// Analyze. Addresses present here but not corresponding to a
+  /// function entry in the graph (e.g. labels inside a parent
+  /// function under the chunks-as-labels model) are silently
+  /// skipped at apply time.
+  std::unordered_map<uint32_t, std::string> functionNames;
   uint32_t longJmpAddress = 0;
   uint32_t setJmpAddress = 0;
 
@@ -126,6 +146,26 @@ struct RecompilerConfig {
    *         include, depth exceeded)
    */
   bool Load(const std::string_view& configFilePath);
+
+  /// Load `mappingFilePath` into `functionNames`.
+  ///
+  /// Idempotent: clears `functionNames` first so a CLI override can
+  /// rebind the path and replace (not merge) any prior contents.
+  /// No-op when `mappingFilePath` is empty. The path must be
+  /// absolute by the time this is called -- Load() resolves any
+  /// relative path against the introducing config file's
+  /// directory; CLI overrides should pre-resolve against cwd.
+  ///
+  /// Reads the pdb-toml `[[function]]` schema. Per entry only
+  /// `address` (uint32) and `display` (string) are consumed; all
+  /// other fields are ignored. Each `display` is sanitized into a
+  /// C++ identifier and suffixed with `_<UPPER_HEX_ADDR>` so the
+  /// names are trivially collision-free and round-trippable to the
+  /// source PDB.
+  ///
+  /// @return true on success (including the "no mapping" no-op),
+  ///         false on parse failure or schema mismatch.
+  bool LoadMappings();
 
   /// Validation result containing warnings and errors.
   struct ValidationResult {

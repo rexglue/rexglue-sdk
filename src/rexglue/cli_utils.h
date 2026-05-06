@@ -23,6 +23,7 @@ struct CliContext {
   bool verbose = false;
   bool force = false;                    // Generate output despite validation errors
   bool enableExceptionHandlers = false;  // Enable SEH exception handler generation
+  std::string mappingPath;               // Override for config's mapping_file_path
 };
 
 }  // namespace rexglue::cli

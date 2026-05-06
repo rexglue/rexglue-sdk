@@ -25,6 +25,17 @@ REXCVAR_DEFINE_BOOL(enable_exception_handlers, false, "Codegen",
                     "Enable generation of SEH exception handler code")
     .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
+// CLI override for `mapping_file_path`. When set on the command line
+// (`--mapping <path>`), takes precedence over the value loaded from
+// any TOML file. Resolved against cwd so users can pass a path
+// relative to where they invoked `rexglue codegen`. Empty by default
+// (which preserves whatever `mapping_file_path` the config TOML
+// supplied, or no mapping at all).
+REXCVAR_DEFINE_STRING(mapping, "", "Codegen",
+                      "Path to a function-name mapping TOML "
+                      "(overrides mapping_file_path in config)")
+    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
+
 //=============================================================================
 // Codegen/Output
 //=============================================================================

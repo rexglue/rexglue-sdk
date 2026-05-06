@@ -33,6 +33,21 @@ Result<void> CodegenFromConfig(const std::string& config_path, const CliContext&
     pipeline->context().Config().generateExceptionHandlers = true;
     REXLOG_INFO("Exception handler generation enabled");
   }
+  // --mapping <path> wins over the config TOML's mapping_file_path.
+  // Resolve against cwd (CLI semantic, not config-relative) and call
+  // LoadMappings() again so the prior contents -- if any -- are
+  // replaced rather than merged.
+  if (!ctx.mappingPath.empty()) {
+    std::filesystem::path resolved(ctx.mappingPath);
+    if (resolved.is_relative())
+      resolved = std::filesystem::absolute(resolved);
+    auto& cfg = pipeline->context().Config();
+    cfg.mappingFilePath = resolved.string();
+    if (!cfg.LoadMappings()) {
+      return Err(rex::ErrorCategory::Config,
+                 fmt::format("Failed to load mapping TOML: {}", resolved.string()));
+    }
+  }
 
   return pipeline->Run(ctx.force);
 }

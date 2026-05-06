@@ -24,6 +24,7 @@
 // Codegen flags (definitions in codegen_flags.cpp)
 REXCVAR_DECLARE(bool, force);
 REXCVAR_DECLARE(bool, enable_exception_handlers);
+REXCVAR_DECLARE(std::string, mapping);
 
 // Recompile-tests flags
 REXCVAR_DEFINE_STRING(bin_dir, "", "RecompileTests",
@@ -101,6 +102,7 @@ int main(int argc, char** argv) {
   ctx.verbose = verbose;
   ctx.force = REXCVAR_GET(force);
   ctx.enableExceptionHandlers = REXCVAR_GET(enable_exception_handlers);
+  ctx.mappingPath = REXCVAR_GET(mapping);
 
   auto startTime = std::chrono::steady_clock::now();
 

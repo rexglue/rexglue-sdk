@@ -32,6 +32,42 @@ namespace {
 /// Maximum nesting depth for include chains.
 constexpr uint32_t kMaxIncludeDepth = 32;
 
+// Sanitize a pdb-toml `display` string into a C++ identifier and
+// append `_<UPPER_HEX_ADDR>` so the result is trivially unique and
+// round-trippable to the source PDB by regex. Two-pass transform:
+// (1) collapse `::` to `__` so the scope boundary survives as a
+// readable marker; (2) replace any remaining non-identifier byte
+// with `_`. Empty / leading-digit results fall back to the existing
+// `sub_<UPPER_HEX_ADDR>` convention so grep behavior stays
+// consistent across mapped and unmapped call sites.
+std::string SanitizeMappedName(std::string_view display, uint32_t address) {
+  std::string out;
+  out.reserve(display.size() + 12);
+
+  for (size_t i = 0; i < display.size();) {
+    if (i + 1 < display.size() && display[i] == ':' && display[i + 1] == ':') {
+      out.append("__");
+      i += 2;
+    } else {
+      out.push_back(display[i]);
+      ++i;
+    }
+  }
+
+  for (char& c : out) {
+    const bool ok = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+                    (c >= '0' && c <= '9') || c == '_';
+    if (!ok)
+      c = '_';
+  }
+
+  if (out.empty() || (out[0] >= '0' && out[0] <= '9'))
+    return fmt::format("sub_{:08X}", address);
+
+  fmt::format_to(std::back_inserter(out), "_{:08X}", address);
+  return out;
+}
+
 /// Parse a hex address string (with or without "0x"/"0X" prefix).
 std::optional<uint32_t> ParseHexAddress(const std::string& keyStr) {
   try {
@@ -81,7 +117,8 @@ void MergeBool(bool& dst, bool src, bool present, const char* name) {
 // Apply a single parsed TOML table onto the config (merge semantics)
 // ---------------------------------------------------------------------------
 
-void ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string& filePath) {
+void ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string& filePath,
+               const std::filesystem::path& parentDir) {
   // --- Scalars: last wins ---
 
   // String scalars (only override if present in this file)
@@ -102,6 +139,18 @@ void ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
   }
   if (auto v = toml["patched_file_path"].value<std::string>()) {
     MergeScalar(cfg.patchedFilePath, *v, "patched_file_path");
+  }
+  // Resolve mapping_file_path against the introducing file's directory
+  // so a relative path in an included config still points to the right
+  // file once we leave that file's scope. Absolute paths and paths with
+  // a leading "~" pass through (the latter unexpanded -- documented).
+  if (auto v = toml["mapping_file_path"].value<std::string>()) {
+    if (!v->empty()) {
+      std::filesystem::path resolved(*v);
+      if (resolved.is_relative())
+        resolved = parentDir / resolved;
+      MergeScalar(cfg.mappingFilePath, resolved.string(), "mapping_file_path");
+    }
   }
 
   // Bool scalars
@@ -446,7 +495,7 @@ bool LoadRecursive(const std::filesystem::path& filePath, RecompilerConfig& cfg,
   }
 
   // Apply this file's config (after includes, so this file wins)
-  ApplyToml(toml, cfg, filePath.filename().string());
+  ApplyToml(toml, cfg, filePath.filename().string(), parentDir);
 
   return true;
 }
@@ -489,6 +538,15 @@ bool RecompilerConfig::Load(const std::string_view& configFilePath) {
     REXCODEGEN_ERROR("Missing required field: file_path");
   }
 
+  // Load function-name overrides if a mapping path was configured. We
+  // do this after include resolution so an included file's mapping
+  // path is honoured when the parent doesn't override it, and after
+  // the function-config summary so its own log line slots cleanly
+  // alongside the existing "Loaded N function configs" line.
+  if (!LoadMappings()) {
+    return false;
+  }
+
   // Validate assembled config
   auto result = Validate();
   for (const auto& warning : result.warnings) {
@@ -498,6 +556,68 @@ bool RecompilerConfig::Load(const std::string_view& configFilePath) {
     REXCODEGEN_ERROR("[config] {}", error);
   }
 
+  return true;
+}
+
+bool RecompilerConfig::LoadMappings() {
+  functionNames.clear();
+
+  if (mappingFilePath.empty())
+    return true;
+
+  // mappingFilePath is absolute by contract (Load() resolves against
+  // the introducing config's parent_dir; CLI overrides resolve
+  // against cwd). Reject relative paths defensively rather than
+  // silently load something unintended.
+  std::filesystem::path resolved(mappingFilePath);
+  if (resolved.is_relative()) {
+    REXCODEGEN_ERROR("[mapping] mapping_file_path is not absolute: {}", mappingFilePath);
+    return false;
+  }
+  if (!std::filesystem::exists(resolved)) {
+    REXCODEGEN_ERROR("[mapping] mapping file not found: {}", resolved.string());
+    return false;
+  }
+
+  toml::table mappingToml;
+  try {
+    mappingToml = toml::parse_file(resolved.string());
+  } catch (const toml::parse_error& e) {
+    REXCODEGEN_ERROR("[mapping] failed to parse {}: {}", resolved.string(), e.what());
+    return false;
+  }
+
+  auto* functionsArray = mappingToml["function"].as_array();
+  if (!functionsArray) {
+    REXCODEGEN_WARN(
+        "[mapping] {} has no [[function]] entries; no symbols will be renamed",
+        resolved.string());
+    return true;
+  }
+
+  size_t skipped = 0;
+  for (auto& entry : *functionsArray) {
+    auto* entryTable = entry.as_table();
+    if (!entryTable) {
+      ++skipped;
+      continue;
+    }
+    auto addressOpt = (*entryTable)["address"].value<uint32_t>();
+    auto displayOpt = (*entryTable)["display"].value<std::string>();
+    if (!addressOpt || !displayOpt || displayOpt->empty()) {
+      ++skipped;
+      continue;
+    }
+    functionNames.insert_or_assign(*addressOpt, SanitizeMappedName(*displayOpt, *addressOpt));
+  }
+
+  if (skipped > 0) {
+    REXCODEGEN_INFO("[mapping] loaded {} function name mappings from {} ({} entries skipped)",
+                    functionNames.size(), resolved.string(), skipped);
+  } else {
+    REXCODEGEN_INFO("[mapping] loaded {} function name mappings from {}", functionNames.size(),
+                    resolved.string());
+  }
   return true;
 }
 
