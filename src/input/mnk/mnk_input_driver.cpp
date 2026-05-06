@@ -142,7 +142,12 @@ X_RESULT MnkInputDriver::GetState(uint32_t user_index, X_INPUT_STATE* out_state)
 
   UpdateMouseCapture();
 
-  if (!is_active() || !has_focus_) {
+  // Skip the focus gate here for the same reason OnKeyDown does: KDE/Wayland
+  // doesn't reliably deliver GDK_FOCUS_CHANGE, so has_focus_ stays false even
+  // when the window is interactable. Trust is_active(); the OS already routed
+  // the key events that updated key_down_, and we want them visible to the
+  // guest's XInputGetState poll.
+  if (!is_active()) {
     if (out_state) {
       std::memset(out_state, 0, sizeof(*out_state));
       out_state->packet_number = packet_number_;
