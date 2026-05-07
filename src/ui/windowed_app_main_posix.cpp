@@ -36,6 +36,7 @@ extern "C" int main(int argc_pre_gtk, char** argv_pre_gtk) {
   // (the config).
   int argc_post_gtk = argc_pre_gtk;
   char** argv_post_gtk = argv_pre_gtk;
+  gtk_disable_setlocale();
   if (!gtk_init_check(&argc_post_gtk, &argv_post_gtk)) {
     // Logging has not been initialized yet.
     std::fputs("Failed to initialize GTK+\n", stderr);
