@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <memory>
 #include <string>
 
@@ -79,6 +80,11 @@ class GTKWindow : public Window {
   uint32_t batched_size_update_depth_ = 0;
   bool batched_size_update_contained_configure_ = false;
   bool batched_size_update_contained_draw_ = false;
+
+  // Coalesces off-thread RequestPaintImpl calls: set to true when an idle
+  // callback is in flight; further requests skip the g_idle_add cost.
+  // Cleared by the idle callback right before it calls queue_draw.
+  std::atomic<bool> paint_request_pending_{false};
 };
 
 class GTKMenuItem : public MenuItem {

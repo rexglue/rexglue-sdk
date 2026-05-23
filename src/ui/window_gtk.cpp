@@ -584,7 +584,42 @@ std::unique_ptr<Surface> GTKWindow::CreateSurfaceImpl(Surface::TypeFlags allowed
 }
 
 void GTKWindow::RequestPaintImpl() {
-  gtk_widget_queue_draw(drawing_area_);
+  // gtk_widget_queue_draw must be called from the GTK main thread. The
+  // guest output / Bink decoder / other engine threads also call this via
+  // Presenter::RequestPaintOrConnectionRecoveryViaWindow. On Plasma 6 /
+  // KWin Wayland / Xwayland the direct off-thread call doesn't reliably
+  // wake the main loop, leaving paint requests dropped (manifests as a
+  // frozen screen while PRESENT keeps logging). Funnel through the main
+  // loop via g_idle_add so the queue_draw runs on the right thread.
+  //
+  // Debounce: only one idle callback in flight at a time. The guest output
+  // thread typically calls this at present rate (30+ Hz); without
+  // coalescing each call took a GLib mutex + idle-source allocation, which
+  // visibly hurt FPS in CPU-bound scenes. Subsequent requests that arrive
+  // while one is pending are absorbed by the next queue_draw.
+  GtkWidget* widget = drawing_area_;
+  if (!widget) return;
+  bool expected = false;
+  if (!paint_request_pending_.compare_exchange_strong(expected, true,
+                                                      std::memory_order_acq_rel)) {
+    return;
+  }
+  g_object_ref(widget);
+  g_idle_add_full(
+      GDK_PRIORITY_REDRAW,
+      [](gpointer data) -> gboolean {
+        auto* self = static_cast<GTKWindow*>(data);
+        // Clear the pending flag BEFORE queue_draw so a new request landing
+        // during the GTK draw cycle gets coalesced into the *next* frame,
+        // not into the current one (which is already about to repaint).
+        self->paint_request_pending_.store(false, std::memory_order_release);
+        if (self->drawing_area_) {
+          gtk_widget_queue_draw(self->drawing_area_);
+        }
+        g_object_unref(self->drawing_area_);
+        return G_SOURCE_REMOVE;
+      },
+      this, nullptr);
 }
 
 void GTKWindow::HandleSizeUpdate(WindowDestructionReceiver& destruction_receiver) {
