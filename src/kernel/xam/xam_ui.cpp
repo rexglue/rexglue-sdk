@@ -16,6 +16,7 @@
 #include <rex/system/flags.h>
 #include <rex/system/kernel_state.h>
 
+#include <algorithm>
 #include <imgui.h>
 
 REXCVAR_DEFINE_BOOL(headless, false, "Kernel",
@@ -265,35 +266,49 @@ class MessageBoxDialog : public XamDialog {
   uint32_t chosen_button_ = 0;
 };
 
-// https://www.se7ensins.com/forums/threads/working-xshowmessageboxui.844116/
-u32 XamShowMessageBoxUI_entry(u32 user_index, mapped_wstring title_ptr, mapped_wstring text_ptr,
-                              u32 button_count, mapped_u32 button_ptrs, u32 active_button,
-                              u32 flags, mapped_u32 result_ptr, mapped_void overlapped) {
-  REXKRNL_DEBUG(
-      "XamShowMessageBoxUI({:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X})",
-      uint32_t(user_index), title_ptr.guest_address(), text_ptr.guest_address(),
-      uint32_t(button_count), button_ptrs.guest_address(), uint32_t(active_button), uint32_t(flags),
-      result_ptr.guest_address(), overlapped.guest_address());
-  std::string title;
-  if (title_ptr) {
-    title = rex::string::to_utf8(title_ptr.value());
-  } else {
-    title = "";  // TODO(gibbed): default title based on flags?
+static std::string LoadGuestUtf16String(mapped_wstring string_ptr) {
+  if (!string_ptr) {
+    return "";
   }
+  auto string = rex::memory::load_and_swap<std::u16string>(
+      REX_KERNEL_MEMORY()->TranslateVirtual(string_ptr.guest_address()));
+  return rex::string::to_utf8(string);
+}
+
+static X_RESULT XamShowMessageBoxUICommon(mapped_wstring title_ptr, mapped_wstring text_ptr,
+                                          u32 button_count, mapped_u32 button_ptrs,
+                                          u32 active_button, u32 flags, mapped_u32 result_ptr,
+                                          mapped_void overlapped) {
+  std::string title = LoadGuestUtf16String(title_ptr);
+  std::string text = LoadGuestUtf16String(text_ptr);
 
   std::vector<std::string> buttons;
-  for (uint32_t i = 0; i < button_count; ++i) {
-    uint32_t button_ptr = button_ptrs[i];
-    auto button = rex::memory::load_and_swap<std::u16string>(
-        REX_KERNEL_MEMORY()->TranslateVirtual(button_ptr));
-    buttons.push_back(rex::string::to_utf8(button));
+  if (button_ptrs) {
+    for (uint32_t i = 0; i < button_count; ++i) {
+      uint32_t button_ptr = button_ptrs[i];
+      if (!button_ptr) {
+        continue;
+      }
+      auto button = rex::memory::load_and_swap<std::u16string>(
+          REX_KERNEL_MEMORY()->TranslateVirtual(button_ptr));
+      if (!button.empty()) {
+        buttons.push_back(rex::string::to_utf8(button));
+      }
+    }
   }
+  if (buttons.empty()) {
+    buttons.push_back("OK");
+  }
+
+  active_button = std::min<uint32_t>(active_button, uint32_t(buttons.size() - 1));
 
   X_RESULT result;
   if (REXCVAR_GET(headless)) {
     // Auto-pick the focused button.
     auto run = [result_ptr, active_button]() -> X_RESULT {
-      *result_ptr = static_cast<uint32_t>(active_button);
+      if (result_ptr) {
+        *result_ptr = static_cast<uint32_t>(active_button);
+      }
       return X_ERROR_SUCCESS;
     };
     result = xeXamDispatchHeadless(run, overlapped.guest_address());
@@ -314,26 +329,42 @@ u32 XamShowMessageBoxUI_entry(u32 user_index, mapped_wstring title_ptr, mapped_w
         break;
     }
     auto close = [result_ptr](MessageBoxDialog* dialog) -> X_RESULT {
-      *result_ptr = dialog->chosen_button();
+      if (result_ptr) {
+        *result_ptr = dialog->chosen_button();
+      }
       return X_ERROR_SUCCESS;
     };
     const Runtime* emulator = REX_KERNEL_STATE()->emulator();
     ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
     if (imgui_drawer) {
       result = xeXamDispatchDialog<MessageBoxDialog>(
-          new MessageBoxDialog(imgui_drawer, title, rex::string::to_utf8(text_ptr.value()), buttons,
-                               active_button),
+          new MessageBoxDialog(imgui_drawer, title, text, buttons, active_button),
           close, overlapped.guest_address());
     } else {
       // Fallback to headless if no drawer available
       auto run = [result_ptr, active_button]() -> X_RESULT {
-        *result_ptr = static_cast<uint32_t>(active_button);
+        if (result_ptr) {
+          *result_ptr = static_cast<uint32_t>(active_button);
+        }
         return X_ERROR_SUCCESS;
       };
       result = xeXamDispatchHeadless(run, overlapped.guest_address());
     }
   }
   return result;
+}
+
+// https://www.se7ensins.com/forums/threads/working-xshowmessageboxui.844116/
+u32 XamShowMessageBoxUI_entry(u32 user_index, mapped_wstring title_ptr, mapped_wstring text_ptr,
+                              u32 button_count, mapped_u32 button_ptrs, u32 active_button,
+                              u32 flags, mapped_u32 result_ptr, mapped_void overlapped) {
+  REXKRNL_DEBUG(
+      "XamShowMessageBoxUI({:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X})",
+      uint32_t(user_index), title_ptr.guest_address(), text_ptr.guest_address(),
+      uint32_t(button_count), button_ptrs.guest_address(), uint32_t(active_button), uint32_t(flags),
+      result_ptr.guest_address(), overlapped.guest_address());
+  return XamShowMessageBoxUICommon(title_ptr, text_ptr, button_count, button_ptrs, active_button,
+                                   flags, result_ptr, overlapped);
 }
 
 class KeyboardInputDialog : public XamDialog {
@@ -547,14 +578,17 @@ u32 XamShowCommunitySessionsUI_entry(u32 r3, u32 r4) {
   return X_ERROR_FUNCTION_FAILED;
 }
 
-uint32_t XamShowMessageBoxUIEx_entry() {
-  // TODO(tomc): implement properly
-  static bool warned = false;
-  if (!warned) {
-    REXKRNL_WARN("[STUB] XamShowMessageBoxUIEx - not implemented");
-    warned = true;
-  }
-  return 0;
+u32 XamShowMessageBoxUIEx_entry(u32 user_index, mapped_wstring title_ptr, mapped_wstring text_ptr,
+                                u32 button_count, mapped_u32 button_ptrs, u32 active_button,
+                                u32 flags, u32 unknown_unused, mapped_u32 result_ptr,
+                                mapped_void overlapped) {
+  REXKRNL_DEBUG(
+      "XamShowMessageBoxUIEx({:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X})",
+      uint32_t(user_index), title_ptr.guest_address(), text_ptr.guest_address(),
+      uint32_t(button_count), button_ptrs.guest_address(), uint32_t(active_button), uint32_t(flags),
+      uint32_t(unknown_unused), result_ptr.guest_address(), overlapped.guest_address());
+  return XamShowMessageBoxUICommon(title_ptr, text_ptr, button_count, button_ptrs, active_button,
+                                   flags, result_ptr, overlapped);
 }
 
 }  // namespace xam

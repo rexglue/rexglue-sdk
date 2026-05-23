@@ -984,6 +984,16 @@ void TextureCache::BindingInfoFromFetchConstant(const xenos::xe_gpu_texture_fetc
 
   if (swizzled_signs_out != nullptr) {
     *swizzled_signs_out = texture_util::SwizzleSigns(fetch);
+    if (format == xenos::TextureFormat::k_8_8 &&
+        fetch.swizzle == XE_GPU_MAKE_TEXTURE_SWIZZLE(X, X, X, Y) &&
+        *swizzled_signs_out == uint8_t(xenos::TextureSign::kUnsigned) * uint8_t(0b01010101)) {
+      // k_8_8 used as luminance/alpha stores gamma-encoded color intensity in
+      // X and coverage in Y. Keep alpha linear, but decode RGB like Xenos.
+      *swizzled_signs_out =
+          uint8_t(xenos::TextureSign::kGamma) |
+          (uint8_t(xenos::TextureSign::kGamma) << 2) |
+          (uint8_t(xenos::TextureSign::kGamma) << 4);
+    }
   }
 }
 

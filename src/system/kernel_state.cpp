@@ -842,18 +842,18 @@ void KernelState::TerminateTitle() {
   auto global_lock = global_critical_region_.Acquire();
 
   // Suspend all running guest threads so they stop touching shared state.
-  std::vector<XThread*> suspended_threads;
+  std::vector<object_ref<XThread>> suspended_threads;
   for (auto it = threads_by_id_.begin(); it != threads_by_id_.end(); ++it) {
     if (!XThread::IsInThread(it->second) && it->second->is_guest_thread() &&
         it->second->is_running()) {
       it->second->thread()->Suspend();
-      suspended_threads.push_back(it->second);
+      suspended_threads.push_back(retain_object(it->second));
     }
   }
 
   // Terminate each suspended thread. Must drop the lock since Terminate waits.
   global_lock.unlock();
-  for (auto* thread : suspended_threads) {
+  for (auto& thread : suspended_threads) {
     thread->Terminate(0);
   }
   global_lock.lock();

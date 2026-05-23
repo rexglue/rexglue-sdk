@@ -34,6 +34,9 @@
 #include <rex/ui/vulkan/util.h>
 
 REXCVAR_DEFINE_BOOL(non_seamless_cube_map, false, "GPU", "Use non-seamless cube map sampling");
+REXCVAR_DEFINE_BOOL(vulkan_force_dxt45_rgba8_decode, false, "GPU/Vulkan",
+                    "Force DXT4/5 textures through the RGBA8 compute decode path")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
 namespace rex::graphics::vulkan {
 
@@ -2339,7 +2342,6 @@ bool VulkanTextureCache::Initialize() {
   for (size_t i = 0; i < rex::countof(host_formats_); ++i) {
     host_formats_[i] = kBestHostFormats[i];
   }
-
   // Check format support and switch to fallbacks if needed.
   constexpr VkFormatFeatureFlags kLinearFilterFeatures =
       VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
@@ -2458,7 +2460,8 @@ bool VulkanTextureCache::Initialize() {
   assert_true(host_format_dxt4_5.format_unsigned.format == VK_FORMAT_BC3_UNORM_BLOCK);
   ifn.vkGetPhysicalDeviceFormatProperties(physical_device, VK_FORMAT_BC3_UNORM_BLOCK,
                                           &format_properties);
-  if ((format_properties.optimalTilingFeatures & kLinearFilterFeatures) != kLinearFilterFeatures) {
+  if (REXCVAR_GET(vulkan_force_dxt45_rgba8_decode) ||
+      (format_properties.optimalTilingFeatures & kLinearFilterFeatures) != kLinearFilterFeatures) {
     host_format_dxt4_5.format_unsigned.load_shader = kLoadShaderIndexDXT5ToRGBA8;
     host_format_dxt4_5.format_unsigned.format = VK_FORMAT_R8G8B8A8_UNORM;
     host_format_dxt4_5.format_unsigned.block_compressed = false;

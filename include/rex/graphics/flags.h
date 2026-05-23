@@ -96,6 +96,7 @@ REXCVAR_DECLARE(std::string, render_target_path_vulkan);
 // Legacy backend compatibility aliases for shared readback controls.
 REXCVAR_DECLARE(bool, vulkan_readback_resolve);
 REXCVAR_DECLARE(bool, vulkan_readback_memexport);
+REXCVAR_DECLARE(bool, vulkan_force_dxt45_rgba8_decode);
 
 // D3D12
 REXCVAR_DECLARE(bool, d3d12_bindless);

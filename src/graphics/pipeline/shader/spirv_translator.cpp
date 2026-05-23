@@ -3122,10 +3122,14 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
     }
     id_vector_temp_.clear();
     id_vector_temp_.push_back(builder_->makeIntConstant(int(i)));
+    spv::Id reg_value;
+    if (i < xenos::kMaxInterpolators && (interpolator_mask & (UINT32_C(1) << i))) {
+      reg_value = builder_->createLoad(input_output_interpolators_[i], spv::NoPrecision);
+    } else {
+      reg_value = const_float4_0_;
+    }
     builder_->createStore(
-        (i < xenos::kMaxInterpolators && (interpolator_mask & (UINT32_C(1) << i)))
-            ? builder_->createLoad(input_output_interpolators_[i], spv::NoPrecision)
-            : const_float4_0_,
+        reg_value,
         builder_->createAccessChain(spv::StorageClassFunction, var_main_registers_,
                                     id_vector_temp_));
   }
@@ -3446,6 +3450,18 @@ spv::Id SpirvShaderTranslator::GetStorageAddressingIndex(
 }
 
 spv::Id SpirvShaderTranslator::LoadOperandStorage(const InstructionOperand& operand) {
+  // The Xbox 360 shader ISA uses c255 as a fixed helper constant in shaders
+  // that need a zero threshold and a unit scale.
+  if (operand.storage_source == InstructionStorageSource::kConstantFloat &&
+      operand.storage_addressing_mode == InstructionStorageAddressingMode::kAbsolute &&
+      operand.storage_index == 255) {
+    id_vector_temp_util_.clear();
+    id_vector_temp_util_.push_back(const_float_0_);
+    id_vector_temp_util_.push_back(const_float_1_);
+    id_vector_temp_util_.push_back(const_float_0_);
+    id_vector_temp_util_.push_back(const_float_1_);
+    return builder_->makeCompositeConstant(type_float4_, id_vector_temp_util_);
+  }
   spv::Id index =
       GetStorageAddressingIndex(operand.storage_addressing_mode, operand.storage_index,
                                 operand.storage_source == InstructionStorageSource::kConstantFloat);
