@@ -228,8 +228,16 @@ class BikDecoder {
       finished_.store(true, std::memory_order_release);
       return;
     }
-    width_ = static_cast<uint32_t>(codec_ctx_->width);
-    height_ = static_cast<uint32_t>(codec_ctx_->height);
+    // Some libavcodec builds (observed on Fedora 44 aarch64, libavcodec 62.x)
+    // initialize codec_ctx_->width/height with SWAPPED values for binkvideo
+    // after avcodec_open2 — codec_ctx reports 720x1280 even though
+    // stream->codecpar->width/height correctly say 1280x720 and the actual
+    // frame->data the decoder emits is laid out as 1280x720. Using the
+    // codec_ctx dims caused sws_scale to read with wrong stride/linesize
+    // and emit a half-black / half-striped 720x1280 RGBA frame. Take the
+    // canonical dimensions from codecpar instead.
+    width_ = static_cast<uint32_t>(stream->codecpar->width);
+    height_ = static_cast<uint32_t>(stream->codecpar->height);
     REXLOG_INFO("[bink] decoding {} ({}x{})", path_, width_, height_);
 
     // Set up Bink audio decoder + dedicated SDL audio stream. SDL3 mixes
