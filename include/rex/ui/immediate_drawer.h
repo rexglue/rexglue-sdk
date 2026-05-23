@@ -102,6 +102,17 @@ class ImmediateDrawer {
                                                           bool is_repeated,
                                                           const uint8_t* data) = 0;
 
+  // Re-uploads R8G8B8A8 pixel data into an existing texture's image without
+  // reallocating the image, view, descriptor, or upload-side memory pool slot.
+  // The texture's dimensions must match (width, height). Useful for streaming
+  // video frames (e.g. Bink overlay) where a new VkImage per frame would churn
+  // GPU memory and hurt FPS. Default implementation falls back to recreating
+  // the resource if the backend doesn't override.
+  virtual bool UpdateTextureData(ImmediateTexture& texture, uint32_t width,
+                                 uint32_t height, const uint8_t* data) {
+    return false;
+  }
+
   // Begins drawing in immediate mode using the given projection matrix. The
   // presenter that is currently attached to the immediate drawer, as the
   // implementation may hold presenter-specific information such as UI

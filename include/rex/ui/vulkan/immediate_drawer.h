@@ -35,6 +35,9 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
                                                   ImmediateTextureFilter filter, bool is_repeated,
                                                   const uint8_t* data) override;
 
+  bool UpdateTextureData(ImmediateTexture& texture, uint32_t width, uint32_t height,
+                         const uint8_t* data) override;
+
   void Begin(UIDrawContext& ui_draw_context, float coordinate_space_width,
              float coordinate_space_height) override;
   void BeginDrawBatch(const ImmediateDrawBatch& batch) override;
@@ -128,6 +131,10 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
     VkImage image;
     uint32_t width;
     uint32_t height;
+    // True if the image already exists and is currently in
+    // SHADER_READ_ONLY_OPTIMAL (UpdateTextureData re-upload path); false for
+    // initial uploads from UNDEFINED.
+    bool reupload = false;
   };
   std::vector<PendingTextureUpload> texture_uploads_pending_;
   struct SubmittedTextureUploadBuffer {

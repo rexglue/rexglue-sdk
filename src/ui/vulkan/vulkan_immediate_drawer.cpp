@@ -165,6 +165,83 @@ bool VulkanImmediateDrawer::Initialize() {
   return true;
 }
 
+bool VulkanImmediateDrawer::UpdateTextureData(ImmediateTexture& texture, uint32_t width,
+                                              uint32_t height, const uint8_t* data) {
+  // Re-upload pixel data into an existing texture's VkImage without
+  // reallocating the image, view, or descriptor. Saves a per-frame
+  // VkCreate/Allocate/Bind/Destroy chain for streaming video like the
+  // Bink overlay (otherwise FPS drops over time as Mesa Turnip's GPU
+  // memory pool fragments).
+  assert_not_null(data);
+  auto& vk_texture = static_cast<VulkanImmediateTexture&>(texture);
+  if (vk_texture.immediate_drawer_ != this) return false;
+  if (vk_texture.width != width || vk_texture.height != height) return false;
+
+  const VulkanDevice::Functions& dfn = vulkan_device_->functions();
+  const VkDevice device = vulkan_device_->device();
+
+  size_t data_size = sizeof(uint32_t) * width * height;
+  VkBuffer upload_buffer = VK_NULL_HANDLE;
+  VkDeviceMemory upload_buffer_memory = VK_NULL_HANDLE;
+  uint32_t upload_buffer_memory_type = 0;
+  if (!util::CreateDedicatedAllocationBuffer(vulkan_device_, VkDeviceSize(data_size),
+                                             VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                                             util::MemoryPurpose::kUpload, upload_buffer,
+                                             upload_buffer_memory, &upload_buffer_memory_type)) {
+    REXLOG_ERROR(
+        "VulkanImmediateDrawer: Failed to create upload buffer for {}x{} image "
+        "update",
+        width, height);
+    return false;
+  }
+  void* upload_buffer_mapping;
+  if (dfn.vkMapMemory(device, upload_buffer_memory, 0, VK_WHOLE_SIZE, 0,
+                      &upload_buffer_mapping) != VK_SUCCESS) {
+    REXLOG_ERROR(
+        "VulkanImmediateDrawer: Failed to map upload buffer for {}x{} image "
+        "update",
+        width, height);
+    dfn.vkDestroyBuffer(device, upload_buffer, nullptr);
+    dfn.vkFreeMemory(device, upload_buffer_memory, nullptr);
+    return false;
+  }
+  std::memcpy(upload_buffer_mapping, data, data_size);
+  util::FlushMappedMemoryRange(vulkan_device_, upload_buffer_memory, upload_buffer_memory_type);
+  dfn.vkUnmapMemory(device, upload_buffer_memory);
+
+  // If a previous update for this same texture is still pending, replace it
+  // with the latest data (drop the older upload and free its buffer); the
+  // descriptor still points at the same image so the latest write wins.
+  if (vk_texture.pending_upload_index_ != SIZE_MAX &&
+      vk_texture.pending_upload_index_ < texture_uploads_pending_.size()) {
+    PendingTextureUpload& existing =
+        texture_uploads_pending_[vk_texture.pending_upload_index_];
+    if (existing.texture == &vk_texture) {
+      dfn.vkDestroyBuffer(device, existing.buffer, nullptr);
+      dfn.vkFreeMemory(device, existing.buffer_memory, nullptr);
+      existing.buffer = upload_buffer;
+      existing.buffer_memory = upload_buffer_memory;
+      existing.image = vk_texture.resource_.image;
+      existing.width = width;
+      existing.height = height;
+      existing.reupload = true;
+      return true;
+    }
+  }
+
+  vk_texture.pending_upload_index_ = texture_uploads_pending_.size();
+  PendingTextureUpload& pending_upload = texture_uploads_pending_.emplace_back();
+  pending_upload.texture = &vk_texture;
+  pending_upload.buffer = upload_buffer;
+  pending_upload.buffer_memory = upload_buffer_memory;
+  pending_upload.image = vk_texture.resource_.image;
+  pending_upload.width = width;
+  pending_upload.height = height;
+  pending_upload.reupload = true;
+
+  return true;
+}
+
 std::unique_ptr<ImmediateTexture> VulkanImmediateDrawer::CreateTexture(
     uint32_t width, uint32_t height, ImmediateTextureFilter filter, bool is_repeated,
     const uint8_t* data) {
@@ -406,24 +483,35 @@ void VulkanImmediateDrawer::End() {
       const VulkanUIDrawContext& vulkan_ui_draw_context =
           *static_cast<const VulkanUIDrawContext*>(ui_draw_context());
 
-      // Transition to VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL.
+      // Transition to VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL. Re-upload entries
+      // come from SHADER_READ_ONLY (the image already lives there between
+      // frames) and must wait for prior shader reads to finish; initial
+      // uploads come from UNDEFINED.
       std::vector<VkImageMemoryBarrier> image_memory_barriers;
       image_memory_barriers.reserve(texture_uploads_pending_count);
       VkImageMemoryBarrier image_memory_barrier;
       image_memory_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
       image_memory_barrier.pNext = nullptr;
-      image_memory_barrier.srcAccessMask = 0;
       image_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-      image_memory_barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
       image_memory_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
       image_memory_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
       image_memory_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
       image_memory_barrier.subresourceRange = util::InitializeSubresourceRange();
+      VkPipelineStageFlags src_stages = 0;
       for (const PendingTextureUpload& pending_texture_upload : texture_uploads_pending_) {
-        image_memory_barriers.emplace_back(image_memory_barrier).image =
-            pending_texture_upload.image;
+        VkImageMemoryBarrier& b = image_memory_barriers.emplace_back(image_memory_barrier);
+        b.image = pending_texture_upload.image;
+        if (pending_texture_upload.reupload) {
+          b.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+          b.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+          src_stages |= VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        } else {
+          b.srcAccessMask = 0;
+          b.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+          src_stages |= VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        }
       }
-      dfn.vkCmdPipelineBarrier(setup_command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+      dfn.vkCmdPipelineBarrier(setup_command_buffer, src_stages,
                                VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr,
                                uint32_t(image_memory_barriers.size()),
                                image_memory_barriers.data());

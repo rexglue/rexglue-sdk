@@ -69,11 +69,17 @@ void BinkUIDrawer::Draw(UIDrawContext& context) {
                       frame.height != texture_height_;
   bool new_frame = dims_changed || frame.presentation_us != last_pts_us_;
   if (new_frame) {
-    texture_ = immediate_drawer_->CreateTexture(
-        frame.width, frame.height, ImmediateTextureFilter::kLinear,
-        /*is_repeated=*/false, frame.data);
-    texture_width_ = frame.width;
-    texture_height_ = frame.height;
+    if (!dims_changed &&
+        immediate_drawer_->UpdateTextureData(*texture_, frame.width, frame.height,
+                                             frame.data)) {
+      // Reused the existing VkImage — no descriptor or memory churn.
+    } else {
+      texture_ = immediate_drawer_->CreateTexture(
+          frame.width, frame.height, ImmediateTextureFilter::kLinear,
+          /*is_repeated=*/false, frame.data);
+      texture_width_ = frame.width;
+      texture_height_ = frame.height;
+    }
     last_pts_us_ = frame.presentation_us;
   }
   if (!texture_) return;
