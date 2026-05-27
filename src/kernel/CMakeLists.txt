@@ -64,6 +64,12 @@ set(REXKERNEL_SOURCES
 )
 
 list(TRANSFORM REXKERNEL_SOURCES PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/")
-target_sources(rexruntime PRIVATE ${REXKERNEL_SOURCES})
+target_sources(rexruntime_objects PRIVATE ${REXKERNEL_SOURCES})
 
-target_link_libraries(rexruntime PRIVATE o1heap rexcore rexfilesystem rexgraphics rexui rexaudio rexinput imgui)
+set(_rex_kernel_deps o1heap rexcore rexfilesystem rexgraphics rexui rexaudio rexinput imgui)
+# Object lib needs these for compile-time include dirs; shared and static each
+# link them directly because OBJECT libraries do not forward another OBJECT
+# library's compiled objects to their consumers.
+target_link_libraries(rexruntime_objects PRIVATE ${_rex_kernel_deps})
+target_link_libraries(rexruntime        PRIVATE ${_rex_kernel_deps})
+target_link_libraries(rexruntime_static PRIVATE ${_rex_kernel_deps})

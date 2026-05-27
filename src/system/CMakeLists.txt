@@ -44,10 +44,58 @@ set(REXSYSTEM_SOURCES
     xex_module.cpp
 )
 
-add_library(rexruntime SHARED ${REXSYSTEM_SOURCES})
+# Compile system sources once. Kernel sources are appended in src/kernel/CMakeLists.txt.
+add_library(rexruntime_objects OBJECT ${REXSYSTEM_SOURCES})
+target_include_directories(rexruntime_objects PRIVATE
+    $<BUILD_INTERFACE:${REXGLUE_ROOT}/include>
+    ${REXGLUE_ROOT}/thirdparty
+)
+target_link_libraries(rexruntime_objects PRIVATE
+    simde
+    fmt::fmt
+    spdlog::spdlog
+    tomlplusplus
+    SDL3::SDL3
+    aes128
+    mspack
+)
+
+if(REXGLUE_ENABLE_TRACY)
+    target_link_libraries(rexruntime_objects PRIVATE TracyClient)
+    target_compile_definitions(rexruntime_objects PRIVATE
+        $<$<NOT:$<CONFIG:Release>>:REXGLUE_ENABLE_PROFILING>)
+endif()
+
+if(REXGLUE_ENABLE_PERF_COUNTERS)
+    target_compile_definitions(rexruntime_objects PRIVATE
+        $<$<NOT:$<CONFIG:Release>>:REXGLUE_ENABLE_PERF_COUNTERS>)
+endif()
+
+if(WIN32)
+    target_link_libraries(rexruntime_objects PRIVATE ws2_32)
+    target_compile_definitions(rexruntime_objects PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+endif()
+
+if(REXGLUE_USE_D3D12)
+    target_link_libraries(rexruntime_objects PRIVATE dxgi dxguid dxc-headers)
+    target_compile_definitions(rexruntime_objects PRIVATE REX_HAS_D3D12=1)
+endif()
+
+if(REXGLUE_USE_VULKAN)
+    target_link_libraries(rexruntime_objects PRIVATE
+        volk::volk
+        GPUOpen::VulkanMemoryAllocator
+        SPIRV-Tools-static
+    )
+    target_compile_definitions(rexruntime_objects PRIVATE REX_HAS_VULKAN=1)
+endif()
+
+# Shared variant: the public face for host applications
+add_library(rexruntime SHARED)
+target_link_libraries(rexruntime PRIVATE rexruntime_objects)
 add_library(rex::runtime ALIAS rexruntime)
-add_library(rex::system ALIAS rexruntime)
-add_library(rex::kernel ALIAS rexruntime)
+add_library(rex::system  ALIAS rexruntime)
+add_library(rex::kernel  ALIAS rexruntime)
 
 set_target_properties(rexruntime PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
 
@@ -91,6 +139,7 @@ if(REXGLUE_USE_D3D12)
     target_link_libraries(rexruntime PUBLIC dxgi dxguid dxc-headers)
     target_compile_definitions(rexruntime PUBLIC REX_HAS_D3D12=1)
 endif()
+
 if(REXGLUE_USE_VULKAN)
     target_link_libraries(rexruntime PUBLIC
         volk::volk
@@ -98,4 +147,37 @@ if(REXGLUE_USE_VULKAN)
         SPIRV-Tools-static
     )
     target_compile_definitions(rexruntime PUBLIC REX_HAS_VULKAN=1)
+endif()
+
+# Static variant: used only by rexcodegen/rexglue
+add_library(rexruntime_static STATIC)
+target_link_libraries(rexruntime_static PRIVATE
+    rexruntime_objects
+    simde
+    fmt::fmt
+    spdlog::spdlog
+    tomlplusplus
+    SDL3::SDL3
+    aes128
+    mspack
+)
+
+if(REXGLUE_ENABLE_TRACY)
+    target_link_libraries(rexruntime_static PRIVATE TracyClient)
+endif()
+
+if(WIN32)
+    target_link_libraries(rexruntime_static PRIVATE ws2_32)
+endif()
+
+if(REXGLUE_USE_D3D12)
+    target_link_libraries(rexruntime_static PRIVATE dxgi dxguid dxc-headers)
+endif()
+
+if(REXGLUE_USE_VULKAN)
+    target_link_libraries(rexruntime_static PRIVATE
+        volk::volk
+        GPUOpen::VulkanMemoryAllocator
+        SPIRV-Tools-static
+    )
 endif()
