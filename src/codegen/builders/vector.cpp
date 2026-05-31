@@ -277,8 +277,11 @@ bool build_vaddsws(BuilderContext& ctx) {
       "simde_mm_set1_epi32(0x7FFFFFFF));");
   // Blend: select sat_val where overflow MSB is set, else sum
   ctx.println(
-      "\t\tsimde_mm_store_si128((simde__m128i*){}.u8, simde_mm_blendv_epi8(sum, sat_val, "
-      "overflow));",
+      "\t\tsimde_mm_store_si128((simde__m128i*){}.u8, "
+      "simde_mm_castps_si128(simde_mm_blendv_ps("
+      "simde_mm_castsi128_ps(sum), "
+      "simde_mm_castsi128_ps(sat_val), "
+      "simde_mm_castsi128_ps(overflow))));",
       vD);
   ctx.println("\t}}");
   return true;
