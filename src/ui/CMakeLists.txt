@@ -139,7 +139,16 @@ if(WIN32)
 else()
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(GTK3 REQUIRED gtk+-3.0)
-    pkg_check_modules(X11_XCB REQUIRED x11-xcb)
+    pkg_check_modules(X11_XCB x11-xcb)
+    if(NOT X11_XCB_FOUND)
+        message(FATAL_ERROR
+            "x11-xcb not found. Install the development package for your distro:\n"
+            "  Debian/Ubuntu:  sudo apt install libx11-xcb-dev\n"
+            "  Arch:           sudo pacman -S libx11\n"
+            "  Fedora:         sudo dnf install libX11-devel\n"
+            "Note: native Wayland support is not yet implemented. "
+            "XWayland must be available at runtime.")
+    endif()
 
     target_include_directories(rexui PRIVATE
         ${GTK3_INCLUDE_DIRS}
