@@ -98,13 +98,13 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       assert_true(!buffer_length || buffer_length == 20);
       uint32_t session_ptr = memory::load_and_swap<uint32_t>(buffer + 0);
       uint32_t user_count = memory::load_and_swap<uint32_t>(buffer + 4);
-      uint32_t unk_0 = memory::load_and_swap<uint32_t>(buffer + 8);
+      uint32_t xuid_array_ptr = memory::load_and_swap<uint32_t>(buffer + 8);
       uint32_t user_index_array = memory::load_and_swap<uint32_t>(buffer + 12);
       uint32_t private_slots_array = memory::load_and_swap<uint32_t>(buffer + 16);
+      bool is_local = xuid_array_ptr == 0; 
 
-      assert_zero(unk_0);
-      REXKRNL_DEBUG("XGISessionJoinLocal({:08X}, {}, {}, {:08X}, {:08X})", session_ptr, user_count,
-                    unk_0, user_index_array, private_slots_array);
+      REXKRNL_DEBUG("{}({:08X}, {}, {}, {:08X}, {:08X})", is_local ? "XGISessionJoinLocal" : "XGISessionJoinRemote", session_ptr,
+                    user_count, xuid_array_ptr, user_index_array, private_slots_array);
       return X_E_SUCCESS;
     }
     case 0x000B0014: {
