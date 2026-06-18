@@ -1255,8 +1255,10 @@ bool isBlockTerminator(const DecodedInsn& insn, uint32_t addr, const CodeRegion&
 
   // bcctr (indirect branch via CTR)
   if (insn.opcode == Opcode::bcctr || insn.opcode == Opcode::bcctrl) {
-    // bcctrl is call, bcctr is terminator
-    return insn.opcode == Opcode::bcctr;
+    // bcctrl is a call. An unconditional bcctr (bctr, BO == 20) is a terminator,
+    // but a conditional bcctr (e.g. bnectr/beqctr) falls through to the next
+    // instruction when its condition is not met, so it does not end the block.
+    return insn.opcode == Opcode::bcctr && !isConditional(insn);
   }
 
   // Unconditional branch
@@ -1898,8 +1900,23 @@ BlockDiscoveryResult discoverBlocks(DecodedBinary& decoded, uint32_t entryPoint,
           // blr - end of function path
           block.size = addr - blockStart + 4;
           break;
+        } else if (insn->opcode == rex::codegen::ppc::Opcode::bcctr && isConditional(*insn)) {
+          // Conditional bcctr (e.g. bnectr/beqctr): branches to CTR when the
+          // condition is met, otherwise falls through to the next instruction.
+          // Record the fall-through and continue the linear scan (mirrors the
+          // conditional-branch case below) so the rest of the function is not
+          // dropped. The CTR target is indirect and has no static label.
+          uint32_t fallthrough = addr + 4;
+          if (isInternalTarget(fallthrough)) {
+            result.labels.insert(fallthrough);
+            if (!visited.contains(fallthrough) && !blockStarts.contains(fallthrough)) {
+              blockStarts.insert(fallthrough);
+              worklist.push(fallthrough);
+            }
+          }
+          // Do not break: continue scanning the fall-through path.
         } else if (insn->opcode == rex::codegen::ppc::Opcode::bcctr) {
-          // bctr - try to detect jump table
+          // Unconditional bctr - try to detect jump table
           REXCODEGEN_TRACE("discoverBlocks: bctr at 0x{:08X} in func 0x{:08X}, funcEnd=0x{:08X}",
                            addr, entryPoint, funcEnd);
           auto jt = detectJumpTable(decoded, addr, containingRegion, entryPoint, funcEnd);
