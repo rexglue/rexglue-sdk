@@ -9,13 +9,22 @@
 
 // big endian architectures need #define __BYTE_ORDER __BIG_ENDIAN
 #ifndef _MSC_VER
+#if defined(__APPLE__)
+#if !defined(__BYTE_ORDER) && defined(__BYTE_ORDER__) && defined(__ORDER_BIG_ENDIAN__)
+#define __BYTE_ORDER __BYTE_ORDER__
+#define __BIG_ENDIAN __ORDER_BIG_ENDIAN__
+#endif
+#else
 #include <endian.h>
+#endif
 #endif
 
 namespace sha256 {
 
 /// same as reset()
-SHA256::SHA256() { reset(); }
+SHA256::SHA256() {
+  reset();
+}
 
 /// restart
 void SHA256::reset() {
@@ -46,8 +55,7 @@ inline uint32_t swap(uint32_t x) {
   return _byteswap_ulong(x);
 #endif
 
-  return (x >> 24) | ((x >> 8) & 0x0000FF00) | ((x << 8) & 0x00FF0000) |
-         (x << 24);
+  return (x >> 24) | ((x >> 8) & 0x0000FF00) | ((x << 8) & 0x00FF0000) | (x << 24);
 }
 
 // mix functions for processBlock()
@@ -62,7 +70,7 @@ inline uint32_t f2(uint32_t a, uint32_t b, uint32_t c) {
   uint32_t term2 = ((a | b) & c) | (a & b);  //(a & (b ^ c)) ^ (b & c);
   return term1 + term2;
 }
-}
+}  // namespace
 
 /// process 64 bytes
 void SHA256::processBlock(const void* data) {
@@ -82,8 +90,7 @@ void SHA256::processBlock(const void* data) {
   uint32_t words[64];
   int i;
   for (i = 0; i < 16; i++)
-#if defined(__BYTE_ORDER) && (__BYTE_ORDER != 0) && \
-    (__BYTE_ORDER == __BIG_ENDIAN)
+#if defined(__BYTE_ORDER) && (__BYTE_ORDER != 0) && (__BYTE_ORDER == __BIG_ENDIAN)
     words[i] = input[i];
 #else
     words[i] = swap(input[i]);
@@ -162,10 +169,9 @@ void SHA256::processBlock(const void* data) {
   // extend to 24 words
   for (; i < 24; i++)
     words[i] = words[i - 16] +
-               (rotate(words[i - 15], 7) ^ rotate(words[i - 15], 18) ^
-                (words[i - 15] >> 3)) +
-               words[i - 7] + (rotate(words[i - 2], 17) ^
-                               rotate(words[i - 2], 19) ^ (words[i - 2] >> 10));
+               (rotate(words[i - 15], 7) ^ rotate(words[i - 15], 18) ^ (words[i - 15] >> 3)) +
+               words[i - 7] +
+               (rotate(words[i - 2], 17) ^ rotate(words[i - 2], 19) ^ (words[i - 2] >> 10));
 
   // third round
   x = h + f1(e, f, g) + 0xe49b69c1 + words[16];
@@ -204,10 +210,9 @@ void SHA256::processBlock(const void* data) {
   // extend to 32 words
   for (; i < 32; i++)
     words[i] = words[i - 16] +
-               (rotate(words[i - 15], 7) ^ rotate(words[i - 15], 18) ^
-                (words[i - 15] >> 3)) +
-               words[i - 7] + (rotate(words[i - 2], 17) ^
-                               rotate(words[i - 2], 19) ^ (words[i - 2] >> 10));
+               (rotate(words[i - 15], 7) ^ rotate(words[i - 15], 18) ^ (words[i - 15] >> 3)) +
+               words[i - 7] +
+               (rotate(words[i - 2], 17) ^ rotate(words[i - 2], 19) ^ (words[i - 2] >> 10));
 
   // fourth round
   x = h + f1(e, f, g) + 0x983e5152 + words[24];
@@ -246,10 +251,9 @@ void SHA256::processBlock(const void* data) {
   // extend to 40 words
   for (; i < 40; i++)
     words[i] = words[i - 16] +
-               (rotate(words[i - 15], 7) ^ rotate(words[i - 15], 18) ^
-                (words[i - 15] >> 3)) +
-               words[i - 7] + (rotate(words[i - 2], 17) ^
-                               rotate(words[i - 2], 19) ^ (words[i - 2] >> 10));
+               (rotate(words[i - 15], 7) ^ rotate(words[i - 15], 18) ^ (words[i - 15] >> 3)) +
+               words[i - 7] +
+               (rotate(words[i - 2], 17) ^ rotate(words[i - 2], 19) ^ (words[i - 2] >> 10));
 
   // fifth round
   x = h + f1(e, f, g) + 0x27b70a85 + words[32];
@@ -288,10 +292,9 @@ void SHA256::processBlock(const void* data) {
   // extend to 48 words
   for (; i < 48; i++)
     words[i] = words[i - 16] +
-               (rotate(words[i - 15], 7) ^ rotate(words[i - 15], 18) ^
-                (words[i - 15] >> 3)) +
-               words[i - 7] + (rotate(words[i - 2], 17) ^
-                               rotate(words[i - 2], 19) ^ (words[i - 2] >> 10));
+               (rotate(words[i - 15], 7) ^ rotate(words[i - 15], 18) ^ (words[i - 15] >> 3)) +
+               words[i - 7] +
+               (rotate(words[i - 2], 17) ^ rotate(words[i - 2], 19) ^ (words[i - 2] >> 10));
 
   // sixth round
   x = h + f1(e, f, g) + 0xa2bfe8a1 + words[40];
@@ -330,10 +333,9 @@ void SHA256::processBlock(const void* data) {
   // extend to 56 words
   for (; i < 56; i++)
     words[i] = words[i - 16] +
-               (rotate(words[i - 15], 7) ^ rotate(words[i - 15], 18) ^
-                (words[i - 15] >> 3)) +
-               words[i - 7] + (rotate(words[i - 2], 17) ^
-                               rotate(words[i - 2], 19) ^ (words[i - 2] >> 10));
+               (rotate(words[i - 15], 7) ^ rotate(words[i - 15], 18) ^ (words[i - 15] >> 3)) +
+               words[i - 7] +
+               (rotate(words[i - 2], 17) ^ rotate(words[i - 2], 19) ^ (words[i - 2] >> 10));
 
   // seventh round
   x = h + f1(e, f, g) + 0x19a4c116 + words[48];
@@ -372,10 +374,9 @@ void SHA256::processBlock(const void* data) {
   // extend to 64 words
   for (; i < 64; i++)
     words[i] = words[i - 16] +
-               (rotate(words[i - 15], 7) ^ rotate(words[i - 15], 18) ^
-                (words[i - 15] >> 3)) +
-               words[i - 7] + (rotate(words[i - 2], 17) ^
-                               rotate(words[i - 2], 19) ^ (words[i - 2] >> 10));
+               (rotate(words[i - 15], 7) ^ rotate(words[i - 15], 18) ^ (words[i - 15] >> 3)) +
+               words[i - 7] +
+               (rotate(words[i - 2], 17) ^ rotate(words[i - 2], 19) ^ (words[i - 2] >> 10));
 
   // eigth round
   x = h + f1(e, f, g) + 0x748f82ee + words[56];
@@ -441,7 +442,8 @@ void SHA256::add(const void* data, size_t numBytes) {
   }
 
   // no more data ?
-  if (numBytes == 0) return;
+  if (numBytes == 0)
+    return;
 
   // process full blocks
   while (numBytes >= BlockSize) {
@@ -492,8 +494,10 @@ void SHA256::processBuffer() {
     extra[0] = 128;
 
   size_t i;
-  for (i = m_bufferSize + 1; i < BlockSize; i++) m_buffer[i] = 0;
-  for (; i < paddedLength; i++) extra[i - BlockSize] = 0;
+  for (i = m_bufferSize + 1; i < BlockSize; i++)
+    m_buffer[i] = 0;
+  for (; i < paddedLength; i++)
+    extra[i - BlockSize] = 0;
 
   // add message length in bits as 64 bit number
   uint64_t msgBits = 8 * (m_numBytes + m_bufferSize);
@@ -517,7 +521,8 @@ void SHA256::processBuffer() {
   // process blocks
   processBlock(m_buffer);
   // flowed over into a second block ?
-  if (paddedLength > BlockSize) processBlock(extra);
+  if (paddedLength > BlockSize)
+    processBlock(extra);
 }
 
 /// return latest hash as 64 hex characters
@@ -542,7 +547,8 @@ std::string SHA256::getHash() {
 void SHA256::getHash(unsigned char buffer[SHA256::HashBytes]) {
   // save old hash if buffer is partially filled
   uint32_t oldHash[HashValues];
-  for (int i = 0; i < HashValues; i++) oldHash[i] = m_hash[i];
+  for (int i = 0; i < HashValues; i++)
+    oldHash[i] = m_hash[i];
 
   // process remaining bytes
   processBuffer();
@@ -573,4 +579,4 @@ std::string SHA256::operator()(const std::string& text) {
   return getHash();
 }
 
-}
+}  // namespace sha256

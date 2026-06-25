@@ -108,7 +108,6 @@ if(NOT WIN32)
         # by -mcmodel=large, and macOS maps binaries in the low address space so ±2GB is sufficient.
         add_compile_options(-mcmodel=large)
     else()
-        # Small code model for other architectures (ARM64, etc.)
         add_compile_options(-mcmodel=small)
     endif()
     # Position-independent code for all targets
