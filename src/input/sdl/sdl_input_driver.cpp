@@ -25,6 +25,19 @@ REXCVAR_DEFINE_STRING(hid_mappings_file, "gamecontrollerdb.txt", "Input",
 
 namespace rex::input::sdl {
 
+#if REX_PLATFORM_MAC
+namespace {
+
+bool CanServiceInputRequest(bool sdl_events_initialized, bool sdl_gamepad_initialized) {
+  // On macOS, the window close path tears SDL down on the UI thread before all
+  // guest threads have necessarily stopped polling XInput. Treat that as a
+  // disconnected controller instead of aborting during shutdown.
+  return sdl_events_initialized && sdl_gamepad_initialized;
+}
+
+}  // namespace
+#endif  // REX_PLATFORM_MAC
+
 SDLInputDriver::SDLInputDriver(rex::ui::Window* window, size_t window_z_order)
     : InputDriver(window, window_z_order),
       sdl_events_initialized_(false),
@@ -142,7 +155,13 @@ void SDLInputDriver::OnGotFocus(rex::ui::UISetupEvent&) {}
 
 X_RESULT SDLInputDriver::GetCapabilities(uint32_t user_index, uint32_t flags,
                                          X_INPUT_CAPABILITIES* out_caps) {
+#if REX_PLATFORM_MAC
+  if (!CanServiceInputRequest(sdl_events_initialized_, SDL_Gamepad_initialized_)) {
+    return X_ERROR_DEVICE_NOT_CONNECTED;
+  }
+#else
   assert(sdl_events_initialized_ && SDL_Gamepad_initialized_);
+#endif
   if (user_index >= HID_SDL_USER_COUNT || !out_caps) {
     return X_ERROR_BAD_ARGUMENTS;
   }
@@ -166,7 +185,13 @@ X_RESULT SDLInputDriver::GetCapabilities(uint32_t user_index, uint32_t flags,
 }
 
 X_RESULT SDLInputDriver::GetState(uint32_t user_index, X_INPUT_STATE* out_state) {
+#if REX_PLATFORM_MAC
+  if (!CanServiceInputRequest(sdl_events_initialized_, SDL_Gamepad_initialized_)) {
+    return X_ERROR_DEVICE_NOT_CONNECTED;
+  }
+#else
   assert(sdl_events_initialized_ && SDL_Gamepad_initialized_);
+#endif
   if (user_index >= HID_SDL_USER_COUNT) {
     return X_ERROR_BAD_ARGUMENTS;
   }
@@ -202,7 +227,13 @@ X_RESULT SDLInputDriver::GetState(uint32_t user_index, X_INPUT_STATE* out_state)
 }
 
 X_RESULT SDLInputDriver::SetState(uint32_t user_index, X_INPUT_VIBRATION* vibration) {
+#if REX_PLATFORM_MAC
+  if (!CanServiceInputRequest(sdl_events_initialized_, SDL_Gamepad_initialized_)) {
+    return X_ERROR_DEVICE_NOT_CONNECTED;
+  }
+#else
   assert(sdl_events_initialized_ && SDL_Gamepad_initialized_);
+#endif
   if (user_index >= HID_SDL_USER_COUNT) {
     return X_ERROR_BAD_ARGUMENTS;
   }
@@ -232,7 +263,13 @@ X_RESULT SDLInputDriver::GetKeystroke(uint32_t users, uint32_t flags,
                                       X_INPUT_KEYSTROKE* out_keystroke) {
   // TODO(JoelLinn): Figure out the flags
   // https://github.com/evilC/UCR/blob/0489929e2a8e39caa3484c67f3993d3fba39e46f/Libraries/XInput.ahk#L85-L98
+#if REX_PLATFORM_MAC
+  if (!CanServiceInputRequest(sdl_events_initialized_, SDL_Gamepad_initialized_)) {
+    return X_ERROR_DEVICE_NOT_CONNECTED;
+  }
+#else
   assert(sdl_events_initialized_ && SDL_Gamepad_initialized_);
+#endif
   bool user_any = users == 0xFF;
   if (users >= HID_SDL_USER_COUNT && !user_any) {
     return X_ERROR_BAD_ARGUMENTS;
