@@ -145,7 +145,9 @@ void SpirvShaderTranslator::Reset() {
   var_main_memexport_data_written_ = spv::NoResult;
   main_memexport_allowed_ = spv::NoResult;
   var_main_rectangle_guest_vertex_index_ = spv::NoResult;
-  var_main_rectangle_per_vertex_ = spv::NoResult;
+  var_main_rectangle_positions_ = spv::NoResult;
+  var_main_rectangle_clip_distances_ = spv::NoResult;
+  var_main_rectangle_cull_distances_ = spv::NoResult;
   std::fill(var_main_rectangle_interpolators_.begin(), var_main_rectangle_interpolators_.end(),
             spv::NoResult);
   var_main_point_size_edge_flag_kill_vertex_ = spv::NoResult;
@@ -514,11 +516,33 @@ void SpirvShaderTranslator::StartTranslation() {
       var_main_rectangle_guest_vertex_index_ =
           builder_->createVariable(spv::NoPrecision, spv::StorageClassFunction, type_uint_,
                                    "xe_var_rectangle_guest_vertex_index", const_uint_0_);
-      spv::Id type_rectangle_per_vertex_array =
-          builder_->makeArrayType(type_output_per_vertex_, builder_->makeUintConstant(3), 0);
-      var_main_rectangle_per_vertex_ =
+      spv::Id type_rectangle_position_array =
+          builder_->makeArrayType(type_float4_, builder_->makeUintConstant(3), 0);
+      var_main_rectangle_positions_ =
           builder_->createVariable(spv::NoPrecision, spv::StorageClassFunction,
-                                   type_rectangle_per_vertex_array, "xe_var_rectangle_per_vertex");
+                                   type_rectangle_position_array, "xe_var_rectangle_position");
+      uint32_t rectangle_clip_distance_count =
+          GetSpirvShaderModification().GetVertexClipDistanceCount();
+      if (rectangle_clip_distance_count) {
+        spv::Id type_rectangle_clip_distance = builder_->makeArrayType(
+            type_float_, builder_->makeUintConstant(rectangle_clip_distance_count), 0);
+        spv::Id type_rectangle_clip_distance_array =
+            builder_->makeArrayType(type_rectangle_clip_distance, builder_->makeUintConstant(3), 0);
+        var_main_rectangle_clip_distances_ = builder_->createVariable(
+            spv::NoPrecision, spv::StorageClassFunction, type_rectangle_clip_distance_array,
+            "xe_var_rectangle_clip_distance");
+      }
+      uint32_t rectangle_cull_distance_count =
+          GetSpirvShaderModification().GetVertexCullDistanceCount();
+      if (rectangle_cull_distance_count) {
+        spv::Id type_rectangle_cull_distance = builder_->makeArrayType(
+            type_float_, builder_->makeUintConstant(rectangle_cull_distance_count), 0);
+        spv::Id type_rectangle_cull_distance_array =
+            builder_->makeArrayType(type_rectangle_cull_distance, builder_->makeUintConstant(3), 0);
+        var_main_rectangle_cull_distances_ = builder_->createVariable(
+            spv::NoPrecision, spv::StorageClassFunction, type_rectangle_cull_distance_array,
+            "xe_var_rectangle_cull_distance");
+      }
       uint32_t interpolators_remaining = GetModificationInterpolatorMask();
       uint32_t interpolator_index;
       while (rex::bit_scan_forward(interpolators_remaining, &interpolator_index)) {
@@ -696,10 +720,47 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
       // Store current iteration outputs.
       id_vector_temp_.clear();
       id_vector_temp_.push_back(rectangle_guest_vertex_index_int);
+      std::vector<spv::Id> rectangle_member_indices;
+      rectangle_member_indices.push_back(builder_->makeIntConstant(kOutputPerVertexMemberPosition));
       builder_->createStore(
-          builder_->createLoad(output_per_vertex_, spv::NoPrecision),
-          builder_->createAccessChain(spv::StorageClassFunction, var_main_rectangle_per_vertex_,
+          builder_->createLoad(
+              builder_->createAccessChain(spv::StorageClassOutput, output_per_vertex_,
+                                          rectangle_member_indices),
+              spv::NoPrecision),
+          builder_->createAccessChain(spv::StorageClassFunction, var_main_rectangle_positions_,
                                       id_vector_temp_));
+      for (uint32_t i = 0; i < clip_distance_count; ++i) {
+        rectangle_member_indices.resize(2);
+        rectangle_member_indices[0] =
+            builder_->makeIntConstant(int(output_per_vertex_member_clip_distance_));
+        rectangle_member_indices[1] = builder_->makeIntConstant(int(i));
+        std::vector<spv::Id> rectangle_clip_indices;
+        rectangle_clip_indices.push_back(rectangle_guest_vertex_index_int);
+        rectangle_clip_indices.push_back(builder_->makeIntConstant(int(i)));
+        builder_->createStore(builder_->createLoad(builder_->createAccessChain(
+                                                       spv::StorageClassOutput, output_per_vertex_,
+                                                       rectangle_member_indices),
+                                                   spv::NoPrecision),
+                              builder_->createAccessChain(spv::StorageClassFunction,
+                                                          var_main_rectangle_clip_distances_,
+                                                          rectangle_clip_indices));
+      }
+      for (uint32_t i = 0; i < cull_distance_count; ++i) {
+        rectangle_member_indices.resize(2);
+        rectangle_member_indices[0] =
+            builder_->makeIntConstant(int(output_per_vertex_member_cull_distance_));
+        rectangle_member_indices[1] = builder_->makeIntConstant(int(i));
+        std::vector<spv::Id> rectangle_cull_indices;
+        rectangle_cull_indices.push_back(rectangle_guest_vertex_index_int);
+        rectangle_cull_indices.push_back(builder_->makeIntConstant(int(i)));
+        builder_->createStore(builder_->createLoad(builder_->createAccessChain(
+                                                       spv::StorageClassOutput, output_per_vertex_,
+                                                       rectangle_member_indices),
+                                                   spv::NoPrecision),
+                              builder_->createAccessChain(spv::StorageClassFunction,
+                                                          var_main_rectangle_cull_distances_,
+                                                          rectangle_cull_indices));
+      }
       uint32_t interpolators_remaining = GetModificationInterpolatorMask();
       uint32_t interpolator_index;
       while (rex::bit_scan_forward(interpolators_remaining, &interpolator_index)) {
@@ -903,10 +964,9 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
         auto load_rectangle_position_xy = [this](spv::Id vertex_index, uint32_t component) {
           id_vector_temp_.clear();
           id_vector_temp_.push_back(vertex_index);
-          id_vector_temp_.push_back(builder_->makeIntConstant(kOutputPerVertexMemberPosition));
           id_vector_temp_.push_back(builder_->makeIntConstant(int(component)));
           return builder_->createLoad(
-              builder_->createAccessChain(spv::StorageClassFunction, var_main_rectangle_per_vertex_,
+              builder_->createAccessChain(spv::StorageClassFunction, var_main_rectangle_positions_,
                                           id_vector_temp_),
               spv::NoPrecision);
         };
@@ -1002,30 +1062,38 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
               input_output_interpolators_[interpolator_index]);
         }
 
-        auto load_rectangle_per_vertex_component =
-            [this](spv::Id vertex_index, uint32_t member_index, spv::Id component_index) {
-              id_vector_temp_.clear();
-              id_vector_temp_.push_back(vertex_index);
-              id_vector_temp_.push_back(builder_->makeIntConstant(int(member_index)));
-              if (component_index != spv::NoResult) {
-                id_vector_temp_.push_back(component_index);
-              }
-              return builder_->createLoad(
-                  builder_->createAccessChain(spv::StorageClassFunction,
-                                              var_main_rectangle_per_vertex_, id_vector_temp_),
-                  spv::NoPrecision);
-            };
+        auto load_rectangle_distance_component = [this](spv::Id vertex_index,
+                                                        spv::Id component_index,
+                                                        spv::Id rectangle_distance_array) {
+          id_vector_temp_.clear();
+          id_vector_temp_.push_back(vertex_index);
+          id_vector_temp_.push_back(component_index);
+          return builder_->createLoad(
+              builder_->createAccessChain(spv::StorageClassFunction, rectangle_distance_array,
+                                          id_vector_temp_),
+              spv::NoPrecision);
+        };
 
         id_vector_temp_.clear();
         id_vector_temp_.push_back(builder_->makeIntConstant(kOutputPerVertexMemberPosition));
         spv::Id rectangle_position_ptr = builder_->createAccessChain(
             spv::StorageClassOutput, output_per_vertex_, id_vector_temp_);
-        spv::Id position_0 = load_rectangle_per_vertex_component(
-            rectangle_vertex_indices[0], kOutputPerVertexMemberPosition, spv::NoResult);
-        spv::Id position_1 = load_rectangle_per_vertex_component(
-            rectangle_vertex_indices[1], kOutputPerVertexMemberPosition, spv::NoResult);
-        spv::Id position_2 = load_rectangle_per_vertex_component(
-            rectangle_vertex_indices[2], kOutputPerVertexMemberPosition, spv::NoResult);
+        id_vector_temp_.clear();
+        id_vector_temp_.push_back(rectangle_vertex_indices[0]);
+        spv::Id position_0 = builder_->createLoad(
+            builder_->createAccessChain(spv::StorageClassFunction, var_main_rectangle_positions_,
+                                        id_vector_temp_),
+            spv::NoPrecision);
+        id_vector_temp_[0] = rectangle_vertex_indices[1];
+        spv::Id position_1 = builder_->createLoad(
+            builder_->createAccessChain(spv::StorageClassFunction, var_main_rectangle_positions_,
+                                        id_vector_temp_),
+            spv::NoPrecision);
+        id_vector_temp_[0] = rectangle_vertex_indices[2];
+        spv::Id position_2 = builder_->createLoad(
+            builder_->createAccessChain(spv::StorageClassFunction, var_main_rectangle_positions_,
+                                        id_vector_temp_),
+            spv::NoPrecision);
         spv::Id position_original =
             select_rectangle_vertex_component(position_0, position_1, position_2, type_float4_);
         spv::Id position_synthetic = builder_->createNoContractionBinOp(
@@ -1039,16 +1107,16 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
 
         auto write_rectangle_distance_member =
             [this, &select_rectangle_vertex_component, rectangle_host_vertex_is_synthetic,
-             &load_rectangle_per_vertex_component,
-             rectangle_vertex_indices](uint32_t member_index, uint32_t component_count) {
+             &load_rectangle_distance_component, rectangle_vertex_indices](
+                uint32_t member_index, uint32_t component_count, spv::Id rectangle_distance_array) {
               for (uint32_t i = 0; i < component_count; ++i) {
                 spv::Id component_index = builder_->makeIntConstant(int(i));
-                spv::Id value_0 = load_rectangle_per_vertex_component(
-                    rectangle_vertex_indices[0], member_index, component_index);
-                spv::Id value_1 = load_rectangle_per_vertex_component(
-                    rectangle_vertex_indices[1], member_index, component_index);
-                spv::Id value_2 = load_rectangle_per_vertex_component(
-                    rectangle_vertex_indices[2], member_index, component_index);
+                spv::Id value_0 = load_rectangle_distance_component(
+                    rectangle_vertex_indices[0], component_index, rectangle_distance_array);
+                spv::Id value_1 = load_rectangle_distance_component(
+                    rectangle_vertex_indices[1], component_index, rectangle_distance_array);
+                spv::Id value_2 = load_rectangle_distance_component(
+                    rectangle_vertex_indices[2], component_index, rectangle_distance_array);
                 spv::Id value_original =
                     select_rectangle_vertex_component(value_0, value_1, value_2, type_float_);
                 spv::Id value_synthetic = builder_->createNoContractionBinOp(
@@ -1069,11 +1137,11 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
 
         if (clip_distance_count && output_per_vertex_member_clip_distance_ != UINT32_MAX) {
           write_rectangle_distance_member(output_per_vertex_member_clip_distance_,
-                                          clip_distance_count);
+                                          clip_distance_count, var_main_rectangle_clip_distances_);
         }
         if (cull_distance_count && output_per_vertex_member_cull_distance_ != UINT32_MAX) {
           write_rectangle_distance_member(output_per_vertex_member_cull_distance_,
-                                          cull_distance_count);
+                                          cull_distance_count, var_main_rectangle_cull_distances_);
         }
       }
       if_not_last_guest_vertex.makeEndIf();
@@ -1196,6 +1264,8 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
     }
   }
 
+  builder_->postProcess();
+
   // TODO(Triang3l): Avoid copy?
   std::vector<unsigned int> module_uints;
   builder_->dump(module_uints);
@@ -1204,6 +1274,7 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
   module_bytes.insert(module_bytes.cend(), reinterpret_cast<const uint8_t*>(module_uints.data()),
                       reinterpret_cast<const uint8_t*>(module_uints.data()) +
                           sizeof(unsigned int) * module_uints.size());
+
   return module_bytes;
 }
 

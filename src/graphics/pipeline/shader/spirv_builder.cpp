@@ -124,7 +124,7 @@ void SpirvBuilder::IfBuilder::makeBeginElse(bool branchToMerge) {
   assert_true(currentBranch == Branch::kThen);
 #endif
 
-  if (branchToMerge) {
+  if (branchToMerge && !builder.getBuildPoint()->isTerminated()) {
     // Close out the "then" by having it jump to the mergeBlock.
     thenPhiParent = builder.getBuildPoint()->getId();
     builder.createBranch(mergeBlock);
@@ -147,7 +147,7 @@ void SpirvBuilder::IfBuilder::makeEndIf(bool branchToMerge) {
   assert_true(currentBranch == Branch::kThen || currentBranch == Branch::kElse);
 #endif
 
-  if (branchToMerge) {
+  if (branchToMerge && !builder.getBuildPoint()->isTerminated()) {
     // Jump to the merge block.
     (elseBlock ? elsePhiParent : thenPhiParent) = builder.getBuildPoint()->getId();
     builder.createBranch(mergeBlock);
