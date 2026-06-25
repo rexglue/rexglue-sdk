@@ -32,7 +32,7 @@ namespace rex::memory::detail {
 /// The backing file maps the 0xE0 heap at a 0x1000-byte offset, but MapViewOfFileEx
 /// rounds down to 64KB boundaries. Linux mmap handles 4KB offsets natively.
 constexpr u32 PhysicalHostOffset([[maybe_unused]] u32 guest_addr) noexcept {
-#if REX_PLATFORM_WIN32
+#if REX_PLATFORM_WIN32 || REX_PLATFORM_MAC
   return (guest_addr >= 0xE0000000u) ? 0x1000u : 0u;
 #else
   return 0u;

@@ -226,7 +226,7 @@ u32 NtSuspendThread_entry(u32 handle, mapped_u32 suspend_count_ptr) {
     }
 
     REXKRNL_TRACE("[NtSuspendThread] handle={:08X} thread={}", uint32_t(handle), thread->name());
-#if REX_PLATFORM_LINUX
+#if REX_PLATFORM_LINUX || REX_PLATFORM_MAC
     auto* current_thread = XThread::GetCurrentThread();
     bool is_self_suspend = current_thread && current_thread == thread.get();
     if (is_self_suspend) {
