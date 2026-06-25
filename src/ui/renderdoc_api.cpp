@@ -16,6 +16,11 @@ namespace rex {
 namespace ui {
 
 std::unique_ptr<RenderDocAPI> RenderDocAPI::CreateIfConnected() {
+#if REX_PLATFORM_MAC
+  // The vendored RenderDoc app API header doesn't expose a macOS path.
+  // Keep RenderDoc optional and simply report "not connected" on this platform.
+  return nullptr;
+#else
   std::unique_ptr<RenderDocAPI> renderdoc_api(new RenderDocAPI());
 
   pRENDERDOC_GetAPI get_api = nullptr;
@@ -38,6 +43,7 @@ std::unique_ptr<RenderDocAPI> RenderDocAPI::CreateIfConnected() {
   REXLOG_INFO("RenderDoc API initialized");
 
   return renderdoc_api;
+#endif
 }
 
 RenderDocAPI::~RenderDocAPI() {

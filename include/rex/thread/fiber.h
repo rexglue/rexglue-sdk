@@ -15,6 +15,11 @@
 #include <cstddef>
 
 #if REX_PLATFORM_LINUX || REX_PLATFORM_MAC
+#if REX_PLATFORM_MAC && !defined(_XOPEN_SOURCE)
+// Darwin hides the deprecated ucontext APIs unless _XOPEN_SOURCE is defined
+// before including <ucontext.h>.
+#define _XOPEN_SOURCE 700
+#endif
 #include <ucontext.h>
 #include <cstdint>
 #include <vector>

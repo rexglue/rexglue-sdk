@@ -14,7 +14,11 @@
 
 #include <rex/platform/dynlib.h>
 
+#if REX_PLATFORM_MAC
+struct RENDERDOC_API_1_0_0;
+#else
 #include <renderdoc_app.h>
+#endif
 
 namespace rex {
 namespace ui {
