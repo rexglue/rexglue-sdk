@@ -6,7 +6,7 @@
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  *
- * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+ * @modified    Tom Clay & Rien Gupta, 2026 - Adapted for ReXGlue runtime
  */
 
 #include <cerrno>
@@ -14,13 +14,22 @@
 #include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <functional>
 #include <string>
 
 #include <fcntl.h>
+
+#if REX_PLATFORM_MAC
+#include <mach/mach.h>
+#include <mach/mach_vm.h>
+#include <mach/vm_region.h>
+#endif  // REX_PLATFORM_MAC
+
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/memory/utils.h>
 #include <rex/platform.h>
@@ -41,8 +50,20 @@
 namespace rex {
 namespace memory {
 
-// Convert filesystem path to valid shm_open name (must start with /, no other slashes)
+// Convert filesystem path to a valid shm_open name (must start with /, no other slashes).
+// macOS enforces a 31-character total limit; names exceeding 30 chars after the leading '/'
+// are folded to a 16-char hex hash to stay within bounds.
 static std::string MakeShmName(const std::filesystem::path& path) {
+#if REX_PLATFORM_MAC
+  std::string name = "/" + path.filename().string();
+  if (name.size() > 30) {
+    std::size_t h = std::hash<std::string>{}(name);
+    char hash_buf[24];
+    std::snprintf(hash_buf, sizeof(hash_buf), "/%016zx", h);
+    name = hash_buf;
+  }
+  return name;
+#else
   std::string name = path.string();
   for (char& c : name) {
     if (c == '/')
@@ -52,6 +73,7 @@ static std::string MakeShmName(const std::filesystem::path& path) {
     name.insert(name.begin(), '/');
   }
   return name;
+#endif
 }
 
 #if REX_PLATFORM_ANDROID
@@ -107,7 +129,13 @@ uint32_t ToPosixProtectFlags(PageAccess access) {
 }
 
 bool IsWritableExecutableMemorySupported() {
+#if REX_PLATFORM_MAC
+  // macOS enforces W^X on Apple Silicon. Shared file mappings cannot be both
+  // writable and executable. The code cache must use separate RW and RX views.
+  return false;
+#else
   return true;
+#endif
 }
 
 // TODO(tomc): this needs to go somewhere else. we should utilize the platform namespace more.
@@ -222,9 +250,31 @@ void* AllocFixed(void* base_address, size_t length, AllocationType allocation_ty
       break;
   }
 
-  // Build flags - always use MAP_FIXED_NOREPLACE for fixed addresses
+    // On macOS, MAP_FIXED_NOREPLACE is unavailable. kCommit on a pre-reserved
+    // range uses page-aligned mprotect to avoid clobbering the existing reservation.
+#if REX_PLATFORM_MAC
+  if (base_address != nullptr && allocation_type == AllocationType::kCommit) {
+    const size_t host_page = page_size();
+    const uintptr_t aligned_addr = reinterpret_cast<uintptr_t>(base_address) & ~(host_page - 1);
+    const uintptr_t end_addr =
+        (reinterpret_cast<uintptr_t>(base_address) + length + host_page - 1) & ~(host_page - 1);
+    if (mprotect(reinterpret_cast<void*>(aligned_addr), end_addr - aligned_addr,
+                 static_cast<int>(prot_requested)) == 0) {
+      return base_address;
+    }
+    return nullptr;
+  }
+#endif
+
   int flags = MAP_PRIVATE | MAP_ANONYMOUS;
-#if defined(MAP_FIXED_NOREPLACE)
+#if REX_PLATFORM_MAC
+  if (access == PageAccess::kExecuteReadWrite || access == PageAccess::kExecuteReadOnly) {
+    flags |= MAP_JIT;
+  }
+  if (base_address) {
+    flags |= MAP_FIXED;
+  }
+#elif defined(MAP_FIXED_NOREPLACE)
   if (base_address) {
     flags |= MAP_FIXED_NOREPLACE;
   }
@@ -298,11 +348,50 @@ bool Protect(void* base_address, size_t length, PageAccess access, PageAccess* o
 #endif
 
   uint32_t prot = ToPosixProtectFlags(access);
-  return mprotect(base_address, length, prot) == 0;
+  int ret = mprotect(base_address, length, prot);
+  if (ret != 0) {
+    REXSYS_ERROR("mprotect({}, 0x{:X}, {}) failed: {} ({})", base_address, length, prot,
+                 strerror(errno), errno);
+  }
+  return ret == 0;
 }
 
 bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out) {
-#if !REX_PLATFORM_LINUX
+#if REX_PLATFORM_MAC
+  mach_vm_address_t address = reinterpret_cast<mach_vm_address_t>(base_address);
+  mach_vm_size_t region_size = 0;
+  vm_region_basic_info_data_64_t info;
+  mach_msg_type_number_t info_count = VM_REGION_BASIC_INFO_COUNT_64;
+  mach_port_t object_name;
+
+  kern_return_t kr =
+      mach_vm_region(mach_task_self(), &address, &region_size, VM_REGION_BASIC_INFO_64,
+                     reinterpret_cast<vm_region_info_t>(&info), &info_count, &object_name);
+  if (kr != KERN_SUCCESS) {
+    return false;
+  }
+  if (address > reinterpret_cast<mach_vm_address_t>(base_address)) {
+    return false;
+  }
+
+  length = static_cast<size_t>((address + region_size) -
+                               reinterpret_cast<mach_vm_address_t>(base_address));
+
+  if ((info.protection & (VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE)) ==
+      (VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE)) {
+    access_out = PageAccess::kExecuteReadWrite;
+  } else if ((info.protection & (VM_PROT_READ | VM_PROT_EXECUTE)) ==
+             (VM_PROT_READ | VM_PROT_EXECUTE)) {
+    access_out = PageAccess::kExecuteReadOnly;
+  } else if ((info.protection & (VM_PROT_READ | VM_PROT_WRITE)) == (VM_PROT_READ | VM_PROT_WRITE)) {
+    access_out = PageAccess::kReadWrite;
+  } else if (info.protection & VM_PROT_READ) {
+    access_out = PageAccess::kReadOnly;
+  } else {
+    access_out = PageAccess::kNoAccess;
+  }
+  return true;
+#elif !REX_PLATFORM_LINUX
   access_out = PageAccess::kNoAccess;
   length = 0;
   return false;
@@ -372,7 +461,7 @@ FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, siz
   if (ret < 0) {
     return kFileMappingHandleInvalid;
   }
-  if (ftruncate64(ret, static_cast<off_t>(length)) != 0) {
+  if (ftruncate(ret, static_cast<off_t>(length)) != 0) {
     close(ret);
     shm_unlink(full_path.c_str());
     return kFileMappingHandleInvalid;
@@ -407,8 +496,8 @@ void* MapFileView(FileMappingHandle handle, void* base_address, size_t length, P
   }
 
   uint32_t prot = ToPosixProtectFlags(access);
-  void* result = mmap64(base_address, length, prot, flags, static_cast<int>(handle),
-                        static_cast<off_t>(file_offset));
+  void* result = mmap(base_address, length, prot, flags, static_cast<int>(handle),
+                      static_cast<off_t>(file_offset));
   if (result == MAP_FAILED) {
     return nullptr;
   }
