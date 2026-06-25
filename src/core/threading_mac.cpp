@@ -1,6 +1,6 @@
 /**
- * @file        core/threading_posix.cpp
- * @brief       POSIX platform threading implementations
+ * @file        core/threading_mac.cpp
+ * @brief       macOS platform threading implementations
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  * @license     BSD 3-Clause License
@@ -9,7 +9,7 @@
 #include <rex/platform.h>
 #include <rex/thread.h>
 
-static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only");
+static_assert(REX_PLATFORM_MAC, "This file is macOS-only");
 
 #include <signal.h>
 
@@ -24,7 +24,6 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 
 #include <pthread.h>
 #include <semaphore.h>
-#include <sys/eventfd.h>
 #include <sys/syscall.h>
 #include <sys/time.h>
 #include <sys/types.h>
@@ -110,13 +109,27 @@ enum class SignalType {
 };
 
 int GetSystemSignal(SignalType num) {
-  auto result = SIGRTMIN + static_cast<int>(num);
-  assert_true(result < SIGRTMAX);
-  return result;
+  switch (num) {
+    case SignalType::kThreadSuspend:
+      return SIGUSR1;
+    case SignalType::kThreadUserCallback:
+      return SIGUSR2;
+    default:
+      assert_unhandled_case(num);
+      return SIGUSR1;
+  }
 }
 
 SignalType GetSystemSignalType(int num) {
-  return static_cast<SignalType>(num - SIGRTMIN);
+  switch (num) {
+    case SIGUSR1:
+      return SignalType::kThreadSuspend;
+    case SIGUSR2:
+      return SignalType::kThreadUserCallback;
+    default:
+      assert_unhandled_case(num);
+      return SignalType::kThreadSuspend;
+  }
 }
 
 std::array<std::atomic<bool>, static_cast<size_t>(SignalType::k_Count)> signal_handler_installed =
@@ -145,7 +158,7 @@ void EnableAffinityConfiguration() {}
 // uint64_t ticks() { return mach_absolute_time(); }
 
 uint32_t current_thread_system_id() {
-  return static_cast<uint32_t>(syscall(SYS_gettid));
+  return static_cast<uint32_t>(pthread_mach_thread_np(pthread_self()));
 }
 
 void MaybeYield() {
@@ -669,7 +682,9 @@ class PosixCondition<Thread> : public PosixConditionBase {
     WaitStarted();
     std::unique_lock<std::mutex> lock(state_mutex_);
     if (state_ != State::kUninitialized && state_ != State::kFinished) {
-      pthread_setname_np(thread_, std::string(name).c_str());
+      if (pthread_equal(thread_, pthread_self())) {
+        pthread_setname_np(std::string(name).c_str());
+      }
 #if REX_PLATFORM_ANDROID
       SetAndroidPreApi26Name(name);
 #endif
@@ -687,47 +702,22 @@ class PosixCondition<Thread> : public PosixConditionBase {
   }
 #endif
 
-  uint32_t system_id() const { return static_cast<uint32_t>(thread_); }
+  uint32_t system_id() const { return static_cast<uint32_t>(pthread_mach_thread_np(thread_)); }
 
   uint64_t affinity_mask() {
     WaitStarted();
-    cpu_set_t cpu_set;
-#if REX_PLATFORM_ANDROID
-    if (sched_getaffinity(pthread_gettid_np(thread_), sizeof(cpu_set_t), &cpu_set) != 0) {
-      assert_always();
+    auto cpu_count = std::min<uint32_t>(logical_processor_count(), 64);
+    if (cpu_count == 64) {
+      return std::numeric_limits<uint64_t>::max();
     }
-#else
-    if (pthread_getaffinity_np(thread_, sizeof(cpu_set_t), &cpu_set) != 0) {
-      assert_always();
-    }
-#endif
-    uint64_t result = 0;
-    auto cpu_count = std::min(CPU_SETSIZE, 64);
-    for (auto i = 0u; i < cpu_count; i++) {
-      auto set = CPU_ISSET(i, &cpu_set);
-      result |= set << i;
-    }
-    return result;
+    return (uint64_t(1) << cpu_count) - 1;
   }
 
   void set_affinity_mask(uint64_t mask) {
     WaitStarted();
-    cpu_set_t cpu_set;
-    CPU_ZERO(&cpu_set);
-    for (auto i = 0u; i < 64; i++) {
-      if (mask & (1ULL << i)) {
-        CPU_SET(i, &cpu_set);
-      }
-    }
-#if REX_PLATFORM_ANDROID
-    if (sched_setaffinity(pthread_gettid_np(thread_), sizeof(cpu_set_t), &cpu_set) != 0) {
-      assert_always();
-    }
-#else
-    if (pthread_setaffinity_np(thread_, sizeof(cpu_set_t), &cpu_set) != 0) {
-      assert_always();
-    }
-#endif
+    (void)mask;
+    // macOS doesn't expose Linux-style pthread affinity masks.
+    // Keep this as a no-op so higher layers can build and run.
   }
 
   int priority() {
@@ -785,7 +775,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
     int result = sigqueue(pthread_gettid_np(thread_),
                           GetSystemSignal(SignalType::kThreadUserCallback), value);
 #else
-    int result = pthread_sigqueue(thread_, GetSystemSignal(SignalType::kThreadUserCallback), value);
+    int result = pthread_kill(thread_, GetSystemSignal(SignalType::kThreadUserCallback));
 #endif
     if (result != 0) {
       REXSYS_WARN("QueueUserCallback: signal delivery failed ({})", result);
@@ -1394,7 +1384,7 @@ void Thread::Exit(int exit_code) {
 }
 
 void set_current_thread_name(const std::string_view name) {
-  pthread_setname_np(pthread_self(), std::string(name).c_str());
+  pthread_setname_np(std::string(name).c_str());
 #if REX_PLATFORM_ANDROID
   if (!android_pthread_getname_np_ && current_thread_) {
     current_thread_->condition().SetAndroidPreApi26Name(name);
