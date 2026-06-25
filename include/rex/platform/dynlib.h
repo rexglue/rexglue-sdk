@@ -69,7 +69,7 @@ inline constexpr const char* kSpirvToolsSdkPath = "bin/libSPIRV-Tools-shared.so"
 
 inline constexpr const char* kVulkanLoader = "libvulkan.1.dylib";
 inline constexpr const char* kRenderDoc = "librenderdoc.dylib";
-inline constexpr const char* kSpirvToolsSdkPath = "bin/libSPIRV-Tools-shared.dylib";
+inline constexpr const char* kSpirvToolsSdkPath = "lib/libSPIRV-Tools-shared.dylib";
 
 #else
 #error No library names provided for the target platform.

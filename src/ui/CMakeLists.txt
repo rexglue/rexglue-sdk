@@ -34,6 +34,7 @@ set(REXUI_OVERLAY_SOURCES
 # Vulkan UI backend
 set(REXUI_VULKAN_SOURCES
     vulkan/linked_type_descriptor_set_allocator.cpp
+    vulkan/vulkan_moltenvk.cpp
     vulkan/single_layout_descriptor_set_pool.cpp
     vulkan/spirv_tools_context.cpp
     vulkan/ui_samplers.cpp

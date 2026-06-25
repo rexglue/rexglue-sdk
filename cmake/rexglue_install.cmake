@@ -9,6 +9,9 @@ set_target_properties(rexaudio PROPERTIES EXPORT_NAME audio)
 set_target_properties(rexruntime PROPERTIES EXPORT_NAME runtime)
 set_target_properties(rexcodegen PROPERTIES EXPORT_NAME codegen)
 
+include(${CMAKE_CURRENT_LIST_DIR}/rexglue_helpers.cmake)
+
+# Build install target list dynamically based on backend options
 set(REXGLUE_INSTALL_TARGETS
     rexruntime
     rexgpu-xenos
@@ -126,6 +129,27 @@ if(REXGLUE_USE_D3D12)
         thirdparty/dxc/include/dxcapi.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/dxc
     )
+endif()
+
+if(APPLE AND REXGLUE_USE_VULKAN)
+    rexglue_find_macos_vulkan_runtime(_rexglue_macos_vulkan_runtime_root)
+    if(_rexglue_macos_vulkan_runtime_root)
+        foreach(_rexglue_runtime_file
+                lib/libvulkan.1.dylib
+                lib/libvulkan.dylib
+                lib/libMoltenVK.dylib
+                lib/libSPIRV-Tools-shared.dylib
+                share/vulkan/icd.d/MoltenVK_icd.json)
+            if(EXISTS "${_rexglue_macos_vulkan_runtime_root}/${_rexglue_runtime_file}")
+                get_filename_component(_rexglue_runtime_dir "${_rexglue_runtime_file}" DIRECTORY)
+                install(FILES "${_rexglue_macos_vulkan_runtime_root}/${_rexglue_runtime_file}"
+                    DESTINATION ${CMAKE_INSTALL_DATADIR}/rexglue/vulkan/${_rexglue_runtime_dir}
+                )
+            endif()
+        endforeach()
+    else()
+        _rexglue_warn_missing_macos_vulkan_runtime()
+    endif()
 endif()
 
 # Generate and install package config files

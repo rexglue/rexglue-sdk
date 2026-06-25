@@ -21,6 +21,10 @@
 #include <rex/ui/vulkan/instance.h>
 #include <rex/ui/vulkan/presenter.h>
 
+#if REX_PLATFORM_MAC
+#include "vulkan_moltenvk.h"
+#endif
+
 REXCVAR_DEFINE_BOOL(vulkan_log_debug_messages, true, "UI/Vulkan", "Log Vulkan debug messages");
 
 namespace rex {
@@ -40,10 +44,44 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
   Functions& ifn = vulkan_instance->functions_;
 
   bool functions_loaded = true;
-  if (!vulkan_instance->loader_.Load(platform::lib_names::kVulkanLoader)) {
+  bool loader_loaded = false;
+#if REX_PLATFORM_MAC
+  const MacOSVulkanRuntimePaths macos_runtime_paths = DetectMacOSVulkanRuntimePaths();
+  ConfigureMacOSVulkanEnvironment(macos_runtime_paths);
+
+  std::vector<std::filesystem::path> loader_candidates = macos_runtime_paths.loader_candidates;
+  loader_candidates.emplace_back(platform::lib_names::kVulkanLoader);
+  loader_candidates.emplace_back("libvulkan.dylib");
+  loader_candidates.emplace_back("libMoltenVK.dylib");
+
+  std::vector<std::string> attempted_loader_paths;
+  attempted_loader_paths.reserve(loader_candidates.size());
+  for (const std::filesystem::path& candidate : loader_candidates) {
+    if (candidate.empty()) {
+      continue;
+    }
+    attempted_loader_paths.push_back(candidate.string());
+    if (vulkan_instance->loader_.Load(candidate)) {
+      loader_loaded = true;
+      REXLOG_INFO("Loaded Vulkan runtime from {}", candidate.string());
+      break;
+    }
+  }
+  if (!loader_loaded) {
+    REXLOG_ERROR("Failed to load a Vulkan runtime on macOS");
+    for (const std::string& attempted_loader_path : attempted_loader_paths) {
+      REXLOG_ERROR("* tried {}", attempted_loader_path);
+    }
+    return nullptr;
+  }
+#else
+  loader_loaded = vulkan_instance->loader_.Load(platform::lib_names::kVulkanLoader);
+  if (!loader_loaded) {
     REXLOG_ERROR("Failed to load {}", platform::lib_names::kVulkanLoader);
     return nullptr;
   }
+#endif
+
 #define XE_VULKAN_LOAD_LOADER_FUNCTION(name) \
   functions_loaded &= (ifn.name = vulkan_instance->loader_.GetSymbol<PFN_##name>(#name)) != nullptr;
   XE_VULKAN_LOAD_LOADER_FUNCTION(vkGetInstanceProcAddr);
