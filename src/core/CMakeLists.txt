@@ -49,7 +49,7 @@ elseif(APPLE)
     target_sources(rexcore PRIVATE
         atomic_posix.cpp
         clock_posix.cpp
-        dbg_posix.cpp
+        dbg_mac.cpp
         dynlib_posix.cpp
         exception_handler_mac.cpp
         filesystem_mac.cpp
