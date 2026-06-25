@@ -149,7 +149,7 @@ endfunction()
 # rexglue_configure_target(<target>) - Host application
 #
 # Adds:
-#   - SDL3 entry point source (windowed_app_main_sdl.cpp)
+#   - Platform entry point source (windowed_app_main_*.cpp)
 #   - ReXApp base class source (rex_app.cpp)
 #   - Build-config define for the version stamp
 #   - $ORIGIN RPATH on UNIX so the host finds librexruntime.so next to itself
@@ -160,14 +160,29 @@ endfunction()
 function(rexglue_configure_target target_name)
     cmake_parse_arguments(ARG "" "" "GPU_PLUGINS" ${ARGN})
 
+    if(WIN32)
+        target_sources(${target_name} PRIVATE
+            ${REXGLUE_SHARE_DIR}/windowed_app_main_win.cpp)
+    elseif(APPLE)
+        target_sources(${target_name} PRIVATE
+            ${REXGLUE_SHARE_DIR}/windowed_app_main_mac.cpp)
+    else()
+        target_sources(${target_name} PRIVATE
+            ${REXGLUE_SHARE_DIR}/windowed_app_main_posix.cpp)
+    endif()
+
     target_sources(${target_name} PRIVATE
-        ${REXGLUE_SHARE_DIR}/windowed_app_main_sdl.cpp
         ${REXGLUE_SHARE_DIR}/rex_app.cpp)
 
     target_compile_definitions(${target_name} PRIVATE
         REXGLUE_BUILD_CONFIG="$<CONFIG>")
 
-    if(UNIX AND NOT APPLE)
+    if(APPLE)
+        set_target_properties(${target_name} PROPERTIES
+            INSTALL_RPATH "@executable_path"
+            BUILD_WITH_INSTALL_RPATH ON
+        )
+    elseif(UNIX)
         set_target_properties(${target_name} PROPERTIES
             INSTALL_RPATH "$ORIGIN"
             BUILD_WITH_INSTALL_RPATH ON
@@ -191,6 +206,22 @@ function(rexglue_configure_target target_name)
                 add_custom_command(TARGET ${target_name} POST_BUILD
                     COMMAND ${CMAKE_COMMAND} -E copy_if_different
                         $<TARGET_FILE:${_fx}>
+                        $<TARGET_FILE_DIR:${target_name}>
+                    VERBATIM
+                )
+            endif()
+        endforeach()
+    endif()
+
+    if(APPLE)
+        # TARGET_RUNTIME_DLLS doesn't reliably enumerate imported dylibs in the
+        # installed-SDK consumer case, so stage the known shared runtime pieces
+        # explicitly next to the host binary.
+        foreach(_runtime_target rex::runtime rex::TracyClient)
+            if(TARGET ${_runtime_target})
+                add_custom_command(TARGET ${target_name} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        $<TARGET_FILE:${_runtime_target}>
                         $<TARGET_FILE_DIR:${target_name}>
                     VERBATIM
                 )
@@ -222,9 +253,11 @@ function(rexglue_configure_target target_name)
         unset(_plugin_target)
     endforeach()
 
-    if(APPLE AND REXGLUE_USE_VULKAN)
-        rexglue_find_macos_vulkan_runtime(_rexglue_macos_vulkan_runtime_root)
-        _rexglue_copy_macos_vulkan_runtime(${target_name} "${_rexglue_macos_vulkan_runtime_root}")
+    if(APPLE)
+        if(REXGLUE_USE_VULKAN)
+            rexglue_find_macos_vulkan_runtime(_rexglue_macos_vulkan_runtime_root)
+            _rexglue_copy_macos_vulkan_runtime(${target_name} "${_rexglue_macos_vulkan_runtime_root}")
+        endif()
     endif()
 endfunction()
 
