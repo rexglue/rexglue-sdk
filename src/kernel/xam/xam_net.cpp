@@ -14,6 +14,10 @@
 
 #include <cstring>
 
+#if REX_PLATFORM_MAC
+#include <sys/select.h>
+#endif
+
 #include <rex/chrono/clock.h>
 #include <rex/kernel/xam/module.h>
 #include <rex/kernel/xam/private.h>
