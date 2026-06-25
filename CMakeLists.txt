@@ -2,9 +2,15 @@
 # Modern C++23 cross-platform SDK for recompiling Xbox 360 executables
 cmake_minimum_required(VERSION 3.25)
 
+if(APPLE)
+    set(REXGLUE_LANGUAGES C CXX OBJC OBJCXX)
+else()
+    set(REXGLUE_LANGUAGES C CXX)
+endif()
+
 project(ReXGlue
     VERSION 0.8.0
-    LANGUAGES C CXX
+    LANGUAGES ${REXGLUE_LANGUAGES}
     DESCRIPTION "Xbox 360 Recompilation SDK"
 )
 # Floor only: bump MAJOR.MINOR for API changes. Patch is derived from git tags
@@ -63,6 +69,14 @@ if(UNIX AND NOT APPLE)
         "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}"
     )
     set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON)
+elseif(APPLE)
+    # Use loader-relative install names on macOS so installed binaries remain
+    # self-contained within the install prefix.
+    list(APPEND CMAKE_INSTALL_RPATH
+        "@loader_path"
+        "@loader_path/../${CMAKE_INSTALL_LIBDIR}"
+    )
+    set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON)
 endif()
 
 # Enforce Clang18 compiler
@@ -88,8 +102,10 @@ set(CMAKE_RELWITHDEBINFO_POSTFIX rd)
 
 if(NOT WIN32)
     # Use appropriate code model based on architecture
-    if(CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64|x86_64")
-        # Large code model on x86_64 for linking with very large recompiled executables (35MB+)
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64|x86_64" AND NOT APPLE)
+        # Large code model on Linux x86_64 for linking with very large recompiled executables (35MB+).
+        # macOS uses small: the ld64 linker on macOS 15+ rejects text relocations produced
+        # by -mcmodel=large, and macOS maps binaries in the low address space so ±2GB is sufficient.
         add_compile_options(-mcmodel=large)
     else()
         # Small code model for other architectures (ARM64, etc.)
@@ -111,26 +127,44 @@ add_compile_options(
 )
 
 # Platform detection (supports AMD64 and ARM64)
+set(REX_TARGET_PROCESSOR "${CMAKE_SYSTEM_PROCESSOR}")
+if(APPLE AND CMAKE_OSX_ARCHITECTURES)
+    list(LENGTH CMAKE_OSX_ARCHITECTURES REX_OSX_ARCH_COUNT)
+    if(REX_OSX_ARCH_COUNT GREATER 1)
+        message(FATAL_ERROR "ReXGlue macOS presets expect a single CMAKE_OSX_ARCHITECTURES value")
+    endif()
+    list(GET CMAKE_OSX_ARCHITECTURES 0 REX_TARGET_PROCESSOR)
+endif()
+
 if(WIN32)
-    if(CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64|x86_64")
+    if(REX_TARGET_PROCESSOR MATCHES "AMD64|x86_64")
         set(REX_PLATFORM "win-amd64")
-    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|ARM64")
+    elseif(REX_TARGET_PROCESSOR MATCHES "aarch64|ARM64|arm64")
         set(REX_PLATFORM "win-arm64")
     else()
-        message(FATAL_ERROR "Unsupported Windows architecture: ${CMAKE_SYSTEM_PROCESSOR}")
+        message(FATAL_ERROR "Unsupported Windows architecture: ${REX_TARGET_PROCESSOR}")
     endif()
     add_compile_definitions(REX_PLATFORM_WINDOWS=1)
 elseif(UNIX AND NOT APPLE)
-    if(CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64|x86_64")
+    if(REX_TARGET_PROCESSOR MATCHES "AMD64|x86_64")
         set(REX_PLATFORM "linux-amd64")
-    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|ARM64")
+    elseif(REX_TARGET_PROCESSOR MATCHES "aarch64|ARM64|arm64")
         set(REX_PLATFORM "linux-arm64")
     else()
-        set(REX_PLATFORM "linux-${CMAKE_SYSTEM_PROCESSOR}")
+        set(REX_PLATFORM "linux-${REX_TARGET_PROCESSOR}")
     endif()
     add_compile_definitions(REX_PLATFORM_LINUX=1)
+elseif(APPLE)
+    if(REX_TARGET_PROCESSOR MATCHES "AMD64|x86_64")
+        set(REX_PLATFORM "mac-amd64")
+    elseif(REX_TARGET_PROCESSOR MATCHES "aarch64|ARM64|arm64")
+        set(REX_PLATFORM "mac-arm64")
+    else()
+        set(REX_PLATFORM "mac-${REX_TARGET_PROCESSOR}")
+    endif()
+    add_compile_definitions(REX_PLATFORM_MAC=1)
 else()
-    message(FATAL_ERROR "Unsupported platform. ReXGlue supports Windows and Linux only.")
+    message(FATAL_ERROR "Unsupported platform. ReXGlue supports Windows, Linux, and macOS only.")
 endif()
 
 # Build config as compile definition (multi-config generators don't know config at configure time)
