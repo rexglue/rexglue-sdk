@@ -72,22 +72,22 @@ class XSocket : public XObject {
   static const XObject::Type kObjectType = XObject::Type::Socket;
 
   enum AddressFamily {
-    AF_INET = 2,
+    X_AF_INET = 2,
   };
 
   enum Type {
-    SOCK_STREAM = 1,
-    SOCK_DGRAM = 2,
+    X_SOCK_STREAM = 1,
+    X_SOCK_DGRAM = 2,
   };
 
   enum Protocol {
-    IPPROTO_TCP = 6,
-    IPPROTO_UDP = 17,
+    X_IPPROTO_TCP = 6,
+    X_IPPROTO_UDP = 17,
 
     // LIVE Voice and Data Protocol
     // https://blog.csdn.net/baozi3026/article/details/4277227
     // Format: [cbGameData][GameData(encrypted)][VoiceData(unencrypted)]
-    IPPROTO_VDP = 254,
+    X_IPPROTO_VDP = 254,
   };
 
   XSocket(KernelState* kernel_state);

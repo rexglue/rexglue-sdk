@@ -47,9 +47,9 @@ X_STATUS XSocket::Initialize(AddressFamily af, Type type, Protocol proto) {
   type_ = type;
   proto_ = proto;
 
-  if (proto == Protocol::IPPROTO_VDP) {
+  if (proto == Protocol::X_IPPROTO_VDP) {
     // VDP is a layer on top of UDP.
-    proto = Protocol::IPPROTO_UDP;
+    proto = Protocol::X_IPPROTO_UDP;
   }
 
   native_handle_ = socket(af, type, proto);
