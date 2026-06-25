@@ -90,10 +90,21 @@ jobs:
           variant: sccache
           key: ${{ inputs.platform }}
 
+      - name: Set compilers (Linux)
+        if: startsWith(inputs.platform, 'linux-')
+        run: |
+          echo "CC=clang-20" >> $GITHUB_ENV
+          echo "CXX=clang++-20" >> $GITHUB_ENV
+
+      - name: Set compilers (macOS)
+        if: startsWith(inputs.platform, 'mac-')
+        run: |
+          LLVM_PREFIX=$(brew --prefix llvm)
+          echo "${LLVM_PREFIX}/bin" >> $GITHUB_PATH
+          echo "CC=${LLVM_PREFIX}/bin/clang" >> $GITHUB_ENV
+          echo "CXX=${LLVM_PREFIX}/bin/clang++" >> $GITHUB_ENV
+
       - name: Configure
-        env:
-          CC: ${{ startsWith(inputs.platform, 'linux-') && 'clang-20' || '' }}
-          CXX: ${{ startsWith(inputs.platform, 'linux-') && 'clang++-20' || '' }}
         run: cmake --preset ${{ inputs.platform }} -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
 
       - name: Build and install
