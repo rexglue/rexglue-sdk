@@ -52,7 +52,10 @@ jobs:
             prev_sha=""
           fi
           echo "prev_nightly_sha=${prev_sha}" >> "$GITHUB_OUTPUT"
-          if [ "${dev_sha}" = "${prev_sha}" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual dispatch — forcing build as ${tag_name}."
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          elif [ "${dev_sha}" = "${prev_sha}" ]; then
             echo "${DEV_BRANCH} unchanged since last nightly (${dev_sha}); skipping build."
             echo "should_build=false" >> "$GITHUB_OUTPUT"
           else
@@ -82,6 +85,28 @@ jobs:
       artifact_name: nightly-linux-amd64
     secrets: inherit
 
+  build-mac-amd64:
+    needs: check
+    if: needs.check.outputs.should_build == 'true'
+    uses: ./.github/workflows/_build-platform.yaml
+    with:
+      platform: mac-amd64
+      ref: ${{ needs.check.outputs.dev_sha }}
+      publish_mode: artifact
+      artifact_name: nightly-mac-amd64
+    secrets: inherit
+
+  build-mac-arm64:
+    needs: check
+    if: needs.check.outputs.should_build == 'true'
+    uses: ./.github/workflows/_build-platform.yaml
+    with:
+      platform: mac-arm64
+      ref: ${{ needs.check.outputs.dev_sha }}
+      publish_mode: artifact
+      artifact_name: nightly-mac-arm64
+    secrets: inherit
+
   build-linux-arm64:
     needs: check
     if: needs.check.outputs.should_build == 'true'
@@ -94,7 +119,7 @@ jobs:
     secrets: inherit
 
   publish:
-    needs: [check, build-win-amd64, build-linux-amd64, build-linux-arm64]
+    needs: [check, build-win-amd64, build-linux-amd64, build-mac-amd64, build-mac-arm64, build-linux-arm64]
     if: needs.check.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -134,6 +159,8 @@ jobs:
             --prerelease \
             artifacts/nightly-win-amd64/*.zip \
             artifacts/nightly-linux-amd64/*.zip \
+            artifacts/nightly-mac-amd64/*.zip \
+            artifacts/nightly-mac-arm64/*.zip \
             artifacts/nightly-linux-arm64/*.zip
 
       - name: Prune old nightlies

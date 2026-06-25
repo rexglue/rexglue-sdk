@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       platform:
-        description: "win-amd64 | linux-amd64 | linux-arm64"
+        description: "win-amd64 | mac-amd64 | mac-arm64 | linux-amd64 | linux-arm64"
         required: true
         type: string
       ref:
@@ -27,7 +27,7 @@ on:
 
 jobs:
   build:
-    runs-on: ${{ fromJSON('{"win-amd64":"windows-latest","linux-amd64":"ubuntu-latest","linux-arm64":"ubuntu-24.04-arm"}')[inputs.platform] }}
+    runs-on: ${{ fromJSON('{"win-amd64":"windows-latest","mac-amd64":"macos-26","mac-arm64":"macos-26","linux-amd64":"ubuntu-latest","linux-arm64":"ubuntu-24.04-arm"}')[inputs.platform] }}
     outputs:
       version: ${{ steps.version.outputs.v }}
     steps:
@@ -43,7 +43,7 @@ jobs:
         run: choco install llvm cmake ninja -y
 
       - name: Install clang 20 (Linux)
-        if: inputs.platform != 'win-amd64'
+        if: startsWith(inputs.platform, 'linux-')
         run: |
           sudo apt-get update
           sudo apt-get install -y wget gnupg lsb-release
@@ -53,6 +53,18 @@ jobs:
           sudo apt-get install -y clang-20 lld-20
           sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-20 200
           sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-20 200
+
+      - name: Install build deps (mac-amd64)
+        if: inputs.platform == 'mac-amd64'
+        run: |
+          brew update
+          brew install llvm cmake ninja vulkan-loader molten-vk
+
+      - name: Install build deps (mac-arm64)
+        if: inputs.platform == 'mac-arm64'
+        run: |
+          brew update
+          brew install llvm cmake ninja vulkan-loader molten-vk
 
       - name: Install build deps (linux-amd64)
         if: inputs.platform == 'linux-amd64'
@@ -80,8 +92,8 @@ jobs:
 
       - name: Configure
         env:
-          CC: ${{ inputs.platform == 'win-amd64' && '' || 'clang-20' }}
-          CXX: ${{ inputs.platform == 'win-amd64' && '' || 'clang++-20' }}
+          CC: ${{ startsWith(inputs.platform, 'linux-') && 'clang-20' || '' }}
+          CXX: ${{ startsWith(inputs.platform, 'linux-') && 'clang++-20' || '' }}
         run: cmake --preset ${{ inputs.platform }} -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
 
       - name: Build and install
@@ -107,7 +119,7 @@ jobs:
           cd out/install
           7z a "rexglue-sdk-${{ steps.version.outputs.v }}-${{ inputs.platform }}.zip" ${{ inputs.platform }}
 
-      - name: Package (Linux)
+      - name: Package (Unix)
         if: inputs.platform != 'win-amd64'
         run: |
           cd out/install

@@ -1,0 +1,19 @@
+name: Build rexglue-sdk mac-amd64
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  build:
+    uses: ./.github/workflows/_build-platform.yaml
+    with:
+      platform: mac-amd64
+      ref: ${{ github.ref }}
+      publish_mode: release
+    secrets: inherit
