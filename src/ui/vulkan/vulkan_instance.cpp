@@ -117,6 +117,11 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
     requested_extensions.emplace("VK_KHR_win32_surface",
                                  &vulkan_instance->extensions_.ext_KHR_win32_surface);
 #endif
+#ifdef VK_USE_PLATFORM_METAL_EXT
+    // #217.
+    requested_extensions.emplace("VK_EXT_metal_surface",
+                                 &vulkan_instance->extensions_.ext_EXT_metal_surface);
+#endif
   }
 
   std::vector<const char*> enabled_extensions;
@@ -378,6 +383,11 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
 #ifdef VK_USE_PLATFORM_WIN32_KHR
   if (vulkan_instance->extensions_.ext_KHR_win32_surface) {
 #include <rex/ui/vulkan/functions/instance_khr_win32_surface.inc>
+  }
+#endif
+#ifdef VK_USE_PLATFORM_METAL_EXT
+  if (vulkan_instance->extensions_.ext_EXT_metal_surface) {
+#include <rex/ui/vulkan/functions/instance_ext_metal_surface.inc>
   }
 #endif
   if (vulkan_instance->extensions_.ext_KHR_surface) {

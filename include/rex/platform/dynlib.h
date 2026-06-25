@@ -65,6 +65,12 @@ inline constexpr const char* kVulkanLoader = "libvulkan.so.1";
 inline constexpr const char* kRenderDoc = "librenderdoc.so";
 inline constexpr const char* kSpirvToolsSdkPath = "bin/libSPIRV-Tools-shared.so";
 
+#elif REX_PLATFORM_MAC
+
+inline constexpr const char* kVulkanLoader = "libvulkan.1.dylib";
+inline constexpr const char* kRenderDoc = "librenderdoc.dylib";
+inline constexpr const char* kSpirvToolsSdkPath = "bin/libSPIRV-Tools-shared.dylib";
+
 #else
 #error No library names provided for the target platform.
 #endif
