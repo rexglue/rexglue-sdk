@@ -281,6 +281,14 @@ class PosixConditionBase {
                         ? std::chrono::steady_clock::time_point::max()
                         : start_time + timeout;
 
+    // The poll interval backs off exponentially (capped) the longer nothing
+    // is signaled, so a long idle wait doesn't keep re-locking every handle's
+    // mutex ~1000 times/sec (measured as a real CPU cost on waits across
+    // several handles, e.g. AudioSystem's per-client semaphore WaitAny).
+    // Freshly started/likely-to-resolve-soon waits still poll at 1ms.
+    auto poll_interval = std::chrono::milliseconds(1);
+    constexpr auto kMaxPollInterval = std::chrono::milliseconds(16);
+
     while (true) {
       size_t first_signaled = std::numeric_limits<size_t>::max();
       bool condition_met = false;
@@ -358,12 +366,13 @@ class PosixConditionBase {
       }
 
       if (timeout == std::chrono::milliseconds::max()) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::this_thread::sleep_for(poll_interval);
       } else {
         auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - now);
-        auto sleep_time = std::min(remaining, std::chrono::milliseconds(1));
+        auto sleep_time = std::min(remaining, poll_interval);
         std::this_thread::sleep_for(sleep_time);
       }
+      poll_interval = std::min(poll_interval * 2, kMaxPollInterval);
     }
   }
 
