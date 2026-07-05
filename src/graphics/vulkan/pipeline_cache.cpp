@@ -1111,8 +1111,8 @@ bool VulkanPipelineCache::ConfigurePipeline(
     }
   }
 
-  bool use_async = REXCVAR_GET(async_shader_compilation) && !creation_threads_.empty() &&
-                   pixel_shader && placeholder_pixel_shader_ != VK_NULL_HANDLE;
+  bool use_async = REXCVAR_GET(async_shader_compilation) && !creation_threads_.empty();
+  bool use_placeholder_swap = use_async && pixel_shader && placeholder_pixel_shader_ != VK_NULL_HANDLE;
   uint8_t async_priority = pipeline_util::kPriorityLowest;
   if (use_async) {
     uint32_t bound_rts =
@@ -1159,20 +1159,34 @@ bool VulkanPipelineCache::ConfigurePipeline(
   bool queued_async_creation = false;
   if (use_async) {
     creation_arguments_real.priority = async_priority;
-    PipelineCreationArguments creation_arguments_placeholder;
-    if (TryGetPipelineCreationArgumentsForDescription(description, &pipeline,
-                                                      creation_arguments_placeholder, true)) {
-      pipeline.second.is_placeholder.store(true, std::memory_order_release);
-      if (EnsurePipelineCreated(creation_arguments_placeholder, placeholder_pixel_shader_)) {
-        {
-          std::lock_guard<std::mutex> lock(creation_request_lock_);
-          creation_queue_.push(creation_arguments_real);
+    if (use_placeholder_swap) {
+      PipelineCreationArguments creation_arguments_placeholder;
+      if (TryGetPipelineCreationArgumentsForDescription(description, &pipeline,
+                                                        creation_arguments_placeholder, true)) {
+        pipeline.second.is_placeholder.store(true, std::memory_order_release);
+        if (EnsurePipelineCreated(creation_arguments_placeholder, placeholder_pixel_shader_)) {
+          {
+            std::lock_guard<std::mutex> lock(creation_request_lock_);
+            creation_queue_.push(creation_arguments_real);
+          }
+          creation_request_cond_.notify_one();
+          queued_async_creation = true;
+        } else {
+          pipeline.second.is_placeholder.store(false, std::memory_order_release);
         }
-        creation_request_cond_.notify_one();
-        queued_async_creation = true;
-      } else {
-        pipeline.second.is_placeholder.store(false, std::memory_order_release);
       }
+    } else {
+      // No pixel shader (e.g. depth/shadow-only pipelines): there is nothing
+      // cheaper to substitute while the real pipeline compiles on a
+      // background thread, so skip drawing with it for a few frames instead
+      // of blocking the render thread on synchronous compilation.
+      pipeline.second.is_placeholder.store(true, std::memory_order_release);
+      {
+        std::lock_guard<std::mutex> lock(creation_request_lock_);
+        creation_queue_.push(creation_arguments_real);
+      }
+      creation_request_cond_.notify_one();
+      queued_async_creation = true;
     }
   }
 
