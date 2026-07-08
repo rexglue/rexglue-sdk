@@ -63,10 +63,14 @@ if(REXGLUE_USE_D3D12)
     )
 endif()
 
-# Platform-specific sources (windowing itself is SDL3, platform-independent)
+# Platform-specific surface shims (windowing itself is SDL3, platform-independent)
 if(WIN32)
     set(REXUI_PLATFORM_SOURCES
         surface_win.cpp
+    )
+elseif(APPLE)
+    set(REXUI_PLATFORM_SOURCES
+        surface_mac.cpp
     )
 else()
     set(REXUI_PLATFORM_SOURCES
@@ -139,7 +143,7 @@ if(REXGLUE_USE_VULKAN)
 endif()
 
 # Platform-specific dependencies
-if(NOT WIN32)
+if(UNIX AND NOT APPLE)
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(X11_XCB REQUIRED x11-xcb)
 
@@ -159,5 +163,3 @@ if(REXGLUE_USE_D3D12)
         dxc-headers
     )
 endif()
-
-

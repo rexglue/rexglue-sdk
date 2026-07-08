@@ -68,12 +68,20 @@ class WindowSDL final : public Window {
   void PerformClose();
   void DestroySDLWindow();
 
+#if REX_PLATFORM_MAC
+  void DestroyMetalView();
+  void* GetOrCreateMetalLayer();
+#endif
+
   void ApplyCursorVisibilityNow();
   void RearmCursorAutoHideTimer();
 
   SDL_Window* sdl_window_ = nullptr;
   SDL_WindowID sdl_window_id_ = 0;
   std::atomic<bool> paint_pending_{false};
+#if REX_PLATFORM_MAC
+  void* sdl_metal_view_ = nullptr;
+#endif
   // Auto-hide cursor bookkeeping (CursorVisibility::kAutoHidden).
   SDL_TimerID cursor_hide_timer_ = 0;
 };

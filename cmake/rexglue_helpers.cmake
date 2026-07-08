@@ -128,18 +128,27 @@ endfunction()
 # runtime DLL staging is the host's job (see rexglue_configure_target).
 #==========================================================
 function(rexglue_apply_target_settings target_name)
+    set(_rexglue_target_processor "${CMAKE_SYSTEM_PROCESSOR}")
+    if(APPLE AND CMAKE_OSX_ARCHITECTURES)
+        list(LENGTH CMAKE_OSX_ARCHITECTURES _rexglue_osx_arch_count)
+        if(_rexglue_osx_arch_count GREATER 1)
+            message(FATAL_ERROR "ReXGlue macOS consumers expect a single CMAKE_OSX_ARCHITECTURES value")
+        endif()
+        list(GET CMAKE_OSX_ARCHITECTURES 0 _rexglue_target_processor)
+    endif()
+
     if(UNIX AND NOT APPLE)
         # Large executable support
-        if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+        if(_rexglue_target_processor MATCHES "x86_64|AMD64")
             target_link_options(${target_name} PRIVATE -Wl,--no-relax)
             target_compile_options(${target_name} PRIVATE -mcmodel=large)
-        elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|ARM64")
+        elseif(_rexglue_target_processor MATCHES "aarch64|ARM64|arm64")
             target_compile_options(${target_name} PRIVATE -march=armv8-a)
         endif()
     endif()
 
     if(NOT MSVC)
-        if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+        if(_rexglue_target_processor MATCHES "x86_64|AMD64")
             target_compile_options(${target_name} PRIVATE -msse4.1)
         endif()
     endif()
@@ -149,7 +158,7 @@ endfunction()
 # rexglue_configure_target(<target>) - Host application
 #
 # Adds:
-#   - Platform entry point source (windowed_app_main_*.cpp)
+#   - SDL3 entry point source (windowed_app_main_sdl.cpp)
 #   - ReXApp base class source (rex_app.cpp)
 #   - Build-config define for the version stamp
 #   - $ORIGIN RPATH on UNIX so the host finds librexruntime.so next to itself
@@ -160,18 +169,8 @@ endfunction()
 function(rexglue_configure_target target_name)
     cmake_parse_arguments(ARG "" "" "GPU_PLUGINS" ${ARGN})
 
-    if(WIN32)
-        target_sources(${target_name} PRIVATE
-            ${REXGLUE_SHARE_DIR}/windowed_app_main_win.cpp)
-    elseif(APPLE)
-        target_sources(${target_name} PRIVATE
-            ${REXGLUE_SHARE_DIR}/windowed_app_main_mac.cpp)
-    else()
-        target_sources(${target_name} PRIVATE
-            ${REXGLUE_SHARE_DIR}/windowed_app_main_posix.cpp)
-    endif()
-
     target_sources(${target_name} PRIVATE
+        ${REXGLUE_SHARE_DIR}/windowed_app_main_sdl.cpp
         ${REXGLUE_SHARE_DIR}/rex_app.cpp)
 
     target_compile_definitions(${target_name} PRIVATE

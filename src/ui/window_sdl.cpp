@@ -29,6 +29,9 @@
 
 #if REX_PLATFORM_WIN32
 #include <rex/ui/surface_win.h>
+#elif REX_PLATFORM_MAC
+#include <SDL3/SDL_metal.h>
+#include <rex/ui/surface_mac.h>
 #else
 #include <X11/Xlib-xcb.h>
 #include <rex/ui/surface_gnulinux.h>
@@ -130,6 +133,9 @@ WindowSDL::~WindowSDL() {
 bool WindowSDL::OpenImpl() {
   // SDL window coordinates are physical pixels on Windows and X11.
   SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN;
+#if REX_PLATFORM_MAC
+  flags |= SDL_WINDOW_METAL;
+#endif
   sdl_window_ = SDL_CreateWindow(GetTitle().c_str(), int(SizeToPhysical(GetDesiredLogicalWidth())),
                                  int(SizeToPhysical(GetDesiredLogicalHeight())), flags);
   if (!sdl_window_) {
@@ -138,6 +144,15 @@ bool WindowSDL::OpenImpl() {
   }
   sdl_window_id_ = SDL_GetWindowID(sdl_window_);
   sdl_app_context().RegisterWindow(sdl_window_id_, this);
+
+#if REX_PLATFORM_MAC
+  // Create the Metal view before any fullscreen/display sizing changes so the
+  // drawable tracks the initial transition as part of SDL's native lifecycle.
+  if (!GetOrCreateMetalLayer()) {
+    DestroySDLWindow();
+    return false;
+  }
+#endif
 
   // Center on the requested display before fullscreen so SDL resolves
   // fullscreen against it. 1-based enumeration order; 0 = system default.
@@ -201,6 +216,9 @@ void WindowSDL::DestroySDLWindow() {
     SDL_RemoveTimer(cursor_hide_timer_);
     cursor_hide_timer_ = 0;
   }
+#if REX_PLATFORM_MAC
+  DestroyMetalView();
+#endif
   if (sdl_window_) {
     sdl_app_context().UnregisterWindow(sdl_window_id_);
     SDL_DestroyWindow(sdl_window_);
@@ -209,13 +227,44 @@ void WindowSDL::DestroySDLWindow() {
   }
 }
 
-void* WindowSDL::GetNativeWindowHandle() const {
-#if REX_PLATFORM_WIN32
+#if REX_PLATFORM_MAC
+void WindowSDL::DestroyMetalView() {
+  if (!sdl_metal_view_) {
+    return;
+  }
+  SDL_Metal_DestroyView(static_cast<SDL_MetalView>(sdl_metal_view_));
+  sdl_metal_view_ = nullptr;
+}
+
+void* WindowSDL::GetOrCreateMetalLayer() {
   if (!sdl_window_) {
     return nullptr;
   }
+  if (!sdl_metal_view_) {
+    sdl_metal_view_ = SDL_Metal_CreateView(sdl_window_);
+    if (!sdl_metal_view_) {
+      REXLOG_ERROR("SDL_Metal_CreateView failed: {}", SDL_GetError());
+      return nullptr;
+    }
+  }
+  void* layer = SDL_Metal_GetLayer(static_cast<SDL_MetalView>(sdl_metal_view_));
+  if (!layer) {
+    REXLOG_ERROR("SDL_Metal_GetLayer failed: {}", SDL_GetError());
+  }
+  return layer;
+}
+#endif
+
+void* WindowSDL::GetNativeWindowHandle() const {
+  if (!sdl_window_) {
+    return nullptr;
+  }
+#if REX_PLATFORM_WIN32
   return SDL_GetPointerProperty(SDL_GetWindowProperties(sdl_window_),
                                 SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
+#elif REX_PLATFORM_MAC
+  return SDL_GetPointerProperty(SDL_GetWindowProperties(sdl_window_),
+                                SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, nullptr);
 #else
   return nullptr;
 #endif
@@ -300,9 +349,9 @@ std::unique_ptr<Surface> WindowSDL::CreateSurfaceImpl(Surface::TypeFlags allowed
   if (!sdl_window_) {
     return nullptr;
   }
-  SDL_PropertiesID props = SDL_GetWindowProperties(sdl_window_);
 #if REX_PLATFORM_WIN32
   if (allowed_types & Surface::kTypeFlag_Win32Hwnd) {
+    SDL_PropertiesID props = SDL_GetWindowProperties(sdl_window_);
     HWND hwnd = static_cast<HWND>(
         SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr));
     HINSTANCE hinstance = static_cast<HINSTANCE>(
@@ -311,8 +360,15 @@ std::unique_ptr<Surface> WindowSDL::CreateSurfaceImpl(Surface::TypeFlags allowed
       return std::make_unique<Win32HwndSurface>(hinstance, hwnd);
     }
   }
+#elif REX_PLATFORM_MAC
+  if (allowed_types & Surface::kTypeFlag_CAMetalLayer) {
+    if (void* layer = GetOrCreateMetalLayer()) {
+      return std::make_unique<CAMetalLayerSurface>(sdl_window_, layer);
+    }
+  }
 #else
   if (allowed_types & Surface::kTypeFlag_XcbWindow) {
+    SDL_PropertiesID props = SDL_GetWindowProperties(sdl_window_);
     auto* display = static_cast<Display*>(
         SDL_GetPointerProperty(props, SDL_PROP_WINDOW_X11_DISPLAY_POINTER, nullptr));
     auto x11_window = static_cast<xcb_window_t>(

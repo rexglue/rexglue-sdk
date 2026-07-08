@@ -12,6 +12,7 @@
 #include <rex/ui/windowed_app_context_sdl.h>
 
 #include <cstdlib>
+#include <vector>
 
 #include <SDL3/SDL.h>
 
@@ -31,10 +32,9 @@ SDLWindowedAppContext::~SDLWindowedAppContext() {
 }
 
 bool SDLWindowedAppContext::Initialize() {
-#if !REX_PLATFORM_WIN32
-  // The Surface types the presenters consume are Win32Hwnd and XcbWindow;
-  // force X11 so an xcb connection is retrievable (there is no Wayland
-  // surface type).
+#if REX_PLATFORM_GNU_LINUX
+  // The Linux surface type the presenters consume is XcbWindow, so force X11
+  // and keep SDL off Wayland where no surface shim exists yet.
   SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "x11");
 #endif
   if (!SDL_InitSubSystem(SDL_INIT_VIDEO)) {
@@ -94,6 +94,27 @@ void SDLWindowedAppContext::ProcessEvent(SDL_Event& event) {
     return;
   }
   switch (event.type) {
+    case SDL_EVENT_QUIT: {
+      if (windows_.empty()) {
+        QuitFromUIThread();
+        break;
+      }
+      std::vector<WindowSDL*> windows_to_close;
+      windows_to_close.reserve(windows_.size());
+      for (const auto& [window_id, window] : windows_) {
+        (void)window_id;
+        windows_to_close.push_back(window);
+      }
+      for (WindowSDL* window : windows_to_close) {
+        if (window && window->phase() == Window::Phase::kOpen) {
+          window->RequestClose();
+        }
+        if (HasQuitFromUIThread()) {
+          break;
+        }
+      }
+      break;
+    }
     case SDL_EVENT_KEY_DOWN:
     case SDL_EVENT_KEY_UP: {
       if (WindowSDL* window = GetWindow(event.key.windowID)) {
