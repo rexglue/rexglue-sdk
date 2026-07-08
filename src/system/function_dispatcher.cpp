@@ -222,7 +222,7 @@ bool FunctionDispatcher::InitializeFunctionTable(uint32_t code_base, uint32_t co
 FunctionDispatcher::ModuleTableInfo* FunctionDispatcher::FindModuleByAddress(
     uint32_t guest_address) {
   for (auto& mod : module_tables_) {
-    if (guest_address >= mod.code_base && guest_address < mod.thunk_limit) {
+    if (guest_address >= mod.image_base && guest_address < mod.thunk_limit) {
       return &mod;
     }
   }
@@ -241,18 +241,28 @@ bool FunctionDispatcher::SetFunction(uint32_t guest_address, ::PPCFunc* func) {
   std::lock_guard<std::recursive_mutex> lock(dispatch_mutex_);
   assert_true(!module_tables_.empty());
 
-  if (!FindModuleByAddress(guest_address)) {
+  auto* mod = FindModuleByAddress(guest_address);
+  if (!mod) {
     REXLOG_ERROR("SetFunction: address {:08X} outside all registered module ranges", guest_address);
     return false;
   }
 
   function_table_[guest_address] = func;
 
-  if (!memory_->SetFunction(guest_address, func)) {
-    REXLOG_ERROR("SetFunction: dispatcher / Memory module-table state out of sync at {:08X}",
-                 guest_address);
-    function_table_.erase(guest_address);
-    return false;
+  // The memory-side fast dispatch table only covers
+  // [code_base, code_base + code_size + thunk_reserve). Import thunks in
+  // non-executable sections (e.g. Xbox 'xidata') sit below code_base; the
+  // generated indirect-call path bounds-checks against code_base and routes
+  // those through ResolveIndirectFunction -> GetFunction (the function_table_
+  // map above), so there is no fast-table slot to write. Only sync the memory
+  // table for addresses it actually covers.
+  if (guest_address >= mod->code_base) {
+    if (!memory_->SetFunction(guest_address, func)) {
+      REXLOG_ERROR("SetFunction: dispatcher / Memory module-table state out of sync at {:08X}",
+                   guest_address);
+      function_table_.erase(guest_address);
+      return false;
+    }
   }
 
   if (recording_) {
