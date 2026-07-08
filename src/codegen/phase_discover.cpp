@@ -95,7 +95,8 @@ void discoverFunction(CodegenContext& ctx, uint32_t funcAddr,
   }
 
   // Pass pdataSize so forward branches within function extent are correctly identified
-  auto result = discoverBlocks(decoded, funcAddr, *region, knownFunctions, pdataSize);
+  auto result = discoverBlocks(decoded, funcAddr, *region, knownFunctions, pdataSize,
+                               &ctx.Config().switchTables);
 
   if (result.blocks.empty()) {
     REXCODEGEN_WARN("Analyze: no blocks found for function 0x{:08X}", funcAddr);

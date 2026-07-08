@@ -1812,10 +1812,10 @@ std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, uint32_t bctrAd
 // Block Discovery
 //=============================================================================
 
-BlockDiscoveryResult discoverBlocks(DecodedBinary& decoded, uint32_t entryPoint,
-                                    const CodeRegion& containingRegion,
-                                    const std::unordered_set<uint32_t>& knownFunctions,
-                                    uint32_t pdataSize) {
+BlockDiscoveryResult discoverBlocks(
+    DecodedBinary& decoded, uint32_t entryPoint, const CodeRegion& containingRegion,
+    const std::unordered_set<uint32_t>& knownFunctions, uint32_t pdataSize,
+    const std::unordered_map<uint32_t, JumpTable>* manualSwitchTables) {
   BlockDiscoveryResult result;
   std::unordered_set<uint32_t> visited;
   std::unordered_set<uint32_t> blockStarts;
@@ -1916,20 +1916,41 @@ BlockDiscoveryResult discoverBlocks(DecodedBinary& decoded, uint32_t entryPoint,
           }
           // Do not break: continue scanning the fall-through path.
         } else if (insn->opcode == rex::codegen::ppc::Opcode::bcctr) {
-          // Unconditional bctr - try to detect jump table
+          // Unconditional bctr - prefer a manually configured table, then try
+          // automatic detection. Manual tables are authoritative because they
+          // are commonly needed when the compiler emits a table without an
+          // adjacent bounds check.
           REXCODEGEN_TRACE("discoverBlocks: bctr at 0x{:08X} in func 0x{:08X}, funcEnd=0x{:08X}",
                            addr, entryPoint, funcEnd);
-          auto jt = detectJumpTable(decoded, addr, containingRegion, entryPoint, funcEnd);
+          std::optional<JumpTable> jt;
+          if (manualSwitchTables) {
+            auto manualIt = manualSwitchTables->find(addr);
+            if (manualIt != manualSwitchTables->end()) {
+              jt = manualIt->second;
+              REXCODEGEN_TRACE(
+                  "discoverBlocks: using manual jump table at bctr 0x{:08X} with {} targets", addr,
+                  jt->targets.size());
+            }
+          }
+          if (!jt) {
+            jt = detectJumpTable(decoded, addr, containingRegion, entryPoint, funcEnd);
+          }
           if (jt) {
             REXCODEGEN_TRACE("discoverBlocks: detected jump table at bctr 0x{:08X} with {} targets",
                              addr, jt->targets.size());
             result.jumpTables.push_back(*jt);
-            // Jump table targets are definitionally part of this function
-            // Extend funcEnd if any target exceeds it (within region bounds)
-            // This handles out-of-line switch case code
             for (uint32_t t : jt->targets) {
               if (t == 0)
                 continue;  // sentinel from null-padding detection
+
+              // A jump table may tail-dispatch to another known function.
+              // Do not import that function's blocks into the current function.
+              if (t != entryPoint && knownFunctions.contains(t)) {
+                continue;
+              }
+
+              // Internal jump table targets are part of this function. Extend
+              // funcEnd for out-of-line case blocks within the code region.
               if (t >= funcEnd && t < containingRegion.end) {
                 funcEnd = t + 4;  // Extend to include this target
               }

@@ -253,10 +253,10 @@ struct BlockDiscoveryResult {
  * @param knownFunctions Set of known function entry points (to detect tail calls)
  * @return BlockDiscoveryResult containing blocks, branches, and jump tables
  */
-BlockDiscoveryResult discoverBlocks(DecodedBinary& decoded, uint32_t entryPoint,
-                                    const CodeRegion& containingRegion,
-                                    const std::unordered_set<uint32_t>& knownFunctions,
-                                    uint32_t pdataSize = 0);
+BlockDiscoveryResult discoverBlocks(
+    DecodedBinary& decoded, uint32_t entryPoint, const CodeRegion& containingRegion,
+    const std::unordered_set<uint32_t>& knownFunctions, uint32_t pdataSize = 0,
+    const std::unordered_map<uint32_t, JumpTable>* manualSwitchTables = nullptr);
 
 //=============================================================================
 // Jump Table Detection
