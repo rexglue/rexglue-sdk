@@ -1413,18 +1413,26 @@ bool BaseHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
     return false;
   }*/
   // Instead, we just protect it, if we can.
-  if (page_size_ == rex::memory::page_size() ||
-      ((base_page_entry.region_page_count << page_size_shift_) % rex::memory::page_size() == 0 &&
-       ((base_page_number << page_size_shift_) % rex::memory::page_size() == 0))) {
-    // TODO(benvanik): figure out why games are using memory after releasing
-    // it. It's possible this is some virtual/physical stuff where the GPU
-    // still can access it.
-    if (REXCVAR_GET(protect_on_release)) {
-      if (!rex::memory::Protect(TranslateRelative(base_page_number << page_size_shift_),
-                                base_page_entry.region_page_count << page_size_shift_,
-                                rex::memory::PageAccess::kNoAccess, nullptr)) {
-        REXSYS_WARN("BaseHeap::Release failed due to host VirtualProtect failure");
-      }
+  // TODO(benvanik): figure out why games are using memory after releasing
+  // it. It's possible this is some virtual/physical stuff where the GPU
+  // still can access it.
+  if (REXCVAR_GET(protect_on_release)) {
+    uint8_t* host_address = TranslateRelative(base_page_number << page_size_shift_);
+    size_t host_length = size_t(base_page_entry.region_page_count) << page_size_shift_;
+    uint32_t host_page_size = uint32_t(rex::memory::page_size());
+    if (page_size_ != host_page_size) {
+      // See BaseHeap::Protect for why this rounding is needed - the host
+      // page size (and, for the 0xE0000000 physical range,
+      // host_address_offset_) may not divide our page granularity evenly.
+      size_t aligned_start = reinterpret_cast<size_t>(host_address) & ~(size_t(host_page_size) - 1);
+      size_t aligned_end = rex::round_up(reinterpret_cast<size_t>(host_address) + host_length,
+                                         size_t(host_page_size));
+      host_address = reinterpret_cast<uint8_t*>(aligned_start);
+      host_length = aligned_end - aligned_start;
+    }
+    if (!rex::memory::Protect(host_address, host_length, rex::memory::PageAccess::kNoAccess,
+                              nullptr)) {
+      REXSYS_WARN("BaseHeap::Release failed due to host VirtualProtect failure");
     }
   }
 
@@ -1491,27 +1499,36 @@ bool BaseHeap::Protect(uint32_t address, uint32_t size, uint32_t protect, uint32
   }
 
   // Attempt host change (hopefully won't fail).
-  // We can only do this if our size matches system page granularity.
   uint32_t page_count = end_page_number - start_page_number + 1;
-  if (page_size_ == rex::memory::page_size() ||
-      (((page_count << page_size_shift_) % rex::memory::page_size() == 0) &&
-       ((start_page_number << page_size_shift_) % rex::memory::page_size() == 0))) {
-    memory::PageAccess old_protect_access;
-    if (!rex::memory::Protect(TranslateRelative(start_page_number << page_size_shift_),
-                              page_count << page_size_shift_, ToPageAccess(protect),
-                              old_protect ? &old_protect_access : nullptr)) {
-      REXSYS_ERROR("BaseHeap::Protect failed due to host VirtualProtect failure");
-      return false;
-    }
+  uint8_t* host_address = TranslateRelative(start_page_number << page_size_shift_);
+  size_t host_length = size_t(page_count) << page_size_shift_;
+  uint32_t host_page_size = uint32_t(rex::memory::page_size());
+  if (page_size_ != host_page_size) {
+    // The host page granularity can be bigger than our page granularity (for
+    // instance, 16 KB host pages on Apple Silicon vs. 4 KB guest pages), and
+    // heaps with a non-zero host_address_offset_ (the 0xE0000000 physical
+    // range) additionally shift every host address by a fixed amount that
+    // doesn't necessarily land on a host page boundary. Round the region out
+    // to the enclosing host pages - the same coarsening VirtualProtect
+    // already does implicitly on Windows - instead of either dropping the
+    // request or handing the host a misaligned address, which makes
+    // mprotect() fail outright on POSIX.
+    size_t aligned_start = reinterpret_cast<size_t>(host_address) & ~(size_t(host_page_size) - 1);
+    size_t aligned_end =
+        rex::round_up(reinterpret_cast<size_t>(host_address) + host_length, size_t(host_page_size));
+    host_address = reinterpret_cast<uint8_t*>(aligned_start);
+    host_length = aligned_end - aligned_start;
+  }
 
-    if (old_protect) {
-      *old_protect = FromPageAccess(old_protect_access);
-    }
-  } else {
-    REXSYS_WARN("BaseHeap::Protect: ignoring request as not 4k page aligned");
-#if !REX_PLATFORM_MAC
+  memory::PageAccess old_protect_access;
+  if (!rex::memory::Protect(host_address, host_length, ToPageAccess(protect),
+                            old_protect ? &old_protect_access : nullptr)) {
+    REXSYS_ERROR("BaseHeap::Protect failed due to host VirtualProtect failure");
     return false;
-#endif
+  }
+
+  if (old_protect) {
+    *old_protect = FromPageAccess(old_protect_access);
   }
 
   // Perform table change.
