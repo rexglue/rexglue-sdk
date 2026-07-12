@@ -1923,10 +1923,12 @@ BlockDiscoveryResult discoverBlocks(
           REXCODEGEN_TRACE("discoverBlocks: bctr at 0x{:08X} in func 0x{:08X}, funcEnd=0x{:08X}",
                            addr, entryPoint, funcEnd);
           std::optional<JumpTable> jt;
+          bool jtIsManual = false;
           if (manualSwitchTables) {
             auto manualIt = manualSwitchTables->find(addr);
             if (manualIt != manualSwitchTables->end()) {
               jt = manualIt->second;
+              jtIsManual = true;
               REXCODEGEN_TRACE(
                   "discoverBlocks: using manual jump table at bctr 0x{:08X} with {} targets", addr,
                   jt->targets.size());
@@ -1943,9 +1945,27 @@ BlockDiscoveryResult discoverBlocks(
               if (t == 0)
                 continue;  // sentinel from null-padding detection
 
-              // A jump table may tail-dispatch to another known function.
-              // Do not import that function's blocks into the current function.
+              // A jump table target may tail-dispatch to another known
+              // function; don't import that function's blocks into this one
+              // (mirrors isInternalTarget's treatment of regular branches,
+              // and now also applies to auto-detected table targets, not
+              // just manual ones).
               if (t != entryPoint && knownFunctions.contains(t)) {
+                if (jtIsManual) {
+                  // A manually configured table is authoritative, so a drop
+                  // here likely means the target was mis-registered as a
+                  // function entry elsewhere. Warn so it's diagnosable
+                  // instead of silently discarding a user-provided target.
+                  REXCODEGEN_WARN(
+                      "discoverBlocks: manual jump table at bctr 0x{:08X} has target 0x{:08X} "
+                      "that is registered as a known function entry; dropping it",
+                      addr, t);
+                } else {
+                  REXCODEGEN_TRACE(
+                      "discoverBlocks: auto-detected jump table at bctr 0x{:08X} has target "
+                      "0x{:08X} that is a known function entry; dropping it",
+                      addr, t);
+                }
                 continue;
               }
 
