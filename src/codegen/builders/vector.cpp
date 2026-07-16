@@ -1329,25 +1329,38 @@ bool build_vpkd3d128(BuilderContext& ctx) {
       if (ctx.insn.operands[3] != 2 || ctx.insn.operands[4] > 2)
         REXCODEGEN_WARN("Unexpected float16_4 pack instruction at {:X}", ctx.base);
 
+      // The pack is frequently issued in-place (dst == src, e.g.
+      // `vpkd3d128 vD, vD, 5, 2, 0`). With shift=0 the loop stores u16[3..2]
+      // into the same u64 that holds source lanes u32[1..0] before those
+      // lanes are read, corrupting half the packed output. Snapshot the four
+      // source dwords up front and read only the snapshot inside the loop.
+      // The scope block keeps the locals from colliding when a function
+      // contains multiple float16_4 packs.
+      ctx.println("\t{{");
+      ctx.println("\t  uint32_t _vpks0 = {}.u32[0];", ctx.v(ctx.insn.operands[1]));
+      ctx.println("\t  uint32_t _vpks1 = {}.u32[1];", ctx.v(ctx.insn.operands[1]));
+      ctx.println("\t  uint32_t _vpks2 = {}.u32[2];", ctx.v(ctx.insn.operands[1]));
+      ctx.println("\t  uint32_t _vpks3 = {}.u32[3];", ctx.v(ctx.insn.operands[1]));
+
       for (size_t i = 0; i < 4; i++) {
         size_t srcIdx = 3 - i;  // Guest element i is at host array index 3-i
         size_t dstIdx = (3 - i) + (2 * ctx.insn.operands[4]);  // Output also reversed
-        ctx.println("\t{}.u32 = ({}.u32[{}]&0x7FFFFFFF);", ctx.temp(), ctx.v(ctx.insn.operands[1]),
-                    srcIdx);
+        ctx.println("\t  {}.u32 = (_vpks{}&0x7FFFFFFF);", ctx.temp(), srcIdx);
         ctx.println(
-            "\t{0}.u8[0] = ({1}.f32 != {1}.f32) || ({1}.f32 > 65504.0f) ? 0xFF : "
-            "(({2}.u32[{3}]&0x7f800000)>>23);",
-            ctx.v_temp(), ctx.temp(), ctx.v(ctx.insn.operands[1]), srcIdx);
-        ctx.println("\t{}.u16 = {}.u8[0] != 0xFF ? (({}.u32[{}]&0x7FE000)>>13) : 0x0;", ctx.temp(),
-                    ctx.v_temp(), ctx.v(ctx.insn.operands[1]), srcIdx);
+            "\t  {0}.u8[0] = ({1}.f32 != {1}.f32) || ({1}.f32 > 65504.0f) ? 0xFF : "
+            "((_vpks{2}&0x7f800000)>>23);",
+            ctx.v_temp(), ctx.temp(), srcIdx);
+        ctx.println("\t  {}.u16 = {}.u8[0] != 0xFF ? ((_vpks{}&0x7FE000)>>13) : 0x0;", ctx.temp(),
+                    ctx.v_temp(), srcIdx);
         ctx.println(
-            "\t{0}.u16[{1}] = {2}.u8[0] != 0xFF ? ({2}.u8[0] > 0x70 ? "
+            "\t  {0}.u16[{1}] = {2}.u8[0] != 0xFF ? ({2}.u8[0] > 0x70 ? "
             "((({2}.u8[0]-0x70)<<10)+{3}.u16) : (0x71-{2}.u8[0] > 31 ? 0x0 : "
             "((0x400+{3}.u16)>>(0x71-{2}.u8[0])))) : 0x7FFF;",
             ctx.v(ctx.insn.operands[0]), dstIdx, ctx.v_temp(), ctx.temp());
-        ctx.println("\t{}.u16[{}] |= (({}.u32[{}]&0x80000000)>>16);", ctx.v(ctx.insn.operands[0]),
-                    dstIdx, ctx.v(ctx.insn.operands[1]), srcIdx);
+        ctx.println("\t  {}.u16[{}] |= ((_vpks{}&0x80000000)>>16);", ctx.v(ctx.insn.operands[0]),
+                    dstIdx, srcIdx);
       }
+      ctx.println("\t}}");
       break;
     }
 
