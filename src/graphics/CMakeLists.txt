@@ -142,3 +142,41 @@ if(REXGLUE_USE_D3D12)
         dxguid
     )
 endif()
+
+if(REXGLUE_STATIC_RUNTIME)
+    # Static variant for single-binary hosts that construct the graphics
+    # system directly (RuntimeConfig.graphics) instead of dlopen'ing the
+    # plugin. Dependencies are PUBLIC so the host's final link pulls them.
+    add_library(rexgpu-xenos-static STATIC ${REXGPU_XENOS_SOURCES})
+    add_library(rex::gpu-xenos-static ALIAS rexgpu-xenos-static)
+
+    target_include_directories(rexgpu-xenos-static PRIVATE
+        ${REXGLUE_ROOT}/thirdparty/renderdoc
+        ${REXGLUE_ROOT}
+    )
+    target_compile_options(rexgpu-xenos-static PRIVATE -Wno-unused-variable)
+    target_link_libraries(rexgpu-xenos-static PUBLIC
+        rexruntime
+        xxHash::xxhash
+        snappy
+    )
+    if(REXGLUE_USE_VULKAN)
+        target_link_libraries(rexgpu-xenos-static PUBLIC
+            volk::volk
+            glslang::SPIRV
+            GPUOpen::VulkanMemoryAllocator
+            glslang
+            MachineIndependent
+            GenericCodeGen
+            OSDependent
+            OGLCompiler
+        )
+    endif()
+    if(REXGLUE_USE_D3D12)
+        target_link_libraries(rexgpu-xenos-static PUBLIC
+            d3d12
+            dxgi
+            dxguid
+        )
+    endif()
+endif()

@@ -48,7 +48,15 @@ set(REXSYSTEM_SOURCES
     xex_module.cpp
 )
 
-add_library(rexruntime SHARED ${REXSYSTEM_SOURCES})
+if(REXGLUE_STATIC_RUNTIME)
+    # Single-binary hosts: the runtime is linked into the executable. Guest
+    # DLL modules must then resolve rex symbols from the host (ENABLE_EXPORTS
+    # on the host target) instead of linking rexruntime themselves, or every
+    # module embeds a duplicate copy of runtime global state.
+    add_library(rexruntime STATIC ${REXSYSTEM_SOURCES})
+else()
+    add_library(rexruntime SHARED ${REXSYSTEM_SOURCES})
+endif()
 add_library(rex::runtime ALIAS rexruntime)
 add_library(rex::system ALIAS rexruntime)
 add_library(rex::kernel ALIAS rexruntime)
