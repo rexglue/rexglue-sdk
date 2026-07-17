@@ -27,6 +27,8 @@ namespace rex::runtime {
 
 namespace {
 
+constexpr bool kUseGuestMemoryFunctionTables = false;
+
 FunctionDispatcher* GetBoundFunctionDispatcher() {
   Runtime* runtime = Runtime::instance();
   return runtime ? runtime->function_dispatcher() : nullptr;
@@ -178,15 +180,14 @@ bool FunctionDispatcher::InitializeFunctionTable(uint32_t code_base, uint32_t co
     return false;
   }
 
-  uint32_t new_table_end = image_base + image_size + (code_size + kThunkReserveSize) * 2;
+  uint32_t new_image_end = image_base + image_size;
   uint32_t new_code_end = code_base + code_size + kThunkReserveSize;
   for (const auto& existing : module_tables_) {
-    uint32_t existing_table_end =
-        existing.image_base + existing.image_size + (existing.code_size + kThunkReserveSize) * 2;
+    uint32_t existing_image_end = existing.image_base + existing.image_size;
     uint32_t existing_code_end = existing.code_base + existing.code_size + kThunkReserveSize;
-    if (image_base < existing_table_end && new_table_end > existing.image_base) {
+    if (image_base < existing_image_end && new_image_end > existing.image_base) {
       REXLOG_ERROR("Module image range [{:08X}, {:08X}) overlaps existing [{:08X}, {:08X})",
-                   image_base, new_table_end, existing.image_base, existing_table_end);
+                   image_base, new_image_end, existing.image_base, existing_image_end);
       return false;
     }
     if (code_base < existing_code_end && new_code_end > existing.code_base) {
@@ -196,7 +197,8 @@ bool FunctionDispatcher::InitializeFunctionTable(uint32_t code_base, uint32_t co
     }
   }
 
-  if (!memory_->InitializeFunctionTable(code_base, code_size, image_base, image_size)) {
+  if (kUseGuestMemoryFunctionTables &&
+      !memory_->InitializeFunctionTable(code_base, code_size, image_base, image_size)) {
     REXLOG_ERROR("Failed to initialize guest memory function table");
     return false;
   }
@@ -248,7 +250,7 @@ bool FunctionDispatcher::SetFunction(uint32_t guest_address, ::PPCFunc* func) {
 
   function_table_[guest_address] = func;
 
-  if (!memory_->SetFunction(guest_address, func)) {
+  if (kUseGuestMemoryFunctionTables && !memory_->SetFunction(guest_address, func)) {
     REXLOG_ERROR("SetFunction: dispatcher / Memory module-table state out of sync at {:08X}",
                  guest_address);
     function_table_.erase(guest_address);
@@ -360,7 +362,9 @@ std::optional<std::pair<uint32_t, uint32_t>> FunctionDispatcher::UnregisterModul
 
   for (uint32_t addr : it->second.addresses) {
     function_table_.erase(addr);
-    memory_->SetFunction(addr, nullptr);
+    if (kUseGuestMemoryFunctionTables) {
+      memory_->SetFunction(addr, nullptr);
+    }
   }
 
   std::optional<std::pair<uint32_t, uint32_t>> cleared_range;
@@ -369,14 +373,18 @@ std::optional<std::pair<uint32_t, uint32_t>> FunctionDispatcher::UnregisterModul
     uint32_t pool_end = table_it->next_thunk_address;
     for (uint32_t addr = pool_start; addr < pool_end; addr += 4) {
       function_table_.erase(addr);
-      memory_->SetFunction(addr, nullptr);
+      if (kUseGuestMemoryFunctionTables) {
+        memory_->SetFunction(addr, nullptr);
+      }
     }
     cleared_range = std::make_pair(pool_start, pool_end);
 
     if (table_it->code_base == entrypoint_code_base_) {
       entrypoint_code_base_ = 0;
     }
-    memory_->DestroyFunctionTable(table_it->code_base);
+    if (kUseGuestMemoryFunctionTables) {
+      memory_->DestroyFunctionTable(table_it->code_base);
+    }
     module_tables_.erase(table_it);
   }
 

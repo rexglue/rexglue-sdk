@@ -61,6 +61,26 @@ TEST_CASE("FunctionDispatcher: caller_address routes thunk to caller's module po
   CHECK(dispatcher.GetFunction(thunk_b) == &DummyFn);
 }
 
+TEST_CASE("FunctionDispatcher: image overlap ignores sidecar function table space",
+          "[runtime][dispatcher]") {
+  auto& memory = GetTestMemory();
+  rex::runtime::ExportResolver resolver;
+  rex::runtime::FunctionDispatcher dispatcher(&memory, &resolver);
+
+  // Regression for Castlevania: Harmony of Despair. The main executable has a
+  // large recompiled code range, but its guest image still ends before player
+  // DLLs such as dllsoma.dll. The sidecar function table reservation must not
+  // expand the guest image range used for overlap checks.
+  REQUIRE(dispatcher.InitializeFunctionTable(0x82210000u, 0x69F4C8u, 0x82000000u, 0x960000u,
+                                             /*is_entrypoint=*/true));
+  REQUIRE(dispatcher.InitializeFunctionTable(0x830A0000u, 0x1DFF4u, 0x83090000u, 0x80000u));
+
+  uint32_t thunk = dispatcher.AllocateThunk(&DummyFn, 0x830A0000u);
+  CHECK(thunk >= 0x830A0000u + 0x1DFF4u);
+  CHECK(thunk < 0x830A0000u + 0x1DFF4u +
+                    rex::runtime::FunctionDispatcher::kThunkReserveSize);
+}
+
 TEST_CASE("FunctionDispatcher: AllocateThunk(0) uses the entrypoint pool only when explicit",
           "[runtime][dispatcher]") {
   // caller_address=0 is reserved for host-initiated allocations that have no
