@@ -14,6 +14,7 @@
 #pragma once
 
 #include <bit>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 
@@ -235,6 +236,57 @@ struct FPSCRRegister {
     setcsr(csr);
   }
 };
+
+// Xenon vmsum3fp128/vmsum4fp128 return QNaN when the single-precision dot
+// product overflows, not +/-inf. simde_mm_dp_ps gets this wrong: it computes in
+// single precision and saturates. The distinction is observable because it
+// flips comparisons -- inf is ordered against finite values, QNaN is not.
+//
+// Products of two floats are exact in double, so the only rounding is in the
+// accumulation and the final narrowing.
+inline float dotProductToGuestFloat(double acc) noexcept {
+  // Narrow first, then detect real overflow: a finite input that became
+  // infinite. Testing acc against FLT_MAX directly is wrong -- under
+  // round-to-nearest, doubles up to FLT_MAX + 2^103 narrow back to FLT_MAX
+  // without overflowing. Infinite inputs pass through; NaN propagates quieted.
+  const float result = static_cast<float>(acc);
+  if (std::isinf(result) && !std::isinf(acc)) {
+    return std::bit_cast<float>(uint32_t(0x7FC00000));
+  }
+  // Denormal outputs are flushed; the scalar path does not inherit the host FTZ
+  // mode the dp_ps path relied on.
+  if (result != 0.0f && (std::bit_cast<uint32_t>(result) & 0x7F800000u) == 0u) {
+    return std::bit_cast<float>(std::bit_cast<uint32_t>(result) & 0x80000000u);
+  }
+  return result;
+}
+
+// Guest elements are reversed relative to host lanes, so guest x,y,z are host
+// lanes 3,2,1 and w (lane 0) is excluded. Addition is not associative and the
+// order is observable under cancellation, so match Xenia's reduction: (x+z)+y.
+inline simde__m128 vmsum3fp(simde__m128 a, simde__m128 b) noexcept {
+  alignas(16) float av[4], bv[4];
+  simde_mm_store_ps(av, a);
+  simde_mm_store_ps(bv, b);
+  const double x = static_cast<double>(av[3]) * static_cast<double>(bv[3]);
+  const double y = static_cast<double>(av[2]) * static_cast<double>(bv[2]);
+  const double z = static_cast<double>(av[1]) * static_cast<double>(bv[1]);
+  return simde_mm_set1_ps(dotProductToGuestFloat((x + z) + y));
+}
+
+// As vmsum3fp, but all four elements participate: guest x,y,z,w are host lanes
+// 3,2,1,0. Xenia reduces this one pairwise -- (x+z)+(y+w) -- rather than
+// extending the 3-element chain, so match that.
+inline simde__m128 vmsum4fp(simde__m128 a, simde__m128 b) noexcept {
+  alignas(16) float av[4], bv[4];
+  simde_mm_store_ps(av, a);
+  simde_mm_store_ps(bv, b);
+  const double x = static_cast<double>(av[3]) * static_cast<double>(bv[3]);
+  const double y = static_cast<double>(av[2]) * static_cast<double>(bv[2]);
+  const double z = static_cast<double>(av[1]) * static_cast<double>(bv[1]);
+  const double w = static_cast<double>(av[0]) * static_cast<double>(bv[0]);
+  return simde_mm_set1_ps(dotProductToGuestFloat((x + z) + (y + w)));
+}
 
 }  // namespace rex::ppc
 
