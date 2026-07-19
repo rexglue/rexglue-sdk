@@ -201,6 +201,14 @@ bool Memory::Initialize() {
                           rex::memory::AllocationType::kCommit,
                           rex::memory::PageAccess::kReadWrite);
 
+  // Shadow host protection across the whole guest span before any watches are
+  // armed, so the write-watch fault path can answer from memory instead of
+  // parsing /proc/self/maps under the global lock. Must cover the same range
+  // the MMIO handler accepts faults for (see below).
+  rex::memory::EnableProtectShadow(
+      virtual_membase_,
+      static_cast<size_t>((physical_membase_ + 0x20000000) - virtual_membase_));
+
   // Install MMIO handler for physical address translation and MMIO ranges
   mmio_handler_ = runtime::MMIOHandler::Install(
       virtual_membase_, physical_membase_, physical_membase_ + 0x1FFFFFFF, HostToGuestVirtualThunk,

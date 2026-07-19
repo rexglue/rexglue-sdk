@@ -114,6 +114,28 @@ bool Protect(void* base_address, size_t length, PageAccess access,
 // the region.
 bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out);
 
+// Enables a host-protection shadow over [base_address, base_address + length).
+//
+// On POSIX, QueryProtect() has to re-open and linearly parse /proc/self/maps
+// (2112 lines in FH1) because there is no per-page protection syscall. Its sole
+// caller is MMIOHandler's write-watch fault path, which runs under the global
+// critical region, so that parse serialises every faulting thread for
+// milliseconds and lets the GPU thread's per-upload watch re-arm outrun the
+// handler -- the faulting store never retires and the thread livelocks.
+//
+// The shadow records host protection at the point Protect()/AllocFixed()/
+// DeallocFixed() actually call mprotect, so it reflects *host* state. Note this
+// is deliberately NOT the same thing as BaseHeap::QueryProtect, which reports
+// the *guest* view; a watched page reads writable there while the host has it
+// read-only, and that divergence is the write-watch mechanism itself.
+//
+// Only pages explicitly recorded by this layer are answered from the shadow;
+// anything else falls back to the /proc/self/maps path, so an incomplete shadow
+// degrades to the old behaviour rather than inventing a wrong answer.
+//
+// Safe to call once during memory init. Idempotent; a second call is ignored.
+void EnableProtectShadow(void* base_address, size_t length);
+
 // Allocates a block of memory for a type with the given alignment.
 // The memory must be freed with AlignedFree.
 template <typename T>

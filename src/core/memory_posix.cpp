@@ -9,11 +9,14 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <algorithm>
+#include <atomic>
 #include <cerrno>
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <new>
 #include <string>
 
 #include <fcntl.h>
@@ -21,6 +24,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/memory/utils.h>
 #include <rex/platform.h>
@@ -86,6 +90,109 @@ size_t page_size() {
 }
 size_t allocation_granularity() {
   return page_size();
+}
+
+// ---------------------------------------------------------------------------
+// Host protection shadow. See EnableProtectShadow() in rex/memory/utils.h for
+// why this exists. Lock-free by construction: the table is allocated once and
+// never resized, and each page is a single relaxed atomic byte, so it is safe
+// to read from the SIGSEGV handler.
+//
+// Encoding: 0 == unknown (never recorded -> caller falls back to the
+// /proc/self/maps path), otherwise 1 + uint8_t(PageAccess).
+// ---------------------------------------------------------------------------
+namespace {
+
+std::atomic<uint8_t>* g_shadow_pages = nullptr;
+uintptr_t g_shadow_base = 0;
+size_t g_shadow_page_count = 0;
+
+constexpr uint8_t kShadowUnknown = 0;
+
+inline bool ShadowPageRange(void* address, size_t length, size_t& first, size_t& count) {
+  if (!g_shadow_pages || length == 0) {
+    return false;
+  }
+  const uintptr_t addr = reinterpret_cast<uintptr_t>(address);
+  if (addr < g_shadow_base) {
+    return false;
+  }
+  const size_t ps = page_size();
+  const size_t offset = addr - g_shadow_base;
+  first = offset / ps;
+  if (first >= g_shadow_page_count) {
+    return false;
+  }
+  // Round the end up so a partial page is fully covered.
+  const size_t end_page = (offset + length + ps - 1) / ps;
+  count = std::min(end_page, g_shadow_page_count) - first;
+  return count != 0;
+}
+
+// Publish `access` for the range. Called *before* mprotect so that tightening
+// protection is never briefly stale-loose (a stale-loose read is what makes the
+// fault handler wrongly conclude "another thread cleared this watch").
+void ShadowRecord(void* address, size_t length, PageAccess access) {
+  size_t first = 0, count = 0;
+  if (!ShadowPageRange(address, length, first, count)) {
+    return;
+  }
+  const uint8_t value = static_cast<uint8_t>(static_cast<uint8_t>(access) + 1);
+  for (size_t i = 0; i < count; ++i) {
+    g_shadow_pages[first + i].store(value, std::memory_order_relaxed);
+  }
+}
+
+// Drop back to "unknown" so the range is answered by the slow path again. Used
+// when a protection change fails or the mapping goes away entirely.
+void ShadowInvalidate(void* address, size_t length) {
+  size_t first = 0, count = 0;
+  if (!ShadowPageRange(address, length, first, count)) {
+    return;
+  }
+  for (size_t i = 0; i < count; ++i) {
+    g_shadow_pages[first + i].store(kShadowUnknown, std::memory_order_relaxed);
+  }
+}
+
+bool ShadowLookup(void* address, PageAccess& access_out) {
+  size_t first = 0, count = 0;
+  if (!ShadowPageRange(address, 1, first, count)) {
+    return false;
+  }
+  const uint8_t value = g_shadow_pages[first].load(std::memory_order_relaxed);
+  if (value == kShadowUnknown) {
+    return false;
+  }
+  access_out = static_cast<PageAccess>(value - 1);
+  return true;
+}
+
+}  // namespace
+
+void EnableProtectShadow(void* base_address, size_t length) {
+  if (g_shadow_pages) {
+    return;  // idempotent
+  }
+  const size_t ps = page_size();
+  const size_t page_count = (length + ps - 1) / ps;
+  if (page_count == 0) {
+    return;
+  }
+  auto* pages = new (std::nothrow) std::atomic<uint8_t>[page_count];
+  if (!pages) {
+    REXLOG_WARN("EnableProtectShadow: allocation failed ({} pages); "
+                "QueryProtect stays on the /proc/self/maps path",
+                page_count);
+    return;
+  }
+  for (size_t i = 0; i < page_count; ++i) {
+    pages[i].store(kShadowUnknown, std::memory_order_relaxed);
+  }
+  g_shadow_base = reinterpret_cast<uintptr_t>(base_address);
+  g_shadow_page_count = page_count;
+  // Publish last: readers check g_shadow_pages first.
+  g_shadow_pages = pages;
 }
 
 uint32_t ToPosixProtectFlags(PageAccess access) {
@@ -236,6 +343,8 @@ void* AllocFixed(void* base_address, size_t length, AllocationType allocation_ty
 
   void* result = mmap(base_address, length, prot_initial, flags, -1, 0);
   if (result != MAP_FAILED) {
+    ShadowRecord(result, length,
+                 allocation_type == AllocationType::kReserve ? PageAccess::kNoAccess : access);
     return result;
   }
 #if defined(MAP_FIXED_NOREPLACE) && REX_PLATFORM_LINUX
@@ -246,9 +355,11 @@ void* AllocFixed(void* base_address, size_t length, AllocationType allocation_ty
        allocation_type == AllocationType::kReserveCommit)) {
     // Verify the entire range is mapped before using mprotect
     if (IsRangeFullyMapped(base_address, length)) {
+      ShadowRecord(base_address, length, access);
       if (mprotect(base_address, length, static_cast<int>(prot_requested)) == 0) {
         return base_address;
       }
+      ShadowInvalidate(base_address, length);
     }
   }
 #endif
@@ -260,7 +371,9 @@ bool DeallocFixed(void* base_address, size_t length, DeallocationType deallocati
   switch (deallocation_type) {
     case DeallocationType::kDecommit: {
       // Decommit: remove access first, then release physical pages
+      ShadowRecord(base_address, length, PageAccess::kNoAccess);
       if (mprotect(base_address, length, PROT_NONE) != 0) {
+        ShadowInvalidate(base_address, length);
         return false;
       }
 #if defined(MADV_DONTNEED)
@@ -269,6 +382,8 @@ bool DeallocFixed(void* base_address, size_t length, DeallocationType deallocati
       return true;
     }
     case DeallocationType::kRelease: {
+      // The mapping is gone entirely - any recorded protection is meaningless.
+      ShadowInvalidate(base_address, length);
       return munmap(base_address, length) == 0;
     }
     default:
@@ -298,7 +413,14 @@ bool Protect(void* base_address, size_t length, PageAccess access, PageAccess* o
 #endif
 
   uint32_t prot = ToPosixProtectFlags(access);
-  return mprotect(base_address, length, prot) == 0;
+  // Publish before the syscall so tightening is never stale-loose; on failure
+  // fall back to "unknown" rather than leaving a wrong entry behind.
+  ShadowRecord(base_address, length, access);
+  if (mprotect(base_address, length, prot) != 0) {
+    ShadowInvalidate(base_address, length);
+    return false;
+  }
+  return true;
 }
 
 bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out) {
@@ -309,6 +431,19 @@ bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out) {
 #else
   access_out = PageAccess::kNoAccess;
   length = 0;
+
+  // Fast path: a page this layer protected itself. Only ever consulted for
+  // pages we explicitly recorded, so a miss degrades to the parse below rather
+  // than answering wrongly. The sole caller (MMIOHandler's write-watch fault
+  // path) ignores `length`, so reporting a single page here is sufficient.
+  {
+    PageAccess shadow_access;
+    if (ShadowLookup(base_address, shadow_access)) {
+      access_out = shadow_access;
+      length = page_size();
+      return true;
+    }
+  }
 
   LinuxMapEntry e;
   if (!FindEntryForAddress(base_address, e)) {
