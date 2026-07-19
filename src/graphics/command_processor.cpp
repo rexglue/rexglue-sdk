@@ -37,6 +37,12 @@
 
 REXCVAR_DEFINE_BOOL(vsync, true, "GPU", "Enable vertical sync");
 
+REXCVAR_DEFINE_INT32(guest_swap_fps_limit, 120, "GPU",
+                     "Cap the guest swap (frame) rate in fps (0 = uncapped). Only engages when "
+                     "the title swaps faster than the cap; titles that pace themselves below it "
+                     "(FH1 gameplay is 30 fps) are unaffected. Prevents vblank-ignoring loading "
+                     "screens from free-running and starving write-watch fault handling.");
+
 REXCVAR_DEFINE_BOOL(clear_memory_page_state, true, "GPU",
                     "Refresh page-valid state from GPU-written memory at frame end. "
                     "Disable for minor CPU overhead reduction, but may break memory coherency.")
@@ -1095,6 +1101,26 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(memory::RingBuffer* reader, ui
   uint32_t frontbuffer_width = reader->ReadAndSwap<uint32_t>();
   uint32_t frontbuffer_height = reader->ReadAndSwap<uint32_t>();
   reader->AdvanceRead((count - 4) * sizeof(uint32_t));
+
+  // Throttle the guest swap rate. Loading screens don't wait for vblank and
+  // free-run (~1000 fps), re-arming CPU write watches faster than the fault
+  // handler can service them, livelocking guest threads that write watched
+  // memory. Sleeping on the CP thread backpressures the ringbuffer the same
+  // way a real vblank-bound swap would.
+  int32_t swap_fps_limit = REXCVAR_GET(guest_swap_fps_limit);
+  if (swap_fps_limit > 0) {
+    uint64_t freq = rex::chrono::Clock::QueryHostTickFrequency();
+    uint64_t min_interval_ticks = std::max<uint64_t>(1, freq / uint64_t(swap_fps_limit));
+    uint64_t now = rex::chrono::Clock::QueryHostTickCount();
+    if (last_swap_host_tick_ && now - last_swap_host_tick_ < min_interval_ticks) {
+      uint64_t wait_us = (min_interval_ticks - (now - last_swap_host_tick_)) * 1000000 / freq;
+      rex::thread::Sleep(std::chrono::microseconds(wait_us));
+      now = rex::chrono::Clock::QueryHostTickCount();
+    }
+    last_swap_host_tick_ = now;
+  } else {
+    last_swap_host_tick_ = 0;
+  }
 
   IssueSwap(frontbuffer_ptr, frontbuffer_width, frontbuffer_height);
 

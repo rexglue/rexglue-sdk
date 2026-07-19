@@ -271,6 +271,9 @@ class CommandProcessor {
 
   uint32_t counter_ = 0;
 
+  // Host tick of the last guest swap, for guest_swap_fps_limit throttling.
+  uint64_t last_swap_host_tick_ = 0;
+
   uint32_t primary_buffer_ptr_ = 0;
   uint32_t primary_buffer_size_ = 0;
 
