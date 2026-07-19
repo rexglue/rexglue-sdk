@@ -21,7 +21,7 @@
 #include <rex/memory/mapped_memory.h>
 #include <rex/platform.h>
 
-#include <snappy.h"
+#include <snappy.h>
 
 namespace rex::graphics {
 
@@ -57,7 +57,12 @@ bool TraceReader::Open(const std::string_view path) {
 
   REXGPU_INFO("Mapped {}b trace from {}", trace_size_, rex::path_to_utf8(path));
   REXGPU_INFO("   Version: {}", header->version);
-  auto commit_str = std::string(header->build_commit_sha, rex::countof(header->build_commit_sha));
+  // The SHA field is NUL-padded to 40 chars; trim so the padding doesn't end
+  // up embedded in the log stream (it makes tools treat piped output as
+  // binary).
+  auto commit_str = std::string(header->build_commit_sha,
+                                strnlen(header->build_commit_sha,
+                                        rex::countof(header->build_commit_sha)));
   REXGPU_INFO("    Commit: {}", commit_str);
   REXGPU_INFO("  Title ID: {}", header->title_id);
 

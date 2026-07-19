@@ -19,6 +19,7 @@ set(REXGPU_XENOS_SOURCES
     graphics_system.cpp
     command_processor.cpp
     trace_writer.cpp
+    trace_reader.cpp
     util/draw_extent_estimator.cpp
     util/draw.cpp
     packet_disassembler.cpp
