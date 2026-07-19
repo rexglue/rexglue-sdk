@@ -236,6 +236,65 @@ struct FPSCRRegister {
   }
 };
 
+// Xenon vmsum3fp128/vmsum4fp128 do NOT return +/-inf when the single-precision
+// dot product overflows — they return QNaN. Xenia emulates this deliberately
+// (double-precision accumulation plus an MXCSR overflow check that substitutes
+// QNaN) with the note "this implementation is accurate, it matches the results
+// of xb360 vmsum3", and it is on by default there.
+//
+// A plain simde_mm_dp_ps gets this wrong: it computes in single precision and
+// saturates to +inf. FH1's GJK depends on the QNaN. CSimplex seeds its search
+// direction to -FLT_MAX precisely so the first dot3 overflows; the resulting
+// QNaN makes the convergence compare unordered (all lanes false), which lets
+// the seeding iteration fall through and the solver run. With +inf the compare
+// is an ordinary finite >= -inf, which is true, so CGJK::TerminateCondition
+// returns 1 on iteration 1 of every call and convex-vs-convex collision dies
+// (cars and props pass straight through each other).
+//
+// Accumulating in double cannot overflow for finite float inputs (FLT_MAX^2 is
+// ~1.16e77, well inside double range), so the single-precision overflow test is
+// simply a range check on the double result. NaN inputs propagate to QNaN via
+// the same negated comparison.
+inline float dotProductToGuestFloat(double acc) noexcept {
+  constexpr double kFltMax = 3.4028234663852886e+38;
+  // Negated so that a NaN acc (from a NaN input) also takes the QNaN path.
+  if (!(acc >= -kFltMax && acc <= kFltMax)) {
+    return std::bit_cast<float>(uint32_t(0x7FC00000));
+  }
+  const float result = static_cast<float>(acc);
+  // Xenia unconditionally flushes denormal dot-product outputs to zero; the
+  // scalar math here is not subject to the host FTZ mode the old dp_ps path
+  // relied on, so do it explicitly.
+  if (result != 0.0f && (std::bit_cast<uint32_t>(result) & 0x7F800000u) == 0u) {
+    return std::bit_cast<float>(std::bit_cast<uint32_t>(result) & 0x80000000u);
+  }
+  return result;
+}
+
+// Guest vector elements are stored reversed relative to host lanes, so guest
+// x,y,z are host lanes 1,2,3 — this is why the old dp_ps mask was 0xEF and not
+// 0x7F. Element w (host lane 0) is excluded.
+inline simde__m128 vmsum3fp(simde__m128 a, simde__m128 b) noexcept {
+  alignas(16) float av[4], bv[4];
+  simde_mm_store_ps(av, a);
+  simde_mm_store_ps(bv, b);
+  const double acc = static_cast<double>(av[1]) * static_cast<double>(bv[1]) +
+                     static_cast<double>(av[2]) * static_cast<double>(bv[2]) +
+                     static_cast<double>(av[3]) * static_cast<double>(bv[3]);
+  return simde_mm_set1_ps(dotProductToGuestFloat(acc));
+}
+
+inline simde__m128 vmsum4fp(simde__m128 a, simde__m128 b) noexcept {
+  alignas(16) float av[4], bv[4];
+  simde_mm_store_ps(av, a);
+  simde_mm_store_ps(bv, b);
+  const double acc = static_cast<double>(av[0]) * static_cast<double>(bv[0]) +
+                     static_cast<double>(av[1]) * static_cast<double>(bv[1]) +
+                     static_cast<double>(av[2]) * static_cast<double>(bv[2]) +
+                     static_cast<double>(av[3]) * static_cast<double>(bv[3]);
+  return simde_mm_set1_ps(dotProductToGuestFloat(acc));
+}
+
 }  // namespace rex::ppc
 
 using PPCRegister = rex::ppc::Register;
