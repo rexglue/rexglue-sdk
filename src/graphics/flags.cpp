@@ -13,6 +13,11 @@
 #include <rex/logging.h>
 #include <rex/ui/renderdoc_api.h>
 
+REXCVAR_DEFINE_BOOL(cube_implicit_lod, false, "GPU",
+                    "Sample cube maps with an implicit-LOD instruction plus a LOD bias instead of "
+                    "explicit screen-space gradients. Equivalent only when the guest does not "
+                    "supply its own gradients. Workaround for drivers that miscompile "
+                    "OpImageSampleExplicitLod/Grad on cube images.");
 REXCVAR_DEFINE_BOOL(gpu_allow_invalid_fetch_constants, false, "GPU",
                     "Allow invalid fetch constants");
 REXCVAR_DEFINE_BOOL(native_2x_msaa, true, "GPU", "Enable native 2x MSAA");

@@ -19,6 +19,7 @@
 #include <fmt/format.h>
 
 #include <rex/assert.h>
+#include <rex/graphics/flags.h>
 #include <rex/graphics/pipeline/shader/spirv_translator.h>
 #include <rex/math.h>
 
@@ -1468,7 +1469,21 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
         // k2D.
         // 3D vectors for k3DOrStacked, kCube.
         spv::Id gradients_h = spv::NoResult, gradients_v = spv::NoResult;
-        if (use_computed_lod) {
+        // When the guest asks for a computed LOD on a cube map but supplies no
+        // gradients of its own, the gradients built below are just
+        // DPdxCoarse/DPdyCoarse of the direction vector reconstructed from
+        // (SC, TC, face) - precisely what an implicit-LOD sample derives
+        // internally. The only extra information carried by the explicit form is
+        // the accumulated LOD bias, folded in as a gradient multiplier, which an
+        // implicit sample can express directly as a Bias operand. So the two are
+        // equivalent here, and the implicit form avoids
+        // OpImageSampleExplicitLod/Grad on cube images, which some drivers
+        // miscompile. Register-supplied gradients are NOT reproducible this way,
+        // hence the use_register_gradients exclusion.
+        bool use_implicit_lod = use_computed_lod && REXCVAR_GET(cube_implicit_lod) &&
+                                instr.dimension == xenos::FetchOpDimension::kCube &&
+                                !instr.attributes.use_register_gradients;
+        if (use_computed_lod && !use_implicit_lod) {
           // TODO(Triang3l): Gradient exponent adjustment is currently not done
           // in getCompTexLOD, so not doing it here too for now. Apply the
           // gradient exponent biases from the word 4 of the fetch constant in
@@ -1628,12 +1643,19 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
         }
 
         // Sample the texture.
-        spv::ImageOperandsMask image_operands_mask =
-            use_computed_lod ? spv::ImageOperandsGradMask : spv::ImageOperandsLodMask;
-        spv::Id sample_result_unsigned, sample_result_signed;
-        if (!use_computed_lod) {
+        spv::ImageOperandsMask image_operands_mask;
+        if (use_implicit_lod) {
+          // The gradient scale exp2(lod) that the explicit path folds into the
+          // gradients is the same quantity as an additive LOD bias.
+          image_operands_mask = spv::ImageOperandsBiasMask;
+          texture_parameters.bias = lod;
+        } else if (use_computed_lod) {
+          image_operands_mask = spv::ImageOperandsGradMask;
+        } else {
+          image_operands_mask = spv::ImageOperandsLodMask;
           texture_parameters.lod = lod;
         }
+        spv::Id sample_result_unsigned, sample_result_signed;
         if (instr.dimension == xenos::FetchOpDimension::k3DOrStacked) {
           // 3D (3 coordinate components, 3 gradient components, single fetch)
           // or 2D stacked (2 coordinate components + 1 array layer coordinate
@@ -1851,7 +1873,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           sample_result_signed =
               if_data_is_3d.createMergePhi(sample_result_signed_3d, sample_result_signed_stacked);
         } else {
-          if (use_computed_lod) {
+          if (use_computed_lod && !use_implicit_lod) {
             texture_parameters.gradX = gradients_h;
             texture_parameters.gradY = gradients_v;
           }
