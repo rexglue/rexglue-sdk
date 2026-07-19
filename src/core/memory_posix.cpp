@@ -512,6 +512,19 @@ FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, siz
     shm_unlink(full_path.c_str());
     return kFileMappingHandleInvalid;
   }
+  // Unlink the name now and keep only the descriptor. The mapping stays valid
+  // for the life of the fd (mmap does not need the name, and nothing reopens
+  // this object by name), but the /dev/shm entry is gone immediately, so the
+  // kernel reclaims the backing store when the last fd closes -- on any exit
+  // path, including SIGKILL and hard crashes.
+  //
+  // Without this, only a clean shutdown reached CloseFileMappingHandle, so
+  // every crash, hang-kill or watchdog SIGKILL leaked a full-size guest memory
+  // file (4.5 GB for FH1) into /dev/shm. Since that is tmpfs, the leak is RAM:
+  // an iteration session accumulated 36 orphans holding ~11 GB, filled
+  // /dev/shm to 100%, degraded the whole desktop, and produced spurious SIGBUS
+  // (touching a page tmpfs can no longer back) in unrelated code under test.
+  shm_unlink(full_path.c_str());
   return static_cast<FileMappingHandle>(ret);
 #endif
 }
@@ -519,6 +532,8 @@ FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, siz
 void CloseFileMappingHandle(FileMappingHandle handle, const std::filesystem::path& path) {
   close(static_cast<int>(handle));
 #if !REX_PLATFORM_ANDROID
+  // Normally already unlinked at creation; this is a no-op safety net that also
+  // cleans up an object created by an older build that did not unlink early.
   auto full_path = MakeShmName(path);
   shm_unlink(full_path.c_str());
 #endif
