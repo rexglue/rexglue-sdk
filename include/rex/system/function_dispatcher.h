@@ -41,7 +41,8 @@ class ThreadState;
 class IModuleRegistrar {
  public:
   /**
-   * Returns false (and logs) if guest_address is outside every module range.
+   * Returns false (and logs) if guest_address is outside every registered
+   * function-table range.
    */
   virtual bool SetFunction(uint32_t guest_address, ::PPCFunc* func) = 0;
 

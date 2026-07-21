@@ -19,3 +19,12 @@ void {{ project }}_RegisterFunctions(rex::runtime::IModuleRegistrar* registrar) 
 {% endif %}
 {% for fn in functions %}{% if not fn.below_code_base or fn.is_import %}  registrar->SetFunction({{ fn.address }}, {{ fn.name }});
 {% endif %}{% endfor %}}
+
+{% if is_dll %}
+// The runtime uses this baked layout for the dispatch table. It must match the
+// constants used by this module's REX_LOOKUP_FUNC macro.
+extern "C" REX_MODULE_EXPORT
+const rex::PPCImageInfo* ReXModule_GetImageInfo() {
+  return &PPCImageConfig;
+}
+{% endif %}

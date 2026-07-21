@@ -116,6 +116,22 @@ TEST_CASE("FunctionDispatcher: AllocateThunk rejects caller_address outside any 
   CHECK(thunk == 0);
 }
 
+TEST_CASE("FunctionDispatcher: SetFunction rejects image data below code_base",
+          "[runtime][dispatcher]") {
+  auto& memory = GetTestMemory();
+  rex::runtime::ExportResolver resolver;
+  rex::runtime::FunctionDispatcher dispatcher(&memory, &resolver);
+
+  constexpr uint32_t kImageBase = 0x87000000u;
+  constexpr uint32_t kCodeBase = kImageBase + 0x10000u;
+  constexpr uint32_t kCodeSize = 0x10000u;
+  constexpr uint32_t kImageSize = 0x100000u;
+
+  REQUIRE(dispatcher.InitializeFunctionTable(kCodeBase, kCodeSize, kImageBase, kImageSize));
+  CHECK_FALSE(dispatcher.SetFunction(kImageBase + 0x10, &DummyFn));
+  CHECK(dispatcher.GetFunction(kImageBase + 0x10) == nullptr);
+}
+
 namespace {
 constexpr uint32_t kRegisterModBase = 0x85000000u;
 void RegisterOne(rex::runtime::IModuleRegistrar* registrar) {
