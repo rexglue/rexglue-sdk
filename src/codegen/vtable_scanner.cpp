@@ -12,10 +12,12 @@
 #include <rex/logging.h>
 
 #include "codegen_logging.h"
+#include "ppc/instruction.h"
 #include <rex/memory/utils.h>
 #include <rex/types.h>
 
 using rex::memory::load_and_swap;
+using rex::codegen::ppc::decode_instruction;
 
 namespace rex::codegen {
 
@@ -53,7 +55,81 @@ std::vector<VTableInfo> VTableScanner::scan() {
     vtables.push_back(std::move(info));
   }
 
+  // Step 3: Fallback scan for raw function pointer tables in non-executable sections.
+  // Many Xbox 360 titles ship callback/vtable-style tables without MSVC RTTI, and we still
+  // want their targets promoted into real functions for indirect dispatch.
+  auto pointerTables = scanPointerTables();
+  if (!pointerTables.empty()) {
+    REXCODEGEN_DEBUG("VTableScanner: found {} raw pointer tables without RTTI",
+                     pointerTables.size());
+  }
+
+  for (auto& table : pointerTables) {
+    bool duplicate = false;
+    for (const auto& existing : vtables) {
+      if (existing.vtableAddress == table.vtableAddress) {
+        duplicate = true;
+        break;
+      }
+    }
+    if (!duplicate) {
+      vtables.push_back(std::move(table));
+    }
+  }
+
   return vtables;
+}
+
+std::vector<VTableInfo> VTableScanner::scanPointerTables() {
+  std::vector<VTableInfo> tables;
+
+  // Runs of 1 are accepted: games embed single function pointers in data
+  // structs (e.g. a lone callback slot) and those targets must still become
+  // functions for indirect dispatch. Every slot is individually gated by the
+  // alignment/executability/boundary checks below, so the run length adds no
+  // safety of its own.
+  constexpr size_t kMinPointerRun = 1;
+
+  for (const auto& section : binary_.sections()) {
+    if (section.executable || !section.data || section.size < kMinPointerRun * 4) {
+      continue;
+    }
+
+    size_t offset = 0;
+    while (offset + kMinPointerRun * 4 <= section.size) {
+      std::vector<uint32_t> slots;
+      size_t scan_offset = offset;
+
+      while (scan_offset + 4 <= section.size) {
+        uint32_t value = load_and_swap<uint32_t>(section.data + scan_offset);
+        if (value == 0 || (value & 0x3) != 0 || !isExecutableAddress(value) ||
+            binary_.isInImportExportRange(value) || !isLikelyFunctionEntry(value)) {
+          break;
+        }
+
+        slots.push_back(value);
+        scan_offset += 4;
+      }
+
+      if (slots.size() >= kMinPointerRun) {
+        uint32_t tableAddr = section.baseAddress + static_cast<uint32_t>(offset);
+        REXCODEGEN_TRACE("VTableScanner: raw pointer table at 0x{:08X} in {} has {} slots",
+                         tableAddr, section.name, slots.size());
+        tables.push_back(VTableInfo{
+            .vtableAddress = tableAddr,
+            .colAddress = 0,
+            .className = std::string{},
+            .slots = std::move(slots),
+        });
+        offset = scan_offset;
+        continue;
+      }
+
+      offset += 4;
+    }
+  }
+
+  return tables;
 }
 
 std::vector<uint32_t> VTableScanner::findCompleteObjectLocators() {
@@ -192,6 +268,47 @@ std::string VTableScanner::extractClassName(uint32_t colAddr) {
 
 bool VTableScanner::isExecutableAddress(uint32_t addr) const {
   return binary_.isExecutable(addr);
+}
+
+bool VTableScanner::isLikelyFunctionEntry(uint32_t addr) const {
+  const auto* section = binary_.findSection(addr);
+  if (!section || !section->data || !section->executable) {
+    return false;
+  }
+
+  // Section start is always a valid boundary.
+  if (addr == section->baseAddress) {
+    return true;
+  }
+
+  // If the previous dword isn't in the same executable section, treat this as a boundary too.
+  if (addr < section->baseAddress + 4) {
+    return true;
+  }
+
+  uint32_t prevAddr = addr - 4;
+  if (!section->contains(prevAddr)) {
+    return true;
+  }
+
+  uint32_t prevOffset = prevAddr - section->baseAddress;
+  if (prevOffset + 4 > section->size) {
+    return true;
+  }
+
+  uint32_t prevRaw = load_and_swap<uint32_t>(section->data + prevOffset);
+  auto prevInsn = decode_instruction(prevAddr, prevRaw);
+
+  // Accept boundaries after terminating control flow. Reject plain fallthrough into the middle of
+  // an existing block, which is how internal labels like 0x824D2920 usually appear.
+  if (prevInsn.is_return() || prevInsn.is_indirect_branch()) {
+    return true;
+  }
+  if (prevInsn.is_branch() && !prevInsn.is_call()) {
+    return true;
+  }
+
+  return false;
 }
 
 std::optional<uint32_t> VTableScanner::readDword(uint32_t addr) const {

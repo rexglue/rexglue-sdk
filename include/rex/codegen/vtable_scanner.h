@@ -74,11 +74,18 @@ class VTableScanner {
   // Read all function slots from a vtable (until non-executable address)
   std::vector<uint32_t> readVTableSlots(uint32_t vtableStart);
 
+  // Fallback: scan non-executable sections for dense tables of executable pointers
+  std::vector<VTableInfo> scanPointerTables();
+
   // Extract class name from type descriptor
   std::string extractClassName(uint32_t colAddr);
 
   // Check if an address points to executable code
   bool isExecutableAddress(uint32_t addr) const;
+
+  // Heuristic: raw pointer-table targets should look like standalone entries, not fallthrough
+  // labels in the middle of existing code.
+  bool isLikelyFunctionEntry(uint32_t addr) const;
 
   // Read a dword from the binary
   std::optional<uint32_t> readDword(uint32_t addr) const;
