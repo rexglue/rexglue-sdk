@@ -922,6 +922,20 @@ void FunctionGraph::addTailCallToFunction(uint32_t entry, uint32_t site, CallTar
   }
 }
 
+void FunctionGraph::retargetCallEdgesAt(uint32_t entry, uint32_t site, CallTarget target) {
+  auto* node = getFunction(entry);
+  if (!node)
+    return;
+  for (auto& edge : node->calls_) {
+    if (edge.site == site)
+      edge.target = target;
+  }
+  for (auto& edge : node->tailCalls_) {
+    if (edge.site == site)
+      edge.target = target;
+  }
+}
+
 void FunctionGraph::addJumpTableToFunction(uint32_t entry, JumpTable jt) {
   if (auto* node = getFunction(entry)) {
     node->addJumpTable(std::move(jt));
@@ -1174,9 +1188,12 @@ bool FunctionGraph::isMergeableEntryPoint(uint32_t addr) const {
 }
 
 TargetKind FunctionGraph::classifyTarget(uint32_t target, uint32_t callerAddr,
-                                         bool isCallInstruction) const {
-  // Find the caller's function
-  const FunctionNode* callerFn = getFunctionContaining(callerAddr);
+                                         bool isCallInstruction,
+                                         const FunctionNode* callerFn) const {
+  // Find the caller's function when not supplied by the emitter
+  if (!callerFn) {
+    callerFn = getFunctionContaining(callerAddr);
+  }
 
   // Case 1: Target is an import - always a call/tail-call
   if (isImport(target)) {

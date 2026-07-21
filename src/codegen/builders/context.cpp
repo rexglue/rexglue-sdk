@@ -253,7 +253,7 @@ void BuilderContext::emit_conditional_branch(bool not_, std::string_view cond) {
 
   // Use classifyTarget for consistent branch classification
   // false = branch instruction (not a call), so own-base means loop back
-  auto kind = graph().classifyTarget(target, base, false);
+  auto kind = graph().classifyTarget(target, base, false, &fn);
 
   switch (kind) {
     case TargetKind::InternalLabel:

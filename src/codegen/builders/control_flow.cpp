@@ -29,7 +29,7 @@ bool build_b(BuilderContext& ctx) {
 
   // Use graph to classify the target - handles thunks that branch to nearby functions
   // false = branch instruction (not a call), so own-base means loop back
-  auto kind = ctx.graph().classifyTarget(target, ctx.base, false);
+  auto kind = ctx.graph().classifyTarget(target, ctx.base, false, &ctx.fn);
 
   switch (kind) {
     case TargetKind::InternalLabel:
@@ -67,7 +67,7 @@ bool build_bl(BuilderContext& ctx) {
 
   // Use graph to classify the target
   // true = call instruction, so own-base means recursive call (not loop back)
-  auto kind = ctx.graph().classifyTarget(target, ctx.base, true);
+  auto kind = ctx.graph().classifyTarget(target, ctx.base, true, &ctx.fn);
 
   switch (kind) {
     case TargetKind::InternalLabel:
@@ -138,7 +138,7 @@ bool build_bctr(BuilderContext& ctx) {
         continue;
       }
 
-      auto kind = ctx.graph().classifyTarget(label, ctx.base, false);
+      auto kind = ctx.graph().classifyTarget(label, ctx.base, false, &ctx.fn);
       switch (kind) {
         case TargetKind::InternalLabel:
           ctx.println("\t\tgoto loc_{:X};", label);

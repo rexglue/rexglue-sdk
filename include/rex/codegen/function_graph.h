@@ -125,6 +125,10 @@ class FunctionGraph {
   // Add a resolved tail call to a function
   void addTailCallToFunction(uint32_t entry, uint32_t site, CallTarget target);
 
+  // Re-point existing call/tail-call edges at a site to a new target
+  // (repairs edges left stale by removed or re-created target functions)
+  void retargetCallEdgesAt(uint32_t entry, uint32_t site, CallTarget target);
+
   // Add a jump table to a function
   void addJumpTableToFunction(uint32_t entry, JumpTable jt);
 
@@ -184,7 +188,11 @@ class FunctionGraph {
   // callerAddr: address of the branch instruction
   // isCallInstruction: true for bl (expects return), false for b (no return)
   // Returns how the target should be treated during code generation.
-  TargetKind classifyTarget(uint32_t target, uint32_t callerAddr, bool isCallInstruction) const;
+  // callerFn: the function being emitted. Pass it whenever known - with
+  // overlapping (shared/promoted) functions an address can belong to several
+  // functions, so deriving the caller from callerAddr alone is ambiguous.
+  TargetKind classifyTarget(uint32_t target, uint32_t callerAddr, bool isCallInstruction,
+                            const FunctionNode* callerFn = nullptr) const;
 
  private:
   std::vector<CodeBuffer> codeBuffers_;
