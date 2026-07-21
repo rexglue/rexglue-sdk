@@ -192,7 +192,18 @@ struct FPSCRRegister {
   static constexpr size_t FlushMask = Platform::FlushMask;
 
   inline uint32_t getcsr() noexcept { return Platform::getcsr(); }
-  inline void setcsr(uint32_t csr) noexcept { Platform::setcsr(csr); }
+  inline void setcsr(uint32_t csr) noexcept {
+    // Keep host FP exceptions masked on every write, not just in InitHost.
+    // Recompiled guest code reaches setcsr via storeFromGuest /
+    // enableFlushMode / etc., and a csr value that still has the exception
+    // bits in their trapping state (e.g. a context whose fpscr.csr field was
+    // zero-initialized before InitHost ran) would otherwise re-arm host FP
+    // traps and raise SIGFPE on the next FP op. InitHostExceptions applies the
+    // per-arch polarity (x86: 1 = masked, ARM: 1 = trap enabled), so it is used
+    // here rather than open-coding a mask that is correct on only one of them.
+    Platform::InitHostExceptions(csr);
+    Platform::setcsr(csr);
+  }
 
   inline uint32_t loadFromHost() noexcept {
     csr = getcsr();
