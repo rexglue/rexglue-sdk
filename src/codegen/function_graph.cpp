@@ -805,9 +805,11 @@ bool FunctionGraph::removeFunction(uint32_t entryPoint) {
 }
 
 FunctionNode* FunctionGraph::getFunctionContaining(uint32_t addr) {
-  // O(log f) lookup via sorted base index: find last function with base <= addr
+  // Find last function with base <= addr, then walk backward: small promoted
+  // functions can overlap the interior of a larger one, so the nearest base is
+  // not necessarily the containing function.
   auto it = functionsByBase_.upper_bound(addr);
-  if (it != functionsByBase_.begin()) {
+  while (it != functionsByBase_.begin()) {
     --it;
     if (it->second->containsAddress(addr)) {
       return it->second;
@@ -818,7 +820,7 @@ FunctionNode* FunctionGraph::getFunctionContaining(uint32_t addr) {
 
 const FunctionNode* FunctionGraph::getFunctionContaining(uint32_t addr) const {
   auto it = functionsByBase_.upper_bound(addr);
-  if (it != functionsByBase_.begin()) {
+  while (it != functionsByBase_.begin()) {
     --it;
     if (it->second->containsAddress(addr)) {
       return it->second;
