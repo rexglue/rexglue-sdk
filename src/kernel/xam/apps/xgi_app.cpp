@@ -101,9 +101,10 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       uint32_t xuid_array_ptr = memory::load_and_swap<uint32_t>(buffer + 8);
       uint32_t user_index_array = memory::load_and_swap<uint32_t>(buffer + 12);
       uint32_t private_slots_array = memory::load_and_swap<uint32_t>(buffer + 16);
-      bool is_local = xuid_array_ptr == 0; 
+      bool is_local = xuid_array_ptr == 0;
 
-      REXKRNL_DEBUG("{}({:08X}, {}, {}, {:08X}, {:08X})", is_local ? "XGISessionJoinLocal" : "XGISessionJoinRemote", session_ptr,
+      REXKRNL_DEBUG("{}({:08X}, {}, {}, {:08X}, {:08X})",
+                    is_local ? "XGISessionJoinLocal" : "XGISessionJoinRemote", session_ptr,
                     user_count, xuid_array_ptr, user_index_array, private_slots_array);
       return X_E_SUCCESS;
     }
