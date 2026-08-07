@@ -37,10 +37,6 @@ SDLAudioDriver::~SDLAudioDriver() {
 }
 
 bool SDLAudioDriver::Initialize() {
-  // Guest workloads use millisecond-scale waits. Keep SDL's normal Windows
-  // timer resolution so those waits don't get rounded up.
-  SDL_SetHintWithPriority(SDL_HINT_TIMER_RESOLUTION, "1", SDL_HINT_OVERRIDE);
-
   // Set audio category for proper OS audio handling
   SDL_SetHint(SDL_HINT_AUDIO_CATEGORY, "playback");
 
