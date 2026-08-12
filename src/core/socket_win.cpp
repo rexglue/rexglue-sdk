@@ -17,4 +17,9 @@ int socket_ioctl(SocketHandle handle, uint32_t cmd, uint8_t* arg) {
   return ioctlsocket(static_cast<SOCKET>(handle), cmd, reinterpret_cast<u_long*>(arg));
 }
 
+int socket_set_non_blocking(SocketHandle handle, bool non_blocking) {
+  u_long value = non_blocking ? 1 : 0;
+  return ioctlsocket(static_cast<SOCKET>(handle), FIONBIO, &value);
+}
+
 }  // namespace rex::net
