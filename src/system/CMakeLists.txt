@@ -107,11 +107,12 @@ endif()
 
 if(WIN32)
     target_link_libraries(rexruntime PRIVATE ws2_32)
+    target_link_libraries(rexruntime PUBLIC dxgi dxguid)
     target_compile_definitions(rexruntime PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
 endif()
 
 if(REXGLUE_USE_D3D12)
-    target_link_libraries(rexruntime PUBLIC dxgi dxguid dxc-headers)
+    target_link_libraries(rexruntime PUBLIC dxc-headers)
     target_compile_definitions(rexruntime PUBLIC REX_HAS_D3D12=1)
 endif()
 if(REXGLUE_USE_VULKAN)

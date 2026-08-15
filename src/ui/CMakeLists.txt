@@ -165,12 +165,12 @@ elseif(APPLE)
     target_link_libraries(rexui PRIVATE "-framework CoreFoundation")
 endif()
 
+if(WIN32)
+    target_link_libraries(rexui PUBLIC dxgi dxguid)
+endif()
+
 # D3D12 backend dependencies
 if(REXGLUE_USE_D3D12)
-    target_link_libraries(rexui PUBLIC
-        dxgi
-        dxguid
-        dxc-headers
-    )
+    target_link_libraries(rexui PUBLIC dxc-headers)
 endif()
 
