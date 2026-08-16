@@ -74,6 +74,17 @@ jobs:
       artifact_name: nightly-win-amd64
     secrets: inherit
 
+  build-win-arm64:
+    needs: check
+    if: needs.check.outputs.should_build == 'true'
+    uses: ./.github/workflows/_build-platform.yaml
+    with:
+      platform: win-arm64
+      ref: ${{ needs.check.outputs.dev_sha }}
+      publish_mode: artifact
+      artifact_name: nightly-win-arm64
+    secrets: inherit
+
   build-linux-amd64:
     needs: check
     if: needs.check.outputs.should_build == 'true'
@@ -119,7 +130,7 @@ jobs:
     secrets: inherit
 
   publish:
-    needs: [check, build-win-amd64, build-linux-amd64, build-mac-amd64, build-mac-arm64, build-linux-arm64]
+    needs: [check, build-win-amd64, build-win-arm64, build-linux-amd64, build-mac-amd64, build-mac-arm64, build-linux-arm64]
     if: needs.check.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -154,6 +165,7 @@ jobs:
           notes=$(printf '%s\n\n%s\n' "${range_header}" "${commits}")
           assets=(
             artifacts/nightly-win-amd64/*.zip
+            artifacts/nightly-win-arm64/*.zip
             artifacts/nightly-linux-amd64/*.zip
             artifacts/nightly-mac-amd64/*.zip
             artifacts/nightly-mac-arm64/*.zip

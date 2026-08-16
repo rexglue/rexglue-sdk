@@ -12,6 +12,20 @@
 #include "crypto/TinySHA1.hpp"
 #include "crypto/rijndael-alg-fst.c"
 #include "crypto/rijndael-alg-fst.h"
+
+// pe_image.h skips its own PE struct definitions when the Windows SDK's
+// <winnt.h> has already been included (its `#ifndef IMAGE_NT_SIGNATURE` guard)
+// and instead supplements the SDK structs with the Xbox 360 PowerPC bits. Pull
+// in <windows.h> first on every Windows target so those SDK definitions win;
+// otherwise pe_image.h defines its own IMAGE_* structs, which then collide with
+// <winnt.h> pulled in later by the rex headers. Only win-arm64 tripped this,
+// since nothing included <windows.h> beforehand there (win-amd64 already did).
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#endif
 #include "pe/pe_image.h"
 
 #include <algorithm>

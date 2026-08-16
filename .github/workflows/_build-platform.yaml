@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       platform:
-        description: "win-amd64 | mac-amd64 | mac-arm64 | linux-amd64 | linux-arm64"
+        description: "win-amd64 | win-arm64 | mac-amd64 | mac-arm64 | linux-amd64 | linux-arm64"
         required: true
         type: string
       ref:
@@ -27,7 +27,7 @@ on:
 
 jobs:
   build:
-    runs-on: ${{ fromJSON('{"win-amd64":"windows-latest","mac-amd64":"macos-26-intel","mac-arm64":"macos-26","linux-amd64":"ubuntu-latest","linux-arm64":"ubuntu-24.04-arm"}')[inputs.platform] }}
+    runs-on: ${{ fromJSON('{"win-amd64":"windows-latest","win-arm64":"windows-11-arm","mac-amd64":"macos-26-intel","mac-arm64":"macos-26","linux-amd64":"ubuntu-latest","linux-arm64":"ubuntu-24.04-arm"}')[inputs.platform] }}
     outputs:
       version: ${{ steps.version.outputs.v }}
     steps:
@@ -41,6 +41,23 @@ jobs:
       - name: Install toolchain (Windows)
         if: inputs.platform == 'win-amd64'
         run: choco install llvm cmake ninja -y
+
+      - name: Set up toolchain (Windows ARM64)
+        if: inputs.platform == 'win-arm64'
+        shell: pwsh
+        run: |
+          # windows-11-arm ships native ARM64 LLVM/Clang, CMake and Ninja, plus
+          # VS 2022 (MSVC ARM64 libraries + Windows SDK). No download needed; just
+          # ensure LLVM is on PATH and surface versions for diagnostics.
+          $llvm = 'C:\Program Files\LLVM\bin'
+          if (Test-Path $llvm) {
+            Add-Content -Path $env:GITHUB_PATH -Value $llvm
+            $env:PATH = "$llvm;$env:PATH"
+          }
+          clang --version
+          clang++ --version
+          cmake --version
+          ninja --version
 
       - name: Install clang 20 (Linux)
         if: startsWith(inputs.platform, 'linux-')
@@ -86,8 +103,8 @@ jobs:
 
       - name: Configure
         env:
-          CC: ${{ fromJSON('{"win-amd64":"clang","mac-amd64":"/usr/bin/clang","mac-arm64":"/usr/bin/clang","linux-amd64":"clang-20","linux-arm64":"clang-20"}')[inputs.platform] }}
-          CXX: ${{ fromJSON('{"win-amd64":"clang++","mac-amd64":"/usr/bin/clang++","mac-arm64":"/usr/bin/clang++","linux-amd64":"clang++-20","linux-arm64":"clang++-20"}')[inputs.platform] }}
+          CC: ${{ fromJSON('{"win-amd64":"clang","win-arm64":"clang","mac-amd64":"/usr/bin/clang","mac-arm64":"/usr/bin/clang","linux-amd64":"clang-20","linux-arm64":"clang-20"}')[inputs.platform] }}
+          CXX: ${{ fromJSON('{"win-amd64":"clang++","win-arm64":"clang++","mac-amd64":"/usr/bin/clang++","mac-arm64":"/usr/bin/clang++","linux-amd64":"clang++-20","linux-arm64":"clang++-20"}')[inputs.platform] }}
         run: cmake --preset ${{ inputs.platform }} -DCMAKE_C_COMPILER="${{ env.CC }}" -DCMAKE_CXX_COMPILER="${{ env.CXX }}" -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
 
       - name: Build and install
@@ -107,14 +124,14 @@ jobs:
           echo "v=${v}" >> "$GITHUB_OUTPUT"
 
       - name: Package (Windows)
-        if: inputs.platform == 'win-amd64'
+        if: startsWith(inputs.platform, 'win-')
         shell: bash
         run: |
           cd out/install
           7z a "rexglue-sdk-${{ steps.version.outputs.v }}-${{ inputs.platform }}.zip" ${{ inputs.platform }}
 
       - name: Package (Unix)
-        if: inputs.platform != 'win-amd64'
+        if: ${{ !startsWith(inputs.platform, 'win-') }}
         run: |
           cd out/install
           zip -r "rexglue-sdk-${{ steps.version.outputs.v }}-${{ inputs.platform }}.zip" ${{ inputs.platform }}

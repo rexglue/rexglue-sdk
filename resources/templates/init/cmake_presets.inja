@@ -53,6 +53,8 @@
             "hidden": true,
             "inherits": "windows-base",
             "cacheVariables": {
+                "CMAKE_C_COMPILER_TARGET": "aarch64-pc-windows-msvc",
+                "CMAKE_CXX_COMPILER_TARGET": "aarch64-pc-windows-msvc",
                 "CMAKE_C_FLAGS": "-march=armv8-a",
                 "CMAKE_CXX_FLAGS": "-march=armv8-a"
             }
