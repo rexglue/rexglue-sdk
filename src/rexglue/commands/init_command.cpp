@@ -164,7 +164,7 @@ Result<void> InitProject(const InitOptions& opts, const CliContext& ctx) {
       }
       modulesJson.push_back({
           {"guest_path", rex::codegen::CanonicalizeModuleGuestPath(relUnderGame.generic_string(),
-                                                                   names.snake_case)},
+                                                                   names.original)},
           {"file_path", ManifestPath(dllAbs, projectRoot)},
           {"out_directory_path", "generated/" + ModuleStem(dllAbs)},
       });
@@ -190,7 +190,7 @@ Result<void> InitProject(const InitOptions& opts, const CliContext& ctx) {
   std::string jsonStr = data.dump();
 
   std::vector<ui::KeyValueRow> header_rows;
-  header_rows.push_back({"Project", names.snake_case});
+  header_rows.push_back({"Project", names.original});
   header_rows.push_back({"Root", projectRoot.string()});
   header_rows.push_back({"Entrypoint", xexRelManifest});
   header_rows.push_back({"Game root", gameRootRelManifest});
@@ -210,8 +210,8 @@ Result<void> InitProject(const InitOptions& opts, const CliContext& ctx) {
     fs::path out;
     RegeneratePolicy policy;
   };
-  std::string app_header = names.snake_case + "_app.h";
-  std::string manifest_file = names.snake_case + "_manifest.toml";
+  std::string app_header = names.original + "_app.h";
+  std::string manifest_file = names.original + "_manifest.toml";
   std::vector<Render> renders = {
       {"init/cmakelists", projectRoot / "CMakeLists.txt", RegeneratePolicy::RequiresForce},
       {"init/rexglue_cmake", projectRoot / "generated" / "rexglue.cmake",

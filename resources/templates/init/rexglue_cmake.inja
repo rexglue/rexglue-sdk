@@ -87,13 +87,13 @@ macro(rexglue_setup_target target_name)
         target_link_libraries({{ cmake_var("target_name") }}_recomp PRIVATE rex::runtime)
         rexglue_apply_target_settings({{ cmake_var("target_name") }}_recomp)
         rexglue_apply_recomp_settings({{ cmake_var("target_name") }}_recomp
-            "{{ cmake_var("REXGLUE_ENTRYPOINT_INCLUDE_DIR") }}/{{ names.snake_case }}_pch.h")
-        add_dependencies({{ cmake_var("target_name") }}_recomp {{ names.snake_case }}_codegen)
+            "{{ cmake_var("REXGLUE_ENTRYPOINT_INCLUDE_DIR") }}/{{ names.original }}_pch.h")
+        add_dependencies({{ cmake_var("target_name") }}_recomp {{ names.original }}_codegen)
         target_link_libraries({{ cmake_var("target_name") }} PRIVATE
             {{ cmake_var("target_name") }}_recomp)
     endif()
     # Also on the host, so a tree that has never run codegen still generates it.
-    add_dependencies({{ cmake_var("target_name") }} {{ names.snake_case }}_codegen)
+    add_dependencies({{ cmake_var("target_name") }} {{ names.original }}_codegen)
     target_include_directories({{ cmake_var("target_name") }} PRIVATE
         {{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}
         {{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/src
@@ -109,7 +109,7 @@ macro(rexglue_setup_target target_name)
 endmacro()
 
 # Codegen runs as part of the build, re-running only when an input in codegen.d
-# changes. Build it alone with 'cmake --build . --target {{ names.snake_case }}_codegen'.
+# changes. Build it alone with 'cmake --build . --target {{ names.original }}_codegen'.
 # Listing the sources as outputs orders any target that compiles them after
 # codegen, including one a project assembles itself rather than taking the
 # library rexglue_setup_target() builds. The stamp comes first: the DEPFILE
@@ -117,13 +117,13 @@ endmacro()
 add_custom_command(
     OUTPUT "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ entrypoint_out_dir }}/codegen.build.stamp"
            {{ cmake_var("REXGLUE_ENTRYPOINT_GENERATED_SOURCES") }}
-    COMMAND $<TARGET_FILE:rex::rexglue> codegen {{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ names.snake_case }}_manifest.toml
+    COMMAND $<TARGET_FILE:rex::rexglue> codegen {{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ names.original }}_manifest.toml
     DEPFILE "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ entrypoint_out_dir }}/codegen.d"
     WORKING_DIRECTORY {{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}
-    COMMENT "Generating recompiled code for {{ names.snake_case }}"
+    COMMENT "Generating recompiled code for {{ names.original }}"
     VERBATIM
 )
-add_custom_target({{ names.snake_case }}_codegen
+add_custom_target({{ names.original }}_codegen
     DEPENDS "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ entrypoint_out_dir }}/codegen.build.stamp")
 
 # Include DLL module shared library targets if codegen has generated them
