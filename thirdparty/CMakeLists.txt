@@ -125,8 +125,11 @@ target_include_directories(aes128 PUBLIC
 target_compile_options(aes128 PRIVATE -w)
 
 # libmspack - LZX decompression (only lzxd.c needed for XEX decompression)
-# Uses cabextract version which has all needed headers in one place
-set(MSPACK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/libmspack/cabextract/mspack")
+# Use the upstream mspack sources directly. libmspack/cabextract/mspack is a
+# tree of symlinks pointing back into libmspack/libmspack/mspack; Windows git
+# defaults to core.symlinks=false, so those check out as 29-byte text stubs and
+# clang tries to compile them as C.
+set(MSPACK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/libmspack/libmspack/mspack")
 add_library(mspack STATIC
     ${MSPACK_DIR}/lzxd.c
 )
