@@ -186,9 +186,14 @@ add_compile_definitions(REXGLUE_BUILD_CONFIG="$<CONFIG>")
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rex_pch.cmake)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rex_version.cmake)
+# SOURCE_DIR matters here: the default is CMAKE_SOURCE_DIR, which points at the
+# *consumer's* top-level source directory whenever the SDK is pulled in with
+# add_subdirectory. git describe then runs in the wrong repository and a release
+# tag in the consuming project is compared against the SDK's version floor.
 rex_resolve_version(REXGLUE_FULL_VERSION
     FLOOR_MAJOR ${PROJECT_VERSION_MAJOR}
-    FLOOR_MINOR ${PROJECT_VERSION_MINOR})
+    FLOOR_MINOR ${PROJECT_VERSION_MINOR}
+    SOURCE_DIR  ${REXGLUE_ROOT})
 
 # Strip the -id trailer (if any) for the numeric-only version.
 string(REGEX REPLACE "-.*$" "" REXGLUE_NUMERIC_VERSION "${REXGLUE_FULL_VERSION}")
