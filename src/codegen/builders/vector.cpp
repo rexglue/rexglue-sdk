@@ -91,6 +91,20 @@ bool build_vmulfp128(BuilderContext& ctx) {
 }
 
 bool build_vmaddfp(BuilderContext& ctx) {
+  // PPC vmaddfp vD, vA, vC, vB: vD = vA * vC + vB
+  // Disassembler operand order: operands[0]=vD, [1]=vA, [2]=vC, [3]=vB
+  ctx.emit_set_flush_mode(true);
+  ctx.println(
+      "\tsimde_mm_store_ps({}.f32, simde_mm_add_ps(simde_mm_mul_ps(simde_mm_load_ps({}.f32), "
+      "simde_mm_load_ps({}.f32)), simde_mm_load_ps({}.f32)));",
+      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]), ctx.v(ctx.insn.operands[2]),
+      ctx.v(ctx.insn.operands[3]));
+  return true;
+}
+
+bool build_vmaddcfp128(BuilderContext& ctx) {
+  // vmaddcfp128: C variant - operand order {VD, VA, VS, VB}
+  // vD = vA * vS + vB, where operands[2]=vS, operands[3]=vB
   ctx.emit_set_flush_mode(true);
   ctx.println(
       "\tsimde_mm_store_ps({}.f32, simde_mm_add_ps(simde_mm_mul_ps(simde_mm_load_ps({}.f32), "
@@ -101,7 +115,8 @@ bool build_vmaddfp(BuilderContext& ctx) {
 }
 
 bool build_vnmsubfp(BuilderContext& ctx) {
-  // vnmsubfp: vD = -(vA * vB - vC) - negation done by XOR with sign bit (0x80000000)
+  // PPC vnmsubfp vD, vA, vC, vB: vD = -(vA * vC - vB)
+  // Disassembler operand order: operands[0]=vD, [1]=vA, [2]=vC, [3]=vB
   ctx.emit_set_flush_mode(true);
   ctx.println(
       "\tsimde_mm_store_ps({}.f32, "
@@ -184,12 +199,23 @@ bool build_vlogefp(BuilderContext& ctx) {
 //=============================================================================
 
 bool build_vmsum3fp128(BuilderContext& ctx) {
-  // 3-element dot product accounting for guest->host vector element reversal
-  // 0xEF = dot(yzw) with result broadcast to all elements (see constants doc)
+  // 3-element dot product (PPC elements 0, 1, 2 — excludes element 3).
+  // In the byte-reversed host convention:
+  //   PPC element 0 = host element 3
+  //   PPC element 1 = host element 2
+  //   PPC element 2 = host element 1
+  //   PPC element 3 = host element 0
+  // So dot(PPC[0], PPC[1], PPC[2]) = dot(host[3], host[2], host[1]).
+  // _mm_dp_ps imm8 bits [7:4] select host elements:
+  //   bit 7 → host element 0, bit 6 → host element 1,
+  //   bit 5 → host element 2, bit 4 → host element 3
+  // To select host elements 1, 2, 3: bits 6,5,4 = 0b0111 = 0x7
+  // dest bits [3:0]=1111 broadcasts result to all 4 elements.
+  // Correct mask: 0x7F (not 0xEF which selects host 0,1,2 = PPC 3,2,1).
   ctx.emit_set_flush_mode(true);
   ctx.println(
       "\tsimde_mm_store_ps({}.f32, simde_mm_dp_ps(simde_mm_load_ps({}.f32), "
-      "simde_mm_load_ps({}.f32), 0xEF));",
+      "simde_mm_load_ps({}.f32), 0x7F));",
       ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]), ctx.v(ctx.insn.operands[2]));
   return true;
 }
@@ -867,6 +893,10 @@ bool build_vslb(BuilderContext& ctx) {
 }
 
 bool build_vsldoi(BuilderContext& ctx) {
+  // vsldoi vD, vA, vB, SH: concatenate vA || vB, shift left by SH bytes, take
+  // the low 16 bytes. alignr_epi8(a, b, imm) concatenates [b || a] and right-
+  // shifts by imm, so alignr_epi8(vA, vB, 16-SH) gives us [vB || vA] >> (16-SH)
+  // which correctly maps to the byte-reversed host representation.
   ctx.println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
       "simde_mm_alignr_epi8(simde_mm_load_si128((simde__m128i*){}.u8), "
@@ -1074,96 +1104,116 @@ bool build_vspltw(BuilderContext& ctx) {
 //=============================================================================
 
 bool build_vpkshus(BuilderContext& ctx) {
+  // vpkshus vD, vA, vB: pack all 8 signed halfwords of vA → unsigned bytes
+  // [0..7], all 8 of vB → unsigned bytes [8..15], unsigned saturate.
+  // x86 packus_epi16(a,b): a[0..7]→result[0..7], b[0..7]→result[8..15].
+  // With byte reversal: PPC vA hw[i] = host vA hw[7-i].
+  // PPC result stored reversed: host[0..7] = PPC[8..15] = sat(vB),
+  // host[8..15] = PPC[0..7] = sat(vA). So packus(vB, vA).
   ctx.println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
-      "simde_mm_packus_epi16(simde_mm_load_si128((simde__m128i*){}.s16), "
+      "simde_mm_packus_epi16("
+      "simde_mm_load_si128((simde__m128i*){}.s16), "
       "simde_mm_load_si128((simde__m128i*){}.s16)));",
-      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[2]), ctx.v(ctx.insn.operands[1]));
+      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[2]),
+      ctx.v(ctx.insn.operands[1]));
   return true;
 }
 
 bool build_vpkuhum(BuilderContext& ctx) {
-  // Vector Pack Unsigned Halfword Unsigned Modulo - pack low 8 bits from each halfword
+  // Vector Pack Unsigned Halfword Unsigned Modulo - pack all 8 halfwords
+  // Mask to 0xFF for modulo, then packus (values 0-255 are positive in s16).
   ctx.println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
-      "simde_mm_packus_epi16(simde_mm_and_si128(simde_mm_load_si128((simde__m128i*){}.u16), "
-      "simde_mm_set1_epi16(0xFF)), simde_mm_and_si128(simde_mm_load_si128((simde__m128i*){}.u16), "
-      "simde_mm_set1_epi16(0xFF))));",
-      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[2]), ctx.v(ctx.insn.operands[1]));
+      "simde_mm_packus_epi16("
+      "simde_mm_and_si128(simde_mm_load_si128((simde__m128i*){}.u16), simde_mm_set1_epi16(0xFF)), "
+      "simde_mm_and_si128(simde_mm_load_si128((simde__m128i*){}.u16), simde_mm_set1_epi16(0xFF))));",
+      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[2]),
+      ctx.v(ctx.insn.operands[1]));
   return true;
 }
 
 bool build_vpkuhus(BuilderContext& ctx) {
   // Vector Pack Unsigned Halfword Unsigned Saturate
-  // NOTE(tomc): _mm_packus_epi16 treats inputs as signed, so we need custom saturation for
-  // unsigned. Unsigned halfwords >= 0x8000 would be interpreted as negative and clamped to 0
-  // instead of 0xFF.
-  for (size_t i = 0; i < 8; i++) {
-    ctx.println("\t{}.u8[{}] = {}.u16[{}] > 0xFF ? 0xFF : (uint8_t){}.u16[{}];",
-                ctx.v(ctx.insn.operands[0]), 15 - i, ctx.v(ctx.insn.operands[1]), 7 - i,
-                ctx.v(ctx.insn.operands[1]), 7 - i);
-    ctx.println("\t{}.u8[{}] = {}.u16[{}] > 0xFF ? 0xFF : (uint8_t){}.u16[{}];",
-                ctx.v(ctx.insn.operands[0]), 7 - i, ctx.v(ctx.insn.operands[2]), 7 - i,
-                ctx.v(ctx.insn.operands[2]), 7 - i);
-  }
+  // Use min_epu16 to clamp to 0xFF, then packus_epi16 (handles [0,0xFF] correctly).
+  // SSE intrinsics avoid the in-place aliasing bug that the element-by-element
+  // approach has when the destination register overlaps a source register.
+  // Swap operands for byte reversal (packus puts first arg in low bytes).
+  ctx.println(
+      "\tsimde_mm_store_si128((simde__m128i*){}.u8, "
+      "simde_mm_packus_epi16("
+      "simde_mm_min_epu16(simde_mm_load_si128((simde__m128i*){}.u16), simde_mm_set1_epi16(0xFF)), "
+      "simde_mm_min_epu16(simde_mm_load_si128((simde__m128i*){}.u16), simde_mm_set1_epi16(0xFF))));",
+      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[2]),
+      ctx.v(ctx.insn.operands[1]));
   return true;
 }
 
 bool build_vpkuwum(BuilderContext& ctx) {
-  // Vector Pack Unsigned Word Unsigned Modulo - pack low 16 bits from each word
+  // Vector Pack Unsigned Word Unsigned Modulo - pack all 4 words
+  // Mask to 0xFFFF for modulo, then packus (values 0-65535 are positive in s32).
   ctx.println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u16, "
-      "simde_mm_packus_epi32(simde_mm_and_si128(simde_mm_load_si128((simde__m128i*){}.u32), "
-      "simde_mm_set1_epi32(0xFFFF)), "
-      "simde_mm_and_si128(simde_mm_load_si128((simde__m128i*){}.u32), "
-      "simde_mm_set1_epi32(0xFFFF))));",
-      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[2]), ctx.v(ctx.insn.operands[1]));
+      "simde_mm_packus_epi32("
+      "simde_mm_and_si128(simde_mm_load_si128((simde__m128i*){}.u32), simde_mm_set1_epi32(0xFFFF)), "
+      "simde_mm_and_si128(simde_mm_load_si128((simde__m128i*){}.u32), simde_mm_set1_epi32(0xFFFF))));",
+      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[2]),
+      ctx.v(ctx.insn.operands[1]));
   return true;
 }
 
 bool build_vpkuwus(BuilderContext& ctx) {
   // Vector Pack Unsigned Word Unsigned Saturate
-
-  // NOTE(tomc): _mm_packus_epi32 treats inputs as signed, so we need custom saturation for unsigned
-  // Saturate each u32 to [0, 0xFFFF], then pack to u16
-  for (size_t i = 0; i < 4; i++) {
-    ctx.println("\t{}.u16[{}] = {}.u32[{}] > 0xFFFF ? 0xFFFF : (uint16_t){}.u32[{}];",
-                ctx.v(ctx.insn.operands[0]), 7 - i, ctx.v(ctx.insn.operands[1]), 3 - i,
-                ctx.v(ctx.insn.operands[1]), 3 - i);
-    ctx.println("\t{}.u16[{}] = {}.u32[{}] > 0xFFFF ? 0xFFFF : (uint16_t){}.u32[{}];",
-                ctx.v(ctx.insn.operands[0]), 3 - i, ctx.v(ctx.insn.operands[2]), 3 - i,
-                ctx.v(ctx.insn.operands[2]), 3 - i);
-  }
+  // Use min_epu32 to clamp to 0xFFFF, then packus_epi32 (handles [0,0xFFFF] correctly).
+  // SSE intrinsics avoid the in-place aliasing bug that the element-by-element
+  // approach has when the destination register overlaps a source register.
+  // Swap operands for byte reversal (packus puts first arg in low bytes).
+  ctx.println(
+      "\tsimde_mm_store_si128((simde__m128i*){}.u16, "
+      "simde_mm_packus_epi32("
+      "simde_mm_min_epu32(simde_mm_load_si128((simde__m128i*){}.u32), simde_mm_set1_epi32(0xFFFF)), "
+      "simde_mm_min_epu32(simde_mm_load_si128((simde__m128i*){}.u32), simde_mm_set1_epi32(0xFFFF))));",
+      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[2]),
+      ctx.v(ctx.insn.operands[1]));
   return true;
 }
 
 bool build_vpkshss(BuilderContext& ctx) {
-  // Vector Pack Signed Halfword Signed Saturate
+  // Vector Pack Signed Halfword Signed Saturate - pack all 8 halfwords
+  // packs_epi16(a,b): a→[0..7], b→[8..15]. Swap for byte reversal.
   ctx.println(
       "\tsimde_mm_store_si128((simde__m128i*){}.s8, "
-      "simde_mm_packs_epi16(simde_mm_load_si128((simde__m128i*){}.s16), "
+      "simde_mm_packs_epi16("
+      "simde_mm_load_si128((simde__m128i*){}.s16), "
       "simde_mm_load_si128((simde__m128i*){}.s16)));",
-      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[2]), ctx.v(ctx.insn.operands[1]));
+      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[2]),
+      ctx.v(ctx.insn.operands[1]));
   return true;
 }
 
 bool build_vpkswss(BuilderContext& ctx) {
-  // Vector Pack Signed Word Signed Saturate
+  // Vector Pack Signed Word Signed Saturate - pack all 4 words
+  // packs_epi32(a,b): a→[0..3], b→[4..7]. Swap for byte reversal.
   ctx.println(
       "\tsimde_mm_store_si128((simde__m128i*){}.s16, "
-      "simde_mm_packs_epi32(simde_mm_load_si128((simde__m128i*){}.s32), "
+      "simde_mm_packs_epi32("
+      "simde_mm_load_si128((simde__m128i*){}.s32), "
       "simde_mm_load_si128((simde__m128i*){}.s32)));",
-      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[2]), ctx.v(ctx.insn.operands[1]));
+      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[2]),
+      ctx.v(ctx.insn.operands[1]));
   return true;
 }
 
 bool build_vpkswus(BuilderContext& ctx) {
-  // Vector Pack Signed Word Unsigned Saturate
+  // Vector Pack Signed Word Unsigned Saturate - pack all 4 words
+  // packus_epi32(a,b): a→[0..3], b→[4..7]. Swap for byte reversal.
   ctx.println(
       "\tsimde_mm_store_si128((simde__m128i*){}.u16, "
-      "simde_mm_packus_epi32(simde_mm_load_si128((simde__m128i*){}.s32), "
+      "simde_mm_packus_epi32("
+      "simde_mm_load_si128((simde__m128i*){}.s32), "
       "simde_mm_load_si128((simde__m128i*){}.s32)));",
-      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[2]), ctx.v(ctx.insn.operands[1]));
+      ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[2]),
+      ctx.v(ctx.insn.operands[1]));
   return true;
 }
 
@@ -1526,6 +1576,10 @@ bool build_vupkd3d128(BuilderContext& ctx) {
 }
 
 bool build_vupkhsb(BuilderContext& ctx) {
+  // vupkhsb: Unpack HIGH guest bytes (0-7) to signed 16-bit.
+  // In ReXGlue's byte-reversed host format, guest bytes 0-7 are at host
+  // indices 15..8 (the HIGH 8 bytes). We use unpackhi_epi64 to extract them,
+  // then cvtepi8_epi16 to sign-extend.
   ctx.println(
       "\tsimde_mm_store_si128((simde__m128i*){}.s16, "
       "simde_mm_cvtepi8_epi16(simde_mm_unpackhi_epi64(simde_mm_load_si128((simde__m128i*){}.s8), "
@@ -1535,6 +1589,10 @@ bool build_vupkhsb(BuilderContext& ctx) {
 }
 
 bool build_vupkhsh(BuilderContext& ctx) {
+  // vupkhsh: Unpack HIGH guest halfwords (0-3) to signed 32-bit.
+  // In byte-reversed host format, guest halfwords 0-3 are at host indices
+  // 7..4 (the HIGH 4 halfwords). We use unpackhi_epi64 to extract them, then
+  // cvtepi16_epi32 to sign-extend.
   ctx.println(
       "\tsimde_mm_store_si128((simde__m128i*){}.s32, "
       "simde_mm_cvtepi16_epi32(simde_mm_unpackhi_epi64(simde_mm_load_si128((simde__m128i*){}.s16), "
@@ -1544,14 +1602,22 @@ bool build_vupkhsh(BuilderContext& ctx) {
 }
 
 bool build_vupklsb(BuilderContext& ctx) {
+  // vupklsb: Unpack LOW guest bytes (8-15) to signed 16-bit.
+  // In byte-reversed host format, guest bytes 8-15 are at host indices 7..0
+  // (the LOW 8 bytes). cvtepi8_epi16 sign-extends the LOW 8 bytes of the
+  // source, which is exactly what we need.
   ctx.println(
-      "\tsimde_mm_store_si128((simde__m128i*){}.s32, "
-      "simde_mm_cvtepi8_epi16(simde_mm_load_si128((simde__m128i*){}.s16)));",
+      "\tsimde_mm_store_si128((simde__m128i*){}.s16, "
+      "simde_mm_cvtepi8_epi16(simde_mm_load_si128((simde__m128i*){}.s8)));",
       ctx.v(ctx.insn.operands[0]), ctx.v(ctx.insn.operands[1]));
   return true;
 }
 
 bool build_vupklsh(BuilderContext& ctx) {
+  // vupklsh: Unpack LOW guest halfwords (4-7) to signed 32-bit.
+  // In byte-reversed host format, guest halfwords 4-7 are at host indices
+  // 3..0 (the LOW 4 halfwords). cvtepi16_epi32 sign-extends the LOW 4
+  // halfwords.
   ctx.println(
       "\tsimde_mm_store_si128((simde__m128i*){}.s32, "
       "simde_mm_cvtepi16_epi32(simde_mm_load_si128((simde__m128i*){}.s16)));",
