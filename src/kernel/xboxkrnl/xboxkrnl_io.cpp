@@ -455,7 +455,7 @@ u32 NtWriteFile_entry(u32 file_handle, u32 event_handle, u32 apc_routine, mapped
 
 u32 NtCreateIoCompletion_entry(mapped_u32 out_handle, u32 desired_access,
                                mapped_void object_attribs, u32 num_concurrent_threads) {
-  auto completion = new XIOCompletion(REX_KERNEL_STATE());
+  auto completion = object_ref<XIOCompletion>(new XIOCompletion(REX_KERNEL_STATE()));
   if (out_handle) {
     *out_handle = completion->handle();
   }
@@ -488,7 +488,7 @@ u32 NtRemoveIoCompletion_entry(u32 handle, mapped_u32 key_context, mapped_u32 ap
 
   auto port = REX_KERNEL_OBJECTS()->LookupObject<XIOCompletion>(handle);
   if (!port) {
-    status = X_STATUS_INVALID_HANDLE;
+    return X_STATUS_INVALID_HANDLE;
   }
 
   uint64_t timeout_ticks = timeout ? static_cast<uint32_t>(*timeout)
