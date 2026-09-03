@@ -375,7 +375,8 @@ X_RESULT ContentManager::DeleteContent(uint64_t xuid, const XCONTENT_AGGREGATE_D
   auto package_path = ResolvePackagePath(xuid, data);
   std::error_code ec;
   auto dir_removed = std::filesystem::remove_all(package_path, ec);
-  if (ec) {
+  if (ec ||
+      std::filesystem::status(package_path, ec).type() != std::filesystem::file_type::not_found) {
     return X_ERROR_ACCESS_DENIED;
   }
 
@@ -427,7 +428,8 @@ X_RESULT ContentManager::UnmountAndDeleteContent(uint64_t xuid,
 
   std::error_code ec;
   auto dir_removed = std::filesystem::remove_all(package_path, ec);
-  if (ec) {
+  if (ec ||
+      std::filesystem::status(package_path, ec).type() != std::filesystem::file_type::not_found) {
     return X_ERROR_ACCESS_DENIED;
   }
 
