@@ -1,7 +1,7 @@
-// {{ names.snake_case }} - ReXGlue Recompiled Project
+// {{ names.original }} - ReXGlue Recompiled Project
 
-#include "{{ entrypoint_out_dir }}/{{ names.snake_case }}_init.h"
+#include "{{ entrypoint_out_dir }}/{{ names.original }}_init.h"
 
-#include "{{ names.snake_case }}_app.h"
+#include "{{ names.original }}_app.h"
 
-REX_DEFINE_APP({{ names.snake_case }}, {{ names.pascal_case }}App::Create)
+REX_DEFINE_APP({{ names.original }}, {{ names.pascal_case }}App::Create)

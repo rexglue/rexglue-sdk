@@ -1,4 +1,4 @@
-// {{ names.snake_case }} - ReXGlue Recompiled Project
+// {{ names.original }} - ReXGlue Recompiled Project
 //
 // Customize your app by overriding virtual hooks from rex::ReXApp.
 
@@ -12,7 +12,7 @@ class {{ names.pascal_case }}App : public rex::ReXApp {
 
   static std::unique_ptr<rex::ui::WindowedApp> Create(
       rex::ui::WindowedAppContext& ctx) {
-    return std::unique_ptr<{{ names.pascal_case }}App>(new {{ names.pascal_case }}App(ctx, "{{ names.snake_case }}",
+    return std::unique_ptr<{{ names.pascal_case }}App>(new {{ names.pascal_case }}App(ctx, "{{ names.original }}",
         PPCImageConfig));
   }
 
