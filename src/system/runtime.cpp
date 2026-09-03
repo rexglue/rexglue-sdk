@@ -20,6 +20,7 @@
 #include <rex/platform/exceptions.h>  // SEH exception support
 #include <rex/kernel/crt/heap.h>
 #include <rex/runtime.h>
+#include <rex/system/input_plugin.h>
 #include <rex/system/export_resolver.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/function_dispatcher.h>
@@ -131,9 +132,11 @@ X_STATUS Runtime::Setup(RuntimeConfig config) {
   // Create kernel state - this sets the global singleton
   kernel_state_ = std::make_unique<system::KernelState>(this);
 
-  // Initialize input from injected config
-  if (config.input_factory) {
-    input_system_ = config.input_factory(tool_mode_);
+  // Initialize input from injected config, or from the named plugin.
+  if (config.input_factory || !config.input_plugin.empty()) {
+    input_system_ = config.input_factory ? config.input_factory(tool_mode_)
+                                         : system::LoadInputPlugin(config.input_plugin, tool_mode_,
+                                                                   config.input_assignment);
     if (input_system_) {
       X_STATUS input_status = input_system_->Setup();
       if (XFAILED(input_status)) {

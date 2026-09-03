@@ -6,7 +6,7 @@
 # carrying rexcore objects ends up with two registries, which is what produced
 # the duplicate cvar registrations and the codegen SIGSEGV on exit.
 
-set(REXGLUE_CORE_OBJECT_LIBS rexcore rexfilesystem rexinput rexui rexaudio)
+set(REXGLUE_CORE_OBJECT_LIBS rexcore rexfilesystem rexui rexaudio)
 
 function(_rexglue_collect_targets dir out_var)
     get_property(targets DIRECTORY "${dir}" PROPERTY BUILDSYSTEM_TARGETS)

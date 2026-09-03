@@ -145,6 +145,7 @@ void XinputInputDriver::EnumerateDevices(std::vector<DeviceInfo>& out) {
     DeviceInfo info;
     info.id = DeviceForSlot(slot);
     info.name = "XInput Controller";
+    info.subtype = static_cast<uint8_t>(native_caps.SubType);
     info.synthetic = false;
     out.push_back(info);
   }

@@ -63,6 +63,37 @@ function(rexglue_apply_target_settings target_name)
 endfunction()
 
 #==========================================================
+# _rexglue_stage_plugins(<target> <in_tree_prefix> <imported_prefix> <label>
+#                        <plugins>) - internal
+#
+# Copies each named runtime-loaded plugin next to the host binary, resolving
+# either the in-tree target or the installed SDK import.
+#==========================================================
+function(_rexglue_stage_plugins target_name in_tree_prefix imported_prefix label plugins)
+    foreach(_plugin IN LISTS plugins)
+        if(TARGET ${in_tree_prefix}${_plugin})
+            # In-tree build: depend on it so it gets built.
+            set(_plugin_target ${in_tree_prefix}${_plugin})
+            add_dependencies(${target_name} ${_plugin_target})
+        elseif(TARGET ${imported_prefix}${_plugin})
+            # Installed SDK import.
+            set(_plugin_target ${imported_prefix}${_plugin})
+        else()
+            message(FATAL_ERROR
+                "rexglue_configure_target: unknown ${label} plugin '${_plugin}' "
+                "(no target ${in_tree_prefix}${_plugin} or ${imported_prefix}${_plugin})")
+        endif()
+        add_custom_command(TARGET ${target_name} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:${_plugin_target}>
+                $<TARGET_FILE_DIR:${target_name}>
+            VERBATIM
+        )
+        unset(_plugin_target)
+    endforeach()
+endfunction()
+
+#==========================================================
 # rexglue_configure_target(<target>) - Host application
 #
 # Adds:
@@ -75,7 +106,7 @@ endfunction()
 #     so this single copy handles them transitively.
 #==========================================================
 function(rexglue_configure_target target_name)
-    cmake_parse_arguments(ARG "" "" "GPU_PLUGINS" ${ARGN})
+    cmake_parse_arguments(ARG "" "" "GPU_PLUGINS;INPUT_PLUGINS" ${ARGN})
 
     target_sources(${target_name} PRIVATE
         ${REXGLUE_SHARE_DIR}/windowed_app_main_sdl.cpp
@@ -142,29 +173,10 @@ function(rexglue_configure_target target_name)
         endforeach()
     endif()
 
-    # Stage requested GPU emulation plugins next to the executable. Plugins
-    # are runtime-loaded (never linked), so TARGET_RUNTIME_DLLS misses them.
-    foreach(_plugin IN LISTS ARG_GPU_PLUGINS)
-        if(TARGET rexgpu-${_plugin})
-            # In-tree build: depend on it so it gets built.
-            set(_plugin_target rexgpu-${_plugin})
-            add_dependencies(${target_name} ${_plugin_target})
-        elseif(TARGET rex::gpu-${_plugin})
-            # Installed SDK import.
-            set(_plugin_target rex::gpu-${_plugin})
-        else()
-            message(FATAL_ERROR
-                "rexglue_configure_target: unknown GPU plugin '${_plugin}' "
-                "(no target rexgpu-${_plugin} or rex::gpu-${_plugin})")
-        endif()
-        add_custom_command(TARGET ${target_name} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                $<TARGET_FILE:${_plugin_target}>
-                $<TARGET_FILE_DIR:${target_name}>
-            VERBATIM
-        )
-        unset(_plugin_target)
-    endforeach()
+    # Stage requested plugins next to the executable. Plugins are
+    # runtime-loaded (never linked), so TARGET_RUNTIME_DLLS misses them.
+    _rexglue_stage_plugins(${target_name} "rexgpu-" "rex::gpu-" "GPU" "${ARG_GPU_PLUGINS}")
+    _rexglue_stage_plugins(${target_name} "rexinput_" "rex::input-" "input" "${ARG_INPUT_PLUGINS}")
 
     if(APPLE AND REXGLUE_USE_VULKAN)
         _rexglue_stage_macos_vulkan_runtime(${target_name})

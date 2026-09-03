@@ -54,6 +54,34 @@ using namespace rex::system;
 
 extern std::atomic<int> xam_dialogs_shown_;
 
+namespace {
+
+// Holds guest input for as long as a dialog is on screen, so the title does
+// not act on the presses driving it - including the one that dismisses it.
+class ScopedGuestInputBlock {
+ public:
+  ScopedGuestInputBlock() {
+    auto* runtime = REX_KERNEL_STATE()->emulator();
+    input_system_ = runtime ? runtime->input_system() : nullptr;
+    if (input_system_) {
+      input_system_->AddUIInputBlocker();
+    }
+  }
+  ~ScopedGuestInputBlock() {
+    if (input_system_) {
+      input_system_->RemoveUIInputBlocker();
+    }
+  }
+
+  ScopedGuestInputBlock(const ScopedGuestInputBlock&) = delete;
+  ScopedGuestInputBlock& operator=(const ScopedGuestInputBlock&) = delete;
+
+ private:
+  rex::system::IInputSystem* input_system_ = nullptr;
+};
+
+}  // namespace
+
 class XamDialog : public rex::ui::ImGuiDialog {
  public:
   void set_close_callback(std::function<void()> close_callback) {
@@ -81,6 +109,7 @@ X_RESULT xeXamDispatchDialog(T* dialog, std::function<X_RESULT(T*)> close_callba
     REX_KERNEL_STATE()->BroadcastNotification(0x9, true);
   };
   auto run = [dialog, close_callback]() -> X_RESULT {
+    ScopedGuestInputBlock input_block;
     X_RESULT result;
     dialog->set_close_callback(
         [&dialog, &result, &close_callback]() { result = close_callback(dialog); });
@@ -122,6 +151,7 @@ X_RESULT xeXamDispatchDialogEx(T* dialog,
     REX_KERNEL_STATE()->BroadcastNotification(0x9, true);
   };
   auto run = [dialog, close_callback](uint32_t& extended_error, uint32_t& length) -> X_RESULT {
+    ScopedGuestInputBlock input_block;
     rex::ui::WindowedAppContext* app_context = REX_KERNEL_STATE()->emulator()->app_context();
     X_RESULT result;
     dialog->set_close_callback([&dialog, &result, &extended_error, &length, &close_callback]() {

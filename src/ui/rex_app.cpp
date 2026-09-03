@@ -27,12 +27,12 @@
 #include <rex/ui/overlay/settings_overlay.h>
 #include <rex/audio/audio_system.h>
 #include <rex/audio/sdl/sdl_audio_system.h>
-#include <rex/input/input_system.h>
 #include <rex/kernel/init.h>
 #include <rex/string/numeric.h>
 #include <rex/system.h>
 #include <rex/system/achievement_manager.h>
 #include <rex/system/gpu_plugin.h>
+#include <rex/system/input_plugin.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xthread.h>
 #include <rex/ui/graphics_provider.h>
@@ -49,6 +49,10 @@
 REXCVAR_DEFINE_STRING(gpu_plugin, "", "GPU",
                       "GPU emulation plugin to load at startup (e.g. 'xenos'); empty disables "
                       "GPU emulation")
+    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
+
+REXCVAR_DEFINE_STRING(input_plugin, "xsb", "Input",
+                      "Input plugin to load at startup (e.g. 'xsb'); empty disables input")
     .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
 namespace rex {
@@ -241,7 +245,7 @@ bool ReXApp::ConstructRuntime(const PathConfig& paths) {
   }
 
   if (window_ && runtime_->input_system()) {
-    static_cast<rex::input::InputSystem*>(runtime_->input_system())->AttachWindow(window_.get());
+    runtime_->input_system()->AttachWindow(window_.get());
   }
 
   if (ppc_info_.register_modules) {
@@ -249,7 +253,7 @@ bool ReXApp::ConstructRuntime(const PathConfig& paths) {
   }
 
   if (imgui_drawer_) {
-    auto* input_sys = static_cast<rex::input::InputSystem*>(runtime_->input_system());
+    auto* input_sys = runtime_->input_system();
     if (input_sys) {
       input_sys->SetActiveCallback([this]() {
         if (!debug_overlay_ && !console_overlay_ && !settings_overlay_ && !achievements_overlay_)
@@ -307,8 +311,8 @@ bool ReXApp::ConstructRuntime(const PathConfig& paths) {
 
 bool ReXApp::SetupPresentation() {
   config_.gpu_plugin = REXCVAR_GET(gpu_plugin);
+  config_.input_plugin = REXCVAR_GET(input_plugin);
   config_.audio_factory = REX_AUDIO_BACKEND(rex::audio::sdl::SDLAudioSystem);
-  config_.input_factory = REX_INPUT_BACKEND(rex::input::CreateDefaultInputSystem);
   config_.kernel_init = rex::kernel::InitializeKernel;
 
   OnPreSetup(config_);

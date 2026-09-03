@@ -27,6 +27,7 @@ struct DeviceInfo {
   uint32_t ordinal = 0;  // connection order, assigned by InputSystem
   std::string name;
   std::string guid;
+  uint8_t subtype = 0x01;  // XINPUT_DEVSUBTYPE_*
   bool synthetic = false;  // keyboard/mouse emulation or the NOP stand-in
 };
 

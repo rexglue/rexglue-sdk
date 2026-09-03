@@ -4,7 +4,6 @@
 set_target_properties(rexcore PROPERTIES EXPORT_NAME core)
 set_target_properties(rexfilesystem PROPERTIES EXPORT_NAME filesystem)
 set_target_properties(rexui PROPERTIES EXPORT_NAME ui)
-set_target_properties(rexinput PROPERTIES EXPORT_NAME input)
 set_target_properties(rexaudio PROPERTIES EXPORT_NAME audio)
 set_target_properties(rexruntime PROPERTIES EXPORT_NAME runtime)
 set_target_properties(rexcodegen PROPERTIES EXPORT_NAME codegen)
@@ -15,6 +14,7 @@ include(${CMAKE_CURRENT_LIST_DIR}/rexglue_helpers.cmake)
 set(REXGLUE_INSTALL_TARGETS
     rexruntime
     rexgpu-xenos
+    rexinput_xsb
     disruptorplus renderdoc simde tomlplusplus
     aes128 mspack o1heap disasm xxhash
     libavcodec libavutil
