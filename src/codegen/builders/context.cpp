@@ -269,6 +269,15 @@ void BuilderContext::emit_function_call(uint32_t address) {
     return;
   }
 
+  // Same fallback as emit_conditional_branch: the per-site CallTarget table can
+  // be missing an entry for a target the graph knows perfectly well. Ask the
+  // graph before giving up, so a resolvable call does not become a runtime abort.
+  if (auto* fn = graph().getFunction(address)) {
+    emitCtx.reference(fn->name());
+    println("\t{}(ctx, base);", fn->name());
+    return;
+  }
+
   // No pre-resolved target found - this is an error
   REXCODEGEN_ERROR("Unresolved function 0x{:08X} from 0x{:08X} (no CallTarget in FunctionNode)",
                    address, base);
@@ -312,6 +321,18 @@ void BuilderContext::emit_conditional_branch(bool not_, std::string_view cond) {
           println("\t\treturn;");
           println("\t}}");
         }
+      } else if (auto* targetFn = graph().getFunction(target)) {
+        // classifyTarget already established this is a function; the per-site
+        // CallTarget table simply has no entry for this branch. Falling through
+        // to REX_FATAL here turns a resolvable tail call into a guaranteed
+        // runtime abort: on Gears of War Judgment that is 28 conditional
+        // back-edges (e.g. `blt cr6,0x8270d2a8` at 0x8270D36C) whose targets are
+        // registered functions. Resolve straight from the graph instead.
+        emitCtx.reference(targetFn->name());
+        println("\tif ({}{}.{}) {{", not_ ? "!" : "", cr(insn.operands[0]), cond);
+        println("\t\t{}(ctx, base);", targetFn->name());
+        println("\t\treturn;");
+        println("\t}}");
       } else {
         REXCODEGEN_ERROR("Unresolved conditional branch to 0x{:08X} from 0x{:08X} (no CallTarget)",
                          target, base);
