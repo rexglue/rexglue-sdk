@@ -13,7 +13,10 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <fstream>
 #include <span>
+#include <cstring>
+#include <cstdlib>
 #include <unordered_map>
 
 #include <fmt/format.h>
@@ -308,6 +311,23 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
   {
     auto execMod = runtime->kernel_state()->GetExecutableModule();
     auto bv = BinaryView::fromModule(*execMod->xex_module());
+
+    // Optional: dump the decompressed/decrypted guest image for external analysis
+    // (e.g. the jump-table IDA pass). Off unless REX_DUMP_IMAGE names an output path.
+    // Reconstruct a contiguous image: each section copied to (sec base - image base);
+    // gaps (PE headers, inter-section padding) stay zero, matching guest layout.
+    if (const char* dumpPath = std::getenv("REX_DUMP_IMAGE")) {
+      std::vector<uint8_t> img(bv.imageSize(), 0);
+      for (const auto& sec : bv.sections()) {
+        uint32_t off = sec.baseAddress - bv.baseAddress();
+        if (sec.data && off <= img.size() && off + sec.size <= img.size())
+          std::memcpy(img.data() + off, sec.data, sec.size);
+      }
+      std::ofstream ofs(dumpPath, std::ios::binary);
+      ofs.write(reinterpret_cast<const char*>(img.data()), img.size());
+      REXCODEGEN_INFO("Dumped guest image to {} ({:#x} bytes, base {:#010x}, {} sections)",
+                      dumpPath, bv.imageSize(), bv.baseAddress(), bv.sections().size());
+    }
 
     auto entry_display = make_display_name(targeted[0].config.filePath);
     RecompilerConfig cfg = std::move(targeted[0].config);
