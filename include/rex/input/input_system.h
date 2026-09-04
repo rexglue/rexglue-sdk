@@ -11,6 +11,7 @@
  */
 
 #include <memory>
+#include <mutex>
 #include <vector>
 
 #include <rex/input/device_assignment.h>
@@ -63,6 +64,18 @@ class InputSystem : public system::IInputSystem {
 
   // Ordered by ordinal. Ordinals are never recycled, so unplugging pad one
   // does not renumber pad two.
+  // Guards every mutable field below, and the assignment_ / active_devices_
+  // state the public entry points walk. RefreshDevices() clears and rebuilds
+  // devices_ and device_owners_, and it runs on EVERY XamInputGetState --
+  // which titles call from more than one guest thread at once. Two concurrent
+  // polls were freeing and reallocating the same std::vector, which is how
+  // Gears of War Judgment died between 48s and 160s with a heap corruption
+  // (0xC0000374) or a use-after-free (0xC0000005) and nothing in the log.
+  //
+  // Recursive because RefreshDevices() is public API: it locks on its own, and
+  // the entry points that already hold the lock call it too.
+  mutable std::recursive_mutex devices_mutex_;
+
   std::vector<DeviceInfo> devices_;
   std::vector<InputDriver*> device_owners_;
 };
