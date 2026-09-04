@@ -25,6 +25,16 @@
 
 namespace rex::codegen {
 
+struct ImagePatch {
+  std::string name;      // for logging; from the community patch entry
+  uint32_t address = 0;  // guest virtual address
+  std::vector<uint8_t> data;
+  // Bytes the patch author saw at `address`. Recorded when the patch is
+  // converted so a game dump of a different build is refused instead of
+  // silently corrupted. Empty means "apply unchecked".
+  std::vector<uint8_t> expect;
+};
+
 struct MidAsmHook {
   std::string name;
   std::vector<std::string> registers;
@@ -111,6 +121,13 @@ struct RecompilerConfig {
   std::unordered_map<uint32_t, FunctionConfig> functions;  ///< Function/chunk configuration
   std::unordered_map<uint32_t, JumpTable> switchTables;
   std::unordered_map<uint32_t, MidAsmHook> midAsmHooks;
+
+  // Byte patches applied to the decoded guest image before analysis. A static
+  // recompiler translates guest instructions ahead of time, so a code patch has
+  // to land here -- poking guest memory at runtime would not change the native
+  // code that was already generated. This is what makes the community patch
+  // databases (xenia-canary/game-patches and friends) usable in a port.
+  std::vector<ImagePatch> imagePatches;
   uint32_t longJmpAddress = 0;
   uint32_t setJmpAddress = 0;
 

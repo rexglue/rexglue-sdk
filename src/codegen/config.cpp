@@ -307,6 +307,73 @@ void ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
     }
   }
 
+  // [[image_patch]] -- byte patches applied to the decoded image before analysis.
+  // Additive across included files so a community patch set can live in its own
+  // TOML alongside the discovered cures.
+  if (auto imagePatchArray = toml["image_patch"].as_array()) {
+    for (auto& entry : *imagePatchArray) {
+      auto* table = entry.as_table();
+      if (!table) {
+        REXCODEGEN_ERROR("Invalid [[image_patch]] entry: expected table");
+        continue;
+      }
+      auto address_opt = (*table)["address"].value<uint32_t>();
+      auto data_opt = (*table)["data"].value<std::string>();
+      if (!address_opt) {
+        REXCODEGEN_ERROR("Missing 'address' in [[image_patch]] entry");
+        continue;
+      }
+      if (!data_opt || data_opt->empty() || data_opt->size() % 2 != 0) {
+        REXCODEGEN_ERROR(
+            "[[image_patch]] 0x{:08X}: 'data' must be a non-empty even-length hex "
+            "string of the bytes as they appear in the image",
+            *address_opt);
+        continue;
+      }
+      auto decodeHex = [](std::string_view in, std::vector<uint8_t>& out) -> bool {
+        auto hexval = [](char c) -> int {
+          if (c >= '0' && c <= '9')
+            return c - '0';
+          if (c >= 'a' && c <= 'f')
+            return c - 'a' + 10;
+          if (c >= 'A' && c <= 'F')
+            return c - 'A' + 10;
+          return -1;
+        };
+        for (size_t i = 0; i + 1 < in.size(); i += 2) {
+          int hi = hexval(in[i]), lo = hexval(in[i + 1]);
+          if (hi < 0 || lo < 0)
+            return false;
+          out.push_back(static_cast<uint8_t>((hi << 4) | lo));
+        }
+        return true;
+      };
+
+      ImagePatch patch;
+      patch.address = *address_opt;
+      patch.name = (*table)["name"].value_or(std::string{});
+      if (!decodeHex(*data_opt, patch.data)) {
+        REXCODEGEN_ERROR("[[image_patch]] 0x{:08X}: 'data' is not valid hex", *address_opt);
+        continue;
+      }
+      if (auto expect_opt = (*table)["expect"].value<std::string>()) {
+        if (expect_opt->size() % 2 != 0 || !decodeHex(*expect_opt, patch.expect)) {
+          REXCODEGEN_ERROR("[[image_patch]] 0x{:08X}: 'expect' is not an even-length hex string",
+                           *address_opt);
+          continue;
+        }
+        if (patch.expect.size() != patch.data.size()) {
+          REXCODEGEN_ERROR("[[image_patch]] 0x{:08X}: 'expect' is {} byte(s) but 'data' is {}",
+                           *address_opt, patch.expect.size(), patch.data.size());
+          continue;
+        }
+      }
+      REXCODEGEN_DEBUG("[config]   [[image_patch]] 0x{:08X} +{} byte(s) \"{}\" from {}",
+                       patch.address, patch.data.size(), patch.name, filePath);
+      cfg.imagePatches.push_back(std::move(patch));
+    }
+  }
+
   // [[midasm_hook]] -- keyed by "address"
   if (auto midAsmHookArray = toml["midasm_hook"].as_array()) {
     for (auto& entry : *midAsmHookArray) {

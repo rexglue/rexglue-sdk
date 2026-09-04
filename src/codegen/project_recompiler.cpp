@@ -311,6 +311,50 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
 
     auto entry_display = make_display_name(targeted[0].config.filePath);
     RecompilerConfig cfg = std::move(targeted[0].config);
+
+    // Apply [[image_patch]] entries to the decoded image before any analysis
+    // runs. These have to land here rather than at runtime: the recompiler
+    // translates guest instructions ahead of time, so a patched opcode only
+    // takes effect if it is patched before it is read. SectionView::data is
+    // const because analysis never writes; the storage behind it is the loaded
+    // module's own writable image, which is what we mean to edit.
+    for (const auto& patch : cfg.imagePatches) {
+      const SectionView* target = nullptr;
+      for (const auto& sec : bv.sections()) {
+        if (sec.data && sec.contains(patch.address) &&
+            patch.address + patch.data.size() <= sec.end()) {
+          target = &sec;
+          break;
+        }
+      }
+      if (!target) {
+        REXCODEGEN_ERROR(
+            "[[image_patch]] 0x{:08X} \"{}\": address is outside every section, or "
+            "the patch runs past the end of one; skipped",
+            patch.address, patch.name);
+        continue;
+      }
+      auto* dst = const_cast<uint8_t*>(target->translate(patch.address));
+      if (!patch.expect.empty() &&
+          std::memcmp(dst, patch.expect.data(), patch.expect.size()) != 0) {
+        auto hex = [](const uint8_t* p, size_t n) {
+          std::string out;
+          for (size_t i = 0; i < n; i++)
+            out += fmt::format("{:02X}", p[i]);
+          return out;
+        };
+        REXCODEGEN_ERROR(
+            "[[image_patch]] 0x{:08X} \"{}\": image holds {} but the patch was written against "
+            "{}. This game dump is a different build -- skipping rather than corrupting it.",
+            patch.address, patch.name, hex(dst, patch.expect.size()),
+            hex(patch.expect.data(), patch.expect.size()));
+        continue;
+      }
+      std::memcpy(dst, patch.data.data(), patch.data.size());
+      REXCODEGEN_INFO("Applied image patch 0x{:08X} +{} byte(s) in {}{}{}", patch.address,
+                      patch.data.size(), target->name, patch.name.empty() ? "" : " -- ",
+                      patch.name);
+    }
     if (opts.enableExceptionHandlers)
       cfg.generateExceptionHandlers = true;
 
