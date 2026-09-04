@@ -105,7 +105,22 @@ int main(int argc, char** argv) {
   rexglue::ui::Banner(TitleString());
 
   auto start = std::chrono::steady_clock::now();
-  rex::Result<void> result = pending ? pending() : rex::Ok();
+  // A command reports failure through Result, but anything it THROWS escaped
+  // this frame: no handler, no summary, the process dies as 0xE06D7363 and the
+  // message the thrower took care to build is never seen. FunctionGraph::sealAll
+  // is one such -- "N functions cannot be sealed: <which, and why>" -- and it
+  // took a symbolised crash dump to learn that from a Forza Horizon codegen that
+  // just vanished after the Write banner. Report it like any other failure.
+  rex::Result<void> result = rex::Ok();
+  try {
+    if (pending) {
+      result = pending();
+    }
+  } catch (const std::exception& e) {
+    result = rex::Err(rex::ErrorCategory::Runtime, e.what());
+  } catch (...) {
+    result = rex::Err(rex::ErrorCategory::Runtime, "unhandled non-std exception");
+  }
   auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::steady_clock::now() - start);
 
