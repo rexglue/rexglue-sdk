@@ -9,6 +9,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <string>
 #include <rex/cvar.h>
 #include <rex/kernel/xam/private.h>
 #include <rex/logging.h>
@@ -141,8 +142,15 @@ u32 xeXamContentCreate(u32 user_index, mapped_string root_name, mapped_void cont
     *disposition_ptr = 0;
   }
 
-  auto run = [content_manager, xuid, root_name = root_name.value(), flags, content_data,
-              disposition_ptr,
+  // root_name.value() is a std::string_view over GUEST memory. This lambda is
+  // handed to CompleteOverlappedDeferredEx and runs later on the dispatch
+  // thread, by which point the title has typically reused that buffer -- the
+  // view then reads whatever is there now. Gears of War Judgment hit this
+  // ~13s in: the stale bytes reached string_key_case::hash() -> utf8 iteration,
+  // which threw utf8::invalid_utf8 out of the deferred call and tripped
+  // REX_FATAL. Own the bytes so the deferred run sees the name it was given.
+  auto run = [content_manager, xuid, root_name = std::string(root_name.value()), flags,
+              content_data, disposition_ptr,
               license_mask_ptr](uint32_t& extended_error, uint32_t& length) -> X_RESULT {
     X_RESULT result = X_ERROR_INVALID_PARAMETER;
     kDispositionState disposition = kDispositionState::Unknown;
