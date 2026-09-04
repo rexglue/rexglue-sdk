@@ -168,7 +168,17 @@ bool build_bctr(BuilderContext& ctx) {
     }
 
     ctx.println("\tdefault:");
-    ctx.println("\t\t__builtin_trap(); // Switch case out of range");
+    // A recovered jump table is a best-effort reconstruction, not a proof of the
+    // index's full range: the game can legitimately reach an index the table
+    // does not cover. __builtin_trap() lowers to `ud2`, so that case killed the
+    // process with STATUS_ILLEGAL_INSTRUCTION and nothing in the log -- Gears of
+    // War Judgment died ~5s in, at one of 121 such defaults, while the same
+    // title runs for minutes when the default dispatches instead. Fall back to
+    // the same indirect dispatch used when no table was recovered at all; the
+    // runtime already reports an unresolved target there, so a genuinely bad
+    // index is still diagnosed, just not with an illegal instruction.
+    ctx.println("\t\tREX_CALL_INDIRECT_FUNC({}.u32);", ctx.ctr());
+    ctx.println("\t\treturn;");
     ctx.println("\t}}");
 
     ctx.reset_switch_table();
