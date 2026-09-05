@@ -387,6 +387,29 @@ inline bool isMMIOUpperBits(uint32_t imm) {
  */
 inline void emitBranchWithBoundsCheck(BuilderContext& ctx, uint32_t target,
                                       std::string_view condition, std::string_view instr_name) {
+  // Ask the graph what the target is, the way emit_conditional_branch does for
+  // bc. "Inside my [base, end)" is not the same question: discovery can produce
+  // functions whose bodies overlap -- Forza Horizon has sub_82AA6268, sub_82AA6270
+  // and sub_82AA62A8 all running through the same `bdz 0x82aa6444`, and
+  // 0x82AA6444 is itself a discovered function. The range test said "internal",
+  // the emitted `goto loc_82AA6444` had no label in any of the three, and the
+  // build could not converge no matter what the heal did to the config. A
+  // branch to a function entry is a tail call, decrement-and-test or not.
+  switch (ctx.graph().classifyTarget(target, ctx.base, false)) {
+    case TargetKind::Function:
+    case TargetKind::Import:
+      if (auto* targetFn = ctx.graph().getFunction(target)) {
+        ctx.emitCtx.reference(targetFn->name());
+        ctx.println("\tif ({}) {{", condition);
+        ctx.println("\t\t{}(ctx, base);", targetFn->name());
+        ctx.println("\t\treturn;");
+        ctx.println("\t}}");
+        return;
+      }
+      break;
+    default:
+      break;
+  }
   if (target < ctx.fn.base() || target >= ctx.fn.end()) {
     REXCODEGEN_WARN("{} at {:X} branches outside function to {:X}", instr_name, ctx.base, target);
     ctx.println("\tif ({}) {{ /* branch to 0x{:X} outside function */ return; }}", condition,
