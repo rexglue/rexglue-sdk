@@ -749,6 +749,17 @@ FunctionNode* FunctionGraph::addFunction(uint32_t base, uint32_t size, FunctionA
     }
 
     // Replace with higher authority
+    if (existing->authority() == FunctionAuthority::HELPER) {
+      // A config entry sitting on a save/restore helper turns every bl/b into
+      // it from the intrinsic into a real call, and gap-fill tooling produces
+      // exactly such entries because the helper tables have no C++ behind them.
+      // Forza Horizon booted to a null read that way. Nobody writes this on
+      // purpose, so say it where a default log level shows it.
+      REXCODEGEN_WARN(
+          "FunctionGraph: config overrides the {} helper at 0x{:08X}; its callers lose the "
+          "intrinsic -- almost certainly a stray function override",
+          existing->name(), base);
+    }
     REXCODEGEN_DEBUG("FunctionGraph: replacing 0x{:08X} ({}) with ({})", base,
                      AuthorityName(existing->authority()), AuthorityName(authority));
   }
@@ -800,6 +811,28 @@ bool FunctionGraph::removeFunction(uint32_t entryPoint) {
     return false;
   }
   REXCODEGEN_TRACE("FunctionGraph: removing absorbed function 0x{:08X}", entryPoint);
+  // Resolution runs BEFORE gap fill absorbs a function, so call sites can
+  // already hold a CallTarget::ToFunction pointing at the node about to die --
+  // and that target owns a raw FunctionNode*. Captain America resolved two
+  // tail calls to sub_82226688 and then folded it into sub_82226660; the
+  // dangling pointer reached the emitter, which read a freed std::string and
+  // wrote `(ctx, base);` plus `DECLARE_REX_FUNC();` into the generated C++.
+  // That does not compile, and the address it came from is nowhere in the
+  // output. Put those edges back to Unresolved so they take the normal
+  // unresolved-target path instead.
+  FunctionNode* dying = it->second.get();
+  size_t unresolved = 0;
+  for (auto& [otherBase, otherNode] : functions_) {
+    if (otherNode.get() != dying) {
+      unresolved += otherNode->unresolveCallsTo(dying);
+    }
+  }
+  if (unresolved) {
+    REXCODEGEN_DEBUG(
+        "FunctionGraph: 0x{:08X} was still the target of {} call site(s); they are "
+        "unresolved again",
+        entryPoint, unresolved);
+  }
   functionsByBase_.erase(entryPoint);
   functions_.erase(it);
   functionHasXrefs_.erase(entryPoint);  // Clean up xref tracking

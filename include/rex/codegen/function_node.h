@@ -123,6 +123,28 @@ class FunctionNode {
   // Resolved tail calls (b instructions to other functions)
   const std::vector<CallEdge>& tailCalls() const { return tailCalls_; }
 
+  /**
+   * Re-point every call and tail call that targets `node` back to Unresolved,
+   * returning how many edges changed.
+   *
+   * A CallTarget::ToFunction holds a raw FunctionNode*, and resolution runs
+   * before gap fill's absorption pass drops a function the graph no longer
+   * wants. FunctionGraph::removeFunction calls this so those edges do not
+   * outlive the node they point at.
+   */
+  size_t unresolveCallsTo(const FunctionNode* node) {
+    size_t changed = 0;
+    for (auto* edges : {&calls_, &tailCalls_}) {
+      for (auto& edge : *edges) {
+        if (edge.target.asFunction() == node) {
+          edge.target = CallTarget::unresolved(node->base());
+          ++changed;
+        }
+      }
+    }
+    return changed;
+  }
+
   // Jump tables
   const std::vector<JumpTable>& jumpTables() const { return jumpTables_; }
 
