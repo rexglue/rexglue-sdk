@@ -15,6 +15,13 @@
 
 #include "platform_win.h"
 
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <exception>
+#include <string>
+#include <typeinfo>
+
 #include <rex/assert.h>
 #include <rex/math.h>
 
@@ -101,9 +108,95 @@ LONG CALLBACK ExceptionHandlerCallback(PEXCEPTION_POINTERS ex_info) {
   return EXCEPTION_CONTINUE_SEARCH;
 }
 
+// --- Last-chance crash diagnostics -----------------------------------------
+// The VEH above only claims the two exception kinds guest memory emulation
+// needs; everything else returns EXCEPTION_CONTINUE_SEARCH and the process dies
+// with nothing written down. That is how a recompiled title can exit
+// 0xC0000409 (STATUS_STACK_BUFFER_OVERRUN, which is what __fastfail and an
+// abort() from std::terminate both surface as) with an empty log and no clue
+// where it happened.
+//
+// So: name the corpse. A terminate handler reports the in-flight C++ exception,
+// an unhandled-exception filter reports the code and faulting address, and both
+// write a return-address backtrace as module+RVA -- which is enough to point
+// llvm-symbolizer at the port's PDB and get real frames back.
+//
+// Written to a file rather than the log because the logger may be exactly what
+// is broken, and appended so a crash is never overwritten by the next run.
+
+static void RexWriteCrashReport(const char* why, const char* detail, CONTEXT* ctx) {
+  FILE* f = std::fopen("rexglue-crash.txt", "a");
+  if (!f) {
+    return;
+  }
+  SYSTEMTIME st;
+  GetLocalTime(&st);
+  std::fprintf(f, "\n=== %04u-%02u-%02u %02u:%02u:%02u  pid %lu  thread %lu ===\n", st.wYear,
+               st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond, GetCurrentProcessId(),
+               GetCurrentThreadId());
+  std::fprintf(f, "%s%s%s\n", why, detail && *detail ? ": " : "", detail ? detail : "");
+  if (ctx) {
+    std::fprintf(f, "  rip=%016llX rsp=%016llX rbp=%016llX\n", (unsigned long long)ctx->Rip,
+                 (unsigned long long)ctx->Rsp, (unsigned long long)ctx->Rbp);
+  }
+
+  void* frames[62];
+  USHORT n = CaptureStackBackTrace(0, (USHORT)rex::countof(frames), frames, nullptr);
+  std::fprintf(f, "  backtrace (%u frames, module+RVA -- feed to llvm-symbolizer):\n", n);
+  for (USHORT i = 0; i < n; ++i) {
+    HMODULE mod = nullptr;
+    char name[MAX_PATH] = "?";
+    if (GetModuleHandleExA(
+            GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+            (LPCSTR)frames[i], &mod) &&
+        mod) {
+      char full[MAX_PATH];
+      if (GetModuleFileNameA(mod, full, MAX_PATH)) {
+        const char* slash = std::strrchr(full, '\\');
+        std::snprintf(name, sizeof(name), "%s", slash ? slash + 1 : full);
+      }
+    }
+    std::fprintf(f, "    %2u  %-24s +0x%llX\n", i, name,
+                 (unsigned long long)((uintptr_t)frames[i] - (uintptr_t)mod));
+  }
+  std::fflush(f);
+  std::fclose(f);
+}
+
+static void RexTerminateHandler() {
+  // Recover what was thrown. An exception escaping a noexcept boundary is the
+  // most likely way this runtime reaches terminate, and its type and message are
+  // the whole diagnosis -- as they were for the guest string_view that XamContent
+  // handed to the dispatch thread.
+  const char* detail = "no in-flight exception";
+  std::string msg;
+  if (std::current_exception()) {
+    try {
+      std::rethrow_exception(std::current_exception());
+    } catch (const std::exception& e) {
+      msg = std::string(typeid(e).name()) + " -- " + e.what();
+      detail = msg.c_str();
+    } catch (...) {
+      detail = "non-std exception";
+    }
+  }
+  RexWriteCrashReport("std::terminate called", detail, nullptr);
+  std::_Exit(3);
+}
+
+static LONG WINAPI RexUnhandledExceptionFilter(EXCEPTION_POINTERS* ex) {
+  char detail[128];
+  std::snprintf(detail, sizeof(detail), "code 0x%08lX at %p", ex->ExceptionRecord->ExceptionCode,
+                ex->ExceptionRecord->ExceptionAddress);
+  RexWriteCrashReport("unhandled exception", detail, ex->ContextRecord);
+  return EXCEPTION_CONTINUE_SEARCH;
+}
+
 void ExceptionHandler::Install(Handler fn, void* data) {
   if (!veh_handle_) {
     veh_handle_ = AddVectoredExceptionHandler(1, ExceptionHandlerCallback);
+    std::set_terminate(RexTerminateHandler);
+    SetUnhandledExceptionFilter(RexUnhandledExceptionFilter);
 
     if (IsDebuggerPresent()) {
       // TODO(benvanik): do we need a continue handler if a debugger is
