@@ -919,6 +919,29 @@ std::optional<KernelState::RecompiledModuleInfo> KernelState::FindRecompiledModu
     if (info.guest_path == normalized)
       return info;
   }
+  // A module the guest loads by BARE NAME is resolved against the executable's
+  // directory by LoadUserModule, and UserModule keeps the VFS entry's absolute
+  // path -- so a companion sitting beside the game reaches here as
+  // "device/harddisk0/partition1/xmediafacade_default.xex", while the manifest
+  // (and rexglue's own `init add-module`) names it relative to the game root:
+  // "xmediafacade_default.xex". Nothing strips that mount prefix, so such a
+  // module could never match and its recompiled code was silently never wired
+  // -- Forza Horizon's XMediaFacade_default.xex FATALs on the first call into
+  // it. Retry against the path relative to the executable's own directory,
+  // which is what the game root maps to. A module named WITH a directory is
+  // never absolutized, so it still matches on the exact compare above.
+  if (executable_module_) {
+    auto exe_dir =
+        NormalizeGuestPath(rex::string::utf8_find_base_guest_path(executable_module_->path()));
+    if (!exe_dir.empty() && normalized.size() > exe_dir.size() + 1 &&
+        normalized.compare(0, exe_dir.size(), exe_dir) == 0 && normalized[exe_dir.size()] == '/') {
+      auto relative = normalized.substr(exe_dir.size() + 1);
+      for (const auto& info : recompiled_modules_) {
+        if (info.guest_path == relative)
+          return info;
+      }
+    }
+  }
   return std::nullopt;
 }
 
