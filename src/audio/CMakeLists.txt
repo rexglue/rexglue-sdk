@@ -39,3 +39,8 @@ target_link_libraries(rexaudio
     PUBLIC rexcore SDL3::SDL3
     PRIVATE libavcodec libavutil
 )
+
+# Apply the standard x86_64 / SSSE3 compile flags (xma_context.cpp uses
+# _mm_shuffle_epi8 / _mm_packus_epi32 / _mm_packs_epi32, and conversion.h
+# inlines pshufb-style byte-swap sequences).
+rexglue_apply_target_settings(rexaudio)
