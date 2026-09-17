@@ -135,3 +135,8 @@ if(REXGLUE_ENABLE_PERF_COUNTERS)
     target_compile_definitions(rexcore PUBLIC
         $<$<NOT:$<CONFIG:Release>>:REXGLUE_ENABLE_PERF_COUNTERS>)
 endif()
+
+# Apply the standard x86_64 / SSSE3 compile flags (also enables -mssse3 next
+# to -msse4.1, which the AMD64 copy_and_swap_* helpers in memory.cpp
+# require for _mm_shuffle_epi8 inlining on Clang).
+rexglue_apply_target_settings(rexcore)

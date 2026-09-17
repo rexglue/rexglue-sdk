@@ -116,8 +116,12 @@ using XSystemClock = detail::NtSystemClock<detail::Domain::Guest>;
 
 namespace std::chrono {
 
-#ifdef __APPLE__
-// Apple libc++ does not expose clock_time_conversion or clock_cast.
+// Workaround: some libc++ versions (notably Apple and recent Linux/FreeBSD/emscripten
+// libc++) do not expose clock_time_conversion as a primary template, which breaks the
+// explicit specializations below with "specialization of undeclared template struct"
+// errors. Mirror the Apple workaround on those platforms too.
+#if defined(__APPLE__) || defined(__linux__) || defined(__EMSCRIPTEN__) || defined(__FreeBSD__)
+// libc++ does not expose clock_time_conversion or clock_cast.
 template <class, class>
 struct clock_time_conversion {};
 

@@ -158,3 +158,8 @@ if(REXGLUE_USE_D3D12)
         dxguid
     )
 endif()
+
+# Apply the standard x86_64 / SSSE3 compile flags (primitive_processor.h uses
+# _mm_shuffle_epi8 inside ReplaceResetIndex32To24 and a couple of inline
+# helpers that the x86_64 path requires Clang to recognize).
+rexglue_apply_target_settings(rexgpu-xenos)
