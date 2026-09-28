@@ -75,3 +75,42 @@ catch_discover_tests(unit_tests
         LABELS "unit"
         TIMEOUT 60
 )
+
+# XHostThread needs a real Runtime/KernelState, including its own guest-memory
+# mapping. Keep this lifecycle test isolated from unit_tests, which owns the
+# process-wide test Memory mapping.
+add_executable(xthread_tests
+    system/xthread_test.cpp
+)
+
+target_include_directories(xthread_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_SOURCE_DIR}/src
+)
+
+target_link_libraries(xthread_tests PRIVATE
+    rexruntime
+    Catch2::Catch2WithMain
+)
+
+target_compile_options(xthread_tests PRIVATE
+    -UTRACY_ENABLE -UREXGLUE_ENABLE_PROFILING
+    -UREXGLUE_ENABLE_PERF_COUNTERS -UREXGLUE_PROFILE_GUEST_FUNCTIONS
+)
+
+set_target_properties(xthread_tests PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>
+)
+if(UNIX AND NOT APPLE)
+    set_target_properties(xthread_tests PROPERTIES
+        INSTALL_RPATH "$ORIGIN"
+        BUILD_WITH_INSTALL_RPATH ON
+    )
+endif()
+
+catch_discover_tests(xthread_tests
+    TEST_PREFIX "unit.xthread."
+    PROPERTIES
+        LABELS "unit;runtime;thread"
+        TIMEOUT 60
+)
