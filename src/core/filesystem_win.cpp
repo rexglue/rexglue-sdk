@@ -43,9 +43,20 @@ std::filesystem::path to_path(const std::u16string_view source) {
 namespace filesystem {
 
 std::filesystem::path GetExecutablePath() {
-  wchar_t* path;
-  auto error = _get_wpgmptr(&path);
-  return !error ? std::filesystem::path(path) : std::filesystem::path();
+  // GetModuleFileNameW works for any entry point. _get_wpgmptr aborts under the debug
+  // CRT when the process started through a narrow main, as test runners do.
+  std::wstring buffer(MAX_PATH, L'\0');
+  for (;;) {
+    DWORD length = GetModuleFileNameW(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
+    if (length == 0) {
+      return std::filesystem::path();
+    }
+    if (length < buffer.size()) {
+      buffer.resize(length);
+      return std::filesystem::path(buffer);
+    }
+    buffer.resize(buffer.size() * 2);
+  }
 }
 
 std::filesystem::path GetExecutableFolder() {

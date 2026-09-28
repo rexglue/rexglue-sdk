@@ -17,49 +17,63 @@
 
 namespace rex {
 
-//=============================================================================
-// Error Categories
-//=============================================================================
-
+/**
+ * Broad classification of an error. Sub-project specific codes go in Error::code.
+ */
 enum class ErrorCategory {
-  NoError,         // No error (success)
-  IO,              // File I/O errors
-  Memory,          // Memory allocation/mapping errors
-  Format,          // File format parsing errors (XEX, PE, ELF)
-  Crypto,          // Cryptography errors (decryption, signature)
-  Compression,     // Decompression errors
-  Runtime,         // Runtime execution errors
-  Platform,        // Platform-specific errors
-  Config,          // Configuration errors
-  Validation,      // Validation errors (e.g., unresolved functions)
-  NotFound,        // Resource not found
-  NotImplemented,  // Feature not implemented
-  UserAbort,       // User declined an interactive prompt
+  NoError,        /**< Success. */
+  IO,             /**< File I/O. */
+  Memory,         /**< Memory allocation or mapping. */
+  Format,         /**< File format parsing (XEX, PE, ELF). */
+  Crypto,         /**< Cryptography (decryption, signature). */
+  Compression,    /**< Decompression. */
+  Runtime,        /**< Runtime execution. */
+  Platform,       /**< Platform specific. */
+  Config,         /**< Configuration. */
+  Validation,     /**< Validation, for example unresolved functions. */
+  NotFound,       /**< Resource not found. */
+  NotImplemented, /**< Feature not implemented. */
+  UserAbort,      /**< User declined an interactive prompt. */
+  Module,         /**< Module loading, connection or initialization. */
 };
 
-//=============================================================================
-// Error Structure
-//=============================================================================
-
+/**
+ * An error value carried by rex::Result and rex::Status.
+ */
 struct Error {
-  ErrorCategory category = ErrorCategory::NoError;
-  std::string message;
-  int code = 0;  // Platform or library-specific error code
+  ErrorCategory category = ErrorCategory::NoError; /**< Classification. */
+  std::string message;                             /**< Human readable detail. */
+  int code = 0;                                    /**< Platform or library specific code. */
 
   Error() = default;
 
+  /**
+   * @param cat Classification.
+   * @param msg Human readable detail.
+   * @param err_code Platform or library specific code.
+   */
   Error(ErrorCategory cat, std::string msg, int err_code = 0)
       : category(cat), message(std::move(msg)), code(err_code) {}
 
-  // Create from system error code
+  /**
+   * Builds an error from a system error code.
+   *
+   * @param cat Classification.
+   * @param msg Human readable detail.
+   * @param errno_value The errno or platform error code.
+   */
   static Error from_errno(ErrorCategory cat, std::string msg, int errno_value) {
     return Error(cat, std::move(msg), errno_value);
   }
 
-  // Check if error represents success
+  /**
+   * @return True when the category is NoError.
+   */
   [[nodiscard]] bool is_success() const noexcept { return category == ErrorCategory::NoError; }
 
-  // Get full error description
+  /**
+   * @return The message, with the code appended when it is not 0.
+   */
   [[nodiscard]] std::string what() const {
     if (is_success()) {
       return "Success";
@@ -71,10 +85,6 @@ struct Error {
     return result;
   }
 };
-
-//=============================================================================
-// Result Type Aliases
-//=============================================================================
 
 /**
  * Result type for operations that can fail
@@ -94,9 +104,10 @@ using Result = std::expected<T, Error>;
  */
 using VoidResult = std::expected<void, Error>;
 
-//=============================================================================
-// Helper Functions
-//=============================================================================
+/**
+ * Result type for operations that return nothing on success. Preferred spelling.
+ */
+using Status = VoidResult;
 
 /**
  * Create a success result
@@ -134,37 +145,3 @@ inline auto Err(ErrorCategory category, std::string message, int code = 0) {
 }
 
 }  // namespace rex
-
-//=============================================================================
-// TRY Macro - Early return on error
-//=============================================================================
-// Evaluates the expression and returns early if it contains an error.
-// The value is extracted and assigned if successful.
-//
-// Usage:
-//   Result<int> get_value();
-//   VoidResult do_something() {
-//       int value = TRY(get_value());
-//       // ... use value ...
-//       return rex::Ok();
-//   }
-//
-// For void results:
-//   VoidResult validate();
-//   VoidResult process() {
-//       TRY(validate());  // Returns on error, continues on success
-//       return rex::Ok();
-//   }
-//=============================================================================
-
-#define REX_TRY_CONCAT_IMPL(x, y) x##y
-#define REX_TRY_CONCAT(x, y) REX_TRY_CONCAT_IMPL(x, y)
-
-#define TRY(expr)                                                                 \
-  ({                                                                              \
-    auto REX_TRY_CONCAT(_rex_try_result_, __LINE__) = (expr);                     \
-    if (!REX_TRY_CONCAT(_rex_try_result_, __LINE__)) {                            \
-      return std::unexpected(REX_TRY_CONCAT(_rex_try_result_, __LINE__).error()); \
-    }                                                                             \
-    std::move(REX_TRY_CONCAT(_rex_try_result_, __LINE__)).value();                \
-  })

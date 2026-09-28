@@ -10,6 +10,9 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <utility>
+
+#include <rex/api.h>
 #include <cstdint>
 #include <deque>
 #include <functional>
@@ -33,6 +36,11 @@ class WindowedAppContext {
   // for the purpose of being able to perform CallInUIThreadSynchronous before
   // running the loop.
   bool IsInUIThread() const { return std::this_thread::get_id() == ui_thread_id_; }
+
+  // Configuration parsed by the entry point before the app is created. ReXApp copies it
+  // at the start of SetupPresentation and passes it to rex::Init.
+  const rex::Config& initial_config() const { return initial_config_; }
+  void set_initial_config(rex::Config config) { initial_config_ = std::move(config); }
 
   // CallInUIThreadDeferred and CallInUIThread are fire and forget - will be
   // executed at some point the future when the UI thread is running the loop
@@ -165,6 +173,7 @@ class WindowedAppContext {
   // queued, as it will never be called (thus CallInUIThreadSynchronous for it
   // will never return, for instance).
   std::mutex pending_functions_mutex_;
+  rex::Config initial_config_;
   std::deque<std::function<void()>> pending_functions_;
   // Protected by pending_functions_mutex_, writable by the UI thread, readable
   // by any thread. Must be set to false before exiting the main platform loop,

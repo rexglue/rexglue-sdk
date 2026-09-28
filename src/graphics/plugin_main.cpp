@@ -1,6 +1,6 @@
 /**
  * @file        graphics/plugin_main.cpp
- * @brief       rexgpu-xenos plugin entry points
+ * @brief       rexgpu-xenos module entry, serves rex.module@1 and rex.graphics.backend@1
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -9,10 +9,17 @@
  *              See LICENSE file in the project root for full license text.
  */
 
+#include <array>
+#include <memory>
+#include <span>
 #include <string_view>
 
+#include <fmt/format.h>
+
+#include <rex/api.h>
+#include <rex/graphics/graphics_system.h>
 #include <rex/logging.h>
-#include <rex/system/gpu_plugin.h>
+#include <rex/module.h>
 
 #if REX_HAS_D3D12
 #include <rex/graphics/d3d12/graphics_system.h>
@@ -21,33 +28,67 @@
 #include <rex/graphics/vulkan/graphics_system.h>
 #endif
 
-extern "C" REX_GPU_PLUGIN_EXPORT uint32_t rex_gpu_abi_version(void) {
-  return rex::system::kGpuPluginAbiVersion;
-}
+namespace rex::graphics::xenos {
 
-extern "C" REX_GPU_PLUGIN_EXPORT rex::system::IGraphicsSystem* rex_gpu_create(
-    uint32_t abi_version, const rex::system::GpuCreateInfo* info) {
-  if (abi_version != rex::system::kGpuPluginAbiVersion) {
-    REXLOG_ERROR("rexgpu-xenos: host requested ABI {}, plugin is ABI {}", abi_version,
-                 rex::system::kGpuPluginAbiVersion);
-    return nullptr;
-  }
-  if (!info || info->struct_size < sizeof(rex::system::GpuCreateInfo)) {
-    REXLOG_ERROR("rexgpu-xenos: invalid GpuCreateInfo");
-    return nullptr;
+class XenosModule final : public rex::IModule {
+ public:
+  static void* GetModule();
+  static void* GetBackend();
+
+  static constexpr std::array<rex::InterfaceEntry, 2> kInterfaces = {{
+      {rex::IModule::kInterfaceName, rex::IModule::kInterfaceVersion, &GetModule},
+      {IGraphicsBackend::kInterfaceName, IGraphicsBackend::kInterfaceVersion, &GetBackend},
+  }};
+
+  const char* Name() const override { return "rexgpu-xenos"; }
+  std::span<const char* const> RequiredInterfaces() const override { return {}; }
+
+  rex::Status Connect(rex::IInterfaceFactory*, const rex::Config& config) override {
+    config_ = &config.graphics;
+    return rex::Ok();
   }
 
-  std::string_view backend = info->backend ? info->backend : "any";
+  void Disconnect() override { config_ = nullptr; }
+
+  rex::Status Init() override {
+    std::string_view backend = config_ ? std::string_view(config_->backend) : "any";
 #if REX_HAS_D3D12
-  if (backend == "any" || backend == "d3d12") {
-    return new rex::graphics::d3d12::D3D12GraphicsSystem();
-  }
+    if (backend == "any" || backend == "d3d12") {
+      backend_ = std::make_unique<d3d12::D3D12GraphicsSystem>();
+      return rex::Ok();
+    }
 #endif
 #if REX_HAS_VULKAN
-  if (backend == "any" || backend == "vulkan") {
-    return new rex::graphics::vulkan::VulkanGraphicsSystem();
-  }
+    if (backend == "any" || backend == "vulkan") {
+      backend_ = std::make_unique<vulkan::VulkanGraphicsSystem>();
+      return rex::Ok();
+    }
 #endif
-  REXLOG_ERROR("rexgpu-xenos: requested backend '{}' is not compiled into this plugin", backend);
-  return nullptr;
+    return rex::Err(
+        rex::ErrorCategory::Module,
+        fmt::format("rexgpu-xenos: backend '{}' is not compiled into this module", backend));
+  }
+
+  void Shutdown() override { backend_.reset(); }
+
+ private:
+  static XenosModule& Instance() {
+    static XenosModule instance;
+    return instance;
+  }
+
+  const BackendConfig* config_ = nullptr;
+  std::unique_ptr<GraphicsSystem> backend_;
+};
+
+void* XenosModule::GetModule() {
+  return static_cast<rex::IModule*>(&Instance());
 }
+
+void* XenosModule::GetBackend() {
+  return static_cast<IGraphicsBackend*>(Instance().backend_.get());
+}
+
+}  // namespace rex::graphics::xenos
+
+REX_DECLARE_MODULE(rex::graphics::xenos::XenosModule)

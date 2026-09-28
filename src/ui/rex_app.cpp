@@ -27,14 +27,15 @@
 #include <rex/ui/overlay/console_overlay.h>
 #include <rex/ui/overlay/debug_overlay.h>
 #include <rex/ui/overlay/settings_overlay.h>
+#include <rex/api.h>
 #include <rex/audio/audio_system.h>
 #include <rex/audio/sdl/sdl_audio_system.h>
+#include <rex/graphics/backend.h>
 #include <rex/input/input_system.h>
 #include <rex/kernel/init.h>
 #include <rex/string/numeric.h>
 #include <rex/system.h>
 #include <rex/system/achievement_manager.h>
-#include <rex/system/gpu_plugin.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xthread.h>
 #include <rex/ui/graphics_provider.h>
@@ -47,11 +48,6 @@
 #include <algorithm>
 #include <filesystem>
 #include <string_view>
-
-REXCVAR_DEFINE_STRING(gpu_plugin, "", "GPU",
-                      "GPU emulation plugin to load at startup (e.g. 'xenos'); empty disables "
-                      "GPU emulation")
-    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
 namespace rex {
 
@@ -304,23 +300,27 @@ bool ReXApp::ConstructRuntime(const PathConfig& paths) {
 }
 
 bool ReXApp::SetupPresentation() {
-  config_.gpu_plugin = REXCVAR_GET(gpu_plugin);
+  api_config_ = app_context().initial_config();
+  api_config_.unload_modules_at_shutdown = false;
+  OnConfigure(api_config_);
+  auto init = rex::Init(api_config_);
+  if (!init) {
+    // Fatal by design: no silent headless fallback.
+    auto msg = fmt::format("SDK initialization failed: {}", init.error().what());
+    REXLOG_ERROR("{}", msg);
+    rex::ShowSimpleMessageBox(rex::SimpleMessageBoxType::Error, msg);
+    return false;
+  }
+  api_ = init.value();
+
   config_.audio_factory = REX_AUDIO_BACKEND(rex::audio::sdl::SDLAudioSystem);
   config_.input_factory = REX_INPUT_BACKEND(rex::input::CreateDefaultInputSystem);
   config_.kernel_init = rex::kernel::InitializeKernel;
 
   OnPreSetup(config_);
 
-  if (!config_.graphics && !config_.gpu_plugin.empty()) {
-    config_.graphics = rex::system::LoadGpuPlugin(config_.gpu_plugin);
-    if (!config_.graphics) {
-      // Fatal by design: no silent headless fallback.
-      auto msg =
-          fmt::format("Failed to load GPU plugin '{}'. See log for details.", config_.gpu_plugin);
-      REXLOG_ERROR("{}", msg);
-      rex::ShowSimpleMessageBox(rex::SimpleMessageBoxType::Error, msg);
-      return false;
-    }
+  if (!config_.graphics) {
+    config_.graphics = api_->Get<rex::graphics::IGraphicsBackend>();
   }
 
   if (config_.graphics) {
@@ -384,7 +384,7 @@ bool ReXApp::SetupPresentation() {
 
   window_->Open();
 
-  auto* graphics_system = config_.graphics.get();
+  auto* graphics_system = config_.graphics;
   if (graphics_system && graphics_system->presenter()) {
     // SDK mode: the emulated-Xenos presenter drives the overlays.
     auto* presenter = graphics_system->presenter();
@@ -631,6 +631,8 @@ void ReXApp::OnDestroy() {
   }
   window_.reset();
   runtime_.reset();
+  api_ = nullptr;
+  rex::Shutdown();
 }
 
 void ReXApp::SetGuestFrameStats(ui::DebugOverlayDialog::FrameStatsProvider provider) {

@@ -57,7 +57,9 @@ float GetConfiguredVideoModeRefreshRate() {
 
 void WarnNoGpuEmulation(const char* export_name, std::atomic<bool>& warned) {
   if (!warned.exchange(true)) {
-    REXKRNL_WARN("{}: no GPU emulation loaded (gpu_plugin not set); call ignored", export_name);
+    REXKRNL_WARN(
+        "{}: no GPU emulation loaded (no graphics module in Config::modules); call ignored",
+        export_name);
   }
 }
 }  // namespace

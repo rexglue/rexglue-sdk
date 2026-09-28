@@ -2,6 +2,7 @@
 # Foundation types, data structures, and threading primitives
 
 add_library(rexcore OBJECT
+    api.cpp
     arena.cpp
     bit_map.cpp
     bit_stream.cpp
@@ -14,6 +15,7 @@ add_library(rexcore OBJECT
     hash.cpp
     logging.cpp
     memory.cpp
+    module_loader.cpp
     mutex.cpp
     ring_buffer.cpp
     string_buffer.cpp

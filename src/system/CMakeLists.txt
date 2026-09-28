@@ -42,7 +42,6 @@ set(REXSYSTEM_SOURCES
     map_parser.cpp
     module.cpp
     function_dispatcher.cpp
-    gpu_plugin_loader.cpp
     thread.cpp
     thread_state.cpp
     xex_module.cpp
@@ -52,6 +51,7 @@ add_library(rexruntime SHARED ${REXSYSTEM_SOURCES})
 add_library(rex::runtime ALIAS rexruntime)
 add_library(rex::system ALIAS rexruntime)
 add_library(rex::kernel ALIAS rexruntime)
+add_library(rex::sdk ALIAS rexruntime)
 
 set_target_properties(rexruntime PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
 rexglue_add_version_resource(rexruntime DESCRIPTION "ReXGlue runtime")

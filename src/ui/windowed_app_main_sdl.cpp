@@ -16,6 +16,7 @@
 #include <string>
 #include <vector>
 
+#include <rex/api.h>
 #include <rex/cvar.h>
 #include <rex/logging.h>
 #include <rex/platform.h>
@@ -37,13 +38,22 @@
 namespace {
 
 int RunWindowedApp(int argc, char** argv) {
-  auto remaining = rex::cvar::Init(argc, argv);
+  rex::Config initial_config;
+  auto filtered = rex::ParseCommandLine(initial_config, argc, argv);
+  std::vector<char*> cvar_argv;
+  cvar_argv.reserve(filtered.size() + 1);
+  cvar_argv.push_back(argv[0]);
+  for (auto& arg : filtered) {
+    cvar_argv.push_back(arg.data());
+  }
+  auto remaining = rex::cvar::Init(static_cast<int>(cvar_argv.size()), cvar_argv.data());
   rex::cvar::ApplyEnvironment();
   rex::InitLoggingEarly();
 
   int result;
   {
     rex::ui::SDLWindowedAppContext app_context;
+    app_context.set_initial_config(std::move(initial_config));
     if (!app_context.Initialize()) {
       return EXIT_FAILURE;
     }

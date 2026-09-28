@@ -22,6 +22,7 @@
 
 #include <rex/image_info.h>
 #include <rex/logging/types.h>
+#include <rex/api.h>
 #include <rex/runtime.h>
 #include <rex/ui/imgui_dialog.h>
 #include <rex/ui/imgui_drawer.h>
@@ -95,6 +96,10 @@ class ReXApp : public ui::WindowedApp, public ui::WindowListener, public ui::Win
          std::string_view usage = "");
 
   // --- Virtual hooks for customization ---
+
+  /// Called first in SetupPresentation, on the UI thread, with modules prefilled from
+  /// --modules. Override to add modules or set module config slices before rex::Init.
+  virtual void OnConfigure(rex::Config& config) { (void)config; }
 
   /// Called before Runtime::Setup(). Override to modify backend config.
   virtual void OnPreSetup(RuntimeConfig& config) {}
@@ -250,6 +255,7 @@ class ReXApp : public ui::WindowedApp, public ui::WindowListener, public ui::Win
 
   // --- Accessors for subclass use ---
   Runtime* runtime() const { return runtime_.get(); }
+  rex::Api* api() const { return api_; }
   ui::Window* window() const { return window_.get(); }
   ui::ImGuiDrawer* imgui_drawer() const { return imgui_drawer_.get(); }
   ui::ImmediateDrawer* immediate_drawer() const { return immediate_drawer_.get(); }
@@ -292,6 +298,8 @@ class ReXApp : public ui::WindowedApp, public ui::WindowListener, public ui::Win
   PPCImageInfo ppc_info_;
   PathConfig resolved_defaults_;
   RuntimeConfig config_;
+  rex::Config api_config_;
+  rex::Api* api_ = nullptr;
   std::filesystem::path game_data_root_;
   std::filesystem::path user_data_root_;
   std::filesystem::path update_data_root_;

@@ -180,7 +180,7 @@ X_STATUS Runtime::Setup(RuntimeConfig config) {
 
   // Initialize GPU from injected config
   if (config.graphics) {
-    graphics_system_ = std::move(config.graphics);
+    graphics_system_ = config.graphics;
     bool with_presentation = (app_context_ != nullptr);
     X_STATUS gpu_status = graphics_system_->Setup(function_dispatcher_.get(), kernel_state_.get(),
                                                   app_context_, with_presentation);
@@ -267,7 +267,7 @@ void Runtime::Shutdown() {
 
   if (graphics_system_) {
     graphics_system_->Shutdown();
-    graphics_system_.reset();
+    graphics_system_ = nullptr;
   }
   if (audio_system_) {
     audio_system_->Shutdown();

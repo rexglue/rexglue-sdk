@@ -24,8 +24,8 @@
 #include <rex/filesystem/vfs.h>
 #include <rex/memory.h>
 #include <rex/system/export_resolver.h>
+#include <rex/graphics/backend.h>
 #include <rex/system/interfaces/audio.h>
-#include <rex/system/interfaces/graphics.h>
 #include <rex/system/interfaces/input.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xobject.h>  // object_ref
@@ -59,15 +59,12 @@ class ImGuiDrawer;
 }  // namespace ui
 
 /// Configuration for Runtime subsystem injection.
-/// Graphics and audio backends are provided by the caller, keeping the runtime
-/// library decoupled from concrete backend implementations.
-/// Audio uses a factory because AudioSystem requires a FunctionDispatcher* at
-/// construction time, which is only available during Setup().
+/// The graphics backend is owned by the module that serves it and lives until
+/// rex::Shutdown. Audio uses a factory because AudioSystem requires a
+/// FunctionDispatcher* at construction time, which is only available during Setup().
 struct RuntimeConfig {
-  std::unique_ptr<system::IGraphicsSystem> graphics;
-  // GPU emulation plugin loaded by ReXApp when `graphics` is empty
-  // (e.g. "xenos"); empty means no GPU emulation.
-  std::string gpu_plugin;
+  // Non owning. Null means no GPU emulation.
+  graphics::IGraphicsBackend* graphics = nullptr;
   std::function<std::unique_ptr<system::IAudioSystem>(runtime::FunctionDispatcher*)> audio_factory;
   std::function<std::unique_ptr<system::IInputSystem>(bool tool_mode)> input_factory;
   std::function<void(Runtime*, system::KernelState*)> kernel_init;
@@ -77,9 +74,7 @@ struct RuntimeConfig {
 /// Helper macros for populating RuntimeConfig with concrete backends.
 /// Usage:
 ///   rex::RuntimeConfig config;
-///   config.graphics      = REX_GRAPHICS_BACKEND(MyCustomGraphicsSystem);
 ///   config.audio_factory = REX_AUDIO_BACKEND(rex::audio::sdl::SDLAudioSystem);
-#define REX_GRAPHICS_BACKEND(Type) std::make_unique<Type>()
 #define REX_AUDIO_BACKEND(Type)                                                                 \
   [](::rex::runtime::FunctionDispatcher* _fd) -> std::unique_ptr<::rex::system::IAudioSystem> { \
     return Type::Create(_fd);                                                                   \
@@ -117,7 +112,7 @@ class Runtime {
   memory::Memory* memory() const { return memory_.get(); }
   rex::filesystem::VirtualFileSystem* file_system() const { return file_system_.get(); }
   system::KernelState* kernel_state() const { return kernel_state_.get(); }
-  system::IGraphicsSystem* graphics_system() const { return graphics_system_.get(); }
+  graphics::IGraphicsBackend* graphics_system() const { return graphics_system_; }
   system::IAudioSystem* audio_system() const { return audio_system_.get(); }
   system::IInputSystem* input_system() const { return input_system_.get(); }
 
@@ -199,7 +194,7 @@ class Runtime {
   std::unique_ptr<runtime::FunctionDispatcher> function_dispatcher_;
   std::unique_ptr<rex::filesystem::VirtualFileSystem> file_system_;
   std::unique_ptr<system::KernelState> kernel_state_;
-  std::unique_ptr<system::IGraphicsSystem> graphics_system_;
+  graphics::IGraphicsBackend* graphics_system_ = nullptr;
   std::unique_ptr<system::IAudioSystem> audio_system_;
   std::unique_ptr<system::IInputSystem> input_system_;
   std::unique_ptr<runtime::ExportResolver> export_resolver_;

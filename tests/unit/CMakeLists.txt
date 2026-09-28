@@ -11,6 +11,8 @@ add_executable(unit_tests
     core/hash_test.cpp
     core/stream_test.cpp
     core/chrono_test.cpp
+    core/macros_test.cpp
+    core/module_loader_test.cpp
     ppc/import_function_test.cpp
     ppc/stack_test.cpp
     system/guest_path_test.cpp
@@ -30,12 +32,14 @@ target_sources(unit_tests PRIVATE
 target_include_directories(unit_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/tests
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 target_link_libraries(unit_tests PRIVATE
     rexcodegen
     rexruntime
+    xxHash::xxhash
     Catch2::Catch2WithMain
 )
 
@@ -51,6 +55,10 @@ target_link_libraries(rexapp_compile_test PRIVATE
     rexaudio
 )
 add_dependencies(unit_tests rexapp_compile_test)
+
+add_dependencies(unit_tests
+    rexmod-test-good rexmod-test-missing rexmod-test-badversion
+    rexmod-test-failinit rexmod-test-dupecho)
 
 # Strip Tracy/profiling instrumentation from test targets
 target_compile_options(unit_tests PRIVATE

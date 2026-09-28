@@ -1,7 +1,7 @@
 # rexgpu-xenos: Xenos GPU emulation plugin (ported from Xenia)
 # Namespace: rex::graphics
 #
-# Runtime-loaded via rex::system::LoadGpuPlugin; consumers never link this
+# Loaded at runtime through rex::Init as a module; consumers never link this
 # target. The Xenos format layer is compiled into rexcore.
 
 set(REXGPU_XENOS_SOURCES

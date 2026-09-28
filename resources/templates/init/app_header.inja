@@ -18,6 +18,9 @@ class {{ names.pascal_case }}App : public rex::ReXApp {
 
   // Override virtual hooks for customization:
   // void OnPostInitLogging() override {}
+  // void OnConfigure(rex::Config& config) override {
+  //   config.modules.push_back("rexgpu-xenos");
+  // }
   // void OnPreSetup(rex::RuntimeConfig& config) override {}
   // void OnLoadXexImage(std::string& xex_image) override {}
   // void OnPostLoadXexImage() override {}
