@@ -22,7 +22,6 @@
 #include <rex/graphics/d3d12/command_processor.h>
 #include <rex/graphics/d3d12/shared_memory.h>
 #include <rex/graphics/d3d12/texture_cache.h>
-#include <rex/graphics/flags.h>
 #include <rex/graphics/pipeline/texture/info.h>
 #include <rex/graphics/pipeline/texture/util.h>
 #include <rex/graphics/xenos.h>
@@ -31,6 +30,8 @@
 #include <rex/math.h>
 #include <rex/ui/d3d12/d3d12_upload_buffer_pool.h>
 #include <rex/ui/d3d12/d3d12_util.h>
+
+#include "graphics/cvar_table.h"
 
 namespace rex::graphics::d3d12 {
 
@@ -706,7 +707,7 @@ void D3D12TextureCache::RequestTextures(uint32_t used_texture_mask) {
 
   // Pre-create 3D-as-2D wrappers before draw setup. Wrapper loading may bind
   // compute pipelines and must happen in the texture request phase.
-  if (REXCVAR_GET(gpu_3d_to_2d_texture)) {
+  if (REXCVAR_GET(::rex::graphics::cvars::texture_3d_to_2d)) {
     uint32_t textures_3d = used_texture_mask;
     uint32_t index_3d;
     while (rex::bit_scan_forward(textures_3d, &index_3d)) {
@@ -970,7 +971,7 @@ D3D12TextureCache::SamplerParameters D3D12TextureCache::GetSamplerParameters(
   xenos::AnisoFilter aniso_filter = binding.aniso_filter == xenos::AnisoFilter::kUseFetchConst
                                         ? fetch.aniso_filter
                                         : binding.aniso_filter;
-  int32_t anisotropic_override = REXCVAR_GET(anisotropic_override);
+  int32_t anisotropic_override = REXCVAR_GET(::rex::graphics::cvars::anisotropic_override);
   if (anisotropic_override > -1 && anisotropic_override < 6 && has_mips && !mip_base_map &&
       min_mag_linear && mip_filter_bilinear_or_trilinear) {
     aniso_filter = xenos::AnisoFilter(anisotropic_override);
@@ -1975,7 +1976,7 @@ void D3D12TextureCache::UpdateTextureBindingsImpl(uint32_t fetch_constant_mask) 
 
 ID3D12Resource* D3D12TextureCache::D3D12Texture::GetOrCreate3DAs2DResource(
     D3D12_RESOURCE_STATES end_state) {
-  if (!REXCVAR_GET(gpu_3d_to_2d_texture)) {
+  if (!REXCVAR_GET(::rex::graphics::cvars::texture_3d_to_2d)) {
     return nullptr;
   }
 

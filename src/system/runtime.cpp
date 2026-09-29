@@ -28,11 +28,7 @@
 #include <rex/system/xthread.h>
 #include <rex/thread.h>
 
-REXCVAR_DEFINE_STRING(game_data_root, "", "Runtime", "Override game data path");
-REXCVAR_DEFINE_STRING(user_data_root, "", "Runtime", "Override user data path");
-REXCVAR_DEFINE_STRING(update_data_root, "", "Runtime", "Override update data path");
-REXCVAR_DEFINE_STRING(cache_root, "", "Runtime", "Override shader cache path");
-REXCVAR_DEFINE_STRING(metadata_root, "", "Runtime", "Override metadata path");
+#include <rex/api.h>
 
 namespace rex {
 
@@ -43,16 +39,14 @@ Runtime* Runtime::instance() {
   return instance_;
 }
 
-Runtime::Runtime(const std::filesystem::path& game_data_root,
-                 const std::filesystem::path& user_data_root,
-                 const std::filesystem::path& update_data_root,
-                 const std::filesystem::path& cache_root,
-                 const std::filesystem::path& metadata_root)
-    : game_data_root_(game_data_root),
-      user_data_root_(user_data_root.empty() ? game_data_root : user_data_root),
-      update_data_root_(update_data_root),
-      cache_root_(cache_root),
-      metadata_root_(metadata_root) {}
+Runtime::Runtime(const Config& config)
+    : config_(config),
+      game_data_root_(config.paths.game_data_root),
+      user_data_root_(config.paths.user_data_root.empty() ? config.paths.game_data_root
+                                                          : config.paths.user_data_root),
+      update_data_root_(config.paths.update_data_root),
+      cache_root_(config.paths.cache_root),
+      metadata_root_(config.paths.metadata_root) {}
 
 Runtime::~Runtime() {
   Shutdown();
@@ -306,7 +300,7 @@ bool Runtime::SetupVfs() {
   // Mount game_data_root as \Device\Harddisk0\Partition1
   auto mount_path = "\\Device\\Harddisk0\\Partition1";
   auto device = std::make_unique<rex::filesystem::HostPathDevice>(
-      mount_path, abs_game_root, !REXCVAR_GET(allow_game_relative_writes));
+      mount_path, abs_game_root, !config_.filesystem.game_relative_writes);
   if (!device->Initialize()) {
     REXSYS_ERROR("Runtime::SetupVfs: Failed to initialize host path device");
     return false;

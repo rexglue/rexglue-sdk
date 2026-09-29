@@ -10,6 +10,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 #pragma once
+#include <rex/cvar.h>
 #include <rex/logging/sink.h>
 #include <rex/ui/imgui_dialog.h>
 #include <imgui.h>
@@ -24,7 +25,8 @@ namespace rex::ui {
 
 class ConsoleDialog : public ImGuiDialog {
  public:
-  ConsoleDialog(ImGuiDrawer* imgui_drawer, std::shared_ptr<rex::LogCaptureSink> sink);
+  ConsoleDialog(ImGuiDrawer* imgui_drawer, rex::cvar::ICvarRegistry& registry,
+                std::shared_ptr<rex::LogCaptureSink> sink);
   ~ConsoleDialog();
 
  protected:
@@ -52,6 +54,7 @@ class ConsoleDialog : public ImGuiDialog {
     uint64_t seq;  // sink generation when produced
   };
 
+  rex::cvar::ICvarRegistry& registry_;
   std::shared_ptr<rex::LogCaptureSink> sink_;
   std::vector<rex::LogEntry> entries_;  // sink snapshot, refreshed when generation changes
   std::vector<LocalEntry> local_entries_;

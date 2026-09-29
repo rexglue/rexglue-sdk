@@ -23,7 +23,8 @@ namespace vulkan {
 
 class VulkanProvider : public GraphicsProvider {
  public:
-  static std::unique_ptr<VulkanProvider> Create(bool with_gpu_emulation, bool with_presentation);
+  static std::unique_ptr<VulkanProvider> Create(bool with_gpu_emulation, bool with_presentation,
+                                                int32_t device_index);
 
   VulkanInstance* vulkan_instance() const { return vulkan_instance_.get(); }
 

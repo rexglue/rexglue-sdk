@@ -13,7 +13,6 @@
 #include <rex/dbg.h>
 #include <rex/graphics/d3d12/command_processor.h>
 #include <rex/graphics/d3d12/deferred_command_list.h>
-#include <rex/graphics/flags.h>
 #include <rex/math.h>
 
 namespace rex::graphics::d3d12 {

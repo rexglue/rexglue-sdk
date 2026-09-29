@@ -24,9 +24,7 @@
 #include <rex/math.h>
 #include <rex/ui/graphics_provider.h>
 
-REXCVAR_DEFINE_BOOL(dxbc_switch, true, "GPU/Shader", "Use switch statements in DXBC");
-
-REXCVAR_DEFINE_BOOL(dxbc_source_map, false, "GPU/Shader", "Generate source maps for DXBC");
+#include "graphics/cvar_table.h"
 
 namespace rex::graphics {
 using namespace ucode;
@@ -70,7 +68,8 @@ DxbcShaderTranslator::DxbcShaderTranslator(ui::GraphicsProvider::GpuVendorID ven
       msaa_2x_supported_(msaa_2x_supported),
       draw_resolution_scale_x_(draw_resolution_scale_x),
       draw_resolution_scale_y_(draw_resolution_scale_y),
-      emit_source_map_(force_emit_source_map || REXCVAR_GET(dxbc_source_map)) {
+      emit_source_map_(force_emit_source_map ||
+                       REXCVAR_GET(::rex::graphics::cvars::dxbc_source_map)) {
   assert_not_zero(draw_resolution_scale_x);
   assert_not_zero(draw_resolution_scale_y);
   // Don't allocate again and again for the first shader.
@@ -175,7 +174,8 @@ uint32_t DxbcShaderTranslator::GetModificationRegisterCount() const {
 
 bool DxbcShaderTranslator::UseSwitchForControlFlow() const {
   // Xenia crashes on Intel HD Graphics 4000 with switch.
-  return REXCVAR_GET(dxbc_switch) && vendor_id_ != ui::GraphicsProvider::GpuVendorID::kIntel;
+  return REXCVAR_GET(::rex::graphics::cvars::dxbc_switch) &&
+         vendor_id_ != ui::GraphicsProvider::GpuVendorID::kIntel;
 }
 
 uint32_t DxbcShaderTranslator::PushSystemTemp(uint32_t zero_mask, uint32_t count) {

@@ -31,29 +31,12 @@
 #include <rex/system/export_resolver.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xtypes.h>
-#include <rex/ui/flags.h>
 
 namespace {
 // Display gamma type: 0 - linear, 1 - sRGB (CRT), 2 - BT.709 (HDTV), 3 - power
 constexpr uint32_t kDisplayGammaType = 2;
 // Display gamma power (used with gamma type 3)
 constexpr double kDisplayGammaPower = 2.22222233;
-
-void ConfiguredVideoMode(uint32_t& width, uint32_t& height) {
-  int32_t configured_width = REXCVAR_GET(video_mode_width);
-  int32_t configured_height = REXCVAR_GET(video_mode_height);
-  if (!rex::cvar::HasNonDefaultValue("video_mode_width") &&
-      !rex::cvar::HasNonDefaultValue("video_mode_height")) {
-    rex::graphics::video_mode_util::ResolveConfiguredSize(configured_width, configured_height);
-  }
-  width = uint32_t(std::clamp(configured_width, 640, 0x0FFF));
-  height = uint32_t(std::clamp(configured_height, 480, 0x0FFF));
-}
-
-float GetConfiguredVideoModeRefreshRate() {
-  double refresh_rate_hz = std::clamp(REXCVAR_GET(video_mode_refresh_rate), 24.0, 240.0);
-  return float(refresh_rate_hz);
-}
 
 void WarnNoGpuEmulation(const char* export_name, std::atomic<bool>& warned) {
   if (!warned.exchange(true)) {
@@ -211,8 +194,8 @@ void VdQueryVideoMode(X_VIDEO_MODE* video_mode) {
   // Exposed as CVARs so the guest can observe custom display settings.
   uint32_t display_width = 0;
   uint32_t display_height = 0;
-  ConfiguredVideoMode(display_width, display_height);
-  float refresh_rate_hz = GetConfiguredVideoModeRefreshRate();
+  rex::ui::ConfiguredVideoMode(display_width, display_height);
+  float refresh_rate_hz = rex::ui::ConfiguredRefreshRate();
 
   std::memset(video_mode, 0, sizeof(X_VIDEO_MODE));
   video_mode->display_width = display_width;

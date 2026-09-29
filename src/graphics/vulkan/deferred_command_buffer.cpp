@@ -15,7 +15,6 @@
 
 #include <rex/assert.h>
 #include <rex/dbg.h>
-#include <rex/graphics/flags.h>
 #include <rex/graphics/vulkan/command_processor.h>
 #include <rex/graphics/vulkan/deferred_command_buffer.h>
 #include <rex/math.h>

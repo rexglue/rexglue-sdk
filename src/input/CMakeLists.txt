@@ -35,4 +35,6 @@ else()
     target_sources(rexinput PRIVATE sdl/sdl_input_driver.cpp)
 endif()
 
+target_include_directories(rexinput PRIVATE ${PROJECT_SOURCE_DIR}/src)
+
 target_link_libraries(rexinput PUBLIC rexcore rexui SDL3::SDL3)

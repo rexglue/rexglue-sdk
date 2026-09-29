@@ -28,8 +28,6 @@
 #include <rex/system/xthread.h>
 #include <rex/system/xtypes.h>
 
-REXCVAR_DEFINE_UINT32(user_language, 1, "Kernel", "User's language ID");
-
 namespace rex {
 namespace kernel {
 namespace xam {
@@ -658,7 +656,7 @@ u32 XamUserCreateAchievementEnumerator_entry(u32 title_id, u32 user_index, u32 x
     const util::XdbfGameData db = ks->title_xdbf();
     if (db.is_valid()) {
       const XLanguage language =
-          db.GetExistingLanguage(static_cast<XLanguage>(REXCVAR_GET(user_language)));
+          db.GetExistingLanguage(static_cast<XLanguage>(kernel_state()->config().user_language));
       for (const util::XdbfAchievementTableEntry& entry : db.GetAchievements()) {
         auto item = XStaticAchievementEnumerator::AchievementDetails{
             entry.id,

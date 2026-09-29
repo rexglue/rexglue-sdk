@@ -105,7 +105,7 @@ inline constexpr const char* kRenderDoc = "renderdoc.dll";
 /**
  * Path to the SPIRV-Tools shared library within the SDK install.
  */
-inline constexpr const char* kSpirvToolsSdkPath = "Bin/SPIRV-Tools-shared.dll";
+inline constexpr const char* kSPIRVToolsSDKPath = "Bin/SPIRV-Tools-shared.dll";
 
 #elif REX_PLATFORM_ANDROID
 
@@ -120,7 +120,7 @@ inline constexpr const char* kRenderDoc = "libVkLayer_GLES_RenderDoc.so";
 /**
  * Path to the SPIRV-Tools shared library within the SDK install.
  */
-inline constexpr const char* kSpirvToolsSdkPath = "bin/libSPIRV-Tools-shared.so";
+inline constexpr const char* kSPIRVToolsSDKPath = "bin/libSPIRV-Tools-shared.so";
 
 #elif REX_PLATFORM_LINUX
 
@@ -135,7 +135,7 @@ inline constexpr const char* kRenderDoc = "librenderdoc.so";
 /**
  * Path to the SPIRV-Tools shared library within the SDK install.
  */
-inline constexpr const char* kSpirvToolsSdkPath = "bin/libSPIRV-Tools-shared.so";
+inline constexpr const char* kSPIRVToolsSDKPath = "bin/libSPIRV-Tools-shared.so";
 
 #elif REX_PLATFORM_MAC
 
@@ -150,7 +150,7 @@ inline constexpr const char* kRenderDoc = "librenderdoc.dylib";
 /**
  * Path to the SPIRV-Tools shared library within the SDK install.
  */
-inline constexpr const char* kSpirvToolsSdkPath = "lib/libSPIRV-Tools-shared.dylib";
+inline constexpr const char* kSPIRVToolsSDKPath = "lib/libSPIRV-Tools-shared.dylib";
 
 #else
 #error No library names provided for the target platform.

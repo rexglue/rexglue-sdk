@@ -13,6 +13,7 @@
 #include <span>
 
 #include <rex/api.h>
+#include <rex/cvar.h>
 #include <rex/module.h>
 
 #include "echo.h"
@@ -23,6 +24,10 @@ REXMOD_TEST_SINK()
 namespace {
 
 constexpr const char* kName = "rexmod-test-good";
+
+REXCVAR_INT32(echo, value, 0, "Value the good module echoes");
+REXCVAR_BOOL(echo, ready, false, "Second row of the table");
+REXCVAR_TABLE(kEchoCvars, value, ready);
 
 class GoodModule final : public rex::IModule, public rex::test::IEcho {
  public:
@@ -36,20 +41,33 @@ class GoodModule final : public rex::IModule, public rex::test::IEcho {
   GoodModule() { Record(kName, "constructor"); }
 
   const char* Name() const override { return kName; }
-  std::span<const char* const> RequiredInterfaces() const override { return {}; }
-  rex::Status Connect(rex::IInterfaceFactory*, const rex::Config&) override {
-    Record(kName, "connect");
-    return rex::Ok();
+  std::span<const char* const> RequiredInterfaces() const override {
+    static constexpr std::array<const char*, 1> kRequired = {"rex.cvar@1"};
+    return kRequired;
   }
-  void Disconnect() override { Record(kName, "disconnect"); }
+  rex::Status Connect(rex::IInterfaceFactory* factory, const rex::Config&) override {
+    Record(kName, "connect");
+    cvars_ = factory->Get<rex::cvar::ICvarRegistry>();
+    if (!cvars_)
+      return rex::Err(rex::ErrorCategory::Module, "rex.cvar not served");
+    return cvars_->Register("echo", kEchoCvars);
+  }
+  void Disconnect() override {
+    Record(kName, "disconnect");
+    if (cvars_)
+      cvars_->Unregister(kEchoCvars);
+    cvars_ = nullptr;
+  }
   rex::Status Init() override {
     Record(kName, "init");
     return rex::Ok();
   }
   void Shutdown() override { Record(kName, "shutdown"); }
   int Echo(int value) override { return value; }
+  int Value() override { return value.get(); }
 
  private:
+  rex::cvar::ICvarRegistry* cvars_ = nullptr;
   static GoodModule& Instance() {
     static GoodModule instance;
     return instance;

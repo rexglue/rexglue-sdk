@@ -77,6 +77,7 @@ target_include_directories(rexruntime PUBLIC
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 target_include_directories(rexruntime PRIVATE
+    ${REXGLUE_ROOT}/src
     ${REXGLUE_ROOT}/thirdparty
 )
 

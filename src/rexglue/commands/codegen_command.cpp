@@ -65,7 +65,8 @@ void ReportStaleIncludes(const fs::path& manifest_path,
 }
 
 Result<void> RecompileProject(const fs::path& manifest_path, const CliContext& ctx,
-                              const std::vector<std::string>& targets, bool ignore_stamp) {
+                              const std::vector<std::string>& targets, bool ignore_stamp,
+                              const rex::codegen::Limits& limits) {
   auto manifest = rex::codegen::ManifestConfig::Load(manifest_path);
   if (!manifest) {
     return Err<void>(rex::ErrorCategory::Config, "Failed to load manifest");
@@ -78,6 +79,7 @@ Result<void> RecompileProject(const fs::path& manifest_path, const CliContext& c
       .force = ctx.generate_despite_errors,
       .reporter = &progress,
       .ignoreStamp = ignore_stamp,
+      .limits = limits,
       .sdkVersion = REXGLUE_VERSION_FLOOR "-" REXGLUE_VERSION_CHANNEL,
   };
   auto result = recompiler.Run(opts);
@@ -134,6 +136,7 @@ struct CodegenArgs {
   std::string config_path;
   std::vector<std::string> targets;
   bool ignore_stamp = false;
+  rex::codegen::Limits limits;
 };
 
 }  // namespace
@@ -182,7 +185,8 @@ Result<std::string> DiscoverManifestInCwd() {
 }
 
 Result<void> CodegenFromConfig(const std::string& config_path, const CliContext& ctx,
-                               const std::vector<std::string>& targets, bool ignore_stamp) {
+                               const std::vector<std::string>& targets, bool ignore_stamp,
+                               const rex::codegen::Limits& limits) {
   REXLOG_TRACE("Generating code with config: {}", config_path);
 
   fs::path manifest_path = config_path;
@@ -207,7 +211,8 @@ Result<void> CodegenFromConfig(const std::string& config_path, const CliContext&
     REXLOG_INFO("Regenerated generated/rexglue.cmake for SDK v{}", current_version);
   }
 
-  if (auto run_result = RecompileProject(manifest_path, ctx, targets, ignore_stamp); !run_result) {
+  if (auto run_result = RecompileProject(manifest_path, ctx, targets, ignore_stamp, limits);
+      !run_result) {
     return run_result;
   }
 
@@ -229,6 +234,39 @@ void RegisterCodegen(CLI::App& parent, const CliContext& ctx, DeferredAction& pe
       ->take_all();
   sub->add_flag("--ignore-stamp", args->ignore_stamp,
                 "Regenerate even when inputs match the recorded stamp");
+  sub->add_option("--max_file_size_bytes", args->limits.max_file_size_bytes,
+                  "Largest generated source file in bytes")
+      ->check(CLI::Range(65536u, 67108864u));
+  sub->add_option("--max_discovery_iterations", args->limits.max_discovery_iterations,
+                  "Discovery passes")
+      ->check(CLI::Range(1u, 100000u));
+  sub->add_option("--max_vtable_iterations", args->limits.max_vtable_iterations,
+                  "Vtable resolution passes")
+      ->check(CLI::Range(1u, 100000u));
+  sub->add_option("--max_resolve_iterations", args->limits.max_resolve_iterations,
+                  "Merge resolution passes")
+      ->check(CLI::Range(1u, 100000u));
+  sub->add_option("--max_eh_states", args->limits.max_eh_states,
+                  "C++ exception states per function")
+      ->check(CLI::Range(1u, 100000u));
+  sub->add_option("--max_eh_try_blocks", args->limits.max_eh_try_blocks,
+                  "C++ try blocks per function")
+      ->check(CLI::Range(1u, 100000u));
+  sub->add_option("--max_eh_ip_map_entries", args->limits.max_eh_ip_map_entries,
+                  "C++ IP map entries per function")
+      ->check(CLI::Range(1u, 100000u));
+  sub->add_option("--max_seh_scope_entries", args->limits.max_seh_scope_entries,
+                  "SEH scope entries per function")
+      ->check(CLI::Range(1u, 100000u));
+  sub->add_option("--backward_scan_limit", args->limits.backward_scan_limit,
+                  "Instructions scanned back for a jump table base")
+      ->check(CLI::Range(1u, 10000u));
+  sub->add_option("--max_jump_table_entries", args->limits.max_jump_table_entries,
+                  "Jump table entries accepted")
+      ->check(CLI::Range(1u, 100000u));
+  sub->add_option("--max_blocks_per_function", args->limits.max_blocks_per_function,
+                  "Basic blocks per function")
+      ->check(CLI::Range(1u, 1000000u));
 
   sub->callback([args, &ctx, &pending]() {
     pending = [args, &ctx]() -> Result<void> {
@@ -239,7 +277,7 @@ void RegisterCodegen(CLI::App& parent, const CliContext& ctx, DeferredAction& pe
           return Err<void>(discovered.error());
         path = *discovered;
       }
-      return CodegenFromConfig(path, ctx, args->targets, args->ignore_stamp);
+      return CodegenFromConfig(path, ctx, args->targets, args->ignore_stamp, args->limits);
     };
   });
 }

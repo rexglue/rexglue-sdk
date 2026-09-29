@@ -13,6 +13,8 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 namespace rex::platform::env {
 
@@ -28,5 +30,10 @@ bool set(std::string_view name, std::string_view value);
 // Removes an environment variable. Returns true if the variable was unset on
 // return (success, or already not set).
 bool unset(std::string_view name);
+
+/**
+ * Every environment variable of the process as name and value pairs.
+ */
+std::vector<std::pair<std::string, std::string>> enumerate();
 
 }  // namespace rex::platform::env

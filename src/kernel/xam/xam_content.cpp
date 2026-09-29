@@ -21,8 +21,6 @@
 #include <rex/system/xenumerator.h>
 #include <rex/system/xtypes.h>
 
-REXCVAR_DEFINE_UINT32(license_mask, 0, "Kernel", "Set license mask for activated content");
-
 namespace rex {
 namespace kernel {
 namespace xam {
@@ -33,7 +31,7 @@ u32 XamContentGetLicenseMask_entry(mapped_u32 mask_ptr, mapped_void overlapped_p
   // Each bit in the mask represents a granted license. Available licenses
   // seems to vary from game to game, but most appear to use bit 0 to indicate
   // if the game is purchased or not.
-  *mask_ptr = REXCVAR_GET(license_mask);
+  *mask_ptr = kernel_state()->config().license_mask;
 
   if (overlapped_ptr) {
     REX_KERNEL_STATE()->CompleteOverlappedImmediate(overlapped_ptr.guest_address(),

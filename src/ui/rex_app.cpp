@@ -12,12 +12,12 @@
 #include <rex/rex_app.h>
 
 #include <cstdlib>
+#include <format>
 #include <functional>
 #include <string>
 
 #include <rex/assert.h>
 #include <rex/cvar.h>
-#include <rex/ui/flags.h>
 #include <rex/kernel/crt/heap.h>
 #include <rex/filesystem.h>
 #include <rex/logging/sink.h>
@@ -102,79 +102,30 @@ bool ReXApp::OnInitialize() {
 
 bool ReXApp::SetupEnvironment() {
   auto exe_dir = rex::filesystem::GetExecutableFolder();
+  api_config_ = app_context().initial_config();
+  api_config_.unload_modules_at_shutdown = false;
 
-  std::filesystem::path game_dir;
-  std::string game_data_cvar = REXCVAR_GET(game_data_root);
-  if (!game_data_cvar.empty()) {
-    game_dir = game_data_cvar;
+  PathsConfig& paths = api_config_.paths;
+  if (paths.user_data_root.empty()) {
+    paths.user_data_root = rex::filesystem::GetUserFolder() / GetName();
   }
-
-  // User data: cvar override, or platform user directory
-  std::filesystem::path user_dir;
-  std::string user_data_cvar = REXCVAR_GET(user_data_root);
-  if (!user_data_cvar.empty()) {
-    user_dir = user_data_cvar;
-  } else {
-    user_dir = rex::filesystem::GetUserFolder() / GetName();
+  if (paths.cache_root.empty()) {
+    paths.cache_root = paths.user_data_root / "cache";
   }
-
-  // Update data: cvar override, or empty (opt-in)
-  std::filesystem::path update_dir;
-  std::string update_data_cvar = REXCVAR_GET(update_data_root);
-  if (!update_data_cvar.empty()) {
-    update_dir = update_data_cvar;
+  if (paths.config_file.empty()) {
+    paths.config_file = exe_dir / (std::string(GetName()) + ".toml");
   }
+  OnConfigurePaths(paths);
+  game_data_root_ = paths.game_data_root;
+  user_data_root_ = paths.user_data_root;
+  update_data_root_ = paths.update_data_root;
+  cache_root_ = paths.cache_root;
+  metadata_root_ = paths.metadata_root;
+  resolved_defaults_ = paths;
 
-  // Cache: cvar override, or user_dir/cache
-  std::filesystem::path cache_dir;
-  std::string cache_root_cvar = REXCVAR_GET(cache_root);
-  if (!cache_root_cvar.empty()) {
-    cache_dir = cache_root_cvar;
-  } else {
-    cache_dir = user_dir / "cache";
+  if (auto status = rex::LoadConfigFile(api_config_, paths.config_file); !status) {
+    REXLOG_ERROR("{}", status.error().what());
   }
-
-  std::filesystem::path metadata_dir;
-  std::string metadata_root_cvar = REXCVAR_GET(metadata_root);
-  if (!metadata_root_cvar.empty()) {
-    metadata_dir = metadata_root_cvar;
-  }
-
-  PathConfig path_config{game_dir,  user_dir,     update_dir,
-                         cache_dir, metadata_dir, exe_dir / (std::string(GetName()) + ".toml")};
-  OnConfigurePaths(path_config);
-  game_data_root_ = path_config.game_data_root;
-  user_data_root_ = path_config.user_data_root;
-  update_data_root_ = path_config.update_data_root;
-  cache_root_ = path_config.cache_root;
-  metadata_root_ = path_config.metadata_root;
-  config_path_ = path_config.config_path;
-  resolved_defaults_ = std::move(path_config);
-
-  // Load config FIRST so log cvars have final values
-  if (std::filesystem::exists(config_path_))
-    rex::cvar::LoadConfig(config_path_);
-
-  std::string log_level_str = REXCVAR_GET(log_level);
-  if (REXCVAR_GET(log_verbose) && log_level_str == "info")
-    log_level_str = "trace";
-
-  auto log_config =
-      rex::BuildLogConfig(log_level_str, rex::ParseCategoryLevelsFromConfig(config_path_));
-  log_config.app_name = std::string(GetName());
-  log_config.log_dir = exe_dir / "logs";
-  OnConfigureLogging(log_config);
-  rex::ApplyLogCvarOverrides(log_config);
-  rex::InitLogging(log_config);
-  rex::RegisterLogLevelCallback();
-
-  log_sink_ = std::make_shared<rex::LogCaptureSink>();
-  rex::AddSink(log_sink_);
-
-  OnPostInitLogging();
-
-  if (std::filesystem::exists(config_path_))
-    REXLOG_DEBUG("Loaded config: {}", config_path_.filename().string());
 
   REXLOG_DEBUG("{} starting", GetName());
   if (!game_data_root_.empty()) {
@@ -194,7 +145,7 @@ bool ReXApp::SetupEnvironment() {
   return true;
 }
 
-bool ReXApp::ConstructRuntime(const PathConfig& paths) {
+bool ReXApp::ConstructRuntime(const PathsConfig& paths) {
   if (paths.game_data_root.empty()) {
     auto msg = std::string("--game_data_root was not provided.");
     REXLOG_ERROR("{}", msg);
@@ -214,9 +165,8 @@ bool ReXApp::ConstructRuntime(const PathConfig& paths) {
   cache_root_ = paths.cache_root;
   metadata_root_ = paths.metadata_root;
 
-  runtime_ =
-      std::make_unique<rex::Runtime>(paths.game_data_root, paths.user_data_root,
-                                     paths.update_data_root, paths.cache_root, paths.metadata_root);
+  api_->UpdatePaths(paths);
+  runtime_ = std::make_unique<rex::Runtime>(api_->config());
   runtime_->set_app_context(&app_context());
 
   // Window and ImGui drawer already exist from SetupPresentation; publish them
@@ -288,7 +238,7 @@ bool ReXApp::ConstructRuntime(const PathConfig& paths) {
   OnPostLoadXexImage();
 
   if (ppc_info_.rexcrt_heap) {
-    if (!rex::kernel::crt::InitHeap(REXCVAR_GET(rexcrt_heap_size_mb), runtime_->memory())) {
+    if (!rex::kernel::crt::InitHeap(api_->config().runtime.heap_size_mb, runtime_->memory())) {
       REXLOG_ERROR("Failed to initialize rexcrt heap");
       return false;
     }
@@ -300,21 +250,48 @@ bool ReXApp::ConstructRuntime(const PathConfig& paths) {
 }
 
 bool ReXApp::SetupPresentation() {
-  api_config_ = app_context().initial_config();
-  api_config_.unload_modules_at_shutdown = false;
   OnConfigure(api_config_);
   auto init = rex::Init(api_config_);
   if (!init) {
-    // Fatal by design: no silent headless fallback.
-    auto msg = fmt::format("SDK initialization failed: {}", init.error().what());
+    auto msg = std::format("SDK initialization failed: {}", init.error().what());
     REXLOG_ERROR("{}", msg);
     rex::ShowSimpleMessageBox(rex::SimpleMessageBoxType::Error, msg);
     return false;
   }
   api_ = init.value();
+  cvars_ = api_->Get<rex::cvar::ICvarRegistry>();
+  rex::ui::AttachBindRegistry(cvars_);
+  std::string unknown;
+  for (const auto& arg : app_context().unparsed_arguments()) {
+    if (arg.starts_with("--"))
+      unknown += (unknown.empty() ? "" : ", ") + arg;
+  }
+  if (!unknown.empty()) {
+    auto msg = std::format("unknown argument {}", unknown);
+    REXLOG_ERROR("{}", msg);
+    rex::ShowSimpleMessageBox(rex::SimpleMessageBoxType::Error, msg);
+    return false;
+  }
+
+  std::string log_level_str = cvars_->Get("log.level").value_or("info");
+  if (cvars_->Get("log.verbose").value_or("false") == "true" && log_level_str == "info")
+    log_level_str = "trace";
+  auto log_config =
+      rex::BuildLogConfig(log_level_str, rex::ParseCategoryLevelsFromConfig(paths().config_file));
+  log_config.app_name = std::string(GetName());
+  log_config.log_dir = rex::filesystem::GetExecutableFolder() / "logs";
+  OnConfigureLogging(log_config);
+  rex::ApplyLogCvarOverrides(log_config);
+  rex::InitLogging(log_config);
+  rex::RegisterLogLevelCallback();
+  log_sink_ = std::make_shared<rex::LogCaptureSink>();
+  rex::AddSink(log_sink_);
+  OnPostInitLogging();
 
   config_.audio_factory = REX_AUDIO_BACKEND(rex::audio::sdl::SDLAudioSystem);
-  config_.input_factory = REX_INPUT_BACKEND(rex::input::CreateDefaultInputSystem);
+  config_.input_factory = [this](bool tool_mode) {
+    return rex::input::CreateDefaultInputSystem(api_->config().input, tool_mode);
+  };
   config_.kernel_init = rex::kernel::InitializeKernel;
 
   OnPreSetup(config_);
@@ -345,13 +322,14 @@ bool ReXApp::SetupPresentation() {
   window_->AddListener(this);
   window_->AddInputListener(this, 0);
 
-  if (REXCVAR_GET(fullscreen)) {
+  if (cvars_->Get("ui.fullscreen").value_or("true") == "true") {
     window_->SetFullscreen(true);
   }
-  window_->SetMonitor(REXCVAR_GET(monitor));
+  window_->SetMonitor(
+      rex::string::from_string<int32_t>(cvars_->Get("ui.monitor").value_or("0"), 0));
 
   auto on_window_cvar = [this](const char* name, std::function<void(std::string_view)> apply) {
-    rex::cvar::RegisterChangeCallback(
+    auto handle = cvars_->OnChange(
         name, [this, apply = std::move(apply)](std::string_view, std::string_view value) {
           app_context().CallInUIThread([this, apply, value = std::string(value)] {
             if (window_) {
@@ -359,14 +337,16 @@ bool ReXApp::SetupPresentation() {
             }
           });
         });
+    if (handle)
+      window_callbacks_.push_back(std::move(handle.value()));
   };
 
-  on_window_cvar("fullscreen", [this](std::string_view value) {
+  on_window_cvar("ui.fullscreen", [this](std::string_view value) {
     window_->SetFullscreen(rex::string::from_string<bool>(value, false));
   });
-  on_window_cvar("fullscreen_exclusive",
+  on_window_cvar("ui.fullscreen_exclusive",
                  [this](std::string_view) { window_->RefreshFullscreen(); });
-  on_window_cvar("monitor", [this](std::string_view value) {
+  on_window_cvar("ui.monitor", [this](std::string_view value) {
     window_->SetMonitor(rex::string::from_string<int32_t>(value, 0));
   });
   auto apply_window_size = [this](std::string_view) {
@@ -375,9 +355,9 @@ bool ReXApp::SetupPresentation() {
     rex::ui::Window::ResolveConfiguredLogicalSize(width, height);
     window_->SetDesiredLogicalSize(width, height);
   };
-  on_window_cvar("window_width", apply_window_size);
-  on_window_cvar("window_height", apply_window_size);
-  on_window_cvar("resolution", [this, apply_window_size](std::string_view value) {
+  on_window_cvar("ui.window_width", apply_window_size);
+  on_window_cvar("ui.window_height", apply_window_size);
+  on_window_cvar("ui.resolution", [this, apply_window_size](std::string_view value) {
     apply_window_size(value);
     window_->RefreshFullscreen();
   });
@@ -433,14 +413,16 @@ void ReXApp::SetupOverlays(rex::ui::Presenter* presenter, rex::ui::ImmediateDraw
     if (console_overlay_) {
       console_overlay_.reset();
     } else {
-      console_overlay_ = std::make_unique<ui::ConsoleDialog>(imgui_drawer_.get(), log_sink_);
+      console_overlay_ =
+          std::make_unique<ui::ConsoleDialog>(imgui_drawer_.get(), *cvars_, log_sink_);
     }
   });
   rex::ui::RegisterBind("bind_settings", "F4", "Toggle settings overlay", [this] {
     if (settings_overlay_) {
       settings_overlay_.reset();
     } else {
-      settings_overlay_ = std::make_unique<ui::SettingsDialog>(imgui_drawer_.get(), config_path_);
+      settings_overlay_ =
+          std::make_unique<ui::SettingsDialog>(imgui_drawer_.get(), *cvars_, paths().config_file);
     }
   });
   rex::ui::RegisterBind("bind_achievements", "F7", "Toggle achievements overlay", [this] {
@@ -506,8 +488,8 @@ void ReXApp::LaunchModule() {
   });
 }
 
-std::function<void(PathConfig)> ReXApp::MakeResumeCallback() {
-  return [this](PathConfig paths) {
+std::function<void(PathsConfig)> ReXApp::MakeResumeCallback() {
+  return [this](PathsConfig paths) {
     if (shutting_down_.load(std::memory_order_acquire))
       return;
     if (!ConstructRuntime(std::move(paths))) {
@@ -630,9 +612,16 @@ void ReXApp::OnDestroy() {
     window_->RemoveListener(this);
   }
   window_.reset();
+  window_callbacks_.clear();
   runtime_.reset();
+  rex::ui::AttachBindRegistry(nullptr);
   api_ = nullptr;
   rex::Shutdown();
+  cvars_ = nullptr;
+}
+
+const PathsConfig& ReXApp::paths() const {
+  return api_ ? api_->config().paths : resolved_defaults_;
 }
 
 void ReXApp::SetGuestFrameStats(ui::DebugOverlayDialog::FrameStatsProvider provider) {

@@ -17,7 +17,6 @@
 #include <memory>
 #include <unordered_map>
 
-#include <rex/graphics/flags.h>
 #include <rex/graphics/pipeline/render_target/cache.h>
 #include <rex/graphics/vulkan/shared_memory.h>
 #include <rex/graphics/vulkan/texture_cache.h>
@@ -123,14 +122,8 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   // Using R16G16[B16A16]_SNORM, which are -1...1, not the needed -32...32.
   // Persistent data doesn't depend on this, so can be overriden by per-game
   // configuration.
-  bool IsFixedRG16TruncatedToMinus1To1() const {
-    return GetPath() == Path::kHostRenderTargets && !color_rg16_draw_format_fallback_to_float_ &&
-           !REXCVAR_GET(snorm16_render_target_full_range);
-  }
-  bool IsFixedRGBA16TruncatedToMinus1To1() const {
-    return GetPath() == Path::kHostRenderTargets && !color_rgba16_draw_format_fallback_to_float_ &&
-           !REXCVAR_GET(snorm16_render_target_full_range);
-  }
+  bool IsFixedRG16TruncatedToMinus1To1() const;
+  bool IsFixedRGBA16TruncatedToMinus1To1() const;
   bool gamma_render_target_as_unorm16() const { return gamma_render_target_as_unorm16_; }
 
   bool depth_unorm24_vulkan_format_supported() const {

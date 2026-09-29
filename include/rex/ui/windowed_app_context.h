@@ -12,6 +12,8 @@
 
 #include <utility>
 
+#include <vector>
+
 #include <rex/api.h>
 #include <cstdint>
 #include <deque>
@@ -41,6 +43,11 @@ class WindowedAppContext {
   // at the start of SetupPresentation and passes it to rex::Init.
   const rex::Config& initial_config() const { return initial_config_; }
   void set_initial_config(rex::Config config) { initial_config_ = std::move(config); }
+  // Arguments ParseCommandLine did not consume. ReXApp rejects any that start with --.
+  const std::vector<std::string>& unparsed_arguments() const { return unparsed_arguments_; }
+  void set_unparsed_arguments(std::vector<std::string> args) {
+    unparsed_arguments_ = std::move(args);
+  }
 
   // CallInUIThreadDeferred and CallInUIThread are fire and forget - will be
   // executed at some point the future when the UI thread is running the loop
@@ -174,6 +181,7 @@ class WindowedAppContext {
   // will never return, for instance).
   std::mutex pending_functions_mutex_;
   rex::Config initial_config_;
+  std::vector<std::string> unparsed_arguments_;
   std::deque<std::function<void()>> pending_functions_;
   // Protected by pending_functions_mutex_, writable by the UI thread, readable
   // by any thread. Must be set to false before exiting the main platform loop,

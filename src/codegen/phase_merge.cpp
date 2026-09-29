@@ -9,8 +9,6 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include "codegen_flags.h"
-
 #include <rex/codegen/phases.h>
 
 #include <rex/logging.h>
@@ -47,7 +45,7 @@ void mergeAndSeal(CodegenContext& ctx) {
 
   size_t iteration = 0;
   size_t totalResolved = 0;
-  const size_t maxResolveIterations = REXCVAR_GET(max_resolve_iterations);
+  const size_t maxResolveIterations = ctx.limits().max_resolve_iterations;
 
   while (iteration < maxResolveIterations) {
     iteration++;

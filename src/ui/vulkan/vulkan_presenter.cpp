@@ -46,17 +46,7 @@
 #include <rex/ui/surface_mac.h>
 #endif
 
-REXCVAR_DEFINE_BOOL(present_render_pass_clear, true, "UI/Presenter",
-                    "Clear render pass during presentation");
-
-REXCVAR_DEFINE_BOOL(vulkan_allow_present_mode_immediate, true, "UI/Vulkan",
-                    "Allow immediate present mode (no vsync)");
-
-REXCVAR_DEFINE_BOOL(vulkan_allow_present_mode_mailbox, true, "UI/Vulkan",
-                    "Allow mailbox present mode (triple buffering)");
-
-REXCVAR_DEFINE_BOOL(vulkan_allow_present_mode_fifo_relaxed, true, "UI/Vulkan",
-                    "Allow FIFO relaxed present mode");
+#include "ui/cvar_table.h"
 
 namespace rex {
 namespace ui {
@@ -900,7 +890,7 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(Surface& new_su
     render_pass_attachment.flags = 0;
     render_pass_attachment.format = new_swapchain_format;
     render_pass_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-    render_pass_attachment.loadOp = REXCVAR_GET(present_render_pass_clear)
+    render_pass_attachment.loadOp = REXCVAR_GET(::rex::ui::cvars::render_pass_clear)
                                         ? VK_ATTACHMENT_LOAD_OP_CLEAR
                                         : VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     render_pass_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -1381,19 +1371,19 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
   // interfering with GPU command processing, and also to allow tearing so
   // variable refresh rate may be used where it's available.
   // Note: If the priorities here are changes, update the cvar descriptions.
-  if (REXCVAR_GET(vulkan_allow_present_mode_immediate) &&
+  if (REXCVAR_GET(::rex::ui::cvars::allow_present_mode_immediate) &&
       std::find(present_modes.cbegin(), present_modes.cend(), VK_PRESENT_MODE_IMMEDIATE_KHR) !=
           present_modes.cend()) {
     // Allowing tearing to reduce latency, and possibly variable refresh rate
     // (though on Windows with borderless fullscreen, GDI copying is used
     // instead of independent flip, so it's not supported there).
     swapchain_create_info.presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
-  } else if (REXCVAR_GET(vulkan_allow_present_mode_mailbox) &&
+  } else if (REXCVAR_GET(::rex::ui::cvars::allow_present_mode_mailbox) &&
              std::find(present_modes.cbegin(), present_modes.cend(), VK_PRESENT_MODE_MAILBOX_KHR) !=
                  present_modes.cend()) {
     // Allowing dropping frames to reduce latency, but no tearing.
     swapchain_create_info.presentMode = VK_PRESENT_MODE_MAILBOX_KHR;
-  } else if (REXCVAR_GET(vulkan_allow_present_mode_fifo_relaxed) &&
+  } else if (REXCVAR_GET(::rex::ui::cvars::allow_present_mode_fifo_relaxed) &&
              std::find(present_modes.cbegin(), present_modes.cend(),
                        VK_PRESENT_MODE_FIFO_RELAXED_KHR) != present_modes.cend()) {
     // Limiting the frame rate, but lets too long frames cause tearing not to

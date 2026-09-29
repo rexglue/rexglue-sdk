@@ -21,6 +21,7 @@
 
 #include <rex/codegen/config.h>
 #include <rex/codegen/function_graph.h>  // For FunctionAuthority, TargetKind
+#include <rex/codegen/limits.h>
 #include <rex/result.h>
 #include <rex/types.h>
 
@@ -86,7 +87,7 @@ struct FunctionBlocks {
  */
 class FunctionScanner {
  public:
-  explicit FunctionScanner(const BinaryView& binary);
+  FunctionScanner(const BinaryView& binary, const Limits& limits);
 
   /**
    * Detect jump table pattern at bctr instruction
@@ -195,6 +196,7 @@ class FunctionScanner {
 
  private:
   const BinaryView* binary_ = nullptr;
+  const Limits* limits_ = nullptr;
   std::unordered_set<uint32_t> known_switch_tables_;
   std::unordered_map<uint32_t, FunctionConfig> chunks_;
   std::unordered_set<uint32_t> bl_targets_;
@@ -248,14 +250,16 @@ struct BlockDiscoveryResult {
  * - Stop at code region boundaries (null padding)
  *
  * @param decoded The decoded binary (single-pass decoded instructions)
+ * @param limits Analysis limits
  * @param entryPoint Starting address of the function
  * @param containingRegion Code region containing the entry point
  * @param knownFunctions Set of known function entry points (to detect tail calls)
  * @return BlockDiscoveryResult containing blocks, branches, and jump tables
  */
 BlockDiscoveryResult discoverBlocks(
-    DecodedBinary& decoded, uint32_t entryPoint, const CodeRegion& containingRegion,
-    const std::unordered_set<uint32_t>& knownFunctions, uint32_t pdataSize = 0,
+    DecodedBinary& decoded, const Limits& limits, uint32_t entryPoint,
+    const CodeRegion& containingRegion, const std::unordered_set<uint32_t>& knownFunctions,
+    uint32_t pdataSize = 0,
     const std::unordered_map<uint32_t, JumpTable>* manualSwitchTables = nullptr);
 
 //=============================================================================
@@ -272,12 +276,13 @@ BlockDiscoveryResult discoverBlocks(
  * - SHORTOFFSET: lhzx + add (16-bit offset)
  *
  * @param decoded The decoded binary
+ * @param limits Analysis limits
  * @param bctrAddr Address of the bctr instruction
  * @param containingRegion Code region for validation
  * @return JumpTable if detected, empty optional otherwise
  */
-std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, uint32_t bctrAddr,
-                                         const CodeRegion& containingRegion, uint32_t funcStart,
-                                         uint32_t funcEnd);
+std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, const Limits& limits,
+                                         uint32_t bctrAddr, const CodeRegion& containingRegion,
+                                         uint32_t funcStart, uint32_t funcEnd);
 
 }  // namespace rex::codegen

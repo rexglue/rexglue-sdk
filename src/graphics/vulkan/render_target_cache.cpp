@@ -23,7 +23,6 @@
 
 #include <rex/assert.h>
 #include <rex/cvar.h>
-#include <rex/graphics/flags.h>
 #include <rex/graphics/pipeline/shader/spirv_builder.h>
 #include <rex/graphics/pipeline/shader/spirv_translator.h>
 #include <rex/graphics/pipeline/texture/cache.h>
@@ -37,9 +36,7 @@
 #include <rex/math.h>
 #include <rex/ui/vulkan/util.h>
 
-REXCVAR_DEFINE_STRING(render_target_path_vulkan, "", "GPU/Vulkan",
-                      "Vulkan render target implementation path")
-    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
+#include "graphics/cvar_table.h"
 
 // DEFINE_string(
 //     render_target_path_vulkan, "",
@@ -206,7 +203,7 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
       device_properties.fragmentStoresAndAtomics && device_properties.sampleRateShading &&
       device_properties.standardSampleLocations &&
       shared_memory_binding_count < device_properties.maxPerStageDescriptorStorageBuffers;
-  if (REXCVAR_GET(render_target_path_vulkan) == "fsi") {
+  if (REXCVAR_GET(::rex::graphics::cvars::render_target_path_vulkan) == "fsi") {
     path_ = Path::kPixelShaderInterlock;
   } else {
     path_ = Path::kHostRenderTargets;
@@ -244,7 +241,8 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
   constexpr VkFormatFeatureFlags kUsedColorFormatFeatures =
       VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
   bool gamma_render_target_as_unorm16_requested =
-      path_ == Path::kHostRenderTargets && REXCVAR_GET(gamma_render_target_as_unorm16);
+      path_ == Path::kHostRenderTargets &&
+      REXCVAR_GET(::rex::graphics::cvars::gamma_render_target_as_unorm16);
   VkFormatProperties depth_unorm24_properties;
   ifn.vkGetPhysicalDeviceFormatProperties(physical_device, VK_FORMAT_D24_UNORM_S8_UINT,
                                           &depth_unorm24_properties);
@@ -370,7 +368,7 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
   }
 
   // 2x MSAA support.
-  if (REXCVAR_GET(native_2x_msaa)) {
+  if (REXCVAR_GET(::rex::graphics::cvars::native_2x_msaa)) {
     msaa_2x_attachments_supported_ =
         (device_properties.framebufferColorSampleCounts &
          device_properties.framebufferDepthSampleCounts &
@@ -645,8 +643,9 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
 
     gamma_render_target_as_unorm16_ = gamma_render_target_as_unorm16_requested;
 
-    depth_float24_round_ = REXCVAR_GET(depth_float24_round);
-    depth_float24_convert_in_pixel_shader_ = REXCVAR_GET(depth_float24_convert_in_pixel_shader);
+    depth_float24_round_ = REXCVAR_GET(::rex::graphics::cvars::depth_float24_round);
+    depth_float24_convert_in_pixel_shader_ =
+        REXCVAR_GET(::rex::graphics::cvars::depth_float24_convert_in_pixel_shader);
 
     // Host depth storing pipeline layout.
     VkDescriptorSetLayout host_depth_store_descriptor_set_layouts[] = {
@@ -1164,7 +1163,7 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
           draw_util::resolve_copy_shader_info[size_t(copy_shader)];
       bool direct_resolved = false;
       if (GetPath() == Path::kHostRenderTargets) {
-        if (REXCVAR_GET(direct_host_resolve)) {
+        if (REXCVAR_GET(::rex::graphics::cvars::direct_host_resolve)) {
           direct_resolved =
               TryResolveCopyDirectly(resolve_info, copy_shader, draw_resolution_scaled);
           if (direct_resolved) {
@@ -4280,8 +4279,8 @@ VkPipeline const* VulkanRenderTargetCache::GetTransferPipelines(TransferPipeline
   const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
   const VkDevice device = vulkan_device->device();
   const ui::vulkan::VulkanDevice::Properties& device_properties = vulkan_device->properties();
-  bool use_dynamic_rendering =
-      REXCVAR_GET(vulkan_dynamic_rendering) && device_properties.dynamicRendering;
+  bool use_dynamic_rendering = REXCVAR_GET(::rex::graphics::cvars::vulkan_dynamic_rendering) &&
+                               device_properties.dynamicRendering;
 
   VkRenderPass render_pass = VK_NULL_HANDLE;
   if (!use_dynamic_rendering) {
@@ -4411,7 +4410,8 @@ VkPipeline const* VulkanRenderTargetCache::GetTransferPipelines(TransferPipeline
     depth_stencil_state.depthTestEnable = VK_TRUE;
     depth_stencil_state.depthWriteEnable = VK_TRUE;
     depth_stencil_state.depthCompareOp =
-        REXCVAR_GET(depth_transfer_not_equal_test) ? VK_COMPARE_OP_NOT_EQUAL : VK_COMPARE_OP_ALWAYS;
+        REXCVAR_GET(::rex::graphics::cvars::depth_transfer_not_equal_test) ? VK_COMPARE_OP_NOT_EQUAL
+                                                                           : VK_COMPARE_OP_ALWAYS;
   }
   if ((mode.output == TransferOutput::kDepth &&
        vulkan_device->extensions().ext_EXT_shader_stencil_export) ||
@@ -6150,6 +6150,16 @@ bool VulkanRenderTargetCache::DumpRenderTargets(uint32_t dump_base, uint32_t dum
     MarkEdramBufferModified();
   }
   return all_pipelines_available;
+}
+
+bool VulkanRenderTargetCache::IsFixedRG16TruncatedToMinus1To1() const {
+  return GetPath() == Path::kHostRenderTargets && !color_rg16_draw_format_fallback_to_float_ &&
+         !REXCVAR_GET(::rex::graphics::cvars::snorm16_render_target_full_range);
+}
+
+bool VulkanRenderTargetCache::IsFixedRGBA16TruncatedToMinus1To1() const {
+  return GetPath() == Path::kHostRenderTargets && !color_rgba16_draw_format_fallback_to_float_ &&
+         !REXCVAR_GET(::rex::graphics::cvars::snorm16_render_target_full_range);
 }
 
 }  // namespace rex::graphics::vulkan

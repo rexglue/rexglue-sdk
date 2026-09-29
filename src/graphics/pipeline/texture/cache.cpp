@@ -17,7 +17,6 @@
 #include <rex/chrono/clock.h>
 #include <rex/cvar.h>
 #include <rex/dbg.h>
-#include <rex/graphics/flags.h>
 #include <rex/graphics/pipeline/texture/cache.h>
 #include <rex/graphics/pipeline/texture/info.h>
 #include <rex/graphics/pipeline/texture/util.h>
@@ -26,59 +25,7 @@
 #include <rex/logging.h>
 #include <rex/math.h>
 
-REXCVAR_DEFINE_INT32(texture_cache_memory_limit_render_to_texture, 24, "GPU",
-                     "Texture cache memory limit for render-to-texture (MB)")
-    .range(1, 256)
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-
-REXCVAR_DEFINE_INT32(texture_cache_memory_limit_soft, 384, "GPU",
-                     "Soft texture cache memory limit (MB)")
-    .range(64, 4096)
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-
-REXCVAR_DEFINE_INT32(texture_cache_memory_limit_hard, 768, "GPU",
-                     "Hard texture cache memory limit (MB)")
-    .range(128, 8192)
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-
-REXCVAR_DEFINE_INT32(texture_cache_memory_limit_soft_lifetime, 30, "GPU",
-                     "Soft texture cache memory limit lifetime (seconds)")
-    .range(1, 3600);
-
-REXCVAR_DEFINE_BOOL(gpu_3d_to_2d_texture, true, "GPU",
-                    "Sample problematic 3D textures through 2D-compatible wrappers")
-    .lifecycle(rex::cvar::Lifecycle::kHotReload);
-
-REXCVAR_DEFINE_INT32(anisotropic_override, 3, "GPU",
-                     "Forces anisotropic filtering for eligible textures.\n"
-                     "Higher values keep textures sharper at oblique angles, but increase texture "
-                     "sampling cost.\n"
-                     " -1 = No override\n"
-                     "  0 = Disable anisotropic filtering\n"
-                     "  1 = Force 1x anisotropic filtering\n"
-                     "  2 = Force 2x anisotropic filtering\n"
-                     "  3 = Force 4x anisotropic filtering\n"
-                     "  4 = Force 8x anisotropic filtering\n"
-                     "  5 = Force 16x anisotropic filtering")
-    .range(-1, 5)
-    .lifecycle(rex::cvar::Lifecycle::kHotReload);
-
-REXCVAR_DEFINE_INT32(draw_resolution_scale_x, 1, "GPU", "Draw resolution scale X (1 = no scaling)")
-    .range(1, 8)
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-
-REXCVAR_DEFINE_INT32(draw_resolution_scale_y, 1, "GPU", "Draw resolution scale Y (1 = no scaling)")
-    .range(1, 8)
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-
-REXCVAR_DEFINE_INT32(resolution_scale, 1, "GPU",
-                     "Draw resolution scale for both X and Y axes (same as setting "
-                     "draw_resolution_scale_x and draw_resolution_scale_y)")
-    .range(1, 8)
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-
-REXCVAR_DEFINE_BOOL(pre_mask_resolve_l2_block, true, "GPU",
-                    "Pre-mask scaled resolve L2 blocks to the write range before iterating");
+#include "graphics/cvar_table.h"
 
 // DEFINE_int32(
 //     draw_resolution_scale_x, 1,
@@ -234,14 +181,10 @@ TextureCache::~TextureCache() {
 }
 
 bool TextureCache::GetConfigDrawResolutionScale(uint32_t& x_out, uint32_t& y_out) {
-  uint32_t shared_scale = uint32_t(std::max(INT32_C(1), REXCVAR_GET(resolution_scale)));
-  bool use_shared_scale = rex::cvar::HasNonDefaultValue("resolution_scale");
-  uint32_t config_x = use_shared_scale && !rex::cvar::HasNonDefaultValue("draw_resolution_scale_x")
-                          ? shared_scale
-                          : uint32_t(std::max(INT32_C(1), REXCVAR_GET(draw_resolution_scale_x)));
-  uint32_t config_y = use_shared_scale && !rex::cvar::HasNonDefaultValue("draw_resolution_scale_y")
-                          ? shared_scale
-                          : uint32_t(std::max(INT32_C(1), REXCVAR_GET(draw_resolution_scale_y)));
+  uint32_t config_x =
+      uint32_t(std::max(INT32_C(1), REXCVAR_GET(::rex::graphics::cvars::resolution_scale_x)));
+  uint32_t config_y =
+      uint32_t(std::max(INT32_C(1), REXCVAR_GET(::rex::graphics::cvars::resolution_scale_y)));
   uint32_t clamped_x = std::min(kMaxDrawResolutionScaleAlongAxis, config_x);
   uint32_t clamped_y = std::min(kMaxDrawResolutionScaleAlongAxis, config_y);
   x_out = clamped_x;
@@ -260,13 +203,14 @@ void TextureCache::CompletedSubmissionUpdated(uint64_t completed_submission_inde
   // texture_cache_memory_limit_soft and texture_cache_memory_limit_hard, at 1x,
   // so subtracting 1 from the scale.
   uint32_t limit_scaled_resolve_add_mb =
-      REXCVAR_GET(texture_cache_memory_limit_render_to_texture) *
+      REXCVAR_GET(::rex::graphics::cvars::texture_cache_memory_limit_render_to_texture) *
       (draw_resolution_scale_x() * draw_resolution_scale_y() - 1);
-  uint32_t limit_soft_mb =
-      REXCVAR_GET(texture_cache_memory_limit_soft) + limit_scaled_resolve_add_mb;
-  uint32_t limit_hard_mb =
-      REXCVAR_GET(texture_cache_memory_limit_hard) + limit_scaled_resolve_add_mb;
-  uint32_t limit_soft_lifetime = REXCVAR_GET(texture_cache_memory_limit_soft_lifetime) * 1000;
+  uint32_t limit_soft_mb = REXCVAR_GET(::rex::graphics::cvars::texture_cache_memory_limit_soft) +
+                           limit_scaled_resolve_add_mb;
+  uint32_t limit_hard_mb = REXCVAR_GET(::rex::graphics::cvars::texture_cache_memory_limit_hard) +
+                           limit_scaled_resolve_add_mb;
+  uint32_t limit_soft_lifetime =
+      REXCVAR_GET(::rex::graphics::cvars::texture_cache_memory_limit_soft_lifetime) * 1000;
   bool destroyed_any = false;
   while (texture_used_first_ != nullptr) {
     uint64_t total_host_memory_usage_mb =
@@ -911,7 +855,7 @@ void TextureCache::BindingInfoFromFetchConstant(const xenos::xe_gpu_texture_fetc
     case xenos::FetchConstantType::kTexture:
       break;
     case xenos::FetchConstantType::kInvalidTexture:
-      if (REXCVAR_GET(gpu_allow_invalid_fetch_constants)) {
+      if (REXCVAR_GET(::rex::graphics::cvars::allow_invalid_fetch_constants)) {
         break;
       }
       REXGPU_WARN(
@@ -1089,7 +1033,7 @@ void TextureCache::ScaledResolveGlobalWatchCallback(
   uint32_t resolve_l2_block_last = resolve_block_last >> 6;
   for (uint32_t i = resolve_l2_block_first; i <= resolve_l2_block_last; ++i) {
     uint64_t resolve_l2_block = scaled_resolve_pages_l2_[i];
-    if (REXCVAR_GET(pre_mask_resolve_l2_block)) {
+    if (REXCVAR_GET(::rex::graphics::cvars::pre_mask_resolve_l2_block)) {
       // Pre-mask to only process blocks within the write range.
       if (i == resolve_l2_block_first) {
         resolve_l2_block &= ~((UINT64_C(1) << (resolve_block_first & 63)) - 1);

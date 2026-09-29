@@ -29,6 +29,7 @@
 #include <rex/codegen/output_stamp.h>
 #include <rex/codegen/progress_reporter.h>
 #include <rex/codegen/template_registry.h>
+#include <rex/api.h>
 #include <rex/kernel/init.h>
 #include <rex/logging.h>
 #include <rex/runtime.h>
@@ -37,7 +38,6 @@
 
 #include <chrono>
 
-#include "codegen_flags.h"
 #include "codegen_logging.h"
 #include "file_io.h"
 #include "template_registry_internal.h"
@@ -77,24 +77,24 @@ std::vector<std::filesystem::path> CollectModuleInputs(const RecompilerConfig& c
 }
 
 std::string FingerprintModule(const RecompilerConfig& cfg,
-                              std::span<const std::filesystem::path> inputs,
+                              std::span<const std::filesystem::path> inputs, const Limits& limits,
                               std::string_view sdkVersion) {
   std::vector<std::string> flags{
       fmt::format("templates={}", EmbeddedTemplatesHash()),
       fmt::format("generate_exception_handlers={}", cfg.generateExceptionHandlers),
       fmt::format("max_jump_extension={}", cfg.maxJumpExtension),
       fmt::format("data_region_threshold={}", cfg.dataRegionThreshold),
-      fmt::format("max_file_size_bytes={}", REXCVAR_GET(max_file_size_bytes)),
-      fmt::format("max_discovery_iterations={}", REXCVAR_GET(max_discovery_iterations)),
-      fmt::format("max_vtable_iterations={}", REXCVAR_GET(max_vtable_iterations)),
-      fmt::format("max_resolve_iterations={}", REXCVAR_GET(max_resolve_iterations)),
-      fmt::format("max_eh_states={}", REXCVAR_GET(max_eh_states)),
-      fmt::format("max_eh_try_blocks={}", REXCVAR_GET(max_eh_try_blocks)),
-      fmt::format("max_eh_ip_map_entries={}", REXCVAR_GET(max_eh_ip_map_entries)),
-      fmt::format("max_seh_scope_entries={}", REXCVAR_GET(max_seh_scope_entries)),
-      fmt::format("backward_scan_limit={}", REXCVAR_GET(backward_scan_limit)),
-      fmt::format("max_jump_table_entries={}", REXCVAR_GET(max_jump_table_entries)),
-      fmt::format("max_blocks_per_function={}", REXCVAR_GET(max_blocks_per_function)),
+      fmt::format("max_file_size_bytes={}", limits.max_file_size_bytes),
+      fmt::format("max_discovery_iterations={}", limits.max_discovery_iterations),
+      fmt::format("max_vtable_iterations={}", limits.max_vtable_iterations),
+      fmt::format("max_resolve_iterations={}", limits.max_resolve_iterations),
+      fmt::format("max_eh_states={}", limits.max_eh_states),
+      fmt::format("max_eh_try_blocks={}", limits.max_eh_try_blocks),
+      fmt::format("max_eh_ip_map_entries={}", limits.max_eh_ip_map_entries),
+      fmt::format("max_seh_scope_entries={}", limits.max_seh_scope_entries),
+      fmt::format("backward_scan_limit={}", limits.backward_scan_limit),
+      fmt::format("max_jump_table_entries={}", limits.max_jump_table_entries),
+      fmt::format("max_blocks_per_function={}", limits.max_blocks_per_function),
   };
 
   return ComputeInputFingerprint(inputs, sdkVersion, flags);
@@ -238,7 +238,9 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
                                  entryXexPath.string(), gameRoot.string()));
   }
 
-  auto runtime = std::make_unique<Runtime>(gameRoot.string());
+  rex::Config runtimeConfig;
+  runtimeConfig.paths.game_data_root = gameRoot;
+  auto runtime = std::make_unique<Runtime>(runtimeConfig);
   auto rtStatus = runtime->Setup(rex::RuntimeConfig{
       .kernel_init = rex::kernel::InitializeKernel,
       .tool_mode = true,
@@ -315,6 +317,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
       cfg.generateExceptionHandlers = true;
 
     auto ctx = CodegenContext::Create(std::move(bv), std::move(cfg));
+    ctx.setLimits(opts.limits);
     ctx.setResolver(resolver);
     ctx.setConfigDir(configDir);
     ctx.analysisState().format = "xex";
@@ -338,6 +341,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
       cfg.generateExceptionHandlers = true;
 
     auto ctx = CodegenContext::Create(std::move(bv), std::move(cfg));
+    ctx.setLimits(opts.limits);
     ctx.setResolver(resolver);
     ctx.setConfigDir(configDir);
     ctx.analysisState().format = "xex";
@@ -360,7 +364,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     auto outDir = entry.ctx.configDir() / entry.ctx.Config().outDirectoryPath;
     auto inputs =
         CollectModuleInputs(entry.ctx.Config(), entry.ctx.configDir(), manifest_.manifestPath);
-    fingerprints[i] = FingerprintModule(entry.ctx.Config(), inputs, opts.sdkVersion);
+    fingerprints[i] = FingerprintModule(entry.ctx.Config(), inputs, opts.limits, opts.sdkVersion);
     allInputs.insert(allInputs.end(), inputs.begin(), inputs.end());
 
     if (opts.ignoreStamp || opts.force)

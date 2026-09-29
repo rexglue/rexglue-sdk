@@ -20,51 +20,9 @@
 #include <rex/ui/presenter.h>
 #include <rex/ui/window.h>
 
+#include "ui/cvar_table.h"
+
 #include <imgui.h>
-
-REXCVAR_DEFINE_INT32(window_width, 0, "UI/Window",
-                     "Window width in logical pixels (0 = use app default)")
-    .range(0, 8192);
-
-REXCVAR_DEFINE_INT32(window_height, 0, "UI/Window",
-                     "Window height in logical pixels (0 = use app default)")
-    .range(0, 8192);
-
-// kHotReload (default): Window::SetFullscreen can be applied live, so the
-// change callback registered in ReXApp::SetupPresentation keeps the window
-// in sync whenever this cvar is changed at runtime.
-REXCVAR_DEFINE_BOOL(fullscreen, true, "UI/Window", "Start the window in fullscreen mode");
-
-REXCVAR_DEFINE_BOOL(fullscreen_exclusive, false, "UI/Window",
-                    "Switch the display mode in fullscreen instead of going "
-                    "borderless at the desktop mode");
-
-REXCVAR_DEFINE_INT32(monitor, 0, "UI/Window",
-                     "Monitor index to display on (0 = default, 1 = primary, 2 = "
-                     "second monitor, etc.)")
-    .range(0, 16);
-
-REXCVAR_DEFINE_STRING(video_driver, "", "UI/Window",
-                      "SDL video driver to use, such as \"wayland\" or \"x11\". Empty picks "
-                      "SDL's default for the session")
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-
-REXCVAR_DEFINE_INT32(video_mode_width, 1280, "Display", "Guest video mode width in pixels")
-    .range(640, 0x0FFF)
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-
-REXCVAR_DEFINE_INT32(video_mode_height, 720, "Display", "Guest video mode height in pixels")
-    .range(480, 0x0FFF)
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-
-REXCVAR_DEFINE_STRING(resolution, "", "Display",
-                      "Common resolution preset for both guest video mode and window (for "
-                      "example: 720p, 1080p, 1440p, 4k, 1280x720)");
-
-REXCVAR_DEFINE_DOUBLE(video_mode_refresh_rate, 60.0, "Display",
-                      "Guest video mode refresh rate in Hz")
-    .range(24.0, 240.0)
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
 namespace rex {
 namespace ui {
@@ -333,8 +291,8 @@ void Window::SetDesiredLogicalSize(uint32_t new_desired_logical_width,
 }
 
 void Window::ResolveConfiguredLogicalSize(uint32_t& width_out, uint32_t& height_out) {
-  int32_t configured_width = REXCVAR_GET(window_width);
-  int32_t configured_height = REXCVAR_GET(window_height);
+  int32_t configured_width = REXCVAR_GET(::rex::ui::cvars::window_width);
+  int32_t configured_height = REXCVAR_GET(::rex::ui::cvars::window_height);
   if (configured_width <= 0 || configured_height <= 0) {
     rex::graphics::video_mode_util::ResolveConfiguredSize(configured_width, configured_height);
   }

@@ -12,6 +12,7 @@
 #pragma once
 #include <filesystem>
 #include <string>
+#include <rex/cvar.h>
 #include <rex/ui/imgui_dialog.h>
 
 namespace rex::ui {
@@ -19,13 +20,15 @@ namespace rex::ui {
 class SettingsDialog : public ImGuiDialog {
  public:
   // config_path: where "Save to config" writes (e.g. exe_dir / "app.toml")
-  SettingsDialog(ImGuiDrawer* imgui_drawer, std::filesystem::path config_path);
+  SettingsDialog(ImGuiDrawer* imgui_drawer, rex::cvar::ICvarRegistry& registry,
+                 std::filesystem::path config_path);
   ~SettingsDialog();
 
  protected:
   void OnDraw(ImGuiIO& io) override;
 
  private:
+  rex::cvar::ICvarRegistry& registry_;
   std::filesystem::path config_path_;
   char search_buf_[128] = {};
   std::string selected_category_;

@@ -33,7 +33,6 @@
 #include <rex/graphics/d3d12/command_processor.h>
 #include <rex/graphics/d3d12/pipeline_cache.h>
 #include <rex/graphics/d3d12/render_target_cache.h>
-#include <rex/graphics/flags.h>
 #include <rex/graphics/format/dxbc.h>
 #include <rex/graphics/pipeline_util.h>
 #include <rex/graphics/pipeline/shader/dxbc_translator.h>
@@ -49,18 +48,7 @@
 #include <rex/types.h>
 #include <rex/ui/d3d12/d3d12_util.h>
 
-REXCVAR_DEFINE_BOOL(d3d12_dxbc_disasm, false, "GPU/D3D12", "Dump DXBC disassembly");
-
-REXCVAR_DEFINE_BOOL(d3d12_dxbc_disasm_dxilconv, false, "GPU/D3D12",
-                    "Dump DXIL conversion disassembly");
-
-REXCVAR_DEFINE_INT32(d3d12_pipeline_creation_threads, -1, "GPU/D3D12",
-                     "Number of pipeline creation threads (-1 for auto)")
-    .range(-1, 32)
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-
-REXCVAR_DEFINE_BOOL(d3d12_tessellation_wireframe, false, "GPU/D3D12",
-                    "Render tessellation as wireframe");
+#include "graphics/cvar_table.h"
 
 namespace rex::graphics::d3d12 {
 
@@ -117,7 +105,7 @@ bool PipelineCache::Initialize() {
   dxbc_converter_ = nullptr;
   dxc_utils_ = nullptr;
   dxc_compiler_ = nullptr;
-  if (REXCVAR_GET(d3d12_dxbc_disasm_dxilconv)) {
+  if (REXCVAR_GET(::rex::graphics::cvars::d3d12_dxbc_disasm_dxilconv)) {
     if (FAILED(provider.DxbcConverterCreateInstance(CLSID_DxbcConverter,
                                                     IID_PPV_ARGS(&dxbc_converter_)))) {
       REXGPU_ERROR(
@@ -149,13 +137,14 @@ bool PipelineCache::Initialize() {
   assert_not_null(creation_completion_event_);
   creation_completion_set_event_ = false;
   creation_threads_shutdown_from_ = SIZE_MAX;
-  if (REXCVAR_GET(d3d12_pipeline_creation_threads) != 0) {
+  if (REXCVAR_GET(::rex::graphics::cvars::d3d12_pipeline_creation_threads) != 0) {
     size_t creation_thread_count;
-    if (REXCVAR_GET(d3d12_pipeline_creation_threads) < 0) {
+    if (REXCVAR_GET(::rex::graphics::cvars::d3d12_pipeline_creation_threads) < 0) {
       creation_thread_count = std::max(logical_processor_count * 3 / 4, uint32_t(1));
     } else {
       creation_thread_count =
-          std::min(uint32_t(REXCVAR_GET(d3d12_pipeline_creation_threads)), logical_processor_count);
+          std::min(uint32_t(REXCVAR_GET(::rex::graphics::cvars::d3d12_pipeline_creation_threads)),
+                   logical_processor_count);
     }
     for (size_t i = 0; i < creation_thread_count; ++i) {
       std::unique_ptr<rex::thread::Thread> creation_thread =
@@ -380,8 +369,8 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
       IDxbcConverter* dxbc_converter = nullptr;
       IDxcUtils* dxc_utils = nullptr;
       IDxcCompiler* dxc_compiler = nullptr;
-      if (REXCVAR_GET(d3d12_dxbc_disasm_dxilconv) && dxbc_converter_ && dxc_utils_ &&
-          dxc_compiler_) {
+      if (REXCVAR_GET(::rex::graphics::cvars::d3d12_dxbc_disasm_dxilconv) && dxbc_converter_ &&
+          dxc_utils_ && dxc_compiler_) {
         provider.DxbcConverterCreateInstance(CLSID_DxbcConverter, IID_PPV_ARGS(&dxbc_converter));
         provider.DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&dxc_utils));
         provider.DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&dxc_compiler));
@@ -909,8 +898,8 @@ bool PipelineCache::ConfigurePipeline(
   assert_not_null(pipeline_handle_out);
   assert_not_null(root_signature_out);
 
-  bool use_async = REXCVAR_GET(async_shader_compilation) && !creation_threads_.empty() &&
-                   pixel_shader != nullptr;
+  bool use_async = REXCVAR_GET(::rex::graphics::cvars::async_shader_compilation) &&
+                   !creation_threads_.empty() && pixel_shader != nullptr;
 
   // Ensure shaders are translated - needed now for GetCurrentStateDescription.
   // Edge flags are not supported yet (because polygon primitives are not).
@@ -1213,20 +1202,23 @@ bool PipelineCache::TranslateAnalyzedShader(DxbcShaderTranslator& translator,
 
   // Disassemble the shader for dumping.
   const ui::d3d12::D3D12Provider& provider = command_processor_.GetD3D12Provider();
-  if (REXCVAR_GET(d3d12_dxbc_disasm_dxilconv)) {
-    translation.DisassembleDxbcAndDxil(provider, REXCVAR_GET(d3d12_dxbc_disasm), dxbc_converter,
-                                       dxc_utils, dxc_compiler);
+  if (REXCVAR_GET(::rex::graphics::cvars::d3d12_dxbc_disasm_dxilconv)) {
+    translation.DisassembleDxbcAndDxil(provider,
+                                       REXCVAR_GET(::rex::graphics::cvars::d3d12_dxbc_disasm),
+                                       dxbc_converter, dxc_utils, dxc_compiler);
   } else {
-    translation.DisassembleDxbcAndDxil(provider, REXCVAR_GET(d3d12_dxbc_disasm));
+    translation.DisassembleDxbcAndDxil(provider,
+                                       REXCVAR_GET(::rex::graphics::cvars::d3d12_dxbc_disasm));
   }
 
   // Dump shader files if desired.
-  if (!REXCVAR_GET(dump_shaders).empty()) {
+  if (!REXCVAR_GET(::rex::graphics::cvars::dump_shaders).empty()) {
     bool edram_rov_used =
         render_target_cache_.GetPath() == RenderTargetCache::Path::kPixelShaderInterlock;
-    translation.Dump(REXCVAR_GET(dump_shaders), (shader.type() == xenos::ShaderType::kPixel)
-                                                    ? (edram_rov_used ? "d3d12_rov" : "d3d12_rtv")
-                                                    : "d3d12");
+    translation.Dump(REXCVAR_GET(::rex::graphics::cvars::dump_shaders),
+                     (shader.type() == xenos::ShaderType::kPixel)
+                         ? (edram_rov_used ? "d3d12_rov" : "d3d12_rtv")
+                         : "d3d12");
   }
 
   return translation.is_valid();
@@ -1425,7 +1417,7 @@ bool PipelineCache::GetCurrentStateDescription(
     description_out.depth_bias_slope_scaled =
         polygon_offset_scale * xenos::kPolygonOffsetScaleSubpixelUnit;
   }
-  if (tessellated && REXCVAR_GET(d3d12_tessellation_wireframe)) {
+  if (tessellated && REXCVAR_GET(::rex::graphics::cvars::d3d12_tessellation_wireframe)) {
     description_out.fill_mode_wireframe = 1;
   }
   description_out.depth_clip = !regs.Get<reg::PA_CL_CLIP_CNTL>().clip_disable;

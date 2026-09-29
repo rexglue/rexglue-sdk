@@ -27,7 +27,6 @@
 #include <rex/graphics/d3d12/deferred_command_list.h>
 #include <rex/graphics/d3d12/render_target_cache.h>
 #include <rex/graphics/d3d12/texture_cache.h>
-#include <rex/graphics/flags.h>
 #include <rex/graphics/format/dxbc.h>
 #include <rex/graphics/pipeline/shader/dxbc_translator.h>
 #include <rex/graphics/util/draw.h>
@@ -38,14 +37,7 @@
 #include <rex/ui/d3d12/d3d12_provider.h>
 #include <rex/ui/d3d12/d3d12_util.h>
 
-REXCVAR_DEFINE_BOOL(native_stencil_value_output_d3d12_intel, false, "GPU/D3D12",
-                    "Native stencil value output for Intel D3D12");
-
-REXCVAR_DEFINE_STRING(render_target_path_d3d12, "", "GPU/D3D12",
-                      "D3D12 render target implementation path")
-    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
-
-REXCVAR_DEFINE_BOOL(native_stencil_value_output, true, "GPU", "Enable native stencil value output");
+#include "graphics/cvar_table.h"
 
 namespace rex::graphics::d3d12 {
 
@@ -173,9 +165,9 @@ bool D3D12RenderTargetCache::Initialize() {
   const ui::d3d12::D3D12Provider& provider = command_processor_.GetD3D12Provider();
   ID3D12Device* device = provider.GetDevice();
 
-  if (REXCVAR_GET(render_target_path_d3d12) == "rtv") {
+  if (REXCVAR_GET(::rex::graphics::cvars::render_target_path_d3d12) == "rtv") {
     path_ = Path::kHostRenderTargets;
-  } else if (REXCVAR_GET(render_target_path_d3d12) == "rov") {
+  } else if (REXCVAR_GET(::rex::graphics::cvars::render_target_path_d3d12) == "rov") {
     path_ = Path::kPixelShaderInterlock;
   } else {
     // As of April 2021 (driver version 27.20.0100.9316), on Intel (tested on
@@ -370,22 +362,24 @@ bool D3D12RenderTargetCache::Initialize() {
   // Using the cvar on emulator initialization so used pipelines are consistent
   // across different titles launched in one emulator instance.
   use_stencil_reference_output_ =
-      REXCVAR_GET(native_stencil_value_output) &&
+      REXCVAR_GET(::rex::graphics::cvars::native_stencil_value_output) &&
       provider.IsPSSpecifiedStencilReferenceSupported() &&
-      (REXCVAR_GET(native_stencil_value_output_d3d12_intel) ||
+      (REXCVAR_GET(::rex::graphics::cvars::native_stencil_value_output_d3d12_intel) ||
        provider.GetAdapterVendorID() != ui::GraphicsProvider::GpuVendorID::kIntel);
 
   if (path_ == Path::kHostRenderTargets) {
     // Host render targets.
 
-    gamma_render_target_as_unorm16_ = REXCVAR_GET(gamma_render_target_as_unorm16);
+    gamma_render_target_as_unorm16_ =
+        REXCVAR_GET(::rex::graphics::cvars::gamma_render_target_as_unorm16);
 
-    depth_float24_round_ = REXCVAR_GET(depth_float24_round);
-    depth_float24_convert_in_pixel_shader_ = REXCVAR_GET(depth_float24_convert_in_pixel_shader);
+    depth_float24_round_ = REXCVAR_GET(::rex::graphics::cvars::depth_float24_round);
+    depth_float24_convert_in_pixel_shader_ =
+        REXCVAR_GET(::rex::graphics::cvars::depth_float24_convert_in_pixel_shader);
 
     // Check if 2x MSAA is supported or needs to be emulated with 4x MSAA
     // instead.
-    if (REXCVAR_GET(native_2x_msaa)) {
+    if (REXCVAR_GET(::rex::graphics::cvars::native_2x_msaa)) {
       msaa_2x_supported_ = true;
       static const DXGI_FORMAT kRenderTargetDXGIFormats[] = {
           DXGI_FORMAT_R16G16B16A16_FLOAT,
@@ -1196,7 +1190,7 @@ bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMe
           draw_util::resolve_copy_shader_info[size_t(copy_shader)];
       bool direct_resolved = false;
       if (GetPath() == Path::kHostRenderTargets) {
-        if (REXCVAR_GET(direct_host_resolve)) {
+        if (REXCVAR_GET(::rex::graphics::cvars::direct_host_resolve)) {
           direct_resolved =
               TryResolveCopyDirectly(resolve_info, copy_shader, draw_resolution_scaled);
           if (direct_resolved) {
@@ -3730,16 +3724,18 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
     } else {
       pipeline_desc.DepthStencilState.DepthEnable = TRUE;
       pipeline_desc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
-      pipeline_desc.DepthStencilState.DepthFunc = REXCVAR_GET(depth_transfer_not_equal_test)
-                                                      ? D3D12_COMPARISON_FUNC_NOT_EQUAL
-                                                      : D3D12_COMPARISON_FUNC_ALWAYS;
+      pipeline_desc.DepthStencilState.DepthFunc =
+          REXCVAR_GET(::rex::graphics::cvars::depth_transfer_not_equal_test)
+              ? D3D12_COMPARISON_FUNC_NOT_EQUAL
+              : D3D12_COMPARISON_FUNC_ALWAYS;
       if (use_stencil_reference_output_) {
         pipeline_desc.DepthStencilState.StencilEnable = TRUE;
         pipeline_desc.DepthStencilState.StencilWriteMask = UINT8_MAX;
         pipeline_desc.DepthStencilState.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
         pipeline_desc.DepthStencilState.FrontFace.StencilDepthFailOp =
-            REXCVAR_GET(depth_transfer_not_equal_test) ? D3D12_STENCIL_OP_REPLACE
-                                                       : D3D12_STENCIL_OP_KEEP;
+            REXCVAR_GET(::rex::graphics::cvars::depth_transfer_not_equal_test)
+                ? D3D12_STENCIL_OP_REPLACE
+                : D3D12_STENCIL_OP_KEEP;
         pipeline_desc.DepthStencilState.FrontFace.StencilPassOp = D3D12_STENCIL_OP_REPLACE;
         // Using ALWAYS, not NOT_EQUAL, so depth writing is unaffected by
         // stencil being different.
@@ -5794,6 +5790,11 @@ bool D3D12RenderTargetCache::DumpRenderTargets(uint32_t dump_base, uint32_t dump
     MarkEdramBufferModified();
   }
   return all_pipelines_available;
+}
+
+bool D3D12RenderTargetCache::IsFixed16TruncatedToMinus1To1() const {
+  return GetPath() == Path::kHostRenderTargets &&
+         !REXCVAR_GET(::rex::graphics::cvars::snorm16_render_target_full_range);
 }
 
 }  // namespace rex::graphics::d3d12

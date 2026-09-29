@@ -18,6 +18,7 @@
 #include <string_view>
 #include <vector>
 
+#include <rex/filesystem/config.h>
 #include <rex/platform.h>
 #include <rex/string.h>
 

@@ -8,7 +8,6 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include "codegen_flags.h"
 #include "decoded_binary.h"
 #include "ppc/instruction.h"
 #include "ppc/opcode.h"
@@ -42,7 +41,8 @@ using rex::memory::load_and_swap;
 // Constructors
 //=============================================================================
 
-FunctionScanner::FunctionScanner(const BinaryView& binary) : binary_(&binary) {}
+FunctionScanner::FunctionScanner(const BinaryView& binary, const Limits& limits)
+    : binary_(&binary), limits_(&limits) {}
 
 //=============================================================================
 // Address Translation
@@ -506,7 +506,7 @@ std::optional<JumpTable> FunctionScanner::detect_jump_table(guest_addr_t bctr_ad
     return std::nullopt;  // Will be handled by the pre-loaded config
   }
 
-  const int MAX_SCAN_BACK = static_cast<int>(REXCVAR_GET(backward_scan_limit));
+  const int MAX_SCAN_BACK = static_cast<int>(limits_->backward_scan_limit);
 
   JumpTableMatch match;
 
@@ -865,7 +865,7 @@ FunctionBlocks FunctionScanner::discover_blocks(rex::guest_addr_t entry_point,
   entry_block.projectedSize = -1;  // No limit
   block_stack.push_back(entry_block);
 
-  const size_t MAX_BLOCKS = REXCVAR_GET(max_blocks_per_function);  // Safety limit
+  const size_t MAX_BLOCKS = limits_->max_blocks_per_function;
 
   while (!block_stack.empty() && result.blocks.size() < MAX_BLOCKS) {
     // Get current block from stack (by reference for in-place modification)
@@ -1282,10 +1282,10 @@ bool isBlockTerminator(const DecodedInsn& insn, uint32_t addr, const CodeRegion&
 // Helper: Detect bounds check for jump table
 //=============================================================================
 
-BoundsInfo scanForBounds(DecodedBinary& decoded, uint32_t bctrAddr, const CodeRegion& region,
-                         uint8_t expectedReg, uint32_t funcStart) {
+BoundsInfo scanForBounds(DecodedBinary& decoded, const Limits& limits, uint32_t bctrAddr,
+                         const CodeRegion& region, uint8_t expectedReg, uint32_t funcStart) {
   BoundsInfo result;
-  const int backwardScanLimit = static_cast<int>(REXCVAR_GET(backward_scan_limit));
+  const int backwardScanLimit = static_cast<int>(limits.backward_scan_limit);
 
   // Use funcStart as lower bound to avoid scanning into other functions
   uint32_t scanLowerBound = std::max(region.start, funcStart);
@@ -1362,13 +1362,13 @@ BoundsInfo scanForBounds(DecodedBinary& decoded, uint32_t bctrAddr, const CodeRe
 //=============================================================================
 // Jump Table Detection
 //=============================================================================
-std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, uint32_t bctrAddr,
-                                         const CodeRegion& containingRegion, uint32_t funcStart,
-                                         uint32_t funcEnd) {
+std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, const Limits& limits,
+                                         uint32_t bctrAddr, const CodeRegion& containingRegion,
+                                         uint32_t funcStart, uint32_t funcEnd) {
   using namespace rex::codegen::ppc;
 
-  const int kMaxBackwardScan = static_cast<int>(REXCVAR_GET(backward_scan_limit));
-  const uint32_t kMaxTableEntries = REXCVAR_GET(max_jump_table_entries);
+  const int kMaxBackwardScan = static_cast<int>(limits.backward_scan_limit);
+  const uint32_t kMaxTableEntries = limits.max_jump_table_entries;
 
   // State for backward scan
   uint8_t ctrSourceReg = 0xFF;
@@ -1677,7 +1677,8 @@ std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, uint32_t bctrAd
   }
 
   // Find bounds
-  auto bounds = scanForBounds(decoded, bctrAddr, containingRegion, finalIndexReg, funcStart);
+  auto bounds =
+      scanForBounds(decoded, limits, bctrAddr, containingRegion, finalIndexReg, funcStart);
   // If bounds not found (e.g., state machine pattern with forward bounds check),
   // use max entries and let the validation loop determine actual table size
   uint32_t entryCount = bounds.found ? bounds.maxEntries : kMaxTableEntries;
@@ -1813,9 +1814,9 @@ std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, uint32_t bctrAd
 //=============================================================================
 
 BlockDiscoveryResult discoverBlocks(
-    DecodedBinary& decoded, uint32_t entryPoint, const CodeRegion& containingRegion,
-    const std::unordered_set<uint32_t>& knownFunctions, uint32_t pdataSize,
-    const std::unordered_map<uint32_t, JumpTable>* manualSwitchTables) {
+    DecodedBinary& decoded, const Limits& limits, uint32_t entryPoint,
+    const CodeRegion& containingRegion, const std::unordered_set<uint32_t>& knownFunctions,
+    uint32_t pdataSize, const std::unordered_map<uint32_t, JumpTable>* manualSwitchTables) {
   BlockDiscoveryResult result;
   std::unordered_set<uint32_t> visited;
   std::unordered_set<uint32_t> blockStarts;
@@ -1935,7 +1936,7 @@ BlockDiscoveryResult discoverBlocks(
             }
           }
           if (!jt) {
-            jt = detectJumpTable(decoded, addr, containingRegion, entryPoint, funcEnd);
+            jt = detectJumpTable(decoded, limits, addr, containingRegion, entryPoint, funcEnd);
           }
           if (jt) {
             REXCODEGEN_TRACE("discoverBlocks: detected jump table at bctr 0x{:08X} with {} targets",

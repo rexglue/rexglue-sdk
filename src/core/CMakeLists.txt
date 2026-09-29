@@ -8,7 +8,7 @@ add_library(rexcore OBJECT
     bit_stream.cpp
     byte_stream.cpp
     clock.cpp
-    cvar.cpp
+    cvar_registry.cpp
     exception_handler.cpp
     filesystem.cpp
     filesystem_wildcard.cpp
@@ -97,6 +97,7 @@ target_include_directories(rexcore PUBLIC
 
 target_include_directories(rexcore PRIVATE
     ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/src
     ${PROJECT_SOURCE_DIR}/thirdparty/cli11/include
 )
 

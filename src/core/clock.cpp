@@ -17,12 +17,13 @@
 #include <rex/cvar.h>
 #include <rex/math.h>
 
-REXCVAR_DEFINE_BOOL(clock_no_scaling, false, "Clock",
-                    "Disable clock scaling (inverted: false = scaling enabled)");
-
-REXCVAR_DEFINE_BOOL(clock_source_raw, false, "Clock", "Use raw clock source without scaling");
+#include "core/cvar_table.h"
 
 namespace rex::chrono {
+
+bool Clock::no_scaling() {
+  return REXCVAR_GET(::rex::cvars::no_scaling);
+}
 
 // Time scalar applied to all time operations.
 double guest_time_scalar_ = 1.0;
@@ -66,7 +67,7 @@ void RecomputeGuestTickScalar() {
 uint64_t UpdateGuestClock() {
   uint64_t host_tick_count = Clock::QueryHostTickCount();
 
-  if (REXCVAR_GET(clock_no_scaling)) {
+  if (REXCVAR_GET(::rex::cvars::no_scaling)) {
     // Nothing to update, calculate on the fly
     return host_tick_count * guest_tick_ratio_.first / guest_tick_ratio_.second;
   }
@@ -90,7 +91,7 @@ uint64_t UpdateGuestClock() {
 
 // Offset of the current guest system file time relative to the guest base time.
 inline uint64_t QueryGuestSystemTimeOffset() {
-  if (REXCVAR_GET(clock_no_scaling)) {
+  if (REXCVAR_GET(::rex::cvars::no_scaling)) {
     return Clock::QueryHostSystemTime() - guest_system_time_base_;
   }
 
@@ -105,7 +106,7 @@ inline uint64_t QueryGuestSystemTimeOffset() {
 
 uint64_t Clock::QueryHostTickFrequency() {
 #if REX_CLOCK_RAW_AVAILABLE
-  if (REXCVAR_GET(clock_source_raw)) {
+  if (REXCVAR_GET(::rex::cvars::source_raw)) {
     return host_tick_frequency_raw();
   }
 #endif
@@ -113,7 +114,7 @@ uint64_t Clock::QueryHostTickFrequency() {
 }
 uint64_t Clock::QueryHostTickCount() {
 #if REX_CLOCK_RAW_AVAILABLE
-  if (REXCVAR_GET(clock_source_raw)) {
+  if (REXCVAR_GET(::rex::cvars::source_raw)) {
     return host_tick_count_raw();
   }
 #endif
@@ -125,7 +126,7 @@ double Clock::guest_time_scalar() {
 }
 
 void Clock::set_guest_time_scalar(double scalar) {
-  if (REXCVAR_GET(clock_no_scaling)) {
+  if (REXCVAR_GET(::rex::cvars::no_scaling)) {
     return;
   }
 
@@ -161,7 +162,7 @@ uint64_t Clock::QueryGuestTickCount() {
 }
 
 uint64_t Clock::QueryGuestSystemTime() {
-  if (REXCVAR_GET(clock_no_scaling)) {
+  if (REXCVAR_GET(::rex::cvars::no_scaling)) {
     return Clock::QueryHostSystemTime();
   }
 
@@ -175,7 +176,7 @@ uint32_t Clock::QueryGuestUptimeMillis() {
 }
 
 void Clock::SetGuestSystemTime(uint64_t system_time) {
-  if (REXCVAR_GET(clock_no_scaling)) {
+  if (REXCVAR_GET(::rex::cvars::no_scaling)) {
     // Time is fixed to host time.
     return;
   }
@@ -186,7 +187,7 @@ void Clock::SetGuestSystemTime(uint64_t system_time) {
 }
 
 uint32_t Clock::ScaleGuestDurationMillis(uint32_t guest_ms) {
-  if (REXCVAR_GET(clock_no_scaling)) {
+  if (REXCVAR_GET(::rex::cvars::no_scaling)) {
     return guest_ms;
   }
 
@@ -203,7 +204,7 @@ uint32_t Clock::ScaleGuestDurationMillis(uint32_t guest_ms) {
 }
 
 int64_t Clock::ScaleGuestDurationFileTime(int64_t guest_file_time) {
-  if (REXCVAR_GET(clock_no_scaling)) {
+  if (REXCVAR_GET(::rex::cvars::no_scaling)) {
     return static_cast<uint64_t>(guest_file_time);
   }
 
@@ -225,7 +226,7 @@ int64_t Clock::ScaleGuestDurationFileTime(int64_t guest_file_time) {
 }
 
 void Clock::ScaleGuestDurationTimeval(int32_t* tv_sec, int32_t* tv_usec) {
-  if (REXCVAR_GET(clock_no_scaling)) {
+  if (REXCVAR_GET(::rex::cvars::no_scaling)) {
     return;
   }
 

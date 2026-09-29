@@ -379,6 +379,28 @@ struct mapped_ptr_inner_type<MappedPtr<T>> {
   using type = T;
 };
 
+/**
+ * Base for types that can move but never copy.
+ */
+class MoveOnly {
+ protected:
+  MoveOnly() = default;
+  MoveOnly(MoveOnly&&) = default;
+  MoveOnly& operator=(MoveOnly&&) = default;
+  MoveOnly(const MoveOnly&) = delete;
+  MoveOnly& operator=(const MoveOnly&) = delete;
+};
+
+/**
+ * Base for types that neither copy nor move.
+ */
+class NonCopyable {
+ protected:
+  NonCopyable() = default;
+  NonCopyable(const NonCopyable&) = delete;
+  NonCopyable& operator=(const NonCopyable&) = delete;
+};
+
 }  // namespace rex
 
 //=============================================================================

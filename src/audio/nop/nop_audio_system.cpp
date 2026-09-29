@@ -9,7 +9,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/audio/flags.h>
 #include <rex/audio/nop/nop_audio_system.h>
 
 namespace rex::audio::nop {

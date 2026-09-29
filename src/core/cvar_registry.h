@@ -1,0 +1,121 @@
+/**
+ * @file        core/cvar_registry.h
+ * @brief       The cvar registry implementation, shared by api.cpp and the tests
+ *
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ */
+
+#pragma once
+
+#include <memory>
+#include <mutex>
+#include <span>
+#include <string>
+#include <string_view>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
+#include <rex/cvar.h>
+
+namespace rex::detail {
+
+/**
+ * ICvarRegistry with the Init side entry points the loader uses.
+ */
+class CvarRegistryImpl final : public cvar::ICvarRegistry {
+ public:
+  CvarRegistryImpl() = default;
+  ~CvarRegistryImpl() override;
+
+  Status Register(std::string_view scope, std::span<const cvar::IVar* const> vars) override;
+  Status Add(std::span<const cvar::IVar* const> vars) override;
+  void Unregister(std::span<const cvar::IVar* const> vars) override;
+  Status Set(std::string_view name, std::string_view value) override;
+  Result<std::string> Get(std::string_view name) const override;
+  Status SetDefault(std::string_view name, std::string_view value) override;
+  Status Lock(std::string_view name) override;
+  Status ResetToDefault(std::string_view name) override;
+  const cvar::IVar* Find(std::string_view name) const override;
+  cvar::CvarSource Source(std::string_view name) const override;
+  std::vector<const cvar::IVar*> Enumerate(std::string_view scope = {}) const override;
+  std::vector<std::string_view> Scopes() const override;
+  Result<cvar::CallbackHandle> OnChange(std::string_view name,
+                                        cvar::ChangeCallback callback) override;
+  Status Invoke(std::string_view name, std::string_view args) override;
+  std::vector<std::string> PendingRestart() const override;
+  std::string Serialize() const override;
+  bool IsFinalized() const override;
+
+  /**
+   * Applies overrides in ascending source order to the names that are registered. An override
+   * whose scope is reserved with an empty table is kept and applied when Add registers its name.
+   * Returns the overrides whose names are not registered. A rejected value is an error naming the
+   * cvar, the value, the source and the reason.
+   */
+  Result<std::vector<CvarOverride>> ApplyOverrides(std::span<const CvarOverride> overrides);
+  /**
+   * Locks every name. An unknown name is an error.
+   */
+  Status ApplyLocks(std::span<const std::string> names);
+  /**
+   * Marks the registry finalized. InitOnly is enforced and RequiresRestart marks pending from
+   * here.
+   */
+  void Finalize();
+  /**
+   * Unregisters everything, clears callbacks, locks and the finalized flag. Values stay in their
+   * cells.
+   */
+  void Reset();
+  /**
+   * Names of every var still registered, for the Shutdown leak warning.
+   */
+  std::vector<std::string> RegisteredNames() const;
+
+ private:
+  struct Entry {
+    const cvar::IVar* var = nullptr;
+    std::string default_override;
+    bool has_default_override = false;
+    cvar::CvarSource source = cvar::CvarSource::Default;
+    bool locked = false;
+  };
+  struct Callback {
+    uint64_t id;
+    std::string name;
+    cvar::ChangeCallback fn;
+  };
+  using Fired = std::vector<std::pair<std::string, std::string>>;
+
+  void RemoveCallback(uint64_t id) override;
+  Entry* FindEntry(std::string_view name);
+  const Entry* FindEntry(std::string_view name) const;
+  Status Validate(const Entry& entry, std::string_view value, cvar::CvarSource source) const;
+  Status Apply(Entry& entry, std::string_view value, cvar::CvarSource source, Fired& fired);
+  void Fire(Fired& fired);
+  void ApplyPending(Entry& entry, Fired& fired);
+  std::string_view DefaultOf(const Entry& entry) const;
+
+  mutable std::mutex mutex_;
+  std::vector<Entry> entries_;
+  std::unordered_map<std::string_view, size_t> index_;
+  std::vector<std::string> scopes_;
+  std::vector<std::string> pinned_scopes_;
+  std::vector<CvarOverride> pending_;
+  std::vector<std::shared_ptr<Callback>> callbacks_;
+  std::vector<std::string> pending_restart_;
+  uint64_t next_callback_id_ = 1;
+  bool finalized_ = false;
+};
+
+/**
+ * Creates a registry. api.cpp holds the process registry, tests hold their own.
+ */
+std::unique_ptr<CvarRegistryImpl> CreateCvarRegistry();
+
+}  // namespace rex::detail

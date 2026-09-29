@@ -30,7 +30,6 @@
 #include <rex/math.h>
 #include <rex/platform.h>
 #include <rex/types.h>
-#include <rex/ui/flags.h>
 #include <rex/ui/surface.h>
 #include <rex/ui/ui_drawer.h>
 

@@ -27,11 +27,12 @@
 #include <rex/kernel/xboxkrnl/threading.h>
 #include <rex/system/kernel_module.h>
 #include <rex/system/kernel_state.h>
+
+#include <rex/api.h>
 #include <rex/system/function_dispatcher.h>
 #include <chrono>
 #include <thread>
 
-#include <rex/system/flags.h>
 #include <rex/system/guest_path.h>
 #include <rex/system/user_module.h>
 #include <rex/system/xevent.h>
@@ -58,6 +59,7 @@ KernelState* kernel_state() {
 
 KernelState::KernelState(Runtime* emulator)
     : emulator_(emulator),
+      config_(emulator->config().runtime.kernel),
       memory_(emulator->memory()),
       dispatch_thread_running_(false),
       dpc_list_(emulator->memory()) {
@@ -286,7 +288,7 @@ void KernelState::LoadAchievementsData() {
   const util::XdbfGameData db = title_xdbf();
   if (db.is_valid()) {
     const XLanguage language =
-        db.GetExistingLanguage(static_cast<XLanguage>(REXCVAR_GET(user_language)));
+        db.GetExistingLanguage(static_cast<XLanguage>(config_.user_language));
     for (const auto& entry : db.GetAchievements()) {
       AchievementInfo info;
       info.id = entry.id;

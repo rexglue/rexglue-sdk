@@ -14,6 +14,7 @@
 #include <string>
 #include <vector>
 
+#include <rex/codegen/limits.h>
 #include <rex/codegen/manifest.h>
 #include <rex/codegen/progress_reporter.h>
 #include <rex/result.h>
@@ -28,6 +29,9 @@ struct ProjectRecompilerOptions {
 
   /// Bypass the stamp gate and regenerate every targeted module.
   bool ignoreStamp = false;
+
+  /// Analysis limits applied to every targeted module and folded into the fingerprint.
+  Limits limits;
 
   /// Folded into the input fingerprint. Must be stable across commits
   /// ("0.10.0-dev") or every SDK rebuild forces a full re-analysis.

@@ -15,9 +15,6 @@
 #include <string>
 #include <string_view>
 
-#include <rex/cvar.h>
-#include <rex/ui/flags.h>
-
 namespace rex::graphics::video_mode_util {
 
 inline bool TryParsePositiveInt32(std::string_view value, int32_t& value_out) {
@@ -108,22 +105,30 @@ inline bool TryParseResolutionPreset(std::string_view resolution_value, int32_t&
   return false;
 }
 
-inline bool TryGetResolutionPresetFromCVar(int32_t& width_out, int32_t& height_out) {
-  return TryParseResolutionPreset(REXCVAR_GET(resolution), width_out, height_out);
-}
+/**
+ * @return True when ui.resolution names a preset, with its size in the outputs.
+ */
+bool TryGetResolutionPresetFromCVar(int32_t& width_out, int32_t& height_out);
 
-inline bool ResolveConfiguredSize(int32_t& width_out, int32_t& height_out) {
-  if (TryGetResolutionPresetFromCVar(width_out, height_out)) {
-    return true;
-  }
-  if (REXCVAR_GET(window_width) > 0 && REXCVAR_GET(window_height) > 0) {
-    width_out = REXCVAR_GET(window_width);
-    height_out = REXCVAR_GET(window_height);
-    return true;
-  }
-  width_out = REXCVAR_GET(video_mode_width);
-  height_out = REXCVAR_GET(video_mode_height);
-  return width_out > 0 && height_out > 0;
-}
+/**
+ * Resolves the configured size from ui.resolution, then ui.window_width and ui.window_height,
+ * then ui.video_mode_width and ui.video_mode_height.
+ */
+bool ResolveConfiguredSize(int32_t& width_out, int32_t& height_out);
 
 }  // namespace rex::graphics::video_mode_util
+
+namespace rex::ui {
+
+/**
+ * The video mode the title sees. ui.video_mode_width and ui.video_mode_height when either was
+ * set, otherwise the resolved window size.
+ */
+void ConfiguredVideoMode(uint32_t& width, uint32_t& height);
+
+/**
+ * ui.video_mode_refresh_rate clamped to 24 to 240.
+ */
+float ConfiguredRefreshRate();
+
+}  // namespace rex::ui

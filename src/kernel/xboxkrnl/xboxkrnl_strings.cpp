@@ -19,7 +19,6 @@
 #include <rex/logging.h>
 #include <rex/memory/utils.h>
 #include <rex/hook.h>
-#include <rex/system/flags.h>
 #include <rex/system/format.h>
 
 using namespace rex::system::format;

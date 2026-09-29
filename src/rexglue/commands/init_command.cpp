@@ -21,6 +21,7 @@
 
 #include <rex/codegen/manifest.h>
 #include <rex/codegen/template_registry.h>
+#include <rex/api.h>
 #include <rex/kernel/init.h>
 #include <rex/logging.h>
 #include <rex/result.h>
@@ -383,7 +384,9 @@ Result<void> InitAchievements(const InitAchievementsOptions& opts, const CliCont
   std::string entryRelStr = entryRel.string();
   auto entryVfsPath = "game:\\" + entryRelStr;
 
-  auto runtime = std::make_unique<rex::Runtime>(gameRoot.string());
+  rex::Config runtimeConfig;
+  runtimeConfig.paths.game_data_root = gameRoot;
+  auto runtime = std::make_unique<rex::Runtime>(runtimeConfig);
   auto rtStatus = runtime->Setup(rex::RuntimeConfig{
       .kernel_init = rex::kernel::InitializeKernel,
       .tool_mode = true,

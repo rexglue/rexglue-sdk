@@ -15,6 +15,7 @@
 #include <rex/codegen/codegen.h>
 #include <rex/codegen/codegen_writer.h>
 #include <rex/kernel/init.h>
+#include <rex/api.h>
 #include <rex/logging.h>
 #include <rex/runtime.h>
 
@@ -45,8 +46,9 @@ Result<CodegenPipeline> CodegenPipeline::Create(const std::filesystem::path& con
   xexPath = std::filesystem::canonical(xexPath);
 
   // Create Runtime
-  auto xexDir = xexPath.parent_path();
-  pipeline.runtime_ = std::make_unique<Runtime>(xexDir.string());
+  rex::Config runtimeConfig;
+  runtimeConfig.paths.game_data_root = xexPath.parent_path();
+  pipeline.runtime_ = std::make_unique<Runtime>(runtimeConfig);
   auto status = pipeline.runtime_->Setup(rex::RuntimeConfig{
       .kernel_init = rex::kernel::InitializeKernel,
       .tool_mode = true,

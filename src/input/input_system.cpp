@@ -15,7 +15,6 @@
 
 #include <rex/dbg.h>
 #include <rex/input/device_assignment.h>
-#include <rex/input/flags.h>
 #include <rex/input/input_driver.h>
 #include <rex/input/input_system.h>
 #include <rex/input/mnk/mnk_input_driver.h>
@@ -25,20 +24,8 @@
 #include <rex/input/xinput/xinput_input_driver.h>
 #include <rex/logging.h>
 #include <rex/system/kernel_state.h>
+#include "input/cvar_table.h"
 
-REXCVAR_DEFINE_STRING(input_backend, "sdl", "Input", "Input backend: sdl, xinput")
-    .allowed({"sdl", "xinput"});
-
-REXCVAR_DEFINE_BOOL(guide_button, false, "Input", "Enable guide button pass-through");
-
-REXCVAR_DEFINE_BOOL(vibration, true, "Input", "Enable controller vibration");
-
-REXCVAR_DEFINE_DOUBLE(left_stick_deadzone_percentage, 0.0, "Input",
-                      "Deadzone applied to the left stick, as a fraction of its range")
-    .range(0.0, 1.0);
-REXCVAR_DEFINE_DOUBLE(right_stick_deadzone_percentage, 0.0, "Input",
-                      "Deadzone applied to the right stick, as a fraction of its range")
-    .range(0.0, 1.0);
 namespace rex::input {
 
 namespace {
@@ -356,11 +343,11 @@ void InputSystem::RemoveUIInputBlocker() {
 }
 
 bool InputSystem::GetVibrationEnabled() const {
-  return REXCVAR_GET(vibration);
+  return REXCVAR_GET(::rex::input::cvars::vibration);
 }
 
 void InputSystem::ToggleVibration() {
-  REXCVAR_SET(vibration, !REXCVAR_GET(vibration));
+  REXCVAR_SET(::rex::input::cvars::vibration, !REXCVAR_GET(::rex::input::cvars::vibration));
   // The guest's next SetState may never come while a motor is running.
   X_INPUT_VIBRATION silence = {};
   for (uint32_t user_index = 0; user_index < kMaxGuestUsers; user_index++) {
@@ -395,20 +382,20 @@ void InputSystem::AdjustDeadzoneLevels(uint32_t user_index, X_INPUT_GAMEPAD* gam
   const auto& maxima = user_max_joystick_value_[user_index];
   int16_t lx = gamepad->thumb_lx;
   int16_t ly = gamepad->thumb_ly;
-  apply(REXCVAR_GET(left_stick_deadzone_percentage), maxima.first, lx, ly);
+  apply(REXCVAR_GET(::rex::input::cvars::left_stick_deadzone), maxima.first, lx, ly);
   gamepad->thumb_lx = lx;
   gamepad->thumb_ly = ly;
 
   int16_t rx = gamepad->thumb_rx;
   int16_t ry = gamepad->thumb_ry;
-  apply(REXCVAR_GET(right_stick_deadzone_percentage), maxima.second, rx, ry);
+  apply(REXCVAR_GET(::rex::input::cvars::right_stick_deadzone), maxima.second, rx, ry);
   gamepad->thumb_rx = rx;
   gamepad->thumb_ry = ry;
 }
 
 X_INPUT_VIBRATION InputSystem::ModifyVibrationLevel(const X_INPUT_VIBRATION* vibration) const {
   X_INPUT_VIBRATION modified = *vibration;
-  if (!REXCVAR_GET(vibration)) {
+  if (!REXCVAR_GET(::rex::input::cvars::vibration)) {
     modified.left_motor_speed = 0;
     modified.right_motor_speed = 0;
   }
@@ -488,12 +475,12 @@ X_RESULT InputSystem::GetKeystroke(uint32_t user_index, uint32_t flags,
   return any_connected ? X_ERROR_EMPTY : X_ERROR_DEVICE_NOT_CONNECTED;
 }
 
-std::unique_ptr<InputSystem> CreateDefaultInputSystem(bool tool_mode) {
+std::unique_ptr<InputSystem> CreateDefaultInputSystem(const InputConfig& config, bool tool_mode) {
   auto input = std::make_unique<InputSystem>(nullptr);
 
   if (!tool_mode) {
 #if REX_PLATFORM_WIN32
-    if (REXCVAR_GET(input_backend) == "xinput") {
+    if (config.backend == Backend::XInput) {
       auto xinput_driver = std::make_unique<xinput::XinputInputDriver>(nullptr, 0);
       if (xinput_driver->Setup() == X_STATUS_SUCCESS) {
         input->AddDriver(std::move(xinput_driver));
@@ -501,8 +488,8 @@ std::unique_ptr<InputSystem> CreateDefaultInputSystem(bool tool_mode) {
     }
 #endif
 
-    if (REXCVAR_GET(input_backend) == "sdl") {
-      auto sdl_driver = std::make_unique<sdl::SDLInputDriver>(nullptr, 0);
+    if (config.backend == Backend::SDL) {
+      auto sdl_driver = std::make_unique<sdl::SDLInputDriver>(nullptr, 0, config.hid_mappings_file);
       if (sdl_driver->Setup() == X_STATUS_SUCCESS) {
         input->AddDriver(std::move(sdl_driver));
       }

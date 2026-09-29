@@ -21,7 +21,6 @@
 
 #include <rex/cvar.h>
 #include <rex/graphics/command_processor.h>
-#include <rex/graphics/flags.h>
 #include <rex/kernel/xboxkrnl/video.h>
 #include <rex/logging.h>
 #include <rex/stream.h>
@@ -31,13 +30,7 @@
 #include <rex/ui/window.h>
 #include <rex/ui/windowed_app_context.h>
 
-REXCVAR_DEFINE_STRING(swap_post_effect, "none", "GPU", "Swap post effect: none, fxaa, fxaa_extreme")
-    .allowed({"none", "fxaa", "fxaa_extreme"})
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-
-REXCVAR_DEFINE_BOOL(store_shaders, true, "GPU",
-                    "Store shaders persistently and load them when loading games to avoid "
-                    "runtime spikes and freezes when playing the game not for the first time.");
+#include "graphics/cvar_table.h"
 
 namespace {
 
@@ -89,9 +82,9 @@ X_STATUS GraphicsSystem::SetupPresentation(ui::WindowedAppContext* app_context) 
     }
     provider_supports_presentation_ = true;
   } else if (!provider_supports_presentation_) {
-    // A prior SetupGuestGpu built a headless provider; backends like Vulkan
+    // A prior SetupGuestGPU built a headless provider; backends like Vulkan
     // need swapchain support baked in at provider creation time.
-    REXGPU_ERROR("SetupPresentation called after headless SetupGuestGpu; call order is reversed");
+    REXGPU_ERROR("SetupPresentation called after headless SetupGuestGPU; call order is reversed");
     return X_STATUS_UNSUCCESSFUL;
   }
 
@@ -115,7 +108,7 @@ X_STATUS GraphicsSystem::SetupPresentation(ui::WindowedAppContext* app_context) 
   return X_STATUS_SUCCESS;
 }
 
-X_STATUS GraphicsSystem::SetupGuestGpu(runtime::FunctionDispatcher* function_dispatcher,
+X_STATUS GraphicsSystem::SetupGuestGPU(runtime::FunctionDispatcher* function_dispatcher,
                                        system::KernelState* kernel_state) {
   memory_ = function_dispatcher->memory();
   function_dispatcher_ = function_dispatcher;
@@ -135,7 +128,8 @@ X_STATUS GraphicsSystem::SetupGuestGpu(runtime::FunctionDispatcher* function_dis
     REXGPU_ERROR("Unable to initialize command processor");
     return X_STATUS_UNSUCCESSFUL;
   }
-  command_processor_->SetDesiredSwapPostEffect(ParseSwapPostEffect(REXCVAR_GET(swap_post_effect)));
+  command_processor_->SetDesiredSwapPostEffect(
+      ParseSwapPostEffect(REXCVAR_GET(::rex::graphics::cvars::swap_post_effect)));
 
   // Register GPU MMIO handlers
   // GPU registers are at 0x7FC80000-0x7FCFFFFF
@@ -160,8 +154,9 @@ X_STATUS GraphicsSystem::SetupGuestGpu(runtime::FunctionDispatcher* function_dis
         uint64_t last_frame_time = chrono::Clock::QueryGuestTickCount();
         while (vsync_worker_running_) {
           uint64_t current_time = chrono::Clock::QueryGuestTickCount();
-          uint64_t interval_ticks =
-              REXCVAR_GET(vsync) ? vsync_interval_ticks : no_vsync_interval_ticks;
+          uint64_t interval_ticks = REXCVAR_GET(::rex::graphics::cvars::vsync)
+                                        ? vsync_interval_ticks
+                                        : no_vsync_interval_ticks;
           while (current_time - last_frame_time >= interval_ticks) {
             MarkVblank();
             last_frame_time += interval_ticks;
@@ -341,7 +336,7 @@ void GraphicsSystem::InvalidateGpuMemory() {
 
 void GraphicsSystem::InitializeShaderStorage(const std::filesystem::path& cache_root,
                                              uint32_t title_id, bool blocking) {
-  if (!REXCVAR_GET(store_shaders)) {
+  if (!REXCVAR_GET(::rex::graphics::cvars::store_shaders)) {
     return;
   }
   if (blocking) {

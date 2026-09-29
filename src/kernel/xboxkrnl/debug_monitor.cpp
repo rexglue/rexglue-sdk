@@ -22,8 +22,7 @@
 #include <rex/system/kernel_state.h>
 #include <rex/system/user_module.h>
 #include <rex/system/xthread.h>
-
-REXCVAR_DEFINE_BOOL(kernel_pix, false, "Kernel", "Enable PIX debugging support");
+#include "system/cvar_table.h"
 
 namespace rex::kernel::xboxkrnl {
 
@@ -41,7 +40,7 @@ void KeDebugMonitorCallback(PPCContext* ppc_context, rex::system::KernelState* k
 
   REXKRNL_DEBUG("KeDebugMonitorCallback({}, {:08X})", static_cast<uint32_t>(id), arg);
 
-  if (!REXCVAR_GET(kernel_pix)) {
+  if (!REXCVAR_GET(::rex::runtime::cvars::pix)) {
     ppc_context->r[3] = static_cast<uint64_t>(-1);
     return;
   }

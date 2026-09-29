@@ -23,9 +23,7 @@
 #include <rex/math.h>
 #include <rex/ui/vulkan/util.h>
 
-REXCVAR_DEFINE_BOOL(vulkan_sparse_shared_memory, true, "GPU/Vulkan",
-                    "Use sparse shared memory on Vulkan")
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+#include "graphics/cvar_table.h"
 
 namespace rex::graphics::vulkan {
 
@@ -61,7 +59,7 @@ bool VulkanSharedMemory::Initialize() {
   buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
   buffer_create_info.queueFamilyIndexCount = 0;
   buffer_create_info.pQueueFamilyIndices = nullptr;
-  if (REXCVAR_GET(vulkan_sparse_shared_memory) &&
+  if (REXCVAR_GET(::rex::graphics::cvars::vulkan_sparse_shared_memory) &&
       vulkan_device->properties().sparseResidencyBuffer) {
     if (dfn.vkCreateBuffer(device, &buffer_create_info, nullptr, &buffer_) == VK_SUCCESS) {
       VkMemoryRequirements buffer_memory_requirements;

@@ -9,7 +9,6 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include "codegen_flags.h"
 #include "ppc/instruction.h"
 
 #include <rex/codegen/phases.h>
@@ -180,9 +179,10 @@ std::optional<ParsedExceptionInfo> parseSehScopeTable(uint32_t handlerThunk,
   return result;
 }
 
-std::optional<ParsedExceptionInfo> parseCxxFuncInfo(uint32_t handlerThunk, uint32_t funcInfoAddr,
-                                                    const uint8_t* rdataBase, uint32_t rdataStart,
-                                                    uint32_t rdataSize, uint32_t functionBeginAddr,
+std::optional<ParsedExceptionInfo> parseCxxFuncInfo(const Limits& limits, uint32_t handlerThunk,
+                                                    uint32_t funcInfoAddr, const uint8_t* rdataBase,
+                                                    uint32_t rdataStart, uint32_t rdataSize,
+                                                    uint32_t functionBeginAddr,
                                                     std::vector<uint32_t>& discoveredFuncs) {
   uint32_t tableOffset = funcInfoAddr - rdataStart;
   if (tableOffset + 28 > rdataSize) {
@@ -212,9 +212,8 @@ std::optional<ParsedExceptionInfo> parseCxxFuncInfo(uint32_t handlerThunk, uint3
     return std::nullopt;
   }
 
-  if (cxxInfo.maxState > REXCVAR_GET(max_eh_states) ||
-      nTryBlocks > REXCVAR_GET(max_eh_try_blocks) ||
-      nIPMapEntries > REXCVAR_GET(max_eh_ip_map_entries)) {
+  if (cxxInfo.maxState > limits.max_eh_states || nTryBlocks > limits.max_eh_try_blocks ||
+      nIPMapEntries > limits.max_eh_ip_map_entries) {
     return std::nullopt;
   }
 
@@ -297,6 +296,7 @@ std::optional<ParsedExceptionInfo> parseCxxFuncInfo(uint32_t handlerThunk, uint3
 }
 
 std::optional<ParsedExceptionInfo> parseExceptionInfo(const BinaryView& binary,
+                                                      const Limits& limits,
                                                       uint32_t functionBeginAddr) {
   uint32_t headerAddr = functionBeginAddr - 8;
 
@@ -337,11 +337,11 @@ std::optional<ParsedExceptionInfo> parseExceptionInfo(const BinaryView& binary,
   std::vector<uint32_t> discoveredFuncs;
 
   if (firstWord == CXX_EH_MAGIC) {
-    return parseCxxFuncInfo(handlerThunk, tableAddr, rdataBase, rdataStart, rdataSize,
+    return parseCxxFuncInfo(limits, handlerThunk, tableAddr, rdataBase, rdataStart, rdataSize,
                             functionBeginAddr, discoveredFuncs);
   } else {
     uint32_t count = firstWord;
-    if (count == 0 || count > REXCVAR_GET(max_seh_scope_entries)) {
+    if (count == 0 || count > limits.max_seh_scope_entries) {
       return std::nullopt;
     }
     return parseSehScopeTable(handlerThunk, tableAddr, count, rdataBase, rdataStart, rdataSize,
@@ -611,7 +611,7 @@ VoidResult registerEntryPoints(CodegenContext& ctx) {
       // Scan prolog to get frame size for SEH unwinding
       prologInfo = scanProlog(binary, beginAddr, fn.PrologLength);
 
-      exInfo = parseExceptionInfo(binary, beginAddr);
+      exInfo = parseExceptionInfo(binary, ctx.limits(), beginAddr);
       if (exInfo) {
         if (exInfo->maxAddress > beginAddr + size) {
           size = exInfo->maxAddress - beginAddr + 4;

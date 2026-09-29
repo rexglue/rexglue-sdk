@@ -22,8 +22,6 @@
 #include <rex/cvar.h>
 #include <rex/thread/mutex.h>
 
-REXCVAR_DECLARE(bool, allow_game_relative_writes);
-
 namespace rex::filesystem {
 
 class VirtualFileSystem {

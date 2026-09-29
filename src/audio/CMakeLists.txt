@@ -34,6 +34,7 @@ target_include_directories(rexaudio PUBLIC
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
+target_include_directories(rexaudio PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
 target_link_libraries(rexaudio
     PUBLIC rexcore SDL3::SDL3

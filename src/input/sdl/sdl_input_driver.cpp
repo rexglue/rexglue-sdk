@@ -18,13 +18,12 @@
 #include <rex/assert.h>
 #include <rex/chrono/clock.h>
 #include <rex/cvar.h>
-#include <rex/input/flags.h>
 #include <rex/input/sdl/sdl_input_driver.h>
 #include <rex/logging.h>
 #include <rex/ui/virtual_key.h>
+#include <rex/filesystem.h>
 
-REXCVAR_DEFINE_STRING(hid_mappings_file, "gamecontrollerdb.txt", "Input",
-                      "Path to SDL gamecontroller mappings file");
+#include "input/cvar_table.h"
 
 namespace rex::input::sdl {
 
@@ -155,8 +154,10 @@ uint8_t GamepadSubType(SDL_Gamepad* gamepad) {
 
 }  // namespace
 
-SDLInputDriver::SDLInputDriver(rex::ui::Window* window, size_t window_z_order)
+SDLInputDriver::SDLInputDriver(rex::ui::Window* window, size_t window_z_order,
+                               std::filesystem::path mappings_file)
     : InputDriver(window, window_z_order),
+      mappings_file_(std::move(mappings_file)),
       sdl_events_initialized_(false),
       SDL_Gamepad_initialized_(false),
       sdl_events_unflushed_(0),
@@ -219,17 +220,17 @@ void SDLInputDriver::OnWindowAvailable(rex::ui::Window* window) {
       SDL_Gamepad_initialized_ = true;
 
       // Load custom controller mappings if available
-      if (!REXCVAR_GET(hid_mappings_file).empty()) {
-        std::filesystem::path mappings_path(REXCVAR_GET(hid_mappings_file));
+      if (!mappings_file_.empty()) {
+        auto mappings_path = mappings_file_.is_relative()
+                                 ? rex::filesystem::GetExecutableFolder() / mappings_file_
+                                 : mappings_file_;
         if (!std::filesystem::exists(mappings_path)) {
-          REXLOG_WARN("SDL GameControllerDB: file '{}' does not exist.",
-                      REXCVAR_GET(hid_mappings_file));
+          REXLOG_WARN("SDL GameControllerDB: file '{}' does not exist.", mappings_path.string());
         } else {
-          auto mappings_result =
-              SDL_AddGamepadMappingsFromFile(REXCVAR_GET(hid_mappings_file).c_str());
+          auto mappings_result = SDL_AddGamepadMappingsFromFile(mappings_path.string().c_str());
           if (mappings_result < 0) {
             REXLOG_ERROR("SDL GameControllerDB: error loading file '{}': {}.",
-                         REXCVAR_GET(hid_mappings_file), SDL_GetError());
+                         mappings_path.string(), SDL_GetError());
           } else {
             REXLOG_INFO("SDL GameControllerDB: loaded {} mappings.", mappings_result);
           }
@@ -583,7 +584,7 @@ void SDLInputDriver::OnJoystickDeviceAddedLocked(const SDL_Event& event) {
   if (!is_gamepad) {
     REXLOG_WARN(
         "SDL JoystickAdded: \"{}\" has no gamepad mapping, so it will not be usable. Add one to "
-        "the file named by --hid_mappings_file.",
+        "the file named by input.hid_mappings_file.",
         name ? name : "?");
   }
 }
@@ -742,7 +743,7 @@ void SDLInputDriver::OnControllerDeviceButtonChangedLocked(const SDL_Event& even
   auto xbutton = xbutton_lookup.at(event.gbutton.button);
   // Pressed or released?
   if (event.gbutton.down) {
-    if (xbutton == X_INPUT_GAMEPAD_GUIDE && !REXCVAR_GET(guide_button)) {
+    if (xbutton == X_INPUT_GAMEPAD_GUIDE && !REXCVAR_GET(::rex::input::cvars::guide_button)) {
       return;
     }
     xbuttons |= xbutton;
@@ -829,7 +830,8 @@ void SDLInputDriver::UpdateXCapabilities(ControllerState& state) {
   c.type = XINPUT_DEVTYPE_GAMEPAD;
   c.sub_type = GamepadSubType(state.sdl);
   c.flags = cap_flags;
-  c.gamepad.buttons = 0xF3FF | (REXCVAR_GET(guide_button) ? X_INPUT_GAMEPAD_GUIDE : 0x0);
+  c.gamepad.buttons =
+      0xF3FF | (REXCVAR_GET(::rex::input::cvars::guide_button) ? X_INPUT_GAMEPAD_GUIDE : 0x0);
   c.gamepad.left_trigger = 0xFF;
   c.gamepad.right_trigger = 0xFF;
   c.gamepad.thumb_lx = static_cast<int16_t>(0xFFFFu);

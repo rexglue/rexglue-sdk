@@ -288,8 +288,16 @@ class VulkanDevice {
 
   const MemoryTypes& memory_types() const { return memory_types_; }
 
+  // vulkan.require_geometry_shader at creation.
+  bool requires_geometry_shader() const { return requires_geometry_shader_; }
+  // vulkan.require_fill_mode_non_solid at creation.
+  bool requires_fill_mode_non_solid() const { return requires_fill_mode_non_solid_; }
+
  private:
   explicit VulkanDevice(const VulkanInstance* vulkan_instance, VkPhysicalDevice physical_device);
+
+  bool requires_geometry_shader_ = false;
+  bool requires_fill_mode_non_solid_ = false;
 
   const VulkanInstance* vulkan_instance_ = nullptr;
   VkPhysicalDevice physical_device_ = nullptr;

@@ -39,22 +39,22 @@ namespace {
 
 int RunWindowedApp(int argc, char** argv) {
   rex::Config initial_config;
-  auto filtered = rex::ParseCommandLine(initial_config, argc, argv);
-  std::vector<char*> cvar_argv;
-  cvar_argv.reserve(filtered.size() + 1);
-  cvar_argv.push_back(argv[0]);
-  for (auto& arg : filtered) {
-    cvar_argv.push_back(arg.data());
-  }
-  auto remaining = rex::cvar::Init(static_cast<int>(cvar_argv.size()), cvar_argv.data());
-  rex::cvar::ApplyEnvironment();
+  auto unparsed = rex::ParseCommandLine(initial_config, argc, argv);
+  rex::cvar::ApplyEnvironment(initial_config);
   rex::InitLoggingEarly();
+  std::vector<std::string> remaining;
+  for (const auto& arg : unparsed) {
+    if (!arg.starts_with("--")) {
+      remaining.push_back(arg);
+    }
+  }
 
   int result;
   {
     rex::ui::SDLWindowedAppContext app_context;
     app_context.set_initial_config(std::move(initial_config));
-    if (!app_context.Initialize()) {
+    app_context.set_unparsed_arguments(std::move(unparsed));
+    if (!app_context.Initialize(app_context.initial_config().ui)) {
       return EXIT_FAILURE;
     }
 

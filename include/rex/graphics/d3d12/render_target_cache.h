@@ -25,7 +25,6 @@
 #include <rex/assert.h>
 #include <rex/graphics/d3d12/shared_memory.h>
 #include <rex/graphics/d3d12/texture_cache.h>
-#include <rex/graphics/flags.h>
 #include <rex/graphics/pipeline/render_target/cache.h>
 #include <rex/graphics/util/draw.h>
 #include <rex/graphics/xenos.h>
@@ -86,9 +85,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   // Using R16G16[B16A16]_SNORM, which are -1...1, not the needed -32...32.
   // Persistent data doesn't depend on this, so can be overriden by per-game
   // configuration.
-  bool IsFixed16TruncatedToMinus1To1() const {
-    return GetPath() == Path::kHostRenderTargets && !REXCVAR_GET(snorm16_render_target_full_range);
-  }
+  bool IsFixed16TruncatedToMinus1To1() const;
 
   bool depth_float24_round() const { return depth_float24_round_; }
   bool depth_float24_convert_in_pixel_shader() const {

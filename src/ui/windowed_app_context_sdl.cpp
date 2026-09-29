@@ -17,10 +17,8 @@
 
 #include <SDL3/SDL.h>
 
-#include <rex/cvar.h>
 #include <rex/logging.h>
 #include <rex/platform.h>
-#include <rex/ui/flags.h>
 #include <rex/ui/window_sdl.h>
 
 namespace rex::ui {
@@ -37,10 +35,8 @@ SDLWindowedAppContext::~SDLWindowedAppContext() {
   }
 }
 
-bool SDLWindowedAppContext::Initialize() {
-  // Picked before SDL_InitSubSystem, long before a graphics instance can say
-  // which surface extensions it has, so the cvar is the escape hatch.
-  std::string requested_driver = REXCVAR_GET(video_driver);
+bool SDLWindowedAppContext::Initialize(const UIConfig& config) {
+  std::string requested_driver = config.video_driver;
 #if REX_PLATFORM_MAC
   // macOS presents via a CAMetalLayer surface obtained from the Cocoa driver.
   if (requested_driver.empty()) {

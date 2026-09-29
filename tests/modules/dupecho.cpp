@@ -48,6 +48,7 @@ class DupEchoModule final : public rex::IModule, public rex::test::IEcho {
   }
   void Shutdown() override { Record(kName, "shutdown"); }
   int Echo(int value) override { return value * 2; }
+  int Value() override { return 0; }
 
  private:
   static DupEchoModule& Instance() {

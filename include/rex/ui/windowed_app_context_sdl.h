@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include <rex/ui.h>
+
 #include <cstdint>
 #include <unordered_map>
 
@@ -29,7 +31,7 @@ class SDLWindowedAppContext final : public WindowedAppContext {
 
   // Initializes the SDL video subsystem and registers the custom event types.
   // Must be called (and must succeed) before any other use.
-  bool Initialize();
+  bool Initialize(const UIConfig& config);
 
   void NotifyUILoopOfPendingFunctions() override;
   void PlatformQuitFromUIThread() override;

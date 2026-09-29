@@ -19,6 +19,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <rex/api.h>
 #include <rex/runtime.h>
 #include <rex/embedded_metadata.h>
 #include <rex/system/achievement_manager.h>
@@ -199,7 +200,9 @@ TEST_CASE("runtime metadata root overrides legacy metadata discovery", "[achieve
   WriteFile(explicit_metadata, "explicit");
 
   {
-    rex::Runtime runtime(game_root);
+    rex::Config config;
+    config.paths.game_data_root = game_root;
+    rex::Runtime runtime(config);
     REQUIRE(runtime.FindMetadataPath("achievements.toml"));
     CHECK(*runtime.FindMetadataPath("achievements.toml") == local_metadata);
 
@@ -209,7 +212,10 @@ TEST_CASE("runtime metadata root overrides legacy metadata discovery", "[achieve
   }
 
   {
-    rex::Runtime runtime(game_root, {}, {}, {}, temp.path() / "custom");
+    rex::Config config;
+    config.paths.game_data_root = game_root;
+    config.paths.metadata_root = temp.path() / "custom";
+    rex::Runtime runtime(config);
     REQUIRE(runtime.FindMetadataPath("achievements.toml"));
     CHECK(*runtime.FindMetadataPath("achievements.toml") == explicit_metadata);
     CHECK_FALSE(runtime.FindMetadataPath("missing.toml"));

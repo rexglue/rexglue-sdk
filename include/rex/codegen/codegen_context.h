@@ -21,6 +21,7 @@
 #include <rex/codegen/code_region.h>
 #include <rex/codegen/config.h>
 #include <rex/codegen/function_graph.h>
+#include <rex/codegen/limits.h>
 #include <rex/result.h>
 
 namespace rex {
@@ -151,6 +152,10 @@ class CodegenContext {
   AnalysisState& analysisState() { return analysisState_; }
   const AnalysisState& analysisState() const { return analysisState_; }
 
+  /** Analysis limits for every phase run against this context. */
+  const Limits& limits() const { return limits_; }
+  void setLimits(const Limits& limits) { limits_ = limits; }
+
   runtime::ExportResolver* resolver() const { return resolver_; }
   void setResolver(runtime::ExportResolver* r) { resolver_ = r; }
 
@@ -169,6 +174,7 @@ class CodegenContext {
   BinaryView binary_;                       ///< Binary data + sections (owned)
   RecompilerConfig config_;                 ///< User configuration (owned)
   AnalysisState analysisState_;             ///< Analysis state (populated during analysis)
+  Limits limits_;                           ///< Analysis limits
   std::unique_ptr<DecodedBinary> decoded_;  ///< Decoded instructions (created via initDecoded())
   runtime::ExportResolver* resolver_ = nullptr;  ///< For runtime resolution (borrowed)
   std::filesystem::path configDir_;  ///< Directory containing config file (for relative paths)

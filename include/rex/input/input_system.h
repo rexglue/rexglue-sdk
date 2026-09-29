@@ -1,4 +1,6 @@
 #pragma once
+
+#include <rex/input.h>
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -105,6 +107,6 @@ class InputSystem : public system::IInputSystem {
 
 /// Create a default InputSystem with SDL + MnK + NOP drivers.
 /// In tool mode, only the NOP driver is added.
-std::unique_ptr<InputSystem> CreateDefaultInputSystem(bool tool_mode);
+std::unique_ptr<InputSystem> CreateDefaultInputSystem(const InputConfig& config, bool tool_mode);
 
 }  // namespace rex::input

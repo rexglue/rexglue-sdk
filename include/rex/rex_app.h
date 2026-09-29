@@ -23,6 +23,7 @@
 #include <rex/image_info.h>
 #include <rex/logging/types.h>
 #include <rex/api.h>
+#include <rex/cvar.h>
 #include <rex/runtime.h>
 #include <rex/ui/imgui_dialog.h>
 #include <rex/ui/imgui_drawer.h>
@@ -35,18 +36,6 @@
 namespace rex {
 
 class LogCaptureSink;
-
-/// Content path configuration, passed to OnConfigurePaths().
-/// All paths start with sensible defaults derived from CLI args and cvars.
-/// Subclasses may override any field before Runtime is constructed.
-struct PathConfig {
-  std::filesystem::path game_data_root;
-  std::filesystem::path user_data_root;
-  std::filesystem::path update_data_root;
-  std::filesystem::path cache_root;
-  std::filesystem::path metadata_root;
-  std::filesystem::path config_path;
-};
 
 namespace ui {
 class AchievementNotificationDialog;
@@ -118,7 +107,7 @@ class ReXApp : public ui::WindowedApp, public ui::WindowListener, public ui::Win
 
   /// Called after path defaults are computed, before Runtime is constructed.
   /// Override to adjust game/user/update data paths programmatically.
-  virtual void OnConfigurePaths(PathConfig& paths) { (void)paths; }
+  virtual void OnConfigurePaths(PathsConfig& paths) { (void)paths; }
 
   virtual void OnConfigureLogging(LogConfig& config) { (void)config; }
 
@@ -126,15 +115,15 @@ class ReXApp : public ui::WindowedApp, public ui::WindowListener, public ui::Win
   /// and before Runtime construction. Override to resolve paths from user
   /// input shown through an ImGui dialog.
   ///
-  /// Return a PathConfig to continue initialization synchronously. Return
+  /// Return a PathsConfig to continue initialization synchronously. Return
   /// std::nullopt and invoke `resume(path_config)` later (e.g. from a wizard
   /// completion handler) to continue asynchronously. `resume` must be called
   /// on the UI thread. Calling `resume` after the app has begun shutdown is
   /// a no-op.
   ///
   /// Default implementation returns `defaults` unchanged.
-  virtual std::optional<PathConfig> OnFinalizePaths(const PathConfig& defaults,
-                                                    std::function<void(PathConfig)> resume) {
+  virtual std::optional<PathsConfig> OnFinalizePaths(const PathsConfig& defaults,
+                                                     std::function<void(PathsConfig)> resume) {
     (void)resume;
     return defaults;
   }
@@ -237,13 +226,13 @@ class ReXApp : public ui::WindowedApp, public ui::WindowListener, public ui::Win
   // --- Init phase methods (called in order from OnInitialize) ---
 
   /// Resolve path defaults, load config TOML, initialize logging.
-  /// Populates `resolved_defaults_` with the PathConfig produced by
+  /// Populates `resolved_defaults_` with the PathsConfig produced by
   /// OnConfigurePaths.
   virtual bool SetupEnvironment();
 
   /// Construct Runtime with the given paths, call runtime_->Setup, load the
   /// XEX image, initialize the rexcrt heap. Runs OnPostSetup at the end.
-  virtual bool ConstructRuntime(const PathConfig& paths);
+  virtual bool ConstructRuntime(const PathsConfig& paths);
 
   /// Create the window, stand up graphics presentation, create the ImGui
   /// drawer, register overlay keybinds, run OnCreateDialogs.
@@ -255,7 +244,11 @@ class ReXApp : public ui::WindowedApp, public ui::WindowListener, public ui::Win
 
   // --- Accessors for subclass use ---
   Runtime* runtime() const { return runtime_.get(); }
-  rex::Api* api() const { return api_; }
+  rex::API* api() const { return api_; }
+  /// The cvar registry core serves. Valid after SetupPresentation.
+  cvar::ICvarRegistry* cvars() const { return cvars_; }
+  /// The paths in effect, resolved defaults before Init and API::config().paths after.
+  const PathsConfig& paths() const;
   ui::Window* window() const { return window_.get(); }
   ui::ImGuiDrawer* imgui_drawer() const { return imgui_drawer_.get(); }
   ui::ImmediateDrawer* immediate_drawer() const { return immediate_drawer_.get(); }
@@ -271,7 +264,7 @@ class ReXApp : public ui::WindowedApp, public ui::WindowListener, public ui::Win
   void SetGuestFrameStats(ui::DebugOverlayDialog::FrameStatsProvider provider);
 
  private:
-  std::function<void(PathConfig)> MakeResumeCallback();
+  std::function<void(PathsConfig)> MakeResumeCallback();
 
   // Stand up the ImGui overlay stack (drawer, F3/Backtick/F4 binds, dialogs)
   // independently of how the presenter/drawer were obtained. `presenter` may be
@@ -296,10 +289,12 @@ class ReXApp : public ui::WindowedApp, public ui::WindowListener, public ui::Win
   void OnKeyDown(ui::KeyEvent& e) override;
 
   PPCImageInfo ppc_info_;
-  PathConfig resolved_defaults_;
+  PathsConfig resolved_defaults_;
   RuntimeConfig config_;
   rex::Config api_config_;
-  rex::Api* api_ = nullptr;
+  rex::API* api_ = nullptr;
+  cvar::ICvarRegistry* cvars_ = nullptr;
+  std::vector<cvar::CallbackHandle> window_callbacks_;
   std::filesystem::path game_data_root_;
   std::filesystem::path user_data_root_;
   std::filesystem::path update_data_root_;
@@ -321,7 +316,6 @@ class ReXApp : public ui::WindowedApp, public ui::WindowListener, public ui::Win
   std::shared_ptr<ui::AchievementNotificationDialog> achievement_notification_;
   uint64_t achievement_notification_listener_ = 0;
   ui::DebugOverlayDialog::FrameStatsProvider frame_stats_provider_;
-  std::filesystem::path config_path_;
 };
 
 }  // namespace rex

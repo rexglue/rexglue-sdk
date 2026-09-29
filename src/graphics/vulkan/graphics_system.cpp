@@ -25,7 +25,8 @@ std::string VulkanGraphicsSystem::name() const {
 }
 
 void VulkanGraphicsSystem::CreateProvider(bool with_presentation) {
-  provider_ = rex::ui::vulkan::VulkanProvider::Create(true, with_presentation);
+  provider_ = rex::ui::vulkan::VulkanProvider::Create(true, with_presentation,
+                                                      config_ ? config_->vulkan_device : -1);
 }
 
 std::unique_ptr<CommandProcessor> VulkanGraphicsSystem::CreateCommandProcessor() {

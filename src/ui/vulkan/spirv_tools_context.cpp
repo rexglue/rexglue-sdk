@@ -41,7 +41,7 @@ bool SpirvToolsContext::Initialize(unsigned int spirv_version) {
       return false;
     }
     std::filesystem::path vulkan_sdk_path(*vulkan_sdk_env);
-    library_path = vulkan_sdk_path / platform::lib_names::kSpirvToolsSdkPath;
+    library_path = vulkan_sdk_path / platform::lib_names::kSPIRVToolsSDKPath;
   }
 
   if (!library_.Load(library_path)) {

@@ -556,7 +556,7 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
           }
 
           if (is_switch_pattern) {
-            FunctionScanner scanner(ctx.binary);
+            FunctionScanner scanner(ctx.binary, ctx.limits);
             auto jt_opt = scanner.detect_jump_table(blockBase);
             if (jt_opt.has_value()) {
               lateJumpTables.emplace(blockBase, std::move(*jt_opt));

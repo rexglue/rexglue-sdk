@@ -16,51 +16,13 @@
 #include <rex/ui/keybinds.h>
 #include <rex/ui/virtual_key.h>
 #include <rex/ui/window.h>
+#include "input/cvar_table.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <string_view>
-
-REXCVAR_DEFINE_BOOL(mnk_mode, false, "Input", "Enable keyboard/mouse controller emulation");
-REXCVAR_DEFINE_BOOL(mnk_mouse, false, "Input",
-                    "Use the mouse for the right stick. Off means the right stick comes "
-                    "from the keybind_rstick_* keys only");
-REXCVAR_DEFINE_DOUBLE(mnk_sensitivity, 1.0, "Input", "Mouse sensitivity for right stick")
-    .range(0.01, 10.0);
-
-REXCVAR_DEFINE_STRING(keybind_a, "Semicolon,Space", "Input/Keybinds/Controller", "A button");
-REXCVAR_DEFINE_STRING(keybind_b, "Quote,Backspace", "Input/Keybinds/Controller", "B button");
-REXCVAR_DEFINE_STRING(keybind_x, "L", "Input/Keybinds/Controller", "X button");
-REXCVAR_DEFINE_STRING(keybind_y, "P", "Input/Keybinds/Controller", "Y button");
-REXCVAR_DEFINE_STRING(keybind_left_trigger, "Q,I", "Input/Keybinds/Controller", "Left trigger");
-REXCVAR_DEFINE_STRING(keybind_right_trigger, "E,O", "Input/Keybinds/Controller", "Right trigger");
-REXCVAR_DEFINE_STRING(keybind_left_shoulder, "1", "Input/Keybinds/Controller", "Left shoulder");
-REXCVAR_DEFINE_STRING(keybind_right_shoulder, "3", "Input/Keybinds/Controller", "Right shoulder");
-REXCVAR_DEFINE_STRING(keybind_lstick_up, "W", "Input/Keybinds/Controller", "Left stick up");
-REXCVAR_DEFINE_STRING(keybind_lstick_down, "S", "Input/Keybinds/Controller", "Left stick down");
-REXCVAR_DEFINE_STRING(keybind_lstick_left, "A", "Input/Keybinds/Controller", "Left stick left");
-REXCVAR_DEFINE_STRING(keybind_lstick_right, "D", "Input/Keybinds/Controller", "Left stick right");
-REXCVAR_DEFINE_STRING(keybind_lstick_press, "F", "Input/Keybinds/Controller", "Left stick press");
-REXCVAR_DEFINE_STRING(keybind_rstick_up, "Up", "Input/Keybinds/Controller", "Right stick up");
-REXCVAR_DEFINE_STRING(keybind_rstick_down, "Down", "Input/Keybinds/Controller", "Right stick down");
-REXCVAR_DEFINE_STRING(keybind_rstick_left, "Left", "Input/Keybinds/Controller", "Right stick left");
-REXCVAR_DEFINE_STRING(keybind_rstick_right, "Right", "Input/Keybinds/Controller",
-                      "Right stick right");
-REXCVAR_DEFINE_STRING(keybind_rstick_press, "K", "Input/Keybinds/Controller", "Right stick press");
-REXCVAR_DEFINE_STRING(keybind_dpad_up, "Shift+Up", "Input/Keybinds/Controller", "D-pad up");
-REXCVAR_DEFINE_STRING(keybind_dpad_down, "Shift+Down", "Input/Keybinds/Controller", "D-pad down");
-REXCVAR_DEFINE_STRING(keybind_dpad_left, "Shift+Left", "Input/Keybinds/Controller", "D-pad left");
-REXCVAR_DEFINE_STRING(keybind_dpad_right, "Shift+Right", "Input/Keybinds/Controller",
-                      "D-pad right");
-REXCVAR_DEFINE_STRING(keybind_back, "Z,Tab", "Input/Keybinds/Controller", "Back button");
-REXCVAR_DEFINE_STRING(keybind_start, "X,Return", "Input/Keybinds/Controller", "Start button");
-REXCVAR_DEFINE_STRING(keybind_guide, "", "Input/Keybinds/Controller", "Guide button");
-
-REXCVAR_DEFINE_BOOL(mnk_passthrough, false, "Input",
-                    "Surface raw keystrokes to the title instead of emulating a pad, for "
-                    "titles that read a USB keyboard. Enables the device on its own");
 
 namespace rex::input::mnk {
 
@@ -270,30 +232,30 @@ struct PadBind {
 // Rebuilt per call because the cvars are live-editable.
 std::array<PadBind, 24> PadBinds() {
   return {{
-      {REXCVAR_GET(keybind_a), VirtualKey::kXInputPadA},
-      {REXCVAR_GET(keybind_b), VirtualKey::kXInputPadB},
-      {REXCVAR_GET(keybind_x), VirtualKey::kXInputPadX},
-      {REXCVAR_GET(keybind_y), VirtualKey::kXInputPadY},
-      {REXCVAR_GET(keybind_left_shoulder), VirtualKey::kXInputPadLShoulder},
-      {REXCVAR_GET(keybind_right_shoulder), VirtualKey::kXInputPadRShoulder},
-      {REXCVAR_GET(keybind_left_trigger), VirtualKey::kXInputPadLTrigger},
-      {REXCVAR_GET(keybind_right_trigger), VirtualKey::kXInputPadRTrigger},
-      {REXCVAR_GET(keybind_lstick_press), VirtualKey::kXInputPadLThumbPress},
-      {REXCVAR_GET(keybind_rstick_press), VirtualKey::kXInputPadRThumbPress},
-      {REXCVAR_GET(keybind_back), VirtualKey::kXInputPadBack},
-      {REXCVAR_GET(keybind_start), VirtualKey::kXInputPadStart},
-      {REXCVAR_GET(keybind_dpad_up), VirtualKey::kXInputPadDpadUp},
-      {REXCVAR_GET(keybind_dpad_down), VirtualKey::kXInputPadDpadDown},
-      {REXCVAR_GET(keybind_dpad_left), VirtualKey::kXInputPadDpadLeft},
-      {REXCVAR_GET(keybind_dpad_right), VirtualKey::kXInputPadDpadRight},
-      {REXCVAR_GET(keybind_lstick_up), VirtualKey::kXInputPadLThumbUp},
-      {REXCVAR_GET(keybind_lstick_down), VirtualKey::kXInputPadLThumbDown},
-      {REXCVAR_GET(keybind_lstick_left), VirtualKey::kXInputPadLThumbLeft},
-      {REXCVAR_GET(keybind_lstick_right), VirtualKey::kXInputPadLThumbRight},
-      {REXCVAR_GET(keybind_rstick_up), VirtualKey::kXInputPadRThumbUp},
-      {REXCVAR_GET(keybind_rstick_down), VirtualKey::kXInputPadRThumbDown},
-      {REXCVAR_GET(keybind_rstick_left), VirtualKey::kXInputPadRThumbLeft},
-      {REXCVAR_GET(keybind_rstick_right), VirtualKey::kXInputPadRThumbRight},
+      {REXCVAR_GET(::rex::input::cvars::keybind_a), VirtualKey::kXInputPadA},
+      {REXCVAR_GET(::rex::input::cvars::keybind_b), VirtualKey::kXInputPadB},
+      {REXCVAR_GET(::rex::input::cvars::keybind_x), VirtualKey::kXInputPadX},
+      {REXCVAR_GET(::rex::input::cvars::keybind_y), VirtualKey::kXInputPadY},
+      {REXCVAR_GET(::rex::input::cvars::keybind_left_shoulder), VirtualKey::kXInputPadLShoulder},
+      {REXCVAR_GET(::rex::input::cvars::keybind_right_shoulder), VirtualKey::kXInputPadRShoulder},
+      {REXCVAR_GET(::rex::input::cvars::keybind_left_trigger), VirtualKey::kXInputPadLTrigger},
+      {REXCVAR_GET(::rex::input::cvars::keybind_right_trigger), VirtualKey::kXInputPadRTrigger},
+      {REXCVAR_GET(::rex::input::cvars::keybind_lstick_press), VirtualKey::kXInputPadLThumbPress},
+      {REXCVAR_GET(::rex::input::cvars::keybind_rstick_press), VirtualKey::kXInputPadRThumbPress},
+      {REXCVAR_GET(::rex::input::cvars::keybind_back), VirtualKey::kXInputPadBack},
+      {REXCVAR_GET(::rex::input::cvars::keybind_start), VirtualKey::kXInputPadStart},
+      {REXCVAR_GET(::rex::input::cvars::keybind_dpad_up), VirtualKey::kXInputPadDpadUp},
+      {REXCVAR_GET(::rex::input::cvars::keybind_dpad_down), VirtualKey::kXInputPadDpadDown},
+      {REXCVAR_GET(::rex::input::cvars::keybind_dpad_left), VirtualKey::kXInputPadDpadLeft},
+      {REXCVAR_GET(::rex::input::cvars::keybind_dpad_right), VirtualKey::kXInputPadDpadRight},
+      {REXCVAR_GET(::rex::input::cvars::keybind_lstick_up), VirtualKey::kXInputPadLThumbUp},
+      {REXCVAR_GET(::rex::input::cvars::keybind_lstick_down), VirtualKey::kXInputPadLThumbDown},
+      {REXCVAR_GET(::rex::input::cvars::keybind_lstick_left), VirtualKey::kXInputPadLThumbLeft},
+      {REXCVAR_GET(::rex::input::cvars::keybind_lstick_right), VirtualKey::kXInputPadLThumbRight},
+      {REXCVAR_GET(::rex::input::cvars::keybind_rstick_up), VirtualKey::kXInputPadRThumbUp},
+      {REXCVAR_GET(::rex::input::cvars::keybind_rstick_down), VirtualKey::kXInputPadRThumbDown},
+      {REXCVAR_GET(::rex::input::cvars::keybind_rstick_left), VirtualKey::kXInputPadRThumbLeft},
+      {REXCVAR_GET(::rex::input::cvars::keybind_rstick_right), VirtualKey::kXInputPadRThumbRight},
   }};
 }
 
@@ -356,11 +318,12 @@ void MnkInputDriver::DetachFromWindow() {
 
 bool MnkInputDriver::IsEnabled() const {
   // Passthrough enables the device on its own.
-  return REXCVAR_GET(mnk_mode) || REXCVAR_GET(mnk_passthrough);
+  return REXCVAR_GET(::rex::input::cvars::mnk_mode) ||
+         REXCVAR_GET(::rex::input::cvars::mnk_passthrough);
 }
 
 static bool IsPassthroughEnabled() {
-  return REXCVAR_GET(mnk_passthrough);
+  return REXCVAR_GET(::rex::input::cvars::mnk_passthrough);
 }
 
 static bool IsBindPressed(const bool (&key_down)[256], const std::string& cvar_val) {
@@ -437,8 +400,8 @@ X_RESULT MnkInputDriver::GetDeviceState(DeviceId id, X_INPUT_STATE* out_state) {
 
   // Mouse look is opt in. Without this gate, keyboard input alone would hide
   // and lock the cursor, breaking the ImGui overlays.
-  QueueMouseCaptureUpdate(IsEnabled() && REXCVAR_GET(mnk_mouse) && IsMouseLookActive() &&
-                          has_focus_ && is_active());
+  QueueMouseCaptureUpdate(IsEnabled() && REXCVAR_GET(::rex::input::cvars::mnk_mouse) &&
+                          IsMouseLookActive() && has_focus_ && is_active());
 
   if (!is_active() || !has_focus_) {
     if (out_state) {
@@ -451,64 +414,66 @@ X_RESULT MnkInputDriver::GetDeviceState(DeviceId id, X_INPUT_STATE* out_state) {
   std::lock_guard lock(state_mutex_);
 
   uint16_t buttons = 0;
-  if (IsBindPressed(key_down_, REXCVAR_GET(keybind_a)))
+  if (IsBindPressed(key_down_, REXCVAR_GET(::rex::input::cvars::keybind_a)))
     buttons |= X_INPUT_GAMEPAD_A;
-  if (IsBindPressed(key_down_, REXCVAR_GET(keybind_b)))
+  if (IsBindPressed(key_down_, REXCVAR_GET(::rex::input::cvars::keybind_b)))
     buttons |= X_INPUT_GAMEPAD_B;
-  if (IsBindPressed(key_down_, REXCVAR_GET(keybind_x)))
+  if (IsBindPressed(key_down_, REXCVAR_GET(::rex::input::cvars::keybind_x)))
     buttons |= X_INPUT_GAMEPAD_X;
-  if (IsBindPressed(key_down_, REXCVAR_GET(keybind_y)))
+  if (IsBindPressed(key_down_, REXCVAR_GET(::rex::input::cvars::keybind_y)))
     buttons |= X_INPUT_GAMEPAD_Y;
-  if (IsBindPressed(key_down_, REXCVAR_GET(keybind_left_shoulder)))
+  if (IsBindPressed(key_down_, REXCVAR_GET(::rex::input::cvars::keybind_left_shoulder)))
     buttons |= X_INPUT_GAMEPAD_LEFT_SHOULDER;
-  if (IsBindPressed(key_down_, REXCVAR_GET(keybind_right_shoulder)))
+  if (IsBindPressed(key_down_, REXCVAR_GET(::rex::input::cvars::keybind_right_shoulder)))
     buttons |= X_INPUT_GAMEPAD_RIGHT_SHOULDER;
-  if (IsBindPressed(key_down_, REXCVAR_GET(keybind_lstick_press)))
+  if (IsBindPressed(key_down_, REXCVAR_GET(::rex::input::cvars::keybind_lstick_press)))
     buttons |= X_INPUT_GAMEPAD_LEFT_THUMB;
-  if (IsBindPressed(key_down_, REXCVAR_GET(keybind_rstick_press)))
+  if (IsBindPressed(key_down_, REXCVAR_GET(::rex::input::cvars::keybind_rstick_press)))
     buttons |= X_INPUT_GAMEPAD_RIGHT_THUMB;
-  if (IsBindPressed(key_down_, REXCVAR_GET(keybind_back)))
+  if (IsBindPressed(key_down_, REXCVAR_GET(::rex::input::cvars::keybind_back)))
     buttons |= X_INPUT_GAMEPAD_BACK;
-  if (IsBindPressed(key_down_, REXCVAR_GET(keybind_start)))
+  if (IsBindPressed(key_down_, REXCVAR_GET(::rex::input::cvars::keybind_start)))
     buttons |= X_INPUT_GAMEPAD_START;
-  if (IsBindPressed(key_down_, REXCVAR_GET(keybind_guide)))
+  if (IsBindPressed(key_down_, REXCVAR_GET(::rex::input::cvars::keybind_guide)))
     buttons |= X_INPUT_GAMEPAD_GUIDE;
-  if (IsBindPressed(key_down_, REXCVAR_GET(keybind_dpad_up)))
+  if (IsBindPressed(key_down_, REXCVAR_GET(::rex::input::cvars::keybind_dpad_up)))
     buttons |= X_INPUT_GAMEPAD_DPAD_UP;
-  if (IsBindPressed(key_down_, REXCVAR_GET(keybind_dpad_down)))
+  if (IsBindPressed(key_down_, REXCVAR_GET(::rex::input::cvars::keybind_dpad_down)))
     buttons |= X_INPUT_GAMEPAD_DPAD_DOWN;
-  if (IsBindPressed(key_down_, REXCVAR_GET(keybind_dpad_left)))
+  if (IsBindPressed(key_down_, REXCVAR_GET(::rex::input::cvars::keybind_dpad_left)))
     buttons |= X_INPUT_GAMEPAD_DPAD_LEFT;
-  if (IsBindPressed(key_down_, REXCVAR_GET(keybind_dpad_right)))
+  if (IsBindPressed(key_down_, REXCVAR_GET(::rex::input::cvars::keybind_dpad_right)))
     buttons |= X_INPUT_GAMEPAD_DPAD_RIGHT;
 
-  uint8_t lt = IsBindPressed(key_down_, REXCVAR_GET(keybind_left_trigger)) ? 0xFF : 0;
-  uint8_t rt = IsBindPressed(key_down_, REXCVAR_GET(keybind_right_trigger)) ? 0xFF : 0;
+  uint8_t lt =
+      IsBindPressed(key_down_, REXCVAR_GET(::rex::input::cvars::keybind_left_trigger)) ? 0xFF : 0;
+  uint8_t rt =
+      IsBindPressed(key_down_, REXCVAR_GET(::rex::input::cvars::keybind_right_trigger)) ? 0xFF : 0;
 
   int32_t lx = 0;
   int32_t ly = 0;
-  if (IsBindPressed(key_down_, REXCVAR_GET(keybind_lstick_left)))
+  if (IsBindPressed(key_down_, REXCVAR_GET(::rex::input::cvars::keybind_lstick_left)))
     lx -= INT16_MAX;
-  if (IsBindPressed(key_down_, REXCVAR_GET(keybind_lstick_right)))
+  if (IsBindPressed(key_down_, REXCVAR_GET(::rex::input::cvars::keybind_lstick_right)))
     lx += INT16_MAX;
-  if (IsBindPressed(key_down_, REXCVAR_GET(keybind_lstick_up)))
+  if (IsBindPressed(key_down_, REXCVAR_GET(::rex::input::cvars::keybind_lstick_up)))
     ly += INT16_MAX;
-  if (IsBindPressed(key_down_, REXCVAR_GET(keybind_lstick_down)))
+  if (IsBindPressed(key_down_, REXCVAR_GET(::rex::input::cvars::keybind_lstick_down)))
     ly -= INT16_MAX;
 
   int32_t rx = 0;
   int32_t ry = 0;
-  if (IsBindPressed(key_down_, REXCVAR_GET(keybind_rstick_left)))
+  if (IsBindPressed(key_down_, REXCVAR_GET(::rex::input::cvars::keybind_rstick_left)))
     rx -= INT16_MAX;
-  if (IsBindPressed(key_down_, REXCVAR_GET(keybind_rstick_right)))
+  if (IsBindPressed(key_down_, REXCVAR_GET(::rex::input::cvars::keybind_rstick_right)))
     rx += INT16_MAX;
-  if (IsBindPressed(key_down_, REXCVAR_GET(keybind_rstick_up)))
+  if (IsBindPressed(key_down_, REXCVAR_GET(::rex::input::cvars::keybind_rstick_up)))
     ry += INT16_MAX;
-  if (IsBindPressed(key_down_, REXCVAR_GET(keybind_rstick_down)))
+  if (IsBindPressed(key_down_, REXCVAR_GET(::rex::input::cvars::keybind_rstick_down)))
     ry -= INT16_MAX;
 
-  if (REXCVAR_GET(mnk_mouse) && IsMouseLookActive()) {
-    double sensitivity = REXCVAR_GET(mnk_sensitivity);
+  if (REXCVAR_GET(::rex::input::cvars::mnk_mouse) && IsMouseLookActive()) {
+    double sensitivity = REXCVAR_GET(::rex::input::cvars::mnk_sensitivity);
     constexpr double kBaseScale = 200.0;
     rx += static_cast<int32_t>(double(mouse_dx_) * sensitivity * kBaseScale);
     ry += static_cast<int32_t>(double(-mouse_dy_) * sensitivity * kBaseScale);

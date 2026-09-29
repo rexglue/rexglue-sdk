@@ -361,7 +361,7 @@ bool RecompileTests(std::string_view binDir, std::string_view asmDir, std::strin
     std::sort(functions.begin(), functions.end(),
               [](const auto* a, const auto* b) { return a->base() < b->base(); });
 
-    codegen::EmitContext emitCtx{ctx.binary(), ctx.Config(), ctx.graph, 0, nullptr};
+    codegen::EmitContext emitCtx{ctx.binary(), ctx.Config(), ctx.graph, ctx.limits(), 0, nullptr};
 
     std::string recompiledCode;
     for (const auto* fn : functions) {

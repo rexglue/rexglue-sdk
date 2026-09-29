@@ -13,6 +13,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <memory>
 #include <span>
 #include <string>
 #include <string_view>
@@ -21,6 +22,8 @@
 #include <rex/api.h>
 #include <rex/module.h>
 #include <rex/platform/dynlib.h>
+
+#include "core/cvar_registry.h"
 
 namespace rex::detail {
 
@@ -37,12 +40,15 @@ class ModuleLoader final : public IInterfaceFactory {
  public:
   static ModuleLoader& Instance();
 
-  Result<Api*> Init(const Config& config);
+  Result<API*> Init(const Config& config);
   void Shutdown();
 
   void* Get(const char* name, uint32_t version, InterfaceStatus* out_status) override;
-  void* GetForApi(const char* name, uint32_t version) const;
+  void* GetForAPI(const char* name, uint32_t version) const;
   bool IsLoaded(std::string_view module_name) const;
+  const Config& config() const { return config_; }
+  CvarRegistryImpl& cvars() { return *cvars_; }
+  void UpdatePaths(const PathsConfig& paths) { config_.paths = paths; }
   bool initialized() const { return initialized_; }
   uint64_t request_count() const { return request_count_; }
 
@@ -70,15 +76,28 @@ class ModuleLoader final : public IInterfaceFactory {
   Status ConnectAll();
   Status InitAll();
   void UnwindAll();
+  Status ValidateSlices() const;
+  Status RegisterConsumerTables();
+  Status ApplyCvarValues();
+  void UnregisterTables();
   static Error ModuleError(std::string message);
 
   Config config_;
-  Api api_;
+  API api_;
   std::vector<Loaded> loaded_;
   std::vector<platform::DynamicLibrary> retired_;
   std::vector<Registered> registry_;
   uint64_t request_count_ = 0;
   bool initialized_ = false;
+  std::unique_ptr<CvarRegistryImpl> cvars_ = CreateCvarRegistry();
+  bool builtin_registered_ = false;
+  size_t consumer_tables_registered_ = 0;
 };
+
+// Registers the tables of the libraries compiled into rexruntime until sub-project 6 gives each
+// an IModule.
+Status RegisterBuiltinCvars(cvar::ICvarRegistry& registry);
+// Reverse of RegisterBuiltinCvars.
+void UnregisterBuiltinCvars(cvar::ICvarRegistry& registry);
 
 }  // namespace rex::detail

@@ -29,7 +29,6 @@
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/graphics/util/draw.h>
-#include <rex/graphics/flags.h>
 #include <rex/graphics/pipeline/shader/shader.h>
 #include <rex/graphics/pipeline/shader/spirv_translator.h>
 #include <rex/graphics/registers.h>
@@ -42,32 +41,10 @@
 #include <rex/kernel/xboxkrnl/video.h>
 #include <rex/types.h>
 #include <rex/memory/utils.h>
-#include <rex/ui/flags.h>
 #include <rex/ui/vulkan/presenter.h>
 #include <rex/ui/vulkan/util.h>
 
-// Legacy backend compatibility aliases for shared readback controls.
-REXCVAR_DEFINE_BOOL(vulkan_readback_resolve, false, "GPU/Vulkan",
-                    "Read render-to-texture results on the CPU")
-    .lifecycle(rex::cvar::Lifecycle::kHotReload);
-
-REXCVAR_DEFINE_BOOL(vulkan_readback_memexport, false, "GPU/Vulkan",
-                    "Read data written by memory export in shaders on the CPU")
-    .lifecycle(rex::cvar::Lifecycle::kHotReload);
-
-REXCVAR_DEFINE_BOOL(vulkan_async_skip_incomplete_frames, true, "GPU/Vulkan",
-                    "When async shader compilation is enabled, skip presenting frames that "
-                    "used placeholder pipelines to avoid visible flashing")
-    .lifecycle(rex::cvar::Lifecycle::kHotReload);
-
-REXCVAR_DEFINE_BOOL(vulkan_submit_on_primary_buffer_end, true, "GPU/Vulkan",
-                    "Submit command buffer when PM4 primary buffer ends")
-    .lifecycle(rex::cvar::Lifecycle::kHotReload);
-
-REXCVAR_DEFINE_BOOL(vulkan_dynamic_rendering, true, "GPU/Vulkan",
-                    "Use VK_KHR_dynamic_rendering for Vulkan GPU emulation when supported by the "
-                    "device (falls back to render passes otherwise)")
-    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+#include "graphics/cvar_table.h"
 
 namespace rex::graphics::vulkan {
 
@@ -593,7 +570,7 @@ VulkanCommandProcessor::VulkanCommandProcessor(VulkanGraphicsSystem* graphics_sy
               ->vulkan_device(),
           kDescriptorPoolSizeTextures, uint32_t(rex::countof(kDescriptorPoolSizeTextures)),
           kLinkedTypeDescriptorPoolSetCount) {
-  legacy_readback_memexport_cvar_name_ = "vulkan_readback_memexport";
+  legacy_readback_memexport_cvar_ = &::rex::graphics::cvars::vulkan_readback_memexport;
 }
 
 VulkanCommandProcessor::~VulkanCommandProcessor() = default;
@@ -648,7 +625,8 @@ void VulkanCommandProcessor::InitializeShaderStorage(const std::filesystem::path
 
 bool VulkanCommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffer* reader,
                                                                 uint32_t packet, uint32_t count) {
-  if (!REXCVAR_GET(occlusion_query_enable) || !occlusion_query_resources_available_) {
+  if (!REXCVAR_GET(::rex::graphics::cvars::occlusion_query_enable) ||
+      !occlusion_query_resources_available_) {
     return CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(reader, packet, count);
   }
 
@@ -666,7 +644,7 @@ bool VulkanCommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuff
   }
 
   auto write_fallback_result = [sample_counts]() -> bool {
-    auto fake_sample_count = REXCVAR_GET(query_occlusion_fake_sample_count);
+    auto fake_sample_count = REXCVAR_GET(::rex::graphics::cvars::query_occlusion_fake_sample_count);
     if (fake_sample_count < 0) {
       return true;
     }
@@ -936,10 +914,10 @@ bool VulkanCommandProcessor::SetupContext() {
     return false;
   }
   if (!device_properties.geometryShader) {
-    if (REXCVAR_GET(vulkan_require_geometry_shader)) {
+    if (vulkan_device->requires_geometry_shader()) {
       REXGPU_ERROR(
           "Vulkan geometryShader is required for GPU emulation "
-          "(vulkan_require_geometry_shader=true), but unsupported by the "
+          "(vulkan.require_geometry_shader=true), but unsupported by the "
           "selected device");
       return false;
     }
@@ -948,10 +926,10 @@ bool VulkanCommandProcessor::SetupContext() {
         "fallback conversion/expansion paths will be used");
   }
   if (!device_properties.fillModeNonSolid) {
-    if (REXCVAR_GET(vulkan_require_fill_mode_non_solid)) {
+    if (vulkan_device->requires_fill_mode_non_solid()) {
       REXGPU_ERROR(
           "Vulkan fillModeNonSolid is required for GPU emulation "
-          "(vulkan_require_fill_mode_non_solid=true), but unsupported by the "
+          "(vulkan.require_fill_mode_non_solid=true), but unsupported by the "
           "selected device");
       return false;
     }
@@ -2289,9 +2267,10 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
     return;
   }
 
-  bool skip_present_due_async_placeholder = REXCVAR_GET(async_shader_compilation) &&
-                                            REXCVAR_GET(vulkan_async_skip_incomplete_frames) &&
-                                            frame_used_async_placeholder_pipeline_;
+  bool skip_present_due_async_placeholder =
+      REXCVAR_GET(::rex::graphics::cvars::async_shader_compilation) &&
+      REXCVAR_GET(::rex::graphics::cvars::vulkan_async_skip_incomplete_frames) &&
+      frame_used_async_placeholder_pipeline_;
   if (skip_present_due_async_placeholder) {
     static bool skipped_incomplete_frame_logged = false;
     if (!skipped_incomplete_frame_logged) {
@@ -3092,8 +3071,8 @@ void VulkanCommandProcessor::SubmitBarriersAndEnterRenderTargetCacheRenderPass(
     VkRenderPass render_pass, const VulkanRenderTargetCache::Framebuffer* framebuffer) {
   SubmitBarriers(false);
   const ui::vulkan::VulkanDevice* vulkan_device = GetVulkanDevice();
-  bool use_dynamic_rendering =
-      REXCVAR_GET(vulkan_dynamic_rendering) && vulkan_device->properties().dynamicRendering;
+  bool use_dynamic_rendering = REXCVAR_GET(::rex::graphics::cvars::vulkan_dynamic_rendering) &&
+                               vulkan_device->properties().dynamicRendering;
 
   if (use_dynamic_rendering) {
     if (in_render_pass_ && current_framebuffer_ == framebuffer &&
@@ -3166,8 +3145,8 @@ void VulkanCommandProcessor::SubmitBarriersAndEnterRenderTargetCacheRenderPass(
     VkImageView transfer_dest_view, bool transfer_dest_is_depth) {
   SubmitBarriers(false);
   const ui::vulkan::VulkanDevice* vulkan_device = GetVulkanDevice();
-  bool use_dynamic_rendering =
-      REXCVAR_GET(vulkan_dynamic_rendering) && vulkan_device->properties().dynamicRendering;
+  bool use_dynamic_rendering = REXCVAR_GET(::rex::graphics::cvars::vulkan_dynamic_rendering) &&
+                               vulkan_device->properties().dynamicRendering;
 
   if (use_dynamic_rendering) {
     if (in_render_pass_ && current_framebuffer_ == framebuffer &&
@@ -3576,8 +3555,8 @@ void VulkanCommandProcessor::SetScissor(const VkRect2D& scissor) {
 }
 
 void VulkanCommandProcessor::OnPrimaryBufferEnd() {
-  if (REXCVAR_GET(vulkan_submit_on_primary_buffer_end) && submission_open_ &&
-      CanEndSubmissionImmediately()) {
+  if (REXCVAR_GET(::rex::graphics::cvars::vulkan_submit_on_primary_buffer_end) &&
+      submission_open_ && CanEndSubmissionImmediately()) {
     EndSubmission(false);
   }
 }
@@ -3861,7 +3840,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
   // may happen between pipeline configuration and binding.
   pipeline_cache_->GetPipelineAndLayoutByHandle(pipeline_handle, pipeline, pipeline_layout_provider,
                                                 &pipeline_is_placeholder);
-  if (REXCVAR_GET(async_shader_compilation) && pipeline_is_placeholder) {
+  if (REXCVAR_GET(::rex::graphics::cvars::async_shader_compilation) && pipeline_is_placeholder) {
     frame_used_async_placeholder_pipeline_ = true;
     return true;
   }
@@ -3994,7 +3973,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
         case xenos::FetchConstantType::kVertex:
           break;
         case xenos::FetchConstantType::kInvalidVertex:
-          if (REXCVAR_GET(gpu_allow_invalid_fetch_constants)) {
+          if (REXCVAR_GET(::rex::graphics::cvars::allow_invalid_fetch_constants)) {
             break;
           }
           REXGPU_WARN(
@@ -4166,14 +4145,14 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
     shared_memory_->RangeWrittenByGpu(0, SharedMemory::kBufferSize);
   }
 
-  if (IsReadbackMemexportEnabled(REXCVAR_GET(vulkan_readback_memexport)) &&
+  if (IsReadbackMemexportEnabled(REXCVAR_GET(::rex::graphics::cvars::vulkan_readback_memexport)) &&
       !memexport_ranges_.empty()) {
     uint32_t memexport_total_size = 0;
     for (const draw_util::MemExportRange& memexport_range : memexport_ranges_) {
       memexport_total_size += memexport_range.size_bytes;
     }
     if (memexport_total_size) {
-      if (REXCVAR_GET(readback_memexport_fast)) {
+      if (REXCVAR_GET(::rex::graphics::cvars::readback_memexport_fast)) {
         IssueDraw_MemexportReadbackFastPath(memexport_total_size);
       } else {
         IssueDraw_MemexportReadbackFullPath(memexport_total_size);
@@ -4390,7 +4369,8 @@ bool VulkanCommandProcessor::IssueCopy() {
     return false;
   }
 
-  ReadbackResolveMode readback_mode = GetReadbackResolveMode(REXCVAR_GET(vulkan_readback_resolve));
+  ReadbackResolveMode readback_mode =
+      GetReadbackResolveMode(REXCVAR_GET(::rex::graphics::cvars::vulkan_readback_resolve));
   if (readback_mode == ReadbackResolveMode::kDisabled) {
     uint32_t written_address, written_length;
     return render_target_cache_->Resolve(*memory_, *shared_memory_, *texture_cache_,
@@ -4419,7 +4399,8 @@ bool VulkanCommandProcessor::IssueCopy_ReadbackResolvePath() {
     return true;
   }
 
-  ReadbackResolveMode readback_mode = GetReadbackResolveMode(REXCVAR_GET(vulkan_readback_resolve));
+  ReadbackResolveMode readback_mode =
+      GetReadbackResolveMode(REXCVAR_GET(::rex::graphics::cvars::vulkan_readback_resolve));
   if (readback_mode == ReadbackResolveMode::kDisabled) {
     return true;
   }
@@ -4602,10 +4583,11 @@ bool VulkanCommandProcessor::IssueCopy_ReadbackResolvePath() {
     constants.pixel_size_log2 = pixel_size_log2;
     constants.tile_count = tile_count;
     constants.source_offset_bytes = uint32_t(scaled_start);
-    constants.half_pixel_offset = (REXCVAR_GET(readback_resolve_half_pixel_offset) &&
-                                   (constants.scale_x > 1 || constants.scale_y > 1))
-                                      ? 1u
-                                      : 0u;
+    constants.half_pixel_offset =
+        (REXCVAR_GET(::rex::graphics::cvars::readback_resolve_half_pixel_offset) &&
+         (constants.scale_x > 1 || constants.scale_y > 1))
+            ? 1u
+            : 0u;
     deferred_command_buffer_.CmdVkPushConstants(resolve_downscale_pipeline_layout_,
                                                 VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants),
                                                 &constants);
@@ -4830,8 +4812,9 @@ void VulkanCommandProcessor::DisableHostOcclusionQueries() {
 }
 
 bool VulkanCommandProcessor::BeginGuestOcclusionQuery(uint32_t sample_count_address) {
-  if (!REXCVAR_GET(occlusion_query_enable) || !occlusion_query_resources_available_ ||
-      occlusion_query_pool_ == VK_NULL_HANDLE || occlusion_query_readback_mapping_ == nullptr) {
+  if (!REXCVAR_GET(::rex::graphics::cvars::occlusion_query_enable) ||
+      !occlusion_query_resources_available_ || occlusion_query_pool_ == VK_NULL_HANDLE ||
+      occlusion_query_readback_mapping_ == nullptr) {
     return false;
   }
   if (active_occlusion_query_.valid) {
@@ -4861,9 +4844,9 @@ bool VulkanCommandProcessor::BeginGuestOcclusionQuery(uint32_t sample_count_addr
 }
 
 bool VulkanCommandProcessor::EndGuestOcclusionQuery(uint32_t sample_count_address) {
-  if (!REXCVAR_GET(occlusion_query_enable) || !occlusion_query_resources_available_ ||
-      !active_occlusion_query_.valid || occlusion_query_pool_ == VK_NULL_HANDLE ||
-      occlusion_query_readback_mapping_ == nullptr) {
+  if (!REXCVAR_GET(::rex::graphics::cvars::occlusion_query_enable) ||
+      !occlusion_query_resources_available_ || !active_occlusion_query_.valid ||
+      occlusion_query_pool_ == VK_NULL_HANDLE || occlusion_query_readback_mapping_ == nullptr) {
     return false;
   }
 
@@ -5445,7 +5428,7 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
   }
 
   if (is_closing_frame) {
-    if (REXCVAR_GET(clear_memory_page_state) && shared_memory_) {
+    if (REXCVAR_GET(::rex::graphics::cvars::clear_memory_page_state) && shared_memory_) {
       shared_memory_->SetSystemPageBlocksValidWithGpuDataWritten();
     }
     frame_open_ = false;

@@ -24,14 +24,13 @@
 #include <rex/ui/d3d12/d3d12_util.h>
 #include <rex/ui/surface_win.h>
 
+#include "ui/cvar_table.h"
+
 #if defined(REX_HAS_FIDELITYFX_RUNTIME) && REX_HAS_FIDELITYFX_RUNTIME
 #include <ffx_api/dx12/ffx_api_dx12.h>
 #include <ffx_api/ffx_api.h>
 #include <ffx_api/ffx_upscale.h>
 #endif
-
-REXCVAR_DEFINE_BOOL(d3d12_allow_variable_refresh_rate_and_tearing, true, "UI/D3D12",
-                    "Allow variable refresh rate and tearing");
 
 namespace rex::ui::d3d12 {
 
@@ -408,7 +407,7 @@ D3D12Presenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(Surface& new_sur
     swap_chain_desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
     swap_chain_desc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
     swap_chain_desc.Flags = 0;
-    if (REXCVAR_GET(d3d12_allow_variable_refresh_rate_and_tearing) && dxgi_supports_tearing_) {
+    if (REXCVAR_GET(::rex::ui::cvars::allow_tearing) && dxgi_supports_tearing_) {
       // Allow tearing in borderless fullscreen to support variable refresh
       // rate.
       swap_chain_desc.Flags |= DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;

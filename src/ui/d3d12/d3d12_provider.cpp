@@ -18,24 +18,9 @@
 #include <rex/ui/d3d12/d3d12_presenter.h>
 #include <rex/ui/d3d12/d3d12_provider.h>
 
+#include "ui/cvar_table.h"
+
 #include <malloc.h>
-
-REXCVAR_DEFINE_BOOL(d3d12_debug, false, "UI/D3D12", "Enable Direct3D 12 and DXGI debug layer")
-    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
-
-REXCVAR_DEFINE_BOOL(d3d12_break_on_error, false, "UI/D3D12",
-                    "Break on Direct3D 12 validation errors");
-
-REXCVAR_DEFINE_BOOL(d3d12_break_on_warning, false, "UI/D3D12",
-                    "Break on Direct3D 12 validation warnings");
-
-REXCVAR_DEFINE_INT32(d3d12_adapter, -1, "UI/D3D12",
-                     "Index of the DXGI adapter to use (-1 for any physical, -2 for WARP)")
-    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
-
-REXCVAR_DEFINE_INT32(d3d12_queue_priority, 1, "UI/D3D12",
-                     "Graphics command queue priority (0=normal, 1=high, 2=realtime)")
-    .range(0, 2);
 
 namespace rex::ui::d3d12 {
 
@@ -48,9 +33,9 @@ bool D3D12Provider::IsD3D12APIAvailable() {
   return true;
 }
 
-std::unique_ptr<D3D12Provider> D3D12Provider::Create() {
+std::unique_ptr<D3D12Provider> D3D12Provider::Create(int32_t adapter_index) {
   std::unique_ptr<D3D12Provider> provider(new D3D12Provider);
-  if (!provider->Initialize()) {
+  if (!provider->Initialize(adapter_index)) {
     rex::FatalError(
         "Unable to initialize Direct3D 12 graphics subsystem.\n"
         "\n"
@@ -78,7 +63,7 @@ D3D12Provider::~D3D12Provider() {
     dxgi_factory_->Release();
   }
 
-  if (REXCVAR_GET(d3d12_debug) && pfn_dxgi_get_debug_interface1_) {
+  if (REXCVAR_GET(::rex::ui::cvars::debug) && pfn_dxgi_get_debug_interface1_) {
     Microsoft::WRL::ComPtr<IDXGIDebug> dxgi_debug;
     if (SUCCEEDED(pfn_dxgi_get_debug_interface1_(0, IID_PPV_ARGS(&dxgi_debug)))) {
       dxgi_debug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_ALL);
@@ -120,7 +105,7 @@ bool D3D12Provider::EnableIncreaseBasePriorityPrivilege() {
   return enabled;
 }
 
-bool D3D12Provider::Initialize() {
+bool D3D12Provider::Initialize(int32_t adapter_index_wanted) {
   // Load the core libraries.
   library_dxgi_ = LoadLibraryW(L"dxgi.dll");
   library_d3d12_ = LoadLibraryW(L"D3D12.dll");
@@ -199,16 +184,17 @@ bool D3D12Provider::Initialize() {
   }
 
   // Configure the DXGI debug info queue.
-  if (REXCVAR_GET(d3d12_break_on_error) || REXCVAR_GET(d3d12_break_on_warning)) {
+  if (REXCVAR_GET(::rex::ui::cvars::break_on_error) ||
+      REXCVAR_GET(::rex::ui::cvars::break_on_warning)) {
     IDXGIInfoQueue* dxgi_info_queue;
     if (SUCCEEDED(pfn_dxgi_get_debug_interface1_(0, IID_PPV_ARGS(&dxgi_info_queue)))) {
-      if (REXCVAR_GET(d3d12_break_on_error)) {
+      if (REXCVAR_GET(::rex::ui::cvars::break_on_error)) {
         dxgi_info_queue->SetBreakOnSeverity(DXGI_DEBUG_ALL,
                                             DXGI_INFO_QUEUE_MESSAGE_SEVERITY_CORRUPTION, TRUE);
         dxgi_info_queue->SetBreakOnSeverity(DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_ERROR,
                                             TRUE);
       }
-      if (REXCVAR_GET(d3d12_break_on_warning)) {
+      if (REXCVAR_GET(::rex::ui::cvars::break_on_warning)) {
         dxgi_info_queue->SetBreakOnSeverity(DXGI_DEBUG_ALL,
                                             DXGI_INFO_QUEUE_MESSAGE_SEVERITY_WARNING, TRUE);
       }
@@ -217,7 +203,7 @@ bool D3D12Provider::Initialize() {
   }
 
   // Enable the debug layer.
-  bool debug = REXCVAR_GET(d3d12_debug);
+  bool debug = REXCVAR_GET(::rex::ui::cvars::debug);
   if (debug) {
     ID3D12Debug* debug_interface;
     if (SUCCEEDED(pfn_d3d12_get_debug_interface_(IID_PPV_ARGS(&debug_interface)))) {
@@ -258,11 +244,11 @@ bool D3D12Provider::Initialize() {
     if (SUCCEEDED(adapter->GetDesc1(&adapter_desc))) {
       if (SUCCEEDED(pfn_d3d12_create_device_(adapter, D3D_FEATURE_LEVEL_11_0, _uuidof(ID3D12Device),
                                              nullptr))) {
-        if (REXCVAR_GET(d3d12_adapter) >= 0) {
-          if (adapter_index == REXCVAR_GET(d3d12_adapter)) {
+        if (adapter_index_wanted >= 0) {
+          if (adapter_index == adapter_index_wanted) {
             break;
           }
-        } else if (REXCVAR_GET(d3d12_adapter) == -2) {
+        } else if (adapter_index_wanted == -2) {
           if (adapter_desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) {
             break;
           }
@@ -344,11 +330,11 @@ bool D3D12Provider::Initialize() {
     d3d12_info_queue_filter.DenyList.NumIDs = UINT(rex::countof(d3d12_info_queue_denied_messages));
     d3d12_info_queue_filter.DenyList.pIDList = d3d12_info_queue_denied_messages;
     d3d12_info_queue->PushStorageFilter(&d3d12_info_queue_filter);
-    if (REXCVAR_GET(d3d12_break_on_error)) {
+    if (REXCVAR_GET(::rex::ui::cvars::break_on_error)) {
       d3d12_info_queue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, TRUE);
       d3d12_info_queue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, TRUE);
     }
-    if (REXCVAR_GET(d3d12_break_on_warning)) {
+    if (REXCVAR_GET(::rex::ui::cvars::break_on_warning)) {
       d3d12_info_queue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING, TRUE);
     }
     d3d12_info_queue->Release();
@@ -357,7 +343,7 @@ bool D3D12Provider::Initialize() {
   // Create the command queue for graphics.
   D3D12_COMMAND_QUEUE_DESC queue_desc;
   queue_desc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
-  if (REXCVAR_GET(d3d12_queue_priority) >= 2) {
+  if (REXCVAR_GET(::rex::ui::cvars::queue_priority) >= 2) {
     queue_desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_GLOBAL_REALTIME;
     if (!EnableIncreaseBasePriorityPrivilege()) {
       REXLOG_WARN(
@@ -366,7 +352,7 @@ bool D3D12Provider::Initialize() {
           "priority, try launching Xenia as administrator");
       queue_desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_HIGH;
     }
-  } else if (REXCVAR_GET(d3d12_queue_priority) >= 1) {
+  } else if (REXCVAR_GET(::rex::ui::cvars::queue_priority) >= 1) {
     queue_desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_HIGH;
   } else {
     queue_desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;

@@ -44,13 +44,6 @@
 #define XE_GPU_PRIMITIVE_PROCESSOR_SIMD_SIZE 0
 #endif  // XE_ARCH
 
-// The idea behind this config variable is to force both indirection without
-// primitive reset and pre-masking / pre-swapping with primitive reset,
-// therefore this is supposed to be checked only by the host if it supports
-// indirection. It's pretty pointless to do only half of this on backends that
-// support full 32-bit indices unconditionally.
-REXCVAR_DECLARE(bool, ignore_32bit_vertex_index_support);
-
 namespace rex::graphics {
 
 // Normalizes primitive data in various ways for use with Direct3D 12 and Vulkan
@@ -207,7 +200,7 @@ class PrimitiveProcessor {
   //     - If the host doesn't support full 32-bit indices (but supports at
   //       least 24-bit indices), pass `false`.
   //     - If the host supports 32-bit indices, but the backend can handle both
-  //       cases, pass `REXCVAR_GET(ignore_32bit_vertex_index_support)`, and
+  //       cases, pass `false`, and
   //       afterwards, check `AreFull32BitVertexIndicesUsed()` externally to see
   //       if indirection may be needed.
   //     - When full 32-bit indices are not supported, the host must be using

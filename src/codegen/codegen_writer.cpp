@@ -10,7 +10,6 @@
  */
 
 #include <rex/codegen/codegen_writer.h>
-#include "codegen_flags.h"
 
 #include <algorithm>
 #include <array>
@@ -245,8 +244,9 @@ bool CodegenWriter::write(bool force) {
   });
 
   // Build EmitContext -- resolver is now properly connected
-  EmitContext emitCtx{binary(), config(), graph(),
-                      static_cast<uint32_t>(analysisState().entryPoint), nullptr};
+  EmitContext emitCtx{
+      binary(), config(), graph(), ctx_.limits(), static_cast<uint32_t>(analysisState().entryPoint),
+      nullptr};
   if (runtime_)
     emitCtx.resolver = runtime_->export_resolver();
 
@@ -259,7 +259,7 @@ bool CodegenWriter::write(bool force) {
   sizes.reserve(functions.size());
   references.reserve(functions.size());
 
-  const size_t maxFileBytes = REXCVAR_GET(max_file_size_bytes);
+  const size_t maxFileBytes = ctx_.limits().max_file_size_bytes;
   std::unordered_set<std::string> referenced;
   emitCtx.referenced = &referenced;
   for (const auto* fn : functions) {

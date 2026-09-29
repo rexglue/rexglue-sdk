@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include <filesystem>
+
 #include <atomic>
 #include <mutex>
 #include <optional>
@@ -29,7 +31,8 @@ namespace rex::input::sdl {
 
 class SDLInputDriver final : public InputDriver, public rex::ui::WindowListener {
  public:
-  explicit SDLInputDriver(rex::ui::Window* window, size_t window_z_order);
+  SDLInputDriver(rex::ui::Window* window, size_t window_z_order,
+                 std::filesystem::path mappings_file);
   ~SDLInputDriver() override;
 
   X_STATUS Setup() override;
@@ -94,6 +97,7 @@ class SDLInputDriver final : public InputDriver, public rex::ui::WindowListener 
   rex::ui::Window* attached_window_ = nullptr;
   bool sdl_events_initialized_;
   bool SDL_Gamepad_initialized_;
+  std::filesystem::path mappings_file_;
   std::atomic<int> sdl_events_unflushed_;
   std::atomic<bool> sdl_pumpevents_queued_;
   // Appended in connection order, never re-sorted, and unbounded: the

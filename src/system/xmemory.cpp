@@ -29,17 +29,10 @@
 #include <rex/system/mmio_handler.h>
 #include <rex/system/xmemory.h>
 #include <rex/thread.h>
+#include "system/cvar_table.h"
 
 // TODO(benvanik): move xbox.h out
 #include <rex/system/xtypes.h>
-
-REXCVAR_DEFINE_BOOL(protect_zero, true, "Memory", "Protect the zero page from reads and writes")
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-
-REXCVAR_DEFINE_BOOL(protect_on_release, false, "Memory",
-                    "Protect released memory to prevent accesses");
-
-REXCVAR_DEFINE_BOOL(scribble_heap, false, "Memory", "Scribble 0xCD into all allocated heap memory");
 
 namespace rex::memory {
 
@@ -204,7 +197,7 @@ bool Memory::Initialize() {
   // Protect the first and last 64kb of memory.
   heaps_.v00000000.AllocFixed(0x00000000, 0x10000, 0x10000,
                               memory::kMemoryAllocationReserve | memory::kMemoryAllocationCommit,
-                              !REXCVAR_GET(protect_zero)
+                              !REXCVAR_GET(::rex::runtime::cvars::protect_zero)
                                   ? memory::kMemoryProtectRead | memory::kMemoryProtectWrite
                                   : memory::kMemoryProtectNoAccess);
   heaps_.physical.AllocFixed(0x1FFF0000, 0x10000, 0x10000, memory::kMemoryAllocationReserve,
@@ -967,7 +960,7 @@ bool BaseHeap::SyncHostPageAccess(uint32_t start_page_number, uint32_t end_page_
     // Physical aliases are intentionally left accessible after release unless
     // protect_on_release is enabled because GPU users may still reference them.
     if (!has_committed && heap_type_ == memory::HeapType::kGuestPhysical &&
-        !REXCVAR_GET(protect_on_release)) {
+        !REXCVAR_GET(::rex::runtime::cvars::protect_on_release)) {
       access = rex::memory::PageAccess::kReadWrite;
     } else if (!has_read) {
       access = rex::memory::PageAccess::kNoAccess;
@@ -1376,7 +1369,8 @@ bool BaseHeap::AllocFixed(uint32_t base_address, uint32_t size, uint32_t alignme
     return false;
   }
 
-  if (allocation_type != memory::kMemoryAllocationReserve && REXCVAR_GET(scribble_heap) &&
+  if (allocation_type != memory::kMemoryAllocationReserve &&
+      REXCVAR_GET(::rex::runtime::cvars::scribble_heap) &&
       (protect & memory::kMemoryProtectWrite)) {
     std::memset(TranslateRelative(start_page_number << page_size_shift_), 0xCD,
                 page_count << page_size_shift_);
@@ -1536,7 +1530,8 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address, uint32_t 
     return false;
   }
 
-  if (allocation_type != memory::kMemoryAllocationReserve && REXCVAR_GET(scribble_heap) &&
+  if (allocation_type != memory::kMemoryAllocationReserve &&
+      REXCVAR_GET(::rex::runtime::cvars::scribble_heap) &&
       (protect & memory::kMemoryProtectWrite)) {
     std::memset(TranslateRelative(start_page_number << page_size_shift_), 0xCD,
                 page_count << page_size_shift_);
@@ -1620,7 +1615,7 @@ bool BaseHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
     // TODO(benvanik): figure out why games are using memory after releasing
     // it. It's possible this is some virtual/physical stuff where the GPU
     // still can access it.
-    if (REXCVAR_GET(protect_on_release)) {
+    if (REXCVAR_GET(::rex::runtime::cvars::protect_on_release)) {
       if (!rex::memory::Protect(TranslateRelative(base_page_number << page_size_shift_),
                                 base_page_entry.region_page_count << page_size_shift_,
                                 rex::memory::PageAccess::kNoAccess, nullptr)) {

@@ -28,7 +28,6 @@
 #include <rex/assert.h>
 #include <rex/graphics/d3d12/render_target_cache.h>
 #include <rex/graphics/d3d12/shader.h>
-#include <rex/graphics/flags.h>
 #include <rex/graphics/pipeline/shader/dxbc_translator.h>
 #include <rex/graphics/primitive_processor.h>
 #include <rex/graphics/register_file.h>

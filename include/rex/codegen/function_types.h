@@ -42,6 +42,7 @@ class FunctionGraph;
 class FunctionNode;
 class BinaryView;
 struct RecompilerConfig;
+struct Limits;
 
 /// Lightweight context passed to FunctionNode::emitCpp() and BuilderContext.
 /// Non-owning references -- caller must ensure lifetimes.
@@ -49,6 +50,7 @@ struct EmitContext {
   const BinaryView& binary;
   const RecompilerConfig& config;
   const FunctionGraph& graph;
+  const Limits& limits;
   uint32_t entryPoint = 0;                      ///< For "xstart" naming
   runtime::ExportResolver* resolver = nullptr;  ///< For import ordinal resolution (nullable)
 

@@ -12,7 +12,6 @@
 #include <rex/assert.h>
 #include <rex/audio/audio_driver.h>
 #include <rex/audio/audio_system.h>
-#include <rex/audio/flags.h>
 #include <rex/audio/xma/decoder.h>
 #include <rex/dbg.h>
 #include <rex/logging.h>
@@ -24,9 +23,7 @@
 #include <rex/thread.h>
 #include <rex/cvar.h>
 
-REXCVAR_DEFINE_INT32(
-    audio_maxqframes, 8, "Audio",
-    "Max buffered audio frames (range 4-64). Lower reduces latency but may cause stuttering.");
+#include "audio/cvar_table.h"
 
 // As with normal Microsoft, there are like twelve different ways to access
 // the audio APIs. Early games use XMA*() methods almost exclusively to touch
@@ -52,9 +49,10 @@ AudioSystem::AudioSystem(runtime::FunctionDispatcher* function_dispatcher)
       worker_running_(false) {
   std::memset(clients_, 0, sizeof(clients_));
 
-  queued_frames_ = std::min(
-      static_cast<uint32_t>(kMaximumQueuedFrames),
-      std::max(static_cast<uint32_t>(REXCVAR_GET(audio_maxqframes)), static_cast<uint32_t>(4)));
+  queued_frames_ =
+      std::min(static_cast<uint32_t>(kMaximumQueuedFrames),
+               std::max(static_cast<uint32_t>(REXCVAR_GET(::rex::audio::cvars::max_queued_frames)),
+                        static_cast<uint32_t>(4)));
 
   for (size_t i = 0; i < kMaximumClientCount; ++i) {
     client_semaphores_[i] = rex::thread::Semaphore::Create(0, queued_frames_);

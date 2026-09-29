@@ -11,11 +11,18 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
+#include <cctype>
+#include <filesystem>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include <rex/api.h>
+#include <rex/cvar.h>
 #include <rex/filesystem.h>
+#include <rex/logging.h>
+#include <rex/logging/sink.h>
 #include <rex/platform/dynlib.h>
 
 #include "core/module_loader.h"
@@ -104,10 +111,11 @@ TEST_CASE_METHOD(Fixture, "Good module loads, serves echo and unwinds in order",
   REQUIRE(g_events[4] == "rexmod-test-good:disconnect");
 }
 
-TEST_CASE_METHOD(Fixture, "No interface requests happen before Connect", "[module_loader]") {
+TEST_CASE_METHOD(Fixture, "The only interface request before Init is the rex.cvar fetch at Connect",
+                 "[module_loader]") {
   Pinned pin("rexmod-test-good");
   REQUIRE(rex::Init(With({"rexmod-test-good"})));
-  REQUIRE(rex::detail::InterfaceRequestCount() == 0);
+  REQUIRE(rex::detail::InterfaceRequestCount() == 1);
   REQUIRE(g_events.front() == "rexmod-test-good:constructor");
   REQUIRE(g_events[1] == "rexmod-test-good:connect");
 }
@@ -208,4 +216,186 @@ TEST_CASE("ParseCommandLine reads --modules in both forms", "[module_loader]") {
   auto rest = rex::ParseCommandLine(cfg, 6, argv);
   REQUIRE(cfg.modules == std::vector<std::string>{"alpha", "beta", "gamma"});
   REQUIRE(rest == std::vector<std::string>{"--foo", "--modules"});
+}
+
+namespace app_cvars {
+REXCVAR_BOOL(app, debug, false, "Consumer flag");
+REXCVAR_INT32(app, count, 1, "Consumer count").range(0, 10);
+REXCVAR_TABLE(kAppCvars, debug, count);
+}  // namespace app_cvars
+
+namespace {
+
+bool HasScope(const std::vector<std::string_view>& scopes, std::string_view scope) {
+  return std::find(scopes.begin(), scopes.end(), scope) != scopes.end();
+}
+
+bool Ran(const char* event) {
+  return std::find(g_events.begin(), g_events.end(), event) != g_events.end();
+}
+
+}  // namespace
+
+TEST_CASE_METHOD(Fixture, "Init registers consumer and module tables and serves rex.cvar",
+                 "[module_loader][cvar]") {
+  Pinned pin("rexmod-test-good");
+  auto cfg = With({"rexmod-test-good"});
+  cfg.cvars.tables.push_back({"app", app_cvars::kAppCvars});
+  cfg.cvars.Set("echo.value", "5");
+  cfg.cvars.values.push_back({"app.count", "7", rex::cvar::CvarSource::Config});
+  auto api = rex::Init(cfg);
+  REQUIRE(api);
+  auto* registry = api.value()->Get<rex::cvar::ICvarRegistry>();
+  REQUIRE(registry != nullptr);
+  REQUIRE(registry->IsFinalized());
+  REQUIRE(HasScope(registry->Scopes(), "app"));
+  REQUIRE(HasScope(registry->Scopes(), "echo"));
+  REQUIRE(registry->Get("echo.value").value() == "5");
+  REQUIRE(api.value()->Get<rex::test::IEcho>()->Value() == 5);
+  REQUIRE(app_cvars::count.get() == 7);
+  REQUIRE(registry->Source("app.count") == rex::cvar::CvarSource::Config);
+  REQUIRE(api.value()->config().modules == std::vector<std::string>{"rexmod-test-good"});
+  rex::Shutdown();
+  REQUIRE(app_cvars::debug.registry() == nullptr);
+  auto again = rex::Init(rex::Config{});
+  REQUIRE(again);
+  auto fresh = again.value()->Get<rex::cvar::ICvarRegistry>()->Scopes();
+  REQUIRE_FALSE(HasScope(fresh, "app"));
+  REQUIRE_FALSE(HasScope(fresh, "echo"));
+  REQUIRE(app_cvars::count.Parse("1"));
+}
+
+TEST_CASE_METHOD(Fixture, "Unknown CommandLine override fails Init before any module Init",
+                 "[module_loader][cvar]") {
+  Pinned pin("rexmod-test-good");
+  auto cfg = With({"rexmod-test-good"});
+  cfg.cvars.Set("nope.value", "1");
+  auto api = rex::Init(cfg);
+  REQUIRE_FALSE(api);
+  REQUIRE(api.error().message.find("unknown cvar 'nope.value' from CommandLine") !=
+          std::string::npos);
+  REQUIRE_FALSE(Ran("rexmod-test-good:init"));
+}
+
+TEST_CASE_METHOD(Fixture, "unknown Config override warns and Init succeeds",
+                 "[module_loader][cvar]") {
+  Pinned pin("rexmod-test-good");
+  auto cfg = With({"rexmod-test-good"});
+  cfg.cvars.values.push_back({"vsync", "false", rex::cvar::CvarSource::Config});
+  auto sink = std::make_shared<rex::LogCaptureSink>();
+  rex::AddSink(sink);
+  auto api = rex::Init(cfg);
+  REQUIRE(api);
+  std::vector<rex::LogEntry> entries;
+  sink->CopyEntries(entries);
+  bool warned = false;
+  for (const auto& entry : entries) {
+    if (entry.text.find("unknown cvar 'vsync' from Config") != std::string::npos)
+      warned = true;
+  }
+  REQUIRE(warned);
+  rex::RemoveSink(sink);
+}
+
+TEST_CASE_METHOD(Fixture, "Init rejects an unparsable command line value",
+                 "[module_loader][cvar]") {
+  Pinned pin("rexmod-test-good");
+  auto cfg = With({"rexmod-test-good"});
+  cfg.cvars.Set("echo.value", "abc");
+  auto api = rex::Init(cfg);
+  REQUIRE_FALSE(api);
+  REQUIRE(api.error().message.find("cvar 'echo.value' rejected value 'abc'") != std::string::npos);
+  REQUIRE(api.error().message.find("from CommandLine") != std::string::npos);
+  REQUIRE_FALSE(Ran("rexmod-test-good:init"));
+}
+
+TEST_CASE_METHOD(Fixture, "Init rejects an unparsable environment value", "[module_loader][cvar]") {
+  Pinned pin("rexmod-test-good");
+  auto cfg = With({"rexmod-test-good"});
+  cfg.cvars.values.push_back({"echo.ready", "off-ish", rex::cvar::CvarSource::Environment});
+  auto api = rex::Init(cfg);
+  REQUIRE_FALSE(api);
+  REQUIRE(api.error().message.find("rejected value 'off-ish' from Environment") !=
+          std::string::npos);
+}
+
+TEST_CASE_METHOD(Fixture, "A consumer table with a bad name fails before any load",
+                 "[module_loader][cvar]") {
+  Pinned pin("rexmod-test-good");
+  auto cfg = With({"rexmod-test-good"});
+  static const rex::cvar::IVar* kWrong[] = {&app_cvars::debug};
+  cfg.cvars.tables.push_back({"other", kWrong});
+  auto api = rex::Init(cfg);
+  REQUIRE_FALSE(api);
+  REQUIRE(api.error().message.find("consumer table 'other'") != std::string::npos);
+  REQUIRE(g_events.empty());
+}
+
+TEST_CASE_METHOD(Fixture, "Slice validation fails before any load", "[module_loader][cvar]") {
+  Pinned pin("rexmod-test-good");
+  auto cfg = With({"rexmod-test-good"});
+  cfg.runtime.heap_size_mb = 0;
+  auto api = rex::Init(cfg);
+  REQUIRE_FALSE(api);
+  REQUIRE(api.error().message.find("runtime.heap_size_mb") != std::string::npos);
+  REQUIRE(g_events.empty());
+  cfg.runtime.heap_size_mb = 256;
+  cfg.graphics.resolution_scale_x = 9;
+  api = rex::Init(cfg);
+  REQUIRE_FALSE(api);
+  REQUIRE(api.error().message.find("graphics.resolution_scale_x") != std::string::npos);
+}
+
+TEST_CASE_METHOD(Fixture, "Locks apply after values and unknown locks fail",
+                 "[module_loader][cvar]") {
+  Pinned pin("rexmod-test-good");
+  auto cfg = With({"rexmod-test-good"});
+  cfg.cvars.Set("echo.value", "3");
+  cfg.cvars.Lock("echo.value");
+  auto api = rex::Init(cfg);
+  REQUIRE(api);
+  auto* registry = api.value()->Get<rex::cvar::ICvarRegistry>();
+  REQUIRE(registry->Get("echo.value").value() == "3");
+  auto set = registry->Set("echo.value", "4");
+  REQUIRE_FALSE(set);
+  REQUIRE(set.error().code == static_cast<int>(rex::cvar::Error::Locked));
+  rex::Shutdown();
+  cfg.cvars.locked = {"nope.value"};
+  api = rex::Init(cfg);
+  REQUIRE_FALSE(api);
+  REQUIRE(api.error().message.find("unknown cvar 'nope.value'") != std::string::npos);
+}
+
+TEST_CASE_METHOD(Fixture, "Every SDK cvar name is scope.leaf in a charter scope",
+                 "[module_loader][cvar]") {
+  static const std::vector<std::string_view> kScopes = {
+      "log", "clock", "perf",  "fs",     "runtime", "audio", "input",
+      "ui",  "gpu",   "d3d12", "vulkan", "console", "bind"};
+  rex::Config cfg;
+  auto xenos = rex::filesystem::GetExecutableFolder() / rex::detail::ModuleFileName("rexgpu-xenos");
+  if (std::filesystem::exists(xenos))
+    cfg.modules = {"rexgpu-xenos"};
+  auto api = rex::Init(cfg);
+  if (!api && !cfg.modules.empty()) {
+    cfg.modules.clear();
+    api = rex::Init(cfg);
+  }
+  REQUIRE(api);
+  auto* registry = api.value()->Get<rex::cvar::ICvarRegistry>();
+  size_t count = 0;
+  for (const auto* var : registry->Enumerate()) {
+    const auto& desc = var->desc();
+    ++count;
+    auto dot = desc.name.find('.');
+    REQUIRE(dot != std::string_view::npos);
+    REQUIRE(desc.name.find('.', dot + 1) == std::string_view::npos);
+    REQUIRE(std::find(kScopes.begin(), kScopes.end(), desc.scope) != kScopes.end());
+    for (char c : desc.name) {
+      REQUIRE((std::islower(static_cast<unsigned char>(c)) ||
+               std::isdigit(static_cast<unsigned char>(c)) || c == '_' || c == '.'));
+    }
+  }
+  REQUIRE(count >= 97);
+  if (!cfg.modules.empty())
+    REQUIRE(count == 166);
 }

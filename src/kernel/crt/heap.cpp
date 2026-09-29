@@ -19,14 +19,6 @@
 #include <rex/system/xmemory.h>
 #include <rex/logging.h>
 
-REXCVAR_DEFINE_BOOL(rexcrt_heap_enable, false, "crt",
-                    "Enable o1heap-backed CRT heap for RtlAllocateHeap/Free/Size/ReAlloc")
-    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
-
-REXCVAR_DEFINE_UINT32(rexcrt_heap_size_mb, 256, "crt", "Heap size in megabytes")
-    .lifecycle(rex::cvar::Lifecycle::kInitOnly)
-    .range(1, 2048);
-
 // ---------------------------------------------------------------------------
 // Size header: prepended to every allocation so we can answer RtlSizeHeap
 // without o1heap exposing per-allocation usable size.

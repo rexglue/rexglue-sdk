@@ -18,6 +18,8 @@ static_assert(REX_PLATFORM_WIN32, "This file is Windows-only");
 
 #include <rex/string.h>
 
+#include <cwchar>
+
 namespace rex::platform::env {
 
 std::optional<std::string> get(std::string_view name) {
@@ -48,6 +50,25 @@ bool set(std::string_view name, std::string_view value) {
 bool unset(std::string_view name) {
   std::u16string wname = rex::string::to_utf16(name);
   return SetEnvironmentVariableW(reinterpret_cast<LPCWSTR>(wname.c_str()), nullptr) != 0;
+}
+
+std::vector<std::pair<std::string, std::string>> enumerate() {
+  std::vector<std::pair<std::string, std::string>> out;
+  wchar_t* block = GetEnvironmentStringsW();
+  if (!block) {
+    return out;
+  }
+  for (const wchar_t* p = block; *p; p += wcslen(p) + 1) {
+    std::u16string_view entry(reinterpret_cast<const char16_t*>(p), wcslen(p));
+    auto eq = entry.find(u'=', entry.starts_with(u'=') ? 1 : 0);
+    if (eq == std::u16string_view::npos) {
+      continue;
+    }
+    out.emplace_back(rex::string::to_utf8(entry.substr(0, eq)),
+                     rex::string::to_utf8(entry.substr(eq + 1)));
+  }
+  FreeEnvironmentStringsW(block);
+  return out;
 }
 
 }  // namespace rex::platform::env

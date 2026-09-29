@@ -19,7 +19,6 @@
 
 #include <rex/assert.h>
 #include <rex/cvar.h>
-#include <rex/graphics/flags.h>
 #include <rex/graphics/pipeline/render_target/cache.h>
 #include <rex/graphics/register_file.h>
 #include <rex/graphics/registers.h>
@@ -28,18 +27,7 @@
 #include <rex/logging.h>
 #include <rex/math.h>
 
-REXCVAR_DEFINE_BOOL(mrt_edram_used_range_clamp_to_min, true, "GPU",
-                    "Clamp MRT EDRAM used range to minimum");
-
-REXCVAR_DEFINE_BOOL(execute_unclipped_draw_vs_on_cpu_for_psi_render_backend, true, "GPU",
-                    "Execute unclipped draw VS on CPU for PSI render backend");
-
-REXCVAR_DEFINE_BOOL(snorm16_render_target_full_range, true, "GPU",
-                    "Use full range for SNORM16 render targets");
-
-REXCVAR_DEFINE_BOOL(direct_host_resolve, true, "GPU",
-                    "Resolve from host render targets directly to shared memory when possible")
-    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+#include "graphics/cvar_table.h"
 
 namespace rex::graphics {
 
@@ -566,13 +554,14 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
 
   // Estimate height used by render targets (for color for writes, for depth /
   // stencil for both reads and writes) from various sources.
-  uint32_t height_used =
-      std::min(GetRenderTargetHeight(pitch_tiles_at_32bpp, msaa_samples),
-               draw_extent_estimator_.EstimateMaxY(
-                   interlock_barrier_only
-                       ? REXCVAR_GET(execute_unclipped_draw_vs_on_cpu_for_psi_render_backend)
-                       : true,
-                   vertex_shader));
+  uint32_t height_used = std::min(
+      GetRenderTargetHeight(pitch_tiles_at_32bpp, msaa_samples),
+      draw_extent_estimator_.EstimateMaxY(
+          interlock_barrier_only
+              ? REXCVAR_GET(
+                    ::rex::graphics::cvars::execute_unclipped_draw_vs_on_cpu_for_psi_render_backend)
+              : true,
+          vertex_shader));
 
   // Sorted by EDRAM base and then by index in the pipeline - for simplicity,
   // treat render targets placed closer to the end of the EDRAM as truncating
@@ -602,7 +591,8 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
   // tiles, and a 64bpp color buffer at 675 requiring 1350 tiles, but the
   // smallest distance between two render target bases is 675 tiles).
   uint32_t rt_max_distance_tiles_at_64bpp = xenos::kEdramTileCount * 2;
-  if (REXCVAR_GET(mrt_edram_used_range_clamp_to_min) && edram_bases_sorted_count >= 2) {
+  if (REXCVAR_GET(::rex::graphics::cvars::mrt_edram_used_range_clamp_to_min) &&
+      edram_bases_sorted_count >= 2) {
     for (uint32_t i = 1; i < edram_bases_sorted_count; ++i) {
       const std::pair<uint32_t, uint32_t>& rt_base_prev = edram_bases_sorted[i - 1];
       rt_max_distance_tiles_at_64bpp =

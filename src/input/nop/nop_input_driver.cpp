@@ -11,7 +11,6 @@
 
 #include <cstring>
 
-#include <rex/input/flags.h>
 #include <rex/input/nop/nop_input_driver.h>
 #include <rex/logging.h>
 

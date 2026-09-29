@@ -12,7 +12,6 @@
 #include <rex/logging.h>
 #include <rex/hook.h>
 #include <rex/runtime.h>
-#include <rex/system/flags.h>
 #include <rex/system/kernel_state.h>
 
 namespace rex {
@@ -40,7 +39,7 @@ u32 XamShowNuiTroubleshooterUI_entry(u32 unk1, u32 unk2, u32 unk3) {
   // unk1 is 0xFF - possibly user index?
   // unk2, unk3 appear to always be zero.
 
-  if (REXCVAR_GET(headless)) {
+  if (system::kernel_state()->config().headless) {
     return 0;
   }
   // TODO(tomc): Implement imgui stuff

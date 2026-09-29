@@ -28,6 +28,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 #pragma once
+#include <rex/cvar.h>
 #include <rex/ui/ui_event.h>
 #include <rex/ui/virtual_key.h>
 #include <functional>
@@ -53,10 +54,10 @@ std::string VirtualKeyToString(VirtualKey vk);
 /**
  * Register a named keybind with a default key and callback.
  *
- * Creates a string CVAR named @p name in the "Keybinds" category so the
- * binding is visible in the settings overlay and persisted to config.
+ * Creates a string cvar bind.<leaf> so the binding is visible in the settings overlay and
+ * persisted to config. A name written bind_<leaf> maps to bind.<leaf>.
  *
- * @param name         CVAR name for this bind (e.g. "bind_console").
+ * @param name         Bind name (e.g. "bind_console" or "console").
  * @param default_key  Default key name (e.g. "Backtick", "F3").
  * @param description  Human-readable description for the settings UI.
  * @param callback     Function to invoke when the bound key is pressed.
@@ -65,10 +66,17 @@ void RegisterBind(std::string_view name, std::string_view default_key, std::stri
                   std::function<void()> callback);
 
 /**
- * Remove a previously registered keybind.
- * @param name  The CVAR name used when registering the bind.
+ * Remove a previously registered keybind and its cvar.
+ * @param name  The name used when registering the bind.
  */
 void UnregisterBind(std::string_view name);
+
+/**
+ * Attaches the registry that serves the bind cvars, adding every bind registered so far, or
+ * detaches with null, unregistering them. ReXApp attaches after rex::Init and detaches before
+ * rex::Shutdown.
+ */
+void AttachBindRegistry(cvar::ICvarRegistry* registry);
 
 /**
  * Process a key-down event against all registered binds.

@@ -12,13 +12,10 @@
 #include <rex/logging.h>
 #include <rex/runtime.h>
 #include <rex/string.h>
-#include <rex/system/flags.h>
 #include <rex/system/kernel_state.h>
 
 #include <imgui.h>
 
-REXCVAR_DEFINE_BOOL(headless, false, "Kernel",
-                    "Don't display any UI, using defaults for prompts as needed");
 #include <rex/kernel/xam/private.h>
 #include <rex/hook.h>
 #include <rex/input/input_system.h>
@@ -326,7 +323,7 @@ u32 XamShowMessageBoxUI_entry(u32 user_index, mapped_wstring title_ptr, mapped_w
   }
 
   X_RESULT result;
-  if (REXCVAR_GET(headless)) {
+  if (kernel_state()->config().headless) {
     // Auto-pick the focused button.
     auto run = [result_ptr, active_button]() -> X_RESULT {
       *result_ptr = static_cast<uint32_t>(active_button);
@@ -466,7 +463,7 @@ u32 XamShowKeyboardUI_entry(u32 user_index, u32 flags, mapped_wstring default_te
   auto buffer_size = static_cast<size_t>(buffer_length) * 2;
 
   X_RESULT result;
-  if (REXCVAR_GET(headless)) {
+  if (kernel_state()->config().headless) {
     auto run = [default_text, buffer, buffer_length, buffer_size]() -> X_RESULT {
       // Redirect default_text back into the buffer.
       if (!default_text) {

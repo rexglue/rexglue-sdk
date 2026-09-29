@@ -38,6 +38,8 @@
 #include <rex/platform/dynlib.h>
 #include <rex/system/function_dispatcher.h>
 #include <rex/system/xcontent.h>
+
+#include <rex/runtime/config.h>
 #include <rex/system/xmemory.h>
 #include <rex/system/xobject.h>
 #include <rex/system/xtypes.h>
@@ -185,6 +187,9 @@ class KernelState {
  public:
   explicit KernelState(Runtime* emulator);
   ~KernelState();
+
+  /** @return The runtime.kernel slice of the configuration. */
+  const runtime::KernelConfig& config() const { return config_; }
 
   static KernelState* shared();
 
@@ -347,6 +352,8 @@ class KernelState {
   void LoadAchievementsData();
 
   Runtime* emulator_;
+
+  const runtime::KernelConfig& config_;
   memory::Memory* memory_;
   runtime::FunctionDispatcher* function_dispatcher_;
   rex::filesystem::VirtualFileSystem* file_system_;

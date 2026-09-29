@@ -26,64 +26,7 @@
 #include <ffx_api/ffx_upscale.h>
 #endif
 
-REXCVAR_DEFINE_BOOL(host_present_from_non_ui_thread, true, "UI/Presenter",
-                    "Allow presentation from non-UI thread");
-
-REXCVAR_DEFINE_BOOL(present_letterbox, true, "UI/Presenter",
-                    "Enable letterboxing for non-native aspect ratios");
-
-REXCVAR_DEFINE_INT32(present_safe_area_x, 90, "UI/Presenter",
-                     "Horizontal safe area percentage (0-100)")
-    .range(0, 100);
-
-REXCVAR_DEFINE_INT32(present_safe_area_y, 90, "UI/Presenter",
-                     "Vertical safe area percentage (0-100)")
-    .range(0, 100);
-
-#if defined(REX_HAS_FIDELITYFX_SDK)
-REXCVAR_DEFINE_STRING(present_effect, "bilinear", "UI/Presenter",
-                      "Guest output effect: bilinear, cas, fsr, fsr2, fsr3")
-    .allowed({"bilinear", "cas", "fsr", "fsr2", "fsr3"})
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-
-REXCVAR_DEFINE_DOUBLE(present_cas_additional_sharpness,
-                      rex::ui::Presenter::GuestOutputPaintConfig::kCasAdditionalSharpnessDefault,
-                      "UI/Presenter", "Additional CAS sharpness in [0, 1]")
-    .range(rex::ui::Presenter::GuestOutputPaintConfig::kCasAdditionalSharpnessMin,
-           rex::ui::Presenter::GuestOutputPaintConfig::kCasAdditionalSharpnessMax)
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-
-REXCVAR_DEFINE_INT32(present_fsr_max_upsampling_passes,
-                     rex::ui::Presenter::GuestOutputPaintConfig::kFsrMaxUpscalingPassesMax,
-                     "UI/Presenter", "Maximum chained FSR EASU passes")
-    .range(1, int32_t(rex::ui::Presenter::GuestOutputPaintConfig::kFsrMaxUpscalingPassesMax))
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-
-REXCVAR_DEFINE_DOUBLE(present_fsr_sharpness_reduction,
-                      rex::ui::Presenter::GuestOutputPaintConfig::kFsrSharpnessReductionDefault,
-                      "UI/Presenter", "FSR RCAS sharpness reduction in stops")
-    .range(rex::ui::Presenter::GuestOutputPaintConfig::kFsrSharpnessReductionMin,
-           rex::ui::Presenter::GuestOutputPaintConfig::kFsrSharpnessReductionMax)
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-
-REXCVAR_DEFINE_STRING(
-    present_fsr_quality_mode, "auto", "UI/Presenter",
-    "Temporal FSR quality mode: auto, nativeaa, quality, balanced, performance, ultra_performance")
-    .allowed({"auto", "nativeaa", "quality", "balanced", "performance", "ultra_performance"})
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-#else
-REXCVAR_DEFINE_STRING(present_effect, "bilinear", "UI/Presenter", "Guest output effect: bilinear")
-    .allowed({"bilinear"})
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-#endif
-
-REXCVAR_DEFINE_BOOL(present_dither, false, "UI/Presenter",
-                    "Enable output dithering in the final present pass")
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-
-REXCVAR_DEFINE_BOOL(present_allow_overscan_cutoff, false, "UI/Presenter",
-                    "Allow overscan cutoff based on safe area settings")
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+#include "ui/cvar_table.h"
 
 namespace {
 using GuestOutputPaintConfig = rex::ui::Presenter::GuestOutputPaintConfig;
@@ -253,22 +196,26 @@ void LogTemporalFsrQualityModeInputLimitOnce() {
 
 GuestOutputPaintConfig BuildGuestOutputPaintConfigFromCVar() {
   GuestOutputPaintConfig config;
-  GuestOutputPaintConfig::Effect parsed_effect = ParsePresentEffect(REXCVAR_GET(present_effect));
+  GuestOutputPaintConfig::Effect parsed_effect =
+      ParsePresentEffect(REXCVAR_GET(::rex::ui::cvars::present_effect));
 #if defined(REX_HAS_FIDELITYFX_SDK)
   if (IsTemporalFsrCompatibilityEffect(parsed_effect)) {
     LogTemporalFsrCompatibilityPathOnce();
   }
 #endif
-  config.SetAllowOverscanCutoff(REXCVAR_GET(present_allow_overscan_cutoff));
+  config.SetAllowOverscanCutoff(REXCVAR_GET(::rex::ui::cvars::present_allow_overscan_cutoff));
   config.SetEffect(parsed_effect);
 #if defined(REX_HAS_FIDELITYFX_SDK)
-  config.SetCasAdditionalSharpness(float(REXCVAR_GET(present_cas_additional_sharpness)));
-  config.SetFsrMaxUpsamplingPasses(
-      uint32_t(std::max(int32_t(1), REXCVAR_GET(present_fsr_max_upsampling_passes))));
-  config.SetFsrSharpnessReduction(float(REXCVAR_GET(present_fsr_sharpness_reduction)));
-  config.SetFsrQualityMode(ParsePresentFsrQualityMode(REXCVAR_GET(present_fsr_quality_mode)));
+  config.SetCasAdditionalSharpness(
+      float(REXCVAR_GET(::rex::ui::cvars::present_cas_additional_sharpness)));
+  config.SetFsrMaxUpsamplingPasses(uint32_t(
+      std::max(int32_t(1), REXCVAR_GET(::rex::ui::cvars::present_fsr_max_upsampling_passes))));
+  config.SetFsrSharpnessReduction(
+      float(REXCVAR_GET(::rex::ui::cvars::present_fsr_sharpness_reduction)));
+  config.SetFsrQualityMode(
+      ParsePresentFsrQualityMode(REXCVAR_GET(::rex::ui::cvars::present_fsr_quality_mode)));
 #endif
-  config.SetDither(REXCVAR_GET(present_dither));
+  config.SetDither(REXCVAR_GET(::rex::ui::cvars::present_dither));
   return config;
 }
 
@@ -905,9 +852,9 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
     // ratio while stretching throughout the entire surface's width, then limit
     // the Y cropping via letterboxing or stretching along X.
     uint32_t present_safe_area;
-    if (config.GetAllowOverscanCutoff() && REXCVAR_GET(present_safe_area_y) > 0 &&
-        REXCVAR_GET(present_safe_area_y) < 100) {
-      present_safe_area = uint32_t(REXCVAR_GET(present_safe_area_y));
+    if (config.GetAllowOverscanCutoff() && REXCVAR_GET(::rex::ui::cvars::present_safe_area_y) > 0 &&
+        REXCVAR_GET(::rex::ui::cvars::present_safe_area_y) < 100) {
+      present_safe_area = uint32_t(REXCVAR_GET(::rex::ui::cvars::present_safe_area_y));
     } else {
       present_safe_area = 100;
     }
@@ -922,7 +869,7 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
       output_height = rescale_unsigned(surface_height_in_paint_connection_, 100, present_safe_area);
       letterbox = true;
     }
-    if (letterbox && REXCVAR_GET(present_letterbox)) {
+    if (letterbox && REXCVAR_GET(::rex::ui::cvars::present_letterbox)) {
       output_width = rescale_unsigned(surface_height_in_paint_connection_ * 100,
                                       properties.display_aspect_ratio_x,
                                       properties.display_aspect_ratio_y * present_safe_area);
@@ -941,9 +888,9 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
     // aspect ratio while stretching throughout the entire surface's height,
     // then limit the X cropping via letterboxing or stretching along Y.
     uint32_t present_safe_area;
-    if (config.GetAllowOverscanCutoff() && REXCVAR_GET(present_safe_area_x) > 0 &&
-        REXCVAR_GET(present_safe_area_x) < 100) {
-      present_safe_area = uint32_t(REXCVAR_GET(present_safe_area_x));
+    if (config.GetAllowOverscanCutoff() && REXCVAR_GET(::rex::ui::cvars::present_safe_area_x) > 0 &&
+        REXCVAR_GET(::rex::ui::cvars::present_safe_area_x) < 100) {
+      present_safe_area = uint32_t(REXCVAR_GET(::rex::ui::cvars::present_safe_area_x));
     } else {
       present_safe_area = 100;
     }
@@ -957,7 +904,7 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
       output_width = rescale_unsigned(surface_width_in_paint_connection_, 100, present_safe_area);
       letterbox = true;
     }
-    if (letterbox && REXCVAR_GET(present_letterbox)) {
+    if (letterbox && REXCVAR_GET(::rex::ui::cvars::present_letterbox)) {
       output_height = rescale_unsigned(surface_width_in_paint_connection_ * 100,
                                        properties.display_aspect_ratio_y,
                                        properties.display_aspect_ratio_x * present_safe_area);
@@ -1310,7 +1257,7 @@ Presenter::PaintMode Presenter::GetDesiredPaintModeFromUIThread(bool is_paintabl
     // lifecycle.
     return PaintMode::kNone;
   }
-  if (!REXCVAR_GET(host_present_from_non_ui_thread)) {
+  if (!REXCVAR_GET(::rex::ui::cvars::present_from_non_ui_thread)) {
     return PaintMode::kUIThreadOnRequest;
   }
   if (surface_paint_connection_has_implicit_vsync_) {

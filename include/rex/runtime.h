@@ -21,6 +21,7 @@
 
 #include <rex/cvar.h>
 #include <rex/embedded_metadata.h>
+#include <rex/runtime/config.h>
 #include <rex/filesystem/vfs.h>
 #include <rex/memory.h>
 #include <rex/system/export_resolver.h>
@@ -35,13 +36,9 @@ struct PPCFuncMapping;
 
 #include <rex/image_info.h>
 
-REXCVAR_DECLARE(std::string, game_data_root);
-REXCVAR_DECLARE(std::string, user_data_root);
-REXCVAR_DECLARE(std::string, update_data_root);
-REXCVAR_DECLARE(std::string, cache_root);
-REXCVAR_DECLARE(std::string, metadata_root);
-
 namespace rex {
+
+struct Config;
 
 // Forward declarations
 namespace runtime {
@@ -79,10 +76,6 @@ struct RuntimeConfig {
   [](::rex::runtime::FunctionDispatcher* _fd) -> std::unique_ptr<::rex::system::IAudioSystem> { \
     return Type::Create(_fd);                                                                   \
   }
-#define REX_INPUT_BACKEND(SetupFunc)                                    \
-  [](bool _tool_mode) -> std::unique_ptr<::rex::system::IInputSystem> { \
-    return SetupFunc(_tool_mode);                                       \
-  }
 
 /**
  * Runtime class - the main entry point for recompiled applications.
@@ -94,11 +87,13 @@ struct RuntimeConfig {
  */
 class Runtime {
  public:
-  explicit Runtime(const std::filesystem::path& game_data_root,
-                   const std::filesystem::path& user_data_root = {},
-                   const std::filesystem::path& update_data_root = {},
-                   const std::filesystem::path& cache_root = {},
-                   const std::filesystem::path& metadata_root = {});
+  /**
+   * @param config The configuration Init copied, read through API::config(). The paths and
+   *               runtime slices are used, the rest is available to hooks.
+   */
+  explicit Runtime(const Config& config);
+  /** @return The configuration the Runtime was constructed with. */
+  const Config& config() const { return config_; }
   ~Runtime();
 
   // Non-copyable
@@ -177,6 +172,7 @@ class Runtime {
   // Set up VFS: mounts game_data_root as game:/d:, update_data_root as update:
   bool SetupVfs();
 
+  const Config& config_;
   std::filesystem::path game_data_root_;
   std::filesystem::path user_data_root_;
   std::filesystem::path update_data_root_;

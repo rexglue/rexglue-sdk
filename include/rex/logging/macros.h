@@ -24,7 +24,7 @@
 
 #define REX_LOG_NOISY_IMPL(cat, lvl, ...) \
   do {                                    \
-    if (!REXCVAR_GET(log_noisy))          \
+    if (!::rex::NoisyEnabled())           \
       break;                              \
     REX_LOG_IMPL(cat, lvl, __VA_ARGS__);  \
   } while (0)

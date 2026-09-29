@@ -14,7 +14,6 @@
 
 #include <rex/assert.h>
 #include <rex/graphics/d3d12/shader.h>
-#include <rex/graphics/flags.h>
 #include <rex/graphics/pipeline/shader/dxbc.h>
 #include <rex/logging.h>
 #include <rex/ui/d3d12/d3d12_api.h>

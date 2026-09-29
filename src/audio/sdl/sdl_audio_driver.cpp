@@ -16,7 +16,6 @@
 #include <rex/assert.h>
 #include <rex/audio/conversion.h>
 #include <rex/audio/downmix.h>
-#include <rex/audio/flags.h>
 #include <rex/audio/sdl/sdl_audio_driver.h>
 #include <rex/cvar.h>
 #include <rex/dbg.h>
@@ -24,7 +23,7 @@
 #include <rex/perf/counter.h>
 #include <SDL3/SDL.h>
 
-REXCVAR_DEFINE_BOOL(audio_mute, false, "Audio", "Mute audio output");
+#include "audio/cvar_table.h"
 
 namespace rex::audio::sdl {
 
@@ -195,7 +194,7 @@ void SDLAudioDriver::SDLCallback(void* userdata, SDL_AudioStream* stream, int ad
     } else {
       auto buffer = driver->frames_queued_.front();
       driver->frames_queued_.pop();
-      if (REXCVAR_GET(audio_mute)) {
+      if (REXCVAR_GET(::rex::audio::cvars::mute)) {
         std::memset(data, 0, len);
       } else {
         switch (driver->sdl_device_channels_) {

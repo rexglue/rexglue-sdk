@@ -14,11 +14,7 @@
 #include <chrono>
 #include <cstdint>
 
-#include <rex/cvar.h>
 #include <rex/platform.h>
-
-REXCVAR_DECLARE(bool, clock_no_scaling);
-REXCVAR_DECLARE(bool, clock_source_raw);
 
 #if REX_ARCH_AMD64
 // Raw clock source requires platform-specific implementation
@@ -30,6 +26,8 @@ namespace rex::chrono {
 
 class Clock {
  public:
+  /** clock.no_scaling, read by the chrono conversions. */
+  static bool no_scaling();
   // Host ticks-per-second. Generally QueryHostTickFrequency should be used.
   // Either from platform suplied time source or from hardware directly.
   static uint64_t host_tick_frequency_platform();

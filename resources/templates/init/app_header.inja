@@ -20,6 +20,9 @@ class {{ names.pascal_case }}App : public rex::ReXApp {
   // void OnPostInitLogging() override {}
   // void OnConfigure(rex::Config& config) override {
   //   config.modules.push_back("rexgpu-xenos");
+  //   config.graphics.backend = "d3d12";
+  //   config.cvars.tables.push_back({"app", kAppCvars});
+  //   config.cvars.SetDefault("ui.fullscreen", "false");
   // }
   // void OnPreSetup(rex::RuntimeConfig& config) override {}
   // void OnLoadXexImage(std::string& xex_image) override {}
@@ -30,5 +33,5 @@ class {{ names.pascal_case }}App : public rex::ReXApp {
   // std::unique_ptr<rex::ui::AchievementNotificationDialog>
   // CreateAchievementNotificationDialog() override;
   // void OnShutdown() override {}
-  // void OnConfigurePaths(rex::PathConfig& paths) override {}
+  // void OnConfigurePaths(rex::PathsConfig& paths) override {}
 };

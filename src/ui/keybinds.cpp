@@ -10,6 +10,8 @@
  */
 #include <rex/ui/keybinds.h>
 #include <rex/cvar.h>
+#include <rex/logging.h>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <deque>
@@ -157,55 +159,76 @@ std::string VirtualKeyToString(VirtualKey vk) {
   return {};
 }
 
-/* ---- Bind registry ---- */
-
 struct BindEntry {
   std::string name;
-  std::string current_key;
+  std::string cvar_name;
+  std::string description;
+  std::unique_ptr<rex::cvar::Var<std::string>> var;
   std::function<void()> callback;
+  bool added = false;
 };
 
 static std::mutex g_binds_mutex;
 static std::deque<BindEntry> g_binds;
+static rex::cvar::ICvarRegistry* g_bind_registry = nullptr;
+
+static std::string BindCvarName(std::string_view name) {
+  std::string_view leaf = name.starts_with("bind_") ? name.substr(5) : name;
+  return "bind." + std::string(leaf);
+}
+
+static void AddToRegistry(BindEntry& entry) {
+  if (!g_bind_registry || entry.added || !entry.callback)
+    return;
+  const rex::cvar::IVar* one[] = {entry.var.get()};
+  if (auto status = g_bind_registry->Add(one); !status) {
+    REXLOG_WARN("{}", status.error().what());
+    return;
+  }
+  entry.added = true;
+}
+
+static void RemoveFromRegistry(BindEntry& entry) {
+  if (!g_bind_registry || !entry.added)
+    return;
+  const rex::cvar::IVar* one[] = {entry.var.get()};
+  g_bind_registry->Unregister(one);
+  entry.added = false;
+}
 
 void RegisterBind(std::string_view name, std::string_view default_key, std::string_view description,
                   std::function<void()> callback) {
   std::lock_guard lock(g_binds_mutex);
-
-  /* Store the bind entry (owns the key string that the CVAR references). */
   auto& entry = g_binds.emplace_back();
   entry.name = std::string(name);
-  entry.current_key = std::string(default_key);
+  entry.cvar_name = BindCvarName(name);
+  entry.description = std::string(description);
   entry.callback = std::move(callback);
-
-  /* Capture a pointer to the entry's key string for the CVAR getter/setter.
-     The entry is stable because g_binds is never compacted while binds are
-     alive (UnregisterBind sets the callback to null rather than erasing). */
-  std::string* key_ptr = &entry.current_key;
-
-  rex::cvar::RegisterFlag({
-      .name = std::string(name),
-      .type = rex::cvar::FlagType::String,
-      .category = "Input/Keybinds/System",
-      .description = std::string(description),
-      .setter = [key_ptr](std::string_view v) -> bool {
-        *key_ptr = std::string(v);
-        return true;
-      },
-      .getter = [key_ptr]() -> std::string { return *key_ptr; },
-      .lifecycle = rex::cvar::Lifecycle::kHotReload,
-      .default_value = std::string(default_key),
-  });
+  entry.var = std::make_unique<rex::cvar::Var<std::string>>(entry.cvar_name, default_key,
+                                                            entry.description);
+  AddToRegistry(entry);
 }
 
 void UnregisterBind(std::string_view name) {
   std::lock_guard lock(g_binds_mutex);
   for (auto& entry : g_binds) {
     if (entry.name == name) {
+      RemoveFromRegistry(entry);
       entry.callback = nullptr;
       return;
     }
   }
+}
+
+void AttachBindRegistry(rex::cvar::ICvarRegistry* registry) {
+  std::lock_guard lock(g_binds_mutex);
+  if (g_bind_registry && g_bind_registry != registry) {
+    for (auto& entry : g_binds)
+      RemoveFromRegistry(entry);
+  }
+  g_bind_registry = registry;
+  for (auto& entry : g_binds)
+    AddToRegistry(entry);
 }
 
 bool ProcessKeyEvent(KeyEvent& e) {
@@ -213,7 +236,7 @@ bool ProcessKeyEvent(KeyEvent& e) {
   for (auto& entry : g_binds) {
     if (!entry.callback)
       continue;
-    VirtualKey vk = ParseVirtualKey(entry.current_key);
+    VirtualKey vk = ParseVirtualKey(entry.var->get());
     if (vk != VirtualKey::kNone && e.virtual_key() == vk) {
       entry.callback();
       e.set_handled(true);

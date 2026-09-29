@@ -13,6 +13,7 @@
 #include <string>
 #include <vector>
 
+#include <rex/codegen/limits.h>
 #include <rex/result.h>
 
 namespace CLI {
@@ -24,7 +25,8 @@ namespace rexglue::cli {
 using rex::Result;
 
 Result<void> CodegenFromConfig(const std::string& config_path, const CliContext& ctx,
-                               const std::vector<std::string>& targets, bool ignore_stamp = false);
+                               const std::vector<std::string>& targets, bool ignore_stamp = false,
+                               const rex::codegen::Limits& limits = {});
 
 Result<std::string> DiscoverManifestInCwd();
 

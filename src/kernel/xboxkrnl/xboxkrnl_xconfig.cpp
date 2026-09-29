@@ -17,7 +17,6 @@
 #include <rex/logging.h>
 #include <rex/hook.h>
 #include <rex/types.h>
-#include <rex/system/flags.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/user_module.h>
 #include <rex/system/xtypes.h>
@@ -61,7 +60,7 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting, void* buffer
           break;
         case 0x0009:  // XCONFIG_USER_LANGUAGE
           setting_size = 4;
-          memory::store_and_swap<uint32_t>(value, REXCVAR_GET(user_language));
+          memory::store_and_swap<uint32_t>(value, system::kernel_state()->config().user_language);
           break;
         case 0x000A:  // XCONFIG_USER_VIDEO_FLAGS
           setting_size = 4;
@@ -77,7 +76,7 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting, void* buffer
           break;
         case 0x000E:  // XCONFIG_USER_COUNTRY
           setting_size = 1;
-          value[0] = static_cast<uint8_t>(REXCVAR_GET(user_country));
+          value[0] = static_cast<uint8_t>(system::kernel_state()->config().user_country);
           break;
         case 0x0019:  // XCONFIG_USER_PC_FLAGS
           setting_size = 1;

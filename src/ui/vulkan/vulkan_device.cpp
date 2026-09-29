@@ -22,24 +22,7 @@
 #include <rex/string.h>
 #include <rex/ui/vulkan/device.h>
 
-REXCVAR_DEFINE_BOOL(vulkan_require_fragment_stores_and_atomics, true, "UI/Vulkan",
-                    "Deprecated and ignored for parity; fragmentStoresAndAtomics is always "
-                    "required for Vulkan GPU emulation")
-    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
-REXCVAR_DEFINE_BOOL(vulkan_require_vertex_pipeline_stores_and_atomics, true, "UI/Vulkan",
-                    "Deprecated and ignored for parity; vertexPipelineStoresAndAtomics is always "
-                    "required for Vulkan GPU emulation")
-    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
-// Apple Silicon / MoltenVK does not expose geometryShader or fillModeNonSolid;
-// default both to false on macOS so the device can still be selected.
-REXCVAR_DEFINE_BOOL(vulkan_require_geometry_shader, !REX_PLATFORM_MAC, "UI/Vulkan",
-                    "Require geometryShader support for Vulkan GPU emulation (disable to allow "
-                    "fallback primitive emulation paths)")
-    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
-REXCVAR_DEFINE_BOOL(vulkan_require_fill_mode_non_solid, !REX_PLATFORM_MAC, "UI/Vulkan",
-                    "Require fillModeNonSolid support for Vulkan GPU emulation (disable to "
-                    "allow fallback to solid fill for line/point polygon modes)")
-    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
+#include "ui/cvar_table.h"
 
 namespace rex {
 namespace ui {
@@ -123,17 +106,19 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
           properties.deviceName);
       return nullptr;
     }
-    if (REXCVAR_GET(vulkan_require_geometry_shader) && !supported_features.geometryShader) {
+    if (REXCVAR_GET(::rex::ui::cvars::require_geometry_shader) &&
+        !supported_features.geometryShader) {
       REXLOG_WARN(
           "Vulkan device '{}' doesn't support geometryShader, but "
-          "vulkan_require_geometry_shader=true",
+          "vulkan.require_geometry_shader=true",
           properties.deviceName);
       return nullptr;
     }
-    if (REXCVAR_GET(vulkan_require_fill_mode_non_solid) && !supported_features.fillModeNonSolid) {
+    if (REXCVAR_GET(::rex::ui::cvars::require_fill_mode_non_solid) &&
+        !supported_features.fillModeNonSolid) {
       REXLOG_WARN(
           "Vulkan device '{}' doesn't support fillModeNonSolid, but "
-          "vulkan_require_fill_mode_non_solid=true",
+          "vulkan.require_fill_mode_non_solid=true",
           properties.deviceName);
       return nullptr;
     }
@@ -142,6 +127,9 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   // Enable needed extensions.
 
   std::unique_ptr<VulkanDevice> device(new VulkanDevice(vulkan_instance, physical_device));
+  device->requires_geometry_shader_ = REXCVAR_GET(::rex::ui::cvars::require_geometry_shader);
+  device->requires_fill_mode_non_solid_ =
+      REXCVAR_GET(::rex::ui::cvars::require_fill_mode_non_solid);
 
   const bool get_physical_device_properties2_supported =
       vulkan_instance->extensions().ext_1_1_KHR_get_physical_device_properties2;

@@ -21,12 +21,11 @@
 #include <rex/system/function_dispatcher.h>
 #include <rex/system/thread_state.h>
 #include <rex/system/xthread.h>
+#include "audio/cvar_table.h"
 
 extern "C" {
 #include "libavutil/log.h"
 }  // extern "C"
-
-REXCVAR_DEFINE_BOOL(ffmpeg_verbose, false, "Audio", "Verbose FFmpeg output (debug and above)");
 
 // As with normal Microsoft, there are like twelve different ways to access
 // the audio APIs. Early games use XMA*() methods almost exclusively to touch
@@ -60,7 +59,7 @@ XmaDecoder::XmaDecoder(runtime::FunctionDispatcher* function_dispatcher)
 XmaDecoder::~XmaDecoder() = default;
 
 void av_log_callback(void* avcl, int level, const char* fmt, va_list va) {
-  if (!REXCVAR_GET(ffmpeg_verbose) && level > AV_LOG_WARNING) {
+  if (!REXCVAR_GET(::rex::audio::cvars::ffmpeg_verbose) && level > AV_LOG_WARNING) {
     return;
   }
 

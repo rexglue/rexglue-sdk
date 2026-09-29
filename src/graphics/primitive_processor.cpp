@@ -17,7 +17,6 @@
 #include <rex/assert.h>
 #include <rex/cvar.h>
 #include <rex/dbg.h>
-#include <rex/graphics/flags.h>
 #include <rex/graphics/pipeline/shader/shader.h>
 #include <rex/graphics/primitive_processor.h>
 #include <rex/graphics/register_file.h>
@@ -27,18 +26,7 @@
 #include <rex/math.h>
 #include <rex/types.h>
 
-REXCVAR_DEFINE_BOOL(force_convert_line_loops_to_strips, false, "GPU",
-                    "Force convert line loops to strips");
-
-REXCVAR_DEFINE_BOOL(force_convert_quad_lists_to_triangle_lists, false, "GPU",
-                    "Force convert quad lists to triangle lists");
-
-REXCVAR_DEFINE_BOOL(force_convert_triangle_fans_to_lists, false, "GPU",
-                    "Force convert triangle fans to lists");
-
-REXCVAR_DEFINE_INT32(primitive_processor_cache_min_indices, 0, "GPU",
-                     "Minimum indices for primitive processor cache")
-    .range(0, 1000000);
+#include "graphics/cvar_table.h"
 
 // All these overrides are always safe to use as all backends are expected to
 // support triangle lists and line strips.
@@ -127,11 +115,14 @@ bool PrimitiveProcessor::InitializeCommon(bool full_32bit_vertex_indices_support
                                           bool rectangle_lists_supported_without_vs_expansion) {
   full_32bit_vertex_indices_used_ = full_32bit_vertex_indices_supported;
   convert_triangle_fans_to_lists_ =
-      !triangle_fans_supported || REXCVAR_GET(force_convert_triangle_fans_to_lists);
+      !triangle_fans_supported ||
+      REXCVAR_GET(::rex::graphics::cvars::force_convert_triangle_fans_to_lists);
   convert_line_loops_to_strips_ =
-      !line_loops_supported || REXCVAR_GET(force_convert_line_loops_to_strips);
+      !line_loops_supported ||
+      REXCVAR_GET(::rex::graphics::cvars::force_convert_line_loops_to_strips);
   convert_quad_lists_to_triangle_lists_ =
-      !quad_lists_supported || REXCVAR_GET(force_convert_quad_lists_to_triangle_lists);
+      !quad_lists_supported ||
+      REXCVAR_GET(::rex::graphics::cvars::force_convert_quad_lists_to_triangle_lists);
   // No override cvars as hosts are not required to support the fallback paths
   // since they require different vertex shader structure (for the fallback
   // HostVertexShaderTypes).
@@ -1327,8 +1318,9 @@ uint32_t PrimitiveProcessor::GetMultiPrimitiveHostIndexCountAndRanges(
 PrimitiveProcessor::CacheTransaction::CacheTransaction(PrimitiveProcessor& processor, CacheKey key)
     : processor_(processor), key_(key) {
   assert_zero(processor_.cache_currently_processing_size_bytes_);
-  if (REXCVAR_GET(primitive_processor_cache_min_indices) < 0 ||
-      key_.count < uint32_t(REXCVAR_GET(primitive_processor_cache_min_indices))) {
+  if (REXCVAR_GET(::rex::graphics::cvars::primitive_processor_cache_min_indices) < 0 ||
+      key_.count <
+          uint32_t(REXCVAR_GET(::rex::graphics::cvars::primitive_processor_cache_min_indices))) {
     // Don't cache if the vertex count is too small.
     key_.key = 0;
   }

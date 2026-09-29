@@ -41,6 +41,14 @@ struct BackendConfig {
    * then Vulkan. Validated in the module's Init.
    */
   std::string backend = "any";
+  /** D3D12 adapter index. -1 picks the first hardware adapter, -2 picks WARP. */
+  int32_t d3d12_adapter = -1;
+  /** Vulkan physical device index. -1 picks automatically. */
+  int32_t vulkan_device = -1;
+  /** Default of gpu.resolution_scale_x. 1 to 8. */
+  int32_t resolution_scale_x = 1;
+  /** Default of gpu.resolution_scale_y. 1 to 8. */
+  int32_t resolution_scale_y = 1;
 };
 
 /**
@@ -54,7 +62,7 @@ class IGraphicsBackend {
 
   /**
    * Builds the provider and presenter. Safe to call without a Runtime to stand up a
-   * window and ImGui. Idempotent. Must precede SetupGuestGpu when presentation is wanted,
+   * window and ImGui. Idempotent. Must precede SetupGuestGPU when presentation is wanted,
    * because some backends bake swapchain support into the provider.
    *
    * @param app_context The windowed app context that owns the UI thread.
@@ -70,7 +78,7 @@ class IGraphicsBackend {
    * @param kernel_state The runtime's kernel state.
    * @return X_STATUS_SUCCESS or the backend's failure status.
    */
-  virtual X_STATUS SetupGuestGpu(runtime::FunctionDispatcher* function_dispatcher,
+  virtual X_STATUS SetupGuestGPU(runtime::FunctionDispatcher* function_dispatcher,
                                  system::KernelState* kernel_state) = 0;
 
   /**
@@ -136,7 +144,7 @@ class IGraphicsBackend {
   }
 
   /**
-   * Runs SetupPresentation when wanted and not done, then SetupGuestGpu.
+   * Runs SetupPresentation when wanted and not done, then SetupGuestGPU.
    *
    * @param function_dispatcher The runtime's dispatcher.
    * @param kernel_state The runtime's kernel state.
@@ -153,7 +161,7 @@ class IGraphicsBackend {
         return status;
       }
     }
-    return SetupGuestGpu(function_dispatcher, kernel_state);
+    return SetupGuestGPU(function_dispatcher, kernel_state);
   }
 
   /**

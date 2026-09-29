@@ -12,12 +12,13 @@
 #include <cstdint>
 
 #include <rex/assert.h>
-#include <rex/graphics/flags.h>
 #include <rex/graphics/pipeline/render_target/cache.h>
 #include <rex/graphics/pipeline/shader/dxbc_translator.h>
 #include <rex/graphics/pipeline/texture/cache.h>
 #include <rex/graphics/util/draw.h>
 #include <rex/math.h>
+
+#include "graphics/cvar_table.h"
 
 namespace rex::graphics {
 using namespace ucode;
@@ -2682,7 +2683,7 @@ void DxbcShaderTranslator::CompletePixelShader() {
                dxbc::Src::LU(uint32_t(xenos::CompareFunction::kNotEqual)));
       a_.OpIf(true, alpha_test_op_src);
       {
-        if (REXCVAR_GET(use_fuzzy_alpha_epsilon)) {
+        if (REXCVAR_GET(::rex::graphics::cvars::use_fuzzy_alpha_epsilon)) {
           a_.OpAdd(alpha_test_fuzzy_diff_dest, alpha_src, -alpha_test_reference_src);
           // Check if distance to desired value is less than epsilon (false for
           // NaN) and write the negated result.
@@ -2694,7 +2695,7 @@ void DxbcShaderTranslator::CompletePixelShader() {
       }
       a_.OpElse();
       {
-        if (REXCVAR_GET(use_fuzzy_alpha_epsilon)) {
+        if (REXCVAR_GET(::rex::graphics::cvars::use_fuzzy_alpha_epsilon)) {
           // Less than.
           a_.OpAdd(alpha_test_fuzzy_diff_dest, alpha_src, -fuzzy_epsilon);
           a_.OpLT(alpha_test_op_dest, alpha_test_fuzzy_diff_src, alpha_test_reference_src);

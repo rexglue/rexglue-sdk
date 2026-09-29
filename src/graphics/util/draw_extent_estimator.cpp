@@ -16,7 +16,6 @@
 #include <rex/assert.h>
 #include <rex/cvar.h>
 #include <rex/dbg.h>
-#include <rex/graphics/flags.h>
 #include <rex/graphics/format/ucode.h>
 #include <rex/graphics/registers.h>
 #include <rex/graphics/util/draw_extent_estimator.h>
@@ -24,11 +23,7 @@
 #include <rex/memory.h>
 #include <rex/ui/graphics_util.h>
 
-REXCVAR_DEFINE_BOOL(execute_unclipped_draw_vs_on_cpu, false, "GPU",
-                    "Execute unclipped draw vertex shader on CPU");
-
-REXCVAR_DEFINE_BOOL(execute_unclipped_draw_vs_on_cpu_with_scissor, false, "GPU",
-                    "Execute unclipped draw VS on CPU with scissor");
+#include "graphics/cvar_table.h"
 
 // DEFINE_bool(
 //     execute_unclipped_draw_vs_on_cpu, true,
@@ -272,9 +267,10 @@ uint32_t DrawExtentEstimator::EstimateMaxY(bool try_to_estimate_vertex_max_y,
 
   if (regs.Get<reg::PA_CL_CLIP_CNTL>().clip_disable) {
     // Actual extent from the vertices.
-    if (try_to_estimate_vertex_max_y && REXCVAR_GET(execute_unclipped_draw_vs_on_cpu)) {
+    if (try_to_estimate_vertex_max_y &&
+        REXCVAR_GET(::rex::graphics::cvars::execute_unclipped_draw_vs_on_cpu)) {
       bool estimate_vertex_max_y;
-      if (REXCVAR_GET(execute_unclipped_draw_vs_on_cpu_with_scissor)) {
+      if (REXCVAR_GET(::rex::graphics::cvars::execute_unclipped_draw_vs_on_cpu_with_scissor)) {
         estimate_vertex_max_y = true;
       } else {
         estimate_vertex_max_y = false;

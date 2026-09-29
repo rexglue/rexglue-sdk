@@ -59,9 +59,12 @@ class GraphicsSystem : public IGraphicsBackend {
   ::rex::ui::Presenter* presenter() const override { return presenter_.get(); }
 
   X_STATUS SetupPresentation(::rex::ui::WindowedAppContext* app_context) override;
-  X_STATUS SetupGuestGpu(runtime::FunctionDispatcher* function_dispatcher,
+  X_STATUS SetupGuestGPU(runtime::FunctionDispatcher* function_dispatcher,
                          system::KernelState* kernel_state) override;
   bool has_presentation() const override { return presenter_ != nullptr; }
+  /** The backend slice the module received at Connect. Null until set. */
+  void set_config(const BackendConfig* config) { config_ = config; }
+  const BackendConfig* config() const { return config_; }
   void Shutdown() override;
 
   // May be called from any thread any number of times, even during recovery
@@ -113,6 +116,7 @@ class GraphicsSystem : public IGraphicsBackend {
   system::KernelState* kernel_state_ = nullptr;
   ::rex::ui::WindowedAppContext* app_context_ = nullptr;
   std::unique_ptr<::rex::ui::GraphicsProvider> provider_;
+  const BackendConfig* config_ = nullptr;
   bool provider_supports_presentation_ = false;
 
   uint32_t interrupt_callback_ = 0;

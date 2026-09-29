@@ -21,22 +21,21 @@
 #include <rex/logging.h>
 #include <rex/math.h>
 
-REXCVAR_DEFINE_STRING(dump_source, "", "Filesystem", "Specifies the file to dump from");
-
-REXCVAR_DEFINE_STRING(dump_path, "", "Filesystem", "Specifies the directory to dump files to");
+#include "filesystem/cvar_table.h"
 
 namespace rex::filesystem {
 
 using namespace rex::literals;
 
 int vfs_dump_main(const std::vector<std::string>& args) {
-  if (REXCVAR_GET(dump_source).empty() || REXCVAR_GET(dump_path).empty()) {
+  if (REXCVAR_GET(::rex::filesystem::cvars::dump_source).empty() ||
+      REXCVAR_GET(::rex::filesystem::cvars::dump_path).empty()) {
     REXFS_ERROR("Usage: {} [source] [dump_path]", rex::path_to_utf8(args[0]));
     return 1;
   }
 
-  std::filesystem::path source = rex::to_path(REXCVAR_GET(dump_source));
-  std::filesystem::path base_path = rex::to_path(REXCVAR_GET(dump_path));
+  std::filesystem::path source = rex::to_path(REXCVAR_GET(::rex::filesystem::cvars::dump_source));
+  std::filesystem::path base_path = rex::to_path(REXCVAR_GET(::rex::filesystem::cvars::dump_path));
   std::unique_ptr<vfs::Device> device;
 
   // TODO: Flags specifying the type of device.

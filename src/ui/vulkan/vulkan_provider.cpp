@@ -18,38 +18,19 @@
 #include <rex/ui/vulkan/presenter.h>
 #include <rex/ui/vulkan/provider.h>
 
-REXCVAR_DEFINE_BOOL(vulkan_validation_enabled, false, "UI/Vulkan",
-                    "Enable Vulkan validation layers")
-    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
-
-REXCVAR_DEFINE_INT32(vulkan_device, -1, "UI/Vulkan", "Vulkan device index (-1 for auto selection)")
-    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
-
-REXCVAR_DEFINE_BOOL(vulkan_prefer_geometry_shader, true, "UI/Vulkan",
-                    "Prefer physical devices supporting geometryShader when auto-selecting")
-    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
-REXCVAR_DEFINE_BOOL(
-    vulkan_prefer_fragment_stores_and_atomics, true, "UI/Vulkan",
-    "Prefer physical devices supporting fragmentStoresAndAtomics when auto-selecting")
-    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
-REXCVAR_DEFINE_BOOL(vulkan_prefer_vertex_pipeline_stores_and_atomics, true, "UI/Vulkan",
-                    "Prefer physical devices supporting vertexPipelineStoresAndAtomics when "
-                    "auto-selecting")
-    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
-REXCVAR_DEFINE_BOOL(vulkan_prefer_fill_mode_non_solid, true, "UI/Vulkan",
-                    "Prefer physical devices supporting fillModeNonSolid when auto-selecting")
-    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
+#include "ui/cvar_table.h"
 
 namespace rex {
 namespace ui {
 namespace vulkan {
 
 std::unique_ptr<VulkanProvider> VulkanProvider::Create(const bool with_gpu_emulation,
-                                                       const bool with_presentation) {
+                                                       const bool with_presentation,
+                                                       const int32_t device_index) {
   std::unique_ptr<VulkanProvider> provider(new VulkanProvider());
 
   provider->vulkan_instance_ =
-      VulkanInstance::Create(with_presentation, REXCVAR_GET(vulkan_validation_enabled));
+      VulkanInstance::Create(with_presentation, REXCVAR_GET(::rex::ui::cvars::validation));
   if (!provider->vulkan_instance_) {
     return nullptr;
   }
@@ -65,8 +46,7 @@ std::unique_ptr<VulkanProvider> VulkanProvider::Create(const bool with_gpu_emula
   const VulkanInstance::Functions& ifn = provider->vulkan_instance_->functions();
 
   REXLOG_WARN(
-      "Available Vulkan physical devices (use the 'vulkan_device' "
-      "configuration variable to force a specific device):");
+      "Available Vulkan physical devices (set graphics.vulkan_device to force a specific device):");
   for (size_t physical_device_index = 0; physical_device_index < physical_devices.size();
        ++physical_device_index) {
     VkPhysicalDeviceProperties physical_device_properties;
@@ -75,19 +55,19 @@ std::unique_ptr<VulkanProvider> VulkanProvider::Create(const bool with_gpu_emula
     REXLOG_WARN("* {}: {}", physical_device_index, physical_device_properties.deviceName);
   }
 
-  if (REXCVAR_GET(vulkan_device) >= 0 &&
-      uint32_t(REXCVAR_GET(vulkan_device)) < physical_devices.size()) {
+  if (device_index >= 0 && uint32_t(device_index) < physical_devices.size()) {
     provider->vulkan_device_ = VulkanDevice::CreateIfSupported(
-        provider->vulkan_instance_.get(), physical_devices[REXCVAR_GET(vulkan_device)],
+        provider->vulkan_instance_.get(), physical_devices[size_t(device_index)],
         with_gpu_emulation, with_presentation);
   }
 
   if (!provider->vulkan_device_) {
     std::vector<VkPhysicalDevice> physical_devices_ordered = physical_devices;
-    bool prefer_geometry_shader = REXCVAR_GET(vulkan_prefer_geometry_shader);
-    bool prefer_fragment_stores = REXCVAR_GET(vulkan_prefer_fragment_stores_and_atomics);
-    bool prefer_vertex_stores = REXCVAR_GET(vulkan_prefer_vertex_pipeline_stores_and_atomics);
-    bool prefer_fill_mode_non_solid = REXCVAR_GET(vulkan_prefer_fill_mode_non_solid);
+    bool prefer_geometry_shader = REXCVAR_GET(::rex::ui::cvars::prefer_geometry_shader);
+    bool prefer_fragment_stores = REXCVAR_GET(::rex::ui::cvars::prefer_fragment_stores_and_atomics);
+    bool prefer_vertex_stores =
+        REXCVAR_GET(::rex::ui::cvars::prefer_vertex_pipeline_stores_and_atomics);
+    bool prefer_fill_mode_non_solid = REXCVAR_GET(::rex::ui::cvars::prefer_fill_mode_non_solid);
     if (with_gpu_emulation && physical_devices.size() > 1 &&
         (prefer_geometry_shader || prefer_fragment_stores || prefer_vertex_stores ||
          prefer_fill_mode_non_solid)) {

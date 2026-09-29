@@ -24,8 +24,9 @@
 #include <rex/graphics/video_mode_util.h>
 #include <rex/logging.h>
 #include <rex/platform.h>
-#include <rex/ui/flags.h>
 #include <rex/ui/sdl_virtual_key.h>
+
+#include "ui/cvar_table.h"
 
 #if REX_PLATFORM_WIN32
 #include <rex/ui/surface_win.h>
@@ -312,7 +313,7 @@ void WindowSDL::ApplyFullscreenModeNow() {
   if (!sdl_window_) {
     return;
   }
-  if (!REXCVAR_GET(fullscreen_exclusive)) {
+  if (!REXCVAR_GET(::rex::ui::cvars::fullscreen_exclusive)) {
     SDL_SetWindowFullscreenMode(sdl_window_, nullptr);
     return;
   }

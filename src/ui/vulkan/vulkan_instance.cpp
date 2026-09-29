@@ -25,7 +25,7 @@
 #include "vulkan_moltenvk.h"
 #endif
 
-REXCVAR_DEFINE_BOOL(vulkan_log_debug_messages, true, "UI/Vulkan", "Log Vulkan debug messages");
+#include "ui/cvar_table.h"
 
 namespace rex {
 namespace ui {
@@ -479,7 +479,8 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
 
   // Create the debug messenger if requested and available.
 
-  if (vulkan_instance->extensions_.ext_EXT_debug_utils && REXCVAR_GET(vulkan_log_debug_messages)) {
+  if (vulkan_instance->extensions_.ext_EXT_debug_utils &&
+      REXCVAR_GET(::rex::ui::cvars::log_debug_messages)) {
     VkDebugUtilsMessengerCreateInfoEXT debug_utils_messenger_create_info = {
         VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT};
     auto gpu_logger = rex::GetLogger(rex::log::gpu());

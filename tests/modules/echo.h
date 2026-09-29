@@ -27,6 +27,11 @@ class IEcho {
    * @return The value passed in.
    */
   virtual int Echo(int value) = 0;
+
+  /**
+   * @return The current value of the echo.value cvar the module registers at Connect.
+   */
+  virtual int Value() = 0;
 };
 
 }  // namespace rex::test

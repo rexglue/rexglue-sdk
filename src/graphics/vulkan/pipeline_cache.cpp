@@ -32,7 +32,6 @@
 #include <rex/thread.h>
 #include <rex/memory.h>
 #include <rex/graphics/util/draw.h>
-#include <rex/graphics/flags.h>
 #include <rex/graphics/pipeline_util.h>
 #include <rex/graphics/pipeline/shader/spirv_builder.h>
 #include <rex/graphics/pipeline/shader/spirv_translator.h>
@@ -49,15 +48,7 @@
 #include <rex/types.h>
 #include <rex/ui/vulkan/util.h>
 
-REXCVAR_DEFINE_INT32(
-    vulkan_pipeline_creation_threads, -1, "GPU/Vulkan",
-    "Number of pipeline creation threads for Vulkan async pipeline creation (-1 for auto)")
-    .range(-1, 32)
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-
-REXCVAR_DEFINE_BOOL(vulkan_tessellation_wireframe, false, "GPU/Vulkan",
-                    "Render tessellation as wireframe")
-    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+#include "graphics/cvar_table.h"
 
 namespace rex::graphics::vulkan {
 
@@ -368,13 +359,14 @@ bool VulkanPipelineCache::Initialize() {
   assert_not_null(creation_completion_event_);
   creation_completion_set_event_ = false;
   creation_threads_shutdown_from_ = SIZE_MAX;
-  if (REXCVAR_GET(vulkan_pipeline_creation_threads) != 0) {
+  if (REXCVAR_GET(::rex::graphics::cvars::vulkan_pipeline_creation_threads) != 0) {
     size_t creation_thread_count;
-    if (REXCVAR_GET(vulkan_pipeline_creation_threads) < 0) {
+    if (REXCVAR_GET(::rex::graphics::cvars::vulkan_pipeline_creation_threads) < 0) {
       creation_thread_count = std::max(logical_processor_count * 3 / 4, uint32_t(1));
     } else {
-      creation_thread_count = std::min(uint32_t(REXCVAR_GET(vulkan_pipeline_creation_threads)),
-                                       logical_processor_count);
+      creation_thread_count =
+          std::min(uint32_t(REXCVAR_GET(::rex::graphics::cvars::vulkan_pipeline_creation_threads)),
+                   logical_processor_count);
     }
     for (size_t i = 0; i < creation_thread_count; ++i) {
       std::unique_ptr<rex::thread::Thread> creation_thread =
@@ -632,13 +624,14 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
       logical_processor_count = 6;
     }
     size_t creation_thread_count;
-    if (REXCVAR_GET(vulkan_pipeline_creation_threads) == 0) {
+    if (REXCVAR_GET(::rex::graphics::cvars::vulkan_pipeline_creation_threads) == 0) {
       creation_thread_count = 1;
-    } else if (REXCVAR_GET(vulkan_pipeline_creation_threads) < 0) {
+    } else if (REXCVAR_GET(::rex::graphics::cvars::vulkan_pipeline_creation_threads) < 0) {
       creation_thread_count = std::max(logical_processor_count * 3 / 4, uint32_t(1));
     } else {
-      creation_thread_count = std::min(uint32_t(REXCVAR_GET(vulkan_pipeline_creation_threads)),
-                                       logical_processor_count);
+      creation_thread_count =
+          std::min(uint32_t(REXCVAR_GET(::rex::graphics::cvars::vulkan_pipeline_creation_threads)),
+                   logical_processor_count);
     }
     if (!blocking) {
       // Vulkan currently doesn't support deferred pipeline handles at draw time,
@@ -1111,8 +1104,9 @@ bool VulkanPipelineCache::ConfigurePipeline(
     }
   }
 
-  bool use_async = REXCVAR_GET(async_shader_compilation) && !creation_threads_.empty() &&
-                   pixel_shader && placeholder_pixel_shader_ != VK_NULL_HANDLE;
+  bool use_async = REXCVAR_GET(::rex::graphics::cvars::async_shader_compilation) &&
+                   !creation_threads_.empty() && pixel_shader &&
+                   placeholder_pixel_shader_ != VK_NULL_HANDLE;
   uint8_t async_priority = pipeline_util::kPriorityLowest;
   if (use_async) {
     uint32_t bound_rts =
@@ -1517,7 +1511,7 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
   } else {
     description_out.polygon_mode = PipelinePolygonMode::kFill;
   }
-  if (tessellated && REXCVAR_GET(vulkan_tessellation_wireframe) &&
+  if (tessellated && REXCVAR_GET(::rex::graphics::cvars::vulkan_tessellation_wireframe) &&
       device_properties.fillModeNonSolid) {
     description_out.polygon_mode = PipelinePolygonMode::kLine;
   }
@@ -2962,8 +2956,8 @@ bool VulkanPipelineCache::TryGetPipelineCreationArgumentsForDescription(
   }
 
   const ui::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
-  bool use_dynamic_rendering =
-      REXCVAR_GET(vulkan_dynamic_rendering) && vulkan_device->properties().dynamicRendering;
+  bool use_dynamic_rendering = REXCVAR_GET(::rex::graphics::cvars::vulkan_dynamic_rendering) &&
+                               vulkan_device->properties().dynamicRendering;
   VkRenderPass render_pass = VK_NULL_HANDLE;
   if (!use_dynamic_rendering) {
     render_pass =
@@ -3423,8 +3417,8 @@ bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments&
 
   VkPipelineRenderingCreateInfo pipeline_rendering_create_info = {};
   VkFormat color_attachment_formats[xenos::kMaxColorRenderTargets] = {};
-  bool use_dynamic_rendering =
-      REXCVAR_GET(vulkan_dynamic_rendering) && vulkan_device->properties().dynamicRendering;
+  bool use_dynamic_rendering = REXCVAR_GET(::rex::graphics::cvars::vulkan_dynamic_rendering) &&
+                               vulkan_device->properties().dynamicRendering;
   if (use_dynamic_rendering) {
     pipeline_rendering_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     pipeline_rendering_create_info.pNext = nullptr;

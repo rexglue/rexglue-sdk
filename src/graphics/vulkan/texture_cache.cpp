@@ -21,7 +21,6 @@
 #include <rex/math.h>
 #include <rex/cvar.h>
 #include <rex/dbg.h>
-#include <rex/graphics/flags.h>
 #include <rex/graphics/pipeline/texture/info.h>
 #include <rex/graphics/pipeline/texture/util.h>
 #include <rex/graphics/vulkan/command_processor.h>
@@ -33,7 +32,7 @@
 #include <rex/ui/vulkan/ui_samplers.h>
 #include <rex/ui/vulkan/util.h>
 
-REXCVAR_DEFINE_BOOL(non_seamless_cube_map, false, "GPU", "Use non-seamless cube map sampling");
+#include "graphics/cvar_table.h"
 
 namespace rex::graphics::vulkan {
 
@@ -558,7 +557,7 @@ void VulkanTextureCache::RequestTextures(uint32_t used_texture_mask) {
   TextureCache::RequestTextures(used_texture_mask);
 
   // Pre-create 3D-as-2D wrappers while still in texture request phase.
-  if (REXCVAR_GET(gpu_3d_to_2d_texture)) {
+  if (REXCVAR_GET(::rex::graphics::cvars::texture_3d_to_2d)) {
     uint32_t textures_3d = used_texture_mask;
     uint32_t index_3d;
     while (rex::bit_scan_forward(textures_3d, &index_3d)) {
@@ -741,7 +740,7 @@ VulkanTextureCache::SamplerParameters VulkanTextureCache::GetSamplerParameters(
                                                  &mip_min_level, &mip_max_level);
   parameters.mip_min_level = mip_min_level;
   bool has_mips = mip_max_level > mip_min_level;
-  int32_t anisotropic_override = REXCVAR_GET(anisotropic_override);
+  int32_t anisotropic_override = REXCVAR_GET(::rex::graphics::cvars::anisotropic_override);
   if (anisotropic_override > -1 && anisotropic_override < 6 && has_mips &&
       !parameters.mip_base_map && min_mag_linear && mip_filter_bilinear_or_trilinear) {
     aniso_filter = xenos::AnisoFilter(anisotropic_override);
@@ -836,7 +835,8 @@ VkSampler VulkanTextureCache::UseSampler(SamplerParameters parameters, bool& has
   // GetSamplerParameters.
   VkSamplerCreateInfo sampler_create_info = {};
   sampler_create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-  if (vulkan_device->properties().nonSeamlessCubeMap && REXCVAR_GET(non_seamless_cube_map)) {
+  if (vulkan_device->properties().nonSeamlessCubeMap &&
+      REXCVAR_GET(::rex::graphics::cvars::non_seamless_cube_map)) {
     sampler_create_info.flags |= VK_SAMPLER_CREATE_NON_SEAMLESS_CUBE_MAP_BIT_EXT;
   }
   sampler_create_info.magFilter = parameters.mag_linear ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
@@ -1946,7 +1946,7 @@ VkImageView VulkanTextureCache::VulkanTexture::GetView(bool is_signed, uint32_t 
 
 VkImageView VulkanTextureCache::VulkanTexture::GetOrCreate3DAs2DImageView(bool is_signed,
                                                                           uint32_t host_swizzle) {
-  if (!REXCVAR_GET(gpu_3d_to_2d_texture)) {
+  if (!REXCVAR_GET(::rex::graphics::cvars::texture_3d_to_2d)) {
     return VK_NULL_HANDLE;
   }
 

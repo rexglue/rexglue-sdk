@@ -22,7 +22,6 @@
 #include <rex/graphics/d3d12/command_processor.h>
 #include <rex/graphics/d3d12/graphics_system.h>
 #include <rex/graphics/d3d12/shader.h>
-#include <rex/graphics/flags.h>
 #include <rex/graphics/registers.h>
 #include <rex/graphics/util/draw.h>
 #include <rex/graphics/xenos.h>
@@ -31,21 +30,11 @@
 #include <rex/memory/utils.h>
 #include <rex/ui/d3d12/d3d12_presenter.h>
 #include <rex/ui/d3d12/d3d12_util.h>
+#include <rex/ui/renderdoc_api.h>
 
-REXCVAR_DEFINE_BOOL(d3d12_bindless, true, "GPU/D3D12", "Use bindless resources where available")
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+#include "graphics/cvar_table.h"
 
-REXCVAR_DEFINE_BOOL(d3d12_readback_memexport, false, "GPU/D3D12",
-                    "Read data written by memory export in shaders on the CPU")
-    .lifecycle(rex::cvar::Lifecycle::kHotReload);
-
-REXCVAR_DEFINE_BOOL(d3d12_readback_resolve, false, "GPU/D3D12",
-                    "Read render-to-texture results on the CPU")
-    .lifecycle(rex::cvar::Lifecycle::kHotReload);
-
-REXCVAR_DEFINE_BOOL(d3d12_submit_on_primary_buffer_end, true, "GPU/D3D12",
-                    "Submit command list when PM4 primary buffer ends")
-    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+#define XE_GPU_FINE_GRAINED_DRAW_SCOPES 1
 
 namespace rex::graphics::d3d12 {
 
@@ -63,12 +52,35 @@ namespace shaders {
 D3D12CommandProcessor::D3D12CommandProcessor(D3D12GraphicsSystem* graphics_system,
                                              system::KernelState* kernel_state)
     : CommandProcessor(graphics_system, kernel_state), deferred_command_list_(*this) {
-  legacy_readback_memexport_cvar_name_ = "d3d12_readback_memexport";
+  legacy_readback_memexport_cvar_ = &::rex::graphics::cvars::d3d12_readback_memexport;
 }
 D3D12CommandProcessor::~D3D12CommandProcessor() = default;
 
+namespace {
+
+bool IsGPUDebugMarkersEnabled() {
+  static bool cached = false;
+  static bool result = false;
+  if (!cached) {
+    cached = true;
+    if (REXCVAR_GET(::rex::graphics::cvars::debug_markers)) {
+      result = true;
+      REXLOG_INFO("GPU debug markers enabled via CVar");
+    } else {
+      auto renderdoc_api = rex::ui::RenderDocAPI::CreateIfConnected();
+      if (renderdoc_api) {
+        result = true;
+        REXLOG_INFO("GPU debug markers auto-enabled (RenderDoc detected)");
+      }
+    }
+  }
+  return result;
+}
+
+}  // namespace
+
 void D3D12CommandProcessor::UpdateDebugMarkersEnabled() {
-  debug_markers_enabled_ = IsGpuDebugMarkersEnabled();
+  debug_markers_enabled_ = IsGPUDebugMarkersEnabled();
 }
 
 void D3D12CommandProcessor::PushDebugMarker(const char* format, ...) {
@@ -152,7 +164,8 @@ void D3D12CommandProcessor::InitializeShaderStorage(const std::filesystem::path&
 
 bool D3D12CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffer* reader,
                                                                uint32_t packet, uint32_t count) {
-  if (!REXCVAR_GET(occlusion_query_enable) || !occlusion_query_resources_available_) {
+  if (!REXCVAR_GET(::rex::graphics::cvars::occlusion_query_enable) ||
+      !occlusion_query_resources_available_) {
     return CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(reader, packet, count);
   }
 
@@ -170,7 +183,7 @@ bool D3D12CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffe
   }
 
   auto write_fallback_result = [sample_counts, kQueryFinished]() -> bool {
-    auto fake_sample_count = REXCVAR_GET(query_occlusion_fake_sample_count);
+    auto fake_sample_count = REXCVAR_GET(::rex::graphics::cvars::query_occlusion_fake_sample_count);
     if (fake_sample_count < 0) {
       return true;
     }
@@ -906,7 +919,7 @@ bool D3D12CommandProcessor::SetupContext() {
   // Optional - added in Creators Update (SDK 10.0.15063.0).
   command_list_->QueryInterface(IID_PPV_ARGS(&command_list_1_));
 
-  bindless_resources_used_ = REXCVAR_GET(d3d12_bindless) &&
+  bindless_resources_used_ = REXCVAR_GET(::rex::graphics::cvars::d3d12_bindless) &&
                              provider.GetResourceBindingTier() >= D3D12_RESOURCE_BINDING_TIER_2;
 
   // Get the draw resolution scale for the render target cache and the texture
@@ -2257,7 +2270,7 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbu
 }
 
 void D3D12CommandProcessor::OnPrimaryBufferEnd() {
-  if (REXCVAR_GET(d3d12_submit_on_primary_buffer_end) && submission_open_ &&
+  if (REXCVAR_GET(::rex::graphics::cvars::d3d12_submit_on_primary_buffer_end) && submission_open_ &&
       CanEndSubmissionImmediately()) {
     EndSubmission(false);
   }
@@ -2398,7 +2411,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
           bound_depth_and_color_render_target_formats, &pipeline_handle, &root_signature)) {
     return false;
   }
-  if (REXCVAR_GET(async_shader_compilation) &&
+  if (REXCVAR_GET(::rex::graphics::cvars::async_shader_compilation) &&
       pipeline_cache_->GetD3D12PipelineByHandle(pipeline_handle) == nullptr) {
     return true;
   }
@@ -2492,7 +2505,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
         case xenos::FetchConstantType::kVertex:
           break;
         case xenos::FetchConstantType::kInvalidVertex:
-          if (REXCVAR_GET(gpu_allow_invalid_fetch_constants)) {
+          if (REXCVAR_GET(::rex::graphics::cvars::allow_invalid_fetch_constants)) {
             break;
           }
           REXGPU_WARN(
@@ -2711,14 +2724,14 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
       // be unknown. Keep invalidation conservative in this case.
       shared_memory_->RangeWrittenByGpu(0, SharedMemory::kBufferSize);
     }
-    if (IsReadbackMemexportEnabled(REXCVAR_GET(d3d12_readback_memexport)) &&
+    if (IsReadbackMemexportEnabled(REXCVAR_GET(::rex::graphics::cvars::d3d12_readback_memexport)) &&
         !memexport_ranges_.empty()) {
       uint32_t memexport_total_size = 0;
       for (const draw_util::MemExportRange& memexport_range : memexport_ranges_) {
         memexport_total_size += memexport_range.size_bytes;
       }
       if (memexport_total_size != 0) {
-        if (REXCVAR_GET(readback_memexport_fast)) {
+        if (REXCVAR_GET(::rex::graphics::cvars::readback_memexport_fast)) {
           IssueDraw_MemexportReadbackFastPath(memexport_total_size);
         } else {
           IssueDraw_MemexportReadbackFullPath(memexport_total_size);
@@ -2877,7 +2890,8 @@ bool D3D12CommandProcessor::IssueCopy() {
   if (!BeginSubmission(true)) {
     return false;
   }
-  ReadbackResolveMode readback_mode = GetReadbackResolveMode(REXCVAR_GET(d3d12_readback_resolve));
+  ReadbackResolveMode readback_mode =
+      GetReadbackResolveMode(REXCVAR_GET(::rex::graphics::cvars::d3d12_readback_resolve));
   if (readback_mode == ReadbackResolveMode::kDisabled) {
     uint32_t written_address, written_length;
     return render_target_cache_->Resolve(*memory_, *shared_memory_, *texture_cache_,
@@ -3038,10 +3052,11 @@ bool D3D12CommandProcessor::IssueCopy_ReadbackResolvePath() {
     constants.scale_y = texture_cache_->draw_resolution_scale_y();
     constants.pixel_size_log2 = pixel_size_log2;
     constants.tile_count = tile_count;
-    constants.half_pixel_offset = (REXCVAR_GET(readback_resolve_half_pixel_offset) &&
-                                   (constants.scale_x > 1 || constants.scale_y > 1))
-                                      ? 1u
-                                      : 0u;
+    constants.half_pixel_offset =
+        (REXCVAR_GET(::rex::graphics::cvars::readback_resolve_half_pixel_offset) &&
+         (constants.scale_x > 1 || constants.scale_y > 1))
+            ? 1u
+            : 0u;
     deferred_command_list_.D3DSetComputeRoot32BitConstants(
         UINT(ResolveDownscaleRootParameter::kConstants), sizeof(constants) / sizeof(uint32_t),
         &constants, 0);
@@ -3069,7 +3084,8 @@ bool D3D12CommandProcessor::IssueCopy_ReadbackResolvePath() {
                                                written_address, written_length);
   }
 
-  ReadbackResolveMode readback_mode = GetReadbackResolveMode(REXCVAR_GET(d3d12_readback_resolve));
+  ReadbackResolveMode readback_mode =
+      GetReadbackResolveMode(REXCVAR_GET(::rex::graphics::cvars::d3d12_readback_resolve));
   bool use_delayed_sync =
       readback_mode == ReadbackResolveMode::kFast || readback_mode == ReadbackResolveMode::kSome;
   uint32_t read_index = write_index;
@@ -3452,7 +3468,7 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
   }
 
   if (is_closing_frame) {
-    if (REXCVAR_GET(clear_memory_page_state) && shared_memory_) {
+    if (REXCVAR_GET(::rex::graphics::cvars::clear_memory_page_state) && shared_memory_) {
       shared_memory_->SetSystemPageBlocksValidWithGpuDataWritten();
     }
     frame_open_ = false;
@@ -4893,7 +4909,8 @@ void D3D12CommandProcessor::DisableHostOcclusionQueries() {
 }
 
 bool D3D12CommandProcessor::BeginGuestOcclusionQuery(uint32_t sample_count_address) {
-  if (!REXCVAR_GET(occlusion_query_enable) || !occlusion_query_resources_available_) {
+  if (!REXCVAR_GET(::rex::graphics::cvars::occlusion_query_enable) ||
+      !occlusion_query_resources_available_) {
     return false;
   }
   if (active_occlusion_query_.valid) {
@@ -4921,8 +4938,9 @@ bool D3D12CommandProcessor::BeginGuestOcclusionQuery(uint32_t sample_count_addre
 
 bool D3D12CommandProcessor::EndGuestOcclusionQuery(
     uint32_t sample_count_address, xenos::xe_gpu_depth_sample_counts* sample_counts) {
-  if (!REXCVAR_GET(occlusion_query_enable) || !occlusion_query_resources_available_ ||
-      !active_occlusion_query_.valid || !occlusion_query_heap_ || !occlusion_query_readback_) {
+  if (!REXCVAR_GET(::rex::graphics::cvars::occlusion_query_enable) ||
+      !occlusion_query_resources_available_ || !active_occlusion_query_.valid ||
+      !occlusion_query_heap_ || !occlusion_query_readback_) {
     return false;
   }
 

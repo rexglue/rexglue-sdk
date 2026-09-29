@@ -24,17 +24,13 @@
 #include <rex/memory.h>
 #include <rex/runtime.h>
 #include <rex/system/export_resolver.h>
-#include <rex/system/flags.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/lzx.h>
 #include <rex/system/function_dispatcher.h>
 #include <rex/system/xex_module.h>
 #include <rex/system/xmodule.h>
 #include <rex/types.h>
-
-REXCVAR_DEFINE_BOOL(writable_code_segments, false, "Memory",
-                    "Enables a program to write to its own code segments in memory")
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+#include "system/cvar_table.h"
 
 static const uint8_t xe_xex2_retail_key[16] = {0x20, 0xB1, 0x85, 0xA5, 0x9D, 0x28, 0xFD, 0xC3,
                                                0x40, 0x58, 0x3F, 0xBB, 0x08, 0x96, 0xBF, 0x91};
@@ -1027,7 +1023,7 @@ bool XexModule::LoadContinue() {
       case XEX_SECTION_CODE:
       case XEX_SECTION_READONLY_DATA:
         heap->Protect(address, size,
-                      REXCVAR_GET(writable_code_segments)
+                      REXCVAR_GET(::rex::runtime::cvars::writable_code_segments)
                           ? memory::kMemoryProtectRead | memory::kMemoryProtectWrite
                           : memory::kMemoryProtectRead);
         break;

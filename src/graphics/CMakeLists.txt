@@ -8,7 +8,6 @@ set(REXGPU_XENOS_SOURCES
     plugin_main.cpp
 
     # Core GPU types
-    flags.cpp
     register_file.cpp
     registers.cpp
     pipeline/shader/shader.cpp
@@ -107,6 +106,7 @@ set_target_properties(rexgpu-xenos PROPERTIES
 rexglue_add_version_resource(rexgpu-xenos DESCRIPTION "ReXGlue Xenos GPU emulation")
 
 target_include_directories(rexgpu-xenos PRIVATE
+    ${REXGLUE_ROOT}/src
     ${REXGLUE_ROOT}/thirdparty/renderdoc
     ${REXGLUE_ROOT}  # For thirdparty/dxbc/DXBCChecksum.h include
 )

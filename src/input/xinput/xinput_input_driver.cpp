@@ -15,10 +15,10 @@
 #include <rex/assert.h>
 #include <rex/chrono/clock.h>
 #include <rex/cvar.h>
-#include <rex/input/flags.h>
 #include <rex/input/xinput/xinput_input_driver.h>
 #include <rex/logging.h>
 #include <rex/ui/virtual_key.h>
+#include "input/cvar_table.h"
 #include <xinput.h>  // NOLINT(build/include_order)
 
 namespace {
@@ -205,8 +205,9 @@ X_RESULT XinputInputDriver::GetDeviceState(DeviceId id, X_INPUT_STATE* out_state
 
   // If the guide button is enabled use XInputGetStateEx, otherwise use the
   // default XInputGetState.
-  auto xigs = REXCVAR_GET(guide_button) ? (decltype(&XInputGetState))XInputGetStateEx_
-                                        : (decltype(&XInputGetState))XInputGetState_;
+  auto xigs = REXCVAR_GET(::rex::input::cvars::guide_button)
+                  ? (decltype(&XInputGetState))XInputGetStateEx_
+                  : (decltype(&XInputGetState))XInputGetState_;
 
   DWORD result = xigs(user_index, &native_state.state);
   if (result) {

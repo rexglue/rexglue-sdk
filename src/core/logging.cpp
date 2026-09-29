@@ -30,30 +30,19 @@
 #include <rex/platform.h>
 #include <rex/platform/env.h>
 
+#include "core/cvar_table.h"
+
 #if REX_PLATFORM_WIN32
 #include <spdlog/sinks/msvc_sink.h>
 #else
 #include <spdlog/sinks/stdout_sinks.h>
 #endif
 
-REXCVAR_DEFINE_STRING(log_level, "info", "Log",
-                      "Global log level: trace, debug, info, warn, error, critical, off")
-    .allowed({"trace", "debug", "info", "warn", "error", "critical", "off"});
-
-REXCVAR_DEFINE_STRING(log_file, "", "Log", "Log file path (empty = auto sequential naming)");
-
-REXCVAR_DEFINE_BOOL(log_verbose, false, "Log", "Enable verbose logging (sets level to trace)")
-    .debug_only();
-
-REXCVAR_DEFINE_BOOL(log_noisy, false, "Log", "Enable noisy/high-frequency log macros");
-
-REXCVAR_DEFINE_INT32(log_flush_interval, 0, "Log", "Periodic flush interval in seconds (0 = off)")
-    .range(0, 60)
-    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
-
 namespace rex {
 
 namespace {
+
+rex::cvar::CallbackHandle g_log_level_callback;
 
 std::vector<LogCategoryEntry> g_registry;
 spdlog::sink_ptr g_console_sink;
@@ -308,6 +297,7 @@ void InitLogging(std::filesystem::path log_file, spdlog::level::level_enum level
 }
 
 void ShutdownLogging() {
+  g_log_level_callback.Reset();
   std::lock_guard lock(g_mutex);
   if (!g_initialized && !g_early_initialized)
     return;
@@ -440,8 +430,15 @@ void SetRootLevel(LogCategoryId root, spdlog::level::level_enum level) {
   }
 }
 
+bool NoisyEnabled() {
+  return REXCVAR_GET(::rex::cvars::noisy);
+}
+
 void RegisterLogLevelCallback() {
-  rex::cvar::RegisterChangeCallback("log_level", [](std::string_view, std::string_view value) {
+  auto* registry = ::rex::cvars::level.registry();
+  if (!registry)
+    return;
+  auto result = registry->OnChange("log.level", [](std::string_view, std::string_view value) {
     if (auto level = ParseLogLevel(std::string(value))) {
       for (size_t i = 0; i < g_registry.size(); ++i) {
         auto& entry = g_registry[i];
@@ -450,6 +447,8 @@ void RegisterLogLevelCallback() {
       }
     }
   });
+  if (result)
+    g_log_level_callback = std::move(result.value());
 }
 
 void AddSink(spdlog::sink_ptr sink) {
@@ -575,11 +574,11 @@ LogConfig BuildLogConfig(const std::string& cli_level,
 }
 
 void ApplyLogCvarOverrides(LogConfig& config) {
-  if (rex::cvar::HasNonDefaultValue("log_file")) {
-    config.log_file = std::string(REXCVAR_GET(log_file));
+  if (rex::cvar::IsSet(::rex::cvars::file)) {
+    config.log_file = std::string(REXCVAR_GET(::rex::cvars::file));
   }
-  if (rex::cvar::HasNonDefaultValue("log_flush_interval")) {
-    config.flush_interval = std::chrono::seconds(REXCVAR_GET(log_flush_interval));
+  if (rex::cvar::IsSet(::rex::cvars::flush_interval)) {
+    config.flush_interval = std::chrono::seconds(REXCVAR_GET(::rex::cvars::flush_interval));
   }
 }
 

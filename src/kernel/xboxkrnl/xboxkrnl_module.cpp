@@ -35,22 +35,14 @@
 #include <rex/system/kernel_state.h>
 #include <rex/system/user_module.h>
 #include <rex/system/xthread.h>
-
-REXCVAR_DEFINE_BOOL(log_high_frequency_kernel_calls, false, "Kernel",
-                    "Log kernel calls with the kHighFrequency tag");
-
-REXCVAR_DEFINE_STRING(cl, "", "Kernel", "Specify additional command-line provided to guest");
-
-REXCVAR_DEFINE_BOOL(kernel_debug_monitor, false, "Kernel", "Enable debug monitor");
-
-REXCVAR_DEFINE_BOOL(kernel_cert_monitor, false, "Kernel", "Enable cert monitor");
+#include "system/cvar_table.h"
 
 namespace rex::kernel::xboxkrnl {
 using namespace rex::system;
 
 bool XboxkrnlModule::SendPIXCommand(const char* cmd) {
   // TODO: JIT - PIX commands require JIT processor->Execute
-  // if (!REXCVAR_GET(kernel_pix)) {
+  // if (!REXCVAR_GET(::rex::runtime::cvars::pix)) {
   //   return false;
   // }
   // ...
@@ -70,7 +62,7 @@ XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
   // Offset 0x18 is a 4b pointer to a handler function that seems to take two
   // arguments. If we wanted to see what would happen we could fake that.
   uint32_t pKeDebugMonitorData;
-  if (!REXCVAR_GET(kernel_debug_monitor)) {
+  if (!REXCVAR_GET(::rex::runtime::cvars::debug_monitor)) {
     pKeDebugMonitorData = memory_->SystemHeapAlloc(4);
     auto lpKeDebugMonitorData = memory_->TranslateVirtual(pKeDebugMonitorData);
     memory::store_and_swap<uint32_t>(lpKeDebugMonitorData, 0);
@@ -90,7 +82,7 @@ XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
   // KeCertMonitorData (?*)
   // Always set to zero, ignored.
   uint32_t pKeCertMonitorData;
-  if (!REXCVAR_GET(kernel_cert_monitor)) {
+  if (!REXCVAR_GET(::rex::runtime::cvars::cert_monitor)) {
     pKeCertMonitorData = memory_->SystemHeapAlloc(4);
     auto lpKeCertMonitorData = memory_->TranslateVirtual(pKeCertMonitorData);
     memory::store_and_swap<uint32_t>(lpKeCertMonitorData, 0);
@@ -158,8 +150,8 @@ XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
   // Always set to "default.xex" (with quotes) for now.
   // TODO(gibbed): set this to the actual module name.
   std::string command_line("\"default.xex\"");
-  if (!REXCVAR_GET(cl).empty()) {
-    command_line += " " + REXCVAR_GET(cl);
+  if (!kernel_state_->config().command_line.empty()) {
+    command_line += " " + kernel_state_->config().command_line;
   }
   uint32_t command_line_length =
       rex::align(static_cast<uint32_t>(command_line.length()) + 1, 1024u);

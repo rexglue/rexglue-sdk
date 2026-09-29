@@ -21,9 +21,7 @@
 #include <rex/math.h>
 #include <rex/ui/d3d12/d3d12_util.h>
 
-REXCVAR_DEFINE_BOOL(d3d12_tiled_shared_memory, true, "GPU/D3D12",
-                    "Use tiled shared memory on D3D12")
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+#include "graphics/cvar_table.h"
 
 namespace rex::graphics::d3d12 {
 
@@ -45,7 +43,7 @@ bool D3D12SharedMemory::Initialize() {
   ui::d3d12::util::FillBufferResourceDesc(buffer_desc, kBufferSize,
                                           D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
   buffer_state_ = D3D12_RESOURCE_STATE_COPY_DEST;
-  if (REXCVAR_GET(d3d12_tiled_shared_memory) &&
+  if (REXCVAR_GET(::rex::graphics::cvars::d3d12_tiled_shared_memory) &&
       provider.GetTiledResourcesTier() != D3D12_TILED_RESOURCES_TIER_NOT_SUPPORTED &&
       !provider.GetGraphicsAnalysis()) {
     if (FAILED(device->CreateReservedResource(&buffer_desc, buffer_state_, nullptr,

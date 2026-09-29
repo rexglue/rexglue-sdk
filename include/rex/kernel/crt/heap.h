@@ -14,9 +14,6 @@
 
 #include <rex/cvar.h>
 
-REXCVAR_DECLARE(bool, rexcrt_heap_enable);
-REXCVAR_DECLARE(uint32_t, rexcrt_heap_size_mb);
-
 struct O1HeapInstance;
 
 namespace rex::memory {

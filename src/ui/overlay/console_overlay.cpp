@@ -23,8 +23,9 @@ static ImVec4 LevelColor(spdlog::level::level_enum level, const ConsoleStyle& st
   return index < std::size(style.level) ? style.level[index] : style.level[spdlog::level::info];
 }
 
-ConsoleDialog::ConsoleDialog(ImGuiDrawer* imgui_drawer, std::shared_ptr<rex::LogCaptureSink> sink)
-    : ImGuiDialog(imgui_drawer), sink_(std::move(sink)) {}
+ConsoleDialog::ConsoleDialog(ImGuiDrawer* imgui_drawer, rex::cvar::ICvarRegistry& registry,
+                             std::shared_ptr<rex::LogCaptureSink> sink)
+    : ImGuiDialog(imgui_drawer), registry_(registry), sink_(std::move(sink)) {}
 
 ConsoleDialog::~ConsoleDialog() {}
 
@@ -68,9 +69,10 @@ void ConsoleDialog::UpdateCompletionCandidates(const char* buf, int len) {
     return;
   }
   std::vector<std::string> matches;
-  for (auto& name : rex::cvar::ListFlags()) {
-    if (name.size() >= text.size() && std::string_view(name).substr(0, text.size()) == text) {
-      matches.push_back(name);
+  for (const rex::cvar::IVar* var : registry_.Enumerate()) {
+    std::string_view name = var->desc().name;
+    if (name.size() >= text.size() && name.substr(0, text.size()) == text) {
+      matches.emplace_back(name);
     }
   }
   if (matches != completion_candidates_) {
@@ -171,13 +173,16 @@ void ConsoleDialog::ExecuteCommand(std::string_view cmd) {
   history_pos_ = -1;
 
   if (cmd == "help" || cmd == "?") {
-    auto names = rex::cvar::ListFlags();
+    std::vector<std::string> names;
+    for (const rex::cvar::IVar* var : registry_.Enumerate()) {
+      names.emplace_back(var->desc().name);
+    }
     std::sort(names.begin(), names.end());
     for (auto& n : names) {
-      const auto* info = rex::cvar::GetFlagInfo(n);
+      const auto* info = registry_.Find(n);
       std::string line = "  " + n;
       if (info)
-        line += " = " + info->getter() + "  (" + info->description + ")";
+        line += " = " + info->Render() + "  (" + std::string(info->desc().description) + ")";
       AddLocal(spdlog::level::info, line);
     }
     return;
@@ -194,34 +199,32 @@ void ConsoleDialog::ExecuteCommand(std::string_view cmd) {
     args = std::string(rest);
   }
 
-  const auto* info = rex::cvar::GetFlagInfo(name);
+  const auto* info = registry_.Find(name);
 
   // Command dispatch takes priority over get/set. Echo before invoking so the
   // "> cmd" line is tagged with an earlier generation than any log lines the
   // command emits, keeping it just above its own output.
-  if (info && info->type == rex::cvar::FlagType::Command) {
+  if (info && info->desc().type == rex::cvar::Type::Command) {
     AddLocal(spdlog::level::info, "[console] > " + name + (args.empty() ? "" : " " + args));
-    rex::cvar::InvokeCommand(name, args);
+    registry_.Invoke(name, args);
     scroll_to_bottom_ = true;
     return;
   }
 
   if (sep == std::string_view::npos) {
-    // No args: treat as "get" - show current value.
-    std::string val = rex::cvar::GetFlagByName(name);
-    if (val.empty() && !info) {
+    auto val = registry_.Get(name);
+    if (!val) {
       AddLocal(spdlog::level::warn, "[console] unknown cvar: " + name);
     } else {
-      AddLocal(spdlog::level::info, "[console] " + name + " = " + val);
+      AddLocal(spdlog::level::info, "[console] " + name + " = " + val.value());
     }
     return;
   }
 
-  // Has args, non-command: set.
-  if (rex::cvar::SetFlagByName(name, args)) {
+  if (auto status = registry_.Set(name, args); status) {
     AddLocal(spdlog::level::info, "[console] " + name + " = " + args);
   } else {
-    AddLocal(spdlog::level::warn, "[console] unknown cvar: " + name);
+    AddLocal(spdlog::level::warn, "[console] " + status.error().message);
   }
   scroll_to_bottom_ = true;
 }

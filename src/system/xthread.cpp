@@ -36,12 +36,7 @@
 #include <rex/system/xthread.h>
 #include <rex/thread.h>
 #include <rex/vec128.h>
-
-REXCVAR_DEFINE_BOOL(ignore_thread_priorities, true, "Kernel",
-                    "Ignores game-specified thread priorities");
-
-REXCVAR_DEFINE_BOOL(ignore_thread_affinities, true, "Kernel",
-                    "Ignores game-specified thread affinities");
+#include "system/cvar_table.h"
 
 namespace rex::system {
 
@@ -853,7 +848,7 @@ void XThread::SetPriority(int32_t increment) {
   } else {
     target_priority = rex::thread::ThreadPriority::kNormal;
   }
-  if (!REXCVAR_GET(ignore_thread_priorities)) {
+  if (!REXCVAR_GET(::rex::runtime::cvars::ignore_thread_priorities)) {
     thread_->set_priority(target_priority);
   }
 }
@@ -895,7 +890,7 @@ void XThread::SetActiveCpu(uint8_t cpu_index) {
   }
 
   if (rex::thread::logical_processor_count() >= 6) {
-    if (!REXCVAR_GET(ignore_thread_affinities)) {
+    if (!REXCVAR_GET(::rex::runtime::cvars::ignore_thread_affinities)) {
       thread_->set_affinity_mask(uint64_t(1) << cpu_index);
     }
   } else {

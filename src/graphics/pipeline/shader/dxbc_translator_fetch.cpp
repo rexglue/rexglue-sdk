@@ -18,14 +18,12 @@
 
 #include <rex/assert.h>
 #include <rex/cvar.h>
-#include <rex/graphics/flags.h>
 #include <rex/graphics/pipeline/render_target/cache.h>
 #include <rex/graphics/pipeline/shader/dxbc_translator.h>
 #include <rex/math.h>
 #include <rex/string.h>
 
-REXCVAR_DEFINE_BOOL(draw_resolution_scaled_texture_offsets, true, "GPU/Shader",
-                    "Scale texture offsets with draw resolution");
+#include "graphics/cvar_table.h"
 
 namespace rex::graphics {
 using namespace ucode;
@@ -882,7 +880,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
     }
   }
   uint32_t revert_resolution_scale_axes =
-      REXCVAR_GET(draw_resolution_scaled_texture_offsets)
+      REXCVAR_GET(::rex::graphics::cvars::draw_resolution_scaled_texture_offsets)
           ? uint32_t(draw_resolution_scale_x_ > 1) | (uint32_t(draw_resolution_scale_y_ > 1) << 1)
           : 0;
 

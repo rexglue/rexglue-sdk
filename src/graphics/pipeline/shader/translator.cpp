@@ -17,10 +17,11 @@
 #include <utility>
 
 #include <rex/assert.h>
-#include <rex/graphics/flags.h>
 #include <rex/graphics/pipeline/shader/translator.h>
 #include <rex/logging.h>
 #include <rex/math.h>
+
+#include "graphics/cvar_table.h"
 
 namespace rex::graphics {
 
@@ -314,8 +315,8 @@ void Shader::AnalyzeUcode(string::StringBuffer& ucode_disasm_buffer) {
 
   // An empty shader can be created internally by shader translators as a dummy,
   // don't dump it.
-  if (!REXCVAR_GET(dump_shaders).empty() && !ucode_data().empty()) {
-    DumpUcode(REXCVAR_GET(dump_shaders));
+  if (!REXCVAR_GET(::rex::graphics::cvars::dump_shaders).empty() && !ucode_data().empty()) {
+    DumpUcode(REXCVAR_GET(::rex::graphics::cvars::dump_shaders));
   }
 }
 

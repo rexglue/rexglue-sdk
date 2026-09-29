@@ -9,7 +9,6 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include "codegen_flags.h"
 #include "decoded_binary.h"
 #include <rex/codegen/function_scanner.h>
 
@@ -95,7 +94,7 @@ void discoverFunction(CodegenContext& ctx, uint32_t funcAddr,
   }
 
   // Pass pdataSize so forward branches within function extent are correctly identified
-  auto result = discoverBlocks(decoded, funcAddr, *region, knownFunctions, pdataSize,
+  auto result = discoverBlocks(decoded, ctx.limits(), funcAddr, *region, knownFunctions, pdataSize,
                                &ctx.Config().switchTables);
 
   if (result.blocks.empty()) {
@@ -199,7 +198,7 @@ void discoverAllFunctions(CodegenContext& ctx) {
   // Iterative discovery
   size_t iteration = 0;
   size_t lastFunctionCount = 0;
-  const size_t maxIterations = REXCVAR_GET(max_discovery_iterations);
+  const size_t maxIterations = ctx.limits().max_discovery_iterations;
 
   while (iteration < maxIterations) {
     iteration++;
@@ -248,7 +247,7 @@ void discoverAllFunctions(CodegenContext& ctx) {
     // Continue discovery for vtable functions
     if (newFunctions > 0) {
       size_t vtableIteration = 0;
-      const size_t maxVtableIterations = REXCVAR_GET(max_vtable_iterations);
+      const size_t maxVtableIterations = ctx.limits().max_vtable_iterations;
 
       while (vtableIteration < maxVtableIterations) {
         vtableIteration++;

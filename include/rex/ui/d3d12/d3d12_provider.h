@@ -24,7 +24,7 @@ class D3D12Provider : public GraphicsProvider {
 
   static bool IsD3D12APIAvailable();
 
-  static std::unique_ptr<D3D12Provider> Create();
+  static std::unique_ptr<D3D12Provider> Create(int32_t adapter_index);
 
   std::unique_ptr<Presenter> CreatePresenter(Presenter::HostGpuLossCallback host_gpu_loss_callback =
                                                  Presenter::FatalErrorHostGpuLossCallback) override;
@@ -124,7 +124,7 @@ class D3D12Provider : public GraphicsProvider {
   D3D12Provider() = default;
 
   static bool EnableIncreaseBasePriorityPrivilege();
-  bool Initialize();
+  bool Initialize(int32_t adapter_index);
 
   typedef HRESULT(WINAPI* PFNCreateDXGIFactory2)(UINT Flags, REFIID riid,
                                                  _COM_Outptr_ void** ppFactory);

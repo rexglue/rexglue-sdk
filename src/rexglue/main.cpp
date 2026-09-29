@@ -18,8 +18,6 @@
 #include <CLI/CLI.hpp>
 #include <fmt/format.h>
 
-#include <rex/cvar.h>
-#include <rex/cvar_cli.h>
 #include <rex/logging.h>
 #include <rex/platform/console.h>
 #include <rex/platform/env.h>
@@ -59,7 +57,6 @@ int main(int argc, char** argv) {
   CLI::App app{TitleString(), "rexglue"};
   app.set_version_flag("--version", REXGLUE_VERSION_STRING);
   app.require_subcommand(1);
-  // Lets cvar overrides be spelled after the subcommand name.
   app.fallthrough();
 
   rexglue::cli::CliContext ctx;
@@ -75,21 +72,13 @@ int main(int argc, char** argv) {
   app.add_flag("-f,--force", force, "Skip confirmations and proceed");
 
   rex::InitLoggingEarly();
-  rex::cvar::ApplyEnvironment();
 
   rexglue::cli::DeferredAction pending;
   rexglue::cli::RegisterCodegen(app, ctx, pending);
   rexglue::cli::RegisterInit(app, ctx, pending);
   rexglue::cli::RegisterRecompileTests(app, ctx, pending);
 
-  rex::cvar::RegisterCliOptions(app);
-
   CLI11_PARSE(app, argc, argv);
-
-  // The registry also exposes log_level, so honor that spelling.
-  if (rex::cvar::GetFlagSource("log_level") == rex::cvar::Source::kCommandLine) {
-    log_level = rex::cvar::GetFlagByName("log_level");
-  }
 
   ConfigureLogging(log_level, log_file, verbose);
   ctx.verbose = verbose;

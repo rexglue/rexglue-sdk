@@ -14,7 +14,6 @@
 
 #include <rex/assert.h>
 #include <rex/cvar.h>
-#include <rex/graphics/flags.h>
 #include <rex/graphics/pipeline/texture/cache.h>
 #include <rex/graphics/pipeline/texture/info.h>
 #include <rex/graphics/pipeline/texture/util.h>
@@ -26,10 +25,7 @@
 #include <rex/memory.h>
 #include <rex/ui/graphics_util.h>
 
-REXCVAR_DEFINE_BOOL(half_pixel_offset, true, "GPU", "Enable half pixel offset");
-
-REXCVAR_DEFINE_BOOL(resolve_resolution_scale_fill_half_pixel_offset, true, "GPU",
-                    "Fill half pixel offset during resolution scale resolve");
+#include "graphics/cvar_table.h"
 
 // Very prominent in 545407F2.
 // DEFINE_bool(
@@ -322,7 +318,8 @@ void GetHostViewportInfo(const RegisterFile& regs, uint32_t draw_resolution_scal
     offset_add_xy[0] += float(pa_sc_window_offset.window_x_offset);
     offset_add_xy[1] += float(pa_sc_window_offset.window_y_offset);
   }
-  if (REXCVAR_GET(half_pixel_offset) && pa_su_vtx_cntl.pix_center == xenos::PixelCenter::kD3DZero) {
+  if (REXCVAR_GET(::rex::graphics::cvars::half_pixel_offset) &&
+      pa_su_vtx_cntl.pix_center == xenos::PixelCenter::kD3DZero) {
     offset_add_xy[0] += 0.5f;
     offset_add_xy[1] += 0.5f;
   }
@@ -1028,8 +1025,8 @@ bool GetResolveInfo(const RegisterFile& regs, const memory::Memory& memory,
   // Write the color/depth EDRAM info.
   bool fill_half_pixel_offset =
       (draw_resolution_scale_x > 1 || draw_resolution_scale_y > 1) &&
-      REXCVAR_GET(resolve_resolution_scale_fill_half_pixel_offset) &&
-      REXCVAR_GET(half_pixel_offset) &&
+      REXCVAR_GET(::rex::graphics::cvars::resolve_resolution_scale_fill_half_pixel_offset) &&
+      REXCVAR_GET(::rex::graphics::cvars::half_pixel_offset) &&
       regs.Get<reg::PA_SU_VTX_CNTL>().pix_center == xenos::PixelCenter::kD3DZero;
   int32_t exp_bias = is_depth ? 0 : rb_copy_dest_info.copy_dest_exp_bias;
   ResolveEdramInfo depth_edram_info;

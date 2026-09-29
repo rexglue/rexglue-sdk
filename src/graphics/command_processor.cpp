@@ -22,7 +22,6 @@
 #include <rex/perf/counter.h>
 #include <rex/chrono/clock.h>
 #include <rex/graphics/command_processor.h>
-#include <rex/graphics/flags.h>
 #include <rex/graphics/graphics_system.h>
 #include <rex/graphics/pipeline/texture/info.h>
 #include <rex/graphics/sampler_info.h>
@@ -35,50 +34,7 @@
 #include <rex/system/kernel_state.h>
 #include <rex/system/user_module.h>
 
-REXCVAR_DEFINE_BOOL(vsync, true, "GPU", "Enable vertical sync");
-
-REXCVAR_DEFINE_BOOL(clear_memory_page_state, true, "GPU",
-                    "Refresh page-valid state from GPU-written memory at frame end. "
-                    "Disable for minor CPU overhead reduction, but may break memory coherency.")
-    .lifecycle(rex::cvar::Lifecycle::kHotReload);
-
-REXCVAR_DEFINE_BOOL(occlusion_query_enable, true, "GPU", "Enable host occlusion query handling")
-    .lifecycle(rex::cvar::Lifecycle::kHotReload);
-
-REXCVAR_DEFINE_STRING(readback_resolve, "none", "GPU",
-                      "Controls CPU readback of render-to-texture resolve results.\n"
-                      " none: Disable readback (default)\n"
-                      " fast: Read previous frame (delayed, copy every frame)\n"
-                      " some: Read previous frame (delayed, copy on cache miss)\n"
-                      " full: Immediate sync readback (accurate but stalls)")
-    .allowed({"none", "fast", "some", "full"})
-    .lifecycle(rex::cvar::Lifecycle::kHotReload);
-
-REXCVAR_DEFINE_BOOL(readback_resolve_half_pixel_offset, false, "GPU",
-                    "When draw resolution scaling is active, sample from the center of each "
-                    "scaled block during resolve readback downscale")
-    .lifecycle(rex::cvar::Lifecycle::kHotReload);
-
-REXCVAR_DEFINE_BOOL(readback_memexport, true, "GPU",
-                    "Enable CPU readback of shader memexport writes for guest memory "
-                    "coherency (can reduce correctness issues, but may add GPU/CPU sync cost)")
-    .lifecycle(rex::cvar::Lifecycle::kHotReload);
-
-REXCVAR_DEFINE_BOOL(readback_memexport_fast, true, "GPU",
-                    "Use fast double-buffered memexport readback when possible, with "
-                    "automatic fallback to full synchronous readback")
-    .lifecycle(rex::cvar::Lifecycle::kHotReload);
-
-REXCVAR_DEFINE_INT32(query_occlusion_fake_sample_count, 1000, "GPU",
-                     "Fake sample count for occlusion queries")
-    .range(1, 100000)
-    .lifecycle(rex::cvar::Lifecycle::kHotReload);
-
-REXCVAR_DEFINE_BOOL(async_shader_compilation, true, "GPU",
-                    "Compile shaders and create pipelines asynchronously in background "
-                    "threads. This reduces stutter but may cause brief visual artifacts while "
-                    "pipelines are being prepared.")
-    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+#include "graphics/cvar_table.h"
 
 namespace rex::graphics {
 
@@ -171,9 +127,10 @@ void CommandProcessor::InvalidateGpuMemory() {}
 
 ReadbackResolveMode CommandProcessor::GetReadbackResolveMode(
     bool legacy_readback_resolve_enabled) const {
-  ReadbackResolveMode shared_mode = ParseReadbackResolveMode(REXCVAR_GET(readback_resolve));
+  ReadbackResolveMode shared_mode =
+      ParseReadbackResolveMode(REXCVAR_GET(::rex::graphics::cvars::readback_resolve));
   bool shared_mode_overrides_legacy = shared_mode != ReadbackResolveMode::kDisabled ||
-                                      rex::cvar::HasNonDefaultValue("readback_resolve");
+                                      rex::cvar::IsSet(::rex::graphics::cvars::readback_resolve);
   if (shared_mode_overrides_legacy) {
     return shared_mode;
   }
@@ -182,11 +139,10 @@ ReadbackResolveMode CommandProcessor::GetReadbackResolveMode(
 }
 
 bool CommandProcessor::IsReadbackMemexportEnabled(bool legacy_backend_flag) const {
-  if (legacy_readback_memexport_cvar_name_ &&
-      rex::cvar::HasNonDefaultValue(legacy_readback_memexport_cvar_name_)) {
+  if (legacy_readback_memexport_cvar_ && rex::cvar::IsSet(*legacy_readback_memexport_cvar_)) {
     return legacy_backend_flag;
   }
-  return REXCVAR_GET(readback_memexport);
+  return REXCVAR_GET(::rex::graphics::cvars::readback_memexport);
 }
 
 void CommandProcessor::SetDesiredSwapPostEffect(SwapPostEffect swap_post_effect) {
@@ -1033,7 +989,7 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reade
       // Wait.
       if (wait >= 0x100) {
         PrepareForWait();
-        if (!REXCVAR_GET(vsync)) {
+        if (!REXCVAR_GET(::rex::graphics::cvars::vsync)) {
           // User wants it fast and dangerous.
           rex::thread::MaybeYield();
         } else {
@@ -1258,7 +1214,7 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffer* re
   // Occlusion queries:
   // This command is send on query begin and end.
   // As a workaround report some fixed amount of passed samples.
-  auto fake_sample_count = REXCVAR_GET(query_occlusion_fake_sample_count);
+  auto fake_sample_count = REXCVAR_GET(::rex::graphics::cvars::query_occlusion_fake_sample_count);
   if (fake_sample_count >= 0) {
     auto* pSampleCounts = memory_->TranslatePhysical<xe_gpu_depth_sample_counts*>(
         register_file_->values[XE_GPU_REG_RB_SAMPLE_COUNT_ADDR]);

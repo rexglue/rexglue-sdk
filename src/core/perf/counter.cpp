@@ -14,13 +14,12 @@
 #include <rex/filesystem.h>
 #include <rex/logging.h>
 
+#include "core/cvar_table.h"
+
 #include <array>
 #include <atomic>
 #include <cstdio>
 #include <cstring>
-
-REXCVAR_DEFINE_STRING(perf_log_csv, "", "Perf",
-                      "Path to write per-frame CSV log (empty = disabled)");
 
 namespace rex::perf {
 
