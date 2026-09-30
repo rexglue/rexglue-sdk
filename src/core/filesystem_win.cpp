@@ -24,22 +24,6 @@
 
 namespace rex {
 
-std::string path_to_utf8(const std::filesystem::path& path) {
-  return rex::to_utf8(path.u16string());
-}
-
-std::u16string path_to_utf16(const std::filesystem::path& path) {
-  return path.u16string();
-}
-
-std::filesystem::path to_path(const std::string_view source) {
-  return rex::to_utf16(source);
-}
-
-std::filesystem::path to_path(const std::u16string_view source) {
-  return source;
-}
-
 namespace filesystem {
 
 std::filesystem::path GetExecutablePath() {

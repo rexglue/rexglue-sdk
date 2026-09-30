@@ -21,13 +21,9 @@
 #include <rex/macros.h>
 #include <rex/filesystem/config.h>
 #include <rex/platform.h>
+#include <rex/string/utf8.h>
 
 namespace rex {
-
-REX_API std::string path_to_utf8(const std::filesystem::path& path);
-REX_API std::u16string path_to_utf16(const std::filesystem::path& path);
-REX_API std::filesystem::path to_path(const std::string_view source);
-REX_API std::filesystem::path to_path(const std::u16string_view source);
 
 namespace filesystem {
 

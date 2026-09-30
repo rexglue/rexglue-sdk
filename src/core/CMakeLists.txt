@@ -10,12 +10,18 @@ add_library(rexcore SHARED
     exception_handler.cpp
     filesystem.cpp
     filesystem_wildcard.cpp
+    filesystem/container.cpp
+    filesystem/gdfx.cpp
+    filesystem/stfs.cpp
+    filesystem/svod.cpp
+    filesystem/xcontent.cpp
     hash.cpp
     instance_lock.cpp
     logging.cpp
     memory.cpp
     module_loader.cpp
     mutex.cpp
+    platform/file.cpp
     ring_buffer.cpp
     string_buffer.cpp
     thread_registry.cpp
@@ -49,6 +55,7 @@ if(WIN32)
         memory_win.cpp
         platform/console_win.cpp
         platform/env_win.cpp
+        platform/file_win.cpp
         relaunch_win.cpp
         seh_win.cpp
         socket_win.cpp
@@ -72,6 +79,7 @@ elseif(UNIX)
         memory_posix.cpp
         platform/console_posix.cpp
         platform/env_posix.cpp
+        platform/file_posix.cpp
         relaunch_posix.cpp
         seh_posix.cpp
         socket_posix.cpp

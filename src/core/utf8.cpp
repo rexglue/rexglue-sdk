@@ -11,9 +11,11 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <filesystem>
 #include <locale>
 #include <numeric>
 #include <tuple>
+#include <type_traits>
 
 #include <rex/string/utf8.h>
 
@@ -32,6 +34,44 @@ std::string to_utf8(const std::u16string_view source) {
 
 std::u16string to_utf16(const std::string_view source) {
   return utfcpp::utf8to16(source);
+}
+
+namespace {
+
+constexpr bool kWidePaths = std::is_same_v<std::filesystem::path::value_type, wchar_t>;
+
+}  // namespace
+
+std::string path_to_utf8(const std::filesystem::path& path) {
+  if constexpr (kWidePaths) {
+    return to_utf8(path.u16string());
+  } else {
+    return path.string();
+  }
+}
+
+std::u16string path_to_utf16(const std::filesystem::path& path) {
+  if constexpr (kWidePaths) {
+    return path.u16string();
+  } else {
+    return to_utf16(path.string());
+  }
+}
+
+std::filesystem::path to_path(const std::string_view source) {
+  if constexpr (kWidePaths) {
+    return {to_utf16(source)};
+  } else {
+    return {source};
+  }
+}
+
+std::filesystem::path to_path(const std::u16string_view source) {
+  if constexpr (kWidePaths) {
+    return {source};
+  } else {
+    return {to_utf8(source)};
+  }
 }
 
 namespace {

@@ -13,6 +13,7 @@
 
 #pragma once
 
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -41,6 +42,38 @@ REX_API std::string to_utf8(const std::u16string_view source);
  * @return The UTF-16 text.
  */
 REX_API std::u16string to_utf16(const std::string_view source);
+
+/**
+ * Converts a host path to UTF-8.
+ *
+ * @param path Host path.
+ * @return The path as UTF-8 text.
+ */
+REX_API std::string path_to_utf8(const std::filesystem::path& path);
+
+/**
+ * Converts a host path to UTF-16.
+ *
+ * @param path Host path.
+ * @return The path as UTF-16 text.
+ */
+REX_API std::u16string path_to_utf16(const std::filesystem::path& path);
+
+/**
+ * Builds a host path from UTF-8 text.
+ *
+ * @param source UTF-8 path text.
+ * @return The host path.
+ */
+REX_API std::filesystem::path to_path(const std::string_view source);
+
+/**
+ * Builds a host path from UTF-16 text.
+ *
+ * @param source UTF-16 path text.
+ * @return The host path.
+ */
+REX_API std::filesystem::path to_path(const std::u16string_view source);
 
 /**
  * Counts code points.

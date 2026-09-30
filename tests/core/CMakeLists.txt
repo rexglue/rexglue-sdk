@@ -1,4 +1,8 @@
-add_executable(core_tests core_test.cpp)
+add_executable(core_tests core_test.cpp container_test.cpp)
+
+target_compile_definitions(core_tests PRIVATE
+    REXGLUE_FIXTURE_DIR="${PROJECT_SOURCE_DIR}/tests/fixtures/filesystem"
+)
 
 target_link_libraries(core_tests PRIVATE
     rexcore

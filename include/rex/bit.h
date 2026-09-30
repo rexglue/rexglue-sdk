@@ -1,6 +1,6 @@
 /**
  * @file        bit.h
- * @brief       Atomic free list bitmap and bit range scan and fill helpers
+ * @brief       Atomic free list bitmap, bit range scan and fill helpers, flag enum operators
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -167,6 +168,134 @@ void SetRange(Block* bits, size_t first, size_t length) {
     std::memset(bits + block_first + 1, CHAR_MAX, (block_last - (block_first + 1)) * sizeof(Block));
   }
   bits[block_last] |= set_last;
+}
+
+/**
+ * Opts an enum into the flag operators. Specialize to true next to the enum.
+ *
+ * @tparam E The enum type.
+ *
+ * @code
+ * template <>
+ * inline constexpr bool rex::is_flags_enum<rex::filesystem::MountFlags> = true;
+ * @endcode
+ */
+template <typename E>
+// NOLINTNEXTLINE(readability-identifier-naming): charter 12.1 names the trait
+inline constexpr bool is_flags_enum = false;
+
+/**
+ * An enum that opted into the flag operators through is_flags_enum.
+ *
+ * @tparam E The enum type.
+ */
+template <typename E>
+concept FlagsEnum = std::is_enum_v<E> && is_flags_enum<E>;
+
+/**
+ * Combines 2 flag sets.
+ *
+ * @tparam E The flag enum.
+ * @param lhs The first set.
+ * @param rhs The second set.
+ * @return The bitwise or of both sets.
+ */
+template <FlagsEnum E>
+[[nodiscard]] constexpr E operator|(E lhs, E rhs) {
+  return static_cast<E>(std::to_underlying(lhs) | std::to_underlying(rhs));
+}
+
+/**
+ * Intersects 2 flag sets.
+ *
+ * @tparam E The flag enum.
+ * @param lhs The first set.
+ * @param rhs The second set.
+ * @return The bitwise and of both sets.
+ */
+template <FlagsEnum E>
+[[nodiscard]] constexpr E operator&(E lhs, E rhs) {
+  return static_cast<E>(std::to_underlying(lhs) & std::to_underlying(rhs));
+}
+
+/**
+ * Toggles the flags of 1 set by another.
+ *
+ * @tparam E The flag enum.
+ * @param lhs The first set.
+ * @param rhs The second set.
+ * @return The bitwise exclusive or of both sets.
+ */
+template <FlagsEnum E>
+[[nodiscard]] constexpr E operator^(E lhs, E rhs) {
+  return static_cast<E>(std::to_underlying(lhs) ^ std::to_underlying(rhs));
+}
+
+/**
+ * Inverts a flag set.
+ *
+ * @tparam E The flag enum.
+ * @param value The set.
+ * @return The bitwise complement of the set.
+ */
+template <FlagsEnum E>
+[[nodiscard]] constexpr E operator~(E value) {
+  return static_cast<E>(~std::to_underlying(value));
+}
+
+/**
+ * Adds flags to a set in place.
+ *
+ * @tparam E The flag enum.
+ * @param lhs The set to change.
+ * @param rhs The flags to add.
+ * @return lhs.
+ */
+template <FlagsEnum E>
+constexpr E& operator|=(E& lhs, E rhs) {
+  lhs = lhs | rhs;
+  return lhs;
+}
+
+/**
+ * Keeps only the flags of a set that another set holds, in place.
+ *
+ * @tparam E The flag enum.
+ * @param lhs The set to change.
+ * @param rhs The flags to keep.
+ * @return lhs.
+ */
+template <FlagsEnum E>
+constexpr E& operator&=(E& lhs, E rhs) {
+  lhs = lhs & rhs;
+  return lhs;
+}
+
+/**
+ * Toggles flags of a set in place.
+ *
+ * @tparam E The flag enum.
+ * @param lhs The set to change.
+ * @param rhs The flags to toggle.
+ * @return lhs.
+ */
+template <FlagsEnum E>
+constexpr E& operator^=(E& lhs, E rhs) {
+  lhs = lhs ^ rhs;
+  return lhs;
+}
+
+/**
+ * Tests whether a set holds every flag of another set.
+ *
+ * @tparam E The flag enum.
+ * @param value The set to test.
+ * @param flags The flags that must be present.
+ * @return True when every flag of flags is set in value.
+ */
+template <FlagsEnum E>
+[[nodiscard]] constexpr bool HasFlags(E value, E flags) {
+  return (value & flags) == flags;
 }
 
 }  // namespace rex
