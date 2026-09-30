@@ -25,6 +25,7 @@
 #include <type_traits>
 #include <vector>
 
+#include <rex/macros.h>
 #include <rex/cvar/registry.h>
 #include <rex/result.h>
 #include <rex/types.h>
@@ -494,7 +495,7 @@ inline bool IsSet(const IVar& var) {
  *
  * @param config The configuration to fill.
  */
-void ApplyEnvironment(rex::Config& config);
+REX_API void ApplyEnvironment(rex::Config& config);
 
 namespace detail {
 
@@ -694,7 +695,7 @@ struct CvarConfig {
  * @param description Shown by the console and the settings overlay.
  *
  * @code
- * REXCVAR_INT64(kernel, seed, 0, "Random seed");
+ * REXCVAR_INT64(kernel, start_value, 0, "Start value");
  * @endcode
  */
 #define REXCVAR_INT64(scope, name, default_value, description) \

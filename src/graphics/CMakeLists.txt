@@ -131,9 +131,6 @@ if(REXGPU_XENOS_DXBC_THIRDPARTY_SOURCES)
         PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
 endif()
 
-# Everything PRIVATE: the plugin has no consumers. Never link the OBJECT
-# libraries (rexcore/rexui) here; rexruntime already contains those objects
-# and relinking them would duplicate global state.
 target_link_libraries(rexgpu-xenos PRIVATE
     rexruntime
     xxHash::xxhash

@@ -16,25 +16,27 @@
 #include <string>
 #include <vector>
 
+#include <rex/macros.h>
 #include <rex/string.h>
 
 namespace rex {
 namespace filesystem {
 
-class WildcardFlags {
+class REX_API WildcardFlags {
  public:
   bool FromStart : 1, ToEnd : 1, ExactLength : 1;
 
-  WildcardFlags();
-  WildcardFlags(bool start, bool end, bool exact_length);
+  constexpr WildcardFlags() noexcept : FromStart(false), ToEnd(false), ExactLength(false) {}
+  constexpr WildcardFlags(bool start, bool end, bool exact_length) noexcept
+      : FromStart(start), ToEnd(end), ExactLength(exact_length) {}
 
-  static WildcardFlags FIRST;
-  static WildcardFlags LAST;
-  static WildcardFlags ANY;
-  static WildcardFlags FIRST_AND_LAST;
+  static const WildcardFlags FIRST;
+  static const WildcardFlags LAST;
+  static const WildcardFlags ANY;
+  static const WildcardFlags FIRST_AND_LAST;
 };
 
-class WildcardRule {
+class REX_API WildcardRule {
  public:
   WildcardRule(const std::string_view match, const WildcardFlags& flags);
   bool Check(const std::string_view lower, std::string_view::size_type* offset) const;
@@ -44,7 +46,7 @@ class WildcardRule {
   WildcardFlags rules_;
 };
 
-class WildcardEngine {
+class REX_API WildcardEngine {
  public:
   void SetRule(const std::string_view pattern);
 

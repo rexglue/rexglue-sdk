@@ -1,12 +1,14 @@
 /**
- ******************************************************************************
- * Xenia : Xbox 360 Emulator Research Project                                 *
- ******************************************************************************
- * Copyright 2022 Ben Vanik. All rights reserved.                             *
- * Released under the BSD license - see LICENSE in the root for more details. *
- ******************************************************************************
+ * @file        chrono/chrono_steady_cast.h
+ * @brief       clock_cast between WinSystemClock and std::chrono::steady_clock
  *
- * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ *
+ * @remarks     Derived from Xenia's xenia/base/chrono_steady_cast.h (Ben Vanik, 2022).
  */
 
 #pragma once
@@ -15,33 +17,28 @@
 
 #include <rex/chrono/chrono.h>
 
-// This is in a separate header because casting to and from steady time points
-// usually doesn't make sense and is imprecise. However, NT uses the FileTime
-// epoch as a steady clock in waits. In such cases, include this header and use
-// clock_cast<>().
-
 namespace std::chrono {
 
-// This conveniently works only for Host time domain because Guest needs
-// additional scaling. Convert XSystemClock to WinSystemClock first if
-// necessary.
+/**
+ * Converts steady_clock time to WinSystemClock time. steady_clock has no fixed epoch, so the
+ * conversion samples both clocks and carries the offset, which adds a small error. It covers host
+ * time only. Convert XSystemClock time to WinSystemClock first.
+ */
 template <>
 struct clock_time_conversion<::rex::WinSystemClock, std::chrono::steady_clock> {
-  // using NtSystemClock_ = ::rex::internal::NtSystemClock<domain_>;
+  /** Destination clock. */
   using WinSystemClock_ = ::rex::WinSystemClock;
+  /** Source clock. */
   using steady_clock_ = std::chrono::steady_clock;
 
+  /**
+   * @tparam Duration The duration of the source time point.
+   * @param t The steady_clock time point.
+   * @return The same instant on WinSystemClock.
+   */
   template <typename Duration>
   typename WinSystemClock_::time_point operator()(
       const std::chrono::time_point<steady_clock_, Duration>& t) const {
-    // Since there is no known epoch for steady_clock and even if, since it can
-    // progress differently than other common clocks (e.g. stopping when the
-    // computer is suspended), we need to use now() which introduces
-    // imprecision.
-    // Memory fences to keep the clock fetches close together to
-    // minimize drift. This pattern was benchmarked to give the lowest
-    // conversion error: error = sty_tpoint -
-    // clock_cast<sty>(clock_cast<nt>(sty_tpoint));
     std::atomic_thread_fence(std::memory_order_acq_rel);
     auto steady_now = steady_clock_::now();
     auto nt_now = WinSystemClock_::now();
@@ -52,11 +49,22 @@ struct clock_time_conversion<::rex::WinSystemClock, std::chrono::steady_clock> {
   }
 };
 
+/**
+ * Converts WinSystemClock time to steady_clock time by sampling both clocks and carrying the
+ * offset. NT waits use the FILETIME epoch as a steady clock, which this conversion serves.
+ */
 template <>
 struct clock_time_conversion<std::chrono::steady_clock, ::rex::WinSystemClock> {
+  /** Source clock. */
   using WinSystemClock_ = ::rex::WinSystemClock;
+  /** Destination clock. */
   using steady_clock_ = std::chrono::steady_clock;
 
+  /**
+   * @tparam Duration The duration of the source time point.
+   * @param t The WinSystemClock time point.
+   * @return The same instant on steady_clock.
+   */
   template <typename Duration>
   steady_clock_::time_point operator()(
       const std::chrono::time_point<WinSystemClock_, Duration>& t) const {

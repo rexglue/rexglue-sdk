@@ -20,7 +20,7 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 
 namespace rex {
 
-uint64_t Clock::host_tick_frequency_platform() {
+uint64_t Clock::host_tick_frequency_platform() noexcept {
 #ifdef __APPLE__
   mach_timebase_info_data_t info;
   mach_timebase_info(&info);
@@ -52,7 +52,7 @@ uint64_t Clock::host_tick_count_platform() {
 #endif
 }
 
-uint64_t Clock::QueryHostSystemTime() {
+uint64_t Clock::QueryHostSystemTime() noexcept {
   // https://docs.microsoft.com/en-us/windows/win32/sysinfo/converting-a-time-t-value-to-a-file-time
   constexpr uint64_t seconds_per_day = 3600 * 24;
   // Don't forget the 89 leap days.

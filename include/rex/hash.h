@@ -1,12 +1,14 @@
 /**
- ******************************************************************************
- * Xenia : Xbox 360 Emulator Research Project                                 *
- ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
- * Released under the BSD license - see LICENSE in the root for more details. *
- ******************************************************************************
+ * @file        hash.h
+ * @brief       XXH3 hashers for unordered containers and hex digest helpers
  *
- * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ *
+ * @remarks     Derived from Xenia's xenia/base/hash.h (Ben Vanik, 2020).
  */
 
 #pragma once
@@ -16,41 +18,61 @@
 #include <string>
 #include <string_view>
 
-// Enable inline implementations and advanced API (XXH3)
+#include <rex/macros.h>
+
 #ifndef XXH_INLINE_ALL
 #define XXH_INLINE_ALL
 #endif
-
-// Can't use XXH_X86DISPATCH because XXH is calculated on multiple threads,
-// while the dispatch writes the result (multiple pointers without any
-// synchronization) to XXH_g_dispatch at the first call.
 
 #include <xxhash.h>
 
 namespace rex {
 
-// For use in unordered_sets and unordered_maps (primarily multisets and
-// multimaps, with manual collision resolution), where the hash is calculated
-// externally (for instance, as XXH3), possibly requiring context data rather
-// than a pure function to calculate the hash
+/**
+ * Hasher that returns a key already hashed elsewhere, for containers with external hashing.
+ *
+ * @tparam Key Key type convertible to size_t.
+ */
 template <typename Key>
 struct IdentityHasher {
+  /**
+   * @param key The precomputed hash.
+   * @return key cast to size_t.
+   */
   size_t operator()(const Key& key) const { return static_cast<size_t>(key); }
 };
 
+/**
+ * Hasher that runs XXH3 over the object representation of the key.
+ *
+ * @tparam Key Trivially copyable key type.
+ */
 template <typename Key>
 struct XXHasher {
+  /**
+   * @param key The key to hash.
+   * @return The 64 bit XXH3 hash of the bytes of key.
+   */
   size_t operator()(const Key& key) const {
     return static_cast<size_t>(XXH3_64bits(&key, sizeof(key)));
   }
 };
 
-/// 128-bit XXH3 digest as a 32-character lowercase hex string. For fingerprints
-/// and cache keys, not for anything security bearing.
-std::string hash_bytes(std::string_view data);
+/**
+ * 128 bit XXH3 digest for fingerprints and cache keys, not for security use.
+ *
+ * @param data The bytes to hash.
+ * @return The digest as a 32 character lowercase hex string.
+ */
+REX_API std::string hash_bytes(std::string_view data);
 
-/// Same digest over a file's contents, streamed in chunks. Empty string when
-/// the file cannot be opened.
-std::string hash_file(const std::filesystem::path& path);
+/**
+ * 128 bit XXH3 digest over the contents of a file, read in chunks.
+ *
+ * @param path The file to hash.
+ * @return The digest as a 32 character lowercase hex string, or an empty string when the file
+ *         cannot be opened or read.
+ */
+REX_API std::string hash_file(const std::filesystem::path& path);
 
 }  // namespace rex

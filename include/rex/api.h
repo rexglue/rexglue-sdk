@@ -17,6 +17,7 @@
 #include <string_view>
 #include <vector>
 
+#include <rex/macros.h>
 #include <rex/cli_arg_list.h>
 #include <rex/cvar.h>
 #include <rex/filesystem/config.h>
@@ -66,7 +67,7 @@ struct Config {
 /**
  * Handle to the initialized SDK. Owned by the loader, valid between Init and Shutdown.
  */
-class API {
+class REX_API API {
  public:
   /**
    * Fetches an interface a loaded module or core serves.
@@ -112,13 +113,13 @@ class API {
  * @param config The consumer's configuration. Copied and kept until Shutdown.
  * @return The API handle, or an error naming the module, cvar or field and the reason.
  */
-Result<API*> Init(const Config& config);
+REX_API Result<API*> Init(const Config& config);
 
 /**
  * Shuts modules down in reverse order, disconnects them, unregisters every cvar table, unloads
  * the modules. Cannot fail.
  */
-void Shutdown();
+REX_API void Shutdown();
 
 /**
  * Applies command line options to a configuration. Options with a structural field (such as
@@ -129,7 +130,7 @@ void Shutdown();
  * @param args The parsed command line.
  * @return The options it did not recognize, as --name or --name=value, in order.
  */
-std::vector<std::string> ParseCommandLine(Config& config, const CLIArgList& args);
+REX_API std::vector<std::string> ParseCommandLine(Config& config, const CLIArgList& args);
 
 /**
  * Parses a TOML file into config.cvars.values with source Config. A [scope] table with leaf keys
@@ -139,7 +140,7 @@ std::vector<std::string> ParseCommandLine(Config& config, const CLIArgList& args
  * @param path The TOML file.
  * @return Ok, or a Config error with the parse message and the path.
  */
-Result<void> LoadConfigFile(Config& config, const std::filesystem::path& path);
+REX_API Result<void> LoadConfigFile(Config& config, const std::filesystem::path& path);
 
 /**
  * Writes the registry's non default values as TOML, 1 [scope] table per scope.
@@ -148,6 +149,7 @@ Result<void> LoadConfigFile(Config& config, const std::filesystem::path& path);
  * @param path The TOML file to write.
  * @return Ok, or a Config error with the OS message and the path.
  */
-Result<void> SaveConfigFile(const cvar::ICvarRegistry& registry, const std::filesystem::path& path);
+REX_API Result<void> SaveConfigFile(const cvar::ICvarRegistry& registry,
+                                    const std::filesystem::path& path);
 
 }  // namespace rex

@@ -1,6 +1,6 @@
 /**
- * @file        rex/platform/console.h
- * @brief       Platform-agnostic terminal capability queries.
+ * @file        platform/console.h
+ * @brief       Terminal capability queries
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -12,19 +12,28 @@
 
 #include <cstdio>
 
+#include <rex/macros.h>
+
 namespace rex::platform {
 
-// Returns true if the stream is attached to a terminal. False for nullptr or
-// any non-terminal stream (pipes, files, redirected output).
-bool IsTerminal(FILE* stream);
+/**
+ * Tests whether a stream is attached to a terminal.
+ *
+ * @param stream Stream to test, may be null.
+ * @return True for a terminal. False for null, pipes, files and redirected output.
+ */
+REX_API bool IsTerminal(FILE* stream);
 
-// Enables ANSI escape sequence interpretation on the stream. No-op on POSIX.
-// Returns true if escapes are interpreted on return (including the case where
-// they already were); false only when the Windows console probe fails.
-bool EnableANSIEscapes(FILE* stream);
+/**
+ * Turns on ANSI escape sequence handling for a stream. Does nothing on POSIX.
+ *
+ * @param stream Stream to configure, may be null.
+ * @return True when escapes are handled on return, already on included. False for null or
+ *         when the Windows console mode query or update fails.
+ */
+REX_API bool EnableANSIEscapes(FILE* stream);
 
-// Switches the process console output to UTF-8. Process-wide on Windows; no
-// per-stream component, hence the no-arg signature. No-op on POSIX.
-void SetUTF8OutputCodePage();
+/** Switches the process console output code page to UTF-8. Does nothing on POSIX. */
+REX_API void SetUTF8OutputCodePage();
 
 }  // namespace rex::platform

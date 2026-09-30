@@ -26,7 +26,7 @@ BitMap::BitMap(uint64_t* data, size_t size_bits) {
   assert_true(size_bits % kDataSizeBits == 0);
 
   data_.resize(size_bits / kDataSizeBits);
-  std::memcpy(data_.data(), data, size_bits / kDataSizeBits);
+  std::memcpy(data_.data(), data, data_.size() * sizeof(uint64_t));
 }
 
 size_t BitMap::Acquire() {

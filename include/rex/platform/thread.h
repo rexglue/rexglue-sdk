@@ -1,12 +1,14 @@
 /**
- ******************************************************************************
- * Xenia : Xbox 360 Emulator Research Project                                 *
- ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
- * Released under the BSD license - see LICENSE in the root for more details. *
- ******************************************************************************
+ * @file        platform/thread.h
+ * @brief       Host threads, wait handles and synchronization primitives
  *
- * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ *
+ * @remarks     Derived from Xenia's xenia/base/threading.h (Ben Vanik, 2020).
  */
 
 #pragma once
@@ -27,6 +29,7 @@
 #include <utility>
 #include <vector>
 
+#include <rex/macros.h>
 #include <rex/assert.h>
 #include <rex/chrono/chrono.h>
 #include <rex/literals.h>
@@ -37,40 +40,39 @@
 namespace rex::platform {
 
 #if REX_PLATFORM_ANDROID
-void AndroidInitialize();
-void AndroidShutdown();
+/** Loads the libc symbols thread naming needs on Android API 26 and later. */
+REX_API void AndroidInitialize();
+/** Releases what AndroidInitialize loaded. */
+REX_API void AndroidShutdown();
 #endif
 
-// This is more like an Event with self-reset when returning from Wait()
+/** Event that clears its own signal once the last waiter returns from Wait. */
 class Fence {
  public:
-  Fence() : signal_state_(0) {}
+  /** Creates an unsignaled fence. */
+  Fence() : signal_state_{0} {}
 
+  /** Signals the fence and wakes every waiter. */
   void Signal() {
     std::unique_lock<std::mutex> lock(mutex_);
     signal_state_.store(signal_state_.load() | SIGMASK_, std::memory_order_release);
     cond_.notify_all();
   }
 
-  // Wait for the Fence to be signaled. Clears the signal on return.
+  /** Blocks until the fence is signaled. The last waiter to return clears the signal. */
   void Wait() {
     std::unique_lock<std::mutex> lock(mutex_);
     assert_true((signal_state_.load() & ~SIGMASK_) < (SIGMASK_ - 1) && "Too many threads?");
 
-    // keep local copy to minimize loads
     auto signal_state = signal_state_.fetch_add(1) + 1;
     for (; !(signal_state & SIGMASK_); signal_state = signal_state_.load()) {
       cond_.wait(lock);
     }
 
-    // We can't just clear the signal as other threads may not have read it yet
-    assert_true((signal_state & ~SIGMASK_) > 0);  // wait_count > 0
-    if (signal_state == (1 | SIGMASK_)) {         // wait_count == 1
-      // Last one out turn off the lights
+    assert_true((signal_state & ~SIGMASK_) > 0);
+    if (signal_state == (1 | SIGMASK_)) {
       signal_state_.store(0, std::memory_order_release);
     } else {
-      // Oops, another thread is still waiting, set the new count and keep the
-      // signal.
       signal_state_.store(--signal_state, std::memory_order_release);
     }
   }
@@ -81,72 +83,153 @@ class Fence {
 
   std::mutex mutex_;
   std::condition_variable cond_;
-  // Use the highest bit (sign bit) as the signal flag and the rest to count
-  // waiting threads.
   std::atomic<state_t_> signal_state_;
 };
 
-// Returns the total number of logical processors in the host system.
-uint32_t logical_processor_count();
+/**
+ * Counts the logical processors of the host.
+ *
+ * @return Logical processor count.
+ */
+REX_API u32 logical_processor_count();
 
-// Enables the current process to set thread affinity.
-// Must be called at startup before attempting to set thread affinity.
-void EnableAffinityConfiguration();
+/**
+ * Widens the process affinity to every processor so threads can pin to any of them. Call at
+ * startup before setting thread affinity. Does nothing on POSIX.
+ */
+REX_API void EnableAffinityConfiguration();
 
-// Gets a stable thread-specific ID, but may not be. Use for informative
-// purposes only.
-uint32_t current_thread_system_id();
+/**
+ * Returns the OS thread ID of the calling thread. For logs and diagnostics only.
+ *
+ * @return OS thread ID.
+ */
+REX_API u32 current_thread_system_id();
 
-// Gets a stable thread-specific ID that defaults to the same value as
-// current_thread_system_id but may be overridden.
-// Guest threads often change this to the guest thread handle.
-uint32_t current_thread_id();
-void set_current_thread_id(uint32_t id);
+/**
+ * Returns the ID of the calling thread. Equals current_thread_system_id() until
+ * set_current_thread_id overrides it. guest threads set it to their guest thread handle.
+ *
+ * @return Thread ID.
+ */
+REX_API u32 current_thread_id();
 
-// Sets the current thread name.
-void set_current_thread_name(const std::string_view name);
+/**
+ * Overrides the ID current_thread_id returns on the calling thread.
+ *
+ * @param id New thread ID.
+ */
+REX_API void set_current_thread_id(u32 id);
 
-// Yields the current thread to the scheduler. Maybe.
-void MaybeYield();
+/**
+ * Names the calling thread for debuggers and OS tools.
+ *
+ * @param name Thread name, UTF-8.
+ */
+REX_API void set_current_thread_name(const std::string_view name);
 
-// Memory barrier (request - may be ignored).
-void SyncMemory();
+/** Yields the calling thread to the scheduler and issues a full memory barrier. */
+REX_API void MaybeYield();
 
-// Sleeps the current thread for at least as long as the given duration.
-void Sleep(std::chrono::microseconds duration);
+/** Issues a full memory barrier. */
+REX_API void SyncMemory();
+
+/**
+ * Sleeps the calling thread for at least the duration. On Windows a duration under 100
+ * microseconds yields instead.
+ *
+ * @param duration Sleep time.
+ */
+REX_API void Sleep(std::chrono::microseconds duration);
+
+/**
+ * Sleeps the calling thread for at least the duration.
+ *
+ * @tparam Rep Duration count type.
+ * @tparam Period Duration tick period.
+ * @param duration Sleep time.
+ */
 template <typename Rep, typename Period>
 void Sleep(std::chrono::duration<Rep, Period> duration) {
   Sleep(std::chrono::duration_cast<std::chrono::microseconds>(duration));
 }
 
+/** Outcome of AlertableSleep. */
 enum class SleepResult {
-  kSuccess,
-  kAlerted,
+  kSuccess, /**< The full duration elapsed. */
+  kAlerted, /**< A user callback ran and ended the sleep early. */
 };
-// Sleeps the current thread for at least as long as the given duration.
-// The thread is put in an alertable state and may wake to dispatch user
-// callbacks. If this happens the sleep returns early with
-// SleepResult::kAlerted.
-SleepResult AlertableSleep(std::chrono::microseconds duration);
+
+/**
+ * Sleeps the calling thread in an alertable state. Queued user callbacks run during the sleep
+ * and end it early.
+ *
+ * @param duration Sleep time.
+ * @return kAlerted when a user callback ran, kSuccess otherwise.
+ */
+REX_API SleepResult AlertableSleep(std::chrono::microseconds duration);
+
+/**
+ * Sleeps the calling thread in an alertable state.
+ *
+ * @tparam Rep Duration count type.
+ * @tparam Period Duration tick period.
+ * @param duration Sleep time.
+ * @return kAlerted when a user callback ran, kSuccess otherwise.
+ */
 template <typename Rep, typename Period>
 SleepResult AlertableSleep(std::chrono::duration<Rep, Period> duration) {
   return AlertableSleep(std::chrono::duration_cast<std::chrono::microseconds>(duration));
 }
 
-typedef uint32_t TLSHandle;
+/** Host thread local storage slot. */
+using TLSHandle = u32;
+/** TLSHandle value that names no slot. */
 constexpr TLSHandle kInvalidTLSHandle = UINT_MAX;
 
-TLSHandle AllocateTLSHandle();
-bool FreeTLSHandle(TLSHandle handle);
-uintptr_t GetTLSValue(TLSHandle handle);
-bool SetTLSValue(TLSHandle handle, uintptr_t value);
+/**
+ * Allocates a thread local storage slot.
+ *
+ * @return The new slot.
+ */
+REX_API TLSHandle AllocateTLSHandle();
 
-// A high-resolution timer capable of firing at millisecond-precision. All
-// timers created in this way are executed in the same thread so callbacks must
-// be kept short or else all timers will be impacted. This is a simplified
-// wrapper around QueueTimerRecurring which automatically cancels the timer on
-// destruction.
+/**
+ * Frees a thread local storage slot.
+ *
+ * @param handle Slot to free.
+ * @return True on success.
+ */
+REX_API bool FreeTLSHandle(TLSHandle handle);
+
+/**
+ * Reads the value the calling thread holds in a slot.
+ *
+ * @param handle Slot to read.
+ * @return Stored value, 0 when never set.
+ */
+REX_API uintptr_t GetTLSValue(TLSHandle handle);
+
+/**
+ * Writes the value the calling thread holds in a slot.
+ *
+ * @param handle Slot to write.
+ * @param value Value to store.
+ * @return True on success.
+ */
+REX_API bool SetTLSValue(TLSHandle handle, uintptr_t value);
+
+/**
+ * Repeating millisecond timer on the shared timer queue thread. Callbacks of every timer run
+ * on that thread, so keep them short. Destruction cancels the timer.
+ */
 class HighResolutionTimer {
+  /**
+   * Starts the timer.
+   *
+   * @param interval Period.
+   * @param callback Function called each period.
+   */
   HighResolutionTimer(std::chrono::milliseconds interval, std::function<void()> callback) {
     assert_not_null(callback);
     wait_item_ = QueueTimerRecurring([callback = std::move(callback)](void*) { callback(); },
@@ -160,9 +243,13 @@ class HighResolutionTimer {
     }
   }
 
-  // Creates a new repeating timer with the given period.
-  // The given function will be called back as close to the given period as
-  // possible.
+  /**
+   * Creates a repeating timer.
+   *
+   * @param period Period.
+   * @param callback Function called as close to each period as possible.
+   * @return The running timer.
+   */
   static std::unique_ptr<HighResolutionTimer> CreateRepeating(std::chrono::milliseconds period,
                                                               std::function<void()> callback) {
     return std::unique_ptr<HighResolutionTimer>(
@@ -173,289 +260,430 @@ class HighResolutionTimer {
   std::weak_ptr<TimerQueueWaitItem> wait_item_;
 };
 
-// Results for a WaitHandle operation.
+/** Result of a wait operation. */
 enum class WaitResult {
-  // The state of the specified object is signaled.
-  // In a WaitAny the tuple will contain the index of the wait handle that
-  // caused the wait to be satisfied.
-  kSuccess,
-  // The wait was ended by one or more user-mode callbacks queued to the thread.
-  // This will occur when is_alertable is set true.
-  kUserCallback,
-  // The time-out interval elapsed, and the object's state is nonsignaled.
-  kTimeout,
-  // The specified object is a mutex object that was not released by the thread
-  // that owned the mutex object before the owning thread terminated. Ownership
-  // of the mutex object is granted to the calling thread and the mutex is set
-  // to nonsignaled.
-  // In a WaitAny the tuple will contain the index of the wait handle that
-  // caused the wait to be abandoned.
-  kAbandoned,
-  // The function has failed.
-  kFailed,
+  kSuccess,      /**< The object is signaled. WaitAny also reports its index. */
+  kUserCallback, /**< A user callback queued to the thread ended an alertable wait. */
+  kTimeout,      /**< The timeout elapsed and the object is not signaled. */
+  kAbandoned,    /**< A mutant owner exited without a release. The caller owns it now. */
+  kFailed,       /**< The wait failed. */
 };
 
+/** Base of every object a thread can wait on. */
 class WaitHandle {
  public:
   virtual ~WaitHandle() = default;
 
-  // Returns the native handle of the object on the host system.
-  // This value is platform specific.
+  /**
+   * Returns the native OS object.
+   *
+   * @return Platform specific handle.
+   */
   virtual void* native_handle() const = 0;
 
  protected:
   WaitHandle() = default;
 };
 
-// Waits until the wait handle is in the signaled state, an alert triggers and
-// a user callback is queued to the thread, or the timeout interval elapses.
-// If timeout is zero the call will return immediately instead of waiting and
-// if the timeout is max() the wait will not time out.
-WaitResult Wait(WaitHandle* wait_handle, bool is_alertable,
-                std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+/**
+ * Waits until the handle is signaled, a user callback runs during an alertable wait, or the
+ * timeout elapses. A timeout of 0 polls and max() waits forever.
+ *
+ * @param wait_handle Object to wait on.
+ * @param is_alertable True to let queued user callbacks run and end the wait.
+ * @param timeout Maximum wait.
+ * @return Why the wait ended.
+ */
+REX_API WaitResult Wait(WaitHandle* wait_handle, bool is_alertable,
+                        std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
 
-// Signals one object and waits on another object as a single operation.
-// Waits until the wait handle is in the signaled state, an alert triggers and
-// a user callback is queued to the thread, or the timeout interval elapses.
-// If timeout is zero the call will return immediately instead of waiting and
-// if the timeout is max() the wait will not time out.
-WaitResult SignalAndWait(WaitHandle* wait_handle_to_signal, WaitHandle* wait_handle_to_wait_on,
-                         bool is_alertable,
-                         std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+/**
+ * Signals 1 object and waits on another as a single operation. A timeout of 0 polls and max()
+ * waits forever.
+ *
+ * @param wait_handle_to_signal Object to signal.
+ * @param wait_handle_to_wait_on Object to wait on.
+ * @param is_alertable True to let queued user callbacks run and end the wait.
+ * @param timeout Maximum wait.
+ * @return Why the wait ended.
+ */
+REX_API WaitResult SignalAndWait(
+    WaitHandle* wait_handle_to_signal, WaitHandle* wait_handle_to_wait_on, bool is_alertable,
+    std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
 
-std::pair<WaitResult, size_t> WaitMultiple(
+/**
+ * Waits on several objects. A timeout of 0 polls and max() waits forever.
+ *
+ * @param wait_handles Objects to wait on.
+ * @param wait_handle_count Number of objects.
+ * @param wait_all True to wait for every object, false for any.
+ * @param is_alertable True to let queued user callbacks run and end the wait.
+ * @param timeout Maximum wait.
+ * @return Why the wait ended and, for kSuccess or kAbandoned, the index of the object.
+ */
+REX_API std::pair<WaitResult, size_t> WaitMultiple(
     WaitHandle* wait_handles[], size_t wait_handle_count, bool wait_all, bool is_alertable,
     std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
 
-// Waits until all of the specified objects are in the signaled state, a
-// user callback is queued to the thread, or the time-out interval elapses.
-// If timeout is zero the call will return immediately instead of waiting and
-// if the timeout is max() the wait will not time out.
+/**
+ * Waits until every object is signaled, a user callback runs during an alertable wait, or the
+ * timeout elapses. A timeout of 0 polls and max() waits forever.
+ *
+ * @param wait_handles Objects to wait on.
+ * @param wait_handle_count Number of objects.
+ * @param is_alertable True to let queued user callbacks run and end the wait.
+ * @param timeout Maximum wait.
+ * @return Why the wait ended.
+ */
 inline WaitResult WaitAll(WaitHandle* wait_handles[], size_t wait_handle_count, bool is_alertable,
                           std::chrono::milliseconds timeout = std::chrono::milliseconds::max()) {
   return WaitMultiple(wait_handles, wait_handle_count, true, is_alertable, timeout).first;
 }
+/**
+ * Waits until every object is signaled, a user callback runs during an alertable wait, or the
+ * timeout elapses.
+ *
+ * @param wait_handles Objects to wait on.
+ * @param is_alertable True to let queued user callbacks run and end the wait.
+ * @param timeout Maximum wait.
+ * @return Why the wait ended.
+ */
 inline WaitResult WaitAll(std::vector<WaitHandle*> wait_handles, bool is_alertable,
                           std::chrono::milliseconds timeout = std::chrono::milliseconds::max()) {
   return WaitAll(wait_handles.data(), wait_handles.size(), is_alertable, timeout);
 }
 
-// Waits until any of the specified objects are in the signaled state, a
-// user callback is queued to the thread, or the time-out interval elapses.
-// If timeout is zero the call will return immediately instead of waiting and
-// if the timeout is max() the wait will not time out.
-// The second argument of the return tuple indicates which wait handle caused
-// the wait to be satisfied or abandoned.
+/**
+ * Waits until any object is signaled, a user callback runs during an alertable wait, or the
+ * timeout elapses. A timeout of 0 polls and max() waits forever.
+ *
+ * @param wait_handles Objects to wait on.
+ * @param wait_handle_count Number of objects.
+ * @param is_alertable True to let queued user callbacks run and end the wait.
+ * @param timeout Maximum wait.
+ * @return Why the wait ended and the index of the object that satisfied or abandoned it.
+ */
 inline std::pair<WaitResult, size_t> WaitAny(
     WaitHandle* wait_handles[], size_t wait_handle_count, bool is_alertable,
     std::chrono::milliseconds timeout = std::chrono::milliseconds::max()) {
   return WaitMultiple(wait_handles, wait_handle_count, false, is_alertable, timeout);
 }
+/**
+ * Waits until any object is signaled, a user callback runs during an alertable wait, or the
+ * timeout elapses.
+ *
+ * @param wait_handles Objects to wait on.
+ * @param is_alertable True to let queued user callbacks run and end the wait.
+ * @param timeout Maximum wait.
+ * @return Why the wait ended and the index of the object that satisfied or abandoned it.
+ */
 inline std::pair<WaitResult, size_t> WaitAny(
     std::vector<WaitHandle*> wait_handles, bool is_alertable,
     std::chrono::milliseconds timeout = std::chrono::milliseconds::max()) {
   return WaitAny(wait_handles.data(), wait_handles.size(), is_alertable, timeout);
 }
 
-// Models a Win32-like event object.
-// https://msdn.microsoft.com/en-us/library/windows/desktop/ms682396(v=vs.85).aspx
-class Event : public WaitHandle {
+/** Event object modeled on the Win32 event. */
+class REX_API Event : public WaitHandle {
  public:
-  // Creates a manual-reset event object, which requires the use of the
-  // Reset() function to set the event state to nonsignaled.
-  // If initial_state is true the event will start in the signaled state.
+  /**
+   * Creates an event that stays signaled until Reset.
+   *
+   * @param initial_state True to start signaled.
+   * @return The event, or null on failure.
+   */
   static std::unique_ptr<Event> CreateManualResetEvent(bool initial_state);
 
-  // Creates an auto-reset event object, and system automatically resets the
-  // event state to nonsignaled after a single waiting thread has been released.
-  // If initial_state is true the event will start in the signaled state.
+  /**
+   * Creates an event that resets after it releases 1 waiter.
+   *
+   * @param initial_state True to start signaled.
+   * @return The event, or null on failure.
+   */
   static std::unique_ptr<Event> CreateAutoResetEvent(bool initial_state);
 
-  // Sets the specified event object to the signaled state.
-  // If this is a manual reset event the event stays signaled until Reset() is
-  // called. If this is an auto reset event until exactly one wait is satisfied.
+  /**
+   * Signals the event. A manual reset event stays signaled until Reset. An auto reset event
+   * stays signaled until 1 wait is satisfied.
+   */
   virtual void Set() = 0;
 
-  // Sets the specified event object to the nonsignaled state.
-  // Resetting an event that is already reset has no effect.
+  /** Clears the signal. No effect when already clear. */
   virtual void Reset() = 0;
 
-  // Sets the specified event object to the signaled state and then resets it to
-  // the nonsignaled state after releasing the appropriate number of waiting
-  // threads.
+  /** Signals the event, releases the waiters it can, then clears the signal. */
   virtual void Pulse() = 0;
 };
 
-// Models a Win32-like semaphore object.
-// https://msdn.microsoft.com/en-us/library/windows/desktop/ms682438(v=vs.85).aspx
-class Semaphore : public WaitHandle {
+/** Semaphore object modeled on the Win32 semaphore. */
+class REX_API Semaphore : public WaitHandle {
  public:
-  // Creates a new semaphore object.
-  // The initial_count must be greater than or equal to zero and less than or
-  // equal to maximum_count. The state of a semaphore is signaled when its count
-  // is greater than zero and nonsignaled when it is zero. The count is
-  // decreased by one whenever a wait function releases a thread that was
-  // waiting for the semaphore. The count is increased  by a specified amount by
-  // calling the Release() function.
+  /**
+   * Creates a semaphore. It is signaled while its count is above 0. Each released waiter
+   * lowers the count by 1.
+   *
+   * @param initial_count Starting count, from 0 to maximum_count.
+   * @param maximum_count Highest count allowed.
+   * @return The semaphore, or null on failure.
+   */
   static std::unique_ptr<Semaphore> Create(int initial_count, int maximum_count);
 
-  // Increases the count of the specified semaphore object by a specified
-  // amount.
-  // release_count must be greater than zero.
-  // Returns false if adding release_count would set the semaphore over the
-  // initially specified maximum_count.
+  /**
+   * Raises the count.
+   *
+   * @param release_count Amount to add, above 0.
+   * @param out_previous_count Receives the count before the call, may be null.
+   * @return False when the new count would pass maximum_count.
+   */
   virtual bool Release(int release_count, int* out_previous_count) = 0;
 };
 
-// Models a Win32-like mutant (mutex) object.
-// https://msdn.microsoft.com/en-us/library/windows/desktop/ms682411(v=vs.85).aspx
-class Mutant : public WaitHandle {
+/** Mutant object modeled on the Win32 mutex. */
+class REX_API Mutant : public WaitHandle {
  public:
-  // Creates a new mutant object, initially owned by the calling thread if
-  // specified.
+  /**
+   * Creates a mutant.
+   *
+   * @param initial_owner True to give ownership to the calling thread.
+   * @return The mutant, or null on failure.
+   */
   static std::unique_ptr<Mutant> Create(bool initial_owner);
 
-  // Releases ownership of the specified mutex object.
-  // Returns false if the calling thread does not own the mutant object.
+  /**
+   * Releases ownership.
+   *
+   * @return False when the calling thread does not own the mutant.
+   */
   virtual bool Release() = 0;
 };
 
-// Models a Win32-like timer object.
-// https://msdn.microsoft.com/en-us/library/windows/desktop/ms687012(v=vs.85).aspx
-class Timer : public WaitHandle {
+/**
+ * Waitable timer object modeled on the Win32 waitable timer. On Windows the optional callback
+ * runs as a user callback on the thread that set the timer. On POSIX it runs on the timer
+ * queue thread.
+ */
+class REX_API Timer : public WaitHandle {
  public:
-  // Make vtable entries for both so we can defer conversions and only do them
-  // if really necessary (let the calling code what clock it prefers). Windows
-  // kernel sync primitives will work with WinSystemClock while our own
-  // implementation works with steady_clock.
+  /** Clock of Windows kernel sync primitives. */
   using WClock_ = rex::WinSystemClock;
-  using GClock_ = std::chrono::steady_clock;  // generic
+  /** Clock of the SDK timer queue. */
+  using GClock_ = std::chrono::steady_clock;
 
-  // Creates a timer whose state remains signaled until SetOnce() or
-  // SetRepeating() is called to establish a new due time.
+  /**
+   * Creates a timer that stays signaled until a Set call gives it a new due time.
+   *
+   * @return The timer, or null on failure.
+   */
   static std::unique_ptr<Timer> CreateManualResetTimer();
 
-  // Creates a timer whose state remains signaled until a thread completes a
-  // wait operation on the timer object.
+  /**
+   * Creates a timer that resets after a wait on it completes.
+   *
+   * @return The timer, or null on failure.
+   */
   static std::unique_ptr<Timer> CreateSynchronizationTimer();
 
-  // Activates the specified waitable timer. When the due time arrives, the
-  // timer is signaled and the thread that set the timer calls the optional
-  // completion routine.
-  // Returns true on success.
+  /**
+   * Arms the timer to fire once after a delay.
+   *
+   * @param rel_time Delay from now.
+   * @param opt_callback Function called when the timer fires, may be null.
+   * @return True on success.
+   */
   virtual bool SetOnceAfter(rex::hundrednanoseconds rel_time,
                             std::function<void()> opt_callback = nullptr) = 0;
+  /**
+   * Arms the timer to fire once at a Windows clock time.
+   *
+   * @param due_time Due time.
+   * @param opt_callback Function called when the timer fires, may be null.
+   * @return True on success.
+   */
   virtual bool SetOnceAt(WClock_::time_point due_time,
                          std::function<void()> opt_callback = nullptr) = 0;
+  /**
+   * Arms the timer to fire once at a steady clock time.
+   *
+   * @param due_time Due time.
+   * @param opt_callback Function called when the timer fires, may be null.
+   * @return True on success.
+   */
   virtual bool SetOnceAt(GClock_::time_point due_time,
                          std::function<void()> opt_callback = nullptr) = 0;
 
-  // Activates the specified waitable timer. When the due time arrives, the
-  // timer is signaled and the thread that set the timer calls the optional
-  // completion routine. A periodic timer automatically reactivates each time
-  // the period elapses, until the timer is canceled or reset.
-  // Returns true on success.
+  /**
+   * Arms the timer to fire after a delay and then each period until Cancel or a new Set call.
+   *
+   * @param rel_time Delay from now.
+   * @param period Repeat period.
+   * @param opt_callback Function called each time the timer fires, may be null.
+   * @return True on success.
+   */
   virtual bool SetRepeatingAfter(rex::hundrednanoseconds rel_time, std::chrono::milliseconds period,
                                  std::function<void()> opt_callback = nullptr) = 0;
+  /**
+   * Arms the timer to fire at a Windows clock time and then each period.
+   *
+   * @param due_time First due time.
+   * @param period Repeat period.
+   * @param opt_callback Function called each time the timer fires, may be null.
+   * @return True on success.
+   */
   virtual bool SetRepeatingAt(WClock_::time_point due_time, std::chrono::milliseconds period,
                               std::function<void()> opt_callback = nullptr) = 0;
+  /**
+   * Arms the timer to fire at a steady clock time and then each period.
+   *
+   * @param due_time First due time.
+   * @param period Repeat period.
+   * @param opt_callback Function called each time the timer fires, may be null.
+   * @return True on success.
+   */
   virtual bool SetRepeatingAt(GClock_::time_point due_time, std::chrono::milliseconds period,
                               std::function<void()> opt_callback = nullptr) = 0;
 
-  // Stops the timer before it can be set to the signaled state and cancels
-  // outstanding callbacks. Threads performing a wait operation on the timer
-  // remain waiting until they time out or the timer is reactivated and its
-  // state is set to signaled. If the timer is already in the signaled state, it
-  // remains in that state.
-  // Returns true on success.
+  /**
+   * Stops the timer before it fires and drops pending callbacks. Threads waiting on it keep
+   * waiting. A signaled timer stays signaled.
+   *
+   * @return True on success.
+   */
   virtual bool Cancel() = 0;
 };
 
 #if REX_PLATFORM_WIN32
+/** Thread priority values for Thread::set_priority. */
 struct ThreadPriority {
-  static const int32_t kLowest = -2;
-  static const int32_t kBelowNormal = -1;
-  static const int32_t kNormal = 0;
-  static const int32_t kAboveNormal = 1;
-  static const int32_t kHighest = 2;
+  static const i32 kLowest = -2;      /**< Lowest priority. */
+  static const i32 kBelowNormal = -1; /**< Below normal priority. */
+  static const i32 kNormal = 0;       /**< Normal priority. */
+  static const i32 kAboveNormal = 1;  /**< Above normal priority. */
+  static const i32 kHighest = 2;      /**< Highest priority. */
 };
 #else
+/** Thread priority values for Thread::set_priority. */
 struct ThreadPriority {
-  static const int32_t kLowest = 1;
-  static const int32_t kBelowNormal = 8;
-  static const int32_t kNormal = 16;
-  static const int32_t kAboveNormal = 24;
-  static const int32_t kHighest = 32;
+  static const i32 kLowest = 1;       /**< Lowest priority. */
+  static const i32 kBelowNormal = 8;  /**< Below normal priority. */
+  static const i32 kNormal = 16;      /**< Normal priority. */
+  static const i32 kAboveNormal = 24; /**< Above normal priority. */
+  static const i32 kHighest = 32;     /**< Highest priority. */
 };
 #endif
 
-// Models a Win32-like thread object.
-// https://msdn.microsoft.com/en-us/library/windows/desktop/ms682453(v=vs.85).aspx
-class Thread : public WaitHandle {
+/** Thread object modeled on the Win32 thread. */
+class REX_API Thread : public WaitHandle {
  public:
+  /** Options for Create. */
   struct CreationParameters {
-    size_t stack_size = 4_MiB;
-    bool create_suspended = false;
-    int32_t initial_priority = 0;
+    size_t stack_size = 4_MiB;     /**< Stack size in bytes. */
+    bool create_suspended = false; /**< True to start suspended until Resume. */
+    i32 initial_priority = 0;      /**< Nonzero uses SCHED_FIFO on POSIX. Unused on Windows. */
   };
 
-  // Creates a thread with the given parameters and calls the start routine from
-  // within that thread.
+  /**
+   * Creates a thread that runs start_routine.
+   *
+   * @param params Creation options.
+   * @param start_routine Function the thread runs.
+   * @return The thread, or null on failure.
+   */
   static std::unique_ptr<Thread> Create(CreationParameters params,
                                         std::function<void()> start_routine);
+  /**
+   * Returns the Thread object of the calling thread, wrapping threads that Create did not start.
+   *
+   * @return The calling thread.
+   */
   static Thread* GetCurrentThread();
 
-  // Ends the calling thread.
-  // No destructors are called, and this function does not return.
-  // The state of the thread object becomes signaled, releasing any other
-  // threads that had been waiting for the thread to terminate.
+  /**
+   * Ends the calling thread without running destructors. Does not return. Signals the thread
+   * object and releases its waiters.
+   *
+   * @param exit_code Thread exit code.
+   */
   static void Exit(int exit_code);
 
-  // Returns the ID of the thread.
-  virtual uint32_t system_id() const = 0;
+  /**
+   * Returns the OS thread ID.
+   *
+   * @return OS thread ID.
+   */
+  virtual u32 system_id() const = 0;
 
-  // Returns the current name of the thread, if previously specified.
+  /**
+   * Returns the thread name.
+   *
+   * @return Name set by set_name, empty when never set.
+   */
   const std::string& name() const { return name_; }
 
-  // Sets the name of the thread, used in debugging and logging.
+  /**
+   * Names the thread for debuggers and logs.
+   *
+   * @param name Thread name.
+   */
   virtual void set_name(std::string name) { name_ = std::move(name); }
 
-  // Returns the current priority value for the thread.
-  virtual int32_t priority() = 0;
+  /**
+   * Returns the thread priority.
+   *
+   * @return Current priority.
+   */
+  virtual i32 priority() = 0;
 
-  // Sets the priority value for the thread. This value, together with the
-  // priority class of the thread's process, determines the thread's base
-  // priority level. ThreadPriority contains useful constants.
-  virtual void set_priority(int32_t new_priority) = 0;
+  /**
+   * Sets the thread priority, combined with the process priority class into the base priority.
+   *
+   * @param new_priority New priority, usually a ThreadPriority value.
+   */
+  virtual void set_priority(i32 new_priority) = 0;
 
-  // Returns the current processor affinity mask for the thread.
-  virtual uint64_t affinity_mask() = 0;
+  /**
+   * Returns the processor affinity mask.
+   *
+   * @return 1 bit per logical processor the thread may run on.
+   */
+  virtual u64 affinity_mask() = 0;
 
-  // Sets a processor affinity mask for the thread.
-  // A thread affinity mask is a bit vector in which each bit represents a
-  // logical processor that a thread is allowed to run on. A thread affinity
-  // mask must be a subset of the process affinity mask for the containing
-  // process of a thread.
-  virtual void set_affinity_mask(uint64_t new_affinity_mask) = 0;
+  /**
+   * Sets the processor affinity mask. It must be a subset of the process affinity mask.
+   *
+   * @param new_affinity_mask 1 bit per logical processor the thread may run on.
+   */
+  virtual void set_affinity_mask(u64 new_affinity_mask) = 0;
 
-  // Adds a user-mode asynchronous procedure call request to the thread queue.
-  // When a user-mode APC is queued, the thread is not directed to call the APC
-  // function unless it is in an alertable state. After the thread is in an
-  // alertable state, the thread handles all pending APCs in first in, first out
-  // (FIFO) order, and the wait operation returns WaitResult::kUserCallback.
+  /**
+   * Queues a user callback to the thread. Callbacks run in FIFO order once the thread enters an
+   * alertable wait, which then returns WaitResult::kUserCallback.
+   *
+   * @param callback Function to run on the thread.
+   */
   virtual void QueueUserCallback(std::function<void()> callback) = 0;
 
-  // Decrements a thread's suspend count. When the suspend count is decremented
-  // to zero, the execution of the thread is resumed.
-  virtual bool Resume(uint32_t* out_previous_suspend_count = nullptr) = 0;
+  /**
+   * Decrements the suspend count. The thread runs again when it reaches 0.
+   *
+   * @param out_previous_suspend_count Receives the count before the call, may be null.
+   * @return True on success.
+   */
+  virtual bool Resume(u32* out_previous_suspend_count = nullptr) = 0;
 
-  // Suspends the specified thread.
-  virtual bool Suspend(uint32_t* out_previous_suspend_count = nullptr) = 0;
+  /**
+   * Increments the suspend count and suspends the thread.
+   *
+   * @param out_previous_suspend_count Receives the count before the call, may be null.
+   * @return True on success.
+   */
+  virtual bool Suspend(u32* out_previous_suspend_count = nullptr) = 0;
 
-  // Terminates the thread.
-  // No destructors are called, and this function does not return.
-  // The state of the thread object becomes signaled, releasing any other
-  // threads that had been waiting for the thread to terminate.
+  /**
+   * Terminates the thread without running destructors. Signals the thread object and
+   * releases its waiters.
+   *
+   * @param exit_code Thread exit code.
+   */
   virtual void Terminate(int exit_code) = 0;
 
  protected:
@@ -465,17 +693,17 @@ class Thread : public WaitHandle {
 namespace detail {
 
 /** Adds the calling thread to the SDK host thread registry until the thread exits. */
-void RegisterCurrentThread();
+REX_API void RegisterCurrentThread();
 
 /**
  * Counts the SDK host threads that are alive.
  *
  * @return The number of registered threads.
  */
-u64 LiveCount();
+REX_API u64 LiveCount();
 
 /** Destroys the timer queue and joins its thread. The next timer creates it again. */
-void ShutdownTimerQueue();
+REX_API void ShutdownTimerQueue();
 
 }  // namespace detail
 

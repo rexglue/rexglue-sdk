@@ -37,7 +37,6 @@ std::string_view BuildPostfix() {
   return "";
 }
 
-// Splits "name@version". Returns false when the form is wrong.
 bool SplitRequirement(std::string_view text, std::string& name, u32& version) {
   auto at = text.rfind('@');
   if (at == std::string_view::npos || at == 0 || at + 1 >= text.size()) {
@@ -120,9 +119,6 @@ Result<API*> ModuleLoader::Connect(const Config& config) {
         return Err<API*>(ModuleError(std::format("module '{}' listed twice", name)));
       }
     }
-  }
-  if (auto status = ValidateSlices(); !status) {
-    return Err<API*>(status.error());
   }
   if (auto status = RegisterConsumerTables(); !status) {
     UnregisterTables();
@@ -314,36 +310,6 @@ void ModuleLoader::Shutdown() {
   UnwindAll();
   initialized_ = false;
   connected_ = false;
-}
-
-Result<void> ModuleLoader::ValidateSlices() const {
-  auto fail = [](std::string message) {
-    REXLOG_ERROR("{}", message);
-    return Err(Error(ErrorCategory::Config, std::move(message)));
-  };
-  if (config_.runtime.heap_size_mb < 1 || config_.runtime.heap_size_mb > 2048) {
-    return fail(std::format("config field runtime.heap_size_mb = {} is outside 1 to 2048",
-                            config_.runtime.heap_size_mb));
-  }
-  if (config_.graphics.resolution_scale_x < 1 || config_.graphics.resolution_scale_x > 8) {
-    return fail(std::format("config field graphics.resolution_scale_x = {} is outside 1 to 8",
-                            config_.graphics.resolution_scale_x));
-  }
-  if (config_.graphics.resolution_scale_y < 1 || config_.graphics.resolution_scale_y > 8) {
-    return fail(std::format("config field graphics.resolution_scale_y = {} is outside 1 to 8",
-                            config_.graphics.resolution_scale_y));
-  }
-  const auto& backend = config_.graphics.backend;
-  if (backend != "any" && backend != "d3d12" && backend != "vulkan") {
-    return fail(
-        std::format("config field graphics.backend = '{}' is not any, d3d12 or vulkan", backend));
-  }
-#if !REX_PLATFORM_WIN32
-  if (config_.input.backend == input::Backend::XInput) {
-    return fail("config field input.backend = XInput is Windows only");
-  }
-#endif
-  return Ok();
 }
 
 Result<void> ModuleLoader::RegisterConsumerTables() {

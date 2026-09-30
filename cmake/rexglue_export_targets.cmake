@@ -7,7 +7,9 @@ set_target_properties(rexruntime PROPERTIES EXPORT_NAME runtime)
 set_target_properties(rexcodegen PROPERTIES EXPORT_NAME codegen)
 
 set(REXGLUE_INSTALL_TARGETS
+    rexcore
     rexruntime
+    rexsdk
     rexgpu-xenos
     disruptorplus renderdoc simde tomlplusplus
     aes128 mspack o1heap disasm xxhash

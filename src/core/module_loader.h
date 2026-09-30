@@ -19,6 +19,7 @@
 #include <string_view>
 #include <vector>
 
+#include <rex/macros.h>
 #include <rex/api.h>
 #include <rex/module.h>
 #include <rex/platform/dynlib.h>
@@ -28,16 +29,30 @@
 
 namespace rex::detail {
 
-// True when the name has no path separators, no drive colon and no ".." segment.
-bool IsValidModuleName(std::string_view name);
+/**
+ * Tests whether a module name is safe to resolve to a file.
+ *
+ * @param name The module name from Config::modules.
+ * @return True when the name has no path separator, no drive colon and no ".." segment.
+ */
+REX_API bool IsValidModuleName(std::string_view name);
 
-// "<name><postfix>.<ext>" for the current build configuration and platform.
-std::filesystem::path ModuleFileName(std::string_view name);
+/**
+ * Returns the file name of a module for the current build configuration and platform.
+ *
+ * @param name The module name.
+ * @return The name with the build postfix and the platform library extension.
+ */
+REX_API std::filesystem::path ModuleFileName(std::string_view name);
 
-// Number of IInterfaceFactory::Get calls the loader has answered since the last Init.
-u64 InterfaceRequestCount();
+/**
+ * Returns the number of IInterfaceFactory::Get calls answered since the last Init.
+ *
+ * @return The request count.
+ */
+REX_API u64 InterfaceRequestCount();
 
-class ModuleLoader final : public IInterfaceFactory {
+class REX_API ModuleLoader final : public IInterfaceFactory {
  public:
   static ModuleLoader& Instance();
 
@@ -80,7 +95,6 @@ class ModuleLoader final : public IInterfaceFactory {
   Result<void> ConnectAll();
   Result<void> InitAll();
   void UnwindAll();
-  Result<void> ValidateSlices() const;
   Result<void> RegisterConsumerTables();
   Result<void> ApplyCvarValues();
   void UnregisterTables();
@@ -98,10 +112,9 @@ class ModuleLoader final : public IInterfaceFactory {
   size_t consumer_tables_registered_ = 0;
 };
 
-// Registers the tables of the libraries compiled into rexruntime until sub-project 6 gives each
-// an IModule.
-Result<void> RegisterBuiltinCvars(cvar::ICvarRegistry& registry);
-// Reverse of RegisterBuiltinCvars.
-void UnregisterBuiltinCvars(cvar::ICvarRegistry& registry);
+/** Registers the log, clock and perf tables core owns. */
+REX_API Result<void> RegisterBuiltinCvars(cvar::ICvarRegistry& registry);
+/** Unregisters the tables RegisterBuiltinCvars registered, in reverse order. */
+REX_API void UnregisterBuiltinCvars(cvar::ICvarRegistry& registry);
 
 }  // namespace rex::detail

@@ -13,6 +13,7 @@
 
 #include <rex/ui/title_app.h>
 
+#include <algorithm>
 #include <filesystem>
 #include <format>
 #include <mutex>
@@ -503,6 +504,12 @@ void TitleApp::ReportError(std::string_view message) {
   App::ReportError(message);
   if (config().ui.video_driver != "dummy") {
     ShowSimpleMessageBox(SimpleMessageBoxType::Error, message);
+  }
+}
+
+void TitleApp::RequireModules(Config& config) {
+  if (std::ranges::find(config.modules, "rexruntime") == config.modules.end()) {
+    config.modules.insert(config.modules.begin(), "rexruntime");
   }
 }
 

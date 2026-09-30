@@ -1,154 +1,167 @@
 /**
- ******************************************************************************
- * Xenia : Xbox 360 Emulator Research Project                                 *
- ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
- * Released under the BSD license - see LICENSE in the root for more details. *
- ******************************************************************************
+ * @file        vec128.h
+ * @brief       128 bit vector register value and lane constructors
  *
- * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ *
+ * @remarks     Derived from Xenia's xenia/base/vec128.h (Ben Vanik, 2013).
  */
 
 #pragma once
 
 #include <cstddef>
+#include <iosfwd>
 #include <string>
 
 #include <rex/math.h>
 #include <rex/platform.h>
+#include <rex/types.h>
 
 namespace rex {
 
-// The first rule of vector programming is to only rely on exact positions
-// when absolutely required - prefer dumb loops to exact offsets.
-// Vectors in memory are laid out as in AVX registers on little endian
-// machines. Note that little endian is dumb, so the byte at index 0 in
-// the vector is is really byte 15 (or the high byte of short 7 or int 3).
-// Because of this, all byte access should be via the accessors instead of
-// the direct array.
-
-// Altivec big endian layout:         AVX little endian layout:
-// +---------+---------+---------+    +---------+---------+---------+
-// | int32 0 | int16 0 | int8  0 |    | int32 3 | int16 7 | int8 15 |
-// |         |         +---------+    |         |         +---------+
-// |         |         | int8  1 |    |         |         | int8 14 |
-// |         +---------+---------+    |         +---------+---------+
-// |         | int16 1 | int8  2 |    |         | int16 6 | int8 13 |
-// |         |         +---------+    |         |         +---------+
-// |         |         | int8  3 |    |         |         | int8 12 |
-// +---------+---------+---------+    +---------+---------+---------+
-// | int32 1 | int16 2 | int8  4 |    | int32 2 | int16 5 | int8 11 |
-// |         |         +---------+    |         |         +---------+
-// |         |         | int8  5 |    |         |         | int8 10 |
-// |         +---------+---------+    |         +---------+---------+
-// |         | int16 3 | int8  6 |    |         | int16 4 | int8  9 |
-// |         |         +---------+    |         |         +---------+
-// |         |         | int8  7 |    |         |         | int8  8 |
-// +---------+---------+---------+    +---------+---------+---------+
-// | int32 2 | int16 4 | int8  8 |    | int32 1 | int16 3 | int8  7 |
-// |         |         +---------+    |         |         +---------+
-// |         |         | int8  9 |    |         |         | int8  6 |
-// |         +---------+---------+    |         +---------+---------+
-// |         | int16 5 | int8 10 |    |         | int16 2 | int8  5 |
-// |         |         +---------+    |         |         +---------+
-// |         |         | int8 11 |    |         |         | int8  4 |
-// +---------+---------+---------+    +---------+---------+---------+
-// | int32 3 | int16 6 | int8 12 |    | int32 0 | int16 1 | int8  3 |
-// |         |         +---------+    |         |         +---------+
-// |         |         | int8 13 |    |         |         | int8  2 |
-// |         +---------+---------+    |         +---------+---------+
-// |         | int16 7 | int8 14 |    |         | int16 0 | int8  1 |
-// |         |         +---------+    |         |         +---------+
-// |         |         | int8 15 |    |         |         | int8  0 |
-// +---------+---------+---------+    +---------+---------+---------+
-//
-// Logical order:
-// +-----+-----+-----+-----+          +-----+-----+-----+-----+
-// |  X  |  Y  |  Z  |  W  |          |  W  |  Z  |  Y  |  X  |
-// +-----+-----+-----+-----+          +-----+-----+-----+-----+
-//
-// Mapping indices is easy:
-// int32[i ^ 0x3]
-// int16[i ^ 0x7]
-//  int8[i ^ 0xF]
-typedef struct alignas(16) vec128_s {
+/**
+ * 128 bit vector register value.
+ *
+ * Lanes are stored in AVX little endian order, the reverse of the Altivec big endian order.
+ * Big endian element i lives at u32[i ^ 0x3], u16[i ^ 0x7] and u8[i ^ 0xF]. Code should avoid
+ * fixed lane offsets where a loop over the lanes works.
+ */
+struct alignas(16) vec128_s {
   union {
     struct {
-      float x;
-      float y;
-      float z;
-      float w;
+      rex::f32 x; /**< f32 lane 0. */
+      rex::f32 y; /**< f32 lane 1. */
+      rex::f32 z; /**< f32 lane 2. */
+      rex::f32 w; /**< f32 lane 3. */
     };
     struct {
-      int32_t ix;
-      int32_t iy;
-      int32_t iz;
-      int32_t iw;
+      rex::i32 ix; /**< i32 lane 0. */
+      rex::i32 iy; /**< i32 lane 1. */
+      rex::i32 iz; /**< i32 lane 2. */
+      rex::i32 iw; /**< i32 lane 3. */
     };
     struct {
-      uint32_t ux;
-      uint32_t uy;
-      uint32_t uz;
-      uint32_t uw;
+      rex::u32 ux; /**< u32 lane 0. */
+      rex::u32 uy; /**< u32 lane 1. */
+      rex::u32 uz; /**< u32 lane 2. */
+      rex::u32 uw; /**< u32 lane 3. */
     };
-    float f32[4];
-    double f64[2];
-    int8_t i8[16];
-    uint8_t u8[16];
-    int16_t i16[8];
-    uint16_t u16[8];
-    int32_t i32[4];
-    uint32_t u32[4];
-    int64_t i64[2];
-    uint64_t u64[2];
+    rex::f32 f32[4]; /**< 4 f32 lanes. */
+    rex::f64 f64[2]; /**< 2 f64 lanes. */
+    rex::i8 i8[16];  /**< 16 i8 lanes. */
+    rex::u8 u8[16];  /**< 16 u8 lanes. */
+    rex::i16 i16[8]; /**< 8 i16 lanes. */
+    rex::u16 u16[8]; /**< 8 u16 lanes. */
+    rex::i32 i32[4]; /**< 4 i32 lanes. */
+    rex::u32 u32[4]; /**< 4 u32 lanes. */
+    rex::i64 i64[2]; /**< 2 i64 lanes. */
+    rex::u64 u64[2]; /**< 2 u64 lanes. */
     struct {
-      uint64_t low;
-      uint64_t high;
+      rex::u64 low;  /**< Low 64 bits. */
+      rex::u64 high; /**< High 64 bits. */
     };
   };
 
+  /**
+   * @param b The value to compare with.
+   * @return True when all 128 bits match.
+   */
   bool operator==(const vec128_s& b) const { return low == b.low && high == b.high; }
+
+  /**
+   * @param b The value to compare with.
+   * @return True when any bit differs.
+   */
   bool operator!=(const vec128_s& b) const { return low != b.low || high != b.high; }
+
+  /**
+   * @param b The right operand.
+   * @return The bitwise XOR of this and b.
+   */
   vec128_s operator^(const vec128_s& b) const {
     vec128_s a = *this;
     a.high ^= b.high;
     a.low ^= b.low;
     return a;
   };
+
+  /**
+   * @param b The right operand.
+   * @return This value after the bitwise XOR with b.
+   */
   vec128_s& operator^=(const vec128_s& b) {
     *this = *this ^ b;
     return *this;
   };
+
+  /**
+   * @param b The right operand.
+   * @return The bitwise AND of this and b.
+   */
   vec128_s operator&(const vec128_s& b) const {
     vec128_s a = *this;
     a.high &= b.high;
     a.low &= b.low;
     return a;
   };
+
+  /**
+   * @param b The right operand.
+   * @return This value after the bitwise AND with b.
+   */
   vec128_s& operator&=(const vec128_s& b) {
     *this = *this & b;
     return *this;
   };
+
+  /**
+   * @param b The right operand.
+   * @return The bitwise OR of this and b.
+   */
   vec128_s operator|(const vec128_s& b) const {
     vec128_s a = *this;
     a.high |= b.high;
     a.low |= b.low;
     return a;
   };
+
+  /**
+   * @param b The right operand.
+   * @return This value after the bitwise OR with b.
+   */
   vec128_s& operator|=(const vec128_s& b) {
     *this = *this | b;
     return *this;
   };
-} vec128_t;
+};
 
-static inline vec128_t vec128i(uint32_t src) {
+/** 128 bit vector register value. */
+using vec128_t = vec128_s;
+
+/**
+ * @param src The value for every u32 lane.
+ * @return A vector with src in all 4 u32 lanes.
+ */
+static inline vec128_t vec128i(u32 src) {
   vec128_t v;
   for (auto i = 0; i < 4; ++i) {
     v.u32[i] = src;
   }
   return v;
 }
-static inline vec128_t vec128i(uint32_t x, uint32_t y, uint32_t z, uint32_t w) {
+
+/**
+ * @param x u32 lane 0.
+ * @param y u32 lane 1.
+ * @param z u32 lane 2.
+ * @param w u32 lane 3.
+ * @return A vector with the given u32 lanes.
+ */
+static inline vec128_t vec128i(u32 x, u32 y, u32 z, u32 w) {
   vec128_t v;
   v.u32[0] = x;
   v.u32[1] = y;
@@ -156,40 +169,75 @@ static inline vec128_t vec128i(uint32_t x, uint32_t y, uint32_t z, uint32_t w) {
   v.u32[3] = w;
   return v;
 }
-static inline vec128_t vec128q(uint64_t src) {
+
+/**
+ * @param src The value for every 64 bit lane.
+ * @return A vector with src in both 64 bit lanes.
+ */
+static inline vec128_t vec128q(u64 src) {
   vec128_t v;
   for (auto i = 0; i < 2; ++i) {
     v.i64[i] = src;
   }
   return v;
 }
-static inline vec128_t vec128q(uint64_t x, uint64_t y) {
+
+/**
+ * @param x 64 bit lane 0.
+ * @param y 64 bit lane 1.
+ * @return A vector with the given 64 bit lanes.
+ */
+static inline vec128_t vec128q(u64 x, u64 y) {
   vec128_t v;
   v.i64[0] = x;
   v.i64[1] = y;
   return v;
 }
-static inline vec128_t vec128d(double src) {
+
+/**
+ * @param src The value for every f64 lane.
+ * @return A vector with src in both f64 lanes.
+ */
+static inline vec128_t vec128d(f64 src) {
   vec128_t v;
   for (auto i = 0; i < 2; ++i) {
     v.f64[i] = src;
   }
   return v;
 }
-static inline vec128_t vec128d(double x, double y) {
+
+/**
+ * @param x f64 lane 0.
+ * @param y f64 lane 1.
+ * @return A vector with the given f64 lanes.
+ */
+static inline vec128_t vec128d(f64 x, f64 y) {
   vec128_t v;
   v.f64[0] = x;
   v.f64[1] = y;
   return v;
 }
-static inline vec128_t vec128f(float src) {
+
+/**
+ * @param src The value for every f32 lane.
+ * @return A vector with src in all 4 f32 lanes.
+ */
+static inline vec128_t vec128f(f32 src) {
   vec128_t v;
   for (auto i = 0; i < 4; ++i) {
     v.f32[i] = src;
   }
   return v;
 }
-static inline vec128_t vec128f(float x, float y, float z, float w) {
+
+/**
+ * @param x f32 lane 0.
+ * @param y f32 lane 1.
+ * @param z f32 lane 2.
+ * @param w f32 lane 3.
+ * @return A vector with the given f32 lanes.
+ */
+static inline vec128_t vec128f(f32 x, f32 y, f32 z, f32 w) {
   vec128_t v;
   v.f32[0] = x;
   v.f32[1] = y;
@@ -197,15 +245,33 @@ static inline vec128_t vec128f(float x, float y, float z, float w) {
   v.f32[3] = w;
   return v;
 }
-static inline vec128_t vec128s(uint16_t src) {
+
+/**
+ * @param src The value for every u16 lane.
+ * @return A vector with src in all 8 u16 lanes.
+ */
+static inline vec128_t vec128s(u16 src) {
   vec128_t v;
   for (auto i = 0; i < 8; ++i) {
     v.u16[i] = src;
   }
   return v;
 }
-static inline vec128_t vec128s(uint16_t x0, uint16_t x1, uint16_t y0, uint16_t y1, uint16_t z0,
-                               uint16_t z1, uint16_t w0, uint16_t w1) {
+
+/**
+ * Builds a vector from u16 values given in big endian order within each 32 bit lane.
+ *
+ * @param x0 High half of 32 bit lane 0.
+ * @param x1 Low half of 32 bit lane 0.
+ * @param y0 High half of 32 bit lane 1.
+ * @param y1 Low half of 32 bit lane 1.
+ * @param z0 High half of 32 bit lane 2.
+ * @param z1 Low half of 32 bit lane 2.
+ * @param w0 High half of 32 bit lane 3.
+ * @param w1 Low half of 32 bit lane 3.
+ * @return A vector with the given u16 values.
+ */
+static inline vec128_t vec128s(u16 x0, u16 x1, u16 y0, u16 y1, u16 z0, u16 z1, u16 w0, u16 w1) {
   vec128_t v;
   v.u16[0] = x1;
   v.u16[1] = x0;
@@ -217,17 +283,42 @@ static inline vec128_t vec128s(uint16_t x0, uint16_t x1, uint16_t y0, uint16_t y
   v.u16[7] = w0;
   return v;
 }
-static inline vec128_t vec128b(uint8_t src) {
+
+/**
+ * @param src The value for every u8 lane.
+ * @return A vector with src in all 16 u8 lanes.
+ */
+static inline vec128_t vec128b(u8 src) {
   vec128_t v;
   for (auto i = 0; i < 16; ++i) {
     v.u8[i] = src;
   }
   return v;
 }
-static inline vec128_t vec128b(uint8_t x0, uint8_t x1, uint8_t x2, uint8_t x3, uint8_t y0,
-                               uint8_t y1, uint8_t y2, uint8_t y3, uint8_t z0, uint8_t z1,
-                               uint8_t z2, uint8_t z3, uint8_t w0, uint8_t w1, uint8_t w2,
-                               uint8_t w3) {
+
+/**
+ * Builds a vector from u8 values given in big endian order within each 32 bit lane.
+ *
+ * @param x0 Byte 0, the most significant, of 32 bit lane 0.
+ * @param x1 Byte 1 of 32 bit lane 0.
+ * @param x2 Byte 2 of 32 bit lane 0.
+ * @param x3 Byte 3, the least significant, of 32 bit lane 0.
+ * @param y0 Byte 0 of 32 bit lane 1.
+ * @param y1 Byte 1 of 32 bit lane 1.
+ * @param y2 Byte 2 of 32 bit lane 1.
+ * @param y3 Byte 3 of 32 bit lane 1.
+ * @param z0 Byte 0 of 32 bit lane 2.
+ * @param z1 Byte 1 of 32 bit lane 2.
+ * @param z2 Byte 2 of 32 bit lane 2.
+ * @param z3 Byte 3 of 32 bit lane 2.
+ * @param w0 Byte 0 of 32 bit lane 3.
+ * @param w1 Byte 1 of 32 bit lane 3.
+ * @param w2 Byte 2 of 32 bit lane 3.
+ * @param w3 Byte 3 of 32 bit lane 3.
+ * @return A vector with the given u8 values.
+ */
+static inline vec128_t vec128b(u8 x0, u8 x1, u8 x2, u8 x3, u8 y0, u8 y1, u8 y2, u8 y3, u8 z0, u8 z1,
+                               u8 z2, u8 z3, u8 w0, u8 w1, u8 w2, u8 w3) {
   vec128_t v;
   v.u8[0] = x3;
   v.u8[1] = x2;
@@ -248,11 +339,19 @@ static inline vec128_t vec128b(uint8_t x0, uint8_t x1, uint8_t x2, uint8_t x3, u
   return v;
 }
 
-// TODO(gibbed): Figure out why clang doesn't line forward declarations of
-// inline functions.
-
+/**
+ * @param value The vector to format.
+ * @return The 4 f32 lanes as "(x, y, z, w)".
+ */
 std::string to_string(const vec128_t& value);
 
+/**
+ * Writes the 4 u32 lanes as 8 digit uppercase hex, "[X X X X]".
+ *
+ * @param os The stream to write to.
+ * @param value The vector to write.
+ * @return os.
+ */
 std::ostream& operator<<(std::ostream& os, const vec128_t& value);
 
 }  // namespace rex

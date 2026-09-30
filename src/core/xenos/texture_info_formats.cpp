@@ -17,8 +17,8 @@ namespace rex::xenos {
 
 #define FORMAT_INFO(texture_format, format, block_width, block_height, bits_per_pixel) \
     {xenos::TextureFormat::texture_format, #texture_format, FormatType::format, block_width, block_height, bits_per_pixel}
-const FormatInfo* FormatInfo::Get(uint32_t gpu_format) {
-  static const FormatInfo format_infos[64] = {
+const FormatInfo* FormatInfo::Get(u32 gpu_format) {
+  static const FormatInfo kFormatInfos[64] = {
       FORMAT_INFO(k_1_REVERSE                , kUncompressed, 1, 1, 1),
       FORMAT_INFO(k_1                        , kUncompressed, 1, 1, 1),
       FORMAT_INFO(k_8                        , kResolvable,   1, 1, 8),
@@ -84,7 +84,7 @@ const FormatInfo* FormatInfo::Get(uint32_t gpu_format) {
       FORMAT_INFO(k_8_8_8_8_GAMMA_EDRAM      , kUncompressed, 1, 1, 32),
       FORMAT_INFO(k_2_10_10_10_FLOAT_EDRAM   , kUncompressed, 1, 1, 32),
   };
-  return &format_infos[gpu_format];
+  return &kFormatInfos[gpu_format];
 }
 #undef FORMAT_INFO
 

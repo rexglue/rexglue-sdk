@@ -189,6 +189,8 @@ class CallbackHandle : public MoveOnly {
   CallbackHandle(ICvarRegistry* registry, u64 id) : registry_(registry), id_(id) {}
   /**
    * Takes over the registration of other, which becomes empty.
+   *
+   * @param other The handle to take over.
    */
   CallbackHandle(CallbackHandle&& other) noexcept
       : registry_(std::exchange(other.registry_, nullptr)), id_(std::exchange(other.id_, 0)) {}

@@ -18,7 +18,13 @@
 
 namespace rex::platform {
 
-thread_local Fiber* Fiber::tls_current_ = nullptr;
+namespace {
+thread_local Fiber* g_current_fiber = nullptr;
+}  // namespace
+
+Fiber* Fiber::Current() {
+  return g_current_fiber;
+}
 
 Fiber* Fiber::ConvertCurrentThread() {
   auto* f = new Fiber();
@@ -28,7 +34,7 @@ Fiber* Fiber::ConvertCurrentThread() {
     return nullptr;
   }
   f->is_thread_fiber_ = true;
-  tls_current_ = f;
+  g_current_fiber = f;
   return f;
 }
 
@@ -43,17 +49,16 @@ Fiber* Fiber::Create(size_t stack_size, void (*entry)(void*), void* arg) {
 }
 
 void Fiber::SwitchTo(Fiber* target) {
-  tls_current_ = target;
+  g_current_fiber = target;
   ::SwitchToFiber(target->handle_);
 }
 
 void Fiber::Destroy() {
-  // Thread fibers are destroyed from the owning thread itself.
   if (is_thread_fiber_) {
     ::ConvertFiberToThread();
-    tls_current_ = nullptr;
+    g_current_fiber = nullptr;
   } else {
-    assert(this != tls_current_ && "Destroy called on the currently running fiber");
+    assert(this != g_current_fiber && "Destroy called on the currently running fiber");
     ::DeleteFiber(handle_);
   }
   delete this;

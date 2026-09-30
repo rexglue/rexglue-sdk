@@ -1,49 +1,42 @@
 /**
- ******************************************************************************
- * Xenia : Xbox 360 Emulator Research Project                                 *
- ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
- * Released under the BSD license - see LICENSE in the root for more details. *
- ******************************************************************************
+ * @file        platform.h
+ * @brief       Target platform, compiler and architecture detection
  *
- * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ *
+ * @remarks     Derived from Xenia's xenia/base/platform.h (Ben Vanik, 2020).
  */
 
 #pragma once
-
-// This file contains the main platform switches used by rex as well as any
-// fixups required to normalize the environment. Everything in here should be
-// largely portable.
-// Platform-specific headers, like platform_win.h, are used to house any
-// super platform-specific stuff that implies code is not platform-agnostic.
-//
-// NOTE: ordering matters here as sometimes multiple flags are defined on
-// certain platforms.
-//
-// Great resource on predefined macros:
-// https://sourceforge.net/p/predef/wiki/OperatingSystems/
-// Original link: https://predef.sourceforge.net/preos.html
 
 #if defined(__APPLE__)
 #include <TargetConditionals.h>
 #endif
 
 #if defined(TARGET_OS_MAC) && TARGET_OS_MAC
+/** 1 when the target is macOS. */
 #define REX_PLATFORM_MAC 1
 #elif defined(WIN32) || defined(_WIN32)
+/** 1 when the target is Windows. */
 #define REX_PLATFORM_WIN32 1
 #elif defined(__ANDROID__)
+/** 1 when the target is Android. */
 #define REX_PLATFORM_ANDROID 1
+/** 1 when the target is Linux, Android included. */
 #define REX_PLATFORM_LINUX 1
 #elif defined(__gnu_linux__)
+/** 1 when the target is GNU Linux. */
 #define REX_PLATFORM_GNU_LINUX 1
 #define REX_PLATFORM_LINUX 1
 #else
 #error Unsupported target OS.
 #endif
 
-// Ensure all platform macros are always defined (0 when inactive)
-// so they can be used in static_assert and regular expressions.
+/** Each REX_PLATFORM_ flag not set above is 0, so it works in #if and static_assert. */
 #ifndef REX_PLATFORM_MAC
 #define REX_PLATFORM_MAC 0
 #endif
@@ -61,26 +54,35 @@
 #endif
 
 #if defined(__clang__)
+/** 1 when the compiler is Clang, clang-cl included. */
 #define REX_COMPILER_CLANG 1
 #elif defined(__GNUC__)
+/** 1 when the compiler is GCC. */
 #define REX_COMPILER_GNUC 1
 #elif defined(_MSC_VER)
+/** 1 when the compiler is MSVC. */
 #define REX_COMPILER_MSVC 1
 #elif defined(__MINGW32)
+/** 1 when the compiler is MinGW. */
 #define REX_COMPILER_MINGW32 1
 #elif defined(__INTEL_COMPILER)
+/** 1 when the compiler is the Intel C++ compiler. */
 #define REX_COMPILER_INTEL 1
 #else
+/** 1 when no known compiler is detected. */
 #define REX_COMPILER_UNKNOWN 1
 #endif
 
 #if defined(_M_AMD64) || defined(__amd64__)
+/** 1 when the target architecture is x86-64. */
 #define REX_ARCH_AMD64 1
 #elif defined(_M_ARM64) || defined(__aarch64__)
+/** 1 when the target architecture is ARM64. */
 #define REX_ARCH_ARM64 1
 #elif defined(_M_IX86) || defined(__i386__) || defined(_M_ARM) || defined(__arm__)
 #error Rex is not supported on 32-bit platforms.
 #elif defined(_M_PPC) || defined(__powerpc__)
+/** 1 when the target architecture is PowerPC. */
 #define REX_ARCH_PPC 1
 #endif
 
@@ -97,6 +99,14 @@
 #include <bit>
 #include <cstdint>
 
+/**
+ * Wraps a declaration in 1 byte packing.
+ *
+ * @param body Declaration to pack.
+ * @code
+ * REX_DETAIL_PACKED_SCOPE(struct Header { u8 tag; u32 size; })
+ * @endcode
+ */
 #if REX_COMPILER_MSVC
 #define REX_DETAIL_PACKED_SCOPE(body) __pragma(pack(push, 1)) body __pragma(pack(pop));
 #else
@@ -105,11 +115,46 @@
   _Pragma("pack(pop)");
 #endif  // REX_COMPILER_MSVC
 
+/**
+ * Declares a struct with 1 byte packing.
+ *
+ * @param name Struct name.
+ * @param value Braced member list.
+ * @code
+ * REX_PACKED_STRUCT(Header, {
+ *   u8 tag;
+ *   u32 size;
+ * })
+ * @endcode
+ */
 #define REX_PACKED_STRUCT(name, value) REX_DETAIL_PACKED_SCOPE(struct name value)
+/**
+ * Declares an unnamed struct with 1 byte packing.
+ *
+ * @param value Braced member list.
+ * @code
+ * REX_PACKED_STRUCT_ANONYMOUS({
+ *   u8 tag;
+ *   u32 size;
+ * })
+ * @endcode
+ */
 #define REX_PACKED_STRUCT_ANONYMOUS(value) REX_DETAIL_PACKED_SCOPE(struct value)
+/**
+ * Declares a union with 1 byte packing.
+ *
+ * @param name Union name.
+ * @param value Braced member list.
+ * @code
+ * REX_PACKED_UNION(Word, {
+ *   u32 value;
+ *   u8 bytes[4];
+ * })
+ * @endcode
+ */
 #define REX_PACKED_UNION(name, value) REX_DETAIL_PACKED_SCOPE(union name value)
 
-// Compiler capability macros
+/** 1 when the compiler provides __builtin_strlen, 0 otherwise. */
 #if REX_COMPILER_CLANG || REX_COMPILER_GNUC
 #define REX_HAS_BUILTIN_STRLEN 1
 #else
@@ -119,8 +164,10 @@
 namespace rex::platform {
 
 #if REX_PLATFORM_WIN32
+/** Native path separator of the host. */
 inline constexpr char kPathSeparator = '\\';
 #else
+/** Native path separator of the host. */
 inline constexpr char kPathSeparator = '/';
 #endif  // REX_PLATFORM_WIN32
 

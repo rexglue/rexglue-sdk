@@ -17,13 +17,14 @@
 #include <string>
 #include <vector>
 
+#include <rex/macros.h>
 #include <rex/result.h>
 #include <rex/types.h>
 
 namespace rex::detail {
 
 /** Clears every request. App::Init calls it. */
-void ResetAppState();
+REX_API void ResetAppState();
 
 /**
  * Sets the function RequestShutdown calls after recording the request, so a waiting loop
@@ -31,14 +32,14 @@ void ResetAppState();
  *
  * @param wake Function to call, or an empty function for none.
  */
-void SetShutdownWake(std::move_only_function<void()> wake);
+REX_API void SetShutdownWake(std::move_only_function<void()> wake);
 
 /**
  * Returns the exit code of the first shutdown request.
  *
  * @return The code, or std::nullopt when no shutdown was requested.
  */
-std::optional<i32> RequestedExitCode();
+REX_API std::optional<i32> RequestedExitCode();
 
 /**
  * Takes the arguments of a restart request.
@@ -46,7 +47,7 @@ std::optional<i32> RequestedExitCode();
  * @return The arguments, empty for the current ones, or std::nullopt when no restart was
  *         requested.
  */
-std::optional<std::vector<std::string>> TakeRestartArgs();
+REX_API std::optional<std::vector<std::string>> TakeRestartArgs();
 
 /** Signature of the function that starts the new process. */
 using RelaunchFunction = Result<void> (*)(std::span<const std::string> args);
@@ -57,7 +58,7 @@ using RelaunchFunction = Result<void> (*)(std::span<const std::string> args);
  * @param relaunch Function to call, or nullptr for platform::Relaunch.
  * @param can_relaunch Value CanRelaunchProcess returns while relaunch is replaced.
  */
-void SetRelaunchForTest(RelaunchFunction relaunch, bool can_relaunch);
+REX_API void SetRelaunchForTest(RelaunchFunction relaunch, bool can_relaunch);
 
 /**
  * Starts the new process through platform::Relaunch or the test replacement.
@@ -65,13 +66,13 @@ void SetRelaunchForTest(RelaunchFunction relaunch, bool can_relaunch);
  * @param args Arguments for the new process.
  * @return The result of the relaunch.
  */
-Result<void> RelaunchProcess(std::span<const std::string> args);
+REX_API Result<void> RelaunchProcess(std::span<const std::string> args);
 
 /**
  * Tests whether a relaunch may run.
  *
  * @return platform::CanRelaunch, or the test value while relaunch is replaced.
  */
-bool CanRelaunchProcess();
+REX_API bool CanRelaunchProcess();
 
 }  // namespace rex::detail

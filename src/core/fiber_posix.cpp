@@ -10,9 +10,7 @@
  */
 
 #if defined(__APPLE__) && !defined(_XOPEN_SOURCE)
-// Darwin hides the deprecated ucontext API unless a POSIX/XSI feature level
-// is requested before <ucontext.h> is included. fiber.h includes ucontext.h,
-// so the feature macro must be set in this translation unit first.
+// Darwin exposes ucontext only with a feature level set before <ucontext.h>.
 #define _XOPEN_SOURCE 700
 #endif
 
@@ -25,7 +23,13 @@
 
 namespace rex::platform {
 
-thread_local Fiber* Fiber::tls_current_ = nullptr;
+namespace {
+thread_local Fiber* g_current_fiber = nullptr;
+}  // namespace
+
+Fiber* Fiber::Current() {
+  return g_current_fiber;
+}
 
 Fiber* Fiber::ConvertCurrentThread() {
   auto* f = new Fiber();
@@ -34,7 +38,7 @@ Fiber* Fiber::ConvertCurrentThread() {
     return nullptr;
   }
   f->is_thread_fiber_ = true;
-  tls_current_ = f;
+  g_current_fiber = f;
   return f;
 }
 
@@ -51,31 +55,27 @@ Fiber* Fiber::Create(size_t stack_size, void (*entry)(void*), void* arg) {
   f->context_.uc_stack.ss_sp = f->stack_.data();
   f->context_.uc_stack.ss_size = f->stack_.size();
   f->context_.uc_link = nullptr;
-  // Trampoline reads entry_/arg_ from tls_current_ — no pointer splitting needed.
   makecontext(&f->context_, &Fiber::Trampoline, 0);
   return f;
 }
 
 /*static*/ void Fiber::Trampoline() {
-  // tls_current_ was updated by SwitchTo before swapcontext returned here.
-  Fiber* f = tls_current_;
+  Fiber* f = g_current_fiber;
   f->entry_(f->arg_);
 }
 
 void Fiber::SwitchTo(Fiber* target) {
-  Fiber* from = tls_current_;
-  tls_current_ = target;
+  Fiber* from = g_current_fiber;
+  g_current_fiber = target;
   swapcontext(&from->context_, &target->context_);
 }
 
 void Fiber::Destroy() {
-  // Thread fibers are destroyed from the owning thread itself.
   if (is_thread_fiber_) {
-    tls_current_ = nullptr;
+    g_current_fiber = nullptr;
   } else {
-    assert(this != tls_current_ && "Destroy called on the currently running fiber");
+    assert(this != g_current_fiber && "Destroy called on the currently running fiber");
   }
-  // No POSIX equivalent of ConvertFiberToThread; stack_ is freed by the vector destructor.
   delete this;
 }
 

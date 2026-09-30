@@ -231,6 +231,8 @@ bool CanRelaunchProcess() {
 
 App::~App() = default;
 
+void App::RequireModules(Config&) {}
+
 Result<void> App::OnConfigure(Config&) {
   return Ok();
 }
@@ -328,6 +330,7 @@ Result<void> App::Init(const CLIArgList& args) {
     }
   }
   cvar::ApplyEnvironment(config_);
+  RequireModules(config_);
 
   auto& loader = detail::ModuleLoader::Instance();
   auto api = loader.Connect(config_);

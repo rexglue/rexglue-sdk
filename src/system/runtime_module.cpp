@@ -1,0 +1,147 @@
+/**
+ * @file        system/runtime_module.cpp
+ * @brief       The rex.module@1 served by rexruntime.dll
+ *
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ */
+
+#include "system/runtime_module.h"
+
+#include <format>
+#include <string>
+#include <string_view>
+
+#include <rex/logging.h>
+#include <rex/macros.h>
+
+#include "audio/cvar_table.h"
+#include "filesystem/cvar_table.h"
+#include "input/cvar_table.h"
+#include "system/cvar_table.h"
+#include "ui/cvar_table.h"
+
+namespace rex::runtime {
+
+namespace {
+
+struct ScopeTable {
+  std::string_view scope;
+  std::span<const cvar::IVar* const> vars;
+};
+
+const std::array<ScopeTable, 9> kTables = {{
+    {"fs", filesystem::cvars::kFilesystemCvars},
+    {"runtime", cvars::kRuntimeCvars},
+    {"audio", audio::cvars::kAudioCvars},
+    {"input", input::cvars::kInputCvars},
+    {"ui", ui::cvars::kUICvars},
+    {"d3d12", ui::cvars::kD3D12Cvars},
+    {"vulkan", ui::cvars::kVulkanCvars},
+    {"console", ui::cvars::kConsoleCvars},
+    {"bind", {}},
+}};
+
+Result<void> ValidateSlices(const Config& config) {
+  auto fail = [](std::string message) {
+    REXLOG_ERROR("{}", message);
+    return Err(Error(ErrorCategory::Config, std::move(message)));
+  };
+  if (config.runtime.heap_size_mb < 1 || config.runtime.heap_size_mb > 2048) {
+    return fail(std::format("config field runtime.heap_size_mb = {} is outside 1 to 2048",
+                            config.runtime.heap_size_mb));
+  }
+  if (config.graphics.resolution_scale_x < 1 || config.graphics.resolution_scale_x > 8) {
+    return fail(std::format("config field graphics.resolution_scale_x = {} is outside 1 to 8",
+                            config.graphics.resolution_scale_x));
+  }
+  if (config.graphics.resolution_scale_y < 1 || config.graphics.resolution_scale_y > 8) {
+    return fail(std::format("config field graphics.resolution_scale_y = {} is outside 1 to 8",
+                            config.graphics.resolution_scale_y));
+  }
+  const auto& backend = config.graphics.backend;
+  if (backend != "any" && backend != "d3d12" && backend != "vulkan") {
+    return fail(
+        std::format("config field graphics.backend = '{}' is not any, d3d12 or vulkan", backend));
+  }
+#if !REX_PLATFORM_WIN32
+  if (config.input.backend == input::Backend::XInput) {
+    return fail("config field input.backend = XInput is Windows only");
+  }
+#endif
+  return Ok();
+}
+
+RuntimeModule& Instance() {
+  static RuntimeModule instance;
+  return instance;
+}
+
+}  // namespace
+
+void* RuntimeModule::GetModule() {
+  return static_cast<IModule*>(&Instance());
+}
+
+const char* RuntimeModule::Name() const {
+  return "rexruntime";
+}
+
+std::span<const char* const> RuntimeModule::RequiredInterfaces() const {
+  static constexpr std::array<const char*, 1> kRequired = {"rex.cvar@1"};
+  return kRequired;
+}
+
+Result<void> RuntimeModule::Connect(IInterfaceFactory* factory, const Config& config) {
+  REX_TRY_VOID(ValidateSlices(config));
+  cvars_ = factory->Get<cvar::ICvarRegistry>();
+  if (!cvars_) {
+    return Err(ErrorCategory::Module, "rexruntime: rex.cvar is not served");
+  }
+  registered_ = 0;
+  for (const ScopeTable& table : kTables) {
+    if (auto status = cvars_->Register(table.scope, table.vars); !status) {
+      Disconnect();
+      return status;
+    }
+    ++registered_;
+  }
+  const auto& window = config.ui.window;
+  auto defaults = [&]() -> Result<void> {
+    REX_TRY_VOID(cvars_->SetDefault("ui.window_width", std::to_string(window.width)));
+    REX_TRY_VOID(cvars_->SetDefault("ui.window_height", std::to_string(window.height)));
+    REX_TRY_VOID(cvars_->SetDefault("ui.fullscreen", window.fullscreen ? "true" : "false"));
+    REX_TRY_VOID(cvars_->SetDefault("ui.fullscreen_exclusive",
+                                    window.fullscreen_exclusive ? "true" : "false"));
+    REX_TRY_VOID(cvars_->SetDefault("ui.monitor", std::to_string(window.monitor)));
+    return Ok();
+  };
+  if (auto status = defaults(); !status) {
+    Disconnect();
+    return status;
+  }
+  return Ok();
+}
+
+void RuntimeModule::Disconnect() {
+  if (cvars_) {
+    for (size_t i = registered_; i > 0; --i) {
+      cvars_->Unregister(kTables[i - 1].vars);
+    }
+  }
+  registered_ = 0;
+  cvars_ = nullptr;
+}
+
+Result<void> RuntimeModule::Init() {
+  return Ok();
+}
+
+void RuntimeModule::Shutdown() {}
+
+}  // namespace rex::runtime
+
+REX_DECLARE_MODULE(rex::runtime::RuntimeModule)

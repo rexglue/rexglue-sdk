@@ -11,13 +11,13 @@
 
 #pragma once
 
+#include <rex/macros.h>
 #include <rex/platform.h>
+#include <rex/types.h>
 #include <cstddef>
 
 #if REX_PLATFORM_LINUX || REX_PLATFORM_MAC
 #if REX_PLATFORM_MAC && !defined(_XOPEN_SOURCE)
-// Darwin hides the deprecated ucontext APIs unless _XOPEN_SOURCE is defined
-// before including <ucontext.h>.
 #define _XOPEN_SOURCE 700
 #endif
 #include <ucontext.h>
@@ -27,38 +27,55 @@
 
 namespace rex::platform {
 
-/// Host OS fiber primitive.
-/// Each guest fiber gets one Fiber. Switching preserves the entire C++ call
-/// stack, so mid-function resume works without any LR lookup.
-struct Fiber {
-  /// Convert the calling thread into a fiber.
-  /// Must be called once on a thread before any SwitchTo.
-  /// Returns a handle for the thread's current execution context.
+/**
+ * Host OS fiber. Each guest fiber owns 1 Fiber. A switch keeps the whole C++ call stack, so a
+ * function resumes mid body without a link register lookup.
+ */
+struct REX_API Fiber {
+  /**
+   * Converts the calling thread into a fiber. Call once per thread before any SwitchTo.
+   *
+   * @return Fiber for the current execution context, or null on failure.
+   */
   static Fiber* ConvertCurrentThread();
 
-  /// Create a new fiber with its own host stack.
-  /// entry(arg) is called when the fiber is first switched to.
+  /**
+   * Creates a fiber with its own host stack. The first switch to it calls entry(arg).
+   *
+   * @param stack_size Stack size in bytes.
+   * @param entry Entry function.
+   * @param arg Argument passed to entry.
+   * @return The new fiber, or null on failure.
+   */
   static Fiber* Create(size_t stack_size, void (*entry)(void*), void* arg);
 
-  /// Suspend the current fiber and resume target.
-  /// Returns when another fiber calls SwitchTo back to this one.
+  /**
+   * Suspends the current fiber and resumes target. Returns when another fiber switches back.
+   *
+   * @param target Fiber to resume.
+   */
   static void SwitchTo(Fiber* target);
 
-  /// Destroy this fiber. Must not be called while it is executing.
+  /**
+   * Destroys and frees this fiber. A created fiber must not be running. A converted thread
+   * fiber is destroyed from its own thread and turns the thread back into a plain thread.
+   */
   void Destroy();
 
-  /// Returns the fiber currently executing on this thread, or nullptr.
-  static Fiber* Current() { return tls_current_; }
+  /**
+   * Returns the fiber running on the calling thread.
+   *
+   * @return The current fiber, or null when the thread was never converted.
+   */
+  static Fiber* Current();
 
  private:
-  static thread_local Fiber* tls_current_;
-
 #if REX_PLATFORM_WIN32
   void* handle_ = nullptr;
   bool is_thread_fiber_ = false;
 #elif REX_PLATFORM_LINUX || REX_PLATFORM_MAC
   ucontext_t context_{};
-  std::vector<uint8_t> stack_;
+  std::vector<u8> stack_;
   void (*entry_)(void*) = nullptr;
   void* arg_ = nullptr;
   bool is_thread_fiber_ = false;

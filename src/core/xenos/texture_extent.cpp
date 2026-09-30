@@ -17,8 +17,8 @@
 
 namespace rex::xenos {
 
-static TextureExtent CalculateExtent(const FormatInfo* format_info, uint32_t pitch, uint32_t height,
-                                     uint32_t depth, bool is_tiled, bool is_guest) {
+static TextureExtent CalculateExtent(const FormatInfo* format_info, u32 pitch, u32 height,
+                                     u32 depth, bool is_tiled, bool is_guest) {
   TextureExtent extent;
 
   extent.pitch = pitch;
@@ -32,25 +32,22 @@ static TextureExtent CalculateExtent(const FormatInfo* format_info, uint32_t pit
   extent.depth = depth;
 
   if (is_guest) {
-    // Texture dimensions must be a multiple of tile
-    // dimensions (32x32 blocks).
     extent.block_pitch_h = rex::round_up(extent.block_pitch_h, 32);
     extent.block_pitch_v = rex::round_up(extent.block_pitch_v, 32);
 
     extent.pitch = extent.block_pitch_h * format_info->block_width;
     extent.height = extent.block_pitch_v * format_info->block_height;
 
-    uint32_t bytes_per_block = format_info->bytes_per_block();
-    uint32_t byte_pitch = extent.block_pitch_h * bytes_per_block;
+    u32 bytes_per_block = format_info->bytes_per_block();
+    u32 byte_pitch = extent.block_pitch_h * bytes_per_block;
 
     if (!is_tiled) {
-      // Each row must be a multiple of 256 bytes in linear textures.
+      // Linear rows are multiples of 256 bytes.
       byte_pitch = rex::round_up(byte_pitch, 256);
       extent.block_pitch_h = byte_pitch / bytes_per_block;
       extent.pitch = extent.block_pitch_h * format_info->block_width;
     }
 
-    // Is depth special?
     extent.depth = extent.depth;
   } else {
     extent.pitch = extent.block_pitch_h * format_info->block_width;
@@ -60,9 +57,8 @@ static TextureExtent CalculateExtent(const FormatInfo* format_info, uint32_t pit
   return extent;
 }
 
-TextureExtent TextureExtent::Calculate(const FormatInfo* format_info, uint32_t pitch,
-                                       uint32_t height, uint32_t depth, bool is_tiled,
-                                       bool is_guest) {
+TextureExtent TextureExtent::Calculate(const FormatInfo* format_info, u32 pitch, u32 height,
+                                       u32 depth, bool is_tiled, bool is_guest) {
   return CalculateExtent(format_info, pitch, height, depth, is_tiled, is_guest);
 }
 

@@ -331,14 +331,15 @@ TEST_CASE_METHOD(Fixture, "A consumer table with a bad name fails before any loa
   REQUIRE(g_events.empty());
 }
 
-TEST_CASE_METHOD(Fixture, "Slice validation fails before any load", "[module_loader][cvar]") {
+TEST_CASE_METHOD(Fixture, "Slice validation fails before any module connects",
+                 "[module_loader][cvar]") {
   Pinned pin("rexmod-test-good");
-  auto cfg = With({"rexmod-test-good"});
+  auto cfg = With({"rexruntime", "rexmod-test-good"});
   cfg.runtime.heap_size_mb = 0;
   auto api = rex::Init(cfg);
   REQUIRE_FALSE(api);
   REQUIRE(api.error().message.find("runtime.heap_size_mb") != std::string::npos);
-  REQUIRE(g_events.empty());
+  REQUIRE_FALSE(Ran("rexmod-test-good:connect"));
   cfg.runtime.heap_size_mb = 256;
   cfg.graphics.resolution_scale_x = 9;
   api = rex::Init(cfg);
@@ -371,13 +372,13 @@ TEST_CASE_METHOD(Fixture, "Every SDK cvar name is scope.leaf in a charter scope"
   static const std::vector<std::string_view> kScopes = {
       "log", "clock", "perf",  "fs",     "runtime", "audio", "input",
       "ui",  "gpu",   "d3d12", "vulkan", "console", "bind"};
-  rex::Config cfg;
+  auto cfg = With({"rexruntime"});
   auto xenos = rex::filesystem::GetExecutableFolder() / rex::detail::ModuleFileName("rexgpu-xenos");
   if (std::filesystem::exists(xenos))
-    cfg.modules = {"rexgpu-xenos"};
+    cfg.modules.push_back("rexgpu-xenos");
   auto api = rex::Init(cfg);
-  if (!api && !cfg.modules.empty()) {
-    cfg.modules.clear();
+  if (!api && cfg.modules.size() > 1) {
+    cfg.modules.pop_back();
     api = rex::Init(cfg);
   }
   REQUIRE(api);
@@ -396,6 +397,29 @@ TEST_CASE_METHOD(Fixture, "Every SDK cvar name is scope.leaf in a charter scope"
     }
   }
   REQUIRE(count >= 97);
-  if (!cfg.modules.empty())
+  if (cfg.modules.size() > 1)
     REQUIRE(count == 168);
+}
+
+TEST_CASE_METHOD(Fixture, "rexruntime registers the module scopes at Connect",
+                 "[module_loader][cvar]") {
+  auto api = rex::Init(With({"rexruntime"}));
+  REQUIRE(api);
+  REQUIRE(api.value()->IsLoaded("rexruntime"));
+  auto* registry = api.value()->Get<rex::cvar::ICvarRegistry>();
+  REQUIRE(registry->Find("runtime.protect_zero") != nullptr);
+  REQUIRE(registry->Find("ui.window_width") != nullptr);
+  auto scopes = registry->Scopes();
+  REQUIRE(std::find(scopes.begin(), scopes.end(), "bind") != scopes.end());
+}
+
+TEST_CASE_METHOD(Fixture, "Without rexruntime no module scope exists", "[module_loader][cvar]") {
+  auto api = rex::Init(rex::Config{});
+  REQUIRE(api);
+  auto* registry = api.value()->Get<rex::cvar::ICvarRegistry>();
+  REQUIRE(registry->Find("runtime.protect_zero") == nullptr);
+  REQUIRE(registry->Find("ui.window_width") == nullptr);
+  auto scopes = registry->Scopes();
+  REQUIRE(std::find(scopes.begin(), scopes.end(), "bind") == scopes.end());
+  REQUIRE(registry->Find("log.level") != nullptr);
 }

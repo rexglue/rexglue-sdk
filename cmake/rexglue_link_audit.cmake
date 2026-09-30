@@ -1,14 +1,5 @@
-# Enforces the single-rexcore-copy invariant and the no-static-registrar rule for modules.
-#
-# rexcore is an OBJECT library whose globals (the cvar registry, the logging
-# singletons) must live in exactly one loaded module. rexruntime is that module.
-# A linkable target that links rexruntime and also links an OBJECT library
-# carrying rexcore objects ends up with two registries.
-#
-# A module DLL (any SHARED or MODULE target other than rexruntime) must not carry
-# static registrars.
-
-set(REXGLUE_CORE_OBJECT_LIBS rexcore rexfilesystem rexinput rexui rexaudio)
+set(REXGLUE_RUNTIME_OBJECT_LIBS rexfilesystem rexinput rexui rexaudio)
+set(REXGLUE_ABOVE_CORE_TARGETS rexruntime rexfilesystem rexui rexinput rexaudio rexgpu-xenos rexcodegen)
 set(REXGLUE_REGISTRAR_REGEX "REXCVAR_DEFINE_|REXLOG_DEFINE_CATEGORY|REXLOG_DEFINE_SUBCATEGORY")
 
 function(_rexglue_collect_targets dir out_var)
@@ -59,7 +50,7 @@ function(rexglue_audit_core_linkage)
             continue()
         endif()
 
-        foreach(lib IN LISTS REXGLUE_CORE_OBJECT_LIBS)
+        foreach(lib IN LISTS REXGLUE_RUNTIME_OBJECT_LIBS)
             if("${lib}" IN_LIST resolved)
                 list(APPEND violations "  ${target} links rexruntime and ${lib}")
             endif()
@@ -78,9 +69,6 @@ function(rexglue_audit_module_registrars)
     _rexglue_collect_targets("${CMAKE_CURRENT_SOURCE_DIR}" all_targets)
     set(violations "")
     foreach(target IN LISTS all_targets)
-        if(target STREQUAL "rexruntime")
-            continue()
-        endif()
         get_target_property(type ${target} TYPE)
         if(NOT type MATCHES "^(SHARED_LIBRARY|MODULE_LIBRARY)$")
             continue()
@@ -116,5 +104,23 @@ function(rexglue_audit_module_registrars)
     endif()
 endfunction()
 
+function(rexglue_audit_core_tier)
+    get_target_property(links rexcore LINK_LIBRARIES)
+    set(violations "")
+    foreach(lib IN LISTS links)
+        _rexglue_resolve_alias("${lib}" real)
+        if("${real}" IN_LIST REXGLUE_ABOVE_CORE_TARGETS)
+            list(APPEND violations "  rexcore links ${real}")
+        endif()
+    endforeach()
+    if(violations)
+        list(JOIN violations "
+" detail)
+        message(FATAL_ERROR "rexcore is tier 0 and links no SDK target (charter 2.2):
+${detail}")
+    endif()
+endfunction()
+
 rexglue_audit_core_linkage()
+rexglue_audit_core_tier()
 rexglue_audit_module_registrars()

@@ -23,7 +23,7 @@ if(EXISTS "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ mod.output_dir }}/sour
         {{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}
         {{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ mod.output_dir }}
     )
-    target_link_libraries({{ mod.lib_name }} PRIVATE rex::runtime)
+    target_link_libraries({{ mod.lib_name }} PRIVATE rex::sdk)
     rexglue_apply_recomp_settings({{ mod.lib_name }}
         "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/{{ mod.output_dir }}/{{ project }}_pch.h")
     add_dependencies({{ mod.lib_name }} {{ project }}_codegen)

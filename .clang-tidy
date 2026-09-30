@@ -40,6 +40,8 @@ CheckOptions:
     value: lower_case
   - key: readability-identifier-naming.LocalVariableCase
     value: lower_case
+  - key: readability-identifier-naming.LocalVariableIgnoredRegexp
+    value: '^___tracy_.*'
 
   # Member variables
   - key: readability-identifier-naming.MemberCase

@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <rex/macros.h>
 #include <rex/logging/types.h>
 
 #include <filesystem>
@@ -39,7 +40,7 @@ namespace rex {
  *
  * @param config  Logging configuration.
  */
-void InitLogging(const LogConfig& config);
+REX_API void InitLogging(const LogConfig& config);
 
 /**
  * Initialize logging with simple parameters (convenience overload).
@@ -47,20 +48,20 @@ void InitLogging(const LogConfig& config);
  * @param log_file  Path to log file, or empty for no file logging.
  * @param level     Default log level for all categories.
  */
-void InitLogging(std::filesystem::path log_file = {},
-                 spdlog::level::level_enum level = spdlog::level::info);
+REX_API void InitLogging(std::filesystem::path log_file = {},
+                         spdlog::level::level_enum level = spdlog::level::info);
 
 /**
  * Early-phase logging initialization (before config is loaded).
  * Creates a platform debug sink (OutputDebugString on Windows, stdout elsewhere)
  * so log lines emitted before InitLogging() is called are captured.
  */
-void InitLoggingEarly();
+REX_API void InitLoggingEarly();
 
 /**
  * Flush all loggers and shut down the logging system.
  */
-void ShutdownLogging();
+REX_API void ShutdownLogging();
 
 /**
  * Flush all loggers without tearing down the logging system.
@@ -68,7 +69,7 @@ void ShutdownLogging();
  * Use when other threads may still be logging: unlike ShutdownLogging it leaves
  * the registry and sinks intact, so a concurrent logger cannot hit freed state.
  */
-void FlushLogging();
+REX_API void FlushLogging();
 
 /**
  * Register a new log category at runtime.
@@ -83,10 +84,10 @@ void FlushLogging();
  * @param name  Human-readable category name (e.g. "app.network").
  * @return      Handle for the new category.
  */
-LogCategoryId RegisterLogCategory(const char* name);
+REX_API LogCategoryId RegisterLogCategory(const char* name);
 
-LogCategoryId RegisterLogSubcategory(const char* name, LogCategoryId parent);
-void SetRootLevel(LogCategoryId root, spdlog::level::level_enum level);
+REX_API LogCategoryId RegisterLogSubcategory(const char* name, LogCategoryId parent);
+REX_API void SetRootLevel(LogCategoryId root, spdlog::level::level_enum level);
 
 /**
  * Look up a category by name.
@@ -94,14 +95,14 @@ void SetRootLevel(LogCategoryId root, spdlog::level::level_enum level);
  * @param name  Category name to search for (case-sensitive).
  * @return      Category handle, or std::nullopt if not found.
  */
-std::optional<LogCategoryId> FindCategory(const std::string& name);
+REX_API std::optional<LogCategoryId> FindCategory(const std::string& name);
 
 /**
  * Get a read-only view of all registered categories.
  *
  * @return  Span over the registry entries in registration order.
  */
-std::span<const LogCategoryEntry> GetAllCategories();
+REX_API std::span<const LogCategoryEntry> GetAllCategories();
 
 /**
  * Get the raw logger pointer for a category (zero overhead).
@@ -112,12 +113,12 @@ std::span<const LogCategoryEntry> GetAllCategories();
  * @param category  Category handle.
  * @return          Raw pointer to the spdlog logger (not owning).
  */
-spdlog::logger* GetLoggerRaw(LogCategoryId category);
+REX_API spdlog::logger* GetLoggerRaw(LogCategoryId category);
 
 /**
  * log.noisy. Gates the NOISY macros until sub-project 4 deletes them.
  */
-bool NoisyEnabled();
+REX_API bool NoisyEnabled();
 
 /**
  * Get the shared logger pointer for a category.
@@ -128,14 +129,14 @@ bool NoisyEnabled();
  * @param category  Category handle.
  * @return          Shared pointer to the spdlog logger.
  */
-std::shared_ptr<spdlog::logger> GetLogger(LogCategoryId category);
+REX_API std::shared_ptr<spdlog::logger> GetLogger(LogCategoryId category);
 
 /**
  * Get the default (Core) logger.
  *
  * @return  Shared pointer to the Core category logger.
  */
-std::shared_ptr<spdlog::logger> GetLogger();
+REX_API std::shared_ptr<spdlog::logger> GetLogger();
 
 /**
  * Set the log level for a specific category at runtime.
@@ -143,27 +144,27 @@ std::shared_ptr<spdlog::logger> GetLogger();
  * @param category  Category handle.
  * @param level     New log level.
  */
-void SetCategoryLevel(LogCategoryId category, spdlog::level::level_enum level);
+REX_API void SetCategoryLevel(LogCategoryId category, spdlog::level::level_enum level);
 
 /**
  * Set the log level for all registered categories.
  *
  * @param level  New log level.
  */
-void SetAllLevels(spdlog::level::level_enum level);
+REX_API void SetAllLevels(spdlog::level::level_enum level);
 
 /**
  * Register a CVAR change callback for the "log_level" CVAR.
  * Call this after InitLogging() to enable runtime level changes.
  */
-void RegisterLogLevelCallback();
+REX_API void RegisterLogLevelCallback();
 
 /**
  * Add a sink to all current and future loggers.
  *
  * @param sink  Shared pointer to the spdlog sink.
  */
-void AddSink(spdlog::sink_ptr sink);
+REX_API void AddSink(spdlog::sink_ptr sink);
 
 /**
  * Add a sink to a specific category's logger only.
@@ -171,14 +172,14 @@ void AddSink(spdlog::sink_ptr sink);
  * @param category  Category handle.
  * @param sink      Shared pointer to the spdlog sink.
  */
-void AddSink(LogCategoryId category, spdlog::sink_ptr sink);
+REX_API void AddSink(LogCategoryId category, spdlog::sink_ptr sink);
 
 /**
  * Remove a sink from all loggers.
  *
  * @param sink  The sink to remove (matched by pointer identity).
  */
-void RemoveSink(spdlog::sink_ptr sink);
+REX_API void RemoveSink(spdlog::sink_ptr sink);
 
 /**
  * Remove a sink from a specific category's logger.
@@ -186,7 +187,7 @@ void RemoveSink(spdlog::sink_ptr sink);
  * @param category  Category handle.
  * @param sink      The sink to remove (matched by pointer identity).
  */
-void RemoveSink(LogCategoryId category, spdlog::sink_ptr sink);
+REX_API void RemoveSink(LogCategoryId category, spdlog::sink_ptr sink);
 
 /**
  * Replace the global console sink on every registered logger with `sink`.
@@ -194,21 +195,21 @@ void RemoveSink(LogCategoryId category, spdlog::sink_ptr sink);
  *
  * @param sink  New console sink, or nullptr to remove.
  */
-void ReplaceConsoleSink(spdlog::sink_ptr sink);
+REX_API void ReplaceConsoleSink(spdlog::sink_ptr sink);
 
 /**
  * Update the format pattern on the stdout console sink.
  *
  * @param pattern  spdlog pattern string.
  */
-void SetConsolePattern(const std::string& pattern);
+REX_API void SetConsolePattern(const std::string& pattern);
 
 /**
  * Update the format pattern on the file sink.
  *
  * @param pattern  spdlog pattern string.
  */
-void SetFilePattern(const std::string& pattern);
+REX_API void SetFilePattern(const std::string& pattern);
 
 /**
  * Parse a log level string to spdlog level enum.
@@ -219,7 +220,7 @@ void SetFilePattern(const std::string& pattern);
  * @param level_str  Level name string.
  * @return           Parsed level, or std::nullopt if invalid.
  */
-std::optional<spdlog::level::level_enum> ParseLogLevel(const std::string& level_str);
+REX_API std::optional<spdlog::level::level_enum> ParseLogLevel(const std::string& level_str);
 
 /**
  * Parse log level from string, returning a default on failure.
@@ -228,8 +229,8 @@ std::optional<spdlog::level::level_enum> ParseLogLevel(const std::string& level_
  * @param default_level  Fallback level if parsing fails.
  * @return               Parsed level or default_level.
  */
-spdlog::level::level_enum ParseLogLevelOr(const std::string& level_str,
-                                          spdlog::level::level_enum default_level);
+REX_API spdlog::level::level_enum ParseLogLevelOr(const std::string& level_str,
+                                                  spdlog::level::level_enum default_level);
 
 /**
  * Build a LogConfig from CLI arguments and environment variables.
@@ -240,14 +241,14 @@ spdlog::level::level_enum ParseLogLevelOr(const std::string& level_str,
  * @param category_levels  Per-category level overrides from CLI.
  * @return                 Populated LogConfig.
  */
-LogConfig BuildLogConfig(const std::string& cli_level,
-                         const std::map<std::string, std::string>& category_levels);
+REX_API LogConfig BuildLogConfig(const std::string& cli_level,
+                                 const std::map<std::string, std::string>& category_levels);
 
-void ApplyLogCvarOverrides(LogConfig& config);
+REX_API void ApplyLogCvarOverrides(LogConfig& config);
 
-const LogConfig& LoggingConfig();
+REX_API const LogConfig& LoggingConfig();
 
-std::map<std::string, std::string> ParseCategoryLevelsFromConfig(
+REX_API std::map<std::string, std::string> ParseCategoryLevelsFromConfig(
     const std::filesystem::path& config_path);
 
 }  // namespace rex

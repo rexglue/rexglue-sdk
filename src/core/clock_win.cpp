@@ -15,7 +15,7 @@ static_assert(REX_PLATFORM_WIN32, "This file is Windows-only");
 
 namespace rex {
 
-uint64_t Clock::host_tick_frequency_platform() {
+uint64_t Clock::host_tick_frequency_platform() noexcept {
   LARGE_INTEGER frequency;
   QueryPerformanceFrequency(&frequency);
   return frequency.QuadPart;
@@ -30,7 +30,7 @@ uint64_t Clock::host_tick_count_platform() {
   return time;
 }
 
-uint64_t Clock::QueryHostSystemTime() {
+uint64_t Clock::QueryHostSystemTime() noexcept {
   FILETIME t;
   GetSystemTimeAsFileTime(&t);
   return (uint64_t(t.dwHighDateTime) << 32) | t.dwLowDateTime;

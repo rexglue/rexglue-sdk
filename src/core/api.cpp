@@ -22,12 +22,7 @@
 
 #include "module_loader.h"
 
-#include "audio/cvar_table.h"
 #include "core/cvar_table.h"
-#include "filesystem/cvar_table.h"
-#include "input/cvar_table.h"
-#include "system/cvar_table.h"
-#include "ui/cvar_table.h"
 
 namespace rex {
 
@@ -215,35 +210,10 @@ Result<void> RegisterBuiltinCvars(cvar::ICvarRegistry& registry) {
   REX_TRY_VOID(registry.Register("log", rex::cvars::kLogCvars));
   REX_TRY_VOID(registry.Register("clock", rex::cvars::kClockCvars));
   REX_TRY_VOID(registry.Register("perf", rex::cvars::kPerfCvars));
-  REX_TRY_VOID(registry.Register("fs", rex::filesystem::cvars::kFilesystemCvars));
-  REX_TRY_VOID(registry.Register("runtime", rex::runtime::cvars::kRuntimeCvars));
-  REX_TRY_VOID(registry.Register("audio", rex::audio::cvars::kAudioCvars));
-  REX_TRY_VOID(registry.Register("input", rex::input::cvars::kInputCvars));
-  REX_TRY_VOID(registry.Register("ui", rex::ui::cvars::kUICvars));
-  REX_TRY_VOID(registry.Register("d3d12", rex::ui::cvars::kD3D12Cvars));
-  REX_TRY_VOID(registry.Register("vulkan", rex::ui::cvars::kVulkanCvars));
-  REX_TRY_VOID(registry.Register("console", rex::ui::cvars::kConsoleCvars));
-  REX_TRY_VOID(registry.Register("bind", {}));
-  const Config& config = ModuleLoader::Instance().config();
-  REX_TRY_VOID(registry.SetDefault("ui.window_width", std::to_string(config.ui.window.width)));
-  REX_TRY_VOID(registry.SetDefault("ui.window_height", std::to_string(config.ui.window.height)));
-  REX_TRY_VOID(
-      registry.SetDefault("ui.fullscreen", config.ui.window.fullscreen ? "true" : "false"));
-  REX_TRY_VOID(registry.SetDefault("ui.fullscreen_exclusive",
-                                   config.ui.window.fullscreen_exclusive ? "true" : "false"));
-  REX_TRY_VOID(registry.SetDefault("ui.monitor", std::to_string(config.ui.window.monitor)));
   return Ok();
 }
 
 void UnregisterBuiltinCvars(cvar::ICvarRegistry& registry) {
-  registry.Unregister(rex::ui::cvars::kConsoleCvars);
-  registry.Unregister(rex::ui::cvars::kVulkanCvars);
-  registry.Unregister(rex::ui::cvars::kD3D12Cvars);
-  registry.Unregister(rex::ui::cvars::kUICvars);
-  registry.Unregister(rex::input::cvars::kInputCvars);
-  registry.Unregister(rex::audio::cvars::kAudioCvars);
-  registry.Unregister(rex::runtime::cvars::kRuntimeCvars);
-  registry.Unregister(rex::filesystem::cvars::kFilesystemCvars);
   registry.Unregister(rex::cvars::kPerfCvars);
   registry.Unregister(rex::cvars::kClockCvars);
   registry.Unregister(rex::cvars::kLogCvars);

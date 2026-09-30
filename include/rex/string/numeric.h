@@ -1,9 +1,12 @@
 /**
- * @file        rex/string/numeric.h
- * @brief       Hex formatters and string-to-numeric parsers.
+ * @file        string/numeric.h
+ * @brief       Hex formatters and string to number parsers
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
  * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
  *
  * @remarks     Derived from Xenia's xenia/base/string_util.h (Ben Vanik, 2020).
  */
@@ -24,6 +27,7 @@
 #include <rex/assert.h>
 #include <rex/platform.h>
 #include <rex/string/utf8.h>
+#include <rex/types.h>
 #include <rex/vec128.h>
 
 #if REX_PLATFORM_MAC
@@ -32,38 +36,76 @@
 
 namespace rex {
 
-inline std::string to_hex_string(uint32_t value) {
+/**
+ * Formats a 32 bit value as 8 uppercase hex digits.
+ *
+ * @param value Value to format.
+ * @return The hex digits without a prefix.
+ */
+inline std::string to_hex_string(u32 value) {
   return fmt::format("{:08X}", value);
 }
 
-inline std::string to_hex_string(uint64_t value) {
+/**
+ * Formats a 64 bit value as 16 uppercase hex digits.
+ *
+ * @param value Value to format.
+ * @return The hex digits without a prefix.
+ */
+inline std::string to_hex_string(u64 value) {
   return fmt::format("{:016X}", value);
 }
 
-inline std::string to_hex_string(float value) {
-  static_assert(sizeof(uint32_t) == sizeof(value));
-  uint32_t pun;
+/**
+ * Formats the bits of a 32 bit float as 8 uppercase hex digits.
+ *
+ * @param value Value to format.
+ * @return The hex digits without a prefix.
+ */
+inline std::string to_hex_string(f32 value) {
+  static_assert(sizeof(u32) == sizeof(value));
+  u32 pun;
   std::memcpy(&pun, &value, sizeof(value));
   return to_hex_string(pun);
 }
 
-inline std::string to_hex_string(double value) {
-  static_assert(sizeof(uint64_t) == sizeof(value));
-  uint64_t pun;
+/**
+ * Formats the bits of a 64 bit float as 16 uppercase hex digits.
+ *
+ * @param value Value to format.
+ * @return The hex digits without a prefix.
+ */
+inline std::string to_hex_string(f64 value) {
+  static_assert(sizeof(u64) == sizeof(value));
+  u64 pun;
   std::memcpy(&pun, &value, sizeof(value));
   return to_hex_string(pun);
 }
 
+/**
+ * Formats the 4 32 bit lanes of a vector as hex.
+ *
+ * @param value Value to format.
+ * @return The lanes as "[XXXXXXXX XXXXXXXX XXXXXXXX XXXXXXXX]".
+ */
 inline std::string to_hex_string(const vec128_t& value) {
   return fmt::format("[{:08X} {:08X} {:08X} {:08X}]", value.u32[0], value.u32[1], value.u32[2],
                      value.u32[3]);
 }
 
+/**
+ * Parses a value from a string. Only the specializations in this header parse. The primary
+ * template calls std::terminate.
+ *
+ * @tparam T Result type.
+ * @param value Text to parse.
+ * @param force_hex True to parse integers and floats as hex without a prefix.
+ * @return The parsed value.
+ */
 template <typename T>
 inline T from_string(const std::string_view value, bool force_hex = false) {
   (void)value;
   (void)force_hex;
-  // Missing implementation for converting type T from string
   throw;
 }
 
@@ -79,10 +121,9 @@ inline T make_negative(T value) {
   return value;
 }
 
-// integral_from_string
 template <typename T>
 inline T ifs(const std::string_view value, bool force_hex) {
-  int base = 10;
+  i32 base = 10;
   std::string_view range = value;
   bool is_hex = force_hex;
   bool is_negative = false;
@@ -102,7 +143,6 @@ inline T ifs(const std::string_view value, bool force_hex) {
   if (is_hex) {
     base = 16;
   }
-  // TODO(gibbed): do something more with errors?
   auto [p, error] = std::from_chars(range.data(), range.data() + range.size(), result, base);
   if (error != std::errc()) {
     assert_always();
@@ -118,12 +158,8 @@ inline T ifs(const std::string_view value, bool force_hex) {
 template <typename T>
 inline std::from_chars_result portable_float_from_chars(const char* first, const char* last,
                                                         T& value) {
-  static_assert(std::is_same_v<T, float> || std::is_same_v<T, double>);
+  static_assert(std::is_same_v<T, f32> || std::is_same_v<T, f64>);
 
-  // AppleClang's libc++ does not provide floating-point std::from_chars on all
-  // supported SDK versions. Match from_chars semantics with a C-locale parser:
-  // no leading whitespace or '+', no global locale dependency, and distinct
-  // invalid-input and range errors.
   if (first == last || *first == '+' || *first == ' ' || *first == '\f' || *first == '\n' ||
       *first == '\r' || *first == '\t' || *first == '\v') {
     return {first, std::errc::invalid_argument};
@@ -145,7 +181,7 @@ inline std::from_chars_result portable_float_from_chars(const char* first, const
   char* end = nullptr;
   errno = 0;
   T parsed_value;
-  if constexpr (std::is_same_v<T, float>) {
+  if constexpr (std::is_same_v<T, f32>) {
     parsed_value = strtof_l(buffer, &end, c_numeric_locale);
   } else {
     parsed_value = strtod_l(buffer, &end, c_numeric_locale);
@@ -162,7 +198,6 @@ inline std::from_chars_result portable_float_from_chars(const char* first, const
 }
 #endif
 
-// floating_point_from_string
 template <typename T, typename PUN>
 inline T fpfs(const std::string_view value, bool force_hex) {
   static_assert(sizeof(T) == sizeof(PUN));
@@ -195,7 +230,6 @@ inline T fpfs(const std::string_view value, bool force_hex) {
     auto [p, error] = std::from_chars(range.data(), range.data() + range.size(), result,
                                       std::chars_format::general);
 #endif
-    // TODO(gibbed): do something more with errors?
     if (error != std::errc()) {
       assert_always();
       return T();
@@ -209,65 +243,155 @@ inline T fpfs(const std::string_view value, bool force_hex) {
 
 }  // namespace detail
 
-// The single definition of what counts as a true boolean string. Config files,
-// the command line, cvar change callbacks and the settings UI all funnel
-// through here so a value accepted in one place can't be rejected in another.
+/**
+ * Parses a boolean. Config files, the command line, cvar callbacks and the settings UI all parse
+ * booleans here, so every source accepts the same strings.
+ *
+ * @param value Text to parse.
+ * @param force_hex Unused.
+ * @return True for "true", "1" or "yes", false otherwise.
+ */
 template <>
 inline bool from_string<bool>(const std::string_view value, bool force_hex) {
   (void)force_hex;
   return value == "true" || value == "1" || value == "yes";
 }
 
+/**
+ * Parses a signed 8 bit integer. Accepts a leading "-", a "0x" prefix or an "h" suffix for hex.
+ *
+ * @param value Text to parse.
+ * @param force_hex True to parse as hex without a prefix.
+ * @return The value, or 0 when the text does not parse.
+ */
 template <>
-inline int8_t from_string<int8_t>(const std::string_view value, bool force_hex) {
-  return detail::ifs<int8_t>(value, force_hex);
+inline i8 from_string<i8>(const std::string_view value, bool force_hex) {
+  return detail::ifs<i8>(value, force_hex);
 }
 
+/**
+ * Parses an unsigned 8 bit integer. Accepts a leading "-", a "0x" prefix or an "h" suffix for
+ * hex.
+ *
+ * @param value Text to parse.
+ * @param force_hex True to parse as hex without a prefix.
+ * @return The value, or 0 when the text does not parse.
+ */
 template <>
-inline uint8_t from_string<uint8_t>(const std::string_view value, bool force_hex) {
-  return detail::ifs<uint8_t>(value, force_hex);
+inline u8 from_string<u8>(const std::string_view value, bool force_hex) {
+  return detail::ifs<u8>(value, force_hex);
 }
 
+/**
+ * Parses a signed 16 bit integer. Accepts a leading "-", a "0x" prefix or an "h" suffix for
+ * hex.
+ *
+ * @param value Text to parse.
+ * @param force_hex True to parse as hex without a prefix.
+ * @return The value, or 0 when the text does not parse.
+ */
 template <>
-inline int16_t from_string<int16_t>(const std::string_view value, bool force_hex) {
-  return detail::ifs<int16_t>(value, force_hex);
+inline i16 from_string<i16>(const std::string_view value, bool force_hex) {
+  return detail::ifs<i16>(value, force_hex);
 }
 
+/**
+ * Parses an unsigned 16 bit integer. Accepts a leading "-", a "0x" prefix or an "h" suffix for
+ * hex.
+ *
+ * @param value Text to parse.
+ * @param force_hex True to parse as hex without a prefix.
+ * @return The value, or 0 when the text does not parse.
+ */
 template <>
-inline uint16_t from_string<uint16_t>(const std::string_view value, bool force_hex) {
-  return detail::ifs<uint16_t>(value, force_hex);
+inline u16 from_string<u16>(const std::string_view value, bool force_hex) {
+  return detail::ifs<u16>(value, force_hex);
 }
 
+/**
+ * Parses a signed 32 bit integer. Accepts a leading "-", a "0x" prefix or an "h" suffix for
+ * hex.
+ *
+ * @param value Text to parse.
+ * @param force_hex True to parse as hex without a prefix.
+ * @return The value, or 0 when the text does not parse.
+ */
 template <>
-inline int32_t from_string<int32_t>(const std::string_view value, bool force_hex) {
-  return detail::ifs<int32_t>(value, force_hex);
+inline i32 from_string<i32>(const std::string_view value, bool force_hex) {
+  return detail::ifs<i32>(value, force_hex);
 }
 
+/**
+ * Parses an unsigned 32 bit integer. Accepts a leading "-", a "0x" prefix or an "h" suffix for
+ * hex.
+ *
+ * @param value Text to parse.
+ * @param force_hex True to parse as hex without a prefix.
+ * @return The value, or 0 when the text does not parse.
+ */
 template <>
-inline uint32_t from_string<uint32_t>(const std::string_view value, bool force_hex) {
-  return detail::ifs<uint32_t>(value, force_hex);
+inline u32 from_string<u32>(const std::string_view value, bool force_hex) {
+  return detail::ifs<u32>(value, force_hex);
 }
 
+/**
+ * Parses a signed 64 bit integer. Accepts a leading "-", a "0x" prefix or an "h" suffix for
+ * hex.
+ *
+ * @param value Text to parse.
+ * @param force_hex True to parse as hex without a prefix.
+ * @return The value, or 0 when the text does not parse.
+ */
 template <>
-inline int64_t from_string<int64_t>(const std::string_view value, bool force_hex) {
-  return detail::ifs<int64_t>(value, force_hex);
+inline i64 from_string<i64>(const std::string_view value, bool force_hex) {
+  return detail::ifs<i64>(value, force_hex);
 }
 
+/**
+ * Parses an unsigned 64 bit integer. Accepts a leading "-", a "0x" prefix or an "h" suffix for
+ * hex.
+ *
+ * @param value Text to parse.
+ * @param force_hex True to parse as hex without a prefix.
+ * @return The value, or 0 when the text does not parse.
+ */
 template <>
-inline uint64_t from_string<uint64_t>(const std::string_view value, bool force_hex) {
-  return detail::ifs<uint64_t>(value, force_hex);
+inline u64 from_string<u64>(const std::string_view value, bool force_hex) {
+  return detail::ifs<u64>(value, force_hex);
 }
 
+/**
+ * Parses a 32 bit float. Hex text, marked by a "0x" prefix or an "h" suffix, gives the raw bits.
+ *
+ * @param value Text to parse.
+ * @param force_hex True to parse as raw hex bits without a prefix.
+ * @return The value, or 0 when the text does not parse.
+ */
 template <>
-inline float from_string<float>(const std::string_view value, bool force_hex) {
-  return detail::fpfs<float, uint32_t>(value, force_hex);
+inline f32 from_string<f32>(const std::string_view value, bool force_hex) {
+  return detail::fpfs<f32, u32>(value, force_hex);
 }
 
+/**
+ * Parses a 64 bit float. Hex text, marked by a "0x" prefix or an "h" suffix, gives the raw bits.
+ *
+ * @param value Text to parse.
+ * @param force_hex True to parse as raw hex bits without a prefix.
+ * @return The value, or 0 when the text does not parse.
+ */
 template <>
-inline double from_string<double>(const std::string_view value, bool force_hex) {
-  return detail::fpfs<double, uint64_t>(value, force_hex);
+inline f64 from_string<f64>(const std::string_view value, bool force_hex) {
+  return detail::fpfs<f64, u64>(value, force_hex);
 }
 
+/**
+ * Parses 4 lanes. "[a b c d]" or text without a bracket gives 4 hex 32 bit lanes. "(a, b, c, d)"
+ * gives 4 floats. Lanes are separated by spaces or commas.
+ *
+ * @param value Text to parse.
+ * @param force_hex Unused, the opening bracket picks the format.
+ * @return The vector, or a zero vector when the text does not parse.
+ */
 template <>
 inline vec128_t from_string<vec128_t>(const std::string_view value, bool force_hex) {
   if (!value.size()) {
@@ -284,7 +408,6 @@ inline vec128_t from_string<vec128_t>(const std::string_view value, bool force_h
     is_hex = false;
     ++p;
   } else {
-    // Assume hex?
     is_hex = true;
   }
   if (p == end) {

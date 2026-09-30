@@ -17,6 +17,7 @@
 #include <string_view>
 #include <vector>
 
+#include <rex/macros.h>
 #include <rex/types.h>
 
 namespace rex {
@@ -34,7 +35,7 @@ struct CLIOption {
  * An option is --name or --name=value. A token that follows --name and does not start with --
  * is that option's value.
  */
-class CLIArgList {
+class REX_API CLIArgList {
  public:
   /**
    * Parses the command line main receives.

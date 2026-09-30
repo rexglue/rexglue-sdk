@@ -69,7 +69,10 @@ void StringBuffer::Append(const std::string_view value) {
 }
 
 void StringBuffer::AppendVarargs(const char* format, va_list args) {
-  int result = vsnprintf(nullptr, 0, format, args);
+  va_list size_args;
+  va_copy(size_args, args);
+  int result = vsnprintf(nullptr, 0, format, size_args);
+  va_end(size_args);
   if (result <= 0) {
     return;
   }

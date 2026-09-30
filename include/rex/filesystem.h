@@ -18,49 +18,50 @@
 #include <string_view>
 #include <vector>
 
+#include <rex/macros.h>
 #include <rex/filesystem/config.h>
 #include <rex/platform.h>
 
 namespace rex {
 
-std::string path_to_utf8(const std::filesystem::path& path);
-std::u16string path_to_utf16(const std::filesystem::path& path);
-std::filesystem::path to_path(const std::string_view source);
-std::filesystem::path to_path(const std::u16string_view source);
+REX_API std::string path_to_utf8(const std::filesystem::path& path);
+REX_API std::u16string path_to_utf16(const std::filesystem::path& path);
+REX_API std::filesystem::path to_path(const std::string_view source);
+REX_API std::filesystem::path to_path(const std::u16string_view source);
 
 namespace filesystem {
 
 // Get executable path.
-std::filesystem::path GetExecutablePath();
+REX_API std::filesystem::path GetExecutablePath();
 
 // Get executable folder.
-std::filesystem::path GetExecutableFolder();
+REX_API std::filesystem::path GetExecutableFolder();
 
 // Get user folder.
-std::filesystem::path GetUserFolder();
+REX_API std::filesystem::path GetUserFolder();
 
 // Creates the parent folder of the specified path if needed.
 // This can be used to ensure the destination path for a new file exists before
 // attempting to create it.
-bool CreateParentFolder(const std::filesystem::path& path);
+REX_API bool CreateParentFolder(const std::filesystem::path& path);
 
 // Creates an empty file at the given path, overwriting if it exists.
-bool CreateEmptyFile(const std::filesystem::path& path);
+REX_API bool CreateEmptyFile(const std::filesystem::path& path);
 
 // Opens the file at the given path with the specified mode.
 // This behaves like fopen and the returned handle can be used with stdio.
-FILE* OpenFile(const std::filesystem::path& path, const std::string_view mode);
+REX_API FILE* OpenFile(const std::filesystem::path& path, const std::string_view mode);
 
 // Wrapper for the 64-bit version of fseek, returns true on success.
-bool Seek(FILE* file, int64_t offset, int origin);
+REX_API bool Seek(FILE* file, int64_t offset, int origin);
 
 // Wrapper for the 64-bit version of ftell, returns a positive value on success.
-int64_t Tell(FILE* file);
+REX_API int64_t Tell(FILE* file);
 
 // Reduces the size of a stdio file opened for writing. The file pointer is
 // clamped. If this returns false, the size of the file and the file pointer are
 // undefined.
-bool TruncateStdioFile(FILE* file, uint64_t length);
+REX_API bool TruncateStdioFile(FILE* file, uint64_t length);
 
 struct FileAccess {
   // Implies kFileReadData.
@@ -74,7 +75,7 @@ struct FileAccess {
   static const uint32_t kFileAppendData = 0x00000004;
 };
 
-class FileHandle {
+class REX_API FileHandle {
  public:
   // Opens the file, failing if it doesn't exist.
   // The desired_access bitmask denotes the permissions on the file.
@@ -123,12 +124,12 @@ struct FileInfo {
   uint64_t access_timestamp;
   uint64_t write_timestamp;
 };
-bool GetInfo(const std::filesystem::path& path, FileInfo* out_info);
-std::vector<FileInfo> ListFiles(const std::filesystem::path& path);
+REX_API bool GetInfo(const std::filesystem::path& path, FileInfo* out_info);
+REX_API std::vector<FileInfo> ListFiles(const std::filesystem::path& path);
 
 #if REX_PLATFORM_ANDROID
-void AndroidInitialize();
-void AndroidShutdown();
+REX_API void AndroidInitialize();
+REX_API void AndroidShutdown();
 bool IsAndroidContentUri(const std::string_view source);
 int OpenAndroidContentFileDescriptor(const std::string_view uri, const char* mode);
 #endif  // REX_PLATFORM_ANDROID

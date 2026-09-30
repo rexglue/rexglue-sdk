@@ -14,6 +14,7 @@
 #include <filesystem>
 #include <string>
 
+#include <rex/macros.h>
 #include <rex/platform.h>
 
 namespace rex::platform {
@@ -22,22 +23,14 @@ namespace rex::platform {
  * Controls when a loaded library's imported symbols are resolved.
  */
 enum class SymbolResolution {
-  /**
-   * Resolve symbols on first use. Maps to RTLD_LAZY on POSIX; the only mode
-   * on Windows.
-   */
-  kLazy,
-  /**
-   * Resolve all symbols at load time. Load fails if any unresolved symbol
-   * exists. Maps to RTLD_NOW on POSIX; the only mode on Windows.
-   */
-  kImmediate,
+  kLazy,      /**< Resolve on first use. RTLD_LAZY on POSIX. */
+  kImmediate, /**< Resolve all at load. RTLD_NOW on POSIX, the Windows behavior. */
 };
 
 /**
  * Loads a shared library and resolves symbols from it. Move only.
  */
-class DynamicLibrary {
+class REX_API DynamicLibrary {
  public:
   DynamicLibrary() = default;
   ~DynamicLibrary();
@@ -74,6 +67,10 @@ class DynamicLibrary {
 
   /**
    * Typed form of GetRawSymbol.
+   *
+   * @tparam T Function pointer or pointer type of the symbol.
+   * @param name Exported symbol name.
+   * @return The symbol cast to T, or null when the library is not loaded or has no such symbol.
    */
   template <typename T>
   T GetSymbol(const char* name) const {

@@ -17,6 +17,7 @@
 #include <string_view>
 #include <vector>
 
+#include <rex/macros.h>
 #include <rex/api.h>
 #include <rex/cli_arg_list.h>
 #include <rex/logging/types.h>
@@ -30,7 +31,7 @@ namespace rex {
  * A program built on the SDK. The program calls Init, Run and Shutdown in that order. Each
  * step runs on the calling thread and calls its hook there.
  */
-class App : public NonCopyable {
+class REX_API App : public NonCopyable {
  public:
   virtual ~App();
 
@@ -111,6 +112,7 @@ class App : public NonCopyable {
    *
    * @param config The app's configuration. Init applies command line values over it
    *        afterward.
+   *
    * @return Ok to continue. An error makes Init return it.
    */
   virtual Result<void> OnConfigure(Config& config);
@@ -140,6 +142,14 @@ class App : public NonCopyable {
    * stops the title and closes the window here.
    */
   virtual void Stop();
+
+  /**
+   * Adds the modules a derived app type needs to the module list. Init calls it after OnConfigure
+   * and the command line, right before the modules load. TitleApp puts rexruntime first.
+   *
+   * @param config The configuration the modules load from.
+   */
+  virtual void RequireModules(Config& config);
 
   /**
    * Releases what a derived app type created after Init. Shutdown calls it after OnShutdown
@@ -172,7 +182,7 @@ class App : public NonCopyable {
  *
  * @param exit_code The exit code Shutdown returns.
  */
-void RequestShutdown(i32 exit_code);
+REX_API void RequestShutdown(i32 exit_code);
 
 /**
  * Requests shutdown of the running app and a new process of it once Shutdown completes.
@@ -180,14 +190,14 @@ void RequestShutdown(i32 exit_code);
  *
  * @param args Arguments for the new process. Empty reuses the current arguments.
  */
-void RequestRestart(std::vector<std::string> args = {});
+REX_API void RequestRestart(std::vector<std::string> args = {});
 
 /**
  * Tests whether shutdown of the running app has been requested.
  *
  * @return True once rex::RequestShutdown or rex::RequestRestart has been called.
  */
-bool ShutdownRequested();
+REX_API bool ShutdownRequested();
 
 }  // namespace rex
 

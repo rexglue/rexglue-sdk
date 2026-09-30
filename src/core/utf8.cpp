@@ -22,8 +22,7 @@
 
 namespace utfcpp = utf8;
 
-using citer = std::string_view::const_iterator;
-using utf8_citer = utfcpp::iterator<std::string_view::const_iterator>;
+using UTF8Iterator = utfcpp::iterator<std::string_view::const_iterator>;
 
 namespace rex {
 
@@ -36,35 +35,36 @@ std::u16string to_utf16(const std::string_view source) {
 }
 
 namespace {
-std::string to_string(char32_t c) {
+std::string ToString(char32_t c) {
   std::string result;
   utfcpp::append(c, result);
   return result;
 }
 
-uint32_t lower_ascii(const uint32_t c) {
+u32 LowerASCII(const u32 c) {
   return c >= 'A' && c <= 'Z' ? c + 32 : c;
 }
 
-uint32_t upper_ascii(const uint32_t c) {
-  return c >= 'A' && c <= 'Z' ? c + 32 : c;
+u32 UpperASCII(const u32 c) {
+  return c >= 'a' && c <= 'z' ? c - 32 : c;
 }
 
-bool equal_ascii_case(const uint32_t l, const uint32_t r) {
-  return l == r || lower_ascii(l) == lower_ascii(r);
+bool EqualASCIICase(const u32 l, const u32 r) {
+  return l == r || LowerASCII(l) == LowerASCII(r);
 }
 
-std::pair<utf8_citer, utf8_citer> make_citer(const std::string_view view) {
-  return {utf8_citer(view.cbegin(), view.cbegin(), view.cend()),
-          utf8_citer(view.cend(), view.cbegin(), view.cend())};
+std::pair<UTF8Iterator, UTF8Iterator> MakeIterators(const std::string_view view) {
+  return {UTF8Iterator(view.cbegin(), view.cbegin(), view.cend()),
+          UTF8Iterator(view.cend(), view.cbegin(), view.cend())};
 }
 
-std::pair<utf8_citer, utf8_citer> make_citer(const utf8_citer begin, const utf8_citer end) {
-  return {utf8_citer(begin.base(), begin.base(), end.base()),
-          utf8_citer(end.base(), begin.base(), end.base())};
+std::pair<UTF8Iterator, UTF8Iterator> MakeIterators(const UTF8Iterator begin,
+                                                    const UTF8Iterator end) {
+  return {UTF8Iterator(begin.base(), begin.base(), end.base()),
+          UTF8Iterator(end.base(), begin.base(), end.base())};
 }
 
-size_t byte_length(utf8_citer begin, utf8_citer end) {
+size_t ByteLength(UTF8Iterator begin, UTF8Iterator end) {
   return size_t(std::distance(begin.base(), end.base()));
 }
 }  // namespace
@@ -74,65 +74,62 @@ size_t utf8_count(const std::string_view view) {
 }
 
 std::string utf8_lower_ascii(const std::string_view view) {
-  auto [begin, end] = make_citer(view);
+  auto [begin, end] = MakeIterators(view);
   std::string result;
   for (auto it = begin; it != end; ++it) {
-    utfcpp::append(char32_t(lower_ascii(*it)), result);
+    utfcpp::append(char32_t(LowerASCII(*it)), result);
   }
   return result;
 }
 
 std::string utf8_upper_ascii(const std::string_view view) {
-  auto [begin, end] = make_citer(view);
+  auto [begin, end] = MakeIterators(view);
   std::string result;
   for (auto it = begin; it != end; ++it) {
-    utfcpp::append(char32_t(upper_ascii(*it)), result);
+    utfcpp::append(char32_t(UpperASCII(*it)), result);
   }
   return result;
 }
 
 namespace {
 template <bool LOWER>
-inline size_t hash_fnv1a(const std::string_view view) {
+inline size_t HashFNV1a(const std::string_view view) {
   const size_t offset_basis = 0xCBF29CE484222325ull;
   const size_t prime = 0x00000100000001B3ull;
-  auto work = [&prime](size_t hash, uint8_t byte_of_data) {
+  auto work = [&prime](size_t hash, u8 byte_of_data) {
     hash ^= byte_of_data;
     hash *= prime;
     return hash;
   };
   auto hash = offset_basis;
-  auto [begin, end] = make_citer(view);
+  auto [begin, end] = MakeIterators(view);
   for (auto it = begin; it != end; ++it) {
-    uint32_t c;
+    u32 c;
     if constexpr (LOWER) {
-      c = lower_ascii(*it);
+      c = LowerASCII(*it);
     } else {
       c = *it;
     }
-    hash = work(hash, uint8_t((c >> 0) & 0xFF));
-    hash = work(hash, uint8_t((c >> 8) & 0xFF));
-    hash = work(hash, uint8_t((c >> 16) & 0xFF));
-    hash = work(hash, uint8_t((c >> 24) & 0xFF));
+    hash = work(hash, u8((c >> 0) & 0xFF));
+    hash = work(hash, u8((c >> 8) & 0xFF));
+    hash = work(hash, u8((c >> 16) & 0xFF));
+    hash = work(hash, u8((c >> 24) & 0xFF));
   }
   return hash;
 }
 }  // namespace
 
 size_t utf8_hash_fnv1a(const std::string_view view) {
-  return hash_fnv1a<false>(view);
+  return HashFNV1a<false>(view);
 }
 
 size_t utf8_hash_fnv1a_case(const std::string_view view) {
-  return hash_fnv1a<true>(view);
+  return HashFNV1a<true>(view);
 }
 
 namespace {
-// TODO(gibbed): this is a separate inline function instead of inline within
-// split due to a Clang bug: reference to local binding 'needle_begin' declared
-// in enclosing function 'split'.
-inline utf8_citer find_needle(utf8_citer haystack_it, utf8_citer haystack_end,
-                              utf8_citer needle_begin, utf8_citer needle_end) {
+inline UTF8Iterator FindNeedle(UTF8Iterator haystack_it, UTF8Iterator haystack_end,
+                               UTF8Iterator needle_begin, UTF8Iterator needle_end) {
   return std::find_if(haystack_it, haystack_end, [&](const auto& c) {
     for (auto needle = needle_begin; needle != needle_end; ++needle) {
       if (c == *needle) {
@@ -143,11 +140,11 @@ inline utf8_citer find_needle(utf8_citer haystack_it, utf8_citer haystack_end,
   });
 }
 
-inline utf8_citer find_needle_case(utf8_citer haystack_it, utf8_citer haystack_end,
-                                   utf8_citer needle_begin, utf8_citer needle_end) {
+inline UTF8Iterator FindNeedleCase(UTF8Iterator haystack_it, UTF8Iterator haystack_end,
+                                   UTF8Iterator needle_begin, UTF8Iterator needle_end) {
   return std::find_if(haystack_it, haystack_end, [&](const auto& c) {
     for (auto needle = needle_begin; needle != needle_end; ++needle) {
-      if (equal_ascii_case(c, *needle)) {
+      if (EqualASCIICase(c, *needle)) {
         return true;
       }
     }
@@ -160,20 +157,20 @@ std::vector<std::string_view> utf8_split(const std::string_view haystack,
                                          const std::string_view needles, bool remove_empty) {
   std::vector<std::string_view> result;
 
-  auto [haystack_begin, haystack_end] = make_citer(haystack);
-  auto [needle_begin, needle_end] = make_citer(needles);
+  auto [haystack_begin, haystack_end] = MakeIterators(haystack);
+  auto [needle_begin, needle_end] = MakeIterators(needles);
 
   auto it = haystack_begin;
   auto last = it;
   for (;;) {
-    it = find_needle(it, haystack_end, needle_begin, needle_end);
+    it = FindNeedle(it, haystack_end, needle_begin, needle_end);
     if (it == haystack_end) {
       break;
     }
 
     if (it != last) {
-      auto offset = byte_length(haystack_begin, last);
-      auto length = byte_length(haystack_begin, it) - offset;
+      auto offset = ByteLength(haystack_begin, last);
+      auto length = ByteLength(haystack_begin, it) - offset;
       result.push_back(haystack.substr(offset, length));
     } else if (!remove_empty) {
       result.push_back("");
@@ -184,7 +181,7 @@ std::vector<std::string_view> utf8_split(const std::string_view haystack,
   }
 
   if (last != haystack_end) {
-    auto offset = byte_length(haystack_begin, last);
+    auto offset = ByteLength(haystack_begin, last);
     result.push_back(haystack.substr(offset));
   }
 
@@ -192,13 +189,13 @@ std::vector<std::string_view> utf8_split(const std::string_view haystack,
 }
 
 bool utf8_equal_z(const std::string_view left, const std::string_view right) {
-  if (!left.size()) {
-    return !right.size();
-  } else if (!right.size()) {
+  if (left.empty()) {
+    return right.empty();
+  } else if (right.empty()) {
     return false;
   }
-  auto [left_begin, left_end] = make_citer(left);
-  auto [right_begin, right_end] = make_citer(right);
+  auto [left_begin, left_end] = MakeIterators(left);
+  auto [right_begin, right_end] = MakeIterators(right);
   auto left_it = left_begin;
   auto right_it = right_begin;
   for (; left_it != left_end && *left_it != 0 && right_it != right_end && *right_it != 0;
@@ -211,29 +208,29 @@ bool utf8_equal_z(const std::string_view left, const std::string_view right) {
 }
 
 bool utf8_equal_case(const std::string_view left, const std::string_view right) {
-  if (!left.size()) {
-    return !right.size();
-  } else if (!right.size()) {
+  if (left.empty()) {
+    return right.empty();
+  } else if (right.empty()) {
     return false;
   }
-  auto [left_begin, left_end] = make_citer(left);
-  auto [right_begin, right_end] = make_citer(right);
-  return std::equal(left_begin, left_end, right_begin, right_end, equal_ascii_case);
+  auto [left_begin, left_end] = MakeIterators(left);
+  auto [right_begin, right_end] = MakeIterators(right);
+  return std::equal(left_begin, left_end, right_begin, right_end, EqualASCIICase);
 }
 
 bool utf8_equal_case_z(const std::string_view left, const std::string_view right) {
-  if (!left.size()) {
-    return !right.size();
-  } else if (!right.size()) {
+  if (left.empty()) {
+    return right.empty();
+  } else if (right.empty()) {
     return false;
   }
-  auto [left_begin, left_end] = make_citer(left);
-  auto [right_begin, right_end] = make_citer(right);
+  auto [left_begin, left_end] = MakeIterators(left);
+  auto [right_begin, right_end] = MakeIterators(right);
   auto left_it = left_begin;
   auto right_it = right_begin;
   for (; left_it != left_end && *left_it != 0 && right_it != right_end && *right_it != 0;
        ++left_it, ++right_it) {
-    if (!equal_ascii_case(*left_it, *right_it)) {
+    if (!EqualASCIICase(*left_it, *right_it)) {
       return false;
     }
   }
@@ -248,15 +245,15 @@ std::string_view::size_type utf8_find_any_of(const std::string_view haystack,
     return std::string_view::npos;
   }
 
-  auto [haystack_begin, haystack_end] = make_citer(haystack);
-  auto [needle_begin, needle_end] = make_citer(needles);
+  auto [haystack_begin, haystack_end] = MakeIterators(haystack);
+  auto [needle_begin, needle_end] = MakeIterators(needles);
 
-  auto it = find_needle(haystack_begin, haystack_end, needle_begin, needle_end);
+  auto it = FindNeedle(haystack_begin, haystack_end, needle_begin, needle_end);
   if (it == haystack_end) {
     return std::string_view::npos;
   }
 
-  return std::string_view::size_type(byte_length(haystack_begin, it));
+  return std::string_view::size_type(ByteLength(haystack_begin, it));
 }
 
 std::string_view::size_type utf8_find_any_of_case(const std::string_view haystack,
@@ -267,15 +264,15 @@ std::string_view::size_type utf8_find_any_of_case(const std::string_view haystac
     return std::string_view::npos;
   }
 
-  auto [haystack_begin, haystack_end] = make_citer(haystack);
-  auto [needle_begin, needle_end] = make_citer(needles);
+  auto [haystack_begin, haystack_end] = MakeIterators(haystack);
+  auto [needle_begin, needle_end] = MakeIterators(needles);
 
-  auto it = find_needle_case(haystack_begin, haystack_end, needle_begin, needle_end);
+  auto it = FindNeedleCase(haystack_begin, haystack_end, needle_begin, needle_end);
   if (it == haystack_end) {
     return std::string_view::npos;
   }
 
-  return std::string_view::size_type(byte_length(haystack_begin, it));
+  return std::string_view::size_type(ByteLength(haystack_begin, it));
 }
 
 std::string_view::size_type utf8_find_first_of(const std::string_view haystack,
@@ -286,8 +283,8 @@ std::string_view::size_type utf8_find_first_of(const std::string_view haystack,
     return std::string_view::npos;
   }
 
-  auto [haystack_begin, haystack_end] = make_citer(haystack);
-  auto [needle_begin, needle_end] = make_citer(needle);
+  auto [haystack_begin, haystack_end] = MakeIterators(haystack);
+  auto [needle_begin, needle_end] = MakeIterators(needle);
   auto needle_count = utf8_count(needle);
 
   auto it = haystack_begin;
@@ -300,15 +297,14 @@ std::string_view::size_type utf8_find_first_of(const std::string_view haystack,
     auto end = it;
     for (size_t i = 0; i < needle_count; ++i) {
       if (end == haystack_end) {
-        // not enough room in target for search
         return std::string_view::npos;
       }
       ++end;
     }
 
-    auto [sub_start, sub_end] = make_citer(it, end);
+    auto [sub_start, sub_end] = MakeIterators(it, end);
     if (std::equal(needle_begin, needle_end, sub_start, sub_end)) {
-      return std::string_view::size_type(byte_length(haystack_begin, it));
+      return std::string_view::size_type(ByteLength(haystack_begin, it));
     }
   }
 
@@ -323,15 +319,14 @@ std::string_view::size_type utf8_find_first_of_case(const std::string_view hayst
     return std::string_view::npos;
   }
 
-  auto [haystack_begin, haystack_end] = make_citer(haystack);
-  auto [needle_begin, needle_end] = make_citer(needle);
+  auto [haystack_begin, haystack_end] = MakeIterators(haystack);
+  auto [needle_begin, needle_end] = MakeIterators(needle);
   auto needle_count = utf8_count(needle);
   auto nc = *needle_begin;
 
   auto it = haystack_begin;
   for (; it != haystack_end; ++it) {
-    it = std::find_if(it, haystack_end,
-                      [&nc](const uint32_t& c) { return equal_ascii_case(nc, c); });
+    it = std::find_if(it, haystack_end, [&nc](const u32& c) { return EqualASCIICase(nc, c); });
     if (it == haystack_end) {
       return std::string_view::npos;
     }
@@ -339,15 +334,14 @@ std::string_view::size_type utf8_find_first_of_case(const std::string_view hayst
     auto end = it;
     for (size_t i = 0; i < needle_count; ++i) {
       if (end == haystack_end) {
-        // not enough room in target for search
         return std::string_view::npos;
       }
       ++end;
     }
 
-    auto [sub_start, sub_end] = make_citer(it, end);
-    if (std::equal(needle_begin, needle_end, sub_start, sub_end, equal_ascii_case)) {
-      return std::string_view::size_type(byte_length(haystack_begin, it));
+    auto [sub_start, sub_end] = MakeIterators(it, end);
+    if (std::equal(needle_begin, needle_end, sub_start, sub_end, EqualASCIICase)) {
+      return std::string_view::size_type(ByteLength(haystack_begin, it));
     }
   }
 
@@ -355,12 +349,12 @@ std::string_view::size_type utf8_find_first_of_case(const std::string_view hayst
 }
 
 namespace {
-bool utf8_starts_with(const std::string_view haystack, char32_t needle) {
+bool StartsWithCodePoint(const std::string_view haystack, char32_t needle) {
   if (haystack.empty()) {
     return false;
   }
-  auto [it, end] = make_citer(haystack);
-  return *it == uint32_t(needle);
+  auto [it, end] = MakeIterators(haystack);
+  return *it == u32(needle);
 }
 }  // namespace
 
@@ -371,21 +365,20 @@ bool utf8_starts_with(const std::string_view haystack, const std::string_view ne
     return false;
   }
 
-  auto [haystack_begin, haystack_end] = make_citer(haystack);
-  auto [needle_begin, needle_end] = make_citer(needle);
+  auto [haystack_begin, haystack_end] = MakeIterators(haystack);
+  auto [needle_begin, needle_end] = MakeIterators(needle);
   auto needle_count = utf8_count(needle);
 
   auto it = haystack_begin;
   auto end = it;
   for (size_t i = 0; i < needle_count; ++i) {
     if (end == haystack_end) {
-      // not enough room in target for search
       return false;
     }
     ++end;
   }
 
-  auto [sub_start, sub_end] = make_citer(it, end);
+  auto [sub_start, sub_end] = MakeIterators(it, end);
   return std::equal(needle_begin, needle_end, sub_start, sub_end);
 }
 
@@ -396,22 +389,21 @@ bool utf8_starts_with_case(const std::string_view haystack, const std::string_vi
     return false;
   }
 
-  auto [haystack_begin, haystack_end] = make_citer(haystack);
-  auto [needle_begin, needle_end] = make_citer(needle);
+  auto [haystack_begin, haystack_end] = MakeIterators(haystack);
+  auto [needle_begin, needle_end] = MakeIterators(needle);
   auto needle_count = utf8_count(needle);
 
   auto it = haystack_begin;
   auto end = it;
   for (size_t i = 0; i < needle_count; ++i) {
     if (end == haystack_end) {
-      // not enough room in target for search
       return false;
     }
     ++end;
   }
 
-  auto [sub_start, sub_end] = make_citer(it, end);
-  return std::equal(needle_begin, needle_end, sub_start, sub_end, equal_ascii_case);
+  auto [sub_start, sub_end] = MakeIterators(it, end);
+  return std::equal(needle_begin, needle_end, sub_start, sub_end, EqualASCIICase);
 }
 
 bool utf8_ends_with(const std::string_view haystack, const std::string_view needle) {
@@ -421,8 +413,8 @@ bool utf8_ends_with(const std::string_view haystack, const std::string_view need
     return false;
   }
 
-  auto [haystack_begin, haystack_end] = make_citer(haystack);
-  auto [needle_begin, needle_end] = make_citer(needle);
+  auto [haystack_begin, haystack_end] = MakeIterators(haystack);
+  auto [needle_begin, needle_end] = MakeIterators(needle);
   auto needle_count = utf8_count(needle);
 
   auto it = haystack_end;
@@ -431,13 +423,12 @@ bool utf8_ends_with(const std::string_view haystack, const std::string_view need
 
   for (size_t i = 1; i < needle_count; ++i) {
     if (it == haystack_begin) {
-      // not enough room in target for search
       return false;
     }
     --it;
   }
 
-  auto [sub_start, sub_end] = make_citer(it, end);
+  auto [sub_start, sub_end] = MakeIterators(it, end);
   return std::equal(needle_begin, needle_end, sub_start, sub_end);
 }
 
@@ -448,24 +439,23 @@ bool utf8_ends_with_case(const std::string_view haystack, const std::string_view
     return false;
   }
 
-  auto [haystack_begin, haystack_end] = make_citer(haystack);
-  auto [needle_begin, needle_end] = make_citer(needle);
+  auto [haystack_begin, haystack_end] = MakeIterators(haystack);
+  auto [needle_begin, needle_end] = MakeIterators(needle);
   auto needle_count = utf8_count(needle);
 
   auto it = haystack_end;
   auto end = it;
   --it;
 
-  for (size_t i = 0; i < needle_count; ++i) {
+  for (size_t i = 1; i < needle_count; ++i) {
     if (it == haystack_begin) {
-      // not enough room in target for search
       return false;
     }
     --it;
   }
 
-  auto [sub_start, sub_end] = make_citer(it, end);
-  return std::equal(needle_begin, needle_end, sub_start, sub_end, equal_ascii_case);
+  auto [sub_start, sub_end] = MakeIterators(it, end);
+  return std::equal(needle_begin, needle_end, sub_start, sub_end, EqualASCIICase);
 }
 
 std::vector<std::string_view> utf8_split_path(const std::string_view path) {
@@ -474,18 +464,18 @@ std::vector<std::string_view> utf8_split_path(const std::string_view path) {
 
 std::string utf8_join_paths(const std::string_view left_path, const std::string_view right_path,
                             char32_t separator) {
-  if (!left_path.length()) {
+  if (left_path.empty()) {
     return std::string(right_path);
-  } else if (!right_path.length()) {
+  } else if (right_path.empty()) {
     return std::string(left_path);
   }
 
-  utf8_citer it;
-  std::tie(std::ignore, it) = make_citer(left_path);
+  UTF8Iterator it;
+  std::tie(std::ignore, it) = MakeIterators(left_path);
   --it;
 
   std::string result = std::string(left_path);
-  if (*it != static_cast<uint32_t>(separator)) {
+  if (*it != static_cast<u32>(separator)) {
     utfcpp::append(separator, result);
   }
   return result + std::string(right_path);
@@ -520,20 +510,18 @@ std::string utf8_fix_path_separators(const std::string_view path, char32_t new_s
     return std::string();
   }
 
-  // Swap all separators to new_sep.
   const char32_t old_separator = new_separator == U'\\' ? U'/' : U'\\';
 
-  auto [path_begin, path_end] = make_citer(path);
+  auto [path_begin, path_end] = MakeIterators(path);
 
   std::string result;
   auto it = path_begin;
   auto last = it;
 
   auto is_separator = [old_separator, new_separator](char32_t c) {
-    return c == uint32_t(old_separator) || c == uint32_t(new_separator);
+    return c == u32(old_separator) || c == u32(new_separator);
   };
 
-  // Begins with a separator
   if (is_separator(*it)) {
     utfcpp::append(new_separator, result);
     ++it;
@@ -547,8 +535,8 @@ std::string utf8_fix_path_separators(const std::string_view path, char32_t new_s
     }
 
     if (it != last) {
-      auto offset = byte_length(path_begin, last);
-      auto length = byte_length(path_begin, it) - offset;
+      auto offset = ByteLength(path_begin, last);
+      auto length = ByteLength(path_begin, it) - offset;
       result += path.substr(offset, length);
       utfcpp::append(new_separator, result);
     }
@@ -562,7 +550,7 @@ std::string utf8_fix_path_separators(const std::string_view path, char32_t new_s
   }
 
   if (last != path_end) {
-    auto offset = byte_length(path_begin, last);
+    auto offset = ByteLength(path_begin, last);
     result += path.substr(offset);
   }
 
@@ -574,54 +562,49 @@ std::string utf8_find_name_from_path(const std::string_view path, char32_t separ
     return std::string();
   }
 
-  auto [begin, end] = make_citer(path);
+  auto [begin, end] = MakeIterators(path);
 
   auto it = end;
   --it;
 
-  // skip trailing separators at the end of the path
-  while (*it == uint32_t(separator)) {
+  while (*it == u32(separator)) {
     if (it == begin) {
-      // path is all separators, name is empty
       return std::string();
     }
     --it;
   }
 
-  // update end so it is before any trailing separators
   end = std::next(it);
 
-  // skip non-separators
-  while (*it != uint32_t(separator)) {
+  while (*it != u32(separator)) {
     if (it == begin) {
       break;
     }
     --it;
   }
 
-  // if the iterator is on a separator, advance
-  if (*it == uint32_t(separator)) {
+  if (*it == u32(separator)) {
     ++it;
   }
 
-  auto offset = byte_length(begin, it);
-  auto length = byte_length(it, end);
+  auto offset = ByteLength(begin, it);
+  auto length = ByteLength(it, end);
   return std::string(path.substr(offset, length));
 }
 
 std::string utf8_find_base_name_from_path(const std::string_view path, char32_t separator) {
   auto name = utf8_find_name_from_path(path, separator);
-  if (!name.length()) {
+  if (name.empty()) {
     return std::string();
   }
 
-  auto [begin, end] = make_citer(name);
+  auto [begin, end] = MakeIterators(name);
 
   auto it = end;
   --it;
 
   while (it != begin) {
-    if (*it == uint32_t('.')) {
+    if (*it == u32('.')) {
       break;
     }
     --it;
@@ -631,7 +614,7 @@ std::string utf8_find_base_name_from_path(const std::string_view path, char32_t 
     return name;
   }
 
-  auto length = byte_length(it, end);
+  auto length = ByteLength(it, end);
   auto offset = name.length() - length;
   return std::string(name.substr(0, offset));
 }
@@ -641,48 +624,41 @@ std::string utf8_find_base_path(const std::string_view path, char32_t separator)
     return std::string();
   }
 
-  auto [begin, end] = make_citer(path);
+  auto [begin, end] = MakeIterators(path);
 
   auto it = end;
   --it;
 
-  // skip trailing separators at the end of the path
-  while (*it == uint32_t(separator)) {
+  while (*it == u32(separator)) {
     if (it == begin) {
       return std::string();
     }
     --it;
   }
 
-  // skip non-separators
-  while (*it != uint32_t(separator)) {
+  while (*it != u32(separator)) {
     if (it == begin) {
-      // there are no separators, base path is empty
       return std::string();
     }
     --it;
   }
 
-  // Save position of the separator we just found
   auto sep_pos = it;
 
-  // skip trailing separators at the end of the base path
-  while (*it == uint32_t(separator)) {
+  while (*it == u32(separator)) {
     if (it == begin) {
-      // base path is all separators, base path is empty
       return std::string();
     }
     --it;
   }
 
-  // If we stopped at a colon (drive letter like "D:"), include the root separator
-  // This ensures "D:\file.txt" returns "D:\" not "D:"
-  if (*it == uint32_t(':')) {
-    auto length = byte_length(begin, std::next(sep_pos));
+  // A drive letter such as "D:" keeps its root separator.
+  if (*it == u32(':')) {
+    auto length = ByteLength(begin, std::next(sep_pos));
     return std::string(path.substr(0, length));
   }
 
-  auto length = byte_length(begin, std::next(it));
+  auto length = ByteLength(begin, std::next(it));
   return std::string(path.substr(0, length));
 }
 
@@ -691,16 +667,15 @@ std::string utf8_canonicalize_path(const std::string_view path, char32_t separat
     return std::string();
   }
 
-  auto is_rooted = utf8_starts_with(path, separator);
+  auto is_rooted = StartsWithCodePoint(path, separator);
 
   auto parts = utf8_split_path(path);
   for (auto it = parts.begin(); it != parts.end();) {
     const auto& part = *it;
     if (part == ".") {
-      // Potential marker for current directory.
       it = parts.erase(it);
     } else if (part == "..") {
-      // Ensure we don't override the device name.
+      // ".." never removes a device name such as "game:".
       if (it != parts.begin()) {
         auto prev = std::prev(it);
         if (!utf8_ends_with(*prev, ":")) {
@@ -714,7 +689,7 @@ std::string utf8_canonicalize_path(const std::string_view path, char32_t separat
   }
 
   return !is_rooted ? utf8_join_paths(parts, separator)
-                    : to_string(separator) + utf8_join_paths(parts, separator);
+                    : ToString(separator) + utf8_join_paths(parts, separator);
 }
 
 }  // namespace rex

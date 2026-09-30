@@ -1,88 +1,188 @@
 /**
- ******************************************************************************
- * Xenia : Xbox 360 Emulator Research Project                                 *
- ******************************************************************************
- * Copyright 2022 Ben Vanik. All rights reserved.                             *
- * Released under the BSD license - see LICENSE in the root for more details. *
- ******************************************************************************
+ * @file        chrono/clock.h
+ * @brief       Host and guest tick counts, system time and time scaling
  *
- * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ *
+ * @remarks     Derived from Xenia's xenia/base/clock.h (Ben Vanik, 2022).
  */
 
 #pragma once
 
 #include <chrono>
-#include <cstdint>
+#include <utility>
 
+#include <rex/macros.h>
 #include <rex/platform.h>
+#include <rex/types.h>
 
+/**
+ * 1 when Clock can read the hardware tick source directly. It is 0 on AMD64 and undefined
+ * elsewhere, so Clock reads the platform time source.
+ */
 #if REX_ARCH_AMD64
-// Raw clock source requires platform-specific implementation
-// Disable for now - use platform clock functions instead
 #define REX_CLOCK_RAW_AVAILABLE 0
 #endif
 
 namespace rex {
 
-class Clock {
+/**
+ * Process-wide host clock queries and the scaled guest clock. Every member is static.
+ */
+class REX_API Clock {
  public:
-  /** clock.no_scaling, read by the chrono conversions. */
+  /**
+   * @return The clock.no_scaling cvar. When true, guest time follows host time unscaled.
+   */
   static bool no_scaling();
-  // Host ticks-per-second. Generally QueryHostTickFrequency should be used.
-  // Either from platform suplied time source or from hardware directly.
-  static uint64_t host_tick_frequency_platform();
+
+  /**
+   * Host tick frequency from the platform time source. Prefer QueryHostTickFrequency.
+   *
+   * @return Host ticks per second.
+   */
+  static u64 host_tick_frequency_platform() noexcept;
 #if REX_CLOCK_RAW_AVAILABLE
-  static uint64_t host_tick_frequency_raw();
+  /**
+   * Host tick frequency from the hardware tick source.
+   *
+   * @return Host ticks per second.
+   */
+  static u64 host_tick_frequency_raw();
 #endif
-  // Host tick count. Generally QueryHostTickCount() should be used.
-  static uint64_t host_tick_count_platform();
+
+  /**
+   * Host tick count from the platform time source. Prefer QueryHostTickCount.
+   *
+   * @return The current host tick count.
+   */
+  static u64 host_tick_count_platform();
 #if REX_CLOCK_RAW_AVAILABLE
-  static uint64_t host_tick_count_raw();
+  /**
+   * Host tick count from the hardware tick source.
+   *
+   * @return The current host tick count.
+   */
+  static u64 host_tick_count_raw();
 #endif
 
-  // Queries the host tick frequency.
-  static uint64_t QueryHostTickFrequency();
-  // Queries the current host tick count.
-  static uint64_t QueryHostTickCount();
-  // Host time, in FILETIME format.
-  static uint64_t QueryHostSystemTime();
-  // Queries the milliseconds since the host began.
-  static uint64_t QueryHostUptimeMillis();
+  /**
+   * @return Host ticks per second from the source the clock.source_raw cvar selects.
+   */
+  static u64 QueryHostTickFrequency();
 
-  // Guest time scalar.
-  static double guest_time_scalar();
-  // Sets the guest time scalar, adjusting tick and wall clock speed.
-  // Ex: 1x=normal, 2x=double speed, 1/2x=half speed.
-  static void set_guest_time_scalar(double scalar);
-  // Get the tick ration between host and guest including time scaling if set.
-  static std::pair<uint64_t, uint64_t> guest_tick_ratio();
-  // Guest ticks-per-second.
-  static uint64_t guest_tick_frequency();
-  // Sets the guest ticks-per-second.
-  static void set_guest_tick_frequency(uint64_t frequency);
-  // Time based used for the guest system time.
-  static uint64_t guest_system_time_base();
-  // Sets the guest time base, used for computing the system time.
-  // By default this is the current system time.
-  static void set_guest_system_time_base(uint64_t time_base);
+  /**
+   * @return The current host tick count from the source the clock.source_raw cvar selects.
+   */
+  static u64 QueryHostTickCount() noexcept;
 
-  // Queries the current guest tick count, accounting for frequency adjustment
-  // and scaling.
-  static uint64_t QueryGuestTickCount();
-  // Queries the guest time, in FILETIME format, accounting for scaling.
-  static uint64_t QueryGuestSystemTime();
-  // Queries the milliseconds since the guest began, accounting for scaling.
-  static uint32_t QueryGuestUptimeMillis();
+  /**
+   * @return The host system time as a FILETIME, in 100ns units since Jan 1 1601.
+   */
+  static u64 QueryHostSystemTime() noexcept;
 
-  // Sets the system time of the guest.
-  static void SetGuestSystemTime(uint64_t system_time);
+  /**
+   * @return Milliseconds since the host platform tick source started.
+   */
+  static u64 QueryHostUptimeMillis();
 
-  // Scales a time duration in milliseconds, from guest time.
-  static uint32_t ScaleGuestDurationMillis(uint32_t guest_ms);
-  // Scales a time duration in 100ns ticks like FILETIME, from guest time.
-  static int64_t ScaleGuestDurationFileTime(int64_t guest_file_time);
-  // Scales a time duration represented as a timeval, from guest time.
-  static void ScaleGuestDurationTimeval(int32_t* tv_sec, int32_t* tv_usec);
+  /**
+   * @return The guest time scalar. 1 is normal speed.
+   */
+  static f64 guest_time_scalar();
+
+  /**
+   * Sets the guest time scalar, which scales guest tick and wall clock speed. 2 runs at double
+   * speed and 0.5 at half speed. Ignored when no_scaling is true.
+   *
+   * @param scalar The new scalar.
+   */
+  static void set_guest_time_scalar(f64 scalar);
+
+  /**
+   * @return The host to guest tick ratio with time scaling applied, as a reduced numerator and
+   *         denominator pair.
+   */
+  static std::pair<u64, u64> guest_tick_ratio();
+
+  /**
+   * @return Guest ticks per second.
+   */
+  static u64 guest_tick_frequency();
+
+  /**
+   * Sets the guest tick frequency and recomputes the tick ratio.
+   *
+   * @param frequency Guest ticks per second.
+   */
+  static void set_guest_tick_frequency(u64 frequency);
+
+  /**
+   * @return The FILETIME base the guest system time counts from. It defaults to the host system
+   *         time at startup.
+   */
+  static u64 guest_system_time_base();
+
+  /**
+   * Sets the FILETIME base the guest system time counts from.
+   *
+   * @param time_base The new base as a FILETIME.
+   */
+  static void set_guest_system_time_base(u64 time_base);
+
+  /**
+   * Advances and reads the guest tick count, with frequency adjustment and scaling applied.
+   *
+   * @return The current guest tick count.
+   */
+  static u64 QueryGuestTickCount();
+
+  /**
+   * @return The guest system time as a scaled FILETIME. It equals host system time when
+   *         no_scaling is true.
+   */
+  static u64 QueryGuestSystemTime();
+
+  /**
+   * @return Scaled milliseconds since the guest system time base, clamped to the u32 range.
+   */
+  static u32 QueryGuestUptimeMillis();
+
+  /**
+   * Sets the guest system time by moving the time base. Ignored when no_scaling is true.
+   *
+   * @param system_time The new guest system time as a FILETIME.
+   */
+  static void SetGuestSystemTime(u64 system_time);
+
+  /**
+   * Scales a guest duration in milliseconds by the time scalar.
+   *
+   * @param guest_ms The guest duration in milliseconds.
+   * @return The scaled duration, clamped to the u32 range.
+   */
+  static u32 ScaleGuestDurationMillis(u32 guest_ms);
+
+  /**
+   * Scales a guest FILETIME duration by the time scalar. A positive value is an absolute time and
+   * scales relative to the current guest system time. A negative value is a relative duration.
+   *
+   * @param guest_file_time The guest time in 100ns units.
+   * @return The scaled time in 100ns units.
+   */
+  static i64 ScaleGuestDurationFileTime(i64 guest_file_time);
+
+  /**
+   * Scales a guest timeval duration in place by the time scalar.
+   *
+   * @param tv_sec The seconds field, read and written.
+   * @param tv_usec The microseconds field, read and written.
+   */
+  static void ScaleGuestDurationTimeval(i32* tv_sec, i32* tv_usec);
 };
 
 }  // namespace rex

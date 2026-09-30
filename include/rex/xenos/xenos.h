@@ -1,12 +1,14 @@
 /**
- ******************************************************************************
- * Xenia : Xbox 360 Emulator Research Project                                 *
- ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
- * Released under the BSD license - see LICENSE in the root for more details. *
- ******************************************************************************
+ * @file        xenos/xenos.h
+ * @brief       Xenos GPU register enums, fetch constant layouts and packet helpers.
  *
- * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ *
+ * @remarks     Derived from Xenia's xenia/gpu/xenos.h (Ben Vanik, 2020).
  */
 
 #pragma once
@@ -14,159 +16,140 @@
 #include <algorithm>
 #include <bit>
 
+#include <rex/macros.h>
 #include <rex/assert.h>
 #include <rex/memory/utils.h>
 #include <rex/types.h>
 
 namespace rex::xenos {
 
-// enum types used in the GPU registers or the microcode must be : uint32_t or
-// : int32_t, as Visual C++ restarts bit field packing when a field requires
-// different alignment than the previous one, so only 32-bit types must be used
-// in bit fields (registers are 32-bit, and the microcode consists of triples of
-// 32-bit words).
-
+/** Signature that VdSwap writes as the first payload dword of its swap packet. */
 constexpr memory::fourcc_t kSwapSignature = memory::make_fourcc("SWAP");
 
-enum class ShaderType : uint32_t {
-  kVertex = 0,
-  kPixel = 1,
+/** Shader stage. */
+enum class ShaderType : u32 {
+  kVertex = 0, /**< Vertex shader. */
+  kPixel = 1,  /**< Pixel shader. */
 };
 
-// Only the lower 24 bits of the vertex index are used (tested on an Adreno 200
-// phone using a GL_UNSIGNED_INT element array buffer with junk in the upper 8
-// bits that had no effect on drawing).
-constexpr uint32_t kVertexIndexBits = 24;
-constexpr uint32_t kVertexIndexMask = (uint32_t(1) << kVertexIndexBits) - 1;
+/** Number of low vertex index bits the GPU uses. */
+constexpr u32 kVertexIndexBits = 24;
+/** Mask of the vertex index bits the GPU uses. */
+constexpr u32 kVertexIndexMask = (u32(1) << kVertexIndexBits) - 1;
 
-enum class PrimitiveType : uint32_t {
-  kNone = 0x00,
-  kPointList = 0x01,
-  kLineList = 0x02,
-  kLineStrip = 0x03,
-  kTriangleList = 0x04,
-  kTriangleFan = 0x05,
-  kTriangleStrip = 0x06,
-  kTriangleWithWFlags = 0x07,
-  kRectangleList = 0x08,
-  kLineLoop = 0x0C,
-  kQuadList = 0x0D,
-  kQuadStrip = 0x0E,
-  kPolygon = 0x0F,
-
-  // Starting with this primitive type, explicit major mode is assumed (in the
-  // R6xx/R7xx registers, k2DCopyRectListV0 is 22, and implicit major mode is
-  // only used for primitive types 0 through 21) - and tessellation patches use
-  // the range that starts from k2DCopyRectListV0.
-  // TODO(Triang3l): Verify if this is also true for the Xenos.
-  kExplicitMajorModeForceStart = 0x10,
-
-  k2DCopyRectListV0 = 0x10,
-  k2DCopyRectListV1 = 0x11,
-  k2DCopyRectListV2 = 0x12,
-  k2DCopyRectListV3 = 0x13,
-  k2DFillRectList = 0x14,
-  k2DLineStrip = 0x15,
-  k2DTriStrip = 0x16,
-
-  // Tessellation patches when VGT_OUTPUT_PATH_CNTL::path_select is
-  // VGTOutputPath::kTessellationEnable. The vertex shader receives the patch
-  // index rather than control point indices.
-  // With non-adaptive tessellation, VGT_DRAW_INITIATOR::num_indices is the
-  // patch count (4D5307F1 draws single ground patches by passing 1 as the index
-  // count). VGT_INDX_OFFSET is also applied to the patch index - 4D5307F1 uses
-  // auto-indexed patches with a nonzero VGT_INDX_OFFSET, which contains the
-  // base patch index there.
-  // With adaptive tessellation, however, num_indices is the number of
-  // tessellation factors in the "index buffer" reused for tessellation factors,
-  // which is the patch count multiplied by the edge count (if num_indices is
-  // multiplied further by 4 for quad patches for the ground in 4D5307F2, for
-  // example, some incorrect patches are drawn, so Xenia shouldn't do that; also
-  // 4D5307E6 draws water triangle patches with the number of indices that is 3
-  // times the invocation count of the memexporting shader that calculates the
-  // tessellation factors for a single patch for each "point").
-  kLinePatch = 0x10,
-  kTrianglePatch = 0x11,
-  kQuadPatch = 0x12,
+/**
+ * Primitive type of a draw.
+ *
+ * Types from kExplicitMajorModeForceStart onward always use explicit major mode. When the VGT
+ * output path is VGTOutputPath::kTessellationEnable, that range holds tessellation patch types,
+ * and the vertex shader receives the patch index instead of control point indices.
+ */
+enum class PrimitiveType : u32 {
+  kNone = 0x00,                        /**< No primitive. */
+  kPointList = 0x01,                   /**< Point list. */
+  kLineList = 0x02,                    /**< Line list. */
+  kLineStrip = 0x03,                   /**< Line strip. */
+  kTriangleList = 0x04,                /**< Triangle list. */
+  kTriangleFan = 0x05,                 /**< Triangle fan. */
+  kTriangleStrip = 0x06,               /**< Triangle strip. */
+  kTriangleWithWFlags = 0x07,          /**< Triangle list with W flags. */
+  kRectangleList = 0x08,               /**< Rectangle list, 3 vertices per rectangle. */
+  kLineLoop = 0x0C,                    /**< Line loop. */
+  kQuadList = 0x0D,                    /**< Quad list. */
+  kQuadStrip = 0x0E,                   /**< Quad strip. */
+  kPolygon = 0x0F,                     /**< Polygon. */
+  kExplicitMajorModeForceStart = 0x10, /**< First type that forces explicit major mode. */
+  k2DCopyRectListV0 = 0x10,            /**< 2D copy rectangle list, variant 0. */
+  k2DCopyRectListV1 = 0x11,            /**< 2D copy rectangle list, variant 1. */
+  k2DCopyRectListV2 = 0x12,            /**< 2D copy rectangle list, variant 2. */
+  k2DCopyRectListV3 = 0x13,            /**< 2D copy rectangle list, variant 3. */
+  k2DFillRectList = 0x14,              /**< 2D fill rectangle list. */
+  k2DLineStrip = 0x15,                 /**< 2D line strip. */
+  k2DTriStrip = 0x16,                  /**< 2D triangle strip. */
+  kLinePatch = 0x10,                   /**< Line patch with tessellation enabled. */
+  kTrianglePatch = 0x11,               /**< Triangle patch with tessellation enabled. */
+  kQuadPatch = 0x12,                   /**< Quad patch with tessellation enabled. */
 };
 
-// For the texture fetch constant (not the tfetch instruction), stacked stored
-// as 2D.
-enum class DataDimension : uint32_t {
-  k1D = 0,
-  k2DOrStacked = 1,
-  k3D = 2,
-  kCube = 3,
+/** Texture fetch constant dimension. Stacked textures are stored as 2D. */
+enum class DataDimension : u32 {
+  k1D = 0,          /**< 1D texture. */
+  k2DOrStacked = 1, /**< 2D or stacked texture. */
+  k3D = 2,          /**< 3D texture. */
+  kCube = 3,        /**< Cube texture. */
 };
 
-enum class ClampMode : uint32_t {
-  kRepeat = 0,
-  kMirroredRepeat = 1,
-  kClampToEdge = 2,
-  kMirrorClampToEdge = 3,
-  kClampToHalfway = 4,
-  kMirrorClampToHalfway = 5,
-  kClampToBorder = 6,
-  kMirrorClampToBorder = 7,
+/** Texture coordinate clamp mode. */
+enum class ClampMode : u32 {
+  kRepeat = 0,               /**< Repeat. */
+  kMirroredRepeat = 1,       /**< Mirrored repeat. */
+  kClampToEdge = 2,          /**< Clamp to the edge texel. */
+  kMirrorClampToEdge = 3,    /**< Mirror once, then clamp to the edge texel. */
+  kClampToHalfway = 4,       /**< Clamp halfway between the edge texel and the border. */
+  kMirrorClampToHalfway = 5, /**< Mirror once, then clamp halfway. */
+  kClampToBorder = 6,        /**< Clamp to the border color. */
+  kMirrorClampToBorder = 7,  /**< Mirror once, then clamp to the border color. */
 };
 
+/**
+ * Tests whether a clamp mode samples the border color.
+ *
+ * @param clamp_mode Clamp mode to test.
+ * @return True for kClampToBorder and kMirrorClampToBorder.
+ */
 constexpr bool ClampModeUsesBorder(ClampMode clamp_mode) {
   return clamp_mode == ClampMode::kClampToBorder || clamp_mode == ClampMode::kMirrorClampToBorder;
 }
 
-// TEX_FORMAT_COMP, known as GPUSIGN on the Xbox 360.
-enum class TextureSign : uint32_t {
-  kUnsigned = 0,
-  // Two's complement texture data.
-  kSigned = 1,
-  // 2*color-1 - https://xboxforums.create.msdn.com/forums/t/107374.aspx
-  kUnsignedBiased = 2,
-  // Linearized when sampled.
-  kGamma = 3,
+/** Texture component signedness (TEX_FORMAT_COMP, GPUSIGN on the Xbox 360). */
+enum class TextureSign : u32 {
+  kUnsigned = 0,       /**< Unsigned data. */
+  kSigned = 1,         /**< Two's complement data. */
+  kUnsignedBiased = 2, /**< Unsigned data remapped as 2 * color - 1. */
+  kGamma = 3,          /**< Linearized when sampled. */
 };
 
-enum class TextureFilter : uint32_t {
-  kPoint = 0,
-  kLinear = 1,
-  // Only applicable to the mip filter - like OpenGL minification filters
-  // GL_NEAREST / GL_LINEAR without MIPMAP_NEAREST / MIPMAP_LINEAR.
-  kBaseMap = 2,
-  kUseFetchConst = 3,
+/** Texture filter. */
+enum class TextureFilter : u32 {
+  kPoint = 0,         /**< Point sampling. */
+  kLinear = 1,        /**< Linear filtering. */
+  kBaseMap = 2,       /**< Mip filter only, samples the base level without mip selection. */
+  kUseFetchConst = 3, /**< Use the filter from the fetch constant. */
 };
 
-enum class AnisoFilter : uint32_t {
-  kDisabled = 0,
-  kMax_1_1 = 1,
-  kMax_2_1 = 2,
-  kMax_4_1 = 3,
-  kMax_8_1 = 4,
-  kMax_16_1 = 5,
-  kUseFetchConst = 7,
+/** Anisotropic filter ratio. */
+enum class AnisoFilter : u32 {
+  kDisabled = 0,      /**< Anisotropic filtering off. */
+  kMax_1_1 = 1,       /**< Up to 1:1. */
+  kMax_2_1 = 2,       /**< Up to 2:1. */
+  kMax_4_1 = 3,       /**< Up to 4:1. */
+  kMax_8_1 = 4,       /**< Up to 8:1. */
+  kMax_16_1 = 5,      /**< Up to 16:1. */
+  kUseFetchConst = 7, /**< Use the ratio from the fetch constant. */
 };
 
-enum class BorderColor : uint32_t {
-  // (0.0, 0.0, 0.0)
-  // TODO(Triang3l): Is the alpha 0 or 1?
-  k_ABGR_Black = 0,
-  // (1.0, 1.0, 1.0, 1.0)
-  k_ABGR_White = 1,
-  // Unknown precisely, but likely (0.5, 0.0, 0.5) for unsigned (Cr, Y, Cb)
-  // TODO(Triang3l): Real hardware border color, and is the alpha 0 or 1?
-  k_ACBYCR_Black = 2,
-  // Unknown precisely, but likely (0.0, 0.5, 0.5) for unsigned (Y, Cr, Cb)
-  // TODO(Triang3l): Real hardware border color, and is the alpha 0 or 1?
-  k_ACBCRY_Black = 3,
+/** Texture border color. The alpha of the black colors is not known. */
+enum class BorderColor : u32 {
+  k_ABGR_Black = 0,   /**< Black (0, 0, 0). */
+  k_ABGR_White = 1,   /**< White (1, 1, 1, 1). */
+  k_ACBYCR_Black = 2, /**< Likely (0.5, 0, 0.5) in unsigned (Cr, Y, Cb). */
+  k_ACBCRY_Black = 3, /**< Likely (0, 0.5, 0.5) in unsigned (Y, Cr, Cb). */
 };
 
-// For the tfetch instruction (not the fetch constant) and related instructions,
-// stacked accessed using tfetch3D.
-enum class FetchOpDimension : uint32_t {
-  k1D = 0,
-  k2D = 1,
-  k3DOrStacked = 2,
-  kCube = 3,
+/** Dimension of the tfetch instruction. Stacked textures are accessed with tfetch3D. */
+enum class FetchOpDimension : u32 {
+  k1D = 0,          /**< 1D fetch. */
+  k2D = 1,          /**< 2D fetch. */
+  k3DOrStacked = 2, /**< 3D or stacked fetch. */
+  kCube = 3,        /**< Cube fetch. */
 };
 
+/**
+ * Returns the number of texture coordinate components a fetch dimension uses.
+ *
+ * @param dimension Fetch dimension.
+ * @return 1, 2 or 3.
+ */
 inline int GetFetchOpDimensionComponentCount(FetchOpDimension dimension) {
   switch (dimension) {
     case FetchOpDimension::k1D:
@@ -182,148 +165,103 @@ inline int GetFetchOpDimensionComponentCount(FetchOpDimension dimension) {
   }
 }
 
-enum class SampleLocation : uint32_t {
-  kCentroid = 0,
-  kCenter = 1,
+/** Interpolation location within a pixel. */
+enum class SampleLocation : u32 {
+  kCentroid = 0, /**< Centroid. */
+  kCenter = 1,   /**< Pixel center. */
 };
 
-enum class Endian : uint32_t {
-  kNone = 0,
-  k8in16 = 1,
-  k8in32 = 2,
-  k16in32 = 3,
+/** Endian swap mode for 32-bit data. */
+enum class Endian : u32 {
+  kNone = 0,   /**< No swap. */
+  k8in16 = 1,  /**< Swap bytes in 16-bit words. */
+  k8in32 = 2,  /**< Swap bytes in 32-bit words. */
+  k16in32 = 3, /**< Swap 16-bit halves in 32-bit words. */
 };
 
-enum class Endian128 : uint32_t {
-  kNone = 0,
-  k8in16 = 1,
-  k8in32 = 2,
-  k16in32 = 3,
-  k8in64 = 4,
-  k8in128 = 5,
+/** Endian swap mode for up to 128-bit data. */
+enum class Endian128 : u32 {
+  kNone = 0,   /**< No swap. */
+  k8in16 = 1,  /**< Swap bytes in 16-bit words. */
+  k8in32 = 2,  /**< Swap bytes in 32-bit words. */
+  k16in32 = 3, /**< Swap 16-bit halves in 32-bit words. */
+  k8in64 = 4,  /**< Swap bytes in 64-bit words. */
+  k8in128 = 5, /**< Swap bytes in 128-bit words. */
 };
 
-enum class IndexFormat : uint32_t {
-  kInt16,
-  // Not very common, but used for some world draws in 545407E0.
-  kInt32,
+/** Index buffer element size. */
+enum class IndexFormat : u32 {
+  kInt16, /**< 16-bit indices. */
+  kInt32, /**< 32-bit indices. */
 };
 
-// SurfaceNumberX from yamato_enum.h.
-enum class SurfaceNumberFormat : uint32_t {
-  kUnsignedRepeatingFraction = 0,
-  // Microsoft-style, scale factor (2^(n-1))-1.
-  kSignedRepeatingFraction = 1,
-  kUnsignedInteger = 2,
-  kSignedInteger = 3,
-  kFloat = 7,
+/** Surface number format (SurfaceNumberX). */
+enum class SurfaceNumberFormat : u32 {
+  kUnsignedRepeatingFraction = 0, /**< Unsigned normalized. */
+  kSignedRepeatingFraction = 1,   /**< Signed normalized with scale 2^(n-1) - 1. */
+  kUnsignedInteger = 2,           /**< Unsigned integer. */
+  kSignedInteger = 3,             /**< Signed integer. */
+  kFloat = 7,                     /**< Floating-point. */
 };
 
-// The EDRAM is an opaque block of memory accessible by the RB (render backend)
-// pipeline stage of the GPU, which performs output-merger functionality (color
-// render target writing and blending, depth and stencil testing) and resolve
-// (copy) operations.
-//
-// Data in the 10 MiB of EDRAM is laid out as 2048 tiles on 80x16 32bpp MSAA
-// samples. With 2x MSAA, one pixel consists of 1x2 samples, and with 4x, it
-// consists of 2x2 samples. Thus, for a 32bpp render target, one tile contains
-// 80x16 pixels without MSAA, samples of 80x8 pixels with 2x MSAA, or samples of
-// 40x8 pixels with 4x MSAA. The base is specified in tiles, the pitch is also
-// treated as tiles (so a 256x single-sampled surface will be stored in the
-// EDRAM as 320x).
-//
-// XGSurfaceSize code in game executables calculates the size in tiles in the
-// following order:
-// 1) If MSAA is >=2x, multiply the height by 2.
-// 2) If MSAA is 4x, multiply the width by 2.
-// 3) 80x16-align width and height in samples.
-// 4) Multiply width*height in samples by 4 or 8 depending on the pixel format.
-// 5) Divide the byte size by 5120.
-// This means that when working with layout of surfaces in the EDRAM, it should
-// be assumed that a multisampled surface is the same as a single-sampled
-// surface with 2x height and (with 4x MSAA) width - however, format size
-// doesn't effect the dimensions, 64bpp surfaces take twice as many tiles as
-// 32bpp surfaces.
-//
-// From this, it follows that the tile row pitch in tiles can be multiplied by
-// 64bpp too. In the formula for calculating the tile count:
-// (height rounded up to 16) * (width rounded up to 80) * (4 or 8) / 5120
-// the fraction can be reduced because the numerator is always divisible by
-// 5120 - it changes in 80 * 16 * 4 = 5120 increments - in tile increments -
-// resulting in:
-// (height in tiles) * (width in tiles) * (1 or 2)
-// Here we get only multiplication, which (disregarding the variable size) is
-// associative for integers, so:
-// ((height in tiles) * (width in tiles)) * (1 or 2)
-// is identical to:
-// (height in tiles) * ((width in tiles) * (1 or 2))
-//
-// Depth surfaces are also stored as 32bpp tiles, however, as opposed to color
-// surfaces, 40x16-sample halves of each tile are swapped - game shaders (for
-// example, in 4D5307E6 main menu, 545407F2) perform this swapping when writing
-// specific depth/stencil values by drawing to a depth buffer's memory through a
-// color render target (to reupload a depth/stencil surface previously evicted
-// from the EDRAM to the main memory, for instance).
-//
-// EDRAM addressing is circular - a render target may be backed by a EDRAM range
-// that extends beyond 2048 tiles, in which case, what would go to the tile 2048
-// will actually be in tile 0, tile 2049 will go to tile 1, and so on. 4D5307F1
-// heavily relies on this behavior for its depth buffer. Specifically, it's used
-// the following way:
-// - First, a depth-only 1120x720 2xMSAA pass is performed with the depth buffer
-//   in tiles [1008, 2268), or [1008, 2048) and [0, 220).
-// - Then, the depth buffer in [1008, 2268) is resolved into a texture, later
-//   used in screen-space effects.
-// - The upper 1120x576 bin is drawn into the color buffer in [0, 1008), using
-//   the [1008, 2016) portion of the previously populated depth buffer for early
-//   depth testing (there seems to be no true early Z on the Xenos, only early
-//   hi-Z, but still it possibly needs to be in sync with the per-sample depth
-//   buffer), and overwriting the tail of the previously filled depth buffer in
-//   [0, 220).
-// - The lower 1120x144 bin is drawn without the pregenerated depth buffer data.
-
-enum class MSAASamples : uint32_t {
-  k1X = 0,
-  k2X = 1,
-  k4X = 2,
+/** EDRAM multisample count. */
+enum class MSAASamples : u32 {
+  k1X = 0, /**< 1 sample. */
+  k2X = 1, /**< 2 samples, 1x2 per pixel. */
+  k4X = 2, /**< 4 samples, 2x2 per pixel. */
 };
 
-constexpr uint32_t kMSAASamplesBits = 2;
+/** Width of an MSAASamples field. */
+constexpr u32 kMSAASamplesBits = 2;
 
-constexpr uint32_t kColorRenderTargetIndexBits = 2;
-constexpr uint32_t kMaxColorRenderTargets = 4;
+/** Width of a color render target index. */
+constexpr u32 kColorRenderTargetIndexBits = 2;
+/** Number of color render targets. */
+constexpr u32 kMaxColorRenderTargets = 4;
 
-enum class ColorRenderTargetFormat : uint32_t {
-  k_8_8_8_8 = 0,
-  k_8_8_8_8_GAMMA = 1,
-  k_2_10_10_10 = 2,
-  // 7e3 [0, 32) RGB, unorm alpha.
-  // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/eg05-xenos-doggett.pdf
-  k_2_10_10_10_FLOAT = 3,
-  // Fixed point -32...32.
-  // http://www.students.science.uu.nl/~3220516/advancedgraphics/papers/inferred_lighting.pdf
-  k_16_16 = 4,
-  // Fixed point -32...32.
-  k_16_16_16_16 = 5,
-  k_16_16_FLOAT = 6,
-  k_16_16_16_16_FLOAT = 7,
-  k_2_10_10_10_AS_10_10_10_10 = 10,
-  // 16-bit fixed point at half speed, with full blending.
-  // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
-  k_2_10_10_10_FLOAT_AS_16_16_16_16 = 12,
-  k_32_FLOAT = 14,
-  k_32_32_FLOAT = 15,
+/** Color render target format. */
+enum class ColorRenderTargetFormat : u32 {
+  k_8_8_8_8 = 0,                          /**< 4 8-bit unorm components. */
+  k_8_8_8_8_GAMMA = 1,                    /**< 4 8-bit components with gamma. */
+  k_2_10_10_10 = 2,                       /**< 3 10-bit and a 2-bit unorm component. */
+  k_2_10_10_10_FLOAT = 3,                 /**< 7e3 [0, 32) RGB with unorm alpha. */
+  k_16_16 = 4,                            /**< 2 16-bit fixed-point components in -32...32. */
+  k_16_16_16_16 = 5,                      /**< 4 16-bit fixed-point components in -32...32. */
+  k_16_16_FLOAT = 6,                      /**< 2 16-bit floating-point components. */
+  k_16_16_16_16_FLOAT = 7,                /**< 4 16-bit floating-point components. */
+  k_2_10_10_10_AS_10_10_10_10 = 10,       /**< k_2_10_10_10 with 10-bit blending precision. */
+  k_2_10_10_10_FLOAT_AS_16_16_16_16 = 12, /**< k_2_10_10_10_FLOAT with 16-bit blending. */
+  k_32_FLOAT = 14,                        /**< 1 32-bit floating-point component. */
+  k_32_32_FLOAT = 15,                     /**< 2 32-bit floating-point components. */
 };
 
-const char* GetColorRenderTargetFormatName(ColorRenderTargetFormat format);
+/**
+ * Returns the name of a color render target format.
+ *
+ * @param format Color render target format.
+ * @return Enumerator name, or "kUnknown".
+ */
+REX_API const char* GetColorRenderTargetFormatName(ColorRenderTargetFormat format);
 
+/**
+ * Tests whether a color render target format uses 64 bits per sample.
+ *
+ * @param format Color render target format.
+ * @return True for k_16_16_16_16, k_16_16_16_16_FLOAT and k_32_32_FLOAT.
+ */
 constexpr bool IsColorRenderTargetFormat64bpp(ColorRenderTargetFormat format) {
   return format == ColorRenderTargetFormat::k_16_16_16_16 ||
          format == ColorRenderTargetFormat::k_16_16_16_16_FLOAT ||
          format == ColorRenderTargetFormat::k_32_32_FLOAT;
 }
 
-inline uint32_t GetColorRenderTargetFormatComponentCount(ColorRenderTargetFormat format) {
+/**
+ * Returns the number of components of a color render target format.
+ *
+ * @param format Color render target format.
+ * @return 1, 2 or 4, or 0 for an unknown format.
+ */
+inline u32 GetColorRenderTargetFormatComponentCount(ColorRenderTargetFormat format) {
   switch (format) {
     case ColorRenderTargetFormat::k_8_8_8_8:
     case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
@@ -346,8 +284,12 @@ inline uint32_t GetColorRenderTargetFormatComponentCount(ColorRenderTargetFormat
   }
 }
 
-// Returns the version of the format with the same packing and meaning of values
-// stored in it, but without blending precision modifiers.
+/**
+ * Strips the blending precision modifier from a color render target format.
+ *
+ * @param format Color render target format.
+ * @return Format with the same packing and value meaning, without the modifier.
+ */
 constexpr ColorRenderTargetFormat GetStorageColorFormat(ColorRenderTargetFormat format) {
   switch (format) {
     case ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
@@ -359,218 +301,237 @@ constexpr ColorRenderTargetFormat GetStorageColorFormat(ColorRenderTargetFormat 
   }
 }
 
-enum class DepthRenderTargetFormat : uint32_t {
-  kD24S8 = 0,
-  // 20e4 [0, 2).
-  kD24FS8 = 1,
+/** Depth render target format. */
+enum class DepthRenderTargetFormat : u32 {
+  kD24S8 = 0,  /**< 24-bit unorm depth, 8-bit stencil. */
+  kD24FS8 = 1, /**< 20e4 [0, 2) floating-point depth, 8-bit stencil. */
 };
 
-const char* GetDepthRenderTargetFormatName(DepthRenderTargetFormat format);
+/**
+ * Returns the name of a depth render target format.
+ *
+ * @param format Depth render target format.
+ * @return Enumerator name, or "kUnknown".
+ */
+REX_API const char* GetDepthRenderTargetFormatName(DepthRenderTargetFormat format);
 
-float PWLGammaToLinear(float gamma);
-float LinearToPWLGamma(float linear);
+/**
+ * Converts a piecewise linear gamma value to linear.
+ *
+ * @param gamma Gamma value, saturated before conversion.
+ * @return Linear value in [0, 1].
+ */
+REX_API f32 PWLGammaToLinear(f32 gamma);
 
-// Converts Xenos floating-point 7e3 color value in bits 0:9 (not clamping) to
-// an IEEE-754 32-bit floating-point number.
-float Float7e3To32(uint32_t f10);
-// Converts 24-bit unorm depth in the value (not clamping) to an IEEE-754 32-bit
-// floating-point number.
-// Converts an IEEE-754 32-bit floating-point number to Xenos floating-point
-// depth, rounding to the nearest even or towards zero.
-uint32_t Float32To20e4(float f32, bool round_to_nearest_even);
-// Converts Xenos floating-point depth in bits 0:23 (not clamping) to an
-// IEEE-754 32-bit floating-point number.
-float Float20e4To32(uint32_t f24);
-// Converts 24-bit unorm depth in the value (not clamping) to an IEEE-754 32-bit
-// floating-point number.
-constexpr float UNorm24To32(uint32_t n24) {
-  // Not 1.0f / 16777215.0f as that gives an incorrect result (like for a very
-  // common 0xC00000 which clears 2_10_10_10 to 0001). Division by 2^24 is just
-  // an exponent shift though, thus exact.
-  // Division by 16777215.0f behaves this way.
-  return float(n24 + (n24 >> 23)) * (1.0f / float(1 << 24));
+/**
+ * Converts a linear value to piecewise linear gamma.
+ *
+ * @param linear Linear value, saturated before conversion.
+ * @return Gamma value in [0, 1].
+ */
+REX_API f32 LinearToPWLGamma(f32 linear);
+
+/**
+ * Converts a Xenos 7e3 color value to an IEEE-754 32-bit number without clamping.
+ *
+ * @param f10 Value in bits 0:9.
+ * @return Converted value.
+ */
+REX_API f32 Float7e3To32(u32 f10);
+
+/**
+ * Converts an IEEE-754 32-bit number to Xenos 20e4 depth.
+ *
+ * @param value Value to convert. Values not above 0 become 0.
+ * @param round_to_nearest_even Round to the nearest even value instead of towards 0.
+ * @return 20e4 value in bits 0:23.
+ */
+REX_API u32 Float32To20e4(f32 value, bool round_to_nearest_even);
+
+/**
+ * Converts Xenos 20e4 depth to an IEEE-754 32-bit number without clamping.
+ *
+ * @param f24 Value in bits 0:23.
+ * @return Converted value.
+ */
+REX_API f32 Float20e4To32(u32 f24);
+
+/**
+ * Converts 24-bit unorm depth to an IEEE-754 32-bit number without clamping.
+ *
+ * @param n24 Unorm value.
+ * @return Converted value.
+ */
+constexpr f32 UNorm24To32(u32 n24) {
+  return f32(n24 + (n24 >> 23)) * (1.0f / f32(1 << 24));
 }
 
-// Scale for conversion of slope scales from PA_SU_POLY_OFFSET_FRONT/BACK_SCALE
-// units to those used when the slope is computed from the difference between
-// adjacent pixels, for conversion from the guest to common host APIs or to
-// calculation using max(|ddx(z)|, |ddy(z)|).
-// "slope computed in subpixels (1/12 or 1/16)" - R5xx Acceleration.
-// But the correct scale for conversion of the slope scale from subpixels to
-// pixels is likely 1/16 according to:
-// https://github.com/mesa3d/mesa/blob/54ad9b444c8e73da498211870e785239ad3ff1aa/src/gallium/drivers/radeonsi/si_state.c#L946
-constexpr float kPolygonOffsetScaleSubpixelUnit = 1.0f / 16.0f;
+/**
+ * Scale from PA_SU_POLY_OFFSET_FRONT/BACK_SCALE subpixel units to pixel units.
+ *
+ * Host APIs compute the slope from adjacent pixel differences, as max(|ddx(z)|, |ddy(z)|).
+ */
+constexpr f32 kPolygonOffsetScaleSubpixelUnit = 1.0f / 16.0f;
 
-constexpr uint32_t kColorRenderTargetFormatBits = 4;
-constexpr uint32_t kDepthRenderTargetFormatBits = 1;
-constexpr uint32_t kRenderTargetFormatBits =
+/** Width of a ColorRenderTargetFormat field. */
+constexpr u32 kColorRenderTargetFormatBits = 4;
+/** Width of a DepthRenderTargetFormat field. */
+constexpr u32 kDepthRenderTargetFormatBits = 1;
+/** Width of a field that holds either render target format. */
+constexpr u32 kRenderTargetFormatBits =
     std::max(kColorRenderTargetFormatBits, kDepthRenderTargetFormatBits);
 
-constexpr uint32_t kEDRAMTileWidthSamples = 80;
-constexpr uint32_t kEDRAMTileHeightSamples = 16;
-constexpr uint32_t kEDRAMTileCount = 2048;
-constexpr uint32_t kEDRAMSizeBytes =
-    kEDRAMTileCount * kEDRAMTileHeightSamples * kEDRAMTileWidthSamples * sizeof(uint32_t);
+/** EDRAM tile width in 32bpp samples. */
+constexpr u32 kEDRAMTileWidthSamples = 80;
+/** EDRAM tile height in 32bpp samples. */
+constexpr u32 kEDRAMTileHeightSamples = 16;
+/** Number of EDRAM tiles. Tile addressing wraps around at this count. */
+constexpr u32 kEDRAMTileCount = 2048;
+/** EDRAM size in bytes. */
+constexpr u32 kEDRAMSizeBytes =
+    kEDRAMTileCount * kEDRAMTileHeightSamples * kEDRAMTileWidthSamples * sizeof(u32);
 
-// RB_SURFACE_INFO::surface_pitch width.
-constexpr uint32_t kEDRAMPitchPixelsBits = 14;
-// The part of RB_COLOR_INFO::color_base and RB_DEPTH_INFO::depth_base width
-// usable on the Xenos, which has periodic 11-bit EDRAM tile addressing.
-constexpr uint32_t kEDRAMBaseTilesBits = 11;
+/** Width of RB_SURFACE_INFO::surface_pitch. */
+constexpr u32 kEDRAMPitchPixelsBits = 14;
+/** Usable width of RB_COLOR_INFO::color_base and RB_DEPTH_INFO::depth_base. */
+constexpr u32 kEDRAMBaseTilesBits = 11;
 
-constexpr uint32_t GetSurfacePitchTiles(uint32_t pitch_pixels, MSAASamples msaa_samples,
-                                        bool is_64bpp) {
-  uint32_t pitch_samples = pitch_pixels << uint32_t(msaa_samples >= MSAASamples::k4X);
-  uint32_t pitch_tiles = (pitch_samples + (kEDRAMTileWidthSamples - 1)) / kEDRAMTileWidthSamples;
+/**
+ * Returns the EDRAM row pitch of a surface in tiles.
+ *
+ * @param pitch_pixels Surface pitch in pixels.
+ * @param msaa_samples Sample count. 4x doubles the width in samples.
+ * @param is_64bpp Whether the surface uses 64 bits per sample, which doubles the tile count.
+ * @return Pitch in tiles.
+ */
+constexpr u32 GetSurfacePitchTiles(u32 pitch_pixels, MSAASamples msaa_samples, bool is_64bpp) {
+  u32 pitch_samples = pitch_pixels << u32(msaa_samples >= MSAASamples::k4X);
+  u32 pitch_tiles = (pitch_samples + (kEDRAMTileWidthSamples - 1)) / kEDRAMTileWidthSamples;
   if (is_64bpp) {
     pitch_tiles <<= 1;
   }
   return pitch_tiles;
 }
 
-// log2_ceil of the maximum value of GetSurfacePitchTiles, assuming 16383 being
-// the maximum pitch in pixels (not sure about the validity of values above
-// 8192, but to avoid bounds checking).
-// log2_ceil of 16383, multiplied by 2 for 4x MSAA, rounded to 80 samples,
-// multiplied by 2 for 64bpp.
-constexpr uint32_t kEDRAMPitchTilesBits = 10;
+/** Bits needed for the largest GetSurfacePitchTiles result with a 16383 pixel pitch. */
+constexpr u32 kEDRAMPitchTilesBits = 10;
 
-constexpr uint32_t kFormatBits = 6;
+/** Width of a texture format field. */
+constexpr u32 kFormatBits = 6;
 
-// a2xx_sq_surfaceformat +
-// https://github.com/indirivacua/RAGE-Console-Texture-Editor/blob/master/Console.Xbox360.Graphics.pas
-enum class TextureFormat : uint32_t {
-  k_1_REVERSE = 0,
-  k_1 = 1,
-  k_8 = 2,
-  k_1_5_5_5 = 3,
-  k_5_6_5 = 4,
-  k_6_5_5 = 5,
-  k_8_8_8_8 = 6,
-  k_2_10_10_10 = 7,
-  // Possibly similar to k_8, but may be storing alpha instead of red when
-  // resolving/memexporting, though not exactly known. From the point of view of
-  // sampling, it should be treated the same as k_8 (given that textures have
-  // the last - and single-component textures have the only - component
-  // replicated into all the remaining ones before the swizzle).
-  // Used as:
-  // - Texture in 4B4E083C - text, starting from the "Loading..." and the "This
-  //   game saves data automatically" messages. The swizzle in the fetch
-  //   constant is 111W (suggesting that internally the only component may be
-  //   the alpha one, not red).
-  // TODO(Triang3l): Investigate how k_8_A and k_8_B work in resolves and
-  // memexports, whether they store alpha/blue of the input or red.
-  k_8_A = 8,
-  k_8_B = 9,
-  k_8_8 = 10,
-  // Though it's unknown what exactly REP means, likely it's "repeating
-  // fraction" (the term used for normalized fixed-point formats, UNORM in
-  // particular for unsigned signedness - 0.0 to 1.0 range, like in
-  // Direct3D 10+, unlike the 0.0 to 255.0 range for D3DFMT_R8G8_B8G8 and
-  // D3DFMT_G8R8_G8B8 in Direct3D 9). 54540829 uses k_Y1_Cr_Y0_Cb_REP directly
-  // as UNORM.
-  k_Cr_Y1_Cb_Y0_REP = 11,
-  // Used for videos in 54540829.
-  k_Y1_Cr_Y0_Cb_REP = 12,
-  k_16_16_EDRAM = 13,
-  // Likely same as k_8_8_8_8.
-  // Used as:
-  // - Memexport destination in 4D5308BC - multiple small draws when looking
-  //   back at the door behind the player in the first room of gameplay.
-  // - Memexport destination in 4D53085B and 4D530919 - in 4D53085B, in a frame
-  //   between the intro video and the main menu, in a 8192-point draw.
-  k_8_8_8_8_A = 14,
-  k_4_4_4_4 = 15,
-  k_10_11_11 = 16,
-  k_11_11_10 = 17,
-  k_DXT1 = 18,
-  k_DXT2_3 = 19,
-  k_DXT4_5 = 20,
-  k_16_16_16_16_EDRAM = 21,
-  k_24_8 = 22,
-  k_24_8_FLOAT = 23,
-  k_16 = 24,
-  k_16_16 = 25,
-  k_16_16_16_16 = 26,
-  k_16_EXPAND = 27,
-  k_16_16_EXPAND = 28,
-  k_16_16_16_16_EXPAND = 29,
-  k_16_FLOAT = 30,
-  k_16_16_FLOAT = 31,
-  k_16_16_16_16_FLOAT = 32,
-  k_32 = 33,
-  k_32_32 = 34,
-  k_32_32_32_32 = 35,
-  k_32_FLOAT = 36,
-  k_32_32_FLOAT = 37,
-  k_32_32_32_32_FLOAT = 38,
-  k_32_AS_8 = 39,
-  k_32_AS_8_8 = 40,
-  k_16_MPEG = 41,
-  k_16_16_MPEG = 42,
-  k_8_INTERLACED = 43,
-  k_32_AS_8_INTERLACED = 44,
-  k_32_AS_8_8_INTERLACED = 45,
-  k_16_INTERLACED = 46,
-  k_16_MPEG_INTERLACED = 47,
-  k_16_16_MPEG_INTERLACED = 48,
-  k_DXN = 49,
-  k_8_8_8_8_AS_16_16_16_16 = 50,
-  k_DXT1_AS_16_16_16_16 = 51,
-  k_DXT2_3_AS_16_16_16_16 = 52,
-  k_DXT4_5_AS_16_16_16_16 = 53,
-  k_2_10_10_10_AS_16_16_16_16 = 54,
-  k_10_11_11_AS_16_16_16_16 = 55,
-  k_11_11_10_AS_16_16_16_16 = 56,
-  k_32_32_32_FLOAT = 57,
-  k_DXT3A = 58,
-  k_DXT5A = 59,
-  k_CTX1 = 60,
-  k_DXT3A_AS_1_1_1_1 = 61,
-  k_8_8_8_8_GAMMA_EDRAM = 62,
-  k_2_10_10_10_FLOAT_EDRAM = 63,
+/** Texture format (a2xx_sq_surfaceformat). */
+enum class TextureFormat : u32 {
+  k_1_REVERSE = 0,                  /**< 1-bit, reversed. */
+  k_1 = 1,                          /**< 1-bit. */
+  k_8 = 2,                          /**< 1 8-bit component. */
+  k_1_5_5_5 = 3,                    /**< 3 5-bit and a 1-bit component. */
+  k_5_6_5 = 4,                      /**< 5, 6 and 5-bit components. */
+  k_6_5_5 = 5,                      /**< 6, 5 and 5-bit components. */
+  k_8_8_8_8 = 6,                    /**< 4 8-bit components. */
+  k_2_10_10_10 = 7,                 /**< 3 10-bit and a 2-bit component. */
+  k_8_A = 8,                        /**< Sampled as k_8, may hold alpha in resolves. */
+  k_8_B = 9,                        /**< Sampled as k_8, may hold blue in resolves. */
+  k_8_8 = 10,                       /**< 2 8-bit components. */
+  k_Cr_Y1_Cb_Y0_REP = 11,           /**< Packed unorm YCbCr, Cr Y1 Cb Y0 order. */
+  k_Y1_Cr_Y0_Cb_REP = 12,           /**< Packed unorm YCbCr, Y1 Cr Y0 Cb order. */
+  k_16_16_EDRAM = 13,               /**< EDRAM k_16_16 data. */
+  k_8_8_8_8_A = 14,                 /**< Likely the same as k_8_8_8_8. */
+  k_4_4_4_4 = 15,                   /**< 4 4-bit components. */
+  k_10_11_11 = 16,                  /**< 10, 11 and 11-bit components. */
+  k_11_11_10 = 17,                  /**< 11, 11 and 10-bit components. */
+  k_DXT1 = 18,                      /**< DXT1 block compression. */
+  k_DXT2_3 = 19,                    /**< DXT2 and DXT3 block compression. */
+  k_DXT4_5 = 20,                    /**< DXT4 and DXT5 block compression. */
+  k_16_16_16_16_EDRAM = 21,         /**< EDRAM k_16_16_16_16 data. */
+  k_24_8 = 22,                      /**< 24-bit unorm depth and 8-bit stencil. */
+  k_24_8_FLOAT = 23,                /**< 20e4 depth and 8-bit stencil. */
+  k_16 = 24,                        /**< 1 16-bit component. */
+  k_16_16 = 25,                     /**< 2 16-bit components. */
+  k_16_16_16_16 = 26,               /**< 4 16-bit components. */
+  k_16_EXPAND = 27,                 /**< 1 16-bit component, expand variant. */
+  k_16_16_EXPAND = 28,              /**< 2 16-bit components, expand variant. */
+  k_16_16_16_16_EXPAND = 29,        /**< 4 16-bit components, expand variant. */
+  k_16_FLOAT = 30,                  /**< 1 16-bit floating-point component. */
+  k_16_16_FLOAT = 31,               /**< 2 16-bit floating-point components. */
+  k_16_16_16_16_FLOAT = 32,         /**< 4 16-bit floating-point components. */
+  k_32 = 33,                        /**< 1 32-bit component. */
+  k_32_32 = 34,                     /**< 2 32-bit components. */
+  k_32_32_32_32 = 35,               /**< 4 32-bit components. */
+  k_32_FLOAT = 36,                  /**< 1 32-bit floating-point component. */
+  k_32_32_FLOAT = 37,               /**< 2 32-bit floating-point components. */
+  k_32_32_32_32_FLOAT = 38,         /**< 4 32-bit floating-point components. */
+  k_32_AS_8 = 39,                   /**< 32-bit data as 8-bit. */
+  k_32_AS_8_8 = 40,                 /**< 32-bit data as 8_8. */
+  k_16_MPEG = 41,                   /**< 1 16-bit MPEG component. */
+  k_16_16_MPEG = 42,                /**< 2 16-bit MPEG components. */
+  k_8_INTERLACED = 43,              /**< Interlaced k_8. */
+  k_32_AS_8_INTERLACED = 44,        /**< Interlaced k_32_AS_8. */
+  k_32_AS_8_8_INTERLACED = 45,      /**< Interlaced k_32_AS_8_8. */
+  k_16_INTERLACED = 46,             /**< Interlaced k_16. */
+  k_16_MPEG_INTERLACED = 47,        /**< Interlaced k_16_MPEG. */
+  k_16_16_MPEG_INTERLACED = 48,     /**< Interlaced k_16_16_MPEG. */
+  k_DXN = 49,                       /**< DXN 2-component block compression. */
+  k_8_8_8_8_AS_16_16_16_16 = 50,    /**< k_8_8_8_8 as 16_16_16_16. */
+  k_DXT1_AS_16_16_16_16 = 51,       /**< k_DXT1 as 16_16_16_16. */
+  k_DXT2_3_AS_16_16_16_16 = 52,     /**< k_DXT2_3 as 16_16_16_16. */
+  k_DXT4_5_AS_16_16_16_16 = 53,     /**< k_DXT4_5 as 16_16_16_16. */
+  k_2_10_10_10_AS_16_16_16_16 = 54, /**< k_2_10_10_10 as 16_16_16_16. */
+  k_10_11_11_AS_16_16_16_16 = 55,   /**< k_10_11_11 as 16_16_16_16. */
+  k_11_11_10_AS_16_16_16_16 = 56,   /**< k_11_11_10 as 16_16_16_16. */
+  k_32_32_32_FLOAT = 57,            /**< 3 32-bit floating-point components. */
+  k_DXT3A = 58,                     /**< DXT3 alpha block compression. */
+  k_DXT5A = 59,                     /**< DXT5 alpha block compression. */
+  k_CTX1 = 60,                      /**< CTX1 2-component block compression. */
+  k_DXT3A_AS_1_1_1_1 = 61,          /**< k_DXT3A as 1_1_1_1. */
+  k_8_8_8_8_GAMMA_EDRAM = 62,       /**< EDRAM k_8_8_8_8 gamma data. */
+  k_2_10_10_10_FLOAT_EDRAM = 63,    /**< EDRAM 7e3 data. */
 };
 
-// Subset of a2xx_sq_surfaceformat - formats that RTs can be resolved to.
-enum class ColorFormat : uint32_t {
-  k_8 = 2,
-  k_1_5_5_5 = 3,
-  k_5_6_5 = 4,
-  k_6_5_5 = 5,
-  k_8_8_8_8 = 6,
-  k_2_10_10_10 = 7,
-  k_8_A = 8,
-  k_8_B = 9,
-  k_8_8 = 10,
-  k_8_8_8_8_A = 14,
-  k_4_4_4_4 = 15,
-  k_10_11_11 = 16,
-  k_11_11_10 = 17,
-  k_16 = 24,
-  k_16_16 = 25,
-  k_16_16_16_16 = 26,
-  k_16_FLOAT = 30,
-  k_16_16_FLOAT = 31,
-  k_16_16_16_16_FLOAT = 32,
-  k_32_FLOAT = 36,
-  k_32_32_FLOAT = 37,
-  k_32_32_32_32_FLOAT = 38,
-  k_8_8_8_8_AS_16_16_16_16 = 50,
-  k_2_10_10_10_AS_16_16_16_16 = 54,
-  k_10_11_11_AS_16_16_16_16 = 55,
-  k_11_11_10_AS_16_16_16_16 = 56,
+/** Subset of TextureFormat that render targets can be resolved to. */
+enum class ColorFormat : u32 {
+  k_8 = 2,                          /**< TextureFormat::k_8. */
+  k_1_5_5_5 = 3,                    /**< TextureFormat::k_1_5_5_5. */
+  k_5_6_5 = 4,                      /**< TextureFormat::k_5_6_5. */
+  k_6_5_5 = 5,                      /**< TextureFormat::k_6_5_5. */
+  k_8_8_8_8 = 6,                    /**< TextureFormat::k_8_8_8_8. */
+  k_2_10_10_10 = 7,                 /**< TextureFormat::k_2_10_10_10. */
+  k_8_A = 8,                        /**< TextureFormat::k_8_A. */
+  k_8_B = 9,                        /**< TextureFormat::k_8_B. */
+  k_8_8 = 10,                       /**< TextureFormat::k_8_8. */
+  k_8_8_8_8_A = 14,                 /**< TextureFormat::k_8_8_8_8_A. */
+  k_4_4_4_4 = 15,                   /**< TextureFormat::k_4_4_4_4. */
+  k_10_11_11 = 16,                  /**< TextureFormat::k_10_11_11. */
+  k_11_11_10 = 17,                  /**< TextureFormat::k_11_11_10. */
+  k_16 = 24,                        /**< TextureFormat::k_16. */
+  k_16_16 = 25,                     /**< TextureFormat::k_16_16. */
+  k_16_16_16_16 = 26,               /**< TextureFormat::k_16_16_16_16. */
+  k_16_FLOAT = 30,                  /**< TextureFormat::k_16_FLOAT. */
+  k_16_16_FLOAT = 31,               /**< TextureFormat::k_16_16_FLOAT. */
+  k_16_16_16_16_FLOAT = 32,         /**< TextureFormat::k_16_16_16_16_FLOAT. */
+  k_32_FLOAT = 36,                  /**< TextureFormat::k_32_FLOAT. */
+  k_32_32_FLOAT = 37,               /**< TextureFormat::k_32_32_FLOAT. */
+  k_32_32_32_32_FLOAT = 38,         /**< TextureFormat::k_32_32_32_32_FLOAT. */
+  k_8_8_8_8_AS_16_16_16_16 = 50,    /**< TextureFormat::k_8_8_8_8_AS_16_16_16_16. */
+  k_2_10_10_10_AS_16_16_16_16 = 54, /**< TextureFormat::k_2_10_10_10_AS_16_16_16_16. */
+  k_10_11_11_AS_16_16_16_16 = 55,   /**< TextureFormat::k_10_11_11_AS_16_16_16_16. */
+  k_11_11_10_AS_16_16_16_16 = 56,   /**< TextureFormat::k_11_11_10_AS_16_16_16_16. */
 };
 
-// Resolve writes unsigned data for fixed-point formats (so k_16_16 and
-// k_16_16_16_16 render target formats, which are signed and also have a
-// different range, are not equivalent to the respective texture formats).
+/**
+ * Tests whether resolving a render target format to a color format copies bits unchanged.
+ *
+ * Resolves write unsigned data for fixed-point formats, so the signed k_16_16 and
+ * k_16_16_16_16 render target formats never match.
+ *
+ * @param render_target_format Source render target format.
+ * @param color_format Destination color format.
+ * @return True when the resolve is a bitwise copy.
+ */
 constexpr bool IsColorResolveFormatBitwiseEquivalent(ColorRenderTargetFormat render_target_format,
                                                      ColorFormat color_format) {
   switch (render_target_format) {
     case ColorRenderTargetFormat::k_8_8_8_8:
-    // Shaders fetch data copied from k_8_8_8_8_GAMMA with TextureSign::kGamma.
     case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
-      // TODO(Triang3l): Investigate k_8_8_8_8_A.
       return color_format == ColorFormat::k_8_8_8_8 || color_format == ColorFormat::k_8_8_8_8_A ||
              color_format == ColorFormat::k_8_8_8_8_AS_16_16_16_16;
     case ColorRenderTargetFormat::k_2_10_10_10:
@@ -590,25 +551,32 @@ constexpr bool IsColorResolveFormatBitwiseEquivalent(ColorRenderTargetFormat ren
   }
 }
 
-enum class VertexFormat : uint32_t {
-  kUndefined = 0,
-  k_8_8_8_8 = 6,
-  k_2_10_10_10 = 7,
-  k_10_11_11 = 16,
-  k_11_11_10 = 17,
-  k_16_16 = 25,
-  k_16_16_16_16 = 26,
-  k_16_16_FLOAT = 31,
-  k_16_16_16_16_FLOAT = 32,
-  k_32 = 33,
-  k_32_32 = 34,
-  k_32_32_32_32 = 35,
-  k_32_FLOAT = 36,
-  k_32_32_FLOAT = 37,
-  k_32_32_32_32_FLOAT = 38,
-  k_32_32_32_FLOAT = 57,
+/** Vertex fetch format. */
+enum class VertexFormat : u32 {
+  kUndefined = 0,           /**< No format. */
+  k_8_8_8_8 = 6,            /**< TextureFormat::k_8_8_8_8. */
+  k_2_10_10_10 = 7,         /**< TextureFormat::k_2_10_10_10. */
+  k_10_11_11 = 16,          /**< TextureFormat::k_10_11_11. */
+  k_11_11_10 = 17,          /**< TextureFormat::k_11_11_10. */
+  k_16_16 = 25,             /**< TextureFormat::k_16_16. */
+  k_16_16_16_16 = 26,       /**< TextureFormat::k_16_16_16_16. */
+  k_16_16_FLOAT = 31,       /**< TextureFormat::k_16_16_FLOAT. */
+  k_16_16_16_16_FLOAT = 32, /**< TextureFormat::k_16_16_16_16_FLOAT. */
+  k_32 = 33,                /**< TextureFormat::k_32. */
+  k_32_32 = 34,             /**< TextureFormat::k_32_32. */
+  k_32_32_32_32 = 35,       /**< TextureFormat::k_32_32_32_32. */
+  k_32_FLOAT = 36,          /**< TextureFormat::k_32_FLOAT. */
+  k_32_32_FLOAT = 37,       /**< TextureFormat::k_32_32_FLOAT. */
+  k_32_32_32_32_FLOAT = 38, /**< TextureFormat::k_32_32_32_32_FLOAT. */
+  k_32_32_32_FLOAT = 57,    /**< TextureFormat::k_32_32_32_FLOAT. */
 };
 
+/**
+ * Returns the number of components of a vertex format.
+ *
+ * @param format Vertex format.
+ * @return 1 to 4, or 0 for an unknown format.
+ */
 inline int GetVertexFormatComponentCount(VertexFormat format) {
   switch (format) {
     case VertexFormat::k_32:
@@ -636,8 +604,15 @@ inline int GetVertexFormatComponentCount(VertexFormat format) {
   }
 }
 
-inline uint32_t GetVertexFormatNeededWords(VertexFormat format, uint32_t used_components) {
-  assert_zero(used_components & ~uint32_t(0b1111));
+/**
+ * Returns which 32-bit words of a vertex element hold the used components.
+ *
+ * @param format Vertex format.
+ * @param used_components Mask of used components in bits 0:3.
+ * @return Mask of needed words in bits 0:3.
+ */
+inline u32 GetVertexFormatNeededWords(VertexFormat format, u32 used_components) {
+  assert_zero(used_components & ~u32(0b1111));
   if (!used_components) {
     return 0;
   }
@@ -672,359 +647,306 @@ inline uint32_t GetVertexFormatNeededWords(VertexFormat format, uint32_t used_co
   }
 }
 
-enum class CompareFunction : uint32_t {
-  kNever = 0b000,
-  kLess = 0b001,
-  kEqual = 0b010,
-  kLessEqual = 0b011,
-  kGreater = 0b100,
-  kNotEqual = 0b101,
-  kGreaterEqual = 0b110,
-  kAlways = 0b111,
+/** Depth, stencil and alpha test comparison function. */
+enum class CompareFunction : u32 {
+  kNever = 0b000,        /**< Never passes. */
+  kLess = 0b001,         /**< Passes if less. */
+  kEqual = 0b010,        /**< Passes if equal. */
+  kLessEqual = 0b011,    /**< Passes if less or equal. */
+  kGreater = 0b100,      /**< Passes if greater. */
+  kNotEqual = 0b101,     /**< Passes if not equal. */
+  kGreaterEqual = 0b110, /**< Passes if greater or equal. */
+  kAlways = 0b111,       /**< Always passes. */
 };
 
-enum class StencilOp : uint32_t {
-  kKeep = 0,
-  kZero = 1,
-  kReplace = 2,
-  kIncrementClamp = 3,
-  kDecrementClamp = 4,
-  kInvert = 5,
-  kIncrementWrap = 6,
-  kDecrementWrap = 7,
+/** Stencil operation. */
+enum class StencilOp : u32 {
+  kKeep = 0,           /**< Keep the value. */
+  kZero = 1,           /**< Set to 0. */
+  kReplace = 2,        /**< Replace with the reference. */
+  kIncrementClamp = 3, /**< Increment and clamp. */
+  kDecrementClamp = 4, /**< Decrement and clamp. */
+  kInvert = 5,         /**< Invert the bits. */
+  kIncrementWrap = 6,  /**< Increment and wrap. */
+  kDecrementWrap = 7,  /**< Decrement and wrap. */
 };
 
-// adreno_rb_blend_factor
-enum class BlendFactor : uint32_t {
-  kZero = 0,
-  kOne = 1,
-  kSrcColor = 4,
-  kOneMinusSrcColor = 5,
-  kSrcAlpha = 6,
-  kOneMinusSrcAlpha = 7,
-  kDstColor = 8,
-  kOneMinusDstColor = 9,
-  kDstAlpha = 10,
-  kOneMinusDstAlpha = 11,
-  kConstantColor = 12,
-  kOneMinusConstantColor = 13,
-  kConstantAlpha = 14,
-  kOneMinusConstantAlpha = 15,
-  kSrcAlphaSaturate = 16,
-  // SRC1 added on Adreno.
+/** Blend factor (adreno_rb_blend_factor). */
+enum class BlendFactor : u32 {
+  kZero = 0,                   /**< 0. */
+  kOne = 1,                    /**< 1. */
+  kSrcColor = 4,               /**< Source color. */
+  kOneMinusSrcColor = 5,       /**< 1 minus source color. */
+  kSrcAlpha = 6,               /**< Source alpha. */
+  kOneMinusSrcAlpha = 7,       /**< 1 minus source alpha. */
+  kDstColor = 8,               /**< Destination color. */
+  kOneMinusDstColor = 9,       /**< 1 minus destination color. */
+  kDstAlpha = 10,              /**< Destination alpha. */
+  kOneMinusDstAlpha = 11,      /**< 1 minus destination alpha. */
+  kConstantColor = 12,         /**< Constant color. */
+  kOneMinusConstantColor = 13, /**< 1 minus constant color. */
+  kConstantAlpha = 14,         /**< Constant alpha. */
+  kOneMinusConstantAlpha = 15, /**< 1 minus constant alpha. */
+  kSrcAlphaSaturate = 16,      /**< Saturated source alpha. */
 };
 
-enum class BlendOp : uint32_t {
-  kAdd = 0,
-  kSubtract = 1,
-  kMin = 2,
-  kMax = 3,
-  kRevSubtract = 4,
+/** Blend operation. */
+enum class BlendOp : u32 {
+  kAdd = 0,         /**< Source plus destination. */
+  kSubtract = 1,    /**< Source minus destination. */
+  kMin = 2,         /**< Minimum. */
+  kMax = 3,         /**< Maximum. */
+  kRevSubtract = 4, /**< Destination minus source. */
 };
 
-enum class InvalidateMask : uint32_t {
-  VertexShader = 1 << 8,
-  PixelShader = 1 << 9,
-  All = 0x7FFF,
+/** State invalidation mask. */
+enum class InvalidateMask : u32 {
+  VertexShader = 1 << 8, /**< Vertex shader state. */
+  PixelShader = 1 << 9,  /**< Pixel shader state. */
+  All = 0x7FFF,          /**< All state. */
 };
 
-// VGT_DRAW_INITIATOR::DI_SRC_SEL_*
-enum class SourceSelect : uint32_t {
-  kDMA,
-  kImmediate,
-  kAutoIndex,
+/** Index source of a draw (VGT_DRAW_INITIATOR::DI_SRC_SEL). */
+enum class SourceSelect : u32 {
+  kDMA,       /**< Indices fetched from memory. */
+  kImmediate, /**< Indices embedded in the packet. */
+  kAutoIndex, /**< Indices generated automatically. */
 };
 
-// VGT_DRAW_INITIATOR::DI_MAJOR_MODE_*
-enum class MajorMode : uint32_t {
-  kImplicit,
-  kExplicit,
+/** Major mode of a draw (VGT_DRAW_INITIATOR::DI_MAJOR_MODE). */
+enum class MajorMode : u32 {
+  kImplicit, /**< Implicit major mode. */
+  kExplicit, /**< Explicit major mode. */
 };
 
+/**
+ * Tests whether a draw uses explicit major mode.
+ *
+ * @param major_mode Major mode from the draw initiator.
+ * @param primitive_type Primitive type of the draw.
+ * @return True when the mode is explicit or the primitive type forces it.
+ */
 inline bool IsMajorModeExplicit(MajorMode major_mode, PrimitiveType primitive_type) {
   return major_mode != MajorMode::kImplicit ||
          primitive_type >= PrimitiveType::kExplicitMajorModeForceStart;
 }
 
-enum class SignedRepeatingFractionMode : uint32_t {
-  // Microsoft-style representation with two -1 representations (one is slightly
-  // past -1 but clamped).
-  kZeroClampMinusOne,
-  // OpenGL "alternate mapping" format lacking representation for zero.
-  kNoZero,
+/** Signed normalized value mapping. */
+enum class SignedRepeatingFractionMode : u32 {
+  kZeroClampMinusOne, /**< 2 representations of -1, 1 of them clamped. */
+  kNoZero,            /**< Alternate mapping with no representation for 0. */
 };
 
-// Arbitrary filter is still present in the Code Aurora Forum release of the
-// Adreno 200 programming interface, but is deprecated according to the
-// IPR2015-00325 R400 Document Library Folder History:
-//   "Change 124923 on 2003/10/03 by jhoule@jhoule_doc_lt
-//   [...]
-//   Deprecated the ARBITRARY_FILTER fields from TFetch instr+const."
-enum class ArbitraryFilter : uint32_t {
-  k2x4Sym = 0,
-  k2x4Asym = 1,
-  k4x2Sym = 2,
-  k4x2Asym = 3,
-  k4x4Sym = 4,
-  k4x4Asym = 5,
-  kUseFetchConst = 7,
+/** Arbitrary texture filter kernel. Deprecated in the R400 documentation. */
+enum class ArbitraryFilter : u32 {
+  k2x4Sym = 0,        /**< 2x4 symmetric. */
+  k2x4Asym = 1,       /**< 2x4 asymmetric. */
+  k4x2Sym = 2,        /**< 4x2 symmetric. */
+  k4x2Asym = 3,       /**< 4x2 asymmetric. */
+  k4x4Sym = 4,        /**< 4x4 symmetric. */
+  k4x4Asym = 5,       /**< 4x4 asymmetric. */
+  kUseFetchConst = 7, /**< Use the kernel from the fetch constant. */
 };
 
-constexpr uint32_t kMaxShaderTempRegistersLog2 = 6;
-constexpr uint32_t kMaxShaderTempRegisters = UINT32_C(1) << kMaxShaderTempRegistersLog2;
+/** Log2 of the shader temporary register count. */
+constexpr u32 kMaxShaderTempRegistersLog2 = 6;
+/** Number of shader temporary registers. */
+constexpr u32 kMaxShaderTempRegisters = UINT32_C(1) << kMaxShaderTempRegistersLog2;
 
-// a2xx_sq_ps_vtx_mode
-enum class VertexShaderExportMode : uint32_t {
-  kPosition1Vector = 0,
-  kPosition2VectorsSprite = 2,
-  kPosition2VectorsEdge = 3,
-  kPosition2VectorsKill = 4,
-  kPosition2VectorsSpriteKill = 5,
-  kPosition2VectorsEdgeKill = 6,
-  // Vertex shader outputs are ignored (kill all primitives) - see
-  // SX_MISC::MULTIPASS on R6xx/R7xx.
-  kMultipass = 7,
+/** Vertex shader export mode (a2xx_sq_ps_vtx_mode). */
+enum class VertexShaderExportMode : u32 {
+  kPosition1Vector = 0,            /**< 1 position vector. */
+  kPosition2VectorsSprite = 2,     /**< 2 position vectors, sprite. */
+  kPosition2VectorsEdge = 3,       /**< 2 position vectors, edge flags. */
+  kPosition2VectorsKill = 4,       /**< 2 position vectors, kill flag. */
+  kPosition2VectorsSpriteKill = 5, /**< 2 position vectors, sprite and kill flag. */
+  kPosition2VectorsEdgeKill = 6,   /**< 2 position vectors, edge and kill flags. */
+  kMultipass = 7,                  /**< Outputs ignored and all primitives killed. */
 };
 
-constexpr uint32_t kMaxInterpolators = 16;
+/** Number of shader interpolators. */
+constexpr u32 kMaxInterpolators = 16;
 
-enum class SampleControl : uint32_t {
-  kCentroidsOnly = 0,
-  kCentersOnly = 1,
-  kCentroidsAndCenters = 2,
+/** Interpolation sample location control (SQ_CONTEXT_MISC::sc_sample_cntl). */
+enum class SampleControl : u32 {
+  kCentroidsOnly = 0,       /**< All interpolators at centroids. */
+  kCentersOnly = 1,         /**< All interpolators at centers. */
+  kCentroidsAndCenters = 2, /**< Per interpolator, from the sampling pattern. */
 };
 
-// - msaa_samples is RB_SURFACE_INFO::msaa_samples.
-// - sample_control is SQ_CONTEXT_MISC::sc_sample_cntl.
-// - interpolator_control_sampling_pattern is
-//   SQ_INTERPOLATOR_CNTL::sampling_pattern.
-// Centroid interpolation can be tested in 5454082B. If the GPU host backend
-// implements guest MSAA properly, using host MSAA, with everything interpolated
-// at centers, the Monument Valley start screen background may have a few
-// distinctly bright pixels on the mesas/buttes, where extrapolation happens.
-// Interpolating certain values (ones that aren't used for gradient calculation,
-// not texture coordinates) at centroids fixes this issue.
-inline uint32_t GetInterpolatorSamplingPattern(MSAASamples msaa_samples,
-                                               SampleControl sample_control,
-                                               uint32_t interpolator_control_sampling_pattern) {
+/**
+ * Returns the per-interpolator SampleLocation bits.
+ *
+ * @param msaa_samples RB_SURFACE_INFO::msaa_samples.
+ * @param sample_control SQ_CONTEXT_MISC::sc_sample_cntl.
+ * @param interpolator_control_sampling_pattern SQ_INTERPOLATOR_CNTL::sampling_pattern.
+ * @return 1 bit per interpolator, set for kCenter.
+ */
+inline u32 GetInterpolatorSamplingPattern(MSAASamples msaa_samples, SampleControl sample_control,
+                                          u32 interpolator_control_sampling_pattern) {
   if (msaa_samples == MSAASamples::k1X || sample_control == SampleControl::kCentersOnly) {
-    return ((1 << kMaxInterpolators) - 1) * uint32_t(SampleLocation::kCenter);
+    return ((1 << kMaxInterpolators) - 1) * u32(SampleLocation::kCenter);
   }
   if (sample_control == SampleControl::kCentroidsOnly) {
-    return ((1 << kMaxInterpolators) - 1) * uint32_t(SampleLocation::kCentroid);
+    return ((1 << kMaxInterpolators) - 1) * u32(SampleLocation::kCentroid);
   }
   assert_true(sample_control == SampleControl::kCentroidsAndCenters);
   return interpolator_control_sampling_pattern;
 }
 
-enum class VGTOutputPath : uint32_t {
-  kVertexReuse = 0,
-  kTessellationEnable = 1,
-  kPassthru = 2,
+/** VGT output path (VGT_OUTPUT_PATH_CNTL::path_select). */
+enum class VGTOutputPath : u32 {
+  kVertexReuse = 0,        /**< Vertex reuse. */
+  kTessellationEnable = 1, /**< Tessellation. */
+  kPassthru = 2,           /**< Passthrough. */
 };
 
-enum class TessellationMode : uint32_t {
-  kDiscrete = 0,
-  kContinuous = 1,
-  kAdaptive = 2,
+/** Tessellation mode. */
+enum class TessellationMode : u32 {
+  kDiscrete = 0,   /**< Discrete tessellation. */
+  kContinuous = 1, /**< Continuous tessellation. */
+  kAdaptive = 2,   /**< Adaptive tessellation with per-edge factors. */
 };
 
-enum class PolygonModeEnable : uint32_t {
-  kDisabled = 0,  // Render triangles.
-  kDualMode = 1,  // Send 2 sets of 3 polygons with the specified polygon type.
-  // 4541096E uses 2 for triangles, which is "reserved" on R6xx and not defined
-  // on Adreno 2xx, but polymode_front/back_ptype are 0 (points) in this case in
-  // 4541096E, which should not be respected for non-kDualMode as the title
-  // wants to draw filled triangles.
+/**
+ * Polygon mode enable.
+ *
+ * Value 2 appears in some titles for filled triangles, so only kDualMode applies the
+ * front and back polygon types.
+ */
+enum class PolygonModeEnable : u32 {
+  kDisabled = 0, /**< Render triangles. */
+  kDualMode = 1, /**< Use the front and back polygon types. */
 };
 
-enum class PolygonType : uint32_t {
-  kPoints = 0,
-  kLines = 1,
-  kTriangles = 2,
+/** Polygon fill type. */
+enum class PolygonType : u32 {
+  kPoints = 0,    /**< Points. */
+  kLines = 1,     /**< Lines. */
+  kTriangles = 2, /**< Filled triangles. */
 };
 
-enum class PixelCenter : uint32_t {
-  // Pixel center at vertex positions .0, like in Direct3D 9.
-  // Commonly used in Xbox 360 games.
-  kD3DZero = 0,
-  // Pixel center at vertex positions .5, like in OpenGL.
-  // Used in 415607E6.
-  kOGLHalf = 1,
+/** Pixel center convention (PA_SU_VTX_CNTL::pix_center). */
+enum class PixelCenter : u32 {
+  kD3DZero = 0, /**< Center at .0, as in Direct3D 9. */
+  kOGLHalf = 1, /**< Center at .5, as in OpenGL. */
 };
 
-enum class VertexRounding : uint32_t {
-  kTruncate = 0,  // OpenGL.
-  kRound = 1,
-  kRoundToEven = 2,  // Direct3D. Common in Xbox 360 games.
-  kRoundToOdd = 3,
+/** Vertex position rounding. */
+enum class VertexRounding : u32 {
+  kTruncate = 0,    /**< Truncate, as in OpenGL. */
+  kRound = 1,       /**< Round. */
+  kRoundToEven = 2, /**< Round to even, as in Direct3D. */
+  kRoundToOdd = 3,  /**< Round to odd. */
 };
 
-enum class VertexQuantization : uint32_t {
-  k_1_16th = 0,
-  k_1_8th = 1,
-  k_1_4th = 2,
-  k_1_2 = 3,
-  k_1 = 4,
-  // 1/256th was added in R600. On the Xbox 360, games normally use 1/16th.
+/** Vertex position quantization. */
+enum class VertexQuantization : u32 {
+  k_1_16th = 0, /**< 1/16 pixel. */
+  k_1_8th = 1,  /**< 1/8 pixel. */
+  k_1_4th = 2,  /**< 1/4 pixel. */
+  k_1_2 = 3,    /**< 1/2 pixel. */
+  k_1 = 4,      /**< 1 pixel. */
 };
 
-enum class EDRAMMode : uint32_t {
-  kNoOperation = 0,
-  kColorDepth = 4,
-  // TODO(Triang3l): Verify whether kDepthOnly means the pixel shader is ignored
-  // completely even if it writes depth, exports to memory or kills pixels.
-  // Hints suggesting that it should be completely ignored (which is desirable
-  // on real hardware to avoid scheduling the pixel shader at all and waiting
-  // for it especially since the Xbox 360 doesn't have early per-sample depth /
-  // stencil, only early hi-Z / hi-stencil, and other registers possibly
-  // toggling pixel shader execution are yet to be found):
-  // - Most of depth pre-pass draws in 415607E6 use the kDepthOnly more with a
-  //   `oC0 = tfetch2D(tf0, r0.xy) * r1` shader, some use `oC0 = r0` though.
-  //   However, when alphatested surfaces are drawn, kColorDepth is explicitly
-  //   used with the same shader performing the texture fetch.
-  // - 5454082B has some kDepthOnly draws with alphatest enabled, but the shader
-  //   is `oC0 = r0`, which makes no sense (alphatest based on an interpolant
-  //   from the vertex shader) as no texture alpha cutout is involved.
-  // - 5454082B also has kDepthOnly draws with pretty complex shaders clearly
-  //   for use only in the color pass - even fetching and filtering a shadowmap.
-  // For now, based on these, let's assume the pixel shader is never used with
-  // kDepthOnly.
-  kDepthOnly = 5,
-  kCopy = 6,
+/** EDRAM operation mode of a draw. */
+enum class EDRAMMode : u32 {
+  kNoOperation = 0, /**< No EDRAM access. */
+  kColorDepth = 4,  /**< Color and depth output. */
+  kDepthOnly = 5,   /**< Depth output only, the pixel shader is treated as unused. */
+  kCopy = 6,        /**< Resolve from EDRAM to memory. */
 };
 
-// Xenos copies EDRAM contents to a tiled 2D or 3D texture (resolves - from
-// "MSAA resolve", but this name is also used for single-sampled copying) by
-// drawing primitives with the EDRAM mode EDRAMMode::kCopy. Pixels covered by
-// the drawn geometry are copied. It's likely that only rectangular regions can
-// be resolved.
-//
-// Resolve operation can write color data in ColorFormat formats, with or
-// without MSAA color sample averaging, endian swap, red/blue swap, and exponent
-// bias. Depth resolving likely has a lot more restrictions, considering sample
-// averaging, red/blue swap and exponent bias would be pretty meaningless for it
-// (also, Direct3D 9 specifies k_8_8_8_8 as RB_COPY_DEST_INFO::copy_dest_format
-// for depth, which is clearly not true - the right format would be k_24_8 or
-// k_24_8_FLOAT, so depth resolving likely doesn't support format conversion),
-// though endian swap is supported.
-//
-// In addition, a resolve draw may clear the region it copies (this feature is
-// commonly used when going to the next tile with predicated tiling). While one
-// resolve draw call may copy just one color or depth buffer, it may clear both
-// color and depth at once (or just color or depth, or nothing) if copying a
-// color buffer (the color render target cleared is the same as the one copied -
-// however, depth resolves have RB_COPY_CONTROL::copy_src_select 4, so they
-// can't clear color).
-//
-// Direct3D 9 does resolving by drawing kRectangleList with 3 vertices with a
-// vertex shader that accepts k_32_32_FLOAT vertices with k8in32 endianness in
-// SHADER_CONSTANT_FETCH_00_0, with the half-pixel offset, according to the
-// PA_SU_VTX_CNTL::pix_center setting, pre-applied to the vertices (for Direct3D
-// 9 pixel centers, 0.5 must be added to the vertex positions to get the
-// coordinates of the corners).
-//
-// The rectangle is used for both the source render target and the destination
-// texture, according to how it's used in 4E4D07E9.
-//
-// Direct3D 9 gives the rectangle in source render target coordinates (for
-// example, in 4D5307E6, the sniper rifle scope has a (128,64)->(448,256)
-// rectangle). It doesn't adjust the EDRAM base pointer, otherwise (taking into
-// account that 4x MSAA is used for the scope) it would have been
-// (8,0)->(328,192), but it's not. However, it adjusts the destination texture
-// address so (0,0) relative to the destination address is (0,0) relative to
-// the render target (if resolving a part of a render target to the top-left
-// corner of a texture, Direct3D 9 actually moves the destination pointer before
-// the start of the texture, with tiled offset internally calculated for a
-// negative offset). When copying, the pointer needs to be adjusted to the first
-// 32x32 tile that will actually be modified, by adding the value of
-// XGAddress2D/3DTiledOffset called for left/top & ~31.
-//
-// RB_COPY_DEST_PITCH's purpose appears to be not clamping or something like
-// that, but just specifying pitch for going between rows, and height for going
-// between 3D texture slices. copy_dest_pitch is rounded to 32 by Direct3D 9,
-// copy_dest_height is not. In the 4D5307E6 sniper rifle scope example,
-// copy_dest_pitch is 320, and copy_dest_height is 192 - the same as the resolve
-// rectangle size (resolving from a 320x192 portion of the surface at 128,64 to
-// the whole texture, at 0,0). Relative to RB_COPY_DEST_BASE, the height should
-// have been 256, but it's not. Adreno doesn't have copy_dest_height at all (as
-// well as RB_COPY_DEST_INFO::copy_dest_slice), suggesting (alongside the name
-// of the register) that it exists purely to be able to go between 3D texture
-// slices.
-//
-// Window scissor must also be applied - in the jigsaw puzzle in 58410955, there
-// are 1280x720 resolve rectangles, but only the scissored 1280x256 needs to be
-// copied, otherwise it overflows even beyond the EDRAM, and the depth buffer is
-// visible on the screen. It also ensures the coordinates are not negative (in
-// 565507D9, for example, the right tile is resolved with vertices
-// (-640,0)->(640,720), however, the destination texture pointer is adjusted
-// properly to the right half of the texture, and the source render target has a
-// pitch of 800).
+/**
+ * Log2 of the resolve offset and size granularity in pixels.
+ *
+ * Resolves copy EDRAM contents to tiled textures by drawing with EDRAMMode::kCopy, and the
+ * window scissor applies to the copied region.
+ */
+constexpr u32 kResolveAlignmentPixelsLog2 = 3;
+/** Resolve offset and size granularity in pixels. */
+constexpr u32 kResolveAlignmentPixels = 1 << kResolveAlignmentPixelsLog2;
 
-// Granularity of offset and size in resolve operations is 8x8 pixels
-// (GPU_RESOLVE_ALIGNMENT - for example, 4D5307E6 resolves a 24x16 region for a
-// 18x10 texture, 8x8 region for a 1x1 texture).
-// https://github.com/jmfauvel/CSGO-SDK/blob/master/game/client/view.cpp#L944
-// https://github.com/stanriders/hl2-asw-port/blob/master/src/game/client/vgui_int.cpp#L901
-constexpr uint32_t kResolveAlignmentPixelsLog2 = 3;
-constexpr uint32_t kResolveAlignmentPixels = 1 << kResolveAlignmentPixelsLog2;
+/** Width of RB_SURFACE_INFO::surface_pitch and the RB_COPY_DEST_PITCH fields. */
+constexpr u32 kResolveSizeBits = 14;
+/** Largest resolve width or height in pixels. */
+constexpr u32 kMaxResolveSize = (1 << kResolveSizeBits) - kResolveAlignmentPixels;
 
-// Same as RB_SURFACE_INFO::surface_pitch, RB_COPY_DEST_PITCH::copy_dest_pitch
-// and RB_COPY_DEST_PITCH::copy_dest_height.
-constexpr uint32_t kResolveSizeBits = 14;
-constexpr uint32_t kMaxResolveSize = (1 << kResolveSizeBits) - kResolveAlignmentPixels;
-
-enum class CopyCommand : uint32_t {
-  kRaw = 0,
-  kConvert = 1,
-  kConstantOne = 2,
-  kNull = 3,  // ?
+/** Resolve copy command. */
+enum class CopyCommand : u32 {
+  kRaw = 0,         /**< Raw copy. */
+  kConvert = 1,     /**< Copy with format conversion. */
+  kConstantOne = 2, /**< Write constant 1. */
+  kNull = 3,        /**< Unknown. */
 };
 
-// a2xx_rb_copy_sample_select
-enum class CopySampleSelect : uint32_t {
-  k0,
-  k1,
-  k2,
-  k3,
-  k01,
-  k23,
-  k0123,
+/** Samples a resolve reads (a2xx_rb_copy_sample_select). */
+enum class CopySampleSelect : u32 {
+  k0,    /**< Sample 0. */
+  k1,    /**< Sample 1. */
+  k2,    /**< Sample 2. */
+  k3,    /**< Sample 3. */
+  k01,   /**< Average of samples 0 and 1. */
+  k23,   /**< Average of samples 2 and 3. */
+  k0123, /**< Average of samples 0 to 3. */
 };
 
+/**
+ * Tests whether a resolve reads a single sample.
+ *
+ * @param copy_sample_select Sample selection.
+ * @return True for k0 to k3.
+ */
 constexpr bool IsSingleCopySampleSelected(CopySampleSelect copy_sample_select) {
   return copy_sample_select >= CopySampleSelect::k0 && copy_sample_select <= CopySampleSelect::k3;
 }
 
+/**
+ * Packs 4 TextureSwizzle component selectors into a 12-bit swizzle.
+ *
+ * @param x Selector suffix for the first component.
+ * @param y Selector suffix for the second component.
+ * @param z Selector suffix for the third component.
+ * @param w Selector suffix for the fourth component.
+ * @code
+ * u32 swizzle = REXGPU_SWIZZLE(R, G, B, A);
+ * @endcode
+ */
 #define REXGPU_SWIZZLE(x, y, z, w)                                                         \
   (((::rex::xenos::REXGPU_SWIZZLE_##x) << 0) | ((::rex::xenos::REXGPU_SWIZZLE_##y) << 3) | \
    ((::rex::xenos::REXGPU_SWIZZLE_##z) << 6) | ((::rex::xenos::REXGPU_SWIZZLE_##w) << 9))
 
-enum TextureSwizzle : uint32_t {
-  REXGPU_SWIZZLE_X = 0,
-  REXGPU_SWIZZLE_R = 0,
-  REXGPU_SWIZZLE_Y = 1,
-  REXGPU_SWIZZLE_G = 1,
-  REXGPU_SWIZZLE_Z = 2,
-  REXGPU_SWIZZLE_B = 2,
-  REXGPU_SWIZZLE_W = 3,
-  REXGPU_SWIZZLE_A = 3,
-  REXGPU_SWIZZLE_0 = 4,
-  REXGPU_SWIZZLE_1 = 5,
-  REXGPU_SWIZZLE_RRRR = REXGPU_SWIZZLE(R, R, R, R),
-  REXGPU_SWIZZLE_RGGG = REXGPU_SWIZZLE(R, G, G, G),
-  REXGPU_SWIZZLE_RGBB = REXGPU_SWIZZLE(R, G, B, B),
-  REXGPU_SWIZZLE_RGBA = REXGPU_SWIZZLE(R, G, B, A),
-  REXGPU_SWIZZLE_0000 = REXGPU_SWIZZLE(0, 0, 0, 0),
+/** Texture swizzle component selectors and common packed swizzles. */
+enum TextureSwizzle : u32 {
+  REXGPU_SWIZZLE_X = 0,                             /**< Component X. */
+  REXGPU_SWIZZLE_R = 0,                             /**< Component R. */
+  REXGPU_SWIZZLE_Y = 1,                             /**< Component Y. */
+  REXGPU_SWIZZLE_G = 1,                             /**< Component G. */
+  REXGPU_SWIZZLE_Z = 2,                             /**< Component Z. */
+  REXGPU_SWIZZLE_B = 2,                             /**< Component B. */
+  REXGPU_SWIZZLE_W = 3,                             /**< Component W. */
+  REXGPU_SWIZZLE_A = 3,                             /**< Component A. */
+  REXGPU_SWIZZLE_0 = 4,                             /**< Constant 0. */
+  REXGPU_SWIZZLE_1 = 5,                             /**< Constant 1. */
+  REXGPU_SWIZZLE_RRRR = REXGPU_SWIZZLE(R, R, R, R), /**< RRRR. */
+  REXGPU_SWIZZLE_RGGG = REXGPU_SWIZZLE(R, G, G, G), /**< RGGG. */
+  REXGPU_SWIZZLE_RGBB = REXGPU_SWIZZLE(R, G, B, B), /**< RGBB. */
+  REXGPU_SWIZZLE_RGBA = REXGPU_SWIZZLE(R, G, B, A), /**< RGBA. */
+  REXGPU_SWIZZLE_0000 = REXGPU_SWIZZLE(0, 0, 0, 0), /**< All 0. */
 };
 
-inline uint16_t GPUSwap(uint16_t value, Endian endianness) {
+/**
+ * Applies a GPU endian swap to a 16-bit value.
+ *
+ * @param value Value to swap.
+ * @param endianness Swap mode, kNone or k8in16.
+ * @return Swapped value.
+ */
+inline u16 GPUSwap(u16 value, Endian endianness) {
   switch (endianness) {
     case Endian::kNone:
-      // No swap.
       return value;
     case Endian::k8in16:
-      // Swap bytes in half words.
       return ((value << 8) & 0xFF00FF00) | ((value >> 8) & 0x00FF00FF);
     default:
       assert_unhandled_case(endianness);
@@ -1032,640 +954,515 @@ inline uint16_t GPUSwap(uint16_t value, Endian endianness) {
   }
 }
 
-inline uint32_t GPUSwap(uint32_t value, Endian endianness) {
+/**
+ * Applies a GPU endian swap to a 32-bit value.
+ *
+ * @param value Value to swap.
+ * @param endianness Swap mode.
+ * @return Swapped value.
+ */
+inline u32 GPUSwap(u32 value, Endian endianness) {
   switch (endianness) {
     default:
     case Endian::kNone:
-      // No swap.
       return value;
     case Endian::k8in16:
-      // Swap bytes in half words.
       return ((value << 8) & 0xFF00FF00) | ((value >> 8) & 0x00FF00FF);
     case Endian::k8in32:
-      // Swap bytes.
-      // NOTE: we are likely doing two swaps here. Wasteful. Oh well.
       return rex::byte_swap(value);
     case Endian::k16in32:
-      // Swap half words.
       return ((value >> 16) & 0xFFFF) | (value << 16);
   }
 }
 
-inline float GPUSwap(float value, Endian endianness) {
+/**
+ * Applies a GPU endian swap to the bits of a 32-bit floating-point value.
+ *
+ * @param value Value to swap.
+ * @param endianness Swap mode.
+ * @return Swapped value.
+ */
+inline f32 GPUSwap(f32 value, Endian endianness) {
   union {
-    uint32_t i;
-    float f;
+    u32 i;
+    f32 f;
   } v;
   v.f = value;
   v.i = GPUSwap(v.i, endianness);
   return v.f;
 }
 
-inline uint32_t GPUToCPU(uint32_t p) {
+/**
+ * Converts a GPU address to a CPU address.
+ *
+ * @param p GPU address.
+ * @return The address unchanged.
+ */
+inline u32 GPUToCPU(u32 p) {
   return p;
 }
 
-inline uint32_t CPUToGPU(uint32_t p) {
+/**
+ * Converts a CPU address to a GPU physical address.
+ *
+ * @param p CPU address.
+ * @return Low 29 bits of the address.
+ */
+inline u32 CPUToGPU(u32 p) {
   return p & 0x1FFFFFFF;
 }
 
-// XE_GPU_REG_SHADER_CONSTANT_LOOP_*
-union alignas(uint32_t) LoopConstant {
-  uint32_t value;
+/** Loop constant from the shader loop constant register range. */
+union alignas(u32) LoopConstant {
+  u32 value; /**< Raw register value. */
   struct {
-    uint32_t count : 8;  // +0
-    // Address (aL) start and step.
-    // The resulting aL is `iterator * step + start`, 10-bit, and has the real
-    // range of [-256, 256], according to the IPR2015-00325 sequencer
-    // specification.
-    uint32_t start : 8;    // +8
-    int32_t step : 8;      // +16
-    uint32_t _pad_24 : 8;  // +24
+    u32 count : 8;   /**< Bit 0, iteration count. */
+    u32 start : 8;   /**< Bit 8, aL start. aL is iterator * step + start, in [-256, 256]. */
+    i32 step : 8;    /**< Bit 16, aL step. */
+    u32 _pad_24 : 8; /**< Bit 24, padding. */
   };
 };
-static_assert_size(LoopConstant, sizeof(uint32_t));
+static_assert_size(LoopConstant, sizeof(u32));
 
-// SQ_TEX_VTX_INVALID/VALID_TEXTURE/BUFFER
-enum class FetchConstantType : uint32_t {
-  kInvalidTexture,
-  kInvalidVertex,
-  kTexture,
-  kVertex,
+/** Fetch constant type (SQ_TEX_VTX_INVALID/VALID_TEXTURE/BUFFER). */
+enum class FetchConstantType : u32 {
+  kInvalidTexture, /**< Invalid texture. */
+  kInvalidVertex,  /**< Invalid vertex buffer. */
+  kTexture,        /**< Texture. */
+  kVertex,         /**< Vertex buffer. */
 };
 
-constexpr uint32_t kTextureFetchConstantCount = 32;
-constexpr uint32_t kVertexFetchConstantCount = 3 * kTextureFetchConstantCount;
+/** Number of texture fetch constants. */
+constexpr u32 kTextureFetchConstantCount = 32;
+/** Number of vertex fetch constants, 3 per texture fetch constant slot. */
+constexpr u32 kVertexFetchConstantCount = 3 * kTextureFetchConstantCount;
 
-// XE_GPU_REG_SHADER_CONSTANT_FETCH_*
-union alignas(uint32_t) VertexFetch {
+/** Vertex fetch constant from the shader fetch constant register range. */
+union alignas(u32) VertexFetch {
   struct {
-    uint32_t dword_0;
-    uint32_t dword_1;
+    u32 dword_0; /**< Raw dword 0. */
+    u32 dword_1; /**< Raw dword 1. */
   };
   struct {
-    FetchConstantType type : 2;  // +0
-    uint32_t address : 30;       // +2 address in dwords
+    FetchConstantType type : 2; /**< Dword 0 bit 0, constant type. */
+    u32 address : 30;           /**< Dword 0 bit 2, address in dwords. */
 
-    Endian endian : 2;       // +0
-    uint32_t size : 24;      // +2 size in words
-    uint32_t _pad_1_26 : 6;  // +26
+    Endian endian : 2; /**< Dword 1 bit 0, endian swap. */
+    u32 size : 24;     /**< Dword 1 bit 2, size in words. */
+    u32 _pad_1_26 : 6; /**< Dword 1 bit 26, padding. */
   };
 };
-static_assert_size(VertexFetch, sizeof(uint32_t) * 2);
+static_assert_size(VertexFetch, sizeof(u32) * 2);
 
-// Byte alignment of texture subresources in memory - of each mip and stack
-// slice / cube face (and of textures themselves), this number of bits is also
-// omitted from base_address and mip_address.
-constexpr uint32_t kTextureSubresourceAlignmentBytesLog2 = 12;
-constexpr uint32_t kTextureSubresourceAlignmentBytes = 1 << kTextureSubresourceAlignmentBytesLog2;
+/** Log2 of the byte alignment of texture subresources, also omitted from base and mip addresses. */
+constexpr u32 kTextureSubresourceAlignmentBytesLog2 = 12;
+/** Byte alignment of texture subresources. */
+constexpr u32 kTextureSubresourceAlignmentBytes = 1 << kTextureSubresourceAlignmentBytesLog2;
 
-// Texture fetch constant size field widths.
-constexpr uint32_t kTexture1DMaxWidthLog2 = 24;
-constexpr uint32_t kTexture1DMaxWidth = 1 << kTexture1DMaxWidthLog2;
-constexpr uint32_t kTexture2DCubeMaxWidthHeightLog2 = 13;
-constexpr uint32_t kTexture2DCubeMaxWidthHeight = 1 << kTexture2DCubeMaxWidthHeightLog2;
-constexpr uint32_t kTexture2DMaxStackDepthLog2 = 6;
-constexpr uint32_t kTexture2DMaxStackDepth = 1 << kTexture2DMaxStackDepthLog2;
-constexpr uint32_t kTexture3DMaxWidthHeightLog2 = 11;
-constexpr uint32_t kTexture3DMaxWidthHeight = 1 << kTexture3DMaxWidthHeightLog2;
-constexpr uint32_t kTexture3DMaxDepthLog2 = 10;
-constexpr uint32_t kTexture3DMaxDepth = 1 << kTexture3DMaxDepthLog2;
+/** Log2 of the largest 1D texture width. */
+constexpr u32 kTexture1DMaxWidthLog2 = 24;
+/** Largest 1D texture width. */
+constexpr u32 kTexture1DMaxWidth = 1 << kTexture1DMaxWidthLog2;
+/** Log2 of the largest 2D or cube texture width and height. */
+constexpr u32 kTexture2DCubeMaxWidthHeightLog2 = 13;
+/** Largest 2D or cube texture width and height. */
+constexpr u32 kTexture2DCubeMaxWidthHeight = 1 << kTexture2DCubeMaxWidthHeightLog2;
+/** Log2 of the largest stacked texture depth. */
+constexpr u32 kTexture2DMaxStackDepthLog2 = 6;
+/** Largest stacked texture depth. */
+constexpr u32 kTexture2DMaxStackDepth = 1 << kTexture2DMaxStackDepthLog2;
+/** Log2 of the largest 3D texture width and height. */
+constexpr u32 kTexture3DMaxWidthHeightLog2 = 11;
+/** Largest 3D texture width and height. */
+constexpr u32 kTexture3DMaxWidthHeight = 1 << kTexture3DMaxWidthHeightLog2;
+/** Log2 of the largest 3D texture depth. */
+constexpr u32 kTexture3DMaxDepthLog2 = 10;
+/** Largest 3D texture depth. */
+constexpr u32 kTexture3DMaxDepth = 1 << kTexture3DMaxDepthLog2;
 
-constexpr uint32_t kTextureMaxMips =
+/** Largest mip level count. */
+constexpr u32 kTextureMaxMips =
     std::max(kTexture2DCubeMaxWidthHeightLog2, kTexture3DMaxWidthHeightLog2) + 1;
 
-constexpr uint32_t kTextureTileWidthHeightLog2 = 5;
-constexpr uint32_t kTextureTileWidthHeight = 1 << kTextureTileWidthHeightLog2;
-// 3D tiled texture slices 0:3 and 4:7 are stored separately in memory, in
-// non-overlapping ranges, but addressing in 4:7 is different than in 0:3.
-constexpr uint32_t kTextureTileDepthLog2 = 2;
-constexpr uint32_t kTextureTileDepth = 1 << kTextureTileDepthLog2;
+/** Log2 of the texture tile width and height. */
+constexpr u32 kTextureTileWidthHeightLog2 = 5;
+/** Texture tile width and height. */
+constexpr u32 kTextureTileWidthHeight = 1 << kTextureTileWidthHeightLog2;
+/** Log2 of the 3D texture tile depth. Slices 0:3 and 4:7 use separate address ranges. */
+constexpr u32 kTextureTileDepthLog2 = 2;
+/** 3D texture tile depth. */
+constexpr u32 kTextureTileDepth = 1 << kTextureTileDepthLog2;
 
-// Texture tile address function periods:
-// - 2D 1bpb: 128x128
-// - 2D 2bpb: 64x64
-// - 2D 4bpb+: 32x32
-// - 3D 1bpb: 64x32x8
-// - 3D 2bpb+: 32x32x8
-constexpr uint32_t GetTextureTiledXBaseGranularityLog2(bool is_3d, uint32_t bytes_per_block_log2) {
-  return 7 - std::min(UINT32_C(2), bytes_per_block_log2 + uint32_t(is_3d));
+/**
+ * Returns log2 of the X period of the tiled texture address function.
+ *
+ * Periods are 128x128 for 2D 1bpb, 64x64 for 2D 2bpb, 32x32 for 2D 4bpb and above,
+ * 64x32x8 for 3D 1bpb and 32x32x8 for 3D 2bpb and above.
+ *
+ * @param is_3d Whether the texture is 3D.
+ * @param bytes_per_block_log2 Log2 of the bytes per block.
+ * @return Log2 of the X period in blocks.
+ */
+constexpr u32 GetTextureTiledXBaseGranularityLog2(bool is_3d, u32 bytes_per_block_log2) {
+  return 7 - std::min(UINT32_C(2), bytes_per_block_log2 + u32(is_3d));
 }
-constexpr uint32_t GetTextureTiledYBaseGranularityLog2(bool is_3d, uint32_t bytes_per_block_log2) {
+
+/**
+ * Returns log2 of the Y period of the tiled texture address function.
+ *
+ * @param is_3d Whether the texture is 3D.
+ * @param bytes_per_block_log2 Log2 of the bytes per block.
+ * @return Log2 of the Y period in blocks.
+ */
+constexpr u32 GetTextureTiledYBaseGranularityLog2(bool is_3d, u32 bytes_per_block_log2) {
   return is_3d ? 5 : (7 - std::min(UINT32_C(2), bytes_per_block_log2));
 }
-constexpr uint32_t kTextureTiledZBaseGranularityLog2 = 3;
-constexpr uint32_t kTextureTiledZBaseGranularity = 1 << kTextureTiledZBaseGranularityLog2;
 
-// Row pitch alignment of non-tiled textures.
-constexpr uint32_t kTextureLinearRowAlignmentBytesLog2 = 8;
-constexpr uint32_t kTextureLinearRowAlignmentBytes = 1 << kTextureLinearRowAlignmentBytesLog2;
+/** Log2 of the Z period of the 3D tiled texture address function. */
+constexpr u32 kTextureTiledZBaseGranularityLog2 = 3;
+/** Z period of the 3D tiled texture address function. */
+constexpr u32 kTextureTiledZBaseGranularity = 1 << kTextureTiledZBaseGranularityLog2;
 
-// XE_GPU_REG_SHADER_CONSTANT_FETCH_*
-union alignas(uint32_t) TextureFetch {
+/** Log2 of the row pitch alignment of linear textures in bytes. */
+constexpr u32 kTextureLinearRowAlignmentBytesLog2 = 8;
+/** Row pitch alignment of linear textures in bytes. */
+constexpr u32 kTextureLinearRowAlignmentBytes = 1 << kTextureLinearRowAlignmentBytesLog2;
+
+/**
+ * Texture fetch constant from the shader fetch constant register range.
+ *
+ * Size fields store each dimension minus 1.
+ */
+union alignas(u32) TextureFetch {
   struct {
-    uint32_t dword_0;
-    uint32_t dword_1;
-    uint32_t dword_2;
-    uint32_t dword_3;
-    uint32_t dword_4;
-    uint32_t dword_5;
+    u32 dword_0; /**< Raw dword 0. */
+    u32 dword_1; /**< Raw dword 1. */
+    u32 dword_2; /**< Raw dword 2. */
+    u32 dword_3; /**< Raw dword 3. */
+    u32 dword_4; /**< Raw dword 4. */
+    u32 dword_5; /**< Raw dword 5. */
   };
   struct {
-    FetchConstantType type : 2;  // +0 dword_0
-    // The signedness applies to the data components (before the swizzle, which
-    // is the destination selection).
-    // Signed repeating fraction formats always use the kZeroClampMinusOne mode,
-    // according to the IPR2015-00325 R400 Document Library Folder History:
-    //   "Change 133990 on 2003/11/25 by jhoule@jhoule_doc_lt
-    //   v1.80 - Indicated that NO_ZERO srf mode is unsupported for Xenos (will
-    //   currently only work in the VC path)"
-    TextureSign sign_x : 2;  // +2
-    TextureSign sign_y : 2;  // +4
-    TextureSign sign_z : 2;  // +6
-    TextureSign sign_w : 2;  // +8
-    ClampMode clamp_x : 3;   // +10
-    ClampMode clamp_y : 3;   // +13
-    ClampMode clamp_z : 3;   // +16
-    uint32_t _pad_0_19 : 3;  // +19
-    // Base row pitch in pixels (not blocks) >> 5. For linear textures, this is
-    // provided by Direct3D 9 in a way that every row of blocks ends up aligned
-    // to kTextureLinearRowAlignmentBytes (the GPU requires 256-byte alignment
-    // of linear texture block rows for all textures).
-    // Mips are always stored with padding to the `max(next_pow2(base width or
-    // height) >> level, 1)` or a 32x32x4 tile (whichever is larger), so this
-    // pitch is irrelevant to them (but the 256-byte alignment requirement still
-    // applies to linear textures).
-    // Examples of pitch > aligned width:
-    // - 584109FF (loading screen and menu backgrounds, 1408 for a 1280x linear
-    //   k_DXT4_5 texture, which corresponds to 22 * 256 bytes rather than
-    //   20 * 256 for just 1280x).
-    uint32_t pitch : 9;  // +22
-    uint32_t tiled : 1;  // +31
+    FetchConstantType type : 2; /**< Dword 0 bit 0, constant type. */
+    TextureSign sign_x : 2;     /**< Dword 0 bit 2, X signedness before the swizzle. */
+    TextureSign sign_y : 2;     /**< Dword 0 bit 4, Y signedness. */
+    TextureSign sign_z : 2;     /**< Dword 0 bit 6, Z signedness. */
+    TextureSign sign_w : 2;     /**< Dword 0 bit 8, W signedness. */
+    ClampMode clamp_x : 3;      /**< Dword 0 bit 10, X clamp mode. */
+    ClampMode clamp_y : 3;      /**< Dword 0 bit 13, Y clamp mode. */
+    ClampMode clamp_z : 3;      /**< Dword 0 bit 16, Z clamp mode. */
+    u32 _pad_0_19 : 3;          /**< Dword 0 bit 19, padding. */
+    u32 pitch : 9;              /**< Dword 0 bit 22, base row pitch in pixels >> 5. */
+    u32 tiled : 1;              /**< Dword 0 bit 31, tiled layout. */
 
-    TextureFormat format : 6;           // +0 dword_1
-    Endian endianness : 2;              // +6
-    uint32_t request_size : 2;          // +8
-    uint32_t stacked : 1;               // +10
-    uint32_t nearest_clamp_policy : 1;  // +11 d3d/opengl
-    uint32_t base_address : 20;         // +12 base address >> 12
+    TextureFormat format : 6;     /**< Dword 1 bit 0, texture format. */
+    Endian endianness : 2;        /**< Dword 1 bit 6, endian swap. */
+    u32 request_size : 2;         /**< Dword 1 bit 8, request size. */
+    u32 stacked : 1;              /**< Dword 1 bit 10, stacked 2D texture. */
+    u32 nearest_clamp_policy : 1; /**< Dword 1 bit 11, Direct3D or OpenGL nearest clamp. */
+    u32 base_address : 20;        /**< Dword 1 bit 12, base address >> 12. */
 
-    // Size is stored with 1 subtracted from each component.
-    union {  // dword_2
+    union {
       struct {
-        uint32_t width : 24;
-        uint32_t _pad_size_1d : 8;
-      } size_1d;
+        u32 width : 24;       /**< Width minus 1. */
+        u32 _pad_size_1d : 8; /**< Padding. */
+      } size_1d;              /**< Dword 2, 1D size. */
       struct {
-        uint32_t width : 13;
-        uint32_t height : 13;
-        // Should be 0 for k2D and 5 for kCube if not stacked, but not very
-        // meaningful in this case, likely should be ignored for non-stacked.
-        uint32_t stack_depth : 6;
-      } size_2d;
+        u32 width : 13;      /**< Width minus 1. */
+        u32 height : 13;     /**< Height minus 1. */
+        u32 stack_depth : 6; /**< Stack depth minus 1, likely ignored if not stacked. */
+      } size_2d;             /**< Dword 2, 2D, stacked or cube size. */
       struct {
-        uint32_t width : 11;
-        uint32_t height : 11;
-        uint32_t depth : 10;
-      } size_3d;
+        u32 width : 11;  /**< Width minus 1. */
+        u32 height : 11; /**< Height minus 1. */
+        u32 depth : 10;  /**< Depth minus 1. */
+      } size_3d;         /**< Dword 2, 3D size. */
     };
 
-    uint32_t num_format : 1;  // +0 dword_3 frac/int
-    // xyzw, 3b each (TextureSwizzle)
-    uint32_t swizzle : 12;                 // +1
-    int32_t exp_adjust : 6;                // +13
-    TextureFilter mag_filter : 2;          // +19
-    TextureFilter min_filter : 2;          // +21
-    TextureFilter mip_filter : 2;          // +23
-    AnisoFilter aniso_filter : 3;          // +25
-    ArbitraryFilter arbitrary_filter : 3;  // +28
-    uint32_t border_size : 1;              // +31
+    u32 num_format : 1;                   /**< Dword 3 bit 0, fraction or integer. */
+    u32 swizzle : 12;                     /**< Dword 3 bit 1, XYZW TextureSwizzle, 3 bits each. */
+    i32 exp_adjust : 6;                   /**< Dword 3 bit 13, exponent adjustment. */
+    TextureFilter mag_filter : 2;         /**< Dword 3 bit 19, magnification filter. */
+    TextureFilter min_filter : 2;         /**< Dword 3 bit 21, minification filter. */
+    TextureFilter mip_filter : 2;         /**< Dword 3 bit 23, mip filter. */
+    AnisoFilter aniso_filter : 3;         /**< Dword 3 bit 25, anisotropic filter. */
+    ArbitraryFilter arbitrary_filter : 3; /**< Dword 3 bit 28, arbitrary filter. */
+    u32 border_size : 1;                  /**< Dword 3 bit 31, border size. */
 
-    uint32_t vol_mag_filter : 1;  // +0 dword_4
-    uint32_t vol_min_filter : 1;  // +1
-    uint32_t mip_min_level : 4;   // +2
-    uint32_t mip_max_level : 4;   // +6
-    uint32_t mag_aniso_walk : 1;  // +10
-    uint32_t min_aniso_walk : 1;  // +11
-    // 5 fractional bits (A2XX_SQ_TEX_4_LOD_BIAS).
-    int32_t lod_bias : 10;  // +12
-    // Also known as LodBiasH/V in sys2gmem.
-    int32_t grad_exp_adjust_h : 5;  // +22
-    int32_t grad_exp_adjust_v : 5;  // +27
+    u32 vol_mag_filter : 1;    /**< Dword 4 bit 0, volume magnification filter. */
+    u32 vol_min_filter : 1;    /**< Dword 4 bit 1, volume minification filter. */
+    u32 mip_min_level : 4;     /**< Dword 4 bit 2, lowest mip level. */
+    u32 mip_max_level : 4;     /**< Dword 4 bit 6, highest mip level. */
+    u32 mag_aniso_walk : 1;    /**< Dword 4 bit 10, magnification anisotropic walk. */
+    u32 min_aniso_walk : 1;    /**< Dword 4 bit 11, minification anisotropic walk. */
+    i32 lod_bias : 10;         /**< Dword 4 bit 12, LOD bias with 5 fractional bits. */
+    i32 grad_exp_adjust_h : 5; /**< Dword 4 bit 22, horizontal gradient exponent adjustment. */
+    i32 grad_exp_adjust_v : 5; /**< Dword 4 bit 27, vertical gradient exponent adjustment. */
 
-    BorderColor border_color : 2;    // +0 dword_5
-    uint32_t force_bc_w_to_max : 1;  // +2
-    // Also known as TriJuice.
-    uint32_t tri_clamp : 2;       // +3
-    int32_t aniso_bias : 4;       // +5
-    DataDimension dimension : 2;  // +9
-    uint32_t packed_mips : 1;     // +11
-    uint32_t mip_address : 20;    // +12 mip address >> 12
+    BorderColor border_color : 2; /**< Dword 5 bit 0, border color. */
+    u32 force_bc_w_to_max : 1;    /**< Dword 5 bit 2, force block compression W to max. */
+    u32 tri_clamp : 2;            /**< Dword 5 bit 3, trilinear clamp. */
+    i32 aniso_bias : 4;           /**< Dword 5 bit 5, anisotropic bias. */
+    DataDimension dimension : 2;  /**< Dword 5 bit 9, dimension. */
+    u32 packed_mips : 1;          /**< Dword 5 bit 11, packed mips. */
+    u32 mip_address : 20;         /**< Dword 5 bit 12, mip address >> 12. */
   };
 };
-static_assert_size(TextureFetch, sizeof(uint32_t) * 6);
+static_assert_size(TextureFetch, sizeof(u32) * 6);
 
-// XE_GPU_REG_SHADER_CONSTANT_FETCH_*
-union alignas(uint32_t) FetchGroup {
+/** Group of 6 fetch constant dwords, as 1 texture fetch or 3 vertex fetches. */
+union alignas(u32) FetchGroup {
   struct {
-    uint32_t dword_0;
-    uint32_t dword_1;
-    uint32_t dword_2;
-    uint32_t dword_3;
-    uint32_t dword_4;
-    uint32_t dword_5;
+    u32 dword_0; /**< Raw dword 0. */
+    u32 dword_1; /**< Raw dword 1. */
+    u32 dword_2; /**< Raw dword 2. */
+    u32 dword_3; /**< Raw dword 3. */
+    u32 dword_4; /**< Raw dword 4. */
+    u32 dword_5; /**< Raw dword 5. */
   };
-  TextureFetch texture_fetch;
+  TextureFetch texture_fetch; /**< Texture fetch view. */
   struct {
-    VertexFetch vertex_fetch_0;
-    VertexFetch vertex_fetch_1;
-    VertexFetch vertex_fetch_2;
-  };
-  struct {
-    uint32_t type_0 : 2;
-    uint32_t data_0_a : 30;
-    uint32_t data_0_b : 32;
-    uint32_t type_1 : 2;
-    uint32_t data_1_a : 30;
-    uint32_t data_1_b : 32;
-    uint32_t type_2 : 2;
-    uint32_t data_2_a : 30;
-    uint32_t data_2_b : 32;
-  };
-};
-static_assert_size(FetchGroup, sizeof(uint32_t) * 6);
-
-// Shader memory export (memexport) allows for writing of arbitrary formatted
-// data with random access / scatter capabilities. It provides functionality
-// largely similar to resolving - format packing, supporting arbitrary color
-// formats, from sub-dword ones such as k_8 in 58410B86, to 128-bit ones, with
-// endian swap similar to how it's performed in resolves (up to 128-bit);
-// specifying the number format, swapping red and blue channels - though with no
-// exponent biasing. Unlike resolving, however, instead of writing to tiled
-// textures, it exports the data to up to 5 elements (the eM# shader registers,
-// each corresponding to `base address + element size * (offset + 0...4)`) in a
-// stream defined by a stream constant and an offset in elements written to eA -
-// a shader, however, can write to multiple streams with different or the same
-// stream constants, by performing `alloc export` multiple times. It's used
-// mostly in vertex shaders (most commonly in improvised "compute shaders" done
-// by executing a vertex shader for a number of point-type primitives covering
-// nothing), though usage in pixel shaders is also possible - an example is
-// provided in the "Advanced Screenspace Antialiasing" presentation by Arne
-// Schober.
-// https://ubm-twvideo01.s3.amazonaws.com/o1/vault/gdceurope2010/slides/A_Schober_Advanced_Screenspace_Antialiasing.pdf
-//
-// Unlike fetch constants, which are passed via special registers, a memory
-// export stream is configured by writing the stream constant and the offset to
-// a shader export register (eA) allocated by the shader - similar to more
-// conventional exports like oPos, o#, oC#. Therefore, in general, it's not
-// possible to know what its value will be without running the shader. For
-// emulation, this means that the memory range referenced by an export - that
-// needs to be validated - requires running the shader on the CPU in general.
-// Thankfully, however, the usual way of setting up eA is by executing:
-// `mad eA, r#, const0100, c#`
-// where c# is the stream float4 constant from the float constant registers, and
-// const0100 is a literal (0.0f, 1.0f, 0.0f, 0.0f) constant, also from the float
-// constant registers, used for placing the element index (r#) in the correct
-// component of eA. This allows for easy gathering of memexport stream
-// constants, which contain both the base address and the size of the
-// destination buffer for bounds checking, from the shader code and the float
-// constant registers, as long as the guest uses this instruction pattern to
-// write to eA.
-//
-// The Xenos doesn't have an integer ALU, and denormals are treated as zero and
-// are flushed. However, eA contains integers and bit fields. A stream constant
-// is thus structured in a way that allows for packing integers in normalized
-// floating-point numbers.
-//
-// X contains the base address of the stream in dwords as integer bits in the
-// lower 30 bits, and bits 0b01 in the top. The 0b01 bits make the exponent
-// nonzero, so the number is considered normalized, and therefore isn't flushed
-// to zero. With only 512 MB of the physical memory on the Xbox 360, the
-// exponent can't become 0b11111111, so X also won't be NaN for any valid Xbox
-// 360 physical address (though in general the GPU supports 32-bit addresses,
-// but this is originally an Xbox 360-specific feature, that was later, however,
-// likely reused for GL_QCOM_writeonly_rendering).
-//
-// TODO(Triang3l): Verify whether GL_QCOM_writeonly_rendering is actually
-// memexport on the Adreno 2xx using GL_OES_get_program_binary - it's also
-// interesting to see how alphatest interacts with it, whether it's still true
-// fixed-function alphatest, as it's claimed to be supported as usual by the
-// extension specification.
-//
-// Y of eA contains the offset in elements - this is what shaders are supposed
-// to calculate from something like the vertex index. Again, it's specified as
-// an integer in the low bits, not as a truly floating-point number. For this
-// purpose, stream constants contain the value 2^23 - when a whole
-// floating-point number smaller than 2^23 is added as floating-point to 2^23,
-// its integer representation becomes the mantissa bits of a number with an
-// exponent of 23. Via multiply-add, `offset * 1.0f + exp2f(23)` is written here
-// by the shader, allowing for element offsets of up to 2^23 - 1.
-//
-// Z is a bit field with the information about the formatting of the data. It's
-// also packed as a normalized floating-point number, but in a cleaner way than
-// X because not as many bits are required - just like Y, it has an exponent of
-// 23 (possibly to let shaders build these values manually using floating-point
-// multiply-add like integer shift-or, and finally to add 2^23, though that's
-// not a case easy to handle in emulation, unlike prebuilt stream constants).
-//
-// W contains the number of elements in the stream. It's also packed with the
-// full 23 exponent just like Y and Z, there's no way to index more than 2^23
-// elements using packing via addition to 2^23, so this field also doesn't need
-// more bits than that.
-//
-// According to the sequencer specification from IPR2015-00325 (where memexport
-// is called "pass thru export"):
-// - Pass thru exports can occur anywhere in the shader program.
-// - There can be any number of pass thru exports.
-// - The address register is not kept across clause boundaries, so it must be
-//   refreshed after any Serialize (or yield), allocate instruction or resource
-//   change.
-// - The write to eM# may be predicated if the export is not needed.
-// - Exports are dropped if:
-//   - The index is above the maximum.
-//   - The index sign bit is 1.
-//   - The exponent of the index is not 23.
-// The requirement that eM4 must be written if any eM# other than eM0 is also
-// written doesn't apply to the final Xenos, it's likely an outdated note in the
-// specification considering that it's very preliminary.
-//
-// According to Microsoft's shader validator:
-// - eA can be written only by `mad`.
-// - A single eM# can be written by any number of instruction, including with
-//   write masking.
-// - eA must be written before eM#.
-// - Any alloc instruction or a `serialize` terminates the current memory
-//   export. This doesn't apply to `exec Yield=true`, however, and it's not
-//   clear if that's an oversight or if that's not considered a yield that
-//   terminates the export.
-//
-// From the emulation perspective, this means that:
-// - Alloc instructions (`alloc export` mandatorily, other allocs optionally),
-//   and optionally `serialize` instructions within `exec`, should be treated as
-//   the locations where the currently open export should be flushed to the
-//   memory. It should be taken into account that an export may be in looping
-//   control flow, and in this case it must be performed at every iteration.
-// - Whether each eM# was written to must be tracked at shader execution time,
-//   as predication can disable the export of an element.
-//
-// TODO(Triang3l): Investigate how memory export interacts with pixel killing.
-// Given that eM# writes disabled by predication don't cause an export, it's
-// possible that killed invocations are treated as inactive (invalid in Xenos
-// terms) overall, and thus new memory exports from them shouldn't be done, but
-// that's not verified. However, given that on Direct3D 11+, OpenGL and Vulkan
-// hosts, discarding disables subsequent storage resource writes, on the host,
-// it would be natural to perform all outstanding memory exports before
-// discarding if the kill condition passes.
-//
-// Memory exports can be performed to any ColorFormat, including 8bpp and 16bpp
-// ones. Hosts, however, may have the memory bound as a 32bpp buffer (for
-// instance, due to the minimum resource view size limitation on Direct3D 11).
-// In this case, bytes and shorts aren't addressable directly. However, taking
-// into account that memory accesses are coherent within one shader invocation
-// on Direct3D 11+, OpenGL and Vulkan and thus are done in order relatively to
-// each other, it should be possible to implement them by clearing the bits via
-// an atomic AND, and writing the new value using an atomic OR. This will, of
-// course, make the entire write operation non-atomic, and in case of a race
-// between writes to the same location, the final result may not even be just a
-// value from one of the invocations, but rather, it can be OR of the values
-// from any invocations involved. However, on the Xenos, there doesn't seem to
-// be any possibility of meaningfully accessing the same location from multiple
-// invocations if any of them is writing, memory exports are out-of-order, so
-// such an implementation shouldn't be causing issues in reality. Atomic
-// compare-exchange, however, should not be used for this purpose, as it may
-// result in an infinite loop if different invocations want to write different
-// values to the same memory location.
-//
-// Examples of setup in titles (Z from MSB to LSB):
-//
-// 4D5307E6 particles (different VS invocation counts, like 1, 2, 4):
-// There is a passthrough shader - useful for verification as it simply writes
-// directly what it reads via vfetch of various formats. Another shader (with
-// different c# numbers, but same formats) does complicated math to process the
-// particles.
-// c152:           Z = 010010110000|0|111|00|100110|00000|010, count = 35840
-//   8in32, 32_32_32_32_FLOAT, float, RGBA - from 32_32_32_32_FLOAT vfetch
-// c154, 162:      Z = 010010110000|0|111|00|100000|00000|001, count = 71680
-//   8in16, 16_16_16_16_FLOAT, float, RGBA - from 16_16_16_16_FLOAT vfetch
-// c156, 158, 160: Z = 010010110000|0|000|00|011010|00000|001, count = 71680
-//   8in16, 16_16_16_16, unorm, RGBA - from 16_16_16_16 unorm vfetch
-// c164:           Z = 010010110000|0|111|00|011111|00000|001, count = 143360
-//   8in16, 16_16_FLOAT, float, RGBA - from 16_16_FLOAT vfetch
-// c166:           Z = 010010110000|0|000|00|011001|00000|001, count = 143360
-//   8in16, 16_16, unorm, RGBA - from 16_16 unorm vfetch
-// c168:           Z = 010010110000|0|001|00|000111|00000|010, count = 143360
-//   8in32, 2_10_10_10, snorm, RGBA - from 2_10_10_10 snorm vfetch
-// c170, c172:     Z = 010010110000|1|000|00|000110|00000|010, count = 143360
-//   8in32, 8_8_8_8, unorm, BGRA - from 8_8_8_8 unorm vfetch with .zyxw swizzle
-//
-// 4D5307E6 water simulation (2048 VS invocations):
-// c130: Z = 010010110000|0|111|00|100110|00000|010, count = 16384
-//   8in32, 32_32_32_32_FLOAT, float, RGBA
-//   The shader has 5 memexports of this kind and 6 32_32_32_32_FLOAT vfetches.
-//
-// 4D5307E6 water tessellation factors (1 VS invocation per triangle patch):
-// c130: Z = 010010110000|0|111|11|100100|11111|010, count = patch count * 3
-//   8in32, 32_FLOAT, float, RGBA
-//
-// 41560817 texture memory copying (64 bytes per invocation, two eA, eight eM#):
-// c0: Z = 010010110000|0|010|11|011010|00011|001
-//   8in16, 16_16_16_16, uint, RGBA - from 16_16_16_16 uint vfetch
-//   (16_16_16_16 is the largest color format without special values)
-//
-// 58410B86 hierarchical depth buffer occlusion culling with the result read on
-// the CPU (15000 VS invocations in the main menu):
-// c8: Z = 010010110000|0|010|00|000010|00000|000, count = invocation count
-//   No endian swap, 8, uint, RGBA
-union alignas(uint32_t) MemExportStream {
-  struct {
-    uint32_t dword_0;
-    uint32_t dword_1;
-    uint32_t dword_2;
-    uint32_t dword_3;
+    VertexFetch vertex_fetch_0; /**< Vertex fetch 0. */
+    VertexFetch vertex_fetch_1; /**< Vertex fetch 1. */
+    VertexFetch vertex_fetch_2; /**< Vertex fetch 2. */
   };
   struct {
-    uint32_t base_address : 30;  // +0 dword_0 physical address >> 2
-    uint32_t const_0x1 : 2;      // +30
-
-    uint32_t const_0x4b000000;  // +0 dword_1
-
-    Endian128 endianness : 3;            // +0 dword_2
-    uint32_t unused_0 : 5;               // +3
-    ColorFormat format : 6;              // +8
-    uint32_t unused_1 : 2;               // +14
-    SurfaceNumberFormat num_format : 3;  // +16
-    uint32_t red_blue_swap : 1;          // +19
-    uint32_t const_0x4b0 : 12;           // +20
-
-    uint32_t index_count : 23;  // +0 dword_3
-    uint32_t const_0x96 : 9;    // +23
+    u32 type_0 : 2;    /**< Type of vertex fetch 0. */
+    u32 data_0_a : 30; /**< Remaining bits of dword 0. */
+    u32 data_0_b : 32; /**< Dword 1. */
+    u32 type_1 : 2;    /**< Type of vertex fetch 1. */
+    u32 data_1_a : 30; /**< Remaining bits of dword 2. */
+    u32 data_1_b : 32; /**< Dword 3. */
+    u32 type_2 : 2;    /**< Type of vertex fetch 2. */
+    u32 data_2_a : 30; /**< Remaining bits of dword 4. */
+    u32 data_2_b : 32; /**< Dword 5. */
   };
 };
-static_assert_size(MemExportStream, sizeof(uint32_t) * 4);
+static_assert_size(FetchGroup, sizeof(u32) * 6);
 
-struct alignas(uint32_t) DepthSampleCounts {
-  // This is little endian as it is swapped in D3D code.
-  // Corresponding A and B values are summed up by D3D.
-  // Occlusion there is calculated by substracting begin from end struct.
-  le<uint32_t> Total_A;
-  le<uint32_t> Total_B;
-  le<uint32_t> ZFail_A;
-  le<uint32_t> ZFail_B;
-  le<uint32_t> ZPass_A;
-  le<uint32_t> ZPass_B;
-  le<uint32_t> StencilFail_A;
-  le<uint32_t> StencilFail_B;
+/**
+ * Memory export stream constant.
+ *
+ * A shader writes this constant plus an element offset to eA, usually with
+ * `mad eA, r#, const0100, c#`, then writes up to 5 elements to eM0 to eM4. Each field is
+ * packed as a normalized floating-point number so the Xenos ALU does not flush it.
+ * - X holds the base address in dwords with 0b01 in the top 2 bits.
+ * - Y holds the element offset added to 2^23.
+ * - Z holds the format fields with an exponent of 23.
+ * - W holds the element count with an exponent of 23.
+ *
+ * Exports are dropped if the index is above the maximum, the index sign bit is set, or the
+ * index exponent is not 23. Alloc instructions and `serialize` end the current export.
+ */
+union alignas(u32) MemExportStream {
+  struct {
+    u32 dword_0; /**< Raw dword 0. */
+    u32 dword_1; /**< Raw dword 1. */
+    u32 dword_2; /**< Raw dword 2. */
+    u32 dword_3; /**< Raw dword 3. */
+  };
+  struct {
+    u32 base_address : 30; /**< Dword 0 bit 0, physical address >> 2. */
+    u32 const_0x1 : 2;     /**< Dword 0 bit 30, 0b01. */
+
+    u32 const_0x4b000000; /**< Dword 1, 2^23 with the offset added by the shader. */
+
+    Endian128 endianness : 3;           /**< Dword 2 bit 0, endian swap. */
+    u32 unused_0 : 5;                   /**< Dword 2 bit 3, unused. */
+    ColorFormat format : 6;             /**< Dword 2 bit 8, element format. */
+    u32 unused_1 : 2;                   /**< Dword 2 bit 14, unused. */
+    SurfaceNumberFormat num_format : 3; /**< Dword 2 bit 16, number format. */
+    u32 red_blue_swap : 1;              /**< Dword 2 bit 19, swap red and blue. */
+    u32 const_0x4b0 : 12;               /**< Dword 2 bit 20, exponent 23. */
+
+    u32 index_count : 23; /**< Dword 3 bit 0, element count. */
+    u32 const_0x96 : 9;   /**< Dword 3 bit 23, exponent 23. */
+  };
 };
-static_assert_size(DepthSampleCounts, sizeof(uint32_t) * 8);
+static_assert_size(MemExportStream, sizeof(u32) * 4);
 
-// Enum of event values used for VGT_EVENT_INITIATOR
+/**
+ * Depth sample counters written by the GPU.
+ *
+ * Values are little endian. Direct3D sums the A and B halves and computes occlusion by
+ * subtracting the begin counters from the end counters.
+ */
+struct alignas(u32) DepthSampleCounts {
+  le<u32> Total_A;       /**< Total samples, half A. */
+  le<u32> Total_B;       /**< Total samples, half B. */
+  le<u32> ZFail_A;       /**< Depth test failures, half A. */
+  le<u32> ZFail_B;       /**< Depth test failures, half B. */
+  le<u32> ZPass_A;       /**< Depth test passes, half A. */
+  le<u32> ZPass_B;       /**< Depth test passes, half B. */
+  le<u32> StencilFail_A; /**< Stencil test failures, half A. */
+  le<u32> StencilFail_B; /**< Stencil test failures, half B. */
+};
+static_assert_size(DepthSampleCounts, sizeof(u32) * 8);
+
+/** Event values for VGT_EVENT_INITIATOR. */
 enum Event {
-  VS_DEALLOC = 0,
-  PS_DEALLOC = 1,
-  VS_DONE_TS = 2,
-  PS_DONE_TS = 3,
-  CACHE_FLUSH_TS = 4,
-  CONTEXT_DONE = 5,
-  CACHE_FLUSH = 6,
-  VIZQUERY_START = 7,
-  VIZQUERY_END = 8,
-  SC_WAIT_WC = 9,
-  MPASS_PS_CP_REFETCH = 10,
-  MPASS_PS_RST_START = 11,
-  MPASS_PS_INCR_START = 12,
-  RST_PIX_CNT = 13,
-  RST_VTX_CNT = 14,
-  TILE_FLUSH = 15,
-  CACHE_FLUSH_AND_INV_TS_EVENT = 20,
-  ZPASS_DONE = 21,
-  CACHE_FLUSH_AND_INV_EVENT = 22,
-  PERFCOUNTER_START = 23,
-  PERFCOUNTER_STOP = 24,
-  SCREEN_EXT_INIT = 25,
-  SCREEN_EXT_RPT = 26,
-  VS_FETCH_DONE_TS = 27,
+  VS_DEALLOC = 0,                    /**< Vertex shader deallocation. */
+  PS_DEALLOC = 1,                    /**< Pixel shader deallocation. */
+  VS_DONE_TS = 2,                    /**< Vertex shader done timestamp. */
+  PS_DONE_TS = 3,                    /**< Pixel shader done timestamp. */
+  CACHE_FLUSH_TS = 4,                /**< Cache flush timestamp. */
+  CONTEXT_DONE = 5,                  /**< Context done. */
+  CACHE_FLUSH = 6,                   /**< Cache flush. */
+  VIZQUERY_START = 7,                /**< Visibility query start. */
+  VIZQUERY_END = 8,                  /**< Visibility query end. */
+  SC_WAIT_WC = 9,                    /**< Scan converter wait. */
+  MPASS_PS_CP_REFETCH = 10,          /**< Multipass pixel shader refetch. */
+  MPASS_PS_RST_START = 11,           /**< Multipass pixel shader reset start. */
+  MPASS_PS_INCR_START = 12,          /**< Multipass pixel shader increment start. */
+  RST_PIX_CNT = 13,                  /**< Reset pixel count. */
+  RST_VTX_CNT = 14,                  /**< Reset vertex count. */
+  TILE_FLUSH = 15,                   /**< Tile flush. */
+  CACHE_FLUSH_AND_INV_TS_EVENT = 20, /**< Cache flush and invalidate timestamp. */
+  ZPASS_DONE = 21,                   /**< Z pass count done. */
+  CACHE_FLUSH_AND_INV_EVENT = 22,    /**< Cache flush and invalidate. */
+  PERFCOUNTER_START = 23,            /**< Performance counter start. */
+  PERFCOUNTER_STOP = 24,             /**< Performance counter stop. */
+  SCREEN_EXT_INIT = 25,              /**< Screen extent init. */
+  SCREEN_EXT_RPT = 26,               /**< Screen extent report. */
+  VS_FETCH_DONE_TS = 27,             /**< Vertex shader fetch done timestamp. */
 };
 
-// Opcodes (IT_OPCODE) for Type-3 commands in the ringbuffer.
-// https://github.com/freedreno/amd-gpu/blob/master/include/api/gsl_pm4types.h
-// Not sure if all of these are used.
 // clang-format off
+/** Type 3 packet opcodes (IT_OPCODE) in the ring buffer. */
 enum Type3Opcode {
-  PM4_ME_INIT               = 0x48,   // initialize CP's micro-engine
-
-  PM4_NOP                   = 0x10,   // skip N 32-bit words to get to the next packet
-
-  PM4_INDIRECT_BUFFER       = 0x3f,   // indirect buffer dispatch.  prefetch parser uses this packet type to determine whether to pre-fetch the IB
-  PM4_INDIRECT_BUFFER_PFD   = 0x37,   // indirect buffer dispatch.  same as IB, but init is pipelined
-
-  PM4_WAIT_FOR_IDLE         = 0x26,   // wait for the IDLE state of the engine
-  PM4_WAIT_REG_MEM          = 0x3c,   // wait until a register or memory location is a specific value
-  PM4_WAIT_REG_EQ           = 0x52,   // wait until a register location is equal to a specific value
-  PM4_WAIT_REG_GTE          = 0x53,   // wait until a register location is >= a specific value
-  PM4_WAIT_UNTIL_READ       = 0x5c,   // wait until a read completes
-  PM4_WAIT_IB_PFD_COMPLETE  = 0x5d,   // wait until all base/size writes from an IB_PFD packet have completed
-
-  PM4_REG_RMW               = 0x21,   // register read/modify/write
-  PM4_REG_TO_MEM            = 0x3e,   // reads register in chip and writes to memory
-  PM4_MEM_WRITE             = 0x3d,   // write N 32-bit words to memory
-  PM4_MEM_WRITE_CNTR        = 0x4f,   // write CP_PROG_COUNTER value to memory
-  PM4_COND_EXEC             = 0x44,   // conditional execution of a sequence of packets
-  PM4_COND_WRITE            = 0x45,   // conditional write to memory or register
-
-  PM4_EVENT_WRITE           = 0x46,   // generate an event that creates a write to memory when completed
-  PM4_EVENT_WRITE_SHD       = 0x58,   // generate a VS|PS_done event
-  PM4_EVENT_WRITE_CFL       = 0x59,   // generate a cache flush done event
-  PM4_EVENT_WRITE_EXT       = 0x5a,   // generate a screen extent event
-  PM4_EVENT_WRITE_ZPD       = 0x5b,   // generate a z_pass done event
-
-  PM4_DRAW_INDX             = 0x22,   // initiate fetch of index buffer and draw
-  PM4_DRAW_INDX_2           = 0x36,   // draw using supplied indices in packet
-  PM4_DRAW_INDX_BIN         = 0x34,   // initiate fetch of index buffer and binIDs and draw
-  PM4_DRAW_INDX_2_BIN       = 0x35,   // initiate fetch of bin IDs and draw using supplied indices
-
-  PM4_VIZ_QUERY             = 0x23,   // begin/end initiator for viz query extent processing
-  PM4_SET_STATE             = 0x25,   // fetch state sub-blocks and initiate shader code DMAs
-  PM4_SET_CONSTANT          = 0x2d,   // load constant into chip and to memory
-  PM4_SET_CONSTANT2         = 0x55,   // INCR_UPDATE_STATE
-  PM4_SET_SHADER_CONSTANTS  = 0x56,   // INCR_UPDT_CONST
-  PM4_LOAD_ALU_CONSTANT     = 0x2f,   // load constants from memory
-  PM4_IM_LOAD               = 0x27,   // load sequencer instruction memory (pointer-based)
-  PM4_IM_LOAD_IMMEDIATE     = 0x2b,   // load sequencer instruction memory (code embedded in packet)
-  PM4_LOAD_CONSTANT_CONTEXT = 0x2e,   // load constants from a location in memory
-  PM4_INVALIDATE_STATE      = 0x3b,   // selective invalidation of state pointers
-
-  PM4_SET_SHADER_BASES      = 0x4A,   // dynamically changes shader instruction memory partition
-  PM4_SET_BIN_BASE_OFFSET   = 0x4B,   // program an offset that will added to the BIN_BASE value of the 3D_DRAW_INDX_BIN packet
-  PM4_SET_BIN_MASK          = 0x50,   // sets the 64-bit BIN_MASK register in the PFP
-  PM4_SET_BIN_SELECT        = 0x51,   // sets the 64-bit BIN_SELECT register in the PFP
-
-  PM4_CONTEXT_UPDATE        = 0x5e,   // updates the current context, if needed
-  PM4_INTERRUPT             = 0x54,   // generate interrupt from the command stream
-
-  PM4_XE_SWAP               = 0x64,   // Xenia only: VdSwap uses this to trigger a swap.
-
-  PM4_IM_STORE              = 0x2c,   // copy sequencer instruction memory to system memory
-
-  // Tiled rendering:
-  // https://www.google.com/patents/US20060055701
-  PM4_SET_BIN_MASK_LO       = 0x60,
-  PM4_SET_BIN_MASK_HI       = 0x61,
-  PM4_SET_BIN_SELECT_LO     = 0x62,
-  PM4_SET_BIN_SELECT_HI     = 0x63,
+  PM4_ME_INIT               = 0x48, /**< Initialize the CP micro engine. */
+  PM4_NOP                   = 0x10, /**< Skip N 32-bit words. */
+  PM4_INDIRECT_BUFFER       = 0x3f, /**< Indirect buffer dispatch, prefetched. */
+  PM4_INDIRECT_BUFFER_PFD   = 0x37, /**< Indirect buffer dispatch, pipelined init. */
+  PM4_WAIT_FOR_IDLE         = 0x26, /**< Wait for the engine to go idle. */
+  PM4_WAIT_REG_MEM          = 0x3c, /**< Wait for a register or memory value. */
+  PM4_WAIT_REG_EQ           = 0x52, /**< Wait for a register to equal a value. */
+  PM4_WAIT_REG_GTE          = 0x53, /**< Wait for a register to be >= a value. */
+  PM4_WAIT_UNTIL_READ       = 0x5c, /**< Wait for a read to complete. */
+  PM4_WAIT_IB_PFD_COMPLETE  = 0x5d, /**< Wait for IB_PFD base and size writes. */
+  PM4_REG_RMW               = 0x21, /**< Register read, modify and write. */
+  PM4_REG_TO_MEM            = 0x3e, /**< Copy a register to memory. */
+  PM4_MEM_WRITE             = 0x3d, /**< Write N 32-bit words to memory. */
+  PM4_MEM_WRITE_CNTR        = 0x4f, /**< Write CP_PROG_COUNTER to memory. */
+  PM4_COND_EXEC             = 0x44, /**< Conditionally execute packets. */
+  PM4_COND_WRITE            = 0x45, /**< Conditionally write memory or a register. */
+  PM4_EVENT_WRITE           = 0x46, /**< Event that writes memory on completion. */
+  PM4_EVENT_WRITE_SHD       = 0x58, /**< Vertex or pixel shader done event. */
+  PM4_EVENT_WRITE_CFL       = 0x59, /**< Cache flush done event. */
+  PM4_EVENT_WRITE_EXT       = 0x5a, /**< Screen extent event. */
+  PM4_EVENT_WRITE_ZPD       = 0x5b, /**< Z pass done event. */
+  PM4_DRAW_INDX             = 0x22, /**< Fetch the index buffer and draw. */
+  PM4_DRAW_INDX_2           = 0x36, /**< Draw with indices in the packet. */
+  PM4_DRAW_INDX_BIN         = 0x34, /**< Fetch the index buffer and bin IDs and draw. */
+  PM4_DRAW_INDX_2_BIN       = 0x35, /**< Fetch bin IDs and draw with packet indices. */
+  PM4_VIZ_QUERY             = 0x23, /**< Visibility query begin or end. */
+  PM4_SET_STATE             = 0x25, /**< Fetch state and start shader code DMA. */
+  PM4_SET_CONSTANT          = 0x2d, /**< Load a constant into the chip and memory. */
+  PM4_SET_CONSTANT2         = 0x55, /**< Incremental state update. */
+  PM4_SET_SHADER_CONSTANTS  = 0x56, /**< Incremental constant update. */
+  PM4_LOAD_ALU_CONSTANT     = 0x2f, /**< Load constants from memory. */
+  PM4_IM_LOAD               = 0x27, /**< Load instruction memory from a pointer. */
+  PM4_IM_LOAD_IMMEDIATE     = 0x2b, /**< Load instruction memory from the packet. */
+  PM4_LOAD_CONSTANT_CONTEXT = 0x2e, /**< Load constants from a memory location. */
+  PM4_INVALIDATE_STATE      = 0x3b, /**< Invalidate selected state pointers. */
+  PM4_SET_SHADER_BASES      = 0x4A, /**< Change the instruction memory partition. */
+  PM4_SET_BIN_BASE_OFFSET   = 0x4B, /**< Offset added to BIN_BASE of binned draws. */
+  PM4_SET_BIN_MASK          = 0x50, /**< Set the 64-bit BIN_MASK. */
+  PM4_SET_BIN_SELECT        = 0x51, /**< Set the 64-bit BIN_SELECT. */
+  PM4_CONTEXT_UPDATE        = 0x5e, /**< Update the current context if needed. */
+  PM4_INTERRUPT             = 0x54, /**< Raise an interrupt from the command stream. */
+  PM4_XE_SWAP               = 0x64, /**< Runtime opcode that VdSwap writes to present. */
+  PM4_IM_STORE              = 0x2c, /**< Copy instruction memory to system memory. */
+  PM4_SET_BIN_MASK_LO       = 0x60, /**< Set the low BIN_MASK dword for tiled rendering. */
+  PM4_SET_BIN_MASK_HI       = 0x61, /**< Set the high BIN_MASK dword. */
+  PM4_SET_BIN_SELECT_LO     = 0x62, /**< Set the low BIN_SELECT dword. */
+  PM4_SET_BIN_SELECT_HI     = 0x63, /**< Set the high BIN_SELECT dword. */
 };
 // clang-format on
 
-inline uint32_t MakePacketType0(uint16_t index, uint16_t count, bool one_reg = false) {
-  // ttcccccc cccccccc oiiiiiii iiiiiiii
+/**
+ * Builds a type 0 packet header that writes consecutive registers.
+ *
+ * Layout ttcccccc cccccccc oiiiiiii iiiiiiii with type, count minus 1, 1 register flag and
+ * register index.
+ *
+ * @param index First register index, up to 0x7FFF.
+ * @param count Register count, 1 to 0x4000.
+ * @param one_reg Not encoded.
+ * @return Packet header.
+ */
+inline u32 MakePacketType0(u16 index, u16 count, bool one_reg = false) {
   assert(index <= 0x7FFF);
   assert(count >= 1 && count <= 0x4000);
   return (0u << 30) | (((count - 1) & 0x3FFF) << 16) | (index & 0x7FFF);
 }
 
-inline uint32_t MakePacketType1(uint16_t index_1, uint16_t index_2) {
-  // tt?????? ??222222 22222111 11111111
+/**
+ * Builds a type 1 packet header that writes 2 registers.
+ *
+ * Layout tt?????? ??222222 22222111 11111111.
+ *
+ * @param index_1 First register index, up to 0x7FF.
+ * @param index_2 Second register index, up to 0x7FF.
+ * @return Packet header.
+ */
+inline u32 MakePacketType1(u16 index_1, u16 index_2) {
   assert(index_1 <= 0x7FF);
   assert(index_2 <= 0x7FF);
   return (1u << 30) | ((index_2 & 0x7FF) << 11) | (index_1 & 0x7FF);
 }
 
-constexpr inline uint32_t MakePacketType2() {
-  // tt?????? ???????? ???????? ????????
+/**
+ * Builds a type 2 packet, a single dword no-op.
+ *
+ * @return Packet header.
+ */
+constexpr inline u32 MakePacketType2() {
   return (2u << 30);
 }
 
-inline uint32_t MakePacketType3(Type3Opcode opcode, uint16_t count, bool predicate = false) {
-  // ttcccccc cccccccc ?ooooooo ???????p
+/**
+ * Builds a type 3 packet header.
+ *
+ * Layout ttcccccc cccccccc ?ooooooo ???????p with type, count minus 1, opcode and predicate.
+ *
+ * @param opcode Packet opcode.
+ * @param count Payload dword count, 1 to 0x4000.
+ * @param predicate Whether the packet is predicated.
+ * @return Packet header.
+ */
+inline u32 MakePacketType3(Type3Opcode opcode, u16 count, bool predicate = false) {
   assert(opcode <= 0x7F);
   assert(count >= 1 && count <= 0x4000);
   return (3u << 30) | (((count - 1) & 0x3FFF) << 16) | ((opcode & 0x7F) << 8) | (predicate ? 1 : 0);
 }
 
-// Similar to the C++ implementation of XMConvertFloatToHalf and
-// XMConvertHalfToFloat from DirectXMath 3.00 (pre-3.04, which switched from the
-// Xenos encoding to IEEE 754), with the extended range instead of infinity and
-// NaN, and optionally with denormalized numbers - as used in vpkd3d128 (no
-// denormals, rounding towards zero) and on the Xenos (GL_OES_texture_float
-// alternative encoding).
-
-inline uint16_t FloatToHalf(float value, bool preserve_denormal = false,
-                            bool round_to_nearest_even = false) {
-  uint32_t integer_value = std::bit_cast<uint32_t>(value);
-  uint32_t abs_value = integer_value & 0x7FFFFFFFu;
-  uint32_t result;
+/**
+ * Converts a 32-bit value to the Xenos 16-bit floating-point encoding.
+ *
+ * The encoding uses the extended range instead of infinity and NaN, and saturates.
+ *
+ * @param value Value to convert.
+ * @param preserve_denormal Keep denormalized results instead of flushing them to 0.
+ * @param round_to_nearest_even Round to the nearest even value instead of towards 0.
+ * @return 16-bit encoded value.
+ */
+inline u16 FloatToHalf(f32 value, bool preserve_denormal = false,
+                       bool round_to_nearest_even = false) {
+  u32 integer_value = std::bit_cast<u32>(value);
+  u32 abs_value = integer_value & 0x7FFFFFFFu;
+  u32 result;
   if (abs_value >= 0x47FFE000u) {
-    // Saturate.
     result = 0x7FFFu;
   } else {
     if (abs_value < 0x38800000u) {
-      // The number is too small to be represented as a normalized half.
       if (preserve_denormal) {
-        uint32_t shift = std::min(uint32_t(113u - (abs_value >> 23u)), uint32_t(24u));
+        u32 shift = std::min(u32(113u - (abs_value >> 23u)), u32(24u));
         result = (0x800000u | (abs_value & 0x7FFFFFu)) >> shift;
       } else {
         result = 0u;
       }
     } else {
-      // Rebias the exponent to represent the value as a normalized half.
       result = abs_value + 0xC8000000u;
     }
     if (round_to_nearest_even) {
@@ -1673,29 +1470,33 @@ inline uint16_t FloatToHalf(float value, bool preserve_denormal = false,
     }
     result = (result >> 13u) & 0x7FFFu;
   }
-  return uint16_t(result | ((integer_value & 0x80000000u) >> 16u));
+  return u16(result | ((integer_value & 0x80000000u) >> 16u));
 }
 
-inline float HalfToFloat(uint16_t value, bool preserve_denormal = false) {
-  uint32_t mantissa = value & 0x3FFu;
-  uint32_t exponent = (value >> 10u) & 0x1Fu;
+/**
+ * Converts a Xenos 16-bit floating-point value to 32 bits.
+ *
+ * @param value 16-bit encoded value.
+ * @param preserve_denormal Keep denormalized inputs instead of flushing them to 0.
+ * @return Converted value.
+ */
+inline f32 HalfToFloat(u16 value, bool preserve_denormal = false) {
+  u32 mantissa = value & 0x3FFu;
+  u32 exponent = (value >> 10u) & 0x1Fu;
   if (!exponent) {
     if (!preserve_denormal) {
       mantissa = 0;
     } else if (mantissa) {
-      // Normalize the value in the resulting float.
-      // do { Exponent--; Mantissa <<= 1; } while ((Mantissa & 0x0400) == 0)
-      uint32_t mantissa_lzcnt = uint32_t(std::countl_zero(mantissa)) - (32u - 11u);
-      exponent = uint32_t(1 - int32_t(mantissa_lzcnt));
+      u32 mantissa_lzcnt = u32(std::countl_zero(mantissa)) - (32u - 11u);
+      exponent = u32(1 - i32(mantissa_lzcnt));
       mantissa = (mantissa << mantissa_lzcnt) & 0x3FFu;
     }
     if (!mantissa) {
-      exponent = uint32_t(-112);
+      exponent = u32(-112);
     }
   }
-  uint32_t result =
-      (uint32_t(value & 0x8000u) << 16u) | ((exponent + 112u) << 23u) | (mantissa << 13u);
-  return std::bit_cast<float>(result);
+  u32 result = (u32(value & 0x8000u) << 16u) | ((exponent + 112u) << 23u) | (mantissa << 13u);
+  return std::bit_cast<f32>(result);
 }
 
 }  // namespace rex::xenos

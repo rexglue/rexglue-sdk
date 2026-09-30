@@ -1,10 +1,14 @@
 /**
- ******************************************************************************
- * Xenia : Xbox 360 Emulator Research Project                                 *
- ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
- * Released under the BSD license - see LICENSE in the root for more details. *
- ******************************************************************************
+ * @file        string.h
+ * @brief       C string comparison, trimming and bounded copy helpers
+ *
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ *
+ * @remarks     Derived from Xenia's xenia/base/string.h (Ben Vanik, 2020).
  */
 
 #pragma once
@@ -20,6 +24,7 @@
 #include <rex/memory/utils.h>
 #include <rex/platform.h>
 #include <rex/string/utf8.h>
+#include <rex/types.h>
 
 #if !REX_PLATFORM_WIN32
 #include <strings.h>
@@ -27,7 +32,14 @@
 
 namespace rex {
 
-inline int compare_case(const char* string1, const char* string2) {
+/**
+ * Compares 2 NUL terminated strings, ignoring ASCII case.
+ *
+ * @param string1 First string.
+ * @param string2 Second string.
+ * @return Negative, 0 or positive as string1 orders before, equal to or after string2.
+ */
+inline i32 compare_case(const char* string1, const char* string2) {
 #if REX_PLATFORM_WIN32
   return _stricmp(string1, string2);
 #else
@@ -35,7 +47,15 @@ inline int compare_case(const char* string1, const char* string2) {
 #endif
 }
 
-inline int compare_case_n(const char* string1, const char* string2, size_t count) {
+/**
+ * Compares up to count characters of 2 strings, ignoring ASCII case.
+ *
+ * @param string1 First string.
+ * @param string2 Second string.
+ * @param count Maximum number of characters to compare.
+ * @return Negative, 0 or positive as string1 orders before, equal to or after string2.
+ */
+inline i32 compare_case_n(const char* string1, const char* string2, size_t count) {
 #if REX_PLATFORM_WIN32
   return _strnicmp(string1, string2, count);
 #else
@@ -43,27 +63,61 @@ inline int compare_case_n(const char* string1, const char* string2, size_t count
 #endif
 }
 
+/** Characters the trim functions remove by default. */
 inline constexpr std::string_view kWhitespace = " \t\r\n";
 
+/**
+ * Removes leading characters.
+ *
+ * @param sv String to trim.
+ * @param chars Characters to remove.
+ * @return View of sv without the leading characters, empty when every character matches.
+ */
 inline std::string_view trim_left(std::string_view sv, std::string_view chars = kWhitespace) {
   auto start = sv.find_first_not_of(chars);
   return start == std::string_view::npos ? std::string_view{} : sv.substr(start);
 }
 
+/**
+ * Removes trailing characters.
+ *
+ * @param sv String to trim.
+ * @param chars Characters to remove.
+ * @return View of sv without the trailing characters, empty when every character matches.
+ */
 inline std::string_view trim_right(std::string_view sv, std::string_view chars = kWhitespace) {
   auto end = sv.find_last_not_of(chars);
   return end == std::string_view::npos ? std::string_view{} : sv.substr(0, end + 1);
 }
 
+/**
+ * Removes leading and trailing characters.
+ *
+ * @param sv String to trim.
+ * @param chars Characters to remove.
+ * @return View of sv without the leading and trailing characters.
+ */
 inline std::string_view trim(std::string_view sv, std::string_view chars = kWhitespace) {
   return trim_right(trim_left(sv, chars), chars);
 }
 
+/**
+ * Removes leading and trailing characters into a new string.
+ *
+ * @param sv String to trim.
+ * @param chars Characters to remove.
+ * @return Copy of sv without the leading and trailing characters.
+ */
 inline std::string trim_string(std::string_view sv, std::string_view chars = kWhitespace) {
   return std::string(trim(sv, chars));
 }
 
-// Caller must free() the returned pointer.
+/**
+ * Copies a NUL terminated string to the heap.
+ *
+ * @param source String to copy.
+ * @return The copy. The caller frees it with free.
+ */
 inline char* duplicate(const char* source) {
 #if REX_PLATFORM_WIN32
   return _strdup(source);
@@ -72,6 +126,14 @@ inline char* duplicate(const char* source) {
 #endif
 }
 
+/**
+ * Copies a string into a fixed buffer, truncating to fit, and NUL terminates it.
+ *
+ * @param dest Destination buffer.
+ * @param source String to copy.
+ * @param dest_buffer_count Size of dest in characters, including the terminator.
+ * @return Characters copied, not counting the terminator.
+ */
 inline size_t copy_truncating(char* dest, const std::string_view source, size_t dest_buffer_count) {
   if (!dest_buffer_count) {
     return 0;
@@ -82,6 +144,14 @@ inline size_t copy_truncating(char* dest, const std::string_view source, size_t 
   return chars_copied;
 }
 
+/**
+ * Copies a UTF-16 string into a fixed buffer, truncating to fit, and NUL terminates it.
+ *
+ * @param dest Destination buffer.
+ * @param source String to copy.
+ * @param dest_buffer_count Size of dest in code units, including the terminator.
+ * @return Code units copied, not counting the terminator.
+ */
 inline size_t copy_truncating(char16_t* dest, const std::u16string_view source,
                               size_t dest_buffer_count) {
   if (!dest_buffer_count) {
@@ -93,6 +163,15 @@ inline size_t copy_truncating(char16_t* dest, const std::u16string_view source,
   return chars_copied;
 }
 
+/**
+ * Copies a UTF-16 string into a fixed buffer with each code unit byte swapped, truncating to
+ * fit, and NUL terminates it.
+ *
+ * @param dest Destination buffer.
+ * @param source String to copy.
+ * @param dest_buffer_count Size of dest in code units, including the terminator.
+ * @return Code units copied, not counting the terminator.
+ */
 inline size_t copy_and_swap_truncating(char16_t* dest, const std::u16string_view source,
                                        size_t dest_buffer_count) {
   if (!dest_buffer_count) {
@@ -104,8 +183,16 @@ inline size_t copy_and_swap_truncating(char16_t* dest, const std::u16string_view
   return chars_copied;
 }
 
-// No in-buffer NUL terminator. Caller must zero the buffer (or rely on
-// adjacent padding bytes) to terminate.
+/**
+ * Copies a string into a fixed buffer, truncating to fit, without a terminator. A source that
+ * fills the buffer leaves no NUL, so the caller zeroes the buffer or relies on the bytes after
+ * it.
+ *
+ * @param dest Destination buffer.
+ * @param source String to copy.
+ * @param dest_buffer_count Size of dest in characters.
+ * @return Characters copied.
+ */
 inline size_t copy_unterminated(char* dest, const std::string_view source,
                                 size_t dest_buffer_count) {
   if (!dest_buffer_count) {

@@ -392,6 +392,13 @@ if(REXGLUE_ENABLE_TRACY)
 
     target_compile_options(TracyClient PRIVATE -w)
 
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        target_link_options(TracyClient PRIVATE
+            "LINKER:--version-script=${CMAKE_CURRENT_SOURCE_DIR}/../cmake/tracy_client.map")
+        set_property(TARGET TracyClient APPEND PROPERTY LINK_DEPENDS
+            ${CMAKE_CURRENT_SOURCE_DIR}/../cmake/tracy_client.map)
+    endif()
+
     install(DIRECTORY ${TRACY_PUBLIC_DIR}/tracy
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/tracy
             FILES_MATCHING PATTERN "*.hpp" PATTERN "*.h" PATTERN "*.hmm")

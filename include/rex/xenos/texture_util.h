@@ -1,331 +1,260 @@
-#pragma once
 /**
- ******************************************************************************
- * Xenia : Xbox 360 Emulator Research Project                                 *
- ******************************************************************************
- * Copyright 2022 Ben Vanik. All rights reserved.                             *
- * Released under the BSD license - see LICENSE in the root for more details. *
- ******************************************************************************
+ * @file        xenos/texture_util.h
+ * @brief       Xenos texture layout, tiled addressing and fetch constant helpers
  *
- * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ *
+ * @remarks     Derived from Xenia's xenia/gpu/texture_util.h (Ben Vanik, 2022).
  */
+
+#pragma once
 
 #include <algorithm>
 
+#include <rex/macros.h>
+#include <rex/math.h>
+#include <rex/types.h>
 #include <rex/xenos/texture_info.h>
 #include <rex/xenos/xenos.h>
-#include <rex/math.h>
 
 namespace rex::xenos {
 
-// This namespace replaces texture_extent and most of texture_info for
-// simplicity.
+/**
+ * Reads the size from a fetch constant and cleans up the addresses and mip range based on
+ * which of the base level and mips are present. Every output pointer may be null.
+ *
+ * @param fetch The texture fetch constant.
+ * @param width_minus_1_out Receives the width in texels minus 1.
+ * @param height_minus_1_out Receives the height in texels minus 1.
+ * @param depth_or_array_size_minus_1_out Receives the depth or array size minus 1, 5 for cubes.
+ * @param base_page_out Receives the base level page, 0 when the base level is absent.
+ * @param mip_page_out Receives the mip page, 0 when no mips are present.
+ * @param mip_min_level_out Receives the first present level.
+ * @param mip_max_level_out Receives the last present level.
+ */
+REX_API void GetSubresourcesFromFetchConstant(const xenos::TextureFetch& fetch,
+                                              u32* width_minus_1_out, u32* height_minus_1_out,
+                                              u32* depth_or_array_size_minus_1_out,
+                                              u32* base_page_out, u32* mip_page_out,
+                                              u32* mip_min_level_out, u32* mip_max_level_out);
 
-// Extracts the size from the fetch constant, and also cleans up addresses and
-// mip range based on real presence of the base level and mips. Returns 6 faces
-// for cube textures.
-void GetSubresourcesFromFetchConstant(const xenos::TextureFetch& fetch, uint32_t* width_minus_1_out,
-                                      uint32_t* height_minus_1_out,
-                                      uint32_t* depth_or_array_size_minus_1_out,
-                                      uint32_t* base_page_out, uint32_t* mip_page_out,
-                                      uint32_t* mip_min_level_out, uint32_t* mip_max_level_out);
-
-// Gets the number of the mipmap level where the packed mips are stored.
-inline uint32_t GetPackedMipLevel(uint32_t width, uint32_t height) {
-  uint32_t log2_size = rex::log2_ceil(std::min(width, height));
+/**
+ * @param width Width in texels.
+ * @param height Height in texels.
+ * @return The first mip level stored in the packed mip tail.
+ */
+inline u32 GetPackedMipLevel(u32 width, u32 height) {
+  u32 log2_size = rex::log2_ceil(std::min(width, height));
   return log2_size > 4 ? log2_size - 4 : 0;
 }
 
-// Gets the offset of the mipmap within the tail in blocks, or zeros (and
-// returns false) if the mip level is not packed. Width, height and depth are in
-// texels. For non-3D textures, set depth to 1.
-// The offset is always within the dimensions of the image rounded to 32.
-bool GetPackedMipOffset(uint32_t width, uint32_t height, uint32_t depth,
-                        xenos::TextureFormat format, uint32_t mip, uint32_t& x_blocks,
-                        uint32_t& y_blocks, uint32_t& z_blocks);
+/**
+ * Finds the offset of a mip level within the packed mip tail. The offset stays within the image
+ * size rounded up to 32.
+ *
+ * @param width Width in texels.
+ * @param height Height in texels.
+ * @param depth Depth in texels, 1 for textures other than 3D.
+ * @param format Texel format.
+ * @param mip The mip level.
+ * @param x_blocks Receives the X offset in blocks.
+ * @param y_blocks Receives the Y offset in blocks.
+ * @param z_blocks Receives the Z offset in blocks.
+ * @return False when the level is not packed, with all offsets set to 0.
+ */
+REX_API bool GetPackedMipOffset(u32 width, u32 height, u32 depth, xenos::TextureFormat format,
+                                u32 mip, u32& x_blocks, u32& y_blocks, u32& z_blocks);
 
-// Both tiled and linear textures, as it appears from Direct3D 9 texture
-// alignment disassembly (where the parameter indicating whether the texture is
-// tiled only has effect on aligning the width to max(256 / block size, 32)
-// rather than 32), are stored as tiles of 32x1x1 (for 1D), 32x32x1 (for 2D), or
-// 32x32x4 (for 3D) texels (or compression blocks for compressed textures) for
-// the purpose of calculation of the distance between subresources like array
-// slices, and between depth slices (especially for linear textures).
-//
-// Textures have the base level (level 0) stored under their base_address, and
-// mip levels (starting from 1) stored under their mip_address. There are
-// differences in how texture data is stored under base_address and mip_address:
-// - The base level uses the row pitch (specified in texels divided by 32 - thus
-//   implies 32-block alignment for both uncompressed and compressed textures)
-//   stored in the fetch constant, and height aligned to 32 blocks for Z slice
-//   and array layer stride calculation purposes. The pitch can be different
-//   from the actual width - an example is 584109FF, using 1408 pitch for a
-//   1280x menu background).
-// - The mip levels use `max(next_pow2(width or height in texels) >> level, 1)`
-//   aligned to 32 blocks for the same purpose, likely disregarding the pitch
-//   from the fetch constant.
-//
-// There is also mip tail packing if the fetch constant specifies that packed
-// mips are enabled, for both tiled and linear textures (545407E0 uses linear
-// DXT-compressed textures with packed mips very extensively for the game world
-// materials). In this case, mips with width or height of 16 or smaller are
-// stored not individually, but instead, in 32-texel (note: not 32-block - mip
-// tail calculations are done with texel units; but 32-block padding can only be
-// bigger than 32-texel padding for compressed textures) padding of the last
-// level before the packed one.
-//
-// Note that the mip tail can be used both for the base level and mips (1...) if
-// the entire texture has width or height of 16 or smaller. Therefore, both the
-// base and the mips would be loaded from a mip tail that would be stored like
-// the level 0 of the texture. But, in this case, under base_address and
-// mip_address there are two separate mip tails, and the former likely uses the
-// pitch from the fetch constant and no power of two size rounding, while for
-// the latter the strides are likely calculated like for usual mips. The same
-// applies to 17...32 texture sizes, though in this case the base is not packed
-// tail, but the mips are still packed within an image that's stored like the
-// level 0 of the texture. So, "storage level 0" is an ambiguous concept - host
-// texture loading code should distinguish between "base level 0" and "mip tail
-// for the mips 1... stored like level 0" and load the actual host level 0 from
-// base_address, with all the base addressing properties, and host levels 1...
-// from mip_address, with all the mips addressing properties. The base level
-// being packed is evident from the function that tiles textures in game
-// disassembly, which only checks the flag whether the data is packed passed to
-// it, not the level, to see if it needs to calculate the offset in the mip
-// tail, and the offset calculation function doesn't have level == 0 checks in
-// it, only early-out if level < packed tail level (which can be 0). There are
-// examples of textures with packed base, for example, in the intro level of
-// 545407E0 (8x8 linear DXT1 - pairs of orange lights in the bottom of gambling
-// machines).
-//
-// Linear texture rows are aligned to 256 bytes, for both the base and the mips
-// (for the base, Direct3D 9 writes an already 256-byte-aligned pitch to the
-// fetch constant).
-//
-// However, all the 32x32x4 padding, being just padding, is not necessarily
-// being actually accessed, especially for linear textures. 4E4D083E has a
-// 1280x720 k_8_8_8_8 linear texture, and allocates memory for exactly 1280x720,
-// so aligning the height to 32 to 1280x736 results in access violations. So,
-// while for stride calculations all the padding must be respected, for actual
-// memory loads it's better to avoid trying to access it when possible:
-// - If the pitch is bigger than the width, it's better to calculate the last
-//   row's length from the width rather than the pitch (this also possibly works
-//   in the other direction though - pitch < width is a weird situation, but
-//   probably legal, and may lead to reading data from beyond the calculated
-//   subresource stride).
-// - For linear textures (like that 1280x720 example from 4E4D083E), it's easy
-//   to calculate the exact memory extent that may be accessed knowing the
-//   dimensions (unlike for tiled textures with complex addressing within
-//   32x32x4-block tiles), so there's no need to align them to 32x32x4 for
-//   memory extent calculation.
-//   - For the linear packed mip tail, the extent can be calculated as max of
-//     (block offsets + block extents) of all levels stored in it.
-//
-// 1D textures are always linear and likely can't have packed mips (for `width >
-// height` textures, mip offset calculation may result in packing along Y).
-//
-// Array slices are stored within levels (this is different than how Direct3D
-// 10+ builds subresource indices, for instance). Each array slice or level is
-// aligned to 4 KB (but this doesn't apply to 3D texture slices within one
-// level).
-
+/**
+ * Memory layout of a texture in guest memory.
+ *
+ * The base level is stored at base_address with the fetch constant pitch. Mips 1 and up are
+ * stored at mip_address with sizes of max(next_pow2(size) >> level, 1). Strides between array
+ * slices and Z slices use 32x1x1 tiles for 1D, 32x32x1 for 2D and 32x32x4 for 3D, in texels or
+ * compressed blocks. Linear rows are aligned to 256 bytes. Array slices are stored within each
+ * level, and each array slice or level is aligned to 4 KB.
+ *
+ * With packed mips, levels whose width or height is 16 or less share 1 tail laid out like the
+ * level before it. The base level can be packed as well, in which case base_address and
+ * mip_address hold separate tails. Padding counts for strides but is not always backed by
+ * memory, so the data extents exclude it where the layout allows.
+ */
 struct TextureGuestLayout {
+  /** Layout of 1 stored level. */
   struct Level {
-    // Distance between each row of blocks in bytes, including all the needed
-    // power of two (for mips) and 256-byte (for linear textures) alignment.
-    uint32_t row_pitch_bytes;
-    // Distance between Z slices in block rows, aligned to power of two for
-    // mips, and to tile height.
-    uint32_t z_slice_stride_block_rows;
-    // Distance between each array slice within the level in bytes, aligned to
-    // kTextureSubresourceAlignmentBytes. The distance to the next level is this
-    // multiplied by the array slice count.
-    uint32_t array_slice_stride_bytes;
-
-    // The exclusive upper bound of blocks needed at this level (this level for
-    // non-packed levels, or all the packed levels for the packed mip tail).
-    uint32_t x_extent_blocks;
-    uint32_t y_extent_blocks;
-    uint32_t z_extent;
-    // Estimated amount of memory this level occupies. Not aligned to
-    // kTextureSubresourceAlignmentBytes. For tiled textures, this will be
-    // calculated for the extent rounded to 32x32x4 blocks (or 32x32x1 depending
-    // on the dimensionality), but for linear textures, as well as for mips of
-    // non-power-of-two tiled textures, this may be significantly (including
-    // less 4 KB pages) smaller than the aligned size (like for 4E4D083E where
-    // aligning the height of a 1280x720 linear texture results in access
-    // violations). For the linear mip tail, this includes all the mip levels
-    // stored in it. If the width is bigger than the pitch, this will also be
-    // taken into account for the last row so all memory actually used by the
-    // texture will be loaded, and may be bigger than the distance between array
-    // slices or levels. The purpose of this parameter is to make the memory
-    // amount that needs to be resident as close to the real amount as possible,
-    // to make sure all the needed data will be read, but also, if possible,
-    // unneeded memory pages won't be accessed (since that may trigger an access
-    // violation on the CPU).
-    uint32_t array_slice_data_extent_bytes;
-    // Including all array slices.
-    uint32_t level_data_extent_bytes;
+    u32 row_pitch_bytes;               /**< Block row stride with mip and linear alignment. */
+    u32 z_slice_stride_block_rows;     /**< Z slice stride in block rows. */
+    u32 array_slice_stride_bytes;      /**< Array slice stride, 4 KB aligned. */
+    u32 x_extent_blocks;               /**< Exclusive X bound of the blocks in use. */
+    u32 y_extent_blocks;               /**< Exclusive Y bound of the blocks in use. */
+    u32 z_extent;                      /**< Exclusive Z bound of the slices in use. */
+    u32 array_slice_data_extent_bytes; /**< Bytes 1 array slice reads, not 4 KB aligned. */
+    u32 level_data_extent_bytes;       /**< Bytes the level reads across all array slices. */
   };
 
-  Level base;
-  // If mip_max_level specified at calculation time is at least 1, the stored
-  // mips are min(1, packed_mip_level) through min(mip_max_level,
-  // packed_mip_level).
+  Level base; /**< The base level. */
+  /** Mip levels, stored from min(1, packed_level) to min(max_level, packed_level). */
   Level mips[xenos::kTextureMaxMips];
-  uint32_t mip_offsets_bytes[xenos::kTextureMaxMips];
-  uint32_t mips_total_extent_bytes;
-  uint32_t max_level;
-  // UINT32_MAX if there's no packed mip tail.
-  uint32_t packed_level;
-  uint32_t array_size;
+  u32 mip_offsets_bytes[xenos::kTextureMaxMips]; /**< Offset of each mip from mip_address. */
+  u32 mips_total_extent_bytes;                   /**< Bytes all mips read. */
+  u32 max_level;                                 /**< Last level, clamped to the size. */
+  u32 packed_level;                              /**< First packed level, or UINT32_MAX. */
+  u32 array_size;                                /**< Array slice count, 6 for cubes. */
 };
 
-TextureGuestLayout GetGuestTextureLayout(xenos::DataDimension dimension,
-                                         uint32_t base_pitch_texels_div_32, uint32_t width_texels,
-                                         uint32_t height_texels, uint32_t depth_or_array_size,
-                                         bool is_tiled, xenos::TextureFormat format,
-                                         bool has_packed_levels, bool has_base, uint32_t max_level);
+/**
+ * Calculates the guest memory layout of a texture. A texture with no texels gets an all zero
+ * layout.
+ *
+ * @param dimension Texture dimension.
+ * @param base_pitch_texels_div_32 Base level row pitch in texels divided by 32.
+ * @param width_texels Width in texels.
+ * @param height_texels Height in texels.
+ * @param depth_or_array_size Depth for 3D textures, array size otherwise.
+ * @param is_tiled True for tiled data, false for linear.
+ * @param format Texel format.
+ * @param has_packed_levels True when small levels share a packed mip tail.
+ * @param has_base True when the base level is present.
+ * @param max_level Last mip level.
+ * @return The layout.
+ */
+REX_API TextureGuestLayout GetGuestTextureLayout(xenos::DataDimension dimension,
+                                                 u32 base_pitch_texels_div_32, u32 width_texels,
+                                                 u32 height_texels, u32 depth_or_array_size,
+                                                 bool is_tiled, xenos::TextureFormat format,
+                                                 bool has_packed_levels, bool has_base,
+                                                 u32 max_level);
 
-// Returns the total size of memory the texture uses starting from its base and
-// mip addresses, in bytes (both are optional).
-void GetTextureTotalSize(xenos::DataDimension dimension, uint32_t base_pitch_texels_div_32,
-                         uint32_t width_texels, uint32_t height_texels,
-                         uint32_t depth_or_array_size, bool is_tiled, xenos::TextureFormat format,
-                         uint32_t mip_max_level, bool has_packed_mips, uint32_t* base_size_out,
-                         uint32_t* mip_size_out);
+/**
+ * Offset of a block in a 2D tiled texture. Negative coordinates are valid, so the result can
+ * move from a region back to the texture origin when the coordinates are a multiple of the
+ * addressing period. Tile origins grow with Y / 32 and then X / 32. The sequence repeats every
+ * 128 blocks at 1 byte per block and every 64 blocks at 2 bytes per block. From 4 bytes per block
+ * up, each 32x32 tile is stored separately in tile row order.
+ *
+ * @param x Block X coordinate.
+ * @param y Block Y coordinate.
+ * @param pitch Row pitch in blocks, aligned to 32 internally.
+ * @param bytes_per_block_log2 log2_floor of the bytes per block.
+ * @return The byte offset.
+ */
+REX_API i32 GetTiledOffset2D(i32 x, i32 y, u32 pitch, u32 bytes_per_block_log2);
 
-// Notes about tiled addresses:
-// - The tiled address calculation functions work for both positive and negative
-//   offsets, so they can be used to go both from the origin of the texture to a
-//   region inside it and back (as long as the coordinates are a multiple of the
-//   period of the tiled address function in each direction - depends on whether
-//   the texture is 2D or 3D, and on the number of bytes per block). This is, in
-//   particular, used by Direct3D 9 inside resolving to allow resolving with an
-//   offset in the texture, so the rectangle coordinates are relative to both
-//   the render target and the region (with the appropriate alignment) in the
-//   texture at the same time.
-// - 2D:
-//   - Origins of 32x32-block tiles grow monotonically as Y/32 (in blocks)
-//     increases, and in each tile row, as X/32 (in blocks) increases.
-//   - In each 32x32 tile, the block at (0, 0) within the tile has the address
-//     that matches the origin of the tile itself. This is not true for the
-//     block (31, 31), however - its address will be somewhere within the memory
-//     extent of the tile.
-//   - 1bpb:
-//     - The tiled address sequence repeats every 128 blocks along X or Y.
-//     - 32x32 tiles have their origins 0x200-bytes-aligned, and the addresses
-//       of the blocks within a 32x32 tile span 0xA00 bytes.
-//     - Note that 32x32x1bpb is 0x400 bytes, but addresses of blocks within a
-//       tile span the range of 0xA00 bytes - so 32x32 tiles are stored in
-//       memory ranges that may overlap (even across 128x128 - with the pitch of
-//       192 blocks, the tile at (96, 32)...(127, 63) spans 0x2200...0x2BFF,
-//       while the tile at (128, 32)...(159, 63) spans 0x2400...0x2DFF.
-//     - All blocks within a 32x32 tile are located in the same 4KB-aligned
-//       region.
-//   - 2bpb:
-//     - The approach to storage is conceptually similar to that of 1bpb, with
-//       some quantitative differences.
-//     - The tiled address sequence repeats every 64 blocks along X or Y.
-//     - 32x32 tiles have their origins 0x400-bytes-aligned, and the addresses
-//       of the blocks within a 32x32 tile span 0xC00 bytes.
-//   - 4bpb and larger:
-//     - 32x32 tiles (which themselves are 4 KB or larger in this case) are
-//       stored simply in a tile-row-major way, separately from each other in
-//       memory, with independent addressing within each tile.
-// - 3D:
-//   - Origins of 32x32x4-block tiles grow monotonically as Z/4 increases, and
-//     in each 4-slice portion, as Y/32 (in blocks) increases, and in each tile
-//     row, as X/32 (in blocks) increases.
-//   - Along Z, addressing repeats every 8 slices. Along Y, addressing repeats
-//     every 32 blocks regardless of the number of bytes per block.
-//   - 32-block-row x 4-slice portions are stored in disjoint 4KB-aligned ranges
-//     in memory (thus every 4 slices are also stored in disjoint ranges).
-//   - Addresses within a 32x32x4-block tile span widely throughout the X pitch,
-//     with a lot of overlap between 32x32x4 tiles with different X.
-//   - 1bpb:
-//     - The tiled address sequence repeats every 64 blocks along X.
-//     - Origins of 32x32x4-block tiles within 32-block-row x 4-slice portions:
-//       - X = 0, 64, 128...: (X / 64) * 0x1000
-//       - X = 32, 96, 160...: (X / 64) * 0x1000 + 0x400
-//       - Or: ((X >> 6) << 12) | (((X >> 5) & 1) << 10)
-//     - Span of the addresses within a 32x32x4-block tile:
-//       - Pitch = 32, 96, 160...: (Pitch / 64) * 0x1000 + 0x1000
-//       - Pitch = 64, 128, 192...: (Pitch / 64) * 0x1000 + 0xC00
-//     - Or: ((Pitch >> 6) << 12) + 0xC00 + (((Pitch >> 5) & 1) << 10)
-//     - Or: ((Pitch >> 6) << 12) + 0xC00 + ((Pitch & (1 << 5)) << (10 - 5))
-//   - 2bpb and larger:
-//     - The tiled address sequence repeats every 32 blocks along X.
-//     - Origins of 32x32x4-block tiles within 32-block-row x 4-slice portions:
-//       (X / 32) * 0x1000 * (BPB / 2)
-//     - Span of the addresses within a 32x32x4-block tile:
-//       ((Pitch / 32) * 0x1000 + 0x1000) * (BPB / 2)
-// - Addressing of blocks that are contiguous along X (for tiling/untiling of
-//   larger portions at once):
-//   - 1bpb - each 8 blocks are laid out sequentially, odd 8 blocks =
-//     even 8 blocks + 64 bytes (two R32G32_UINT tiled accesses for one
-//     R32G32B32A32_UINT linear access).
-//   - 2bpb, 4bpb, 8bpb, 16bpb - each 16 bytes contain blocks laid out
-//     sequentially (can tile/untile in R32G32B32A32_UINT portions).
-//   - 2bpb - odd 8 blocks = even 8 blocks + 64 bytes.
-//   - 4bpb - odd 4 blocks = even 4 blocks + 32 bytes.
-//   - 8bpb - odd 2 blocks = even 2 blocks + 32 bytes.
-//   - 16bpb - odd block = even block + 32 bytes.
-// - Resolve granularity for both offset and size is 8x8 pixels - see
-//   xenos::kResolveAlignmentPixels. So, multiple pixels can still be loaded and
-//   stored when resolving, taking the contiguous storage patterns described
-//   above into account.
+/**
+ * Offset of a block in a 3D tiled texture. Tile origins grow with Z / 4, then Y / 32, then
+ * X / 32. Addressing repeats every 8 slices along Z and every 32 blocks along Y. Each 32 block
+ * row by 4 slice portion occupies its own 4 KB aligned range.
+ *
+ * @param x Block X coordinate.
+ * @param y Block Y coordinate.
+ * @param z Slice coordinate.
+ * @param pitch Row pitch in blocks, aligned to 32 internally.
+ * @param height Height in blocks, aligned to 32 internally.
+ * @param bytes_per_block_log2 log2_floor of the bytes per block.
+ * @return The byte offset.
+ */
+REX_API i32 GetTiledOffset3D(i32 x, i32 y, i32 z, u32 pitch, u32 height, u32 bytes_per_block_log2);
 
-// bytes_per_block_log2 is log2_floor according to how Direct3D 9 calculates it,
-// but k_32_32_32 textures are never tiled anyway likely.
-
-int32_t GetTiledOffset2D(int32_t x, int32_t y, uint32_t pitch, uint32_t bytes_per_block_log2);
-int32_t GetTiledOffset3D(int32_t x, int32_t y, int32_t z, uint32_t pitch, uint32_t height,
-                         uint32_t bytes_per_block_log2);
-// Because (0, 0, 0) within each 32x32x4-block tile is stored in memory first,
-// and the tiled address grows monotonically with Z/4, then Y/32, then X/32
-// blocks.
-inline uint32_t GetTiledAddressLowerBound2D(uint32_t left, uint32_t top, uint32_t pitch,
-                                            uint32_t bytes_per_block_log2) {
-  return uint32_t(GetTiledOffset2D(int32_t(left & ~(xenos::kTextureTileWidthHeight - 1)),
-                                   int32_t(top & ~(xenos::kTextureTileWidthHeight - 1)), pitch,
-                                   bytes_per_block_log2));
+/**
+ * Lowest address a 2D region can touch, the origin of its first 32x32 tile.
+ *
+ * @param left Left edge in blocks.
+ * @param top Top edge in blocks.
+ * @param pitch Row pitch in blocks.
+ * @param bytes_per_block_log2 log2_floor of the bytes per block.
+ * @return The lower bound byte offset.
+ */
+inline u32 GetTiledAddressLowerBound2D(u32 left, u32 top, u32 pitch, u32 bytes_per_block_log2) {
+  return u32(GetTiledOffset2D(i32(left & ~(xenos::kTextureTileWidthHeight - 1)),
+                              i32(top & ~(xenos::kTextureTileWidthHeight - 1)), pitch,
+                              bytes_per_block_log2));
 }
-inline uint32_t GetTiledAddressLowerBound3D(uint32_t left, uint32_t top, uint32_t front,
-                                            uint32_t pitch, uint32_t height,
-                                            uint32_t bytes_per_block_log2) {
-  return uint32_t(GetTiledOffset3D(int32_t(left & ~(xenos::kTextureTileWidthHeight - 1)),
-                                   int32_t(top & ~(xenos::kTextureTileWidthHeight - 1)),
-                                   int32_t(front & ~(xenos::kTextureTileDepth)), pitch, height,
-                                   bytes_per_block_log2));
-}
-// Supporting the right > pitch and bottom > height (in tiles) cases also, for
-// estimation how far addresses can actually go even potentially beyond the
-// subresource stride.
-uint32_t GetTiledAddressUpperBound2D(uint32_t right, uint32_t bottom, uint32_t pitch,
-                                     uint32_t bytes_per_block_log2);
-uint32_t GetTiledAddressUpperBound3D(uint32_t right, uint32_t bottom, uint32_t back, uint32_t pitch,
-                                     uint32_t height, uint32_t bytes_per_block_log2);
 
-// Returns four packed TextureSign values swizzled according to the swizzle in
-// the fetch constant, so the shader can apply TextureSigns after reading a
-// pre-swizzled texture. 0/1 elements are considered unsigned (and not biased),
-// however, if all non-constant components are signed, 0/1 are considered signed
-// too (because in backends, unsigned and signed textures may use separate host
-// textures with different formats, so just one is used for both signed and
-// constant components).
-uint8_t SwizzleSigns(const xenos::TextureFetch& fetch);
-constexpr bool IsAnySignNotSigned(uint8_t packed_signs) {
-  return packed_signs != uint32_t(xenos::TextureSign::kSigned) * 0b01010101;
+/**
+ * Lowest address a 3D region can touch, the origin of its first 32x32x4 tile.
+ *
+ * @param left Left edge in blocks.
+ * @param top Top edge in blocks.
+ * @param front Front slice.
+ * @param pitch Row pitch in blocks.
+ * @param height Height in blocks.
+ * @param bytes_per_block_log2 log2_floor of the bytes per block.
+ * @return The lower bound byte offset.
+ */
+inline u32 GetTiledAddressLowerBound3D(u32 left, u32 top, u32 front, u32 pitch, u32 height,
+                                       u32 bytes_per_block_log2) {
+  return u32(GetTiledOffset3D(i32(left & ~(xenos::kTextureTileWidthHeight - 1)),
+                              i32(top & ~(xenos::kTextureTileWidthHeight - 1)),
+                              i32(front & ~(xenos::kTextureTileDepth)), pitch, height,
+                              bytes_per_block_log2));
 }
-constexpr bool IsAnySignSigned(uint8_t packed_signs) {
-  // Make signed 00 - check if all are 01, 10 or 11.
-  uint32_t xor_signed = packed_signs ^ (uint32_t(xenos::TextureSign::kSigned) * 0b01010101);
+
+/**
+ * Exclusive upper address bound of a 2D region. The region may extend past the pitch.
+ *
+ * @param right Exclusive right edge in blocks.
+ * @param bottom Exclusive bottom edge in blocks.
+ * @param pitch Row pitch in blocks.
+ * @param bytes_per_block_log2 log2_floor of the bytes per block.
+ * @return The upper bound byte offset, or 0 for an empty region.
+ */
+REX_API u32 GetTiledAddressUpperBound2D(u32 right, u32 bottom, u32 pitch, u32 bytes_per_block_log2);
+
+/**
+ * Exclusive upper address bound of a 3D region. The region may extend past the pitch and height.
+ *
+ * @param right Exclusive right edge in blocks.
+ * @param bottom Exclusive bottom edge in blocks.
+ * @param back Exclusive back slice.
+ * @param pitch Row pitch in blocks.
+ * @param height Height in blocks.
+ * @param bytes_per_block_log2 log2_floor of the bytes per block.
+ * @return The upper bound byte offset, or 0 for an empty region.
+ */
+REX_API u32 GetTiledAddressUpperBound3D(u32 right, u32 bottom, u32 back, u32 pitch, u32 height,
+                                        u32 bytes_per_block_log2);
+
+/**
+ * Packs the TextureSign of each component after the fetch constant swizzle. Constant 0 and 1
+ * components count as unsigned unless every other component is signed.
+ *
+ * @param fetch The texture fetch constant.
+ * @return 4 TextureSign values, 2 bits each.
+ */
+REX_API u8 SwizzleSigns(const xenos::TextureFetch& fetch);
+
+/**
+ * @param packed_signs Packed signs from SwizzleSigns.
+ * @return True when any component is not kSigned.
+ */
+constexpr bool IsAnySignNotSigned(u8 packed_signs) {
+  return packed_signs != u32(xenos::TextureSign::kSigned) * 0b01010101;
+}
+
+/**
+ * @param packed_signs Packed signs from SwizzleSigns.
+ * @return True when any component is kSigned.
+ */
+constexpr bool IsAnySignSigned(u8 packed_signs) {
+  u32 xor_signed = packed_signs ^ (u32(xenos::TextureSign::kSigned) * 0b01010101);
   return ((xor_signed | (xor_signed >> 1)) & 0b01010101) != 0b01010101;
 }
 
-// Returns normalized clamp modes specified in the fetch constant based on the
-// texture data dimension in it.
-void GetClampModesForDimension(const xenos::TextureFetch& fetch, xenos::ClampMode& clamp_x_out,
-                               xenos::ClampMode& clamp_y_out, xenos::ClampMode& clamp_z_out);
+/**
+ * Reads the clamp modes a fetch constant uses for its dimension. Unused axes and cube textures
+ * get kClampToEdge.
+ *
+ * @param fetch The texture fetch constant.
+ * @param clamp_x_out Receives the X clamp mode.
+ * @param clamp_y_out Receives the Y clamp mode.
+ * @param clamp_z_out Receives the Z clamp mode.
+ */
+REX_API void GetClampModesForDimension(const xenos::TextureFetch& fetch,
+                                       xenos::ClampMode& clamp_x_out, xenos::ClampMode& clamp_y_out,
+                                       xenos::ClampMode& clamp_z_out);
 
 }  // namespace rex::xenos

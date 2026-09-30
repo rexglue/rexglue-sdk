@@ -1,53 +1,57 @@
 /**
- ******************************************************************************
- * Xenia : Xbox 360 Emulator Research Project                                 *
- ******************************************************************************
- * Copyright 2022 Ben Vanik. All rights reserved.                             *
- * Released under the BSD license - see LICENSE in the root for more details. *
- ******************************************************************************
+ * @file        chrono/chrono.h
+ * @brief       NT FILETIME clocks for host and guest time with std::chrono conversions
  *
- * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ *
+ * @remarks     Derived from Xenia's xenia/base/chrono.h (Ben Vanik, 2022).
  */
 
 #pragma once
 
 #include <atomic>
 #include <chrono>
-#include <cstdint>
 
 #include <rex/chrono/clock.h>
+#include <rex/types.h>
 
 namespace rex {
+
+/** Ratio of 1 FILETIME tick, 100ns, to 1 second. */
 using hundrednano = std::ratio<1, 10000000>;
 
-using hundrednanoseconds = std::chrono::duration<int64_t, hundrednano>;
-
-// TODO(JoelLinn) define xstead_clock xsystem_clock etc.
+/** Duration in 100ns FILETIME ticks. */
+using hundrednanoseconds = std::chrono::duration<i64, hundrednano>;
 
 namespace detail {
-// Implementation detail: NtSystemClock template for Host/Guest time domains.
-// Trick to reduce code duplication and keep all the chrono template magic
-// working.
+
+/** Time domain an NtSystemClock reads. */
 enum class Domain {
-  // boring host clock:
-  Host,
-  // adheres to guest scaling (differrent speed, changing clock drift etc):
-  Guest
+  Host, /**< Unscaled host time. */
+  Guest /**< guest time, with the Clock time scalar and time base applied. */
 };
 
+/**
+ * std::chrono clock over NT FILETIME, 100ns ticks since Jan 1 1601.
+ *
+ * @tparam domain_ The time domain the clock reads.
+ */
 template <Domain domain_>
 struct NtSystemClock {
-  using rep = int64_t;
-  using period = hundrednano;
-  using duration = hundrednanoseconds;
-  using time_point = std::chrono::time_point<NtSystemClock<domain_>>;
-  // This really depends on the context the clock is used in:
-  // static constexpr bool is_steady = false;
+  using rep = i64;                                                    /**< Tick count type. */
+  using period = hundrednano;                                         /**< Tick period. */
+  using duration = hundrednanoseconds;                                /**< Duration type. */
+  using time_point = std::chrono::time_point<NtSystemClock<domain_>>; /**< Time point type. */
 
  public:
-  // The delta between std::chrono::system_clock (Jan 1 1970) and NT file
-  // time (Jan 1 1601), in seconds. In the spec std::chrono::system_clock's
-  // epoch is undefined, but C++20 cements it as Jan 1 1970.
+  /**
+   * @return The offset from the std::chrono::system_clock epoch, Jan 1 1970, to the FILETIME
+   *         epoch, Jan 1 1601, in seconds.
+   */
   static constexpr std::chrono::seconds unix_epoch_delta() {
     using std::chrono::steady_clock;
     auto filetime_epoch = std::chrono::year{1601} / std::chrono::month{1} / std::chrono::day{1};
@@ -60,16 +64,29 @@ struct NtSystemClock {
   }
 
  public:
-  static constexpr uint64_t to_file_time(time_point const& tp) noexcept {
-    return static_cast<uint64_t>(tp.time_since_epoch().count());
+  /**
+   * @param tp The time point to convert.
+   * @return The time point as a FILETIME.
+   */
+  static constexpr u64 to_file_time(time_point const& tp) noexcept {
+    return static_cast<u64>(tp.time_since_epoch().count());
   }
 
-  static constexpr time_point from_file_time(uint64_t const& tp) noexcept {
+  /**
+   * @param tp The FILETIME to convert.
+   * @return The FILETIME as a time point.
+   */
+  static constexpr time_point from_file_time(u64 const& tp) noexcept {
     return time_point{duration{tp}};
   }
 
-  // To convert XSystemClock to sys, do clock_cast<WinSystemTime>(tp) first
-  // Only available for Host domain (Guest time must be converted via clock_cast)
+  /**
+   * Converts a host time point to std::chrono::system_clock. Convert XSystemClock time with
+   * clock_cast to WinSystemClock first.
+   *
+   * @param tp The host time point.
+   * @return The same instant on std::chrono::system_clock.
+   */
   static constexpr std::chrono::system_clock::time_point to_sys(const time_point& tp)
     requires(domain_ == Domain::Host)
   {
@@ -82,6 +99,12 @@ struct NtSystemClock {
     return sys_time{cdp.time_since_epoch()};
   }
 
+  /**
+   * Converts a std::chrono::system_clock time point to host time.
+   *
+   * @param tp The system_clock time point.
+   * @return The same instant on this clock.
+   */
   static constexpr time_point from_sys(const std::chrono::system_clock::time_point& tp)
     requires(domain_ == Domain::Host)
   {
@@ -91,22 +114,24 @@ struct NtSystemClock {
     return dp;
   }
 
+  /**
+   * @return The current time from Clock::QueryHostSystemTime or Clock::QueryGuestSystemTime.
+   */
   [[nodiscard]] static time_point now() noexcept {
     if constexpr (domain_ == Domain::Host) {
-      // QueryHostSystemTime() returns windows epoch times even on POSIX
       return from_file_time(Clock::QueryHostSystemTime());
     } else if constexpr (domain_ == Domain::Guest) {
       return from_file_time(Clock::QueryGuestSystemTime());
     }
   }
 };
+
 }  // namespace detail
 
-// Unscaled system clock which can be used for filetime <-> system_clock
-// conversion
+/** Unscaled host FILETIME clock. It converts to and from std::chrono::system_clock. */
 using WinSystemClock = detail::NtSystemClock<detail::Domain::Host>;
 
-// Guest system clock, scaled
+/** Scaled guest FILETIME clock. Convert it with clock_cast to WinSystemClock. */
 using XSystemClock = detail::NtSystemClock<detail::Domain::Guest>;
 
 }  // namespace rex
@@ -114,25 +139,46 @@ using XSystemClock = detail::NtSystemClock<detail::Domain::Guest>;
 namespace std::chrono {
 
 #ifdef __APPLE__
-// Apple libc++ does not expose clock_time_conversion or clock_cast.
+/**
+ * Stand-in for the C++20 clock conversion trait, which Apple libc++ does not provide.
+ */
 template <class, class>
 struct clock_time_conversion {};
 
+/**
+ * Stand-in for C++20 clock_cast, which Apple libc++ does not provide.
+ *
+ * @tparam DestClock The clock to convert to.
+ * @tparam SourceClock The clock to convert from.
+ * @tparam Duration The duration of the source time point.
+ * @param t The time point to convert.
+ * @return The same instant on DestClock.
+ */
 template <class DestClock, class SourceClock, class Duration>
 auto clock_cast(const std::chrono::time_point<SourceClock, Duration>& t) {
   return clock_time_conversion<DestClock, SourceClock>{}(t);
 }
 #endif
 
+/**
+ * Converts XSystemClock time to WinSystemClock time. The offset from the current guest time is
+ * multiplied by the Clock time scalar unless clock.no_scaling is set.
+ */
 template <>
 struct clock_time_conversion<::rex::WinSystemClock, ::rex::XSystemClock> {
+  /** Destination clock. */
   using WClock_ = ::rex::WinSystemClock;
+  /** Source clock. */
   using XClock_ = ::rex::XSystemClock;
 
+  /**
+   * @tparam Duration The duration of the source time point.
+   * @param t The guest time point.
+   * @return The same instant in host time.
+   */
   template <typename Duration>
   typename WClock_::time_point operator()(
       const std::chrono::time_point<XClock_, Duration>& t) const {
-    // Consult chrono_steady_cast.h for explanation on this:
     std::atomic_thread_fence(std::memory_order_acq_rel);
     auto w_now = WClock_::now();
     auto x_now = XClock_::now();
@@ -146,15 +192,25 @@ struct clock_time_conversion<::rex::WinSystemClock, ::rex::XSystemClock> {
   }
 };
 
+/**
+ * Converts WinSystemClock time to XSystemClock time. The offset from the current host time is
+ * divided by the Clock time scalar unless clock.no_scaling is set.
+ */
 template <>
 struct clock_time_conversion<::rex::XSystemClock, ::rex::WinSystemClock> {
+  /** Source clock. */
   using WClock_ = ::rex::WinSystemClock;
+  /** Destination clock. */
   using XClock_ = ::rex::XSystemClock;
 
+  /**
+   * @tparam Duration The duration of the source time point.
+   * @param t The host time point.
+   * @return The same instant in guest time.
+   */
   template <typename Duration>
   typename XClock_::time_point operator()(
       const std::chrono::time_point<WClock_, Duration>& t) const {
-    // Consult chrono_steady_cast.h for explanation on this:
     std::atomic_thread_fence(std::memory_order_acq_rel);
     auto w_now = WClock_::now();
     auto x_now = XClock_::now();

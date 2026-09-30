@@ -1,39 +1,41 @@
 /**
- ******************************************************************************
- * Xenia : Xbox 360 Emulator Research Project                                 *
- ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
- * Released under the BSD license - see LICENSE in the root for more details. *
- ******************************************************************************
+ * @file        system.h
+ * @brief       Host shell helpers such as native message boxes
  *
- * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ *
+ * @remarks     Derived from Xenia's xenia/base/system.h (Ben Vanik, 2020).
  */
 
 #pragma once
 
-#include <filesystem>
 #include <string_view>
 
+#include <rex/macros.h>
 #include <rex/platform.h>
 
 namespace rex {
 
-#if REX_PLATFORM_ANDROID
-bool InitializeAndroidSystemForApplicationContext();
-void ShutdownAndroidSystem();
-#endif
-
-// The URL must include the protocol.
-void LaunchWebBrowser(const std::string_view url);
-void LaunchFileExplorer(const std::filesystem::path& path);
-
+/**
+ * Icon and severity of a simple message box.
+ */
 enum class SimpleMessageBoxType {
-  Help,
-  Warning,
-  Error,
+  Help,    /**< Informational message. */
+  Warning, /**< Warning message. */
+  Error,   /**< Error message. */
 };
 
-// This is expected to block the caller until the message box is closed.
-void ShowSimpleMessageBox(SimpleMessageBoxType type, std::string_view message);
+/**
+ * Shows a native message box and blocks the caller until it closes. On POSIX it writes the message
+ * to stderr instead.
+ *
+ * @param type The icon and severity.
+ * @param message The UTF-8 message text.
+ */
+REX_API void ShowSimpleMessageBox(SimpleMessageBoxType type, std::string_view message);
 
 }  // namespace rex

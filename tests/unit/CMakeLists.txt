@@ -9,6 +9,7 @@ add_executable(unit_tests
     core/cli_arg_list_test.cpp
     core/cvar_test.cpp
     core/config_test.cpp
+    core/core_fixes_test.cpp
     core/fiber_test.cpp
     core/filesystem_test.cpp
     core/vfs_overwrite_test.cpp

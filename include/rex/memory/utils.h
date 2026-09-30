@@ -1,12 +1,14 @@
 /**
- ******************************************************************************
- * Xenia : Xbox 360 Emulator Research Project                                 *
- ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
- * Released under the BSD license - see LICENSE in the root for more details. *
- ******************************************************************************
+ * @file        memory/utils.h
+ * @brief       Host page allocation, protection, file mappings and byte order helpers
  *
- * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ *
+ * @remarks     Derived from Xenia's xenia/base/memory.h (Ben Vanik, 2020).
  */
 
 #pragma once
@@ -19,6 +21,7 @@
 #include <string_view>
 #include <type_traits>
 
+#include <rex/macros.h>
 #include <rex/assert.h>
 #include <rex/platform.h>
 #include <rex/types.h>
@@ -26,15 +29,23 @@
 namespace rex {
 namespace memory {
 
-// For variable declarations (not return values or `this` pointer).
-// Not propagated.
+/**
+ * Restrict qualifier for variable declarations. Not for return values or the this pointer.
+ *
+ * @code
+ * void Copy(u8* REX_RESTRICT_VAR dst, const u8* REX_RESTRICT_VAR src);
+ * @endcode
+ */
 #define REX_RESTRICT_VAR __restrict
 
-// Aliasing-safe bit reinterpretation.
-// For more complex cases such as non-trivially-copyable types, write copying
-// code respecting the requirements for them externally instead of using these
-// functions.
-
+/**
+ * Copies the bits of 1 trivially copyable object into another of the same size.
+ *
+ * @tparam Dst Destination type.
+ * @tparam Src Source type, the same size as Dst.
+ * @param dst Object that receives the bits.
+ * @param src Object the bits come from.
+ */
 template <typename Dst, typename Src>
 void Reinterpret(Dst& REX_RESTRICT_VAR dst, const Src& REX_RESTRICT_VAR src) {
   static_assert(sizeof(Dst) == sizeof(Src));
@@ -43,6 +54,14 @@ void Reinterpret(Dst& REX_RESTRICT_VAR dst, const Src& REX_RESTRICT_VAR src) {
   std::memcpy(&dst, &src, sizeof(Dst));
 }
 
+/**
+ * Returns the bits of a trivially copyable object as another type of the same size.
+ *
+ * @tparam Dst Result type.
+ * @tparam Src Source type, the same size as Dst.
+ * @param src Object the bits come from.
+ * @return A Dst holding the bits of src.
+ */
 template <typename Dst, typename Src>
 Dst Reinterpret(const Src& REX_RESTRICT_VAR src) {
   Dst dst;
@@ -51,66 +70,108 @@ Dst Reinterpret(const Src& REX_RESTRICT_VAR src) {
 }
 
 #if REX_PLATFORM_ANDROID
-void AndroidInitialize();
-void AndroidShutdown();
+/** Loads the Android shared memory functions available on API level 26 and later. */
+REX_API void AndroidInitialize();
+/** Unloads the functions AndroidInitialize loaded. */
+REX_API void AndroidShutdown();
 #endif
 
-// Returns the native page size of the system, in bytes.
-// This should be ~4KiB.
-size_t page_size();
+/**
+ * Returns the host page size.
+ *
+ * @return Page size in bytes, usually 4 KiB.
+ */
+REX_API size_t page_size();
 
-// Returns the allocation granularity of the system, in bytes.
-// This is likely 64KiB.
-size_t allocation_granularity();
+/**
+ * Returns the host allocation granularity.
+ *
+ * @return Granularity in bytes. 64 KiB on Windows, the page size on POSIX.
+ */
+REX_API size_t allocation_granularity();
 
+/** Access rights of a range of host pages. */
 enum class PageAccess {
-  kNoAccess = 0,
-  kReadOnly = 1 << 0,
-  kReadWrite = kReadOnly | 1 << 1,
-  kExecuteReadOnly = kReadOnly | 1 << 2,
-  kExecuteReadWrite = kReadWrite | 1 << 2,
+  kNoAccess = 0,                           /**< No access. */
+  kReadOnly = 1 << 0,                      /**< Read only. */
+  kReadWrite = kReadOnly | 1 << 1,         /**< Read and write. */
+  kExecuteReadOnly = kReadOnly | 1 << 2,   /**< Read and execute. */
+  kExecuteReadWrite = kReadWrite | 1 << 2, /**< Read, write and execute. */
 };
 
+/** Kind of allocation AllocFixed performs. */
 enum class AllocationType {
-  kReserve = 1 << 0,
-  kCommit = 1 << 1,
-  kReserveCommit = kReserve | kCommit,
+  kReserve = 1 << 0,                   /**< Reserve address space without backing it. */
+  kCommit = 1 << 1,                    /**< Back reserved address space with memory. */
+  kReserveCommit = kReserve | kCommit, /**< Reserve and commit in 1 step. */
 };
 
+/** Kind of deallocation DeallocFixed performs. */
 enum class DeallocationType {
-  kRelease = 1 << 0,
-  kDecommit = 1 << 1,
+  kRelease = 1 << 0,  /**< Return the address space to the system. */
+  kDecommit = 1 << 1, /**< Drop the backing memory and keep the reservation. */
 };
 
-// Whether the host allows the pages to be allocated or mapped with
-// PageAccess::kExecuteReadWrite - if not, separate mappings backed by the same
-// memory-mapped file must be used to write to executable pages.
-bool IsWritableExecutableMemorySupported();
+/**
+ * Tests whether host pages can be allocated or mapped with PageAccess::kExecuteReadWrite.
+ * When they cannot, writes to executable pages go through a separate view of the same file
+ * mapping.
+ *
+ * @return True when writable executable pages are supported.
+ */
+REX_API bool IsWritableExecutableMemorySupported();
 
-// Allocates a block of memory at the given page-aligned base address.
-// Fails if the memory is not available.
-// Specify nullptr for base_address to leave it up to the system.
-void* AllocFixed(void* base_address, size_t length, AllocationType allocation_type,
-                 PageAccess access);
+/**
+ * Allocates host pages at a page aligned address.
+ *
+ * @param base_address Requested address, or nullptr to let the system choose.
+ * @param length Byte count.
+ * @param allocation_type Reserve, commit or both.
+ * @param access Access rights of the new pages.
+ * @return Address of the allocation, or nullptr when the range is not available.
+ */
+REX_API void* AllocFixed(void* base_address, size_t length, AllocationType allocation_type,
+                         PageAccess access);
 
-// Deallocates and/or releases the given block of memory.
-// When releasing memory length must be zero, as all pages in the region are
-// released.
-bool DeallocFixed(void* base_address, size_t length, DeallocationType deallocation_type);
+/**
+ * Decommits or releases host pages.
+ *
+ * @param base_address Start of the range.
+ * @param length Byte count. Windows ignores it for kRelease and releases the whole region.
+ * @param deallocation_type Decommit or release.
+ * @return True on success.
+ */
+REX_API bool DeallocFixed(void* base_address, size_t length, DeallocationType deallocation_type);
 
-// Sets the access rights for the given block of memory and returns the previous
-// access rights. Both base_address and length will be adjusted to page_size().
-bool Protect(void* base_address, size_t length, PageAccess access,
-             PageAccess* out_old_access = nullptr);
+/**
+ * Changes the access rights of host pages.
+ *
+ * @param base_address Start of the range.
+ * @param length Byte count.
+ * @param access New access rights.
+ * @param out_old_access Receives the previous access rights of the first page, or nullptr.
+ * @return True on success.
+ */
+REX_API bool Protect(void* base_address, size_t length, PageAccess access,
+                     PageAccess* out_old_access = nullptr);
 
-// Queries a region of pages to get the access rights. This will modify the
-// length parameter to the length of pages with the same consecutive access
-// rights. The length will start from the first byte of the first page of
-// the region.
-bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out);
+/**
+ * Returns the access rights of the region that holds an address.
+ *
+ * @param base_address Address inside the region.
+ * @param length Receives the byte count of consecutive pages with the same access rights.
+ * @param access_out Receives the access rights.
+ * @return True on success.
+ */
+REX_API bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out);
 
-// Allocates a block of memory for a type with the given alignment.
-// The memory must be freed with AlignedFree.
+/**
+ * Allocates aligned host memory for 1 object. Free it with AlignedFree.
+ *
+ * @tparam T Object type.
+ * @param alignment Alignment in bytes, a power of 2.
+ * @return Uninitialized storage for a T, or nullptr on failure.
+ */
 template <typename T>
 inline T* AlignedAlloc(size_t alignment) {
 #if REX_PLATFORM_WIN32
@@ -124,7 +185,12 @@ inline T* AlignedAlloc(size_t alignment) {
 #endif
 }
 
-// Frees memory previously allocated with AlignedAlloc.
+/**
+ * Frees memory AlignedAlloc returned.
+ *
+ * @tparam T Object type.
+ * @param ptr Pointer AlignedAlloc returned.
+ */
 template <typename T>
 void AlignedFree(T* ptr) {
 #if REX_PLATFORM_WIN32
@@ -134,45 +200,181 @@ void AlignedFree(T* ptr) {
 #endif
 }
 
-// Opaque file mapping handle.
-// On Windows this holds a HANDLE (void*), on POSIX a file descriptor (int).
-// We use intptr_t to hold either without platform guards.
+/** Opaque file mapping handle. Holds a HANDLE on Windows and a file descriptor on POSIX. */
 using FileMappingHandle = intptr_t;
+/** Value CreateFileMappingHandle returns on failure. */
 constexpr FileMappingHandle kFileMappingHandleInvalid = -1;
 
-FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, size_t length,
-                                          PageAccess access, bool commit);
-void CloseFileMappingHandle(FileMappingHandle handle, const std::filesystem::path& path);
-void* MapFileView(FileMappingHandle handle, void* base_address, size_t length, PageAccess access,
-                  size_t file_offset);
-bool UnmapFileView(FileMappingHandle handle, void* base_address, size_t length);
+/**
+ * Creates a named shared memory object.
+ *
+ * @param path Name of the object.
+ * @param length Size in bytes.
+ * @param access Access rights of views of the object.
+ * @param commit True to commit the whole object up front. Only Windows reads it.
+ * @return Handle to the object, or kFileMappingHandleInvalid on failure.
+ */
+REX_API FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, size_t length,
+                                                  PageAccess access, bool commit);
 
-inline size_t hash_combine(size_t seed) {
-  return seed;
+/**
+ * Closes a handle CreateFileMappingHandle returned. POSIX also unlinks the object.
+ *
+ * @param handle Handle to close.
+ * @param path Name the object was created with.
+ */
+REX_API void CloseFileMappingHandle(FileMappingHandle handle, const std::filesystem::path& path);
+
+/**
+ * Maps a view of a shared memory object.
+ *
+ * @param handle Handle CreateFileMappingHandle returned.
+ * @param base_address Requested address, or nullptr to let the system choose.
+ * @param length Byte count of the view.
+ * @param access Access rights of the view.
+ * @param file_offset Offset of the view in the object, page aligned.
+ * @return Address of the view, or nullptr on failure.
+ */
+REX_API void* MapFileView(FileMappingHandle handle, void* base_address, size_t length,
+                          PageAccess access, size_t file_offset);
+
+/**
+ * Unmaps a view MapFileView returned.
+ *
+ * @param handle Handle the view was mapped from.
+ * @param base_address Address of the view.
+ * @param length Byte count of the view.
+ * @return True on success.
+ */
+REX_API bool UnmapFileView(FileMappingHandle handle, void* base_address, size_t length);
+
+/**
+ * Ends the hash_combine recursion.
+ *
+ * @param hash Hash value so far.
+ * @return The hash value unchanged.
+ */
+inline size_t hash_combine(size_t hash) {
+  return hash;
 }
 
+/**
+ * Mixes the std::hash of each value into a hash value.
+ *
+ * @tparam T Type of the first value.
+ * @tparam Ts Types of the remaining values.
+ * @param hash Hash value to mix into.
+ * @param v First value.
+ * @param vs Remaining values.
+ * @return The combined hash value.
+ */
 template <typename T, typename... Ts>
-size_t hash_combine(size_t seed, const T& v, const Ts&... vs) {
+size_t hash_combine(size_t hash, const T& v, const Ts&... vs) {
   std::hash<T> hasher;
-  seed ^= hasher(v) + 0x9E3779B9 + (seed << 6) + (seed >> 2);
-  return hash_combine(seed, vs...);
+  hash ^= hasher(v) + 0x9E3779B9 + (hash << 6) + (hash >> 2);
+  return hash_combine(hash, vs...);
 }
 
+/**
+ * Truncates a host pointer to its low 32 bits.
+ *
+ * @param address Pointer to truncate.
+ * @return The pointer with the upper 32 bits cleared.
+ */
 inline void* low_address(void* address) {
-  return reinterpret_cast<void*>(uint64_t(address) & 0xFFFFFFFF);
+  return reinterpret_cast<void*>(u64(address) & 0xFFFFFFFF);
 }
 
-void copy_128_aligned(void* dest, const void* src, size_t count);
+/**
+ * Copies 16 byte blocks between 16 byte aligned buffers.
+ *
+ * @param dest Destination buffer.
+ * @param src Source buffer.
+ * @param count Number of 16 byte blocks.
+ */
+REX_API void copy_128_aligned(void* dest, const void* src, size_t count);
 
-void copy_and_swap_16_aligned(void* dest, const void* src, size_t count);
-void copy_and_swap_16_unaligned(void* dest, const void* src, size_t count);
-void copy_and_swap_32_aligned(void* dest, const void* src, size_t count);
-void copy_and_swap_32_unaligned(void* dest, const void* src, size_t count);
-void copy_and_swap_64_aligned(void* dest, const void* src, size_t count);
-void copy_and_swap_64_unaligned(void* dest, const void* src, size_t count);
-void copy_and_swap_16_in_32_aligned(void* dest, const void* src, size_t count);
-void copy_and_swap_16_in_32_unaligned(void* dest, const void* src, size_t count);
+/**
+ * Copies 16 bit values and swaps the byte order of each. Both buffers are 16 byte aligned.
+ *
+ * @param dest Destination buffer.
+ * @param src Source buffer.
+ * @param count Number of 16 bit values.
+ */
+REX_API void copy_and_swap_16_aligned(void* dest, const void* src, size_t count);
 
+/**
+ * Copies 16 bit values and swaps the byte order of each.
+ *
+ * @param dest Destination buffer.
+ * @param src Source buffer.
+ * @param count Number of 16 bit values.
+ */
+REX_API void copy_and_swap_16_unaligned(void* dest, const void* src, size_t count);
+
+/**
+ * Copies 32 bit values and swaps the byte order of each. Both buffers are 16 byte aligned.
+ *
+ * @param dest Destination buffer.
+ * @param src Source buffer.
+ * @param count Number of 32 bit values.
+ */
+REX_API void copy_and_swap_32_aligned(void* dest, const void* src, size_t count);
+
+/**
+ * Copies 32 bit values and swaps the byte order of each.
+ *
+ * @param dest Destination buffer.
+ * @param src Source buffer.
+ * @param count Number of 32 bit values.
+ */
+REX_API void copy_and_swap_32_unaligned(void* dest, const void* src, size_t count);
+
+/**
+ * Copies 64 bit values and swaps the byte order of each. Both buffers are 16 byte aligned.
+ *
+ * @param dest Destination buffer.
+ * @param src Source buffer.
+ * @param count Number of 64 bit values.
+ */
+REX_API void copy_and_swap_64_aligned(void* dest, const void* src, size_t count);
+
+/**
+ * Copies 64 bit values and swaps the byte order of each.
+ *
+ * @param dest Destination buffer.
+ * @param src Source buffer.
+ * @param count Number of 64 bit values.
+ */
+REX_API void copy_and_swap_64_unaligned(void* dest, const void* src, size_t count);
+
+/**
+ * Copies 32 bit values and swaps the 2 16 bit halves of each. Both buffers are 16 byte aligned.
+ *
+ * @param dest Destination buffer.
+ * @param src Source buffer.
+ * @param count Number of 32 bit values.
+ */
+REX_API void copy_and_swap_16_in_32_aligned(void* dest, const void* src, size_t count);
+
+/**
+ * Copies 32 bit values and swaps the 2 16 bit halves of each.
+ *
+ * @param dest Destination buffer.
+ * @param src Source buffer.
+ * @param count Number of 32 bit values.
+ */
+REX_API void copy_and_swap_16_in_32_unaligned(void* dest, const void* src, size_t count);
+
+/**
+ * Copies values and swaps the byte order of each. Takes the aligned path when both buffers are
+ * 32 byte aligned.
+ *
+ * @tparam T Element type, 1, 2, 4 or 8 bytes.
+ * @param dest Destination buffer.
+ * @param src Source buffer.
+ * @param count Number of elements.
+ */
 template <typename T>
 void copy_and_swap(T* dest, const T* src, size_t count) {
   bool is_aligned =
@@ -180,24 +382,24 @@ void copy_and_swap(T* dest, const T* src, size_t count) {
   if (sizeof(T) == 1) {
     std::memcpy(dest, src, count);
   } else if (sizeof(T) == 2) {
-    auto ps = reinterpret_cast<const uint16_t*>(src);
-    auto pd = reinterpret_cast<uint16_t*>(dest);
+    auto ps = reinterpret_cast<const u16*>(src);
+    auto pd = reinterpret_cast<u16*>(dest);
     if (is_aligned) {
       copy_and_swap_16_aligned(pd, ps, count);
     } else {
       copy_and_swap_16_unaligned(pd, ps, count);
     }
   } else if (sizeof(T) == 4) {
-    auto ps = reinterpret_cast<const uint32_t*>(src);
-    auto pd = reinterpret_cast<uint32_t*>(dest);
+    auto ps = reinterpret_cast<const u32*>(src);
+    auto pd = reinterpret_cast<u32*>(dest);
     if (is_aligned) {
       copy_and_swap_32_aligned(pd, ps, count);
     } else {
       copy_and_swap_32_unaligned(pd, ps, count);
     }
   } else if (sizeof(T) == 8) {
-    auto ps = reinterpret_cast<const uint64_t*>(src);
-    auto pd = reinterpret_cast<uint64_t*>(dest);
+    auto ps = reinterpret_cast<const u64*>(src);
+    auto pd = reinterpret_cast<u64*>(dest);
     if (is_aligned) {
       copy_and_swap_64_aligned(pd, ps, count);
     } else {
@@ -208,7 +410,13 @@ void copy_and_swap(T* dest, const T* src, size_t count) {
   }
 }
 
-/// Load a value of type T from arbitrary memory (handles unaligned access).
+/**
+ * Loads a value from memory of any alignment.
+ *
+ * @tparam T Trivially copyable value type.
+ * @param mem Address to read.
+ * @return The value at mem.
+ */
 template <typename T>
 inline T load(const void* mem) {
   static_assert(std::is_trivially_copyable_v<T>, "T must be trivially copyable");
@@ -217,18 +425,29 @@ inline T load(const void* mem) {
   return result;
 }
 
-/// Load a value of type T from memory and byte-swap it.
+/**
+ * Loads a value from memory and swaps its byte order.
+ *
+ * @tparam T Value type, 1, 2, 4 or 8 bytes.
+ * @param mem Address to read.
+ * @return The byte swapped value at mem.
+ */
 template <typename T>
 inline T load_and_swap(const void* mem) {
   return byte_swap(load<T>(mem));
 }
 
-// String specializations need custom logic
+/**
+ * Loads a NUL terminated 8 bit string.
+ *
+ * @param mem Address of the first character.
+ * @return The characters before the terminator.
+ */
 template <>
 inline std::string load_and_swap<std::string>(const void* mem) {
   std::string value;
-  for (int i = 0;; ++i) {
-    auto c = load_and_swap<uint8_t>(reinterpret_cast<const uint8_t*>(mem) + i);
+  for (i32 i = 0;; ++i) {
+    auto c = load_and_swap<u8>(reinterpret_cast<const u8*>(mem) + i);
     if (!c) {
       break;
     }
@@ -236,11 +455,18 @@ inline std::string load_and_swap<std::string>(const void* mem) {
   }
   return value;
 }
+
+/**
+ * Loads a NUL terminated big endian UTF-16 string.
+ *
+ * @param mem Address of the first code unit.
+ * @return The code units before the terminator in host byte order.
+ */
 template <>
 inline std::u16string load_and_swap<std::u16string>(const void* mem) {
   std::u16string value;
-  for (int i = 0;; ++i) {
-    auto c = load_and_swap<uint16_t>(reinterpret_cast<const uint16_t*>(mem) + i);
+  for (i32 i = 0;; ++i) {
+    auto c = load_and_swap<u16>(reinterpret_cast<const u16*>(mem) + i);
     if (!c) {
       break;
     }
@@ -249,53 +475,102 @@ inline std::u16string load_and_swap<std::u16string>(const void* mem) {
   return value;
 }
 
-/// Store a value of type T to arbitrary memory (handles unaligned access).
+/**
+ * Stores a value to memory of any alignment.
+ *
+ * @tparam T Trivially copyable value type.
+ * @param mem Address to write.
+ * @param value Value to write.
+ */
 template <typename T>
 inline void store(void* mem, const T& value) {
   static_assert(std::is_trivially_copyable_v<T>, "T must be trivially copyable");
   std::memcpy(mem, &value, sizeof(T));
 }
 
-/// Store a byte-swapped value of type T to memory.
+/**
+ * Swaps the byte order of a value and stores it to memory.
+ *
+ * @tparam T Value type, 1, 2, 4 or 8 bytes.
+ * @param mem Address to write.
+ * @param value Value to write.
+ */
 template <typename T>
 inline void store_and_swap(void* mem, const T& value) {
   store(mem, byte_swap(value));
 }
 
-// String specializations need custom logic
+/**
+ * Stores the characters of an 8 bit string without a terminator.
+ *
+ * @param mem Address of the first character.
+ * @param value Characters to write.
+ */
 template <>
 inline void store_and_swap<std::string_view>(void* mem, const std::string_view& value) {
   for (size_t i = 0; i < value.size(); ++i) {
-    store_and_swap<uint8_t>(reinterpret_cast<uint8_t*>(mem) + i, value[i]);
+    store_and_swap<u8>(reinterpret_cast<u8*>(mem) + i, value[i]);
   }
 }
+
+/**
+ * Stores the characters of an 8 bit string without a terminator.
+ *
+ * @param mem Address of the first character.
+ * @param value Characters to write.
+ */
 template <>
 inline void store_and_swap<std::string>(void* mem, const std::string& value) {
   return store_and_swap<std::string_view>(mem, value);
 }
+
+/**
+ * Stores a UTF-16 string as big endian code units without a terminator.
+ *
+ * @param mem Address of the first code unit.
+ * @param value Code units to write.
+ */
 template <>
 inline void store_and_swap<std::u16string_view>(void* mem, const std::u16string_view& value) {
   for (size_t i = 0; i < value.size(); ++i) {
-    store_and_swap<uint16_t>(reinterpret_cast<uint16_t*>(mem) + i, value[i]);
+    store_and_swap<u16>(reinterpret_cast<u16*>(mem) + i, value[i]);
   }
 }
+
+/**
+ * Stores a UTF-16 string as big endian code units without a terminator.
+ *
+ * @param mem Address of the first code unit.
+ * @param value Code units to write.
+ */
 template <>
 inline void store_and_swap<std::u16string>(void* mem, const std::u16string& value) {
   return store_and_swap<std::u16string_view>(mem, value);
 }
 
-using fourcc_t = uint32_t;
+/** 4 character code packed into 32 bits. */
+using fourcc_t = u32;
 
-// Get FourCC in host byte order
-// make_fourcc('a', 'b', 'c', 'd') == 0x61626364
+/**
+ * Packs 4 characters into a FourCC in host byte order.
+ *
+ * @param a First character, the most significant byte.
+ * @param b Second character.
+ * @param c Third character.
+ * @param d Fourth character, the least significant byte.
+ * @return The packed code. make_fourcc('a', 'b', 'c', 'd') is 0x61626364.
+ */
 constexpr inline fourcc_t make_fourcc(char a, char b, char c, char d) {
   return fourcc_t((static_cast<fourcc_t>(a) << 24) | (static_cast<fourcc_t>(b) << 16) |
                   (static_cast<fourcc_t>(c) << 8) | static_cast<fourcc_t>(d));
 }
 
-// Get FourCC in host byte order
-// This overload requires fourcc.length() == 4
-// make_fourcc("abcd") == 'abcd' == 0x61626364 for most compilers
+/**
+ * Packs a 4 character string into a FourCC in host byte order.
+ *
+ * @param fourcc String of exactly 4 characters. Any other length throws std::runtime_error.
+ * @return The packed code. make_fourcc("abcd") is 0x61626364.
+ */
 constexpr inline fourcc_t make_fourcc(const std::string_view fourcc) {
   if (fourcc.length() != 4) {
     throw std::runtime_error("Invalid fourcc length");

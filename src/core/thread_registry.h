@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <rex/macros.h>
 #include <rex/types.h>
 
 namespace rex::platform::detail {
@@ -20,13 +21,13 @@ namespace rex::platform::detail {
  *
  * @return The id the registry keys threads by.
  */
-u64 CurrentThreadID();
+REX_API u64 CurrentThreadID();
 
 /**
  * Removes a thread from the registry. Used when a thread is terminated from outside.
  *
  * @param id Native id of the thread.
  */
-void UnregisterThread(u64 id);
+REX_API void UnregisterThread(u64 id);
 
 }  // namespace rex::platform::detail

@@ -16,6 +16,7 @@
 #include <span>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include <SDL3/SDL_events.h>
 
@@ -55,6 +56,7 @@ REX_OVERLAY_TABLE(kTestOverlays, REX_OVERLAY(TestOverlay, "test", "F9"));
 
 class FooApp : public rex::ui::TitleApp {
  public:
+  std::vector<std::string> modules;
   bool veto_close = false;
   rex::i32 close_events = 0;
   rex::i32 closing_events = 0;
@@ -63,13 +65,14 @@ class FooApp : public rex::ui::TitleApp {
   bool created = false;
   rex::i32 events_before_create = 0;
   rex::ui::Window::Phase phase_at_shutdown = rex::ui::Window::Phase::kOpen;
+  using TitleApp::config;
   using TitleApp::drawer;
   using TitleApp::overlays;
   using TitleApp::window;
 
  protected:
   rex::Result<void> OnConfigure(rex::Config& config) override {
-    config.modules.clear();
+    config.modules = modules;
     config.ui.video_driver = "dummy";
     config.paths.config_file.clear();
     return rex::Ok();
@@ -395,4 +398,12 @@ TEST_CASE("OnEvent receives nothing before OnCreateWindow returns", "[title_app]
   REQUIRE(app.events_before_create == 0);
   REQUIRE(app.Shutdown() == 0);
   REQUIRE(app.closing_events == 1);
+}
+
+TEST_CASE("TitleApp puts rexruntime first", "[title_app]") {
+  FooApp app;
+  app.modules = {"rexmod-test-good"};
+  REQUIRE(app.Init(rex::CLIArgList::Parse(std::span<const std::string>{}), rex::PPCImageInfo{}));
+  REQUIRE(app.config().modules == std::vector<std::string>{"rexruntime", "rexmod-test-good"});
+  REQUIRE(app.Shutdown() == 0);
 }

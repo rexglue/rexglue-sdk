@@ -20,6 +20,7 @@
 #include <utility>
 #include <vector>
 
+#include <rex/macros.h>
 #include <rex/cvar.h>
 
 namespace rex::detail {
@@ -27,7 +28,7 @@ namespace rex::detail {
 /**
  * ICvarRegistry with the Init side entry points the loader uses.
  */
-class CvarRegistryImpl final : public cvar::ICvarRegistry {
+class REX_API CvarRegistryImpl final : public cvar::ICvarRegistry {
  public:
   CvarRegistryImpl() = default;
   ~CvarRegistryImpl() override;
@@ -116,6 +117,6 @@ class CvarRegistryImpl final : public cvar::ICvarRegistry {
 /**
  * Creates a registry. api.cpp holds the process registry, tests hold their own.
  */
-std::unique_ptr<CvarRegistryImpl> CreateCvarRegistry();
+REX_API std::unique_ptr<CvarRegistryImpl> CreateCvarRegistry();
 
 }  // namespace rex::detail

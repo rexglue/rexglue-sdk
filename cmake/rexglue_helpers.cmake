@@ -97,19 +97,22 @@ function(rexglue_configure_target target_name)
 
     if(WIN32)
         # Stage runtime DLLs (rexruntime, TracyClient, etc.) next to the host
-        # binary on every link. copy_if_different is a no-op when up to date.
+        # binary on every link. The host relinks when a staged DLL changes,
+        # since an unchanged import library skips the link otherwise.
         add_custom_command(TARGET ${target_name} POST_BUILD
             COMMAND "$<$<BOOL:$<TARGET_RUNTIME_DLLS:${target_name}>>:${CMAKE_COMMAND};-E;copy_if_different;$<TARGET_RUNTIME_DLLS:${target_name}>;$<TARGET_FILE_DIR:${target_name}>>"
             COMMAND_EXPAND_LISTS
             VERBATIM
         )
+        set_property(TARGET ${target_name} APPEND PROPERTY
+            LINK_DEPENDS "$<TARGET_RUNTIME_DLLS:${target_name}>")
     elseif(APPLE)
         # macOS: $<TARGET_RUNTIME_DLLS> does not resolve imported dylibs, so
         # stage the shared runtime libraries explicitly next to the executable
         # (paired with the @executable_path rpath above). Everything else the
         # runtime links (fmt, spdlog, SDL3, ...) is static. Target names
         # differ between an in-tree build and an installed SDK import.
-        foreach(_rexglue_runtime_lib rex::runtime rexruntime rex::TracyClient TracyClient)
+        foreach(_rexglue_runtime_lib rex::core rexcore rex::runtime rexruntime rex::TracyClient TracyClient)
             if(TARGET ${_rexglue_runtime_lib})
                 add_custom_command(TARGET ${target_name} POST_BUILD
                     COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -132,6 +135,8 @@ function(rexglue_configure_target target_name)
                         $<TARGET_FILE_DIR:${target_name}>
                     VERBATIM
                 )
+                set_property(TARGET ${target_name} APPEND PROPERTY
+                    LINK_DEPENDS "$<TARGET_FILE:${_fx}>")
             endif()
         endforeach()
     endif()
@@ -157,8 +162,28 @@ function(rexglue_configure_target target_name)
                 $<TARGET_FILE_DIR:${target_name}>
             VERBATIM
         )
+        set_property(TARGET ${target_name} APPEND PROPERTY
+            LINK_DEPENDS "$<TARGET_FILE:${_plugin_target}>")
         unset(_plugin_target)
     endforeach()
+
+    if(TARGET rexfilesystem)
+        set(_rexglue_filesystem rexfilesystem)
+        add_dependencies(${target_name} rexfilesystem)
+    elseif(TARGET rex::filesystem)
+        set(_rexglue_filesystem rex::filesystem)
+    endif()
+    if(_rexglue_filesystem)
+        add_custom_command(TARGET ${target_name} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:${_rexglue_filesystem}>
+                $<TARGET_FILE_DIR:${target_name}>
+            VERBATIM
+        )
+        set_property(TARGET ${target_name} APPEND PROPERTY
+            LINK_DEPENDS "$<TARGET_FILE:${_rexglue_filesystem}>")
+        unset(_rexglue_filesystem)
+    endif()
 
     if(APPLE AND REXGLUE_USE_VULKAN)
         _rexglue_stage_macos_vulkan_runtime(${target_name})

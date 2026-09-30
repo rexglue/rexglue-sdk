@@ -1,12 +1,14 @@
 /**
- ******************************************************************************
- * Xenia : Xbox 360 Emulator Research Project                                 *
- ******************************************************************************
- * Copyright 2022 Ben Vanik. All rights reserved.                             *
- * Released under the BSD license - see LICENSE in the root for more details. *
- ******************************************************************************
+ * @file        platform/timer_queue.h
+ * @brief       Timer queue that runs callbacks on 1 dispatch thread
  *
- * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ *
+ * @remarks     Derived from Xenia's xenia/base/threading_timer_queue.h (Ben Vanik, 2022).
  */
 
 #pragma once
@@ -16,16 +18,29 @@
 #include <functional>
 #include <memory>
 
-// This is a platform independent implementation of a timer queue similar to
-// Windows CreateTimerQueueTimer with WT_EXECUTEINTIMERTHREAD.
+#include <rex/macros.h>
 
 namespace rex::platform {
 
 class TimerQueue;
 
-struct TimerQueueWaitItem {
+/**
+ * Pending timer in the process timer queue, like a Windows timer queue timer created with
+ * WT_EXECUTEINTIMERTHREAD.
+ */
+struct REX_API TimerQueueWaitItem {
+  /** Clock for due times and intervals. */
   using clock = std::chrono::steady_clock;
 
+  /**
+   * Creates a wait item. QueueTimerOnce and QueueTimerRecurring create and queue items.
+   *
+   * @param callback Function called on the dispatch thread.
+   * @param userdata Argument passed to callback.
+   * @param parent_queue Queue that owns the item.
+   * @param due First due time.
+   * @param interval Repeat interval, 0 for a single run.
+   */
   TimerQueueWaitItem(std::function<void(void*)> callback, void* userdata, TimerQueue* parent_queue,
                      clock::time_point due, clock::duration interval)
       : callback_(std::move(callback)),
@@ -35,23 +50,21 @@ struct TimerQueueWaitItem {
         interval_(interval),
         state_(State::kIdle) {}
 
-  // Cancel the pending wait item. No callbacks will be running after this call.
-  // The function blocks if a callback is running and returns only after the
-  // callback has finished (except when called from the corresponding callback
-  // itself, where it will mark the wait item for disarmament and return
-  // immediately). Deadlocks are possible when a lock is held during disamament
-  // and the corresponding callback is running concurrently, trying to acquire
-  // said lock.
+  /**
+   * Cancels the item. No callback runs after it returns. Blocks while the callback runs,
+   * except when called from that callback, where it marks the item and returns at once.
+   * Holding a lock the running callback also takes can deadlock.
+   */
   void Disarm();
 
   friend TimerQueue;
 
  private:
   enum class State : uint_least8_t {
-    kIdle = 0,                // Waiting for the due time
-    kInCallback,              // Callback is being executed
-    kInCallbackSelfDisarmed,  // Callback is being executed and disarmed itself
-    kDisarmed                 // Disarmed, waiting for destruction
+    kIdle = 0,               /**< Waiting for the due time. */
+    kInCallback,             /**< Callback running. */
+    kInCallbackSelfDisarmed, /**< Callback running and disarmed itself. */
+    kDisarmed                /**< Disarmed, waiting for destruction. */
   };
   static_assert(std::atomic<State>::is_always_lock_free);
 
@@ -59,20 +72,34 @@ struct TimerQueueWaitItem {
   void* userdata_;
   TimerQueue* parent_queue_;
   clock::time_point due_;
-  clock::duration interval_;  // zero if not recurring
+  clock::duration interval_;
   std::atomic<State> state_;
 };
 
-std::weak_ptr<TimerQueueWaitItem> QueueTimerOnce(std::function<void(void*)> callback,
-                                                 void* userdata,
-                                                 TimerQueueWaitItem::clock::time_point due);
+/**
+ * Queues a callback that runs once.
+ *
+ * @param callback Function called on the dispatch thread.
+ * @param userdata Argument passed to callback.
+ * @param due Due time.
+ * @return Handle to the queued item, used to Disarm it.
+ */
+REX_API std::weak_ptr<TimerQueueWaitItem> QueueTimerOnce(std::function<void(void*)> callback,
+                                                         void* userdata,
+                                                         TimerQueueWaitItem::clock::time_point due);
 
-// Callback is first executed at due, then again repeatedly after interval
-// passes (unless interval == 0). The first callback will be scheduled at
-// `max(now() - interval, due)` to mitigate callback flooding.
-std::weak_ptr<TimerQueueWaitItem> QueueTimerRecurring(std::function<void(void*)> callback,
-                                                      void* userdata,
-                                                      TimerQueueWaitItem::clock::time_point due,
-                                                      TimerQueueWaitItem::clock::duration interval);
+/**
+ * Queues a callback that runs at due and then after each interval. The first run is scheduled
+ * at max(now - interval, due) to limit a burst of late callbacks.
+ *
+ * @param callback Function called on the dispatch thread.
+ * @param userdata Argument passed to callback.
+ * @param due First due time.
+ * @param interval Repeat interval, 0 for a single run.
+ * @return Handle to the queued item, used to Disarm it.
+ */
+REX_API std::weak_ptr<TimerQueueWaitItem> QueueTimerRecurring(
+    std::function<void(void*)> callback, void* userdata, TimerQueueWaitItem::clock::time_point due,
+    TimerQueueWaitItem::clock::duration interval);
 
 }  // namespace rex::platform

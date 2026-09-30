@@ -27,8 +27,8 @@ namespace {
 
 constexpr size_t kNumCounters = static_cast<size_t>(CounterId::kCount);
 
-std::array<std::atomic<int64_t>, kNumCounters> g_counters{};
-std::array<std::atomic<int64_t>, kNumCounters> g_snapshot{};
+std::array<std::atomic<i64>, kNumCounters> g_counters{};
+std::array<std::atomic<i64>, kNumCounters> g_snapshot{};
 
 constexpr const char* kCounterNames[] = {
     "frame_time_us",
@@ -51,35 +51,16 @@ constexpr const char* kCounterNames[] = {
 };
 static_assert(std::size(kCounterNames) == kNumCounters, "kCounterNames must match CounterId enum");
 
-// Gauge counters are snapshotted but NOT zeroed each frame.
-// Accumulators (everything else) are zeroed after snapshot.
-constexpr bool kIsGauge[] = {
-    false,  // kFrameTimeUs       (set each frame)
-    false,  // kFps               (set each frame)
-    false,  // kDrawCalls
-    false,  // kCommandBufferStalls
-    false,  // kVerticesProcessed
-    false,  // kXMAFramesDecoded
-    false,  // kAudioFrameLatencyUs
-    false,  // kBufferQueueDepth  (set each frame)
-    false,  // kFunctionsDispatched
-    false,  // kInterruptDispatches
-    true,   // kActiveThreads     (inc/dec over lifetime)
-    false,  // kAPCQueueDepth
-    true,   // kCriticalRegionContentions (running total)
-    false,  // kTextureCacheHits
-    false,  // kTextureCacheMisses
-    false,  // kPipelineCacheHits
-    false,  // kPipelineCacheMisses
-};
-static_assert(std::size(kIsGauge) == kNumCounters, "kIsGauge must match CounterId enum");
+constexpr bool IsGauge(size_t index) {
+  auto id = static_cast<CounterId>(index);
+  return id == CounterId::kActiveThreads || id == CounterId::kCriticalRegionContentions;
+}
 
-// CSV state
 std::FILE* g_csv_file = nullptr;
 std::string g_csv_path;
 int g_csv_frame_count = 0;
 
-}  // anonymous namespace
+}  // namespace
 
 const char* CounterName(CounterId id) {
   auto idx = static_cast<size_t>(id);
@@ -88,36 +69,34 @@ const char* CounterName(CounterId id) {
   return "unknown";
 }
 
-void SetCounter(CounterId id, int64_t value) {
+void SetCounter(CounterId id, i64 value) {
   g_counters[static_cast<size_t>(id)].store(value, std::memory_order_relaxed);
 }
 
-void IncrementCounter(CounterId id, int64_t delta) {
+void IncrementCounter(CounterId id, i64 delta) {
   g_counters[static_cast<size_t>(id)].fetch_add(delta, std::memory_order_relaxed);
 }
 
-int64_t GetCounter(CounterId id) {
+i64 GetCounter(CounterId id) {
   return g_counters[static_cast<size_t>(id)].load(std::memory_order_relaxed);
 }
 
 void ResetFrameCounters() {
   for (size_t i = 0; i < kNumCounters; ++i) {
-    if (kIsGauge[i]) {
-      // Gauges: snapshot the current value, don't zero
+    if (IsGauge(i)) {
       g_snapshot[i].store(g_counters[i].load(std::memory_order_relaxed), std::memory_order_relaxed);
     } else {
-      // Accumulators: snapshot and zero for next frame
       g_snapshot[i].store(g_counters[i].exchange(0, std::memory_order_relaxed),
                           std::memory_order_relaxed);
     }
   }
 }
 
-int64_t GetSnapshotCounter(CounterId id) {
+i64 GetSnapshotCounter(CounterId id) {
   return g_snapshot[static_cast<size_t>(id)].load(std::memory_order_relaxed);
 }
 
-void Init() {
+void InitCounters() {
   for (auto& c : g_counters)
     c.store(0, std::memory_order_relaxed);
   for (auto& s : g_snapshot)
@@ -143,7 +122,6 @@ void SetCSVLogPath(const std::string& path) {
     return;
   }
 
-  // Write header
   for (size_t i = 0; i < kNumCounters; ++i) {
     if (i > 0)
       std::fputc(',', g_csv_file);

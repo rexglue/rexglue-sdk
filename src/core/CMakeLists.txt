@@ -1,7 +1,4 @@
-# rexcore - Core utilities library
-# Foundation types, data structures, and threading primitives
-
-add_library(rexcore OBJECT
+add_library(rexcore SHARED
     api.cpp
     app.cpp
     arena.cpp
@@ -29,6 +26,8 @@ add_library(rexcore OBJECT
     vec128.cpp
 )
 add_library(rex::core ALIAS rexcore)
+target_compile_definitions(rexcore PRIVATE REX_BUILDING_CORE)
+rexglue_add_version_resource(rexcore DESCRIPTION "ReXGlue core")
 
 if(APPLE)
     # Apple's libc++ gates std::jthread and std::stop_token behind the
@@ -121,11 +120,8 @@ target_link_libraries(rexcore
         xxHash::xxhash
 )
 
-if(REXGLUE_USE_D3D12)
-    target_compile_definitions(rexcore PUBLIC REX_HAS_D3D12=1)
-endif()
-if(REXGLUE_USE_VULKAN)
-    target_compile_definitions(rexcore PUBLIC REX_HAS_VULKAN=1)
+if(WIN32)
+    target_link_libraries(rexcore PRIVATE winmm ws2_32)
 endif()
 
 if(REXGLUE_ENABLE_TRACY)

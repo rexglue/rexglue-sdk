@@ -38,7 +38,7 @@ enum class ErrorCategory {
 };
 
 /**
- * An error value carried by rex::Result and rex::Status.
+ * An error value carried by rex::Result.
  */
 struct Error {
   ErrorCategory category = ErrorCategory::NoError; /**< Classification. */
@@ -61,6 +61,7 @@ struct Error {
    * @param cat Classification.
    * @param msg Human readable detail.
    * @param errno_value The errno or platform error code.
+   * @return The error.
    */
   static Error from_errno(ErrorCategory cat, std::string msg, int errno_value) {
     return Error(cat, std::move(msg), errno_value);
@@ -87,20 +88,26 @@ struct Error {
 };
 
 /**
- * Result type for operations that can fail
- * Usage:
- *   Result<int> result = some_operation();
- *   if (result) {
- *       int value = *result;  // Success
- *   } else {
- *       Error err = result.error();  // Failure
- *   }
+ * Value or Error returned by an operation that can fail.
+ *
+ * @tparam T The success value type, or void.
+ *
+ * @code
+ * Result<u32> result = ReadCount();
+ * if (!result) {
+ *   REXLOG_ERROR("{}", result.error().what());
+ * }
+ * @endcode
  */
 template <typename T>
 using Result = std::expected<T, Error>;
 
 /**
- * Create a success result
+ * Builds a successful result holding a value.
+ *
+ * @tparam T The value type.
+ * @param value The value, forwarded into the result.
+ * @return A Result<T> holding the value.
  */
 template <typename T>
 inline Result<T> Ok(T&& value) {
@@ -117,7 +124,11 @@ inline Result<void> Ok() {
 }
 
 /**
- * Create an error result
+ * Builds a failed result.
+ *
+ * @tparam T The success value type of the result, void by default.
+ * @param error The error.
+ * @return A Result<T> holding the error.
  */
 template <typename T = void>
 inline auto Err(Error error) {
@@ -129,7 +140,13 @@ inline auto Err(Error error) {
 }
 
 /**
- * Create an error result (convenience overload)
+ * Builds a failed result from the parts of an Error.
+ *
+ * @tparam T The success value type of the result, void by default.
+ * @param category Classification.
+ * @param message Human readable detail.
+ * @param code Platform or library specific code.
+ * @return A Result<T> holding the error.
  */
 template <typename T = void>
 inline auto Err(ErrorCategory category, std::string message, int code = 0) {

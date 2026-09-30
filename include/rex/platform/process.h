@@ -16,6 +16,7 @@
 #include <string>
 #include <string_view>
 
+#include <rex/macros.h>
 #include <rex/result.h>
 #include <rex/types.h>
 
@@ -32,11 +33,11 @@ struct LockHandle;
  * @param args Arguments after the executable, UTF-8.
  * @return The command line.
  */
-std::wstring BuildCommandLine(std::wstring_view exe, std::span<const std::string> args);
+REX_API std::wstring BuildCommandLine(std::wstring_view exe, std::span<const std::string> args);
 }  // namespace detail
 
 /** A named lock across processes, held for the life of the object. */
-class InstanceLock : public MoveOnly {
+class REX_API InstanceLock : public MoveOnly {
  public:
   InstanceLock(InstanceLock&&) noexcept;
   InstanceLock& operator=(InstanceLock&&) noexcept;
@@ -61,13 +62,13 @@ class InstanceLock : public MoveOnly {
  * @param args Arguments for the new process.
  * @return Ok, or ErrorCategory::Platform with the OS error.
  */
-Result<void> Relaunch(std::span<const std::string> args);
+REX_API Result<void> Relaunch(std::span<const std::string> args);
 
 /**
  * Tests whether this process may start a new one.
  *
  * @return False where the platform forbids it, such as Steam Game Mode.
  */
-bool CanRelaunch();
+REX_API bool CanRelaunch();
 
 }  // namespace rex::platform

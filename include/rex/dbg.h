@@ -1,41 +1,53 @@
 /**
- ******************************************************************************
- * Xenia : Xbox 360 Emulator Research Project                                 *
- ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
- * Released under the BSD license - see LICENSE in the root for more details. *
- ******************************************************************************
+ * @file        dbg.h
+ * @brief       Debugger queries, breakpoints, debugger output and Tracy profiling macros
  *
- * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ *
+ * @remarks     Derived from Xenia's xenia/base/debugging.h (Ben Vanik, 2014).
  */
 
 #pragma once
 
-#include <cstdint>
+#include <cstring>
 
 #include <fmt/format.h>
 
-#include <cstring>
+#include <rex/macros.h>
+#include <rex/types.h>
 
 namespace rex::platform {
 
-// Returns true if a debugger is attached to this process.
-// The state may change at any time (attach after launch, etc), so do not
-// cache this value. Determining if the debugger is attached is expensive,
-// though, so avoid calling it frequently.
-bool IsDebuggerAttached();
+/**
+ * Checks for an attached debugger. The state can change at any time, so do not cache it. The
+ * check is expensive, so do not call it often.
+ *
+ * @return True when a debugger is attached to this process.
+ */
+REX_API bool IsDebuggerAttached();
 
-// Breaks into the debugger if it is attached.
-// If no debugger is present, a signal will be raised.
-void Break();
+/**
+ * Breaks into the attached debugger. Without a debugger, Windows raises a breakpoint exception and
+ * POSIX raises SIGTRAP.
+ */
+REX_API void Break();
 
 namespace detail {
-void DebugPrint(const char* s);
+REX_API void DebugPrint(const char* s);
 }
 
-// Prints a message to the attached debugger.
-// This bypasses the normal logging mechanism. If no debugger is attached it's
-// likely to no-op.
+/**
+ * Formats a message and sends it to the debugger output, bypassing the log. Windows writes it with
+ * OutputDebugStringA and POSIX writes it to std::clog.
+ *
+ * @tparam Args The format argument types.
+ * @param format The fmt format string.
+ * @param args The format arguments.
+ */
 template <typename... Args>
 void DebugPrint(fmt::string_view format, const Args&... args) {
   detail::DebugPrint(fmt::vformat(format, fmt::make_format_args(args...)).c_str());
@@ -46,6 +58,8 @@ void DebugPrint(fmt::string_view format, const Args&... args) {
 #ifdef REXGLUE_ENABLE_PROFILING
 
 #include <tracy/Tracy.hpp>
+
+#include <rex/macros.h>
 
 /**
  * Opens a Tracy CPU zone that lasts until the end of the enclosing scope.
@@ -116,6 +130,16 @@ void DebugPrint(fmt::string_view format, const Args&... args) {
       TracyFiberLeave;            \
   } while (0)
 #else
+/**
+ * Disabled fiber macros, which expand to nothing without TRACY_FIBERS.
+ *
+ * @param name Ignored.
+ *
+ * @code
+ * REX_PROFILE_FIBER_ENTER(fiber->name());
+ * REX_PROFILE_FIBER_LEAVE();
+ * @endcode
+ */
 #define REX_PROFILE_FIBER_ENTER(name)
 #define REX_PROFILE_FIBER_LEAVE()
 #endif
@@ -130,14 +154,25 @@ void DebugPrint(fmt::string_view format, const Args&... args) {
  * REX_PROFILE_PLOT("GPU Queue Depth", queue.size());
  * @endcode
  */
-#define REX_PROFILE_PLOT(name, value)               \
-  do {                                              \
-    if (TracyIsStarted)                             \
-      TracyPlot(name, static_cast<int64_t>(value)); \
+#define REX_PROFILE_PLOT(name, value)                  \
+  do {                                                 \
+    if (TracyIsStarted)                                \
+      TracyPlot(name, static_cast<::rex::i64>(value)); \
   } while (0)
 
 #else  // !REXGLUE_ENABLE_PROFILING
 
+/**
+ * Disabled profiling macros, which expand to nothing without REXGLUE_ENABLE_PROFILING.
+ *
+ * @param name Ignored.
+ * @param detail Ignored.
+ * @param value Ignored.
+ *
+ * @code
+ * REX_PROFILE_SCOPE("CommandProcessor::ExecutePacket");
+ * @endcode
+ */
 #define REX_PROFILE_SCOPE(name)
 #define REX_PROFILE_SCOPE_TEXT(name, detail)
 #define REX_PROFILE_THREAD(name)

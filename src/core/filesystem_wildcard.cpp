@@ -17,15 +17,10 @@
 
 namespace rex::filesystem {
 
-WildcardFlags WildcardFlags::FIRST(true, false, false);
-WildcardFlags WildcardFlags::LAST(false, true, false);
-WildcardFlags WildcardFlags::ANY(false, false, true);
-WildcardFlags WildcardFlags::FIRST_AND_LAST(true, true, false);
-
-WildcardFlags::WildcardFlags() : FromStart(false), ToEnd(false), ExactLength(false) {}
-
-WildcardFlags::WildcardFlags(bool start, bool end, bool exact_length)
-    : FromStart(start), ToEnd(end), ExactLength(exact_length) {}
+const WildcardFlags WildcardFlags::FIRST(true, false, false);
+const WildcardFlags WildcardFlags::LAST(false, true, false);
+const WildcardFlags WildcardFlags::ANY(false, false, true);
+const WildcardFlags WildcardFlags::FIRST_AND_LAST(true, true, false);
 
 WildcardRule::WildcardRule(const std::string_view match, const WildcardFlags& flags)
     : match_(rex::utf8_lower_ascii(match)), rules_(flags) {}

@@ -29,28 +29,33 @@
 
 namespace rex {
 
-//=============================================================================
-// SEH Exception Type
-//=============================================================================
-
-/**
- * @brief Exception thrown when hardware exception occurs in SEH-protected code
- */
+/** Thrown when a hardware exception occurs inside an SEH scope on POSIX. */
 class SehException : public std::exception {
  public:
-  /// Exception codes matching Windows EXCEPTION_* values
+  /** Exception codes, equal to the Windows EXCEPTION_ values. */
   enum Code : u32 {
-    ACCESS_VIOLATION = 0xC0000005,
-    IN_PAGE_ERROR = 0xC0000006,
-    ILLEGAL_INSTRUCTION = 0xC000001D,
-    STACK_OVERFLOW = 0xC00000FD,
-    FLOAT_DIVIDE_BY_ZERO = 0xC000008E,
-    INTEGER_DIVIDE_BY_ZERO = 0xC0000094,
-    UNKNOWN = 0xFFFFFFFF
+    ACCESS_VIOLATION = 0xC0000005,       /**< Invalid memory access. */
+    IN_PAGE_ERROR = 0xC0000006,          /**< Page could not be loaded, SIGBUS on POSIX. */
+    ILLEGAL_INSTRUCTION = 0xC000001D,    /**< Invalid instruction. */
+    STACK_OVERFLOW = 0xC00000FD,         /**< Stack exhausted. */
+    FLOAT_DIVIDE_BY_ZERO = 0xC000008E,   /**< Floating point divide by 0, SIGFPE on POSIX. */
+    INTEGER_DIVIDE_BY_ZERO = 0xC0000094, /**< Integer divide by 0. */
+    UNKNOWN = 0xFFFFFFFF                 /**< Any other exception. */
   };
 
+  /**
+   * Creates the exception.
+   *
+   * @param code Exception code.
+   * @param address Faulting address, 0 when unknown.
+   */
   explicit SehException(Code code, uintptr_t address = 0) : code_(code), address_(address) {}
 
+  /**
+   * Describes the exception.
+   *
+   * @return Static text naming the exception code.
+   */
   const char* what() const noexcept override {
     switch (code_) {
       case ACCESS_VIOLATION:
@@ -70,7 +75,18 @@ class SehException : public std::exception {
     }
   }
 
+  /**
+   * Returns the exception code.
+   *
+   * @return Exception code.
+   */
   Code code() const noexcept { return code_; }
+
+  /**
+   * Returns the faulting address.
+   *
+   * @return Faulting address, 0 when unknown.
+   */
   uintptr_t address() const noexcept { return address_; }
 
  private:
@@ -78,24 +94,19 @@ class SehException : public std::exception {
   uintptr_t address_;
 };
 
-//=============================================================================
-// Initialization
-//=============================================================================
-
+/** Clears the SEH scope flag of the calling thread. */
 inline void initialize_seh_thread() {
   platform::seh_active() = false;
 }
 
+/** Installs the process wide SEH handlers. Call once at startup. */
 inline void initialize_seh() {
   platform::seh_initialize();
 }
 
-//=============================================================================
-// SEH Guard Scope and Macros
-//=============================================================================
-
 #if REX_PLATFORM_WIN32
 
+/** Scope marker for SEH regions. Empty on Windows, where __try handles the scope. */
 class SehGuard {
  public:
   SehGuard() = default;
@@ -104,21 +115,39 @@ class SehGuard {
   SehGuard& operator=(const SehGuard&) = delete;
 };
 
+/**
+ * Opens an SEH scope. Pair with SEH_CATCH or SEH_CATCH_ALL and SEH_END.
+ *
+ * @code
+ * SEH_TRY {
+ *   body();
+ * } SEH_CATCH_ALL {
+ *   cleanup();
+ *   SEH_RETHROW;
+ * } SEH_END
+ * @endcode
+ */
 #define SEH_TRY __try {
+/** Closes the SEH_TRY body and opens a handler for the exceptions seh_filter accepts. */
 #define SEH_CATCH \
   }               \
   __except (::rex::platform::seh_filter(GetExceptionCode(), GetExceptionInformation())) {
+/** Same as SEH_CATCH on Windows. */
 #define SEH_CATCH_ALL \
   }                   \
   __except (::rex::platform::seh_filter(GetExceptionCode(), GetExceptionInformation())) {
+/** Raises the captured exception again from inside a handler. */
 #define SEH_RETHROW ::rex::platform::seh_rethrow()
 
+/** Closes the SEH scope. */
 #define SEH_END }
 
 #else  // !REX_PLATFORM_WIN32
 
+/** Sets the SEH scope flag of the calling thread for its lifetime and restores it after. */
 class SehGuard {
  public:
+  /** Saves the current flag and sets it. */
   SehGuard() {
     was_active_ = platform::seh_active();
     platform::seh_active() = true;
@@ -133,17 +162,34 @@ class SehGuard {
   bool was_active_ = false;
 };
 
+/**
+ * Opens an SEH scope with a SehGuard and a C++ try block. Pair with SEH_CATCH or
+ * SEH_CATCH_ALL and SEH_END.
+ *
+ * @code
+ * SEH_TRY {
+ *   body();
+ * } SEH_CATCH_ALL {
+ *   cleanup();
+ *   SEH_RETHROW;
+ * } SEH_END
+ * @endcode
+ */
 #define SEH_TRY                  \
   {                              \
     ::rex::SehGuard __seh_guard; \
     try
 
+/** Opens a handler for SehException. */
 #define SEH_CATCH catch (const ::rex::SehException&)
 
+/** Opens a handler for any exception. */
 #define SEH_CATCH_ALL catch (...)
 
+/** Rethrows the current exception from inside a handler. */
 #define SEH_RETHROW throw
 
+/** Closes the SEH scope. */
 #define SEH_END }
 
 #endif  // REX_PLATFORM_WIN32

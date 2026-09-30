@@ -1,15 +1,15 @@
 /**
- ******************************************************************************
- * Xenia : Xbox 360 Emulator Research Project                                 *
- ******************************************************************************
- * Copyright 2015-2019 Ben Vanik. All rights reserved.                        *
- * Released under the BSD license - see LICENSE in the root for more details. *
- ******************************************************************************
+ * @file        bit.h
+ * @brief       Atomic free list bitmap and bit range scan and fill helpers
  *
- * @modified    2026 Tom Clay <tomc@tctechstuff.com>
- *              Modified for rexglue - Xbox 360 recompilation framework
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
  *
- * @changes     - Consolidated bit_map.h and bit_range.h into single header
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ *
+ * @remarks     Derived from Xenia's xenia/base/bit_map.h and xenia/base/bit_range.h
+ *              (Ben Vanik, 2015-2019).
  */
 
 #pragma once
@@ -21,54 +21,78 @@
 #include <utility>
 #include <vector>
 
+#include <rex/macros.h>
 #include <rex/math.h>
+#include <rex/types.h>
 
 namespace rex {
 
-//=============================================================================
-// BitMap - Efficient lookup of free/used entries
-//=============================================================================
-
-class BitMap {
+/** Bitmap of free and used entries where a set bit marks a free entry. */
+class REX_API BitMap {
  public:
+  /** Creates an empty bitmap. */
   BitMap();
 
-  // Size is the number of entries, must be a multiple of 64.
+  /**
+   * Creates a bitmap with every entry free.
+   *
+   * @param size_bits Number of entries, a multiple of 64.
+   */
   BitMap(size_t size_bits);
 
-  // Data does not have to be aligned to a 4-byte boundary, but it is
-  // preferable.
-  // Size is the number of entries, must be a multiple of 64.
-  BitMap(uint64_t* data, size_t size_bits);
+  /**
+   * Creates a bitmap initialized from existing words.
+   *
+   * @param data Source words, 8 byte alignment preferred but not required.
+   * @param size_bits Number of entries, a multiple of 64.
+   */
+  BitMap(u64* data, size_t size_bits);
 
-  // (threadsafe) Acquires an entry and returns its index. Returns -1 if there
-  // are no more free entries.
+  /**
+   * Atomically marks the first free entry as used. Thread safe.
+   *
+   * @return The index of the acquired entry, or size_t(-1) when no entry is free.
+   */
   size_t Acquire();
 
-  // (threadsafe) Releases an entry by an index.
+  /**
+   * Atomically marks an entry as free. Thread safe.
+   *
+   * @param index The entry to release.
+   */
   void Release(size_t index);
 
-  // Resize the bitmap. Size is the number of entries, must be a multiple of 64.
+  /**
+   * Resizes the bitmap. New entries start free.
+   *
+   * @param new_size_bits Number of entries, a multiple of 64.
+   */
   void Resize(size_t new_size_bits);
 
-  // Sets all entries to free.
+  /** Marks every entry free. */
   void Reset();
 
-  const std::vector<uint64_t> data() const { return data_; }
-  std::vector<uint64_t>& data() { return data_; }
+  /** @return A copy of the backing words. */
+  const std::vector<u64> data() const { return data_; }
+
+  /** @return The backing words. */
+  std::vector<u64>& data() { return data_; }
 
  private:
   const static size_t kDataSize = 8;
   const static size_t kDataSizeBits = kDataSize * 8;
-  std::vector<uint64_t> data_;
+  std::vector<u64> data_;
 };
 
-//=============================================================================
-// Bit Range Utilities
-//=============================================================================
-
-// Provided length is in bits since the first. Returns <first, length> of the
-// range in bits, with length == 0 if not found.
+/**
+ * Finds the first run of clear bits in a range.
+ *
+ * @tparam Block Unsigned word type of the bit array.
+ * @param bits The bit array.
+ * @param first Index of the first bit to search.
+ * @param length Number of bits to search starting at first.
+ * @return The start and length in bits of the first clear run, or a length of 0 when none exists.
+ */
 template <typename Block>
 std::pair<size_t, size_t> GetNextRangeUnset(const Block* bits, size_t first, size_t length) {
   if (!length) {
@@ -81,8 +105,6 @@ std::pair<size_t, size_t> GetNextRangeUnset(const Block* bits, size_t first, siz
   size_t range_start = SIZE_MAX;
   for (size_t i = block_first; i <= block_last; ++i) {
     Block block = bits[i];
-    // Ignore bits in the block outside the specified range by considering them
-    // set.
     if (i == block_first) {
       block |= (Block(1) << (first & (block_bits - 1))) - 1;
     }
@@ -90,16 +112,13 @@ std::pair<size_t, size_t> GetNextRangeUnset(const Block* bits, size_t first, siz
       block |= ~((Block(1) << ((last & (block_bits - 1)) + 1)) - 1);
     }
     while (true) {
-      uint32_t block_bit;
+      u32 block_bit;
       if (range_start == SIZE_MAX) {
-        // Check if need to open a new range.
         if (!rex::bit_scan_forward(~block, &block_bit)) {
           break;
         }
         range_start = i * block_bits + block_bit;
       } else {
-        // Check if need to close the range.
-        // Ignore the set bits before the beginning of the range.
         Block block_bits_set_from_start = block;
         if (i == range_start / block_bits) {
           block_bits_set_from_start &= ~((Block(1) << (range_start & (block_bits - 1))) - 1);
@@ -117,6 +136,14 @@ std::pair<size_t, size_t> GetNextRangeUnset(const Block* bits, size_t first, siz
   return std::make_pair(first + length, size_t(0));
 }
 
+/**
+ * Sets every bit in a range.
+ *
+ * @tparam Block Unsigned word type of the bit array.
+ * @param bits The bit array.
+ * @param first Index of the first bit to set.
+ * @param length Number of bits to set starting at first.
+ */
 template <typename Block>
 void SetRange(Block* bits, size_t first, size_t length) {
   if (!length) {

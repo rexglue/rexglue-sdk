@@ -7,6 +7,8 @@ add_subdirectory(modules)
 # Compile and run checks for the entry point macros
 add_subdirectory(samples)
 
+add_subdirectory(core)
+
 # Unit tests for core components
 add_subdirectory(unit)
 

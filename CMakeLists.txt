@@ -266,6 +266,7 @@ add_subdirectory(src/system)
 add_subdirectory(src/kernel)
 add_subdirectory(src/codegen)
 add_subdirectory(src/rexglue)
+include(cmake/rexglue_sdk.cmake)
 
 # Add tests subdirectory if tests are enabled
 if(REXGLUE_BUILD_TESTS)
