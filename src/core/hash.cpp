@@ -11,22 +11,16 @@
 
 #include <rex/hash.h>
 
-#include <cstdio>
+#include <fstream>
 #include <memory>
 
 #include <fmt/format.h>
-
-#include <rex/filesystem.h>
 
 namespace rex {
 
 namespace {
 
 constexpr size_t kChunkSize = 256 * 1024;
-
-struct FileCloser {
-  void operator()(FILE* file) const { fclose(file); }
-};
 
 struct StateDeleter {
   void operator()(XXH3_state_t* state) const { XXH3_freeState(state); }
@@ -43,7 +37,7 @@ std::string hash_bytes(std::string_view data) {
 }
 
 std::string hash_file(const std::filesystem::path& path) {
-  std::unique_ptr<FILE, FileCloser> file(filesystem::OpenFile(path, "rb"));
+  std::ifstream file(path, std::ios::binary);
   if (!file)
     return {};
 
@@ -52,13 +46,13 @@ std::string hash_file(const std::filesystem::path& path) {
     return {};
 
   auto chunk = std::make_unique_for_overwrite<char[]>(kChunkSize);
-  while (size_t got = fread(chunk.get(), 1, kChunkSize, file.get())) {
+  while (file.read(chunk.get(), kChunkSize) || file.gcount() > 0) {
+    const auto got = static_cast<size_t>(file.gcount());
     if (XXH3_128bits_update(state.get(), chunk.get(), got) == XXH_ERROR)
       return {};
   }
 
-  // A short read ends the loop the same way EOF does.
-  if (ferror(file.get()))
+  if (file.bad())
     return {};
 
   return HexDigest(XXH3_128bits_digest(state.get()));

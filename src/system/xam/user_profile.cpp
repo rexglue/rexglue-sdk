@@ -14,6 +14,7 @@
 #include <fmt/format.h>
 
 #include <rex/logging.h>
+#include <rex/platform/file.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xam/user_profile.h>
 
@@ -136,16 +137,8 @@ void UserProfile::LoadSetting(UserProfile::Setting* setting) {
     auto content_dir = kernel_state_->content_manager()->ResolveGameUserContentPath();
     auto setting_id = fmt::format("{:08X}", setting->setting_id);
     auto file_path = content_dir / setting_id;
-    auto file = rex::filesystem::OpenFile(file_path, "rb");
-    if (file) {
-      fseek(file, 0, SEEK_END);
-      uint32_t input_file_size = static_cast<uint32_t>(ftell(file));
-      fseek(file, 0, SEEK_SET);
-
-      std::vector<uint8_t> serialized_data(input_file_size);
-      fread(serialized_data.data(), 1, serialized_data.size(), file);
-      fclose(file);
-      setting->Deserialize(serialized_data);
+    if (auto serialized_data = rex::platform::ReadWholeFile(file_path)) {
+      setting->Deserialize(*serialized_data);
       setting->loaded_title_id = kernel_state_->title_id();
     }
   } else {
@@ -162,9 +155,9 @@ void UserProfile::SaveSetting(UserProfile::Setting* setting) {
     std::filesystem::create_directories(content_dir);
     auto setting_id = fmt::format("{:08X}", setting->setting_id);
     auto file_path = content_dir / setting_id;
-    auto file = rex::filesystem::OpenFile(file_path, "wb");
-    fwrite(serialized_setting.data(), 1, serialized_setting.size(), file);
-    fclose(file);
+    if (auto written = rex::platform::WriteWholeFile(file_path, serialized_setting); !written) {
+      REXSYS_WARN("profile setting is not saved, {}", written.error().message);
+    }
   } else {
     // Unsupported for now.  Other settings aren't per-game and need to be
     // stored some other way.

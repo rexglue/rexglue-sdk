@@ -18,7 +18,7 @@
 
 #include <format>
 
-#include <rex/filesystem.h>
+#include <rex/platform/file.h>
 #include <rex/logging.h>
 #include <rex/platform.h>
 
@@ -171,7 +171,7 @@ Result<API*> ModuleLoader::Init(const Config& config) {
 }
 
 Result<void> ModuleLoader::LoadAll() {
-  const auto folder = rex::filesystem::GetExecutableFolder();
+  const auto folder = rex::platform::GetExecutableFolder();
   for (const auto& name : config_.modules) {
     Loaded entry;
     entry.name = name;

@@ -26,7 +26,6 @@
 #include <rex/assert.h>
 #include <rex/cvar.h>
 #include <rex/dbg.h>
-#include <rex/filesystem.h>
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/platform/thread.h>
@@ -49,6 +48,7 @@
 #include <rex/ui/vulkan/util.h>
 
 #include "graphics/cvar_table.h"
+#include "graphics/storage_file.h"
 
 namespace rex::graphics::vulkan {
 
@@ -411,8 +411,8 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
   auto pipeline_storage_file_path =
       shader_storage_shareable_root /
       fmt::format("{:08X}.{}.vk.xpso", title_id, edram_fragment_shader_interlock ? "fsi" : "fbo");
-  pipeline_storage_file_ = rex::filesystem::OpenFile(pipeline_storage_file_path, "a+b");
-  if (!pipeline_storage_file_) {
+  pipeline_storage_file_path_ = pipeline_storage_file_path;
+  if (!OpenStorageFile(pipeline_storage_file_, pipeline_storage_file_path)) {
     REXGPU_ERROR(
         "Failed to open the Vulkan pipeline description storage file for "
         "writing, persistent shader storage will be disabled: {}",
@@ -430,25 +430,23 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
     uint32_t magic_api;
     uint32_t version_swapped;
   } pipeline_storage_file_header;
-  if (fread(&pipeline_storage_file_header, sizeof(pipeline_storage_file_header), 1,
-            pipeline_storage_file_) &&
+  if (ReadStorage(pipeline_storage_file_, &pipeline_storage_file_header,
+                  sizeof(pipeline_storage_file_header)) == sizeof(pipeline_storage_file_header) &&
       pipeline_storage_file_header.magic == pipeline_storage_magic &&
       pipeline_storage_file_header.magic_api == pipeline_storage_magic_api &&
       pipeline_storage_file_header.version_swapped == pipeline_storage_version_swapped) {
-    rex::filesystem::Seek(pipeline_storage_file_, 0, SEEK_END);
-    int64_t pipeline_storage_told_end = rex::filesystem::Tell(pipeline_storage_file_);
+    const u64 pipeline_storage_told_end = StorageFileSize(pipeline_storage_file_path);
     size_t pipeline_storage_told_count =
-        size_t(pipeline_storage_told_end >= int64_t(sizeof(pipeline_storage_file_header))
-                   ? (uint64_t(pipeline_storage_told_end) - sizeof(pipeline_storage_file_header)) /
+        size_t(pipeline_storage_told_end >= sizeof(pipeline_storage_file_header)
+                   ? (pipeline_storage_told_end - sizeof(pipeline_storage_file_header)) /
                          sizeof(PipelineStoredDescription)
                    : 0);
-    if (pipeline_storage_told_count &&
-        rex::filesystem::Seek(pipeline_storage_file_, int64_t(sizeof(pipeline_storage_file_header)),
-                              SEEK_SET)) {
+    if (pipeline_storage_told_count) {
       pipeline_stored_descriptions.resize(pipeline_storage_told_count);
       pipeline_stored_descriptions.resize(
-          fread(pipeline_stored_descriptions.data(), sizeof(PipelineStoredDescription),
-                pipeline_storage_told_count, pipeline_storage_file_));
+          ReadStorage(pipeline_storage_file_, pipeline_stored_descriptions.data(),
+                      pipeline_storage_told_count * sizeof(PipelineStoredDescription)) /
+          sizeof(PipelineStoredDescription));
       size_t pipeline_storage_read_count = pipeline_stored_descriptions.size();
       size_t pipeline_storage_kept_count = 0;
       size_t pipeline_storage_skipped_unsupported_count = 0;
@@ -494,14 +492,13 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
   // Initialize the Xenos shader storage stream.
   auto shader_storage_file_path =
       shader_storage_shareable_root / fmt::format("{:08X}.xsh", title_id);
-  shader_storage_file_ = rex::filesystem::OpenFile(shader_storage_file_path, "a+b");
-  if (!shader_storage_file_) {
+  shader_storage_file_path_ = shader_storage_file_path;
+  if (!OpenStorageFile(shader_storage_file_, shader_storage_file_path)) {
     REXGPU_ERROR(
         "Failed to open the guest shader storage file for writing, persistent "
         "shader storage will be disabled: {}",
         rex::path_to_utf8(shader_storage_file_path));
-    fclose(pipeline_storage_file_);
-    pipeline_storage_file_ = nullptr;
+    pipeline_storage_file_.close();
     return;
   }
   ++shader_storage_index_;
@@ -512,8 +509,8 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
   } shader_storage_file_header;
   // 'XESH'.
   const uint32_t shader_storage_magic = 0x48534558;
-  if (fread(&shader_storage_file_header, sizeof(shader_storage_file_header), 1,
-            shader_storage_file_) &&
+  if (ReadStorage(shader_storage_file_, &shader_storage_file_header,
+                  sizeof(shader_storage_file_header)) == sizeof(shader_storage_file_header) &&
       shader_storage_file_header.magic == shader_storage_magic &&
       rex::byte_swap(shader_storage_file_header.version_swapped) == ShaderStoredHeader::kVersion) {
     uint64_t shader_storage_valid_bytes = sizeof(shader_storage_file_header);
@@ -523,13 +520,14 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
     std::vector<uint32_t> ucode_dwords;
     ucode_dwords.reserve(0xFFFF);
     while (true) {
-      if (!fread(&shader_header, sizeof(shader_header), 1, shader_storage_file_)) {
+      if (ReadStorage(shader_storage_file_, &shader_header, sizeof(shader_header)) !=
+          sizeof(shader_header)) {
         break;
       }
       size_t ucode_byte_count = shader_header.ucode_dword_count * sizeof(uint32_t);
       ucode_dwords.resize(shader_header.ucode_dword_count);
-      if (shader_header.ucode_dword_count &&
-          !fread(ucode_dwords.data(), ucode_byte_count, 1, shader_storage_file_)) {
+      if (shader_header.ucode_dword_count && ReadStorage(shader_storage_file_, ucode_dwords.data(),
+                                                         ucode_byte_count) != ucode_byte_count) {
         break;
       }
       uint64_t ucode_data_hash = XXH3_64bits(ucode_dwords.data(), ucode_byte_count);
@@ -547,13 +545,13 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
       // Loaded from the current storage - don't write again.
       shader->set_ucode_storage_index(shader_storage_index_);
     }
-    rex::filesystem::TruncateStdioFile(shader_storage_file_, shader_storage_valid_bytes);
+    ResetStorageFile(shader_storage_file_, shader_storage_file_path_, shader_storage_valid_bytes);
   } else {
-    rex::filesystem::TruncateStdioFile(shader_storage_file_, 0);
+    ResetStorageFile(shader_storage_file_, shader_storage_file_path_, 0);
     shader_storage_file_header.magic = shader_storage_magic;
     shader_storage_file_header.version_swapped = rex::byte_swap(ShaderStoredHeader::kVersion);
-    fwrite(&shader_storage_file_header, sizeof(shader_storage_file_header), 1,
-           shader_storage_file_);
+    AppendStorage(shader_storage_file_, &shader_storage_file_header,
+                  sizeof(shader_storage_file_header));
   }
 
   // Translate shader modifications needed for stored pipelines.
@@ -682,17 +680,17 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
 
   // If any pipeline descriptions were corrupted (or the whole file has excess
   // bytes in the end), truncate to the last valid pipeline description.
-  rex::filesystem::TruncateStdioFile(
-      pipeline_storage_file_,
+  ResetStorageFile(
+      pipeline_storage_file_, pipeline_storage_file_path_,
       uint64_t(sizeof(pipeline_storage_file_header) +
                sizeof(PipelineStoredDescription) * pipeline_stored_descriptions.size()));
   if (pipeline_stored_descriptions.empty()) {
-    rex::filesystem::TruncateStdioFile(pipeline_storage_file_, 0);
+    ResetStorageFile(pipeline_storage_file_, pipeline_storage_file_path_, 0);
     pipeline_storage_file_header.magic = pipeline_storage_magic;
     pipeline_storage_file_header.magic_api = pipeline_storage_magic_api;
     pipeline_storage_file_header.version_swapped = pipeline_storage_version_swapped;
-    fwrite(&pipeline_storage_file_header, sizeof(pipeline_storage_file_header), 1,
-           pipeline_storage_file_);
+    AppendStorage(pipeline_storage_file_, &pipeline_storage_file_header,
+                  sizeof(pipeline_storage_file_header));
   }
 
   shader_storage_cache_root_ = cache_root;
@@ -720,15 +718,13 @@ void VulkanPipelineCache::ShutdownShaderStorage() {
   storage_write_shader_queue_.clear();
   storage_write_pipeline_queue_.clear();
 
-  if (pipeline_storage_file_) {
-    fclose(pipeline_storage_file_);
-    pipeline_storage_file_ = nullptr;
+  if (pipeline_storage_file_.is_open()) {
+    pipeline_storage_file_.close();
     pipeline_storage_file_flush_needed_ = false;
   }
 
-  if (shader_storage_file_) {
-    fclose(shader_storage_file_);
-    shader_storage_file_ = nullptr;
+  if (shader_storage_file_.is_open()) {
+    shader_storage_file_.close();
     shader_storage_file_flush_needed_ = false;
   }
 
@@ -1052,7 +1048,7 @@ bool VulkanPipelineCache::ConfigurePipeline(
   if (!EnsureShadersTranslated(vertex_shader, pixel_shader)) {
     return false;
   }
-  if (shader_storage_file_ &&
+  if (shader_storage_file_.is_open() &&
       vertex_shader->shader().ucode_storage_index() != shader_storage_index_) {
     vertex_shader->shader().set_ucode_storage_index(shader_storage_index_);
     assert_not_null(storage_write_thread_);
@@ -1063,7 +1059,7 @@ bool VulkanPipelineCache::ConfigurePipeline(
     }
     storage_write_request_cond_.notify_all();
   }
-  if (pixel_shader && shader_storage_file_ &&
+  if (pixel_shader && shader_storage_file_.is_open() &&
       pixel_shader->shader().ucode_storage_index() != shader_storage_index_) {
     pixel_shader->shader().set_ucode_storage_index(shader_storage_index_);
     assert_not_null(storage_write_thread_);
@@ -1178,7 +1174,7 @@ bool VulkanPipelineCache::ConfigurePipeline(
     pipeline.second.is_placeholder.store(false, std::memory_order_release);
   }
 
-  if (pipeline_storage_file_) {
+  if (pipeline_storage_file_.is_open()) {
     assert_not_null(storage_write_thread_);
     pipeline_storage_file_flush_needed_ = true;
     {
@@ -3630,13 +3626,13 @@ void VulkanPipelineCache::StorageWriteThread() {
   while (true) {
     if (flush_shaders) {
       flush_shaders = false;
-      assert_not_null(shader_storage_file_);
-      fflush(shader_storage_file_);
+      assert_true(shader_storage_file_.is_open());
+      shader_storage_file_.flush();
     }
     if (flush_pipelines) {
       flush_pipelines = false;
-      assert_not_null(pipeline_storage_file_);
-      fflush(pipeline_storage_file_);
+      assert_true(pipeline_storage_file_.is_open());
+      pipeline_storage_file_.flush();
     }
 
     const Shader* shader = nullptr;
@@ -3673,22 +3669,22 @@ void VulkanPipelineCache::StorageWriteThread() {
       shader_header.ucode_data_hash = shader->ucode_data_hash();
       shader_header.ucode_dword_count = shader->ucode_dword_count();
       shader_header.type = shader->type();
-      assert_not_null(shader_storage_file_);
-      fwrite(&shader_header, sizeof(shader_header), 1, shader_storage_file_);
+      assert_true(shader_storage_file_.is_open());
+      AppendStorage(shader_storage_file_, &shader_header, sizeof(shader_header));
       if (shader_header.ucode_dword_count) {
         ucode_guest_endian.resize(shader_header.ucode_dword_count);
         // Need to swap because the hash is calculated for the shader with guest
         // endianness.
         memory::copy_and_swap(ucode_guest_endian.data(), shader->ucode_dwords(),
                               shader_header.ucode_dword_count);
-        fwrite(ucode_guest_endian.data(), shader_header.ucode_dword_count * sizeof(uint32_t), 1,
-               shader_storage_file_);
+        AppendStorage(shader_storage_file_, ucode_guest_endian.data(),
+                      shader_header.ucode_dword_count * sizeof(uint32_t));
       }
     }
 
     if (write_pipeline) {
-      assert_not_null(pipeline_storage_file_);
-      fwrite(&pipeline_description, sizeof(pipeline_description), 1, pipeline_storage_file_);
+      assert_true(pipeline_storage_file_.is_open());
+      AppendStorage(pipeline_storage_file_, &pipeline_description, sizeof(pipeline_description));
     }
   }
 }

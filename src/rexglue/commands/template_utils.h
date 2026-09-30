@@ -12,12 +12,14 @@
 #include <cctype>
 #include <filesystem>
 #include <fstream>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include <nlohmann/json.hpp>
 #include <rex/logging.h>
+#include <rex/platform/file.h>
 
 namespace rexglue::cli {
 
@@ -86,28 +88,10 @@ inline nlohmann::json names_to_json(const AppNameParts& names) {
 }
 
 inline bool write_file_atomic(const std::filesystem::path& path, const std::string& content) {
-  std::filesystem::path tmp = path;
-  tmp += ".tmp";
-  {
-    std::ofstream out(tmp, std::ios::binary);
-    if (!out) {
-      REXLOG_ERROR("Failed to open tmp file for write: {}", tmp.string());
-      return false;
-    }
-    out << content;
-    if (!out.good()) {
-      std::error_code ignore;
-      std::filesystem::remove(tmp, ignore);
-      REXLOG_ERROR("Failed while writing tmp file: {}", tmp.string());
-      return false;
-    }
-  }
-  std::error_code ec;
-  std::filesystem::rename(tmp, path, ec);
-  if (ec) {
-    std::error_code ignore;
-    std::filesystem::remove(tmp, ignore);
-    REXLOG_ERROR("Failed to rename {} to {}: {}", tmp.string(), path.string(), ec.message());
+  auto written = rex::platform::WriteWholeFile(
+      path, std::span(reinterpret_cast<const u8*>(content.data()), content.size()));
+  if (!written) {
+    REXLOG_ERROR("Failed to write {}: {}", path.string(), written.error().message);
     return false;
   }
   return true;

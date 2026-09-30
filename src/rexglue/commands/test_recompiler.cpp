@@ -460,7 +460,7 @@ struct RecompileTestsArgs {
 
 }  // namespace
 
-void RegisterRecompileTests(CLI::App& parent, const CliContext& ctx, DeferredAction& pending) {
+void RegisterRecompileTests(CLI::App& parent, const CLIContext& ctx, DeferredAction& pending) {
   (void)ctx;
   auto args = std::make_shared<RecompileTestsArgs>();
   auto* sub = parent.add_subcommand("recompile-tests", "Generate Catch2 tests from PPC assembly")

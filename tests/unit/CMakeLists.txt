@@ -11,8 +11,6 @@ add_executable(unit_tests
     core/config_test.cpp
     core/core_fixes_test.cpp
     core/fiber_test.cpp
-    core/filesystem_test.cpp
-    core/vfs_overwrite_test.cpp
     core/hash_test.cpp
     core/stream_test.cpp
     core/chrono_test.cpp
@@ -54,7 +52,7 @@ target_link_libraries(unit_tests PRIVATE
     SDL3::Headers
 )
 
-add_dependencies(unit_tests rex-sample-console rex-sample-title)
+add_dependencies(unit_tests rexfilesystem rex-sample-console rex-sample-title)
 
 add_dependencies(unit_tests
     rexmod-test-good rexmod-test-missing rexmod-test-badversion

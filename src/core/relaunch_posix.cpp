@@ -19,14 +19,14 @@
 
 #include <unistd.h>
 
-#include <rex/filesystem.h>
+#include <rex/platform/file.h>
 
 namespace rex::platform {
 
 Result<void> Relaunch(std::span<const std::string> args) {
   const char* appimage = std::getenv("APPIMAGE");
   const std::string exe =
-      appimage && *appimage ? std::string(appimage) : filesystem::GetExecutablePath().string();
+      appimage && *appimage ? std::string(appimage) : platform::GetExecutablePath().string();
   std::vector<std::string> storage;
   storage.push_back(exe);
   storage.insert(storage.end(), args.begin(), args.end());

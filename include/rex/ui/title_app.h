@@ -128,7 +128,8 @@ class TitleApp : public App {
 
   /**
    * Configures and initializes the app for a recompiled image. Starts the module list as
-   * {"rexgpu-xenos"}, then runs App::Init, which puts rexruntime first through RequireModules.
+   * {"rexgpu-xenos"}, then runs App::Init, which puts rexfilesystem and rexruntime first through
+   * RequireModules.
    *
    * @param args The process command line.
    * @param image The recompiled image descriptor codegen generates.
@@ -218,8 +219,8 @@ class TitleApp : public App {
   void Release() override;
 
   /**
-   * Puts rexruntime first in the module list when the consumer did not list it, so its cvar
-   * tables are registered.
+   * Puts rexfilesystem and then rexruntime first in the module list when the consumer did not
+   * list them, so the mount table is served before rexruntime connects.
    *
    * @param config The configuration the modules load from.
    */

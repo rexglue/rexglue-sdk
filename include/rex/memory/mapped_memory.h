@@ -43,20 +43,6 @@ class REX_API MappedMemory {
    */
   static std::unique_ptr<MappedMemory> Open(const std::filesystem::path& path, Mode mode,
                                             size_t offset = 0, size_t length = 0);
-#if REX_PLATFORM_ANDROID
-  /**
-   * Maps a file behind an Android content URI.
-   *
-   * @param uri Content URI of the file.
-   * @param mode Access mode.
-   * @param offset Byte offset of the mapped range in the file.
-   * @param length Byte count of the range, or 0 to map to the end of the file.
-   * @return The mapping, or nullptr on failure.
-   */
-  static std::unique_ptr<MappedMemory> OpenForAndroidContentUri(const std::string_view uri,
-                                                                Mode mode, size_t offset = 0,
-                                                                size_t length = 0);
-#endif  // REX_PLATFORM_ANDROID
 
   /** Creates an empty mapping. */
   MappedMemory() = default;

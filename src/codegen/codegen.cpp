@@ -14,10 +14,10 @@
 #include <rex/codegen/analyze.h>
 #include <rex/codegen/codegen.h>
 #include <rex/codegen/codegen_writer.h>
-#include <rex/kernel/init.h>
-#include <rex/api.h>
 #include <rex/logging.h>
 #include <rex/runtime.h>
+
+#include "tool_runtime.h"
 
 namespace rex::codegen {
 
@@ -45,21 +45,14 @@ Result<CodegenPipeline> CodegenPipeline::Create(const std::filesystem::path& con
   }
   xexPath = std::filesystem::canonical(xexPath);
 
-  // Create Runtime
-  rex::Config runtimeConfig;
-  runtimeConfig.paths.game_data_root = xexPath.parent_path();
-  pipeline.runtime_ = std::make_unique<Runtime>(runtimeConfig);
-  auto status = pipeline.runtime_->Setup(rex::RuntimeConfig{
-      .kernel_init = rex::kernel::InitializeKernel,
-      .tool_mode = true,
-  });
-  if (status != X_STATUS_SUCCESS) {
-    return Err<CodegenPipeline>(ErrorCategory::IO,
-                                fmt::format("Failed to initialize Runtime: {:#x}", status));
+  auto tool = OpenToolRuntime(xexPath.parent_path());
+  if (!tool) {
+    return Err<CodegenPipeline>(tool.error());
   }
+  pipeline.runtime_ = std::make_unique<ToolRuntime>(std::move(*tool));
 
   // Create CodegenContext (AnalysisState is populated from binary there)
-  auto ctxResult = CodegenContext::Create(configPath, *pipeline.runtime_);
+  auto ctxResult = CodegenContext::Create(configPath, pipeline.runtime_->runtime());
   if (!ctxResult) {
     return Err<CodegenPipeline>(ctxResult.error());
   }
@@ -85,7 +78,7 @@ Result<void> CodegenPipeline::RunAnalyze() {
 }
 
 Result<void> CodegenPipeline::RunWrite(bool force) {
-  CodegenWriter writer(*ctx_, runtime_.get());
+  CodegenWriter writer(*ctx_, &runtime_->runtime());
   if (!writer.write(force))
     return Err(ErrorCategory::Validation, "Code generation failed.");
   return Ok();

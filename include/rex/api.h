@@ -20,7 +20,7 @@
 #include <rex/macros.h>
 #include <rex/cli_arg_list.h>
 #include <rex/cvar.h>
-#include <rex/filesystem/config.h>
+#include <rex/filesystem.h>
 #include <rex/graphics/backend.h>
 #include <rex/input.h>
 #include <rex/module.h>

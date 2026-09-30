@@ -9,7 +9,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/filesystem/file.h>
+#include <rex/filesystem.h>
 #include <rex/kernel/xam/private.h>
 #include <rex/logging.h>
 #include <rex/math.h>
@@ -31,47 +31,30 @@ using namespace rex::system::xam;
 
 void AddODDContentTest(object_ref<XStaticEnumerator<XCONTENT_AGGREGATE_DATA>> e,
                        XContentType content_type) {
-  auto root_entry = REX_KERNEL_FS()->ResolvePath("game:\\Content\\0000000000000000");
-  if (!root_entry) {
+  constexpr std::string_view kRoot = "game:\\Content\\0000000000000000";
+  auto* fs = REX_KERNEL_FS();
+  auto titles = fs->List(kRoot, "????????");
+  if (!titles) {
     return;
   }
 
   auto content_type_path = fmt::format("{:08X}", uint32_t(content_type));
 
-  rex::filesystem::WildcardEngine title_find_engine;
-  title_find_engine.SetRule("????????");
+  while (auto title_entry = (*titles)->Next()) {
+    auto title_id = rex::from_string<uint32_t>(title_entry->name, true);
 
-  rex::filesystem::WildcardEngine content_find_engine;
-  content_find_engine.SetRule("????????????????");
-
-  size_t title_find_index = 0;
-  rex::filesystem::Entry* title_entry;
-  for (;;) {
-    title_entry = root_entry->IterateChildren(title_find_engine, &title_find_index);
-    if (!title_entry) {
-      break;
-    }
-
-    auto title_id = rex::from_string<uint32_t>(title_entry->name(), true);
-
-    auto content_root_entry = title_entry->ResolvePath(content_type_path);
-    if (content_root_entry) {
-      size_t content_find_index = 0;
-      rex::filesystem::Entry* content_entry;
-      for (;;) {
-        content_entry =
-            content_root_entry->IterateChildren(content_find_engine, &content_find_index);
-        if (!content_entry) {
-          break;
-        }
-
+    auto contents =
+        fs->List(rex::utf8_join_guest_paths({kRoot, title_entry->name, content_type_path}),
+                 "????????????????");
+    if (contents) {
+      while (auto content_entry = (*contents)->Next()) {
         auto item = e->AppendItem();
         assert_not_null(item);
         if (item) {
           item->device_id = static_cast<uint32_t>(DummyDeviceId::ODD);
           item->content_type = content_type;
-          item->set_display_name(to_utf16(content_entry->name()));
-          item->set_file_name(content_entry->name());
+          item->set_display_name(to_utf16(content_entry->name));
+          item->set_file_name(content_entry->name);
           item->title_id = title_id;
         }
       }

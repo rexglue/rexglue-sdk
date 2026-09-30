@@ -21,7 +21,7 @@
 #include <rex/input/sdl/sdl_input_driver.h>
 #include <rex/logging.h>
 #include <rex/ui/virtual_key.h>
-#include <rex/filesystem.h>
+#include <rex/platform/file.h>
 
 #include "input/cvar_table.h"
 
@@ -222,7 +222,7 @@ void SDLInputDriver::OnWindowAvailable(rex::ui::Window* window) {
       // Load custom controller mappings if available
       if (!mappings_file_.empty()) {
         auto mappings_path = mappings_file_.is_relative()
-                                 ? rex::filesystem::GetExecutableFolder() / mappings_file_
+                                 ? rex::platform::GetExecutableFolder() / mappings_file_
                                  : mappings_file_;
         if (!std::filesystem::exists(mappings_path)) {
           REXLOG_WARN("SDL GameControllerDB: file '{}' does not exist.", mappings_path.string());

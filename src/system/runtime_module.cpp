@@ -19,7 +19,6 @@
 #include <rex/macros.h>
 
 #include "audio/cvar_table.h"
-#include "filesystem/cvar_table.h"
 #include "input/cvar_table.h"
 #include "system/cvar_table.h"
 #include "ui/cvar_table.h"
@@ -33,8 +32,7 @@ struct ScopeTable {
   std::span<const cvar::IVar* const> vars;
 };
 
-const std::array<ScopeTable, 9> kTables = {{
-    {"fs", filesystem::cvars::kFilesystemCvars},
+const std::array<ScopeTable, 8> kTables = {{
     {"runtime", cvars::kRuntimeCvars},
     {"audio", audio::cvars::kAudioCvars},
     {"input", input::cvars::kInputCvars},
@@ -91,7 +89,7 @@ const char* RuntimeModule::Name() const {
 }
 
 std::span<const char* const> RuntimeModule::RequiredInterfaces() const {
-  static constexpr std::array<const char*, 1> kRequired = {"rex.cvar@1"};
+  static constexpr std::array<const char*, 2> kRequired = {"rex.cvar@1", "rex.filesystem@1"};
   return kRequired;
 }
 

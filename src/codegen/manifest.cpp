@@ -15,12 +15,14 @@
 #include <cctype>
 #include <fstream>
 #include <optional>
+#include <span>
 #include <string>
 #include <vector>
 
 #include <toml++/toml.hpp>
 
 #include <rex/logging.h>
+#include <rex/platform/file.h>
 #include <rex/system/guest_path.h>
 
 namespace rex::codegen {
@@ -233,34 +235,15 @@ bool ManifestConfig::WriteSdkVersionStamp(const std::filesystem::path& path,
     lines.push_back(stamp_line);
   }
 
-  auto tmp_path = path;
-  tmp_path += ".tmp";
-  {
-    std::ofstream out(tmp_path, std::ios::binary);
-    if (!out) {
-      REXLOG_ERROR("Failed to open manifest tmp for writing: {}", tmp_path.string());
-      return false;
-    }
-    for (size_t i = 0; i < lines.size(); ++i) {
-      out << lines[i];
-      if (i + 1 < lines.size())
-        out << '\n';
-    }
-    out << '\n';
-    if (!out.good()) {
-      REXLOG_ERROR("Failed while writing manifest tmp: {}", tmp_path.string());
-      std::error_code ignore;
-      std::filesystem::remove(tmp_path, ignore);
-      return false;
-    }
+  std::string content;
+  for (const auto& line : lines) {
+    content += line;
+    content += '\n';
   }
-
-  std::error_code ec;
-  std::filesystem::rename(tmp_path, path, ec);
-  if (ec) {
-    REXLOG_ERROR("Failed to rename manifest tmp into place: {}", ec.message());
-    std::error_code ignore;
-    std::filesystem::remove(tmp_path, ignore);
+  auto written = rex::platform::WriteWholeFile(
+      path, std::span(reinterpret_cast<const u8*>(content.data()), content.size()));
+  if (!written) {
+    REXLOG_ERROR("Failed to write the manifest: {}", written.error().message);
     return false;
   }
   return true;

@@ -13,9 +13,6 @@
 #include <span>
 
 #include <rex/filesystem.h>
-#include <rex/filesystem/device.h>
-#include <rex/filesystem/entry.h>
-#include <rex/filesystem/vfs.h>
 #include <rex/logging.h>
 #include <rex/memory.h>
 #include <rex/hook.h>
@@ -42,8 +39,8 @@ constexpr uint32_t kFileEnd = 2;
 
 constexpr uint32_t kInvalidHandleValue = 0xFFFFFFFF;
 
-static rex::filesystem::FileDisposition MapDisposition(uint32_t win32_disp) {
-  using FD = rex::filesystem::FileDisposition;
+static filesystem::Disposition MapDisposition(uint32_t win32_disp) {
+  using FD = filesystem::Disposition;
   switch (win32_disp) {
     case kCreateNew:
       return FD::kCreate;
@@ -67,19 +64,19 @@ u32 CreateFileA_entry(mapped_string lpFileName, u32 dwDesiredAccess, u32 dwShare
   auto* ks = REX_KERNEL_STATE();
   auto disposition = MapDisposition(static_cast<uint32_t>(dwCreationDisposition));
 
-  rex::filesystem::File* vfs_file = nullptr;
-  rex::filesystem::FileAction action;
-  X_STATUS status = ks->file_system()->OpenFile(nullptr, path, disposition,
-                                                static_cast<uint32_t>(dwDesiredAccess), false, true,
-                                                &vfs_file, &action);
-
-  if (XFAILED(status) || !vfs_file) {
-    REXKRNL_NOISY_DEBUG("rexcrt_CreateFileA: FAILED path='{}' status={:#x}", path, status);
+  filesystem::OpenOptions options;
+  options.disposition = disposition;
+  options.access = static_cast<filesystem::Access>(static_cast<uint32_t>(dwDesiredAccess));
+  options.require_file = true;
+  auto opened = ks->file_system()->Open(path, options);
+  if (!opened) {
+    REXKRNL_NOISY_DEBUG("rexcrt_CreateFileA: FAILED path='{}' status={:#x}", path,
+                        rex::system::ToXStatus(opened.error()));
     return kInvalidHandleValue;
   }
 
-  auto file =
-      rex::system::object_ref<rex::system::XFile>(new rex::system::XFile(ks, vfs_file, true));
+  auto file = rex::system::object_ref<rex::system::XFile>(
+      new rex::system::XFile(ks, std::move(opened->file), true));
   auto handle = file->handle();
   REXKRNL_NOISY_DEBUG("rexcrt_CreateFileA: '{}' -> handle={:#x}", path, handle);
   return handle;
@@ -175,7 +172,7 @@ u32 SetFilePointer_entry(u32 hFile, u32 lDistanceToMove, mapped_u32 lpDistanceTo
       new_pos = file->position() + distance;
       break;
     case kFileEnd:
-      new_pos = file->entry()->size() + distance;
+      new_pos = file->file().Info().size + distance;
       break;
     default:
       return kInvalidHandleValue;
@@ -192,7 +189,7 @@ u32 GetFileSize_entry(u32 hFile, mapped_u32 lpFileSizeHigh) {
   if (!file)
     return kInvalidHandleValue;
 
-  uint64_t size = file->entry()->size();
+  uint64_t size = file->file().Info().size;
   if (lpFileSizeHigh)
     *lpFileSizeHigh = static_cast<uint32_t>(size >> 32);
   return static_cast<uint32_t>(size & 0xFFFFFFFF);
@@ -203,7 +200,7 @@ u32 GetFileSizeEx_entry(u32 hFile, mapped_void lpFileSize) {
   if (!file)
     return 0;
 
-  uint64_t size = file->entry()->size();
+  uint64_t size = file->file().Info().size;
   if (lpFileSize) {
     auto* out =
         reinterpret_cast<rex::be<uint32_t>*>(static_cast<uint8_t*>(static_cast<void*>(lpFileSize)));
@@ -228,7 +225,7 @@ u32 FlushFileBuffers_entry(u32 hFile) {
 
 u32 DeleteFileA_entry(mapped_string lpFileName) {
   const char* path = static_cast<const char*>(lpFileName);
-  bool ok = REX_KERNEL_FS()->DeletePath(path);
+  bool ok = REX_KERNEL_FS()->Remove(path).has_value();
   if (!ok)
     REXKRNL_NOISY_DEBUG("rexcrt_DeleteFileA: FAILED '{}'", path);
   return ok ? 1u : 0u;
@@ -246,27 +243,24 @@ u32 CloseHandle_entry(u32 hObject) {
   return 1;
 }
 
-static void FillFindData(mapped_void lpFindFileData, rex::filesystem::Entry* entry) {
+static void FillFindData(mapped_void lpFindFileData, const filesystem::FileInfo& entry) {
   auto* buf = static_cast<uint8_t*>(static_cast<void*>(lpFindFileData));
   std::memset(buf, 0, 0x140);
 
   auto* fields = reinterpret_cast<be<uint32_t>*>(buf);
-  fields[0] = entry->attributes();  // 0x00 dwFileAttributes
-  fields[1] =
-      static_cast<uint32_t>(entry->create_timestamp() & 0xFFFFFFFF);   // 0x04 ftCreationTime.Low
-  fields[2] = static_cast<uint32_t>(entry->create_timestamp() >> 32);  // 0x08 ftCreationTime.High
-  fields[3] =
-      static_cast<uint32_t>(entry->access_timestamp() & 0xFFFFFFFF);   // 0x0C ftLastAccessTime.Low
-  fields[4] = static_cast<uint32_t>(entry->access_timestamp() >> 32);  // 0x10 ftLastAccessTime.High
-  fields[5] =
-      static_cast<uint32_t>(entry->write_timestamp() & 0xFFFFFFFF);   // 0x14 ftLastWriteTime.Low
-  fields[6] = static_cast<uint32_t>(entry->write_timestamp() >> 32);  // 0x18 ftLastWriteTime.High
-  fields[7] = static_cast<uint32_t>(entry->size() >> 32);             // 0x1C nFileSizeHigh
-  fields[8] = static_cast<uint32_t>(entry->size() & 0xFFFFFFFF);      // 0x20 nFileSizeLow
+  fields[0] = std::to_underlying(entry.attributes);                   // 0x00 dwFileAttributes
+  fields[1] = static_cast<uint32_t>(entry.create_time & 0xFFFFFFFF);  // 0x04 ftCreationTime.Low
+  fields[2] = static_cast<uint32_t>(entry.create_time >> 32);         // 0x08 ftCreationTime.High
+  fields[3] = static_cast<uint32_t>(entry.access_time & 0xFFFFFFFF);  // 0x0C ftLastAccessTime.Low
+  fields[4] = static_cast<uint32_t>(entry.access_time >> 32);         // 0x10 ftLastAccessTime.High
+  fields[5] = static_cast<uint32_t>(entry.write_time & 0xFFFFFFFF);   // 0x14 ftLastWriteTime.Low
+  fields[6] = static_cast<uint32_t>(entry.write_time >> 32);          // 0x18 ftLastWriteTime.High
+  fields[7] = static_cast<uint32_t>(entry.size >> 32);                // 0x1C nFileSizeHigh
+  fields[8] = static_cast<uint32_t>(entry.size & 0xFFFFFFFF);         // 0x20 nFileSizeLow
   // 0x24 dwReserved0, 0x28 dwReserved1 already zero
 
   // 0x2C cFileName[260]
-  const auto& name = entry->name();
+  const auto& name = entry.name;
   rex::copy_truncating(reinterpret_cast<char*>(buf + 0x2C), name, 260);
   // 0x130 cAlternateFileName[14] already zero
 }
@@ -277,28 +271,29 @@ u32 FindFirstFileA_entry(mapped_string lpFileName, mapped_void lpFindFileData) {
   auto pattern = rex::utf8_find_name_from_guest_path(path);
 
   auto* ks = REX_KERNEL_STATE();
-  rex::filesystem::File* vfs_file = nullptr;
-  rex::filesystem::FileAction action;
-  X_STATUS status = ks->file_system()->OpenFile(
-      nullptr, dir, rex::filesystem::FileDisposition::kOpen, 0, true, false, &vfs_file, &action);
-  if (XFAILED(status) || !vfs_file) {
+  filesystem::OpenOptions options;
+  options.disposition = filesystem::Disposition::kOpen;
+  options.access = filesystem::Access::kNone;
+  options.create_directory = true;
+  auto opened = ks->file_system()->Open(dir, options);
+  if (!opened) {
     REXKRNL_DEBUG("rexcrt_FindFirstFileA: dir not found '{}'", dir);
     return kInvalidHandleValue;
   }
 
-  auto xfile =
-      rex::system::object_ref<rex::system::XFile>(new rex::system::XFile(ks, vfs_file, true));
+  auto xfile = rex::system::object_ref<rex::system::XFile>(
+      new rex::system::XFile(ks, std::move(opened->file), true));
   xfile->SetFindPattern(pattern);
 
-  auto* entry = xfile->FindNext();
+  auto entry = xfile->FindNext();
   if (!entry) {
     REXKRNL_DEBUG("rexcrt_FindFirstFileA: no matches for '{}' in '{}'", pattern, dir);
     REX_KERNEL_OBJECTS()->ReleaseHandle(xfile->handle());
     return kInvalidHandleValue;
   }
 
-  FillFindData(lpFindFileData, entry);
-  REXKRNL_TRACE("rexcrt_FindFirstFileA: '{}' first match='{}' handle={:#x}", path, entry->name(),
+  FillFindData(lpFindFileData, *entry);
+  REXKRNL_TRACE("rexcrt_FindFirstFileA: '{}' first match='{}' handle={:#x}", path, entry->name,
                 xfile->handle());
   return xfile->handle();
 }
@@ -309,11 +304,11 @@ u32 FindNextFileA_entry(u32 hFindFile, mapped_void lpFindFileData) {
   if (!file)
     return 0;
 
-  auto* entry = file->FindNext();
+  auto entry = file->FindNext();
   if (!entry)
     return 0;
 
-  FillFindData(lpFindFileData, entry);
+  FillFindData(lpFindFileData, *entry);
   return 1;
 }
 
@@ -323,8 +318,11 @@ u32 FindClose_entry(u32 hFindFile) {
 
 u32 CreateDirectoryA_entry(mapped_string lpPathName, mapped_void lpSecurityAttributes) {
   const char* path = static_cast<const char*>(lpPathName);
-  auto* entry = REX_KERNEL_FS()->CreatePath(path, rex::filesystem::kFileAttributeDirectory);
-  return entry ? 1u : 0u;
+  auto* fs = REX_KERNEL_FS();
+  if (fs->Stat(path)) {
+    return 0;
+  }
+  return fs->CreateDirectories(path) ? 1u : 0u;
 }
 
 u32 MoveFileA_entry(mapped_string lpExistingFileName, mapped_string lpNewFileName) {
@@ -332,21 +330,20 @@ u32 MoveFileA_entry(mapped_string lpExistingFileName, mapped_string lpNewFileNam
   const char* dst = static_cast<const char*>(lpNewFileName);
 
   auto* fs = REX_KERNEL_FS();
-  auto* src_entry = fs->ResolvePath(src);
-  if (!src_entry) {
+  if (!fs->Stat(src)) {
     REXKRNL_DEBUG("rexcrt_MoveFileA: source not found '{}'", src);
     return 0;
   }
   // Win32 MoveFileA fails if the destination already exists; callers wanting
   // overwrite semantics use MoveFileExA with MOVEFILE_REPLACE_EXISTING.
-  if (fs->ResolvePath(dst)) {
+  if (fs->Stat(dst)) {
     REXKRNL_DEBUG("rexcrt_MoveFileA: destination exists '{}'", dst);
     return 0;
   }
 
-  X_STATUS rename_status = src_entry->Rename(rex::to_path(dst));
-  if (rename_status != X_STATUS_SUCCESS) {
-    REXKRNL_DEBUG("rexcrt_MoveFileA: rename failed '{}' -> '{}': {:#x}", src, dst, rename_status);
+  if (auto renamed = fs->Rename(src, dst); !renamed) {
+    REXKRNL_DEBUG("rexcrt_MoveFileA: rename failed '{}' -> '{}': {:#x}", src, dst,
+                  rex::system::ToXStatus(renamed.error(), X_STATUS_NOT_SUPPORTED));
     return 0;
   }
   REXKRNL_TRACE("rexcrt_MoveFileA: '{}' -> '{}'", src, dst);
@@ -361,19 +358,20 @@ u32 SetFileAttributesA_entry(mapped_string lpFileName, u32 dwFileAttributes) {
 
 u32 GetFileAttributesA_entry(mapped_string lpFileName) {
   const char* path = static_cast<const char*>(lpFileName);
-  auto* entry = REX_KERNEL_FS()->ResolvePath(path);
+  auto entry = REX_KERNEL_FS()->Stat(path);
   if (!entry) {
     REXKRNL_DEBUG("rexcrt_GetFileAttributesA: not found '{}'", path);
     return kInvalidHandleValue;  // INVALID_FILE_ATTRIBUTES
   }
-  REXKRNL_TRACE("rexcrt_GetFileAttributesA: '{}' -> attrs={:#x}", path, entry->attributes());
-  return entry->attributes();
+  REXKRNL_TRACE("rexcrt_GetFileAttributesA: '{}' -> attrs={:#x}", path,
+                std::to_underlying(entry->attributes));
+  return std::to_underlying(entry->attributes);
 }
 
 u32 GetFileAttributesExA_entry(u32 fInfoLevelId, mapped_string lpFileName,
                                mapped_void lpFileInformation) {
   const char* path = static_cast<const char*>(lpFileName);
-  auto* entry = REX_KERNEL_FS()->ResolvePath(path);
+  auto entry = REX_KERNEL_FS()->Stat(path);
   if (!entry) {
     REXKRNL_DEBUG("rexcrt_GetFileAttributesExA: not found '{}'", path);
     return 0;
@@ -382,15 +380,15 @@ u32 GetFileAttributesExA_entry(u32 fInfoLevelId, mapped_string lpFileName,
   // Fill WIN32_FILE_ATTRIBUTE_DATA (GetFileExInfoStandard = 0)
   auto* buf =
       reinterpret_cast<be<uint32_t>*>(static_cast<uint8_t*>(static_cast<void*>(lpFileInformation)));
-  buf[0] = entry->attributes();                                            // dwFileAttributes
-  buf[1] = static_cast<uint32_t>(entry->create_timestamp() & 0xFFFFFFFF);  // ftCreationTime.Low
-  buf[2] = static_cast<uint32_t>(entry->create_timestamp() >> 32);         // ftCreationTime.High
-  buf[3] = static_cast<uint32_t>(entry->access_timestamp() & 0xFFFFFFFF);  // ftLastAccessTime.Low
-  buf[4] = static_cast<uint32_t>(entry->access_timestamp() >> 32);         // ftLastAccessTime.High
-  buf[5] = static_cast<uint32_t>(entry->write_timestamp() & 0xFFFFFFFF);   // ftLastWriteTime.Low
-  buf[6] = static_cast<uint32_t>(entry->write_timestamp() >> 32);          // ftLastWriteTime.High
-  buf[7] = static_cast<uint32_t>(entry->size() >> 32);                     // nFileSizeHigh
-  buf[8] = static_cast<uint32_t>(entry->size() & 0xFFFFFFFF);              // nFileSizeLow
+  buf[0] = std::to_underlying(entry->attributes);                   // dwFileAttributes
+  buf[1] = static_cast<uint32_t>(entry->create_time & 0xFFFFFFFF);  // ftCreationTime.Low
+  buf[2] = static_cast<uint32_t>(entry->create_time >> 32);         // ftCreationTime.High
+  buf[3] = static_cast<uint32_t>(entry->access_time & 0xFFFFFFFF);  // ftLastAccessTime.Low
+  buf[4] = static_cast<uint32_t>(entry->access_time >> 32);         // ftLastAccessTime.High
+  buf[5] = static_cast<uint32_t>(entry->write_time & 0xFFFFFFFF);   // ftLastWriteTime.Low
+  buf[6] = static_cast<uint32_t>(entry->write_time >> 32);          // ftLastWriteTime.High
+  buf[7] = static_cast<uint32_t>(entry->size >> 32);                // nFileSizeHigh
+  buf[8] = static_cast<uint32_t>(entry->size & 0xFFFFFFFF);         // nFileSizeLow
   return 1;
 }
 
@@ -413,7 +411,7 @@ u32 SetFilePointerEx_entry(u32 hFile, u32 distHigh, u32 distLow, mapped_void lpN
       new_pos = file->position() + distance;
       break;
     case kFileEnd:
-      new_pos = file->entry()->size() + distance;
+      new_pos = file->file().Info().size + distance;
       break;
     default:
       return 0;
@@ -464,26 +462,24 @@ u32 CopyFileA_entry(mapped_string lpExistingFileName, mapped_string lpNewFileNam
 
   auto* ks = REX_KERNEL_STATE();
 
-  // Open source for reading
-  rex::filesystem::File* src_file = nullptr;
-  rex::filesystem::FileAction action;
-  X_STATUS status = ks->file_system()->OpenFile(
-      nullptr, src, rex::filesystem::FileDisposition::kOpen,
-      rex::filesystem::FileAccess::kFileReadData, false, true, &src_file, &action);
-  if (XFAILED(status) || !src_file) {
+  filesystem::OpenOptions source_options;
+  source_options.disposition = filesystem::Disposition::kOpen;
+  source_options.access = filesystem::Access::kReadData;
+  source_options.require_file = true;
+  auto src_file = ks->file_system()->Open(src, source_options);
+  if (!src_file) {
     REXKRNL_DEBUG("rexcrt_CopyFileA: failed to open source '{}'", src);
     return 0;
   }
 
-  // Open/create destination
-  auto disp = static_cast<uint32_t>(bFailIfExists) ? rex::filesystem::FileDisposition::kCreate
-                                                   : rex::filesystem::FileDisposition::kOverwriteIf;
-  rex::filesystem::File* dst_file = nullptr;
-  status =
-      ks->file_system()->OpenFile(nullptr, dst, disp, rex::filesystem::FileAccess::kFileWriteData,
-                                  false, true, &dst_file, &action);
-  if (XFAILED(status) || !dst_file) {
-    src_file->Destroy();
+  filesystem::OpenOptions destination_options;
+  destination_options.disposition = static_cast<uint32_t>(bFailIfExists)
+                                        ? filesystem::Disposition::kCreate
+                                        : filesystem::Disposition::kOverwriteIf;
+  destination_options.access = filesystem::Access::kWriteData;
+  destination_options.require_file = true;
+  auto dst_file = ks->file_system()->Open(dst, destination_options);
+  if (!dst_file) {
     REXKRNL_DEBUG("rexcrt_CopyFileA: failed to open dest '{}'", dst);
     return 0;
   }
@@ -494,30 +490,25 @@ u32 CopyFileA_entry(mapped_string lpExistingFileName, mapped_string lpNewFileNam
   uint64_t offset = 0;
   bool ok = true;
   for (;;) {
-    size_t bytes_read = 0;
-    status = src_file->ReadSync(std::span<uint8_t>(buf.get(), kBufSize), offset, &bytes_read);
-    if (XFAILED(status) || bytes_read == 0)
+    auto bytes_read = src_file->file->Read(std::span<u8>(buf.get(), kBufSize), offset);
+    if (!bytes_read || *bytes_read == 0)
       break;
 
-    size_t bytes_written = 0;
-    status = dst_file->WriteSync(std::span<const uint8_t>(buf.get(), bytes_read), offset,
-                                 &bytes_written);
-    if (XFAILED(status) || bytes_written != bytes_read) {
+    auto bytes_written = dst_file->file->Write(std::span<const u8>(buf.get(), *bytes_read), offset);
+    if (!bytes_written || *bytes_written != *bytes_read) {
       ok = false;
       break;
     }
-    offset += bytes_read;
+    offset += *bytes_read;
   }
 
-  dst_file->Destroy();
-  src_file->Destroy();
   REXKRNL_TRACE("rexcrt_CopyFileA: '{}' -> '{}' {}", src, dst, ok ? "OK" : "FAILED");
   return ok ? 1u : 0u;
 }
 
 u32 RemoveDirectoryA_entry(mapped_string lpPathName) {
   const char* path = static_cast<const char*>(lpPathName);
-  bool ok = REX_KERNEL_FS()->DeletePath(path);
+  bool ok = REX_KERNEL_FS()->Remove(path).has_value();
   if (!ok)
     REXKRNL_DEBUG("rexcrt_RemoveDirectoryA: FAILED '{}'", path);
   return ok ? 1u : 0u;
@@ -535,17 +526,17 @@ u32 GetDiskFreeSpaceExA_entry(mapped_string lpDirectoryName,
                               mapped_void lpTotalNumberOfBytes,
                               mapped_void lpTotalNumberOfFreeBytes) {
   const char* path = static_cast<const char*>(lpDirectoryName);
-  auto* entry = REX_KERNEL_FS()->ResolvePath(path);
-  if (!entry) {
+  auto* fs = REX_KERNEL_FS();
+  auto volume = fs->Volume(path);
+  if (!fs->Stat(path) || !volume) {
     REXKRNL_DEBUG("rexcrt_GetDiskFreeSpaceExA: path not found '{}'", path);
     return 0;
   }
 
-  auto* dev = entry->device();
   uint64_t bytes_per_au =
-      static_cast<uint64_t>(dev->sectors_per_allocation_unit()) * dev->bytes_per_sector();
-  uint64_t total_bytes = static_cast<uint64_t>(dev->total_allocation_units()) * bytes_per_au;
-  uint64_t free_bytes = static_cast<uint64_t>(dev->available_allocation_units()) * bytes_per_au;
+      static_cast<uint64_t>(volume->sectors_per_allocation_unit) * volume->bytes_per_sector;
+  uint64_t total_bytes = static_cast<uint64_t>(volume->total_allocation_units) * bytes_per_au;
+  uint64_t free_bytes = static_cast<uint64_t>(volume->available_allocation_units) * bytes_per_au;
 
   if (lpFreeBytesAvailableToCaller) {
     auto* out = reinterpret_cast<be<uint32_t>*>(

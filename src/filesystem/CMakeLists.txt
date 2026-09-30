@@ -1,39 +1,28 @@
-add_library(rexfilesystem OBJECT
-    device.cpp
-    entry.cpp
-    virtual_file_system.cpp
-    devices/disc_image_device.cpp
-    devices/disc_image_entry.cpp
-    devices/disc_image_file.cpp
-    devices/host_path_device.cpp
-    devices/host_path_entry.cpp
-    devices/host_path_file.cpp
-    devices/null_device.cpp
-    devices/null_entry.cpp
-    devices/null_file.cpp
-    devices/stfs_container_device.cpp
-    devices/stfs_container_entry.cpp
-    devices/stfs_container_file.cpp
+add_library(rexfilesystem SHARED
+    container_provider.cpp
+    file_system.cpp
+    host_provider.cpp
+    module.cpp
+    node.cpp
+    node_file.cpp
+    null_provider.cpp
+    provider.cpp
+    wildcard.cpp
 )
 add_library(rex::filesystem ALIAS rexfilesystem)
 
-rex_target_pch(rexfilesystem
-    <mutex>
-    <rex/math.h>
-    <rex/string.h>
-    <rex/memory.h>
-    <rex/filesystem.h>
-    <rex/platform/mutex.h>
-    <rex/system/xtypes.h>
-    <rex/system/xmemory.h>
-)
+if(WIN32)
+    target_sources(rexfilesystem PRIVATE host_file_win.cpp)
+elseif(UNIX)
+    target_sources(rexfilesystem PRIVATE host_file_posix.cpp)
+endif()
 
-target_link_libraries(rexfilesystem PUBLIC rexcore)
-target_include_directories(rexfilesystem PUBLIC
-    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+set_target_properties(rexfilesystem PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
 )
-target_include_directories(rexfilesystem PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/devices
-    ${PROJECT_SOURCE_DIR}/src
-)
+rexglue_add_version_resource(rexfilesystem DESCRIPTION "ReXGlue filesystem")
+
+target_include_directories(rexfilesystem PRIVATE ${PROJECT_SOURCE_DIR}/src)
+
+target_link_libraries(rexfilesystem PRIVATE rexcore)

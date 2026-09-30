@@ -46,10 +46,10 @@ struct InitAchievementsOptions {
   uint32_t language = 1;
 };
 
-Result<void> InitProject(const InitOptions& opts, const CliContext& ctx);
-Result<void> InitModule(const InitModuleOptions& opts, const CliContext& ctx);
-Result<void> InitAchievements(const InitAchievementsOptions& opts, const CliContext& ctx);
+Result<void> InitProject(const InitOptions& opts, const CLIContext& ctx);
+Result<void> InitModule(const InitModuleOptions& opts, const CLIContext& ctx);
+Result<void> InitAchievements(const InitAchievementsOptions& opts, const CLIContext& ctx);
 
-void RegisterInit(CLI::App& parent, const CliContext& ctx, DeferredAction& pending);
+void RegisterInit(CLI::App& parent, const CLIContext& ctx, DeferredAction& pending);
 
 }  // namespace rexglue::cli

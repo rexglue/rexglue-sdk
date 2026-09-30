@@ -6,6 +6,7 @@ add_executable(rexglue
     ui/progress.cpp
     commands/codegen_command.cpp
     commands/init_command.cpp
+    commands/vfs_command.cpp
     commands/test_recompiler.cpp
     commands/project_scan.cpp
 )
@@ -41,5 +42,7 @@ if(WIN32)
         target_link_libraries(rexglue PRIVATE delayimp)
     endif()
 endif()
+
+add_dependencies(rexglue rexfilesystem)
 
 add_executable(rex::rexglue ALIAS rexglue)

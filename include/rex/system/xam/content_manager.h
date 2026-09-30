@@ -17,6 +17,7 @@
 #include <vector>
 #include <rex/math.h>
 #include <rex/memory.h>
+#include <rex/result.h>
 #include <rex/string/key.h>
 #include <rex/string.h>
 #include <rex/system/xcontent.h>
@@ -121,7 +122,7 @@ class ContentPackage {
                  const XCONTENT_AGGREGATE_DATA& data, const std::filesystem::path& package_path);
   ~ContentPackage();
 
-  void LoadPackageLicenseMask(const std::filesystem::path header_path);
+  void LoadPackageLicenseMask(const std::filesystem::path& header_path);
 
   const XCONTENT_AGGREGATE_DATA& GetPackageContentData() const { return content_data_; }
 
@@ -176,10 +177,16 @@ class ContentManager {
   // Returns the host filesystem path for an open content package, or empty.
   std::filesystem::path GetOpenPackagePath(const std::string_view root_name) const;
 
-  // Installs an STFS content package from an arbitrary host path.
-  // Extracts the package into root_path_/0000000000000000/{title_id}/00000002/{filename}/
-  // and writes a .header file for XAM enumeration.
-  X_RESULT InstallContent(const std::filesystem::path& package_path);
+  /**
+   * Extracts an STFS or SVOD package into the content tree and writes its header file. The
+   * content type and title ID come from the package metadata, so no title needs to run.
+   *
+   * @param package_path The host package file.
+   * @return The content data written to the header file, kExists when the package is open,
+   *         or the Container::Open or Extract error.
+   */
+  [[nodiscard]] Result<XCONTENT_AGGREGATE_DATA> InstallContent(
+      const std::filesystem::path& package_path);
 
  private:
   std::filesystem::path ResolvePackageRoot(uint64_t xuid, XContentType content_type,
@@ -191,8 +198,8 @@ class ContentManager {
 
   std::unordered_map<string_key_case, ContentPackage*, string_key_case::Hash>::iterator
   FindOpenPackageByData(const XCONTENT_AGGREGATE_DATA& data);
-  ContentPackage* DetachPackage(
-      std::unordered_map<string_key_case, ContentPackage*, string_key_case::Hash>::iterator it);
+  ContentPackage* DetachPackage(const std::unordered_map<string_key_case, ContentPackage*,
+                                                         string_key_case::Hash>::iterator& it);
 
   KernelState* kernel_state_;
   std::filesystem::path root_path_;

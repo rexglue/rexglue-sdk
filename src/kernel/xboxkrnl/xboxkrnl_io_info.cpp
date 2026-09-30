@@ -12,7 +12,7 @@
 // Disable warnings about unused parameters for kernel functions
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
-#include <rex/filesystem/device.h>
+#include <rex/filesystem.h>
 #include <rex/kernel/xboxkrnl/private.h>
 #include <rex/logging.h>
 #include <rex/memory.h>
@@ -163,16 +163,17 @@ u32 NtQueryInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> i
       // Make sure we're working with up-to-date information, just in case the
       // file size has changed via something other than NtSetInfoFile
       // (eg. seems NtWriteFile might extend the file in some cases)
-      file->entry()->update();
+      file->file().Refresh();
 
+      const filesystem::FileInfo entry = file->file().Info();
       auto info = info_ptr.as<X_FILE_NETWORK_OPEN_INFORMATION*>();
-      info->creation_time = file->entry()->create_timestamp();
-      info->last_access_time = file->entry()->access_timestamp();
-      info->last_write_time = file->entry()->write_timestamp();
-      info->change_time = file->entry()->write_timestamp();
-      info->allocation_size = file->entry()->allocation_size();
-      info->end_of_file = file->entry()->size();
-      info->attributes = file->entry()->attributes();
+      info->creation_time = entry.create_time;
+      info->last_access_time = entry.access_time;
+      info->last_write_time = entry.write_time;
+      info->change_time = entry.write_time;
+      info->allocation_size = entry.allocation_size;
+      info->end_of_file = entry.size;
+      info->attributes = std::to_underlying(entry.attributes);
       out_length = sizeof(*info);
       break;
     }
@@ -254,20 +255,25 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
     case XFileBasicInformation: {
       auto info = info_ptr.as<X_FILE_BASIC_INFORMATION*>();
 
-      bool basic_result = true;
+      filesystem::FileTimes times;
       if (info->creation_time) {
-        basic_result &= file->entry()->SetCreateTimestamp(info->creation_time);
+        times.create = info->creation_time;
       }
-
       if (info->last_access_time) {
-        basic_result &= file->entry()->SetAccessTimestamp(info->last_access_time);
+        times.access = info->last_access_time;
       }
-
       if (info->last_write_time) {
-        basic_result &= file->entry()->SetWriteTimestamp(info->last_write_time);
+        times.write = info->last_write_time;
       }
 
-      basic_result &= file->entry()->SetAttributes(info->attributes);
+      bool basic_result = true;
+      if (times.create || times.access || times.write) {
+        basic_result &= file->file().SetTimes(times).has_value();
+      }
+      basic_result &= file->file()
+                          .SetAttributes(static_cast<filesystem::FileAttributes>(
+                              static_cast<uint32_t>(info->attributes)))
+                          .has_value();
       if (!basic_result) {
         result = X_STATUS_UNSUCCESSFUL;
       }
@@ -278,7 +284,7 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
     case XFileDispositionInformation: {
       auto info = info_ptr.as<X_FILE_DISPOSITION_INFORMATION*>();
       bool delete_on_close = info->delete_file ? true : false;
-      file->entry()->SetForDeletion(delete_on_close);
+      file->file().SetDeleteOnClose(delete_on_close);
       out_length = 0;
       REXKRNL_WARN("NtSetInformationFile set deleting flag for {} on close to: {}", file->name(),
                    delete_on_close);
@@ -302,7 +308,7 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
         return X_STATUS_INVALID_PARAMETER;
       }
 
-      result = file->Rename(target_file_path);
+      result = file->Rename(target_path);
       out_length = sizeof(*info);
       break;
     }
@@ -311,8 +317,7 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
       result = file->SetLength(info->allocation_size);
       out_length = sizeof(*info);
 
-      // Update the file entry information.
-      file->entry()->update();
+      file->file().Refresh();
       break;
     }
     case XFileEndOfFileInformation: {
@@ -320,8 +325,7 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
       result = file->SetLength(info->end_of_file);
       out_length = sizeof(*info);
 
-      // Update the files rex::filesystem::Entry information
-      file->entry()->update();
+      file->file().Refresh();
       break;
     }
     case XFileCompletionInformation: {
@@ -402,23 +406,23 @@ u32 NtQueryVolumeInformationFile_entry(u32 file_handle,
       break;
     }
     case XFileFsSizeInformation: {
-      auto device = file->device();
+      const filesystem::VolumeInfo volume = file->file().Volume();
       auto info = info_ptr.as<X_FILE_FS_SIZE_INFORMATION*>();
-      info->total_allocation_units = device->total_allocation_units();
-      info->available_allocation_units = device->available_allocation_units();
-      info->sectors_per_allocation_unit = device->sectors_per_allocation_unit();
-      info->bytes_per_sector = device->bytes_per_sector();
+      info->total_allocation_units = volume.total_allocation_units;
+      info->available_allocation_units = volume.available_allocation_units;
+      info->sectors_per_allocation_unit = volume.sectors_per_allocation_unit;
+      info->bytes_per_sector = volume.bytes_per_sector;
       // TODO(gibbed): sanity check, XCTD userland code seems to require this.
       assert_true(info->bytes_per_sector == 0x200);
       out_length = sizeof(*info);
       break;
     }
     case XFileFsAttributeInformation: {
-      auto device = file->device();
-      const auto& name = device->name();
+      const filesystem::VolumeInfo volume = file->file().Volume();
+      const auto& name = volume.name;
       auto info = info_ptr.as<X_FILE_FS_ATTRIBUTE_INFORMATION*>();
-      info->attributes = device->attributes();
-      info->component_name_max_length = device->component_name_max_length();
+      info->attributes = volume.attributes;
+      info->component_name_max_length = volume.component_name_max_length;
       info->name_length = uint32_t(name.size());
       if (info_length >= 12 + name.size()) {
         std::memcpy(info->name, name.data(), name.size());

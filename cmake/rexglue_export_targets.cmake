@@ -11,6 +11,7 @@ set(REXGLUE_INSTALL_TARGETS
     rexruntime
     rexsdk
     rexgpu-xenos
+    rexfilesystem
     disruptorplus renderdoc simde tomlplusplus
     aes128 mspack o1heap disasm xxhash
     libavcodec libavutil

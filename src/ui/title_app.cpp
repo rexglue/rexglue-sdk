@@ -31,6 +31,7 @@
 #include <rex/logging/api.h>
 #include <rex/logging/sink.h>
 #include <rex/platform.h>
+#include <rex/platform/file.h>
 #include <rex/platform/thread.h>
 #include <rex/runtime.h>
 #include <rex/string/numeric.h>
@@ -235,11 +236,11 @@ TitleApp::~TitleApp() = default;
 Result<void> TitleApp::Init(const CLIArgList& args, const PPCImageInfo& image) {
   SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "1");
   image_ = image;
-  const std::filesystem::path exe = filesystem::GetExecutablePath();
+  const std::filesystem::path exe = platform::GetExecutablePath();
   const std::string name = exe.stem().string();
   Config& cfg = config();
   cfg.modules = {"rexgpu-xenos"};
-  cfg.paths.user_data_root = filesystem::GetUserFolder() / name;
+  cfg.paths.user_data_root = platform::GetUserFolder() / name;
   cfg.paths.cache_root = cfg.paths.user_data_root / "cache";
   cfg.paths.config_file = exe.parent_path() / (name + ".toml");
   REX_TRY_VOID(App::Init(args));
@@ -273,7 +274,7 @@ Result<void> TitleApp::CreateTitleWindow() {
     return LaunchFailure("graphics presentation setup failed");
   }
 
-  const std::string title = cfg.ui.title.empty() ? filesystem::GetExecutablePath().stem().string() +
+  const std::string title = cfg.ui.title.empty() ? platform::GetExecutablePath().stem().string() +
                                                        " " + REXGLUE_BUILD_TITLE
                                                  : cfg.ui.title;
   window_ = Window::Create(*context_, title);
@@ -419,6 +420,7 @@ Result<void> TitleApp::LaunchTitle() {
   };
   runtime_config.kernel_init = kernel::InitializeKernel;
   runtime_config.graphics = graphics_;
+  runtime_config.file_system = api().Get<filesystem::IFileSystem>();
   if (XFAILED(runtime_->Setup(image_, std::move(runtime_config)))) {
     return LaunchFailure("runtime setup failed");
   }
@@ -508,8 +510,13 @@ void TitleApp::ReportError(std::string_view message) {
 }
 
 void TitleApp::RequireModules(Config& config) {
-  if (std::ranges::find(config.modules, "rexruntime") == config.modules.end()) {
-    config.modules.insert(config.modules.begin(), "rexruntime");
+  auto& modules = config.modules;
+  auto filesystem = std::ranges::find(modules, "rexfilesystem");
+  if (filesystem == modules.end()) {
+    filesystem = modules.insert(modules.begin(), "rexfilesystem");
+  }
+  if (std::ranges::find(modules, "rexruntime") == modules.end()) {
+    modules.insert(std::next(filesystem), "rexruntime");
   }
 }
 

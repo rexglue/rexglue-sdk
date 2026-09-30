@@ -181,7 +181,8 @@ u32 ObCreateSymbolicLink_entry(ppc_ptr_t<X_ANSI_STRING> path_ptr,
     path = path.substr(4);  // Strip the full qualifier
   }
 
-  if (!REX_KERNEL_FS()->RegisterSymbolicLink(path, target)) {
+  if (auto linked = REX_KERNEL_FS()->Link(path, target);
+      !linked && filesystem::CodeOf(linked.error()) != filesystem::Error::kExists) {
     return X_STATUS_UNSUCCESSFUL;
   }
 
@@ -190,7 +191,7 @@ u32 ObCreateSymbolicLink_entry(ppc_ptr_t<X_ANSI_STRING> path_ptr,
 
 u32 ObDeleteSymbolicLink_entry(ppc_ptr_t<X_ANSI_STRING> path_ptr) {
   auto path = util::TranslateAnsiPath(REX_KERNEL_MEMORY(), path_ptr);
-  if (!REX_KERNEL_FS()->UnregisterSymbolicLink(path)) {
+  if (!REX_KERNEL_FS()->Unlink(path)) {
     return X_STATUS_UNSUCCESSFUL;
   }
 

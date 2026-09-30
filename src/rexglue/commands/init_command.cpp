@@ -9,6 +9,7 @@
 #include "init_command.h"
 #include "../ui/ui.h"
 #include "template_utils.h"
+#include "codegen/tool_runtime.h"
 
 #include <algorithm>
 #include <chrono>
@@ -16,6 +17,7 @@
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <span>
 #include <sstream>
 #include <vector>
 
@@ -24,6 +26,7 @@
 #include <rex/api.h>
 #include <rex/kernel/init.h>
 #include <rex/logging.h>
+#include <rex/platform/file.h>
 #include <rex/result.h>
 #include <rex/runtime.h>
 #include <rex/system/kernel_state.h>
@@ -87,7 +90,7 @@ fs::path ResolveDir(const std::string& raw, std::error_code& ec) {
 
 }  // namespace
 
-Result<void> InitProject(const InitOptions& opts, const CliContext& ctx) {
+Result<void> InitProject(const InitOptions& opts, const CLIContext& ctx) {
   (void)ctx;
 
   if (opts.project_name.empty())
@@ -261,7 +264,7 @@ Result<void> InitProject(const InitOptions& opts, const CliContext& ctx) {
   return Ok();
 }
 
-Result<void> InitModule(const InitModuleOptions& opts, const CliContext& ctx) {
+Result<void> InitModule(const InitModuleOptions& opts, const CLIContext& ctx) {
   (void)ctx;
 
   fs::path root = fs::absolute(opts.app_root);
@@ -331,28 +334,8 @@ Result<void> InitModule(const InitModuleOptions& opts, const CliContext& ctx) {
       "\"generated/{}\"\nincludes = []\n",
       guestPath, xexRel, moduleName);
 
-  fs::path tmpPath = manifestPath;
-  tmpPath += ".tmp";
-  {
-    std::ofstream out(tmpPath, std::ios::binary);
-    if (!out)
-      return Err<void>(ErrorCategory::IO,
-                       "Failed to open manifest tmp for writing: " + tmpPath.string());
-    out << content;
-    if (!out.good()) {
-      std::error_code ignore;
-      fs::remove(tmpPath, ignore);
-      return Err<void>(ErrorCategory::IO, "Failed while writing manifest tmp: " + tmpPath.string());
-    }
-  }
-  std::error_code ec;
-  fs::rename(tmpPath, manifestPath, ec);
-  if (ec) {
-    std::error_code ignore;
-    fs::remove(tmpPath, ignore);
-    return Err<void>(ErrorCategory::IO,
-                     "Failed to rename manifest tmp into place: " + ec.message());
-  }
+  REX_TRY_VOID(rex::platform::WriteWholeFile(
+      manifestPath, std::span(reinterpret_cast<const u8*>(content.data()), content.size())));
 
   std::vector<ui::KeyValueRow> rows;
   rows.push_back({"file_path", xexRel});
@@ -361,7 +344,7 @@ Result<void> InitModule(const InitModuleOptions& opts, const CliContext& ctx) {
   return Ok();
 }
 
-Result<void> InitAchievements(const InitAchievementsOptions& opts, const CliContext& /*ctx*/) {
+Result<void> InitAchievements(const InitAchievementsOptions& opts, const CLIContext& /*ctx*/) {
   std::error_code ec;
   fs::path xexPath = fs::absolute(opts.xex_path, ec);
   if (ec || !fs::exists(xexPath)) {
@@ -382,18 +365,13 @@ Result<void> InitAchievements(const InitAchievementsOptions& opts, const CliCont
   std::string entryRelStr = entryRel.string();
   auto entryVfsPath = "game:\\" + entryRelStr;
 
-  rex::Config runtimeConfig;
-  runtimeConfig.paths.game_data_root = gameRoot;
-  auto runtime = std::make_unique<rex::Runtime>(runtimeConfig);
-  auto rtStatus = runtime->Setup(rex::RuntimeConfig{
-      .kernel_init = rex::kernel::InitializeKernel,
-      .tool_mode = true,
-  });
-  if (!XSUCCEEDED(rtStatus)) {
-    return Err<void>(ErrorCategory::IO, fmt::format("Runtime init failed: {:#x}", rtStatus));
+  auto tool = rex::codegen::OpenToolRuntime(gameRoot);
+  if (!tool) {
+    return Err<void>(tool.error());
   }
+  rex::Runtime* runtime = &tool->runtime();
 
-  rtStatus = runtime->LoadXEXImage(entryVfsPath);
+  rex::X_STATUS rtStatus = runtime->LoadXEXImage(entryVfsPath);
   if (!XSUCCEEDED(rtStatus)) {
     return Err<void>(ErrorCategory::IO,
                      fmt::format("Failed to load XEX '{}': {:#x}", opts.xex_path, rtStatus));
@@ -561,7 +539,7 @@ struct InitAchievementsArgs {
 
 }  // namespace
 
-void RegisterInit(CLI::App& parent, const CliContext& ctx, DeferredAction& pending) {
+void RegisterInit(CLI::App& parent, const CLIContext& ctx, DeferredAction& pending) {
   auto* init = parent.add_subcommand("init", "Initialize a new project")->fallthrough();
   auto args = std::make_shared<InitArgs>();
   init->add_option("--project-name", args->project_name,

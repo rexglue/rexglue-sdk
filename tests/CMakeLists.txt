@@ -9,6 +9,8 @@ add_subdirectory(samples)
 
 add_subdirectory(core)
 
+add_subdirectory(filesystem)
+
 # Unit tests for core components
 add_subdirectory(unit)
 

@@ -23,6 +23,8 @@ class Runtime;
 
 namespace rex::codegen {
 
+class ToolRuntime;
+
 /**
  * Pipeline orchestrator for code generation.
  *
@@ -60,7 +62,7 @@ class CodegenPipeline {
  private:
   CodegenPipeline() = default;
 
-  std::unique_ptr<Runtime> runtime_;
+  std::unique_ptr<ToolRuntime> runtime_;
   std::unique_ptr<CodegenContext> ctx_;
 };
 

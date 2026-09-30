@@ -16,7 +16,7 @@
 
 #include <windows.h>
 
-#include <rex/filesystem.h>
+#include <rex/platform/file.h>
 
 namespace rex::platform {
 namespace {
@@ -55,7 +55,7 @@ std::wstring detail::BuildCommandLine(std::wstring_view exe, std::span<const std
 }
 
 Result<void> Relaunch(std::span<const std::string> args) {
-  const std::wstring exe = filesystem::GetExecutablePath().wstring();
+  const std::wstring exe = platform::GetExecutablePath().wstring();
   std::wstring command = detail::BuildCommandLine(exe, args);
   STARTUPINFOW startup{};
   startup.cb = sizeof(startup);

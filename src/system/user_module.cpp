@@ -50,50 +50,31 @@ uint32_t UserModule::title_id() const {
 X_STATUS UserModule::LoadFromFile(const std::string_view path) {
   X_STATUS result = X_STATUS_UNSUCCESSFUL;
 
-  // Resolve the file to open.
-  // TODO(benvanik): make this code shared?
-  auto fs_entry = kernel_state_->file_system()->ResolvePath(path);
+  auto* fs = kernel_state_->file_system();
+  auto fs_entry = fs->Stat(path);
   if (!fs_entry) {
     REXSYS_ERROR("File not found: {}", path);
     return X_STATUS_NO_SUCH_FILE;
   }
 
-  path_ = fs_entry->absolute_path();
+  path_ = fs_entry->absolute_path;
   name_ = rex::utf8_find_base_name_from_guest_path(path_);
 
-  // If the FS supports mapping, map the file in and load from that.
-  if (fs_entry->can_map()) {
-    // Map.
-    auto mmap = fs_entry->OpenMapped(memory::MappedMemory::Mode::kRead);
-    if (!mmap) {
-      return result;
-    }
-
-    // Load the module.
-    result = LoadFromMemory(mmap->data(), mmap->size());
+  filesystem::OpenOptions options;
+  options.access = filesystem::Access::kGenericRead;
+  auto opened = fs->Open(path_, options);
+  if (!opened) {
+    return ToXStatus(opened.error());
+  }
+  if (auto view = opened->file->View()) {
+    result = LoadFromMemory(view->data(), view->size());
   } else {
-    std::vector<uint8_t> buffer(fs_entry->size());
-
-    // Open file for reading.
-    rex::filesystem::File* file = nullptr;
-    result = fs_entry->Open(rex::filesystem::FileAccess::kGenericRead, &file);
-    if (XFAILED(result)) {
-      return result;
+    std::vector<uint8_t> buffer(fs_entry->size);
+    auto bytes_read = opened->file->Read(buffer, 0);
+    if (!bytes_read) {
+      return ToXStatus(bytes_read.error());
     }
-
-    // Read entire file into memory.
-    // Ugh.
-    size_t bytes_read = 0;
-    result = file->ReadSync(std::span<uint8_t>(buffer), 0, &bytes_read);
-    if (XFAILED(result)) {
-      return result;
-    }
-
-    // Load the module.
-    result = LoadFromMemory(buffer.data(), bytes_read);
-
-    // Close the file.
-    file->Destroy();
+    result = LoadFromMemory(buffer.data(), *bytes_read);
   }
 
   // Only XEX returns X_STATUS_PENDING
@@ -102,9 +83,8 @@ X_STATUS UserModule::LoadFromFile(const std::string_view path) {
   }
 
   // Search for sibling XEX patch file
-  auto patch_entry = kernel_state_->file_system()->ResolvePath(path_ + "p");
-  if (patch_entry) {
-    auto patch_path = patch_entry->absolute_path();
+  if (auto patch_entry = fs->Stat(path_ + "p")) {
+    auto patch_path = patch_entry->absolute_path;
 
     REXSYS_DEBUG("Loading XEX patch from {}", patch_path);
 

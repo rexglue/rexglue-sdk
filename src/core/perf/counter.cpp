@@ -11,15 +11,16 @@
 #include <rex/perf/counter.h>
 
 #include <rex/cvar.h>
-#include <rex/filesystem.h>
 #include <rex/logging.h>
+#include <rex/string.h>
 
 #include "core/cvar_table.h"
 
 #include <array>
 #include <atomic>
-#include <cstdio>
 #include <cstring>
+#include <format>
+#include <fstream>
 
 namespace rex::platform {
 
@@ -56,7 +57,7 @@ constexpr bool IsGauge(size_t index) {
   return id == CounterId::kActiveThreads || id == CounterId::kCriticalRegionContentions;
 }
 
-std::FILE* g_csv_file = nullptr;
+std::ofstream g_csv_file;
 std::string g_csv_path;
 int g_csv_frame_count = 0;
 
@@ -104,10 +105,8 @@ void InitCounters() {
 }
 
 void SetCSVLogPath(const std::string& path) {
-  if (g_csv_file) {
-    std::fflush(g_csv_file);
-    std::fclose(g_csv_file);
-    g_csv_file = nullptr;
+  if (g_csv_file.is_open()) {
+    g_csv_file.close();
   }
   g_csv_path = path;
   g_csv_frame_count = 0;
@@ -115,7 +114,7 @@ void SetCSVLogPath(const std::string& path) {
   if (path.empty())
     return;
 
-  g_csv_file = rex::filesystem::OpenFile(rex::to_path(path), "w");
+  g_csv_file.open(rex::to_path(path), std::ios::out | std::ios::trunc);
   if (!g_csv_file) {
     REXLOG_WARN("perf: failed to open CSV log: {}", path);
     g_csv_path.clear();
@@ -124,34 +123,31 @@ void SetCSVLogPath(const std::string& path) {
 
   for (size_t i = 0; i < kNumCounters; ++i) {
     if (i > 0)
-      std::fputc(',', g_csv_file);
-    std::fputs(kCounterNames[i], g_csv_file);
+      g_csv_file << ',';
+    g_csv_file << kCounterNames[i];
   }
-  std::fputc('\n', g_csv_file);
+  g_csv_file << '\n';
 }
 
 void WriteCSVFrame() {
-  if (!g_csv_file)
+  if (!g_csv_file.is_open())
     return;
 
   for (size_t i = 0; i < kNumCounters; ++i) {
     if (i > 0)
-      std::fputc(',', g_csv_file);
-    std::fprintf(g_csv_file, "%lld",
-                 static_cast<long long>(g_snapshot[i].load(std::memory_order_relaxed)));
+      g_csv_file << ',';
+    g_csv_file << std::format("{}", g_snapshot[i].load(std::memory_order_relaxed));
   }
-  std::fputc('\n', g_csv_file);
+  g_csv_file << '\n';
 
   if (++g_csv_frame_count % 60 == 0) {
-    std::fflush(g_csv_file);
+    g_csv_file.flush();
   }
 }
 
 void FlushCSV() {
-  if (g_csv_file) {
-    std::fflush(g_csv_file);
-    std::fclose(g_csv_file);
-    g_csv_file = nullptr;
+  if (g_csv_file.is_open()) {
+    g_csv_file.close();
   }
   g_csv_path.clear();
 }

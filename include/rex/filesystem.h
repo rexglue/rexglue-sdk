@@ -1,134 +1,31 @@
 /**
- ******************************************************************************
- * Xenia : Xbox 360 Emulator Research Project                                 *
- ******************************************************************************
- * Copyright 2022 Ben Vanik. All rights reserved.                             *
- * Released under the BSD license - see LICENSE in the root for more details. *
- ******************************************************************************
+ * @file        filesystem.h
+ * @brief       The filesystem facade and the filesystem slice of rex::Config
  *
- * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
  */
 
 #pragma once
 
-#include <filesystem>
-#include <iterator>
-#include <memory>
-#include <string>
-#include <string_view>
-#include <vector>
+#include <rex/filesystem/directory.h>
+#include <rex/filesystem/error.h>
+#include <rex/filesystem/file.h>
+#include <rex/filesystem/file_system.h>
+#include <rex/filesystem/info.h>
+#include <rex/filesystem/mount.h>
+#include <rex/filesystem/open.h>
+#include <rex/paths.h>
 
-#include <rex/macros.h>
-#include <rex/filesystem/config.h>
-#include <rex/platform.h>
-#include <rex/string/utf8.h>
+namespace rex::filesystem {
 
-namespace rex {
-
-namespace filesystem {
-
-// Get executable path.
-REX_API std::filesystem::path GetExecutablePath();
-
-// Get executable folder.
-REX_API std::filesystem::path GetExecutableFolder();
-
-// Get user folder.
-REX_API std::filesystem::path GetUserFolder();
-
-// Creates the parent folder of the specified path if needed.
-// This can be used to ensure the destination path for a new file exists before
-// attempting to create it.
-REX_API bool CreateParentFolder(const std::filesystem::path& path);
-
-// Creates an empty file at the given path, overwriting if it exists.
-REX_API bool CreateEmptyFile(const std::filesystem::path& path);
-
-// Opens the file at the given path with the specified mode.
-// This behaves like fopen and the returned handle can be used with stdio.
-REX_API FILE* OpenFile(const std::filesystem::path& path, const std::string_view mode);
-
-// Wrapper for the 64-bit version of fseek, returns true on success.
-REX_API bool Seek(FILE* file, int64_t offset, int origin);
-
-// Wrapper for the 64-bit version of ftell, returns a positive value on success.
-REX_API int64_t Tell(FILE* file);
-
-// Reduces the size of a stdio file opened for writing. The file pointer is
-// clamped. If this returns false, the size of the file and the file pointer are
-// undefined.
-REX_API bool TruncateStdioFile(FILE* file, uint64_t length);
-
-struct FileAccess {
-  // Implies kFileReadData.
-  static const uint32_t kGenericRead = 0x80000000;
-  // Implies kFileWriteData.
-  static const uint32_t kGenericWrite = 0x40000000;
-  static const uint32_t kGenericExecute = 0x20000000;
-  static const uint32_t kGenericAll = 0x10000000;
-  static const uint32_t kFileReadData = 0x00000001;
-  static const uint32_t kFileWriteData = 0x00000002;
-  static const uint32_t kFileAppendData = 0x00000004;
+/** Filesystem module slice. */
+struct FilesystemConfig {
+  /** Mount flags of the game data mount. kWritable lets the title write under game_data_root. */
+  MountFlags game_mount_flags = MountFlags::kNone;
 };
 
-class REX_API FileHandle {
- public:
-  // Opens the file, failing if it doesn't exist.
-  // The desired_access bitmask denotes the permissions on the file.
-  static std::unique_ptr<FileHandle> OpenExisting(const std::filesystem::path& path,
-                                                  uint32_t desired_access,
-                                                  bool allow_share_delete = false);
-
-  virtual ~FileHandle() = default;
-
-  const std::filesystem::path& path() const { return path_; }
-
-  // Reads the requested number of bytes from the file starting at the given
-  // offset. The total number of bytes read is returned only if the complete
-  // read succeeds.
-  virtual bool Read(size_t file_offset, void* buffer, size_t buffer_length,
-                    size_t* out_bytes_read) = 0;
-
-  // Writes the given buffer to the file starting at the given offset.
-  // The total number of bytes written is returned only if the complete
-  // write succeeds.
-  virtual bool Write(size_t file_offset, const void* buffer, size_t buffer_length,
-                     size_t* out_bytes_written) = 0;
-
-  // Set length of the file in bytes.
-  virtual bool SetLength(size_t length) = 0;
-
-  // Flushes any pending write buffers to the underlying filesystem.
-  virtual void Flush() = 0;
-
- protected:
-  explicit FileHandle(const std::filesystem::path& path) : path_(path) {}
-
-  std::filesystem::path path_;
-};
-
-struct FileInfo {
-  enum class Type {
-    kFile,
-    kDirectory,
-  };
-  Type type;
-  std::filesystem::path name;
-  std::filesystem::path path;
-  size_t total_size;
-  uint64_t create_timestamp;
-  uint64_t access_timestamp;
-  uint64_t write_timestamp;
-};
-REX_API bool GetInfo(const std::filesystem::path& path, FileInfo* out_info);
-REX_API std::vector<FileInfo> ListFiles(const std::filesystem::path& path);
-
-#if REX_PLATFORM_ANDROID
-REX_API void AndroidInitialize();
-REX_API void AndroidShutdown();
-bool IsAndroidContentUri(const std::string_view source);
-int OpenAndroidContentFileDescriptor(const std::string_view uri, const char* mode);
-#endif  // REX_PLATFORM_ANDROID
-
-}  // namespace filesystem
-}  // namespace rex
+}  // namespace rex::filesystem

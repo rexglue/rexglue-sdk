@@ -22,7 +22,7 @@
 #include <string_view>
 #include <system_error>
 
-#include <rex/filesystem.h>
+#include <rex/platform/file.h>
 
 namespace rex::ui::vulkan {
 namespace {
@@ -91,7 +91,7 @@ void AppendNormalizedRoot(std::vector<fs::path>& roots, const fs::path& candidat
 }
 
 void CollectExecutableRoots(std::vector<fs::path>& roots) {
-  const fs::path executable_dir = rex::filesystem::GetExecutableFolder();
+  const fs::path executable_dir = rex::platform::GetExecutableFolder();
   if (executable_dir.empty()) {
     return;
   }

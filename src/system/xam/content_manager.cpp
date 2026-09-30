@@ -9,16 +9,19 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <algorithm>
 #include <array>
 #include <cstring>
-#include <queue>
+#include <fstream>
+#include <iterator>
 #include <string>
+#include <system_error>
 
 #include <fmt/format.h>
 
 #include <rex/filesystem.h>
-#include <rex/filesystem/devices/host_path_device.h>
-#include <rex/filesystem/devices/stfs_container_device.h>
+#include <rex/filesystem/container.h>
+#include <rex/logging.h>
 #include <rex/string.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xam/content_device.h>
@@ -30,54 +33,67 @@ namespace rex {
 namespace system {
 namespace xam {
 
-static const char* kThumbnailFileName = "__thumbnail.png";
+constexpr std::string_view kThumbnailFileName = "__thumbnail.png";
 
-static const char* kGameUserContentDirName = "profile";
+constexpr std::string_view kGameUserContentDirName = "profile";
 
-static const char* kGameContentHeaderDirName = "Headers";
+constexpr std::string_view kGameContentHeaderDirName = "Headers";
 
-static int content_device_id_ = 0;
+static int g_content_device_id = 0;
 
 ContentPackage::ContentPackage(KernelState* kernel_state, const std::string_view root_name,
                                const XCONTENT_AGGREGATE_DATA& data,
                                const std::filesystem::path& package_path)
     : kernel_state_(kernel_state), root_name_(root_name), package_path_(package_path), license_(0) {
-  device_path_ = fmt::format("\\Device\\Content\\{0}\\", ++content_device_id_);
+  device_path_ = fmt::format("\\Device\\Content\\{0}\\", ++g_content_device_id);
   content_data_ = data;
 
-  auto fs = kernel_state_->file_system();
-  auto device = std::make_unique<rex::filesystem::HostPathDevice>(device_path_, package_path, false,
-                                                                  /*allow_share_delete=*/true);
-  device->Initialize();
-  fs->RegisterDevice(std::move(device));
-  fs->RegisterSymbolicLink(root_name_ + ":", device_path_);
+  auto* fs = kernel_state_->file_system();
+  std::error_code ec;
+  const bool folder = std::filesystem::is_directory(package_path, ec);
+  filesystem::MountEntry entry;
+  entry.path = device_path_;
+  entry.kind = folder ? filesystem::ProviderKind::kHostDirectory : filesystem::ProviderKind::kSTFS;
+  entry.source = package_path;
+  entry.flags = folder ? filesystem::MountFlags::kWritable | filesystem::MountFlags::kShareDelete
+                       : filesystem::MountFlags::kNone;
+  if (auto mounted = fs->Mount(entry); !mounted) {
+    REXSYS_WARN("content package '{}' is not mounted, {}", rex::path_to_utf8(package_path),
+                mounted.error().message);
+  }
+  if (auto linked = fs->Link(root_name_ + ":", device_path_); !linked) {
+    REXSYS_WARN("content root '{}:' is not linked, {}", root_name_, linked.error().message);
+  }
 }
 
 ContentPackage::~ContentPackage() {
-  auto fs = kernel_state_->file_system();
-  fs->UnregisterSymbolicLink(root_name_ + ":");
-  fs->UnregisterDevice(device_path_);
+  auto* fs = kernel_state_->file_system();
+  if (auto unlinked = fs->Unlink(root_name_ + ":"); !unlinked) {
+    REXSYS_DEBUG("{}", unlinked.error().message);
+  }
+  if (auto unmounted = fs->Unmount(device_path_); !unmounted) {
+    REXSYS_DEBUG("{}", unmounted.error().message);
+  }
 }
 
-void ContentPackage::LoadPackageLicenseMask(const std::filesystem::path header_path) {
+void ContentPackage::LoadPackageLicenseMask(const std::filesystem::path& header_path) {
   if (!std::filesystem::exists(header_path)) {
     return;
   }
 
-  auto file = rex::filesystem::OpenFile(header_path, "rb");
+  std::ifstream file(header_path, std::ios::binary);
   if (!file) {
     return;
   }
 
-  auto file_size = std::filesystem::file_size(header_path);
-  if (file_size < sizeof(XCONTENT_AGGREGATE_DATA) + sizeof(license_)) {
-    fclose(file);
+  std::error_code ec;
+  auto file_size = std::filesystem::file_size(header_path, ec);
+  if (ec || file_size < sizeof(XCONTENT_AGGREGATE_DATA) + sizeof(license_)) {
     return;
   }
 
-  fseek(file, sizeof(XCONTENT_AGGREGATE_DATA), SEEK_SET);
-  fread(&license_, 1, sizeof(license_), file);
-  fclose(file);
+  file.seekg(sizeof(XCONTENT_AGGREGATE_DATA));
+  file.read(reinterpret_cast<char*>(&license_), sizeof(license_));
 }
 
 ContentManager::ContentManager(KernelState* kernel_state, const std::filesystem::path& root_path)
@@ -148,25 +164,25 @@ std::vector<XCONTENT_AGGREGATE_DATA> ContentManager::ListContent(uint32_t device
   // Search path:
   // content_root/xuid/title_id/type_name/*
   auto package_root = ResolvePackageRoot(xuid, content_type, title_id);
-  auto file_infos = rex::filesystem::ListFiles(package_root);
-  for (const auto& file_info : file_infos) {
-    if (file_info.type != rex::filesystem::FileInfo::Type::kDirectory) {
-      // Directories only.
+  std::error_code ec;
+  for (const auto& child : std::filesystem::directory_iterator(package_root, ec)) {
+    if (!child.is_directory(ec)) {
       continue;
     }
+    const std::filesystem::path name = child.path().filename();
 
     XCONTENT_AGGREGATE_DATA content_data{};
-    if (ReadContentHeaderFile(rex::path_to_utf8(file_info.name), xuid, title_id, content_type,
+    if (ReadContentHeaderFile(rex::path_to_utf8(name), xuid, title_id, content_type,
                               content_data) == X_ERROR_SUCCESS) {
-      result.emplace_back(std::move(content_data));
+      result.emplace_back(content_data);
     } else {
       content_data.device_id = device_id;
       content_data.content_type = content_type;
-      content_data.set_display_name(rex::path_to_utf16(file_info.name));
-      content_data.set_file_name(rex::path_to_utf8(file_info.name));
+      content_data.set_display_name(rex::path_to_utf16(name));
+      content_data.set_file_name(rex::path_to_utf8(name));
       content_data.title_id = title_id;
       content_data.xuid = xuid;
-      result.emplace_back(std::move(content_data));
+      result.emplace_back(content_data);
     }
   }
 
@@ -208,17 +224,14 @@ X_RESULT ContentManager::WriteContentHeaderFile(uint64_t xuid, XCONTENT_AGGREGAT
     }
   }
 
-  rex::filesystem::CreateEmptyFile(header_path);
-
-  auto file = rex::filesystem::OpenFile(header_path, "wb");
+  std::ofstream file(header_path, std::ios::binary | std::ios::trunc);
   if (!file) {
     return X_ERROR_FILE_NOT_FOUND;
   }
-  fwrite(&data, 1, sizeof(XCONTENT_AGGREGATE_DATA), file);
+  file.write(reinterpret_cast<const char*>(&data), sizeof(XCONTENT_AGGREGATE_DATA));
   if (license_mask != 0) {
-    fwrite(&license_mask, 1, sizeof(license_mask), file);
+    file.write(reinterpret_cast<const char*>(&license_mask), sizeof(license_mask));
   }
-  fclose(file);
   return X_ERROR_SUCCESS;
 }
 
@@ -226,28 +239,19 @@ X_RESULT ContentManager::ReadContentHeaderFile(const std::string_view file_name,
                                                uint32_t title_id, XContentType content_type,
                                                XCONTENT_AGGREGATE_DATA& data) const {
   auto header_file_path = ResolvePackageHeaderPath(file_name, xuid, title_id, content_type);
-  constexpr uint32_t header_size = sizeof(XCONTENT_AGGREGATE_DATA);
+  constexpr uint32_t kHeaderSize = sizeof(XCONTENT_AGGREGATE_DATA);
 
   if (!std::filesystem::exists(header_file_path)) {
     return X_ERROR_FILE_NOT_FOUND;
   }
 
-  auto file = rex::filesystem::OpenFile(header_file_path, "rb");
+  std::ifstream file(header_file_path, std::ios::binary);
   if (!file) {
     return X_ERROR_FILE_NOT_FOUND;
   }
 
-  auto file_size = std::filesystem::file_size(header_file_path);
-  if (file_size < header_size) {
-    fclose(file);
-    return X_ERROR_FILE_NOT_FOUND;
-  }
-
-  std::array<uint8_t, header_size> buffer;
-  size_t result = fread(buffer.data(), 1, header_size, file);
-  fclose(file);
-
-  if (result != header_size) {
+  std::array<uint8_t, kHeaderSize> buffer;
+  if (!file.read(reinterpret_cast<char*>(buffer.data()), kHeaderSize)) {
     return X_ERROR_FILE_NOT_FOUND;
   }
 
@@ -335,13 +339,8 @@ X_RESULT ContentManager::GetContentThumbnail(uint64_t xuid, const XCONTENT_AGGRE
   auto package_path = ResolvePackagePath(xuid, data);
   auto thumb_path = package_path / kThumbnailFileName;
   if (std::filesystem::exists(thumb_path)) {
-    auto file = rex::filesystem::OpenFile(thumb_path, "rb");
-    fseek(file, 0, SEEK_END);
-    size_t file_len = ftell(file);
-    fseek(file, 0, SEEK_SET);
-    buffer->resize(file_len);
-    fread(const_cast<uint8_t*>(buffer->data()), 1, buffer->size(), file);
-    fclose(file);
+    std::ifstream file(thumb_path, std::ios::binary);
+    buffer->assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
     return X_ERROR_SUCCESS;
   } else {
     return X_ERROR_FILE_NOT_FOUND;
@@ -355,9 +354,9 @@ X_RESULT ContentManager::SetContentThumbnail(uint64_t xuid, const XCONTENT_AGGRE
   std::filesystem::create_directories(package_path);
   if (std::filesystem::exists(package_path)) {
     auto thumb_path = package_path / kThumbnailFileName;
-    auto file = rex::filesystem::OpenFile(thumb_path, "wb");
-    fwrite(buffer.data(), 1, buffer.size(), file);
-    fclose(file);
+    std::ofstream file(thumb_path, std::ios::binary | std::ios::trunc);
+    file.write(reinterpret_cast<const char*>(buffer.data()),
+               static_cast<std::streamsize>(buffer.size()));
     return X_ERROR_SUCCESS;
   } else {
     return X_ERROR_FILE_NOT_FOUND;
@@ -478,7 +477,8 @@ ContentManager::FindOpenPackageByData(const XCONTENT_AGGREGATE_DATA& data) {
 }
 
 ContentPackage* ContentManager::DetachPackage(
-    std::unordered_map<string_key_case, ContentPackage*, string_key_case::Hash>::iterator it) {
+    const std::unordered_map<string_key_case, ContentPackage*, string_key_case::Hash>::iterator&
+        it) {
   CloseOpenedFilesFromContent(it->first.view());
   ContentPackage* package = it->second;
   open_packages_.erase(it);
@@ -505,11 +505,11 @@ void ContentManager::CloseOpenedFilesFromContent(const std::string_view root_nam
   const std::vector<object_ref<XFile>> all_files_handles =
       kernel_state_->object_table()->GetObjectsByType<XFile>(XObject::Type::File);
 
-  std::string resolved_path = "";
-  kernel_state_->file_system()->FindSymbolicLink(std::string(root_name) + ':', resolved_path);
+  const std::string resolved_path =
+      kernel_state_->file_system()->FindLink(std::string(root_name) + ':').value_or("");
 
   for (const object_ref<XFile>& file : all_files_handles) {
-    std::string file_path = file->entry()->absolute_path();
+    const std::string file_path = file->file().Info().absolute_path;
     bool is_file_inside_content = rex::utf8_starts_with(file_path, resolved_path);
 
     if (is_file_inside_content) {
@@ -518,129 +518,68 @@ void ContentManager::CloseOpenedFilesFromContent(const std::string_view root_nam
   }
 }
 
-static X_RESULT ExtractEntry(rex::filesystem::Entry* entry,
-                             const std::filesystem::path& base_path) {
-  auto dest_path = base_path / rex::to_path(rex::utf8_fix_path_separators(entry->path()));
-
-  if (entry->attributes() & rex::filesystem::kFileAttributeDirectory) {
-    std::error_code ec;
-    std::filesystem::create_directories(dest_path, ec);
-    if (ec) {
-      return X_ERROR_ACCESS_DENIED;
-    }
-    return X_ERROR_SUCCESS;
+Result<XCONTENT_AGGREGATE_DATA> ContentManager::InstallContent(
+    const std::filesystem::path& package_path) {
+  REX_TRY(filesystem::Container container, filesystem::Container::Open(package_path));
+  const filesystem::STFSHeader* header = container.header();
+  if (!header) {
+    return Err<XCONTENT_AGGREGATE_DATA>(filesystem::MakeError(
+        filesystem::Error::kCorrupt, fmt::format("'{}' is a disc image, not a content package",
+                                                 rex::path_to_utf8(package_path))));
   }
-
-  // Ensure parent directory exists
-  std::error_code ec;
-  std::filesystem::create_directories(dest_path.parent_path(), ec);
-
-  rex::filesystem::File* in_file = nullptr;
-  X_STATUS status = entry->Open(rex::filesystem::FileAccess::kFileReadData, &in_file);
-  if (status != X_STATUS_SUCCESS) {
-    return X_ERROR_ACCESS_DENIED;
-  }
-
-  auto out_file = rex::filesystem::OpenFile(dest_path, "wb");
-  if (!out_file) {
-    in_file->Destroy();
-    return X_ERROR_ACCESS_DENIED;
-  }
-
-  constexpr size_t kBufferSize = 4 * 1024 * 1024;  // 4 MiB
-  auto buffer = std::make_unique<uint8_t[]>(kBufferSize);
-  size_t remaining = entry->size();
-  size_t offset = 0;
-
-  while (remaining > 0) {
-    size_t bytes_read = 0;
-    size_t to_read = std::min(remaining, kBufferSize);
-    in_file->ReadSync(std::span<uint8_t>(buffer.get(), to_read), offset, &bytes_read);
-    if (bytes_read == 0) {
-      break;
-    }
-    fwrite(buffer.get(), 1, bytes_read, out_file);
-    offset += bytes_read;
-    remaining -= bytes_read;
-  }
-
-  fclose(out_file);
-  in_file->Destroy();
-  return X_ERROR_SUCCESS;
-}
-
-X_RESULT ContentManager::InstallContent(const std::filesystem::path& package_path) {
-  if (!std::filesystem::exists(package_path)) {
-    return X_ERROR_FILE_NOT_FOUND;
-  }
-
-  // Mount the STFS package as a virtual filesystem device
-  auto device = std::make_unique<rex::filesystem::StfsContainerDevice>("", package_path);
-  if (!device->Initialize()) {
-    return X_ERROR_ACCESS_DENIED;
-  }
-
-  // Derive install destination:
-  // root_path_/0000000000000000/{title_id}/00000002/{filename}/
-  auto file_name = rex::path_to_utf8(package_path.filename());
+  const auto& metadata = header->metadata;
 
   XCONTENT_AGGREGATE_DATA content_data;
   content_data.device_id = static_cast<uint32_t>(DummyDeviceId::HDD);
-  content_data.content_type = XContentType::kMarketplaceContent;
-  content_data.title_id = kernel_state_->title_id();
+  content_data.content_type = metadata.content_type;
+  content_data.title_id = metadata.execution_info.title_id;
   content_data.xuid = 0;
-  content_data.set_file_name(file_name);
+  content_data.set_file_name(rex::path_to_utf8(package_path.filename()));
+  const std::u16string display_name = metadata.display_name(XLanguage::kEnglish);
+  content_data.set_display_name(display_name.empty() ? rex::path_to_utf16(package_path.filename())
+                                                     : display_name);
 
-  // Read display name from STFS metadata
-  auto display_name = device->header().metadata.display_name(rex::system::XLanguage::kEnglish);
-  if (!display_name.empty()) {
-    content_data.set_display_name(display_name);
-  } else {
-    content_data.set_display_name(rex::path_to_utf16(package_path.filename()));
+  auto global_lock = global_critical_region_.Acquire();
+  if (IsContentOpen(content_data)) {
+    return Err<XCONTENT_AGGREGATE_DATA>(filesystem::MakeError(
+        filesystem::Error::kExists,
+        fmt::format("'{}' is open", rex::path_to_utf8(package_path.filename()))));
   }
 
-  auto install_path = ResolvePackagePath(0, content_data);
-
-  // Create destination directory
+  const std::filesystem::path install_path = ResolvePackagePath(0, content_data);
+  std::filesystem::path staging = install_path;
+  staging += ".installing";
   std::error_code ec;
-  std::filesystem::create_directories(install_path, ec);
+  std::filesystem::remove_all(staging, ec);
+  REX_TRY_VOID(container.Extract(staging));
+  std::filesystem::remove_all(install_path, ec);
+  std::filesystem::rename(staging, install_path, ec);
   if (ec) {
-    return X_ERROR_ACCESS_DENIED;
+    std::filesystem::remove_all(staging, ec);
+    return Err<XCONTENT_AGGREGATE_DATA>(filesystem::MakeError(
+        filesystem::Error::kIO,
+        fmt::format("cannot move the package into '{}'", rex::path_to_utf8(install_path))));
   }
 
-  // Extract all files breadth-first
-  auto* root = device->ResolvePath("");
-  if (!root) {
-    return X_ERROR_ACCESS_DENIED;
+  const u32 thumbnail_size =
+      std::min<u32>(metadata.thumbnail_size, static_cast<u32>(sizeof(metadata.thumbnail)));
+  if (thumbnail_size != 0) {
+    std::ofstream thumbnail(install_path / kThumbnailFileName, std::ios::binary | std::ios::trunc);
+    thumbnail.write(reinterpret_cast<const char*>(metadata.thumbnail), thumbnail_size);
   }
 
-  std::queue<rex::filesystem::Entry*> queue;
-  queue.push(root);
-
-  while (!queue.empty()) {
-    auto* entry = queue.front();
-    queue.pop();
-
-    for (auto& child : entry->children()) {
-      queue.push(child.get());
-    }
-
-    auto result = ExtractEntry(entry, install_path);
-    if (result != X_ERROR_SUCCESS) {
-      return result;
-    }
-  }
-
-  // Compute license mask from STFS header licenses
   uint32_t license_mask = 0;
-  for (size_t i = 0; i < 0x10; i++) {
-    if (device->header().header.licenses[i].license_flags) {
-      license_mask |= device->header().header.licenses[i].license_bits;
+  for (const auto& license : header->header.licenses) {
+    if (license.license_flags) {
+      license_mask |= license.license_bits;
     }
   }
-
-  // Write .header file
-  return WriteContentHeaderFile(0, content_data, license_mask);
+  if (WriteContentHeaderFile(0, content_data, license_mask) != X_ERROR_SUCCESS) {
+    return Err<XCONTENT_AGGREGATE_DATA>(filesystem::MakeError(
+        filesystem::Error::kIO,
+        fmt::format("cannot write the header file of '{}'", rex::path_to_utf8(install_path))));
+  }
+  return content_data;
 }
 
 }  // namespace xam

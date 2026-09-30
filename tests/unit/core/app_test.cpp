@@ -20,7 +20,7 @@
 
 #include <rex/api.h>
 #include <rex/app.h>
-#include <rex/filesystem.h>
+#include <rex/platform/file.h>
 #include <rex/logging.h>
 #include <rex/logging/sink.h>
 #include <rex/platform/dynlib.h>
@@ -43,7 +43,7 @@ void Sink(const char* module, const char* event) {
 class Pinned {
  public:
   explicit Pinned(const char* name) {
-    auto path = rex::filesystem::GetExecutableFolder() / rex::detail::ModuleFileName(name);
+    auto path = rex::platform::GetExecutableFolder() / rex::detail::ModuleFileName(name);
     REQUIRE(library_.Load(path, rex::platform::SymbolResolution::kImmediate));
     auto set_sink = library_.GetSymbol<void (*)(RexModTestSink)>("rexmod_test_set_sink");
     REQUIRE(set_sink != nullptr);
@@ -177,7 +177,7 @@ TEST_CASE_METHOD(Fixture, "An unknown option fails Init and names it", "[app]") 
 
 TEST_CASE_METHOD(Fixture, "args returns the command line", "[app]") {
   TestApp app;
-  app.modules = {"rexruntime"};
+  app.modules = {"rexfilesystem", "rexruntime"};
   REQUIRE(app.Init(Args({"pos", "--ui.fullscreen=false"})));
   REQUIRE(app.args().Positionals()[0] == "pos");
   REQUIRE(app.args().Get("ui.fullscreen") == "false");
@@ -238,8 +238,8 @@ TEST_CASE_METHOD(Fixture, "Init names the log after the executable", "[app]") {
   TestApp app;
   app.modules = {};
   REQUIRE(app.Init(Args()));
-  REQUIRE(app.log().app_name == rex::filesystem::GetExecutablePath().stem().string());
-  REQUIRE(app.log().log_dir == rex::filesystem::GetExecutableFolder() / "logs");
+  REQUIRE(app.log().app_name == rex::platform::GetExecutablePath().stem().string());
+  REQUIRE(app.log().log_dir == rex::platform::GetExecutableFolder() / "logs");
   app.Shutdown();
 }
 
@@ -268,7 +268,7 @@ TEST_CASE_METHOD(Fixture, "Shutdown without Init returns 0", "[app]") {
 
 TEST_CASE_METHOD(Fixture, "RequestRestart relaunches with the given arguments", "[app]") {
   TestApp app;
-  app.modules = {"rexruntime"};
+  app.modules = {"rexfilesystem", "rexruntime"};
   REQUIRE(app.Init(Args({"--ui.fullscreen=false"})));
   rex::RequestRestart({"--profile", "b"});
   REQUIRE(app.Shutdown() == 0);

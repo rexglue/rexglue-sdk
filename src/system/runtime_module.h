@@ -48,7 +48,7 @@ class RuntimeModule final : public IModule {
   /**
    * Lists the interfaces Connect fetches.
    *
-   * @return rex.cvar@1.
+   * @return rex.cvar@1 and rex.filesystem@1.
    */
   std::span<const char* const> RequiredInterfaces() const override;
 

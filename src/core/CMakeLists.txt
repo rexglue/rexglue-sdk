@@ -8,8 +8,6 @@ add_library(rexcore SHARED
     clock.cpp
     cvar_registry.cpp
     exception_handler.cpp
-    filesystem.cpp
-    filesystem_wildcard.cpp
     filesystem/container.cpp
     filesystem/gdfx.cpp
     filesystem/stfs.cpp
@@ -48,7 +46,6 @@ if(WIN32)
         dbg_win.cpp
         dynlib_win.cpp
         exception_handler_win.cpp
-        filesystem_win.cpp
         fiber_win32.cpp
         mapped_memory_win.cpp
         math_msvc.cpp
@@ -72,7 +69,6 @@ elseif(UNIX)
         dbg_posix.cpp
         dynlib_posix.cpp
         exception_handler_posix.cpp
-        filesystem_posix.cpp
         fiber_posix.cpp
         mapped_memory_posix.cpp
         math_gcc.cpp

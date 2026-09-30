@@ -13,8 +13,9 @@
 
 #include <atomic>
 #include <condition_variable>
-#include <cstdio>
 #include <deque>
+#include <filesystem>
+#include <fstream>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -370,14 +371,16 @@ class PipelineCache {
   uint32_t shader_storage_title_id_ = 0;
 
   // Shader storage output stream, for preload in the next emulator runs.
-  FILE* shader_storage_file_ = nullptr;
+  std::fstream shader_storage_file_;
+  std::filesystem::path shader_storage_file_path_;
   // For only writing shaders to the currently open storage once, incremented
   // when switching the storage.
   uint32_t shader_storage_index_ = 0;
   bool shader_storage_file_flush_needed_ = false;
 
   // Pipeline storage output stream, for preload in the next emulator runs.
-  FILE* pipeline_storage_file_ = nullptr;
+  std::fstream pipeline_storage_file_;
+  std::filesystem::path pipeline_storage_file_path_;
   bool pipeline_storage_file_flush_needed_ = false;
 
   // Thread for asynchronous writing to the storage streams.

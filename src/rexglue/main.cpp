@@ -9,6 +9,7 @@
 #include "cli_utils.h"
 #include "commands/codegen_command.h"
 #include "commands/init_command.h"
+#include "commands/vfs_command.h"
 #include "commands/test_recompiler.h"
 #include "ui/ui.h"
 
@@ -59,7 +60,7 @@ int main(int argc, char** argv) {
   app.require_subcommand(1);
   app.fallthrough();
 
-  rexglue::cli::CliContext ctx;
+  rexglue::cli::CLIContext ctx;
   std::string log_level = "info";
   std::string log_file;
   bool verbose = false;
@@ -77,6 +78,7 @@ int main(int argc, char** argv) {
   rexglue::cli::RegisterCodegen(app, ctx, pending);
   rexglue::cli::RegisterInit(app, ctx, pending);
   rexglue::cli::RegisterRecompileTests(app, ctx, pending);
+  rexglue::cli::RegisterVFS(app, ctx, pending);
 
   CLI11_PARSE(app, argc, argv);
 

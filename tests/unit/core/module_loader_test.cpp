@@ -20,7 +20,7 @@
 
 #include <rex/api.h>
 #include <rex/cvar.h>
-#include <rex/filesystem.h>
+#include <rex/platform/file.h>
 #include <rex/logging.h>
 #include <rex/logging/sink.h>
 #include <rex/platform/dynlib.h>
@@ -42,7 +42,7 @@ void Sink(const char* module, const char* event) {
 class Pinned {
  public:
   explicit Pinned(const char* name) {
-    auto path = rex::filesystem::GetExecutableFolder() / rex::detail::ModuleFileName(name);
+    auto path = rex::platform::GetExecutableFolder() / rex::detail::ModuleFileName(name);
     REQUIRE(library_.Load(path, rex::platform::SymbolResolution::kImmediate));
     auto set_sink = library_.GetSymbol<void (*)(RexModTestSink)>("rexmod_test_set_sink");
     REQUIRE(set_sink != nullptr);
@@ -157,7 +157,7 @@ TEST_CASE_METHOD(Fixture, "Unknown module reports the composed path", "[module_l
   auto api = rex::Init(With({"rexmod-test-nowhere"}));
   REQUIRE_FALSE(api);
   auto expected =
-      (rex::filesystem::GetExecutableFolder() / rex::detail::ModuleFileName("rexmod-test-nowhere"))
+      (rex::platform::GetExecutableFolder() / rex::detail::ModuleFileName("rexmod-test-nowhere"))
           .string();
   REQUIRE(api.error().message == "module 'rexmod-test-nowhere' not found at '" + expected + "'");
 }
@@ -334,7 +334,7 @@ TEST_CASE_METHOD(Fixture, "A consumer table with a bad name fails before any loa
 TEST_CASE_METHOD(Fixture, "Slice validation fails before any module connects",
                  "[module_loader][cvar]") {
   Pinned pin("rexmod-test-good");
-  auto cfg = With({"rexruntime", "rexmod-test-good"});
+  auto cfg = With({"rexfilesystem", "rexruntime", "rexmod-test-good"});
   cfg.runtime.heap_size_mb = 0;
   auto api = rex::Init(cfg);
   REQUIRE_FALSE(api);
@@ -369,15 +369,15 @@ TEST_CASE_METHOD(Fixture, "Locks apply after values and unknown locks fail",
 
 TEST_CASE_METHOD(Fixture, "Every SDK cvar name is scope.leaf in a charter scope",
                  "[module_loader][cvar]") {
-  static const std::vector<std::string_view> kScopes = {
-      "log", "clock", "perf",  "fs",     "runtime", "audio", "input",
-      "ui",  "gpu",   "d3d12", "vulkan", "console", "bind"};
-  auto cfg = With({"rexruntime"});
-  auto xenos = rex::filesystem::GetExecutableFolder() / rex::detail::ModuleFileName("rexgpu-xenos");
+  static const std::vector<std::string_view> kScopes = {"log",   "clock",  "perf",    "runtime",
+                                                        "audio", "input",  "ui",      "gpu",
+                                                        "d3d12", "vulkan", "console", "bind"};
+  auto cfg = With({"rexfilesystem", "rexruntime"});
+  auto xenos = rex::platform::GetExecutableFolder() / rex::detail::ModuleFileName("rexgpu-xenos");
   if (std::filesystem::exists(xenos))
     cfg.modules.push_back("rexgpu-xenos");
   auto api = rex::Init(cfg);
-  if (!api && cfg.modules.size() > 1) {
+  if (!api && cfg.modules.size() > 2) {
     cfg.modules.pop_back();
     api = rex::Init(cfg);
   }
@@ -396,14 +396,14 @@ TEST_CASE_METHOD(Fixture, "Every SDK cvar name is scope.leaf in a charter scope"
                std::isdigit(static_cast<unsigned char>(c)) || c == '_' || c == '.'));
     }
   }
-  REQUIRE(count >= 97);
-  if (cfg.modules.size() > 1)
-    REQUIRE(count == 168);
+  REQUIRE(count >= 95);
+  if (cfg.modules.size() > 2)
+    REQUIRE(count == 166);
 }
 
 TEST_CASE_METHOD(Fixture, "rexruntime registers the module scopes at Connect",
                  "[module_loader][cvar]") {
-  auto api = rex::Init(With({"rexruntime"}));
+  auto api = rex::Init(With({"rexfilesystem", "rexruntime"}));
   REQUIRE(api);
   REQUIRE(api.value()->IsLoaded("rexruntime"));
   auto* registry = api.value()->Get<rex::cvar::ICvarRegistry>();

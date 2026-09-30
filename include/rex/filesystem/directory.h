@@ -1,0 +1,47 @@
+/**
+ * @file        filesystem/directory.h
+ * @brief       Enumeration of the children of 1 directory
+ *
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ */
+
+#pragma once
+
+#include <optional>
+
+#include <rex/filesystem/info.h>
+#include <rex/types.h>
+
+namespace rex::filesystem {
+
+/**
+ * Walks the live children of a directory that match a pattern, case insensitive, with the Xbox
+ * wildcard rules. A star matches any run, a question mark matches 1 character.
+ */
+class IDirectory {
+ public:
+  virtual ~IDirectory() = default;
+
+  /**
+   * Returns the next matching child.
+   *
+   * @return The child, or empty when no child is left.
+   */
+  [[nodiscard]] virtual std::optional<FileInfo> Next() = 0;
+
+  /** Starts the walk again from the first child. */
+  virtual void Restart() = 0;
+
+  /**
+   * Returns the child index after the last returned child.
+   *
+   * @return The index the kernel writes into FileIndex.
+   */
+  [[nodiscard]] virtual u64 position() const = 0;
+};
+
+}  // namespace rex::filesystem

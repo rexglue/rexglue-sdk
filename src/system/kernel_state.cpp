@@ -531,9 +531,8 @@ object_ref<XModule> KernelState::GetModule(const std::string_view name, bool use
 
   // Resolve path WITHOUT lock
   auto path(name);
-  auto entry = file_system_->ResolvePath(name);
-  if (entry) {
-    path = entry->absolute_path();
+  if (auto entry = file_system_->Stat(name)) {
+    path = entry->absolute_path;
   }
 
   // Search user modules under lock

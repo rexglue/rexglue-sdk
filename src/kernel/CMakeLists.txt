@@ -64,4 +64,4 @@ set(REXKERNEL_SOURCES
 list(TRANSFORM REXKERNEL_SOURCES PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/")
 target_sources(rexruntime PRIVATE ${REXKERNEL_SOURCES})
 
-target_link_libraries(rexruntime PRIVATE o1heap rexfilesystem rexui rexaudio rexinput imgui)
+target_link_libraries(rexruntime PRIVATE o1heap rexui rexaudio rexinput imgui)

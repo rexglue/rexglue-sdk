@@ -16,7 +16,7 @@
 #include <format>
 #include <mutex>
 
-#include <rex/filesystem.h>
+#include <rex/platform/file.h>
 #include <rex/logging.h>
 #include <rex/logging/api.h>
 #include <rex/perf/counter.h>
@@ -308,10 +308,10 @@ Result<void> App::Init(const CLIArgList& args) {
     return Fail("OnConfigure", configured.error());
   }
   if (log_.app_name.empty()) {
-    log_.app_name = filesystem::GetExecutablePath().stem().string();
+    log_.app_name = platform::GetExecutablePath().stem().string();
   }
   if (log_.log_dir.empty()) {
-    log_.log_dir = filesystem::GetExecutableFolder() / "logs";
+    log_.log_dir = platform::GetExecutableFolder() / "logs";
   }
   if (auto unknown = ParseCommandLine(config_, args_); !unknown.empty()) {
     return Fail("command line",

@@ -124,6 +124,7 @@ Result<Container> Container::Open(const std::filesystem::path& path) {
           }
         }
         std::ranges::sort(names, {}, [](const std::filesystem::path& p) { return p.filename(); });
+        container.total_size_ = 0;
         if (names.size() != stored.metadata.data_file_count) {
           return Err<Container>(MakeError(
               Error::kCorrupt, std::format("SVOD lists {} data fragments, '{}' holds {}",

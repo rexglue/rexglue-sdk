@@ -40,6 +40,7 @@
 
 #include "codegen_logging.h"
 #include "file_io.h"
+#include "tool_runtime.h"
 #include "template_registry_internal.h"
 
 namespace rex::codegen {
@@ -238,22 +239,16 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
                                  entryXexPath.string(), gameRoot.string()));
   }
 
-  rex::Config runtimeConfig;
-  runtimeConfig.paths.game_data_root = gameRoot;
-  auto runtime = std::make_unique<Runtime>(runtimeConfig);
-  auto rtStatus = runtime->Setup(rex::RuntimeConfig{
-      .kernel_init = rex::kernel::InitializeKernel,
-      .tool_mode = true,
-  });
-  if (rtStatus != X_STATUS_SUCCESS) {
-    return Err<void>(ErrorCategory::IO,
-                     fmt::format("Failed to initialize Runtime: {:#x}", rtStatus));
+  auto tool = OpenToolRuntime(gameRoot);
+  if (!tool) {
+    return Err<void>(tool.error());
   }
+  Runtime* runtime = &tool->runtime();
 
   std::string entryRelStr = entryRel.string();
   std::replace(entryRelStr.begin(), entryRelStr.end(), '/', '\\');
   auto entryVfsPath = "game:\\" + entryRelStr;
-  rtStatus = runtime->LoadXEXImage(entryVfsPath);
+  X_STATUS rtStatus = runtime->LoadXEXImage(entryVfsPath);
   if (rtStatus != X_STATUS_SUCCESS) {
     return Err<void>(ErrorCategory::IO,
                      fmt::format("Failed to load entrypoint XEX: {:#x}", rtStatus));
@@ -424,7 +419,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
       opts.reporter->phaseChanged("Write");
     }
     REXCODEGEN_TRACE("Writing output for '{}'...", entry.module->targetName);
-    CodegenWriter writer(entry.ctx, runtime.get());
+    CodegenWriter writer(entry.ctx, runtime);
     if (!writer.write(opts.force)) {
       return Err<void>(ErrorCategory::Validation,
                        fmt::format("Write failed for '{}'", entry.module->targetName));

@@ -24,7 +24,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include <rex/filesystem/vfs.h>
+#include <rex/filesystem.h>
 #include <rex/logging.h>
 #include <rex/system/achievement_manager.h>
 #include <rex/system/thread_state.h>
@@ -193,7 +193,7 @@ class KernelState {
   Runtime* emulator() const { return emulator_; }
   memory::Memory* memory() const { return memory_; }
   runtime::FunctionDispatcher* function_dispatcher() const { return function_dispatcher_; }
-  rex::filesystem::VirtualFileSystem* file_system() const { return file_system_; }
+  rex::filesystem::IFileSystem* file_system() const { return file_system_; }
 
   uint32_t title_id() const;
   util::XdbfGameData title_xdbf() const;
@@ -356,7 +356,7 @@ class KernelState {
   const runtime::KernelConfig& config_;
   memory::Memory* memory_;
   runtime::FunctionDispatcher* function_dispatcher_;
-  rex::filesystem::VirtualFileSystem* file_system_;
+  rex::filesystem::IFileSystem* file_system_;
 
   std::unique_ptr<xam::AppManager> app_manager_;
   std::unique_ptr<xam::ContentManager> content_manager_;

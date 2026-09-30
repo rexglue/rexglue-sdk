@@ -28,6 +28,7 @@
 #include <rex/hook.h>
 #include <rex/types.h>
 #include <rex/runtime.h>
+#include <rex/string/buffer.h>
 #include <rex/system/export_resolver.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xtypes.h>

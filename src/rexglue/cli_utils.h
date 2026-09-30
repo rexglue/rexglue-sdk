@@ -14,7 +14,7 @@
 
 namespace rexglue::cli {
 
-struct CliContext {
+struct CLIContext {
   bool verbose = false;
   bool overwrite_existing = false;
   bool generate_despite_errors = false;

@@ -10,13 +10,14 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <string>
-#include <filesystem>
+#include <memory>
 #include <mutex>
+#include <optional>
+#include <string>
+#include <string_view>
 
-#include <rex/filesystem/device.h>
-#include <rex/filesystem/entry.h>
-#include <rex/filesystem/file.h>
+#include <rex/filesystem.h>
+#include <rex/result.h>
 #include <rex/system/xevent.h>
 #include <rex/system/xio.h>
 #include <rex/system/xiocompletion.h>
@@ -24,6 +25,15 @@
 #include <rex/system/xtypes.h>
 
 namespace rex::system {
+
+/**
+ * Maps a filesystem error to the status the kernel reports.
+ *
+ * @param error An error built by filesystem::MakeError.
+ * @param unsupported The status for kUnsupported.
+ * @return The status.
+ */
+X_STATUS ToXStatus(const rex::Error& error, X_STATUS unsupported = X_STATUS_NOT_IMPLEMENTED);
 
 // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_file_directory_information
 class X_FILE_DIRECTORY_INFORMATION {
@@ -70,16 +80,14 @@ class XFile : public XObject {
  public:
   static const XObject::Type kObjectType = XObject::Type::File;
 
-  XFile(KernelState* kernel_state, rex::filesystem::File* file, bool synchronous);
+  XFile(KernelState* kernel_state, std::unique_ptr<filesystem::IFile> file, bool synchronous);
   ~XFile() override;
 
-  rex::filesystem::Device* device() const { return file_->entry()->device(); }
-  rex::filesystem::Entry* entry() const { return file_->entry(); }
-  rex::filesystem::File* file() const { return file_; }
-  uint32_t file_access() const { return file_->file_access(); }
+  filesystem::IFile& file() const { return *file_; }
+  filesystem::Access file_access() const { return file_->access(); }
 
-  const std::string& path() const { return file_->entry()->path(); }
-  const std::string& name() const { return file_->entry()->name(); }
+  std::string path() const { return file_->Info().path; }
+  std::string name() const { return file_->Info().name; }
 
   uint64_t position() const;
   void set_position(uint64_t value);
@@ -99,22 +107,17 @@ class XFile : public XObject {
   X_STATUS Write(uint32_t buffer_guess_address, uint32_t buffer_length, uint64_t byte_offset,
                  uint32_t* out_bytes_written, uint32_t apc_context);
 
-  X_STATUS SetLength(size_t length);
-  X_STATUS Rename(const std::filesystem::path& file_path);
+  X_STATUS SetLength(u64 length);
+  X_STATUS Rename(std::string_view path);
 
   void RegisterIOCompletionPort(uint32_t key, object_ref<XIOCompletion> port);
   void RemoveIOCompletionPort(uint32_t key);
 
   bool is_synchronous() const { return is_synchronous_; }
 
-  void SetFindPattern(const std::string_view pattern) {
-    find_engine_.SetRule(pattern);
-    find_index_ = 0;
-  }
+  void SetFindPattern(std::string_view pattern);
 
-  rex::filesystem::Entry* FindNext() {
-    return file_->entry()->IterateChildren(find_engine_, &find_index_);
-  }
+  std::optional<filesystem::FileInfo> FindNext();
 
  protected:
   void NotifyIOCompletionPorts(XIOCompletion::IONotification& notification);
@@ -127,19 +130,16 @@ class XFile : public XObject {
   X_STATUS ReadInternal(uint32_t buffer_guest_address, uint32_t buffer_length, uint64_t byte_offset,
                         uint32_t* out_bytes_read, uint32_t apc_context, bool notify_completion);
 
-  rex::filesystem::File* file_ = nullptr;
+  std::unique_ptr<filesystem::IFile> file_;
   std::unique_ptr<rex::platform::Event> async_event_ = nullptr;
 
   mutable std::mutex file_lock_;
   std::mutex completion_port_lock_;
   std::vector<std::pair<uint32_t, object_ref<XIOCompletion>>> completion_ports_;
 
-  // TODO(benvanik): create flags, open state, etc.
-
   uint64_t position_ = 0;
 
-  rex::filesystem::WildcardEngine find_engine_;
-  size_t find_index_ = 0;
+  std::unique_ptr<filesystem::IDirectory> find_;
 
   bool is_synchronous_ = false;
 };

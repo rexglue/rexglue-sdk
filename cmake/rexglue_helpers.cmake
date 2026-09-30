@@ -180,8 +180,6 @@ function(rexglue_configure_target target_name)
                 $<TARGET_FILE_DIR:${target_name}>
             VERBATIM
         )
-        set_property(TARGET ${target_name} APPEND PROPERTY
-            LINK_DEPENDS "$<TARGET_FILE:${_rexglue_filesystem}>")
         unset(_rexglue_filesystem)
     endif()
 

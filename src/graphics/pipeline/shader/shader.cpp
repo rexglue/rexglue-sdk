@@ -11,11 +11,11 @@
 
 #include <cinttypes>
 #include <cstring>
+#include <fstream>
 #include <utility>
 
 #include <fmt/format.h>
 
-#include <rex/filesystem.h>
 #include <rex/graphics/format/ucode.h>
 #include <rex/graphics/pipeline/shader/shader.h>
 #include <rex/math.h>
@@ -71,24 +71,19 @@ std::pair<std::filesystem::path, std::filesystem::path> Shader::Translation::Dum
   std::filesystem::path binary_path =
       target_path / fmt::format("shader_{:016X}_{:016X}.{}.bin.{}", shader().ucode_data_hash(),
                                 modification(), path_prefix, type_extension);
-  FILE* binary_file = filesystem::OpenFile(binary_path, "wb");
-  if (binary_file) {
-    fwrite(translated_binary_.data(), sizeof(*translated_binary_.data()), translated_binary_.size(),
-           binary_file);
-    fclose(binary_file);
-  }
+  std::ofstream binary_file(binary_path, std::ios::binary | std::ios::trunc);
+  binary_file.write(
+      reinterpret_cast<const char*>(translated_binary_.data()),
+      static_cast<std::streamsize>(translated_binary_.size() * sizeof(*translated_binary_.data())));
 
   std::filesystem::path disasm_path;
   if (!host_disassembly_.empty()) {
     disasm_path =
         target_path / fmt::format("shader_{:016X}_{:016X}.{}.{}", shader().ucode_data_hash(),
                                   modification(), path_prefix, type_extension);
-    FILE* disasm_file = filesystem::OpenFile(disasm_path, "w");
-    if (disasm_file) {
-      fwrite(host_disassembly_.data(), sizeof(*host_disassembly_.data()), host_disassembly_.size(),
-             disasm_file);
-      fclose(disasm_file);
-    }
+    std::ofstream disasm_file(disasm_path, std::ios::trunc);
+    disasm_file.write(host_disassembly_.data(),
+                      static_cast<std::streamsize>(host_disassembly_.size()));
   }
 
   return std::make_pair(std::move(binary_path), std::move(disasm_path));
@@ -132,22 +127,18 @@ std::pair<std::filesystem::path, std::filesystem::path> Shader::DumpUcode(
 
   std::filesystem::path binary_path =
       target_path / fmt::format("shader_{:016X}.ucode.bin.{}", ucode_data_hash(), type_extension);
-  FILE* binary_file = filesystem::OpenFile(binary_path, "wb");
-  if (binary_file) {
-    fwrite(ucode_data().data(), sizeof(*ucode_data().data()), ucode_data().size(), binary_file);
-    fclose(binary_file);
-  }
+  std::ofstream binary_file(binary_path, std::ios::binary | std::ios::trunc);
+  binary_file.write(
+      reinterpret_cast<const char*>(ucode_data().data()),
+      static_cast<std::streamsize>(ucode_data().size() * sizeof(*ucode_data().data())));
 
   std::filesystem::path disasm_path;
   if (is_ucode_analyzed()) {
     disasm_path =
         target_path / fmt::format("shader_{:016X}.ucode.{}", ucode_data_hash(), type_extension);
-    FILE* disasm_file = filesystem::OpenFile(disasm_path, "w");
-    if (disasm_file) {
-      fwrite(ucode_disassembly().data(), sizeof(*ucode_disassembly().data()),
-             ucode_disassembly().size(), disasm_file);
-      fclose(disasm_file);
-    }
+    std::ofstream disasm_file(disasm_path, std::ios::trunc);
+    disasm_file.write(ucode_disassembly().data(),
+                      static_cast<std::streamsize>(ucode_disassembly().size()));
   }
 
   return std::make_pair(std::move(binary_path), std::move(disasm_path));

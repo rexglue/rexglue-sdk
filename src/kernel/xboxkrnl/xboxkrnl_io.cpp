@@ -12,7 +12,7 @@
 // Disable warnings about unused parameters for kernel functions
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
-#include <rex/filesystem/device.h>
+#include <rex/filesystem.h>
 #include <rex/kernel/xboxkrnl/private.h>
 #include <rex/logging.h>
 #include <rex/memory.h>
@@ -119,8 +119,6 @@ u32 NtCreateFile_entry(mapped_u32 handle_out, u32 desired_access,
 
   auto object_name = REX_KERNEL_MEMORY()->TranslateVirtual<X_ANSI_STRING*>(object_attrs->name_ptr);
 
-  rex::filesystem::Entry* root_entry = nullptr;
-
   // Compute path, possibly attrs relative.
   auto target_path = util::TranslateAnsiPath(REX_KERNEL_MEMORY(), object_name);
   REXKRNL_IMPORT_TRACE(
@@ -133,22 +131,32 @@ u32 NtCreateFile_entry(mapped_u32 handle_out, u32 desired_access,
     return X_STATUS_OBJECT_NAME_INVALID;
   }
 
+  object_ref<XFile> root_file;
   if (object_attrs->root_directory != 0xFFFFFFFD &&  // ObDosDevices
       object_attrs->root_directory != 0) {
-    auto root_file = REX_KERNEL_OBJECTS()->LookupObject<XFile>(object_attrs->root_directory);
+    root_file = REX_KERNEL_OBJECTS()->LookupObject<XFile>(object_attrs->root_directory);
     assert_not_null(root_file);
     assert_true(root_file->type() == XObject::Type::File);
-
-    root_entry = root_file->entry();
   }
 
-  // Attempt open (or create).
-  rex::filesystem::File* vfs_file;
-  rex::filesystem::FileAction file_action;
-  X_STATUS result = REX_KERNEL_FS()->OpenFile(
-      root_entry, target_path, rex::filesystem::FileDisposition((uint32_t)creation_disposition),
-      desired_access, (create_options & CreateOptions::FILE_DIRECTORY_FILE) != 0,
-      (create_options & CreateOptions::FILE_NON_DIRECTORY_FILE) != 0, &vfs_file, &file_action);
+  filesystem::OpenOptions options;
+  options.disposition =
+      static_cast<filesystem::Disposition>(static_cast<uint32_t>(creation_disposition));
+  options.access = static_cast<filesystem::Access>(static_cast<uint32_t>(desired_access));
+  options.create_directory = (create_options & CreateOptions::FILE_DIRECTORY_FILE) != 0;
+  options.require_file = (create_options & CreateOptions::FILE_NON_DIRECTORY_FILE) != 0;
+  auto opened = root_file ? REX_KERNEL_FS()->OpenRelative(root_file->file(), target_path, options)
+                          : REX_KERNEL_FS()->Open(target_path, options);
+  X_STATUS result = X_STATUS_SUCCESS;
+  filesystem::OpenAction file_action = filesystem::OpenAction::kDoesNotExist;
+  if (opened) {
+    file_action = opened->action;
+  } else {
+    result = ToXStatus(opened.error());
+    if (filesystem::CodeOf(opened.error()) == filesystem::Error::kExists) {
+      file_action = filesystem::OpenAction::kExists;
+    }
+  }
   object_ref<XFile> file = nullptr;
 
   X_HANDLE handle = X_INVALID_HANDLE_VALUE;
@@ -156,7 +164,7 @@ u32 NtCreateFile_entry(mapped_u32 handle_out, u32 desired_access,
     // If true, desired_access SYNCHRONIZE flag must be set.
     bool synchronous = (create_options & CreateOptions::FILE_SYNCHRONOUS_IO_ALERT) ||
                        (create_options & CreateOptions::FILE_SYNCHRONOUS_IO_NONALERT);
-    file = object_ref<XFile>(new XFile(REX_KERNEL_STATE(), vfs_file, synchronous));
+    file = object_ref<XFile>(new XFile(REX_KERNEL_STATE(), std::move(opened->file), synchronous));
 
     // Handle ref is incremented, so return that.
     handle = file->handle();
@@ -180,8 +188,7 @@ u32 NtOpenFile_entry(mapped_u32 handle_out, u32 desired_access,
                      ppc_ptr_t<X_OBJECT_ATTRIBUTES> object_attributes,
                      ppc_ptr_t<X_IO_STATUS_BLOCK> io_status_block, u32 open_options) {
   return NtCreateFile_entry(handle_out, desired_access, object_attributes, io_status_block, nullptr,
-                            0, 0, static_cast<uint32_t>(rex::filesystem::FileDisposition::kOpen),
-                            open_options);
+                            0, 0, std::to_underlying(filesystem::Disposition::kOpen), open_options);
 }
 
 u32 NtReadFile_entry(u32 file_handle, u32 event_handle, mapped_void apc_routine_ptr,
@@ -535,19 +542,16 @@ u32 NtQueryFullAttributesFile_entry(ppc_ptr_t<X_OBJECT_ATTRIBUTES> obj_attribs,
     return X_STATUS_OBJECT_NAME_INVALID;
   }
 
-  // Resolve the file using the virtual file system.
-  auto entry = REX_KERNEL_FS()->ResolvePath(target_path);
-  if (entry) {
-    // Found.
-    file_info->creation_time = entry->create_timestamp();
-    file_info->last_access_time = entry->access_timestamp();
-    file_info->last_write_time = entry->write_timestamp();
-    file_info->change_time = entry->write_timestamp();
-    file_info->allocation_size = entry->allocation_size();
-    file_info->end_of_file = entry->size();
-    file_info->attributes = entry->attributes();
+  if (auto entry = REX_KERNEL_FS()->Stat(target_path)) {
+    file_info->creation_time = entry->create_time;
+    file_info->last_access_time = entry->access_time;
+    file_info->last_write_time = entry->write_time;
+    file_info->change_time = entry->write_time;
+    file_info->allocation_size = entry->allocation_size;
+    file_info->end_of_file = entry->size;
+    file_info->attributes = std::to_underlying(entry->attributes);
 
-    REXKRNL_IMPORT_RESULT("NtQueryFullAttributesFile", "0x0 size={}", (uint64_t)entry->size());
+    REXKRNL_IMPORT_RESULT("NtQueryFullAttributesFile", "0x0 size={}", entry->size);
     return X_STATUS_SUCCESS;
   }
 
@@ -635,13 +639,13 @@ u32 NtOpenSymbolicLinkObject_entry(mapped_u32 handle_out,
     target_path = target_path.substr(4);  // Strip the full qualifier
   }
 
-  std::string link_path;
-  if (!REX_KERNEL_FS()->FindSymbolicLink(target_path, link_path)) {
+  std::optional<std::string> link_path = REX_KERNEL_FS()->FindLink(target_path);
+  if (!link_path) {
     return X_STATUS_NO_SUCH_FILE;
   }
 
   object_ref<XSymbolicLink> symlink(new XSymbolicLink(REX_KERNEL_STATE()));
-  symlink->Initialize(target_path, link_path);
+  symlink->Initialize(target_path, *link_path);
 
   *handle_out = symlink->handle();
 

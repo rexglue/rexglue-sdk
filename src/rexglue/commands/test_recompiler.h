@@ -16,6 +16,6 @@ class App;
 
 namespace rexglue::cli {
 
-void RegisterRecompileTests(CLI::App& parent, const CliContext& ctx, DeferredAction& pending);
+void RegisterRecompileTests(CLI::App& parent, const CLIContext& ctx, DeferredAction& pending);
 
 }  // namespace rexglue::cli

@@ -121,27 +121,6 @@ std::unique_ptr<MappedMemory> MappedMemory::Open(const std::filesystem::path& pa
   return PosixMappedMemory::WrapFileDescriptor(file_descriptor, mode, offset, length);
 }
 
-#if REX_PLATFORM_ANDROID
-std::unique_ptr<MappedMemory> MappedMemory::OpenForAndroidContentUri(const std::string_view uri,
-                                                                     Mode mode, size_t offset,
-                                                                     size_t length) {
-  const char* open_mode = nullptr;
-  switch (mode) {
-    case Mode::kRead:
-      open_mode = "r";
-      break;
-    case Mode::kReadWrite:
-      open_mode = "rw";
-      break;
-  }
-  int file_descriptor = rex::filesystem::OpenAndroidContentFileDescriptor(uri, open_mode);
-  if (file_descriptor < 0) {
-    return nullptr;
-  }
-  return PosixMappedMemory::WrapFileDescriptor(file_descriptor, mode, offset, length);
-}
-#endif  // REX_PLATFORM_ANDROID
-
 std::unique_ptr<ChunkedMappedMemoryWriter> ChunkedMappedMemoryWriter::Open(
     const std::filesystem::path& path, size_t chunk_size, bool low_address_space) {
   // TODO: Implement if needed

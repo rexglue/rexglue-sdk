@@ -9,7 +9,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/filesystem/vfs.h>
+#include <rex/filesystem.h>
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/memory.h>
@@ -22,8 +22,33 @@
 
 namespace rex::system {
 
-XFile::XFile(KernelState* kernel_state, rex::filesystem::File* file, bool synchronous)
-    : XObject(kernel_state, kObjectType), file_(file), is_synchronous_(synchronous) {
+X_STATUS ToXStatus(const rex::Error& error, X_STATUS unsupported) {
+  using filesystem::Error;
+  switch (filesystem::CodeOf(error)) {
+    case Error::kNotFound:
+    case Error::kNoMount:
+      return X_STATUS_NO_SUCH_FILE;
+    case Error::kExists:
+      return X_STATUS_OBJECT_NAME_COLLISION;
+    case Error::kIsDirectory:
+      return X_STATUS_FILE_IS_A_DIRECTORY;
+    case Error::kNotDirectory:
+      return X_STATUS_NOT_A_DIRECTORY;
+    case Error::kAccessDenied:
+      return X_STATUS_ACCESS_DENIED;
+    case Error::kEndOfFile:
+      return X_STATUS_END_OF_FILE;
+    case Error::kUnsupported:
+      return unsupported;
+    case Error::kInvalidPath:
+      return X_STATUS_OBJECT_NAME_INVALID;
+    default:
+      return X_STATUS_UNSUCCESSFUL;
+  }
+}
+
+XFile::XFile(KernelState* kernel_state, std::unique_ptr<filesystem::IFile> file, bool synchronous)
+    : XObject(kernel_state, kObjectType), file_(std::move(file)), is_synchronous_(synchronous) {
   async_event_ = rex::platform::Event::CreateAutoResetEvent(false);
   assert_not_null(async_event_);
 }
@@ -36,7 +61,6 @@ XFile::XFile() : XObject(kObjectType) {
 XFile::~XFile() {
   // TODO(benvanik): signal that the file is closing?
   async_event_->Set();
-  file_->Destroy();
 }
 
 uint64_t XFile::position() const {
@@ -54,47 +78,43 @@ X_STATUS XFile::QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info, size_t le
   std::lock_guard<std::mutex> lock(file_lock_);
   assert_not_null(out_info);
 
-  rex::filesystem::Entry* entry = nullptr;
+  std::optional<filesystem::FileInfo> entry;
 
   if (!file_name.empty()) {
-    // Only queries in the current directory are supported for now.
     assert_true(rex::utf8_find_any_of(file_name, "\\") == std::string_view::npos);
-
-    find_engine_.SetRule(file_name);
-
-    // Always restart the search?
-    find_index_ = 0;
-    entry = file_->entry()->IterateChildren(find_engine_, &find_index_);
+    SetFindPattern(file_name);
+    entry = FindNext();
     if (!entry) {
       return X_STATUS_NO_SUCH_FILE;
     }
   } else {
-    if (restart) {
-      find_index_ = 0;
+    if (!find_) {
+      SetFindPattern({});
+    } else if (restart) {
+      find_->Restart();
     }
-
-    entry = file_->entry()->IterateChildren(find_engine_, &find_index_);
+    entry = FindNext();
     if (!entry) {
       return X_STATUS_NO_MORE_FILES;
     }
   }
 
   auto end = reinterpret_cast<uint8_t*>(out_info) + length;
-  const auto& entry_name = entry->name();
+  const std::string& entry_name = entry->name;
   if (reinterpret_cast<uint8_t*>(&out_info->file_name[0]) + entry_name.size() > end) {
     assert_always("Buffer overflow?");
     return X_STATUS_NO_SUCH_FILE;
   }
 
   out_info->next_entry_offset = 0;
-  out_info->file_index = static_cast<uint32_t>(find_index_);
-  out_info->creation_time = entry->create_timestamp();
-  out_info->last_access_time = entry->access_timestamp();
-  out_info->last_write_time = entry->write_timestamp();
-  out_info->change_time = entry->write_timestamp();
-  out_info->end_of_file = entry->size();
-  out_info->allocation_size = entry->allocation_size();
-  out_info->attributes = entry->attributes();
+  out_info->file_index = static_cast<uint32_t>(find_->position());
+  out_info->creation_time = entry->create_time;
+  out_info->last_access_time = entry->access_time;
+  out_info->last_write_time = entry->write_time;
+  out_info->change_time = entry->write_time;
+  out_info->end_of_file = entry->size;
+  out_info->allocation_size = entry->allocation_size;
+  out_info->attributes = std::to_underlying(entry->attributes);
   out_info->file_name_length = static_cast<uint32_t>(entry_name.size());
   std::memcpy(out_info->file_name, entry_name.data(), entry_name.size());
 
@@ -154,14 +174,18 @@ X_STATUS XFile::ReadInternal(uint32_t buffer_guest_address, uint32_t buffer_leng
                                         memory::PageAccess::kReadWrite) {
           result = X_STATUS_ACCESS_VIOLATION;
         } else {
-          result = file_->ReadSync(
-              std::span<uint8_t>(
-                  buffer_physical_heap
-                      ? memory()->TranslatePhysical(
-                            buffer_physical_heap->GetPhysicalAddress(buffer_guest_address))
-                      : memory()->TranslateVirtual(buffer_guest_address),
-                  buffer_length),
-              size_t(byte_offset), &bytes_read);
+          auto read = file_->Read(
+              std::span<u8>(buffer_physical_heap ? memory()->TranslatePhysical(
+                                                       buffer_physical_heap->GetPhysicalAddress(
+                                                           buffer_guest_address))
+                                                 : memory()->TranslateVirtual(buffer_guest_address),
+                            buffer_length),
+              byte_offset);
+          if (read) {
+            bytes_read = *read;
+          } else {
+            result = ToXStatus(read.error());
+          }
           if (XSUCCEEDED(result)) {
             if (buffer_physical_heap) {
               buffer_physical_heap->TriggerCallbacks(
@@ -238,12 +262,12 @@ X_STATUS XFile::ReadScatter(uint32_t segments_guest_address, uint32_t length, ui
   }
 
   if (out_bytes_read) {
-    *out_bytes_read = uint32_t(read_total);
+    *out_bytes_read = read_total;
   }
 
   XIOCompletion::IONotification notify;
   notify.apc_context = apc_context;
-  notify.num_bytes = uint32_t(read_total);
+  notify.num_bytes = read_total;
   notify.status = result;
 
   NotifyIOCompletionPorts(notify);
@@ -262,9 +286,15 @@ X_STATUS XFile::Write(uint32_t buffer_guest_address, uint32_t buffer_length, uin
   }
 
   size_t bytes_written = 0;
-  X_STATUS result = file_->WriteSync(
-      std::span<const uint8_t>(memory()->TranslateVirtual(buffer_guest_address), buffer_length),
-      size_t(byte_offset), &bytes_written);
+  X_STATUS result = X_STATUS_SUCCESS;
+  auto written = file_->Write(
+      std::span<const u8>(memory()->TranslateVirtual(buffer_guest_address), buffer_length),
+      byte_offset);
+  if (written) {
+    bytes_written = *written;
+  } else {
+    result = ToXStatus(written.error());
+  }
   if (XSUCCEEDED(result)) {
     position_ += bytes_written;
   }
@@ -284,20 +314,34 @@ X_STATUS XFile::Write(uint32_t buffer_guest_address, uint32_t buffer_length, uin
   return result;
 }
 
-X_STATUS XFile::SetLength(size_t length) {
+X_STATUS XFile::SetLength(u64 length) {
   std::lock_guard<std::mutex> lock(file_lock_);
-  return file_->SetLength(length);
+  auto status = file_->SetLength(length);
+  return status ? X_STATUS_SUCCESS : ToXStatus(status.error(), X_STATUS_NOT_IMPLEMENTED);
 }
 
-X_STATUS XFile::Rename(const std::filesystem::path& file_path) {
+X_STATUS XFile::Rename(std::string_view path) {
   std::lock_guard<std::mutex> lock(file_lock_);
-  return entry()->Rename(file_path);
+  auto status = file_->Rename(path);
+  return status ? X_STATUS_SUCCESS : ToXStatus(status.error(), X_STATUS_NOT_SUPPORTED);
+}
+
+void XFile::SetFindPattern(std::string_view pattern) {
+  auto listing = file_->List(pattern);
+  find_ = listing ? std::move(*listing) : nullptr;
+}
+
+std::optional<filesystem::FileInfo> XFile::FindNext() {
+  if (!find_) {
+    return std::nullopt;
+  }
+  return find_->Next();
 }
 
 void XFile::RegisterIOCompletionPort(uint32_t key, object_ref<XIOCompletion> port) {
   std::lock_guard<std::mutex> lock(completion_port_lock_);
 
-  completion_ports_.push_back({key, port});
+  completion_ports_.emplace_back(key, std::move(port));
 }
 
 void XFile::RemoveIOCompletionPort(uint32_t key) {
@@ -314,7 +358,7 @@ void XFile::RemoveIOCompletionPort(uint32_t key) {
 void XFile::NotifyIOCompletionPorts(XIOCompletion::IONotification& notification) {
   std::lock_guard<std::mutex> lock(completion_port_lock_);
 
-  for (auto port : completion_ports_) {
+  for (const auto& port : completion_ports_) {
     notification.key_context = port.first;
     port.second->QueueNotification(notification);
   }

@@ -64,7 +64,7 @@ void ReportStaleIncludes(const fs::path& manifest_path,
                                matches.size()));
 }
 
-Result<void> RecompileProject(const fs::path& manifest_path, const CliContext& ctx,
+Result<void> RecompileProject(const fs::path& manifest_path, const CLIContext& ctx,
                               const std::vector<std::string>& targets, bool ignore_stamp,
                               const rex::codegen::Limits& limits) {
   auto manifest = rex::codegen::ManifestConfig::Load(manifest_path);
@@ -184,7 +184,7 @@ Result<std::string> DiscoverManifestInCwd() {
                           fmt::format("No manifest .toml found in {}", cwd.string()));
 }
 
-Result<void> CodegenFromConfig(const std::string& config_path, const CliContext& ctx,
+Result<void> CodegenFromConfig(const std::string& config_path, const CLIContext& ctx,
                                const std::vector<std::string>& targets, bool ignore_stamp,
                                const rex::codegen::Limits& limits) {
   REXLOG_TRACE("Generating code with config: {}", config_path);
@@ -222,7 +222,7 @@ Result<void> CodegenFromConfig(const std::string& config_path, const CliContext&
   return rex::Ok();
 }
 
-void RegisterCodegen(CLI::App& parent, const CliContext& ctx, DeferredAction& pending) {
+void RegisterCodegen(CLI::App& parent, const CLIContext& ctx, DeferredAction& pending) {
   auto args = std::make_shared<CodegenArgs>();
   auto* sub = parent.add_subcommand("codegen", "Analyze and generate C++ code")->fallthrough();
   sub->add_option("config", args->config_path,

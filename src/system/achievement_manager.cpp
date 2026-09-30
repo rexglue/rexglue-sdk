@@ -13,12 +13,13 @@
 
 #include <algorithm>
 #include <chrono>
-#include <fstream>
+#include <span>
 #include <string>
 #include <utility>
 
 #include <fmt/format.h>
 #include <rex/logging.h>
+#include <rex/platform/file.h>
 #include <toml++/toml.hpp>
 
 namespace rex::system {
@@ -280,37 +281,15 @@ void AchievementManager::SaveUnlockState() const {
     return;
   }
 
-  std::error_code ec;
-  if (!save_path.parent_path().empty()) {
-    std::filesystem::create_directories(save_path.parent_path(), ec);
-  }
-  if (ec) {
-    REXSYS_WARN("Achievement save: cannot create {}: {}", save_path.parent_path().string(),
-                ec.message());
-    return;
-  }
-
   std::string content = "# Achievement unlock state - managed by ReXGlue runtime\n\n";
   for (const auto& [id, filetime] : unlocked) {
     content += fmt::format("[unlocked.{}]\nfiletime = {}\n\n", id, filetime);
   }
 
-  std::filesystem::path temporary_path = save_path;
-  temporary_path += ".tmp";
-  {
-    std::ofstream file(temporary_path, std::ios::binary);
-    if (!file) {
-      REXSYS_WARN("Achievement save: cannot write {}", temporary_path.string());
-      return;
-    }
-    file << content;
-  }
-
-  std::filesystem::remove(save_path, ec);
-  ec.clear();
-  std::filesystem::rename(temporary_path, save_path, ec);
-  if (ec) {
-    REXSYS_WARN("Achievement save: rename failed: {}", ec.message());
+  auto written = rex::platform::WriteWholeFile(
+      save_path, std::span(reinterpret_cast<const u8*>(content.data()), content.size()));
+  if (!written) {
+    REXSYS_WARN("Achievement save: {}", written.error().message);
   }
 }
 
