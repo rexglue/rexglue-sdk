@@ -49,6 +49,8 @@ class IGraphicsBackend;
 namespace rex::ui {
 
 class AchievementNotificationDialog;
+class ConsoleModel;
+class ConsoleWindow;
 class ImGuiDrawer;
 class ImmediateDrawer;
 class SDLWindowedAppContext;
@@ -258,6 +260,7 @@ class TitleApp : public App {
   friend class TitleUI;
   class Listener;
   class BindListener;
+  class ConsoleDockHost;
 
   Result<void> LaunchFailure(std::string message);
   bool CaptureActive() const;
@@ -273,6 +276,9 @@ class TitleApp : public App {
   std::shared_ptr<LogCaptureSink> log_capture_;
   DebugOverlayDialog::FrameStatsProvider frame_stats_;
   std::unique_ptr<Runtime> runtime_;
+  std::unique_ptr<ConsoleModel> console_;
+  std::unique_ptr<ConsoleDockHost> console_host_;
+  std::unique_ptr<ConsoleWindow> console_window_;
   std::unique_ptr<OverlayContext> overlay_context_;
   std::unique_ptr<OverlayRegistry> overlays_;
   std::vector<cvar::CallbackHandle> window_callbacks_;

@@ -54,7 +54,16 @@ class ImGuiDialog {
    */
   bool owned() const { return owned_; }
 
+  /**
+   * Lets an overlay handle its toggle bind itself while hidden.
+   *
+   * @return True when the dialog handled the toggle and stays hidden.
+   */
+  virtual bool OnToggle() { return false; }
+
  protected:
+  friend class OverlayRegistry;
+
   ImGuiDialog(ImGuiDrawer* imgui_drawer);
 
   ImGuiDrawer* imgui_drawer() const { return imgui_drawer_; }

@@ -25,10 +25,10 @@ void ConsoleEcho(std::string_view args) {
 }
 
 void ConsoleFind(std::string_view args) {
-  while (!args.empty() && args.front() == ' ')
-    args.remove_prefix(1);
-  while (!args.empty() && args.back() == ' ')
-    args.remove_suffix(1);
+  const auto first = args.find_first_not_of(' ');
+  args = first == std::string_view::npos
+             ? std::string_view{}
+             : args.substr(first, args.find_last_not_of(' ') - first + 1);
   if (args.empty()) {
     REXLOG_INFO("find: usage: find <substr>");
     return;

@@ -15,6 +15,7 @@
 #include <filesystem>
 #include <iterator>
 #include <map>
+#include <string>
 
 #include <rex/assert.h>
 #include <rex/chrono/clock.h>
@@ -25,6 +26,9 @@
 #include <rex/ui/window.h>
 
 #include <imgui.h>
+
+#include <SDL3/SDL_clipboard.h>
+#include <SDL3/SDL_stdinc.h>
 
 namespace rex {
 namespace ui {
@@ -178,6 +182,16 @@ void ImGuiDrawer::Initialize() {
   auto& platform_io = ImGui::GetPlatformIO();
   platform_io.Platform_SetImeDataFn = PlatformSetImeData;
   platform_io.Platform_ImeUserData = this;
+  platform_io.Platform_SetClipboardTextFn = [](ImGuiContext*, const char* text) {
+    SDL_SetClipboardText(text);
+  };
+  platform_io.Platform_GetClipboardTextFn = [](ImGuiContext*) -> const char* {
+    static std::string clipboard;
+    char* text = SDL_GetClipboardText();
+    clipboard = text ? text : "";
+    SDL_free(text);
+    return clipboard.c_str();
+  };
 
   // TODO(gibbed): disable imgui.ini saving for now,
   // imgui assumes paths are char* so we can't throw a good path at it on
@@ -519,6 +533,9 @@ void ImGuiDrawer::OnKeyChar(KeyEvent& e) {
     io.AddInputCharacter(character);
     e.set_handled(true);
   }
+  if (io.WantCaptureKeyboard) {
+    e.set_handled(true);
+  }
 }
 
 void ImGuiDrawer::OnMouseDown(MouseEvent& e) {
@@ -639,20 +656,29 @@ void ImGuiDrawer::OnKey(KeyEvent& e, bool is_down) {
   }
   switch (virtual_key) {
     case VirtualKey::kShift:
-      io.KeyShift = is_down;
+    case VirtualKey::kLShift:
+    case VirtualKey::kRShift:
+      io.AddKeyEvent(ImGuiMod_Shift, is_down);
       break;
     case VirtualKey::kControl:
-      io.KeyCtrl = is_down;
+    case VirtualKey::kLControl:
+    case VirtualKey::kRControl:
+      io.AddKeyEvent(ImGuiMod_Ctrl, is_down);
       break;
     case VirtualKey::kMenu:
-      // FIXME(Triang3l): Doesn't work in xenia-ui-window-demo.
-      io.KeyAlt = is_down;
+    case VirtualKey::kLMenu:
+    case VirtualKey::kRMenu:
+      io.AddKeyEvent(ImGuiMod_Alt, is_down);
       break;
     case VirtualKey::kLWin:
-      io.KeySuper = is_down;
+    case VirtualKey::kRWin:
+      io.AddKeyEvent(ImGuiMod_Super, is_down);
       break;
     default:
       break;
+  }
+  if (io.WantCaptureKeyboard) {
+    e.set_handled(true);
   }
 }
 

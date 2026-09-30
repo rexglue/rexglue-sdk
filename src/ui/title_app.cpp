@@ -39,6 +39,9 @@
 #include <rex/system/achievement_manager.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xthread.h>
+#include <rex/ui/console/model.h>
+#include <rex/ui/console/view.h>
+#include <rex/ui/console/window.h>
 #include <rex/ui/graphics_provider.h>
 #include <rex/ui/imgui_dialog.h>
 #include <rex/ui/imgui_drawer.h>
@@ -229,6 +232,72 @@ void TitleUI::SetFrameStats(DebugOverlayDialog::FrameStatsProvider provider) {
   app_.frame_stats_ = std::move(provider);
 }
 
+class TitleApp::ConsoleDockHost final : public ConsoleHost {
+ public:
+  explicit ConsoleDockHost(TitleApp& app) : app_(app) {}
+
+  bool CanUndock() const override { return app_.graphics_ && app_.graphics_->provider(); }
+
+  void Undock() override {
+    Defer([this] {
+      app_.console_->set_dock(ConsoleDock::kUndocked);
+      app_.overlays_->Show("console", false);
+      OpenWindow();
+    });
+  }
+
+  void Dock() override {
+    Defer([this] {
+      app_.console_window_.reset();
+      app_.console_->set_dock(ConsoleDock::kDocked);
+      app_.overlays_->Show("console", true);
+    });
+  }
+
+  void Hide() override {
+    Defer([this] {
+      if (app_.console_->dock() == ConsoleDock::kUndocked) {
+        app_.console_window_.reset();
+      } else {
+        app_.overlays_->Show("console", false);
+      }
+    });
+  }
+
+  void ToggleWindow() override {
+    Defer([this] {
+      if (app_.console_window_) {
+        app_.console_window_.reset();
+      } else {
+        OpenWindow();
+      }
+    });
+  }
+
+ private:
+  void Defer(std::function<void()> action) {
+    app_.context_->CallInUIThreadDeferred([this, action = std::move(action)] {
+      if (app_.console_ && app_.overlays_) {
+        action();
+      }
+    });
+  }
+
+  void OpenWindow() {
+    auto window = ConsoleWindow::Create(*app_.context_, *app_.graphics_->provider(), *app_.drawer_,
+                                        *app_.console_, *this);
+    if (!window) {
+      REXLOG_ERROR(ui, "{}", window.error().message);
+      app_.console_->set_dock(ConsoleDock::kDocked);
+      app_.overlays_->Show("console", true);
+      return;
+    }
+    app_.console_window_ = std::move(*window);
+  }
+
+  TitleApp& app_;
+};
+
 TitleApp::TitleApp() = default;
 
 TitleApp::~TitleApp() = default;
@@ -349,8 +418,12 @@ Result<void> TitleApp::CreateTitleWindow() {
     }
   }
   drawer_ = std::make_unique<ImGuiDrawer>(window_.get(), 64);
-  overlay_context_ = std::make_unique<OverlayContext>(
-      *drawer_, immediate_drawer_, *cvars, *log_capture_, api().config(), runtime_, frame_stats_);
+  console_ = std::make_unique<ConsoleModel>(
+      *cvars, *log_capture_, api().config().paths.user_data_root / "console_history.txt");
+  console_host_ = std::make_unique<ConsoleDockHost>(*this);
+  overlay_context_ = std::make_unique<OverlayContext>(*drawer_, immediate_drawer_, *cvars,
+                                                      *log_capture_, *console_, *console_host_,
+                                                      api().config(), runtime_, frame_stats_);
   overlays_ = std::make_unique<OverlayRegistry>(*window_, *drawer_, *overlay_context_);
 
   TitleUI ui(*this);
@@ -543,8 +616,10 @@ void TitleApp::Stop() {
 
 void TitleApp::Release() {
   events_ready_ = false;
+  console_window_.reset();
   overlays_.reset();
   overlay_context_.reset();
+  console_.reset();
   if (drawer_) {
     drawer_->SetPresenterAndImmediateDrawer(nullptr, nullptr);
     drawer_.reset();
@@ -570,6 +645,12 @@ void TitleApp::Release() {
   SetInvokeTarget(nullptr);
   ::rex::detail::SetShutdownWake({});
   context_.reset();
+  console_host_.reset();
+  if (logger_ && log_capture_) {
+    logger_->RemoveSink(*log_capture_);
+  }
+  logger_ = nullptr;
+  log_capture_.reset();
   if (com_initialized_) {
     ::rex::detail::ShutdownCOM();
     com_initialized_ = false;

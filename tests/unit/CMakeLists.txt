@@ -25,6 +25,7 @@ add_executable(unit_tests
     system/function_dispatcher_test.cpp
     system/thread_wait_test.cpp
     input/input_assignment_test.cpp
+    ui/console_model_test.cpp
     ui/title_app_test.cpp
     ui/ui_event_test.cpp
     codegen/codegen_writer_test.cpp

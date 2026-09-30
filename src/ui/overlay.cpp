@@ -26,13 +26,16 @@ namespace rex::ui {
 
 OverlayContext::OverlayContext(ImGuiDrawer& drawer,
                                const std::unique_ptr<ImmediateDrawer>& immediate_drawer,
-                               cvar::ICvarRegistry& cvars, LogCaptureSink& log_capture,
+                               cvar::ICvarRegistry& cvars, log::CaptureSink& log_capture,
+                               ConsoleModel& console, ConsoleHost& console_host,
                                const Config& config, const std::unique_ptr<Runtime>& runtime,
                                const DebugOverlayDialog::FrameStatsProvider& frame_stats)
     : drawer_(drawer),
       immediate_drawer_(immediate_drawer),
       cvars_(cvars),
       log_capture_(log_capture),
+      console_(console),
+      console_host_(console_host),
       config_(config),
       runtime_(runtime),
       frame_stats_(frame_stats) {}
@@ -48,6 +51,12 @@ cvar::ICvarRegistry& OverlayContext::cvars() const {
 }
 LogCaptureSink& OverlayContext::log_capture() const {
   return log_capture_;
+}
+ConsoleModel& OverlayContext::console() const {
+  return console_;
+}
+ConsoleHost& OverlayContext::console_host() const {
+  return console_host_;
 }
 const Config& OverlayContext::config() const {
   return config_;
@@ -118,6 +127,7 @@ void OverlayRegistry::Show(std::string_view name, bool visible) {
   entry->visible = visible;
   if (visible) {
     drawer_.AddDialog(entry->overlay.get());
+    entry->overlay->OnShow();
   } else {
     drawer_.RemoveDialog(entry->overlay.get());
   }
@@ -125,6 +135,9 @@ void OverlayRegistry::Show(std::string_view name, bool visible) {
 
 void OverlayRegistry::Toggle(std::string_view name) {
   if (Entry* entry = Find(name)) {
+    if (!entry->visible && entry->overlay->OnToggle()) {
+      return;
+    }
     Show(name, !entry->visible);
   }
 }

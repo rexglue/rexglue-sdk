@@ -34,6 +34,8 @@ class ICvarRegistry;
 
 namespace rex::ui {
 
+class ConsoleHost;
+class ConsoleModel;
 class ImGuiDialog;
 class ImGuiDrawer;
 class ImmediateDrawer;
@@ -49,12 +51,15 @@ class OverlayContext {
    * @param immediate_drawer Slot holding the immediate drawer, which may be empty.
    * @param cvars Cvar registry.
    * @param log_capture Sink that keeps recent log lines.
+   * @param console The console model every console view shows.
+   * @param console_host Applies console dock changes.
    * @param config The app's configuration.
    * @param runtime Slot holding the runtime once the title launches.
    * @param frame_stats Slot holding the frame time source.
    */
   OverlayContext(ImGuiDrawer& drawer, const std::unique_ptr<ImmediateDrawer>& immediate_drawer,
-                 cvar::ICvarRegistry& cvars, LogCaptureSink& log_capture, const Config& config,
+                 cvar::ICvarRegistry& cvars, log::CaptureSink& log_capture, ConsoleModel& console,
+                 ConsoleHost& console_host, const Config& config,
                  const std::unique_ptr<Runtime>& runtime,
                  const DebugOverlayDialog::FrameStatsProvider& frame_stats);
 
@@ -87,6 +92,20 @@ class OverlayContext {
   LogCaptureSink& log_capture() const;
 
   /**
+   * Returns the console model.
+   *
+   * @return The model every console view shows.
+   */
+  ConsoleModel& console() const;
+
+  /**
+   * Returns the console host.
+   *
+   * @return The owner that applies console dock changes.
+   */
+  ConsoleHost& console_host() const;
+
+  /**
    * Returns the configuration.
    *
    * @return The configuration the app initialized with.
@@ -112,7 +131,9 @@ class OverlayContext {
   ImGuiDrawer& drawer_;
   const std::unique_ptr<ImmediateDrawer>& immediate_drawer_;
   cvar::ICvarRegistry& cvars_;
-  LogCaptureSink& log_capture_;
+  log::CaptureSink& log_capture_;
+  ConsoleModel& console_;
+  ConsoleHost& console_host_;
   const Config& config_;
   const std::unique_ptr<Runtime>& runtime_;
   const DebugOverlayDialog::FrameStatsProvider& frame_stats_;
