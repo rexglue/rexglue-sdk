@@ -11,7 +11,7 @@
 
 #include <rex/dbg.h>
 #include <rex/system/entry_table.h>
-#include <rex/thread.h>
+#include <rex/platform/thread.h>
 
 namespace rex::runtime {
 
@@ -53,7 +53,7 @@ Entry::Status EntryTable::GetOrCreate(uint32_t address, Entry** out_entry) {
       do {
         global_lock.unlock();
         // TODO(benvanik): sleep for less time?
-        rex::thread::Sleep(std::chrono::microseconds(10));
+        rex::platform::Sleep(std::chrono::microseconds(10));
         global_lock.lock();
       } while (entry->status == Entry::STATUS_COMPILING);
     }

@@ -28,7 +28,7 @@
 #include <rex/system/function_dispatcher.h>
 #include <rex/system/mmio_handler.h>
 #include <rex/system/xmemory.h>
-#include <rex/thread.h>
+#include <rex/platform/thread.h>
 #include "system/cvar_table.h"
 
 // TODO(benvanik): move xbox.h out
@@ -539,7 +539,7 @@ bool Memory::AccessViolationCallback(std::unique_lock<std::recursive_mutex> glob
     REXSYS_ERROR(
         "Unhandled guest access violation: {} of guest 0x{:08X} (host 0x{:016X}) on thread 0x{:X}",
         is_write ? "write" : "read", virtual_address, reinterpret_cast<uintptr_t>(host_address),
-        rex::thread::current_thread_id());
+        rex::platform::current_thread_id());
     return false;
   }
 
@@ -904,7 +904,7 @@ std::unique_lock<std::recursive_mutex> BaseHeap::AcquireHostPageReconcileLock() 
   if (page_size_ >= memory_->system_page_size_) {
     return {};
   }
-  return rex::thread::global_critical_region::AcquireDirect();
+  return rex::platform::global_critical_region::AcquireDirect();
 }
 
 bool BaseHeap::SyncHostPageAccess(uint32_t start_page_number, uint32_t end_page_number) {
@@ -2327,7 +2327,7 @@ bool PhysicalHeap::TriggerCallbacks(std::unique_lock<std::recursive_mutex> globa
 std::unique_lock<std::recursive_mutex> PhysicalHeap::AcquireHostPageReconcileLock() const {
   auto lock = BaseHeap::AcquireHostPageReconcileLock();
   if (!lock.owns_lock() && parent_heap_ && parent_heap_->page_size() < memory_->system_page_size_) {
-    lock = rex::thread::global_critical_region::AcquireDirect();
+    lock = rex::platform::global_critical_region::AcquireDirect();
   }
   return lock;
 }

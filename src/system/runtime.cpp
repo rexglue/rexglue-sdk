@@ -15,7 +15,6 @@
 #include <rex/filesystem/devices/null_device.h>
 #include <rex/filesystem/vfs.h>
 #include <rex/logging.h>
-#include <rex/perf/counter.h>
 #include <rex/ppc/context.h>          // PPCFuncMapping
 #include <rex/platform/exceptions.h>  // SEH exception support
 #include <rex/kernel/crt/heap.h>
@@ -26,7 +25,7 @@
 #include <rex/system/user_module.h>
 #include <rex/system/xmemory.h>
 #include <rex/system/xthread.h>
-#include <rex/thread.h>
+#include <rex/platform/thread.h>
 
 #include <rex/api.h>
 
@@ -104,7 +103,7 @@ X_STATUS Runtime::Setup(RuntimeConfig config) {
   chrono::Clock::set_guest_time_scalar(1.0);
 
   // Enable threading affinity configuration
-  thread::EnableAffinityConfiguration();
+  platform::EnableAffinityConfiguration();
 
   tool_mode_ = config.tool_mode;
 
@@ -277,7 +276,6 @@ void Runtime::Shutdown() {
   file_system_.reset();
   memory_.reset();
 
-  rex::perf::Profiler::Shutdown();
   setup_complete_ = false;
 }
 
@@ -351,13 +349,13 @@ bool Runtime::SetupVfs() {
   return true;
 }
 
-X_STATUS Runtime::LoadXexImage(const std::string_view module_path) {
+X_STATUS Runtime::LoadXEXImage(const std::string_view module_path) {
   REXSYS_DEBUG("Loading XEX image: {}", std::string(module_path));
 
   auto module = system::object_ref<system::UserModule>(new system::UserModule(kernel_state_.get()));
   X_STATUS status = module->LoadFromFile(module_path);
   if (XFAILED(status)) {
-    REXSYS_ERROR("Runtime::LoadXexImage: Failed to load module, status {:08X}", status);
+    REXSYS_ERROR("Runtime::LoadXEXImage: Failed to load module, status {:08X}", status);
     return status;
   }
 
@@ -390,6 +388,22 @@ system::object_ref<system::XThread> Runtime::LaunchModule() {
     REXSYS_DEBUG("  Module launched on thread '{}'", thread->name());
   }
   return thread;
+}
+
+void Runtime::OnTitleExit(std::move_only_function<void(runtime::TitleExitReason)> callback) {
+  std::lock_guard lock(title_exit_mutex_);
+  title_exit_callback_ = std::move(callback);
+}
+
+void Runtime::ReportTitleExit(runtime::TitleExitReason reason) {
+  std::lock_guard lock(title_exit_mutex_);
+  if (title_exit_reported_) {
+    return;
+  }
+  title_exit_reported_ = true;
+  if (title_exit_callback_) {
+    title_exit_callback_(reason);
+  }
 }
 
 }  // namespace rex

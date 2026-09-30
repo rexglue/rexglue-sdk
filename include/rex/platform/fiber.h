@@ -1,5 +1,5 @@
 /**
- * @file        rex/thread/fiber.h
+ * @file        platform/fiber.h
  * @brief       Host OS fiber primitive for cooperative context switching
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
@@ -25,7 +25,7 @@
 #include <vector>
 #endif
 
-namespace rex::thread {
+namespace rex::platform {
 
 /// Host OS fiber primitive.
 /// Each guest fiber gets one Fiber. Switching preserves the entire C++ call
@@ -67,4 +67,4 @@ struct Fiber {
 #endif
 };
 
-}  // namespace rex::thread
+}  // namespace rex::platform

@@ -10,6 +10,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 #include <rex/ui/overlay/settings_overlay.h>
+#include <rex/ui/overlay.h>
 #include <rex/api.h>
 #include <rex/cvar.h>
 #include <rex/logging.h>
@@ -26,9 +27,10 @@
 
 namespace rex::ui {
 
-SettingsDialog::SettingsDialog(ImGuiDrawer* imgui_drawer, rex::cvar::ICvarRegistry& registry,
-                               std::filesystem::path config_path)
-    : ImGuiDialog(imgui_drawer), registry_(registry), config_path_(std::move(config_path)) {}
+SettingsDialog::SettingsDialog(const OverlayContext& context)
+    : ImGuiDialog(&context.drawer()),
+      registry_(context.cvars()),
+      config_path_(context.config().paths.config_file) {}
 
 SettingsDialog::~SettingsDialog() {}
 

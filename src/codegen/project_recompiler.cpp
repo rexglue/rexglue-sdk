@@ -253,7 +253,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
   std::string entryRelStr = entryRel.string();
   std::replace(entryRelStr.begin(), entryRelStr.end(), '/', '\\');
   auto entryVfsPath = "game:\\" + entryRelStr;
-  rtStatus = runtime->LoadXexImage(entryVfsPath);
+  rtStatus = runtime->LoadXEXImage(entryVfsPath);
   if (rtStatus != X_STATUS_SUCCESS) {
     return Err<void>(ErrorCategory::IO,
                      fmt::format("Failed to load entrypoint XEX: {:#x}", rtStatus));

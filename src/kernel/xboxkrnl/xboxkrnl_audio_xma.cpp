@@ -347,7 +347,7 @@ u32 XMABlockWhileInUse_entry(mapped_void context_ptr) {
     if (!context.work_buffer_ptr) {
       break;
     }
-    rex::thread::Sleep(std::chrono::milliseconds(1));
+    rex::platform::Sleep(std::chrono::milliseconds(1));
   } while (true);
   return 0;
 }

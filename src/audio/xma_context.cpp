@@ -44,7 +44,7 @@ const uint32_t XmaContext::kBitsPerPacketHeader;
 const uint32_t XmaContext::kOutputMaxSizeBytes;
 
 XmaContext::XmaContext()
-    : work_completion_event_(rex::thread::Event::CreateAutoResetEvent(false)) {}
+    : work_completion_event_(rex::platform::Event::CreateAutoResetEvent(false)) {}
 
 XmaContext::~XmaContext() {
   if (av_context_) {

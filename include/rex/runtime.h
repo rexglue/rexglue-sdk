@@ -15,6 +15,7 @@
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <span>
 #include <string>
@@ -155,10 +156,10 @@ class Runtime {
   void Shutdown();
 
   // Load XEX image into guest memory
-  X_STATUS LoadXexImage(const std::string_view module_path);
+  X_STATUS LoadXEXImage(const std::string_view module_path);
 
   // Launch XEX module and return main thread
-  // Call after LoadXexImage to start execution
+  // Call after LoadXEXImage to start execution
   system::object_ref<system::XThread> LaunchModule();
 
   // Prepare module launch: creates suspended main thread without resuming.
@@ -168,7 +169,25 @@ class Runtime {
   // Access the memory base pointer for recompiled code
   uint8_t* virtual_membase() const;
 
+  /**
+   * Sets the function called when the title exits. It runs on the thread that exited the
+   * title. TitleApp posts it to the UI thread.
+   *
+   * @param callback Function receiving the reason.
+   */
+  void OnTitleExit(std::move_only_function<void(runtime::TitleExitReason)> callback);
+
+  /**
+   * Reports that the title exited. Only the first report reaches the callback.
+   *
+   * @param reason Why the title exited.
+   */
+  void ReportTitleExit(runtime::TitleExitReason reason);
+
  private:
+  std::mutex title_exit_mutex_;
+  std::move_only_function<void(runtime::TitleExitReason)> title_exit_callback_;
+  bool title_exit_reported_ = false;
   // Set up VFS: mounts game_data_root as game:/d:, update_data_root as update:
   bool SetupVfs();
 

@@ -29,7 +29,7 @@ ImGuiDialog::~ImGuiDialog() {
   }
 }
 
-void ImGuiDialog::Then(rex::thread::Fence* fence) {
+void ImGuiDialog::Then(rex::platform::Fence* fence) {
   waiting_fences_.push_back(fence);
 }
 

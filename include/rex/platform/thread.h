@@ -20,7 +20,9 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <stop_token>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -29,9 +31,10 @@
 #include <rex/chrono/chrono.h>
 #include <rex/literals.h>
 #include <rex/platform.h>
-#include <rex/thread/timer_queue.h>
+#include <rex/platform/timer_queue.h>
+#include <rex/types.h>
 
-namespace rex::thread {
+namespace rex::platform {
 
 using namespace rex::literals;
 
@@ -462,4 +465,39 @@ class Thread : public WaitHandle {
   std::string name_;
 };
 
-}  // namespace rex::thread
+namespace detail {
+
+/** Adds the calling thread to the SDK host thread registry until the thread exits. */
+void RegisterCurrentThread();
+
+/**
+ * Counts the SDK host threads that are alive.
+ *
+ * @return The number of registered threads.
+ */
+u64 LiveCount();
+
+/** Destroys the timer queue and joins its thread. The next timer creates it again. */
+void ShutdownTimerQueue();
+
+}  // namespace detail
+
+/**
+ * Starts a host thread the SDK tracks until it exits.
+ *
+ * @tparam F Callable taking a std::stop_token.
+ * @param name Thread name shown in debuggers and logs.
+ * @param fn Function the thread runs.
+ * @return The running thread. Its destructor requests stop and joins.
+ */
+template <typename F>
+std::jthread Spawn(std::string_view name, F&& fn) {
+  return std::jthread(
+      [thread_name = std::string(name), body = std::forward<F>(fn)](std::stop_token token) mutable {
+        detail::RegisterCurrentThread();
+        set_current_thread_name(thread_name);
+        body(std::move(token));
+      });
+}
+
+}  // namespace rex::platform

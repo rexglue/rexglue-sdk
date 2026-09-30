@@ -1,0 +1,73 @@
+/**
+ * @file        platform/process.h
+ * @brief       Process level helpers, the instance lock and relaunch
+ *
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ */
+
+#pragma once
+
+#include <memory>
+#include <span>
+#include <string>
+#include <string_view>
+
+#include <rex/result.h>
+#include <rex/types.h>
+
+namespace rex::platform {
+
+namespace detail {
+struct LockHandle;
+
+/**
+ * Builds the Windows command line that starts exe with args, each quoted so
+ * CommandLineToArgvW returns it unchanged.
+ *
+ * @param exe Executable path, the first argument.
+ * @param args Arguments after the executable, UTF-8.
+ * @return The command line.
+ */
+std::wstring BuildCommandLine(std::wstring_view exe, std::span<const std::string> args);
+}  // namespace detail
+
+/** A named lock across processes, held for the life of the object. */
+class InstanceLock : public MoveOnly {
+ public:
+  InstanceLock(InstanceLock&&) noexcept;
+  InstanceLock& operator=(InstanceLock&&) noexcept;
+  ~InstanceLock();
+
+  /**
+   * Takes the lock.
+   *
+   * @param name Lock name, shared by every process of the app.
+   * @return The held lock, or ErrorCategory::Platform when another process holds it.
+   */
+  static Result<InstanceLock> Acquire(std::string_view name);
+
+ private:
+  explicit InstanceLock(std::unique_ptr<detail::LockHandle> handle);
+  std::unique_ptr<detail::LockHandle> handle_;
+};
+
+/**
+ * Starts this executable again as a new process and returns without waiting.
+ *
+ * @param args Arguments for the new process.
+ * @return Ok, or ErrorCategory::Platform with the OS error.
+ */
+Result<void> Relaunch(std::span<const std::string> args);
+
+/**
+ * Tests whether this process may start a new one.
+ *
+ * @return False where the platform forbids it, such as Steam Game Mode.
+ */
+bool CanRelaunch();
+
+}  // namespace rex::platform

@@ -13,7 +13,7 @@
 
 #include <mutex>
 
-namespace rex::thread {
+namespace rex::platform {
 
 // The global critical region mutex singleton.
 // This must guard any operation that may suspend threads or be sensitive to
@@ -82,4 +82,4 @@ class global_critical_region {
   }
 };
 
-}  // namespace rex::thread
+}  // namespace rex::platform

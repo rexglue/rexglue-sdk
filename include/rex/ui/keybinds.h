@@ -73,8 +73,8 @@ void UnregisterBind(std::string_view name);
 
 /**
  * Attaches the registry that serves the bind cvars, adding every bind registered so far, or
- * detaches with null, unregistering them. ReXApp attaches after rex::Init and detaches before
- * rex::Shutdown.
+ * detaches with null, unregistering them. TitleApp attaches after Init and detaches in
+ * Release.
  */
 void AttachBindRegistry(cvar::ICvarRegistry* registry);
 

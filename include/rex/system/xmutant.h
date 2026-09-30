@@ -12,7 +12,7 @@
 
 #include <rex/system/xobject.h>
 #include <rex/system/xtypes.h>
-#include <rex/thread.h>
+#include <rex/platform/thread.h>
 
 namespace rex::system {
 
@@ -34,13 +34,13 @@ class XMutant : public XObject {
   static object_ref<XMutant> Restore(KernelState* kernel_state, stream::ByteStream* stream);
 
  protected:
-  rex::thread::WaitHandle* GetWaitHandle() override { return mutant_.get(); }
+  rex::platform::WaitHandle* GetWaitHandle() override { return mutant_.get(); }
   void WaitCallback() override;
 
  private:
   XMutant();
 
-  std::unique_ptr<rex::thread::Mutant> mutant_;
+  std::unique_ptr<rex::platform::Mutant> mutant_;
   XThread* owning_thread_ = nullptr;
 };
 

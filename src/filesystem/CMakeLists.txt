@@ -23,7 +23,7 @@ rex_target_pch(rexfilesystem
     <rex/string.h>
     <rex/memory.h>
     <rex/filesystem.h>
-    <rex/thread/mutex.h>
+    <rex/platform/mutex.h>
     <rex/system/xtypes.h>
     <rex/system/xmemory.h>
 )

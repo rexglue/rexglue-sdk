@@ -10,13 +10,14 @@ set(REXUI_CORE_SOURCES
     immediate_drawer.cpp
     keybinds.cpp
     menu_item.cpp
+    overlay.cpp
     presenter.cpp
     renderdoc_api.cpp
     sdl_virtual_key.cpp
+    title_app.cpp
     video_mode_util.cpp
     window.cpp
     window_sdl.cpp
-    windowed_app.cpp
     windowed_app_context.cpp
     windowed_app_context_sdl.cpp
 )

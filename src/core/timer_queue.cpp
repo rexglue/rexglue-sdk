@@ -11,6 +11,8 @@
 
 #include <algorithm>
 #include <forward_list>
+#include <memory>
+#include <mutex>
 
 #include <disruptorplus/multi_threaded_claim_strategy.hpp>
 #include <disruptorplus/ring_buffer.hpp>
@@ -18,12 +20,12 @@
 #include <disruptorplus/spin_wait_strategy.hpp>
 
 #include <rex/assert.h>
-#include <rex/thread.h>
-#include <rex/thread/timer_queue.h>
+#include <rex/platform/thread.h>
+#include <rex/platform/timer_queue.h>
 
 namespace dp = disruptorplus;
 
-namespace rex::thread {
+namespace rex::platform {
 
 using WaitItem = TimerQueueWaitItem;
 
@@ -40,7 +42,8 @@ class TimerQueue {
         consumed_(wait_strategy_) {
     claim_strategy_.add_claim_barrier(consumed_);
     dispatch_thread_ =
-        std::jthread([this](std::stop_token stop_token) { TimerThreadMain(stop_token); });
+        Spawn("rex::platform::TimerQueue",
+              [this](const std::stop_token& stop_token) { TimerThreadMain(stop_token); });
   }
 
   ~TimerQueue() {
@@ -61,8 +64,6 @@ class TimerQueue {
                          const std::shared_ptr<WaitItem>& right) {
       return left->due_ < right->due_;
     };
-
-    set_current_thread_name("rex::thread::TimerQueue");
 
     while (!stop_token.stop_requested()) {
       {
@@ -152,7 +153,28 @@ class TimerQueue {
   std::jthread dispatch_thread_;
 };
 
-rex::thread::TimerQueue timer_queue_;
+namespace {
+
+std::mutex g_timer_queue_mutex;
+std::unique_ptr<TimerQueue> g_timer_queue;
+
+TimerQueue& Queue() {
+  std::lock_guard lock(g_timer_queue_mutex);
+  if (!g_timer_queue) {
+    g_timer_queue = std::make_unique<TimerQueue>();
+  }
+  return *g_timer_queue;
+}
+
+}  // namespace
+
+void detail::ShutdownTimerQueue() {
+  std::unique_ptr<TimerQueue> queue;
+  {
+    std::lock_guard lock(g_timer_queue_mutex);
+    queue = std::move(g_timer_queue);
+  }
+}
 
 void TimerQueueWaitItem::Disarm() {
   State state;
@@ -189,15 +211,17 @@ void TimerQueueWaitItem::Disarm() {
 
 std::weak_ptr<WaitItem> QueueTimerOnce(std::function<void(void*)> callback, void* userdata,
                                        WaitItem::clock::time_point due) {
-  return timer_queue_.QueueTimer(std::make_shared<WaitItem>(
-      std::move(callback), userdata, &timer_queue_, due, WaitItem::clock::duration::zero()));
+  TimerQueue& queue = Queue();
+  return queue.QueueTimer(std::make_shared<WaitItem>(std::move(callback), userdata, &queue, due,
+                                                     WaitItem::clock::duration::zero()));
 }
 
 std::weak_ptr<WaitItem> QueueTimerRecurring(std::function<void(void*)> callback, void* userdata,
                                             WaitItem::clock::time_point due,
                                             WaitItem::clock::duration interval) {
-  return timer_queue_.QueueTimer(
-      std::make_shared<WaitItem>(std::move(callback), userdata, &timer_queue_, due, interval));
+  TimerQueue& queue = Queue();
+  return queue.QueueTimer(
+      std::make_shared<WaitItem>(std::move(callback), userdata, &queue, due, interval));
 }
 
-}  // namespace rex::thread
+}  // namespace rex::platform

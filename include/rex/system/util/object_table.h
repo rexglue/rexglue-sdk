@@ -17,7 +17,7 @@
 #include <rex/string/key.h>
 #include <rex/system/xobject.h>
 #include <rex/system/xtypes.h>
-#include <rex/thread/mutex.h>
+#include <rex/platform/mutex.h>
 
 namespace rex::stream {
 class ByteStream;
@@ -95,7 +95,7 @@ class ObjectTable {
   X_STATUS FindFreeSlot(uint32_t* out_slot);
   bool Resize(uint32_t new_capacity);
 
-  rex::thread::global_critical_region global_critical_region_;
+  rex::platform::global_critical_region global_critical_region_;
   std::mutex name_mutex_;
   uint32_t table_capacity_ = 0;
   ObjectTableEntry* table_ = nullptr;

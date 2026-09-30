@@ -9,9 +9,11 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <algorithm>
 #include <cfloat>
 #include <cstring>
 #include <filesystem>
+#include <iterator>
 #include <map>
 
 #include <rex/assert.h>
@@ -132,6 +134,20 @@ void ImGuiDrawer::AddDialog(ImGuiDialog* dialog) {
     }
   }
   dialogs_.push_back(dialog);
+}
+
+ImGuiStyle& ImGuiDrawer::imgui_style() {
+  ImGui::SetCurrentContext(internal_state_);
+  return ImGui::GetStyle();
+}
+
+void ImGuiDrawer::DestroyDialogs() {
+  std::vector<ImGuiDialog*> doomed;
+  std::ranges::copy_if(dialogs_, std::back_inserter(doomed),
+                       [](const ImGuiDialog* dialog) { return !dialog->owned(); });
+  for (ImGuiDialog* dialog : doomed) {
+    delete dialog;
+  }
 }
 
 void ImGuiDrawer::RemoveDialog(ImGuiDialog* dialog) {

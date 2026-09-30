@@ -141,7 +141,7 @@ class XSocket : public XObject {
 
   bool broadcast_socket_ = false;
 
-  std::unique_ptr<rex::thread::Event> event_;
+  std::unique_ptr<rex::platform::Event> event_;
   std::mutex incoming_packet_mutex_;
   std::queue<uint8_t*> incoming_packets_;
 };

@@ -1,23 +1,29 @@
-#pragma once
 /**
- ******************************************************************************
- * Xenia : Xbox 360 Emulator Research Project                                 *
- ******************************************************************************
- * Copyright 2022 Ben Vanik. All rights reserved.                             *
- * Released under the BSD license - see LICENSE in the root for more details. *
- ******************************************************************************
+ * @file        ui/window.h
+ * @brief       Platform independent window with desired and actual state and listeners
  *
- * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ *
+ * @remarks     Derived from Xenia's ui/window.h (Ben Vanik, 2020).
  */
 
+#pragma once
+
 #include <cstddef>
-#include <cstdint>
+#include <functional>
 #include <map>
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include <rex/platform.h>
+#include <rex/types.h>
+#include <rex/ui.h>
 #include <rex/ui/menu_item.h>
 #include <rex/ui/presenter.h>
 #include <rex/ui/surface.h>
@@ -26,353 +32,476 @@
 #include <rex/ui/window_listener.h>
 #include <rex/ui/windowed_app_context.h>
 
-namespace rex {
-namespace ui {
+struct SDL_Window;
 
+namespace rex::ui {
+
+/**
+ * A window. Holds the desired state callers set and the actual state the platform reports, and
+ * sends events to its listeners. The phases advance in order and loop, and kDeleting may be
+ * entered from any phase.
+ */
 class Window {
  public:
-  // Transitions between these phases is sequential and looped (and >= and <=
-  // can be used for openness checks, for closedness checks ! of >= and <= is
-  // needed due to looping), with the exception of kDeleting that may be entered
-  // from any other state (with an assertion for that not being done during
-  // kOpening though as that's extremely dangerous and would require a lot of
-  // handling in OpenImpl on all platforms) as the Window object may be deleted
-  // externally at any moment, and the Window will have no control anymore when
-  // that happens. Another exception is that the window may be closed in the
-  // platform during kOpening - in this case, it will skip kOpenBeforeClosing
-  // and go directly to kClosing and beyond.
+  /** Life cycle phase of the window. */
   enum class Phase {
-    // The window hasn't been opened yet, or has been fully closed and can be
-    // reopened.
-    // No native window - external state updates change only the desired state,
-    // don't go to the implementation immediately.
-    // No actual state.
-    // Listeners are not called.
-    kClosedOpenable,
-    // OpenImpl is being invoked, the implementation is performing initial
-    // setup.
-    // External state changes are functionally near-impossible as OpenImpl
-    // mostly isn't able to communicate with external Xenia code that may have
-    // any effect on the Window, to avoid interference during the native window
-    // setup which may be pretty complex - and also, this is the phase in which
-    // the native window is being created, so there's no guarantee that the
-    // native window exists throughout this phase.
-    // However, it's still not strictly enforceable that OpenImpl will not cause
-    // any interaction with the Window - it may happen, for instance, if
-    // OpenImpl causes the OS to execute the pending functions in the
-    // WindowedAppContext that might have been, for example, left over from when
-    // the window was still open last time. Therefore, for the reason of state
-    // consistency within OpenImpl, all external state changes are simply
-    // dropped in this phase.
-    // However, the desired state may be updated by the implementation during
-    // OpenImpl still, but via the Update functions (if the implementation or
-    // the OS, for instance, clamps the size of the window during creation, or
-    // refuses to enter fullscreen).
-    // Actual state is first populated during this phase, and it's readable
-    // (with its level of completeness at the specific point in time) for the
-    // internal purposes of the implementation.
-    // Listeners are not called so the implementation can perform all the setup
-    // without outer interference (the common code calls some to let the
-    // listeners be aware of the initial state when the window enters kOpen
-    // anyway).
-    // Note: Closing may occur in the platform during kOpening - skip
-    // kOpenBeforeClosing in this case while closing.
-    kOpening,
-    // Fully interactive.
-    // The native window exists, external state changes are applied immediately
-    // (or at least immediately requested to be applied shortly after, but the
-    // implementation must make sure that, for instance, if SetFullscreen is
-    // successfully called, but the window will actually enter fullscreen only
-    // at the next platform event loop tick, IsFullscreen will start returning
-    // true immediately).
-    // The desired state can be updated as feedback from the implementation.
-    // Actual state can be retrieved.
-    // Listeners are called.
-    // The only state in which a non-null Surface can be created (it's destroyed
-    // after entering kClosing).
-    kOpen,
-    // OnBeforeClose is being invoked.
-    // The native window still exists, this is mostly like kOpen, but with no
-    // way of creating a Surface (it's becoming destroyed in this state so the
-    // native window can be destroyed safely in the next phase) or recursively
-    // requesting closing - for consistency during closing within the platform,
-    // state changes also behave like in kOpen.
-    // Listeners are still called as normal, primarily because this is where the
-    // OnClosing listener function is invoked, but reopening the window from a
-    // listener is not possible for state consistency during closing.
-    kOpenBeforeClosing,
-    // OnBeforeClose has completed, but OnAfterClose hasn't been called yet for
-    // the implementation to confirm that it has finished destroying the native
-    // window being closed. This state exists to prevent the situation in which
-    // the Window is somehow reopened in the middle of the implementation's
-    // internal work in closing.
-    // The implementation must detach from the native window and destroy it in
-    // this phase.
-    // The native window is being destroyed - external state updates change only
-    // the desired state, don't go to the implementation immediately.
-    // Actual state is still queryable for internal purposes of the
-    // implementation.
-    // Listeners are not called.
-    kClosing,
-    // OnBeforeClose has completed, but the close has occurred from a listener,
-    // and the call stack of listeners still hasn't been exited.
-    // This state exists to prevent the situation in which the Window is being
-    // closed and then reopened in the middle of the implementation's internal
-    // work in event handlers. For example, let's assume putting a window (HWND)
-    // in the fullscreen state requires removing window decorations
-    // (SetWindowLong) and resizing the window (SetWindowPos), both being able
-    // to invoke the resize handler (WM_SIZE) and thus the resize listener. In
-    // this case, consider the following situation:
-    // - SetWindowLong called for HWND.
-    // - WM_SIZE arrives.
-    // - Listener's OnResize called.
-    // - Listener's OnResize does RequestClose, destroying the current HWND.
-    // - Listener's OnResize does Open, creating a new HWND.
-    // - SetWindowPos called for HWND, which is different now.
-    // Here, SetWindowLong will be called for one native window, but then it
-    // will be replaced, and SetWindowPos will be called for a different one.
-    // No native window - external state updates change only the desired state,
-    // don't go to the implementation immediately.
-    // No actual state.
-    // Listeners are not called.
-    kClosedLeavingListeners,
-    // The destructor has been called - should transition into this before doing
-    // anything not only in the common, but in the implementation's destructor
-    // as well. The transition must be done regardless of the previous phase as
-    // there's no way the Window can stop its destruction from now on. This is
-    // mostly similar to kClosedLeavingListeners, except there's no way to leave
-    // this phase.
-    kDeleting,
+    kClosedOpenable,         /**< Not open. State changes update only the desired state. */
+    kOpening,                /**< OpenImpl runs. External state changes are dropped. */
+    kOpen,                   /**< Fully interactive. The only phase that creates a surface. */
+    kOpenBeforeClosing,      /**< OnBeforeClose runs. Listeners are still called. */
+    kClosing,                /**< The implementation destroys the native window. */
+    kClosedLeavingListeners, /**< Closed from a listener that has not returned yet. */
+    kDeleting,               /**< The destructor runs. Never left. */
   };
 
+  /** Cursor visibility over the window. */
   enum class CursorVisibility {
-    kVisible,
-    // Temporarily revealed, hidden if not interacting with the mouse.
-    kAutoHidden,
-    kHidden,
+    kVisible,    /**< Always shown. */
+    kAutoHidden, /**< Shown while the mouse moves, hidden after the auto hide delay. */
+    kHidden,     /**< Always hidden. */
   };
 
+  /**
+   * Creates the platform window object. The window opens with Open.
+   *
+   * @param app_context The app context that owns the UI thread.
+   * @param title The window title.
+   * @return The window.
+   */
   static std::unique_ptr<Window> Create(WindowedAppContext& app_context,
                                         const std::string_view title);
 
   virtual ~Window();
 
+  /**
+   * Returns the app context.
+   *
+   * @return The app context that owns the UI thread.
+   */
   WindowedAppContext& app_context() const { return app_context_; }
 
+  /**
+   * Returns the life cycle phase.
+   *
+   * @return The current phase.
+   */
   Phase phase() const { return phase_; }
-  bool HasActualState() const {
-    // kOpening - for internal use by the implementation.
-    // kOpen, kOpenBeforeClosing - for both external and internal use.
-    // kClosing - for internal use by the implementation.
-    return phase_ >= Phase::kOpening && phase_ <= Phase::kClosing;
-  }
 
+  /**
+   * Tests whether the actual state may be read.
+   *
+   * @return True from kOpening through kClosing.
+   */
+  bool HasActualState() const { return phase_ >= Phase::kOpening && phase_ <= Phase::kClosing; }
+
+  /**
+   * Adds a listener for window events.
+   *
+   * @param listener The listener.
+   */
   void AddListener(WindowListener* listener);
+
+  /**
+   * Removes a window event listener.
+   *
+   * @param listener The listener.
+   */
   void RemoveListener(WindowListener* listener);
+
+  /**
+   * Adds a listener for input events. Higher z orders receive events first.
+   *
+   * @param listener The listener.
+   * @param z_order Order among input listeners.
+   */
   void AddInputListener(WindowInputListener* listener, size_t z_order);
+
+  /**
+   * Removes an input event listener.
+   *
+   * @param listener The listener.
+   */
   void RemoveInputListener(WindowInputListener* listener);
 
-  // `false` is returned only in case of an error while trying to perform the
-  // platform window opening. If the window is already open, or just can't be
-  // reopened in the current phase (as in this case it's assumed that the outer
-  // will handle this situation properly and won't, for instance, leave a
-  // process without windows - it will quit the application in OnBeforeClose of
-  // the window closing of which was initiated before or even during opening,
-  // for instance), `true` is returned. The functions of WindowListeners will be
-  // called only for a newly opened platform window - and the listeners may
-  // close or even destroy the window, in which case this function will still
-  // return `true` to differentiate from an actual error - if it's really
-  // necessary that the platform window is open after the call, check phase()
-  // after calling.
+  /**
+   * Opens the platform window. Listeners may close or destroy the window during the call, check
+   * phase() afterward when the window must be open.
+   *
+   * @return False only when the platform failed to open the window.
+   */
   bool Open();
-  // The call may or may not close the window immediately, depending on the
-  // platform (phase() may still return an open phase, and events may still be
-  // sent after the call). Use phase() to check if closing has actually
-  // happened immediately.
+
+  /**
+   * Requests closing. The platform may close the window later, check phase() afterward.
+   */
   void RequestClose() {
-    // Don't allow external close requests during opening for state consistency
-    // inside OpenImpl (if an internal close happens during OpenImpl, the
-    // implementation will be aware of that at least), and don't allow closing
-    // twice.
     if (phase_ != Phase::kOpen) {
       return;
     }
     RequestCloseImpl();
-    // Must not doing anything else with *this as callbacks might have been
-    // triggered during closing (if it has actually even happened), and the
-    // Window might have been deleted.
   }
 
-  // The `public` state setters are for calling from outside.
-  // The implementation must use the public getters to obtain the desired state
-  // while applying, but for updating the actual state, or for overriding the
-  // desired state, the `protected` On*Update functions must be used (overall
-  // the On* functions are for the implementation's feedback).
+  /**
+   * Returns the DPI that maps logical sizes 1 to 1 onto physical ones.
+   *
+   * @return 96 unless the platform differs.
+   */
+  virtual u32 GetMediumDpi() const { return 96; }
 
-  virtual uint32_t GetMediumDpi() const { return 96; }
-  uint32_t GetDpi() const {
-    uint32_t dpi = GetLatestDpiImpl();
+  /**
+   * Returns the window DPI.
+   *
+   * @return The latest DPI, or the medium DPI when the platform reports none.
+   */
+  u32 GetDpi() const {
+    u32 dpi = GetLatestDpiImpl();
     return dpi ? dpi : GetMediumDpi();
   }
 
-  // Round trips are not guaranteed to return the same results.
-  static constexpr uint32_t ConvertSizeDpi(uint32_t size, uint32_t new_dpi, uint32_t old_dpi) {
-    // Always rounding up to prevent zero sizes (unless the input is zero) as
-    // well as gaps at the edge.
-    return uint32_t((uint64_t(size) * new_dpi + (old_dpi - 1)) / old_dpi);
+  /**
+   * Converts a size between 2 DPIs, rounding up. Round trips may differ.
+   *
+   * @param size The size.
+   * @param new_dpi The DPI to convert to.
+   * @param old_dpi The DPI of size.
+   * @return The converted size.
+   */
+  static constexpr u32 ConvertSizeDpi(u32 size, u32 new_dpi, u32 old_dpi) {
+    return u32((u64(size) * new_dpi + (old_dpi - 1)) / old_dpi);
   }
-  uint32_t SizeToLogical(uint32_t size) const {
-    return ConvertSizeDpi(size, GetMediumDpi(), GetDpi());
+
+  /**
+   * Converts a physical size to a logical one.
+   *
+   * @param size The physical size.
+   * @return The logical size.
+   */
+  u32 SizeToLogical(u32 size) const { return ConvertSizeDpi(size, GetMediumDpi(), GetDpi()); }
+
+  /**
+   * Converts a logical size to a physical one.
+   *
+   * @param size The logical size.
+   * @return The physical size.
+   */
+  u32 SizeToPhysical(u32 size) const { return ConvertSizeDpi(size, GetDpi(), GetMediumDpi()); }
+
+  /**
+   * Converts a position between 2 DPIs, rounding to the nearest the way MulDiv does.
+   *
+   * @param position The position.
+   * @param new_dpi The DPI to convert to.
+   * @param old_dpi The DPI of position.
+   * @return The converted position.
+   */
+  static constexpr i32 ConvertPositionDpi(i32 position, u32 new_dpi, u32 old_dpi) {
+    return i32((i64(position) * new_dpi + i32(old_dpi >> 1) * (position < 0 ? -1 : 1)) / old_dpi);
   }
-  uint32_t SizeToPhysical(uint32_t size) const {
-    return ConvertSizeDpi(size, GetDpi(), GetMediumDpi());
-  }
-  static constexpr int32_t ConvertPositionDpi(int32_t position, uint32_t new_dpi,
-                                              uint32_t old_dpi) {
-    // Rounding to the nearest mostly similar to Windows MulDiv.
-    // Plus old_dpi / 2 for positive values, minus old_dpi / 2 for negative
-    // values for consistent rounding for both positive and negative values (as
-    // the `/` operator rounds towards zero).
-    // Example:
-    // (-3 - 1) / 3 == -1
-    // (-2 - 1) / 3 == -1
-    // (-1 - 1) / 3 == 0
-    // ---
-    // (0 + 1) / 3 == 0
-    // (1 + 1) / 3 == 0
-    // (2 + 1) / 3 == 1
-    return int32_t((int64_t(position) * new_dpi + int32_t(old_dpi >> 1) * (position < 0 ? -1 : 1)) /
-                   old_dpi);
-  }
-  int32_t PositionToLogical(int32_t position) const {
+
+  /**
+   * Converts a physical position to a logical one.
+   *
+   * @param position The physical position.
+   * @return The logical position.
+   */
+  i32 PositionToLogical(i32 position) const {
     return ConvertPositionDpi(position, GetMediumDpi(), GetDpi());
   }
-  int32_t PositionToPhysical(int32_t position) const {
+
+  /**
+   * Converts a logical position to a physical one.
+   *
+   * @param position The logical position.
+   * @return The physical position.
+   */
+  i32 PositionToPhysical(i32 position) const {
     return ConvertPositionDpi(position, GetDpi(), GetMediumDpi());
   }
 
-  // The desired logical size of the window when it's not maximized, regardless
-  // of the current state of the window (maximized, fullscreen, etc.)
-  // The implementation may update it, for instance, to clamp it, or when the
-  // user resizes a non-maximized window.
-  uint32_t GetDesiredLogicalWidth() const { return desired_logical_width_; }
-  uint32_t GetDesiredLogicalHeight() const { return desired_logical_height_; }
-  void SetDesiredLogicalSize(uint32_t new_desired_logical_width,
-                             uint32_t new_desired_logical_height);
-  static void ResolveConfiguredLogicalSize(uint32_t& width_out, uint32_t& height_out);
+  /**
+   * Returns the desired logical width of the window when it is neither maximized nor
+   * fullscreen.
+   *
+   * @return The desired logical width.
+   */
+  u32 GetDesiredLogicalWidth() const { return desired_logical_width_; }
 
-  // 0 width or height may be returned even in case of an open window with a
-  // valid non-zero-area surface depending on the platform.
-  uint32_t GetActualPhysicalWidth() const { return HasActualState() ? actual_physical_width_ : 0; }
-  uint32_t GetActualPhysicalHeight() const {
-    return HasActualState() ? actual_physical_height_ : 0;
-  }
-  uint32_t GetActualLogicalWidth() const { return SizeToLogical(GetActualPhysicalWidth()); }
-  uint32_t GetActualLogicalHeight() const { return SizeToLogical(GetActualPhysicalHeight()); }
+  /**
+   * Returns the desired logical height of the window when it is neither maximized nor
+   * fullscreen.
+   *
+   * @return The desired logical height.
+   */
+  u32 GetDesiredLogicalHeight() const { return desired_logical_height_; }
 
-  virtual bool GetDisplayPixelSize(uint32_t& width, uint32_t& height) const {
+  /**
+   * Sets the desired logical size of the window when it is neither maximized nor fullscreen.
+   *
+   * @param new_desired_logical_width The width.
+   * @param new_desired_logical_height The height.
+   */
+  void SetDesiredLogicalSize(u32 new_desired_logical_width, u32 new_desired_logical_height);
+
+  /**
+   * Resolves the logical size the ui cvars configure.
+   *
+   * @param width_out Receives the width.
+   * @param height_out Receives the height.
+   */
+  static void ResolveConfiguredLogicalSize(u32& width_out, u32& height_out);
+
+  /**
+   * Returns the physical width of the client area. May be 0 for an open window.
+   *
+   * @return The width, or 0 without actual state.
+   */
+  u32 GetActualPhysicalWidth() const { return HasActualState() ? actual_physical_width_ : 0; }
+
+  /**
+   * Returns the physical height of the client area. May be 0 for an open window.
+   *
+   * @return The height, or 0 without actual state.
+   */
+  u32 GetActualPhysicalHeight() const { return HasActualState() ? actual_physical_height_ : 0; }
+
+  /**
+   * Returns the logical width of the client area.
+   *
+   * @return The width.
+   */
+  u32 GetActualLogicalWidth() const { return SizeToLogical(GetActualPhysicalWidth()); }
+
+  /**
+   * Returns the logical height of the client area.
+   *
+   * @return The height.
+   */
+  u32 GetActualLogicalHeight() const { return SizeToLogical(GetActualPhysicalHeight()); }
+
+  /**
+   * Reads the pixel size of the display the window is on.
+   *
+   * @param width Receives the width.
+   * @param height Receives the height.
+   * @return False when the platform cannot tell.
+   */
+  virtual bool GetDisplayPixelSize(u32& width, u32& height) const {
     (void)width;
     (void)height;
     return false;
   }
 
-  // Desired state stored by the common Window, modifiable both externally and
-  // by the implementation (including from SetFullscreen itself).
+  /**
+   * Tests whether the window is fullscreen.
+   *
+   * @return The desired fullscreen state.
+   */
   bool IsFullscreen() const { return fullscreen_; }
+
+  /**
+   * Enters or leaves fullscreen.
+   *
+   * @param new_fullscreen True for fullscreen.
+   */
   void SetFullscreen(bool new_fullscreen);
+
+  /** Applies the fullscreen mode again, after the video mode cvars change. */
   void RefreshFullscreen();
 
-  int32_t GetMonitor() const { return monitor_; }
-  void SetMonitor(int32_t new_monitor);
+  /**
+   * Returns the desired monitor.
+   *
+   * @return The monitor index.
+   */
+  i32 GetMonitor() const { return monitor_; }
 
-  // Desired state stored by the common Window, externally modifiable, read-only
-  // in the implementation.
+  /**
+   * Moves the window to a monitor.
+   *
+   * @param new_monitor The monitor index.
+   */
+  void SetMonitor(i32 new_monitor);
+
+  /**
+   * Returns the title.
+   *
+   * @return The desired title.
+   */
   const std::string& GetTitle() const { return title_; }
+
+  /**
+   * Sets the title.
+   *
+   * @param new_title The title.
+   */
   void SetTitle(const std::string_view new_title);
 
-  // Desired state stored in a platform-dependent way in the implementation,
-  // externally modifiable, read-only by the implementation unless from the
-  // LoadAndApplyIcon implementation. The icon is in Windows .ico format.
-  // Provide null buffer and / or zero size to reset the icon.
+  /**
+   * Sets the icon from Windows .ico data.
+   *
+   * @param buffer The .ico data, or null to reset the icon.
+   * @param size Size of buffer, or 0 to reset the icon.
+   */
   void SetIcon(const void* buffer, size_t size);
+
+  /** Resets the icon to the default. */
   void ResetIcon() { SetIcon(nullptr, 0); }
 
-  /// Returns the platform-native window handle (HWND on Windows), or nullptr.
-  /// Valid after Open() returns successfully.
-  virtual void* GetNativeWindowHandle() const { return nullptr; }
+  /** Brings the window to the front and gives it focus. */
+  virtual void Raise() {}
 
-  // Desired state stored by the common Window, externally modifiable, read-only
-  // in the implementation.
+  /**
+   * Returns the platform window handle.
+   *
+   * @return HWND on Windows, NSWindow on macOS, the X11 window or wl_surface on Linux, or
+   *         nullptr before the window opens.
+   */
+  virtual void* native() const { return nullptr; }
+
+  /**
+   * Returns the SDL window.
+   *
+   * @return The SDL window, or nullptr before the window opens.
+   */
+  virtual SDL_Window* sdl() const { return nullptr; }
+
+  /**
+   * Sets the smallest client area the window accepts. Applies now and whenever the window
+   * opens.
+   *
+   * @param size Minimum size. A 0 field means no limit on that axis.
+   */
+  void SetMinimumSize(WindowSize size);
+
+  /**
+   * Sets the client area shape the window holds while the user resizes it. Applies now and
+   * whenever the window opens.
+   *
+   * @param ratio The shape, AspectRatio::kStretch for none.
+   */
+  void SetAspectRatio(AspectRatio ratio);
+
+  /**
+   * Sets the main menu.
+   *
+   * @param new_main_menu The menu, or null to remove it.
+   */
   void SetMainMenu(std::unique_ptr<MenuItem> new_main_menu);
+
+  /** Applies changes made to the main menu items. */
   void CompleteMainMenuItemsUpdate();
+
+  /**
+   * Enables or disables the main menu.
+   *
+   * @param enabled True enables it.
+   */
   void SetMainMenuEnabled(bool enabled);
 
-  // Desired state stored by the common Window, externally modifiable, read-only
-  // in the implementation.
+  /**
+   * Tests whether any caller holds a mouse capture.
+   *
+   * @return True while the capture count is not 0.
+   */
   bool IsMouseCaptureRequested() const { return mouse_capture_request_count_ != 0; }
+
+  /** Adds a mouse capture request. */
   void CaptureMouse();
+
+  /** Releases a mouse capture request. */
   void ReleaseMouse();
 
-  // Locks the pointer and switches motion events to relative deltas
-  // (MouseEvent::dx/dy), for mouse look. Returns whether it took.
+  /**
+   * Locks the pointer and switches motion events to relative deltas, for mouse look.
+   *
+   * @param enable True locks the pointer.
+   * @return True when the mode took.
+   */
   virtual bool SetRelativeMouseMode(bool enable) {
     (void)enable;
     return false;
   }
-  // Fallback when relative mode isn't available. Returns false, leaving the
-  // outputs untouched, unless the pointer verifiably reached the center.
-  virtual bool WarpMouseToCenter(int32_t& x_out, int32_t& y_out) {
+
+  /**
+   * Moves the pointer to the center, for platforms without relative mode.
+   *
+   * @param x_out Receives the center x when the pointer got there.
+   * @param y_out Receives the center y when the pointer got there.
+   * @return True when the pointer verifiably reached the center.
+   */
+  virtual bool WarpMouseToCenter(i32& x_out, i32& y_out) {
     (void)x_out;
     (void)y_out;
     return false;
   }
 
-  // Desired state stored by the common Window, externally modifiable, read-only
-  // in the implementation. Whether the window is an active text input field for
-  // the OS input method. Leaving it on for the session pulls in IME candidate
-  // windows and the on screen keyboard during button-only gameplay.
+  /**
+   * Tests whether the window is an active text input field for the OS input method.
+   *
+   * @return The desired text input state.
+   */
   bool IsTextInputActive() const { return text_input_active_; }
+
+  /**
+   * Turns text input for the OS input method on or off.
+   *
+   * @param active True turns it on.
+   */
   void SetTextInputActive(bool active);
 
-  // Desired state stored by the common Window, externally modifiable, read-only
-  // in the implementation.
+  /**
+   * Returns the cursor visibility.
+   *
+   * @return The desired visibility.
+   */
   CursorVisibility GetCursorVisibility() const { return cursor_visibility_; }
-  // Setting this to kAutoHidden from any _other_ visibility should hide the
-  // cursor immediately - for instance, if the external code wants to auto-hide
-  // the cursor in fullscreen, to allow going into the fullscreen mode to hide
-  // the cursor instantly.
+
+  /**
+   * Sets the cursor visibility. kAutoHidden from another value hides the cursor at once.
+   *
+   * @param new_cursor_visibility The visibility.
+   */
   void SetCursorVisibility(CursorVisibility new_cursor_visibility);
 
-  uint32_t GetCursorAutoHideDelayMs() const { return cursor_auto_hide_delay_ms_; }
-  // Idle time before kAutoHidden hides the cursor. Takes effect the next time
-  // the auto-hide timer is armed (the next mouse motion).
-  void SetCursorAutoHideDelayMs(uint32_t delay_ms) { cursor_auto_hide_delay_ms_ = delay_ms; }
+  /**
+   * Returns the auto hide delay.
+   *
+   * @return Idle milliseconds before kAutoHidden hides the cursor.
+   */
+  u32 GetCursorAutoHideDelayMs() const { return cursor_auto_hide_delay_ms_; }
 
+  /**
+   * Sets the auto hide delay. Applies from the next mouse motion.
+   *
+   * @param delay_ms Idle milliseconds before kAutoHidden hides the cursor.
+   */
+  void SetCursorAutoHideDelayMs(u32 delay_ms) { cursor_auto_hide_delay_ms_ = delay_ms; }
+
+  /**
+   * Tests whether the window has focus.
+   *
+   * @return True when the window has focus.
+   */
   bool HasFocus() const { return HasActualState() ? has_focus_ : false; }
-  // May be applied in a delayed way or dropped at all, HasFocus will not
-  // necessarily be true immediately.
+
+  /** Requests focus. The platform may apply it later or drop it. */
   void Focus();
 
-  // TODO(Triang3l): A resize function, primarily for snapping externally to
-  // 1280x720, 1920x1080, and other 1:1 resolutions. It will need to resize the
-  // window (to a desired logical size - the actual physical size is entirely
-  // the feedback of the implementation) in the normal state, and possibly also
-  // un-maximize (and possibly un-fullscreen) it (but this choice will possibly
-  // need to be exposed to the caller). Because it's currently not needed, it's
-  // not implemented to avoid platform-specific complexities regarding
-  // maximization, DPI, etc.
-
+  /**
+   * Sets the presenter that paints the window.
+   *
+   * @param presenter The presenter, or null.
+   */
   void SetPresenter(Presenter* presenter);
 
-  // Request repainting of the surface. Can be called from non-UI threads as
-  // long as they know the Surface exists and isn't in the middle of being
-  // changed to another (the synchronization of this fact between the UI thread
-  // and the caller thread must be done externally through OnSurfaceChanged).
+  /** Requests a repaint. Callable from any thread while the surface exists. */
   void RequestPaint() {
     if (presenter_surface_) {
       RequestPaintImpl();
     }
   }
+
+  /** Requests a repaint of the presenter UI from the UI thread. */
   void RequestPresenterUIPaintFromUIThread() {
     if (presenter_) {
       presenter_->RequestUIPaintFromUIThread();
@@ -380,28 +509,18 @@ class Window {
   }
 
  protected:
-  // The receiver, which must never be instantiated in the Window object itself
-  // (rather, usually it should be created as a local variable, because only
-  // LIFO-ordered creation and deletion of these is supported), that allows
-  // deletion of the Window from within an event handler (which may invoke a
-  // WindowListener, and window listeners are allowed to destroy windows; also
-  // they may execute, for instance, the functions requested to be executed in
-  // the UI thread in the WindowedAppContext, which are also allowed to destroy
-  // windows - because if the former wasn't allowed, the latter would be
-  // required to destroy windows as a result of UI interaction) to be caught by
-  // functions inside the Window in order to stop interacting with `*this` and
-  // returning after this happens.
-  // Note that the receivers are signaled in the *end* of the destruction of the
-  // common Window, when truly nothing can be done with it anymore, so it's safe
-  // to assume that right after the creation of the WindowDestructionReceiver,
-  // it will still be in an unsignaled state even if it's used somewhere in the
-  // destructor. The reason is that the users of the WindowDestructionReceiver
-  // are expected to stop accessing the Window *immediately* once
-  // IsWindowDestroyed becomes `true`, and to leave it in a potentially
-  // indeterminate state - but the code executed subsequently in the destructor
-  // may still use that state meaningfully.
+  /**
+   * Detects destruction of the window from within an event handler. Create 1 on the stack
+   * around code that calls listeners, and stop touching the window once IsWindowDestroyed is
+   * true. Only LIFO order is supported.
+   */
   class WindowDestructionReceiver {
    public:
+    /**
+     * Starts watching a window.
+     *
+     * @param window The window, or null.
+     */
     explicit WindowDestructionReceiver(Window* window) : window_(window) {
       if (window_) {
         outer_receiver_ = window_->innermost_destruction_receiver_;
@@ -410,240 +529,363 @@ class Window {
     }
 
     ~WindowDestructionReceiver() {
-      // If the window is not null, removal from the stack must happen
-      // regardless of `phase_ == Phase::kDeleting`, because the window
-      // destructor iterates the receivers after EnterDestructor(), and if the
-      // receiver is not removed in this case, the destructor will do
-      // use-after-free.
       if (window_) {
-        // Only LIFO order is supported (normally through RAII).
         assert_true(window_->innermost_destruction_receiver_ == this);
         window_->innermost_destruction_receiver_ = outer_receiver_;
       }
     }
 
+    /**
+     * Tests whether the window was destroyed.
+     *
+     * @return True once the window destructor ran.
+     */
     bool IsWindowDestroyed() const { return window_ == nullptr; }
 
-    // Helper functions for common usages of the receiver. Unlike
-    // IsWindowDestroyed, these, however, may return false immediately on
-    // creation.
-    // Primarily for the implementation (most importantly its native event
-    // handler), to stop interacting with the native window given that it was
-    // possible before the function call it's guarded with.
+    /**
+     * Tests whether the window was destroyed or closed.
+     *
+     * @return True when the native window can no longer be used.
+     */
     bool IsWindowDestroyedOrClosed() const { return IsWindowDestroyed() || window_->IsClosed(); }
-    // For guarding Apply* calls if one state setter needs to make multiple of
-    // them (or just detecting if it's okay to call Apply*).
+
+    /**
+     * Tests whether state may no longer be applied.
+     *
+     * @return True when the window was destroyed or cannot apply state.
+     */
     bool IsWindowDestroyedOrStateInapplicable() const {
       return IsWindowDestroyed() || !window_->CanApplyState();
     }
+
+    /**
+     * Tests whether listeners may no longer be called.
+     *
+     * @return True when the window was destroyed or cannot send events.
+     */
     bool IsWindowDestroyedOrListenersUncallable() const {
       return IsWindowDestroyed() || !window_->CanSendEventsToListeners();
     }
 
    private:
-    // The Window must set window_ to nullptr in its destructor.
     friend Window;
     Window* window_;
     WindowDestructionReceiver* outer_receiver_ = nullptr;
   };
 
-  // Like in the Windows Media Player.
-  // A more modern Windows example, Movies & TV in Windows 11 21H2, has 5000,
-  // but it's too long especially for highly dynamic games.
-  // Implementations may use different values according to the platform's UX
-  // conventions.
-  static constexpr uint32_t kDefaultCursorAutoHideMilliseconds = 3333;
+  /** Default auto hide delay, the one Windows Media Player uses. */
+  static constexpr u32 kDefaultCursorAutoHideMilliseconds = 3333;
 
-  Window(WindowedAppContext& app_context, const std::string_view title,
-         uint32_t desired_logical_width, uint32_t desired_logical_height);
+  /**
+   * Creates the common window state.
+   *
+   * @param app_context The app context that owns the UI thread.
+   * @param title The window title.
+   * @param desired_logical_width The desired logical width.
+   * @param desired_logical_height The desired logical height.
+   */
+  Window(WindowedAppContext& app_context, const std::string_view title, u32 desired_logical_width,
+         u32 desired_logical_height);
 
-  // If implementation-specific destruction happens, should be called in the
-  // beginning of the implementation's destructor so the implementation can
-  // destroy the platform window without doing something unsafe in destruction.
+  /** Enters kDeleting and detaches the surface. Implementation destructors call it first. */
   void EnterDestructor() {
     phase_ = Phase::kDeleting;
-    // Disconnect from the surface before destroying the window behind it.
     OnSurfaceChanged(false);
   }
 
-  // For an open window, the implementation should return the current DPI for
-  // the window. For a non-open one, it should be the closest approximation,
-  // such as the last DPI from an existing window, the system DPI, or just the
-  // medium DPI (0 returned from it will also be treated as medium DPI).
-  virtual uint32_t GetLatestDpiImpl() const { return GetMediumDpi(); }
+  /**
+   * Returns the current DPI, or the closest guess for a window that is not open.
+   *
+   * @return The DPI, 0 for the medium DPI.
+   */
+  virtual u32 GetLatestDpiImpl() const { return GetMediumDpi(); }
 
-  // Deletion of the window may (and must) not happen in OpenImpl, the listeners
-  // are deferred, so there's no need to use WindowDestructionReceiver in it.
-  // In case of failure, the implementation must not leave itself in an
-  // indeterminate state, so another attempt to open the window can be made.
-  // The implementation must apply the following desired state if it needs it,
-  // directly (not via Set* methods as they will be dropped during OpenImpl
-  // since the window is not fully open yet):
-  // - Title (GetTitle()).
-  // - Icon (from the last LoadAndApplyIcon call).
-  // - Main menu (GetMainMenu()) and its enablement.
-  // - Desired logical size (GetDesiredLogicalWidth() / Height(), taking into
-  //   account that the main menu, during the initial opening, should not be
-  //   included in this size - it specifies the client area that painting will
-  //   be done to), within the capabilities of the platform (may be clamped by
-  //   the OS, for instance - in this case, OnDesiredLogicalSizeUpdate may be
-  //   called from within OpenImpl to store the clamped size for later).
-  // - Fullscreen (GetFullscreen()) - however, if possible, the calculations
-  //   that would normally be done for a non-fullscreen window in OpenImpl
-  //   should also be done if entering fullscreen, including the menu-related
-  //   ones - first, the usual windowed geometry calculations should be done,
-  //   and then fullscreen should be entered; but preferably still entering
-  //   fullscreen before actually showing a visible window to the user for a
-  //   seamless transition.
-  // - Mouse capture (IsMouseCaptureRequested()).
-  // - Cursor visibility (GetCursorVisibility()).
-  // Also, as a result of the OpenImpl call, these function should be called
-  // (immediately from within OpenImpl directly or indirectly through the native
-  // event handling, or shortly after during the UI main loop) to provide the
-  // initial actual state to the common Window code so it returns the correct
-  // values:
-  // - OnActualSizeUpdate, at least if the window isn't opened as not yet
-  //   visible on screen (otherwise the size will be assumed to be 0x0 until the
-  //   next size update caused by something likely requiring user interaction).
-  // - OnFocusUpdate, at least if the focus has been obtained (otherwise the
-  //   window will be assumed to be not in focus until it goes into the focus
-  //   again).
-  // Also, if some of the desired state that may be updated by the
-  // implementation could not be applied (such as the fullscreen mode), and
-  // certain values of the implementation state are either normally
-  // differentiated within the implementation or are just meaningful considering
-  // the platform's defaults (for instance, the platform inherently supports
-  // only fullscreen, possibly doesn't have a concept of windows at all), it's
-  // recommended to call the appropriate On*Update functions to update the
-  // desired state to the actual one.
+  /**
+   * Creates the native window from the desired state and reports the initial actual state
+   * through OnActualSizeUpdate and OnFocusUpdate. Must not destroy the window, and must leave
+   * a state that allows another attempt on failure.
+   *
+   * @return False when the native window could not be created.
+   */
   virtual bool OpenImpl() = 0;
+
+  /** Closes the native window. */
   virtual void RequestCloseImpl() = 0;
 
-  // Apply* are called only if CanApplyState() is true (unless the function
-  // should do more than just applying, such as also updating the desired state
-  // in a platform-dependent way - see each individual function).
-  // ApplyNew* means that the value has actually been changed to something
-  // different than it was previously.
+  /** Applies a changed desired fullscreen state. */
   virtual void ApplyNewFullscreen() {}
+
+  /** Applies a changed desired monitor. */
   virtual void ApplyNewMonitor() {}
+
+  /** Applies a changed desired logical size. */
   virtual void ApplyNewDesiredLogicalSize() {}
+
+  /** Applies a changed title. */
   virtual void ApplyNewTitle() {}
-  // can_apply_state_in_current_phase whether the window is in a life cycle
-  // phase that would normally accept Apply calls (the native window surely
-  // exists), since this function may be called in closed states too to update
-  // the desired icon (since it's stored in the implementation) - the
-  // implementation may, however, ignore it and use a more granular check of the
-  // existence of the native window and the safety of updating the icon for
-  // better internal state consistency. The icon is in Windows .ico format. If
-  // the buffer is null or the size is 0, the icon should be reset to the
-  // default one. Returns whether the icon has been updated successfully.
+
+  /**
+   * Stores the icon and applies it when possible.
+   *
+   * @param buffer Windows .ico data, or null for the default icon.
+   * @param size Size of buffer, or 0 for the default icon.
+   * @param can_apply_state_in_current_phase True when the native window surely exists.
+   */
   virtual void LoadAndApplyIcon(const void* buffer, size_t size,
                                 bool can_apply_state_in_current_phase) {
     (void)buffer;
     (void)size;
     (void)can_apply_state_in_current_phase;
   }
+
+  /**
+   * Returns the main menu.
+   *
+   * @return The menu, or null.
+   */
   MenuItem* GetMainMenu() const { return main_menu_.get(); }
-  // May be called to add, replace or remove the main menu.
+
+  /**
+   * Adds, replaces or removes the native main menu.
+   *
+   * @param old_main_menu The menu before the change, or null.
+   */
   virtual void ApplyNewMainMenu(MenuItem* old_main_menu) { (void)old_main_menu; }
-  // If there's main menu, and state can be applied, will be called to make the
-  // implementation's state consistent with the new state of the MenuItems of
-  // the main menu after changes have been made to them.
+
+  /** Brings the native main menu in line with its MenuItems. */
   virtual void CompleteMainMenuItemsUpdateImpl() {}
-  // Will be called even if capturing while the mouse is already assumed to be
-  // captured, in case something has released it in the OS.
+
+  /** Captures the mouse, even when it is already assumed captured. */
   virtual void ApplyNewMouseCapture() {}
+
+  /** Releases the mouse. */
   virtual void ApplyNewMouseRelease() {}
+
+  /** Applies a changed text input state. */
   virtual void ApplyNewTextInputActive() {}
+
+  /**
+   * Applies a changed cursor visibility.
+   *
+   * @param old_cursor_visibility The visibility before the change.
+   */
   virtual void ApplyNewCursorVisibility(CursorVisibility old_cursor_visibility) {
     (void)old_cursor_visibility;
   }
-  // If state can be applied, this is called to request bringing the window into
-  // focus (and once that's done by the OS, update the actual focus state). Does
-  // nothing otherwise (focus can't be requested before the window is open, a
-  // closed window is always assumed to be not in focus).
+
+  /** Requests focus from the platform. */
   virtual void FocusImpl() {}
 
+  /**
+   * Returns the presenter.
+   *
+   * @return The presenter, or null.
+   */
   Presenter* presenter() const { return presenter_; }
+
+  /**
+   * Tests whether a surface exists.
+   *
+   * @return True while the presenter surface exists.
+   */
   bool HasSurface() const { return presenter_surface_ != nullptr; }
-  // If new_surface_potentially_exists is false, creation of the new surface for
-  // the window won't be updated, and it may be called from the destructor (via
-  // EnterDestructor to destroy the surface before destroying what it depends
-  // on) as no virtual functions (including CreateSurface) will be called.
-  // This function is nonvirtual itself for this reason as well.
+
+  /**
+   * Recreates or destroys the presenter surface. Calls no virtual function when
+   * new_surface_potentially_exists is false, so the destructor may call it.
+   *
+   * @param new_surface_potentially_exists False only destroys the surface.
+   */
   void OnSurfaceChanged(bool new_surface_potentially_exists);
-  // Called only for an open window.
+
+  /**
+   * Creates a surface for the open window.
+   *
+   * @param allowed_types The surface types the presenter accepts.
+   * @return The surface, or null.
+   */
   virtual std::unique_ptr<Surface> CreateSurfaceImpl(Surface::TypeFlags allowed_types) = 0;
-  // Called only if the Surface exists.
+
+  /** Requests a paint of the existing surface. */
   virtual void RequestPaintImpl() = 0;
 
-  // Will also disconnect the surface if needed.
+  /**
+   * Runs the closing listeners and disconnects the surface.
+   *
+   * @param destruction_receiver Receiver that detects destruction during the call.
+   */
   void OnBeforeClose(WindowDestructionReceiver& destruction_receiver);
+
+  /** Completes closing after the implementation destroyed the native window. */
   void OnAfterClose();
 
-  // Asks all listeners whether a user-initiated close may proceed. Returns
-  // false if any listener vetoed or the window was destroyed from a callback.
+  /**
+   * Asks every listener whether a user close may proceed.
+   *
+   * @param destruction_receiver Receiver that detects destruction during the call.
+   * @return False when a listener vetoed or the window was destroyed.
+   */
   bool SendCloseRequestToListeners(WindowDestructionReceiver& destruction_receiver);
 
+  /**
+   * Reports that the window was minimized.
+   *
+   * @param destruction_receiver Receiver that detects destruction during the call.
+   */
   void OnMinimized(WindowDestructionReceiver& destruction_receiver);
+
+  /**
+   * Reports that the window was restored.
+   *
+   * @param destruction_receiver Receiver that detects destruction during the call.
+   */
   void OnRestored(WindowDestructionReceiver& destruction_receiver);
 
-  // These functions may usually also be called as part of the opening process
-  // from within OpenImpl (directly or through the platform event handler
-  // invoked during it) to actualize the state for the newly createad window,
-  // especially if it's different than the desired one.
+  /**
+   * Reports a DPI change.
+   *
+   * @param e The event.
+   * @param destruction_receiver Receiver that detects destruction during the call.
+   */
   void OnDpiChanged(UISetupEvent& e, WindowDestructionReceiver& destruction_receiver);
+
+  /**
+   * Reports a monitor change.
+   *
+   * @param e The event.
+   */
   void OnMonitorUpdate(MonitorUpdateEvent& e);
-  // For calling when the platform changes something in the non-maximized,
-  // non-fullscreen size of the window.
-  void OnDesiredLogicalSizeUpdate(uint32_t new_desired_logical_width,
-                                  uint32_t new_desired_logical_height) {
+
+  /**
+   * Records a desired logical size the platform chose.
+   *
+   * @param new_desired_logical_width The width.
+   * @param new_desired_logical_height The height.
+   */
+  void OnDesiredLogicalSizeUpdate(u32 new_desired_logical_width, u32 new_desired_logical_height) {
     desired_logical_width_ = new_desired_logical_width;
     desired_logical_height_ = new_desired_logical_height;
   }
-  // If the size of the client area is the same as the currently assumed one
-  // (the desired / last size for a newly opened / reopened window, the last
-  // actual size for an already open window), does nothing and returns false.
-  // Otherwise, updates the size, notifies what depends on the size about the
-  // change, and returns true. Not storing the new size in the UISetupEvent
-  // because a resize listener may request another resize, in which case it will
-  // be outdated - listeners must query the new physical size from the window
-  // explicitly.
-  bool OnActualSizeUpdate(uint32_t new_physical_width, uint32_t new_physical_height,
+
+  /**
+   * Records a client area size and notifies what depends on it.
+   *
+   * @param new_physical_width The width.
+   * @param new_physical_height The height.
+   * @param destruction_receiver Receiver that detects destruction during the call.
+   * @return False when the size did not change.
+   */
+  bool OnActualSizeUpdate(u32 new_physical_width, u32 new_physical_height,
                           WindowDestructionReceiver& destruction_receiver);
+
+  /**
+   * Records a fullscreen state the platform chose.
+   *
+   * @param new_fullscreen The state.
+   */
   void OnDesiredFullscreenUpdate(bool new_fullscreen) { fullscreen_ = new_fullscreen; }
+
+  /**
+   * Records a focus change and notifies the listeners.
+   *
+   * @param new_has_focus True when the window gained focus.
+   * @param destruction_receiver Receiver that detects destruction during the call.
+   */
   void OnFocusUpdate(bool new_has_focus, WindowDestructionReceiver& destruction_receiver);
 
-  // Pass true as force_paint in case the platform can't retain the image from
-  // the previous paint so it won't be skipped if there are no content updates.
+  /**
+   * Paints the window.
+   *
+   * @param force_paint True when the platform cannot retain the previous image.
+   */
   void OnPaint(bool force_paint = false);
 
+  /**
+   * Reports a dropped file.
+   *
+   * @param e The event.
+   * @param destruction_receiver Receiver that detects destruction during the call.
+   */
   void OnFileDrop(FileDropEvent& e, WindowDestructionReceiver& destruction_receiver);
 
+  /**
+   * Reports a key press.
+   *
+   * @param e The event.
+   * @param destruction_receiver Receiver that detects destruction during the call.
+   */
   void OnKeyDown(KeyEvent& e, WindowDestructionReceiver& destruction_receiver);
+
+  /**
+   * Reports a key release.
+   *
+   * @param e The event.
+   * @param destruction_receiver Receiver that detects destruction during the call.
+   */
   void OnKeyUp(KeyEvent& e, WindowDestructionReceiver& destruction_receiver);
+
+  /**
+   * Reports a typed character.
+   *
+   * @param e The event.
+   * @param destruction_receiver Receiver that detects destruction during the call.
+   */
   void OnKeyChar(KeyEvent& e, WindowDestructionReceiver& destruction_receiver);
 
+  /**
+   * Reports a mouse button press.
+   *
+   * @param e The event.
+   * @param destruction_receiver Receiver that detects destruction during the call.
+   */
   void OnMouseDown(MouseEvent& e, WindowDestructionReceiver& destruction_receiver);
+
+  /**
+   * Reports mouse motion.
+   *
+   * @param e The event.
+   * @param destruction_receiver Receiver that detects destruction during the call.
+   */
   void OnMouseMove(MouseEvent& e, WindowDestructionReceiver& destruction_receiver);
+
+  /**
+   * Reports a mouse button release.
+   *
+   * @param e The event.
+   * @param destruction_receiver Receiver that detects destruction during the call.
+   */
   void OnMouseUp(MouseEvent& e, WindowDestructionReceiver& destruction_receiver);
+
+  /**
+   * Reports a wheel change.
+   *
+   * @param e The event.
+   * @param destruction_receiver Receiver that detects destruction during the call.
+   */
   void OnMouseWheel(MouseEvent& e, WindowDestructionReceiver& destruction_receiver);
 
+  /**
+   * Reports a touch point change.
+   *
+   * @param e The event.
+   * @param destruction_receiver Receiver that detects destruction during the call.
+   */
   void OnTouchEvent(TouchEvent& e, WindowDestructionReceiver& destruction_receiver);
+
+  /** Applies the stored minimum size and aspect ratio to the open window. */
+  virtual void ApplySizeLimits() {}
+
+  /** Minimum client size set through SetMinimumSize. */
+  WindowSize min_size_;
+  /** Client shape set through SetAspectRatio. */
+  AspectRatio aspect_ratio_ = AspectRatio::kStretch;
 
  private:
   struct ListenerIterationContext {
     explicit ListenerIterationContext(ListenerIterationContext* outer_context,
                                       size_t first_index = 0)
         : outer_context(outer_context), next_index(first_index) {}
-    // To support nested listener calls, in case a listener does some
-    // interaction with the window that results in more events being triggered
-    // (such as calling Windows API functions that return a result from a
-    // message handled by a window, rather that simply enqueueing the message).
     ListenerIterationContext* outer_context;
-    // Using indices, not iterators, because after the erasure, the adjustment
-    // must be done for the vector element indices that would be in the iterator
-    // range that would be invalidated.
     size_t next_index;
   };
 
@@ -655,45 +897,27 @@ class Window {
         : outer_context(outer_context),
           next_iterator(first_iterator),
           current_z_order(first_z_order) {}
-    // To support nested listener calls.
     InputListenerIterationContext* outer_context;
-    // Reverse iterator because input handlers with a higher Z order index may
-    // correspond to what's displayed on top of what has a lower Z order index,
-    // so what's higher may consum the event.
     std::multimap<size_t, WindowInputListener*>::const_reverse_iterator next_iterator;
     size_t current_z_order;
   };
 
-  // If the window is closed, the platform native window is either being
-  // destroyed, or doesn't exist anymore, and thus it's in a non-interactive
-  // state.
   bool IsClosed() const { return phase_ < Phase::kOpening || phase_ > Phase::kOpenBeforeClosing; }
 
   bool CanApplyState() const {
-    // In kOpening, OpenImpl itself pulls the desired state itself and applies
-    // it, the Apply* functions can't be called and are unsafe to call because
-    // the implementation is an incomplete state, with the platform window
-    // potentially not existing. In kOpenBeforeClosing, as the native window
-    // still hasn't been destroyed and it can receive new state, still allowing
-    // applying new state for more consistency between the desired and the
-    // actual state during the final listener invocation.
     return phase_ >= Phase::kOpen && phase_ <= Phase::kOpenBeforeClosing;
   }
 
   bool CanSendEventsToListeners() const {
     return phase_ >= Phase::kOpen && phase_ <= Phase::kOpenBeforeClosing;
   }
-  // The listeners may delete the Window - check the destruction receiver after
-  // calling and stop doing anything accessing *this if that happens.
+
   void SendEventToListeners(std::function<void(WindowListener*)> fn,
                             WindowDestructionReceiver& destruction_receiver);
   void PropagateEventThroughInputListeners(std::function<bool(WindowInputListener*)> fn,
                                            WindowDestructionReceiver& destruction_receiver);
 
   std::unique_ptr<Surface> CreateSurface(Surface::TypeFlags allowed_types) {
-    // If opening, surface creation is deferred until all the initial setup has
-    // completed. Destruction of the surface is also a part of the closing
-    // process in OnBeforeClose.
     if (phase_ != Phase::kOpen) {
       return nullptr;
     }
@@ -705,50 +929,36 @@ class Window {
   Phase phase_ = Phase::kClosedOpenable;
   WindowDestructionReceiver* innermost_destruction_receiver_ = nullptr;
 
-  // All currently-attached listeners that get event notifications.
   std::vector<WindowListener*> listeners_;
-  // Ordered by the Z order, and then by the time of addition (but executed in
-  // reverse order).
-  // Note: All the iteration logic involving this Z ordering must be the same as
-  // in drawing (in the UI drawers in the Presenter), but in reverse.
   std::multimap<size_t, WindowInputListener*> input_listeners_;
-  // Linked list-based stacks of the contexts of the listener iterations
-  // currently being done, usually allocated on the stack.
   ListenerIterationContext* innermost_listener_iteration_context_ = nullptr;
   InputListenerIterationContext* innermost_input_listener_iteration_context_ = nullptr;
 
-  uint32_t desired_logical_width_ = 0;
-  uint32_t desired_logical_height_ = 0;
-  // Set by the implementation via OnActualSizeUpdate (from OpenImpl or from the
-  // platform resize handler).
-  uint32_t actual_physical_width_ = 0;
-  uint32_t actual_physical_height_ = 0;
+  u32 desired_logical_width_ = 0;
+  u32 desired_logical_height_ = 0;
+  u32 actual_physical_width_ = 0;
+  u32 actual_physical_height_ = 0;
 
   bool fullscreen_ = false;
-  int32_t monitor_ = 0;
+  i32 monitor_ = 0;
 
   std::string title_;
 
   std::unique_ptr<MenuItem> main_menu_;
 
-  uint32_t mouse_capture_request_count_ = 0;
+  u32 mouse_capture_request_count_ = 0;
 
   bool text_input_active_ = false;
 
   CursorVisibility cursor_visibility_ = CursorVisibility::kVisible;
 
-  uint32_t cursor_auto_hide_delay_ms_ = kDefaultCursorAutoHideMilliseconds;
+  u32 cursor_auto_hide_delay_ms_ = kDefaultCursorAutoHideMilliseconds;
 
   bool has_focus_ = false;
 
   Presenter* presenter_ = nullptr;
   std::unique_ptr<Surface> presenter_surface_;
-  // Whether currently in InPaint to prevent recursive painting in case it's
-  // triggered somehow from within painting again, because painting is much more
-  // complex than just a small state update, and recursive painting is
-  // completely unsupported by the Presenter.
   bool is_painting_ = false;
 };
 
-}  // namespace ui
-}  // namespace rex
+}  // namespace rex::ui

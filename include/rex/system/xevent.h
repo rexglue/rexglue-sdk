@@ -12,7 +12,7 @@
 
 #include <rex/system/xobject.h>
 #include <rex/system/xtypes.h>
-#include <rex/thread.h>
+#include <rex/platform/thread.h>
 
 namespace rex::system {
 
@@ -43,11 +43,11 @@ class XEvent : public XObject {
   static object_ref<XEvent> Restore(KernelState* kernel_state, stream::ByteStream* stream);
 
  protected:
-  rex::thread::WaitHandle* GetWaitHandle() override { return event_.get(); }
+  rex::platform::WaitHandle* GetWaitHandle() override { return event_.get(); }
 
  private:
   bool manual_reset_ = false;
-  std::unique_ptr<rex::thread::Event> event_;
+  std::unique_ptr<rex::platform::Event> event_;
 };
 
 }  // namespace rex::system

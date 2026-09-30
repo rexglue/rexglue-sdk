@@ -10,6 +10,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 #include <rex/ui/overlay/debug_overlay.h>
+#include <rex/ui/overlay.h>
 #include <rex/version.h>
 #include <imgui.h>
 #ifdef REXGLUE_ENABLE_PERF_COUNTERS
@@ -19,8 +20,8 @@
 
 namespace rex::ui {
 
-DebugOverlayDialog::DebugOverlayDialog(ImGuiDrawer* imgui_drawer, FrameStatsProvider stats_provider)
-    : ImGuiDialog(imgui_drawer), stats_provider_(std::move(stats_provider)) {}
+DebugOverlayDialog::DebugOverlayDialog(const OverlayContext& context)
+    : ImGuiDialog(&context.drawer()), context_(context) {}
 
 DebugOverlayDialog::~DebugOverlayDialog() {}
 
@@ -33,8 +34,8 @@ void DebugOverlayDialog::OnDraw(ImGuiIO& io) {
 #endif
   ImGui::SetNextWindowBgAlpha(0.5f);
   if (ImGui::Begin("Debug##overlay", nullptr, ImGuiWindowFlags_NoCollapse)) {
-    if (stats_provider_) {
-      auto stats = stats_provider_();
+    if (const auto& provider = context_.frame_stats()) {
+      auto stats = provider();
       if (stats.frame_count > 0) {
         ImGui::Text("Guest: %.1f FPS (%.2f ms)", stats.fps, stats.frame_time_ms);
       }

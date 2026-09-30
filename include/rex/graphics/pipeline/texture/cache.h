@@ -24,7 +24,7 @@
 #include <rex/graphics/shared_memory.h>
 #include <rex/graphics/xenos.h>
 #include <rex/hash.h>
-#include <rex/thread/mutex.h>
+#include <rex/platform/mutex.h>
 
 namespace rex::graphics {
 
@@ -587,7 +587,7 @@ class TextureCache {
 
   static const LoadShaderInfo load_shader_info_[kLoadShaderCount];
 
-  rex::thread::global_critical_region global_critical_region_;
+  rex::platform::global_critical_region global_critical_region_;
   // Bit vector storing whether each 4 KB physical memory page contains scaled
   // resolve data. uint32_t rather than uint64_t because parts of it can be sent
   // to shaders.

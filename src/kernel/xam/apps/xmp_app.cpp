@@ -12,7 +12,7 @@
 #include <rex/kernel/xam/apps/xmp_app.h>
 #include <rex/logging.h>
 #include <rex/system/xthread.h>
-#include <rex/thread.h>
+#include <rex/platform/thread.h>
 
 namespace rex {
 namespace kernel {
@@ -39,7 +39,7 @@ X_HRESULT XmpApp::XMPGetStatus(uint32_t state_ptr) {
   if (!XThread::GetCurrentThread()->main_thread()) {
     // Some stupid games will hammer this on a thread - induce a delay
     // here to keep from starving real threads.
-    rex::thread::Sleep(std::chrono::milliseconds(1));
+    rex::platform::Sleep(std::chrono::milliseconds(1));
   }
 
   REXKRNL_TRACE("XMPGetStatus({:08X})", state_ptr);
@@ -410,7 +410,7 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
 
       if (!XThread::GetCurrentThread()->main_thread()) {
         // Atrain spawns a thread 82437FD0 to call this in a tight loop forever.
-        rex::thread::Sleep(std::chrono::milliseconds(10));
+        rex::platform::Sleep(std::chrono::milliseconds(10));
       }
 
       return X_E_SUCCESS;

@@ -27,7 +27,7 @@
 #include <rex/ppc/func.h>
 #include <rex/system/export_resolver.h>
 #include <rex/system/thread_state.h>
-#include <rex/thread/mutex.h>
+#include <rex/platform/mutex.h>
 
 namespace rex::runtime {
 
@@ -129,7 +129,7 @@ class FunctionDispatcher : public IModuleRegistrar {
   memory::Memory* memory_ = nullptr;
   ExportResolver* export_resolver_ = nullptr;
 
-  rex::thread::global_critical_region global_critical_region_;
+  rex::platform::global_critical_region global_critical_region_;
 
   // Host-side function lookup.
   std::unordered_map<uint32_t, ::PPCFunc*> function_table_;

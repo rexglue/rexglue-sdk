@@ -22,6 +22,7 @@
 #include <rex/api.h>
 #include <rex/module.h>
 #include <rex/platform/dynlib.h>
+#include <rex/types.h>
 
 #include "core/cvar_registry.h"
 
@@ -34,23 +35,26 @@ bool IsValidModuleName(std::string_view name);
 std::filesystem::path ModuleFileName(std::string_view name);
 
 // Number of IInterfaceFactory::Get calls the loader has answered since the last Init.
-uint64_t InterfaceRequestCount();
+u64 InterfaceRequestCount();
 
 class ModuleLoader final : public IInterfaceFactory {
  public:
   static ModuleLoader& Instance();
 
+  Result<API*> Connect(const Config& config);
+  Result<void> InitModules();
   Result<API*> Init(const Config& config);
+  Config& mutable_config() { return config_; }
   void Shutdown();
 
-  void* Get(const char* name, uint32_t version, InterfaceStatus* out_status) override;
-  void* GetForAPI(const char* name, uint32_t version) const;
+  void* Get(const char* name, u32 version, InterfaceStatus* out_status) override;
+  void* GetForAPI(const char* name, u32 version) const;
   bool IsLoaded(std::string_view module_name) const;
   const Config& config() const { return config_; }
   CvarRegistryImpl& cvars() { return *cvars_; }
   void UpdatePaths(const PathsConfig& paths) { config_.paths = paths; }
   bool initialized() const { return initialized_; }
-  uint64_t request_count() const { return request_count_; }
+  u64 request_count() const { return request_count_; }
 
  private:
   struct Loaded {
@@ -63,32 +67,32 @@ class ModuleLoader final : public IInterfaceFactory {
   };
   struct Registered {
     std::string name;
-    uint32_t version = 0;
+    u32 version = 0;
     void* (*get)() = nullptr;
     size_t owner = 0;
   };
 
   ModuleLoader() : api_(this) {}
 
-  Status LoadAll();
-  Status BuildRegistry();
-  Status CheckRequirements() const;
-  Status ConnectAll();
-  Status InitAll();
+  Result<void> LoadAll();
+  Result<void> BuildRegistry();
+  Result<void> CheckRequirements() const;
+  Result<void> ConnectAll();
+  Result<void> InitAll();
   void UnwindAll();
-  Status ValidateSlices() const;
-  Status RegisterConsumerTables();
-  Status ApplyCvarValues();
+  Result<void> ValidateSlices() const;
+  Result<void> RegisterConsumerTables();
+  Result<void> ApplyCvarValues();
   void UnregisterTables();
   static Error ModuleError(std::string message);
 
   Config config_;
   API api_;
   std::vector<Loaded> loaded_;
-  std::vector<platform::DynamicLibrary> retired_;
   std::vector<Registered> registry_;
-  uint64_t request_count_ = 0;
+  u64 request_count_ = 0;
   bool initialized_ = false;
+  bool connected_ = false;
   std::unique_ptr<CvarRegistryImpl> cvars_ = CreateCvarRegistry();
   bool builtin_registered_ = false;
   size_t consumer_tables_registered_ = 0;
@@ -96,7 +100,7 @@ class ModuleLoader final : public IInterfaceFactory {
 
 // Registers the tables of the libraries compiled into rexruntime until sub-project 6 gives each
 // an IModule.
-Status RegisterBuiltinCvars(cvar::ICvarRegistry& registry);
+Result<void> RegisterBuiltinCvars(cvar::ICvarRegistry& registry);
 // Reverse of RegisterBuiltinCvars.
 void UnregisterBuiltinCvars(cvar::ICvarRegistry& registry);
 

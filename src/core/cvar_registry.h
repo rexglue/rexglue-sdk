@@ -32,21 +32,21 @@ class CvarRegistryImpl final : public cvar::ICvarRegistry {
   CvarRegistryImpl() = default;
   ~CvarRegistryImpl() override;
 
-  Status Register(std::string_view scope, std::span<const cvar::IVar* const> vars) override;
-  Status Add(std::span<const cvar::IVar* const> vars) override;
+  Result<void> Register(std::string_view scope, std::span<const cvar::IVar* const> vars) override;
+  Result<void> Add(std::span<const cvar::IVar* const> vars) override;
   void Unregister(std::span<const cvar::IVar* const> vars) override;
-  Status Set(std::string_view name, std::string_view value) override;
+  Result<void> Set(std::string_view name, std::string_view value) override;
   Result<std::string> Get(std::string_view name) const override;
-  Status SetDefault(std::string_view name, std::string_view value) override;
-  Status Lock(std::string_view name) override;
-  Status ResetToDefault(std::string_view name) override;
+  Result<void> SetDefault(std::string_view name, std::string_view value) override;
+  Result<void> Lock(std::string_view name) override;
+  Result<void> ResetToDefault(std::string_view name) override;
   const cvar::IVar* Find(std::string_view name) const override;
   cvar::CvarSource Source(std::string_view name) const override;
   std::vector<const cvar::IVar*> Enumerate(std::string_view scope = {}) const override;
   std::vector<std::string_view> Scopes() const override;
   Result<cvar::CallbackHandle> OnChange(std::string_view name,
                                         cvar::ChangeCallback callback) override;
-  Status Invoke(std::string_view name, std::string_view args) override;
+  Result<void> Invoke(std::string_view name, std::string_view args) override;
   std::vector<std::string> PendingRestart() const override;
   std::string Serialize() const override;
   bool IsFinalized() const override;
@@ -61,7 +61,7 @@ class CvarRegistryImpl final : public cvar::ICvarRegistry {
   /**
    * Locks every name. An unknown name is an error.
    */
-  Status ApplyLocks(std::span<const std::string> names);
+  Result<void> ApplyLocks(std::span<const std::string> names);
   /**
    * Marks the registry finalized. InitOnly is enforced and RequiresRestart marks pending from
    * here.
@@ -86,17 +86,17 @@ class CvarRegistryImpl final : public cvar::ICvarRegistry {
     bool locked = false;
   };
   struct Callback {
-    uint64_t id;
+    u64 id;
     std::string name;
     cvar::ChangeCallback fn;
   };
   using Fired = std::vector<std::pair<std::string, std::string>>;
 
-  void RemoveCallback(uint64_t id) override;
+  void RemoveCallback(u64 id) override;
   Entry* FindEntry(std::string_view name);
   const Entry* FindEntry(std::string_view name) const;
-  Status Validate(const Entry& entry, std::string_view value, cvar::CvarSource source) const;
-  Status Apply(Entry& entry, std::string_view value, cvar::CvarSource source, Fired& fired);
+  Result<void> Validate(const Entry& entry, std::string_view value, cvar::CvarSource source) const;
+  Result<void> Apply(Entry& entry, std::string_view value, cvar::CvarSource source, Fired& fired);
   void Fire(Fired& fired);
   void ApplyPending(Entry& entry, Fired& fired);
   std::string_view DefaultOf(const Entry& entry) const;
@@ -109,7 +109,7 @@ class CvarRegistryImpl final : public cvar::ICvarRegistry {
   std::vector<CvarOverride> pending_;
   std::vector<std::shared_ptr<Callback>> callbacks_;
   std::vector<std::string> pending_restart_;
-  uint64_t next_callback_id_ = 1;
+  u64 next_callback_id_ = 1;
   bool finalized_ = false;
 };
 

@@ -21,7 +21,7 @@
 
 #include <rex/system/xmemory.h>
 #include <rex/system/xtypes.h>
-#include <rex/thread.h>
+#include <rex/platform/thread.h>
 
 namespace rex {
 class Runtime;
@@ -209,7 +209,7 @@ class XObject {
 
   // Called on successful wait.
   virtual void WaitCallback() {}
-  virtual rex::thread::WaitHandle* GetWaitHandle() { return nullptr; }
+  virtual rex::platform::WaitHandle* GetWaitHandle() { return nullptr; }
 
   // Creates the kernel object for guest code to use. Typically not needed.
   uint8_t* CreateNative(uint32_t size);

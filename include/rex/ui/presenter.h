@@ -1048,7 +1048,7 @@ class Presenter {
   // May be signaled by guest output refreshing.
   std::condition_variable dxgi_ui_tick_signal_condition_;
 
-  std::thread dxgi_ui_tick_thread_;
+  std::jthread dxgi_ui_tick_thread_;
 #endif  // XE_PLATFORM
 };
 

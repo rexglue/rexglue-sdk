@@ -23,7 +23,7 @@ NopAudioSystem::NopAudioSystem(runtime::FunctionDispatcher* function_dispatcher)
 
 NopAudioSystem::~NopAudioSystem() = default;
 
-X_STATUS NopAudioSystem::CreateDriver(size_t /*index*/, rex::thread::Semaphore* /*semaphore*/,
+X_STATUS NopAudioSystem::CreateDriver(size_t /*index*/, rex::platform::Semaphore* /*semaphore*/,
                                       AudioDriver** /*out_driver*/) {
   return X_STATUS_NOT_IMPLEMENTED;
 }

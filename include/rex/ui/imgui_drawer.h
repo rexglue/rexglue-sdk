@@ -41,12 +41,25 @@ class ImGuiDrawer : public WindowInputListener, public UIDrawer {
 
   ImGuiIO& GetIO();
 
+  /**
+   * Returns the style of this drawer's ImGui context.
+   *
+   * @return The style every dialog of this drawer draws with.
+   */
+  ImGuiStyle& imgui_style();
+
   // Per-overlay styling, patched by the consumer in OnConfigureStyle.
   Style& style() { return style_; }
   const Style& style() const { return style_; }
 
   void AddDialog(ImGuiDialog* dialog);
   void RemoveDialog(ImGuiDialog* dialog);
+
+  /**
+   * Destroys every registered dialog the drawer owns, which signals the fences waiting on them.
+   * Owned dialogs stay with their owner.
+   */
+  void DestroyDialogs();
 
   // Whether Draw would render anything, so a caller that has to marshal to the
   // UI thread can skip the round trip entirely.

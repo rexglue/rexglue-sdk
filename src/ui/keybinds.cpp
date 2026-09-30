@@ -211,13 +211,12 @@ void RegisterBind(std::string_view name, std::string_view default_key, std::stri
 
 void UnregisterBind(std::string_view name) {
   std::lock_guard lock(g_binds_mutex);
-  for (auto& entry : g_binds) {
-    if (entry.name == name) {
-      RemoveFromRegistry(entry);
-      entry.callback = nullptr;
-      return;
-    }
+  auto it = std::ranges::find(g_binds, name, &BindEntry::name);
+  if (it == g_binds.end()) {
+    return;
   }
+  RemoveFromRegistry(*it);
+  g_binds.erase(it);
 }
 
 void AttachBindRegistry(rex::cvar::ICvarRegistry* registry) {

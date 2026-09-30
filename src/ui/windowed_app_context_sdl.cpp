@@ -92,6 +92,17 @@ int SDLWindowedAppContext::RunMainMessageLoop() {
   return EXIT_SUCCESS;
 }
 
+void SDLWindowedAppContext::PumpEvents(std::chrono::milliseconds max_wait) {
+  SDL_Event event;
+  if (!SDL_WaitEventTimeout(&event, i32(max_wait.count()))) {
+    return;
+  }
+  ProcessEvent(event);
+  while (!HasQuitFromUIThread() && SDL_PollEvent(&event)) {
+    ProcessEvent(event);
+  }
+}
+
 void SDLWindowedAppContext::ProcessEvent(SDL_Event& event) {
   if (event.type == wakeup_event_type_) {
     ExecutePendingFunctionsFromUIThread();

@@ -11,6 +11,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -29,7 +30,8 @@ std::vector<std::string> Parse(rex::Config& cfg, std::vector<std::string> args) 
   argv.push_back(exe.data());
   for (auto& a : args)
     argv.push_back(a.data());
-  return rex::ParseCommandLine(cfg, static_cast<int>(argv.size()), argv.data());
+  return rex::ParseCommandLine(
+      cfg, rex::CLIArgList::Parse(static_cast<rex::i32>(argv.size()), argv.data()));
 }
 
 const rex::CvarOverride* Find(const rex::Config& cfg, std::string_view name) {
@@ -80,12 +82,19 @@ TEST_CASE("ParseCommandLine fills structural fields and modules", "[config]") {
   REQUIRE(cfg.cvars.values.empty());
 }
 
-TEST_CASE("ParseCommandLine returns unknown and positional arguments in order", "[config]") {
+TEST_CASE("--modules appends to the configured list", "[config]") {
+  rex::Config cfg;
+  cfg.modules = {"x"};
+  auto rest = Parse(cfg, {"--modules=a", "--modules", "b,c"});
+  REQUIRE(rest.empty());
+  REQUIRE(cfg.modules == std::vector<std::string>{"x", "a", "b", "c"});
+}
+
+TEST_CASE("ParseCommandLine returns unknown options in order", "[config]") {
   rex::Config cfg;
   auto rest =
       Parse(cfg, {"game_dir", "--foo", "--foo=1", "--Bad.Name=1", "--gpu.vsync", "--modules"});
-  REQUIRE(rest ==
-          std::vector<std::string>{"game_dir", "--foo", "--foo=1", "--Bad.Name=1", "--modules"});
+  REQUIRE(rest == std::vector<std::string>{"--foo", "--foo=1", "--Bad.Name=1", "--modules"});
   REQUIRE(Find(cfg, "gpu.vsync")->value == "true");
 }
 
@@ -172,4 +181,25 @@ TEST_CASE("ApplyEnvironment reads REX_ variables into Environment overrides", "[
   rex::platform::env::unset("REX_APP_DEBUG_MARKERS");
   rex::platform::env::unset("REX_NOSCOPE");
   rex::platform::env::unset("REXX_FOO");
+}
+
+TEST_CASE("CvarConfig::Get returns the highest precedence queued value", "[config]") {
+  rex::Config config;
+  config.cvars.values.push_back({"gpu.vsync", "false", rex::cvar::CvarSource::Environment});
+  config.cvars.SetDefault("gpu.vsync", "true");
+  config.cvars.values.push_back({"gpu.vsync", "true", rex::cvar::CvarSource::Config});
+  REQUIRE(config.cvars.Get("gpu.vsync") == "false");
+  config.cvars.Set("gpu.vsync", "true");
+  REQUIRE(config.cvars.Get("gpu.vsync") == "true");
+  REQUIRE_FALSE(config.cvars.Get("gpu.nothing").has_value());
+}
+
+TEST_CASE("Config defaults for the 6a fields", "[config]") {
+  rex::Config config;
+  REQUIRE(config.single_instance.empty());
+  REQUIRE(config.runtime.terminate_timeout == std::chrono::milliseconds(2000));
+  REQUIRE_FALSE(config.input.shared_pads);
+  REQUIRE(config.ui.aspect_ratio == rex::ui::AspectRatio::kStretch);
+  REQUIRE(config.ui.min_size.width_px == 0);
+  REQUIRE(config.ui.title.empty());
 }

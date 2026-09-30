@@ -36,8 +36,8 @@
 #include <rex/system/xthread.h>
 #include <rex/system/xtimer.h>
 #include <rex/system/xtypes.h>
-#include <rex/thread/atomic.h>
-#include <rex/thread/mutex.h>
+#include <rex/platform/atomic.h>
+#include <rex/platform/mutex.h>
 
 namespace rex::kernel::xboxkrnl {
 using namespace rex::system;
@@ -390,7 +390,7 @@ u32 KeDelayExecutionThread_entry(u32 processor_mode, u32 alertable, mapped_u64 i
 }
 
 u32 NtYieldExecution_entry() {
-  rex::thread::MaybeYield();
+  rex::platform::MaybeYield();
   return X_STATUS_SUCCESS;
 }
 
@@ -969,8 +969,8 @@ uint32_t xeKeKfAcquireSpinLock(PPCContext* ctx, X_KSPINLOCK* lock, bool change_i
   uint32_t pcr_addr = static_cast<uint32_t>(ctx->r13.u64);
   const uint32_t self = rex::byte_swap(pcr_addr);
   assert_true(lock->prcb_of_owner.value != self);  // self-deadlock detection
-  while (!rex::thread::atomic_cas(0u, self, &lock->prcb_of_owner.value)) {
-    rex::thread::MaybeYield();
+  while (!rex::platform::atomic_cas(0u, self, &lock->prcb_of_owner.value)) {
+    rex::platform::MaybeYield();
   }
   return old_irql;
 }
@@ -978,7 +978,7 @@ uint32_t xeKeKfAcquireSpinLock(PPCContext* ctx, X_KSPINLOCK* lock, bool change_i
 void xeKeKfReleaseSpinLock(PPCContext* ctx, X_KSPINLOCK* lock, uint32_t old_irql,
                            bool change_irql) {
   assert_true(lock->prcb_of_owner == static_cast<uint32_t>(ctx->r13.u64));
-  rex::thread::atomic_store_release(0u, &lock->prcb_of_owner.value);
+  rex::platform::atomic_store_release(0u, &lock->prcb_of_owner.value);
   if (change_irql && old_irql < IRQL_DISPATCH) {
     xeKfLowerIrql(ctx, static_cast<unsigned char>(old_irql));
   }
@@ -1065,7 +1065,7 @@ u32 KeTryToAcquireSpinLockAtRaisedIrql_entry(mapped_u32 lock_ptr) {
   auto lock = reinterpret_cast<X_KSPINLOCK*>(lock_ptr.host_address());
   auto* ctx = current_ppc_context();
   uint32_t pcr_addr = static_cast<uint32_t>(ctx->r13.u64);
-  if (!rex::thread::atomic_cas(0u, rex::byte_swap(pcr_addr), &lock->prcb_of_owner.value)) {
+  if (!rex::platform::atomic_cas(0u, rex::byte_swap(pcr_addr), &lock->prcb_of_owner.value)) {
     return 0;
   }
   return 1;
@@ -1181,7 +1181,7 @@ u32 KeInsertQueueDpc_entry(ppc_ptr_t<XDPC> dpc, u32 arg1, u32 arg2) {
   uint32_t list_entry_ptr = dpc.guest_address() + 4;
 
   // Lock dispatcher.
-  auto global_lock = rex::thread::global_critical_region::AcquireDirect();
+  auto global_lock = rex::platform::global_critical_region::AcquireDirect();
   auto dpc_list = REX_KERNEL_STATE()->dpc_list();
 
   // If already in a queue, abort.
@@ -1203,7 +1203,7 @@ u32 KeRemoveQueueDpc_entry(ppc_ptr_t<XDPC> dpc) {
 
   uint32_t list_entry_ptr = dpc.guest_address() + 4;
 
-  auto global_lock = rex::thread::global_critical_region::AcquireDirect();
+  auto global_lock = rex::platform::global_critical_region::AcquireDirect();
   auto dpc_list = REX_KERNEL_STATE()->dpc_list();
   if (dpc_list->IsQueued(list_entry_ptr)) {
     dpc_list->Remove(list_entry_ptr);
@@ -1358,8 +1358,8 @@ u32 InterlockedPushEntrySList_entry(ppc_ptr_t<X_SLIST_HEADER> plist_ptr,
     old_head = old_hdr.next.next;
     entry->next = old_hdr.next.next;
     new_hdr.next.next = entry.guest_address();
-  } while (!rex::thread::atomic_cas(*(uint64_t*)(&old_hdr), *(uint64_t*)(&new_hdr),
-                                    reinterpret_cast<uint64_t*>(plist_ptr.host_address())));
+  } while (!rex::platform::atomic_cas(*(uint64_t*)(&old_hdr), *(uint64_t*)(&new_hdr),
+                                      reinterpret_cast<uint64_t*>(plist_ptr.host_address())));
 
   return old_head;
 }
@@ -1381,8 +1381,8 @@ u32 InterlockedPopEntrySList_entry(ppc_ptr_t<X_SLIST_HEADER> plist_ptr) {
     new_hdr.depth = old_hdr.depth - 1;
     new_hdr.next.next = next->next;
     new_hdr.sequence = old_hdr.sequence;
-  } while (!rex::thread::atomic_cas(*(uint64_t*)(&old_hdr), *(uint64_t*)(&new_hdr),
-                                    reinterpret_cast<uint64_t*>(plist_ptr.host_address())));
+  } while (!rex::platform::atomic_cas(*(uint64_t*)(&old_hdr), *(uint64_t*)(&new_hdr),
+                                      reinterpret_cast<uint64_t*>(plist_ptr.host_address())));
 
   return popped;
 }
@@ -1399,8 +1399,8 @@ u32 InterlockedFlushSList_entry(ppc_ptr_t<X_SLIST_HEADER> plist_ptr) {
     new_hdr.next.next = 0;
     new_hdr.depth = 0;
     new_hdr.sequence = 0;
-  } while (!rex::thread::atomic_cas(*(uint64_t*)(&old_hdr), *(uint64_t*)(&new_hdr),
-                                    reinterpret_cast<uint64_t*>(plist_ptr.host_address())));
+  } while (!rex::platform::atomic_cas(*(uint64_t*)(&old_hdr), *(uint64_t*)(&new_hdr),
+                                      reinterpret_cast<uint64_t*>(plist_ptr.host_address())));
 
   return first;
 }

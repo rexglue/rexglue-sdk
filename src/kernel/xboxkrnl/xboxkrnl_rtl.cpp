@@ -28,8 +28,8 @@
 #include <rex/system/util/string_utils.h>
 #include <rex/system/xevent.h>
 #include <rex/system/xthread.h>
-#include <rex/thread.h>
-#include <rex/thread/atomic.h>
+#include <rex/platform/thread.h>
+#include <rex/platform/atomic.h>
 
 namespace rex::kernel::xboxkrnl {
 using namespace rex::system;
@@ -382,14 +382,14 @@ void RtlEnterCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
 
   if (cs->owning_thread == cur_thread) {
     // We already own the lock.
-    rex::thread::atomic_inc(&cs->lock_count);
+    rex::platform::atomic_inc(&cs->lock_count);
     cs->recursion_count++;
     return;
   }
 
   // Spin loop
   while (spin_count--) {
-    if (rex::thread::atomic_cas(-1, 0, &cs->lock_count)) {
+    if (rex::platform::atomic_cas(-1, 0, &cs->lock_count)) {
       // Acquired.
       cs->owning_thread = cur_thread;
       cs->recursion_count = 1;
@@ -397,7 +397,7 @@ void RtlEnterCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
     }
   }
 
-  if (rex::thread::atomic_inc(&cs->lock_count) != 0) {
+  if (rex::platform::atomic_inc(&cs->lock_count) != 0) {
     // Create a full waiter.
     xeKeWaitForSingleObject(reinterpret_cast<void*>(cs.host_address()), 8, 0, 0, nullptr);
   }
@@ -410,14 +410,14 @@ void RtlEnterCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
 u32 RtlTryEnterCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
   uint32_t thread = XThread::GetCurrentThread()->guest_object();
 
-  if (rex::thread::atomic_cas(-1, 0, &cs->lock_count)) {
+  if (rex::platform::atomic_cas(-1, 0, &cs->lock_count)) {
     // Able to steal the lock right away.
     cs->owning_thread = thread;
     cs->recursion_count = 1;
     return 1;
   } else if (cs->owning_thread == thread) {
     // Already own the lock.
-    rex::thread::atomic_inc(&cs->lock_count);
+    rex::platform::atomic_inc(&cs->lock_count);
     ++cs->recursion_count;
     return 1;
   }
@@ -434,13 +434,13 @@ void RtlLeaveCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
   if (--cs->recursion_count != 0) {
     assert_true(cs->recursion_count >= 0);
 
-    rex::thread::atomic_dec(&cs->lock_count);
+    rex::platform::atomic_dec(&cs->lock_count);
     return;
   }
 
   // Not owned - unlock!
   cs->owning_thread = 0;
-  if (rex::thread::atomic_dec(&cs->lock_count) != -1) {
+  if (rex::platform::atomic_dec(&cs->lock_count) != -1) {
     // There were waiters - wake one of them.
     xeKeSetEvent(reinterpret_cast<X_KEVENT*>(cs.host_address()), 1, 0);
   }

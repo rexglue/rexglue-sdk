@@ -15,7 +15,7 @@
 
 #include <rex/system/kernel_module.h>
 #include <rex/system/kernel_state.h>
-#include <rex/thread.h>
+#include <rex/platform/thread.h>
 #include <rex/types.h>
 
 namespace rex::kernel::xboxkrnl {

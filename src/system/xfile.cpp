@@ -17,7 +17,7 @@
 #include <rex/system/kernel_state.h>
 #include <rex/system/xevent.h>
 #include <rex/system/xfile.h>
-#include <rex/thread/mutex.h>
+#include <rex/platform/mutex.h>
 
 #include <span>
 
@@ -25,12 +25,12 @@ namespace rex::system {
 
 XFile::XFile(KernelState* kernel_state, rex::filesystem::File* file, bool synchronous)
     : XObject(kernel_state, kObjectType), file_(file), is_synchronous_(synchronous) {
-  async_event_ = rex::thread::Event::CreateAutoResetEvent(false);
+  async_event_ = rex::platform::Event::CreateAutoResetEvent(false);
   assert_not_null(async_event_);
 }
 
 XFile::XFile() : XObject(kObjectType) {
-  async_event_ = rex::thread::Event::CreateAutoResetEvent(false);
+  async_event_ = rex::platform::Event::CreateAutoResetEvent(false);
   assert_not_null(async_event_);
 }
 
@@ -166,7 +166,7 @@ X_STATUS XFile::ReadInternal(uint32_t buffer_guest_address, uint32_t buffer_leng
           if (XSUCCEEDED(result)) {
             if (buffer_physical_heap) {
               buffer_physical_heap->TriggerCallbacks(
-                  rex::thread::global_critical_region::AcquireDirect(), buffer_guest_address,
+                  rex::platform::global_critical_region::AcquireDirect(), buffer_guest_address,
                   buffer_length, true, true);
             }
 

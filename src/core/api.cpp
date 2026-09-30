@@ -82,7 +82,7 @@ bool IsCvarName(std::string_view name) {
   return LowerToken(name.substr(0, dot)) && LowerToken(name.substr(dot + 1));
 }
 
-std::string TomlScalar(const toml::node& node) {
+std::string TOMLScalar(const toml::node& node) {
   if (auto* v = node.as_string())
     return v->get();
   if (auto* v = node.as_boolean())
@@ -109,7 +109,7 @@ bool API::IsLoaded(std::string_view module_name) const {
   return loader_->IsLoaded(module_name);
 }
 
-void* API::Get(const char* name, uint32_t version) const {
+void* API::Get(const char* name, u32 version) const {
   return loader_->GetForAPI(name, version);
 }
 
@@ -129,59 +129,38 @@ void Shutdown() {
   detail::ModuleLoader::Instance().Shutdown();
 }
 
-std::vector<std::string> ParseCommandLine(Config& config, int argc, char** argv) {
-  std::vector<std::string> remainder;
-  auto next_is_value = [&](int i) {
-    return i + 1 < argc && !std::string_view(argv[i + 1]).starts_with("--");
-  };
-  for (int i = 1; i < argc; ++i) {
-    std::string_view arg = argv[i];
-    if (!arg.starts_with("--")) {
-      remainder.emplace_back(arg);
-      continue;
-    }
-    auto eq = arg.find('=');
-    std::string_view key = arg.substr(0, eq);
-    bool handled = false;
-    for (const auto& field : kStructuralFields) {
-      if (key != field.flag)
+std::vector<std::string> ParseCommandLine(Config& config, const CLIArgList& args) {
+  std::vector<std::string> unknown;
+  for (const CLIOption& option : args.Options()) {
+    const std::string text =
+        option.value ? std::format("--{}={}", option.name, *option.value) : "--" + option.name;
+    if (auto field = std::ranges::find_if(
+            kStructuralFields,
+            [&](const StructuralField& entry) { return entry.flag.substr(2) == option.name; });
+        field != std::ranges::end(kStructuralFields)) {
+      if (!option.value) {
+        unknown.push_back(text);
         continue;
-      if (eq != std::string_view::npos) {
-        field.apply(config, arg.substr(eq + 1));
-      } else if (i + 1 < argc) {
-        field.apply(config, argv[++i]);
-      } else {
-        remainder.emplace_back(arg);
       }
-      handled = true;
-      break;
-    }
-    if (handled)
-      continue;
-    std::string_view name = key.substr(2);
-    bool negated = name.starts_with("no-");
-    if (negated)
-      name.remove_prefix(3);
-    if (!IsCvarName(name)) {
-      remainder.emplace_back(arg);
+      field->apply(config, *option.value);
       continue;
     }
-    std::string value;
+    std::string_view name = option.name;
+    const bool negated = name.starts_with("no-");
     if (negated) {
-      value = "false";
-    } else if (eq != std::string_view::npos) {
-      value = std::string(arg.substr(eq + 1));
-    } else if (next_is_value(i)) {
-      value = argv[++i];
-    } else {
-      value = "true";
+      name.remove_prefix(3);
     }
+    if (!IsCvarName(name)) {
+      unknown.push_back(text);
+      continue;
+    }
+    const std::string value = negated ? "false" : option.value.value_or("true");
     config.cvars.Set(name, value);
   }
-  return remainder;
+  return unknown;
 }
 
-Status LoadConfigFile(Config& config, const std::filesystem::path& path) {
+Result<void> LoadConfigFile(Config& config, const std::filesystem::path& path) {
   std::error_code ec;
   if (!std::filesystem::exists(path, ec))
     return Ok();
@@ -202,7 +181,7 @@ Status LoadConfigFile(Config& config, const std::filesystem::path& path) {
                                  top, std::string(leaf.str()), FirstKey(value)));
         }
         config.cvars.values.push_back({std::format("{}.{}", top, std::string(leaf.str())),
-                                       TomlScalar(value), cvar::CvarSource::Config});
+                                       TOMLScalar(value), cvar::CvarSource::Config});
       }
       continue;
     }
@@ -210,12 +189,13 @@ Status LoadConfigFile(Config& config, const std::filesystem::path& path) {
       return Err(ErrorCategory::Config,
                  std::format("{}: key '{}' is an array", path.string(), top));
     }
-    config.cvars.values.push_back({top, TomlScalar(node), cvar::CvarSource::Config});
+    config.cvars.values.push_back({top, TOMLScalar(node), cvar::CvarSource::Config});
   }
   return Ok();
 }
 
-Status SaveConfigFile(const cvar::ICvarRegistry& registry, const std::filesystem::path& path) {
+Result<void> SaveConfigFile(const cvar::ICvarRegistry& registry,
+                            const std::filesystem::path& path) {
   std::ofstream out(path, std::ios::binary | std::ios::trunc);
   if (!out) {
     return Err(ErrorCategory::Config, std::format("{}: cannot open for writing", path.string()));
@@ -231,7 +211,7 @@ Status SaveConfigFile(const cvar::ICvarRegistry& registry, const std::filesystem
 
 namespace rex::detail {
 
-Status RegisterBuiltinCvars(cvar::ICvarRegistry& registry) {
+Result<void> RegisterBuiltinCvars(cvar::ICvarRegistry& registry) {
   REX_TRY_VOID(registry.Register("log", rex::cvars::kLogCvars));
   REX_TRY_VOID(registry.Register("clock", rex::cvars::kClockCvars));
   REX_TRY_VOID(registry.Register("perf", rex::cvars::kPerfCvars));

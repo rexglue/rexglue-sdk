@@ -25,9 +25,9 @@ void XEvent::Initialize(bool manual_reset, bool initial_state) {
   this->CreateNative<X_KEVENT>();
 
   if (manual_reset) {
-    event_ = rex::thread::Event::CreateManualResetEvent(initial_state);
+    event_ = rex::platform::Event::CreateManualResetEvent(initial_state);
   } else {
-    event_ = rex::thread::Event::CreateAutoResetEvent(initial_state);
+    event_ = rex::platform::Event::CreateAutoResetEvent(initial_state);
   }
   assert_not_null(event_);
 }
@@ -49,9 +49,9 @@ void XEvent::InitializeNative(void* native_ptr, X_DISPATCH_HEADER* header) {
 
   bool initial_state = header->signal_state ? true : false;
   if (manual_reset_) {
-    event_ = rex::thread::Event::CreateManualResetEvent(initial_state);
+    event_ = rex::platform::Event::CreateManualResetEvent(initial_state);
   } else {
-    event_ = rex::thread::Event::CreateAutoResetEvent(initial_state);
+    event_ = rex::platform::Event::CreateAutoResetEvent(initial_state);
   }
   assert_not_null(event_);
 }
@@ -62,8 +62,8 @@ void XEvent::Query(uint32_t* out_type, uint32_t* out_state) {
   }
   if (out_state) {
     // Query the live host event, not the stale guest header
-    auto result = rex::thread::Wait(event_.get(), false, std::chrono::milliseconds(0));
-    if (result == rex::thread::WaitResult::kSuccess) {
+    auto result = rex::platform::Wait(event_.get(), false, std::chrono::milliseconds(0));
+    if (result == rex::platform::WaitResult::kSuccess) {
       *out_state = 1;
       // Re-signal since we consumed the signal by waiting
       event_->Set();
@@ -97,10 +97,10 @@ bool XEvent::Save(stream::ByteStream* stream) {
   SaveObject(stream);
 
   bool signaled = true;
-  auto result = rex::thread::Wait(event_.get(), false, std::chrono::milliseconds(0));
-  if (result == rex::thread::WaitResult::kSuccess) {
+  auto result = rex::platform::Wait(event_.get(), false, std::chrono::milliseconds(0));
+  if (result == rex::platform::WaitResult::kSuccess) {
     signaled = true;
-  } else if (result == rex::thread::WaitResult::kTimeout) {
+  } else if (result == rex::platform::WaitResult::kTimeout) {
     signaled = false;
   } else {
     assert_always();
@@ -126,9 +126,9 @@ object_ref<XEvent> XEvent::Restore(KernelState* kernel_state, stream::ByteStream
   evt->manual_reset_ = stream->Read<bool>();
 
   if (evt->manual_reset_) {
-    evt->event_ = rex::thread::Event::CreateManualResetEvent(false);
+    evt->event_ = rex::platform::Event::CreateManualResetEvent(false);
   } else {
-    evt->event_ = rex::thread::Event::CreateAutoResetEvent(false);
+    evt->event_ = rex::platform::Event::CreateAutoResetEvent(false);
   }
   assert_not_null(evt->event_);
 

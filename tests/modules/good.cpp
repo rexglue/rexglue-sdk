@@ -45,7 +45,7 @@ class GoodModule final : public rex::IModule, public rex::test::IEcho {
     static constexpr std::array<const char*, 1> kRequired = {"rex.cvar@1"};
     return kRequired;
   }
-  rex::Status Connect(rex::IInterfaceFactory* factory, const rex::Config&) override {
+  rex::Result<void> Connect(rex::IInterfaceFactory* factory, const rex::Config&) override {
     Record(kName, "connect");
     cvars_ = factory->Get<rex::cvar::ICvarRegistry>();
     if (!cvars_)
@@ -58,7 +58,7 @@ class GoodModule final : public rex::IModule, public rex::test::IEcho {
       cvars_->Unregister(kEchoCvars);
     cvars_ = nullptr;
   }
-  rex::Status Init() override {
+  rex::Result<void> Init() override {
     Record(kName, "init");
     return rex::Ok();
   }

@@ -100,16 +100,6 @@ template <typename T>
 using Result = std::expected<T, Error>;
 
 /**
- * Result type for operations that return nothing on success
- */
-using VoidResult = std::expected<void, Error>;
-
-/**
- * Result type for operations that return nothing on success. Preferred spelling.
- */
-using Status = VoidResult;
-
-/**
  * Create a success result
  */
 template <typename T>
@@ -118,10 +108,12 @@ inline Result<T> Ok(T&& value) {
 }
 
 /**
- * Create a success result for void operations
+ * Builds a successful result with no value.
+ *
+ * @return A Result<void> holding success.
  */
-inline VoidResult Ok() {
-  return VoidResult();
+inline Result<void> Ok() {
+  return Result<void>();
 }
 
 /**
@@ -130,7 +122,7 @@ inline VoidResult Ok() {
 template <typename T = void>
 inline auto Err(Error error) {
   if constexpr (std::is_void_v<T>) {
-    return VoidResult(std::unexpected(std::move(error)));
+    return Result<void>(std::unexpected(std::move(error)));
   } else {
     return Result<T>(std::unexpected(std::move(error)));
   }

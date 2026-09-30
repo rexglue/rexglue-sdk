@@ -31,7 +31,9 @@ class WindowSDL final : public Window {
             uint32_t desired_logical_width, uint32_t desired_logical_height);
   ~WindowSDL() override;
 
-  void* GetNativeWindowHandle() const override;
+  void Raise() override;
+  void* native() const override;
+  SDL_Window* sdl() const override;
   bool SetRelativeMouseMode(bool enable) override;
   bool WarpMouseToCenter(int32_t& x_out, int32_t& y_out) override;
   bool GetDisplayPixelSize(uint32_t& width, uint32_t& height) const override;
@@ -59,6 +61,7 @@ class WindowSDL final : public Window {
   void ApplyNewCursorVisibility(CursorVisibility old_cursor_visibility) override;
   void ApplyNewTextInputActive() override;
   void FocusImpl() override;
+  void ApplySizeLimits() override;
 
   std::unique_ptr<Surface> CreateSurfaceImpl(Surface::TypeFlags allowed_types) override;
   void RequestPaintImpl() override;

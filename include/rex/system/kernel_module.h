@@ -46,7 +46,7 @@ class KernelModule : public XModule {
   std::string name_;
   std::string path_;
 
-  rex::thread::global_critical_region global_critical_region_;
+  rex::platform::global_critical_region global_critical_region_;
 
   // Cache of (caller_module_base, ordinal) -> thunk guest address.
   struct ThunkKey {

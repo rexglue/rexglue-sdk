@@ -11,11 +11,11 @@
 
 #pragma once
 
-#include <cstdint>
 #include <span>
 
 #include <rex/macros.h>
 #include <rex/result.h>
+#include <rex/types.h>
 
 namespace rex {
 
@@ -24,10 +24,10 @@ struct Config;
 /**
  * Result of an interface request at the module boundary.
  */
-enum class InterfaceStatus : int32_t {
-  Ok = 0,              /**< The interface is served. */
-  NotFound = 1,        /**< No interface of that name. */
-  VersionMismatch = 2, /**< The name is served at a different version. */
+enum class InterfaceStatus : i32 {  // NOLINT(performance-enum-size): the C export reports it as i32
+  Ok = 0,                           /**< The interface is served. */
+  NotFound = 1,                     /**< No interface of that name. */
+  VersionMismatch = 2,              /**< The name is served at a different version. */
 };
 
 /**
@@ -45,11 +45,12 @@ class IInterfaceFactory {
    * @param out_status Receives the status. May be null.
    * @return The interface, or null when the status is not Ok.
    */
-  virtual void* Get(const char* name, uint32_t version, InterfaceStatus* out_status) = 0;
+  virtual void* Get(const char* name, u32 version, InterfaceStatus* out_status) = 0;
 
   /**
    * Typed fetch by T::kInterfaceName and T::kInterfaceVersion.
    *
+   * @tparam T The interface class, which declares kInterfaceName and kInterfaceVersion.
    * @return The interface, or null when it is not served at that version.
    */
   template <typename T>
@@ -85,7 +86,7 @@ class IModule {
    * @param config The consumer's configuration. The module stores a pointer to its slice.
    * @return Ok, or an error that aborts Init before any module's Init runs.
    */
-  virtual Status Connect(IInterfaceFactory* factory, const Config& config) = 0;
+  virtual Result<void> Connect(IInterfaceFactory* factory, const Config& config) = 0;
 
   /**
    * Releases what Connect acquired. Cannot fail.
@@ -97,7 +98,7 @@ class IModule {
    *
    * @return Ok, or an error that unwinds every module initialized before it.
    */
-  virtual Status Init() = 0;
+  virtual Result<void> Init() = 0;
 
   /**
    * Tears down what Init built. Cannot fail.
@@ -110,7 +111,7 @@ class IModule {
  */
 struct InterfaceEntry {
   const char* name; /**< Dotted interface name. */
-  uint32_t version; /**< Served version. */
+  u32 version;      /**< Served version. */
   void* (*get)();   /**< Returns the interface instance. */
 };
 
@@ -127,11 +128,11 @@ inline constexpr const char* kEnumerateInterfacesSymbol = "rex_enumerate_interfa
 /**
  * Signature of rex_create_interface.
  */
-using CreateInterfaceFn = void* (*)(const char* name, uint32_t version, int32_t* out_status);
+using CreateInterfaceFn = void* (*)(const char* name, u32 version, i32* out_status);
 
 /**
  * Signature of rex_enumerate_interfaces.
  */
-using EnumerateInterfacesFn = void (*)(const InterfaceEntry** out_entries, uint32_t* out_count);
+using EnumerateInterfacesFn = void (*)(const InterfaceEntry** out_entries, u32* out_count);
 
 }  // namespace rex

@@ -4,6 +4,9 @@
 # Test modules for the module loader tests
 add_subdirectory(modules)
 
+# Compile and run checks for the entry point macros
+add_subdirectory(samples)
+
 # Unit tests for core components
 add_subdirectory(unit)
 

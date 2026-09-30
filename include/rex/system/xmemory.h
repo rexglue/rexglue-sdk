@@ -20,7 +20,7 @@
 #include <rex/memory/utils.h>
 #include <rex/ppc/func.h>  // PPCFunc type
 #include <rex/system/mmio_handler.h>
-#include <rex/thread/mutex.h>
+#include <rex/platform/mutex.h>
 
 namespace rex::stream {
 class ByteStream;
@@ -267,7 +267,7 @@ class BaseHeap {
   uint32_t page_size_shift_ = 0;
   uint32_t host_address_offset_;
   uint32_t unreserved_page_count_ = 0;
-  rex::thread::global_critical_region global_critical_region_;
+  rex::platform::global_critical_region global_critical_region_;
   std::recursive_mutex heap_mutex_;
   std::vector<PageEntry> page_table_;
 };
@@ -621,7 +621,7 @@ class Memory {
   friend class BaseHeap;
 
   friend class PhysicalHeap;
-  rex::thread::global_critical_region global_critical_region_;
+  rex::platform::global_critical_region global_critical_region_;
   std::vector<std::pair<PhysicalMemoryInvalidationCallback, void*>*>
       physical_memory_invalidation_callbacks_;
 };

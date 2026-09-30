@@ -17,8 +17,8 @@
 #include <rex/system/xcontent.h>
 #include <rex/system/xobject.h>
 #include <rex/system/xtypes.h>
-#include <rex/thread.h>
-#include <rex/thread/mutex.h>
+#include <rex/platform/thread.h>
+#include <rex/platform/mutex.h>
 
 namespace rex::system {
 
@@ -59,11 +59,11 @@ class XNotifyListener : public XObject {
   static object_ref<XNotifyListener> Restore(KernelState* kernel_state, stream::ByteStream* stream);
 
  protected:
-  rex::thread::WaitHandle* GetWaitHandle() override { return wait_handle_.get(); }
+  rex::platform::WaitHandle* GetWaitHandle() override { return wait_handle_.get(); }
 
  private:
-  std::unique_ptr<rex::thread::Event> wait_handle_;
-  rex::thread::global_critical_region global_critical_region_;
+  std::unique_ptr<rex::platform::Event> wait_handle_;
+  rex::platform::global_critical_region global_critical_region_;
   std::vector<std::pair<XNotificationID, uint32_t>> notifications_;
   uint64_t mask_ = 0;
   uint32_t max_version_ = 0;

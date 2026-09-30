@@ -9,13 +9,13 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/thread/mutex.h>
+#include <rex/platform/mutex.h>
 
-namespace rex::thread {
+namespace rex::platform {
 
 std::recursive_mutex& global_critical_region::mutex() {
   static std::recursive_mutex global_mutex;
   return global_mutex;
 }
 
-}  // namespace rex::thread
+}  // namespace rex::platform

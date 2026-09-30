@@ -3,7 +3,10 @@
 add_executable(unit_tests
     test_memory.cpp
     memory/heap_allocation_test.cpp
+    kernel/exit_title_test.cpp
     kernel/object_table_test.cpp
+    core/app_test.cpp
+    core/cli_arg_list_test.cpp
     core/cvar_test.cpp
     core/config_test.cpp
     core/fiber_test.cpp
@@ -14,12 +17,17 @@ add_executable(unit_tests
     core/chrono_test.cpp
     core/macros_test.cpp
     core/module_loader_test.cpp
+    core/relaunch_test.cpp
+    core/thread_registry_test.cpp
     ppc/import_function_test.cpp
     ppc/stack_test.cpp
     system/guest_path_test.cpp
     system/achievement_manager_test.cpp
     system/function_dispatcher_test.cpp
+    system/thread_wait_test.cpp
     input/input_assignment_test.cpp
+    ui/title_app_test.cpp
+    ui/ui_event_test.cpp
     codegen/codegen_writer_test.cpp
     codegen/output_partition_test.cpp
     codegen/output_stamp_test.cpp
@@ -42,20 +50,10 @@ target_link_libraries(unit_tests PRIVATE
     rexruntime
     xxHash::xxhash
     Catch2::Catch2WithMain
+    SDL3::Headers
 )
 
-# ReXApp is shipped as source for recomp projects, rather than compiled into
-# rexui. Keep its SDK-consumer compilation path covered by the test build.
-add_library(rexapp_compile_test OBJECT
-    ${PROJECT_SOURCE_DIR}/src/ui/rex_app.cpp
-)
-target_link_libraries(rexapp_compile_test PRIVATE
-    rexruntime
-    rexui
-    rexinput
-    rexaudio
-)
-add_dependencies(unit_tests rexapp_compile_test)
+add_dependencies(unit_tests rex-sample-console rex-sample-title)
 
 add_dependencies(unit_tests
     rexmod-test-good rexmod-test-missing rexmod-test-badversion

@@ -89,7 +89,7 @@ void validateConfigBoundaries(CodegenContext& ctx) {
   }
 }
 
-VoidResult validateGraph(CodegenContext& ctx) {
+Result<void> validateGraph(CodegenContext& ctx) {
   REXCODEGEN_TRACE("Analyze: validating call graph...");
 
   auto& graph = ctx.graph;
@@ -208,7 +208,7 @@ VoidResult validateGraph(CodegenContext& ctx) {
 
 namespace phases {
 
-VoidResult Validate(CodegenContext& ctx, ProgressReporter* reporter) {
+Result<void> Validate(CodegenContext& ctx, ProgressReporter* reporter) {
   (void)reporter;
   return validateGraph(ctx);
 }

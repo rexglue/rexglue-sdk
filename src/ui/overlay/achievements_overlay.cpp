@@ -13,23 +13,20 @@
 #include <imgui.h>
 
 #include <rex/runtime.h>
+#include <rex/system/kernel_state.h>
 #include <rex/ui/immediate_drawer.h>
+#include <rex/ui/overlay.h>
 
 namespace rex::ui {
 
-AchievementsOverlayDialog::AchievementsOverlayDialog(ImGuiDrawer* imgui_drawer,
-                                                     ImmediateDrawer* immediate_drawer,
-                                                     rex::Runtime* runtime,
-                                                     rex::system::AchievementManager* achievements)
-    : ImGuiDialog(imgui_drawer),
-      achievements_(achievements),
-      icon_cache_(immediate_drawer, runtime) {}
+AchievementsOverlayDialog::AchievementsOverlayDialog(const OverlayContext& context)
+    : ImGuiDialog(&context.drawer()), context_(context) {}
 
 AchievementsOverlayDialog::~AchievementsOverlayDialog() {}
 
 ImmediateTexture* AchievementsOverlayDialog::GetIcon(
     const rex::system::AchievementInfo& achievement) {
-  return icon_cache_.GetIcon(achievement);
+  return icon_cache_ ? icon_cache_->GetIcon(achievement) : nullptr;
 }
 
 void AchievementsOverlayDialog::OnDraw(ImGuiIO& io) {
@@ -44,14 +41,25 @@ void AchievementsOverlayDialog::OnDraw(ImGuiIO& io) {
   ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, style.item_spacing);
 
   if (ImGui::Begin("Achievements##overlay", nullptr, ImGuiWindowFlags_NoCollapse)) {
-    const auto achievements = achievements_->ListAchievements();
+    Runtime* runtime = context_.runtime();
+    if (!runtime || !runtime->kernel_state() || !context_.immediate_drawer()) {
+      ImGui::TextUnformatted("No title is running.");
+      ImGui::End();
+      ImGui::PopStyleVar(2);
+      return;
+    }
+    if (!icon_cache_) {
+      icon_cache_.emplace(context_.immediate_drawer(), runtime);
+    }
+    auto& manager = runtime->kernel_state()->achievements();
+    const auto achievements = manager.ListAchievements();
 
     int unlocked_count = 0;
     int total_gs = 0;
     int earned_gs = 0;
     for (const auto& a : achievements) {
       total_gs += static_cast<int>(a.gamerscore);
-      if (achievements_->IsUnlocked(a.id)) {
+      if (manager.IsUnlocked(a.id)) {
         ++unlocked_count;
         earned_gs += static_cast<int>(a.gamerscore);
       }
@@ -79,7 +87,7 @@ void AchievementsOverlayDialog::OnDraw(ImGuiIO& io) {
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
 
     for (const auto& a : achievements) {
-      const bool is_unlocked = achievements_->IsUnlocked(a.id);
+      const bool is_unlocked = manager.IsUnlocked(a.id);
       const std::string& desc = is_unlocked ? a.description : a.unachieved_description;
 
       ImGui::PushID(static_cast<int>(a.id));

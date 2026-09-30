@@ -64,7 +64,7 @@ CommandProcessor::CommandProcessor(GraphicsSystem* graphics_system,
       graphics_system_(graphics_system),
       register_file_(graphics_system_->register_file()),
       worker_running_(true),
-      write_ptr_index_event_(rex::thread::Event::CreateAutoResetEvent(false)),
+      write_ptr_index_event_(rex::platform::Event::CreateAutoResetEvent(false)),
       write_ptr_index_(0) {
   assert_not_null(write_ptr_index_event_);
 }
@@ -178,11 +178,11 @@ void CommandProcessor::WorkerThreadMain() {
         // If we spin around too much, revert to a "low-power" state.
         if (loop_count > 500) {
           const int wait_time_ms = 5;
-          rex::thread::Wait(write_ptr_index_event_.get(), true,
-                            std::chrono::milliseconds(wait_time_ms));
+          rex::platform::Wait(write_ptr_index_event_.get(), true,
+                              std::chrono::milliseconds(wait_time_ms));
         }
 
-        rex::thread::MaybeYield();
+        rex::platform::MaybeYield();
         loop_count++;
         write_ptr_index = write_ptr_index_.load();
       } while (worker_running_ && pending_fns_.empty() &&
@@ -217,10 +217,10 @@ void CommandProcessor::Pause() {
   }
   paused_ = true;
 
-  thread::Fence fence;
+  platform::Fence fence;
   CallInThread([&fence]() {
     fence.Signal();
-    thread::Thread::GetCurrentThread()->Suspend();
+    platform::Thread::GetCurrentThread()->Suspend();
   });
 
   fence.Wait();
@@ -991,11 +991,11 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reade
         PrepareForWait();
         if (!REXCVAR_GET(::rex::graphics::cvars::vsync)) {
           // User wants it fast and dangerous.
-          rex::thread::MaybeYield();
+          rex::platform::MaybeYield();
         } else {
-          rex::thread::Sleep(std::chrono::milliseconds(wait / 0x100));
+          rex::platform::Sleep(std::chrono::milliseconds(wait / 0x100));
         }
-        rex::thread::SyncMemory();
+        rex::platform::SyncMemory();
         ReturnFromWait();
 
         if (!worker_running_) {
@@ -1003,7 +1003,7 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reade
           return false;
         }
       } else {
-        rex::thread::MaybeYield();
+        rex::platform::MaybeYield();
       }
     }
   } while (!matched);

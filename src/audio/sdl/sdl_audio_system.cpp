@@ -29,7 +29,8 @@ void SDLAudioSystem::Initialize() {
 }
 
 X_STATUS SDLAudioSystem::CreateDriver([[maybe_unused]] size_t index,
-                                      rex::thread::Semaphore* semaphore, AudioDriver** out_driver) {
+                                      rex::platform::Semaphore* semaphore,
+                                      AudioDriver** out_driver) {
   assert_not_null(out_driver);
   auto driver = new SDLAudioDriver(memory_, semaphore);
   if (!driver->Initialize()) {

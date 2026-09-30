@@ -25,7 +25,7 @@ bool XSemaphore::Initialize(int32_t initial_count, int32_t maximum_count) {
   CreateNative(sizeof(X_KSEMAPHORE));
 
   maximum_count_ = maximum_count;
-  semaphore_ = rex::thread::Semaphore::Create(initial_count, maximum_count);
+  semaphore_ = rex::platform::Semaphore::Create(initial_count, maximum_count);
   return !!semaphore_;
 }
 
@@ -34,7 +34,7 @@ bool XSemaphore::InitializeNative(void* native_ptr, X_DISPATCH_HEADER* header) {
 
   auto semaphore = reinterpret_cast<X_KSEMAPHORE*>(native_ptr);
   maximum_count_ = semaphore->limit;
-  semaphore_ = rex::thread::Semaphore::Create(semaphore->header.signal_state, semaphore->limit);
+  semaphore_ = rex::platform::Semaphore::Create(semaphore->header.signal_state, semaphore->limit);
   return !!semaphore_;
 }
 
@@ -54,8 +54,8 @@ bool XSemaphore::Save(stream::ByteStream* stream) {
 
   // Get the free number of slots from the semaphore.
   uint32_t free_count = 0;
-  while (rex::thread::Wait(semaphore_.get(), false, std::chrono::milliseconds(0)) ==
-         rex::thread::WaitResult::kSuccess) {
+  while (rex::platform::Wait(semaphore_.get(), false, std::chrono::milliseconds(0)) ==
+         rex::platform::WaitResult::kSuccess) {
     free_count++;
   }
 
@@ -82,7 +82,7 @@ object_ref<XSemaphore> XSemaphore::Restore(KernelState* kernel_state, stream::By
   auto free_count = stream->Read<uint32_t>();
   REXSYS_DEBUG("XSemaphore {:08X} (count {}/{})", sem->handle(), free_count, sem->maximum_count_);
 
-  sem->semaphore_ = rex::thread::Semaphore::Create(free_count, sem->maximum_count_);
+  sem->semaphore_ = rex::platform::Semaphore::Create(free_count, sem->maximum_count_);
   assert_not_null(sem->semaphore_);
 
   return object_ref<XSemaphore>(sem);

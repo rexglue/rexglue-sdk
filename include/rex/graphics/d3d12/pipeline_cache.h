@@ -36,7 +36,7 @@
 #include <rex/hash.h>
 #include <rex/platform.h>
 #include <rex/string/buffer.h>
-#include <rex/thread.h>
+#include <rex/platform/thread.h>
 #include <rex/ui/d3d12/d3d12_api.h>
 
 namespace rex::graphics::d3d12 {
@@ -391,7 +391,7 @@ class PipelineCache {
   bool storage_write_flush_shaders_ = false;
   bool storage_write_flush_pipelines_ = false;
   bool storage_write_thread_shutdown_ = false;
-  std::unique_ptr<rex::thread::Thread> storage_write_thread_;
+  std::unique_ptr<rex::platform::Thread> storage_write_thread_;
 
   // Pipeline creation threads.
   void CreationThread(size_t thread_index);
@@ -409,7 +409,7 @@ class PipelineCache {
   // Manual-reset event set when the last queued pipeline is created and there
   // are no more pipelines to create. This is triggered by the thread creating
   // the last pipeline.
-  std::unique_ptr<rex::thread::Event> creation_completion_event_;
+  std::unique_ptr<rex::platform::Event> creation_completion_event_;
   // Whether setting the event on completion is queued. Protected with
   // creation_request_lock_, notify_one creation_request_cond_ when set.
   bool creation_completion_set_event_ = false;
@@ -417,7 +417,7 @@ class PipelineCache {
   // possible. Protected with creation_request_lock_, notify_all
   // creation_request_cond_ when set.
   size_t creation_threads_shutdown_from_ = SIZE_MAX;
-  std::vector<std::unique_ptr<rex::thread::Thread>> creation_threads_;
+  std::vector<std::unique_ptr<rex::platform::Thread>> creation_threads_;
 };
 
 }  // namespace rex::graphics::d3d12

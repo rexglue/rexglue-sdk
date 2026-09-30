@@ -27,7 +27,7 @@
 
 namespace rex::audio::sdl {
 
-SDLAudioDriver::SDLAudioDriver(memory::Memory* memory, rex::thread::Semaphore* semaphore)
+SDLAudioDriver::SDLAudioDriver(memory::Memory* memory, rex::platform::Semaphore* semaphore)
     : AudioDriver(memory), semaphore_(semaphore) {}
 
 SDLAudioDriver::~SDLAudioDriver() {

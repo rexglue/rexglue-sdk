@@ -30,7 +30,7 @@
 #include <rex/graphics/pipeline/shader/spirv_translator.h>
 #include <rex/hash.h>
 #include <rex/platform.h>
-#include <rex/thread.h>
+#include <rex/platform/thread.h>
 #include <rex/graphics/primitive_processor.h>
 #include <rex/graphics/register_file.h>
 #include <rex/graphics/registers.h>
@@ -455,7 +455,7 @@ class VulkanPipelineCache {
   bool storage_write_flush_shaders_ = false;
   bool storage_write_flush_pipelines_ = false;
   bool storage_write_thread_shutdown_ = false;
-  std::unique_ptr<rex::thread::Thread> storage_write_thread_;
+  std::unique_ptr<rex::platform::Thread> storage_write_thread_;
 
   mutable std::mutex creation_request_lock_;
   std::condition_variable creation_request_cond_;
@@ -464,10 +464,10 @@ class VulkanPipelineCache {
       creation_queue_;
   size_t creation_threads_busy_ = 0;
   bool startup_loading_ = false;
-  std::unique_ptr<rex::thread::Event> creation_completion_event_;
+  std::unique_ptr<rex::platform::Event> creation_completion_event_;
   bool creation_completion_set_event_ = false;
   size_t creation_threads_shutdown_from_ = SIZE_MAX;
-  std::vector<std::unique_ptr<rex::thread::Thread>> creation_threads_;
+  std::vector<std::unique_ptr<rex::platform::Thread>> creation_threads_;
 };
 
 }  // namespace rex::graphics::vulkan

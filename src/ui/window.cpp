@@ -199,22 +199,29 @@ bool Window::Open() {
     OnMonitorUpdate(e);
   }
   {
-    UISetupEvent e(this, true);
+    UISetupEvent opened(UIEvent::Type::Opened, this, true);
+    UISetupEvent dpi(UIEvent::Type::DpiChanged, this, true);
+    ResizeEvent resize(this, {GetActualPhysicalWidth(), GetActualPhysicalHeight()}, true);
+    FocusEvent focus(this, true, true);
     WindowDestructionReceiver destruction_receiver(this);
-    SendEventToListeners([&e](auto listener) { listener->OnOpened(e); }, destruction_receiver);
+    SendEventToListeners([&opened](auto listener) { listener->OnOpened(opened); },
+                         destruction_receiver);
     if (destruction_receiver.IsWindowDestroyedOrListenersUncallable()) {
       return true;
     }
-    SendEventToListeners([&e](auto listener) { listener->OnDpiChanged(e); }, destruction_receiver);
+    SendEventToListeners([&dpi](auto listener) { listener->OnDpiChanged(dpi); },
+                         destruction_receiver);
     if (destruction_receiver.IsWindowDestroyedOrListenersUncallable()) {
       return true;
     }
-    SendEventToListeners([&e](auto listener) { listener->OnResize(e); }, destruction_receiver);
+    SendEventToListeners([&resize](auto listener) { listener->OnResize(resize); },
+                         destruction_receiver);
     if (destruction_receiver.IsWindowDestroyedOrListenersUncallable()) {
       return true;
     }
     if (HasFocus()) {
-      SendEventToListeners([&e](auto listener) { listener->OnGotFocus(e); }, destruction_receiver);
+      SendEventToListeners([&focus](auto listener) { listener->OnGotFocus(focus); },
+                           destruction_receiver);
       if (destruction_receiver.IsWindowDestroyedOrListenersUncallable()) {
         return true;
       }
@@ -520,7 +527,7 @@ void Window::OnBeforeClose(WindowDestructionReceiver& destruction_receiver) {
     }
 
     {
-      UIEvent e(this);
+      UIEvent e(UIEvent::Type::Closing, this);
       SendEventToListeners([&e](auto listener) { listener->OnClosing(e); }, destruction_receiver);
       if (destruction_receiver.IsWindowDestroyed()) {
         return;
@@ -570,7 +577,7 @@ bool Window::OnActualSizeUpdate(uint32_t new_physical_width, uint32_t new_physic
   if (presenter_surface_) {
     presenter_->OnSurfaceResizeFromUIThread();
   }
-  UISetupEvent e(this);
+  ResizeEvent e(this, {GetActualPhysicalWidth(), GetActualPhysicalHeight()});
   SendEventToListeners([&e](auto listener) { listener->OnResize(e); }, destruction_receiver);
   if (destruction_receiver.IsWindowDestroyed()) {
     return true;
@@ -583,7 +590,7 @@ void Window::OnFocusUpdate(bool new_has_focus, WindowDestructionReceiver& destru
     return;
   }
   has_focus_ = new_has_focus;
-  UISetupEvent e(this);
+  FocusEvent e(this, has_focus_);
   if (has_focus_) {
     SendEventToListeners([&e](auto listener) { listener->OnGotFocus(e); }, destruction_receiver);
   } else {
@@ -598,7 +605,7 @@ bool Window::SendCloseRequestToListeners(WindowDestructionReceiver& destruction_
   if (!CanSendEventsToListeners()) {
     return true;
   }
-  UIEvent e(this);
+  UIEvent e(UIEvent::Type::Close, this);
   // Snapshot: listeners may add/remove listeners or destroy the window from
   // within the callback, and a veto must stop iteration immediately.
   std::vector<WindowListener*> listeners(listeners_);
@@ -618,7 +625,7 @@ void Window::OnMinimized(WindowDestructionReceiver& destruction_receiver) {
   if (!CanSendEventsToListeners()) {
     return;
   }
-  UIEvent e(this);
+  UIEvent e(UIEvent::Type::Minimized, this);
   SendEventToListeners([&e](auto listener) { listener->OnMinimized(e); }, destruction_receiver);
 }
 
@@ -626,7 +633,7 @@ void Window::OnRestored(WindowDestructionReceiver& destruction_receiver) {
   if (!CanSendEventsToListeners()) {
     return;
   }
-  UIEvent e(this);
+  UIEvent e(UIEvent::Type::Restored, this);
   SendEventToListeners([&e](auto listener) { listener->OnRestored(e); }, destruction_receiver);
 }
 
@@ -815,6 +822,16 @@ void Window::PropagateEventThroughInputListeners(std::function<bool(WindowInputL
       !innermost_input_listener_iteration_context_) {
     phase_ = Phase::kClosedOpenable;
   }
+}
+
+void Window::SetMinimumSize(WindowSize size) {
+  min_size_ = size;
+  ApplySizeLimits();
+}
+
+void Window::SetAspectRatio(AspectRatio ratio) {
+  aspect_ratio_ = ratio;
+  ApplySizeLimits();
 }
 
 }  // namespace ui

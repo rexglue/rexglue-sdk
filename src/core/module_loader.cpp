@@ -27,18 +27,18 @@ namespace rex::detail {
 namespace {
 
 std::string_view BuildPostfix() {
-  constexpr std::string_view config = REXGLUE_BUILD_CONFIG;
-  if (config == "Debug") {
+  constexpr std::string_view kConfig = REXGLUE_BUILD_CONFIG;
+  if (kConfig == "Debug") {
     return "d";
   }
-  if (config == "RelWithDebInfo") {
+  if (kConfig == "RelWithDebInfo") {
     return "rd";
   }
   return "";
 }
 
 // Splits "name@version". Returns false when the form is wrong.
-bool SplitRequirement(std::string_view text, std::string& name, uint32_t& version) {
+bool SplitRequirement(std::string_view text, std::string& name, u32& version) {
   auto at = text.rfind('@');
   if (at == std::string_view::npos || at == 0 || at + 1 >= text.size()) {
     return false;
@@ -84,7 +84,7 @@ std::filesystem::path ModuleFileName(std::string_view name) {
 #endif
 }
 
-uint64_t InterfaceRequestCount() {
+u64 InterfaceRequestCount() {
   return ModuleLoader::Instance().request_count();
 }
 
@@ -98,8 +98,8 @@ Error ModuleLoader::ModuleError(std::string message) {
   return Error(ErrorCategory::Module, std::move(message));
 }
 
-Result<API*> ModuleLoader::Init(const Config& config) {
-  if (initialized_) {
+Result<API*> ModuleLoader::Connect(const Config& config) {
+  if (initialized_ || connected_) {
     return Err<API*>(ModuleError("rex::Init called while initialized"));
   }
   config_ = config;
@@ -153,15 +153,28 @@ Result<API*> ModuleLoader::Init(const Config& config) {
     UnwindAll();
     return Err<API*>(status.error());
   }
-  if (auto status = InitAll(); !status) {
-    UnwindAll();
-    return Err<API*>(status.error());
-  }
-  initialized_ = true;
+  connected_ = true;
   return &api_;
 }
 
-Status ModuleLoader::LoadAll() {
+Result<void> ModuleLoader::InitModules() {
+  cvars_->Finalize();
+  if (auto status = InitAll(); !status) {
+    UnwindAll();
+    connected_ = false;
+    return status;
+  }
+  initialized_ = true;
+  return Ok();
+}
+
+Result<API*> ModuleLoader::Init(const Config& config) {
+  REX_TRY(API * api, Connect(config));
+  REX_TRY_VOID(InitModules());
+  return api;
+}
+
+Result<void> ModuleLoader::LoadAll() {
   const auto folder = rex::filesystem::GetExecutableFolder();
   for (const auto& name : config_.modules) {
     Loaded entry;
@@ -183,7 +196,7 @@ Status ModuleLoader::LoadAll() {
       return Err(
           ModuleError(std::format("module '{}' has no {}", name, kEnumerateInterfacesSymbol)));
     }
-    int32_t status = 0;
+    i32 status = 0;
     void* module = create(IModule::kInterfaceName, IModule::kInterfaceVersion, &status);
     if (!module) {
       return Err(
@@ -192,7 +205,7 @@ Status ModuleLoader::LoadAll() {
     }
     entry.module = static_cast<IModule*>(module);
     const InterfaceEntry* entries = nullptr;
-    uint32_t count = 0;
+    u32 count = 0;
     enumerate(&entries, &count);
     entry.interfaces = std::span<const InterfaceEntry>(entries, count);
     loaded_.push_back(std::move(entry));
@@ -200,7 +213,7 @@ Status ModuleLoader::LoadAll() {
   return Ok();
 }
 
-Status ModuleLoader::BuildRegistry() {
+Result<void> ModuleLoader::BuildRegistry() {
   for (const auto& entry : kCoreInterfaces) {
     registry_.push_back(Registered{entry.name, entry.version, entry.get, kCoreOwnerIndex});
   }
@@ -223,11 +236,11 @@ Status ModuleLoader::BuildRegistry() {
   return Ok();
 }
 
-Status ModuleLoader::CheckRequirements() const {
+Result<void> ModuleLoader::CheckRequirements() const {
   for (size_t i = 0; i < loaded_.size(); ++i) {
     for (const char* requirement : loaded_[i].module->RequiredInterfaces()) {
       std::string name;
-      uint32_t version = 0;
+      u32 version = 0;
       if (!SplitRequirement(requirement, name, version)) {
         return Err(ModuleError(std::format("module '{}' has a malformed requirement '{}'",
                                            loaded_[i].name, requirement)));
@@ -250,7 +263,7 @@ Status ModuleLoader::CheckRequirements() const {
   return Ok();
 }
 
-Status ModuleLoader::ConnectAll() {
+Result<void> ModuleLoader::ConnectAll() {
   for (auto& entry : loaded_) {
     auto status = entry.module->Connect(this, config_);
     if (!status) {
@@ -262,7 +275,7 @@ Status ModuleLoader::ConnectAll() {
   return Ok();
 }
 
-Status ModuleLoader::InitAll() {
+Result<void> ModuleLoader::InitAll() {
   for (auto& entry : loaded_) {
     auto status = entry.module->Init();
     if (!status) {
@@ -292,11 +305,7 @@ void ModuleLoader::UnwindAll() {
   for (auto it = loaded_.rbegin(); it != loaded_.rend(); ++it) {
     it->module = nullptr;
     it->interfaces = {};
-    if (config_.unload_modules_at_shutdown) {
-      it->library.Close();
-    } else {
-      retired_.push_back(std::move(it->library));
-    }
+    it->library.Close();
   }
   loaded_.clear();
 }
@@ -304,9 +313,10 @@ void ModuleLoader::UnwindAll() {
 void ModuleLoader::Shutdown() {
   UnwindAll();
   initialized_ = false;
+  connected_ = false;
 }
 
-Status ModuleLoader::ValidateSlices() const {
+Result<void> ModuleLoader::ValidateSlices() const {
   auto fail = [](std::string message) {
     REXLOG_ERROR("{}", message);
     return Err(Error(ErrorCategory::Config, std::move(message)));
@@ -336,7 +346,7 @@ Status ModuleLoader::ValidateSlices() const {
   return Ok();
 }
 
-Status ModuleLoader::RegisterConsumerTables() {
+Result<void> ModuleLoader::RegisterConsumerTables() {
   for (const CvarTable& table : config_.cvars.tables) {
     if (auto status = cvars_->Register(table.scope, table.vars); !status) {
       auto message = std::format("consumer table '{}': {}", table.scope, status.error().message);
@@ -348,7 +358,7 @@ Status ModuleLoader::RegisterConsumerTables() {
   return Ok();
 }
 
-Status ModuleLoader::ApplyCvarValues() {
+Result<void> ModuleLoader::ApplyCvarValues() {
   auto unknown = cvars_->ApplyOverrides(config_.cvars.values);
   if (!unknown) {
     REXLOG_ERROR("{}", unknown.error().message);
@@ -380,7 +390,6 @@ Status ModuleLoader::ApplyCvarValues() {
   if (auto status = cvars_->ApplyLocks(config_.cvars.locked); !status) {
     return Err(status.error());
   }
-  cvars_->Finalize();
   return Ok();
 }
 
@@ -399,7 +408,7 @@ void ModuleLoader::UnregisterTables() {
   cvars_->Reset();
 }
 
-void* ModuleLoader::Get(const char* name, uint32_t version, InterfaceStatus* out_status) {
+void* ModuleLoader::Get(const char* name, u32 version, InterfaceStatus* out_status) {
   ++request_count_;
   if (!name) {
     if (out_status)
@@ -424,8 +433,8 @@ void* ModuleLoader::Get(const char* name, uint32_t version, InterfaceStatus* out
   return nullptr;
 }
 
-void* ModuleLoader::GetForAPI(const char* name, uint32_t version) const {
-  if (!initialized_ || !name) {
+void* ModuleLoader::GetForAPI(const char* name, u32 version) const {
+  if (!(initialized_ || connected_) || !name) {
     return nullptr;
   }
   for (const auto& reg : registry_) {

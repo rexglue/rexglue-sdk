@@ -10,6 +10,8 @@
  */
 #pragma once
 
+#include <optional>
+
 #include <rex/system/achievement_manager.h>
 #include <rex/ui/imgui_dialog.h>
 #include <rex/ui/overlay/achievement_icon_cache.h>
@@ -22,11 +24,11 @@ namespace rex::ui {
 
 class ImmediateDrawer;
 class ImmediateTexture;
+class OverlayContext;
 
 class AchievementsOverlayDialog : public ImGuiDialog {
  public:
-  AchievementsOverlayDialog(ImGuiDrawer* imgui_drawer, ImmediateDrawer* immediate_drawer,
-                            rex::Runtime* runtime, rex::system::AchievementManager* achievements);
+  explicit AchievementsOverlayDialog(const OverlayContext& context);
   ~AchievementsOverlayDialog() override;
 
  protected:
@@ -36,8 +38,8 @@ class AchievementsOverlayDialog : public ImGuiDialog {
   // Lazily loads icon_path, or icons/<image_id>.png when icon_path is empty.
   ImmediateTexture* GetIcon(const rex::system::AchievementInfo& achievement);
 
-  rex::system::AchievementManager* achievements_ = nullptr;
-  AchievementIconCache icon_cache_;
+  const OverlayContext& context_;
+  std::optional<AchievementIconCache> icon_cache_;
 };
 
 }  // namespace rex::ui

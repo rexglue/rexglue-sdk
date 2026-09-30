@@ -11,7 +11,6 @@
 
 #pragma once
 
-#include <cstdint>
 #include <functional>
 #include <span>
 #include <string>
@@ -29,7 +28,7 @@ class IVar;
 class CallbackHandle;
 
 /** Where a cvar value came from. Defined in rex/cvar.h. */
-enum class CvarSource : uint8_t;
+enum class CvarSource : u8;
 
 /**
  * Fires after a value changes, on the thread that changed it, with the registry mutex released.
@@ -48,51 +47,86 @@ class ICvarRegistry {
   /**
    * Reserves scope for the caller and registers every var. Every name must be scope.leaf.
    * Fails with DuplicateScope, DuplicateName or BadName and registers nothing on failure.
+   *
+   * @param scope The scope to reserve.
+   * @param vars The vars to register, each named scope.leaf.
+   * @return Ok, or the error.
    */
-  virtual Status Register(std::string_view scope, std::span<const IVar* const> vars) = 0;
+  virtual Result<void> Register(std::string_view scope, std::span<const IVar* const> vars) = 0;
   /**
    * Adds vars to scopes that are already reserved, for vars created at runtime such as keybinds.
    * A value Init received for a name in a scope reserved with an empty table waits here and is
    * applied when the name arrives, so a config file can hold keybinds. Fails with BadName when a
    * var's scope is not reserved, or with DuplicateName.
+   *
+   * @param vars The vars to add.
+   * @return Ok, or the error.
    */
-  virtual Status Add(std::span<const IVar* const> vars) = 0;
+  virtual Result<void> Add(std::span<const IVar* const> vars) = 0;
   /**
    * Removes the vars. A scope reserved through Register with vars is released when its last var
    * leaves. A scope reserved with an empty table stays until Reset.
+   *
+   * @param vars The vars to remove.
    */
   virtual void Unregister(std::span<const IVar* const> vars) = 0;
   /**
    * Sets with source Runtime, validated. Fails with NotFound, Invalid, InitOnly after
    * finalize, or Locked.
+   *
+   * @param name The cvar name.
+   * @param value The value as text.
+   * @return Ok, or the error.
    */
-  virtual Status Set(std::string_view name, std::string_view value) = 0;
+  virtual Result<void> Set(std::string_view name, std::string_view value) = 0;
   /**
    * Renders the current value. Fails with NotFound.
+   *
+   * @param name The cvar name.
+   * @return The value as text, or the error.
    */
   virtual Result<std::string> Get(std::string_view name) const = 0;
   /**
    * Changes the default and applies it when the current source is Default.
+   *
+   * @param name The cvar name.
+   * @param value The new default as text.
+   * @return Ok, or the error.
    */
-  virtual Status SetDefault(std::string_view name, std::string_view value) = 0;
+  virtual Result<void> SetDefault(std::string_view name, std::string_view value) = 0;
   /**
    * Set fails with Locked from now on. Values already applied stay.
+   *
+   * @param name The cvar name.
+   * @return Ok, or NotFound.
    */
-  virtual Status Lock(std::string_view name) = 0;
+  virtual Result<void> Lock(std::string_view name) = 0;
   /**
    * Restores the default, the source becomes Default, callbacks fire.
+   *
+   * @param name The cvar name.
+   * @return Ok, or NotFound.
    */
-  virtual Status ResetToDefault(std::string_view name) = 0;
+  virtual Result<void> ResetToDefault(std::string_view name) = 0;
   /**
+   * Looks up a var.
+   *
+   * @param name The cvar name.
    * @return The var, or null. Valid until the var is unregistered. Read desc(), Render() and
    *         DefaultText() on it, never Parse or Invoke, those go through Set and Invoke here.
    */
   virtual const IVar* Find(std::string_view name) const = 0;
   /**
+   * Reports where a value came from.
+   *
+   * @param name The cvar name.
    * @return Where the value came from. Default for an unknown name.
    */
   virtual CvarSource Source(std::string_view name) const = 0;
   /**
+   * Lists registered vars.
+   *
+   * @param scope A scope to list, or empty for every scope.
    * @return Every registered var, or those of 1 scope, in registration order.
    */
   virtual std::vector<const IVar*> Enumerate(std::string_view scope = {}) const = 0;
@@ -102,12 +136,20 @@ class ICvarRegistry {
   virtual std::vector<std::string_view> Scopes() const = 0;
   /**
    * Registers a change callback. Fails with NotFound.
+   *
+   * @param name The cvar name.
+   * @param callback Called after each change.
+   * @return The handle that owns the registration, or the error.
    */
   virtual Result<CallbackHandle> OnChange(std::string_view name, ChangeCallback callback) = 0;
   /**
    * Runs a command. Fails with NotFound or NotACommand.
+   *
+   * @param name The command name.
+   * @param args The argument text.
+   * @return Ok, or the error.
    */
-  virtual Status Invoke(std::string_view name, std::string_view args) = 0;
+  virtual Result<void> Invoke(std::string_view name, std::string_view args) = 0;
   /**
    * @return RequiresRestart vars changed with source Runtime after finalize.
    */
@@ -125,8 +167,10 @@ class ICvarRegistry {
   friend class CallbackHandle;
   /**
    * Called by CallbackHandle. Removes 1 registration by id.
+   *
+   * @param id The registration id.
    */
-  virtual void RemoveCallback(uint64_t id) = 0;
+  virtual void RemoveCallback(u64 id) = 0;
 };
 
 /**
@@ -142,7 +186,7 @@ class CallbackHandle : public MoveOnly {
    * @param registry The registry that issued the handle.
    * @param id The registration id inside the registry.
    */
-  CallbackHandle(ICvarRegistry* registry, uint64_t id) : registry_(registry), id_(id) {}
+  CallbackHandle(ICvarRegistry* registry, u64 id) : registry_(registry), id_(id) {}
   /**
    * Takes over the registration of other, which becomes empty.
    */
@@ -180,7 +224,7 @@ class CallbackHandle : public MoveOnly {
 
  private:
   ICvarRegistry* registry_ = nullptr;
-  uint64_t id_ = 0;
+  u64 id_ = 0;
 };
 
 }  // namespace rex::cvar

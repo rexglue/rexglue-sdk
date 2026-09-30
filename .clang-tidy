@@ -54,6 +54,10 @@ CheckOptions:
     value: lower_case
   - key: readability-identifier-naming.ProtectedMemberSuffix
     value: '_'
+  - key: readability-identifier-naming.PublicMemberCase
+    value: lower_case
+  - key: readability-identifier-naming.PublicMemberSuffix
+    value: ''
 
   # Constants
   - key: readability-identifier-naming.ConstexprVariableCase
@@ -67,12 +71,6 @@ CheckOptions:
   - key: readability-identifier-naming.GlobalConstantCase
     value: CamelCase
   - key: readability-identifier-naming.GlobalConstantPrefix
-    value: 'k'
-
-  # Enum constants
-  - key: readability-identifier-naming.EnumConstantCase
-    value: CamelCase
-  - key: readability-identifier-naming.EnumConstantPrefix
     value: 'k'
 
   # Enums

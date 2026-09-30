@@ -11,7 +11,7 @@
 
 #include <rex/kernel/xam/apps/xgi_app.h>
 #include <rex/logging.h>
-#include <rex/thread.h>
+#include <rex/platform/thread.h>
 
 namespace rex {
 namespace kernel {

@@ -11,8 +11,10 @@
 
 #pragma once
 
-#include <cstdint>
+#include <chrono>
 #include <string>
+
+#include <rex/types.h>
 
 namespace rex::runtime {
 
@@ -21,11 +23,11 @@ struct KernelConfig {
   /** XAM UI exports answer without a dialog. */
   bool headless = false;
   /** XCONFIG_USER_LANGUAGE. */
-  uint32_t user_language = 1;
+  u32 user_language = 1;
   /** XCONFIG_USER_COUNTRY. */
-  uint32_t user_country = 103;
+  u32 user_country = 103;
   /** XamContentGetLicenseMask. */
-  uint32_t license_mask = 0;
+  u32 license_mask = 0;
   /** Appended to ExLoadedCommandLine after default.xex. */
   std::string command_line;
 };
@@ -35,9 +37,18 @@ struct RuntimeConfig {
   /** Guest CRT heap size in MiB, used when the image was recompiled with the rexcrt heap. 1 to
    * 2048.
    */
-  uint32_t heap_size_mb = 256;
+  u32 heap_size_mb = 256;
   /** Values the kernel reports to the title. */
   KernelConfig kernel;
+  /** Time TerminateTitle waits for guest threads to exit before it terminates the rest. */
+  std::chrono::milliseconds terminate_timeout{2000};
+};
+
+/** Why the title exited while the app keeps running. */
+enum class TitleExitReason : u8 {
+  NormalExit,     /**< The title's main thread returned. */
+  HardExit,       /**< The title called HalReturnToFirmware. */
+  TitleDataError, /**< XAM reported that title data could not be read from the disc. */
 };
 
 }  // namespace rex::runtime

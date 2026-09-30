@@ -1,6 +1,6 @@
 /**
  * @file        rex/core/fiber_win32.cpp
- * @brief       Win32 backend for rex::thread::Fiber
+ * @brief       Win32 backend for rex::platform::Fiber
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -12,11 +12,11 @@
 #include <rex/platform.h>
 #if REX_PLATFORM_WIN32
 #include <Windows.h>
-#include <rex/thread/fiber.h>
+#include <rex/platform/fiber.h>
 
 #include <cassert>
 
-namespace rex::thread {
+namespace rex::platform {
 
 thread_local Fiber* Fiber::tls_current_ = nullptr;
 
@@ -59,6 +59,6 @@ void Fiber::Destroy() {
   delete this;
 }
 
-}  // namespace rex::thread
+}  // namespace rex::platform
 
 #endif  // REX_PLATFORM_WIN32

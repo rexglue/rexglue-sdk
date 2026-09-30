@@ -122,7 +122,7 @@ X_STATUS XmaDecoder::Setup(system::KernelState* kernel_state) {
   context_bitmap_.Resize(kContextCount);
 
   worker_running_ = true;
-  work_event_ = rex::thread::Event::CreateAutoResetEvent(false);
+  work_event_ = rex::platform::Event::CreateAutoResetEvent(false);
   assert_not_null(work_event_);
   worker_thread_ = system::object_ref<system::XHostThread>(
       new system::XHostThread(kernel_state, 128 * 1024, 0, [this]() {
@@ -159,7 +159,7 @@ void XmaDecoder::WorkerThreadMain() {
       continue;
     }
     // No work done this iteration, block until signaled.
-    rex::thread::Wait(work_event_.get(), false);
+    rex::platform::Wait(work_event_.get(), false);
   }
 }
 
@@ -179,8 +179,9 @@ void XmaDecoder::Shutdown() {
   }
 
   // Wait up to 2 seconds for worker thread to exit gracefully.
-  auto result = rex::thread::Wait(worker_thread_->thread(), false, std::chrono::milliseconds(2000));
-  if (result == rex::thread::WaitResult::kTimeout) {
+  auto result =
+      rex::platform::Wait(worker_thread_->thread(), false, std::chrono::milliseconds(2000));
+  if (result == rex::platform::WaitResult::kTimeout) {
     REXAPU_WARN("XMA: Worker thread did not exit within 2s, abandoning");
   }
   worker_thread_.reset();

@@ -15,8 +15,8 @@
 
 #include <rex/system/xobject.h>
 #include <rex/system/xtypes.h>
-#include <rex/thread.h>
-#include <rex/thread/mutex.h>
+#include <rex/platform/thread.h>
+#include <rex/platform/mutex.h>
 
 namespace rex::system {
 

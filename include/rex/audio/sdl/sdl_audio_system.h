@@ -24,7 +24,7 @@ class SDLAudioSystem : public AudioSystem {
 
   static std::unique_ptr<AudioSystem> Create(runtime::FunctionDispatcher* function_dispatcher);
 
-  X_STATUS CreateDriver(size_t index, rex::thread::Semaphore* semaphore,
+  X_STATUS CreateDriver(size_t index, rex::platform::Semaphore* semaphore,
                         AudioDriver** out_driver) override;
   void DestroyDriver(AudioDriver* driver) override;
 

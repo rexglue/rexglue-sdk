@@ -23,10 +23,11 @@
 
 namespace rex::ui {
 
+class OverlayContext;
+
 class ConsoleDialog : public ImGuiDialog {
  public:
-  ConsoleDialog(ImGuiDrawer* imgui_drawer, rex::cvar::ICvarRegistry& registry,
-                std::shared_ptr<rex::LogCaptureSink> sink);
+  explicit ConsoleDialog(const OverlayContext& context);
   ~ConsoleDialog();
 
  protected:
@@ -55,7 +56,7 @@ class ConsoleDialog : public ImGuiDialog {
   };
 
   rex::cvar::ICvarRegistry& registry_;
-  std::shared_ptr<rex::LogCaptureSink> sink_;
+  rex::LogCaptureSink* sink_;
   std::vector<rex::LogEntry> entries_;  // sink snapshot, refreshed when generation changes
   std::vector<LocalEntry> local_entries_;
 

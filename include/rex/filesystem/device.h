@@ -16,7 +16,7 @@
 
 #include <rex/filesystem/entry.h>
 #include <rex/string/buffer.h>
-#include <rex/thread/mutex.h>
+#include <rex/platform/mutex.h>
 
 namespace rex::filesystem {
 
@@ -45,7 +45,7 @@ class Device {
   virtual uint32_t bytes_per_sector() const = 0;
 
  protected:
-  rex::thread::global_critical_region global_critical_region_;
+  rex::platform::global_critical_region global_critical_region_;
   std::string mount_path_;
 };
 

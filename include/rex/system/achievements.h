@@ -26,7 +26,7 @@ namespace rex::system {
 // reach the manager directly via rex::system::kernel_state()->achievements().
 
 // Defines a new achievement or overrides an existing one with the same ID.
-// Call before unlocking it, e.g. from ReXApp::OnPostLoadXexImage(). IDs must be
+// Call before unlocking it, e.g. from TitleApp::OnTitleLaunch(). IDs must be
 // non-zero; to avoid colliding with title (XDBF) achievement IDs, use a high
 // range (e.g. 0x10000+) for recomp-authored achievements.
 bool RegisterAchievement(AchievementInfo info);

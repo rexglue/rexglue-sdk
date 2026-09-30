@@ -11,23 +11,44 @@
 
 #pragma once
 
-#include <cstdint>
 #include <string>
+
+#include <rex/types.h>
 
 namespace rex::ui {
 
 /** Initial window placement. Supplies the ui.window_* and ui.fullscreen* cvar defaults. */
 struct WindowConfig {
   /** Logical width. 0 means resolve from ui.resolution and ui.video_mode_width. */
-  int32_t width = 0;
+  i32 width = 0;
   /** Logical height. 0 means resolve from ui.resolution and ui.video_mode_height. */
-  int32_t height = 0;
+  i32 height = 0;
   /** Start fullscreen. */
   bool fullscreen = true;
   /** Exclusive fullscreen where the platform has it. */
   bool fullscreen_exclusive = false;
   /** Monitor index. */
-  int32_t monitor = 0;
+  i32 monitor = 0;
+};
+
+/** Client area shape a window holds while the user resizes it. */
+enum class AspectRatio : u8 {
+  kStretch, /**< Any shape. The image stretches to fill the client area. */
+  k4x3,     /**< 4 wide by 3 high. */
+  k5x4,     /**< 5 wide by 4 high. */
+  k3x2,     /**< 3 wide by 2 high. */
+  k16x10,   /**< 16 wide by 10 high. */
+  k16x9,    /**< 16 wide by 9 high. */
+  k21x9,    /**< 21 wide by 9 high, ultrawide. */
+  k32x9,    /**< 32 wide by 9 high, super ultrawide. */
+};
+
+/** Size of a window's client area. */
+struct WindowSize {
+  /** Width in pixels. */
+  u32 width_px = 0;
+  /** Height in pixels. */
+  u32 height_px = 0;
 };
 
 /** UI module slice. */
@@ -36,6 +57,12 @@ struct UIConfig {
   WindowConfig window;
   /** SDL_HINT_VIDEO_DRIVER. Empty means SDL's default, "cocoa" on macOS. */
   std::string video_driver;
+  /** Window title. Empty uses the executable name and the SDK build stamp. */
+  std::string title;
+  /** Smallest client area the window accepts. A 0 field means no limit on that axis. */
+  WindowSize min_size;
+  /** Client area shape the window holds while the user resizes it. */
+  AspectRatio aspect_ratio = AspectRatio::kStretch;
 };
 
 }  // namespace rex::ui

@@ -19,8 +19,8 @@
 #include <rex/system/interfaces/audio.h>
 #include <rex/system/function_dispatcher.h>
 #include <rex/system/xthread.h>
-#include <rex/thread.h>
-#include <rex/thread/mutex.h>
+#include <rex/platform/thread.h>
+#include <rex/platform/mutex.h>
 
 namespace rex::stream {
 class ByteStream;
@@ -62,7 +62,7 @@ class AudioSystem : public system::IAudioSystem {
 
   void WorkerThreadMain();
 
-  virtual X_STATUS CreateDriver(size_t index, rex::thread::Semaphore* semaphore,
+  virtual X_STATUS CreateDriver(size_t index, rex::platform::Semaphore* semaphore,
                                 AudioDriver** out_driver) = 0;
   virtual void DestroyDriver(AudioDriver* driver) = 0;
 
@@ -76,7 +76,7 @@ class AudioSystem : public system::IAudioSystem {
   std::atomic<bool> worker_running_ = {false};
   system::object_ref<system::XHostThread> worker_thread_;
 
-  rex::thread::global_critical_region global_critical_region_;
+  rex::platform::global_critical_region global_critical_region_;
   static const size_t kMaximumClientCount = 8;
   struct {
     AudioDriver* driver;
@@ -88,14 +88,14 @@ class AudioSystem : public system::IAudioSystem {
 
   int FindFreeClient();
 
-  std::unique_ptr<rex::thread::Semaphore> client_semaphores_[kMaximumClientCount];
+  std::unique_ptr<rex::platform::Semaphore> client_semaphores_[kMaximumClientCount];
   // Event is always there in case we have no clients.
-  std::unique_ptr<rex::thread::Event> shutdown_event_;
-  rex::thread::WaitHandle* wait_handles_[kMaximumClientCount + 1];
+  std::unique_ptr<rex::platform::Event> shutdown_event_;
+  rex::platform::WaitHandle* wait_handles_[kMaximumClientCount + 1];
 
   bool paused_ = false;
-  rex::thread::Fence pause_fence_;
-  std::unique_ptr<rex::thread::Event> resume_event_;
+  rex::platform::Fence pause_fence_;
+  std::unique_ptr<rex::platform::Event> resume_event_;
 };
 
 }  // namespace rex::audio

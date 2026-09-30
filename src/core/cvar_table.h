@@ -31,6 +31,8 @@ REXCVAR_INT32(log, flush_interval, 0, "Periodic flush interval in seconds (0 = o
 REXCVAR_TABLE(kLogCvars, level, file, verbose, noisy, flush_interval);
 
 REXCVAR_STRING(perf, log_csv, "", "Path to write per-frame CSV log (empty = disabled)");
-REXCVAR_TABLE(kPerfCvars, log_csv);
+REXCVAR_BOOL(perf, profiler, false, "Start the Tracy profiler at startup when the build has it")
+    .lifecycle(rex::cvar::Lifecycle::InitOnly);
+REXCVAR_TABLE(kPerfCvars, log_csv, profiler);
 
 }  // namespace rex::cvars

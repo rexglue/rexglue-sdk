@@ -66,8 +66,6 @@ endfunction()
 # rexglue_configure_target(<target>) - Host application
 #
 # Adds:
-#   - SDL3 entry point source (windowed_app_main_sdl.cpp)
-#   - ReXApp base class source (rex_app.cpp)
 #   - Build-config define for the version stamp
 #   - $ORIGIN RPATH on UNIX so the host finds librexruntime.so next to itself
 #   - Windows POST_BUILD copy of TARGET_RUNTIME_DLLS and the FidelityFX DLLs.
@@ -76,10 +74,6 @@ endfunction()
 #==========================================================
 function(rexglue_configure_target target_name)
     cmake_parse_arguments(ARG "" "" "GPU_PLUGINS" ${ARGN})
-
-    target_sources(${target_name} PRIVATE
-        ${REXGLUE_SHARE_DIR}/windowed_app_main_sdl.cpp
-        ${REXGLUE_SHARE_DIR}/rex_app.cpp)
 
     target_compile_definitions(${target_name} PRIVATE
         REXGLUE_BUILD_CONFIG="$<CONFIG>")

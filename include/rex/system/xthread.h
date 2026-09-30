@@ -16,7 +16,7 @@
 #include <string>
 
 #include <rex/platform.h>
-#include <rex/thread/fiber.h>
+#include <rex/platform/fiber.h>
 #include <rex/system/thread_state.h>
 #include <rex/system/util/native_list.h>
 #include <rex/system/xmutant.h>
@@ -24,8 +24,8 @@
 #include <rex/system/xsemaphore.h>
 #include <rex/system/xtimer.h>
 #include <rex/system/xtypes.h>
-#include <rex/thread.h>
-#include <rex/thread/mutex.h>
+#include <rex/platform/thread.h>
+#include <rex/platform/mutex.h>
 
 namespace rex::system {
 
@@ -343,8 +343,8 @@ class XThread : public XObject {
 
   virtual void Execute();
 
-  rex::thread::Fiber* main_fiber() const { return main_fiber_; }
-  void set_main_fiber(rex::thread::Fiber* fiber) { main_fiber_ = fiber; }
+  rex::platform::Fiber* main_fiber() const { return main_fiber_; }
+  void set_main_fiber(rex::platform::Fiber* fiber) { main_fiber_ = fiber; }
 
   void EnterCriticalRegion();
   void LeaveCriticalRegion();
@@ -381,7 +381,7 @@ class XThread : public XObject {
 #endif
   X_STATUS Delay(uint32_t processor_mode, uint32_t alertable, uint64_t interval);
 
-  rex::thread::Thread* thread() { return thread_.get(); }
+  rex::platform::Thread* thread() { return thread_.get(); }
   runtime::ThreadState* thread_state() { return thread_state_.get(); }
 
   virtual bool Save(stream::ByteStream* stream) override;
@@ -399,7 +399,7 @@ class XThread : public XObject {
 
   void RundownAPCs();
 
-  rex::thread::WaitHandle* GetWaitHandle() override { return thread_.get(); }
+  rex::platform::WaitHandle* GetWaitHandle() override { return thread_.get(); }
 
   CreationParams creation_params_ = {0, 0, 0, 0, 0, 0};
 
@@ -421,6 +421,8 @@ class XThread : public XObject {
   // Atomic: written by the thread itself in Exit/Terminate, read cross-thread by
   // KernelState::TerminateTitle's cooperative drain.
   std::atomic<bool> running_{false};
+  // Set by whichever of Exit and Terminate runs first, so only 1 of them tears the thread down.
+  std::atomic<bool> exit_claimed_{false};
 
   std::string thread_name_;
   std::unique_ptr<runtime::ThreadState> thread_state_;
@@ -434,11 +436,11 @@ class XThread : public XObject {
 
   std::mutex thread_lock_;
 
-  rex::thread::global_critical_region global_critical_region_;
+  rex::platform::global_critical_region global_critical_region_;
   uint32_t apc_lock_old_irql_ = 0;
 
-  std::unique_ptr<rex::thread::Thread> thread_ = nullptr;
-  rex::thread::Fiber* main_fiber_ = nullptr;
+  std::unique_ptr<rex::platform::Thread> thread_ = nullptr;
+  rex::platform::Fiber* main_fiber_ = nullptr;
 };
 
 class XHostThread : public XThread {

@@ -15,7 +15,7 @@
 #include <memory>
 #include <vector>
 
-#include <rex/thread.h>
+#include <rex/platform/thread.h>
 #include <rex/ui/imgui_drawer.h>
 #include <rex/ui/window_listener.h>
 
@@ -35,9 +35,24 @@ class ImGuiDialog {
                                      std::string body);
 
   // A fence to signal when the dialog is closed.
-  void Then(rex::thread::Fence* fence);
+  void Then(rex::platform::Fence* fence);
 
   void Draw();
+
+  /**
+   * Marks the dialog as owned by a smart pointer outside the drawer, so
+   * ImGuiDrawer::DestroyDialogs leaves it to its owner.
+   *
+   * @param owned True when a smart pointer outside the drawer owns the dialog.
+   */
+  void SetOwned(bool owned) { owned_ = owned; }
+
+  /**
+   * Tests whether a smart pointer outside the drawer owns the dialog.
+   *
+   * @return True for an owned dialog.
+   */
+  bool owned() const { return owned_; }
 
  protected:
   ImGuiDialog(ImGuiDrawer* imgui_drawer);
@@ -55,7 +70,8 @@ class ImGuiDialog {
  private:
   ImGuiDrawer* imgui_drawer_ = nullptr;
   bool has_close_pending_ = false;
-  std::vector<rex::thread::Fence*> waiting_fences_;
+  bool owned_ = false;
+  std::vector<rex::platform::Fence*> waiting_fences_;
 };
 
 }  // namespace ui

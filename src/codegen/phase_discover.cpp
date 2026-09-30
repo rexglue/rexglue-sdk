@@ -420,7 +420,7 @@ size_t discoverPendingFunctions(CodegenContext& ctx,
 
 namespace phases {
 
-VoidResult Discover(CodegenContext& ctx, ProgressReporter* reporter) {
+Result<void> Discover(CodegenContext& ctx, ProgressReporter* reporter) {
   (void)reporter;
   discoverAllFunctions(ctx);
   return Ok();

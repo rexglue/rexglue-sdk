@@ -1,9 +1,9 @@
 #include <rex/platform.h>
-#include <rex/thread/atomic.h>
+#include <rex/platform/atomic.h>
 
 static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only");
 
-namespace rex::thread {
+namespace rex::platform {
 
 int32_t atomic_inc(volatile int32_t* value) {
   return __sync_add_and_fetch(value, 1);
@@ -39,4 +39,4 @@ void atomic_store_release(int32_t new_value, volatile int32_t* value) {
   __atomic_store_n(value, new_value, __ATOMIC_RELEASE);
 }
 
-}  // namespace rex::thread
+}  // namespace rex::platform

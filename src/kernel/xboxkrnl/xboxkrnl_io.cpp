@@ -27,7 +27,7 @@
 #include <rex/system/xsymboliclink.h>
 #include <rex/system/xthread.h>
 #include <rex/system/xtypes.h>
-#include <rex/thread/mutex.h>
+#include <rex/platform/mutex.h>
 
 namespace rex::kernel::xboxkrnl {
 using namespace rex::system;

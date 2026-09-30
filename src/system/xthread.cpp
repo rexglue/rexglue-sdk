@@ -34,7 +34,7 @@
 #include <rex/system/xevent.h>
 #include <rex/system/xmutant.h>
 #include <rex/system/xthread.h>
-#include <rex/thread.h>
+#include <rex/platform/thread.h>
 #include <rex/vec128.h>
 #include "system/cvar_table.h"
 
@@ -424,15 +424,15 @@ X_STATUS XThread::Create() {
   // Always retain when starting - the thread owns itself until exited.
   RetainHandle();
 
-  rex::thread::Thread::CreationParameters params;
+  rex::platform::Thread::CreationParameters params;
   params.stack_size = 16_MiB;  // Allocate a big host stack.
   params.create_suspended = true;
-  thread_ = rex::thread::Thread::Create(params, [this]() {
+  thread_ = rex::platform::Thread::Create(params, [this]() {
     rex::initialize_seh_thread();
     runtime::ThreadState::Bind(thread_state_.get());
 
     // Set thread ID override. This is used by logging.
-    rex::thread::set_current_thread_id(handle());
+    rex::platform::set_current_thread_id(handle());
 
     // Set name immediately, if we have one.
     thread_->set_name(thread_name_);
@@ -491,6 +491,13 @@ X_STATUS XThread::Exit(int exit_code) {
   // while this method is still running.
   auto self = retain_object(this);
 
+  // Terminate got here first and is about to kill this thread.
+  if (exit_claimed_.exchange(true)) {
+    for (;;) {
+      rex::platform::Sleep(std::chrono::milliseconds(1));
+    }
+  }
+
   // Mark as terminated before running down APCs.
   auto kthread = guest_object<X_KTHREAD>();
   kthread->terminated = 1;
@@ -532,12 +539,17 @@ X_STATUS XThread::Exit(int exit_code) {
   ReleaseHandle();
 
   // NOTE: this does not return!
-  rex::thread::Thread::Exit(exit_code);
+  rex::platform::Thread::Exit(exit_code);
   return X_STATUS_SUCCESS;
 }
 
 X_STATUS XThread::Terminate(int exit_code) {
   // TODO(benvanik): inform the profiler that this thread is exiting.
+
+  // Exit already tears the thread down.
+  if (exit_claimed_.exchange(true)) {
+    return X_STATUS_SUCCESS;
+  }
 
   // Set exit code.
   X_KTHREAD* thread = guest_object<X_KTHREAD>();
@@ -553,7 +565,7 @@ X_STATUS XThread::Terminate(int exit_code) {
     auto self = retain_object(this);
     FreeStack();
     ReleaseHandle();
-    rex::thread::Thread::Exit(exit_code);
+    rex::platform::Thread::Exit(exit_code);
   } else {
     thread_->Terminate(exit_code);
     FreeStack();
@@ -636,7 +648,7 @@ void XThread::Execute() {
   // Convert this host thread to a fiber so SwitchTo works bidirectionally.
   // Required on Windows before any CreateFiber; provides the fallback handle
   // when another fiber switches back to the main execution context.
-  main_fiber_ = rex::thread::Fiber::ConvertCurrentThread();
+  main_fiber_ = rex::platform::Fiber::ConvertCurrentThread();
 
   // Execute the function
   REXSYS_NOISY_DEBUG("XThread::Execute - Calling function at {:08X}", address);
@@ -838,15 +850,15 @@ void XThread::SetPriority(int32_t increment) {
 
   int32_t target_priority = 0;
   if (increment > 0x22) {
-    target_priority = rex::thread::ThreadPriority::kHighest;
+    target_priority = rex::platform::ThreadPriority::kHighest;
   } else if (increment > 0x11) {
-    target_priority = rex::thread::ThreadPriority::kAboveNormal;
+    target_priority = rex::platform::ThreadPriority::kAboveNormal;
   } else if (increment < -0x22) {
-    target_priority = rex::thread::ThreadPriority::kLowest;
+    target_priority = rex::platform::ThreadPriority::kLowest;
   } else if (increment < -0x11) {
-    target_priority = rex::thread::ThreadPriority::kBelowNormal;
+    target_priority = rex::platform::ThreadPriority::kBelowNormal;
   } else {
-    target_priority = rex::thread::ThreadPriority::kNormal;
+    target_priority = rex::platform::ThreadPriority::kNormal;
   }
   if (!REXCVAR_GET(::rex::runtime::cvars::ignore_thread_priorities)) {
     thread_->set_priority(target_priority);
@@ -889,7 +901,7 @@ void XThread::SetActiveCpu(uint8_t cpu_index) {
     pcr.prcb_data.current_cpu = cpu_index;
   }
 
-  if (rex::thread::logical_processor_count() >= 6) {
+  if (rex::platform::logical_processor_count() >= 6) {
     if (!REXCVAR_GET(::rex::runtime::cvars::ignore_thread_affinities)) {
       thread_->set_affinity_mask(uint64_t(1) << cpu_index);
     }
@@ -1009,24 +1021,24 @@ X_STATUS XThread::Delay(uint32_t processor_mode, uint32_t alertable, uint64_t in
   timeout_ms = chrono::Clock::ScaleGuestDurationMillis(timeout_ms);
   CheckTitleTermination();
   if (alertable) {
-    auto result = rex::thread::AlertableSleep(std::chrono::milliseconds(timeout_ms));
+    auto result = rex::platform::AlertableSleep(std::chrono::milliseconds(timeout_ms));
     CheckTitleTermination();
     switch (result) {
       default:
-      case rex::thread::SleepResult::kSuccess:
+      case rex::platform::SleepResult::kSuccess:
         return X_STATUS_SUCCESS;
-      case rex::thread::SleepResult::kAlerted:
+      case rex::platform::SleepResult::kAlerted:
         return X_STATUS_USER_APC;
     }
   } else {
     if (timeout_ms == 0) {
-      if (priority_ <= rex::thread::ThreadPriority::kBelowNormal) {
-        rex::thread::Sleep(std::chrono::microseconds(100));
+      if (priority_ <= rex::platform::ThreadPriority::kBelowNormal) {
+        rex::platform::Sleep(std::chrono::microseconds(100));
       } else {
-        rex::thread::MaybeYield();
+        rex::platform::MaybeYield();
       }
     } else {
-      rex::thread::Sleep(std::chrono::milliseconds(timeout_ms));
+      rex::platform::Sleep(std::chrono::milliseconds(timeout_ms));
     }
     CheckTitleTermination();
   }
@@ -1384,12 +1396,12 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state, stream::ByteStre
     // Always retain when starting - the thread owns itself until exited.
     thread->RetainHandle();
 
-    rex::thread::Thread::CreationParameters params;
+    rex::platform::Thread::CreationParameters params;
     params.create_suspended = true;  // Not done restoring yet.
     params.stack_size = 16_MiB;
-    thread->thread_ = rex::thread::Thread::Create(params, [thread, state]() {
+    thread->thread_ = rex::platform::Thread::Create(params, [thread, state]() {
       // Set thread ID override. This is used by logging.
-      rex::thread::set_current_thread_id(thread->handle());
+      rex::platform::set_current_thread_id(thread->handle());
       runtime::ThreadState::Bind(thread->thread_state_.get());
 
       // Set name immediately, if we have one.

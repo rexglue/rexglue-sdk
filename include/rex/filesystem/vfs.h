@@ -20,7 +20,7 @@
 #include <rex/filesystem/entry.h>
 #include <rex/filesystem/file.h>
 #include <rex/cvar.h>
-#include <rex/thread/mutex.h>
+#include <rex/platform/mutex.h>
 
 namespace rex::filesystem {
 
@@ -47,7 +47,7 @@ class VirtualFileSystem {
                     FileAction* out_action);
 
  private:
-  rex::thread::global_critical_region global_critical_region_;
+  rex::platform::global_critical_region global_critical_region_;
   std::vector<std::unique_ptr<Device>> devices_;
   std::unordered_map<std::string, std::string> symlinks_;
 

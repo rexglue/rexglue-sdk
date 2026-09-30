@@ -24,7 +24,7 @@
 #include <rex/system/kernel_state.h>
 #include <rex/system/user_module.h>
 #include <rex/system/xthread.h>
-#include <rex/thread/atomic.h>
+#include <rex/platform/atomic.h>
 
 namespace rex::kernel::xboxkrnl {
 

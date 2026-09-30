@@ -13,7 +13,7 @@
 #include <rex/logging.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xenumerator.h>
-#include <rex/thread.h>
+#include <rex/platform/thread.h>
 
 namespace rex {
 namespace kernel {

@@ -414,3 +414,20 @@ TEST_CASE_METHOD(Fixture, "Reset clears registrations and the finalized flag", "
   REQUIRE_FALSE(reg().IsFinalized());
   REQUIRE(test_cvars::flag.registry() == nullptr);
 }
+
+namespace {
+REXCVAR_STRING(test6a, kept, "a", "Written to the config file");
+REXCVAR_STRING(test6a, transient, "a", "Never written").no_save();
+REXCVAR_TABLE(kTest6aCvars, kept, transient);
+}  // namespace
+
+TEST_CASE("A no_save var is absent from Serialize", "[cvar]") {
+  auto registry = rex::detail::CreateCvarRegistry();
+  REQUIRE(registry->Register("test6a", kTest6aCvars));
+  REQUIRE(registry->Set("test6a.kept", "b"));
+  REQUIRE(registry->Set("test6a.transient", "b"));
+  const std::string text = registry->Serialize();
+  REQUIRE(text.find("kept") != std::string::npos);
+  REQUIRE(text.find("transient") == std::string::npos);
+  registry->Unregister(kTest6aCvars);
+}

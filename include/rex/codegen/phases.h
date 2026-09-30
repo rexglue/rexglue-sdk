@@ -20,21 +20,21 @@
 namespace rex::codegen::phases {
 
 /// Register PDATA, CONFIG, helpers, imports into FunctionGraph
-VoidResult Register(CodegenContext& ctx, ProgressReporter* reporter = nullptr);
+Result<void> Register(CodegenContext& ctx, ProgressReporter* reporter = nullptr);
 
 /// Scan binary for bl targets, thunks, bctr locations
-VoidResult Scan(CodegenContext& ctx, ProgressReporter* reporter = nullptr);
+Result<void> Scan(CodegenContext& ctx, ProgressReporter* reporter = nullptr);
 
 /// Discover function blocks from candidates
-VoidResult Discover(CodegenContext& ctx, ProgressReporter* reporter = nullptr);
+Result<void> Discover(CodegenContext& ctx, ProgressReporter* reporter = nullptr);
 
 /// Vacancy-based function expansion and sealing
-VoidResult Merge(CodegenContext& ctx, ProgressReporter* reporter = nullptr);
+Result<void> Merge(CodegenContext& ctx, ProgressReporter* reporter = nullptr);
 
 /// Find uncovered code regions and register them as functions
-VoidResult GapFill(CodegenContext& ctx, ProgressReporter* reporter = nullptr);
+Result<void> GapFill(CodegenContext& ctx, ProgressReporter* reporter = nullptr);
 
 /// Validate all call targets resolve
-VoidResult Validate(CodegenContext& ctx, ProgressReporter* reporter = nullptr);
+Result<void> Validate(CodegenContext& ctx, ProgressReporter* reporter = nullptr);
 
 }  // namespace rex::codegen::phases

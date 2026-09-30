@@ -122,7 +122,7 @@ class XFile : public XObject {
  protected:
   void NotifyIOCompletionPorts(XIOCompletion::IONotification& notification);
 
-  rex::thread::WaitHandle* GetWaitHandle() override { return async_event_.get(); }
+  rex::platform::WaitHandle* GetWaitHandle() override { return async_event_.get(); }
 
  private:
   XFile();
@@ -131,7 +131,7 @@ class XFile : public XObject {
                         uint32_t* out_bytes_read, uint32_t apc_context, bool notify_completion);
 
   rex::filesystem::File* file_ = nullptr;
-  std::unique_ptr<rex::thread::Event> async_event_ = nullptr;
+  std::unique_ptr<rex::platform::Event> async_event_ = nullptr;
 
   mutable std::mutex file_lock_;
   std::mutex completion_port_lock_;

@@ -17,6 +17,8 @@
 
 namespace rex::ui {
 
+class OverlayContext;
+
 struct FrameStats {
   double frame_time_ms = 0;
   double fps = 0;
@@ -27,16 +29,14 @@ class DebugOverlayDialog : public ImGuiDialog {
  public:
   using FrameStatsProvider = std::function<FrameStats()>;
 
-  explicit DebugOverlayDialog(ImGuiDrawer* imgui_drawer, FrameStatsProvider stats_provider = {});
+  explicit DebugOverlayDialog(const OverlayContext& context);
   ~DebugOverlayDialog();
-
-  void SetStatsProvider(FrameStatsProvider provider) { stats_provider_ = std::move(provider); }
 
  protected:
   void OnDraw(ImGuiIO& io) override;
 
  private:
-  FrameStatsProvider stats_provider_;
+  const OverlayContext& context_;
 #ifdef REXGLUE_ENABLE_PERF_COUNTERS
   static constexpr size_t kFrameHistorySize = 120;
   std::array<float, kFrameHistorySize> frame_time_history_{};

@@ -12,7 +12,7 @@
 
 #include <rex/system/xobject.h>
 #include <rex/system/xtypes.h>
-#include <rex/thread.h>
+#include <rex/platform/thread.h>
 
 namespace rex::system {
 
@@ -43,10 +43,10 @@ class XTimer : public XObject {
   X_STATUS Cancel();
 
  protected:
-  rex::thread::WaitHandle* GetWaitHandle() override { return timer_.get(); }
+  rex::platform::WaitHandle* GetWaitHandle() override { return timer_.get(); }
 
  private:
-  std::unique_ptr<rex::thread::Timer> timer_;
+  std::unique_ptr<rex::platform::Timer> timer_;
 
   XThread* callback_thread_ = nullptr;
   uint32_t callback_routine_ = 0;

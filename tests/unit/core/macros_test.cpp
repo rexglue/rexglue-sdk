@@ -25,7 +25,7 @@ rex::Result<int> Give(bool ok) {
   return rex::Err<int>(rex::ErrorCategory::Validation, "no");
 }
 
-rex::Status Check(bool ok) {
+rex::Result<void> Check(bool ok) {
   REX_CHECK(ok, rex::Error(rex::ErrorCategory::Validation, "check failed"));
   return rex::Ok();
 }
@@ -35,7 +35,7 @@ rex::Result<int> UseTry(bool ok) {
   return value + 1;
 }
 
-rex::Status UseTryVoid(bool ok) {
+rex::Result<void> UseTryVoid(bool ok) {
   REX_TRY_VOID(Check(ok));
   return rex::Ok();
 }
@@ -56,8 +56,8 @@ TEST_CASE("REX_TRY_VOID and REX_CHECK propagate", "[macros]") {
   REQUIRE(failed.error().message == "check failed");
 }
 
-TEST_CASE("Status is the void result", "[macros]") {
-  rex::Status s = rex::Ok();
+TEST_CASE("Result<void> is the void result", "[macros]") {
+  rex::Result<void> s = rex::Ok();
   REQUIRE(s);
-  static_assert(std::is_same_v<rex::Status, rex::VoidResult>);
+  static_assert(std::is_same_v<rex::Result<void>, rex::Result<void>>);
 }

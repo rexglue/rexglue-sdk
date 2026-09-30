@@ -11,7 +11,7 @@
  *
  * @remarks     ImGuiDrawer owns one Style; overlays read their own section
  *              through ImGuiDialog::imgui_drawer()->style(). Consumers patch
- *              it from ReXApp::OnConfigureStyle. Every default matches the
+ *              it through TitleUI::theme in OnCreateWindow. Every default matches the
  *              value the corresponding overlay shipped with.
  */
 #pragma once

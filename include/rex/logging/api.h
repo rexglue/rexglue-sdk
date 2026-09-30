@@ -65,9 +65,8 @@ void ShutdownLogging();
 /**
  * Flush all loggers without tearing down the logging system.
  *
- * Use before a hard process exit (std::_Exit) when other threads may still be
- * logging: unlike ShutdownLogging it leaves the registry and sinks intact, so a
- * concurrent logger cannot hit freed state.
+ * Use when other threads may still be logging: unlike ShutdownLogging it leaves
+ * the registry and sinks intact, so a concurrent logger cannot hit freed state.
  */
 void FlushLogging();
 

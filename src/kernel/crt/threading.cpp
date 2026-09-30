@@ -24,7 +24,7 @@
 #include <rex/system/xmemory.h>
 #include <rex/system/xthread.h>
 #include <rex/system/xtypes.h>
-#include <rex/thread/fiber.h>
+#include <rex/platform/fiber.h>
 
 namespace rex::kernel::crt {
 using namespace rex::system;
@@ -88,7 +88,7 @@ static void FiberEntryPoint(void* raw_arg) {
   // Fiber returned (shouldn't per XDK) -- safe fallback
   if (thread->main_fiber()) {
     PROFILE_FIBER_LEAVE;
-    rex::thread::Fiber::SwitchTo(thread->main_fiber());
+    rex::platform::Fiber::SwitchTo(thread->main_fiber());
   }
   REXKRNL_WARN("FiberEntryPoint: fiber function returned with no main fiber - terminating");
   std::terminate();
@@ -159,7 +159,7 @@ u32 ConvertThreadToFiber_entry(mapped_void lpParameter) {
   // otherwise create one (should not happen in normal flow).
   auto* host_fiber = thread->main_fiber();
   if (!host_fiber) {
-    host_fiber = rex::thread::Fiber::ConvertCurrentThread();
+    host_fiber = rex::platform::Fiber::ConvertCurrentThread();
     thread->set_main_fiber(host_fiber);
   }
 
@@ -240,7 +240,7 @@ u32 CreateFiber_entry(u32 dwStackSize, u32 lpStartAddress, mapped_void lpParamet
       buf_addr,
       ks,
   });
-  auto* host_fiber = rex::thread::Fiber::Create(host_stack, FiberEntryPoint, args_owner.get());
+  auto* host_fiber = rex::platform::Fiber::Create(host_stack, FiberEntryPoint, args_owner.get());
   if (host_fiber) {
     args_owner.release();  // FiberEntryPoint takes ownership
   }
@@ -325,7 +325,7 @@ void SwitchToFiber_entry(mapped_void lpFiber) {
   }
 
   // Host fiber switch -- suspends here, resumes when switched back
-  rex::thread::Fiber::SwitchTo(target_info->host_fiber);
+  rex::platform::Fiber::SwitchTo(target_info->host_fiber);
   // Resumed: non-volatile regs and stack state already restored by the fiber that switched back.
 }
 

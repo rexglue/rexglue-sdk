@@ -12,7 +12,7 @@
 
 #include <rex/system/xobject.h>
 #include <rex/system/xtypes.h>
-#include <rex/thread.h>
+#include <rex/platform/thread.h>
 
 namespace rex::system {
 
@@ -40,10 +40,10 @@ class XSemaphore : public XObject {
   static object_ref<XSemaphore> Restore(KernelState* kernel_state, stream::ByteStream* stream);
 
  protected:
-  rex::thread::WaitHandle* GetWaitHandle() override { return semaphore_.get(); }
+  rex::platform::WaitHandle* GetWaitHandle() override { return semaphore_.get(); }
 
  private:
-  std::unique_ptr<rex::thread::Semaphore> semaphore_;
+  std::unique_ptr<rex::platform::Semaphore> semaphore_;
   uint32_t maximum_count_ = 0;
 };
 

@@ -161,7 +161,7 @@ X_STATUS GraphicsSystem::SetupGuestGPU(runtime::FunctionDispatcher* function_dis
             MarkVblank();
             last_frame_time += interval_ticks;
           }
-          rex::thread::Sleep(std::chrono::milliseconds(1));
+          rex::platform::Sleep(std::chrono::milliseconds(1));
         }
         return 0;
       }));
@@ -345,7 +345,7 @@ void GraphicsSystem::InitializeShaderStorage(const std::filesystem::path& cache_
       // race condition.
       command_processor_->InitializeShaderStorage(cache_root, title_id, true);
     } else {
-      rex::thread::Fence fence;
+      rex::platform::Fence fence;
       command_processor_->CallInThread([this, cache_root, title_id, &fence]() {
         command_processor_->InitializeShaderStorage(cache_root, title_id, true);
         fence.Signal();

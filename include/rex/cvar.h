@@ -27,6 +27,7 @@
 
 #include <rex/cvar/registry.h>
 #include <rex/result.h>
+#include <rex/types.h>
 
 namespace rex {
 struct Config;
@@ -35,16 +36,16 @@ struct Config;
 namespace rex::cvar {
 
 /** Value type tag. */
-enum class Type : uint8_t { Bool, Int32, Int64, UInt32, UInt64, Double, String, Command };
+enum class Type : u8 { Bool, Int32, Int64, UInt32, UInt64, Double, String, Command };
 
 /** When a cvar may change. */
-enum class Lifecycle : uint8_t { HotReload, InitOnly, RequiresRestart };
+enum class Lifecycle : u8 { HotReload, InitOnly, RequiresRestart };
 
 /** Where a cvar value came from, ascending precedence. */
-enum class CvarSource : uint8_t { Default, Config, Environment, CommandLine, Runtime };
+enum class CvarSource : u8 { Default, Config, Environment, CommandLine, Runtime };
 
 /** Error codes under ErrorCategory::Config. */
-enum class Error : int32_t {
+enum class Error : i32 {
   NotFound = 1,
   Invalid,
   InitOnly,
@@ -58,6 +59,10 @@ enum class Error : int32_t {
 
 /**
  * Builds a Config category error with a cvar error code.
+ *
+ * @param code The cvar error code.
+ * @param message The error text.
+ * @return The error.
  */
 inline rex::Error MakeError(Error code, std::string message) {
   return rex::Error(ErrorCategory::Config, std::move(message), static_cast<int>(code));
@@ -65,8 +70,8 @@ inline rex::Error MakeError(Error code, std::string message) {
 
 /** Value constraints. Constant data. */
 struct Constraints {
-  std::optional<double> min;
-  std::optional<double> max;
+  std::optional<f64> min;
+  std::optional<f64> max;
   std::span<const std::string_view> allowed;
   /** Extra check on the text form, or null. */
   bool (*validator)(std::string_view) = nullptr;
@@ -81,6 +86,8 @@ struct Desc {
   Lifecycle lifecycle = Lifecycle::HotReload;
   Constraints constraints;
   bool debug_only = false;
+  /** True excludes the cvar from Serialize and SaveConfigFile. */
+  bool no_save = false;
 };
 
 class detail_access;
@@ -100,16 +107,25 @@ class IVar {
   /** @return The default as text, from storage that lives as long as the var. */
   virtual std::string_view DefaultText() const = 0;
   /**
-   * Parses and stores. Fails with Invalid when the text does not parse. Constraints are the
-   * registry's job.
+   * Parses and stores. Constraints are the registry's job.
+   *
+   * @param text The value as text.
+   * @return Ok, or Invalid when the text does not parse.
    */
-  virtual Status Parse(std::string_view text) = 0;
+  virtual Result<void> Parse(std::string_view text) = 0;
   /** @return The current value as text. */
   virtual std::string Render() const = 0;
-  /** Commands only. Fails with NotACommand on a var. */
-  virtual Status Invoke(std::string_view args) = 0;
   /**
-   * The registry that holds this var, or null. Set by Register, cleared by Unregister.
+   * Runs a command.
+   *
+   * @param args The argument text.
+   * @return Ok, or NotACommand on a var.
+   */
+  virtual Result<void> Invoke(std::string_view args) = 0;
+  /**
+   * Returns the registry that holds this var. Set by Register, cleared by Unregister.
+   *
+   * @return The registry, or null.
    */
   ICvarRegistry* registry() const { return registry_.load(std::memory_order_acquire); }
 
@@ -123,7 +139,12 @@ class IVar {
  */
 class detail_access {
  public:
-  /** Records the registry that holds var, or null. */
+  /**
+   * Records the registry that holds a var.
+   *
+   * @param var The var.
+   * @param registry The registry, or null.
+   */
   static void set_registry(const IVar& var, ICvarRegistry* registry) {
     var.registry_.store(registry, std::memory_order_release);
   }
@@ -134,7 +155,7 @@ namespace detail {
 /** Renders a scalar default at compile time into a fixed buffer. */
 struct DefaultText {
   std::array<char, 32> text{};
-  uint8_t size = 0;
+  u8 size = 0;
   constexpr std::string_view view() const { return {text.data(), size}; }
 };
 
@@ -166,14 +187,14 @@ constexpr DefaultText RenderDefault(T v) {
   return out;
 }
 
-constexpr DefaultText RenderDefault(double v) {
+constexpr DefaultText RenderDefault(f64 v) {
   DefaultText out;
   bool negative = v < 0;
   if (negative)
     v = -v;
-  auto whole = static_cast<uint64_t>(v);
-  double frac = v - static_cast<double>(whole);
-  auto whole_text = RenderDefault<uint64_t>(whole);
+  auto whole = static_cast<u64>(v);
+  f64 frac = v - static_cast<f64>(whole);
+  auto whole_text = RenderDefault<u64>(whole);
   if (negative)
     out.text[out.size++] = '-';
   for (char c : whole_text.view())
@@ -196,7 +217,7 @@ constexpr DefaultText RenderDefault(double v) {
 struct StringCell {
   static constexpr size_t kCapacity = 255;
   std::array<char, kCapacity + 1> text{};
-  uint8_t size = 0;
+  u8 size = 0;
   constexpr StringCell() = default;
   constexpr StringCell(std::string_view s) {
     for (char c : s.substr(0, kCapacity))
@@ -209,15 +230,15 @@ template <typename T>
 constexpr Type TypeOf() {
   if constexpr (std::same_as<T, bool>)
     return Type::Bool;
-  else if constexpr (std::same_as<T, int32_t>)
+  else if constexpr (std::same_as<T, i32>)
     return Type::Int32;
-  else if constexpr (std::same_as<T, int64_t>)
+  else if constexpr (std::same_as<T, i64>)
     return Type::Int64;
-  else if constexpr (std::same_as<T, uint32_t>)
+  else if constexpr (std::same_as<T, u32>)
     return Type::UInt32;
-  else if constexpr (std::same_as<T, uint64_t>)
+  else if constexpr (std::same_as<T, u64>)
     return Type::UInt64;
-  else if constexpr (std::same_as<T, double>)
+  else if constexpr (std::same_as<T, f64>)
     return Type::Double;
   else
     return Type::String;
@@ -269,40 +290,77 @@ class Var final : public IVar {
   }
   constexpr Var(const Var&) = default;
 
-  /** Numeric range, inclusive. */
-  constexpr Var range(double min_value, double max_value) && {
+  /**
+   * Sets an inclusive numeric range.
+   *
+   * @param min_value The smallest value.
+   * @param max_value The largest value.
+   * @return This var with the range set.
+   */
+  constexpr Var range(f64 min_value, f64 max_value) && {
     desc_.constraints.min = min_value;
     desc_.constraints.max = max_value;
     return *this;
   }
-  /** Allowed values. The span must have static storage, REXCVAR_ALLOWED provides it. */
+  /**
+   * Sets the allowed values.
+   *
+   * @param values Values with static storage, REXCVAR_ALLOWED provides them.
+   * @return This var with the allowed values set.
+   */
   constexpr Var allowed(std::span<const std::string_view> values) && {
     desc_.constraints.allowed = values;
     return *this;
   }
-  /** When the value may change. */
+  /**
+   * Sets when the value may change.
+   *
+   * @param lc The lifecycle.
+   * @return This var with the lifecycle set.
+   */
   constexpr Var lifecycle(Lifecycle lc) && {
     desc_.lifecycle = lc;
     return *this;
   }
-  /** Extra validation on the text form. */
+  /**
+   * Adds validation on the text form.
+   *
+   * @param fn Returns false for text the var rejects.
+   * @return This var with the validator set.
+   */
   constexpr Var validator(bool (*fn)(std::string_view)) && {
     desc_.constraints.validator = fn;
     return *this;
   }
-  /** Shown only in debug builds of the settings overlay. */
+  /**
+   * Shows the cvar only in debug builds of the settings overlay.
+   *
+   * @return This var with Desc::debug_only set.
+   */
   constexpr Var debug_only() && {
     desc_.debug_only = true;
+    return *this;
+  }
+
+  /**
+   * Marks the cvar as never written to a config file.
+   *
+   * @return This var with Desc::no_save set.
+   */
+  constexpr Var no_save() && {
+    desc_.no_save = true;
     return *this;
   }
 
   /** @return The current value. */
   T get() const;
   /**
-   * Sets through the registry with source Runtime. Fails with NotFound when the var is not
-   * registered, otherwise as ICvarRegistry::Set.
+   * Sets through the registry with source Runtime.
+   *
+   * @param value The new value.
+   * @return Ok, NotFound when the var is not registered, otherwise as ICvarRegistry::Set.
    */
-  Status set(const T& value);
+  Result<void> set(const T& value);
 
   /** @return The descriptor. */
   const Desc& desc() const override { return desc_; }
@@ -313,12 +371,21 @@ class Var final : public IVar {
     else
       return default_text_.view();
   }
-  /** Parses text into the cell. Fails with Invalid. */
-  Status Parse(std::string_view text) override;
+  /**
+   * Parses text into the cell.
+   *
+   * @param text The value as text.
+   * @return Ok, or Invalid when the text does not parse.
+   */
+  Result<void> Parse(std::string_view text) override;
   /** @return The value as text. */
   std::string Render() const override;
-  /** Fails with NotACommand. */
-  Status Invoke(std::string_view) override {
+  /**
+   * Rejects the call, a var is not a command.
+   *
+   * @return NotACommand.
+   */
+  Result<void> Invoke(std::string_view) override {
     return Err(MakeError(Error::NotACommand, std::string(desc_.name) + " is not a command"));
   }
 
@@ -346,7 +413,7 @@ class Var final : public IVar {
       return value ? "true" : "false";
     else if constexpr (kIsString)
       return value;
-    else if constexpr (std::same_as<T, double>)
+    else if constexpr (std::same_as<T, f64>)
       return std::format("{}", value);
     else
       return std::to_string(value);
@@ -357,7 +424,7 @@ class Var final : public IVar {
   detail::DefaultText default_text_;
   detail::StringCell default_string_;
   mutable Cell cell_;
-  mutable uint8_t lock_ = 0;
+  mutable u8 lock_ = 0;
 };
 
 /**
@@ -384,14 +451,23 @@ class Command final : public IVar {
   const Desc& desc() const override { return desc_; }
   /** @return The literal "<command>". */
   std::string_view DefaultText() const override { return "<command>"; }
-  /** Fails with NotAVar. */
-  Status Parse(std::string_view) override {
+  /**
+   * Rejects the call, a command holds no value.
+   *
+   * @return NotAVar.
+   */
+  Result<void> Parse(std::string_view) override {
     return Err(MakeError(Error::NotAVar, std::string(desc_.name) + " is a command"));
   }
   /** @return The literal "<command>". */
   std::string Render() const override { return "<command>"; }
-  /** Runs the command. */
-  Status Invoke(std::string_view args) override {
+  /**
+   * Runs the command.
+   *
+   * @param args The argument text.
+   * @return Ok.
+   */
+  Result<void> Invoke(std::string_view args) override {
     fn_(args);
     return Ok();
   }
@@ -402,6 +478,9 @@ class Command final : public IVar {
 };
 
 /**
+ * Tests whether a var holds a value other than its default.
+ *
+ * @param var The var.
  * @return True when the var is registered and its value came from anywhere but the default.
  */
 inline bool IsSet(const IVar& var) {
@@ -412,6 +491,8 @@ inline bool IsSet(const IVar& var) {
 /**
  * Reads every REX_<SCOPE>_<LEAF> environment variable into config.cvars.values with source
  * Environment. The first underscore separates the scope from the leaf.
+ *
+ * @param config The configuration to fill.
  */
 void ApplyEnvironment(rex::Config& config);
 
@@ -433,8 +514,8 @@ inline std::optional<bool> ParseValue<bool>(std::string_view text) {
 
 template <typename T>
 std::optional<T> ParseValue(std::string_view text) {
-  if constexpr (std::same_as<T, double>) {
-    double v = 0;
+  if constexpr (std::same_as<T, f64>) {
+    f64 v = 0;
     auto [ptr, ec] = std::from_chars(text.data(), text.data() + text.size(), v);
     if (ec != std::errc{} || ptr != text.data() + text.size())
       return std::nullopt;
@@ -457,7 +538,7 @@ std::optional<T> ParseValue(std::string_view text) {
 template <typename T>
 T Var<T>::get() const {
   if constexpr (kIsString) {
-    std::atomic_ref<uint8_t> lock(lock_);
+    std::atomic_ref<u8> lock(lock_);
     while (lock.exchange(1, std::memory_order_acquire)) {}
     std::string out(cell_.view());
     lock.store(0, std::memory_order_release);
@@ -470,7 +551,7 @@ T Var<T>::get() const {
 template <typename T>
 void Var<T>::Store(const T& value) {
   if constexpr (kIsString) {
-    std::atomic_ref<uint8_t> lock(lock_);
+    std::atomic_ref<u8> lock(lock_);
     while (lock.exchange(1, std::memory_order_acquire)) {}
     cell_ = detail::StringCell(value);
     lock.store(0, std::memory_order_release);
@@ -480,7 +561,7 @@ void Var<T>::Store(const T& value) {
 }
 
 template <typename T>
-Status Var<T>::set(const T& value) {
+Result<void> Var<T>::set(const T& value) {
   auto* reg = registry();
   if (!reg) {
     return Err(MakeError(Error::NotFound, std::string(desc_.name) + " is not registered"));
@@ -489,7 +570,7 @@ Status Var<T>::set(const T& value) {
 }
 
 template <typename T>
-Status Var<T>::Parse(std::string_view text) {
+Result<void> Var<T>::Parse(std::string_view text) {
   auto parsed = detail::ParseValue<T>(text);
   if (!parsed) {
     return Err(MakeError(Error::Invalid,
@@ -526,71 +607,199 @@ struct CvarConfig {
   std::vector<CvarTable> tables;
   std::vector<CvarOverride> values;
   std::vector<std::string> locked;
-  /** Appends a Default override, applied only while the cvar's source is Default. */
+  /**
+   * Appends a Default override, applied only while the cvar's source is Default.
+   *
+   * @param name Dotted cvar name.
+   * @param value The value as text.
+   */
   void SetDefault(std::string_view name, std::string_view value) {
     values.push_back({std::string(name), std::string(value), cvar::CvarSource::Default});
   }
-  /** Appends a CommandLine override. */
+  /**
+   * Appends a CommandLine override.
+   *
+   * @param name Dotted cvar name.
+   * @param value The value as text.
+   */
   void Set(std::string_view name, std::string_view value) {
     values.push_back({std::string(name), std::string(value), cvar::CvarSource::CommandLine});
   }
-  /** Appends to locked. */
+  /**
+   * Appends to locked.
+   *
+   * @param name Dotted cvar name.
+   */
   void Lock(std::string_view name) { locked.emplace_back(name); }
+
+  /**
+   * Looks up the value Init would apply to a cvar, before Init runs.
+   *
+   * @param name Dotted cvar name, such as "gpu.vsync".
+   * @return The queued value with the highest source precedence, or std::nullopt when no
+   *         value is queued for name.
+   */
+  std::optional<std::string> Get(std::string_view name) const {
+    const CvarOverride* best = nullptr;
+    for (const CvarOverride& value : values) {
+      if (value.name == name && (!best || value.source >= best->source)) {
+        best = &value;
+      }
+    }
+    if (!best) {
+      return std::nullopt;
+    }
+    return best->value;
+  }
 };
 
 }  // namespace rex
 
 /**
- * Declares a bool cvar. Expands to
- *   inline ::rex::cvar::Var<bool> name = ::rex::cvar::Var<bool>("scope.name", default_value,
- * description) Usage: REXCVAR_BOOL(gpu, vsync, true, "Wait for vertical blank before presenting");
+ * Declares a bool cvar as an inline ::rex::cvar::Var<bool> named name.
+ *
+ * @param scope Cvar scope, an identifier.
+ * @param name Cvar leaf and variable name, an identifier.
+ * @param default_value The default.
+ * @param description Shown by the console and the settings overlay.
+ *
+ * @code
+ * REXCVAR_BOOL(gpu, vsync, true, "Wait for vertical blank before presenting");
+ * @endcode
  */
 #define REXCVAR_BOOL(scope, name, default_value, description) \
   inline ::rex::cvar::Var<bool> name =                        \
       ::rex::cvar::Var<bool>(#scope "." #name, default_value, description)
-/** Declares an int32_t cvar. See REXCVAR_BOOL. */
+/**
+ * Declares an i32 cvar.
+ *
+ * @param scope Cvar scope, an identifier.
+ * @param name Cvar leaf and variable name, an identifier.
+ * @param default_value The default.
+ * @param description Shown by the console and the settings overlay.
+ *
+ * @code
+ * REXCVAR_INT32(gpu, scale, 1, "Resolution scale");
+ * @endcode
+ */
 #define REXCVAR_INT32(scope, name, default_value, description) \
-  inline ::rex::cvar::Var<int32_t> name =                      \
-      ::rex::cvar::Var<int32_t>(#scope "." #name, default_value, description)
-/** Declares an int64_t cvar. See REXCVAR_BOOL. */
+  inline ::rex::cvar::Var<::rex::i32> name =                   \
+      ::rex::cvar::Var<::rex::i32>(#scope "." #name, default_value, description)
+/**
+ * Declares an i64 cvar.
+ *
+ * @param scope Cvar scope, an identifier.
+ * @param name Cvar leaf and variable name, an identifier.
+ * @param default_value The default.
+ * @param description Shown by the console and the settings overlay.
+ *
+ * @code
+ * REXCVAR_INT64(kernel, seed, 0, "Random seed");
+ * @endcode
+ */
 #define REXCVAR_INT64(scope, name, default_value, description) \
-  inline ::rex::cvar::Var<int64_t> name =                      \
-      ::rex::cvar::Var<int64_t>(#scope "." #name, default_value, description)
-/** Declares a uint32_t cvar. See REXCVAR_BOOL. */
+  inline ::rex::cvar::Var<::rex::i64> name =                   \
+      ::rex::cvar::Var<::rex::i64>(#scope "." #name, default_value, description)
+/**
+ * Declares a u32 cvar.
+ *
+ * @param scope Cvar scope, an identifier.
+ * @param name Cvar leaf and variable name, an identifier.
+ * @param default_value The default.
+ * @param description Shown by the console and the settings overlay.
+ *
+ * @code
+ * REXCVAR_UINT32(audio, channels, 2, "Output channel count");
+ * @endcode
+ */
 #define REXCVAR_UINT32(scope, name, default_value, description) \
-  inline ::rex::cvar::Var<uint32_t> name =                      \
-      ::rex::cvar::Var<uint32_t>(#scope "." #name, default_value, description)
-/** Declares a uint64_t cvar. See REXCVAR_BOOL. */
+  inline ::rex::cvar::Var<::rex::u32> name =                    \
+      ::rex::cvar::Var<::rex::u32>(#scope "." #name, default_value, description)
+/**
+ * Declares a u64 cvar.
+ *
+ * @param scope Cvar scope, an identifier.
+ * @param name Cvar leaf and variable name, an identifier.
+ * @param default_value The default.
+ * @param description Shown by the console and the settings overlay.
+ *
+ * @code
+ * REXCVAR_UINT64(kernel, heap_bytes, 0, "Heap size in bytes");
+ * @endcode
+ */
 #define REXCVAR_UINT64(scope, name, default_value, description) \
-  inline ::rex::cvar::Var<uint64_t> name =                      \
-      ::rex::cvar::Var<uint64_t>(#scope "." #name, default_value, description)
-/** Declares a double cvar. See REXCVAR_BOOL. */
+  inline ::rex::cvar::Var<::rex::u64> name =                    \
+      ::rex::cvar::Var<::rex::u64>(#scope "." #name, default_value, description)
+/**
+ * Declares an f64 cvar.
+ *
+ * @param scope Cvar scope, an identifier.
+ * @param name Cvar leaf and variable name, an identifier.
+ * @param default_value The default.
+ * @param description Shown by the console and the settings overlay.
+ *
+ * @code
+ * REXCVAR_DOUBLE(ui, cursor_timeout, 0.0, "Seconds before the cursor hides");
+ * @endcode
+ */
 #define REXCVAR_DOUBLE(scope, name, default_value, description) \
-  inline ::rex::cvar::Var<double> name =                        \
-      ::rex::cvar::Var<double>(#scope "." #name, default_value, description)
-/** Declares a string cvar, at most 255 bytes. See REXCVAR_BOOL. */
+  inline ::rex::cvar::Var<::rex::f64> name =                    \
+      ::rex::cvar::Var<::rex::f64>(#scope "." #name, default_value, description)
+/**
+ * Declares a string cvar of at most 255 bytes.
+ *
+ * @param scope Cvar scope, an identifier.
+ * @param name Cvar leaf and variable name, an identifier.
+ * @param default_value The default.
+ * @param description Shown by the console and the settings overlay.
+ *
+ * @code
+ * REXCVAR_STRING(fs, root, "", "Content root");
+ * @endcode
+ */
 #define REXCVAR_STRING(scope, name, default_value, description) \
   inline ::rex::cvar::Var<std::string> name =                   \
       ::rex::cvar::Var<std::string>(#scope "." #name, default_value, description)
 /**
- * Declares a console command without arguments. fn is void().
- * Usage: REXCVAR_COMMAND(console, clear, ConsoleClear, "Clear the console");
+ * Declares a console command without arguments.
+ *
+ * @param scope Command scope, an identifier.
+ * @param name Command leaf and variable name, an identifier.
+ * @param fn Function taking no arguments.
+ * @param description Shown by the console.
+ *
+ * @code
+ * REXCVAR_COMMAND(console, clear, ConsoleClear, "Clear the console");
+ * @endcode
  */
 #define REXCVAR_COMMAND(scope, name, fn, description)             \
   inline ::rex::cvar::Command name {                              \
     #scope "." #name, [](std::string_view) { fn(); }, description \
   }
 /**
- * Declares a console command taking the argument text. fn is void(std::string_view).
- * Usage: REXCVAR_COMMAND_ARGS(console, echo, ConsoleEcho, "Print the arguments");
+ * Declares a console command taking the argument text.
+ *
+ * @param scope Command scope, an identifier.
+ * @param name Command leaf and variable name, an identifier.
+ * @param fn Function taking std::string_view.
+ * @param description Shown by the console.
+ *
+ * @code
+ * REXCVAR_COMMAND_ARGS(console, echo, ConsoleEcho, "Print the arguments");
+ * @endcode
  */
 #define REXCVAR_COMMAND_ARGS(scope, name, fn, description) \
   inline ::rex::cvar::Command name {                       \
     #scope "." #name, fn, description                      \
   }
 /**
- * Static storage for an allowed value list, for use with .allowed().
- * Usage: .allowed(REXCVAR_ALLOWED("none", "fast", "some", "full"))
+ * Builds static storage for an allowed value list, for use with .allowed().
+ *
+ * @param ... The allowed values as string literals.
+ *
+ * @code
+ * .allowed(REXCVAR_ALLOWED("none", "fast", "some", "full"))
+ * @endcode
  */
 #define REXCVAR_ALLOWED(...)                                                                       \
   ([]() constexpr -> ::std::span<const ::std::string_view> {                                       \
@@ -599,13 +808,35 @@ struct CvarConfig {
     return values;                                                                                 \
   }())
 /**
- * A module's cvar table, the pointers Connect passes to ICvarRegistry::Register.
- * Usage: REXCVAR_TABLE(kGPUCvars, vsync, resolution_scale_x);
- * Expands to inline constexpr std::array<const IVar*, N> kGPUCvars = {&vsync, &resolution_scale_x};
+ * Declares a module's cvar table, the pointers Connect passes to ICvarRegistry::Register.
+ *
+ * @param table Name of the table variable.
+ * @param ... The cvars in the table.
+ *
+ * @code
+ * REXCVAR_TABLE(kGPUCvars, vsync, resolution_scale_x);
+ * @endcode
  */
 #define REXCVAR_TABLE(table, ...) \
   inline constexpr auto table = ::rex::cvar::detail::MakeTable(__VA_ARGS__)
-/** Reads a cvar. Expands to (name.get()). */
+/**
+ * Reads a cvar.
+ *
+ * @param name The cvar variable.
+ *
+ * @code
+ * bool vsync = REXCVAR_GET(vsync);
+ * @endcode
+ */
 #define REXCVAR_GET(name) (name.get())
-/** Sets a cvar through the registry with source Runtime. Expands to (name.set(value)). */
+/**
+ * Sets a cvar through the registry with source Runtime.
+ *
+ * @param name The cvar variable.
+ * @param value The new value.
+ *
+ * @code
+ * REXCVAR_SET(vsync, false);
+ * @endcode
+ */
 #define REXCVAR_SET(name, value) (name.set(value))

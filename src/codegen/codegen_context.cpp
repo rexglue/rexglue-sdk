@@ -47,7 +47,7 @@ Result<CodegenContext> CodegenContext::Create(const std::filesystem::path& confi
   // Load XEX via Runtime
   auto xexFilename = xexPath.filename();
   auto vfsPath = "game:\\" + xexFilename.string();
-  auto status = runtime.LoadXexImage(vfsPath);
+  auto status = runtime.LoadXEXImage(vfsPath);
   if (status != X_STATUS_SUCCESS) {
     return Err<CodegenContext>(
         ErrorCategory::Format,

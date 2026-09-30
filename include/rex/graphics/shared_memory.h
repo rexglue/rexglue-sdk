@@ -16,7 +16,7 @@
 #include <vector>
 
 #include <rex/memory.h>
-#include <rex/thread/mutex.h>
+#include <rex/platform/mutex.h>
 
 namespace rex::graphics {
 
@@ -164,7 +164,7 @@ class SharedMemory {
   // Mutex between the guest memory subsystem and the command processor, to be
   // locked when checking or updating validity of pages/ranges and when firing
   // watches.
-  rex::thread::global_critical_region global_critical_region_;
+  rex::platform::global_critical_region global_critical_region_;
 
   // ***************************************************************************
   // Things below should be fully protected by global_critical_region.

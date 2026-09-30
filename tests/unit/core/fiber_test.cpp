@@ -1,6 +1,6 @@
 /**
  * @file        tests/unit/core/fiber_test.cpp
- * @brief       Unit tests for rex::thread::Fiber
+ * @brief       Unit tests for rex::platform::Fiber
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -10,9 +10,9 @@
  */
 
 #include <catch2/catch_test_macros.hpp>
-#include <rex/thread/fiber.h>
+#include <rex/platform/fiber.h>
 
-using rex::thread::Fiber;
+using rex::platform::Fiber;
 
 // Globals - fiber entry functions cannot capture closures.
 static Fiber* s_main = nullptr;
@@ -25,7 +25,7 @@ static void counting_fiber(void*) {
   Fiber::SwitchTo(s_main);
 }
 
-TEST_CASE("rex::thread::Fiber - basic context switch", "[fiber]") {
+TEST_CASE("rex::platform::Fiber - basic context switch", "[fiber]") {
   s_count = 0;
   s_main = Fiber::ConvertCurrentThread();
   auto* f = Fiber::Create(256 * 1024, counting_fiber, nullptr);

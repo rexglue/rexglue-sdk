@@ -25,10 +25,10 @@ void XTimer::Initialize(uint32_t timer_type) {
   assert_false(timer_);
   switch (timer_type) {
     case 0:  // NotificationTimer
-      timer_ = rex::thread::Timer::CreateManualResetTimer();
+      timer_ = rex::platform::Timer::CreateManualResetTimer();
       break;
     case 1:  // SynchronizationTimer
-      timer_ = rex::thread::Timer::CreateSynchronizationTimer();
+      timer_ = rex::platform::Timer::CreateSynchronizationTimer();
       break;
     default:
       assert_always();

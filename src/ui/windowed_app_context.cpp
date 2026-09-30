@@ -12,7 +12,7 @@
 #include <utility>
 
 #include <rex/assert.h>
-#include <rex/thread.h>
+#include <rex/platform/thread.h>
 #include <rex/ui/windowed_app_context.h>
 
 namespace rex {
@@ -96,7 +96,7 @@ bool WindowedAppContext::CallInUIThreadSynchronous(std::function<void()> functio
     function();
     return true;
   }
-  rex::thread::Fence fence;
+  rex::platform::Fence fence;
   if (!CallInUIThreadDeferred([&function, &fence]() {
         function();
         fence.Signal();

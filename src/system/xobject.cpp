@@ -213,21 +213,21 @@ X_STATUS XObject::Wait(uint32_t wait_reason, uint32_t processor_mode, uint32_t a
                                 : std::chrono::milliseconds::max();
 
   XThread::CheckTitleTermination();
-  auto result = rex::thread::Wait(wait_handle, alertable ? true : false, timeout_ms);
+  auto result = rex::platform::Wait(wait_handle, alertable ? true : false, timeout_ms);
   XThread::CheckTitleTermination();
   switch (result) {
-    case rex::thread::WaitResult::kSuccess:
+    case rex::platform::WaitResult::kSuccess:
       WaitCallback();
       return X_STATUS_SUCCESS;
-    case rex::thread::WaitResult::kUserCallback:
+    case rex::platform::WaitResult::kUserCallback:
       // Or X_STATUS_ALERTED?
       return X_STATUS_USER_APC;
-    case rex::thread::WaitResult::kTimeout:
-      rex::thread::MaybeYield();
+    case rex::platform::WaitResult::kTimeout:
+      rex::platform::MaybeYield();
       return X_STATUS_TIMEOUT;
     default:
-    case rex::thread::WaitResult::kAbandoned:
-    case rex::thread::WaitResult::kFailed:
+    case rex::platform::WaitResult::kAbandoned:
+    case rex::platform::WaitResult::kFailed:
       return X_STATUS_ABANDONED_WAIT_0;
   }
 }
@@ -240,21 +240,21 @@ X_STATUS XObject::SignalAndWait(XObject* signal_object, XObject* wait_object, ui
                                 : std::chrono::milliseconds::max();
 
   auto result =
-      rex::thread::SignalAndWait(signal_object->GetWaitHandle(), wait_object->GetWaitHandle(),
-                                 alertable ? true : false, timeout_ms);
+      rex::platform::SignalAndWait(signal_object->GetWaitHandle(), wait_object->GetWaitHandle(),
+                                   alertable ? true : false, timeout_ms);
   switch (result) {
-    case rex::thread::WaitResult::kSuccess:
+    case rex::platform::WaitResult::kSuccess:
       wait_object->WaitCallback();
       return X_STATUS_SUCCESS;
-    case rex::thread::WaitResult::kUserCallback:
+    case rex::platform::WaitResult::kUserCallback:
       // Or X_STATUS_ALERTED?
       return X_STATUS_USER_APC;
-    case rex::thread::WaitResult::kTimeout:
-      rex::thread::MaybeYield();
+    case rex::platform::WaitResult::kTimeout:
+      rex::platform::MaybeYield();
       return X_STATUS_TIMEOUT;
     default:
-    case rex::thread::WaitResult::kAbandoned:
-    case rex::thread::WaitResult::kFailed:
+    case rex::platform::WaitResult::kAbandoned:
+    case rex::platform::WaitResult::kFailed:
       return X_STATUS_ABANDONED_WAIT_0;
   }
 }
@@ -262,7 +262,7 @@ X_STATUS XObject::SignalAndWait(XObject* signal_object, XObject* wait_object, ui
 X_STATUS XObject::WaitMultiple(uint32_t count, XObject** objects, uint32_t wait_type,
                                uint32_t wait_reason, uint32_t processor_mode, uint32_t alertable,
                                uint64_t* opt_timeout) {
-  std::vector<rex::thread::WaitHandle*> wait_handles(count);
+  std::vector<rex::platform::WaitHandle*> wait_handles(count);
   for (size_t i = 0; i < count; ++i) {
     wait_handles[i] = objects[i]->GetWaitHandle();
     assert_not_null(wait_handles[i]);
@@ -275,52 +275,52 @@ X_STATUS XObject::WaitMultiple(uint32_t count, XObject** objects, uint32_t wait_
   XThread::CheckTitleTermination();
   if (wait_type) {
     auto result =
-        rex::thread::WaitAny(std::move(wait_handles), alertable ? true : false, timeout_ms);
+        rex::platform::WaitAny(std::move(wait_handles), alertable ? true : false, timeout_ms);
     XThread::CheckTitleTermination();
     switch (result.first) {
-      case rex::thread::WaitResult::kSuccess:
+      case rex::platform::WaitResult::kSuccess:
         objects[result.second]->WaitCallback();
 
         return X_STATUS(result.second);
-      case rex::thread::WaitResult::kUserCallback:
+      case rex::platform::WaitResult::kUserCallback:
         // Or X_STATUS_ALERTED?
         return X_STATUS_USER_APC;
-      case rex::thread::WaitResult::kTimeout:
-        rex::thread::MaybeYield();
+      case rex::platform::WaitResult::kTimeout:
+        rex::platform::MaybeYield();
         return X_STATUS_TIMEOUT;
       default:
-      case rex::thread::WaitResult::kAbandoned:
+      case rex::platform::WaitResult::kAbandoned:
         return X_STATUS(X_STATUS_ABANDONED_WAIT_0 + result.second);
-      case rex::thread::WaitResult::kFailed:
+      case rex::platform::WaitResult::kFailed:
         return X_STATUS_UNSUCCESSFUL;
     }
   } else {
     auto result =
-        rex::thread::WaitAll(std::move(wait_handles), alertable ? true : false, timeout_ms);
+        rex::platform::WaitAll(std::move(wait_handles), alertable ? true : false, timeout_ms);
     XThread::CheckTitleTermination();
     switch (result) {
-      case rex::thread::WaitResult::kSuccess:
+      case rex::platform::WaitResult::kSuccess:
         for (uint32_t i = 0; i < count; i++) {
           objects[i]->WaitCallback();
         }
 
         return X_STATUS_SUCCESS;
-      case rex::thread::WaitResult::kUserCallback:
+      case rex::platform::WaitResult::kUserCallback:
         // Or X_STATUS_ALERTED?
         return X_STATUS_USER_APC;
-      case rex::thread::WaitResult::kTimeout:
-        rex::thread::MaybeYield();
+      case rex::platform::WaitResult::kTimeout:
+        rex::platform::MaybeYield();
         return X_STATUS_TIMEOUT;
       default:
-      case rex::thread::WaitResult::kAbandoned:
-      case rex::thread::WaitResult::kFailed:
+      case rex::platform::WaitResult::kAbandoned:
+      case rex::platform::WaitResult::kFailed:
         return X_STATUS_ABANDONED_WAIT_0;
     }
   }
 }
 
 uint8_t* XObject::CreateNative(uint32_t size) {
-  auto global_lock = rex::thread::global_critical_region::AcquireDirect();
+  auto global_lock = rex::platform::global_critical_region::AcquireDirect();
 
   uint32_t total_size = size + sizeof(X_OBJECT_HEADER);
 
@@ -348,7 +348,7 @@ uint8_t* XObject::CreateNative(uint32_t size) {
 }
 
 void XObject::SetNativePointer(uint32_t native_ptr, bool uninitialized) {
-  auto global_lock = rex::thread::global_critical_region::AcquireDirect();
+  auto global_lock = rex::platform::global_critical_region::AcquireDirect();
 
   // If hit: We've already setup the native ptr with CreateNative!
   assert_zero(guest_object_ptr_);
@@ -380,7 +380,7 @@ object_ref<XObject> XObject::GetNativeObject(KernelState* kernel_state, void* na
   // We identify this by setting wait_list_flink to a magic value. When set,
   // wait_list_blink will hold a handle to our object.
 
-  auto global_lock = rex::thread::global_critical_region::AcquireDirect();
+  auto global_lock = rex::platform::global_critical_region::AcquireDirect();
 
   auto header = reinterpret_cast<X_DISPATCH_HEADER*>(native_ptr);
 

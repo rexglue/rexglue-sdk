@@ -167,7 +167,7 @@ void scanBinary(CodegenContext& ctx) {
 
 namespace phases {
 
-VoidResult Scan(CodegenContext& ctx, ProgressReporter* reporter) {
+Result<void> Scan(CodegenContext& ctx, ProgressReporter* reporter) {
   (void)reporter;
   scanBinary(ctx);
   return Ok();

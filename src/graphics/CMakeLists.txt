@@ -118,7 +118,7 @@ rex_target_pch(rexgpu-xenos
     <unordered_map>
     <rex/math.h>
     <rex/memory.h>
-    <rex/thread/mutex.h>
+    <rex/platform/mutex.h>
     <rex/system/xmemory.h>
     <rex/graphics/xenos.h>
     <rex/graphics/registers.h>

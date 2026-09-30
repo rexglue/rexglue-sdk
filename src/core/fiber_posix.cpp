@@ -1,6 +1,6 @@
 /**
  * @file        rex/core/fiber_posix.cpp
- * @brief       POSIX backend for rex::thread::Fiber (makecontext/swapcontext)
+ * @brief       POSIX backend for rex::platform::Fiber (makecontext/swapcontext)
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -19,11 +19,11 @@
 #include <rex/platform.h>
 #if REX_PLATFORM_LINUX || REX_PLATFORM_MAC
 
-#include <rex/thread/fiber.h>
+#include <rex/platform/fiber.h>
 
 #include <cassert>
 
-namespace rex::thread {
+namespace rex::platform {
 
 thread_local Fiber* Fiber::tls_current_ = nullptr;
 
@@ -79,6 +79,6 @@ void Fiber::Destroy() {
   delete this;
 }
 
-}  // namespace rex::thread
+}  // namespace rex::platform
 
 #endif  // REX_PLATFORM_LINUX || REX_PLATFORM_MAC

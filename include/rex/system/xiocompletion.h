@@ -14,7 +14,7 @@
 
 #include <rex/system/xobject.h>
 #include <rex/system/xtypes.h>
-#include <rex/thread.h>
+#include <rex/platform/thread.h>
 
 namespace rex::system {
 
@@ -42,7 +42,7 @@ class XIOCompletion : public XObject {
 
   std::mutex notification_lock_;
   std::queue<IONotification> notifications_;
-  std::unique_ptr<rex::thread::Semaphore> notification_semaphore_ = nullptr;
+  std::unique_ptr<rex::platform::Semaphore> notification_semaphore_ = nullptr;
 };
 
 }  // namespace rex::system

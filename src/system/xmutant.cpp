@@ -26,7 +26,7 @@ XMutant::~XMutant() = default;
 void XMutant::Initialize(bool initial_owner) {
   assert_false(mutant_);
 
-  mutant_ = rex::thread::Mutant::Create(initial_owner);
+  mutant_ = rex::platform::Mutant::Create(initial_owner);
   assert_not_null(mutant_);
 }
 

@@ -17,7 +17,7 @@
 #include <rex/system/export_resolver.h>
 #include <rex/system/kernel_module.h>
 #include <rex/system/kernel_state.h>
-#include <rex/thread.h>
+#include <rex/platform/thread.h>
 
 // All of the exported functions:
 #include <rex/kernel/xboxkrnl/rtl.h>
@@ -39,7 +39,7 @@ class XboxkrnlModule : public system::KernelModule {
   uint32_t pix_function_ = 0;
 
  private:
-  std::unique_ptr<rex::thread::HighResolutionTimer> timestamp_timer_;
+  std::unique_ptr<rex::platform::HighResolutionTimer> timestamp_timer_;
 };
 
 }  // namespace rex::kernel::xboxkrnl

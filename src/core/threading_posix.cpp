@@ -7,7 +7,7 @@
  */
 
 #include <rex/platform.h>
-#include <rex/thread.h>
+#include <rex/platform/thread.h>
 
 static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only");
 
@@ -21,6 +21,7 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 #include <deque>
 #include <limits>
 #include <memory>
+#include <type_traits>
 
 #include <pthread.h>
 #include <semaphore.h>
@@ -38,7 +39,9 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 #include <rex/assert.h>
 #include <rex/chrono/chrono_steady_cast.h>
 #include <rex/logging.h>
-#include <rex/thread/timer_queue.h>
+#include <rex/platform/timer_queue.h>
+
+#include "core/thread_registry.h"
 
 #include <sched.h>
 
@@ -62,7 +65,7 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 #define REX_HAS_SIGEV_THREAD_ID 0
 #endif
 
-namespace rex::thread {
+namespace rex::platform {
 
 #if REX_PLATFORM_ANDROID
 // May be null if no dynamically loaded functions are required.
@@ -988,6 +991,11 @@ class PosixCondition<Thread> : public PosixConditionBase {
         assert_always();
       }
 #else
+      if constexpr (std::is_pointer_v<pthread_t>) {
+        detail::UnregisterThread(reinterpret_cast<uintptr_t>(thread_));
+      } else {
+        detail::UnregisterThread(static_cast<u64>(thread_));
+      }
       if (pthread_cancel(thread_) != 0) {
         assert_always();
       }
@@ -1405,6 +1413,7 @@ void* PosixCondition<Thread>::ThreadStartRoutine(void* parameter) {
   }
 #endif
   set_current_thread_name("");
+  detail::RegisterCurrentThread();
 
   auto start_data = static_cast<ThreadStartData*>(parameter);
   assert_not_null(start_data);
@@ -1543,4 +1552,4 @@ static void signal_handler(int signal, siginfo_t* /*info*/, void* /*context*/) {
   }
 }
 
-}  // namespace rex::thread
+}  // namespace rex::platform

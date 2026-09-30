@@ -21,7 +21,7 @@
 #include <rex/memory/mapped_memory.h>
 #include <rex/string/buffer.h>
 #include <rex/system/xtypes.h>
-#include <rex/thread/mutex.h>
+#include <rex/platform/mutex.h>
 
 namespace rex::system {
 class KernelState;
@@ -151,7 +151,7 @@ class Entry {
     return X_STATUS_NOT_SUPPORTED;
   }
 
-  rex::thread::global_critical_region global_critical_region_;
+  rex::platform::global_critical_region global_critical_region_;
   Device* device_;
   Entry* parent_;
   std::string path_;

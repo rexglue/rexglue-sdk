@@ -47,7 +47,7 @@ u32 XamShowNuiTroubleshooterUI_entry(u32 unk1, u32 unk2, u32 unk3) {
   // ui::Window* display_window = emulator->display_window();
   // ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
   // if (display_window && imgui_drawer) {
-  //  rex::thread::Fence fence;
+  //  rex::platform::Fence fence;
   //  if (display_window->app_context().CallInUIThreadSynchronous([&]() {
   //        rex::ui::ImGuiDialog::ShowMessageBox(
   //            imgui_drawer, "NUI Troubleshooter",

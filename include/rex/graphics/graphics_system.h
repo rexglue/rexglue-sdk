@@ -26,7 +26,7 @@
 #include <rex/kernel.h>
 #include <rex/memory.h>
 #include <rex/system/xthread.h>
-#include <rex/thread/mutex.h>
+#include <rex/platform/mutex.h>
 #include <rex/ui/graphics_provider.h>
 #include <rex/ui/presenter.h>
 

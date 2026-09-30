@@ -16,7 +16,7 @@
 #include <stack>
 
 #include <rex/audio/audio_driver.h>
-#include <rex/thread.h>
+#include <rex/platform/thread.h>
 
 #include <SDL3/SDL.h>
 
@@ -24,7 +24,7 @@ namespace rex::audio::sdl {
 
 class SDLAudioDriver : public AudioDriver {
  public:
-  SDLAudioDriver(memory::Memory* memory, rex::thread::Semaphore* semaphore);
+  SDLAudioDriver(memory::Memory* memory, rex::platform::Semaphore* semaphore);
   ~SDLAudioDriver() override;
 
   bool Initialize();
@@ -35,7 +35,7 @@ class SDLAudioDriver : public AudioDriver {
   static void SDLCallback(void* userdata, SDL_AudioStream* stream, int additional_amount,
                           int total_amount);
 
-  rex::thread::Semaphore* semaphore_ = nullptr;
+  rex::platform::Semaphore* semaphore_ = nullptr;
 
   SDL_AudioStream* sdl_stream_ = nullptr;
   bool sdl_initialized_ = false;

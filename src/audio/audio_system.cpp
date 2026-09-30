@@ -20,7 +20,7 @@
 #include <rex/stream.h>
 #include <rex/string/buffer.h>
 #include <rex/system/thread_state.h>
-#include <rex/thread.h>
+#include <rex/platform/thread.h>
 #include <rex/cvar.h>
 
 #include "audio/cvar_table.h"
@@ -55,17 +55,17 @@ AudioSystem::AudioSystem(runtime::FunctionDispatcher* function_dispatcher)
                         static_cast<uint32_t>(4)));
 
   for (size_t i = 0; i < kMaximumClientCount; ++i) {
-    client_semaphores_[i] = rex::thread::Semaphore::Create(0, queued_frames_);
+    client_semaphores_[i] = rex::platform::Semaphore::Create(0, queued_frames_);
     assert_not_null(client_semaphores_[i]);
     wait_handles_[i] = client_semaphores_[i].get();
   }
-  shutdown_event_ = rex::thread::Event::CreateAutoResetEvent(false);
+  shutdown_event_ = rex::platform::Event::CreateAutoResetEvent(false);
   assert_not_null(shutdown_event_);
   wait_handles_[kMaximumClientCount] = shutdown_event_.get();
 
   xma_decoder_ = std::make_unique<rex::audio::XmaDecoder>(function_dispatcher_);
 
-  resume_event_ = rex::thread::Event::CreateAutoResetEvent(false);
+  resume_event_ = rex::platform::Event::CreateAutoResetEvent(false);
   assert_not_null(resume_event_);
 }
 
@@ -104,24 +104,24 @@ void AudioSystem::WorkerThreadMain() {
     // These handles signify the number of submitted samples. Once we reach
     // 64 samples, we wait until our audio backend releases a semaphore
     // (signaling a sample has finished playing)
-    auto result = rex::thread::WaitAny(wait_handles_, rex::countof(wait_handles_), true,
-                                       std::chrono::milliseconds(500));
-    if (result.first == rex::thread::WaitResult::kFailed) {
+    auto result = rex::platform::WaitAny(wait_handles_, rex::countof(wait_handles_), true,
+                                         std::chrono::milliseconds(500));
+    if (result.first == rex::platform::WaitResult::kFailed) {
       REXAPU_WARN("AudioWorker: WaitAny failed");
       continue;
     }
 
-    if (result.first == rex::thread::WaitResult::kTimeout) {
+    if (result.first == rex::platform::WaitResult::kTimeout) {
       if (diag_pump_count < 5) {
         REXAPU_NOISY_DEBUG("AudioWorker: WaitAny timed out (no semaphore signals)");
       }
     }
 
-    if (result.first == thread::WaitResult::kSuccess && result.second == kMaximumClientCount) {
+    if (result.first == platform::WaitResult::kSuccess && result.second == kMaximumClientCount) {
       // Shutdown event signaled.
       if (paused_) {
         pause_fence_.Signal();
-        thread::Wait(resume_event_.get(), false);
+        platform::Wait(resume_event_.get(), false);
       }
 
       continue;
@@ -129,7 +129,7 @@ void AudioSystem::WorkerThreadMain() {
 
     // Number of clients pumped
     bool pumped = false;
-    if (result.first == rex::thread::WaitResult::kSuccess) {
+    if (result.first == rex::platform::WaitResult::kSuccess) {
       auto index = result.second;
 
       auto global_lock = global_critical_region_.Acquire();
@@ -163,7 +163,7 @@ void AudioSystem::WorkerThreadMain() {
 
     if (!pumped) {
       SCOPE_profile_cpu_i("apu", "Sleep");
-      rex::thread::Sleep(std::chrono::milliseconds(500));
+      rex::platform::Sleep(std::chrono::milliseconds(500));
     }
   }
   worker_running_ = false;
@@ -201,9 +201,9 @@ void AudioSystem::Shutdown() {
     // guest objects (e.g. KeWaitForMultipleObjects), so terminating is the last
     // resort. Give it a chance to unwind first: TerminateThread abandons any
     // lock the thread holds, including the CRT heap lock.
-    rex::thread::Thread* host_thread = worker_thread_->thread();
-    bool exited = host_thread && rex::thread::Wait(host_thread, false, kWorkerShutdownTimeout) ==
-                                     rex::thread::WaitResult::kSuccess;
+    rex::platform::Thread* host_thread = worker_thread_->thread();
+    bool exited = host_thread && rex::platform::Wait(host_thread, false, kWorkerShutdownTimeout) ==
+                                     rex::platform::WaitResult::kSuccess;
     if (!exited) {
       REXAPU_WARN("Audio worker did not exit within {} ms; terminating",
                   kWorkerShutdownTimeout.count());
@@ -285,11 +285,11 @@ void AudioSystem::UnregisterClient(size_t index) {
 
   // Drain the semaphore of its count.
   auto client_semaphore = client_semaphores_[index].get();
-  rex::thread::WaitResult wait_result;
+  rex::platform::WaitResult wait_result;
   do {
-    wait_result = rex::thread::Wait(client_semaphore, false, std::chrono::milliseconds(0));
-  } while (wait_result == rex::thread::WaitResult::kSuccess);
-  assert_true(wait_result == rex::thread::WaitResult::kTimeout);
+    wait_result = rex::platform::Wait(client_semaphore, false, std::chrono::milliseconds(0));
+  } while (wait_result == rex::platform::WaitResult::kSuccess);
+  assert_true(wait_result == rex::platform::WaitResult::kTimeout);
 }
 
 bool AudioSystem::Save(stream::ByteStream* stream) {

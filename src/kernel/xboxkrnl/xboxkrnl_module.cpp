@@ -184,7 +184,7 @@ XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
   memory::store_and_swap<uint32_t>(lpKeTimeStampBundle + 16,
                                    chrono::Clock::QueryGuestUptimeMillis());
   memory::store_and_swap<uint32_t>(lpKeTimeStampBundle + 20, 0);
-  timestamp_timer_ = rex::thread::HighResolutionTimer::CreateRepeating(
+  timestamp_timer_ = rex::platform::HighResolutionTimer::CreateRepeating(
       std::chrono::milliseconds(1), [lpKeTimeStampBundle]() {
         memory::store_and_swap<uint32_t>(lpKeTimeStampBundle + 16,
                                          chrono::Clock::QueryGuestUptimeMillis());

@@ -1,7 +1,16 @@
 // {{ names.original }} - ReXGlue Recompiled Project
 
+#include <rex/ui/title_app.h>
+
 #include "{{ entrypoint_out_dir }}/{{ names.original }}_init.h"
 
-#include "{{ names.original }}_app.h"
+class {{ names.pascal_case }}App : public rex::ui::TitleApp {
+ protected:
+  void OnCreateWindow(rex::ui::TitleUI& ui) override {
+    if (!ui.overlays().Add(rex::ui::kStandardOverlays)) {
+      rex::RequestShutdown(1);
+    }
+  }
+};
 
-REX_DEFINE_APP({{ names.original }}, {{ names.pascal_case }}App::Create)
+REX_TITLE_APP({{ names.pascal_case }}App)

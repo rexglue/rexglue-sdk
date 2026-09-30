@@ -37,12 +37,12 @@ class DupEchoModule final : public rex::IModule, public rex::test::IEcho {
 
   const char* Name() const override { return kName; }
   std::span<const char* const> RequiredInterfaces() const override { return {}; }
-  rex::Status Connect(rex::IInterfaceFactory*, const rex::Config&) override {
+  rex::Result<void> Connect(rex::IInterfaceFactory*, const rex::Config&) override {
     Record(kName, "connect");
     return rex::Ok();
   }
   void Disconnect() override { Record(kName, "disconnect"); }
-  rex::Status Init() override {
+  rex::Result<void> Init() override {
     Record(kName, "init");
     return rex::Ok();
   }

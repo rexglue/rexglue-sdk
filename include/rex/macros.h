@@ -11,12 +11,12 @@
 
 #pragma once
 
-#include <cstdint>
 #include <cstring>
 #include <expected>
 #include <utility>
 
 #include <rex/platform.h>
+#include <rex/types.h>
 
 /**
  * Export visibility for module entry points.
@@ -33,34 +33,42 @@
 /**
  * Declares the interface name and version constants on an interface class.
  *
- * Usage: `REX_INTERFACE(IFileSystem, "rex.filesystem", 1);`
- * Expands to:
+ * @param Class The interface class the constants belong to.
+ * @param name The dotted interface name, a string literal.
+ * @param version The interface version, an integer literal.
+ *
  * @code
- *   static constexpr const char* kInterfaceName = "rex.filesystem";
- *   static constexpr uint32_t kInterfaceVersion = 1
+ * class IFileSystem {
+ *  public:
+ *   REX_INTERFACE(IFileSystem, "rex.filesystem", 1);
+ * };
  * @endcode
  */
 #define REX_INTERFACE(Class, name, version)           \
   static constexpr const char* kInterfaceName = name; \
-  static constexpr uint32_t kInterfaceVersion = version
+  static constexpr ::rex::u32 kInterfaceVersion = version
 
 /**
  * Generates the 2 C exports of a module DLL for a class that declares
  * `static constexpr std::array<rex::InterfaceEntry, N> kInterfaces`.
  *
- * Called exactly once per module DLL at namespace scope.
- * Usage: `REX_DECLARE_MODULE(rex::graphics::xenos::XenosModule)`
- * Expands to `rex_create_interface(name, version, out_status)`, which searches the table and
- * reports Ok, NotFound or VersionMismatch, and `rex_enumerate_interfaces(out_entries, out_count)`,
- * which returns the table. Nothing runs at DLL load, the module instance is created by the
- * table's getters on first request.
+ * Called exactly once per module DLL at namespace scope. `rex_create_interface(name, version,
+ * out_status)` searches the table and reports Ok, NotFound or VersionMismatch, and
+ * `rex_enumerate_interfaces(out_entries, out_count)` returns the table. Nothing runs at DLL
+ * load, the module instance is created by the table's getters on first request.
+ *
+ * @param ModuleClass The module class holding the interface table.
+ *
+ * @code
+ * REX_DECLARE_MODULE(rex::graphics::xenos::XenosModule)
+ * @endcode
  */
 #define REX_DECLARE_MODULE(ModuleClass)                                                       \
-  extern "C" REX_API void* rex_create_interface(const char* name, uint32_t version,           \
-                                                int32_t* out_status) {                        \
+  extern "C" REX_API void* rex_create_interface(const char* name, ::rex::u32 version,         \
+                                                ::rex::i32* out_status) {                     \
     if (!name) {                                                                              \
       if (out_status)                                                                         \
-        *out_status = static_cast<int32_t>(::rex::InterfaceStatus::NotFound);                 \
+        *out_status = static_cast<::rex::i32>(::rex::InterfaceStatus::NotFound);              \
       return nullptr;                                                                         \
     }                                                                                         \
     for (const ::rex::InterfaceEntry& entry : ModuleClass::kInterfaces) {                     \
@@ -68,50 +76,78 @@
         continue;                                                                             \
       if (entry.version != version) {                                                         \
         if (out_status)                                                                       \
-          *out_status = static_cast<int32_t>(::rex::InterfaceStatus::VersionMismatch);        \
+          *out_status = static_cast<::rex::i32>(::rex::InterfaceStatus::VersionMismatch);     \
         return nullptr;                                                                       \
       }                                                                                       \
       if (out_status)                                                                         \
-        *out_status = static_cast<int32_t>(::rex::InterfaceStatus::Ok);                       \
+        *out_status = static_cast<::rex::i32>(::rex::InterfaceStatus::Ok);                    \
       return entry.get();                                                                     \
     }                                                                                         \
     if (out_status)                                                                           \
-      *out_status = static_cast<int32_t>(::rex::InterfaceStatus::NotFound);                   \
+      *out_status = static_cast<::rex::i32>(::rex::InterfaceStatus::NotFound);                \
     return nullptr;                                                                           \
   }                                                                                           \
   extern "C" REX_API void rex_enumerate_interfaces(const ::rex::InterfaceEntry** out_entries, \
-                                                   uint32_t* out_count) {                     \
+                                                   ::rex::u32* out_count) {                   \
     if (out_entries)                                                                          \
       *out_entries = ModuleClass::kInterfaces.data();                                         \
     if (out_count)                                                                            \
-      *out_count = static_cast<uint32_t>(ModuleClass::kInterfaces.size());                    \
+      *out_count = static_cast<::rex::u32>(ModuleClass::kInterfaces.size());                  \
   }
 
 /**
- * Token pasting helpers for the unwrap macros.
+ * Pastes 2 tokens without expanding them first. Helper of REX_TRY_CONCAT.
+ *
+ * @param a The first token.
+ * @param b The second token.
+ *
+ * @code
+ * REX_TRY_CONCAT_IMPL(_rex_try_, 12)  // _rex_try_12
+ * @endcode
  */
 #define REX_TRY_CONCAT_IMPL(a, b) a##b
+
+/**
+ * Pastes 2 tokens after expanding them, so `__LINE__` becomes the line number.
+ *
+ * @param a The first token.
+ * @param b The second token.
+ *
+ * @code
+ * auto REX_TRY_CONCAT(_rex_try_, __LINE__) = Open(path);
+ * @endcode
+ */
 #define REX_TRY_CONCAT(a, b) REX_TRY_CONCAT_IMPL(a, b)
 
 /**
  * Unwraps a rex::Result into a declaration, or returns its error from the enclosing function.
  *
- * Usage: `REX_TRY(auto file, Open(path));`
  * Expands to a uniquely named temporary holding the result, an early
  * `return std::unexpected(error)` when it failed, and `decl = *std::move(temporary);`.
  * It is a statement, not an expression.
+ *
+ * @param decl The declaration that receives the value.
+ * @param expr An expression of type rex::Result<T>.
+ *
+ * @code
+ * REX_TRY(auto file, Open(path));
+ * @endcode
  */
 #define REX_TRY(decl, expr)                                                         \
   auto REX_TRY_CONCAT(_rex_try_, __LINE__) = (expr);                                \
   if (!REX_TRY_CONCAT(_rex_try_, __LINE__)) {                                       \
     return std::unexpected(std::move(REX_TRY_CONCAT(_rex_try_, __LINE__)).error()); \
   }                                                                                 \
-  decl = *std::move(REX_TRY_CONCAT(_rex_try_, __LINE__))
+  decl = *std::move(REX_TRY_CONCAT(_rex_try_, __LINE__)) /* NOLINT(bugprone-macro-parentheses) */
 
 /**
- * Returns the error of a rex::Status or rex::Result expression from the enclosing function.
+ * Returns the error of a rex::Result expression from the enclosing function.
  *
- * Usage: `REX_TRY_VOID(module->Init());`
+ * @param expr An expression of type rex::Result<T>, usually rex::Result<void>.
+ *
+ * @code
+ * REX_TRY_VOID(module->Init());
+ * @endcode
  */
 #define REX_TRY_VOID(expr)                                        \
   do {                                                            \
@@ -122,9 +158,14 @@
   } while (0)
 
 /**
- * Returns `error` from the enclosing function when `cond` is false.
+ * Returns an error from the enclosing function when a condition is false.
  *
- * Usage: `REX_CHECK(ptr != nullptr, rex::Error(rex::ErrorCategory::Validation, "null"));`
+ * @param cond The condition that must hold.
+ * @param error The rex::Error to return when it does not.
+ *
+ * @code
+ * REX_CHECK(ptr != nullptr, rex::Error(rex::ErrorCategory::Validation, "null"));
+ * @endcode
  */
 #define REX_CHECK(cond, error)       \
   do {                               \

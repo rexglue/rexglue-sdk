@@ -307,7 +307,10 @@ void ShutdownLogging() {
       entry.logger->flush();
 
   spdlog::shutdown();
-  g_registry.clear();
+  for (auto& entry : g_registry) {
+    entry.logger.reset();
+    entry.has_explicit_level = false;
+  }
   g_console_sink.reset();
   g_file_sink.reset();
   g_early_sink.reset();

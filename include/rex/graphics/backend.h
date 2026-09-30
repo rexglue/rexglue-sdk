@@ -11,12 +11,12 @@
 
 #pragma once
 
-#include <cstdint>
 #include <filesystem>
 #include <string>
 
 #include <rex/macros.h>
 #include <rex/system/xtypes.h>
+#include <rex/types.h>
 
 namespace rex::runtime {
 class FunctionDispatcher;
@@ -42,13 +42,13 @@ struct BackendConfig {
    */
   std::string backend = "any";
   /** D3D12 adapter index. -1 picks the first hardware adapter, -2 picks WARP. */
-  int32_t d3d12_adapter = -1;
+  i32 d3d12_adapter = -1;
   /** Vulkan physical device index. -1 picks automatically. */
-  int32_t vulkan_device = -1;
+  i32 vulkan_device = -1;
   /** Default of gpu.resolution_scale_x. 1 to 8. */
-  int32_t resolution_scale_x = 1;
+  i32 resolution_scale_x = 1;
   /** Default of gpu.resolution_scale_y. 1 to 8. */
-  int32_t resolution_scale_y = 1;
+  i32 resolution_scale_y = 1;
 };
 
 /**
@@ -102,7 +102,7 @@ class IGraphicsBackend {
    * @param callback Guest function address.
    * @param user_data Guest pointer passed back to the callback.
    */
-  virtual void SetInterruptCallback(uint32_t callback, uint32_t user_data) {
+  virtual void SetInterruptCallback(u32 callback, u32 user_data) {
     (void)callback;
     (void)user_data;
   }
@@ -113,7 +113,7 @@ class IGraphicsBackend {
    * @param ptr Physical address of the ring buffer.
    * @param size_log2 Log2 of the ring buffer size.
    */
-  virtual void InitializeRingBuffer(uint32_t ptr, uint32_t size_log2) {
+  virtual void InitializeRingBuffer(u32 ptr, u32 size_log2) {
     (void)ptr;
     (void)size_log2;
   }
@@ -124,7 +124,7 @@ class IGraphicsBackend {
    * @param ptr Physical address that receives the read pointer.
    * @param block_size_log2 Log2 of the write back block size.
    */
-  virtual void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size_log2) {
+  virtual void EnableReadPointerWriteBack(u32 ptr, u32 block_size_log2) {
     (void)ptr;
     (void)block_size_log2;
   }
@@ -136,7 +136,7 @@ class IGraphicsBackend {
    * @param title_id Title the storage belongs to.
    * @param blocking True to load the storage before returning.
    */
-  virtual void InitializeShaderStorage(const std::filesystem::path& cache_root, uint32_t title_id,
+  virtual void InitializeShaderStorage(const std::filesystem::path& cache_root, u32 title_id,
                                        bool blocking) {
     (void)cache_root;
     (void)title_id;

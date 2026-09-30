@@ -216,7 +216,7 @@ void cleanupAbsorbedGapFills(CodegenContext& ctx) {
 
 namespace phases {
 
-VoidResult GapFill(CodegenContext& ctx, ProgressReporter* reporter) {
+Result<void> GapFill(CodegenContext& ctx, ProgressReporter* reporter) {
   (void)reporter;
   gapFillCodeRegions(ctx);
 

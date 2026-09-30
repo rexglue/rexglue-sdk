@@ -13,7 +13,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include <rex/thread/mutex.h>
+#include <rex/platform/mutex.h>
 
 namespace rex::runtime {
 
@@ -44,7 +44,7 @@ class EntryTable {
   std::vector<Function*> FindWithAddress(uint32_t address);
 
  private:
-  rex::thread::global_critical_region global_critical_region_;
+  rex::platform::global_critical_region global_critical_region_;
   // TODO(benvanik): replace with a better data structure.
   std::unordered_map<uint32_t, Entry*> map_;
 };

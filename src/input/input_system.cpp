@@ -505,7 +505,11 @@ std::unique_ptr<InputSystem> CreateDefaultInputSystem(const InputConfig& config,
   // NOP driver (primary in tool mode, fallback otherwise)
   uint8_t nop_index = tool_mode ? 0 : 1;
   input->AddDriver(std::make_unique<nop::NopInputDriver>(nullptr, nop_index));
-  input->SetDeviceAssignment(std::make_unique<SlotAssignment>());
+  if (config.shared_pads) {
+    input->SetDeviceAssignment(std::make_unique<SharedAssignment>());
+  } else {
+    input->SetDeviceAssignment(std::make_unique<SlotAssignment>());
+  }
   return input;
 }
 

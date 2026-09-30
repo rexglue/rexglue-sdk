@@ -21,7 +21,7 @@
 #include <rex/string.h>
 #include <rex/system/xcontent.h>
 #include <rex/system/xtypes.h>
-#include <rex/thread/mutex.h>
+#include <rex/platform/mutex.h>
 
 namespace rex {
 namespace system {
@@ -200,7 +200,7 @@ class ContentManager {
   std::filesystem::path root_path_;
 
   // TODO(benvanik): remove use of global lock, it's bad here!
-  rex::thread::global_critical_region global_critical_region_;
+  rex::platform::global_critical_region global_critical_region_;
   std::unordered_map<string::string_key_case, ContentPackage*, string::string_key_case::Hash>
       open_packages_;
 };

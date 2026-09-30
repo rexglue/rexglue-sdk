@@ -11,15 +11,15 @@
 
 #pragma once
 
-#include <cstdint>
 #include <filesystem>
 
 #include <rex/input/input.h>
+#include <rex/types.h>
 
 namespace rex::input {
 
 /** Controller backend. */
-enum class Backend : uint8_t {
+enum class Backend : u8 {
   SDL,    /**< SDL3 gamepads, every platform. */
   XInput, /**< XInput, Windows only. */
 };
@@ -33,6 +33,8 @@ struct InputConfig {
    * disables.
    */
   std::filesystem::path hid_mappings_file = "gamecontrollerdb.txt";
+  /** True maps every controller to user 0. False gives each controller its own user. */
+  bool shared_pads = false;
 };
 
 }  // namespace rex::input

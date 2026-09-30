@@ -34,7 +34,7 @@
 #include <rex/logging.h>
 #include <rex/chrono/clock.h>
 #include <rex/perf/counter.h>
-#include <rex/thread/mutex.h>
+#include <rex/platform/mutex.h>
 #include <rex/system/mmio_handler.h>
 
 #include <atomic>
@@ -317,13 +317,13 @@ inline std::atomic<i32>& ppc_global_lock_count_() {
 
 #define REX_CHECK_GLOBAL_LOCK()                                        \
   ([&]() -> u64 {                                                      \
-    auto lock_ = rex::thread::global_critical_region::AcquireDirect(); \
+    auto lock_ = rex::platform::global_critical_region::AcquireDirect(); \
     return ppc_global_lock_count_().load() ? 0 : 0x8000;               \
   }())
 
 #define REX_ENTER_GLOBAL_LOCK()                          \
   do {                                                   \
-    rex::thread::global_critical_region::mutex().lock(); \
+    rex::platform::global_critical_region::mutex().lock(); \
     ppc_global_lock_count_().fetch_add(1);               \
   } while (0)
 
@@ -331,5 +331,5 @@ inline std::atomic<i32>& ppc_global_lock_count_() {
   do {                                                                                    \
     auto old_count_ = ppc_global_lock_count_().fetch_sub(1);                              \
     assert(old_count_ >= 1 && "LeaveGlobalLock called without matching EnterGlobalLock"); \
-    rex::thread::global_critical_region::mutex().unlock();                                \
+    rex::platform::global_critical_region::mutex().unlock();                                \
   } while (0)

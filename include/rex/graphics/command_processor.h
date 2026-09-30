@@ -29,7 +29,7 @@
 #include <rex/memory.h>
 #include <rex/memory/ring_buffer.h>
 #include <rex/system/xthread.h>
-#include <rex/thread.h>
+#include <rex/platform/thread.h>
 #include <rex/ui/presenter.h>
 
 namespace rex::stream {
@@ -254,7 +254,7 @@ class CommandProcessor {
   uint32_t read_ptr_update_freq_ = 0;
   uint32_t read_ptr_writeback_ptr_ = 0;
 
-  std::unique_ptr<rex::thread::Event> write_ptr_index_event_;
+  std::unique_ptr<rex::platform::Event> write_ptr_index_event_;
   std::atomic<uint32_t> write_ptr_index_;
 
   // Some titles submit writes beyond the emulated register file range in PM4

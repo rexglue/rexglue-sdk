@@ -11,9 +11,9 @@
 
 #include <thread>
 
-#include <rex/thread.h>
+#include <rex/platform/thread.h>
 
-namespace rex::thread {
+namespace rex::platform {
 
 // =============================================================================
 // Common code
@@ -37,4 +37,4 @@ void set_current_thread_id(uint32_t id) {
   current_thread_id_ = id;
 }
 
-}  // namespace rex::thread
+}  // namespace rex::platform

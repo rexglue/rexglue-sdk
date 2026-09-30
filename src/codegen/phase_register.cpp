@@ -417,7 +417,7 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
 // Register Phase: imports, helpers, PDATA, config functions
 //=============================================================================
 
-VoidResult registerEntryPoints(CodegenContext& ctx) {
+Result<void> registerEntryPoints(CodegenContext& ctx) {
   REXCODEGEN_TRACE("Analyze: registering entry points...");
 
   auto& graph = ctx.graph;
@@ -698,7 +698,7 @@ VoidResult registerEntryPoints(CodegenContext& ctx) {
 
 namespace phases {
 
-VoidResult Register(CodegenContext& ctx, ProgressReporter* reporter) {
+Result<void> Register(CodegenContext& ctx, ProgressReporter* reporter) {
   (void)reporter;
   return registerEntryPoints(ctx);
 }

@@ -3,22 +3,26 @@
 
 add_library(rexcore OBJECT
     api.cpp
+    app.cpp
     arena.cpp
     bit_map.cpp
     bit_stream.cpp
     byte_stream.cpp
+    cli_arg_list.cpp
     clock.cpp
     cvar_registry.cpp
     exception_handler.cpp
     filesystem.cpp
     filesystem_wildcard.cpp
     hash.cpp
+    instance_lock.cpp
     logging.cpp
     memory.cpp
     module_loader.cpp
     mutex.cpp
     ring_buffer.cpp
     string_buffer.cpp
+    thread_registry.cpp
     threading.cpp
     timer_queue.cpp
     utf8.cpp
@@ -27,11 +31,9 @@ add_library(rexcore OBJECT
 add_library(rex::core ALIAS rexcore)
 
 if(APPLE)
-    # Apple's libc++ still gates std::jthread/std::stop_token behind the
-    # experimental-library feature flag. Only timer_queue.cpp uses them, and
-    # neither type crosses a header boundary.
-    set_source_files_properties(timer_queue.cpp PROPERTIES
-        COMPILE_OPTIONS "-fexperimental-library")
+    # Apple's libc++ gates std::jthread and std::stop_token behind the
+    # experimental-library flag, and rex::platform::Spawn returns std::jthread.
+    target_compile_options(rexcore PUBLIC -fexperimental-library)
 endif()
 
 # Platform-specific sources
@@ -49,6 +51,7 @@ if(WIN32)
         memory_win.cpp
         platform/console_win.cpp
         platform/env_win.cpp
+        relaunch_win.cpp
         seh_win.cpp
         socket_win.cpp
         system_win.cpp
@@ -71,6 +74,7 @@ elseif(UNIX)
         memory_posix.cpp
         platform/console_posix.cpp
         platform/env_posix.cpp
+        relaunch_posix.cpp
         seh_posix.cpp
         socket_posix.cpp
         system_posix.cpp

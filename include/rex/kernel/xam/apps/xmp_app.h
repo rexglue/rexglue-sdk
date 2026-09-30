@@ -17,7 +17,7 @@
 
 #include <rex/system/kernel_state.h>
 #include <rex/system/xam/app_manager.h>
-#include <rex/thread/mutex.h>
+#include <rex/platform/mutex.h>
 
 namespace rex {
 namespace kernel {
@@ -105,7 +105,7 @@ class XmpApp : public system::xam::App {
   Playlist* active_playlist_;
   int active_song_index_;
 
-  rex::thread::global_critical_region global_critical_region_;
+  rex::platform::global_critical_region global_critical_region_;
   std::unordered_map<uint32_t, Playlist*> playlists_;
   uint32_t next_playlist_handle_;
   uint32_t next_song_handle_;

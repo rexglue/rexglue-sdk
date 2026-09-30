@@ -114,6 +114,7 @@ bool WindowSDL::OpenImpl() {
   }
   sdl_window_id_ = SDL_GetWindowID(sdl_window_);
   sdl_app_context().RegisterWindow(sdl_window_id_, this);
+  ApplySizeLimits();
 
   CenterOnConfiguredDisplay();
 
@@ -175,16 +176,68 @@ void WindowSDL::DestroySDLWindow() {
   }
 }
 
-void* WindowSDL::GetNativeWindowHandle() const {
-#if REX_PLATFORM_WIN32
+void WindowSDL::Raise() {
+  if (sdl_window_) {
+    SDL_RaiseWindow(sdl_window_);
+  }
+}
+
+void* WindowSDL::native() const {
   if (!sdl_window_) {
     return nullptr;
   }
-  return SDL_GetPointerProperty(SDL_GetWindowProperties(sdl_window_),
-                                SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
-#else
-  return nullptr;
-#endif
+  const SDL_PropertiesID props = SDL_GetWindowProperties(sdl_window_);
+  if (void* hwnd = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr)) {
+    return hwnd;
+  }
+  if (void* ns = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, nullptr)) {
+    return ns;
+  }
+  if (void* surface =
+          SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER, nullptr)) {
+    return surface;
+  }
+  return reinterpret_cast<void*>(
+      static_cast<uintptr_t>(SDL_GetNumberProperty(props, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0)));
+}
+
+SDL_Window* WindowSDL::sdl() const {
+  return sdl_window_;
+}
+
+void WindowSDL::ApplySizeLimits() {
+  if (!sdl_window_) {
+    return;
+  }
+  SDL_SetWindowMinimumSize(sdl_window_, i32(min_size_.width_px), i32(min_size_.height_px));
+  f32 ratio = 0.0f;
+  switch (aspect_ratio_) {
+    case AspectRatio::kStretch:
+      ratio = 0.0f;
+      break;
+    case AspectRatio::k4x3:
+      ratio = 4.0f / 3.0f;
+      break;
+    case AspectRatio::k5x4:
+      ratio = 5.0f / 4.0f;
+      break;
+    case AspectRatio::k3x2:
+      ratio = 3.0f / 2.0f;
+      break;
+    case AspectRatio::k16x10:
+      ratio = 16.0f / 10.0f;
+      break;
+    case AspectRatio::k16x9:
+      ratio = 16.0f / 9.0f;
+      break;
+    case AspectRatio::k21x9:
+      ratio = 21.0f / 9.0f;
+      break;
+    case AspectRatio::k32x9:
+      ratio = 32.0f / 9.0f;
+      break;
+  }
+  SDL_SetWindowAspectRatio(sdl_window_, ratio, ratio);
 }
 
 bool WindowSDL::SetRelativeMouseMode(bool enable) {
@@ -514,7 +567,7 @@ void WindowSDL::HandleWindowEvent(SDL_Event& event) {
       break;
     }
     case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED: {
-      UISetupEvent e(this);
+      UISetupEvent e(UIEvent::Type::DpiChanged, this);
       OnDpiChanged(e, destruction_receiver);
       break;
     }
@@ -564,7 +617,8 @@ void WindowSDL::HandleKeyEvent(SDL_Event& event) {
     return;
   }
   SDL_Keymod mod = event.key.mod;
-  KeyEvent e(this, virtual_key, /*repeat_count=*/1,
+  KeyEvent e(event.type == SDL_EVENT_KEY_DOWN ? UIEvent::Type::KeyDown : UIEvent::Type::KeyUp, this,
+             virtual_key, /*repeat_count=*/1,
              /*prev_state=*/event.key.repeat,
              /*modifier_shift_pressed=*/(mod & SDL_KMOD_SHIFT) != 0,
              /*modifier_ctrl_pressed=*/(mod & SDL_KMOD_CTRL) != 0,
@@ -590,7 +644,8 @@ void WindowSDL::HandleTextInputEvent(SDL_Event& event) {
   const char* end = text + std::strlen(text);
   while (it < end) {
     uint32_t codepoint = utf8::unchecked::next(it);
-    KeyEvent e(this, VirtualKey(codepoint), 1, false, false, false, false, false);
+    KeyEvent e(UIEvent::Type::Char, this, VirtualKey(codepoint), 1, false, false, false, false,
+               false);
     OnKeyChar(e, destruction_receiver);
     if (destruction_receiver.IsWindowDestroyed()) {
       return;
@@ -608,15 +663,17 @@ void WindowSDL::HandleMouseEvent(SDL_Event& event) {
         SDL_ShowCursor();
         RearmCursorAutoHideTimer();
       }
-      MouseEvent e(this, MouseEvent::Button::kNone, int32_t(event.motion.x * density),
-                   int32_t(event.motion.y * density), 0, 0, event.motion.xrel * density,
-                   event.motion.yrel * density);
+      MouseEvent e(UIEvent::Type::MouseMove, this, MouseEvent::Button::kNone,
+                   int32_t(event.motion.x * density), int32_t(event.motion.y * density), 0, 0,
+                   event.motion.xrel * density, event.motion.yrel * density);
       OnMouseMove(e, destruction_receiver);
       break;
     }
     case SDL_EVENT_MOUSE_BUTTON_DOWN:
     case SDL_EVENT_MOUSE_BUTTON_UP: {
-      MouseEvent e(this, TranslateSDLMouseButton(event.button.button),
+      MouseEvent e(event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ? UIEvent::Type::MouseDown
+                                                             : UIEvent::Type::MouseUp,
+                   this, TranslateSDLMouseButton(event.button.button),
                    int32_t(event.button.x * density), int32_t(event.button.y * density));
       if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
         OnMouseDown(e, destruction_receiver);
@@ -626,8 +683,8 @@ void WindowSDL::HandleMouseEvent(SDL_Event& event) {
       break;
     }
     case SDL_EVENT_MOUSE_WHEEL: {
-      MouseEvent e(this, MouseEvent::Button::kNone, int32_t(event.wheel.mouse_x * density),
-                   int32_t(event.wheel.mouse_y * density),
+      MouseEvent e(UIEvent::Type::MouseWheel, this, MouseEvent::Button::kNone,
+                   int32_t(event.wheel.mouse_x * density), int32_t(event.wheel.mouse_y * density),
                    int32_t(event.wheel.x * float(MouseEvent::kScrollPerDetent)),
                    int32_t(event.wheel.y * float(MouseEvent::kScrollPerDetent)));
       OnMouseWheel(e, destruction_receiver);

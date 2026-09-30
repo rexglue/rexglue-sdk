@@ -13,7 +13,7 @@
 
 #include <cstdint>
 
-namespace rex::thread {
+namespace rex::platform {
 
 int32_t atomic_inc(volatile int32_t* value);
 int32_t atomic_dec(volatile int32_t* value);
@@ -66,4 +66,4 @@ inline void atomic_store_release(uint32_t new_value, volatile uint32_t* value) {
   atomic_store_release(static_cast<int32_t>(new_value), reinterpret_cast<volatile int32_t*>(value));
 }
 
-}  // namespace rex::thread
+}  // namespace rex::platform

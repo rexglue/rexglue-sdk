@@ -211,14 +211,12 @@ Result<void> InitProject(const InitOptions& opts, const CliContext& ctx) {
     fs::path out;
     RegeneratePolicy policy;
   };
-  std::string app_header = names.original + "_app.h";
   std::string manifest_file = names.original + "_manifest.toml";
   std::vector<Render> renders = {
       {"init/cmakelists", projectRoot / "CMakeLists.txt", RegeneratePolicy::RequiresForce},
       {"init/rexglue_cmake", projectRoot / "generated" / "rexglue.cmake",
        RegeneratePolicy::AlwaysRegenerate},
       {"init/main_cpp", projectRoot / "src" / "main.cpp", RegeneratePolicy::FirstInitOnly},
-      {"init/app_header", projectRoot / "src" / app_header, RegeneratePolicy::FirstInitOnly},
       {"init/manifest_toml", projectRoot / manifest_file, RegeneratePolicy::RequiresForce},
       {"init/cmake_presets", projectRoot / "CMakePresets.json", RegeneratePolicy::RequiresForce},
   };
@@ -395,7 +393,7 @@ Result<void> InitAchievements(const InitAchievementsOptions& opts, const CliCont
     return Err<void>(ErrorCategory::IO, fmt::format("Runtime init failed: {:#x}", rtStatus));
   }
 
-  rtStatus = runtime->LoadXexImage(entryVfsPath);
+  rtStatus = runtime->LoadXEXImage(entryVfsPath);
   if (!XSUCCEEDED(rtStatus)) {
     return Err<void>(ErrorCategory::IO,
                      fmt::format("Failed to load XEX '{}': {:#x}", opts.xex_path, rtStatus));

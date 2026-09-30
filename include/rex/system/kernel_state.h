@@ -28,7 +28,7 @@
 #include <rex/logging.h>
 #include <rex/system/achievement_manager.h>
 #include <rex/system/thread_state.h>
-#include <rex/thread/fiber.h>
+#include <rex/platform/fiber.h>
 #include <rex/system/util/native_list.h>
 #include <rex/system/util/object_table.h>
 #include <rex/system/util/xdbf_utils.h>
@@ -43,7 +43,7 @@
 #include <rex/system/xmemory.h>
 #include <rex/system/xobject.h>
 #include <rex/system/xtypes.h>
-#include <rex/thread/mutex.h>
+#include <rex/platform/mutex.h>
 #include <rex/types.h>
 
 //=============================================================================
@@ -175,12 +175,12 @@ struct TerminateNotification {
 
 /// Host-side metadata for a fiber managed by rexcrt hooks.
 struct FiberInfo {
-  rex::thread::Fiber* host_fiber;  ///< Host OS fiber handle
-  uint32_t uid;                    ///< Unique identifier
-  uint32_t guest_context_addr;     ///< Guest fiber context buffer address
-  uint32_t guest_stack_base;       ///< Top of guest kernel stack (0 for thread fibers)
-  uint32_t guest_stack_bottom;     ///< Bottom of guest kernel stack (0 for thread fibers)
-  bool is_thread_fiber;            ///< true = ConvertThreadToFiber (don't free guest stack)
+  rex::platform::Fiber* host_fiber;  ///< Host OS fiber handle
+  uint32_t uid;                      ///< Unique identifier
+  uint32_t guest_context_addr;       ///< Guest fiber context buffer address
+  uint32_t guest_stack_base;         ///< Top of guest kernel stack (0 for thread fibers)
+  uint32_t guest_stack_bottom;       ///< Bottom of guest kernel stack (0 for thread fibers)
+  bool is_thread_fiber;              ///< true = ConvertThreadToFiber (don't free guest stack)
 };
 
 class KernelState {
@@ -279,6 +279,13 @@ class KernelState {
   // Terminates a title: Unloads all modules, and kills all guest threads.
   // This DOES NOT RETURN if called from a guest thread!
   void TerminateTitle();
+
+  /**
+   * Reports a title exit to the runtime, then terminates the title from the calling thread.
+   *
+   * @param reason Why the title exited.
+   */
+  void ExitTitle(runtime::TitleExitReason reason);
   bool is_terminating_title() const { return terminating_title_.load(std::memory_order_acquire); }
 
   void RegisterThread(XThread* thread);
@@ -343,7 +350,6 @@ class KernelState {
 
  private:
   void SignalAllWaitableObjects();
-  void WaitForThreadsToExit(const std::vector<object_ref<XThread>>& threads, uint32_t timeout_ms);
   void LoadKernelModule(object_ref<KernelModule> kernel_module);
   void InitializeProcess(X_KPROCESS* process, uint32_t process_type, uint8_t unk_18, uint8_t unk_19,
                          uint8_t unk_1A);
@@ -362,7 +368,7 @@ class KernelState {
   std::unique_ptr<xam::ContentManager> content_manager_;
   std::unique_ptr<xam::UserProfile> user_profile_;
 
-  rex::thread::global_critical_region global_critical_region_;
+  rex::platform::global_critical_region global_critical_region_;
 
   // Must be guarded by the global critical region.
   util::ObjectTable object_table_;

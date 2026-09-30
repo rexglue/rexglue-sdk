@@ -86,7 +86,7 @@ void mergeAndSeal(CodegenContext& ctx) {
 
 namespace phases {
 
-VoidResult Merge(CodegenContext& ctx, ProgressReporter* reporter) {
+Result<void> Merge(CodegenContext& ctx, ProgressReporter* reporter) {
   (void)reporter;
   mergeAndSeal(ctx);
   return Ok();

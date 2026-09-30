@@ -15,7 +15,7 @@
 #include <rex/kernel.h>
 #include <rex/logging.h>
 #include <rex/system/thread_state.h>
-#include <rex/thread.h>
+#include <rex/platform/thread.h>
 
 namespace rex::runtime {
 
@@ -27,7 +27,7 @@ ThreadState::ThreadState(uint32_t thread_id, uint32_t stack_base, uint32_t pcr_a
   if (thread_id_ == UINT_MAX) {
     // System thread. Assign the system thread ID with a high bit
     // set so people know what's up.
-    uint32_t system_thread_handle = rex::thread::current_thread_system_id();
+    uint32_t system_thread_handle = rex::platform::current_thread_system_id();
     thread_id_ = 0x80000000 | system_thread_handle;
   }
 

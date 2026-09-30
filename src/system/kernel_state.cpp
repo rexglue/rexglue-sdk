@@ -22,7 +22,7 @@
 #include <rex/ppc/function.h>
 #include <rex/runtime.h>
 #include <rex/stream.h>
-#include <rex/thread/atomic.h>
+#include <rex/platform/atomic.h>
 #include <rex/string.h>
 #include <rex/kernel/xboxkrnl/threading.h>
 #include <rex/system/kernel_module.h>
@@ -43,6 +43,8 @@
 #include <rex/system/xsemaphore.h>
 #include <rex/system/xthread.h>
 #include <rex/system/xtimer.h>
+
+#include "system/thread_wait.h"
 
 namespace rex::system {
 
@@ -958,30 +960,10 @@ void KernelState::SignalAllWaitableObjects() {
   }
 }
 
-void KernelState::WaitForThreadsToExit(const std::vector<object_ref<XThread>>& threads,
-                                       uint32_t timeout_ms) {
-  using clock = std::chrono::steady_clock;
-  auto deadline = clock::now() + std::chrono::milliseconds(timeout_ms);
-
-  for (;;) {
-    bool all_exited = true;
-    for (auto& thread : threads) {
-      if (thread->is_running()) {
-        all_exited = false;
-        break;
-      }
-    }
-    if (all_exited || clock::now() >= deadline) {
-      return;
-    }
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
-  }
-}
-
 void KernelState::TerminateTitle() {
   REXSYS_DEBUG("KernelState::TerminateTitle");
 
-  constexpr uint32_t kCooperativeExitTimeoutMs = 200;
+  const auto timeout = emulator()->config().runtime.terminate_timeout;
 
   // Guest threads poll this flag in the kernel wait primitives
   // (XThread::CheckTitleTermination) and self-exit.
@@ -1005,15 +987,19 @@ void KernelState::TerminateTitle() {
     thread->thread()->QueueUserCallback([] {});
   }
 
-  WaitForThreadsToExit(target_threads, kCooperativeExitTimeoutMs);
+  WaitForThreadsToExit(target_threads, timeout);
 
-  // Stragglers are deliberately left running, never force-killed: TerminateThread
-  // orphans whatever host lock the thread holds (CRT heap, mutexes) and deadlocks
-  // teardown. Window close hard-exits and lets the OS reap them.
-
-  // Drop guest threads from the map.
+  // Stragglers die under the global lock, so none of them holds it when it dies.
   {
     auto global_lock = global_critical_region_.Acquire();
+    for (auto& thread : target_threads) {
+      if (thread->is_running()) {
+        REXSYS_WARN("TerminateTitle: thread {:08X} '{}' entry {:08X} still running after {} ms",
+                    thread->thread_id(), thread->name(), thread->creation_params()->start_address,
+                    timeout.count());
+        thread->Terminate(0);
+      }
+    }
     for (auto it = threads_by_id_.begin(); it != threads_by_id_.end();) {
       if (!XThread::IsInThread(it->second) && it->second->is_guest_thread()) {
         it = threads_by_id_.erase(it);
@@ -1023,10 +1009,12 @@ void KernelState::TerminateTitle() {
     }
   }
 
+  // A thread that was already in Exit when the bound passed finishes on its own.
+  WaitForThreadsToExit(target_threads, timeout);
+
   // Drop refs before the self-terminate below (which does not return) so they
-  // aren't leaked; reset the flag for relaunch.
+  // aren't leaked.
   target_threads.clear();
-  terminating_title_.store(false, std::memory_order_release);
 
   // Self-terminate if called from a guest thread (e.g. XamLoaderTerminateTitle).
   if (XThread::IsInThread()) {
@@ -1036,6 +1024,13 @@ void KernelState::TerminateTitle() {
     }
     XThread::GetCurrentThread()->Terminate(0);
   }
+}
+
+void KernelState::ExitTitle(runtime::TitleExitReason reason) {
+  if (Runtime* runtime = emulator()) {
+    runtime->ReportTitleExit(reason);
+  }
+  TerminateTitle();
 }
 
 void KernelState::RegisterThread(XThread* thread) {
@@ -1231,7 +1226,7 @@ void KernelState::CompleteOverlappedDeferredEx(
         }
         REXSYS_DEBUG("Deferred overlapped {:08X}: sleeping {}ms", overlapped_ptr,
                      kDeferredOverlappedDelayMillis);
-        rex::thread::Sleep(std::chrono::milliseconds(kDeferredOverlappedDelayMillis));
+        rex::platform::Sleep(std::chrono::milliseconds(kDeferredOverlappedDelayMillis));
         uint32_t extended_error, length;
         REXSYS_DEBUG("Deferred overlapped {:08X}: running completion", overlapped_ptr);
         auto result = completion_callback(extended_error, length);

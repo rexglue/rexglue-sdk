@@ -10,6 +10,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 #include <rex/ui/overlay/console_overlay.h>
+#include <rex/ui/overlay.h>
 #include <rex/cvar.h>
 #include <imgui.h>
 #include <algorithm>
@@ -23,9 +24,8 @@ static ImVec4 LevelColor(spdlog::level::level_enum level, const ConsoleStyle& st
   return index < std::size(style.level) ? style.level[index] : style.level[spdlog::level::info];
 }
 
-ConsoleDialog::ConsoleDialog(ImGuiDrawer* imgui_drawer, rex::cvar::ICvarRegistry& registry,
-                             std::shared_ptr<rex::LogCaptureSink> sink)
-    : ImGuiDialog(imgui_drawer), registry_(registry), sink_(std::move(sink)) {}
+ConsoleDialog::ConsoleDialog(const OverlayContext& context)
+    : ImGuiDialog(&context.drawer()), registry_(context.cvars()), sink_(&context.log_capture()) {}
 
 ConsoleDialog::~ConsoleDialog() {}
 

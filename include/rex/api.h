@@ -17,6 +17,7 @@
 #include <string_view>
 #include <vector>
 
+#include <rex/cli_arg_list.h>
 #include <rex/cvar.h>
 #include <rex/filesystem/config.h>
 #include <rex/graphics/backend.h>
@@ -25,6 +26,7 @@
 #include <rex/paths.h>
 #include <rex/result.h>
 #include <rex/runtime/config.h>
+#include <rex/types.h>
 #include <rex/ui.h>
 
 namespace rex {
@@ -55,10 +57,10 @@ struct Config {
   /** Graphics backend slice, read by the graphics module at Connect. */
   graphics::BackendConfig graphics;
   /**
-   * False keeps module DLLs mapped after Shutdown. Transitional. ReXApp sets it false because
-   * the current shutdown path can still reach module code after Shutdown. Deleted in sub-project 6.
+   * Name of a lock across processes that App::Init takes before any module loads. Init fails
+   * in a second process started with the same name. Empty means no lock.
    */
-  bool unload_modules_at_shutdown = true;
+  std::string single_instance;
 };
 
 /**
@@ -69,6 +71,7 @@ class API {
   /**
    * Fetches an interface a loaded module or core serves.
    *
+   * @tparam T An interface type with kInterfaceName and kInterfaceVersion.
    * @return The interface, or null when nothing serves T::kInterfaceName at T::kInterfaceVersion.
    */
   template <typename T>
@@ -90,13 +93,15 @@ class API {
   /**
    * Replaces the paths slice of the copied configuration. For hosts that resolve the game data
    * root after Init, before the Runtime is constructed from config().
+   *
+   * @param paths The new paths.
    */
   void UpdatePaths(const PathsConfig& paths);
 
  private:
   friend class detail::ModuleLoader;
   explicit API(detail::ModuleLoader* loader) : loader_(loader) {}
-  void* Get(const char* name, uint32_t version) const;
+  void* Get(const char* name, u32 version) const;
   detail::ModuleLoader* loader_;
 };
 
@@ -116,28 +121,33 @@ Result<API*> Init(const Config& config);
 void Shutdown();
 
 /**
- * Reads --modules, the structural fields with a command line form (--game_data_root,
- * --user_data_root, --update_data_root, --cache_root, --metadata_root, --config_file,
- * --backend) and every --scope.leaf cvar form into config. Cvar forms are --name=value,
- * --name value, --name (true) and --no-name (false).
+ * Applies command line options to a configuration. Options with a structural field (such as
+ * --game_data_root, --modules, --backend) fill that field. --scope.name=value and --scope.name
+ * set a cvar, --no-scope.name sets it false.
  *
- * @return The arguments that were not consumed, in order. Positionals and unknown -- arguments.
+ * @param config The configuration to fill.
+ * @param args The parsed command line.
+ * @return The options it did not recognize, as --name or --name=value, in order.
  */
-std::vector<std::string> ParseCommandLine(Config& config, int argc, char** argv);
+std::vector<std::string> ParseCommandLine(Config& config, const CLIArgList& args);
 
 /**
  * Parses a TOML file into config.cvars.values with source Config. A [scope] table with leaf keys
  * and a flat scope.leaf key both name the cvar scope.leaf. A missing file is Ok.
  *
+ * @param config The configuration to fill.
+ * @param path The TOML file.
  * @return Ok, or a Config error with the parse message and the path.
  */
-Status LoadConfigFile(Config& config, const std::filesystem::path& path);
+Result<void> LoadConfigFile(Config& config, const std::filesystem::path& path);
 
 /**
  * Writes the registry's non default values as TOML, 1 [scope] table per scope.
  *
+ * @param registry The registry to read.
+ * @param path The TOML file to write.
  * @return Ok, or a Config error with the OS message and the path.
  */
-Status SaveConfigFile(const cvar::ICvarRegistry& registry, const std::filesystem::path& path);
+Result<void> SaveConfigFile(const cvar::ICvarRegistry& registry, const std::filesystem::path& path);
 
 }  // namespace rex

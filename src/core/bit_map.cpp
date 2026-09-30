@@ -12,7 +12,7 @@
 #include <rex/assert.h>
 #include <rex/bit.h>
 #include <rex/math.h>
-#include <rex/thread/atomic.h>
+#include <rex/platform/atomic.h>
 
 namespace rex::bit {
 
@@ -50,7 +50,7 @@ size_t BitMap::Acquire() {
       assert_not_zero(entry & bit);
 
       acquired_idx = index;
-    } while (!thread::atomic_cas(entry, new_entry, &data_[i]));
+    } while (!platform::atomic_cas(entry, new_entry, &data_[i]));
 
     if (acquired_idx != -1) {
       // Acquired.
@@ -74,7 +74,7 @@ void BitMap::Release(size_t index) {
     assert_zero(entry & bit);
 
     new_entry = entry | bit;
-  } while (!thread::atomic_cas(entry, new_entry, &data_[slot]));
+  } while (!platform::atomic_cas(entry, new_entry, &data_[slot]));
 }
 
 void BitMap::Resize(size_t new_size_bits) {

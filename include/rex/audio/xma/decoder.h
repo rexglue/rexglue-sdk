@@ -73,11 +73,11 @@ class XmaDecoder {
 
   std::atomic<bool> worker_running_ = {false};
   system::object_ref<system::XHostThread> worker_thread_;
-  std::unique_ptr<rex::thread::Event> work_event_ = nullptr;
+  std::unique_ptr<rex::platform::Event> work_event_ = nullptr;
 
   std::atomic<bool> paused_ = false;
-  rex::thread::Fence pause_fence_;   // Signaled when worker paused.
-  rex::thread::Fence resume_fence_;  // Signaled when resume requested.
+  rex::platform::Fence pause_fence_;   // Signaled when worker paused.
+  rex::platform::Fence resume_fence_;  // Signaled when resume requested.
 
   XmaRegisterFile register_file_;
 

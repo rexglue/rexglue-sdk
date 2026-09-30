@@ -13,6 +13,7 @@
 
 #include <rex/ui.h>
 
+#include <chrono>
 #include <cstdint>
 #include <unordered_map>
 
@@ -37,6 +38,13 @@ class SDLWindowedAppContext final : public WindowedAppContext {
   void PlatformQuitFromUIThread() override;
 
   int RunMainMessageLoop();
+
+  /**
+   * Processes the events that arrive within a wait, then every event already queued.
+   *
+   * @param max_wait Longest time to wait for the first event.
+   */
+  void PumpEvents(std::chrono::milliseconds max_wait);
 
   // Custom SDL event type carrying a coalesced paint request for a window
   // (user.windowID identifies the target).

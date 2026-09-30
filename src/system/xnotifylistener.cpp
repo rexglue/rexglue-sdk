@@ -24,7 +24,7 @@ XNotifyListener::~XNotifyListener() {}
 void XNotifyListener::Initialize(uint64_t mask, uint32_t max_version) {
   assert_false(wait_handle_);
 
-  wait_handle_ = rex::thread::Event::CreateManualResetEvent(false);
+  wait_handle_ = rex::platform::Event::CreateManualResetEvent(false);
   assert_not_null(wait_handle_);
   mask_ = mask;
   max_version_ = max_version;

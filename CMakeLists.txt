@@ -298,9 +298,6 @@ if(PROJECT_IS_TOP_LEVEL)
     include(cmake/rexglue_install.cmake)
 else()
     # When consumed via add_subdirectory(), provide the same interface as find_package().
-    # This sets REXGLUE_SHARE_DIR and makes rexglue_configure_target() available.
-    set(REXGLUE_SHARE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/ui" PARENT_SCOPE)
-    set(REXGLUE_SHARE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/ui")
     include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_helpers.cmake)
     foreach(target IN LISTS REXGLUE_INSTALL_TARGETS REXGLUE_INSTALL_FIDELITYFX_TARGETS)
         get_target_property(export_name ${target} EXPORT_NAME)

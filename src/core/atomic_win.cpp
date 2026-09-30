@@ -1,11 +1,11 @@
 #include <rex/platform.h>
-#include <rex/thread/atomic.h>
+#include <rex/platform/atomic.h>
 
 static_assert(REX_PLATFORM_WIN32, "This file is Windows-only");
 
 #include <intrin.h>
 
-namespace rex::thread {
+namespace rex::platform {
 
 int32_t atomic_inc(volatile int32_t* value) {
   return _InterlockedIncrement(reinterpret_cast<volatile long*>(value));
@@ -41,4 +41,4 @@ void atomic_store_release(int32_t new_value, volatile int32_t* value) {
   _InterlockedExchange(reinterpret_cast<volatile long*>(value), new_value);
 }
 
-}  // namespace rex::thread
+}  // namespace rex::platform

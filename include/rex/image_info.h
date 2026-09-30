@@ -37,7 +37,7 @@ struct PPCCodegenFlags {
   bool non_volatile_as_local = false;
 };
 
-/// PPC image layout passed from the generated config header into ReXApp.
+/// PPC image layout passed from the generated config header into TitleApp::Init.
 struct PPCImageInfo {
   u32 code_base;
   u32 code_size;

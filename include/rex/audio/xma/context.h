@@ -17,7 +17,7 @@
 
 #include <rex/kernel.h>
 #include <rex/memory.h>
-#include <rex/thread.h>
+#include <rex/platform/thread.h>
 
 // XMA audio format:
 // From research, XMA appears to be based on WMA Pro with
@@ -232,7 +232,7 @@ class XmaContext {
   }
   void WaitForWorkDone() {
     if (work_completion_event_) {
-      rex::thread::Wait(work_completion_event_.get(), false);
+      rex::platform::Wait(work_completion_event_.get(), false);
     }
   }
 
@@ -267,7 +267,7 @@ class XmaContext {
   static void ConvertFrame(const uint8_t** samples, bool is_two_channel, uint8_t* output_buffer);
 
   memory::Memory* memory_ = nullptr;
-  std::unique_ptr<rex::thread::Event> work_completion_event_;
+  std::unique_ptr<rex::platform::Event> work_completion_event_;
 
   uint32_t id_ = 0;
   uint32_t guest_ptr_ = 0;

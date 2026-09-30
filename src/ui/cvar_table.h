@@ -91,12 +91,15 @@ REXCVAR_STRING(ui, resolution, "",
 REXCVAR_DOUBLE(ui, video_mode_refresh_rate, 60.0, "title video mode refresh rate in Hz")
     .range(24.0, 240.0)
     .lifecycle(rex::cvar::Lifecycle::RequiresRestart);
+REXCVAR_DOUBLE(ui, cursor_timeout, 0.0,
+               "Seconds without mouse movement over the window before the cursor hides, 0 never")
+    .range(0.0, 3600.0);
 REXCVAR_TABLE(kUICvars, present_from_non_ui_thread, present_letterbox, present_safe_area_x,
               present_safe_area_y, present_effect, present_cas_additional_sharpness,
               present_fsr_max_upsampling_passes, present_fsr_sharpness_reduction,
               present_fsr_quality_mode, present_dither, present_allow_overscan_cutoff, window_width,
               window_height, fullscreen, fullscreen_exclusive, monitor, video_mode_width,
-              video_mode_height, resolution, video_mode_refresh_rate);
+              video_mode_height, resolution, video_mode_refresh_rate, cursor_timeout);
 
 REXCVAR_BOOL(vulkan, require_fragment_stores_and_atomics, true,
              "Deprecated and ignored for parity; fragmentStoresAndAtomics is always required for "

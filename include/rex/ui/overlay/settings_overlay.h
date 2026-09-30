@@ -17,11 +17,11 @@
 
 namespace rex::ui {
 
+class OverlayContext;
+
 class SettingsDialog : public ImGuiDialog {
  public:
-  // config_path: where "Save to config" writes (e.g. exe_dir / "app.toml")
-  SettingsDialog(ImGuiDrawer* imgui_drawer, rex::cvar::ICvarRegistry& registry,
-                 std::filesystem::path config_path);
+  explicit SettingsDialog(const OverlayContext& context);
   ~SettingsDialog();
 
  protected:

@@ -12,7 +12,7 @@
 
 #include <cstdint>
 
-#include <rex/thread.h>
+#include <rex/platform/thread.h>
 
 namespace rex::runtime {
 
@@ -35,14 +35,14 @@ class Thread {
   bool can_debugger_suspend() const { return can_debugger_suspend_; }
   void set_can_debugger_suspend(bool value) { can_debugger_suspend_ = value; }
 
-  rex::thread::Thread* thread() { return thread_.get(); }
+  rex::platform::Thread* thread() { return thread_.get(); }
   const std::string& thread_name() const { return thread_name_; }
 
  protected:
   thread_local static Thread* current_thread_;
 
   ThreadState* thread_state_ = nullptr;
-  std::unique_ptr<rex::thread::Thread> thread_ = nullptr;
+  std::unique_ptr<rex::platform::Thread> thread_ = nullptr;
 
   bool can_debugger_suspend_ = true;
   std::string thread_name_;

@@ -65,7 +65,7 @@ const char* SourceName(CvarSource s) {
   return "Unknown";
 }
 
-std::string EscapeToml(std::string_view s) {
+std::string EscapeTOML(std::string_view s) {
   std::string out = "\"";
   for (char c : s) {
     switch (c) {
@@ -113,7 +113,7 @@ std::string_view CvarRegistryImpl::DefaultOf(const Entry& entry) const {
                                     : entry.var->DefaultText();
 }
 
-Status CvarRegistryImpl::Register(std::string_view scope, std::span<const IVar* const> vars) {
+Result<void> CvarRegistryImpl::Register(std::string_view scope, std::span<const IVar* const> vars) {
   std::lock_guard lock(mutex_);
   if (!LowerToken(scope)) {
     return Err(MakeError(E::BadName, std::format("scope '{}' is not lowercase [a-z0-9_]", scope)));
@@ -153,7 +153,7 @@ Status CvarRegistryImpl::Register(std::string_view scope, std::span<const IVar* 
   return Ok();
 }
 
-Status CvarRegistryImpl::Add(std::span<const IVar* const> vars) {
+Result<void> CvarRegistryImpl::Add(std::span<const IVar* const> vars) {
   Fired fired;
   {
     std::lock_guard lock(mutex_);
@@ -198,7 +198,7 @@ void CvarRegistryImpl::ApplyPending(Entry& entry, Fired& fired) {
     for (const CvarOverride& o : pending_) {
       if (o.source != source || o.name != name)
         continue;
-      Status status = Ok();
+      Result<void> status = Ok();
       if (source == CvarSource::Default) {
         status = Validate(entry, o.value, source);
         if (status) {
@@ -243,8 +243,8 @@ void CvarRegistryImpl::Unregister(std::span<const IVar* const> vars) {
   });
 }
 
-Status CvarRegistryImpl::Validate(const Entry& entry, std::string_view value,
-                                  CvarSource source) const {
+Result<void> CvarRegistryImpl::Validate(const Entry& entry, std::string_view value,
+                                        CvarSource source) const {
   const Desc& d = entry.var->desc();
   const auto& c = d.constraints;
   auto rejected = [&](std::string_view reason) {
@@ -252,7 +252,7 @@ Status CvarRegistryImpl::Validate(const Entry& entry, std::string_view value,
                                                  d.name, value, SourceName(source), reason)));
   };
   if (c.min || c.max) {
-    double v = 0;
+    f64 v = 0;
     auto [ptr, ec] = std::from_chars(value.data(), value.data() + value.size(), v);
     if (ec != std::errc{} || ptr != value.data() + value.size()) {
       return rejected("not a number");
@@ -271,8 +271,8 @@ Status CvarRegistryImpl::Validate(const Entry& entry, std::string_view value,
   return Ok();
 }
 
-Status CvarRegistryImpl::Apply(Entry& entry, std::string_view value, CvarSource source,
-                               Fired& fired) {
+Result<void> CvarRegistryImpl::Apply(Entry& entry, std::string_view value, CvarSource source,
+                                     Fired& fired) {
   const Desc& d = entry.var->desc();
   if (d.type == cvar::Type::Command) {
     return Err(MakeError(E::NotAVar, std::format("'{}' is a command", d.name)));
@@ -328,7 +328,7 @@ void CvarRegistryImpl::Fire(Fired& fired) {
   fired.clear();
 }
 
-Status CvarRegistryImpl::Set(std::string_view name, std::string_view value) {
+Result<void> CvarRegistryImpl::Set(std::string_view name, std::string_view value) {
   Fired fired;
   {
     std::lock_guard lock(mutex_);
@@ -350,7 +350,7 @@ Result<std::string> CvarRegistryImpl::Get(std::string_view name) const {
   return entry->var->Render();
 }
 
-Status CvarRegistryImpl::SetDefault(std::string_view name, std::string_view value) {
+Result<void> CvarRegistryImpl::SetDefault(std::string_view name, std::string_view value) {
   Fired fired;
   {
     std::lock_guard lock(mutex_);
@@ -368,7 +368,7 @@ Status CvarRegistryImpl::SetDefault(std::string_view name, std::string_view valu
   return Ok();
 }
 
-Status CvarRegistryImpl::Lock(std::string_view name) {
+Result<void> CvarRegistryImpl::Lock(std::string_view name) {
   std::lock_guard lock(mutex_);
   Entry* entry = FindEntry(name);
   if (!entry)
@@ -377,7 +377,7 @@ Status CvarRegistryImpl::Lock(std::string_view name) {
   return Ok();
 }
 
-Status CvarRegistryImpl::ResetToDefault(std::string_view name) {
+Result<void> CvarRegistryImpl::ResetToDefault(std::string_view name) {
   Fired fired;
   {
     std::lock_guard lock(mutex_);
@@ -425,18 +425,18 @@ Result<cvar::CallbackHandle> CvarRegistryImpl::OnChange(std::string_view name,
     return Err<cvar::CallbackHandle>(
         MakeError(E::NotFound, std::format("no cvar named '{}'", name)));
   }
-  uint64_t id = next_callback_id_++;
+  u64 id = next_callback_id_++;
   callbacks_.push_back(
       std::make_shared<Callback>(Callback{id, std::string(name), std::move(callback)}));
   return cvar::CallbackHandle(this, id);
 }
 
-void CvarRegistryImpl::RemoveCallback(uint64_t id) {
+void CvarRegistryImpl::RemoveCallback(u64 id) {
   std::lock_guard lock(mutex_);
   std::erase_if(callbacks_, [id](const std::shared_ptr<Callback>& cb) { return cb->id == id; });
 }
 
-Status CvarRegistryImpl::Invoke(std::string_view name, std::string_view args) {
+Result<void> CvarRegistryImpl::Invoke(std::string_view name, std::string_view args) {
   const IVar* var = nullptr;
   {
     std::lock_guard lock(mutex_);
@@ -463,11 +463,13 @@ std::string CvarRegistryImpl::Serialize() const {
     const Desc& d = e.var->desc();
     if (d.type == cvar::Type::Command)
       continue;
+    if (d.no_save)
+      continue;
     std::string value = e.var->Render();
     if (value == DefaultOf(e))
       continue;
     std::string_view leaf = d.name.substr(d.name.find('.') + 1);
-    std::string rendered = d.type == cvar::Type::String ? EscapeToml(value) : value;
+    std::string rendered = d.type == cvar::Type::String ? EscapeTOML(value) : value;
     tables[d.scope].push_back(std::format("{} = {}\n", leaf, rendered));
   }
   std::string out;
@@ -521,7 +523,7 @@ Result<std::vector<CvarOverride>> CvarRegistryImpl::ApplyOverrides(
   return unknown;
 }
 
-Status CvarRegistryImpl::ApplyLocks(std::span<const std::string> names) {
+Result<void> CvarRegistryImpl::ApplyLocks(std::span<const std::string> names) {
   std::lock_guard lock(mutex_);
   for (const std::string& name : names) {
     Entry* entry = FindEntry(name);
@@ -555,6 +557,7 @@ void CvarRegistryImpl::Reset() {
 std::vector<std::string> CvarRegistryImpl::RegisteredNames() const {
   std::lock_guard lock(mutex_);
   std::vector<std::string> out;
+  out.reserve(entries_.size());
   for (const Entry& e : entries_)
     out.emplace_back(e.var->desc().name);
   return out;

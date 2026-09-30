@@ -80,13 +80,6 @@ if(REXGLUE_USE_VULKAN)
     )
 endif()
 
-# Install the entry point source and ReXApp for SDK consumers
-install(FILES
-    src/ui/windowed_app_main_sdl.cpp
-    src/ui/rex_app.cpp
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/rexglue
-)
-
 # Install DXC API headers (vendored, for D3D12 backend)
 if(REXGLUE_USE_D3D12)
     install(FILES

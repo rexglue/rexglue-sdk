@@ -18,6 +18,7 @@
 #include <rex/cvar.h>
 #include <rex/logging.h>
 #include <rex/platform.h>
+#include <rex/platform/thread.h>
 #include <rex/ui/presenter.h>
 #include <rex/ui/window.h>
 
@@ -740,7 +741,8 @@ bool Presenter::InitializeCommonSurfaceIndependent() {
 
   // Initialize UI frame rate limiting.
 #if REX_PLATFORM_WIN32
-  dxgi_ui_tick_thread_ = std::thread(&Presenter::DXGIUITickThread, this);
+  dxgi_ui_tick_thread_ =
+      platform::Spawn("DXGI UI Tick", [this](const std::stop_token&) { DXGIUITickThread(); });
 #endif  // XE_PLATFORM
 
   return true;
@@ -1380,7 +1382,7 @@ void Presenter::UpdateSurfaceMonitorFromUIThread(bool old_monitor_potentially_di
 #if REX_PLATFORM_WIN32
   HMONITOR surface_new_win32_monitor = nullptr;
   if (surface_) {
-    HWND hwnd = static_cast<HWND>(window_->GetNativeWindowHandle());
+    HWND hwnd = static_cast<HWND>(window_->native());
     // The HWND may be non-existent if the window has been closed and destroyed
     // (the HWND, not the rex::ui::Window) already.
     if (hwnd) {

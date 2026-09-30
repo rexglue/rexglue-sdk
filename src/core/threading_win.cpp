@@ -7,10 +7,11 @@
  */
 
 #include <rex/platform.h>
-#include <rex/thread.h>
+#include <rex/platform/thread.h>
 
 static_assert(REX_PLATFORM_WIN32, "This file is Windows-only");
 
+#include "core/thread_registry.h"
 #include "platform_win.h"
 
 #include <spdlog/spdlog.h>
@@ -23,7 +24,7 @@ static_assert(REX_PLATFORM_WIN32, "This file is Windows-only");
 
 typedef HANDLE (*SetThreadDescriptionFn)(HANDLE hThread, PCWSTR lpThreadDescription);
 
-namespace rex::thread {
+namespace rex::platform {
 
 void EnableAffinityConfiguration() {
   HANDLE process_handle = GetCurrentProcess();
@@ -431,7 +432,10 @@ class Win32Thread : public Win32Handle<Thread> {
     return true;
   }
 
-  void Terminate(int exit_code) override { TerminateThread(handle_, exit_code); }
+  void Terminate(int exit_code) override {
+    detail::UnregisterThread(::GetThreadId(handle_));
+    TerminateThread(handle_, exit_code);
+  }
 
  private:
   void AssertCallingThread() { assert_true(GetCurrentThreadId() == GetThreadId(handle_)); }
@@ -443,6 +447,7 @@ struct ThreadStartData {
   std::function<void()> start_routine;
 };
 DWORD WINAPI ThreadStartRoutine(LPVOID parameter) {
+  detail::RegisterCurrentThread();
   current_thread_ = std::make_unique<Win32Thread>(::GetCurrentThread());
 
   auto start_data = reinterpret_cast<ThreadStartData*>(parameter);
@@ -483,4 +488,4 @@ void Thread::Exit(int exit_code) {
   ExitThread(exit_code);
 }
 
-}  // namespace rex::thread
+}  // namespace rex::platform

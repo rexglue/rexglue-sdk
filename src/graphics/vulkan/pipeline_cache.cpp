@@ -29,7 +29,7 @@
 #include <rex/filesystem.h>
 #include <rex/logging.h>
 #include <rex/math.h>
-#include <rex/thread.h>
+#include <rex/platform/thread.h>
 #include <rex/memory.h>
 #include <rex/graphics/util/draw.h>
 #include <rex/graphics/pipeline_util.h>
@@ -349,13 +349,13 @@ bool VulkanPipelineCache::Initialize() {
         "async placeholder hot-swap will be unavailable");
   }
 
-  uint32_t logical_processor_count = rex::thread::logical_processor_count();
+  uint32_t logical_processor_count = rex::platform::logical_processor_count();
   if (!logical_processor_count) {
     logical_processor_count = 6;
   }
   creation_threads_busy_ = 0;
   startup_loading_ = false;
-  creation_completion_event_ = rex::thread::Event::CreateManualResetEvent(true);
+  creation_completion_event_ = rex::platform::Event::CreateManualResetEvent(true);
   assert_not_null(creation_completion_event_);
   creation_completion_set_event_ = false;
   creation_threads_shutdown_from_ = SIZE_MAX;
@@ -369,8 +369,8 @@ bool VulkanPipelineCache::Initialize() {
                    logical_processor_count);
     }
     for (size_t i = 0; i < creation_thread_count; ++i) {
-      std::unique_ptr<rex::thread::Thread> creation_thread =
-          rex::thread::Thread::Create({}, [this, i]() { CreationThread(i); });
+      std::unique_ptr<rex::platform::Thread> creation_thread =
+          rex::platform::Thread::Create({}, [this, i]() { CreationThread(i); });
       assert_not_null(creation_thread);
       creation_thread->set_name("Vulkan Pipelines");
       creation_threads_.push_back(std::move(creation_thread));
@@ -618,7 +618,7 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
       std::lock_guard<std::mutex> lock(creation_request_lock_);
       startup_loading_ = true;
     }
-    uint32_t logical_processor_count = rex::thread::logical_processor_count();
+    uint32_t logical_processor_count = rex::platform::logical_processor_count();
     if (!logical_processor_count) {
       // Pick some reasonable amount if couldn't determine the number of cores.
       logical_processor_count = 6;
@@ -658,17 +658,17 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
     if (creation_thread_count <= 1) {
       creation_worker();
     } else {
-      std::vector<std::unique_ptr<rex::thread::Thread>> creation_threads;
+      std::vector<std::unique_ptr<rex::platform::Thread>> creation_threads;
       creation_threads.reserve(creation_thread_count);
       for (size_t i = 0; i < creation_thread_count; ++i) {
-        std::unique_ptr<rex::thread::Thread> creation_thread =
-            rex::thread::Thread::Create({}, creation_worker);
+        std::unique_ptr<rex::platform::Thread> creation_thread =
+            rex::platform::Thread::Create({}, creation_worker);
         assert_not_null(creation_thread);
         creation_thread->set_name("Vulkan Pipelines");
         creation_threads.push_back(std::move(creation_thread));
       }
       for (const auto& creation_thread : creation_threads) {
-        rex::thread::Wait(creation_thread.get(), false);
+        rex::platform::Wait(creation_thread.get(), false);
       }
     }
 
@@ -702,7 +702,7 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
   storage_write_flush_shaders_ = false;
   storage_write_flush_pipelines_ = false;
   storage_write_thread_shutdown_ = false;
-  storage_write_thread_ = rex::thread::Thread::Create({}, [this]() { StorageWriteThread(); });
+  storage_write_thread_ = rex::platform::Thread::Create({}, [this]() { StorageWriteThread(); });
   assert_not_null(storage_write_thread_);
   storage_write_thread_->set_name("Vulkan Storage writer");
 }
@@ -714,7 +714,7 @@ void VulkanPipelineCache::ShutdownShaderStorage() {
       storage_write_thread_shutdown_ = true;
     }
     storage_write_request_cond_.notify_all();
-    rex::thread::Wait(storage_write_thread_.get(), false);
+    rex::platform::Wait(storage_write_thread_.get(), false);
     storage_write_thread_.reset();
   }
   storage_write_shader_queue_.clear();
@@ -776,7 +776,7 @@ void VulkanPipelineCache::EndSubmission() {
       }
       if (await_creation_completion_event) {
         creation_request_cond_.notify_one();
-        rex::thread::Wait(creation_completion_event_.get(), false);
+        rex::platform::Wait(creation_completion_event_.get(), false);
       }
     }
   }
@@ -793,7 +793,7 @@ void VulkanPipelineCache::Shutdown() {
     }
     creation_request_cond_.notify_all();
     for (size_t i = 0; i < creation_threads_.size(); ++i) {
-      rex::thread::Wait(creation_threads_[i].get(), false);
+      rex::platform::Wait(creation_threads_[i].get(), false);
     }
     creation_threads_.clear();
   }

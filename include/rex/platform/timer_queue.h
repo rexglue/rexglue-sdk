@@ -19,7 +19,7 @@
 // This is a platform independent implementation of a timer queue similar to
 // Windows CreateTimerQueueTimer with WT_EXECUTEINTIMERTHREAD.
 
-namespace rex::thread {
+namespace rex::platform {
 
 class TimerQueue;
 
@@ -75,4 +75,4 @@ std::weak_ptr<TimerQueueWaitItem> QueueTimerRecurring(std::function<void(void*)>
                                                       TimerQueueWaitItem::clock::time_point due,
                                                       TimerQueueWaitItem::clock::duration interval);
 
-}  // namespace rex::thread
+}  // namespace rex::platform

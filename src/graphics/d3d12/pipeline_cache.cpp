@@ -44,7 +44,7 @@
 #include <rex/math.h>
 #include <rex/string.h>
 #include <rex/string/buffer.h>
-#include <rex/thread.h>
+#include <rex/platform/thread.h>
 #include <rex/types.h>
 #include <rex/ui/d3d12/d3d12_util.h>
 
@@ -124,7 +124,7 @@ bool PipelineCache::Initialize() {
     }
   }
 
-  uint32_t logical_processor_count = rex::thread::logical_processor_count();
+  uint32_t logical_processor_count = rex::platform::logical_processor_count();
   if (!logical_processor_count) {
     // Pick some reasonable amount if couldn't determine the number of cores.
     logical_processor_count = 6;
@@ -133,7 +133,7 @@ bool PipelineCache::Initialize() {
   // threads because they may be used anyway to create pipelines from the
   // storage.
   creation_threads_busy_ = 0;
-  creation_completion_event_ = rex::thread::Event::CreateManualResetEvent(true);
+  creation_completion_event_ = rex::platform::Event::CreateManualResetEvent(true);
   assert_not_null(creation_completion_event_);
   creation_completion_set_event_ = false;
   creation_threads_shutdown_from_ = SIZE_MAX;
@@ -147,8 +147,8 @@ bool PipelineCache::Initialize() {
                    logical_processor_count);
     }
     for (size_t i = 0; i < creation_thread_count; ++i) {
-      std::unique_ptr<rex::thread::Thread> creation_thread =
-          rex::thread::Thread::Create({}, [this, i]() { CreationThread(i); });
+      std::unique_ptr<rex::platform::Thread> creation_thread =
+          rex::platform::Thread::Create({}, [this, i]() { CreationThread(i); });
       assert_not_null(creation_thread);
       creation_thread->set_name("D3D12 Pipelines");
       creation_threads_.push_back(std::move(creation_thread));
@@ -167,7 +167,7 @@ void PipelineCache::Shutdown() {
     }
     creation_request_cond_.notify_all();
     for (size_t i = 0; i < creation_threads_.size(); ++i) {
-      rex::thread::Wait(creation_threads_[i].get(), false);
+      rex::platform::Wait(creation_threads_[i].get(), false);
     }
     creation_threads_.clear();
   }
@@ -307,7 +307,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
     }
   }
 
-  size_t logical_processor_count = rex::thread::logical_processor_count();
+  size_t logical_processor_count = rex::platform::logical_processor_count();
   if (!logical_processor_count) {
     // Pick some reasonable amount if couldn't determine the number of cores.
     logical_processor_count = 6;
@@ -428,7 +428,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
         dxbc_converter->Release();
       }
     };
-    std::vector<std::unique_ptr<rex::thread::Thread>> shader_translation_threads;
+    std::vector<std::unique_ptr<rex::platform::Thread>> shader_translation_threads;
 
     while (true) {
       if (!fread(&shader_header, sizeof(shader_header), 1, shader_storage_file_)) {
@@ -466,7 +466,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
                      logical_processor_count - size_t(1));
       }
       while (shader_translation_threads.size() < shader_translation_threads_needed) {
-        auto thread = rex::thread::Thread::Create({}, shader_translation_thread_function);
+        auto thread = rex::platform::Thread::Create({}, shader_translation_thread_function);
         assert_not_null(thread);
         thread->set_name("Shader Translation");
         shader_translation_threads.push_back(std::move(thread));
@@ -487,7 +487,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
       }
       shaders_translation_thread_cond.notify_all();
       for (auto& shader_translation_thread : shader_translation_threads) {
-        rex::thread::Wait(shader_translation_thread.get(), false);
+        rex::platform::Wait(shader_translation_thread.get(), false);
       }
       shader_translation_threads.clear();
       for (D3D12Shader::D3D12Translation* translation : shaders_failed_to_translate) {
@@ -523,7 +523,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
                  creation_thread_original_count);
     while (creation_threads_.size() < creation_thread_original_count) {
       size_t creation_thread_index = creation_threads_.size();
-      std::unique_ptr<rex::thread::Thread> creation_thread = rex::thread::Thread::Create(
+      std::unique_ptr<rex::platform::Thread> creation_thread = rex::platform::Thread::Create(
           {}, [this, creation_thread_index]() { CreationThread(creation_thread_index); });
       assert_not_null(creation_thread);
       creation_thread->set_name("D3D12 Pipelines");
@@ -650,7 +650,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
         }
         creation_request_cond_.notify_all();
         while (creation_threads_.size() > creation_thread_original_count) {
-          rex::thread::Wait(creation_threads_.back().get(), false);
+          rex::platform::Wait(creation_threads_.back().get(), false);
           creation_threads_.pop_back();
         }
         bool await_creation_completion_event;
@@ -669,7 +669,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
         }
         if (await_creation_completion_event) {
           creation_request_cond_.notify_one();
-          rex::thread::Wait(creation_completion_event_.get(), false);
+          rex::platform::Wait(creation_completion_event_.get(), false);
         }
       }
     }
@@ -702,7 +702,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
   storage_write_flush_shaders_ = false;
   storage_write_flush_pipelines_ = false;
   storage_write_thread_shutdown_ = false;
-  storage_write_thread_ = rex::thread::Thread::Create({}, [this]() { StorageWriteThread(); });
+  storage_write_thread_ = rex::platform::Thread::Create({}, [this]() { StorageWriteThread(); });
   assert_not_null(storage_write_thread_);
   storage_write_thread_->set_name("D3D12 Storage writer");
 }
@@ -714,7 +714,7 @@ void PipelineCache::ShutdownShaderStorage() {
       storage_write_thread_shutdown_ = true;
     }
     storage_write_request_cond_.notify_all();
-    rex::thread::Wait(storage_write_thread_.get(), false);
+    rex::platform::Wait(storage_write_thread_.get(), false);
     storage_write_thread_.reset();
   }
   storage_write_shader_queue_.clear();
@@ -768,7 +768,7 @@ void PipelineCache::EndSubmission() {
     }
     if (await_creation_completion_event) {
       creation_request_cond_.notify_one();
-      rex::thread::Wait(creation_completion_event_.get(), false);
+      rex::platform::Wait(creation_completion_event_.get(), false);
     }
   }
 }

@@ -48,7 +48,7 @@ class Pinned {
     REQUIRE(set_sink != nullptr);
     set_sink(&Sink);
   }
-  rex::platform::DynamicLibrary& library() { return library_; }
+  rex::platform::DynamicLibrary& Library() { return library_; }
 
  private:
   rex::platform::DynamicLibrary library_;
@@ -123,14 +123,14 @@ TEST_CASE_METHOD(Fixture, "The only interface request before Init is the rex.cva
 TEST_CASE_METHOD(Fixture, "rex_create_interface with a null name reports NotFound",
                  "[module_loader]") {
   Pinned pin("rexmod-test-good");
-  auto create = pin.library().GetSymbol<rex::CreateInterfaceFn>(rex::kCreateInterfaceSymbol);
+  auto create = pin.Library().GetSymbol<rex::CreateInterfaceFn>(rex::kCreateInterfaceSymbol);
   REQUIRE(create != nullptr);
-  int32_t status = -1;
+  rex::i32 status = -1;
   REQUIRE(create(nullptr, 1, &status) == nullptr);
-  REQUIRE(status == static_cast<int32_t>(rex::InterfaceStatus::NotFound));
+  REQUIRE(status == static_cast<rex::i32>(rex::InterfaceStatus::NotFound));
   status = -1;
   REQUIRE(create(rex::IModule::kInterfaceName, 99, &status) == nullptr);
-  REQUIRE(status == static_cast<int32_t>(rex::InterfaceStatus::VersionMismatch));
+  REQUIRE(status == static_cast<rex::i32>(rex::InterfaceStatus::VersionMismatch));
 }
 
 TEST_CASE_METHOD(Fixture, "Missing requirement fails before any Connect", "[module_loader]") {
@@ -213,7 +213,7 @@ TEST_CASE("ParseCommandLine reads --modules in both forms", "[module_loader]") {
   char a4[] = "gamma";
   char a5[] = "--modules";
   char* argv[] = {a0, a1, a2, a3, a4, a5};
-  auto rest = rex::ParseCommandLine(cfg, 6, argv);
+  auto rest = rex::ParseCommandLine(cfg, rex::CLIArgList::Parse(6, argv));
   REQUIRE(cfg.modules == std::vector<std::string>{"alpha", "beta", "gamma"});
   REQUIRE(rest == std::vector<std::string>{"--foo", "--modules"});
 }
@@ -323,8 +323,8 @@ TEST_CASE_METHOD(Fixture, "A consumer table with a bad name fails before any loa
                  "[module_loader][cvar]") {
   Pinned pin("rexmod-test-good");
   auto cfg = With({"rexmod-test-good"});
-  static const rex::cvar::IVar* kWrong[] = {&app_cvars::debug};
-  cfg.cvars.tables.push_back({"other", kWrong});
+  static const rex::cvar::IVar* wrong_scope[] = {&app_cvars::debug};
+  cfg.cvars.tables.push_back({"other", wrong_scope});
   auto api = rex::Init(cfg);
   REQUIRE_FALSE(api);
   REQUIRE(api.error().message.find("consumer table 'other'") != std::string::npos);
@@ -397,5 +397,5 @@ TEST_CASE_METHOD(Fixture, "Every SDK cvar name is scope.leaf in a charter scope"
   }
   REQUIRE(count >= 97);
   if (!cfg.modules.empty())
-    REQUIRE(count == 166);
+    REQUIRE(count == 168);
 }

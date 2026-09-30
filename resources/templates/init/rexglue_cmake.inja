@@ -84,7 +84,7 @@ macro(rexglue_setup_target target_name)
             {{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/src
             {{ cmake_var("REXGLUE_ENTRYPOINT_INCLUDE_DIR") }}
         )
-        target_link_libraries({{ cmake_var("target_name") }}_recomp PRIVATE rex::runtime)
+        target_link_libraries({{ cmake_var("target_name") }}_recomp PRIVATE rex::sdk)
         rexglue_apply_target_settings({{ cmake_var("target_name") }}_recomp)
         rexglue_apply_recomp_settings({{ cmake_var("target_name") }}_recomp
             "{{ cmake_var("REXGLUE_ENTRYPOINT_INCLUDE_DIR") }}/{{ names.original }}_pch.h")
@@ -99,7 +99,7 @@ macro(rexglue_setup_target target_name)
         {{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/src
         {{ cmake_var("REXGLUE_ENTRYPOINT_INCLUDE_DIR") }}
     )
-    target_link_libraries({{ cmake_var("target_name") }} PRIVATE rex::runtime)
+    target_link_libraries({{ cmake_var("target_name") }} PRIVATE rex::sdk)
     if(EXISTS "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/metadata/icons")
         rexglue_embed_metadata({{ cmake_var("target_name") }}
             DIRECTORY "{{ cmake_var("CMAKE_CURRENT_SOURCE_DIR") }}/metadata/icons"

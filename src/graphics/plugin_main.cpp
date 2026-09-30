@@ -50,7 +50,7 @@ class XenosModule final : public rex::IModule {
     return kRequired;
   }
 
-  rex::Status Connect(rex::IInterfaceFactory* factory, const rex::Config& config) override {
+  rex::Result<void> Connect(rex::IInterfaceFactory* factory, const rex::Config& config) override {
     config_ = &config.graphics;
     cvars_ = factory->Get<rex::cvar::ICvarRegistry>();
     if (!cvars_) {
@@ -71,7 +71,7 @@ class XenosModule final : public rex::IModule {
     config_ = nullptr;
   }
 
-  rex::Status Init() override {
+  rex::Result<void> Init() override {
     std::string_view backend = config_ ? std::string_view(config_->backend) : "any";
 #if REX_HAS_D3D12
     if (backend == "any" || backend == "d3d12") {

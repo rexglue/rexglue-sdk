@@ -12,7 +12,7 @@
 #include <rex/kernel/xboxkrnl/private.h>
 #include <rex/logging.h>
 #include <rex/hook.h>
-#include <rex/thread/mutex.h>
+#include <rex/platform/mutex.h>
 #include <rex/types.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/user_module.h>
@@ -93,7 +93,7 @@ u32 XexLoadImage_entry(mapped_string module_name, u32 module_flags, u32 min_vers
     // resurrecting a module between the read of hmodule and the increment.
     // The fresh-load path can't share this lock: LoadUserModule runs
     // DllMain ATTACH outside the global lock by design.
-    auto lock = rex::thread::global_critical_region::AcquireDirect();
+    auto lock = rex::platform::global_critical_region::AcquireDirect();
     auto module = REX_KERNEL_STATE()->GetModule(module_name.value());
     if (module) {
       hmodule = module->hmodule_ptr();
@@ -109,7 +109,7 @@ u32 XexLoadImage_entry(mapped_string module_name, u32 module_flags, u32 min_vers
       // Released by the last XexUnloadImage call.
       auto user_module_raw = user_module.release();
       hmodule = user_module_raw->hmodule_ptr();
-      auto lock = rex::thread::global_critical_region::AcquireDirect();
+      auto lock = rex::platform::global_critical_region::AcquireDirect();
       auto ldr_data = REX_KERNEL_MEMORY()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(hmodule);
       ldr_data->load_count++;
       result = X_STATUS_SUCCESS;
@@ -134,7 +134,7 @@ u32 XexUnloadImage_entry(mapped_void hmodule) {
   // observe zero and double-free.
   bool last_ref;
   {
-    auto lock = rex::thread::global_critical_region::AcquireDirect();
+    auto lock = rex::platform::global_critical_region::AcquireDirect();
     auto ldr_data = hmodule.as<X_LDR_DATA_TABLE_ENTRY*>();
     last_ref = (--ldr_data->load_count == 0);
   }
