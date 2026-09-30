@@ -21,7 +21,6 @@
 #include <rex/math.h>
 #include <rex/ppc/function.h>
 #include <rex/runtime.h>
-#include <rex/stream.h>
 #include <rex/platform/atomic.h>
 #include <rex/string.h>
 #include <rex/kernel/xboxkrnl/threading.h>
@@ -1258,112 +1257,6 @@ void KernelState::EndDPCImpersonation(const DPCImpersonationScope& scope) {
   auto pcr = memory_->TranslateVirtual<X_KPCR*>(static_cast<uint32_t>(ctx->r13.u64));
   pcr->prcb_data.dpc_active = 0;
   pcr->current_irql = scope.previous_irql_;
-}
-
-bool KernelState::Save(ByteStream* stream) {
-  REXSYS_DEBUG("Serializing the kernel...");
-  stream->Write(kKernelSaveSignature);
-
-  // Save the object table
-  object_table_.Save(stream);
-
-  // Legacy save-state field (global TLS bitmap) no longer used.
-  stream->Write(uint32_t(0));
-
-  // We save XThreads absolutely first, as they will execute code upon save
-  // (which could modify the kernel state)
-  auto threads = object_table_.GetObjectsByType<XThread>();
-  uint32_t* num_threads_ptr = reinterpret_cast<uint32_t*>(stream->data() + stream->offset());
-  stream->Write(static_cast<uint32_t>(threads.size()));
-
-  size_t num_threads = threads.size();
-  REXSYS_DEBUG("Serializing {} threads...", threads.size());
-  for (auto thread : threads) {
-    if (!thread->is_guest_thread()) {
-      // Don't save host threads. They can be reconstructed on startup.
-      num_threads--;
-      continue;
-    }
-
-    if (!thread->Save(stream)) {
-      REXSYS_DEBUG("Failed to save thread \"{}\"", thread->name());
-      num_threads--;
-    }
-  }
-
-  *num_threads_ptr = static_cast<uint32_t>(num_threads);
-
-  // Save all other objects
-  auto objects = object_table_.GetAllObjects();
-  uint32_t* num_objects_ptr = reinterpret_cast<uint32_t*>(stream->data() + stream->offset());
-  stream->Write(static_cast<uint32_t>(objects.size()));
-
-  size_t num_objects = objects.size();
-  REXSYS_DEBUG("Serializing {} objects...", num_objects);
-  for (auto object : objects) {
-    auto prev_offset = stream->offset();
-
-    if (object->is_host_object() || object->type() == XObject::Type::Thread) {
-      // Don't save host objects or save XThreads again
-      num_objects--;
-      continue;
-    }
-
-    stream->Write<uint32_t>(static_cast<uint32_t>(object->type()));
-    if (!object->Save(stream)) {
-      REXSYS_DEBUG("Did not save object of type {}", object->type());
-      assert_always();
-
-      // Revert backwards and overwrite if a save failed.
-      stream->set_offset(prev_offset);
-      num_objects--;
-    }
-  }
-
-  *num_objects_ptr = static_cast<uint32_t>(num_objects);
-  return true;
-}
-
-bool KernelState::Restore(ByteStream* stream) {
-  // Check the magic value.
-  if (stream->Read<uint32_t>() != kKernelSaveSignature) {
-    return false;
-  }
-
-  // Restore the object table
-  object_table_.Restore(stream);
-
-  // Global TLS bitmap field is kept for old save-state compatibility.
-  auto num_bitmap_entries = stream->Read<uint32_t>();
-  for (uint32_t i = 0; i < num_bitmap_entries; i++) {
-    stream->Read<uint64_t>();
-  }
-
-  uint32_t num_threads = stream->Read<uint32_t>();
-  REXSYS_DEBUG("Loading {} threads...", num_threads);
-  for (uint32_t i = 0; i < num_threads; i++) {
-    auto thread = XObject::Restore(this, XObject::Type::Thread, stream);
-    if (!thread) {
-      // Can't continue the restore or we risk misalignment.
-      assert_always();
-      return false;
-    }
-  }
-
-  uint32_t num_objects = stream->Read<uint32_t>();
-  REXSYS_DEBUG("Loading {} objects...", num_objects);
-  for (uint32_t i = 0; i < num_objects; i++) {
-    uint32_t type = stream->Read<uint32_t>();
-
-    auto obj = XObject::Restore(this, XObject::Type(type), stream);
-    if (!obj) {
-      // Can't continue the restore or we risk misalignment.
-      assert_always();
-      return false;
-    }
-  }
-
-  return true;
 }
 
 FiberInfo* KernelState::LookupFiber(uint32_t guest_addr) {

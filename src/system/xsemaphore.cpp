@@ -10,7 +10,6 @@
  */
 
 #include <rex/logging.h>
-#include <rex/stream.h>
 #include <rex/system/xsemaphore.h>
 
 namespace rex::system {
@@ -45,47 +44,6 @@ bool XSemaphore::ReleaseSemaphore(int32_t release_count, int32_t* out_previous_c
     *out_previous_count = previous_count;
   }
   return success;
-}
-
-bool XSemaphore::Save(ByteStream* stream) {
-  if (!SaveObject(stream)) {
-    return false;
-  }
-
-  // Get the free number of slots from the semaphore.
-  uint32_t free_count = 0;
-  while (rex::platform::Wait(semaphore_.get(), false, std::chrono::milliseconds(0)) ==
-         rex::platform::WaitResult::kSuccess) {
-    free_count++;
-  }
-
-  REXSYS_DEBUG("XSemaphore {:08X} (count {}/{})", handle(), free_count, maximum_count_);
-
-  // Restore the semaphore back to its previous count.
-  semaphore_->Release(free_count, nullptr);
-
-  stream->Write(maximum_count_);
-  stream->Write(free_count);
-
-  return true;
-}
-
-object_ref<XSemaphore> XSemaphore::Restore(KernelState* kernel_state, ByteStream* stream) {
-  auto sem = new XSemaphore(nullptr);
-  sem->kernel_state_ = kernel_state;
-
-  if (!sem->RestoreObject(stream)) {
-    return nullptr;
-  }
-
-  sem->maximum_count_ = stream->Read<uint32_t>();
-  auto free_count = stream->Read<uint32_t>();
-  REXSYS_DEBUG("XSemaphore {:08X} (count {}/{})", sem->handle(), free_count, sem->maximum_count_);
-
-  sem->semaphore_ = rex::platform::Semaphore::Create(free_count, sem->maximum_count_);
-  assert_not_null(sem->semaphore_);
-
-  return object_ref<XSemaphore>(sem);
 }
 
 }  // namespace rex::system

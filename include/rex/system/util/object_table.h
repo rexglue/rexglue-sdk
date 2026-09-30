@@ -19,10 +19,6 @@
 #include <rex/system/xtypes.h>
 #include <rex/platform/mutex.h>
 
-namespace rex {
-class ByteStream;
-}  // namespace rex
-
 namespace rex::system::util {
 
 class ObjectTable {
@@ -37,9 +33,6 @@ class ObjectTable {
   X_STATUS RetainHandle(X_HANDLE handle);
   X_STATUS ReleaseHandle(X_HANDLE handle);
   X_STATUS RemoveHandle(X_HANDLE handle);
-
-  bool Save(ByteStream* stream);
-  bool Restore(ByteStream* stream);
 
   // Restores a XObject reference with a handle. Mainly for internal use - do
   // not use.

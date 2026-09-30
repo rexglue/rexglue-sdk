@@ -12,6 +12,5 @@
 #pragma once
 
 #include <rex/memory/utils.h>
-#include <rex/memory/arena.h>
 #include <rex/memory/mapped_memory.h>
 #include <rex/memory/ring_buffer.h>

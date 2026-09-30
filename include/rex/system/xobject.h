@@ -175,12 +175,6 @@ class XObject {
   void Release();
   X_STATUS Delete();
 
-  virtual bool Save(ByteStream* stream) {
-    (void)stream;
-    return false;
-  }
-  static object_ref<XObject> Restore(KernelState* kernel_state, Type type, ByteStream* stream);
-
   // Reference()
   // Dereference()
 
@@ -201,9 +195,6 @@ class XObject {
                                        int32_t as_type = -1);
 
  protected:
-  bool SaveObject(ByteStream* stream);
-  bool RestoreObject(ByteStream* stream);
-
   // Called on successful wait.
   virtual void WaitCallback() {}
   virtual rex::platform::WaitHandle* GetWaitHandle() { return nullptr; }

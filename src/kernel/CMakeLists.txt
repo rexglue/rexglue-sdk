@@ -33,8 +33,6 @@ set(REXKERNEL_SOURCES
     xbdm/xbdm_misc.cpp
 
     # xboxkrnl exports - provides __imp__ symbols for generated code
-    # xboxkrnl/cert_monitor.cpp    # TODO: Translate JIT methods for AOT
-    # xboxkrnl/debug_monitor.cpp   # TODO: Translate JIT methods for AOT
     xboxkrnl/xboxkrnl_crypt.cpp
     xboxkrnl/xboxkrnl_debug.cpp
     xboxkrnl/xboxkrnl_error.cpp

@@ -10,7 +10,6 @@
  */
 
 #include <rex/logging.h>
-#include <rex/stream.h>
 #include <rex/system/xevent.h>
 
 namespace rex::system {
@@ -90,53 +89,6 @@ int32_t XEvent::Reset() {
 
 void XEvent::Clear() {
   event_->Reset();
-}
-
-bool XEvent::Save(ByteStream* stream) {
-  REXSYS_DEBUG("XEvent {:08X} ({})", handle(), manual_reset_ ? "manual" : "auto");
-  SaveObject(stream);
-
-  bool signaled = true;
-  auto result = rex::platform::Wait(event_.get(), false, std::chrono::milliseconds(0));
-  if (result == rex::platform::WaitResult::kSuccess) {
-    signaled = true;
-  } else if (result == rex::platform::WaitResult::kTimeout) {
-    signaled = false;
-  } else {
-    assert_always();
-  }
-
-  if (signaled) {
-    // Reset the event in-case it's an auto-reset.
-    event_->Set();
-  }
-
-  stream->Write<bool>(signaled);
-  stream->Write<bool>(manual_reset_);
-
-  return true;
-}
-
-object_ref<XEvent> XEvent::Restore(KernelState* kernel_state, ByteStream* stream) {
-  auto evt = new XEvent(nullptr);
-  evt->kernel_state_ = kernel_state;
-
-  evt->RestoreObject(stream);
-  bool signaled = stream->Read<bool>();
-  evt->manual_reset_ = stream->Read<bool>();
-
-  if (evt->manual_reset_) {
-    evt->event_ = rex::platform::Event::CreateManualResetEvent(false);
-  } else {
-    evt->event_ = rex::platform::Event::CreateAutoResetEvent(false);
-  }
-  assert_not_null(evt->event_);
-
-  if (signaled) {
-    evt->event_->Set();
-  }
-
-  return object_ref<XEvent>(evt);
 }
 
 }  // namespace rex::system

@@ -22,10 +22,6 @@
 #include <rex/platform/thread.h>
 #include <rex/platform/mutex.h>
 
-namespace rex {
-class ByteStream;
-}  // namespace rex
-
 namespace rex::audio {
 
 constexpr memory::fourcc_t kAudioSaveSignature = memory::make_fourcc("XAUD");
@@ -47,9 +43,6 @@ class AudioSystem : public system::IAudioSystem {
   X_STATUS RegisterClient(uint32_t callback, uint32_t callback_arg, size_t* out_index);
   void UnregisterClient(size_t index);
   void SubmitFrame(size_t index, uint32_t samples_ptr);
-
-  bool Save(ByteStream* stream);
-  bool Restore(ByteStream* stream);
 
   bool is_paused() const { return paused_; }
   void Pause();

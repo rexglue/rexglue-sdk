@@ -32,10 +32,6 @@
 #include <rex/platform/thread.h>
 #include <rex/ui/presenter.h>
 
-namespace rex {
-class ByteStream;
-}  // namespace rex
-
 namespace rex::graphics {
 
 class GraphicsSystem;
@@ -127,9 +123,6 @@ class CommandProcessor {
   bool is_paused() const { return paused_; }
   void Pause();
   void Resume();
-
-  bool Save(::rex::ByteStream* stream);
-  bool Restore(::rex::ByteStream* stream);
 
  protected:
   struct IndexBufferInfo {

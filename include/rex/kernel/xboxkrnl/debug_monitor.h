@@ -32,6 +32,4 @@ struct X_KEDEBUGMONITORDATA {
   rex::be<uint32_t> unk_20;       // 0x20 Vd graphics data?
 };
 
-void KeDebugMonitorCallback(::PPCContext* ppc_context, rex::system::KernelState* kernel_state);
-
 }  // namespace rex::kernel::xboxkrnl

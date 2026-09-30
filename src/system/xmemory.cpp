@@ -24,7 +24,6 @@
 #include <rex/cvar.h>
 #include <rex/logging.h>
 #include <rex/math.h>
-#include <rex/stream.h>
 #include <rex/system/function_dispatcher.h>
 #include <rex/system/mmio_handler.h>
 #include <rex/system/xmemory.h>
@@ -751,28 +750,6 @@ void Memory::DumpMap() {
   REXSYS_ERROR("");
 }
 
-bool Memory::Save(ByteStream* stream) {
-  REXSYS_DEBUG("Serializing memory...");
-  heaps_.v00000000.Save(stream);
-  heaps_.v40000000.Save(stream);
-  heaps_.v80000000.Save(stream);
-  heaps_.v90000000.Save(stream);
-  heaps_.physical.Save(stream);
-
-  return true;
-}
-
-bool Memory::Restore(ByteStream* stream) {
-  REXSYS_DEBUG("Restoring memory...");
-  heaps_.v00000000.Restore(stream);
-  heaps_.v40000000.Restore(stream);
-  heaps_.v80000000.Restore(stream);
-  heaps_.v90000000.Restore(stream);
-  heaps_.physical.Restore(stream);
-
-  return true;
-}
-
 //=============================================================================
 // Recompiled Code Function Table
 //=============================================================================
@@ -1127,110 +1104,6 @@ uint32_t BaseHeap::GetUnreservedPageCount() {
     count += size - empty_span_start;
   }
   return count;
-}
-
-bool BaseHeap::Save(ByteStream* stream) {
-  REXSYS_DEBUG("Heap {:08X}-{:08X}", heap_base_, heap_base_ + (heap_size_ - 1));
-
-  for (size_t i = 0; i < page_table_.size(); i++) {
-    auto& page = page_table_[i];
-    stream->Write(page.qword);
-    if (!page.state) {
-      // Unallocated.
-      continue;
-    }
-
-    // TODO(DrChat): write compressed with snappy.
-    if (page.state & memory::kMemoryAllocationCommit) {
-      void* addr = TranslateRelative(i << page_size_shift_);
-
-      memory::PageAccess old_access;
-      memory::Protect(addr, page_size_, memory::PageAccess::kReadWrite, &old_access);
-
-      stream->Write(addr, page_size_);
-
-      memory::Protect(addr, page_size_, old_access, nullptr);
-    }
-  }
-
-  return true;
-}
-
-bool BaseHeap::Restore(ByteStream* stream) {
-  REXSYS_DEBUG("Heap {:08X}-{:08X}", heap_base_, heap_base_ + (heap_size_ - 1));
-
-  const uint32_t host_page_size = memory_->system_page_size_;
-  const bool reconcile_host_pages = page_size_ < host_page_size;
-  uint32_t writable_host_page = UINT32_MAX;
-
-  // Restore doesn't take heap_mutex_, but SyncHostPageAccess below still needs
-  // the global critical region held by its caller.
-  auto global_lock = AcquireHostPageReconcileLock();
-
-  for (size_t i = 0; i < page_table_.size(); i++) {
-    auto& page = page_table_[i];
-    page.qword = stream->Read<uint64_t>();
-    if (!page.state) {
-      // Unallocated.
-      continue;
-    }
-
-    memory::PageAccess page_access = memory::PageAccess::kNoAccess;
-    if ((page.current_protect & memory::kMemoryProtectRead) &&
-        (page.current_protect & memory::kMemoryProtectWrite)) {
-      page_access = memory::PageAccess::kReadWrite;
-    } else if (page.current_protect & memory::kMemoryProtectRead) {
-      page_access = memory::PageAccess::kReadOnly;
-    }
-
-    if (!(page.state & memory::kMemoryAllocationCommit)) {
-      continue;
-    }
-
-    void* addr = TranslateRelative(i << page_size_shift_);
-    if (!reconcile_host_pages) {
-      // Commit the memory if it isn't already. We do not need to reserve any
-      // memory, as the mapping has already taken care of that.
-      rex::memory::AllocFixed(addr, page_size_, memory::AllocationType::kCommit,
-                              memory::PageAccess::kReadWrite);
-      // Read into memory with R/W protection, then restore the saved
-      // protection.
-      // TODO(DrChat): read compressed with snappy.
-      rex::memory::Protect(addr, page_size_, memory::PageAccess::kReadWrite, nullptr);
-      stream->Read(addr, page_size_);
-      rex::memory::Protect(addr, page_size_, page_access, nullptr);
-      continue;
-    }
-
-    // Guest pages are smaller than host pages, so a per-guest-page commit is
-    // rejected and a per-guest-page protect is misaligned - either way the
-    // target would never become writable and the read below would fault or be
-    // silently lost. Make the containing host page writable once instead;
-    // guest pages are visited in ascending order, so one commit covers the
-    // whole run that shares a host page. Real protections are reconciled from
-    // the restored page table after the loop.
-    const uint32_t host_page =
-        uint32_t(((uint64_t(i) << page_size_shift_) + host_address_offset_) / host_page_size);
-    if (host_page != writable_host_page) {
-      uint8_t* host_page_pointer = membase_ + heap_base_ + size_t(host_page) * host_page_size;
-      if (!rex::memory::AllocFixed(host_page_pointer, host_page_size,
-                                   memory::AllocationType::kCommit,
-                                   memory::PageAccess::kReadWrite)) {
-        REXSYS_ERROR("BaseHeap::Restore failed to make host page {} writable", host_page);
-        return false;
-      }
-      writable_host_page = host_page;
-    }
-    stream->Read(addr, page_size_);
-  }
-
-  if (reconcile_host_pages && !page_table_.empty()) {
-    if (!SyncHostPageAccess(0, uint32_t(page_table_.size()) - 1)) {
-      return false;
-    }
-  }
-
-  return true;
 }
 
 void BaseHeap::Reset() {

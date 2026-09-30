@@ -35,14 +35,12 @@ set(REXSYSTEM_SOURCES
 
     ppc_types.cpp
     elf_module.cpp
-    entry_table.cpp
     export_resolver.cpp
     lzx.cpp
     mmio_handler.cpp
     map_parser.cpp
     module.cpp
     function_dispatcher.cpp
-    thread.cpp
     runtime_module.cpp
     thread_state.cpp
     xex_module.cpp

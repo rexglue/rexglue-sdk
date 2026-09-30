@@ -36,9 +36,6 @@ class XSemaphore : public XObject {
 
   int32_t maximum_count() const { return static_cast<int32_t>(maximum_count_); }
 
-  bool Save(ByteStream* stream) override;
-  static object_ref<XSemaphore> Restore(KernelState* kernel_state, ByteStream* stream);
-
  protected:
   rex::platform::WaitHandle* GetWaitHandle() override { return semaphore_.get(); }
 

@@ -222,9 +222,6 @@ class BaseHeap {
   // range.
   rex::memory::PageAccess QueryRangeAccess(uint32_t low_address, uint32_t high_address);
 
-  bool Save(ByteStream* stream);
-  bool Restore(ByteStream* stream);
-
   void Reset();
 
  protected:
@@ -540,9 +537,6 @@ class Memory {
 
   // Dumps a map of all allocated memory to the log.
   void DumpMap();
-
-  bool Save(ByteStream* stream);
-  bool Restore(ByteStream* stream);
 
   //==========================================================================
   // Recompiled Code Function Table API

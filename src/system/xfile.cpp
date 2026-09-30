@@ -13,7 +13,6 @@
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/memory.h>
-#include <rex/stream.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xevent.h>
 #include <rex/system/xfile.h>
@@ -310,56 +309,6 @@ void XFile::RemoveIOCompletionPort(uint32_t key) {
       break;
     }
   }
-}
-
-bool XFile::Save(ByteStream* stream) {
-  REXSYS_DEBUG("XFile {:08X} ({})", handle(), file_->entry()->absolute_path().c_str());
-
-  if (!SaveObject(stream)) {
-    return false;
-  }
-
-  stream->Write(file_->entry()->absolute_path());
-  stream->Write<uint64_t>(position_);
-  stream->Write(file_access());
-  stream->Write<bool>((file_->entry()->attributes() & rex::filesystem::kFileAttributeDirectory) !=
-                      0);
-  stream->Write<bool>(is_synchronous_);
-
-  return true;
-}
-
-object_ref<XFile> XFile::Restore(KernelState* kernel_state, ByteStream* stream) {
-  auto file = new XFile();
-  file->kernel_state_ = kernel_state;
-  if (!file->RestoreObject(stream)) {
-    delete file;
-    return nullptr;
-  }
-
-  auto abs_path = stream->Read<std::string>();
-  uint64_t position = stream->Read<uint64_t>();
-  auto access = stream->Read<uint32_t>();
-  auto is_directory = stream->Read<bool>();
-  auto is_synchronous = stream->Read<bool>();
-
-  REXSYS_DEBUG("XFile {:08X} ({})", file->handle(), abs_path);
-
-  rex::filesystem::File* vfs_file = nullptr;
-  rex::filesystem::FileAction action;
-  auto res = kernel_state->file_system()->OpenFile(nullptr, abs_path,
-                                                   rex::filesystem::FileDisposition::kOpen, access,
-                                                   is_directory, false, &vfs_file, &action);
-  if (XFAILED(res)) {
-    REXSYS_ERROR("Failed to open XFile: error {:08X}", res);
-    return object_ref<XFile>(file);
-  }
-
-  file->file_ = vfs_file;
-  file->position_ = position;
-  file->is_synchronous_ = is_synchronous;
-
-  return object_ref<XFile>(file);
 }
 
 void XFile::NotifyIOCompletionPorts(XIOCompletion::IONotification& notification) {

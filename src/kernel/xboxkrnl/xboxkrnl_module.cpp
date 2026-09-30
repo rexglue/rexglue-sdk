@@ -41,11 +41,6 @@ namespace rex::kernel::xboxkrnl {
 using namespace rex::system;
 
 bool XboxkrnlModule::SendPIXCommand(const char* cmd) {
-  // TODO: JIT - PIX commands require JIT processor->Execute
-  // if (!REXCVAR_GET(::rex::runtime::cvars::pix)) {
-  //   return false;
-  // }
-  // ...
   (void)cmd;
   return false;
 }
@@ -73,9 +68,6 @@ XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
     auto lpKeDebugMonitorData =
         memory_->TranslateVirtual<X_KEDEBUGMONITORDATA*>(pKeDebugMonitorData + 4);
     std::memset(lpKeDebugMonitorData, 0, sizeof(X_KEDEBUGMONITORDATA));
-    // TODO: JIT - GenerateTrampoline requires JIT
-    // lpKeDebugMonitorData->callback_fn =
-    //     GenerateTrampoline("KeDebugMonitorCallback", KeDebugMonitorCallback);
   }
   export_resolver_->SetVariableMapping("xboxkrnl.exe", 0x0059, pKeDebugMonitorData);
 
@@ -93,9 +85,6 @@ XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
     auto lpKeCertMonitorData =
         memory_->TranslateVirtual<X_KECERTMONITORDATA*>(pKeCertMonitorData + 4);
     std::memset(lpKeCertMonitorData, 0, sizeof(X_KECERTMONITORDATA));
-    // TODO: JIT - GenerateTrampoline requires JIT
-    // lpKeCertMonitorData->callback_fn =
-    //     GenerateTrampoline("KeCertMonitorCallback", KeCertMonitorCallback);
   }
   export_resolver_->SetVariableMapping("xboxkrnl.exe", 0x0266, pKeCertMonitorData);
 

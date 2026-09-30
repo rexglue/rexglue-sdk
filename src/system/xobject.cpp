@@ -12,7 +12,6 @@
 #include <vector>
 
 #include <rex/chrono/clock.h>
-#include <rex/stream.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/util/string_utils.h>  // For TranslateAnsiStringAddress
 #include <rex/system/xobject.h>
@@ -108,67 +107,6 @@ X_STATUS XObject::Delete() {
     }
     return kernel_state_->object_table()->RemoveHandle(handles_[0]);
   }
-}
-
-bool XObject::SaveObject(ByteStream* stream) {
-  stream->Write<uint32_t>(allocated_guest_object_);
-  stream->Write<uint32_t>(guest_object_ptr_);
-
-  stream->Write(uint32_t(handles_.size()));
-  stream->Write(&handles_[0], handles_.size() * sizeof(X_HANDLE));
-
-  return true;
-}
-
-bool XObject::RestoreObject(ByteStream* stream) {
-  allocated_guest_object_ = stream->Read<uint32_t>() > 0;
-  guest_object_ptr_ = stream->Read<uint32_t>();
-
-  handles_.resize(stream->Read<uint32_t>());
-  stream->Read(&handles_[0], handles_.size() * sizeof(X_HANDLE));
-
-  // Restore our pointer to our handles in the object table.
-  for (size_t i = 0; i < handles_.size(); i++) {
-    kernel_state_->object_table()->RestoreHandle(handles_[i], this);
-  }
-
-  return true;
-}
-
-object_ref<XObject> XObject::Restore(KernelState* kernel_state, Type type, ByteStream* stream) {
-  switch (type) {
-    case Type::Enumerator:
-      break;
-    case Type::Event:
-      return XEvent::Restore(kernel_state, stream);
-    case Type::File:
-      return XFile::Restore(kernel_state, stream);
-    case Type::IOCompletion:
-      break;
-    case Type::Module:
-      return XModule::Restore(kernel_state, stream);
-    case Type::Mutant:
-      return XMutant::Restore(kernel_state, stream);
-    case Type::NotifyListener:
-      return XNotifyListener::Restore(kernel_state, stream);
-    case Type::Semaphore:
-      return XSemaphore::Restore(kernel_state, stream);
-    case Type::Session:
-      break;
-    case Type::Socket:
-      break;
-    case Type::SymbolicLink:
-      return XSymbolicLink::Restore(kernel_state, stream);
-    case Type::Thread:
-      return XThread::Restore(kernel_state, stream);
-    case Type::Timer:
-      break;
-    case Type::Undefined:
-      break;
-  }
-
-  assert_always("No restore handler exists for this object!");
-  return nullptr;
 }
 
 void XObject::SetAttributes(uint32_t obj_attributes_ptr) {

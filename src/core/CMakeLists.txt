@@ -1,7 +1,6 @@
 add_library(rexcore SHARED
     api.cpp
     app.cpp
-    arena.cpp
     bit_map.cpp
     bit_stream.cpp
     byte_stream.cpp

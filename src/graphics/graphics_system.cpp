@@ -23,7 +23,6 @@
 #include <rex/graphics/command_processor.h>
 #include <rex/kernel/xboxkrnl/video.h>
 #include <rex/logging.h>
-#include <rex/stream.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xthread.h>
 #include <rex/ui/graphics_provider.h>
@@ -367,18 +366,6 @@ void GraphicsSystem::Pause() {
 void GraphicsSystem::Resume() {
   paused_ = false;
   command_processor_->Resume();
-}
-
-bool GraphicsSystem::Save(::rex::ByteStream* stream) {
-  stream->Write<uint32_t>(interrupt_callback_);
-  stream->Write<uint32_t>(interrupt_callback_data_);
-  return command_processor_->Save(stream);
-}
-
-bool GraphicsSystem::Restore(::rex::ByteStream* stream) {
-  interrupt_callback_ = stream->Read<uint32_t>();
-  interrupt_callback_data_ = stream->Read<uint32_t>();
-  return command_processor_->Restore(stream);
 }
 
 }  // namespace rex::graphics

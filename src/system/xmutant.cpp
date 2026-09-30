@@ -10,7 +10,6 @@
  */
 
 #include <rex/logging.h>
-#include <rex/stream.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xmutant.h>
 #include <rex/system/xthread.h>
@@ -50,39 +49,6 @@ X_STATUS XMutant::ReleaseMutant(uint32_t priority_increment, bool abandon, bool 
   } else {
     return X_STATUS_MUTANT_NOT_OWNED;
   }
-}
-
-bool XMutant::Save(ByteStream* stream) {
-  if (!SaveObject(stream)) {
-    return false;
-  }
-
-  uint32_t owning_thread_handle = owning_thread_ ? owning_thread_->handle() : 0;
-  stream->Write<uint32_t>(owning_thread_handle);
-  REXSYS_DEBUG("XMutant {:08X} (owner: {:08X})", handle(), owning_thread_handle);
-
-  return true;
-}
-
-object_ref<XMutant> XMutant::Restore(KernelState* kernel_state, ByteStream* stream) {
-  auto mutant = new XMutant();
-  mutant->kernel_state_ = kernel_state;
-
-  if (!mutant->RestoreObject(stream)) {
-    delete mutant;
-    return nullptr;
-  }
-
-  mutant->Initialize(false);
-
-  auto owning_thread_handle = stream->Read<uint32_t>();
-  if (owning_thread_handle) {
-    mutant->owning_thread_ =
-        kernel_state->object_table()->LookupObject<XThread>(owning_thread_handle).get();
-    mutant->owning_thread_->AcquireMutantOnStartup(retain_object(mutant));
-  }
-
-  return object_ref<XMutant>(mutant);
 }
 
 void XMutant::WaitCallback() {

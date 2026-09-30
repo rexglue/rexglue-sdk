@@ -30,7 +30,6 @@
 #include <rex/math.h>
 #include <rex/memory.h>
 #include <rex/memory/ring_buffer.h>
-#include <rex/stream.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/user_module.h>
 
@@ -233,32 +232,6 @@ void CommandProcessor::Resume() {
   paused_ = false;
 
   worker_thread_->thread()->Resume();
-}
-
-bool CommandProcessor::Save(::rex::ByteStream* stream) {
-  assert_true(paused_);
-
-  stream->Write<uint32_t>(primary_buffer_ptr_);
-  stream->Write<uint32_t>(primary_buffer_size_);
-  stream->Write<uint32_t>(read_ptr_index_);
-  stream->Write<uint32_t>(read_ptr_update_freq_);
-  stream->Write<uint32_t>(read_ptr_writeback_ptr_);
-  stream->Write<uint32_t>(write_ptr_index_.load());
-
-  return true;
-}
-
-bool CommandProcessor::Restore(::rex::ByteStream* stream) {
-  assert_true(paused_);
-
-  primary_buffer_ptr_ = stream->Read<uint32_t>();
-  primary_buffer_size_ = stream->Read<uint32_t>();
-  read_ptr_index_ = stream->Read<uint32_t>();
-  read_ptr_update_freq_ = stream->Read<uint32_t>();
-  read_ptr_writeback_ptr_ = stream->Read<uint32_t>();
-  write_ptr_index_.store(stream->Read<uint32_t>());
-
-  return true;
 }
 
 bool CommandProcessor::SetupContext() {

@@ -9,7 +9,6 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/stream.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xsymboliclink.h>
 
@@ -26,30 +25,6 @@ void XSymbolicLink::Initialize(const std::string_view path, const std::string_vi
   path_ = std::string(path);
   target_ = std::string(target);
   // TODO(gibbed): kernel_state_->RegisterSymbolicLink(this);
-}
-
-bool XSymbolicLink::Save(ByteStream* stream) {
-  if (!SaveObject(stream)) {
-    return false;
-  }
-  stream->Write(path_);
-  stream->Write(target_);
-  return true;
-}
-
-object_ref<XSymbolicLink> XSymbolicLink::Restore(KernelState* kernel_state, ByteStream* stream) {
-  auto symlink = new XSymbolicLink();
-  symlink->kernel_state_ = kernel_state;
-  if (!symlink->RestoreObject(stream)) {
-    delete symlink;
-    return nullptr;
-  }
-
-  auto path = stream->Read<std::string>();
-  auto target = stream->Read<std::string>();
-  symlink->Initialize(path, target);
-
-  return object_ref<XSymbolicLink>(symlink);
 }
 
 }  // namespace rex::system

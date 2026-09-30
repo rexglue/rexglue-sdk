@@ -24,6 +24,4 @@ struct X_KECERTMONITORDATA {
   rex::be<uint32_t> callback_fn;
 };
 
-void KeCertMonitorCallback(::PPCContext* ppc_context, rex::system::KernelState* kernel_state);
-
 }  // namespace rex::kernel::xboxkrnl

@@ -14,7 +14,6 @@
 #include <rex/cvar.h>
 #include <rex/logging.h>
 #include <rex/runtime.h>
-#include <rex/stream.h>
 #include <rex/system/elf_module.h>
 #include <rex/system/function_dispatcher.h>
 #include <rex/system/kernel_state.h>
@@ -337,41 +336,6 @@ X_STATUS UserModule::GetOptHeader(const memory::Memory* memory, const xex2_heade
     return X_STATUS_NOT_FOUND;
   }
   return X_STATUS_SUCCESS;
-}
-
-bool UserModule::Save(ByteStream* stream) {
-  if (!XModule::Save(stream)) {
-    return false;
-  }
-
-  // A lot of the information stored on this class can be reconstructed at
-  // runtime.
-
-  return true;
-}
-
-object_ref<UserModule> UserModule::Restore(KernelState* kernel_state, ByteStream* stream,
-                                           const std::string_view path) {
-  auto module = new UserModule(kernel_state);
-
-  // XModule::Save took care of this earlier...
-  // TODO: Find a nicer way to represent that here.
-  if (!module->RestoreObject(stream)) {
-    return nullptr;
-  }
-
-  auto result = module->LoadFromFile(path);
-  if (XFAILED(result)) {
-    REXSYS_DEBUG("UserModule::Restore LoadFromFile({}) FAILED - code {:08X}", path, result);
-    return nullptr;
-  }
-
-  if (!kernel_state->RegisterUserModule(retain_object(module))) {
-    // Already loaded?
-    assert_always();
-  }
-
-  return object_ref<UserModule>(module);
 }
 
 void UserModule::Dump() {

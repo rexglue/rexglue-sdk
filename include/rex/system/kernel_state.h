@@ -78,7 +78,6 @@
 
 namespace rex {
 class Runtime;
-class ByteStream;
 namespace runtime {
 class FunctionDispatcher;
 }  // namespace runtime
@@ -330,9 +329,6 @@ class KernelState {
   void CompleteOverlappedDeferredEx(
       std::function<X_RESULT(uint32_t&, uint32_t&)> completion_callback, uint32_t overlapped_ptr,
       std::function<void()> pre_callback = nullptr, std::function<void()> post_callback = nullptr);
-
-  bool Save(ByteStream* stream);
-  bool Restore(ByteStream* stream);
 
   void SetLoadedAchievements(std::vector<AchievementInfo> achievements);
   void UnlockAchievement(uint32_t id);

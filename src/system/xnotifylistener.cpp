@@ -11,7 +11,6 @@
 
 #include <rex/assert.h>
 #include <rex/logging.h>
-#include <rex/stream.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xnotifylistener.h>
 
@@ -82,42 +81,6 @@ bool XNotifyListener::DequeueNotification(XNotificationID id, uint32_t* out_data
     break;
   }
   return dequeued;
-}
-
-bool XNotifyListener::Save(ByteStream* stream) {
-  SaveObject(stream);
-
-  stream->Write(mask_);
-  stream->Write(max_version_);
-  stream->Write(notifications_.size());
-  for (auto pair : notifications_) {
-    stream->Write<uint32_t>(pair.first);
-    stream->Write<uint32_t>(pair.second);
-  }
-
-  return true;
-}
-
-object_ref<XNotifyListener> XNotifyListener::Restore(KernelState* kernel_state,
-                                                     ByteStream* stream) {
-  auto notify = new XNotifyListener(nullptr);
-  notify->kernel_state_ = kernel_state;
-
-  notify->RestoreObject(stream);
-
-  auto mask = stream->Read<uint64_t>();
-  auto max_version = stream->Read<uint32_t>();
-  notify->Initialize(mask, max_version);
-
-  auto notification_count_ = stream->Read<size_t>();
-  for (size_t i = 0; i < notification_count_; i++) {
-    std::pair<XNotificationID, uint32_t> pair;
-    pair.first = stream->Read<uint32_t>();
-    pair.second = stream->Read<uint32_t>();
-    notify->notifications_.push_back(pair);
-  }
-
-  return object_ref<XNotifyListener>(notify);
 }
 
 }  // namespace rex::system

@@ -39,9 +39,6 @@ class XEvent : public XObject {
   int32_t Reset();
   void Clear();
 
-  bool Save(ByteStream* stream) override;
-  static object_ref<XEvent> Restore(KernelState* kernel_state, ByteStream* stream);
-
  protected:
   rex::platform::WaitHandle* GetWaitHandle() override { return event_.get(); }
 

@@ -13,7 +13,6 @@
 #include <cstring>
 
 #include <rex/logging.h>
-#include <rex/stream.h>
 #include <rex/system/util/object_table.h>
 #include <rex/system/xobject.h>
 #include <rex/system/xthread.h>
@@ -371,27 +370,6 @@ X_STATUS ObjectTable::GetObjectByName(const std::string_view name, X_HANDLE* out
   }
 
   return X_STATUS_SUCCESS;
-}
-
-bool ObjectTable::Save(ByteStream* stream) {
-  stream->Write<uint32_t>(table_capacity_);
-  for (uint32_t i = 0; i < table_capacity_; i++) {
-    auto& entry = table_[i];
-    stream->Write<int32_t>(entry.handle_ref_count);
-  }
-
-  return true;
-}
-
-bool ObjectTable::Restore(ByteStream* stream) {
-  Resize(stream->Read<uint32_t>());
-  for (uint32_t i = 0; i < table_capacity_; i++) {
-    auto& entry = table_[i];
-    // entry.object = nullptr;
-    entry.handle_ref_count = stream->Read<int32_t>();
-  }
-
-  return true;
 }
 
 X_STATUS ObjectTable::RestoreHandle(X_HANDLE handle, XObject* object) {

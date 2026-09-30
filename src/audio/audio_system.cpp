@@ -17,7 +17,6 @@
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/memory/ring_buffer.h>
-#include <rex/stream.h>
 #include <rex/string/buffer.h>
 #include <rex/system/thread_state.h>
 #include <rex/platform/thread.h>
@@ -290,79 +289,6 @@ void AudioSystem::UnregisterClient(size_t index) {
     wait_result = rex::platform::Wait(client_semaphore, false, std::chrono::milliseconds(0));
   } while (wait_result == rex::platform::WaitResult::kSuccess);
   assert_true(wait_result == rex::platform::WaitResult::kTimeout);
-}
-
-bool AudioSystem::Save(ByteStream* stream) {
-  stream->Write(kAudioSaveSignature);
-
-  // Count the number of used clients first.
-  // Any gaps should be handled gracefully.
-  uint32_t used_clients = 0;
-  for (size_t i = 0; i < kMaximumClientCount; i++) {
-    if (clients_[i].in_use) {
-      used_clients++;
-    }
-  }
-
-  stream->Write(used_clients);
-  for (uint32_t i = 0; i < kMaximumClientCount; i++) {
-    auto& client = clients_[i];
-    if (!client.in_use) {
-      continue;
-    }
-
-    stream->Write(i);
-    stream->Write(client.callback);
-    stream->Write(client.callback_arg);
-    stream->Write(client.wrapped_callback_arg);
-  }
-
-  return true;
-}
-
-bool AudioSystem::Restore(ByteStream* stream) {
-  if (stream->Read<uint32_t>() != kAudioSaveSignature) {
-    REXAPU_ERROR("AudioSystem::Restore - Invalid magic value!");
-    return false;
-  }
-
-  uint32_t num_clients = stream->Read<uint32_t>();
-  for (uint32_t i = 0; i < num_clients; i++) {
-    auto id = stream->Read<uint32_t>();
-    assert_true(id < kMaximumClientCount);
-
-    auto& client = clients_[id];
-
-    // Reset the semaphore and recreate the driver ourselves.
-    if (client.driver) {
-      UnregisterClient(id);
-    }
-
-    client.callback = stream->Read<uint32_t>();
-    client.callback_arg = stream->Read<uint32_t>();
-    client.wrapped_callback_arg = stream->Read<uint32_t>();
-
-    client.in_use = true;
-
-    auto client_semaphore = client_semaphores_[id].get();
-    auto ret = client_semaphore->Release(queued_frames_, nullptr);
-    assert_true(ret);
-
-    AudioDriver* driver = nullptr;
-    auto status = CreateDriver(id, client_semaphore, &driver);
-    if (XFAILED(status)) {
-      REXAPU_ERROR(
-          "AudioSystem::Restore - Call to CreateDriver failed with status "
-          "{:08X}",
-          status);
-      return false;
-    }
-
-    assert_not_null(driver);
-    client.driver = driver;
-  }
-
-  return true;
 }
 
 void AudioSystem::Pause() {

@@ -10,7 +10,6 @@
  */
 
 #include <rex/logging.h>
-#include <rex/stream.h>
 #include <rex/string.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/user_module.h>
@@ -64,42 +63,6 @@ object_ref<XModule> XModule::GetFromHModule(KernelState* kernel_state, void* hmo
 uint32_t XModule::GetHandleFromHModule(void* hmodule) {
   auto ldr_data = reinterpret_cast<X_LDR_DATA_TABLE_ENTRY*>(hmodule);
   return ldr_data->checksum;
-}
-
-bool XModule::Save(ByteStream* stream) {
-  REXSYS_DEBUG("XModule {:08X} ({})", handle(), path());
-
-  stream->Write(kModuleSaveSignature);
-
-  stream->Write(path());
-  stream->Write(hmodule_ptr_);
-
-  if (!SaveObject(stream)) {
-    return false;
-  }
-
-  return true;
-}
-
-object_ref<XModule> XModule::Restore(KernelState* kernel_state, ByteStream* stream) {
-  if (stream->Read<uint32_t>() != kModuleSaveSignature) {
-    return nullptr;
-  }
-
-  auto path = stream->Read<std::string>();
-  auto hmodule_ptr = stream->Read<uint32_t>();
-
-  // Can only save user modules at the moment, so just redirect.
-  // TODO: Find a way to call RestoreObject here before UserModule::Restore.
-  auto module = UserModule::Restore(kernel_state, stream, path);
-  if (!module) {
-    return nullptr;
-  }
-
-  REXSYS_DEBUG("XModule {:08X} ({})", module->handle(), module->path());
-
-  module->hmodule_ptr_ = hmodule_ptr;
-  return module;
 }
 
 }  // namespace rex::system
