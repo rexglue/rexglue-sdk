@@ -13,6 +13,7 @@
 #include <rex/logging.h>
 #include <rex/system/xthread.h>
 #include <rex/platform/thread.h>
+#include "kernel/kernel_macros.h"
 
 namespace rex {
 namespace kernel {
@@ -133,7 +134,7 @@ X_HRESULT XmpApp::XMPPlayTitlePlaylist(uint32_t playlist_handle, uint32_t song_h
   }
 
   // Start playlist?
-  REXLOG_WARN(kernel, "Playlist playback not supported");
+  REX_KERNEL_STUB("Playlist playback");
   active_playlist_ = playlist;
   active_song_index_ = 0;
   state_ = State::kPlaying;

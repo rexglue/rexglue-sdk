@@ -25,7 +25,6 @@
 #include <rex/runtime/config.h>
 #include <rex/filesystem.h>
 #include <rex/memory.h>
-#include <rex/system/export_resolver.h>
 #include <rex/graphics/backend.h>
 #include <rex/system/interfaces/audio.h>
 #include <rex/system/interfaces/input.h>
@@ -44,7 +43,6 @@ struct Config;
 // Forward declarations
 namespace runtime {
 class FunctionDispatcher;
-class ExportResolver;
 }  // namespace runtime
 namespace system {
 class KernelState;
@@ -116,8 +114,6 @@ class Runtime {
 
   // FunctionDispatcher for guest function dispatch and interrupt execution
   runtime::FunctionDispatcher* function_dispatcher() const { return function_dispatcher_.get(); }
-  // Export resolver - used for variable import resolution in guest memory
-  runtime::ExportResolver* export_resolver() const { return export_resolver_.get(); }
 
   // Path accessors
   const std::filesystem::path& game_data_root() const { return game_data_root_; }
@@ -213,7 +209,6 @@ class Runtime {
   graphics::IGraphicsBackend* graphics_system_ = nullptr;
   std::unique_ptr<system::IAudioSystem> audio_system_;
   std::unique_ptr<system::IInputSystem> input_system_;
-  std::unique_ptr<runtime::ExportResolver> export_resolver_;
 
   static Runtime* instance_;
 };

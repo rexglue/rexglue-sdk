@@ -299,8 +299,6 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     return std::filesystem::path(filePath).filename().string();
   };
 
-  auto* resolver = runtime->export_resolver();
-
   {
     auto execMod = runtime->kernel_state()->GetExecutableModule();
     auto bv = BinaryView::fromModule(*execMod->xex_module());
@@ -312,7 +310,6 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
 
     auto ctx = CodegenContext::Create(std::move(bv), std::move(cfg));
     ctx.setLimits(opts.limits);
-    ctx.setResolver(resolver);
     ctx.setConfigDir(configDir);
     ctx.analysisState().format = "xex";
     ctx.analysisState().loadAddress = ctx.binary().baseAddress();
@@ -336,7 +333,6 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
 
     auto ctx = CodegenContext::Create(std::move(bv), std::move(cfg));
     ctx.setLimits(opts.limits);
-    ctx.setResolver(resolver);
     ctx.setConfigDir(configDir);
     ctx.analysisState().format = "xex";
     ctx.analysisState().loadAddress = ctx.binary().baseAddress();

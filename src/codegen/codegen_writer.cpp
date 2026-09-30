@@ -26,7 +26,6 @@
 #include <rex/codegen/template_registry.h>
 #include <rex/logging.h>
 #include <rex/runtime.h>
-#include <rex/system/export_resolver.h>
 
 #include "file_io.h"
 #include "template_registry_internal.h"
@@ -35,7 +34,7 @@ namespace {
 
 nlohmann::json buildTemplateData(const rex::codegen::CodegenContext& ctx,
                                  const std::vector<const rex::codegen::FunctionNode*>& functions,
-                                 const std::unordered_map<uint32_t, std::string>& rexcrtByAddr) {
+                                 const std::unordered_map<uint32_t, std::string>& shimByAddr) {
   const auto& cfg = ctx.Config();
 
   // Compute code_base and code_size from binary sections
@@ -54,12 +53,10 @@ nlohmann::json buildTemplateData(const rex::codegen::CodegenContext& ctx,
   nlohmann::json functionsJson = nlohmann::json::array();
   for (const auto* fn : functions) {
     std::string funcName;
-    bool isRexcrt = false;
 
-    auto crtIt = rexcrtByAddr.find(static_cast<uint32_t>(fn->base()));
-    if (crtIt != rexcrtByAddr.end()) {
-      funcName = crtIt->second;
-      isRexcrt = true;
+    auto shimIt = shimByAddr.find(static_cast<uint32_t>(fn->base()));
+    if (shimIt != shimByAddr.end()) {
+      funcName = shimIt->second;
     } else if (fn->base() == ctx.analysisState().entryPoint) {
       funcName = "xstart";
     } else if (!fn->name().empty()) {
@@ -71,7 +68,6 @@ nlohmann::json buildTemplateData(const rex::codegen::CodegenContext& ctx,
     functionsJson.push_back({
         {"address", fmt::format("0x{:X}", fn->base())},
         {"name", funcName},
-        {"is_rexcrt", isRexcrt},
         {"below_code_base", (fn->base() < codeMin)},
         {"is_import", fn->authority() == rex::codegen::FunctionAuthority::IMPORT},
     });
@@ -95,7 +91,7 @@ nlohmann::json buildTemplateData(const rex::codegen::CodegenContext& ctx,
       {"image_size", fmt::format("0x{:X}", ctx.binary().imageSize())},
       {"code_base", fmt::format("0x{:X}", codeMin)},
       {"code_size", fmt::format("0x{:X}", codeMax - codeMin)},
-      {"rexcrt_heap", cfg.rexcrtFunctions.contains("RtlAllocateHeap") ? 1 : 0},
+      {"shim_heap", cfg.UsesShimHeap() ? 1 : 0},
       {"thunk_reserve_size", fmt::format("0x{:X}", 0x10000u)},
       {"has_dll_modules", ctx.hasDllModules()},
       {"is_dll", ctx.isDllModule()},
@@ -190,13 +186,13 @@ bool CodegenWriter::write(bool force) {
   std::sort(functions.begin(), functions.end(),
             [](const auto* a, const auto* b) { return a->base() < b->base(); });
 
-  // Build rexcrt reverse map and rename graph nodes
-  std::unordered_map<uint32_t, std::string> rexcrtByAddr;
-  for (const auto& [name, addr] : config().rexcrtFunctions) {
-    auto crtName = fmt::format("rexcrt_{}", name);
-    rexcrtByAddr[addr] = crtName;
+  // Build shim reverse map and rename graph nodes
+  std::unordered_map<uint32_t, std::string> shimByAddr;
+  for (const auto& [name, addr] : config().shimFunctions) {
+    auto shimName = fmt::format("rexshim_{}", name);
+    shimByAddr[addr] = shimName;
     if (auto* node = graph().getFunction(addr)) {
-      node->setName(std::move(crtName));
+      node->setName(std::move(shimName));
     }
   }
 
@@ -206,7 +202,7 @@ bool CodegenWriter::write(bool force) {
   if (!config().templateDir.empty())
     registry.loadOverrides(config().templateDir);
 
-  auto tmplData = buildTemplateData(ctx_, functions, rexcrtByAddr);
+  auto tmplData = buildTemplateData(ctx_, functions, shimByAddr);
 
   // Generate {project}_pch.h (config + macros, stable enough to precompile)
   REXLOG_TRACE(codegen, "Recompile: generating {}_pch.h", projectName);
@@ -234,20 +230,16 @@ bool CodegenWriter::write(bool force) {
   out = renderWithJson(registry, "codegen/register_cpp", tmplData);
   SaveCurrentOutData(fmt::format("{}_register.cpp", projectName));
 
-  // Filter out imports and rexcrt functions before recompilation
+  // Filter out imports and shim functions before recompilation
   std::erase_if(functions, [](const FunctionNode* fn) {
     return fn->authority() == FunctionAuthority::IMPORT;
   });
-  std::erase_if(functions, [&rexcrtByAddr](const FunctionNode* fn) {
-    return rexcrtByAddr.contains(static_cast<uint32_t>(fn->base()));
+  std::erase_if(functions, [&shimByAddr](const FunctionNode* fn) {
+    return shimByAddr.contains(static_cast<uint32_t>(fn->base()));
   });
 
-  // Build EmitContext -- resolver is now properly connected
-  EmitContext emitCtx{
-      binary(), config(), graph(), ctx_.limits(), static_cast<uint32_t>(analysisState().entryPoint),
-      nullptr};
-  if (runtime_)
-    emitCtx.resolver = runtime_->export_resolver();
+  EmitContext emitCtx{binary(), config(), graph(), ctx_.limits(),
+                      static_cast<uint32_t>(analysisState().entryPoint)};
 
   REXLOG_TRACE(codegen, "Recompiling {} functions...", functions.size());
 

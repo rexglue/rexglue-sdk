@@ -29,6 +29,7 @@
 #include <rex/system/xthread.h>
 #include <rex/system/xtypes.h>
 #include <rex/platform/mutex.h>
+#include "kernel/kernel_macros.h"
 
 namespace rex::kernel::xboxkrnl {
 using namespace rex::system;
@@ -115,10 +116,7 @@ u32 NtQueryInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> i
     return X_STATUS_INFO_LENGTH_MISMATCH;
   }
 
-  auto file = REX_KERNEL_OBJECTS()->LookupObject<XFile>(file_handle);
-  if (!file) {
-    return X_STATUS_INVALID_HANDLE;
-  }
+  REX_KERNEL_LOOKUP(file, XFile, file_handle);
 
   info_ptr.Zero(info_length);
 
@@ -141,7 +139,7 @@ u32 NtQueryInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> i
       break;
     }
     case XFileSectorInformation: {
-      REXLOG_DEBUG(kernel, "Stub XFileSectorInformation!");
+      REX_KERNEL_STUB("XFileSectorInformation");
       auto info = info_ptr.as<uint32_t*>();
       size_t fname_hash = rex::memory::hash_combine(82589933LL, file->path());
       *info = static_cast<uint32_t>(fname_hash ^ (fname_hash >> 32));
@@ -149,9 +147,7 @@ u32 NtQueryInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> i
       break;
     }
     case XFileXctdCompressionInformation: {
-      REXLOG_ERROR(kernel,
-                   "NtQueryInformationFile(XFileXctdCompressionInformation) "
-                   "unimplemented");
+      REX_KERNEL_STUB("NtQueryInformationFile(XFileXctdCompressionInformation)");
       // Files that are XCTD compressed begin with the magic 0x0FF512ED but we
       // shouldn't detect this that way. There's probably a flag somewhere
       // (attributes?) that defines if it's compressed or not.
@@ -243,10 +239,7 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
     return X_STATUS_INFO_LENGTH_MISMATCH;
   }
 
-  auto file = REX_KERNEL_OBJECTS()->LookupObject<XFile>(file_handle);
-  if (!file) {
-    return X_STATUS_INVALID_HANDLE;
-  }
+  REX_KERNEL_LOOKUP(file, XFile, file_handle);
 
   X_STATUS result = X_STATUS_SUCCESS;
   uint32_t out_length;
@@ -368,7 +361,7 @@ uint32_t GetQueryVolumeInfoMinimumLength(uint32_t info_class) {
     case XFileFsAttributeInformation:
       return sizeof(X_FILE_FS_ATTRIBUTE_INFORMATION);
     default:
-      REXLOG_WARN(kernel, "Unimplemented Info Class: 0x{:08x}", info_class);
+      REX_KERNEL_STUB("Info Class 0x{:08x}", info_class);
       return 0;
   }
 }
@@ -385,10 +378,7 @@ u32 NtQueryVolumeInformationFile_entry(u32 file_handle,
     return X_STATUS_INFO_LENGTH_MISMATCH;
   }
 
-  auto file = REX_KERNEL_OBJECTS()->LookupObject<XFile>(file_handle);
-  if (!file) {
-    return X_STATUS_INVALID_HANDLE;
-  }
+  REX_KERNEL_LOOKUP(file, XFile, file_handle);
 
   info_ptr.Zero(info_length);
 
@@ -435,7 +425,7 @@ u32 NtQueryVolumeInformationFile_entry(u32 file_handle,
     }
     case XFileFsDeviceInformation: {
       auto info = info_ptr.as<X_FILE_FS_DEVICE_INFORMATION*>();
-      REXLOG_WARN(kernel, "Stub XFileFsDeviceInformation!");
+      REX_KERNEL_STUB("XFileFsDeviceInformation");
       info->device_type = FILE_DEVICE_UNKNOWN;
       info->characteristics = 0;
       out_length = sizeof(X_FILE_FS_DEVICE_INFORMATION);

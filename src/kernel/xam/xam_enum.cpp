@@ -18,6 +18,7 @@
 #include <rex/system/kernel_state.h>
 #include <rex/system/xenumerator.h>
 #include <rex/system/xtypes.h>
+#include "kernel/kernel_macros.h"
 
 #if REX_PLATFORM_WIN32
 #include <rex/platform.h>
@@ -32,8 +33,8 @@ using namespace rex::system;
 using namespace rex::system::xam;
 
 // https://github.com/LestaD/SourceEngine2007/blob/master/se2007/engine/xboxsystem.cpp#L518
-uint32_t xeXamEnumerate(uint32_t handle, uint32_t flags, mapped_void buffer_ptr,
-                        uint32_t buffer_size, uint32_t* items_returned, uint32_t overlapped_ptr) {
+uint32_t XamEnumerate(uint32_t handle, uint32_t flags, mapped_void buffer_ptr, uint32_t buffer_size,
+                      uint32_t* items_returned, uint32_t overlapped_ptr) {
   assert_true(flags == 0);
 
   auto e = REX_KERNEL_OBJECTS()->LookupObject<XEnumerator>(handle);
@@ -75,8 +76,8 @@ u32 XamEnumerate_entry(u32 handle, u32 flags, mapped_void buffer, u32 buffer_len
                        mapped_u32 items_returned, ppc_ptr_t<XAM_OVERLAPPED> overlapped) {
   uint32_t dummy;
   auto result =
-      xeXamEnumerate(handle, flags, buffer, buffer_length,
-                     !overlapped.guest_address() ? &dummy : nullptr, overlapped.guest_address());
+      XamEnumerate(handle, flags, buffer, buffer_length,
+                   !overlapped.guest_address() ? &dummy : nullptr, overlapped.guest_address());
   if (!overlapped && items_returned) {
     *items_returned = dummy;
   }
@@ -89,10 +90,7 @@ u32 XamCreateEnumeratorHandle_entry(u32 unk1, u32 unk2, u32 unk3, u32 unk4, u32 
 }
 
 u32 XamGetPrivateEnumStructureFromHandle_entry(u32 handle, mapped_u32 out_object_ptr) {
-  auto e = REX_KERNEL_OBJECTS()->LookupObject<XEnumerator>(handle);
-  if (!e) {
-    return X_STATUS_INVALID_HANDLE;
-  }
+  REX_KERNEL_LOOKUP(e, XEnumerator, handle);
 
   // Caller takes the reference.
   // It's released in ObDereferenceObject.

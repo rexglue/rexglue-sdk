@@ -14,7 +14,6 @@
 #include <memory>
 
 #include <rex/ppc/function.h>
-#include <rex/system/export_resolver.h>
 #include <rex/system/kernel_module.h>
 #include <rex/system/kernel_state.h>
 #include <rex/platform/thread.h>
@@ -28,15 +27,6 @@ class XboxkrnlModule : public system::KernelModule {
  public:
   XboxkrnlModule(Runtime* emulator, system::KernelState* kernel_state);
   virtual ~XboxkrnlModule();
-
-  static void RegisterExportTable(rex::runtime::ExportResolver* export_resolver);
-
-  bool SendPIXCommand(const char* cmd);
-
-  void set_pix_function(uint32_t addr) { pix_function_ = addr; }
-
- protected:
-  uint32_t pix_function_ = 0;
 
  private:
   std::unique_ptr<rex::platform::HighResolutionTimer> timestamp_timer_;

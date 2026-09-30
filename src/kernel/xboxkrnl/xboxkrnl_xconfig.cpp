@@ -20,11 +20,12 @@
 #include <rex/system/kernel_state.h>
 #include <rex/system/user_module.h>
 #include <rex/system/xtypes.h>
+#include "kernel/kernel_macros.h"
 
 namespace rex::kernel::xboxkrnl {
 
-X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting, void* buffer,
-                               uint16_t buffer_size, uint16_t* required_size) {
+X_STATUS ExGetXConfigSetting(uint16_t category, uint16_t setting, void* buffer,
+                             uint16_t buffer_size, uint16_t* required_size) {
   uint16_t setting_size = 0;
   alignas(uint32_t) uint8_t value[4];
 
@@ -40,7 +41,7 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting, void* buffer
           memory::store_and_swap<uint32_t>(value, 0x00001000);  // USA/Canada
           break;
         default:
-          REXLOG_WARN(kernel, "Unimplemented XConfig SECURED setting 0x{:04X}", setting);
+          REX_KERNEL_STUB("XConfig SECURED setting 0x{:04X}", setting);
           return X_STATUS_INVALID_PARAMETER_2;
       }
       break;
@@ -84,12 +85,12 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting, void* buffer
           value[0] = 0x03;
           break;
         default:
-          REXLOG_WARN(kernel, "Unimplemented XConfig USER setting 0x{:04X}", setting);
+          REX_KERNEL_STUB("XConfig USER setting 0x{:04X}", setting);
           return X_STATUS_INVALID_PARAMETER_2;
       }
       break;
     default:
-      REXLOG_WARN(kernel, "Unimplemented XConfig category 0x{:04X}", category);
+      REX_KERNEL_STUB("XConfig category 0x{:04X}", category);
       return X_STATUS_INVALID_PARAMETER_1;
   }
 
@@ -114,8 +115,7 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting, void* buffer
 u32 ExGetXConfigSetting_entry(u16 category, u16 setting, mapped_void buffer_ptr, u16 buffer_size,
                               mapped_u16 required_size_ptr) {
   uint16_t required_size = 0;
-  X_STATUS result =
-      xeExGetXConfigSetting(category, setting, buffer_ptr, buffer_size, &required_size);
+  X_STATUS result = ExGetXConfigSetting(category, setting, buffer_ptr, buffer_size, &required_size);
 
   if (required_size_ptr) {
     *required_size_ptr = required_size;

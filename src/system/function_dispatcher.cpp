@@ -52,8 +52,7 @@ PPCFunc* ResolveIndirectFunction(uint32_t guest_address) {
   return &InvalidFunctionTrap;
 }
 
-FunctionDispatcher::FunctionDispatcher(rex::memory::Memory* memory, ExportResolver* export_resolver)
-    : memory_(memory), export_resolver_(export_resolver) {}
+FunctionDispatcher::FunctionDispatcher(rex::memory::Memory* memory) : memory_(memory) {}
 
 FunctionDispatcher::~FunctionDispatcher() = default;
 

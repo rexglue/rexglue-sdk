@@ -75,18 +75,28 @@
     ctx.r3.u64 = (value);                                                  \
   }
 
-// Export: hook + register in global registry for kernel ordinal lookup.
-#define REX_EXPORT(name, function) \
-  REX_HOOK(name, function)         \
-  static rex::ppc::detail::PPCFuncRegistrar _ppc_reg_##name(#name, &name);
+/**
+ * Defines a hook whose symbol a kernel export table links against.
+ *
+ * @param name The hook symbol.
+ * @param function The host function the hook wraps.
+ */
+#define REX_EXPORT(name, function) REX_HOOK(name, function)
 
-#define REX_EXPORT_STUB(name) \
-  REX_STUB(name)              \
-  static rex::ppc::detail::PPCFuncRegistrar _ppc_reg_##name(#name, &name);
+/**
+ * Defines a stub whose symbol a kernel export table links against.
+ *
+ * @param name The hook symbol.
+ */
+#define REX_EXPORT_STUB(name) REX_STUB(name)
 
-#define REX_EXPORT_STUB_RETURN(name, retval) \
-  REX_STUB_RETURN(name, retval)              \
-  static rex::ppc::detail::PPCFuncRegistrar _ppc_reg_##name(#name, &name);
+/**
+ * Defines a stub that returns a fixed value and whose symbol a kernel export table links against.
+ *
+ * @param name The hook symbol.
+ * @param retval The value returned in r3.
+ */
+#define REX_EXPORT_STUB_RETURN(name, retval) REX_STUB_RETURN(name, retval)
 
 namespace rex {
 
@@ -238,14 +248,3 @@ class [[deprecated("Use rex::ppc::stack_push / stack_guard instead")]] StackFram
   [[maybe_unused]] static rex::ppc::ImportFunction<sig> callable { \
     symbol                                                         \
   }
-
-//=============================================================================
-// Legacy Compat Aliases
-//=============================================================================
-
-#define XBOXKRNL_EXPORT(n, f) REX_EXPORT(n, f)
-#define XBOXKRNL_EXPORT_STUB(n) REX_EXPORT_STUB(n)
-#define XAM_EXPORT(n, f) REX_EXPORT(n, f)
-#define XAM_EXPORT_STUB(n) REX_EXPORT_STUB(n)
-#define REXCRT_EXPORT(n, f) REX_HOOK(n, f)
-#define REXCRT_EXPORT_STUB(n) REX_STUB(n)

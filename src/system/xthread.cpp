@@ -245,10 +245,10 @@ void XThread::InitializeGuestObject() {
     guest_thread->process_type_dup = target_process->process_type;
 
     auto old_irql =
-        kernel::xboxkrnl::xeKeKfAcquireSpinLock(ctx, &target_process->thread_list_spinlock);
+        kernel::xboxkrnl::KeKfAcquireSpinLock(ctx, &target_process->thread_list_spinlock);
     util::XeInsertTailList(&target_process->thread_list, &guest_thread->process_threads, memory());
     target_process->thread_count = target_process->thread_count + 1;
-    kernel::xboxkrnl::xeKeKfReleaseSpinLock(ctx, &target_process->thread_list_spinlock, old_irql);
+    kernel::xboxkrnl::KeKfReleaseSpinLock(ctx, &target_process->thread_list_spinlock, old_irql);
   } else {
     guest_thread->process_type = X_PROCTYPE_USER;
     guest_thread->process_type_dup = X_PROCTYPE_USER;
@@ -510,10 +510,10 @@ X_STATUS XThread::Exit(int exit_code) {
   if (process_guest) {
     auto* ctx = thread_state_->context();
     auto kprocess = memory()->TranslateVirtual<X_KPROCESS*>(process_guest);
-    auto old_irql = kernel::xboxkrnl::xeKeKfAcquireSpinLock(ctx, &kprocess->thread_list_spinlock);
+    auto old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(ctx, &kprocess->thread_list_spinlock);
     util::XeRemoveEntryList(&thread->process_threads, memory());
     kprocess->thread_count = kprocess->thread_count - 1;
-    kernel::xboxkrnl::xeKeKfReleaseSpinLock(ctx, &kprocess->thread_list_spinlock, old_irql);
+    kernel::xboxkrnl::KeKfReleaseSpinLock(ctx, &kprocess->thread_list_spinlock, old_irql);
   }
 
   kernel_state_->OnThreadExit(this);
@@ -671,15 +671,15 @@ void XThread::LeaveCriticalRegion() {
 void XThread::LockApc() {
   auto kthread = guest_object<X_KTHREAD>();
   apc_lock_old_irql_ =
-      kernel::xboxkrnl::xeKeKfAcquireSpinLock(thread_state_->context(), &kthread->apc_lock);
+      kernel::xboxkrnl::KeKfAcquireSpinLock(thread_state_->context(), &kthread->apc_lock);
 }
 
 void XThread::UnlockApc(bool queue_delivery) {
   auto kthread = guest_object<X_KTHREAD>();
   auto mem = memory();
   bool needs_apc = !kthread->apc_lists[0].empty(mem) || !kthread->apc_lists[1].empty(mem);
-  kernel::xboxkrnl::xeKeKfReleaseSpinLock(thread_state_->context(), &kthread->apc_lock,
-                                          apc_lock_old_irql_);
+  kernel::xboxkrnl::KeKfReleaseSpinLock(thread_state_->context(), &kthread->apc_lock,
+                                        apc_lock_old_irql_);
   if (needs_apc && queue_delivery) {
     // Match Edge/Canary behavior: callback is only a wakeup hint.
     // User APC execution happens on alertable wait return paths.
@@ -696,16 +696,16 @@ void XThread::EnqueueApc(uint32_t normal_routine, uint32_t normal_context, uint3
     return;
   }
   auto apc = memory()->TranslateVirtual<XAPC*>(apc_ptr);
-  kernel::xboxkrnl::xeKeInitializeApc(apc, guest_object(), XAPC::kDummyKernelRoutine,
-                                      XAPC::kDummyRundownRoutine, normal_routine,
-                                      1 /* user apc mode */, normal_context);
+  kernel::xboxkrnl::KeInitializeApc(apc, guest_object(), XAPC::kDummyKernelRoutine,
+                                    XAPC::kDummyRundownRoutine, normal_routine,
+                                    1 /* user apc mode */, normal_context);
 
   // Important: use the caller PPC context when queuing to another thread.
   // Using the target thread context here can corrupt APC lock/IRQL bookkeeping.
   PPCContext* queue_ctx =
       runtime::ThreadState::Get() ? runtime::current_ppc_context() : thread_state_->context();
 
-  if (!kernel::xboxkrnl::xeKeInsertQueueApc(apc, arg1, arg2, 0, queue_ctx)) {
+  if (!kernel::xboxkrnl::KeInsertQueueApc(apc, arg1, arg2, 0, queue_ctx)) {
     memory()->SystemHeapFree(apc_ptr);
     REXLOG_ERROR(system,
                  "EnqueueApc: queue rejected (thid={}, normal={:08X}, ctx={:08X}, arg1={:08X}, "
@@ -724,7 +724,7 @@ void XThread::DeliverAPCs() {
   auto kthread = guest_object<X_KTHREAD>();
   auto* dispatcher = kernel_state_->function_dispatcher();
 
-  auto old_irql = kernel::xboxkrnl::xeKeKfAcquireSpinLock(ctx, &kthread->apc_lock);
+  auto old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(ctx, &kthread->apc_lock);
   auto& user_apc_queue = kthread->apc_lists[1];
 
   while (!user_apc_queue.empty(mem) && kthread->apc_disable_count == 0) {
@@ -736,7 +736,7 @@ void XThread::DeliverAPCs() {
     util::XeRemoveEntryList(&apc->list_entry, mem);
     apc->enqueued = 0;
 
-    kernel::xboxkrnl::xeKeKfReleaseSpinLock(ctx, &kthread->apc_lock, old_irql);
+    kernel::xboxkrnl::KeKfReleaseSpinLock(ctx, &kthread->apc_lock, old_irql);
 
     uint8_t* scratch_ptr = mem->TranslateVirtual(scratch_address_);
     memory::store_and_swap<uint32_t>(scratch_ptr + 0, apc->normal_routine);
@@ -781,10 +781,10 @@ void XThread::DeliverAPCs() {
       mem->SystemHeapFree(apc_ptr);
     }
 
-    old_irql = kernel::xboxkrnl::xeKeKfAcquireSpinLock(ctx, &kthread->apc_lock);
+    old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(ctx, &kthread->apc_lock);
   }
 
-  kernel::xboxkrnl::xeKeKfReleaseSpinLock(ctx, &kthread->apc_lock, old_irql);
+  kernel::xboxkrnl::KeKfReleaseSpinLock(ctx, &kthread->apc_lock, old_irql);
 }
 
 void XThread::RundownAPCs() {
@@ -795,7 +795,7 @@ void XThread::RundownAPCs() {
 
   // Rundown both user (1) and kernel (0) APC lists.
   for (int mode = 1; mode >= 0; --mode) {
-    auto old_irql = kernel::xboxkrnl::xeKeKfAcquireSpinLock(ctx, &kthread->apc_lock);
+    auto old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(ctx, &kthread->apc_lock);
     auto& apc_queue = kthread->apc_lists[mode];
 
     while (!apc_queue.empty(mem)) {
@@ -806,7 +806,7 @@ void XThread::RundownAPCs() {
       util::XeRemoveEntryList(&apc->list_entry, mem);
       apc->enqueued = 0;
 
-      kernel::xboxkrnl::xeKeKfReleaseSpinLock(ctx, &kthread->apc_lock, old_irql);
+      kernel::xboxkrnl::KeKfReleaseSpinLock(ctx, &kthread->apc_lock, old_irql);
 
       if (apc->rundown_routine == XAPC::kDummyRundownRoutine) {
         // No-op.
@@ -826,9 +826,9 @@ void XThread::RundownAPCs() {
         mem->SystemHeapFree(apc_ptr);
       }
 
-      old_irql = kernel::xboxkrnl::xeKeKfAcquireSpinLock(ctx, &kthread->apc_lock);
+      old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(ctx, &kthread->apc_lock);
     }
-    kernel::xboxkrnl::xeKeKfReleaseSpinLock(ctx, &kthread->apc_lock, old_irql);
+    kernel::xboxkrnl::KeKfReleaseSpinLock(ctx, &kthread->apc_lock, old_irql);
   }
 }
 

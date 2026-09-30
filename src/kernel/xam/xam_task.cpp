@@ -20,6 +20,7 @@
 #include <rex/system/user_module.h>
 #include <rex/system/xthread.h>
 #include <rex/system/xtypes.h>
+#include "kernel/kernel_macros.h"
 
 #if REX_PLATFORM_WIN32
 #include <rex/platform.h>
@@ -75,7 +76,7 @@ u32 XamTaskShouldExit_entry(u32 r3) {
 }
 
 u32 XamTaskCloseHandle_entry(u32 handle) {
-  REXLOG_DEBUG(kernel, "XamTaskCloseHandle({:#x}) - stub", (uint32_t)handle);
+  REX_KERNEL_STUB("XamTaskCloseHandle({:#x})", (uint32_t)handle);
   return X_STATUS_SUCCESS;
 }
 

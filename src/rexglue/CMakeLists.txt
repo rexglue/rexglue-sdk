@@ -7,6 +7,7 @@ add_executable(rexglue
     commands/codegen_command.cpp
     commands/init_command.cpp
     commands/vfs_command.cpp
+    commands/list_command.cpp
     commands/test_recompiler.cpp
     commands/project_scan.cpp
 )

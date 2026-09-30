@@ -23,7 +23,7 @@
 #define REX_CODE_SIZE {{ code_size }}ull
 #define REX_THUNK_RESERVE_SIZE {{ thunk_reserve_size }}ull
 
-#define REXCRT_HEAP {% if rexcrt_heap %}1{% else %}0{% endif %}
+#define REX_SHIM_HEAP {% if shim_heap %}1{% else %}0{% endif %}
 
 //=============================================================================
 // SDK Headers

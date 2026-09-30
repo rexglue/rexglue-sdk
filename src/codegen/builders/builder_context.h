@@ -74,7 +74,7 @@ struct BuilderContext {
   /// Raw output buffer for code generation
   std::string& out;
 
-  /// Emission context (binary, config, graph, resolver)
+  /// Emission context (binary, config, graph)
   const EmitContext& emitCtx;
 
   /// The function currently being recompiled (FunctionNode from graph)

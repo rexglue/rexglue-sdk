@@ -22,6 +22,7 @@
 #include <rex/types.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xtypes.h>
+#include "kernel/kernel_macros.h"
 
 namespace rex::kernel::xboxkrnl {
 using namespace rex::system;
@@ -89,7 +90,7 @@ u32 NtAllocateVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_si
 
   // This allocates memory from the kernel heap, which is initialized on startup
   // and shared by both the kernel implementation and user code.
-  // The xe_memory_ref object is used to actually get the memory, and although
+  // The memory reference object is used to actually get the memory, and although
   // it's simple today we could extend it to do better things in the future.
 
   // Must request a size.
@@ -144,7 +145,7 @@ u32 NtAllocateVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_si
     allocation_type |= memory::kMemoryAllocationCommit;
   }
   if (alloc_type & X_MEM_RESET) {
-    REXLOG_ERROR(kernel, "X_MEM_RESET not implemented");
+    REX_KERNEL_STUB("X_MEM_RESET");
     assert_always();
   }
   uint32_t protect = FromXdkProtectFlags(protect_bits);
@@ -155,9 +156,7 @@ u32 NtAllocateVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_si
 
   if (adjusted_base != 0) {
     heap = REX_KERNEL_MEMORY()->LookupHeap(adjusted_base);
-    if (!heap) {
-      return X_STATUS_INVALID_PARAMETER;
-    }
+    REX_KERNEL_ARG(heap);
     if (heap->page_size() != page_size) {
       // Specified the wrong page size for the wrong heap.
       return X_STATUS_ACCESS_DENIED;
@@ -501,9 +500,7 @@ struct X_MM_QUERY_STATISTICS_RESULT {
 static_assert_size(X_MM_QUERY_STATISTICS_RESULT, 104);
 
 u32 MmQueryStatistics_entry(ppc_ptr_t<X_MM_QUERY_STATISTICS_RESULT> stats_ptr) {
-  if (!stats_ptr) {
-    return X_STATUS_INVALID_PARAMETER;
-  }
+  REX_KERNEL_ARG(stats_ptr);
 
   const uint32_t size = sizeof(X_MM_QUERY_STATISTICS_RESULT);
 
@@ -721,14 +718,10 @@ u32 NtAllocateEncryptedMemory_entry(u32 unk, u32 region_size, mapped_u32 base_ad
 }
 
 u32 NtFreeEncryptedMemory_entry(u32 region_type, mapped_u32 base_address_ptr) {
-  if (!base_address_ptr) {
-    return X_STATUS_INVALID_PARAMETER;
-  }
+  REX_KERNEL_ARG(base_address_ptr);
 
   auto heap = REX_KERNEL_MEMORY()->LookupHeap(0x80000000);
-  if (!heap) {
-    return X_STATUS_INVALID_PARAMETER;
-  }
+  REX_KERNEL_ARG(heap);
   const uint32_t encrypt_address = heap->heap_base() + heap->page_size() * (*base_address_ptr);
 
   auto encrypt_heap = REX_KERNEL_MEMORY()->LookupHeap(encrypt_address);

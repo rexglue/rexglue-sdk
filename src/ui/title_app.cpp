@@ -25,7 +25,7 @@
 #include <rex/filesystem.h>
 #include <rex/graphics/backend.h>
 #include <rex/input/input_system.h>
-#include <rex/kernel/crt/heap.h>
+#include <rex/kernel/shim/heap.h>
 #include <rex/kernel/init.h>
 #include <rex/logging.h>
 #include <rex/logging/sink.h>
@@ -515,9 +515,9 @@ Result<void> TitleApp::LaunchTitle() {
   if (XFAILED(runtime_->LoadXEXImage(kImage))) {
     return LaunchFailure(std::format("Failed to load XEX ({})", kImage));
   }
-  if (image_.rexcrt_heap &&
-      !kernel::crt::InitHeap(api().config().runtime.heap_size_mb, runtime_->memory())) {
-    return LaunchFailure("rexcrt heap initialization failed");
+  if (image_.shim_heap &&
+      !kernel::shim::InitHeap(api().config().runtime.heap_size_mb, runtime_->memory())) {
+    return LaunchFailure("shim heap initialization failed");
   }
 
   if (immediate_drawer_) {

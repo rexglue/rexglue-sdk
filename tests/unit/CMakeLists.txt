@@ -5,6 +5,8 @@ add_executable(unit_tests
     memory/heap_allocation_test.cpp
     kernel/exit_title_test.cpp
     kernel/object_table_test.cpp
+    kernel/shim_registry_test.cpp
+    kernel/exports_test.cpp
     core/app_test.cpp
     core/cli_arg_list_test.cpp
     core/cvar_test.cpp
@@ -31,6 +33,7 @@ add_executable(unit_tests
     codegen/codegen_writer_test.cpp
     codegen/output_partition_test.cpp
     codegen/output_stamp_test.cpp
+    codegen/shim_config_test.cpp
 )
 
 target_sources(unit_tests PRIVATE

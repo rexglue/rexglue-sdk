@@ -44,7 +44,7 @@ struct PPCImageInfo {
   u32 image_base;
   u32 image_size;
   const PPCFuncMapping* func_mappings;
-  bool rexcrt_heap = false;  ///< Set by codegen when [rexcrt] has heap functions
+  bool shim_heap = false;  ///< Set by codegen when [shim] holds the heap functions
   RegisterModulesFunc register_modules = nullptr;  ///< Set by codegen for multi-binary projects
   PPCCodegenFlags codegen_flags{};                 ///< Set by codegen from the config flags
 };

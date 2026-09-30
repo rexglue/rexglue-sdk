@@ -28,6 +28,7 @@
 #include <rex/system/xthread.h>
 #include <rex/system/xtypes.h>
 #include <rex/platform/mutex.h>
+#include "kernel/kernel_macros.h"
 
 namespace rex::kernel::xboxkrnl {
 using namespace rex::system;
@@ -272,13 +273,6 @@ u32 NtReadFile_entry(u32 file_handle, u32 event_handle, mapped_void apc_routine_
       // X_STATUS_PENDING if not returning immediately.
       // XFile is waitable and signalled after each async req completes.
       // reset the input event (->Reset())
-      /*xeNtReadFileState* call_state = new xeNtReadFileState();
-      XAsyncRequest* request = new XAsyncRequest(
-      state, file,
-      (XAsyncRequest::CompletionCallback)xeNtReadFileCompleted,
-      call_state);*/
-      // result = file->Read(buffer.guest_address(), buffer_length, byte_offset,
-      //                     request);
       if (io_status_block) {
         io_status_block->status = X_STATUS_PENDING;
         io_status_block->information = 0;
@@ -372,13 +366,6 @@ u32 NtReadFileScatter_entry(u32 file_handle, u32 event_handle, mapped_void apc_r
       // X_STATUS_PENDING if not returning immediately.
       // XFile is waitable and signalled after each async req completes.
       // reset the input event (->Reset())
-      /*xeNtReadFileState* call_state = new xeNtReadFileState();
-      XAsyncRequest* request = new XAsyncRequest(
-      state, file,
-      (XAsyncRequest::CompletionCallback)xeNtReadFileCompleted,
-      call_state);*/
-      // result = file->Read(buffer.guest_address(), buffer_length, byte_offset,
-      //                     request);
       if (io_status_block) {
         io_status_block->status = X_STATUS_PENDING;
         io_status_block->information = 0;
@@ -486,10 +473,7 @@ u32 NtCreateIoCompletion_entry(mapped_u32 out_handle, u32 desired_access,
 
 u32 NtSetIoCompletion_entry(u32 handle, u32 key_context, u32 apc_context, u32 completion_status,
                             u32 num_bytes) {
-  auto port = REX_KERNEL_OBJECTS()->LookupObject<XIOCompletion>(handle);
-  if (!port) {
-    return X_STATUS_INVALID_HANDLE;
-  }
+  REX_KERNEL_LOOKUP(port, XIOCompletion, handle);
 
   XIOCompletion::IONotification notification;
   notification.key_context = key_context;
@@ -507,10 +491,7 @@ u32 NtRemoveIoCompletion_entry(u32 handle, mapped_u32 key_context, mapped_u32 ap
   X_STATUS status = X_STATUS_SUCCESS;
   // uint32_t info = 0;
 
-  auto port = REX_KERNEL_OBJECTS()->LookupObject<XIOCompletion>(handle);
-  if (!port) {
-    return X_STATUS_INVALID_HANDLE;
-  }
+  REX_KERNEL_LOOKUP(port, XIOCompletion, handle);
 
   uint64_t timeout_ticks = timeout ? static_cast<uint32_t>(*timeout)
                                    : static_cast<uint64_t>(std::numeric_limits<int64_t>::min());
@@ -637,9 +618,7 @@ u32 NtFlushBuffersFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_st
 // https://docs.microsoft.com/en-us/windows/win32/devnotes/ntopensymboliclinkobject
 u32 NtOpenSymbolicLinkObject_entry(mapped_u32 handle_out,
                                    ppc_ptr_t<X_OBJECT_ATTRIBUTES> object_attrs) {
-  if (!object_attrs) {
-    return X_STATUS_INVALID_PARAMETER;
-  }
+  REX_KERNEL_ARG(object_attrs);
   assert_not_null(handle_out);
 
   assert_true(object_attrs->attributes == 64);  // case insensitive
@@ -726,8 +705,7 @@ u32 NtDeviceIoControlFile_entry(u32 handle, u32 event_handle, u32 apc_routine, u
     memory::store_and_swap<uint64_t>(output_buffer, 0);
     memory::store_and_swap<uint64_t>(output_buffer + 8, cache_size);
   } else {
-    REXLOG_DEBUG(kernel, "NtDeviceIoControlFile(0x{:X}) - unhandled IOCTL!",
-                 uint32_t(io_control_code));
+    REX_KERNEL_STUB("NtDeviceIoControlFile(0x{:X})", uint32_t(io_control_code));
     assert_always();
     return X_STATUS_INVALID_PARAMETER;
   }
@@ -756,12 +734,12 @@ u32 IoCreateDevice_entry(u32 device_struct, u32 r4, u32 r5, u32 r6, u32 r7, mapp
 }
 
 u32 IoDismountVolumeByFileHandle_entry(u32 handle) {
-  REXLOG_WARN(kernel, "IoDismountVolumeByFileHandle({:#x}) - stub", (uint32_t)handle);
+  REX_KERNEL_STUB("IoDismountVolumeByFileHandle({:#x})", (uint32_t)handle);
   return X_STATUS_SUCCESS;
 }
 
 u32 IoDismountVolumeByName_entry(ppc_ptr_t<X_ANSI_STRING> name) {
-  REXLOG_WARN(kernel, "IoDismountVolumeByName - stub");
+  REX_KERNEL_STUB("IoDismountVolumeByName");
   return X_STATUS_SUCCESS;
 }
 
@@ -769,19 +747,19 @@ u32 IoSynchronousDeviceIoControlRequest_entry(u32 ioctl, mapped_void device_obje
                                               mapped_void input_buffer, u32 input_length,
                                               mapped_void output_buffer, u32 output_length,
                                               mapped_u32 returned_length, u32 unk) {
-  REXLOG_WARN(kernel, "IoSynchronousDeviceIoControlRequest({:#x}) - stub", (uint32_t)ioctl);
+  REX_KERNEL_STUB("IoSynchronousDeviceIoControlRequest({:#x})", (uint32_t)ioctl);
   return X_STATUS_SUCCESS;
 }
 
 u32 StfsCreateDevice_entry(mapped_void device_object, u32 flags, mapped_u32 out_device) {
-  REXLOG_WARN(kernel, "StfsCreateDevice - stub");
+  REX_KERNEL_STUB("StfsCreateDevice");
   // if (out_device) *out_device = 0;
   return X_STATUS_SUCCESS;
 }
 
 u32 StfsControlDevice_entry(mapped_void device_object, u32 ioctl, mapped_void input_buffer,
                             u32 input_length, mapped_void output_buffer, u32 output_length) {
-  REXLOG_WARN(kernel, "StfsControlDevice({:#x}) - stub", (uint32_t)ioctl);
+  REX_KERNEL_STUB("StfsControlDevice({:#x})", (uint32_t)ioctl);
   return X_STATUS_SUCCESS;
 }
 

@@ -13,7 +13,6 @@
 #include <string>
 
 #include <rex/ppc/function.h>
-#include <rex/system/export_resolver.h>
 #include <rex/system/kernel_module.h>
 #include <rex/system/kernel_state.h>
 
@@ -21,14 +20,10 @@ namespace rex {
 namespace kernel {
 namespace xam {
 
-bool xeXamIsUIActive();
-
 class XamModule : public system::KernelModule {
  public:
   XamModule(Runtime* emulator, system::KernelState* kernel_state);
   virtual ~XamModule();
-
-  static void RegisterExportTable(rex::runtime::ExportResolver* export_resolver);
 
   struct LoaderData {
     bool launch_data_present = false;

@@ -19,6 +19,7 @@
 #include <rex/system/xexception.h>
 #include <rex/system/xthread.h>
 #include <rex/system/xtypes.h>
+#include "kernel/kernel_macros.h"
 
 namespace rex::kernel::xboxkrnl {
 using namespace rex::system;
@@ -31,7 +32,7 @@ u32 XexCheckExecutablePrivilege_entry(u32 privilege) {
   // BOOL
   // DWORD Privilege
 
-  // Privilege is bit position in xe_xex2_system_flags enum - so:
+  // Privilege is bit position in the XEX system flags enum - so:
   // Privilege=6 -> 0x00000040 -> XEX_SYSTEM_INSECURE_SOCKETS
   uint32_t mask = 1 << privilege;
 
@@ -213,7 +214,7 @@ void ExRegisterTitleTerminateNotification_entry(ppc_ptr_t<X_EX_TITLE_TERMINATE_R
 }
 
 u32 XexLoadImageHeaders_entry(mapped_string path, mapped_void headers) {
-  REXLOG_DEBUG(kernel, "XexLoadImageHeaders({}) - stub", path.value());
+  REX_KERNEL_STUB("XexLoadImageHeaders({})", path.value());
   return X_STATUS_NOT_IMPLEMENTED;
 }
 

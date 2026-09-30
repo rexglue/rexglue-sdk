@@ -31,10 +31,6 @@ namespace rex::codegen::ppc {
 struct Instruction;
 }  // namespace rex::codegen::ppc
 
-namespace rex::runtime {
-class ExportResolver;
-}  // namespace rex::runtime
-
 namespace rex::codegen {
 
 // Forward declarations
@@ -51,8 +47,7 @@ struct EmitContext {
   const RecompilerConfig& config;
   const FunctionGraph& graph;
   const Limits& limits;
-  uint32_t entryPoint = 0;                      ///< For "xstart" naming
-  runtime::ExportResolver* resolver = nullptr;  ///< For import ordinal resolution (nullable)
+  uint32_t entryPoint = 0;  ///< For "xstart" naming
 
   /// Every function name emitted as a call. The writer turns this into the
   /// per-file declaration header, so a missed name is a compile error.

@@ -135,7 +135,7 @@ target_include_directories(mspack PUBLIC
 # Suppress warnings in third-party C code
 target_compile_options(mspack PRIVATE -w)
 
-# o1heap - O(1) heap allocator for real-time systems (used by rexcrt heap)
+# o1heap - O(1) heap allocator for real-time systems (used by the shim heap)
 # NOTE: o1heap.c auto-detects CLZ via __builtin_clzl when __clang__/__GNUC__
 # are defined, but on Windows unsigned long is 32-bit even on x64.  We inject
 # a config header that provides a correct 64-bit CLZ

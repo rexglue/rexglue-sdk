@@ -25,14 +25,12 @@
 #include <rex/memory.h>
 #include <rex/memory/mapped_memory.h>
 #include <rex/ppc/func.h>
-#include <rex/system/export_resolver.h>
 #include <rex/system/thread_state.h>
 #include <rex/platform/mutex.h>
 
 namespace rex::runtime {
 
 // Forward declarations
-class ExportResolver;
 class ThreadState;
 
 /**
@@ -57,11 +55,10 @@ class FunctionDispatcher : public IModuleRegistrar {
    */
   using RegisterFn = void (*)(IModuleRegistrar*);
 
-  FunctionDispatcher(memory::Memory* memory, ExportResolver* export_resolver);
+  explicit FunctionDispatcher(memory::Memory* memory);
   ~FunctionDispatcher();
 
   memory::Memory* memory() const { return memory_; }
-  ExportResolver* export_resolver() const { return export_resolver_; }
 
   uint64_t Execute(ThreadState* thread_state, uint32_t address, uint64_t args[], size_t arg_count);
   uint64_t ExecuteInterrupt(ThreadState* thread_state, uint32_t address, uint64_t args[],
@@ -127,7 +124,6 @@ class FunctionDispatcher : public IModuleRegistrar {
   ModuleTableInfo* FindModuleByAddress(uint32_t guest_address);
 
   memory::Memory* memory_ = nullptr;
-  ExportResolver* export_resolver_ = nullptr;
 
   rex::platform::global_critical_region global_critical_region_;
 

@@ -24,6 +24,7 @@
 #include <rex/system/xsemaphore.h>
 #include <rex/system/xthread.h>
 #include <rex/system/xtypes.h>
+#include "kernel/kernel_macros.h"
 
 namespace rex::kernel::xboxkrnl {
 using namespace rex::system;
@@ -38,9 +39,7 @@ u32 ObOpenObjectByName_entry(mapped_void obj_attributes_ptr, mapped_void object_
   // r5 = 0
   // r6 = out_ptr (handle?)
 
-  if (!obj_attributes_ptr) {
-    return X_STATUS_INVALID_PARAMETER;
-  }
+  REX_KERNEL_ARG(obj_attributes_ptr);
 
   auto obj_attributes = REX_KERNEL_MEMORY()->TranslateVirtual<X_OBJECT_ATTRIBUTES*>(
       obj_attributes_ptr.guest_address());

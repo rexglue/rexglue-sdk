@@ -10,6 +10,7 @@
 #include "commands/codegen_command.h"
 #include "commands/init_command.h"
 #include "commands/vfs_command.h"
+#include "commands/list_command.h"
 #include "commands/test_recompiler.h"
 #include "ui/ui.h"
 
@@ -87,6 +88,7 @@ int main(int argc, char** argv) {
   rexglue::cli::RegisterInit(app, ctx, pending);
   rexglue::cli::RegisterRecompileTests(app, ctx, pending);
   rexglue::cli::RegisterVFS(app, ctx, pending);
+  rexglue::cli::RegisterList(app, ctx, pending);
 
   CLI11_PARSE(app, argc, argv);
 

@@ -14,11 +14,15 @@
 
 #include <algorithm>
 #include <map>
+#include <numeric>
 #include <set>
+#include <string_view>
+#include <vector>
 
 #include <fmt/format.h>
 
 #include <rex/codegen/config.h>
+#include <rex/kernel/shim/registry.h>
 #include <rex/logging.h>
 
 #include <toml++/toml.hpp>
@@ -75,11 +79,53 @@ void MergeBool(bool& dst, bool src, bool present, const char* name) {
   dst = src;
 }
 
+size_t EditDistance(std::string_view a, std::string_view b) {
+  std::vector<size_t> row(b.size() + 1);
+  std::iota(row.begin(), row.end(), size_t{0});
+  for (size_t i = 1; i <= a.size(); ++i) {
+    size_t diagonal = row[0];
+    row[0] = i;
+    for (size_t j = 1; j <= b.size(); ++j) {
+      const size_t above = row[j];
+      row[j] = std::min({row[j] + 1, row[j - 1] + 1, diagonal + (a[i - 1] == b[j - 1] ? 0 : 1)});
+      diagonal = above;
+    }
+  }
+  return row[b.size()];
+}
+
+std::string_view NearestShimName(std::string_view name) {
+  constexpr size_t kMaxDistance = 2;
+  std::string_view best;
+  size_t bestDistance = kMaxDistance + 1;
+  for (const auto& entry : rex::kernel::shim::kRegistry) {
+    const size_t distance = EditDistance(name, entry.name);
+    if (distance < bestDistance) {
+      best = entry.name;
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
+
 // ---------------------------------------------------------------------------
 // Apply a single parsed TOML table onto the config (merge semantics)
 // ---------------------------------------------------------------------------
 
-void ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string& filePath) {
+bool ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string& filePath) {
+  if (auto* retired = toml["rexcrt"].as_table()) {
+    std::string converted = "[shim]";
+    for (const auto& [name, val] : *retired) {
+      if (auto addr = val.value<int64_t>()) {
+        converted +=
+            fmt::format("\n{} = 0x{:08X}", std::string(name.str()), static_cast<uint32_t>(*addr));
+      }
+    }
+    REXLOG_ERROR(codegen, "config {}: the [rexcrt] table was renamed, replace it with\n{}",
+                 filePath, converted);
+    return false;
+  }
+
   // --- Scalars: last wins ---
 
   // String scalars (only override if present in this file)
@@ -152,23 +198,23 @@ void ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
 
   // --- Keyed tables: additive, same key = last wins ---
 
-  // [rexcrt]
-  if (auto* rexcrt = toml["rexcrt"].as_table()) {
+  // [shim]
+  if (auto* shimTable = toml["shim"].as_table()) {
     size_t added = 0;
-    for (const auto& [name, val] : *rexcrt) {
+    for (const auto& [name, val] : *shimTable) {
       if (auto addr = val.value<int64_t>()) {
         auto key = std::string(name);
-        auto it = cfg.rexcrtFunctions.find(key);
-        if (it != cfg.rexcrtFunctions.end()) {
-          REXLOG_DEBUG(codegen, "config   [rexcrt] {} overridden: 0x{:08X} -> 0x{:08X}", key,
+        auto it = cfg.shimFunctions.find(key);
+        if (it != cfg.shimFunctions.end()) {
+          REXLOG_DEBUG(codegen, "config   [shim] {} overridden: 0x{:08X} -> 0x{:08X}", key,
                        it->second, static_cast<uint32_t>(*addr));
         }
-        cfg.rexcrtFunctions[key] = static_cast<uint32_t>(*addr);
+        cfg.shimFunctions[key] = static_cast<uint32_t>(*addr);
         ++added;
       }
     }
     if (added > 0) {
-      REXLOG_DEBUG(codegen, "config   [rexcrt] added/updated {} entries from {}", added, filePath);
+      REXLOG_DEBUG(codegen, "config   [shim] added/updated {} entries from {}", added, filePath);
     }
   }
 
@@ -382,6 +428,7 @@ void ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
       }
     }
   }
+  return true;
 }
 
 bool ApplyTableWithIncludes(const toml::table& tbl, const std::filesystem::path& base_dir,
@@ -437,8 +484,7 @@ bool ApplyTableWithIncludes(const toml::table& tbl, const std::filesystem::path&
       }
     }
   }
-  ApplyToml(tbl, cfg, description);
-  return true;
+  return ApplyToml(tbl, cfg, description);
 }
 
 }  // namespace
@@ -520,10 +566,19 @@ RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
   checkAlignment(longJmpAddress, "longjmp");
   checkAlignment(setJmpAddress, "setjmp");
 
-  for (const auto& [name, addr] : rexcrtFunctions) {
+  for (const auto& [name, addr] : shimFunctions) {
     if (addr & 0x3) {
       result.errors.push_back(
-          fmt::format("rexcrt function '{}' address 0x{:08X} is not 4-byte aligned", name, addr));
+          fmt::format("shim function '{}' address 0x{:08X} is not 4-byte aligned", name, addr));
+      result.valid = false;
+    }
+    if (!rex::kernel::shim::IsRegistered(name)) {
+      const auto nearest = NearestShimName(name);
+      result.errors.push_back(
+          nearest.empty()
+              ? fmt::format("shim function '{}' is not in the shim registry", name)
+              : fmt::format("shim function '{}' is not in the shim registry, did you mean '{}'?",
+                            name, nearest));
       result.valid = false;
     }
   }
@@ -576,32 +631,33 @@ RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
     }
   }
 
-  // Validate rexcrt all-or-nothing groups -- originals are stripped so partial
-  // sets would leave the game with missing CRT functions at runtime.
-  if (!rexcrtFunctions.empty()) {
-    auto checkGroup = [&](const char* groupName, std::initializer_list<const char*> required) {
-      size_t found = 0;
-      for (const char* name : required) {
-        if (rexcrtFunctions.contains(name))
-          ++found;
+  for (const auto& traits : rex::kernel::shim::kGroups) {
+    if (!traits.atomic) {
+      continue;
+    }
+    size_t found = 0;
+    size_t total = 0;
+    std::string missing;
+    for (const auto& entry : rex::kernel::shim::kRegistry) {
+      if (entry.group != traits.id) {
+        continue;
       }
-      if (found > 0 && found < required.size()) {
-        std::string missing;
-        for (const char* name : required) {
-          if (!rexcrtFunctions.contains(name)) {
-            if (!missing.empty())
-              missing += ", ";
-            missing += name;
-          }
+      ++total;
+      if (shimFunctions.contains(std::string(entry.name))) {
+        ++found;
+      } else {
+        if (!missing.empty()) {
+          missing += ", ";
         }
-        result.errors.push_back(
-            fmt::format("[rexcrt] {} group is incomplete ({}/{} specified), missing: {}", groupName,
-                        found, required.size(), missing));
-        result.valid = false;
+        missing += entry.name;
       }
-    };
-
-    checkGroup("heap", {"RtlAllocateHeap", "RtlFreeHeap", "RtlSizeHeap", "RtlReAllocateHeap"});
+    }
+    if (found > 0 && found < total) {
+      result.errors.push_back(
+          fmt::format("[shim] {} group is incomplete ({}/{} specified), missing: {}", traits.name,
+                      found, total, missing));
+      result.valid = false;
+    }
   }
 
   // Check required fields
@@ -613,6 +669,13 @@ RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
   }
 
   return result;
+}
+
+bool RecompilerConfig::UsesShimHeap() const {
+  return std::ranges::any_of(rex::kernel::shim::kRegistry, [this](const auto& entry) {
+    return rex::HasFlags(entry.flags, rex::kernel::shim::Flag::RequiresHeap) &&
+           shimFunctions.contains(std::string(entry.name));
+  });
 }
 
 }  // namespace rex::codegen

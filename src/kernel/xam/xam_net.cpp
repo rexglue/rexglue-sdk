@@ -32,6 +32,7 @@
 #include <rex/system/xsocket.h>
 #include <rex/system/xthread.h>
 #include <rex/system/xtypes.h>
+#include "kernel/kernel_macros.h"
 
 #if REX_PLATFORM_WIN32
 // NOTE: must be included last as it expects windows.h to already be included.
@@ -128,41 +129,6 @@ struct XWSAOVERLAPPED {
   rex::be<uint32_t> event_handle;
 };
 
-void LoadSockaddr(const uint8_t* ptr, sockaddr* out_addr) {
-  out_addr->sa_family = memory::load_and_swap<uint16_t>(ptr + 0);
-  switch (out_addr->sa_family) {
-    case AF_INET: {
-      auto in_addr = reinterpret_cast<sockaddr_in*>(out_addr);
-      in_addr->sin_port = memory::load_and_swap<uint16_t>(ptr + 2);
-      // Maybe? Depends on type.
-      in_addr->sin_addr.s_addr = *(uint32_t*)(ptr + 4);
-      break;
-    }
-    default:
-      assert_unhandled_case(out_addr->sa_family);
-      break;
-  }
-}
-
-void StoreSockaddr(const sockaddr& addr, uint8_t* ptr) {
-  switch (addr.sa_family) {
-    case AF_UNSPEC:
-      std::memset(ptr, 0, sizeof(addr));
-      break;
-    case AF_INET: {
-      auto& in_addr = reinterpret_cast<const sockaddr_in&>(addr);
-      memory::store_and_swap<uint16_t>(ptr + 0, in_addr.sin_family);
-      memory::store_and_swap<uint16_t>(ptr + 2, in_addr.sin_port);
-      // Maybe? Depends on type.
-      memory::store_and_swap<uint32_t>(ptr + 4, in_addr.sin_addr.s_addr);
-      break;
-    }
-    default:
-      assert_unhandled_case(addr.sa_family);
-      break;
-  }
-}
-
 // https://github.com/joolswills/mameox/blob/master/MAMEoX/Sources/xbox_Network.cpp#L136
 struct XNetStartupParams {
   uint8_t cfgSizeOfStruct;
@@ -225,7 +191,7 @@ u32 NetDll_XNetGetOpt_entry(u32 one, u32 option_id, mapped_void buffer_ptr,
       std::memcpy(buffer_ptr, &xnet_startup_params, sizeof(XNetStartupParams));
       return 0;
     default:
-      REXLOG_ERROR(kernel, "NetDll_XNetGetOpt: option {} unimplemented", option_id);
+      REX_KERNEL_STUB("NetDll_XNetGetOpt: option {}", option_id);
       return 0x2726;  // WSAEINVAL
   }
 }
@@ -364,12 +330,12 @@ u32 NetDll_WSAWaitForMultipleEvents_entry(u32 num_events, mapped_u32 events, u32
 
   X_STATUS result = 0;
   do {
-    result = xboxkrnl::xeNtWaitForMultipleObjectsEx(num_events, events, wait_all, 1, alertable,
-                                                    timeout != -1 ? &timeout_wait : nullptr);
+    result = xboxkrnl::NtWaitForMultipleObjectsEx(num_events, events, wait_all, 1, alertable,
+                                                  timeout != -1 ? &timeout_wait : nullptr);
   } while (result == X_STATUS_ALERTED);
 
   if (XFAILED(result)) {
-    uint32_t error = xboxkrnl::xeRtlNtStatusToDosError(result);
+    uint32_t error = xboxkrnl::RtlNtStatusToDosError(result);
     XThread::SetLastError(error);
     return ~0u;
   }
@@ -385,7 +351,7 @@ u32 NetDll_WSACreateEvent_entry() {
 u32 NetDll_WSACloseEvent_entry(u32 event_handle) {
   X_STATUS result = REX_KERNEL_OBJECTS()->ReleaseHandle(event_handle);
   if (XFAILED(result)) {
-    uint32_t error = xboxkrnl::xeRtlNtStatusToDosError(result);
+    uint32_t error = xboxkrnl::RtlNtStatusToDosError(result);
     XThread::SetLastError(error);
     return 0;
   }
@@ -393,9 +359,9 @@ u32 NetDll_WSACloseEvent_entry(u32 event_handle) {
 }
 
 u32 NetDll_WSAResetEvent_entry(u32 event_handle) {
-  X_STATUS result = xboxkrnl::xeNtClearEvent(event_handle);
+  X_STATUS result = xboxkrnl::NtClearEvent(event_handle);
   if (XFAILED(result)) {
-    uint32_t error = xboxkrnl::xeRtlNtStatusToDosError(result);
+    uint32_t error = xboxkrnl::RtlNtStatusToDosError(result);
     XThread::SetLastError(error);
     return 0;
   }
@@ -403,9 +369,9 @@ u32 NetDll_WSAResetEvent_entry(u32 event_handle) {
 }
 
 u32 NetDll_WSASetEvent_entry(u32 event_handle) {
-  X_STATUS result = xboxkrnl::xeNtSetEvent(event_handle, nullptr);
+  X_STATUS result = xboxkrnl::NtSetEvent(event_handle, nullptr);
   if (XFAILED(result)) {
-    uint32_t error = xboxkrnl::xeRtlNtStatusToDosError(result);
+    uint32_t error = xboxkrnl::RtlNtStatusToDosError(result);
     XThread::SetLastError(error);
     return 0;
   }
@@ -526,9 +492,7 @@ u32 NetDll_XNetDnsLookup_entry(u32 caller, mapped_string host, u32 event_handle,
 }
 
 u32 NetDll_XNetDnsRelease_entry(u32 caller, ppc_ptr_t<XNDNS> dns) {
-  if (!dns) {
-    return X_STATUS_INVALID_PARAMETER;
-  }
+  REX_KERNEL_ARG(dns);
   REX_KERNEL_MEMORY()->SystemHeapFree(dns.guest_address());
   return 0;
 }
@@ -550,9 +514,7 @@ u32 NetDll_XNetQosServiceLookup_entry(u32 caller, u32 flags, u32 event_handle, m
 }
 
 u32 NetDll_XNetQosRelease_entry(u32 caller, ppc_ptr_t<XNQOS> qos) {
-  if (!qos) {
-    return X_STATUS_INVALID_PARAMETER;
-  }
+  REX_KERNEL_ARG(qos);
   REX_KERNEL_MEMORY()->SystemHeapFree(qos.guest_address());
   return 0;
 }
@@ -587,7 +549,7 @@ u32 NetDll_socket_entry(u32 caller, u32 af, u32 type, u32 protocol) {
   if (XFAILED(result)) {
     socket->ReleaseHandle();
 
-    uint32_t error = xboxkrnl::xeRtlNtStatusToDosError(result);
+    uint32_t error = xboxkrnl::RtlNtStatusToDosError(result);
     XThread::SetLastError(error);
     return -1;
   }
@@ -653,7 +615,7 @@ u32 NetDll_ioctlsocket_entry(u32 caller, u32 socket_handle, u32 cmd, mapped_void
 
   X_STATUS status = socket->IOControl(cmd, arg_ptr);
   if (XFAILED(status)) {
-    XThread::SetLastError(xboxkrnl::xeRtlNtStatusToDosError(status));
+    XThread::SetLastError(xboxkrnl::RtlNtStatusToDosError(status));
     return -1;
   }
 
@@ -672,7 +634,7 @@ u32 NetDll_bind_entry(u32 caller, u32 socket_handle, ppc_ptr_t<XSOCKADDR_IN> nam
   N_XSOCKADDR_IN native_name(name);
   X_STATUS status = socket->Bind(&native_name, namelen);
   if (XFAILED(status)) {
-    XThread::SetLastError(xboxkrnl::xeRtlNtStatusToDosError(status));
+    XThread::SetLastError(xboxkrnl::RtlNtStatusToDosError(status));
     return -1;
   }
 
@@ -690,7 +652,7 @@ u32 NetDll_connect_entry(u32 caller, u32 socket_handle, ppc_ptr_t<XSOCKADDR> nam
   N_XSOCKADDR native_name(name);
   X_STATUS status = socket->Connect(&native_name, namelen);
   if (XFAILED(status)) {
-    XThread::SetLastError(xboxkrnl::xeRtlNtStatusToDosError(status));
+    XThread::SetLastError(xboxkrnl::RtlNtStatusToDosError(status));
     return -1;
   }
 
@@ -707,7 +669,7 @@ u32 NetDll_listen_entry(u32 caller, u32 socket_handle, i32 backlog) {
 
   X_STATUS status = socket->Listen(backlog);
   if (XFAILED(status)) {
-    XThread::SetLastError(xboxkrnl::xeRtlNtStatusToDosError(status));
+    XThread::SetLastError(xboxkrnl::RtlNtStatusToDosError(status));
     return -1;
   }
 

@@ -12,6 +12,7 @@
 #include <rex/kernel/xam/apps/xgi_app.h>
 #include <rex/logging.h>
 #include <rex/platform/thread.h>
+#include "kernel/kernel_macros.h"
 
 namespace rex {
 namespace kernel {
@@ -254,8 +255,7 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       uint32_t user_index = memory::load_and_swap<uint32_t>(buffer + 0);
       uint32_t session_info_ptr = memory::load_and_swap<uint32_t>(buffer + 4);
 
-      REXLOG_DEBUG(kernel, "XSessionGetInvitationData - unimplemented({}, {:08X})", user_index,
-                   session_info_ptr);
+      REX_KERNEL_STUB("XSessionGetInvitationData({}, {:08X})", user_index, session_info_ptr);
 
       return X_E_SUCCESS;
     }
@@ -365,7 +365,7 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       // to 5787 and called after clicking xbox live in the game library from
       // v6683 to v6717
       // Does not get sent a buffer
-      REXLOG_DEBUG(kernel, "XInvalidateGamerTileCache, unimplemented");
+      REX_KERNEL_STUB("XInvalidateGamerTileCache");
       return X_E_FAIL;
     }
     case 0x000B003D: {
@@ -446,7 +446,7 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       return X_E_SUCCESS;
     }
     case 0x000B0071: {
-      REXLOG_DEBUG(kernel, "XGI 0x000B0071, unimplemented");
+      REX_KERNEL_STUB("XGI 0x000B0071");
       return X_E_SUCCESS;
     }
   }

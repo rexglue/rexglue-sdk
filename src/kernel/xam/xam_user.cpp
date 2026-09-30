@@ -27,6 +27,7 @@
 #include <rex/system/xio.h>
 #include <rex/system/xthread.h>
 #include <rex/system/xtypes.h>
+#include "kernel/kernel_macros.h"
 
 namespace rex {
 namespace kernel {
@@ -232,10 +233,7 @@ uint32_t XamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index, ui
     auto setting = user_profile->GetSetting(setting_id);
     if (!setting) {
       any_missing = true;
-      REXLOG_ERROR(kernel,
-                   "xeXamUserReadProfileSettingsEx requested unimplemented setting "
-                   "{:08X}",
-                   setting_id);
+      REX_KERNEL_STUB("XamUserReadProfileSettingsEx setting {:08X}", setting_id);
     }
   }
   if (any_missing) {
@@ -356,8 +354,7 @@ u32 XamUserWriteProfileSettings_entry(u32 title_id, u32 user_index, u32 setting_
       case UserProfile::Setting::Type::INT64:
       case UserProfile::Setting::Type::DATETIME:
       default: {
-        REXLOG_ERROR(kernel, "XamUserWriteProfileSettings: Unimplemented data type {}",
-                     setting_type);
+        REX_KERNEL_STUB("XamUserWriteProfileSettings data type {}", setting_type);
       } break;
     };
   }

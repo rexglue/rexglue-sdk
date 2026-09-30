@@ -12,6 +12,7 @@
 #include <rex/kernel/xam/apps/xlivebase_app.h>
 #include <rex/logging.h>
 #include <rex/platform/thread.h>
+#include "kernel/kernel_macros.h"
 
 namespace rex {
 namespace kernel {
@@ -56,23 +57,19 @@ X_HRESULT XLiveBaseApp::DispatchMessageSync(uint32_t message, uint32_t buffer_pt
       // We should create a XamEnumerate-able empty list here, but I'm not
       // sure of the format.
       // buffer_length seems to be the same ptr sent to 0x00058004.
-      REXLOG_DEBUG(kernel, "CXLiveFriends::Enumerate({:08X}, {:08X}) unimplemented", buffer_ptr,
-                   buffer_length);
+      REX_KERNEL_STUB("CXLiveFriends::Enumerate({:08X}, {:08X})", buffer_ptr, buffer_length);
       return X_E_FAIL;
     }
     case 0x00058023: {
-      REXLOG_DEBUG(kernel,
-                   "CXLiveMessaging::XMessageGameInviteGetAcceptedInfo({:08X}, {:08X}) "
-                   "unimplemented",
-                   buffer_ptr, buffer_length);
+      REX_KERNEL_STUB("CXLiveMessaging::XMessageGameInviteGetAcceptedInfo({:08X}, {:08X})",
+                      buffer_ptr, buffer_length);
       return X_E_FAIL;
     }
     case 0x00058046: {
       // Required to be successful for 4D530910 to detect signed-in profile
       // Doesn't seem to set anything in the given buffer, probably only takes
       // input
-      REXLOG_DEBUG(kernel, "XLiveBaseUnk58046({:08X}, {:08X}) unimplemented", buffer_ptr,
-                   buffer_length);
+      REX_KERNEL_STUB("XLiveBaseUnk58046({:08X}, {:08X})", buffer_ptr, buffer_length);
       return X_E_SUCCESS;
     }
     case 0x00058037: {

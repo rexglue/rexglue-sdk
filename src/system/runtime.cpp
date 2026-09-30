@@ -15,9 +15,7 @@
 #include <rex/logging.h>
 #include <rex/ppc/context.h>          // PPCFuncMapping
 #include <rex/platform/exceptions.h>  // SEH exception support
-#include <rex/kernel/crt/heap.h>
 #include <rex/runtime.h>
-#include <rex/system/export_resolver.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/function_dispatcher.h>
 #include <rex/system/user_module.h>
@@ -111,10 +109,7 @@ X_STATUS Runtime::Setup(RuntimeConfig config) {
     return fail(X_STATUS_UNSUCCESSFUL, "memory init failed");
   }
 
-  export_resolver_ = std::make_unique<runtime::ExportResolver>();
-
-  function_dispatcher_ =
-      std::make_unique<runtime::FunctionDispatcher>(memory_.get(), export_resolver_.get());
+  function_dispatcher_ = std::make_unique<runtime::FunctionDispatcher>(memory_.get());
 
   if (!config.file_system) {
     return fail(X_STATUS_INVALID_PARAMETER, "RuntimeConfig::file_system is null");
@@ -280,7 +275,6 @@ void Runtime::Shutdown() {
   }
   kernel_state_.reset();
   function_dispatcher_.reset();
-  export_resolver_.reset();
   if (file_system_) {
     file_system_->Clear();
     file_system_ = nullptr;

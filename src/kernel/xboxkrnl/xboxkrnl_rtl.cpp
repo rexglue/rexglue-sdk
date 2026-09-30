@@ -30,6 +30,7 @@
 #include <rex/system/xthread.h>
 #include <rex/platform/thread.h>
 #include <rex/platform/atomic.h>
+#include "kernel/kernel_macros.h"
 
 namespace rex::kernel::xboxkrnl {
 using namespace rex::system;
@@ -341,7 +342,7 @@ struct X_RTL_CRITICAL_SECTION {
 #pragma pack(pop)
 static_assert_size(X_RTL_CRITICAL_SECTION, 28);
 
-void xeRtlInitializeCriticalSection(X_RTL_CRITICAL_SECTION* cs, uint32_t cs_ptr) {
+void RtlInitializeCriticalSection(X_RTL_CRITICAL_SECTION* cs, uint32_t cs_ptr) {
   cs->header.type = 1;      // EventSynchronizationObject (auto reset)
   cs->header.absolute = 0;  // spin count div 256
   cs->header.signal_state = 0;
@@ -355,11 +356,11 @@ void RtlInitializeCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
                "RtlInitializeCriticalSection "
                "cs={:#x}",
                cs.guest_address());
-  xeRtlInitializeCriticalSection(cs, cs.guest_address());
+  RtlInitializeCriticalSection(cs, cs.guest_address());
 }
 
-X_STATUS xeRtlInitializeCriticalSectionAndSpinCount(X_RTL_CRITICAL_SECTION* cs, uint32_t cs_ptr,
-                                                    uint32_t spin_count) {
+X_STATUS RtlInitializeCriticalSectionAndSpinCount(X_RTL_CRITICAL_SECTION* cs, uint32_t cs_ptr,
+                                                  uint32_t spin_count) {
   // Spin count is rounded up to 256 intervals then packed in.
   // uint32_t spin_count_div_256 = (uint32_t)floor(spin_count / 256.0f + 0.5f);
   uint32_t spin_count_div_256 = (spin_count + 255) >> 8;
@@ -379,7 +380,7 @@ X_STATUS xeRtlInitializeCriticalSectionAndSpinCount(X_RTL_CRITICAL_SECTION* cs, 
 
 u32 RtlInitializeCriticalSectionAndSpinCount_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs,
                                                    u32 spin_count) {
-  return xeRtlInitializeCriticalSectionAndSpinCount(cs, cs.guest_address(), spin_count);
+  return RtlInitializeCriticalSectionAndSpinCount(cs, cs.guest_address(), spin_count);
 }
 
 void RtlEnterCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
@@ -405,7 +406,7 @@ void RtlEnterCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
 
   if (rex::platform::atomic_inc(&cs->lock_count) != 0) {
     // Create a full waiter.
-    xeKeWaitForSingleObject(reinterpret_cast<void*>(cs.host_address()), 8, 0, 0, nullptr);
+    KeWaitForSingleObject(reinterpret_cast<void*>(cs.host_address()), 8, 0, 0, nullptr);
   }
 
   assert_true(cs->owning_thread == 0);
@@ -448,7 +449,7 @@ void RtlLeaveCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
   cs->owning_thread = 0;
   if (rex::platform::atomic_dec(&cs->lock_count) != -1) {
     // There were waiters - wake one of them.
-    xeKeSetEvent(reinterpret_cast<X_KEVENT*>(cs.host_address()), 1, 0);
+    KeSetEvent(reinterpret_cast<X_KEVENT*>(cs.host_address()), 1, 0);
   }
 }
 
@@ -562,17 +563,17 @@ u32 RtlComputeCrc32_entry(u32 seed, mapped_void buffer, u32 length) {
 
 void RtlCaptureContext_entry() {
   // TODO(tomc): do we even need this?
-  REXLOG_WARN(kernel, "STUB RtlCaptureContext called - not implemented");
+  REX_KERNEL_STUB("RtlCaptureContext");
 }
 
 void RtlUnwind_entry() {
   // TODO(tomc): do we even need this?
-  REXLOG_WARN(kernel, "STUB RtlUnwind called - not implemented");
+  REX_KERNEL_STUB("RtlUnwind");
 }
 
 void __C_specific_handler_entry() {
   // TODO(tomc): do we even need this?
-  REXLOG_WARN(kernel, "STUB __C_specific_handler called - not implemented");
+  REX_KERNEL_STUB("__C_specific_handler");
 }
 
 REX_EXPORT_STUB(__imp__RtlAnsiStringToUnicodeString);

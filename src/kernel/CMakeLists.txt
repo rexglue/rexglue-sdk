@@ -1,5 +1,6 @@
 set(REXKERNEL_SOURCES
     kernel_init.cpp
+    exports.cpp
 
     # XAM subsystem - provides __imp__Xam* symbols
     xam/xam_module.cpp
@@ -23,6 +24,9 @@ set(REXKERNEL_SOURCES
     xam/xam_video.cpp
     xam/xam_voice.cpp
     xam/xam_misc.cpp
+    xam/xam_file.cpp
+    xam/xam_memory.cpp
+    xam/xam_string.cpp
     xam/apps/xam_app.cpp
     xam/apps/xgi_app.cpp
     xam/apps/xlivebase_app.cpp
@@ -48,17 +52,17 @@ set(REXKERNEL_SOURCES
     xboxkrnl/xboxkrnl_rtl.cpp
     xboxkrnl/xboxkrnl_strings.cpp
     xboxkrnl/xboxkrnl_threading.cpp
-    # xboxkrnl/xboxkrnl_usbcam.cpp  # TODO: lol eventually.
+    xboxkrnl/xboxkrnl_usbcam.cpp
     xboxkrnl/xboxkrnl_video.cpp
     xboxkrnl/xboxkrnl_xconfig.cpp
     xboxkrnl/xboxkrnl_audio.cpp
     xboxkrnl/xboxkrnl_audio_xma.cpp
 
-    crt/heap.cpp
-    crt/file.cpp
-    crt/memory.cpp
-    crt/string.cpp
-    crt/threading.cpp
+    shim/heap.cpp
+    shim/file.cpp
+    shim/memory.cpp
+    shim/string.cpp
+    shim/threading.cpp
 )
 
 list(TRANSFORM REXKERNEL_SOURCES PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/")

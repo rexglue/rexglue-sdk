@@ -974,7 +974,7 @@ const error_lookup_table error_tables[] = {
 };
 #undef MAKE_ENTRY
 
-uint32_t xeRtlNtStatusToDosError(uint32_t source_status) {
+uint32_t RtlNtStatusToDosError(uint32_t source_status) {
   uint32_t status = source_status;
   if (!status || (status & 0x20000000)) {
     return status;
@@ -1001,7 +1001,7 @@ uint32_t xeRtlNtStatusToDosError(uint32_t source_status) {
         break;
       }
       REXLOG_TRACE(kernel,
-                   "xeRtlNtStatusToDosError "
+                   "RtlNtStatusToDosError "
                    "status=0x{:X} => 0x{:X}",
                    status, result);
       return result;
@@ -1014,14 +1014,14 @@ uint32_t xeRtlNtStatusToDosError(uint32_t source_status) {
   }
 
   REXLOG_TRACE(kernel,
-               "xeRtlNtStatusToDosError "
+               "RtlNtStatusToDosError "
                "lookup failed for 0x{:X}",
                status);
   return 317;  // ERROR_MR_MID_NOT_FOUND
 }
 
 u32 RtlNtStatusToDosError_entry(u32 source_status) {
-  uint32_t result = xeRtlNtStatusToDosError(source_status);
+  uint32_t result = RtlNtStatusToDosError(source_status);
   REXLOG_TRACE(kernel,
                "RtlNtStatusToDosError "
                "status={:#x} -> {}",

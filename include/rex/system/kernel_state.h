@@ -152,7 +152,7 @@ struct TerminateNotification {
   uint32_t priority;
 };
 
-/// Host-side metadata for a fiber managed by rexcrt hooks.
+/// Host-side metadata for a fiber managed by the shim fiber routines.
 struct FiberInfo {
   rex::platform::Fiber* host_fiber;  ///< Host OS fiber handle
   uint32_t uid;                      ///< Unique identifier

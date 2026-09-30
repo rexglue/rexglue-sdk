@@ -20,6 +20,7 @@
 #include <rex/system/xam/content_device.h>
 #include <rex/system/xenumerator.h>
 #include <rex/system/xtypes.h>
+#include "kernel/kernel_macros.h"
 
 namespace rex {
 namespace kernel {
@@ -50,7 +51,7 @@ u32 XamContentResolve_entry(u32 user_index, mapped_void content_data_ptr, mapped
   // buffer_size is usually 260 (max path).
   // Games expect zero if resolve was successful.
   assert_always();
-  REXLOG_WARN(kernel, "XamContentResolve unimplemented!");
+  REX_KERNEL_STUB("XamContentResolve");
   return X_ERROR_NOT_FOUND;
 }
 
@@ -113,10 +114,10 @@ u32 XamContentCreateEnumerator_entry(u32 user_index, u32 device_id, u32 content_
 
 enum class kDispositionState : uint32_t { Unknown = 0, Create = 1, Open = 2 };
 
-u32 xeXamContentCreate(u32 user_index, mapped_string root_name, mapped_void content_data_ptr,
-                       u32 content_data_size, u32 flags, mapped_u32 disposition_ptr,
-                       mapped_u32 license_mask_ptr, u32 cache_size, u64 content_size,
-                       mapped_void overlapped_ptr) {
+u32 XamContentCreate(u32 user_index, mapped_string root_name, mapped_void content_data_ptr,
+                     u32 content_data_size, u32 flags, mapped_u32 disposition_ptr,
+                     mapped_u32 license_mask_ptr, u32 cache_size, u64 content_size,
+                     mapped_void overlapped_ptr) {
   uint64_t xuid = REX_KERNEL_STATE()->user_profile()->xuid();
 
   XCONTENT_AGGREGATE_DATA content_data;
@@ -234,24 +235,24 @@ u32 xeXamContentCreate(u32 user_index, mapped_string root_name, mapped_void cont
 u32 XamContentCreateEx_entry(u32 user_index, mapped_string root_name, mapped_void content_data_ptr,
                              u32 flags, mapped_u32 disposition_ptr, mapped_u32 license_mask_ptr,
                              u32 cache_size, u64 content_size, mapped_void overlapped_ptr) {
-  return xeXamContentCreate(user_index, root_name, content_data_ptr, sizeof(XCONTENT_DATA), flags,
-                            disposition_ptr, license_mask_ptr, cache_size, content_size,
-                            overlapped_ptr);
+  return XamContentCreate(user_index, root_name, content_data_ptr, sizeof(XCONTENT_DATA), flags,
+                          disposition_ptr, license_mask_ptr, cache_size, content_size,
+                          overlapped_ptr);
 }
 
 u32 XamContentCreate_entry(u32 user_index, mapped_string root_name, mapped_void content_data_ptr,
                            u32 flags, mapped_u32 disposition_ptr, mapped_u32 license_mask_ptr,
                            mapped_void overlapped_ptr) {
-  return xeXamContentCreate(user_index, root_name, content_data_ptr, sizeof(XCONTENT_DATA), flags,
-                            disposition_ptr, license_mask_ptr, 0, 0, overlapped_ptr);
+  return XamContentCreate(user_index, root_name, content_data_ptr, sizeof(XCONTENT_DATA), flags,
+                          disposition_ptr, license_mask_ptr, 0, 0, overlapped_ptr);
 }
 
 u32 XamContentCreateInternal_entry(mapped_string root_name, mapped_void content_data_ptr, u32 flags,
                                    mapped_u32 disposition_ptr, mapped_u32 license_mask_ptr,
                                    u32 cache_size, u64 content_size, mapped_void overlapped_ptr) {
-  return xeXamContentCreate(0xFE, root_name, content_data_ptr, sizeof(XCONTENT_AGGREGATE_DATA),
-                            flags, disposition_ptr, license_mask_ptr, cache_size, content_size,
-                            overlapped_ptr);
+  return XamContentCreate(0xFE, root_name, content_data_ptr, sizeof(XCONTENT_AGGREGATE_DATA), flags,
+                          disposition_ptr, license_mask_ptr, cache_size, content_size,
+                          overlapped_ptr);
 }
 
 u32 XamContentOpenFile_entry(u32 user_index, mapped_string root_name, mapped_string path, u32 flags,

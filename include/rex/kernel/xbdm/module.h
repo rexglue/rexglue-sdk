@@ -13,7 +13,6 @@
 #include <string>
 
 #include <rex/ppc/function.h>
-#include <rex/system/export_resolver.h>
 #include <rex/system/kernel_module.h>
 #include <rex/system/kernel_state.h>
 
@@ -25,8 +24,6 @@ class XbdmModule : public system::KernelModule {
  public:
   XbdmModule(Runtime* emulator, system::KernelState* kernel_state);
   virtual ~XbdmModule();
-
-  static void RegisterExportTable(rex::runtime::ExportResolver* export_resolver);
 };
 
 }  // namespace xbdm

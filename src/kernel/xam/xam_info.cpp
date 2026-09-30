@@ -20,6 +20,7 @@
 #include <rex/system/xenumerator.h>
 #include <rex/system/xthread.h>
 #include <rex/system/xtypes.h>
+#include "kernel/kernel_macros.h"
 
 #if REX_PLATFORM_WIN32
 #include <windows.h>
@@ -60,7 +61,7 @@ u32 XamGetOnlineSchema_entry() {
 }
 
 #if REX_PLATFORM_WIN32
-static SYSTEMTIME xeGetLocalSystemTime(uint64_t filetime) {
+static SYSTEMTIME GetLocalSystemTime(uint64_t filetime) {
   FILETIME t;
   t.dwHighDateTime = filetime >> 32;
   t.dwLowDateTime = (uint32_t)filetime;
@@ -78,7 +79,7 @@ void XamFormatDateString_entry(u32 unk, u64 filetime, mapped_void output_buffer,
 
 // TODO: implement this for other platforms
 #if REX_PLATFORM_WIN32
-  auto st = xeGetLocalSystemTime(filetime);
+  auto st = GetLocalSystemTime(filetime);
   // TODO: format this depending on users locale?
   auto str = fmt::format(u"{:02d}/{:02d}/{}", st.wMonth, st.wDay, st.wYear);
   rex::copy_and_swap_truncating(output_buffer.as<char16_t*>(), str, output_count);
@@ -92,7 +93,7 @@ void XamFormatTimeString_entry(u32 unk, u64 filetime, mapped_void output_buffer,
 
 // TODO: implement this for other platforms
 #if REX_PLATFORM_WIN32
-  auto st = xeGetLocalSystemTime(filetime);
+  auto st = GetLocalSystemTime(filetime);
   // TODO: format this depending on users locale?
   auto str = fmt::format(u"{:02d}:{:02d}", st.wHour, st.wMinute);
   rex::copy_and_swap_truncating(output_buffer.as<char16_t*>(), str, output_count);
@@ -176,12 +177,12 @@ u32 XGetAVPack_entry() {
   return 6;
 }
 
-uint32_t xeXGetGameRegion() {
+uint32_t XGetGameRegion() {
   return 0xFFFFu;
 }
 
 u32 XGetGameRegion_entry() {
-  return xeXGetGameRegion();
+  return XGetGameRegion();
 }
 
 u32 XGetLanguage_entry() {
@@ -326,7 +327,7 @@ u32 XamLoaderGetDvdTrayState_entry(mapped_u32 out_state) {
 u32 XamSwapDisc_entry(u32 disc_number) {
   // Stub for multi-disc games. Single-disc games (like Blue Dragon's reblue test)
   // don't need this, but the game may look it up dynamically via XexGetProcedureAddress.
-  REXLOG_DEBUG(kernel, "XamSwapDisc({}) - stub, returning success", (uint32_t)disc_number);
+  REX_KERNEL_STUB("XamSwapDisc({})", (uint32_t)disc_number);
   return X_STATUS_SUCCESS;
 }
 

@@ -14,7 +14,6 @@
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/ppc/context.h>
-#include <rex/system/export_resolver.h>
 #include <rex/system/function_dispatcher.h>
 #include <rex/system/thread_state.h>
 #include <rex/system/xmemory.h>
@@ -32,8 +31,7 @@ void DummyFn(PPCContext&, uint8_t*) {}
 TEST_CASE("FunctionDispatcher: caller_address routes thunk to caller's module pool",
           "[runtime][dispatcher]") {
   auto& memory = GetTestMemory();
-  rex::runtime::ExportResolver resolver;
-  rex::runtime::FunctionDispatcher dispatcher(&memory, &resolver);
+  rex::runtime::FunctionDispatcher dispatcher(&memory);
 
   constexpr uint32_t kModA = 0x82000000u;
   constexpr uint32_t kCodeSize = 0x10000u;
@@ -62,8 +60,7 @@ TEST_CASE("FunctionDispatcher: AllocateThunk(0) uses the entrypoint pool only wh
   // guest caller (the entrypoint wiring its own __imp__* exports during
   // setup). It must land in the entrypoint module's pool.
   auto& memory = GetTestMemory();
-  rex::runtime::ExportResolver resolver;
-  rex::runtime::FunctionDispatcher dispatcher(&memory, &resolver);
+  rex::runtime::FunctionDispatcher dispatcher(&memory);
 
   constexpr uint32_t kModA = 0x84000000u;
   constexpr uint32_t kCodeSize = 0x10000u;
@@ -80,8 +77,7 @@ TEST_CASE("FunctionDispatcher: AllocateThunk(0) uses the entrypoint pool only wh
 TEST_CASE("FunctionDispatcher: AllocateThunk(0) rejects when no entrypoint registered",
           "[runtime][dispatcher]") {
   auto& memory = GetTestMemory();
-  rex::runtime::ExportResolver resolver;
-  rex::runtime::FunctionDispatcher dispatcher(&memory, &resolver);
+  rex::runtime::FunctionDispatcher dispatcher(&memory);
 
   constexpr uint32_t kModA = 0x88000000u;
   constexpr uint32_t kCodeSize = 0x10000u;
@@ -95,8 +91,7 @@ TEST_CASE("FunctionDispatcher: AllocateThunk(0) rejects when no entrypoint regis
 TEST_CASE("FunctionDispatcher: AllocateThunk rejects caller_address outside any module",
           "[runtime][dispatcher]") {
   auto& memory = GetTestMemory();
-  rex::runtime::ExportResolver resolver;
-  rex::runtime::FunctionDispatcher dispatcher(&memory, &resolver);
+  rex::runtime::FunctionDispatcher dispatcher(&memory);
 
   constexpr uint32_t kModA = 0x86000000u;
   constexpr uint32_t kCodeSize = 0x10000u;
@@ -114,8 +109,7 @@ TEST_CASE("FunctionDispatcher: AllocateThunk rejects caller_address outside any 
 TEST_CASE("FunctionDispatcher: SetFunction rejects image data below code_base",
           "[runtime][dispatcher]") {
   auto& memory = GetTestMemory();
-  rex::runtime::ExportResolver resolver;
-  rex::runtime::FunctionDispatcher dispatcher(&memory, &resolver);
+  rex::runtime::FunctionDispatcher dispatcher(&memory);
 
   constexpr uint32_t kImageBase = 0x87000000u;
   constexpr uint32_t kCodeBase = kImageBase + 0x10000u;
@@ -136,8 +130,7 @@ void RegisterOne(rex::runtime::IModuleRegistrar* registrar) {
 
 TEST_CASE("FunctionDispatcher: UnregisterModule clears pool and slots", "[runtime][dispatcher]") {
   auto& memory = GetTestMemory();
-  rex::runtime::ExportResolver resolver;
-  rex::runtime::FunctionDispatcher dispatcher(&memory, &resolver);
+  rex::runtime::FunctionDispatcher dispatcher(&memory);
 
   constexpr uint32_t kCodeSize = 0x10000u;
   constexpr uint32_t kImageSize = 0x100000u;
@@ -170,8 +163,7 @@ TEST_CASE("FunctionDispatcher: UnregisterModule clears pool and slots", "[runtim
 TEST_CASE("FunctionDispatcher: UnregisterModule on unknown id returns nullopt",
           "[runtime][dispatcher]") {
   auto& memory = GetTestMemory();
-  rex::runtime::ExportResolver resolver;
-  rex::runtime::FunctionDispatcher dispatcher(&memory, &resolver);
+  rex::runtime::FunctionDispatcher dispatcher(&memory);
   CHECK_FALSE(dispatcher.UnregisterModule("nope").has_value());
 }
 
@@ -194,8 +186,7 @@ void ScribbleFn(PPCContext& ctx, uint8_t*) {
 TEST_CASE("FunctionDispatcher: ExecuteTrap restores the interrupted register state",
           "[runtime][dispatcher]") {
   auto& memory = GetTestMemory();
-  rex::runtime::ExportResolver resolver;
-  rex::runtime::FunctionDispatcher dispatcher(&memory, &resolver);
+  rex::runtime::FunctionDispatcher dispatcher(&memory);
 
   constexpr uint32_t kTrapModBase = 0x89000000u;
   constexpr uint32_t kCodeSize = 0x10000u;

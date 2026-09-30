@@ -21,6 +21,7 @@
 #include <rex/types.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xtypes.h>
+#include "kernel/kernel_macros.h"
 
 #if REX_PLATFORM_WIN32
 #include <windows.h>
@@ -394,7 +395,7 @@ struct XECRYPT_AES_STATE {
 };
 static_assert_size(XECRYPT_AES_STATE, 0x160);
 
-static inline uint8_t xeXeCryptAesMul2(uint8_t a) {
+static inline uint8_t XeCryptAesMul2(uint8_t a) {
   return (a & 0x80) ? ((a << 1) ^ 0x1B) : (a << 1);
 }
 
@@ -409,49 +410,49 @@ void XeCryptAesKey_entry(ppc_ptr_t<XECRYPT_AES_STATE> state_ptr, mapped_void key
     uint8_t* dec = reinterpret_cast<uint8_t*>(state_ptr->keytabdec[i]);
     uint8_t t, u, v;
     t = enc[0] ^ enc[1] ^ enc[2] ^ enc[3];
-    dec[0] = t ^ enc[0] ^ xeXeCryptAesMul2(enc[0] ^ enc[1]);
-    dec[1] = t ^ enc[1] ^ xeXeCryptAesMul2(enc[1] ^ enc[2]);
-    dec[2] = t ^ enc[2] ^ xeXeCryptAesMul2(enc[2] ^ enc[3]);
-    dec[3] = t ^ enc[3] ^ xeXeCryptAesMul2(enc[3] ^ enc[0]);
-    u = xeXeCryptAesMul2(xeXeCryptAesMul2(enc[0] ^ enc[2]));
-    v = xeXeCryptAesMul2(xeXeCryptAesMul2(enc[1] ^ enc[3]));
-    t = xeXeCryptAesMul2(u ^ v);
+    dec[0] = t ^ enc[0] ^ XeCryptAesMul2(enc[0] ^ enc[1]);
+    dec[1] = t ^ enc[1] ^ XeCryptAesMul2(enc[1] ^ enc[2]);
+    dec[2] = t ^ enc[2] ^ XeCryptAesMul2(enc[2] ^ enc[3]);
+    dec[3] = t ^ enc[3] ^ XeCryptAesMul2(enc[3] ^ enc[0]);
+    u = XeCryptAesMul2(XeCryptAesMul2(enc[0] ^ enc[2]));
+    v = XeCryptAesMul2(XeCryptAesMul2(enc[1] ^ enc[3]));
+    t = XeCryptAesMul2(u ^ v);
     dec[0] ^= t ^ u;
     dec[1] ^= t ^ v;
     dec[2] ^= t ^ u;
     dec[3] ^= t ^ v;
     t = enc[4] ^ enc[5] ^ enc[6] ^ enc[7];
-    dec[4] = t ^ enc[4] ^ xeXeCryptAesMul2(enc[4] ^ enc[5]);
-    dec[5] = t ^ enc[5] ^ xeXeCryptAesMul2(enc[5] ^ enc[6]);
-    dec[6] = t ^ enc[6] ^ xeXeCryptAesMul2(enc[6] ^ enc[7]);
-    dec[7] = t ^ enc[7] ^ xeXeCryptAesMul2(enc[7] ^ enc[4]);
-    u = xeXeCryptAesMul2(xeXeCryptAesMul2(enc[4] ^ enc[6]));
-    v = xeXeCryptAesMul2(xeXeCryptAesMul2(enc[5] ^ enc[7]));
-    t = xeXeCryptAesMul2(u ^ v);
+    dec[4] = t ^ enc[4] ^ XeCryptAesMul2(enc[4] ^ enc[5]);
+    dec[5] = t ^ enc[5] ^ XeCryptAesMul2(enc[5] ^ enc[6]);
+    dec[6] = t ^ enc[6] ^ XeCryptAesMul2(enc[6] ^ enc[7]);
+    dec[7] = t ^ enc[7] ^ XeCryptAesMul2(enc[7] ^ enc[4]);
+    u = XeCryptAesMul2(XeCryptAesMul2(enc[4] ^ enc[6]));
+    v = XeCryptAesMul2(XeCryptAesMul2(enc[5] ^ enc[7]));
+    t = XeCryptAesMul2(u ^ v);
     dec[4] ^= t ^ u;
     dec[5] ^= t ^ v;
     dec[6] ^= t ^ u;
     dec[7] ^= t ^ v;
     t = enc[8] ^ enc[9] ^ enc[10] ^ enc[11];
-    dec[8] = t ^ enc[8] ^ xeXeCryptAesMul2(enc[8] ^ enc[9]);
-    dec[9] = t ^ enc[9] ^ xeXeCryptAesMul2(enc[9] ^ enc[10]);
-    dec[10] = t ^ enc[10] ^ xeXeCryptAesMul2(enc[10] ^ enc[11]);
-    dec[11] = t ^ enc[11] ^ xeXeCryptAesMul2(enc[11] ^ enc[8]);
-    u = xeXeCryptAesMul2(xeXeCryptAesMul2(enc[8] ^ enc[10]));
-    v = xeXeCryptAesMul2(xeXeCryptAesMul2(enc[9] ^ enc[11]));
-    t = xeXeCryptAesMul2(u ^ v);
+    dec[8] = t ^ enc[8] ^ XeCryptAesMul2(enc[8] ^ enc[9]);
+    dec[9] = t ^ enc[9] ^ XeCryptAesMul2(enc[9] ^ enc[10]);
+    dec[10] = t ^ enc[10] ^ XeCryptAesMul2(enc[10] ^ enc[11]);
+    dec[11] = t ^ enc[11] ^ XeCryptAesMul2(enc[11] ^ enc[8]);
+    u = XeCryptAesMul2(XeCryptAesMul2(enc[8] ^ enc[10]));
+    v = XeCryptAesMul2(XeCryptAesMul2(enc[9] ^ enc[11]));
+    t = XeCryptAesMul2(u ^ v);
     dec[8] ^= t ^ u;
     dec[9] ^= t ^ v;
     dec[10] ^= t ^ u;
     dec[11] ^= t ^ v;
     t = enc[12] ^ enc[13] ^ enc[14] ^ enc[15];
-    dec[12] = t ^ enc[12] ^ xeXeCryptAesMul2(enc[12] ^ enc[13]);
-    dec[13] = t ^ enc[13] ^ xeXeCryptAesMul2(enc[13] ^ enc[14]);
-    dec[14] = t ^ enc[14] ^ xeXeCryptAesMul2(enc[14] ^ enc[15]);
-    dec[15] = t ^ enc[15] ^ xeXeCryptAesMul2(enc[15] ^ enc[12]);
-    u = xeXeCryptAesMul2(xeXeCryptAesMul2(enc[12] ^ enc[14]));
-    v = xeXeCryptAesMul2(xeXeCryptAesMul2(enc[13] ^ enc[15]));
-    t = xeXeCryptAesMul2(u ^ v);
+    dec[12] = t ^ enc[12] ^ XeCryptAesMul2(enc[12] ^ enc[13]);
+    dec[13] = t ^ enc[13] ^ XeCryptAesMul2(enc[13] ^ enc[14]);
+    dec[14] = t ^ enc[14] ^ XeCryptAesMul2(enc[14] ^ enc[15]);
+    dec[15] = t ^ enc[15] ^ XeCryptAesMul2(enc[15] ^ enc[12]);
+    u = XeCryptAesMul2(XeCryptAesMul2(enc[12] ^ enc[14]));
+    v = XeCryptAesMul2(XeCryptAesMul2(enc[13] ^ enc[15]));
+    t = XeCryptAesMul2(u ^ v);
     dec[12] ^= t ^ u;
     dec[13] ^= t ^ v;
     dec[14] ^= t ^ u;
@@ -583,8 +584,8 @@ u32 XeKeysHmacSha_entry(u32 key_num, mapped_void inp_1, u32 inp_1_size, mapped_v
   return X_STATUS_UNSUCCESSFUL;
 }
 
-static const uint8_t xe_key_obfuscation_key[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                                                   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+static const uint8_t kKeyObfuscationKey[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                               0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 u32 XeKeysAesCbcUsingKey_entry(mapped_void obscured_key, mapped_void inp_ptr, u32 inp_size,
                                mapped_void out_ptr, mapped_void feed_ptr, u32 encrypt) {
@@ -593,7 +594,7 @@ u32 XeKeysAesCbcUsingKey_entry(mapped_void obscured_key, mapped_void inp_ptr, u3
   // Deobscure key
   XECRYPT_AES_STATE aes;
   XeCryptAesKey_entry(ppc_ptr_t<XECRYPT_AES_STATE>::from_host(&aes),
-                      mapped_void::from_host((void*)xe_key_obfuscation_key));
+                      mapped_void::from_host((void*)kKeyObfuscationKey));
   XeCryptAesEcb_entry(ppc_ptr_t<XECRYPT_AES_STATE>::from_host(&aes), obscured_key,
                       mapped_void::from_host(key), 0);
 
@@ -611,7 +612,7 @@ u32 XeKeysObscureKey_entry(mapped_void input, mapped_void output) {
 
   XECRYPT_AES_STATE aes;
   XeCryptAesKey_entry(ppc_ptr_t<XECRYPT_AES_STATE>::from_host(&aes),
-                      mapped_void::from_host((void*)xe_key_obfuscation_key));
+                      mapped_void::from_host((void*)kKeyObfuscationKey));
   XeCryptAesEcb_entry(ppc_ptr_t<XECRYPT_AES_STATE>::from_host(&aes), input, output, 1);
 
   return X_STATUS_SUCCESS;
@@ -620,16 +621,14 @@ u32 XeKeysObscureKey_entry(mapped_void input, mapped_void output) {
 u32 XeKeysHmacShaUsingKey_entry(mapped_void obscured_key, mapped_void inp_1, u32 inp_1_size,
                                 mapped_void inp_2, u32 inp_2_size, mapped_void inp_3,
                                 u32 inp_3_size, mapped_void out, u32 out_size) {
-  if (!obscured_key) {
-    return X_STATUS_INVALID_PARAMETER;
-  }
+  REX_KERNEL_ARG(obscured_key);
 
   uint8_t key[16];
 
   // Deobscure key
   XECRYPT_AES_STATE aes;
   XeCryptAesKey_entry(ppc_ptr_t<XECRYPT_AES_STATE>::from_host(&aes),
-                      mapped_void::from_host((void*)xe_key_obfuscation_key));
+                      mapped_void::from_host((void*)kKeyObfuscationKey));
   XeCryptAesEcb_entry(ppc_ptr_t<XECRYPT_AES_STATE>::from_host(&aes), obscured_key,
                       mapped_void::from_host(key), 0);
 
@@ -639,13 +638,13 @@ u32 XeKeysHmacShaUsingKey_entry(mapped_void obscured_key, mapped_void inp_1, u32
 }
 
 u32 XeKeysConsolePrivateKeySign_entry(mapped_void hash, mapped_void signature) {
-  REXLOG_DEBUG(kernel, "XeKeysConsolePrivateKeySign - stub");
+  REX_KERNEL_STUB("XeKeysConsolePrivateKeySign");
   return 0;  // Success
 }
 
 u32 XeKeysConsoleSignatureVerification_entry(mapped_void hash, mapped_void signature,
                                              mapped_void pubkey) {
-  REXLOG_DEBUG(kernel, "XeKeysConsoleSignatureVerification - stub");
+  REX_KERNEL_STUB("XeKeysConsoleSignatureVerification");
   return 0;  // Success (signature valid)
 }
 

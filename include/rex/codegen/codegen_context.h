@@ -26,10 +26,6 @@
 
 namespace rex {
 class Runtime;
-
-namespace runtime {
-class ExportResolver;
-}
 }  // namespace rex
 
 namespace rex::codegen {
@@ -156,9 +152,6 @@ class CodegenContext {
   const Limits& limits() const { return limits_; }
   void setLimits(const Limits& limits) { limits_ = limits; }
 
-  runtime::ExportResolver* resolver() const { return resolver_; }
-  void setResolver(runtime::ExportResolver* r) { resolver_ = r; }
-
   const std::filesystem::path& configDir() const { return configDir_; }
   void setConfigDir(const std::filesystem::path& dir) { configDir_ = dir; }
 
@@ -176,7 +169,6 @@ class CodegenContext {
   AnalysisState analysisState_;             ///< Analysis state (populated during analysis)
   Limits limits_;                           ///< Analysis limits
   std::unique_ptr<DecodedBinary> decoded_;  ///< Decoded instructions (created via initDecoded())
-  runtime::ExportResolver* resolver_ = nullptr;  ///< For runtime resolution (borrowed)
   std::filesystem::path configDir_;  ///< Directory containing config file (for relative paths)
   bool is_dll_module_ = false;       ///< True if this module is a DLL (shared library output)
   bool has_dll_modules_ = false;     ///< True if the project has DLL modules (multi-binary)

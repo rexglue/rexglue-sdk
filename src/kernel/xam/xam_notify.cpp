@@ -23,7 +23,7 @@ namespace xam {
 using namespace rex::system;
 using namespace rex::system::xam;
 
-uint32_t xeXamNotifyCreateListener(uint64_t mask, uint32_t is_system, uint32_t max_version) {
+uint32_t XamNotifyCreateListener(uint64_t mask, uint32_t is_system, uint32_t max_version) {
   assert_true(max_version < 11);
 
   if (max_version > 10) {
@@ -45,11 +45,11 @@ uint32_t xeXamNotifyCreateListener(uint64_t mask, uint32_t is_system, uint32_t m
 }
 
 u32 XamNotifyCreateListener_entry(u64 mask, u32 max_version) {
-  return xeXamNotifyCreateListener(mask, 0, max_version);
+  return XamNotifyCreateListener(mask, 0, max_version);
 }
 
 u32 XamNotifyCreateListenerInternal_entry(u64 mask, u32 is_system, u32 max_version) {
-  return xeXamNotifyCreateListener(mask, is_system, max_version);
+  return XamNotifyCreateListener(mask, is_system, max_version);
 }
 
 // https://github.com/CodeAsm/ffplay360/blob/master/Common/AtgSignIn.cpp

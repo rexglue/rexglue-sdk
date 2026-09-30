@@ -17,7 +17,7 @@
 #include <rex/codegen/binary_view.h>
 #include <rex/logging.h>
 
-#include <rex/system/export_resolver.h>
+#include <rex/runtime/exports.h>
 
 namespace rex::codegen {
 
@@ -236,15 +236,13 @@ void BuilderContext::emit_function_call(uint32_t address) {
 
       // Try to resolve ordinal to actual function name
       auto at_pos = importTarget.name.find('@');
-      if (at_pos != std::string::npos && emitCtx.resolver) {
+      if (at_pos != std::string::npos) {
         auto lib_name = importTarget.name.substr(0, at_pos);
         auto ordinal_str = importTarget.name.substr(at_pos + 1);
         uint16_t ordinal = static_cast<uint16_t>(std::stoul(ordinal_str));
 
-        auto* exp = emitCtx.resolver->GetExportByOrdinal(lib_name + ".xex", ordinal);
-        if (!exp)
-          exp = emitCtx.resolver->GetExportByOrdinal(lib_name, ordinal);
-
+        const auto exportModule = runtime::ModuleFromName(lib_name);
+        const auto* exp = exportModule ? runtime::FindByOrdinal(*exportModule, ordinal) : nullptr;
         if (exp) {
           func_name = "__imp__" + std::string(exp->name);
         }

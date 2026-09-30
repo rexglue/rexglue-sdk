@@ -12,7 +12,7 @@
 
 #include <unordered_map>
 
-#include <rex/system/export_resolver.h>
+#include <rex/runtime/exports.h>
 #include <rex/system/xmodule.h>
 
 namespace rex {
@@ -38,10 +38,25 @@ class KernelModule : public XModule {
    */
   void InvalidateThunkCacheInRange(uint32_t lo, uint32_t hi);
 
+  /**
+   * Binds a variable export to the guest address that holds it.
+   *
+   * @param ordinal The variable ordinal.
+   * @param address The guest address of the variable.
+   */
+  void SetVariable(uint16_t ordinal, uint32_t address) { variables_.Set(ordinal, address); }
+
+  /**
+   * Returns the address of a variable export.
+   *
+   * @param ordinal The variable ordinal.
+   * @return The guest address, or 0 when the module never created the variable.
+   */
+  uint32_t Variable(uint16_t ordinal) const { return variables_.Get(ordinal); }
+
  protected:
   Runtime* emulator_;
   memory::Memory* memory_;
-  rex::runtime::ExportResolver* export_resolver_;
 
   std::string name_;
   std::string path_;
@@ -62,6 +77,7 @@ class KernelModule : public XModule {
     }
   };
   std::unordered_map<ThunkKey, uint32_t, ThunkKeyHash> thunk_cache_;
+  rex::runtime::ExportVariables variables_;
 };
 
 }  // namespace system

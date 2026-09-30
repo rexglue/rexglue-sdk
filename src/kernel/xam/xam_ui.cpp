@@ -26,6 +26,7 @@
 #include <rex/ui/imgui_drawer.h>
 #include <rex/ui/window.h>
 #include <rex/ui/windowed_app_context.h>
+#include "kernel/kernel_macros.h"
 
 #include "kernel/xam/xam_dialog.h"
 
@@ -108,8 +109,8 @@ class XamDialog : public rex::ui::ImGuiDialog {
 };
 
 template <typename T>
-X_RESULT xeXamDispatchDialog(std::function<T*()> create, std::function<X_RESULT(T*)> close_callback,
-                             uint32_t overlapped) {
+X_RESULT XamDispatchDialog(std::function<T*()> create, std::function<X_RESULT(T*)> close_callback,
+                           uint32_t overlapped) {
   auto pre = []() {
     // Broadcast XN_SYS_UI = true
     REX_KERNEL_STATE()->BroadcastNotification(0x9, true);
@@ -148,9 +149,9 @@ X_RESULT xeXamDispatchDialog(std::function<T*()> create, std::function<X_RESULT(
 }
 
 template <typename T>
-X_RESULT xeXamDispatchDialogEx(std::function<T*()> create,
-                               std::function<X_RESULT(T*, uint32_t&, uint32_t&)> close_callback,
-                               uint32_t overlapped) {
+X_RESULT XamDispatchDialogEx(std::function<T*()> create,
+                             std::function<X_RESULT(T*, uint32_t&, uint32_t&)> close_callback,
+                             uint32_t overlapped) {
   auto pre = []() {
     // Broadcast XN_SYS_UI = true
     REX_KERNEL_STATE()->BroadcastNotification(0x9, true);
@@ -191,15 +192,15 @@ X_RESULT xeXamDispatchDialogEx(std::function<T*()> create,
   }
 }
 
-X_RESULT xeXamDispatchHeadless(std::function<X_RESULT()> run_callback, uint32_t overlapped) {
+X_RESULT XamDispatchHeadless(std::function<X_RESULT()> run_callback, uint32_t overlapped) {
   auto pre = []() {
-    REXLOG_DEBUG(kernel, "xeXamDispatchHeadless: Broadcasting XN_SYS_UI = true");
+    REXLOG_DEBUG(kernel, "XamDispatchHeadless: Broadcasting XN_SYS_UI = true");
     // Broadcast XN_SYS_UI = true
     REX_KERNEL_STATE()->BroadcastNotification(0x9, true);
   };
   auto post = []() {
     rex::platform::Sleep(std::chrono::milliseconds(100));
-    REXLOG_DEBUG(kernel, "xeXamDispatchHeadless: Broadcasting XN_SYS_UI = false");
+    REXLOG_DEBUG(kernel, "XamDispatchHeadless: Broadcasting XN_SYS_UI = false");
     // Broadcast XN_SYS_UI = false
     REX_KERNEL_STATE()->BroadcastNotification(0x9, false);
   };
@@ -214,32 +215,8 @@ X_RESULT xeXamDispatchHeadless(std::function<X_RESULT()> run_callback, uint32_t 
   }
 }
 
-X_RESULT xeXamDispatchHeadlessEx(std::function<X_RESULT(uint32_t&, uint32_t&)> run_callback,
-                                 uint32_t overlapped) {
-  auto pre = []() {
-    // Broadcast XN_SYS_UI = true
-    REX_KERNEL_STATE()->BroadcastNotification(0x9, true);
-  };
-  auto post = []() {
-    rex::platform::Sleep(std::chrono::milliseconds(100));
-    // Broadcast XN_SYS_UI = false
-    REX_KERNEL_STATE()->BroadcastNotification(0x9, false);
-  };
-  if (!overlapped) {
-    pre();
-    uint32_t extended_error, length;
-    auto result = run_callback(extended_error, length);
-    post();
-    // TODO(gibbed): do something with extended_error/length?
-    return result;
-  } else {
-    REX_KERNEL_STATE()->CompleteOverlappedDeferredEx(run_callback, overlapped, pre, post);
-    return X_ERROR_IO_PENDING;
-  }
-}
-
 u32 XamIsUIActive_entry() {
-  return xeXamIsUIActive();
+  return XamIsUIActive();
 }
 
 class MessageBoxDialog : public XamDialog {
@@ -335,7 +312,7 @@ u32 XamShowMessageBoxUI_entry(u32 user_index, mapped_wstring title_ptr, mapped_w
       *result_ptr = static_cast<uint32_t>(active_button);
       return X_ERROR_SUCCESS;
     };
-    result = xeXamDispatchHeadless(run, overlapped.guest_address());
+    result = XamDispatchHeadless(run, overlapped.guest_address());
   } else {
     // TODO(benvanik): setup icon states.
     switch (flags & 0xF) {
@@ -359,7 +336,7 @@ u32 XamShowMessageBoxUI_entry(u32 user_index, mapped_wstring title_ptr, mapped_w
     const Runtime* emulator = REX_KERNEL_STATE()->emulator();
     ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
     if (imgui_drawer) {
-      result = xeXamDispatchDialog<MessageBoxDialog>(
+      result = XamDispatchDialog<MessageBoxDialog>(
           [=] {
             return new MessageBoxDialog(imgui_drawer, title, text_str, buttons, active_button);
           },
@@ -370,7 +347,7 @@ u32 XamShowMessageBoxUI_entry(u32 user_index, mapped_wstring title_ptr, mapped_w
         *result_ptr = static_cast<uint32_t>(active_button);
         return X_ERROR_SUCCESS;
       };
-      result = xeXamDispatchHeadless(run, overlapped.guest_address());
+      result = XamDispatchHeadless(run, overlapped.guest_address());
     }
   }
   return result;
@@ -482,7 +459,7 @@ u32 XamShowKeyboardUI_entry(u32 user_index, u32 flags, mapped_wstring default_te
       }
       return X_ERROR_SUCCESS;
     };
-    result = xeXamDispatchHeadless(run, overlapped.guest_address());
+    result = XamDispatchHeadless(run, overlapped.guest_address());
   } else {
     auto close = [buffer, buffer_length](KeyboardInputDialog* dialog, uint32_t& extended_error,
                                          uint32_t& length) -> X_RESULT {
@@ -518,7 +495,7 @@ u32 XamShowKeyboardUI_entry(u32 user_index, u32 flags, mapped_wstring default_te
 
     if (imgui_drawer) {
       uint32_t buffer_length_safe = buffer_length + 1;  // +1 for null terminator, just in case
-      result = xeXamDispatchDialogEx<KeyboardInputDialog>(
+      result = XamDispatchDialogEx<KeyboardInputDialog>(
           [=] {
             return new KeyboardInputDialog(imgui_drawer, title_str, desc_str, def_text_str,
                                            buffer_length_safe);
@@ -534,7 +511,7 @@ u32 XamShowKeyboardUI_entry(u32 user_index, u32 flags, mapped_wstring default_te
         }
         return X_ERROR_SUCCESS;
       };
-      result = xeXamDispatchHeadless(run, overlapped.guest_address());
+      result = XamDispatchHeadless(run, overlapped.guest_address());
     }
   }
   return result;
@@ -547,7 +524,7 @@ u32 XamShowDeviceSelectorUI_entry(u32 user_index, u32 content_type, u32 content_
                uint32_t(user_index), uint32_t(content_type), uint32_t(content_flags),
                uint64_t(total_requested), device_id_ptr.guest_address(),
                overlapped.guest_address());
-  return xeXamDispatchHeadless(
+  return XamDispatchHeadless(
       [device_id_ptr]() -> X_RESULT {
         // NOTE: 0x00000001 is our dummy device ID from xam_content.cc
         *device_id_ptr = 0x00000001;
@@ -563,7 +540,7 @@ void XamShowDirtyDiscErrorUI_entry(u32 user_index) {
   const Runtime* emulator = REX_KERNEL_STATE()->emulator();
   ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
   if (imgui_drawer) {
-    xeXamDispatchDialog<MessageBoxDialog>(
+    XamDispatchDialog<MessageBoxDialog>(
         [imgui_drawer] {
           return new MessageBoxDialog(
               imgui_drawer, "Disc Read Error",
@@ -595,7 +572,7 @@ uint32_t XamShowMessageBoxUIEx_entry() {
   // TODO(tomc): implement properly
   static bool warned = false;
   if (!warned) {
-    REXLOG_WARN(kernel, "STUB XamShowMessageBoxUIEx - not implemented");
+    REX_KERNEL_STUB("XamShowMessageBoxUIEx");
     warned = true;
   }
   return 0;

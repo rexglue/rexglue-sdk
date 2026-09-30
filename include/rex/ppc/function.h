@@ -33,32 +33,6 @@
 namespace rex::ppc {
 
 //=============================================================================
-// Global PPC Function Registry (for runtime ordinal lookup)
-//=============================================================================
-// Populated by static constructors from XAM_EXPORT / XBOXKRNL_EXPORT macros.
-
-inline std::vector<std::pair<const char*, PPCFunc*>>& GetPPCFuncRegistry() {
-  static std::vector<std::pair<const char*, PPCFunc*>> registry;
-  return registry;
-}
-
-inline PPCFunc* FindPPCFuncByName(const char* name) {
-  for (auto& [n, f] : GetPPCFuncRegistry()) {
-    if (std::strcmp(n, name) == 0)
-      return f;
-  }
-  return nullptr;
-}
-
-namespace detail {
-struct PPCFuncRegistrar {
-  PPCFuncRegistrar(const char* name, PPCFunc* func) {
-    GetPPCFuncRegistry().emplace_back(name, func);
-  }
-};
-}  // namespace detail
-
-//=============================================================================
 // Type Traits (additional, types.h has is_be_type)
 //=============================================================================
 

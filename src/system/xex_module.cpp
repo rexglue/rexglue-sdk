@@ -23,7 +23,8 @@
 #include <rex/math.h>
 #include <rex/memory.h>
 #include <rex/runtime.h>
-#include <rex/system/export_resolver.h>
+#include <rex/runtime/exports.h>
+#include <rex/system/kernel_module.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/lzx.h>
 #include <rex/system/function_dispatcher.h>
@@ -1061,8 +1062,11 @@ bool XexModule::SetupLibraryImports(const std::string_view name,
 
   auto base_name = rex::utf8_find_base_name_from_guest_path(name);
 
-  // Get export resolver for variable import patching
-  auto* export_resolver = kernel_state_->emulator()->export_resolver();
+  const auto kernel_module_id = rex::runtime::ModuleFromName(base_name);
+  system::object_ref<system::KernelModule> kernel_module;
+  if (kernel_module_id && kernel_state_->IsKernelModule(base_name)) {
+    kernel_module = kernel_state_->GetKernelModule(base_name);
+  }
 
   ImportLibrary library_info;
   library_info.name = base_name;
@@ -1094,16 +1098,15 @@ bool XexModule::SetupLibraryImports(const std::string_view name,
       import_info.value_address = record_addr;
 
       // Patch variable imports in guest memory with the actual address
-      if (export_resolver) {
-        auto kernel_export = export_resolver->GetExportByOrdinal(base_name, ordinal);
-        if (kernel_export && kernel_export->type == runtime::Export::Type::kVariable) {
-          if (kernel_export->is_implemented() && kernel_export->variable_ptr) {
-            // Write the variable address to guest memory
-            *record_slot = kernel_export->variable_ptr;
+      if (kernel_module) {
+        const auto* kernel_export = rex::runtime::FindByOrdinal(*kernel_module_id, ordinal);
+        if (kernel_export && kernel_export->kind == rex::runtime::ExportKind::Variable) {
+          const uint32_t variable_ptr = kernel_module->Variable(ordinal);
+          if (variable_ptr) {
+            *record_slot = variable_ptr;
             REXLOG_DEBUG(system, "Patched variable import {}:{:#x} ({}) -> {:#x}", base_name,
-                         ordinal, kernel_export->name, kernel_export->variable_ptr);
+                         ordinal, kernel_export->name, variable_ptr);
           } else {
-            // write garbage value if we don't have it implemented
             *record_slot = 0xD000BEEF | (kernel_export->ordinal & 0xFFF) << 16;
             REXLOG_WARN(system, "Variable import {}:{:#x} ({}) not implemented", base_name, ordinal,
                         kernel_export->name);

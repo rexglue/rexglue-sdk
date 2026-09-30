@@ -334,14 +334,14 @@ uint32_t KernelState::AllocateTLS(PPCContext* context) {
 
   auto globals = memory()->TranslateVirtual<KernelGuestGlobals*>(GetKernelGuestGlobals());
   auto tls_lock = &globals->tls_lock;
-  auto old_irql = kernel::xboxkrnl::xeKeKfAcquireSpinLock(context, tls_lock);
+  auto old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(context, tls_lock);
 
   uint32_t result = X_TLS_OUT_OF_INDEXES;
 
   auto current_thread = XThread::GetCurrentThread();
   if (!current_thread) {
     REXLOG_ERROR(system, "AllocateTLS: no current thread");
-    kernel::xboxkrnl::xeKeKfReleaseSpinLock(context, tls_lock, old_irql);
+    kernel::xboxkrnl::KeKfReleaseSpinLock(context, tls_lock, old_irql);
     return X_TLS_OUT_OF_INDEXES;
   }
 
@@ -349,7 +349,7 @@ uint32_t KernelState::AllocateTLS(PPCContext* context) {
       static_cast<uint32_t>(current_thread->guest_object<X_KTHREAD>()->process));
   if (!process_ptr) {
     REXLOG_ERROR(system, "AllocateTLS: failed to resolve current process");
-    kernel::xboxkrnl::xeKeKfReleaseSpinLock(context, tls_lock, old_irql);
+    kernel::xboxkrnl::KeKfReleaseSpinLock(context, tls_lock, old_irql);
     return X_TLS_OUT_OF_INDEXES;
   }
 
@@ -371,7 +371,7 @@ uint32_t KernelState::AllocateTLS(PPCContext* context) {
     break;
   }
 
-  kernel::xboxkrnl::xeKeKfReleaseSpinLock(context, tls_lock, old_irql);
+  kernel::xboxkrnl::KeKfReleaseSpinLock(context, tls_lock, old_irql);
   return result;
 }
 
@@ -406,7 +406,7 @@ void KernelState::FreeTLS(PPCContext* context, uint32_t slot) {
 
   auto globals = memory()->TranslateVirtual<KernelGuestGlobals*>(GetKernelGuestGlobals());
   auto tls_lock = &globals->tls_lock;
-  auto old_irql = kernel::xboxkrnl::xeKeKfAcquireSpinLock(context, tls_lock);
+  auto old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(context, tls_lock);
 
   uint32_t bitmap_index = slot / 32;
   uint32_t bit_mask = 1U << (31 - (slot % 32));
@@ -414,7 +414,7 @@ void KernelState::FreeTLS(PPCContext* context, uint32_t slot) {
 
   if (bitmap_value & bit_mask) {
     REXLOG_WARN(system, "FreeTLS: slot {} already free", slot);
-    kernel::xboxkrnl::xeKeKfReleaseSpinLock(context, tls_lock, old_irql);
+    kernel::xboxkrnl::KeKfReleaseSpinLock(context, tls_lock, old_irql);
     return;
   }
 
@@ -433,7 +433,7 @@ void KernelState::FreeTLS(PPCContext* context, uint32_t slot) {
 
   process_ptr->tls_slot_bitmap[bitmap_index] = bitmap_value | bit_mask;
 
-  kernel::xboxkrnl::xeKeKfReleaseSpinLock(context, tls_lock, old_irql);
+  kernel::xboxkrnl::KeKfReleaseSpinLock(context, tls_lock, old_irql);
 }
 
 void KernelState::RegisterTitleTerminateNotification(uint32_t routine, uint32_t priority) {
@@ -625,21 +625,16 @@ void KernelState::SetExecutableModule(object_ref<UserModule> module) {
                       tls_header->raw_data_address);
   }
 
-  // Setup the kernel's XexExecutableModuleHandle field.
-  auto export_entry = emulator_->function_dispatcher()->export_resolver()->GetExportByOrdinal(
-      "xboxkrnl.exe", 0x0193 /* XexExecutableModuleHandle */);
-  if (export_entry) {
-    assert_not_zero(export_entry->variable_ptr);
-    auto variable_ptr = memory_->TranslateVirtual<be<uint32_t>*>(export_entry->variable_ptr);
-    *variable_ptr = executable_module_->hmodule_ptr();
-  }
-
-  // Setup the kernel's ExLoadedImageName field
-  export_entry = emulator_->function_dispatcher()->export_resolver()->GetExportByOrdinal(
-      "xboxkrnl.exe", 0x01AF /* ExLoadedImageName */);
-  if (export_entry) {
-    char* variable_ptr = memory_->TranslateVirtual<char*>(export_entry->variable_ptr);
-    rex::copy_truncating(variable_ptr, executable_module_->path(), kExLoadedImageNameSize);
+  auto xboxkrnl = GetKernelModule("xboxkrnl.exe");
+  if (xboxkrnl) {
+    if (const uint32_t address = xboxkrnl->Variable(0x0193 /* XexExecutableModuleHandle */)) {
+      auto variable_ptr = memory_->TranslateVirtual<be<uint32_t>*>(address);
+      *variable_ptr = executable_module_->hmodule_ptr();
+    }
+    if (const uint32_t address = xboxkrnl->Variable(0x01AF /* ExLoadedImageName */)) {
+      char* variable_ptr = memory_->TranslateVirtual<char*>(address);
+      rex::copy_truncating(variable_ptr, executable_module_->path(), kExLoadedImageNameSize);
+    }
   }
 
   // Spin up deferred dispatch worker.

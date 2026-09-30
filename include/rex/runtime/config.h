@@ -34,14 +34,8 @@ struct KernelConfig {
 
 /** Runtime module config. */
 struct RuntimeConfig {
-  /** Guest CRT heap size in MiB, used when the image was recompiled with the rexcrt heap. 1 to
-   * 2048.
-   */
-  u32 title_memory_mb = 480;
-  /** Code and read only data sections of the title image load writable. */
-  bool writable_code_segments = false;
-  /** The first and last 64 KiB of the guest address space fault on any access. */
-  bool protect_zero = true;
+  /** Shim heap size in MiB, used when the image was recompiled with the shim heap. 1 to 2048. */
+  u32 heap_size_mb = 256;
   /** Values the kernel reports to the title. */
   KernelConfig kernel;
   /** Time TerminateTitle waits for guest threads to exit before it terminates the rest. */

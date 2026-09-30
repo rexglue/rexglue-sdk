@@ -20,7 +20,7 @@
 #include <rex/logging.h>
 
 #include <rex/memory/utils.h>
-#include <rex/system/export_resolver.h>
+#include <rex/runtime/exports.h>
 #include <rex/types.h>
 
 #include <ppc.h>
@@ -448,11 +448,6 @@ Result<void> registerEntryPoints(CodegenContext& ctx) {
 
   // Register imports
   {
-    auto* resolver = ctx.resolver();
-    if (!resolver) {
-      REXLOG_WARN(codegen, "No export resolver available - imports won't be resolved");
-    }
-
     size_t importCount = 0;
     size_t resolvedCount = 0;
     size_t variableCount = 0;
@@ -470,19 +465,15 @@ Result<void> registerEntryPoints(CodegenContext& ctx) {
       uint16_t ordinal = static_cast<uint16_t>(std::stoul(ordinal_str));
 
       std::string resolvedName;
-      if (resolver) {
-        auto* exp = resolver->GetExportByOrdinal(lib_name + ".xex", ordinal);
-        if (!exp)
-          exp = resolver->GetExportByOrdinal(lib_name, ordinal);
-
-        if (exp) {
-          if (exp->type == runtime::Export::Type::kFunction) {
-            resolvedName = "__imp__" + std::string(exp->name);
-            resolvedCount++;
-          } else {
-            variableCount++;
-            continue;
-          }
+      const auto exportModule = runtime::ModuleFromName(lib_name);
+      const auto* exp = exportModule ? runtime::FindByOrdinal(*exportModule, ordinal) : nullptr;
+      if (exp) {
+        if (exp->kind == runtime::ExportKind::Function) {
+          resolvedName = "__imp__" + std::string(exp->name);
+          resolvedCount++;
+        } else {
+          variableCount++;
+          continue;
         }
       }
 
