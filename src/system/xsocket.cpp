@@ -12,6 +12,7 @@
 #include <cstring>
 
 #include <rex/kernel/xam/module.h>
+#include <rex/logging.h>
 #include <rex/platform.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xsocket.h>
@@ -42,6 +43,11 @@ XSocket::~XSocket() {
   Close();
 }
 
+// FIONBIO as the guest knows it (Winsock's _IOW('f', 126, u_long)). The host
+// value differs per platform, so this is only ever compared against, never
+// passed down - see socket_set_non_blocking.
+static constexpr uint32_t kGuestFionbio = 0x8004667E;
+
 X_STATUS XSocket::Initialize(AddressFamily af, Type type, Protocol proto) {
   af_ = af;
   type_ = type;
@@ -55,6 +61,21 @@ X_STATUS XSocket::Initialize(AddressFamily af, Type type, Protocol proto) {
   native_handle_ = socket(af, type, proto);
   if (native_handle_ == -1) {
     return X_STATUS_UNSUCCESSFUL;
+  }
+
+  // Guest sockets start non-blocking.
+  //
+  // A title's main loop polls its sockets every frame and expects a read with
+  // no data waiting to come straight back as WSAEWOULDBLOCK. Left blocking,
+  // the host recvfrom() parks the guest thread until a datagram that will
+  // never arrive shows up - with no network peer, that is forever, and if the
+  // caller happens to be the guest's main thread the whole title stops.
+  // The guest can still switch the mode itself through ioctlsocket(FIONBIO).
+  if (rex::net::socket_set_non_blocking(native_handle_, true) != 0) {
+    REXLOG_WARN(
+        "XSocket: could not set socket {} non-blocking; a guest read with no data "
+        "waiting will block the calling guest thread",
+        native_handle_);
   }
 
   return X_STATUS_SUCCESS;
@@ -96,6 +117,16 @@ X_STATUS XSocket::SetOption(uint32_t level, uint32_t optname, void* optval_ptr, 
 }
 
 X_STATUS XSocket::IOControl(uint32_t cmd, uint8_t* arg_ptr) {
+  // The guest's FIONBIO is Winsock's value, which is not what a POSIX host
+  // ioctl() expects - route it through the platform helper instead of passing
+  // the guest constant straight down.
+  if (cmd == kGuestFionbio) {
+    const bool non_blocking = arg_ptr && *reinterpret_cast<uint32_t*>(arg_ptr) != 0;
+    return rex::net::socket_set_non_blocking(native_handle_, non_blocking) == 0
+               ? X_STATUS_SUCCESS
+               : X_STATUS_UNSUCCESSFUL;
+  }
+
   int ret = rex::net::socket_ioctl(native_handle_, cmd, arg_ptr);
   if (ret < 0) {
     // TODO: Get last error
