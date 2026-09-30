@@ -14,7 +14,7 @@
 #include <cstdint>
 
 #include <rex/assert.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 #include <rex/math.h>
 #include <rex/platform.h>
 
@@ -1815,7 +1815,7 @@ enum class ExportRegister : uint32_t {
   // In X.
   kPSDepth = 61,
 
-  // Memory export: index.?y?? * 0100 + xe_gpu_memexport_stream_t.xyzw.
+  // Memory export: index.?y?? * 0100 + MemExportStream.xyzw.
   kExportAddress = 32,
   // Memory export: values for texels [index+0], [index+1], ..., [index+4].
   kExportData0 = 33,

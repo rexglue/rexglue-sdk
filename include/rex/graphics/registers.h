@@ -15,7 +15,7 @@
 #include <cstdlib>
 
 #include <rex/assert.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 
 // Most 3D registers are the same as in the Qualcomm Adreno 200 (AMD Z430,
 // another R400 architecture family chip):
@@ -52,9 +52,9 @@
 namespace rex::graphics {
 
 enum Register {
-#define XE_GPU_REGISTER(index, type, name) XE_GPU_REG_##name = index,
+#define REXGPU_REGISTER(index, type, name) XE_GPU_REG_##name = index,
 #include <rex/graphics/register_table.inc>
-#undef XE_GPU_REGISTER
+#undef REXGPU_REGISTER
 };
 
 namespace reg {
@@ -659,7 +659,7 @@ static_assert_size(PA_SC_WINDOW_SCISSOR_BR, sizeof(uint32_t));
 union alignas(uint32_t) RB_MODECONTROL {
   uint32_t value;
   struct {
-    xenos::EdramMode edram_mode : 3;  // +0
+    xenos::EDRAMMode edram_mode : 3;  // +0
     uint32_t _pad_3 : 29;             // +3
   };
   static constexpr Register register_index = XE_GPU_REG_RB_MODECONTROL;
@@ -671,7 +671,7 @@ union alignas(uint32_t) RB_SURFACE_INFO {
   struct {
     uint32_t surface_pitch : 14;          // +0 in pixels.
     uint32_t _pad_14 : 2;                 // +14
-    xenos::MsaaSamples msaa_samples : 2;  // +16
+    xenos::MSAASamples msaa_samples : 2;  // +16
     uint32_t hiz_pitch : 14;              // +18
   };
   static constexpr Register register_index = XE_GPU_REG_RB_SURFACE_INFO;

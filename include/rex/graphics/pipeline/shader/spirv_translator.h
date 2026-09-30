@@ -19,7 +19,7 @@
 
 #include <rex/graphics/pipeline/shader/spirv_builder.h>
 #include <rex/graphics/pipeline/shader/translator.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 #include <rex/ui/vulkan/device.h>
 
 namespace rex::graphics {
@@ -123,7 +123,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
     kSysFlag_PrimitivePolygonal_Shift,
     kSysFlag_PrimitiveLine_Shift,
     kSysFlag_MsaaSamples_Shift,
-    kSysFlag_DepthFloat24_Shift = kSysFlag_MsaaSamples_Shift + xenos::kMsaaSamplesBits,
+    kSysFlag_DepthFloat24_Shift = kSysFlag_MsaaSamples_Shift + xenos::kMSAASamplesBits,
     kSysFlag_AlphaPassIfLess_Shift,
     kSysFlag_AlphaPassIfEqual_Shift,
     kSysFlag_AlphaPassIfGreater_Shift,

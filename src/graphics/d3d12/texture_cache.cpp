@@ -22,9 +22,9 @@
 #include <rex/graphics/d3d12/command_processor.h>
 #include <rex/graphics/d3d12/shared_memory.h>
 #include <rex/graphics/d3d12/texture_cache.h>
-#include <rex/graphics/pipeline/texture/info.h>
-#include <rex/graphics/pipeline/texture/util.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/texture_info.h>
+#include <rex/xenos/texture_util.h>
+#include <rex/xenos/xenos.h>
 #include <rex/logging.h>
 #include <rex/perf/counter.h>
 #include <rex/math.h>
@@ -85,50 +85,50 @@ const D3D12TextureCache::HostFormat D3D12TextureCache::host_formats_[64] = {
     // k_1_REVERSE
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+     xenos::REXGPU_SWIZZLE_RRRR},
     // k_1
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+     xenos::REXGPU_SWIZZLE_RRRR},
     // k_8
     {DXGI_FORMAT_R8_TYPELESS, DXGI_FORMAT_R8_UNORM, kLoadShaderIndex8bpb, DXGI_FORMAT_R8_SNORM,
      kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+     xenos::REXGPU_SWIZZLE_RRRR},
     // k_1_5_5_5
     // Red and blue swapped in the load shader for simplicity.
     {DXGI_FORMAT_B5G5R5A1_UNORM, DXGI_FORMAT_B5G5R5A1_UNORM, kLoadShaderIndexR5G5B5A1ToB5G5R5A1,
      DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN,
-     kLoadShaderIndexUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     kLoadShaderIndexUnknown, xenos::REXGPU_SWIZZLE_RGBA},
     // k_5_6_5
     // Red and blue swapped in the load shader for simplicity.
     {DXGI_FORMAT_B5G6R5_UNORM, DXGI_FORMAT_B5G6R5_UNORM, kLoadShaderIndexR5G6B5ToB5G6R5,
      DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN,
-     kLoadShaderIndexUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
+     kLoadShaderIndexUnknown, xenos::REXGPU_SWIZZLE_RGBB},
     // k_6_5_5
     // On the host, green bits in blue, blue bits in green.
     {DXGI_FORMAT_B5G6R5_UNORM, DXGI_FORMAT_B5G6R5_UNORM,
      kLoadShaderIndexR5G5B6ToB5G6R5WithRBGASwizzle, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, XE_GPU_MAKE_TEXTURE_SWIZZLE(R, B, G, G)},
+     false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, REXGPU_SWIZZLE(R, B, G, G)},
     // k_8_8_8_8
     {DXGI_FORMAT_R8G8B8A8_TYPELESS, DXGI_FORMAT_R8G8B8A8_UNORM, kLoadShaderIndex32bpb,
      DXGI_FORMAT_R8G8B8A8_SNORM, kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN,
-     kLoadShaderIndexUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     kLoadShaderIndexUnknown, xenos::REXGPU_SWIZZLE_RGBA},
     // k_2_10_10_10
     {DXGI_FORMAT_R10G10B10A2_TYPELESS, DXGI_FORMAT_R10G10B10A2_UNORM, kLoadShaderIndex32bpb,
      DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN,
-     kLoadShaderIndexUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     kLoadShaderIndexUnknown, xenos::REXGPU_SWIZZLE_RGBA},
     // k_8_A
     {DXGI_FORMAT_R8_TYPELESS, DXGI_FORMAT_R8_UNORM, kLoadShaderIndex8bpb, DXGI_FORMAT_R8_SNORM,
      kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+     xenos::REXGPU_SWIZZLE_RRRR},
     // k_8_B
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+     xenos::REXGPU_SWIZZLE_RRRR},
     // k_8_8
     {DXGI_FORMAT_R8G8_TYPELESS, DXGI_FORMAT_R8G8_UNORM, kLoadShaderIndex16bpb,
      DXGI_FORMAT_R8G8_SNORM, kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN,
-     kLoadShaderIndexUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
+     kLoadShaderIndexUnknown, xenos::REXGPU_SWIZZLE_RGGG},
     // k_Cr_Y1_Cb_Y0_REP
     // Red and blue swapped in the load shader for simplicity.
     // TODO(Triang3l): The DXGI_FORMAT_R8G8B8A8_U/SNORM conversion is usable for
@@ -136,7 +136,7 @@ const D3D12TextureCache::HostFormat D3D12TextureCache::host_formats_[64] = {
     // (as one doesn't need decompression for this format, while another does).
     {DXGI_FORMAT_G8R8_G8B8_UNORM, DXGI_FORMAT_G8R8_G8B8_UNORM, kLoadShaderIndexGBGR8ToGRGB8,
      DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, true, DXGI_FORMAT_R8G8B8A8_UNORM,
-     kLoadShaderIndexGBGR8ToRGB8, xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
+     kLoadShaderIndexGBGR8ToRGB8, xenos::REXGPU_SWIZZLE_RGBB},
     // k_Y1_Cr_Y0_Cb_REP
     // Red and blue swapped in the load shader for simplicity.
     // TODO(Triang3l): The DXGI_FORMAT_R8G8B8A8_U/SNORM conversion is usable for
@@ -144,224 +144,224 @@ const D3D12TextureCache::HostFormat D3D12TextureCache::host_formats_[64] = {
     // (as one doesn't need decompression for this format, while another does).
     {DXGI_FORMAT_R8G8_B8G8_UNORM, DXGI_FORMAT_R8G8_B8G8_UNORM, kLoadShaderIndexBGRG8ToRGBG8,
      DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, true, DXGI_FORMAT_R8G8B8A8_UNORM,
-     kLoadShaderIndexBGRG8ToRGB8, xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
+     kLoadShaderIndexBGRG8ToRGB8, xenos::REXGPU_SWIZZLE_RGBB},
     // k_16_16_EDRAM
     // Not usable as a texture, also has -32...32 range.
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
+     xenos::REXGPU_SWIZZLE_RGGG},
     // k_8_8_8_8_A
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     xenos::REXGPU_SWIZZLE_RGBA},
     // k_4_4_4_4
     // Red and blue swapped in the load shader for simplicity.
     {DXGI_FORMAT_B4G4R4A4_UNORM, DXGI_FORMAT_B4G4R4A4_UNORM, kLoadShaderIndexRGBA4ToBGRA4,
      DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN,
-     kLoadShaderIndexUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     kLoadShaderIndexUnknown, xenos::REXGPU_SWIZZLE_RGBA},
     // k_10_11_11
     {DXGI_FORMAT_R16G16B16A16_TYPELESS, DXGI_FORMAT_R16G16B16A16_UNORM,
      kLoadShaderIndexR11G11B10ToRGBA16, DXGI_FORMAT_R16G16B16A16_SNORM,
      kLoadShaderIndexR11G11B10ToRGBA16SNorm, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
+     xenos::REXGPU_SWIZZLE_RGBB},
     // k_11_11_10
     {DXGI_FORMAT_R16G16B16A16_TYPELESS, DXGI_FORMAT_R16G16B16A16_UNORM,
      kLoadShaderIndexR10G11B11ToRGBA16, DXGI_FORMAT_R16G16B16A16_SNORM,
      kLoadShaderIndexR10G11B11ToRGBA16SNorm, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
+     xenos::REXGPU_SWIZZLE_RGBB},
     // k_DXT1
     {DXGI_FORMAT_BC1_UNORM, DXGI_FORMAT_BC1_UNORM, kLoadShaderIndex64bpb, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, true, DXGI_FORMAT_R8G8B8A8_UNORM, kLoadShaderIndexDXT1ToRGBA8,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     xenos::REXGPU_SWIZZLE_RGBA},
     // k_DXT2_3
     {DXGI_FORMAT_BC2_UNORM, DXGI_FORMAT_BC2_UNORM, kLoadShaderIndex128bpb, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, true, DXGI_FORMAT_R8G8B8A8_UNORM, kLoadShaderIndexDXT3ToRGBA8,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     xenos::REXGPU_SWIZZLE_RGBA},
     // k_DXT4_5
     {DXGI_FORMAT_BC3_UNORM, DXGI_FORMAT_BC3_UNORM, kLoadShaderIndex128bpb, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, true, DXGI_FORMAT_R8G8B8A8_UNORM, kLoadShaderIndexDXT5ToRGBA8,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     xenos::REXGPU_SWIZZLE_RGBA},
     // k_16_16_16_16_EDRAM
     // Not usable as a texture, also has -32...32 range.
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     xenos::REXGPU_SWIZZLE_RGBA},
     // R32_FLOAT for depth because shaders would require an additional SRV to
     // sample stencil, which we don't provide.
     // k_24_8
     {DXGI_FORMAT_R32_FLOAT, DXGI_FORMAT_R32_FLOAT, kLoadShaderIndexDepthUnorm,
      DXGI_FORMAT_R32_FLOAT, kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN,
-     kLoadShaderIndexUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+     kLoadShaderIndexUnknown, xenos::REXGPU_SWIZZLE_RRRR},
     // k_24_8_FLOAT
     {DXGI_FORMAT_R32_FLOAT, DXGI_FORMAT_R32_FLOAT, kLoadShaderIndexDepthFloat,
      DXGI_FORMAT_R32_FLOAT, kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN,
-     kLoadShaderIndexUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+     kLoadShaderIndexUnknown, xenos::REXGPU_SWIZZLE_RRRR},
     // k_16
     {DXGI_FORMAT_R16_TYPELESS, DXGI_FORMAT_R16_UNORM, kLoadShaderIndex16bpb, DXGI_FORMAT_R16_SNORM,
      kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+     xenos::REXGPU_SWIZZLE_RRRR},
     // k_16_16
     {DXGI_FORMAT_R16G16_TYPELESS, DXGI_FORMAT_R16G16_UNORM, kLoadShaderIndex32bpb,
      DXGI_FORMAT_R16G16_SNORM, kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN,
-     kLoadShaderIndexUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
+     kLoadShaderIndexUnknown, xenos::REXGPU_SWIZZLE_RGGG},
     // k_16_16_16_16
     {DXGI_FORMAT_R16G16B16A16_TYPELESS, DXGI_FORMAT_R16G16B16A16_UNORM, kLoadShaderIndex64bpb,
      DXGI_FORMAT_R16G16B16A16_SNORM, kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN,
-     kLoadShaderIndexUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     kLoadShaderIndexUnknown, xenos::REXGPU_SWIZZLE_RGBA},
     // k_16_EXPAND
     {DXGI_FORMAT_R16_FLOAT, DXGI_FORMAT_R16_FLOAT, kLoadShaderIndex16bpb, DXGI_FORMAT_R16_FLOAT,
      kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+     xenos::REXGPU_SWIZZLE_RRRR},
     // k_16_16_EXPAND
     {DXGI_FORMAT_R16G16_FLOAT, DXGI_FORMAT_R16G16_FLOAT, kLoadShaderIndex32bpb,
      DXGI_FORMAT_R16G16_FLOAT, kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN,
-     kLoadShaderIndexUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
+     kLoadShaderIndexUnknown, xenos::REXGPU_SWIZZLE_RGGG},
     // k_16_16_16_16_EXPAND
     {DXGI_FORMAT_R16G16B16A16_FLOAT, DXGI_FORMAT_R16G16B16A16_FLOAT, kLoadShaderIndex64bpb,
      DXGI_FORMAT_R16G16B16A16_FLOAT, kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN,
-     kLoadShaderIndexUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     kLoadShaderIndexUnknown, xenos::REXGPU_SWIZZLE_RGBA},
     // k_16_FLOAT
     {DXGI_FORMAT_R16_FLOAT, DXGI_FORMAT_R16_FLOAT, kLoadShaderIndex16bpb, DXGI_FORMAT_R16_FLOAT,
      kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+     xenos::REXGPU_SWIZZLE_RRRR},
     // k_16_16_FLOAT
     {DXGI_FORMAT_R16G16_FLOAT, DXGI_FORMAT_R16G16_FLOAT, kLoadShaderIndex32bpb,
      DXGI_FORMAT_R16G16_FLOAT, kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN,
-     kLoadShaderIndexUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
+     kLoadShaderIndexUnknown, xenos::REXGPU_SWIZZLE_RGGG},
     // k_16_16_16_16_FLOAT
     {DXGI_FORMAT_R16G16B16A16_FLOAT, DXGI_FORMAT_R16G16B16A16_FLOAT, kLoadShaderIndex64bpb,
      DXGI_FORMAT_R16G16B16A16_FLOAT, kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN,
-     kLoadShaderIndexUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     kLoadShaderIndexUnknown, xenos::REXGPU_SWIZZLE_RGBA},
     // k_32
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+     xenos::REXGPU_SWIZZLE_RRRR},
     // k_32_32
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
+     xenos::REXGPU_SWIZZLE_RGGG},
     // k_32_32_32_32
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     xenos::REXGPU_SWIZZLE_RGBA},
     // k_32_FLOAT
     {DXGI_FORMAT_R32_FLOAT, DXGI_FORMAT_R32_FLOAT, kLoadShaderIndex32bpb, DXGI_FORMAT_R32_FLOAT,
      kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+     xenos::REXGPU_SWIZZLE_RRRR},
     // k_32_32_FLOAT
     {DXGI_FORMAT_R32G32_FLOAT, DXGI_FORMAT_R32G32_FLOAT, kLoadShaderIndex64bpb,
      DXGI_FORMAT_R32G32_FLOAT, kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN,
-     kLoadShaderIndexUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
+     kLoadShaderIndexUnknown, xenos::REXGPU_SWIZZLE_RGGG},
     // k_32_32_32_32_FLOAT
     {DXGI_FORMAT_R32G32B32A32_FLOAT, DXGI_FORMAT_R32G32B32A32_FLOAT, kLoadShaderIndex128bpb,
      DXGI_FORMAT_R32G32B32A32_FLOAT, kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN,
-     kLoadShaderIndexUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     kLoadShaderIndexUnknown, xenos::REXGPU_SWIZZLE_RGBA},
     // k_32_AS_8
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+     xenos::REXGPU_SWIZZLE_RRRR},
     // k_32_AS_8_8
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
+     xenos::REXGPU_SWIZZLE_RGGG},
     // k_16_MPEG
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+     xenos::REXGPU_SWIZZLE_RRRR},
     // k_16_16_MPEG
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
+     xenos::REXGPU_SWIZZLE_RGGG},
     // k_8_INTERLACED
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+     xenos::REXGPU_SWIZZLE_RRRR},
     // k_32_AS_8_INTERLACED
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+     xenos::REXGPU_SWIZZLE_RRRR},
     // k_32_AS_8_8_INTERLACED
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
+     xenos::REXGPU_SWIZZLE_RGGG},
     // k_16_INTERLACED
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+     xenos::REXGPU_SWIZZLE_RRRR},
     // k_16_MPEG_INTERLACED
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+     xenos::REXGPU_SWIZZLE_RRRR},
     // k_16_16_MPEG_INTERLACED
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
+     xenos::REXGPU_SWIZZLE_RGGG},
     // k_DXN
     {DXGI_FORMAT_BC5_UNORM, DXGI_FORMAT_BC5_UNORM, kLoadShaderIndex128bpb, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, true, DXGI_FORMAT_R8G8_UNORM, kLoadShaderIndexDXNToRG8,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
+     xenos::REXGPU_SWIZZLE_RGGG},
     // k_8_8_8_8_AS_16_16_16_16
     {DXGI_FORMAT_R8G8B8A8_TYPELESS, DXGI_FORMAT_R8G8B8A8_UNORM, kLoadShaderIndex32bpb,
      DXGI_FORMAT_R8G8B8A8_SNORM, kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN,
-     kLoadShaderIndexUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     kLoadShaderIndexUnknown, xenos::REXGPU_SWIZZLE_RGBA},
     // k_DXT1_AS_16_16_16_16
     {DXGI_FORMAT_BC1_UNORM, DXGI_FORMAT_BC1_UNORM, kLoadShaderIndex64bpb, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, true, DXGI_FORMAT_R8G8B8A8_UNORM, kLoadShaderIndexDXT1ToRGBA8,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     xenos::REXGPU_SWIZZLE_RGBA},
     // k_DXT2_3_AS_16_16_16_16
     {DXGI_FORMAT_BC2_UNORM, DXGI_FORMAT_BC2_UNORM, kLoadShaderIndex128bpb, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, true, DXGI_FORMAT_R8G8B8A8_UNORM, kLoadShaderIndexDXT3ToRGBA8,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     xenos::REXGPU_SWIZZLE_RGBA},
     // k_DXT4_5_AS_16_16_16_16
     {DXGI_FORMAT_BC3_UNORM, DXGI_FORMAT_BC3_UNORM, kLoadShaderIndex128bpb, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, true, DXGI_FORMAT_R8G8B8A8_UNORM, kLoadShaderIndexDXT5ToRGBA8,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     xenos::REXGPU_SWIZZLE_RGBA},
     // k_2_10_10_10_AS_16_16_16_16
     {DXGI_FORMAT_R10G10B10A2_UNORM, DXGI_FORMAT_R10G10B10A2_UNORM, kLoadShaderIndex32bpb,
      DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN,
-     kLoadShaderIndexUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     kLoadShaderIndexUnknown, xenos::REXGPU_SWIZZLE_RGBA},
     // k_10_11_11_AS_16_16_16_16
     {DXGI_FORMAT_R16G16B16A16_TYPELESS, DXGI_FORMAT_R16G16B16A16_UNORM,
      kLoadShaderIndexR11G11B10ToRGBA16, DXGI_FORMAT_R16G16B16A16_SNORM,
      kLoadShaderIndexR11G11B10ToRGBA16SNorm, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
+     xenos::REXGPU_SWIZZLE_RGBB},
     // k_11_11_10_AS_16_16_16_16
     {DXGI_FORMAT_R16G16B16A16_TYPELESS, DXGI_FORMAT_R16G16B16A16_UNORM,
      kLoadShaderIndexR10G11B11ToRGBA16, DXGI_FORMAT_R16G16B16A16_SNORM,
      kLoadShaderIndexR10G11B11ToRGBA16SNorm, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
+     xenos::REXGPU_SWIZZLE_RGBB},
     // k_32_32_32_FLOAT
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
+     xenos::REXGPU_SWIZZLE_RGBB},
     // k_DXT3A
     // R8_UNORM has the same size as BC2, but doesn't have the 4x4 size
     // alignment requirement.
     {DXGI_FORMAT_R8_UNORM, DXGI_FORMAT_R8_UNORM, kLoadShaderIndexDXT3A, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+     xenos::REXGPU_SWIZZLE_RRRR},
     // k_DXT5A
     {DXGI_FORMAT_BC4_UNORM, DXGI_FORMAT_BC4_UNORM, kLoadShaderIndex64bpb, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, true, DXGI_FORMAT_R8_UNORM, kLoadShaderIndexDXT5AToR8,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+     xenos::REXGPU_SWIZZLE_RRRR},
     // k_CTX1
     {DXGI_FORMAT_R8G8_UNORM, DXGI_FORMAT_R8G8_UNORM, kLoadShaderIndexCTX1, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
+     xenos::REXGPU_SWIZZLE_RGGG},
     // k_DXT3A_AS_1_1_1_1
     {DXGI_FORMAT_B4G4R4A4_UNORM, DXGI_FORMAT_B4G4R4A4_UNORM, kLoadShaderIndexDXT3AAs1111ToBGRA4,
      DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN,
-     kLoadShaderIndexUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     kLoadShaderIndexUnknown, xenos::REXGPU_SWIZZLE_RGBA},
     // k_8_8_8_8_GAMMA_EDRAM
     // Not usable as a texture.
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     xenos::REXGPU_SWIZZLE_RGBA},
     // k_2_10_10_10_FLOAT_EDRAM
     // Not usable as a texture.
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, DXGI_FORMAT_UNKNOWN,
      kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     xenos::REXGPU_SWIZZLE_RGBA},
 };
 
 D3D12TextureCache::D3D12TextureCache(const RegisterFile& register_file,
@@ -690,7 +690,7 @@ void D3D12TextureCache::EndFrame() {
       REXGPU_ERROR("Unsupported texture formats used in the frame:");
       unsupported_header_written = true;
     }
-    REXGPU_ERROR("* {}{}{}{}", FormatInfo::Get(xenos::TextureFormat(i))->name,
+    REXGPU_ERROR("* {}{}{}{}", xenos::FormatInfo::Get(xenos::TextureFormat(i))->name,
                  unsupported_features & kUnsupportedResourceBit ? " resource" : "",
                  unsupported_features & kUnsupportedUnormBit ? " unsigned" : "",
                  unsupported_features & kUnsupportedSnormBit ? " signed" : "");
@@ -795,7 +795,7 @@ void D3D12TextureCache::WriteActiveTextureSRVKeys(
     const TextureBinding* binding = GetValidTextureBinding(host_shader_bindings[i].fetch_constant);
     if (!binding) {
       key.key.MakeInvalid();
-      key.host_swizzle = xenos::XE_GPU_TEXTURE_SWIZZLE_0000;
+      key.host_swizzle = xenos::REXGPU_SWIZZLE_0000;
       key.swizzled_signs = kSwizzledSignsUnsigned;
       continue;
     }
@@ -820,7 +820,7 @@ void D3D12TextureCache::WriteActiveTextureBindfulSRV(
     if (host_shader_binding.is_signed) {
       // Not supporting signed compressed textures - hopefully DXN and DXT5A are
       // not used as signed.
-      if (texture_util::IsAnySignSigned(binding->swizzled_signs)) {
+      if (xenos::IsAnySignSigned(binding->swizzled_signs)) {
         texture = IsSignedVersionSeparateForFormat(binding->key) ? binding->texture_signed
                                                                  : binding->texture;
         if (force_special_view && texture) {
@@ -832,7 +832,7 @@ void D3D12TextureCache::WriteActiveTextureBindfulSRV(
         }
       }
     } else {
-      if (texture_util::IsAnySignNotSigned(binding->swizzled_signs)) {
+      if (xenos::IsAnySignNotSigned(binding->swizzled_signs)) {
         texture = binding->texture;
         if (force_special_view && texture) {
           descriptor_index = FindOrCreateTextureDescriptor(*static_cast<D3D12Texture*>(texture),
@@ -892,7 +892,7 @@ uint32_t D3D12TextureCache::GetActiveTextureBindlessSRVIndex(
     if (force_special_view) {
       Texture* texture = nullptr;
       bool use_signed =
-          host_shader_binding.is_signed && texture_util::IsAnySignSigned(binding->swizzled_signs);
+          host_shader_binding.is_signed && xenos::IsAnySignSigned(binding->swizzled_signs);
       if (use_signed) {
         texture = IsSignedVersionSeparateForFormat(binding->key) ? binding->texture_signed
                                                                  : binding->texture;
@@ -929,12 +929,12 @@ uint32_t D3D12TextureCache::GetActiveTextureBindlessSRVIndex(
 D3D12TextureCache::SamplerParameters D3D12TextureCache::GetSamplerParameters(
     const D3D12Shader::SamplerBinding& binding) const {
   const auto& regs = register_file();
-  xenos::xe_gpu_texture_fetch_t fetch = regs.GetTextureFetch(binding.fetch_constant);
+  xenos::TextureFetch fetch = regs.GetTextureFetch(binding.fetch_constant);
 
   SamplerParameters parameters;
 
   xenos::ClampMode fetch_clamp_x, fetch_clamp_y, fetch_clamp_z;
-  texture_util::GetClampModesForDimension(fetch, fetch_clamp_x, fetch_clamp_y, fetch_clamp_z);
+  xenos::GetClampModesForDimension(fetch, fetch_clamp_x, fetch_clamp_y, fetch_clamp_z);
   parameters.clamp_x = NormalizeClampMode(fetch_clamp_x);
   parameters.clamp_y = NormalizeClampMode(fetch_clamp_y);
   parameters.clamp_z = NormalizeClampMode(fetch_clamp_z);
@@ -947,8 +947,8 @@ D3D12TextureCache::SamplerParameters D3D12TextureCache::GetSamplerParameters(
   }
 
   uint32_t mip_min_level, mip_max_level;
-  texture_util::GetSubresourcesFromFetchConstant(fetch, nullptr, nullptr, nullptr, nullptr, nullptr,
-                                                 &mip_min_level, &mip_max_level);
+  xenos::GetSubresourcesFromFetchConstant(fetch, nullptr, nullptr, nullptr, nullptr, nullptr,
+                                          &mip_min_level, &mip_max_level);
   parameters.mip_min_level = mip_min_level;
   bool has_mips = mip_max_level > mip_min_level;
 
@@ -1371,7 +1371,7 @@ ID3D12Resource* D3D12TextureCache::RequestSwapTexture(D3D12_SHADER_RESOURCE_VIEW
                                                       uint32_t* width_unscaled_out,
                                                       uint32_t* height_unscaled_out) {
   const auto& regs = register_file();
-  xenos::xe_gpu_texture_fetch_t fetch = regs.GetTextureFetch(0);
+  xenos::TextureFetch fetch = regs.GetTextureFetch(0);
   TextureKey key;
   BindingInfoFromFetchConstant(fetch, key, nullptr);
   if (!key.is_valid || key.base_page == 0 || key.dimension != xenos::DataDimension::k2DOrStacked) {
@@ -1436,7 +1436,7 @@ bool D3D12TextureCache::IsDecompressionNeeded(xenos::TextureFormat format, uint3
   if (dxgi_format_uncompressed == DXGI_FORMAT_UNKNOWN) {
     return false;
   }
-  const FormatInfo* format_info = FormatInfo::Get(format);
+  const xenos::FormatInfo* format_info = xenos::FormatInfo::Get(format);
   if (!(width & (format_info->block_width - 1)) && !(height & (format_info->block_height - 1))) {
     return false;
   }
@@ -1581,7 +1581,7 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture, 
   const LoadShaderInfo& load_shader_info = GetLoadShaderInfo(load_shader);
 
   // Get the guest layout.
-  const texture_util::TextureGuestLayout& guest_layout = d3d12_texture.guest_layout();
+  const xenos::TextureGuestLayout& guest_layout = d3d12_texture.guest_layout();
   xenos::DataDimension dimension = texture_key.dimension;
   bool is_3d = dimension == xenos::DataDimension::k3D;
   bool is_3d_tiling = is_3d || d3d12_texture.force_load_3d_tiling();
@@ -1591,7 +1591,7 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture, 
   uint32_t depth = is_3d ? depth_or_array_size : 1;
   uint32_t array_size = is_3d ? 1 : depth_or_array_size;
   xenos::TextureFormat guest_format = texture_key.format;
-  const FormatInfo* guest_format_info = FormatInfo::Get(guest_format);
+  const xenos::FormatInfo* guest_format_info = xenos::FormatInfo::Get(guest_format);
   uint32_t block_width = guest_format_info->block_width;
   uint32_t block_height = guest_format_info->block_height;
   uint32_t bytes_per_block = guest_format_info->bytes_per_block();
@@ -1660,7 +1660,7 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture, 
     if (level == level_packed) {
       // Loading the packed tail for the base or the mips - load the whole tail
       // to copy regions out of it.
-      const texture_util::TextureGuestLayout::Level& guest_layout_packed =
+      const xenos::TextureGuestLayout::Level& guest_layout_packed =
           is_base ? guest_layout.base : guest_layout.mips[level];
       level_host_slice_layout.Footprint.Width = guest_layout_packed.x_extent_blocks * block_width;
       level_host_slice_layout.Footprint.Height = guest_layout_packed.y_extent_blocks * block_height;
@@ -1807,7 +1807,7 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture, 
       load_constants.guest_offset += guest_layout.mip_offsets_bytes[level] *
                                      (texture_resolution_scale_x * texture_resolution_scale_y);
     }
-    const texture_util::TextureGuestLayout::Level& level_guest_layout =
+    const xenos::TextureGuestLayout::Level& level_guest_layout =
         is_base ? guest_layout.base : guest_layout.mips[level];
     uint32_t level_guest_pitch = level_guest_layout.row_pitch_bytes;
     if (texture_key.tiled) {
@@ -1905,9 +1905,8 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture, 
     const D3D12_BOX* source_box_ptr;
     if (level >= level_packed) {
       uint32_t level_offset_blocks_x, level_offset_blocks_y, level_offset_z;
-      texture_util::GetPackedMipOffset(width, height, depth, guest_format, level,
-                                       level_offset_blocks_x, level_offset_blocks_y,
-                                       level_offset_z);
+      xenos::GetPackedMipOffset(width, height, depth, guest_format, level, level_offset_blocks_x,
+                                level_offset_blocks_y, level_offset_z);
       source_box.left = level_offset_blocks_x * block_width * texture_resolution_scale_x;
       source_box.top = level_offset_blocks_y * block_height * texture_resolution_scale_y;
       source_box.front = level_offset_z;
@@ -1948,12 +1947,12 @@ void D3D12TextureCache::UpdateTextureBindingsImpl(uint32_t fetch_constant_mask) 
       continue;
     }
     if (IsSignedVersionSeparateForFormat(binding->key)) {
-      if (binding->texture && texture_util::IsAnySignNotSigned(binding->swizzled_signs)) {
+      if (binding->texture && xenos::IsAnySignNotSigned(binding->swizzled_signs)) {
         d3d12_binding.descriptor_index =
             FindOrCreateTextureDescriptor(*static_cast<D3D12Texture*>(binding->texture),
                                           binding->key.dimension, false, binding->host_swizzle);
       }
-      if (binding->texture_signed && texture_util::IsAnySignSigned(binding->swizzled_signs)) {
+      if (binding->texture_signed && xenos::IsAnySignSigned(binding->swizzled_signs)) {
         d3d12_binding.descriptor_index_signed =
             FindOrCreateTextureDescriptor(*static_cast<D3D12Texture*>(binding->texture_signed),
                                           binding->key.dimension, true, binding->host_swizzle);
@@ -1961,11 +1960,11 @@ void D3D12TextureCache::UpdateTextureBindingsImpl(uint32_t fetch_constant_mask) 
     } else {
       D3D12Texture* texture = static_cast<D3D12Texture*>(binding->texture);
       if (texture) {
-        if (texture_util::IsAnySignNotSigned(binding->swizzled_signs)) {
+        if (xenos::IsAnySignNotSigned(binding->swizzled_signs)) {
           d3d12_binding.descriptor_index = FindOrCreateTextureDescriptor(
               *texture, binding->key.dimension, false, binding->host_swizzle);
         }
-        if (texture_util::IsAnySignSigned(binding->swizzled_signs)) {
+        if (xenos::IsAnySignSigned(binding->swizzled_signs)) {
           d3d12_binding.descriptor_index_signed = FindOrCreateTextureDescriptor(
               *texture, binding->key.dimension, true, binding->host_swizzle);
         }

@@ -32,7 +32,7 @@
 #include <rex/graphics/primitive_processor.h>
 #include <rex/graphics/register_file.h>
 #include <rex/graphics/registers.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 #include <rex/hash.h>
 #include <rex/platform.h>
 #include <rex/string/buffer.h>
@@ -199,7 +199,7 @@ class PipelineCache {
     PipelineCullMode cull_mode : 2;                   // 9
     uint32_t front_counter_clockwise : 1;             // 10
     uint32_t depth_clip : 1;                          // 11
-    xenos::MsaaSamples host_msaa_samples : 2;         // 13
+    xenos::MSAASamples host_msaa_samples : 2;         // 13
     xenos::DepthRenderTargetFormat depth_format : 1;  // 14
     xenos::CompareFunction depth_func : 3;            // 17
     uint32_t depth_write : 1;                         // 18

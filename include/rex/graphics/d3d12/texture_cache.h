@@ -22,9 +22,9 @@
 #include <rex/graphics/d3d12/shader.h>
 #include <rex/graphics/d3d12/shared_memory.h>
 #include <rex/graphics/pipeline/texture/cache.h>
-#include <rex/graphics/pipeline/texture/util.h>
+#include <rex/xenos/texture_util.h>
 #include <rex/graphics/register_file.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 #include <rex/ui/d3d12/d3d12_api.h>
 #include <rex/ui/d3d12/d3d12_provider.h>
 

@@ -15,9 +15,9 @@
 #include <memory>
 
 #include <rex/assert.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 
-namespace rex::graphics {
+namespace rex::xenos {
 
 inline xenos::TextureFormat GetBaseFormat(xenos::TextureFormat texture_format) {
   // These formats are used for resampling textures / gamma control.
@@ -186,7 +186,7 @@ struct TextureInfo {
 
   uint32_t mip_levels() const { return 1 + (mip_max_level - mip_min_level); }
 
-  static bool Prepare(const xenos::xe_gpu_texture_fetch_t& fetch, TextureInfo* out_info);
+  static bool Prepare(const xenos::TextureFetch& fetch, TextureInfo* out_info);
 
   static bool PrepareResolve(uint32_t physical_address, xenos::TextureFormat texture_format,
                              xenos::Endian endian, uint32_t pitch, uint32_t width, uint32_t height,
@@ -216,4 +216,4 @@ struct TextureInfo {
   void SetupMemoryInfo(uint32_t base_address, uint32_t mip_address);
 };
 
-}  // namespace rex::graphics
+}  // namespace rex::xenos

@@ -35,7 +35,7 @@
 #include <rex/graphics/pipeline/shader/dxbc_translator.h>
 #include <rex/graphics/registers.h>
 #include <rex/graphics/util/draw.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 #include <rex/system/kernel_state.h>
 #include <rex/ui/d3d12/d3d12_descriptor_heap_pool.h>
 #include <rex/ui/d3d12/d3d12_provider.h>
@@ -136,14 +136,14 @@ class D3D12CommandProcessor : public CommandProcessor {
     kSharedMemoryR32G32UintUAV,
     kSharedMemoryR32G32B32A32UintUAV,
 
-    kEdramRawSRV,
-    kEdramR32UintSRV,
-    kEdramR32G32UintSRV,
-    kEdramR32G32B32A32UintSRV,
-    kEdramRawUAV,
-    kEdramR32UintUAV,
-    kEdramR32G32UintUAV,
-    kEdramR32G32B32A32UintUAV,
+    kEDRAMRawSRV,
+    kEDRAMR32UintSRV,
+    kEDRAMR32G32UintSRV,
+    kEDRAMR32G32B32A32UintSRV,
+    kEDRAMRawUAV,
+    kEDRAMR32UintUAV,
+    kEDRAMR32G32UintUAV,
+    kEDRAMR32G32B32A32UintUAV,
 
     kGammaRampTableSRV,
     kGammaRampPWLSRV,
@@ -406,12 +406,11 @@ class D3D12CommandProcessor : public CommandProcessor {
   void ShutdownOcclusionQueryResources();
   bool BeginGuestOcclusionQuery(uint32_t sample_count_address);
   bool EndGuestOcclusionQuery(uint32_t sample_count_address,
-                              xenos::xe_gpu_depth_sample_counts* sample_counts);
+                              xenos::DepthSampleCounts* sample_counts);
   bool AcquireOcclusionQueryIndex(uint32_t& host_index_out);
   void DisableHostOcclusionQueries();
   uint64_t NormalizeOcclusionSamples(uint64_t samples) const;
-  void WriteGuestOcclusionResult(xenos::xe_gpu_depth_sample_counts* sample_counts,
-                                 uint64_t samples);
+  void WriteGuestOcclusionResult(xenos::DepthSampleCounts* sample_counts, uint64_t samples);
   void InvalidateAllVertexBufferResidency();
   void InvalidateVertexBufferResidency(uint32_t vfetch_index);
   void InvalidateVertexBufferResidencyRange(uint32_t first_vfetch, uint32_t last_vfetch);

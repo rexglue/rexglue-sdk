@@ -13,7 +13,7 @@
 #include <cstdint>
 
 #include <rex/graphics/pipeline/shader/spirv.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 #include <rex/ui/vulkan/device.h>
 
 namespace rex::graphics::vulkan {

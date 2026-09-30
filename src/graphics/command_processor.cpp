@@ -23,9 +23,9 @@
 #include <rex/chrono/clock.h>
 #include <rex/graphics/command_processor.h>
 #include <rex/graphics/graphics_system.h>
-#include <rex/graphics/pipeline/texture/info.h>
+#include <rex/xenos/texture_info.h>
 #include <rex/graphics/sampler_info.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/memory.h>
@@ -38,7 +38,7 @@
 
 namespace rex::graphics {
 
-using namespace rex::graphics::xenos;
+using namespace rex::xenos;
 
 namespace {
 
@@ -923,11 +923,11 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(memory::RingBuffer* reader, ui
 bool CommandProcessor::ExecutePacketType3_INDIRECT_BUFFER(memory::RingBuffer* reader,
                                                           uint32_t packet, uint32_t count) {
   // indirect buffer dispatch
-  uint32_t list_ptr = CpuToGpu(reader->ReadAndSwap<uint32_t>());
+  uint32_t list_ptr = CPUToGPU(reader->ReadAndSwap<uint32_t>());
   uint32_t list_length = reader->ReadAndSwap<uint32_t>();
   assert_zero(list_length & ~0xFFFFF);
   list_length &= 0xFFFFF;
-  ExecuteIndirectBuffer(GpuToCpu(list_ptr), list_length);
+  ExecuteIndirectBuffer(GPUToCPU(list_ptr), list_length);
   return true;
 }
 
@@ -951,7 +951,7 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reade
     if (is_memory) {
       value =
           *reinterpret_cast<uint32_t*>(memory_->TranslatePhysical(poll_reg_addr & ~uint32_t(0x3)));
-      value = xenos::GpuSwap(value, static_cast<xenos::Endian>(poll_reg_addr & 0x3));
+      value = xenos::GPUSwap(value, static_cast<xenos::Endian>(poll_reg_addr & 0x3));
     } else {
       value = ReadRegisterValue(poll_reg_addr);
       if (poll_reg_addr == XE_GPU_REG_COHER_STATUS_HOST) {
@@ -1049,7 +1049,7 @@ bool CommandProcessor::ExecutePacketType3_REG_TO_MEM(memory::RingBuffer* reader,
 
   auto endianness = static_cast<xenos::Endian>(mem_addr & 0x3);
   mem_addr &= ~0x3;
-  reg_val = GpuSwap(reg_val, endianness);
+  reg_val = GPUSwap(reg_val, endianness);
   memory::store(memory_->TranslatePhysical(mem_addr), reg_val);
 
   return true;
@@ -1063,7 +1063,7 @@ bool CommandProcessor::ExecutePacketType3_MEM_WRITE(memory::RingBuffer* reader, 
 
     auto endianness = static_cast<xenos::Endian>(write_addr & 0x3);
     auto addr = write_addr & ~0x3;
-    write_data = GpuSwap(write_data, endianness);
+    write_data = GPUSwap(write_data, endianness);
     memory::store(memory_->TranslatePhysical(addr), write_data);
     write_addr += 4;
   }
@@ -1086,7 +1086,7 @@ bool CommandProcessor::ExecutePacketType3_COND_WRITE(memory::RingBuffer* reader,
     auto endianness = static_cast<xenos::Endian>(poll_reg_addr & 0x3);
     poll_reg_addr &= ~0x3;
     value = memory::load<uint32_t>(memory_->TranslatePhysical(poll_reg_addr));
-    value = GpuSwap(value, endianness);
+    value = GPUSwap(value, endianness);
   } else {
     // Register.
     value = ReadRegisterValue(poll_reg_addr);
@@ -1124,7 +1124,7 @@ bool CommandProcessor::ExecutePacketType3_COND_WRITE(memory::RingBuffer* reader,
       // Memory.
       auto endianness = static_cast<xenos::Endian>(write_reg_addr & 0x3);
       write_reg_addr &= ~0x3;
-      write_data = GpuSwap(write_data, endianness);
+      write_data = GPUSwap(write_data, endianness);
       memory::store(memory_->TranslatePhysical(write_reg_addr), write_data);
     } else {
       // Register.
@@ -1169,7 +1169,7 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_SHD(memory::RingBuffer* re
   }
   auto endianness = static_cast<xenos::Endian>(address & 0x3);
   address &= ~0x3;
-  data_value = GpuSwap(data_value, endianness);
+  data_value = GPUSwap(data_value, endianness);
   memory::store(memory_->TranslatePhysical(address), data_value);
   return true;
 }
@@ -1216,7 +1216,7 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffer* re
   // As a workaround report some fixed amount of passed samples.
   auto fake_sample_count = REXCVAR_GET(::rex::graphics::cvars::query_occlusion_fake_sample_count);
   if (fake_sample_count >= 0) {
-    auto* pSampleCounts = memory_->TranslatePhysical<xe_gpu_depth_sample_counts*>(
+    auto* pSampleCounts = memory_->TranslatePhysical<DepthSampleCounts*>(
         register_file_->values[XE_GPU_REG_RB_SAMPLE_COUNT_ADDR]);
     if (!pSampleCounts) {
       return true;
@@ -1228,7 +1228,7 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffer* re
     // Older versions of D3D also checks for ZFail (4D5307D5).
     bool is_end_via_z_fail =
         pSampleCounts->ZFail_A == kQueryFinished || pSampleCounts->ZFail_B == kQueryFinished;
-    std::memset(pSampleCounts, 0, sizeof(xe_gpu_depth_sample_counts));
+    std::memset(pSampleCounts, 0, sizeof(DepthSampleCounts));
     if (is_end_via_z_pass || is_end_via_z_fail) {
       pSampleCounts->ZPass_A = fake_sample_count;
       pSampleCounts->Total_A = fake_sample_count;

@@ -60,7 +60,7 @@
  * @param ModuleClass The module class holding the interface table.
  *
  * @code
- * REX_DECLARE_MODULE(rex::graphics::xenos::XenosModule)
+ * REX_DECLARE_MODULE(rex::graphics::XenosModule)
  * @endcode
  */
 #define REX_DECLARE_MODULE(ModuleClass)                                                       \

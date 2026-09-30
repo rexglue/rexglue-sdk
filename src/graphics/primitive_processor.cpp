@@ -21,7 +21,7 @@
 #include <rex/graphics/primitive_processor.h>
 #include <rex/graphics/register_file.h>
 #include <rex/graphics/registers.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/types.h>
@@ -582,7 +582,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
           case xenos::PrimitiveType::kPolygon:
           case xenos::PrimitiveType::k2DLineStrip:
           case xenos::PrimitiveType::k2DTriStrip:
-            guest_primitive_reset_index_guest_endian = xenos::GpuSwap(
+            guest_primitive_reset_index_guest_endian = xenos::GPUSwap(
                 regs.Get<reg::VGT_MULTI_PRIM_IB_RESET_INDX>().reset_indx, guest_index_endian);
             // - VGT, what does the guest say about its primitive reset index?
             // - It's over 0xFFFF!!!
@@ -623,7 +623,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
     uint32_t guest_index_mask_guest_endian =
         guest_index_format == xenos::IndexFormat::kInt16
             ? UINT16_MAX
-            : GpuSwap(xenos::kVertexIndexMask, guest_index_endian);
+            : GPUSwap(xenos::kVertexIndexMask, guest_index_endian);
     if (host_primitive_type != guest_primitive_type) {
       // Already converting to a different index type - primitive reset is
       // performed during conversion here. Also doing the endian swap here for
@@ -886,7 +886,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
           }
           for (uint32_t i = 0; i < guest_draw_vertex_count; ++i) {
             host_indices[i] =
-                xenos::GpuSwap(guest_indices[i], guest_index_endian) & xenos::kVertexIndexMask;
+                xenos::GPUSwap(guest_indices[i], guest_index_endian) & xenos::kVertexIndexMask;
           }
           cacheable.index_buffer_type = ProcessedIndexBufferType::kHostConverted;
           cacheable.host_shader_index_endian = xenos::Endian::kNone;

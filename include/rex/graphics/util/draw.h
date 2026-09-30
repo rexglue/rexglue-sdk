@@ -19,7 +19,7 @@
 #include <rex/graphics/pipeline/shader/shader.h>
 #include <rex/graphics/register_file.h>
 #include <rex/graphics/registers.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 #include <rex/memory.h>
 
 namespace rex::graphics::draw_util {
@@ -333,7 +333,7 @@ void AddMemExportRanges(const RegisterFile& regs, const Shader& shader,
 // To avoid passing values that the shader won't understand (even though
 // Direct3D 9 shouldn't pass them anyway).
 xenos::CopySampleSelect SanitizeCopySampleSelect(xenos::CopySampleSelect copy_sample_select,
-                                                 xenos::MsaaSamples msaa_samples, bool is_depth);
+                                                 xenos::MSAASamples msaa_samples, bool is_depth);
 
 // Packed structures are small and can be passed to the shaders in root/push
 // constants.
@@ -342,11 +342,11 @@ union ResolveEdramInfo {
   uint32_t packed;
   struct {
     // With 32bpp/64bpp taken into account.
-    uint32_t pitch_tiles : xenos::kEdramPitchTilesBits;
-    xenos::MsaaSamples msaa_samples : xenos::kMsaaSamplesBits;
+    uint32_t pitch_tiles : xenos::kEDRAMPitchTilesBits;
+    xenos::MSAASamples msaa_samples : xenos::kMSAASamplesBits;
     uint32_t is_depth : 1;
     // With offset to the region that edram_offset_x/y_div_8 are relative to.
-    uint32_t base_tiles : xenos::kEdramBaseTilesBits;
+    uint32_t base_tiles : xenos::kEDRAMBaseTilesBits;
     uint32_t format : xenos::kRenderTargetFormatBits;
     uint32_t format_is_64bpp : 1;
     // Whether to fill the half-pixel offset gap on the left and the top sides
@@ -562,11 +562,11 @@ struct ResolveInfo {
     // 8 guest MSAA samples per invocation.
     uint32_t width_samples_div_8 = coordinate_info.width_div_8;
     uint32_t height_samples_div_8 = height_div_8;
-    xenos::MsaaSamples samples =
+    xenos::MSAASamples samples =
         IsCopyingDepth() ? depth_edram_info.msaa_samples : color_edram_info.msaa_samples;
-    if (samples >= xenos::MsaaSamples::k2X) {
+    if (samples >= xenos::MSAASamples::k2X) {
       height_samples_div_8 <<= 1;
-      if (samples >= xenos::MsaaSamples::k4X) {
+      if (samples >= xenos::MSAASamples::k4X) {
         width_samples_div_8 <<= 1;
       }
     }

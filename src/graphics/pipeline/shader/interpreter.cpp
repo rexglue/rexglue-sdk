@@ -16,7 +16,7 @@
 #include <rex/assert.h>
 #include <rex/graphics/pipeline/shader/interpreter.h>
 #include <rex/graphics/registers.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 #include <rex/math.h>
 #include <rex/types.h>
 
@@ -924,7 +924,7 @@ void ShaderInterpreter::ExecuteVertexFetchInstruction(ucode::VertexFetchInstruct
     state_.vfetch_full_last = instr;
   }
 
-  xenos::xe_gpu_vertex_fetch_t fetch_constant =
+  xenos::VertexFetch fetch_constant =
       register_file_.GetVertexFetch(state_.vfetch_full_last.fetch_constant_index());
 
   if (!instr.is_mini_fetch()) {
@@ -961,7 +961,7 @@ void ShaderInterpreter::ExecuteVertexFetchInstruction(ucode::VertexFetchInstruct
       uint32_t dword_address_dwords = dword_0_address_dwords + i;
       if (dword_address_dwords >= fetch_constant.address &&
           dword_address_dwords < buffer_end_dwords) {
-        dword_value = xenos::GpuSwap(memory_dwords[dword_address_dwords], fetch_constant.endian);
+        dword_value = xenos::GPUSwap(memory_dwords[dword_address_dwords], fetch_constant.endian);
       }
       data[i] = dword_value;
     }
@@ -1012,19 +1012,19 @@ void ShaderInterpreter::ExecuteVertexFetchInstruction(ucode::VertexFetchInstruct
       } break;
       case xenos::VertexFormat::k_16_16_16_16_FLOAT: {
         if (used_result_components & 0b1000) {
-          result[3] = rex::xenos_half_to_float(uint16_t(data[1] >> 16));
+          result[3] = rex::xenos::HalfToFloat(uint16_t(data[1] >> 16));
         }
         if (used_result_components & 0b0100) {
-          result[2] = rex::xenos_half_to_float(uint16_t(data[1]));
+          result[2] = rex::xenos::HalfToFloat(uint16_t(data[1]));
         }
       }
         [[fallthrough]];
       case xenos::VertexFormat::k_16_16_FLOAT: {
         if (used_result_components & 0b0010) {
-          result[1] = rex::xenos_half_to_float(uint16_t(data[0] >> 16));
+          result[1] = rex::xenos::HalfToFloat(uint16_t(data[0] >> 16));
         }
         if (used_result_components & 0b0001) {
-          result[0] = rex::xenos_half_to_float(uint16_t(data[0]));
+          result[0] = rex::xenos::HalfToFloat(uint16_t(data[0]));
         }
       } break;
       case xenos::VertexFormat::k_32:

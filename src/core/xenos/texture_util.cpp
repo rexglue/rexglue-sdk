@@ -13,13 +13,13 @@
 #include <cstring>
 
 #include <rex/assert.h>
-#include <rex/graphics/pipeline/texture/util.h>
+#include <rex/xenos/texture_util.h>
 #include <rex/math.h>
 
-namespace rex::graphics::texture_util {
+namespace rex::xenos {
 
-void GetSubresourcesFromFetchConstant(const xenos::xe_gpu_texture_fetch_t& fetch,
-                                      uint32_t* width_minus_1_out, uint32_t* height_minus_1_out,
+void GetSubresourcesFromFetchConstant(const xenos::TextureFetch& fetch, uint32_t* width_minus_1_out,
+                                      uint32_t* height_minus_1_out,
                                       uint32_t* depth_or_array_size_minus_1_out,
                                       uint32_t* base_page_out, uint32_t* mip_page_out,
                                       uint32_t* mip_min_level_out, uint32_t* mip_max_level_out) {
@@ -515,7 +515,7 @@ uint32_t GetTiledAddressUpperBound3D(uint32_t right, uint32_t bottom, uint32_t b
   return upper_bound;
 }
 
-uint8_t SwizzleSigns(const xenos::xe_gpu_texture_fetch_t& fetch) {
+uint8_t SwizzleSigns(const xenos::TextureFetch& fetch) {
   uint8_t signs = 0;
   bool any_not_signed = false, any_signed = false;
   // 0b00 or 0b01 for each component, whether it's constant 0/1.
@@ -556,9 +556,8 @@ uint8_t SwizzleSigns(const xenos::xe_gpu_texture_fetch_t& fetch) {
   return signs;
 }
 
-void GetClampModesForDimension(const xenos::xe_gpu_texture_fetch_t& fetch,
-                               xenos::ClampMode& clamp_x_out, xenos::ClampMode& clamp_y_out,
-                               xenos::ClampMode& clamp_z_out) {
+void GetClampModesForDimension(const xenos::TextureFetch& fetch, xenos::ClampMode& clamp_x_out,
+                               xenos::ClampMode& clamp_y_out, xenos::ClampMode& clamp_z_out) {
   clamp_x_out = xenos::ClampMode::kClampToEdge;
   clamp_y_out = xenos::ClampMode::kClampToEdge;
   clamp_z_out = xenos::ClampMode::kClampToEdge;
@@ -578,4 +577,4 @@ void GetClampModesForDimension(const xenos::xe_gpu_texture_fetch_t& fetch,
   }
 }
 
-}  // namespace rex::graphics::texture_util
+}  // namespace rex::xenos

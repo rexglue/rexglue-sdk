@@ -36,7 +36,7 @@
 #include <rex/graphics/registers.h>
 #include <rex/graphics/vulkan/render_target_cache.h>
 #include <rex/graphics/vulkan/shader.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 #include <rex/ui/vulkan/api.h>
 
 namespace rex::graphics::vulkan {

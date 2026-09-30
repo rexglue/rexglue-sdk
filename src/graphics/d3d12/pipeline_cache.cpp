@@ -38,7 +38,7 @@
 #include <rex/graphics/pipeline/shader/dxbc_translator.h>
 #include <rex/graphics/registers.h>
 #include <rex/graphics/util/draw.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 #include <rex/hash.h>
 #include <rex/logging.h>
 #include <rex/math.h>
@@ -1565,11 +1565,11 @@ bool PipelineCache::GetCurrentStateDescription(
       }
     }
   }
-  xenos::MsaaSamples host_msaa_samples = regs.Get<reg::RB_SURFACE_INFO>().msaa_samples;
+  xenos::MSAASamples host_msaa_samples = regs.Get<reg::RB_SURFACE_INFO>().msaa_samples;
   if (edram_rov_used) {
-    if (host_msaa_samples == xenos::MsaaSamples::k2X) {
+    if (host_msaa_samples == xenos::MSAASamples::k2X) {
       // 2 is not supported in ForcedSampleCount on Nvidia.
-      host_msaa_samples = xenos::MsaaSamples::k4X;
+      host_msaa_samples = xenos::MSAASamples::k4X;
     }
   } else {
     if (!(bound_depth_and_color_render_target_bits & ~uint32_t(1)) &&
@@ -1580,7 +1580,7 @@ bool PipelineCache::GetCurrentStateDescription(
       // sample counting when needed, though with 2x it will be as incorrect as
       // with 1x / 4x anyway; or bind a dummy depth / stencil buffer if really
       // needed.
-      host_msaa_samples = xenos::MsaaSamples::k1X;
+      host_msaa_samples = xenos::MSAASamples::k1X;
     }
     // TODO(Triang3l): 4x MSAA fallback when 2x isn't supported.
   }

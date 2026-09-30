@@ -19,7 +19,7 @@
 #include <rex/graphics/format/ucode.h>
 #include <rex/graphics/registers.h>
 #include <rex/graphics/util/draw_extent_estimator.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 #include <rex/memory.h>
 #include <rex/ui/graphics_util.h>
 
@@ -165,7 +165,7 @@ uint32_t DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
           vertex_index = index_buffer_32[i];
         }
         // The Xenos only uses 24 bits of the index (reset_indx is 24-bit).
-        vertex_index = xenos::GpuSwap(vertex_index, index_endian) & 0xFFFFFF;
+        vertex_index = xenos::GPUSwap(vertex_index, index_endian) & 0xFFFFFF;
       } else {
         vertex_index = 0;
       }
@@ -241,7 +241,7 @@ uint32_t DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
   // Top-left rule - .5 exclusive without MSAA, 1. exclusive with MSAA.
   auto rb_surface_info = regs.Get<reg::RB_SURFACE_INFO>();
   return (uint32_t(std::max(int32_t(0), max_y_24p8)) +
-          ((rb_surface_info.msaa_samples == xenos::MsaaSamples::k1X) ? 127 : 255)) >>
+          ((rb_surface_info.msaa_samples == xenos::MSAASamples::k1X) ? 127 : 255)) >>
          8;
 }
 

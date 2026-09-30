@@ -17,7 +17,7 @@
 
 #include <rex/assert.h>
 #include <rex/graphics/registers.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 #include <rex/memory.h>
 
 namespace rex::graphics {
@@ -56,9 +56,9 @@ class RegisterFile {
     return Get<T>(T::register_index);
   }
 
-  xenos::xe_gpu_vertex_fetch_t GetVertexFetch(uint32_t index) const {
+  xenos::VertexFetch GetVertexFetch(uint32_t index) const {
     assert_true(index < 96);
-    xenos::xe_gpu_vertex_fetch_t fetch;
+    xenos::VertexFetch fetch;
     std::memcpy(
         &fetch,
         &values[XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + (sizeof(fetch) / sizeof(uint32_t)) * index],
@@ -66,9 +66,9 @@ class RegisterFile {
     return fetch;
   }
 
-  xenos::xe_gpu_texture_fetch_t GetTextureFetch(uint32_t index) const {
+  xenos::TextureFetch GetTextureFetch(uint32_t index) const {
     assert_true(index < 32);
-    xenos::xe_gpu_texture_fetch_t fetch;
+    xenos::TextureFetch fetch;
     std::memcpy(
         &fetch,
         &values[XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + (sizeof(fetch) / sizeof(uint32_t)) * index],
@@ -76,9 +76,9 @@ class RegisterFile {
     return fetch;
   }
 
-  xenos::xe_gpu_memexport_stream_t GetMemExportStream(uint32_t float_constant_index) const {
+  xenos::MemExportStream GetMemExportStream(uint32_t float_constant_index) const {
     assert_true(float_constant_index < 512);
-    xenos::xe_gpu_memexport_stream_t stream;
+    xenos::MemExportStream stream;
     std::memcpy(&stream, &values[XE_GPU_REG_SHADER_CONSTANT_000_X + 4 * float_constant_index],
                 sizeof(stream));
     return stream;

@@ -11,12 +11,11 @@
 
 #include <cmath>
 
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 #include <rex/math.h>
 #include <rex/memory.h>
 
-namespace rex::graphics {
-namespace xenos {
+namespace rex::xenos {
 
 // Based on X360GammaToLinear and X360LinearToGamma from the Source Engine, with
 // additional logic from Direct3D 9 code in game executable disassembly, located
@@ -210,5 +209,4 @@ const char* GetDepthRenderTargetFormatName(DepthRenderTargetFormat format) {
   }
 }
 
-}  // namespace xenos
-}  // namespace rex::graphics
+}  // namespace rex::xenos

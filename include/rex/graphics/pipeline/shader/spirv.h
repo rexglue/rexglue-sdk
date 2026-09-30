@@ -15,7 +15,7 @@
 
 #include <rex/graphics/pipeline/shader/shader.h>
 #include <rex/graphics/pipeline/shader/spirv_translator.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 
 namespace rex::graphics {
 

@@ -12,15 +12,13 @@
 #pragma once
 
 #include <algorithm>
+#include <bit>
 
 #include <rex/assert.h>
-#include <rex/math.h>
-#include <rex/memory.h>
-#include <rex/platform.h>
+#include <rex/memory/utils.h>
 #include <rex/types.h>
 
-namespace rex::graphics {
-namespace xenos {
+namespace rex::xenos {
 
 // enum types used in the GPU registers or the microcode must be : uint32_t or
 // : int32_t, as Visual C++ restarts bit field packing when a field requires
@@ -284,13 +282,13 @@ enum class SurfaceNumberFormat : uint32_t {
 //   [0, 220).
 // - The lower 1120x144 bin is drawn without the pregenerated depth buffer data.
 
-enum class MsaaSamples : uint32_t {
+enum class MSAASamples : uint32_t {
   k1X = 0,
   k2X = 1,
   k4X = 2,
 };
 
-constexpr uint32_t kMsaaSamplesBits = 2;
+constexpr uint32_t kMSAASamplesBits = 2;
 
 constexpr uint32_t kColorRenderTargetIndexBits = 2;
 constexpr uint32_t kMaxColorRenderTargets = 4;
@@ -408,22 +406,22 @@ constexpr uint32_t kDepthRenderTargetFormatBits = 1;
 constexpr uint32_t kRenderTargetFormatBits =
     std::max(kColorRenderTargetFormatBits, kDepthRenderTargetFormatBits);
 
-constexpr uint32_t kEdramTileWidthSamples = 80;
-constexpr uint32_t kEdramTileHeightSamples = 16;
-constexpr uint32_t kEdramTileCount = 2048;
-constexpr uint32_t kEdramSizeBytes =
-    kEdramTileCount * kEdramTileHeightSamples * kEdramTileWidthSamples * sizeof(uint32_t);
+constexpr uint32_t kEDRAMTileWidthSamples = 80;
+constexpr uint32_t kEDRAMTileHeightSamples = 16;
+constexpr uint32_t kEDRAMTileCount = 2048;
+constexpr uint32_t kEDRAMSizeBytes =
+    kEDRAMTileCount * kEDRAMTileHeightSamples * kEDRAMTileWidthSamples * sizeof(uint32_t);
 
 // RB_SURFACE_INFO::surface_pitch width.
-constexpr uint32_t kEdramPitchPixelsBits = 14;
+constexpr uint32_t kEDRAMPitchPixelsBits = 14;
 // The part of RB_COLOR_INFO::color_base and RB_DEPTH_INFO::depth_base width
 // usable on the Xenos, which has periodic 11-bit EDRAM tile addressing.
-constexpr uint32_t kEdramBaseTilesBits = 11;
+constexpr uint32_t kEDRAMBaseTilesBits = 11;
 
-constexpr uint32_t GetSurfacePitchTiles(uint32_t pitch_pixels, MsaaSamples msaa_samples,
+constexpr uint32_t GetSurfacePitchTiles(uint32_t pitch_pixels, MSAASamples msaa_samples,
                                         bool is_64bpp) {
-  uint32_t pitch_samples = pitch_pixels << uint32_t(msaa_samples >= MsaaSamples::k4X);
-  uint32_t pitch_tiles = (pitch_samples + (kEdramTileWidthSamples - 1)) / kEdramTileWidthSamples;
+  uint32_t pitch_samples = pitch_pixels << uint32_t(msaa_samples >= MSAASamples::k4X);
+  uint32_t pitch_tiles = (pitch_samples + (kEDRAMTileWidthSamples - 1)) / kEDRAMTileWidthSamples;
   if (is_64bpp) {
     pitch_tiles <<= 1;
   }
@@ -435,7 +433,7 @@ constexpr uint32_t GetSurfacePitchTiles(uint32_t pitch_pixels, MsaaSamples msaa_
 // 8192, but to avoid bounds checking).
 // log2_ceil of 16383, multiplied by 2 for 4x MSAA, rounded to 80 samples,
 // multiplied by 2 for 64bpp.
-constexpr uint32_t kEdramPitchTilesBits = 10;
+constexpr uint32_t kEDRAMPitchTilesBits = 10;
 
 constexpr uint32_t kFormatBits = 6;
 
@@ -724,12 +722,11 @@ enum class BlendOp : uint32_t {
   kRevSubtract = 4,
 };
 
-typedef enum {
-  XE_GPU_INVALIDATE_MASK_VERTEX_SHADER = 1 << 8,
-  XE_GPU_INVALIDATE_MASK_PIXEL_SHADER = 1 << 9,
-
-  XE_GPU_INVALIDATE_MASK_ALL = 0x7FFF,
-} XE_GPU_INVALIDATE_MASK;
+enum class InvalidateMask : uint32_t {
+  VertexShader = 1 << 8,
+  PixelShader = 1 << 9,
+  All = 0x7FFF,
+};
 
 // VGT_DRAW_INITIATOR::DI_SRC_SEL_*
 enum class SourceSelect : uint32_t {
@@ -807,10 +804,10 @@ enum class SampleControl : uint32_t {
 // distinctly bright pixels on the mesas/buttes, where extrapolation happens.
 // Interpolating certain values (ones that aren't used for gradient calculation,
 // not texture coordinates) at centroids fixes this issue.
-inline uint32_t GetInterpolatorSamplingPattern(MsaaSamples msaa_samples,
+inline uint32_t GetInterpolatorSamplingPattern(MSAASamples msaa_samples,
                                                SampleControl sample_control,
                                                uint32_t interpolator_control_sampling_pattern) {
-  if (msaa_samples == MsaaSamples::k1X || sample_control == SampleControl::kCentersOnly) {
+  if (msaa_samples == MSAASamples::k1X || sample_control == SampleControl::kCentersOnly) {
     return ((1 << kMaxInterpolators) - 1) * uint32_t(SampleLocation::kCenter);
   }
   if (sample_control == SampleControl::kCentroidsOnly) {
@@ -872,7 +869,7 @@ enum class VertexQuantization : uint32_t {
   // 1/256th was added in R600. On the Xbox 360, games normally use 1/16th.
 };
 
-enum class EdramMode : uint32_t {
+enum class EDRAMMode : uint32_t {
   kNoOperation = 0,
   kColorDepth = 4,
   // TODO(Triang3l): Verify whether kDepthOnly means the pixel shader is ignored
@@ -899,7 +896,7 @@ enum class EdramMode : uint32_t {
 
 // Xenos copies EDRAM contents to a tiled 2D or 3D texture (resolves - from
 // "MSAA resolve", but this name is also used for single-sampled copying) by
-// drawing primitives with the EDRAM mode EdramMode::kCopy. Pixels covered by
+// drawing primitives with the EDRAM mode EDRAMMode::kCopy. Pixels covered by
 // the drawn geometry are copied. It's likely that only rectangular regions can
 // be resolved.
 //
@@ -999,30 +996,29 @@ constexpr bool IsSingleCopySampleSelected(CopySampleSelect copy_sample_select) {
   return copy_sample_select >= CopySampleSelect::k0 && copy_sample_select <= CopySampleSelect::k3;
 }
 
-#define XE_GPU_MAKE_TEXTURE_SWIZZLE(x, y, z, w)                \
-  (((rex::graphics::xenos::XE_GPU_TEXTURE_SWIZZLE_##x) << 0) | \
-   ((rex::graphics::xenos::XE_GPU_TEXTURE_SWIZZLE_##y) << 3) | \
-   ((rex::graphics::xenos::XE_GPU_TEXTURE_SWIZZLE_##z) << 6) | \
-   ((rex::graphics::xenos::XE_GPU_TEXTURE_SWIZZLE_##w) << 9))
-typedef enum {
-  XE_GPU_TEXTURE_SWIZZLE_X = 0,
-  XE_GPU_TEXTURE_SWIZZLE_R = 0,
-  XE_GPU_TEXTURE_SWIZZLE_Y = 1,
-  XE_GPU_TEXTURE_SWIZZLE_G = 1,
-  XE_GPU_TEXTURE_SWIZZLE_Z = 2,
-  XE_GPU_TEXTURE_SWIZZLE_B = 2,
-  XE_GPU_TEXTURE_SWIZZLE_W = 3,
-  XE_GPU_TEXTURE_SWIZZLE_A = 3,
-  XE_GPU_TEXTURE_SWIZZLE_0 = 4,
-  XE_GPU_TEXTURE_SWIZZLE_1 = 5,
-  XE_GPU_TEXTURE_SWIZZLE_RRRR = XE_GPU_MAKE_TEXTURE_SWIZZLE(R, R, R, R),
-  XE_GPU_TEXTURE_SWIZZLE_RGGG = XE_GPU_MAKE_TEXTURE_SWIZZLE(R, G, G, G),
-  XE_GPU_TEXTURE_SWIZZLE_RGBB = XE_GPU_MAKE_TEXTURE_SWIZZLE(R, G, B, B),
-  XE_GPU_TEXTURE_SWIZZLE_RGBA = XE_GPU_MAKE_TEXTURE_SWIZZLE(R, G, B, A),
-  XE_GPU_TEXTURE_SWIZZLE_0000 = XE_GPU_MAKE_TEXTURE_SWIZZLE(0, 0, 0, 0),
-} XE_GPU_TEXTURE_SWIZZLE;
+#define REXGPU_SWIZZLE(x, y, z, w)                                                         \
+  (((::rex::xenos::REXGPU_SWIZZLE_##x) << 0) | ((::rex::xenos::REXGPU_SWIZZLE_##y) << 3) | \
+   ((::rex::xenos::REXGPU_SWIZZLE_##z) << 6) | ((::rex::xenos::REXGPU_SWIZZLE_##w) << 9))
 
-inline uint16_t GpuSwap(uint16_t value, Endian endianness) {
+enum TextureSwizzle : uint32_t {
+  REXGPU_SWIZZLE_X = 0,
+  REXGPU_SWIZZLE_R = 0,
+  REXGPU_SWIZZLE_Y = 1,
+  REXGPU_SWIZZLE_G = 1,
+  REXGPU_SWIZZLE_Z = 2,
+  REXGPU_SWIZZLE_B = 2,
+  REXGPU_SWIZZLE_W = 3,
+  REXGPU_SWIZZLE_A = 3,
+  REXGPU_SWIZZLE_0 = 4,
+  REXGPU_SWIZZLE_1 = 5,
+  REXGPU_SWIZZLE_RRRR = REXGPU_SWIZZLE(R, R, R, R),
+  REXGPU_SWIZZLE_RGGG = REXGPU_SWIZZLE(R, G, G, G),
+  REXGPU_SWIZZLE_RGBB = REXGPU_SWIZZLE(R, G, B, B),
+  REXGPU_SWIZZLE_RGBA = REXGPU_SWIZZLE(R, G, B, A),
+  REXGPU_SWIZZLE_0000 = REXGPU_SWIZZLE(0, 0, 0, 0),
+};
+
+inline uint16_t GPUSwap(uint16_t value, Endian endianness) {
   switch (endianness) {
     case Endian::kNone:
       // No swap.
@@ -1036,7 +1032,7 @@ inline uint16_t GpuSwap(uint16_t value, Endian endianness) {
   }
 }
 
-inline uint32_t GpuSwap(uint32_t value, Endian endianness) {
+inline uint32_t GPUSwap(uint32_t value, Endian endianness) {
   switch (endianness) {
     default:
     case Endian::kNone:
@@ -1055,21 +1051,21 @@ inline uint32_t GpuSwap(uint32_t value, Endian endianness) {
   }
 }
 
-inline float GpuSwap(float value, Endian endianness) {
+inline float GPUSwap(float value, Endian endianness) {
   union {
     uint32_t i;
     float f;
   } v;
   v.f = value;
-  v.i = GpuSwap(v.i, endianness);
+  v.i = GPUSwap(v.i, endianness);
   return v.f;
 }
 
-inline uint32_t GpuToCpu(uint32_t p) {
+inline uint32_t GPUToCPU(uint32_t p) {
   return p;
 }
 
-inline uint32_t CpuToGpu(uint32_t p) {
+inline uint32_t CPUToGPU(uint32_t p) {
   return p & 0x1FFFFFFF;
 }
 
@@ -1101,7 +1097,7 @@ constexpr uint32_t kTextureFetchConstantCount = 32;
 constexpr uint32_t kVertexFetchConstantCount = 3 * kTextureFetchConstantCount;
 
 // XE_GPU_REG_SHADER_CONSTANT_FETCH_*
-union alignas(uint32_t) xe_gpu_vertex_fetch_t {
+union alignas(uint32_t) VertexFetch {
   struct {
     uint32_t dword_0;
     uint32_t dword_1;
@@ -1115,7 +1111,7 @@ union alignas(uint32_t) xe_gpu_vertex_fetch_t {
     uint32_t _pad_1_26 : 6;  // +26
   };
 };
-static_assert_size(xe_gpu_vertex_fetch_t, sizeof(uint32_t) * 2);
+static_assert_size(VertexFetch, sizeof(uint32_t) * 2);
 
 // Byte alignment of texture subresources in memory - of each mip and stack
 // slice / cube face (and of textures themselves), this number of bits is also
@@ -1165,7 +1161,7 @@ constexpr uint32_t kTextureLinearRowAlignmentBytesLog2 = 8;
 constexpr uint32_t kTextureLinearRowAlignmentBytes = 1 << kTextureLinearRowAlignmentBytesLog2;
 
 // XE_GPU_REG_SHADER_CONSTANT_FETCH_*
-union alignas(uint32_t) xe_gpu_texture_fetch_t {
+union alignas(uint32_t) TextureFetch {
   struct {
     uint32_t dword_0;
     uint32_t dword_1;
@@ -1234,7 +1230,7 @@ union alignas(uint32_t) xe_gpu_texture_fetch_t {
     };
 
     uint32_t num_format : 1;  // +0 dword_3 frac/int
-    // xyzw, 3b each (XE_GPU_TEXTURE_SWIZZLE)
+    // xyzw, 3b each (TextureSwizzle)
     uint32_t swizzle : 12;                 // +1
     int32_t exp_adjust : 6;                // +13
     TextureFilter mag_filter : 2;          // +19
@@ -1266,10 +1262,10 @@ union alignas(uint32_t) xe_gpu_texture_fetch_t {
     uint32_t mip_address : 20;    // +12 mip address >> 12
   };
 };
-static_assert_size(xe_gpu_texture_fetch_t, sizeof(uint32_t) * 6);
+static_assert_size(TextureFetch, sizeof(uint32_t) * 6);
 
 // XE_GPU_REG_SHADER_CONSTANT_FETCH_*
-union alignas(uint32_t) xe_gpu_fetch_group_t {
+union alignas(uint32_t) FetchGroup {
   struct {
     uint32_t dword_0;
     uint32_t dword_1;
@@ -1278,11 +1274,11 @@ union alignas(uint32_t) xe_gpu_fetch_group_t {
     uint32_t dword_4;
     uint32_t dword_5;
   };
-  xe_gpu_texture_fetch_t texture_fetch;
+  TextureFetch texture_fetch;
   struct {
-    xe_gpu_vertex_fetch_t vertex_fetch_0;
-    xe_gpu_vertex_fetch_t vertex_fetch_1;
-    xe_gpu_vertex_fetch_t vertex_fetch_2;
+    VertexFetch vertex_fetch_0;
+    VertexFetch vertex_fetch_1;
+    VertexFetch vertex_fetch_2;
   };
   struct {
     uint32_t type_0 : 2;
@@ -1296,7 +1292,7 @@ union alignas(uint32_t) xe_gpu_fetch_group_t {
     uint32_t data_2_b : 32;
   };
 };
-static_assert_size(xe_gpu_fetch_group_t, sizeof(uint32_t) * 6);
+static_assert_size(FetchGroup, sizeof(uint32_t) * 6);
 
 // Shader memory export (memexport) allows for writing of arbitrary formatted
 // data with random access / scatter capabilities. It provides functionality
@@ -1479,7 +1475,7 @@ static_assert_size(xe_gpu_fetch_group_t, sizeof(uint32_t) * 6);
 // the CPU (15000 VS invocations in the main menu):
 // c8: Z = 010010110000|0|010|00|000010|00000|000, count = invocation count
 //   No endian swap, 8, uint, RGBA
-union alignas(uint32_t) xe_gpu_memexport_stream_t {
+union alignas(uint32_t) MemExportStream {
   struct {
     uint32_t dword_0;
     uint32_t dword_1;
@@ -1504,9 +1500,9 @@ union alignas(uint32_t) xe_gpu_memexport_stream_t {
     uint32_t const_0x96 : 9;    // +23
   };
 };
-static_assert_size(xe_gpu_memexport_stream_t, sizeof(uint32_t) * 4);
+static_assert_size(MemExportStream, sizeof(uint32_t) * 4);
 
-struct alignas(uint32_t) xe_gpu_depth_sample_counts {
+struct alignas(uint32_t) DepthSampleCounts {
   // This is little endian as it is swapped in D3D code.
   // Corresponding A and B values are summed up by D3D.
   // Occlusion there is calculated by substracting begin from end struct.
@@ -1519,7 +1515,7 @@ struct alignas(uint32_t) xe_gpu_depth_sample_counts {
   le<uint32_t> StencilFail_A;
   le<uint32_t> StencilFail_B;
 };
-static_assert_size(xe_gpu_depth_sample_counts, sizeof(uint32_t) * 8);
+static_assert_size(DepthSampleCounts, sizeof(uint32_t) * 8);
 
 // Enum of event values used for VGT_EVENT_INITIATOR
 enum Event {
@@ -1644,5 +1640,62 @@ inline uint32_t MakePacketType3(Type3Opcode opcode, uint16_t count, bool predica
   return (3u << 30) | (((count - 1) & 0x3FFF) << 16) | ((opcode & 0x7F) << 8) | (predicate ? 1 : 0);
 }
 
-}  // namespace xenos
-}  // namespace rex::graphics
+// Similar to the C++ implementation of XMConvertFloatToHalf and
+// XMConvertHalfToFloat from DirectXMath 3.00 (pre-3.04, which switched from the
+// Xenos encoding to IEEE 754), with the extended range instead of infinity and
+// NaN, and optionally with denormalized numbers - as used in vpkd3d128 (no
+// denormals, rounding towards zero) and on the Xenos (GL_OES_texture_float
+// alternative encoding).
+
+inline uint16_t FloatToHalf(float value, bool preserve_denormal = false,
+                            bool round_to_nearest_even = false) {
+  uint32_t integer_value = std::bit_cast<uint32_t>(value);
+  uint32_t abs_value = integer_value & 0x7FFFFFFFu;
+  uint32_t result;
+  if (abs_value >= 0x47FFE000u) {
+    // Saturate.
+    result = 0x7FFFu;
+  } else {
+    if (abs_value < 0x38800000u) {
+      // The number is too small to be represented as a normalized half.
+      if (preserve_denormal) {
+        uint32_t shift = std::min(uint32_t(113u - (abs_value >> 23u)), uint32_t(24u));
+        result = (0x800000u | (abs_value & 0x7FFFFFu)) >> shift;
+      } else {
+        result = 0u;
+      }
+    } else {
+      // Rebias the exponent to represent the value as a normalized half.
+      result = abs_value + 0xC8000000u;
+    }
+    if (round_to_nearest_even) {
+      result += 0xFFFu + ((result >> 13u) & 1u);
+    }
+    result = (result >> 13u) & 0x7FFFu;
+  }
+  return uint16_t(result | ((integer_value & 0x80000000u) >> 16u));
+}
+
+inline float HalfToFloat(uint16_t value, bool preserve_denormal = false) {
+  uint32_t mantissa = value & 0x3FFu;
+  uint32_t exponent = (value >> 10u) & 0x1Fu;
+  if (!exponent) {
+    if (!preserve_denormal) {
+      mantissa = 0;
+    } else if (mantissa) {
+      // Normalize the value in the resulting float.
+      // do { Exponent--; Mantissa <<= 1; } while ((Mantissa & 0x0400) == 0)
+      uint32_t mantissa_lzcnt = uint32_t(std::countl_zero(mantissa)) - (32u - 11u);
+      exponent = uint32_t(1 - int32_t(mantissa_lzcnt));
+      mantissa = (mantissa << mantissa_lzcnt) & 0x3FFu;
+    }
+    if (!mantissa) {
+      exponent = uint32_t(-112);
+    }
+  }
+  uint32_t result =
+      (uint32_t(value & 0x8000u) << 16u) | ((exponent + 112u) << 23u) | (mantissa << 13u);
+  return std::bit_cast<float>(result);
+}
+
+}  // namespace rex::xenos

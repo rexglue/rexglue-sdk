@@ -15,10 +15,10 @@
 #include <memory>
 
 #include <rex/assert.h>
-#include <rex/graphics/pipeline/texture/info.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/texture_info.h>
+#include <rex/xenos/xenos.h>
 
-namespace rex::graphics::texture_conversion {
+namespace rex::xenos {
 
 typedef std::function<void(xenos::Endian, void*, const void*, size_t)> CopyBlockCallback;
 
@@ -42,4 +42,4 @@ typedef struct UntileInfo {
 
 void Untile(uint8_t* output_buffer, const uint8_t* input_buffer, const UntileInfo* untile_info);
 
-}  // namespace rex::graphics::texture_conversion
+}  // namespace rex::xenos

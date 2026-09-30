@@ -12,12 +12,10 @@
 #include <algorithm>
 #include <cmath>
 
-#include <rex/graphics/pipeline/texture/info.h>
+#include <rex/xenos/texture_info.h>
 #include <rex/math.h>
 
-namespace rex::graphics {
-
-using namespace rex::graphics::xenos;
+namespace rex::xenos {
 
 static TextureExtent CalculateExtent(const FormatInfo* format_info, uint32_t pitch, uint32_t height,
                                      uint32_t depth, bool is_tiled, bool is_guest) {
@@ -74,4 +72,4 @@ TextureExtent TextureExtent::Calculate(const TextureInfo* info, bool is_guest) {
                          info->is_tiled, is_guest);
 }
 
-}  // namespace rex::graphics
+}  // namespace rex::xenos

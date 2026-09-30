@@ -17,10 +17,10 @@
 #include <string>
 
 #include <rex/cvar.h>
-#include <rex/graphics/pipeline/texture/info.h>
+#include <rex/xenos/texture_info.h>
 #include <rex/graphics/register_file.h>
 #include <rex/graphics/video_mode_util.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 #include <rex/kernel/xboxkrnl/private.h>
 #include <rex/kernel/xboxkrnl/rtl.h>
 #include <rex/kernel/xboxkrnl/video.h>
@@ -416,9 +416,7 @@ void VdSwap_entry(mapped_void buffer_ptr,      // ptr into primary ringbuffer
   assert(width);
   assert(height);
 
-  namespace xenos = rex::graphics::xenos;
-
-  xenos::xe_gpu_texture_fetch_t gpu_fetch;
+  xenos::TextureFetch gpu_fetch;
   memory::copy_and_swap_32_unaligned(&gpu_fetch,
                                      reinterpret_cast<uint32_t*>(fetch_ptr.host_address()), 6);
 
@@ -442,10 +440,10 @@ void VdSwap_entry(mapped_void buffer_ptr,      // ptr into primary ringbuffer
   }
   gpu_fetch.base_address = frontbuffer_physical_address >> 12;
 
-  auto texture_format = rex::graphics::xenos::TextureFormat(texture_format_ptr.value());
+  auto texture_format = rex::xenos::TextureFormat(texture_format_ptr.value());
   auto color_space = *color_space_ptr;
-  assert_true(texture_format == rex::graphics::xenos::TextureFormat::k_8_8_8_8 ||
-              texture_format == rex::graphics::xenos::TextureFormat::k_2_10_10_10_AS_16_16_16_16);
+  assert_true(texture_format == rex::xenos::TextureFormat::k_8_8_8_8 ||
+              texture_format == rex::xenos::TextureFormat::k_2_10_10_10_AS_16_16_16_16);
   assert_true(color_space == 0);  // RGB(0)
   assert_true(*width == 1 + gpu_fetch.size_2d.width);
   assert_true(*height == 1 + gpu_fetch.size_2d.height);
@@ -471,7 +469,7 @@ void VdSwap_entry(mapped_void buffer_ptr,      // ptr into primary ringbuffer
   dwords[offset++] = gpu_fetch.dword_5;
 
   dwords[offset++] = xenos::MakePacketType3(xenos::PM4_XE_SWAP, 4);
-  dwords[offset++] = rex::graphics::xenos::kSwapSignature;
+  dwords[offset++] = rex::xenos::kSwapSignature;
   dwords[offset++] = frontbuffer_physical_address;
 
   dwords[offset++] = *width;

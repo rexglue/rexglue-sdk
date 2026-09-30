@@ -41,7 +41,7 @@
 #include <rex/graphics/vulkan/command_processor.h>
 #include <rex/graphics/vulkan/pipeline_cache.h>
 #include <rex/graphics/vulkan/shader.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 #include <rex/hash.h>
 #include <rex/logging.h>
 #include <rex/math.h>
@@ -3270,7 +3270,7 @@ bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments&
     // Keep parity with D3D12 host-render-target path, where draws without
     // color/depth attachments must run at 1x sample count.
     multisample_state.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-  } else if (description.render_pass_key.msaa_samples == xenos::MsaaSamples::k2X &&
+  } else if (description.render_pass_key.msaa_samples == xenos::MSAASamples::k2X &&
              !render_target_cache_.IsMsaa2xSupported(subpass_has_attachments)) {
     // Using sample 0 as 0 and 3 as 1 for 2x instead (not exactly the same
     // sample locations, but still top-left and bottom-right - however, this can

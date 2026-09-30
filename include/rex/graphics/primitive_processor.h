@@ -26,7 +26,7 @@
 #include <rex/graphics/pipeline/shader/shader.h>
 #include <rex/graphics/register_file.h>
 #include <rex/graphics/shared_memory.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 #include <rex/math.h>
 #include <rex/memory.h>
 #include <rex/platform.h>
@@ -387,7 +387,7 @@ class PrimitiveProcessor {
            (reinterpret_cast<uintptr_t>(source) & (XE_GPU_PRIMITIVE_PROCESSOR_SIMD_SIZE - 1))) {
       --count;
       uint32_t index = *(source++) & low_bits_mask_guest_endian;
-      *(dest++) = index != reset_index_guest_endian ? xenos::GpuSwap(index, HostSwap) : UINT32_MAX;
+      *(dest++) = index != reset_index_guest_endian ? xenos::GPUSwap(index, HostSwap) : UINT32_MAX;
     }
     if (count >= kSimdVectorU32Elements) {
       SimdVectorU32 reset_index_guest_endian_simd = ReplicateU32(reset_index_guest_endian);
@@ -395,10 +395,10 @@ class PrimitiveProcessor {
 #if REX_ARCH_AMD64
       __m128i host_swap_shuffle;
       if constexpr (HostSwap != xenos::Endian::kNone) {
-        host_swap_shuffle = _mm_set_epi32(int32_t(xenos::GpuSwap(uint32_t(0x0F0E0D0C), HostSwap)),
-                                          int32_t(xenos::GpuSwap(uint32_t(0x0B0A0908), HostSwap)),
-                                          int32_t(xenos::GpuSwap(uint32_t(0x07060504), HostSwap)),
-                                          int32_t(xenos::GpuSwap(uint32_t(0x03020100), HostSwap)));
+        host_swap_shuffle = _mm_set_epi32(int32_t(xenos::GPUSwap(uint32_t(0x0F0E0D0C), HostSwap)),
+                                          int32_t(xenos::GPUSwap(uint32_t(0x0B0A0908), HostSwap)),
+                                          int32_t(xenos::GPUSwap(uint32_t(0x07060504), HostSwap)),
+                                          int32_t(xenos::GPUSwap(uint32_t(0x03020100), HostSwap)));
       }
 #endif  // REX_ARCH_AMD64
       while (count >= kSimdVectorU32Elements) {
@@ -436,7 +436,7 @@ class PrimitiveProcessor {
 #endif  // XE_GPU_PRIMITIVE_PROCESSOR_SIMD_SIZE
     while (count--) {
       uint32_t index = *(source++) & low_bits_mask_guest_endian;
-      *(dest++) = index != reset_index_guest_endian ? xenos::GpuSwap(index, HostSwap) : UINT32_MAX;
+      *(dest++) = index != reset_index_guest_endian ? xenos::GPUSwap(index, HostSwap) : UINT32_MAX;
     }
   }
 
@@ -453,17 +453,17 @@ class PrimitiveProcessor {
   };
   struct To24Swapping8In16IndexTransform {
     uint32_t operator()(uint32_t index) const {
-      return xenos::GpuSwap(index, xenos::Endian::k8in16) & xenos::kVertexIndexMask;
+      return xenos::GPUSwap(index, xenos::Endian::k8in16) & xenos::kVertexIndexMask;
     }
   };
   struct To24Swapping8In32IndexTransform {
     uint32_t operator()(uint32_t index) const {
-      return xenos::GpuSwap(index, xenos::Endian::k8in32) & xenos::kVertexIndexMask;
+      return xenos::GPUSwap(index, xenos::Endian::k8in32) & xenos::kVertexIndexMask;
     }
   };
   struct To24Swapping16In32IndexTransform {
     uint32_t operator()(uint32_t index) const {
-      return xenos::GpuSwap(index, xenos::Endian::k16in32) & xenos::kVertexIndexMask;
+      return xenos::GPUSwap(index, xenos::Endian::k16in32) & xenos::kVertexIndexMask;
     }
   };
 

@@ -27,7 +27,7 @@
 #include <rex/graphics/d3d12/texture_cache.h>
 #include <rex/graphics/pipeline/render_target/cache.h>
 #include <rex/graphics/util/draw.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 #include <rex/memory.h>
 #include <rex/ui/d3d12/d3d12_cpu_descriptor_pool.h>
 #include <rex/ui/d3d12/d3d12_provider.h>
@@ -360,13 +360,13 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   union TransferShaderKey {
     uint32_t key;
     struct {
-      xenos::MsaaSamples dest_msaa_samples : xenos::kMsaaSamplesBits;
+      xenos::MSAASamples dest_msaa_samples : xenos::kMSAASamplesBits;
       uint32_t dest_resource_format : xenos::kRenderTargetFormatBits;
-      xenos::MsaaSamples source_msaa_samples : xenos::kMsaaSamplesBits;
+      xenos::MSAASamples source_msaa_samples : xenos::kMSAASamplesBits;
       // Always 1x when host_depth_source_is_copy is true not to create the same
       // pipeline for different MSAA sample counts as it doesn't matter in this
       // case.
-      xenos::MsaaSamples host_depth_source_msaa_samples : xenos::kMsaaSamplesBits;
+      xenos::MSAASamples host_depth_source_msaa_samples : xenos::kMSAASamplesBits;
       uint32_t source_resource_format : xenos::kRenderTargetFormatBits;
       // If host depth is also fetched, whether it's pre-copied to the EDRAM
       // buffer (but since it's just a scratch buffer, with tiles laid out
@@ -398,15 +398,15 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
     uint32_t constant;
     struct {
       // All in tiles.
-      uint32_t dest_pitch : xenos::kEdramPitchTilesBits;
-      uint32_t source_pitch : xenos::kEdramPitchTilesBits;
+      uint32_t dest_pitch : xenos::kEDRAMPitchTilesBits;
+      uint32_t source_pitch : xenos::kEDRAMPitchTilesBits;
       // Destination base in tiles minus source base in tiles (not vice versa
       // because this is a transform of the coordinate system, not addresses
       // themselves).
       // + 1 bit because this is a signed difference between two EDRAM bases.
       // 0 for host_depth_source_is_copy (ignored in this case anyway as
       // destination == source anyway).
-      int32_t source_to_dest : xenos::kEdramBaseTilesBits + 1;
+      int32_t source_to_dest : xenos::kEDRAMBaseTilesBits + 1;
     };
     TransferAddressConstant() : constant(0) { static_assert_size(*this, sizeof(constant)); }
     bool operator==(const TransferAddressConstant& other_constant) const {
@@ -462,7 +462,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   union DumpPipelineKey {
     uint32_t key;
     struct {
-      xenos::MsaaSamples msaa_samples : 2;
+      xenos::MSAASamples msaa_samples : 2;
       uint32_t resource_format : 4;
       // Last bit because this affects the root signature - after sorting, only
       // change it at most once. Depth buffers have an additional stencil SRV.
@@ -493,8 +493,8 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
     struct {
       // May be beyond the EDRAM tile count in case of EDRAM addressing
       // wrapping, thus + 1 bit.
-      uint32_t dispatch_first_tile : xenos::kEdramBaseTilesBits + 1;
-      uint32_t source_base_tiles : xenos::kEdramBaseTilesBits;
+      uint32_t dispatch_first_tile : xenos::kEDRAMBaseTilesBits + 1;
+      uint32_t source_base_tiles : xenos::kEDRAMBaseTilesBits;
     };
     DumpOffsets() : offsets(0) { static_assert_size(*this, sizeof(offsets)); }
     bool operator==(const DumpOffsets& other_offsets) const {
@@ -507,8 +507,8 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
     uint32_t pitches;
     struct {
       // Both in tiles.
-      uint32_t dest_pitch : xenos::kEdramPitchTilesBits;
-      uint32_t source_pitch : xenos::kEdramPitchTilesBits;
+      uint32_t dest_pitch : xenos::kEDRAMPitchTilesBits;
+      uint32_t source_pitch : xenos::kEDRAMPitchTilesBits;
     };
     DumpPitches() : pitches(0) { static_assert_size(*this, sizeof(pitches)); }
     bool operator==(const DumpPitches& other_pitches) const {
@@ -696,7 +696,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   std::vector<ui::d3d12::util::DescriptorCpuGpuHandlePair> current_temporary_descriptors_gpu_;
 
   ID3D12RootSignature* host_depth_store_root_signature_ = nullptr;
-  ID3D12PipelineState* host_depth_store_pipelines_[size_t(xenos::MsaaSamples::k4X) + 1] = {};
+  ID3D12PipelineState* host_depth_store_pipelines_[size_t(xenos::MSAASamples::k4X) + 1] = {};
 
   std::unique_ptr<ui::d3d12::D3D12UploadBufferPool> transfer_vertex_buffer_pool_;
 
@@ -733,7 +733,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   // Parameter 0 - 2 root constants (red, green).
   ID3D12RootSignature* uint32_rtv_clear_root_signature_ = nullptr;
   // [32 or 32_32][MSAA samples].
-  ID3D12PipelineState* uint32_rtv_clear_pipelines_[2][size_t(xenos::MsaaSamples::k4X) + 1] = {};
+  ID3D12PipelineState* uint32_rtv_clear_pipelines_[2][size_t(xenos::MSAASamples::k4X) + 1] = {};
 
   std::vector<Transfer> clear_transfers_[2];
 

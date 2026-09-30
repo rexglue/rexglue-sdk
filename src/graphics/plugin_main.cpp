@@ -32,7 +32,7 @@
 #include <rex/graphics/vulkan/graphics_system.h>
 #endif
 
-namespace rex::graphics::xenos {
+namespace rex::graphics {
 
 class XenosModule final : public rex::IModule {
  public:
@@ -113,6 +113,6 @@ void* XenosModule::GetBackend() {
   return static_cast<IGraphicsBackend*>(Instance().backend_.get());
 }
 
-}  // namespace rex::graphics::xenos
+}  // namespace rex::graphics
 
-REX_DECLARE_MODULE(rex::graphics::xenos::XenosModule)
+REX_DECLARE_MODULE(rex::graphics::XenosModule)

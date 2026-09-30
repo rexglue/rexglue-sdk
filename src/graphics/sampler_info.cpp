@@ -17,7 +17,7 @@
 
 namespace rex::graphics {
 
-bool SamplerInfo::Prepare(const xenos::xe_gpu_texture_fetch_t& fetch,
+bool SamplerInfo::Prepare(const xenos::TextureFetch& fetch,
                           const ParsedTextureFetchInstruction& fetch_instr, SamplerInfo* out_info) {
   std::memset(out_info, 0, sizeof(SamplerInfo));
 

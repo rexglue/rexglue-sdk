@@ -22,7 +22,7 @@ RegisterFile::RegisterFile() {
 
 const RegisterInfo* RegisterFile::GetRegisterInfo(uint32_t index) {
   switch (index) {
-#define XE_GPU_REGISTER(index, type, name) \
+#define REXGPU_REGISTER(index, type, name) \
   case index: {                            \
     static const RegisterInfo reg_info = { \
         RegisterInfo::Type::type,          \
@@ -31,7 +31,7 @@ const RegisterInfo* RegisterFile::GetRegisterInfo(uint32_t index) {
     return &reg_info;                      \
   }
 #include <rex/graphics/register_table.inc>
-#undef XE_GPU_REGISTER
+#undef REXGPU_REGISTER
     default:
       return nullptr;
   }

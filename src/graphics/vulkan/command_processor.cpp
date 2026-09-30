@@ -37,7 +37,7 @@
 #include <rex/graphics/vulkan/render_target_cache.h>
 #include <rex/graphics/vulkan/shader.h>
 #include <rex/graphics/vulkan/shared_memory.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 #include <rex/kernel/xboxkrnl/video.h>
 #include <rex/types.h>
 #include <rex/memory/utils.h>
@@ -636,8 +636,7 @@ bool VulkanCommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuff
   WriteRegister(XE_GPU_REG_VGT_EVENT_INITIATOR, initiator & 0x3F);
 
   uint32_t sample_count_addr = register_file_->values[XE_GPU_REG_RB_SAMPLE_COUNT_ADDR];
-  auto* sample_counts =
-      memory_->TranslatePhysical<xenos::xe_gpu_depth_sample_counts*>(sample_count_addr);
+  auto* sample_counts = memory_->TranslatePhysical<xenos::DepthSampleCounts*>(sample_count_addr);
   if (!sample_counts) {
     DisableHostOcclusionQueries();
     return true;
@@ -652,7 +651,7 @@ bool VulkanCommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuff
         sample_counts->ZPass_A == kQueryFinished || sample_counts->ZPass_B == kQueryFinished;
     bool is_end_via_z_fail =
         sample_counts->ZFail_A == kQueryFinished || sample_counts->ZFail_B == kQueryFinished;
-    std::memset(sample_counts, 0, sizeof(xenos::xe_gpu_depth_sample_counts));
+    std::memset(sample_counts, 0, sizeof(xenos::DepthSampleCounts));
     if (is_end_via_z_pass || is_end_via_z_fail) {
       sample_counts->ZPass_A = fake_sample_count;
       sample_counts->Total_A = fake_sample_count;
@@ -3589,8 +3588,8 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
     return false;
   };
 
-  xenos::EdramMode edram_mode = regs.Get<reg::RB_MODECONTROL>().edram_mode;
-  if (edram_mode == xenos::EdramMode::kCopy) {
+  xenos::EDRAMMode edram_mode = regs.Get<reg::RB_MODECONTROL>().edram_mode;
+  if (edram_mode == xenos::EDRAMMode::kCopy) {
     // Special copy handling.
     return IssueCopy();
   }
@@ -3629,9 +3628,9 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
   }
   VulkanShader* pixel_shader = nullptr;
   if (is_rasterization_done) {
-    // See xenos::EdramMode for explanation why the pixel shader is only used
+    // See xenos::EDRAMMode for explanation why the pixel shader is only used
     // when it's kColorDepth here.
-    if (edram_mode == xenos::EdramMode::kColorDepth) {
+    if (edram_mode == xenos::EDRAMMode::kColorDepth) {
       pixel_shader = static_cast<VulkanShader*>(active_pixel_shader());
       if (pixel_shader) {
         pipeline_cache_->AnalyzeShaderUcode(*pixel_shader);
@@ -3968,7 +3967,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
       if (vertex_buffers_in_sync_[vfetch_index >> 6] & vfetch_bit) {
         continue;
       }
-      xenos::xe_gpu_vertex_fetch_t vfetch_constant = regs.GetVertexFetch(vfetch_index);
+      xenos::VertexFetch vfetch_constant = regs.GetVertexFetch(vfetch_index);
       switch (vfetch_constant.type) {
         case xenos::FetchConstantType::kVertex:
           break;
@@ -4469,7 +4468,8 @@ bool VulkanCommandProcessor::IssueCopy_ReadbackResolvePath() {
     }
 
     reg::RB_COPY_DEST_INFO copy_dest_info = register_file_->Get<reg::RB_COPY_DEST_INFO>();
-    const FormatInfo* format_info = FormatInfo::Get(uint32_t(copy_dest_info.copy_dest_format));
+    const xenos::FormatInfo* format_info =
+        xenos::FormatInfo::Get(uint32_t(copy_dest_info.copy_dest_format));
     uint32_t bits_per_pixel = format_info->bits_per_pixel;
     if (bits_per_pixel != 8 && bits_per_pixel != 16 && bits_per_pixel != 32 &&
         bits_per_pixel != 64) {
@@ -4910,8 +4910,7 @@ uint64_t VulkanCommandProcessor::NormalizeOcclusionSamples(uint64_t samples) con
 
 void VulkanCommandProcessor::WriteGuestOcclusionResult(uint32_t sample_count_address,
                                                        uint64_t samples) {
-  auto* sample_counts =
-      memory_->TranslatePhysical<xenos::xe_gpu_depth_sample_counts*>(sample_count_address);
+  auto* sample_counts = memory_->TranslatePhysical<xenos::DepthSampleCounts*>(sample_count_address);
   if (!sample_counts) {
     return;
   }
@@ -6194,8 +6193,8 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
   dirty |= system_constants_.alpha_to_mask != alpha_to_mask;
   system_constants_.alpha_to_mask = alpha_to_mask;
 
-  uint32_t edram_tile_dwords_scaled = xenos::kEdramTileWidthSamples *
-                                      xenos::kEdramTileHeightSamples *
+  uint32_t edram_tile_dwords_scaled = xenos::kEDRAMTileWidthSamples *
+                                      xenos::kEDRAMTileHeightSamples *
                                       (draw_resolution_scale_x * draw_resolution_scale_y);
 
   // EDRAM pitch for FSI render target writing.
@@ -6203,9 +6202,9 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
     // Align, then multiply by 32bpp tile size in dwords.
     uint32_t edram_32bpp_tile_pitch_dwords_scaled =
         ((rb_surface_info.surface_pitch *
-          (rb_surface_info.msaa_samples >= xenos::MsaaSamples::k4X ? 2 : 1)) +
-         (xenos::kEdramTileWidthSamples - 1)) /
-        xenos::kEdramTileWidthSamples * edram_tile_dwords_scaled;
+          (rb_surface_info.msaa_samples >= xenos::MSAASamples::k4X ? 2 : 1)) +
+         (xenos::kEDRAMTileWidthSamples - 1)) /
+        xenos::kEDRAMTileWidthSamples * edram_tile_dwords_scaled;
     dirty |= system_constants_.edram_32bpp_tile_pitch_dwords_scaled !=
              edram_32bpp_tile_pitch_dwords_scaled;
     system_constants_.edram_32bpp_tile_pitch_dwords_scaled = edram_32bpp_tile_pitch_dwords_scaled;

@@ -20,7 +20,7 @@
 #include <rex/graphics/pipeline/render_target/cache.h>
 #include <rex/graphics/vulkan/shared_memory.h>
 #include <rex/graphics/vulkan/texture_cache.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 #include <rex/hash.h>
 #include <rex/ui/vulkan/single_layout_descriptor_set_pool.h>
 #include <rex/ui/vulkan/upload_buffer_pool.h>
@@ -47,7 +47,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
       // sample counts ensures that if the variableMultisampleRate feature is
       // not supported, no draws with different rasterization sample counts end
       // up in one render pass.
-      xenos::MsaaSamples msaa_samples : xenos::kMsaaSamplesBits;  // 2
+      xenos::MSAASamples msaa_samples : xenos::kMSAASamplesBits;  // 2
       // << 0 is depth, << 1...4 is color.
       uint32_t depth_and_color_used : 1 + xenos::kMaxColorRenderTargets;  // 7
       // 0 for unused attachments.
@@ -154,7 +154,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   VkFormat GetColorVulkanFormat(xenos::ColorRenderTargetFormat format) const;
   VkFormat GetColorOwnershipTransferVulkanFormat(
       xenos::ColorRenderTargetFormat format,
-      xenos::MsaaSamples msaa_samples = xenos::MsaaSamples::k1X,
+      xenos::MSAASamples msaa_samples = xenos::MSAASamples::k1X,
       bool* is_integer_out = nullptr) const;
 
  protected:
@@ -386,13 +386,13 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     // Same as RenderTargetKey::pitch_tiles_at_32bpp.
     uint32_t pitch_tiles_at_32bpp : 8;  // 8
     // [0, 2047].
-    uint32_t depth_base_tiles : xenos::kEdramBaseTilesBits;    // 19
-    uint32_t color_0_base_tiles : xenos::kEdramBaseTilesBits;  // 30
+    uint32_t depth_base_tiles : xenos::kEDRAMBaseTilesBits;    // 19
+    uint32_t color_0_base_tiles : xenos::kEDRAMBaseTilesBits;  // 30
 
-    uint32_t color_1_base_tiles : xenos::kEdramBaseTilesBits;  // 43
-    uint32_t color_2_base_tiles : xenos::kEdramBaseTilesBits;  // 54
+    uint32_t color_1_base_tiles : xenos::kEDRAMBaseTilesBits;  // 43
+    uint32_t color_2_base_tiles : xenos::kEDRAMBaseTilesBits;  // 54
 
-    uint32_t color_3_base_tiles : xenos::kEdramBaseTilesBits;  // 75
+    uint32_t color_3_base_tiles : xenos::kEDRAMBaseTilesBits;  // 75
 
     // Including all the padding, for a stable hash.
     FramebufferKey() { Reset(); }
@@ -514,14 +514,14 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   union TransferShaderKey {
     uint32_t key;
     struct {
-      xenos::MsaaSamples dest_msaa_samples : xenos::kMsaaSamplesBits;
+      xenos::MSAASamples dest_msaa_samples : xenos::kMSAASamplesBits;
       uint32_t dest_color_rt_index : xenos::kColorRenderTargetIndexBits;
       uint32_t dest_resource_format : xenos::kRenderTargetFormatBits;
-      xenos::MsaaSamples source_msaa_samples : xenos::kMsaaSamplesBits;
+      xenos::MSAASamples source_msaa_samples : xenos::kMSAASamplesBits;
       // Always 1x when the host depth is a copy from a buffer rather than an
       // image, not to create the same pipeline for different MSAA sample counts
       // as it doesn't matter in this case.
-      xenos::MsaaSamples host_depth_source_msaa_samples : xenos::kMsaaSamplesBits;
+      xenos::MSAASamples host_depth_source_msaa_samples : xenos::kMSAASamplesBits;
       uint32_t source_resource_format : xenos::kRenderTargetFormatBits;
 
       // Last bits because this affects the pipeline layout - after sorting,
@@ -575,15 +575,15 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     uint32_t constant;
     struct {
       // All in tiles.
-      uint32_t dest_pitch : xenos::kEdramPitchTilesBits;
-      uint32_t source_pitch : xenos::kEdramPitchTilesBits;
+      uint32_t dest_pitch : xenos::kEDRAMPitchTilesBits;
+      uint32_t source_pitch : xenos::kEDRAMPitchTilesBits;
       // Destination base in tiles minus source base in tiles (not vice versa
       // because this is a transform of the coordinate system, not addresses
       // themselves).
       // + 1 bit because this is a signed difference between two EDRAM bases.
       // 0 for host_depth_source_is_copy (ignored in this case anyway as
       // destination == source anyway).
-      int32_t source_to_dest : xenos::kEdramBaseTilesBits + 1;
+      int32_t source_to_dest : xenos::kEDRAMBaseTilesBits + 1;
     };
     TransferAddressConstant() : constant(0) { static_assert_size(*this, sizeof(constant)); }
     bool operator==(const TransferAddressConstant& other_constant) const {
@@ -632,7 +632,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   union DumpPipelineKey {
     uint32_t key;
     struct {
-      xenos::MsaaSamples msaa_samples : 2;
+      xenos::MSAASamples msaa_samples : 2;
       uint32_t resource_format : 4;
       // Last bit because this affects the pipeline - after sorting, only change
       // it at most once. Depth buffers have an additional stencil SRV.
@@ -673,8 +673,8 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     uint32_t pitches;
     struct {
       // Both in tiles.
-      uint32_t dest_pitch : xenos::kEdramPitchTilesBits;
-      uint32_t source_pitch : xenos::kEdramPitchTilesBits;
+      uint32_t dest_pitch : xenos::kEDRAMPitchTilesBits;
+      uint32_t source_pitch : xenos::kEDRAMPitchTilesBits;
     };
     DumpPitches() : pitches(0) { static_assert_size(*this, sizeof(pitches)); }
     bool operator==(const DumpPitches& other_pitches) const {
@@ -688,8 +688,8 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     struct {
       // May be beyond the EDRAM tile count in case of EDRAM addressing
       // wrapping, thus + 1 bit.
-      uint32_t dispatch_first_tile : xenos::kEdramBaseTilesBits + 1;
-      uint32_t source_base_tiles : xenos::kEdramBaseTilesBits;
+      uint32_t dispatch_first_tile : xenos::kEDRAMBaseTilesBits + 1;
+      uint32_t source_base_tiles : xenos::kEDRAMBaseTilesBits;
     };
     DumpOffsets() : offsets(0) { static_assert_size(*this, sizeof(offsets)); }
     bool operator==(const DumpOffsets& other_offsets) const {
@@ -826,7 +826,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   // unused stencil from the transfer descriptor set), HostDepthStoreConstants
   // passed via push constants.
   VkPipelineLayout host_depth_store_pipeline_layout_ = VK_NULL_HANDLE;
-  VkPipeline host_depth_store_pipelines_[size_t(xenos::MsaaSamples::k4X) + 1] = {};
+  VkPipeline host_depth_store_pipelines_[size_t(xenos::MSAASamples::k4X) + 1] = {};
 
   std::unique_ptr<ui::vulkan::VulkanUploadBufferPool> transfer_vertex_buffer_pool_;
   VkShaderModule transfer_passthrough_vertex_shader_ = VK_NULL_HANDLE;

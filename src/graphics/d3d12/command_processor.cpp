@@ -24,7 +24,7 @@
 #include <rex/graphics/d3d12/shader.h>
 #include <rex/graphics/registers.h>
 #include <rex/graphics/util/draw.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 #include <rex/kernel/xboxkrnl/video.h>
 #include <rex/logging.h>
 #include <rex/memory/utils.h>
@@ -175,8 +175,7 @@ bool D3D12CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffe
   WriteRegister(XE_GPU_REG_VGT_EVENT_INITIATOR, initiator & 0x3F);
 
   uint32_t sample_count_addr = register_file_->values[XE_GPU_REG_RB_SAMPLE_COUNT_ADDR];
-  auto* sample_counts =
-      memory_->TranslatePhysical<xenos::xe_gpu_depth_sample_counts*>(sample_count_addr);
+  auto* sample_counts = memory_->TranslatePhysical<xenos::DepthSampleCounts*>(sample_count_addr);
   if (!sample_counts) {
     DisableHostOcclusionQueries();
     return true;
@@ -191,7 +190,7 @@ bool D3D12CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffe
         sample_counts->ZPass_A == kQueryFinished || sample_counts->ZPass_B == kQueryFinished;
     bool is_end_via_z_fail =
         sample_counts->ZFail_A == kQueryFinished || sample_counts->ZFail_B == kQueryFinished;
-    std::memset(sample_counts, 0, sizeof(xenos::xe_gpu_depth_sample_counts));
+    std::memset(sample_counts, 0, sizeof(xenos::DepthSampleCounts));
     if (is_end_via_z_pass || is_end_via_z_fail) {
       sample_counts->ZPass_A = fake_sample_count;
       sample_counts->Total_A = fake_sample_count;
@@ -402,7 +401,7 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(const DxbcShader* v
       shared_memory_and_edram_ranges[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
       shared_memory_and_edram_ranges[2].NumDescriptors = 1;
       shared_memory_and_edram_ranges[2].BaseShaderRegister =
-          UINT(DxbcShaderTranslator::UAVRegister::kEdram);
+          UINT(DxbcShaderTranslator::UAVRegister::kEDRAM);
       shared_memory_and_edram_ranges[2].RegisterSpace = 0;
       shared_memory_and_edram_ranges[2].OffsetInDescriptorsFromTableStart = 2;
     }
@@ -664,17 +663,17 @@ D3D12CommandProcessor::GetEdramUintPow2BindlessSRVHandlePair(
   SystemBindlessView view;
   switch (element_size_bytes_pow2) {
     case 2:
-      view = SystemBindlessView::kEdramR32UintSRV;
+      view = SystemBindlessView::kEDRAMR32UintSRV;
       break;
     case 3:
-      view = SystemBindlessView::kEdramR32G32UintSRV;
+      view = SystemBindlessView::kEDRAMR32G32UintSRV;
       break;
     case 4:
-      view = SystemBindlessView::kEdramR32G32B32A32UintSRV;
+      view = SystemBindlessView::kEDRAMR32G32B32A32UintSRV;
       break;
     default:
       assert_unhandled_case(element_size_bytes_pow2);
-      view = SystemBindlessView::kEdramR32UintSRV;
+      view = SystemBindlessView::kEDRAMR32UintSRV;
   }
   return GetSystemBindlessViewHandlePair(view);
 }
@@ -685,17 +684,17 @@ D3D12CommandProcessor::GetEdramUintPow2BindlessUAVHandlePair(
   SystemBindlessView view;
   switch (element_size_bytes_pow2) {
     case 2:
-      view = SystemBindlessView::kEdramR32UintUAV;
+      view = SystemBindlessView::kEDRAMR32UintUAV;
       break;
     case 3:
-      view = SystemBindlessView::kEdramR32G32UintUAV;
+      view = SystemBindlessView::kEDRAMR32G32UintUAV;
       break;
     case 4:
-      view = SystemBindlessView::kEdramR32G32B32A32UintUAV;
+      view = SystemBindlessView::kEDRAMR32G32B32A32UintUAV;
       break;
     default:
       assert_unhandled_case(element_size_bytes_pow2);
-      view = SystemBindlessView::kEdramR32UintUAV;
+      view = SystemBindlessView::kEDRAMR32UintUAV;
   }
   return GetSystemBindlessViewHandlePair(view);
 }
@@ -1129,9 +1128,9 @@ bool D3D12CommandProcessor::SetupContext() {
         auto& range = root_bindless_view_ranges[parameter.DescriptorTable.NumDescriptorRanges++];
         range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
         range.NumDescriptors = 1;
-        range.BaseShaderRegister = UINT(DxbcShaderTranslator::UAVRegister::kEdram);
+        range.BaseShaderRegister = UINT(DxbcShaderTranslator::UAVRegister::kEDRAM);
         range.RegisterSpace = 0;
-        range.OffsetInDescriptorsFromTableStart = UINT(SystemBindlessView::kEdramR32UintUAV);
+        range.OffsetInDescriptorsFromTableStart = UINT(SystemBindlessView::kEDRAMR32UintUAV);
       }
       // Used UAV and SRV ranges must not overlap on Nvidia Fermi, so textures
       // have OffsetInDescriptorsFromTableStart after all static descriptors of
@@ -1585,41 +1584,41 @@ bool D3D12CommandProcessor::SetupContext() {
             view_bindless_heap_cpu_start_,
             uint32_t(SystemBindlessView::kSharedMemoryR32G32B32A32UintUAV)),
         4);
-    // kEdramRawSRV.
+    // kEDRAMRawSRV.
     render_target_cache_->WriteEdramRawSRVDescriptor(provider.OffsetViewDescriptor(
-        view_bindless_heap_cpu_start_, uint32_t(SystemBindlessView::kEdramRawSRV)));
-    // kEdramR32UintSRV.
+        view_bindless_heap_cpu_start_, uint32_t(SystemBindlessView::kEDRAMRawSRV)));
+    // kEDRAMR32UintSRV.
     render_target_cache_->WriteEdramUintPow2SRVDescriptor(
         provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_,
-                                      uint32_t(SystemBindlessView::kEdramR32UintSRV)),
+                                      uint32_t(SystemBindlessView::kEDRAMR32UintSRV)),
         2);
-    // kEdramR32G32UintSRV.
+    // kEDRAMR32G32UintSRV.
     render_target_cache_->WriteEdramUintPow2SRVDescriptor(
         provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_,
-                                      uint32_t(SystemBindlessView::kEdramR32G32UintSRV)),
+                                      uint32_t(SystemBindlessView::kEDRAMR32G32UintSRV)),
         3);
-    // kEdramR32G32B32A32UintSRV.
+    // kEDRAMR32G32B32A32UintSRV.
     render_target_cache_->WriteEdramUintPow2SRVDescriptor(
         provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_,
-                                      uint32_t(SystemBindlessView::kEdramR32G32B32A32UintSRV)),
+                                      uint32_t(SystemBindlessView::kEDRAMR32G32B32A32UintSRV)),
         4);
-    // kEdramRawUAV.
+    // kEDRAMRawUAV.
     render_target_cache_->WriteEdramRawUAVDescriptor(provider.OffsetViewDescriptor(
-        view_bindless_heap_cpu_start_, uint32_t(SystemBindlessView::kEdramRawUAV)));
-    // kEdramR32UintUAV.
+        view_bindless_heap_cpu_start_, uint32_t(SystemBindlessView::kEDRAMRawUAV)));
+    // kEDRAMR32UintUAV.
     render_target_cache_->WriteEdramUintPow2UAVDescriptor(
         provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_,
-                                      uint32_t(SystemBindlessView::kEdramR32UintUAV)),
+                                      uint32_t(SystemBindlessView::kEDRAMR32UintUAV)),
         2);
-    // kEdramR32G32UintUAV.
+    // kEDRAMR32G32UintUAV.
     render_target_cache_->WriteEdramUintPow2UAVDescriptor(
         provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_,
-                                      uint32_t(SystemBindlessView::kEdramR32G32UintUAV)),
+                                      uint32_t(SystemBindlessView::kEDRAMR32G32UintUAV)),
         3);
-    // kEdramR32G32B32A32UintUAV.
+    // kEDRAMR32G32B32A32UintUAV.
     render_target_cache_->WriteEdramUintPow2UAVDescriptor(
         provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_,
-                                      uint32_t(SystemBindlessView::kEdramR32G32B32A32UintUAV)),
+                                      uint32_t(SystemBindlessView::kEDRAMR32G32B32A32UintUAV)),
         4);
     // kGammaRampTableSRV.
     WriteGammaRampSRV(
@@ -2291,8 +2290,8 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
   ID3D12Device* device = GetD3D12Provider().GetDevice();
   const RegisterFile& regs = *register_file_;
 
-  xenos::EdramMode edram_mode = regs.Get<reg::RB_MODECONTROL>().edram_mode;
-  if (edram_mode == xenos::EdramMode::kCopy) {
+  xenos::EDRAMMode edram_mode = regs.Get<reg::RB_MODECONTROL>().edram_mode;
+  if (edram_mode == xenos::EDRAMMode::kCopy) {
     // Special copy handling.
     return IssueCopy();
   }
@@ -2318,9 +2317,9 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
   }
   D3D12Shader* pixel_shader = nullptr;
   if (is_rasterization_done) {
-    // See xenos::EdramMode for explanation why the pixel shader is only used
+    // See xenos::EDRAMMode for explanation why the pixel shader is only used
     // when it's kColorDepth here.
-    if (edram_mode == xenos::EdramMode::kColorDepth) {
+    if (edram_mode == xenos::EDRAMMode::kColorDepth) {
       pixel_shader = static_cast<D3D12Shader*>(active_pixel_shader());
       if (pixel_shader) {
         pipeline_cache_->AnalyzeShaderUcode(*pixel_shader);
@@ -2500,7 +2499,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
       if (vertex_buffers_in_sync_[vfetch_index >> 6] & vfetch_bit) {
         continue;
       }
-      xenos::xe_gpu_vertex_fetch_t vfetch_constant = regs.GetVertexFetch(vfetch_index);
+      xenos::VertexFetch vfetch_constant = regs.GetVertexFetch(vfetch_index);
       switch (vfetch_constant.type) {
         case xenos::FetchConstantType::kVertex:
           break;
@@ -2961,7 +2960,8 @@ bool D3D12CommandProcessor::IssueCopy_ReadbackResolvePath() {
     }
 
     reg::RB_COPY_DEST_INFO copy_dest_info = register_file_->Get<reg::RB_COPY_DEST_INFO>();
-    const FormatInfo* format_info = FormatInfo::Get(uint32_t(copy_dest_info.copy_dest_format));
+    const xenos::FormatInfo* format_info =
+        xenos::FormatInfo::Get(uint32_t(copy_dest_info.copy_dest_format));
     uint32_t bits_per_pixel = format_info->bits_per_pixel;
     if (bits_per_pixel != 8 && bits_per_pixel != 16 && bits_per_pixel != 32 &&
         bits_per_pixel != 64) {
@@ -3854,8 +3854,8 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
 
   // Log2 of sample count, for alpha to mask and with ROV, for EDRAM address
   // calculation with MSAA.
-  uint32_t sample_count_log2_x = rb_surface_info.msaa_samples >= xenos::MsaaSamples::k4X ? 1 : 0;
-  uint32_t sample_count_log2_y = rb_surface_info.msaa_samples >= xenos::MsaaSamples::k2X ? 1 : 0;
+  uint32_t sample_count_log2_x = rb_surface_info.msaa_samples >= xenos::MSAASamples::k4X ? 1 : 0;
+  uint32_t sample_count_log2_y = rb_surface_info.msaa_samples >= xenos::MSAASamples::k2X ? 1 : 0;
   dirty |= system_constants_.sample_count_log2[0] != sample_count_log2_x;
   dirty |= system_constants_.sample_count_log2[1] != sample_count_log2_y;
   system_constants_.sample_count_log2[0] = sample_count_log2_x;
@@ -3869,8 +3869,8 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   dirty |= system_constants_.alpha_to_mask != alpha_to_mask;
   system_constants_.alpha_to_mask = alpha_to_mask;
 
-  uint32_t edram_tile_dwords_scaled = xenos::kEdramTileWidthSamples *
-                                      xenos::kEdramTileHeightSamples *
+  uint32_t edram_tile_dwords_scaled = xenos::kEDRAMTileWidthSamples *
+                                      xenos::kEDRAMTileHeightSamples *
                                       (draw_resolution_scale_x * draw_resolution_scale_y);
 
   // EDRAM pitch for ROV writing.
@@ -3878,9 +3878,9 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     // Align, then multiply by 32bpp tile size in dwords.
     uint32_t edram_32bpp_tile_pitch_dwords_scaled =
         ((rb_surface_info.surface_pitch *
-          (rb_surface_info.msaa_samples >= xenos::MsaaSamples::k4X ? 2 : 1)) +
-         (xenos::kEdramTileWidthSamples - 1)) /
-        xenos::kEdramTileWidthSamples * edram_tile_dwords_scaled;
+          (rb_surface_info.msaa_samples >= xenos::MSAASamples::k4X ? 2 : 1)) +
+         (xenos::kEDRAMTileWidthSamples - 1)) /
+        xenos::kEDRAMTileWidthSamples * edram_tile_dwords_scaled;
     dirty |= system_constants_.edram_32bpp_tile_pitch_dwords_scaled !=
              edram_32bpp_tile_pitch_dwords_scaled;
     system_constants_.edram_32bpp_tile_pitch_dwords_scaled = edram_32bpp_tile_pitch_dwords_scaled;
@@ -4936,8 +4936,8 @@ bool D3D12CommandProcessor::BeginGuestOcclusionQuery(uint32_t sample_count_addre
   return true;
 }
 
-bool D3D12CommandProcessor::EndGuestOcclusionQuery(
-    uint32_t sample_count_address, xenos::xe_gpu_depth_sample_counts* sample_counts) {
+bool D3D12CommandProcessor::EndGuestOcclusionQuery(uint32_t sample_count_address,
+                                                   xenos::DepthSampleCounts* sample_counts) {
   if (!REXCVAR_GET(::rex::graphics::cvars::occlusion_query_enable) ||
       !occlusion_query_resources_available_ || !active_occlusion_query_.valid ||
       !occlusion_query_heap_ || !occlusion_query_readback_) {
@@ -4989,8 +4989,8 @@ uint64_t D3D12CommandProcessor::NormalizeOcclusionSamples(uint64_t samples) cons
   return (samples + (scale >> 1)) / scale;
 }
 
-void D3D12CommandProcessor::WriteGuestOcclusionResult(
-    xenos::xe_gpu_depth_sample_counts* sample_counts, uint64_t samples) {
+void D3D12CommandProcessor::WriteGuestOcclusionResult(xenos::DepthSampleCounts* sample_counts,
+                                                      uint64_t samples) {
   if (!sample_counts) {
     return;
   }

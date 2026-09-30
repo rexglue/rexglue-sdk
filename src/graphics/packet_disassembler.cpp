@@ -10,11 +10,11 @@
  */
 
 #include <rex/graphics/packet_disassembler.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 
 namespace rex::graphics {
 
-using namespace rex::graphics::xenos;
+using namespace rex::xenos;
 
 PacketCategory PacketDisassembler::GetPacketCategory(const uint8_t* base_ptr) {
   const uint32_t packet = memory::load_and_swap<uint32_t>(base_ptr);
@@ -331,7 +331,7 @@ bool PacketDisassembler::DisasmPacketType3(const uint8_t* base_ptr, uint32_t pac
       }
       for (uint32_t n = 0; n < size_dwords; n++, index++) {
         // Hrm, ?
-        // memory::load_and_swap<uint32_t>(membase_ + GpuToCpu(address + n * 4));
+        // memory::load_and_swap<uint32_t>(membase_ + GPUToCPU(address + n * 4));
         uint32_t data = 0xDEADBEEF;
         out_info->actions.emplace_back(PacketAction::RegisterWrite(index, data));
       }

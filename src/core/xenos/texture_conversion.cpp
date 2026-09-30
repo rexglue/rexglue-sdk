@@ -15,15 +15,13 @@
 #include <functional>
 
 #include <rex/dbg.h>
-#include <rex/graphics/pipeline/texture/conversion.h>
+#include <rex/xenos/texture_conversion.h>
 #include <rex/hash.h>
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/memory.h>
 
-namespace rex::graphics::texture_conversion {
-
-using namespace rex::graphics::xenos;
+namespace rex::xenos {
 
 void CopySwapBlock(xenos::Endian endian, void* output, const void* input, size_t length) {
   switch (endian) {
@@ -140,4 +138,4 @@ void Untile(uint8_t* output_buffer, const uint8_t* input_buffer, const UntileInf
   }
 }
 
-}  // namespace rex::graphics::texture_conversion
+}  // namespace rex::xenos

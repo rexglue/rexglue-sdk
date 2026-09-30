@@ -18,10 +18,10 @@
 #include <rex/cvar.h>
 #include <rex/dbg.h>
 #include <rex/graphics/pipeline/texture/cache.h>
-#include <rex/graphics/pipeline/texture/info.h>
-#include <rex/graphics/pipeline/texture/util.h>
+#include <rex/xenos/texture_info.h>
+#include <rex/xenos/texture_util.h>
 #include <rex/graphics/register_file.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 #include <rex/logging.h>
 #include <rex/math.h>
 
@@ -298,7 +298,7 @@ uint32_t TextureCache::GuestToHostSwizzle(uint32_t guest_swizzle, uint32_t host_
   for (uint32_t i = 0; i < 4; ++i) {
     uint32_t guest_swizzle_component = (guest_swizzle >> (3 * i)) & 0b111;
     uint32_t host_swizzle_component;
-    if (guest_swizzle_component >= xenos::XE_GPU_TEXTURE_SWIZZLE_0) {
+    if (guest_swizzle_component >= xenos::REXGPU_SWIZZLE_0) {
       // Get rid of 6 and 7 values (to prevent host GPU errors if the game has
       // something broken) the simple way - by changing them to 4 (0) and 5 (1).
       host_swizzle_component = guest_swizzle_component & 0b101;
@@ -434,7 +434,7 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
     uint32_t index_bit = UINT32_C(1) << index;
     textures_remaining &= ~index_bit;
     TextureBinding& binding = texture_bindings_[index];
-    xenos::xe_gpu_texture_fetch_t fetch = regs.GetTextureFetch(index);
+    xenos::TextureFetch fetch = regs.GetTextureFetch(index);
     TextureKey old_key = binding.key;
     uint8_t old_swizzled_signs = binding.swizzled_signs;
     BindingInfoFromFetchConstant(fetch, binding.key, &binding.swizzled_signs);
@@ -453,10 +453,10 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
     // (if the format is emulated with different host bit representations for
     // signed and unsigned - otherwise only the unsigned one is loaded).
     bool key_changed = binding.key != old_key;
-    bool any_sign_was_not_signed = texture_util::IsAnySignNotSigned(old_swizzled_signs);
-    bool any_sign_was_signed = texture_util::IsAnySignSigned(old_swizzled_signs);
-    bool any_sign_is_not_signed = texture_util::IsAnySignNotSigned(binding.swizzled_signs);
-    bool any_sign_is_signed = texture_util::IsAnySignSigned(binding.swizzled_signs);
+    bool any_sign_was_not_signed = xenos::IsAnySignNotSigned(old_swizzled_signs);
+    bool any_sign_was_signed = xenos::IsAnySignSigned(old_swizzled_signs);
+    bool any_sign_is_not_signed = xenos::IsAnySignNotSigned(binding.swizzled_signs);
+    bool any_sign_is_signed = xenos::IsAnySignSigned(binding.swizzled_signs);
     if (key_changed || binding.host_swizzle != old_host_swizzle ||
         any_sign_is_not_signed != any_sign_was_not_signed ||
         any_sign_is_signed != any_sign_was_signed) {
@@ -558,7 +558,7 @@ void TextureCache::TextureKey::LogAction(const char* action) const {
       "{} {} {}{}x{}x{} {} {} texture with {} {}packed mip level{}, "
       "base at 0x{:08X} (pitch {}), mips at 0x{:08X}",
       action, tiled ? "tiled" : "linear", scaled_resolve ? "scaled " : "", GetWidth(), GetHeight(),
-      GetDepthOrArraySize(), GetLogDimensionName(), FormatInfo::Get(format)->name,
+      GetDepthOrArraySize(), GetLogDimensionName(), xenos::FormatInfo::Get(format)->name,
       mip_max_level + 1, packed_mips ? "" : "un", mip_max_level != 0 ? "s" : "", base_page << 12,
       pitch << 5, mip_page << 12);
 }
@@ -570,9 +570,9 @@ void TextureCache::Texture::LogAction(const char* action) const {
       "0x{:08X})",
       action, key_.tiled ? "tiled" : "linear", key_.scaled_resolve ? "scaled " : "",
       key_.GetWidth(), key_.GetHeight(), key_.GetDepthOrArraySize(), key_.GetLogDimensionName(),
-      FormatInfo::Get(key_.format)->name, key_.mip_max_level + 1, key_.packed_mips ? "" : "un",
-      key_.mip_max_level != 0 ? "s" : "", key_.base_page << 12, key_.pitch << 5, GetGuestBaseSize(),
-      key_.mip_page << 12, GetGuestMipsSize());
+      xenos::FormatInfo::Get(key_.format)->name, key_.mip_max_level + 1,
+      key_.packed_mips ? "" : "un", key_.mip_max_level != 0 ? "s" : "", key_.base_page << 12,
+      key_.pitch << 5, GetGuestBaseSize(), key_.mip_page << 12, GetGuestMipsSize());
 }
 
 // The texture must be in the recent usage list. Place it in front now because
@@ -708,7 +708,7 @@ void TextureCache::DestroyAllTextures(bool from_destructor) {
 TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   // Check if the texture is a scaled resolve texture.
   if (IsDrawResolutionScaled() && key.tiled && IsScaledResolveSupportedForFormat(key)) {
-    texture_util::TextureGuestLayout scaled_resolve_guest_layout = key.GetGuestLayout();
+    xenos::TextureGuestLayout scaled_resolve_guest_layout = key.GetGuestLayout();
     if ((scaled_resolve_guest_layout.base.level_data_extent_bytes &&
          IsRangeScaledResolved(key.base_page << 12,
                                scaled_resolve_guest_layout.base.level_data_extent_bytes)) ||
@@ -745,7 +745,7 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
         new_depth_or_array_size == old_depth_or_array_size) {
       return false;
     }
-    const FormatInfo* format_info = FormatInfo::Get(key.format);
+    const xenos::FormatInfo* format_info = xenos::FormatInfo::Get(key.format);
     uint32_t rebased_pitch_texels = std::max(rex::next_pow2(old_width) >> 1, UINT32_C(1));
     rebased_pitch_texels = rex::align(rebased_pitch_texels, format_info->block_width);
     rebased_pitch_texels = rex::align(rebased_pitch_texels, xenos::kTextureTileWidthHeight);
@@ -843,7 +843,7 @@ bool TextureCache::LoadTextureData(Texture& texture) {
   return CommitPreparedTextureLoad(pending_load);
 }
 
-void TextureCache::BindingInfoFromFetchConstant(const xenos::xe_gpu_texture_fetch_t& fetch,
+void TextureCache::BindingInfoFromFetchConstant(const xenos::TextureFetch& fetch,
                                                 TextureKey& key_out, uint8_t* swizzled_signs_out) {
   // Reset the key and the signedness.
   key_out.MakeInvalid();
@@ -875,9 +875,9 @@ void TextureCache::BindingInfoFromFetchConstant(const xenos::xe_gpu_texture_fetc
 
   uint32_t width_minus_1, height_minus_1, depth_or_array_size_minus_1;
   uint32_t base_page, mip_page, mip_max_level;
-  texture_util::GetSubresourcesFromFetchConstant(fetch, &width_minus_1, &height_minus_1,
-                                                 &depth_or_array_size_minus_1, &base_page,
-                                                 &mip_page, nullptr, &mip_max_level);
+  xenos::GetSubresourcesFromFetchConstant(fetch, &width_minus_1, &height_minus_1,
+                                          &depth_or_array_size_minus_1, &base_page, &mip_page,
+                                          nullptr, &mip_max_level);
   if (base_page == 0 && mip_page == 0) {
     // No texture data at all.
     return;
@@ -931,7 +931,7 @@ void TextureCache::BindingInfoFromFetchConstant(const xenos::xe_gpu_texture_fetc
   key_out.is_valid = 1;
 
   if (swizzled_signs_out != nullptr) {
-    *swizzled_signs_out = texture_util::SwizzleSigns(fetch);
+    *swizzled_signs_out = xenos::SwizzleSigns(fetch);
   }
 }
 

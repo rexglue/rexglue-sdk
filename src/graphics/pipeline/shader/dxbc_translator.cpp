@@ -20,7 +20,7 @@
 #include <rex/cvar.h>
 #include <rex/graphics/pipeline/shader/dxbc.h>
 #include <rex/graphics/pipeline/shader/dxbc_translator.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 #include <rex/math.h>
 #include <rex/ui/graphics_provider.h>
 
@@ -2443,7 +2443,7 @@ void DxbcShaderTranslator::WriteResourceDefinition() {
         uav.return_type = dxbc::ResourceReturnType::kUInt;
         uav.dimension = dxbc::RdefDimension::kUAVBuffer;
         uav.sample_count = UINT32_MAX;
-        uav.bind_point = uint32_t(UAVRegister::kEdram);
+        uav.bind_point = uint32_t(UAVRegister::kEDRAM);
       } else {
         assert_unhandled_case(i);
       }
@@ -3247,8 +3247,8 @@ void DxbcShaderTranslator::WriteShaderCode() {
       ao_.OpDclUnorderedAccessViewTyped(
           dxbc::ResourceDimension::kBuffer, dxbc::kUAVFlagRasterizerOrderedAccess,
           dxbc::ResourceReturnTypeX4Token(dxbc::ResourceReturnType::kUInt),
-          dxbc::Src::U(dxbc::Src::Dcl, uav_index_edram_, uint32_t(UAVRegister::kEdram),
-                       uint32_t(UAVRegister::kEdram)));
+          dxbc::Src::U(dxbc::Src::Dcl, uav_index_edram_, uint32_t(UAVRegister::kEDRAM),
+                       uint32_t(UAVRegister::kEDRAM)));
     } else {
       assert_unhandled_case(i);
     }

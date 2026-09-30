@@ -685,9 +685,9 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
           alpha_to_coverage_msaa_switch_op->addIdOperand(msaa_samples);
           // Make 1x the default.
           alpha_to_coverage_msaa_switch_op->addIdOperand(block_alpha_to_coverage_msaa_1x.getId());
-          alpha_to_coverage_msaa_switch_op->addImmediateOperand(int32_t(xenos::MsaaSamples::k2X));
+          alpha_to_coverage_msaa_switch_op->addImmediateOperand(int32_t(xenos::MSAASamples::k2X));
           alpha_to_coverage_msaa_switch_op->addIdOperand(block_alpha_to_coverage_msaa_2x.getId());
-          alpha_to_coverage_msaa_switch_op->addImmediateOperand(int32_t(xenos::MsaaSamples::k4X));
+          alpha_to_coverage_msaa_switch_op->addImmediateOperand(int32_t(xenos::MSAASamples::k4X));
           alpha_to_coverage_msaa_switch_op->addIdOperand(block_alpha_to_coverage_msaa_4x.getId());
           builder_->getBuildPoint()->addInstruction(std::move(alpha_to_coverage_msaa_switch_op));
         }
@@ -903,10 +903,10 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
       fsi_color_targets_written =
           builder_->createLoad(var_main_fsi_color_written_, spv::NoPrecision);
       fsi_const_int_1 = builder_->makeIntConstant(1);
-      uint32_t tile_width = xenos::kEdramTileWidthSamples * draw_resolution_scale_x_;
-      uint32_t tile_height = xenos::kEdramTileHeightSamples * draw_resolution_scale_y_;
+      uint32_t tile_width = xenos::kEDRAMTileWidthSamples * draw_resolution_scale_x_;
+      uint32_t tile_height = xenos::kEDRAMTileHeightSamples * draw_resolution_scale_y_;
       fsi_const_edram_size_dwords =
-          builder_->makeUintConstant(tile_width * tile_height * xenos::kEdramTileCount);
+          builder_->makeUintConstant(tile_width * tile_height * xenos::kEDRAMTileCount);
       for (uint32_t i = 0; i < 4; ++i) {
         fsi_samples_covered[i] = builder_->createBinOp(
             spv::OpINotEqual, type_bool_,
@@ -1464,9 +1464,9 @@ void SpirvShaderTranslator::FSI_LoadSampleMask(spv::Id msaa_samples) {
     msaa_switch_op->addIdOperand(msaa_samples);
     // Make 1x the default.
     msaa_switch_op->addIdOperand(block_msaa_1x.getId());
-    msaa_switch_op->addImmediateOperand(int32_t(xenos::MsaaSamples::k2X));
+    msaa_switch_op->addImmediateOperand(int32_t(xenos::MSAASamples::k2X));
     msaa_switch_op->addIdOperand(block_msaa_2x.getId());
-    msaa_switch_op->addImmediateOperand(int32_t(xenos::MsaaSamples::k4X));
+    msaa_switch_op->addImmediateOperand(int32_t(xenos::MSAASamples::k4X));
     msaa_switch_op->addIdOperand(block_msaa_4x.getId());
     builder_->getBuildPoint()->addInstruction(std::move(msaa_switch_op));
   }
@@ -1534,7 +1534,7 @@ void SpirvShaderTranslator::FSI_LoadEdramOffsets(spv::Id msaa_samples) {
     spv::Id axis_has_two_msaa_samples =
         builder_->createBinOp(spv::OpUGreaterThanEqual, type_bool_, msaa_samples,
                               builder_->makeUintConstant(
-                                  uint32_t(i ? xenos::MsaaSamples::k2X : xenos::MsaaSamples::k4X)));
+                                  uint32_t(i ? xenos::MSAASamples::k2X : xenos::MSAASamples::k4X)));
     axes_have_two_msaa_samples[i] = axis_has_two_msaa_samples;
     id_vector_temp_.clear();
     id_vector_temp_.push_back(builder_->makeIntConstant(int32_t(i)));
@@ -1553,9 +1553,9 @@ void SpirvShaderTranslator::FSI_LoadEdramOffsets(spv::Id msaa_samples) {
   // Get 40 x 16 x resolution scale 32bpp half-tile or 40x16 64bpp tile index.
   // Working with 40x16-sample portions for 64bpp and for swapping for depth -
   // dividing by 40, not by 80.
-  uint32_t tile_width = xenos::kEdramTileWidthSamples * draw_resolution_scale_x_;
+  uint32_t tile_width = xenos::kEDRAMTileWidthSamples * draw_resolution_scale_x_;
   spv::Id const_tile_half_width = builder_->makeUintConstant(tile_width >> 1);
-  uint32_t tile_height = xenos::kEdramTileHeightSamples * draw_resolution_scale_y_;
+  uint32_t tile_height = xenos::kEDRAMTileHeightSamples * draw_resolution_scale_y_;
   spv::Id const_tile_height = builder_->makeUintConstant(tile_height);
   spv::Id tile_half_index[2], tile_half_sample_coordinates[2];
   for (uint32_t i = 0; i < 2; ++i) {
@@ -1627,7 +1627,7 @@ void SpirvShaderTranslator::FSI_LoadEdramOffsets(spv::Id msaa_samples) {
               spv::OpIAdd, type_uint_, offset_in_first_tile_half_at_32bpp,
               builder_->createTriOp(spv::OpSelect, type_uint_, is_second_tile_half, const_uint_0_,
                                     const_tile_half_width))),
-      builder_->makeUintConstant(tile_size * xenos::kEdramTileCount));
+      builder_->makeUintConstant(tile_size * xenos::kEDRAMTileCount));
 
   if (current_shader().writes_color_targets()) {
     // Get the offset of the sample 0 within a 32bpp surface, with samples
@@ -1659,7 +1659,7 @@ spv::Id SpirvShaderTranslator::FSI_AddSampleOffset(spv::Id sample_0_address, uin
     return sample_0_address;
   }
   spv::Id sample_offset;
-  uint32_t tile_width = xenos::kEdramTileWidthSamples * draw_resolution_scale_x_;
+  uint32_t tile_width = xenos::kEDRAMTileWidthSamples * draw_resolution_scale_x_;
   if (sample_index == 1) {
     sample_offset = builder_->makeIntConstant(tile_width);
   } else {
@@ -1735,10 +1735,10 @@ void SpirvShaderTranslator::FSI_DepthStencilTest(spv::Id msaa_samples,
   // Load values involved in depth and stencil testing.
   spv::Id msaa_is_2x_4x =
       builder_->createBinOp(spv::OpUGreaterThanEqual, type_bool_, msaa_samples,
-                            builder_->makeUintConstant(uint32_t(xenos::MsaaSamples::k2X)));
+                            builder_->makeUintConstant(uint32_t(xenos::MSAASamples::k2X)));
   spv::Id msaa_is_4x =
       builder_->createBinOp(spv::OpUGreaterThanEqual, type_bool_, msaa_samples,
-                            builder_->makeUintConstant(uint32_t(xenos::MsaaSamples::k4X)));
+                            builder_->makeUintConstant(uint32_t(xenos::MSAASamples::k4X)));
   spv::Id depth_is_float24 = builder_->createBinOp(
       spv::OpINotEqual, type_bool_,
       builder_->createBinOp(spv::OpBitwiseAnd, type_uint_, main_system_constant_flags_,

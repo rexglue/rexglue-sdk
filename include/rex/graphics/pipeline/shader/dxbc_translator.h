@@ -418,27 +418,27 @@ class DxbcShaderTranslator : public ShaderTranslator {
       kAlphaTestReference,
 
       kAlphaToMask,
-      kEdram32bppTilePitchDwordsScaled,
-      kEdramDepthBaseDwordsScaled,
+      kEDRAM32bppTilePitchDwordsScaled,
+      kEDRAMDepthBaseDwordsScaled,
 
       kColorExpBias,
 
-      kEdramPolyOffsetFront,
-      kEdramPolyOffsetBack,
+      kEDRAMPolyOffsetFront,
+      kEDRAMPolyOffsetBack,
 
-      kEdramStencil,
+      kEDRAMStencil,
 
-      kEdramRTBaseDwordsScaled,
+      kEDRAMRTBaseDwordsScaled,
 
-      kEdramRTFormatFlags,
+      kEDRAMRTFormatFlags,
 
-      kEdramRTClamp,
+      kEDRAMRTClamp,
 
-      kEdramRTKeepMask,
+      kEDRAMRTKeepMask,
 
-      kEdramRTBlendFactorsOps,
+      kEDRAMRTBlendFactorsOps,
 
-      kEdramBlendConstant,
+      kEDRAMBlendConstant,
 
       kCount,
     };
@@ -501,7 +501,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Unordered access view bindings in space 0.
   enum class UAVRegister {
     kSharedMemory,
-    kEdram,
+    kEDRAM,
   };
 
   uint64_t GetDefaultVertexShaderModification(

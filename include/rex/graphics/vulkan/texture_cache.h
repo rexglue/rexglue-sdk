@@ -234,25 +234,25 @@ class VulkanTextureCache final : public TextureCache {
 
     static constexpr VkComponentSwizzle GetComponentSwizzle(uint32_t texture_swizzle,
                                                             uint32_t component_index) {
-      xenos::XE_GPU_TEXTURE_SWIZZLE texture_component_swizzle =
-          xenos::XE_GPU_TEXTURE_SWIZZLE((texture_swizzle >> (3 * component_index)) & 0b111);
-      if (texture_component_swizzle == xenos::XE_GPU_TEXTURE_SWIZZLE(component_index)) {
+      xenos::TextureSwizzle texture_component_swizzle =
+          xenos::TextureSwizzle((texture_swizzle >> (3 * component_index)) & 0b111);
+      if (texture_component_swizzle == xenos::TextureSwizzle(component_index)) {
         // The portability subset requires all swizzles to be IDENTITY, return
         // IDENTITY specifically, not R, G, B, A.
         return VK_COMPONENT_SWIZZLE_IDENTITY;
       }
       switch (texture_component_swizzle) {
-        case xenos::XE_GPU_TEXTURE_SWIZZLE_R:
+        case xenos::REXGPU_SWIZZLE_R:
           return VK_COMPONENT_SWIZZLE_R;
-        case xenos::XE_GPU_TEXTURE_SWIZZLE_G:
+        case xenos::REXGPU_SWIZZLE_G:
           return VK_COMPONENT_SWIZZLE_G;
-        case xenos::XE_GPU_TEXTURE_SWIZZLE_B:
+        case xenos::REXGPU_SWIZZLE_B:
           return VK_COMPONENT_SWIZZLE_B;
-        case xenos::XE_GPU_TEXTURE_SWIZZLE_A:
+        case xenos::REXGPU_SWIZZLE_A:
           return VK_COMPONENT_SWIZZLE_A;
-        case xenos::XE_GPU_TEXTURE_SWIZZLE_0:
+        case xenos::REXGPU_SWIZZLE_0:
           return VK_COMPONENT_SWIZZLE_ZERO;
-        case xenos::XE_GPU_TEXTURE_SWIZZLE_1:
+        case xenos::REXGPU_SWIZZLE_1:
           return VK_COMPONENT_SWIZZLE_ONE;
         default:
           // An invalid value.

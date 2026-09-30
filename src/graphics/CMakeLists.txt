@@ -120,7 +120,7 @@ rex_target_pch(rexgpu-xenos
     <rex/memory.h>
     <rex/platform/mutex.h>
     <rex/system/xmemory.h>
-    <rex/graphics/xenos.h>
+    <rex/xenos/xenos.h>
     <rex/graphics/registers.h>
     <rex/graphics/format/ucode.h>
     <rex/graphics/pipeline/shader/shader.h>

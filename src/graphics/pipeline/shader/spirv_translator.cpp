@@ -3140,12 +3140,12 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
       spv::Id preferred_sample = builder_->createTriOp(
           spv::OpSelect, type_uint_,
           builder_->createBinOp(spv::OpUGreaterThanEqual, type_bool_, msaa_samples,
-                                builder_->makeUintConstant(uint32_t(xenos::MsaaSamples::k4X))),
+                                builder_->makeUintConstant(uint32_t(xenos::MSAASamples::k4X))),
           builder_->makeUintConstant(3),
           builder_->createTriOp(
               spv::OpSelect, type_uint_,
               builder_->createBinOp(spv::OpUGreaterThanEqual, type_bool_, msaa_samples,
-                                    builder_->makeUintConstant(uint32_t(xenos::MsaaSamples::k2X))),
+                                    builder_->makeUintConstant(uint32_t(xenos::MSAASamples::k2X))),
               builder_->makeUintConstant(native_2x_msaa_with_attachments_ ? 1u : 3u),
               const_uint_0_));
       // gl_SampleMaskIn on Vulkan may not include coverage bits for other

@@ -12,11 +12,11 @@
 
 #include <algorithm>
 
-#include <rex/graphics/pipeline/texture/info.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/texture_info.h>
+#include <rex/xenos/xenos.h>
 #include <rex/math.h>
 
-namespace rex::graphics::texture_util {
+namespace rex::xenos {
 
 // This namespace replaces texture_extent and most of texture_info for
 // simplicity.
@@ -24,8 +24,8 @@ namespace rex::graphics::texture_util {
 // Extracts the size from the fetch constant, and also cleans up addresses and
 // mip range based on real presence of the base level and mips. Returns 6 faces
 // for cube textures.
-void GetSubresourcesFromFetchConstant(const xenos::xe_gpu_texture_fetch_t& fetch,
-                                      uint32_t* width_minus_1_out, uint32_t* height_minus_1_out,
+void GetSubresourcesFromFetchConstant(const xenos::TextureFetch& fetch, uint32_t* width_minus_1_out,
+                                      uint32_t* height_minus_1_out,
                                       uint32_t* depth_or_array_size_minus_1_out,
                                       uint32_t* base_page_out, uint32_t* mip_page_out,
                                       uint32_t* mip_min_level_out, uint32_t* mip_max_level_out);
@@ -313,7 +313,7 @@ uint32_t GetTiledAddressUpperBound3D(uint32_t right, uint32_t bottom, uint32_t b
 // too (because in backends, unsigned and signed textures may use separate host
 // textures with different formats, so just one is used for both signed and
 // constant components).
-uint8_t SwizzleSigns(const xenos::xe_gpu_texture_fetch_t& fetch);
+uint8_t SwizzleSigns(const xenos::TextureFetch& fetch);
 constexpr bool IsAnySignNotSigned(uint8_t packed_signs) {
   return packed_signs != uint32_t(xenos::TextureSign::kSigned) * 0b01010101;
 }
@@ -325,8 +325,7 @@ constexpr bool IsAnySignSigned(uint8_t packed_signs) {
 
 // Returns normalized clamp modes specified in the fetch constant based on the
 // texture data dimension in it.
-void GetClampModesForDimension(const xenos::xe_gpu_texture_fetch_t& fetch,
-                               xenos::ClampMode& clamp_x_out, xenos::ClampMode& clamp_y_out,
-                               xenos::ClampMode& clamp_z_out);
+void GetClampModesForDimension(const xenos::TextureFetch& fetch, xenos::ClampMode& clamp_x_out,
+                               xenos::ClampMode& clamp_y_out, xenos::ClampMode& clamp_z_out);
 
-}  // namespace rex::graphics::texture_util
+}  // namespace rex::xenos

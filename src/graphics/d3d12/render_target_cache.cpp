@@ -30,7 +30,7 @@
 #include <rex/graphics/format/dxbc.h>
 #include <rex/graphics/pipeline/shader/dxbc_translator.h>
 #include <rex/graphics/util/draw.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/string.h>
@@ -196,7 +196,7 @@ bool D3D12RenderTargetCache::Initialize() {
 
   // Create the buffer for reinterpreting EDRAM contents.
   uint32_t edram_buffer_size =
-      xenos::kEdramSizeBytes * (draw_resolution_scale_x() * draw_resolution_scale_y());
+      xenos::kEDRAMSizeBytes * (draw_resolution_scale_x() * draw_resolution_scale_y());
   D3D12_RESOURCE_DESC edram_buffer_desc;
   ui::d3d12::util::FillBufferResourceDesc(edram_buffer_desc, edram_buffer_size,
                                           D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
@@ -521,53 +521,53 @@ bool D3D12RenderTargetCache::Initialize() {
     }
     // Pipelines.
     // 1 sample.
-    host_depth_store_pipelines_[size_t(xenos::MsaaSamples::k1X)] =
+    host_depth_store_pipelines_[size_t(xenos::MSAASamples::k1X)] =
         ui::d3d12::util::CreateComputePipeline(device, shaders::host_depth_store_1xmsaa_cs,
                                                sizeof(shaders::host_depth_store_1xmsaa_cs),
                                                host_depth_store_root_signature_);
-    if (!host_depth_store_pipelines_[size_t(xenos::MsaaSamples::k1X)]) {
+    if (!host_depth_store_pipelines_[size_t(xenos::MSAASamples::k1X)]) {
       REXGPU_ERROR(
           "D3D12RenderTargetCache: Failed to create the 1-sample host depth "
           "storing pipeline");
       Shutdown();
       return false;
     }
-    host_depth_store_pipelines_[size_t(xenos::MsaaSamples::k1X)]->SetName(
+    host_depth_store_pipelines_[size_t(xenos::MSAASamples::k1X)]->SetName(
         L"Host Depth Store 1xMSAA");
     // 2 samples.
-    host_depth_store_pipelines_[size_t(xenos::MsaaSamples::k2X)] =
+    host_depth_store_pipelines_[size_t(xenos::MSAASamples::k2X)] =
         ui::d3d12::util::CreateComputePipeline(device, shaders::host_depth_store_2xmsaa_cs,
                                                sizeof(shaders::host_depth_store_2xmsaa_cs),
                                                host_depth_store_root_signature_);
-    if (!host_depth_store_pipelines_[size_t(xenos::MsaaSamples::k2X)]) {
+    if (!host_depth_store_pipelines_[size_t(xenos::MSAASamples::k2X)]) {
       REXGPU_ERROR(
           "D3D12RenderTargetCache: Failed to create the 2-sample host depth "
           "storing pipeline");
       Shutdown();
       return false;
     }
-    host_depth_store_pipelines_[size_t(xenos::MsaaSamples::k2X)]->SetName(
+    host_depth_store_pipelines_[size_t(xenos::MSAASamples::k2X)]->SetName(
         L"Host Depth Store 2xMSAA");
     // 4 samples.
-    host_depth_store_pipelines_[size_t(xenos::MsaaSamples::k4X)] =
+    host_depth_store_pipelines_[size_t(xenos::MSAASamples::k4X)] =
         ui::d3d12::util::CreateComputePipeline(device, shaders::host_depth_store_4xmsaa_cs,
                                                sizeof(shaders::host_depth_store_4xmsaa_cs),
                                                host_depth_store_root_signature_);
-    if (!host_depth_store_pipelines_[size_t(xenos::MsaaSamples::k4X)]) {
+    if (!host_depth_store_pipelines_[size_t(xenos::MSAASamples::k4X)]) {
       REXGPU_ERROR(
           "D3D12RenderTargetCache: Failed to create the 4-sample host depth "
           "storing pipeline");
       Shutdown();
       return false;
     }
-    host_depth_store_pipelines_[size_t(xenos::MsaaSamples::k4X)]->SetName(
+    host_depth_store_pipelines_[size_t(xenos::MSAASamples::k4X)]->SetName(
         L"Host Depth Store 4xMSAA");
 
     // Transfer and clear vertex buffer, for quads of up to tile granularity.
     transfer_vertex_buffer_pool_ = std::make_unique<ui::d3d12::D3D12UploadBufferPool>(
         provider, std::max(ui::d3d12::D3D12UploadBufferPool::kDefaultPageSize,
                            sizeof(float) * 2 * 6 * Transfer::kMaxCutoutBorderRectangles *
-                               xenos::kEdramTileCount));
+                               xenos::kEDRAMTileCount));
 
     // Transfer root signatures.
     D3D12_DESCRIPTOR_RANGE transfer_root_color_srv_range;
@@ -827,8 +827,8 @@ bool D3D12RenderTargetCache::Initialize() {
       uint32_rtv_clear_pipeline_desc.RTVFormats[0] =
           GetColorOwnershipTransferDXGIFormat(i ? xenos::ColorRenderTargetFormat::k_32_32_FLOAT
                                                 : xenos::ColorRenderTargetFormat::k_32_FLOAT);
-      for (size_t j = size_t(xenos::MsaaSamples::k1X); j <= size_t(xenos::MsaaSamples::k4X); ++j) {
-        if (xenos::MsaaSamples(j) == xenos::MsaaSamples::k2X && !msaa_2x_supported_) {
+      for (size_t j = size_t(xenos::MSAASamples::k1X); j <= size_t(xenos::MSAASamples::k4X); ++j) {
+        if (xenos::MSAASamples(j) == xenos::MSAASamples::k2X && !msaa_2x_supported_) {
           // Using sample 0 as 0 and 3 as 1 for 2x instead.
           uint32_rtv_clear_pipeline_desc.SampleMask = 0b1001;
           uint32_rtv_clear_pipeline_desc.SampleDesc.Count = 4;
@@ -958,7 +958,7 @@ void D3D12RenderTargetCache::Shutdown(bool from_destructor) {
   ui::d3d12::util::ReleaseAndNull(resolve_rov_clear_root_signature_);
 
   for (size_t i = 0; i < 2; ++i) {
-    for (size_t j = size_t(xenos::MsaaSamples::k1X); j <= size_t(xenos::MsaaSamples::k4X); ++j) {
+    for (size_t j = size_t(xenos::MSAASamples::k1X); j <= size_t(xenos::MSAASamples::k4X); ++j) {
       ui::d3d12::util::ReleaseAndNull(uint32_rtv_clear_pipelines_[i][j]);
     }
   }
@@ -1250,7 +1250,7 @@ bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMe
             }
             if (copy_shader_info.source_is_raw) {
               descriptor_source = command_processor_.GetSystemBindlessViewHandlePair(
-                  D3D12CommandProcessor::SystemBindlessView::kEdramRawSRV);
+                  D3D12CommandProcessor::SystemBindlessView::kEDRAMRawSRV);
             } else {
               descriptor_source = command_processor_.GetEdramUintPow2BindlessSRVHandlePair(
                   copy_shader_info.source_bpe_log2);
@@ -1347,7 +1347,7 @@ bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMe
         bool descriptor_edram_obtained;
         if (bindless_resources_used_) {
           descriptor_edram = command_processor_.GetSystemBindlessViewHandlePair(
-              D3D12CommandProcessor::SystemBindlessView ::kEdramR32G32B32A32UintUAV);
+              D3D12CommandProcessor::SystemBindlessView ::kEDRAMR32G32B32A32UintUAV);
           descriptor_edram_obtained = true;
         } else {
           descriptor_edram_obtained =
@@ -1566,7 +1566,7 @@ RenderTargetCache::RenderTarget* D3D12RenderTargetCache::CreateRenderTarget(Rend
                  key.is_depth ? "depth" : "color", uint32_t(key.resource_format));
     return nullptr;
   }
-  if (key.msaa_samples == xenos::MsaaSamples::k2X && !msaa_2x_supported()) {
+  if (key.msaa_samples == xenos::MSAASamples::k2X && !msaa_2x_supported()) {
     resource_desc.SampleDesc.Count = 4;
   } else {
     resource_desc.SampleDesc.Count = UINT(1) << UINT(key.msaa_samples);
@@ -2036,7 +2036,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
       rdef_binding_color.type = dxbc::RdefInputType::kTexture;
       rdef_binding_color.return_type =
           source_color_is_uint ? dxbc::ResourceReturnType::kUInt : dxbc::ResourceReturnType::kFloat;
-      if (key.source_msaa_samples != xenos::MsaaSamples::k1X) {
+      if (key.source_msaa_samples != xenos::MSAASamples::k1X) {
         rdef_binding_color.dimension = dxbc::RdefDimension::kSRVTexture2DMS;
       } else {
         rdef_binding_color.dimension = dxbc::RdefDimension::kSRVTexture2D;
@@ -2055,7 +2055,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
       rdef_binding_depth.name_ptr = rdef_xe_transfer_depth_name_ptr;
       rdef_binding_depth.type = dxbc::RdefInputType::kTexture;
       rdef_binding_depth.return_type = dxbc::ResourceReturnType::kFloat;
-      if (key.source_msaa_samples != xenos::MsaaSamples::k1X) {
+      if (key.source_msaa_samples != xenos::MSAASamples::k1X) {
         rdef_binding_depth.dimension = dxbc::RdefDimension::kSRVTexture2DMS;
       } else {
         rdef_binding_depth.dimension = dxbc::RdefDimension::kSRVTexture2D;
@@ -2071,7 +2071,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
       rdef_binding_stencil.name_ptr = rdef_xe_transfer_stencil_name_ptr;
       rdef_binding_stencil.type = dxbc::RdefInputType::kTexture;
       rdef_binding_stencil.return_type = dxbc::ResourceReturnType::kUInt;
-      if (key.source_msaa_samples != xenos::MsaaSamples::k1X) {
+      if (key.source_msaa_samples != xenos::MSAASamples::k1X) {
         rdef_binding_stencil.dimension = dxbc::RdefDimension::kSRVTexture2DMS;
       } else {
         rdef_binding_stencil.dimension = dxbc::RdefDimension::kSRVTexture2D;
@@ -2094,7 +2094,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
         rdef_binding_host_depth.sample_count = UINT32_MAX;
       } else {
         rdef_binding_host_depth.return_type = dxbc::ResourceReturnType::kFloat;
-        if (key.host_depth_source_msaa_samples != xenos::MsaaSamples::k1X) {
+        if (key.host_depth_source_msaa_samples != xenos::MSAASamples::k1X) {
           rdef_binding_host_depth.dimension = dxbc::RdefDimension::kSRVTexture2DMS;
         } else {
           rdef_binding_host_depth.dimension = dxbc::RdefDimension::kSRVTexture2D;
@@ -2179,7 +2179,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
   };
 
   // Position, and for multisampled, sample index.
-  uint32_t isgn_parameter_count = 1 + uint32_t(key.dest_msaa_samples != xenos::MsaaSamples::k1X);
+  uint32_t isgn_parameter_count = 1 + uint32_t(key.dest_msaa_samples != xenos::MSAASamples::k1X);
 
   // Reserve space for the header and the parameters.
   built_shader_[blob_offset_position_dwords] = uint32_t(blob_position_dwords * sizeof(uint32_t));
@@ -2192,7 +2192,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
   uint32_t isgn_sv_position_name_ptr = name_ptr;
   name_ptr += dxbc::AppendAlignedString(built_shader_, "SV_Position");
   uint32_t isgn_sv_sample_index_name_ptr = name_ptr;
-  if (key.dest_msaa_samples != xenos::MsaaSamples::k1X) {
+  if (key.dest_msaa_samples != xenos::MSAASamples::k1X) {
     name_ptr += dxbc::AppendAlignedString(built_shader_, "SV_SampleIndex");
   }
 
@@ -2216,7 +2216,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
     isgn_sv_position.mask = 0b1111;
     isgn_sv_position.always_reads_mask = 0b0011;
     // SV_SampleIndex
-    if (key.dest_msaa_samples != xenos::MsaaSamples::k1X) {
+    if (key.dest_msaa_samples != xenos::MSAASamples::k1X) {
       dxbc::SignatureParameter& isgn_sv_sample_index = isgn_parameters[isgn_parameter_index++];
       isgn_sv_sample_index.semantic_name_ptr = isgn_sv_sample_index_name_ptr;
       isgn_sv_sample_index.system_value = dxbc::Name::kSampleIndex;
@@ -2365,7 +2365,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
   }
   if (srv_index_color != UINT32_MAX) {
     a.OpDclResource(
-        key.source_msaa_samples != xenos::MsaaSamples::k1X ? dxbc::ResourceDimension::kTexture2DMS
+        key.source_msaa_samples != xenos::MSAASamples::k1X ? dxbc::ResourceDimension::kTexture2DMS
                                                            : dxbc::ResourceDimension::kTexture2D,
         dxbc::ResourceReturnTypeX4Token(source_color_is_uint ? dxbc::ResourceReturnType::kUInt
                                                              : dxbc::ResourceReturnType::kFloat),
@@ -2373,7 +2373,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
                      kTransferSRVRegisterColor));
   }
   if (srv_index_depth != UINT32_MAX) {
-    a.OpDclResource(key.source_msaa_samples != xenos::MsaaSamples::k1X
+    a.OpDclResource(key.source_msaa_samples != xenos::MSAASamples::k1X
                         ? dxbc::ResourceDimension::kTexture2DMS
                         : dxbc::ResourceDimension::kTexture2D,
                     dxbc::ResourceReturnTypeX4Token(dxbc::ResourceReturnType::kFloat),
@@ -2381,7 +2381,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
                                  kTransferSRVRegisterDepth));
   }
   if (srv_index_stencil != UINT32_MAX) {
-    a.OpDclResource(key.source_msaa_samples != xenos::MsaaSamples::k1X
+    a.OpDclResource(key.source_msaa_samples != xenos::MSAASamples::k1X
                         ? dxbc::ResourceDimension::kTexture2DMS
                         : dxbc::ResourceDimension::kTexture2D,
                     dxbc::ResourceReturnTypeX4Token(dxbc::ResourceReturnType::kUInt),
@@ -2391,7 +2391,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
   if (srv_index_host_depth != UINT32_MAX) {
     a.OpDclResource(key.host_depth_source_is_copy
                         ? dxbc::ResourceDimension::kBuffer
-                        : (key.host_depth_source_msaa_samples != xenos::MsaaSamples::k1X
+                        : (key.host_depth_source_msaa_samples != xenos::MSAASamples::k1X
                                ? dxbc::ResourceDimension::kTexture2DMS
                                : dxbc::ResourceDimension::kTexture2D),
                     dxbc::ResourceReturnTypeX4Token(dxbc::ResourceReturnType::kFloat),
@@ -2400,7 +2400,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
   }
   a.OpDclInputPSSIV(dxbc::InterpolationMode::kLinearNoPerspective,
                     dxbc::Dest::V1D(kInputRegisterPosition, 0b0011), dxbc::Name::kPosition);
-  if (key.dest_msaa_samples != xenos::MsaaSamples::k1X) {
+  if (key.dest_msaa_samples != xenos::MSAASamples::k1X) {
     a.OpDclInputPSSGV(dxbc::Dest::V1D(kInputRegisterSampleIndex, 0b0001), dxbc::Name::kSampleIndex);
   }
   if (osgn_parameter_index_sv_target != UINT32_MAX) {
@@ -2420,8 +2420,8 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
   uint32_t draw_resolution_scale_x = this->draw_resolution_scale_x();
   uint32_t draw_resolution_scale_y = this->draw_resolution_scale_y();
 
-  uint32_t tile_width_samples = xenos::kEdramTileWidthSamples * draw_resolution_scale_x;
-  uint32_t tile_height_samples = xenos::kEdramTileHeightSamples * draw_resolution_scale_y;
+  uint32_t tile_width_samples = xenos::kEDRAMTileWidthSamples * draw_resolution_scale_x;
+  uint32_t tile_height_samples = xenos::kEDRAMTileHeightSamples * draw_resolution_scale_y;
 
   // Split the destination pixel index into 32bpp tile in r0.zw and
   // 32bpp-tile-relative pixel index in r0.xy.
@@ -2429,9 +2429,9 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
   a.OpFToU(dxbc::Dest::R(0, 0b0011), dxbc::Src::V1D(kInputRegisterPosition));
   uint32_t dest_tile_width_pixels =
       tile_width_samples >>
-      (uint32_t(dest_is_64bpp) + uint32_t(key.dest_msaa_samples >= xenos::MsaaSamples::k4X));
+      (uint32_t(dest_is_64bpp) + uint32_t(key.dest_msaa_samples >= xenos::MSAASamples::k4X));
   uint32_t dest_tile_height_pixels =
-      tile_height_samples >> uint32_t(key.dest_msaa_samples >= xenos::MsaaSamples::k2X);
+      tile_height_samples >> uint32_t(key.dest_msaa_samples >= xenos::MSAASamples::k2X);
   // r0.xy = destination pixel XY index within the 32bpp tile
   // r0.zw = 32bpp tile XY index
   a.OpUDiv(dxbc::Dest::R(0, 0b1100), dxbc::Dest::R(0, 0b0011), dxbc::Src::R(0, 0b01000100),
@@ -2439,7 +2439,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
                          dest_tile_height_pixels));
 
   // r1.x = destination pitch in 32bpp tiles
-  a.OpUBFE(dxbc::Dest::R(1, 0b0001), dxbc::Src::LU(xenos::kEdramPitchTilesBits), dxbc::Src::LU(0),
+  a.OpUBFE(dxbc::Dest::R(1, 0b0001), dxbc::Src::LU(xenos::kEDRAMPitchTilesBits), dxbc::Src::LU(0),
            dxbc::Src::CB(cbuffer_index_address, kTransferCBVRegisterAddress, 0, dxbc::Src::kXXXX));
   // r0.z = 32bpp tile index relative to the destination base
   // r0.w = free
@@ -2478,10 +2478,10 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
 
   if (!source_is_64bpp && dest_is_64bpp) {
     // 32bpp -> 64bpp, need two samples of the source.
-    if (key.source_msaa_samples >= xenos::MsaaSamples::k4X) {
+    if (key.source_msaa_samples >= xenos::MSAASamples::k4X) {
       // 32bpp -> 64bpp, 4x ->.
       // Source has 32bpp halves in two adjacent samples.
-      if (key.dest_msaa_samples >= xenos::MsaaSamples::k4X) {
+      if (key.dest_msaa_samples >= xenos::MSAASamples::k4X) {
         // 32bpp -> 64bpp, 4x -> 4x.
         // 1 destination horizontal sample = 2 source horizontal samples.
         // D p0,0 s0,0 = S p0,0 s0,0 | S p0,0 s1,0
@@ -2496,7 +2496,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
                 dxbc::Src::R(0, dxbc::Src::kXXXX),
                 dxbc::Src::V1D(kInputRegisterSampleIndex, dxbc::Src::kXXXX));
         source_tile_pixel_x_reg = 1;
-      } else if (key.dest_msaa_samples == xenos::MsaaSamples::k2X) {
+      } else if (key.dest_msaa_samples == xenos::MSAASamples::k2X) {
         // 32bpp -> 64bpp, 4x -> 2x.
         // 1 destination horizontal pixel = 2 source horizontal samples.
         // D p0,0 s0 = S p0,0 s0,0 | S p0,0 s1,0
@@ -2528,7 +2528,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
     } else {
       // 32bpp -> 64bpp, 1x/2x ->.
       // Source has 32bpp halves in two adjacent pixels.
-      if (key.dest_msaa_samples >= xenos::MsaaSamples::k4X) {
+      if (key.dest_msaa_samples >= xenos::MSAASamples::k4X) {
         // 32bpp -> 64bpp, 1x/2x -> 4x.
         // The X part.
         // 1 destination horizontal sample = 2 source horizontal pixels.
@@ -2549,10 +2549,10 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
     }
   } else if (source_is_64bpp && !dest_is_64bpp) {
     // 64bpp -> 32bpp, also the half to r0.w.
-    if (key.dest_msaa_samples >= xenos::MsaaSamples::k4X) {
+    if (key.dest_msaa_samples >= xenos::MSAASamples::k4X) {
       // 64bpp -> 32bpp, -> 4x.
       // The needed half is in the destination horizontal sample index.
-      if (key.source_msaa_samples >= xenos::MsaaSamples::k4X) {
+      if (key.source_msaa_samples >= xenos::MSAASamples::k4X) {
         // 64bpp -> 32bpp, 4x -> 4x.
         // D p0,0 s0,0 = S s0,0 low
         // D p0,0 s1,0 = S s0,0 high
@@ -2579,14 +2579,14 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
     } else {
       // 64bpp -> 32bpp, -> 1x/2x.
       // The needed half is in the destination horizontal pixel index.
-      if (key.source_msaa_samples >= xenos::MsaaSamples::k4X) {
+      if (key.source_msaa_samples >= xenos::MSAASamples::k4X) {
         // 64bpp -> 32bpp, 4x -> 1x/2x.
         // (Destination horizontal pixel >> 1) & 1 = source horizontal sample
         // (first bit).
         a.OpUBFE(dxbc::Dest::R(1, 0b0100), dxbc::Src::LU(1), dxbc::Src::LU(1),
                  dxbc::Src::R(0, dxbc::Src::kXXXX));
         source_sample = dxbc::Src::R(1, dxbc::Src::kZZZZ);
-        if (key.dest_msaa_samples == xenos::MsaaSamples::k2X) {
+        if (key.dest_msaa_samples == xenos::MSAASamples::k2X) {
           // 64bpp -> 32bpp, 4x -> 2x.
           // Destination vertical samples (1/0 in the first bit for native 2x or
           // 0/1 in the second bit for 2x as 4x) = source vertical samples
@@ -2625,9 +2625,9 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
   } else {
     // Same bit count.
     if (key.source_msaa_samples != key.dest_msaa_samples) {
-      if (key.source_msaa_samples >= xenos::MsaaSamples::k4X) {
+      if (key.source_msaa_samples >= xenos::MSAASamples::k4X) {
         // Same BPP, 4x -> 1x/2x.
-        if (key.dest_msaa_samples == xenos::MsaaSamples::k2X) {
+        if (key.dest_msaa_samples == xenos::MSAASamples::k2X) {
           // Same BPP, 4x -> 2x.
           // Horizontal pixels to samples. Vertical sample (1/0 in the first bit
           // for native 2x or 0/1 in the second bit for 2x as 4x) to second
@@ -2657,7 +2657,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
       } else {
         // Same BPP, 1x/2x -> 1x/2x/4x (as long as they're different).
         // Only the X part - Y is handled by common code.
-        if (key.dest_msaa_samples >= xenos::MsaaSamples::k4X) {
+        if (key.dest_msaa_samples >= xenos::MSAASamples::k4X) {
           // Horizontal samples to pixels.
           a.OpBFI(dxbc::Dest::R(1, 0b0001), dxbc::Src::LU(31), dxbc::Src::LU(1),
                   dxbc::Src::R(0, dxbc::Src::kXXXX), dest_sample);
@@ -2668,11 +2668,11 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
   }
   // Common source Y and sample index for 1x/2x AA sources, independent of bits
   // per sample.
-  if (key.source_msaa_samples < xenos::MsaaSamples::k4X &&
+  if (key.source_msaa_samples < xenos::MSAASamples::k4X &&
       key.source_msaa_samples != key.dest_msaa_samples) {
-    if (key.dest_msaa_samples >= xenos::MsaaSamples::k4X) {
+    if (key.dest_msaa_samples >= xenos::MSAASamples::k4X) {
       // 1x/2x -> 4x.
-      if (key.source_msaa_samples == xenos::MsaaSamples::k2X) {
+      if (key.source_msaa_samples == xenos::MSAASamples::k2X) {
         // 2x -> 4x.
         // Vertical samples (second bit) of 4x destination to vertical sample
         // (1, 0 for native 2x, or 0, 3 for 2x as 4x) of 2x source.
@@ -2694,7 +2694,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
       }
     } else {
       // 1x/2x -> different 1x/2x.
-      if (key.source_msaa_samples == xenos::MsaaSamples::k2X) {
+      if (key.source_msaa_samples == xenos::MSAASamples::k2X) {
         // 2x -> 1x.
         // Vertical pixels of 2x destination to vertical samples (1, 0 for
         // native 2x, or 0, 3 for 2x as 4x) of 1x source.
@@ -2728,7 +2728,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
   }
 
   uint32_t source_pixel_width_dwords_log2 =
-      uint32_t(key.source_msaa_samples >= xenos::MsaaSamples::k4X) + uint32_t(source_is_64bpp);
+      uint32_t(key.source_msaa_samples >= xenos::MSAASamples::k4X) + uint32_t(source_is_64bpp);
 
   if (source_is_color != dest_is_color) {
     // Copying between color and depth / stencil - swap 40-32bpp-sample columns
@@ -2755,8 +2755,8 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
 
   // Apply the source 32bpp tile index.
   // r1.w = destination to source EDRAM tile adjustment
-  a.OpIBFE(dxbc::Dest::R(1, 0b1000), dxbc::Src::LU(xenos::kEdramBaseTilesBits + 1),
-           dxbc::Src::LU(xenos::kEdramPitchTilesBits * 2),
+  a.OpIBFE(dxbc::Dest::R(1, 0b1000), dxbc::Src::LU(xenos::kEDRAMBaseTilesBits + 1),
+           dxbc::Src::LU(xenos::kEDRAMPitchTilesBits * 2),
            dxbc::Src::CB(cbuffer_index_address, kTransferCBVRegisterAddress, 0, dxbc::Src::kXXXX));
   // r1.w = 32bpp tile index within the source, or the tile index within the
   //        source minus the EDRAM tile count if transferring across addressing
@@ -2765,10 +2765,10 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
            dxbc::Src::R(1, dxbc::Src::kWWWW));
   // r1.w = 32bpp tile index within the source
   a.OpAnd(dxbc::Dest::R(1, 0b1000), dxbc::Src::R(1, dxbc::Src::kWWWW),
-          dxbc::Src::LU(xenos::kEdramTileCount - 1));
+          dxbc::Src::LU(xenos::kEDRAMTileCount - 1));
   // r2.x = source pitch in 32bpp tiles
-  a.OpUBFE(dxbc::Dest::R(2, 0b0001), dxbc::Src::LU(xenos::kEdramPitchTilesBits),
-           dxbc::Src::LU(xenos::kEdramPitchTilesBits),
+  a.OpUBFE(dxbc::Dest::R(2, 0b0001), dxbc::Src::LU(xenos::kEDRAMPitchTilesBits),
+           dxbc::Src::LU(xenos::kEDRAMPitchTilesBits),
            dxbc::Src::CB(cbuffer_index_address, kTransferCBVRegisterAddress, 0, dxbc::Src::kXXXX));
   // r1.w = source tile row
   // r2.x = source 32bpp tile within the row
@@ -2783,7 +2783,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
   // r1.w = free
   a.OpUMAd(dxbc::Dest::R(1, 0b0010),
            dxbc::Src::LU(tile_height_samples >>
-                         uint32_t(key.source_msaa_samples >= xenos::MsaaSamples::k2X)),
+                         uint32_t(key.source_msaa_samples >= xenos::MSAASamples::k2X)),
            dxbc::Src::R(1, dxbc::Src::kWWWW),
            dxbc::Src::R(source_tile_pixel_y_reg, dxbc::Src::kYYYY));
 
@@ -2795,7 +2795,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
   // Stencil will be loaded to x.
   // Color will be loaded to x...w.
   bool source_load_is_two_dwords = !source_is_64bpp && dest_is_64bpp;
-  if (key.source_msaa_samples != xenos::MsaaSamples::k1X) {
+  if (key.source_msaa_samples != xenos::MSAASamples::k1X) {
     for (uint32_t i = 0; i <= uint32_t(source_load_is_two_dwords); ++i) {
       uint32_t source_load_register = source_load_is_two_dwords ? i : 1;
       if (srv_index_depth != UINT32_MAX) {
@@ -2814,7 +2814,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
       }
       if (source_load_is_two_dwords && !i) {
         // Go to the next sample or pixel along X if need to load two dwords.
-        if (key.source_msaa_samples >= xenos::MsaaSamples::k4X) {
+        if (key.source_msaa_samples >= xenos::MSAASamples::k4X) {
           a.OpOr(dxbc::Dest::R(1, 0b0100), source_sample, dxbc::Src::LU(1));
           source_sample = dxbc::Src::R(1, dxbc::Src::kZZZZ);
         } else {
@@ -3301,16 +3301,16 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
               // (because this is used for depth -> depth transfers, where
               // swapping isn't needed).
               // Convert samples to pixels.
-              assert_true(key.host_depth_source_msaa_samples == xenos::MsaaSamples::k1X);
-              if (key.dest_msaa_samples >= xenos::MsaaSamples::k2X) {
-                if (key.dest_msaa_samples >= xenos::MsaaSamples::k4X) {
+              assert_true(key.host_depth_source_msaa_samples == xenos::MSAASamples::k1X);
+              if (key.dest_msaa_samples >= xenos::MSAASamples::k2X) {
+                if (key.dest_msaa_samples >= xenos::MSAASamples::k4X) {
                   // Horizontal sample index in bit 0.
                   a.OpBFI(dxbc::Dest::R(0, 0b0001), dxbc::Src::LU(31), dxbc::Src::LU(1),
                           dxbc::Src::R(0, dxbc::Src::kXXXX), dest_sample);
                 }
                 // Vertical sample index as 1 or 0 in bit 0 for true 2x or as 0
                 // or 1 in bit 1 for 4x or for 2x emulated as 4x.
-                if (key.dest_msaa_samples == xenos::MsaaSamples::k2X && msaa_2x_supported_) {
+                if (key.dest_msaa_samples == xenos::MSAASamples::k2X && msaa_2x_supported_) {
                   a.OpBFI(dxbc::Dest::R(0, 0b0010), dxbc::Src::LU(31), dxbc::Src::LU(1),
                           dxbc::Src::R(0, dxbc::Src::kYYYY), dest_sample);
                   a.OpXOr(dxbc::Dest::R(0, 0b0010), dxbc::Src::R(0, dxbc::Src::kYYYY),
@@ -3340,8 +3340,8 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
               // Adjust the tile index from the destination to the host depth
               // source.
               // r0.w = destination to host depth source EDRAM tile adjustment
-              a.OpIBFE(dxbc::Dest::R(0, 0b1000), dxbc::Src::LU(xenos::kEdramBaseTilesBits + 1),
-                       dxbc::Src::LU(xenos::kEdramPitchTilesBits * 2),
+              a.OpIBFE(dxbc::Dest::R(0, 0b1000), dxbc::Src::LU(xenos::kEDRAMBaseTilesBits + 1),
+                       dxbc::Src::LU(xenos::kEDRAMPitchTilesBits * 2),
                        dxbc::Src::CB(cbuffer_index_host_depth_address,
                                      kTransferCBVRegisterHostDepthAddress, 0, dxbc::Src::kXXXX));
               // r0.z = tile index relative to the host depth source base, or
@@ -3353,15 +3353,15 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
                        dxbc::Src::R(0, dxbc::Src::kWWWW));
               // r0.z = tile index relative to the host depth source base
               a.OpAnd(dxbc::Dest::R(0, 0b0100), dxbc::Src::R(0, dxbc::Src::kZZZZ),
-                      dxbc::Src::LU(xenos::kEdramTileCount - 1));
+                      dxbc::Src::LU(xenos::kEDRAMTileCount - 1));
               // Convert position and sample index from within the destination
               // tile to within the host depth source tile, like for the guest
               // render target, but for 32bpp -> 32bpp only.
               dxbc::Src host_depth_source_sample(dest_sample);
               if (key.host_depth_source_msaa_samples != key.dest_msaa_samples) {
-                if (key.host_depth_source_msaa_samples >= xenos::MsaaSamples::k4X) {
+                if (key.host_depth_source_msaa_samples >= xenos::MSAASamples::k4X) {
                   // 4x -> 1x/2x.
-                  if (key.dest_msaa_samples == xenos::MsaaSamples::k2X) {
+                  if (key.dest_msaa_samples == xenos::MSAASamples::k2X) {
                     // 4x -> 2x.
                     // Horizontal pixels to samples. Vertical sample (1, 0 in
                     // the first bit for native 2x or 0, 1 in the second bit for
@@ -3391,17 +3391,17 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
                 } else {
                   // 1x/2x -> 1x/2x/4x (as long as they're different).
                   // Only the X part - Y is handled by common code.
-                  if (key.dest_msaa_samples >= xenos::MsaaSamples::k4X) {
+                  if (key.dest_msaa_samples >= xenos::MSAASamples::k4X) {
                     // Horizontal samples to pixels.
                     a.OpBFI(dxbc::Dest::R(0, 0b0001), dxbc::Src::LU(31), dxbc::Src::LU(1),
                             dxbc::Src::R(0, dxbc::Src::kXXXX), dest_sample);
                   }
                 }
                 // Host depth source Y and sample index for 1x/2x AA sources.
-                if (key.host_depth_source_msaa_samples < xenos::MsaaSamples::k4X) {
-                  if (key.dest_msaa_samples >= xenos::MsaaSamples::k4X) {
+                if (key.host_depth_source_msaa_samples < xenos::MSAASamples::k4X) {
+                  if (key.dest_msaa_samples >= xenos::MSAASamples::k4X) {
                     // 1x/2x -> 4x.
-                    if (key.host_depth_source_msaa_samples == xenos::MsaaSamples::k2X) {
+                    if (key.host_depth_source_msaa_samples == xenos::MSAASamples::k2X) {
                       // 2x -> 4x.
                       // Vertical samples (second bit) of 4x destination to
                       // vertical sample (1, 0 for native 2x, or 0, 3 for 2x as
@@ -3425,7 +3425,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
                     }
                   } else {
                     // 1x/2x -> different 1x/2x.
-                    if (key.host_depth_source_msaa_samples == xenos::MsaaSamples::k2X) {
+                    if (key.host_depth_source_msaa_samples == xenos::MSAASamples::k2X) {
                       // 2x -> 1x.
                       // Vertical pixels of 2x destination to vertical samples
                       // (1, 0 for native 2x, or 0, 3 for 2x as 4x) of 1x
@@ -3465,8 +3465,8 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
                 }
               }
               // r1.x = host depth source pitch in tiles
-              a.OpUBFE(dxbc::Dest::R(1, 0b0001), dxbc::Src::LU(xenos::kEdramPitchTilesBits),
-                       dxbc::Src::LU(xenos::kEdramPitchTilesBits),
+              a.OpUBFE(dxbc::Dest::R(1, 0b0001), dxbc::Src::LU(xenos::kEDRAMPitchTilesBits),
+                       dxbc::Src::LU(xenos::kEDRAMPitchTilesBits),
                        dxbc::Src::CB(cbuffer_index_host_depth_address,
                                      kTransferCBVRegisterHostDepthAddress, 0, dxbc::Src::kXXXX));
               // r0.z = host depth source tile row
@@ -3478,17 +3478,17 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
               a.OpUMAd(
                   dxbc::Dest::R(0, 0b0001),
                   dxbc::Src::LU(tile_width_samples >> uint32_t(key.host_depth_source_msaa_samples >=
-                                                               xenos::MsaaSamples::k4X)),
+                                                               xenos::MSAASamples::k4X)),
                   dxbc::Src::R(1, dxbc::Src::kXXXX), dxbc::Src::R(0, dxbc::Src::kXXXX));
               // r0.y = pixel Y within the host depth source texture
               // r0.z = free
               a.OpUMAd(dxbc::Dest::R(0, 0b0010),
                        dxbc::Src::LU(
                            tile_height_samples >>
-                           uint32_t(key.host_depth_source_msaa_samples >= xenos::MsaaSamples::k2X)),
+                           uint32_t(key.host_depth_source_msaa_samples >= xenos::MSAASamples::k2X)),
                        dxbc::Src::R(0, dxbc::Src::kZZZZ), dxbc::Src::R(0, dxbc::Src::kYYYY));
               // Load from the host depth texture.
-              if (key.host_depth_source_msaa_samples != xenos::MsaaSamples::k1X) {
+              if (key.host_depth_source_msaa_samples != xenos::MSAASamples::k1X) {
                 a.OpLdMS(dxbc::Dest::R(0, 0b0001), dxbc::Src::R(0), 0b0011,
                          dxbc::Src::T(srv_index_host_depth, kTransferSRVRegisterHostDepth,
                                       dxbc::Src::kXXXX),
@@ -3672,7 +3672,7 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
   pipeline_desc.VS.BytecodeLength = sizeof(shaders::passthrough_position_xy_vs);
   pipeline_desc.PS.pShaderBytecode = built_shader_.data();
   pipeline_desc.PS.BytecodeLength = built_shader_size_bytes;
-  if (key.dest_msaa_samples == xenos::MsaaSamples::k2X && !msaa_2x_supported_) {
+  if (key.dest_msaa_samples == xenos::MSAASamples::k2X && !msaa_2x_supported_) {
     // Using sample 0 as 0 and 3 as 1 for 2x instead.
     pipeline_desc.SampleMask = 0b1001;
     pipeline_desc.SampleDesc.Count = 4;
@@ -4170,7 +4170,7 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
           new_transfer_shader_key.host_depth_source_msaa_samples =
               (host_depth_source_d3d12_rt && !host_depth_source_is_copy)
                   ? host_depth_source_d3d12_rt->key().msaa_samples
-                  : xenos::MsaaSamples::k1X;
+                  : xenos::MSAASamples::k1X;
           if (j) {
             new_transfer_shader_key.mode = source_rt_key.is_depth
                                                ? TransferMode::kDepthToStencilBit
@@ -4479,7 +4479,7 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
               descriptor_gpu_handle =
                   command_processor_
                       .GetSystemBindlessViewHandlePair(
-                          D3D12CommandProcessor::SystemBindlessView ::kEdramR32UintSRV)
+                          D3D12CommandProcessor::SystemBindlessView ::kEDRAMR32UintSRV)
                       .second;
             } else {
               assert_true(host_depth_copy_srv_index != UINT32_MAX);
@@ -4730,7 +4730,7 @@ void D3D12RenderTargetCache::SetCommandListRenderTargets(
       }
       // Fill the gaps with a null descriptor.
       while (rtv_count < i) {
-        rtv_handles[rtv_count++] = render_target->key().msaa_samples != xenos::MsaaSamples::k1X
+        rtv_handles[rtv_count++] = render_target->key().msaa_samples != xenos::MSAASamples::k1X
                                        ? null_rtv_descriptor_ms_.GetHandle()
                                        : null_rtv_descriptor_ss_.GetHandle();
       }
@@ -4908,7 +4908,7 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
     rdef_binding_source.name_ptr = rdef_xe_edram_dump_source_name_ptr;
     rdef_binding_source.type = dxbc::RdefInputType::kTexture;
     rdef_binding_source.return_type = source_return_type;
-    if (key.msaa_samples != xenos::MsaaSamples::k1X) {
+    if (key.msaa_samples != xenos::MSAASamples::k1X) {
       rdef_binding_source.dimension = dxbc::RdefDimension::kSRVTexture2DMS;
       // Sample count is dynamic on Shader Model 5.
     } else {
@@ -5036,7 +5036,7 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
       dxbc::Src::CB(dxbc::Src::Dcl, kDumpCbufferPitches, kDumpCbufferPitches, kDumpCbufferPitches),
       1);
   // Source texture.
-  dxbc::ResourceDimension source_dimension = key.msaa_samples != xenos::MsaaSamples::k1X
+  dxbc::ResourceDimension source_dimension = key.msaa_samples != xenos::MSAASamples::k1X
                                                  ? dxbc::ResourceDimension::kTexture2DMS
                                                  : dxbc::ResourceDimension::kTexture2D;
   a.OpDclResource(
@@ -5076,8 +5076,8 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
   // 80x16 for simplicity of addressing into the texture.
 
   uint32_t tile_width =
-      (xenos::kEdramTileWidthSamples * draw_resolution_scale_x) >> uint32_t(format_is_64bpp);
-  uint32_t tile_height = xenos::kEdramTileHeightSamples * draw_resolution_scale_y;
+      (xenos::kEDRAMTileWidthSamples * draw_resolution_scale_x) >> uint32_t(format_is_64bpp);
+  uint32_t tile_height = xenos::kEDRAMTileHeightSamples * draw_resolution_scale_y;
 
   // Get the parts of the address - tile row index within the dispatch to r0.zw,
   // sample Y within the tile to r0.xy.
@@ -5094,7 +5094,7 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
   // r0.z = X tile position
   // r0.w = Y tile position
   // r1.x = dump rectangle pitch in tiles
-  a.OpUBFE(dxbc::Dest::R(1, 0b0001), dxbc::Src::LU(xenos::kEdramPitchTilesBits), dxbc::Src::LU(0),
+  a.OpUBFE(dxbc::Dest::R(1, 0b0001), dxbc::Src::LU(xenos::kEDRAMPitchTilesBits), dxbc::Src::LU(0),
            dxbc::Src::CB(kDumpCbufferPitches, kDumpCbufferPitches, 0, dxbc::Src::kXXXX));
   // Get the tile index in the EDRAM relative to the dump rectangle base tile to
   // r0.w.
@@ -5112,7 +5112,7 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
   // r0.y = Y sample position within the tile
   // r0.z = first EDRAM tile index in the dispatch
   // r0.w = tile index relative to the dump rectangle base
-  a.OpUBFE(dxbc::Dest::R(0, 0b0100), dxbc::Src::LU(xenos::kEdramBaseTilesBits + 1),
+  a.OpUBFE(dxbc::Dest::R(0, 0b0100), dxbc::Src::LU(xenos::kEDRAMBaseTilesBits + 1),
            dxbc::Src::LU(0),
            dxbc::Src::CB(kDumpCbufferOffsets, kDumpCbufferOffsets, 0, dxbc::Src::kXXXX));
   // Add the base tile in the dispatch to the dispatch-local tile index to r0.w,
@@ -5130,7 +5130,7 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
   // r0.z = wrapped tile index in the EDRAM
   // r0.w = non-wrapped tile index in the EDRAM
   a.OpAnd(dxbc::Dest::R(0, 0b0100), dxbc::Src::R(0, dxbc::Src::kWWWW),
-          dxbc::Src::LU(xenos::kEdramTileCount - 1));
+          dxbc::Src::LU(xenos::kEDRAMTileCount - 1));
   // Convert the tile index to samples and add the X sample index to it to r0.z.
   // r0.x = X sample position within the tile
   // r0.y = Y sample position within the tile
@@ -5138,8 +5138,8 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
   // r0.w = non-wrapped tile index in the EDRAM
   a.OpUMAd(dxbc::Dest::R(0, 0b0100), dxbc::Src::R(0, dxbc::Src::kZZZZ),
            dxbc::Src::LU(draw_resolution_scale_x * draw_resolution_scale_y *
-                         (xenos::kEdramTileWidthSamples >> uint32_t(format_is_64bpp)) *
-                         xenos::kEdramTileHeightSamples),
+                         (xenos::kEDRAMTileWidthSamples >> uint32_t(format_is_64bpp)) *
+                         xenos::kEDRAMTileHeightSamples),
            dxbc::Src::R(0, dxbc::Src::kXXXX));
   // Add the contribution of the Y sample position within the tile to the sample
   // address in the EDRAM to r0.z.
@@ -5184,8 +5184,8 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
   // r0.z = sample offset in the EDRAM
   // r0.w = non-wrapped tile index in the EDRAM
   // r1.x = source texture base tile index
-  a.OpUBFE(dxbc::Dest::R(1, 0b0001), dxbc::Src::LU(xenos::kEdramBaseTilesBits),
-           dxbc::Src::LU(xenos::kEdramBaseTilesBits + 1),
+  a.OpUBFE(dxbc::Dest::R(1, 0b0001), dxbc::Src::LU(xenos::kEDRAMBaseTilesBits),
+           dxbc::Src::LU(xenos::kEDRAMBaseTilesBits + 1),
            dxbc::Src::CB(kDumpCbufferOffsets, kDumpCbufferOffsets, 0, dxbc::Src::kXXXX));
   // Get the linear tile index within the source texture to r0.w.
   // r0.x = X sample position within the tile
@@ -5201,8 +5201,8 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
   // r0.z = sample offset in the EDRAM
   // r0.w = linear tile index in the source texture
   // r1.x = source texture pitch in tiles
-  a.OpUBFE(dxbc::Dest::R(1, 0b0001), dxbc::Src::LU(xenos::kEdramPitchTilesBits),
-           dxbc::Src::LU(xenos::kEdramPitchTilesBits),
+  a.OpUBFE(dxbc::Dest::R(1, 0b0001), dxbc::Src::LU(xenos::kEDRAMPitchTilesBits),
+           dxbc::Src::LU(xenos::kEDRAMPitchTilesBits),
            dxbc::Src::CB(kDumpCbufferPitches, kDumpCbufferPitches, 0, dxbc::Src::kXXXX));
   // Split the linear tile index in the source texture into X and Y in tiles.
   // r0.x = X sample position within the tile
@@ -5228,13 +5228,13 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
   // r0.z = sample offset in the EDRAM
   // r1.x = free
   a.OpUMAd(dxbc::Dest::R(0, 0b0010), dxbc::Src::R(1, dxbc::Src::kXXXX),
-           dxbc::Src::LU(xenos::kEdramTileHeightSamples * draw_resolution_scale_y),
+           dxbc::Src::LU(xenos::kEDRAMTileHeightSamples * draw_resolution_scale_y),
            dxbc::Src::R(0, dxbc::Src::kYYYY));
   // Will be using the source texture coordinates from r0.xy, and for
   // single-sampled source, LOD from r0.w.
   dxbc::Src source_address_src(dxbc::Src::R(0, 0b11000100));
-  if (key.msaa_samples >= xenos::MsaaSamples::k2X) {
-    if (key.msaa_samples >= xenos::MsaaSamples::k4X) {
+  if (key.msaa_samples >= xenos::MSAASamples::k2X) {
+    if (key.msaa_samples >= xenos::MSAASamples::k4X) {
       // 4x MSAA source texture sample index - bit 0 for horizontal, bit 1 for
       // vertical.
       // Extract the horizontal sample index to r0.w.

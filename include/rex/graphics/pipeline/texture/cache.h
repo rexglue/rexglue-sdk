@@ -19,10 +19,10 @@
 #include <vector>
 
 #include <rex/assert.h>
-#include <rex/graphics/pipeline/texture/util.h>
+#include <rex/xenos/texture_util.h>
 #include <rex/graphics/register_file.h>
 #include <rex/graphics/shared_memory.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 #include <rex/hash.h>
 #include <rex/platform/mutex.h>
 
@@ -115,7 +115,7 @@ class TextureCache {
 
   uint32_t GetActiveTextureHostSwizzle(uint32_t fetch_constant_index) const {
     const TextureBinding* binding = GetValidTextureBinding(fetch_constant_index);
-    return binding ? binding->host_swizzle : xenos::XE_GPU_TEXTURE_SWIZZLE_0000;
+    return binding ? binding->host_swizzle : xenos::REXGPU_SWIZZLE_0000;
   }
   uint8_t GetActiveTextureSwizzledSigns(uint32_t fetch_constant_index) const {
     const TextureBinding* binding = GetValidTextureBinding(fetch_constant_index);
@@ -182,10 +182,10 @@ class TextureCache {
     uint32_t GetHeight() const { return height_minus_1 + 1; }
     uint32_t GetDepthOrArraySize() const { return depth_or_array_size_minus_1 + 1; }
 
-    texture_util::TextureGuestLayout GetGuestLayout() const {
-      return texture_util::GetGuestTextureLayout(dimension, pitch, GetWidth(), GetHeight(),
-                                                 GetDepthOrArraySize(), tiled, format, packed_mips,
-                                                 base_page != 0, mip_max_level);
+    xenos::TextureGuestLayout GetGuestLayout() const {
+      return xenos::GetGuestTextureLayout(dimension, pitch, GetWidth(), GetHeight(),
+                                          GetDepthOrArraySize(), tiled, format, packed_mips,
+                                          base_page != 0, mip_max_level);
     }
 
     static const char* GetLogDimensionName(xenos::DataDimension dimension);
@@ -203,7 +203,7 @@ class TextureCache {
 
     const TextureKey& key() const { return key_; }
 
-    const texture_util::TextureGuestLayout& guest_layout() const { return guest_layout_; }
+    const xenos::TextureGuestLayout& guest_layout() const { return guest_layout_; }
     uint32_t GetGuestBaseSize() const { return guest_layout().base.level_data_extent_bytes; }
     uint32_t GetGuestMipsSize() const { return guest_layout().mips_total_extent_bytes; }
 
@@ -252,7 +252,7 @@ class TextureCache {
 
     TextureKey key_;
 
-    texture_util::TextureGuestLayout guest_layout_;
+    xenos::TextureGuestLayout guest_layout_;
 
     uint64_t host_memory_usage_ = 0;
 
@@ -467,7 +467,7 @@ class TextureCache {
 
     void Reset() {
       std::memset(this, 0, sizeof(*this));
-      host_swizzle = xenos::XE_GPU_TEXTURE_SWIZZLE_0000;
+      host_swizzle = xenos::REXGPU_SWIZZLE_0000;
       swizzled_signs = kSwizzledSignsUnsigned;
     }
   };
@@ -531,8 +531,8 @@ class TextureCache {
   // Converts a texture fetch constant to a texture key, normalizing and
   // validating the values, or creating an invalid key, and also gets the
   // post-guest-swizzle signedness.
-  static void BindingInfoFromFetchConstant(const xenos::xe_gpu_texture_fetch_t& fetch,
-                                           TextureKey& key_out, uint8_t* swizzled_signs_out);
+  static void BindingInfoFromFetchConstant(const xenos::TextureFetch& fetch, TextureKey& key_out,
+                                           uint8_t* swizzled_signs_out);
 
   // Makes all texture bindings invalid. Also requesting textures after calling
   // this will cause another attempt to create a texture or to untile it if

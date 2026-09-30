@@ -13,17 +13,15 @@
 #include <cmath>
 #include <cstring>
 
-#include <rex/graphics/pipeline/texture/info.h>
+#include <rex/xenos/texture_info.h>
 #include <rex/hash.h>
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/memory.h>
 
-namespace rex::graphics {
+namespace rex::xenos {
 
-using namespace rex::graphics::xenos;
-
-bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch, TextureInfo* out_info) {
+bool TextureInfo::Prepare(const TextureFetch& fetch, TextureInfo* out_info) {
   // https://msdn.microsoft.com/en-us/library/windows/desktop/cc308051(v=vs.85).aspx
   // a2xx_sq_surfaceformat
 
@@ -363,4 +361,4 @@ void TextureInfo::SetupMemoryInfo(uint32_t base_address, uint32_t mip_address) {
   }
 }
 
-}  // namespace rex::graphics
+}  // namespace rex::xenos

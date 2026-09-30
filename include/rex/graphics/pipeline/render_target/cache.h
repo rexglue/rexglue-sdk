@@ -26,7 +26,7 @@
 #include <rex/graphics/registers.h>
 #include <rex/graphics/util/draw.h>
 #include <rex/graphics/util/draw_extent_estimator.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 
 namespace rex::graphics {
 
@@ -225,11 +225,11 @@ class RenderTargetCache {
   union RenderTargetKey {
     uint32_t key;
     struct {
-      uint32_t base_tiles : xenos::kEdramBaseTilesBits;  // 11
+      uint32_t base_tiles : xenos::kEDRAMBaseTilesBits;  // 11
       // At 4x MSAA (2 horizontal samples), max. align(8192 * 2, 80) / 80 = 205.
       // For pitch at 64bpp, multiply by 2 (or use GetPitchTiles).
       uint32_t pitch_tiles_at_32bpp : 8;                          // 19
-      xenos::MsaaSamples msaa_samples : xenos::kMsaaSamplesBits;  // 21
+      xenos::MSAASamples msaa_samples : xenos::kMSAASamplesBits;  // 21
       uint32_t is_depth : 1;                                      // 22
       // Ignoring the blending precision and sRGB.
       uint32_t resource_format : xenos::kRenderTargetFormatBits;  // 26
@@ -272,9 +272,9 @@ class RenderTargetCache {
 
     uint32_t GetPitchTiles() const { return pitch_tiles_at_32bpp << uint32_t(Is64bpp()); }
     static constexpr uint32_t GetWidth(uint32_t pitch_tiles_at_32bpp,
-                                       xenos::MsaaSamples msaa_samples) {
+                                       xenos::MSAASamples msaa_samples) {
       return pitch_tiles_at_32bpp *
-             (xenos::kEdramTileWidthSamples >> uint32_t(msaa_samples >= xenos::MsaaSamples::k4X));
+             (xenos::kEDRAMTileWidthSamples >> uint32_t(msaa_samples >= xenos::MSAASamples::k4X));
     }
     uint32_t GetWidth() const { return GetWidth(pitch_tiles_at_32bpp, msaa_samples); }
 
@@ -328,11 +328,11 @@ class RenderTargetCache {
     // will be cleared to a single value anyway.
     static uint32_t GetRangeRectangles(uint32_t start_tiles, uint32_t end_tiles,
                                        uint32_t base_tiles, uint32_t pitch_tiles,
-                                       xenos::MsaaSamples msaa_samples, bool is_64bpp,
+                                       xenos::MSAASamples msaa_samples, bool is_64bpp,
                                        Rectangle* rectangles_out,
                                        const Rectangle* cutout = nullptr);
     uint32_t GetRectangles(uint32_t base_tiles, uint32_t pitch_tiles,
-                           xenos::MsaaSamples msaa_samples, bool is_64bpp,
+                           xenos::MSAASamples msaa_samples, bool is_64bpp,
                            Rectangle* rectangles_out, const Rectangle* cutout = nullptr) const {
       return GetRangeRectangles(start_tiles, end_tiles, base_tiles, pitch_tiles, msaa_samples,
                                 is_64bpp, rectangles_out, cutout);
@@ -362,7 +362,7 @@ class RenderTargetCache {
   union HostDepthStoreRenderTargetConstant {
     uint32_t constant;
     struct {
-      uint32_t pitch_tiles : xenos::kEdramPitchTilesBits;
+      uint32_t pitch_tiles : xenos::kEDRAMPitchTilesBits;
       uint32_t resolution_scale_x : 3;
       uint32_t resolution_scale_y : 3;
       // Whether 2x MSAA is supported natively rather than through 4x.
@@ -472,7 +472,7 @@ class RenderTargetCache {
   // render pass (on Vulkan, the actually used height is specified in
   // VkFramebuffer).
   uint32_t GetRenderTargetHeight(uint32_t pitch_tiles_at_32bpp,
-                                 xenos::MsaaSamples msaa_samples) const;
+                                 xenos::MSAASamples msaa_samples) const;
 
   virtual RenderTarget* CreateRenderTarget(RenderTargetKey key) = 0;
 
@@ -510,7 +510,7 @@ class RenderTargetCache {
     return constant;
   }
   void GetHostDepthStoreRectangleInfo(const Transfer::Rectangle& transfer_rectangle,
-                                      xenos::MsaaSamples msaa_samples,
+                                      xenos::MSAASamples msaa_samples,
                                       HostDepthStoreRectangleConstant& rectangle_constant_out,
                                       uint32_t& group_count_x_out,
                                       uint32_t& group_count_y_out) const;

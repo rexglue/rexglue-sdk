@@ -21,8 +21,8 @@
 #include <rex/math.h>
 #include <rex/cvar.h>
 #include <rex/dbg.h>
-#include <rex/graphics/pipeline/texture/info.h>
-#include <rex/graphics/pipeline/texture/util.h>
+#include <rex/xenos/texture_info.h>
+#include <rex/xenos/texture_util.h>
 #include <rex/graphics/vulkan/command_processor.h>
 #include <rex/graphics/vulkan/deferred_command_buffer.h>
 #include <rex/graphics/vulkan/texture_cache.h>
@@ -110,50 +110,50 @@ static_assert(VK_FORMAT_UNDEFINED == VkFormat(0),
               "VK_FORMAT_UNDEFINED");
 const VulkanTextureCache::HostFormatPair VulkanTextureCache::kBestHostFormats[64] = {
     // k_1_REVERSE
-    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RRRR},
     // k_1
-    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RRRR},
     // k_8
     {{kLoadShaderIndex8bpb, VK_FORMAT_R8_UNORM},
      {kLoadShaderIndex8bpb, VK_FORMAT_R8_SNORM},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR,
+     xenos::REXGPU_SWIZZLE_RRRR,
      true},
     // k_1_5_5_5
     // Red and blue swapped in the load shader for simplicity.
     {{kLoadShaderIndexR5G5B5A1ToB5G5R5A1, VK_FORMAT_A1R5G5B5_UNORM_PACK16},
      {kLoadShaderIndexUnknown},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     xenos::REXGPU_SWIZZLE_RGBA},
     // k_5_6_5
     // Red and blue swapped in the load shader for simplicity.
     {{kLoadShaderIndexR5G6B5ToB5G6R5, VK_FORMAT_R5G6B5_UNORM_PACK16},
      {kLoadShaderIndexUnknown},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
+     xenos::REXGPU_SWIZZLE_RGBB},
     // k_6_5_5
     // On the host, green bits in blue, blue bits in green.
     {{kLoadShaderIndexR5G5B6ToB5G6R5WithRBGASwizzle, VK_FORMAT_R5G6B5_UNORM_PACK16},
      {kLoadShaderIndexUnknown},
-     XE_GPU_MAKE_TEXTURE_SWIZZLE(R, B, G, G)},
+     REXGPU_SWIZZLE(R, B, G, G)},
     // k_8_8_8_8
     {{kLoadShaderIndex32bpb, VK_FORMAT_R8G8B8A8_UNORM},
      {kLoadShaderIndex32bpb, VK_FORMAT_R8G8B8A8_SNORM},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA,
+     xenos::REXGPU_SWIZZLE_RGBA,
      true},
     // k_2_10_10_10
     // Signed 2_10_10_10 is unsupported on D3D12, keep Vulkan behavior aligned.
     {{kLoadShaderIndex32bpb, VK_FORMAT_A2B10G10R10_UNORM_PACK32},
      {kLoadShaderIndexUnknown},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     xenos::REXGPU_SWIZZLE_RGBA},
     // k_8_A
     {{kLoadShaderIndex8bpb, VK_FORMAT_R8_UNORM},
      {kLoadShaderIndex8bpb, VK_FORMAT_R8_SNORM},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR,
+     xenos::REXGPU_SWIZZLE_RRRR,
      true},
     // k_8_B
-    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RRRR},
     // k_8_8
     {{kLoadShaderIndex16bpb, VK_FORMAT_R8G8_UNORM},
      {kLoadShaderIndex16bpb, VK_FORMAT_R8G8_SNORM},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG,
+     xenos::REXGPU_SWIZZLE_RGGG,
      true},
     // k_Cr_Y1_Cb_Y0_REP
     // VK_FORMAT_G8B8G8R8_422_UNORM (added in
@@ -162,7 +162,7 @@ const VulkanTextureCache::HostFormatPair VulkanTextureCache::kBestHostFormats[64
     // Signed variant is unsupported on D3D12.
     {{kLoadShaderIndex32bpb, VK_FORMAT_G8B8G8R8_422_UNORM, true},
      {kLoadShaderIndexUnknown},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
+     xenos::REXGPU_SWIZZLE_RGBB},
     // k_Y1_Cr_Y0_Cb_REP
     // VK_FORMAT_B8G8R8G8_422_UNORM (added in
     // VK_KHR_sampler_ycbcr_conversion and promoted to Vulkan 1.1) is
@@ -170,218 +170,218 @@ const VulkanTextureCache::HostFormatPair VulkanTextureCache::kBestHostFormats[64
     // Signed variant is unsupported on D3D12.
     {{kLoadShaderIndex32bpb, VK_FORMAT_B8G8R8G8_422_UNORM, true},
      {kLoadShaderIndexUnknown},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
+     xenos::REXGPU_SWIZZLE_RGBB},
     // k_16_16_EDRAM
     // Not usable as a texture, also has -32...32 range.
-    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
+    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RGGG},
     // k_8_8_8_8_A
-    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RGBA},
     // k_4_4_4_4
     // Components swapped in the load shader for simplicity.
     {{kLoadShaderIndexRGBA4ToARGB4, VK_FORMAT_B4G4R4A4_UNORM_PACK16},
      {kLoadShaderIndexUnknown},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     xenos::REXGPU_SWIZZLE_RGBA},
     // k_10_11_11
     // Runtime fallback to float16 may be enabled if normalized RGBA16 host
     // formats are not linearly filterable.
     {{kLoadShaderIndexR11G11B10ToRGBA16, VK_FORMAT_R16G16B16A16_UNORM},
      {kLoadShaderIndexR11G11B10ToRGBA16SNorm, VK_FORMAT_R16G16B16A16_SNORM},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
+     xenos::REXGPU_SWIZZLE_RGBB},
     // k_11_11_10
     // Runtime fallback to float16 may be enabled if normalized RGBA16 host
     // formats are not linearly filterable.
     {{kLoadShaderIndexR10G11B11ToRGBA16, VK_FORMAT_R16G16B16A16_UNORM},
      {kLoadShaderIndexR10G11B11ToRGBA16SNorm, VK_FORMAT_R16G16B16A16_SNORM},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
+     xenos::REXGPU_SWIZZLE_RGBB},
     // k_DXT1
     // VK_FORMAT_BC1_RGBA_UNORM_BLOCK is optional.
     {{kLoadShaderIndex64bpb, VK_FORMAT_BC1_RGBA_UNORM_BLOCK, true},
      {kLoadShaderIndexUnknown},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     xenos::REXGPU_SWIZZLE_RGBA},
     // k_DXT2_3
     // VK_FORMAT_BC2_UNORM_BLOCK is optional.
     {{kLoadShaderIndex128bpb, VK_FORMAT_BC2_UNORM_BLOCK, true},
      {kLoadShaderIndexUnknown},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     xenos::REXGPU_SWIZZLE_RGBA},
     // k_DXT4_5
     // VK_FORMAT_BC3_UNORM_BLOCK is optional.
     {{kLoadShaderIndex128bpb, VK_FORMAT_BC3_UNORM_BLOCK, true},
      {kLoadShaderIndexUnknown},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     xenos::REXGPU_SWIZZLE_RGBA},
     // k_16_16_16_16_EDRAM
     // Not usable as a texture, also has -32...32 range.
-    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RGBA},
     // k_24_8
     // Keep signed and unsigned sampling on the same R32 float descriptor path
     // for parity with D3D12.
     {{kLoadShaderIndexDepthUnorm, VK_FORMAT_R32_SFLOAT},
      {kLoadShaderIndexDepthUnorm, VK_FORMAT_R32_SFLOAT},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR,
+     xenos::REXGPU_SWIZZLE_RRRR,
      true},
     // k_24_8_FLOAT
     // Keep signed and unsigned sampling on the same R32 float descriptor path
     // for parity with D3D12.
     {{kLoadShaderIndexDepthFloat, VK_FORMAT_R32_SFLOAT},
      {kLoadShaderIndexDepthFloat, VK_FORMAT_R32_SFLOAT},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR,
+     xenos::REXGPU_SWIZZLE_RRRR,
      true},
     // k_16
     // VK_FORMAT_R16_UNORM and VK_FORMAT_R16_SNORM are optional.
     {{kLoadShaderIndex16bpb, VK_FORMAT_R16_UNORM},
      {kLoadShaderIndex16bpb, VK_FORMAT_R16_SNORM},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR,
+     xenos::REXGPU_SWIZZLE_RRRR,
      true},
     // k_16_16
     // VK_FORMAT_R16G16_UNORM and VK_FORMAT_R16G16_SNORM are optional.
     {{kLoadShaderIndex32bpb, VK_FORMAT_R16G16_UNORM},
      {kLoadShaderIndex32bpb, VK_FORMAT_R16G16_SNORM},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG,
+     xenos::REXGPU_SWIZZLE_RGGG,
      true},
     // k_16_16_16_16
     // VK_FORMAT_R16G16B16A16_UNORM and VK_FORMAT_R16G16B16A16_SNORM are
     // optional.
     {{kLoadShaderIndex64bpb, VK_FORMAT_R16G16B16A16_UNORM},
      {kLoadShaderIndex64bpb, VK_FORMAT_R16G16B16A16_SNORM},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA,
+     xenos::REXGPU_SWIZZLE_RGBA,
      true},
     // k_16_EXPAND
     {{kLoadShaderIndex16bpb, VK_FORMAT_R16_SFLOAT},
      {kLoadShaderIndex16bpb, VK_FORMAT_R16_SFLOAT},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR,
+     xenos::REXGPU_SWIZZLE_RRRR,
      true},
     // k_16_16_EXPAND
     {{kLoadShaderIndex32bpb, VK_FORMAT_R16G16_SFLOAT},
      {kLoadShaderIndex32bpb, VK_FORMAT_R16G16_SFLOAT},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG,
+     xenos::REXGPU_SWIZZLE_RGGG,
      true},
     // k_16_16_16_16_EXPAND
     {{kLoadShaderIndex64bpb, VK_FORMAT_R16G16B16A16_SFLOAT},
      {kLoadShaderIndex64bpb, VK_FORMAT_R16G16B16A16_SFLOAT},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA,
+     xenos::REXGPU_SWIZZLE_RGBA,
      true},
     // k_16_FLOAT
     {{kLoadShaderIndex16bpb, VK_FORMAT_R16_SFLOAT},
      {kLoadShaderIndex16bpb, VK_FORMAT_R16_SFLOAT},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR,
+     xenos::REXGPU_SWIZZLE_RRRR,
      true},
     // k_16_16_FLOAT
     {{kLoadShaderIndex32bpb, VK_FORMAT_R16G16_SFLOAT},
      {kLoadShaderIndex32bpb, VK_FORMAT_R16G16_SFLOAT},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG,
+     xenos::REXGPU_SWIZZLE_RGGG,
      true},
     // k_16_16_16_16_FLOAT
     {{kLoadShaderIndex64bpb, VK_FORMAT_R16G16B16A16_SFLOAT},
      {kLoadShaderIndex64bpb, VK_FORMAT_R16G16B16A16_SFLOAT},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA,
+     xenos::REXGPU_SWIZZLE_RGBA,
      true},
     // k_32
-    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RRRR},
     // k_32_32
-    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
+    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RGGG},
     // k_32_32_32_32
-    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RGBA},
     // k_32_FLOAT
     {{kLoadShaderIndex32bpb, VK_FORMAT_R32_SFLOAT},
      {kLoadShaderIndex32bpb, VK_FORMAT_R32_SFLOAT},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR,
+     xenos::REXGPU_SWIZZLE_RRRR,
      true},
     // k_32_32_FLOAT
     {{kLoadShaderIndex64bpb, VK_FORMAT_R32G32_SFLOAT},
      {kLoadShaderIndex64bpb, VK_FORMAT_R32G32_SFLOAT},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG,
+     xenos::REXGPU_SWIZZLE_RGGG,
      true},
     // k_32_32_32_32_FLOAT
     {{kLoadShaderIndex128bpb, VK_FORMAT_R32G32B32A32_SFLOAT},
      {kLoadShaderIndex128bpb, VK_FORMAT_R32G32B32A32_SFLOAT},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA,
+     xenos::REXGPU_SWIZZLE_RGBA,
      true},
     // k_32_AS_8
-    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RRRR},
     // k_32_AS_8_8
-    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
+    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RGGG},
     // k_16_MPEG
-    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RRRR},
     // k_16_16_MPEG
-    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
+    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RGGG},
     // k_8_INTERLACED
-    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RRRR},
     // k_32_AS_8_INTERLACED
-    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RRRR},
     // k_32_AS_8_8_INTERLACED
-    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
+    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RGGG},
     // k_16_INTERLACED
-    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RRRR},
     // k_16_MPEG_INTERLACED
-    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RRRR},
     // k_16_16_MPEG_INTERLACED
-    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
+    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RGGG},
     // k_DXN
     // VK_FORMAT_BC5_UNORM_BLOCK is optional.
     {{kLoadShaderIndex128bpb, VK_FORMAT_BC5_UNORM_BLOCK, true},
      {kLoadShaderIndexUnknown},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
+     xenos::REXGPU_SWIZZLE_RGGG},
     // k_8_8_8_8_AS_16_16_16_16
     {{kLoadShaderIndex32bpb, VK_FORMAT_R8G8B8A8_UNORM},
      {kLoadShaderIndex32bpb, VK_FORMAT_R8G8B8A8_SNORM},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA,
+     xenos::REXGPU_SWIZZLE_RGBA,
      true},
     // k_DXT1_AS_16_16_16_16
     // VK_FORMAT_BC1_RGBA_UNORM_BLOCK is optional.
     {{kLoadShaderIndex64bpb, VK_FORMAT_BC1_RGBA_UNORM_BLOCK, true},
      {kLoadShaderIndexUnknown},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     xenos::REXGPU_SWIZZLE_RGBA},
     // k_DXT2_3_AS_16_16_16_16
     // VK_FORMAT_BC2_UNORM_BLOCK is optional.
     {{kLoadShaderIndex128bpb, VK_FORMAT_BC2_UNORM_BLOCK, true},
      {kLoadShaderIndexUnknown},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     xenos::REXGPU_SWIZZLE_RGBA},
     // k_DXT4_5_AS_16_16_16_16
     // VK_FORMAT_BC3_UNORM_BLOCK is optional.
     {{kLoadShaderIndex128bpb, VK_FORMAT_BC3_UNORM_BLOCK, true},
      {kLoadShaderIndexUnknown},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     xenos::REXGPU_SWIZZLE_RGBA},
     // k_2_10_10_10_AS_16_16_16_16
     // Signed 2_10_10_10 is unsupported on D3D12, keep Vulkan behavior aligned.
     {{kLoadShaderIndex32bpb, VK_FORMAT_A2B10G10R10_UNORM_PACK32},
      {kLoadShaderIndexUnknown},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     xenos::REXGPU_SWIZZLE_RGBA},
     // k_10_11_11_AS_16_16_16_16
     // Runtime fallback to float16 may be enabled if normalized RGBA16 host
     // formats are not linearly filterable.
     {{kLoadShaderIndexR11G11B10ToRGBA16, VK_FORMAT_R16G16B16A16_UNORM},
      {kLoadShaderIndexR11G11B10ToRGBA16SNorm, VK_FORMAT_R16G16B16A16_SNORM},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
+     xenos::REXGPU_SWIZZLE_RGBB},
     // k_11_11_10_AS_16_16_16_16
     // Runtime fallback to float16 may be enabled if normalized RGBA16 host
     // formats are not linearly filterable.
     {{kLoadShaderIndexR10G11B11ToRGBA16, VK_FORMAT_R16G16B16A16_UNORM},
      {kLoadShaderIndexR10G11B11ToRGBA16SNorm, VK_FORMAT_R16G16B16A16_SNORM},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
+     xenos::REXGPU_SWIZZLE_RGBB},
     // k_32_32_32_FLOAT
-    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
+    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RGBB},
     // k_DXT3A
     {{kLoadShaderIndexDXT3A, VK_FORMAT_R8_UNORM},
      {kLoadShaderIndexUnknown},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+     xenos::REXGPU_SWIZZLE_RRRR},
     // k_DXT5A
     // VK_FORMAT_BC4_UNORM_BLOCK is optional.
     {{kLoadShaderIndex64bpb, VK_FORMAT_BC4_UNORM_BLOCK, true},
      {kLoadShaderIndexUnknown},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+     xenos::REXGPU_SWIZZLE_RRRR},
     // k_CTX1
     {{kLoadShaderIndexCTX1, VK_FORMAT_R8G8_UNORM},
      {kLoadShaderIndexUnknown},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
+     xenos::REXGPU_SWIZZLE_RGGG},
     // k_DXT3A_AS_1_1_1_1
     {{kLoadShaderIndexDXT3AAs1111ToARGB4, VK_FORMAT_B4G4R4A4_UNORM_PACK16},
      {kLoadShaderIndexUnknown},
-     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+     xenos::REXGPU_SWIZZLE_RGBA},
     // k_8_8_8_8_GAMMA_EDRAM
     // Not usable as a texture.
-    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RGBA},
     // k_2_10_10_10_FLOAT_EDRAM
     // Not usable as a texture.
-    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
+    {{kLoadShaderIndexUnknown}, {kLoadShaderIndexUnknown}, xenos::REXGPU_SWIZZLE_RGBA},
 };
 
 // Vulkan requires 2x1 (4:2:2) subsampled images to have an even width.
@@ -390,13 +390,13 @@ const VulkanTextureCache::HostFormatPair VulkanTextureCache::kBestHostFormats[64
 const VulkanTextureCache::HostFormatPair VulkanTextureCache::kHostFormatGBGRUnaligned = {
     {kLoadShaderIndexGBGR8ToRGB8, VK_FORMAT_R8G8B8A8_UNORM, false, true},
     {kLoadShaderIndexUnknown},
-    xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB,
+    xenos::REXGPU_SWIZZLE_RGBB,
     false};
 
 const VulkanTextureCache::HostFormatPair VulkanTextureCache::kHostFormatBGRGUnaligned = {
     {kLoadShaderIndexBGRG8ToRGB8, VK_FORMAT_R8G8B8A8_UNORM, false, true},
     {kLoadShaderIndexUnknown},
-    xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB,
+    xenos::REXGPU_SWIZZLE_RGBB,
     false};
 
 // Keep BC unaligned fallback mapping compatible with the D3D12 texture cache
@@ -404,31 +404,31 @@ const VulkanTextureCache::HostFormatPair VulkanTextureCache::kHostFormatBGRGUnal
 const VulkanTextureCache::HostFormatPair VulkanTextureCache::kHostFormatDXT1Unaligned = {
     {kLoadShaderIndexDXT1ToRGBA8, VK_FORMAT_R8G8B8A8_UNORM, false, true},
     {kLoadShaderIndexUnknown},
-    xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA,
+    xenos::REXGPU_SWIZZLE_RGBA,
     false};
 
 const VulkanTextureCache::HostFormatPair VulkanTextureCache::kHostFormatDXT2_3Unaligned = {
     {kLoadShaderIndexDXT3ToRGBA8, VK_FORMAT_R8G8B8A8_UNORM, false, true},
     {kLoadShaderIndexUnknown},
-    xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA,
+    xenos::REXGPU_SWIZZLE_RGBA,
     false};
 
 const VulkanTextureCache::HostFormatPair VulkanTextureCache::kHostFormatDXT4_5Unaligned = {
     {kLoadShaderIndexDXT5ToRGBA8, VK_FORMAT_R8G8B8A8_UNORM, false, true},
     {kLoadShaderIndexUnknown},
-    xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA,
+    xenos::REXGPU_SWIZZLE_RGBA,
     false};
 
 const VulkanTextureCache::HostFormatPair VulkanTextureCache::kHostFormatDXNUnaligned = {
     {kLoadShaderIndexDXNToRG8, VK_FORMAT_R8G8_UNORM, false, true},
     {kLoadShaderIndexUnknown},
-    xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG,
+    xenos::REXGPU_SWIZZLE_RGGG,
     false};
 
 const VulkanTextureCache::HostFormatPair VulkanTextureCache::kHostFormatDXT5AUnaligned = {
     {kLoadShaderIndexDXT5AToR8, VK_FORMAT_R8_UNORM, false, true},
     {kLoadShaderIndexUnknown},
-    xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR,
+    xenos::REXGPU_SWIZZLE_RRRR,
     false};
 
 VulkanTextureCache::~VulkanTextureCache() {
@@ -541,7 +541,7 @@ void VulkanTextureCache::EndFrame() {
       REXGPU_ERROR("Unsupported texture formats used in the frame:");
       unsupported_header_written = true;
     }
-    REXGPU_ERROR("* {}{}{}{}", FormatInfo::Get(xenos::TextureFormat(i))->name,
+    REXGPU_ERROR("* {}{}{}{}", xenos::FormatInfo::Get(xenos::TextureFormat(i))->name,
                  unsupported_features & kUnsupportedResourceBit ? " resource" : "",
                  unsupported_features & kUnsupportedUnormBit ? " unsigned" : "",
                  unsupported_features & kUnsupportedSnormBit ? " signed" : "");
@@ -638,7 +638,7 @@ VkImageView VulkanTextureCache::GetActiveBindingOrNullImageView(uint32_t fetch_c
         (dimension == xenos::FetchOpDimension::k1D || dimension == xenos::FetchOpDimension::k2D);
     if (force_special_view) {
       Texture* texture = nullptr;
-      bool use_signed = is_signed && texture_util::IsAnySignSigned(binding->swizzled_signs);
+      bool use_signed = is_signed && xenos::IsAnySignSigned(binding->swizzled_signs);
       if (use_signed && IsSignedVersionSeparateForFormat(binding->key)) {
         texture = binding->texture_signed;
       } else {
@@ -673,12 +673,12 @@ VkImageView VulkanTextureCache::GetActiveBindingOrNullImageView(uint32_t fetch_c
 VulkanTextureCache::SamplerParameters VulkanTextureCache::GetSamplerParameters(
     const VulkanShader::SamplerBinding& binding) const {
   const auto& regs = register_file();
-  xenos::xe_gpu_texture_fetch_t fetch = regs.GetTextureFetch(binding.fetch_constant);
+  xenos::TextureFetch fetch = regs.GetTextureFetch(binding.fetch_constant);
 
   SamplerParameters parameters;
 
   xenos::ClampMode fetch_clamp_x, fetch_clamp_y, fetch_clamp_z;
-  texture_util::GetClampModesForDimension(fetch, fetch_clamp_x, fetch_clamp_y, fetch_clamp_z);
+  xenos::GetClampModesForDimension(fetch, fetch_clamp_x, fetch_clamp_y, fetch_clamp_z);
   parameters.clamp_x = NormalizeClampMode(fetch_clamp_x);
   parameters.clamp_y = NormalizeClampMode(fetch_clamp_y);
   parameters.clamp_z = NormalizeClampMode(fetch_clamp_z);
@@ -715,9 +715,9 @@ VulkanTextureCache::SamplerParameters VulkanTextureCache::GetSamplerParameters(
     BindingInfoFromFetchConstant(fetch, texture_key, &texture_swizzled_signs);
     if (texture_key.is_valid) {
       const HostFormatPair& host_format_pair = GetHostFormatPair(texture_key);
-      if ((texture_util::IsAnySignNotSigned(texture_swizzled_signs) &&
+      if ((xenos::IsAnySignNotSigned(texture_swizzled_signs) &&
            !host_format_pair.format_unsigned.linear_filterable) ||
-          (texture_util::IsAnySignSigned(texture_swizzled_signs) &&
+          (xenos::IsAnySignSigned(texture_swizzled_signs) &&
            !host_format_pair.format_signed.linear_filterable)) {
         linear_filterable = false;
       }
@@ -736,8 +736,8 @@ VulkanTextureCache::SamplerParameters VulkanTextureCache::GetSamplerParameters(
       mip_filter == xenos::TextureFilter::kPoint || mip_filter == xenos::TextureFilter::kLinear;
   parameters.mip_base_map = mip_filter == xenos::TextureFilter::kBaseMap;
   uint32_t mip_min_level, mip_max_level;
-  texture_util::GetSubresourcesFromFetchConstant(fetch, nullptr, nullptr, nullptr, nullptr, nullptr,
-                                                 &mip_min_level, &mip_max_level);
+  xenos::GetSubresourcesFromFetchConstant(fetch, nullptr, nullptr, nullptr, nullptr, nullptr,
+                                          &mip_min_level, &mip_max_level);
   parameters.mip_min_level = mip_min_level;
   bool has_mips = mip_max_level > mip_min_level;
   int32_t anisotropic_override = REXCVAR_GET(::rex::graphics::cvars::anisotropic_override);
@@ -987,7 +987,7 @@ VkImageView VulkanTextureCache::RequestSwapTexture(uint32_t& width_scaled_out,
                                                    uint32_t* height_unscaled_out,
                                                    bool* swap_source_needs_rb_swap_out) {
   const auto& regs = register_file();
-  xenos::xe_gpu_texture_fetch_t fetch = regs.GetTextureFetch(0);
+  xenos::TextureFetch fetch = regs.GetTextureFetch(0);
   TextureKey key;
   BindingInfoFromFetchConstant(fetch, key, nullptr);
   if (!key.is_valid || key.base_page == 0 || key.dimension != xenos::DataDimension::k2DOrStacked) {
@@ -1000,13 +1000,13 @@ VkImageView VulkanTextureCache::RequestSwapTexture(uint32_t& width_scaled_out,
   uint32_t host_swizzle = GuestToHostSwizzle(fetch.swizzle, GetHostFormatSwizzle(key));
   if (swap_source_needs_rb_swap_out) {
     auto swizzle_component = [](uint32_t swizzle,
-                                uint32_t component_index) -> xenos::XE_GPU_TEXTURE_SWIZZLE {
-      return xenos::XE_GPU_TEXTURE_SWIZZLE((swizzle >> (3 * component_index)) & 0b111);
+                                uint32_t component_index) -> xenos::TextureSwizzle {
+      return xenos::TextureSwizzle((swizzle >> (3 * component_index)) & 0b111);
     };
     *swap_source_needs_rb_swap_out =
-        swizzle_component(host_swizzle, 0) == xenos::XE_GPU_TEXTURE_SWIZZLE_B &&
-        swizzle_component(host_swizzle, 1) == xenos::XE_GPU_TEXTURE_SWIZZLE_G &&
-        swizzle_component(host_swizzle, 2) == xenos::XE_GPU_TEXTURE_SWIZZLE_R;
+        swizzle_component(host_swizzle, 0) == xenos::REXGPU_SWIZZLE_B &&
+        swizzle_component(host_swizzle, 1) == xenos::REXGPU_SWIZZLE_G &&
+        swizzle_component(host_swizzle, 2) == xenos::REXGPU_SWIZZLE_R;
   }
   VkImageView texture_view = texture->GetView(false, host_swizzle, false);
   if (texture_view == VK_NULL_HANDLE) {
@@ -1266,7 +1266,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
   }
 
   // Get the guest layout.
-  const texture_util::TextureGuestLayout& guest_layout = vulkan_texture.guest_layout();
+  const xenos::TextureGuestLayout& guest_layout = vulkan_texture.guest_layout();
   xenos::DataDimension dimension = texture_key.dimension;
   bool is_3d = dimension == xenos::DataDimension::k3D;
   bool is_3d_tiling = is_3d || vulkan_texture.force_load_3d_tiling();
@@ -1276,7 +1276,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
   uint32_t depth = is_3d ? depth_or_array_size : 1;
   uint32_t array_size = is_3d ? 1 : depth_or_array_size;
   xenos::TextureFormat guest_format = texture_key.format;
-  const FormatInfo* guest_format_info = FormatInfo::Get(guest_format);
+  const xenos::FormatInfo* guest_format_info = xenos::FormatInfo::Get(guest_format);
   uint32_t block_width = guest_format_info->block_width;
   uint32_t block_height = guest_format_info->block_height;
   uint32_t bytes_per_block = guest_format_info->bytes_per_block();
@@ -1340,7 +1340,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     if (level == level_packed) {
       // Loading the packed tail for the base or the mips - load the whole tail
       // to copy regions out of it.
-      const texture_util::TextureGuestLayout::Level& guest_layout_packed =
+      const xenos::TextureGuestLayout::Level& guest_layout_packed =
           is_base ? guest_layout.base : guest_layout.mips[level];
       level_guest_x_extent_texels_unscaled = guest_layout_packed.x_extent_blocks * block_width;
       level_guest_y_extent_texels_unscaled = guest_layout_packed.y_extent_blocks * block_height;
@@ -1545,7 +1545,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
       load_constants.guest_offset += guest_layout.mip_offsets_bytes[level] *
                                      (texture_resolution_scale_x * texture_resolution_scale_y);
     }
-    const texture_util::TextureGuestLayout::Level& level_guest_layout =
+    const xenos::TextureGuestLayout::Level& level_guest_layout =
         is_base ? guest_layout.base : guest_layout.mips[level];
     uint32_t level_guest_pitch = level_guest_layout.row_pitch_bytes;
     if (texture_key.tiled) {
@@ -1623,7 +1623,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     if ((float_fallback_log_state & float_fallback_log_bit) == 0) {
       float_fallback_log_state |= float_fallback_log_bit;
       REXGPU_INFO("VulkanTextureCache: Using two-pass float fallback for format {} ({})",
-                  FormatInfo::Get(texture_key.format)->name,
+                  xenos::FormatInfo::Get(texture_key.format)->name,
                   host_format_is_signed ? "signed" : "unsigned");
     }
     // Make the normalized intermediate data visible for conversion and keep it
@@ -1655,7 +1655,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
       bool is_base = loop_level == 0;
       uint32_t level = (level_packed == 0) ? 0 : loop_level;
 
-      const texture_util::TextureGuestLayout::Level& level_guest_layout =
+      const xenos::TextureGuestLayout::Level& level_guest_layout =
           is_base ? guest_layout.base : guest_layout.mips[level];
       uint32_t level_width, level_height, level_depth;
       if (level == level_packed) {
@@ -1751,9 +1751,8 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     copy_region.bufferOffset = level_host_layout.offset_bytes;
     if (level >= level_packed) {
       uint32_t level_offset_blocks_x, level_offset_blocks_y, level_offset_z;
-      texture_util::GetPackedMipOffset(width, height, depth, guest_format, level,
-                                       level_offset_blocks_x, level_offset_blocks_y,
-                                       level_offset_z);
+      xenos::GetPackedMipOffset(width, height, depth, guest_format, level, level_offset_blocks_x,
+                                level_offset_blocks_y, level_offset_z);
       uint32_t level_offset_host_blocks_x = texture_resolution_scale_x * level_offset_blocks_x;
       uint32_t level_offset_host_blocks_y = texture_resolution_scale_y * level_offset_blocks_y;
       if (!host_format.block_compressed) {
@@ -1798,8 +1797,8 @@ void VulkanTextureCache::UpdateTextureBindingsImpl(uint32_t fetch_constant_mask)
       continue;
     }
     const HostFormatPair& host_format_pair = GetHostFormatPair(binding->key);
-    bool uses_unsigned = texture_util::IsAnySignNotSigned(binding->swizzled_signs);
-    bool uses_signed = texture_util::IsAnySignSigned(binding->swizzled_signs);
+    bool uses_unsigned = xenos::IsAnySignNotSigned(binding->swizzled_signs);
+    bool uses_signed = xenos::IsAnySignSigned(binding->swizzled_signs);
     xenos::TextureFormat format = binding->key.format;
     if (uses_unsigned && host_format_pair.format_unsigned.format == VK_FORMAT_UNDEFINED) {
       unsupported_format_features_used_[uint32_t(format)] |= kUnsupportedUnormBit;
@@ -1890,7 +1889,7 @@ VkImageView VulkanTextureCache::VulkanTexture::GetView(bool is_signed, uint32_t 
       vulkan_texture_cache.command_processor_.GetVulkanDevice();
 
   if (!vulkan_device->properties().imageViewFormatSwizzle) {
-    host_swizzle = xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA;
+    host_swizzle = xenos::REXGPU_SWIZZLE_RGBA;
   }
   view_key.host_swizzle = host_swizzle;
 
@@ -2032,7 +2031,7 @@ VkImageView VulkanTextureCache::VulkanTexture::GetOrCreate3DAs2DImageView(bool i
   const ui::vulkan::VulkanDevice* const vulkan_device =
       vulkan_texture_cache.command_processor_.GetVulkanDevice();
   if (!vulkan_device->properties().imageViewFormatSwizzle) {
-    host_swizzle = xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA;
+    host_swizzle = xenos::REXGPU_SWIZZLE_RGBA;
   }
 
   const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
@@ -2659,7 +2658,7 @@ bool VulkanTextureCache::Initialize() {
 
     // Log which formats are not supported or supported via fallbacks.
     const HostFormatPair& best_host_format = kBestHostFormats[i];
-    const char* guest_format_name = FormatInfo::Get(xenos::TextureFormat(i))->name;
+    const char* guest_format_name = xenos::FormatInfo::Get(xenos::TextureFormat(i))->name;
     if (best_host_format.format_unsigned.format != VK_FORMAT_UNDEFINED) {
       assert_not_null(guest_format_name);
       if (host_format.format_unsigned.format != VK_FORMAT_UNDEFINED) {
@@ -3181,7 +3180,7 @@ const VulkanTextureCache::HostFormatPair& VulkanTextureCache::GetHostFormatPair(
   // Keep unaligned decompression selection aligned with D3D12 fallback behavior:
   // only select unaligned fallback mappings when block alignment is actually
   // violated for the current guest format.
-  const FormatInfo* format_info = FormatInfo::Get(key.format);
+  const xenos::FormatInfo* format_info = xenos::FormatInfo::Get(key.format);
   if (!(key.GetWidth() & (format_info->block_width - 1)) &&
       !(key.GetHeight() & (format_info->block_height - 1))) {
     return host_format_pair;

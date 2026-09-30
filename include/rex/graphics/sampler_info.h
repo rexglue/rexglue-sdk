@@ -12,7 +12,7 @@
 #pragma once
 
 #include <rex/graphics/pipeline/shader/shader.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 
 namespace rex::graphics {
 
@@ -29,7 +29,7 @@ struct SamplerInfo {
   uint32_t mip_min_level;
   uint32_t mip_max_level;
 
-  static bool Prepare(const xenos::xe_gpu_texture_fetch_t& fetch,
+  static bool Prepare(const xenos::TextureFetch& fetch,
                       const ParsedTextureFetchInstruction& fetch_instr, SamplerInfo* out_info);
 
   uint64_t hash() const;

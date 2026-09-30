@@ -21,7 +21,7 @@
 
 #include <rex/graphics/format/ucode.h>
 #include <rex/graphics/registers.h>
-#include <rex/graphics/xenos.h>
+#include <rex/xenos/xenos.h>
 #include <rex/math.h>
 #include <rex/string/buffer.h>
 #include <rex/types.h>
@@ -56,7 +56,7 @@ enum class InstructionStorageTarget {
   // components.
   kPointSizeEdgeFlagKillVertex,
   // Result is stored as memexport destination address
-  // (see xenos::xe_gpu_memexport_stream_t).
+  // (see xenos::MemExportStream).
   kExportAddress,
   // Result is stored to memexport destination data.
   kExportData,
