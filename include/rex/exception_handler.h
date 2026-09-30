@@ -32,7 +32,7 @@
 #include <xmmintrin.h>
 #endif
 
-namespace rex::arch {
+namespace rex::platform {
 
 //=============================================================================
 // ARM64 Register Definitions
@@ -531,4 +531,4 @@ class ExceptionHandler {
   static void Uninstall(Handler fn, void* data);
 };
 
-}  // namespace rex::arch
+}  // namespace rex::platform

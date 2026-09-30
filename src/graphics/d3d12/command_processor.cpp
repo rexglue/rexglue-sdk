@@ -1906,7 +1906,7 @@ void D3D12CommandProcessor::OnGammaRampPWLValueWritten() {
 
 void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
                                       uint32_t frontbuffer_height) {
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
   vertex_buffers_in_sync_[0] = 0;
   vertex_buffers_in_sync_[1] = 0;
 
@@ -2285,7 +2285,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
                                       IndexBufferInfo* index_buffer_info,
                                       bool major_mode_explicit) {
 #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
 #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
 
   ID3D12Device* device = GetD3D12Provider().GetDevice();
@@ -2639,8 +2639,8 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
       shared_memory_->UseForReading();
     }
     SubmitBarriers();
-    PROFILE_DRAW_CALL();
-    PROFILE_VERTICES(primitive_processing_result.host_draw_vertex_count);
+    REX_PERF_INC(kDrawCalls);
+    REX_PERF_ADD(kVerticesProcessed, primitive_processing_result.host_draw_vertex_count);
     deferred_command_list_.D3DDrawInstanced(primitive_processing_result.host_draw_vertex_count, 1,
                                             0, 0);
   } else {
@@ -2698,8 +2698,8 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
       shared_memory_->UseForReading();
     }
     SubmitBarriers();
-    PROFILE_DRAW_CALL();
-    PROFILE_VERTICES(primitive_processing_result.host_draw_vertex_count);
+    REX_PERF_INC(kDrawCalls);
+    REX_PERF_ADD(kVerticesProcessed, primitive_processing_result.host_draw_vertex_count);
     deferred_command_list_.D3DDrawIndexedInstanced(
         primitive_processing_result.host_draw_vertex_count, 1, 0, 0, 0);
     if (scratch_index_buffer != nullptr) {
@@ -2885,7 +2885,7 @@ bool D3D12CommandProcessor::IssueDraw_MemexportReadbackFastPath(uint32_t total_s
 
 bool D3D12CommandProcessor::IssueCopy() {
 #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
 #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
   if (!BeginSubmission(true)) {
     return false;
@@ -3133,7 +3133,7 @@ void D3D12CommandProcessor::CheckSubmissionFence(uint64_t await_submission) {
       if (SUCCEEDED(direct_queue->Signal(queue_operations_since_submission_fence_, fence_value) &&
                     SUCCEEDED(queue_operations_since_submission_fence_->SetEventOnCompletion(
                         fence_value, fence_completion_event_)))) {
-        PROFILE_CMD_BUFFER_STALL();
+        REX_PERF_INC(kCommandBufferStalls);
         WaitForSingleObject(fence_completion_event_, INFINITE);
         queue_operations_done_since_submission_signal_ = false;
       } else {
@@ -3152,7 +3152,7 @@ void D3D12CommandProcessor::CheckSubmissionFence(uint64_t await_submission) {
   if (submission_completed_ < await_submission) {
     if (SUCCEEDED(
             submission_fence_->SetEventOnCompletion(await_submission, fence_completion_event_))) {
-      PROFILE_CMD_BUFFER_STALL();
+      REX_PERF_INC(kCommandBufferStalls);
       WaitForSingleObject(fence_completion_event_, INFINITE);
       submission_completed_ = submission_fence_->GetCompletedValue();
     }
@@ -3265,7 +3265,7 @@ void D3D12CommandProcessor::LogDeviceRemovalDiagnostics(ID3D12Device* device, HR
 
 bool D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
 #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
 #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
 
   if (device_removed_) {
@@ -3537,7 +3537,7 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
     const draw_util::ViewportInfo& viewport_info, const draw_util::Scissor& scissor,
     bool primitive_polygonal, reg::RB_DEPTHCONTROL normalized_depth_control) {
 #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
 #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
 
   // Viewport.
@@ -3604,7 +3604,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     uint32_t used_texture_mask, reg::RB_DEPTHCONTROL normalized_depth_control,
     uint32_t normalized_color_mask) {
 #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
 #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
 
   const RegisterFile& regs = *register_file_;
@@ -4028,7 +4028,7 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
   const RegisterFile& regs = *register_file_;
 
 #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
 #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
 
   // Set the new root signature.

@@ -9,7 +9,7 @@
  * @modified    2026 Tom Clay <tomc@tctechstuff.com>
  *              Modified for rexglue - Xbox 360 recompilation framework
  *
- * @changes     - Moved StringBuffer from rex:: to rex::string:: namespace
+ * @changes     - Moved StringBuffer from rex:: to rex:: namespace
  */
 
 #pragma once
@@ -20,7 +20,7 @@
 
 #include <fmt/format.h>
 
-namespace rex::string {
+namespace rex {
 
 class StringBuffer {
  public:
@@ -58,4 +58,4 @@ class StringBuffer {
   size_t buffer_capacity_ = 0;
 };
 
-}  // namespace rex::string
+}  // namespace rex

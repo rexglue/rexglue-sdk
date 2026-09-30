@@ -97,7 +97,7 @@ i32 XamUserGetSigninInfo_entry(u32 user_index, u32 flags, ppc_ptr_t<X_USER_SIGNI
   const auto& user_profile = REX_KERNEL_STATE()->user_profile();
   info->xuid = user_profile->xuid();
   info->signin_state = user_profile->signin_state();
-  rex::string::copy_truncating(info->name, user_profile->name(), rex::countof(info->name));
+  rex::copy_truncating(info->name, user_profile->name(), rex::countof(info->name));
   return X_E_SUCCESS;
 }
 
@@ -112,7 +112,7 @@ u32 XamUserGetName_entry(u32 user_index, mapped_string buffer, u32 buffer_len) {
 
   const auto& user_profile = REX_KERNEL_STATE()->user_profile();
   const auto& user_name = user_profile->name();
-  rex::string::copy_truncating(buffer, user_name, std::min(buffer_len, uint32_t(16)));
+  rex::copy_truncating(buffer, user_name, std::min(buffer_len, uint32_t(16)));
   return X_E_SUCCESS;
 }
 
@@ -130,8 +130,8 @@ u32 XamUserGetGamerTag_entry(u32 user_index, mapped_wstring buffer, u32 buffer_l
   }
 
   const auto& user_profile = REX_KERNEL_STATE()->user_profile();
-  auto user_name = rex::string::to_utf16(user_profile->name());
-  rex::string::copy_and_swap_truncating(buffer, user_name, std::min(buffer_len, uint32_t(16)));
+  auto user_name = rex::to_utf16(user_profile->name());
+  rex::copy_and_swap_truncating(buffer, user_name, std::min(buffer_len, uint32_t(16)));
   return X_E_SUCCESS;
 }
 
@@ -580,7 +580,7 @@ class XStaticAchievementEnumerator : public XEnumerator {
       return 0;
     }
     auto ptr = sb.ptr;
-    rex::string::copy_and_swap_truncating(reinterpret_cast<char16_t*>(sb.data), string, count);
+    rex::copy_and_swap_truncating(reinterpret_cast<char16_t*>(sb.data), string, count);
     sb.ptr += static_cast<uint32_t>(size);
     sb.data += size;
     sb.remaining_bytes -= size;
@@ -642,9 +642,9 @@ u32 XamUserCreateAchievementEnumerator_entry(u32 title_id, u32 user_index, u32 x
     for (const auto& info : store) {
       auto item = XStaticAchievementEnumerator::AchievementDetails{
           info.id,
-          rex::string::to_utf16(info.label),
-          rex::string::to_utf16(info.description),
-          rex::string::to_utf16(info.unachieved_description),
+          rex::to_utf16(info.label),
+          rex::to_utf16(info.description),
+          rex::to_utf16(info.unachieved_description),
           info.image_id,
           info.gamerscore,
           {0, 0},
@@ -660,9 +660,9 @@ u32 XamUserCreateAchievementEnumerator_entry(u32 title_id, u32 user_index, u32 x
       for (const util::XdbfAchievementTableEntry& entry : db.GetAchievements()) {
         auto item = XStaticAchievementEnumerator::AchievementDetails{
             entry.id,
-            rex::string::to_utf16(db.GetStringTableEntry(language, entry.label_id)),
-            rex::string::to_utf16(db.GetStringTableEntry(language, entry.description_id)),
-            rex::string::to_utf16(db.GetStringTableEntry(language, entry.unachieved_id)),
+            rex::to_utf16(db.GetStringTableEntry(language, entry.label_id)),
+            rex::to_utf16(db.GetStringTableEntry(language, entry.description_id)),
+            rex::to_utf16(db.GetStringTableEntry(language, entry.unachieved_id)),
             entry.image_id,
             entry.gamerscore,
             {0, 0},

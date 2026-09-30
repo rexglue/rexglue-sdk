@@ -22,6 +22,3 @@
 
 // Ring buffer
 #include <rex/memory/ring_buffer.h>
-
-// Memory class (Xbox 360 guest memory system with heaps)
-#include <rex/system/xmemory.h>

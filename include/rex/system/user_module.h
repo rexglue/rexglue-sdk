@@ -87,8 +87,8 @@ class UserModule : public XModule {
 
   void Dump();
 
-  bool Save(stream::ByteStream* stream) override;
-  static object_ref<UserModule> Restore(KernelState* kernel_state, stream::ByteStream* stream,
+  bool Save(ByteStream* stream) override;
+  static object_ref<UserModule> Restore(KernelState* kernel_state, ByteStream* stream,
                                         const std::string_view path);
 
  private:

@@ -1045,7 +1045,7 @@ bool VulkanPipelineCache::ConfigurePipeline(
     VulkanRenderTargetCache::RenderPassKey render_pass_key, VkPipeline& pipeline_out,
     const PipelineLayoutProvider*& pipeline_layout_out, void** pipeline_handle_out) {
 #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
 #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
 
   // Ensure shaders are translated - needed now for GetCurrentStateDescription.

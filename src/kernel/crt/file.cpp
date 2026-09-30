@@ -267,14 +267,14 @@ static void FillFindData(mapped_void lpFindFileData, rex::filesystem::Entry* ent
 
   // 0x2C cFileName[260]
   const auto& name = entry->name();
-  rex::string::copy_truncating(reinterpret_cast<char*>(buf + 0x2C), name, 260);
+  rex::copy_truncating(reinterpret_cast<char*>(buf + 0x2C), name, 260);
   // 0x130 cAlternateFileName[14] already zero
 }
 
 u32 FindFirstFileA_entry(mapped_string lpFileName, mapped_void lpFindFileData) {
   const char* path = static_cast<const char*>(lpFileName);
-  auto dir = rex::string::utf8_find_base_guest_path(path);
-  auto pattern = rex::string::utf8_find_name_from_guest_path(path);
+  auto dir = rex::utf8_find_base_guest_path(path);
+  auto pattern = rex::utf8_find_name_from_guest_path(path);
 
   auto* ks = REX_KERNEL_STATE();
   rex::filesystem::File* vfs_file = nullptr;

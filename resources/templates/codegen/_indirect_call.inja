@@ -11,7 +11,7 @@
 
 #ifdef REXGLUE_ENABLE_PROFILING
 #include <rex/perf/counter.h>
-#define REX_PROFILE_INDIRECT_DISPATCH() PROFILE_FUNCTION_DISPATCHED()
+#define REX_PROFILE_INDIRECT_DISPATCH() REX_PERF_INC(kFunctionsDispatched)
 #else
 #define REX_PROFILE_INDIRECT_DISPATCH()
 #endif

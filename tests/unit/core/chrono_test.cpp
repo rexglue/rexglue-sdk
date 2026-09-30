@@ -17,7 +17,7 @@
 
 #include <rex/chrono/chrono.h>
 
-using rex::chrono::WinSystemClock;
+using rex::WinSystemClock;
 
 // =============================================================================
 // Known FILETIME constants

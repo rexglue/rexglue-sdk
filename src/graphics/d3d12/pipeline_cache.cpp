@@ -186,7 +186,7 @@ void PipelineCache::Shutdown() {
     delete it.second;
   }
   pipelines_.clear();
-  COUNT_profile_set("gpu/pipeline_cache/pipelines", 0);
+  REX_PROFILE_PLOT("gpu/pipeline_cache/pipelines", 0);
 
   // Destroy all shaders.
   if (bindless_resources_used_) {
@@ -314,7 +314,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
   }
 
   // Initialize the Xenos shader storage stream.
-  uint64_t shader_storage_initialization_start = rex::chrono::Clock::QueryHostTickCount();
+  uint64_t shader_storage_initialization_start = rex::Clock::QueryHostTickCount();
   auto shader_storage_file_path =
       shader_storage_shareable_root / fmt::format("{:08X}.xsh", title_id);
   shader_storage_file_ = rex::filesystem::OpenFile(shader_storage_file_path, "a+b");
@@ -357,7 +357,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
     std::vector<D3D12Shader::D3D12Translation*> shaders_failed_to_translate;
     auto shader_translation_thread_function = [&]() {
       const ui::d3d12::D3D12Provider& provider = command_processor_.GetD3D12Provider();
-      string::StringBuffer ucode_disasm_buffer;
+      StringBuffer ucode_disasm_buffer;
       DxbcShaderTranslator translator(
           provider.GetAdapterVendorID(), bindless_resources_used_, edram_rov_used,
           !render_target_cache_.gamma_render_target_as_unorm16(),
@@ -500,8 +500,8 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
       }
     }
     REXGPU_INFO("Translated {} shaders from the storage in {} milliseconds", shaders_translated,
-                (rex::chrono::Clock::QueryHostTickCount() - shader_storage_initialization_start) *
-                    1000 / rex::chrono::Clock::QueryHostTickFrequency());
+                (rex::Clock::QueryHostTickCount() - shader_storage_initialization_start) * 1000 /
+                    rex::Clock::QueryHostTickFrequency());
     rex::filesystem::TruncateStdioFile(shader_storage_file_, shader_storage_valid_bytes);
   } else {
     rex::filesystem::TruncateStdioFile(shader_storage_file_, 0);
@@ -513,7 +513,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
 
   // Create the pipelines.
   if (!pipeline_stored_descriptions.empty()) {
-    uint64_t pipeline_creation_start_ = rex::chrono::Clock::QueryHostTickCount();
+    uint64_t pipeline_creation_start_ = rex::Clock::QueryHostTickCount();
 
     // Launch additional creation threads to use all cores to create
     // pipelines faster. Will also be using the main thread, so minus 1.
@@ -624,7 +624,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
       new_pipeline->priority = pipeline_util::CalculatePipelinePriority(
           bound_rts, shader_writes_color_targets, shader_writes_depth);
       pipelines_.emplace(pipeline_stored_description.description_hash, new_pipeline);
-      COUNT_profile_set("gpu/pipeline_cache/pipelines", pipelines_.size());
+      REX_PROFILE_PLOT("gpu/pipeline_cache/pipelines", pipelines_.size());
       if (!creation_threads_.empty()) {
         // Submit the pipeline for creation to any available thread.
         {
@@ -678,8 +678,8 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
         "Created {} graphics pipelines (not including reading the "
         "descriptions) from the storage in {} milliseconds",
         pipelines_created,
-        (rex::chrono::Clock::QueryHostTickCount() - pipeline_creation_start_) * 1000 /
-            rex::chrono::Clock::QueryHostTickFrequency());
+        (rex::Clock::QueryHostTickCount() - pipeline_creation_start_) * 1000 /
+            rex::Clock::QueryHostTickFrequency());
     // If any pipeline descriptions were corrupted (or the whole file has excess
     // bytes in the end), truncate to the last valid pipeline description.
     rex::filesystem::TruncateStdioFile(
@@ -892,7 +892,7 @@ bool PipelineCache::ConfigurePipeline(
     const uint32_t* bound_depth_and_color_render_target_formats, void** pipeline_handle_out,
     ID3D12RootSignature** root_signature_out) {
 #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
 #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
 
   assert_not_null(pipeline_handle_out);
@@ -989,20 +989,20 @@ bool PipelineCache::ConfigurePipeline(
   for (auto it = found_range.first; it != found_range.second; ++it) {
     Pipeline* found_pipeline = it->second;
     if (!std::memcmp(&found_pipeline->description.description, &description, sizeof(description))) {
-      PROFILE_PIPELINE_CACHE_HIT();
+      REX_PERF_INC(kPipelineCacheHits);
       current_pipeline_ = found_pipeline;
       *pipeline_handle_out = found_pipeline;
       *root_signature_out = found_pipeline->root_signature.load(std::memory_order_acquire);
       return true;
     }
   }
-  PROFILE_PIPELINE_CACHE_MISS();
+  REX_PERF_INC(kPipelineCacheMisses);
 
   Pipeline* new_pipeline = new Pipeline;
   std::memcpy(&new_pipeline->description, &runtime_description, sizeof(runtime_description));
   new_pipeline->root_signature.store(runtime_description.root_signature, std::memory_order_release);
   pipelines_.emplace(hash, new_pipeline);
-  COUNT_profile_set("gpu/pipeline_cache/pipelines", pipelines_.size());
+  REX_PROFILE_PLOT("gpu/pipeline_cache/pipelines", pipelines_.size());
 
   if (use_async) {
     uint32_t bound_rts =
@@ -3034,11 +3034,11 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
   }
   std::u16string name;
   if (runtime_description.pixel_shader != nullptr) {
-    name = rex::string::to_utf16(fmt::format(
-        "VS {:016X}, PS {:016X}", runtime_description.vertex_shader->shader().ucode_data_hash(),
-        runtime_description.pixel_shader->shader().ucode_data_hash()));
+    name = rex::to_utf16(fmt::format("VS {:016X}, PS {:016X}",
+                                     runtime_description.vertex_shader->shader().ucode_data_hash(),
+                                     runtime_description.pixel_shader->shader().ucode_data_hash()));
   } else {
-    name = rex::string::to_utf16(
+    name = rex::to_utf16(
         fmt::format("VS {:016X}", runtime_description.vertex_shader->shader().ucode_data_hash()));
   }
   state->SetName(reinterpret_cast<LPCWSTR>(name.c_str()));

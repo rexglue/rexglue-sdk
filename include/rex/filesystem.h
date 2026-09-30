@@ -20,7 +20,6 @@
 
 #include <rex/filesystem/config.h>
 #include <rex/platform.h>
-#include <rex/string.h>
 
 namespace rex {
 

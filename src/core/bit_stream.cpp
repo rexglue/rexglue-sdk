@@ -16,7 +16,7 @@
 #include <rex/stream.h>
 #include <rex/types.h>
 
-namespace rex::stream {
+namespace rex {
 
 BitStream::BitStream(uint8_t* buffer, size_t size_in_bits)
     : buffer_(buffer), size_bits_(size_in_bits) {}
@@ -151,4 +151,4 @@ void BitStream::Advance(size_t num_bits) {
   SetOffset(offset_bits_ + num_bits);
 }
 
-}  // namespace rex::stream
+}  // namespace rex

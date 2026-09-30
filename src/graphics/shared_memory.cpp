@@ -72,11 +72,11 @@ void SharedMemory::ShutdownCommon() {
 
   if (host_gpu_memory_sparse_used_bytes_) {
     host_gpu_memory_sparse_used_bytes_ = 0;
-    COUNT_profile_set("gpu/shared_memory/host_gpu_memory_sparse_used_mb", 0);
+    REX_PROFILE_PLOT("gpu/shared_memory/host_gpu_memory_sparse_used_mb", 0);
   }
   if (host_gpu_memory_sparse_allocations_) {
     host_gpu_memory_sparse_allocations_ = 0;
-    COUNT_profile_set("gpu/shared_memory/host_gpu_memory_sparse_allocations", 0);
+    REX_PROFILE_PLOT("gpu/shared_memory/host_gpu_memory_sparse_allocations", 0);
   }
   host_gpu_memory_sparse_allocated_.clear();
   host_gpu_memory_sparse_allocated_.shrink_to_fit();
@@ -360,7 +360,7 @@ bool SharedMemory::RequestRanges(const std::pair<uint32_t, uint32_t>* ranges, si
     return true;
   }
 
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
 
   std::sort(merged_ranges.begin(), merged_ranges.end(),
             [](const std::pair<uint32_t, uint32_t>& a, const std::pair<uint32_t, uint32_t>& b) {
@@ -455,11 +455,10 @@ bool SharedMemory::RequestRanges(const std::pair<uint32_t, uint32_t>* ranges, si
     }
   }
 
-  COUNT_profile_set("gpu/shared_memory/request_ranges_count", uint32_t(count));
-  COUNT_profile_set("gpu/shared_memory/request_ranges_merged_count",
-                    uint32_t(merged_ranges.size()));
-  COUNT_profile_set("gpu/shared_memory/request_ranges_upload_count",
-                    uint32_t(upload_ranges_.size()));
+  REX_PROFILE_PLOT("gpu/shared_memory/request_ranges_count", uint32_t(count));
+  REX_PROFILE_PLOT("gpu/shared_memory/request_ranges_merged_count", uint32_t(merged_ranges.size()));
+  REX_PROFILE_PLOT("gpu/shared_memory/request_ranges_upload_count",
+                   uint32_t(upload_ranges_.size()));
 
   if (upload_ranges_.empty()) {
     return true;
@@ -552,8 +551,8 @@ bool SharedMemory::EnsureHostGpuMemoryAllocated(uint32_t start, uint32_t length)
       page_last << page_size_log2_ >> host_gpu_memory_sparse_granularity_log2_;
   while (true) {
     std::pair<size_t, size_t> allocation_range =
-        rex::bit::GetNextRangeUnset(host_gpu_memory_sparse_allocated_.data(), allocation_first,
-                                    allocation_last - allocation_first + 1);
+        rex::GetNextRangeUnset(host_gpu_memory_sparse_allocated_.data(), allocation_first,
+                               allocation_last - allocation_first + 1);
     if (!allocation_range.second) {
       break;
     }
@@ -561,15 +560,15 @@ bool SharedMemory::EnsureHostGpuMemoryAllocated(uint32_t start, uint32_t length)
                                           uint32_t(allocation_range.second))) {
       return false;
     }
-    rex::bit::SetRange(host_gpu_memory_sparse_allocated_.data(), allocation_range.first,
-                       allocation_range.second);
+    rex::SetRange(host_gpu_memory_sparse_allocated_.data(), allocation_range.first,
+                  allocation_range.second);
     ++host_gpu_memory_sparse_allocations_;
-    COUNT_profile_set("gpu/shared_memory/host_gpu_memory_sparse_allocations",
-                      host_gpu_memory_sparse_allocations_);
+    REX_PROFILE_PLOT("gpu/shared_memory/host_gpu_memory_sparse_allocations",
+                     host_gpu_memory_sparse_allocations_);
     host_gpu_memory_sparse_used_bytes_ += uint32_t(allocation_range.second)
                                           << host_gpu_memory_sparse_granularity_log2_;
-    COUNT_profile_set("gpu/shared_memory/host_gpu_memory_sparse_used_mb",
-                      (host_gpu_memory_sparse_used_bytes_ + ((1 << 20) - 1)) >> 20);
+    REX_PROFILE_PLOT("gpu/shared_memory/host_gpu_memory_sparse_used_mb",
+                     (host_gpu_memory_sparse_used_bytes_ + ((1 << 20) - 1)) >> 20);
     allocation_first = uint32_t(allocation_range.first + allocation_range.second);
   }
   return true;

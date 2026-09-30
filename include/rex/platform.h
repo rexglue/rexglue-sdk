@@ -97,39 +97,17 @@
 #include <bit>
 #include <cstdint>
 
-//=============================================================================
-// Compiler Polyfills
-//=============================================================================
-
-#if defined(__clang__)
-// Clang has builtin rotate functions and debugtrap
-#elif defined(__GNUC__)
-#ifndef __builtin_rotateleft32
-#define __builtin_rotateleft32(x, n) std::rotl(static_cast<uint32_t>(x), static_cast<int>(n))
-#endif
-#ifndef __builtin_rotateleft64
-#define __builtin_rotateleft64(x, n) std::rotl(static_cast<uint64_t>(x), static_cast<int>(n))
-#endif
-#ifndef __builtin_debugtrap
-#if defined(__x86_64__) || defined(__i386__)
-#define __builtin_debugtrap() __asm__ __volatile__("int3")
-#else
-#define __builtin_debugtrap() __builtin_trap()
-#endif
-#endif
-#endif
-
 #if REX_COMPILER_MSVC
-#define _REXPACKEDSCOPE(body) __pragma(pack(push, 1)) body __pragma(pack(pop));
+#define REX_DETAIL_PACKED_SCOPE(body) __pragma(pack(push, 1)) body __pragma(pack(pop));
 #else
-#define _REXPACKEDSCOPE(body)    \
-  _Pragma("pack(push, 1)") body; \
+#define REX_DETAIL_PACKED_SCOPE(body) \
+  _Pragma("pack(push, 1)") body;      \
   _Pragma("pack(pop)");
 #endif  // REX_COMPILER_MSVC
 
-#define REXPACKEDSTRUCT(name, value) _REXPACKEDSCOPE(struct name value)
-#define REXPACKEDSTRUCTANONYMOUS(value) _REXPACKEDSCOPE(struct value)
-#define REXPACKEDUNION(name, value) _REXPACKEDSCOPE(union name value)
+#define REX_PACKED_STRUCT(name, value) REX_DETAIL_PACKED_SCOPE(struct name value)
+#define REX_PACKED_STRUCT_ANONYMOUS(value) REX_DETAIL_PACKED_SCOPE(struct value)
+#define REX_PACKED_UNION(name, value) REX_DETAIL_PACKED_SCOPE(union name value)
 
 // Compiler capability macros
 #if REX_COMPILER_CLANG || REX_COMPILER_GNUC

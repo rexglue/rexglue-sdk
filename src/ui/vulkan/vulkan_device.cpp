@@ -508,8 +508,8 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   device->properties_.driverVersion = properties.driverVersion;
   device->properties_.vendorID = properties.vendorID;
   device->properties_.deviceID = properties.deviceID;
-  rex::string::copy_truncating(device->properties_.deviceName, properties.deviceName,
-                               sizeof(device->properties_.deviceName));
+  rex::copy_truncating(device->properties_.deviceName, properties.deviceName,
+                       sizeof(device->properties_.deviceName));
 
   REXLOG_INFO(
       "Vulkan device '{}': API {}.{}.{}, vendor 0x{:04X}, device 0x{:04X}, "

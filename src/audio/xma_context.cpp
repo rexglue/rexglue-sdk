@@ -38,8 +38,6 @@ extern "C" {
 
 namespace rex::audio {
 
-using stream::BitStream;
-
 const uint32_t XmaContext::kBitsPerPacketHeader;
 const uint32_t XmaContext::kOutputMaxSizeBytes;
 
@@ -526,7 +524,7 @@ bool XmaContext::DecodePacket(AVCodecContext* av_context, const AVPacket* av_pac
 }
 
 void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
-  SCOPE_profile_cpu_f("apu");
+  REX_PROFILE_SCOPE("apu");
 
   if (!data->IsAnyInputBufferValid()) {
     return;

@@ -309,13 +309,13 @@ u32 XamShowMessageBoxUI_entry(u32 user_index, mapped_wstring title_ptr, mapped_w
       result_ptr.guest_address(), overlapped.guest_address());
   std::string title;
   if (title_ptr) {
-    title = rex::string::to_utf8(rex::memory::load_and_swap<std::u16string>(
+    title = rex::to_utf8(rex::memory::load_and_swap<std::u16string>(
         REX_KERNEL_MEMORY()->TranslateVirtual(title_ptr.guest_address())));
   } else {
     title = "";  // TODO(gibbed): default title based on flags?
   }
   std::string text_str = text_ptr
-                             ? rex::string::to_utf8(rex::memory::load_and_swap<std::u16string>(
+                             ? rex::to_utf8(rex::memory::load_and_swap<std::u16string>(
                                    REX_KERNEL_MEMORY()->TranslateVirtual(text_ptr.guest_address())))
                              : "";
 
@@ -324,7 +324,7 @@ u32 XamShowMessageBoxUI_entry(u32 user_index, mapped_wstring title_ptr, mapped_w
     uint32_t button_ptr = button_ptrs[i];
     auto button = rex::memory::load_and_swap<std::u16string>(
         REX_KERNEL_MEMORY()->TranslateVirtual(button_ptr));
-    buttons.push_back(rex::string::to_utf8(button));
+    buttons.push_back(rex::to_utf8(button));
   }
 
   X_RESULT result;
@@ -395,7 +395,7 @@ class KeyboardInputDialog : public XamDialog {
     }
     text_ = default_text;
     text_buffer_.resize(max_length);
-    rex::string::copy_truncating(text_buffer_.data(), default_text_, text_buffer_.size());
+    rex::copy_truncating(text_buffer_.data(), default_text_, text_buffer_.size());
   }
 
   const std::string& text() const { return text_; }
@@ -476,7 +476,7 @@ u32 XamShowKeyboardUI_entry(u32 user_index, u32 flags, mapped_wstring default_te
       if (!default_text) {
         std::memset(buffer, 0, buffer_size);
       } else {
-        rex::string::copy_and_swap_truncating(buffer, default_text.value(), buffer_length);
+        rex::copy_and_swap_truncating(buffer, default_text.value(), buffer_length);
       }
       return X_ERROR_SUCCESS;
     };
@@ -490,8 +490,8 @@ u32 XamShowKeyboardUI_entry(u32 user_index, u32 flags, mapped_wstring default_te
         return X_ERROR_SUCCESS;
       } else {
         // Zero the output buffer.
-        auto text = rex::string::to_utf16(dialog->text());
-        rex::string::copy_and_swap_truncating(buffer, text, buffer_length);
+        auto text = rex::to_utf16(dialog->text());
+        rex::copy_and_swap_truncating(buffer, text, buffer_length);
         extended_error = X_ERROR_SUCCESS;
         length = 0;
         return X_ERROR_SUCCESS;
@@ -502,15 +502,15 @@ u32 XamShowKeyboardUI_entry(u32 user_index, u32 flags, mapped_wstring default_te
 
     // Read and convert title/description/default_text from guest memory as utf16 to utf8 strings
     std::string title_str = title
-                                ? rex::string::to_utf8(rex::memory::load_and_swap<std::u16string>(
+                                ? rex::to_utf8(rex::memory::load_and_swap<std::u16string>(
                                       REX_KERNEL_MEMORY()->TranslateVirtual(title.guest_address())))
                                 : "";
     std::string desc_str =
-        description ? rex::string::to_utf8(rex::memory::load_and_swap<std::u16string>(
+        description ? rex::to_utf8(rex::memory::load_and_swap<std::u16string>(
                           REX_KERNEL_MEMORY()->TranslateVirtual(description.guest_address())))
                     : "";
     std::string def_text_str =
-        default_text ? rex::string::to_utf8(rex::memory::load_and_swap<std::u16string>(
+        default_text ? rex::to_utf8(rex::memory::load_and_swap<std::u16string>(
                            REX_KERNEL_MEMORY()->TranslateVirtual(default_text.guest_address())))
                      : "";
 
@@ -528,7 +528,7 @@ u32 XamShowKeyboardUI_entry(u32 user_index, u32 flags, mapped_wstring default_te
         if (!default_text) {
           std::memset(buffer, 0, buffer_size);
         } else {
-          rex::string::copy_and_swap_truncating(buffer, default_text.value(), buffer_length);
+          rex::copy_and_swap_truncating(buffer, default_text.value(), buffer_length);
         }
         return X_ERROR_SUCCESS;
       };

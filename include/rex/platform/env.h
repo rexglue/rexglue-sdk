@@ -16,24 +16,24 @@
 #include <utility>
 #include <vector>
 
-namespace rex::platform::env {
+namespace rex::platform {
 
 // Reads an environment variable. Returns std::nullopt when not set, or an
 // optional containing UTF-8 bytes when set (an empty string is a distinct
 // state from nullopt).
-std::optional<std::string> get(std::string_view name);
+std::optional<std::string> GetEnvironmentValue(std::string_view name);
 
 // Sets an environment variable, overwriting any existing value. Value is
 // UTF-8. Returns true on success.
-bool set(std::string_view name, std::string_view value);
+bool SetEnvironmentValue(std::string_view name, std::string_view value);
 
 // Removes an environment variable. Returns true if the variable was unset on
 // return (success, or already not set).
-bool unset(std::string_view name);
+bool UnsetEnvironmentValue(std::string_view name);
 
 /**
  * Every environment variable of the process as name and value pairs.
  */
-std::vector<std::pair<std::string, std::string>> enumerate();
+std::vector<std::pair<std::string, std::string>> EnumerateEnvironment();
 
-}  // namespace rex::platform::env
+}  // namespace rex::platform

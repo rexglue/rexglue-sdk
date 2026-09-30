@@ -16,19 +16,19 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 
 #include <unistd.h>
 
-namespace rex::platform::console {
+namespace rex::platform {
 
-bool is_tty(FILE* stream) {
+bool IsTerminal(FILE* stream) {
   if (!stream) {
     return false;
   }
   return ::isatty(::fileno(stream)) != 0;
 }
 
-bool enable_ansi_escapes(FILE* stream) {
+bool EnableANSIEscapes(FILE* stream) {
   return stream != nullptr;
 }
 
-void set_utf8_output_codepage() {}
+void SetUTF8OutputCodePage() {}
 
-}  // namespace rex::platform::console
+}  // namespace rex::platform

@@ -292,7 +292,7 @@ Result<void> TitleApp::CreateTitleWindow() {
   if (cvars->Get("ui.fullscreen").value_or("true") == "true") {
     window_->SetFullscreen(true);
   }
-  window_->SetMonitor(string::from_string<i32>(cvars->Get("ui.monitor").value_or("0"), 0));
+  window_->SetMonitor(from_string<i32>(cvars->Get("ui.monitor").value_or("0"), 0));
   auto on_window_cvar = [this, cvars](const char* name,
                                       std::function<void(std::string_view)> apply) {
     auto handle =
@@ -304,12 +304,12 @@ Result<void> TitleApp::CreateTitleWindow() {
     }
   };
   on_window_cvar("ui.fullscreen", [this](std::string_view value) {
-    window_->SetFullscreen(string::from_string<bool>(value, false));
+    window_->SetFullscreen(from_string<bool>(value, false));
   });
   on_window_cvar("ui.fullscreen_exclusive",
                  [this](std::string_view) { window_->RefreshFullscreen(); });
   on_window_cvar("ui.monitor", [this](std::string_view value) {
-    window_->SetMonitor(string::from_string<i32>(value, 0));
+    window_->SetMonitor(from_string<i32>(value, 0));
   });
   auto apply_size = [this](std::string_view) {
     u32 width = 0;
@@ -324,7 +324,7 @@ Result<void> TitleApp::CreateTitleWindow() {
     window_->RefreshFullscreen();
   });
   auto apply_cursor = [this](std::string_view value) {
-    const f64 seconds = string::from_string<f64>(value, 0.0);
+    const f64 seconds = from_string<f64>(value, 0.0);
     if (seconds > 0.0) {
       window_->SetCursorAutoHideDelayMs(u32(seconds * 1000.0));
       window_->SetCursorVisibility(Window::CursorVisibility::kAutoHidden);

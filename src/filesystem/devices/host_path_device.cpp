@@ -51,7 +51,7 @@ bool HostPathDevice::Initialize() {
   return true;
 }
 
-void HostPathDevice::Dump(string::StringBuffer* string_buffer) {
+void HostPathDevice::Dump(StringBuffer* string_buffer) {
   auto global_lock = global_critical_region_.Acquire();
   root_entry_->Dump(string_buffer, 0);
 }
@@ -68,7 +68,7 @@ Entry* HostPathDevice::ResolvePath(const std::string_view path) {
   // Fallback to a lazy case-insensitive host lookup when an entry is missing
   // from the in-memory tree (for example because casing differs on Linux).
   auto* current_entry = static_cast<HostPathEntry*>(root_entry_.get());
-  for (const auto& part : rex::string::utf8_split_path(path)) {
+  for (const auto& part : rex::utf8_split_path(path)) {
     if (part.empty()) {
       continue;
     }
@@ -92,7 +92,7 @@ Entry* HostPathDevice::ResolvePath(const std::string_view path) {
 
       auto child_infos = rex::filesystem::ListFiles(current_entry->host_path());
       auto match = std::find_if(child_infos.begin(), child_infos.end(), [&](const auto& info) {
-        return rex::string::utf8_equal_case(rex::path_to_utf8(info.name), part);
+        return rex::utf8_equal_case(rex::path_to_utf8(info.name), part);
       });
       if (match == child_infos.end()) {
         return nullptr;

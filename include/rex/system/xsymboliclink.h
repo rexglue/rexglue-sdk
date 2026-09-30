@@ -29,8 +29,8 @@ class XSymbolicLink : public XObject {
 
   void Initialize(const std::string_view path, const std::string_view target);
 
-  bool Save(stream::ByteStream* stream) override;
-  static object_ref<XSymbolicLink> Restore(KernelState* kernel_state, stream::ByteStream* stream);
+  bool Save(ByteStream* stream) override;
+  static object_ref<XSymbolicLink> Restore(KernelState* kernel_state, ByteStream* stream);
 
   const std::string& path() const { return path_; }
   const std::string& target() const { return target_; }

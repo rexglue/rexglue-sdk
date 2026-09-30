@@ -17,7 +17,7 @@
 #include <tracy/Tracy.hpp>
 #endif
 
-namespace rex::perf {
+namespace rex::platform {
 
 enum class CounterId : uint16_t {
   // Frame
@@ -30,7 +30,7 @@ enum class CounterId : uint16_t {
   kVerticesProcessed,
 
   // Audio
-  kXmaFramesDecoded,
+  kXMAFramesDecoded,
   kAudioFrameLatencyUs,
   kBufferQueueDepth,
 
@@ -40,7 +40,7 @@ enum class CounterId : uint16_t {
 
   // Threading
   kActiveThreads,
-  kApcQueueDepth,
+  kAPCQueueDepth,
   kCriticalRegionContentions,
 
   // Caches
@@ -75,9 +75,9 @@ int64_t GetSnapshotCounter(CounterId id);
 void Init();
 
 // CSV logging
-void SetCsvLogPath(const std::string& path);
-void WriteCsvFrame();
-void FlushCsv();
+void SetCSVLogPath(const std::string& path);
+void WriteCSVFrame();
+void FlushCSV();
 
 // Profiler -- coordinates Tracy frame marks and counter snapshots.
 // Moved here from rex::debug to consolidate all perf code under rex::perf.
@@ -108,7 +108,7 @@ class Profiler {
 #endif
 #ifdef REXGLUE_ENABLE_PERF_COUNTERS
     ResetFrameCounters();
-    WriteCsvFrame();
+    WriteCSVFrame();
 #endif
   }
   static void Flush() {}
@@ -118,7 +118,7 @@ class Profiler {
       tracy::ShutdownProfiler();
 #endif
 #ifdef REXGLUE_ENABLE_PERF_COUNTERS
-    FlushCsv();
+    FlushCSV();
 #endif
   }
   static bool is_enabled() {
@@ -130,59 +130,50 @@ class Profiler {
   }
 };
 
-}  // namespace rex::perf
+}  // namespace rex::platform
 
-// Perf counter macros -- compile to no-ops when counters are disabled.
 #ifdef REXGLUE_ENABLE_PERF_COUNTERS
 
-// Generic helpers for easily adding new counters
-#define PERF_counter_set(id, value) rex::perf::SetCounter(rex::perf::CounterId::id, value)
-#define PERF_counter_inc(id) rex::perf::IncrementCounter(rex::perf::CounterId::id)
-#define PERF_counter_add(id, delta) rex::perf::IncrementCounter(rex::perf::CounterId::id, delta)
+/**
+ * Sets a perf counter to a value. Compiles to nothing when counters are disabled.
+ *
+ * @param id A rex::platform::CounterId enumerator name without its qualifier.
+ * @param value The new value.
+ *
+ * @code
+ * REX_PERF_SET(kFps, frames_per_second);
+ * @endcode
+ */
+#define REX_PERF_SET(id, value) ::rex::platform::SetCounter(::rex::platform::CounterId::id, value)
 
-// Purpose-specific macros so callsites stay clean
-#define PROFILE_FRAME_TIME_US(value) PERF_counter_set(kFrameTimeUs, value)
-#define PROFILE_FPS(value) PERF_counter_set(kFps, value)
-#define PROFILE_FUNCTION_DISPATCHED() PERF_counter_inc(kFunctionsDispatched)
-#define PROFILE_INTERRUPT_DISPATCHED() PERF_counter_inc(kInterruptDispatches)
-#define PROFILE_XMA_FRAME_DECODED() PERF_counter_inc(kXmaFramesDecoded)
-#define PROFILE_DRAW_CALL() PERF_counter_inc(kDrawCalls)
-#define PROFILE_VERTICES(n) PERF_counter_add(kVerticesProcessed, n)
-#define PROFILE_CMD_BUFFER_STALL() PERF_counter_inc(kCommandBufferStalls)
-#define PROFILE_AUDIO_LATENCY_US(value) PERF_counter_set(kAudioFrameLatencyUs, value)
-#define PROFILE_BUFFER_QUEUE_DEPTH(value) PERF_counter_set(kBufferQueueDepth, value)
-#define PROFILE_THREAD_CREATED() PERF_counter_inc(kActiveThreads)
-#define PROFILE_THREAD_EXITED() PERF_counter_add(kActiveThreads, -1)
-#define PROFILE_APC_QUEUE_DEPTH(value) PERF_counter_set(kApcQueueDepth, value)
-#define PROFILE_CRITICAL_REGION_CONTENTION() PERF_counter_inc(kCriticalRegionContentions)
-#define PROFILE_TEXTURE_CACHE_HIT() PERF_counter_inc(kTextureCacheHits)
-#define PROFILE_TEXTURE_CACHE_MISS() PERF_counter_inc(kTextureCacheMisses)
-#define PROFILE_PIPELINE_CACHE_HIT() PERF_counter_inc(kPipelineCacheHits)
-#define PROFILE_PIPELINE_CACHE_MISS() PERF_counter_inc(kPipelineCacheMisses)
+/**
+ * Adds 1 to a perf counter. Compiles to nothing when counters are disabled.
+ *
+ * @param id A rex::platform::CounterId enumerator name without its qualifier.
+ *
+ * @code
+ * REX_PERF_INC(kDrawCalls);
+ * @endcode
+ */
+#define REX_PERF_INC(id) ::rex::platform::IncrementCounter(::rex::platform::CounterId::id)
+
+/**
+ * Adds a delta to a perf counter. Compiles to nothing when counters are disabled.
+ *
+ * @param id A rex::platform::CounterId enumerator name without its qualifier.
+ * @param delta The signed amount to add.
+ *
+ * @code
+ * REX_PERF_ADD(kVerticesProcessed, vertex_count);
+ * @endcode
+ */
+#define REX_PERF_ADD(id, delta) \
+  ::rex::platform::IncrementCounter(::rex::platform::CounterId::id, delta)
 
 #else
 
-#define PERF_counter_set(id, value)
-#define PERF_counter_inc(id)
-#define PERF_counter_add(id, delta)
-
-#define PROFILE_FRAME_TIME_US(value)
-#define PROFILE_FPS(value)
-#define PROFILE_FUNCTION_DISPATCHED()
-#define PROFILE_INTERRUPT_DISPATCHED()
-#define PROFILE_XMA_FRAME_DECODED()
-#define PROFILE_DRAW_CALL()
-#define PROFILE_VERTICES(n)
-#define PROFILE_CMD_BUFFER_STALL()
-#define PROFILE_AUDIO_LATENCY_US(value)
-#define PROFILE_BUFFER_QUEUE_DEPTH(value)
-#define PROFILE_THREAD_CREATED()
-#define PROFILE_THREAD_EXITED()
-#define PROFILE_APC_QUEUE_DEPTH(value)
-#define PROFILE_CRITICAL_REGION_CONTENTION()
-#define PROFILE_TEXTURE_CACHE_HIT()
-#define PROFILE_TEXTURE_CACHE_MISS()
-#define PROFILE_PIPELINE_CACHE_HIT()
-#define PROFILE_PIPELINE_CACHE_MISS()
+#define REX_PERF_SET(id, value)
+#define REX_PERF_INC(id)
+#define REX_PERF_ADD(id, delta)
 
 #endif

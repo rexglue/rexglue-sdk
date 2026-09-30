@@ -27,7 +27,7 @@ class DiscImageDevice : public Device {
   ~DiscImageDevice() override;
 
   bool Initialize() override;
-  void Dump(string::StringBuffer* string_buffer) override;
+  void Dump(StringBuffer* string_buffer) override;
   Entry* ResolvePath(const std::string_view path) override;
 
   struct DiscInfo {

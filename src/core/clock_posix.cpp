@@ -18,7 +18,7 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 #include <mach/mach_time.h>
 #endif
 
-namespace rex::chrono {
+namespace rex {
 
 uint64_t Clock::host_tick_frequency_platform() {
 #ifdef __APPLE__
@@ -71,4 +71,4 @@ uint64_t Clock::QueryHostUptimeMillis() {
   return host_tick_count_platform() * 1000 / host_tick_frequency_platform();
 }
 
-}  // namespace rex::chrono
+}  // namespace rex

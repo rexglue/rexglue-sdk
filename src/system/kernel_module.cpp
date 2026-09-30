@@ -26,7 +26,7 @@ KernelModule::KernelModule(KernelState* kernel_state, const std::string_view pat
   export_resolver_ = kernel_state->emulator()->export_resolver();
 
   path_ = path;
-  name_ = rex::string::utf8_find_base_name_from_guest_path(path);
+  name_ = rex::utf8_find_base_name_from_guest_path(path);
 
   // Persist this object through reloads.
   host_object_ = true;

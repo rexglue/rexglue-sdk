@@ -339,7 +339,7 @@ Result<void> App::Init(const CLIArgList& args) {
 
   StartLogging();
   if (api_->Get<cvar::ICvarRegistry>()->Get("perf.profiler").value_or("false") == "true") {
-    perf::Profiler::Startup();
+    platform::Profiler::Startup();
   }
   BeginTimerResolution();
   timer_resolution_ = true;
@@ -377,7 +377,7 @@ i32 App::Shutdown() {
     rex::Shutdown();
   }
   api_ = nullptr;
-  perf::Profiler::Shutdown();
+  platform::Profiler::Shutdown();
   if (timer_resolution_) {
     EndTimerResolution();
   }

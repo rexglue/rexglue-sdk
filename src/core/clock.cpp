@@ -19,11 +19,13 @@
 
 #include "core/cvar_table.h"
 
-namespace rex::chrono {
+namespace rex {
 
 bool Clock::no_scaling() {
   return REXCVAR_GET(::rex::cvars::no_scaling);
 }
+
+namespace {
 
 // Time scalar applied to all time operations.
 double guest_time_scalar_ = 1.0;
@@ -103,6 +105,7 @@ inline uint64_t QueryGuestSystemTimeOffset() {
 
   return guest_tick_count * numerator / denominator;
 }
+}  // namespace
 
 uint64_t Clock::QueryHostTickFrequency() {
 #if REX_CLOCK_RAW_AVAILABLE
@@ -242,4 +245,4 @@ void Clock::ScaleGuestDurationTimeval(int32_t* tv_sec, int32_t* tv_usec) {
   *tv_usec = int32_t(scaled_usec);
 }
 
-}  // namespace rex::chrono
+}  // namespace rex

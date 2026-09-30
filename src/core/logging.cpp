@@ -550,10 +550,10 @@ LogConfig BuildLogConfig(const std::string& cli_level,
   config.default_level = kDefaultLogLevel;
 
   // Environment variable
-  if (auto env_level = rex::platform::env::get("REX_LOG_LEVEL")) {
+  if (auto env_level = rex::platform::GetEnvironmentValue("REX_LOG_LEVEL")) {
     if (auto level = ParseLogLevel(*env_level))
       config.default_level = *level;
-  } else if (auto env_level2 = rex::platform::env::get("SPDLOG_LEVEL")) {
+  } else if (auto env_level2 = rex::platform::GetEnvironmentValue("SPDLOG_LEVEL")) {
     if (auto level = ParseLogLevel(*env_level2))
       config.default_level = *level;
   }

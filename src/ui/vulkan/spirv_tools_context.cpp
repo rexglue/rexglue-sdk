@@ -34,7 +34,7 @@ bool SpirvToolsContext::Initialize(unsigned int spirv_version) {
 #endif
 
   if (library_path.empty()) {
-    auto vulkan_sdk_env = rex::platform::env::get("VULKAN_SDK");
+    auto vulkan_sdk_env = rex::platform::GetEnvironmentValue("VULKAN_SDK");
     if (!vulkan_sdk_env.has_value() || vulkan_sdk_env->empty()) {
       REXLOG_INFO("SPIRV-Tools: No Vulkan SDK found; SPIR-V validation is disabled");
       Shutdown();

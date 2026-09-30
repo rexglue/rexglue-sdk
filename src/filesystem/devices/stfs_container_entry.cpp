@@ -27,7 +27,7 @@ StfsContainerEntry::~StfsContainerEntry() = default;
 std::unique_ptr<StfsContainerEntry> StfsContainerEntry::Create(Device* device, Entry* parent,
                                                                const std::string_view name,
                                                                MultiFileHandles* files) {
-  auto path = rex::string::utf8_join_guest_paths(parent->path(), name);
+  auto path = rex::utf8_join_guest_paths(parent->path(), name);
   auto entry = std::make_unique<StfsContainerEntry>(device, parent, path, files);
 
   return std::move(entry);

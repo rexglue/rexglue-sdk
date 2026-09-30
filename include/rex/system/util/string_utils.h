@@ -35,7 +35,7 @@ inline std::string_view TranslateAnsiString(const memory::Memory* memory,
 
 inline std::string TranslateAnsiPath(const memory::Memory* memory,
                                      const X_ANSI_STRING* ansi_string) {
-  return rex::string::trim_string(std::string(TranslateAnsiString(memory, ansi_string)));
+  return rex::trim_string(std::string(TranslateAnsiString(memory, ansi_string)));
 }
 
 inline std::string_view TranslateAnsiStringAddress(const memory::Memory* memory,

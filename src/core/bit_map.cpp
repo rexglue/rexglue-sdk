@@ -14,7 +14,7 @@
 #include <rex/math.h>
 #include <rex/platform/atomic.h>
 
-namespace rex::bit {
+namespace rex {
 
 BitMap::BitMap() = default;
 
@@ -96,4 +96,4 @@ void BitMap::Reset() {
   }
 }
 
-}  // namespace rex::bit
+}  // namespace rex

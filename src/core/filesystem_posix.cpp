@@ -56,7 +56,7 @@ std::string path_to_utf8(const std::filesystem::path& path) {
 }
 
 std::u16string path_to_utf16(const std::filesystem::path& path) {
-  return rex::string::to_utf16(path.string());
+  return rex::to_utf16(path.string());
 }
 
 std::filesystem::path to_path(const std::string_view source) {
@@ -64,7 +64,7 @@ std::filesystem::path to_path(const std::string_view source) {
 }
 
 std::filesystem::path to_path(const std::u16string_view source) {
-  return rex::string::to_utf8(source);
+  return rex::to_utf8(source);
 }
 
 namespace filesystem {
@@ -105,12 +105,12 @@ std::filesystem::path GetExecutableFolder() {
 
 std::filesystem::path GetUserFolder() {
   // get preferred data home
-  if (auto xdg = rex::platform::env::get("XDG_DATA_HOME")) {
+  if (auto xdg = rex::platform::GetEnvironmentValue("XDG_DATA_HOME")) {
     return std::filesystem::path(*xdg);
   }
 
   // if XDG_DATA_HOME not set, fallback to HOME directory
-  if (auto home = rex::platform::env::get("HOME")) {
+  if (auto home = rex::platform::GetEnvironmentValue("HOME")) {
     return std::filesystem::path(*home) / ".local" / "share";
   }
 

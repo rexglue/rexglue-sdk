@@ -92,7 +92,7 @@ void XEvent::Clear() {
   event_->Reset();
 }
 
-bool XEvent::Save(stream::ByteStream* stream) {
+bool XEvent::Save(ByteStream* stream) {
   REXSYS_DEBUG("XEvent {:08X} ({})", handle(), manual_reset_ ? "manual" : "auto");
   SaveObject(stream);
 
@@ -117,7 +117,7 @@ bool XEvent::Save(stream::ByteStream* stream) {
   return true;
 }
 
-object_ref<XEvent> XEvent::Restore(KernelState* kernel_state, stream::ByteStream* stream) {
+object_ref<XEvent> XEvent::Restore(KernelState* kernel_state, ByteStream* stream) {
   auto evt = new XEvent(nullptr);
   evt->kernel_state_ = kernel_state;
 

@@ -9,7 +9,7 @@
  * @modified    2026 Tom Clay <tomc@tctechstuff.com>
  *              Modified for rexglue - Xbox 360 recompilation framework
  *
- * @changes     - Moved string_key and string_key_case from rex:: to rex::string::
+ * @changes     - Moved string_key and string_key_case from rex:: to rex::
  */
 
 #pragma once
@@ -19,7 +19,7 @@
 
 #include <rex/string/utf8.h>
 
-namespace rex::string {
+namespace rex {
 
 namespace detail {
 
@@ -50,7 +50,7 @@ struct string_key : detail::string_key_base {
 
   bool operator==(const string_key& other) const { return other.view() == view(); }
 
-  size_t hash() const { return rex::string::utf8_hash_fnv1a(view()); }
+  size_t hash() const { return rex::utf8_hash_fnv1a(view()); }
 
   struct Hash {
     size_t operator()(const string_key& t) const { return t.hash(); }
@@ -69,26 +69,26 @@ struct string_key_case : detail::string_key_base {
   static string_key_case create(std::string value) { return string_key_case(value); }
 
   bool operator==(const string_key_case& other) const {
-    return rex::string::utf8_equal_case(other.view(), view());
+    return rex::utf8_equal_case(other.view(), view());
   }
 
-  size_t hash() const { return rex::string::utf8_hash_fnv1a_case(view()); }
+  size_t hash() const { return rex::utf8_hash_fnv1a_case(view()); }
 
   struct Hash {
     size_t operator()(const string_key_case& t) const { return t.hash(); }
   };
 };
 
-}  // namespace rex::string
+}  // namespace rex
 
 namespace std {
 template <>
-struct hash<rex::string::string_key> {
-  std::size_t operator()(const rex::string::string_key& t) const { return t.hash(); }
+struct hash<rex::string_key> {
+  std::size_t operator()(const rex::string_key& t) const { return t.hash(); }
 };
 
 template <>
-struct hash<rex::string::string_key_case> {
-  std::size_t operator()(const rex::string::string_key_case& t) const { return t.hash(); }
+struct hash<rex::string_key_case> {
+  std::size_t operator()(const rex::string_key_case& t) const { return t.hash(); }
 };
 }  // namespace std

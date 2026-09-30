@@ -384,8 +384,8 @@ class XThread : public XObject {
   rex::platform::Thread* thread() { return thread_.get(); }
   runtime::ThreadState* thread_state() { return thread_state_.get(); }
 
-  virtual bool Save(stream::ByteStream* stream) override;
-  static object_ref<XThread> Restore(KernelState* kernel_state, stream::ByteStream* stream);
+  virtual bool Save(ByteStream* stream) override;
+  static object_ref<XThread> Restore(KernelState* kernel_state, ByteStream* stream);
 
   // Internal - do not use.
   void AcquireMutantOnStartup(object_ref<XMutant> mutant) {

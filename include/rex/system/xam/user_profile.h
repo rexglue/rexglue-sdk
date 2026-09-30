@@ -75,10 +75,10 @@ static_assert_size(X_USER_PROFILE_SETTING, 40);
 
 class UserProfile {
  public:
-  class SettingByteStream : public stream::ByteStream {
+  class SettingByteStream : public ByteStream {
    public:
     SettingByteStream(uint32_t ptr, uint8_t* data, size_t data_length, size_t offset = 0)
-        : stream::ByteStream(data, data_length, offset), ptr_(ptr) {}
+        : ByteStream(data, data_length, offset), ptr_(ptr) {}
 
     uint32_t ptr() const { return static_cast<uint32_t>(ptr_ + offset()); }
 

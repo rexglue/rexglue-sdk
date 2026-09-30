@@ -22,9 +22,9 @@
 #include <rex/platform/thread.h>
 #include <rex/platform/mutex.h>
 
-namespace rex::stream {
+namespace rex {
 class ByteStream;
-}  // namespace rex::stream
+}  // namespace rex
 
 namespace rex::audio {
 
@@ -48,8 +48,8 @@ class AudioSystem : public system::IAudioSystem {
   void UnregisterClient(size_t index);
   void SubmitFrame(size_t index, uint32_t samples_ptr);
 
-  bool Save(stream::ByteStream* stream);
-  bool Restore(stream::ByteStream* stream);
+  bool Save(ByteStream* stream);
+  bool Restore(ByteStream* stream);
 
   bool is_paused() const { return paused_; }
   void Pause();

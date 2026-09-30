@@ -22,14 +22,14 @@ std::string NormalizeGuestPath(std::string_view path) {
   // Manifest / config consumers expect POSIX-style guest paths: forward
   // slashes, no device prefix, lowercase. The runtime VFS tolerates either
   // separator, so converting backslashes here keeps writers (TOML) happy.
-  std::string result = rex::string::utf8_fix_path_separators(path, U'/');
+  std::string result = rex::utf8_fix_path_separators(path, U'/');
 
   auto colon = result.find(':');
   if (colon != std::string::npos && colon + 1 < result.size() && result[colon + 1] == '/') {
     result.erase(0, colon + 2);
   }
 
-  result = rex::string::utf8_canonicalize_path(result, U'/');
+  result = rex::utf8_canonicalize_path(result, U'/');
 
   while (!result.empty() && result.front() == '/') {
     result.erase(result.begin());

@@ -21,7 +21,7 @@
 #include <cstdio>
 #include <cstring>
 
-namespace rex::perf {
+namespace rex::platform {
 
 namespace {
 
@@ -59,13 +59,13 @@ constexpr bool kIsGauge[] = {
     false,  // kDrawCalls
     false,  // kCommandBufferStalls
     false,  // kVerticesProcessed
-    false,  // kXmaFramesDecoded
+    false,  // kXMAFramesDecoded
     false,  // kAudioFrameLatencyUs
     false,  // kBufferQueueDepth  (set each frame)
     false,  // kFunctionsDispatched
     false,  // kInterruptDispatches
     true,   // kActiveThreads     (inc/dec over lifetime)
-    false,  // kApcQueueDepth
+    false,  // kAPCQueueDepth
     true,   // kCriticalRegionContentions (running total)
     false,  // kTextureCacheHits
     false,  // kTextureCacheMisses
@@ -124,7 +124,7 @@ void Init() {
     s.store(0, std::memory_order_relaxed);
 }
 
-void SetCsvLogPath(const std::string& path) {
+void SetCSVLogPath(const std::string& path) {
   if (g_csv_file) {
     std::fflush(g_csv_file);
     std::fclose(g_csv_file);
@@ -152,7 +152,7 @@ void SetCsvLogPath(const std::string& path) {
   std::fputc('\n', g_csv_file);
 }
 
-void WriteCsvFrame() {
+void WriteCSVFrame() {
   if (!g_csv_file)
     return;
 
@@ -169,7 +169,7 @@ void WriteCsvFrame() {
   }
 }
 
-void FlushCsv() {
+void FlushCSV() {
   if (g_csv_file) {
     std::fflush(g_csv_file);
     std::fclose(g_csv_file);
@@ -178,4 +178,4 @@ void FlushCsv() {
   g_csv_path.clear();
 }
 
-}  // namespace rex::perf
+}  // namespace rex::platform

@@ -37,7 +37,7 @@ bool NullDevice::Initialize() {
   return true;
 }
 
-void NullDevice::Dump(string::StringBuffer* string_buffer) {
+void NullDevice::Dump(StringBuffer* string_buffer) {
   auto global_lock = global_critical_region_.Acquire();
   root_entry_->Dump(string_buffer, 0);
 }
@@ -51,7 +51,7 @@ Entry* NullDevice::ResolvePath(const std::string_view path) {
   }
 
   for (auto& child : root->children()) {
-    if (!rex::string::compare_case(child->path().c_str(), path.data())) {
+    if (!rex::compare_case(child->path().c_str(), path.data())) {
       return child.get();
     }
   }

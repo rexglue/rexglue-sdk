@@ -358,7 +358,7 @@ struct BufferScaling {
   rex::be<uint16_t> bb_width;
   rex::be<uint16_t> bb_height;
 };
-void AppendParam(string::StringBuffer* string_buffer, ppc_ptr_t<BufferScaling> param) {
+void AppendParam(StringBuffer* string_buffer, ppc_ptr_t<BufferScaling> param) {
   string_buffer->AppendFormat("{:08X}(scale {}x{} -> {}x{}))", param.guest_address(),
                               uint16_t(param->bb_width), uint16_t(param->bb_height),
                               uint16_t(param->fb_width), uint16_t(param->fb_height));

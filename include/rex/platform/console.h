@@ -12,19 +12,19 @@
 
 #include <cstdio>
 
-namespace rex::platform::console {
+namespace rex::platform {
 
 // Returns true if the stream is attached to a terminal. False for nullptr or
 // any non-terminal stream (pipes, files, redirected output).
-bool is_tty(FILE* stream);
+bool IsTerminal(FILE* stream);
 
 // Enables ANSI escape sequence interpretation on the stream. No-op on POSIX.
 // Returns true if escapes are interpreted on return (including the case where
 // they already were); false only when the Windows console probe fails.
-bool enable_ansi_escapes(FILE* stream);
+bool EnableANSIEscapes(FILE* stream);
 
 // Switches the process console output to UTF-8. Process-wide on Windows; no
 // per-stream component, hence the no-arg signature. No-op on POSIX.
-void set_utf8_output_codepage();
+void SetUTF8OutputCodePage();
 
-}  // namespace rex::platform::console
+}  // namespace rex::platform

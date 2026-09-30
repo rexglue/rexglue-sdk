@@ -19,9 +19,9 @@
 #include <rex/system/xtypes.h>
 #include <rex/platform/mutex.h>
 
-namespace rex::stream {
+namespace rex {
 class ByteStream;
-}  // namespace rex::stream
+}  // namespace rex
 
 namespace rex::system::util {
 
@@ -38,8 +38,8 @@ class ObjectTable {
   X_STATUS ReleaseHandle(X_HANDLE handle);
   X_STATUS RemoveHandle(X_HANDLE handle);
 
-  bool Save(stream::ByteStream* stream);
-  bool Restore(stream::ByteStream* stream);
+  bool Save(ByteStream* stream);
+  bool Restore(ByteStream* stream);
 
   // Restores a XObject reference with a handle. Mainly for internal use - do
   // not use.
@@ -100,7 +100,7 @@ class ObjectTable {
   uint32_t table_capacity_ = 0;
   ObjectTableEntry* table_ = nullptr;
   uint32_t last_free_entry_ = 0;
-  std::unordered_map<string::string_key_case, X_HANDLE> name_table_;
+  std::unordered_map<string_key_case, X_HANDLE> name_table_;
 };
 
 // Generic lookup

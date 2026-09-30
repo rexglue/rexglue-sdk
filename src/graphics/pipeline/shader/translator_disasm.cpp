@@ -20,7 +20,7 @@ namespace rex::graphics {
 
 using namespace ucode;
 
-void DisassembleResultOperand(const InstructionResult& result, string::StringBuffer* out) {
+void DisassembleResultOperand(const InstructionResult& result, StringBuffer* out) {
   bool uses_storage_index = false;
   switch (result.storage_target) {
     case InstructionStorageTarget::kRegister:
@@ -87,7 +87,7 @@ void DisassembleResultOperand(const InstructionResult& result, string::StringBuf
   }
 }
 
-void DisassembleSourceOperand(const InstructionOperand& op, string::StringBuffer* out) {
+void DisassembleSourceOperand(const InstructionOperand& op, StringBuffer* out) {
   if (op.is_negated) {
     out->Append('-');
   }
@@ -136,7 +136,7 @@ void DisassembleSourceOperand(const InstructionOperand& op, string::StringBuffer
   }
 }
 
-void ParsedExecInstruction::Disassemble(string::StringBuffer* out) const {
+void ParsedExecInstruction::Disassemble(StringBuffer* out) const {
   switch (type) {
     case Type::kUnconditional:
       out->AppendFormat("      {}", opcode_name);
@@ -163,7 +163,7 @@ void ParsedExecInstruction::Disassemble(string::StringBuffer* out) const {
   out->Append('\n');
 }
 
-void ParsedLoopStartInstruction::Disassemble(string::StringBuffer* out) const {
+void ParsedLoopStartInstruction::Disassemble(StringBuffer* out) const {
   out->Append("      loop ");
   out->AppendFormat("i{}, L{}", loop_constant_index, loop_skip_address);
   if (is_repeat) {
@@ -172,7 +172,7 @@ void ParsedLoopStartInstruction::Disassemble(string::StringBuffer* out) const {
   out->Append('\n');
 }
 
-void ParsedLoopEndInstruction::Disassemble(string::StringBuffer* out) const {
+void ParsedLoopEndInstruction::Disassemble(StringBuffer* out) const {
   if (is_predicated_break) {
     out->Append(predicate_condition ? " (p0) " : "(!p0) ");
   } else {
@@ -182,7 +182,7 @@ void ParsedLoopEndInstruction::Disassemble(string::StringBuffer* out) const {
   out->Append('\n');
 }
 
-void ParsedCallInstruction::Disassemble(string::StringBuffer* out) const {
+void ParsedCallInstruction::Disassemble(StringBuffer* out) const {
   switch (type) {
     case Type::kUnconditional:
       out->Append("      call ");
@@ -203,11 +203,11 @@ void ParsedCallInstruction::Disassemble(string::StringBuffer* out) const {
   out->Append('\n');
 }
 
-void ParsedReturnInstruction::Disassemble(string::StringBuffer* out) const {
+void ParsedReturnInstruction::Disassemble(StringBuffer* out) const {
   out->Append("      ret\n");
 }
 
-void ParsedJumpInstruction::Disassemble(string::StringBuffer* out) const {
+void ParsedJumpInstruction::Disassemble(StringBuffer* out) const {
   switch (type) {
     case Type::kUnconditional:
       out->Append("      jmp ");
@@ -228,7 +228,7 @@ void ParsedJumpInstruction::Disassemble(string::StringBuffer* out) const {
   out->Append('\n');
 }
 
-void ParsedAllocInstruction::Disassemble(string::StringBuffer* out) const {
+void ParsedAllocInstruction::Disassemble(StringBuffer* out) const {
   out->Append("      alloc ");
   switch (type) {
     case AllocType::kNone:
@@ -250,7 +250,7 @@ void ParsedAllocInstruction::Disassemble(string::StringBuffer* out) const {
   out->Append('\n');
 }
 
-void ParsedVertexFetchInstruction::Disassemble(string::StringBuffer* out) const {
+void ParsedVertexFetchInstruction::Disassemble(StringBuffer* out) const {
   static const struct {
     const char* name;
   } kVertexFetchDataFormats[0xff] = {
@@ -360,7 +360,7 @@ void ParsedVertexFetchInstruction::Disassemble(string::StringBuffer* out) const 
   out->Append('\n');
 }
 
-void ParsedTextureFetchInstruction::Disassemble(string::StringBuffer* out) const {
+void ParsedTextureFetchInstruction::Disassemble(StringBuffer* out) const {
   static const char* kTextureFilterNames[] = {
       "point",
       "linear",
@@ -451,7 +451,7 @@ void ParsedTextureFetchInstruction::Disassemble(string::StringBuffer* out) const
   out->Append('\n');
 }
 
-void ParsedAluInstruction::Disassemble(string::StringBuffer* out) const {
+void ParsedAluInstruction::Disassemble(StringBuffer* out) const {
   bool is_vector_op_default_nop = IsVectorOpDefaultNop();
   bool is_scalar_op_default_nop = IsScalarOpDefaultNop();
   if (is_vector_op_default_nop && is_scalar_op_default_nop) {

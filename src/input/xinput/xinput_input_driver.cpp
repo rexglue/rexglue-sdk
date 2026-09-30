@@ -47,7 +47,7 @@ uint64_t last_invalid_time[kXinputSlotCount];
 DWORD should_skip(uint32_t user_index) {
   uint64_t time = last_invalid_time[user_index];
   if (time) {
-    uint64_t deltatime = rex::chrono::Clock::QueryHostUptimeMillis() - time;
+    uint64_t deltatime = rex::Clock::QueryHostUptimeMillis() - time;
 
     if (deltatime < SKIP_INVALID_CONTROLLER_TIME) {
       return ERROR_DEVICE_NOT_CONNECTED;
@@ -58,7 +58,7 @@ DWORD should_skip(uint32_t user_index) {
 }
 
 void set_skip(uint32_t user_index) {
-  last_invalid_time[user_index] = rex::chrono::Clock::QueryHostUptimeMillis();
+  last_invalid_time[user_index] = rex::Clock::QueryHostUptimeMillis();
 }
 
 }  // namespace

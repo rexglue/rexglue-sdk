@@ -25,7 +25,7 @@
 
 #include <rex/dbg.h>
 
-namespace rex::debug {
+namespace rex::platform {
 
 bool IsDebuggerAttached() {
 #if defined(__APPLE__)
@@ -76,4 +76,4 @@ void DebugPrint(const char* s) {
 }
 }  // namespace detail
 
-}  // namespace rex::debug
+}  // namespace rex::platform

@@ -63,7 +63,7 @@ void av_log_callback(void* avcl, int level, const char* fmt, va_list va) {
     return;
   }
 
-  string::StringBuffer buff;
+  StringBuffer buff;
   buff.AppendVarargs(fmt, va);
   auto msg = buff.to_string_view();
 
@@ -145,7 +145,7 @@ void XmaDecoder::WorkerThreadMain() {
       bool worked = context.Work();
       if (worked) {
         context.SignalWorkDone();
-        PROFILE_XMA_FRAME_DECODED();
+        REX_PERF_INC(kXMAFramesDecoded);
       }
       did_work = did_work || worked;
     }
@@ -269,7 +269,7 @@ uint32_t XmaDecoder::ReadRegister(uint32_t addr) {
 }
 
 void XmaDecoder::WriteRegister(uint32_t addr, uint32_t value) {
-  SCOPE_profile_cpu_f("apu");
+  REX_PROFILE_SCOPE("apu");
 
   uint32_t r = (addr & 0xFFFF) / 4;
   value = rex::byte_swap(value);

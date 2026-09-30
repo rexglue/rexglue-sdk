@@ -102,7 +102,7 @@ static uint32_t TiledOffset2DColumn(uint32_t x, uint32_t y, uint32_t log2_bpp,
 }
 
 void Untile(uint8_t* output_buffer, const uint8_t* input_buffer, const UntileInfo* untile_info) {
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
   assert_not_null(untile_info);
   assert_not_null(untile_info->input_format_info);
   assert_not_null(untile_info->output_format_info);

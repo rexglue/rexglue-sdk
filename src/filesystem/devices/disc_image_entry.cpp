@@ -27,7 +27,7 @@ DiscImageEntry::~DiscImageEntry() = default;
 std::unique_ptr<DiscImageEntry> DiscImageEntry::Create(Device* device, Entry* parent,
                                                        const std::string_view name,
                                                        memory::MappedMemory* mmap) {
-  auto path = rex::string::utf8_join_guest_paths(parent->path(), name);
+  auto path = rex::utf8_join_guest_paths(parent->path(), name);
   auto entry = std::make_unique<DiscImageEntry>(device, parent, path, mmap);
   return std::move(entry);
 }

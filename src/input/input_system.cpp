@@ -205,7 +205,7 @@ DeviceId InputSystem::ChooseDeviceForUser(uint32_t user_index) const {
 
 X_RESULT InputSystem::GetCapabilities(uint32_t user_index, uint32_t flags,
                                       X_INPUT_CAPABILITIES* out_caps) {
-  SCOPE_profile_cpu_f("hid");
+  REX_PROFILE_SCOPE("hid");
   if (!out_caps || !assignment_) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
@@ -257,7 +257,7 @@ void InputSystem::UpdateConnectedUser(uint32_t user_index, bool connected) {
 }
 
 X_RESULT InputSystem::GetState(uint32_t user_index, X_INPUT_STATE* out_state) {
-  SCOPE_profile_cpu_f("hid");
+  REX_PROFILE_SCOPE("hid");
 
   // A dialog owns the controller.
   if (ui_input_blockers_.load() > 0) {
@@ -281,7 +281,7 @@ X_RESULT InputSystem::GetState(uint32_t user_index, X_INPUT_STATE* out_state) {
 }
 
 X_RESULT InputSystem::GetStateForUI(uint32_t user_index, X_INPUT_STATE* out_state) {
-  SCOPE_profile_cpu_f("hid");
+  REX_PROFILE_SCOPE("hid");
   if (!assignment_) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
@@ -403,7 +403,7 @@ X_INPUT_VIBRATION InputSystem::ModifyVibrationLevel(const X_INPUT_VIBRATION* vib
 }
 
 X_RESULT InputSystem::SetState(uint32_t user_index, X_INPUT_VIBRATION* vibration) {
-  SCOPE_profile_cpu_f("hid");
+  REX_PROFILE_SCOPE("hid");
   if (!assignment_ || !vibration) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
@@ -448,7 +448,7 @@ X_RESULT InputSystem::SetState(uint32_t user_index, X_INPUT_VIBRATION* vibration
 
 X_RESULT InputSystem::GetKeystroke(uint32_t user_index, uint32_t flags,
                                    X_INPUT_KEYSTROKE* out_keystroke) {
-  SCOPE_profile_cpu_f("hid");
+  REX_PROFILE_SCOPE("hid");
   if (!assignment_) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }

@@ -14,7 +14,7 @@
 #include <rex/dbg.h>
 #include <rex/string/buffer.h>
 
-namespace rex::debug {
+namespace rex::platform {
 
 bool IsDebuggerAttached() {
   return IsDebuggerPresent() ? true : false;
@@ -30,4 +30,4 @@ void DebugPrint(const char* s) {
 }
 }  // namespace detail
 
-}  // namespace rex::debug
+}  // namespace rex::platform

@@ -125,7 +125,7 @@ Memory::~Memory() {
 }
 
 bool Memory::Initialize() {
-  file_name_ = fmt::format("xenia_memory_{}", chrono::Clock::QueryHostTickCount());
+  file_name_ = fmt::format("xenia_memory_{}", Clock::QueryHostTickCount());
 
   // Create main page file-backed mapping. This is all reserved but
   // uncommitted (so it shouldn't expand page file).
@@ -751,7 +751,7 @@ void Memory::DumpMap() {
   REXSYS_ERROR("");
 }
 
-bool Memory::Save(stream::ByteStream* stream) {
+bool Memory::Save(ByteStream* stream) {
   REXSYS_DEBUG("Serializing memory...");
   heaps_.v00000000.Save(stream);
   heaps_.v40000000.Save(stream);
@@ -762,7 +762,7 @@ bool Memory::Save(stream::ByteStream* stream) {
   return true;
 }
 
-bool Memory::Restore(stream::ByteStream* stream) {
+bool Memory::Restore(ByteStream* stream) {
   REXSYS_DEBUG("Restoring memory...");
   heaps_.v00000000.Restore(stream);
   heaps_.v40000000.Restore(stream);
@@ -1129,7 +1129,7 @@ uint32_t BaseHeap::GetUnreservedPageCount() {
   return count;
 }
 
-bool BaseHeap::Save(stream::ByteStream* stream) {
+bool BaseHeap::Save(ByteStream* stream) {
   REXSYS_DEBUG("Heap {:08X}-{:08X}", heap_base_, heap_base_ + (heap_size_ - 1));
 
   for (size_t i = 0; i < page_table_.size(); i++) {
@@ -1156,7 +1156,7 @@ bool BaseHeap::Save(stream::ByteStream* stream) {
   return true;
 }
 
-bool BaseHeap::Restore(stream::ByteStream* stream) {
+bool BaseHeap::Restore(ByteStream* stream) {
   REXSYS_DEBUG("Heap {:08X}-{:08X}", heap_base_, heap_base_ + (heap_size_ - 1));
 
   const uint32_t host_page_size = memory_->system_page_size_;

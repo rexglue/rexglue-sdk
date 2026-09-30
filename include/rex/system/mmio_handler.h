@@ -18,10 +18,10 @@
 #include <rex/platform.h>
 #include <rex/platform/mutex.h>
 
-namespace rex::arch {
+namespace rex::platform {
 class Exception;
 class HostThreadContext;
-}  // namespace rex::arch
+}  // namespace rex::platform
 
 namespace rex::runtime {
 
@@ -72,8 +72,8 @@ class MMIOHandler {
               AccessViolationCallback access_violation_callback,
               void* access_violation_callback_context);
 
-  static bool ExceptionCallbackThunk(arch::Exception* ex, void* data);
-  bool ExceptionCallback(arch::Exception* ex);
+  static bool ExceptionCallbackThunk(platform::Exception* ex, void* data);
+  bool ExceptionCallback(platform::Exception* ex);
 
   uint8_t* virtual_membase_;
   uint8_t* physical_membase_;

@@ -441,7 +441,7 @@ VulkanTextureCache::~VulkanTextureCache() {
   }
   samplers_.clear();
   custom_border_color_sampler_count_ = 0;
-  COUNT_profile_set("gpu/texture_cache/vulkan/samplers", 0);
+  REX_PROFILE_PLOT("gpu/texture_cache/vulkan/samplers", 0);
   sampler_used_last_ = nullptr;
   sampler_used_first_ = nullptr;
 
@@ -551,7 +551,7 @@ void VulkanTextureCache::EndFrame() {
 
 void VulkanTextureCache::RequestTextures(uint32_t used_texture_mask) {
 #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
 #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
 
   TextureCache::RequestTextures(used_texture_mask);
@@ -823,7 +823,7 @@ VkSampler VulkanTextureCache::UseSampler(SamplerParameters parameters, bool& has
     if (it_reuse != samplers_.end()) {
       // This destroys the Sampler object.
       samplers_.erase(it_reuse);
-      COUNT_profile_set("gpu/texture_cache/vulkan/samplers", samplers_.size());
+      REX_PROFILE_PLOT("gpu/texture_cache/vulkan/samplers", samplers_.size());
     } else {
       has_overflown_out = false;
       return VK_NULL_HANDLE;
@@ -942,7 +942,7 @@ VkSampler VulkanTextureCache::UseSampler(SamplerParameters parameters, bool& has
             .emplace(std::piecewise_construct, std::forward_as_tuple(parameters),
                      std::forward_as_tuple())
             .first);
-  COUNT_profile_set("gpu/texture_cache/vulkan/samplers", samplers_.size());
+  REX_PROFILE_PLOT("gpu/texture_cache/vulkan/samplers", samplers_.size());
   new_sampler.second.sampler = vulkan_sampler;
   new_sampler.second.uses_custom_border_color = uses_custom_border_color;
   new_sampler.second.last_usage_submission = submission_current;
@@ -2203,8 +2203,8 @@ bool VulkanTextureCache::EnsureScaledResolveBufferAllocated(uint64_t start_scale
       uint32_t((start_scaled + (length_scaled - 1)) >> scaled_resolve_sparse_granularity_log2_);
   while (true) {
     std::pair<size_t, size_t> allocation_range =
-        rex::bit::GetNextRangeUnset(scaled_resolve_sparse_allocated_.data(), allocation_first,
-                                    allocation_last - allocation_first + 1);
+        rex::GetNextRangeUnset(scaled_resolve_sparse_allocated_.data(), allocation_first,
+                               allocation_last - allocation_first + 1);
     if (!allocation_range.second) {
       break;
     }
@@ -2240,8 +2240,8 @@ bool VulkanTextureCache::EnsureScaledResolveBufferAllocated(uint64_t start_scale
         scaled_resolve_buffer_, 1, &bind,
         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT);
 
-    rex::bit::SetRange(scaled_resolve_sparse_allocated_.data(), allocation_range.first,
-                       allocation_range.second);
+    rex::SetRange(scaled_resolve_sparse_allocated_.data(), allocation_range.first,
+                  allocation_range.second);
     allocation_first = uint32_t(allocation_range.first + allocation_range.second);
   }
   return true;

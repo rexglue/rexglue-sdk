@@ -910,7 +910,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   dxbc::Assembler ao_;
 
   // Buffer for instruction disassembly comments.
-  string::StringBuffer instruction_disassembly_buffer_;
+  StringBuffer instruction_disassembly_buffer_;
 
   // Whether to write comments with the original Xenos instructions to the
   // output.

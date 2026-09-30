@@ -300,7 +300,7 @@ struct ParsedExecInstruction {
   uint32_t sequence = 0;
 
   // Disassembles the instruction into ucode assembly text.
-  void Disassemble(string::StringBuffer* out) const;
+  void Disassemble(StringBuffer* out) const;
 };
 
 struct ParsedLoopStartInstruction {
@@ -317,7 +317,7 @@ struct ParsedLoopStartInstruction {
   uint32_t loop_skip_address = 0;
 
   // Disassembles the instruction into ucode assembly text.
-  void Disassemble(string::StringBuffer* out) const;
+  void Disassemble(StringBuffer* out) const;
 };
 
 struct ParsedLoopEndInstruction {
@@ -337,7 +337,7 @@ struct ParsedLoopEndInstruction {
   uint32_t loop_body_address = 0;
 
   // Disassembles the instruction into ucode assembly text.
-  void Disassemble(string::StringBuffer* out) const;
+  void Disassemble(StringBuffer* out) const;
 };
 
 struct ParsedCallInstruction {
@@ -363,7 +363,7 @@ struct ParsedCallInstruction {
   bool condition = false;
 
   // Disassembles the instruction into ucode assembly text.
-  void Disassemble(string::StringBuffer* out) const;
+  void Disassemble(StringBuffer* out) const;
 };
 
 struct ParsedReturnInstruction {
@@ -371,7 +371,7 @@ struct ParsedReturnInstruction {
   uint32_t dword_index = 0;
 
   // Disassembles the instruction into ucode assembly text.
-  void Disassemble(string::StringBuffer* out) const;
+  void Disassemble(StringBuffer* out) const;
 };
 
 struct ParsedJumpInstruction {
@@ -397,7 +397,7 @@ struct ParsedJumpInstruction {
   bool condition = false;
 
   // Disassembles the instruction into ucode assembly text.
-  void Disassemble(string::StringBuffer* out) const;
+  void Disassemble(StringBuffer* out) const;
 };
 
 struct ParsedAllocInstruction {
@@ -413,7 +413,7 @@ struct ParsedAllocInstruction {
   bool is_vertex_shader = false;
 
   // Disassembles the instruction into ucode assembly text.
-  void Disassemble(string::StringBuffer* out) const;
+  void Disassemble(StringBuffer* out) const;
 };
 
 struct ParsedVertexFetchInstruction {
@@ -469,7 +469,7 @@ struct ParsedVertexFetchInstruction {
   Attributes attributes;
 
   // Disassembles the instruction into ucode assembly text.
-  void Disassemble(string::StringBuffer* out) const;
+  void Disassemble(StringBuffer* out) const;
 };
 
 struct ParsedTextureFetchInstruction {
@@ -522,7 +522,7 @@ struct ParsedTextureFetchInstruction {
   uint32_t GetNonZeroResultComponents() const;
 
   // Disassembles the instruction into ucode assembly text.
-  void Disassemble(string::StringBuffer* out) const;
+  void Disassemble(StringBuffer* out) const;
 };
 
 struct ParsedAluInstruction {
@@ -598,7 +598,7 @@ struct ParsedAluInstruction {
   uint32_t GetMemExportStreamConstant() const;
 
   // Disassembles the instruction into ucode assembly text.
-  void Disassemble(string::StringBuffer* out) const;
+  void Disassemble(StringBuffer* out) const;
 };
 
 void ParseControlFlowExec(const ucode::ControlFlowExecInstruction& cf, uint32_t cf_index,
@@ -838,7 +838,7 @@ class Shader {
   bool is_ucode_analyzed() const { return is_ucode_analyzed_; }
   // ucode_disasm_buffer is temporary storage for disassembly (provided
   // externally so it won't need to be reallocated for every shader).
-  void AnalyzeUcode(string::StringBuffer& ucode_disasm_buffer);
+  void AnalyzeUcode(StringBuffer& ucode_disasm_buffer);
 
   // The following parameters, until the translation, are valid if ucode
   // information has been gathered.
@@ -1036,16 +1036,15 @@ class Shader {
  private:
   void GatherExecInformation(const ParsedExecInstruction& instr,
                              ucode::VertexFetchInstruction& previous_vfetch_full,
-                             uint32_t& unique_texture_bindings,
-                             string::StringBuffer& ucode_disasm_buffer);
+                             uint32_t& unique_texture_bindings, StringBuffer& ucode_disasm_buffer);
   void GatherVertexFetchInformation(const ucode::VertexFetchInstruction& op,
                                     ucode::VertexFetchInstruction& previous_vfetch_full,
-                                    string::StringBuffer& ucode_disasm_buffer);
+                                    StringBuffer& ucode_disasm_buffer);
   void GatherTextureFetchInformation(const ucode::TextureFetchInstruction& op,
                                      uint32_t& unique_texture_bindings,
-                                     string::StringBuffer& ucode_disasm_buffer);
+                                     StringBuffer& ucode_disasm_buffer);
   void GatherAluInstructionInformation(const ucode::AluInstruction& op, uint32_t exec_cf_index,
-                                       string::StringBuffer& ucode_disasm_buffer);
+                                       StringBuffer& ucode_disasm_buffer);
   void GatherOperandInformation(const InstructionOperand& operand);
   void GatherFetchResultInformation(const InstructionResult& result);
   void GatherAluResultInformation(const InstructionResult& result, uint32_t exec_cf_index);

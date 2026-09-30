@@ -168,7 +168,7 @@ void CommandProcessor::WorkerThreadMain() {
 
     uint32_t write_ptr_index = write_ptr_index_.load();
     if (write_ptr_index == 0xBAADF00D || read_ptr_index_ == write_ptr_index) {
-      SCOPE_profile_cpu_i("gpu", "rex::graphics::CommandProcessor::Stall");
+      REX_PROFILE_SCOPE_TEXT("gpu", "rex::graphics::CommandProcessor::Stall");
       // We've run out of commands to execute.
       // We spin here waiting for new ones, as the overhead of waiting on our
       // event is too high.
@@ -235,7 +235,7 @@ void CommandProcessor::Resume() {
   worker_thread_->thread()->Resume();
 }
 
-bool CommandProcessor::Save(::rex::stream::ByteStream* stream) {
+bool CommandProcessor::Save(::rex::ByteStream* stream) {
   assert_true(paused_);
 
   stream->Write<uint32_t>(primary_buffer_ptr_);
@@ -248,7 +248,7 @@ bool CommandProcessor::Save(::rex::stream::ByteStream* stream) {
   return true;
 }
 
-bool CommandProcessor::Restore(::rex::stream::ByteStream* stream) {
+bool CommandProcessor::Restore(::rex::ByteStream* stream) {
   assert_true(paused_);
 
   primary_buffer_ptr_ = stream->Read<uint32_t>();
@@ -525,7 +525,7 @@ void CommandProcessor::WriteREGISTERSRangeFromMem(uint32_t start_index, uint32_t
 }
 
 void CommandProcessor::MakeCoherent() {
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
 
   // Status host often has 0x01000000 or 0x03000000.
   // This is likely toggling VC (vertex cache) or TC (texture cache).
@@ -569,7 +569,7 @@ void CommandProcessor::PrepareForWait() {}
 void CommandProcessor::ReturnFromWait() {}
 
 uint32_t CommandProcessor::ExecutePrimaryBuffer(uint32_t read_index, uint32_t write_index) {
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
 
   // Execute commands!
   memory::RingBuffer reader(memory_->TranslatePhysical(primary_buffer_ptr_), primary_buffer_size_);
@@ -590,7 +590,7 @@ uint32_t CommandProcessor::ExecutePrimaryBuffer(uint32_t read_index, uint32_t wr
 }
 
 void CommandProcessor::ExecuteIndirectBuffer(uint32_t ptr, uint32_t count) {
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
 
   // Execute commands!
   memory::RingBuffer reader(memory_->TranslatePhysical(ptr), count * sizeof(uint32_t));
@@ -868,7 +868,7 @@ bool CommandProcessor::ExecutePacketType3_NOP(memory::RingBuffer* reader, uint32
 
 bool CommandProcessor::ExecutePacketType3_INTERRUPT(memory::RingBuffer* reader, uint32_t packet,
                                                     uint32_t count) {
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
 
   // generate interrupt from the command stream
   uint32_t cpu_mask = reader->ReadAndSwap<uint32_t>();
@@ -884,22 +884,22 @@ bool CommandProcessor::ExecutePacketType3_INTERRUPT(memory::RingBuffer* reader, 
 
 bool CommandProcessor::ExecutePacketType3_XE_SWAP(memory::RingBuffer* reader, uint32_t packet,
                                                   uint32_t count) {
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
 
 #ifdef REXGLUE_ENABLE_PERF_COUNTERS
   {
     static uint64_t last_frame_tick = 0;
-    uint64_t now = rex::chrono::Clock::QueryHostTickCount();
+    uint64_t now = rex::Clock::QueryHostTickCount();
     if (last_frame_tick) {
-      uint64_t freq = rex::chrono::Clock::QueryHostTickFrequency();
+      uint64_t freq = rex::Clock::QueryHostTickFrequency();
       int64_t dt_us = static_cast<int64_t>((now - last_frame_tick) * 1000000 / freq);
-      PROFILE_FRAME_TIME_US(dt_us);
-      PROFILE_FPS(freq / (now - last_frame_tick));
+      REX_PERF_SET(kFrameTimeUs, dt_us);
+      REX_PERF_SET(kFps, freq / (now - last_frame_tick));
     }
     last_frame_tick = now;
   }
 #endif
-  rex::perf::Profiler::Flip();
+  rex::platform::Profiler::Flip();
 
   // Xenia-specific VdSwap hook.
   // VdSwap will post this to tell us we need to swap the screen/fire an
@@ -933,7 +933,7 @@ bool CommandProcessor::ExecutePacketType3_INDIRECT_BUFFER(memory::RingBuffer* re
 
 bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reader, uint32_t packet,
                                                        uint32_t count) {
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
 
   // wait until a register or memory location is a specific value
 
@@ -1469,7 +1469,7 @@ bool CommandProcessor::ExecutePacketType3_SET_SHADER_CONSTANTS(memory::RingBuffe
 
 bool CommandProcessor::ExecutePacketType3_IM_LOAD(memory::RingBuffer* reader, uint32_t packet,
                                                   uint32_t count) {
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
 
   // load sequencer instruction memory (pointer-based)
   uint32_t addr_type = reader->ReadAndSwap<uint32_t>();
@@ -1498,7 +1498,7 @@ bool CommandProcessor::ExecutePacketType3_IM_LOAD(memory::RingBuffer* reader, ui
 
 bool CommandProcessor::ExecutePacketType3_IM_LOAD_IMMEDIATE(memory::RingBuffer* reader,
                                                             uint32_t packet, uint32_t count) {
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
 
   // load sequencer instruction memory (code embedded in packet)
   uint32_t dword0 = reader->ReadAndSwap<uint32_t>();

@@ -164,10 +164,10 @@ TEST_CASE("SaveConfigFile round trips through LoadConfigFile", "[config]") {
 }
 
 TEST_CASE("ApplyEnvironment reads REX_ variables into Environment overrides", "[config]") {
-  rex::platform::env::set("REX_GPU_VSYNC", "false");
-  rex::platform::env::set("REX_APP_DEBUG_MARKERS", "1");
-  rex::platform::env::set("REX_NOSCOPE", "x");
-  rex::platform::env::set("REXX_FOO", "x");
+  rex::platform::SetEnvironmentValue("REX_GPU_VSYNC", "false");
+  rex::platform::SetEnvironmentValue("REX_APP_DEBUG_MARKERS", "1");
+  rex::platform::SetEnvironmentValue("REX_NOSCOPE", "x");
+  rex::platform::SetEnvironmentValue("REXX_FOO", "x");
   rex::Config cfg;
   rex::cvar::ApplyEnvironment(cfg);
   REQUIRE(Find(cfg, "gpu.vsync") != nullptr);
@@ -177,10 +177,10 @@ TEST_CASE("ApplyEnvironment reads REX_ variables into Environment overrides", "[
   REQUIRE(Find(cfg, "noscope") == nullptr);
   for (const auto& o : cfg.cvars.values)
     REQUIRE(o.name.find("foo") == std::string::npos);
-  rex::platform::env::unset("REX_GPU_VSYNC");
-  rex::platform::env::unset("REX_APP_DEBUG_MARKERS");
-  rex::platform::env::unset("REX_NOSCOPE");
-  rex::platform::env::unset("REXX_FOO");
+  rex::platform::UnsetEnvironmentValue("REX_GPU_VSYNC");
+  rex::platform::UnsetEnvironmentValue("REX_APP_DEBUG_MARKERS");
+  rex::platform::UnsetEnvironmentValue("REX_NOSCOPE");
+  rex::platform::UnsetEnvironmentValue("REXX_FOO");
 }
 
 TEST_CASE("CvarConfig::Get returns the highest precedence queued value", "[config]") {

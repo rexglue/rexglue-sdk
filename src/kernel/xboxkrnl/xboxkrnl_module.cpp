@@ -181,13 +181,11 @@ XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
   export_resolver_->SetVariableMapping("xboxkrnl.exe", 0x00AD, pKeTimeStampBundle);
   memory::store_and_swap<uint64_t>(lpKeTimeStampBundle + 0, 0);
   memory::store_and_swap<uint64_t>(lpKeTimeStampBundle + 8, 0);
-  memory::store_and_swap<uint32_t>(lpKeTimeStampBundle + 16,
-                                   chrono::Clock::QueryGuestUptimeMillis());
+  memory::store_and_swap<uint32_t>(lpKeTimeStampBundle + 16, Clock::QueryGuestUptimeMillis());
   memory::store_and_swap<uint32_t>(lpKeTimeStampBundle + 20, 0);
   timestamp_timer_ = rex::platform::HighResolutionTimer::CreateRepeating(
       std::chrono::milliseconds(1), [lpKeTimeStampBundle]() {
-        memory::store_and_swap<uint32_t>(lpKeTimeStampBundle + 16,
-                                         chrono::Clock::QueryGuestUptimeMillis());
+        memory::store_and_swap<uint32_t>(lpKeTimeStampBundle + 16, Clock::QueryGuestUptimeMillis());
       });
 
   // Wire kernel object type variables to KernelGuestGlobals.

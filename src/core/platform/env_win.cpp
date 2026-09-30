@@ -20,10 +20,10 @@ static_assert(REX_PLATFORM_WIN32, "This file is Windows-only");
 
 #include <cwchar>
 
-namespace rex::platform::env {
+namespace rex::platform {
 
-std::optional<std::string> get(std::string_view name) {
-  std::u16string wname = rex::string::to_utf16(name);
+std::optional<std::string> GetEnvironmentValue(std::string_view name) {
+  std::u16string wname = rex::to_utf16(name);
   // First call sizes the buffer (return value is char count INCLUDING NUL on
   // success, or 0 on error / not-set).
   DWORD required = GetEnvironmentVariableW(reinterpret_cast<LPCWSTR>(wname.c_str()), nullptr, 0);
@@ -37,22 +37,22 @@ std::optional<std::string> get(std::string_view name) {
     return std::nullopt;
   }
   buffer.resize(written);
-  return rex::string::to_utf8(buffer);
+  return rex::to_utf8(buffer);
 }
 
-bool set(std::string_view name, std::string_view value) {
-  std::u16string wname = rex::string::to_utf16(name);
-  std::u16string wvalue = rex::string::to_utf16(value);
+bool SetEnvironmentValue(std::string_view name, std::string_view value) {
+  std::u16string wname = rex::to_utf16(name);
+  std::u16string wvalue = rex::to_utf16(value);
   return SetEnvironmentVariableW(reinterpret_cast<LPCWSTR>(wname.c_str()),
                                  reinterpret_cast<LPCWSTR>(wvalue.c_str())) != 0;
 }
 
-bool unset(std::string_view name) {
-  std::u16string wname = rex::string::to_utf16(name);
+bool UnsetEnvironmentValue(std::string_view name) {
+  std::u16string wname = rex::to_utf16(name);
   return SetEnvironmentVariableW(reinterpret_cast<LPCWSTR>(wname.c_str()), nullptr) != 0;
 }
 
-std::vector<std::pair<std::string, std::string>> enumerate() {
+std::vector<std::pair<std::string, std::string>> EnumerateEnvironment() {
   std::vector<std::pair<std::string, std::string>> out;
   wchar_t* block = GetEnvironmentStringsW();
   if (!block) {
@@ -64,11 +64,10 @@ std::vector<std::pair<std::string, std::string>> enumerate() {
     if (eq == std::u16string_view::npos) {
       continue;
     }
-    out.emplace_back(rex::string::to_utf8(entry.substr(0, eq)),
-                     rex::string::to_utf8(entry.substr(eq + 1)));
+    out.emplace_back(rex::to_utf8(entry.substr(0, eq)), rex::to_utf8(entry.substr(eq + 1)));
   }
   FreeEnvironmentStringsW(block);
   return out;
 }
 
-}  // namespace rex::platform::env
+}  // namespace rex::platform

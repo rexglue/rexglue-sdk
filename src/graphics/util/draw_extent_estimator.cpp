@@ -74,7 +74,7 @@ void DrawExtentEstimator::PositionYExportSink::Export(ucode::ExportRegister expo
 }
 
 uint32_t DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
 
   const RegisterFile& regs = register_file_;
 
@@ -247,7 +247,7 @@ uint32_t DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
 
 uint32_t DrawExtentEstimator::EstimateMaxY(bool try_to_estimate_vertex_max_y,
                                            const Shader& vertex_shader) {
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
 
   const RegisterFile& regs = register_file_;
 

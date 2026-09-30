@@ -23,8 +23,6 @@
 
 namespace rex::graphics::d3d12 {
 
-using namespace ::rex::literals;
-
 class D3D12CommandProcessor;
 
 class DeferredCommandList {

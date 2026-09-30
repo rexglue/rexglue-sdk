@@ -18,8 +18,9 @@
 #include <rex/assert.h>
 #include <rex/math.h>
 
-namespace rex::arch {
+namespace rex::platform {
 
+namespace {
 // Handle of the added VectoredExceptionHandler.
 void* veh_handle_ = nullptr;
 // Handle of the added VectoredContinueHandler.
@@ -100,6 +101,7 @@ LONG CALLBACK ExceptionHandlerCallback(PEXCEPTION_POINTERS ex_info) {
   }
   return EXCEPTION_CONTINUE_SEARCH;
 }
+}  // namespace
 
 void ExceptionHandler::Install(Handler fn, void* data) {
   if (!veh_handle_) {
@@ -153,6 +155,6 @@ void ExceptionHandler::Uninstall(Handler fn, void* data) {
   }
 }
 
-}  // namespace rex::arch
+}  // namespace rex::platform
 
 #endif  // REX_PLATFORM_WIN32

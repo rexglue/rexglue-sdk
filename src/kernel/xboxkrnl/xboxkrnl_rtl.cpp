@@ -103,8 +103,8 @@ u32 RtlLowerChar_entry(u32 in) {
 }
 
 u32 RtlCompareString_entry(mapped_string string_1, mapped_string string_2, u32 case_insensitive) {
-  int ret = case_insensitive ? rex::string::compare_case(string_1, string_2)
-                             : std::strcmp(string_1, string_2);
+  int ret =
+      case_insensitive ? rex::compare_case(string_1, string_2) : std::strcmp(string_1, string_2);
 
   return ret;
 }
@@ -122,7 +122,7 @@ u32 RtlCompareStringN_entry(mapped_string string_1, u32 string_1_len, mapped_str
   }
   auto len = std::min(string_1_len, string_2_len);
 
-  int ret = case_insensitive ? rex::string::compare_case_n(string_1, string_2, len)
+  int ret = case_insensitive ? rex::compare_case_n(string_1, string_2, len)
                              : std::strncmp(string_1, string_2, len);
 
   return ret;
@@ -211,7 +211,7 @@ u32 RtlUnicodeStringToAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> destination_ptr,
   // _In_     BOOLEAN AllocateDestinationString
 
   std::u16string unicode_str = util::TranslateUnicodeString(REX_KERNEL_MEMORY(), source_ptr);
-  std::string ansi_str = rex::string::to_utf8(unicode_str);
+  std::string ansi_str = rex::to_utf8(unicode_str);
   if (ansi_str.size() > 0xFFFF - 1) {
     return X_STATUS_INVALID_PARAMETER_2;
   }
@@ -461,7 +461,7 @@ static_assert_size(X_TIME_FIELDS, 16);
 // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtltimetotimefields
 void RtlTimeToTimeFields_entry(mapped_u64 time_ptr, ppc_ptr_t<X_TIME_FIELDS> time_fields_ptr) {
   // Use host clock because we don't want scaling to be applied, just conversion
-  using rex::chrono::WinSystemClock;
+  using rex::WinSystemClock;
   auto tp = WinSystemClock::to_sys(WinSystemClock::from_file_time(time_ptr.value()));
   auto dp = std::chrono::floor<std::chrono::days>(tp);
   auto year_month_day = std::chrono::year_month_day{dp};
@@ -479,7 +479,7 @@ void RtlTimeToTimeFields_entry(mapped_u64 time_ptr, ppc_ptr_t<X_TIME_FIELDS> tim
 
 // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtltimefieldstotime
 u32 RtlTimeFieldsToTime_entry(ppc_ptr_t<X_TIME_FIELDS> time_fields_ptr, mapped_u64 time_ptr) {
-  using rex::chrono::WinSystemClock;
+  using rex::WinSystemClock;
   if (time_fields_ptr->year < 1601 || time_fields_ptr->month < 1 || time_fields_ptr->month > 12 ||
       time_fields_ptr->day < 1 || time_fields_ptr->day > 31 || time_fields_ptr->hour > 23 ||
       time_fields_ptr->minute > 59 || time_fields_ptr->second > 59 ||

@@ -19,8 +19,6 @@
 
 namespace rex::filesystem {
 
-using namespace rex::literals;
-
 const size_t kXESectorSize = 2_KiB;
 
 DiscImageDevice::DiscImageDevice(const std::string_view mount_path,
@@ -54,7 +52,7 @@ bool DiscImageDevice::Initialize() {
   return true;
 }
 
-void DiscImageDevice::Dump(string::StringBuffer* string_buffer) {
+void DiscImageDevice::Dump(StringBuffer* string_buffer) {
   auto global_lock = global_critical_region_.Acquire();
   string_buffer->AppendFormat(
       "{}: {} files, {} bytes (game_offset={:#x}, root_sector={}, root_size={}, host_size={})\n",

@@ -147,13 +147,13 @@ X_STATUS GraphicsSystem::SetupGuestGPU(runtime::FunctionDispatcher* function_dis
         system::X_VIDEO_MODE video_mode;
         kernel::xboxkrnl::VdQueryVideoMode(&video_mode);
         double refresh_rate_hz = std::max(1.0, double(float(video_mode.refresh_rate)));
-        uint64_t guest_tick_frequency = chrono::Clock::guest_tick_frequency();
+        uint64_t guest_tick_frequency = Clock::guest_tick_frequency();
         uint64_t vsync_interval_ticks =
             std::max(uint64_t(1), uint64_t(double(guest_tick_frequency) / refresh_rate_hz));
         uint64_t no_vsync_interval_ticks = std::max(uint64_t(1), guest_tick_frequency / 1000);
-        uint64_t last_frame_time = chrono::Clock::QueryGuestTickCount();
+        uint64_t last_frame_time = Clock::QueryGuestTickCount();
         while (vsync_worker_running_) {
-          uint64_t current_time = chrono::Clock::QueryGuestTickCount();
+          uint64_t current_time = Clock::QueryGuestTickCount();
           uint64_t interval_ticks = REXCVAR_GET(::rex::graphics::cvars::vsync)
                                         ? vsync_interval_ticks
                                         : no_vsync_interval_ticks;
@@ -313,7 +313,7 @@ void GraphicsSystem::DispatchInterruptCallback(uint32_t source, uint32_t cpu) {
 
 void GraphicsSystem::MarkVblank() {
   // TODO: Enable profiling once ported
-  // SCOPE_profile_cpu_f("gpu");
+  // REX_PROFILE_SCOPE("gpu");
 
   // Increment vblank counter (so the game sees us making progress).
   if (command_processor_) {
@@ -369,13 +369,13 @@ void GraphicsSystem::Resume() {
   command_processor_->Resume();
 }
 
-bool GraphicsSystem::Save(::rex::stream::ByteStream* stream) {
+bool GraphicsSystem::Save(::rex::ByteStream* stream) {
   stream->Write<uint32_t>(interrupt_callback_);
   stream->Write<uint32_t>(interrupt_callback_data_);
   return command_processor_->Save(stream);
 }
 
-bool GraphicsSystem::Restore(::rex::stream::ByteStream* stream) {
+bool GraphicsSystem::Restore(::rex::ByteStream* stream) {
   interrupt_callback_ = stream->Read<uint32_t>();
   interrupt_callback_data_ = stream->Read<uint32_t>();
   return command_processor_->Restore(stream);

@@ -65,7 +65,7 @@ X_STATUS XSocket::Close() {
     return X_STATUS_SUCCESS;
   }
 
-  int ret = rex::net::socket_close(native_handle_);
+  int ret = rex::platform::socket_close(native_handle_);
   native_handle_ = -1;
   if (ret != 0) {
     return X_STATUS_UNSUCCESSFUL;
@@ -96,7 +96,7 @@ X_STATUS XSocket::SetOption(uint32_t level, uint32_t optname, void* optval_ptr, 
 }
 
 X_STATUS XSocket::IOControl(uint32_t cmd, uint8_t* arg_ptr) {
-  int ret = rex::net::socket_ioctl(native_handle_, cmd, arg_ptr);
+  int ret = rex::platform::socket_ioctl(native_handle_, cmd, arg_ptr);
   if (ret < 0) {
     // TODO: Get last error
     return X_STATUS_UNSUCCESSFUL;

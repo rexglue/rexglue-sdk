@@ -55,9 +55,8 @@ bool VirtualFileSystem::RegisterSymbolicLink(const std::string_view path,
 
 bool VirtualFileSystem::UnregisterSymbolicLink(const std::string_view path) {
   auto global_lock = global_critical_region_.Acquire();
-  auto it = std::find_if(symlinks_.cbegin(), symlinks_.cend(), [&](const auto& s) {
-    return rex::string::utf8_equal_case(path, s.first);
-  });
+  auto it = std::find_if(symlinks_.cbegin(), symlinks_.cend(),
+                         [&](const auto& s) { return rex::utf8_equal_case(path, s.first); });
   if (it == symlinks_.end()) {
     return false;
   }
@@ -68,9 +67,8 @@ bool VirtualFileSystem::UnregisterSymbolicLink(const std::string_view path) {
 }
 
 bool VirtualFileSystem::FindSymbolicLink(const std::string_view path, std::string& target) {
-  auto it = std::find_if(symlinks_.cbegin(), symlinks_.cend(), [&](const auto& s) {
-    return rex::string::utf8_starts_with_case(path, s.first);
-  });
+  auto it = std::find_if(symlinks_.cbegin(), symlinks_.cend(),
+                         [&](const auto& s) { return rex::utf8_starts_with_case(path, s.first); });
   if (it == symlinks_.cend()) {
     return false;
   }
@@ -83,7 +81,7 @@ bool VirtualFileSystem::ResolveSymbolicLink(const std::string_view path, std::st
   bool was_resolved = false;
   while (true) {
     auto it = std::find_if(symlinks_.cbegin(), symlinks_.cend(), [&](const auto& s) {
-      return rex::string::utf8_starts_with_case(result, s.first);
+      return rex::utf8_starts_with_case(result, s.first);
     });
     if (it == symlinks_.cend()) {
       break;
@@ -101,7 +99,7 @@ Entry* VirtualFileSystem::ResolvePath(const std::string_view path) {
   auto global_lock = global_critical_region_.Acquire();
 
   // Resolve relative paths
-  auto normalized_path(rex::string::utf8_canonicalize_guest_path(path));
+  auto normalized_path(rex::utf8_canonicalize_guest_path(path));
 
   // Resolve symlinks.
   std::string resolved_path;
@@ -112,7 +110,7 @@ Entry* VirtualFileSystem::ResolvePath(const std::string_view path) {
 
   // Find the device.
   auto it = std::find_if(devices_.cbegin(), devices_.cend(), [&](const auto& d) {
-    return rex::string::utf8_starts_with_case(normalized_path, d->mount_path());
+    return rex::utf8_starts_with_case(normalized_path, d->mount_path());
   });
   if (it == devices_.cend()) {
     REXFS_WARN("VFS: '{}' -> [no device]", path);
@@ -150,7 +148,7 @@ Entry* VirtualFileSystem::ResolvePath(const std::string_view path) {
 
 Entry* VirtualFileSystem::CreatePath(const std::string_view path, uint32_t attributes) {
   // Create all required directories recursively.
-  auto path_parts = rex::string::utf8_split_path(path);
+  auto path_parts = rex::utf8_split_path(path);
   if (path_parts.empty()) {
     return nullptr;
   }
@@ -161,7 +159,7 @@ Entry* VirtualFileSystem::CreatePath(const std::string_view path, uint32_t attri
   }
   auto parent_entry = partial_entry;
   for (size_t i = 1; i < path_parts.size() - 1; ++i) {
-    partial_path = rex::string::utf8_join_guest_paths(partial_path, path_parts[i]);
+    partial_path = rex::utf8_join_guest_paths(partial_path, path_parts[i]);
     auto child_entry = ResolvePath(partial_path);
     if (!child_entry) {
       child_entry = parent_entry->CreateEntry(path_parts[i], kFileAttributeDirectory);
@@ -210,7 +208,7 @@ X_STATUS VirtualFileSystem::OpenFile(Entry* root_entry, const std::string_view p
   Entry* parent_entry = nullptr;
   Entry* entry = nullptr;
 
-  auto base_path = rex::string::utf8_find_base_guest_path(path);
+  auto base_path = rex::utf8_find_base_guest_path(path);
   if (!base_path.empty()) {
     parent_entry = !root_entry ? ResolvePath(base_path) : root_entry->ResolvePath(base_path);
     if (!parent_entry) {
@@ -218,7 +216,7 @@ X_STATUS VirtualFileSystem::OpenFile(Entry* root_entry, const std::string_view p
       return X_STATUS_NO_SUCH_FILE;
     }
 
-    auto file_name = rex::string::utf8_find_name_from_guest_path(path);
+    auto file_name = rex::utf8_find_name_from_guest_path(path);
     entry = parent_entry->GetChild(file_name);
   } else {
     entry = !root_entry ? ResolvePath(path) : root_entry->GetChild(path);

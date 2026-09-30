@@ -79,7 +79,7 @@ class Entry {
  public:
   virtual ~Entry();
 
-  void Dump(rex::string::StringBuffer* string_buffer, int indent);
+  void Dump(rex::StringBuffer* string_buffer, int indent);
 
   Device* device() const { return device_; }
   Entry* parent() const { return parent_; }

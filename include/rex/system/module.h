@@ -16,7 +16,7 @@
 #include <string_view>
 #include <vector>
 
-#include <rex/memory.h>
+#include <rex/system/xmemory.h>
 #include <rex/system/binary_types.h>
 
 namespace rex::runtime {

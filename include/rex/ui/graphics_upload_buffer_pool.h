@@ -18,8 +18,6 @@
 namespace rex {
 namespace ui {
 
-using namespace rex::literals;
-
 // Submission index is the fence value or a value derived from it (if reclaiming
 // less often than once per fence value, for instance).
 

@@ -259,7 +259,7 @@ X_RESULT ContentManager::CreateContent(const std::string_view root_name, uint64_
                                        const XCONTENT_AGGREGATE_DATA& data) {
   {
     auto global_lock = global_critical_region_.Acquire();
-    if (open_packages_.count(string::string_key_case(root_name))) {
+    if (open_packages_.count(string_key_case(root_name))) {
       return X_ERROR_ALREADY_EXISTS;
     }
   }
@@ -276,10 +276,10 @@ X_RESULT ContentManager::CreateContent(const std::string_view root_name, uint64_
 
   {
     auto global_lock = global_critical_region_.Acquire();
-    if (open_packages_.count(string::string_key_case(root_name))) {
+    if (open_packages_.count(string_key_case(root_name))) {
       return X_ERROR_ALREADY_EXISTS;
     }
-    open_packages_.insert({string::string_key_case::create(root_name), package.release()});
+    open_packages_.insert({string_key_case::create(root_name), package.release()});
   }
   return X_ERROR_SUCCESS;
 }
@@ -289,7 +289,7 @@ X_RESULT ContentManager::OpenContent(const std::string_view root_name, uint64_t 
                                      uint32_t& content_license) {
   {
     auto global_lock = global_critical_region_.Acquire();
-    if (open_packages_.count(string::string_key_case(root_name))) {
+    if (open_packages_.count(string_key_case(root_name))) {
       return X_ERROR_ALREADY_EXISTS;
     }
   }
@@ -306,10 +306,10 @@ X_RESULT ContentManager::OpenContent(const std::string_view root_name, uint64_t 
 
   {
     auto global_lock = global_critical_region_.Acquire();
-    if (open_packages_.count(string::string_key_case(root_name))) {
+    if (open_packages_.count(string_key_case(root_name))) {
       return X_ERROR_ALREADY_EXISTS;
     }
-    open_packages_.insert({string::string_key_case::create(root_name), package.release()});
+    open_packages_.insert({string_key_case::create(root_name), package.release()});
   }
   return X_ERROR_SUCCESS;
 }
@@ -319,7 +319,7 @@ X_RESULT ContentManager::CloseContent(const std::string_view root_name) {
   {
     auto global_lock = global_critical_region_.Acquire();
     // Some games use different casing between Create and Close (e.g. "save" vs "SAVE")
-    auto it = open_packages_.find(string::string_key_case(root_name));
+    auto it = open_packages_.find(string_key_case(root_name));
     if (it == open_packages_.end()) {
       return X_ERROR_FILE_NOT_FOUND;
     }
@@ -451,8 +451,7 @@ std::filesystem::path ContentManager::ResolveGameUserContentPath() {
   return root_path_ / title_id / kGameUserContentDirName / user_name;
 }
 
-std::unordered_map<string::string_key_case, ContentPackage*,
-                   string::string_key_case::Hash>::iterator
+std::unordered_map<string_key_case, ContentPackage*, string_key_case::Hash>::iterator
 ContentManager::FindOpenPackageByData(const XCONTENT_AGGREGATE_DATA& data) {
   // Resolve kCurrentlyRunningTitleId so both sides compare actual title IDs.
   uint32_t query_title = data.title_id;
@@ -479,8 +478,7 @@ ContentManager::FindOpenPackageByData(const XCONTENT_AGGREGATE_DATA& data) {
 }
 
 ContentPackage* ContentManager::DetachPackage(
-    std::unordered_map<string::string_key_case, ContentPackage*,
-                       string::string_key_case::Hash>::iterator it) {
+    std::unordered_map<string_key_case, ContentPackage*, string_key_case::Hash>::iterator it) {
   CloseOpenedFilesFromContent(it->first.view());
   ContentPackage* package = it->second;
   open_packages_.erase(it);
@@ -494,7 +492,7 @@ bool ContentManager::IsContentOpen(const XCONTENT_AGGREGATE_DATA& data) const {
 }
 
 std::filesystem::path ContentManager::GetOpenPackagePath(const std::string_view root_name) const {
-  auto it = open_packages_.find(string::string_key_case(root_name));
+  auto it = open_packages_.find(string_key_case(root_name));
   if (it == open_packages_.end()) {
     return {};
   }
@@ -512,7 +510,7 @@ void ContentManager::CloseOpenedFilesFromContent(const std::string_view root_nam
 
   for (const object_ref<XFile>& file : all_files_handles) {
     std::string file_path = file->entry()->absolute_path();
-    bool is_file_inside_content = rex::string::utf8_starts_with(file_path, resolved_path);
+    bool is_file_inside_content = rex::utf8_starts_with(file_path, resolved_path);
 
     if (is_file_inside_content) {
       file->ReleaseHandle();
@@ -522,7 +520,7 @@ void ContentManager::CloseOpenedFilesFromContent(const std::string_view root_nam
 
 static X_RESULT ExtractEntry(rex::filesystem::Entry* entry,
                              const std::filesystem::path& base_path) {
-  auto dest_path = base_path / rex::to_path(rex::string::utf8_fix_path_separators(entry->path()));
+  auto dest_path = base_path / rex::to_path(rex::utf8_fix_path_separators(entry->path()));
 
   if (entry->attributes() & rex::filesystem::kFileAttributeDirectory) {
     std::error_code ec;

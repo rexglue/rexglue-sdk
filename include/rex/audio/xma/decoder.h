@@ -83,7 +83,7 @@ class XmaDecoder {
 
   static const uint32_t kContextCount = 320;
   XmaContext contexts_[kContextCount];
-  bit::BitMap context_bitmap_;
+  BitMap context_bitmap_;
 
   uint32_t context_data_first_ptr_ = 0;
   uint32_t context_data_last_ptr_ = 0;

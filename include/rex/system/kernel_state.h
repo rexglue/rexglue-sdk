@@ -78,9 +78,7 @@
 
 namespace rex {
 class Runtime;
-namespace stream {
 class ByteStream;
-}  // namespace stream
 namespace runtime {
 class FunctionDispatcher;
 }  // namespace runtime
@@ -333,8 +331,8 @@ class KernelState {
       std::function<X_RESULT(uint32_t&, uint32_t&)> completion_callback, uint32_t overlapped_ptr,
       std::function<void()> pre_callback = nullptr, std::function<void()> post_callback = nullptr);
 
-  bool Save(stream::ByteStream* stream);
-  bool Restore(stream::ByteStream* stream);
+  bool Save(ByteStream* stream);
+  bool Restore(ByteStream* stream);
 
   void SetLoadedAchievements(std::vector<AchievementInfo> achievements);
   void UnlockAchievement(uint32_t id);

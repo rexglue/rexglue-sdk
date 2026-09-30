@@ -32,9 +32,9 @@
 #include <rex/platform/thread.h>
 #include <rex/ui/presenter.h>
 
-namespace rex::stream {
+namespace rex {
 class ByteStream;
-}  // namespace rex::stream
+}  // namespace rex
 
 namespace rex::graphics {
 
@@ -128,8 +128,8 @@ class CommandProcessor {
   void Pause();
   void Resume();
 
-  bool Save(::rex::stream::ByteStream* stream);
-  bool Restore(::rex::stream::ByteStream* stream);
+  bool Save(::rex::ByteStream* stream);
+  bool Restore(::rex::ByteStream* stream);
 
  protected:
   struct IndexBufferInfo {

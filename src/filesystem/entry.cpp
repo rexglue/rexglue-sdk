@@ -29,13 +29,13 @@ Entry::Entry(Device* device, Entry* parent, const std::string_view path)
       access_timestamp_(0),
       write_timestamp_(0) {
   assert_not_null(device);
-  absolute_path_ = rex::string::utf8_join_guest_paths(device->mount_path(), path);
-  name_ = rex::string::utf8_find_name_from_guest_path(path);
+  absolute_path_ = rex::utf8_join_guest_paths(device->mount_path(), path);
+  name_ = rex::utf8_find_name_from_guest_path(path);
 }
 
 Entry::~Entry() = default;
 
-void Entry::Dump(rex::string::StringBuffer* string_buffer, int indent) {
+void Entry::Dump(rex::StringBuffer* string_buffer, int indent) {
   for (int i = 0; i < indent; ++i) {
     string_buffer->Append(' ');
   }
@@ -56,7 +56,7 @@ Entry* Entry::GetChild(const std::string_view name) {
   // names it calls equal hold the same bytes per codepoint. It skips the UTF-8
   // decode for nearly every child, and a game directory can hold thousands.
   auto it = std::find_if(children_.cbegin(), children_.cend(), [&](const auto& child) {
-    return child->name().size() == name.size() && rex::string::utf8_equal_case(child->name(), name);
+    return child->name().size() == name.size() && rex::utf8_equal_case(child->name(), name);
   });
   if (it == children_.cend()) {
     return nullptr;
@@ -67,7 +67,7 @@ Entry* Entry::GetChild(const std::string_view name) {
 Entry* Entry::ResolvePath(const std::string_view path) {
   // Walk the path, one separator at a time.
   Entry* entry = this;
-  for (auto& part : rex::string::utf8_split_path(path)) {
+  for (auto& part : rex::utf8_split_path(path)) {
     entry = entry->GetChild(part);
     if (!entry) {
       // Not found.
@@ -138,7 +138,7 @@ bool Entry::Delete() {
 X_STATUS Entry::Rename(const std::filesystem::path& file_path) {
   // Store the string so split path string_views remain valid.
   const std::string path_str = rex::path_to_utf8(file_path);
-  std::vector<std::string_view> path_parts = rex::string::utf8_split_path(path_str);
+  std::vector<std::string_view> path_parts = rex::utf8_split_path(path_str);
   if (!path_parts.empty()) {
     // Drop root path (for example, "game:").
     path_parts.erase(path_parts.begin());
@@ -149,8 +149,8 @@ X_STATUS Entry::Rename(const std::filesystem::path& file_path) {
     return status;
   }
 
-  const std::string guest_path = rex::string::utf8_join_guest_paths(path_parts);
-  absolute_path_ = rex::string::utf8_join_guest_paths(device_->mount_path(), guest_path);
+  const std::string guest_path = rex::utf8_join_guest_paths(path_parts);
+  absolute_path_ = rex::utf8_join_guest_paths(device_->mount_path(), guest_path);
   path_ = guest_path;
   name_ = rex::path_to_utf8(file_path.filename());
   return X_STATUS_SUCCESS;

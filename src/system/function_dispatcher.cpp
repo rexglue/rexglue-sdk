@@ -58,8 +58,8 @@ FunctionDispatcher::FunctionDispatcher(rex::memory::Memory* memory, ExportResolv
 FunctionDispatcher::~FunctionDispatcher() = default;
 
 bool FunctionDispatcher::Execute(ThreadState* thread_state, uint32_t address) {
-  SCOPE_profile_cpu_f("cpu");
-  PROFILE_FUNCTION_DISPATCHED();
+  REX_PROFILE_SCOPE("cpu");
+  REX_PERF_INC(kFunctionsDispatched);
 
   PPCFunc* fn = GetFunction(address);
   if (!fn) {
@@ -90,7 +90,7 @@ bool FunctionDispatcher::Execute(ThreadState* thread_state, uint32_t address) {
 
 uint64_t FunctionDispatcher::Execute(ThreadState* thread_state, uint32_t address, uint64_t args[],
                                      size_t arg_count) {
-  SCOPE_profile_cpu_f("cpu");
+  REX_PROFILE_SCOPE("cpu");
 
   auto* ctx = thread_state->context();
 
@@ -141,8 +141,8 @@ uint64_t FunctionDispatcher::ExecuteTrap(ThreadState* thread_state, uint32_t add
 
 uint64_t FunctionDispatcher::ExecuteInterrupt(ThreadState* thread_state, uint32_t address,
                                               uint64_t args[], size_t arg_count) {
-  SCOPE_profile_cpu_f("cpu");
-  PROFILE_INTERRUPT_DISPATCHED();
+  REX_PROFILE_SCOPE("cpu");
+  REX_PERF_INC(kInterruptDispatches);
 
   // Hold the global lock during interrupt dispatch.
   auto global_lock = global_critical_region_.Acquire();

@@ -515,7 +515,7 @@ object_ref<XModule> KernelState::GetModule(const std::string_view name, bool use
     // NULL name = self.
     // TODO(benvanik): lookup module from caller address.
     return GetExecutableModule();
-  } else if (rex::string::utf8_equal_case(name, "kernel32.dll")) {
+  } else if (rex::utf8_equal_case(name, "kernel32.dll")) {
     // Some games request this, for some reason. wtf.
     return nullptr;
   }
@@ -643,7 +643,7 @@ void KernelState::SetExecutableModule(object_ref<UserModule> module) {
       "xboxkrnl.exe", 0x01AF /* ExLoadedImageName */);
   if (export_entry) {
     char* variable_ptr = memory_->TranslateVirtual<char*>(export_entry->variable_ptr);
-    rex::string::copy_truncating(variable_ptr, executable_module_->path(), kExLoadedImageNameSize);
+    rex::copy_truncating(variable_ptr, executable_module_->path(), kExLoadedImageNameSize);
   }
 
   // Spin up deferred dispatch worker.
@@ -701,12 +701,12 @@ void KernelState::LoadKernelModule(object_ref<KernelModule> kernel_module) {
 object_ref<UserModule> KernelState::LoadUserModule(const std::string_view raw_name,
                                                    bool call_entry) {
   // Some games try to load relative to launch module, others specify full path.
-  auto name = rex::string::utf8_find_name_from_guest_path(raw_name);
+  auto name = rex::utf8_find_name_from_guest_path(raw_name);
   std::string path(raw_name);
   if (name == raw_name) {
     assert_not_null(executable_module_);
-    path = rex::string::utf8_join_guest_paths(
-        rex::string::utf8_find_base_guest_path(executable_module_->path()), name);
+    path = rex::utf8_join_guest_paths(rex::utf8_find_base_guest_path(executable_module_->path()),
+                                      name);
   }
 
   // loading_paths_ serializes concurrent loaders of the same path; we
@@ -1260,7 +1260,7 @@ void KernelState::EndDPCImpersonation(const DPCImpersonationScope& scope) {
   pcr->current_irql = scope.previous_irql_;
 }
 
-bool KernelState::Save(stream::ByteStream* stream) {
+bool KernelState::Save(ByteStream* stream) {
   REXSYS_DEBUG("Serializing the kernel...");
   stream->Write(kKernelSaveSignature);
 
@@ -1324,7 +1324,7 @@ bool KernelState::Save(stream::ByteStream* stream) {
   return true;
 }
 
-bool KernelState::Restore(stream::ByteStream* stream) {
+bool KernelState::Restore(ByteStream* stream) {
   // Check the magic value.
   if (stream->Read<uint32_t>() != kKernelSaveSignature) {
     return false;

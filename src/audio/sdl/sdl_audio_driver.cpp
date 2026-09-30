@@ -133,7 +133,7 @@ void SDLAudioDriver::SubmitFrame(uint32_t frame_ptr) {
   {
     std::unique_lock<std::mutex> guard(frames_mutex_);
     frames_queued_.push(output_frame);
-    PROFILE_BUFFER_QUEUE_DEPTH(static_cast<int64_t>(frames_queued_.size()));
+    REX_PERF_SET(kBufferQueueDepth, static_cast<int64_t>(frames_queued_.size()));
   }
 }
 
@@ -159,7 +159,7 @@ void SDLAudioDriver::Shutdown() {
 
 void SDLAudioDriver::SDLCallback(void* userdata, SDL_AudioStream* stream, int additional_amount,
                                  [[maybe_unused]] int total_amount) {
-  SCOPE_profile_cpu_f("apu");
+  REX_PROFILE_SCOPE("apu");
   if (!userdata || !stream) {
     REXAPU_ERROR("SDLAudioDriver::SDLCallback called with nullptr.");
     return;

@@ -17,7 +17,7 @@
 
 #include <string.h>
 
-#include <rex/memory.h>
+#include <rex/memory/utils.h>
 #include <rex/platform.h>
 #include <rex/string/utf8.h>
 
@@ -25,7 +25,7 @@
 #include <strings.h>
 #endif
 
-namespace rex::string {
+namespace rex {
 
 inline int compare_case(const char* string1, const char* string2) {
 #if REX_PLATFORM_WIN32
@@ -116,4 +116,4 @@ inline size_t copy_unterminated(char* dest, const std::string_view source,
   return chars_copied;
 }
 
-}  // namespace rex::string
+}  // namespace rex

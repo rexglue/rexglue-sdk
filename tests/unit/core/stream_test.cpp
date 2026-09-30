@@ -12,7 +12,8 @@
 
 #include <rex/stream.h>
 
-using namespace rex::stream;
+using rex::BitStream;
+using rex::ByteStream;
 
 // =============================================================================
 // ByteStream Basic Tests

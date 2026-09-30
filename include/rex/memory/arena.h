@@ -19,8 +19,6 @@
 
 namespace rex::memory {
 
-using namespace rex::literals;
-
 class Arena {
  public:
   explicit Arena(size_t chunk_size = 4_MiB);

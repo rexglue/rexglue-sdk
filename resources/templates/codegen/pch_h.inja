@@ -260,7 +260,7 @@ extern PPCFuncMapping PPCFuncMappings[];
 #define REX_UNIMPLEMENTED(addr, opcode) \
   throw std::runtime_error("Unimplemented PPC instruction: " opcode)
 
-#define REX_QUERY_TIMEBASE() rex::chrono::Clock::QueryGuestTickCount()
+#define REX_QUERY_TIMEBASE() rex::Clock::QueryGuestTickCount()
 
 //=============================================================================
 // Setjmp/Longjmp

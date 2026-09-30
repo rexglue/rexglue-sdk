@@ -47,7 +47,7 @@ using namespace ucode;
 // Lots of naming comes from the disassembly spit out by the XNA GS compiler
 // and dumps of d3dcompiler and games: https://pastebin.com/i4kAv7bB
 
-void Shader::AnalyzeUcode(string::StringBuffer& ucode_disasm_buffer) {
+void Shader::AnalyzeUcode(StringBuffer& ucode_disasm_buffer) {
   if (is_ucode_analyzed_) {
     return;
   }
@@ -342,7 +342,7 @@ uint32_t Shader::GetInterpolatorInputMask(reg::SQ_PROGRAM_CNTL sq_program_cntl,
 void Shader::GatherExecInformation(const ParsedExecInstruction& instr,
                                    ucode::VertexFetchInstruction& previous_vfetch_full,
                                    uint32_t& unique_texture_bindings,
-                                   string::StringBuffer& ucode_disasm_buffer) {
+                                   StringBuffer& ucode_disasm_buffer) {
   instr.Disassemble(&ucode_disasm_buffer);
   uint32_t sequence = instr.sequence;
   for (uint32_t instr_offset = instr.instruction_address;
@@ -370,7 +370,7 @@ void Shader::GatherExecInformation(const ParsedExecInstruction& instr,
 
 void Shader::GatherVertexFetchInformation(const VertexFetchInstruction& op,
                                           VertexFetchInstruction& previous_vfetch_full,
-                                          string::StringBuffer& ucode_disasm_buffer) {
+                                          StringBuffer& ucode_disasm_buffer) {
   ParsedVertexFetchInstruction fetch_instr;
   if (ParseVertexFetchInstruction(op, previous_vfetch_full, fetch_instr)) {
     previous_vfetch_full = op;
@@ -425,7 +425,7 @@ void Shader::GatherVertexFetchInformation(const VertexFetchInstruction& op,
 
 void Shader::GatherTextureFetchInformation(const TextureFetchInstruction& op,
                                            uint32_t& unique_texture_bindings,
-                                           string::StringBuffer& ucode_disasm_buffer) {
+                                           StringBuffer& ucode_disasm_buffer) {
   TextureBinding binding;
   ParseTextureFetchInstruction(op, binding.fetch_instr);
   binding.fetch_instr.Disassemble(&ucode_disasm_buffer);
@@ -469,7 +469,7 @@ void Shader::GatherTextureFetchInformation(const TextureFetchInstruction& op,
 }
 
 void Shader::GatherAluInstructionInformation(const AluInstruction& op, uint32_t exec_cf_index,
-                                             string::StringBuffer& ucode_disasm_buffer) {
+                                             StringBuffer& ucode_disasm_buffer) {
   ParsedAluInstruction instr;
   ParseAluInstruction(op, type(), instr);
   instr.Disassemble(&ucode_disasm_buffer);

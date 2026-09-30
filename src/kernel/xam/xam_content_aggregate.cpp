@@ -52,7 +52,7 @@ void AddODDContentTest(object_ref<XStaticEnumerator<XCONTENT_AGGREGATE_DATA>> e,
       break;
     }
 
-    auto title_id = rex::string::from_string<uint32_t>(title_entry->name(), true);
+    auto title_id = rex::from_string<uint32_t>(title_entry->name(), true);
 
     auto content_root_entry = title_entry->ResolvePath(content_type_path);
     if (content_root_entry) {
@@ -70,7 +70,7 @@ void AddODDContentTest(object_ref<XStaticEnumerator<XCONTENT_AGGREGATE_DATA>> e,
         if (item) {
           item->device_id = static_cast<uint32_t>(DummyDeviceId::ODD);
           item->content_type = content_type;
-          item->set_display_name(string::to_utf16(content_entry->name()));
+          item->set_display_name(to_utf16(content_entry->name()));
           item->set_file_name(content_entry->name());
           item->title_id = title_id;
         }

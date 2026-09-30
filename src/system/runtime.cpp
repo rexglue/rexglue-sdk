@@ -98,9 +98,9 @@ X_STATUS Runtime::Setup(RuntimeConfig config) {
   rex::initialize_seh();
 
   // Initialize clock
-  chrono::Clock::set_guest_tick_frequency(50000000);
-  chrono::Clock::set_guest_system_time_base(chrono::Clock::QueryHostSystemTime());
-  chrono::Clock::set_guest_time_scalar(1.0);
+  Clock::set_guest_tick_frequency(50000000);
+  Clock::set_guest_system_time_base(Clock::QueryHostSystemTime());
+  Clock::set_guest_time_scalar(1.0);
 
   // Enable threading affinity configuration
   platform::EnableAffinityConfiguration();

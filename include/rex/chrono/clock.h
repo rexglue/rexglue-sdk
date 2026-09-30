@@ -22,7 +22,7 @@
 #define REX_CLOCK_RAW_AVAILABLE 0
 #endif
 
-namespace rex::chrono {
+namespace rex {
 
 class Clock {
  public:
@@ -85,4 +85,4 @@ class Clock {
   static void ScaleGuestDurationTimeval(int32_t* tv_sec, int32_t* tv_usec);
 };
 
-}  // namespace rex::chrono
+}  // namespace rex

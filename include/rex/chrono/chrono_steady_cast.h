@@ -26,9 +26,9 @@ namespace std::chrono {
 // additional scaling. Convert XSystemClock to WinSystemClock first if
 // necessary.
 template <>
-struct clock_time_conversion<::rex::chrono::WinSystemClock, std::chrono::steady_clock> {
-  // using NtSystemClock_ = ::rex::chrono::internal::NtSystemClock<domain_>;
-  using WinSystemClock_ = ::rex::chrono::WinSystemClock;
+struct clock_time_conversion<::rex::WinSystemClock, std::chrono::steady_clock> {
+  // using NtSystemClock_ = ::rex::internal::NtSystemClock<domain_>;
+  using WinSystemClock_ = ::rex::WinSystemClock;
   using steady_clock_ = std::chrono::steady_clock;
 
   template <typename Duration>
@@ -53,8 +53,8 @@ struct clock_time_conversion<::rex::chrono::WinSystemClock, std::chrono::steady_
 };
 
 template <>
-struct clock_time_conversion<std::chrono::steady_clock, ::rex::chrono::WinSystemClock> {
-  using WinSystemClock_ = ::rex::chrono::WinSystemClock;
+struct clock_time_conversion<std::chrono::steady_clock, ::rex::WinSystemClock> {
+  using WinSystemClock_ = ::rex::WinSystemClock;
   using steady_clock_ = std::chrono::steady_clock;
 
   template <typename Duration>

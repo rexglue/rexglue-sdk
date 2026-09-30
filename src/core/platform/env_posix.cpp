@@ -20,9 +20,9 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 
 extern char** environ;
 
-namespace rex::platform::env {
+namespace rex::platform {
 
-std::optional<std::string> get(std::string_view name) {
+std::optional<std::string> GetEnvironmentValue(std::string_view name) {
   std::string c_name(name);
   const char* value = std::getenv(c_name.c_str());
   if (!value) {
@@ -31,18 +31,18 @@ std::optional<std::string> get(std::string_view name) {
   return std::string(value);
 }
 
-bool set(std::string_view name, std::string_view value) {
+bool SetEnvironmentValue(std::string_view name, std::string_view value) {
   std::string c_name(name);
   std::string c_value(value);
   return ::setenv(c_name.c_str(), c_value.c_str(), 1) == 0;
 }
 
-bool unset(std::string_view name) {
+bool UnsetEnvironmentValue(std::string_view name) {
   std::string c_name(name);
   return ::unsetenv(c_name.c_str()) == 0;
 }
 
-std::vector<std::pair<std::string, std::string>> enumerate() {
+std::vector<std::pair<std::string, std::string>> EnumerateEnvironment() {
   std::vector<std::pair<std::string, std::string>> out;
   for (char** p = environ; p && *p; ++p) {
     std::string_view entry(*p);
@@ -55,4 +55,4 @@ std::vector<std::pair<std::string, std::string>> enumerate() {
   return out;
 }
 
-}  // namespace rex::platform::env
+}  // namespace rex::platform

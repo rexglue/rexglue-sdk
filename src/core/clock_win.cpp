@@ -13,7 +13,7 @@ static_assert(REX_PLATFORM_WIN32, "This file is Windows-only");
 
 #include "platform_win.h"
 
-namespace rex::chrono {
+namespace rex {
 
 uint64_t Clock::host_tick_frequency_platform() {
   LARGE_INTEGER frequency;
@@ -40,4 +40,4 @@ uint64_t Clock::QueryHostUptimeMillis() {
   return host_tick_count_platform() * 1000 / host_tick_frequency_platform();
 }
 
-}  // namespace rex::chrono
+}  // namespace rex

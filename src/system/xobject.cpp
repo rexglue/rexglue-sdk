@@ -110,7 +110,7 @@ X_STATUS XObject::Delete() {
   }
 }
 
-bool XObject::SaveObject(stream::ByteStream* stream) {
+bool XObject::SaveObject(ByteStream* stream) {
   stream->Write<uint32_t>(allocated_guest_object_);
   stream->Write<uint32_t>(guest_object_ptr_);
 
@@ -120,7 +120,7 @@ bool XObject::SaveObject(stream::ByteStream* stream) {
   return true;
 }
 
-bool XObject::RestoreObject(stream::ByteStream* stream) {
+bool XObject::RestoreObject(ByteStream* stream) {
   allocated_guest_object_ = stream->Read<uint32_t>() > 0;
   guest_object_ptr_ = stream->Read<uint32_t>();
 
@@ -135,8 +135,7 @@ bool XObject::RestoreObject(stream::ByteStream* stream) {
   return true;
 }
 
-object_ref<XObject> XObject::Restore(KernelState* kernel_state, Type type,
-                                     stream::ByteStream* stream) {
+object_ref<XObject> XObject::Restore(KernelState* kernel_state, Type type, ByteStream* stream) {
   switch (type) {
     case Type::Enumerator:
       break;
@@ -208,7 +207,7 @@ X_STATUS XObject::Wait(uint32_t wait_reason, uint32_t processor_mode, uint32_t a
     return X_STATUS_SUCCESS;
   }
 
-  auto timeout_ms = opt_timeout ? std::chrono::milliseconds(chrono::Clock::ScaleGuestDurationMillis(
+  auto timeout_ms = opt_timeout ? std::chrono::milliseconds(Clock::ScaleGuestDurationMillis(
                                       TimeoutTicksToMs(*opt_timeout)))
                                 : std::chrono::milliseconds::max();
 
@@ -235,7 +234,7 @@ X_STATUS XObject::Wait(uint32_t wait_reason, uint32_t processor_mode, uint32_t a
 X_STATUS XObject::SignalAndWait(XObject* signal_object, XObject* wait_object, uint32_t wait_reason,
                                 uint32_t processor_mode, uint32_t alertable,
                                 uint64_t* opt_timeout) {
-  auto timeout_ms = opt_timeout ? std::chrono::milliseconds(chrono::Clock::ScaleGuestDurationMillis(
+  auto timeout_ms = opt_timeout ? std::chrono::milliseconds(Clock::ScaleGuestDurationMillis(
                                       TimeoutTicksToMs(*opt_timeout)))
                                 : std::chrono::milliseconds::max();
 
@@ -268,7 +267,7 @@ X_STATUS XObject::WaitMultiple(uint32_t count, XObject** objects, uint32_t wait_
     assert_not_null(wait_handles[i]);
   }
 
-  auto timeout_ms = opt_timeout ? std::chrono::milliseconds(chrono::Clock::ScaleGuestDurationMillis(
+  auto timeout_ms = opt_timeout ? std::chrono::milliseconds(Clock::ScaleGuestDurationMillis(
                                       TimeoutTicksToMs(*opt_timeout)))
                                 : std::chrono::milliseconds::max();
 

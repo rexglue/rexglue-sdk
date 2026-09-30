@@ -28,7 +28,7 @@ void XSymbolicLink::Initialize(const std::string_view path, const std::string_vi
   // TODO(gibbed): kernel_state_->RegisterSymbolicLink(this);
 }
 
-bool XSymbolicLink::Save(stream::ByteStream* stream) {
+bool XSymbolicLink::Save(ByteStream* stream) {
   if (!SaveObject(stream)) {
     return false;
   }
@@ -37,8 +37,7 @@ bool XSymbolicLink::Save(stream::ByteStream* stream) {
   return true;
 }
 
-object_ref<XSymbolicLink> XSymbolicLink::Restore(KernelState* kernel_state,
-                                                 stream::ByteStream* stream) {
+object_ref<XSymbolicLink> XSymbolicLink::Restore(KernelState* kernel_state, ByteStream* stream) {
   auto symlink = new XSymbolicLink();
   symlink->kernel_state_ = kernel_state;
   if (!symlink->RestoreObject(stream)) {

@@ -23,7 +23,7 @@
 
 #include <rex/math.h>
 
-namespace rex::bit {
+namespace rex {
 
 //=============================================================================
 // BitMap - Efficient lookup of free/used entries
@@ -142,4 +142,4 @@ void SetRange(Block* bits, size_t first, size_t length) {
   bits[block_last] |= set_last;
 }
 
-}  // namespace rex::bit
+}  // namespace rex

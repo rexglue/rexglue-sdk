@@ -31,7 +31,7 @@ HostPathEntry::~HostPathEntry() = default;
 HostPathEntry* HostPathEntry::Create(Device* device, Entry* parent,
                                      const std::filesystem::path& full_path,
                                      rex::filesystem::FileInfo file_info) {
-  auto path = rex::string::utf8_join_guest_paths(parent->path(), rex::path_to_utf8(file_info.name));
+  auto path = rex::utf8_join_guest_paths(parent->path(), rex::path_to_utf8(file_info.name));
   auto entry = new HostPathEntry(device, parent, path, full_path);
 
   entry->create_timestamp_ = file_info.create_timestamp;

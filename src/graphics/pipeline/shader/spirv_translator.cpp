@@ -95,7 +95,7 @@ std::vector<uint8_t> SpirvShaderTranslator::CreateDepthOnlyFragmentShader(
   // TODO(Triang3l): Handle in a nicer way (is_depth_only_fragment_shader_ is a
   // leftover from when a Shader object wasn't used during translation).
   Shader shader(xenos::ShaderType::kPixel, 0, nullptr, 0);
-  string::StringBuffer instruction_disassembly_buffer;
+  StringBuffer instruction_disassembly_buffer;
   shader.AnalyzeUcode(instruction_disassembly_buffer);
   Modification modification(GetDefaultPixelShaderModification(0));
   modification.pixel.depth_stencil_mode = depth_stencil_mode;

@@ -19,7 +19,7 @@
 #include <span>
 #include <string>
 
-namespace rex::stream {
+namespace rex {
 
 //=============================================================================
 // BitStream - Bit-level stream operations
@@ -114,4 +114,4 @@ std::string ByteStream::Read();
 template <>
 std::u16string ByteStream::Read();
 
-}  // namespace rex::stream
+}  // namespace rex

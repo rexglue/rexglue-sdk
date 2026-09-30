@@ -142,7 +142,7 @@ void AudioSystem::WorkerThreadMain() {
           REXAPU_DEBUG("AudioWorker: dispatching callback {:08X} with arg {:08X} for client {}",
                        client_callback, client_callback_arg, index);
         }
-        SCOPE_profile_cpu_i("apu", "rex::audio::AudioSystem->client_callback");
+        REX_PROFILE_SCOPE_TEXT("apu", "rex::audio::AudioSystem->client_callback");
         uint64_t args[] = {client_callback_arg};
         function_dispatcher_->Execute(worker_thread_->thread_state(), client_callback, args,
                                       rex::countof(args));
@@ -162,7 +162,7 @@ void AudioSystem::WorkerThreadMain() {
     }
 
     if (!pumped) {
-      SCOPE_profile_cpu_i("apu", "Sleep");
+      REX_PROFILE_SCOPE_TEXT("apu", "Sleep");
       rex::platform::Sleep(std::chrono::milliseconds(500));
     }
   }
@@ -259,7 +259,7 @@ X_STATUS AudioSystem::RegisterClient(uint32_t callback, uint32_t callback_arg, s
 }
 
 void AudioSystem::SubmitFrame(size_t index, uint32_t samples_ptr) {
-  SCOPE_profile_cpu_f("apu");
+  REX_PROFILE_SCOPE("apu");
 
   static uint32_t submit_count = 0;
   if (submit_count < 10) {
@@ -275,7 +275,7 @@ void AudioSystem::SubmitFrame(size_t index, uint32_t samples_ptr) {
 }
 
 void AudioSystem::UnregisterClient(size_t index) {
-  SCOPE_profile_cpu_f("apu");
+  REX_PROFILE_SCOPE("apu");
 
   auto global_lock = global_critical_region_.Acquire();
   assert_true(index < kMaximumClientCount);
@@ -292,7 +292,7 @@ void AudioSystem::UnregisterClient(size_t index) {
   assert_true(wait_result == rex::platform::WaitResult::kTimeout);
 }
 
-bool AudioSystem::Save(stream::ByteStream* stream) {
+bool AudioSystem::Save(ByteStream* stream) {
   stream->Write(kAudioSaveSignature);
 
   // Count the number of used clients first.
@@ -320,7 +320,7 @@ bool AudioSystem::Save(stream::ByteStream* stream) {
   return true;
 }
 
-bool AudioSystem::Restore(stream::ByteStream* stream) {
+bool AudioSystem::Restore(ByteStream* stream) {
   if (stream->Read<uint32_t>() != kAudioSaveSignature) {
     REXAPU_ERROR("AudioSystem::Restore - Invalid magic value!");
     return false;

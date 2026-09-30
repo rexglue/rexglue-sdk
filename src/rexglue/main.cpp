@@ -31,11 +31,11 @@ std::string TitleString() {
 }
 
 bool IsStderrTty() {
-  return rex::platform::console::is_tty(stderr);
+  return rex::platform::IsTerminal(stderr);
 }
 
 bool ColorEnabled(bool tty) {
-  auto nc = rex::platform::env::get("NO_COLOR");
+  auto nc = rex::platform::GetEnvironmentValue("NO_COLOR");
   if (nc.has_value() && !nc->empty()) {
     return false;
   }

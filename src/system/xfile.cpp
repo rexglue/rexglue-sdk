@@ -59,7 +59,7 @@ X_STATUS XFile::QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info, size_t le
 
   if (!file_name.empty()) {
     // Only queries in the current directory are supported for now.
-    assert_true(rex::string::utf8_find_any_of(file_name, "\\") == std::string_view::npos);
+    assert_true(rex::utf8_find_any_of(file_name, "\\") == std::string_view::npos);
 
     find_engine_.SetRule(file_name);
 
@@ -312,7 +312,7 @@ void XFile::RemoveIOCompletionPort(uint32_t key) {
   }
 }
 
-bool XFile::Save(stream::ByteStream* stream) {
+bool XFile::Save(ByteStream* stream) {
   REXSYS_DEBUG("XFile {:08X} ({})", handle(), file_->entry()->absolute_path().c_str());
 
   if (!SaveObject(stream)) {
@@ -329,7 +329,7 @@ bool XFile::Save(stream::ByteStream* stream) {
   return true;
 }
 
-object_ref<XFile> XFile::Restore(KernelState* kernel_state, stream::ByteStream* stream) {
+object_ref<XFile> XFile::Restore(KernelState* kernel_state, ByteStream* stream) {
   auto file = new XFile();
   file->kernel_state_ = kernel_state;
   if (!file->RestoreObject(stream)) {

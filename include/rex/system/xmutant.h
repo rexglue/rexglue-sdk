@@ -30,8 +30,8 @@ class XMutant : public XObject {
 
   X_STATUS ReleaseMutant(uint32_t priority_increment, bool abandon, bool wait);
 
-  bool Save(stream::ByteStream* stream) override;
-  static object_ref<XMutant> Restore(KernelState* kernel_state, stream::ByteStream* stream);
+  bool Save(ByteStream* stream) override;
+  static object_ref<XMutant> Restore(KernelState* kernel_state, ByteStream* stream);
 
  protected:
   rex::platform::WaitHandle* GetWaitHandle() override { return mutant_.get(); }

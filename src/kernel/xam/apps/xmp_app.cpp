@@ -55,7 +55,7 @@ X_HRESULT XmpApp::XMPCreateTitlePlaylist(uint32_t songs_ptr, uint32_t song_count
   REXKRNL_DEBUG(
       "XMPCreateTitlePlaylist({:08X}, {:08X}, {:08X}({}), {:08X}, {:08X}, "
       "{:08X})",
-      songs_ptr, song_count, playlist_name_ptr, rex::string::to_utf8(playlist_name), flags,
+      songs_ptr, song_count, playlist_name_ptr, rex::to_utf8(playlist_name), flags,
       out_song_handles, out_playlist_handle);
   auto playlist = std::make_unique<Playlist>();
   playlist->handle = ++next_playlist_handle_;

@@ -87,7 +87,7 @@ static void FiberEntryPoint(void* raw_arg) {
 
   // Fiber returned (shouldn't per XDK) -- safe fallback
   if (thread->main_fiber()) {
-    PROFILE_FIBER_LEAVE;
+    REX_PROFILE_FIBER_LEAVE();
     rex::platform::Fiber::SwitchTo(thread->main_fiber());
   }
   REXKRNL_WARN("FiberEntryPoint: fiber function returned with no main fiber - terminating");
@@ -263,7 +263,7 @@ void DeleteFiber_entry(mapped_void lpFiber) {
   // Self-delete: ConvertFiberToThread + ExitThread
   if (static_cast<uint32_t>(kthread->fiber_ptr) == fiber_addr) {
     REXKRNL_DEBUG("DeleteFiber: self-delete fiber={:#010x}", fiber_addr);
-    PROFILE_FIBER_LEAVE;
+    REX_PROFILE_FIBER_LEAVE();
     ConvertFiberToThread_impl(thread);
     thread->Exit(1);  // does not return
     return;
@@ -319,9 +319,9 @@ void SwitchToFiber_entry(mapped_void lpFiber) {
 
   // profiling
   if (target_info->host_fiber == thread->main_fiber()) {
-    PROFILE_FIBER_LEAVE;
+    REX_PROFILE_FIBER_LEAVE();
   } else {
-    PROFILE_FIBER_ENTER(ks->GetOrCreateFiberName(target_info->uid, thread->name().c_str()));
+    REX_PROFILE_FIBER_ENTER(ks->GetOrCreateFiberName(target_info->uid, thread->name().c_str()));
   }
 
   // Host fiber switch -- suspends here, resumes when switched back

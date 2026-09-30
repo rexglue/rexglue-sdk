@@ -22,9 +22,9 @@
 #include <rex/system/mmio_handler.h>
 #include <rex/platform/mutex.h>
 
-namespace rex::stream {
+namespace rex {
 class ByteStream;
-}  // namespace rex::stream
+}  // namespace rex
 
 namespace rex::memory::detail {
 
@@ -222,8 +222,8 @@ class BaseHeap {
   // range.
   rex::memory::PageAccess QueryRangeAccess(uint32_t low_address, uint32_t high_address);
 
-  bool Save(stream::ByteStream* stream);
-  bool Restore(stream::ByteStream* stream);
+  bool Save(ByteStream* stream);
+  bool Restore(ByteStream* stream);
 
   void Reset();
 
@@ -541,8 +541,8 @@ class Memory {
   // Dumps a map of all allocated memory to the log.
   void DumpMap();
 
-  bool Save(stream::ByteStream* stream);
-  bool Restore(stream::ByteStream* stream);
+  bool Save(ByteStream* stream);
+  bool Restore(ByteStream* stream);
 
   //==========================================================================
   // Recompiled Code Function Table API

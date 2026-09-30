@@ -109,19 +109,19 @@ SleepResult AlertableSleep(std::chrono::microseconds duration) {
   return SleepResult::kSuccess;
 }
 
-TlsHandle AllocateTlsHandle() {
+TLSHandle AllocateTLSHandle() {
   return TlsAlloc();
 }
 
-bool FreeTlsHandle(TlsHandle handle) {
+bool FreeTLSHandle(TLSHandle handle) {
   return TlsFree(handle) ? true : false;
 }
 
-uintptr_t GetTlsValue(TlsHandle handle) {
+uintptr_t GetTLSValue(TLSHandle handle) {
   return reinterpret_cast<uintptr_t>(TlsGetValue(handle));
 }
 
-bool SetTlsValue(TlsHandle handle, uintptr_t value) {
+bool SetTLSValue(TLSHandle handle, uintptr_t value) {
   return TlsSetValue(handle, reinterpret_cast<void*>(value)) ? true : false;
 }
 
@@ -280,8 +280,7 @@ class Win32Timer : public Win32Handle<Timer> {
   explicit Win32Timer(HANDLE handle) : Win32Handle(handle) {}
   ~Win32Timer() = default;
 
-  bool SetOnceAfter(rex::chrono::hundrednanoseconds rel_time,
-                    std::function<void()> opt_callback) override {
+  bool SetOnceAfter(rex::hundrednanoseconds rel_time, std::function<void()> opt_callback) override {
     return SetOnceAt(WClock_::now() + rel_time, std::move(opt_callback));
   }
   bool SetOnceAt(GClock_::time_point due_time, std::function<void()> opt_callback) override {
@@ -298,7 +297,7 @@ class Win32Timer : public Win32Handle<Timer> {
                                                                                        : false;
   }
 
-  bool SetRepeatingAfter(rex::chrono::hundrednanoseconds rel_time, std::chrono::milliseconds period,
+  bool SetRepeatingAfter(rex::hundrednanoseconds rel_time, std::chrono::milliseconds period,
                          std::function<void()> opt_callback = nullptr) override {
     return SetRepeatingAt(WClock_::now() + rel_time, period, std::move(opt_callback));
   }

@@ -62,10 +62,10 @@ struct DiscoveredBlock {
  * Contains all blocks reachable from entry point.
  */
 struct FunctionBlocks {
-  rex::guest_addr_t entry = 0;                    // Function entry point
-  std::vector<DiscoveredBlock> blocks;            // All discovered blocks
-  rex::u32 pdata_size = 0;                        // From pdata (0 if unknown)
-  std::vector<JumpTable> jump_tables;             // Detected jump tables
+  rex::guest_addr_t entry = 0;                  // Function entry point
+  std::vector<DiscoveredBlock> blocks;          // All discovered blocks
+  rex::u32 pdata_size = 0;                      // From pdata (0 if unknown)
+  std::vector<JumpTable> jump_tables;           // Detected jump tables
   std::vector<rex::guest_addr_t> external_calls;  // bl targets outside this function
   std::vector<rex::guest_addr_t> tail_calls;      // Unconditional branches to other functions
 };

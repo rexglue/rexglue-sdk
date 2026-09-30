@@ -33,9 +33,7 @@
 // Forward declarations
 namespace rex {
 class Memory;
-namespace stream {
 class ByteStream;
-}  // namespace stream
 }  // namespace rex
 
 namespace rex::ui {
@@ -90,8 +88,8 @@ class GraphicsSystem : public IGraphicsBackend {
   void Pause();
   void Resume();
 
-  bool Save(::rex::stream::ByteStream* stream);
-  bool Restore(::rex::stream::ByteStream* stream);
+  bool Save(::rex::ByteStream* stream);
+  bool Restore(::rex::ByteStream* stream);
 
  protected:
   GraphicsSystem();

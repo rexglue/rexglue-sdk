@@ -631,7 +631,7 @@ u32 NtOpenSymbolicLinkObject_entry(mapped_u32 handle_out,
     assert_always();
   }
 
-  if (rex::string::utf8_starts_with(target_path, "\\??\\")) {
+  if (rex::utf8_starts_with(target_path, "\\??\\")) {
     target_path = target_path.substr(4);  // Strip the full qualifier
   }
 

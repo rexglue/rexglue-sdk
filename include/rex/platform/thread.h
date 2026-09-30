@@ -36,8 +36,6 @@
 
 namespace rex::platform {
 
-using namespace rex::literals;
-
 #if REX_PLATFORM_ANDROID
 void AndroidInitialize();
 void AndroidShutdown();
@@ -135,13 +133,13 @@ SleepResult AlertableSleep(std::chrono::duration<Rep, Period> duration) {
   return AlertableSleep(std::chrono::duration_cast<std::chrono::microseconds>(duration));
 }
 
-typedef uint32_t TlsHandle;
-constexpr TlsHandle kInvalidTlsHandle = UINT_MAX;
+typedef uint32_t TLSHandle;
+constexpr TLSHandle kInvalidTLSHandle = UINT_MAX;
 
-TlsHandle AllocateTlsHandle();
-bool FreeTlsHandle(TlsHandle handle);
-uintptr_t GetTlsValue(TlsHandle handle);
-bool SetTlsValue(TlsHandle handle, uintptr_t value);
+TLSHandle AllocateTLSHandle();
+bool FreeTLSHandle(TLSHandle handle);
+uintptr_t GetTLSValue(TLSHandle handle);
+bool SetTLSValue(TLSHandle handle, uintptr_t value);
 
 // A high-resolution timer capable of firing at millisecond-precision. All
 // timers created in this way are executed in the same thread so callbacks must
@@ -330,7 +328,7 @@ class Timer : public WaitHandle {
   // if really necessary (let the calling code what clock it prefers). Windows
   // kernel sync primitives will work with WinSystemClock while our own
   // implementation works with steady_clock.
-  using WClock_ = rex::chrono::WinSystemClock;
+  using WClock_ = rex::WinSystemClock;
   using GClock_ = std::chrono::steady_clock;  // generic
 
   // Creates a timer whose state remains signaled until SetOnce() or
@@ -345,7 +343,7 @@ class Timer : public WaitHandle {
   // timer is signaled and the thread that set the timer calls the optional
   // completion routine.
   // Returns true on success.
-  virtual bool SetOnceAfter(rex::chrono::hundrednanoseconds rel_time,
+  virtual bool SetOnceAfter(rex::hundrednanoseconds rel_time,
                             std::function<void()> opt_callback = nullptr) = 0;
   virtual bool SetOnceAt(WClock_::time_point due_time,
                          std::function<void()> opt_callback = nullptr) = 0;
@@ -357,8 +355,7 @@ class Timer : public WaitHandle {
   // completion routine. A periodic timer automatically reactivates each time
   // the period elapses, until the timer is canceled or reset.
   // Returns true on success.
-  virtual bool SetRepeatingAfter(rex::chrono::hundrednanoseconds rel_time,
-                                 std::chrono::milliseconds period,
+  virtual bool SetRepeatingAfter(rex::hundrednanoseconds rel_time, std::chrono::milliseconds period,
                                  std::function<void()> opt_callback = nullptr) = 0;
   virtual bool SetRepeatingAt(WClock_::time_point due_time, std::chrono::milliseconds period,
                               std::function<void()> opt_callback = nullptr) = 0;

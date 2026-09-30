@@ -2249,7 +2249,7 @@ void VulkanCommandProcessor::OnGammaRampPWLValueWritten() {
 
 void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
                                        uint32_t frontbuffer_height) {
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
   vertex_buffers_in_sync_[0] = 0;
   vertex_buffers_in_sync_[1] = 0;
 
@@ -3570,7 +3570,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t 
                                        IndexBufferInfo* index_buffer_info,
                                        bool major_mode_explicit) {
 #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
 #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
 
   const RegisterFile& regs = *register_file_;
@@ -4362,7 +4362,7 @@ bool VulkanCommandProcessor::IssueDraw_MemexportReadbackFastPath(uint32_t total_
 
 bool VulkanCommandProcessor::IssueCopy() {
 #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
 #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
 
   if (!BeginSubmission(true)) {
@@ -5076,7 +5076,7 @@ bool VulkanCommandProcessor::CanEndSubmissionImmediately() const {
 
 bool VulkanCommandProcessor::BeginSubmission(bool is_guest_command) {
 #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
 #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
 
   if (device_lost_) {
@@ -5639,7 +5639,7 @@ void VulkanCommandProcessor::UpdateDynamicState(const draw_util::ViewportInfo& v
                                                 bool primitive_polygonal,
                                                 reg::RB_DEPTHCONTROL normalized_depth_control) {
 #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
 #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
 
   const RegisterFile& regs = *register_file_;
@@ -5849,7 +5849,7 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
     const draw_util::ViewportInfo& viewport_info, uint32_t used_texture_mask,
     reg::RB_DEPTHCONTROL normalized_depth_control, uint32_t normalized_color_mask) {
 #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
 #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
 
   const RegisterFile& regs = *register_file_;
@@ -6345,7 +6345,7 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
 bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
                                             const VulkanShader* pixel_shader) {
 #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
 #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
 
   const RegisterFile& regs = *register_file_;

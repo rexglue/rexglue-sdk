@@ -52,7 +52,7 @@ X_STATUS XMutant::ReleaseMutant(uint32_t priority_increment, bool abandon, bool 
   }
 }
 
-bool XMutant::Save(stream::ByteStream* stream) {
+bool XMutant::Save(ByteStream* stream) {
   if (!SaveObject(stream)) {
     return false;
   }
@@ -64,7 +64,7 @@ bool XMutant::Save(stream::ByteStream* stream) {
   return true;
 }
 
-object_ref<XMutant> XMutant::Restore(KernelState* kernel_state, stream::ByteStream* stream) {
+object_ref<XMutant> XMutant::Restore(KernelState* kernel_state, ByteStream* stream) {
   auto mutant = new XMutant();
   mutant->kernel_state_ = kernel_state;
 

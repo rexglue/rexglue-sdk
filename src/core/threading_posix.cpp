@@ -230,23 +230,23 @@ SleepResult AlertableSleep(std::chrono::microseconds duration) {
   }
 }
 
-TlsHandle AllocateTlsHandle() {
+TLSHandle AllocateTLSHandle() {
   auto key = static_cast<pthread_key_t>(-1);
   auto res = pthread_key_create(&key, nullptr);
   assert_zero(res);
   assert_true(key != static_cast<pthread_key_t>(-1));
-  return static_cast<TlsHandle>(key);
+  return static_cast<TLSHandle>(key);
 }
 
-bool FreeTlsHandle(TlsHandle handle) {
+bool FreeTLSHandle(TLSHandle handle) {
   return pthread_key_delete(static_cast<pthread_key_t>(handle)) == 0;
 }
 
-uintptr_t GetTlsValue(TlsHandle handle) {
+uintptr_t GetTLSValue(TLSHandle handle) {
   return reinterpret_cast<uintptr_t>(pthread_getspecific(static_cast<pthread_key_t>(handle)));
 }
 
-bool SetTlsValue(TlsHandle handle, uintptr_t value) {
+bool SetTLSValue(TLSHandle handle, uintptr_t value) {
   return pthread_setspecific(static_cast<pthread_key_t>(handle), reinterpret_cast<void*>(value)) ==
          0;
 }
@@ -719,7 +719,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
         }
       } else {
         std::lock_guard<std::mutex> lock(android_pre_api_26_name_mutex_);
-        rex::string::copy_truncating(result.data(), android_pre_api_26_name_, result.size());
+        rex::copy_truncating(result.data(), android_pre_api_26_name_, result.size());
       }
 #else
       if (pthread_getname_np(thread_, result.data(), result.size() - 1) != 0) {
@@ -754,8 +754,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
       return;
     }
     std::lock_guard<std::mutex> lock(android_pre_api_26_name_mutex_);
-    rex::string::copy_truncating(android_pre_api_26_name_, name,
-                                 rex::countof(android_pre_api_26_name_));
+    rex::copy_truncating(android_pre_api_26_name_, name, rex::countof(android_pre_api_26_name_));
   }
 #endif
 
@@ -1317,7 +1316,7 @@ class PosixTimer : public PosixConditionHandle<Timer> {
   explicit PosixTimer(bool manual_reset) : PosixConditionHandle(manual_reset) {}
   ~PosixTimer() override = default;
 
-  bool SetOnceAfter(rex::chrono::hundrednanoseconds rel_time,
+  bool SetOnceAfter(rex::hundrednanoseconds rel_time,
                     std::function<void()> opt_callback = nullptr) override {
     return SetOnceAt(GClock_::now() + rel_time, std::move(opt_callback));
   }
@@ -1331,7 +1330,7 @@ class PosixTimer : public PosixConditionHandle<Timer> {
     return true;
   }
 
-  bool SetRepeatingAfter(rex::chrono::hundrednanoseconds rel_time, std::chrono::milliseconds period,
+  bool SetRepeatingAfter(rex::hundrednanoseconds rel_time, std::chrono::milliseconds period,
                          std::function<void()> opt_callback = nullptr) override {
     return SetRepeatingAt(GClock_::now() + rel_time, period, std::move(opt_callback));
   }

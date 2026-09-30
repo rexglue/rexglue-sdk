@@ -30,7 +30,7 @@
 #include <locale.h>
 #endif
 
-namespace rex::string {
+namespace rex {
 
 inline std::string to_hex_string(uint32_t value) {
   return fmt::format("{:08X}", value);
@@ -86,15 +86,15 @@ inline T ifs(const std::string_view value, bool force_hex) {
   std::string_view range = value;
   bool is_hex = force_hex;
   bool is_negative = false;
-  if (rex::string::utf8_starts_with(range, "-")) {
+  if (rex::utf8_starts_with(range, "-")) {
     is_negative = true;
     range = range.substr(1);
   }
-  if (rex::string::utf8_starts_with(range, "0x")) {
+  if (rex::utf8_starts_with(range, "0x")) {
     is_hex = true;
     range = range.substr(2);
   }
-  if (rex::string::utf8_ends_with(range, "h")) {
+  if (rex::utf8_ends_with(range, "h")) {
     is_hex = true;
     range = range.substr(0, range.length() - 1);
   }
@@ -169,15 +169,15 @@ inline T fpfs(const std::string_view value, bool force_hex) {
   std::string_view range = value;
   bool is_hex = force_hex;
   bool is_negative = false;
-  if (rex::string::utf8_starts_with(range, "-")) {
+  if (rex::utf8_starts_with(range, "-")) {
     is_negative = true;
     range = range.substr(1);
   }
-  if (rex::string::utf8_starts_with(range, "0x")) {
+  if (rex::utf8_starts_with(range, "0x")) {
     is_hex = true;
     range = range.substr(2);
   }
-  if (rex::string::utf8_ends_with(range, "h")) {
+  if (rex::utf8_ends_with(range, "h")) {
     is_hex = true;
     range = range.substr(0, range.length() - 1);
   }
@@ -331,4 +331,4 @@ inline vec128_t from_string<vec128_t>(const std::string_view value, bool force_h
   return v;
 }
 
-}  // namespace rex::string
+}  // namespace rex

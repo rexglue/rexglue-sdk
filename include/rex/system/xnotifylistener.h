@@ -55,8 +55,8 @@ class XNotifyListener : public XObject {
   bool DequeueNotification(XNotificationID* out_id, uint32_t* out_data);
   bool DequeueNotification(XNotificationID id, uint32_t* out_data);
 
-  bool Save(stream::ByteStream* stream) override;
-  static object_ref<XNotifyListener> Restore(KernelState* kernel_state, stream::ByteStream* stream);
+  bool Save(ByteStream* stream) override;
+  static object_ref<XNotifyListener> Restore(KernelState* kernel_state, ByteStream* stream);
 
  protected:
   rex::platform::WaitHandle* GetWaitHandle() override { return wait_handle_.get(); }

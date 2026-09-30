@@ -329,17 +329,17 @@ X_HANDLE ObjectTable::TranslateHandle(X_HANDLE handle) {
 
 X_STATUS ObjectTable::AddNameMapping(const std::string_view name, X_HANDLE handle) {
   std::lock_guard<std::mutex> name_lock(name_mutex_);
-  if (name_table_.count(string::string_key_case(name))) {
+  if (name_table_.count(string_key_case(name))) {
     return X_STATUS_OBJECT_NAME_COLLISION;
   }
-  name_table_.insert({string::string_key_case::create(name), handle});
+  name_table_.insert({string_key_case::create(name), handle});
   return X_STATUS_SUCCESS;
 }
 
 void ObjectTable::RemoveNameMapping(const std::string_view name) {
   // Names are case-insensitive.
   std::lock_guard<std::mutex> name_lock(name_mutex_);
-  auto it = name_table_.find(string::string_key_case(name));
+  auto it = name_table_.find(string_key_case(name));
   if (it != name_table_.end()) {
     name_table_.erase(it);
   }
@@ -352,7 +352,7 @@ X_STATUS ObjectTable::GetObjectByName(const std::string_view name, X_HANDLE* out
   X_HANDLE handle;
   {
     std::lock_guard<std::mutex> name_lock(name_mutex_);
-    auto it = name_table_.find(string::string_key_case(name));
+    auto it = name_table_.find(string_key_case(name));
     if (it == name_table_.end()) {
       *out_handle = X_INVALID_HANDLE_VALUE;
       return X_STATUS_OBJECT_NAME_NOT_FOUND;
@@ -373,7 +373,7 @@ X_STATUS ObjectTable::GetObjectByName(const std::string_view name, X_HANDLE* out
   return X_STATUS_SUCCESS;
 }
 
-bool ObjectTable::Save(stream::ByteStream* stream) {
+bool ObjectTable::Save(ByteStream* stream) {
   stream->Write<uint32_t>(table_capacity_);
   for (uint32_t i = 0; i < table_capacity_; i++) {
     auto& entry = table_[i];
@@ -383,7 +383,7 @@ bool ObjectTable::Save(stream::ByteStream* stream) {
   return true;
 }
 
-bool ObjectTable::Restore(stream::ByteStream* stream) {
+bool ObjectTable::Restore(ByteStream* stream) {
   Resize(stream->Read<uint32_t>());
   for (uint32_t i = 0; i < table_capacity_; i++) {
     auto& entry = table_[i];

@@ -194,7 +194,7 @@ std::optional<T> DecodedBinary::read(uint32_t addr) const {
 }
 
 //=============================================================================
-// Helper functions for branch analysis (using existing arch::ppc)
+// Helper functions for branch analysis (using existing ppc)
 //=============================================================================
 
 /// Check if instruction is a branch

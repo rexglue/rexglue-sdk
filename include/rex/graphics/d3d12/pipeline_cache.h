@@ -97,7 +97,7 @@ class PipelineCache {
   }
 
  private:
-  REXPACKEDSTRUCT(ShaderStoredHeader, {
+  REX_PACKED_STRUCT(ShaderStoredHeader, {
     uint64_t ucode_data_hash;
 
     uint32_t ucode_dword_count : 31;
@@ -167,7 +167,7 @@ class PipelineCache {
   };
 
   // Update PipelineDescription::kVersion if anything is changed!
-  REXPACKEDSTRUCT(PipelineRenderTarget, {
+  REX_PACKED_STRUCT(PipelineRenderTarget, {
     uint32_t used : 1;                          // 1
     xenos::ColorRenderTargetFormat format : 4;  // 5
     PipelineBlendFactor src_blend : 4;          // 9
@@ -179,7 +179,7 @@ class PipelineCache {
     uint32_t write_mask : 4;                    // 31
   });
 
-  REXPACKEDSTRUCT(PipelineDescription, {
+  REX_PACKED_STRUCT(PipelineDescription, {
     uint64_t vertex_shader_hash;
     uint64_t vertex_shader_modification;
     // 0 if drawing without a pixel shader.
@@ -221,7 +221,7 @@ class PipelineCache {
     static constexpr uint32_t kVersion = 0x20210425;
   });
 
-  REXPACKEDSTRUCT(PipelineStoredDescription, {
+  REX_PACKED_STRUCT(PipelineStoredDescription, {
     uint64_t description_hash;
     PipelineDescription description;
   });
@@ -299,7 +299,7 @@ class PipelineCache {
   bool bindless_resources_used_;
 
   // Temporary storage for AnalyzeUcode calls on the processor thread.
-  string::StringBuffer ucode_disasm_buffer_;
+  StringBuffer ucode_disasm_buffer_;
   // Reusable shader translator for the processor thread.
   std::unique_ptr<DxbcShaderTranslator> shader_translator_;
   std::mutex translation_request_lock_;

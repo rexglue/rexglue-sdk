@@ -39,9 +39,8 @@ XModule::~XModule() {
 }
 
 bool XModule::Matches(const std::string_view name) const {
-  return rex::string::utf8_equal_case(rex::string::utf8_find_name_from_guest_path(path()), name) ||
-         rex::string::utf8_equal_case(this->name(), name) ||
-         rex::string::utf8_equal_case(path(), name);
+  return rex::utf8_equal_case(rex::utf8_find_name_from_guest_path(path()), name) ||
+         rex::utf8_equal_case(this->name(), name) || rex::utf8_equal_case(path(), name);
 }  // namespace system
 
 void XModule::OnLoad() {
@@ -67,7 +66,7 @@ uint32_t XModule::GetHandleFromHModule(void* hmodule) {
   return ldr_data->checksum;
 }
 
-bool XModule::Save(stream::ByteStream* stream) {
+bool XModule::Save(ByteStream* stream) {
   REXSYS_DEBUG("XModule {:08X} ({})", handle(), path());
 
   stream->Write(kModuleSaveSignature);
@@ -82,7 +81,7 @@ bool XModule::Save(stream::ByteStream* stream) {
   return true;
 }
 
-object_ref<XModule> XModule::Restore(KernelState* kernel_state, stream::ByteStream* stream) {
+object_ref<XModule> XModule::Restore(KernelState* kernel_state, ByteStream* stream) {
   if (stream->Read<uint32_t>() != kModuleSaveSignature) {
     return nullptr;
   }

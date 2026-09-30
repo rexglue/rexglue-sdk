@@ -26,7 +26,7 @@ class HostPathDevice : public Device {
   ~HostPathDevice() override;
 
   bool Initialize() override;
-  void Dump(string::StringBuffer* string_buffer) override;
+  void Dump(StringBuffer* string_buffer) override;
   Entry* ResolvePath(const std::string_view path) override;
 
   bool is_read_only() const override { return read_only_; }

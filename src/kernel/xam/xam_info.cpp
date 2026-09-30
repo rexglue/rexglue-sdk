@@ -81,7 +81,7 @@ void XamFormatDateString_entry(u32 unk, u64 filetime, mapped_void output_buffer,
   auto st = xeGetLocalSystemTime(filetime);
   // TODO: format this depending on users locale?
   auto str = fmt::format(u"{:02d}/{:02d}/{}", st.wMonth, st.wDay, st.wYear);
-  rex::string::copy_and_swap_truncating(output_buffer.as<char16_t*>(), str, output_count);
+  rex::copy_and_swap_truncating(output_buffer.as<char16_t*>(), str, output_count);
 #else
   assert_always();
 #endif
@@ -95,7 +95,7 @@ void XamFormatTimeString_entry(u32 unk, u64 filetime, mapped_void output_buffer,
   auto st = xeGetLocalSystemTime(filetime);
   // TODO: format this depending on users locale?
   auto str = fmt::format(u"{:02d}:{:02d}", st.wHour, st.wMinute);
-  rex::string::copy_and_swap_truncating(output_buffer.as<char16_t*>(), str, output_count);
+  rex::copy_and_swap_truncating(output_buffer.as<char16_t*>(), str, output_count);
 #else
   assert_always();
 #endif
@@ -108,11 +108,11 @@ u32 keXamBuildResourceLocator(uint64_t module, std::u16string_view container,
   if (!module) {
     path = fmt::format(u"file://media:/{}.xzp#{}", container, resource);
     REXKRNL_DEBUG("XamBuildResourceLocator({0}) returning locator to local file {0}.xzp",
-                  rex::string::to_utf8(container));
+                  rex::to_utf8(container));
   } else {
     path = fmt::format(u"section://{:X},{}#{}", (uint32_t)module, container, resource);
   }
-  rex::string::copy_and_swap_truncating(buffer_ptr.as<char16_t*>(), path, buffer_count);
+  rex::copy_and_swap_truncating(buffer_ptr.as<char16_t*>(), path, buffer_count);
   return 0;
 }
 
@@ -272,10 +272,9 @@ void XamLoaderLaunchTitle_entry(mapped_string raw_name_ptr, u32 flags) {
     if (path.empty()) {
       loader_data.launch_path = "game:\\default.xex";
     } else {
-      if (rex::string::utf8_find_name_from_guest_path(path) == path) {
-        path = rex::string::utf8_join_guest_paths(
-            rex::string::utf8_find_base_guest_path(
-                REX_KERNEL_STATE()->GetExecutableModule()->path()),
+      if (rex::utf8_find_name_from_guest_path(path) == path) {
+        path = rex::utf8_join_guest_paths(
+            rex::utf8_find_base_guest_path(REX_KERNEL_STATE()->GetExecutableModule()->path()),
             path);
       }
       loader_data.launch_path = path;

@@ -25,7 +25,7 @@ namespace utfcpp = utf8;
 using citer = std::string_view::const_iterator;
 using utf8_citer = utfcpp::iterator<std::string_view::const_iterator>;
 
-namespace rex::string {
+namespace rex {
 
 std::string to_utf8(const std::u16string_view source) {
   return utfcpp::utf16to8(source);
@@ -35,6 +35,7 @@ std::u16string to_utf16(const std::string_view source) {
   return utfcpp::utf8to16(source);
 }
 
+namespace {
 std::string to_string(char32_t c) {
   std::string result;
   utfcpp::append(c, result);
@@ -66,6 +67,7 @@ std::pair<utf8_citer, utf8_citer> make_citer(const utf8_citer begin, const utf8_
 size_t byte_length(utf8_citer begin, utf8_citer end) {
   return size_t(std::distance(begin.base(), end.base()));
 }
+}  // namespace
 
 size_t utf8_count(const std::string_view view) {
   return size_t(utfcpp::distance(view.cbegin(), view.cend()));
@@ -89,6 +91,7 @@ std::string utf8_upper_ascii(const std::string_view view) {
   return result;
 }
 
+namespace {
 template <bool LOWER>
 inline size_t hash_fnv1a(const std::string_view view) {
   const size_t offset_basis = 0xCBF29CE484222325ull;
@@ -114,6 +117,7 @@ inline size_t hash_fnv1a(const std::string_view view) {
   }
   return hash;
 }
+}  // namespace
 
 size_t utf8_hash_fnv1a(const std::string_view view) {
   return hash_fnv1a<false>(view);
@@ -123,6 +127,7 @@ size_t utf8_hash_fnv1a_case(const std::string_view view) {
   return hash_fnv1a<true>(view);
 }
 
+namespace {
 // TODO(gibbed): this is a separate inline function instead of inline within
 // split due to a Clang bug: reference to local binding 'needle_begin' declared
 // in enclosing function 'split'.
@@ -149,6 +154,7 @@ inline utf8_citer find_needle_case(utf8_citer haystack_it, utf8_citer haystack_e
     return false;
   });
 }
+}  // namespace
 
 std::vector<std::string_view> utf8_split(const std::string_view haystack,
                                          const std::string_view needles, bool remove_empty) {
@@ -348,6 +354,7 @@ std::string_view::size_type utf8_find_first_of_case(const std::string_view hayst
   return std::string_view::npos;
 }
 
+namespace {
 bool utf8_starts_with(const std::string_view haystack, char32_t needle) {
   if (haystack.empty()) {
     return false;
@@ -355,6 +362,7 @@ bool utf8_starts_with(const std::string_view haystack, char32_t needle) {
   auto [it, end] = make_citer(haystack);
   return *it == uint32_t(needle);
 }
+}  // namespace
 
 bool utf8_starts_with(const std::string_view haystack, const std::string_view needle) {
   if (needle.empty()) {
@@ -709,4 +717,4 @@ std::string utf8_canonicalize_path(const std::string_view path, char32_t separat
                     : to_string(separator) + utf8_join_paths(parts, separator);
 }
 
-}  // namespace rex::string
+}  // namespace rex

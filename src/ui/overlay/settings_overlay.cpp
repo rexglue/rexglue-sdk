@@ -433,7 +433,7 @@ void SettingsDialog::OnDraw(ImGuiIO& /*io*/) {
 
       ImGui::SetNextItemWidth(160.0f);
       if (desc.type == rex::cvar::Type::Bool) {
-        bool v = rex::string::from_string<bool>(current_val, false);
+        bool v = rex::from_string<bool>(current_val, false);
         if (ImGui::Checkbox("##v", &v)) {
           registry_.Set(desc.name, v ? "true" : "false");
         }
@@ -485,7 +485,7 @@ void SettingsDialog::OnDraw(ImGuiIO& /*io*/) {
         }
       } else {
         char buf[256];
-        rex::string::copy_truncating(buf, current_val, sizeof(buf));
+        rex::copy_truncating(buf, current_val, sizeof(buf));
         if (ImGui::InputText("##v", buf, sizeof(buf), ImGuiInputTextFlags_EnterReturnsTrue)) {
           registry_.Set(desc.name, buf);
         }

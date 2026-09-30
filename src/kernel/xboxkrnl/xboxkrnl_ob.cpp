@@ -172,12 +172,12 @@ u32 ObDereferenceObject_entry(u32 native_ptr) {
 
 u32 ObCreateSymbolicLink_entry(ppc_ptr_t<X_ANSI_STRING> path_ptr,
                                ppc_ptr_t<X_ANSI_STRING> target_ptr) {
-  auto path = rex::string::utf8_canonicalize_guest_path(
-      util::TranslateAnsiPath(REX_KERNEL_MEMORY(), path_ptr));
-  auto target = rex::string::utf8_canonicalize_guest_path(
-      util::TranslateAnsiPath(REX_KERNEL_MEMORY(), target_ptr));
+  auto path =
+      rex::utf8_canonicalize_guest_path(util::TranslateAnsiPath(REX_KERNEL_MEMORY(), path_ptr));
+  auto target =
+      rex::utf8_canonicalize_guest_path(util::TranslateAnsiPath(REX_KERNEL_MEMORY(), target_ptr));
 
-  if (rex::string::utf8_starts_with(path, u8"\\??\\")) {
+  if (rex::utf8_starts_with(path, u8"\\??\\")) {
     path = path.substr(4);  // Strip the full qualifier
   }
 

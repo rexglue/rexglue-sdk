@@ -385,7 +385,7 @@ D3D12TextureCache::~D3D12TextureCache() {
     scaled_resolve_buffer_ptr.reset();
   }
   scaled_resolve_heaps_.clear();
-  COUNT_profile_set("gpu/texture_cache/scaled_resolve_buffer_used_mb", 0);
+  REX_PROFILE_PLOT("gpu/texture_cache/scaled_resolve_buffer_used_mb", 0);
 }
 
 bool D3D12TextureCache::Initialize() {
@@ -700,7 +700,7 @@ void D3D12TextureCache::EndFrame() {
 
 void D3D12TextureCache::RequestTextures(uint32_t used_texture_mask) {
 #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
 #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
 
   TextureCache::RequestTextures(used_texture_mask);
@@ -870,9 +870,9 @@ void D3D12TextureCache::WriteActiveTextureBindfulSRV(
   auto device = provider.GetDevice();
   {
 #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
-    SCOPE_profile_cpu_i("gpu",
-                        "rex::graphics::d3d12::D3D12TextureCache::WriteActiveTextureBindfulSRV->"
-                        "CopyDescriptorsSimple");
+    REX_PROFILE_SCOPE_TEXT("gpu",
+                           "rex::graphics::d3d12::D3D12TextureCache::WriteActiveTextureBindfulSRV->"
+                           "CopyDescriptorsSimple");
 #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
     device->CopyDescriptorsSimple(1, handle, source_handle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
   }
@@ -1194,8 +1194,8 @@ bool D3D12TextureCache::EnsureScaledResolveMemoryCommitted(uint32_t start_unscal
     }
     scaled_resolve_heaps_[i] = scaled_resolve_heap;
     ++scaled_resolve_heap_count_;
-    COUNT_profile_set("gpu/texture_cache/scaled_resolve_buffer_used_mb",
-                      scaled_resolve_heap_count_ << (kScaledResolveHeapSizeLog2 - 20));
+    REX_PROFILE_PLOT("gpu/texture_cache/scaled_resolve_buffer_used_mb",
+                     scaled_resolve_heap_count_ << (kScaledResolveHeapSizeLog2 - 20));
     D3D12_TILED_RESOURCE_COORDINATE region_start_coordinates;
     region_start_coordinates.Y = 0;
     region_start_coordinates.Z = 0;
@@ -2046,10 +2046,10 @@ uint32_t D3D12TextureCache::FindOrCreateTextureDescriptor(D3D12Texture& texture,
   // Try to find an existing descriptor.
   uint32_t existing_descriptor_index = texture.GetSRVDescriptorIndex(descriptor_key);
   if (existing_descriptor_index != UINT32_MAX) {
-    PROFILE_TEXTURE_CACHE_HIT();
+    REX_PERF_INC(kTextureCacheHits);
     return existing_descriptor_index;
   }
-  PROFILE_TEXTURE_CACHE_MISS();
+  REX_PERF_INC(kTextureCacheMisses);
 
   TextureKey texture_key = texture.key();
 

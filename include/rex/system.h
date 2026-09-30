@@ -15,7 +15,6 @@
 #include <string_view>
 
 #include <rex/platform.h>
-#include <rex/string.h>
 
 namespace rex {
 

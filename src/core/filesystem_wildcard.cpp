@@ -28,7 +28,7 @@ WildcardFlags::WildcardFlags(bool start, bool end, bool exact_length)
     : FromStart(start), ToEnd(end), ExactLength(exact_length) {}
 
 WildcardRule::WildcardRule(const std::string_view match, const WildcardFlags& flags)
-    : match_(rex::string::utf8_lower_ascii(match)), rules_(flags) {}
+    : match_(rex::utf8_lower_ascii(match)), rules_(flags) {}
 
 bool WildcardRule::Check(const std::string_view lower, std::string::size_type* offset) const {
   if (match_.empty()) {
@@ -97,7 +97,7 @@ void WildcardEngine::SetRule(const std::string_view pattern) {
 }
 
 bool WildcardEngine::Match(const std::string_view str) const {
-  std::string str_lc = rex::string::utf8_lower_ascii(str);
+  std::string str_lc = rex::utf8_lower_ascii(str);
   std::string::size_type offset(0);
   for (const auto& rule : rules_) {
     if (!(rule.Check(str_lc, &offset))) {

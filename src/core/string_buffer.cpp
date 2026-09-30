@@ -17,9 +17,7 @@
 #include <rex/math.h>
 #include <rex/string/buffer.h>
 
-namespace rex::string {
-
-using namespace rex::literals;
+namespace rex {
 
 StringBuffer::StringBuffer(size_t initial_capacity) {
   buffer_capacity_ = std::max(initial_capacity, static_cast<size_t>(16_KiB));
@@ -103,4 +101,4 @@ std::vector<uint8_t> StringBuffer::to_bytes() const {
   return bytes;
 }
 
-}  // namespace rex::string
+}  // namespace rex

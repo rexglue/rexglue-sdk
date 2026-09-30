@@ -198,7 +198,7 @@ void TextureCache::ClearCache() {
 
 void TextureCache::CompletedSubmissionUpdated(uint64_t completed_submission_index) {
   // If memory usage is too high, destroy unused textures.
-  uint64_t current_time = rex::chrono::Clock::QueryHostUptimeMillis();
+  uint64_t current_time = rex::Clock::QueryHostUptimeMillis();
   // texture_cache_memory_limit_render_to_texture is assumed to be included in
   // texture_cache_memory_limit_soft and texture_cache_memory_limit_hard, at 1x,
   // so subtracting 1 from the scale.
@@ -245,14 +245,14 @@ void TextureCache::CompletedSubmissionUpdated(uint64_t completed_submission_inde
     }
   }
   if (destroyed_any) {
-    COUNT_profile_set("gpu/texture_cache/textures", textures_.size());
+    REX_PROFILE_PLOT("gpu/texture_cache/textures", textures_.size());
   }
 }
 
 void TextureCache::BeginSubmission(uint64_t new_submission_index) {
   assert_true(new_submission_index > current_submission_index_);
   current_submission_index_ = new_submission_index;
-  current_submission_time_ = rex::chrono::Clock::QueryHostUptimeMillis();
+  current_submission_time_ = rex::Clock::QueryHostUptimeMillis();
 }
 
 void TextureCache::BeginFrame() {
@@ -505,10 +505,10 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
     }
   }
 
-  COUNT_profile_set("gpu/texture_cache/request_textures_pending_load_count",
-                    uint32_t(pending_texture_loads.size()));
-  COUNT_profile_set("gpu/texture_cache/request_textures_pending_range_count",
-                    uint32_t(pending_shared_memory_ranges.size()));
+  REX_PROFILE_PLOT("gpu/texture_cache/request_textures_pending_load_count",
+                   uint32_t(pending_texture_loads.size()));
+  REX_PROFILE_PLOT("gpu/texture_cache/request_textures_pending_range_count",
+                   uint32_t(pending_shared_memory_ranges.size()));
 
   bool batched_shared_memory_request_succeeded = true;
   std::vector<std::pair<uint32_t, uint32_t>> pending_shared_memory_range_pairs;
@@ -702,7 +702,7 @@ void TextureCache::WatchCallback(const std::unique_lock<std::recursive_mutex>& g
 void TextureCache::DestroyAllTextures(bool from_destructor) {
   ResetTextureBindings(from_destructor);
   textures_.clear();
-  COUNT_profile_set("gpu/texture_cache/textures", 0);
+  REX_PROFILE_PLOT("gpu/texture_cache/textures", 0);
 }
 
 TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
@@ -819,7 +819,7 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
     assert_true(new_texture->key() == key);
     texture = textures_.emplace(key, std::move(new_texture)).first->second.get();
   }
-  COUNT_profile_set("gpu/texture_cache/textures", textures_.size());
+  REX_PROFILE_PLOT("gpu/texture_cache/textures", textures_.size());
   texture->LogAction("Created");
   return texture;
 }
@@ -953,9 +953,8 @@ void TextureCache::ResetTextureBindings(bool from_destructor) {
 
 void TextureCache::UpdateTexturesTotalHostMemoryUsage(uint64_t add, uint64_t subtract) {
   textures_total_host_memory_usage_ = textures_total_host_memory_usage_ - subtract + add;
-  COUNT_profile_set(
-      "gpu/texture_cache/total_host_memory_usage_mb",
-      uint32_t((textures_total_host_memory_usage_ + ((UINT32_C(1) << 20) - 1)) >> 20));
+  REX_PROFILE_PLOT("gpu/texture_cache/total_host_memory_usage_mb",
+                   uint32_t((textures_total_host_memory_usage_ + ((UINT32_C(1) << 20) - 1)) >> 20));
 }
 
 bool TextureCache::IsRangeScaledResolved(uint32_t start_unscaled, uint32_t length_unscaled) {

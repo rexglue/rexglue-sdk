@@ -7,7 +7,7 @@ static_assert(REX_PLATFORM_WIN32, "This file is Windows-only");
 
 #include <WinSock2.h>
 
-namespace rex::net {
+namespace rex::platform {
 
 int socket_close(SocketHandle handle) {
   return closesocket(static_cast<SOCKET>(handle));
@@ -17,4 +17,4 @@ int socket_ioctl(SocketHandle handle, uint32_t cmd, uint8_t* arg) {
   return ioctlsocket(static_cast<SOCKET>(handle), cmd, reinterpret_cast<u_long*>(arg));
 }
 
-}  // namespace rex::net
+}  // namespace rex::platform

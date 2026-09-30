@@ -78,13 +78,12 @@ struct XCONTENT_DATA {
     // read the string properly, blanking the array should take care of that
 
     std::fill_n(display_name_raw.chars, countof(display_name_raw.chars), 0);
-    rex::string::copy_and_swap_truncating(display_name_raw.chars, value,
-                                          countof(display_name_raw.chars));
+    rex::copy_and_swap_truncating(display_name_raw.chars, value, countof(display_name_raw.chars));
   }
 
   void set_file_name(const std::string_view value) {
     std::fill_n(file_name_raw, countof(file_name_raw), 0);
-    rex::string::copy_unterminated(file_name_raw, value, rex::countof(file_name_raw));
+    rex::copy_unterminated(file_name_raw, value, rex::countof(file_name_raw));
 
     // Some games rely on padding field acting as a null-terminator...
     padding[0] = padding[1] = 0;
@@ -190,19 +189,17 @@ class ContentManager {
                                                  uint32_t title_id,
                                                  XContentType content_type) const;
 
-  std::unordered_map<string::string_key_case, ContentPackage*,
-                     string::string_key_case::Hash>::iterator
+  std::unordered_map<string_key_case, ContentPackage*, string_key_case::Hash>::iterator
   FindOpenPackageByData(const XCONTENT_AGGREGATE_DATA& data);
-  ContentPackage* DetachPackage(std::unordered_map<string::string_key_case, ContentPackage*,
-                                                   string::string_key_case::Hash>::iterator it);
+  ContentPackage* DetachPackage(
+      std::unordered_map<string_key_case, ContentPackage*, string_key_case::Hash>::iterator it);
 
   KernelState* kernel_state_;
   std::filesystem::path root_path_;
 
   // TODO(benvanik): remove use of global lock, it's bad here!
   rex::platform::global_critical_region global_critical_region_;
-  std::unordered_map<string::string_key_case, ContentPackage*, string::string_key_case::Hash>
-      open_packages_;
+  std::unordered_map<string_key_case, ContentPackage*, string_key_case::Hash> open_packages_;
 };
 
 }  // namespace xam

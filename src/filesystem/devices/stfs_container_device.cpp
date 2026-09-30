@@ -176,7 +176,7 @@ void StfsContainerDevice::CloseFiles() {
   files_total_size_ = 0;
 }
 
-void StfsContainerDevice::Dump(string::StringBuffer* string_buffer) {
+void StfsContainerDevice::Dump(StringBuffer* string_buffer) {
   auto global_lock = global_critical_region_.Acquire();
   root_entry_->Dump(string_buffer, 0);
 }

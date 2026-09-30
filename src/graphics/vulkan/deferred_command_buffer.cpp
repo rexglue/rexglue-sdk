@@ -33,7 +33,7 @@ void DeferredCommandBuffer::Reset() {
 
 void DeferredCommandBuffer::Execute(VkCommandBuffer command_buffer) {
 #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
 #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
 
   const ui::vulkan::VulkanDevice::Functions& dfn =

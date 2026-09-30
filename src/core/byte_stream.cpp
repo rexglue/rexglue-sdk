@@ -15,7 +15,7 @@
 #include <rex/assert.h>
 #include <rex/stream.h>
 
-namespace rex::stream {
+namespace rex {
 
 ByteStream::ByteStream(uint8_t* data, size_t data_length, size_t offset)
     : data_(data), data_length_(data_length), offset_(offset) {}
@@ -57,4 +57,4 @@ std::u16string ByteStream::Read() {
   return str;
 }
 
-}  // namespace rex::stream
+}  // namespace rex

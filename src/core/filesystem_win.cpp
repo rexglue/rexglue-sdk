@@ -25,7 +25,7 @@
 namespace rex {
 
 std::string path_to_utf8(const std::filesystem::path& path) {
-  return rex::string::to_utf8(path.u16string());
+  return rex::to_utf8(path.u16string());
 }
 
 std::u16string path_to_utf16(const std::filesystem::path& path) {
@@ -33,7 +33,7 @@ std::u16string path_to_utf16(const std::filesystem::path& path) {
 }
 
 std::filesystem::path to_path(const std::string_view source) {
-  return rex::string::to_utf16(source);
+  return rex::to_utf16(source);
 }
 
 std::filesystem::path to_path(const std::u16string_view source) {
@@ -86,7 +86,7 @@ bool CreateEmptyFile(const std::filesystem::path& path) {
 
 FILE* OpenFile(const std::filesystem::path& path, const std::string_view mode) {
   // Dumb, but OK.
-  const auto wmode = rex::string::to_utf16(mode);
+  const auto wmode = rex::to_utf16(mode);
   FILE* file = nullptr;
   if (_wfopen_s(&file, path.c_str(), reinterpret_cast<const wchar_t*>(wmode.c_str())) != 0) {
     return nullptr;

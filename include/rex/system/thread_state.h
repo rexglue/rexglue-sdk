@@ -13,7 +13,7 @@
 #include <cassert>
 #include <string>
 
-#include <rex/memory.h>
+#include <rex/system/xmemory.h>
 #include <rex/ppc/context.h>
 
 namespace rex::runtime {

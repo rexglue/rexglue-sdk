@@ -25,8 +25,6 @@
 
 namespace rex::filesystem {
 
-using namespace rex::literals;
-
 int vfs_dump_main(const std::vector<std::string>& args) {
   if (REXCVAR_GET(::rex::filesystem::cvars::dump_source).empty() ||
       REXCVAR_GET(::rex::filesystem::cvars::dump_path).empty()) {

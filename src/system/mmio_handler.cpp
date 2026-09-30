@@ -21,7 +21,7 @@
 #include <rex/system/mmio_handler.h>
 #include <rex/types.h>
 
-using namespace rex::arch;
+using namespace rex::platform;
 
 namespace rex::runtime {
 
@@ -50,7 +50,7 @@ std::unique_ptr<MMIOHandler> MMIOHandler::Install(uint8_t* virtual_membase,
   // Install exception handler for memory coherence (SharedMemory write tracking).
   // Note: MMIO operations are handled at the recompiler level via REX_MM_LOAD/STORE
   // macros that call CheckLoad/CheckStore directly.
-  arch::ExceptionHandler::Install(ExceptionCallbackThunk, handler.get());
+  platform::ExceptionHandler::Install(ExceptionCallbackThunk, handler.get());
 
   global_handler_ = handler.get();
   return handler;
@@ -70,7 +70,7 @@ MMIOHandler::MMIOHandler(uint8_t* virtual_membase, uint8_t* physical_membase, ui
       access_violation_callback_context_(access_violation_callback_context) {}
 
 MMIOHandler::~MMIOHandler() {
-  arch::ExceptionHandler::Uninstall(ExceptionCallbackThunk, this);
+  platform::ExceptionHandler::Uninstall(ExceptionCallbackThunk, this);
 
   if (global_handler_ == this) {
     global_handler_ = nullptr;
@@ -364,21 +364,21 @@ bool MMIOHandler::TryDecodeLoadStore(const uint8_t* p, DecodedLoadStore& decoded
 #endif  // REX_ARCH
 }
 
-bool MMIOHandler::ExceptionCallbackThunk(arch::Exception* ex, void* data) {
+bool MMIOHandler::ExceptionCallbackThunk(platform::Exception* ex, void* data) {
   return reinterpret_cast<MMIOHandler*>(data)->ExceptionCallback(ex);
 }
 
-bool MMIOHandler::ExceptionCallback(arch::Exception* ex) {
-  if (ex->code() != arch::Exception::Code::kAccessViolation) {
+bool MMIOHandler::ExceptionCallback(platform::Exception* ex) {
+  if (ex->code() != platform::Exception::Code::kAccessViolation) {
     return false;
   }
-  arch::Exception::AccessViolationOperation operation = ex->access_violation_operation();
-  if (operation != arch::Exception::AccessViolationOperation::kRead &&
-      operation != arch::Exception::AccessViolationOperation::kWrite) {
+  platform::Exception::AccessViolationOperation operation = ex->access_violation_operation();
+  if (operation != platform::Exception::AccessViolationOperation::kRead &&
+      operation != platform::Exception::AccessViolationOperation::kWrite) {
     // Data Execution Prevention or something else uninteresting.
     return false;
   }
-  bool is_write = operation == arch::Exception::AccessViolationOperation::kWrite;
+  bool is_write = operation == platform::Exception::AccessViolationOperation::kWrite;
   if (ex->fault_address() < uint64_t(virtual_membase_) ||
       ex->fault_address() > uint64_t(memory_end_)) {
     // Quick kill anything outside our mapping.
@@ -433,7 +433,7 @@ bool MMIOHandler::ExceptionCallback(arch::Exception* ex) {
     return false;
   }
 
-  arch::HostThreadContext& thread_context = *ex->thread_context();
+  platform::HostThreadContext& thread_context = *ex->thread_context();
 
 #if REX_ARCH_ARM64
   // Preserve the base address with the pre- or the post-index offset to write

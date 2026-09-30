@@ -568,7 +568,7 @@ std::vector<std::string> CvarRegistryImpl::RegisteredNames() const {
 namespace rex::cvar {
 
 void ApplyEnvironment(rex::Config& config) {
-  for (auto& [name, value] : rex::platform::env::enumerate()) {
+  for (auto& [name, value] : rex::platform::EnumerateEnvironment()) {
     if (!name.starts_with("REX_"))
       continue;
     std::string_view rest = std::string_view(name).substr(4);

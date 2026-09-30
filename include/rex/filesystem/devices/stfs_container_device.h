@@ -42,7 +42,7 @@ class StfsContainerDevice : public Device {
            header_.metadata.volume_descriptor.stfs.flags.bits.read_only_format;
   }
 
-  void Dump(string::StringBuffer* string_buffer) override;
+  void Dump(StringBuffer* string_buffer) override;
   Entry* ResolvePath(const std::string_view path) override;
 
   const std::string& name() const override { return name_; }

@@ -60,7 +60,7 @@ X_STATUS UserModule::LoadFromFile(const std::string_view path) {
   }
 
   path_ = fs_entry->absolute_path();
-  name_ = rex::string::utf8_find_base_name_from_guest_path(path_);
+  name_ = rex::utf8_find_base_name_from_guest_path(path_);
 
   // If the FS supports mapping, map the file in and load from that.
   if (fs_entry->can_map()) {
@@ -265,7 +265,7 @@ X_STATUS UserModule::GetSection(const std::string_view name, uint32_t* out_secti
   uint32_t count = (resource_header->size - 4) / sizeof(xex2_resource);
   for (uint32_t i = 0; i < count; i++) {
     auto& res = resource_header->resources[i];
-    if (rex::string::utf8_equal_z(name, std::string_view(res.name, 8))) {
+    if (rex::utf8_equal_z(name, std::string_view(res.name, 8))) {
       // Found!
       *out_section_data = res.address;
       *out_section_size = res.size;
@@ -339,7 +339,7 @@ X_STATUS UserModule::GetOptHeader(const memory::Memory* memory, const xex2_heade
   return X_STATUS_SUCCESS;
 }
 
-bool UserModule::Save(stream::ByteStream* stream) {
+bool UserModule::Save(ByteStream* stream) {
   if (!XModule::Save(stream)) {
     return false;
   }
@@ -350,7 +350,7 @@ bool UserModule::Save(stream::ByteStream* stream) {
   return true;
 }
 
-object_ref<UserModule> UserModule::Restore(KernelState* kernel_state, stream::ByteStream* stream,
+object_ref<UserModule> UserModule::Restore(KernelState* kernel_state, ByteStream* stream,
                                            const std::string_view path) {
   auto module = new UserModule(kernel_state);
 

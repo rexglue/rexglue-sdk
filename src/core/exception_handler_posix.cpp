@@ -31,8 +31,9 @@
 
 #include <ucontext.h>
 
-namespace rex::arch {
+namespace rex::platform {
 
+namespace {
 bool signal_handlers_installed_ = false;
 struct sigaction original_sigill_handler_;
 struct sigaction original_sigsegv_handler_;
@@ -48,6 +49,7 @@ constexpr size_t kMaxHandlerCount = 8;
 // All custom handlers, left-aligned and null terminated.
 // Executed in order.
 std::pair<ExceptionHandler::Handler, void*> handlers_[kMaxHandlerCount];
+}  // namespace
 
 static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
                                      void* signal_context) {
@@ -488,6 +490,6 @@ void ExceptionHandler::Uninstall(Handler fn, void* data) {
   }
 }
 
-}  // namespace rex::arch
+}  // namespace rex::platform
 
 #endif  // REX_PLATFORM_LINUX || REX_PLATFORM_MAC

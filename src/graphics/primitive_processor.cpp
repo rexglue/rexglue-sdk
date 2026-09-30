@@ -268,7 +268,7 @@ void PrimitiveProcessor::ClearPerFrameCache() {
 }
 
 bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
-  SCOPE_profile_cpu_f("gpu");
+  REX_PROFILE_SCOPE("gpu");
 
   const RegisterFile& regs = register_file_;
   auto vgt_draw_initiator = regs.Get<reg::VGT_DRAW_INITIATOR>();

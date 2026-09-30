@@ -353,8 +353,7 @@ bool D3D12RenderTargetCache::Initialize() {
       Shutdown();
       return false;
     }
-    std::u16string resolve_copy_pipeline_name =
-        rex::string::to_utf16(resolve_copy_shader_info.debug_name);
+    std::u16string resolve_copy_pipeline_name = rex::to_utf16(resolve_copy_shader_info.debug_name);
     resolve_copy_pipeline->SetName(reinterpret_cast<LPCWSTR>(resolve_copy_pipeline_name.c_str()));
     resolve_copy_pipelines_[i] = resolve_copy_pipeline;
   }
@@ -848,7 +847,7 @@ bool D3D12RenderTargetCache::Initialize() {
           return false;
         }
         uint32_rtv_clear_pipelines_[i][j] = uint32_rtv_clear_pipeline;
-        auto uint32_rtv_clear_pipeline_name = rex::string::to_utf16(fmt::format(
+        auto uint32_rtv_clear_pipeline_name = rex::to_utf16(fmt::format(
             "Resolve Clear {} {}xMSAA", i ? "k_32_32_FLOAT" : "k_32_FLOAT", uint32_t(1) << j));
         uint32_rtv_clear_pipeline->SetName(
             reinterpret_cast<LPCWSTR>(uint32_rtv_clear_pipeline_name.c_str()));
@@ -1605,7 +1604,7 @@ RenderTargetCache::RenderTarget* D3D12RenderTargetCache::CreateRenderTarget(Rend
     return nullptr;
   }
   {
-    std::u16string resource_name = rex::string::to_utf16(key.GetDebugName());
+    std::u16string resource_name = rex::to_utf16(key.GetDebugName());
     resource->SetName(reinterpret_cast<LPCWSTR>(resource_name.c_str()));
   }
 
@@ -5496,7 +5495,7 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
                                 ? xenos::GetDepthRenderTargetFormatName(key.GetDepthFormat())
                                 : xenos::GetColorRenderTargetFormatName(key.GetColorFormat());
   if (pipeline) {
-    std::u16string pipeline_name = rex::string::to_utf16(
+    std::u16string pipeline_name = rex::to_utf16(
         fmt::format("RT Dump {} {}xMSAA", format_name, uint32_t(1) << uint32_t(key.msaa_samples)));
     pipeline->SetName(reinterpret_cast<LPCWSTR>(pipeline_name.c_str()));
   } else {

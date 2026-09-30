@@ -446,7 +446,7 @@ X_RESULT SDLInputDriver::GetDeviceKeystroke(DeviceId id, uint32_t flags,
   KeystrokeState& last = controller->keystroke;
 
   // Handle repeating
-  auto guest_now = rex::chrono::Clock::QueryGuestUptimeMillis();
+  auto guest_now = rex::Clock::QueryGuestUptimeMillis();
   static_assert(HID_SDL_REPEAT_DELAY >= HID_SDL_REPEAT_RATE);
   if (last.repeat_state == RepeatState::Waiting &&
       (last.repeat_time + HID_SDL_REPEAT_DELAY < guest_now)) {

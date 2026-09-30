@@ -105,8 +105,8 @@ class XFile : public XObject {
   void RegisterIOCompletionPort(uint32_t key, object_ref<XIOCompletion> port);
   void RemoveIOCompletionPort(uint32_t key);
 
-  bool Save(stream::ByteStream* stream) override;
-  static object_ref<XFile> Restore(KernelState* kernel_state, stream::ByteStream* stream);
+  bool Save(ByteStream* stream) override;
+  static object_ref<XFile> Restore(KernelState* kernel_state, ByteStream* stream);
 
   bool is_synchronous() const { return is_synchronous_; }
 

@@ -48,7 +48,7 @@ void KeDebugMonitorCallback(PPCContext* ppc_context, rex::system::KernelState* k
   switch (id) {
     case DebugMonitorCommand::PIXCommandResult: {
       auto s = kernel_state->memory()->TranslateVirtual<const char*>(arg);
-      rex::debug::DebugPrint("{}\n", s);
+      rex::platform::DebugPrint("{}\n", s);
       REXKRNL_DEBUG("PIX command result: {}\n", s);
       ppc_context->r[3] = 0;
       break;

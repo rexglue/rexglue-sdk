@@ -25,9 +25,7 @@
 
 namespace rex {
 class Runtime;
-namespace stream {
 class ByteStream;
-}  // namespace stream
 }  // namespace rex
 
 namespace rex::system {
@@ -177,12 +175,11 @@ class XObject {
   void Release();
   X_STATUS Delete();
 
-  virtual bool Save(stream::ByteStream* stream) {
+  virtual bool Save(ByteStream* stream) {
     (void)stream;
     return false;
   }
-  static object_ref<XObject> Restore(KernelState* kernel_state, Type type,
-                                     stream::ByteStream* stream);
+  static object_ref<XObject> Restore(KernelState* kernel_state, Type type, ByteStream* stream);
 
   // Reference()
   // Dereference()
@@ -204,8 +201,8 @@ class XObject {
                                        int32_t as_type = -1);
 
  protected:
-  bool SaveObject(stream::ByteStream* stream);
-  bool RestoreObject(stream::ByteStream* stream);
+  bool SaveObject(ByteStream* stream);
+  bool RestoreObject(ByteStream* stream);
 
   // Called on successful wait.
   virtual void WaitCallback() {}

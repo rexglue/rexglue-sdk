@@ -72,7 +72,7 @@ u32 XamContentGetDeviceName_entry(u32 device_id, mapped_wstring name_buffer, u32
   if (name_capacity < name.size() + 1) {
     return X_ERROR_INSUFFICIENT_BUFFER;
   }
-  rex::string::copy_and_swap_truncating(name_buffer, name, name_capacity);
+  rex::copy_and_swap_truncating(name_buffer, name, name_capacity);
   return X_ERROR_SUCCESS;
 }
 
@@ -118,8 +118,8 @@ u32 XamContentGetDeviceData_entry(u32 device_id, ppc_ptr_t<X_CONTENT_DEVICE_DATA
   device_data->device_type = static_cast<uint32_t>(device_info->device_type);
   device_data->total_bytes = device_info->total_bytes;
   device_data->free_bytes = device_info->free_bytes;
-  rex::string::copy_and_swap_truncating(device_data->name_chars, device_info->name,
-                                        rex::countof(device_data->name_chars));
+  rex::copy_and_swap_truncating(device_data->name_chars, device_info->name,
+                                rex::countof(device_data->name_chars));
   return X_ERROR_SUCCESS;
 }
 
@@ -146,8 +146,8 @@ u32 XamContentCreateDeviceEnumerator_entry(u32 content_type, u32 content_flags, 
       device_data->device_type = static_cast<uint32_t>(device_info->device_type);
       device_data->total_bytes = device_info->total_bytes;
       device_data->free_bytes = device_info->free_bytes;
-      rex::string::copy_and_swap_truncating(device_data->name_chars, device_info->name,
-                                            rex::countof(device_data->name_chars));
+      rex::copy_and_swap_truncating(device_data->name_chars, device_info->name,
+                                    rex::countof(device_data->name_chars));
     }
   }
 

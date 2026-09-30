@@ -18,16 +18,16 @@ static_assert(REX_PLATFORM_WIN32, "This file is Windows-only");
 
 #include <io.h>
 
-namespace rex::platform::console {
+namespace rex::platform {
 
-bool is_tty(FILE* stream) {
+bool IsTerminal(FILE* stream) {
   if (!stream) {
     return false;
   }
   return _isatty(_fileno(stream)) != 0;
 }
 
-bool enable_ansi_escapes(FILE* stream) {
+bool EnableANSIEscapes(FILE* stream) {
   if (!stream) {
     return false;
   }
@@ -45,8 +45,8 @@ bool enable_ansi_escapes(FILE* stream) {
   return SetConsoleMode(handle, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING) != 0;
 }
 
-void set_utf8_output_codepage() {
+void SetUTF8OutputCodePage() {
   SetConsoleOutputCP(CP_UTF8);
 }
 
-}  // namespace rex::platform::console
+}  // namespace rex::platform

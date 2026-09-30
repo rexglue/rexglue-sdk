@@ -20,8 +20,6 @@
 namespace rex {
 using hundrednano = std::ratio<1, 10000000>;
 
-namespace chrono {
-
 using hundrednanoseconds = std::chrono::duration<int64_t, hundrednano>;
 
 // TODO(JoelLinn) define xstead_clock xsystem_clock etc.
@@ -111,7 +109,6 @@ using WinSystemClock = detail::NtSystemClock<detail::Domain::Host>;
 // Guest system clock, scaled
 using XSystemClock = detail::NtSystemClock<detail::Domain::Guest>;
 
-}  // namespace chrono
 }  // namespace rex
 
 namespace std::chrono {
@@ -128,9 +125,9 @@ auto clock_cast(const std::chrono::time_point<SourceClock, Duration>& t) {
 #endif
 
 template <>
-struct clock_time_conversion<::rex::chrono::WinSystemClock, ::rex::chrono::XSystemClock> {
-  using WClock_ = ::rex::chrono::WinSystemClock;
-  using XClock_ = ::rex::chrono::XSystemClock;
+struct clock_time_conversion<::rex::WinSystemClock, ::rex::XSystemClock> {
+  using WClock_ = ::rex::WinSystemClock;
+  using XClock_ = ::rex::XSystemClock;
 
   template <typename Duration>
   typename WClock_::time_point operator()(
@@ -142,18 +139,17 @@ struct clock_time_conversion<::rex::chrono::WinSystemClock, ::rex::chrono::XSyst
     std::atomic_thread_fence(std::memory_order_acq_rel);
 
     auto delta = (t - x_now);
-    if (!rex::chrono::Clock::no_scaling()) {
-      delta =
-          std::chrono::floor<WClock_::duration>(delta * rex::chrono::Clock::guest_time_scalar());
+    if (!rex::Clock::no_scaling()) {
+      delta = std::chrono::floor<WClock_::duration>(delta * rex::Clock::guest_time_scalar());
     }
     return w_now + delta;
   }
 };
 
 template <>
-struct clock_time_conversion<::rex::chrono::XSystemClock, ::rex::chrono::WinSystemClock> {
-  using WClock_ = ::rex::chrono::WinSystemClock;
-  using XClock_ = ::rex::chrono::XSystemClock;
+struct clock_time_conversion<::rex::XSystemClock, ::rex::WinSystemClock> {
+  using WClock_ = ::rex::WinSystemClock;
+  using XClock_ = ::rex::XSystemClock;
 
   template <typename Duration>
   typename XClock_::time_point operator()(
@@ -164,10 +160,9 @@ struct clock_time_conversion<::rex::chrono::XSystemClock, ::rex::chrono::WinSyst
     auto x_now = XClock_::now();
     std::atomic_thread_fence(std::memory_order_acq_rel);
 
-    rex::chrono::hundrednanoseconds delta = (t - w_now);
-    if (!rex::chrono::Clock::no_scaling()) {
-      delta =
-          std::chrono::floor<WClock_::duration>(delta / rex::chrono::Clock::guest_time_scalar());
+    rex::hundrednanoseconds delta = (t - w_now);
+    if (!rex::Clock::no_scaling()) {
+      delta = std::chrono::floor<WClock_::duration>(delta / rex::Clock::guest_time_scalar());
     }
     return x_now + delta;
   }

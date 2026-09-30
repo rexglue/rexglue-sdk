@@ -412,7 +412,7 @@ struct XContentMetadata {
       return false;
     }
 
-    rex::string::copy_and_swap_truncating(str, value, rex::countof(display_name_raw.chars[0]));
+    rex::copy_and_swap_truncating(str, value, rex::countof(display_name_raw.chars[0]));
     return true;
   }
 
@@ -438,18 +438,16 @@ struct XContentMetadata {
       return false;
     }
 
-    rex::string::copy_and_swap_truncating(str, value, rex::countof(description_raw.chars[0]));
+    rex::copy_and_swap_truncating(str, value, rex::countof(description_raw.chars[0]));
     return true;
   }
 
   void set_publisher(const std::u16string_view value) {
-    rex::string::copy_and_swap_truncating(publisher_raw.chars, value,
-                                          rex::countof(publisher_raw.chars));
+    rex::copy_and_swap_truncating(publisher_raw.chars, value, rex::countof(publisher_raw.chars));
   }
 
   void set_title_name(const std::u16string_view value) {
-    rex::string::copy_and_swap_truncating(title_name_raw.chars, value,
-                                          rex::countof(title_name_raw.chars));
+    rex::copy_and_swap_truncating(title_name_raw.chars, value, rex::countof(title_name_raw.chars));
   }
 };
 static_assert_size(XContentMetadata, 0x93D6);

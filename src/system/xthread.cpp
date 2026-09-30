@@ -44,8 +44,6 @@ const uint32_t XAPC::kSize;
 const uint32_t XAPC::kDummyKernelRoutine;
 const uint32_t XAPC::kDummyRundownRoutine;
 
-using namespace rex::literals;
-
 uint32_t next_xthread_id_ = 0;
 
 XThread::XThread(KernelState* kernel_state)
@@ -260,7 +258,7 @@ void XThread::InitializeGuestObject() {
   guest_thread->msr_mask = 0xFDFFD7FF;
   // current_cpu is expected to be initialized externally via SetActiveCpu.
   guest_thread->stack_alloc_base = stack_base_;
-  guest_thread->create_time = chrono::Clock::QueryGuestSystemTime();
+  guest_thread->create_time = Clock::QueryGuestSystemTime();
 
   // Initialize timer_list as self-referencing
   guest_thread->timer_list.flink_ptr = guest_ptr + offsetof(X_KTHREAD, timer_list);
@@ -437,8 +435,8 @@ X_STATUS XThread::Create() {
     // Set name immediately, if we have one.
     thread_->set_name(thread_name_);
 
-    PROFILE_THREAD_ENTER(thread_name_.c_str());
-    PROFILE_THREAD_CREATED();
+    REX_PROFILE_THREAD(thread_name_.c_str());
+    REX_PERF_INC(kActiveThreads);
 
     // Execute user code.
     current_xthread_tls_ = this;
@@ -447,8 +445,7 @@ X_STATUS XThread::Create() {
     running_ = false;
     current_xthread_tls_ = nullptr;
 
-    PROFILE_THREAD_EXITED();
-    PROFILE_THREAD_EXIT();
+    REX_PERF_ADD(kActiveThreads, -1);
 
     // Release the self-reference to the thread.
     ReleaseHandle();
@@ -533,7 +530,6 @@ X_STATUS XThread::Exit(int exit_code) {
 
   // NOTE: unless PlatformExit fails, expect it to never return!
   current_xthread_tls_ = nullptr;
-  PROFILE_THREAD_EXIT();
 
   running_ = false;
   ReleaseHandle();
@@ -734,7 +730,7 @@ void XThread::DeliverAPCs() {
   auto& user_apc_queue = kthread->apc_lists[1];
 
   while (!user_apc_queue.empty(mem) && kthread->apc_disable_count == 0) {
-    PERF_counter_inc(kApcQueueDepth);
+    REX_PERF_INC(kAPCQueueDepth);
     XAPC* apc = user_apc_queue.HeadObject(mem);
     uint32_t apc_ptr = mem->HostToGuestVirtual(apc);
     bool needs_freeing = apc->kernel_routine != XAPC::kDummyKernelRoutine;
@@ -1018,7 +1014,7 @@ X_STATUS XThread::Delay(uint32_t processor_mode, uint32_t alertable, uint64_t in
   } else {
     timeout_ms = 0;
   }
-  timeout_ms = chrono::Clock::ScaleGuestDurationMillis(timeout_ms);
+  timeout_ms = Clock::ScaleGuestDurationMillis(timeout_ms);
   CheckTitleTermination();
   if (alertable) {
     auto result = rex::platform::AlertableSleep(std::chrono::milliseconds(timeout_ms));
@@ -1300,7 +1296,7 @@ static void LoadContext(PPCContext* ctx, const ThreadSavedState& state) {
   ctx->vscr_sat = state.context.vscr_sat;
 }
 
-bool XThread::Save(stream::ByteStream* stream) {
+bool XThread::Save(ByteStream* stream) {
   if (!guest_thread_) {
     // Host XThreads are expected to be recreated on their own.
     return false;
@@ -1348,7 +1344,7 @@ bool XThread::Save(stream::ByteStream* stream) {
   return true;
 }
 
-object_ref<XThread> XThread::Restore(KernelState* kernel_state, stream::ByteStream* stream) {
+object_ref<XThread> XThread::Restore(KernelState* kernel_state, ByteStream* stream) {
   // Kind-of a hack, but we need to set the kernel state outside of the object
   // constructor so it doesn't register a handle with the object table.
   auto thread = new XThread(nullptr);
@@ -1407,7 +1403,7 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state, stream::ByteStre
       // Set name immediately, if we have one.
       thread->thread_->set_name(thread->name());
 
-      PROFILE_THREAD_ENTER(thread->name().c_str());
+      REX_PROFILE_THREAD(thread->name().c_str());
 
       current_xthread_tls_ = thread;
 
@@ -1428,8 +1424,6 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state, stream::ByteStre
       (void)state;
 
       current_xthread_tls_ = nullptr;
-
-      PROFILE_THREAD_EXIT();
 
       // Release the self-reference to the thread.
       thread->ReleaseHandle();

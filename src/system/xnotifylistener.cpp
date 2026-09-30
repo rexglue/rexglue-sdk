@@ -84,7 +84,7 @@ bool XNotifyListener::DequeueNotification(XNotificationID id, uint32_t* out_data
   return dequeued;
 }
 
-bool XNotifyListener::Save(stream::ByteStream* stream) {
+bool XNotifyListener::Save(ByteStream* stream) {
   SaveObject(stream);
 
   stream->Write(mask_);
@@ -99,7 +99,7 @@ bool XNotifyListener::Save(stream::ByteStream* stream) {
 }
 
 object_ref<XNotifyListener> XNotifyListener::Restore(KernelState* kernel_state,
-                                                     stream::ByteStream* stream) {
+                                                     ByteStream* stream) {
   auto notify = new XNotifyListener(nullptr);
   notify->kernel_state_ = kernel_state;
 

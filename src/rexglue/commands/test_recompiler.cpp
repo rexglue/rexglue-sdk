@@ -183,13 +183,13 @@ std::vector<TestSpec> ParseTestSpecs(const std::string& asmPath,
   bool in_block_comment = false;
   auto getline = [&]() -> bool {
     while (std::getline(in, line)) {
-      line = rex::string::trim_string(line);
+      line = rex::trim_string(line);
       if (in_block_comment) {
         auto end = line.find("*/");
         if (end == std::string::npos)
           continue;
         in_block_comment = false;
-        line = rex::string::trim_string(line.substr(end + 2));
+        line = rex::trim_string(line.substr(end + 2));
         if (line.empty())
           continue;
       }
@@ -200,7 +200,7 @@ std::vector<TestSpec> ParseTestSpecs(const std::string& asmPath,
           in_block_comment = true;
           line = line.substr(0, start);
         }
-        line = rex::string::trim_string(line);
+        line = rex::trim_string(line);
         if (line.empty())
           continue;
       }

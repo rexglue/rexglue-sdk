@@ -174,9 +174,9 @@ void Init(const InitOptions& opts) {
   rex::ReplaceConsoleSink(g_sink_ptr);
 
   if (opts.tty) {
-    rex::platform::console::set_utf8_output_codepage();
+    rex::platform::SetUTF8OutputCodePage();
     if (opts.color) {
-      rex::platform::console::enable_ansi_escapes(stderr);
+      rex::platform::EnableANSIEscapes(stderr);
     }
   }
 }

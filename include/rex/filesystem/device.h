@@ -30,7 +30,7 @@ class Device {
   const std::string& mount_path() const { return mount_path_; }
   virtual bool is_read_only() const { return true; }
 
-  virtual void Dump(string::StringBuffer* string_buffer) = 0;
+  virtual void Dump(StringBuffer* string_buffer) = 0;
   /// Resolves a guest-relative path against the device. An empty @p path is
   /// the documented alias for the device root and returns the root entry.
   virtual Entry* ResolvePath(const std::string_view path) = 0;

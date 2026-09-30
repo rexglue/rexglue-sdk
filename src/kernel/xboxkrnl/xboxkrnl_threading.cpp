@@ -369,7 +369,7 @@ void KeSetCurrentProcessType_entry(u32 type) {
 }
 
 u32 KeQueryPerformanceFrequency_entry() {
-  uint64_t result = chrono::Clock::guest_tick_frequency();
+  uint64_t result = Clock::guest_tick_frequency();
   return static_cast<uint32_t>(result);
 }
 
@@ -395,7 +395,7 @@ u32 NtYieldExecution_entry() {
 }
 
 void KeQuerySystemTime_entry(mapped_u64 time_ptr) {
-  uint64_t time = chrono::Clock::QueryGuestSystemTime();
+  uint64_t time = Clock::QueryGuestSystemTime();
   if (time_ptr) {
     *time_ptr = time;
   }

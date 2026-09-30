@@ -223,8 +223,8 @@ void ImGuiDrawer::Initialize() {
     style_setup_(style, style_);
   }
 
-  frame_time_tick_frequency_ = double(rex::chrono::Clock::QueryHostTickFrequency());
-  last_frame_time_ticks_ = rex::chrono::Clock::QueryHostTickCount();
+  frame_time_tick_frequency_ = double(rex::Clock::QueryHostTickFrequency());
+  last_frame_time_ticks_ = rex::Clock::QueryHostTickCount();
 
   touch_pointer_id_ = TouchEvent::kPointerIDNone;
   reset_mouse_position_after_next_frame_ = false;
@@ -414,7 +414,7 @@ void ImGuiDrawer::Draw(UIDrawContext& ui_draw_context) {
 
   ImGuiIO& io = ImGui::GetIO();
 
-  uint64_t current_frame_time_ticks = rex::chrono::Clock::QueryHostTickCount();
+  uint64_t current_frame_time_ticks = rex::Clock::QueryHostTickCount();
   io.DeltaTime =
       float(double(current_frame_time_ticks - last_frame_time_ticks_) / frame_time_tick_frequency_);
   if (!(io.DeltaTime > 0.0f) || current_frame_time_ticks < last_frame_time_ticks_) {

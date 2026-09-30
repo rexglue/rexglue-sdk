@@ -19,7 +19,7 @@ namespace rex::runtime {
 ExportResolver::Table::Table(const std::string_view module_name,
                              const std::vector<Export*>* exports_by_ordinal)
     : exports_by_ordinal_(exports_by_ordinal) {
-  module_name_ = rex::string::utf8_find_base_name_from_guest_path(module_name);
+  module_name_ = rex::utf8_find_base_name_from_guest_path(module_name);
 
   exports_by_name_.reserve(exports_by_ordinal_->size());
   for (size_t i = 0; i < exports_by_ordinal_->size(); ++i) {
@@ -53,7 +53,7 @@ void ExportResolver::RegisterTable(const std::string_view module_name,
 
 Export* ExportResolver::GetExportByOrdinal(const std::string_view module_name, uint16_t ordinal) {
   for (const auto& table : tables_) {
-    if (rex::string::utf8_starts_with_case(module_name, table.module_name())) {
+    if (rex::utf8_starts_with_case(module_name, table.module_name())) {
       if (ordinal >= table.exports_by_ordinal().size()) {
         return nullptr;
       }

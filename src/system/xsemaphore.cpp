@@ -47,7 +47,7 @@ bool XSemaphore::ReleaseSemaphore(int32_t release_count, int32_t* out_previous_c
   return success;
 }
 
-bool XSemaphore::Save(stream::ByteStream* stream) {
+bool XSemaphore::Save(ByteStream* stream) {
   if (!SaveObject(stream)) {
     return false;
   }
@@ -70,7 +70,7 @@ bool XSemaphore::Save(stream::ByteStream* stream) {
   return true;
 }
 
-object_ref<XSemaphore> XSemaphore::Restore(KernelState* kernel_state, stream::ByteStream* stream) {
+object_ref<XSemaphore> XSemaphore::Restore(KernelState* kernel_state, ByteStream* stream) {
   auto sem = new XSemaphore(nullptr);
   sem->kernel_state_ = kernel_state;
 

@@ -1065,7 +1065,7 @@ bool XexModule::SetupLibraryImports(const std::string_view name,
   // however, we still need to patch variable imports in guest memory
   // since they are accessed via memory loads, not function calls.
 
-  auto base_name = rex::string::utf8_find_base_name_from_guest_path(name);
+  auto base_name = rex::utf8_find_base_name_from_guest_path(name);
 
   // Get export resolver for variable import patching
   auto* export_resolver = kernel_state_->emulator()->export_resolver();

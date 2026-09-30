@@ -11,7 +11,7 @@
 
 #include <rex/exception_handler.h>
 
-namespace rex::arch {
+namespace rex::platform {
 
 // Based on VIXL Instruction::IsLoad and IsStore.
 // https://github.com/Linaro/vixl/blob/d48909dd0ac62197edb75d26ed50927e4384a199/src/aarch64/instructions-aarch64.cc#L484
@@ -86,4 +86,4 @@ bool IsArm64LoadPrefetchStore(uint32_t instruction, bool& is_store_out) {
   }
 }
 
-}  // namespace rex::arch
+}  // namespace rex::platform

@@ -9,7 +9,7 @@
  * @modified    2026 Tom Clay <tomc@tctechstuff.com>
  *              Modified for rexglue - Xbox 360 recompilation framework
  *
- * @changes     - Flattened rex::string::utf8_ namespace to rex::string::
+ * @changes     - Flattened rex::utf8_ namespace to rex::
  *              - Added utf8_ prefix to all functions
  */
 
@@ -20,11 +20,11 @@
 
 #include <rex/platform.h>
 
-namespace rex::string {
+namespace rex {
 
 // UTF-8 path separator constants
-constexpr char32_t kUtf8PathSeparator = static_cast<char32_t>(rex::platform::kPathSeparator);
-constexpr char32_t kUtf8GuestPathSeparator = U'\\';
+constexpr char32_t kUTF8PathSeparator = static_cast<char32_t>(rex::platform::kPathSeparator);
+constexpr char32_t kUTF8GuestPathSeparator = U'\\';
 
 std::string to_utf8(const std::u16string_view source);
 std::u16string to_utf16(const std::string_view source);
@@ -73,16 +73,16 @@ std::vector<std::string_view> utf8_split_path(const std::string_view path);
 
 // Joins two path segments with the given separator.
 std::string utf8_join_paths(const std::string_view left_path, const std::string_view right_path,
-                            char32_t separator = kUtf8PathSeparator);
+                            char32_t separator = kUTF8PathSeparator);
 
 std::string utf8_join_paths(const std::vector<std::string>& paths,
-                            char32_t separator = kUtf8PathSeparator);
+                            char32_t separator = kUTF8PathSeparator);
 
 std::string utf8_join_paths(const std::vector<std::string_view>& paths,
-                            char32_t separator = kUtf8PathSeparator);
+                            char32_t separator = kUTF8PathSeparator);
 
 inline std::string utf8_join_paths(std::initializer_list<const std::string_view> paths,
-                                   char32_t separator = kUtf8PathSeparator) {
+                                   char32_t separator = kUTF8PathSeparator) {
   std::string result;
   for (auto path : paths) {
     result = utf8_join_paths(result, path, separator);
@@ -92,59 +92,59 @@ inline std::string utf8_join_paths(std::initializer_list<const std::string_view>
 
 inline std::string utf8_join_guest_paths(const std::string_view left_path,
                                          const std::string_view right_path) {
-  return utf8_join_paths(left_path, right_path, kUtf8GuestPathSeparator);
+  return utf8_join_paths(left_path, right_path, kUTF8GuestPathSeparator);
 }
 
 inline std::string utf8_join_guest_paths(const std::vector<std::string>& paths) {
-  return utf8_join_paths(paths, kUtf8GuestPathSeparator);
+  return utf8_join_paths(paths, kUTF8GuestPathSeparator);
 }
 
 inline std::string utf8_join_guest_paths(const std::vector<std::string_view>& paths) {
-  return utf8_join_paths(paths, kUtf8GuestPathSeparator);
+  return utf8_join_paths(paths, kUTF8GuestPathSeparator);
 }
 
 inline std::string utf8_join_guest_paths(std::initializer_list<const std::string_view> paths) {
-  return utf8_join_paths(paths, kUtf8GuestPathSeparator);
+  return utf8_join_paths(paths, kUTF8GuestPathSeparator);
 }
 
 // Replaces all path separators with the given value and removes redundant
 // separators.
 std::string utf8_fix_path_separators(const std::string_view path,
-                                     char32_t new_separator = kUtf8PathSeparator);
+                                     char32_t new_separator = kUTF8PathSeparator);
 
 inline std::string utf8_fix_guest_path_separators(const std::string_view path) {
-  return utf8_fix_path_separators(path, kUtf8GuestPathSeparator);
+  return utf8_fix_path_separators(path, kUTF8GuestPathSeparator);
 }
 
 // Find the top directory name or filename from a path.
 std::string utf8_find_name_from_path(const std::string_view path,
-                                     char32_t separator = kUtf8PathSeparator);
+                                     char32_t separator = kUTF8PathSeparator);
 
 inline std::string utf8_find_name_from_guest_path(const std::string_view path) {
-  return utf8_find_name_from_path(path, kUtf8GuestPathSeparator);
+  return utf8_find_name_from_path(path, kUTF8GuestPathSeparator);
 }
 
 std::string utf8_find_base_name_from_path(const std::string_view path,
-                                          char32_t separator = kUtf8PathSeparator);
+                                          char32_t separator = kUTF8PathSeparator);
 
 inline std::string utf8_find_base_name_from_guest_path(const std::string_view path) {
-  return utf8_find_base_name_from_path(path, kUtf8GuestPathSeparator);
+  return utf8_find_base_name_from_path(path, kUTF8GuestPathSeparator);
 }
 
 // Get parent path of the given directory or filename.
 std::string utf8_find_base_path(const std::string_view path,
-                                char32_t separator = kUtf8PathSeparator);
+                                char32_t separator = kUTF8PathSeparator);
 
 inline std::string utf8_find_base_guest_path(const std::string_view path) {
-  return utf8_find_base_path(path, kUtf8GuestPathSeparator);
+  return utf8_find_base_path(path, kUTF8GuestPathSeparator);
 }
 
 // Canonicalizes a path, removing ..'s.
 std::string utf8_canonicalize_path(const std::string_view path,
-                                   char32_t separator = kUtf8PathSeparator);
+                                   char32_t separator = kUTF8PathSeparator);
 
 inline std::string utf8_canonicalize_guest_path(const std::string_view path) {
-  return utf8_canonicalize_path(path, kUtf8GuestPathSeparator);
+  return utf8_canonicalize_path(path, kUTF8GuestPathSeparator);
 }
 
-}  // namespace rex::string
+}  // namespace rex

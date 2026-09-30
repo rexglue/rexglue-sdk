@@ -99,7 +99,7 @@ class VulkanPipelineCache {
                                     bool* is_placeholder_out = nullptr) const;
 
  private:
-  REXPACKEDSTRUCT(ShaderStoredHeader, {
+  REX_PACKED_STRUCT(ShaderStoredHeader, {
     uint64_t ucode_data_hash;
 
     uint32_t ucode_dword_count : 31;
@@ -151,7 +151,7 @@ class VulkanPipelineCache {
   };
 
   // Update PipelineDescription::kVersion if anything is changed!
-  REXPACKEDSTRUCT(PipelineRenderTarget, {
+  REX_PACKED_STRUCT(PipelineRenderTarget, {
     PipelineBlendFactor src_color_blend_factor : 4;  // 4
     PipelineBlendFactor dst_color_blend_factor : 4;  // 8
     xenos::BlendOp color_blend_op : 3;               // 11
@@ -161,7 +161,7 @@ class VulkanPipelineCache {
     uint32_t color_write_mask : 4;                   // 26
   });
 
-  REXPACKEDSTRUCT(PipelineDescription, {
+  REX_PACKED_STRUCT(PipelineDescription, {
     uint64_t vertex_shader_hash;
     uint64_t vertex_shader_modification;
     // 0 if no pixel shader.
@@ -227,7 +227,7 @@ class VulkanPipelineCache {
       }
     };
   });
-  REXPACKEDSTRUCT(PipelineStoredDescription, {
+  REX_PACKED_STRUCT(PipelineStoredDescription, {
     uint64_t description_hash;
     PipelineDescription description;
   });
@@ -377,7 +377,7 @@ class VulkanPipelineCache {
   VkShaderStageFlags guest_shader_vertex_stages_;
 
   // Temporary storage for AnalyzeUcode calls on the processor thread.
-  string::StringBuffer ucode_disasm_buffer_;
+  StringBuffer ucode_disasm_buffer_;
   // Reusable shader translator on the command processor thread.
   std::unique_ptr<SpirvShaderTranslator> shader_translator_;
 
