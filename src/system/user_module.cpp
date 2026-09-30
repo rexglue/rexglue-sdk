@@ -53,8 +53,7 @@ X_STATUS UserModule::LoadFromFile(const std::string_view path) {
   auto* fs = kernel_state_->file_system();
   auto fs_entry = fs->Stat(path);
   if (!fs_entry) {
-    REXSYS_ERROR("File not found: {}", path);
-    return X_STATUS_NO_SUCH_FILE;
+    REX_FAIL(system, X_STATUS_NO_SUCH_FILE, "File not found: {}", path);
   }
 
   path_ = fs_entry->absolute_path;
@@ -86,17 +85,17 @@ X_STATUS UserModule::LoadFromFile(const std::string_view path) {
   if (auto patch_entry = fs->Stat(path_ + "p")) {
     auto patch_path = patch_entry->absolute_path;
 
-    REXSYS_DEBUG("Loading XEX patch from {}", patch_path);
+    REXLOG_DEBUG(system, "Loading XEX patch from {}", patch_path);
 
     auto patch_module = object_ref<UserModule>(new UserModule(kernel_state_));
     result = patch_module->LoadFromFile(patch_path);
     if (!result) {
       result = patch_module->xex_module()->ApplyPatch(xex_module());
       if (result) {
-        REXSYS_ERROR("Failed to apply XEX patch, code: {}", result);
+        REXLOG_ERROR(system, "Failed to apply XEX patch, code: {}", result);
       }
     } else {
-      REXSYS_ERROR("Failed to load XEX patch, code: {}", result);
+      REXLOG_ERROR(system, "Failed to load XEX patch, code: {}", result);
     }
 
     if (result) {
@@ -119,8 +118,7 @@ X_STATUS UserModule::LoadFromMemory(const void* addr, const size_t length) {
   } else if (magic == runtime::kElfSignature) {
     module_format_ = kModuleFormatElf;
   } else {
-    REXSYS_ERROR("Unknown module magic: {:08X}", uint32_t(magic));
-    return X_STATUS_NOT_IMPLEMENTED;
+    REX_FAIL(system, X_STATUS_NOT_IMPLEMENTED, "Unknown module magic: {:08X}", uint32_t(magic));
   }
 
   if (module_format_ == kModuleFormatXex) {

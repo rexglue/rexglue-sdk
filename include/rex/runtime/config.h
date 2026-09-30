@@ -1,6 +1,6 @@
 /**
  * @file        runtime/config.h
- * @brief       Runtime module slice of rex::Config
+ * @brief       Runtime module config inside rex::Config
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -20,7 +20,7 @@ namespace rex::runtime {
 
 /** Values the kernel reports to the title. */
 struct KernelConfig {
-  /** XAM UI exports answer without a dialog. */
+  /** Xam UI exports answer without a dialog. */
   bool headless = false;
   /** XCONFIG_USER_LANGUAGE. */
   u32 user_language = 1;
@@ -32,12 +32,16 @@ struct KernelConfig {
   std::string command_line;
 };
 
-/** Runtime module slice. */
+/** Runtime module config. */
 struct RuntimeConfig {
   /** Guest CRT heap size in MiB, used when the image was recompiled with the rexcrt heap. 1 to
    * 2048.
    */
-  u32 heap_size_mb = 256;
+  u32 title_memory_mb = 480;
+  /** Code and read only data sections of the title image load writable. */
+  bool writable_code_segments = false;
+  /** The first and last 64 KiB of the guest address space fault on any access. */
+  bool protect_zero = true;
   /** Values the kernel reports to the title. */
   KernelConfig kernel;
   /** Time TerminateTitle waits for guest threads to exit before it terminates the rest. */
@@ -48,7 +52,7 @@ struct RuntimeConfig {
 enum class TitleExitReason : u8 {
   NormalExit,     /**< The title's main thread returned. */
   HardExit,       /**< The title called HalReturnToFirmware. */
-  TitleDataError, /**< XAM reported that title data could not be read from the disc. */
+  TitleDataError, /**< Xam reported that title data could not be read from the disc. */
 };
 
 }  // namespace rex::runtime

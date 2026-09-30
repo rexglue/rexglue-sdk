@@ -182,7 +182,7 @@ static void AddToRegistry(BindEntry& entry) {
     return;
   const rex::cvar::IVar* one[] = {entry.var.get()};
   if (auto status = g_bind_registry->Add(one); !status) {
-    REXLOG_WARN("{}", status.error().what());
+    REXLOG_WARN(ui, "{}", status.error().what());
     return;
   }
   entry.added = true;

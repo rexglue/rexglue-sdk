@@ -21,8 +21,6 @@
 #include <rex/codegen/config.h>
 #include <rex/logging.h>
 
-#include "codegen_logging.h"
-
 #include <toml++/toml.hpp>
 
 namespace rex::codegen {
@@ -54,11 +52,11 @@ void MergeScalar(T& dst, const T& src, const char* name) {
   if (src != T{} && src != dst) {
     if (dst != T{}) {
       if constexpr (std::is_same_v<T, bool>) {
-        REXCODEGEN_DEBUG("[config]   {}: {} -> {} (overridden)", name, dst, src);
+        REXLOG_DEBUG(codegen, "config   {}: {} -> {} (overridden)", name, dst, src);
       } else if constexpr (std::is_same_v<T, std::string>) {
-        REXCODEGEN_DEBUG("[config]   {}: \"{}\" -> \"{}\" (overridden)", name, dst, src);
+        REXLOG_DEBUG(codegen, "config   {}: \"{}\" -> \"{}\" (overridden)", name, dst, src);
       } else {
-        REXCODEGEN_DEBUG("[config]   {}: {} -> {} (overridden)", name, dst, src);
+        REXLOG_DEBUG(codegen, "config   {}: {} -> {} (overridden)", name, dst, src);
       }
     }
     dst = src;
@@ -71,8 +69,8 @@ void MergeBool(bool& dst, bool src, bool present, const char* name) {
   if (!present)
     return;
   if (src != dst) {
-    REXCODEGEN_DEBUG("[config]   {}: {} -> {} (overridden)", name, dst ? "true" : "false",
-                     src ? "true" : "false");
+    REXLOG_DEBUG(codegen, "config   {}: {} -> {} (overridden)", name, dst ? "true" : "false",
+                 src ? "true" : "false");
   }
   dst = src;
 }
@@ -162,15 +160,15 @@ void ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
         auto key = std::string(name);
         auto it = cfg.rexcrtFunctions.find(key);
         if (it != cfg.rexcrtFunctions.end()) {
-          REXCODEGEN_DEBUG("[config]   [rexcrt] {} overridden: 0x{:08X} -> 0x{:08X}", key,
-                           it->second, static_cast<uint32_t>(*addr));
+          REXLOG_DEBUG(codegen, "config   [rexcrt] {} overridden: 0x{:08X} -> 0x{:08X}", key,
+                       it->second, static_cast<uint32_t>(*addr));
         }
         cfg.rexcrtFunctions[key] = static_cast<uint32_t>(*addr);
         ++added;
       }
     }
     if (added > 0) {
-      REXCODEGEN_DEBUG("[config]   [rexcrt] added/updated {} entries from {}", added, filePath);
+      REXLOG_DEBUG(codegen, "config   [rexcrt] added/updated {} entries from {}", added, filePath);
     }
   }
 
@@ -181,14 +179,14 @@ void ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
       std::string keyStr(key.str());
       auto addrOpt = ParseHexAddress(keyStr);
       if (!addrOpt) {
-        REXCODEGEN_ERROR("Invalid function address key: {}", keyStr);
+        REXLOG_ERROR(codegen, "Invalid function address key: {}", keyStr);
         continue;
       }
       uint32_t address = *addrOpt;
 
       auto* table = value.as_table();
       if (!table) {
-        REXCODEGEN_ERROR("Invalid [functions] entry at 0x{:08X}: expected table", address);
+        REXLOG_ERROR(codegen, "Invalid [functions] entry at 0x{:08X}: expected table", address);
         continue;
       }
 
@@ -200,24 +198,26 @@ void ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
       fcfg.shareRegisters = (*table)["share_registers"].value_or(false);
 
       if (fcfg.size && fcfg.end) {
-        REXCODEGEN_ERROR("Function 0x{:08X}: cannot specify both 'size' and 'end'", address);
+        REXLOG_ERROR(codegen, "Function 0x{:08X}: cannot specify both 'size' and 'end'", address);
         continue;
       }
       if (fcfg.end && fcfg.end <= address) {
-        REXCODEGEN_ERROR("Function 0x{:08X}: 'end' (0x{:08X}) must be greater than address",
-                         address, fcfg.end);
+        REXLOG_ERROR(codegen, "Function 0x{:08X}: 'end' (0x{:08X}) must be greater than address",
+                     address, fcfg.end);
         continue;
       }
 
       auto it = cfg.functions.find(address);
       if (it != cfg.functions.end()) {
-        REXCODEGEN_DEBUG("[config]   [functions] 0x{:08X} overridden from {}", address, filePath);
+        REXLOG_DEBUG(codegen, "config   [functions] 0x{:08X} overridden from {}", address,
+                     filePath);
       }
       cfg.functions.insert_or_assign(address, std::move(fcfg));
       ++added;
     }
     if (added > 0) {
-      REXCODEGEN_DEBUG("[config]   [functions] added/updated {} entries from {}", added, filePath);
+      REXLOG_DEBUG(codegen, "config   [functions] added/updated {} entries from {}", added,
+                   filePath);
     }
   }
 
@@ -228,7 +228,7 @@ void ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
     for (auto& entry : *invalidArray) {
       auto* table = entry.as_table();
       if (!table) {
-        REXCODEGEN_ERROR("Invalid [[invalid_instructions]] entry: expected table");
+        REXLOG_ERROR(codegen, "Invalid [[invalid_instructions]] entry: expected table");
         continue;
       }
 
@@ -236,18 +236,18 @@ void ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
       auto size_opt = (*table)["size"].value<uint32_t>();
 
       if (!data_opt) {
-        REXCODEGEN_ERROR("Missing 'data' in [[invalid_instructions]] entry");
+        REXLOG_ERROR(codegen, "Missing 'data' in [[invalid_instructions]] entry");
         continue;
       }
       if (!size_opt) {
-        REXCODEGEN_ERROR("Missing 'size' in [[invalid_instructions]] entry");
+        REXLOG_ERROR(codegen, "Missing 'size' in [[invalid_instructions]] entry");
         continue;
       }
 
       auto it = cfg.invalidInstructionHints.find(*data_opt);
       if (it != cfg.invalidInstructionHints.end()) {
-        REXCODEGEN_DEBUG("[config]   [[invalid_instructions]] 0x{:08X} overridden from {}",
-                         *data_opt, filePath);
+        REXLOG_DEBUG(codegen, "config   [[invalid_instructions]] 0x{:08X} overridden from {}",
+                     *data_opt, filePath);
       }
       cfg.invalidInstructionHints.insert_or_assign(*data_opt, *size_opt);
     }
@@ -258,7 +258,7 @@ void ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
     for (auto& entry : *switchTableArray) {
       auto* table = entry.as_table();
       if (!table) {
-        REXCODEGEN_ERROR("Invalid [[switch_tables]] entry: expected table");
+        REXLOG_ERROR(codegen, "Invalid [[switch_tables]] entry: expected table");
         continue;
       }
 
@@ -267,15 +267,15 @@ void ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
       auto labels_array = (*table)["labels"].as_array();
 
       if (!address_opt) {
-        REXCODEGEN_ERROR("Missing 'address' in [[switch_tables]] entry");
+        REXLOG_ERROR(codegen, "Missing 'address' in [[switch_tables]] entry");
         continue;
       }
       if (!register_opt) {
-        REXCODEGEN_ERROR("Missing 'register' in [[switch_tables]] entry");
+        REXLOG_ERROR(codegen, "Missing 'register' in [[switch_tables]] entry");
         continue;
       }
       if (!labels_array) {
-        REXCODEGEN_ERROR("Missing 'labels' in [[switch_tables]] entry");
+        REXLOG_ERROR(codegen, "Missing 'labels' in [[switch_tables]] entry");
         continue;
       }
 
@@ -291,19 +291,20 @@ void ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
       }
 
       if (jt.targets.empty()) {
-        REXCODEGEN_ERROR("Empty 'labels' array in [[switch_tables]] at 0x{:08X}", *address_opt);
+        REXLOG_ERROR(codegen, "Empty 'labels' array in [[switch_tables]] at 0x{:08X}",
+                     *address_opt);
         continue;
       }
 
       auto it = cfg.switchTables.find(*address_opt);
       if (it != cfg.switchTables.end()) {
-        REXCODEGEN_DEBUG("[config]   [[switch_tables]] 0x{:08X} overridden from {}", *address_opt,
-                         filePath);
+        REXLOG_DEBUG(codegen, "config   [[switch_tables]] 0x{:08X} overridden from {}",
+                     *address_opt, filePath);
       }
       size_t label_count = jt.targets.size();
       cfg.switchTables.insert_or_assign(*address_opt, std::move(jt));
-      REXCODEGEN_DEBUG("Loaded manual switch table at 0x{:08X} with {} labels", *address_opt,
-                       label_count);
+      REXLOG_DEBUG(codegen, "Loaded manual switch table at 0x{:08X} with {} labels", *address_opt,
+                   label_count);
     }
   }
 
@@ -312,7 +313,7 @@ void ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
     for (auto& entry : *midAsmHookArray) {
       auto* table = entry.as_table();
       if (!table) {
-        REXCODEGEN_ERROR("Invalid [[midasm_hook]] entry: expected table");
+        REXLOG_ERROR(codegen, "Invalid [[midasm_hook]] entry: expected table");
         continue;
       }
 
@@ -320,11 +321,11 @@ void ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
       auto name_opt = (*table)["name"].value<std::string>();
 
       if (!address_opt) {
-        REXCODEGEN_ERROR("Missing 'address' in [[midasm_hook]] entry");
+        REXLOG_ERROR(codegen, "Missing 'address' in [[midasm_hook]] entry");
         continue;
       }
       if (!name_opt) {
-        REXCODEGEN_ERROR("Missing 'name' in [[midasm_hook]] entry");
+        REXLOG_ERROR(codegen, "Missing 'name' in [[midasm_hook]] entry");
         continue;
       }
 
@@ -350,21 +351,21 @@ void ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
       if ((midAsmHook.ret && midAsmHook.jumpAddress != 0) ||
           (midAsmHook.returnOnTrue && midAsmHook.jumpAddressOnTrue != 0) ||
           (midAsmHook.returnOnFalse && midAsmHook.jumpAddressOnFalse != 0)) {
-        REXCODEGEN_ERROR("{}: can't return and jump at the same time", midAsmHook.name);
+        REXLOG_ERROR(codegen, "{}: can't return and jump at the same time", midAsmHook.name);
       }
 
       if ((midAsmHook.ret || midAsmHook.jumpAddress != 0) &&
           (midAsmHook.returnOnFalse || midAsmHook.returnOnTrue ||
            midAsmHook.jumpAddressOnFalse != 0 || midAsmHook.jumpAddressOnTrue != 0)) {
-        REXCODEGEN_ERROR("{}: can't mix direct and conditional return/jump", midAsmHook.name);
+        REXLOG_ERROR(codegen, "{}: can't mix direct and conditional return/jump", midAsmHook.name);
       }
 
       midAsmHook.afterInstruction = (*table)["after_instruction"].value_or(false);
 
       auto it = cfg.midAsmHooks.find(*address_opt);
       if (it != cfg.midAsmHooks.end()) {
-        REXCODEGEN_DEBUG("[config]   [[midasm_hook]] 0x{:08X} overridden from {}", *address_opt,
-                         filePath);
+        REXLOG_DEBUG(codegen, "config   [[midasm_hook]] 0x{:08X} overridden from {}", *address_opt,
+                     filePath);
       }
       cfg.midAsmHooks.insert_or_assign(*address_opt, std::move(midAsmHook));
     }
@@ -377,7 +378,7 @@ void ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
     for (auto& entry : *indirectCallArray) {
       if (auto addr = entry.value<int64_t>()) {
         cfg.knownIndirectCallHints.insert(static_cast<uint32_t>(*addr));
-        REXCODEGEN_DEBUG("Loaded known indirect call hint at 0x{:08X}", *addr);
+        REXLOG_DEBUG(codegen, "Loaded known indirect call hint at 0x{:08X}", *addr);
       }
     }
   }
@@ -390,21 +391,19 @@ bool ApplyTableWithIncludes(const toml::table& tbl, const std::filesystem::path&
 bool LoadRecursive(const std::filesystem::path& filePath, RecompilerConfig& cfg,
                    std::set<std::string>& visited, uint32_t depth) {
   if (depth > kMaxIncludeDepth) {
-    REXCODEGEN_ERROR("[config] include depth exceeds maximum ({}) at: {}", kMaxIncludeDepth,
-                     filePath.string());
-    return false;
+    REX_FAIL(codegen, false, "config include depth exceeds maximum ({}) at: {}", kMaxIncludeDepth,
+             filePath.string());
   }
 
   std::error_code ec;
   auto canonical = std::filesystem::canonical(filePath, ec);
   if (ec) {
-    REXCODEGEN_ERROR("[config] cannot resolve path '{}': {}", filePath.string(), ec.message());
-    return false;
+    REX_FAIL(codegen, false, "config cannot resolve path '{}': {}", filePath.string(),
+             ec.message());
   }
   std::string canonicalStr = canonical.string();
   if (visited.contains(canonicalStr)) {
-    REXCODEGEN_ERROR("[config] circular include detected: {}", canonicalStr);
-    return false;
+    REX_FAIL(codegen, false, "config circular include detected: {}", canonicalStr);
   }
   visited.insert(canonicalStr);
   cfg.loadedFiles.push_back(canonicalStr);
@@ -413,10 +412,9 @@ bool LoadRecursive(const std::filesystem::path& filePath, RecompilerConfig& cfg,
   try {
     toml = toml::parse_file(canonicalStr);
   } catch (const toml::parse_error& e) {
-    REXCODEGEN_ERROR("Failed to parse config file '{}': {}", canonicalStr, e.what());
-    return false;
+    REX_FAIL(codegen, false, "Failed to parse config file '{}': {}", canonicalStr, e.what());
   }
-  REXCODEGEN_DEBUG("[config] loaded: {}", filePath.filename().string());
+  REXLOG_DEBUG(codegen, "config loaded: {}", filePath.filename().string());
   return ApplyTableWithIncludes(toml, canonical.parent_path(), cfg, visited, depth,
                                 filePath.filename().string());
 }
@@ -430,9 +428,8 @@ bool ApplyTableWithIncludes(const toml::table& tbl, const std::filesystem::path&
       if (auto includePath = elem.value<std::string>()) {
         auto resolved = base_dir / *includePath;
         if (!std::filesystem::exists(resolved)) {
-          REXCODEGEN_ERROR("[config] included file not found: {} (resolved from {})", *includePath,
-                           description);
-          return false;
+          REX_FAIL(codegen, false, "config included file not found: {} (resolved from {})",
+                   *includePath, description);
         }
         if (!LoadRecursive(resolved, cfg, visited, depth + 1)) {
           return false;
@@ -459,8 +456,8 @@ bool FinalizeConfig(RecompilerConfig& cfg) {
       if (fc.isChunk())
         chunks_count++;
     }
-    REXCODEGEN_TRACE("Loaded {} function configs ({} standalone, {} chunks)", cfg.functions.size(),
-                     cfg.functions.size() - chunks_count, chunks_count);
+    REXLOG_TRACE(codegen, "Loaded {} function configs ({} standalone, {} chunks)",
+                 cfg.functions.size(), cfg.functions.size() - chunks_count, chunks_count);
   }
   if (!cfg.exceptionHandlerFuncHints.empty()) {
     std::sort(cfg.exceptionHandlerFuncHints.begin(), cfg.exceptionHandlerFuncHints.end());
@@ -471,16 +468,16 @@ bool FinalizeConfig(RecompilerConfig& cfg) {
 
   bool ok = true;
   if (cfg.filePath.empty()) {
-    REXCODEGEN_ERROR("Missing required field: file_path");
+    REXLOG_ERROR(codegen, "Missing required field: file_path");
     ok = false;
   }
 
   auto result = cfg.Validate();
   for (const auto& warning : result.warnings) {
-    REXCODEGEN_WARN("[config] {}", warning);
+    REXLOG_WARN(codegen, "config {}", warning);
   }
   for (const auto& error : result.errors) {
-    REXCODEGEN_ERROR("[config] {}", error);
+    REXLOG_ERROR(codegen, "config {}", error);
   }
   if (!result.valid) {
     ok = false;

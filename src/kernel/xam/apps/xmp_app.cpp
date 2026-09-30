@@ -42,7 +42,7 @@ X_HRESULT XmpApp::XMPGetStatus(uint32_t state_ptr) {
     rex::platform::Sleep(std::chrono::milliseconds(1));
   }
 
-  REXKRNL_TRACE("XMPGetStatus({:08X})", state_ptr);
+  REXLOG_TRACE(kernel, "XMPGetStatus({:08X})", state_ptr);
   memory::store_and_swap<uint32_t>(memory_->TranslateVirtual(state_ptr),
                                    static_cast<uint32_t>(state_));
   return X_E_SUCCESS;
@@ -52,11 +52,11 @@ X_HRESULT XmpApp::XMPCreateTitlePlaylist(uint32_t songs_ptr, uint32_t song_count
                                          uint32_t playlist_name_ptr,
                                          const std::u16string& playlist_name, uint32_t flags,
                                          uint32_t out_song_handles, uint32_t out_playlist_handle) {
-  REXKRNL_DEBUG(
-      "XMPCreateTitlePlaylist({:08X}, {:08X}, {:08X}({}), {:08X}, {:08X}, "
-      "{:08X})",
-      songs_ptr, song_count, playlist_name_ptr, rex::to_utf8(playlist_name), flags,
-      out_song_handles, out_playlist_handle);
+  REXLOG_DEBUG(kernel,
+               "XMPCreateTitlePlaylist({:08X}, {:08X}, {:08X}({}), {:08X}, {:08X}, "
+               "{:08X})",
+               songs_ptr, song_count, playlist_name_ptr, rex::to_utf8(playlist_name), flags,
+               out_song_handles, out_playlist_handle);
   auto playlist = std::make_unique<Playlist>();
   playlist->handle = ++next_playlist_handle_;
   playlist->name = playlist_name;
@@ -100,12 +100,11 @@ X_HRESULT XmpApp::XMPCreateTitlePlaylist(uint32_t songs_ptr, uint32_t song_count
 }
 
 X_HRESULT XmpApp::XMPDeleteTitlePlaylist(uint32_t playlist_handle) {
-  REXKRNL_DEBUG("XMPDeleteTitlePlaylist({:08X})", playlist_handle);
+  REXLOG_DEBUG(kernel, "XMPDeleteTitlePlaylist({:08X})", playlist_handle);
   auto global_lock = global_critical_region_.Acquire();
   auto it = playlists_.find(playlist_handle);
   if (it == playlists_.end()) {
-    REXKRNL_ERROR("Playlist {:08X} not found", playlist_handle);
-    return X_E_NOTFOUND;
+    REX_FAIL(kernel, X_E_NOTFOUND, "Playlist {:08X} not found", playlist_handle);
   }
   auto playlist = it->second;
   if (playlist == active_playlist_) {
@@ -117,25 +116,24 @@ X_HRESULT XmpApp::XMPDeleteTitlePlaylist(uint32_t playlist_handle) {
 }
 
 X_HRESULT XmpApp::XMPPlayTitlePlaylist(uint32_t playlist_handle, uint32_t song_handle) {
-  REXKRNL_DEBUG("XMPPlayTitlePlaylist({:08X}, {:08X})", playlist_handle, song_handle);
+  REXLOG_DEBUG(kernel, "XMPPlayTitlePlaylist({:08X}, {:08X})", playlist_handle, song_handle);
   Playlist* playlist = nullptr;
   {
     auto global_lock = global_critical_region_.Acquire();
     auto it = playlists_.find(playlist_handle);
     if (it == playlists_.end()) {
-      REXKRNL_ERROR("Playlist {:08X} not found", playlist_handle);
-      return X_E_NOTFOUND;
+      REX_FAIL(kernel, X_E_NOTFOUND, "Playlist {:08X} not found", playlist_handle);
     }
     playlist = it->second;
   }
 
   if (playback_client_ == PlaybackClient::kSystem) {
-    REXKRNL_WARN("XMPPlayTitlePlaylist: System playback is enabled!");
+    REXLOG_WARN(kernel, "XMPPlayTitlePlaylist: System playback is enabled!");
     return X_E_SUCCESS;
   }
 
   // Start playlist?
-  REXKRNL_WARN("Playlist playback not supported");
+  REXLOG_WARN(kernel, "Playlist playback not supported");
   active_playlist_ = playlist;
   active_song_index_ = 0;
   state_ = State::kPlaying;
@@ -145,7 +143,7 @@ X_HRESULT XmpApp::XMPPlayTitlePlaylist(uint32_t playlist_handle, uint32_t song_h
 }
 
 X_HRESULT XmpApp::XMPContinue() {
-  REXKRNL_DEBUG("XMPContinue()");
+  REXLOG_DEBUG(kernel, "XMPContinue()");
   if (state_ == State::kPaused) {
     state_ = State::kPlaying;
   }
@@ -155,7 +153,7 @@ X_HRESULT XmpApp::XMPContinue() {
 
 X_HRESULT XmpApp::XMPStop(uint32_t unk) {
   assert_zero(unk);
-  REXKRNL_DEBUG("XMPStop({:08X})", unk);
+  REXLOG_DEBUG(kernel, "XMPStop({:08X})", unk);
   active_playlist_ = nullptr;  // ?
   active_song_index_ = 0;
   state_ = State::kIdle;
@@ -164,7 +162,7 @@ X_HRESULT XmpApp::XMPStop(uint32_t unk) {
 }
 
 X_HRESULT XmpApp::XMPPause() {
-  REXKRNL_DEBUG("XMPPause()");
+  REXLOG_DEBUG(kernel, "XMPPause()");
   if (state_ == State::kPlaying) {
     state_ = State::kPaused;
   }
@@ -173,7 +171,7 @@ X_HRESULT XmpApp::XMPPause() {
 }
 
 X_HRESULT XmpApp::XMPNext() {
-  REXKRNL_DEBUG("XMPNext()");
+  REXLOG_DEBUG(kernel, "XMPNext()");
   if (!active_playlist_) {
     return X_E_NOTFOUND;
   }
@@ -184,7 +182,7 @@ X_HRESULT XmpApp::XMPNext() {
 }
 
 X_HRESULT XmpApp::XMPPrevious() {
-  REXKRNL_DEBUG("XMPPrevious()");
+  REXLOG_DEBUG(kernel, "XMPPrevious()");
   if (!active_playlist_) {
     return X_E_NOTFOUND;
   }
@@ -259,8 +257,9 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       static_assert_size(decltype(*args), 16);
 
       assert_true(args->xmp_client == 0x00000002 || args->xmp_client == 0x00000000);
-      REXKRNL_DEBUG("XMPSetPlaybackBehavior({:08X}, {:08X}, {:08X})", uint32_t(args->playback_mode),
-                    uint32_t(args->repeat_mode), uint32_t(args->flags));
+      REXLOG_DEBUG(kernel, "XMPSetPlaybackBehavior({:08X}, {:08X}, {:08X})",
+                   uint32_t(args->playback_mode), uint32_t(args->repeat_mode),
+                   uint32_t(args->flags));
       playback_mode_ = static_cast<PlaybackMode>(uint32_t(args->playback_mode));
       repeat_mode_ = static_cast<RepeatMode>(uint32_t(args->repeat_mode));
       unknown_flags_ = args->flags;
@@ -283,7 +282,7 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       static_assert_size(decltype(*args), 8);
 
       assert_true(args->xmp_client == 0x00000002);
-      REXKRNL_DEBUG("XMPGetVolume({:08X})", uint32_t(args->volume_ptr));
+      REXLOG_DEBUG(kernel, "XMPGetVolume({:08X})", uint32_t(args->volume_ptr));
       memory::store_and_swap<float>(memory_->TranslateVirtual(args->volume_ptr), volume_);
       return X_E_SUCCESS;
     }
@@ -296,7 +295,7 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       static_assert_size(decltype(*args), 8);
 
       assert_true(args->xmp_client == 0x00000002);
-      REXKRNL_DEBUG("XMPSetVolume({:g})", float(args->value));
+      REXLOG_DEBUG(kernel, "XMPSetVolume({:g})", float(args->value));
       volume_ = args->value;
       return X_E_SUCCESS;
     }
@@ -343,8 +342,8 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       auto info = memory_->TranslateVirtual(args->info_ptr);
       assert_true(args->xmp_client == 0x00000002);
       assert_zero(args->unk_ptr);
-      REXKRNL_ERROR("XMPGetInfo?({:08X}, {:08X})", uint32_t(args->unk_ptr),
-                    uint32_t(args->info_ptr));
+      REXLOG_ERROR(kernel, "XMPGetInfo?({:08X}, {:08X})", uint32_t(args->unk_ptr),
+                   uint32_t(args->info_ptr));
       if (!active_playlist_) {
         return X_E_FAIL;
       }
@@ -385,8 +384,8 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
 
       assert_true((args->xmp_client == 0x00000002 && args->controller == 0x00000000) ||
                   (args->xmp_client == 0x00000000 && args->controller == 0x00000001));
-      REXKRNL_DEBUG("XMPSetPlaybackController({:08X}, {:08X})", uint32_t(args->controller),
-                    uint32_t(args->playback_client));
+      REXLOG_DEBUG(kernel, "XMPSetPlaybackController({:08X}, {:08X})", uint32_t(args->controller),
+                   uint32_t(args->playback_client));
 
       playback_client_ = PlaybackClient(uint32_t(args->playback_client));
       kernel_state_->BroadcastNotification(kMsgPlaybackControllerChanged, !args->playback_client);
@@ -403,8 +402,9 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       static_assert_size(decltype(*args), 12);
 
       assert_true(args->xmp_client == 0x00000002);
-      REXKRNL_DEBUG("XMPGetPlaybackController({:08X}, {:08X}, {:08X})", uint32_t(args->xmp_client),
-                    uint32_t(args->controller_ptr), uint32_t(args->locked_ptr));
+      REXLOG_DEBUG(kernel, "XMPGetPlaybackController({:08X}, {:08X}, {:08X})",
+                   uint32_t(args->xmp_client), uint32_t(args->controller_ptr),
+                   uint32_t(args->locked_ptr));
       memory::store_and_swap<uint32_t>(memory_->TranslateVirtual(args->controller_ptr), 0);
       memory::store_and_swap<uint32_t>(memory_->TranslateVirtual(args->locked_ptr), 0);
 
@@ -427,9 +427,9 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       static_assert_size(decltype(*args), 16);
 
       assert_true(args->xmp_client == 0x00000002 || args->xmp_client == 0x00000000);
-      REXKRNL_DEBUG("XMPGetPlaybackBehavior({:08X}, {:08X}, {:08X})",
-                    uint32_t(args->playback_mode_ptr), uint32_t(args->repeat_mode_ptr),
-                    uint32_t(args->unk3_ptr));
+      REXLOG_DEBUG(kernel, "XMPGetPlaybackBehavior({:08X}, {:08X}, {:08X})",
+                   uint32_t(args->playback_mode_ptr), uint32_t(args->repeat_mode_ptr),
+                   uint32_t(args->unk3_ptr));
       if (args->playback_mode_ptr) {
         memory::store_and_swap<uint32_t>(memory_->TranslateVirtual(args->playback_mode_ptr),
                                          static_cast<uint32_t>(playback_mode_));
@@ -462,16 +462,15 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
     }
     case 0x0007003D: {
       // XMPCaptureOutput - not sure how this works :/
-      REXKRNL_DEBUG("XMPCaptureOutput(...)");
+      REXLOG_DEBUG(kernel, "XMPCaptureOutput(...)");
       assert_always("XMP output not unimplemented");
       return X_E_FAIL;
     }
   }
-  REXKRNL_ERROR(
-      "Unimplemented XMP message app={:08X}, msg={:08X}, arg1={:08X}, "
-      "arg2={:08X}",
-      app_id(), message, buffer_ptr, buffer_length);
-  return X_E_FAIL;
+  REX_FAIL(kernel, X_E_FAIL,
+           "Unimplemented XMP message app={:08X}, msg={:08X}, arg1={:08X}, "
+           "arg2={:08X}",
+           app_id(), message, buffer_ptr, buffer_length);
 }
 
 }  // namespace apps

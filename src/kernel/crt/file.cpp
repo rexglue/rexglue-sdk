@@ -70,15 +70,15 @@ u32 CreateFileA_entry(mapped_string lpFileName, u32 dwDesiredAccess, u32 dwShare
   options.require_file = true;
   auto opened = ks->file_system()->Open(path, options);
   if (!opened) {
-    REXKRNL_NOISY_DEBUG("rexcrt_CreateFileA: FAILED path='{}' status={:#x}", path,
-                        rex::system::ToXStatus(opened.error()));
+    REXLOG_DEV(kernel, "rexcrt_CreateFileA: FAILED path='{}' status={:#x}", path,
+               rex::system::ToXStatus(opened.error()));
     return kInvalidHandleValue;
   }
 
   auto file = rex::system::object_ref<rex::system::XFile>(
       new rex::system::XFile(ks, std::move(opened->file), true));
   auto handle = file->handle();
-  REXKRNL_NOISY_DEBUG("rexcrt_CreateFileA: '{}' -> handle={:#x}", path, handle);
+  REXLOG_DEV(kernel, "rexcrt_CreateFileA: '{}' -> handle={:#x}", path, handle);
   return handle;
 }
 
@@ -86,7 +86,7 @@ u32 ReadFile_entry(u32 hFile, mapped_void lpBuffer, u32 nNumberOfBytesToRead,
                    mapped_u32 lpNumberOfBytesRead, mapped_void lpOverlapped) {
   auto file = REX_KERNEL_OBJECTS()->LookupObject<rex::system::XFile>(static_cast<uint32_t>(hFile));
   if (!file) {
-    REXKRNL_WARN("rexcrt_ReadFile: invalid handle {:#x}", static_cast<uint32_t>(hFile));
+    REXLOG_WARN(kernel, "rexcrt_ReadFile: invalid handle {:#x}", static_cast<uint32_t>(hFile));
     if (lpNumberOfBytesRead)
       *lpNumberOfBytesRead = 0;
     return 0;
@@ -227,7 +227,7 @@ u32 DeleteFileA_entry(mapped_string lpFileName) {
   const char* path = static_cast<const char*>(lpFileName);
   bool ok = REX_KERNEL_FS()->Remove(path).has_value();
   if (!ok)
-    REXKRNL_NOISY_DEBUG("rexcrt_DeleteFileA: FAILED '{}'", path);
+    REXLOG_DEV(kernel, "rexcrt_DeleteFileA: FAILED '{}'", path);
   return ok ? 1u : 0u;
 }
 
@@ -237,7 +237,7 @@ u32 CloseHandle_entry(u32 hObject) {
     return 0;
   auto status = REX_KERNEL_OBJECTS()->ReleaseHandle(h);
   if (XFAILED(status)) {
-    REXKRNL_WARN("rexcrt_CloseHandle: unknown handle {:#x}", h);
+    REXLOG_WARN(kernel, "rexcrt_CloseHandle: unknown handle {:#x}", h);
     return 0;
   }
   return 1;
@@ -277,7 +277,7 @@ u32 FindFirstFileA_entry(mapped_string lpFileName, mapped_void lpFindFileData) {
   options.create_directory = true;
   auto opened = ks->file_system()->Open(dir, options);
   if (!opened) {
-    REXKRNL_DEBUG("rexcrt_FindFirstFileA: dir not found '{}'", dir);
+    REXLOG_DEBUG(kernel, "rexcrt_FindFirstFileA: dir not found '{}'", dir);
     return kInvalidHandleValue;
   }
 
@@ -287,14 +287,14 @@ u32 FindFirstFileA_entry(mapped_string lpFileName, mapped_void lpFindFileData) {
 
   auto entry = xfile->FindNext();
   if (!entry) {
-    REXKRNL_DEBUG("rexcrt_FindFirstFileA: no matches for '{}' in '{}'", pattern, dir);
+    REXLOG_DEBUG(kernel, "rexcrt_FindFirstFileA: no matches for '{}' in '{}'", pattern, dir);
     REX_KERNEL_OBJECTS()->ReleaseHandle(xfile->handle());
     return kInvalidHandleValue;
   }
 
   FillFindData(lpFindFileData, *entry);
-  REXKRNL_TRACE("rexcrt_FindFirstFileA: '{}' first match='{}' handle={:#x}", path, entry->name,
-                xfile->handle());
+  REXLOG_TRACE(kernel, "rexcrt_FindFirstFileA: '{}' first match='{}' handle={:#x}", path,
+               entry->name, xfile->handle());
   return xfile->handle();
 }
 
@@ -331,22 +331,22 @@ u32 MoveFileA_entry(mapped_string lpExistingFileName, mapped_string lpNewFileNam
 
   auto* fs = REX_KERNEL_FS();
   if (!fs->Stat(src)) {
-    REXKRNL_DEBUG("rexcrt_MoveFileA: source not found '{}'", src);
+    REXLOG_DEBUG(kernel, "rexcrt_MoveFileA: source not found '{}'", src);
     return 0;
   }
   // Win32 MoveFileA fails if the destination already exists; callers wanting
   // overwrite semantics use MoveFileExA with MOVEFILE_REPLACE_EXISTING.
   if (fs->Stat(dst)) {
-    REXKRNL_DEBUG("rexcrt_MoveFileA: destination exists '{}'", dst);
+    REXLOG_DEBUG(kernel, "rexcrt_MoveFileA: destination exists '{}'", dst);
     return 0;
   }
 
   if (auto renamed = fs->Rename(src, dst); !renamed) {
-    REXKRNL_DEBUG("rexcrt_MoveFileA: rename failed '{}' -> '{}': {:#x}", src, dst,
-                  rex::system::ToXStatus(renamed.error(), X_STATUS_NOT_SUPPORTED));
+    REXLOG_DEBUG(kernel, "rexcrt_MoveFileA: rename failed '{}' -> '{}': {:#x}", src, dst,
+                 rex::system::ToXStatus(renamed.error(), X_STATUS_NOT_SUPPORTED));
     return 0;
   }
-  REXKRNL_TRACE("rexcrt_MoveFileA: '{}' -> '{}'", src, dst);
+  REXLOG_TRACE(kernel, "rexcrt_MoveFileA: '{}' -> '{}'", src, dst);
   return 1;
 }
 
@@ -360,11 +360,11 @@ u32 GetFileAttributesA_entry(mapped_string lpFileName) {
   const char* path = static_cast<const char*>(lpFileName);
   auto entry = REX_KERNEL_FS()->Stat(path);
   if (!entry) {
-    REXKRNL_DEBUG("rexcrt_GetFileAttributesA: not found '{}'", path);
+    REXLOG_DEBUG(kernel, "rexcrt_GetFileAttributesA: not found '{}'", path);
     return kInvalidHandleValue;  // INVALID_FILE_ATTRIBUTES
   }
-  REXKRNL_TRACE("rexcrt_GetFileAttributesA: '{}' -> attrs={:#x}", path,
-                std::to_underlying(entry->attributes));
+  REXLOG_TRACE(kernel, "rexcrt_GetFileAttributesA: '{}' -> attrs={:#x}", path,
+               std::to_underlying(entry->attributes));
   return std::to_underlying(entry->attributes);
 }
 
@@ -373,7 +373,7 @@ u32 GetFileAttributesExA_entry(u32 fInfoLevelId, mapped_string lpFileName,
   const char* path = static_cast<const char*>(lpFileName);
   auto entry = REX_KERNEL_FS()->Stat(path);
   if (!entry) {
-    REXKRNL_DEBUG("rexcrt_GetFileAttributesExA: not found '{}'", path);
+    REXLOG_DEBUG(kernel, "rexcrt_GetFileAttributesExA: not found '{}'", path);
     return 0;
   }
 
@@ -468,7 +468,7 @@ u32 CopyFileA_entry(mapped_string lpExistingFileName, mapped_string lpNewFileNam
   source_options.require_file = true;
   auto src_file = ks->file_system()->Open(src, source_options);
   if (!src_file) {
-    REXKRNL_DEBUG("rexcrt_CopyFileA: failed to open source '{}'", src);
+    REXLOG_DEBUG(kernel, "rexcrt_CopyFileA: failed to open source '{}'", src);
     return 0;
   }
 
@@ -480,7 +480,7 @@ u32 CopyFileA_entry(mapped_string lpExistingFileName, mapped_string lpNewFileNam
   destination_options.require_file = true;
   auto dst_file = ks->file_system()->Open(dst, destination_options);
   if (!dst_file) {
-    REXKRNL_DEBUG("rexcrt_CopyFileA: failed to open dest '{}'", dst);
+    REXLOG_DEBUG(kernel, "rexcrt_CopyFileA: failed to open dest '{}'", dst);
     return 0;
   }
 
@@ -502,7 +502,7 @@ u32 CopyFileA_entry(mapped_string lpExistingFileName, mapped_string lpNewFileNam
     offset += *bytes_read;
   }
 
-  REXKRNL_TRACE("rexcrt_CopyFileA: '{}' -> '{}' {}", src, dst, ok ? "OK" : "FAILED");
+  REXLOG_TRACE(kernel, "rexcrt_CopyFileA: '{}' -> '{}' {}", src, dst, ok ? "OK" : "FAILED");
   return ok ? 1u : 0u;
 }
 
@@ -510,7 +510,7 @@ u32 RemoveDirectoryA_entry(mapped_string lpPathName) {
   const char* path = static_cast<const char*>(lpPathName);
   bool ok = REX_KERNEL_FS()->Remove(path).has_value();
   if (!ok)
-    REXKRNL_DEBUG("rexcrt_RemoveDirectoryA: FAILED '{}'", path);
+    REXLOG_DEBUG(kernel, "rexcrt_RemoveDirectoryA: FAILED '{}'", path);
   return ok ? 1u : 0u;
 }
 
@@ -529,7 +529,7 @@ u32 GetDiskFreeSpaceExA_entry(mapped_string lpDirectoryName,
   auto* fs = REX_KERNEL_FS();
   auto volume = fs->Volume(path);
   if (!fs->Stat(path) || !volume) {
-    REXKRNL_DEBUG("rexcrt_GetDiskFreeSpaceExA: path not found '{}'", path);
+    REXLOG_DEBUG(kernel, "rexcrt_GetDiskFreeSpaceExA: path not found '{}'", path);
     return 0;
   }
 
@@ -557,8 +557,8 @@ u32 GetDiskFreeSpaceExA_entry(mapped_string lpDirectoryName,
     out[1] = static_cast<uint32_t>(free_bytes >> 32);
   }
 
-  REXKRNL_TRACE("rexcrt_GetDiskFreeSpaceExA: '{}' total={}MB free={}MB", path,
-                total_bytes / (1024 * 1024), free_bytes / (1024 * 1024));
+  REXLOG_TRACE(kernel, "rexcrt_GetDiskFreeSpaceExA: '{}' total={}MB free={}MB", path,
+               total_bytes / (1024 * 1024), free_bytes / (1024 * 1024));
   return 1;
 }
 

@@ -503,7 +503,7 @@ void SettingsDialog::OnDraw(ImGuiIO& /*io*/) {
   ImGui::Separator();
   if (ImGui::Button("Save to config")) {
     if (auto status = rex::SaveConfigFile(registry_, config_path_); !status) {
-      REXLOG_ERROR("{}", status.error().what());
+      REXLOG_ERROR(ui, "{}", status.error().what());
     }
   }
   ImGui::SameLine();

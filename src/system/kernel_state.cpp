@@ -78,7 +78,7 @@ KernelState::KernelState(Runtime* emulator)
   content_manager_ = std::make_unique<xam::ContentManager>(this, user_data_root);
 
   if (shared_kernel_state_ != nullptr) {
-    REXSYS_ERROR("KernelState constructed but shared_kernel_state_ already set");
+    REXLOG_ERROR(system, "KernelState constructed but shared_kernel_state_ already set");
     rex::FatalError("Double initialization of KernelState");
   }
   shared_kernel_state_ = this;
@@ -182,7 +182,7 @@ KernelState::~KernelState() {
   executable_module_.reset();
   kernel_modules_.clear();
   if (!module_libraries_.empty()) {
-    REXSYS_ERROR("~KernelState: {} recompiled libraries still loaded after module sweep",
+    REXLOG_ERROR(system, "~KernelState: {} recompiled libraries still loaded after module sweep",
                  module_libraries_.size());
     module_libraries_.clear();
   }
@@ -216,7 +216,7 @@ KernelState::~KernelState() {
   if (shared_kernel_state_ == this) {
     shared_kernel_state_ = nullptr;
   } else {
-    REXSYS_ERROR("~KernelState: shared_kernel_state_ does not match this instance");
+    REXLOG_ERROR(system, "~KernelState: shared_kernel_state_ does not match this instance");
   }
 
   // Drain last: FreeLibrary runs the DLL's host static dtors.
@@ -329,8 +329,7 @@ void KernelState::set_process_type(uint32_t value) {
 
 uint32_t KernelState::AllocateTLS(PPCContext* context) {
   if (!context) {
-    REXSYS_ERROR("AllocateTLS: null PPCContext");
-    return X_TLS_OUT_OF_INDEXES;
+    REX_FAIL(system, X_TLS_OUT_OF_INDEXES, "AllocateTLS: null PPCContext");
   }
 
   auto globals = memory()->TranslateVirtual<KernelGuestGlobals*>(GetKernelGuestGlobals());
@@ -341,7 +340,7 @@ uint32_t KernelState::AllocateTLS(PPCContext* context) {
 
   auto current_thread = XThread::GetCurrentThread();
   if (!current_thread) {
-    REXSYS_ERROR("AllocateTLS: no current thread");
+    REXLOG_ERROR(system, "AllocateTLS: no current thread");
     kernel::xboxkrnl::xeKeKfReleaseSpinLock(context, tls_lock, old_irql);
     return X_TLS_OUT_OF_INDEXES;
   }
@@ -349,7 +348,7 @@ uint32_t KernelState::AllocateTLS(PPCContext* context) {
   auto process_ptr = memory()->TranslateVirtual<X_KPROCESS*>(
       static_cast<uint32_t>(current_thread->guest_object<X_KTHREAD>()->process));
   if (!process_ptr) {
-    REXSYS_ERROR("AllocateTLS: failed to resolve current process");
+    REXLOG_ERROR(system, "AllocateTLS: failed to resolve current process");
     kernel::xboxkrnl::xeKeKfReleaseSpinLock(context, tls_lock, old_irql);
     return X_TLS_OUT_OF_INDEXES;
   }
@@ -378,30 +377,30 @@ uint32_t KernelState::AllocateTLS(PPCContext* context) {
 
 void KernelState::FreeTLS(PPCContext* context, uint32_t slot) {
   if (!context) {
-    REXSYS_ERROR("FreeTLS: null PPCContext");
+    REXLOG_ERROR(system, "FreeTLS: null PPCContext");
     return;
   }
   if (slot >= 256) {
-    REXSYS_WARN("FreeTLS: invalid TLS slot {}", slot);
+    REXLOG_WARN(system, "FreeTLS: invalid TLS slot {}", slot);
     return;
   }
 
   auto current_thread = XThread::GetCurrentThread();
   if (!current_thread) {
-    REXSYS_ERROR("FreeTLS: no current thread");
+    REXLOG_ERROR(system, "FreeTLS: no current thread");
     return;
   }
 
   auto current_kthread = current_thread->guest_object<X_KTHREAD>();
   if (!current_kthread) {
-    REXSYS_ERROR("FreeTLS: failed to resolve current KTHREAD");
+    REXLOG_ERROR(system, "FreeTLS: failed to resolve current KTHREAD");
     return;
   }
 
   auto process_ptr =
       memory()->TranslateVirtual<X_KPROCESS*>(static_cast<uint32_t>(current_kthread->process));
   if (!process_ptr) {
-    REXSYS_ERROR("FreeTLS: failed to resolve current process");
+    REXLOG_ERROR(system, "FreeTLS: failed to resolve current process");
     return;
   }
 
@@ -414,7 +413,7 @@ void KernelState::FreeTLS(PPCContext* context, uint32_t slot) {
   uint32_t bitmap_value = static_cast<uint32_t>(process_ptr->tls_slot_bitmap[bitmap_index]);
 
   if (bitmap_value & bit_mask) {
-    REXSYS_WARN("FreeTLS: slot {} already free", slot);
+    REXLOG_WARN(system, "FreeTLS: slot {} already free", slot);
     kernel::xboxkrnl::xeKeKfReleaseSpinLock(context, tls_lock, old_irql);
     return;
   }
@@ -553,7 +552,7 @@ object_ref<XThread> KernelState::PrepareModuleLaunch(object_ref<UserModule> modu
   }
 
   SetExecutableModule(module);
-  REXSYS_DEBUG("KernelState: Preparing module launch...");
+  REXLOG_DEBUG(system, "KernelState: Preparing module launch...");
 
   // Create a thread to run in.
   // We start suspended so the caller can inspect/attach before resume.
@@ -565,8 +564,7 @@ object_ref<XThread> KernelState::PrepareModuleLaunch(object_ref<UserModule> modu
 
   X_STATUS result = thread->Create();
   if (XFAILED(result)) {
-    REXSYS_ERROR("Could not create launch thread: {:08X}", result);
-    return nullptr;
+    REX_FAIL(system, nullptr, "Could not create launch thread: {:08X}", result);
   }
 
   return thread;
@@ -662,8 +660,8 @@ void KernelState::SetExecutableModule(object_ref<UserModule> module) {
         }
         auto fn = std::move(dispatch_queue_.front());
         dispatch_queue_.pop_front();
-        REXSYS_NOISY_DEBUG("Dispatch thread processing queued item ({} remaining)",
-                           dispatch_queue_.size());
+        REXLOG_DEV(system, "Dispatch thread processing queued item ({} remaining)",
+                   dispatch_queue_.size());
         global_lock.unlock();
 
         // Throws out of fn leave the originating overlapped uncompleted and
@@ -671,11 +669,11 @@ void KernelState::SetExecutableModule(object_ref<UserModule> module) {
         try {
           fn();
         } catch (const std::exception& e) {
-          REX_FATAL("Dispatch thread: deferred completion threw '{}'", e.what());
+          REX_FATAL(system, "Dispatch thread: deferred completion threw '{}'", e.what());
         } catch (...) {
-          REX_FATAL("Dispatch thread: deferred completion threw non-std exception");
+          REX_FATAL(system, "Dispatch thread: deferred completion threw non-std exception");
         }
-        REXSYS_NOISY_DEBUG("Dispatch thread completed item");
+        REXLOG_DEV(system, "Dispatch thread completed item");
       }
       return 0;
     }));
@@ -684,7 +682,7 @@ void KernelState::SetExecutableModule(object_ref<UserModule> module) {
     if (XFAILED(create_status)) {
       dispatch_thread_running_ = false;
       dispatch_thread_.reset();
-      REX_FATAL("Failed to create kernel dispatch thread (status {:#x})", create_status);
+      REX_FATAL(system, "Failed to create kernel dispatch thread (status {:#x})", create_status);
     }
   }
 
@@ -719,7 +717,7 @@ object_ref<UserModule> KernelState::LoadUserModule(const std::string_view raw_na
     auto [it, inserted] = loading_paths_.emplace(path);
     (void)it;
     if (!inserted) {
-      REXSYS_WARN("LoadUserModule: '{}' already being loaded by another thread", path);
+      REXLOG_WARN(system, "LoadUserModule: '{}' already being loaded by another thread", path);
       return nullptr;
     }
   }
@@ -754,7 +752,8 @@ object_ref<UserModule> KernelState::LoadUserModule(const std::string_view raw_na
       auto global_lock = global_critical_region_.Acquire();
       auto [lib_it, inserted] = module_libraries_.emplace(lib_key, rex::platform::DynamicLibrary{});
       if (!inserted) {
-        REXSYS_ERROR("Recompiled module '{}' already loaded; refusing duplicate load", lib_key);
+        REXLOG_ERROR(system, "Recompiled module '{}' already loaded; refusing duplicate load",
+                     lib_key);
         object_table()->ReleaseHandle(module->handle());
         return nullptr;
       }
@@ -763,7 +762,7 @@ object_ref<UserModule> KernelState::LoadUserModule(const std::string_view raw_na
     rex::platform::DynamicLibrary library_local;
     if (!library_local.Load(std::filesystem::path(recomp->shared_lib_name),
                             rex::platform::SymbolResolution::kImmediate)) {
-      REXSYS_ERROR("Failed to load shared library for module '{}'", recomp->pe_name);
+      REXLOG_ERROR(system, "Failed to load shared library for module '{}'", recomp->pe_name);
     } else {
       auto register_func = reinterpret_cast<runtime::FunctionDispatcher::RegisterFn>(
           library_local.GetRawSymbol("ReXModule_Register"));
@@ -771,26 +770,27 @@ object_ref<UserModule> KernelState::LoadUserModule(const std::string_view raw_na
       auto get_image_info =
           reinterpret_cast<GetImageInfoFn>(library_local.GetRawSymbol("ReXModule_GetImageInfo"));
       if (!register_func) {
-        REXSYS_ERROR("ReXModule_Register not found in '{}'", recomp->shared_lib_name);
+        REXLOG_ERROR(system, "ReXModule_Register not found in '{}'", recomp->shared_lib_name);
       } else if (!get_image_info) {
-        REXSYS_ERROR("ReXModule_GetImageInfo not found in '{}'", recomp->shared_lib_name);
+        REXLOG_ERROR(system, "ReXModule_GetImageInfo not found in '{}'", recomp->shared_lib_name);
       } else {
         auto* xex = module->xex_module();
         const auto* image_info = get_image_info();
         if (!image_info) {
-          REXSYS_ERROR("ReXModule_GetImageInfo returned null for '{}'", recomp->shared_lib_name);
+          REXLOG_ERROR(system, "ReXModule_GetImageInfo returned null for '{}'",
+                       recomp->shared_lib_name);
         } else if (image_info->image_base != xex->base_address() ||
                    image_info->image_size != xex->image_size()) {
-          REXSYS_ERROR(
-              "Recompiled module '{}' layout does not match loaded XEX "
-              "(DLL image={:08X}-{:08X}, XEX image={:08X}-{:08X})",
-              recomp->pe_name, image_info->image_base,
-              image_info->image_base + image_info->image_size, xex->base_address(),
-              xex->base_address() + xex->image_size());
+          REXLOG_ERROR(system,
+                       "Recompiled module '{}' layout does not match loaded XEX "
+                       "(DLL image={:08X}-{:08X}, XEX image={:08X}-{:08X})",
+                       recomp->pe_name, image_info->image_base,
+                       image_info->image_base + image_info->image_size, xex->base_address(),
+                       xex->base_address() + xex->image_size());
         } else if (!function_dispatcher_->InitializeFunctionTable(
                        image_info->code_base, image_info->code_size, image_info->image_base,
                        image_info->image_size)) {
-          REXSYS_ERROR("InitializeFunctionTable failed for module '{}'", recomp->pe_name);
+          REXLOG_ERROR(system, "InitializeFunctionTable failed for module '{}'", recomp->pe_name);
         } else {
           function_dispatcher_->RegisterModule(lib_key, image_info->code_base, register_func);
           auto global_lock = global_critical_region_.Acquire();
@@ -817,7 +817,7 @@ object_ref<UserModule> KernelState::LoadUserModule(const std::string_view raw_na
 
   if (module->is_dll_module() && module->entry_point() && call_entry) {
     if (!XThread::IsInThread()) {
-      REXSYS_WARN("DllMain(DLL_PROCESS_ATTACH) skipped for '{}': not on a guest thread",
+      REXLOG_WARN(system, "DllMain(DLL_PROCESS_ATTACH) skipped for '{}': not on a guest thread",
                   module->name());
     } else {
       auto* thread = XThread::GetCurrentThread();
@@ -825,7 +825,8 @@ object_ref<UserModule> KernelState::LoadUserModule(const std::string_view raw_na
       uint64_t dllmain_ret =
           function_dispatcher_->Execute(thread->thread_state(), module->entry_point(), args, 3);
       if (static_cast<uint32_t>(dllmain_ret) == 0) {
-        REXSYS_ERROR("DllMain(DLL_PROCESS_ATTACH) returned FALSE for '{}'; rolling back load",
+        REXLOG_ERROR(system,
+                     "DllMain(DLL_PROCESS_ATTACH) returned FALSE for '{}'; rolling back load",
                      module->name());
         // call_entry=false: the guest already declined ATTACH, so don't run DETACH.
         UnloadUserModule(module, /*call_entry=*/false);
@@ -842,7 +843,7 @@ void KernelState::UnloadUserModule(const object_ref<UserModule>& module, bool ca
   // subsystem mutexes acquired from inside the guest callback.
   if (module->is_dll_module() && module->entry_point() && call_entry) {
     if (!XThread::IsInThread()) {
-      REXSYS_WARN("DllMain(DLL_PROCESS_DETACH) skipped for '{}': not on a guest thread",
+      REXLOG_WARN(system, "DllMain(DLL_PROCESS_DETACH) skipped for '{}': not on a guest thread",
                   module->name());
     } else {
       auto* thread = XThread::GetCurrentThread();
@@ -887,7 +888,8 @@ void KernelState::UnloadUserModule(const object_ref<UserModule>& module, bool ca
   }
 
   if (!found_module) {
-    REXSYS_ERROR("UnloadUserModule: module '{}' not found in user_modules_", module->path());
+    REXLOG_ERROR(system, "UnloadUserModule: module '{}' not found in user_modules_",
+                 module->path());
   }
 }
 
@@ -901,14 +903,15 @@ void KernelState::RegisterRecompiledModule(const char* pe_name, const char* gues
 
   for (const auto& existing : recompiled_modules_) {
     if (existing.guest_path == info.guest_path) {
-      REXSYS_ERROR(
+      REXLOG_ERROR(
+          system,
           "RegisterRecompiledModule: duplicate guest_path '{}' (existing pe='{}', new pe='{}')",
           info.guest_path, existing.pe_name, info.pe_name);
       return;
     }
   }
 
-  REXSYS_DEBUG("Registered recompiled module: pe='{}' guest='{}' lib='{}'", info.pe_name,
+  REXLOG_DEBUG(system, "Registered recompiled module: pe='{}' guest='{}' lib='{}'", info.pe_name,
                info.guest_path, info.shared_lib_name);
   recompiled_modules_.push_back(std::move(info));
 }
@@ -959,7 +962,7 @@ void KernelState::SignalAllWaitableObjects() {
 }
 
 void KernelState::TerminateTitle() {
-  REXSYS_DEBUG("KernelState::TerminateTitle");
+  REXLOG_DEBUG(system, "KernelState::TerminateTitle");
 
   const auto timeout = emulator()->config().runtime.terminate_timeout;
 
@@ -992,7 +995,8 @@ void KernelState::TerminateTitle() {
     auto global_lock = global_critical_region_.Acquire();
     for (auto& thread : target_threads) {
       if (thread->is_running()) {
-        REXSYS_WARN("TerminateTitle: thread {:08X} '{}' entry {:08X} still running after {} ms",
+        REXLOG_WARN(system,
+                    "TerminateTitle: thread {:08X} '{}' entry {:08X} still running after {} ms",
                     thread->thread_id(), thread->name(), thread->creation_params()->start_address,
                     timeout.count());
         thread->Terminate(0);
@@ -1117,7 +1121,7 @@ void KernelState::BroadcastNotification(XNotificationID id, uint32_t data) {
   std::vector<object_ref<XNotifyListener>> snapshot;
   {
     auto global_lock = global_critical_region_.Acquire();
-    REXSYS_DEBUG("BroadcastNotification(id={:#x}, data={}) to {} listeners",
+    REXLOG_DEBUG(system, "BroadcastNotification(id={:#x}, data={}) to {} listeners",
                  static_cast<uint32_t>(id), data, notify_listeners_.size());
     snapshot = notify_listeners_;
   }
@@ -1211,28 +1215,29 @@ void KernelState::CompleteOverlappedDeferred(std::function<X_RESULT()> completio
 void KernelState::CompleteOverlappedDeferredEx(
     std::function<X_RESULT(uint32_t&, uint32_t&)> completion_callback, uint32_t overlapped_ptr,
     std::function<void()> pre_callback, std::function<void()> post_callback) {
-  REXSYS_DEBUG("CompleteOverlappedDeferredEx: queuing for overlapped {:08X}", overlapped_ptr);
+  REXLOG_DEBUG(system, "CompleteOverlappedDeferredEx: queuing for overlapped {:08X}",
+               overlapped_ptr);
   auto ptr = memory()->TranslateVirtual(overlapped_ptr);
   XOverlappedSetResult(ptr, X_ERROR_IO_PENDING);
   XOverlappedSetContext(ptr, XThread::GetCurrentThreadHandle());
   auto global_lock = global_critical_region_.Acquire();
   dispatch_queue_.push_back(
       [this, completion_callback, overlapped_ptr, pre_callback, post_callback]() {
-        REXSYS_DEBUG("Deferred overlapped {:08X}: running pre_callback", overlapped_ptr);
+        REXLOG_DEBUG(system, "Deferred overlapped {:08X}: running pre_callback", overlapped_ptr);
         if (pre_callback) {
           pre_callback();
         }
-        REXSYS_DEBUG("Deferred overlapped {:08X}: sleeping {}ms", overlapped_ptr,
+        REXLOG_DEBUG(system, "Deferred overlapped {:08X}: sleeping {}ms", overlapped_ptr,
                      kDeferredOverlappedDelayMillis);
         rex::platform::Sleep(std::chrono::milliseconds(kDeferredOverlappedDelayMillis));
         uint32_t extended_error, length;
-        REXSYS_DEBUG("Deferred overlapped {:08X}: running completion", overlapped_ptr);
+        REXLOG_DEBUG(system, "Deferred overlapped {:08X}: running completion", overlapped_ptr);
         auto result = completion_callback(extended_error, length);
-        REXSYS_DEBUG("Deferred overlapped {:08X}: completing with result {:08X}", overlapped_ptr,
-                     result);
+        REXLOG_DEBUG(system, "Deferred overlapped {:08X}: completing with result {:08X}",
+                     overlapped_ptr, result);
         CompleteOverlappedEx(overlapped_ptr, result, extended_error, length);
         if (post_callback) {
-          REXSYS_DEBUG("Deferred overlapped {:08X}: running post_callback", overlapped_ptr);
+          REXLOG_DEBUG(system, "Deferred overlapped {:08X}: running post_callback", overlapped_ptr);
           post_callback();
         }
       });

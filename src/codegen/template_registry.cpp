@@ -13,8 +13,6 @@
 #include <rex/hash.h>
 #include <rex/logging.h>
 
-#include "codegen_logging.h"
-
 // Generated at build time by cmake/embed_templates.cmake
 #include "embedded_templates.h"
 
@@ -120,7 +118,7 @@ TemplateRegistry& TemplateRegistry::operator=(TemplateRegistry&&) noexcept = def
 
 void TemplateRegistry::loadOverrides(const std::filesystem::path& dir) {
   if (!std::filesystem::exists(dir)) {
-    REXCODEGEN_WARN("Override directory does not exist: {}", dir.string());
+    REXLOG_WARN(codegen, "Override directory does not exist: {}", dir.string());
     return;
   }
 
@@ -138,8 +136,8 @@ void TemplateRegistry::loadOverrides(const std::filesystem::path& dir) {
     auto id = relPath.substr(0, relPath.size() - 5);  // strlen(".inja") == 5
 
     if (impl_->embedded_.find(id) == impl_->embedded_.end()) {
-      REXCODEGEN_WARN("Override file does not match a known template ID: {} (from {})", id,
-                      entry.path().string());
+      REXLOG_WARN(codegen, "Override file does not match a known template ID: {} (from {})", id,
+                  entry.path().string());
       continue;
     }
 
@@ -150,7 +148,7 @@ void TemplateRegistry::loadOverrides(const std::filesystem::path& dir) {
       }();
       auto tmpl = impl_->env_.parse(content);
       impl_->overrides_[id] = std::move(tmpl);
-      REXCODEGEN_TRACE("Loaded template override: {} -> {}", id, entry.path().string());
+      REXLOG_TRACE(codegen, "Loaded template override: {} -> {}", id, entry.path().string());
     } catch (const std::exception& e) {
       throw TemplateError(id, e.what(), entry.path().string());
     }

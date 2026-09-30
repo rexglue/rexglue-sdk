@@ -15,7 +15,7 @@
 #include <cstdint>
 #include <cstring>
 
-#include <rex/logging/assert.h>
+#include <rex/logging.h>
 #include <rex/ppc/context.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/thread_state.h>
@@ -40,7 +40,7 @@ inline uint32_t stack_limit_from_pcr(PPCContext& ctx, uint8_t* base) {
 inline void stack_bounds_check(PPCContext& ctx, uint8_t* base, uint32_t new_r1) {
   uint32_t limit = stack_limit_from_pcr(ctx, base);
   if (limit != 0) {
-    REX_FATAL_IF(new_r1 > limit, "PPC stack overflow: r1 ({:#x}) below stack_end_ptr ({:#x})",
+    REX_FATAL_IF(cpu, new_r1 > limit, "PPC stack overflow: r1 ({:#x}) below stack_end_ptr ({:#x})",
                  new_r1, limit);
   }
 }

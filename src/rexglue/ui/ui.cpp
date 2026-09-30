@@ -19,7 +19,6 @@
 #include <string>
 
 #include <fmt/format.h>
-#include <spdlog/details/log_msg.h>
 
 #include <rex/logging.h>
 #include <rex/platform/console.h>
@@ -37,41 +36,46 @@ void RequireGlobalSink() {
   }
 }
 
-std::string_view LevelLetter(spdlog::level::level_enum lvl) {
-  switch (lvl) {
-    case spdlog::level::trace:
+std::string_view LevelLetter(rex::log::Level level) {
+  switch (level) {
+    case rex::log::Level::kTrace:
       return "T";
-    case spdlog::level::debug:
+    case rex::log::Level::kDev:
+      return "V";
+    case rex::log::Level::kDebug:
       return "D";
-    case spdlog::level::info:
+    case rex::log::Level::kInfo:
       return "I";
-    case spdlog::level::warn:
+    case rex::log::Level::kWarn:
       return "W";
-    case spdlog::level::err:
+    case rex::log::Level::kError:
       return "E";
-    case spdlog::level::critical:
+    case rex::log::Level::kCritical:
       return "C";
-    default:
+    case rex::log::Level::kOff:
       return "?";
   }
+  return "?";
 }
 
-std::string_view LevelColor(spdlog::level::level_enum lvl) {
-  switch (lvl) {
-    case spdlog::level::trace:
+std::string_view LevelColor(rex::log::Level level) {
+  switch (level) {
+    case rex::log::Level::kTrace:
+    case rex::log::Level::kDev:
       return color::kDim;
-    case spdlog::level::debug:
+    case rex::log::Level::kDebug:
       return color::kCyan;
-    case spdlog::level::info:
+    case rex::log::Level::kInfo:
       return color::kGreen;
-    case spdlog::level::warn:
+    case rex::log::Level::kWarn:
       return color::kBoldYellow;
-    case spdlog::level::err:
-    case spdlog::level::critical:
+    case rex::log::Level::kError:
+    case rex::log::Level::kCritical:
       return color::kBoldRed;
-    default:
+    case rex::log::Level::kOff:
       return {};
   }
+  return {};
 }
 
 }  // namespace
@@ -79,34 +83,36 @@ std::string_view LevelColor(spdlog::level::level_enum lvl) {
 PresentationSink::PresentationSink(std::ostream& out, bool tty, bool color)
     : out_(out), tty_(tty), color_(color) {}
 
-void PresentationSink::sink_it_(const spdlog::details::log_msg& msg) {
+void PresentationSink::Write(const rex::log::Record& record) {
+  std::lock_guard lock(mutex_);
   if (active_progress_ && tty_) {
     out_.write("\r\033[K", 4);
   }
   if (tty_) {
     out_.put('[');
     if (color_) {
-      auto col = LevelColor(msg.level);
+      auto col = LevelColor(record.level);
       out_.write(col.data(), static_cast<std::streamsize>(col.size()));
-      auto letter = LevelLetter(msg.level);
+      auto letter = LevelLetter(record.level);
       out_.write(letter.data(), static_cast<std::streamsize>(letter.size()));
       out_.write(color::kReset.data(), static_cast<std::streamsize>(color::kReset.size()));
     } else {
-      auto letter = LevelLetter(msg.level);
+      auto letter = LevelLetter(record.level);
       out_.write(letter.data(), static_cast<std::streamsize>(letter.size()));
     }
     out_.write("] ", 2);
   }
-  out_.write(msg.payload.data(), static_cast<std::streamsize>(msg.payload.size()));
+  out_.write(record.text.data(), static_cast<std::streamsize>(record.text.size()));
   out_.put('\n');
 }
 
-void PresentationSink::flush_() {
+void PresentationSink::Flush() {
+  std::lock_guard lock(mutex_);
   out_.flush();
 }
 
 void PresentationSink::setActiveProgress(bool active) {
-  std::lock_guard lock(this->mutex_);
+  std::lock_guard lock(mutex_);
   active_progress_ = active;
 }
 
@@ -171,7 +177,6 @@ void Init(const InitOptions& opts) {
     return;
   g_sink_ptr = std::make_shared<PresentationSink>(std::cerr, opts.tty, opts.color);
   g_sink = g_sink_ptr.get();
-  rex::ReplaceConsoleSink(g_sink_ptr);
 
   if (opts.tty) {
     rex::platform::SetUTF8OutputCodePage();
@@ -184,9 +189,13 @@ void Init(const InitOptions& opts) {
 void Shutdown() {
   if (!g_sink)
     return;
-  rex::ReplaceConsoleSink(nullptr);
   g_sink_ptr.reset();
   g_sink = nullptr;
+}
+
+rex::log::ISink& LogSink() {
+  RequireGlobalSink();
+  return *g_sink;
 }
 
 void Banner(std::string_view title) {

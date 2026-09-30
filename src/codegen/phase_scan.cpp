@@ -16,7 +16,6 @@
 #include <rex/codegen/config.h>
 #include <rex/logging.h>
 
-#include "codegen_logging.h"
 #include <rex/memory/utils.h>
 
 using rex::memory::load_and_swap;
@@ -82,7 +81,7 @@ std::vector<CodeRegion> segmentSection(const SectionView& section,
 }
 
 void scanBinary(CodegenContext& ctx) {
-  REXCODEGEN_TRACE("Analyze: scanning binary...");
+  REXLOG_TRACE(codegen, "Analyze: scanning binary...");
 
   auto& binary = ctx.binary();
   auto& config = ctx.Config();
@@ -116,7 +115,7 @@ void scanBinary(CodegenContext& ctx) {
     scan.codeRegions.insert(scan.codeRegions.end(), regions.begin(), regions.end());
   }
 
-  REXCODEGEN_TRACE("Analyze: segmented into {} code regions", scan.codeRegions.size());
+  REXLOG_TRACE(codegen, "Analyze: segmented into {} code regions", scan.codeRegions.size());
 
   // Detect data regions
   for (const auto& section : binary.sections()) {
@@ -159,8 +158,8 @@ void scanBinary(CodegenContext& ctx) {
     }
   }
 
-  REXCODEGEN_TRACE("Analyze: {} code regions, {} data regions", scan.codeRegions.size(),
-                   scan.dataRegions.size());
+  REXLOG_TRACE(codegen, "Analyze: {} code regions, {} data regions", scan.codeRegions.size(),
+               scan.dataRegions.size());
 }
 
 }  // anonymous namespace

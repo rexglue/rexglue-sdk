@@ -41,9 +41,9 @@ constexpr double kDisplayGammaPower = 2.22222233;
 
 void WarnNoGpuEmulation(const char* export_name, std::atomic<bool>& warned) {
   if (!warned.exchange(true)) {
-    REXKRNL_WARN(
-        "{}: no GPU emulation loaded (no graphics module in Config::modules); call ignored",
-        export_name);
+    REXLOG_WARN(kernel,
+                "{}: no GPU emulation loaded (no graphics module in Config::modules); call ignored",
+                export_name);
   }
 }
 }  // namespace
@@ -435,8 +435,8 @@ void VdSwap_entry(mapped_void buffer_ptr,      // ptr into primary ringbuffer
   assert_true(frontbuffer_physical_address != UINT32_MAX);
   if (frontbuffer_physical_address == UINT32_MAX) {
     // Xenia-specific safety check.
-    REXKRNL_ERROR("VdSwap: Invalid front buffer virtual address 0x{:08X}",
-                  frontbuffer_virtual_address);
+    REXLOG_ERROR(kernel, "VdSwap: Invalid front buffer virtual address 0x{:08X}",
+                 frontbuffer_virtual_address);
     return;
   }
   gpu_fetch.base_address = frontbuffer_physical_address >> 12;

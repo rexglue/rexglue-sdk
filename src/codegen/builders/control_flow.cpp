@@ -16,8 +16,6 @@
 
 #include <rex/logging.h>
 
-#include "../codegen_logging.h"
-
 namespace rex::codegen {
 
 //=============================================================================
@@ -49,7 +47,7 @@ bool build_b(BuilderContext& ctx) {
       if (target >= ctx.fn.base() && target < ctx.fn.end()) {
         ctx.println("\tgoto loc_{:X};", target);
       } else {
-        REXCODEGEN_WARN("Unresolved b target 0x{:08X} from 0x{:08X}", target, ctx.base);
+        REXLOG_WARN(codegen, "Unresolved b target 0x{:08X} from 0x{:08X}", target, ctx.base);
         ctx.emit_function_call(target);
         ctx.println("\treturn;");
       }
@@ -83,9 +81,10 @@ bool build_bl(BuilderContext& ctx) {
       break;
 
     case TargetKind::Unknown:
-      REXCODEGEN_ERROR("Unresolved bl target 0x{:08X} from 0x{:08X}", target, ctx.base);
+      REXLOG_ERROR(codegen, "Unresolved bl target 0x{:08X} from 0x{:08X}", target, ctx.base);
       ctx.println("\t// ERROR: unresolved bl target 0x{:08X}", target);
-      ctx.println("\tREX_FATAL(\"Unresolved call from 0x{:08X} to 0x{:08X}\");", ctx.base, target);
+      ctx.println("\tREX_FATAL(cpu, \"Unresolved call from 0x{:08X} to 0x{:08X}\");", ctx.base,
+                  target);
       break;
   }
   return true;
@@ -149,20 +148,22 @@ bool build_bctr(BuilderContext& ctx) {
             ctx.emitCtx.reference(targetFn->name());
             ctx.println("\t\t{}(ctx, base);", targetFn->name());
           } else {
-            REXCODEGEN_ERROR(
+            REXLOG_ERROR(
+                codegen,
                 "Jump target 0x{:08X} classified as function but not in graph at bctr 0x{:08X}",
                 label, ctx.base);
             ctx.println(
-                "\t\tREX_FATAL(\"Jump target 0x{:08X} classified as function but not "
+                "\t\tREX_FATAL(cpu, \"Jump target 0x{:08X} classified as function but not "
                 "in graph at bctr 0x{:08X}\");",
                 label, ctx.base);
           }
           ctx.println("\t\treturn;");
           break;
         default:
-          REXCODEGEN_ERROR("Jump target 0x{:08X} unresolved at bctr 0x{:08X}", label, ctx.base);
-          ctx.println("\t\tREX_FATAL(\"Jump target 0x{:08X} unresolved at bctr 0x{:08X}\");", label,
-                      ctx.base);
+          REXLOG_ERROR(codegen, "Jump target 0x{:08X} unresolved at bctr 0x{:08X}", label,
+                       ctx.base);
+          ctx.println("\t\tREX_FATAL(cpu, \"Jump target 0x{:08X} unresolved at bctr 0x{:08X}\");",
+                      label, ctx.base);
           break;
       }
     }

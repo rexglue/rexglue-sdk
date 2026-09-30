@@ -17,7 +17,6 @@
 #include <rex/codegen/binary_view.h>
 #include <rex/logging.h>
 
-#include "../codegen_logging.h"
 #include <rex/system/export_resolver.h>
 
 namespace rex::codegen {
@@ -263,17 +262,18 @@ void BuilderContext::emit_function_call(uint32_t address) {
     }
 
     // Unresolved target from graph
-    REXCODEGEN_ERROR("Unresolved function 0x{:08X} from 0x{:08X}", address, base);
+    REXLOG_ERROR(codegen, "Unresolved function 0x{:08X} from 0x{:08X}", address, base);
     println("\t// FATAL: unresolved function 0x{:08X}", address);
-    println("\tREX_FATAL(\"Unresolved call from 0x{:08X} to 0x{:08X}\");", base, address);
+    println("\tREX_FATAL(cpu, \"Unresolved call from 0x{:08X} to 0x{:08X}\");", base, address);
     return;
   }
 
   // No pre-resolved target found - this is an error
-  REXCODEGEN_ERROR("Unresolved function 0x{:08X} from 0x{:08X} (no CallTarget in FunctionNode)",
-                   address, base);
+  REXLOG_ERROR(codegen,
+               "Unresolved function 0x{:08X} from 0x{:08X} (no CallTarget in FunctionNode)",
+               address, base);
   println("\t// FATAL: unresolved function 0x{:08X} (no CallTarget in FunctionNode)", address);
-  println("\tREX_FATAL(\"Unresolved call from 0x{:08X} to 0x{:08X}\");", base, address);
+  println("\tREX_FATAL(cpu, \"Unresolved call from 0x{:08X} to 0x{:08X}\");", base, address);
 }
 
 void BuilderContext::emit_conditional_branch(bool not_, std::string_view cond) {
@@ -313,17 +313,19 @@ void BuilderContext::emit_conditional_branch(bool not_, std::string_view cond) {
           println("\t}}");
         }
       } else {
-        REXCODEGEN_ERROR("Unresolved conditional branch to 0x{:08X} from 0x{:08X} (no CallTarget)",
-                         target, base);
-        println("\tif ({}{}.{}) REX_FATAL(\"Unresolved branch from 0x{:08X} to 0x{:08X}\");",
+        REXLOG_ERROR(codegen,
+                     "Unresolved conditional branch to 0x{:08X} from 0x{:08X} (no CallTarget)",
+                     target, base);
+        println("\tif ({}{}.{}) REX_FATAL(cpu, \"Unresolved branch from 0x{:08X} to 0x{:08X}\");",
                 not_ ? "!" : "", cr(insn.operands[0]), cond, base, target);
       }
       break;
 
     case TargetKind::Unknown:
-      REXCODEGEN_ERROR("Unresolved conditional branch to 0x{:08X} from 0x{:08X}", target, base);
+      REXLOG_ERROR(codegen, "Unresolved conditional branch to 0x{:08X} from 0x{:08X}", target,
+                   base);
       println("\t// ERROR: conditional branch to unknown address 0x{:08X}", target);
-      println("\tif ({}{}.{}) REX_FATAL(\"Unresolved branch from 0x{:08X} to 0x{:08X}\");",
+      println("\tif ({}{}.{}) REX_FATAL(cpu, \"Unresolved branch from 0x{:08X} to 0x{:08X}\");",
               not_ ? "!" : "", cr(insn.operands[0]), cond, base, target);
       break;
   }

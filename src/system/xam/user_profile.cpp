@@ -144,7 +144,7 @@ void UserProfile::LoadSetting(UserProfile::Setting* setting) {
   } else {
     // Unsupported for now.  Other settings aren't per-game and need to be
     // stored some other way.
-    REXSYS_WARN("Attempting to load unsupported profile setting from disk");
+    REXLOG_WARN(system, "Attempting to load unsupported profile setting from disk");
   }
 }
 
@@ -156,12 +156,12 @@ void UserProfile::SaveSetting(UserProfile::Setting* setting) {
     auto setting_id = fmt::format("{:08X}", setting->setting_id);
     auto file_path = content_dir / setting_id;
     if (auto written = rex::platform::WriteWholeFile(file_path, serialized_setting); !written) {
-      REXSYS_WARN("profile setting is not saved, {}", written.error().message);
+      REXLOG_WARN(system, "profile setting is not saved, {}", written.error().message);
     }
   } else {
     // Unsupported for now.  Other settings aren't per-game and need to be
     // stored some other way.
-    REXSYS_WARN("Attempting to save unsupported profile setting to disk");
+    REXLOG_WARN(system, "Attempting to save unsupported profile setting to disk");
   }
 }
 

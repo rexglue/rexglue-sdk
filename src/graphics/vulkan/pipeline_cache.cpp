@@ -296,11 +296,10 @@ bool VulkanPipelineCache::Initialize() {
         vulkan_device, reinterpret_cast<const uint32_t*>(depth_only_fragment_shader_code.data()),
         depth_only_fragment_shader_code.size());
     if (depth_only_fragment_shader_ == VK_NULL_HANDLE) {
-      REXGPU_ERROR(
-          "VulkanPipelineCache: Failed to create the depth/stencil-only "
-          "fragment shader for the fragment shader interlock render backend "
-          "implementation");
-      return false;
+      REX_FAIL(gpu, false,
+               "VulkanPipelineCache: Failed to create the depth/stencil-only "
+               "fragment shader for the fragment shader interlock render backend "
+               "implementation");
     }
   } else {
     std::vector<uint8_t> depth_float24_truncate_fragment_shader_code =
@@ -311,10 +310,9 @@ bool VulkanPipelineCache::Initialize() {
         reinterpret_cast<const uint32_t*>(depth_float24_truncate_fragment_shader_code.data()),
         depth_float24_truncate_fragment_shader_code.size());
     if (depth_float24_truncate_fragment_shader_ == VK_NULL_HANDLE) {
-      REXGPU_ERROR(
-          "VulkanPipelineCache: Failed to create the float24 truncating "
-          "depth-only fragment shader");
-      return false;
+      REX_FAIL(gpu, false,
+               "VulkanPipelineCache: Failed to create the float24 truncating "
+               "depth-only fragment shader");
     }
     std::vector<uint8_t> depth_float24_round_fragment_shader_code =
         shader_translator_->CreateDepthOnlyFragmentShader(
@@ -324,10 +322,9 @@ bool VulkanPipelineCache::Initialize() {
         reinterpret_cast<const uint32_t*>(depth_float24_round_fragment_shader_code.data()),
         depth_float24_round_fragment_shader_code.size());
     if (depth_float24_round_fragment_shader_ == VK_NULL_HANDLE) {
-      REXGPU_ERROR(
-          "VulkanPipelineCache: Failed to create the float24 rounding "
-          "depth-only fragment shader");
-      return false;
+      REX_FAIL(gpu, false,
+               "VulkanPipelineCache: Failed to create the float24 rounding "
+               "depth-only fragment shader");
     }
   }
 
@@ -340,13 +337,13 @@ bool VulkanPipelineCache::Initialize() {
         vulkan_device, placeholder_pixel_shader_spirv.data(),
         placeholder_pixel_shader_spirv.size() * sizeof(uint32_t));
   } else {
-    REXGPU_WARN("VulkanPipelineCache: Failed to compile placeholder pixel shader: {}",
+    REXLOG_WARN(gpu, "VulkanPipelineCache: Failed to compile placeholder pixel shader: {}",
                 placeholder_pixel_shader_compile_error);
   }
   if (placeholder_pixel_shader_ == VK_NULL_HANDLE) {
-    REXGPU_WARN(
-        "VulkanPipelineCache: Failed to create placeholder pixel shader - "
-        "async placeholder hot-swap will be unavailable");
+    REXLOG_WARN(gpu,
+                "VulkanPipelineCache: Failed to create placeholder pixel shader - "
+                "async placeholder hot-swap will be unavailable");
   }
 
   uint32_t logical_processor_count = rex::platform::logical_processor_count();
@@ -392,10 +389,10 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
   auto shader_storage_shareable_root = shader_storage_root / "shareable";
   if (!std::filesystem::exists(shader_storage_shareable_root)) {
     if (!std::filesystem::create_directories(shader_storage_shareable_root)) {
-      REXGPU_ERROR(
-          "Failed to create the shareable shader storage directory, persistent "
-          "shader storage will be disabled: {}",
-          rex::path_to_utf8(shader_storage_shareable_root));
+      REXLOG_ERROR(gpu,
+                   "Failed to create the shareable shader storage directory, persistent "
+                   "shader storage will be disabled: {}",
+                   rex::path_to_utf8(shader_storage_shareable_root));
       return;
     }
   }
@@ -413,10 +410,10 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
       fmt::format("{:08X}.{}.vk.xpso", title_id, edram_fragment_shader_interlock ? "fsi" : "fbo");
   pipeline_storage_file_path_ = pipeline_storage_file_path;
   if (!OpenStorageFile(pipeline_storage_file_, pipeline_storage_file_path)) {
-    REXGPU_ERROR(
-        "Failed to open the Vulkan pipeline description storage file for "
-        "writing, persistent shader storage will be disabled: {}",
-        rex::path_to_utf8(pipeline_storage_file_path));
+    REXLOG_ERROR(gpu,
+                 "Failed to open the Vulkan pipeline description storage file for "
+                 "writing, persistent shader storage will be disabled: {}",
+                 rex::path_to_utf8(pipeline_storage_file_path));
     return;
   }
   pipeline_storage_file_flush_needed_ = false;
@@ -480,7 +477,8 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
       }
       pipeline_stored_descriptions.resize(pipeline_storage_kept_count);
       if (pipeline_storage_skipped_unsupported_count || pipeline_storage_skipped_corrupted_count) {
-        REXGPU_INFO(
+        REXLOG_INFO(
+            gpu,
             "VulkanPipelineCache: Pipeline storage filtering kept {} descriptions (skipped {} "
             "unsupported, {} corrupted)",
             pipeline_storage_kept_count, pipeline_storage_skipped_unsupported_count,
@@ -494,10 +492,10 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
       shader_storage_shareable_root / fmt::format("{:08X}.xsh", title_id);
   shader_storage_file_path_ = shader_storage_file_path;
   if (!OpenStorageFile(shader_storage_file_, shader_storage_file_path)) {
-    REXGPU_ERROR(
-        "Failed to open the guest shader storage file for writing, persistent "
-        "shader storage will be disabled: {}",
-        rex::path_to_utf8(shader_storage_file_path));
+    REXLOG_ERROR(gpu,
+                 "Failed to open the guest shader storage file for writing, persistent "
+                 "shader storage will be disabled: {}",
+                 rex::path_to_utf8(shader_storage_file_path));
     pipeline_storage_file_.close();
     return;
   }
@@ -670,7 +668,7 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
       }
     }
 
-    REXGPU_INFO("Created {} graphics pipelines from Vulkan storage ({} requested)",
+    REXLOG_INFO(gpu, "Created {} graphics pipelines from Vulkan storage ({} requested)",
                 created_pipeline_count.load(), pipeline_creations.size());
     {
       std::lock_guard<std::mutex> lock(creation_request_lock_);
@@ -1010,8 +1008,7 @@ bool VulkanPipelineCache::EnsureShadersTranslated(VulkanShader::VulkanTranslatio
   if (!vertex_shader->is_translated()) {
     vertex_shader->shader().AnalyzeUcode(ucode_disasm_buffer_);
     if (!TranslateAnalyzedShader(*shader_translator_, *vertex_shader)) {
-      REXGPU_ERROR("Failed to translate the vertex shader!");
-      return false;
+      REX_FAIL(gpu, false, "Failed to translate the vertex shader!");
     }
   }
   if (!vertex_shader->is_valid()) {
@@ -1022,8 +1019,7 @@ bool VulkanPipelineCache::EnsureShadersTranslated(VulkanShader::VulkanTranslatio
     if (!pixel_shader->is_translated()) {
       pixel_shader->shader().AnalyzeUcode(ucode_disasm_buffer_);
       if (!TranslateAnalyzedShader(*shader_translator_, *pixel_shader)) {
-        REXGPU_ERROR("Failed to translate the pixel shader!");
-        return false;
+        REX_FAIL(gpu, false, "Failed to translate the pixel shader!");
       }
     }
     if (!pixel_shader->is_valid()) {
@@ -1075,16 +1071,16 @@ bool VulkanPipelineCache::ConfigurePipeline(
   if (!GetCurrentStateDescription(vertex_shader, pixel_shader, primitive_processing_result,
                                   normalized_depth_control, normalized_color_mask, render_pass_key,
                                   description)) {
-    REXGPU_ERROR(
-        "VulkanPipelineCache: GetCurrentStateDescription failed "
-        "(guest_prim={}, host_prim={}, host_vs_type={}, tess_mode={}, host_reset={}, "
-        "render_pass_key=0x{:08X})",
-        uint32_t(primitive_processing_result.guest_primitive_type),
-        uint32_t(primitive_processing_result.host_primitive_type),
-        uint32_t(primitive_processing_result.host_vertex_shader_type),
-        uint32_t(primitive_processing_result.tessellation_mode),
-        uint32_t(primitive_processing_result.host_primitive_reset_enabled), render_pass_key.key);
-    return false;
+    REX_FAIL(gpu, false,
+             "VulkanPipelineCache: GetCurrentStateDescription failed "
+             "(guest_prim={}, host_prim={}, host_vs_type={}, tess_mode={}, host_reset={}, "
+             "render_pass_key=0x{:08X})",
+             uint32_t(primitive_processing_result.guest_primitive_type),
+             uint32_t(primitive_processing_result.host_primitive_type),
+             uint32_t(primitive_processing_result.host_vertex_shader_type),
+             uint32_t(primitive_processing_result.tessellation_mode),
+             uint32_t(primitive_processing_result.host_primitive_reset_enabled),
+             render_pass_key.key);
   }
   if (last_pipeline_ && last_pipeline_->first == description) {
     VkPipeline last_pipeline = last_pipeline_->second.pipeline.load(std::memory_order_acquire);
@@ -1229,8 +1225,8 @@ bool VulkanPipelineCache::TranslateAnalyzedShader(SpirvShaderTranslator& transla
   // Perform translation.
   // If this fails the shader will be marked as invalid and ignored later.
   if (!translator.TranslateAnalyzedShader(translation)) {
-    REXGPU_ERROR("Shader {:016X} translation failed; marking as ignored", shader.ucode_data_hash());
-    return false;
+    REX_FAIL(gpu, false, "Shader {:016X} translation failed; marking as ignored",
+             shader.ucode_data_hash());
   }
   if (translation.GetOrCreateShaderModule() == VK_NULL_HANDLE) {
     return false;
@@ -1664,10 +1660,10 @@ VkShaderModule VulkanPipelineCache::GetTessellationVertexShader(bool adaptive) {
                                 : GetTessellationIndexedVertexShaderGlsl();
   if (!command_processor_.CompileGlslToSpirv(VK_SHADER_STAGE_VERTEX_BIT, source, shader_spirv,
                                              compile_error)) {
-    REXGPU_ERROR(
-        "VulkanPipelineCache: Failed to compile tessellation {} vertex "
-        "shader: {}",
-        adaptive ? "adaptive" : "indexed", compile_error);
+    REXLOG_ERROR(gpu,
+                 "VulkanPipelineCache: Failed to compile tessellation {} vertex "
+                 "shader: {}",
+                 adaptive ? "adaptive" : "indexed", compile_error);
     shader_module = VK_NULL_HANDLE;
     return shader_module;
   }
@@ -1676,10 +1672,10 @@ VkShaderModule VulkanPipelineCache::GetTessellationVertexShader(bool adaptive) {
                                                        shader_spirv.data(),
                                                        sizeof(uint32_t) * shader_spirv.size());
   if (shader_module == VK_NULL_HANDLE) {
-    REXGPU_ERROR(
-        "VulkanPipelineCache: Failed to create tessellation {} vertex "
-        "shader module",
-        adaptive ? "adaptive" : "indexed");
+    REXLOG_ERROR(gpu,
+                 "VulkanPipelineCache: Failed to create tessellation {} vertex "
+                 "shader module",
+                 adaptive ? "adaptive" : "indexed");
   }
   return shader_module;
 }
@@ -1718,10 +1714,10 @@ VkShaderModule VulkanPipelineCache::GetTessellationControlShader(
       host_vertex_shader_type, tessellation_mode, input_control_points, output_control_points);
   if (!command_processor_.CompileGlslToSpirv(VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT, source,
                                              shader_spirv, compile_error)) {
-    REXGPU_ERROR(
-        "VulkanPipelineCache: Failed to compile tessellation control shader "
-        "0x{:08X}: {}",
-        key.key, compile_error);
+    REXLOG_ERROR(gpu,
+                 "VulkanPipelineCache: Failed to compile tessellation control shader "
+                 "0x{:08X}: {}",
+                 key.key, compile_error);
     tessellation_control_shaders_.emplace(key, VK_NULL_HANDLE);
     return VK_NULL_HANDLE;
   }
@@ -1730,10 +1726,10 @@ VkShaderModule VulkanPipelineCache::GetTessellationControlShader(
       command_processor_.GetVulkanDevice(), shader_spirv.data(),
       sizeof(uint32_t) * shader_spirv.size());
   if (shader_module == VK_NULL_HANDLE) {
-    REXGPU_ERROR(
-        "VulkanPipelineCache: Failed to create tessellation control shader "
-        "module 0x{:08X}",
-        key.key);
+    REXLOG_ERROR(gpu,
+                 "VulkanPipelineCache: Failed to create tessellation control shader "
+                 "module 0x{:08X}",
+                 key.key);
   }
   tessellation_control_shaders_.emplace(key, shader_module);
   return shader_module;
@@ -2857,10 +2853,10 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
       command_processor_.GetVulkanDevice(), reinterpret_cast<const uint32_t*>(shader_code.data()),
       sizeof(uint32_t) * shader_code.size());
   if (shader_module == VK_NULL_HANDLE) {
-    REXGPU_ERROR(
-        "VulkanPipelineCache: Failed to create the primitive type geometry "
-        "shader 0x{:08X}",
-        key.key);
+    REXLOG_ERROR(gpu,
+                 "VulkanPipelineCache: Failed to create the primitive type geometry "
+                 "shader 0x{:08X}",
+                 key.key);
   }
   geometry_shaders_.emplace(key, shader_module);
   return shader_module;
@@ -2871,15 +2867,14 @@ bool VulkanPipelineCache::TryGetPipelineCreationArgumentsForDescription(
     std::pair<const PipelineDescription, Pipeline>* pipeline,
     PipelineCreationArguments& creation_arguments, bool for_placeholder) {
   auto fail = [&](const char* reason) {
-    REXGPU_ERROR(
-        "VulkanPipelineCache: TryGetPipelineCreationArgumentsForDescription "
-        "failed: {} (vs={:016X}, ps={:016X}, topo={}, geom={}, tess_mode={}, "
-        "for_placeholder={}, render_pass_key=0x{:08X})",
-        reason, description.vertex_shader_hash, description.pixel_shader_hash,
-        uint32_t(description.primitive_topology), uint32_t(description.geometry_shader),
-        uint32_t(description.tessellation_mode), uint32_t(for_placeholder),
-        description.render_pass_key.key);
-    return false;
+    REX_FAIL(gpu, false,
+             "VulkanPipelineCache: TryGetPipelineCreationArgumentsForDescription "
+             "failed: {} (vs={:016X}, ps={:016X}, topo={}, geom={}, tess_mode={}, "
+             "for_placeholder={}, render_pass_key=0x{:08X})",
+             reason, description.vertex_shader_hash, description.pixel_shader_hash,
+             uint32_t(description.primitive_topology), uint32_t(description.geometry_shader),
+             uint32_t(description.tessellation_mode), uint32_t(for_placeholder),
+             description.render_pass_key.key);
   };
 
   if (!pipeline) {
@@ -3014,12 +3009,12 @@ bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments&
   // be created from the disk storage.
 
   if (creation_arguments.pixel_shader) {
-    REXGPU_INFO("Creating graphics pipeline state with VS {:016X}, PS {:016X}",
-                creation_arguments.vertex_shader->shader().ucode_data_hash(),
-                creation_arguments.pixel_shader->shader().ucode_data_hash());
+    REXLOG_DEBUG(gpu, "Creating graphics pipeline state with VS {:016X}, PS {:016X}",
+                 creation_arguments.vertex_shader->shader().ucode_data_hash(),
+                 creation_arguments.pixel_shader->shader().ucode_data_hash());
   } else {
-    REXGPU_INFO("Creating graphics pipeline state with VS {:016X}",
-                creation_arguments.vertex_shader->shader().ucode_data_hash());
+    REXLOG_DEBUG(gpu, "Creating graphics pipeline state with VS {:016X}",
+                 creation_arguments.vertex_shader->shader().ucode_data_hash());
   }
 
   const PipelineDescription& description = creation_arguments.pipeline->first;
@@ -3476,16 +3471,15 @@ bool VulkanPipelineCache::EnsurePipelineCreated(const PipelineCreationArguments&
     uint64_t ps_hash = creation_arguments.pixel_shader
                            ? creation_arguments.pixel_shader->shader().ucode_data_hash()
                            : 0;
-    REXGPU_ERROR(
-        "VulkanPipelineCache: vkCreateGraphicsPipelines failed (result={}, vs={:016X}, "
-        "ps={:016X}, topo={}, geom={}, tess_mode={}, patch_cp={}, render_pass_key=0x{:08X}, "
-        "dynamic_rendering={})",
-        int32_t(create_result), creation_arguments.vertex_shader->shader().ucode_data_hash(),
-        ps_hash, uint32_t(description.primitive_topology), uint32_t(description.geometry_shader),
-        uint32_t(description.tessellation_mode),
-        creation_arguments.tessellation_patch_control_points, description.render_pass_key.key,
-        uint32_t(use_dynamic_rendering));
-    return false;
+    REX_FAIL(gpu, false,
+             "VulkanPipelineCache: vkCreateGraphicsPipelines failed (result={}, vs={:016X}, "
+             "ps={:016X}, topo={}, geom={}, tess_mode={}, patch_cp={}, render_pass_key=0x{:08X}, "
+             "dynamic_rendering={})",
+             int32_t(create_result), creation_arguments.vertex_shader->shader().ucode_data_hash(),
+             ps_hash, uint32_t(description.primitive_topology),
+             uint32_t(description.geometry_shader), uint32_t(description.tessellation_mode),
+             creation_arguments.tessellation_patch_control_points, description.render_pass_key.key,
+             uint32_t(use_dynamic_rendering));
   }
   bool was_placeholder =
       creation_arguments.pipeline->second.is_placeholder.load(std::memory_order_acquire);

@@ -150,21 +150,20 @@ bool VulkanPrimitiveProcessor::InitializeBuiltinIndexBuffer(
           VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
           ui::vulkan::util::MemoryPurpose::kDeviceLocal, builtin_index_buffer_,
           builtin_index_buffer_memory_)) {
-    REXGPU_ERROR(
-        "Vulkan primitive processor: Failed to create the built-in index "
-        "buffer GPU resource with {} bytes",
-        size_bytes);
-    return false;
+    REX_FAIL(gpu, false,
+             "Vulkan primitive processor: Failed to create the built-in index "
+             "buffer GPU resource with {} bytes",
+             size_bytes);
   }
   uint32_t upload_memory_type;
   if (!ui::vulkan::util::CreateDedicatedAllocationBuffer(
           vulkan_device, builtin_index_buffer_size_, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
           ui::vulkan::util::MemoryPurpose::kUpload, builtin_index_buffer_upload_,
           builtin_index_buffer_upload_memory_, &upload_memory_type)) {
-    REXGPU_ERROR(
-        "Vulkan primitive processor: Failed to create the built-in index "
-        "buffer upload resource with {} bytes",
-        size_bytes);
+    REXLOG_ERROR(gpu,
+                 "Vulkan primitive processor: Failed to create the built-in index "
+                 "buffer upload resource with {} bytes",
+                 size_bytes);
     ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device, builtin_index_buffer_);
     ui::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device, builtin_index_buffer_memory_);
     return false;
@@ -173,10 +172,10 @@ bool VulkanPrimitiveProcessor::InitializeBuiltinIndexBuffer(
   void* mapping;
   if (dfn.vkMapMemory(device, builtin_index_buffer_upload_memory_, 0, VK_WHOLE_SIZE, 0, &mapping) !=
       VK_SUCCESS) {
-    REXGPU_ERROR(
-        "Vulkan primitive processor: Failed to map the built-in index buffer "
-        "upload resource with {} bytes",
-        size_bytes);
+    REXLOG_ERROR(gpu,
+                 "Vulkan primitive processor: Failed to map the built-in index buffer "
+                 "upload resource with {} bytes",
+                 size_bytes);
     ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device,
                                            builtin_index_buffer_upload_);
     ui::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device,

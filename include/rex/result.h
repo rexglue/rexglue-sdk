@@ -95,7 +95,7 @@ struct Error {
  * @code
  * Result<u32> result = ReadCount();
  * if (!result) {
- *   REXLOG_ERROR("{}", result.error().what());
+ *   REXLOG_ERROR(core, "{}", result.error().what());
  * }
  * @endcode
  */

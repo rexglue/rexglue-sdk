@@ -116,7 +116,7 @@ void SetCSVLogPath(const std::string& path) {
 
   g_csv_file.open(rex::to_path(path), std::ios::out | std::ios::trunc);
   if (!g_csv_file) {
-    REXLOG_WARN("perf: failed to open CSV log: {}", path);
+    REXLOG_WARN(core, "perf: failed to open CSV log: {}", path);
     g_csv_path.clear();
     return;
   }

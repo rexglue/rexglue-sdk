@@ -66,8 +66,6 @@ rex::Result<void> FailRelaunch(std::span<const std::string>) {
 
 class TestApp : public rex::App {
  public:
-  using rex::App::log;
-
   std::vector<std::string> modules{"rexmod-test-good"};
   std::string game_root;
   std::string lock_name;
@@ -238,8 +236,10 @@ TEST_CASE_METHOD(Fixture, "Init names the log after the executable", "[app]") {
   TestApp app;
   app.modules = {};
   REQUIRE(app.Init(Args()));
-  REQUIRE(app.log().app_name == rex::platform::GetExecutablePath().stem().string());
-  REQUIRE(app.log().log_dir == rex::platform::GetExecutableFolder() / "logs");
+  const std::filesystem::path file = app.api().Get<rex::ILogger>()->FilePath();
+  REQUIRE(file.parent_path() == rex::platform::GetExecutableFolder() / "logs");
+  REQUIRE(file.filename().string().starts_with(rex::platform::GetExecutablePath().stem().string() +
+                                               "_"));
   app.Shutdown();
 }
 
@@ -248,14 +248,15 @@ TEST_CASE_METHOD(Fixture, "A failed relaunch reaches the log before logging shut
   TestApp app;
   app.modules = {};
   REQUIRE(app.Init(Args()));
-  auto sink = std::make_shared<rex::LogCaptureSink>();
-  rex::AddSink(sink);
+  auto* logger = app.api().Get<rex::ILogger>();
+  rex::log::CaptureSink sink;
+  logger->AddSink(sink);
   rex::RequestRestart();
   REQUIRE(app.Shutdown() == 0);
-  std::vector<rex::LogEntry> entries;
-  sink->CopyEntries(entries);
-  rex::RemoveSink(sink);
-  REQUIRE(std::ranges::any_of(entries, [](const rex::LogEntry& entry) {
+  std::vector<rex::log::CapturedRecord> entries;
+  sink.CopySince(0, entries);
+  logger->RemoveSink(sink);
+  REQUIRE(std::ranges::any_of(entries, [](const rex::log::CapturedRecord& entry) {
     return entry.text.find("relaunch failed") != std::string::npos;
   }));
 }
@@ -285,19 +286,20 @@ TEST_CASE_METHOD(Fixture, "RequestRestart without relaunch support starts nothin
   REQUIRE(std::ranges::find(g_events, "relaunch") == g_events.end());
 }
 
-TEST_CASE("A cached log category keeps its logger across ShutdownLogging", "[app]") {
-  const rex::LogCategoryId core = rex::log::core();
-  rex::InitLoggingEarly();
-  rex::ShutdownLogging();
-  auto sink = std::make_shared<rex::LogCaptureSink>();
-  rex::AddSink(sink);
-  REQUIRE(rex::GetLoggerRaw(core) != nullptr);
-  REQUIRE(rex::GetLoggerRaw(core)->name() == "core");
-  REXLOG_WARN("after logging shut down");
-  std::vector<rex::LogEntry> entries;
-  sink->CopyEntries(entries);
-  rex::RemoveSink(sink);
-  REQUIRE(std::ranges::any_of(entries, [](const rex::LogEntry& entry) {
+TEST_CASE("A category keeps writing after the logger stops and starts", "[app]") {
+  auto first = rex::Init(rex::Config{});
+  REQUIRE(first);
+  auto* logger = first.value()->Get<rex::ILogger>();
+  rex::Shutdown();
+  REQUIRE(rex::Init(rex::Config{}));
+  rex::log::CaptureSink sink;
+  logger->AddSink(sink);
+  REXLOG_WARN(core, "after logging shut down");
+  std::vector<rex::log::CapturedRecord> entries;
+  sink.CopySince(0, entries);
+  logger->RemoveSink(sink);
+  rex::Shutdown();
+  REQUIRE(std::ranges::any_of(entries, [](const rex::log::CapturedRecord& entry) {
     return entry.text.find("after logging shut down") != std::string::npos;
   }));
 }

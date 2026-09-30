@@ -14,13 +14,12 @@ static_assert(REX_PLATFORM_WIN32, "This file is Windows-only");
 #include "core/thread_registry.h"
 #include "platform_win.h"
 
-#include <spdlog/spdlog.h>
-
 #include <rex/assert.h>
+#include <rex/logging.h>
 #include <rex/chrono/chrono_steady_cast.h>
 
 #define LOG_LASTERROR() \
-  { spdlog::error("Win32 Error 0x{:08X} in {}(...)", GetLastError(), __FUNCTION__); }
+  { REXLOG_ERROR(core, "Win32 error 0x{:08X} in {}", GetLastError(), __FUNCTION__); }
 
 typedef HANDLE (*SetThreadDescriptionFn)(HANDLE hThread, PCWSTR lpThreadDescription);
 

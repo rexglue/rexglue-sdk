@@ -36,7 +36,7 @@ bool SpirvToolsContext::Initialize(unsigned int spirv_version) {
   if (library_path.empty()) {
     auto vulkan_sdk_env = rex::platform::GetEnvironmentValue("VULKAN_SDK");
     if (!vulkan_sdk_env.has_value() || vulkan_sdk_env->empty()) {
-      REXLOG_INFO("SPIRV-Tools: No Vulkan SDK found; SPIR-V validation is disabled");
+      REXLOG_INFO(ui, "SPIRV-Tools: No Vulkan SDK found; SPIR-V validation is disabled");
       Shutdown();
       return false;
     }
@@ -45,7 +45,7 @@ bool SpirvToolsContext::Initialize(unsigned int spirv_version) {
   }
 
   if (!library_.Load(library_path)) {
-    REXLOG_INFO("SPIRV-Tools: Failed to load {}; SPIR-V validation is disabled",
+    REXLOG_INFO(ui, "SPIRV-Tools: Failed to load {}; SPIR-V validation is disabled",
                 library_path.string());
     Shutdown();
     return false;
@@ -54,7 +54,7 @@ bool SpirvToolsContext::Initialize(unsigned int spirv_version) {
       !LoadLibraryFunction(fn_spvContextDestroy_, "spvContextDestroy") ||
       !LoadLibraryFunction(fn_spvValidateBinary_, "spvValidateBinary") ||
       !LoadLibraryFunction(fn_spvDiagnosticDestroy_, "spvDiagnosticDestroy")) {
-    REXLOG_ERROR("SPIRV-Tools: Failed to get library function pointers");
+    REXLOG_ERROR(ui, "SPIRV-Tools: Failed to get library function pointers");
     Shutdown();
     return false;
   }
@@ -70,7 +70,7 @@ bool SpirvToolsContext::Initialize(unsigned int spirv_version) {
   }
   context_ = fn_spvContextCreate_(target_env);
   if (!context_) {
-    REXLOG_ERROR("SPIRV-Tools: Failed to create a Vulkan 1.0 context");
+    REXLOG_ERROR(ui, "SPIRV-Tools: Failed to create a Vulkan 1.0 context");
     Shutdown();
     return false;
   }

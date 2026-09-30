@@ -60,7 +60,7 @@ class IInterfaceFactory {
 };
 
 /**
- * Lifecycle of a module. Every module DLL serves this as "rex.module" version 1.
+ * Lifecycle of a module. Every module DLL serves it.
  */
 class IModule {
  public:

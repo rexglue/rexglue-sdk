@@ -15,8 +15,6 @@
 
 #include <rex/logging.h>
 
-#include "codegen_logging.h"
-
 #include <dis-asm.h>
 #include <ppc-inst.h>
 #include <ppc.h>
@@ -656,7 +654,7 @@ bool DispatchInstruction(int id, BuilderContext& ctx) {
 
   // Emit trap code for unimplemented instruction - allows tests to be generated
   // and fail at runtime rather than skipping the entire function
-  REXCODEGEN_WARN("Unimplemented: {} at 0x{:08X}", ctx.insn.opcode->name, ctx.base);
+  REXLOG_WARN(codegen, "Unimplemented: {} at 0x{:08X}", ctx.insn.opcode->name, ctx.base);
   ctx.println("\t// UNIMPLEMENTED: {}", ctx.insn.opcode->name);
   ctx.println("\tREX_UNIMPLEMENTED(0x{:X}, \"{}\");", ctx.base, ctx.insn.opcode->name);
   return true;

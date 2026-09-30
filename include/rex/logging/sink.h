@@ -1,6 +1,6 @@
 /**
- * @file        rex/logging/sink.h
- * @brief       Thread-safe ring-buffer spdlog sink for in-memory log capture
+ * @file        logging/sink.h
+ * @brief       The sink interface and the standard sinks
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -8,90 +8,199 @@
  * @license     BSD 3-Clause License
  *              See LICENSE file in the project root for full license text.
  */
+
 #pragma once
 
-#include <rex/logging/types.h>
-
-#include <spdlog/sinks/base_sink.h>
-
-#include <array>
-#include <cstddef>
+#include <chrono>
+#include <deque>
+#include <filesystem>
+#include <fstream>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <vector>
 
-namespace rex {
+#include <rex/logging/format.h>
+#include <rex/logging/level.h>
+#include <rex/macros.h>
+#include <rex/result.h>
+#include <rex/types.h>
 
-struct LogEntry {
-  spdlog::level::level_enum level = spdlog::level::info;
-  std::string category;  // e.g. "core", "gpu"
-  std::string text;      // formatted message only (no timestamp/level prefix)
+namespace rex::log {
+
+/** Receives every written record. The logger calls it under its sink mutex, never concurrently. */
+class ISink {
+ public:
+  virtual ~ISink() = default;
+
+  /**
+   * Writes 1 record.
+   *
+   * @param record The record.
+   */
+  virtual void Write(const Record& record) = 0;
+
+  /** Writes buffered output. */
+  virtual void Flush() = 0;
 };
 
-// Thread-safe ring-buffer spdlog sink.
-// Capacity is fixed at 2048 entries; oldest entries are overwritten.
-class LogCaptureSink : public spdlog::sinks::base_sink<std::mutex> {
+/** Standard output. Colors through ANSI codes, with virtual terminal mode on for a Windows console.
+ */
+class REX_API ConsoleSink final : public ISink {
  public:
-  static constexpr size_t kCapacity = 2048;
+  /**
+   * Builds the sink.
+   *
+   * @param format What to write around each message.
+   */
+  explicit ConsoleSink(LineFormat format);
 
-  // Copy all current entries in chronological order into `out`.
-  // Safe to call from any thread (e.g. the UI/render thread).
-  void CopyEntries(std::vector<LogEntry>& out) const {
-    std::lock_guard lock(mutable_mutex_);
-    out.clear();
-    out.reserve(count_);
-    if (count_ < kCapacity) {
-      // Buffer not yet full - entries start at index 0.
-      for (size_t i = 0; i < count_; ++i) {
-        out.push_back(buf_[i]);
-      }
-    } else {
-      // Full - oldest entry is at write_pos_ (wraps around).
-      for (size_t i = 0; i < kCapacity; ++i) {
-        out.push_back(buf_[(write_pos_ + i) % kCapacity]);
-      }
-    }
-  }
+  /**
+   * Writes 1 record.
+   *
+   * @param record The record.
+   */
+  void Write(const Record& record) override;
 
-  // Returns true if new entries have been added since the last call
-  // to CopyEntries (checked by comparing generation counter).
-  uint64_t generation() const {
-    std::lock_guard lock(mutable_mutex_);
-    return generation_;
-  }
+  /** Flushes standard output. */
+  void Flush() override;
 
- protected:
-  void sink_it_(const spdlog::details::log_msg& msg) override {
-    std::string cat(msg.logger_name.begin(), msg.logger_name.end());
-
-    // Format just the payload (no timestamp, level, or logger name).
-    spdlog::memory_buf_t formatted;
-    formatter_->format(msg, formatted);
-    // Strip trailing newline spdlog adds.
-    std::string text(formatted.begin(), formatted.end());
-    while (!text.empty() && (text.back() == '\n' || text.back() == '\r')) {
-      text.pop_back();
-    }
-
-    // Lock mutable_mutex_ so writes to buf_ are synchronized with
-    // CopyEntries() and generation() which also lock this mutex.
-    // (base_sink::mutex_ alone is insufficient -- CopyEntries doesn't hold it.)
-    std::lock_guard lock(mutable_mutex_);
-    buf_[write_pos_] = LogEntry{msg.level, std::move(cat), std::move(text)};
-    write_pos_ = (write_pos_ + 1) % kCapacity;
-    if (count_ < kCapacity)
-      ++count_;
-    ++generation_;
-  }
-
-  void flush_() override {}
+  /**
+   * Sets the line format.
+   *
+   * @param format What to write around each message.
+   */
+  void set_format(LineFormat format);
 
  private:
-  std::array<LogEntry, kCapacity> buf_{};
-  size_t write_pos_ = 0;
-  size_t count_ = 0;
-  uint64_t generation_ = 0;
-  mutable std::mutex mutable_mutex_;
+  LineFormat format_;
+  bool color_supported_ = false;
 };
 
-}  // namespace rex
+/** The debugger. OutputDebugStringW on Windows, standard error elsewhere. Never colored. */
+class REX_API DebuggerSink final : public ISink {
+ public:
+  /**
+   * Builds the sink.
+   *
+   * @param format What to write around each message. color is ignored.
+   */
+  explicit DebuggerSink(LineFormat format);
+
+  /**
+   * Writes 1 record.
+   *
+   * @param record The record.
+   */
+  void Write(const Record& record) override;
+
+  /** Flushes standard error where it is the target. */
+  void Flush() override;
+
+  /**
+   * Sets the line format.
+   *
+   * @param format What to write around each message. color is ignored.
+   */
+  void set_format(LineFormat format);
+
+ private:
+  LineFormat format_;
+};
+
+/**
+ * A log file. Writes a 1 letter level column (T, V, D, I, W, E, C) after the timestamp, because a
+ * file has no color.
+ */
+class REX_API FileSink final : public ISink {
+ public:
+  /**
+   * Opens a file for appending.
+   *
+   * @param path The file. Missing parent folders are created.
+   * @param format What to write around each message. color is ignored.
+   * @return The sink, or an error naming the path.
+   */
+  [[nodiscard]] static Result<std::unique_ptr<FileSink>> Open(const std::filesystem::path& path,
+                                                              LineFormat format);
+
+  /**
+   * Writes 1 record.
+   *
+   * @param record The record.
+   */
+  void Write(const Record& record) override;
+
+  /** Writes buffered output to the file. */
+  void Flush() override;
+
+  /**
+   * Returns the file path.
+   *
+   * @return The path passed to Open.
+   */
+  const std::filesystem::path& path() const;
+
+  /**
+   * Wraps an open stream. Open is the usual way to build the sink.
+   *
+   * @param path The file the stream writes.
+   * @param file The open stream.
+   * @param format What to write around each message. color is ignored.
+   */
+  FileSink(std::filesystem::path path, std::ofstream file, LineFormat format);
+
+ private:
+  std::filesystem::path path_;
+  std::ofstream file_;
+  LineFormat format_;
+};
+
+/** 1 captured message, owning its text. */
+struct CapturedRecord {
+  Level level = Level::kInfo;                 /**< Message level. */
+  std::string category;                       /**< Category name. */
+  std::string text;                           /**< Formatted message. */
+  std::chrono::system_clock::time_point time; /**< Time the message was written. */
+  u32 thread_id = 0;                          /**< Host thread ID. */
+  u64 sequence = 0;                           /**< Record sequence. */
+};
+
+/** Keeps the newest records in memory for the console. Safe to read from any thread. */
+class REX_API CaptureSink final : public ISink {
+ public:
+  /** Records kept. */
+  static constexpr size_t kCapacity = 4096;
+
+  /**
+   * Keeps 1 record, dropping the oldest at capacity.
+   *
+   * @param record The record.
+   */
+  void Write(const Record& record) override;
+
+  /** Does nothing, the records are in memory. */
+  void Flush() override;
+
+  /**
+   * Copies the records newer than a sequence, oldest first.
+   *
+   * @param after Sequence of the newest record the caller holds, 0 for all.
+   * @param out Receives the records. Cleared first.
+   * @return The sequence of the newest record kept, or after when nothing is newer.
+   */
+  u64 CopySince(u64 after, std::vector<CapturedRecord>& out) const;
+
+  /**
+   * Returns the sequence of the newest record kept.
+   *
+   * @return The sequence, 0 before the first record.
+   */
+  u64 latest() const;
+
+ private:
+  mutable std::mutex mutex_;
+  std::deque<CapturedRecord> records_;
+};
+
+}  // namespace rex::log

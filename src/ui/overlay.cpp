@@ -27,7 +27,6 @@ namespace rex::ui {
 OverlayContext::OverlayContext(ImGuiDrawer& drawer,
                                const std::unique_ptr<ImmediateDrawer>& immediate_drawer,
                                cvar::ICvarRegistry& cvars, log::CaptureSink& log_capture,
-                               ConsoleModel& console, ConsoleHost& console_host,
                                const Config& config, const std::unique_ptr<Runtime>& runtime,
                                const DebugOverlayDialog::FrameStatsProvider& frame_stats)
     : drawer_(drawer),
@@ -49,7 +48,7 @@ ImmediateDrawer* OverlayContext::immediate_drawer() const {
 cvar::ICvarRegistry& OverlayContext::cvars() const {
   return cvars_;
 }
-LogCaptureSink& OverlayContext::log_capture() const {
+log::CaptureSink& OverlayContext::log_capture() const {
   return log_capture_;
 }
 ConsoleModel& OverlayContext::console() const {

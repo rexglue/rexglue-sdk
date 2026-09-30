@@ -40,7 +40,7 @@ std::unique_ptr<RenderDocAPI> RenderDocAPI::CreateIfConnected() {
     return nullptr;
   }
 
-  REXLOG_INFO("RenderDoc API initialized");
+  REXLOG_INFO(ui, "RenderDoc API initialized");
 
   return renderdoc_api;
 #endif

@@ -91,8 +91,7 @@ inline bool write_file_atomic(const std::filesystem::path& path, const std::stri
   auto written = rex::platform::WriteWholeFile(
       path, std::span(reinterpret_cast<const u8*>(content.data()), content.size()));
   if (!written) {
-    REXLOG_ERROR("Failed to write {}: {}", path.string(), written.error().message);
-    return false;
+    REX_FAIL(rexglue, false, "Failed to write {}: {}", path.string(), written.error().message);
   }
   return true;
 }

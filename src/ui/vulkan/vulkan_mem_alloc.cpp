@@ -87,8 +87,7 @@ VmaAllocator CreateVmaAllocator(const VulkanDevice* const vulkan_device,
   allocator_create_info.vulkanApiVersion = vulkan_device->properties().apiVersion;
   VmaAllocator allocator;
   if (vmaCreateAllocator(&allocator_create_info, &allocator) != VK_SUCCESS) {
-    REXLOG_ERROR("Failed to create a Vulkan Memory Allocator instance");
-    return VK_NULL_HANDLE;
+    REX_FAIL(ui, VK_NULL_HANDLE, "Failed to create a Vulkan Memory Allocator instance");
   }
   return allocator;
 }

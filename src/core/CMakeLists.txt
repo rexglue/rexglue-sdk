@@ -15,7 +15,6 @@ add_library(rexcore SHARED
     filesystem/xcontent.cpp
     hash.cpp
     instance_lock.cpp
-    interrupt_mask.cpp
     log_file.cpp
     log_sinks.cpp
     logger.cpp
@@ -50,6 +49,7 @@ if(WIN32)
         dynlib_win.cpp
         exception_handler_win.cpp
         fiber_win32.cpp
+        log_sinks_win.cpp
         mapped_memory_win.cpp
         math_msvc.cpp
         memory_win.cpp
@@ -73,6 +73,7 @@ elseif(UNIX)
         dynlib_posix.cpp
         exception_handler_posix.cpp
         fiber_posix.cpp
+        log_sinks_posix.cpp
         mapped_memory_posix.cpp
         math_gcc.cpp
         memory_posix.cpp
@@ -119,7 +120,6 @@ target_link_libraries(rexcore
         fmt::fmt
         simde
         tomlplusplus
-        spdlog::spdlog
     PRIVATE
         disruptorplus
         utf8cpp

@@ -49,7 +49,7 @@ void HandleSetThreadName(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
   assert_true(thread_info->type == 0x1000);
 
   if (!thread_info->name_ptr) {
-    REXKRNL_DEBUG("SetThreadName called with null name_ptr");
+    REXLOG_DEBUG(kernel, "SetThreadName called with null name_ptr");
     return;
   }
 
@@ -72,7 +72,7 @@ void HandleSetThreadName(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
   }
 
   if (thread) {
-    REXKRNL_DEBUG("SetThreadName({}, {})", thread->thread_id(), name);
+    REXLOG_DEBUG(kernel, "SetThreadName({}, {})", thread->thread_id(), name);
     thread->set_name(name);
   }
 
@@ -144,8 +144,8 @@ void RtlRaiseException_entry(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
 }
 
 void KeBugCheckEx_entry(u32 code, u32 param1, u32 param2, u32 param3, u32 param4) {
-  REXKRNL_DEBUG("*** STOP: 0x{:08X} (0x{:08X}, 0x{:08X}, 0x{:08X}, 0x{:08X})", code, param1, param2,
-                param3, param4);
+  REXLOG_DEBUG(kernel, "*** STOP: 0x{:08X} (0x{:08X}, 0x{:08X}, 0x{:08X}, 0x{:08X})", code, param1,
+               param2, param3, param4);
   fflush(stdout);
   rex::platform::Break();
   assert_always();

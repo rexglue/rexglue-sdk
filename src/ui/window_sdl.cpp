@@ -109,8 +109,7 @@ bool WindowSDL::OpenImpl() {
 #endif
   sdl_window_ = SDL_CreateWindow(GetTitle().c_str(), initial_width, initial_height, flags);
   if (!sdl_window_) {
-    REXLOG_ERROR("SDL_CreateWindow failed: {}", SDL_GetError());
-    return false;
+    REX_FAIL(ui, false, "SDL_CreateWindow failed: {}", SDL_GetError());
   }
   sdl_window_id_ = SDL_GetWindowID(sdl_window_);
   sdl_app_context().RegisterWindow(sdl_window_id_, this);
@@ -245,7 +244,7 @@ bool WindowSDL::SetRelativeMouseMode(bool enable) {
     return false;
   }
   if (!SDL_SetWindowRelativeMouseMode(sdl_window_, enable)) {
-    REXLOG_WARN("SDL_SetWindowRelativeMouseMode({}) failed: {}", enable, SDL_GetError());
+    REXLOG_WARN(ui, "SDL_SetWindowRelativeMouseMode({}) failed: {}", enable, SDL_GetError());
     return false;
   }
   return enable;
@@ -356,8 +355,8 @@ void WindowSDL::CenterOnConfiguredDisplay() {
     SDL_SetWindowPosition(sdl_window_, SDL_WINDOWPOS_CENTERED_DISPLAY(display),
                           SDL_WINDOWPOS_CENTERED_DISPLAY(display));
   } else {
-    REXLOG_WARN("monitor cvar is {} but only {} display(s) present; using default", monitor_index,
-                display_count);
+    REXLOG_WARN(ui, "monitor cvar is {} but only {} display(s) present; using default",
+                monitor_index, display_count);
   }
   SDL_free(displays);
 }
@@ -378,7 +377,7 @@ void WindowSDL::ApplyFullscreenModeNow() {
       width <= 0 || height <= 0) {
     const SDL_DisplayMode* desktop = SDL_GetDesktopDisplayMode(display);
     if (!desktop) {
-      REXLOG_WARN("No desktop mode for display {}: staying borderless", uint32_t(display));
+      REXLOG_WARN(ui, "No desktop mode for display {}: staying borderless", uint32_t(display));
       SDL_SetWindowFullscreenMode(sdl_window_, nullptr);
       return;
     }
@@ -388,16 +387,17 @@ void WindowSDL::ApplyFullscreenModeNow() {
 
   SDL_DisplayMode mode = {};
   if (!SDL_GetClosestFullscreenDisplayMode(display, width, height, 0.0f, true, &mode)) {
-    REXLOG_WARN("Display {} has no mode near {}x{}: staying borderless", uint32_t(display), width,
-                height);
+    REXLOG_WARN(ui, "Display {} has no mode near {}x{}: staying borderless", uint32_t(display),
+                width, height);
     SDL_SetWindowFullscreenMode(sdl_window_, nullptr);
     return;
   }
   if (!SDL_SetWindowFullscreenMode(sdl_window_, &mode)) {
-    REXLOG_WARN("SDL_SetWindowFullscreenMode({}x{}) failed: {}", mode.w, mode.h, SDL_GetError());
+    REXLOG_WARN(ui, "SDL_SetWindowFullscreenMode({}x{}) failed: {}", mode.w, mode.h,
+                SDL_GetError());
     return;
   }
-  REXLOG_INFO("Exclusive fullscreen mode {}x{} @ {:.3g}Hz on display {}", mode.w, mode.h,
+  REXLOG_INFO(ui, "Exclusive fullscreen mode {}x{} @ {:.3g}Hz on display {}", mode.w, mode.h,
               mode.refresh_rate, uint32_t(display));
 }
 

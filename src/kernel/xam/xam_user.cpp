@@ -232,10 +232,10 @@ uint32_t XamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index, ui
     auto setting = user_profile->GetSetting(setting_id);
     if (!setting) {
       any_missing = true;
-      REXKRNL_ERROR(
-          "xeXamUserReadProfileSettingsEx requested unimplemented setting "
-          "{:08X}",
-          setting_id);
+      REXLOG_ERROR(kernel,
+                   "xeXamUserReadProfileSettingsEx requested unimplemented setting "
+                   "{:08X}",
+                   setting_id);
     }
   }
   if (any_missing) {
@@ -327,10 +327,10 @@ u32 XamUserWriteProfileSettings_entry(u32 title_id, u32 user_index, u32 setting_
       continue;
     }
 
-    REXKRNL_DEBUG(
-        "XamUserWriteProfileSettings: setting index [{}]:"
-        " from={} setting_id={:08X} data.type={}",
-        n, (uint32_t)setting.from, (uint32_t)setting.setting_id, setting.data.type);
+    REXLOG_DEBUG(kernel,
+                 "XamUserWriteProfileSettings: setting index [{}]:"
+                 " from={} setting_id={:08X} data.type={}",
+                 n, (uint32_t)setting.from, (uint32_t)setting.setting_id, setting.data.type);
 
     switch (setting_type) {
       case UserProfile::Setting::Type::CONTENT:
@@ -356,7 +356,8 @@ u32 XamUserWriteProfileSettings_entry(u32 title_id, u32 user_index, u32 setting_
       case UserProfile::Setting::Type::INT64:
       case UserProfile::Setting::Type::DATETIME:
       default: {
-        REXKRNL_ERROR("XamUserWriteProfileSettings: Unimplemented data type {}", setting_type);
+        REXLOG_ERROR(kernel, "XamUserWriteProfileSettings: Unimplemented data type {}",
+                     setting_type);
       } break;
     };
   }

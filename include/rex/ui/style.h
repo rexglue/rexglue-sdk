@@ -12,10 +12,15 @@
  * @remarks     ImGuiDrawer owns one Style; overlays read their own section
  *              through ImGuiDialog::imgui_drawer()->style(). Consumers patch
  *              it through TitleUI::theme in OnCreateWindow. Every default matches the
- *              value the corresponding overlay shipped with.
+ *              value the corresponding overlay used before the theme existed.
  */
 #pragma once
+
+#include <array>
+
 #include <imgui.h>
+
+#include <rex/logging/level.h>
 
 namespace rex::ui {
 
@@ -46,17 +51,16 @@ struct ToastStyle {
 };
 
 struct ConsoleStyle {
-  /// Indexed by spdlog::level::level_enum: trace, debug, info, warn, err,
-  /// critical, off.
-  ImVec4 level[7] = {
-      {0.5f, 0.5f, 0.5f, 1.0f},  // trace
-      {0.4f, 0.9f, 0.9f, 1.0f},  // debug
-      {1.0f, 1.0f, 1.0f, 1.0f},  // info
-      {1.0f, 1.0f, 0.0f, 1.0f},  // warn
-      {1.0f, 0.4f, 0.4f, 1.0f},  // err
-      {1.0f, 0.0f, 0.0f, 1.0f},  // critical
-      {1.0f, 1.0f, 1.0f, 1.0f},  // off
-  };
+  /** Text color per message level, indexed by std::to_underlying(rex::log::Level). */
+  std::array<ImVec4, rex::log::kMessageLevelCount> level = {{
+      {0.5f, 0.5f, 0.5f, 1.0f},
+      {0.8f, 0.5f, 0.9f, 1.0f},
+      {0.4f, 0.9f, 0.9f, 1.0f},
+      {1.0f, 1.0f, 1.0f, 1.0f},
+      {1.0f, 1.0f, 0.0f, 1.0f},
+      {1.0f, 0.4f, 0.4f, 1.0f},
+      {1.0f, 0.0f, 0.0f, 1.0f},
+  }};
   ImVec4 completion_bg{0.10f, 0.10f, 0.10f, 0.95f};
   ImVec4 completion_highlight{0.235f, 0.353f, 0.549f, 0.784f};
 };

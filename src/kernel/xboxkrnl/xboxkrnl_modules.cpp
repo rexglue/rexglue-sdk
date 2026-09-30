@@ -24,7 +24,10 @@ namespace rex::kernel::xboxkrnl {
 using namespace rex::system;
 
 u32 XexCheckExecutablePrivilege_entry(u32 privilege) {
-  REXKRNL_IMPORT_TRACE("XexCheckExecutablePrivilege", "priv={}", (uint32_t)privilege);
+  REXLOG_TRACE(kernel,
+               "XexCheckExecutablePrivilege "
+               "priv={}",
+               (uint32_t)privilege);
   // BOOL
   // DWORD Privilege
 
@@ -181,13 +184,13 @@ u32 XexGetProcedureAddress_entry(mapped_void hmodule, u32 ordinal, mapped_u32 ou
       result = X_STATUS_SUCCESS;
     } else {
       if (is_string_name) {
-        REXKRNL_WARN("ERROR: XexGetProcedureAddress export '{}' in '{}' not found!", string_name,
-                     module->name());
+        REXLOG_WARN(kernel, "ERROR: XexGetProcedureAddress export '{}' in '{}' not found!",
+                    string_name, module->name());
       } else {
-        REXKRNL_WARN(
-            "ERROR: XexGetProcedureAddress ordinal {} (0x{:X}) in '{}' not "
-            "found!",
-            ordinal, ordinal, module->name());
+        REXLOG_WARN(kernel,
+                    "ERROR: XexGetProcedureAddress ordinal {} (0x{:X}) in '{}' not "
+                    "found!",
+                    ordinal, ordinal, module->name());
       }
       *out_function_ptr = 0;
       result = X_STATUS_DRIVER_ENTRYPOINT_NOT_FOUND;
@@ -210,7 +213,7 @@ void ExRegisterTitleTerminateNotification_entry(ppc_ptr_t<X_EX_TITLE_TERMINATE_R
 }
 
 u32 XexLoadImageHeaders_entry(mapped_string path, mapped_void headers) {
-  REXKRNL_DEBUG("XexLoadImageHeaders({}) - stub", path.value());
+  REXLOG_DEBUG(kernel, "XexLoadImageHeaders({}) - stub", path.value());
   return X_STATUS_NOT_IMPLEMENTED;
 }
 

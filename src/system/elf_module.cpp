@@ -74,28 +74,25 @@ bool ElfModule::Load(const std::string_view name, const std::string_view path, c
 
   if (hdr->e_type != 2 /* ET_EXEC */) {
     // Not executable (shared objects not supported yet)
-    REXLOG_ERROR("ELF: Could not load ELF because it isn't executable!");
+    REXLOG_ERROR(system, "ELF: Could not load ELF because it isn't executable!");
     return false;
   }
 
   if (hdr->e_machine != 20 /* EM_PPC */) {
     // Not a PPC ELF!
-    REXLOG_ERROR(
-        "ELF: Could not load ELF because target machine is not PPC! (target: "
-        "{})",
-        uint32_t(hdr->e_machine));
-    return false;
+    REX_FAIL(system, false,
+             "ELF: Could not load ELF because target machine is not PPC! (target: "
+             "{})",
+             uint32_t(hdr->e_machine));
   }
 
   // Parse LOAD program headers and load into memory.
   if (!hdr->e_phoff) {
-    REXLOG_ERROR("ELF: File doesn't have a program header!");
-    return false;
+    REX_FAIL(system, false, "ELF: File doesn't have a program header!");
   }
 
   if (!hdr->e_entry) {
-    REXLOG_ERROR("ELF: Executable has no entry point!");
-    return false;
+    REX_FAIL(system, false, "ELF: Executable has no entry point!");
   }
 
   // Entry point virtual address
@@ -123,9 +120,8 @@ bool ElfModule::Load(const std::string_view name, const std::string_view path, c
       // Allocate and copy into memory.
       // Base address @ 0x80000000
       if (phdr[i].p_vaddr < 0x80000000 || phdr[i].p_vaddr > 0x9FFFFFFF) {
-        REXLOG_ERROR("ELF: Could not allocate memory for section @ address 0x{:08X}",
-                     uint32_t(phdr[i].p_vaddr));
-        return false;
+        REX_FAIL(system, false, "ELF: Could not allocate memory for section @ address 0x{:08X}",
+                 uint32_t(phdr[i].p_vaddr));
       }
 
       uint32_t virtual_addr = phdr[i].p_vaddr & ~(phdr[i].p_align - 1);
@@ -138,7 +134,7 @@ bool ElfModule::Load(const std::string_view name, const std::string_view path, c
                    virtual_addr, virtual_size, phdr[i].p_align,
                    rex::memory::kMemoryAllocationReserve | rex::memory::kMemoryAllocationCommit,
                    rex::memory::kMemoryProtectRead | rex::memory::kMemoryProtectWrite)) {
-        REXLOG_ERROR("ELF: Could not allocate memory!");
+        REXLOG_ERROR(system, "ELF: Could not allocate memory!");
       }
 
       auto p = memory()->TranslateVirtual(phdr[i].p_vaddr);

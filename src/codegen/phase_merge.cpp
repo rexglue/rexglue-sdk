@@ -13,7 +13,6 @@
 
 #include <rex/logging.h>
 
-#include "codegen_logging.h"
 #include <rex/memory/utils.h>
 
 using rex::memory::load_and_swap;
@@ -26,7 +25,7 @@ namespace {
 // Merge to resolve jumps then seal functions
 //=============================================================================
 void mergeAndSeal(CodegenContext& ctx) {
-  REXCODEGEN_TRACE("Analyze: resolving jumps and sealing functions...");
+  REXLOG_TRACE(codegen, "Analyze: resolving jumps and sealing functions...");
 
   auto& graph = ctx.graph;
   auto& binary = ctx.binary();
@@ -68,17 +67,18 @@ void mergeAndSeal(CodegenContext& ctx) {
 
   size_t sharedRegs = graph.markFuncletRegisterSharing();
   if (sharedRegs > 0) {
-    REXCODEGEN_DEBUG("Analyze: {} functions share registers with an SEH funclet", sharedRegs);
+    REXLOG_DEBUG(codegen, "Analyze: {} functions share registers with an SEH funclet", sharedRegs);
   }
 
   size_t totalSealed = graph.sealAllReady();
   size_t stillPending = graph.pendingCount();
 
-  REXCODEGEN_TRACE("Analyze: {} iterations, resolved={}, sealed={}/{}", iteration, totalResolved,
-                   totalSealed, graph.functionCount());
+  REXLOG_TRACE(codegen, "Analyze: {} iterations, resolved={}, sealed={}/{}", iteration,
+               totalResolved, totalSealed, graph.functionCount());
 
   if (stillPending > 0) {
-    REXCODEGEN_DEBUG("Analyze: {} functions still PENDING with unresolved jumps", stillPending);
+    REXLOG_DEBUG(codegen, "Analyze: {} functions still PENDING with unresolved jumps",
+                 stillPending);
   }
 }
 

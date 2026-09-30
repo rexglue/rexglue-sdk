@@ -28,7 +28,6 @@
 #include <rex/kernel/crt/heap.h>
 #include <rex/kernel/init.h>
 #include <rex/logging.h>
-#include <rex/logging/api.h>
 #include <rex/logging/sink.h>
 #include <rex/platform.h>
 #include <rex/platform/file.h>
@@ -313,8 +312,11 @@ Result<void> TitleApp::Init(const CLIArgList& args, const PPCImageInfo& image) {
   cfg.paths.cache_root = cfg.paths.user_data_root / "cache";
   cfg.paths.config_file = exe.parent_path() / (name + ".toml");
   REX_TRY_VOID(App::Init(args));
-  log_capture_ = std::make_shared<LogCaptureSink>();
-  AddSink(log_capture_);
+  log_capture_ = std::make_unique<log::CaptureSink>();
+  logger_ = api().Get<ILogger>();
+  if (logger_) {
+    logger_->AddSink(*log_capture_);
+  }
   AttachBindRegistry(api().Get<cvar::ICvarRegistry>());
   return Ok();
 }
@@ -461,8 +463,8 @@ bool TitleApp::CaptureActive() const {
   return !drawer_->GetIO().WantCaptureMouse;
 }
 
-Result<void> TitleApp::LaunchFailure(std::string message) {
-  return Fail("title", Error(ErrorCategory::Runtime, std::move(message)));
+Result<void> TitleApp::LaunchFailure(std::string_view message) {
+  return Fail("title", Error(ErrorCategory::Runtime, std::string(message)));
 }
 
 Result<void> TitleApp::LaunchTitle() {
@@ -645,7 +647,6 @@ void TitleApp::Release() {
   SetInvokeTarget(nullptr);
   ::rex::detail::SetShutdownWake({});
   context_.reset();
-  console_host_.reset();
   if (logger_ && log_capture_) {
     logger_->RemoveSink(*log_capture_);
   }

@@ -211,7 +211,7 @@ void CvarRegistryImpl::ApplyPending(Entry& entry, Fired& fired) {
       if (status)
         status = Apply(entry, o.value, source, fired);
       if (!status)
-        REXLOG_WARN("{}", status.error().message);
+        REXLOG_WARN(core, "{}", status.error().message);
     }
   }
   std::erase_if(pending_, [&](const CvarOverride& o) { return o.name == name; });

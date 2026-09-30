@@ -40,7 +40,7 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting, void* buffer
           memory::store_and_swap<uint32_t>(value, 0x00001000);  // USA/Canada
           break;
         default:
-          REXKRNL_WARN("Unimplemented XConfig SECURED setting 0x{:04X}", setting);
+          REXLOG_WARN(kernel, "Unimplemented XConfig SECURED setting 0x{:04X}", setting);
           return X_STATUS_INVALID_PARAMETER_2;
       }
       break;
@@ -84,12 +84,12 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting, void* buffer
           value[0] = 0x03;
           break;
         default:
-          REXKRNL_WARN("Unimplemented XConfig USER setting 0x{:04X}", setting);
+          REXLOG_WARN(kernel, "Unimplemented XConfig USER setting 0x{:04X}", setting);
           return X_STATUS_INVALID_PARAMETER_2;
       }
       break;
     default:
-      REXKRNL_WARN("Unimplemented XConfig category 0x{:04X}", category);
+      REXLOG_WARN(kernel, "Unimplemented XConfig category 0x{:04X}", category);
       return X_STATUS_INVALID_PARAMETER_1;
   }
 

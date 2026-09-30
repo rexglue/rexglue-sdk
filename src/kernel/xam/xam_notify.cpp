@@ -36,7 +36,8 @@ uint32_t xeXamNotifyCreateListener(uint64_t mask, uint32_t is_system, uint32_t m
   // Handle ref is incremented, so return that.
   uint32_t handle = listener->handle();
 
-  REXKRNL_DEBUG(
+  REXLOG_DEBUG(
+      kernel,
       "XamNotifyCreateListener(mask={:#018x}, is_system={}, max_version={}) -> handle={:08X}", mask,
       is_system, max_version, handle);
 
@@ -89,8 +90,8 @@ u32 XNotifyGetNext_entry(u32 handle, u32 match_id, mapped_u32 id_ptr, mapped_u32
   }
 
   if (dequeued) {
-    REXKRNL_NOISY_DEBUG("XNotifyGetNext({:08X}, {:08X}) -> id={:#x}, param={}", uint32_t(handle),
-                        uint32_t(match_id), id, param);
+    REXLOG_DEV(kernel, "XNotifyGetNext({:08X}, {:08X}) -> id={:#x}, param={}", uint32_t(handle),
+               uint32_t(match_id), id, param);
   }
   return dequeued ? 1 : 0;
 }

@@ -81,8 +81,10 @@ u32 ObLookupThreadByThreadId_entry(u32 thread_id, mapped_u32 out_object_ptr) {
 }
 
 u32 ObReferenceObjectByHandle_entry(u32 handle, u32 object_type_ptr, mapped_u32 out_object_ptr) {
-  REXKRNL_IMPORT_TRACE("ObReferenceObjectByHandle", "handle={:#x} type={:#x}", (uint32_t)handle,
-                       (uint32_t)object_type_ptr);
+  REXLOG_TRACE(kernel,
+               "ObReferenceObjectByHandle "
+               "handle={:#x} type={:#x}",
+               (uint32_t)handle, (uint32_t)object_type_ptr);
 
   object_ref<XObject> object;
 
@@ -139,7 +141,10 @@ u32 ObReferenceObjectByHandle_entry(u32 handle, u32 object_type_ptr, mapped_u32 
   if (out_object_ptr.guest_address()) {
     *out_object_ptr = native_ptr;
   }
-  REXKRNL_IMPORT_RESULT("ObReferenceObjectByHandle", "0x0 obj={:#x}", native_ptr);
+  REXLOG_TRACE(kernel,
+               "ObReferenceObjectByHandle -> "
+               "0x0 obj={:#x}",
+               native_ptr);
   return X_STATUS_SUCCESS;
 }
 
@@ -155,7 +160,10 @@ u32 ObReferenceObjectByName_entry(mapped_string name, u32 attributes, u32 object
 }
 
 u32 ObDereferenceObject_entry(u32 native_ptr) {
-  REXKRNL_IMPORT_TRACE("ObDereferenceObject", "ptr={:#x}", (uint32_t)native_ptr);
+  REXLOG_TRACE(kernel,
+               "ObDereferenceObject "
+               "ptr={:#x}",
+               (uint32_t)native_ptr);
   // Check if a dummy value from ObReferenceObjectByHandle.
   if (native_ptr == 0xDEADF00D) {
     return 0;
@@ -221,9 +229,15 @@ u32 NtDuplicateObject_entry(u32 handle, mapped_u32 new_handle_ptr, u32 options) 
 }
 
 u32 NtClose_entry(u32 handle) {
-  REXKRNL_IMPORT_TRACE("NtClose", "handle={:#x}", (uint32_t)handle);
+  REXLOG_TRACE(kernel,
+               "NtClose "
+               "handle={:#x}",
+               (uint32_t)handle);
   auto result = REX_KERNEL_OBJECTS()->ReleaseHandle(handle);
-  REXKRNL_IMPORT_RESULT("NtClose", "{:#x}", result);
+  REXLOG_TRACE(kernel,
+               "NtClose -> "
+               "{:#x}",
+               result);
   return result;
 }
 

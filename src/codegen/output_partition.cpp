@@ -20,7 +20,7 @@
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
 
-#include "codegen_logging.h"
+#include <rex/logging.h>
 
 namespace rex::codegen {
 
@@ -50,14 +50,14 @@ OutputPartition OutputPartition::Load(const std::filesystem::path& path) {
 
   nlohmann::json doc = nlohmann::json::parse(in, nullptr, false);
   if (doc.is_discarded() || !doc.is_object()) {
-    REXCODEGEN_WARN("Ignoring malformed partition sidecar: {}", path.string());
+    REXLOG_WARN(codegen, "Ignoring malformed partition sidecar: {}", path.string());
     return partition;
   }
 
   auto version = doc.find("version");
   if (version == doc.end() || !version->is_number_integer() ||
       version->get<int>() != kPartitionVersion) {
-    REXCODEGEN_DEBUG("Ignoring partition sidecar from another version: {}", path.string());
+    REXLOG_DEBUG(codegen, "Ignoring partition sidecar from another version: {}", path.string());
     return partition;
   }
 
@@ -103,13 +103,13 @@ std::vector<std::vector<size_t>> OutputPartition::Assign(std::span<const Functio
                                                          size_t maxFileBytes) {
   if (fileCount_ == 0 || maxFileBytes != maxFileBytes_) {
     if (fileCount_ != 0) {
-      REXCODEGEN_DEBUG("Byte budget changed ({} -> {}), repartitioning from scratch", maxFileBytes_,
-                       maxFileBytes);
+      REXLOG_DEBUG(codegen, "Byte budget changed ({} -> {}), repartitioning from scratch",
+                   maxFileBytes_, maxFileBytes);
       addressToFile_.clear();
     }
     fileCount_ = ChooseFileCount(entries, maxFileBytes);
-    REXCODEGEN_DEBUG("Partitioning {} functions across {} output file(s)", entries.size(),
-                     fileCount_);
+    REXLOG_DEBUG(codegen, "Partitioning {} functions across {} output file(s)", entries.size(),
+                 fileCount_);
   }
   maxFileBytes_ = maxFileBytes;
 

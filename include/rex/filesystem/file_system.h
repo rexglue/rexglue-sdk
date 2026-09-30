@@ -1,6 +1,6 @@
 /**
  * @file        filesystem/file_system.h
- * @brief       The mount table interface, served by rexfilesystem as rex.filesystem version 1
+ * @brief       The mount table interface, served by rexfilesystem
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

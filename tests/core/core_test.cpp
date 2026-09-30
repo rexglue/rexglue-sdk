@@ -65,15 +65,35 @@ TEST_CASE_METHOD(Fixture, "ParseCommandLine fills Config and cvar values without
   REQUIRE(api.value()->Get<rex::cvar::ICvarRegistry>()->Get("log.level").value() == "debug");
 }
 
+TEST_CASE_METHOD(Fixture, "Config profiler sets the perf.profiler default and a value overrides it",
+                 "[core]") {
+  rex::Config cfg;
+  cfg.profiler = true;
+  auto api = rex::Init(cfg);
+  REQUIRE(api);
+  auto* cvars = api.value()->Get<rex::cvar::ICvarRegistry>();
+  REQUIRE(cvars->Get("perf.profiler").value() == "true");
+  REQUIRE(cvars->Source("perf.profiler") == rex::cvar::CvarSource::Default);
+  rex::Shutdown();
+
+  cfg.cvars.values.push_back({"perf.profiler", "false", rex::cvar::CvarSource::CommandLine});
+  api = rex::Init(cfg);
+  REQUIRE(api);
+  REQUIRE(api.value()->Get<rex::cvar::ICvarRegistry>()->Get("perf.profiler").value() == "false");
+}
+
 TEST_CASE_METHOD(Fixture, "Logging writes through a capture sink with no module loaded", "[core]") {
-  REQUIRE(rex::Init(rex::Config{}));
-  auto sink = std::make_shared<rex::LogCaptureSink>();
-  rex::AddSink(sink);
-  REXLOG_INFO("core test entry {}", 42);
-  std::vector<rex::LogEntry> entries;
-  sink->CopyEntries(entries);
-  rex::RemoveSink(sink);
-  REQUIRE(std::ranges::any_of(entries, [](const rex::LogEntry& entry) {
+  auto api = rex::Init(rex::Config{});
+  REQUIRE(api);
+  auto* logger = api.value()->Get<rex::ILogger>();
+  REQUIRE(logger);
+  rex::log::CaptureSink sink;
+  logger->AddSink(sink);
+  REXLOG_INFO(core, "core test entry {}", 42);
+  std::vector<rex::log::CapturedRecord> entries;
+  sink.CopySince(0, entries);
+  logger->RemoveSink(sink);
+  REQUIRE(std::ranges::any_of(entries, [](const rex::log::CapturedRecord& entry) {
     return entry.text.find("core test entry 42") != std::string::npos;
   }));
 }

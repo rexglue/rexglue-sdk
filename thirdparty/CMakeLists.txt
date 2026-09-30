@@ -37,7 +37,6 @@ set(REQUIRED_SUBMODULES
     tomlplusplus
     simde
     xxHash
-    spdlog
     fmt
     utfcpp
     imgui
@@ -161,24 +160,13 @@ add_subdirectory(disasm)
 target_compile_options(disasm PRIVATE -w)
 
 #=============================================================================
-# fmt - Formatting library (must come before spdlog)
+# fmt - Formatting library
 #=============================================================================
 set(FMT_DOC OFF CACHE BOOL "" FORCE)
 set(FMT_TEST OFF CACHE BOOL "" FORCE)
 set(FMT_INSTALL ON CACHE BOOL "" FORCE)
 add_subdirectory(fmt)
 target_compile_options(fmt PRIVATE -w)
-
-#=============================================================================
-# spdlog - Logging library
-#=============================================================================
-set(SPDLOG_FMT_EXTERNAL ON CACHE BOOL "" FORCE)
-set(SPDLOG_BUILD_EXAMPLE OFF CACHE BOOL "" FORCE)
-set(SPDLOG_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-set(SPDLOG_BUILD_BENCH OFF CACHE BOOL "" FORCE)
-set(SPDLOG_INSTALL ON CACHE BOOL "" FORCE)
-add_subdirectory(spdlog)
-target_compile_options(spdlog PRIVATE -w)
 
 #=============================================================================
 # utfcpp - UTF-8 string library (header-only)

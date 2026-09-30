@@ -225,7 +225,7 @@ u32 NetDll_XNetGetOpt_entry(u32 one, u32 option_id, mapped_void buffer_ptr,
       std::memcpy(buffer_ptr, &xnet_startup_params, sizeof(XNetStartupParams));
       return 0;
     default:
-      REXKRNL_ERROR("NetDll_XNetGetOpt: option {} unimplemented", option_id);
+      REXLOG_ERROR(kernel, "NetDll_XNetGetOpt: option {} unimplemented", option_id);
       return 0x2726;  // WSAEINVAL
   }
 }

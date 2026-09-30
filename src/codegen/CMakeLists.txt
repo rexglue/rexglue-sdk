@@ -107,7 +107,6 @@ target_link_libraries(rexcodegen
     PUBLIC
         rexruntime
         fmt::fmt
-        spdlog::spdlog
     PRIVATE
         tomlplusplus
         disasm

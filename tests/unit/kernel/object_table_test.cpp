@@ -37,21 +37,11 @@ struct DestructorCountReset {
   DestructorCountReset() { TestObject::destructor_count = 0; }
 };
 
-// Initialize logging once
-void InitTestLogging() {
-  static bool initialized = false;
-  if (!initialized) {
-    rex::InitLogging();
-    initialized = true;
-  }
-}
-
 // =============================================================================
 // object_ref Smart Pointer Tests
 // =============================================================================
 
 TEST_CASE("object_ref default construction is null", "[kernel][object_ref]") {
-  InitTestLogging();
   object_ref<TestObject> ref;
 
   CHECK(ref.get() == nullptr);
@@ -60,7 +50,6 @@ TEST_CASE("object_ref default construction is null", "[kernel][object_ref]") {
 }
 
 TEST_CASE("object_ref construction from raw pointer", "[kernel][object_ref]") {
-  InitTestLogging();
   DestructorCountReset reset;
 
   auto* obj = new TestObject();
@@ -77,7 +66,6 @@ TEST_CASE("object_ref construction from raw pointer", "[kernel][object_ref]") {
 }
 
 TEST_CASE("object_ref copy construction retains", "[kernel][object_ref]") {
-  InitTestLogging();
   DestructorCountReset reset;
 
   auto* obj = new TestObject();
@@ -97,7 +85,6 @@ TEST_CASE("object_ref copy construction retains", "[kernel][object_ref]") {
 }
 
 TEST_CASE("object_ref move construction transfers ownership", "[kernel][object_ref]") {
-  InitTestLogging();
   DestructorCountReset reset;
 
   auto* obj = new TestObject();
@@ -114,7 +101,6 @@ TEST_CASE("object_ref move construction transfers ownership", "[kernel][object_r
 }
 
 TEST_CASE("object_ref copy assignment retains", "[kernel][object_ref]") {
-  InitTestLogging();
   DestructorCountReset reset;
 
   auto* obj = new TestObject();
@@ -131,7 +117,6 @@ TEST_CASE("object_ref copy assignment retains", "[kernel][object_ref]") {
 }
 
 TEST_CASE("object_ref move assignment transfers ownership", "[kernel][object_ref]") {
-  InitTestLogging();
   DestructorCountReset reset;
 
   auto* obj = new TestObject();
@@ -148,7 +133,6 @@ TEST_CASE("object_ref move assignment transfers ownership", "[kernel][object_ref
 }
 
 TEST_CASE("object_ref reset releases reference", "[kernel][object_ref]") {
-  InitTestLogging();
   DestructorCountReset reset;
 
   auto* obj = new TestObject();
@@ -162,7 +146,6 @@ TEST_CASE("object_ref reset releases reference", "[kernel][object_ref]") {
 }
 
 TEST_CASE("object_ref release returns pointer without destroying", "[kernel][object_ref]") {
-  InitTestLogging();
   DestructorCountReset reset;
 
   auto* obj = new TestObject();
@@ -180,7 +163,6 @@ TEST_CASE("object_ref release returns pointer without destroying", "[kernel][obj
 }
 
 TEST_CASE("retain_object helper retains and wraps", "[kernel][object_ref]") {
-  InitTestLogging();
   DestructorCountReset reset;
 
   auto* obj = new TestObject();
@@ -202,7 +184,6 @@ TEST_CASE("retain_object helper retains and wraps", "[kernel][object_ref]") {
 // =============================================================================
 
 TEST_CASE("ObjectTable AddHandle allocates valid handle", "[kernel][object_table]") {
-  InitTestLogging();
   DestructorCountReset reset;
 
   ObjectTable table;
@@ -223,8 +204,6 @@ TEST_CASE("ObjectTable AddHandle allocates valid handle", "[kernel][object_table
 }
 
 TEST_CASE("ObjectTable first handle is slot 1 not 0", "[kernel][object_table]") {
-  InitTestLogging();
-
   ObjectTable table;
   auto* obj = new TestObject();
 
@@ -238,8 +217,6 @@ TEST_CASE("ObjectTable first handle is slot 1 not 0", "[kernel][object_table]") 
 }
 
 TEST_CASE("ObjectTable multiple objects get unique handles", "[kernel][object_table]") {
-  InitTestLogging();
-
   ObjectTable table;
   auto* obj1 = new TestObject();
   auto* obj2 = new TestObject();
@@ -266,8 +243,6 @@ TEST_CASE("ObjectTable multiple objects get unique handles", "[kernel][object_ta
 // =============================================================================
 
 TEST_CASE("ObjectTable LookupObject finds object by handle", "[kernel][object_table]") {
-  InitTestLogging();
-
   ObjectTable table;
   auto* obj = new TestObject();
 
@@ -281,8 +256,6 @@ TEST_CASE("ObjectTable LookupObject finds object by handle", "[kernel][object_ta
 }
 
 TEST_CASE("ObjectTable LookupObject returns null for invalid handle", "[kernel][object_table]") {
-  InitTestLogging();
-
   ObjectTable table;
 
   auto found = table.LookupObject<XObject>(0xF8001234);
@@ -290,8 +263,6 @@ TEST_CASE("ObjectTable LookupObject returns null for invalid handle", "[kernel][
 }
 
 TEST_CASE("ObjectTable LookupObject returns null for handle 0", "[kernel][object_table]") {
-  InitTestLogging();
-
   ObjectTable table;
 
   auto found = table.LookupObject<XObject>(0);
@@ -303,8 +274,6 @@ TEST_CASE("ObjectTable LookupObject returns null for handle 0", "[kernel][object
 // =============================================================================
 
 TEST_CASE("ObjectTable RetainHandle increments ref count", "[kernel][object_table]") {
-  InitTestLogging();
-
   ObjectTable table;
   auto* obj = new TestObject();
 
@@ -325,7 +294,6 @@ TEST_CASE("ObjectTable RetainHandle increments ref count", "[kernel][object_tabl
 }
 
 TEST_CASE("ObjectTable ReleaseHandle removes at zero refs", "[kernel][object_table]") {
-  InitTestLogging();
   DestructorCountReset reset;
 
   ObjectTable table;
@@ -345,8 +313,6 @@ TEST_CASE("ObjectTable ReleaseHandle removes at zero refs", "[kernel][object_tab
 }
 
 TEST_CASE("ObjectTable ReleaseHandle on invalid handle returns error", "[kernel][object_table]") {
-  InitTestLogging();
-
   ObjectTable table;
 
   X_STATUS status = table.ReleaseHandle(0xF8001234);
@@ -355,8 +321,6 @@ TEST_CASE("ObjectTable ReleaseHandle on invalid handle returns error", "[kernel]
 
 TEST_CASE("ObjectTable DuplicateHandle creates new handle for same object",
           "[kernel][object_table]") {
-  InitTestLogging();
-
   ObjectTable table;
   auto* obj = new TestObject();
 
@@ -383,8 +347,6 @@ TEST_CASE("ObjectTable DuplicateHandle creates new handle for same object",
 // =============================================================================
 
 TEST_CASE("ObjectTable ReleaseHandle removes handle from table", "[kernel][object_table]") {
-  InitTestLogging();
-
   ObjectTable table;
   auto* obj = new TestObject();
 
@@ -402,8 +364,6 @@ TEST_CASE("ObjectTable ReleaseHandle removes handle from table", "[kernel][objec
 }
 
 TEST_CASE("ObjectTable ReleaseHandle updates object's handle list", "[kernel][object_table]") {
-  InitTestLogging();
-
   ObjectTable table;
   auto* obj = new TestObject();
   obj->Retain();  // Keep alive after table releases
@@ -424,8 +384,6 @@ TEST_CASE("ObjectTable ReleaseHandle updates object's handle list", "[kernel][ob
 // =============================================================================
 
 TEST_CASE("ObjectTable AddNameMapping registers name", "[kernel][object_table]") {
-  InitTestLogging();
-
   ObjectTable table;
   auto* obj = new TestObject();
 
@@ -439,8 +397,6 @@ TEST_CASE("ObjectTable AddNameMapping registers name", "[kernel][object_table]")
 }
 
 TEST_CASE("ObjectTable duplicate name returns collision", "[kernel][object_table]") {
-  InitTestLogging();
-
   ObjectTable table;
   auto* obj1 = new TestObject();
   auto* obj2 = new TestObject();
@@ -456,8 +412,6 @@ TEST_CASE("ObjectTable duplicate name returns collision", "[kernel][object_table
 }
 
 TEST_CASE("ObjectTable name collision is case-insensitive", "[kernel][object_table]") {
-  InitTestLogging();
-
   ObjectTable table;
   auto* obj1 = new TestObject();
   auto* obj2 = new TestObject();
@@ -476,8 +430,6 @@ TEST_CASE("ObjectTable name collision is case-insensitive", "[kernel][object_tab
 
 TEST_CASE("ObjectTable GetObjectByName returns not found for missing name",
           "[kernel][object_table]") {
-  InitTestLogging();
-
   ObjectTable table;
 
   X_HANDLE found = 0;
@@ -487,8 +439,6 @@ TEST_CASE("ObjectTable GetObjectByName returns not found for missing name",
 }
 
 TEST_CASE("ObjectTable RemoveNameMapping clears name", "[kernel][object_table]") {
-  InitTestLogging();
-
   ObjectTable table;
   auto* obj = new TestObject();
 
@@ -509,7 +459,6 @@ TEST_CASE("ObjectTable RemoveNameMapping clears name", "[kernel][object_table]")
 // =============================================================================
 
 TEST_CASE("ObjectTable Reset releases all objects", "[kernel][object_table]") {
-  InitTestLogging();
   DestructorCountReset reset;
 
   ObjectTable table;
@@ -536,8 +485,6 @@ TEST_CASE("ObjectTable Reset releases all objects", "[kernel][object_table]") {
 }
 
 TEST_CASE("ObjectTable GetAllObjects returns all objects", "[kernel][object_table]") {
-  InitTestLogging();
-
   ObjectTable table;
   auto* obj1 = new TestObject();
   auto* obj2 = new TestObject();

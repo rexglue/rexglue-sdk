@@ -1000,7 +1000,10 @@ uint32_t xeRtlNtStatusToDosError(uint32_t source_status) {
       if (!result) {
         break;
       }
-      REXKRNL_IMPORT_TRACE("xeRtlNtStatusToDosError", "status=0x{:X} => 0x{:X}", status, result);
+      REXLOG_TRACE(kernel,
+                   "xeRtlNtStatusToDosError "
+                   "status=0x{:X} => 0x{:X}",
+                   status, result);
       return result;
     }
     ++error_table;
@@ -1010,13 +1013,19 @@ uint32_t xeRtlNtStatusToDosError(uint32_t source_status) {
     return status & 0xFFFF;
   }
 
-  REXKRNL_IMPORT_TRACE("xeRtlNtStatusToDosError", "lookup failed for 0x{:X}", status);
+  REXLOG_TRACE(kernel,
+               "xeRtlNtStatusToDosError "
+               "lookup failed for 0x{:X}",
+               status);
   return 317;  // ERROR_MR_MID_NOT_FOUND
 }
 
 u32 RtlNtStatusToDosError_entry(u32 source_status) {
   uint32_t result = xeRtlNtStatusToDosError(source_status);
-  REXKRNL_IMPORT_TRACE("RtlNtStatusToDosError", "status={:#x} -> {}", source_status, result);
+  REXLOG_TRACE(kernel,
+               "RtlNtStatusToDosError "
+               "status={:#x} -> {}",
+               source_status, result);
   return result;
 }
 

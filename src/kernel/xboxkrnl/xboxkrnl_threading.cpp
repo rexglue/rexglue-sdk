@@ -108,10 +108,11 @@ object_ref<T> LookupNamedObject(KernelState* kernel_state, uint32_t obj_attribut
 u32 ExCreateThread_entry(mapped_u32 handle_ptr, u32 stack_size, mapped_u32 thread_id_ptr,
                          u32 xapi_thread_startup, mapped_void start_address,
                          mapped_void start_context, u32 creation_flags) {
-  REXKRNL_IMPORT_TRACE(
-      "ExCreateThread", "stack={:#x} xapi_startup={:#x} start={:#x} context={:#x} flags={:#x}",
-      (uint32_t)stack_size, (uint32_t)xapi_thread_startup, start_address.guest_address(),
-      start_context.guest_address(), (uint32_t)creation_flags);
+  REXLOG_TRACE(kernel,
+               "ExCreateThread "
+               "stack={:#x} xapi_startup={:#x} start={:#x} context={:#x} flags={:#x}",
+               (uint32_t)stack_size, (uint32_t)xapi_thread_startup, start_address.guest_address(),
+               start_context.guest_address(), (uint32_t)creation_flags);
   // http://jafile.com/uploads/scoop/main.cpp.txt
   // DWORD
   // LPHANDLE Handle,
@@ -125,7 +126,7 @@ u32 ExCreateThread_entry(mapped_u32 handle_ptr, u32 stack_size, mapped_u32 threa
   // Determine target process based on creation flags.
   uint32_t guest_process = REX_KERNEL_STATE()->GetTitleProcess();
   if (creation_flags & 2) {
-    REXKRNL_WARN("[ExCreateThread] Guest is creating a system thread!");
+    REXLOG_WARN(kernel, "ExCreateThread Guest is creating a system thread!");
     guest_process = REX_KERNEL_STATE()->GetSystemProcess();
   }
 
@@ -146,8 +147,7 @@ u32 ExCreateThread_entry(mapped_u32 handle_ptr, u32 stack_size, mapped_u32 threa
   X_STATUS result = thread->Create();
   if (XFAILED(result)) {
     // Failed!
-    REXKRNL_ERROR("Thread creation failed: {:08X}", result);
-    return result;
+    REX_FAIL(kernel, result, "Thread creation failed: {:08X}", result);
   }
 
   if (XSUCCEEDED(result)) {
@@ -162,9 +162,11 @@ u32 ExCreateThread_entry(mapped_u32 handle_ptr, u32 stack_size, mapped_u32 threa
       *thread_id_ptr = thread->thread_id();
     }
   }
-  REXKRNL_IMPORT_RESULT("ExCreateThread", "{:#x} handle={:#x} tid={}", result,
-                        handle_ptr ? (uint32_t)*handle_ptr : 0,
-                        thread_id_ptr ? (uint32_t)*thread_id_ptr : 0);
+  REXLOG_TRACE(kernel,
+               "ExCreateThread -> "
+               "{:#x} handle={:#x} tid={}",
+               result, handle_ptr ? (uint32_t)*handle_ptr : 0,
+               thread_id_ptr ? (uint32_t)*thread_id_ptr : 0);
   return result;
 }
 
@@ -181,16 +183,17 @@ u32 NtResumeThread_entry(u32 handle, mapped_u32 suspend_count_ptr) {
 
   auto thread = REX_KERNEL_OBJECTS()->LookupObject<XThread>(handle);
   if (thread) {
-    REXKRNL_TRACE("[NtResumeThread] handle={:08X} thread={}", uint32_t(handle), thread->name());
+    REXLOG_TRACE(kernel, "NtResumeThread handle={:08X} thread={}", uint32_t(handle),
+                 thread->name());
     result = thread->Resume(&suspend_count);
   } else {
-    REXKRNL_WARN("[NtResumeThread] handle={:08X} NOT FOUND", uint32_t(handle));
+    REXLOG_WARN(kernel, "NtResumeThread handle={:08X} NOT FOUND", uint32_t(handle));
   }
   if (suspend_count_ptr) {
     *suspend_count_ptr = suspend_count;
   }
 
-  REXKRNL_TRACE("[NtResumeThread] -> {:#x} suspend_count={}", result, suspend_count);
+  REXLOG_TRACE(kernel, "NtResumeThread -> {:#x} suspend_count={}", result, suspend_count);
   return result;
 }
 
@@ -198,15 +201,15 @@ u32 KeResumeThread_entry(mapped_void thread_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
   auto thread = XObject::GetNativeObject<XThread>(REX_KERNEL_STATE(), thread_ptr);
   if (thread) {
-    REXKRNL_TRACE("[KeResumeThread] ptr={:08X} thread={}", thread_ptr.guest_address(),
-                  thread->name());
+    REXLOG_TRACE(kernel, "KeResumeThread ptr={:08X} thread={}", thread_ptr.guest_address(),
+                 thread->name());
     result = thread->Resume();
   } else {
-    REXKRNL_WARN("[KeResumeThread] ptr={:08X} NOT FOUND", thread_ptr.guest_address());
+    REXLOG_WARN(kernel, "KeResumeThread ptr={:08X} NOT FOUND", thread_ptr.guest_address());
     result = X_STATUS_INVALID_HANDLE;
   }
 
-  REXKRNL_TRACE("[KeResumeThread] -> {:#x}", result);
+  REXLOG_TRACE(kernel, "KeResumeThread -> {:#x}", result);
   return result;
 }
 
@@ -225,12 +228,13 @@ u32 NtSuspendThread_entry(u32 handle, mapped_u32 suspend_count_ptr) {
       return X_STATUS_THREAD_IS_TERMINATING;
     }
 
-    REXKRNL_TRACE("[NtSuspendThread] handle={:08X} thread={}", uint32_t(handle), thread->name());
+    REXLOG_TRACE(kernel, "NtSuspendThread handle={:08X} thread={}", uint32_t(handle),
+                 thread->name());
 #if REX_PLATFORM_LINUX || REX_PLATFORM_MAC
     auto* current_thread = XThread::GetCurrentThread();
     bool is_self_suspend = current_thread && current_thread == thread.get();
     if (is_self_suspend) {
-      REXKRNL_TRACE("[NtSuspendThread] self-suspend for thread={:08X}", uint32_t(handle));
+      REXLOG_TRACE(kernel, "NtSuspendThread self-suspend for thread={:08X}", uint32_t(handle));
       suspend_count = thread->SelfSuspend();
       result = X_STATUS_SUCCESS;
     } else {
@@ -240,7 +244,7 @@ u32 NtSuspendThread_entry(u32 handle, mapped_u32 suspend_count_ptr) {
     result = thread->Suspend(&suspend_count);
 #endif
   } else {
-    REXKRNL_WARN("[NtSuspendThread] handle={:08X} NOT FOUND", uint32_t(handle));
+    REXLOG_WARN(kernel, "NtSuspendThread handle={:08X} NOT FOUND", uint32_t(handle));
     result = X_STATUS_INVALID_HANDLE;
   }
 
@@ -248,7 +252,7 @@ u32 NtSuspendThread_entry(u32 handle, mapped_u32 suspend_count_ptr) {
     *suspend_count_ptr = suspend_count;
   }
 
-  REXKRNL_TRACE("[NtSuspendThread] -> {:#x} suspend_count={}", result, suspend_count);
+  REXLOG_TRACE(kernel, "NtSuspendThread -> {:#x} suspend_count={}", result, suspend_count);
   return result;
 }
 
@@ -281,8 +285,10 @@ void KeSetCurrentStackPointers_entry(mapped_void stack_ptr, ppc_ptr_t<X_KTHREAD>
 
 u32 KeSetAffinityThread_entry(mapped_void thread_ptr, u32 affinity,
                               mapped_u32 previous_affinity_ptr) {
-  REXKRNL_IMPORT_TRACE("KeSetAffinityThread", "thread={:#x} affinity={:#x}",
-                       thread_ptr.guest_address(), (uint32_t)affinity);
+  REXLOG_TRACE(kernel,
+               "KeSetAffinityThread "
+               "thread={:#x} affinity={:#x}",
+               thread_ptr.guest_address(), (uint32_t)affinity);
   // The Xbox 360, according to disassembly of KeSetAffinityThread, unlike
   // Windows NT, stores the previous affinity via the pointer provided as an
   // argument, not in the return value - the return value is used for the
@@ -292,20 +298,27 @@ u32 KeSetAffinityThread_entry(mapped_void thread_ptr, u32 affinity,
   }
   auto thread = XObject::GetNativeObject<XThread>(REX_KERNEL_STATE(), thread_ptr);
   if (!thread) {
-    REXKRNL_IMPORT_WARN("KeSetAffinityThread", "invalid thread handle ptr={:#x}",
-                        thread_ptr.guest_address());
+    REXLOG_DEV(kernel,
+               "KeSetAffinityThread "
+               "invalid thread handle ptr={:#x}",
+               thread_ptr.guest_address());
     return X_STATUS_INVALID_HANDLE;
   }
   if (previous_affinity_ptr) {
     *previous_affinity_ptr = uint32_t(1) << thread->active_cpu();
   }
   thread->SetAffinity(affinity);
-  REXKRNL_IMPORT_RESULT("KeSetAffinityThread", "0x0");
+  REXLOG_TRACE(kernel,
+               "KeSetAffinityThread -> "
+               "0x0");
   return X_STATUS_SUCCESS;
 }
 
 u32 KeQueryBasePriorityThread_entry(mapped_void thread_ptr) {
-  REXKRNL_IMPORT_TRACE("KeQueryBasePriorityThread", "thread={:#x}", thread_ptr.guest_address());
+  REXLOG_TRACE(kernel,
+               "KeQueryBasePriorityThread "
+               "thread={:#x}",
+               thread_ptr.guest_address());
   int32_t priority = 0;
 
   auto thread = XObject::GetNativeObject<XThread>(REX_KERNEL_STATE(), thread_ptr);
@@ -313,13 +326,18 @@ u32 KeQueryBasePriorityThread_entry(mapped_void thread_ptr) {
     priority = thread->QueryPriority();
   }
 
-  REXKRNL_IMPORT_RESULT("KeQueryBasePriorityThread", "{}", priority);
+  REXLOG_TRACE(kernel,
+               "KeQueryBasePriorityThread -> "
+               "{}",
+               priority);
   return priority;
 }
 
 u32 KeSetBasePriorityThread_entry(mapped_void thread_ptr, u32 increment) {
-  REXKRNL_IMPORT_TRACE("KeSetBasePriorityThread", "thread={:#x} increment={}",
-                       thread_ptr.guest_address(), (int32_t)increment);
+  REXLOG_TRACE(kernel,
+               "KeSetBasePriorityThread "
+               "thread={:#x} increment={}",
+               thread_ptr.guest_address(), (int32_t)increment);
   int32_t prev_priority = 0;
   auto thread = XObject::GetNativeObject<XThread>(REX_KERNEL_STATE(), thread_ptr);
 
@@ -327,7 +345,10 @@ u32 KeSetBasePriorityThread_entry(mapped_void thread_ptr, u32 increment) {
     prev_priority = thread->QueryPriority();
     thread->SetPriority(increment);
   }
-  REXKRNL_IMPORT_RESULT("KeSetBasePriorityThread", "prev_priority={}", prev_priority);
+  REXLOG_TRACE(kernel,
+               "KeSetBasePriorityThread -> "
+               "prev_priority={}",
+               prev_priority);
 
   return prev_priority;
 }
@@ -407,20 +428,30 @@ u32 KeTlsAlloc_entry() {
   if (slot != X_TLS_OUT_OF_INDEXES) {
     XThread::GetCurrentThread()->SetTLSValue(slot, 0);
   }
-  REXKRNL_IMPORT_RESULT("KeTlsAlloc", "slot={}", slot);
+  REXLOG_TRACE(kernel,
+               "KeTlsAlloc -> "
+               "slot={}",
+               slot);
   return slot;
 }
 
 // https://msdn.microsoft.com/en-us/library/ms686804
 u32 KeTlsFree_entry(u32 tls_index) {
-  REXKRNL_IMPORT_TRACE("KeTlsFree", "slot={}", (uint32_t)tls_index);
+  REXLOG_TRACE(kernel,
+               "KeTlsFree "
+               "slot={}",
+               (uint32_t)tls_index);
   if (tls_index == X_TLS_OUT_OF_INDEXES) {
-    REXKRNL_IMPORT_RESULT("KeTlsFree", "0 (invalid)");
+    REXLOG_TRACE(kernel,
+                 "KeTlsFree -> "
+                 "0 (invalid)");
     return 0;
   }
 
   REX_KERNEL_STATE()->FreeTLS(current_ppc_context(), tls_index);
-  REXKRNL_IMPORT_RESULT("KeTlsFree", "1");
+  REXLOG_TRACE(kernel,
+               "KeTlsFree -> "
+               "1");
   return 1;
 }
 
@@ -438,16 +469,22 @@ u32 KeTlsGetValue_entry(u32 tls_index) {
 
 // https://msdn.microsoft.com/en-us/library/ms686818
 u32 KeTlsSetValue_entry(u32 tls_index, u32 tls_value) {
-  REXKRNL_IMPORT_TRACE("KeTlsSetValue", "slot={} value={:#x}", (uint32_t)tls_index,
-                       (uint32_t)tls_value);
+  REXLOG_TRACE(kernel,
+               "KeTlsSetValue "
+               "slot={} value={:#x}",
+               (uint32_t)tls_index, (uint32_t)tls_value);
   // xboxkrnl doesn't actually have an error branch - it always succeeds, even
   // if it overflows the TLS.
   if (XThread::GetCurrentThread()->SetTLSValue(tls_index, tls_value)) {
-    REXKRNL_IMPORT_RESULT("KeTlsSetValue", "1");
+    REXLOG_TRACE(kernel,
+                 "KeTlsSetValue -> "
+                 "1");
     return 1;
   }
 
-  REXKRNL_IMPORT_RESULT("KeTlsSetValue", "0");
+  REXLOG_TRACE(kernel,
+               "KeTlsSetValue -> "
+               "0");
   return 0;
 }
 
@@ -839,14 +876,14 @@ uint32_t xeKeWaitForSingleObject(void* object_ptr, uint32_t wait_reason, uint32_
 u32 KeWaitForSingleObject_entry(mapped_void object_ptr, u32 wait_reason, u32 processor_mode,
                                 u32 alertable, mapped_u64 timeout_ptr) {
   uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
-  // REXKRNL_IMPORT_TRACE("KeWaitForSingleObject", "obj={:#x} reason={} mode={} alertable={}
+  // REXLOG_TRACE(kernel, "KeWaitForSingleObject " "obj={:#x} reason={} mode={} alertable={}
   // timeout={}",
   // object_ptr.guest_address(), (uint32_t)wait_reason,
   //(uint32_t)processor_mode, (uint32_t)alertable,
   // timeout_ptr ? (int64_t)timeout : -1);
   auto result = xeKeWaitForSingleObject(object_ptr, wait_reason, processor_mode, alertable,
                                         timeout_ptr ? &timeout : nullptr);
-  // REXKRNL_IMPORT_RESULT("KeWaitForSingleObject", "{:#x}", result);
+  // REXLOG_TRACE(kernel, "KeWaitForSingleObject -> " "{:#x}", result);
   return result;
 }
 
@@ -1104,12 +1141,12 @@ void NtQueueApcThread_entry(u32 thread_handle, mapped_void apc_routine,
   auto thread = REX_KERNEL_OBJECTS()->LookupObject<XThread>(thread_handle);
 
   if (!thread) {
-    REXKRNL_ERROR("NtQueueApcThread: Incorrect thread handle! Might cause crash");
+    REXLOG_ERROR(kernel, "NtQueueApcThread: Incorrect thread handle! Might cause crash");
     return;
   }
 
   if (!apc_routine) {
-    REXKRNL_ERROR("NtQueueApcThread: Incorrect apc routine! Might cause crash");
+    REXLOG_ERROR(kernel, "NtQueueApcThread: Incorrect apc routine! Might cause crash");
     return;
   }
 

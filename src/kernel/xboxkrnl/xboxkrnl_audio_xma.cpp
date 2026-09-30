@@ -64,7 +64,7 @@ using rex::audio::XMA_CONTEXT_DATA;
 // https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.xaudio2.xaudio2_buffer(v=vs.85).aspx
 
 u32 XMACreateContext_entry(mapped_u32 context_out_ptr) {
-  REXKRNL_NOISY_DEBUG("XMACreateContext called!");
+  REXLOG_DEV(kernel, "XMACreateContext called!");
   auto xma_decoder =
       static_cast<audio::AudioSystem*>(REX_KERNEL_STATE()->emulator()->audio_system())
           ->xma_decoder();
@@ -133,9 +133,9 @@ u32 XMAInitializeContext_entry(mapped_void context_ptr, ppc_ptr_t<XMA_CONTEXT_IN
     // Xenia-specific safety check.
     assert_true(input_buffer_0_physical_address != UINT32_MAX);
     if (input_buffer_0_physical_address == UINT32_MAX) {
-      REXKRNL_ERROR("XMAInitializeContext: Invalid input buffer 0 virtual address {:08X}",
-                    input_buffer_0_guest_ptr);
-      return X_E_FALSE;
+      REX_FAIL(kernel, X_E_FALSE,
+               "XMAInitializeContext: Invalid input buffer 0 virtual address {:08X}",
+               input_buffer_0_guest_ptr);
     }
   }
   uint32_t input_buffer_1_guest_ptr = context_init->input_buffer_1_ptr;
@@ -145,9 +145,9 @@ u32 XMAInitializeContext_entry(mapped_void context_ptr, ppc_ptr_t<XMA_CONTEXT_IN
         REX_KERNEL_MEMORY()->GetPhysicalAddress(input_buffer_1_guest_ptr);
     assert_true(input_buffer_1_physical_address != UINT32_MAX);
     if (input_buffer_1_physical_address == UINT32_MAX) {
-      REXKRNL_ERROR("XMAInitializeContext: Invalid input buffer 1 virtual address {:08X}",
-                    input_buffer_1_guest_ptr);
-      return X_E_FALSE;
+      REX_FAIL(kernel, X_E_FALSE,
+               "XMAInitializeContext: Invalid input buffer 1 virtual address {:08X}",
+               input_buffer_1_guest_ptr);
     }
   }
   uint32_t output_buffer_guest_ptr = context_init->output_buffer_ptr;
@@ -156,9 +156,9 @@ u32 XMAInitializeContext_entry(mapped_void context_ptr, ppc_ptr_t<XMA_CONTEXT_IN
       REX_KERNEL_MEMORY()->GetPhysicalAddress(output_buffer_guest_ptr);
   assert_true(output_buffer_physical_address != UINT32_MAX);
   if (output_buffer_physical_address == UINT32_MAX) {
-    REXKRNL_ERROR("XMAInitializeContext: Invalid output buffer virtual address {:08X}",
-                  output_buffer_guest_ptr);
-    return X_E_FALSE;
+    REX_FAIL(kernel, X_E_FALSE,
+             "XMAInitializeContext: Invalid output buffer virtual address {:08X}",
+             output_buffer_guest_ptr);
   }
 
   std::memset(context_ptr, 0, sizeof(XMA_CONTEXT_DATA));
@@ -224,9 +224,8 @@ u32 XMASetInputBuffer0_entry(mapped_void context_ptr, mapped_void buffer, u32 pa
   assert_true(buffer_physical_address != UINT32_MAX);
   if (buffer_physical_address == UINT32_MAX) {
     // Xenia-specific safety check.
-    REXKRNL_ERROR("XMASetInputBuffer0: Invalid buffer virtual address {:08X}",
-                  buffer.guest_address());
-    return X_E_FALSE;
+    REX_FAIL(kernel, X_E_FALSE, "XMASetInputBuffer0: Invalid buffer virtual address {:08X}",
+             buffer.guest_address());
   }
 
   XMA_CONTEXT_DATA context(context_ptr);
@@ -258,9 +257,8 @@ u32 XMASetInputBuffer1_entry(mapped_void context_ptr, mapped_void buffer, u32 pa
   assert_true(buffer_physical_address != UINT32_MAX);
   if (buffer_physical_address == UINT32_MAX) {
     // Xenia-specific safety check.
-    REXKRNL_ERROR("XMASetInputBuffer1: Invalid buffer virtual address {:08X}",
-                  buffer.guest_address());
-    return X_E_FALSE;
+    REX_FAIL(kernel, X_E_FALSE, "XMASetInputBuffer1: Invalid buffer virtual address {:08X}",
+             buffer.guest_address());
   }
 
   XMA_CONTEXT_DATA context(context_ptr);

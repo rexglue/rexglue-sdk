@@ -1,5 +1,5 @@
 /**
- * @file        rex/ui/console/window.h
+ * @file        ui/console/window.h
  * @brief       The console in its own OS window
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>

@@ -22,6 +22,7 @@
 #include <rex/cli_arg_list.h>
 #include <rex/cvar/registry.h>
 #include <rex/image_info.h>
+#include <rex/logging.h>
 #include <rex/platform.h>
 #include <rex/result.h>
 #include <rex/runtime/config.h>
@@ -40,7 +41,6 @@ struct ImGuiStyle;
 
 namespace rex {
 class Runtime;
-class LogCaptureSink;
 namespace graphics {
 class IGraphicsBackend;
 }  // namespace graphics
@@ -262,7 +262,7 @@ class TitleApp : public App {
   class BindListener;
   class ConsoleDockHost;
 
-  Result<void> LaunchFailure(std::string message);
+  Result<void> LaunchFailure(std::string_view message);
   bool CaptureActive() const;
 
   PPCImageInfo image_{};
@@ -273,7 +273,8 @@ class TitleApp : public App {
   std::unique_ptr<BindListener> bind_listener_;
   std::unique_ptr<ImmediateDrawer> immediate_drawer_;
   std::unique_ptr<ImGuiDrawer> drawer_;
-  std::shared_ptr<LogCaptureSink> log_capture_;
+  std::unique_ptr<log::CaptureSink> log_capture_;
+  ILogger* logger_ = nullptr;
   DebugOverlayDialog::FrameStatsProvider frame_stats_;
   std::unique_ptr<Runtime> runtime_;
   std::unique_ptr<ConsoleModel> console_;

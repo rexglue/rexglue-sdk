@@ -1,6 +1,6 @@
 /**
- * @file        rex/logging/macros.h
- * @brief       Logging macros - parameterized, per-subsystem aliases, category definition
+ * @file        logging/macros.h
+ * @brief       Log category declaration and the logging macros
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -11,161 +11,179 @@
 
 #pragma once
 
-#include <rex/logging/api.h>
+#include <format>
 
-/* Implementation macro - do not call directly. Uses raw pointer for zero
-   ref-count overhead and gates on should_log() to skip format evaluation. */
-#define REX_LOG_IMPL(cat, lvl, ...)                                                              \
-  do {                                                                                           \
-    auto* rex_log_ptr_ = ::rex::GetLoggerRaw(cat);                                               \
-    if (rex_log_ptr_ && rex_log_ptr_->should_log(lvl))                                           \
-      rex_log_ptr_->log(spdlog::source_loc{__FILE__, __LINE__, __FUNCTION__}, lvl, __VA_ARGS__); \
-  } while (0)
-
-#define REX_LOG_NOISY_IMPL(cat, lvl, ...) \
-  do {                                    \
-    if (!::rex::NoisyEnabled())           \
-      break;                              \
-    REX_LOG_IMPL(cat, lvl, __VA_ARGS__);  \
-  } while (0)
-
-/* --- Parameterized Macros (Primary API) --------------------------------- */
-
-/** @{ */
-#define REXLOG_CAT_TRACE(cat, ...) REX_LOG_IMPL(cat, spdlog::level::trace, __VA_ARGS__)
-#define REXLOG_CAT_DEBUG(cat, ...) REX_LOG_IMPL(cat, spdlog::level::debug, __VA_ARGS__)
-#define REXLOG_CAT_INFO(cat, ...) REX_LOG_IMPL(cat, spdlog::level::info, __VA_ARGS__)
-#define REXLOG_CAT_WARN(cat, ...) REX_LOG_IMPL(cat, spdlog::level::warn, __VA_ARGS__)
-#define REXLOG_CAT_ERROR(cat, ...) REX_LOG_IMPL(cat, spdlog::level::err, __VA_ARGS__)
-#define REXLOG_CAT_CRITICAL(cat, ...) REX_LOG_IMPL(cat, spdlog::level::critical, __VA_ARGS__)
-/** @} */
-
-/* --- Noisy Parameterized Macros (cvar-gated) ------------------------------ */
-
-#define REXLOG_CAT_NOISY_TRACE(cat, ...) REX_LOG_NOISY_IMPL(cat, spdlog::level::trace, __VA_ARGS__)
-#define REXLOG_CAT_NOISY_DEBUG(cat, ...) REX_LOG_NOISY_IMPL(cat, spdlog::level::debug, __VA_ARGS__)
-
-/* --- Per-Subsystem Alias Macros - Core Category -------------------------- */
-
-/** @{ */
-#define REXLOG_TRACE(...) REXLOG_CAT_TRACE(::rex::log::core(), __VA_ARGS__)
-#define REXLOG_DEBUG(...) REXLOG_CAT_DEBUG(::rex::log::core(), __VA_ARGS__)
-#define REXLOG_INFO(...) REXLOG_CAT_INFO(::rex::log::core(), __VA_ARGS__)
-#define REXLOG_WARN(...) REXLOG_CAT_WARN(::rex::log::core(), __VA_ARGS__)
-#define REXLOG_ERROR(...) REXLOG_CAT_ERROR(::rex::log::core(), __VA_ARGS__)
-#define REXLOG_CRITICAL(...) REXLOG_CAT_CRITICAL(::rex::log::core(), __VA_ARGS__)
-/** @} */
-
-/* --- Per-Subsystem Alias Macros ------------------------------------------ */
-
-/** @{ CPU */
-#define REXCPU_TRACE(...) REXLOG_CAT_TRACE(::rex::log::cpu(), __VA_ARGS__)
-#define REXCPU_DEBUG(...) REXLOG_CAT_DEBUG(::rex::log::cpu(), __VA_ARGS__)
-#define REXCPU_INFO(...) REXLOG_CAT_INFO(::rex::log::cpu(), __VA_ARGS__)
-#define REXCPU_WARN(...) REXLOG_CAT_WARN(::rex::log::cpu(), __VA_ARGS__)
-#define REXCPU_ERROR(...) REXLOG_CAT_ERROR(::rex::log::cpu(), __VA_ARGS__)
-#define REXCPU_CRITICAL(...) REXLOG_CAT_CRITICAL(::rex::log::cpu(), __VA_ARGS__)
-/** @} */
-
-/** @{ APU */
-#define REXAPU_TRACE(...) REXLOG_CAT_TRACE(::rex::log::apu(), __VA_ARGS__)
-#define REXAPU_DEBUG(...) REXLOG_CAT_DEBUG(::rex::log::apu(), __VA_ARGS__)
-#define REXAPU_INFO(...) REXLOG_CAT_INFO(::rex::log::apu(), __VA_ARGS__)
-#define REXAPU_WARN(...) REXLOG_CAT_WARN(::rex::log::apu(), __VA_ARGS__)
-#define REXAPU_ERROR(...) REXLOG_CAT_ERROR(::rex::log::apu(), __VA_ARGS__)
-#define REXAPU_CRITICAL(...) REXLOG_CAT_CRITICAL(::rex::log::apu(), __VA_ARGS__)
-/** @} */
-
-/** @{ GPU */
-#define REXGPU_TRACE(...) REXLOG_CAT_TRACE(::rex::log::gpu(), __VA_ARGS__)
-#define REXGPU_DEBUG(...) REXLOG_CAT_DEBUG(::rex::log::gpu(), __VA_ARGS__)
-#define REXGPU_INFO(...) REXLOG_CAT_INFO(::rex::log::gpu(), __VA_ARGS__)
-#define REXGPU_WARN(...) REXLOG_CAT_WARN(::rex::log::gpu(), __VA_ARGS__)
-#define REXGPU_ERROR(...) REXLOG_CAT_ERROR(::rex::log::gpu(), __VA_ARGS__)
-#define REXGPU_CRITICAL(...) REXLOG_CAT_CRITICAL(::rex::log::gpu(), __VA_ARGS__)
-/** @} */
-
-/** @{ Kernel */
-#define REXKRNL_TRACE(...) REXLOG_CAT_TRACE(::rex::log::krnl(), __VA_ARGS__)
-#define REXKRNL_DEBUG(...) REXLOG_CAT_DEBUG(::rex::log::krnl(), __VA_ARGS__)
-#define REXKRNL_INFO(...) REXLOG_CAT_INFO(::rex::log::krnl(), __VA_ARGS__)
-#define REXKRNL_WARN(...) REXLOG_CAT_WARN(::rex::log::krnl(), __VA_ARGS__)
-#define REXKRNL_ERROR(...) REXLOG_CAT_ERROR(::rex::log::krnl(), __VA_ARGS__)
-#define REXKRNL_CRITICAL(...) REXLOG_CAT_CRITICAL(::rex::log::krnl(), __VA_ARGS__)
-/** @} */
-
-/** @{ System */
-#define REXSYS_TRACE(...) REXLOG_CAT_TRACE(::rex::log::sys(), __VA_ARGS__)
-#define REXSYS_DEBUG(...) REXLOG_CAT_DEBUG(::rex::log::sys(), __VA_ARGS__)
-#define REXSYS_INFO(...) REXLOG_CAT_INFO(::rex::log::sys(), __VA_ARGS__)
-#define REXSYS_WARN(...) REXLOG_CAT_WARN(::rex::log::sys(), __VA_ARGS__)
-#define REXSYS_ERROR(...) REXLOG_CAT_ERROR(::rex::log::sys(), __VA_ARGS__)
-#define REXSYS_CRITICAL(...) REXLOG_CAT_CRITICAL(::rex::log::sys(), __VA_ARGS__)
-/** @} */
-
-/** @{ Filesystem */
-#define REXFS_TRACE(...) REXLOG_CAT_TRACE(::rex::log::fs(), __VA_ARGS__)
-#define REXFS_DEBUG(...) REXLOG_CAT_DEBUG(::rex::log::fs(), __VA_ARGS__)
-#define REXFS_INFO(...) REXLOG_CAT_INFO(::rex::log::fs(), __VA_ARGS__)
-#define REXFS_WARN(...) REXLOG_CAT_WARN(::rex::log::fs(), __VA_ARGS__)
-#define REXFS_ERROR(...) REXLOG_CAT_ERROR(::rex::log::fs(), __VA_ARGS__)
-#define REXFS_CRITICAL(...) REXLOG_CAT_CRITICAL(::rex::log::fs(), __VA_ARGS__)
-/** @} */
-
-/* --- Noisy Aliases - Per-Subsystem ---------------------------------------- */
-
-#define REXLOG_NOISY_TRACE(...) REXLOG_CAT_NOISY_TRACE(::rex::log::core(), __VA_ARGS__)
-#define REXLOG_NOISY_DEBUG(...) REXLOG_CAT_NOISY_DEBUG(::rex::log::core(), __VA_ARGS__)
-#define REXCPU_NOISY_TRACE(...) REXLOG_CAT_NOISY_TRACE(::rex::log::cpu(), __VA_ARGS__)
-#define REXCPU_NOISY_DEBUG(...) REXLOG_CAT_NOISY_DEBUG(::rex::log::cpu(), __VA_ARGS__)
-#define REXAPU_NOISY_TRACE(...) REXLOG_CAT_NOISY_TRACE(::rex::log::apu(), __VA_ARGS__)
-#define REXAPU_NOISY_DEBUG(...) REXLOG_CAT_NOISY_DEBUG(::rex::log::apu(), __VA_ARGS__)
-#define REXGPU_NOISY_TRACE(...) REXLOG_CAT_NOISY_TRACE(::rex::log::gpu(), __VA_ARGS__)
-#define REXGPU_NOISY_DEBUG(...) REXLOG_CAT_NOISY_DEBUG(::rex::log::gpu(), __VA_ARGS__)
-#define REXKRNL_NOISY_TRACE(...) REXLOG_CAT_NOISY_TRACE(::rex::log::krnl(), __VA_ARGS__)
-#define REXKRNL_NOISY_DEBUG(...) REXLOG_CAT_NOISY_DEBUG(::rex::log::krnl(), __VA_ARGS__)
-#define REXSYS_NOISY_TRACE(...) REXLOG_CAT_NOISY_TRACE(::rex::log::sys(), __VA_ARGS__)
-#define REXSYS_NOISY_DEBUG(...) REXLOG_CAT_NOISY_DEBUG(::rex::log::sys(), __VA_ARGS__)
-#define REXFS_NOISY_TRACE(...) REXLOG_CAT_NOISY_TRACE(::rex::log::fs(), __VA_ARGS__)
-#define REXFS_NOISY_DEBUG(...) REXLOG_CAT_NOISY_DEBUG(::rex::log::fs(), __VA_ARGS__)
-
-/* --- Custom Category Definition ----------------------------------------- */
+#include <rex/logging/category.h>
+#include <rex/logging/level.h>
 
 /**
- * Define a custom log category with Meyers singleton, guaranteed to
- * initialize on first use regardless of static init order.
+ * Declares a log category as the inline constant initialized object rex::log::name. Used at
+ * global scope, in a header that every file writing to the category includes.
  *
- * Usage (in a header):
- *   REXLOG_DEFINE_CATEGORY(codegen)
- *   #define REXCODEGEN_TRACE(...) REXLOG_CAT_TRACE(::rex::log::codegen(), __VA_ARGS__)
- *   // ... etc for DEBUG, INFO, WARN, ERROR, CRITICAL
+ * @param name Category name, a lowercase identifier.
+ * @param description Shown by the console and by ILogger::Categories.
  *
- * Expands to an inline function rex::log::codegen() returning LogCategoryId.
+ * @code
+ * REXLOG_CATEGORY(bd, "reblue recompiled code")
+ * @endcode
  */
-#define REXLOG_DEFINE_CATEGORY(name)                                          \
-  namespace rex::log {                                                        \
-  inline ::rex::LogCategoryId name() {                                        \
-    static const ::rex::LogCategoryId id = ::rex::RegisterLogCategory(#name); \
-    return id;                                                                \
-  }                                                                           \
+#define REXLOG_CATEGORY(name, description)                        \
+  namespace rex::log {                                            \
+  inline constinit ::rex::log::Category name{#name, description}; \
   }
 
-// For dynamic parents (defined via REXLOG_DEFINE_CATEGORY)
-#define REXLOG_DEFINE_SUBCATEGORY(child, parent)                     \
-  namespace rex::log {                                               \
-  inline ::rex::LogCategoryId parent##_##child() {                   \
-    static const ::rex::LogCategoryId id =                           \
-        ::rex::RegisterLogSubcategory(#child, ::rex::log::parent()); \
-    return id;                                                       \
-  }                                                                  \
+/**
+ * Declares rex::log::table, the array of category addresses a module passes to
+ * ILogger::Register. Used at global scope.
+ *
+ * @param table Name of the table.
+ * @param ... Category names.
+ *
+ * @code
+ * REXLOG_TABLE(kGPULog, gpu)
+ * logger->Register(rex::log::kGPULog);
+ * @endcode
+ */
+#define REXLOG_TABLE(table, ...)                                            \
+  namespace rex::log {                                                      \
+  inline constexpr auto table = ::rex::log::detail::MakeTable(__VA_ARGS__); \
   }
 
-/* --- Built-in SDK Categories ---------------------------------------------- */
+/**
+ * Writes a message when the category is enabled at the level. The arguments are not evaluated
+ * otherwise. The REXLOG_<LEVEL> macros expand to it.
+ *
+ * @param category Category name.
+ * @param level A rex::log::Level.
+ * @param fmt std::format string literal.
+ * @param ... Format arguments.
+ *
+ * @code
+ * REXLOG_DETAIL_WRITE(gpu, ::rex::log::Level::kInfo, "{} pipelines", count);
+ * @endcode
+ */
+#define REXLOG_DETAIL_WRITE(category, level, fmt, ...)                          \
+  do {                                                                          \
+    if (::rex::log::category.Enabled(level)) {                                  \
+      ::rex::log::detail::Write(::rex::log::category, level,                    \
+                                ::std::format(fmt __VA_OPT__(, ) __VA_ARGS__)); \
+    }                                                                           \
+  } while (0)
 
-REXLOG_DEFINE_CATEGORY(core)
-REXLOG_DEFINE_CATEGORY(cpu)
-REXLOG_DEFINE_CATEGORY(apu)
-REXLOG_DEFINE_CATEGORY(gpu)
-REXLOG_DEFINE_CATEGORY(krnl)
-REXLOG_DEFINE_CATEGORY(sys)
-REXLOG_DEFINE_CATEGORY(fs)
+/**
+ * Writes a Trace message.
+ *
+ * @param category Category name.
+ * @param fmt std::format string literal.
+ * @param ... Format arguments.
+ *
+ * @code
+ * REXLOG_TRACE(gpu, "packet {:08X}", header);
+ * @endcode
+ */
+#define REXLOG_TRACE(category, fmt, ...) \
+  REXLOG_DETAIL_WRITE(category, ::rex::log::Level::kTrace, fmt __VA_OPT__(, ) __VA_ARGS__)
+
+/**
+ * Writes a Dev message.
+ *
+ * @param category Category name.
+ * @param fmt std::format string literal.
+ * @param ... Format arguments.
+ *
+ * @code
+ * REXLOG_DEV(title, "{}", text);
+ * @endcode
+ */
+#define REXLOG_DEV(category, fmt, ...) \
+  REXLOG_DETAIL_WRITE(category, ::rex::log::Level::kDev, fmt __VA_OPT__(, ) __VA_ARGS__)
+
+/**
+ * Writes a Debug message.
+ *
+ * @param category Category name.
+ * @param fmt std::format string literal.
+ * @param ... Format arguments.
+ *
+ * @code
+ * REXLOG_DEBUG(system, "thread {} created", id);
+ * @endcode
+ */
+#define REXLOG_DEBUG(category, fmt, ...) \
+  REXLOG_DETAIL_WRITE(category, ::rex::log::Level::kDebug, fmt __VA_OPT__(, ) __VA_ARGS__)
+
+/**
+ * Writes an Info message.
+ *
+ * @param category Category name.
+ * @param fmt std::format string literal.
+ * @param ... Format arguments.
+ *
+ * @code
+ * REXLOG_INFO(ui, "SDL video driver {}", name);
+ * @endcode
+ */
+#define REXLOG_INFO(category, fmt, ...) \
+  REXLOG_DETAIL_WRITE(category, ::rex::log::Level::kInfo, fmt __VA_OPT__(, ) __VA_ARGS__)
+
+/**
+ * Writes a Warn message.
+ *
+ * @param category Category name.
+ * @param fmt std::format string literal.
+ * @param ... Format arguments.
+ *
+ * @code
+ * REXLOG_WARN(audio, "falling back to {} channels", channels);
+ * @endcode
+ */
+#define REXLOG_WARN(category, fmt, ...) \
+  REXLOG_DETAIL_WRITE(category, ::rex::log::Level::kWarn, fmt __VA_OPT__(, ) __VA_ARGS__)
+
+/**
+ * Writes an Error message.
+ *
+ * @param category Category name.
+ * @param fmt std::format string literal.
+ * @param ... Format arguments.
+ *
+ * @code
+ * REXLOG_ERROR(filesystem, "{} could not be opened", path);
+ * @endcode
+ */
+#define REXLOG_ERROR(category, fmt, ...) \
+  REXLOG_DETAIL_WRITE(category, ::rex::log::Level::kError, fmt __VA_OPT__(, ) __VA_ARGS__)
+
+/**
+ * Writes a Critical message.
+ *
+ * @param category Category name.
+ * @param fmt std::format string literal.
+ * @param ... Format arguments.
+ *
+ * @code
+ * REXLOG_CRITICAL(core, "heap corrupted at {:08X}", address);
+ * @endcode
+ */
+#define REXLOG_CRITICAL(category, fmt, ...) \
+  REXLOG_DETAIL_WRITE(category, ::rex::log::Level::kCritical, fmt __VA_OPT__(, ) __VA_ARGS__)
+
+/**
+ * Writes an Error message and returns a value from the enclosing function.
+ *
+ * @param category Category name.
+ * @param value Returned value.
+ * @param fmt std::format string literal.
+ * @param ... Format arguments.
+ *
+ * @code
+ * REX_FAIL(kernel, X_STATUS_INVALID_PARAMETER, "{} is out of range", index);
+ * @endcode
+ */
+#define REX_FAIL(category, value, fmt, ...)                 \
+  do {                                                      \
+    REXLOG_ERROR(category, fmt __VA_OPT__(, ) __VA_ARGS__); \
+    return value;                                           \
+  } while (0)
+
+#include <rex/logging/categories.h>

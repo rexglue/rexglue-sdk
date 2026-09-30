@@ -22,7 +22,7 @@ namespace xam {
 // OutputDebugStringA - ANSI debug string output
 void OutputDebugStringA_entry(mapped_string string) {
   if (string) {
-    REXKRNL_INFO("OutputDebugStringA: {}", string.value());
+    REXLOG_DEV(title, "OutputDebugStringA: {}", string.value());
   }
 }
 
@@ -40,21 +40,21 @@ void OutputDebugStringW_entry(mapped_wstring string) {
         utf8.push_back('?');  // Non-ASCII fallback
       }
     }
-    REXKRNL_INFO("OutputDebugStringW: {}", utf8);
+    REXLOG_DEV(title, "OutputDebugStringW: {}", utf8);
   }
 }
 
 // RtlOutputDebugString - Same as OutputDebugStringA
 void RtlOutputDebugString_entry(mapped_string string) {
   if (string) {
-    REXKRNL_INFO("RtlOutputDebugString: {}", string.value());
+    REXLOG_DEV(title, "RtlOutputDebugString: {}", string.value());
   }
 }
 
 // RtlDebugTrace - Debug trace output
 void RtlDebugTrace_entry(mapped_string string) {
   if (string) {
-    REXKRNL_INFO("RtlDebugTrace: {}", string.value());
+    REXLOG_DEV(title, "RtlDebugTrace: {}", string.value());
   }
 }
 

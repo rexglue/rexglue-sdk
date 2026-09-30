@@ -103,7 +103,7 @@ bool D3D12Presenter::EnsureTemporalUpscalerContext(uint32_t render_width, uint32
 
     ffxContext* context = reinterpret_cast<ffxContext*>(&temporal_upscaler_context_);
     if (ffxCreateContext(context, &create_desc.header, nullptr) != FFX_API_RETURN_OK) {
-      REXLOG_WARN("D3D12Presenter: Failed to create FidelityFX temporal upscaler context");
+      REXLOG_WARN(ui, "D3D12Presenter: Failed to create FidelityFX temporal upscaler context");
       temporal_upscaler_context_ = nullptr;
       return false;
     }
@@ -122,7 +122,8 @@ bool D3D12Presenter::EnsureTemporalUpscalerContext(uint32_t render_width, uint32
     ffxContext* context = reinterpret_cast<ffxContext*>(&temporal_upscaler_context_);
     if (ffxQuery(context, &provider_version.header) == FFX_API_RETURN_OK &&
         provider_version.versionName) {
-      REXLOG_INFO("D3D12Presenter: FidelityFX upscaler provider {}", provider_version.versionName);
+      REXLOG_INFO(ui, "D3D12Presenter: FidelityFX upscaler provider {}",
+                  provider_version.versionName);
     }
     temporal_upscaler_provider_logged_ = true;
   }
@@ -232,26 +233,23 @@ bool D3D12Presenter::CaptureGuestOutput(RawImage& image_out) {
   if (FAILED(device->CreateCommittedResource(&util::kHeapPropertiesReadback, D3D12_HEAP_FLAG_NONE,
                                              &buffer_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
                                              IID_PPV_ARGS(&buffer)))) {
-    REXLOG_ERROR("D3D12Presenter: Failed to create the guest output capture buffer");
-    return false;
+    REX_FAIL(ui, false, "D3D12Presenter: Failed to create the guest output capture buffer");
   }
 
   {
     Microsoft::WRL::ComPtr<ID3D12CommandAllocator> command_allocator;
     if (FAILED(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
                                               IID_PPV_ARGS(&command_allocator)))) {
-      REXLOG_ERROR(
-          "D3D12Presenter: Failed to create the guest output capturing command "
-          "allocator");
-      return false;
+      REX_FAIL(ui, false,
+               "D3D12Presenter: Failed to create the guest output capturing command "
+               "allocator");
     }
     Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> command_list;
     if (FAILED(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, command_allocator.Get(),
                                          nullptr, IID_PPV_ARGS(&command_list)))) {
-      REXLOG_ERROR(
-          "D3D12Presenter: Failed to create the guest output capturing command "
-          "list");
-      return false;
+      REX_FAIL(ui, false,
+               "D3D12Presenter: Failed to create the guest output capturing command "
+               "list");
     }
 
     D3D12_RESOURCE_BARRIER barrier;
@@ -276,10 +274,9 @@ bool D3D12Presenter::CaptureGuestOutput(RawImage& image_out) {
       command_list->ResourceBarrier(1, &barrier);
     }
     if (FAILED(command_list->Close())) {
-      REXLOG_ERROR(
-          "D3D12Presenter: Failed to close the guest output capturing command "
-          "list");
-      return false;
+      REX_FAIL(ui, false,
+               "D3D12Presenter: Failed to close the guest output capturing command "
+               "list");
     }
 
     ID3D12CommandQueue* direct_queue = provider_.GetDirectQueue();
@@ -296,12 +293,10 @@ bool D3D12Presenter::CaptureGuestOutput(RawImage& image_out) {
     ID3D12CommandList* execute_command_list = command_list.Get();
     direct_queue->ExecuteCommandLists(1, &execute_command_list);
     if (!submission_tracker.NextSubmission()) {
-      REXLOG_ERROR("D3D12Presenter: Failed to signal the guest output capturing fence");
-      return false;
+      REX_FAIL(ui, false, "D3D12Presenter: Failed to signal the guest output capturing fence");
     }
     if (!submission_tracker.AwaitAllSubmissionsCompletion()) {
-      REXLOG_ERROR("D3D12Presenter: Failed to await the guest output capturing fence");
-      return false;
+      REX_FAIL(ui, false, "D3D12Presenter: Failed to await the guest output capturing fence");
     }
   }
 
@@ -310,8 +305,7 @@ bool D3D12Presenter::CaptureGuestOutput(RawImage& image_out) {
   read_range.End = copy_dest_size;
   void* mapping;
   if (FAILED(buffer->Map(0, &read_range, &mapping))) {
-    REXLOG_ERROR("D3D12Presenter: Failed to map the guest output capture buffer");
-    return false;
+    REX_FAIL(ui, false, "D3D12Presenter: Failed to map the guest output capture buffer");
   }
   image_out.width = uint32_t(texture_desc.Width);
   image_out.height = uint32_t(texture_desc.Height);
@@ -377,7 +371,7 @@ D3D12Presenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(Surface& new_sur
       }
     }
     if (!swap_chain_resized) {
-      REXLOG_ERROR("D3D12Presenter: Failed to resize a swap chain");
+      REXLOG_ERROR(ui, "D3D12Presenter: Failed to resize a swap chain");
       // Failed to resize, retry creating from scratch.
       paint_context_.DestroySwapChain();
     }
@@ -421,8 +415,8 @@ D3D12Presenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(Surface& new_sur
         HWND surface_hwnd = static_cast<const Win32HwndSurface&>(new_surface).hwnd();
         if (FAILED(dxgi_factory->CreateSwapChainForHwnd(
                 direct_queue, surface_hwnd, &swap_chain_desc, nullptr, nullptr, &swap_chain_1))) {
-          REXLOG_ERROR("D3D12Presenter: Failed to create a swap chain for the HWND");
-          return SurfacePaintConnectResult::kFailure;
+          REX_FAIL(ui, SurfacePaintConnectResult::kFailure,
+                   "D3D12Presenter: Failed to create a swap chain for the HWND");
         }
         // Disable automatic Alt+Enter handling - DXGI fullscreen doesn't
         // support ALLOW_TEARING, and the window implementation provides
@@ -432,16 +426,14 @@ D3D12Presenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(Surface& new_sur
 #endif
       default:
         assert_unhandled_case(surface_type);
-        REXLOG_ERROR(
-            "D3D12Presenter: Tried to create a swap chain for an unsupported "
-            "Xenia surface type");
-        return SurfacePaintConnectResult::kFailureSurfaceUnusable;
+        REX_FAIL(ui, SurfacePaintConnectResult::kFailureSurfaceUnusable,
+                 "D3D12Presenter: Tried to create a swap chain for an unsupported "
+                 "Xenia surface type");
     }
     if (FAILED(swap_chain_1->QueryInterface(IID_PPV_ARGS(&paint_context_.swap_chain)))) {
-      REXLOG_ERROR(
-          "D3D12Presenter: Failed to get version 3 of the swap chain "
-          "interface");
-      return SurfacePaintConnectResult::kFailure;
+      REX_FAIL(ui, SurfacePaintConnectResult::kFailure,
+               "D3D12Presenter: Failed to get version 3 of the swap chain "
+               "interface");
     }
     // From now on, in case of any failure, DestroySwapChain must be called
     // before returning.
@@ -452,7 +444,7 @@ D3D12Presenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(Surface& new_sur
     for (uint32_t i = 0; i < PaintContext::kSwapChainBufferCount; ++i) {
       if (FAILED(paint_context_.swap_chain->GetBuffer(
               i, IID_PPV_ARGS(&paint_context_.swap_chain_buffers[i])))) {
-        REXLOG_ERROR("D3D12Presenter: Failed to get buffer {} of a {}-buffer swap chain", i,
+        REXLOG_ERROR(ui, "D3D12Presenter: Failed to get buffer {} of a {}-buffer swap chain", i,
                      PaintContext::kSwapChainBufferCount);
         paint_context_.DestroySwapChain();
         return SurfacePaintConnectResult::kFailure;
@@ -522,9 +514,8 @@ bool D3D12Presenter::RefreshGuestOutputImpl(
             &util::kHeapPropertiesDefault, provider_.GetHeapFlagCreateNotZeroed(),
             &guest_output_resource_new_desc, kGuestOutputInternalState, nullptr,
             IID_PPV_ARGS(&guest_output_resource_ref.second)))) {
-      REXLOG_ERROR("D3D12Presenter: Failed to create the guest output {}x{} texture",
-                   frontbuffer_width, frontbuffer_height);
-      return false;
+      REX_FAIL(ui, false, "D3D12Presenter: Failed to create the guest output {}x{} texture",
+               frontbuffer_width, frontbuffer_height);
     }
   }
   D3D12GuestOutputRefreshContext context(is_8bpc_out_ref, guest_output_resource_ref.second.Get());
@@ -729,9 +720,9 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
                     &util::kHeapPropertiesDefault, provider_.GetHeapFlagCreateNotZeroed(),
                     &intermediate_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr,
                     IID_PPV_ARGS(&intermediate_texture_ptr_ref)))) {
-              REXLOG_ERROR(
-                  "D3D12Presenter: Failed to create a guest output "
-                  "presentation intermediate texture");
+              REXLOG_ERROR(ui,
+                           "D3D12Presenter: Failed to create a guest output "
+                           "presentation intermediate texture");
               // Don't display the guest output, and don't try to create more
               // intermediate textures (only destroy them).
               guest_output_flow.effect_count = 0;
@@ -1260,10 +1251,9 @@ bool D3D12Presenter::InitializeSurfaceIndependent() {
     ID3D12RootSignature* guest_output_paint_root_signature =
         util::CreateRootSignature(provider_, guest_output_paint_root_signature_desc);
     if (!guest_output_paint_root_signature) {
-      REXLOG_ERROR(
-          "D3D12Presenter: Failed to create the guest output bilinear "
-          "filtering presentation root signature");
-      return false;
+      REX_FAIL(ui, false,
+               "D3D12Presenter: Failed to create the guest output bilinear "
+               "filtering presentation root signature");
     }
     *(guest_output_paint_root_signatures_[kGuestOutputPaintRootSignatureIndexBilinear]
           .ReleaseAndGetAddressOf()) = guest_output_paint_root_signature;
@@ -1276,10 +1266,9 @@ bool D3D12Presenter::InitializeSurfaceIndependent() {
     ID3D12RootSignature* guest_output_paint_root_signature =
         util::CreateRootSignature(provider_, guest_output_paint_root_signature_desc);
     if (!guest_output_paint_root_signature) {
-      REXLOG_ERROR(
-          "D3D12Presenter: Failed to create the guest output AMD FidelityFX "
-          "FSR EASU presentation root signature");
-      return false;
+      REX_FAIL(ui, false,
+               "D3D12Presenter: Failed to create the guest output AMD FidelityFX "
+               "FSR EASU presentation root signature");
     }
     *(guest_output_paint_root_signatures_[kGuestOutputPaintRootSignatureIndexFsrEasu]
           .ReleaseAndGetAddressOf()) = guest_output_paint_root_signature;
@@ -1293,10 +1282,9 @@ bool D3D12Presenter::InitializeSurfaceIndependent() {
     ID3D12RootSignature* guest_output_paint_root_signature =
         util::CreateRootSignature(provider_, guest_output_paint_root_signature_desc);
     if (!guest_output_paint_root_signature) {
-      REXLOG_ERROR(
-          "D3D12Presenter: Failed to create the guest output AMD FidelityFX "
-          "FSR RCAS presentation root signature");
-      return false;
+      REX_FAIL(ui, false,
+               "D3D12Presenter: Failed to create the guest output AMD FidelityFX "
+               "FSR RCAS presentation root signature");
     }
     *(guest_output_paint_root_signatures_[kGuestOutputPaintRootSignatureIndexFsrRcas]
           .ReleaseAndGetAddressOf()) = guest_output_paint_root_signature;
@@ -1308,10 +1296,9 @@ bool D3D12Presenter::InitializeSurfaceIndependent() {
     ID3D12RootSignature* guest_output_paint_root_signature =
         util::CreateRootSignature(provider_, guest_output_paint_root_signature_desc);
     if (!guest_output_paint_root_signature) {
-      REXLOG_ERROR(
-          "D3D12Presenter: Failed to create the guest output AMD FidelityFX "
-          "CAS presentation root signature");
-      return false;
+      REX_FAIL(ui, false,
+               "D3D12Presenter: Failed to create the guest output AMD FidelityFX "
+               "CAS presentation root signature");
     }
     *(guest_output_paint_root_signatures_[kGuestOutputPaintRootSignatureIndexCasSharpen]
           .ReleaseAndGetAddressOf()) = guest_output_paint_root_signature;
@@ -1323,10 +1310,9 @@ bool D3D12Presenter::InitializeSurfaceIndependent() {
     ID3D12RootSignature* guest_output_paint_root_signature =
         util::CreateRootSignature(provider_, guest_output_paint_root_signature_desc);
     if (!guest_output_paint_root_signature) {
-      REXLOG_ERROR(
-          "D3D12Presenter: Failed to create the guest output resampling AMD "
-          "FidelityFX CAS presentation root signature");
-      return false;
+      REX_FAIL(ui, false,
+               "D3D12Presenter: Failed to create the guest output resampling AMD "
+               "FidelityFX CAS presentation root signature");
     }
     *(guest_output_paint_root_signatures_[kGuestOutputPaintRootSignatureIndexCasResample]
           .ReleaseAndGetAddressOf()) = guest_output_paint_root_signature;
@@ -1417,11 +1403,10 @@ bool D3D12Presenter::InitializeSurfaceIndependent() {
       if (FAILED(device->CreateGraphicsPipelineState(
               &guest_output_paint_pipeline_desc,
               IID_PPV_ARGS(&guest_output_paint_intermediate_pipelines_[i])))) {
-        REXLOG_ERROR(
-            "D3D12Presenter: Failed to create the guest output painting "
-            "pipeline for effect {} writing to an intermediate texture",
-            i);
-        return false;
+        REX_FAIL(ui, false,
+                 "D3D12Presenter: Failed to create the guest output painting "
+                 "pipeline for effect {} writing to an intermediate texture",
+                 i);
       }
     }
     if (CanGuestOutputPaintEffectBeFinal(guest_output_paint_effect)) {
@@ -1429,11 +1414,10 @@ bool D3D12Presenter::InitializeSurfaceIndependent() {
       if (FAILED(device->CreateGraphicsPipelineState(
               &guest_output_paint_pipeline_desc,
               IID_PPV_ARGS(&guest_output_paint_final_pipelines_[i])))) {
-        REXLOG_ERROR(
-            "D3D12Presenter: Failed to create the guest output painting "
-            "pipeline for effect {} writing to a swap chain buffer",
-            i);
-        return false;
+        REX_FAIL(ui, false,
+                 "D3D12Presenter: Failed to create the guest output painting "
+                 "pipeline for effect {} writing to a swap chain buffer",
+                 i);
       }
     }
   }
@@ -1453,19 +1437,17 @@ bool D3D12Presenter::InitializeSurfaceIndependent() {
        paint_context_.command_allocators) {
     if (FAILED(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
                                               IID_PPV_ARGS(&paint_command_allocator_ref)))) {
-      REXLOG_ERROR(
-          "D3D12Presenter: Failed to create a command allocator for drawing to "
-          "a swap chain");
-      return false;
+      REX_FAIL(ui, false,
+               "D3D12Presenter: Failed to create a command allocator for drawing to "
+               "a swap chain");
     }
   }
   if (FAILED(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT,
                                        paint_context_.command_allocators[0].Get(), nullptr,
                                        IID_PPV_ARGS(&paint_context_.command_list)))) {
-    REXLOG_ERROR(
-        "D3D12Presenter: Failed to create the command list for drawing to a "
-        "swap chain");
-    return false;
+    REX_FAIL(ui, false,
+             "D3D12Presenter: Failed to create the command list for drawing to a "
+             "swap chain");
   }
   // Command lists are created in an open state.
   paint_context_.command_list->Close();
@@ -1478,11 +1460,10 @@ bool D3D12Presenter::InitializeSurfaceIndependent() {
   rtv_heap_desc.NodeMask = 0;
   if (FAILED(
           device->CreateDescriptorHeap(&rtv_heap_desc, IID_PPV_ARGS(&paint_context_.rtv_heap)))) {
-    REXLOG_ERROR(
-        "D3D12Presenter: Failed to create an RTV descriptor heap with {} "
-        "descriptors",
-        rtv_heap_desc.NumDescriptors);
-    return false;
+    REX_FAIL(ui, false,
+             "D3D12Presenter: Failed to create an RTV descriptor heap with {} "
+             "descriptors",
+             rtv_heap_desc.NumDescriptors);
   }
 
   // CBV/SRV/UAV descriptor heap.
@@ -1493,11 +1474,10 @@ bool D3D12Presenter::InitializeSurfaceIndependent() {
   view_heap_desc.NodeMask = 0;
   if (FAILED(
           device->CreateDescriptorHeap(&view_heap_desc, IID_PPV_ARGS(&paint_context_.view_heap)))) {
-    REXLOG_ERROR(
-        "D3D12Presenter: Failed to create a shader-visible CBV/SRV/UAV "
-        "descriptor heap with {} descriptors",
-        view_heap_desc.NumDescriptors);
-    return false;
+    REX_FAIL(ui, false,
+             "D3D12Presenter: Failed to create a shader-visible CBV/SRV/UAV "
+             "descriptor heap with {} descriptors",
+             view_heap_desc.NumDescriptors);
   }
 
   if (!guest_output_resource_refresher_submission_tracker_.Initialize(device, direct_queue)) {

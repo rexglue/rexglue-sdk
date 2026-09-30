@@ -23,6 +23,7 @@
 #include <rex/filesystem.h>
 #include <rex/graphics/backend.h>
 #include <rex/input.h>
+#include <rex/logging/config.h>
 #include <rex/module.h>
 #include <rex/paths.h>
 #include <rex/result.h>
@@ -45,18 +46,22 @@ struct Config {
   std::vector<std::string> modules;
   /** Host paths. Empty fields take the defaults documented on PathsConfig. */
   PathsConfig paths;
+  /** Logger config, read when the modules connect. */
+  LogConfig log;
   /** Consumer cvar tables, values arriving before Init, and locks. */
   CvarConfig cvars;
-  /** Filesystem module slice. */
+  /** Filesystem module config. */
   filesystem::FilesystemConfig filesystem;
-  /** Runtime module slice. */
+  /** Runtime module config. */
   runtime::RuntimeConfig runtime;
-  /** Input module slice. */
+  /** Input module config. */
   input::InputConfig input;
-  /** UI module slice. */
+  /** UI module config. */
   ui::UIConfig ui;
-  /** Graphics backend slice, read by the graphics module at Connect. */
+  /** Graphics backend config, read by the graphics module at Connect. */
   graphics::BackendConfig graphics;
+  /** App::Init starts the Tracy profiler when the build has it. */
+  bool profiler = false;
   /**
    * Name of a lock across processes that App::Init takes before any module loads. Init fails
    * in a second process started with the same name. Empty means no lock.
@@ -81,18 +86,22 @@ class REX_API API {
   }
 
   /**
-   * @param module_name Module DLL base name.
+   * Reports whether a module was loaded and initialized.
+   *
+   * @param module_name Module DLL base name such as rexgpu-xenos.
    * @return True when the module was loaded and initialized.
    */
   bool IsLoaded(std::string_view module_name) const;
 
   /**
-   * @return The configuration Init copied. Valid until Shutdown.
+   * Returns the configuration Init copied.
+   *
+   * @return The copied configuration. Valid until Shutdown.
    */
   const Config& config() const;
 
   /**
-   * Replaces the paths slice of the copied configuration. For hosts that resolve the game data
+   * Replaces the paths of the copied configuration. For hosts that resolve the game data
    * root after Init, before the Runtime is constructed from config().
    *
    * @param paths The new paths.
@@ -113,7 +122,7 @@ class REX_API API {
  * @param config The consumer's configuration. Copied and kept until Shutdown.
  * @return The API handle, or an error naming the module, cvar or field and the reason.
  */
-REX_API Result<API*> Init(const Config& config);
+[[nodiscard]] REX_API Result<API*> Init(const Config& config);
 
 /**
  * Shuts modules down in reverse order, disconnects them, unregisters every cvar table, unloads
@@ -140,7 +149,8 @@ REX_API std::vector<std::string> ParseCommandLine(Config& config, const CLIArgLi
  * @param path The TOML file.
  * @return Ok, or a Config error with the parse message and the path.
  */
-REX_API Result<void> LoadConfigFile(Config& config, const std::filesystem::path& path);
+[[nodiscard]] REX_API Result<void> LoadConfigFile(Config& config,
+                                                  const std::filesystem::path& path);
 
 /**
  * Writes the registry's non default values as TOML, 1 [scope] table per scope.
@@ -149,7 +159,7 @@ REX_API Result<void> LoadConfigFile(Config& config, const std::filesystem::path&
  * @param path The TOML file to write.
  * @return Ok, or a Config error with the OS message and the path.
  */
-REX_API Result<void> SaveConfigFile(const cvar::ICvarRegistry& registry,
-                                    const std::filesystem::path& path);
+[[nodiscard]] REX_API Result<void> SaveConfigFile(const cvar::ICvarRegistry& registry,
+                                                  const std::filesystem::path& path);
 
 }  // namespace rex

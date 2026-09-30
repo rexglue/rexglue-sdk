@@ -1,6 +1,6 @@
 /**
  * @file        graphics/plugin_main.cpp
- * @brief       rexgpu-xenos module entry, serves rex.module@1 and rex.graphics.backend@1
+ * @brief       rexgpu-xenos module entry, serves the module and graphics backend interfaces
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -15,7 +15,7 @@
 #include <string>
 #include <string_view>
 
-#include <fmt/format.h>
+#include <format>
 
 #include <rex/api.h>
 #include <rex/cvar.h>
@@ -24,6 +24,8 @@
 #include <rex/module.h>
 
 #include "graphics/cvar_table.h"
+
+REXLOG_TABLE(kGPULog, gpu)
 
 #if REX_HAS_D3D12
 #include <rex/graphics/d3d12/graphics_system.h>
@@ -56,6 +58,11 @@ class XenosModule final : public rex::IModule {
     if (!cvars_) {
       return rex::Err(rex::ErrorCategory::Module, "rexgpu-xenos: rex.cvar is not served");
     }
+    logger_ = factory->Get<rex::ILogger>();
+    if (!logger_) {
+      return rex::Err(rex::ErrorCategory::Module, "rexgpu-xenos: the logger is not served");
+    }
+    REX_TRY_VOID(logger_->Register(rex::log::kGPULog));
     REX_TRY_VOID(cvars_->Register("gpu", cvars::kGPUCvars));
     REX_TRY_VOID(
         cvars_->SetDefault("gpu.resolution_scale_x", std::to_string(config_->resolution_scale_x)));
@@ -67,6 +74,9 @@ class XenosModule final : public rex::IModule {
   void Disconnect() override {
     if (cvars_)
       cvars_->Unregister(cvars::kGPUCvars);
+    if (logger_)
+      logger_->Unregister(rex::log::kGPULog);
+    logger_ = nullptr;
     cvars_ = nullptr;
     config_ = nullptr;
   }
@@ -89,7 +99,7 @@ class XenosModule final : public rex::IModule {
 #endif
     return rex::Err(
         rex::ErrorCategory::Module,
-        fmt::format("rexgpu-xenos: backend '{}' is not compiled into this module", backend));
+        std::format("rexgpu-xenos: backend '{}' is not compiled into this module", backend));
   }
 
   void Shutdown() override { backend_.reset(); }
@@ -102,6 +112,7 @@ class XenosModule final : public rex::IModule {
 
   const BackendConfig* config_ = nullptr;
   rex::cvar::ICvarRegistry* cvars_ = nullptr;
+  rex::ILogger* logger_ = nullptr;
   std::unique_ptr<GraphicsSystem> backend_;
 };
 

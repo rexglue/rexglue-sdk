@@ -107,8 +107,8 @@ u32 keXamBuildResourceLocator(uint64_t module, std::u16string_view container,
   std::u16string path;
   if (!module) {
     path = fmt::format(u"file://media:/{}.xzp#{}", container, resource);
-    REXKRNL_DEBUG("XamBuildResourceLocator({0}) returning locator to local file {0}.xzp",
-                  rex::to_utf8(container));
+    REXLOG_DEBUG(kernel, "XamBuildResourceLocator({0}) returning locator to local file {0}.xzp",
+                 rex::to_utf8(container));
   } else {
     path = fmt::format(u"section://{:X},{}#{}", (uint32_t)module, container, resource);
   }
@@ -170,7 +170,9 @@ u32 XGetAVPack_entry() {
   // Other likely values are 3/4/8 for HDMI or something.
   // Games seem to use this as a PAL check - if the result is not 3/4/6/8
   // they explode with errors if not in PAL mode.
-  REXKRNL_IMPORT_RESULT("XGetAVPack", "6");
+  REXLOG_TRACE(kernel,
+               "XGetAVPack -> "
+               "6");
   return 6;
 }
 
@@ -324,7 +326,7 @@ u32 XamLoaderGetDvdTrayState_entry(mapped_u32 out_state) {
 u32 XamSwapDisc_entry(u32 disc_number) {
   // Stub for multi-disc games. Single-disc games (like Blue Dragon's reblue test)
   // don't need this, but the game may look it up dynamically via XexGetProcedureAddress.
-  REXKRNL_DEBUG("XamSwapDisc({}) - stub, returning success", (uint32_t)disc_number);
+  REXLOG_DEBUG(kernel, "XamSwapDisc({}) - stub, returning success", (uint32_t)disc_number);
   return X_STATUS_SUCCESS;
 }
 

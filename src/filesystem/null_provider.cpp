@@ -77,7 +77,7 @@ VolumeInfo NullProvider::Volume() const {
 }
 
 Node* NullProvider::Resolve(std::string_view path) {
-  REXFS_DEBUG("null provider resolves '{}'", path);
+  REXLOG_DEBUG(filesystem, "null provider resolves '{}'", path);
   if (path.empty()) {
     return root_.get();
   }

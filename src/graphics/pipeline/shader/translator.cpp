@@ -502,9 +502,9 @@ void Shader::GatherAluInstructionInformation(const AluInstruction& op, uint32_t 
     if (memexport_stream_constant != UINT32_MAX) {
       memexport_stream_constants_.insert(memexport_stream_constant);
     } else {
-      REXGPU_ERROR(
-          "ShaderTranslator::GatherAluInstructionInformation: Couldn't extract "
-          "memexport stream constant index");
+      REXLOG_ERROR(gpu,
+                   "ShaderTranslator::GatherAluInstructionInformation: Couldn't extract "
+                   "memexport stream constant index");
     }
   }
 }
@@ -606,8 +606,7 @@ bool ShaderTranslator::TranslateAnalyzedShader(Shader::Translation& translation)
   const Shader& shader = translation.shader();
   assert_true(shader.is_ucode_analyzed());
   if (!shader.is_ucode_analyzed()) {
-    REXGPU_ERROR("AnalyzeUcode must be done on the shader before translation");
-    return false;
+    REX_FAIL(gpu, false, "AnalyzeUcode must be done on the shader before translation");
   }
   translation_ = &translation;
 
@@ -678,7 +677,7 @@ void ShaderTranslator::EmitTranslationError(const char* message, bool is_fatal) 
   error.message = message;
   // TODO(benvanik): location information.
   errors_.push_back(std::move(error));
-  REXGPU_ERROR("Shader translation {}error: {}", is_fatal ? "fatal " : "", message);
+  REXLOG_ERROR(gpu, "Shader translation {}error: {}", is_fatal ? "fatal " : "", message);
 }
 
 void ShaderTranslator::TranslateControlFlowInstruction(const ControlFlowInstruction& cf) {
@@ -1274,10 +1273,10 @@ void ParseAluInstruction(const AluInstruction& op, xenos::ShaderType shader_type
     }
     if (storage_target == InstructionStorageTarget::kNone) {
       assert_always();
-      REXGPU_ERROR(
-          "ShaderTranslator::ParseAluInstruction: Unsupported write to export "
-          "{}",
-          uint32_t(export_register));
+      REXLOG_ERROR(gpu,
+                   "ShaderTranslator::ParseAluInstruction: Unsupported write to export "
+                   "{}",
+                   uint32_t(export_register));
     }
   }
 

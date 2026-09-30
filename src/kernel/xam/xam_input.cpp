@@ -48,8 +48,8 @@ u32 XamEnableInactivityProcessing_entry(u32 unk, u32 enable) {
 
 // https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetcapabilities(v=vs.85).aspx
 u32 XamInputGetCapabilities_entry(u32 user_index, u32 flags, ppc_ptr_t<X_INPUT_CAPABILITIES> caps) {
-  REXKRNL_TRACE("[XAM] XamInputGetCapabilities called: user={}, flags=0x{:X}", (uint32_t)user_index,
-                (uint32_t)flags);
+  REXLOG_TRACE(kernel, "XAM XamInputGetCapabilities called: user={}, flags=0x{:X}",
+               (uint32_t)user_index, (uint32_t)flags);
   if (!caps) {
     return X_ERROR_BAD_ARGUMENTS;
   }
@@ -96,8 +96,8 @@ u32 XamInputGetState_entry(u32 user_index, u32 flags, ppc_ptr_t<X_INPUT_STATE> i
   // Games call this with a NULL state ptr, probably as a query.
   static int call_count = 0;
   if (++call_count <= 5) {
-    REXKRNL_TRACE("[XAM] XamInputGetState called: user={}, flags=0x{:X}", (uint32_t)user_index,
-                  (uint32_t)flags);
+    REXLOG_TRACE(kernel, "XAM XamInputGetState called: user={}, flags=0x{:X}", (uint32_t)user_index,
+                 (uint32_t)flags);
   }
 
   if ((flags & 0xFF) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {

@@ -55,7 +55,10 @@ Result<ToolRuntime> OpenToolRuntime(const std::filesystem::path& game_root) {
   auto* file_system = api->Get<filesystem::IFileSystem>();
   if (!file_system) {
     rex::Shutdown();
-    return Err<ToolRuntime>(ErrorCategory::Module, "rexfilesystem does not serve rex.filesystem@1");
+    return Err<ToolRuntime>(
+        ErrorCategory::Module,
+        std::format("rexfilesystem does not serve {}@{}", filesystem::IFileSystem::kInterfaceName,
+                    filesystem::IFileSystem::kInterfaceVersion));
   }
   auto runtime = std::make_unique<Runtime>(api->config());
   const X_STATUS status = runtime->Setup(RuntimeConfig{

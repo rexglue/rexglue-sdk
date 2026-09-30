@@ -121,8 +121,7 @@ uint32_t XexModule::GetProcAddress(uint16_t ordinal) const {
 
     ordinal -= export_table->base;
     if (ordinal >= export_table->count) {
-      REXLOG_ERROR("GetProcAddress({:03X}): ordinal out of bounds", ordinal);
-      return 0;
+      REX_FAIL(system, 0, "GetProcAddress({:03X}): ordinal out of bounds", ordinal);
     }
 
     uint32_t num = ordinal;
@@ -204,26 +203,23 @@ int XexModule::ApplyPatch(XexModule* module) {
   s.finalize(digest);
 
   if (memcmp(digest, patch_header->digest_source, 0x14) != 0) {
-    REXLOG_WARN(
-        "XEX patch signature hash doesn't match base XEX signature hash, patch "
-        "will likely fail!");
+    REXLOG_WARN(system,
+                "XEX patch signature hash doesn't match base XEX signature hash, patch "
+                "will likely fail!");
   }
 
   uint32_t size = module->xex_header()->header_size;
   if (patch_header->delta_headers_source_offset > size) {
-    REXLOG_ERROR("XEX header patch source is outside base XEX header area");
-    return 2;
+    REX_FAIL(system, 2, "XEX header patch source is outside base XEX header area");
   }
 
   uint32_t header_size_available = size - patch_header->delta_headers_source_offset;
   if (patch_header->delta_headers_source_size > header_size_available) {
-    REXLOG_ERROR("XEX header patch source is too large");
-    return 3;
+    REX_FAIL(system, 3, "XEX header patch source is too large");
   }
 
   if (patch_header->delta_headers_target_offset > patch_header->size_of_target_headers) {
-    REXLOG_ERROR("XEX header patch target is outside base XEX header area");
-    return 4;
+    REX_FAIL(system, 4, "XEX header patch target is outside base XEX header area");
   }
 
   uint32_t delta_target_size =
@@ -274,8 +270,8 @@ int XexModule::ApplyPatch(XexModule* module) {
       lzxdelta_apply_patch(&patch_header->info, headerpatch_size,
                            file_format_header->compression_info.normal.window_size, header_ptr);
   if (result_code) {
-    REXLOG_ERROR("XEX header patch application failed, error code {}", result_code);
-    return result_code;
+    REX_FAIL(system, result_code, "XEX header patch application failed, error code {}",
+             result_code);
   }
 
   // Decrease xex header buffer length if needed (but only after patching)
@@ -302,7 +298,8 @@ int XexModule::ApplyPatch(XexModule* module) {
                 rex::memory::kMemoryProtectRead | rex::memory::kMemoryProtectWrite);
 
     if (!alloc_result) {
-      REXLOG_ERROR("Unable to allocate XEX memory at {:08X}-{:08X}.", addr_new_mem, size_delta);
+      REXLOG_ERROR(system, "Unable to allocate XEX memory at {:08X}-{:08X}.", addr_new_mem,
+                   size_delta);
       assert_always();
       return 6;
     }
@@ -329,8 +326,7 @@ int XexModule::ApplyPatch(XexModule* module) {
                      0x10);
 
   if (memcmp(test_delta_key, orig_session_key, 0x10) != 0) {
-    REXLOG_ERROR("XEX patch image key doesn't match original XEX!");
-    return 7;
+    REX_FAIL(system, 7, "XEX patch image key doesn't match original XEX!");
   }
 
   // Decrypt (if needed).
@@ -390,7 +386,7 @@ int XexModule::ApplyPatch(XexModule* module) {
 
     if (memcmp(digest, cur_block->block_hash, 0x14) != 0) {
       result_code = 9;
-      REXLOG_ERROR("XEX patch block hash doesn't match hash inside block info!");
+      REXLOG_ERROR(system, "XEX patch block hash doesn't match hash inside block info!");
       break;
     }
 
@@ -421,7 +417,8 @@ int XexModule::ApplyPatch(XexModule* module) {
       bool free_result = memory()->LookupHeap(addr_free_mem)->Decommit(addr_free_mem, size_delta);
 
       if (!free_result) {
-        REXLOG_ERROR("Unable to decommit XEX memory at {:08X}-{:08X}.", addr_free_mem, size_delta);
+        REXLOG_ERROR(system, "Unable to decommit XEX memory at {:08X}-{:08X}.", addr_free_mem,
+                     size_delta);
         assert_always();
       }
     }
@@ -429,14 +426,14 @@ int XexModule::ApplyPatch(XexModule* module) {
     xex2_version source_ver, target_ver;
     source_ver = patch_header->source_version();
     target_ver = patch_header->target_version();
-    REXLOG_INFO(
-        "XEX patch applied successfully: base version: {}.{}.{}.{}, new "
-        "version: {}.{}.{}.{}",
-        (uint32_t)source_ver.major, (uint32_t)source_ver.minor, (uint32_t)source_ver.build,
-        (uint32_t)source_ver.qfe, (uint32_t)target_ver.major, (uint32_t)target_ver.minor,
-        (uint32_t)target_ver.build, (uint32_t)target_ver.qfe);
+    REXLOG_INFO(system,
+                "XEX patch applied successfully: base version: {}.{}.{}.{}, new "
+                "version: {}.{}.{}.{}",
+                (uint32_t)source_ver.major, (uint32_t)source_ver.minor, (uint32_t)source_ver.build,
+                (uint32_t)source_ver.qfe, (uint32_t)target_ver.major, (uint32_t)target_ver.minor,
+                (uint32_t)target_ver.build, (uint32_t)target_ver.qfe);
   } else {
-    REXLOG_ERROR("XEX patch application failed, error code {}", result_code);
+    REXLOG_ERROR(system, "XEX patch application failed, error code {}", result_code);
   }
 
   if (free_input) {
@@ -506,9 +503,8 @@ int XexModule::ReadImageUncompressed(const void* xex_addr, size_t xex_length) {
                        rex::memory::kMemoryAllocationReserve | rex::memory::kMemoryAllocationCommit,
                        rex::memory::kMemoryProtectRead | rex::memory::kMemoryProtectWrite);
   if (!alloc_result) {
-    REXLOG_ERROR("Unable to allocate XEX memory at {:08X}-{:08X}.", base_address_,
-                 uncompressed_size);
-    return 2;
+    REX_FAIL(system, 2, "Unable to allocate XEX memory at {:08X}-{:08X}.", base_address_,
+             uncompressed_size);
   }
   uint8_t* buffer = memory()->TranslateVirtual(base_address_);
   std::memset(buffer, 0, uncompressed_size);
@@ -569,9 +565,8 @@ int XexModule::ReadImageBasicCompressed(const void* xex_addr, size_t xex_length)
                        rex::memory::kMemoryAllocationReserve | rex::memory::kMemoryAllocationCommit,
                        rex::memory::kMemoryProtectRead | rex::memory::kMemoryProtectWrite);
   if (!alloc_result) {
-    REXLOG_ERROR("Unable to allocate XEX memory at {:08X}-{:08X}.", base_address_,
-                 uncompressed_size);
-    return 1;
+    REX_FAIL(system, 1, "Unable to allocate XEX memory at {:08X}-{:08X}.", base_address_,
+             uncompressed_size);
   }
 
   uint8_t* buffer = memory()->TranslateVirtual(base_address_);
@@ -722,7 +717,7 @@ int XexModule::ReadImageCompressed(const void* xex_addr, size_t xex_length) {
       result_code = lzx_decompress(compress_buffer, d - compress_buffer, buffer, uncompressed_size,
                                    compression_info->normal.window_size, nullptr, 0);
     } else {
-      REXLOG_ERROR("Unable to allocate XEX memory at {:08X}-{:08X}.", base_address_,
+      REXLOG_ERROR(system, "Unable to allocate XEX memory at {:08X}-{:08X}.", base_address_,
                    uncompressed_size);
       result_code = 3;
     }
@@ -743,8 +738,7 @@ int XexModule::ReadPEHeaders() {
   // Verify DOS signature (MZ).
   auto doshdr = reinterpret_cast<const IMAGE_DOS_HEADER*>(p);
   if (doshdr->e_magic != IMAGE_DOS_SIGNATURE) {
-    REXLOG_ERROR("PE signature mismatch; likely bad decryption/decompression");
-    return 1;
+    REX_FAIL(system, 1, "PE signature mismatch; likely bad decryption/decompression");
   }
 
   // Move to the NT header offset from the DOS header.
@@ -904,12 +898,13 @@ bool XexModule::Load(const std::string_view name, const std::string_view path, c
   // We'll try using both XEX2 keys to see if any give a valid PE
   int result_code = ReadImage(xex_addr, xex_length, false);
   if (result_code) {
-    REXLOG_WARN("XEX load failed with code {}, trying with devkit encryption key...", result_code);
+    REXLOG_WARN(system, "XEX load failed with code {}, trying with devkit encryption key...",
+                result_code);
 
     result_code = ReadImage(xex_addr, xex_length, true);
     if (result_code) {
-      REXLOG_ERROR("XEX load failed with code {}, tried both encryption keys", result_code);
-      return false;
+      REX_FAIL(system, false, "XEX load failed with code {}, tried both encryption keys",
+               result_code);
     }
   }
 
@@ -929,8 +924,7 @@ bool XexModule::LoadContinue() {
   finished_load_ = true;
 
   if (ReadPEHeaders()) {
-    REXLOG_ERROR("Failed to load XEX PE headers!");
-    return false;
+    REX_FAIL(system, false, "Failed to load XEX PE headers!");
   }
 
   // Parse any "unsafe" headers into safer variants
@@ -1106,12 +1100,12 @@ bool XexModule::SetupLibraryImports(const std::string_view name,
           if (kernel_export->is_implemented() && kernel_export->variable_ptr) {
             // Write the variable address to guest memory
             *record_slot = kernel_export->variable_ptr;
-            REXLOG_DEBUG("Patched variable import {}:{:#x} ({}) -> {:#x}", base_name, ordinal,
-                         kernel_export->name, kernel_export->variable_ptr);
+            REXLOG_DEBUG(system, "Patched variable import {}:{:#x} ({}) -> {:#x}", base_name,
+                         ordinal, kernel_export->name, kernel_export->variable_ptr);
           } else {
             // write garbage value if we don't have it implemented
             *record_slot = 0xD000BEEF | (kernel_export->ordinal & 0xFFF) << 16;
-            REXLOG_WARN("Variable import {}:{:#x} ({}) not implemented", base_name, ordinal,
+            REXLOG_WARN(system, "Variable import {}:{:#x} ({}) not implemented", base_name, ordinal,
                         kernel_export->name);
           }
         }
@@ -1136,7 +1130,7 @@ bool XexModule::SetupLibraryImports(const std::string_view name,
   }
 
   import_libs_.push_back(library_info);
-  REXLOG_DEBUG("created symbols for import library {} with {} imports", base_name,
+  REXLOG_DEBUG(system, "created symbols for import library {} with {} imports", base_name,
                library_info.imports.size());
 
   return true;

@@ -1,6 +1,6 @@
 /**
  * @file        logging.h
- * @brief       Logging subsystem umbrella header
+ * @brief       Logging facade
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -11,17 +11,11 @@
 
 #pragma once
 
-// Category types, constants, configuration, deprecated enum compat
-#include <rex/logging/types.h>
-
-// Function declarations, CVAR declarations
-#include <rex/logging/api.h>
-
-// Logging macros (parameterized, per-subsystem aliases, category definition)
-#include <rex/logging/macros.h>
-
-// Fatal error and assertion macros
-#include <rex/logging/assert.h>
-
-// Formatting helpers (ptr, hex, boolean)
+#include <rex/logging/categories.h>
+#include <rex/logging/category.h>
+#include <rex/logging/config.h>
 #include <rex/logging/format.h>
+#include <rex/logging/level.h>
+#include <rex/logging/logger.h>
+#include <rex/logging/macros.h>
+#include <rex/logging/sink.h>

@@ -193,13 +193,13 @@ X_RESULT xeXamDispatchDialogEx(std::function<T*()> create,
 
 X_RESULT xeXamDispatchHeadless(std::function<X_RESULT()> run_callback, uint32_t overlapped) {
   auto pre = []() {
-    REXKRNL_DEBUG("xeXamDispatchHeadless: Broadcasting XN_SYS_UI = true");
+    REXLOG_DEBUG(kernel, "xeXamDispatchHeadless: Broadcasting XN_SYS_UI = true");
     // Broadcast XN_SYS_UI = true
     REX_KERNEL_STATE()->BroadcastNotification(0x9, true);
   };
   auto post = []() {
     rex::platform::Sleep(std::chrono::milliseconds(100));
-    REXKRNL_DEBUG("xeXamDispatchHeadless: Broadcasting XN_SYS_UI = false");
+    REXLOG_DEBUG(kernel, "xeXamDispatchHeadless: Broadcasting XN_SYS_UI = false");
     // Broadcast XN_SYS_UI = false
     REX_KERNEL_STATE()->BroadcastNotification(0x9, false);
   };
@@ -302,7 +302,8 @@ class MessageBoxDialog : public XamDialog {
 u32 XamShowMessageBoxUI_entry(u32 user_index, mapped_wstring title_ptr, mapped_wstring text_ptr,
                               u32 button_count, mapped_u32 button_ptrs, u32 active_button,
                               u32 flags, mapped_u32 result_ptr, mapped_void overlapped) {
-  REXKRNL_DEBUG(
+  REXLOG_DEBUG(
+      kernel,
       "XamShowMessageBoxUI({:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X})",
       uint32_t(user_index), title_ptr.guest_address(), text_ptr.guest_address(),
       uint32_t(button_count), button_ptrs.guest_address(), uint32_t(active_button), uint32_t(flags),
@@ -457,10 +458,11 @@ class KeyboardInputDialog : public XamDialog {
 u32 XamShowKeyboardUI_entry(u32 user_index, u32 flags, mapped_wstring default_text,
                             mapped_wstring title, mapped_wstring description, mapped_wstring buffer,
                             u32 buffer_length, mapped_void overlapped) {
-  REXKRNL_DEBUG("XamShowKeyboardUI({:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X})",
-                uint32_t(user_index), uint32_t(flags), default_text.guest_address(),
-                title.guest_address(), description.guest_address(), buffer.guest_address(),
-                uint32_t(buffer_length), overlapped.guest_address());
+  REXLOG_DEBUG(kernel,
+               "XamShowKeyboardUI({:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X})",
+               uint32_t(user_index), uint32_t(flags), default_text.guest_address(),
+               title.guest_address(), description.guest_address(), buffer.guest_address(),
+               uint32_t(buffer_length), overlapped.guest_address());
   if (!buffer) {
     return X_ERROR_INVALID_PARAMETER;
   }
@@ -541,10 +543,10 @@ u32 XamShowKeyboardUI_entry(u32 user_index, u32 flags, mapped_wstring default_te
 u32 XamShowDeviceSelectorUI_entry(u32 user_index, u32 content_type, u32 content_flags,
                                   u64 total_requested, mapped_u32 device_id_ptr,
                                   mapped_void overlapped) {
-  REXKRNL_DEBUG("XamShowDeviceSelectorUI({:08X}, {:08X}, {:08X}, {:016X}, {:08X}, {:08X})",
-                uint32_t(user_index), uint32_t(content_type), uint32_t(content_flags),
-                uint64_t(total_requested), device_id_ptr.guest_address(),
-                overlapped.guest_address());
+  REXLOG_DEBUG(kernel, "XamShowDeviceSelectorUI({:08X}, {:08X}, {:08X}, {:016X}, {:08X}, {:08X})",
+               uint32_t(user_index), uint32_t(content_type), uint32_t(content_flags),
+               uint64_t(total_requested), device_id_ptr.guest_address(),
+               overlapped.guest_address());
   return xeXamDispatchHeadless(
       [device_id_ptr]() -> X_RESULT {
         // NOTE: 0x00000001 is our dummy device ID from xam_content.cc
@@ -555,8 +557,8 @@ u32 XamShowDeviceSelectorUI_entry(u32 user_index, u32 content_type, u32 content_
 }
 
 void XamShowDirtyDiscErrorUI_entry(u32 user_index) {
-  REXKRNL_ERROR("XamShowDirtyDiscErrorUI called! user_index={}", uint32_t(user_index));
-  REXKRNL_ERROR("This indicates a disc/file read error - check that all game files exist");
+  REXLOG_ERROR(kernel, "XamShowDirtyDiscErrorUI called! user_index={}", uint32_t(user_index));
+  REXLOG_ERROR(kernel, "This indicates a disc/file read error - check that all game files exist");
 
   const Runtime* emulator = REX_KERNEL_STATE()->emulator();
   ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
@@ -572,11 +574,11 @@ void XamShowDirtyDiscErrorUI_entry(u32 user_index) {
         [](MessageBoxDialog*) -> X_RESULT { return X_ERROR_SUCCESS; }, 0);
   } else {
     // No UI available - log prominently and pause to let user see the error
-    REXKRNL_ERROR("===========================================");
-    REXKRNL_ERROR("FATAL: Disc Read Error (no UI to display)");
-    REXKRNL_ERROR("Check that all game content files are present");
-    REXKRNL_ERROR("Missing files or bad mounts cause this error");
-    REXKRNL_ERROR("===========================================");
+    REXLOG_ERROR(kernel, "===========================================");
+    REXLOG_ERROR(kernel, "FATAL: Disc Read Error (no UI to display)");
+    REXLOG_ERROR(kernel, "Check that all game content files are present");
+    REXLOG_ERROR(kernel, "Missing files or bad mounts cause this error");
+    REXLOG_ERROR(kernel, "===========================================");
   }
   REX_KERNEL_STATE()->ExitTitle(rex::runtime::TitleExitReason::TitleDataError);
 }
@@ -593,7 +595,7 @@ uint32_t XamShowMessageBoxUIEx_entry() {
   // TODO(tomc): implement properly
   static bool warned = false;
   if (!warned) {
-    REXKRNL_WARN("[STUB] XamShowMessageBoxUIEx - not implemented");
+    REXLOG_WARN(kernel, "STUB XamShowMessageBoxUIEx - not implemented");
     warned = true;
   }
   return 0;

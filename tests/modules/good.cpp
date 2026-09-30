@@ -1,6 +1,6 @@
 /**
  * @file        tests/modules/good.cpp
- * @brief       Well formed test module serving rex.module@1 and rex.test.echo@1
+ * @brief       Well formed test module serving the module and echo interfaces
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

@@ -277,9 +277,9 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
   if (!color_rg16_snorm_supported) {
     if (color_rg16_sfloat_supported) {
       color_rg16_draw_format_fallback_to_float_ = true;
-      REXGPU_WARN(
-          "VulkanRenderTargetCache: R16G16_SNORM render target support is unavailable; "
-          "falling back to R16G16_SFLOAT for k_16_16");
+      REXLOG_WARN(gpu,
+                  "VulkanRenderTargetCache: R16G16_SNORM render target support is unavailable; "
+                  "falling back to R16G16_SFLOAT for k_16_16");
     } else {
       color_rg16_draw_format_supported = false;
     }
@@ -288,7 +288,8 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
   if (!color_rgba16_snorm_supported) {
     if (color_rgba16_sfloat_supported) {
       color_rgba16_draw_format_fallback_to_float_ = true;
-      REXGPU_WARN(
+      REXLOG_WARN(
+          gpu,
           "VulkanRenderTargetCache: R16G16B16A16_SNORM render target support is unavailable; "
           "falling back to R16G16B16A16_SFLOAT for k_16_16_16_16");
     } else {
@@ -298,37 +299,35 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
   if (path_ == Path::kHostRenderTargets &&
       (!color_rg16_draw_format_supported || !color_rgba16_draw_format_supported)) {
     if (fsi_path_supported) {
-      REXGPU_WARN(
-          "VulkanRenderTargetCache: Host render target 16-bit formats are unsupported "
-          "(R16G16: {}, R16G16B16A16: {}); switching to fragment shader interlock "
-          "path for D3D12 parity",
-          color_rg16_draw_format_supported ? "available" : "unavailable",
-          color_rgba16_draw_format_supported ? "available" : "unavailable");
+      REXLOG_WARN(gpu,
+                  "VulkanRenderTargetCache: Host render target 16-bit formats are unsupported "
+                  "(R16G16: {}, R16G16B16A16: {}); switching to fragment shader interlock "
+                  "path for D3D12 parity",
+                  color_rg16_draw_format_supported ? "available" : "unavailable",
+                  color_rgba16_draw_format_supported ? "available" : "unavailable");
       path_ = Path::kPixelShaderInterlock;
     } else {
-      REXGPU_ERROR(
-          "VulkanRenderTargetCache: Host render target 16-bit formats are unsupported "
-          "(R16G16: {}, R16G16B16A16: {}), and fragment shader interlock fallback "
-          "is unavailable",
-          color_rg16_draw_format_supported ? "available" : "unavailable",
-          color_rgba16_draw_format_supported ? "available" : "unavailable");
-      return false;
+      REX_FAIL(gpu, false,
+               "VulkanRenderTargetCache: Host render target 16-bit formats are unsupported "
+               "(R16G16: {}, R16G16B16A16: {}), and fragment shader interlock fallback "
+               "is unavailable",
+               color_rg16_draw_format_supported ? "available" : "unavailable",
+               color_rgba16_draw_format_supported ? "available" : "unavailable");
     }
   }
   if (path_ == Path::kHostRenderTargets && gamma_render_target_as_unorm16_requested &&
       !color_rgba16_unorm_supported) {
     if (fsi_path_supported) {
-      REXGPU_WARN(
-          "VulkanRenderTargetCache: R16G16B16A16_UNORM render target support "
-          "is unavailable for k_8_8_8_8_GAMMA linear storage; switching to "
-          "fragment shader interlock path for D3D12 parity");
+      REXLOG_WARN(gpu,
+                  "VulkanRenderTargetCache: R16G16B16A16_UNORM render target support "
+                  "is unavailable for k_8_8_8_8_GAMMA linear storage; switching to "
+                  "fragment shader interlock path for D3D12 parity");
       path_ = Path::kPixelShaderInterlock;
     } else {
-      REXGPU_ERROR(
-          "VulkanRenderTargetCache: R16G16B16A16_UNORM render target support "
-          "is unavailable for k_8_8_8_8_GAMMA linear storage, and fragment "
-          "shader interlock fallback is unavailable");
-      return false;
+      REX_FAIL(gpu, false,
+               "VulkanRenderTargetCache: R16G16B16A16_UNORM render target support "
+               "is unavailable for k_8_8_8_8_GAMMA linear storage, and fragment "
+               "shader interlock fallback is unavailable");
     }
   }
   VkFormatProperties color_rg16_uint_properties;
@@ -349,7 +348,8 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
       (color_rgba16_uint_properties.optimalTilingFeatures & kUsedColorFormatFeatures) ==
           kUsedColorFormatFeatures;
   if (!color_16bit_transfer_uint_formats_supported_) {
-    REXGPU_WARN(
+    REXLOG_WARN(
+        gpu,
         "VulkanRenderTargetCache: R16G16/R16G16B16A16 UINT ownership transfer formats are not "
         "supported");
   }
@@ -359,12 +359,13 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
       (color_rg32_uint_properties.optimalTilingFeatures & kUsedColorFormatFeatures) ==
           kUsedColorFormatFeatures;
   if (!color_32bit_transfer_uint_formats_supported_) {
-    REXGPU_WARN(
+    REXLOG_WARN(
+        gpu,
         "VulkanRenderTargetCache: R32/R32G32 UINT ownership transfer formats are not supported");
   }
   if ((device_properties.framebufferColorSampleCounts & VK_SAMPLE_COUNT_4_BIT) &&
       !(device_properties.sampledImageIntegerSampleCounts & VK_SAMPLE_COUNT_4_BIT)) {
-    REXGPU_WARN("VulkanRenderTargetCache: 4x integer sampled-image support is unavailable");
+    REXLOG_WARN(gpu, "VulkanRenderTargetCache: 4x integer sampled-image support is unavailable");
   }
 
   // 2x MSAA support.
@@ -398,17 +399,16 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
       (!msaa_2x_attachments_supported_ || integer_transfer_sample_2x_supported);
   if (path_ == Path::kHostRenderTargets && !bit_exact_host_color_transfer_supported) {
     if (fsi_path_supported) {
-      REXGPU_WARN(
-          "VulkanRenderTargetCache: Host render target ownership transfers "
-          "can't be bit-exact on this device; switching to fragment shader "
-          "interlock path for D3D12 parity");
+      REXLOG_WARN(gpu,
+                  "VulkanRenderTargetCache: Host render target ownership transfers "
+                  "can't be bit-exact on this device; switching to fragment shader "
+                  "interlock path for D3D12 parity");
       path_ = Path::kPixelShaderInterlock;
     } else {
-      REXGPU_ERROR(
-          "VulkanRenderTargetCache: Bit-exact host render target ownership "
-          "transfers require UINT transfer formats and integer sampled-image "
-          "MSAA support, and fragment shader interlock fallback is unavailable");
-      return false;
+      REX_FAIL(gpu, false,
+               "VulkanRenderTargetCache: Bit-exact host render target ownership "
+               "transfers require UINT transfer formats and integer sampled-image "
+               "MSAA support, and fragment shader interlock fallback is unavailable");
     }
   }
 
@@ -428,18 +428,18 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
   descriptor_set_layout_create_info.pBindings = descriptor_set_layout_bindings;
   if (dfn.vkCreateDescriptorSetLayout(device, &descriptor_set_layout_create_info, nullptr,
                                       &descriptor_set_layout_storage_buffer_) != VK_SUCCESS) {
-    REXGPU_ERROR(
-        "VulkanRenderTargetCache: Failed to create the descriptor set layout "
-        "with one storage buffer");
+    REXLOG_ERROR(gpu,
+                 "VulkanRenderTargetCache: Failed to create the descriptor set layout "
+                 "with one storage buffer");
     Shutdown();
     return false;
   }
   descriptor_set_layout_bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
   if (dfn.vkCreateDescriptorSetLayout(device, &descriptor_set_layout_create_info, nullptr,
                                       &descriptor_set_layout_sampled_image_) != VK_SUCCESS) {
-    REXGPU_ERROR(
-        "VulkanRenderTargetCache: Failed to create the descriptor set layout "
-        "with one sampled image");
+    REXLOG_ERROR(gpu,
+                 "VulkanRenderTargetCache: Failed to create the descriptor set layout "
+                 "with one sampled image");
     Shutdown();
     return false;
   }
@@ -451,9 +451,9 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
   descriptor_set_layout_create_info.bindingCount = 2;
   if (dfn.vkCreateDescriptorSetLayout(device, &descriptor_set_layout_create_info, nullptr,
                                       &descriptor_set_layout_sampled_image_x2_) != VK_SUCCESS) {
-    REXGPU_ERROR(
-        "VulkanRenderTargetCache: Failed to create the descriptor set layout "
-        "with two sampled images");
+    REXLOG_ERROR(gpu,
+                 "VulkanRenderTargetCache: Failed to create the descriptor set layout "
+                 "with two sampled images");
     Shutdown();
     return false;
   }
@@ -481,7 +481,7 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
           VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
               VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
           ui::vulkan::util::MemoryPurpose::kDeviceLocal, edram_buffer_, edram_buffer_memory_)) {
-    REXGPU_ERROR("VulkanRenderTargetCache: Failed to create the EDRAM buffer");
+    REXLOG_ERROR(gpu, "VulkanRenderTargetCache: Failed to create the EDRAM buffer");
     Shutdown();
     return false;
   }
@@ -507,9 +507,9 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
       &edram_storage_buffer_descriptor_pool_size;
   if (dfn.vkCreateDescriptorPool(device, &edram_storage_buffer_descriptor_pool_create_info, nullptr,
                                  &edram_storage_buffer_descriptor_pool_) != VK_SUCCESS) {
-    REXGPU_ERROR(
-        "VulkanRenderTargetCache: Failed to create the EDRAM buffer storage "
-        "buffer descriptor pool");
+    REXLOG_ERROR(gpu,
+                 "VulkanRenderTargetCache: Failed to create the EDRAM buffer storage "
+                 "buffer descriptor pool");
     Shutdown();
     return false;
   }
@@ -524,9 +524,9 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
       &descriptor_set_layout_storage_buffer_;
   if (dfn.vkAllocateDescriptorSets(device, &edram_storage_buffer_descriptor_set_allocate_info,
                                    &edram_storage_buffer_descriptor_set_) != VK_SUCCESS) {
-    REXGPU_ERROR(
-        "VulkanRenderTargetCache: Failed to allocate the EDRAM buffer storage "
-        "buffer descriptor set");
+    REXLOG_ERROR(gpu,
+                 "VulkanRenderTargetCache: Failed to allocate the EDRAM buffer storage "
+                 "buffer descriptor set");
     Shutdown();
     return false;
   }
@@ -574,9 +574,9 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
   resolve_copy_pipeline_layout_create_info.pPushConstantRanges = &resolve_copy_push_constant_range;
   if (dfn.vkCreatePipelineLayout(device, &resolve_copy_pipeline_layout_create_info, nullptr,
                                  &resolve_copy_pipeline_layout_) != VK_SUCCESS) {
-    REXGPU_ERROR(
-        "VulkanRenderTargetCache: Failed to create the resolve copy pipeline "
-        "layout");
+    REXLOG_ERROR(gpu,
+                 "VulkanRenderTargetCache: Failed to create the resolve copy pipeline "
+                 "layout");
     Shutdown();
     return false;
   }
@@ -626,10 +626,10 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
         draw_resolution_scaled ? resolve_copy_shader_code.scaled_size_bytes
                                : resolve_copy_shader_code.unscaled_size_bytes);
     if (resolve_copy_pipeline == VK_NULL_HANDLE) {
-      REXGPU_ERROR(
-          "VulkanRenderTargetCache: Failed to create the resolve copy "
-          "pipeline {}",
-          resolve_copy_shader_info.debug_name);
+      REXLOG_ERROR(gpu,
+                   "VulkanRenderTargetCache: Failed to create the resolve copy "
+                   "pipeline {}",
+                   resolve_copy_shader_info.debug_name);
       Shutdown();
       return false;
     }
@@ -672,9 +672,9 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
         &host_depth_store_push_constant_range;
     if (dfn.vkCreatePipelineLayout(device, &host_depth_store_pipeline_layout_create_info, nullptr,
                                    &host_depth_store_pipeline_layout_) != VK_SUCCESS) {
-      REXGPU_ERROR(
-          "VulkanRenderTargetCache: Failed to create the host depth storing "
-          "pipeline layout");
+      REXLOG_ERROR(gpu,
+                   "VulkanRenderTargetCache: Failed to create the host depth storing "
+                   "pipeline layout");
       Shutdown();
       return false;
     }
@@ -690,10 +690,10 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
           vulkan_device, host_depth_store_pipeline_layout_, host_depth_store_shader.first,
           host_depth_store_shader.second);
       if (host_depth_store_pipeline == VK_NULL_HANDLE) {
-        REXGPU_ERROR(
-            "VulkanRenderTargetCache: Failed to create the {}-sample host "
-            "depth storing pipeline",
-            uint32_t(1) << i);
+        REXLOG_ERROR(gpu,
+                     "VulkanRenderTargetCache: Failed to create the {}-sample host "
+                     "depth storing pipeline",
+                     uint32_t(1) << i);
         Shutdown();
         return false;
       }
@@ -712,9 +712,9 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
         ui::vulkan::util::CreateShaderModule(vulkan_device, shaders::passthrough_position_xy_vs,
                                              sizeof(shaders::passthrough_position_xy_vs));
     if (transfer_passthrough_vertex_shader_ == VK_NULL_HANDLE) {
-      REXGPU_ERROR(
-          "VulkanRenderTargetCache: Failed to create the render target "
-          "ownership transfer vertex shader");
+      REXLOG_ERROR(gpu,
+                   "VulkanRenderTargetCache: Failed to create the render target "
+                   "ownership transfer vertex shader");
       Shutdown();
       return false;
     }
@@ -772,10 +772,10 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
           transfer_pipeline_layout_info.used_push_constant_dwords ? 1 : 0;
       if (dfn.vkCreatePipelineLayout(device, &transfer_pipeline_layout_create_info, nullptr,
                                      &transfer_pipeline_layouts_[i]) != VK_SUCCESS) {
-        REXGPU_ERROR(
-            "VulkanRenderTargetCache: Failed to create the render target "
-            "ownership transfer pipeline layout {}",
-            i);
+        REXLOG_ERROR(gpu,
+                     "VulkanRenderTargetCache: Failed to create the render target "
+                     "ownership transfer pipeline layout {}",
+                     i);
         Shutdown();
         return false;
       }
@@ -803,9 +803,9 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
         &dump_pipeline_layout_push_constant_range;
     if (dfn.vkCreatePipelineLayout(device, &dump_pipeline_layout_create_info, nullptr,
                                    &dump_pipeline_layout_color_) != VK_SUCCESS) {
-      REXGPU_ERROR(
-          "VulkanRenderTargetCache: Failed to create the color render target "
-          "dumping pipeline layout");
+      REXLOG_ERROR(gpu,
+                   "VulkanRenderTargetCache: Failed to create the color render target "
+                   "dumping pipeline layout");
       Shutdown();
       return false;
     }
@@ -813,9 +813,9 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
         descriptor_set_layout_sampled_image_x2_;
     if (dfn.vkCreatePipelineLayout(device, &dump_pipeline_layout_create_info, nullptr,
                                    &dump_pipeline_layout_depth_) != VK_SUCCESS) {
-      REXGPU_ERROR(
-          "VulkanRenderTargetCache: Failed to create the depth render target "
-          "dumping pipeline layout");
+      REXLOG_ERROR(gpu,
+                   "VulkanRenderTargetCache: Failed to create the depth render target "
+                   "dumping pipeline layout");
       Shutdown();
       return false;
     }
@@ -852,9 +852,9 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
         &resolve_fsi_clear_push_constant_range;
     if (dfn.vkCreatePipelineLayout(device, &resolve_fsi_clear_pipeline_layout_create_info, nullptr,
                                    &resolve_fsi_clear_pipeline_layout_) != VK_SUCCESS) {
-      REXGPU_ERROR(
-          "VulkanRenderTargetCache: Failed to create the resolve EDRAM buffer "
-          "clear pipeline layout");
+      REXLOG_ERROR(gpu,
+                   "VulkanRenderTargetCache: Failed to create the resolve EDRAM buffer "
+                   "clear pipeline layout");
       Shutdown();
       return false;
     }
@@ -865,9 +865,9 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
         draw_resolution_scaled ? sizeof(shaders::resolve_clear_32bpp_scaled_cs)
                                : sizeof(shaders::resolve_clear_32bpp_cs));
     if (resolve_fsi_clear_32bpp_pipeline_ == VK_NULL_HANDLE) {
-      REXGPU_ERROR(
-          "VulkanRenderTargetCache: Failed to create the 32bpp resolve EDRAM "
-          "buffer clear pipeline");
+      REXLOG_ERROR(gpu,
+                   "VulkanRenderTargetCache: Failed to create the 32bpp resolve EDRAM "
+                   "buffer clear pipeline");
       Shutdown();
       return false;
     }
@@ -878,9 +878,9 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
         draw_resolution_scaled ? sizeof(shaders::resolve_clear_64bpp_scaled_cs)
                                : sizeof(shaders::resolve_clear_64bpp_cs));
     if (resolve_fsi_clear_64bpp_pipeline_ == VK_NULL_HANDLE) {
-      REXGPU_ERROR(
-          "VulkanRenderTargetCache: Failed to create the 64bpp resolve EDRAM "
-          "buffer clear pipeline");
+      REXLOG_ERROR(gpu,
+                   "VulkanRenderTargetCache: Failed to create the 64bpp resolve EDRAM "
+                   "buffer clear pipeline");
       Shutdown();
       return false;
     }
@@ -917,9 +917,9 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
     fsi_render_pass_create_info.pDependencies = fsi_subpass_dependencies;
     if (dfn.vkCreateRenderPass(device, &fsi_render_pass_create_info, nullptr, &fsi_render_pass_) !=
         VK_SUCCESS) {
-      REXGPU_ERROR(
-          "VulkanRenderTargetCache: Failed to create the fragment shader "
-          "interlock render backend render pass");
+      REXLOG_ERROR(gpu,
+                   "VulkanRenderTargetCache: Failed to create the fragment shader "
+                   "interlock render backend render pass");
       Shutdown();
       return false;
     }
@@ -941,9 +941,9 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
     fsi_framebuffer_create_info.layers = 1;
     if (dfn.vkCreateFramebuffer(device, &fsi_framebuffer_create_info, nullptr,
                                 &fsi_framebuffer_.framebuffer) != VK_SUCCESS) {
-      REXGPU_ERROR(
-          "VulkanRenderTargetCache: Failed to create the fragment shader "
-          "interlock render backend framebuffer");
+      REXLOG_ERROR(gpu,
+                   "VulkanRenderTargetCache: Failed to create the fragment shader "
+                   "interlock render backend framebuffer");
       Shutdown();
       return false;
     }
@@ -1181,8 +1181,8 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
           uint32_t dump_pitch;
           resolve_info.GetCopyEdramTileSpan(dump_base, dump_row_length_used, dump_rows, dump_pitch);
           if (!DumpRenderTargets(dump_base, dump_row_length_used, dump_rows, dump_pitch)) {
-            REXGPU_ERROR("VulkanRenderTargetCache: Failed to dump host render targets for resolve");
-            return false;
+            REX_FAIL(gpu, false,
+                     "VulkanRenderTargetCache: Failed to dump host render targets for resolve");
           }
         }
       }
@@ -1201,11 +1201,10 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
             !texture_cache.GetScaledResolveRange(
                 resolve_info.copy_dest_extent_start, resolve_info.copy_dest_extent_length,
                 copy_shader_info.dest_bpe_log2, copy_dest_use_start, copy_dest_use_length)) {
-          REXGPU_ERROR(
-              "VulkanRenderTargetCache: Failed to map scaled resolve "
-              "destination range (base={:08X}, length={:08X})",
-              resolve_info.copy_dest_base, copy_dest_range_unscaled);
-          return false;
+          REX_FAIL(gpu, false,
+                   "VulkanRenderTargetCache: Failed to map scaled resolve "
+                   "destination range (base={:08X}, length={:08X})",
+                   resolve_info.copy_dest_base, copy_dest_range_unscaled);
         }
       }
 
@@ -1219,9 +1218,9 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
                                                          resolve_info.copy_dest_extent_length);
       }
       if (!copy_dest_committed) {
-        REXGPU_ERROR(
-            "VulkanRenderTargetCache: Failed to obtain the resolve destination "
-            "memory region");
+        REXLOG_ERROR(gpu,
+                     "VulkanRenderTargetCache: Failed to obtain the resolve destination "
+                     "memory region");
       } else {
         // TODO(Triang3l): Switching between descriptors if exceeding
         // maxStorageBufferRange.
@@ -1688,7 +1687,7 @@ VkRenderPass VulkanRenderTargetCache::GetHostRenderTargetsRenderPass(RenderPassK
   VkRenderPass render_pass;
   if (dfn.vkCreateRenderPass(device, &render_pass_create_info, nullptr, &render_pass) !=
       VK_SUCCESS) {
-    REXGPU_ERROR("VulkanRenderTargetCache: Failed to create a render pass");
+    REXLOG_ERROR(gpu, "VulkanRenderTargetCache: Failed to create a render pass");
     render_passes_.emplace(key, VK_NULL_HANDLE);
     return VK_NULL_HANDLE;
   }
@@ -1901,21 +1900,19 @@ RenderTargetCache::RenderTarget* VulkanRenderTargetCache::CreateRenderTarget(Ren
     image_create_info.usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
   }
   if (image_create_info.format == VK_FORMAT_UNDEFINED) {
-    REXGPU_ERROR("VulkanRenderTargetCache: Unknown {} render target format {}",
-                 key.is_depth ? "depth" : "color", static_cast<uint32_t>(key.resource_format));
-    return nullptr;
+    REX_FAIL(gpu, nullptr, "VulkanRenderTargetCache: Unknown {} render target format {}",
+             key.is_depth ? "depth" : "color", static_cast<uint32_t>(key.resource_format));
   }
   VkImage image;
   VkDeviceMemory memory;
   if (!ui::vulkan::util::CreateDedicatedAllocationImage(
           vulkan_device, image_create_info, ui::vulkan::util::MemoryPurpose::kDeviceLocal, image,
           memory)) {
-    REXGPU_ERROR(
-        "VulkanRenderTarget: Failed to create a {}x{} {}xMSAA {} render target "
-        "image",
-        image_create_info.extent.width, image_create_info.extent.height,
-        uint32_t(1) << uint32_t(key.msaa_samples), key.GetFormatName());
-    return nullptr;
+    REX_FAIL(gpu, nullptr,
+             "VulkanRenderTarget: Failed to create a {}x{} {}xMSAA {} render target "
+             "image",
+             image_create_info.extent.width, image_create_info.extent.height,
+             uint32_t(1) << uint32_t(key.msaa_samples), key.GetFormatName());
   }
 
   // Create the image views.
@@ -1935,12 +1932,12 @@ RenderTargetCache::RenderTarget* VulkanRenderTargetCache::CreateRenderTarget(Ren
       key.is_depth ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT);
   VkImageView view_depth_color;
   if (dfn.vkCreateImageView(device, &view_create_info, nullptr, &view_depth_color) != VK_SUCCESS) {
-    REXGPU_ERROR(
-        "VulkanRenderTarget: Failed to create a {} view for a {}x{} {}xMSAA {} "
-        "render target",
-        key.is_depth ? "depth" : "color", image_create_info.extent.width,
-        image_create_info.extent.height, uint32_t(1) << uint32_t(key.msaa_samples),
-        key.GetFormatName());
+    REXLOG_ERROR(gpu,
+                 "VulkanRenderTarget: Failed to create a {} view for a {}x{} {}xMSAA {} "
+                 "render target",
+                 key.is_depth ? "depth" : "color", image_create_info.extent.width,
+                 image_create_info.extent.height, uint32_t(1) << uint32_t(key.msaa_samples),
+                 key.GetFormatName());
     dfn.vkDestroyImage(device, image, nullptr);
     dfn.vkFreeMemory(device, memory, nullptr);
     return nullptr;
@@ -1954,12 +1951,12 @@ RenderTargetCache::RenderTarget* VulkanRenderTargetCache::CreateRenderTarget(Ren
         VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
     if (dfn.vkCreateImageView(device, &view_create_info, nullptr, &view_depth_stencil) !=
         VK_SUCCESS) {
-      REXGPU_ERROR(
-          "VulkanRenderTarget: Failed to create a depth / stencil view for a "
-          "{}x{} {}xMSAA {} render target",
-          image_create_info.extent.width, image_create_info.extent.height,
-          uint32_t(1) << uint32_t(key.msaa_samples),
-          xenos::GetDepthRenderTargetFormatName(key.GetDepthFormat()));
+      REXLOG_ERROR(gpu,
+                   "VulkanRenderTarget: Failed to create a depth / stencil view for a "
+                   "{}x{} {}xMSAA {} render target",
+                   image_create_info.extent.width, image_create_info.extent.height,
+                   uint32_t(1) << uint32_t(key.msaa_samples),
+                   xenos::GetDepthRenderTargetFormatName(key.GetDepthFormat()));
       dfn.vkDestroyImageView(device, view_depth_color, nullptr);
       dfn.vkDestroyImage(device, image, nullptr);
       dfn.vkFreeMemory(device, memory, nullptr);
@@ -1967,12 +1964,12 @@ RenderTargetCache::RenderTarget* VulkanRenderTargetCache::CreateRenderTarget(Ren
     }
     view_create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_STENCIL_BIT;
     if (dfn.vkCreateImageView(device, &view_create_info, nullptr, &view_stencil) != VK_SUCCESS) {
-      REXGPU_ERROR(
-          "VulkanRenderTarget: Failed to create a stencil view for a {}x{} "
-          "{}xMSAA render target",
-          image_create_info.extent.width, image_create_info.extent.height,
-          uint32_t(1) << uint32_t(key.msaa_samples),
-          xenos::GetDepthRenderTargetFormatName(key.GetDepthFormat()));
+      REXLOG_ERROR(gpu,
+                   "VulkanRenderTarget: Failed to create a stencil view for a {}x{} "
+                   "{}xMSAA render target",
+                   image_create_info.extent.width, image_create_info.extent.height,
+                   uint32_t(1) << uint32_t(key.msaa_samples),
+                   xenos::GetDepthRenderTargetFormatName(key.GetDepthFormat()));
       dfn.vkDestroyImageView(device, view_depth_stencil, nullptr);
       dfn.vkDestroyImageView(device, view_depth_color, nullptr);
       dfn.vkDestroyImage(device, image, nullptr);
@@ -1983,12 +1980,12 @@ RenderTargetCache::RenderTarget* VulkanRenderTargetCache::CreateRenderTarget(Ren
     if (is_srgb_view_needed) {
       view_create_info.format = VK_FORMAT_R8G8B8A8_SRGB;
       if (dfn.vkCreateImageView(device, &view_create_info, nullptr, &view_srgb) != VK_SUCCESS) {
-        REXGPU_ERROR(
-            "VulkanRenderTarget: Failed to create an sRGB view for a {}x{} "
-            "{}xMSAA render target",
-            image_create_info.extent.width, image_create_info.extent.height,
-            uint32_t(1) << uint32_t(key.msaa_samples),
-            xenos::GetColorRenderTargetFormatName(key.GetColorFormat()));
+        REXLOG_ERROR(gpu,
+                     "VulkanRenderTarget: Failed to create an sRGB view for a {}x{} "
+                     "{}xMSAA render target",
+                     image_create_info.extent.width, image_create_info.extent.height,
+                     uint32_t(1) << uint32_t(key.msaa_samples),
+                     xenos::GetColorRenderTargetFormatName(key.GetColorFormat()));
         dfn.vkDestroyImageView(device, view_depth_color, nullptr);
         dfn.vkDestroyImage(device, image, nullptr);
         dfn.vkFreeMemory(device, memory, nullptr);
@@ -1999,11 +1996,11 @@ RenderTargetCache::RenderTarget* VulkanRenderTargetCache::CreateRenderTarget(Ren
       view_create_info.format = transfer_format;
       if (dfn.vkCreateImageView(device, &view_create_info, nullptr,
                                 &view_color_transfer_separate) != VK_SUCCESS) {
-        REXGPU_ERROR(
-            "VulkanRenderTarget: Failed to create a transfer view for a {}x{} "
-            "{}xMSAA {} render target",
-            image_create_info.extent.width, image_create_info.extent.height,
-            uint32_t(1) << uint32_t(key.msaa_samples), key.GetFormatName());
+        REXLOG_ERROR(gpu,
+                     "VulkanRenderTarget: Failed to create a transfer view for a {}x{} "
+                     "{}xMSAA {} render target",
+                     image_create_info.extent.width, image_create_info.extent.height,
+                     uint32_t(1) << uint32_t(key.msaa_samples), key.GetFormatName());
         if (view_srgb != VK_NULL_HANDLE) {
           dfn.vkDestroyImageView(device, view_srgb, nullptr);
         }
@@ -2019,10 +2016,10 @@ RenderTargetCache::RenderTarget* VulkanRenderTargetCache::CreateRenderTarget(Ren
       key.is_depth ? *descriptor_set_pool_sampled_image_x2_ : *descriptor_set_pool_sampled_image_;
   size_t descriptor_set_index_transfer_source = descriptor_set_pool.Allocate();
   if (descriptor_set_index_transfer_source == SIZE_MAX) {
-    REXGPU_ERROR(
-        "VulkanRenderTargetCache: Failed to allocate sampled image descriptors "
-        "for a {} render target",
-        key.is_depth ? "depth/stencil" : "color");
+    REXLOG_ERROR(gpu,
+                 "VulkanRenderTargetCache: Failed to allocate sampled image descriptors "
+                 "for a {} render target",
+                 key.is_depth ? "depth/stencil" : "color");
     if (view_color_transfer_separate != VK_NULL_HANDLE) {
       dfn.vkDestroyImageView(device, view_color_transfer_separate, nullptr);
     }
@@ -4258,10 +4255,10 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(TransferShaderKey key)
       vulkan_device, reinterpret_cast<const uint32_t*>(shader_code.data()),
       sizeof(uint32_t) * shader_code.size());
   if (shader_module == VK_NULL_HANDLE) {
-    REXGPU_ERROR(
-        "VulkanRenderTargetCache: Failed to create the render target ownership "
-        "transfer shader 0x{:08X}",
-        key.key);
+    REXLOG_ERROR(gpu,
+                 "VulkanRenderTargetCache: Failed to create the render target ownership "
+                 "transfer shader 0x{:08X}",
+                 key.key);
   }
   transfer_shaders_.emplace(key, shader_module);
   return shader_module;
@@ -4508,10 +4505,10 @@ VkPipeline const* VulkanRenderTargetCache::GetTransferPipelines(TransferPipeline
   pipeline_create_info.basePipelineIndex = -1;
   if (dfn.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipeline_create_info, nullptr,
                                     &pipelines[0]) != VK_SUCCESS) {
-    REXGPU_ERROR(
-        "VulkanRenderTargetCache: Failed to create the render target ownership "
-        "transfer pipeline for render pass 0x{:08X}, shader 0x{:08X}",
-        key.render_pass_key.key, key.shader_key.key);
+    REXLOG_ERROR(gpu,
+                 "VulkanRenderTargetCache: Failed to create the render target ownership "
+                 "transfer pipeline for render pass 0x{:08X}, shader 0x{:08X}",
+                 key.render_pass_key.key, key.shader_key.key);
     transfer_pipelines_.emplace(key, std::array<VkPipeline, 4>{});
     return nullptr;
   }
@@ -4530,11 +4527,11 @@ VkPipeline const* VulkanRenderTargetCache::GetTransferPipelines(TransferPipeline
       sample_mask = uint32_t(1) << host_sample_index;
       if (dfn.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipeline_create_info, nullptr,
                                         &pipelines[i]) != VK_SUCCESS) {
-        REXGPU_ERROR(
-            "VulkanRenderTargetCache: Failed to create the render target "
-            "ownership transfer pipeline for render pass 0x{:08X}, shader "
-            "0x{:08X}, sample {}",
-            key.render_pass_key.key, key.shader_key.key, i);
+        REXLOG_ERROR(gpu,
+                     "VulkanRenderTargetCache: Failed to create the render target "
+                     "ownership transfer pipeline for render pass 0x{:08X}, shader "
+                     "0x{:08X}, sample {}",
+                     key.render_pass_key.key, key.shader_key.key, i);
         for (uint32_t j = 0; j < i; ++j) {
           dfn.vkDestroyPipeline(device, pipelines[j], nullptr);
         }
@@ -5943,12 +5940,12 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
       key.is_depth ? dump_pipeline_layout_depth_ : dump_pipeline_layout_color_,
       reinterpret_cast<const uint32_t*>(shader_code.data()), sizeof(uint32_t) * shader_code.size());
   if (pipeline == VK_NULL_HANDLE) {
-    REXGPU_ERROR(
-        "VulkanRenderTargetCache: Failed to create a render target dumping "
-        "pipeline for {}-sample render targets with format {}",
-        UINT32_C(1) << uint32_t(key.msaa_samples),
-        key.is_depth ? xenos::GetDepthRenderTargetFormatName(key.GetDepthFormat())
-                     : xenos::GetColorRenderTargetFormatName(key.GetColorFormat()));
+    REXLOG_ERROR(gpu,
+                 "VulkanRenderTargetCache: Failed to create a render target dumping "
+                 "pipeline for {}-sample render targets with format {}",
+                 UINT32_C(1) << uint32_t(key.msaa_samples),
+                 key.is_depth ? xenos::GetDepthRenderTargetFormatName(key.GetDepthFormat())
+                              : xenos::GetColorRenderTargetFormatName(key.GetColorFormat()));
   }
   dump_pipelines_.emplace(key, pipeline);
   return pipeline;

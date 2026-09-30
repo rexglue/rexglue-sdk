@@ -15,7 +15,6 @@
 #include <rex/codegen/codegen_context.h>
 #include <rex/logging.h>
 
-#include "codegen_logging.h"
 #include <rex/runtime.h>
 #include <rex/system/kernel_state.h>
 #include <rex/system/user_module.h>
@@ -69,8 +68,8 @@ Result<CodegenContext> CodegenContext::Create(const std::filesystem::path& confi
   ctx.binary_ = BinaryView::fromModule(*module);
   ctx.resolver_ = runtime.export_resolver();
 
-  REXCODEGEN_TRACE("Loaded XEX: base=0x{:08X}, size=0x{:X}, entry=0x{:08X}",
-                   ctx.binary_.baseAddress(), ctx.binary_.imageSize(), ctx.binary_.entryPoint());
+  REXLOG_TRACE(codegen, "Loaded XEX: base=0x{:08X}, size=0x{:X}, entry=0x{:08X}",
+               ctx.binary_.baseAddress(), ctx.binary_.imageSize(), ctx.binary_.entryPoint());
 
   // Initialize AnalysisState from binary
   ctx.analysisState_.format = "xex";

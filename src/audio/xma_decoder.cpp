@@ -69,18 +69,18 @@ void av_log_callback(void* avcl, int level, const char* fmt, va_list va) {
 
   switch (level) {
     case AV_LOG_ERROR:
-      REXAPU_ERROR("ffmpeg: {}", msg);
+      REXLOG_ERROR(audio, "ffmpeg: {}", msg);
       break;
     case AV_LOG_WARNING:
-      REXAPU_WARN("ffmpeg: {}", msg);
+      REXLOG_WARN(audio, "ffmpeg: {}", msg);
       break;
     case AV_LOG_INFO:
-      REXAPU_INFO("ffmpeg: {}", msg);
+      REXLOG_INFO(audio, "ffmpeg: {}", msg);
       break;
     case AV_LOG_VERBOSE:
     case AV_LOG_DEBUG:
     default:
-      REXAPU_DEBUG("ffmpeg: {}", msg);
+      REXLOG_DEBUG(audio, "ffmpeg: {}", msg);
       break;
   }
 }
@@ -98,7 +98,7 @@ X_STATUS XmaDecoder::Setup(system::KernelState* kernel_state) {
       this,        // context (XmaDecoder*)
       reinterpret_cast<runtime::MMIOReadCallback>(MMIOReadRegisterThunk),
       reinterpret_cast<runtime::MMIOWriteCallback>(MMIOWriteRegisterThunk));
-  REXAPU_DEBUG("XMA: Registered MMIO handlers at 0x7FEA0000-0x7FEAFFFF");
+  REXLOG_DEBUG(audio, "XMA: Registered MMIO handlers at 0x7FEA0000-0x7FEAFFFF");
 
   // Setup XMA context data.
   // The Xbox 360 kernel allocates the contexts with X_PAGE_NOCACHE |
@@ -182,7 +182,7 @@ void XmaDecoder::Shutdown() {
   auto result =
       rex::platform::Wait(worker_thread_->thread(), false, std::chrono::milliseconds(2000));
   if (result == rex::platform::WaitResult::kTimeout) {
-    REXAPU_WARN("XMA: Worker thread did not exit within 2s, abandoning");
+    REXLOG_WARN(audio, "XMA: Worker thread did not exit within 2s, abandoning");
   }
   worker_thread_.reset();
 
@@ -258,9 +258,10 @@ uint32_t XmaDecoder::ReadRegister(uint32_t addr) {
     default:
       const auto register_info = register_file_.GetRegisterInfo(r);
       if (register_info) {
-        REXAPU_DEBUG("XMA: Read from unhandled register ({:04X}, {})", r, register_info->name);
+        REXLOG_DEBUG(audio, "XMA: Read from unhandled register ({:04X}, {})", r,
+                     register_info->name);
       } else {
-        REXAPU_DEBUG("XMA: Read from unknown register ({:04X})", r);
+        REXLOG_DEBUG(audio, "XMA: Read from unknown register ({:04X})", r);
       }
       break;
   }
@@ -342,10 +343,10 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint32_t value) {
       default: {
         const auto register_info = register_file_.GetRegisterInfo(r);
         if (register_info) {
-          REXAPU_DEBUG("XMA: Write to unhandled register ({:04X}, {}): {:08X}", r,
+          REXLOG_DEBUG(audio, "XMA: Write to unhandled register ({:04X}, {}): {:08X}", r,
                        register_info->name, value);
         } else {
-          REXAPU_DEBUG("XMA: Write to unknown register ({:04X}): {:08X}", r, value);
+          REXLOG_DEBUG(audio, "XMA: Write to unknown register ({:04X}): {:08X}", r, value);
         }
         break;
       }

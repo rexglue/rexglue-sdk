@@ -35,11 +35,10 @@ D3D12CpuDescriptorPool::Descriptor D3D12CpuDescriptorPool::AllocateDescriptor() 
   ID3D12DescriptorHeap* descriptor_heap;
   if (FAILED(provider_.GetDevice()->CreateDescriptorHeap(&descriptor_heap_desc,
                                                          IID_PPV_ARGS(&descriptor_heap)))) {
-    REXLOG_ERROR(
-        "Failed to create a non-shader-visible descriptor heap for {} "
-        "descriptors",
-        heap_size);
-    return Descriptor();
+    REX_FAIL(ui, Descriptor(),
+             "Failed to create a non-shader-visible descriptor heap for {} "
+             "descriptors",
+             heap_size);
   }
   heaps_.push_back(descriptor_heap);
   last_heap_allocated_ = 1;

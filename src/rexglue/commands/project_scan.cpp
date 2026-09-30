@@ -69,8 +69,7 @@ bool RefreshGeneratedGlue(const fs::path& project_root, std::string_view project
 
   fs::create_directories(target.parent_path(), ec);
   if (!write_file_atomic(target, rendered)) {
-    REXLOG_ERROR("Failed to regenerate {}", target.string());
-    return false;
+    REX_FAIL(rexglue, false, "Failed to regenerate {}", target.string());
   }
   return true;
 }

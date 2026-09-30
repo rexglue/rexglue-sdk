@@ -19,7 +19,6 @@
 #include <rex/codegen/config.h>
 #include <rex/logging.h>
 
-#include "codegen_logging.h"
 #include <rex/memory/utils.h>
 #include <rex/system/export_resolver.h>
 #include <rex/types.h>
@@ -89,7 +88,8 @@ PrologInfo scanProlog(const BinaryView& binary, uint32_t funcAddr, uint32_t prol
 
   // Use pdata prolog length - if 0, we can't safely scan
   if (prologLength == 0) {
-    REXCODEGEN_WARN("SEH function 0x{:08X}: PrologLength=0, cannot determine frame size", funcAddr);
+    REXLOG_WARN(codegen, "SEH function 0x{:08X}: PrologLength=0, cannot determine frame size",
+                funcAddr);
     return info;
   }
 
@@ -382,7 +382,7 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
       for (auto& p : patterns) {
         if (instr == p.pattern && *p.state_addr == 0) {
           *p.state_addr = addr;
-          REXCODEGEN_DEBUG("Found {} at 0x{:08X}", p.name, addr);
+          REXLOG_DEBUG(codegen, "Found {} at 0x{:08X}", p.name, addr);
         }
       }
 
@@ -392,20 +392,20 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
         if (instr == 0x3960fee0) {
           if (next == 0x7dcb60ce && state.restVmx14Address == 0) {
             state.restVmx14Address = addr;
-            REXCODEGEN_DEBUG("Found __restvmx_14 at 0x{:08X}", addr);
+            REXLOG_DEBUG(codegen, "Found __restvmx_14 at 0x{:08X}", addr);
           } else if (next == 0x7dcb61ce && state.saveVmx14Address == 0) {
             state.saveVmx14Address = addr;
-            REXCODEGEN_DEBUG("Found __savevmx_14 at 0x{:08X}", addr);
+            REXLOG_DEBUG(codegen, "Found __savevmx_14 at 0x{:08X}", addr);
           }
         }
 
         if (instr == 0x3960fc00) {
           if (next == 0x100b60cb && state.restVmx64Address == 0) {
             state.restVmx64Address = addr;
-            REXCODEGEN_DEBUG("Found __restvmx_64 at 0x{:08X}", addr);
+            REXLOG_DEBUG(codegen, "Found __restvmx_64 at 0x{:08X}", addr);
           } else if (next == 0x100b61cb && state.saveVmx64Address == 0) {
             state.saveVmx64Address = addr;
-            REXCODEGEN_DEBUG("Found __savevmx_64 at 0x{:08X}", addr);
+            REXLOG_DEBUG(codegen, "Found __savevmx_64 at 0x{:08X}", addr);
           }
         }
       }
@@ -418,7 +418,7 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
 //=============================================================================
 
 Result<void> registerEntryPoints(CodegenContext& ctx) {
-  REXCODEGEN_TRACE("Analyze: registering entry points...");
+  REXLOG_TRACE(codegen, "Analyze: registering entry points...");
 
   auto& graph = ctx.graph;
   auto& config = ctx.Config();
@@ -450,7 +450,7 @@ Result<void> registerEntryPoints(CodegenContext& ctx) {
   {
     auto* resolver = ctx.resolver();
     if (!resolver) {
-      REXCODEGEN_WARN("No export resolver available - imports won't be resolved");
+      REXLOG_WARN(codegen, "No export resolver available - imports won't be resolved");
     }
 
     size_t importCount = 0;
@@ -461,7 +461,7 @@ Result<void> registerEntryPoints(CodegenContext& ctx) {
     for (const auto& sym : binary.importSymbols()) {
       auto at_pos = sym.name.find('@');
       if (at_pos == std::string::npos) {
-        REXCODEGEN_ERROR("Invalid import format (missing @): {}", sym.name);
+        REXLOG_ERROR(codegen, "Invalid import format (missing @): {}", sym.name);
         continue;
       }
 
@@ -487,7 +487,7 @@ Result<void> registerEntryPoints(CodegenContext& ctx) {
       }
 
       if (resolvedName.empty()) {
-        REXCODEGEN_ERROR("Cannot resolve ordinal {} from {}", ordinal, lib_name);
+        REXLOG_ERROR(codegen, "Cannot resolve ordinal {} from {}", ordinal, lib_name);
         resolvedName = fmt::format("sub_{:X}", sym.address);
         unresolvedCount++;
       }
@@ -502,9 +502,9 @@ Result<void> registerEntryPoints(CodegenContext& ctx) {
       importCount++;
     }
 
-    REXCODEGEN_TRACE(
-        "Analyze: loaded {} imports ({} resolved, {} unresolved, {} variables skipped)",
-        importCount, resolvedCount, unresolvedCount, variableCount);
+    REXLOG_TRACE(codegen,
+                 "Analyze: loaded {} imports ({} resolved, {} unresolved, {} variables skipped)",
+                 importCount, resolvedCount, unresolvedCount, variableCount);
   }
 
   // Register save/restore helpers
@@ -563,7 +563,7 @@ Result<void> registerEntryPoints(CodegenContext& ctx) {
     }
   }
   if (configFuncs > 0) {
-    REXCODEGEN_DEBUG("Analyze: {} CONFIG functions, {} chunks", configFuncs, configChunks);
+    REXLOG_DEBUG(codegen, "Analyze: {} CONFIG functions, {} chunks", configFuncs, configChunks);
   }
 
   // Register PDATA functions
@@ -583,7 +583,7 @@ Result<void> registerEntryPoints(CodegenContext& ctx) {
   uint32_t offsetInSection = pdataAddr - pdataSection->baseAddress;
   const uint8_t* pdataData = pdataSection->data + offsetInSection;
 
-  REXCODEGEN_TRACE("Analyze: PDATA base=0x{:08X}, size={}", pdataAddr, pdataSize);
+  REXLOG_TRACE(codegen, "Analyze: PDATA base=0x{:08X}, size={}", pdataAddr, pdataSize);
 
   size_t count = pdataSize / sizeof(IMAGE_CE_RUNTIME_FUNCTION);
   auto* entries = reinterpret_cast<const IMAGE_CE_RUNTIME_FUNCTION*>(pdataData);
@@ -630,8 +630,9 @@ Result<void> registerEntryPoints(CodegenContext& ctx) {
 
           // Warn if we have SEH scopes but couldn't determine frame size
           if (!prologInfo.valid && !sehInfo.scopes.empty()) {
-            REXCODEGEN_WARN("SEH function 0x{:08X}: could not determine frame size from prolog",
-                            beginAddr);
+            REXLOG_WARN(codegen,
+                        "SEH function 0x{:08X}: could not determine frame size from prolog",
+                        beginAddr);
           }
 
           // Compute restore helper from save helper
@@ -673,7 +674,7 @@ Result<void> registerEntryPoints(CodegenContext& ctx) {
     pdataAdded++;
   }
 
-  REXCODEGEN_TRACE("Analyze: added {} functions from PDATA", pdataAdded);
+  REXLOG_TRACE(codegen, "Analyze: added {} functions from PDATA", pdataAdded);
 
   // Queue EH-discovered functions
   size_t ehFuncsQueued = 0;
@@ -688,7 +689,7 @@ Result<void> registerEntryPoints(CodegenContext& ctx) {
   }
 
   if (ehFuncsQueued > 0) {
-    REXCODEGEN_TRACE("Analyze: queued {} functions from exception handling", ehFuncsQueued);
+    REXLOG_TRACE(codegen, "Analyze: queued {} functions from exception handling", ehFuncsQueued);
   }
 
   return Ok();

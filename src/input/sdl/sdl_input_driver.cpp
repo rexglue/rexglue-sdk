@@ -182,7 +182,7 @@ void SDLInputDriver::OnWindowAvailable(rex::ui::Window* window) {
     window->app_context().CallInUIThreadSynchronous([this]() {
       // Initialize SDL events subsystem
       if (!SDL_InitSubSystem(SDL_INIT_EVENTS)) {
-        REXLOG_ERROR("SDL: Failed to init events subsystem: {}", SDL_GetError());
+        REXLOG_ERROR(input, "SDL: Failed to init events subsystem: {}", SDL_GetError());
         return;
       }
       sdl_events_initialized_ = true;
@@ -214,7 +214,7 @@ void SDLInputDriver::OnWindowAvailable(rex::ui::Window* window) {
 
       // Initialize game controller subsystem
       if (!SDL_InitSubSystem(SDL_INIT_GAMEPAD)) {
-        REXLOG_ERROR("SDL: Failed to init gamecontroller subsystem: {}", SDL_GetError());
+        REXLOG_ERROR(input, "SDL: Failed to init gamecontroller subsystem: {}", SDL_GetError());
         return;
       }
       SDL_Gamepad_initialized_ = true;
@@ -225,18 +225,19 @@ void SDLInputDriver::OnWindowAvailable(rex::ui::Window* window) {
                                  ? rex::platform::GetExecutableFolder() / mappings_file_
                                  : mappings_file_;
         if (!std::filesystem::exists(mappings_path)) {
-          REXLOG_WARN("SDL GameControllerDB: file '{}' does not exist.", mappings_path.string());
+          REXLOG_WARN(input, "SDL GameControllerDB: file '{}' does not exist.",
+                      mappings_path.string());
         } else {
           auto mappings_result = SDL_AddGamepadMappingsFromFile(mappings_path.string().c_str());
           if (mappings_result < 0) {
-            REXLOG_ERROR("SDL GameControllerDB: error loading file '{}': {}.",
+            REXLOG_ERROR(input, "SDL GameControllerDB: error loading file '{}': {}.",
                          mappings_path.string(), SDL_GetError());
           } else {
-            REXLOG_INFO("SDL GameControllerDB: loaded {} mappings.", mappings_result);
+            REXLOG_INFO(input, "SDL GameControllerDB: loaded {} mappings.", mappings_result);
           }
         }
       }
-      REXLOG_INFO("SDL input driver initialized successfully");
+      REXLOG_INFO(input, "SDL input driver initialized successfully");
     });
   }
 }
@@ -576,13 +577,14 @@ void SDLInputDriver::OnJoystickDeviceAddedLocked(const SDL_Event& event) {
   char guid_text[33] = {};
   SDL_GUIDToString(SDL_GetJoystickGUIDForID(id), guid_text, static_cast<int>(sizeof(guid_text)));
   const bool is_gamepad = SDL_IsGamepad(id);
-  REXLOG_INFO(
-      "SDL JoystickAdded: \"{}\", VendorID(0x{:04X}), ProductID(0x{:04X}), GUID({}), "
-      "HasGamepadMapping({})",
-      name ? name : "?", SDL_GetJoystickVendorForID(id), SDL_GetJoystickProductForID(id), guid_text,
-      is_gamepad);
+  REXLOG_DEBUG(input,
+               "SDL JoystickAdded: \"{}\", VendorID(0x{:04X}), ProductID(0x{:04X}), GUID({}), "
+               "HasGamepadMapping({})",
+               name ? name : "?", SDL_GetJoystickVendorForID(id), SDL_GetJoystickProductForID(id),
+               guid_text, is_gamepad);
   if (!is_gamepad) {
     REXLOG_WARN(
+        input,
         "SDL JoystickAdded: \"{}\" has no gamepad mapping, so it will not be usable. Add one to "
         "the file named by input.hid_mappings_file.",
         name ? name : "?");
@@ -600,17 +602,18 @@ void SDLInputDriver::OnControllerDeviceAddedLocked(const SDL_Event& event) {
                    static_cast<int>(sizeof(guid_text)));
   const SDL_JoystickType joy_type = SDL_GetJoystickType(SDL_GetGamepadJoystick(controller));
   const uint8_t subtype = GamepadSubType(controller);
-  REXLOG_INFO(
-      "SDL OnControllerDeviceAdded: \"{}\", "
-      "JoystickType({}), "
-      "GameControllerType({}), "
-      "XInputSubType({} = 0x{:02X}), "
-      "VendorID(0x{:04X}), "
-      "ProductID(0x{:04X}), "
-      "GUID({})",
-      SDL_GetGamepadName(controller), JoystickTypeName(joy_type),
-      static_cast<int>(SDL_GetGamepadType(controller)), XInputSubTypeName(subtype), subtype,
-      SDL_GetGamepadVendor(controller), SDL_GetGamepadProduct(controller), guid_text);
+  REXLOG_DEBUG(input,
+               "SDL OnControllerDeviceAdded: \"{}\", "
+               "JoystickType({}), "
+               "GameControllerType({}), "
+               "XInputSubType({} = 0x{:02X}), "
+               "VendorID(0x{:04X}), "
+               "ProductID(0x{:04X}), "
+               "GUID({})",
+               SDL_GetGamepadName(controller), JoystickTypeName(joy_type),
+               static_cast<int>(SDL_GetGamepadType(controller)), XInputSubTypeName(subtype),
+               subtype, SDL_GetGamepadVendor(controller), SDL_GetGamepadProduct(controller),
+               guid_text);
 
   // SDL_GetGamepadPlayerIndex is deliberately ignored: on Windows it reports
   // the XInput user index the OS assigned, which is unrelated to connection
@@ -625,17 +628,17 @@ void SDLInputDriver::OnControllerDeviceAddedLocked(const SDL_Event& event) {
   const int ordinal = static_cast<int>(controllers_.size()) - 1;
   SDL_SetGamepadPlayerIndex(controller, ordinal);
 
-  REXLOG_INFO("SDL OnControllerDeviceAdded: connection order {}, device {}.", ordinal,
-              static_cast<uint64_t>(state.id));
+  REXLOG_DEBUG(input, "SDL OnControllerDeviceAdded: connection order {}, device {}.", ordinal,
+               static_cast<uint64_t>(state.id));
   const char* mapping = SDL_GetGamepadMapping(controller);
-  REXLOG_INFO("SDL Controller {}: {}", ordinal, mapping ? mapping : "<none>");
+  REXLOG_DEBUG(input, "SDL Controller {}: {}", ordinal, mapping ? mapping : "<none>");
 }
 
 void SDLInputDriver::OnControllerDeviceRemovedLocked(const SDL_Event& event) {
   auto idx = GetControllerIndexFromInstanceID(event.gdevice.which);
   if (!idx) {
     // Expected when the pad was never opened, e.g. it had no gamepad mapping.
-    REXLOG_WARN("SDL OnControllerDeviceRemoved: Ignored, instance_id({}) not in use.",
+    REXLOG_WARN(input, "SDL OnControllerDeviceRemoved: Ignored, instance_id({}) not in use.",
                 event.gdevice.which);
     return;
   }
@@ -644,8 +647,8 @@ void SDLInputDriver::OnControllerDeviceRemovedLocked(const SDL_Event& event) {
   char removed_guid[33] = {};
   SDL_GUIDToString(SDL_GetJoystickGUID(SDL_GetGamepadJoystick(removed)), removed_guid,
                    static_cast<int>(sizeof(removed_guid)));
-  REXLOG_INFO("SDL OnControllerDeviceRemoved: \"{}\", GUID({}).", removed_name ? removed_name : "?",
-              removed_guid);
+  REXLOG_DEBUG(input, "SDL OnControllerDeviceRemoved: \"{}\", GUID({}).",
+               removed_name ? removed_name : "?", removed_guid);
   SDL_CloseGamepad(removed);
   controllers_.erase(controllers_.begin() + static_cast<ptrdiff_t>(*idx));
 
@@ -654,7 +657,7 @@ void SDLInputDriver::OnControllerDeviceRemovedLocked(const SDL_Event& event) {
   for (size_t i = 0; i < controllers_.size(); i++) {
     SDL_SetGamepadPlayerIndex(controllers_[i].sdl, static_cast<int>(i));
   }
-  REXLOG_INFO("SDL OnControllerDeviceRemoved: {} device(s) remain.", controllers_.size());
+  REXLOG_DEBUG(input, "SDL OnControllerDeviceRemoved: {} device(s) remain.", controllers_.size());
 }
 
 void SDLInputDriver::OnControllerDeviceAxisMotionLocked(const SDL_Event& event) {
@@ -737,7 +740,7 @@ void SDLInputDriver::OnControllerDeviceButtonChangedLocked(const SDL_Event& even
   // Lookup the XInput button code.
   if (event.gbutton.button >= xbutton_lookup.size()) {
     // A newer SDL Version may have added new buttons.
-    REXLOG_INFO("SDL HID: Unknown button was pressed: {}.", event.gbutton.button);
+    REXLOG_DEBUG(input, "SDL HID: Unknown button was pressed: {}.", event.gbutton.button);
     return;
   }
   auto xbutton = xbutton_lookup.at(event.gbutton.button);
@@ -786,7 +789,7 @@ DeviceId SDLInputDriver::AllocateDeviceId() {
 }
 
 bool SDLInputDriver::TestSDLVersion() const {
-  REXLOG_DEBUG("SDL: Using version {}.{}.{}", SDL_MAJOR_VERSION, SDL_MINOR_VERSION,
+  REXLOG_DEBUG(input, "SDL: Using version {}.{}.{}", SDL_MAJOR_VERSION, SDL_MINOR_VERSION,
                SDL_MICRO_VERSION);
   return true;
 }

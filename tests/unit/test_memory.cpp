@@ -16,10 +16,7 @@ namespace rex::testing {
 
 rex::memory::Memory& GetTestMemory() {
   static rex::memory::Memory memory;
-  static bool initialized = [] {
-    rex::InitLogging();
-    return memory.Initialize();
-  }();
+  static bool initialized = memory.Initialize();
   REQUIRE(initialized);
   return memory;
 }

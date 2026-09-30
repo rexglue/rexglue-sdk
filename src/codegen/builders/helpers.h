@@ -18,8 +18,6 @@
 #include <rex/codegen/function_scanner.h>
 #include <rex/logging.h>
 
-#include "../codegen_logging.h"
-
 #include <dis-asm.h>
 #include <ppc-inst.h>
 
@@ -388,7 +386,8 @@ inline bool isMMIOUpperBits(uint32_t imm) {
 inline void emitBranchWithBoundsCheck(BuilderContext& ctx, uint32_t target,
                                       std::string_view condition, std::string_view instr_name) {
   if (target < ctx.fn.base() || target >= ctx.fn.end()) {
-    REXCODEGEN_WARN("{} at {:X} branches outside function to {:X}", instr_name, ctx.base, target);
+    REXLOG_WARN(codegen, "{} at {:X} branches outside function to {:X}", instr_name, ctx.base,
+                target);
     ctx.println("\tif ({}) {{ /* branch to 0x{:X} outside function */ return; }}", condition,
                 target);
   } else {

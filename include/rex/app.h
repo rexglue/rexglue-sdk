@@ -20,7 +20,6 @@
 #include <rex/macros.h>
 #include <rex/api.h>
 #include <rex/cli_arg_list.h>
-#include <rex/logging/types.h>
 #include <rex/platform/process.h>
 #include <rex/result.h>
 #include <rex/types.h>
@@ -37,8 +36,9 @@ class REX_API App : public NonCopyable {
 
   /**
    * Configures and initializes the app. Calls OnConfigure, applies the command line, the
-   * single instance lock and the config file, loads and connects the modules, starts logging,
-   * calls OnInit, then initializes the modules.
+   * single instance lock and the config file, loads and connects the modules, calls OnInit,
+   * then initializes the modules. Turns on the log file before OnConfigure and names it after
+   * the executable when OnConfigure leaves the name and folder empty.
    *
    * @param args The process command line.
    * @return Ok when every module is initialized. On an error the app is left for Shutdown to
@@ -51,7 +51,7 @@ class REX_API App : public NonCopyable {
 
   /**
    * Shuts the app down. Calls Stop and OnShutdown, releases what the app created after Init,
-   * shuts down and unloads the modules, stops logging, and starts a new process when
+   * shuts down and unloads the modules, and starts a new process when
    * rex::RequestRestart was called. Safe to call after any failed step.
    *
    * @return The exit code for the process. The code passed to rex::RequestShutdown when there
@@ -80,15 +80,6 @@ class REX_API App : public NonCopyable {
    * @return The configuration Init reads. Changes after Init have no effect.
    */
   Config& config();
-
-  /**
-   * Returns the logging setup. Values set in OnConfigure are kept. Init fills the levels, the
-   * log file and the flush interval from the log cvars, and fills an empty app name and log
-   * directory from the executable.
-   *
-   * @return The logging setup Init applies.
-   */
-  LogConfig& log();
 
   /**
    * Reports an error from a lifecycle step. The base class logs it. TitleApp also shows it in a
@@ -161,16 +152,12 @@ class REX_API App : public NonCopyable {
  private:
   enum class Stage : u8 { kNone, kConfigured, kConnected, kInitialized, kShutdown };
 
-  void StartLogging();
-
   CLIArgList args_;
   Config config_;
-  LogConfig log_;
   API* api_ = nullptr;
   std::optional<platform::InstanceLock> lock_;
   Stage stage_ = Stage::kNone;
   bool failed_ = false;
-  bool logging_ = false;
   bool timer_resolution_ = false;
   std::optional<i32> run_code_;
   i32 final_code_ = 0;

@@ -1,5 +1,5 @@
 /**
- * @file        rex/ui/console/view.h
+ * @file        ui/console/view.h
  * @brief       ImGui drawing of a console model
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>

@@ -47,21 +47,18 @@ bool SDLWindowedAppContext::Initialize(const UIConfig& config) {
     SDL_SetHint(SDL_HINT_VIDEO_DRIVER, requested_driver.c_str());
   }
   if (!SDL_InitSubSystem(SDL_INIT_VIDEO)) {
-    REXLOG_ERROR("SDL_InitSubSystem(SDL_INIT_VIDEO) failed: {}", SDL_GetError());
-    return false;
+    REX_FAIL(ui, false, "SDL_InitSubSystem(SDL_INIT_VIDEO) failed: {}", SDL_GetError());
   }
   const char* video_driver_in_use = SDL_GetCurrentVideoDriver();
-  REXLOG_INFO("SDL video driver: {}", video_driver_in_use ? video_driver_in_use : "unknown");
+  REXLOG_INFO(ui, "SDL video driver: {}", video_driver_in_use ? video_driver_in_use : "unknown");
   uint32_t first = SDL_RegisterEvents(2);
   if (first == 0) {
-    REXLOG_ERROR("SDL_RegisterEvents failed: {}", SDL_GetError());
-    return false;
+    REX_FAIL(ui, false, "SDL_RegisterEvents failed: {}", SDL_GetError());
   }
   wakeup_event_type_ = first;
   paint_event_type_ = first + 1;
   if (!SDL_AddEventWatch(WatchEvent, this)) {
-    REXLOG_ERROR("SDL_AddEventWatch failed: {}", SDL_GetError());
-    return false;
+    REX_FAIL(ui, false, "SDL_AddEventWatch failed: {}", SDL_GetError());
   }
   event_watch_registered_ = true;
   return true;
@@ -84,8 +81,7 @@ int SDLWindowedAppContext::RunMainMessageLoop() {
   while (!HasQuitFromUIThread()) {
     SDL_Event event;
     if (!SDL_WaitEvent(&event)) {
-      REXLOG_ERROR("SDL_WaitEvent failed: {}", SDL_GetError());
-      return EXIT_FAILURE;
+      REX_FAIL(ui, EXIT_FAILURE, "SDL_WaitEvent failed: {}", SDL_GetError());
     }
     ProcessEvent(event);
   }

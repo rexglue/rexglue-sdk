@@ -19,14 +19,14 @@ bool D3D12SubmissionTracker::Initialize(ID3D12Device* device, ID3D12CommandQueue
   Shutdown();
   fence_completion_event_ = CreateEvent(nullptr, FALSE, FALSE, nullptr);
   if (!fence_completion_event_) {
-    REXLOG_ERROR("D3D12SubmissionTracker: Failed to create the fence completion event");
+    REXLOG_ERROR(ui, "D3D12SubmissionTracker: Failed to create the fence completion event");
     Shutdown();
     return false;
   }
   // Continue where the tracker was left at the last shutdown.
   if (FAILED(device->CreateFence(submission_current_ - 1, D3D12_FENCE_FLAG_NONE,
                                  IID_PPV_ARGS(&fence_)))) {
-    REXLOG_ERROR("D3D12SubmissionTracker: Failed to create the fence");
+    REXLOG_ERROR(ui, "D3D12SubmissionTracker: Failed to create the fence");
     Shutdown();
     return false;
   }

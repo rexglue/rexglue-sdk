@@ -52,7 +52,7 @@ struct BackendConfig {
 };
 
 /**
- * A graphics backend. Served as "rex.graphics.backend" version 1 by graphics modules.
+ * A graphics backend, served by graphics modules.
  */
 class IGraphicsBackend {
  public:

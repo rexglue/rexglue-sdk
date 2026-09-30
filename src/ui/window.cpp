@@ -495,6 +495,7 @@ void Window::OnSurfaceChanged(bool new_surface_potentially_exists) {
   } else if (phase_ == Phase::kOpen) {
     // Usually a session whose native surface extension the driver lacks.
     REXLOG_ERROR(
+        ui,
         "No presentable surface for this window. The graphics provider supports surface types "
         "{:#x}. Set the video_driver cvar to force a different session type.",
         supported_types);

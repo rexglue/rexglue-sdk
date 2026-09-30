@@ -97,7 +97,7 @@ XThread::~XThread() {
 
   if (thread_) {
     // TODO(benvanik): platform kill
-    REXSYS_ERROR("Thread disposed without exiting");
+    REXLOG_ERROR(system, "Thread disposed without exiting");
   }
 }
 
@@ -321,7 +321,7 @@ void XThread::FreeStack() {
 X_STATUS XThread::Create() {
   // Thread kernel object.
   if (!CreateNative<X_KTHREAD>()) {
-    REXSYS_WARN("Unable to allocate thread object");
+    REXLOG_WARN(system, "Unable to allocate thread object");
     return X_STATUS_NO_MEMORY;
   }
 
@@ -359,7 +359,7 @@ X_STATUS XThread::Create() {
   tls_static_address_ = memory()->SystemHeapAlloc(tls_total_size_);
   tls_dynamic_address_ = tls_static_address_ + tls_extended_size;
   if (!tls_static_address_) {
-    REXSYS_WARN("Unable to allocate thread local storage block");
+    REXLOG_WARN(system, "Unable to allocate thread local storage block");
     return X_STATUS_NO_MEMORY;
   }
 
@@ -388,7 +388,7 @@ X_STATUS XThread::Create() {
   // structure.
   pcr_address_ = memory()->SystemHeapAlloc(0x2D8);
   if (!pcr_address_) {
-    REXSYS_WARN("Unable to allocate thread state block");
+    REXLOG_WARN(system, "Unable to allocate thread state block");
     return X_STATUS_NO_MEMORY;
   }
 
@@ -396,8 +396,8 @@ X_STATUS XThread::Create() {
   thread_state_ =
       std::make_unique<runtime::ThreadState>(thread_id_, stack_base_, pcr_address_, memory());
 
-  REXSYS_NOISY_DEBUG("XThread{:08X} ({:X}) Stack: {:08X}-{:08X}", handle(), thread_id_,
-                     stack_limit_, stack_base_);
+  REXLOG_DEV(system, "XThread{:08X} ({:X}) Stack: {:08X}-{:08X}", handle(), thread_id_,
+             stack_limit_, stack_base_);
 
   uint8_t cpu_index = GetFakeCpuNumber(static_cast<uint8_t>(creation_params_.creation_flags >> 24));
 
@@ -452,8 +452,7 @@ X_STATUS XThread::Create() {
 
   if (!thread_) {
     // TODO(benvanik): translate error?
-    REXSYS_ERROR("CreateThread failed");
-    return X_STATUS_NO_MEMORY;
+    REX_FAIL(system, X_STATUS_NO_MEMORY, "CreateThread failed");
   }
 
   // Set the thread name based on host ID (for easier debugging).
@@ -571,8 +570,8 @@ X_STATUS XThread::Terminate(int exit_code) {
 }
 
 void XThread::Execute() {
-  REXSYS_NOISY_DEBUG("Execute thid {} (handle={:08X}, '{}', native={:08X})", thread_id_, handle(),
-                     thread_name_, thread_->system_id());
+  REXLOG_DEV(system, "Execute thid {} (handle={:08X}, '{}', native={:08X})", thread_id_, handle(),
+             thread_name_, thread_->system_id());
 
   // Let the kernel know we are starting.
   kernel_state_->OnThreadExecute(this);
@@ -605,7 +604,7 @@ void XThread::Execute() {
   // dispatcher maintains a lookup table to retrieve the host function pointer.
   auto* runtime = Runtime::instance();
   if (!runtime || !runtime->function_dispatcher()) {
-    REXSYS_ERROR("XThread::Execute - Runtime not initialized");
+    REXLOG_ERROR(system, "XThread::Execute - Runtime not initialized");
     return;
   }
 
@@ -613,7 +612,7 @@ void XThread::Execute() {
   auto* memory = runtime->memory();
   PPCFunc* func = dispatcher->GetFunction(address);
   if (!func) {
-    REXSYS_ERROR("XThread::Execute - No function registered at {:08X}", address);
+    REXLOG_ERROR(system, "XThread::Execute - No function registered at {:08X}", address);
     return;
   }
 
@@ -646,7 +645,7 @@ void XThread::Execute() {
   main_fiber_ = rex::platform::Fiber::ConvertCurrentThread();
 
   // Execute the function
-  REXSYS_NOISY_DEBUG("XThread::Execute - Calling function at {:08X}", address);
+  REXLOG_DEV(system, "XThread::Execute - Calling function at {:08X}", address);
   func(*ctx, base);
 
   exit_code = static_cast<int>(ctx->r3.u32);
@@ -692,7 +691,7 @@ void XThread::EnqueueApc(uint32_t normal_routine, uint32_t normal_context, uint3
                          uint32_t arg2) {
   uint32_t apc_ptr = memory()->SystemHeapAlloc(XAPC::kSize);
   if (!apc_ptr) {
-    REXSYS_WARN("EnqueueApc: allocation failed (thid={}, normal={:08X})", thread_id_,
+    REXLOG_WARN(system, "EnqueueApc: allocation failed (thid={}, normal={:08X})", thread_id_,
                 normal_routine);
     return;
   }
@@ -708,10 +707,10 @@ void XThread::EnqueueApc(uint32_t normal_routine, uint32_t normal_context, uint3
 
   if (!kernel::xboxkrnl::xeKeInsertQueueApc(apc, arg1, arg2, 0, queue_ctx)) {
     memory()->SystemHeapFree(apc_ptr);
-    REXSYS_ERROR(
-        "EnqueueApc: queue rejected (thid={}, normal={:08X}, ctx={:08X}, arg1={:08X}, "
-        "arg2={:08X})",
-        thread_id_, normal_routine, normal_context, arg1, arg2);
+    REXLOG_ERROR(system,
+                 "EnqueueApc: queue rejected (thid={}, normal={:08X}, ctx={:08X}, arg1={:08X}, "
+                 "arg2={:08X})",
+                 thread_id_, normal_routine, normal_context, arg1, arg2);
     return;
   }
   // Match Edge/Canary behavior: callback is only a wakeup hint.
@@ -752,7 +751,8 @@ void XThread::DeliverAPCs() {
         dispatcher->ExecuteTrap(thread_state_.get(), apc->kernel_routine, kernel_args,
                                 rex::countof(kernel_args));
       } else {
-        REXSYS_ERROR("DeliverAPCs: kernel_routine {:08X} not found", uint32_t(apc->kernel_routine));
+        REXLOG_ERROR(system, "DeliverAPCs: kernel_routine {:08X} not found",
+                     uint32_t(apc->kernel_routine));
       }
     } else {
       mem->SystemHeapFree(apc_ptr);
@@ -770,12 +770,12 @@ void XThread::DeliverAPCs() {
         dispatcher->ExecuteTrap(thread_state_.get(), normal_routine, normal_args,
                                 rex::countof(normal_args));
       } else {
-        REXSYS_ERROR("DeliverAPCs: normal_routine {:08X} not found", normal_routine);
+        REXLOG_ERROR(system, "DeliverAPCs: normal_routine {:08X} not found", normal_routine);
       }
     }
 
-    REXSYS_DEBUG("Completed delivery of APC to {:08X} ({:08X}, {:08X}, {:08X})", normal_routine,
-                 normal_context, arg1, arg2);
+    REXLOG_DEBUG(system, "Completed delivery of APC to {:08X} ({:08X}, {:08X}, {:08X})",
+                 normal_routine, normal_context, arg1, arg2);
 
     if (needs_freeing) {
       mem->SystemHeapFree(apc_ptr);
@@ -817,7 +817,7 @@ void XThread::RundownAPCs() {
           dispatcher->Execute(thread_state_.get(), apc->rundown_routine, rundown_args,
                               rex::countof(rundown_args));
         } else {
-          REXSYS_WARN("RundownAPCs: rundown_routine {:08X} not found",
+          REXLOG_WARN(system, "RundownAPCs: rundown_routine {:08X} not found",
                       uint32_t(apc->rundown_routine));
         }
       }
@@ -901,7 +901,7 @@ void XThread::SetActiveCpu(uint8_t cpu_index) {
       thread_->set_affinity_mask(uint64_t(1) << cpu_index);
     }
   } else {
-    REXSYS_WARN("Too few processor cores - scheduling will be wonky");
+    REXLOG_WARN(system, "Too few processor cores - scheduling will be wonky");
   }
 }
 
@@ -1302,8 +1302,8 @@ XHostThread::XHostThread(KernelState* kernel_state, uint32_t stack_size, uint32_
 }
 
 void XHostThread::Execute() {
-  REXSYS_DEBUG("XThread::Execute thid {} (handle={:08X}, '{}', native={:08X}, <host>)", thread_id_,
-               handle(), thread_name_, thread_->system_id());
+  REXLOG_DEBUG(system, "XThread::Execute thid {} (handle={:08X}, '{}', native={:08X}, <host>)",
+               thread_id_, handle(), thread_name_, thread_->system_id());
 
   // Let the kernel know we are starting.
   kernel_state_->OnThreadExecute(this);

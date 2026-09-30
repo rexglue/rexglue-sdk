@@ -45,7 +45,7 @@ IncludeCategories:
     Priority: 3
     SortPriority: 3
   # 5. Third-party headers
-  - Regex: '^<(fmt|spdlog|SDL|imgui|toml|catch2|CLI|glslang|spirv|renderdoc|simde|date|utfcpp|aes|mspack|xxhash|disruptorplus)/'
+  - Regex: '^<(fmt|SDL|imgui|toml|catch2|CLI|glslang|spirv|renderdoc|simde|date|utfcpp|aes|mspack|xxhash|disruptorplus)/'
     Priority: 4
     SortPriority: 4
   # 6. Project headers

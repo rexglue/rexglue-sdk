@@ -130,7 +130,10 @@ u32 RtlCompareStringN_entry(mapped_string string_1, u32 string_1_len, mapped_str
 
 // https://msdn.microsoft.com/en-us/library/ff561918
 void RtlInitAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> destination, mapped_string source) {
-  REXKRNL_IMPORT_TRACE("RtlInitAnsiString", "str={}", source ? source.value() : "(null)");
+  REXLOG_TRACE(kernel,
+               "RtlInitAnsiString "
+               "str={}",
+               source ? source.value() : "(null)");
   if (source) {
     uint16_t length = (uint16_t)strlen(source);
     destination->length = length;
@@ -348,7 +351,10 @@ void xeRtlInitializeCriticalSection(X_RTL_CRITICAL_SECTION* cs, uint32_t cs_ptr)
 }
 
 void RtlInitializeCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
-  REXKRNL_IMPORT_TRACE("RtlInitializeCriticalSection", "cs={:#x}", cs.guest_address());
+  REXLOG_TRACE(kernel,
+               "RtlInitializeCriticalSection "
+               "cs={:#x}",
+               cs.guest_address());
   xeRtlInitializeCriticalSection(cs, cs.guest_address());
 }
 
@@ -556,17 +562,17 @@ u32 RtlComputeCrc32_entry(u32 seed, mapped_void buffer, u32 length) {
 
 void RtlCaptureContext_entry() {
   // TODO(tomc): do we even need this?
-  REXKRNL_WARN("[STUB] RtlCaptureContext called - not implemented");
+  REXLOG_WARN(kernel, "STUB RtlCaptureContext called - not implemented");
 }
 
 void RtlUnwind_entry() {
   // TODO(tomc): do we even need this?
-  REXKRNL_WARN("[STUB] RtlUnwind called - not implemented");
+  REXLOG_WARN(kernel, "STUB RtlUnwind called - not implemented");
 }
 
 void __C_specific_handler_entry() {
   // TODO(tomc): do we even need this?
-  REXKRNL_WARN("[STUB] __C_specific_handler called - not implemented");
+  REXLOG_WARN(kernel, "STUB __C_specific_handler called - not implemented");
 }
 
 REX_EXPORT_STUB(__imp__RtlAnsiStringToUnicodeString);

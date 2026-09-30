@@ -77,8 +77,7 @@ std::optional<ManifestConfig> ManifestConfig::Load(const std::filesystem::path& 
   try {
     tbl = toml::parse_file(path.string());
   } catch (const toml::parse_error& err) {
-    REXLOG_ERROR("Failed to parse manifest {}: {}", path.string(), err.what());
-    return std::nullopt;
+    REX_FAIL(codegen, std::nullopt, "Failed to parse manifest {}: {}", path.string(), err.what());
   }
 
   ManifestConfig manifest;
@@ -87,20 +86,17 @@ std::optional<ManifestConfig> ManifestConfig::Load(const std::filesystem::path& 
 
   auto* project = tbl["project"].as_table();
   if (!project) {
-    REXLOG_ERROR("Manifest missing [project] section: {}", path.string());
-    return std::nullopt;
+    REX_FAIL(codegen, std::nullopt, "Manifest missing [project] section: {}", path.string());
   }
   manifest.projectName = (*project)["name"].value_or<std::string>("");
   if (manifest.projectName.empty()) {
-    REXLOG_ERROR("Manifest missing [project].name: {}", path.string());
-    return std::nullopt;
+    REX_FAIL(codegen, std::nullopt, "Manifest missing [project].name: {}", path.string());
   }
   if (!IsValidProjectName(manifest.projectName)) {
-    REXLOG_ERROR(
-        "Manifest [project].name '{}' is not a valid identifier "
-        "(letters, digits, underscore; must not start with a digit): {}",
-        manifest.projectName, path.string());
-    return std::nullopt;
+    REX_FAIL(codegen, std::nullopt,
+             "Manifest [project].name '{}' is not a valid identifier "
+             "(letters, digits, underscore; must not start with a digit): {}",
+             manifest.projectName, path.string());
   }
   if (auto stamp = (*project)["sdk_version"].value<std::string>(); stamp && !stamp->empty()) {
     manifest.sdkVersion = *stamp;
@@ -111,8 +107,7 @@ std::optional<ManifestConfig> ManifestConfig::Load(const std::filesystem::path& 
 
   auto* entrypoint = tbl["entrypoint"].as_table();
   if (!entrypoint) {
-    REXLOG_ERROR("Manifest missing [entrypoint] section: {}", path.string());
-    return std::nullopt;
+    REX_FAIL(codegen, std::nullopt, "Manifest missing [entrypoint] section: {}", path.string());
   }
   if (!LoadBinaryConfig(*entrypoint, manifest.manifestDir, manifest.projectName,
                         manifest.entrypoint)) {
@@ -124,8 +119,7 @@ std::optional<ManifestConfig> ManifestConfig::Load(const std::filesystem::path& 
     for (const auto& mod : *modules) {
       auto* modTbl = mod.as_table();
       if (!modTbl) {
-        REXLOG_ERROR("Manifest [[modules]] entry #{} is not a table", index);
-        return std::nullopt;
+        REX_FAIL(codegen, std::nullopt, "Manifest [[modules]] entry #{} is not a table", index);
       }
       BinaryConfig binary;
       if (!LoadBinaryConfig(*modTbl, manifest.manifestDir, manifest.projectName, binary)) {
@@ -133,15 +127,14 @@ std::optional<ManifestConfig> ManifestConfig::Load(const std::filesystem::path& 
       }
       auto guest_path = (*modTbl)["guest_path"].value_or<std::string>("");
       if (guest_path.empty()) {
-        REXLOG_ERROR("Manifest [[modules]] entry #{} missing guest_path", index);
-        return std::nullopt;
+        REX_FAIL(codegen, std::nullopt, "Manifest [[modules]] entry #{} missing guest_path", index);
       }
       binary.guestPath = CanonicalizeModuleGuestPath(guest_path, manifest.projectName);
       for (const auto& existing : manifest.modules) {
         if (existing.guestPath == binary.guestPath) {
-          REXLOG_ERROR("Manifest [[modules]] duplicate guest_path '{}' (entry #{})",
-                       binary.guestPath, index);
-          return std::nullopt;
+          REX_FAIL(codegen, std::nullopt,
+                   "Manifest [[modules]] duplicate guest_path '{}' (entry #{})", binary.guestPath,
+                   index);
         }
       }
       manifest.modules.push_back(std::move(binary));
@@ -193,8 +186,7 @@ bool ManifestConfig::WriteSdkVersionStamp(const std::filesystem::path& path,
                                           std::string_view version) {
   std::ifstream in(path);
   if (!in) {
-    REXLOG_ERROR("Failed to open manifest for stamping: {}", path.string());
-    return false;
+    REX_FAIL(codegen, false, "Failed to open manifest for stamping: {}", path.string());
   }
   std::vector<std::string> lines;
   std::string buf;
@@ -243,8 +235,7 @@ bool ManifestConfig::WriteSdkVersionStamp(const std::filesystem::path& path,
   auto written = rex::platform::WriteWholeFile(
       path, std::span(reinterpret_cast<const u8*>(content.data()), content.size()));
   if (!written) {
-    REXLOG_ERROR("Failed to write the manifest: {}", written.error().message);
-    return false;
+    REX_FAIL(codegen, false, "Failed to write the manifest: {}", written.error().message);
   }
   return true;
 }

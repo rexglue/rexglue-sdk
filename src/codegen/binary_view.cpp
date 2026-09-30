@@ -13,7 +13,6 @@
 #include <rex/codegen/binary_view.h>
 #include <rex/logging.h>
 
-#include "codegen_logging.h"
 #include <rex/system/binary_types.h>
 #include <rex/system/module.h>
 
@@ -46,20 +45,21 @@ BinaryView BinaryView::fromModule(const runtime::Module& module) {
   }
   if (minImportAddr != std::numeric_limits<uint32_t>::max()) {
     view.importThunkTableStart_ = minImportAddr;
-    REXCODEGEN_DEBUG("BinaryView: import thunk table starts at 0x{:08X}", minImportAddr);
+    REXLOG_DEBUG(codegen, "BinaryView: import thunk table starts at 0x{:08X}", minImportAddr);
 
     // Find section containing the import thunk table to determine end of import/export range
     for (const auto& section : module.binary_sections()) {
       uint32_t sectionEnd = section.virtual_address + section.virtual_size;
       if (minImportAddr >= section.virtual_address && minImportAddr < sectionEnd) {
         view.importExportRangeEnd_ = sectionEnd;
-        REXCODEGEN_DEBUG("BinaryView: import/export range ends at 0x{:08X} (end of {} section)",
-                         view.importExportRangeEnd_, section.name);
+        REXLOG_DEBUG(codegen,
+                     "BinaryView: import/export range ends at 0x{:08X} (end of {} section)",
+                     view.importExportRangeEnd_, section.name);
         break;
       }
     }
   }
-  REXCODEGEN_DEBUG("BinaryView: copied {} import symbols", view.importSymbols_.size());
+  REXLOG_DEBUG(codegen, "BinaryView: copied {} import symbols", view.importSymbols_.size());
 
   // Copy section data
   const auto& binarySections = module.binary_sections();
@@ -71,13 +71,13 @@ BinaryView BinaryView::fromModule(const runtime::Module& module) {
   for (const auto& section : binarySections) {
     // Skip sections not mapped into memory
     if (!section.host_data || section.virtual_size == 0) {
-      REXCODEGEN_DEBUG("BinaryView: skipping unmapped section '{}'", section.name);
+      REXLOG_DEBUG(codegen, "BinaryView: skipping unmapped section '{}'", section.name);
       continue;
     }
     // Skip sections that extend beyond the loaded image
     if (section.virtual_address + section.virtual_size > imageEnd) {
-      REXCODEGEN_DEBUG("BinaryView: skipping section '{}' (extends past image end 0x{:08X})",
-                       section.name, imageEnd);
+      REXLOG_DEBUG(codegen, "BinaryView: skipping section '{}' (extends past image end 0x{:08X})",
+                   section.name, imageEnd);
       continue;
     }
 
@@ -94,12 +94,12 @@ BinaryView BinaryView::fromModule(const runtime::Module& module) {
                                          .data = view.sectionData_.back().data(),
                                          .executable = section.executable});
 
-    REXCODEGEN_DEBUG("BinaryView: section '{}' at 0x{:08X} size 0x{:X} exec={}", section.name,
-                     section.virtual_address, section.virtual_size, section.executable);
+    REXLOG_DEBUG(codegen, "BinaryView: section '{}' at 0x{:08X} size 0x{:X} exec={}", section.name,
+                 section.virtual_address, section.virtual_size, section.executable);
   }
 
-  REXCODEGEN_DEBUG("BinaryView: loaded {} sections, base=0x{:08X}, size=0x{:X}",
-                   view.sections_.size(), view.baseAddress_, view.imageSize_);
+  REXLOG_DEBUG(codegen, "BinaryView: loaded {} sections, base=0x{:08X}, size=0x{:X}",
+               view.sections_.size(), view.baseAddress_, view.imageSize_);
 
   return view;
 }

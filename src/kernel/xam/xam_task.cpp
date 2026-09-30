@@ -62,11 +62,10 @@ u32 XamTaskSchedule_entry(mapped_void callback, ppc_ptr_t<XTASK_MESSAGE> message
 
   if (XFAILED(result)) {
     // Failed!
-    REXKRNL_ERROR("XAM task creation failed: {:08X}", result);
-    return result;
+    REX_FAIL(kernel, result, "XAM task creation failed: {:08X}", result);
   }
 
-  REXKRNL_DEBUG("XAM task ({:08X}) scheduled asynchronously", callback.guest_address());
+  REXLOG_DEBUG(kernel, "XAM task ({:08X}) scheduled asynchronously", callback.guest_address());
 
   return X_STATUS_SUCCESS;
 }
@@ -76,7 +75,7 @@ u32 XamTaskShouldExit_entry(u32 r3) {
 }
 
 u32 XamTaskCloseHandle_entry(u32 handle) {
-  REXKRNL_DEBUG("XamTaskCloseHandle({:#x}) - stub", (uint32_t)handle);
+  REXLOG_DEBUG(kernel, "XamTaskCloseHandle({:#x}) - stub", (uint32_t)handle);
   return X_STATUS_SUCCESS;
 }
 

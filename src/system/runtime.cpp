@@ -81,13 +81,13 @@ std::optional<EmbeddedMetadataAsset> Runtime::FindEmbeddedMetadata(
 
 X_STATUS Runtime::Setup(RuntimeConfig config) {
   if (instance_ != nullptr) {
-    REXSYS_ERROR("Runtime::Setup() called but global instance already exists");
-    return X_STATUS_UNSUCCESSFUL;
+    REX_FAIL(system, X_STATUS_UNSUCCESSFUL,
+             "Runtime::Setup() called but global instance already exists");
   }
   instance_ = this;
 
   auto fail = [this](X_STATUS status, std::string_view reason) {
-    REXSYS_ERROR("Runtime::Setup failed: {}", reason);
+    REXLOG_ERROR(system, "Runtime::Setup failed: {}", reason);
     Shutdown();
     return status;
   };
@@ -130,11 +130,11 @@ X_STATUS Runtime::Setup(RuntimeConfig config) {
     if (input_system_) {
       X_STATUS input_status = input_system_->Setup();
       if (XFAILED(input_status)) {
-        REXSYS_WARN("Failed to initialize input system (status {:08X}) - input disabled",
+        REXLOG_WARN(system, "Failed to initialize input system (status {:08X}) - input disabled",
                     input_status);
         input_system_.reset();
       } else {
-        REXSYS_DEBUG("Input system initialized");
+        REXLOG_DEBUG(system, "Input system initialized");
       }
     }
   }
@@ -150,17 +150,17 @@ X_STATUS Runtime::Setup(RuntimeConfig config) {
     if (audio_system_) {
       X_STATUS audio_status = audio_system_->Setup(kernel_state_.get());
       if (XFAILED(audio_status)) {
-        REXSYS_WARN("Failed to initialize audio system (status {:08X}) - audio disabled",
+        REXLOG_WARN(system, "Failed to initialize audio system (status {:08X}) - audio disabled",
                     audio_status);
         audio_system_.reset();
       } else {
-        REXSYS_DEBUG("Audio system initialized");
+        REXLOG_DEBUG(system, "Audio system initialized");
       }
     }
   }
 
   if (game_data_root_.empty()) {
-    REXSYS_WARN("Runtime::Setup: no game_data_root, the standard mounts are skipped");
+    REXLOG_WARN(system, "Runtime::Setup: no game_data_root, the standard mounts are skipped");
   } else {
     PathsConfig paths = config_.paths;
     paths.game_data_root = game_data_root_;
@@ -172,7 +172,7 @@ X_STATUS Runtime::Setup(RuntimeConfig config) {
 
   // Skip GPU initialization in tool mode (for analysis tools like codegen)
   if (tool_mode_) {
-    REXSYS_DEBUG("Runtime initialized in tool mode (no GPU)");
+    REXLOG_DEBUG(system, "Runtime initialized in tool mode (no GPU)");
     setup_complete_ = true;
     return X_STATUS_SUCCESS;
   }
@@ -186,12 +186,12 @@ X_STATUS Runtime::Setup(RuntimeConfig config) {
     if (XFAILED(gpu_status)) {
       return fail(gpu_status, "GPU setup failed");
     }
-    REXSYS_DEBUG("GPU system initialized (presentation={})", with_presentation);
+    REXLOG_DEBUG(system, "GPU system initialized (presentation={})", with_presentation);
   } else {
-    REXSYS_DEBUG("Runtime initialized without graphics system (native rendering mode)");
+    REXLOG_DEBUG(system, "Runtime initialized without graphics system (native rendering mode)");
   }
 
-  REXSYS_DEBUG("Runtime initialized successfully");
+  REXLOG_DEBUG(system, "Runtime initialized successfully");
   setup_complete_ = true;
   return X_STATUS_SUCCESS;
 }
@@ -207,7 +207,7 @@ X_STATUS Runtime::Setup(const rex::PPCImageInfo& image_info, RuntimeConfig confi
   if (!function_dispatcher_->InitializeFunctionTable(image_info.code_base, image_info.code_size,
                                                      image_info.image_base, image_info.image_size,
                                                      /*is_entrypoint=*/true)) {
-    REXSYS_ERROR("Failed to initialize function table");
+    REXLOG_ERROR(system, "Failed to initialize function table");
     Shutdown();
     return X_STATUS_UNSUCCESSFUL;
   }
@@ -223,7 +223,7 @@ X_STATUS Runtime::Setup(const rex::PPCImageInfo& image_info, RuntimeConfig confi
         continue;
       }
       if (function_dispatcher_->GetFunction(guest)) {
-        REXSYS_WARN("func_mappings: duplicate guest address {:08X}", guest);
+        REXLOG_WARN(system, "func_mappings: duplicate guest address {:08X}", guest);
         ++duplicates;
       }
       if (!function_dispatcher_->SetFunction(guest, host)) {
@@ -232,25 +232,27 @@ X_STATUS Runtime::Setup(const rex::PPCImageInfo& image_info, RuntimeConfig confi
         ++count;
       }
     }
-    REXSYS_DEBUG("Registered {} recompiled functions ({} duplicates, {} rejected)", count,
+    REXLOG_DEBUG(system, "Registered {} recompiled functions ({} duplicates, {} rejected)", count,
                  duplicates, rejected);
     if (rejected > 0) {
-      REXSYS_ERROR("PPCImageInfo registration: {} func_mappings entries rejected", rejected);
+      REXLOG_ERROR(system, "PPCImageInfo registration: {} func_mappings entries rejected",
+                   rejected);
       Shutdown();
       return X_STATUS_UNSUCCESSFUL;
     }
   }
 
-  REXSYS_DEBUG("Runtime setup complete (code: {:08X}-{:08X}, image: {:08X}-{:08X})",
+  REXLOG_DEBUG(system, "Runtime setup complete (code: {:08X}-{:08X}, image: {:08X}-{:08X})",
                image_info.code_base, image_info.code_base + image_info.code_size,
                image_info.image_base, image_info.image_base + image_info.image_size);
 
   const auto& flags = image_info.codegen_flags;
-  REXSYS_DEBUG(
-      "Codegen config: skip_lr={} skip_msr={} ctr={} xer={} cr={} reserved={} "
-      "non_argument={} non_volatile={}",
-      flags.skip_lr, flags.skip_msr, flags.ctr_as_local, flags.xer_as_local, flags.cr_as_local,
-      flags.reserved_as_local, flags.non_argument_as_local, flags.non_volatile_as_local);
+  REXLOG_DEBUG(system,
+               "Codegen config: skip_lr={} skip_msr={} ctr={} xer={} cr={} reserved={} "
+               "non_argument={} non_volatile={}",
+               flags.skip_lr, flags.skip_msr, flags.ctr_as_local, flags.xer_as_local,
+               flags.cr_as_local, flags.reserved_as_local, flags.non_argument_as_local,
+               flags.non_volatile_as_local);
 
   return X_STATUS_SUCCESS;
 }
@@ -293,34 +295,31 @@ uint8_t* Runtime::virtual_membase() const {
 }
 
 X_STATUS Runtime::LoadXEXImage(const std::string_view module_path) {
-  REXSYS_DEBUG("Loading XEX image: {}", std::string(module_path));
+  REXLOG_DEBUG(system, "Loading XEX image: {}", std::string(module_path));
 
   auto module = system::object_ref<system::UserModule>(new system::UserModule(kernel_state_.get()));
   X_STATUS status = module->LoadFromFile(module_path);
   if (XFAILED(status)) {
-    REXSYS_ERROR("Runtime::LoadXEXImage: Failed to load module, status {:08X}", status);
-    return status;
+    REX_FAIL(system, status, "Runtime::LoadXEXImage: Failed to load module, status {:08X}", status);
   }
 
   kernel_state_->SetExecutableModule(module);
-  REXSYS_DEBUG("  XEX image loaded successfully");
+  REXLOG_DEBUG(system, "  XEX image loaded successfully");
   return X_STATUS_SUCCESS;
 }
 
 system::object_ref<system::XThread> Runtime::PrepareModuleLaunch() {
   auto executable = kernel_state_->GetExecutableModule();
   if (!executable) {
-    REXSYS_ERROR("Runtime::PrepareModuleLaunch: No executable module loaded");
-    return nullptr;
+    REX_FAIL(system, nullptr, "Runtime::PrepareModuleLaunch: No executable module loaded");
   }
 
   auto thread = kernel_state_->PrepareModuleLaunch(executable);
   if (!thread) {
-    REXSYS_ERROR("Runtime::PrepareModuleLaunch: Failed to prepare module");
-    return nullptr;
+    REX_FAIL(system, nullptr, "Runtime::PrepareModuleLaunch: Failed to prepare module");
   }
 
-  REXSYS_DEBUG("  Module prepared on thread '{}'", thread->name());
+  REXLOG_DEBUG(system, "  Module prepared on thread '{}'", thread->name());
   return thread;
 }
 
@@ -328,7 +327,7 @@ system::object_ref<system::XThread> Runtime::LaunchModule() {
   auto thread = PrepareModuleLaunch();
   if (thread) {
     thread->Resume();
-    REXSYS_DEBUG("  Module launched on thread '{}'", thread->name());
+    REXLOG_DEBUG(system, "  Module launched on thread '{}'", thread->name());
   }
   return thread;
 }

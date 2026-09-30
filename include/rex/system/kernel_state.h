@@ -47,24 +47,6 @@
 #include <rex/types.h>
 
 //=============================================================================
-// Kernel Import Trace Helpers
-//=============================================================================
-// Use these macros for consistent logging of kernel import function calls.
-// Example usage:
-//   REXKRNL_IMPORT_TRACE("NtCreateFile", "path={} options={:#x}", path, opts);
-//   REXKRNL_IMPORT_RESULT("NtCreateFile", "{:#x}", result);
-//   REXKRNL_IMPORT_FAIL("NtCreateFile", "path='{}' -> {:#x}", path, result);
-
-#define REXKRNL_IMPORT_TRACE(name, fmt, ...) REXKRNL_NOISY_TRACE("[" name "] " fmt, ##__VA_ARGS__)
-
-#define REXKRNL_IMPORT_RESULT(name, fmt, ...) \
-  REXKRNL_NOISY_TRACE("[" name "] -> " fmt, ##__VA_ARGS__)
-
-#define REXKRNL_IMPORT_FAIL(name, fmt, ...) REXKRNL_WARN("[" name "] FAILED: " fmt, ##__VA_ARGS__)
-
-#define REXKRNL_IMPORT_WARN(name, fmt, ...) REXKRNL_NOISY_DEBUG("[" name "] " fmt, ##__VA_ARGS__)
-
-//=============================================================================
 // Kernel State Access Macros
 //=============================================================================
 // Convenience macros for accessing the current thread's kernel state and

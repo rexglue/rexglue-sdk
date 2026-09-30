@@ -52,8 +52,9 @@ u32 XAudioEnableDucker_entry(u32 unk) {
 }
 
 u32 XAudioRegisterRenderDriverClient_entry(mapped_u32 callback_ptr, mapped_u32 driver_ptr) {
-  REXKRNL_DEBUG("XAudioRegisterRenderDriverClient called! callback_ptr={:08X} driver_ptr={:08X}",
-                callback_ptr.guest_address(), driver_ptr.guest_address());
+  REXLOG_DEBUG(kernel,
+               "XAudioRegisterRenderDriverClient called! callback_ptr={:08X} driver_ptr={:08X}",
+               callback_ptr.guest_address(), driver_ptr.guest_address());
   if (!callback_ptr) {
     return X_E_INVALIDARG;
   }
@@ -93,8 +94,8 @@ u32 XAudioSubmitRenderDriverFrame_entry(mapped_void driver_ptr, mapped_void samp
 
   static uint32_t submit_krnl_count = 0;
   if (submit_krnl_count < 10) {
-    REXKRNL_DEBUG("XAudioSubmitRenderDriverFrame: driver={:08X} samples={:08X}",
-                  driver_ptr.guest_address(), samples_ptr.guest_address());
+    REXLOG_DEBUG(kernel, "XAudioSubmitRenderDriverFrame: driver={:08X} samples={:08X}",
+                 driver_ptr.guest_address(), samples_ptr.guest_address());
     submit_krnl_count++;
   }
 

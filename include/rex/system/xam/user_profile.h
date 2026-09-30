@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include <format>
+
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -241,11 +243,17 @@ class UserProfile {
 }  // namespace system
 }  // namespace rex
 
-// fmt formatter for UserProfile::Setting::Type
+/** Formats the enum as its underlying integer. */
 template <>
-struct fmt::formatter<rex::system::xam::UserProfile::Setting::Type> : fmt::formatter<int> {
-  template <typename FormatContext>
-  auto format(rex::system::xam::UserProfile::Setting::Type t, FormatContext& ctx) const {
-    return fmt::formatter<int>::format(static_cast<int>(t), ctx);
+struct std::formatter<rex::system::xam::UserProfile::Setting::Type> : std::formatter<rex::i32> {
+  /**
+   * Formats the value.
+   *
+   * @param value The value.
+   * @param ctx The format context.
+   * @return The output iterator.
+   */
+  auto format(rex::system::xam::UserProfile::Setting::Type value, std::format_context& ctx) const {
+    return std::formatter<rex::i32>::format(static_cast<rex::i32>(value), ctx);
   }
 };

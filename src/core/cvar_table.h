@@ -19,20 +19,17 @@ REXCVAR_BOOL(clock, no_scaling, false, "Disable clock scaling (inverted: false =
 REXCVAR_BOOL(clock, source_raw, false, "Use raw clock source without scaling");
 REXCVAR_TABLE(kClockCvars, no_scaling, source_raw);
 
-REXCVAR_STRING(log, level, "info",
-               "Global log level: trace, debug, info, warn, error, critical, off")
-    .allowed(REXCVAR_ALLOWED("trace", "debug", "info", "warn", "error", "critical", "off"));
-REXCVAR_STRING(log, file, "", "Log file path (empty = auto sequential naming)");
-REXCVAR_BOOL(log, verbose, false, "Enable verbose logging (sets level to trace)").debug_only();
-REXCVAR_BOOL(log, noisy, false, "Enable noisy/high-frequency log macros");
-REXCVAR_INT32(log, flush_interval, 0, "Periodic flush interval in seconds (0 = off)")
+REXCVAR_STRING(log, level, "info", "Default log level")
+    .allowed(REXCVAR_ALLOWED("trace", "dev", "debug", "info", "warn", "error", "critical", "off"));
+REXCVAR_STRING(log, file, "", "Log file path, empty for a numbered file in the logs folder")
+    .lifecycle(rex::cvar::Lifecycle::InitOnly);
+REXCVAR_INT32(log, flush_interval, 1, "Seconds between log flushes, 0 for none")
     .range(0, 60)
     .lifecycle(rex::cvar::Lifecycle::InitOnly);
-REXCVAR_TABLE(kLogCvars, level, file, verbose, noisy, flush_interval);
+REXCVAR_TABLE(kLogCvars, level, file, flush_interval);
 
-REXCVAR_STRING(perf, log_csv, "", "Path to write per-frame CSV log (empty = disabled)");
 REXCVAR_BOOL(perf, profiler, false, "Start the Tracy profiler at startup when the build has it")
     .lifecycle(rex::cvar::Lifecycle::InitOnly);
-REXCVAR_TABLE(kPerfCvars, log_csv, profiler);
+REXCVAR_TABLE(kPerfCvars, profiler);
 
 }  // namespace rex::cvars

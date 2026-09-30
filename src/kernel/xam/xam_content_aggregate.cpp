@@ -126,8 +126,8 @@ u32 XamContentAggregateCreateEnumerator_entry(u64 xuid, u32 device_id, u32 conte
     AddODDContentTest(e, content_type_enum);
   }
 
-  REXKRNL_DEBUG("XamContentAggregateCreateEnumerator: added {} items to enumerator",
-                e->item_count());
+  REXLOG_DEBUG(kernel, "XamContentAggregateCreateEnumerator: added {} items to enumerator",
+               e->item_count());
 
   *handle_out = e->handle();
   return X_ERROR_SUCCESS;

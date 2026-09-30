@@ -55,8 +55,8 @@ struct Harness {
   }
 
   ~Harness() {
-    (void)registry->ResetToDefault("alpha.mode");
-    (void)registry->ResetToDefault("zeta.count");
+    CHECK(registry->ResetToDefault("alpha.mode"));
+    CHECK(registry->ResetToDefault("zeta.count"));
     registry->Unregister(console_test_cvars::kAlphaCvars);
     registry->Unregister(console_test_cvars::kZetaCvars);
   }
@@ -86,7 +86,7 @@ class TempFolder {
     std::error_code ec;
     std::filesystem::remove_all(path_, ec);
   }
-  const std::filesystem::path& path() const { return path_; }
+  const std::filesystem::path& Path() const { return path_; }
 
  private:
   std::filesystem::path path_;
@@ -171,7 +171,7 @@ TEST_CASE_METHOD(Harness, "HelpLine describes a cvar, a command and nothing else
 
 TEST_CASE_METHOD(Harness, "History walks, skips repeats, caps and round trips", "[console]") {
   TempFolder temp;
-  const auto path = temp.path() / "history.txt";
+  const auto path = temp.Path() / "history.txt";
   std::string newest;
   {
     ConsoleModel model(*registry, capture, path);

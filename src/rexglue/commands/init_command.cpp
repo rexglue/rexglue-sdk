@@ -240,7 +240,7 @@ Result<void> InitProject(const InitOptions& opts, const CLIContext& ctx) {
     }
   }
 
-  REXLOG_TRACE("Creating directory structure...");
+  REXLOG_TRACE(rexglue, "Creating directory structure...");
   for (const auto& dir : {projectRoot, projectRoot / "src", projectRoot / "generated"}) {
     fs::create_directories(dir, ec);
     if (ec) {
@@ -249,17 +249,17 @@ Result<void> InitProject(const InitOptions& opts, const CLIContext& ctx) {
     }
   }
 
-  REXLOG_TRACE("Generating project files...");
+  REXLOG_TRACE(rexglue, "Generating project files...");
   for (const auto& r : renders) {
     if (r.policy == RegeneratePolicy::FirstInitOnly && fs::exists(r.out)) {
-      REXLOG_DEBUG("  Skipped {} (preserving user content)",
+      REXLOG_DEBUG(rexglue, "  Skipped {} (preserving user content)",
                    fs::relative(r.out, projectRoot).generic_string());
       continue;
     }
     if (!write_file_atomic(r.out, registry.render(r.template_id, jsonStr))) {
       return Err<void>(ErrorCategory::IO, "Failed to write " + r.out.string());
     }
-    REXLOG_DEBUG("  Created {}", fs::relative(r.out, projectRoot).generic_string());
+    REXLOG_DEBUG(rexglue, "  Created {}", fs::relative(r.out, projectRoot).generic_string());
   }
   return Ok();
 }
@@ -312,7 +312,7 @@ Result<void> InitModule(const InitModuleOptions& opts, const CLIContext& ctx) {
         continue;
       if ((*modTbl)["file_path"].value_or<std::string>("") == xexRel ||
           (*modTbl)["guest_path"].value_or<std::string>("") == guestPath) {
-        REXLOG_TRACE("Manifest already lists this module; nothing to do.");
+        REXLOG_TRACE(rexglue, "Manifest already lists this module; nothing to do.");
         return Ok();
       }
     }
@@ -449,13 +449,13 @@ Result<void> InitAchievements(const InitAchievementsOptions& opts, const CLICont
     }
   }
 
-  REXLOG_INFO("Wrote {} achievements to {}", achievements.size(), outPath.string());
+  REXLOG_INFO(rexglue, "Wrote {} achievements to {}", achievements.size(), outPath.string());
 
   // ---- Icons ---------------------------------------------------------------
   fs::path iconsDir = outDir / "icons";
   fs::create_directories(iconsDir, ec);
   if (ec) {
-    REXLOG_WARN("Could not create icons directory: {}", ec.message());
+    REXLOG_WARN(rexglue, "Could not create icons directory: {}", ec.message());
   } else {
     int icons_written = 0;
     int icons_missing = 0;
@@ -477,7 +477,7 @@ Result<void> InitAchievements(const InitAchievementsOptions& opts, const CLICont
       fs::path icon_path = iconsDir / fmt::format("{}.png", img_id);
       std::ofstream f(icon_path, std::ios::binary);
       if (!f) {
-        REXLOG_WARN("Cannot write icon {}", icon_path.string());
+        REXLOG_WARN(rexglue, "Cannot write icon {}", icon_path.string());
         continue;
       }
       f.write(reinterpret_cast<const char*>(block.buffer),
@@ -487,10 +487,10 @@ Result<void> InitAchievements(const InitAchievementsOptions& opts, const CLICont
     }
 
     if (icons_written > 0) {
-      REXLOG_INFO("Wrote {} icon(s) to {}", icons_written, iconsDir.string());
+      REXLOG_INFO(rexglue, "Wrote {} icon(s) to {}", icons_written, iconsDir.string());
     }
     if (icons_missing > 0) {
-      REXLOG_WARN("{} achievement(s) had no icon in XDBF", icons_missing);
+      REXLOG_WARN(rexglue, "{} achievement(s) had no icon in XDBF", icons_missing);
     }
 
     // Game title icon (not tied to any achievement).
@@ -502,12 +502,12 @@ Result<void> InitAchievements(const InitAchievementsOptions& opts, const CLICont
                 static_cast<std::streamsize>(game_icon.size));
       }
       if (f && f.good()) {
-        REXLOG_INFO("Wrote game icon to {}", game_icon_path.string());
+        REXLOG_INFO(rexglue, "Wrote game icon to {}", game_icon_path.string());
       } else {
-        REXLOG_WARN("Cannot write game icon {}", game_icon_path.string());
+        REXLOG_WARN(rexglue, "Cannot write game icon {}", game_icon_path.string());
       }
     } else {
-      REXLOG_WARN("No game icon found in XDBF");
+      REXLOG_WARN(rexglue, "No game icon found in XDBF");
     }
   }
 

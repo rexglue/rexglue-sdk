@@ -25,7 +25,9 @@
 namespace rex {
 class Runtime;
 struct Config;
-class LogCaptureSink;
+namespace log {
+class CaptureSink;
+}  // namespace log
 }  // namespace rex
 
 namespace rex::cvar {
@@ -58,8 +60,7 @@ class OverlayContext {
    * @param frame_stats Slot holding the frame time source.
    */
   OverlayContext(ImGuiDrawer& drawer, const std::unique_ptr<ImmediateDrawer>& immediate_drawer,
-                 cvar::ICvarRegistry& cvars, log::CaptureSink& log_capture, ConsoleModel& console,
-                 ConsoleHost& console_host, const Config& config,
+                 cvar::ICvarRegistry& cvars, log::CaptureSink& log_capture, const Config& config,
                  const std::unique_ptr<Runtime>& runtime,
                  const DebugOverlayDialog::FrameStatsProvider& frame_stats);
 
@@ -89,7 +90,7 @@ class OverlayContext {
    *
    * @return The capture sink App::Init attached to logging.
    */
-  LogCaptureSink& log_capture() const;
+  log::CaptureSink& log_capture() const;
 
   /**
    * Returns the console model.
@@ -132,8 +133,6 @@ class OverlayContext {
   const std::unique_ptr<ImmediateDrawer>& immediate_drawer_;
   cvar::ICvarRegistry& cvars_;
   log::CaptureSink& log_capture_;
-  ConsoleModel& console_;
-  ConsoleHost& console_host_;
   const Config& config_;
   const std::unique_ptr<Runtime>& runtime_;
   const DebugOverlayDialog::FrameStatsProvider& frame_stats_;

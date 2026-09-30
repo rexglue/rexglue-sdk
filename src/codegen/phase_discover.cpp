@@ -22,7 +22,6 @@
 #include <rex/codegen/vtable_scanner.h>
 #include <rex/logging.h>
 
-#include "codegen_logging.h"
 #include <rex/memory/utils.h>
 
 #include <ppc.h>
@@ -50,7 +49,7 @@ void discoverFunction(CodegenContext& ctx, uint32_t funcAddr,
 
   // Skip if already discovered
   if (!node->canDiscover()) {
-    REXCODEGEN_TRACE("Analyze: function 0x{:08X} already discovered, skipping", funcAddr);
+    REXLOG_TRACE(codegen, "Analyze: function 0x{:08X} already discovered, skipping", funcAddr);
     return;
   }
 
@@ -60,7 +59,7 @@ void discoverFunction(CodegenContext& ctx, uint32_t funcAddr,
     return;
   }
 
-  REXCODEGEN_TRACE("Analyze: discovering function 0x{:08X} ({})", funcAddr, node->name());
+  REXLOG_TRACE(codegen, "Analyze: discovering function 0x{:08X} ({})", funcAddr, node->name());
 
   // Lookup pdataSize for exception handler boundary
   uint32_t pdataSize = 0;
@@ -70,13 +69,14 @@ void discoverFunction(CodegenContext& ctx, uint32_t funcAddr,
   // Don't inherit PDATA sizes for CONFIG functions - they're user hints for entry points
   if (node->authority() == FunctionAuthority::CONFIG) {
     pdataSize = node->size();  // 0 if not specified, which is correct
-    REXCODEGEN_TRACE("Analyze: 0x{:08X} is CONFIG, using declared size={}", funcAddr, pdataSize);
+    REXLOG_TRACE(codegen, "Analyze: 0x{:08X} is CONFIG, using declared size={}", funcAddr,
+                 pdataSize);
   } else {
     // For non-CONFIG functions, use PDATA size if available
     auto pdataIt = ctx.scan.pdataSizes.find(funcAddr);
     if (pdataIt != ctx.scan.pdataSizes.end()) {
       pdataSize = pdataIt->second;
-      REXCODEGEN_TRACE("Analyze: 0x{:08X} using PDATA size={}", funcAddr, pdataSize);
+      REXLOG_TRACE(codegen, "Analyze: 0x{:08X} using PDATA size={}", funcAddr, pdataSize);
     }
   }
 
@@ -89,7 +89,7 @@ void discoverFunction(CodegenContext& ctx, uint32_t funcAddr,
     }
   }
   if (!region) {
-    REXCODEGEN_WARN("Analyze: function 0x{:08X} not in any code region", funcAddr);
+    REXLOG_WARN(codegen, "Analyze: function 0x{:08X} not in any code region", funcAddr);
     return;
   }
 
@@ -98,7 +98,7 @@ void discoverFunction(CodegenContext& ctx, uint32_t funcAddr,
                                &ctx.Config().switchTables);
 
   if (result.blocks.empty()) {
-    REXCODEGEN_WARN("Analyze: no blocks found for function 0x{:08X}", funcAddr);
+    REXLOG_WARN(codegen, "Analyze: no blocks found for function 0x{:08X}", funcAddr);
     return;
   }
 
@@ -190,7 +190,7 @@ void discoverFunction(CodegenContext& ctx, uint32_t funcAddr,
 }
 
 void discoverAllFunctions(CodegenContext& ctx) {
-  REXCODEGEN_TRACE("Analyze: starting iterative discovery...");
+  REXLOG_TRACE(codegen, "Analyze: starting iterative discovery...");
 
   auto& graph = ctx.graph;
   auto& binary = ctx.binary();
@@ -205,8 +205,8 @@ void discoverAllFunctions(CodegenContext& ctx) {
 
     size_t currentFunctionCount = graph.functionCount();
     if (currentFunctionCount == lastFunctionCount && iteration > 1) {
-      REXCODEGEN_DEBUG("Analyze: fixed point at iteration {} ({} functions)", iteration,
-                       currentFunctionCount);
+      REXLOG_DEBUG(codegen, "Analyze: fixed point at iteration {} ({} functions)", iteration,
+                   currentFunctionCount);
       break;
     }
 
@@ -218,7 +218,7 @@ void discoverAllFunctions(CodegenContext& ctx) {
     }
   }
 
-  REXCODEGEN_TRACE("Analyze: {} functions after call graph expansion", graph.functionCount());
+  REXLOG_TRACE(codegen, "Analyze: {} functions after call graph expansion", graph.functionCount());
 
   // VTable scanning
   {
@@ -241,8 +241,8 @@ void discoverAllFunctions(CodegenContext& ctx) {
       }
     }
 
-    REXCODEGEN_TRACE("Analyze: VTable scan found {} vtables, {} new functions", vtables.size(),
-                     newFunctions);
+    REXLOG_TRACE(codegen, "Analyze: VTable scan found {} vtables, {} new functions", vtables.size(),
+                 newFunctions);
 
     // Continue discovery for vtable functions
     if (newFunctions > 0) {
@@ -263,7 +263,7 @@ void discoverAllFunctions(CodegenContext& ctx) {
     }
   }
 
-  REXCODEGEN_TRACE("Analyze: {} total functions after vtable scan", graph.functionCount());
+  REXLOG_TRACE(codegen, "Analyze: {} total functions after vtable scan", graph.functionCount());
 }
 
 //=============================================================================
@@ -272,7 +272,7 @@ void discoverAllFunctions(CodegenContext& ctx) {
 //=============================================================================
 void functionPointerScan(CodegenContext& ctx) {
   if (!ctx.hasDecoded()) {
-    REXCODEGEN_WARN("functionPointerScan: DecodedBinary not initialized, skipping");
+    REXLOG_WARN(codegen, "functionPointerScan: DecodedBinary not initialized, skipping");
     return;
   }
 
@@ -281,7 +281,7 @@ void functionPointerScan(CodegenContext& ctx) {
   const auto& codeRegions = decoded.codeRegions();
 
   if (codeRegions.empty()) {
-    REXCODEGEN_WARN("functionPointerScan: no code regions, skipping");
+    REXLOG_WARN(codegen, "functionPointerScan: no code regions, skipping");
     return;
   }
 
@@ -355,8 +355,8 @@ void functionPointerScan(CodegenContext& ctx) {
         existingFunctions.insert(fullAddr);
         foundCount++;
 
-        REXCODEGEN_TRACE("functionPointerScan: found 0x{:08X} via lis/addi at 0x{:08X}", fullAddr,
-                         addr);
+        REXLOG_TRACE(codegen, "functionPointerScan: found 0x{:08X} via lis/addi at 0x{:08X}",
+                     fullAddr, addr);
       }
 
       // Also check ori rD, rA, IMM (alternative to addi for unsigned)
@@ -388,8 +388,8 @@ void functionPointerScan(CodegenContext& ctx) {
         existingFunctions.insert(fullAddr);
         foundCount++;
 
-        REXCODEGEN_TRACE("functionPointerScan: found 0x{:08X} via lis/ori at 0x{:08X}", fullAddr,
-                         addr);
+        REXLOG_TRACE(codegen, "functionPointerScan: found 0x{:08X} via lis/ori at 0x{:08X}",
+                     fullAddr, addr);
       }
 
       // Clear lis tracking if register is overwritten by other instruction
@@ -398,7 +398,7 @@ void functionPointerScan(CodegenContext& ctx) {
     }
   }
 
-  REXCODEGEN_TRACE("functionPointerScan: found {} new function pointer targets", foundCount);
+  REXLOG_TRACE(codegen, "functionPointerScan: found {} new function pointer targets", foundCount);
 }
 
 }  // anonymous namespace

@@ -18,7 +18,6 @@
 #include <rex/codegen/function_types.h>
 #include <rex/logging.h>
 
-#include "codegen_logging.h"
 #include <rex/memory/utils.h>
 
 #include <ppc.h>
@@ -59,12 +58,12 @@ void validateConfigBoundaries(CodegenContext& ctx) {
 
     const FunctionNode* node = graph.getFunction(addr);
     if (!node) {
-      REXCODEGEN_WARN("[functions] 0x{:08X} is not a function entry point", addr);
+      REXLOG_WARN(codegen, "functions 0x{:08X} is not a function entry point", addr);
       continue;
     }
     if (node->authority() != FunctionAuthority::CONFIG) {
-      REXCODEGEN_WARN("[functions] 0x{:08X} outranked by {}", addr,
-                      AuthorityName(node->authority()));
+      REXLOG_WARN(codegen, "functions 0x{:08X} outranked by {}", addr,
+                  AuthorityName(node->authority()));
       continue;
     }
 
@@ -79,18 +78,18 @@ void validateConfigBoundaries(CodegenContext& ctx) {
         continue;
       auto authority = other->authority();
       if (authority == FunctionAuthority::PDATA || authority == FunctionAuthority::HELPER) {
-        REXCODEGEN_DEBUG("[functions] 0x{:08X} size 0x{:X} contains {} 0x{:08X}", addr, declared,
-                         AuthorityName(authority), otherAddr);
+        REXLOG_DEBUG(codegen, "functions 0x{:08X} size 0x{:X} contains {} 0x{:08X}", addr, declared,
+                     AuthorityName(authority), otherAddr);
         continue;
       }
-      REXCODEGEN_WARN("[functions] 0x{:08X} size 0x{:X} split by {} entry point 0x{:08X}", addr,
-                      declared, AuthorityName(authority), otherAddr);
+      REXLOG_WARN(codegen, "functions 0x{:08X} size 0x{:X} split by {} entry point 0x{:08X}", addr,
+                  declared, AuthorityName(authority), otherAddr);
     }
   }
 }
 
 Result<void> validateGraph(CodegenContext& ctx) {
-  REXCODEGEN_TRACE("Analyze: validating call graph...");
+  REXLOG_TRACE(codegen, "Analyze: validating call graph...");
 
   auto& graph = ctx.graph;
   auto& binary = ctx.binary();
@@ -189,18 +188,18 @@ Result<void> validateGraph(CodegenContext& ctx) {
     }
   }
 
-  REXCODEGEN_TRACE("Analyze: checked {} branches in {} functions, verified {} edges", callsChecked,
-                   functionsChecked, edgesVerified);
+  REXLOG_TRACE(codegen, "Analyze: checked {} branches in {} functions, verified {} edges",
+               callsChecked, functionsChecked, edgesVerified);
 
   if (errors.HasErrors()) {
-    REXCODEGEN_ERROR("Analyze: found {} errors", errors.Count());
+    REXLOG_ERROR(codegen, "Analyze: found {} errors", errors.Count());
     errors.PrintReport();
     return Err(ErrorCategory::Validation,
                fmt::format("Validation failed: {} unresolved calls",
                            errors.Count(AnalysisErrors::Category::UnresolvedCall)));
   }
 
-  REXCODEGEN_TRACE("Analyze: all calls resolve");
+  REXLOG_TRACE(codegen, "Analyze: all calls resolve");
   return Ok();
 }
 

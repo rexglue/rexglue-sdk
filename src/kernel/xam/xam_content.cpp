@@ -50,7 +50,7 @@ u32 XamContentResolve_entry(u32 user_index, mapped_void content_data_ptr, mapped
   // buffer_size is usually 260 (max path).
   // Games expect zero if resolve was successful.
   assert_always();
-  REXKRNL_WARN("XamContentResolve unimplemented!");
+  REXLOG_WARN(kernel, "XamContentResolve unimplemented!");
   return X_ERROR_NOT_FOUND;
 }
 
@@ -105,7 +105,7 @@ u32 XamContentCreateEnumerator_entry(u32 user_index, u32 device_id, u32 content_
     // TODO(gibbed): disc drive content
   }
 
-  REXKRNL_DEBUG("XamContentCreateEnumerator: added {} items to enumerator", e->item_count());
+  REXLOG_DEBUG(kernel, "XamContentCreateEnumerator: added {} items to enumerator", e->item_count());
 
   *handle_out = e->handle();
   return X_ERROR_SUCCESS;

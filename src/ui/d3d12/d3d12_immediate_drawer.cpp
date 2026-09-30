@@ -114,8 +114,7 @@ bool D3D12ImmediateDrawer::Initialize() {
   *(root_signature_.ReleaseAndGetAddressOf()) =
       util::CreateRootSignature(provider_, root_signature_desc);
   if (!root_signature_) {
-    REXLOG_ERROR("D3D12ImmediateDrawer: Failed to create the root signature");
-    return false;
+    REX_FAIL(ui, false, "D3D12ImmediateDrawer: Failed to create the root signature");
   }
 
   // Create the pipelines.
@@ -157,13 +156,11 @@ bool D3D12ImmediateDrawer::Initialize() {
   pipeline_desc.SampleDesc.Count = 1;
   if (FAILED(
           device->CreateGraphicsPipelineState(&pipeline_desc, IID_PPV_ARGS(&pipeline_triangle_)))) {
-    REXLOG_ERROR("D3D12ImmediateDrawer: Failed to create the triangle pipeline");
-    return false;
+    REX_FAIL(ui, false, "D3D12ImmediateDrawer: Failed to create the triangle pipeline");
   }
   pipeline_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
   if (FAILED(device->CreateGraphicsPipelineState(&pipeline_desc, IID_PPV_ARGS(&pipeline_line_)))) {
-    REXLOG_ERROR("D3D12ImmediateDrawer: Failed to create the line pipeline");
-    return false;
+    REX_FAIL(ui, false, "D3D12ImmediateDrawer: Failed to create the line pipeline");
   }
 
   // Create the samplers.
@@ -173,8 +170,7 @@ bool D3D12ImmediateDrawer::Initialize() {
   sampler_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
   sampler_heap_desc.NodeMask = 0;
   if (FAILED(device->CreateDescriptorHeap(&sampler_heap_desc, IID_PPV_ARGS(&sampler_heap_)))) {
-    REXLOG_ERROR("D3D12ImmediateDrawer: Failed to create the sampler descriptor heap");
-    return false;
+    REX_FAIL(ui, false, "D3D12ImmediateDrawer: Failed to create the sampler descriptor heap");
   }
   sampler_heap_cpu_start_ = sampler_heap_->GetCPUDescriptorHandleForHeapStart();
   sampler_heap_gpu_start_ = sampler_heap_->GetGPUDescriptorHandleForHeapStart();
@@ -280,22 +276,22 @@ std::unique_ptr<ImmediateTexture> D3D12ImmediateDrawer::CreateTexture(uint32_t w
         PendingTextureUpload& pending_upload =
             texture_uploads_pending_.emplace_back(resource.Get(), upload_buffer.Get());
       } else {
-        REXLOG_ERROR(
-            "D3D12ImmediateDrawer: Failed to map an upload buffer for a {}x{} "
-            "texture",
-            width, height);
+        REXLOG_ERROR(ui,
+                     "D3D12ImmediateDrawer: Failed to map an upload buffer for a {}x{} "
+                     "texture",
+                     width, height);
         upload_buffer.Reset();
         resource.Reset();
       }
     } else {
-      REXLOG_ERROR(
-          "D3D12ImmediateDrawer: Failed to create an upload buffer for a {}x{} "
-          "texture",
-          width, height);
+      REXLOG_ERROR(ui,
+                   "D3D12ImmediateDrawer: Failed to create an upload buffer for a {}x{} "
+                   "texture",
+                   width, height);
       resource.Reset();
     }
   } else {
-    REXLOG_ERROR("D3D12ImmediateDrawer: Failed to create a {}x{} texture", width, height);
+    REXLOG_ERROR(ui, "D3D12ImmediateDrawer: Failed to create a {}x{} texture", width, height);
   }
 
   SamplerIndex sampler_index;
@@ -406,7 +402,7 @@ void D3D12ImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
       last_paint_submission_index_, vertex_buffer_view.SizeInBytes, sizeof(float), nullptr, nullptr,
       &vertex_buffer_view.BufferLocation);
   if (vertex_buffer_mapping == nullptr) {
-    REXLOG_ERROR("D3D12ImmediateDrawer: Failed to get a buffer for {} vertices",
+    REXLOG_ERROR(ui, "D3D12ImmediateDrawer: Failed to get a buffer for {} vertices",
                  batch.vertex_count);
     return;
   }
@@ -423,7 +419,7 @@ void D3D12ImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
         last_paint_submission_index_, index_buffer_view.SizeInBytes, sizeof(uint16_t), nullptr,
         nullptr, &index_buffer_view.BufferLocation);
     if (index_buffer_mapping == nullptr) {
-      REXLOG_ERROR("D3D12ImmediateDrawer: Failed to get a buffer for {} indices",
+      REXLOG_ERROR(ui, "D3D12ImmediateDrawer: Failed to get a buffer for {} indices",
                    batch.index_count);
       return;
     }

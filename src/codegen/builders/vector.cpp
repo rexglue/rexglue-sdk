@@ -18,8 +18,6 @@
 
 #include <rex/logging.h>
 
-#include "../codegen_logging.h"
-
 #include <ppc.h>
 
 namespace rex::codegen {
@@ -1328,7 +1326,7 @@ bool build_vpkd3d128(BuilderContext& ctx) {
       // Guest element 0 goes to highest 16-bit position, element 3 to lowest
       // Output u16 index = (3-i) + 2*shift for element i
       if (ctx.insn.operands[3] != 2 || ctx.insn.operands[4] > 2)
-        REXCODEGEN_WARN("Unexpected float16_4 pack instruction at {:X}", ctx.base);
+        REXLOG_WARN(codegen, "Unexpected float16_4 pack instruction at {:X}", ctx.base);
 
       for (size_t i = 0; i < 4; i++) {
         size_t srcIdx = 3 - i;  // Guest element i is at host array index 3-i

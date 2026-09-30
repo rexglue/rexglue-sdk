@@ -18,7 +18,7 @@
 
 #include <rex/hash.h>
 
-#include "codegen_logging.h"
+#include <rex/logging.h>
 #include "file_io.h"
 
 namespace rex::codegen {
@@ -33,7 +33,7 @@ std::optional<OutputStamp> OutputStamp::Load(const std::filesystem::path& path) 
 
   nlohmann::json doc = nlohmann::json::parse(in, nullptr, false);
   if (doc.is_discarded() || !doc.is_object()) {
-    REXCODEGEN_WARN("Ignoring malformed codegen stamp: {}", path.string());
+    REXLOG_WARN(codegen, "Ignoring malformed codegen stamp: {}", path.string());
     return std::nullopt;
   }
 
@@ -87,7 +87,7 @@ std::string ComputeInputFingerprint(std::span<const std::filesystem::path> input
       if (digest.empty()) {
         // Weaker than content, but a constant here would report a locked input
         // as unchanged and skip the module forever.
-        REXCODEGEN_WARN("Could not read {} for fingerprinting", path.string());
+        REXLOG_WARN(codegen, "Could not read {} for fingerprinting", path.string());
         digest = fmt::format("<unreadable:{}:{}>", std::filesystem::file_size(path, ec),
                              std::filesystem::last_write_time(path, ec).time_since_epoch().count());
       }

@@ -44,7 +44,7 @@ void D3D12Shader::D3D12Translation::DisassembleDxbcAndDxil(const ui::d3d12::D3D1
       disassembly.append(reinterpret_cast<const char*>(dxbc_disassembly->GetBufferPointer()));
       dxbc_disassembly->Release();
     } else {
-      REXGPU_ERROR("Failed to disassemble DXBC shader {:016X}", shader().ucode_data_hash());
+      REXLOG_ERROR(gpu, "Failed to disassemble DXBC shader {:016X}", shader().ucode_data_hash());
     }
   }
   if (dxbc_converter && dxc_utils && dxc_compiler) {
@@ -74,19 +74,20 @@ void D3D12Shader::D3D12Translation::DisassembleDxbcAndDxil(const ui::d3d12::D3D1
                 reinterpret_cast<const char*>(dxil_disassembly_utf8->GetStringPointer()));
             dxil_disassembly_utf8->Release();
           } else {
-            REXGPU_ERROR("Failed to get DXIL shader {:016X} disassembly as UTF-8",
+            REXLOG_ERROR(gpu, "Failed to get DXIL shader {:016X} disassembly as UTF-8",
                          shader().ucode_data_hash());
           }
         } else {
-          REXGPU_ERROR("Failed to disassemble DXIL shader {:016X}", shader().ucode_data_hash());
+          REXLOG_ERROR(gpu, "Failed to disassemble DXIL shader {:016X}",
+                       shader().ucode_data_hash());
         }
       } else {
-        REXGPU_ERROR("Failed to create a blob with DXIL shader {:016X}",
+        REXLOG_ERROR(gpu, "Failed to create a blob with DXIL shader {:016X}",
                      shader().ucode_data_hash());
         CoTaskMemFree(dxil);
       }
     } else {
-      REXGPU_ERROR("Failed to convert shader {:016X} to DXIL", shader().ucode_data_hash());
+      REXLOG_ERROR(gpu, "Failed to convert shader {:016X} to DXIL", shader().ucode_data_hash());
     }
   }
   set_host_disassembly(std::move(disassembly));

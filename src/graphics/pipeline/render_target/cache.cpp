@@ -397,9 +397,8 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
   if (msaa_samples > xenos::MSAASamples::k4X) {
     // Safety check because a lot of code assumes up to 4x.
     assert_always();
-    REXGPU_ERROR("{}x MSAA requested by the guest, Xenos only supports up to 4x",
-                 uint32_t(1) << uint32_t(msaa_samples));
-    return false;
+    REX_FAIL(gpu, false, "{}x MSAA requested by the guest, Xenos only supports up to 4x",
+             uint32_t(1) << uint32_t(msaa_samples));
   }
   uint32_t msaa_samples_x_log2 = uint32_t(msaa_samples >= xenos::MSAASamples::k4X);
   uint32_t pitch_pixels = rb_surface_info.surface_pitch;
@@ -409,11 +408,10 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
   if (!pitch_pixels) {
     is_rasterization_done = false;
   } else if (pitch_pixels > xenos::kTexture2DCubeMaxWidthHeight) {
-    REXGPU_ERROR(
-        "Surface pitch {} larger than the maximum texture width {} specified "
-        "by the guest",
-        pitch_pixels, xenos::kTexture2DCubeMaxWidthHeight);
-    return false;
+    REX_FAIL(gpu, false,
+             "Surface pitch {} larger than the maximum texture width {} specified "
+             "by the guest",
+             pitch_pixels, xenos::kTexture2DCubeMaxWidthHeight);
   }
   uint32_t pitch_tiles_at_32bpp =
       ((pitch_pixels << msaa_samples_x_log2) + (xenos::kEDRAMTileWidthSamples - 1)) /
@@ -430,11 +428,10 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
       // the limit, though with 8192 (on Mali) the actual limit for Xenia is
       // 8160 because tile padding is stored - but 8192 should be extremely rare
       // anyway.
-      REXGPU_ERROR(
-          "Surface pitch aligned to EDRAM tiles and resolution-scaled {} "
-          "larger than the maximum host render target width {}",
-          pitch_pixels_tile_aligned_scaled, max_render_target_width);
-      return false;
+      REX_FAIL(gpu, false,
+               "Surface pitch aligned to EDRAM tiles and resolution-scaled {} "
+               "larger than the maximum host render target width {}",
+               pitch_pixels_tile_aligned_scaled, max_render_target_width);
     }
   }
 
@@ -961,12 +958,11 @@ bool RenderTargetCache::PrepareHostRenderTargetsResolveClear(
   if (pitch_tiles_at_32bpp > ((xenos::kTexture2DCubeMaxWidthHeight << msaa_samples_x_log2) +
                               (xenos::kEDRAMTileWidthSamples - 1)) /
                                  xenos::kEDRAMTileWidthSamples) {
-    REXGPU_ERROR(
-        "Surface pitch in 80-sample groups {} at {}x MSAA larger than the "
-        "maximum texture width {} specified by the guest in a resolve",
-        pitch_tiles_at_32bpp, uint32_t(1) << uint32_t(msaa_samples),
-        xenos::kTexture2DCubeMaxWidthHeight);
-    return false;
+    REX_FAIL(gpu, false,
+             "Surface pitch in 80-sample groups {} at {}x MSAA larger than the "
+             "maximum texture width {} specified by the guest in a resolve",
+             pitch_tiles_at_32bpp, uint32_t(1) << uint32_t(msaa_samples),
+             xenos::kTexture2DCubeMaxWidthHeight);
   }
   uint32_t pitch_pixels =
       pitch_tiles_at_32bpp * (xenos::kEDRAMTileWidthSamples >> msaa_samples_x_log2);
@@ -975,11 +971,10 @@ bool RenderTargetCache::PrepareHostRenderTargetsResolveClear(
   if (pitch_pixels_scaled > max_render_target_width) {
     // TODO(Triang3l): If really needed for some game on some device, clamp the
     // pitch the same way as explained in the comment in Update.
-    REXGPU_ERROR(
-        "Surface pitch aligned to EDRAM tiles and resolution-scaled {} larger "
-        "than the maximum host render target width {} in a resolve",
-        pitch_pixels_scaled, max_render_target_width);
-    return false;
+    REX_FAIL(gpu, false,
+             "Surface pitch aligned to EDRAM tiles and resolution-scaled {} larger "
+             "than the maximum host render target width {} in a resolve",
+             pitch_pixels_scaled, max_render_target_width);
   }
 
   uint32_t render_target_height_pixels = GetRenderTargetHeight(pitch_tiles_at_32bpp, msaa_samples);
@@ -1145,19 +1140,19 @@ RenderTargetCache::RenderTarget* RenderTargetCache::GetOrCreateRenderTarget(Rend
     uint32_t width = key.GetWidth();
     uint32_t height = GetRenderTargetHeight(key.pitch_tiles_at_32bpp, key.msaa_samples);
     if (render_target) {
-      REXGPU_DEBUG(
-          "Created a {}x{} {}xMSAA {} render target with guest format {} at "
-          "EDRAM base {}",
-          width, height, uint32_t(1) << uint32_t(key.msaa_samples),
-          key.is_depth ? "depth" : "color", static_cast<uint32_t>(key.resource_format),
-          static_cast<uint32_t>(key.base_tiles));
+      REXLOG_DEBUG(gpu,
+                   "Created a {}x{} {}xMSAA {} render target with guest format {} at "
+                   "EDRAM base {}",
+                   width, height, uint32_t(1) << uint32_t(key.msaa_samples),
+                   key.is_depth ? "depth" : "color", static_cast<uint32_t>(key.resource_format),
+                   static_cast<uint32_t>(key.base_tiles));
     } else {
-      REXGPU_ERROR(
-          "Failed to create a {}x{} {}xMSAA {} render target with guest format "
-          "{} at EDRAM base {}",
-          width, height, uint32_t(1) << uint32_t(key.msaa_samples),
-          key.is_depth ? "depth" : "color", static_cast<uint32_t>(key.resource_format),
-          static_cast<uint32_t>(key.base_tiles));
+      REXLOG_ERROR(gpu,
+                   "Failed to create a {}x{} {}xMSAA {} render target with guest format "
+                   "{} at EDRAM base {}",
+                   width, height, uint32_t(1) << uint32_t(key.msaa_samples),
+                   key.is_depth ? "depth" : "color", static_cast<uint32_t>(key.resource_format),
+                   static_cast<uint32_t>(key.base_tiles));
     }
     // Insert even if failed to create, not to try to create again.
     render_targets_.emplace(key, render_target);

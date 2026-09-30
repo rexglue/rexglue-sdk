@@ -121,10 +121,11 @@ u32 NtCreateFile_entry(mapped_u32 handle_out, u32 desired_access,
 
   // Compute path, possibly attrs relative.
   auto target_path = util::TranslateAnsiPath(REX_KERNEL_MEMORY(), object_name);
-  REXKRNL_IMPORT_TRACE(
-      "NtCreateFile", "path={} access={:#x} attrs={:#x} share={:#x} disp={:#x} options={:#x}",
-      target_path, (uint32_t)desired_access, (uint32_t)file_attributes, (uint32_t)share_access,
-      (uint32_t)creation_disposition, (uint32_t)create_options);
+  REXLOG_TRACE(kernel,
+               "NtCreateFile "
+               "path={} access={:#x} attrs={:#x} share={:#x} disp={:#x} options={:#x}",
+               target_path, (uint32_t)desired_access, (uint32_t)file_attributes,
+               (uint32_t)share_access, (uint32_t)creation_disposition, (uint32_t)create_options);
 
   // Enforce that the path is ASCII.
   if (!IsValidPath(target_path, false)) {
@@ -177,9 +178,15 @@ u32 NtCreateFile_entry(mapped_u32 handle_out, u32 desired_access,
 
   *handle_out = handle;
   if (XFAILED(result)) {
-    REXKRNL_IMPORT_FAIL("NtCreateFile", "path='{}' -> {:#x}", target_path, result);
+    REXLOG_WARN(kernel,
+                "NtCreateFile failed "
+                "path='{}' -> {:#x}",
+                target_path, result);
   } else {
-    REXKRNL_IMPORT_RESULT("NtCreateFile", "{:#x} handle={:#x}", result, handle);
+    REXLOG_TRACE(kernel,
+                 "NtCreateFile -> "
+                 "{:#x} handle={:#x}",
+                 result, handle);
   }
   return result;
 }
@@ -196,8 +203,9 @@ u32 NtReadFile_entry(u32 file_handle, u32 event_handle, mapped_void apc_routine_
                      mapped_void buffer, u32 buffer_length, mapped_u64 byte_offset_ptr) {
   uint64_t byte_offset = byte_offset_ptr ? static_cast<uint64_t>(*byte_offset_ptr) : 0;
   const bool apc_requested = (static_cast<uint32_t>(apc_routine_ptr) & ~1u) != 0;
-  REXKRNL_IMPORT_TRACE(
-      "NtReadFile",
+  REXLOG_TRACE(
+      kernel,
+      "NtReadFile "
       "handle={:#x} event={:#x} apc={:#x} apc_ctx={:#x} iosb={:#x} buf={:#x} len={:#x} offset={}",
       (uint32_t)file_handle, (uint32_t)event_handle, apc_routine_ptr.guest_address(),
       apc_context.guest_address(), io_status_block.guest_address(), buffer.guest_address(),
@@ -237,14 +245,17 @@ u32 NtReadFile_entry(u32 file_handle, u32 event_handle, mapped_void apc_routine_
           uint32_t apc_routine = static_cast<uint32_t>(apc_routine_ptr) & ~1u;
           uint32_t apc_ctx = apc_context.guest_address();
           uint32_t apc_arg1 = io_status_block.guest_address();
-          REXKRNL_IMPORT_TRACE("NtReadFile",
-                               "queue_apc thid={} normal={:#x} ctx={:#x} arg1={:#x} arg2=0",
-                               thread ? thread->thread_id() : 0, apc_routine, apc_ctx, apc_arg1);
+          REXLOG_TRACE(kernel,
+                       "NtReadFile "
+                       "queue_apc thid={} normal={:#x} ctx={:#x} arg1={:#x} arg2=0",
+                       thread ? thread->thread_id() : 0, apc_routine, apc_ctx, apc_arg1);
           thread->EnqueueApc(apc_routine, apc_ctx, apc_arg1, 0);
           apc_queued = true;
         } else {
-          REXKRNL_IMPORT_TRACE("NtReadFile", "skip_apc_queue (apc_ctx={:#x}, status={:#x})",
-                               apc_context.guest_address(), result);
+          REXLOG_TRACE(kernel,
+                       "NtReadFile "
+                       "skip_apc_queue (apc_ctx={:#x}, status={:#x})",
+                       apc_context.guest_address(), result);
         }
       }
 
@@ -288,8 +299,9 @@ u32 NtReadFile_entry(u32 file_handle, u32 event_handle, mapped_void apc_routine_
 
   // Log detailed completion info for debugging async IO issues
   if (file) {
-    REXKRNL_IMPORT_RESULT(
-        "NtReadFile",
+    REXLOG_TRACE(
+        kernel,
+        "NtReadFile -> "
         "{:#x} (sync={}, iosb_status={:#x}, iosb_info={}, ev_signaled={}, apc_requested={}, "
         "apc_queued={})",
         result, file->is_synchronous(),
@@ -297,8 +309,10 @@ u32 NtReadFile_entry(u32 file_handle, u32 event_handle, mapped_void apc_routine_
         io_status_block ? (uint32_t)io_status_block->information : 0, ev && signal_event,
         apc_requested, apc_queued);
   } else {
-    REXKRNL_IMPORT_RESULT("NtReadFile", "{:#x} (apc_requested={}, apc_queued={})", result,
-                          apc_requested, apc_queued);
+    REXLOG_TRACE(kernel,
+                 "NtReadFile -> "
+                 "{:#x} (apc_requested={}, apc_queued={})",
+                 result, apc_requested, apc_queued);
   }
   return result;
 }
@@ -524,7 +538,10 @@ u32 NtQueryFullAttributesFile_entry(ppc_ptr_t<X_OBJECT_ATTRIBUTES> obj_attribs,
                                     ppc_ptr_t<X_FILE_NETWORK_OPEN_INFORMATION> file_info) {
   auto object_name = REX_KERNEL_MEMORY()->TranslateVirtual<X_ANSI_STRING*>(obj_attribs->name_ptr);
   auto path_str = util::TranslateAnsiPath(REX_KERNEL_MEMORY(), object_name);
-  REXKRNL_IMPORT_TRACE("NtQueryFullAttributesFile", "path={}", path_str);
+  REXLOG_TRACE(kernel,
+               "NtQueryFullAttributesFile "
+               "path={}",
+               path_str);
 
   object_ref<XFile> root_file;
   if (obj_attribs->root_directory != 0xFFFFFFFD &&  // ObDosDevices
@@ -551,11 +568,16 @@ u32 NtQueryFullAttributesFile_entry(ppc_ptr_t<X_OBJECT_ATTRIBUTES> obj_attribs,
     file_info->end_of_file = entry->size;
     file_info->attributes = std::to_underlying(entry->attributes);
 
-    REXKRNL_IMPORT_RESULT("NtQueryFullAttributesFile", "0x0 size={}", entry->size);
+    REXLOG_TRACE(kernel,
+                 "NtQueryFullAttributesFile -> "
+                 "0x0 size={}",
+                 entry->size);
     return X_STATUS_SUCCESS;
   }
 
-  REXKRNL_IMPORT_RESULT("NtQueryFullAttributesFile", "X_STATUS_NO_SUCH_FILE");
+  REXLOG_TRACE(kernel,
+               "NtQueryFullAttributesFile -> "
+               "X_STATUS_NO_SUCH_FILE");
   return X_STATUS_NO_SUCH_FILE;
 }
 
@@ -704,7 +726,8 @@ u32 NtDeviceIoControlFile_entry(u32 handle, u32 event_handle, u32 apc_routine, u
     memory::store_and_swap<uint64_t>(output_buffer, 0);
     memory::store_and_swap<uint64_t>(output_buffer + 8, cache_size);
   } else {
-    REXKRNL_DEBUG("NtDeviceIoControlFile(0x{:X}) - unhandled IOCTL!", uint32_t(io_control_code));
+    REXLOG_DEBUG(kernel, "NtDeviceIoControlFile(0x{:X}) - unhandled IOCTL!",
+                 uint32_t(io_control_code));
     assert_always();
     return X_STATUS_INVALID_PARAMETER;
   }
@@ -733,12 +756,12 @@ u32 IoCreateDevice_entry(u32 device_struct, u32 r4, u32 r5, u32 r6, u32 r7, mapp
 }
 
 u32 IoDismountVolumeByFileHandle_entry(u32 handle) {
-  REXKRNL_WARN("IoDismountVolumeByFileHandle({:#x}) - stub", (uint32_t)handle);
+  REXLOG_WARN(kernel, "IoDismountVolumeByFileHandle({:#x}) - stub", (uint32_t)handle);
   return X_STATUS_SUCCESS;
 }
 
 u32 IoDismountVolumeByName_entry(ppc_ptr_t<X_ANSI_STRING> name) {
-  REXKRNL_WARN("IoDismountVolumeByName - stub");
+  REXLOG_WARN(kernel, "IoDismountVolumeByName - stub");
   return X_STATUS_SUCCESS;
 }
 
@@ -746,19 +769,19 @@ u32 IoSynchronousDeviceIoControlRequest_entry(u32 ioctl, mapped_void device_obje
                                               mapped_void input_buffer, u32 input_length,
                                               mapped_void output_buffer, u32 output_length,
                                               mapped_u32 returned_length, u32 unk) {
-  REXKRNL_WARN("IoSynchronousDeviceIoControlRequest({:#x}) - stub", (uint32_t)ioctl);
+  REXLOG_WARN(kernel, "IoSynchronousDeviceIoControlRequest({:#x}) - stub", (uint32_t)ioctl);
   return X_STATUS_SUCCESS;
 }
 
 u32 StfsCreateDevice_entry(mapped_void device_object, u32 flags, mapped_u32 out_device) {
-  REXKRNL_WARN("StfsCreateDevice - stub");
+  REXLOG_WARN(kernel, "StfsCreateDevice - stub");
   // if (out_device) *out_device = 0;
   return X_STATUS_SUCCESS;
 }
 
 u32 StfsControlDevice_entry(mapped_void device_object, u32 ioctl, mapped_void input_buffer,
                             u32 input_length, mapped_void output_buffer, u32 output_length) {
-  REXKRNL_WARN("StfsControlDevice({:#x}) - stub", (uint32_t)ioctl);
+  REXLOG_WARN(kernel, "StfsControlDevice({:#x}) - stub", (uint32_t)ioctl);
   return X_STATUS_SUCCESS;
 }
 

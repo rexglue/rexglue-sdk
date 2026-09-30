@@ -1,6 +1,6 @@
 /**
  * @file        filesystem/module.cpp
- * @brief       The rex.module@1 served by rexfilesystem.dll
+ * @brief       The module interface served by rexfilesystem.dll
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -13,7 +13,10 @@
 
 #include <cstring>
 
+#include <rex/logging.h>
 #include <rex/macros.h>
+
+REXLOG_TABLE(kFilesystemLog, filesystem)
 
 namespace rex::filesystem {
 
@@ -43,12 +46,21 @@ std::span<const char* const> FilesystemModule::RequiredInterfaces() const {
 }
 
 Result<void> FilesystemModule::Connect(IInterfaceFactory* factory, const Config& config) {
-  (void)factory;
+  logger_ = factory->Get<ILogger>();
+  if (!logger_) {
+    return Err(ErrorCategory::Module, "rexfilesystem: the logger is not served");
+  }
+  REX_TRY_VOID(logger_->Register(log::kFilesystemLog));
   file_system_.set_game_mount_flags(config.filesystem.game_mount_flags);
   return Ok();
 }
 
-void FilesystemModule::Disconnect() {}
+void FilesystemModule::Disconnect() {
+  if (logger_) {
+    logger_->Unregister(log::kFilesystemLog);
+  }
+  logger_ = nullptr;
+}
 
 Result<void> FilesystemModule::Init() {
   file_system_.Clear();

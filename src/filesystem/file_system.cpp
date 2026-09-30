@@ -1,6 +1,6 @@
 /**
  * @file        filesystem/file_system.cpp
- * @brief       The mount table rexfilesystem serves as rex.filesystem version 1
+ * @brief       The mount table rexfilesystem serves
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -69,7 +69,7 @@ Result<FileSystem::Resolved> FileSystem::ResolveMount(std::string_view path) con
   });
   if (provider == providers_.end()) {
     if (path != "ShaderDumpxe:\\CompareBackEnds") {
-      REXFS_ERROR("no mount covers '{}'", path);
+      REXLOG_ERROR(filesystem, "no mount covers '{}'", path);
     }
     return Err<Resolved>(MakeError(Error::kNoMount, std::format("no mount covers '{}'", path)));
   }
@@ -80,10 +80,10 @@ Result<Node*> FileSystem::ResolveNode(std::string_view path) const {
   REX_TRY(Resolved resolved, ResolveMount(path));
   Node* node = resolved.provider->Resolve(resolved.relative);
   if (!node) {
-    REXFS_DEBUG("'{}' is not on mount '{}'", path, resolved.provider->mount_path());
+    REXLOG_DEBUG(filesystem, "'{}' is not on mount '{}'", path, resolved.provider->mount_path());
     return Err<Node*>(MakeError(Error::kNotFound, std::format("'{}' does not exist", path)));
   }
-  REXFS_TRACE("'{}' resolves to '{}'", path, node->absolute_path());
+  REXLOG_TRACE(filesystem, "'{}' resolves to '{}'", path, node->absolute_path());
   return node;
 }
 
@@ -172,7 +172,7 @@ Result<Opened> FileSystem::OpenFrom(Node* root, std::string_view requested,
   const bool wants_write =
       HasFlags(access, Access::kWriteData) || HasFlags(access, Access::kAppendData);
   if (wants_write && ((parent && parent->read_only()) || (node && node->read_only()))) {
-    REXFS_WARN("'{}' is read only, opening it for read", path);
+    REXLOG_WARN(filesystem, "'{}' is read only, opening it for read", path);
     access = Access::kGenericRead | Access::kReadData;
   }
 
@@ -230,7 +230,7 @@ Result<void> FileSystem::Mount(const MountEntry& entry) {
   }
   REX_TRY(std::unique_ptr<Provider> provider, CreateProvider(entry));
   providers_.push_back(std::move(provider));
-  REXFS_DEBUG("mounted '{}' at '{}'", path_to_utf8(entry.source), entry.path);
+  REXLOG_DEBUG(filesystem, "mounted '{}' at '{}'", path_to_utf8(entry.source), entry.path);
   return Ok();
 }
 
@@ -241,7 +241,7 @@ Result<void> FileSystem::Unmount(std::string_view path) {
   if (it == providers_.end()) {
     return Err(MakeError(Error::kNoMount, std::format("'{}' is not mounted", path)));
   }
-  REXFS_DEBUG("unmounted '{}'", path);
+  REXLOG_DEBUG(filesystem, "unmounted '{}'", path);
   providers_.erase(it);
   return Ok();
 }
@@ -262,7 +262,7 @@ Result<void> FileSystem::Link(std::string_view link, std::string_view target) {
     return Err(MakeError(Error::kExists, std::format("link '{}' exists", link)));
   }
   links_.emplace_back(link, target);
-  REXFS_DEBUG("linked '{}' to '{}'", link, target);
+  REXLOG_DEBUG(filesystem, "linked '{}' to '{}'", link, target);
   return Ok();
 }
 
@@ -273,7 +273,7 @@ Result<void> FileSystem::Unlink(std::string_view link) {
   if (it == links_.end()) {
     return Err(MakeError(Error::kNotFound, std::format("no link '{}'", link)));
   }
-  REXFS_DEBUG("unlinked '{}' from '{}'", it->first, it->second);
+  REXLOG_DEBUG(filesystem, "unlinked '{}' from '{}'", it->first, it->second);
   links_.erase(it);
   return Ok();
 }
@@ -309,7 +309,7 @@ Result<void> FileSystem::ConfigureStandardMounts(const PathsConfig& paths) {
                                 update_root, MountFlags::kNone})) {
         REX_TRY_VOID(Link("update:", kUpdatePartition));
       } else {
-        REXFS_WARN("update_data_root is not mounted, {}", mounted.error().message);
+        REXLOG_WARN(filesystem, "update_data_root is not mounted, {}", mounted.error().message);
       }
     }
   }

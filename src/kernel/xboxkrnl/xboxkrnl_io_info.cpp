@@ -141,7 +141,7 @@ u32 NtQueryInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> i
       break;
     }
     case XFileSectorInformation: {
-      REXKRNL_DEBUG("Stub XFileSectorInformation!");
+      REXLOG_DEBUG(kernel, "Stub XFileSectorInformation!");
       auto info = info_ptr.as<uint32_t*>();
       size_t fname_hash = rex::memory::hash_combine(82589933LL, file->path());
       *info = static_cast<uint32_t>(fname_hash ^ (fname_hash >> 32));
@@ -149,9 +149,9 @@ u32 NtQueryInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> i
       break;
     }
     case XFileXctdCompressionInformation: {
-      REXKRNL_ERROR(
-          "NtQueryInformationFile(XFileXctdCompressionInformation) "
-          "unimplemented");
+      REXLOG_ERROR(kernel,
+                   "NtQueryInformationFile(XFileXctdCompressionInformation) "
+                   "unimplemented");
       // Files that are XCTD compressed begin with the magic 0x0FF512ED but we
       // shouldn't detect this that way. There's probably a flag somewhere
       // (attributes?) that defines if it's compressed or not.
@@ -286,8 +286,8 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
       bool delete_on_close = info->delete_file ? true : false;
       file->file().SetDeleteOnClose(delete_on_close);
       out_length = 0;
-      REXKRNL_WARN("NtSetInformationFile set deleting flag for {} on close to: {}", file->name(),
-                   delete_on_close);
+      REXLOG_WARN(kernel, "NtSetInformationFile set deleting flag for {} on close to: {}",
+                  file->name(), delete_on_close);
       break;
     }
     case XFilePositionInformation: {
@@ -368,7 +368,7 @@ uint32_t GetQueryVolumeInfoMinimumLength(uint32_t info_class) {
     case XFileFsAttributeInformation:
       return sizeof(X_FILE_FS_ATTRIBUTE_INFORMATION);
     default:
-      REXKRNL_WARN("Unimplemented Info Class: 0x{:08x}", info_class);
+      REXLOG_WARN(kernel, "Unimplemented Info Class: 0x{:08x}", info_class);
       return 0;
   }
 }
@@ -435,7 +435,7 @@ u32 NtQueryVolumeInformationFile_entry(u32 file_handle,
     }
     case XFileFsDeviceInformation: {
       auto info = info_ptr.as<X_FILE_FS_DEVICE_INFORMATION*>();
-      REXKRNL_WARN("Stub XFileFsDeviceInformation!");
+      REXLOG_WARN(kernel, "Stub XFileFsDeviceInformation!");
       info->device_type = FILE_DEVICE_UNKNOWN;
       info->characteristics = 0;
       out_length = sizeof(X_FILE_FS_DEVICE_INFORMATION);

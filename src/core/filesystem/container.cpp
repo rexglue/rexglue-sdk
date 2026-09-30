@@ -225,7 +225,8 @@ Result<size_t> Container::Read(const ContainerNode& node, u64 offset, std::span<
     const std::span<const u8> file = BytesOf(*files_[extent.file]);
     const u64 start = extent.offset + skip;
     if (!detail::InBounds(file, start, length)) {
-      REXFS_WARN("container read of '{}' stops at the end of the data file", node.name);
+      REXLOG_WARN(filesystem, "container read of '{}' stops at the end of the data file",
+                  node.name);
       break;
     }
     std::memcpy(buffer.data() + copied, file.data() + start, length);

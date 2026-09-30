@@ -538,10 +538,10 @@ void VulkanTextureCache::EndFrame() {
       continue;
     }
     if (!unsupported_header_written) {
-      REXGPU_ERROR("Unsupported texture formats used in the frame:");
+      REXLOG_ERROR(gpu, "Unsupported texture formats used in the frame:");
       unsupported_header_written = true;
     }
-    REXGPU_ERROR("* {}{}{}{}", xenos::FormatInfo::Get(xenos::TextureFormat(i))->name,
+    REXLOG_ERROR(gpu, "* {}{}{}{}", xenos::FormatInfo::Get(xenos::TextureFormat(i))->name,
                  unsupported_features & kUnsupportedResourceBit ? " resource" : "",
                  unsupported_features & kUnsupportedUnormBit ? " unsigned" : "",
                  unsupported_features & kUnsupportedSnormBit ? " signed" : "");
@@ -911,14 +911,14 @@ VkSampler VulkanTextureCache::UseSampler(SamplerParameters parameters, bool& has
         if (!custom_border_color_fallback_logged) {
           custom_border_color_fallback_logged = true;
           if (!custom_border_colors_supported) {
-            REXGPU_WARN(
-                "VulkanTextureCache: VK_EXT_custom_border_color support is unavailable; "
-                "falling back to transparent black for YCbCr border color sampling");
+            REXLOG_WARN(gpu,
+                        "VulkanTextureCache: VK_EXT_custom_border_color support is unavailable; "
+                        "falling back to transparent black for YCbCr border color sampling");
           } else {
-            REXGPU_WARN(
-                "VulkanTextureCache: maxCustomBorderColorSamplers limit ({}) reached; "
-                "falling back to transparent black for additional YCbCr border samplers",
-                vulkan_device->properties().maxCustomBorderColorSamplers);
+            REXLOG_WARN(gpu,
+                        "VulkanTextureCache: maxCustomBorderColorSamplers limit ({}) reached; "
+                        "falling back to transparent black for additional YCbCr border samplers",
+                        vulkan_device->properties().maxCustomBorderColorSamplers);
           }
         }
         sampler_create_info.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
@@ -930,10 +930,10 @@ VkSampler VulkanTextureCache::UseSampler(SamplerParameters parameters, bool& has
   }
   VkSampler vulkan_sampler;
   if (dfn.vkCreateSampler(device, &sampler_create_info, nullptr, &vulkan_sampler) != VK_SUCCESS) {
-    REXGPU_ERROR(
-        "VulkanTextureCache: Failed to create the sampler for parameters "
-        "0x{:08X}",
-        parameters.value);
+    REXLOG_ERROR(gpu,
+                 "VulkanTextureCache: Failed to create the sampler for parameters "
+                 "0x{:08X}",
+                 parameters.value);
     has_overflown_out = false;
     return VK_NULL_HANDLE;
   }
@@ -1622,7 +1622,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     uint8_t& float_fallback_log_state = float_fallback_log_mask[uint32_t(texture_key.format)];
     if ((float_fallback_log_state & float_fallback_log_bit) == 0) {
       float_fallback_log_state |= float_fallback_log_bit;
-      REXGPU_INFO("VulkanTextureCache: Using two-pass float fallback for format {} ({})",
+      REXLOG_INFO(gpu, "VulkanTextureCache: Using two-pass float fallback for format {} ({})",
                   xenos::FormatInfo::Get(texture_key.format)->name,
                   host_format_is_signed ? "signed" : "unsigned");
     }
@@ -1933,11 +1933,10 @@ VkImageView VulkanTextureCache::VulkanTexture::GetView(bool is_signed, uint32_t 
   }
   VkImageView view;
   if (dfn.vkCreateImageView(device, &view_create_info, nullptr, &view) != VK_SUCCESS) {
-    REXGPU_ERROR(
-        "VulkanTextureCache: Failed to create an image view for Vulkan format "
-        "{} ({}signed) with swizzle 0x{:3X}",
-        uint32_t(format), is_signed ? "" : "un", host_swizzle);
-    return VK_NULL_HANDLE;
+    REX_FAIL(gpu, VK_NULL_HANDLE,
+             "VulkanTextureCache: Failed to create an image view for Vulkan format "
+             "{} ({}signed) with swizzle 0x{:3X}",
+             uint32_t(format), is_signed ? "" : "un", host_swizzle);
   }
   views_.emplace(view_key, view);
   return view;
@@ -1993,8 +1992,7 @@ VkImageView VulkanTextureCache::VulkanTexture::GetOrCreate3DAs2DImageView(bool i
     VmaAllocation allocation_2d;
     if (vmaCreateImage(vulkan_texture_cache.vma_allocator_, &image_create_info,
                        &allocation_create_info, &image_2d, &allocation_2d, nullptr) != VK_SUCCESS) {
-      REXGPU_ERROR("VulkanTextureCache: Failed to create 3D-as-2D wrapper image");
-      return VK_NULL_HANDLE;
+      REX_FAIL(gpu, VK_NULL_HANDLE, "VulkanTextureCache: Failed to create 3D-as-2D wrapper image");
     }
 
     TextureKey key_2d = key();
@@ -2005,7 +2003,7 @@ VkImageView VulkanTextureCache::VulkanTexture::GetOrCreate3DAs2DImageView(bool i
     texture_3d_as_2d_->SetForceLoad3DTiling(true);
 
     if (!vulkan_texture_cache.LoadTextureData(*texture_3d_as_2d_)) {
-      REXGPU_ERROR("VulkanTextureCache: Failed to load 3D-as-2D wrapper data");
+      REXLOG_ERROR(gpu, "VulkanTextureCache: Failed to load 3D-as-2D wrapper data");
       texture_3d_as_2d_.reset();
       return VK_NULL_HANDLE;
     }
@@ -2051,8 +2049,8 @@ VkImageView VulkanTextureCache::VulkanTexture::GetOrCreate3DAs2DImageView(bool i
   view_create_info.subresourceRange.layerCount = 1;
 
   if (dfn.vkCreateImageView(device, &view_create_info, nullptr, &cached_view) != VK_SUCCESS) {
-    REXGPU_ERROR("VulkanTextureCache: Failed to create 3D-as-2D wrapper image view");
-    return VK_NULL_HANDLE;
+    REX_FAIL(gpu, VK_NULL_HANDLE,
+             "VulkanTextureCache: Failed to create 3D-as-2D wrapper image view");
   }
 
   return cached_view;
@@ -2124,11 +2122,10 @@ bool VulkanTextureCache::InitializeScaledResolveBuffer() {
             vulkan_device, scaled_resolve_buffer_size_, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
             ui::vulkan::util::MemoryPurpose::kDeviceLocal, scaled_resolve_buffer_,
             scaled_resolve_buffer_memory_.emplace_back(), &scaled_resolve_buffer_memory_type_)) {
-      REXGPU_ERROR(
-          "VulkanTextureCache: Failed to create a scaled resolve buffer with "
-          "{} MB address space",
-          scaled_resolve_buffer_size_ >> 20);
-      return false;
+      REX_FAIL(gpu, false,
+               "VulkanTextureCache: Failed to create a scaled resolve buffer with "
+               "{} MB address space",
+               scaled_resolve_buffer_size_ >> 20);
     }
     scaled_resolve_buffer_sparse_ = false;
     scaled_resolve_sparse_granularity_log2_ = UINT32_MAX;
@@ -2221,10 +2218,9 @@ bool VulkanTextureCache::EnsureScaledResolveBufferAllocated(uint64_t start_scale
     VkDeviceMemory allocation_memory;
     if (dfn.vkAllocateMemory(device, &memory_allocate_info, nullptr, &allocation_memory) !=
         VK_SUCCESS) {
-      REXGPU_ERROR(
-          "VulkanTextureCache: Failed to allocate sparse memory for the "
-          "scaled resolve buffer");
-      return false;
+      REX_FAIL(gpu, false,
+               "VulkanTextureCache: Failed to allocate sparse memory for the "
+               "scaled resolve buffer");
     }
     scaled_resolve_buffer_memory_.push_back(allocation_memory);
 
@@ -2430,12 +2426,12 @@ bool VulkanTextureCache::Initialize() {
                                   kLinearFilterFeatures) == kLinearFilterFeatures;
   if (!rgba16_norm_filterable) {
     if (!rgba16_float_filterable) {
-      REXGPU_ERROR(
-          "VulkanTextureCache: Neither normalized nor float16 RGBA16 formats are linearly "
-          "filterable for 10_11_11/11_11_10 texture fallback");
-      return false;
+      REX_FAIL(gpu, false,
+               "VulkanTextureCache: Neither normalized nor float16 RGBA16 formats are linearly "
+               "filterable for 10_11_11/11_11_10 texture fallback");
     }
-    REXGPU_WARN("VulkanTextureCache: Using RGBA16 float fallback for 10_11_11 / 11_11_10 textures");
+    REXLOG_WARN(gpu,
+                "VulkanTextureCache: Using RGBA16 float fallback for 10_11_11 / 11_11_10 textures");
     constexpr std::array<xenos::TextureFormat, 4> kR10G11B11Formats = {
         xenos::TextureFormat::k_10_11_11,
         xenos::TextureFormat::k_11_11_10,
@@ -2663,36 +2659,36 @@ bool VulkanTextureCache::Initialize() {
       assert_not_null(guest_format_name);
       if (host_format.format_unsigned.format != VK_FORMAT_UNDEFINED) {
         if (host_format.format_unsigned.format != best_host_format.format_unsigned.format) {
-          REXGPU_INFO(
-              "VulkanTextureCache: Format {} (unsigned) is supported via a "
-              "fallback format (using the Vulkan format {} instead of the "
-              "preferred {})",
-              guest_format_name, uint32_t(host_format.format_unsigned.format),
-              uint32_t(best_host_format.format_unsigned.format));
+          REXLOG_INFO(gpu,
+                      "VulkanTextureCache: Format {} (unsigned) is supported via a "
+                      "fallback format (using the Vulkan format {} instead of the "
+                      "preferred {})",
+                      guest_format_name, uint32_t(host_format.format_unsigned.format),
+                      uint32_t(best_host_format.format_unsigned.format));
         }
       } else {
-        REXGPU_INFO(
-            "VulkanTextureCache: Format {} (unsigned) is not supported by the "
-            "device (preferred Vulkan format is {})",
-            guest_format_name, uint32_t(best_host_format.format_unsigned.format));
+        REXLOG_INFO(gpu,
+                    "VulkanTextureCache: Format {} (unsigned) is not supported by the "
+                    "device (preferred Vulkan format is {})",
+                    guest_format_name, uint32_t(best_host_format.format_unsigned.format));
       }
     }
     if (best_host_format.format_signed.format != VK_FORMAT_UNDEFINED) {
       assert_not_null(guest_format_name);
       if (host_format.format_signed.format != VK_FORMAT_UNDEFINED) {
         if (host_format.format_signed.format != best_host_format.format_signed.format) {
-          REXGPU_INFO(
-              "VulkanTextureCache: Format {} (signed) is supported via a "
-              "fallback format (using the Vulkan format {} instead of the "
-              "preferred {})",
-              guest_format_name, uint32_t(host_format.format_signed.format),
-              uint32_t(best_host_format.format_signed.format));
+          REXLOG_INFO(gpu,
+                      "VulkanTextureCache: Format {} (signed) is supported via a "
+                      "fallback format (using the Vulkan format {} instead of the "
+                      "preferred {})",
+                      guest_format_name, uint32_t(host_format.format_signed.format),
+                      uint32_t(best_host_format.format_signed.format));
         }
       } else {
-        REXGPU_INFO(
-            "VulkanTextureCache: Format {} (signed) is not supported by the "
-            "device (preferred Vulkan format is {})",
-            guest_format_name, uint32_t(best_host_format.format_signed.format));
+        REXLOG_INFO(gpu,
+                    "VulkanTextureCache: Format {} (signed) is not supported by the "
+                    "device (preferred Vulkan format is {})",
+                    guest_format_name, uint32_t(best_host_format.format_signed.format));
       }
     }
 
@@ -2751,8 +2747,7 @@ bool VulkanTextureCache::Initialize() {
   load_pipeline_layout_create_info.pPushConstantRanges = &load_pipeline_layout_push_constant_range;
   if (dfn.vkCreatePipelineLayout(device, &load_pipeline_layout_create_info, nullptr,
                                  &load_pipeline_layout_)) {
-    REXGPU_ERROR("VulkanTexture: Failed to create the texture load pipeline layout");
-    return false;
+    REX_FAIL(gpu, false, "VulkanTexture: Failed to create the texture load pipeline layout");
   }
 
   // Load pipelines, only the ones needed for the formats that will be used.
@@ -2930,11 +2925,10 @@ bool VulkanTextureCache::Initialize() {
         vulkan_device, load_pipeline_layout_, current_load_shader_code.first,
         current_load_shader_code.second);
     if (load_pipelines_[i] == VK_NULL_HANDLE) {
-      REXGPU_ERROR(
-          "VulkanTextureCache: Failed to create the texture loading pipeline "
-          "for shader {}",
-          i);
-      return false;
+      REX_FAIL(gpu, false,
+               "VulkanTextureCache: Failed to create the texture loading pipeline "
+               "for shader {}",
+               i);
     }
     if (IsDrawResolutionScaled()) {
       const std::pair<const uint32_t*, size_t>& current_load_shader_code_scaled =
@@ -2944,11 +2938,10 @@ bool VulkanTextureCache::Initialize() {
             vulkan_device, load_pipeline_layout_, current_load_shader_code_scaled.first,
             current_load_shader_code_scaled.second);
         if (load_pipelines_scaled_[i] == VK_NULL_HANDLE) {
-          REXGPU_ERROR(
-              "VulkanTextureCache: Failed to create the resolution-scaled "
-              "texture loading pipeline for shader {}",
-              i);
-          return false;
+          REX_FAIL(gpu, false,
+                   "VulkanTextureCache: Failed to create the resolution-scaled "
+                   "texture loading pipeline for shader {}",
+                   i);
         }
       }
     }
@@ -2982,10 +2975,9 @@ bool VulkanTextureCache::Initialize() {
     null_image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     if (dfn.vkCreateImage(device, &null_image_create_info, nullptr, &null_image_2d_array_cube_) !=
         VK_SUCCESS) {
-      REXGPU_ERROR(
-          "VulkanTextureCache: Failed to create the null 2D array and cube "
-          "image");
-      return false;
+      REX_FAIL(gpu, false,
+               "VulkanTextureCache: Failed to create the null 2D array and cube "
+               "image");
     }
 
     null_image_create_info.flags &= ~VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
@@ -2993,8 +2985,7 @@ bool VulkanTextureCache::Initialize() {
     null_image_create_info.arrayLayers = 1;
     if (dfn.vkCreateImage(device, &null_image_create_info, nullptr, &null_image_3d_) !=
         VK_SUCCESS) {
-      REXGPU_ERROR("VulkanTextureCache: Failed to create the null 3D image");
-      return false;
+      REX_FAIL(gpu, false, "VulkanTextureCache: Failed to create the null 3D image");
     }
 
     VkMemoryRequirements null_image_memory_requirements_2d_array_cube_;
@@ -3021,22 +3012,19 @@ bool VulkanTextureCache::Initialize() {
       null_image_memory_allocate_info.memoryTypeIndex = null_image_memory_type_common;
       if (dfn.vkAllocateMemory(device, &null_image_memory_allocate_info, nullptr,
                                &null_images_memory_[0]) != VK_SUCCESS) {
-        REXGPU_ERROR(
-            "VulkanTextureCache: Failed to allocate the memory for the null "
-            "images");
-        return false;
+        REX_FAIL(gpu, false,
+                 "VulkanTextureCache: Failed to allocate the memory for the null "
+                 "images");
       }
       if (dfn.vkBindImageMemory(device, null_image_2d_array_cube_, null_images_memory_[0], 0) !=
           VK_SUCCESS) {
-        REXGPU_ERROR(
-            "VulkanTextureCache: Failed to bind the memory to the null 2D array "
-            "and cube image");
-        return false;
+        REX_FAIL(gpu, false,
+                 "VulkanTextureCache: Failed to bind the memory to the null 2D array "
+                 "and cube image");
       }
       if (dfn.vkBindImageMemory(device, null_image_3d_, null_images_memory_[0],
                                 null_image_memory_offset_3d_) != VK_SUCCESS) {
-        REXGPU_ERROR("VulkanTextureCache: Failed to bind the memory to the null 3D image");
-        return false;
+        REX_FAIL(gpu, false, "VulkanTextureCache: Failed to bind the memory to the null 3D image");
       }
     } else {
       // Place each null image in separate allocations.
@@ -3049,10 +3037,9 @@ bool VulkanTextureCache::Initialize() {
           ui::vulkan::util::MemoryPurpose::kDeviceLocal);
       if (null_image_memory_type_2d_array_cube == UINT32_MAX ||
           null_image_memory_type_3d == UINT32_MAX) {
-        REXGPU_ERROR(
-            "VulkanTextureCache: Failed to get the memory types for the null "
-            "images");
-        return false;
+        REX_FAIL(gpu, false,
+                 "VulkanTextureCache: Failed to get the memory types for the null "
+                 "images");
       }
 
       VkMemoryAllocateInfo null_image_memory_allocate_info;
@@ -3075,17 +3062,15 @@ bool VulkanTextureCache::Initialize() {
       }
       if (dfn.vkAllocateMemory(device, &null_image_memory_allocate_info, nullptr,
                                &null_images_memory_[0]) != VK_SUCCESS) {
-        REXGPU_ERROR(
-            "VulkanTextureCache: Failed to allocate the memory for the null 2D "
-            "array and cube image");
-        return false;
+        REX_FAIL(gpu, false,
+                 "VulkanTextureCache: Failed to allocate the memory for the null 2D "
+                 "array and cube image");
       }
       if (dfn.vkBindImageMemory(device, null_image_2d_array_cube_, null_images_memory_[0], 0) !=
           VK_SUCCESS) {
-        REXGPU_ERROR(
-            "VulkanTextureCache: Failed to bind the memory to the null 2D array "
-            "and cube image");
-        return false;
+        REX_FAIL(gpu, false,
+                 "VulkanTextureCache: Failed to bind the memory to the null 2D array "
+                 "and cube image");
       }
 
       null_image_memory_allocate_info.allocationSize = null_image_memory_requirements_3d_.size;
@@ -3093,14 +3078,12 @@ bool VulkanTextureCache::Initialize() {
       null_image_memory_dedicated_allocate_info.image = null_image_3d_;
       if (dfn.vkAllocateMemory(device, &null_image_memory_allocate_info, nullptr,
                                &null_images_memory_[1]) != VK_SUCCESS) {
-        REXGPU_ERROR(
-            "VulkanTextureCache: Failed to allocate the memory for the null 3D "
-            "image");
-        return false;
+        REX_FAIL(gpu, false,
+                 "VulkanTextureCache: Failed to allocate the memory for the null 3D "
+                 "image");
       }
       if (dfn.vkBindImageMemory(device, null_image_3d_, null_images_memory_[1], 0) != VK_SUCCESS) {
-        REXGPU_ERROR("VulkanTextureCache: Failed to bind the memory to the null 3D image");
-        return false;
+        REX_FAIL(gpu, false, "VulkanTextureCache: Failed to bind the memory to the null 3D image");
       }
     }
 
@@ -3124,23 +3107,20 @@ bool VulkanTextureCache::Initialize() {
         VK_IMAGE_ASPECT_COLOR_BIT, 0, VK_REMAINING_MIP_LEVELS, 0, 1);
     if (dfn.vkCreateImageView(device, &null_image_view_create_info, nullptr,
                               &null_image_view_2d_array_) != VK_SUCCESS) {
-      REXGPU_ERROR("VulkanTextureCache: Failed to create the null 2D array image view");
-      return false;
+      REX_FAIL(gpu, false, "VulkanTextureCache: Failed to create the null 2D array image view");
     }
     null_image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
     null_image_view_create_info.subresourceRange.layerCount = 6;
     if (dfn.vkCreateImageView(device, &null_image_view_create_info, nullptr,
                               &null_image_view_cube_) != VK_SUCCESS) {
-      REXGPU_ERROR("VulkanTextureCache: Failed to create the null cube image view");
-      return false;
+      REX_FAIL(gpu, false, "VulkanTextureCache: Failed to create the null cube image view");
     }
     null_image_view_create_info.image = null_image_3d_;
     null_image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_3D;
     null_image_view_create_info.subresourceRange.layerCount = 1;
     if (dfn.vkCreateImageView(device, &null_image_view_create_info, nullptr,
                               &null_image_view_3d_) != VK_SUCCESS) {
-      REXGPU_ERROR("VulkanTextureCache: Failed to create the null 3D image view");
-      return false;
+      REX_FAIL(gpu, false, "VulkanTextureCache: Failed to create the null 3D image view");
     }
 
     null_images_cleared_ = false;

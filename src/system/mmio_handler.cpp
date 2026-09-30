@@ -75,7 +75,7 @@ MMIOHandler::~MMIOHandler() {
   if (global_handler_ == this) {
     global_handler_ = nullptr;
   } else {
-    REXLOG_ERROR("~MMIOHandler: global_handler_ does not match this instance");
+    REXLOG_ERROR(system, "~MMIOHandler: global_handler_ does not match this instance");
   }
 }
 
@@ -427,7 +427,7 @@ bool MMIOHandler::ExceptionCallback(platform::Exception* ex) {
   auto p = reinterpret_cast<const uint8_t*>(rip);
   DecodedLoadStore decoded_load_store;
   if (!TryDecodeLoadStore(p, decoded_load_store)) {
-    REXLOG_ERROR("Unable to decode MMIO load or store instruction at {:p}",
+    REXLOG_ERROR(system, "Unable to decode MMIO load or store instruction at {:p}",
                  static_cast<const void*>(p));
     assert_always("Unknown MMIO instruction type");
     return false;

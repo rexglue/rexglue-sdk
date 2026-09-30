@@ -630,7 +630,7 @@ void MnkInputDriver::ApplyMouseCaptureFromUIThread() {
   window->CaptureMouse();
   relative_mouse_mode_ = window->SetRelativeMouseMode(true);
   if (!relative_mouse_mode_) {
-    REXLOG_WARN("Pointer lock unavailable, mouse look falls back to recentering the cursor");
+    REXLOG_WARN(input, "Pointer lock unavailable, mouse look falls back to recentering the cursor");
   }
   // Reset deltas to avoid a spike on capture start
   std::lock_guard lock(state_mutex_);

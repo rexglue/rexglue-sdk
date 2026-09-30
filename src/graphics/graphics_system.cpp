@@ -76,15 +76,14 @@ X_STATUS GraphicsSystem::SetupPresentation(ui::WindowedAppContext* app_context) 
   if (!provider_) {
     CreateProvider(true);
     if (!provider_) {
-      REXGPU_ERROR("Unable to create graphics provider");
-      return X_STATUS_UNSUCCESSFUL;
+      REX_FAIL(gpu, X_STATUS_UNSUCCESSFUL, "Unable to create graphics provider");
     }
     provider_supports_presentation_ = true;
   } else if (!provider_supports_presentation_) {
     // A prior SetupGuestGPU built a headless provider; backends like Vulkan
     // need swapchain support baked in at provider creation time.
-    REXGPU_ERROR("SetupPresentation called after headless SetupGuestGPU; call order is reversed");
-    return X_STATUS_UNSUCCESSFUL;
+    REX_FAIL(gpu, X_STATUS_UNSUCCESSFUL,
+             "SetupPresentation called after headless SetupGuestGPU; call order is reversed");
   }
 
   app_context_ = app_context;
@@ -101,8 +100,7 @@ X_STATUS GraphicsSystem::SetupPresentation(ui::WindowedAppContext* app_context) 
   }
 
   if (!presenter_) {
-    REXGPU_ERROR("Unable to create presenter");
-    return X_STATUS_UNSUCCESSFUL;
+    REX_FAIL(gpu, X_STATUS_UNSUCCESSFUL, "Unable to create presenter");
   }
   return X_STATUS_SUCCESS;
 }
@@ -124,8 +122,7 @@ X_STATUS GraphicsSystem::SetupGuestGPU(runtime::FunctionDispatcher* function_dis
   // incoming ringbuffer packets.
   command_processor_ = CreateCommandProcessor();
   if (!command_processor_->Initialize()) {
-    REXGPU_ERROR("Unable to initialize command processor");
-    return X_STATUS_UNSUCCESSFUL;
+    REX_FAIL(gpu, X_STATUS_UNSUCCESSFUL, "Unable to initialize command processor");
   }
   command_processor_->SetDesiredSwapPostEffect(
       ParseSwapPostEffect(REXCVAR_GET(::rex::graphics::cvars::swap_post_effect)));
@@ -248,7 +245,7 @@ uint32_t GraphicsSystem::ReadRegister(uint32_t addr) {
     }
     default:
       if (!register_file_.GetRegisterInfo(r)) {
-        REXGPU_DEBUG("GPU: Read from unknown register ({:04X})", r);
+        REXLOG_DEBUG(gpu, "GPU: Read from unknown register ({:04X})", r);
       }
   }
 
@@ -266,7 +263,7 @@ void GraphicsSystem::WriteRegister(uint32_t addr, uint32_t value) {
     case 0x1844:  // AVIVO_D1GRPH_PRIMARY_SURFACE_ADDRESS
       break;
     default:
-      REXGPU_WARN("Unknown GPU register {:04X} write: {:08X}", r, value);
+      REXLOG_WARN(gpu, "Unknown GPU register {:04X} write: {:08X}", r, value);
       break;
   }
 
@@ -285,7 +282,7 @@ void GraphicsSystem::EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_siz
 void GraphicsSystem::SetInterruptCallback(uint32_t callback, uint32_t user_data) {
   interrupt_callback_ = callback;
   interrupt_callback_data_ = user_data;
-  REXGPU_INFO("SetInterruptCallback({:08X}, {:08X})", callback, user_data);
+  REXLOG_DEBUG(gpu, "SetInterruptCallback({:08X}, {:08X})", callback, user_data);
 }
 
 void GraphicsSystem::DispatchInterruptCallback(uint32_t source, uint32_t cpu) {
@@ -301,9 +298,6 @@ void GraphicsSystem::DispatchInterruptCallback(uint32_t source, uint32_t cpu) {
     cpu = 2;
   }
   thread->SetActiveCpu(cpu);
-
-  // REXGPU_INFO("Dispatching GPU interrupt at {:08X} w/ mode {} on cpu {}",
-  //          interrupt_callback_, source, cpu);
 
   uint64_t args[] = {source, interrupt_callback_data_};
   function_dispatcher_->ExecuteInterrupt(thread->thread_state(), interrupt_callback_, args,

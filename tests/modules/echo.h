@@ -16,7 +16,7 @@
 namespace rex::test {
 
 /**
- * Echoes an integer. Served as "rex.test.echo" version 1.
+ * Echoes an integer. Served by the test modules.
  */
 class IEcho {
  public:

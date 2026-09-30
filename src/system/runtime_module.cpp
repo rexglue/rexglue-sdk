@@ -1,6 +1,6 @@
 /**
  * @file        system/runtime_module.cpp
- * @brief       The rex.module@1 served by rexruntime.dll
+ * @brief       The module interface served by rexruntime.dll
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -22,6 +22,8 @@
 #include "input/cvar_table.h"
 #include "system/cvar_table.h"
 #include "ui/cvar_table.h"
+
+REXLOG_TABLE(kRuntimeLog, kernel, system, cpu, title, audio, input, ui, console)
 
 namespace rex::runtime {
 
@@ -45,8 +47,7 @@ const std::array<ScopeTable, 8> kTables = {{
 
 Result<void> ValidateSlices(const Config& config) {
   auto fail = [](std::string message) {
-    REXLOG_ERROR("{}", message);
-    return Err(Error(ErrorCategory::Config, std::move(message)));
+    REX_FAIL(system, Err(Error(ErrorCategory::Config, std::move(message))), "{}", message);
   };
   if (config.runtime.heap_size_mb < 1 || config.runtime.heap_size_mb > 2048) {
     return fail(std::format("config field runtime.heap_size_mb = {} is outside 1 to 2048",
@@ -107,8 +108,22 @@ Result<void> RuntimeModule::Connect(IInterfaceFactory* factory, const Config& co
     }
     ++registered_;
   }
+  logger_ = factory->Get<ILogger>();
+  if (!logger_) {
+    Disconnect();
+    return Err(ErrorCategory::Module, "rexruntime: the logger is not served");
+  }
+  if (auto status = logger_->Register(log::kRuntimeLog); !status) {
+    logger_ = nullptr;
+    Disconnect();
+    return status;
+  }
   const auto& window = config.ui.window;
   auto defaults = [&]() -> Result<void> {
+    REX_TRY_VOID(cvars_->SetDefault("runtime.writable_code_segments",
+                                    config.runtime.writable_code_segments ? "true" : "false"));
+    REX_TRY_VOID(
+        cvars_->SetDefault("runtime.protect_zero", config.runtime.protect_zero ? "true" : "false"));
     REX_TRY_VOID(cvars_->SetDefault("ui.window_width", std::to_string(window.width)));
     REX_TRY_VOID(cvars_->SetDefault("ui.window_height", std::to_string(window.height)));
     REX_TRY_VOID(cvars_->SetDefault("ui.fullscreen", window.fullscreen ? "true" : "false"));
@@ -125,6 +140,10 @@ Result<void> RuntimeModule::Connect(IInterfaceFactory* factory, const Config& co
 }
 
 void RuntimeModule::Disconnect() {
+  if (logger_) {
+    logger_->Unregister(log::kRuntimeLog);
+  }
+  logger_ = nullptr;
   if (cvars_) {
     for (size_t i = registered_; i > 0; --i) {
       cvars_->Unregister(kTables[i - 1].vars);

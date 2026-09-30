@@ -35,7 +35,7 @@ FunctionDispatcher* GetBoundFunctionDispatcher() {
 }  // namespace
 
 static void InvalidFunctionTrap(PPCContext& ctx, uint8_t* /*base*/) {
-  REX_FATAL("Call to invalid or unregistered function at guest address 0x{:08X}",
+  REX_FATAL(cpu, "Call to invalid or unregistered function at guest address 0x{:08X}",
             ctx.last_indirect_target);
 }
 
@@ -63,8 +63,7 @@ bool FunctionDispatcher::Execute(ThreadState* thread_state, uint32_t address) {
 
   PPCFunc* fn = GetFunction(address);
   if (!fn) {
-    REXCPU_ERROR("Execute({:08X}): function not in function table", address);
-    return false;
+    REX_FAIL(cpu, false, "Execute({:08X}): function not in function table", address);
   }
 
   auto* ctx = thread_state->context();
@@ -185,9 +184,8 @@ bool FunctionDispatcher::InitializeFunctionTable(uint32_t code_base, uint32_t co
   std::lock_guard<std::recursive_mutex> lock(dispatch_mutex_);
 
   if (is_entrypoint && entrypoint_code_base_ != 0) {
-    REXLOG_ERROR("InitializeFunctionTable: entrypoint already registered at {:08X}",
-                 entrypoint_code_base_);
-    return false;
+    REX_FAIL(cpu, false, "InitializeFunctionTable: entrypoint already registered at {:08X}",
+             entrypoint_code_base_);
   }
 
   uint32_t new_table_end = image_base + image_size + (code_size + kThunkReserveSize) * 2;
@@ -197,20 +195,17 @@ bool FunctionDispatcher::InitializeFunctionTable(uint32_t code_base, uint32_t co
         existing.image_base + existing.image_size + (existing.code_size + kThunkReserveSize) * 2;
     uint32_t existing_code_end = existing.code_base + existing.code_size + kThunkReserveSize;
     if (image_base < existing_table_end && new_table_end > existing.image_base) {
-      REXLOG_ERROR("Module image range [{:08X}, {:08X}) overlaps existing [{:08X}, {:08X})",
-                   image_base, new_table_end, existing.image_base, existing_table_end);
-      return false;
+      REX_FAIL(cpu, false, "Module image range [{:08X}, {:08X}) overlaps existing [{:08X}, {:08X})",
+               image_base, new_table_end, existing.image_base, existing_table_end);
     }
     if (code_base < existing_code_end && new_code_end > existing.code_base) {
-      REXLOG_ERROR("Module code range [{:08X}, {:08X}) overlaps existing [{:08X}, {:08X})",
-                   code_base, new_code_end, existing.code_base, existing_code_end);
-      return false;
+      REX_FAIL(cpu, false, "Module code range [{:08X}, {:08X}) overlaps existing [{:08X}, {:08X})",
+               code_base, new_code_end, existing.code_base, existing_code_end);
     }
   }
 
   if (!memory_->InitializeFunctionTable(code_base, code_size, image_base, image_size)) {
-    REXLOG_ERROR("Failed to initialize guest memory function table");
-    return false;
+    REX_FAIL(cpu, false, "Failed to initialize guest memory function table");
   }
 
   module_tables_.push_back({
@@ -226,8 +221,9 @@ bool FunctionDispatcher::InitializeFunctionTable(uint32_t code_base, uint32_t co
     entrypoint_code_base_ = code_base;
   }
 
-  REXLOG_INFO("Function table initialized for module: code={:08X}-{:08X}, image={:08X}-{:08X}",
-              code_base, code_base + code_size, image_base, image_base + image_size);
+  REXLOG_DEBUG(cpu,
+               "Function table initialized for module: code={:08X}-{:08X}, image={:08X}-{:08X}",
+               code_base, code_base + code_size, image_base, image_base + image_size);
   return true;
 }
 
@@ -254,14 +250,14 @@ bool FunctionDispatcher::SetFunction(uint32_t guest_address, ::PPCFunc* func) {
   assert_true(!module_tables_.empty());
 
   if (!FindModuleByAddress(guest_address)) {
-    REXLOG_ERROR("SetFunction: address {:08X} outside all registered module ranges", guest_address);
-    return false;
+    REX_FAIL(cpu, false, "SetFunction: address {:08X} outside all registered module ranges",
+             guest_address);
   }
 
   function_table_[guest_address] = func;
 
   if (!memory_->SetFunction(guest_address, func)) {
-    REXLOG_ERROR("SetFunction: dispatcher / Memory module-table state out of sync at {:08X}",
+    REXLOG_ERROR(cpu, "SetFunction: dispatcher / Memory module-table state out of sync at {:08X}",
                  guest_address);
     function_table_.erase(guest_address);
     return false;
@@ -287,25 +283,21 @@ uint32_t FunctionDispatcher::AllocateThunk(::PPCFunc* func, uint32_t caller_addr
   auto* mod = FindModuleByAddress(caller_address);
   if (!mod) {
     if (caller_address != 0) {
-      REXLOG_ERROR("AllocateThunk: caller_address {:08X} not in any registered module",
-                   caller_address);
-      return 0;
+      REX_FAIL(cpu, 0, "AllocateThunk: caller_address {:08X} not in any registered module",
+               caller_address);
     }
     if (entrypoint_code_base_ == 0) {
-      REXLOG_ERROR("AllocateThunk: caller_address=0 but no entrypoint registered");
-      return 0;
+      REX_FAIL(cpu, 0, "AllocateThunk: caller_address=0 but no entrypoint registered");
     }
     mod = FindModuleByAddress(entrypoint_code_base_);
     if (!mod) {
-      REXLOG_ERROR("AllocateThunk: entrypoint code_base {:08X} not in module_tables_",
-                   entrypoint_code_base_);
-      return 0;
+      REX_FAIL(cpu, 0, "AllocateThunk: entrypoint code_base {:08X} not in module_tables_",
+               entrypoint_code_base_);
     }
   }
 
   if (mod->next_thunk_address >= mod->thunk_limit) {
-    REXLOG_ERROR("Thunk address space exhausted for module at {:08X}", mod->code_base);
-    return 0;
+    REX_FAIL(cpu, 0, "Thunk address space exhausted for module at {:08X}", mod->code_base);
   }
   uint32_t addr = mod->next_thunk_address;
   mod->next_thunk_address += 4;
@@ -320,16 +312,17 @@ void FunctionDispatcher::RegisterModule(const std::string& module_id, uint32_t c
                                         RegisterFn register_func) {
   std::lock_guard<std::recursive_mutex> lock(dispatch_mutex_);
   if (recording_) {
-    REX_FATAL("RegisterModule called while already recording (re-entrancy)");
+    REX_FATAL(cpu, "RegisterModule called while already recording (re-entrancy)");
     return;
   }
 
   if (module_addresses_.find(module_id) != module_addresses_.end()) {
-    REXLOG_WARN("RegisterModule: '{}' is already registered; cleaning up prior batch", module_id);
+    REXLOG_WARN(cpu, "RegisterModule: '{}' is already registered; cleaning up prior batch",
+                module_id);
     UnregisterModule(module_id);
   }
 
-  REXLOG_INFO("Registering module: {} (code_base={:08X})", module_id, code_base);
+  REXLOG_DEBUG(cpu, "Registering module: {} (code_base={:08X})", module_id, code_base);
 
   recording_addresses_.clear();
   recording_ = true;
@@ -351,7 +344,7 @@ void FunctionDispatcher::RegisterModule(const std::string& module_id, uint32_t c
   size_t count = reg.addresses.size();
   module_addresses_[module_id] = std::move(reg);
 
-  REXLOG_INFO("Module '{}' registered {} functions", module_id, count);
+  REXLOG_INFO(cpu, "Module '{}' registered {} functions", module_id, count);
 }
 
 std::optional<std::pair<uint32_t, uint32_t>> FunctionDispatcher::UnregisterModule(
@@ -359,11 +352,12 @@ std::optional<std::pair<uint32_t, uint32_t>> FunctionDispatcher::UnregisterModul
   std::lock_guard<std::recursive_mutex> lock(dispatch_mutex_);
   auto it = module_addresses_.find(module_id);
   if (it == module_addresses_.end()) {
-    REXLOG_WARN("UnregisterModule: module '{}' not found", module_id);
+    REXLOG_WARN(cpu, "UnregisterModule: module '{}' not found", module_id);
     return std::nullopt;
   }
 
-  REXLOG_INFO("Unregistering module: {} ({} functions)", module_id, it->second.addresses.size());
+  REXLOG_DEBUG(cpu, "Unregistering module: {} ({} functions)", module_id,
+               it->second.addresses.size());
 
   auto table_it = std::find_if(module_tables_.begin(), module_tables_.end(),
                                [code_base = it->second.code_base](const ModuleTableInfo& mti) {

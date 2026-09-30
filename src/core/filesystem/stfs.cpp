@@ -120,8 +120,7 @@ class STFSReader {
   bool Load(u64 key, u64 offset) {
     auto table = ReadAt<STFSHashTable>(file_, offset);
     if (!table) {
-      REXFS_ERROR("STFS hash table at {:#x} is outside the package", offset);
-      return false;
+      REX_FAIL(filesystem, false, "STFS hash table at {:#x} is outside the package", offset);
     }
     cache_[key] = *table;
     return true;
@@ -204,12 +203,12 @@ Result<void> ParseSTFS(const STFSHeader& header, std::span<const u8> file,
           block = hash->level0_next_block();
         }
         if (remaining) {
-          REXFS_WARN("STFS file {} holds {} of {} bytes", node.name,
-                     static_cast<u64>(entry.length) - remaining, static_cast<u32>(entry.length));
+          REXLOG_WARN(filesystem, "STFS file {} holds {} of {} bytes", node.name,
+                      static_cast<u64>(entry.length) - remaining, static_cast<u32>(entry.length));
         }
         if (blocks != entry.allocated_data_blocks()) {
-          REXFS_WARN("STFS file {} chains {} blocks, the entry lists {}", node.name, blocks,
-                     entry.allocated_data_blocks());
+          REXLOG_WARN(filesystem, "STFS file {} chains {} blocks, the entry lists {}", node.name,
+                      blocks, entry.allocated_data_blocks());
         }
       }
       const auto index = static_cast<u32>(nodes.size());
@@ -226,7 +225,8 @@ Result<void> ParseSTFS(const STFSHeader& header, std::span<const u8> file,
     }
   }
   if (tables_read != table_blocks) {
-    REXFS_WARN("STFS read {} directory blocks, the header lists {}", tables_read, table_blocks);
+    REXLOG_WARN(filesystem, "STFS read {} directory blocks, the header lists {}", tables_read,
+                table_blocks);
   }
   return Ok();
 }

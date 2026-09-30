@@ -11,7 +11,6 @@
 #include <rex/codegen/sig_scanner.h>
 #include <rex/logging.h>
 
-#include "codegen_logging.h"
 #include <rex/memory/utils.h>
 #include <rex/types.h>
 
@@ -98,7 +97,8 @@ std::vector<uint32_t> SigScanner::scanRange(uint32_t start, uint32_t end,
     if (matched) {
       uint32_t entryPoint = addr + static_cast<uint32_t>(entryOffset * 4);
       matches.push_back(entryPoint);
-      REXCODEGEN_TRACE("SigScanner: pattern match at 0x{:08X}, entry=0x{:08X}", addr, entryPoint);
+      REXLOG_TRACE(codegen, "SigScanner: pattern match at 0x{:08X}, entry=0x{:08X}", addr,
+                   entryPoint);
     }
   }
 

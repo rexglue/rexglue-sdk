@@ -10,6 +10,7 @@
 
 #include <rex/cvar.h>
 #include <rex/cvar/registry.h>
+#include <rex/logging.h>
 #include <rex/platform/file.h>
 
 namespace rex::ui {
@@ -81,25 +82,24 @@ void ConsoleModel::Poll() {
   last_sequence_ = capture_.CopySince(last_sequence_, poll_buffer_);
   for (log::CapturedRecord& record : poll_buffer_) {
     categories_.insert(record.category);
-    Append(ConsoleLine{record.level, std::move(record.category), std::move(record.text),
-                       record.sequence});
+    Append(record.level, record.category, record.text, record.sequence);
   }
   poll_buffer_.clear();
 }
 
-void ConsoleModel::Append(ConsoleLine line) {
-  std::string_view text = line.text;
+void ConsoleModel::Append(log::Level level, std::string_view category, std::string_view text,
+                          u64 sequence) {
   for (const auto part : std::views::split(text, '\n')) {
-    lines_.push_back(ConsoleLine{line.level, line.category, std::string(std::string_view(part)),
-                                 line.sequence, ++next_id_});
+    lines_.push_back(ConsoleLine{level, std::string(category), std::string(std::string_view(part)),
+                                 sequence, ++next_id_});
   }
   while (lines_.size() > kMaxLines) {
     lines_.pop_front();
   }
 }
 
-void ConsoleModel::Add(log::Level level, std::string text) {
-  Append(ConsoleLine{level, "console", std::move(text), capture_.latest()});
+void ConsoleModel::Add(log::Level level, std::string_view text) {
+  Append(level, "console", text, capture_.latest());
 }
 
 void ConsoleModel::Clear() {
@@ -315,8 +315,11 @@ void ConsoleModel::SaveHistory() const {
     text += entry;
     text += '\n';
   }
-  (void)platform::WriteWholeFile(history_path_,
-                                 std::span(reinterpret_cast<const u8*>(text.data()), text.size()));
+  if (auto written = platform::WriteWholeFile(
+          history_path_, std::span(reinterpret_cast<const u8*>(text.data()), text.size()));
+      !written) {
+    REXLOG_WARN(ui, "console history not saved, {}", written.error().message);
+  }
 }
 
 }  // namespace rex::ui

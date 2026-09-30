@@ -1,4 +1,6 @@
 #pragma once
+
+#include <format>
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -367,11 +369,17 @@ object_ref<T> XObject::GetNativeObject(KernelState* kernel_state, void* native_p
 
 }  // namespace rex::system
 
-// fmt formatter for XObject::Type - format as underlying uint32_t
+/** Formats the enum as its underlying integer. */
 template <>
-struct fmt::formatter<rex::system::XObject::Type> : fmt::formatter<uint32_t> {
-  template <typename FormatContext>
-  auto format(rex::system::XObject::Type t, FormatContext& ctx) const {
-    return fmt::formatter<uint32_t>::format(static_cast<uint32_t>(t), ctx);
+struct std::formatter<rex::system::XObject::Type> : std::formatter<rex::u32> {
+  /**
+   * Formats the value.
+   *
+   * @param value The value.
+   * @param ctx The format context.
+   * @return The output iterator.
+   */
+  auto format(rex::system::XObject::Type value, std::format_context& ctx) const {
+    return std::formatter<rex::u32>::format(static_cast<rex::u32>(value), ctx);
   }
 };

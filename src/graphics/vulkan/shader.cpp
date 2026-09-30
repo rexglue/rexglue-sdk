@@ -45,10 +45,10 @@ VkShaderModule VulkanShader::VulkanTranslation::GetOrCreateShaderModule() {
   if (vulkan_device->functions().vkCreateShaderModule(vulkan_device->device(),
                                                       &shader_module_create_info, nullptr,
                                                       &shader_module_) != VK_SUCCESS) {
-    REXGPU_ERROR(
-        "VulkanShader::VulkanTranslation: Failed to create a Vulkan shader "
-        "module for shader {:016X} modification {:016X}",
-        shader().ucode_data_hash(), modification());
+    REXLOG_ERROR(gpu,
+                 "VulkanShader::VulkanTranslation: Failed to create a Vulkan shader "
+                 "module for shader {:016X} modification {:016X}",
+                 shader().ucode_data_hash(), modification());
     MakeInvalid();
     return VK_NULL_HANDLE;
   }

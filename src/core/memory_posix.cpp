@@ -367,7 +367,7 @@ bool Protect(void* base_address, size_t length, PageAccess access, PageAccess* o
   uint32_t prot = ToPosixProtectFlags(access);
   int ret = mprotect(base_address, length, prot);
   if (ret != 0) {
-    REXSYS_ERROR("mprotect({}, 0x{:X}, {}) failed: {} ({})", base_address, length, prot,
+    REXLOG_ERROR(system, "mprotect({}, 0x{:X}, {}) failed: {} ({})", base_address, length, prot,
                  strerror(errno), errno);
   }
   return ret == 0;

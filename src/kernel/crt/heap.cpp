@@ -65,14 +65,12 @@ bool ReXHeap::Init(uint32_t heap_size_bytes, rex::memory::Memory* memory) {
   memory_ = memory;
   auto* mem = memory_;
   if (!mem) {
-    REXKRNL_ERROR("rexcrt_heap: memory is null");
-    return false;
+    REX_FAIL(kernel, false, "rexcrt_heap: memory is null");
   }
 
   membase_ = mem->virtual_membase();
   if (!membase_) {
-    REXKRNL_ERROR("rexcrt_heap: virtual_membase is null");
-    return false;
+    REX_FAIL(kernel, false, "rexcrt_heap: virtual_membase is null");
   }
 
   initial_segment_size_ =
@@ -85,8 +83,8 @@ bool ReXHeap::Init(uint32_t heap_size_bytes, rex::memory::Memory* memory) {
   }
 
   const auto diagnostics = GetDiagnosticsLocked();
-  REXKRNL_DEBUG("rexcrt_heap: initialized with {} segment(s), capacity={}MB", segments_.size(),
-                diagnostics.capacity / (1024 * 1024));
+  REXLOG_DEBUG(kernel, "rexcrt_heap: initialized with {} segment(s), capacity={}MB",
+               segments_.size(), diagnostics.capacity / (1024 * 1024));
   return true;
 }
 
@@ -101,7 +99,7 @@ void ReXHeap::Free(uint32_t guest_addr) {
   std::lock_guard lock(mutex_);
   auto* segment = FindSegmentByGuestLocked(guest_addr);
   if (!segment || guest_addr < segment->guest_base + kHeaderSize) {
-    REXKRNL_WARN("rexcrt_RtlFreeHeap: skipping OOB ptr 0x{:08X}", guest_addr);
+    REXLOG_WARN(kernel, "rexcrt_RtlFreeHeap: skipping OOB ptr 0x{:08X}", guest_addr);
     return;
   }
 
@@ -134,8 +132,8 @@ uint32_t ReXHeap::Realloc(uint32_t guest_addr, uint32_t new_size, bool zero_new)
   auto* segment = FindSegmentByGuestLocked(guest_addr);
   if (!segment || guest_addr < segment->guest_base + kHeaderSize) {
     // Pre-hook allocation outside our heap -- treat as fresh alloc.
-    REXKRNL_WARN("rexcrt_RtlReAllocateHeap: OOB ptr 0x{:08X}, treating as new alloc({})",
-                 guest_addr, new_size);
+    REXLOG_WARN(kernel, "rexcrt_RtlReAllocateHeap: OOB ptr 0x{:08X}, treating as new alloc({})",
+                guest_addr, new_size);
     return AllocLocked(new_size, zero_new);
   }
 
@@ -148,7 +146,7 @@ uint32_t ReXHeap::Realloc(uint32_t guest_addr, uint32_t new_size, bool zero_new)
     // Cross-segment fallback: allocate a fresh block, copy, then free old.
     uint32_t new_guest = AllocLocked(new_size, false);
     if (!new_guest) {
-      REXKRNL_WARN("rexcrt_RtlReAllocateHeap: o1heapReallocate({}) failed", new_size);
+      REXLOG_WARN(kernel, "rexcrt_RtlReAllocateHeap: o1heapReallocate({}) failed", new_size);
       return 0;
     }
 
@@ -183,8 +181,7 @@ HeapDiagnostics ReXHeap::GetDiagnostics() const {
 bool ReXHeap::AllocateSegmentLocked(uint32_t segment_size_bytes) {
   auto* mem = memory_;
   if (!mem) {
-    REXKRNL_ERROR("rexcrt_heap: kernel memory is null during segment allocation");
-    return false;
+    REX_FAIL(kernel, false, "rexcrt_heap: kernel memory is null during segment allocation");
   }
 
   segment_size_bytes =
@@ -202,27 +199,26 @@ bool ReXHeap::AllocateSegmentLocked(uint32_t segment_size_bytes) {
                     rex::memory::kMemoryAllocationReserve | rex::memory::kMemoryAllocationCommit,
                     rex::memory::kMemoryProtectRead | rex::memory::kMemoryProtectWrite, true,
                     &guest_base)) {
-    REXKRNL_ERROR("rexcrt_heap: virtual heap allocation of {} bytes failed", segment_size_bytes);
-    return false;
+    REX_FAIL(kernel, false, "rexcrt_heap: virtual heap allocation of {} bytes failed",
+             segment_size_bytes);
   }
 
   uint8_t* host_base = mem->TranslateVirtual<uint8_t*>(guest_base);
   if (!host_base) {
-    REXKRNL_ERROR("rexcrt_heap: TranslateVirtual failed for guest base 0x{:08X}", guest_base);
-    return false;
+    REX_FAIL(kernel, false, "rexcrt_heap: TranslateVirtual failed for guest base 0x{:08X}",
+             guest_base);
   }
 
   O1HeapInstance* heap = o1heapInit(host_base, segment_size_bytes);
   if (!heap) {
-    REXKRNL_ERROR("rexcrt_heap: o1heapInit failed for segment 0x{:08X} size {}", guest_base,
-                  segment_size_bytes);
-    return false;
+    REX_FAIL(kernel, false, "rexcrt_heap: o1heapInit failed for segment 0x{:08X} size {}",
+             guest_base, segment_size_bytes);
   }
 
   segments_.push_back(
       HeapSegment{heap, guest_base, static_cast<uint32_t>(guest_base + segment_size_bytes)});
-  REXKRNL_DEBUG("rexcrt_heap: added segment guest=0x{:08X}-0x{:08X} size={}MB", guest_base,
-                guest_base + segment_size_bytes, segment_size_bytes / (1024 * 1024));
+  REXLOG_DEBUG(kernel, "rexcrt_heap: added segment guest=0x{:08X}-0x{:08X} size={}MB", guest_base,
+               guest_base + segment_size_bytes, segment_size_bytes / (1024 * 1024));
   return true;
 }
 
@@ -266,12 +262,12 @@ uint32_t ReXHeap::AllocLocked(uint32_t size, bool zero) {
       invariants_ok = invariants_ok && o1heapDoInvariantsHold(segment.heap);
     }
     const uint64_t free_bytes = diagnostics.capacity - diagnostics.allocated;
-    REXKRNL_WARN(
-        "rexcrt_RtlAllocateHeap: o1heapAllocate({}) failed (segments={}, capacity={}MB, "
-        "allocated={}MB, free={}MB, oom_count={}, invariants_ok={})",
-        size, segments_.size(), diagnostics.capacity / (1024 * 1024),
-        diagnostics.allocated / (1024 * 1024), free_bytes / (1024 * 1024), diagnostics.oom_count,
-        invariants_ok);
+    REXLOG_WARN(kernel,
+                "rexcrt_RtlAllocateHeap: o1heapAllocate({}) failed (segments={}, capacity={}MB, "
+                "allocated={}MB, free={}MB, oom_count={}, invariants_ok={})",
+                size, segments_.size(), diagnostics.capacity / (1024 * 1024),
+                diagnostics.allocated / (1024 * 1024), free_bytes / (1024 * 1024),
+                diagnostics.oom_count, invariants_ok);
     return 0;
   }
 
@@ -281,11 +277,12 @@ uint32_t ReXHeap::AllocLocked(uint32_t size, bool zero) {
 
   const auto diagnostics = GetDiagnosticsLocked();
   const uint64_t free_bytes = diagnostics.capacity - diagnostics.allocated;
-  REXKRNL_WARN(
-      "rexcrt_RtlAllocateHeap: allocation still failed after growth for {} bytes "
-      "(segments={}, capacity={}MB, allocated={}MB, free={}MB, oom_count={})",
-      size, segments_.size(), diagnostics.capacity / (1024 * 1024),
-      diagnostics.allocated / (1024 * 1024), free_bytes / (1024 * 1024), diagnostics.oom_count);
+  REXLOG_WARN(kernel,
+              "rexcrt_RtlAllocateHeap: allocation still failed after growth for {} bytes "
+              "(segments={}, capacity={}MB, allocated={}MB, free={}MB, oom_count={})",
+              size, segments_.size(), diagnostics.capacity / (1024 * 1024),
+              diagnostics.allocated / (1024 * 1024), free_bytes / (1024 * 1024),
+              diagnostics.oom_count);
   return 0;
 }
 

@@ -97,32 +97,29 @@ bool D3D12PrimitiveProcessor::InitializeBuiltinIndexBuffer(
   if (FAILED(device->CreateCommittedResource(
           &ui::d3d12::util::kHeapPropertiesDefault, provider.GetHeapFlagCreateNotZeroed(),
           &resource_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&draw_resource)))) {
-    REXGPU_ERROR(
-        "D3D12 primitive processor: Failed to create the built-in index "
-        "buffer GPU resource with {} bytes",
-        size_bytes);
-    return false;
+    REX_FAIL(gpu, false,
+             "D3D12 primitive processor: Failed to create the built-in index "
+             "buffer GPU resource with {} bytes",
+             size_bytes);
   }
   Microsoft::WRL::ComPtr<ID3D12Resource> upload_resource;
   if (FAILED(device->CreateCommittedResource(&ui::d3d12::util::kHeapPropertiesUpload,
                                              provider.GetHeapFlagCreateNotZeroed(), &resource_desc,
                                              D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
                                              IID_PPV_ARGS(&upload_resource)))) {
-    REXGPU_ERROR(
-        "D3D12 primitive processor: Failed to create the built-in index "
-        "buffer upload resource with {} bytes",
-        size_bytes);
-    return false;
+    REX_FAIL(gpu, false,
+             "D3D12 primitive processor: Failed to create the built-in index "
+             "buffer upload resource with {} bytes",
+             size_bytes);
   }
 
   D3D12_RANGE upload_read_range = {};
   void* mapping;
   if (FAILED(upload_resource->Map(0, &upload_read_range, &mapping))) {
-    REXGPU_ERROR(
-        "D3D12 primitive processor: Failed to map the built-in index buffer "
-        "upload resource with {} bytes",
-        size_bytes);
-    return false;
+    REX_FAIL(gpu, false,
+             "D3D12 primitive processor: Failed to map the built-in index buffer "
+             "upload resource with {} bytes",
+             size_bytes);
   }
   fill_callback(reinterpret_cast<uint16_t*>(mapping));
   upload_resource->Unmap(0, nullptr);

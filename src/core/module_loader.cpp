@@ -11,6 +11,8 @@
 
 #include "module_loader.h"
 
+#include "core/logger.h"
+
 #include <algorithm>
 #include <array>
 #include <charconv>
@@ -54,8 +56,9 @@ void* GetCvarRegistry() {
   return static_cast<rex::cvar::ICvarRegistry*>(&ModuleLoader::Instance().cvars());
 }
 
-constexpr std::array<InterfaceEntry, 1> kCoreInterfaces = {{
+constexpr std::array<InterfaceEntry, 2> kCoreInterfaces = {{
     {cvar::ICvarRegistry::kInterfaceName, cvar::ICvarRegistry::kInterfaceVersion, &GetCvarRegistry},
+    {ILogger::kInterfaceName, ILogger::kInterfaceVersion, &log::GetLoggerInterface},
 }};
 constexpr const char* kCoreOwner = "core";
 constexpr size_t kCoreOwnerIndex = SIZE_MAX;
@@ -93,8 +96,7 @@ ModuleLoader& ModuleLoader::Instance() {
 }
 
 Error ModuleLoader::ModuleError(std::string message) {
-  REXLOG_ERROR("{}", message);
-  return Error(ErrorCategory::Module, std::move(message));
+  REX_FAIL(core, Error(ErrorCategory::Module, std::move(message)), "{}", message);
 }
 
 Result<API*> ModuleLoader::Connect(const Config& config) {
@@ -129,6 +131,15 @@ Result<API*> ModuleLoader::Connect(const Config& config) {
     return Err<API*>(status.error());
   }
   builtin_registered_ = true;
+  if (auto status = cvars_->SetDefault("perf.profiler", config_.profiler ? "true" : "false");
+      !status) {
+    UnregisterTables();
+    return Err<API*>(status.error());
+  }
+  if (auto status = StartLogger(config_.log, *cvars_); !status) {
+    UnregisterTables();
+    return Err<API*>(status.error());
+  }
   if (auto status = LoadAll(); !status) {
     UnwindAll();
     return Err<API*>(status.error());
@@ -149,6 +160,7 @@ Result<API*> ModuleLoader::Connect(const Config& config) {
     UnwindAll();
     return Err<API*>(status.error());
   }
+  FinishLoggerStart(*cvars_);
   connected_ = true;
   return &api_;
 }
@@ -296,6 +308,7 @@ void ModuleLoader::UnwindAll() {
       it->connected = false;
     }
   }
+  StopLogger();
   UnregisterTables();
   registry_.clear();
   for (auto it = loaded_.rbegin(); it != loaded_.rend(); ++it) {
@@ -316,8 +329,8 @@ Result<void> ModuleLoader::RegisterConsumerTables() {
   for (const CvarTable& table : config_.cvars.tables) {
     if (auto status = cvars_->Register(table.scope, table.vars); !status) {
       auto message = std::format("consumer table '{}': {}", table.scope, status.error().message);
-      REXLOG_ERROR("{}", message);
-      return Err(Error(ErrorCategory::Config, std::move(message), status.error().code));
+      REX_FAIL(core, Err(Error(ErrorCategory::Config, std::move(message), status.error().code)),
+               "{}", message);
     }
     ++consumer_tables_registered_;
   }
@@ -327,8 +340,7 @@ Result<void> ModuleLoader::RegisterConsumerTables() {
 Result<void> ModuleLoader::ApplyCvarValues() {
   auto unknown = cvars_->ApplyOverrides(config_.cvars.values);
   if (!unknown) {
-    REXLOG_ERROR("{}", unknown.error().message);
-    return Err(unknown.error());
+    REX_FAIL(core, Err(unknown.error()), "{}", unknown.error().message);
   }
   std::vector<std::string> hard;
   for (const CvarOverride& o : *unknown) {
@@ -337,7 +349,7 @@ Result<void> ModuleLoader::ApplyCvarValues() {
                          : o.source == cvar::CvarSource::Environment ? "Environment"
                                                                      : "CommandLine";
     if (o.source == cvar::CvarSource::Config || o.source == cvar::CvarSource::Environment) {
-      REXLOG_WARN("unknown cvar '{}' from {}", o.name, source);
+      REXLOG_WARN(core, "unknown cvar '{}' from {}", o.name, source);
     } else {
       hard.push_back(std::format("unknown cvar '{}' from {}", o.name, source));
     }
@@ -350,8 +362,7 @@ Result<void> ModuleLoader::ApplyCvarValues() {
     std::string message;
     for (size_t i = 0; i < hard.size(); ++i)
       message += (i ? ", " : "") + hard[i];
-    REXLOG_ERROR("{}", message);
-    return Err(Error(ErrorCategory::Config, std::move(message)));
+    REX_FAIL(core, Err(Error(ErrorCategory::Config, std::move(message))), "{}", message);
   }
   if (auto status = cvars_->ApplyLocks(config_.cvars.locked); !status) {
     return Err(status.error());
@@ -369,7 +380,7 @@ void ModuleLoader::UnregisterTables() {
   }
   consumer_tables_registered_ = 0;
   for (const std::string& name : cvars_->RegisteredNames()) {
-    REXLOG_WARN("cvar '{}' was still registered at Shutdown", name);
+    REXLOG_WARN(core, "cvar '{}' was still registered at Shutdown", name);
   }
   cvars_->Reset();
 }

@@ -32,7 +32,7 @@ using namespace rex::system::xam;
 u32 XMsgInProcessCall_entry(u32 app, u32 message, u32 arg1, u32 arg2) {
   auto result = REX_KERNEL_STATE()->app_manager()->DispatchMessageSync(app, message, arg1, arg2);
   if (result == X_ERROR_NOT_FOUND) {
-    REXKRNL_ERROR("XMsgInProcessCall: app {:08X} undefined", app);
+    REXLOG_ERROR(kernel, "XMsgInProcessCall: app {:08X} undefined", app);
   }
   return result;
 }
@@ -41,7 +41,7 @@ u32 XMsgSystemProcessCall_entry(u32 app, u32 message, u32 buffer, u32 buffer_len
   auto result =
       REX_KERNEL_STATE()->app_manager()->DispatchMessageAsync(app, message, buffer, buffer_length);
   if (result == X_ERROR_NOT_FOUND) {
-    REXKRNL_ERROR("XMsgSystemProcessCall: app {:08X} undefined", app);
+    REXLOG_ERROR(kernel, "XMsgSystemProcessCall: app {:08X} undefined", app);
   }
   return result;
 }
@@ -57,7 +57,7 @@ X_HRESULT xeXMsgStartIORequestEx(uint32_t app, uint32_t message, uint32_t overla
   auto result = REX_KERNEL_STATE()->app_manager()->DispatchMessageAsync(app, message, buffer_ptr,
                                                                         buffer_length);
   if (result == X_E_NOTFOUND) {
-    REXKRNL_ERROR("XMsgStartIORequestEx: app {:08X} undefined", app);
+    REXLOG_ERROR(kernel, "XMsgStartIORequestEx: app {:08X} undefined", app);
     result = X_E_INVALIDARG;
     XThread::SetLastError(X_ERROR_NOT_FOUND);
   }

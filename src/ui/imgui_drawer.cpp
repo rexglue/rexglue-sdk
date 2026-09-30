@@ -10,6 +10,7 @@
  */
 
 #include <algorithm>
+#include <bit>
 #include <cfloat>
 #include <cstring>
 #include <filesystem>
@@ -202,13 +203,13 @@ void ImGuiDrawer::Initialize() {
   ImFontConfig font_config;
   font_config.OversampleH = font_config.OversampleV = 1;
   font_config.PixelSnapH = true;
-  static const ImWchar font_glyph_ranges[] = {
+  static const ImWchar kFontGlyphRanges[] = {
       0x0020,
       0x00FF,  // Basic Latin + Latin Supplement
       0,
   };
   io.Fonts->AddFontFromMemoryCompressedBase85TTF(kProggyTinyCompressedDataBase85, 10.0f,
-                                                 &font_config, font_glyph_ranges);
+                                                 &font_config, kFontGlyphRanges);
 
 #if REX_PLATFORM_WIN32
   // TODO(benvanik): jp font on other platforms?
@@ -223,7 +224,7 @@ void ImGuiDrawer::Initialize() {
     io.Fonts->AddFontFromFileTTF(jp_font_path, 12.0f, &jp_font_config,
                                  io.Fonts->GetGlyphRangesJapanese());
   } else {
-    REXLOG_WARN("Unable to load Japanese font; JP characters will be boxes");
+    REXLOG_WARN(ui, "Unable to load Japanese font; JP characters will be boxes");
   }
 #endif
 
@@ -245,7 +246,7 @@ void ImGuiDrawer::Initialize() {
 }
 
 std::optional<ImGuiKey> ImGuiDrawer::VirtualKeyToImGuiKey(VirtualKey vkey) {
-  static const std::map<VirtualKey, ImGuiKey> map = {
+  static const std::map<VirtualKey, ImGuiKey> kKeyMap = {
       // Navigation
       {ui::VirtualKey::kTab, ImGuiKey_Tab},
       {ui::VirtualKey::kLeft, ImGuiKey_LeftArrow},
@@ -351,7 +352,7 @@ std::optional<ImGuiKey> ImGuiDrawer::VirtualKeyToImGuiKey(VirtualKey vkey) {
       {ui::VirtualKey::kDivide, ImGuiKey_KeypadDivide},
       {ui::VirtualKey::kDecimal, ImGuiKey_KeypadDecimal},
   };
-  if (auto search = map.find(vkey); search != map.end()) {
+  if (auto search = kKeyMap.find(vkey); search != kKeyMap.end()) {
     return search->second;
   } else {
     return std::nullopt;
@@ -497,7 +498,7 @@ void ImGuiDrawer::RenderDrawLists(ImDrawData* data, UIDrawContext& ui_draw_conte
       draw.primitive_type = ImmediatePrimitiveType::kTriangles;
       draw.count = cmd.ElemCount;
       draw.index_offset = cmd.IdxOffset;
-      draw.texture = reinterpret_cast<ImmediateTexture*>(cmd.GetTexID());
+      draw.texture = std::bit_cast<ImmediateTexture*>(cmd.GetTexID());
       draw.scissor = true;
       draw.scissor_left = cmd.ClipRect.x;
       draw.scissor_top = cmd.ClipRect.y;
@@ -651,8 +652,8 @@ void ImGuiDrawer::ClearInput() {
 void ImGuiDrawer::OnKey(KeyEvent& e, bool is_down) {
   auto& io = GetIO();
   const VirtualKey virtual_key = e.virtual_key();
-  if (auto imGuiKey = VirtualKeyToImGuiKey(virtual_key); imGuiKey) {
-    io.AddKeyEvent(*imGuiKey, is_down);
+  if (auto imgui_key = VirtualKeyToImGuiKey(virtual_key); imgui_key) {
+    io.AddKeyEvent(*imgui_key, is_down);
   }
   switch (virtual_key) {
     case VirtualKey::kShift:

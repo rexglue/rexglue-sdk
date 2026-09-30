@@ -46,7 +46,7 @@ REX_HOOK_RAW(__imp__DbgPrint) {
     while (!str.empty() && std::isspace(static_cast<unsigned char>(str.back()))) {
       str.pop_back();
     }
-    REXKRNL_INFO("DbgPrint: {}", str);
+    REXLOG_DEV(title, "DbgPrint: {}", str);
   }
 
   ctx.r3.u64 = 0;  // NTSTATUS success
@@ -69,7 +69,7 @@ REX_HOOK_RAW(__imp__XamDbgPrint) {
     while (!str.empty() && std::isspace(static_cast<unsigned char>(str.back()))) {
       str.pop_back();
     }
-    REXKRNL_INFO("XamDbgPrint: {}", str);
+    REXLOG_DEV(title, "XamDbgPrint: {}", str);
   }
 
   ctx.r3.u64 = 0;

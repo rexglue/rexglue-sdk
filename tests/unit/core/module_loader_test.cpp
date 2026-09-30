@@ -282,19 +282,19 @@ TEST_CASE_METHOD(Fixture, "unknown Config override warns and Init succeeds",
   Pinned pin("rexmod-test-good");
   auto cfg = With({"rexmod-test-good"});
   cfg.cvars.values.push_back({"vsync", "false", rex::cvar::CvarSource::Config});
-  auto sink = std::make_shared<rex::LogCaptureSink>();
-  rex::AddSink(sink);
+  rex::log::CaptureSink sink;
+  cfg.log.sinks.push_back(&sink);
   auto api = rex::Init(cfg);
   REQUIRE(api);
-  std::vector<rex::LogEntry> entries;
-  sink->CopyEntries(entries);
+  std::vector<rex::log::CapturedRecord> entries;
+  sink.CopySince(0, entries);
   bool warned = false;
   for (const auto& entry : entries) {
     if (entry.text.find("unknown cvar 'vsync' from Config") != std::string::npos)
       warned = true;
   }
+  rex::Shutdown();
   REQUIRE(warned);
-  rex::RemoveSink(sink);
 }
 
 TEST_CASE_METHOD(Fixture, "Init rejects an unparsable command line value",
@@ -398,7 +398,7 @@ TEST_CASE_METHOD(Fixture, "Every SDK cvar name is scope.leaf in a charter scope"
   }
   REQUIRE(count >= 95);
   if (cfg.modules.size() > 2)
-    REQUIRE(count == 166);
+    REQUIRE(count == 168);
 }
 
 TEST_CASE_METHOD(Fixture, "rexruntime registers the module scopes at Connect",

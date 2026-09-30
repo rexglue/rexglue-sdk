@@ -33,13 +33,13 @@ X_HRESULT XLiveBaseApp::DispatchMessageSync(uint32_t message, uint32_t buffer_pt
     case 0x00058004: {
       // Called on startup, seems to just return a bool in the buffer.
       assert_true(!buffer_length || buffer_length == 4);
-      REXKRNL_DEBUG("XLiveBaseGetLogonId({:08X})", buffer_ptr);
+      REXLOG_DEBUG(kernel, "XLiveBaseGetLogonId({:08X})", buffer_ptr);
       memory::store_and_swap<uint32_t>(buffer + 0, 1);  // ?
       return X_E_SUCCESS;
     }
     case 0x00058006: {
       assert_true(!buffer_length || buffer_length == 4);
-      REXKRNL_DEBUG("XLiveBaseGetNatType({:08X})", buffer_ptr);
+      REXLOG_DEBUG(kernel, "XLiveBaseGetNatType({:08X})", buffer_ptr);
       memory::store_and_swap<uint32_t>(buffer + 0, 1);  // XONLINE_NAT_OPEN
       return X_E_SUCCESS;
     }
@@ -47,7 +47,8 @@ X_HRESULT XLiveBaseApp::DispatchMessageSync(uint32_t message, uint32_t buffer_pt
       // Occurs if title calls XOnlineGetServiceInfo, expects dwServiceId
       // and pServiceInfo. pServiceInfo should contain pointer to
       // XONLINE_SERVICE_INFO structure.
-      REXKRNL_DEBUG("CXLiveLogon::GetServiceInfo({:08X}, {:08X})", buffer_ptr, buffer_length);
+      REXLOG_DEBUG(kernel, "CXLiveLogon::GetServiceInfo({:08X}, {:08X})", buffer_ptr,
+                   buffer_length);
       return 0x80151802;  // ERROR_CONNECTION_INVALID
     }
     case 0x00058020: {
@@ -55,34 +56,34 @@ X_HRESULT XLiveBaseApp::DispatchMessageSync(uint32_t message, uint32_t buffer_pt
       // We should create a XamEnumerate-able empty list here, but I'm not
       // sure of the format.
       // buffer_length seems to be the same ptr sent to 0x00058004.
-      REXKRNL_DEBUG("CXLiveFriends::Enumerate({:08X}, {:08X}) unimplemented", buffer_ptr,
-                    buffer_length);
+      REXLOG_DEBUG(kernel, "CXLiveFriends::Enumerate({:08X}, {:08X}) unimplemented", buffer_ptr,
+                   buffer_length);
       return X_E_FAIL;
     }
     case 0x00058023: {
-      REXKRNL_DEBUG(
-          "CXLiveMessaging::XMessageGameInviteGetAcceptedInfo({:08X}, {:08X}) "
-          "unimplemented",
-          buffer_ptr, buffer_length);
+      REXLOG_DEBUG(kernel,
+                   "CXLiveMessaging::XMessageGameInviteGetAcceptedInfo({:08X}, {:08X}) "
+                   "unimplemented",
+                   buffer_ptr, buffer_length);
       return X_E_FAIL;
     }
     case 0x00058046: {
       // Required to be successful for 4D530910 to detect signed-in profile
       // Doesn't seem to set anything in the given buffer, probably only takes
       // input
-      REXKRNL_DEBUG("XLiveBaseUnk58046({:08X}, {:08X}) unimplemented", buffer_ptr, buffer_length);
+      REXLOG_DEBUG(kernel, "XLiveBaseUnk58046({:08X}, {:08X}) unimplemented", buffer_ptr,
+                   buffer_length);
       return X_E_SUCCESS;
     }
     case 0x00058037: {
-      REXKRNL_DEBUG("XPresenceInitialize({:08X}, {:08X})", buffer_ptr, buffer_length);
+      REXLOG_DEBUG(kernel, "XPresenceInitialize({:08X}, {:08X})", buffer_ptr, buffer_length);
       return X_E_SUCCESS;
     }
   }
-  REXKRNL_ERROR(
-      "Unimplemented XLIVEBASE message app={:08X}, msg={:08X}, arg1={:08X}, "
-      "arg2={:08X}",
-      app_id(), message, buffer_ptr, buffer_length);
-  return X_E_FAIL;
+  REX_FAIL(kernel, X_E_FAIL,
+           "Unimplemented XLIVEBASE message app={:08X}, msg={:08X}, arg1={:08X}, "
+           "arg2={:08X}",
+           app_id(), message, buffer_ptr, buffer_length);
 }
 
 }  // namespace apps

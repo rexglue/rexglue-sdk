@@ -128,3 +128,42 @@ namespace rex {
 }
 
 }  // namespace rex
+
+/**
+ * Writes a Critical message, flushes every sink and aborts.
+ *
+ * @param category Category name.
+ * @param fmt std::format string literal.
+ * @param ... Format arguments.
+ *
+ * @code
+ * REX_FATAL(system, "heap {} is corrupted", name);
+ * @endcode
+ */
+#define REX_FATAL(category, fmt, ...)                          \
+  do {                                                         \
+    REXLOG_CRITICAL(category, fmt __VA_OPT__(, ) __VA_ARGS__); \
+    ::rex::log::Flush();                                       \
+    ::std::abort();                                            \
+  } while (0)
+
+/**
+ * Writes a Critical message, flushes every sink and aborts when a condition is false.
+ *
+ * @param category Category name.
+ * @param cond The condition.
+ * @param fmt std::format string literal.
+ * @param ... Format arguments.
+ *
+ * @code
+ * REX_FATAL_IF(system, base != nullptr, "the guest memory base is not mapped");
+ * @endcode
+ */
+#define REX_FATAL_IF(category, cond, fmt, ...)                                               \
+  do {                                                                                       \
+    if (!(cond)) {                                                                           \
+      REXLOG_CRITICAL(category, "check failed: " #cond ". " fmt __VA_OPT__(, ) __VA_ARGS__); \
+      ::rex::log::Flush();                                                                   \
+      ::std::abort();                                                                        \
+    }                                                                                        \
+  } while (0)

@@ -1,6 +1,6 @@
 /**
  * @file        system/runtime_module.h
- * @brief       The rex.module@1 served by rexruntime.dll
+ * @brief       The module interface served by rexruntime.dll
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -27,7 +27,7 @@ namespace rex::runtime {
 class RuntimeModule final : public IModule {
  public:
   /**
-   * Returns the module instance for the rex.module@1 table entry.
+   * Returns the module instance for its interface table entry.
    *
    * @return The IModule of rexruntime.
    */
@@ -48,7 +48,7 @@ class RuntimeModule final : public IModule {
   /**
    * Lists the interfaces Connect fetches.
    *
-   * @return rex.cvar@1 and rex.filesystem@1.
+   * @return The cvar registry and the mount table.
    */
   std::span<const char* const> RequiredInterfaces() const override;
 
@@ -77,6 +77,7 @@ class RuntimeModule final : public IModule {
 
  private:
   cvar::ICvarRegistry* cvars_ = nullptr;
+  ILogger* logger_ = nullptr;
   size_t registered_ = 0;
 };
 

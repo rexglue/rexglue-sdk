@@ -101,14 +101,6 @@ REXCVAR_TABLE(kUICvars, present_from_non_ui_thread, present_letterbox, present_s
               window_height, fullscreen, fullscreen_exclusive, monitor, video_mode_width,
               video_mode_height, resolution, video_mode_refresh_rate, cursor_timeout);
 
-REXCVAR_BOOL(vulkan, require_fragment_stores_and_atomics, true,
-             "Deprecated and ignored for parity; fragmentStoresAndAtomics is always required for "
-             "Vulkan GPU emulation")
-    .lifecycle(rex::cvar::Lifecycle::InitOnly);
-REXCVAR_BOOL(vulkan, require_vertex_pipeline_stores_and_atomics, true,
-             "Deprecated and ignored for parity; vertexPipelineStoresAndAtomics is always "
-             "required for Vulkan GPU emulation")
-    .lifecycle(rex::cvar::Lifecycle::InitOnly);
 REXCVAR_BOOL(vulkan, require_geometry_shader, !REX_PLATFORM_MAC,
              "Require geometryShader support for Vulkan GPU emulation (disable to allow fallback "
              "primitive emulation paths)")
@@ -138,12 +130,10 @@ REXCVAR_BOOL(vulkan, prefer_vertex_pipeline_stores_and_atomics, true,
 REXCVAR_BOOL(vulkan, prefer_fill_mode_non_solid, true,
              "Prefer physical devices supporting fillModeNonSolid when auto-selecting")
     .lifecycle(rex::cvar::Lifecycle::InitOnly);
-REXCVAR_TABLE(kVulkanCvars, require_fragment_stores_and_atomics,
-              require_vertex_pipeline_stores_and_atomics, require_geometry_shader,
-              require_fill_mode_non_solid, log_debug_messages, render_pass_clear,
-              allow_present_mode_immediate, allow_present_mode_mailbox,
-              allow_present_mode_fifo_relaxed, validation, prefer_geometry_shader,
-              prefer_fragment_stores_and_atomics, prefer_vertex_pipeline_stores_and_atomics,
-              prefer_fill_mode_non_solid);
+REXCVAR_TABLE(kVulkanCvars, require_geometry_shader, require_fill_mode_non_solid,
+              log_debug_messages, render_pass_clear, allow_present_mode_immediate,
+              allow_present_mode_mailbox, allow_present_mode_fifo_relaxed, validation,
+              prefer_geometry_shader, prefer_fragment_stores_and_atomics,
+              prefer_vertex_pipeline_stores_and_atomics, prefer_fill_mode_non_solid);
 
 }  // namespace rex::ui::cvars

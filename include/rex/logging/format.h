@@ -1,6 +1,6 @@
 /**
- * @file        rex/logging/format.h
- * @brief       Formatting helpers for log messages - ptr(), hex(), boolean()
+ * @file        logging/format.h
+ * @brief       Log records and the line format of text sinks
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -11,50 +11,49 @@
 
 #pragma once
 
-#include <cstdint>
+#include <chrono>
 #include <string>
+#include <string_view>
 
-#include <spdlog/fmt/fmt.h>
+#include <rex/logging/level.h>
+#include <rex/macros.h>
+#include <rex/types.h>
 
 namespace rex::log {
 
-/** Format a 32-bit address as hex (e.g. "0x0040F000"). */
-inline std::string ptr(uint32_t addr) {
-  return fmt::format("0x{:08X}", addr);
-}
+/** Timestamp written at the start of a line. */
+enum class TimestampStyle : u8 {
+  kNone,     /**< No timestamp. */
+  kClock,    /**< Local wall clock with milliseconds. */
+  kDateTime, /**< Local date and wall clock with milliseconds. */
+  kElapsed,  /**< Seconds since the logger started, with a leading plus sign. */
+};
 
-/** Format a 64-bit address as hex, auto-selecting width. */
-inline std::string ptr(uint64_t addr) {
-  if (addr > 0xFFFFFFFFULL) {
-    return fmt::format("0x{:016X}", addr);
-  }
-  return fmt::format("0x{:08X}", static_cast<uint32_t>(addr));
-}
+/** What a text sink writes around each message. The level is never written as text. */
+struct LineFormat {
+  TimestampStyle timestamp = TimestampStyle::kNone; /**< Timestamp style. */
+  bool category = true;                             /**< Category name column. */
+  bool thread = false;                              /**< Host thread ID column. */
+  bool color = true;                                /**< Level color, where the sink supports it. */
+};
 
-/** Format a void pointer. */
-inline std::string ptr(const void* p) {
-  return fmt::format("{}", p);
-}
+/** 1 message as sinks receive it. The views are valid for the duration of ISink::Write. */
+struct Record {
+  Level level = Level::kInfo;                 /**< Message level. */
+  std::string_view category;                  /**< Category name. */
+  std::string_view text;                      /**< Formatted message. */
+  std::chrono::system_clock::time_point time; /**< Time the message was written. */
+  u32 thread_id = 0;                          /**< Host thread ID. */
+  u64 sequence = 0;                           /**< Process wide order, starting at 1. */
+};
 
-/** Format a typed pointer. */
-template <typename T>
-inline std::string ptr(T* p) {
-  return fmt::format("{}", static_cast<const void*>(p));
-}
-
-/** Format a 32-bit value as hex (e.g. "0x1A"). */
-inline std::string hex(uint32_t val) {
-  return fmt::format("0x{:X}", val);
-}
-
-/** Format a 64-bit value as hex. */
-inline std::string hex(uint64_t val) {
-  return fmt::format("0x{:X}", val);
-}
-
-/** Format a boolean as "true" or "false". */
-inline const char* boolean(bool b) {
-  return b ? "true" : "false";
-}
+/**
+ * Renders a record as 1 line without a line break.
+ *
+ * @param record The record.
+ * @param format What to write around the message.
+ * @return The line. Color is written as ANSI SGR codes.
+ */
+REX_API std::string FormatLine(const Record& record, const LineFormat& format);
 
 }  // namespace rex::log

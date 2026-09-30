@@ -21,7 +21,7 @@
 #include <string_view>
 #include <vector>
 
-#include <spdlog/sinks/base_sink.h>
+#include <rex/logging/sink.h>
 
 namespace rexglue::ui {
 
@@ -29,30 +29,30 @@ namespace detail {
 class GlobalSinkAccessor;
 }
 
-/** spdlog sink that also owns direct presentation output for the rexglue CLI. */
-class PresentationSink final : public spdlog::sinks::base_sink<std::mutex> {
+/** Log sink that also owns direct presentation output for the rexglue CLI. */
+class PresentationSink final : public rex::log::ISink {
  public:
   PresentationSink(std::ostream& out, bool tty, bool color);
+
+  void Write(const rex::log::Record& record) override;
+  void Flush() override;
 
   bool tty() const { return tty_; }
   bool color() const { return color_; }
 
   void setActiveProgress(bool active);
 
- protected:
-  void sink_it_(const spdlog::details::log_msg& msg) override;
-  void flush_() override;
-
  private:
   friend class detail::GlobalSinkAccessor;
 
-  std::mutex& sink_mutex() { return this->mutex_; }
+  std::mutex& sink_mutex() { return mutex_; }
   std::ostream& sink_out() { return out_; }
 
   std::ostream& out_;
   bool tty_;
   bool color_;
   bool active_progress_ = false;
+  std::mutex mutex_;
 };
 
 struct InitOptions {
@@ -62,6 +62,9 @@ struct InitOptions {
 
 void Init(const InitOptions& opts);
 void Shutdown();
+
+/** Returns the presentation sink, for LogConfig::sinks. */
+rex::log::ISink& LogSink();
 
 void Banner(std::string_view title);
 

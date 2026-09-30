@@ -102,18 +102,17 @@ VkDescriptorSet LinkedTypeDescriptorSetAllocator::Allocate(
     VkDescriptorPool dedicated_descriptor_pool;
     if (dfn.vkCreateDescriptorPool(device, &dedicated_descriptor_pool_create_info, nullptr,
                                    &dedicated_descriptor_pool) != VK_SUCCESS) {
-      REXLOG_ERROR(
-          "LinkedTypeDescriptorSetAllocator: Failed to create a dedicated "
-          "descriptor pool for a descriptor set that is too large for a pool "
-          "page");
-      return VK_NULL_HANDLE;
+      REX_FAIL(ui, VK_NULL_HANDLE,
+               "LinkedTypeDescriptorSetAllocator: Failed to create a dedicated "
+               "descriptor pool for a descriptor set that is too large for a pool "
+               "page");
     }
     descriptor_set_allocate_info.descriptorPool = dedicated_descriptor_pool;
     if (dfn.vkAllocateDescriptorSets(device, &descriptor_set_allocate_info, &descriptor_set) !=
         VK_SUCCESS) {
-      REXLOG_ERROR(
-          "LinkedTypeDescriptorSetAllocator: Failed to allocate descriptors in "
-          "a dedicated pool");
+      REXLOG_ERROR(ui,
+                   "LinkedTypeDescriptorSetAllocator: Failed to allocate descriptors in "
+                   "a dedicated pool");
       dfn.vkDestroyDescriptorPool(device, dedicated_descriptor_pool, nullptr);
       return VK_NULL_HANDLE;
     }
@@ -330,13 +329,13 @@ VkDescriptorSet LinkedTypeDescriptorSetAllocator::Allocate(
   VkDescriptorPool new_descriptor_pool;
   if (dfn.vkCreateDescriptorPool(device, &new_descriptor_pool_create_info, nullptr,
                                  &new_descriptor_pool) != VK_SUCCESS) {
-    REXLOG_ERROR("LinkedTypeDescriptorSetAllocator: Failed to create a descriptor pool");
-    return VK_NULL_HANDLE;
+    REX_FAIL(ui, VK_NULL_HANDLE,
+             "LinkedTypeDescriptorSetAllocator: Failed to create a descriptor pool");
   }
   descriptor_set_allocate_info.descriptorPool = new_descriptor_pool;
   if (dfn.vkAllocateDescriptorSets(device, &descriptor_set_allocate_info, &descriptor_set) !=
       VK_SUCCESS) {
-    REXLOG_ERROR("LinkedTypeDescriptorSetAllocator: Failed to allocate descriptors");
+    REXLOG_ERROR(ui, "LinkedTypeDescriptorSetAllocator: Failed to allocate descriptors");
     dfn.vkDestroyDescriptorPool(device, new_descriptor_pool, nullptr);
     return VK_NULL_HANDLE;
   }

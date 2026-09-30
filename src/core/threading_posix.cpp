@@ -841,13 +841,13 @@ class PosixCondition<Thread> : public PosixConditionBase {
     if (result != 0) {
       switch (result) {
         case EPERM:
-          REXSYS_WARN("set_priority: permission denied");
+          REXLOG_WARN(system, "set_priority: permission denied");
           break;
         case EINVAL:
           assert_always();
           break;
         default:
-          REXSYS_WARN("set_priority: pthread_setschedparam failed ({})", result);
+          REXLOG_WARN(system, "set_priority: pthread_setschedparam failed ({})", result);
           break;
       }
     }
@@ -885,7 +885,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
 #endif
 #endif
     if (result != 0) {
-      REXSYS_WARN("QueueUserCallback: signal delivery failed ({})", result);
+      REXLOG_WARN(system, "QueueUserCallback: signal delivery failed ({})", result);
     }
   }
 

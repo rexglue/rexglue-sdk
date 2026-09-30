@@ -225,9 +225,9 @@ u32 XeCryptBnQwNeRsaPubCrypt_entry(ppc_ptr_t<uint64_t> qw_a, ppc_ptr_t<uint64_t>
                                    ppc_ptr_t<XECRYPT_RSA> rsa) {
   // 0 indicates failure (but not a BOOL return value)
 #if !REX_PLATFORM_WIN32
-  REXKRNL_ERROR(
-      "XeCryptBnQwNeRsaPubCrypt called but no implementation available for "
-      "this platform!");
+  REXLOG_ERROR(kernel,
+               "XeCryptBnQwNeRsaPubCrypt called but no implementation available for "
+               "this platform!");
   assert_always();
   return 1;
 #else
@@ -259,11 +259,10 @@ u32 XeCryptBnQwNeRsaPubCrypt_entry(ppc_ptr_t<uint64_t> qw_a, ppc_ptr_t<uint64_t>
       BCryptOpenAlgorithmProvider(&hAlgorithm, BCRYPT_RSA_ALGORITHM, MS_PRIMITIVE_PROVIDER, 0);
 
   if (!BCRYPT_SUCCESS(status)) {
-    REXKRNL_ERROR(
-        "XeCryptBnQwNeRsaPubCrypt: BCryptOpenAlgorithmProvider failed with "
-        "status {:#X}!",
-        status);
-    return 0;
+    REX_FAIL(kernel, 0,
+             "XeCryptBnQwNeRsaPubCrypt: BCryptOpenAlgorithmProvider failed with "
+             "status {:#X}!",
+             status);
   }
 
   BCRYPT_KEY_HANDLE hKey = NULL;
@@ -271,10 +270,10 @@ u32 XeCryptBnQwNeRsaPubCrypt_entry(ppc_ptr_t<uint64_t> qw_a, ppc_ptr_t<uint64_t>
                                key_size, 0);
 
   if (!BCRYPT_SUCCESS(status)) {
-    REXKRNL_ERROR(
-        "XeCryptBnQwNeRsaPubCrypt: BCryptImportKeyPair failed with status "
-        "{:#X}!",
-        status);
+    REXLOG_ERROR(kernel,
+                 "XeCryptBnQwNeRsaPubCrypt: BCryptImportKeyPair failed with status "
+                 "{:#X}!",
+                 status);
 
     if (hAlgorithm) {
       BCryptCloseAlgorithmProvider(hAlgorithm, 0);
@@ -298,7 +297,8 @@ u32 XeCryptBnQwNeRsaPubCrypt_entry(ppc_ptr_t<uint64_t> qw_a, ppc_ptr_t<uint64_t>
   assert(result_size == modulus_size);
 
   if (!BCRYPT_SUCCESS(status)) {
-    REXKRNL_ERROR("XeCryptBnQwNeRsaPubCrypt: BCryptEncrypt failed with status {:#X}!", status);
+    REXLOG_ERROR(kernel, "XeCryptBnQwNeRsaPubCrypt: BCryptEncrypt failed with status {:#X}!",
+                 status);
   } else {
     // Reverse data & byteswap again so data is as game expects
     std::reverse(output_bytes, output_bytes + modulus_size);
@@ -639,13 +639,13 @@ u32 XeKeysHmacShaUsingKey_entry(mapped_void obscured_key, mapped_void inp_1, u32
 }
 
 u32 XeKeysConsolePrivateKeySign_entry(mapped_void hash, mapped_void signature) {
-  REXKRNL_DEBUG("XeKeysConsolePrivateKeySign - stub");
+  REXLOG_DEBUG(kernel, "XeKeysConsolePrivateKeySign - stub");
   return 0;  // Success
 }
 
 u32 XeKeysConsoleSignatureVerification_entry(mapped_void hash, mapped_void signature,
                                              mapped_void pubkey) {
-  REXKRNL_DEBUG("XeKeysConsoleSignatureVerification - stub");
+  REXLOG_DEBUG(kernel, "XeKeysConsoleSignatureVerification - stub");
   return 0;  // Success (signature valid)
 }
 

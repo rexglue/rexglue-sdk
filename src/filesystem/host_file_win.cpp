@@ -104,8 +104,8 @@ Result<size_t> HostFile::Read(u64 offset, std::span<u8> buffer) {
   if (!ReadFile(Native(native_), buffer.data(), static_cast<DWORD>(buffer.size()), &bytes_read,
                 &overlapped)) {
     if (GetLastError() == ERROR_NOACCESS) {
-      REXFS_WARN("host read of {:#x} bytes into {} was refused, read only memory", buffer.size(),
-                 static_cast<const void*>(buffer.data()));
+      REXLOG_WARN(filesystem, "host read of {:#x} bytes into {} was refused, read only memory",
+                  buffer.size(), static_cast<const void*>(buffer.data()));
     }
     return Err<size_t>(HostError("read", path_));
   }

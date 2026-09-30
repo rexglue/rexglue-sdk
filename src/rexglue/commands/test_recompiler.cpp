@@ -175,7 +175,7 @@ std::vector<TestSpec> ParseTestSpecs(const std::string& asmPath,
   std::vector<TestSpec> specs;
   std::ifstream in(asmPath);
   if (!in.is_open()) {
-    REXLOG_WARN("Unable to open assembly file: {}", asmPath);
+    REXLOG_WARN(rexglue, "Unable to open assembly file: {}", asmPath);
     return specs;
   }
 
@@ -317,13 +317,13 @@ bool RecompileTests(std::string_view binDir, std::string_view asmDir, std::strin
     if (entry.path().extension() != ".bin")
       continue;
     auto stem = entry.path().stem().string();
-    REXLOG_DEBUG("Processing binary file: {}", stem);
+    REXLOG_DEBUG(rexglue, "Processing binary file: {}", stem);
 
     std::vector<uint8_t> fileData;
     {
       std::ifstream file(entry.path(), std::ios::binary | std::ios::ate);
       if (!file) {
-        REXLOG_WARN("Failed to load binary file: {}", entry.path().string());
+        REXLOG_WARN(rexglue, "Failed to load binary file: {}", entry.path().string());
         continue;
       }
       auto size = file.tellg();
@@ -337,7 +337,7 @@ bool RecompileTests(std::string_view binDir, std::string_view asmDir, std::strin
     auto mapPath = fmt::format("{}/{}.map", binDir, stem);
     auto symbols = ParseMapFile(mapPath);
     if (symbols.empty()) {
-      REXLOG_ERROR("No symbols found in map file: {}", mapPath);
+      REXLOG_ERROR(rexglue, "No symbols found in map file: {}", mapPath);
       continue;
     }
 
@@ -353,7 +353,7 @@ bool RecompileTests(std::string_view binDir, std::string_view asmDir, std::strin
     codegen::AnalyzeTestBinary(ctx, stem, symbols, kTestBaseAddress, fileData.data(),
                                fileData.size());
 
-    REXLOG_DEBUG("  Found {} functions", ctx.graph.functionCount());
+    REXLOG_DEBUG(rexglue, "  Found {} functions", ctx.graph.functionCount());
 
     std::vector<const codegen::FunctionNode*> functions;
     for (const auto& [addr, node] : ctx.graph.functions())
@@ -448,7 +448,7 @@ bool RecompileTests(std::string_view binDir, std::string_view asmDir, std::strin
   writeRendered("test/ppc_test_functions_cpp", "ppc_test_functions.cpp");
   writeRendered("test/ppc_test_cases_cpp", "ppc_test_cases.cpp");
 
-  REXLOG_TRACE("Generated {} test cases", totalTests);
+  REXLOG_TRACE(rexglue, "Generated {} test cases", totalTests);
   return true;
 }
 

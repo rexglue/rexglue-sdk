@@ -41,12 +41,12 @@ X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
         rex::be<uint32_t> length_ptr;
         rex::be<uint32_t> unk_1C;
       }* data = reinterpret_cast<message_data*>(buffer);
-      REXKRNL_DEBUG(
-          "XamAppEnumerateContentAggregate({}, {:08X}, {:08X}, {:08X}, {}, "
-          "{:08X}, {:08X}, {:08X})",
-          (uint32_t)data->user_index, (uint32_t)data->unk_04, (uint32_t)data->extra_ptr,
-          (uint32_t)data->buffer_ptr, (uint32_t)data->buffer_size, (uint32_t)data->unk_14,
-          (uint32_t)data->length_ptr, (uint32_t)data->unk_1C);
+      REXLOG_DEBUG(kernel,
+                   "XamAppEnumerateContentAggregate({}, {:08X}, {:08X}, {:08X}, {}, "
+                   "{:08X}, {:08X}, {:08X})",
+                   (uint32_t)data->user_index, (uint32_t)data->unk_04, (uint32_t)data->extra_ptr,
+                   (uint32_t)data->buffer_ptr, (uint32_t)data->buffer_size, (uint32_t)data->unk_14,
+                   (uint32_t)data->length_ptr, (uint32_t)data->unk_1C);
       auto extra = memory_->TranslateVirtual<X_KENUMERATOR_CONTENT_AGGREGATE*>(data->extra_ptr);
       auto buffer = memory_->TranslateVirtual(data->buffer_ptr);
       auto e = kernel_state_->object_table()->LookupObject<XEnumerator>(extra->handle);
@@ -79,12 +79,12 @@ X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       assert_true(buffer_length == sizeof(message_data));
       auto unk = memory_->TranslateVirtual<rex::be<uint32_t>*>(data->unk_44);
       *unk = 0;
-      REXKRNL_DEBUG("XamApp(0x00020021)('{}', {:08X}, {:08X}, {:08X})", data->unk_00,
-                    (uint32_t)data->unk_40, (uint32_t)data->unk_44, (uint32_t)data->unk_48);
+      REXLOG_DEBUG(kernel, "XamApp(0x00020021)('{}', {:08X}, {:08X}, {:08X})", data->unk_00,
+                   (uint32_t)data->unk_40, (uint32_t)data->unk_44, (uint32_t)data->unk_48);
       return X_E_SUCCESS;
     }
     case 0x00021012: {
-      REXKRNL_DEBUG("XamApp(0x00021012)");
+      REXLOG_DEBUG(kernel, "XamApp(0x00021012)");
       return X_E_SUCCESS;
     }
     case 0x00022005: {
@@ -95,16 +95,15 @@ X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       assert_true(buffer_length == sizeof(message_data));
       auto unk = memory_->TranslateVirtual<rex::be<uint32_t>*>(data->unk_00);
       auto adr = *unk;
-      REXKRNL_DEBUG("XamApp(0x00022005)(%.8X, %.8X)", (uint32_t)data->unk_00,
-                    (uint32_t)data->unk_04);
+      REXLOG_DEBUG(kernel, "XamApp(0x00022005)(%.8X, %.8X)", (uint32_t)data->unk_00,
+                   (uint32_t)data->unk_04);
       return X_E_SUCCESS;
     }
   }
-  REXKRNL_ERROR(
-      "Unimplemented XAM message app={:08X}, msg={:08X}, arg1={:08X}, "
-      "arg2={:08X}",
-      app_id(), message, buffer_ptr, buffer_length);
-  return X_E_FAIL;
+  REX_FAIL(kernel, X_E_FAIL,
+           "Unimplemented XAM message app={:08X}, msg={:08X}, arg1={:08X}, "
+           "arg2={:08X}",
+           app_id(), message, buffer_ptr, buffer_length);
 }
 
 }  // namespace apps

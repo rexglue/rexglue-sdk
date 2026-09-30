@@ -21,7 +21,7 @@
 namespace rex::ui {
 
 void ConsoleEcho(std::string_view args) {
-  REXLOG_INFO("{}", args);
+  REXLOG_INFO(console, "{}", args);
 }
 
 void ConsoleFind(std::string_view args) {
@@ -30,12 +30,12 @@ void ConsoleFind(std::string_view args) {
              ? std::string_view{}
              : args.substr(first, args.find_last_not_of(' ') - first + 1);
   if (args.empty()) {
-    REXLOG_INFO("find: usage: find <substr>");
+    REXLOG_INFO(console, "find: usage: find <substr>");
     return;
   }
   auto* registry = ::rex::ui::cvars::echo.registry();
   if (!registry) {
-    REXLOG_INFO("find: no registry");
+    REXLOG_INFO(console, "find: no registry");
     return;
   }
   std::string needle(args);
@@ -43,11 +43,11 @@ void ConsoleFind(std::string_view args) {
   for (const rex::cvar::IVar* var : registry->Enumerate()) {
     const std::string_view n = var->desc().name;
     if (n.find(needle) != std::string_view::npos) {
-      REXLOG_INFO("  {}", n);
+      REXLOG_INFO(console, "  {}", n);
       ++matches;
     }
   }
-  REXLOG_INFO("find: {} match(es) for '{}'", matches, needle);
+  REXLOG_INFO(console, "find: {} match(es) for '{}'", matches, needle);
 }
 
 }  // namespace rex::ui

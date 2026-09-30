@@ -11,7 +11,9 @@
 
 #pragma once
 
+#include <atomic>
 #include <cstring>
+#include <format>
 #include <tuple>
 #include <type_traits>
 
@@ -48,24 +50,29 @@
 // Define a raw hook with direct ctx/base access.
 #define REX_HOOK_RAW(name) extern "C" REX_FUNC(name)
 
-// Stub: logs a warning when called.
-#define REX_STUB(subroutine)              \
-  extern "C" REX_FUNC(subroutine) {       \
-    (void)base;                           \
-    REXKRNL_WARN("{} STUB", #subroutine); \
+// Stub: logs a warning on the first call and Dev after.
+#define REX_STUB(subroutine)                                        \
+  extern "C" REX_FUNC(subroutine) {                                 \
+    (void)base;                                                     \
+    static constinit ::std::atomic_flag rex_stub_seen_;             \
+    ::rex::log::detail::WriteStub(rex_stub_seen_, #subroutine, {}); \
   }
 
-#define REX_STUB_LOG(subroutine, msg)               \
-  extern "C" REX_FUNC(subroutine) {                 \
-    (void)base;                                     \
-    REXKRNL_WARN("{} STUB - {}", #subroutine, msg); \
+#define REX_STUB_LOG(subroutine, msg)                                \
+  extern "C" REX_FUNC(subroutine) {                                  \
+    (void)base;                                                      \
+    static constinit ::std::atomic_flag rex_stub_seen_;              \
+    ::rex::log::detail::WriteStub(rex_stub_seen_, #subroutine, msg); \
   }
 
-#define REX_STUB_RETURN(subroutine, value)                                                \
-  extern "C" REX_FUNC(subroutine) {                                                       \
-    (void)base;                                                                           \
-    REXKRNL_WARN("{} STUB - returning {:#x}", #subroutine, static_cast<uint32_t>(value)); \
-    ctx.r3.u64 = (value);                                                                 \
+#define REX_STUB_RETURN(subroutine, value)                                 \
+  extern "C" REX_FUNC(subroutine) {                                        \
+    (void)base;                                                            \
+    static constinit ::std::atomic_flag rex_stub_seen_;                    \
+    ::rex::log::detail::WriteStub(                                         \
+        rex_stub_seen_, #subroutine,                                       \
+        ::std::format("returning {:#x}", static_cast<::rex::u32>(value))); \
+    ctx.r3.u64 = (value);                                                  \
   }
 
 // Export: hook + register in global registry for kernel ordinal lookup.

@@ -64,9 +64,11 @@ u32 NtAllocateVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_si
                                   u32 alloc_type, u32 protect_bits, u32 debug_memory) {
   uint32_t input_base = base_addr_ptr ? static_cast<uint32_t>(*base_addr_ptr) : 0;
   uint32_t input_size = region_size_ptr ? static_cast<uint32_t>(*region_size_ptr) : 0;
-  REXKRNL_IMPORT_TRACE(
-      "NtAllocateVirtualMemory", "base={:#x} size={:#x} type={:#x} protect={:#x} debug={}",
-      input_base, input_size, (uint32_t)alloc_type, (uint32_t)protect_bits, (uint32_t)debug_memory);
+  REXLOG_TRACE(kernel,
+               "NtAllocateVirtualMemory "
+               "base={:#x} size={:#x} type={:#x} protect={:#x} debug={}",
+               input_base, input_size, (uint32_t)alloc_type, (uint32_t)protect_bits,
+               (uint32_t)debug_memory);
 
   // NTSTATUS
   // _Inout_  PVOID *BaseAddress,
@@ -82,8 +84,8 @@ u32 NtAllocateVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_si
   // assert_true(debug_memory == 0);
   // just warn tf am i gunna do about it
   if ((uint32_t)debug_memory != 0)
-    REXKRNL_WARN("attmpted allocation to devkit memory area (debug_memory={})",
-                 (uint32_t)debug_memory);
+    REXLOG_WARN(kernel, "attmpted allocation to devkit memory area (debug_memory={})",
+                (uint32_t)debug_memory);
 
   // This allocates memory from the kernel heap, which is initialized on startup
   // and shared by both the kernel implementation and user code.
@@ -105,7 +107,7 @@ u32 NtAllocateVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_si
   // Don't allow games to set execute bits.
   if (protect_bits & (X_PAGE_EXECUTE | X_PAGE_EXECUTE_READ | X_PAGE_EXECUTE_READWRITE |
                       X_PAGE_EXECUTE_WRITECOPY)) {
-    REXKRNL_WARN("Game setting EXECUTE bit on allocation");
+    REXLOG_WARN(kernel, "Game setting EXECUTE bit on allocation");
   }
 
   uint32_t page_size;
@@ -142,7 +144,7 @@ u32 NtAllocateVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_si
     allocation_type |= memory::kMemoryAllocationCommit;
   }
   if (alloc_type & X_MEM_RESET) {
-    REXKRNL_ERROR("X_MEM_RESET not implemented");
+    REXLOG_ERROR(kernel, "X_MEM_RESET not implemented");
     assert_always();
   }
   uint32_t protect = FromXdkProtectFlags(protect_bits);
@@ -195,8 +197,10 @@ u32 NtAllocateVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_si
   // Maybe set X_STATUS_ALREADY_COMMITTED if MEM_COMMIT?
   *base_addr_ptr = address;
   *region_size_ptr = adjusted_size;
-  REXKRNL_IMPORT_RESULT("NtAllocateVirtualMemory", "0x0 addr={:#x} size={:#x}", address,
-                        adjusted_size);
+  REXLOG_TRACE(kernel,
+               "NtAllocateVirtualMemory -> "
+               "0x0 addr={:#x} size={:#x}",
+               address, adjusted_size);
   return X_STATUS_SUCCESS;
 }
 
@@ -213,7 +217,7 @@ u32 NtProtectVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_siz
   // Don't allow games to set execute bits.
   if (protect_bits & (X_PAGE_EXECUTE | X_PAGE_EXECUTE_READ | X_PAGE_EXECUTE_READWRITE |
                       X_PAGE_EXECUTE_WRITECOPY)) {
-    REXKRNL_WARN("Game setting EXECUTE bit on protect");
+    REXLOG_WARN(kernel, "Game setting EXECUTE bit on protect");
     return X_STATUS_INVALID_PAGE_PROTECTION;
   }
 
@@ -249,9 +253,10 @@ u32 NtFreeVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_size_p
                               u32 debug_memory) {
   uint32_t base_addr_value = *base_addr_ptr;
   uint32_t region_size_value = *region_size_ptr;
-  REXKRNL_IMPORT_TRACE("NtFreeVirtualMemory", "base={:#x} size={:#x} type={:#x} debug={}",
-                       base_addr_value, region_size_value, (uint32_t)free_type,
-                       (uint32_t)debug_memory);
+  REXLOG_TRACE(kernel,
+               "NtFreeVirtualMemory "
+               "base={:#x} size={:#x} type={:#x} debug={}",
+               base_addr_value, region_size_value, (uint32_t)free_type, (uint32_t)debug_memory);
   // X_MEM_DECOMMIT | X_MEM_RELEASE
 
   // NTSTATUS
@@ -287,7 +292,9 @@ u32 NtFreeVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_size_p
 
   *base_addr_ptr = base_addr_value;
   *region_size_ptr = region_size_value;
-  REXKRNL_IMPORT_RESULT("NtFreeVirtualMemory", "0x0");
+  REXLOG_TRACE(kernel,
+               "NtFreeVirtualMemory -> "
+               "0x0");
   return X_STATUS_SUCCESS;
 }
 
@@ -346,15 +353,15 @@ u32 NtQueryVirtualMemory_entry(u32 base_address,
 
 u32 MmAllocatePhysicalMemoryEx_entry(u32 flags, u32 region_size, u32 protect_bits,
                                      u32 min_addr_range, u32 max_addr_range, u32 alignment) {
-  REXKRNL_IMPORT_TRACE("MmAllocatePhysicalMemoryEx",
-                       "flags={:#x} size={:#x} protect={:#x} min={:#x} max={:#x} align={:#x}",
-                       (uint32_t)flags, (uint32_t)region_size, (uint32_t)protect_bits,
-                       (uint32_t)min_addr_range, (uint32_t)max_addr_range, (uint32_t)alignment);
+  REXLOG_TRACE(kernel,
+               "MmAllocatePhysicalMemoryEx "
+               "flags={:#x} size={:#x} protect={:#x} min={:#x} max={:#x} align={:#x}",
+               (uint32_t)flags, (uint32_t)region_size, (uint32_t)protect_bits,
+               (uint32_t)min_addr_range, (uint32_t)max_addr_range, (uint32_t)alignment);
 
   // Check protection bits.
   if (!(protect_bits & (X_PAGE_READONLY | X_PAGE_READWRITE))) {
-    REXKRNL_ERROR("MmAllocatePhysicalMemoryEx: bad protection bits");
-    return 0;
+    REX_FAIL(kernel, 0, "MmAllocatePhysicalMemoryEx: bad protection bits");
   }
 
   // Either may be OR'ed into protect_bits:
@@ -402,7 +409,10 @@ u32 MmAllocatePhysicalMemoryEx_entry(u32 flags, u32 region_size, u32 protect_bit
     // Failed - assume no memory available.
     return 0;
   }
-  REXKRNL_IMPORT_RESULT("MmAllocatePhysicalMemoryEx", "addr={:#x}", base_address);
+  REXLOG_TRACE(kernel,
+               "MmAllocatePhysicalMemoryEx -> "
+               "addr={:#x}",
+               base_address);
 
   return base_address;
 }
@@ -412,8 +422,10 @@ u32 MmAllocatePhysicalMemory_entry(u32 flags, u32 region_size, u32 protect_bits)
 }
 
 void MmFreePhysicalMemory_entry(u32 type, u32 base_address) {
-  REXKRNL_IMPORT_TRACE("MmFreePhysicalMemory", "type={:#x} addr={:#x}", (uint32_t)type,
-                       (uint32_t)base_address);
+  REXLOG_TRACE(kernel,
+               "MmFreePhysicalMemory "
+               "type={:#x} addr={:#x}",
+               (uint32_t)type, (uint32_t)base_address);
 
   assert_true((base_address & 0x1F) == 0);
 
@@ -564,8 +576,10 @@ u32 MmGetPhysicalAddress_entry(u32 base_address) {
   if (physical_address == UINT32_MAX) {
     physical_address = 0;
   }
-  REXKRNL_IMPORT_RESULT("MmGetPhysicalAddress", "addr={:#x} -> {:#x}", (uint32_t)base_address,
-                        physical_address);
+  REXLOG_TRACE(kernel,
+               "MmGetPhysicalAddress -> "
+               "addr={:#x} -> {:#x}",
+               (uint32_t)base_address, physical_address);
   return physical_address;
 }
 
@@ -698,7 +712,10 @@ u32 NtAllocateEncryptedMemory_entry(u32 unk, u32 region_size, mapped_u32 base_ad
     return X_STATUS_UNSUCCESSFUL;
   }
 
-  REXKRNL_IMPORT_RESULT("NtAllocateEncryptedMemory", "addr={:#x}", out_address);
+  REXLOG_TRACE(kernel,
+               "NtAllocateEncryptedMemory -> "
+               "addr={:#x}",
+               out_address);
   *base_addr_ptr = out_address;
   return X_STATUS_SUCCESS;
 }

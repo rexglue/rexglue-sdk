@@ -1,6 +1,6 @@
 /**
  * @file        cvar/registry.h
- * @brief       The cvar registry interface, served by core as rex.cvar version 1
+ * @brief       The cvar registry interface, served by core
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -36,7 +36,7 @@ enum class CvarSource : u8;
 using ChangeCallback = std::move_only_function<void(std::string_view name, std::string_view value)>;
 
 /**
- * The cvar registry. Core serves it as "rex.cvar" version 1. Every method takes the registry
+ * The cvar registry. Core serves it. Every method takes the registry
  * mutex. Callbacks run after it is released.
  */
 class ICvarRegistry {

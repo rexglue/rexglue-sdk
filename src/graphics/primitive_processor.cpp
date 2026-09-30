@@ -347,10 +347,10 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
         break;
     }
     if (host_vertex_shader_type == Shader::HostVertexShaderType(-1)) {
-      REXGPU_ERROR(
-          "Primitive processor: Unsupported tessellation mode {} for primitive "
-          "type {}. Report the game to Xenia developers!",
-          uint32_t(tessellation_mode), uint32_t(guest_primitive_type));
+      REXLOG_ERROR(gpu,
+                   "Primitive processor: Unsupported tessellation mode {} for primitive "
+                   "type {}. Report the game to Xenia developers!",
+                   uint32_t(tessellation_mode), uint32_t(guest_primitive_type));
       assert_always();
       return false;
     }
@@ -391,10 +391,10 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
         }
         break;
       default:
-        REXGPU_ERROR(
-            "Primitive processor: Unsupported primitive type {}. Report the "
-            "game to Xenia developers!",
-            uint32_t(guest_primitive_type));
+        REXLOG_ERROR(gpu,
+                     "Primitive processor: Unsupported primitive type {}. Report the "
+                     "game to Xenia developers!",
+                     uint32_t(guest_primitive_type));
         assert_always();
         return false;
     }
@@ -405,12 +405,12 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
   auto vgt_dma_size = regs.Get<reg::VGT_DMA_SIZE>();
   if (vgt_draw_initiator.source_select == xenos::SourceSelect::kDMA &&
       guest_draw_vertex_count > vgt_dma_size.num_words) {
-    REXGPU_WARN(
-        "Primitive processor: {} vertices attempted to be drawn with an index "
-        "buffer only containing {}. Should be fetching zero indices instead of "
-        "overflowing ones, but this is a rare situation, so not handled yet. "
-        "Report the game to Xenia developers!",
-        guest_draw_vertex_count, static_cast<uint32_t>(vgt_dma_size.num_words));
+    REXLOG_WARN(gpu,
+                "Primitive processor: {} vertices attempted to be drawn with an index "
+                "buffer only containing {}. Should be fetching zero indices instead of "
+                "overflowing ones, but this is a rare situation, so not handled yet. "
+                "Report the game to Xenia developers!",
+                guest_draw_vertex_count, static_cast<uint32_t>(vgt_dma_size.num_words));
     guest_draw_vertex_count = vgt_dma_size.num_words;
   }
   uint32_t line_loop_closing_index = 0;
@@ -440,11 +440,10 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
       assert_true(vgt_draw_initiator.source_select == xenos::SourceSelect::kDMA);
       if (vgt_draw_initiator.source_select != xenos::SourceSelect::kDMA) {
         // TODO(Triang3l): Support immediate-indexed vertices.
-        REXGPU_ERROR(
-            "Primitive processor: Unsupported vertex index source {}. Report "
-            "the game to Xenia developers!",
-            uint32_t(vgt_draw_initiator.source_select));
-        return false;
+        REX_FAIL(gpu, false,
+                 "Primitive processor: Unsupported vertex index source {}. Report "
+                 "the game to Xenia developers!",
+                 uint32_t(vgt_draw_initiator.source_select));
       }
       xenos::IndexFormat guest_index_format = vgt_draw_initiator.index_size;
       // Normalize the endian.
@@ -453,14 +452,14 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
       if (guest_index_format == xenos::IndexFormat::kInt16 &&
           (guest_index_endian != xenos::Endian::kNone &&
            guest_index_endian != xenos::Endian::k8in16)) {
-        REXGPU_WARN(
-            "Primitive processor: 32-bit endian swap mode {} is used for "
-            "16-bit indices. This shouldn't normally be happening, but report "
-            "the game to Xenia developers for investigation of the intended "
-            "behavior (ignore or actually swap across adjacent indices)! "
-            "Currently disabling the swap for 16-and-32 and replacing 8-in-32 "
-            "with 8-in-16.",
-            uint32_t(guest_index_endian));
+        REXLOG_WARN(gpu,
+                    "Primitive processor: 32-bit endian swap mode {} is used for "
+                    "16-bit indices. This shouldn't normally be happening, but report "
+                    "the game to Xenia developers for investigation of the intended "
+                    "behavior (ignore or actually swap across adjacent indices)! "
+                    "Currently disabling the swap for 16-and-32 and replacing 8-in-32 "
+                    "with 8-in-16.",
+                    uint32_t(guest_index_endian));
         guest_index_endian = guest_index_endian == xenos::Endian::k8in32 ? xenos::Endian::k8in16
                                                                          : xenos::Endian::kNone;
       }
@@ -472,10 +471,10 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
       guest_index_buffer_needed_bytes = guest_draw_vertex_count << index_size_log2;
       if (guest_index_base > SharedMemory::kBufferSize ||
           SharedMemory::kBufferSize - guest_index_base < guest_index_buffer_needed_bytes) {
-        REXGPU_ERROR(
-            "Primitive processor: Index buffer at 0x{:08X}, 0x{:X} bytes "
-            "required, is out of the physical memory bounds",
-            guest_index_base, guest_index_buffer_needed_bytes);
+        REXLOG_ERROR(gpu,
+                     "Primitive processor: Index buffer at 0x{:08X}, 0x{:X} bytes "
+                     "required, is out of the physical memory bounds",
+                     guest_index_base, guest_index_buffer_needed_bytes);
         assert_always();
         return false;
       }
@@ -484,10 +483,10 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
     // Auto-indexed - use a remapping index buffer if needed to change the
     // primitive type.
     if (tessellation_enabled && tessellation_mode == xenos::TessellationMode::kAdaptive) {
-      REXGPU_ERROR(
-          "Primitive processor: Adaptive tessellation requires 32-bit "
-          "floating-point edge tessellation factors in the index buffer, but "
-          "no index buffer is provided by the guest.");
+      REXLOG_ERROR(gpu,
+                   "Primitive processor: Adaptive tessellation requires 32-bit "
+                   "floating-point edge tessellation factors in the index buffer, but "
+                   "no index buffer is provided by the guest.");
       assert_always();
       return false;
     }
@@ -534,11 +533,10 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
     assert_true(vgt_draw_initiator.source_select == xenos::SourceSelect::kDMA);
     if (vgt_draw_initiator.source_select != xenos::SourceSelect::kDMA) {
       // TODO(Triang3l): Support immediate-indexed vertices.
-      REXGPU_ERROR(
-          "Primitive processor: Unsupported vertex index source {}. Report the "
-          "game to Xenia developers!",
-          uint32_t(vgt_draw_initiator.source_select));
-      return false;
+      REX_FAIL(gpu, false,
+               "Primitive processor: Unsupported vertex index source {}. Report the "
+               "game to Xenia developers!",
+               uint32_t(vgt_draw_initiator.source_select));
     }
     xenos::IndexFormat guest_index_format = vgt_draw_initiator.index_size;
     cacheable.host_index_format = guest_index_format;
@@ -547,14 +545,14 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
     if (guest_index_format == xenos::IndexFormat::kInt16 &&
         (guest_index_endian != xenos::Endian::kNone &&
          guest_index_endian != xenos::Endian::k8in16)) {
-      REXGPU_WARN(
-          "Primitive processor: 32-bit endian swap mode {} is used for 16-bit "
-          "indices. This shouldn't normally be happening, but report the game "
-          "to Xenia developers for investigation of the intended behavior "
-          "(ignore or actually swap across adjacent indices)! Currently "
-          "disabling the swap for 16-and-32 and replacing 8-in-32 with "
-          "8-in-16.",
-          uint32_t(guest_index_endian));
+      REXLOG_WARN(gpu,
+                  "Primitive processor: 32-bit endian swap mode {} is used for 16-bit "
+                  "indices. This shouldn't normally be happening, but report the game "
+                  "to Xenia developers for investigation of the intended behavior "
+                  "(ignore or actually swap across adjacent indices)! Currently "
+                  "disabling the swap for 16-and-32 and replacing 8-in-32 with "
+                  "8-in-16.",
+                  uint32_t(guest_index_endian));
       guest_index_endian = guest_index_endian == xenos::Endian::k8in32 ? xenos::Endian::k8in16
                                                                        : xenos::Endian::kNone;
     }
@@ -564,10 +562,10 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
       // Adaptive tessellation uses the index buffer not for indices, but for
       // 32-bit floating-point edge factors - no primitive reset.
       if (guest_index_format != xenos::IndexFormat::kInt32) {
-        REXGPU_ERROR(
-            "Primitive processor: Adaptive tessellation requires 32-bit "
-            "floating-point edge tessellation factors in the index buffer, but "
-            "16-bit index buffer is provided by the guest.");
+        REXLOG_ERROR(gpu,
+                     "Primitive processor: Adaptive tessellation requires 32-bit "
+                     "floating-point edge tessellation factors in the index buffer, but "
+                     "16-bit index buffer is provided by the guest.");
         assert_always();
         return false;
       }
@@ -610,10 +608,10 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
     guest_index_buffer_needed_bytes = guest_draw_vertex_count << index_size_log2;
     if (guest_index_base > SharedMemory::kBufferSize ||
         SharedMemory::kBufferSize - guest_index_base < guest_index_buffer_needed_bytes) {
-      REXGPU_ERROR(
-          "Primitive processor: Index buffer at 0x{:08X}, 0x{:X} bytes "
-          "required, is out of the physical memory bounds",
-          guest_index_base, guest_index_buffer_needed_bytes);
+      REXLOG_ERROR(gpu,
+                   "Primitive processor: Index buffer at 0x{:08X}, 0x{:X} bytes "
+                   "required, is out of the physical memory bounds",
+                   guest_index_base, guest_index_buffer_needed_bytes);
       assert_always();
       return false;
     }
@@ -903,11 +901,10 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
     // Request the index buffer memory.
     // TODO(Triang3l): Shared memory request cache.
     if (!shared_memory_.RequestRange(guest_index_base, guest_index_buffer_needed_bytes)) {
-      REXGPU_ERROR(
-          "PrimitiveProcessor: Failed to request index buffer 0x{:08X}, 0x{:X} "
-          "bytes needed, in the shared memory",
-          guest_index_base, guest_index_buffer_needed_bytes);
-      return false;
+      REX_FAIL(gpu, false,
+               "PrimitiveProcessor: Failed to request index buffer 0x{:08X}, 0x{:X} "
+               "bytes needed, in the shared memory",
+               guest_index_base, guest_index_buffer_needed_bytes);
     }
   }
 

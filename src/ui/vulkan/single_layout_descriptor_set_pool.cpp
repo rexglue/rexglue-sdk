@@ -73,10 +73,9 @@ size_t SingleLayoutDescriptorSetPool::Allocate() {
       pool_create_info.pPoolSizes = pool_descriptor_counts_.data();
       if (dfn.vkCreateDescriptorPool(device, &pool_create_info, nullptr, &current_pool_) !=
           VK_SUCCESS) {
-        REXLOG_ERROR(
-            "SingleLayoutDescriptorSetPool: Failed to create a descriptor "
-            "pool");
-        return SIZE_MAX;
+        REX_FAIL(ui, SIZE_MAX,
+                 "SingleLayoutDescriptorSetPool: Failed to create a descriptor "
+                 "pool");
       }
       current_pool_sets_remaining_ = pool_set_count_;
     }
@@ -90,7 +89,7 @@ size_t SingleLayoutDescriptorSetPool::Allocate() {
     VkDescriptorSet descriptor_set;
     if (dfn.vkAllocateDescriptorSets(device, &descriptor_set_allocate_info, &descriptor_set) !=
         VK_SUCCESS) {
-      REXLOG_ERROR("SingleLayoutDescriptorSetPool: Failed to allocate a descriptor set");
+      REXLOG_ERROR(ui, "SingleLayoutDescriptorSetPool: Failed to allocate a descriptor set");
       if (current_pool_sets_remaining_ >= pool_set_count_) {
         // Failed to allocate in a new pool - something completely wrong, don't
         // store empty pools as full.

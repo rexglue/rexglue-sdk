@@ -28,7 +28,6 @@
 #include <rex/runtime.h>
 #include <rex/system/export_resolver.h>
 
-#include "codegen_logging.h"
 #include "file_io.h"
 #include "template_registry_internal.h"
 
@@ -168,18 +167,18 @@ bool CodegenWriter::write(bool force) {
 
   // --- Validation gate (from recompile.cpp) ---
   if (ctx_.errors.HasErrors() && !force) {
-    REXCODEGEN_ERROR("Code generation blocked: {} validation errors. Use --force to override.",
-                     ctx_.errors.Count());
-    return false;
+    REX_FAIL(codegen, false,
+             "Code generation blocked: {} validation errors. Use --force to override.",
+             ctx_.errors.Count());
   }
 
   // --- Output directory setup (from recompile.cpp) ---
   std::filesystem::path outputPath = ctx_.configDir() / config().outDirectoryPath;
-  REXCODEGEN_TRACE("Output path: {}", outputPath.string());
+  REXLOG_TRACE(codegen, "Output path: {}", outputPath.string());
   std::filesystem::create_directories(outputPath);
 
   // --- Everything below from recompiler.cpp recompile() ---
-  REXCODEGEN_TRACE("Recompile: starting");
+  REXLOG_TRACE(codegen, "Recompile: starting");
   out.reserve(kOutputBufferReserveSize);
 
   // Build sorted function list from graph
@@ -210,27 +209,27 @@ bool CodegenWriter::write(bool force) {
   auto tmplData = buildTemplateData(ctx_, functions, rexcrtByAddr);
 
   // Generate {project}_pch.h (config + macros, stable enough to precompile)
-  REXCODEGEN_TRACE("Recompile: generating {}_pch.h", projectName);
+  REXLOG_TRACE(codegen, "Recompile: generating {}_pch.h", projectName);
   out = renderWithJson(registry, "codegen/pch_h", tmplData);
   SaveCurrentOutData(fmt::format("{}_pch.h", projectName));
 
   // Generate {project}_funcs.h (every guest function declaration)
-  REXCODEGEN_TRACE("Recompile: generating {}_funcs.h", projectName);
+  REXLOG_TRACE(codegen, "Recompile: generating {}_funcs.h", projectName);
   out = renderWithJson(registry, "codegen/funcs_h", tmplData);
   SaveCurrentOutData(fmt::format("{}_funcs.h", projectName));
 
   // Generate {project}_init.h (the full surface, for init.cpp and consumers)
-  REXCODEGEN_TRACE("Recompile: generating {}_init.h", projectName);
+  REXLOG_TRACE(codegen, "Recompile: generating {}_init.h", projectName);
   out = renderWithJson(registry, "codegen/init_h", tmplData);
   SaveCurrentOutData(fmt::format("{}_init.h", projectName));
 
   // Generate {project}_init.cpp (PPCImageConfig + PPCFuncMappings)
-  REXCODEGEN_TRACE("Recompile: generating {}_init.cpp", projectName);
+  REXLOG_TRACE(codegen, "Recompile: generating {}_init.cpp", projectName);
   out = renderWithJson(registry, "codegen/init_cpp", tmplData);
   SaveCurrentOutData(fmt::format("{}_init.cpp", projectName));
 
   // Generate {project}_register.cpp (registration function for hash-based dispatch)
-  REXCODEGEN_TRACE("Recompile: generating {}_register.cpp", projectName);
+  REXLOG_TRACE(codegen, "Recompile: generating {}_register.cpp", projectName);
   tmplData["is_dll"] = ctx_.isDllModule();
   out = renderWithJson(registry, "codegen/register_cpp", tmplData);
   SaveCurrentOutData(fmt::format("{}_register.cpp", projectName));
@@ -250,7 +249,7 @@ bool CodegenWriter::write(bool force) {
   if (runtime_)
     emitCtx.resolver = runtime_->export_resolver();
 
-  REXCODEGEN_TRACE("Recompiling {} functions...", functions.size());
+  REXLOG_TRACE(codegen, "Recompiling {} functions...", functions.size());
 
   std::vector<std::string> bodies;
   std::vector<FunctionSize> sizes;
@@ -266,8 +265,8 @@ bool CodegenWriter::write(bool force) {
     referenced.clear();
     std::string code = fn->emitCpp(emitCtx);
     if (code.size() > maxFileBytes) {
-      REXCODEGEN_WARN("Function 0x{:08X} is {} bytes, exceeds max_file_size_bytes ({})", fn->base(),
-                      code.size(), maxFileBytes);
+      REXLOG_WARN(codegen, "Function 0x{:08X} is {} bytes, exceeds max_file_size_bytes ({})",
+                  fn->base(), code.size(), maxFileBytes);
     }
     sizes.push_back({static_cast<uint32_t>(fn->base()), code.size()});
     bodies.push_back(std::move(code));
@@ -304,10 +303,10 @@ bool CodegenWriter::write(bool force) {
   out = partition.Serialize();
   SaveCurrentOutData(kPartitionFileName);
 
-  REXCODEGEN_TRACE("Recompilation complete.");
+  REXLOG_TRACE(codegen, "Recompilation complete.");
 
   // Generate sources.cmake
-  REXCODEGEN_TRACE("Recompile: generating sources.cmake");
+  REXLOG_TRACE(codegen, "Recompile: generating sources.cmake");
   {
     auto& recompFiles = tmplData["recomp_files"];
     recompFiles = nlohmann::json::array();
@@ -344,15 +343,15 @@ bool CodegenWriter::FlushPendingWrites() {
 
     switch (WriteIfChanged(filePath, content)) {
       case WriteOutcome::Failed:
-        REXCODEGEN_ERROR("Failed to write {}", filePath.string());
+        REXLOG_ERROR(codegen, "Failed to write {}", filePath.string());
         ok = false;
         break;
       case WriteOutcome::Unchanged:
-        REXCODEGEN_TRACE("Unchanged, skipping write: {}", filePath.string());
+        REXLOG_TRACE(codegen, "Unchanged, skipping write: {}", filePath.string());
         unchangedFiles_.push_back(filename);
         break;
       case WriteOutcome::Written:
-        REXCODEGEN_TRACE("Wrote {} bytes to {}", content.size(), filePath.string());
+        REXLOG_TRACE(codegen, "Wrote {} bytes to {}", content.size(), filePath.string());
         writtenFiles_.push_back(filename);
         break;
     }
@@ -370,10 +369,11 @@ bool CodegenWriter::FlushPendingWrites() {
     std::error_code ec;
     std::filesystem::remove(entry.path(), ec);
     if (ec) {
-      REXCODEGEN_ERROR("Failed to delete stale output {}: {}", entry.path().string(), ec.message());
+      REXLOG_ERROR(codegen, "Failed to delete stale output {}: {}", entry.path().string(),
+                   ec.message());
       continue;
     }
-    REXCODEGEN_TRACE("Deleted stale output: {}", entry.path().string());
+    REXLOG_TRACE(codegen, "Deleted stale output: {}", entry.path().string());
     deletedFiles_.push_back(filename);
   }
 

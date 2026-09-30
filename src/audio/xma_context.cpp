@@ -66,14 +66,12 @@ int XmaContext::Setup(uint32_t id, memory::Memory* memory, uint32_t guest_ptr) {
   // find the XMA2 audio decoder
   av_codec_ = avcodec_find_decoder(AV_CODEC_ID_XMAFRAMES);
   if (!av_codec_) {
-    REXAPU_ERROR("XmaContext {}: Codec not found", id);
-    return 1;
+    REX_FAIL(audio, 1, "XmaContext {}: Codec not found", id);
   }
 
   av_context_ = avcodec_alloc_context3(av_codec_);
   if (!av_context_) {
-    REXAPU_ERROR("XmaContext {}: Couldn't allocate context", id);
-    return 1;
+    REX_FAIL(audio, 1, "XmaContext {}: Couldn't allocate context", id);
   }
 
   // Initialize these to 0. They'll actually be set later.
@@ -82,8 +80,7 @@ int XmaContext::Setup(uint32_t id, memory::Memory* memory, uint32_t guest_ptr) {
 
   av_frame_ = av_frame_alloc();
   if (!av_frame_) {
-    REXAPU_ERROR("XmaContext {}: Couldn't allocate frame", id);
-    return 1;
+    REX_FAIL(audio, 1, "XmaContext {}: Couldn't allocate frame", id);
   }
 
   // FYI: We're purposely not opening the codec here. That is done later.
@@ -167,7 +164,7 @@ bool XmaContext::Block(bool poll) {
 
 void XmaContext::Clear() {
   std::lock_guard<std::mutex> lock(lock_);
-  REXAPU_NOISY_DEBUG("XmaContext: reset context {}", id());
+  REXLOG_DEV(audio, "XmaContext: reset context {}", id());
 
   auto context_ptr = memory()->TranslateVirtual(guest_ptr());
   XMA_CONTEXT_DATA data(context_ptr);
@@ -298,8 +295,7 @@ const uint8_t* XmaContext::GetNextPacket(XMA_CONTEXT_DATA* data, uint32_t next_p
 
   const uint32_t next_buffer_address = data->GetInputBufferAddress(next_buffer_index);
   if (!next_buffer_address) {
-    REXAPU_ERROR("XmaContext {}: Buffer marked valid but has null pointer!", id());
-    return nullptr;
+    REX_FAIL(audio, nullptr, "XmaContext {}: Buffer marked valid but has null pointer!", id());
   }
 
   return memory()->TranslatePhysical(next_buffer_address);
@@ -326,10 +322,10 @@ memory::RingBuffer XmaContext::PrepareOutputRingBuffer(XMA_CONTEXT_DATA* data) {
   const uint32_t output_write_offset = data->output_buffer_write_offset * kOutputBytesPerBlock;
 
   if (output_capacity > kOutputMaxSizeBytes) {
-    REXAPU_WARN(
-        "XmaContext {}: Output buffer exceeds expected size! "
-        "(Actual: {} Max: {})",
-        id(), output_capacity, kOutputMaxSizeBytes);
+    REXLOG_WARN(audio,
+                "XmaContext {}: Output buffer exceeds expected size! "
+                "(Actual: {} Max: {})",
+                id(), output_capacity, kOutputMaxSizeBytes);
   }
 
   uint8_t* output_buffer = memory()->TranslatePhysical(data->output_buffer_ptr);
@@ -472,8 +468,8 @@ int XmaContext::PrepareDecoder(int sample_rate, bool is_two_channel) {
   uint32_t channels = is_two_channel ? 2 : 1;
   if (av_context_->sample_rate != sample_rate ||
       av_context_->channels != static_cast<int>(channels)) {
-    REXAPU_NOISY_DEBUG("XmaContext {}: Codec reinit: rate {} -> {}, channels {} -> {}", id(),
-                       av_context_->sample_rate, sample_rate, av_context_->channels, channels);
+    REXLOG_DEV(audio, "XmaContext {}: Codec reinit: rate {} -> {}, channels {} -> {}", id(),
+               av_context_->sample_rate, sample_rate, av_context_->channels, channels);
     avcodec_free_context(&av_context_);
     av_context_ = avcodec_alloc_context3(av_codec_);
 
@@ -482,8 +478,7 @@ int XmaContext::PrepareDecoder(int sample_rate, bool is_two_channel) {
     av_context_->flags2 |= AV_CODEC_FLAG2_SKIP_MANUAL;
 
     if (avcodec_open2(av_context_, av_codec_, NULL) < 0) {
-      REXAPU_ERROR("XmaContext: Failed to reopen FFmpeg context");
-      return -1;
+      REX_FAIL(audio, -1, "XmaContext: Failed to reopen FFmpeg context");
     }
     return 1;
   }
@@ -506,8 +501,8 @@ bool XmaContext::DecodePacket(AVCodecContext* av_context, const AVPacket* av_pac
   if (ret < 0) {
     char errbuf[AV_ERROR_MAX_STRING_SIZE];
     av_strerror(ret, errbuf, sizeof(errbuf));
-    REXAPU_ERROR("XmaContext {}: Error sending packet for decoding: {} ({})", id(), errbuf, ret);
-    return false;
+    REX_FAIL(audio, false, "XmaContext {}: Error sending packet for decoding: {} ({})", id(),
+             errbuf, ret);
   }
   ret = avcodec_receive_frame(av_context, av_frame);
 
@@ -517,8 +512,7 @@ bool XmaContext::DecodePacket(AVCodecContext* av_context, const AVPacket* av_pac
   if (ret < 0) {
     char errbuf[AV_ERROR_MAX_STRING_SIZE];
     av_strerror(ret, errbuf, sizeof(errbuf));
-    REXAPU_ERROR("XmaContext {}: Error during decoding: {} ({})", id(), errbuf, ret);
-    return false;
+    REX_FAIL(audio, false, "XmaContext {}: Error during decoding: {} ({})", id(), errbuf, ret);
   }
   return true;
 }
@@ -554,7 +548,7 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
   }
 
   if (!data->output_buffer_block_count) {
-    REXAPU_ERROR("XmaContext {}: Error - Received 0 for output_buffer_block_count!", id());
+    REXLOG_ERROR(audio, "XmaContext {}: Error - Received 0 for output_buffer_block_count!", id());
     return;
   }
 
@@ -568,7 +562,7 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
   const int16_t packet_index = GetPacketNumber(current_input_size, data->input_buffer_read_offset);
 
   if (packet_index == -1) {
-    REXAPU_ERROR("XmaContext {}: Invalid packet index. Input read offset: {}", id(),
+    REXLOG_ERROR(audio, "XmaContext {}: Invalid packet index. Input read offset: {}", id(),
                  static_cast<uint32_t>(data->input_buffer_read_offset));
     return;
   }
@@ -628,7 +622,7 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
                                                       packet_info.current_frame_size_);
 
   if (bits_to_copy == 0) {
-    REXAPU_ERROR("XmaContext {}: There are no bits to copy!", id());
+    REXLOG_ERROR(audio, "XmaContext {}: There are no bits to copy!", id());
     SwapInputBuffer(data);
     return;
   }

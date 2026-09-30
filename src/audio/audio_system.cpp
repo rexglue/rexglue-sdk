@@ -106,13 +106,13 @@ void AudioSystem::WorkerThreadMain() {
     auto result = rex::platform::WaitAny(wait_handles_, rex::countof(wait_handles_), true,
                                          std::chrono::milliseconds(500));
     if (result.first == rex::platform::WaitResult::kFailed) {
-      REXAPU_WARN("AudioWorker: WaitAny failed");
+      REXLOG_WARN(audio, "AudioWorker: WaitAny failed");
       continue;
     }
 
     if (result.first == rex::platform::WaitResult::kTimeout) {
       if (diag_pump_count < 5) {
-        REXAPU_NOISY_DEBUG("AudioWorker: WaitAny timed out (no semaphore signals)");
+        REXLOG_DEV(audio, "AudioWorker: WaitAny timed out (no semaphore signals)");
       }
     }
 
@@ -138,7 +138,8 @@ void AudioSystem::WorkerThreadMain() {
 
       if (client_callback) {
         if (diag_pump_count < 10) {
-          REXAPU_DEBUG("AudioWorker: dispatching callback {:08X} with arg {:08X} for client {}",
+          REXLOG_DEBUG(audio,
+                       "AudioWorker: dispatching callback {:08X} with arg {:08X} for client {}",
                        client_callback, client_callback_arg, index);
         }
         REX_PROFILE_SCOPE_TEXT("apu", "rex::audio::AudioSystem->client_callback");
@@ -146,11 +147,12 @@ void AudioSystem::WorkerThreadMain() {
         function_dispatcher_->Execute(worker_thread_->thread_state(), client_callback, args,
                                       rex::countof(args));
         if (diag_pump_count < 10) {
-          REXAPU_DEBUG("AudioWorker: callback returned for client {}", index);
+          REXLOG_DEBUG(audio, "AudioWorker: callback returned for client {}", index);
         }
         diag_pump_count++;
       } else {
-        REXAPU_DEBUG("AudioWorker: semaphore signaled for client {} but callback is 0", index);
+        REXLOG_DEBUG(audio, "AudioWorker: semaphore signaled for client {} but callback is 0",
+                     index);
       }
 
       pumped = true;
@@ -204,7 +206,7 @@ void AudioSystem::Shutdown() {
     bool exited = host_thread && rex::platform::Wait(host_thread, false, kWorkerShutdownTimeout) ==
                                      rex::platform::WaitResult::kSuccess;
     if (!exited) {
-      REXAPU_WARN("Audio worker did not exit within {} ms; terminating",
+      REXLOG_WARN(audio, "Audio worker did not exit within {} ms; terminating",
                   kWorkerShutdownTimeout.count());
       worker_thread_->Terminate(0);
     }
@@ -225,13 +227,13 @@ void AudioSystem::Shutdown() {
 }
 
 X_STATUS AudioSystem::RegisterClient(uint32_t callback, uint32_t callback_arg, size_t* out_index) {
-  REXAPU_DEBUG("AudioSystem::RegisterClient: callback={:08X} callback_arg={:08X}", callback,
+  REXLOG_DEBUG(audio, "AudioSystem::RegisterClient: callback={:08X} callback_arg={:08X}", callback,
                callback_arg);
   auto global_lock = global_critical_region_.Acquire();
 
   auto index = FindFreeClient();
   assert_true(index >= 0);
-  REXAPU_DEBUG("AudioSystem::RegisterClient: using client index={} queued_frames={}", index,
+  REXLOG_DEBUG(audio, "AudioSystem::RegisterClient: using client index={} queued_frames={}", index,
                queued_frames_);
 
   auto client_semaphore = client_semaphores_[index].get();
@@ -262,7 +264,7 @@ void AudioSystem::SubmitFrame(size_t index, uint32_t samples_ptr) {
 
   static uint32_t submit_count = 0;
   if (submit_count < 10) {
-    REXAPU_DEBUG("AudioSystem::SubmitFrame called: index={} samples_ptr={:08X}", index,
+    REXLOG_DEBUG(audio, "AudioSystem::SubmitFrame called: index={} samples_ptr={:08X}", index,
                  samples_ptr);
     submit_count++;
   }

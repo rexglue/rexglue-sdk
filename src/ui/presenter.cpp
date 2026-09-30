@@ -179,18 +179,18 @@ bool QueryTemporalFsrRenderResolutionFromQualityMode(uint32_t display_width,
 void LogTemporalFsrCompatibilityPathOnce() {
   static std::atomic<bool> temporal_fsr_compatibility_logged = false;
   if (!temporal_fsr_compatibility_logged.exchange(true)) {
-    REXLOG_WARN(
-        "present_effect=fsr2/fsr3 uses an experimental temporal upscaler path "
-        "with synthesized depth/motion inputs and may fall back to spatial FSR");
+    REXLOG_WARN(ui,
+                "present_effect=fsr2/fsr3 uses an experimental temporal upscaler path "
+                "with synthesized depth/motion inputs and may fall back to spatial FSR");
   }
 }
 
 void LogTemporalFsrQualityModeInputLimitOnce() {
   static std::atomic<bool> temporal_fsr_quality_mode_input_limit_logged = false;
   if (!temporal_fsr_quality_mode_input_limit_logged.exchange(true)) {
-    REXLOG_WARN(
-        "present_fsr_quality_mode requested a render size larger than the "
-        "guest output; using guest output size");
+    REXLOG_WARN(ui,
+                "present_fsr_quality_mode requested a render size larger than the "
+                "guest output; using guest output size");
   }
 }
 #endif  // defined(REX_HAS_FIDELITYFX_SDK)
@@ -953,10 +953,10 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
       output_width < host_rt_width && output_height < host_rt_height) {
     static std::atomic<bool> logged_top_left_expand = false;
     if (!logged_top_left_expand.exchange(true)) {
-      REXLOG_WARN(
-          "Presenter: expanding guest output from {}x{} to host render target "
-          "{}x{} to avoid top-left-only presentation",
-          output_width, output_height, host_rt_width, host_rt_height);
+      REXLOG_WARN(ui,
+                  "Presenter: expanding guest output from {}x{} to host render target "
+                  "{}x{} to avoid top-left-only presentation",
+                  output_width, output_height, host_rt_width, host_rt_height);
     }
     output_width = host_rt_width;
     output_height = host_rt_height;
@@ -1405,7 +1405,7 @@ void Presenter::UpdateSurfaceMonitorFromUIThread(bool old_monitor_potentially_di
     }
     if (!dxgi_ui_tick_factory_) {
       if (FAILED(CreateDXGIFactory1(IID_PPV_ARGS(&dxgi_ui_tick_factory_)))) {
-        REXLOG_ERROR("Presenter: Failed to create a DXGI factory");
+        REXLOG_ERROR(ui, "Presenter: Failed to create a DXGI factory");
       }
     }
     Microsoft::WRL::ComPtr<IDXGIOutput> new_dxgi_output;

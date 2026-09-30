@@ -87,7 +87,8 @@ Result<void> RecompileProject(const fs::path& manifest_path, const CLIContext& c
     return result;
 
   ReportStaleIncludes(manifest_path, recompiler);
-  REXLOG_INFO("Codegen summary: {} written, {} unchanged, {} deleted, {} module(s) up to date",
+  REXLOG_INFO(rexglue,
+              "Codegen summary: {} written, {} unchanged, {} deleted, {} module(s) up to date",
               recompiler.writtenFiles().size(), recompiler.unchangedFiles().size(),
               recompiler.deletedFiles().size(), recompiler.skippedModules().size());
   return rex::Ok();
@@ -187,7 +188,7 @@ Result<std::string> DiscoverManifestInCwd() {
 Result<void> CodegenFromConfig(const std::string& config_path, const CLIContext& ctx,
                                const std::vector<std::string>& targets, bool ignore_stamp,
                                const rex::codegen::Limits& limits) {
-  REXLOG_TRACE("Generating code with config: {}", config_path);
+  REXLOG_TRACE(rexglue, "Generating code with config: {}", config_path);
 
   fs::path manifest_path = config_path;
   if (!rex::codegen::ManifestConfig::IsManifest(manifest_path)) {
@@ -208,7 +209,7 @@ Result<void> CodegenFromConfig(const std::string& config_path, const CLIContext&
 
   if (RefreshGeneratedGlue(manifest_path.parent_path(), summary.project_name, current_version,
                            summary.entrypoint_out_dir)) {
-    REXLOG_INFO("Regenerated generated/rexglue.cmake for SDK v{}", current_version);
+    REXLOG_INFO(rexglue, "Regenerated generated/rexglue.cmake for SDK v{}", current_version);
   }
 
   if (auto run_result = RecompileProject(manifest_path, ctx, targets, ignore_stamp, limits);
@@ -217,7 +218,7 @@ Result<void> CodegenFromConfig(const std::string& config_path, const CLIContext&
   }
 
   if (!rex::codegen::ManifestConfig::WriteSdkVersionStamp(manifest_path, current_version)) {
-    REXLOG_WARN("Failed to stamp manifest sdkVersion");
+    REXLOG_WARN(rexglue, "Failed to stamp manifest sdkVersion");
   }
   return rex::Ok();
 }

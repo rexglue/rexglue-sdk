@@ -38,7 +38,6 @@
 
 #include <chrono>
 
-#include "codegen_logging.h"
 #include "file_io.h"
 #include "tool_runtime.h"
 #include "template_registry_internal.h"
@@ -132,10 +131,10 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
   unchangedFiles_.clear();
 
   if (manifest_.modules.empty()) {
-    REXCODEGEN_TRACE("Recompiling '{}' (entrypoint)", manifest_.projectName);
+    REXLOG_TRACE(codegen, "Recompiling '{}' (entrypoint)", manifest_.projectName);
   } else {
-    REXCODEGEN_TRACE("Recompiling '{}' (entrypoint + {} DLL{})", manifest_.projectName,
-                     manifest_.modules.size(), manifest_.modules.size() == 1 ? "" : "s");
+    REXLOG_TRACE(codegen, "Recompiling '{}' (entrypoint + {} DLL{})", manifest_.projectName,
+                 manifest_.modules.size(), manifest_.modules.size() == 1 ? "" : "s");
   }
 
   struct ModuleEntry {
@@ -282,8 +281,8 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
       return Err<void>(ErrorCategory::IO,
                        fmt::format("Failed to load DLL module: {}", targeted[i].targetName));
     }
-    REXCODEGEN_TRACE("Loaded DLL module '{}' at base 0x{:08X}", targeted[i].targetName,
-                     userMod->xex_module()->base_address());
+    REXLOG_TRACE(codegen, "Loaded DLL module '{}' at base 0x{:08X}", targeted[i].targetName,
+                 userMod->xex_module()->base_address());
     auto dll_display_name = std::filesystem::path(targeted[i].config.filePath).filename().string();
     ReportBinaryInfo(opts.reporter, dll_display_name, *userMod->xex_module());
     dllModules.push_back(std::move(userMod));
@@ -367,7 +366,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
 
     auto stamp = OutputStamp::Load(outDir / kStampFileName);
     if (stamp && OutputsAreUpToDate(*stamp, fingerprints[i], outDir)) {
-      REXCODEGEN_TRACE("'{}' is up to date, skipping", entry.module->targetName);
+      REXLOG_TRACE(codegen, "'{}' is up to date, skipping", entry.module->targetName);
       skip[i] = true;
       skippedModules_.push_back(entry.module->targetName);
     }
@@ -382,15 +381,14 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
       opts.reporter->moduleStarted(entry.display_name, i, contexts.size());
     }
     module_started_at[i] = std::chrono::steady_clock::now();
-    REXCODEGEN_TRACE("Analyzing '{}'...", entry.module->targetName);
+    REXLOG_TRACE(codegen, "Analyzing '{}'...", entry.module->targetName);
     auto result = Analyze(entry.ctx, opts.reporter);
     if (!result) {
       if (opts.force && result.error().category == ErrorCategory::Validation) {
-        REXLOG_WARN("Analysis errors for '{}' (continuing due to --force): {}",
+        REXLOG_WARN(codegen, "Analysis errors for '{}' (continuing due to --force): {}",
                     entry.module->targetName, result.error().message);
       } else {
-        REXLOG_ERROR("Analysis failed for '{}'", entry.module->targetName);
-        return result;
+        REX_FAIL(codegen, result, "Analysis failed for '{}'", entry.module->targetName);
       }
     }
   }
@@ -418,7 +416,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
       opts.reporter->moduleStarted(entry.display_name, i, contexts.size());
       opts.reporter->phaseChanged("Write");
     }
-    REXCODEGEN_TRACE("Writing output for '{}'...", entry.module->targetName);
+    REXLOG_TRACE(codegen, "Writing output for '{}'...", entry.module->targetName);
     CodegenWriter writer(entry.ctx, runtime);
     if (!writer.write(opts.force)) {
       return Err<void>(ErrorCategory::Validation,
@@ -469,7 +467,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
   }
 
   if (manifest_.modules.empty()) {
-    REXCODEGEN_TRACE("Project recompiler complete");
+    REXLOG_TRACE(codegen, "Project recompiler complete");
     return Ok();
   }
 
@@ -515,7 +513,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
         writtenFiles_.push_back(registryPath.filename().string());
         break;
     }
-    REXCODEGEN_TRACE("Wrote {}", registryPath.string());
+    REXLOG_TRACE(codegen, "Wrote {}", registryPath.string());
   }
   if (opts.reporter)
     opts.reporter->projectPhaseFinished();
@@ -552,12 +550,12 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
         writtenFiles_.push_back(dllCmakePath.filename().string());
         break;
     }
-    REXCODEGEN_TRACE("Wrote {}", dllCmakePath.string());
+    REXLOG_TRACE(codegen, "Wrote {}", dllCmakePath.string());
   }
   if (opts.reporter)
     opts.reporter->projectPhaseFinished();
 
-  REXCODEGEN_TRACE("Project recompiler complete");
+  REXLOG_TRACE(codegen, "Project recompiler complete");
   return Ok();
 }
 

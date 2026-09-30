@@ -135,7 +135,7 @@ bool Memory::Initialize() {
   mapping_ = rex::memory::CreateFileMappingHandle(file_name_, mapping_size,
                                                   rex::memory::PageAccess::kReadWrite, false);
   if (mapping_ == rex::memory::kFileMappingHandleInvalid) {
-    REXSYS_ERROR("Unable to reserve the 4gb guest address space.");
+    REXLOG_ERROR(system, "Unable to reserve the 4gb guest address space.");
     assert_always();
     return false;
   }
@@ -144,7 +144,7 @@ bool Memory::Initialize() {
   // On macOS, reserve a contiguous host range first, then carve guest views
   // into it with MAP_SHARED|MAP_FIXED so all views share the same backing fd.
   if (MapViewsMac()) {
-    REXSYS_ERROR("Unable to find a continuous block in the 64bit address space.");
+    REXLOG_ERROR(system, "Unable to find a continuous block in the 64bit address space.");
     assert_always();
     return false;
   }
@@ -161,7 +161,7 @@ bool Memory::Initialize() {
     }
   }
   if (!mapping_base_) {
-    REXSYS_ERROR("Unable to find a continuous block in the 64bit address space.");
+    REXLOG_ERROR(system, "Unable to find a continuous block in the 64bit address space.");
     assert_always();
     return false;
   }
@@ -169,7 +169,7 @@ bool Memory::Initialize() {
   virtual_membase_ = mapping_base_;
   physical_membase_ = mapping_base_ + 0x100000000ull;
 
-  REXSYS_INFO("Guest memory arena mapped: virtual base 0x{:016X}, physical base 0x{:016X}",
+  REXLOG_INFO(system, "guest memory mapped at virtual base 0x{:016X}, physical base 0x{:016X}",
               reinterpret_cast<uintptr_t>(virtual_membase_),
               reinterpret_cast<uintptr_t>(physical_membase_));
 
@@ -219,11 +219,11 @@ bool Memory::Initialize() {
       virtual_membase_, physical_membase_, physical_membase_ + 0x1FFFFFFF, HostToGuestVirtualThunk,
       this, AccessViolationCallbackThunk, this);
   if (!mmio_handler_) {
-    REXSYS_ERROR("Unable to install MMIO handlers");
+    REXLOG_ERROR(system, "Unable to install MMIO handlers");
     assert_always();
     return false;
   }
-  REXSYS_DEBUG("Installed MMIO handler for physical address translation");
+  REXLOG_DEBUG(system, "Installed MMIO handler for physical address translation");
 
   // ?
   uint32_t unk_phys_alloc;
@@ -317,8 +317,7 @@ int Memory::MapViewsMac() {
 
   void* reserved_base = mmap(nullptr, total_size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (reserved_base == MAP_FAILED) {
-    REXSYS_ERROR("MapViewsMac: reserve failed: {}", std::strerror(errno));
-    return 1;
+    REX_FAIL(system, 1, "MapViewsMac: reserve failed: {}", std::strerror(errno));
   }
 
   uint8_t* mapping_base = reinterpret_cast<uint8_t*>(reserved_base);
@@ -333,7 +332,8 @@ int Memory::MapViewsMac() {
                         mapping_, file_offset);
     if (result == MAP_FAILED || result != target_address) {
       int err = errno;
-      REXSYS_ERROR(
+      REXLOG_ERROR(
+          system,
           "MapViewsMac: map failed view {} addr 0x{:016X} size 0x{:X} offset 0x{:X} err {} ({})", n,
           reinterpret_cast<uintptr_t>(target_address), view_size, file_offset, err,
           std::strerror(err));
@@ -510,8 +510,7 @@ bool Memory::AddVirtualMappedRange(uint32_t virtual_address, uint32_t mask, uint
       rex::round_up(size_t(range_start - aligned_start) + size, host_page_size);
   if (!rex::memory::AllocFixed(aligned_start, aligned_length, rex::memory::AllocationType::kCommit,
                                rex::memory::PageAccess::kNoAccess)) {
-    REXSYS_ERROR("Unable to map range; commit/protect failed");
-    return false;
+    REX_FAIL(system, false, "Unable to map range; commit/protect failed");
   }
   // The MMIO registration keeps the caller's original size - only the host
   // reservation is rounded.
@@ -535,11 +534,11 @@ bool Memory::AccessViolationCallback(std::unique_lock<std::recursive_mutex> glob
   uint32_t virtual_address = HostToGuestVirtual(host_address);
   BaseHeap* heap = LookupHeap(virtual_address);
   if (!heap || heap->heap_type() != memory::HeapType::kGuestPhysical) {
-    REXSYS_ERROR(
+    REX_FAIL(
+        system, false,
         "Unhandled guest access violation: {} of guest 0x{:08X} (host 0x{:016X}) on thread 0x{:X}",
         is_write ? "write" : "read", virtual_address, reinterpret_cast<uintptr_t>(host_address),
         rex::platform::current_thread_id());
-    return false;
   }
 
   // Access violation callbacks from the guest are triggered when the global
@@ -601,10 +600,10 @@ bool Memory::AccessViolationCallback(std::unique_lock<std::recursive_mutex> glob
           reinterpret_cast<uintptr_t>(host_address) & ~(uintptr_t(host_page_size - 1));
       if (rex::memory::Protect(reinterpret_cast<void*>(page_base), host_page_size,
                                rex::memory::PageAccess::kReadWrite, nullptr)) {
-        REXSYS_WARN(
-            "Recovered stale physical page protection for guest {:08X} (host {:016X}, "
-            "guest_protect {:08X})",
-            virtual_address, static_cast<uint64_t>(page_base), guest_protect);
+        REXLOG_WARN(system,
+                    "Recovered stale physical page protection for guest {:08X} (host {:016X}, "
+                    "guest_protect {:08X})",
+                    virtual_address, static_cast<uint64_t>(page_base), guest_protect);
         return true;
       }
     }
@@ -616,11 +615,11 @@ bool Memory::AccessViolationCallback(std::unique_lock<std::recursive_mutex> glob
     if (physical_address != UINT32_MAX) {
       heaps_.physical.QueryProtect(physical_address, &physical_protect);
     }
-    REXSYS_ERROR(
-        "Unhandled guest physical write fault: guest={:08X} host={:016X} phys={:08X} "
-        "guest_protect={:08X} physical_protect={:08X}",
-        virtual_address, static_cast<uint64_t>(reinterpret_cast<uintptr_t>(host_address)),
-        physical_address, current_guest_protect, physical_protect);
+    REXLOG_ERROR(system,
+                 "Unhandled guest physical write fault: guest={:08X} host={:016X} phys={:08X} "
+                 "guest_protect={:08X} physical_protect={:08X}",
+                 virtual_address, static_cast<uint64_t>(reinterpret_cast<uintptr_t>(host_address)),
+                 physical_address, current_guest_protect, physical_protect);
   }
 
   return false;
@@ -722,32 +721,35 @@ void Memory::GetHeapsPageStatsSummary(const BaseHeap* const* provided_heaps, siz
 }
 
 void Memory::DumpMap() {
-  REXSYS_ERROR("==================================================================");
-  REXSYS_ERROR("Memory Dump");
-  REXSYS_ERROR("==================================================================");
-  REXSYS_ERROR("               System Page Size: {0} ({0:08X})", system_page_size_);
-  REXSYS_ERROR("  System Allocation Granularity: {0} ({0:08X})", system_allocation_granularity_);
-  REXSYS_ERROR("                Virtual Membase: {}", fmt::ptr(virtual_membase_));
-  REXSYS_ERROR("               Physical Membase: {}", fmt::ptr(physical_membase_));
-  REXSYS_ERROR("");
-  REXSYS_ERROR("------------------------------------------------------------------");
-  REXSYS_ERROR("Virtual Heaps");
-  REXSYS_ERROR("------------------------------------------------------------------");
-  REXSYS_ERROR("");
+  REXLOG_ERROR(system, "==================================================================");
+  REXLOG_ERROR(system, "Memory Dump");
+  REXLOG_ERROR(system, "==================================================================");
+  REXLOG_ERROR(system, "               System Page Size: {0} ({0:08X})", system_page_size_);
+  REXLOG_ERROR(system, "  System Allocation Granularity: {0} ({0:08X})",
+               system_allocation_granularity_);
+  REXLOG_ERROR(system, "                Virtual Membase: {}",
+               static_cast<const void*>(virtual_membase_));
+  REXLOG_ERROR(system, "               Physical Membase: {}",
+               static_cast<const void*>(physical_membase_));
+  REXLOG_ERROR(system, "");
+  REXLOG_ERROR(system, "------------------------------------------------------------------");
+  REXLOG_ERROR(system, "Virtual Heaps");
+  REXLOG_ERROR(system, "------------------------------------------------------------------");
+  REXLOG_ERROR(system, "");
   heaps_.v00000000.DumpMap();
   heaps_.v40000000.DumpMap();
   heaps_.v80000000.DumpMap();
   heaps_.v90000000.DumpMap();
-  REXSYS_ERROR("");
-  REXSYS_ERROR("------------------------------------------------------------------");
-  REXSYS_ERROR("Physical Heaps");
-  REXSYS_ERROR("------------------------------------------------------------------");
-  REXSYS_ERROR("");
+  REXLOG_ERROR(system, "");
+  REXLOG_ERROR(system, "------------------------------------------------------------------");
+  REXLOG_ERROR(system, "Physical Heaps");
+  REXLOG_ERROR(system, "------------------------------------------------------------------");
+  REXLOG_ERROR(system, "");
   heaps_.physical.DumpMap();
   heaps_.vA0000000.DumpMap();
   heaps_.vC0000000.DumpMap();
   heaps_.vE0000000.DumpMap();
-  REXSYS_ERROR("");
+  REXLOG_ERROR(system, "");
 }
 
 //=============================================================================
@@ -760,17 +762,16 @@ bool Memory::InitializeFunctionTable(uint32_t code_base, uint32_t code_size, uin
   uint32_t table_base = image_base + image_size;
   uint32_t table_size = (code_size + kThunkReserveSize) * 2;
 
-  REXSYS_DEBUG(
-      "Initializing function table at {:08X}, size {:08X} for code {:08X}-{:08X} "
-      "(+{:08X} thunk reserve)",
-      table_base, table_size, code_base, code_base + code_size, kThunkReserveSize);
+  REXLOG_DEBUG(system,
+               "Initializing function table at {:08X}, size {:08X} for code {:08X}-{:08X} "
+               "(+{:08X} thunk reserve)",
+               table_base, table_size, code_base, code_base + code_size, kThunkReserveSize);
 
   if (!heaps_.v80000000.AllocFixed(
           table_base, table_size, 0x10000,
           memory::kMemoryAllocationReserve | memory::kMemoryAllocationCommit,
           memory::kMemoryProtectRead | memory::kMemoryProtectWrite)) {
-    REXSYS_ERROR("Failed to allocate function table at {:08X}", table_base);
-    return false;
+    REX_FAIL(system, false, "Failed to allocate function table at {:08X}", table_base);
   }
 
   Zero(table_base, table_size);
@@ -806,7 +807,7 @@ bool Memory::DestroyFunctionTable(uint32_t code_base) {
     function_tables_.erase(it);
   }
 
-  REXSYS_DEBUG("Destroying function table at {:08X}, size {:08X} for code {:08X}-{:08X}",
+  REXLOG_DEBUG(system, "Destroying function table at {:08X}, size {:08X} for code {:08X}-{:08X}",
                table_base, table_size, logged_code_base, logged_code_base + logged_code_size);
 
   heaps_.v80000000.Release(table_base);
@@ -977,9 +978,9 @@ bool BaseHeap::SyncHostPageAccess(uint32_t start_page_number, uint32_t end_page_
     const size_t run_length = (size_t(run_last_page - run_first_page) + 1) * host_page_size;
     uint8_t* const run_pointer = heap_host_base + size_t(run_first_page) * host_page_size;
     if (!rex::memory::Protect(run_pointer, run_length, run_access, nullptr)) {
-      REXSYS_ERROR("BaseHeap::SyncHostPageAccess failed for heap {:08X} host pages {}-{}",
-                   heap_base_, run_first_page, run_last_page);
-      return false;
+      REX_FAIL(system, false,
+               "BaseHeap::SyncHostPageAccess failed for heap {:08X} host pages {}-{}", heap_base_,
+               run_first_page, run_last_page);
     }
     return true;
   };
@@ -1028,14 +1029,14 @@ void BaseHeap::Dispose() {
 
 void BaseHeap::DumpMap() {
   std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
-  REXSYS_ERROR("------------------------------------------------------------------");
-  REXSYS_ERROR("Heap: {:08X}-{:08X}", heap_base_, heap_base_ + (heap_size_ - 1));
-  REXSYS_ERROR("------------------------------------------------------------------");
-  REXSYS_ERROR("            Heap Base: {:08X}", heap_base_);
-  REXSYS_ERROR("            Heap Size: {0} ({0:08X})", heap_size_);
-  REXSYS_ERROR("            Page Size: {0} ({0:08X})", page_size_);
-  REXSYS_ERROR("           Page Count: {}", page_table_.size());
-  REXSYS_ERROR("  Host Address Offset: {0} ({0:08X})", host_address_offset_);
+  REXLOG_ERROR(system, "------------------------------------------------------------------");
+  REXLOG_ERROR(system, "Heap: {:08X}-{:08X}", heap_base_, heap_base_ + (heap_size_ - 1));
+  REXLOG_ERROR(system, "------------------------------------------------------------------");
+  REXLOG_ERROR(system, "            Heap Base: {:08X}", heap_base_);
+  REXLOG_ERROR(system, "            Heap Size: {0} ({0:08X})", heap_size_);
+  REXLOG_ERROR(system, "            Page Size: {0} ({0:08X})", page_size_);
+  REXLOG_ERROR(system, "           Page Count: {}", page_table_.size());
+  REXLOG_ERROR(system, "  Host Address Offset: {0} ({0:08X})", host_address_offset_);
   bool is_empty_span = false;
   uint32_t empty_span_start = 0;
   for (uint32_t i = 0; i < uint32_t(page_table_.size()); ++i) {
@@ -1048,7 +1049,7 @@ void BaseHeap::DumpMap() {
       continue;
     }
     if (is_empty_span) {
-      REXSYS_ERROR("  {:08X}-{:08X} {:6d}p {:10d}b unreserved",
+      REXLOG_ERROR(system, "  {:08X}-{:08X} {:6d}p {:10d}b unreserved",
                    heap_base_ + (empty_span_start << page_size_shift_),
                    heap_base_ + (i << page_size_shift_), i - empty_span_start,
                    (i - empty_span_start) << page_size_shift_);
@@ -1063,13 +1064,14 @@ void BaseHeap::DumpMap() {
     char access_r = (page.current_protect & memory::kMemoryProtectRead) ? 'R' : ' ';
     char access_w = (page.current_protect & memory::kMemoryProtectWrite) ? 'W' : ' ';
     uint32_t region_pages = page.region_page_count;
-    REXSYS_ERROR("  {:08X}-{:08X} {:6d}p {:10d}b {} {}{}", heap_base_ + (i << page_size_shift_),
+    REXLOG_ERROR(system, "  {:08X}-{:08X} {:6d}p {:10d}b {} {}{}",
+                 heap_base_ + (i << page_size_shift_),
                  heap_base_ + ((i + region_pages) << page_size_shift_), region_pages,
                  region_pages << page_size_shift_, state_name, access_r, access_w);
     i += region_pages - 1;
   }
   if (is_empty_span) {
-    REXSYS_ERROR("  {:08X}-{:08X} - {} unreserved pages)",
+    REXLOG_ERROR(system, "  {:08X}-{:08X} - {} unreserved pages)",
                  heap_base_ + (empty_span_start << page_size_shift_), heap_base_ + (heap_size_ - 1),
                  page_table_.size() - empty_span_start);
   }
@@ -1155,18 +1157,17 @@ bool BaseHeap::AllocFixed(uint32_t base_address, uint32_t size, uint32_t alignme
   alignment = rex::round_up(alignment, page_size_);
   if (base_address % alignment != 0) {
     if (base_address % page_size_ != 0) {
-      REXSYS_ERROR(
-          "BaseHeap::AllocFixed invalid base alignment: base={:08X} page_size={:08X} "
-          "requested_alignment={:08X} heap={:08X}-{:08X}",
-          base_address, page_size_, alignment, heap_base_, heap_base_ + (heap_size_ - 1));
-      return false;
+      REX_FAIL(system, false,
+               "BaseHeap::AllocFixed invalid base alignment: base={:08X} page_size={:08X} "
+               "requested_alignment={:08X} heap={:08X}-{:08X}",
+               base_address, page_size_, alignment, heap_base_, heap_base_ + (heap_size_ - 1));
     }
     // Fixed allocations can only be guaranteed page-aligned. If callers provide
     // a stricter alignment for an already-fixed address, fall back to page size.
-    REXSYS_WARN(
-        "BaseHeap::AllocFixed clamping alignment from {:08X} to page size {:08X} for "
-        "base={:08X}",
-        alignment, page_size_, base_address);
+    REXLOG_WARN(system,
+                "BaseHeap::AllocFixed clamping alignment from {:08X} to page size {:08X} for "
+                "base={:08X}",
+                alignment, page_size_, base_address);
     alignment = page_size_;
   }
   size = rex::align(size, alignment);
@@ -1174,8 +1175,7 @@ bool BaseHeap::AllocFixed(uint32_t base_address, uint32_t size, uint32_t alignme
   uint32_t start_page_number = (base_address - heap_base_) >> page_size_shift_;
   uint32_t end_page_number = start_page_number + page_count - 1;
   if (start_page_number >= page_table_.size() || end_page_number > page_table_.size()) {
-    REXSYS_ERROR("BaseHeap::AllocFixed passed out of range address range");
-    return false;
+    REX_FAIL(system, false, "BaseHeap::AllocFixed passed out of range address range");
   }
 
   // Global critical region before heap_mutex_ - see
@@ -1191,16 +1191,15 @@ bool BaseHeap::AllocFixed(uint32_t base_address, uint32_t size, uint32_t alignme
     uint32_t state = page_table_[page_number].state;
     if ((allocation_type == memory::kMemoryAllocationReserve) && state) {
       // Already reserved.
-      REXSYS_ERROR(
-          "BaseHeap::AllocFixed attempting to reserve an already reserved "
-          "range");
-      return false;
+      REX_FAIL(system, false,
+               "BaseHeap::AllocFixed attempting to reserve an already reserved "
+               "range");
     }
     if ((allocation_type == memory::kMemoryAllocationCommit) &&
         !(state & memory::kMemoryAllocationReserve)) {
       // Attempting a commit-only op on an unreserved page.
       // This may be OK.
-      REXSYS_WARN("BaseHeap::AllocFixed attempting commit on unreserved page");
+      REXLOG_WARN(system, "BaseHeap::AllocFixed attempting commit on unreserved page");
       allocation_type |= memory::kMemoryAllocationReserve;
       break;
     }
@@ -1217,8 +1216,7 @@ bool BaseHeap::AllocFixed(uint32_t base_address, uint32_t size, uint32_t alignme
         rex::memory::AllocFixed(TranslateRelative(start_page_number << page_size_shift_),
                                 page_count << page_size_shift_, alloc_type, ToPageAccess(protect));
     if (!result) {
-      REXSYS_ERROR("BaseHeap::AllocFixed failed to alloc range from host");
-      return false;
+      REX_FAIL(system, false, "BaseHeap::AllocFixed failed to alloc range from host");
     }
   }
 
@@ -1262,22 +1260,19 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address, uint32_t 
   low_address = std::max(heap_base_, rex::align(low_address, alignment));
   high_address = std::min(heap_base_ + (heap_size_ - 1), rex::align(high_address, alignment));
   if (high_address < low_address) {
-    REXSYS_ERROR("BaseHeap::Alloc invalid requested range");
-    return false;
+    REX_FAIL(system, false, "BaseHeap::Alloc invalid requested range");
   }
   uint32_t low_page_number = (low_address - heap_base_) >> page_size_shift_;
   uint32_t high_page_number = (high_address - heap_base_) >> page_size_shift_;
   low_page_number = std::min(uint32_t(page_table_.size()) - 1, low_page_number);
   high_page_number = std::min(uint32_t(page_table_.size()) - 1, high_page_number);
   if (high_page_number < low_page_number) {
-    REXSYS_ERROR("BaseHeap::Alloc invalid requested page range");
-    return false;
+    REX_FAIL(system, false, "BaseHeap::Alloc invalid requested page range");
   }
 
   uint32_t available_page_count = high_page_number - low_page_number + 1;
   if (!page_count || page_count > available_page_count) {
-    REXSYS_ERROR("BaseHeap::Alloc page count too big for requested range");
-    return false;
+    REX_FAIL(system, false, "BaseHeap::Alloc page count too big for requested range");
   }
 
   // Global critical region before heap_mutex_ - see
@@ -1365,7 +1360,7 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address, uint32_t 
   }
   if (start_page_number == UINT_MAX || end_page_number == UINT_MAX) {
     // Out of memory.
-    REXSYS_ERROR("BaseHeap::Alloc failed to find contiguous range");
+    REXLOG_ERROR(system, "BaseHeap::Alloc failed to find contiguous range");
     assert_always("Heap exhausted!");
     return false;
   }
@@ -1381,8 +1376,7 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address, uint32_t 
         rex::memory::AllocFixed(TranslateRelative(start_page_number << page_size_shift_),
                                 page_count << page_size_shift_, alloc_type, ToPageAccess(protect));
     if (!result) {
-      REXSYS_ERROR("BaseHeap::Alloc failed to alloc range from host");
-      return false;
+      REX_FAIL(system, false, "BaseHeap::Alloc failed to alloc range from host");
     }
   }
 
@@ -1460,13 +1454,11 @@ bool BaseHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
   uint32_t base_page_number = (base_address - heap_base_) >> page_size_shift_;
   auto base_page_entry = page_table_[base_page_number];
   if (base_page_entry.base_address != base_page_number) {
-    REXSYS_ERROR("BaseHeap::Release failed because address is not a region start");
-    return false;
+    REX_FAIL(system, false, "BaseHeap::Release failed because address is not a region start");
   }
 
   if (heap_base_ == 0x00000000 && base_page_number == 0) {
-    REXSYS_ERROR("BaseHeap::Release: Attempt to free 0!");
-    return false;
+    REX_FAIL(system, false, "BaseHeap::Release: Attempt to free 0!");
   }
 
   if (out_region_size) {
@@ -1492,7 +1484,7 @@ bool BaseHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
       if (!rex::memory::Protect(TranslateRelative(base_page_number << page_size_shift_),
                                 base_page_entry.region_page_count << page_size_shift_,
                                 rex::memory::PageAccess::kNoAccess, nullptr)) {
-        REXSYS_WARN("BaseHeap::Release failed due to host VirtualProtect failure");
+        REXLOG_WARN(system, "BaseHeap::Release failed due to host VirtualProtect failure");
       }
     }
   }
@@ -1514,8 +1506,7 @@ bool BaseHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
 
 bool BaseHeap::Protect(uint32_t address, uint32_t size, uint32_t protect, uint32_t* old_protect) {
   if (!size) {
-    REXSYS_ERROR("BaseHeap::Protect failed due to zero size");
-    return false;
+    REX_FAIL(system, false, "BaseHeap::Protect failed due to zero size");
   }
 
   // From the VirtualProtect MSDN page:
@@ -1532,17 +1523,16 @@ bool BaseHeap::Protect(uint32_t address, uint32_t size, uint32_t protect, uint32
 
   uint32_t start_page_number = (address - heap_base_) >> page_size_shift_;
   if (start_page_number >= page_table_.size()) {
-    REXSYS_ERROR("BaseHeap::Protect failed due to out-of-bounds base address {:08X}", address);
-    return false;
+    REX_FAIL(system, false, "BaseHeap::Protect failed due to out-of-bounds base address {:08X}",
+             address);
   }
   uint32_t end_page_number =
       uint32_t((uint64_t(address) + size - 1 - heap_base_) >> page_size_shift_);
   if (end_page_number >= page_table_.size()) {
-    REXSYS_ERROR(
-        "BaseHeap::Protect failed due to out-of-bounds range ({:08X} bytes "
-        "from {:08x})",
-        size, address);
-    return false;
+    REX_FAIL(system, false,
+             "BaseHeap::Protect failed due to out-of-bounds range ({:08X} bytes "
+             "from {:08x})",
+             size, address);
   }
 
   // Global critical region before heap_mutex_ - see
@@ -1557,12 +1547,10 @@ bool BaseHeap::Protect(uint32_t address, uint32_t size, uint32_t protect, uint32
     if (first_base_address == UINT_MAX) {
       first_base_address = page_entry.base_address;
     } else if (first_base_address != page_entry.base_address) {
-      REXSYS_ERROR("BaseHeap::Protect failed due to request spanning regions");
-      return false;
+      REX_FAIL(system, false, "BaseHeap::Protect failed due to request spanning regions");
     }
     if (!(page_entry.state & memory::kMemoryAllocationCommit)) {
-      REXSYS_ERROR("BaseHeap::Protect failed due to uncommitted page");
-      return false;
+      REX_FAIL(system, false, "BaseHeap::Protect failed due to uncommitted page");
     }
   }
 
@@ -1574,8 +1562,7 @@ bool BaseHeap::Protect(uint32_t address, uint32_t size, uint32_t protect, uint32
     if (!rex::memory::Protect(TranslateRelative(start_page_number << page_size_shift_),
                               page_count << page_size_shift_, ToPageAccess(protect),
                               old_protect ? &old_protect_access : nullptr)) {
-      REXSYS_ERROR("BaseHeap::Protect failed due to host VirtualProtect failure");
-      return false;
+      REX_FAIL(system, false, "BaseHeap::Protect failed due to host VirtualProtect failure");
     }
 
     if (old_protect) {
@@ -1603,8 +1590,7 @@ bool BaseHeap::Protect(uint32_t address, uint32_t size, uint32_t protect, uint32
 bool BaseHeap::QueryRegionInfo(uint32_t base_address, HeapAllocationInfo* out_info) {
   uint32_t start_page_number = (base_address - heap_base_) >> page_size_shift_;
   if (start_page_number > page_table_.size()) {
-    REXSYS_ERROR("BaseHeap::QueryRegionInfo base page out of range");
-    return false;
+    REX_FAIL(system, false, "BaseHeap::QueryRegionInfo base page out of range");
   }
 
   std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
@@ -1656,7 +1642,7 @@ bool BaseHeap::QueryRegionInfo(uint32_t base_address, HeapAllocationInfo* out_in
 bool BaseHeap::QuerySize(uint32_t address, uint32_t* out_size) {
   uint32_t page_number = (address - heap_base_) >> page_size_shift_;
   if (page_number > page_table_.size()) {
-    REXSYS_ERROR("BaseHeap::QuerySize base page out of range");
+    REXLOG_ERROR(system, "BaseHeap::QuerySize base page out of range");
     *out_size = 0;
     return false;
   }
@@ -1669,7 +1655,7 @@ bool BaseHeap::QuerySize(uint32_t address, uint32_t* out_size) {
 bool BaseHeap::QueryBaseAndSize(uint32_t* in_out_address, uint32_t* out_size) {
   uint32_t page_number = (*in_out_address - heap_base_) >> page_size_shift_;
   if (page_number > page_table_.size()) {
-    REXSYS_ERROR("BaseHeap::QuerySize base page out of range");
+    REXLOG_ERROR(system, "BaseHeap::QuerySize base page out of range");
     *out_size = 0;
     return false;
   }
@@ -1683,7 +1669,7 @@ bool BaseHeap::QueryBaseAndSize(uint32_t* in_out_address, uint32_t* out_size) {
 bool BaseHeap::QueryProtect(uint32_t address, uint32_t* out_protect) {
   uint32_t page_number = (address - heap_base_) >> page_size_shift_;
   if (page_number > page_table_.size()) {
-    REXSYS_ERROR("BaseHeap::QueryProtect base page out of range");
+    REXLOG_ERROR(system, "BaseHeap::QueryProtect base page out of range");
     *out_protect = 0;
     return false;
   }
@@ -1780,15 +1766,14 @@ bool PhysicalHeap::Alloc(uint32_t size, uint32_t alignment, uint32_t allocation_
   uint32_t parent_address;
   if (!parent_heap_->AllocRange(parent_heap_start, parent_heap_end, size, alignment,
                                 allocation_type, protect, top_down, &parent_address)) {
-    REXSYS_ERROR("PhysicalHeap::Alloc unable to alloc physical memory in parent heap");
-    return false;
+    REX_FAIL(system, false, "PhysicalHeap::Alloc unable to alloc physical memory in parent heap");
   }
 
   // Given the address we've reserved in the parent heap, pin that here.
   // Shouldn't be possible for it to be allocated already.
   uint32_t address = heap_base_ + parent_address - parent_heap_start;
   if (!BaseHeap::AllocFixed(address, size, alignment, allocation_type, protect)) {
-    REXSYS_ERROR("PhysicalHeap::Alloc unable to pin physical memory in physical heap");
+    REXLOG_ERROR(system, "PhysicalHeap::Alloc unable to pin physical memory in physical heap");
     // TODO(benvanik): don't leak parent memory.
     return false;
   }
@@ -1813,15 +1798,14 @@ bool PhysicalHeap::AllocFixed(uint32_t base_address, uint32_t size, uint32_t ali
   // TODO(benvanik): flag for ensure-not-committed?
   uint32_t parent_base_address = GetPhysicalAddress(base_address);
   if (!parent_heap_->AllocFixed(parent_base_address, size, alignment, allocation_type, protect)) {
-    REXSYS_ERROR("PhysicalHeap::Alloc unable to alloc physical memory in parent heap");
-    return false;
+    REX_FAIL(system, false, "PhysicalHeap::Alloc unable to alloc physical memory in parent heap");
   }
 
   // Given the address we've reserved in the parent heap, pin that here.
   // Shouldn't be possible for it to be allocated already.
   uint32_t address = heap_base_ + parent_base_address - GetPhysicalAddress(heap_base_);
   if (!BaseHeap::AllocFixed(address, size, page_size_, allocation_type, protect)) {
-    REXSYS_ERROR("PhysicalHeap::Alloc unable to pin physical memory in physical heap");
+    REXLOG_ERROR(system, "PhysicalHeap::Alloc unable to pin physical memory in physical heap");
     // TODO(benvanik): don't leak parent memory.
     return false;
   }
@@ -1851,15 +1835,14 @@ bool PhysicalHeap::AllocRange(uint32_t low_address, uint32_t high_address, uint3
   uint32_t parent_address;
   if (!parent_heap_->AllocRange(parent_low_address, parent_high_address, size, alignment,
                                 allocation_type, protect, top_down, &parent_address)) {
-    REXSYS_ERROR("PhysicalHeap::Alloc unable to alloc physical memory in parent heap");
-    return false;
+    REX_FAIL(system, false, "PhysicalHeap::Alloc unable to alloc physical memory in parent heap");
   }
 
   // Given the address we've reserved in the parent heap, pin that here.
   // Shouldn't be possible for it to be allocated already.
   uint32_t address = heap_base_ + parent_address - GetPhysicalAddress(heap_base_);
   if (!BaseHeap::AllocFixed(address, size, page_size_, allocation_type, protect)) {
-    REXSYS_ERROR("PhysicalHeap::Alloc unable to pin physical memory in physical heap");
+    REXLOG_ERROR(system, "PhysicalHeap::Alloc unable to pin physical memory in physical heap");
     // TODO(benvanik): don't leak parent memory.
     return false;
   }
@@ -1877,8 +1860,7 @@ bool PhysicalHeap::Decommit(uint32_t address, uint32_t size) {
 
   uint32_t parent_address = GetPhysicalAddress(address);
   if (!parent_heap_->Decommit(parent_address, size)) {
-    REXSYS_ERROR("PhysicalHeap::Decommit failed due to parent heap failure");
-    return false;
+    REX_FAIL(system, false, "PhysicalHeap::Decommit failed due to parent heap failure");
   }
 
   // Not caring about the contents anymore.
@@ -1892,8 +1874,7 @@ bool PhysicalHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
 
   uint32_t parent_base_address = GetPhysicalAddress(base_address);
   if (!parent_heap_->Release(parent_base_address, out_region_size)) {
-    REXSYS_ERROR("PhysicalHeap::Release failed due to parent heap failure");
-    return false;
+    REX_FAIL(system, false, "PhysicalHeap::Release failed due to parent heap failure");
   }
 
   // Must invalidate here because the range being released may be reused in
@@ -1923,8 +1904,7 @@ bool PhysicalHeap::Protect(uint32_t address, uint32_t size, uint32_t protect,
   }
 
   if (!parent_heap_->Protect(GetPhysicalAddress(address), size, protect, old_protect)) {
-    REXSYS_ERROR("PhysicalHeap::Protect failed due to parent heap failure");
-    return false;
+    REX_FAIL(system, false, "PhysicalHeap::Protect failed due to parent heap failure");
   }
 
   return BaseHeap::Protect(address, size, protect);
@@ -1996,8 +1976,8 @@ void PhysicalHeap::EnableAccessCallbacks(uint32_t physical_address, uint32_t len
     uint32_t guest_page_number =
         rex::sat_sub(i * system_page_size_, host_address_offset()) >> page_size_shift_;
     if (guest_page_number >= page_table_.size()) {
-      REXSYS_ERROR("Access callback page OOB: system_page={} guest_page={} offset=0x{:X}", i,
-                   guest_page_number, host_address_offset());
+      REXLOG_ERROR(system, "Access callback page OOB: system_page={} guest_page={} offset=0x{:X}",
+                   i, guest_page_number, host_address_offset());
       assert_always();
       continue;
     }

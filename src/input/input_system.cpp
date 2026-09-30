@@ -225,9 +225,9 @@ void InputSystem::UpdateConnectedUser(uint32_t user_index, bool connected) {
   }
   connected_users_.set(user_index, connected);
   if (connected) {
-    REXLOG_INFO("New controller connected to slot {}.", user_index);
+    REXLOG_INFO(input, "New controller connected to slot {}.", user_index);
   } else {
-    REXLOG_INFO("Controller disconnected from slot {}.", user_index);
+    REXLOG_INFO(input, "Controller disconnected from slot {}.", user_index);
   }
 
   // Titles poll capabilities off this rather than every frame, so without it

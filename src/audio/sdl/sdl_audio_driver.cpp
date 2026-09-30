@@ -43,8 +43,7 @@ bool SDLAudioDriver::Initialize() {
   SDL_SetAppMetadataProperty(SDL_PROP_APP_METADATA_NAME_STRING, "rexglue");
 
   if (!SDL_InitSubSystem(SDL_INIT_AUDIO)) {
-    REXAPU_ERROR("SDL_InitSubSystem(SDL_INIT_AUDIO) failed: {}", SDL_GetError());
-    return false;
+    REX_FAIL(audio, false, "SDL_InitSubSystem(SDL_INIT_AUDIO) failed: {}", SDL_GetError());
   }
   sdl_initialized_ = true;
 
@@ -57,18 +56,16 @@ bool SDLAudioDriver::Initialize() {
   sdl_stream_ = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &desired_spec,
                                           SDLCallback, this);
   if (!sdl_stream_) {
-    REXAPU_ERROR("SDL_OpenAudioDeviceStream() failed: {}", SDL_GetError());
-    return false;
+    REX_FAIL(audio, false, "SDL_OpenAudioDeviceStream() failed: {}", SDL_GetError());
   }
 
   SDL_AudioDeviceID sdl_device = SDL_GetAudioStreamDevice(sdl_stream_);
   if (!sdl_device) {
-    REXAPU_ERROR("SDL_GetAudioStreamDevice() failed: {}", SDL_GetError());
-    return false;
+    REX_FAIL(audio, false, "SDL_GetAudioStreamDevice() failed: {}", SDL_GetError());
   }
 
   if (!SDL_GetAudioDeviceFormat(sdl_device, &obtained_spec, NULL)) {
-    REXAPU_WARN("SDL_GetAudioDeviceFormat() failed: {}", SDL_GetError());
+    REXLOG_WARN(audio, "SDL_GetAudioDeviceFormat() failed: {}", SDL_GetError());
     obtained_spec = desired_spec;
   }
 
@@ -82,13 +79,13 @@ bool SDLAudioDriver::Initialize() {
     sdl_stream_ = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &desired_spec,
                                             SDLCallback, this);
     if (!sdl_stream_) {
-      REXAPU_ERROR("SDL_OpenAudioDeviceStream() stereo fallback failed: {}", SDL_GetError());
-      return false;
+      REX_FAIL(audio, false, "SDL_OpenAudioDeviceStream() stereo fallback failed: {}",
+               SDL_GetError());
     }
     sdl_device = SDL_GetAudioStreamDevice(sdl_stream_);
     if (!sdl_device) {
-      REXAPU_ERROR("SDL_GetAudioStreamDevice() failed after stereo fallback: {}", SDL_GetError());
-      return false;
+      REX_FAIL(audio, false, "SDL_GetAudioStreamDevice() failed after stereo fallback: {}",
+               SDL_GetError());
     }
   }
 
@@ -96,13 +93,12 @@ bool SDLAudioDriver::Initialize() {
   // first thing worth knowing when a report says the balance is wrong on one
   // speaker setup and right on another.
   const char* device_name = SDL_GetAudioDeviceName(sdl_device);
-  REXAPU_INFO("audio endpoint '{}': {} ch, {} Hz, format 0x{:04X}; submitting {} ch",
+  REXLOG_INFO(audio, "audio endpoint '{}': {} ch, {} Hz, format 0x{:04X}; submitting {} ch",
               device_name ? device_name : "?", obtained_spec.channels, obtained_spec.freq,
               static_cast<uint32_t>(obtained_spec.format), static_cast<int>(sdl_device_channels_));
 
   if (!SDL_ResumeAudioDevice(sdl_device)) {
-    REXAPU_ERROR("SDL_ResumeAudioDevice() failed: {}", SDL_GetError());
-    return false;
+    REX_FAIL(audio, false, "SDL_ResumeAudioDevice() failed: {}", SDL_GetError());
   }
 
   return true;
@@ -125,7 +121,7 @@ void SDLAudioDriver::SubmitFrame(uint32_t frame_ptr) {
 
   static uint32_t sdl_submit_count = 0;
   if (sdl_submit_count < 10) {
-    REXAPU_DEBUG("SDLAudioDriver::SubmitFrame: frame_ptr={:08X} queued_count={}", frame_ptr,
+    REXLOG_DEBUG(audio, "SDLAudioDriver::SubmitFrame: frame_ptr={:08X} queued_count={}", frame_ptr,
                  frames_queued_.size() + 1);
     sdl_submit_count++;
   }
@@ -161,7 +157,7 @@ void SDLAudioDriver::SDLCallback(void* userdata, SDL_AudioStream* stream, int ad
                                  [[maybe_unused]] int total_amount) {
   REX_PROFILE_SCOPE("apu");
   if (!userdata || !stream) {
-    REXAPU_ERROR("SDLAudioDriver::SDLCallback called with nullptr.");
+    REXLOG_ERROR(audio, "SDLAudioDriver::SDLCallback called with nullptr.");
     return;
   }
   const auto driver = static_cast<SDLAudioDriver*>(userdata);
@@ -170,7 +166,7 @@ void SDLAudioDriver::SDLCallback(void* userdata, SDL_AudioStream* stream, int ad
   const int len = static_cast<int>(sizeof(float) * sample_count);
   float* data = SDL_stack_alloc(float, sample_count);
   if (!data) {
-    REXAPU_ERROR("SDLAudioDriver::SDLCallback failed to allocate {} samples", sample_count);
+    REXLOG_ERROR(audio, "SDLAudioDriver::SDLCallback failed to allocate {} samples", sample_count);
     return;
   }
   // Snapshot once. A change mid-callback would split the frame across two mixes.
@@ -182,12 +178,13 @@ void SDLAudioDriver::SDLCallback(void* userdata, SDL_AudioStream* stream, int ad
     std::unique_lock<std::mutex> guard(driver->frames_mutex_);
     if (driver->frames_queued_.empty()) {
       if (sdl_callback_count < 10) {
-        REXAPU_DEBUG("SDLCallback: no frames queued (silence)");
+        REXLOG_DEBUG(audio, "SDLCallback: no frames queued (silence)");
         sdl_callback_count++;
       }
       std::memset(data, 0, len);
       if (!SDL_PutAudioStreamData(stream, data, len)) {
-        REXAPU_ERROR("SDL_PutAudioStreamData() failed while filling silence: {}", SDL_GetError());
+        REXLOG_ERROR(audio, "SDL_PutAudioStreamData() failed while filling silence: {}",
+                     SDL_GetError());
         break;
       }
       additional_amount -= len;
@@ -212,7 +209,7 @@ void SDLAudioDriver::SDLCallback(void* userdata, SDL_AudioStream* stream, int ad
         }
       }
       if (!SDL_PutAudioStreamData(stream, data, len)) {
-        REXAPU_ERROR("SDL_PutAudioStreamData() failed: {}", SDL_GetError());
+        REXLOG_ERROR(audio, "SDL_PutAudioStreamData() failed: {}", SDL_GetError());
         driver->frames_unused_.push(buffer);
         break;
       }

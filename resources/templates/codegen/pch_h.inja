@@ -291,17 +291,17 @@ inline void ppc_trap(PPCContext& ctx, u8* base, u16 trap_type) {
     case 20:
     case 26: {
       auto str = REX_LOAD_STRING(ctx.r3.u32, ctx.r4.u16);
-      REXCPU_DEBUG("(service trap) {}", str);
+      REXLOG_DEBUG(cpu, "(service trap) {}", str);
       break;
     }
     case 0:
     case 22:
-      REXCPU_WARN("tw/td trap hit (type {})", trap_type);
+      REXLOG_WARN(cpu, "tw/td trap hit (type {})", trap_type);
       break;
     case 25:
       break;
     default:
-      REXCPU_WARN("Unknown trap type {}", trap_type);
+      REXLOG_WARN(cpu, "Unknown trap type {}", trap_type);
       break;
   }
 }

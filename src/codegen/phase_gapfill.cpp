@@ -18,7 +18,6 @@
 
 #include <rex/logging.h>
 
-#include "codegen_logging.h"
 #include <rex/memory/utils.h>
 
 #include <ppc.h>
@@ -69,8 +68,8 @@ std::vector<CodeRegion> splitRegionOnTerminators(
       uint32_t segmentEnd = addr + 4;
       if (segmentEnd > segmentStart) {
         segments.push_back({segmentStart, segmentEnd});
-        REXCODEGEN_TRACE("GapFill: split segment 0x{:08X}-0x{:08X} ({} at 0x{:08X})", segmentStart,
-                         segmentEnd, reason, addr);
+        REXLOG_TRACE(codegen, "GapFill: split segment 0x{:08X}-0x{:08X} ({} at 0x{:08X})",
+                     segmentStart, segmentEnd, reason, addr);
       }
       segmentStart = segmentEnd;
     }
@@ -110,7 +109,8 @@ bool looksLikeExceptionData(const BinaryView& binary, const FunctionGraph& graph
   uint32_t rdataEnd = rdataStart + rdataSection->size;
 
   if (secondDword >= rdataStart && secondDword < rdataEnd) {
-    REXCODEGEN_TRACE(
+    REXLOG_TRACE(
+        codegen,
         "GapFill: 0x{:08X} looks like exception data (handler=0x{:08X}, scope=0x{:08X}), skipping",
         addr, firstDword, secondDword);
     return true;
@@ -120,7 +120,7 @@ bool looksLikeExceptionData(const BinaryView& binary, const FunctionGraph& graph
 }
 
 void gapFillCodeRegions(CodegenContext& ctx) {
-  REXCODEGEN_TRACE("Analyze: checking for uncovered code regions...");
+  REXLOG_TRACE(codegen, "Analyze: checking for uncovered code regions...");
 
   auto& graph = ctx.graph;
   auto& binary = ctx.binary();
@@ -156,8 +156,8 @@ void gapFillCodeRegions(CodegenContext& ctx) {
       uint32_t segmentSize = segment.size();
       graph.addFunction(segment.start, segmentSize, FunctionAuthority::GAP_FILL, false);
 
-      REXCODEGEN_TRACE("GapFill: registered sub_{:08X} (0x{:08X}-0x{:08X}, {} bytes)",
-                       segment.start, segment.start, segment.end, segmentSize);
+      REXLOG_TRACE(codegen, "GapFill: registered sub_{:08X} (0x{:08X}-0x{:08X}, {} bytes)",
+                   segment.start, segment.start, segment.end, segmentSize);
       segmentsCreated++;
     }
 
@@ -165,10 +165,10 @@ void gapFillCodeRegions(CodegenContext& ctx) {
   }
 
   if (segmentsCreated > 0) {
-    REXCODEGEN_TRACE("Analyze: registered {} gap functions from {} regions", segmentsCreated,
-                     gapsFound);
+    REXLOG_TRACE(codegen, "Analyze: registered {} gap functions from {} regions", segmentsCreated,
+                 gapsFound);
   } else {
-    REXCODEGEN_TRACE("Analyze: no uncovered regions found");
+    REXLOG_TRACE(codegen, "Analyze: no uncovered regions found");
   }
 }
 
@@ -208,7 +208,7 @@ void cleanupAbsorbedGapFills(CodegenContext& ctx) {
   }
 
   if (!toRemove.empty()) {
-    REXCODEGEN_TRACE("Analyze: removed {} absorbed GAP_FILL functions", toRemove.size());
+    REXLOG_TRACE(codegen, "Analyze: removed {} absorbed GAP_FILL functions", toRemove.size());
   }
 }
 
@@ -223,7 +223,7 @@ Result<void> GapFill(CodegenContext& ctx, ProgressReporter* reporter) {
   // Discover blocks for gap-filled functions
   auto known = buildKnownFunctions(ctx.graph, /*excludeGapFill=*/true);
   size_t discovered = discoverPendingFunctions(ctx, known);
-  REXCODEGEN_TRACE("Analyze: discovered blocks for {} gap-filled functions", discovered);
+  REXLOG_TRACE(codegen, "Analyze: discovered blocks for {} gap-filled functions", discovered);
 
   cleanupAbsorbedGapFills(ctx);
 

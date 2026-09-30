@@ -82,7 +82,6 @@ target_link_libraries(rexruntime
         rexcore
         simde
         fmt::fmt
-        spdlog::spdlog
         tomlplusplus
         SDL3::SDL3
     PRIVATE

@@ -11,7 +11,6 @@
 #include <rex/codegen/vtable_scanner.h>
 #include <rex/logging.h>
 
-#include "codegen_logging.h"
 #include <rex/memory/utils.h>
 #include <rex/types.h>
 
@@ -26,13 +25,13 @@ std::vector<VTableInfo> VTableScanner::scan() {
 
   // Step 1: Find all Complete Object Locators
   auto cols = findCompleteObjectLocators();
-  REXCODEGEN_DEBUG("VTableScanner: found {} Complete Object Locators", cols.size());
+  REXLOG_DEBUG(codegen, "VTableScanner: found {} Complete Object Locators", cols.size());
 
   // Step 2: For each COL, find its vtable and read slots
   for (uint32_t colAddr : cols) {
     auto vtableAddr = findVTableForCOL(colAddr);
     if (!vtableAddr) {
-      REXCODEGEN_TRACE("VTableScanner: COL at 0x{:08X} has no referencing vtable", colAddr);
+      REXLOG_TRACE(codegen, "VTableScanner: COL at 0x{:08X} has no referencing vtable", colAddr);
       continue;
     }
 
@@ -43,12 +42,12 @@ std::vector<VTableInfo> VTableScanner::scan() {
     info.slots = readVTableSlots(*vtableAddr);
 
     if (info.slots.empty()) {
-      REXCODEGEN_TRACE("VTableScanner: vtable at 0x{:08X} has no valid slots", *vtableAddr);
+      REXLOG_TRACE(codegen, "VTableScanner: vtable at 0x{:08X} has no valid slots", *vtableAddr);
       continue;
     }
 
-    REXCODEGEN_DEBUG("VTableScanner: vtable at 0x{:08X} ({}) has {} slots", info.vtableAddress,
-                     info.className, info.slots.size());
+    REXLOG_DEBUG(codegen, "VTableScanner: vtable at 0x{:08X} ({}) has {} slots", info.vtableAddress,
+                 info.className, info.slots.size());
 
     vtables.push_back(std::move(info));
   }
@@ -62,7 +61,7 @@ std::vector<uint32_t> VTableScanner::findCompleteObjectLocators() {
   // Scan .rdata section for COL patterns
   const auto* rdata = binary_.findSectionByName(".rdata");
   if (!rdata || !rdata->data) {
-    REXCODEGEN_WARN("VTableScanner: .rdata section not found");
+    REXLOG_WARN(codegen, "VTableScanner: .rdata section not found");
     return cols;
   }
 
@@ -102,7 +101,7 @@ std::vector<uint32_t> VTableScanner::findCompleteObjectLocators() {
     uint32_t colAddr = base + static_cast<uint32_t>(offset);
     cols.push_back(colAddr);
 
-    REXCODEGEN_TRACE("VTableScanner: found COL at 0x{:08X} -> {}", colAddr, typeName);
+    REXLOG_TRACE(codegen, "VTableScanner: found COL at 0x{:08X} -> {}", colAddr, typeName);
   }
 
   return cols;

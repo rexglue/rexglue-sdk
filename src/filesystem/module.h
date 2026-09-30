@@ -1,6 +1,6 @@
 /**
  * @file        filesystem/module.h
- * @brief       The rex.module@1 served by rexfilesystem.dll
+ * @brief       The module interface served by rexfilesystem.dll
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -16,6 +16,7 @@
 
 #include <rex/api.h>
 #include <rex/filesystem/file_system.h>
+#include <rex/logging/logger.h>
 #include <rex/module.h>
 
 #include "filesystem/file_system.h"
@@ -26,14 +27,14 @@ namespace rex::filesystem {
 class FilesystemModule final : public IModule {
  public:
   /**
-   * Returns the module instance for the rex.module@1 table entry.
+   * Returns the module instance for its interface table entry.
    *
    * @return The IModule of rexfilesystem.
    */
   static void* GetModule();
 
   /**
-   * Returns the mount table for the rex.filesystem@1 table entry.
+   * Returns the mount table for its interface table entry.
    *
    * @return The IFileSystem of rexfilesystem.
    */
@@ -60,15 +61,15 @@ class FilesystemModule final : public IModule {
   std::span<const char* const> RequiredInterfaces() const override;
 
   /**
-   * Copies the filesystem slice.
+   * Copies the filesystem slice and registers the filesystem log category.
    *
-   * @param factory Unused.
+   * @param factory Serves the logger.
    * @param config The configuration rex::Init was called with.
-   * @return Ok.
+   * @return Ok, or the registration error.
    */
   Result<void> Connect(IInterfaceFactory* factory, const Config& config) override;
 
-  /** Does nothing. */
+  /** Unregisters the log category. */
   void Disconnect() override;
 
   /**
@@ -89,6 +90,7 @@ class FilesystemModule final : public IModule {
   FileSystem& file_system() { return file_system_; }
 
  private:
+  ILogger* logger_ = nullptr;
   FileSystem file_system_;
 };
 

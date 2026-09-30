@@ -18,7 +18,6 @@
 
 #include <rex/platform/file.h>
 #include <rex/logging.h>
-#include <rex/logging/api.h>
 #include <rex/perf/counter.h>
 #include <rex/platform.h>
 #include <rex/platform/thread.h>
@@ -252,7 +251,7 @@ void App::Stop() {}
 void App::Release() {}
 
 void App::ReportError(std::string_view message) {
-  REXLOG_ERROR("{}", message);
+  REXLOG_ERROR(core, "{}", message);
 }
 
 const CLIArgList& App::args() const {
@@ -267,31 +266,10 @@ Config& App::config() {
   return config_;
 }
 
-LogConfig& App::log() {
-  return log_;
-}
-
 Result<void> App::Fail(std::string_view step, Error error) {
   failed_ = true;
   ReportError(std::format("{} failed: {}", step, error.what()));
   return std::unexpected(std::move(error));
-}
-
-void App::StartLogging() {
-  auto* cvars = api_->Get<cvar::ICvarRegistry>();
-  std::string level = cvars->Get("log.level").value_or("info");
-  if (cvars->Get("log.verbose").value_or("false") == "true" && level == "info") {
-    level = "trace";
-  }
-  LogConfig built = BuildLogConfig(level, ParseCategoryLevelsFromConfig(config_.paths.config_file));
-  log_.default_level = built.default_level;
-  for (auto& [category, category_level] : built.category_levels) {
-    log_.category_levels.try_emplace(category, category_level);
-  }
-  ApplyLogCvarOverrides(log_);
-  InitLogging(log_);
-  RegisterLogLevelCallback();
-  logging_ = true;
 }
 
 Result<void> App::Init(const CLIArgList& args) {
@@ -301,17 +279,17 @@ Result<void> App::Init(const CLIArgList& args) {
   args_ = args;
   stage_ = Stage::kConfigured;
   detail::ResetAppState();
-  InitLoggingEarly();
   InstallSignalHandlers();
 
+  config_.log.file.enabled = true;
   if (auto configured = OnConfigure(config_); !configured) {
     return Fail("OnConfigure", configured.error());
   }
-  if (log_.app_name.empty()) {
-    log_.app_name = platform::GetExecutablePath().stem().string();
+  if (config_.log.file.name.empty()) {
+    config_.log.file.name = platform::GetExecutablePath().stem().string();
   }
-  if (log_.log_dir.empty()) {
-    log_.log_dir = platform::GetExecutableFolder() / "logs";
+  if (config_.log.file.folder.empty()) {
+    config_.log.file.folder = platform::GetExecutableFolder() / "logs";
   }
   if (auto unknown = ParseCommandLine(config_, args_); !unknown.empty()) {
     return Fail("command line",
@@ -340,7 +318,6 @@ Result<void> App::Init(const CLIArgList& args) {
   api_ = *api;
   stage_ = Stage::kConnected;
 
-  StartLogging();
   if (api_->Get<cvar::ICvarRegistry>()->Get("perf.profiler").value_or("false") == "true") {
     platform::Profiler::Startup();
   }
@@ -400,11 +377,8 @@ i32 App::Shutdown() {
       relaunch_args.assign(args_.All().begin(), args_.All().end());
     }
     if (auto relaunched = detail::RelaunchProcess(relaunch_args); !relaunched) {
-      REXLOG_ERROR("relaunch failed: {}", relaunched.error().what());
+      REXLOG_ERROR(core, "relaunch failed: {}", relaunched.error().what());
     }
-  }
-  if (logging_) {
-    ShutdownLogging();
   }
   RemoveSignalHandlers();
   detail::SetShutdownWake({});

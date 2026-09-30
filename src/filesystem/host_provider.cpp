@@ -305,9 +305,9 @@ Result<void> HostNode::RenameImpl(std::span<const std::string_view> parts) {
   std::error_code ec;
   std::filesystem::rename(host_path_, destination, ec);
   if (ec) {
-    REXFS_ERROR("cannot rename '{}' to '{}', {}", path_to_utf8(host_path_),
-                path_to_utf8(destination), ec.message());
-    return Err(MakeError(Error::kAccessDenied, ec.message()));
+    REX_FAIL(filesystem, Err(MakeError(Error::kAccessDenied, ec.message())),
+             "cannot rename '{}' to '{}', {}", path_to_utf8(host_path_), path_to_utf8(destination),
+             ec.message());
   }
   host_path_ = std::move(destination);
   return Ok();

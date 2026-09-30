@@ -34,7 +34,7 @@ uint64_t AchievementManager::CurrentFileTime() {
 
 bool AchievementManager::RegisterAchievement(AchievementInfo info) {
   if (info.id == 0) {
-    REXSYS_WARN("Achievement store: refusing achievement with ID 0");
+    REXLOG_WARN(system, "Achievement store: refusing achievement with ID 0");
     return false;
   }
 
@@ -61,7 +61,7 @@ void AchievementManager::ReplaceAchievements(std::vector<AchievementInfo> achiev
   achievements_.clear();
   for (auto& achievement : achievements) {
     if (achievement.id == 0) {
-      REXSYS_WARN("Achievement store: refusing achievement with ID 0");
+      REXLOG_WARN(system, "Achievement store: refusing achievement with ID 0");
       continue;
     }
     auto existing =
@@ -73,7 +73,7 @@ void AchievementManager::ReplaceAchievements(std::vector<AchievementInfo> achiev
       achievements_.push_back(std::move(achievement));
     }
   }
-  REXSYS_DEBUG("Achievement store: loaded {} entries", achievements_.size());
+  REXLOG_DEBUG(system, "Achievement store: loaded {} entries", achievements_.size());
 }
 
 bool AchievementManager::LoadMetadataFile(const std::filesystem::path& path) {
@@ -81,7 +81,8 @@ bool AchievementManager::LoadMetadataFile(const std::filesystem::path& path) {
     auto table = toml::parse_file(path.string());
     const auto* entries = table["achievements"].as_array();
     if (!entries) {
-      REXSYS_WARN("Achievement metadata has no [[achievements]] entries: {}", path.string());
+      REXLOG_WARN(system, "Achievement metadata has no [[achievements]] entries: {}",
+                  path.string());
       return false;
     }
 
@@ -105,10 +106,10 @@ bool AchievementManager::LoadMetadataFile(const std::filesystem::path& path) {
         ++loaded;
       }
     }
-    REXSYS_DEBUG("Loaded achievements.toml: {} entries from {}", loaded, path.string());
+    REXLOG_DEBUG(system, "Loaded achievements.toml: {} entries from {}", loaded, path.string());
     return true;
   } catch (const toml::parse_error& error) {
-    REXSYS_WARN("Failed to parse {}: {}", path.string(), error.what());
+    REXLOG_WARN(system, "Failed to parse {}: {}", path.string(), error.what());
     return false;
   }
 }
@@ -136,7 +137,7 @@ AchievementUnlockResult AchievementManager::UnlockAchievement(
     auto info = std::find_if(achievements_.begin(), achievements_.end(),
                              [&](const AchievementInfo& current) { return current.id == id; });
     if (info == achievements_.end()) {
-      REXSYS_WARN("Achievement store: ignoring unknown achievement {:08X}", id);
+      REXLOG_WARN(system, "Achievement store: ignoring unknown achievement {:08X}", id);
       return AchievementUnlockResult::kUnknownAchievement;
     }
 
@@ -148,7 +149,7 @@ AchievementUnlockResult AchievementManager::UnlockAchievement(
     event = {*info, it->second};
   }
 
-  REXSYS_INFO("Achievement unlocked: {:08X}", id);
+  REXLOG_INFO(system, "Achievement unlocked: {:08X}", id);
   SaveUnlockState();
   DispatchCallbacks(unlock_callbacks_, event);
   if (notification == AchievementNotification::kShow) {
@@ -253,16 +254,16 @@ void AchievementManager::LoadUnlockState() {
       }
     }
     if (!unlocked_achievements_.empty()) {
-      REXSYS_DEBUG("Loaded {} persisted unlocks from {}", unlocked_achievements_.size(),
+      REXLOG_DEBUG(system, "Loaded {} persisted unlocks from {}", unlocked_achievements_.size(),
                    save_path.string());
     }
   } catch (const std::exception& error) {
-    REXSYS_WARN("Failed to parse unlock save {}: {}", save_path.string(), error.what());
+    REXLOG_WARN(system, "Failed to parse unlock save {}: {}", save_path.string(), error.what());
     return;
   }
 
   if (migrated) {
-    REXSYS_DEBUG("Migrating legacy achievement save format: {}", save_path.string());
+    REXLOG_DEBUG(system, "Migrating legacy achievement save format: {}", save_path.string());
     SaveUnlockState();
   }
 }
@@ -289,7 +290,7 @@ void AchievementManager::SaveUnlockState() const {
   auto written = rex::platform::WriteWholeFile(
       save_path, std::span(reinterpret_cast<const u8*>(content.data()), content.size()));
   if (!written) {
-    REXSYS_WARN("Achievement save: {}", written.error().message);
+    REXLOG_WARN(system, "Achievement save: {}", written.error().message);
   }
 }
 

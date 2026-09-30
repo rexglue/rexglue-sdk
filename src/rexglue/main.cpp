@@ -43,13 +43,23 @@ bool ColorEnabled(bool tty) {
   return tty;
 }
 
-void ConfigureLogging(const std::string& level, const std::string& log_file, bool verbose) {
-  auto config = rex::BuildLogConfig(verbose ? "trace" : level, {});
-  config.log_file = log_file;
-  config.log_to_console = true;
-  rex::ApplyLogCvarOverrides(config);
-  rex::InitLogging(config);
-  rex::RegisterLogLevelCallback();
+rex::Result<void> StartLogging(const std::string& level, const std::string& log_file,
+                               bool verbose) {
+  rex::LogConfig config;
+  config.debugger = false;
+  config.format.category = false;
+  if (verbose) {
+    config.level = rex::log::Level::kTrace;
+  } else if (auto parsed = rex::log::ParseLevel(level)) {
+    config.level = *parsed;
+  } else {
+    return std::unexpected(parsed.error());
+  }
+  config.file.enabled = !log_file.empty();
+  config.file.path = log_file;
+  config.categories = {&rex::log::codegen, &rex::log::rexglue, &rex::log::system};
+  config.sinks = {&rexglue::ui::LogSink()};
+  return rex::log::Start(config);
 }
 
 }  // namespace
@@ -66,13 +76,11 @@ int main(int argc, char** argv) {
   bool verbose = false;
   bool force = false;
 
-  app.add_option("--log-level", log_level, "Log level (trace, debug, info, warn, error)")
+  app.add_option("--log-level", log_level, "Log level (trace, dev, debug, info, warn, error)")
       ->type_name("LEVEL");
   app.add_option("--log-file", log_file, "Append diagnostics to file")->type_name("PATH");
   app.add_flag("-v,--verbose", verbose, "Equivalent to --log-level=trace");
   app.add_flag("-f,--force", force, "Skip confirmations and proceed");
-
-  rex::InitLoggingEarly();
 
   rexglue::cli::DeferredAction pending;
   rexglue::cli::RegisterCodegen(app, ctx, pending);
@@ -82,13 +90,17 @@ int main(int argc, char** argv) {
 
   CLI11_PARSE(app, argc, argv);
 
-  ConfigureLogging(log_level, log_file, verbose);
   ctx.verbose = verbose;
   ctx.overwrite_existing = force;
   ctx.generate_despite_errors = force;
 
   bool tty = IsStderrTty();
   rexglue::ui::Init({.tty = tty, .color = ColorEnabled(tty)});
+  if (auto started = StartLogging(log_level, log_file, verbose); !started) {
+    rexglue::ui::FailureSummary(started.error().what(), std::chrono::milliseconds(0));
+    rexglue::ui::Shutdown();
+    return 1;
+  }
   rexglue::ui::Banner(TitleString());
 
   auto start = std::chrono::steady_clock::now();
@@ -103,6 +115,7 @@ int main(int argc, char** argv) {
   } else {
     rexglue::ui::DoneSummary(elapsed);
   }
+  rex::log::Stop();
   rexglue::ui::Shutdown();
   return exit_code;
 }

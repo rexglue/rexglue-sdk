@@ -58,21 +58,21 @@ ContentPackage::ContentPackage(KernelState* kernel_state, const std::string_view
   entry.flags = folder ? filesystem::MountFlags::kWritable | filesystem::MountFlags::kShareDelete
                        : filesystem::MountFlags::kNone;
   if (auto mounted = fs->Mount(entry); !mounted) {
-    REXSYS_WARN("content package '{}' is not mounted, {}", rex::path_to_utf8(package_path),
+    REXLOG_WARN(system, "content package '{}' is not mounted, {}", rex::path_to_utf8(package_path),
                 mounted.error().message);
   }
   if (auto linked = fs->Link(root_name_ + ":", device_path_); !linked) {
-    REXSYS_WARN("content root '{}:' is not linked, {}", root_name_, linked.error().message);
+    REXLOG_WARN(system, "content root '{}:' is not linked, {}", root_name_, linked.error().message);
   }
 }
 
 ContentPackage::~ContentPackage() {
   auto* fs = kernel_state_->file_system();
   if (auto unlinked = fs->Unlink(root_name_ + ":"); !unlinked) {
-    REXSYS_DEBUG("{}", unlinked.error().message);
+    REXLOG_DEBUG(system, "{}", unlinked.error().message);
   }
   if (auto unmounted = fs->Unmount(device_path_); !unmounted) {
-    REXSYS_DEBUG("{}", unmounted.error().message);
+    REXLOG_DEBUG(system, "{}", unmounted.error().message);
   }
 }
 

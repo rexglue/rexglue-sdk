@@ -110,8 +110,7 @@ bool D3D12Provider::Initialize(int32_t adapter_index_wanted) {
   library_dxgi_ = LoadLibraryW(L"dxgi.dll");
   library_d3d12_ = LoadLibraryW(L"D3D12.dll");
   if (!library_dxgi_ || !library_d3d12_) {
-    REXLOG_ERROR("Failed to load dxgi.dll or D3D12.dll");
-    return false;
+    REX_FAIL(ui, false, "Failed to load dxgi.dll or D3D12.dll");
   }
   bool libraries_loaded = true;
   libraries_loaded &= (pfn_create_dxgi_factory2_ = PFNCreateDXGIFactory2(
@@ -126,8 +125,7 @@ bool D3D12Provider::Initialize(int32_t adapter_index_wanted) {
       (pfn_d3d12_serialize_root_signature_ = PFN_D3D12_SERIALIZE_ROOT_SIGNATURE(
            GetProcAddress(library_d3d12_, "D3D12SerializeRootSignature"))) != nullptr;
   if (!libraries_loaded) {
-    REXLOG_ERROR("Failed to get DXGI or Direct3D 12 functions");
-    return false;
+    REX_FAIL(ui, false, "Failed to get DXGI or Direct3D 12 functions");
   }
 
   // Load optional D3DCompiler_47.dll.
@@ -136,14 +134,14 @@ bool D3D12Provider::Initialize(int32_t adapter_index_wanted) {
   if (library_d3dcompiler_) {
     pfn_d3d_disassemble_ = pD3DDisassemble(GetProcAddress(library_d3dcompiler_, "D3DDisassemble"));
     if (pfn_d3d_disassemble_ == nullptr) {
-      REXLOG_DEBUG(
-          "Failed to get D3DDisassemble from D3DCompiler_47.dll, DXBC "
-          "disassembly for debugging will be unavailable");
+      REXLOG_DEBUG(ui,
+                   "Failed to get D3DDisassemble from D3DCompiler_47.dll, DXBC "
+                   "disassembly for debugging will be unavailable");
     }
   } else {
-    REXLOG_DEBUG(
-        "Failed to load D3DCompiler_47.dll, DXBC disassembly for debugging "
-        "will be unavailable");
+    REXLOG_DEBUG(ui,
+                 "Failed to load D3DCompiler_47.dll, DXBC disassembly for debugging "
+                 "will be unavailable");
   }
 
   // Load optional dxilconv.dll.
@@ -153,14 +151,14 @@ bool D3D12Provider::Initialize(int32_t adapter_index_wanted) {
     pfn_dxilconv_dxc_create_instance_ =
         DxcCreateInstanceProc(GetProcAddress(library_dxilconv_, "DxcCreateInstance"));
     if (pfn_dxilconv_dxc_create_instance_ == nullptr) {
-      REXLOG_DEBUG(
-          "Failed to get DxcCreateInstance from dxilconv.dll, converted DXIL "
-          "disassembly for debugging will be unavailable");
+      REXLOG_DEBUG(ui,
+                   "Failed to get DxcCreateInstance from dxilconv.dll, converted DXIL "
+                   "disassembly for debugging will be unavailable");
     }
   } else {
-    REXLOG_DEBUG(
-        "Failed to load dxilconv.dll, converted DXIL disassembly for debugging "
-        "will be unavailable - DXIL may be unsupported by your OS version");
+    REXLOG_DEBUG(ui,
+                 "Failed to load dxilconv.dll, converted DXIL disassembly for debugging "
+                 "will be unavailable - DXIL may be unsupported by your OS version");
   }
 
   // Load optional dxcompiler.dll.
@@ -170,17 +168,17 @@ bool D3D12Provider::Initialize(int32_t adapter_index_wanted) {
     pfn_dxcompiler_dxc_create_instance_ =
         DxcCreateInstanceProc(GetProcAddress(library_dxcompiler_, "DxcCreateInstance"));
     if (pfn_dxcompiler_dxc_create_instance_ == nullptr) {
-      REXLOG_DEBUG(
-          "Failed to get DxcCreateInstance from dxcompiler.dll, converted DXIL "
-          "disassembly for debugging will be unavailable");
+      REXLOG_DEBUG(ui,
+                   "Failed to get DxcCreateInstance from dxcompiler.dll, converted DXIL "
+                   "disassembly for debugging will be unavailable");
     }
   } else {
-    REXLOG_DEBUG(
-        "Failed to load dxcompiler.dll, converted DXIL disassembly for "
-        "debugging will be unavailable - if needed, download the DirectX "
-        "Shader Compiler from "
-        "https://github.com/microsoft/DirectXShaderCompiler/releases and place "
-        "the DLL in the Xenia directory");
+    REXLOG_DEBUG(ui,
+                 "Failed to load dxcompiler.dll, converted DXIL disassembly for "
+                 "debugging will be unavailable - if needed, download the DirectX "
+                 "Shader Compiler from "
+                 "https://github.com/microsoft/DirectXShaderCompiler/releases and place "
+                 "the DLL in the Xenia directory");
   }
 
   // Configure the DXGI debug info queue.
@@ -210,7 +208,7 @@ bool D3D12Provider::Initialize(int32_t adapter_index_wanted) {
       debug_interface->EnableDebugLayer();
       debug_interface->Release();
     } else {
-      REXLOG_WARN("Failed to enable the Direct3D 12 debug layer");
+      REXLOG_WARN(ui, "Failed to enable the Direct3D 12 debug layer");
       debug = false;
     }
 
@@ -220,11 +218,11 @@ bool D3D12Provider::Initialize(int32_t adapter_index_wanted) {
       if (SUCCEEDED(pfn_d3d12_get_debug_interface_(IID_PPV_ARGS(&dred_settings)))) {
         dred_settings->SetAutoBreadcrumbsEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
         dred_settings->SetPageFaultEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
-        REXLOG_INFO("DRED (Device Removed Extended Data) enabled");
+        REXLOG_INFO(ui, "DRED (Device Removed Extended Data) enabled");
       } else {
-        REXLOG_WARN(
-            "Failed to enable DRED - device removal diagnostics will be "
-            "limited");
+        REXLOG_WARN(ui,
+                    "Failed to enable DRED - device removal diagnostics will be "
+                    "limited");
       }
     }
   }
@@ -232,8 +230,7 @@ bool D3D12Provider::Initialize(int32_t adapter_index_wanted) {
   IDXGIFactory2* dxgi_factory;
   if (FAILED(pfn_create_dxgi_factory2_(debug ? DXGI_CREATE_FACTORY_DEBUG : 0,
                                        IID_PPV_ARGS(&dxgi_factory)))) {
-    REXLOG_ERROR("Failed to create a DXGI factory");
-    return false;
+    REX_FAIL(ui, false, "Failed to create a DXGI factory");
   }
 
   // Choose the adapter.
@@ -264,15 +261,15 @@ bool D3D12Provider::Initialize(int32_t adapter_index_wanted) {
     ++adapter_index;
   }
   if (adapter == nullptr) {
-    REXLOG_ERROR(
-        "Failed to get an adapter supporting Direct3D 12 with the feature "
-        "level of at least 11_0");
+    REXLOG_ERROR(ui,
+                 "Failed to get an adapter supporting Direct3D 12 with the feature "
+                 "level of at least 11_0");
     dxgi_factory->Release();
     return false;
   }
   DXGI_ADAPTER_DESC adapter_desc;
   if (FAILED(adapter->GetDesc(&adapter_desc))) {
-    REXLOG_ERROR("Failed to get the DXGI adapter description");
+    REXLOG_ERROR(ui, "Failed to get the DXGI adapter description");
     adapter->Release();
     dxgi_factory->Release();
     return false;
@@ -284,7 +281,7 @@ bool D3D12Provider::Initialize(int32_t adapter_index_wanted) {
     char* adapter_name_mb = reinterpret_cast<char*>(alloca(adapter_name_mb_size));
     if (WideCharToMultiByte(CP_UTF8, 0, adapter_desc.Description, -1, adapter_name_mb,
                             adapter_name_mb_size, nullptr, nullptr) != 0) {
-      REXGPU_INFO("DXGI adapter: {} (vendor 0x{:04X}, device 0x{:04X})", adapter_name_mb,
+      REXLOG_INFO(gpu, "DXGI adapter: {} (vendor 0x{:04X}, device 0x{:04X})", adapter_name_mb,
                   adapter_desc.VendorId, adapter_desc.DeviceId);
     }
   }
@@ -292,7 +289,7 @@ bool D3D12Provider::Initialize(int32_t adapter_index_wanted) {
   // Create the Direct3D 12 device.
   ID3D12Device* device;
   if (FAILED(pfn_d3d12_create_device_(adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device)))) {
-    REXLOG_ERROR("Failed to create a Direct3D 12 feature level 11_0 device");
+    REXLOG_ERROR(ui, "Failed to create a Direct3D 12 feature level 11_0 device");
     adapter->Release();
     dxgi_factory->Release();
     return false;
@@ -346,10 +343,10 @@ bool D3D12Provider::Initialize(int32_t adapter_index_wanted) {
   if (REXCVAR_GET(::rex::ui::cvars::queue_priority) >= 2) {
     queue_desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_GLOBAL_REALTIME;
     if (!EnableIncreaseBasePriorityPrivilege()) {
-      REXLOG_WARN(
-          "Failed to enable SeIncreaseBasePriorityPrivilege for global "
-          "realtime Direct3D 12 command queue priority, falling back to high "
-          "priority, try launching Xenia as administrator");
+      REXLOG_WARN(ui,
+                  "Failed to enable SeIncreaseBasePriorityPrivilege for global "
+                  "realtime Direct3D 12 command queue priority, falling back to high "
+                  "priority, try launching Xenia as administrator");
       queue_desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_HIGH;
     }
   } else if (REXCVAR_GET(::rex::ui::cvars::queue_priority) >= 1) {
@@ -363,16 +360,16 @@ bool D3D12Provider::Initialize(int32_t adapter_index_wanted) {
   if (FAILED(device->CreateCommandQueue(&queue_desc, IID_PPV_ARGS(&direct_queue)))) {
     bool queue_created = false;
     if (queue_desc.Priority == D3D12_COMMAND_QUEUE_PRIORITY_GLOBAL_REALTIME) {
-      REXLOG_WARN(
-          "Failed to create a Direct3D 12 direct command queue with global "
-          "realtime priority, falling back to high priority, try launching "
-          "Xenia as administrator");
+      REXLOG_WARN(ui,
+                  "Failed to create a Direct3D 12 direct command queue with global "
+                  "realtime priority, falling back to high priority, try launching "
+                  "Xenia as administrator");
       queue_desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_HIGH;
       queue_created =
           SUCCEEDED(device->CreateCommandQueue(&queue_desc, IID_PPV_ARGS(&direct_queue)));
     }
     if (!queue_created) {
-      REXLOG_ERROR("Failed to create a Direct3D 12 direct command queue");
+      REXLOG_ERROR(ui, "Failed to create a Direct3D 12 direct command queue");
       device->Release();
       dxgi_factory->Release();
       return false;
@@ -429,22 +426,22 @@ bool D3D12Provider::Initialize(int32_t adapter_index_wanted) {
     virtual_address_bits_per_resource_ =
         virtual_address_support.MaxGPUVirtualAddressBitsPerResource;
   }
-  REXGPU_INFO(
-      "Direct3D 12 device and OS features:\n"
-      "* Max GPU virtual address bits per resource: {}\n"
-      "* Non-zeroed heap creation: {}\n"
-      "* Pixel-shader-specified stencil reference: {}\n"
-      "* Programmable sample positions: tier {}\n"
-      "* Rasterizer-ordered views: {}\n"
-      "* Resource binding: tier {}\n"
-      "* Tiled resources: tier {}\n"
-      "* Unaligned block-compressed textures: {}",
-      virtual_address_bits_per_resource_,
-      (heap_flag_create_not_zeroed_ & D3D12_HEAP_FLAG_CREATE_NOT_ZEROED) ? "yes" : "no",
-      ps_specified_stencil_reference_supported_ ? "yes" : "no",
-      uint32_t(programmable_sample_positions_tier_),
-      rasterizer_ordered_views_supported_ ? "yes" : "no", uint32_t(resource_binding_tier_),
-      uint32_t(tiled_resources_tier_), unaligned_block_textures_supported_ ? "yes" : "no");
+  REXLOG_INFO(gpu,
+              "Direct3D 12 device and OS features:\n"
+              "* Max GPU virtual address bits per resource: {}\n"
+              "* Non-zeroed heap creation: {}\n"
+              "* Pixel-shader-specified stencil reference: {}\n"
+              "* Programmable sample positions: tier {}\n"
+              "* Rasterizer-ordered views: {}\n"
+              "* Resource binding: tier {}\n"
+              "* Tiled resources: tier {}\n"
+              "* Unaligned block-compressed textures: {}",
+              virtual_address_bits_per_resource_,
+              (heap_flag_create_not_zeroed_ & D3D12_HEAP_FLAG_CREATE_NOT_ZEROED) ? "yes" : "no",
+              ps_specified_stencil_reference_supported_ ? "yes" : "no",
+              uint32_t(programmable_sample_positions_tier_),
+              rasterizer_ordered_views_supported_ ? "yes" : "no", uint32_t(resource_binding_tier_),
+              uint32_t(tiled_resources_tier_), unaligned_block_textures_supported_ ? "yes" : "no");
 
   // Get the graphics analysis interface, will silently fail if PIX is not
   // attached.

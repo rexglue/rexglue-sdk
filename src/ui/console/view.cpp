@@ -288,19 +288,14 @@ void ConsoleView::Accept(ImGuiInputTextCallbackData* data) {
   if (completions_.empty()) {
     return;
   }
-  std::string text;
-  bool full = true;
-  if (highlight_ >= 0 && !dismissed_) {
-    text = completions_[static_cast<size_t>(highlight_)].name;
-  } else if (completions_.size() == 1) {
-    text = completions_.front().name;
-  } else {
-    text = completions_.front().name;
+  const bool picked = highlight_ >= 0 && !dismissed_;
+  const bool full = picked || completions_.size() == 1;
+  std::string text = completions_[picked ? static_cast<size_t>(highlight_) : 0].name;
+  if (!full) {
     for (const Completion& completion : completions_) {
       const auto [mismatch, unused] = std::ranges::mismatch(text, completion.name);
       text.erase(mismatch, text.end());
     }
-    full = false;
   }
   if (full) {
     text += ' ';

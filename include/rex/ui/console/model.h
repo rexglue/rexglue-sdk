@@ -1,5 +1,5 @@
 /**
- * @file        rex/ui/console/model.h
+ * @file        ui/console/model.h
  * @brief       Console state and command execution, independent of any window
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
@@ -222,8 +222,8 @@ class ConsoleModel : public NonCopyable {
   void set_dock(ConsoleDock dock) { dock_ = dock; }
 
  private:
-  void Add(log::Level level, std::string text);
-  void Append(ConsoleLine line);
+  void Add(log::Level level, std::string_view text);
+  void Append(log::Level level, std::string_view category, std::string_view text, u64 sequence);
   void AddHistory(std::string_view line);
   void LoadHistory();
   void SaveHistory() const;
