@@ -31,20 +31,26 @@ bool build_attn(BuilderContext& ctx) {
 }
 
 bool build_sync(BuilderContext& ctx) {
-  // Memory barrier, x86 has strong ordering so this is a no-op
-  (void)ctx;
+  // Full barrier: orders every earlier access before every later one,
+  // store-load included, which x86 (TSO) and ARM64 both reorder. The fence
+  // is also a compiler barrier for the lifted loads and stores around it.
+  ctx.println("\tstd::atomic_thread_fence(std::memory_order_seq_cst);");
   return true;
 }
 
 bool build_lwsync(BuilderContext& ctx) {
-  // Lightweight memory barrier, x86 has strong ordering so this is a no-op
-  (void)ctx;
+  // Orders load-load, load-store and store-store, not store-load: what
+  // acq_rel gives. Guest locks release with "lwsync; stw", so without it an
+  // ARM64 host can publish the store before the critical section's. On x86
+  // this compiles to no instruction (compiler barrier only).
+  ctx.println("\tstd::atomic_thread_fence(std::memory_order_acq_rel);");
   return true;
 }
 
 bool build_eieio(BuilderContext& ctx) {
-  // Enforce in-order execution of I/O, x86 has strong ordering so this is a no-op
-  (void)ctx;
+  // Orders stores (to device memory, and in practice guest stores that
+  // publish data). A release fence covers store-store; no instruction on x86.
+  ctx.println("\tstd::atomic_thread_fence(std::memory_order_release);");
   return true;
 }
 
