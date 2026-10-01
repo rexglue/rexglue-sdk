@@ -19,10 +19,6 @@
 #include <rex/memory/ring_buffer.h>
 #include <rex/string/buffer.h>
 #include <rex/runtime/function_dispatcher.h>
-#include <rex/runtime.h>
-#include <rex/runtime/thread_registry.h>
-#include <rex/runtime/thread_state.h>
-#include <rex/runtime/xthread.h>
 #include "audio/cvar_table.h"
 
 extern "C" {
@@ -58,7 +54,9 @@ namespace rex::audio {
 XmaDecoder::XmaDecoder(runtime::FunctionDispatcher* function_dispatcher)
     : memory_(function_dispatcher->memory()), function_dispatcher_(function_dispatcher) {}
 
-XmaDecoder::~XmaDecoder() = default;
+XmaDecoder::~XmaDecoder() {
+  Shutdown();
+}
 
 void av_log_callback(void* avcl, int level, const char* fmt, va_list va) {
   if (!REXCVAR_GET(::rex::audio::cvars::ffmpeg_verbose) && level > AV_LOG_WARNING) {
@@ -87,7 +85,7 @@ void av_log_callback(void* avcl, int level, const char* fmt, va_list va) {
   }
 }
 
-X_STATUS XmaDecoder::Setup(Runtime& runtime) {
+X_STATUS XmaDecoder::Setup() {
   // Setup ffmpeg logging callback
   av_log_set_callback(av_log_callback);
 
@@ -123,25 +121,22 @@ X_STATUS XmaDecoder::Setup(Runtime& runtime) {
   register_file_[XmaRegister::NextContextIndex] = 1;
   context_bitmap_.Resize(kContextCount);
 
-  worker_running_ = true;
   work_event_ = rex::platform::Event::CreateAutoResetEvent(false);
   assert_not_null(work_event_);
-  runtime_ = &runtime;
-  auto record = std::make_unique<runtime::ThreadRecord>(runtime, 128 * 1024, 0, [this]() {
-    WorkerThreadMain();
-    return 0;
+  worker_exited_ = rex::platform::Event::CreateManualResetEvent(false);
+  worker_ = rex::platform::Spawn("XMA Decoder", [this](const std::stop_token& stop) {
+    WorkerThreadMain(stop);
+    worker_exited_->Set();
   });
-  record->set_name("XMA Decoder");
-  worker_thread_ = runtime.thread_registry().Launch(std::move(record)).value_or(0);
 
   return X_STATUS_SUCCESS;
 }
 
-void XmaDecoder::WorkerThreadMain() {
-  while (worker_running_) {
+void XmaDecoder::WorkerThreadMain(const std::stop_token& stop) {
+  while (!stop.stop_requested()) {
     // Okay, let's loop through XMA contexts to find ones we need to decode!
     bool did_work = false;
-    for (uint32_t n = 0; n < kContextCount && worker_running_; n++) {
+    for (uint32_t n = 0; n < kContextCount && !stop.stop_requested(); n++) {
       XmaContext& context = contexts_[n];
       bool worked = context.Work();
       if (worked) {
@@ -165,32 +160,21 @@ void XmaDecoder::WorkerThreadMain() {
 }
 
 void XmaDecoder::Shutdown() {
-  if (!worker_thread_) {
+  if (!worker_.joinable()) {
     return;
   }
 
-  worker_running_ = false;
-
-  if (work_event_) {
-    work_event_->Set();
-  }
-
+  worker_.request_stop();
+  work_event_->Set();
   if (paused_) {
     Resume();
   }
 
-  // Wait up to 2 seconds for worker thread to exit gracefully.
-  {
-    runtime::ThreadPin pin = runtime_->thread_registry().FindByHandle(worker_thread_);
-    if (pin) {
-      auto result = rex::platform::Wait(pin->thread(), false, std::chrono::milliseconds(2000));
-      if (result == rex::platform::WaitResult::kTimeout) {
-        REXLOG_WARN(audio, "XMA: Worker thread did not exit within 2s, abandoning");
-      }
-    }
+  if (rex::platform::Wait(worker_exited_.get(), false, std::chrono::milliseconds(2000)) ==
+      rex::platform::WaitResult::kTimeout) {
+    REXLOG_WARN(audio, "XMA: Worker thread did not exit within 2s, waiting for it");
   }
-  (void)runtime_->object_table().Close(worker_thread_);
-  worker_thread_ = 0;
+  worker_.join();
 
   if (context_data_first_ptr_) {
     memory()->SystemHeapFree(context_data_first_ptr_);

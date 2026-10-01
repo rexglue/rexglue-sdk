@@ -77,7 +77,7 @@ AudioSystem::~AudioSystem() {
 }
 
 X_STATUS AudioSystem::Setup(Runtime& runtime) {
-  X_STATUS result = xma_decoder_->Setup(runtime);
+  X_STATUS result = xma_decoder_->Setup();
   if (result) {
     return result;
   }

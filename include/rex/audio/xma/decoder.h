@@ -14,12 +14,12 @@
 #include <atomic>
 #include <mutex>
 #include <queue>
+#include <thread>
 
 #include <rex/audio/xma/context.h>
 #include <rex/audio/xma/register_file.h>
 #include <rex/bit.h>
 #include <rex/kernel.h>
-#include <rex/runtime/xthread.h>
 
 namespace rex::runtime {
 class FunctionDispatcher;
@@ -37,7 +37,7 @@ class XmaDecoder {
   runtime::Memory* memory() const { return memory_; }
   runtime::FunctionDispatcher* function_dispatcher() const { return function_dispatcher_; }
 
-  X_STATUS Setup(Runtime& runtime);
+  X_STATUS Setup();
   void Shutdown();
 
   uint32_t context_array_ptr() const { return register_file_[XmaRegister::ContextArrayAddress]; }
@@ -57,7 +57,7 @@ class XmaDecoder {
   int GetContextId(uint32_t guest_ptr);
 
  private:
-  void WorkerThreadMain();
+  void WorkerThreadMain(const std::stop_token& stop);
 
   static uint32_t MMIOReadRegisterThunk(void* ppc_context, XmaDecoder* as, uint32_t addr) {
     return as->ReadRegister(addr);
@@ -71,10 +71,9 @@ class XmaDecoder {
   runtime::Memory* memory_ = nullptr;
   runtime::FunctionDispatcher* function_dispatcher_ = nullptr;
 
-  std::atomic<bool> worker_running_ = {false};
-  Runtime* runtime_ = nullptr;
-  X_HANDLE worker_thread_ = 0;
   std::unique_ptr<rex::platform::Event> work_event_ = nullptr;
+  std::unique_ptr<rex::platform::Event> worker_exited_ = nullptr;
+  std::jthread worker_;
 
   std::atomic<bool> paused_ = false;
   rex::platform::Fence pause_fence_;   // Signaled when worker paused.
