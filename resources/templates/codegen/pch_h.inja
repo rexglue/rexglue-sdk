@@ -35,7 +35,7 @@
 #include <rex/chrono/clock.h>
 #include <rex/perf/counter.h>
 #include <rex/platform/interrupt_mask.h>
-#include <rex/runtime/mmio_handler.h>
+#include <rex/mmio.h>
 
 #include <atomic>
 #include <cassert>
@@ -146,93 +146,95 @@ extern PPCFuncMapping PPCFuncMappings[];
 // MMIO
 //=============================================================================
 
-#define REX_IS_MMIO_ADDR(addr) ((addr) >= 0x7F000000u && (addr) < 0x80000000u)
+#define REX_GPU_LOAD32(addr) rex::detail::mmio_slots[0].read(rex::detail::mmio_slots[0].context, (addr))
+#define REX_GPU_STORE32(addr, val) \
+  rex::detail::mmio_slots[0].write(rex::detail::mmio_slots[0].context, (addr), static_cast<u32>(val))
+#define REX_APU_LOAD32(addr) rex::detail::mmio_slots[1].read(rex::detail::mmio_slots[1].context, (addr))
+#define REX_APU_STORE32(addr, val) \
+  rex::detail::mmio_slots[1].write(rex::detail::mmio_slots[1].context, (addr), static_cast<u32>(val))
 
-#define REX_MM_STORE_U8(addr, val)                                                         \
-  do {                                                                                     \
-    u32 _mmio_addr = (addr);                                                               \
-    if (REX_IS_MMIO_ADDR(_mmio_addr)) {                                                    \
-      rex::runtime::MMIOHandler::global_handler()->CheckStore(_mmio_addr,                  \
-                                                              static_cast<u32>(val));      \
-    } else {                                                                               \
-      *(volatile u8*)(base + _mmio_addr + REX_PHYS_HOST_OFFSET(_mmio_addr)) = (val);       \
-    }                                                                                      \
+#define REX_MM_STORE_U8(addr, val)                                                   \
+  do {                                                                               \
+    u32 _mmio_addr = (addr);                                                         \
+    if (rex::IsMMIOBlockAddress(_mmio_addr)) {                                       \
+      rex::detail::MMIOStore(_mmio_addr, static_cast<u32>(val));                     \
+    } else {                                                                         \
+      *(volatile u8*)(base + _mmio_addr + REX_PHYS_HOST_OFFSET(_mmio_addr)) = (val); \
+    }                                                                                \
   } while (0)
 
-#define REX_MM_STORE_U16(addr, val)                                                        \
-  do {                                                                                     \
-    u32 _mmio_addr = (addr);                                                               \
-    if (REX_IS_MMIO_ADDR(_mmio_addr)) {                                                    \
-      rex::runtime::MMIOHandler::global_handler()->CheckStore(_mmio_addr,                  \
-                                                              static_cast<u32>(val));      \
-    } else {                                                                               \
-      *(volatile u16*)(base + _mmio_addr + REX_PHYS_HOST_OFFSET(_mmio_addr)) =             \
-          __builtin_bswap16(val);                                                          \
-    }                                                                                      \
+#define REX_MM_STORE_U16(addr, val)                                         \
+  do {                                                                      \
+    u32 _mmio_addr = (addr);                                                \
+    if (rex::IsMMIOBlockAddress(_mmio_addr)) {                              \
+      rex::detail::MMIOStore(_mmio_addr, static_cast<u32>(val));            \
+    } else {                                                                \
+      *(volatile u16*)(base + _mmio_addr + REX_PHYS_HOST_OFFSET(_mmio_addr)) = \
+          __builtin_bswap16(val);                                           \
+    }                                                                       \
   } while (0)
 
-#define REX_MM_STORE_U32(addr, val)                                                        \
-  do {                                                                                     \
-    u32 _mmio_addr = (addr);                                                               \
-    if (REX_IS_MMIO_ADDR(_mmio_addr)) {                                                    \
-      rex::runtime::MMIOHandler::global_handler()->CheckStore(_mmio_addr,                  \
-                                                              static_cast<u32>(val));      \
-    } else {                                                                               \
-      *(volatile u32*)(base + _mmio_addr + REX_PHYS_HOST_OFFSET(_mmio_addr)) =             \
-          __builtin_bswap32(val);                                                          \
-    }                                                                                      \
+#define REX_MM_STORE_U32(addr, val)                                         \
+  do {                                                                      \
+    u32 _mmio_addr = (addr);                                                \
+    if (rex::IsMMIOBlockAddress(_mmio_addr)) {                              \
+      rex::detail::MMIOStore(_mmio_addr, static_cast<u32>(val));            \
+    } else {                                                                \
+      *(volatile u32*)(base + _mmio_addr + REX_PHYS_HOST_OFFSET(_mmio_addr)) = \
+          __builtin_bswap32(val);                                           \
+    }                                                                       \
   } while (0)
 
-#define REX_MM_STORE_U64(addr, val)                                                               \
-  do {                                                                                            \
+#define REX_MM_STORE_U64(addr, val)                                              \
+  do {                                                                           \
+    u32 _mmio_addr = (addr);                                                     \
+    if (rex::IsMMIOBlockAddress(_mmio_addr)) {                                   \
+      u64 _mmio_value = static_cast<u64>(val);                                   \
+      rex::detail::MMIOStore(_mmio_addr, static_cast<u32>(_mmio_value >> 32));   \
+      rex::detail::MMIOStore(_mmio_addr + 4, static_cast<u32>(_mmio_value));     \
+    } else {                                                                     \
+      *(volatile u64*)(base + _mmio_addr + REX_PHYS_HOST_OFFSET(_mmio_addr)) =   \
+          __builtin_bswap64(val);                                                \
+    }                                                                            \
+  } while (0)
+
+#define REX_MM_LOAD_U8(addr)                                                     \
+  ({                                                                             \
+    u32 _mmio_addr = (addr);                                                     \
+    rex::IsMMIOBlockAddress(_mmio_addr)                                          \
+        ? static_cast<u8>(rex::detail::MMIOLoad(_mmio_addr))                     \
+        : *(volatile u8*)(base + _mmio_addr + REX_PHYS_HOST_OFFSET(_mmio_addr)); \
+  })
+
+#define REX_MM_LOAD_U16(addr)                                                                     \
+  ({                                                                                              \
     u32 _mmio_addr = (addr);                                                                      \
-    if (REX_IS_MMIO_ADDR(_mmio_addr)) {                                                           \
-      u64 _v64 = static_cast<u64>(val);                                                           \
-      rex::runtime::MMIOHandler::global_handler()->CheckStore(_mmio_addr,                         \
-                                                              static_cast<u32>(_v64 >> 32));      \
-      rex::runtime::MMIOHandler::global_handler()->CheckStore(_mmio_addr + 4,                     \
-                                                              static_cast<u32>(_v64));            \
-    } else {                                                                                      \
-      *(volatile u64*)(base + _mmio_addr + REX_PHYS_HOST_OFFSET(_mmio_addr)) =                    \
-          __builtin_bswap64(val);                                                                 \
-    }                                                                                             \
-  } while (0)
+    rex::IsMMIOBlockAddress(_mmio_addr)                                                           \
+        ? static_cast<u16>(rex::detail::MMIOLoad(_mmio_addr))                                     \
+        : __builtin_bswap16(*(volatile u16*)(base + _mmio_addr + REX_PHYS_HOST_OFFSET(_mmio_addr))); \
+  })
 
-#define REX_MM_LOAD_U8(addr)                                           \
-  (REX_IS_MMIO_ADDR(addr) ? ({                                         \
-    u32 _v;                                                            \
-    rex::runtime::MMIOHandler::global_handler()->CheckLoad(addr, &_v); \
-    static_cast<u8>(_v);                                               \
-  })                                                                   \
-                          : *(volatile u8*)(base + (addr) + REX_PHYS_HOST_OFFSET(addr)))
+#define REX_MM_LOAD_U32(addr)                                                                     \
+  ({                                                                                              \
+    u32 _mmio_addr = (addr);                                                                      \
+    rex::IsMMIOBlockAddress(_mmio_addr)                                                           \
+        ? rex::detail::MMIOLoad(_mmio_addr)                                                       \
+        : __builtin_bswap32(*(volatile u32*)(base + _mmio_addr + REX_PHYS_HOST_OFFSET(_mmio_addr))); \
+  })
 
-#define REX_MM_LOAD_U16(addr)                                                 \
-  (REX_IS_MMIO_ADDR(addr)                                                     \
-       ? ({                                                                   \
-           u32 _v;                                                            \
-           rex::runtime::MMIOHandler::global_handler()->CheckLoad(addr, &_v); \
-           static_cast<u16>(_v);                                              \
-         })                                                                   \
-       : __builtin_bswap16(*(volatile u16*)(base + (addr) + REX_PHYS_HOST_OFFSET(addr))))
-
-#define REX_MM_LOAD_U32(addr)                                                 \
-  (REX_IS_MMIO_ADDR(addr)                                                     \
-       ? ({                                                                   \
-           u32 _v;                                                            \
-           rex::runtime::MMIOHandler::global_handler()->CheckLoad(addr, &_v); \
-           _v;                                                                \
-         })                                                                   \
-       : __builtin_bswap32(*(volatile u32*)(base + (addr) + REX_PHYS_HOST_OFFSET(addr))))
-
-#define REX_MM_LOAD_U64(addr)                                                        \
-  (REX_IS_MMIO_ADDR(addr)                                                            \
-       ? ({                                                                          \
-           u32 _hi, _lo;                                                             \
-           rex::runtime::MMIOHandler::global_handler()->CheckLoad(addr, &_hi);       \
-           rex::runtime::MMIOHandler::global_handler()->CheckLoad((addr) + 4, &_lo); \
-           (static_cast<u64>(_hi) << 32) | _lo;                                      \
-         })                                                                          \
-       : __builtin_bswap64(*(volatile u64*)(base + (addr) + REX_PHYS_HOST_OFFSET(addr))))
+#define REX_MM_LOAD_U64(addr)                                                                 \
+  ({                                                                                          \
+    u32 _mmio_addr = (addr);                                                                  \
+    u64 _mmio_value;                                                                          \
+    if (rex::IsMMIOBlockAddress(_mmio_addr)) {                                                \
+      u64 _mmio_high = rex::detail::MMIOLoad(_mmio_addr);                                     \
+      _mmio_value = (_mmio_high << 32) | rex::detail::MMIOLoad(_mmio_addr + 4);               \
+    } else {                                                                                  \
+      _mmio_value =                                                                           \
+          __builtin_bswap64(*(volatile u64*)(base + _mmio_addr + REX_PHYS_HOST_OFFSET(_mmio_addr))); \
+    }                                                                                         \
+    _mmio_value;                                                                              \
+  })
 
 //=============================================================================
 // Function Dispatch

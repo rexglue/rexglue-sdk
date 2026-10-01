@@ -10,6 +10,8 @@
  */
 
 #include <algorithm>
+#include <array>
+#include <bit>
 #include <cstring>
 #include <utility>
 
@@ -22,10 +24,11 @@
 #include <rex/assert.h>
 #include <rex/chrono/clock.h>
 #include <rex/cvar.h>
+#include <rex/exception_handler.h>
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/runtime/function_dispatcher.h>
-#include <rex/runtime/mmio_handler.h>
+#include <rex/mmio.h>
 #include <rex/runtime/xmemory.h>
 #include <rex/platform/thread.h>
 #include "runtime/cvar_table.h"
@@ -73,6 +76,38 @@ uint32_t get_page_count(uint32_t value, uint32_t page_size, uint32_t page_size_s
 
 static runtime::Memory* active_memory_ = nullptr;
 
+namespace {
+
+bool OnAccessViolation(rex::platform::Exception* ex, void* data) {
+  if (ex->code() != rex::platform::Exception::Code::kAccessViolation) {
+    return false;
+  }
+  const auto operation = ex->access_violation_operation();
+  if (operation != rex::platform::Exception::AccessViolationOperation::kRead &&
+      operation != rex::platform::Exception::AccessViolationOperation::kWrite) {
+    return false;
+  }
+  auto* memory = static_cast<Memory*>(data);
+  const bool is_write = operation == rex::platform::Exception::AccessViolationOperation::kWrite;
+  auto* host_address = std::bit_cast<void*>(static_cast<uintptr_t>(ex->fault_address()));
+  switch (memory->HandleAccessViolation(host_address, is_write)) {
+    case AccessViolationResult::Resumed:
+      return true;
+    case AccessViolationResult::MMIOMiss: {
+      const u32 address = memory->HostToGuestVirtual(host_address);
+      REXLOG_ERROR(system, "{} register {} 0x{:08X} at host PC 0x{:016X}",
+                   MMIOBlockOf(address) == MMIOBlock::GPU ? "GPU" : "APU",
+                   is_write ? "write" : "read", address, ex->pc());
+      return false;
+    }
+    case AccessViolationResult::Unhandled:
+      return false;
+  }
+  return false;
+}
+
+}  // namespace
+
 void CrashDump() {
   static std::atomic<int> in_crash_dump(0);
   if (in_crash_dump.fetch_add(1)) {
@@ -95,8 +130,7 @@ Memory::~Memory() {
   assert_true(active_memory_ == this);
   active_memory_ = nullptr;
 
-  // Uninstall the MMIO handler, as we won't be able to service more requests.
-  mmio_handler_.reset();
+  rex::platform::ExceptionHandler::Uninstall(OnAccessViolation, this);
 
   for (auto invalidation_callback : physical_memory_invalidation_callbacks_) {
     delete invalidation_callback;
@@ -154,7 +188,7 @@ bool Memory::Initialize() {
   // we pick, so try a few times.
   mapping_base_ = 0;
   for (size_t n = 32; n < 64; n++) {
-    auto mapping_base = reinterpret_cast<uint8_t*>(1ull << n);
+    auto mapping_base = std::bit_cast<uint8_t*>(uintptr_t{1} << n);
     if (!MapViews(mapping_base)) {
       mapping_base_ = mapping_base;
       break;
@@ -214,16 +248,12 @@ bool Memory::Initialize() {
                           rex::memory::AllocationType::kCommit,
                           rex::memory::PageAccess::kReadWrite);
 
-  // Install MMIO handler for physical address translation and MMIO ranges
-  mmio_handler_ = runtime::MMIOHandler::Install(
-      virtual_membase_, physical_membase_, physical_membase_ + 0x1FFFFFFF, HostToGuestVirtualThunk,
-      this, AccessViolationCallbackThunk, this);
-  if (!mmio_handler_) {
-    REXLOG_ERROR(system, "Unable to install MMIO handlers");
+  if (!ReserveMMIOBlocks()) {
+    REXLOG_ERROR(system, "Unable to reserve the MMIO register blocks");
     assert_always();
     return false;
   }
-  REXLOG_DEBUG(system, "Installed MMIO handler for physical address translation");
+  rex::platform::ExceptionHandler::Install(OnAccessViolation, this);
 
   // ?
   uint32_t unk_phys_alloc;
@@ -387,23 +417,26 @@ void Memory::Reset() {
 const BaseHeap* Memory::LookupHeap(uint32_t address) const {
   if (address < 0x40000000) {
     return &heaps_.v00000000;
-  } else if (address < 0x7F000000) {
+  }
+  if (address < 0x7F000000) {
     return &heaps_.v40000000;
-  } else if (address < 0x80000000) {
-    return nullptr;
-  } else if (address < 0x90000000) {
-    return &heaps_.v80000000;
-  } else if (address < 0xA0000000) {
-    return &heaps_.v90000000;
-  } else if (address < 0xC0000000) {
-    return &heaps_.vA0000000;
-  } else if (address < 0xE0000000) {
-    return &heaps_.vC0000000;
-  } else if (address < 0xFFD00000) {
-    return &heaps_.vE0000000;
-  } else {
+  }
+  if (address < 0x80000000 || address >= 0xFFD00000) {
     return nullptr;
   }
+  if (address < 0x90000000) {
+    return &heaps_.v80000000;
+  }
+  if (address < 0xA0000000) {
+    return &heaps_.v90000000;
+  }
+  if (address < 0xC0000000) {
+    return &heaps_.vA0000000;
+  }
+  if (address < 0xE0000000) {
+    return &heaps_.vC0000000;
+  }
+  return &heaps_.vE0000000;
 }
 
 BaseHeap* Memory::LookupHeapByType(bool physical, uint32_t page_size) {
@@ -433,10 +466,6 @@ uint32_t Memory::HostToGuestVirtual(const void* host_address) const {
                                           reinterpret_cast<size_t>(virtual_membase_));
 }
 
-uint32_t Memory::HostToGuestVirtualThunk(const void* context, const void* host_address) {
-  return reinterpret_cast<const runtime::Memory*>(context)->HostToGuestVirtual(host_address);
-}
-
 uint32_t Memory::GetPhysicalAddress(uint32_t address) const {
   const BaseHeap* heap = LookupHeap(address);
   if (!heap || heap->heap_type() != runtime::HeapType::kGuestPhysical) {
@@ -445,22 +474,22 @@ uint32_t Memory::GetPhysicalAddress(uint32_t address) const {
   return static_cast<const PhysicalHeap*>(heap)->GetPhysicalAddress(address);
 }
 
-void Memory::Zero(uint32_t address, uint32_t size) {
+void Memory::Zero(uint32_t address, uint32_t size) const {
   std::memset(TranslateVirtual(address), 0, size);
 }
 
-void Memory::Fill(uint32_t address, uint32_t size, uint8_t value) {
+void Memory::Fill(uint32_t address, uint32_t size, uint8_t value) const {
   std::memset(TranslateVirtual(address), value, size);
 }
 
-void Memory::Copy(uint32_t dest, uint32_t src, uint32_t size) {
+void Memory::Copy(uint32_t dest, uint32_t src, uint32_t size) const {
   uint8_t* pdest = TranslateVirtual(dest);
   const uint8_t* psrc = TranslateVirtual(src);
   std::memcpy(pdest, psrc, size);
 }
 
 uint32_t Memory::SearchAligned(uint32_t start, uint32_t end, const uint32_t* values,
-                               size_t value_count) {
+                               size_t value_count) const {
   assert_true(start <= end);
   auto p = TranslateVirtual<const uint32_t*>(start);
   auto pe = TranslateVirtual<const uint32_t*>(end);
@@ -483,34 +512,31 @@ uint32_t Memory::SearchAligned(uint32_t start, uint32_t end, const uint32_t* val
   return 0;
 }
 
-bool Memory::AddVirtualMappedRange(uint32_t virtual_address, uint32_t mask, uint32_t size,
-                                   void* context, runtime::MMIOReadCallback read_callback,
-                                   runtime::MMIOWriteCallback write_callback) {
-  // AllocFixed rejects requests that don't cover whole host pages, so that a
-  // guest heap can never widen an mprotect over a neighbouring guest page that
-  // shares the host page. An MMIO window has no such neighbours - it owns its
-  // entire range - so rounding out to host page bounds is safe here, and it is
-  // required because callers describe these windows with mask-style sizes such
-  // as 0xFFFF, which is one byte short of 64 KB and therefore never a multiple
-  // of the 16 KB host page on Apple Silicon.
+bool Memory::ReserveMMIOBlocks() const {
   const size_t host_page_size = rex::memory::page_size();
-  uint8_t* const range_start = TranslateVirtual(virtual_address);
-  uint8_t* const aligned_start = reinterpret_cast<uint8_t*>(
-      reinterpret_cast<uintptr_t>(range_start) & ~(uintptr_t(host_page_size) - 1));
-  const size_t aligned_length =
-      rex::round_up(size_t(range_start - aligned_start) + size, host_page_size);
-  if (!rex::memory::AllocFixed(aligned_start, aligned_length, rex::memory::AllocationType::kCommit,
-                               rex::memory::PageAccess::kNoAccess)) {
-    REX_FAIL(system, false, "Unable to map range; commit/protect failed");
-  }
-  // The MMIO registration keeps the caller's original size - only the host
-  // reservation is rounded.
-  return mmio_handler_->RegisterRange(virtual_address, mask, size, context, read_callback,
-                                      write_callback);
+  return std::ranges::all_of(std::array{MMIOBlock::GPU, MMIOBlock::APU}, [&](MMIOBlock block) {
+    u8* const start = TranslateVirtual(MMIOBlockBase(block));
+    u8* const aligned_start = start - (reinterpret_cast<uintptr_t>(start) & (host_page_size - 1));
+    const size_t aligned_length =
+        rex::round_up(static_cast<size_t>(start - aligned_start) + kMMIOBlockSize, host_page_size);
+    return rex::memory::AllocFixed(aligned_start, aligned_length,
+                                   rex::memory::AllocationType::kCommit,
+                                   rex::memory::PageAccess::kNoAccess) != nullptr;
+  });
 }
 
-runtime::MMIORange* Memory::LookupVirtualMappedRange(uint32_t virtual_address) {
-  return mmio_handler_->LookupRange(virtual_address);
+AccessViolationResult Memory::HandleAccessViolation(void* host_address, bool is_write) {
+  const auto host = reinterpret_cast<uintptr_t>(host_address);
+  const auto virtual_base = reinterpret_cast<uintptr_t>(virtual_membase_);
+  const auto physical_base = reinterpret_cast<uintptr_t>(physical_membase_);
+  if (host < virtual_base || host >= physical_base + 0x20000000) {
+    return AccessViolationResult::Unhandled;
+  }
+  if (host < physical_base && IsMMIOBlockAddress(static_cast<u32>(host - virtual_base))) {
+    return AccessViolationResult::MMIOMiss;
+  }
+  return AccessViolationCallback(host_address, is_write) ? AccessViolationResult::Resumed
+                                                         : AccessViolationResult::Unhandled;
 }
 
 bool Memory::AccessViolationCallback(void* host_address, bool is_write) {
@@ -592,15 +618,15 @@ bool Memory::AccessViolationCallback(void* host_address, bool is_write) {
       }
     }
     if (allow_write) {
-      size_t host_page_size = rex::memory::page_size();
-      uintptr_t page_base =
-          reinterpret_cast<uintptr_t>(host_address) & ~(uintptr_t(host_page_size - 1));
-      if (rex::memory::Protect(reinterpret_cast<void*>(page_base), host_page_size,
-                               rex::memory::PageAccess::kReadWrite, nullptr)) {
+      const size_t host_page_size = rex::memory::page_size();
+      u8* const page = static_cast<u8*>(host_address) -
+                       (reinterpret_cast<uintptr_t>(host_address) & (host_page_size - 1));
+      if (rex::memory::Protect(page, host_page_size, rex::memory::PageAccess::kReadWrite,
+                               nullptr)) {
         REXLOG_WARN(system,
                     "Recovered stale physical page protection for guest {:08X} (host {:016X}, "
                     "guest_protect {:08X})",
-                    virtual_address, static_cast<uint64_t>(page_base), guest_protect);
+                    virtual_address, reinterpret_cast<uintptr_t>(page), guest_protect);
         return true;
       }
     }
@@ -619,26 +645,6 @@ bool Memory::AccessViolationCallback(void* host_address, bool is_write) {
                  physical_address, current_guest_protect, physical_protect);
   }
 
-  return false;
-}
-
-bool Memory::AccessViolationCallbackThunk(void* context, void* host_address, bool is_write) {
-  return reinterpret_cast<runtime::Memory*>(context)->AccessViolationCallback(host_address,
-                                                                              is_write);
-}
-
-bool Memory::TriggerPhysicalMemoryCallbacks(uint32_t virtual_address, uint32_t length,
-                                            bool is_write, bool unwatch_exact_range,
-                                            bool unprotect) {
-  BaseHeap* heap = LookupHeap(virtual_address);
-  if (!heap) {
-    return false;
-  }
-  if (heap->heap_type() == runtime::HeapType::kGuestPhysical) {
-    auto physical_heap = static_cast<PhysicalHeap*>(heap);
-    return physical_heap->TriggerCallbacks(virtual_address, length, is_write, unwatch_exact_range,
-                                           unprotect);
-  }
   return false;
 }
 
@@ -2003,16 +2009,18 @@ void PhysicalHeap::EnableAccessCallbacks(uint32_t physical_address, uint32_t len
       }
     } else {
       if (protect_system_page_first != UINT32_MAX) {
-        rex::memory::Protect(protect_base + protect_system_page_first * system_page_size_,
-                             (i - protect_system_page_first) * system_page_size_, protect_access);
+        rex::memory::Protect(
+            protect_base + static_cast<size_t>(protect_system_page_first) * system_page_size_,
+            static_cast<size_t>(i - protect_system_page_first) * system_page_size_, protect_access);
         protect_system_page_first = UINT32_MAX;
       }
     }
   }
   if (protect_system_page_first != UINT32_MAX) {
-    rex::memory::Protect(protect_base + protect_system_page_first * system_page_size_,
-                         (system_page_last + 1 - protect_system_page_first) * system_page_size_,
-                         protect_access);
+    rex::memory::Protect(
+        protect_base + static_cast<size_t>(protect_system_page_first) * system_page_size_,
+        static_cast<size_t>(system_page_last + 1 - protect_system_page_first) * system_page_size_,
+        protect_access);
   }
 }
 
@@ -2149,17 +2157,20 @@ bool PhysicalHeap::TriggerCallbacksLocked(uint32_t virtual_address, uint32_t len
         }
       } else {
         if (unprotect_system_page_first != UINT32_MAX) {
-          rex::memory::Protect(protect_base + unprotect_system_page_first * system_page_size_,
-                               (i - unprotect_system_page_first) * system_page_size_,
-                               rex::memory::PageAccess::kReadWrite);
+          rex::memory::Protect(
+              protect_base + static_cast<size_t>(unprotect_system_page_first) * system_page_size_,
+              static_cast<size_t>(i - unprotect_system_page_first) * system_page_size_,
+              rex::memory::PageAccess::kReadWrite);
           unprotect_system_page_first = UINT32_MAX;
         }
       }
     }
     if (unprotect_system_page_first != UINT32_MAX) {
-      rex::memory::Protect(protect_base + unprotect_system_page_first * system_page_size_,
-                           (system_page_last + 1 - unprotect_system_page_first) * system_page_size_,
-                           rex::memory::PageAccess::kReadWrite);
+      rex::memory::Protect(
+          protect_base + static_cast<size_t>(unprotect_system_page_first) * system_page_size_,
+          static_cast<size_t>(system_page_last + 1 - unprotect_system_page_first) *
+              system_page_size_,
+          rex::memory::PageAccess::kReadWrite);
     }
   }
 

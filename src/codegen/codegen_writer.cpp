@@ -28,6 +28,7 @@
 #include <rex/runtime.h>
 
 #include "file_io.h"
+#include "mmio_analysis.h"
 #include "template_registry_internal.h"
 
 namespace {
@@ -54,7 +55,7 @@ nlohmann::json buildTemplateData(const rex::codegen::CodegenContext& ctx,
   for (const auto* fn : functions) {
     std::string funcName;
 
-    auto shimIt = shimByAddr.find(static_cast<uint32_t>(fn->base()));
+    auto shimIt = shimByAddr.find(fn->base());
     if (shimIt != shimByAddr.end()) {
       funcName = shimIt->second;
     } else if (fn->base() == ctx.analysisState().entryPoint) {
@@ -128,7 +129,60 @@ bool IsGeneratedOutputName(std::string_view filename, std::string_view projectNa
   return filename.starts_with(projectPrefix);
 }
 
-constexpr size_t kOutputBufferReserveSize = 32 * 1024 * 1024;  // 32 MB
+constexpr size_t kOutputBufferReserveSize = size_t{32} * 1024 * 1024;
+
+namespace {
+
+std::string HexAddress(u32 address) {
+  return fmt::format("0x{:08X}", address);
+}
+
+std::string_view BlockName(MMIOAccess access) {
+  return access == MMIOAccess::GPU ? "GPU" : "APU";
+}
+
+nlohmann::json BuildMMIOReport(const std::vector<MMIOReportSite>& sites) {
+  nlohmann::json report{{"proven", nlohmann::json::array()},
+                        {"declared", nlohmann::json::array()},
+                        {"guarded", nlohmann::json::array()},
+                        {"unserved", nlohmann::json::array()},
+                        {"unsupported", nlohmann::json::array()}};
+  for (const MMIOReportSite& entry : sites) {
+    nlohmann::json row{{"function", HexAddress(entry.function)},
+                       {"address", HexAddress(entry.site.address)},
+                       {"access", entry.site.write ? "write" : "read"}};
+    switch (entry.site.reason) {
+      case MMIOReason::Proven:
+        row["block"] = BlockName(entry.site.access);
+        row["target"] = HexAddress(entry.site.target);
+        report["proven"].push_back(std::move(row));
+        break;
+      case MMIOReason::Offset:
+        row["reason"] = "offset";
+        report["guarded"].push_back(std::move(row));
+        break;
+      case MMIOReason::Barrier:
+        row["reason"] = "eieio";
+        report["guarded"].push_back(std::move(row));
+        break;
+      case MMIOReason::Declared:
+        row["block"] = BlockName(entry.site.access);
+        report["declared"].push_back(std::move(row));
+        break;
+      case MMIOReason::Unserved:
+        row["target"] = HexAddress(entry.site.target);
+        report["unserved"].push_back(std::move(row));
+        break;
+      case MMIOReason::Unsupported:
+        row["target"] = HexAddress(entry.site.target);
+        report["unsupported"].push_back(std::move(row));
+        break;
+    }
+  }
+  return report;
+}
+
+}  // namespace
 
 CodegenWriter::CodegenWriter(CodegenContext& ctx, Runtime* runtime)
     : ctx_(ctx), runtime_(runtime) {}
@@ -234,9 +288,8 @@ bool CodegenWriter::write(bool force) {
   std::erase_if(functions, [](const FunctionNode* fn) {
     return fn->authority() == FunctionAuthority::IMPORT;
   });
-  std::erase_if(functions, [&shimByAddr](const FunctionNode* fn) {
-    return shimByAddr.contains(static_cast<uint32_t>(fn->base()));
-  });
+  std::erase_if(functions,
+                [&shimByAddr](const FunctionNode* fn) { return shimByAddr.contains(fn->base()); });
 
   EmitContext emitCtx{binary(), config(), graph(), ctx_.limits(),
                       static_cast<uint32_t>(analysisState().entryPoint)};
@@ -252,7 +305,9 @@ bool CodegenWriter::write(bool force) {
 
   const size_t maxFileBytes = ctx_.limits().max_file_size_bytes;
   std::unordered_set<std::string> referenced;
+  std::vector<MMIOReportSite> mmio_sites;
   emitCtx.referenced = &referenced;
+  emitCtx.mmio_sites = &mmio_sites;
   for (const auto* fn : functions) {
     referenced.clear();
     std::string code = fn->emitCpp(emitCtx);
@@ -260,11 +315,34 @@ bool CodegenWriter::write(bool force) {
       REXLOG_WARN(codegen, "Function 0x{:08X} is {} bytes, exceeds max_file_size_bytes ({})",
                   fn->base(), code.size(), maxFileBytes);
     }
-    sizes.push_back({static_cast<uint32_t>(fn->base()), code.size()});
+    sizes.push_back({fn->base(), code.size()});
     bodies.push_back(std::move(code));
     references.push_back(referenced);
   }
   emitCtx.referenced = nullptr;
+  emitCtx.mmio_sites = nullptr;
+
+  for (const auto& [address, declared] : config().declaredMMIOAccesses) {
+    const std::string_view block = declared.block == MMIOBlock::GPU ? "gpu" : "apu";
+    const std::string_view list = declared.write ? "write" : "read";
+    const auto site = std::ranges::find_if(mmio_sites, [address](const MMIOReportSite& entry) {
+      return entry.site.address == address;
+    });
+    if (site == mmio_sites.end() || site->site.reason == MMIOReason::Unsupported) {
+      REX_FAIL(codegen, false, "[mmio.{}] {} 0x{:08X} is not a load or store codegen routes", block,
+               list, address);
+    }
+    if (site->site.write != declared.write) {
+      REX_FAIL(codegen, false, "[mmio.{}] {} 0x{:08X} is a {}", block, list, address,
+               site->site.write ? "store" : "load");
+    }
+    const MMIOAccess expected =
+        declared.block == MMIOBlock::GPU ? MMIOAccess::GPU : MMIOAccess::APU;
+    if (site->site.access != expected) {
+      REX_FAIL(codegen, false, "[mmio.{}] {} 0x{:08X} reaches the {} block", block, list, address,
+               BlockName(site->site.access));
+    }
+  }
 
   auto partition = OutputPartition::Load(outputPath / kPartitionFileName);
   auto buckets = partition.Assign(sizes, maxFileBytes);
@@ -294,6 +372,9 @@ bool CodegenWriter::write(bool force) {
 
   out = partition.Serialize();
   SaveCurrentOutData(kPartitionFileName);
+
+  out = BuildMMIOReport(mmio_sites).dump(2);
+  SaveCurrentOutData(kMMIOReportFileName);
 
   REXLOG_TRACE(codegen, "Recompilation complete.");
 

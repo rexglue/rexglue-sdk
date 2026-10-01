@@ -21,7 +21,6 @@
 
 #include <rex/memory/utils.h>
 #include <rex/ppc/func.h>  // PPCFunc type
-#include <rex/runtime/mmio_handler.h>
 #include <rex/platform/lock_order.h>
 
 namespace rex::runtime::detail {
@@ -414,6 +413,16 @@ class PhysicalHeap : public BaseHeap {
   std::vector<SystemPageFlagsBlock> system_page_flags_;
 };
 
+/** Outcome of a host access violation inside guest memory. */
+enum class AccessViolationResult : u8 {
+  /** The write watch resolved the fault, so the access runs again. */
+  Resumed,
+  /** The access reached a register block that generated code did not route. */
+  MMIOMiss,
+  /** Memory makes no claim on the fault. */
+  Unhandled,
+};
+
 // Models the entire guest memory system on the console.
 // This exposes interfaces to both virtual and physical memory and a TLB and
 // page table for allocation, mapping, and protection.
@@ -484,26 +493,28 @@ class Memory {
   uint32_t GetPhysicalAddress(uint32_t address) const;
 
   // Zeros out a range of memory at the given guest address.
-  void Zero(uint32_t address, uint32_t size);
+  void Zero(uint32_t address, uint32_t size) const;
 
   // Fills a range of guest memory with the given byte value.
-  void Fill(uint32_t address, uint32_t size, uint8_t value);
+  void Fill(uint32_t address, uint32_t size, uint8_t value) const;
 
   // Copies a non-overlapping range of guest memory (like a memcpy).
-  void Copy(uint32_t dest, uint32_t src, uint32_t size);
+  void Copy(uint32_t dest, uint32_t src, uint32_t size) const;
 
   // Searches the given range of guest memory for a run of dword values in
   // big-endian order.
-  uint32_t SearchAligned(uint32_t start, uint32_t end, const uint32_t* values, size_t value_count);
+  uint32_t SearchAligned(uint32_t start, uint32_t end, const uint32_t* values,
+                         size_t value_count) const;
 
-  // Defines a memory-mapped IO (MMIO) virtual address range that when accessed
-  // will trigger the specified read and write callbacks for dword read/writes.
-  bool AddVirtualMappedRange(uint32_t virtual_address, uint32_t mask, uint32_t size, void* context,
-                             runtime::MMIOReadCallback read_callback,
-                             runtime::MMIOWriteCallback write_callback);
-
-  // Gets the defined MMIO range for the given virtual address, if any.
-  runtime::MMIORange* LookupVirtualMappedRange(uint32_t virtual_address);
+  /**
+   * Resolves a host access violation inside guest memory.
+   *
+   * @param host_address The host address the access faulted on.
+   * @param is_write True when the access was a write.
+   * @return MMIOMiss for a register block, Resumed when the write watch resolved the fault,
+   *         otherwise Unhandled.
+   */
+  AccessViolationResult HandleAccessViolation(void* host_address, bool is_write);
 
   // Physical memory access callbacks, two types of them.
   //
@@ -571,12 +582,6 @@ class Memory {
                                            bool enable_invalidation_notifications,
                                            bool enable_data_providers);
 
-  // Forces triggering of watch callbacks for a virtual address range if pages
-  // are watched there and unwatching them. Returns whether any page was
-  // watched.
-  bool TriggerPhysicalMemoryCallbacks(uint32_t virtual_address, uint32_t length, bool is_write,
-                                      bool unwatch_exact_range, bool unprotect = true);
-
   /**
    * Returns the lock that guards the physical memory watch state of the heaps and of every
    * registered invalidation callback client. It is a Leaf lock held while callbacks run, so
@@ -636,11 +641,9 @@ class Memory {
 #endif
   int MapViews(uint8_t* mapping_base);
   void UnmapViews();
-
-  static uint32_t HostToGuestVirtualThunk(const void* context, const void* host_address);
+  bool ReserveMMIOBlocks() const;
 
   bool AccessViolationCallback(void* host_address, bool is_write);
-  static bool AccessViolationCallbackThunk(void* context, void* host_address, bool is_write);
 
   std::filesystem::path file_name_;
   uint32_t system_page_size_ = 0;
@@ -673,8 +676,6 @@ class Memory {
     };
     uint8_t* all_views[9];
   } views_ = {{0, 0, 0, 0, 0, 0, 0, 0, 0}};
-
-  std::unique_ptr<runtime::MMIOHandler> mmio_handler_;
 
   struct {
     VirtualHeap v00000000;

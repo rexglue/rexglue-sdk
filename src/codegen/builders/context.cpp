@@ -13,6 +13,8 @@
 #include "helpers.h"
 
 #include <algorithm>
+#include <charconv>
+#include <string_view>
 
 #include <rex/codegen/binary_view.h>
 #include <rex/logging.h>
@@ -21,9 +23,49 @@
 
 namespace rex::codegen {
 
-/// eieio instruction encoding (big-endian). Used for MMIO detection:
-/// if the next instruction after a load/store is eieio, the access is MMIO.
-static constexpr uint32_t kEieioEncoding = 0xAC06007C;
+namespace {
+
+struct MMIOMacroRow {
+  std::string_view plain;
+  std::string_view gpu;
+  std::string_view apu;
+  std::string_view guarded;
+};
+
+constexpr MMIOMacroRow kMMIOMacros[] = {
+    {"REX_LOAD_U8", "REX_MM_LOAD_U8", "REX_MM_LOAD_U8", "REX_MM_LOAD_U8"},
+    {"REX_LOAD_U16", "REX_MM_LOAD_U16", "REX_MM_LOAD_U16", "REX_MM_LOAD_U16"},
+    {"REX_LOAD_U32", "REX_GPU_LOAD32", "REX_APU_LOAD32", "REX_MM_LOAD_U32"},
+    {"REX_LOAD_U64", "REX_MM_LOAD_U64", "REX_MM_LOAD_U64", "REX_MM_LOAD_U64"},
+    {"REX_STORE_U8", "REX_MM_STORE_U8", "REX_MM_STORE_U8", "REX_MM_STORE_U8"},
+    {"REX_STORE_U16", "REX_MM_STORE_U16", "REX_MM_STORE_U16", "REX_MM_STORE_U16"},
+    {"REX_STORE_U32", "REX_GPU_STORE32", "REX_APU_STORE32", "REX_MM_STORE_U32"},
+    {"REX_STORE_U64", "REX_MM_STORE_U64", "REX_MM_STORE_U64", "REX_MM_STORE_U64"},
+};
+
+size_t RegisterIndex(std::string_view name, size_t prefix) {
+  size_t index = 0;
+  (void)std::from_chars(name.data() + prefix, name.data() + name.size(), index);
+  return index;
+}
+
+}  // namespace
+
+std::string_view BuilderContext::MMIOMacro(std::string_view plain) const {
+  const MMIOAccess access = mmio ? mmio->At(base) : MMIOAccess::Plain;
+  const auto* row = std::ranges::find(kMMIOMacros, plain, &MMIOMacroRow::plain);
+  if (access == MMIOAccess::Plain || row == std::end(kMMIOMacros)) {
+    return plain;
+  }
+  switch (access) {
+    case MMIOAccess::GPU:
+      return row->gpu;
+    case MMIOAccess::APU:
+      return row->apu;
+    default:
+      return row->guarded;
+  }
+}
 
 //=============================================================================
 // Convenience Accessors
@@ -140,18 +182,6 @@ const char* BuilderContext::ea() {
 //=============================================================================
 // Code Generation Helpers
 //=============================================================================
-
-bool BuilderContext::mmio_check_d_form() {
-  if (base + 4 < fn.end() && *(data + 1) == kEieioEncoding)
-    return true;
-  return locals.is_mmio_base(insn.operands[2]);
-}
-
-bool BuilderContext::mmio_check_x_form() {
-  if (base + 4 < fn.end() && *(data + 1) == kEieioEncoding)
-    return true;
-  return locals.is_mmio_base(insn.operands[1]) || locals.is_mmio_base(insn.operands[2]);
-}
 
 const CallTarget* BuilderContext::findCallTarget(uint32_t site) const {
   // Search in calls (bl instructions)
@@ -369,7 +399,7 @@ void BuilderContext::emit_mid_asm_hook() {
         if (reg == "ctr")
           out += ctr();
         else
-          out += cr(std::atoi(reg.c_str() + 2));
+          out += cr(RegisterIndex(reg, 2));
         break;
       case 'x':
         out += xer();
@@ -378,16 +408,18 @@ void BuilderContext::emit_mid_asm_hook() {
         if (reg == "reserved")
           out += reserved();
         else
-          out += r(std::atoi(reg.c_str() + 1));
+          out += r(RegisterIndex(reg, 1));
         break;
       case 'f':
         if (reg == "fpscr")
           out += "ctx.fpscr";
         else
-          out += f(std::atoi(reg.c_str() + 1));
+          out += f(RegisterIndex(reg, 1));
         break;
       case 'v':
-        out += v(std::atoi(reg.c_str() + 1));
+        out += v(RegisterIndex(reg, 1));
+        break;
+      default:
         break;
     }
   }
@@ -487,81 +519,29 @@ void BuilderContext::emit_vec_var_shift(const char* shift_dir, const char* eleme
 // Memory (Load/Store) Code Generation Helpers
 //=============================================================================
 
-void BuilderContext::emit_load_d_form(const char* load_macro, const char* dest_type,
-                                      bool check_mmio) {
-  // D-form: rD = LOAD(rA + D) where operands[0]=rD, operands[1]=D, operands[2]=rA
-  // load_macro should be like "REX_LOAD_U8" - we replace REX_LOAD with REX_MM_LOAD for MMIO
-  const char* macro = load_macro;
-  static char mm_macro[64];
-  if (check_mmio && mmio_check_d_form()) {
-    // Replace "REX_LOAD_" with "REX_MM_LOAD_"
-    if (strncmp(load_macro, "REX_LOAD_", 9) == 0) {
-      snprintf(mm_macro, sizeof(mm_macro), "REX_MM_LOAD_%s", load_macro + 9);
-      macro = mm_macro;
-    }
-  }
-
-  print("\t{}.{} = {}(", r(insn.operands[0]), dest_type, macro);
+void BuilderContext::emit_load_d_form(const char* load_macro, const char* dest_type) {
+  print("\t{}.{} = {}(", r(insn.operands[0]), dest_type, MMIOMacro(load_macro));
   if (insn.operands[2] != 0)
     print("{}.u32 + ", r(insn.operands[2]));
   println("{});", static_cast<int32_t>(insn.operands[1]));
 }
 
-void BuilderContext::emit_load_x_form(const char* load_macro, const char* dest_type,
-                                      bool check_mmio) {
-  // X-form: rD = LOAD(rA + rB) where operands[0]=rD, operands[1]=rA, operands[2]=rB
-  // load_macro should be like "REX_LOAD_U8" - we replace REX_LOAD with REX_MM_LOAD for MMIO
-  const char* macro = load_macro;
-  static char mm_macro[64];
-  if (check_mmio && mmio_check_x_form()) {
-    // Replace "REX_LOAD_" with "REX_MM_LOAD_"
-    if (strncmp(load_macro, "REX_LOAD_", 9) == 0) {
-      snprintf(mm_macro, sizeof(mm_macro), "REX_MM_LOAD_%s", load_macro + 9);
-      macro = mm_macro;
-    }
-  }
-
-  print("\t{}.{} = {}(", r(insn.operands[0]), dest_type, macro);
+void BuilderContext::emit_load_x_form(const char* load_macro, const char* dest_type) {
+  print("\t{}.{} = {}(", r(insn.operands[0]), dest_type, MMIOMacro(load_macro));
   if (insn.operands[1] != 0)
     print("{}.u32 + ", r(insn.operands[1]));
   println("{}.u32);", r(insn.operands[2]));
 }
 
-void BuilderContext::emit_store_d_form(const char* store_macro, const char* src_type,
-                                       bool check_mmio) {
-  // D-form: STORE(rA + D, rS) where operands[0]=rS, operands[1]=D, operands[2]=rA
-  // store_macro should be like "REX_STORE_U8" - we replace REX_STORE with REX_MM_STORE for MMIO
-  const char* macro = store_macro;
-  static char mm_macro[64];
-  if (check_mmio && mmio_check_d_form()) {
-    // Replace "REX_STORE_" with "REX_MM_STORE_"
-    if (strncmp(store_macro, "REX_STORE_", 10) == 0) {
-      snprintf(mm_macro, sizeof(mm_macro), "REX_MM_STORE_%s", store_macro + 10);
-      macro = mm_macro;
-    }
-  }
-
-  print("\t{}(", macro);
+void BuilderContext::emit_store_d_form(const char* store_macro, const char* src_type) {
+  print("\t{}(", MMIOMacro(store_macro));
   if (insn.operands[2] != 0)
     print("{}.u32 + ", r(insn.operands[2]));
   println("{}, {}.{});", static_cast<int32_t>(insn.operands[1]), r(insn.operands[0]), src_type);
 }
 
-void BuilderContext::emit_store_x_form(const char* store_macro, const char* src_type,
-                                       bool check_mmio) {
-  // X-form: STORE(rA + rB, rS) where operands[0]=rS, operands[1]=rA, operands[2]=rB
-  // store_macro should be like "REX_STORE_U8" - we replace REX_STORE with REX_MM_STORE for MMIO
-  const char* macro = store_macro;
-  static char mm_macro[64];
-  if (check_mmio && mmio_check_x_form()) {  // Use X-form specific check (operands[1] is base)
-    // Replace "REX_STORE_" with "REX_MM_STORE_"
-    if (strncmp(store_macro, "REX_STORE_", 10) == 0) {
-      snprintf(mm_macro, sizeof(mm_macro), "REX_MM_STORE_%s", store_macro + 10);
-      macro = mm_macro;
-    }
-  }
-
-  print("\t{}(", macro);
+void BuilderContext::emit_store_x_form(const char* store_macro, const char* src_type) {
+  print("\t{}(", MMIOMacro(store_macro));
   if (insn.operands[1] != 0)
     print("{}.u32 + ", r(insn.operands[1]));
   println("{}.u32, {}.{});", r(insn.operands[2]), r(insn.operands[0]), src_type);

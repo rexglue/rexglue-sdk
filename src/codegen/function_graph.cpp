@@ -12,9 +12,14 @@
 #include "ppc/disasm.h"
 #include "builders/builder_context.h"
 #include "builders.h"
+#include "mmio_analysis.h"
 
 #include <algorithm>
 #include <cassert>
+#include <iterator>
+#include <span>
+#include <unordered_map>
+#include <vector>
 #include <unordered_set>
 
 #include <fmt/format.h>
@@ -317,8 +322,7 @@ void FunctionNode::seal() {
   }
 
   // Compute function analysis
-  FunctionAnalysis analysis;
-  analysis_ = std::move(analysis);
+  analysis_ = FunctionAnalysis{};
   state_ = FunctionState::kSealed;
 
   REXLOG_TRACE(
@@ -343,6 +347,88 @@ void emit_println(std::string& out, fmt::format_string<Args...> fmt, Args&&... a
 template <class... Args>
 void emit_print(std::string& out, fmt::format_string<Args...> fmt, Args&&... args) {
   fmt::vformat_to(std::back_inserter(out), fmt.get(), fmt::make_format_args(args...));
+}
+
+bool IsSwitchPattern(const u32* data) {
+  constexpr u32 kMoveToCtrMask = 0xFC1FFFFF;
+  constexpr u32 kMoveToCtr = 0x7C0003A6;
+  constexpr u32 kNop = 0x60000000;
+  for (i32 back = 1; back <= 3; ++back) {
+    const u32 previous = load_and_swap<u32>(data - back);
+    if ((previous & kMoveToCtrMask) == kMoveToCtr) {
+      return true;
+    }
+    if (previous != kNop) {
+      return false;
+    }
+  }
+  return false;
+}
+
+std::unordered_map<u32, JumpTable> DetectLateJumpTables(const FunctionNode& node,
+                                                        const EmitContext& ctx) {
+  std::unordered_map<u32, JumpTable> tables;
+  ppc_insn insn;
+  for (const auto& block : node.blocks()) {
+    const auto* data = reinterpret_cast<const uint32_t*>(ctx.binary.translate(block.base));
+    if (!data) {
+      continue;
+    }
+    for (u32 address = block.base; address < block.end(); address += 4, ++data) {
+      if (ctx.config.switchTables.contains(address)) {
+        continue;
+      }
+      Disassemble(data, 4, address, insn);
+      if (!insn.opcode || insn.opcode->id != PPC_INST_BCTR || !IsSwitchPattern(data)) {
+        continue;
+      }
+      FunctionScanner scanner(ctx.binary, ctx.limits);
+      if (auto table = scanner.detect_jump_table(address)) {
+        REXLOG_TRACE(codegen, "Late-detected jump table at 0x{:08X} with {} entries", address,
+                     table->targets.size());
+        tables.emplace(address, std::move(*table));
+      }
+    }
+  }
+  return tables;
+}
+
+MMIOClassification ClassifyFunctionMMIO(
+    const FunctionNode& node, const EmitContext& ctx,
+    const std::unordered_map<u32, JumpTable>& late_jump_tables) {
+  std::vector<MMIOCodeBlock> blocks;
+  std::vector<JumpTable> jump_tables(node.jumpTables().begin(), node.jumpTables().end());
+  std::vector<u32> hook_sites;
+  std::vector<u32> hook_targets;
+  for (const auto& block : node.blocks()) {
+    const u8* bytes = ctx.binary.translate(block.base);
+    if (!bytes) {
+      continue;
+    }
+    blocks.push_back({block.base, std::span<const u8>(bytes, block.size)});
+    for (u32 address = block.base; address < block.end(); address += 4) {
+      if (const auto table = ctx.config.switchTables.find(address);
+          table != ctx.config.switchTables.end()) {
+        jump_tables.push_back(table->second);
+        jump_tables.back().bctrAddress = address;
+      }
+      if (const auto hook = ctx.config.midAsmHooks.find(address);
+          hook != ctx.config.midAsmHooks.end()) {
+        hook_sites.push_back(address);
+        for (u32 target : {hook->second.jumpAddress, hook->second.jumpAddressOnTrue,
+                           hook->second.jumpAddressOnFalse}) {
+          if (target != 0) {
+            hook_targets.push_back(target);
+          }
+        }
+      }
+    }
+  }
+  for (const auto& [address, table] : late_jump_tables) {
+    jump_tables.push_back(table);
+  }
+  return ClassifyMMIO(
+      {blocks, jump_tables, hook_sites, hook_targets, &ctx.config.declaredMMIOAccesses});
 }
 
 }  // namespace
@@ -447,6 +533,8 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
             case 'v':
               emit_print(out, "PPCVRegister& {}", reg);
               break;
+            default:
+              break;
           }
         }
 
@@ -469,6 +557,26 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
     }
   }
 
+  const auto late_jump_tables = DetectLateJumpTables(*this, ctx);
+  for (const auto& [address, table] : late_jump_tables) {
+    for (auto label : table.targets) {
+      labels.emplace(label);
+    }
+  }
+
+  const MMIOClassification mmio = ClassifyFunctionMMIO(*this, ctx, late_jump_tables);
+  for (const MMIOSite& site : mmio.sites) {
+    if (site.reason == MMIOReason::Unsupported) {
+      REXLOG_ERROR(codegen,
+                   "0x{:08X} reaches the register block at 0x{:08X} through an instruction "
+                   "codegen cannot route, it stays a plain access",
+                   site.address, site.target);
+    }
+    if (ctx.mmio_sites) {
+      ctx.mmio_sites->push_back({base(), site});
+    }
+  }
+
   // --- Function name ---
   std::string name;
   if (base() == ctx.entryPoint) {
@@ -488,9 +596,6 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
   bool allRecompiled = true;
   CSRState csrState = CSRState::Unknown;
   RecompilerLocalVariables localVariables;
-
-  // Local map for late-detected jump tables (can't mutate const config)
-  std::unordered_map<uint32_t, JumpTable> lateJumpTables;
 
   std::string body;
   body.reserve(4096);
@@ -521,8 +626,8 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
       if (stIt != ctx.config.switchTables.end()) {
         activeJt = &stIt->second;
       } else {
-        auto lateIt = lateJumpTables.find(blockBase);
-        if (lateIt != lateJumpTables.end()) {
+        auto lateIt = late_jump_tables.find(blockBase);
+        if (lateIt != late_jump_tables.end()) {
           activeJt = &lateIt->second;
         }
       }
@@ -534,43 +639,6 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
         if (*data != 0)
           REXLOG_WARN(codegen, "Unable to decode instruction {:X} at {:X}", *data, blockBase);
       } else {
-        // Late jump table detection for bctr
-        if (insn.opcode->id == PPC_INST_BCTR && !activeJt) {
-          bool is_switch_pattern = false;
-          constexpr uint32_t MTCTR_MASK = 0xFC1FFFFF;
-          constexpr uint32_t MTCTR_OPCODE = 0x7C0003A6;
-          constexpr uint32_t NOP = 0x60000000;
-
-          for (int i = 1; i <= 3 && !is_switch_pattern; i++) {
-            uint32_t prev_insn = load_and_swap<uint32_t>(data - i);
-            if ((prev_insn & MTCTR_MASK) == MTCTR_OPCODE) {
-              is_switch_pattern = true;
-              for (int j = 1; j < i; j++) {
-                if (load_and_swap<uint32_t>(data - j) != NOP) {
-                  is_switch_pattern = false;
-                  break;
-                }
-              }
-            } else if (prev_insn != NOP) {
-              break;
-            }
-          }
-
-          if (is_switch_pattern) {
-            FunctionScanner scanner(ctx.binary, ctx.limits);
-            auto jt_opt = scanner.detect_jump_table(blockBase);
-            if (jt_opt.has_value()) {
-              lateJumpTables.emplace(blockBase, std::move(*jt_opt));
-              activeJt = &lateJumpTables.at(blockBase);
-              for (auto label : activeJt->targets) {
-                labels.emplace(label);
-              }
-              REXLOG_TRACE(codegen, "Late-detected jump table at 0x{:08X} with {} entries",
-                           blockBase, activeJt->targets.size());
-            }
-          }
-        }
-
         // Emit comment with instruction disassembly
         emit_println(body, "\t// {} {}", insn.opcode->name, insn.op_str);
 
@@ -581,8 +649,8 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
 
         // Dispatch instruction to builder
         int id = insn.opcode->id;
-        BuilderContext builderCtx{body,           ctx,      *this,   insn, blockBase, data,
-                                  localVariables, csrState, activeJt};
+        BuilderContext builderCtx{body,           ctx,      *this,    insn, blockBase, data,
+                                  localVariables, csrState, activeJt, &mmio};
 
         if (hasHookBefore) {
           builderCtx.emit_mid_asm_hook();
@@ -697,7 +765,6 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
 
 void FunctionGraph::addCodeBuffer(uint32_t baseAddress, const uint8_t* data, size_t size) {
   assert_always("FunctionGraph::addCodeBuffer not implemented. Use Recompiler with builders");
-  return;
   // CodeBuffer buffer;
   // buffer.baseAddress = baseAddress;
   // buffer.data.assign(data, data + size);
@@ -1183,7 +1250,8 @@ size_t FunctionGraph::markFuncletRegisterSharing() {
 
   for (auto& entry : functions_) {
     auto& node = entry.second;
-    if (!node->hasExceptionInfo())
+    const auto& info = node->exceptionInfo();
+    if (!info || !info->hasInfo())
       continue;
 
     auto claim = [&](uint32_t addr) {
@@ -1193,12 +1261,12 @@ size_t FunctionGraph::markFuncletRegisterSharing() {
       ranges.emplace_back(it->second->base(), it->second->end());
     };
 
-    if (const auto* seh = node->exceptionInfo()->asSeh()) {
+    if (const auto* seh = info->asSeh()) {
       for (const auto& scope : seh->scopes) {
         claim(scope.handler);
         claim(scope.filter);
       }
-    } else if (const auto* cxx = node->exceptionInfo()->asCxx()) {
+    } else if (const auto* cxx = info->asCxx()) {
       for (const auto& entry : cxx->unwindMap) {
         claim(entry.action);
       }
@@ -1228,7 +1296,9 @@ size_t FunctionGraph::markFuncletRegisterSharing() {
     auto it = std::upper_bound(
         ranges.begin(), ranges.end(), addr,
         [](uint32_t a, const std::pair<uint32_t, uint32_t>& r) { return a < r.first; });
-    return it != ranges.begin() && addr < (--it)->second;
+    if (it == ranges.begin())
+      return false;
+    return addr < std::prev(it)->second;
   };
 
   // A funclet compiled with both an unwind entry and an inline bl entry lands in

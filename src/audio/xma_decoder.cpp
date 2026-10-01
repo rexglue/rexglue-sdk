@@ -16,6 +16,7 @@
 #include <rex/logging.h>
 #include <rex/perf/counter.h>
 #include <rex/math.h>
+#include <rex/mmio.h>
 #include <rex/memory/ring_buffer.h>
 #include <rex/string/buffer.h>
 #include <rex/runtime/function_dispatcher.h>
@@ -89,16 +90,7 @@ X_STATUS XmaDecoder::Setup() {
   // Setup ffmpeg logging callback
   av_log_set_callback(av_log_callback);
 
-  // Register APU/XMA MMIO handlers
-  // XMA registers are at 0x7FEA0000-0x7FEAFFFF
-  memory()->AddVirtualMappedRange(
-      0x7FEA0000,  // base address
-      0xFFFF0000,  // mask
-      0x0000FFFF,  // size (64KB)
-      this,        // context (XmaDecoder*)
-      reinterpret_cast<runtime::MMIOReadCallback>(MMIOReadRegisterThunk),
-      reinterpret_cast<runtime::MMIOWriteCallback>(MMIOWriteRegisterThunk));
-  REXLOG_DEBUG(audio, "XMA: Registered MMIO handlers at 0x7FEA0000-0x7FEAFFFF");
+  rex::AttachMMIO(rex::MMIOBlock::APU, {this, MMIOReadRegisterThunk, MMIOWriteRegisterThunk});
 
   // Setup XMA context data.
   // The Xbox 360 kernel allocates the contexts with X_PAGE_NOCACHE |
@@ -160,6 +152,7 @@ void XmaDecoder::WorkerThreadMain(const std::stop_token& stop) {
 }
 
 void XmaDecoder::Shutdown() {
+  rex::DetachMMIO(rex::MMIOBlock::APU, this);
   if (!worker_.joinable()) {
     return;
   }
@@ -184,7 +177,7 @@ void XmaDecoder::Shutdown() {
   context_data_last_ptr_ = 0;
 }
 
-int XmaDecoder::GetContextId(uint32_t guest_ptr) {
+int XmaDecoder::GetContextId(uint32_t guest_ptr) const {
   static_assert_size(XMA_CONTEXT_DATA, 64);
   if (guest_ptr < context_data_first_ptr_ || guest_ptr > context_data_last_ptr_) {
     return -1;

@@ -1,0 +1,83 @@
+#include <rex/mmio.h>
+
+#include <atomic>
+#include <cstddef>
+#include <string_view>
+
+#include <rex/logging.h>
+
+namespace rex {
+
+namespace {
+
+std::atomic_flag g_null_warned[2];
+
+std::string_view BlockName(MMIOBlock block) {
+  return block == MMIOBlock::GPU ? "GPU" : "APU";
+}
+
+void WarnNullRecipient(u32 address, bool is_write) {
+  const MMIOBlock block = MMIOBlockOf(address).value_or(MMIOBlock::GPU);
+  if (!g_null_warned[static_cast<size_t>(block)].test_and_set(std::memory_order_relaxed)) {
+    REXLOG_WARN(core, "No {} recipient is attached, the {} of 0x{:08X} {}", BlockName(block),
+                is_write ? "write" : "read", address, is_write ? "is dropped" : "returns 0");
+  }
+}
+
+u32 NullRead(void*, u32 address) {
+  WarnNullRecipient(address, false);
+  return 0;
+}
+
+void NullWrite(void*, u32 address, u32) {
+  WarnNullRecipient(address, true);
+}
+
+constexpr MMIORecipient kNullRecipient{nullptr, NullRead, NullWrite};
+
+MMIORecipient& Slot(MMIOBlock block) {
+  return detail::mmio_slots[static_cast<size_t>(block)];
+}
+
+}  // namespace
+
+namespace detail {
+
+MMIORecipient mmio_slots[2]{kNullRecipient, kNullRecipient};
+
+u32 MMIOLoad(u32 address) {
+  const auto block = MMIOBlockOf(address);
+  if (!block) {
+    return 0;
+  }
+  const MMIORecipient& slot = Slot(*block);
+  return slot.read(slot.context, address);
+}
+
+void MMIOStore(u32 address, u32 value) {
+  const auto block = MMIOBlockOf(address);
+  if (!block) {
+    return;
+  }
+  const MMIORecipient& slot = Slot(*block);
+  slot.write(slot.context, address, value);
+}
+
+}  // namespace detail
+
+void AttachMMIO(MMIOBlock block, const MMIORecipient& recipient) {
+  if (!recipient.read || !recipient.write) {
+    REXLOG_ERROR(core, "Refused a {} recipient with no read or no write handler", BlockName(block));
+    return;
+  }
+  Slot(block) = recipient;
+}
+
+void DetachMMIO(MMIOBlock block, const void* context) {
+  MMIORecipient& slot = Slot(block);
+  if (slot.context == context) {
+    slot = kNullRecipient;
+  }
+}
+
+}  // namespace rex

@@ -43,6 +43,35 @@ struct sigaction g_original_sigbus_handler;
 constexpr size_t kMaxHandlerCount = 8;
 
 std::pair<ExceptionHandler::Handler, void*> g_handlers[kMaxHandlerCount];
+
+const struct sigaction* OriginalAction(int signal_number) {
+  switch (signal_number) {
+    case SIGILL:
+      return &g_original_sigill_handler;
+    case SIGSEGV:
+      return &g_original_sigsegv_handler;
+#if REX_PLATFORM_MAC
+    case SIGBUS:
+      return &g_original_sigbus_handler;
+#endif
+    default:
+      return nullptr;
+  }
+}
+
+void ForwardUnclaimed(int signal_number, siginfo_t* signal_info, void* signal_context) {
+  const struct sigaction* original = OriginalAction(signal_number);
+  if (original && (original->sa_flags & SA_SIGINFO) != 0 && original->sa_sigaction) {
+    original->sa_sigaction(signal_number, signal_info, signal_context);
+    return;
+  }
+  if (original && (original->sa_flags & SA_SIGINFO) == 0 && original->sa_handler != SIG_DFL &&
+      original->sa_handler != SIG_IGN) {
+    original->sa_handler(signal_number);
+    return;
+  }
+  signal(signal_number, SIG_DFL);
+}
 }  // namespace
 
 static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
@@ -391,6 +420,7 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
       return;
     }
   }
+  ForwardUnclaimed(signal_number, signal_info, signal_context);
 }
 
 void ExceptionHandler::Install(Handler fn, void* data) {

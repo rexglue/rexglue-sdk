@@ -55,9 +55,7 @@ template <typename T>
 void MergeScalar(T& dst, const T& src, const char* name) {
   if (src != T{} && src != dst) {
     if (dst != T{}) {
-      if constexpr (std::is_same_v<T, bool>) {
-        REXLOG_DEBUG(codegen, "config   {}: {} -> {} (overridden)", name, dst, src);
-      } else if constexpr (std::is_same_v<T, std::string>) {
+      if constexpr (std::is_same_v<T, std::string>) {
         REXLOG_DEBUG(codegen, "config   {}: \"{}\" -> \"{}\" (overridden)", name, dst, src);
       } else {
         REXLOG_DEBUG(codegen, "config   {}: {} -> {} (overridden)", name, dst, src);
@@ -428,6 +426,29 @@ bool ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
       }
     }
   }
+  for (const MMIOBlock block : {MMIOBlock::GPU, MMIOBlock::APU}) {
+    const std::string_view block_name = block == MMIOBlock::GPU ? "gpu" : "apu";
+    for (const bool write : {false, true}) {
+      const std::string_view list_name = write ? "write" : "read";
+      const auto* list = toml["mmio"][block_name][list_name].as_array();
+      if (!list) {
+        continue;
+      }
+      for (const auto& entry : *list) {
+        const auto addr = entry.value<int64_t>();
+        if (!addr) {
+          REXLOG_ERROR(codegen, "[mmio.{}] {} holds an entry that is not an integer address",
+                       block_name, list_name);
+          return false;
+        }
+        if (!cfg.declaredMMIOAccesses.try_emplace(static_cast<u32>(*addr), block, write).second) {
+          REXLOG_ERROR(codegen, "[mmio.{}] {} 0x{:08X} is declared twice", block_name, list_name,
+                       *addr);
+          return false;
+        }
+      }
+    }
+  }
   return true;
 }
 
@@ -565,6 +586,9 @@ RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
   // Check special address alignment
   checkAlignment(longJmpAddress, "longjmp");
   checkAlignment(setJmpAddress, "setjmp");
+  for (const auto& entry : declaredMMIOAccesses) {
+    checkAlignment(entry.first, "mmio");
+  }
 
   for (const auto& [name, addr] : shimFunctions) {
     if (addr & 0x3) {

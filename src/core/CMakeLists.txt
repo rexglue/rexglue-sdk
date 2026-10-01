@@ -19,6 +19,7 @@ add_library(rexcore SHARED
     log_sinks.cpp
     logger.cpp
     memory.cpp
+    mmio.cpp
     module_loader.cpp
     lock_order.cpp
     platform/file.cpp

@@ -4,6 +4,7 @@ add_executable(unit_tests
     test_memory.cpp
     audio/xma_decoder_test.cpp
     memory/heap_allocation_test.cpp
+    memory/access_violation_test.cpp
     kernel/exit_title_test.cpp
     kernel/object_table_test.cpp
     kernel/shim_registry_test.cpp
@@ -28,6 +29,7 @@ add_executable(unit_tests
     core/stream_test.cpp
     core/chrono_test.cpp
     core/macros_test.cpp
+    core/mmio_test.cpp
     core/module_loader_test.cpp
     core/relaunch_test.cpp
     core/thread_registry_test.cpp
@@ -49,6 +51,7 @@ add_executable(unit_tests
     codegen/output_stamp_test.cpp
     codegen/shim_config_test.cpp
     codegen/tool_runtime_test.cpp
+    codegen/mmio_analysis_test.cpp
 )
 
 target_sources(unit_tests PRIVATE

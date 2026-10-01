@@ -19,6 +19,8 @@
 #include <rex/codegen/config.h>
 #include <rex/codegen/function_graph.h>
 
+#include "mmio_analysis.h"
+
 struct ppc_insn;
 
 namespace rex::codegen {
@@ -37,21 +39,6 @@ struct RecompilerLocalVariables {
   bool temp{};
   bool v_temp{};
   bool ea{};
-
-  /// Tracks which GPRs contain MMIO base addresses (bit N = rN is MMIO base)
-  /// Set when lis loads a value with upper 16 bits >= 0x7F00 (address >= 0x7F000000)
-  /// or when oris sets upper bits >= 0xC800 (address >= 0xC8000000)
-  uint32_t mmio_base_regs{0};
-
-  void set_mmio_base(size_t reg) {
-    if (reg < 32)
-      mmio_base_regs |= (1u << reg);
-  }
-  void clear_mmio_base(size_t reg) {
-    if (reg < 32)
-      mmio_base_regs &= ~(1u << reg);
-  }
-  bool is_mmio_base(size_t reg) const { return reg < 32 && (mmio_base_regs & (1u << reg)); }
 };
 
 /**
@@ -97,6 +84,9 @@ struct BuilderContext {
 
   /// Pointer to active jump table for bctr dispatch, or nullptr
   const JumpTable* activeJumpTable = nullptr;
+
+  /** MMIO classification of the current function, or nullptr. */
+  const MMIOClassification* mmio = nullptr;
 
   /// Get the recompiler configuration
   const RecompilerConfig& config() const;
@@ -195,22 +185,13 @@ struct BuilderContext {
   //=========================================================================
 
   /**
-   * @brief Check if current D-form load/store targets MMIO address.
+   * Maps a plain memory macro to the macro the current instruction needs.
    *
-   * Checks: next instruction is eieio, or operands[2] (base register) is MMIO base.
-   *
-   * @return true if this is an MMIO access
+   * @param plain A REX_LOAD_ or REX_STORE_ macro name.
+   * @return The REX_GPU_ or REX_APU_ macro for a proven 32 bit access, the REX_MM_ macro of the
+   *         same width for any other proven or guarded access, otherwise plain.
    */
-  bool mmio_check_d_form();
-
-  /**
-   * @brief Check if current X-form load/store targets MMIO address.
-   *
-   * Checks: next instruction is eieio, or operands[1]/operands[2] is MMIO base.
-   *
-   * @return true if this is an MMIO access
-   */
-  bool mmio_check_x_form();
+  std::string_view MMIOMacro(std::string_view plain) const;
 
   /**
    * @brief Find pre-resolved call target for an instruction site.
@@ -318,42 +299,38 @@ struct BuilderContext {
    * @brief Emit load with D-form addressing: rD = LOAD(rA + offset)
    * @param load_macro The load macro name (e.g., "REX_LOAD_U8", "REX_LOAD_U32")
    * @param dest_type The destination type suffix (e.g., "u64", "s64")
-   * @param check_mmio If true, uses mmio_load() to detect memory-mapped I/O
    *
    * Uses operands[0]=rD, operands[1]=offset (D), operands[2]=rA from current instruction.
    * If rA (operands[2]) is 0, omits the base register addition.
    */
-  void emit_load_d_form(const char* load_macro, const char* dest_type, bool check_mmio = true);
+  void emit_load_d_form(const char* load_macro, const char* dest_type);
 
   /**
    * @brief Emit load with X-form addressing: rD = LOAD(rA + rB)
    * @param load_macro The load macro name
    * @param dest_type The destination type suffix
-   * @param check_mmio If true, uses mmio_load_x_form() to detect memory-mapped I/O
    *
    * Uses operands[0]=rD, operands[1]=rA, operands[2]=rB from current instruction.
    * If rA (operands[1]) is 0, omits the first register addition.
    */
-  void emit_load_x_form(const char* load_macro, const char* dest_type, bool check_mmio = true);
+  void emit_load_x_form(const char* load_macro, const char* dest_type);
 
   /**
    * @brief Emit store with D-form addressing: STORE(rA + offset, rS)
    * @param store_macro The store macro name (e.g., "REX_STORE_U8")
    * @param src_type The source type suffix (e.g., "u8", "u32")
-   * @param check_mmio If true, uses mmio_store() to detect memory-mapped I/O
    *
    * Uses operands[0]=rS, operands[1]=offset (D), operands[2]=rA from current instruction.
    */
-  void emit_store_d_form(const char* store_macro, const char* src_type, bool check_mmio = true);
+  void emit_store_d_form(const char* store_macro, const char* src_type);
 
   /**
    * @brief Emit store with X-form addressing: STORE(rA + rB, rS)
    * @param store_macro The store macro name
    * @param src_type The source type suffix
-   * @param check_mmio If true, uses mmio_store() to detect memory-mapped I/O
    *
    * Uses operands[0]=rS, operands[1]=rA, operands[2]=rB from current instruction.
    */
-  void emit_store_x_form(const char* store_macro, const char* src_type, bool check_mmio = true);
+  void emit_store_x_form(const char* store_macro, const char* src_type);
 };
 }  // namespace rex::codegen

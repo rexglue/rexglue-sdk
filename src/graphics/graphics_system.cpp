@@ -23,6 +23,7 @@
 #include <rex/graphics/command_processor.h>
 #include <rex/kernel/xboxkrnl/video.h>
 #include <rex/logging.h>
+#include <rex/mmio.h>
 #include <rex/runtime.h>
 #include <rex/runtime/xthread.h>
 #include <rex/ui/graphics_provider.h>
@@ -59,14 +60,18 @@ namespace rex::graphics {
 // https://stackoverflow.com/questions/17458803/amd-equivalent-to-nvoptimusenablement
 #if REX_PLATFORM_WIN32
 extern "C" {
+// NOLINTBEGIN(readability-identifier-naming) the GPU drivers look these names up
 __declspec(dllexport) uint32_t NvOptimusEnablement = 0x00000001;
 __declspec(dllexport) uint32_t AmdPowerXpressRequestHighPerformance = 1;
+// NOLINTEND(readability-identifier-naming)
 }  // extern "C"
 #endif  // REX_PLATFORM_WIN32
 
 GraphicsSystem::GraphicsSystem() : vsync_worker_running_(false) {}
 
-GraphicsSystem::~GraphicsSystem() = default;
+GraphicsSystem::~GraphicsSystem() {
+  rex::DetachMMIO(rex::MMIOBlock::GPU, this);
+}
 
 X_STATUS GraphicsSystem::SetupPresentation(ui::WindowedAppContext* app_context) {
   if (presenter_) {
@@ -127,14 +132,7 @@ X_STATUS GraphicsSystem::SetupGuestGPU(runtime::FunctionDispatcher* function_dis
   command_processor_->SetDesiredSwapPostEffect(
       ParseSwapPostEffect(REXCVAR_GET(::rex::graphics::cvars::swap_post_effect)));
 
-  // Register GPU MMIO handlers
-  // GPU registers are at 0x7FC80000-0x7FCFFFFF
-  memory_->AddVirtualMappedRange(0x7FC80000,  // base address
-                                 0xFFFF0000,  // mask
-                                 0x0000FFFF,  // size (64KB)
-                                 this,        // context (GraphicsSystem*)
-                                 reinterpret_cast<runtime::MMIOReadCallback>(ReadRegisterThunk),
-                                 reinterpret_cast<runtime::MMIOWriteCallback>(WriteRegisterThunk));
+  rex::AttachMMIO(rex::MMIOBlock::GPU, {this, ReadRegisterThunk, WriteRegisterThunk});
 
   // Guest vblank timer based on the configured guest video mode.
   vsync_worker_running_ = true;
@@ -167,6 +165,7 @@ X_STATUS GraphicsSystem::SetupGuestGPU(runtime::FunctionDispatcher* function_dis
 }
 
 void GraphicsSystem::Shutdown() {
+  rex::DetachMMIO(rex::MMIOBlock::GPU, this);
   if (command_processor_) {
     command_processor_->Shutdown();
     command_processor_.reset();
@@ -209,13 +208,12 @@ void GraphicsSystem::OnHostGpuLossFromAnyThread([[maybe_unused]] bool is_respons
   rex::FatalError("Graphics device lost (probably due to an internal error)");
 }
 
-uint32_t GraphicsSystem::ReadRegisterThunk(void* ppc_context, GraphicsSystem* gs, uint32_t addr) {
-  return gs->ReadRegister(addr);
+u32 GraphicsSystem::ReadRegisterThunk(void* context, u32 addr) {
+  return static_cast<GraphicsSystem*>(context)->ReadRegister(addr);
 }
 
-void GraphicsSystem::WriteRegisterThunk(void* ppc_context, GraphicsSystem* gs, uint32_t addr,
-                                        uint32_t value) {
-  gs->WriteRegister(addr, value);
+void GraphicsSystem::WriteRegisterThunk(void* context, u32 addr, u32 value) {
+  static_cast<GraphicsSystem*>(context)->WriteRegister(addr, value);
 }
 
 uint32_t GraphicsSystem::ReadRegister(uint32_t addr) {

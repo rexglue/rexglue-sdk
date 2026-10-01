@@ -184,7 +184,8 @@ inline void emitLoadWithUpdate(BuilderContext& ctx, const char* load_macro) {
   ctx.println("\t{} = {} + {}.u32;", ctx.ea(), static_cast<int32_t>(ctx.insn.operands[1]),
               ctx.r(ctx.insn.operands[2]));
   // rD = MEM[EA]
-  ctx.println("\t{}.u64 = {}({});", ctx.r(ctx.insn.operands[0]), load_macro, ctx.ea());
+  ctx.println("\t{}.u64 = {}({});", ctx.r(ctx.insn.operands[0]), ctx.MMIOMacro(load_macro),
+              ctx.ea());
   // rA = EA (update)
   ctx.println("\t{}.u32 = {};", ctx.r(ctx.insn.operands[2]), ctx.ea());
 }
@@ -201,7 +202,8 @@ inline void emitLoadWithUpdate(BuilderContext& ctx, const char* load_macro) {
 inline void emitLoadXFormWithUpdate(BuilderContext& ctx, const char* load_macro) {
   ctx.println("\t{} = {}.u32 + {}.u32;", ctx.ea(), ctx.r(ctx.insn.operands[1]),
               ctx.r(ctx.insn.operands[2]));
-  ctx.println("\t{}.u64 = {}({});", ctx.r(ctx.insn.operands[0]), load_macro, ctx.ea());
+  ctx.println("\t{}.u64 = {}({});", ctx.r(ctx.insn.operands[0]), ctx.MMIOMacro(load_macro),
+              ctx.ea());
   ctx.println("\t{}.u32 = {};", ctx.r(ctx.insn.operands[1]), ctx.ea());
 }
 
@@ -220,7 +222,8 @@ inline void emitStoreWithUpdate(BuilderContext& ctx, const char* store_macro, co
   ctx.println("\t{} = {} + {}.u32;", ctx.ea(), static_cast<int32_t>(ctx.insn.operands[1]),
               ctx.r(ctx.insn.operands[2]));
   // MEM[EA] = rS
-  ctx.println("\t{}({}, {}.{});", store_macro, ctx.ea(), ctx.r(ctx.insn.operands[0]), field);
+  ctx.println("\t{}({}, {}.{});", ctx.MMIOMacro(store_macro), ctx.ea(), ctx.r(ctx.insn.operands[0]),
+              field);
   // rA = EA (update)
   ctx.println("\t{}.u32 = {};", ctx.r(ctx.insn.operands[2]), ctx.ea());
 }
@@ -232,30 +235,16 @@ inline void emitStoreWithUpdate(BuilderContext& ctx, const char* store_macro, co
  * Used by: stbux, sthux, stwux, stdux
  *
  * @param ctx The builder context
- * @param store_macro The REX_STORE_* normal macro (e.g., "REX_STORE_U8")
- * @param mmio_macro The REX_MM_STORE_* MMIO macro (e.g., "REX_MM_STORE_U8")
+ * @param store_macro The REX_STORE_* macro (e.g., "REX_STORE_U8")
  * @param field The register field to store (e.g., "u8", "u32", "u64")
  */
 inline void emitStoreXFormWithUpdate(BuilderContext& ctx, const char* store_macro,
-                                     const char* mmio_macro, const char* field) {
+                                     const char* field) {
   ctx.println("\t{} = {}.u32 + {}.u32;", ctx.ea(), ctx.r(ctx.insn.operands[1]),
               ctx.r(ctx.insn.operands[2]));
-  ctx.println("\t{}({}, {}.{});", ctx.mmio_check_x_form() ? mmio_macro : store_macro, ctx.ea(),
-              ctx.r(ctx.insn.operands[0]), field);
+  ctx.println("\t{}({}, {}.{});", ctx.MMIOMacro(store_macro), ctx.ea(), ctx.r(ctx.insn.operands[0]),
+              field);
   ctx.println("\t{}.u32 = {};", ctx.r(ctx.insn.operands[1]), ctx.ea());
-}
-
-/**
- * Get the appropriate store macro based on MMIO context.
- *
- * @param ctx The builder context
- * @param normal_macro Normal store macro (e.g., "REX_STORE_U32")
- * @param mmio_macro MMIO store macro (e.g., "REX_MM_STORE_U32")
- * @return The appropriate macro string
- */
-inline const char* getStoreMacro(BuilderContext& ctx, const char* normal_macro,
-                                 const char* mmio_macro) {
-  return ctx.mmio_check_d_form() ? mmio_macro : normal_macro;
 }
 
 //=============================================================================
@@ -326,7 +315,7 @@ inline void emitAtomicStoreConditional(BuilderContext& ctx, const char* ptr_type
  */
 inline void emitSignExtendLoadDForm(BuilderContext& ctx, const char* cast_type,
                                     const char* load_macro) {
-  ctx.print("\t{}.s64 = {}({}(", ctx.r(ctx.insn.operands[0]), cast_type, load_macro);
+  ctx.print("\t{}.s64 = {}({}(", ctx.r(ctx.insn.operands[0]), cast_type, ctx.MMIOMacro(load_macro));
   if (ctx.insn.operands[2] != 0)
     ctx.print("{}.u32 + ", ctx.r(ctx.insn.operands[2]));
   ctx.println("{}));", static_cast<int32_t>(ctx.insn.operands[1]));
@@ -344,28 +333,10 @@ inline void emitSignExtendLoadDForm(BuilderContext& ctx, const char* cast_type,
  */
 inline void emitSignExtendLoadXForm(BuilderContext& ctx, const char* cast_type,
                                     const char* load_macro) {
-  ctx.print("\t{}.s64 = {}({}(", ctx.r(ctx.insn.operands[0]), cast_type, load_macro);
+  ctx.print("\t{}.s64 = {}({}(", ctx.r(ctx.insn.operands[0]), cast_type, ctx.MMIOMacro(load_macro));
   if (ctx.insn.operands[1] != 0)
     ctx.print("{}.u32 + ", ctx.r(ctx.insn.operands[1]));
   ctx.println("{}.u32));", ctx.r(ctx.insn.operands[2]));
-}
-
-//=============================================================================
-// MMIO Detection Helpers
-//=============================================================================
-
-/**
- * Check if an upper-16-bit immediate value corresponds to a known MMIO range.
- *
- * Xbox 360 hardware register ranges:
- * - GPU MMIO: 0x7FC80000-0x7FCFFFFF (upper bits: 0x7FC8-0x7FCF)
- * - XMA/APU MMIO: 0x7FEA0000-0x7FEAFFFF (upper bits: 0x7FEA)
- *
- * @param imm The upper 16 bits loaded by lis/oris
- * @return true if the value matches a known MMIO base address range
- */
-inline bool isMMIOUpperBits(uint32_t imm) {
-  return (imm >= 0x7FC8 && imm <= 0x7FCF) || imm == 0x7FEA;
 }
 
 //=============================================================================

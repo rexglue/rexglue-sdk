@@ -95,9 +95,8 @@ class GraphicsSystem : public IGraphicsBackend {
 
   virtual std::unique_ptr<CommandProcessor> CreateCommandProcessor() = 0;
 
-  static uint32_t ReadRegisterThunk(void* ppc_context, GraphicsSystem* gs, uint32_t addr);
-  static void WriteRegisterThunk(void* ppc_context, GraphicsSystem* gs, uint32_t addr,
-                                 uint32_t value);
+  static u32 ReadRegisterThunk(void* context, u32 addr);
+  static void WriteRegisterThunk(void* context, u32 addr, u32 value);
 
   uint32_t ReadRegister(uint32_t addr);
   void WriteRegister(uint32_t addr, uint32_t value);

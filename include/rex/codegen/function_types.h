@@ -39,6 +39,7 @@ class FunctionNode;
 class BinaryView;
 struct RecompilerConfig;
 struct Limits;
+struct MMIOReportSite;
 
 /// Lightweight context passed to FunctionNode::emitCpp() and BuilderContext.
 /// Non-owning references -- caller must ensure lifetimes.
@@ -52,6 +53,9 @@ struct EmitContext {
   /// Every function name emitted as a call. The writer turns this into the
   /// per-file declaration header, so a missed name is a compile error.
   std::unordered_set<std::string>* referenced = nullptr;
+
+  /** Every classified MMIO site of the emitted functions, for the codegen report. */
+  std::vector<MMIOReportSite>* mmio_sites = nullptr;
 
   void reference(std::string_view name) const {
     if (referenced)

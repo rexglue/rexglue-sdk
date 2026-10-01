@@ -22,6 +22,7 @@
 #include <toml++/toml.hpp>
 
 #include <rex/codegen/function_graph.h>  // For JumpTable
+#include <rex/mmio.h>
 
 namespace rex::codegen {
 
@@ -42,6 +43,14 @@ struct MidAsmHook {
 
 // Unified function/chunk configuration
 // A "chunk" is simply a function entry with a non-zero parent field
+/** A load or store the [mmio.gpu] or [mmio.apu] table routes to a register block. */
+struct MMIODeclaredAccess {
+  /** The register block the instruction reaches. */
+  MMIOBlock block;
+  /** True when the table lists the instruction under write. */
+  bool write;
+};
+
 struct FunctionConfig {
   uint32_t size = 0;    // Explicit size in bytes (mutually exclusive with end)
   uint32_t end = 0;     // End address, exclusive (mutually exclusive with size)
@@ -121,6 +130,8 @@ struct RecompilerConfig {
   std::unordered_map<uint32_t, uint32_t> invalidInstructionHints;  ///< addr -> size
   std::unordered_set<uint32_t>
       knownIndirectCallHints;  ///< bctr addresses that are vtable/computed calls
+  /** Loads and stores the [mmio.gpu] and [mmio.apu] tables route to a register block. */
+  std::unordered_map<u32, MMIODeclaredAccess> declaredMMIOAccesses;
   std::vector<uint32_t> exceptionHandlerFuncHints;  ///< Additional exception handler addresses
 
   /**

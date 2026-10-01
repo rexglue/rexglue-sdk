@@ -54,17 +54,16 @@ class XmaDecoder {
   void Resume();
 
  protected:
-  int GetContextId(uint32_t guest_ptr);
+  int GetContextId(uint32_t guest_ptr) const;
 
  private:
   void WorkerThreadMain(const std::stop_token& stop);
 
-  static uint32_t MMIOReadRegisterThunk(void* ppc_context, XmaDecoder* as, uint32_t addr) {
-    return as->ReadRegister(addr);
+  static u32 MMIOReadRegisterThunk(void* context, u32 addr) {
+    return static_cast<XmaDecoder*>(context)->ReadRegister(addr);
   }
-  static void MMIOWriteRegisterThunk(void* ppc_context, XmaDecoder* as, uint32_t addr,
-                                     uint32_t value) {
-    as->WriteRegister(addr, value);
+  static void MMIOWriteRegisterThunk(void* context, u32 addr, u32 value) {
+    static_cast<XmaDecoder*>(context)->WriteRegister(addr, value);
   }
 
  protected:

@@ -40,7 +40,6 @@ set(REXSYSTEM_SOURCES
     ppc_types.cpp
     elf_module.cpp
     lzx.cpp
-    mmio_handler.cpp
     map_parser.cpp
     module.cpp
     function_dispatcher.cpp
