@@ -15,10 +15,13 @@ add_library(rexcore SHARED
     filesystem/xcontent.cpp
     hash.cpp
     instance_lock.cpp
-    logging.cpp
+    interrupt_mask.cpp
+    log_file.cpp
+    log_sinks.cpp
+    logger.cpp
     memory.cpp
     module_loader.cpp
-    mutex.cpp
+    lock_order.cpp
     platform/file.cpp
     ring_buffer.cpp
     string_buffer.cpp
