@@ -20,11 +20,7 @@
 #include <rex/memory/utils.h>
 #include <rex/ppc/func.h>  // PPCFunc type
 #include <rex/system/mmio_handler.h>
-#include <rex/platform/mutex.h>
-
-namespace rex {
-class ByteStream;
-}  // namespace rex
+#include <rex/platform/lock_order.h>
 
 namespace rex::memory::detail {
 
@@ -225,25 +221,85 @@ class BaseHeap {
   void Reset();
 
  protected:
+  friend class PhysicalHeap;
+
   BaseHeap();
 
-  // Callers must hold the global critical region - see
-  // AcquireHostPageReconcileLock.
+  /**
+   * Reconciles host page access with guest page protection. The caller holds the memory watch lock
+   * when guest pages are smaller than host pages.
+   *
+   * @param start_page_number First guest page of the range.
+   * @param end_page_number Last guest page of the range.
+   * @return True when the host protection was updated.
+   */
   bool SyncHostPageAccess(uint32_t start_page_number, uint32_t end_page_number);
 
-  // Acquires the global critical region for operations that will run the host
-  // page reconcile pass, which reads watch state guarded by it.
-  //
-  // It must be taken before heap_mutex_, not partway through: mutex.h requires
-  // the global region to be acquired first and held longest, and
-  // PhysicalHeap::Decommit/Release/Protect already call down into BaseHeap
-  // with it held. Acquiring it inside SyncHostPageAccess instead would give
-  // those paths heap_mutex_ -> global while PhysicalHeap has global ->
-  // heap_mutex_, which deadlocks.
-  //
-  // Returns an empty (unlocked) guard when guest pages are at least host page
-  // sized, since no reconcile happens then and the lock would be pure cost.
-  virtual std::unique_lock<std::recursive_mutex> AcquireHostPageReconcileLock() const;
+  /**
+   * Takes the memory watch lock for operations that reconcile host page access.
+   *
+   * @return The held lock, or an empty lock when guest pages are at least host page sized.
+   */
+  virtual std::unique_lock<rex::platform::RankedMutex> AcquireHostPageReconcileLock() const;
+
+  /**
+   * Allocates at a fixed address with the reconcile lock already held.
+   *
+   * @param base_address Guest address to allocate at.
+   * @param size Size in bytes.
+   * @param alignment Alignment in bytes.
+   * @param allocation_type Memory allocation flags.
+   * @param protect Memory protect flags.
+   * @return True on success.
+   */
+  bool AllocFixedLocked(uint32_t base_address, uint32_t size, uint32_t alignment,
+                        uint32_t allocation_type, uint32_t protect);
+
+  /**
+   * Allocates within an address range with the reconcile lock already held.
+   *
+   * @param low_address Lowest acceptable guest address.
+   * @param high_address Highest acceptable guest address.
+   * @param size Size in bytes.
+   * @param alignment Alignment in bytes.
+   * @param allocation_type Memory allocation flags.
+   * @param protect Memory protect flags.
+   * @param top_down True to allocate from the top of the range.
+   * @param out_address Receives the allocated guest address.
+   * @return True on success.
+   */
+  bool AllocRangeLocked(uint32_t low_address, uint32_t high_address, uint32_t size,
+                        uint32_t alignment, uint32_t allocation_type, uint32_t protect,
+                        bool top_down, uint32_t* out_address);
+
+  /**
+   * Decommits with the reconcile lock already held.
+   *
+   * @param address Guest address of the range.
+   * @param size Size in bytes.
+   * @return True on success.
+   */
+  bool DecommitLocked(uint32_t address, uint32_t size);
+
+  /**
+   * Releases with the reconcile lock already held.
+   *
+   * @param address Guest base address of the region.
+   * @param out_region_size Receives the size of the released region.
+   * @return True on success.
+   */
+  bool ReleaseLocked(uint32_t address, uint32_t* out_region_size);
+
+  /**
+   * Changes protection with the reconcile lock already held.
+   *
+   * @param address Guest address of the range.
+   * @param size Size in bytes.
+   * @param protect Memory protect flags.
+   * @param old_protect Receives the previous protection.
+   * @return True on success.
+   */
+  bool ProtectLocked(uint32_t address, uint32_t size, uint32_t protect, uint32_t* old_protect);
 
   // Whether a host page is currently write-watched for guest invalidation.
   // SyncHostPageAccess must not restore write access to such a page: the watch
@@ -264,7 +320,6 @@ class BaseHeap {
   uint32_t page_size_shift_ = 0;
   uint32_t host_address_offset_;
   uint32_t unreserved_page_count_ = 0;
-  rex::platform::global_critical_region global_critical_region_;
   std::recursive_mutex heap_mutex_;
   std::vector<PageEntry> page_table_;
 };
@@ -313,20 +368,28 @@ class PhysicalHeap : public BaseHeap {
   void EnableAccessCallbacks(uint32_t physical_address, uint32_t length,
                              bool enable_invalidation_notifications, bool enable_data_providers);
   // Returns true if any page in the range was watched.
-  bool TriggerCallbacks(std::unique_lock<std::recursive_mutex> global_lock_locked_once,
-                        uint32_t virtual_address, uint32_t length, bool is_write,
+  bool TriggerCallbacks(uint32_t virtual_address, uint32_t length, bool is_write,
                         bool unwatch_exact_range, bool unprotect = true);
+
+  /**
+   * TriggerCallbacks with the memory watch lock already held.
+   *
+   * @param virtual_address Guest address of the range.
+   * @param length Length in bytes.
+   * @param is_write True for a write access.
+   * @param unwatch_exact_range True to unwatch only the requested range.
+   * @param unprotect True to restore host write access.
+   * @return True when any page in the range was watched.
+   */
+  bool TriggerCallbacksLocked(uint32_t virtual_address, uint32_t length, bool is_write,
+                              bool unwatch_exact_range, bool unprotect = true);
 
   uint32_t GetPhysicalAddress(uint32_t address) const;
 
  protected:
   bool IsHostPageWriteWatched(uint32_t host_page_number) const override;
 
-  // Allocation on these heaps delegates to parent_heap_, whose own reconcile
-  // pass takes the global critical region. Acquire whenever this heap or its
-  // parent will need it, so the ordering holds even for a heap whose own guest
-  // pages are large enough to skip reconciling but whose parent's are not.
-  std::unique_lock<std::recursive_mutex> AcquireHostPageReconcileLock() const override;
+  std::unique_lock<rex::platform::RankedMutex> AcquireHostPageReconcileLock() const override;
 
   VirtualHeap* parent_heap_;
 
@@ -338,7 +401,7 @@ class PhysicalHeap : public BaseHeap {
     // callbacks.
     uint64_t notify_on_invalidation;
   };
-  // Protected by global_critical_region. Flags for each 64 system pages,
+  // Protected by Memory::watch_mutex(). Flags for each 64 system pages,
   // interleaved as blocks, so bit scan can be used to quickly extract ranges.
   std::vector<SystemPageFlagsBlock> system_page_flags_;
 };
@@ -500,12 +563,18 @@ class Memory {
 
   // Forces triggering of watch callbacks for a virtual address range if pages
   // are watched there and unwatching them. Returns whether any page was
-  // watched. Must be called with global critical region locking depth of 1.
-  // TODO(Triang3l): Implement data providers - this is why locking depth of 1
-  // will be required in the future.
-  bool TriggerPhysicalMemoryCallbacks(
-      std::unique_lock<std::recursive_mutex> global_lock_locked_once, uint32_t virtual_address,
-      uint32_t length, bool is_write, bool unwatch_exact_range, bool unprotect = true);
+  // watched.
+  bool TriggerPhysicalMemoryCallbacks(uint32_t virtual_address, uint32_t length, bool is_write,
+                                      bool unwatch_exact_range, bool unprotect = true);
+
+  /**
+   * Returns the lock that guards the physical memory watch state of the heaps and of every
+   * registered invalidation callback client. It is a Leaf lock held while callbacks run, so
+   * callbacks take no other ranked lock.
+   *
+   * @return The watch lock.
+   */
+  rex::platform::RankedMutex& watch_mutex() { return watch_mutex_; }
 
   // Allocates virtual memory from the 'system' heap.
   // System memory is kept separate from game memory but is still accessible
@@ -560,11 +629,8 @@ class Memory {
 
   static uint32_t HostToGuestVirtualThunk(const void* context, const void* host_address);
 
-  bool AccessViolationCallback(std::unique_lock<std::recursive_mutex> global_lock_locked_once,
-                               void* host_address, bool is_write);
-  static bool AccessViolationCallbackThunk(
-      std::unique_lock<std::recursive_mutex> global_lock_locked_once, void* context,
-      void* host_address, bool is_write);
+  bool AccessViolationCallback(void* host_address, bool is_write);
+  static bool AccessViolationCallbackThunk(void* context, void* host_address, bool is_write);
 
   std::filesystem::path file_name_;
   uint32_t system_page_size_ = 0;
@@ -615,7 +681,7 @@ class Memory {
   friend class BaseHeap;
 
   friend class PhysicalHeap;
-  rex::platform::global_critical_region global_critical_region_;
+  rex::platform::RankedMutex watch_mutex_{rex::platform::LockRank::Leaf};
   std::vector<std::pair<PhysicalMemoryInvalidationCallback, void*>*>
       physical_memory_invalidation_callbacks_;
 };

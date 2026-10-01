@@ -16,7 +16,6 @@
 #include <vector>
 
 #include <rex/platform.h>
-#include <rex/platform/mutex.h>
 
 namespace rex::platform {
 class Exception;
@@ -44,13 +43,8 @@ class MMIOHandler {
   virtual ~MMIOHandler();
 
   typedef uint32_t (*HostToGuestVirtual)(const void* context, const void* host_address);
-  typedef bool (*AccessViolationCallback)(
-      std::unique_lock<std::recursive_mutex> global_lock_locked_once, void* context,
-      void* host_address, bool is_write);
+  typedef bool (*AccessViolationCallback)(void* context, void* host_address, bool is_write);
 
-  // access_violation_callback is called with global_critical_region locked once
-  // on the thread, so if multiple threads trigger an access violation in the
-  // same page, the callback will be called only once.
   static std::unique_ptr<MMIOHandler> Install(uint8_t* virtual_membase, uint8_t* physical_membase,
                                               uint8_t* membase_end,
                                               HostToGuestVirtual host_to_guest_virtual,
@@ -88,8 +82,6 @@ class MMIOHandler {
   void* access_violation_callback_context_;
 
   static MMIOHandler* global_handler_;
-
-  rex::platform::global_critical_region global_critical_region_;
 
  private:
   struct DecodedLoadStore {

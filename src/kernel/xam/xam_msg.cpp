@@ -59,14 +59,14 @@ X_HRESULT XMsgStartIORequestEx(uint32_t app, uint32_t message, uint32_t overlapp
   if (result == X_E_NOTFOUND) {
     REXLOG_ERROR(kernel, "XMsgStartIORequestEx: app {:08X} undefined", app);
     result = X_E_INVALIDARG;
-    XThread::SetLastError(X_ERROR_NOT_FOUND);
+    ThreadRecord::SetLastError(X_ERROR_NOT_FOUND);
   }
   if (overlapped_ptr) {
     REX_KERNEL_STATE()->CompleteOverlappedImmediate(overlapped_ptr, result);
     result = X_ERROR_IO_PENDING;
   }
   if (result == X_ERROR_SUCCESS || result == X_ERROR_IO_PENDING) {
-    XThread::SetLastError(0);
+    ThreadRecord::SetLastError(0);
   }
   return result;
 }
@@ -87,10 +87,7 @@ u32 XMsgStartIORequest_entry(u32 app, u32 message, ppc_ptr_t<XAM_OVERLAPPED> ove
 u32 XMsgCancelIORequest_entry(ppc_ptr_t<XAM_OVERLAPPED> overlapped_ptr, u32 wait) {
   X_HANDLE event_handle = XOverlappedGetEvent(overlapped_ptr);
   if (event_handle && wait) {
-    auto ev = REX_KERNEL_OBJECTS()->LookupObject<XEvent>(event_handle);
-    if (ev) {
-      ev->Wait(0, 0, true, nullptr);
-    }
+    WaitOn(REX_KERNEL_STATE(), event_handle, 0, 0, true, nullptr);
   }
 
   return 0;
@@ -111,8 +108,7 @@ u32 XamGetOverlappedResult_entry(ppc_ptr_t<XAM_OVERLAPPED> overlapped_ptr, mappe
   } else if (!overlapped_ptr->event) {
     result = X_ERROR_IO_INCOMPLETE;
   } else {
-    auto ev = REX_KERNEL_OBJECTS()->LookupObject<XEvent>(overlapped_ptr->event);
-    result = ev->Wait(3, 1, 0, nullptr);
+    result = WaitOn(REX_KERNEL_STATE(), overlapped_ptr->event, 3, 1, 0, nullptr);
     if (XSUCCEEDED(result)) {
       result = overlapped_ptr->result;
     } else {

@@ -138,33 +138,30 @@ X_STATUS GraphicsSystem::SetupGuestGPU(runtime::FunctionDispatcher* function_dis
 
   // Guest vblank timer based on the configured guest video mode.
   vsync_worker_running_ = true;
-  vsync_worker_thread_ = system::object_ref<system::XHostThread>(
-      new system::XHostThread(kernel_state_, 128 * 1024, 0, [this]() {
-        system::X_VIDEO_MODE video_mode;
-        kernel::xboxkrnl::VdQueryVideoMode(&video_mode);
-        double refresh_rate_hz = std::max(1.0, double(float(video_mode.refresh_rate)));
-        uint64_t guest_tick_frequency = Clock::guest_tick_frequency();
-        uint64_t vsync_interval_ticks =
-            std::max(uint64_t(1), uint64_t(double(guest_tick_frequency) / refresh_rate_hz));
-        uint64_t no_vsync_interval_ticks = std::max(uint64_t(1), guest_tick_frequency / 1000);
-        uint64_t last_frame_time = Clock::QueryGuestTickCount();
-        while (vsync_worker_running_) {
-          uint64_t current_time = Clock::QueryGuestTickCount();
-          uint64_t interval_ticks = REXCVAR_GET(::rex::graphics::cvars::vsync)
-                                        ? vsync_interval_ticks
-                                        : no_vsync_interval_ticks;
-          while (current_time - last_frame_time >= interval_ticks) {
-            MarkVblank();
-            last_frame_time += interval_ticks;
-          }
-          rex::platform::Sleep(std::chrono::milliseconds(1));
-        }
-        return 0;
-      }));
-  // TODO: set_can_debugger_suspend not yet ported
-  // vsync_worker_thread_->set_can_debugger_suspend(true);
-  vsync_worker_thread_->set_name("GPU VSync");
-  vsync_worker_thread_->Create();
+  auto record = std::make_unique<system::ThreadRecord>(kernel_state_, 128 * 1024, 0, [this]() {
+    system::X_VIDEO_MODE video_mode;
+    kernel::xboxkrnl::VdQueryVideoMode(&video_mode);
+    double refresh_rate_hz = std::max(1.0, double(float(video_mode.refresh_rate)));
+    uint64_t guest_tick_frequency = Clock::guest_tick_frequency();
+    uint64_t vsync_interval_ticks =
+        std::max(uint64_t(1), uint64_t(double(guest_tick_frequency) / refresh_rate_hz));
+    uint64_t no_vsync_interval_ticks = std::max(uint64_t(1), guest_tick_frequency / 1000);
+    uint64_t last_frame_time = Clock::QueryGuestTickCount();
+    while (vsync_worker_running_) {
+      uint64_t current_time = Clock::QueryGuestTickCount();
+      uint64_t interval_ticks = REXCVAR_GET(::rex::graphics::cvars::vsync)
+                                    ? vsync_interval_ticks
+                                    : no_vsync_interval_ticks;
+      while (current_time - last_frame_time >= interval_ticks) {
+        MarkVblank();
+        last_frame_time += interval_ticks;
+      }
+      rex::platform::Sleep(std::chrono::milliseconds(1));
+    }
+    return 0;
+  });
+  record->set_name("GPU VSync");
+  kernel_state_->threads()->Launch(std::move(record), &vsync_worker_thread_);
 
   return X_STATUS_SUCCESS;
 }
@@ -177,8 +174,9 @@ void GraphicsSystem::Shutdown() {
 
   if (vsync_worker_thread_) {
     vsync_worker_running_ = false;
-    vsync_worker_thread_->Wait(0, 0, 0, nullptr);
-    vsync_worker_thread_.reset();
+    system::WaitOn(kernel_state_, vsync_worker_thread_, 0, 0, 0, nullptr);
+    kernel_state_->object_table()->Close(vsync_worker_thread_);
+    vsync_worker_thread_ = 0;
   }
 
   if (presenter_) {
@@ -290,7 +288,7 @@ void GraphicsSystem::DispatchInterruptCallback(uint32_t source, uint32_t cpu) {
     return;
   }
 
-  auto thread = system::XThread::GetCurrentThread();
+  auto thread = system::ThreadRecord::GetCurrentThread();
   assert_not_null(thread);
 
   // Pick a CPU, if needed. We're going to guess 2. Because.

@@ -50,21 +50,25 @@ u32 XamTaskSchedule_entry(mapped_void callback, ppc_ptr_t<XTASK_MESSAGE> message
   // TODO(gibbed): figure out what this is for
   *handle_ptr = 12345;
 
-  uint32_t stack_size = REX_KERNEL_STATE()->GetExecutableModule()->stack_size();
+  uint32_t stack_size = REX_KERNEL_OBJECTS()
+                            ->Get<ModuleObject>(REX_KERNEL_STATE()->GetExecutableModule())
+                            ->user.stack_size;
 
   // Stack must be aligned to 16kb pages
   stack_size = std::max((uint32_t)0x4000, ((stack_size + 0xFFF) & 0xFFFFF000));
 
-  auto thread =
-      object_ref<XThread>(new XThread(REX_KERNEL_STATE(), stack_size, 0, callback.guest_address(),
-                                      message.guest_address(), 0, true));
+  auto record =
+      std::make_unique<ThreadRecord>(REX_KERNEL_STATE(), stack_size, 0, callback.guest_address(),
+                                     message.guest_address(), 0, true);
 
-  X_STATUS result = thread->Create();
+  X_HANDLE task_thread = 0;
+  X_STATUS result = REX_KERNEL_STATE()->threads()->Launch(std::move(record), &task_thread);
 
   if (XFAILED(result)) {
     // Failed!
     REX_FAIL(kernel, result, "XAM task creation failed: {:08X}", result);
   }
+  REX_KERNEL_OBJECTS()->Close(task_thread);
 
   REXLOG_DEBUG(kernel, "XAM task ({:08X}) scheduled asynchronously", callback.guest_address());
 

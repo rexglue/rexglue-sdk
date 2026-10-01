@@ -29,7 +29,6 @@
 #include <rex/system/interfaces/audio.h>
 #include <rex/system/interfaces/input.h>
 #include <rex/system/kernel_state.h>
-#include <rex/system/xobject.h>  // object_ref
 
 // Forward declaration for function mapping (defined in rex/ppc/context.h)
 struct PPCFuncMapping;
@@ -46,7 +45,6 @@ class FunctionDispatcher;
 }  // namespace runtime
 namespace system {
 class KernelState;
-class XThread;
 }  // namespace system
 namespace ui {
 class WindowedAppContext;
@@ -156,13 +154,20 @@ class Runtime {
   // Load XEX image into guest memory
   X_STATUS LoadXEXImage(const std::string_view module_path);
 
-  // Launch XEX module and return main thread
-  // Call after LoadXEXImage to start execution
-  system::object_ref<system::XThread> LaunchModule();
+  /**
+   * Launches the executable loaded by LoadXEXImage on its main thread.
+   *
+   * @return The main thread handle with a count of 1 that the caller closes, 0 when it failed.
+   */
+  X_HANDLE LaunchModule();
 
-  // Prepare module launch: creates suspended main thread without resuming.
-  // Call thread->Resume() after any pre-launch hooks.
-  system::object_ref<system::XThread> PrepareModuleLaunch();
+  /**
+   * Creates the suspended main thread of the loaded executable. The caller resumes it after any
+   * pre launch hooks.
+   *
+   * @return The main thread handle with a count of 1 that the caller closes, 0 when it failed.
+   */
+  X_HANDLE PrepareModuleLaunch();
 
   // Access the memory base pointer for recompiled code
   uint8_t* virtual_membase() const;

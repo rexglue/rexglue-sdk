@@ -504,7 +504,7 @@ struct X_ACHIEVEMENT_DETAILS {
 };
 static_assert_size(X_ACHIEVEMENT_DETAILS, 36);
 
-class XStaticAchievementEnumerator : public XEnumerator {
+class AchievementItems {
  public:
   struct AchievementDetails {
     uint32_t id;
@@ -520,25 +520,19 @@ class XStaticAchievementEnumerator : public XEnumerator {
     uint32_t flags;
   };
 
-  XStaticAchievementEnumerator(KernelState* kernel_state, size_t items_per_enumerate,
-                               uint32_t flags)
-      : XEnumerator(kernel_state, items_per_enumerate,
-                    sizeof(X_ACHIEVEMENT_DETAILS) +
-                        (!!(flags & 7) ? X_ACHIEVEMENT_DETAILS::kStringBufferSize : 0)),
-        flags_(flags) {}
+  AchievementItems(size_t items_per_enumerate, uint32_t flags)
+      : items_per_enumerate_(items_per_enumerate), flags_(flags) {}
 
-  void AppendItem(AchievementDetails item) { items_.push_back(std::move(item)); }
+  void Append(AchievementDetails item) { items_.push_back(std::move(item)); }
 
-  uint32_t WriteItems(uint32_t buffer_ptr, uint8_t* buffer_data, uint32_t* written_count) override {
-    size_t count = std::min(items_.size() - current_item_, items_per_enumerate());
+  uint32_t Write(uint32_t buffer_ptr, uint8_t* buffer_data, uint32_t* written_count) {
+    size_t count = std::min(items_.size() - current_item_, items_per_enumerate_);
     if (!count) {
       return X_ERROR_NO_MORE_FILES;
     }
 
-    size_t size = count * item_size();
-
     auto details = reinterpret_cast<X_ACHIEVEMENT_DETAILS*>(buffer_data);
-    size_t string_offset = items_per_enumerate() * sizeof(X_ACHIEVEMENT_DETAILS);
+    size_t string_offset = items_per_enumerate_ * sizeof(X_ACHIEVEMENT_DETAILS);
     auto string_buffer =
         StringBuffer{buffer_ptr + static_cast<uint32_t>(string_offset), &buffer_data[string_offset],
                      count * X_ACHIEVEMENT_DETAILS::kStringBufferSize};
@@ -586,6 +580,7 @@ class XStaticAchievementEnumerator : public XEnumerator {
   }
 
  private:
+  size_t items_per_enumerate_;
   uint32_t flags_;
   std::vector<AchievementDetails> items_;
   size_t current_item_ = 0;
@@ -611,17 +606,12 @@ u32 XamUserCreateAchievementEnumerator_entry(u32 title_id, u32 user_index, u32 x
     *buffer_size_ptr = static_cast<uint32_t>(entry_size) * count;
   }
 
-  auto e = object_ref<XStaticAchievementEnumerator>(
-      new XStaticAchievementEnumerator(REX_KERNEL_STATE(), count, flags));
-  auto result = e->Initialize(user_index, 0xFB, 0xB000A, 0xB000B, 0);
-  if (XFAILED(result)) {
-    return result;
-  }
+  AchievementItems items(count, flags);
 
   // ACHIEVED | ACHIEVED_ONLINE flags the game checks to consider an achievement earned.
   constexpr uint32_t kAchievedFlags = 0x00030000;
 
-  auto fill_unlock = [](XStaticAchievementEnumerator::AchievementDetails& item, uint32_t id,
+  auto fill_unlock = [](AchievementItems::AchievementDetails& item, uint32_t id,
                         const rex::system::KernelState* ks) {
     uint64_t ft = ks->GetAchievementUnlockTime(id);
     if (ft) {
@@ -638,17 +628,16 @@ u32 XamUserCreateAchievementEnumerator_entry(u32 title_id, u32 user_index, u32 x
   const auto store = ks->loaded_achievements();
   if (!store.empty()) {
     for (const auto& info : store) {
-      auto item = XStaticAchievementEnumerator::AchievementDetails{
-          info.id,
-          rex::to_utf16(info.label),
-          rex::to_utf16(info.description),
-          rex::to_utf16(info.unachieved_description),
-          info.image_id,
-          info.gamerscore,
-          {0, 0},
-          info.flags};
+      auto item = AchievementItems::AchievementDetails{info.id,
+                                                       rex::to_utf16(info.label),
+                                                       rex::to_utf16(info.description),
+                                                       rex::to_utf16(info.unachieved_description),
+                                                       info.image_id,
+                                                       info.gamerscore,
+                                                       {0, 0},
+                                                       info.flags};
       fill_unlock(item, info.id, ks);
-      e->AppendItem(item);
+      items.Append(item);
     }
   } else {
     const util::XdbfGameData db = ks->title_xdbf();
@@ -656,7 +645,7 @@ u32 XamUserCreateAchievementEnumerator_entry(u32 title_id, u32 user_index, u32 x
       const XLanguage language =
           db.GetExistingLanguage(static_cast<XLanguage>(kernel_state()->config().user_language));
       for (const util::XdbfAchievementTableEntry& entry : db.GetAchievements()) {
-        auto item = XStaticAchievementEnumerator::AchievementDetails{
+        auto item = AchievementItems::AchievementDetails{
             entry.id,
             rex::to_utf16(db.GetStringTableEntry(language, entry.label_id)),
             rex::to_utf16(db.GetStringTableEntry(language, entry.description_id)),
@@ -666,12 +655,24 @@ u32 XamUserCreateAchievementEnumerator_entry(u32 title_id, u32 user_index, u32 x
             {0, 0},
             entry.flags};
         fill_unlock(item, entry.id, ks);
-        e->AppendItem(item);
+        items.Append(item);
       }
     }
   }
 
-  *handle_ptr = e->handle();
+  X_HANDLE handle = X_INVALID_HANDLE_VALUE;
+  auto result = CreateEnumerator(
+      REX_KERNEL_STATE(), &handle, EnumeratorInit{user_index, 0xFB, 0xB000A, 0xB000B, 0},
+      EnumeratorObject(
+          count, entry_size,
+          [items = std::move(items)](u32 buffer_ptr, u8* buffer_data, u32* written_count) mutable {
+            return items.Write(buffer_ptr, buffer_data, written_count);
+          }));
+  if (XFAILED(result)) {
+    return result;
+  }
+
+  *handle_ptr = handle;
   return X_ERROR_SUCCESS;
 }
 

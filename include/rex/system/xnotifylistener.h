@@ -11,14 +11,15 @@
  */
 
 #include <memory>
-#include <unordered_map>
+#include <mutex>
+#include <utility>
+#include <vector>
 
 #include <rex/assert.h>
+#include <rex/platform/thread.h>
 #include <rex/system/xcontent.h>
 #include <rex/system/xobject.h>
 #include <rex/system/xtypes.h>
-#include <rex/platform/thread.h>
-#include <rex/platform/mutex.h>
 
 namespace rex::system {
 
@@ -39,31 +40,48 @@ union XNotificationKey {
   constexpr operator XNotificationID() { return id; }
 };
 
-class XNotifyListener : public XObject {
- public:
-  static const XObject::Type kObjectType = XObject::Type::NotifyListener;
+/** The host state of a notification listener. */
+struct NotifyListenerObject {
+  /**
+   * @param mask_in The bit mask of notification areas the listener receives.
+   * @param max_version_in The highest notification version the listener receives.
+   */
+  NotifyListenerObject(u64 mask_in, u32 max_version_in);
 
-  explicit XNotifyListener(KernelState* kernel_state);
-  ~XNotifyListener() override;
-
-  uint64_t mask() const { return mask_; }
-  uint32_t max_version() const { return max_version_; }
-
-  void Initialize(uint64_t mask, uint32_t max_version);
-
-  void EnqueueNotification(XNotificationID id, uint32_t data);
-  bool DequeueNotification(XNotificationID* out_id, uint32_t* out_data);
-  bool DequeueNotification(XNotificationID id, uint32_t* out_data);
-
- protected:
-  rex::platform::WaitHandle* GetWaitHandle() override { return wait_handle_.get(); }
-
- private:
-  std::unique_ptr<rex::platform::Event> wait_handle_;
-  rex::platform::global_critical_region global_critical_region_;
-  std::vector<std::pair<XNotificationID, uint32_t>> notifications_;
-  uint64_t mask_ = 0;
-  uint32_t max_version_ = 0;
+  std::unique_ptr<rex::platform::Event> wait_handle;
+  std::mutex notifications_lock;
+  std::vector<std::pair<XNotificationID, u32>> notifications;
+  u64 mask = 0;
+  u32 max_version = 0;
 };
+
+/**
+ * Queues a notification when it matches the mask and version of the listener.
+ *
+ * @param listener The listener.
+ * @param id The notification id.
+ * @param data The notification data.
+ */
+void NotifyListenerEnqueue(NotifyListenerObject& listener, XNotificationID id, u32 data);
+
+/**
+ * Removes the oldest notification.
+ *
+ * @param listener The listener.
+ * @param out_id Receives the id.
+ * @param out_data Receives the data.
+ * @return True when a notification was removed.
+ */
+bool NotifyListenerDequeue(NotifyListenerObject& listener, XNotificationID* out_id, u32* out_data);
+
+/**
+ * Removes the oldest notification with a given id.
+ *
+ * @param listener The listener.
+ * @param id The id to look for.
+ * @param out_data Receives the data.
+ * @return True when a notification was removed.
+ */
+bool NotifyListenerDequeueByID(NotifyListenerObject& listener, XNotificationID id, u32* out_data);
 
 }  // namespace rex::system

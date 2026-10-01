@@ -11,10 +11,14 @@
  */
 
 #include <cstring>
+#include <memory>
+#include <mutex>
 #include <queue>
 
 #include <rex/math.h>
+#include <rex/platform/thread.h>
 #include <rex/system/xobject.h>
+#include <rex/system/xtypes.h>
 #include <rex/types.h>
 
 namespace rex::system {
@@ -67,83 +71,210 @@ struct N_XSOCKADDR_IN {
   char x_sin_zero[8];
 };
 
-class XSocket : public XObject {
- public:
-  static const XObject::Type kObjectType = XObject::Type::Socket;
-
-  enum AddressFamily {
-    X_AF_INET = 2,
-  };
-
-  enum Type {
-    X_SOCK_STREAM = 1,
-    X_SOCK_DGRAM = 2,
-  };
-
-  enum Protocol {
-    X_IPPROTO_TCP = 6,
-    X_IPPROTO_UDP = 17,
-
-    // LIVE Voice and Data Protocol
-    // https://blog.csdn.net/baozi3026/article/details/4277227
-    // Format: [cbGameData][GameData(encrypted)][VoiceData(unencrypted)]
-    X_IPPROTO_VDP = 254,
-  };
-
-  XSocket(KernelState* kernel_state);
-  ~XSocket();
-
-  uint64_t native_handle() const { return native_handle_; }
-  uint16_t bound_port() const { return bound_port_; }
-
-  X_STATUS Initialize(AddressFamily af, Type type, Protocol proto);
-  X_STATUS Close();
-
-  X_STATUS SetOption(uint32_t level, uint32_t optname, void* optval_ptr, uint32_t optlen);
-  X_STATUS IOControl(uint32_t cmd, uint8_t* arg_ptr);
-
-  X_STATUS Connect(N_XSOCKADDR* name, int name_len);
-  X_STATUS Bind(N_XSOCKADDR_IN* name, int name_len);
-  X_STATUS Listen(int backlog);
-  object_ref<XSocket> Accept(N_XSOCKADDR* name, int* name_len);
-  int Shutdown(int how);
-
-  int Recv(uint8_t* buf, uint32_t buf_len, uint32_t flags);
-  int Send(const uint8_t* buf, uint32_t buf_len, uint32_t flags);
-
-  int RecvFrom(uint8_t* buf, uint32_t buf_len, uint32_t flags, N_XSOCKADDR_IN* from,
-               uint32_t* from_len);
-  int SendTo(uint8_t* buf, uint32_t buf_len, uint32_t flags, N_XSOCKADDR_IN* to, uint32_t to_len);
-
-  struct packet {
-    // These values are in network byte order.
-    rex::be<uint16_t> src_port;
-    rex::be<uint32_t> src_ip;
-
-    uint16_t data_len;
-    uint8_t data[1];
-  };
-
-  // Queue a packet into our internal buffer.
-  bool QueuePacket(uint32_t src_ip, uint16_t src_port, const uint8_t* buf, size_t len);
-
- private:
-  XSocket(KernelState* kernel_state, uint64_t native_handle);
-  uint64_t native_handle_ = -1;
-
-  AddressFamily af_;    // Address family
-  Type type_;           // Type (DGRAM/Stream/etc)
-  Protocol proto_;      // Protocol (TCP/UDP/etc)
-  bool secure_ = true;  // Secure socket (encryption enabled)
-
-  bool bound_ = false;  // Explicitly bound to an IP address?
-  uint16_t bound_port_ = 0;
-
-  bool broadcast_socket_ = false;
-
-  std::unique_ptr<rex::platform::Event> event_;
-  std::mutex incoming_packet_mutex_;
-  std::queue<uint8_t*> incoming_packets_;
+/** The address families a socket object supports. */
+enum SocketAddressFamily {
+  X_AF_INET = 2,
 };
+
+/** The socket types a socket object supports. */
+enum SocketType {
+  X_SOCK_STREAM = 1,
+  X_SOCK_DGRAM = 2,
+};
+
+/** The protocols a socket object supports. */
+enum SocketProtocol {
+  X_IPPROTO_TCP = 6,
+  X_IPPROTO_UDP = 17,
+
+  // LIVE Voice and Data Protocol
+  // https://blog.csdn.net/baozi3026/article/details/4277227
+  // Format: [cbGameData][GameData(encrypted)][VoiceData(unencrypted)]
+  X_IPPROTO_VDP = 254,
+};
+
+/** A packet queued on a socket, with its addresses in network byte order. */
+struct SocketPacket {
+  rex::be<uint16_t> src_port;
+  rex::be<uint32_t> src_ip;
+
+  uint16_t data_len;
+  uint8_t data[1];
+};
+
+/** The host state of a socket object. */
+struct SocketObject {
+  /**
+   * @param af_in The address family.
+   * @param type_in The socket type.
+   * @param proto_in The protocol.
+   */
+  SocketObject(SocketAddressFamily af_in, SocketType type_in, SocketProtocol proto_in);
+
+  /** Closes the native socket. */
+  ~SocketObject();
+
+  u64 native_handle = static_cast<u64>(-1);
+  SocketAddressFamily af;
+  SocketType type;
+  SocketProtocol proto;
+  bool secure = true;
+  bool bound = false;
+  u16 bound_port = 0;
+  bool broadcast_socket = false;
+  std::unique_ptr<rex::platform::Event> event;
+  std::mutex incoming_packet_mutex;
+  std::queue<u8*> incoming_packets;
+};
+
+/**
+ * Creates the native socket for the address family, type and protocol of the object.
+ *
+ * @param sock The socket.
+ * @return X_STATUS_SUCCESS, or X_STATUS_UNSUCCESSFUL.
+ */
+X_STATUS SocketInitialize(SocketObject& sock);
+
+/**
+ * Closes the native socket.
+ *
+ * @param sock The socket.
+ * @return X_STATUS_SUCCESS, or X_STATUS_UNSUCCESSFUL.
+ */
+X_STATUS SocketClose(SocketObject& sock);
+
+/**
+ * Sets a socket option.
+ *
+ * @param sock The socket.
+ * @param level The option level.
+ * @param optname The option name.
+ * @param optval_ptr The option value.
+ * @param optlen The size of the option value.
+ * @return X_STATUS_SUCCESS, or X_STATUS_UNSUCCESSFUL.
+ */
+X_STATUS SocketSetOption(SocketObject& sock, u32 level, u32 optname, void* optval_ptr, u32 optlen);
+
+/**
+ * Runs an IO control command.
+ *
+ * @param sock The socket.
+ * @param cmd The command.
+ * @param arg_ptr The command argument.
+ * @return X_STATUS_SUCCESS, or X_STATUS_UNSUCCESSFUL.
+ */
+X_STATUS SocketIOControl(SocketObject& sock, u32 cmd, u8* arg_ptr);
+
+/**
+ * Connects to an address.
+ *
+ * @param sock The socket.
+ * @param name The address.
+ * @param name_len The size of the address.
+ * @return X_STATUS_SUCCESS, or X_STATUS_UNSUCCESSFUL.
+ */
+X_STATUS SocketConnect(SocketObject& sock, N_XSOCKADDR* name, int name_len);
+
+/**
+ * Binds to an address.
+ *
+ * @param sock The socket.
+ * @param name The address.
+ * @param name_len The size of the address.
+ * @return X_STATUS_SUCCESS, or X_STATUS_UNSUCCESSFUL.
+ */
+X_STATUS SocketBind(SocketObject& sock, N_XSOCKADDR_IN* name, int name_len);
+
+/**
+ * Starts listening for connections.
+ *
+ * @param sock The socket.
+ * @param backlog The length of the pending connection queue.
+ * @return X_STATUS_SUCCESS, or X_STATUS_UNSUCCESSFUL.
+ */
+X_STATUS SocketListen(SocketObject& sock, int backlog);
+
+/**
+ * Accepts a connection and creates a socket object for it.
+ *
+ * @param kernel_state The kernel state.
+ * @param sock The listening socket.
+ * @param name Receives the peer address.
+ * @param name_len Receives the size of the peer address.
+ * @return The handle of the new socket with a count of 1, or X_INVALID_HANDLE_VALUE.
+ */
+X_HANDLE SocketAccept(KernelState* kernel_state, SocketObject& sock, N_XSOCKADDR* name,
+                      int* name_len);
+
+/**
+ * Shuts a connection down.
+ *
+ * @param sock The socket.
+ * @param how Which directions to shut down.
+ * @return The native result.
+ */
+int SocketShutdown(SocketObject& sock, int how);
+
+/**
+ * Receives data.
+ *
+ * @param sock The socket.
+ * @param buf The buffer.
+ * @param buf_len The size of the buffer.
+ * @param flags The native flags.
+ * @return The native result.
+ */
+int SocketRecv(SocketObject& sock, u8* buf, u32 buf_len, u32 flags);
+
+/**
+ * Sends data.
+ *
+ * @param sock The socket.
+ * @param buf The buffer.
+ * @param buf_len The size of the buffer.
+ * @param flags The native flags.
+ * @return The native result.
+ */
+int SocketSend(SocketObject& sock, const u8* buf, u32 buf_len, u32 flags);
+
+/**
+ * Receives a datagram.
+ *
+ * @param sock The socket.
+ * @param buf The buffer.
+ * @param buf_len The size of the buffer.
+ * @param flags The native flags.
+ * @param from Receives the sender, may be null.
+ * @param from_len Receives the size of the sender address, may be null.
+ * @return The native result.
+ */
+int SocketRecvFrom(SocketObject& sock, u8* buf, u32 buf_len, u32 flags, N_XSOCKADDR_IN* from,
+                   u32* from_len);
+
+/**
+ * Sends a datagram.
+ *
+ * @param sock The socket.
+ * @param buf The buffer.
+ * @param buf_len The size of the buffer.
+ * @param flags The native flags.
+ * @param to The destination, may be null.
+ * @param to_len The size of the destination address.
+ * @return The native result.
+ */
+int SocketSendTo(SocketObject& sock, u8* buf, u32 buf_len, u32 flags, N_XSOCKADDR_IN* to,
+                 u32 to_len);
+
+/**
+ * Queues a packet into the internal buffer of the socket.
+ *
+ * @param sock The socket.
+ * @param src_ip The sender address in network byte order.
+ * @param src_port The sender port in network byte order.
+ * @param buf The packet data.
+ * @param len The size of the packet data.
+ * @return True when the packet was queued.
+ */
+bool SocketQueuePacket(SocketObject& sock, u32 src_ip, u16 src_port, const u8* buf, size_t len);
 
 }  // namespace rex::system

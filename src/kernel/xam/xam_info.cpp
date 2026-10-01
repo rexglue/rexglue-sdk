@@ -204,19 +204,19 @@ u32 XGetLanguage_entry() {
 u32 XamGetCurrentTitleId_entry() {
   // NOTE(tomc): Switched this up to get title ID from executable module instead of runtime
   // (emulator)
-  auto module = REX_KERNEL_STATE()->GetExecutableModule();
+  auto module = REX_KERNEL_OBJECTS()->Get<ModuleObject>(REX_KERNEL_STATE()->GetExecutableModule());
   if (module) {
-    return module->title_id();
+    return UserModuleTitleID(*module);
   }
   return 0;
 }
 
 u32 XamGetExecutionId_entry(mapped_u32 info_ptr) {
-  auto module = REX_KERNEL_STATE()->GetExecutableModule();
-  assert_not_null(module);
+  auto module = REX_KERNEL_OBJECTS()->Get<ModuleObject>(REX_KERNEL_STATE()->GetExecutableModule());
+  assert_true(module);
 
   uint32_t guest_hdr_ptr;
-  X_STATUS result = module->GetOptHeader(XEX_HEADER_EXECUTION_INFO, &guest_hdr_ptr);
+  X_STATUS result = UserModuleGetOptHeader(*module, XEX_HEADER_EXECUTION_INFO, &guest_hdr_ptr);
 
   if (XFAILED(result)) {
     return result;
@@ -227,8 +227,9 @@ u32 XamGetExecutionId_entry(mapped_u32 info_ptr) {
 }
 
 u32 XamLoaderSetLaunchData_entry(mapped_void data, u32 size) {
-  auto xam = REX_KERNEL_STATE()->GetKernelModule<XamModule>("xam.xex");
-  auto& loader_data = xam->loader_data();
+  auto xam =
+      REX_KERNEL_OBJECTS()->Get<ModuleObject>(REX_KERNEL_STATE()->GetKernelModule("xam.xex"));
+  auto& loader_data = xam->kernel.loader_data;
   loader_data.launch_data_present = size ? true : false;
   loader_data.launch_data.resize(size);
   std::memcpy(loader_data.launch_data.data(), data, size);
@@ -240,20 +241,22 @@ u32 XamLoaderGetLaunchDataSize_entry(mapped_u32 size_ptr) {
     return X_ERROR_INVALID_PARAMETER;
   }
 
-  auto xam = REX_KERNEL_STATE()->GetKernelModule<XamModule>("xam.xex");
-  auto& loader_data = xam->loader_data();
+  auto xam =
+      REX_KERNEL_OBJECTS()->Get<ModuleObject>(REX_KERNEL_STATE()->GetKernelModule("xam.xex"));
+  auto& loader_data = xam->kernel.loader_data;
   if (!loader_data.launch_data_present) {
     *size_ptr = 0;
     return X_ERROR_NOT_FOUND;
   }
 
-  *size_ptr = uint32_t(xam->loader_data().launch_data.size());
+  *size_ptr = uint32_t(loader_data.launch_data.size());
   return X_ERROR_SUCCESS;
 }
 
 u32 XamLoaderGetLaunchData_entry(mapped_void buffer_ptr, u32 buffer_size) {
-  auto xam = REX_KERNEL_STATE()->GetKernelModule<XamModule>("xam.xex");
-  auto& loader_data = xam->loader_data();
+  auto xam =
+      REX_KERNEL_OBJECTS()->Get<ModuleObject>(REX_KERNEL_STATE()->GetKernelModule("xam.xex"));
+  auto& loader_data = xam->kernel.loader_data;
   if (!loader_data.launch_data_present) {
     return X_ERROR_NOT_FOUND;
   }
@@ -264,26 +267,29 @@ u32 XamLoaderGetLaunchData_entry(mapped_void buffer_ptr, u32 buffer_size) {
 }
 
 void XamLoaderLaunchTitle_entry(mapped_string raw_name_ptr, u32 flags) {
-  auto xam = REX_KERNEL_STATE()->GetKernelModule<XamModule>("xam.xex");
+  {
+    auto xam =
+        REX_KERNEL_OBJECTS()->Get<ModuleObject>(REX_KERNEL_STATE()->GetKernelModule("xam.xex"));
 
-  auto& loader_data = xam->loader_data();
-  loader_data.launch_flags = flags;
+    auto& loader_data = xam->kernel.loader_data;
+    loader_data.launch_flags = flags;
 
-  // Translate the launch path to a full path.
-  if (raw_name_ptr) {
-    auto path = raw_name_ptr.value();
-    if (path.empty()) {
-      loader_data.launch_path = "game:\\default.xex";
-    } else {
-      if (rex::utf8_find_name_from_guest_path(path) == path) {
-        path = rex::utf8_join_guest_paths(
-            rex::utf8_find_base_guest_path(REX_KERNEL_STATE()->GetExecutableModule()->path()),
-            path);
+    // Translate the launch path to a full path.
+    if (raw_name_ptr) {
+      auto path = raw_name_ptr.value();
+      if (path.empty()) {
+        loader_data.launch_path = "game:\\default.xex";
+      } else {
+        if (rex::utf8_find_name_from_guest_path(path) == path) {
+          auto executable =
+              REX_KERNEL_OBJECTS()->Get<ModuleObject>(REX_KERNEL_STATE()->GetExecutableModule());
+          path = rex::utf8_join_guest_paths(rex::utf8_find_base_guest_path(executable->path), path);
+        }
+        loader_data.launch_path = path;
       }
-      loader_data.launch_path = path;
+    } else {
+      assert_always("Game requested exit to dashboard via XamLoaderLaunchTitle");
     }
-  } else {
-    assert_always("Game requested exit to dashboard via XamLoaderLaunchTitle");
   }
 
   // This function does not return.

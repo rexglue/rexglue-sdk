@@ -37,7 +37,7 @@ XmpApp::XmpApp(KernelState* kernel_state)
       next_song_handle_(1) {}
 
 X_HRESULT XmpApp::XMPGetStatus(uint32_t state_ptr) {
-  if (!XThread::GetCurrentThread()->main_thread()) {
+  if (!ThreadRecord::GetCurrentThread()->main_thread()) {
     // Some stupid games will hammer this on a thread - induce a delay
     // here to keep from starving real threads.
     rex::platform::Sleep(std::chrono::milliseconds(1));
@@ -94,7 +94,7 @@ X_HRESULT XmpApp::XMPCreateTitlePlaylist(uint32_t songs_ptr, uint32_t song_count
                                      playlist->handle);
   }
 
-  auto global_lock = global_critical_region_.Acquire();
+  std::lock_guard lock(mutex_);
   playlists_.insert({playlist->handle, playlist.get()});
   playlist.release();
   return X_E_SUCCESS;
@@ -102,16 +102,19 @@ X_HRESULT XmpApp::XMPCreateTitlePlaylist(uint32_t songs_ptr, uint32_t song_count
 
 X_HRESULT XmpApp::XMPDeleteTitlePlaylist(uint32_t playlist_handle) {
   REXLOG_DEBUG(kernel, "XMPDeleteTitlePlaylist({:08X})", playlist_handle);
-  auto global_lock = global_critical_region_.Acquire();
-  auto it = playlists_.find(playlist_handle);
-  if (it == playlists_.end()) {
-    REX_FAIL(kernel, X_E_NOTFOUND, "Playlist {:08X} not found", playlist_handle);
+  Playlist* playlist = nullptr;
+  {
+    std::lock_guard lock(mutex_);
+    auto it = playlists_.find(playlist_handle);
+    if (it == playlists_.end()) {
+      REX_FAIL(kernel, X_E_NOTFOUND, "Playlist {:08X} not found", playlist_handle);
+    }
+    playlist = it->second;
+    playlists_.erase(it);
   }
-  auto playlist = it->second;
   if (playlist == active_playlist_) {
     XMPStop(0);
   }
-  playlists_.erase(it);
   delete playlist;
   return X_E_SUCCESS;
 }
@@ -120,7 +123,7 @@ X_HRESULT XmpApp::XMPPlayTitlePlaylist(uint32_t playlist_handle, uint32_t song_h
   REXLOG_DEBUG(kernel, "XMPPlayTitlePlaylist({:08X}, {:08X})", playlist_handle, song_handle);
   Playlist* playlist = nullptr;
   {
-    auto global_lock = global_critical_region_.Acquire();
+    std::lock_guard lock(mutex_);
     auto it = playlists_.find(playlist_handle);
     if (it == playlists_.end()) {
       REX_FAIL(kernel, X_E_NOTFOUND, "Playlist {:08X} not found", playlist_handle);
@@ -409,7 +412,7 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       memory::store_and_swap<uint32_t>(memory_->TranslateVirtual(args->controller_ptr), 0);
       memory::store_and_swap<uint32_t>(memory_->TranslateVirtual(args->locked_ptr), 0);
 
-      if (!XThread::GetCurrentThread()->main_thread()) {
+      if (!ThreadRecord::GetCurrentThread()->main_thread()) {
         // Atrain spawns a thread 82437FD0 to call this in a tight loop forever.
         rex::platform::Sleep(std::chrono::milliseconds(10));
       }

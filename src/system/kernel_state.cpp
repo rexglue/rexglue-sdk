@@ -12,7 +12,10 @@
 #include <chrono>
 #include <cstring>
 #include <filesystem>
+#include <ranges>
 #include <string>
+#include <type_traits>
+#include <variant>
 
 #include <fmt/format.h>
 #include <rex/assert.h>
@@ -62,6 +65,7 @@ KernelState::KernelState(Runtime* emulator)
     : emulator_(emulator),
       config_(emulator->config().runtime.kernel),
       memory_(emulator->memory()),
+      object_table_(memory_),
       dispatch_thread_running_(false),
       dpc_list_(emulator->memory()) {
   function_dispatcher_ = emulator->function_dispatcher();
@@ -170,24 +174,27 @@ KernelState::~KernelState() {
   if (dispatch_thread_running_) {
     dispatch_thread_running_ = false;
     dispatch_cond_.notify_all();
-    dispatch_thread_->Wait(0, 0, 0, nullptr);
+    WaitOn(this, dispatch_thread_, 0, 0, 0, nullptr);
+    object_table_.Close(dispatch_thread_);
+    dispatch_thread_ = 0;
   }
 
   // Unload through UnloadUserModule so the recompiled-DLL teardown runs.
   // call_entry=false because guest DllMain is unsafe at shutdown.
-  while (!user_modules_.empty()) {
-    object_ref<UserModule> module = user_modules_.back();
+  const std::vector<X_HANDLE> loaded_modules = modules_.user_modules();
+  for (X_HANDLE module : std::views::reverse(loaded_modules)) {
     UnloadUserModule(module, /*call_entry=*/false);
   }
-  executable_module_.reset();
-  kernel_modules_.clear();
+  modules_.Shutdown();
   if (!module_libraries_.empty()) {
     REXLOG_ERROR(system, "~KernelState: {} recompiled libraries still loaded after module sweep",
                  module_libraries_.size());
     module_libraries_.clear();
   }
 
-  // Unregister all notify listeners.
+  for (X_HANDLE handle : notify_listeners_) {
+    object_table_.Close(handle);
+  }
   notify_listeners_.clear();
 
   // Safe to reset now: Runtime::Shutdown() has already stopped graphics,
@@ -228,10 +235,11 @@ KernelState* KernelState::shared() {
 }
 
 uint32_t KernelState::title_id() const {
-  assert_not_null(executable_module_);
+  auto module = object_table_.Get<ModuleObject>(modules_.executable());
+  assert_true(module);
 
   xex2_opt_execution_info* exec_info = 0;
-  executable_module_->GetOptHeader(XEX_HEADER_EXECUTION_INFO, &exec_info);
+  UserModuleGetOptHeader(*module, XEX_HEADER_EXECUTION_INFO, &exec_info);
 
   if (exec_info) {
     return exec_info->title_id;
@@ -241,16 +249,17 @@ uint32_t KernelState::title_id() const {
 }
 
 util::XdbfGameData KernelState::title_xdbf() const {
-  return module_xdbf(executable_module_);
+  auto module = object_table_.Get<ModuleObject>(modules_.executable());
+  assert_true(module);
+  return module_xdbf(*module);
 }
 
-util::XdbfGameData KernelState::module_xdbf(object_ref<UserModule> exec_module) const {
-  assert_not_null(exec_module);
-
+util::XdbfGameData KernelState::module_xdbf(const ModuleObject& exec_module) const {
   uint32_t resource_data = 0;
   uint32_t resource_size = 0;
-  if (XSUCCEEDED(exec_module->GetSection(fmt::format("{:08X}", exec_module->title_id()).c_str(),
-                                         &resource_data, &resource_size))) {
+  if (XSUCCEEDED(ModuleGetSection(exec_module,
+                                  fmt::format("{:08X}", UserModuleTitleID(exec_module)),
+                                  &resource_data, &resource_size))) {
     util::XdbfGameData db(memory()->TranslateVirtual(resource_data), resource_size);
     return db;
   }
@@ -338,7 +347,7 @@ uint32_t KernelState::AllocateTLS(PPCContext* context) {
 
   uint32_t result = X_TLS_OUT_OF_INDEXES;
 
-  auto current_thread = XThread::GetCurrentThread();
+  auto current_thread = ThreadRecord::GetCurrentThread();
   if (!current_thread) {
     REXLOG_ERROR(system, "AllocateTLS: no current thread");
     kernel::xboxkrnl::KeKfReleaseSpinLock(context, tls_lock, old_irql);
@@ -385,7 +394,7 @@ void KernelState::FreeTLS(PPCContext* context, uint32_t slot) {
     return;
   }
 
-  auto current_thread = XThread::GetCurrentThread();
+  auto current_thread = ThreadRecord::GetCurrentThread();
   if (!current_thread) {
     REXLOG_ERROR(system, "FreeTLS: no current thread");
     return;
@@ -418,10 +427,10 @@ void KernelState::FreeTLS(PPCContext* context, uint32_t slot) {
     return;
   }
 
-  const std::vector<object_ref<XThread>> threads = object_table()->GetObjectsByType<XThread>();
+  const std::vector<ThreadPin> threads = threads_.All();
   uint32_t current_process_ptr = static_cast<uint32_t>(current_kthread->process);
 
-  for (const object_ref<XThread>& thread : threads) {
+  for (const ThreadPin& thread : threads) {
     if (!thread || !thread->is_guest_thread()) {
       continue;
     }
@@ -453,144 +462,81 @@ void KernelState::RemoveTitleTerminateNotification(uint32_t routine) {
   }
 }
 
-void KernelState::RegisterModule(XModule* module) {}
-
-void KernelState::UnregisterModule(XModule* module) {}
-
-bool KernelState::RegisterUserModule(object_ref<UserModule> module) {
-  auto lock = global_critical_region_.Acquire();
-
-  for (auto user_module : user_modules_) {
-    if (user_module->path() == module->path()) {
-      // Already loaded.
-      return false;
-    }
-  }
-
-  user_modules_.push_back(module);
-  return true;
+X_HANDLE KernelState::GetKernelModule(const std::string_view name) {
+  assert_true(modules_.IsKernel(name));
+  return modules_.FindKernel(name);
 }
 
-void KernelState::UnregisterUserModule(UserModule* module) {
-  auto lock = global_critical_region_.Acquire();
-
-  for (auto it = user_modules_.begin(); it != user_modules_.end(); it++) {
-    if ((*it)->path() == module->path()) {
-      user_modules_.erase(it);
-      return;
-    }
-  }
-}
-
-bool KernelState::IsKernelModule(const std::string_view name) {
+X_HANDLE KernelState::GetModule(const std::string_view name, bool user_only) {
   if (name.empty()) {
-    // Executing module isn't a kernel module.
-    return false;
-  }
-  // NOTE: no global lock required as the kernel module list is static.
-  for (auto kernel_module : kernel_modules_) {
-    if (kernel_module->Matches(name)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-object_ref<KernelModule> KernelState::GetKernelModule(const std::string_view name) {
-  assert_true(IsKernelModule(name));
-
-  for (auto kernel_module : kernel_modules_) {
-    if (kernel_module->Matches(name)) {
-      return retain_object(kernel_module.get());
-    }
-  }
-
-  return nullptr;
-}
-
-object_ref<XModule> KernelState::GetModule(const std::string_view name, bool user_only) {
-  if (name.empty()) {
-    // NULL name = self.
-    // TODO(benvanik): lookup module from caller address.
     return GetExecutableModule();
   } else if (rex::utf8_equal_case(name, "kernel32.dll")) {
-    // Some games request this, for some reason. wtf.
-    return nullptr;
+    return 0;
   }
 
-  // Search kernel modules under lock
   if (!user_only) {
-    auto global_lock = global_critical_region_.Acquire();
-    for (auto kernel_module : kernel_modules_) {
-      if (kernel_module->Matches(name)) {
-        return retain_object(kernel_module.get());
-      }
+    if (X_HANDLE kernel_module = modules_.FindKernel(name)) {
+      return kernel_module;
     }
   }
 
-  // Resolve path WITHOUT lock
-  auto path(name);
+  std::string path(name);
   if (auto entry = file_system_->Stat(name)) {
     path = entry->absolute_path;
   }
 
-  // Search user modules under lock
-  {
-    auto global_lock = global_critical_region_.Acquire();
-    for (auto user_module : user_modules_) {
-      if (user_module->Matches(path)) {
-        return retain_object(user_module.get());
-      }
-    }
-  }
-  return nullptr;
+  return modules_.FindUser(path);
 }
 
-object_ref<XThread> KernelState::PrepareModuleLaunch(object_ref<UserModule> module) {
-  if (!module->is_executable()) {
-    return nullptr;
+X_HANDLE KernelState::PrepareModuleLaunch(X_HANDLE module_handle) {
+  auto module = object_table_.Get<ModuleObject>(module_handle);
+  if (!module || !module->processor_module->is_executable()) {
+    return 0;
   }
 
-  SetExecutableModule(module);
+  SetExecutableModule(module_handle);
   REXLOG_DEBUG(system, "KernelState: Preparing module launch...");
 
   // Create a thread to run in.
   // We start suspended so the caller can inspect/attach before resume.
-  auto thread = object_ref<XThread>(new XThread(
-      this, module->stack_size(), 0, module->entry_point(), 0, X_CREATE_SUSPENDED, true, true));
+  auto record =
+      std::make_unique<ThreadRecord>(this, module->user.stack_size, 0, module->user.entry_point, 0,
+                                     X_CREATE_SUSPENDED, true, true);
 
   // We know this is the 'main thread'.
-  thread->set_name("Main XThread");
+  record->set_name("Main XThread");
 
-  X_STATUS result = thread->Create();
+  X_HANDLE handle = 0;
+  X_STATUS result = threads_.Launch(std::move(record), &handle);
   if (XFAILED(result)) {
-    REX_FAIL(system, nullptr, "Could not create launch thread: {:08X}", result);
+    REX_FAIL(system, 0, "Could not create launch thread: {:08X}", result);
   }
 
-  return thread;
+  return handle;
 }
 
-object_ref<XThread> KernelState::LaunchModule(object_ref<UserModule> module) {
-  auto thread = PrepareModuleLaunch(std::move(module));
-  if (thread) {
-    thread->Resume();
+X_HANDLE KernelState::LaunchModule(X_HANDLE module) {
+  X_HANDLE handle = PrepareModuleLaunch(module);
+  if (handle) {
+    if (auto thread = threads_.FindByHandle(handle)) {
+      thread->Resume();
+    }
   }
-  return thread;
+  return handle;
 }
 
-object_ref<UserModule> KernelState::GetExecutableModule() {
-  if (!executable_module_) {
-    return nullptr;
-  }
-  return executable_module_;
+X_HANDLE KernelState::GetExecutableModule() {
+  return modules_.executable();
 }
 
-void KernelState::SetExecutableModule(object_ref<UserModule> module) {
-  if (module.get() == executable_module_.get()) {
+void KernelState::SetExecutableModule(X_HANDLE module_handle) {
+  auto module = object_table_.Get<ModuleObject>(module_handle);
+  if (auto current = object_table_.Get<ModuleObject>(modules_.executable());
+      current && module && &*current == &*module) {
     return;
   }
-  executable_module_ = std::move(module);
-  if (!executable_module_) {
+  modules_.SetExecutable(module_handle);
+  if (!module) {
     return;
   }
 
@@ -606,7 +552,7 @@ void KernelState::SetExecutableModule(object_ref<UserModule> module) {
 
   // Read default stack size from XEX header, align to 4KB, clamp to min 16KB.
   uint32_t default_stack_size = 0;
-  executable_module_->GetOptHeader(XEX_HEADER_DEFAULT_STACK_SIZE, &default_stack_size);
+  UserModuleGetOptHeader(*module, XEX_HEADER_DEFAULT_STACK_SIZE, &default_stack_size);
   if (default_stack_size) {
     default_stack_size = rex::round_up(default_stack_size, 4096u);
     if (default_stack_size < 16 * 1024) {
@@ -617,7 +563,7 @@ void KernelState::SetExecutableModule(object_ref<UserModule> module) {
 
   // Update title process TLS info from the executable module.
   xex2_opt_tls_info* tls_header = nullptr;
-  executable_module_->GetOptHeader(XEX_HEADER_TLS_INFO, &tls_header);
+  UserModuleGetOptHeader(*module, XEX_HEADER_TLS_INFO, &tls_header);
   if (tls_header) {
     pib->tls_data_size = tls_header->data_size;
     pib->tls_raw_data_size = tls_header->raw_data_size;
@@ -625,15 +571,16 @@ void KernelState::SetExecutableModule(object_ref<UserModule> module) {
                       tls_header->raw_data_address);
   }
 
-  auto xboxkrnl = GetKernelModule("xboxkrnl.exe");
+  auto xboxkrnl = object_table_.Get<ModuleObject>(GetKernelModule("xboxkrnl.exe"));
   if (xboxkrnl) {
-    if (const uint32_t address = xboxkrnl->Variable(0x0193 /* XexExecutableModuleHandle */)) {
+    if (const uint32_t address =
+            KernelModuleVariable(*xboxkrnl, 0x0193 /* XexExecutableModuleHandle */)) {
       auto variable_ptr = memory_->TranslateVirtual<be<uint32_t>*>(address);
-      *variable_ptr = executable_module_->hmodule_ptr();
+      *variable_ptr = module->hmodule_ptr;
     }
-    if (const uint32_t address = xboxkrnl->Variable(0x01AF /* ExLoadedImageName */)) {
+    if (const uint32_t address = KernelModuleVariable(*xboxkrnl, 0x01AF /* ExLoadedImageName */)) {
       char* variable_ptr = memory_->TranslateVirtual<char*>(address);
-      rex::copy_truncating(variable_ptr, executable_module_->path(), kExLoadedImageNameSize);
+      rex::copy_truncating(variable_ptr, module->path, kExLoadedImageNameSize);
     }
   }
 
@@ -642,14 +589,14 @@ void KernelState::SetExecutableModule(object_ref<UserModule> module) {
   // here).
   if (!dispatch_thread_running_) {
     dispatch_thread_running_ = true;
-    dispatch_thread_ = object_ref<XHostThread>(new XHostThread(this, 128 * 1024, 0, [this]() {
-      auto global_lock = global_critical_region_.AcquireDeferred();
+    auto record = std::make_unique<ThreadRecord>(this, 128 * 1024, 0, [this]() {
+      std::unique_lock lock(dispatch_mutex_, std::defer_lock);
       while (dispatch_thread_running_) {
-        global_lock.lock();
+        lock.lock();
         if (dispatch_queue_.empty()) {
-          dispatch_cond_.wait(global_lock);
+          dispatch_cond_.wait(lock);
           if (!dispatch_thread_running_) {
-            global_lock.unlock();
+            lock.unlock();
             break;
           }
         }
@@ -657,7 +604,7 @@ void KernelState::SetExecutableModule(object_ref<UserModule> module) {
         dispatch_queue_.pop_front();
         REXLOG_DEV(system, "Dispatch thread processing queued item ({} remaining)",
                    dispatch_queue_.size());
-        global_lock.unlock();
+        lock.unlock();
 
         // Throws out of fn leave the originating overlapped uncompleted and
         // the waiting guest thread stuck; fail visibly rather than swallow.
@@ -671,12 +618,12 @@ void KernelState::SetExecutableModule(object_ref<UserModule> module) {
         REXLOG_DEV(system, "Dispatch thread completed item");
       }
       return 0;
-    }));
-    dispatch_thread_->set_name("Kernel Dispatch");
-    X_STATUS create_status = dispatch_thread_->Create();
+    });
+    record->set_name("Kernel Dispatch");
+    X_STATUS create_status = threads_.Launch(std::move(record), &dispatch_thread_);
     if (XFAILED(create_status)) {
       dispatch_thread_running_ = false;
-      dispatch_thread_.reset();
+      dispatch_thread_ = 0;
       REX_FATAL(system, "Failed to create kernel dispatch thread (status {:#x})", create_status);
     }
   }
@@ -684,74 +631,68 @@ void KernelState::SetExecutableModule(object_ref<UserModule> module) {
   LoadAchievementsData();
 }
 
-void KernelState::LoadKernelModule(object_ref<KernelModule> kernel_module) {
-  auto global_lock = global_critical_region_.Acquire();
-  kernel_modules_.push_back(std::move(kernel_module));
+X_HANDLE KernelState::LoadKernelModule(X_HANDLE created) {
+  return modules_.AddKernel(created);
 }
 
-object_ref<UserModule> KernelState::LoadUserModule(const std::string_view raw_name,
-                                                   bool call_entry) {
+X_HANDLE KernelState::LoadUserModule(const std::string_view raw_name, bool call_entry) {
   // Some games try to load relative to launch module, others specify full path.
   auto name = rex::utf8_find_name_from_guest_path(raw_name);
   std::string path(raw_name);
   if (name == raw_name) {
-    assert_not_null(executable_module_);
-    path = rex::utf8_join_guest_paths(rex::utf8_find_base_guest_path(executable_module_->path()),
-                                      name);
+    auto executable = object_table_.Get<ModuleObject>(modules_.executable());
+    assert_true(executable);
+    path = rex::utf8_join_guest_paths(rex::utf8_find_base_guest_path(executable->path), name);
   }
 
-  // loading_paths_ serializes concurrent loaders of the same path; we
+  // The loading mark serializes concurrent loaders of the same path; we
   // can't hold the global lock across LoadFromFile or DllMain ATTACH.
-  {
-    auto global_lock = global_critical_region_.Acquire();
-    for (auto& existing_module : user_modules_) {
-      if (existing_module->path() == path) {
-        return existing_module;
-      }
-    }
-    auto [it, inserted] = loading_paths_.emplace(path);
-    (void)it;
-    if (!inserted) {
-      REXLOG_WARN(system, "LoadUserModule: '{}' already being loaded by another thread", path);
-      return nullptr;
-    }
+  if (X_HANDLE existing = modules_.FindUser(path)) {
+    return existing;
+  }
+  if (!modules_.BeginLoad(path)) {
+    REXLOG_WARN(system, "LoadUserModule: '{}' already being loaded by another thread", path);
+    return 0;
   }
 
   struct LoadingMarkerGuard {
-    KernelState* ks;
+    ModuleRegistry* registry;
     const std::string& key;
-    ~LoadingMarkerGuard() {
-      auto lock = ks->global_critical_region_.Acquire();
-      ks->loading_paths_.erase(key);
-    }
-  } loading_guard{this, path};
+    ~LoadingMarkerGuard() { registry->EndLoad(key); }
+  } loading_guard{&modules_, path};
 
-  auto module = object_ref<UserModule>(new UserModule(this));
-  X_STATUS status = module->LoadFromFile(path);
-  if (XFAILED(status)) {
-    auto global_lock = global_critical_region_.Acquire();
-    object_table()->ReleaseHandle(module->handle());
-    return nullptr;
+  if (X_HANDLE existing = modules_.FindUser(path)) {
+    return existing;
   }
 
-  module->Dump();
+  const X_HANDLE created = CreateUserModule(this);
+  if (!created) {
+    return 0;
+  }
+  auto module = object_table_.Get<ModuleObject>(created);
+  X_STATUS status = UserModuleLoadFromFile(this, *module, path);
+  if (XFAILED(status)) {
+    object_table_.Close(created);
+    return 0;
+  }
 
-  // Wire recompiled code (if any) before publishing to user_modules_, so a
+  // Wire recompiled code (if any) before publishing to the module registry, so a
   // failure in this block leaves no half-loaded entry behind.
   auto recomp = FindRecompiledModule(path);
   bool wired_recomp = false;
   if (recomp && !recomp->shared_lib_name.empty()) {
     const std::string& lib_key = recomp->guest_path;
 
+    bool inserted;
     {
-      auto global_lock = global_critical_region_.Acquire();
-      auto [lib_it, inserted] = module_libraries_.emplace(lib_key, rex::platform::DynamicLibrary{});
-      if (!inserted) {
-        REXLOG_ERROR(system, "Recompiled module '{}' already loaded; refusing duplicate load",
-                     lib_key);
-        object_table()->ReleaseHandle(module->handle());
-        return nullptr;
-      }
+      std::lock_guard lock(recompiled_mutex_);
+      inserted = module_libraries_.emplace(lib_key, rex::platform::DynamicLibrary{}).second;
+    }
+    if (!inserted) {
+      REXLOG_ERROR(system, "Recompiled module '{}' already loaded; refusing duplicate load",
+                   lib_key);
+      object_table_.Close(created);
+      return 0;
     }
 
     rex::platform::DynamicLibrary library_local;
@@ -769,7 +710,7 @@ object_ref<UserModule> KernelState::LoadUserModule(const std::string_view raw_na
       } else if (!get_image_info) {
         REXLOG_ERROR(system, "ReXModule_GetImageInfo not found in '{}'", recomp->shared_lib_name);
       } else {
-        auto* xex = module->xex_module();
+        auto* xex = UserModuleXex(*module);
         const auto* image_info = get_image_info();
         if (!image_info) {
           REXLOG_ERROR(system, "ReXModule_GetImageInfo returned null for '{}'",
@@ -788,7 +729,7 @@ object_ref<UserModule> KernelState::LoadUserModule(const std::string_view raw_na
           REXLOG_ERROR(system, "InitializeFunctionTable failed for module '{}'", recomp->pe_name);
         } else {
           function_dispatcher_->RegisterModule(lib_key, image_info->code_base, register_func);
-          auto global_lock = global_critical_region_.Acquire();
+          std::lock_guard lock(recompiled_mutex_);
           auto lib_it = module_libraries_.find(lib_key);
           assert_true(lib_it != module_libraries_.end());
           lib_it->second = std::move(library_local);
@@ -798,99 +739,101 @@ object_ref<UserModule> KernelState::LoadUserModule(const std::string_view raw_na
     }
 
     if (!wired_recomp) {
-      auto global_lock = global_critical_region_.Acquire();
-      module_libraries_.erase(lib_key);
-      object_table()->ReleaseHandle(module->handle());
-      return nullptr;
+      {
+        std::lock_guard lock(recompiled_mutex_);
+        module_libraries_.erase(lib_key);
+      }
+      object_table_.Close(created);
+      return 0;
     }
   }
 
-  {
-    auto global_lock = global_critical_region_.Acquire();
-    user_modules_.push_back(module);
+  if (!modules_.AddUser(created)) {
+    object_table_.Close(created);
+    return modules_.FindUser(path);
   }
+  const X_HANDLE loaded = modules_.FindUser(module->path);
 
-  if (module->is_dll_module() && module->entry_point() && call_entry) {
-    if (!XThread::IsInThread()) {
+  if (module->user.is_dll_module && module->user.entry_point && call_entry) {
+    if (!ThreadRecord::IsInThread()) {
       REXLOG_WARN(system, "DllMain(DLL_PROCESS_ATTACH) skipped for '{}': not on a guest thread",
-                  module->name());
+                  module->name);
     } else {
-      auto* thread = XThread::GetCurrentThread();
-      uint64_t args[] = {module->hmodule_ptr(), 1 /* DLL_PROCESS_ATTACH */, 0};
+      auto* thread = ThreadRecord::GetCurrentThread();
+      uint64_t args[] = {module->hmodule_ptr, 1 /* DLL_PROCESS_ATTACH */, 0};
       uint64_t dllmain_ret =
-          function_dispatcher_->Execute(thread->thread_state(), module->entry_point(), args, 3);
+          function_dispatcher_->Execute(thread->thread_state(), module->user.entry_point, args, 3);
       if (static_cast<uint32_t>(dllmain_ret) == 0) {
         REXLOG_ERROR(system,
                      "DllMain(DLL_PROCESS_ATTACH) returned FALSE for '{}'; rolling back load",
-                     module->name());
+                     module->name);
         // call_entry=false: the guest already declined ATTACH, so don't run DETACH.
-        UnloadUserModule(module, /*call_entry=*/false);
-        return nullptr;
+        UnloadUserModule(loaded, /*call_entry=*/false);
+        return 0;
       }
     }
   }
 
-  return module;
+  return loaded;
 }
 
-void KernelState::UnloadUserModule(const object_ref<UserModule>& module, bool call_entry) {
+void KernelState::UnloadUserModule(X_HANDLE module_handle, bool call_entry) {
+  auto module = object_table_.Get<ModuleObject>(module_handle);
+  if (!module) {
+    REXLOG_ERROR(system, "UnloadUserModule: invalid module handle {:08X}", module_handle);
+    return;
+  }
+
   // Run guest DllMain DETACH outside the global lock to avoid deadlock with
   // subsystem mutexes acquired from inside the guest callback.
-  if (module->is_dll_module() && module->entry_point() && call_entry) {
-    if (!XThread::IsInThread()) {
+  if (module->user.is_dll_module && module->user.entry_point && call_entry) {
+    if (!ThreadRecord::IsInThread()) {
       REXLOG_WARN(system, "DllMain(DLL_PROCESS_DETACH) skipped for '{}': not on a guest thread",
-                  module->name());
+                  module->name);
     } else {
-      auto* thread = XThread::GetCurrentThread();
-      uint64_t args[] = {module->hmodule_ptr(), 0 /* DLL_PROCESS_DETACH */, 0};
-      function_dispatcher_->Execute(thread->thread_state(), module->entry_point(), args, 3);
+      auto* thread = ThreadRecord::GetCurrentThread();
+      uint64_t args[] = {module->hmodule_ptr, 0 /* DLL_PROCESS_DETACH */, 0};
+      function_dispatcher_->Execute(thread->thread_state(), module->user.entry_point, args, 3);
     }
   }
 
-  bool found_module = false;
-  {
-    auto global_lock = global_critical_region_.Acquire();
-
-    auto recomp = FindRecompiledModule(module->path());
-    if (recomp) {
-      const std::string& key = recomp->guest_path;
-      auto cleared_range = function_dispatcher_->UnregisterModule(key);
-      if (cleared_range) {
-        for (auto& km : kernel_modules_) {
-          km->InvalidateThunkCacheInRange(cleared_range->first, cleared_range->second);
-        }
-      }
-
-      if (!recomp->shared_lib_name.empty()) {
-        auto lib_it = module_libraries_.find(key);
-        if (lib_it != module_libraries_.end()) {
-          deferred_unload_libraries_.push_back(std::move(lib_it->second));
-          module_libraries_.erase(lib_it);
+  auto recomp = FindRecompiledModule(module->path);
+  if (recomp) {
+    const std::string& key = recomp->guest_path;
+    auto cleared_range = function_dispatcher_->UnregisterModule(key);
+    if (cleared_range) {
+      for (X_HANDLE kernel_handle : modules_.kernel_modules()) {
+        if (auto kernel_module = object_table_.Get<ModuleObject>(kernel_handle)) {
+          KernelModuleInvalidateThunkCacheInRange(*kernel_module, cleared_range->first,
+                                                  cleared_range->second);
         }
       }
     }
 
-    auto iter = std::find_if(user_modules_.begin(), user_modules_.end(),
-                             [&module](const auto& e) { return e->path() == module->path(); });
-    if (iter != user_modules_.end()) {
-      user_modules_.erase(iter);
-      found_module = true;
+    if (!recomp->shared_lib_name.empty()) {
+      std::lock_guard lock(recompiled_mutex_);
+      auto lib_it = module_libraries_.find(key);
+      if (lib_it != module_libraries_.end()) {
+        deferred_unload_libraries_.push_back(std::move(lib_it->second));
+        module_libraries_.erase(lib_it);
+      }
     }
+  }
 
-    if (found_module) {
-      object_table()->ReleaseHandle(module->handle());
-    }
+  const bool found_module = modules_.RemoveUser(module_handle);
+  if (found_module) {
+    object_table_.Close(ModuleHandleFromHModule(memory_->TranslateVirtual(module->hmodule_ptr)));
   }
 
   if (!found_module) {
-    REXLOG_ERROR(system, "UnloadUserModule: module '{}' not found in user_modules_",
-                 module->path());
+    REXLOG_ERROR(system, "UnloadUserModule: module '{}' not found in the module registry",
+                 module->path);
   }
 }
 
 void KernelState::RegisterRecompiledModule(const char* pe_name, const char* guest_path,
                                            const char* shared_lib_name) {
-  auto global_lock = global_critical_region_.Acquire();
+  std::lock_guard lock(recompiled_mutex_);
   RecompiledModuleInfo info;
   info.pe_name = pe_name ? pe_name : "";
   info.guest_path = guest_path ? NormalizeGuestPath(guest_path) : "";
@@ -913,7 +856,7 @@ void KernelState::RegisterRecompiledModule(const char* pe_name, const char* gues
 
 std::optional<KernelState::RecompiledModuleInfo> KernelState::FindRecompiledModule(
     std::string_view guest_path) {
-  auto global_lock = global_critical_region_.Acquire();
+  std::lock_guard lock(recompiled_mutex_);
   auto normalized = NormalizeGuestPath(guest_path);
   for (const auto& info : recompiled_modules_) {
     if (info.guest_path == normalized)
@@ -923,36 +866,23 @@ std::optional<KernelState::RecompiledModuleInfo> KernelState::FindRecompiledModu
 }
 
 void KernelState::SignalAllWaitableObjects() {
-  auto global_lock = global_critical_region_.Acquire();
-  auto objects = object_table_.GetAllObjects();
-  for (auto& obj : objects) {
-    switch (obj->type()) {
-      case XObject::Type::Event: {
-        auto* event = static_cast<XEvent*>(obj.get());
-        event->Set(0, false);
-        break;
-      }
-      case XObject::Type::Mutant: {
-        // ReleaseMutant reads the current thread; skip on non-kernel threads
-        // (host UI shutdown), where GetCurrentThread asserts.
-        if (XThread::IsInThread()) {
-          static_cast<XMutant*>(obj.get())->ReleaseMutant(0, false, false);
-        }
-        break;
-      }
-      case XObject::Type::Semaphore: {
-        auto* sem = static_cast<XSemaphore*>(obj.get());
-        (void)sem->ReleaseSemaphore(sem->maximum_count(), nullptr);
-        break;
-      }
-      case XObject::Type::Timer: {
-        auto* timer = static_cast<XTimer*>(obj.get());
-        timer->Cancel();
-        break;
-      }
-      default:
-        break;
-    }
+  for (PinnedSlot& slot : object_table_.GetAll()) {
+    std::visit(
+        [](auto& object) {
+          using T = std::decay_t<decltype(object)>;
+          if constexpr (std::is_same_v<T, EventObject>) {
+            EventSet(object);
+          } else if constexpr (std::is_same_v<T, MutantObject>) {
+            if (ThreadRecord::IsInThread()) {
+              MutantRelease(object, false);
+            }
+          } else if constexpr (std::is_same_v<T, SemaphoreObject>) {
+            (void)SemaphoreRelease(object, static_cast<i32>(object.maximum_count), nullptr);
+          } else if constexpr (std::is_same_v<T, TimerObject>) {
+            TimerCancel(object);
+          }
+        },
+        slot.data());
   }
 }
 
@@ -962,17 +892,15 @@ void KernelState::TerminateTitle() {
   const auto timeout = emulator()->config().runtime.terminate_timeout;
 
   // Guest threads poll this flag in the kernel wait primitives
-  // (XThread::CheckTitleTermination) and self-exit.
+  // (ThreadRecord::CheckTitleTermination) and self-exit.
   terminating_title_.store(true, std::memory_order_release);
 
-  // Retained so a thread that wakes and exits below can't be freed mid-drain.
-  std::vector<object_ref<XThread>> target_threads;
-  {
-    auto global_lock = global_critical_region_.Acquire();
-    for (auto& [id, thread] : threads_by_id_) {
-      if (!XThread::IsInThread(thread) && thread->is_guest_thread() && thread->is_running()) {
-        target_threads.push_back(retain_object(thread));
-      }
+  // Pinned so a thread that wakes and exits below can't be freed mid-drain.
+  std::vector<ThreadPin> target_threads;
+  for (ThreadPin& thread : threads_.All()) {
+    if (!ThreadRecord::IsInThread(thread.get()) && thread->is_guest_thread() &&
+        thread->is_running()) {
+      target_threads.push_back(std::move(thread));
     }
   }
 
@@ -985,24 +913,13 @@ void KernelState::TerminateTitle() {
 
   WaitForThreadsToExit(target_threads, timeout);
 
-  // Stragglers die under the global lock, so none of them holds it when it dies.
-  {
-    auto global_lock = global_critical_region_.Acquire();
-    for (auto& thread : target_threads) {
-      if (thread->is_running()) {
-        REXLOG_WARN(system,
-                    "TerminateTitle: thread {:08X} '{}' entry {:08X} still running after {} ms",
-                    thread->thread_id(), thread->name(), thread->creation_params()->start_address,
-                    timeout.count());
-        thread->Terminate(0);
-      }
-    }
-    for (auto it = threads_by_id_.begin(); it != threads_by_id_.end();) {
-      if (!XThread::IsInThread(it->second) && it->second->is_guest_thread()) {
-        it = threads_by_id_.erase(it);
-      } else {
-        ++it;
-      }
+  for (auto& thread : target_threads) {
+    if (thread->is_running()) {
+      REXLOG_WARN(system,
+                  "TerminateTitle: thread {:08X} '{}' entry {:08X} still running after {} ms",
+                  thread->thread_id(), thread->name(), thread->creation_params()->start_address,
+                  timeout.count());
+      thread->Terminate(0);
     }
   }
 
@@ -1014,12 +931,8 @@ void KernelState::TerminateTitle() {
   target_threads.clear();
 
   // Self-terminate if called from a guest thread (e.g. XamLoaderTerminateTitle).
-  if (XThread::IsInThread()) {
-    {
-      auto global_lock = global_critical_region_.Acquire();
-      threads_by_id_.erase(XThread::GetCurrentThread()->thread_id());
-    }
-    XThread::GetCurrentThread()->Terminate(0);
+  if (ThreadRecord::IsInThread()) {
+    ThreadRecord::GetCurrentThread()->Terminate(0);
   }
 }
 
@@ -1030,98 +943,39 @@ void KernelState::ExitTitle(runtime::TitleExitReason reason) {
   TerminateTitle();
 }
 
-void KernelState::RegisterThread(XThread* thread) {
-  auto global_lock = global_critical_region_.Acquire();
-  threads_by_id_[thread->thread_id()] = thread;
-
-  // Thread count is now managed via thread-process linking in
-  // XThread::InitializeGuestObject and XThread::Exit.
-}
-
-void KernelState::UnregisterThread(XThread* thread) {
-  auto global_lock = global_critical_region_.Acquire();
-  auto it = threads_by_id_.find(thread->thread_id());
-  if (it != threads_by_id_.end()) {
-    threads_by_id_.erase(it);
+void KernelState::RegisterNotifyListener(X_HANDLE listener_handle) {
+  X_HANDLE owned = 0;
+  if (XFAILED(object_table_.Duplicate(listener_handle, &owned))) {
+    return;
   }
-}
-
-void KernelState::OnThreadExecute(XThread* thread) {
-  auto global_lock = global_critical_region_.Acquire();
-
-  // Must be called on executing thread.
-  assert_true(XThread::GetCurrentThread() == thread);
-
-  // TODO(tomc): Do we need this?
-  //             Xenia would iterate user_modules_ and call function_dispatcher()->Execute() for
-  //             each Note that this would require reimplementation of guest thread management
-  (void)thread;
-}
-
-void KernelState::OnThreadExit(XThread* thread) {
-  auto global_lock = global_critical_region_.Acquire();
-
-  // Must be called on executing thread.
-  assert_true(XThread::GetCurrentThread() == thread);
-
-  // TODO(tomc): Do we need this? Same idea as OnThreadExecute
-  (void)thread;
-}
-
-object_ref<XThread> KernelState::GetThreadByID(uint32_t thread_id) {
-  auto global_lock = global_critical_region_.Acquire();
-  XThread* thread = nullptr;
-  auto it = threads_by_id_.find(thread_id);
-  if (it != threads_by_id_.end()) {
-    thread = it->second;
-  }
-  return retain_object(thread);
-}
-
-void KernelState::RegisterNotifyListener(XNotifyListener* listener) {
-  auto global_lock = global_critical_region_.Acquire();
-  notify_listeners_.push_back(retain_object(listener));
-
-  // Games seem to expect a few notifications on startup, only for the first
-  // listener.
-  // https://cs.rin.ru/forum/viewtopic.php?f=38&t=60668&hilit=resident+evil+5&start=375
-  if (!has_notified_startup_ && listener->mask() & 0x00000001) {
+  auto listener = object_table_.Get<NotifyListenerObject>(owned);
+  std::lock_guard lock(notify_mutex_);
+  notify_listeners_.push_back(owned);
+  if (!has_notified_startup_ && listener->mask & 0x00000001) {
     has_notified_startup_ = true;
-    // XN_SYS_UI (on, off)
-    listener->EnqueueNotification(0x00000009, 1);
-    listener->EnqueueNotification(0x00000009, 0);
-    // XN_SYS_SIGNINCHANGED x2
-    listener->EnqueueNotification(0x0000000A, 1);
-    listener->EnqueueNotification(0x0000000A, 1);
-    // XN_SYS_INPUTDEVICESCHANGED x2
-    listener->EnqueueNotification(0x00000012, 0);
-    listener->EnqueueNotification(0x00000012, 0);
-    // XN_SYS_INPUTDEVICECONFIGCHANGED x2
-    listener->EnqueueNotification(0x00000013, 0);
-    listener->EnqueueNotification(0x00000013, 0);
-  }
-}
-
-void KernelState::UnregisterNotifyListener(XNotifyListener* listener) {
-  auto global_lock = global_critical_region_.Acquire();
-  for (auto it = notify_listeners_.begin(); it != notify_listeners_.end(); ++it) {
-    if ((*it).get() == listener) {
-      notify_listeners_.erase(it);
-      break;
-    }
+    NotifyListenerEnqueue(*listener, 0x00000009, 1);
+    NotifyListenerEnqueue(*listener, 0x00000009, 0);
+    NotifyListenerEnqueue(*listener, 0x0000000A, 1);
+    NotifyListenerEnqueue(*listener, 0x0000000A, 1);
+    NotifyListenerEnqueue(*listener, 0x00000012, 0);
+    NotifyListenerEnqueue(*listener, 0x00000012, 0);
+    NotifyListenerEnqueue(*listener, 0x00000013, 0);
+    NotifyListenerEnqueue(*listener, 0x00000013, 0);
   }
 }
 
 void KernelState::BroadcastNotification(XNotificationID id, uint32_t data) {
-  std::vector<object_ref<XNotifyListener>> snapshot;
+  std::vector<X_HANDLE> snapshot;
   {
-    auto global_lock = global_critical_region_.Acquire();
+    std::lock_guard lock(notify_mutex_);
     REXLOG_DEBUG(system, "BroadcastNotification(id={:#x}, data={}) to {} listeners",
                  static_cast<uint32_t>(id), data, notify_listeners_.size());
     snapshot = notify_listeners_;
   }
-  for (const auto& notify_listener : snapshot) {
-    notify_listener->EnqueueNotification(id, data);
+  for (X_HANDLE handle : snapshot) {
+    if (auto listener = object_table_.Get<NotifyListenerObject>(handle)) {
+      NotifyListenerEnqueue(*listener, id, data);
+    }
   }
 }
 
@@ -1137,15 +991,15 @@ void KernelState::CompleteOverlappedEx(uint32_t overlapped_ptr, X_RESULT result,
   XOverlappedSetLength(ptr, length);
   X_HANDLE event_handle = XOverlappedGetEvent(ptr);
   if (event_handle) {
-    auto ev = object_table()->LookupObject<XEvent>(event_handle);
-    assert_not_null(ev);
+    auto ev = object_table()->Get<EventObject>(event_handle);
+    assert_true(static_cast<bool>(ev));
     if (ev) {
-      ev->Set(0, false);
+      EventSet(*ev);
     }
   }
   if (XOverlappedGetCompletionRoutine(ptr)) {
     X_HANDLE thread_handle = XOverlappedGetContext(ptr);
-    auto thread = object_table()->LookupObject<XThread>(thread_handle);
+    auto thread = threads_.FindByHandle(thread_handle);
     if (thread) {
       // Queue APC on the thread that requested the overlapped operation.
       uint32_t routine = XOverlappedGetCompletionRoutine(ptr);
@@ -1165,7 +1019,7 @@ void KernelState::CompleteOverlappedImmediate(uint32_t overlapped_ptr, X_RESULT 
 void KernelState::CompleteOverlappedImmediateEx(uint32_t overlapped_ptr, X_RESULT result,
                                                 uint32_t extended_error, uint32_t length) {
   auto ptr = memory()->TranslateVirtual(overlapped_ptr);
-  XOverlappedSetContext(ptr, XThread::GetCurrentThreadHandle());
+  XOverlappedSetContext(ptr, ThreadRecord::GetCurrentThreadHandle());
   CompleteOverlappedEx(overlapped_ptr, result, extended_error, length);
 }
 
@@ -1214,8 +1068,8 @@ void KernelState::CompleteOverlappedDeferredEx(
                overlapped_ptr);
   auto ptr = memory()->TranslateVirtual(overlapped_ptr);
   XOverlappedSetResult(ptr, X_ERROR_IO_PENDING);
-  XOverlappedSetContext(ptr, XThread::GetCurrentThreadHandle());
-  auto global_lock = global_critical_region_.Acquire();
+  XOverlappedSetContext(ptr, ThreadRecord::GetCurrentThreadHandle());
+  std::lock_guard lock(dispatch_mutex_);
   dispatch_queue_.push_back(
       [this, completion_callback, overlapped_ptr, pre_callback, post_callback]() {
         REXLOG_DEBUG(system, "Deferred overlapped {:08X}: running pre_callback", overlapped_ptr);
@@ -1240,7 +1094,7 @@ void KernelState::CompleteOverlappedDeferredEx(
 }
 
 DPCImpersonationScope KernelState::BeginDPCImpersonation() {
-  auto* thread = XThread::GetCurrentThread();
+  auto* thread = ThreadRecord::GetCurrentThread();
   auto* ctx = thread->thread_state()->context();
   auto pcr = memory_->TranslateVirtual<X_KPCR*>(static_cast<uint32_t>(ctx->r13.u64));
   DPCImpersonationScope scope;
@@ -1251,7 +1105,7 @@ DPCImpersonationScope KernelState::BeginDPCImpersonation() {
 }
 
 void KernelState::EndDPCImpersonation(const DPCImpersonationScope& scope) {
-  auto* thread = XThread::GetCurrentThread();
+  auto* thread = ThreadRecord::GetCurrentThread();
   auto* ctx = thread->thread_state()->context();
   auto pcr = memory_->TranslateVirtual<X_KPCR*>(static_cast<uint32_t>(ctx->r13.u64));
   pcr->prcb_data.dpc_active = 0;
@@ -1259,18 +1113,18 @@ void KernelState::EndDPCImpersonation(const DPCImpersonationScope& scope) {
 }
 
 FiberInfo* KernelState::LookupFiber(uint32_t guest_addr) {
-  auto lock = global_critical_region_.Acquire();
+  std::lock_guard lock(fiber_mutex_);
   auto it = fiber_map_.find(guest_addr);
   return it != fiber_map_.end() ? &it->second : nullptr;
 }
 
 void KernelState::RegisterFiber(uint32_t guest_addr, const FiberInfo& info) {
-  auto lock = global_critical_region_.Acquire();
+  std::lock_guard lock(fiber_mutex_);
   fiber_map_[guest_addr] = info;
 }
 
 void KernelState::UnregisterFiber(uint32_t guest_addr) {
-  auto lock = global_critical_region_.Acquire();
+  std::lock_guard lock(fiber_mutex_);
   fiber_map_.erase(guest_addr);
 }
 

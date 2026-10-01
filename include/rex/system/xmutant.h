@@ -10,35 +10,42 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <atomic>
+#include <memory>
+
+#include <rex/platform/thread.h>
 #include <rex/system/xobject.h>
 #include <rex/system/xtypes.h>
-#include <rex/platform/thread.h>
 
 namespace rex::system {
 
-class XThread;
+/** The host state of a mutant object. */
+struct MutantObject {
+  MutantObject() = default;
 
-class XMutant : public XObject {
- public:
-  static const XObject::Type kObjectType = XObject::Type::Mutant;
+  /**
+   * @param initial_owner True when the creating thread owns the mutant at once.
+   */
+  explicit MutantObject(bool initial_owner);
 
-  explicit XMutant(KernelState* kernel_state);
-  ~XMutant() override;
-
-  void Initialize(bool initial_owner);
-  void InitializeNative(void* native_ptr, X_DISPATCH_HEADER* header);
-
-  X_STATUS ReleaseMutant(uint32_t priority_increment, bool abandon, bool wait);
-
- protected:
-  rex::platform::WaitHandle* GetWaitHandle() override { return mutant_.get(); }
-  void WaitCallback() override;
-
- private:
-  XMutant();
-
-  std::unique_ptr<rex::platform::Mutant> mutant_;
-  XThread* owning_thread_ = nullptr;
+  std::unique_ptr<rex::platform::Mutant> mutant;
+  std::atomic<u32> owner_thread_id{0};
 };
+
+/**
+ * Releases a mutant held by the current thread.
+ *
+ * @param mutant The mutant.
+ * @param abandon True to abandon the mutant, which is not implemented.
+ * @return X_STATUS_SUCCESS, or X_STATUS_MUTANT_NOT_OWNED when the caller does not own it.
+ */
+X_STATUS MutantRelease(MutantObject& mutant, bool abandon);
+
+/**
+ * Records the current thread as the owner after a successful wait.
+ *
+ * @param mutant The mutant.
+ */
+void MutantAcquired(MutantObject& mutant);
 
 }  // namespace rex::system

@@ -10,39 +10,51 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <memory>
+#include <mutex>
 #include <queue>
 
+#include <rex/platform/thread.h>
 #include <rex/system/xobject.h>
 #include <rex/system/xtypes.h>
-#include <rex/platform/thread.h>
 
 namespace rex::system {
 
-class XIOCompletion : public XObject {
- public:
-  static const XObject::Type kObjectType = XObject::Type::IOCompletion;
-
-  explicit XIOCompletion(KernelState* kernel_state);
-  ~XIOCompletion() override;
-
-  struct IONotification {
-    uint32_t key_context;
-    uint32_t apc_context;
-    uint32_t status;
-    uint32_t num_bytes;
-  };
-
-  void QueueNotification(IONotification& notification);
-
-  // Returns true if the wait ended because a notification was received.
-  bool WaitForNotification(uint64_t wait_ticks, IONotification* notify);
-
- private:
-  static const uint32_t kMaxNotifications = 1024;
-
-  std::mutex notification_lock_;
-  std::queue<IONotification> notifications_;
-  std::unique_ptr<rex::platform::Semaphore> notification_semaphore_ = nullptr;
+/** One completed request queued on an IO completion port. */
+struct IONotification {
+  u32 key_context;
+  u32 apc_context;
+  u32 status;
+  u32 num_bytes;
 };
+
+/** The host state of an IO completion port. */
+struct IOCompletionObject {
+  static constexpr u32 kMaxNotifications = 1024;
+
+  IOCompletionObject();
+
+  std::mutex notification_lock;
+  std::queue<IONotification> notifications;
+  std::unique_ptr<rex::platform::Semaphore> notification_semaphore;
+};
+
+/**
+ * Queues a notification and wakes one waiter.
+ *
+ * @param port The port.
+ * @param notification The notification to queue.
+ */
+void IOCompletionQueue(IOCompletionObject& port, const IONotification& notification);
+
+/**
+ * Waits for a notification and dequeues it.
+ *
+ * @param port The port.
+ * @param wait_ticks The timeout in 100 nanosecond ticks, negative for relative.
+ * @param notify Receives the notification when one arrived.
+ * @return True when the wait ended because a notification was received.
+ */
+bool IOCompletionWait(IOCompletionObject& port, u64 wait_ticks, IONotification* notify);
 
 }  // namespace rex::system

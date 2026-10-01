@@ -21,7 +21,7 @@ namespace {
 
 struct FakeThread {
   bool running = false;
-  // NOLINTNEXTLINE(readability-identifier-naming): the XThread spelling the helper calls
+  // NOLINTNEXTLINE(readability-identifier-naming): the ThreadRecord spelling the helper calls
   bool is_running() const { return running; }
 };
 

@@ -37,12 +37,20 @@
 #include <rex/system/xtimer.h>
 #include <rex/system/xtypes.h>
 #include <rex/platform/atomic.h>
-#include <rex/platform/mutex.h>
 #include "kernel/kernel_macros.h"
 
 namespace rex::kernel::xboxkrnl {
 using namespace rex::system;
 using rex::runtime::current_ppc_context;
+
+namespace {
+
+ThreadPin FindThread(void* thread_ptr) {
+  const X_HANDLE handle = ResolveGuestObject(REX_KERNEL_STATE(), thread_ptr);
+  return handle ? REX_KERNEL_STATE()->threads()->FindByHandle(handle) : ThreadPin{};
+}
+
+}  // namespace
 
 // r13 + 0x100: pointer to thread local state
 // Thread local state:
@@ -106,17 +114,21 @@ u32 ExCreateThread_entry(mapped_u32 handle_ptr, u32 stack_size, mapped_u32 threa
   uint32_t actual_stack_size = stack_size;
 
   if (actual_stack_size == 0) {
-    actual_stack_size = REX_KERNEL_STATE()->GetExecutableModule()->stack_size();
+    actual_stack_size = REX_KERNEL_OBJECTS()
+                            ->Get<ModuleObject>(REX_KERNEL_STATE()->GetExecutableModule())
+                            ->user.stack_size;
   }
 
   // Stack must be aligned to 16kb pages
   actual_stack_size = std::max((uint32_t)0x4000, ((actual_stack_size + 0xFFF) & 0xFFFFF000));
 
-  auto thread = object_ref<XThread>(new XThread(
+  auto record = std::make_unique<ThreadRecord>(
       REX_KERNEL_STATE(), actual_stack_size, xapi_thread_startup, start_address.guest_address(),
-      start_context.guest_address(), creation_flags, true, false, guest_process));
+      start_context.guest_address(), creation_flags, true, false, guest_process);
+  const uint32_t thread_id = record->thread_id();
 
-  X_STATUS result = thread->Create();
+  X_HANDLE handle = 0;
+  X_STATUS result = REX_KERNEL_STATE()->threads()->Launch(std::move(record), &handle);
   if (XFAILED(result)) {
     // Failed!
     REX_FAIL(kernel, result, "Thread creation failed: {:08X}", result);
@@ -125,13 +137,14 @@ u32 ExCreateThread_entry(mapped_u32 handle_ptr, u32 stack_size, mapped_u32 threa
   if (XSUCCEEDED(result)) {
     if (handle_ptr) {
       if (creation_flags & 0x80) {
-        *handle_ptr = thread->guest_object();
+        auto thread = REX_KERNEL_STATE()->threads()->FindByHandle(handle);
+        *handle_ptr = thread ? thread->guest_object() : 0;
       } else {
-        *handle_ptr = thread->handle();
+        *handle_ptr = handle;
       }
     }
     if (thread_id_ptr) {
-      *thread_id_ptr = thread->thread_id();
+      *thread_id_ptr = thread_id;
     }
   }
   REXLOG_TRACE(kernel,
@@ -143,7 +156,7 @@ u32 ExCreateThread_entry(mapped_u32 handle_ptr, u32 stack_size, mapped_u32 threa
 }
 
 u32 ExTerminateThread_entry(u32 exit_code) {
-  XThread* thread = XThread::GetCurrentThread();
+  ThreadRecord* thread = ThreadRecord::GetCurrentThread();
 
   // NOTE: this kills us right now. We won't return from it.
   return thread->Exit(exit_code);
@@ -153,7 +166,7 @@ u32 NtResumeThread_entry(u32 handle, mapped_u32 suspend_count_ptr) {
   X_RESULT result = X_STATUS_INVALID_HANDLE;
   uint32_t suspend_count = 0;
 
-  auto thread = REX_KERNEL_OBJECTS()->LookupObject<XThread>(handle);
+  auto thread = REX_KERNEL_STATE()->threads()->FindByHandle(handle);
   if (thread) {
     REXLOG_TRACE(kernel, "NtResumeThread handle={:08X} thread={}", uint32_t(handle),
                  thread->name());
@@ -171,7 +184,7 @@ u32 NtResumeThread_entry(u32 handle, mapped_u32 suspend_count_ptr) {
 
 u32 KeResumeThread_entry(mapped_void thread_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
-  auto thread = XObject::GetNativeObject<XThread>(REX_KERNEL_STATE(), thread_ptr);
+  auto thread = FindThread(thread_ptr);
   if (thread) {
     REXLOG_TRACE(kernel, "KeResumeThread ptr={:08X} thread={}", thread_ptr.guest_address(),
                  thread->name());
@@ -189,12 +202,8 @@ u32 NtSuspendThread_entry(u32 handle, mapped_u32 suspend_count_ptr) {
   X_RESULT result = X_STATUS_SUCCESS;
   uint32_t suspend_count = 0;
 
-  auto thread = REX_KERNEL_OBJECTS()->LookupObject<XThread>(handle);
+  auto thread = REX_KERNEL_STATE()->threads()->FindByHandle(handle);
   if (thread) {
-    if (thread->type() != XObject::Type::Thread) {
-      return X_STATUS_OBJECT_TYPE_MISMATCH;
-    }
-
     auto guest_thread = thread->guest_object<X_KTHREAD>();
     if (guest_thread->terminated) {
       return X_STATUS_THREAD_IS_TERMINATING;
@@ -203,7 +212,7 @@ u32 NtSuspendThread_entry(u32 handle, mapped_u32 suspend_count_ptr) {
     REXLOG_TRACE(kernel, "NtSuspendThread handle={:08X} thread={}", uint32_t(handle),
                  thread->name());
 #if REX_PLATFORM_LINUX || REX_PLATFORM_MAC
-    auto* current_thread = XThread::GetCurrentThread();
+    auto* current_thread = ThreadRecord::GetCurrentThread();
     bool is_self_suspend = current_thread && current_thread == thread.get();
     if (is_self_suspend) {
       REXLOG_TRACE(kernel, "NtSuspendThread self-suspend for thread={:08X}", uint32_t(handle));
@@ -246,7 +255,7 @@ void UpdateGuestStackPointers(X_KTHREAD* kthread, X_KPCR* pcr, PPCContext* ctx, 
 void KeSetCurrentStackPointers_entry(mapped_void stack_ptr, ppc_ptr_t<X_KTHREAD> thread,
                                      mapped_void stack_alloc_base, mapped_void stack_base,
                                      mapped_void stack_limit) {
-  auto current_thread = XThread::GetCurrentThread();
+  auto current_thread = ThreadRecord::GetCurrentThread();
   auto context = current_thread->thread_state()->context();
   auto pcr =
       REX_KERNEL_MEMORY()->TranslateVirtual<X_KPCR*>(static_cast<uint32_t>(context->r13.u64));
@@ -266,7 +275,7 @@ u32 KeSetAffinityThread_entry(mapped_void thread_ptr, u32 affinity,
   // argument, not in the return value - the return value is used for the
   // result.
   REX_KERNEL_ARG(affinity);
-  auto thread = XObject::GetNativeObject<XThread>(REX_KERNEL_STATE(), thread_ptr);
+  auto thread = FindThread(thread_ptr);
   if (!thread) {
     REXLOG_DEV(kernel,
                "KeSetAffinityThread "
@@ -291,7 +300,7 @@ u32 KeQueryBasePriorityThread_entry(mapped_void thread_ptr) {
                thread_ptr.guest_address());
   int32_t priority = 0;
 
-  auto thread = XObject::GetNativeObject<XThread>(REX_KERNEL_STATE(), thread_ptr);
+  auto thread = FindThread(thread_ptr);
   if (thread) {
     priority = thread->QueryPriority();
   }
@@ -309,7 +318,7 @@ u32 KeSetBasePriorityThread_entry(mapped_void thread_ptr, u32 increment) {
                "thread={:#x} increment={}",
                thread_ptr.guest_address(), (int32_t)increment);
   int32_t prev_priority = 0;
-  auto thread = XObject::GetNativeObject<XThread>(REX_KERNEL_STATE(), thread_ptr);
+  auto thread = FindThread(thread_ptr);
 
   if (thread) {
     prev_priority = thread->QueryPriority();
@@ -330,7 +339,7 @@ u32 KeSetDisableBoostThread_entry(ppc_ptr_t<X_KTHREAD> thread_ptr, u32 disabled)
 }
 
 u32 KeGetCurrentProcessType_entry() {
-  auto current_thread = XThread::GetCurrentThread();
+  auto current_thread = ThreadRecord::GetCurrentThread();
   auto context = current_thread->thread_state()->context();
   auto pcr =
       REX_KERNEL_MEMORY()->TranslateVirtual<X_KPCR*>(static_cast<uint32_t>(context->r13.u64));
@@ -349,7 +358,7 @@ void KeSetCurrentProcessType_entry(u32 type) {
 
   REX_KERNEL_STATE()->set_process_type(type);
 
-  auto current_thread = XThread::GetCurrentThread();
+  auto current_thread = ThreadRecord::GetCurrentThread();
   auto context = current_thread->thread_state()->context();
   auto pcr =
       REX_KERNEL_MEMORY()->TranslateVirtual<X_KPCR*>(static_cast<uint32_t>(context->r13.u64));
@@ -365,7 +374,7 @@ u32 KeQueryPerformanceFrequency_entry() {
 }
 
 u32 KeDelayExecutionThread_entry(u32 processor_mode, u32 alertable, mapped_u64 interval_ptr) {
-  XThread* thread = XThread::GetCurrentThread();
+  ThreadRecord* thread = ThreadRecord::GetCurrentThread();
 
   if (alertable) {
     thread->DeliverAPCs();
@@ -396,7 +405,7 @@ void KeQuerySystemTime_entry(mapped_u64 time_ptr) {
 u32 KeTlsAlloc_entry() {
   uint32_t slot = REX_KERNEL_STATE()->AllocateTLS(current_ppc_context());
   if (slot != X_TLS_OUT_OF_INDEXES) {
-    XThread::GetCurrentThread()->SetTLSValue(slot, 0);
+    ThreadRecord::GetCurrentThread()->SetTLSValue(slot, 0);
   }
   REXLOG_TRACE(kernel,
                "KeTlsAlloc -> "
@@ -430,7 +439,7 @@ u32 KeTlsGetValue_entry(u32 tls_index) {
   // xboxkrnl doesn't actually have an error branch - it always succeeds, even
   // if it overflows the TLS.
   uint32_t value = 0;
-  if (XThread::GetCurrentThread()->GetTLSValue(tls_index, &value)) {
+  if (ThreadRecord::GetCurrentThread()->GetTLSValue(tls_index, &value)) {
     return value;
   }
 
@@ -445,7 +454,7 @@ u32 KeTlsSetValue_entry(u32 tls_index, u32 tls_value) {
                (uint32_t)tls_index, (uint32_t)tls_value);
   // xboxkrnl doesn't actually have an error branch - it always succeeds, even
   // if it overflows the TLS.
-  if (XThread::GetCurrentThread()->SetTLSValue(tls_index, tls_value)) {
+  if (ThreadRecord::GetCurrentThread()->SetTLSValue(tls_index, tls_value)) {
     REXLOG_TRACE(kernel,
                  "KeTlsSetValue -> "
                  "1");
@@ -462,7 +471,7 @@ void KeInitializeEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, u32 event_type, u32 
   event_ptr.Zero();
   event_ptr->header.type = event_type;
   event_ptr->header.signal_state = (uint32_t)initial_state;
-  auto ev = XObject::GetNativeObject<XEvent>(REX_KERNEL_STATE(), event_ptr, event_type);
+  auto ev = ResolveGuest<EventObject>(REX_KERNEL_STATE(), event_ptr, event_type);
   if (!ev) {
     assert_always();
     return;
@@ -470,13 +479,13 @@ void KeInitializeEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, u32 event_type, u32 
 }
 
 uint32_t KeSetEvent(X_KEVENT* event_ptr, uint32_t increment, uint32_t wait) {
-  auto ev = XObject::GetNativeObject<XEvent>(REX_KERNEL_STATE(), event_ptr);
+  auto ev = ResolveGuest<EventObject>(REX_KERNEL_STATE(), event_ptr);
   if (!ev) {
     assert_always();
     return 0;
   }
 
-  return ev->Set(increment, !!wait);
+  return EventSet(*ev);
 }
 
 u32 KeSetEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, u32 increment, u32 wait) {
@@ -484,39 +493,38 @@ u32 KeSetEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, u32 increment, u32 wait) {
 }
 
 u32 KePulseEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, u32 increment, u32 wait) {
-  auto ev = XObject::GetNativeObject<XEvent>(REX_KERNEL_STATE(), event_ptr);
+  auto ev = ResolveGuest<EventObject>(REX_KERNEL_STATE(), event_ptr);
   if (!ev) {
     assert_always();
     return 0;
   }
 
-  return ev->Pulse(increment, !!wait);
+  return EventPulse(*ev);
 }
 
 u32 KeResetEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr) {
-  auto ev = XObject::GetNativeObject<XEvent>(REX_KERNEL_STATE(), event_ptr);
+  auto ev = ResolveGuest<EventObject>(REX_KERNEL_STATE(), event_ptr);
   if (!ev) {
     assert_always();
     return 0;
   }
 
-  return ev->Reset();
+  return EventReset(*ev);
 }
 
 u32 NtCreateEvent_entry(mapped_u32 handle_ptr, ppc_ptr_t<X_OBJECT_ATTRIBUTES> obj_attributes_ptr,
                         u32 event_type, u32 initial_state) {
-  REX_KERNEL_NAMED_CREATE(XEvent, Event, handle_ptr, obj_attributes_ptr);
+  REX_KERNEL_NAMED_CREATE(Event, handle_ptr, obj_attributes_ptr);
 
-  auto ev = object_ref<XEvent>(new XEvent(REX_KERNEL_STATE()));
-  ev->Initialize(!event_type, !!initial_state);
-
-  // obj_attributes may have a name inside of it, if != NULL.
-  if (obj_attributes_ptr) {
-    ev->SetAttributes(obj_attributes_ptr.guest_address());
+  X_HANDLE handle = 0;
+  X_STATUS status =
+      CreateWithBlock<EventObject>(REX_KERNEL_STATE(), &handle, obj_attributes_ptr.guest_address(),
+                                   sizeof(X_KEVENT), !event_type, !!initial_state);
+  if (XFAILED(status)) {
+    return status;
   }
-
   if (handle_ptr) {
-    *handle_ptr = ev->handle();
+    *handle_ptr = handle;
   }
   return X_STATUS_SUCCESS;
 }
@@ -524,9 +532,9 @@ u32 NtCreateEvent_entry(mapped_u32 handle_ptr, ppc_ptr_t<X_OBJECT_ATTRIBUTES> ob
 uint32_t NtSetEvent(uint32_t handle, rex::be<uint32_t>* previous_state_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto ev = REX_KERNEL_OBJECTS()->LookupObject<XEvent>(handle);
+  auto ev = REX_KERNEL_OBJECTS()->Get<EventObject>(handle);
   if (ev) {
-    int32_t was_signalled = ev->Set(0, false);
+    int32_t was_signalled = EventSet(*ev);
     if (previous_state_ptr) {
       *previous_state_ptr = static_cast<uint32_t>(was_signalled);
     }
@@ -544,9 +552,9 @@ u32 NtSetEvent_entry(u32 handle, mapped_u32 previous_state_ptr) {
 u32 NtPulseEvent_entry(u32 handle, mapped_u32 previous_state_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto ev = REX_KERNEL_OBJECTS()->LookupObject<XEvent>(handle);
+  auto ev = REX_KERNEL_OBJECTS()->Get<EventObject>(handle);
   if (ev) {
-    int32_t was_signalled = ev->Pulse(0, false);
+    int32_t was_signalled = EventPulse(*ev);
     if (previous_state_ptr) {
       *previous_state_ptr = static_cast<uint32_t>(was_signalled);
     }
@@ -560,9 +568,9 @@ u32 NtPulseEvent_entry(u32 handle, mapped_u32 previous_state_ptr) {
 uint32_t NtClearEvent(uint32_t handle) {
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto ev = REX_KERNEL_OBJECTS()->LookupObject<XEvent>(handle);
+  auto ev = REX_KERNEL_OBJECTS()->Get<EventObject>(handle);
   if (ev) {
-    ev->Reset();
+    EventReset(*ev);
   } else {
     result = X_STATUS_INVALID_HANDLE;
   }
@@ -580,8 +588,7 @@ void KeInitializeSemaphore_entry(ppc_ptr_t<X_KSEMAPHORE> semaphore_ptr, u32 coun
   semaphore_ptr->header.signal_state = (uint32_t)count;
   semaphore_ptr->limit = (uint32_t)limit;
 
-  auto sem = XObject::GetNativeObject<XSemaphore>(REX_KERNEL_STATE(), semaphore_ptr,
-                                                  5 /* SemaphoreObject */);
+  auto sem = ResolveGuest<SemaphoreObject>(REX_KERNEL_STATE(), semaphore_ptr, 5);
   if (!sem) {
     assert_always();
     return;
@@ -590,7 +597,7 @@ void KeInitializeSemaphore_entry(ppc_ptr_t<X_KSEMAPHORE> semaphore_ptr, u32 coun
 
 uint32_t KeReleaseSemaphore(X_KSEMAPHORE* semaphore_ptr, uint32_t increment, uint32_t adjustment,
                             uint32_t wait) {
-  auto sem = XObject::GetNativeObject<XSemaphore>(REX_KERNEL_STATE(), semaphore_ptr);
+  auto sem = ResolveGuest<SemaphoreObject>(REX_KERNEL_STATE(), semaphore_ptr);
   if (!sem) {
     assert_always();
     return 0;
@@ -601,7 +608,7 @@ uint32_t KeReleaseSemaphore(X_KSEMAPHORE* semaphore_ptr, uint32_t increment, uin
 
   int32_t previous_count = 0;
   [[maybe_unused]] bool success =
-      sem->ReleaseSemaphore(static_cast<int32_t>(adjustment), &previous_count);
+      SemaphoreRelease(*sem, static_cast<int32_t>(adjustment), &previous_count);
   return static_cast<uint32_t>(previous_count);
 }
 
@@ -612,24 +619,29 @@ u32 KeReleaseSemaphore_entry(ppc_ptr_t<X_KSEMAPHORE> semaphore_ptr, u32 incremen
 
 u32 NtCreateSemaphore_entry(mapped_u32 handle_ptr, mapped_void obj_attributes_ptr, u32 count,
                             u32 limit) {
-  REX_KERNEL_NAMED_CREATE(XSemaphore, Semaphore, handle_ptr, obj_attributes_ptr);
+  REX_KERNEL_NAMED_CREATE(Semaphore, handle_ptr, obj_attributes_ptr);
 
-  auto sem = object_ref<XSemaphore>(new XSemaphore(REX_KERNEL_STATE()));
-  if (!sem->Initialize((int32_t)count, (int32_t)limit)) {
+  X_HANDLE handle = 0;
+  X_STATUS status = CreateWithBlock<SemaphoreObject>(
+      REX_KERNEL_STATE(), &handle, obj_attributes_ptr.guest_address(), sizeof(X_KSEMAPHORE),
+      static_cast<int32_t>(count), static_cast<int32_t>(limit));
+  if (XFAILED(status)) {
+    return status;
+  }
+  bool valid = false;
+  if (auto sem = REX_KERNEL_OBJECTS()->Get<SemaphoreObject>(handle)) {
+    valid = sem->semaphore != nullptr;
+  }
+  if (!valid) {
+    REX_KERNEL_OBJECTS()->Close(handle);
     if (handle_ptr) {
       *handle_ptr = 0;
     }
-    sem->ReleaseHandle();
     return X_STATUS_INVALID_PARAMETER;
   }
 
-  // obj_attributes may have a name inside of it, if != NULL.
-  if (obj_attributes_ptr) {
-    sem->SetAttributes(obj_attributes_ptr.guest_address());
-  }
-
   if (handle_ptr) {
-    *handle_ptr = sem->handle();
+    *handle_ptr = handle;
   }
 
   return X_STATUS_SUCCESS;
@@ -639,9 +651,9 @@ u32 NtReleaseSemaphore_entry(u32 sem_handle, u32 release_count, mapped_u32 previ
   X_STATUS result = X_STATUS_SUCCESS;
   int32_t previous_count = 0;
 
-  auto sem = REX_KERNEL_OBJECTS()->LookupObject<XSemaphore>(sem_handle);
+  auto sem = REX_KERNEL_OBJECTS()->Get<SemaphoreObject>(sem_handle);
   if (sem) {
-    bool success = sem->ReleaseSemaphore(static_cast<int32_t>(release_count), &previous_count);
+    bool success = SemaphoreRelease(*sem, static_cast<int32_t>(release_count), &previous_count);
     if (!success) {
       result = X_STATUS_SEMAPHORE_LIMIT_EXCEEDED;
     }
@@ -657,18 +669,16 @@ u32 NtReleaseSemaphore_entry(u32 sem_handle, u32 release_count, mapped_u32 previ
 
 u32 NtCreateMutant_entry(mapped_u32 handle_out, ppc_ptr_t<X_OBJECT_ATTRIBUTES> obj_attributes,
                          u32 initial_owner) {
-  REX_KERNEL_NAMED_CREATE(XMutant, Mutant, handle_out, obj_attributes);
+  REX_KERNEL_NAMED_CREATE(Mutant, handle_out, obj_attributes);
 
-  auto mutant = object_ref<XMutant>(new XMutant(REX_KERNEL_STATE()));
-  mutant->Initialize(initial_owner ? true : false);
-
-  // obj_attributes may have a name inside of it, if != NULL.
-  if (obj_attributes) {
-    mutant->SetAttributes(obj_attributes.guest_address());
+  X_HANDLE handle = 0;
+  X_STATUS status = CreateWithBlock<MutantObject>(
+      REX_KERNEL_STATE(), &handle, obj_attributes.guest_address(), 0, initial_owner ? true : false);
+  if (XFAILED(status)) {
+    return status;
   }
-
   if (handle_out) {
-    *handle_out = mutant->handle();
+    *handle_out = handle;
   }
 
   return X_STATUS_SUCCESS;
@@ -682,15 +692,13 @@ u32 NtReleaseMutant_entry(u32 mutant_handle, u32 unknown) {
   // abandon or wait we just say false. Which is good, cause they are
   // both ignored.
   assert_zero(unknown);
-  uint32_t priority_increment = 0;
   bool abandon = false;
-  bool wait = false;
 
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto mutant = REX_KERNEL_OBJECTS()->LookupObject<XMutant>(mutant_handle);
+  auto mutant = REX_KERNEL_OBJECTS()->Get<MutantObject>(mutant_handle);
   if (mutant) {
-    result = mutant->ReleaseMutant(priority_increment, abandon, wait);
+    result = MutantRelease(*mutant, abandon);
   } else {
     result = X_STATUS_INVALID_HANDLE;
   }
@@ -701,18 +709,16 @@ u32 NtReleaseMutant_entry(u32 mutant_handle, u32 unknown) {
 u32 NtCreateTimer_entry(mapped_u32 handle_ptr, mapped_void obj_attributes_ptr, u32 timer_type) {
   // timer_type = NotificationTimer (0) or SynchronizationTimer (1)
 
-  REX_KERNEL_NAMED_CREATE(XTimer, Timer, handle_ptr, obj_attributes_ptr);
+  REX_KERNEL_NAMED_CREATE(Timer, handle_ptr, obj_attributes_ptr);
 
-  auto timer = object_ref<XTimer>(new XTimer(REX_KERNEL_STATE()));
-  timer->Initialize(timer_type);
-
-  // obj_attributes may have a name inside of it, if != NULL.
-  if (obj_attributes_ptr) {
-    timer->SetAttributes(obj_attributes_ptr.guest_address());
+  X_HANDLE handle = 0;
+  X_STATUS status = CreateWithBlock<TimerObject>(REX_KERNEL_STATE(), &handle,
+                                                 obj_attributes_ptr.guest_address(), 0, timer_type);
+  if (XFAILED(status)) {
+    return status;
   }
-
   if (handle_ptr) {
-    *handle_ptr = timer->handle();
+    *handle_ptr = handle;
   }
 
   return X_STATUS_SUCCESS;
@@ -745,10 +751,11 @@ u32 NtSetTimerEx_entry(u32 timer_handle, mapped_u64 due_time_ptr,
 
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto timer = REX_KERNEL_OBJECTS()->LookupObject<XTimer>(timer_handle);
+  auto timer = REX_KERNEL_OBJECTS()->Get<TimerObject>(timer_handle);
   if (timer) {
-    result = timer->SetTimer(due_time, period_ms, routine_ptr.guest_address(),
-                             routine_arg.guest_address(), resume ? true : false);
+    result =
+        TimerSet(*timer, REX_KERNEL_STATE(), static_cast<int64_t>(due_time), period_ms,
+                 routine_ptr.guest_address(), routine_arg.guest_address(), resume ? true : false);
   } else {
     result = X_STATUS_INVALID_HANDLE;
   }
@@ -759,9 +766,9 @@ u32 NtSetTimerEx_entry(u32 timer_handle, mapped_u64 due_time_ptr,
 u32 NtCancelTimer_entry(u32 timer_handle, mapped_u32 current_state_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto timer = REX_KERNEL_OBJECTS()->LookupObject<XTimer>(timer_handle);
+  auto timer = REX_KERNEL_OBJECTS()->Get<TimerObject>(timer_handle);
   if (timer) {
-    result = timer->Cancel();
+    result = TimerCancel(*timer);
   } else {
     result = X_STATUS_INVALID_HANDLE;
   }
@@ -774,18 +781,19 @@ u32 NtCancelTimer_entry(u32 timer_handle, mapped_u32 current_state_ptr) {
 
 uint32_t KeWaitForSingleObject(void* object_ptr, uint32_t wait_reason, uint32_t processor_mode,
                                uint32_t alertable, uint64_t* timeout_ptr) {
-  auto object = XObject::GetNativeObject<XObject>(REX_KERNEL_STATE(), object_ptr);
+  const X_HANDLE handle = ResolveGuestObject(REX_KERNEL_STATE(), object_ptr);
 
-  if (!object) {
+  if (!handle) {
     // The only kind-of failure code (though this should never happen)
     assert_always();
     return X_STATUS_ABANDONED_WAIT_0;
   }
 
-  X_STATUS result = object->Wait(wait_reason, processor_mode, alertable, timeout_ptr);
+  X_STATUS result =
+      WaitOn(REX_KERNEL_STATE(), handle, wait_reason, processor_mode, alertable, timeout_ptr);
 
   if (alertable && result == X_STATUS_USER_APC) {
-    XThread::GetCurrentThread()->DeliverAPCs();
+    ThreadRecord::GetCurrentThread()->DeliverAPCs();
   }
 
   return result;
@@ -807,17 +815,11 @@ u32 KeWaitForSingleObject_entry(mapped_void object_ptr, u32 wait_reason, u32 pro
 
 u32 NtWaitForSingleObjectEx_entry(u32 object_handle, u32 wait_mode, u32 alertable,
                                   mapped_u64 timeout_ptr) {
-  X_STATUS result = X_STATUS_SUCCESS;
-
-  auto object = REX_KERNEL_OBJECTS()->LookupObject<XObject>(object_handle);
-  if (object) {
-    uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
-    result = object->Wait(3, wait_mode, alertable, timeout_ptr ? &timeout : nullptr);
-    if (alertable && result == X_STATUS_USER_APC) {
-      XThread::GetCurrentThread()->DeliverAPCs();
-    }
-  } else {
-    result = X_STATUS_INVALID_HANDLE;
+  uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
+  X_STATUS result = WaitOn(REX_KERNEL_STATE(), object_handle, 3, wait_mode, alertable,
+                           timeout_ptr ? &timeout : nullptr);
+  if (alertable && result == X_STATUS_USER_APC) {
+    ThreadRecord::GetCurrentThread()->DeliverAPCs();
   }
 
   return result;
@@ -828,23 +830,22 @@ u32 KeWaitForMultipleObjects_entry(u32 count, mapped_u32 objects_ptr, u32 wait_t
                                    mapped_u64 timeout_ptr, mapped_void wait_block_array_ptr) {
   assert_true(wait_type <= 1);
 
-  std::vector<object_ref<XObject>> objects;
+  std::vector<X_HANDLE> handles;
   for (uint32_t n = 0; n < count; n++) {
     auto object_ptr = REX_KERNEL_MEMORY()->TranslateVirtual(objects_ptr[n]);
-    auto object_ref = XObject::GetNativeObject<XObject>(REX_KERNEL_STATE(), object_ptr);
-    if (!object_ref) {
+    const X_HANDLE handle = ResolveGuestObject(REX_KERNEL_STATE(), object_ptr);
+    if (!handle) {
       return X_STATUS_INVALID_PARAMETER;
     }
 
-    objects.push_back(std::move(object_ref));
+    handles.push_back(handle);
   }
 
   uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
-  X_STATUS result = XObject::WaitMultiple(
-      uint32_t(objects.size()), reinterpret_cast<XObject**>(objects.data()), wait_type, wait_reason,
-      processor_mode, alertable, timeout_ptr ? &timeout : nullptr);
+  X_STATUS result = WaitOnMany(REX_KERNEL_STATE(), handles, wait_type, wait_reason, processor_mode,
+                               alertable, timeout_ptr ? &timeout : nullptr);
   if (alertable && result == X_STATUS_USER_APC) {
-    XThread::GetCurrentThread()->DeliverAPCs();
+    ThreadRecord::GetCurrentThread()->DeliverAPCs();
   }
   return result;
 }
@@ -853,20 +854,15 @@ uint32_t NtWaitForMultipleObjectsEx(uint32_t count, rex::be<uint32_t>* handles, 
                                     uint32_t wait_mode, uint32_t alertable, uint64_t* timeout_ptr) {
   assert_true(wait_type <= 1);
 
-  std::vector<object_ref<XObject>> objects;
+  std::vector<X_HANDLE> object_handles;
   for (uint32_t n = 0; n < count; n++) {
-    uint32_t object_handle = handles[n];
-    auto object = REX_KERNEL_OBJECTS()->LookupObject<XObject>(object_handle);
-    if (!object) {
-      return X_STATUS_INVALID_PARAMETER;
-    }
-    objects.push_back(std::move(object));
+    object_handles.push_back(handles[n]);
   }
 
-  auto result = XObject::WaitMultiple(count, reinterpret_cast<XObject**>(objects.data()), wait_type,
-                                      6, wait_mode, alertable, timeout_ptr);
+  auto result = WaitOnMany(REX_KERNEL_STATE(), object_handles, wait_type, 6, wait_mode, alertable,
+                           timeout_ptr);
   if (alertable && result == X_STATUS_USER_APC) {
-    XThread::GetCurrentThread()->DeliverAPCs();
+    ThreadRecord::GetCurrentThread()->DeliverAPCs();
   }
   return result;
 }
@@ -880,20 +876,12 @@ u32 NtWaitForMultipleObjectsEx_entry(u32 count, mapped_u32 handles, u32 wait_typ
 
 u32 NtSignalAndWaitForSingleObjectEx_entry(u32 signal_handle, u32 wait_handle, u32 alertable,
                                            u32 r6, mapped_u64 timeout_ptr) {
-  X_STATUS result = X_STATUS_SUCCESS;
-
-  auto signal_object = REX_KERNEL_OBJECTS()->LookupObject<XObject>(signal_handle);
-  auto wait_object = REX_KERNEL_OBJECTS()->LookupObject<XObject>(wait_handle);
-  if (signal_object && wait_object) {
-    uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
-    result = XObject::SignalAndWait(signal_object.get(), wait_object.get(), 3, 1, alertable,
+  uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
+  X_STATUS result = SignalAndWaitOn(REX_KERNEL_STATE(), signal_handle, wait_handle, 3, 1, alertable,
                                     timeout_ptr ? &timeout : nullptr);
-  } else {
-    result = X_STATUS_INVALID_HANDLE;
-  }
 
   if (alertable && result == X_STATUS_USER_APC) {
-    XThread::GetCurrentThread()->DeliverAPCs();
+    ThreadRecord::GetCurrentThread()->DeliverAPCs();
   }
 
   return result;
@@ -917,7 +905,7 @@ static void KfLowerIrql(PPCContext* ctx, unsigned char new_irql) {
 }
 
 // Guest-memory spinlock helpers - store PCR address as owner (matching xenia).
-// PPCContext* provides r13 (PCR address) without needing XThread::GetCurrentThread().
+// PPCContext* provides r13 (PCR address) without needing ThreadRecord::GetCurrentThread().
 uint32_t KeKfAcquireSpinLock(PPCContext* ctx, X_KSPINLOCK* lock, bool change_irql) {
   uint32_t old_irql = change_irql ? KfRaiseIrql(ctx, IRQL_DISPATCH) : 0;
   uint32_t pcr_addr = static_cast<uint32_t>(ctx->r13.u64);
@@ -1030,11 +1018,11 @@ void KeReleaseSpinLockFromRaisedIrql_entry(mapped_u32 lock_ptr) {
 }
 
 void KeEnterCriticalRegion_entry() {
-  XThread::GetCurrentThread()->EnterCriticalRegion();
+  ThreadRecord::GetCurrentThread()->EnterCriticalRegion();
 }
 
 void KeLeaveCriticalRegion_entry() {
-  XThread::GetCurrentThread()->LeaveCriticalRegion();
+  ThreadRecord::GetCurrentThread()->LeaveCriticalRegion();
 }
 
 u32 KeRaiseIrqlToDpcLevel_entry() {
@@ -1053,7 +1041,7 @@ u32 KfRaiseIrql_entry(u32 new_irql) {
 void NtQueueApcThread_entry(u32 thread_handle, mapped_void apc_routine,
                             mapped_void apc_routine_context, mapped_void arg1, mapped_void arg2) {
   auto mem = REX_KERNEL_MEMORY();
-  auto thread = REX_KERNEL_OBJECTS()->LookupObject<XThread>(thread_handle);
+  auto thread = REX_KERNEL_STATE()->threads()->FindByHandle(thread_handle);
 
   if (!thread) {
     REXLOG_ERROR(kernel, "NtQueueApcThread: Incorrect thread handle! Might cause crash");
@@ -1132,8 +1120,7 @@ u32 KeInsertQueueDpc_entry(ppc_ptr_t<XDPC> dpc, u32 arg1, u32 arg2) {
 
   uint32_t list_entry_ptr = dpc.guest_address() + 4;
 
-  // Lock dispatcher.
-  auto global_lock = rex::platform::global_critical_region::AcquireDirect();
+  std::lock_guard lock(REX_KERNEL_STATE()->dpc_mutex());
   auto dpc_list = REX_KERNEL_STATE()->dpc_list();
 
   // If already in a queue, abort.
@@ -1155,7 +1142,7 @@ u32 KeRemoveQueueDpc_entry(ppc_ptr_t<XDPC> dpc) {
 
   uint32_t list_entry_ptr = dpc.guest_address() + 4;
 
-  auto global_lock = rex::platform::global_critical_region::AcquireDirect();
+  std::lock_guard lock(REX_KERNEL_STATE()->dpc_mutex());
   auto dpc_list = REX_KERNEL_STATE()->dpc_list();
   if (dpc_list->IsQueued(list_entry_ptr)) {
     dpc_list->Remove(list_entry_ptr);
@@ -1370,7 +1357,7 @@ REX_EXPORT_STUB(__imp__KeSetEventBoostPriority);
 REX_EXPORT_STUB(__imp__KiApcNormalRoutineNop_);
 
 u32 KeSuspendThread_entry(mapped_void kthread_ptr) {
-  auto thread = XObject::GetNativeObject<XThread>(REX_KERNEL_STATE(), kthread_ptr);
+  auto thread = FindThread(kthread_ptr);
   uint32_t old_suspend_count = 0;
 
   if (thread) {

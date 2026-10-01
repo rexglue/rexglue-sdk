@@ -37,6 +37,7 @@
 #include <rex/system.h>
 #include <rex/system/achievement_manager.h>
 #include <rex/system/kernel_state.h>
+#include <rex/system/xobject.h>
 #include <rex/system/xthread.h>
 #include <rex/ui/console/model.h>
 #include <rex/ui/console/view.h>
@@ -537,7 +538,7 @@ Result<void> TitleApp::LaunchTitle() {
     return Fail("OnTitleLaunch", launched.error());
   }
 
-  auto main_thread = runtime_->PrepareModuleLaunch();
+  const X_HANDLE main_thread = runtime_->PrepareModuleLaunch();
   if (!main_thread) {
     return LaunchFailure("the title's main thread could not be created");
   }
@@ -549,13 +550,12 @@ Result<void> TitleApp::LaunchTitle() {
   runtime_->OnTitleExit([this](runtime::TitleExitReason reason) {
     InvokeFunction([this, reason] { OnTitleExit(reason); });
   });
-  main_thread->Resume();
-  title_monitor_ =
-      platform::Spawn("Title Monitor",
-                      [this, main_thread = std::move(main_thread)](const std::stop_token&) mutable {
-                        main_thread->Wait(0, 0, 0, nullptr);
-                        runtime_->ReportTitleExit(runtime::TitleExitReason::NormalExit);
-                      });
+  runtime_->kernel_state()->threads()->FindByHandle(main_thread)->Resume();
+  title_monitor_ = platform::Spawn("Title Monitor", [this, main_thread](const std::stop_token&) {
+    system::WaitOn(runtime_->kernel_state(), main_thread, 0, 0, 0, nullptr);
+    runtime_->kernel_state()->object_table()->Close(main_thread);
+    runtime_->ReportTitleExit(runtime::TitleExitReason::NormalExit);
+  });
   return Ok();
 }
 

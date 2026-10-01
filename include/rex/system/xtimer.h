@@ -10,9 +10,11 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <memory>
+
+#include <rex/platform/thread.h>
 #include <rex/system/xobject.h>
 #include <rex/system/xtypes.h>
-#include <rex/platform/thread.h>
 
 namespace rex::system {
 
@@ -27,30 +29,40 @@ struct X_KTIMER {
 };
 static_assert_size(X_KTIMER, 0x28);
 
-class XThread;
+/** The host state of a timer object. */
+struct TimerObject {
+  /**
+   * @param timer_type 0 for a notification timer, 1 for a synchronization timer.
+   */
+  explicit TimerObject(u32 timer_type);
 
-class XTimer : public XObject {
- public:
-  static const XObject::Type kObjectType = XObject::Type::Timer;
-
-  explicit XTimer(KernelState* kernel_state);
-  ~XTimer() override;
-
-  void Initialize(uint32_t timer_type);
-
-  X_STATUS SetTimer(int64_t due_time, uint32_t period_ms, uint32_t routine, uint32_t routine_arg,
-                    bool resume);
-  X_STATUS Cancel();
-
- protected:
-  rex::platform::WaitHandle* GetWaitHandle() override { return timer_.get(); }
-
- private:
-  std::unique_ptr<rex::platform::Timer> timer_;
-
-  XThread* callback_thread_ = nullptr;
-  uint32_t callback_routine_ = 0;
-  uint32_t callback_routine_arg_ = 0;
+  std::unique_ptr<rex::platform::Timer> timer;
+  u32 callback_thread_id = 0;
+  u32 callback_routine = 0;
+  u32 callback_routine_arg = 0;
 };
+
+/**
+ * Arms a timer. A completion routine runs as an APC on the calling thread.
+ *
+ * @param timer The timer.
+ * @param kernel_state The kernel state that owns the thread registry.
+ * @param due_time A negative relative time in 100 nanosecond ticks, or an absolute file time.
+ * @param period_ms The repeat period in milliseconds, 0 for a single shot.
+ * @param routine The title completion routine, 0 for none.
+ * @param routine_arg The argument passed to the routine.
+ * @param resume True to request a resume from suspend, which is ignored.
+ * @return X_STATUS_SUCCESS, X_STATUS_TIMER_RESUME_IGNORED or X_STATUS_UNSUCCESSFUL.
+ */
+X_STATUS TimerSet(TimerObject& timer, KernelState* kernel_state, i64 due_time, u32 period_ms,
+                  u32 routine, u32 routine_arg, bool resume);
+
+/**
+ * Cancels a timer.
+ *
+ * @param timer The timer.
+ * @return X_STATUS_SUCCESS, or X_STATUS_UNSUCCESSFUL.
+ */
+X_STATUS TimerCancel(TimerObject& timer);
 
 }  // namespace rex::system

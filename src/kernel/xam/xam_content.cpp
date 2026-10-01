@@ -76,18 +76,14 @@ u32 XamContentCreateEnumerator_entry(u32 user_index, u32 device_id, u32 content_
 
   uint64_t xuid = REX_KERNEL_STATE()->user_profile()->xuid();
 
-  auto e = make_object<XStaticEnumerator<XCONTENT_DATA>>(REX_KERNEL_STATE(), items_per_enumerate);
-  auto result = e->Initialize(0xFF, 0xFE, 0x20005, 0x20007, 0);
-  if (XFAILED(result)) {
-    return result;
-  }
+  StaticItems items(items_per_enumerate, sizeof(XCONTENT_DATA));
 
   if (!device_info || device_info->device_id == DummyDeviceId::HDD) {
     // Enumerate user-specific content
     auto content_datas = REX_KERNEL_STATE()->content_manager()->ListContent(
         static_cast<uint32_t>(DummyDeviceId::HDD), xuid, XContentType(uint32_t(content_type)));
     for (const auto& content_data : content_datas) {
-      auto item = e->AppendItem();
+      auto item = items.Append<XCONTENT_DATA>();
       *item = content_data;
     }
 
@@ -96,7 +92,7 @@ u32 XamContentCreateEnumerator_entry(u32 user_index, u32 device_id, u32 content_
       auto common_datas = REX_KERNEL_STATE()->content_manager()->ListContent(
           static_cast<uint32_t>(DummyDeviceId::HDD), 0, XContentType(uint32_t(content_type)));
       for (const auto& content_data : common_datas) {
-        auto item = e->AppendItem();
+        auto item = items.Append<XCONTENT_DATA>();
         *item = content_data;
       }
     }
@@ -106,9 +102,22 @@ u32 XamContentCreateEnumerator_entry(u32 user_index, u32 device_id, u32 content_
     // TODO(gibbed): disc drive content
   }
 
-  REXLOG_DEBUG(kernel, "XamContentCreateEnumerator: added {} items to enumerator", e->item_count());
+  REXLOG_DEBUG(kernel, "XamContentCreateEnumerator: added {} items to enumerator",
+               items.item_count());
 
-  *handle_out = e->handle();
+  X_HANDLE handle = X_INVALID_HANDLE_VALUE;
+  auto result = CreateEnumerator(
+      REX_KERNEL_STATE(), &handle, EnumeratorInit{0xFF, 0xFE, 0x20005, 0x20007, 0},
+      EnumeratorObject(
+          items_per_enumerate, sizeof(XCONTENT_DATA),
+          [items = std::move(items)](u32, u8* buffer_data, u32* written_count) mutable {
+            return items.Write(buffer_data, written_count);
+          }));
+  if (XFAILED(result)) {
+    return result;
+  }
+
+  *handle_out = handle;
   return X_ERROR_SUCCESS;
 }
 

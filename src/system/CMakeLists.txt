@@ -8,6 +8,7 @@ set(REXSYSTEM_SOURCES
     kernel_module.cpp
     user_module.cpp
     xthread.cpp
+    thread_registry.cpp
     xevent.cpp
     xfile.cpp
     xmutant.cpp
@@ -20,6 +21,7 @@ set(REXSYSTEM_SOURCES
     xsymboliclink.cpp
     xobject.cpp
     xmodule.cpp
+    module_registry.cpp
     guest_path.cpp
 
     # Utilities
@@ -59,7 +61,6 @@ rex_target_pch(rexruntime
     <rex/memory.h>
     <rex/filesystem.h>
     <rex/platform/thread.h>
-    <rex/platform/mutex.h>
     <rex/ppc/context.h>
     <rex/system/kernel_state.h>
 )

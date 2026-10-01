@@ -29,9 +29,9 @@ void InitializeKernel(Runtime* runtime, system::KernelState* kernel_state) {
   app_mgr->RegisterApp(std::make_unique<xam::apps::XLiveBaseApp>(kernel_state));
   app_mgr->RegisterApp(std::make_unique<xam::apps::XamApp>(kernel_state));
 
-  kernel_state->LoadKernelModule<xboxkrnl::XboxkrnlModule>();
-  kernel_state->LoadKernelModule<xam::XamModule>();
-  kernel_state->LoadKernelModule<xbdm::XbdmModule>();
+  kernel_state->LoadKernelModule(xboxkrnl::CreateXboxkrnlModule(kernel_state));
+  kernel_state->LoadKernelModule(xam::CreateXamModule(kernel_state));
+  kernel_state->LoadKernelModule(xbdm::CreateXbdmModule(kernel_state));
 }
 
 }  // namespace rex::kernel

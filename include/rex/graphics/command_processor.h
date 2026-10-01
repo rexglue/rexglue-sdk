@@ -231,7 +231,7 @@ class CommandProcessor {
   RegisterFile* register_file_ = nullptr;
 
   std::atomic<bool> worker_running_;
-  system::object_ref<system::XHostThread> worker_thread_;
+  X_HANDLE worker_thread_ = 0;
 
   std::queue<std::function<void()>> pending_fns_;
 

@@ -28,7 +28,6 @@
 #include <rex/system/xsymboliclink.h>
 #include <rex/system/xthread.h>
 #include <rex/system/xtypes.h>
-#include <rex/platform/mutex.h>
 #include "kernel/kernel_macros.h"
 
 namespace rex::kernel::xboxkrnl {
@@ -116,7 +115,7 @@ u32 NtQueryInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> i
     return X_STATUS_INFO_LENGTH_MISMATCH;
   }
 
-  REX_KERNEL_LOOKUP(file, XFile, file_handle);
+  REX_KERNEL_LOOKUP(file, FileObject, file_handle);
 
   info_ptr.Zero(info_length);
 
@@ -128,20 +127,20 @@ u32 NtQueryInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> i
       // Internal unique file pointer. Not sure why anyone would want this.
       // TODO(benvanik): use pointer to fs::entry?
       auto info = info_ptr.as<X_FILE_INTERNAL_INFORMATION*>();
-      info->index_number = rex::memory::hash_combine(0, file->path());
+      info->index_number = rex::memory::hash_combine(0, file->file->Info().path);
       out_length = sizeof(*info);
       break;
     }
     case XFilePositionInformation: {
       auto info = info_ptr.as<X_FILE_POSITION_INFORMATION*>();
-      info->current_byte_offset = file->position();
+      info->current_byte_offset = FilePosition(*file);
       out_length = sizeof(*info);
       break;
     }
     case XFileSectorInformation: {
       REX_KERNEL_STUB("XFileSectorInformation");
       auto info = info_ptr.as<uint32_t*>();
-      size_t fname_hash = rex::memory::hash_combine(82589933LL, file->path());
+      size_t fname_hash = rex::memory::hash_combine(82589933LL, file->file->Info().path);
       *info = static_cast<uint32_t>(fname_hash ^ (fname_hash >> 32));
       out_length = sizeof(uint32_t);
       break;
@@ -159,9 +158,9 @@ u32 NtQueryInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> i
       // Make sure we're working with up-to-date information, just in case the
       // file size has changed via something other than NtSetInfoFile
       // (eg. seems NtWriteFile might extend the file in some cases)
-      file->file().Refresh();
+      file->file->Refresh();
 
-      const filesystem::FileInfo entry = file->file().Info();
+      const filesystem::FileInfo entry = file->file->Info();
       auto info = info_ptr.as<X_FILE_NETWORK_OPEN_INFORMATION*>();
       info->creation_time = entry.create_time;
       info->last_access_time = entry.access_time;
@@ -239,7 +238,7 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
     return X_STATUS_INFO_LENGTH_MISMATCH;
   }
 
-  REX_KERNEL_LOOKUP(file, XFile, file_handle);
+  REX_KERNEL_LOOKUP(file, FileObject, file_handle);
 
   X_STATUS result = X_STATUS_SUCCESS;
   uint32_t out_length;
@@ -261,10 +260,10 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
 
       bool basic_result = true;
       if (times.create || times.access || times.write) {
-        basic_result &= file->file().SetTimes(times).has_value();
+        basic_result &= file->file->SetTimes(times).has_value();
       }
-      basic_result &= file->file()
-                          .SetAttributes(static_cast<filesystem::FileAttributes>(
+      basic_result &= file->file
+                          ->SetAttributes(static_cast<filesystem::FileAttributes>(
                               static_cast<uint32_t>(info->attributes)))
                           .has_value();
       if (!basic_result) {
@@ -277,15 +276,15 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
     case XFileDispositionInformation: {
       auto info = info_ptr.as<X_FILE_DISPOSITION_INFORMATION*>();
       bool delete_on_close = info->delete_file ? true : false;
-      file->file().SetDeleteOnClose(delete_on_close);
+      file->file->SetDeleteOnClose(delete_on_close);
       out_length = 0;
       REXLOG_WARN(kernel, "NtSetInformationFile set deleting flag for {} on close to: {}",
-                  file->name(), delete_on_close);
+                  file->file->Info().name, delete_on_close);
       break;
     }
     case XFilePositionInformation: {
       auto info = info_ptr.as<X_FILE_POSITION_INFORMATION*>();
-      file->set_position(info->current_byte_offset);
+      FileSetPosition(*file, info->current_byte_offset);
       out_length = sizeof(*info);
       break;
     }
@@ -301,24 +300,24 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
         return X_STATUS_INVALID_PARAMETER;
       }
 
-      result = file->Rename(target_path);
+      result = FileRename(*file, target_path);
       out_length = sizeof(*info);
       break;
     }
     case XFileAllocationInformation: {
       auto info = info_ptr.as<X_FILE_ALLOCATION_INFORMATION*>();
-      result = file->SetLength(info->allocation_size);
+      result = FileSetLength(*file, info->allocation_size);
       out_length = sizeof(*info);
 
-      file->file().Refresh();
+      file->file->Refresh();
       break;
     }
     case XFileEndOfFileInformation: {
       auto info = info_ptr.as<X_FILE_END_OF_FILE_INFORMATION*>();
-      result = file->SetLength(info->end_of_file);
+      result = FileSetLength(*file, info->end_of_file);
       out_length = sizeof(*info);
 
-      file->file().Refresh();
+      file->file->Refresh();
       break;
     }
     case XFileCompletionInformation: {
@@ -327,11 +326,11 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
       auto handle = uint32_t(info->handle);
       auto key = uint32_t(info->key);
       out_length = sizeof(*info);
-      auto port = REX_KERNEL_OBJECTS()->LookupObject<XIOCompletion>(handle);
+      auto port = REX_KERNEL_OBJECTS()->Get<IOCompletionObject>(handle);
       if (!port) {
         result = X_STATUS_INVALID_HANDLE;
       } else {
-        file->RegisterIOCompletionPort(key, port);
+        FileRegisterIOCompletionPort(REX_KERNEL_STATE(), *file, key, port.handle());
       }
       break;
     }
@@ -378,7 +377,7 @@ u32 NtQueryVolumeInformationFile_entry(u32 file_handle,
     return X_STATUS_INFO_LENGTH_MISMATCH;
   }
 
-  REX_KERNEL_LOOKUP(file, XFile, file_handle);
+  REX_KERNEL_LOOKUP(file, FileObject, file_handle);
 
   info_ptr.Zero(info_length);
 
@@ -396,7 +395,7 @@ u32 NtQueryVolumeInformationFile_entry(u32 file_handle,
       break;
     }
     case XFileFsSizeInformation: {
-      const filesystem::VolumeInfo volume = file->file().Volume();
+      const filesystem::VolumeInfo volume = file->file->Volume();
       auto info = info_ptr.as<X_FILE_FS_SIZE_INFORMATION*>();
       info->total_allocation_units = volume.total_allocation_units;
       info->available_allocation_units = volume.available_allocation_units;
@@ -408,7 +407,7 @@ u32 NtQueryVolumeInformationFile_entry(u32 file_handle,
       break;
     }
     case XFileFsAttributeInformation: {
-      const filesystem::VolumeInfo volume = file->file().Volume();
+      const filesystem::VolumeInfo volume = file->file->Volume();
       const auto& name = volume.name;
       auto info = info_ptr.as<X_FILE_FS_ATTRIBUTE_INFORMATION*>();
       info->attributes = volume.attributes;

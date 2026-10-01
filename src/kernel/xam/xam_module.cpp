@@ -27,10 +27,9 @@ bool XamIsUIActive() {
   return xam_dialogs_shown_ > 0;
 }
 
-XamModule::XamModule(Runtime* emulator, KernelState* kernel_state)
-    : KernelModule(kernel_state, "xe:\\xam.xex"), loader_data_() {}
-
-XamModule::~XamModule() {}
+X_HANDLE CreateXamModule(KernelState* kernel_state) {
+  return CreateKernelModule(kernel_state, "xe:\\xam.xex");
+}
 
 }  // namespace xam
 }  // namespace kernel

@@ -18,6 +18,8 @@
 #include <rex/math.h>
 #include <rex/memory/ring_buffer.h>
 #include <rex/string/buffer.h>
+#include <rex/system/kernel_state.h>
+#include <rex/system/thread_registry.h>
 #include <rex/system/thread_state.h>
 #include <rex/platform/thread.h>
 #include <rex/cvar.h>
@@ -81,14 +83,13 @@ X_STATUS AudioSystem::Setup(system::KernelState* kernel_state) {
   }
 
   worker_running_ = true;
-  worker_thread_ = system::object_ref<system::XHostThread>(
-      new system::XHostThread(kernel_state, 128 * 1024, 0, [this]() {
-        WorkerThreadMain();
-        return 0;
-      }));
-
-  worker_thread_->set_name("Audio Worker");
-  worker_thread_->Create();
+  kernel_state_ = kernel_state;
+  auto record = std::make_unique<system::ThreadRecord>(kernel_state, 128 * 1024, 0, [this]() {
+    WorkerThreadMain();
+    return 0;
+  });
+  record->set_name("Audio Worker");
+  kernel_state->threads()->Launch(std::move(record), &worker_thread_);
 
   return X_STATUS_SUCCESS;
 }
@@ -131,10 +132,13 @@ void AudioSystem::WorkerThreadMain() {
     if (result.first == rex::platform::WaitResult::kSuccess) {
       auto index = result.second;
 
-      auto global_lock = global_critical_region_.Acquire();
-      uint32_t client_callback = clients_[index].callback;
-      uint32_t client_callback_arg = clients_[index].wrapped_callback_arg;
-      global_lock.unlock();
+      uint32_t client_callback;
+      uint32_t client_callback_arg;
+      {
+        std::lock_guard lock(mutex_);
+        client_callback = clients_[index].callback;
+        client_callback_arg = clients_[index].wrapped_callback_arg;
+      }
 
       if (client_callback) {
         if (diag_pump_count < 10) {
@@ -144,8 +148,8 @@ void AudioSystem::WorkerThreadMain() {
         }
         REX_PROFILE_SCOPE_TEXT("apu", "rex::audio::AudioSystem->client_callback");
         uint64_t args[] = {client_callback_arg};
-        function_dispatcher_->Execute(worker_thread_->thread_state(), client_callback, args,
-                                      rex::countof(args));
+        function_dispatcher_->Execute(system::ThreadRecord::GetCurrentThread()->thread_state(),
+                                      client_callback, args, rex::countof(args));
         if (diag_pump_count < 10) {
           REXLOG_DEBUG(audio, "AudioWorker: callback returned for client {}", index);
         }
@@ -202,15 +206,22 @@ void AudioSystem::Shutdown() {
     // guest objects (e.g. KeWaitForMultipleObjects), so terminating is the last
     // resort. Give it a chance to unwind first: TerminateThread abandons any
     // lock the thread holds, including the CRT heap lock.
-    rex::platform::Thread* host_thread = worker_thread_->thread();
-    bool exited = host_thread && rex::platform::Wait(host_thread, false, kWorkerShutdownTimeout) ==
-                                     rex::platform::WaitResult::kSuccess;
-    if (!exited) {
-      REXLOG_WARN(audio, "Audio worker did not exit within {} ms; terminating",
-                  kWorkerShutdownTimeout.count());
-      worker_thread_->Terminate(0);
+    {
+      system::ThreadPin pin = kernel_state_->threads()->FindByHandle(worker_thread_);
+      rex::platform::Thread* host_thread = pin ? pin->thread() : nullptr;
+      bool exited =
+          host_thread && rex::platform::Wait(host_thread, false, kWorkerShutdownTimeout) ==
+                             rex::platform::WaitResult::kSuccess;
+      if (!exited) {
+        REXLOG_WARN(audio, "Audio worker did not exit within {} ms; terminating",
+                    kWorkerShutdownTimeout.count());
+        if (pin) {
+          pin->Terminate(0);
+        }
+      }
     }
-    worker_thread_.reset();
+    kernel_state_->object_table()->Close(worker_thread_);
+    worker_thread_ = 0;
   }
 
   // Destroy all active client drivers (closes SDL audio devices, stopping
@@ -229,7 +240,7 @@ void AudioSystem::Shutdown() {
 X_STATUS AudioSystem::RegisterClient(uint32_t callback, uint32_t callback_arg, size_t* out_index) {
   REXLOG_DEBUG(audio, "AudioSystem::RegisterClient: callback={:08X} callback_arg={:08X}", callback,
                callback_arg);
-  auto global_lock = global_critical_region_.Acquire();
+  std::lock_guard lock(mutex_);
 
   auto index = FindFreeClient();
   assert_true(index >= 0);
@@ -269,7 +280,7 @@ void AudioSystem::SubmitFrame(size_t index, uint32_t samples_ptr) {
     submit_count++;
   }
 
-  auto global_lock = global_critical_region_.Acquire();
+  std::lock_guard lock(mutex_);
   assert_true(index < kMaximumClientCount);
   assert_true(clients_[index].driver != NULL);
   (clients_[index].driver)->SubmitFrame(samples_ptr);
@@ -278,7 +289,7 @@ void AudioSystem::SubmitFrame(size_t index, uint32_t samples_ptr) {
 void AudioSystem::UnregisterClient(size_t index) {
   REX_PROFILE_SCOPE("apu");
 
-  auto global_lock = global_critical_region_.Acquire();
+  std::lock_guard lock(mutex_);
   assert_true(index < kMaximumClientCount);
   DestroyDriver(clients_[index].driver);
   memory()->SystemHeapFree(clients_[index].wrapped_callback_arg);

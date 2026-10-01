@@ -10,33 +10,24 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <memory>
-#include <unordered_map>
+#include <string>
+#include <string_view>
 
 #include <rex/system/xobject.h>
 #include <rex/system/xtypes.h>
-#include <rex/platform/thread.h>
-#include <rex/platform/mutex.h>
 
 namespace rex::system {
 
-class XSymbolicLink : public XObject {
- public:
-  static const XObject::Type kObjectType = XObject::Type::SymbolicLink;
+/** The host state of a symbolic link object. */
+struct SymbolicLinkObject {
+  /**
+   * @param path_in The path the link is opened by.
+   * @param target_in The path the link resolves to.
+   */
+  SymbolicLinkObject(std::string_view path_in, std::string_view target_in);
 
-  explicit XSymbolicLink(KernelState* kernel_state);
-  ~XSymbolicLink() override;
-
-  void Initialize(const std::string_view path, const std::string_view target);
-
-  const std::string& path() const { return path_; }
-  const std::string& target() const { return target_; }
-
- private:
-  XSymbolicLink();
-
-  std::string path_;
-  std::string target_;
+  std::string path;
+  std::string target;
 };
 
 }  // namespace rex::system

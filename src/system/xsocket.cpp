@@ -11,15 +11,12 @@
 
 #include <cstring>
 
-#include <rex/kernel/xam/module.h>
+#include <rex/net/socket.h>
 #include <rex/platform.h>
 #include <rex/system/kernel_state.h>
+#include <rex/system/util/object_table.h>
 #include <rex/system/xsocket.h>
-// #include <rex/system/xnet.h>
 
-#include <rex/net/socket.h>
-
-// Standard socket types used by Xbox API emulation
 #if REX_PLATFORM_WIN32
 #include <WinSock2.h>
 
@@ -33,40 +30,34 @@
 
 namespace rex::system {
 
-XSocket::XSocket(KernelState* kernel_state) : XObject(kernel_state, kObjectType) {}
+SocketObject::SocketObject(SocketAddressFamily af_in, SocketType type_in, SocketProtocol proto_in)
+    : af(af_in), type(type_in), proto(proto_in) {}
 
-XSocket::XSocket(KernelState* kernel_state, uint64_t native_handle)
-    : XObject(kernel_state, kObjectType), native_handle_(native_handle) {}
-
-XSocket::~XSocket() {
-  Close();
+SocketObject::~SocketObject() {
+  SocketClose(*this);
 }
 
-X_STATUS XSocket::Initialize(AddressFamily af, Type type, Protocol proto) {
-  af_ = af;
-  type_ = type;
-  proto_ = proto;
-
-  if (proto == Protocol::X_IPPROTO_VDP) {
-    // VDP is a layer on top of UDP.
-    proto = Protocol::X_IPPROTO_UDP;
+X_STATUS SocketInitialize(SocketObject& sock) {
+  SocketProtocol native_proto = sock.proto;
+  if (native_proto == X_IPPROTO_VDP) {
+    native_proto = X_IPPROTO_UDP;
   }
 
-  native_handle_ = socket(af, type, proto);
-  if (native_handle_ == -1) {
+  sock.native_handle = socket(sock.af, sock.type, native_proto);
+  if (sock.native_handle == static_cast<u64>(-1)) {
     return X_STATUS_UNSUCCESSFUL;
   }
 
   return X_STATUS_SUCCESS;
 }
 
-X_STATUS XSocket::Close() {
-  if (native_handle_ == uint64_t(-1)) {
+X_STATUS SocketClose(SocketObject& sock) {
+  if (sock.native_handle == static_cast<u64>(-1)) {
     return X_STATUS_SUCCESS;
   }
 
-  int ret = rex::platform::socket_close(native_handle_);
-  native_handle_ = -1;
+  int ret = rex::platform::socket_close(sock.native_handle);
+  sock.native_handle = static_cast<u64>(-1);
   if (ret != 0) {
     return X_STATUS_UNSUCCESSFUL;
   }
@@ -74,39 +65,26 @@ X_STATUS XSocket::Close() {
   return X_STATUS_SUCCESS;
 }
 
-X_STATUS XSocket::SetOption(uint32_t level, uint32_t optname, void* optval_ptr, uint32_t optlen) {
+X_STATUS SocketSetOption(SocketObject& sock, u32 level, u32 optname, void* optval_ptr, u32 optlen) {
   if (level == 0xFFFF && (optname == 0x5801 || optname == 0x5802)) {
-    // Disable socket encryption
-    secure_ = false;
+    sock.secure = false;
     return X_STATUS_SUCCESS;
   }
 
-  int ret = setsockopt(native_handle_, level, optname, (char*)optval_ptr, optlen);
+  int ret = setsockopt(sock.native_handle, level, optname, (char*)optval_ptr, optlen);
   if (ret < 0) {
-    // TODO: WSAGetLastError()
     return X_STATUS_UNSUCCESSFUL;
   }
 
-  // SO_BROADCAST
   if (level == 0xFFFF && optname == 0x0020) {
-    broadcast_socket_ = true;
+    sock.broadcast_socket = true;
   }
 
   return X_STATUS_SUCCESS;
 }
 
-X_STATUS XSocket::IOControl(uint32_t cmd, uint8_t* arg_ptr) {
-  int ret = rex::platform::socket_ioctl(native_handle_, cmd, arg_ptr);
-  if (ret < 0) {
-    // TODO: Get last error
-    return X_STATUS_UNSUCCESSFUL;
-  }
-
-  return X_STATUS_SUCCESS;
-}
-
-X_STATUS XSocket::Connect(N_XSOCKADDR* name, int name_len) {
-  int ret = connect(native_handle_, (sockaddr*)name, name_len);
+X_STATUS SocketIOControl(SocketObject& sock, u32 cmd, u8* arg_ptr) {
+  int ret = rex::platform::socket_ioctl(sock.native_handle, cmd, arg_ptr);
   if (ret < 0) {
     return X_STATUS_UNSUCCESSFUL;
   }
@@ -114,20 +92,8 @@ X_STATUS XSocket::Connect(N_XSOCKADDR* name, int name_len) {
   return X_STATUS_SUCCESS;
 }
 
-X_STATUS XSocket::Bind(N_XSOCKADDR_IN* name, int name_len) {
-  int ret = bind(native_handle_, (sockaddr*)name, name_len);
-  if (ret < 0) {
-    return X_STATUS_UNSUCCESSFUL;
-  }
-
-  bound_ = true;
-  bound_port_ = name->sin_port;
-
-  return X_STATUS_SUCCESS;
-}
-
-X_STATUS XSocket::Listen(int backlog) {
-  int ret = listen(native_handle_, backlog);
+X_STATUS SocketConnect(SocketObject& sock, N_XSOCKADDR* name, int name_len) {
+  int ret = connect(sock.native_handle, (sockaddr*)name, name_len);
   if (ret < 0) {
     return X_STATUS_UNSUCCESSFUL;
   }
@@ -135,69 +101,70 @@ X_STATUS XSocket::Listen(int backlog) {
   return X_STATUS_SUCCESS;
 }
 
-object_ref<XSocket> XSocket::Accept(N_XSOCKADDR* name, int* name_len) {
+X_STATUS SocketBind(SocketObject& sock, N_XSOCKADDR_IN* name, int name_len) {
+  int ret = bind(sock.native_handle, (sockaddr*)name, name_len);
+  if (ret < 0) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+
+  sock.bound = true;
+  sock.bound_port = name->sin_port;
+
+  return X_STATUS_SUCCESS;
+}
+
+X_STATUS SocketListen(SocketObject& sock, int backlog) {
+  int ret = listen(sock.native_handle, backlog);
+  if (ret < 0) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+
+  return X_STATUS_SUCCESS;
+}
+
+X_HANDLE SocketAccept(KernelState* kernel_state, SocketObject& sock, N_XSOCKADDR* name,
+                      int* name_len) {
   sockaddr n_sockaddr;
   socklen_t n_name_len = sizeof(sockaddr);
-  uintptr_t ret = accept(native_handle_, &n_sockaddr, &n_name_len);
-  if (ret == -1) {
+  uintptr_t ret = accept(sock.native_handle, &n_sockaddr, &n_name_len);
+  if (ret == static_cast<uintptr_t>(-1)) {
     std::memset(name, 0, *name_len);
     *name_len = 0;
-    return nullptr;
+    return X_INVALID_HANDLE_VALUE;
   }
 
   std::memcpy(name, &n_sockaddr, n_name_len);
   *name_len = n_name_len;
 
-  // Create a kernel object to represent the new socket, and copy parameters
-  // over.
-  auto socket = object_ref<XSocket>(new XSocket(kernel_state_, ret));
-  socket->af_ = af_;
-  socket->type_ = type_;
-  socket->proto_ = proto_;
-
-  return socket;
-}
-
-int XSocket::Shutdown(int how) {
-  return shutdown(native_handle_, how);
-}
-
-int XSocket::Recv(uint8_t* buf, uint32_t buf_len, uint32_t flags) {
-  return recv(native_handle_, reinterpret_cast<char*>(buf), buf_len, flags);
-}
-
-int XSocket::RecvFrom(uint8_t* buf, uint32_t buf_len, uint32_t flags, N_XSOCKADDR_IN* from,
-                      uint32_t* from_len) {
-  // Pop from secure packets first
-  // TODO(DrChat): Enable when I commit XNet
-  /*
-  {
-    std::lock_guard<std::mutex> lock(incoming_packet_mutex_);
-    if (incoming_packets_.size()) {
-      packet* pkt = (packet*)incoming_packets_.front();
-      int data_len = pkt->data_len;
-      std::memcpy(buf, pkt->data, std::min((uint32_t)pkt->data_len, buf_len));
-
-      from->sin_family = 2;
-      from->sin_addr = pkt->src_ip;
-      from->sin_port = pkt->src_port;
-
-      incoming_packets_.pop();
-      uint8_t* pkt_ui8 = (uint8_t*)pkt;
-      delete[] pkt_ui8;
-
-      return data_len;
-    }
+  X_HANDLE handle = X_INVALID_HANDLE_VALUE;
+  auto* table = kernel_state->object_table();
+  if (XFAILED(
+          table->Emplace<SocketObject>(&handle, AddOptions{}, sock.af, sock.type, sock.proto))) {
+    rex::platform::socket_close(ret);
+    return X_INVALID_HANDLE_VALUE;
   }
-  */
+  table->Get<SocketObject>(handle)->native_handle = ret;
 
+  return handle;
+}
+
+int SocketShutdown(SocketObject& sock, int how) {
+  return shutdown(sock.native_handle, how);
+}
+
+int SocketRecv(SocketObject& sock, u8* buf, u32 buf_len, u32 flags) {
+  return recv(sock.native_handle, reinterpret_cast<char*>(buf), buf_len, flags);
+}
+
+int SocketRecvFrom(SocketObject& sock, u8* buf, u32 buf_len, u32 flags, N_XSOCKADDR_IN* from,
+                   u32* from_len) {
   sockaddr_in nfrom;
   socklen_t nfromlen = sizeof(sockaddr_in);
-  int ret = recvfrom(native_handle_, reinterpret_cast<char*>(buf), buf_len, flags,
+  int ret = recvfrom(sock.native_handle, reinterpret_cast<char*>(buf), buf_len, flags,
                      (sockaddr*)&nfrom, &nfromlen);
   if (from) {
     from->sin_family = nfrom.sin_family;
-    from->sin_addr = ntohl(nfrom.sin_addr.s_addr);  // BE <- BE
+    from->sin_addr = ntohl(nfrom.sin_addr.s_addr);
     from->sin_port = nfrom.sin_port;
     std::memset(from->x_sin_zero, 0, sizeof(from->x_sin_zero));
   }
@@ -209,23 +176,12 @@ int XSocket::RecvFrom(uint8_t* buf, uint32_t buf_len, uint32_t flags, N_XSOCKADD
   return ret;
 }
 
-int XSocket::Send(const uint8_t* buf, uint32_t buf_len, uint32_t flags) {
-  return send(native_handle_, reinterpret_cast<const char*>(buf), buf_len, flags);
+int SocketSend(SocketObject& sock, const u8* buf, u32 buf_len, u32 flags) {
+  return send(sock.native_handle, reinterpret_cast<const char*>(buf), buf_len, flags);
 }
 
-int XSocket::SendTo(uint8_t* buf, uint32_t buf_len, uint32_t flags, N_XSOCKADDR_IN* to,
-                    uint32_t to_len) {
-  // Send 2 copies of the packet: One to XNet (for network security) and an
-  // unencrypted copy for other Xenia hosts.
-  // TODO(DrChat): Enable when I commit XNet.
-  /*
-  auto xam = kernel_state()->GetKernelModule<xam::XamModule>("xam.xex");
-  auto xnet = xam->xnet();
-  if (xnet) {
-    xnet->SendPacket(this, to, buf, buf_len);
-  }
-  */
-
+int SocketSendTo(SocketObject& sock, u8* buf, u32 buf_len, u32 flags, N_XSOCKADDR_IN* to,
+                 u32 to_len) {
   sockaddr_in nto;
   if (to) {
     nto.sin_addr.s_addr = to->sin_addr;
@@ -233,22 +189,21 @@ int XSocket::SendTo(uint8_t* buf, uint32_t buf_len, uint32_t flags, N_XSOCKADDR_
     nto.sin_port = to->sin_port;
   }
 
-  return sendto(native_handle_, reinterpret_cast<char*>(buf), buf_len, flags,
+  return sendto(sock.native_handle, reinterpret_cast<char*>(buf), buf_len, flags,
                 to ? (sockaddr*)&nto : nullptr, to_len);
 }
 
-bool XSocket::QueuePacket(uint32_t src_ip, uint16_t src_port, const uint8_t* buf, size_t len) {
-  packet* pkt = reinterpret_cast<packet*>(new uint8_t[sizeof(packet) + len]);
+bool SocketQueuePacket(SocketObject& sock, u32 src_ip, u16 src_port, const u8* buf, size_t len) {
+  SocketPacket* pkt = reinterpret_cast<SocketPacket*>(new u8[sizeof(SocketPacket) + len]);
   pkt->src_ip = src_ip;
   pkt->src_port = src_port;
 
-  pkt->data_len = (uint16_t)len;
+  pkt->data_len = (u16)len;
   std::memcpy(pkt->data, buf, len);
 
-  std::lock_guard<std::mutex> lock(incoming_packet_mutex_);
-  incoming_packets_.push((uint8_t*)pkt);
+  std::lock_guard<std::mutex> lock(sock.incoming_packet_mutex);
+  sock.incoming_packets.push((u8*)pkt);
 
-  // TODO: Limit on number of incoming packets?
   return true;
 }
 

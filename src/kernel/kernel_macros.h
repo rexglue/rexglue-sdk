@@ -18,18 +18,18 @@
 /**
  * Looks a handle up in the object table and returns X_STATUS_INVALID_HANDLE when it is absent.
  *
- * @param VAR The name of the reference to declare.
- * @param TYPE The kernel object class.
+ * @param VAR The name of the pin to declare.
+ * @param TYPE The object struct the handle must hold.
  * @param HANDLE The handle expression.
  *
  * @code
- * REX_KERNEL_LOOKUP(file, XFile, file_handle);
+ * REX_KERNEL_LOOKUP(file, FileObject, file_handle);
  * @endcode
  */
-#define REX_KERNEL_LOOKUP(VAR, TYPE, HANDLE)                   \
-  auto VAR = REX_KERNEL_OBJECTS()->LookupObject<TYPE>(HANDLE); \
-  if (!(VAR)) {                                                \
-    return X_STATUS_INVALID_HANDLE;                            \
+#define REX_KERNEL_LOOKUP(VAR, TYPE, HANDLE)          \
+  auto VAR = REX_KERNEL_OBJECTS()->Get<TYPE>(HANDLE); \
+  if (!(VAR)) {                                       \
+    return X_STATUS_INVALID_HANDLE;                   \
   }
 
 /**
@@ -63,19 +63,17 @@
  * Handles an existing named object at the head of a named create entry point.
  *
  * Returns X_STATUS_OBJECT_NAME_EXISTS with a retained handle when an object of the same kind
- * carries the name, and X_STATUS_INVALID_HANDLE when an object of another kind does. Falls
- * through when the name is absent.
+ * carries the name. Falls through when the name is absent or an object of another kind holds it.
  *
- * @param CLASS The kernel object class.
- * @param KIND The XObject::Type enumerator of the class.
+ * @param KIND The ObjectKind enumerator of the object.
  * @param HANDLE_OUT The handle out parameter.
  * @param ATTRS The object attributes pointer.
  *
  * @code
- * REX_KERNEL_NAMED_CREATE(XEvent, Event, handle_ptr, obj_attributes_ptr);
+ * REX_KERNEL_NAMED_CREATE(Event, handle_ptr, obj_attributes_ptr);
  * @endcode
  */
-#define REX_KERNEL_NAMED_CREATE(CLASS, KIND, HANDLE_OUT, ATTRS)                                   \
+#define REX_KERNEL_NAMED_CREATE(KIND, HANDLE_OUT, ATTRS)                                          \
   if (ATTRS) {                                                                                    \
     auto rex_attrs_ =                                                                             \
         REX_KERNEL_MEMORY()->TranslateVirtual<X_OBJECT_ATTRIBUTES*>((ATTRS).guest_address());     \
@@ -83,17 +81,17 @@
     auto rex_name_ = util::TranslateAnsiStringAddress(REX_KERNEL_MEMORY(), rex_attrs_->name_ptr); \
     X_HANDLE rex_handle_ = X_INVALID_HANDLE_VALUE;                                                \
     if (!rex_name_.empty() &&                                                                     \
-        XSUCCEEDED(REX_KERNEL_OBJECTS()->GetObjectByName(rex_name_, &rex_handle_))) {             \
-      if (auto existing_object = REX_KERNEL_OBJECTS()->LookupObject<CLASS>(rex_handle_)) {        \
-        existing_object->ReleaseHandle();                                                         \
-        if (existing_object->type() == XObject::Type::KIND) {                                     \
+        XSUCCEEDED(REX_KERNEL_OBJECTS()->OpenByName(rex_name_, &rex_handle_))) {                  \
+      auto rex_existing_ = REX_KERNEL_OBJECTS()->Get(rex_handle_);                                \
+      if (rex_existing_) {                                                                        \
+        REX_KERNEL_OBJECTS()->Close(rex_handle_);                                                 \
+        if (rex_existing_.kind() == ::rex::system::ObjectKind::KIND) {                            \
           if (HANDLE_OUT) {                                                                       \
-            existing_object->RetainHandle();                                                      \
-            *(HANDLE_OUT) = existing_object->handle();                                            \
+            REX_KERNEL_OBJECTS()->Retain(rex_handle_);                                            \
+            *(HANDLE_OUT) = rex_handle_;                                                          \
           }                                                                                       \
           return X_STATUS_OBJECT_NAME_EXISTS;                                                     \
         }                                                                                         \
-        return X_STATUS_INVALID_HANDLE;                                                           \
       }                                                                                           \
     }                                                                                             \
   }

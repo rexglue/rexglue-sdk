@@ -10,9 +10,11 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <memory>
+
+#include <rex/platform/thread.h>
 #include <rex/system/xobject.h>
 #include <rex/system/xtypes.h>
-#include <rex/platform/thread.h>
 
 namespace rex::system {
 
@@ -22,26 +24,31 @@ struct X_KSEMAPHORE {
 };
 static_assert_size(X_KSEMAPHORE, 0x14);
 
-class XSemaphore : public XObject {
- public:
-  static const XObject::Type kObjectType = XObject::Type::Semaphore;
+/** The host state of a semaphore object. */
+struct SemaphoreObject {
+  /**
+   * @param initial_count The starting count.
+   * @param maximum_count_in The count the semaphore cannot exceed.
+   */
+  SemaphoreObject(i32 initial_count, i32 maximum_count_in);
 
-  explicit XSemaphore(KernelState* kernel_state);
-  ~XSemaphore() override;
+  /**
+   * @param header The guest semaphore whose signal state and limit seed the object.
+   */
+  explicit SemaphoreObject(const X_KSEMAPHORE& header);
 
-  [[nodiscard]] bool Initialize(int32_t initial_count, int32_t maximum_count);
-  [[nodiscard]] bool InitializeNative(void* native_ptr, X_DISPATCH_HEADER* header);
-
-  [[nodiscard]] bool ReleaseSemaphore(int32_t release_count, int32_t* out_previous_count);
-
-  int32_t maximum_count() const { return static_cast<int32_t>(maximum_count_); }
-
- protected:
-  rex::platform::WaitHandle* GetWaitHandle() override { return semaphore_.get(); }
-
- private:
-  std::unique_ptr<rex::platform::Semaphore> semaphore_;
-  uint32_t maximum_count_ = 0;
+  std::unique_ptr<rex::platform::Semaphore> semaphore;
+  u32 maximum_count = 0;
 };
+
+/**
+ * Releases a semaphore.
+ *
+ * @param semaphore The semaphore.
+ * @param release_count The count to add.
+ * @param out_previous_count Receives the count before the release, may be null.
+ * @return True when the release stayed within the maximum count.
+ */
+bool SemaphoreRelease(SemaphoreObject& semaphore, i32 release_count, i32* out_previous_count);
 
 }  // namespace rex::system

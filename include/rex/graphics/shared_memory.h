@@ -16,7 +16,7 @@
 #include <vector>
 
 #include <rex/memory.h>
-#include <rex/platform/mutex.h>
+#include <rex/platform/lock_order.h>
 
 namespace rex::graphics {
 
@@ -34,8 +34,7 @@ class SharedMemory {
   void SetSystemPageBlocksValidWithGpuDataWritten();
   void InvalidateAllPages();
 
-  typedef void (*GlobalWatchCallback)(const std::unique_lock<std::recursive_mutex>& global_lock,
-                                      void* context, uint32_t address_first, uint32_t address_last,
+  typedef void (*GlobalWatchCallback)(void* context, uint32_t address_first, uint32_t address_last,
                                       bool invalidated_by_gpu);
   typedef void* GlobalWatchHandle;
   // Registers a callback invoked when something is invalidated in the GPU
@@ -45,11 +44,10 @@ class SharedMemory {
   // example, if the game changes protection level of a memory range containing
   // the watched range.
   //
-  // The callback is called within the global critical region.
+  // The callback is called with the memory watch lock held.
   GlobalWatchHandle RegisterGlobalWatch(GlobalWatchCallback callback, void* callback_context);
   void UnregisterGlobalWatch(GlobalWatchHandle handle);
-  typedef void (*WatchCallback)(const std::unique_lock<std::recursive_mutex>& global_lock,
-                                void* context, void* data, uint64_t argument,
+  typedef void (*WatchCallback)(void* context, void* data, uint64_t argument,
                                 bool invalidated_by_gpu);
   typedef void* WatchHandle;
   // Registers a callback invoked when the specified memory range is invalidated
@@ -64,12 +62,24 @@ class SharedMemory {
   // additional subsystem/object-specific data (such as whether the range
   // belongs to the base mip level or to the rest of the mips).
   //
-  // Called with the global critical region locked. Do NOT watch or unwatch
+  // Called with the memory watch lock held. Do NOT watch or unwatch
   // ranges from within it! The watch for the callback is cancelled after the
   // callback - the handle becomes invalid.
-  WatchHandle WatchMemoryRange(uint32_t start, uint32_t length, WatchCallback callback,
+  // The caller holds the lock returned by AcquireLock.
+  WatchHandle WatchMemoryRange(const std::unique_lock<rex::platform::RankedMutex>& lock,
+                               uint32_t start, uint32_t length, WatchCallback callback,
                                void* callback_context, void* callback_data,
                                uint64_t callback_argument);
+
+  /**
+   * Takes the memory watch lock that guards page validity, watches and the texture state that
+   * watch callbacks update.
+   *
+   * @return The held lock.
+   */
+  std::unique_lock<rex::platform::RankedMutex> AcquireLock() const {
+    return std::unique_lock(memory_.watch_mutex());
+  }
   // Unregisters previously registered watched memory range.
   void UnwatchMemoryRange(WatchHandle handle);
 
@@ -79,6 +89,7 @@ class SharedMemory {
   bool RequestRanges(const std::pair<uint32_t, uint32_t>* ranges, size_t count);
   bool RequestRange(uint32_t start, uint32_t length);
 
+  // Called with the memory watch lock held.
   // Marks the range and, if not exact_range, potentially its surroundings
   // (to up to the first GPU-written page, as an access violation exception
   // count optimization) as modified by the CPU, also invalidating GPU-written
@@ -161,13 +172,8 @@ class SharedMemory {
   // persistently allocated vector).
   std::vector<std::pair<uint32_t, uint32_t>> upload_ranges_;
 
-  // Mutex between the guest memory subsystem and the command processor, to be
-  // locked when checking or updating validity of pages/ranges and when firing
-  // watches.
-  rex::platform::global_critical_region global_critical_region_;
-
   // ***************************************************************************
-  // Things below should be fully protected by global_critical_region.
+  // Things below should be fully protected by the memory watch lock.
   // ***************************************************************************
 
   // Pages whose contents in the buffer are in sync with guest memory.
@@ -233,6 +239,7 @@ class SharedMemory {
   // Triggers the watches (global and per-range), removing triggered range
   // watches.
   void FireWatches(uint32_t page_first, uint32_t page_last, bool invalidated_by_gpu);
+  void FireWatchesLocked(uint32_t page_first, uint32_t page_last, bool invalidated_by_gpu);
   // Unlinks and frees the range and its nodes. Call this in the global critical
   // region.
   void UnlinkWatchRange(WatchRange* range);

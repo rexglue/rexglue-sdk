@@ -24,7 +24,7 @@
 #include <rex/graphics/shared_memory.h>
 #include <rex/xenos/xenos.h>
 #include <rex/hash.h>
-#include <rex/platform/mutex.h>
+#include <rex/platform/lock_order.h>
 
 namespace rex::graphics {
 
@@ -220,15 +220,15 @@ class TextureCache {
     static constexpr uint32_t kOutdatedBitMips = UINT32_C(1) << 1;
     uint32_t outdated_mask() const { return outdated_mask_.load(std::memory_order_acquire); }
 
-    bool base_outdated(const std::unique_lock<std::recursive_mutex>& global_lock) const {
+    bool base_outdated(const std::unique_lock<rex::platform::RankedMutex>& watch_lock) const {
       return base_outdated_;
     }
-    bool mips_outdated(const std::unique_lock<std::recursive_mutex>& global_lock) const {
+    bool mips_outdated(const std::unique_lock<rex::platform::RankedMutex>& watch_lock) const {
       return mips_outdated_;
     }
-    void MakeUpToDateAndWatch(const std::unique_lock<std::recursive_mutex>& global_lock);
+    void MakeUpToDateAndWatch(const std::unique_lock<rex::platform::RankedMutex>& watch_lock);
 
-    void WatchCallback(const std::unique_lock<std::recursive_mutex>& global_lock, bool is_mip);
+    void WatchCallback(bool is_mip);
 
     // For LRU caching - updates the last usage frame and moves the texture to
     // the end of the usage queue. Must be called any time the texture is
@@ -565,19 +565,16 @@ class TextureCache {
   void UpdateTexturesTotalHostMemoryUsage(uint64_t add, uint64_t subtract);
 
   // Shared memory callback for texture data invalidation.
-  static void WatchCallback(const std::unique_lock<std::recursive_mutex>& global_lock,
-                            void* context, void* data, uint64_t argument, bool invalidated_by_gpu);
+  static void WatchCallback(void* context, void* data, uint64_t argument, bool invalidated_by_gpu);
 
   // Checks if there are any pages that contain scaled resolve data within the
   // range.
   bool IsRangeScaledResolved(uint32_t start_unscaled, uint32_t length_unscaled);
   // Global shared memory invalidation callback for invalidating scaled resolved
   // texture data.
-  static void ScaledResolveGlobalWatchCallbackThunk(
-      const std::unique_lock<std::recursive_mutex>& global_lock, void* context,
-      uint32_t address_first, uint32_t address_last, bool invalidated_by_gpu);
-  void ScaledResolveGlobalWatchCallback(const std::unique_lock<std::recursive_mutex>& global_lock,
-                                        uint32_t address_first, uint32_t address_last,
+  static void ScaledResolveGlobalWatchCallbackThunk(void* context, uint32_t address_first,
+                                                    uint32_t address_last, bool invalidated_by_gpu);
+  void ScaledResolveGlobalWatchCallback(uint32_t address_first, uint32_t address_last,
                                         bool invalidated_by_gpu);
 
   const RegisterFile& register_file_;
@@ -587,7 +584,6 @@ class TextureCache {
 
   static const LoadShaderInfo load_shader_info_[kLoadShaderCount];
 
-  rex::platform::global_critical_region global_critical_region_;
   // Bit vector storing whether each 4 KB physical memory page contains scaled
   // resolve data. uint32_t rather than uint64_t because parts of it can be sent
   // to shaders.

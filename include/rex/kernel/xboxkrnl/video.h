@@ -15,7 +15,7 @@
 #include <rex/system/xvideo.h>
 
 namespace rex::system {
-class KernelModule;
+struct ModuleObject;
 class KernelState;
 }  // namespace rex::system
 
@@ -23,8 +23,13 @@ namespace rex::kernel::xboxkrnl {
 
 void VdQueryVideoMode(system::X_VIDEO_MODE* video_mode);
 
-// Register video variable exports (VdGlobalDevice, VdHSIOCalibrationLock, etc.)
-// Must be called during kernel initialization before XEX modules are loaded.
-void RegisterVideoExports(system::KernelModule* kernel_module, system::KernelState* kernel_state);
+/**
+ * Registers the video variable exports (VdGlobalDevice, VdHSIOCalibrationLock, etc.). Must be
+ * called during kernel initialization before XEX modules are loaded.
+ *
+ * @param module The xboxkrnl module.
+ * @param kernel_state The kernel state.
+ */
+void RegisterVideoExports(system::ModuleObject& module, system::KernelState* kernel_state);
 
 }  // namespace rex::kernel::xboxkrnl

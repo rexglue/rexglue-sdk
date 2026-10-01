@@ -14,13 +14,114 @@
 #include <rex/math.h>
 #include <rex/memory.h>
 #include <rex/system/kernel_state.h>
+#include <rex/system/util/object_table.h>
 #include <rex/system/xevent.h>
 #include <rex/system/xfile.h>
-#include <rex/platform/mutex.h>
+#include <rex/system/xiocompletion.h>
 
 #include <span>
 
 namespace rex::system {
+
+namespace {
+
+void NotifyIOCompletionPorts(KernelState* kernel_state, FileObject& file,
+                             IONotification& notification) {
+  std::vector<std::pair<u32, X_HANDLE>> ports;
+  {
+    std::lock_guard<std::mutex> lock(file.completion_port_lock);
+    ports = file.completion_ports;
+  }
+
+  for (const auto& port : ports) {
+    auto pin = kernel_state->object_table()->Get<IOCompletionObject>(port.second);
+    if (pin) {
+      notification.key_context = port.first;
+      IOCompletionQueue(*pin, notification);
+    }
+  }
+}
+
+X_STATUS ReadInternal(KernelState* kernel_state, FileObject& file, u32 buffer_guest_address,
+                      u32 buffer_length, u64 byte_offset, u32* out_bytes_read, u32 apc_context,
+                      bool notify_completion) {
+  auto* memory = kernel_state->memory();
+  if (byte_offset == u64(-1)) {
+    byte_offset = file.position;
+  }
+
+  size_t bytes_read = 0;
+  X_STATUS result = X_STATUS_SUCCESS;
+  if (buffer_length) {
+    if (UINT32_MAX - buffer_guest_address < buffer_length) {
+      result = X_STATUS_ACCESS_VIOLATION;
+    } else {
+      u32 buffer_guest_high_address = buffer_guest_address + buffer_length - 1;
+      rex::memory::BaseHeap* buffer_start_heap = memory->LookupHeap(buffer_guest_address);
+      const rex::memory::BaseHeap* buffer_end_heap = memory->LookupHeap(buffer_guest_high_address);
+      if (!buffer_start_heap || !buffer_end_heap ||
+          (buffer_start_heap->heap_type() == memory::HeapType::kGuestPhysical) !=
+              (buffer_end_heap->heap_type() == memory::HeapType::kGuestPhysical) ||
+          (buffer_start_heap->heap_type() == memory::HeapType::kGuestPhysical &&
+           buffer_start_heap != buffer_end_heap)) {
+        result = X_STATUS_ACCESS_VIOLATION;
+      } else {
+        rex::memory::PhysicalHeap* buffer_physical_heap =
+            buffer_start_heap->heap_type() == memory::HeapType::kGuestPhysical
+                ? static_cast<rex::memory::PhysicalHeap*>(buffer_start_heap)
+                : nullptr;
+        if (buffer_physical_heap && buffer_physical_heap->QueryRangeAccess(
+                                        buffer_guest_address, buffer_guest_high_address) !=
+                                        memory::PageAccess::kReadWrite) {
+          result = X_STATUS_ACCESS_VIOLATION;
+        } else {
+          auto read = file.file->Read(
+              std::span<u8>(buffer_physical_heap ? memory->TranslatePhysical(
+                                                       buffer_physical_heap->GetPhysicalAddress(
+                                                           buffer_guest_address))
+                                                 : memory->TranslateVirtual(buffer_guest_address),
+                            buffer_length),
+              byte_offset);
+          if (read) {
+            bytes_read = *read;
+          } else {
+            result = ToXStatus(read.error());
+          }
+          if (XSUCCEEDED(result)) {
+            if (buffer_physical_heap) {
+              buffer_physical_heap->TriggerCallbacks(buffer_guest_address, buffer_length, true,
+                                                     true);
+            }
+
+            if (byte_offset) {
+              file.position = byte_offset;
+            }
+            file.position += bytes_read;
+          }
+        }
+      }
+    }
+  }
+
+  if (out_bytes_read) {
+    *out_bytes_read = u32(bytes_read);
+  }
+
+  if (notify_completion) {
+    IONotification notify;
+    notify.apc_context = apc_context;
+    notify.num_bytes = u32(bytes_read);
+    notify.status = result;
+
+    NotifyIOCompletionPorts(kernel_state, file, notify);
+
+    file.async_event->Set();
+  }
+
+  return result;
+}
+
+}  // namespace
 
 X_STATUS ToXStatus(const rex::Error& error, X_STATUS unsupported) {
   using filesystem::Error;
@@ -47,67 +148,56 @@ X_STATUS ToXStatus(const rex::Error& error, X_STATUS unsupported) {
   }
 }
 
-XFile::XFile(KernelState* kernel_state, std::unique_ptr<filesystem::IFile> file, bool synchronous)
-    : XObject(kernel_state, kObjectType), file_(std::move(file)), is_synchronous_(synchronous) {
-  async_event_ = rex::platform::Event::CreateAutoResetEvent(false);
-  assert_not_null(async_event_);
+FileObject::FileObject(std::unique_ptr<filesystem::IFile> file_in, bool synchronous)
+    : file(std::move(file_in)), is_synchronous(synchronous) {
+  async_event = rex::platform::Event::CreateAutoResetEvent(false);
+  assert_not_null(async_event);
 }
 
-XFile::XFile() : XObject(kObjectType) {
-  async_event_ = rex::platform::Event::CreateAutoResetEvent(false);
-  assert_not_null(async_event_);
+FileObject::~FileObject() {
+  if (port_table == nullptr) {
+    return;
+  }
+  for (const auto& port : completion_ports) {
+    port_table->Close(port.second);
+  }
 }
 
-XFile::~XFile() {
-  // TODO(benvanik): signal that the file is closing?
-  async_event_->Set();
-}
-
-uint64_t XFile::position() const {
-  std::lock_guard<std::mutex> lock(file_lock_);
-  return position_;
-}
-
-void XFile::set_position(uint64_t value) {
-  std::lock_guard<std::mutex> lock(file_lock_);
-  position_ = value;
-}
-
-X_STATUS XFile::QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info, size_t length,
-                               const std::string_view file_name, bool restart) {
-  std::lock_guard<std::mutex> lock(file_lock_);
+X_STATUS FileQueryDirectory(KernelState*, FileObject& file, X_FILE_DIRECTORY_INFORMATION* out_info,
+                            size_t length, std::string_view file_name, bool restart) {
+  std::lock_guard<std::mutex> lock(file.file_lock);
   assert_not_null(out_info);
 
   std::optional<filesystem::FileInfo> entry;
 
   if (!file_name.empty()) {
     assert_true(rex::utf8_find_any_of(file_name, "\\") == std::string_view::npos);
-    SetFindPattern(file_name);
-    entry = FindNext();
+    FileSetFindPattern(file, file_name);
+    entry = FileFindNext(file);
     if (!entry) {
       return X_STATUS_NO_SUCH_FILE;
     }
   } else {
-    if (!find_) {
-      SetFindPattern({});
+    if (!file.find) {
+      FileSetFindPattern(file, {});
     } else if (restart) {
-      find_->Restart();
+      file.find->Restart();
     }
-    entry = FindNext();
+    entry = FileFindNext(file);
     if (!entry) {
       return X_STATUS_NO_MORE_FILES;
     }
   }
 
-  auto end = reinterpret_cast<uint8_t*>(out_info) + length;
+  auto end = reinterpret_cast<u8*>(out_info) + length;
   const std::string& entry_name = entry->name;
-  if (reinterpret_cast<uint8_t*>(&out_info->file_name[0]) + entry_name.size() > end) {
+  if (reinterpret_cast<u8*>(&out_info->file_name[0]) + entry_name.size() > end) {
     assert_always("Buffer overflow?");
     return X_STATUS_NO_SUCH_FILE;
   }
 
   out_info->next_entry_offset = 0;
-  out_info->file_index = static_cast<uint32_t>(find_->position());
+  out_info->file_index = static_cast<u32>(file.find->position());
   out_info->creation_time = entry->create_time;
   out_info->last_access_time = entry->access_time;
   out_info->last_write_time = entry->write_time;
@@ -115,139 +205,43 @@ X_STATUS XFile::QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info, size_t le
   out_info->end_of_file = entry->size;
   out_info->allocation_size = entry->allocation_size;
   out_info->attributes = std::to_underlying(entry->attributes);
-  out_info->file_name_length = static_cast<uint32_t>(entry_name.size());
+  out_info->file_name_length = static_cast<u32>(entry_name.size());
   std::memcpy(out_info->file_name, entry_name.data(), entry_name.size());
 
   return X_STATUS_SUCCESS;
 }
 
-X_STATUS XFile::Read(uint32_t buffer_guest_address, uint32_t buffer_length, uint64_t byte_offset,
-                     uint32_t* out_bytes_read, uint32_t apc_context, bool notify_completion) {
-  std::lock_guard<std::mutex> lock(file_lock_);
-  return ReadInternal(buffer_guest_address, buffer_length, byte_offset, out_bytes_read, apc_context,
-                      notify_completion);
+X_STATUS FileRead(KernelState* kernel_state, FileObject& file, u32 buffer_guest_address,
+                  u32 buffer_length, u64 byte_offset, u32* out_bytes_read, u32 apc_context,
+                  bool notify_completion) {
+  std::lock_guard<std::mutex> lock(file.file_lock);
+  return ReadInternal(kernel_state, file, buffer_guest_address, buffer_length, byte_offset,
+                      out_bytes_read, apc_context, notify_completion);
 }
 
-X_STATUS XFile::ReadInternal(uint32_t buffer_guest_address, uint32_t buffer_length,
-                             uint64_t byte_offset, uint32_t* out_bytes_read, uint32_t apc_context,
-                             bool notify_completion) {
-  if (byte_offset == uint64_t(-1)) {
-    // Read from current position.
-    byte_offset = position_;
-  }
-
-  size_t bytes_read = 0;
-  X_STATUS result = X_STATUS_SUCCESS;
-  // Zero length means success for a valid file object according to Windows
-  // tests.
-  if (buffer_length) {
-    if (UINT32_MAX - buffer_guest_address < buffer_length) {
-      result = X_STATUS_ACCESS_VIOLATION;
-    } else {
-      // Games often read directly to texture/vertex buffer memory - in this
-      // case, invalidation notifications must be sent. However, having any
-      // memory callbacks in the range will result in STATUS_ACCESS_VIOLATION at
-      // least on Windows, without anything being read or any callbacks being
-      // triggered. So for physical memory, host protection must be bypassed,
-      // and invalidation callbacks must be triggered manually (it's also wrong
-      // to trigger invalidation callbacks before reading in this case, because
-      // during the read, the guest may still access the data around the buffer
-      // that is located in the same host pages as the buffer's start and end,
-      // on the GPU - and that must not trigger a race condition).
-      uint32_t buffer_guest_high_address = buffer_guest_address + buffer_length - 1;
-      rex::memory::BaseHeap* buffer_start_heap = memory()->LookupHeap(buffer_guest_address);
-      const rex::memory::BaseHeap* buffer_end_heap =
-          memory()->LookupHeap(buffer_guest_high_address);
-      if (!buffer_start_heap || !buffer_end_heap ||
-          (buffer_start_heap->heap_type() == memory::HeapType::kGuestPhysical) !=
-              (buffer_end_heap->heap_type() == memory::HeapType::kGuestPhysical) ||
-          (buffer_start_heap->heap_type() == memory::HeapType::kGuestPhysical &&
-           buffer_start_heap != buffer_end_heap)) {
-        result = X_STATUS_ACCESS_VIOLATION;
-      } else {
-        rex::memory::PhysicalHeap* buffer_physical_heap =
-            buffer_start_heap->heap_type() == memory::HeapType::kGuestPhysical
-                ? static_cast<rex::memory::PhysicalHeap*>(buffer_start_heap)
-                : nullptr;
-        if (buffer_physical_heap && buffer_physical_heap->QueryRangeAccess(
-                                        buffer_guest_address, buffer_guest_high_address) !=
-                                        memory::PageAccess::kReadWrite) {
-          result = X_STATUS_ACCESS_VIOLATION;
-        } else {
-          auto read = file_->Read(
-              std::span<u8>(buffer_physical_heap ? memory()->TranslatePhysical(
-                                                       buffer_physical_heap->GetPhysicalAddress(
-                                                           buffer_guest_address))
-                                                 : memory()->TranslateVirtual(buffer_guest_address),
-                            buffer_length),
-              byte_offset);
-          if (read) {
-            bytes_read = *read;
-          } else {
-            result = ToXStatus(read.error());
-          }
-          if (XSUCCEEDED(result)) {
-            if (buffer_physical_heap) {
-              buffer_physical_heap->TriggerCallbacks(
-                  rex::platform::global_critical_region::AcquireDirect(), buffer_guest_address,
-                  buffer_length, true, true);
-            }
-
-            if (byte_offset) {
-              position_ = byte_offset;
-            }
-            position_ += bytes_read;
-          }
-        }
-      }
-    }
-  }
-
-  if (out_bytes_read) {
-    *out_bytes_read = uint32_t(bytes_read);
-  }
-
-  if (notify_completion) {
-    XIOCompletion::IONotification notify;
-    notify.apc_context = apc_context;
-    notify.num_bytes = uint32_t(bytes_read);
-    notify.status = result;
-
-    NotifyIOCompletionPorts(notify);
-
-    async_event_->Set();
-  }
-
-  return result;
-}
-
-X_STATUS XFile::ReadScatter(uint32_t segments_guest_address, uint32_t length, uint64_t byte_offset,
-                            uint32_t* out_bytes_read, uint32_t apc_context) {
-  std::lock_guard<std::mutex> lock(file_lock_);
+X_STATUS FileReadScatter(KernelState* kernel_state, FileObject& file, u32 segments_guest_address,
+                         u32 length, u64 byte_offset, u32* out_bytes_read, u32 apc_context) {
+  std::lock_guard<std::mutex> lock(file.file_lock);
   X_STATUS result = X_STATUS_SUCCESS;
 
-  // segments points to an array of buffer pointers of type
-  // "FILE_SEGMENT_ELEMENT", but they can just be treated as normal pointers
-  rex::be<uint32_t>* segments =
-      reinterpret_cast<rex::be<uint32_t>*>(memory()->TranslateVirtual(segments_guest_address));
+  rex::be<u32>* segments = reinterpret_cast<rex::be<u32>*>(
+      kernel_state->memory()->TranslateVirtual(segments_guest_address));
 
-  // TODO: not sure if this is meant to change depending on buffer address?
-  // (only game seen using this always seems to use 4096-byte buffers)
-  uint32_t page_size = 4096;
+  u32 page_size = 4096;
 
-  uint32_t read_total = 0;
-  uint32_t read_remain = length;
+  u32 read_total = 0;
+  u32 read_remain = length;
   while (read_remain) {
-    uint32_t read_length = read_remain;
-    uint32_t read_buffer = *segments;
+    u32 read_length = read_remain;
+    u32 read_buffer = *segments;
     if (read_length > page_size) {
       read_length = page_size;
       segments++;
     }
 
-    uint32_t bytes_read = 0;
+    u32 bytes_read = 0;
     result = ReadInternal(
-        read_buffer, read_length,
+        kernel_state, file, read_buffer, read_length,
         byte_offset
             ? ((byte_offset != -1 && byte_offset != -2) ? byte_offset + read_total : byte_offset)
             : -1,
@@ -265,30 +259,30 @@ X_STATUS XFile::ReadScatter(uint32_t segments_guest_address, uint32_t length, ui
     *out_bytes_read = read_total;
   }
 
-  XIOCompletion::IONotification notify;
+  IONotification notify;
   notify.apc_context = apc_context;
   notify.num_bytes = read_total;
   notify.status = result;
 
-  NotifyIOCompletionPorts(notify);
+  NotifyIOCompletionPorts(kernel_state, file, notify);
 
-  async_event_->Set();
+  file.async_event->Set();
 
   return result;
 }
 
-X_STATUS XFile::Write(uint32_t buffer_guest_address, uint32_t buffer_length, uint64_t byte_offset,
-                      uint32_t* out_bytes_written, uint32_t apc_context) {
-  std::lock_guard<std::mutex> lock(file_lock_);
-  if (byte_offset == uint64_t(-1)) {
-    // Write from current position.
-    byte_offset = position_;
+X_STATUS FileWrite(KernelState* kernel_state, FileObject& file, u32 buffer_guest_address,
+                   u32 buffer_length, u64 byte_offset, u32* out_bytes_written, u32 apc_context) {
+  std::lock_guard<std::mutex> lock(file.file_lock);
+  if (byte_offset == u64(-1)) {
+    byte_offset = file.position;
   }
 
   size_t bytes_written = 0;
   X_STATUS result = X_STATUS_SUCCESS;
-  auto written = file_->Write(
-      std::span<const u8>(memory()->TranslateVirtual(buffer_guest_address), buffer_length),
+  auto written = file.file->Write(
+      std::span<const u8>(kernel_state->memory()->TranslateVirtual(buffer_guest_address),
+                          buffer_length),
       byte_offset);
   if (written) {
     bytes_written = *written;
@@ -296,71 +290,85 @@ X_STATUS XFile::Write(uint32_t buffer_guest_address, uint32_t buffer_length, uin
     result = ToXStatus(written.error());
   }
   if (XSUCCEEDED(result)) {
-    position_ += bytes_written;
+    file.position += bytes_written;
   }
 
-  XIOCompletion::IONotification notify;
+  IONotification notify;
   notify.apc_context = apc_context;
-  notify.num_bytes = uint32_t(bytes_written);
+  notify.num_bytes = u32(bytes_written);
   notify.status = result;
 
-  NotifyIOCompletionPorts(notify);
+  NotifyIOCompletionPorts(kernel_state, file, notify);
 
   if (out_bytes_written) {
-    *out_bytes_written = uint32_t(bytes_written);
+    *out_bytes_written = u32(bytes_written);
   }
 
-  async_event_->Set();
+  file.async_event->Set();
   return result;
 }
 
-X_STATUS XFile::SetLength(u64 length) {
-  std::lock_guard<std::mutex> lock(file_lock_);
-  auto status = file_->SetLength(length);
+X_STATUS FileSetLength(FileObject& file, u64 length) {
+  std::lock_guard<std::mutex> lock(file.file_lock);
+  auto status = file.file->SetLength(length);
   return status ? X_STATUS_SUCCESS : ToXStatus(status.error(), X_STATUS_NOT_IMPLEMENTED);
 }
 
-X_STATUS XFile::Rename(std::string_view path) {
-  std::lock_guard<std::mutex> lock(file_lock_);
-  auto status = file_->Rename(path);
+X_STATUS FileRename(FileObject& file, std::string_view path) {
+  std::lock_guard<std::mutex> lock(file.file_lock);
+  auto status = file.file->Rename(path);
   return status ? X_STATUS_SUCCESS : ToXStatus(status.error(), X_STATUS_NOT_SUPPORTED);
 }
 
-void XFile::SetFindPattern(std::string_view pattern) {
-  auto listing = file_->List(pattern);
-  find_ = listing ? std::move(*listing) : nullptr;
+u64 FilePosition(FileObject& file) {
+  std::lock_guard<std::mutex> lock(file.file_lock);
+  return file.position;
 }
 
-std::optional<filesystem::FileInfo> XFile::FindNext() {
-  if (!find_) {
+void FileSetPosition(FileObject& file, u64 value) {
+  std::lock_guard<std::mutex> lock(file.file_lock);
+  file.position = value;
+}
+
+void FileSetFindPattern(FileObject& file, std::string_view pattern) {
+  auto listing = file.file->List(pattern);
+  file.find = listing ? std::move(*listing) : nullptr;
+}
+
+std::optional<filesystem::FileInfo> FileFindNext(FileObject& file) {
+  if (!file.find) {
     return std::nullopt;
   }
-  return find_->Next();
+  return file.find->Next();
 }
 
-void XFile::RegisterIOCompletionPort(uint32_t key, object_ref<XIOCompletion> port) {
-  std::lock_guard<std::mutex> lock(completion_port_lock_);
+void FileRegisterIOCompletionPort(KernelState* kernel_state, FileObject& file, u32 key,
+                                  X_HANDLE port) {
+  auto* table = kernel_state->object_table();
+  X_HANDLE owned = 0;
+  if (XFAILED(table->Duplicate(port, &owned))) {
+    return;
+  }
 
-  completion_ports_.emplace_back(key, std::move(port));
+  std::lock_guard<std::mutex> lock(file.completion_port_lock);
+  file.port_table = table;
+  file.completion_ports.emplace_back(key, owned);
 }
 
-void XFile::RemoveIOCompletionPort(uint32_t key) {
-  std::lock_guard<std::mutex> lock(completion_port_lock_);
-
-  for (auto it = completion_ports_.begin(); it != completion_ports_.end(); it++) {
-    if (it->first == key) {
-      completion_ports_.erase(it);
-      break;
+void FileRemoveIOCompletionPort(KernelState* kernel_state, FileObject& file, u32 key) {
+  X_HANDLE owned = 0;
+  {
+    std::lock_guard<std::mutex> lock(file.completion_port_lock);
+    for (auto it = file.completion_ports.begin(); it != file.completion_ports.end(); it++) {
+      if (it->first == key) {
+        owned = it->second;
+        file.completion_ports.erase(it);
+        break;
+      }
     }
   }
-}
-
-void XFile::NotifyIOCompletionPorts(XIOCompletion::IONotification& notification) {
-  std::lock_guard<std::mutex> lock(completion_port_lock_);
-
-  for (const auto& port : completion_ports_) {
-    notification.key_context = port.first;
-    port.second->QueueNotification(notification);
+  if (owned) {
+    kernel_state->object_table()->Close(owned);
   }
 }
 

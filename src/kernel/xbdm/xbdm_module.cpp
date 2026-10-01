@@ -18,10 +18,9 @@ namespace kernel {
 namespace xbdm {
 using namespace rex::system;
 
-XbdmModule::XbdmModule(Runtime* emulator, KernelState* kernel_state)
-    : KernelModule(kernel_state, "xe:\\xbdm.xex") {}
-
-XbdmModule::~XbdmModule() {}
+X_HANDLE CreateXbdmModule(KernelState* kernel_state) {
+  return CreateKernelModule(kernel_state, "xe:\\xbdm.xex");
+}
 
 }  // namespace xbdm
 }  // namespace kernel

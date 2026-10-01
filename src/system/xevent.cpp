@@ -9,86 +9,65 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <chrono>
+
 #include <rex/logging.h>
 #include <rex/system/xevent.h>
 
 namespace rex::system {
 
-XEvent::XEvent(KernelState* kernel_state) : XObject(kernel_state, kObjectType) {}
-
-XEvent::~XEvent() = default;
-
-void XEvent::Initialize(bool manual_reset, bool initial_state) {
-  assert_false(event_);
-
-  this->CreateNative<X_KEVENT>();
-
-  if (manual_reset) {
-    event_ = rex::platform::Event::CreateManualResetEvent(initial_state);
-  } else {
-    event_ = rex::platform::Event::CreateAutoResetEvent(initial_state);
-  }
-  assert_not_null(event_);
+EventObject::EventObject(bool manual_reset_in, bool initial_state) : manual_reset(manual_reset_in) {
+  event = manual_reset ? rex::platform::Event::CreateManualResetEvent(initial_state)
+                       : rex::platform::Event::CreateAutoResetEvent(initial_state);
+  assert_not_null(event);
 }
 
-void XEvent::InitializeNative(void* native_ptr, X_DISPATCH_HEADER* header) {
-  assert_false(event_);
-
-  switch (header->type) {
-    case 0x00:  // EventNotificationObject (manual reset)
-      manual_reset_ = true;
+EventObject::EventObject(const X_DISPATCH_HEADER& header) {
+  switch (header.type) {
+    case 0x00:
+      manual_reset = true;
       break;
-    case 0x01:  // EventSynchronizationObject (auto reset)
-      manual_reset_ = false;
+    case 0x01:
+      manual_reset = false;
       break;
     default:
       assert_always();
       return;
   }
-
-  bool initial_state = header->signal_state ? true : false;
-  if (manual_reset_) {
-    event_ = rex::platform::Event::CreateManualResetEvent(initial_state);
-  } else {
-    event_ = rex::platform::Event::CreateAutoResetEvent(initial_state);
-  }
-  assert_not_null(event_);
+  const bool initial_state = header.signal_state ? true : false;
+  event = manual_reset ? rex::platform::Event::CreateManualResetEvent(initial_state)
+                       : rex::platform::Event::CreateAutoResetEvent(initial_state);
+  assert_not_null(event);
 }
 
-void XEvent::Query(uint32_t* out_type, uint32_t* out_state) {
+void EventQuery(EventObject& event, u32* out_type, u32* out_state) {
   if (out_type) {
-    *out_type = manual_reset_ ? 0x00 : 0x01;
+    *out_type = event.manual_reset ? 0x00 : 0x01;
   }
   if (out_state) {
-    // Query the live host event, not the stale guest header
-    auto result = rex::platform::Wait(event_.get(), false, std::chrono::milliseconds(0));
+    auto result = rex::platform::Wait(event.event.get(), false, std::chrono::milliseconds(0));
     if (result == rex::platform::WaitResult::kSuccess) {
       *out_state = 1;
-      // Re-signal since we consumed the signal by waiting
-      event_->Set();
+      event.event->Set();
     } else {
       *out_state = 0;
     }
   }
 }
 
-int32_t XEvent::Set(uint32_t priority_increment, bool wait) {
-  event_->Set();
+i32 EventSet(EventObject& event) {
+  event.event->Set();
   return 1;
 }
 
-int32_t XEvent::Pulse(uint32_t priority_increment, bool wait) {
-  event_->Pulse();
+i32 EventPulse(EventObject& event) {
+  event.event->Pulse();
   return 1;
 }
 
-int32_t XEvent::Reset() {
-  event_->Reset();
+i32 EventReset(EventObject& event) {
+  event.event->Reset();
   return 1;
-}
-
-void XEvent::Clear() {
-  event_->Reset();
 }
 
 }  // namespace rex::system

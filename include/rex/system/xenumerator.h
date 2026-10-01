@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <functional>
 #include <vector>
 
 #include <rex/system/xobject.h>
@@ -34,74 +35,104 @@ struct X_KENUMERATOR_CONTENT_AGGREGATE {
   be<uint32_t> handle;
 };
 
-class XEnumerator : public XObject {
+/**
+ * Writes the next batch of items.
+ *
+ * @param buffer_ptr The guest address of the output buffer.
+ * @param buffer_data The host address of the output buffer.
+ * @param written_count Receives the number of items written.
+ * @return The guest error code.
+ */
+using EnumeratorWriter = std::function<u32(u32 buffer_ptr, u8* buffer_data, u32* written_count)>;
+
+/** The host state of an enumerator object. */
+struct EnumeratorObject {
+  /**
+   * @param items_per_enumerate_in The items returned by 1 enumerate call.
+   * @param item_size_in The size of 1 item.
+   * @param write_items_in The callback that writes the next batch.
+   */
+  EnumeratorObject(size_t items_per_enumerate_in, size_t item_size_in,
+                   EnumeratorWriter write_items_in);
+
+  size_t items_per_enumerate;
+  size_t item_size;
+  EnumeratorWriter write_items;
+};
+
+/** A fixed list of items that an enumerator hands out in batches. */
+class StaticItems {
  public:
-  static const XObject::Type kObjectType = XObject::Type::Enumerator;
+  /**
+   * @param items_per_enumerate The items returned by 1 Write call.
+   * @param item_size The size of 1 item.
+   */
+  StaticItems(size_t items_per_enumerate, size_t item_size);
 
-  XEnumerator(KernelState* kernel_state, size_t items_per_enumerate, size_t item_size);
-  virtual ~XEnumerator();
+  /**
+   * Appends a zeroed item.
+   *
+   * @return The host address of the item, invalidated by the next Append.
+   */
+  u8* Append();
 
-  X_STATUS Initialize(uint32_t user_index, uint32_t app_id, uint32_t open_message,
-                      uint32_t close_message, uint32_t flags, uint32_t extra_size,
-                      void** extra_buffer);
-
-  X_STATUS Initialize(uint32_t user_index, uint32_t app_id, uint32_t open_message,
-                      uint32_t close_message, uint32_t flags);
-
+  /**
+   * Appends a zeroed item as a given type.
+   *
+   * @tparam T The item type.
+   * @return The item, invalidated by the next Append.
+   */
   template <typename T>
-  X_STATUS Initialize(uint32_t user_index, uint32_t app_id, uint32_t open_message,
-                      uint32_t close_message, uint32_t flags, T** extra) {
-    void* dummy;
-    auto result = Initialize(user_index, app_id, open_message, close_message, flags,
-                             static_cast<uint32_t>(sizeof(T)), &dummy);
-    if (extra) {
-      *extra = XFAILED(result) ? nullptr : static_cast<T*>(dummy);
-    }
-    return result;
+  T* Append() {
+    return reinterpret_cast<T*>(Append());
   }
 
-  virtual uint32_t WriteItems(uint32_t buffer_ptr, uint8_t* buffer_data,
-                              uint32_t* written_count) = 0;
+  /**
+   * Returns the number of items appended.
+   *
+   * @return The count.
+   */
+  [[nodiscard]] size_t item_count() const { return item_count_; }
 
-  size_t item_size() const { return item_size_; }
-  size_t items_per_enumerate() const { return items_per_enumerate_; }
+  /**
+   * Writes the next batch of items.
+   *
+   * @param buffer_data The host address of the output buffer.
+   * @param written_count Receives the number of items written, may be null.
+   * @return X_ERROR_NO_MORE_FILES when no items remain, X_ERROR_SUCCESS otherwise.
+   */
+  u32 Write(u8* buffer_data, u32* written_count);
 
  private:
   size_t items_per_enumerate_;
   size_t item_size_;
+  size_t item_count_ = 0;
+  size_t current_item_ = 0;
+  std::vector<u8> buffer_;
 };
 
-class XStaticUntypedEnumerator : public XEnumerator {
- public:
-  XStaticUntypedEnumerator(KernelState* kernel_state, size_t items_per_enumerate, size_t item_size)
-      : XEnumerator(kernel_state, items_per_enumerate, item_size),
-        item_count_(0),
-        current_item_(0) {}
-
-  size_t item_count() const { return item_count_; }
-
-  uint8_t* AppendItem();
-
-  uint32_t WriteItems(uint32_t buffer_ptr, uint8_t* buffer_data, uint32_t* written_count) override;
-
- private:
-  size_t item_count_;
-  size_t current_item_;
-  std::vector<uint8_t> buffer_;
+/** The fields a guest enumerator reports to its consumers. */
+struct EnumeratorInit {
+  u32 user_index;
+  u32 app_id;
+  u32 open_message;
+  u32 close_message;
+  u32 flags;
 };
 
-template <typename T>
-class XStaticEnumerator : public XStaticUntypedEnumerator {
- public:
-  XStaticEnumerator(KernelState* kernel_state, size_t items_per_enumerate)
-      : XStaticUntypedEnumerator(kernel_state, items_per_enumerate, sizeof(T)) {}
-
-  T* AppendItem() { return reinterpret_cast<T*>(XStaticUntypedEnumerator::AppendItem()); }
-
-  void AppendItem(const T& item) {
-    auto ptr = AppendItem();
-    item.Write(ptr);
-  }
-};
+/**
+ * Creates an enumerator object with its guest X_KENUMERATOR block.
+ *
+ * @param kernel_state The kernel state.
+ * @param out_handle Receives the handle.
+ * @param init The X_KENUMERATOR fields.
+ * @param enumerator The enumerator state, moved into the table.
+ * @param extra_size The bytes to reserve after the X_KENUMERATOR.
+ * @param extra_buffer Receives the host address of the reserved bytes, may be null.
+ * @return X_STATUS_SUCCESS, or X_STATUS_NO_MEMORY.
+ */
+X_STATUS CreateEnumerator(KernelState* kernel_state, X_HANDLE* out_handle,
+                          const EnumeratorInit& init, EnumeratorObject&& enumerator,
+                          u32 extra_size = 0, void** extra_buffer = nullptr);
 
 }  // namespace rex::system

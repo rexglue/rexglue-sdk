@@ -62,13 +62,13 @@ void HandleSetThreadName(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
       std::string(REX_KERNEL_MEMORY()->TranslateVirtual<const char*>(thread_info->name_ptr));
   std::replace_if(name.begin(), name.end(), [](auto c) { return c < 32 || c > 127; }, '?');
 
-  object_ref<XThread> thread;
+  ThreadPin thread;
   if (thread_info->thread_id == -1) {
     // Current thread.
-    thread = retain_object(XThread::GetCurrentThread());
+    thread = REX_KERNEL_STATE()->threads()->Find(ThreadRecord::GetCurrentThread()->thread_id());
   } else {
     // Lookup thread by ID.
-    thread = REX_KERNEL_STATE()->GetThreadByID(thread_info->thread_id);
+    thread = REX_KERNEL_STATE()->threads()->Find(thread_info->thread_id);
   }
 
   if (thread) {

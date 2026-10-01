@@ -20,7 +20,7 @@
 #include <rex/system/function_dispatcher.h>
 #include <rex/system/xthread.h>
 #include <rex/platform/thread.h>
-#include <rex/platform/mutex.h>
+#include <rex/platform/lock_order.h>
 
 namespace rex::audio {
 
@@ -67,9 +67,10 @@ class AudioSystem : public system::IAudioSystem {
   uint32_t queued_frames_;
 
   std::atomic<bool> worker_running_ = {false};
-  system::object_ref<system::XHostThread> worker_thread_;
+  system::KernelState* kernel_state_ = nullptr;
+  X_HANDLE worker_thread_ = 0;
 
-  rex::platform::global_critical_region global_critical_region_;
+  rex::platform::RankedMutex mutex_{rex::platform::LockRank::Object};
   static const size_t kMaximumClientCount = 8;
   struct {
     AudioDriver* driver;

@@ -30,11 +30,12 @@ uint32_t XamNotifyCreateListener(uint64_t mask, uint32_t is_system, uint32_t max
     max_version = 10;
   }
 
-  auto listener = object_ref<XNotifyListener>(new XNotifyListener(REX_KERNEL_STATE()));
-  listener->Initialize(mask, max_version);
-
-  // Handle ref is incremented, so return that.
-  uint32_t handle = listener->handle();
+  X_HANDLE handle = X_INVALID_HANDLE_VALUE;
+  if (XFAILED(REX_KERNEL_OBJECTS()->Emplace<NotifyListenerObject>(&handle, AddOptions{}, mask,
+                                                                  max_version))) {
+    return 0;
+  }
+  REX_KERNEL_STATE()->RegisterNotifyListener(handle);
 
   REXLOG_DEBUG(
       kernel,
@@ -64,7 +65,7 @@ u32 XNotifyGetNext_entry(u32 handle, u32 match_id, mapped_u32 id_ptr, mapped_u32
   *id_ptr = 0;
 
   // Grab listener.
-  auto listener = REX_KERNEL_OBJECTS()->LookupObject<XNotifyListener>(handle);
+  auto listener = REX_KERNEL_OBJECTS()->Get<NotifyListenerObject>(handle);
   if (!listener) {
     return 0;
   }
@@ -75,10 +76,10 @@ u32 XNotifyGetNext_entry(u32 handle, u32 match_id, mapped_u32 id_ptr, mapped_u32
   if (match_id) {
     // Asking for a specific notification
     id = match_id;
-    dequeued = listener->DequeueNotification(match_id, &param);
+    dequeued = NotifyListenerDequeueByID(*listener, match_id, &param);
   } else {
     // Just get next.
-    dequeued = listener->DequeueNotification(&id, &param);
+    dequeued = NotifyListenerDequeue(*listener, &id, &param);
   }
 
   *id_ptr = dequeued ? id : 0;

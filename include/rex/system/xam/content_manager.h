@@ -22,7 +22,7 @@
 #include <rex/string.h>
 #include <rex/system/xcontent.h>
 #include <rex/system/xtypes.h>
-#include <rex/platform/mutex.h>
+#include <rex/platform/lock_order.h>
 
 namespace rex {
 namespace system {
@@ -196,16 +196,28 @@ class ContentManager {
                                                  uint32_t title_id,
                                                  XContentType content_type) const;
 
+  /**
+   * Finds an open package by its content data. The caller holds mutex_.
+   *
+   * @param data The content data to match.
+   * @param running_title_id The title ID that kCurrentlyRunningTitleId resolves to.
+   * @return The matching entry, or end().
+   */
   std::unordered_map<string_key_case, ContentPackage*, string_key_case::Hash>::iterator
-  FindOpenPackageByData(const XCONTENT_AGGREGATE_DATA& data);
-  ContentPackage* DetachPackage(const std::unordered_map<string_key_case, ContentPackage*,
-                                                         string_key_case::Hash>::iterator& it);
+  FindOpenPackageByData(const XCONTENT_AGGREGATE_DATA& data, uint32_t running_title_id);
+
+  /**
+   * Removes an open package from the table.
+   *
+   * @param root_name The root name the package is mounted under.
+   * @return The detached package, or null when none is open under the name.
+   */
+  ContentPackage* DetachPackage(const std::string_view root_name);
 
   KernelState* kernel_state_;
   std::filesystem::path root_path_;
 
-  // TODO(benvanik): remove use of global lock, it's bad here!
-  rex::platform::global_critical_region global_critical_region_;
+  rex::platform::RankedMutex mutex_{rex::platform::LockRank::Leaf};
   std::unordered_map<string_key_case, ContentPackage*, string_key_case::Hash> open_packages_;
 };
 

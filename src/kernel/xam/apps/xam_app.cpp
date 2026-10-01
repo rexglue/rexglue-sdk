@@ -49,7 +49,7 @@ X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
                    (uint32_t)data->length_ptr, (uint32_t)data->unk_1C);
       auto extra = memory_->TranslateVirtual<X_KENUMERATOR_CONTENT_AGGREGATE*>(data->extra_ptr);
       auto buffer = memory_->TranslateVirtual(data->buffer_ptr);
-      auto e = kernel_state_->object_table()->LookupObject<XEnumerator>(extra->handle);
+      auto e = kernel_state_->object_table()->Get<EnumeratorObject>(extra->handle);
       if (!e || !buffer || !extra) {
         return X_E_INVALIDARG;
       }
@@ -58,7 +58,7 @@ X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
         std::memset(buffer, 0, data->buffer_size);
       }
       uint32_t item_count = 0;
-      auto result = e->WriteItems(data->buffer_ptr, buffer, &item_count);
+      auto result = e->write_items(data->buffer_ptr, buffer, &item_count);
 
       if (result == X_ERROR_SUCCESS && item_count >= 1) {
         if (data->length_ptr) {

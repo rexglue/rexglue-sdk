@@ -11,65 +11,68 @@
 
 #include <rex/system/xenumerator.h>
 
+#include <rex/system/kernel_state.h>
+#include <rex/system/object_data.h>
+#include <rex/system/util/object_table.h>
+
 namespace rex::system {
 
-XEnumerator::XEnumerator(KernelState* kernel_state, size_t items_per_enumerate, size_t item_size)
-    : XObject(kernel_state, kObjectType),
-      items_per_enumerate_(items_per_enumerate),
-      item_size_(item_size) {}
+EnumeratorObject::EnumeratorObject(size_t items_per_enumerate_in, size_t item_size_in,
+                                   EnumeratorWriter write_items_in)
+    : items_per_enumerate(items_per_enumerate_in),
+      item_size(item_size_in),
+      write_items(std::move(write_items_in)) {}
 
-XEnumerator::~XEnumerator() = default;
+StaticItems::StaticItems(size_t items_per_enumerate, size_t item_size)
+    : items_per_enumerate_(items_per_enumerate), item_size_(item_size) {}
 
-X_STATUS XEnumerator::Initialize(uint32_t user_index, uint32_t app_id, uint32_t open_message,
-                                 uint32_t close_message, uint32_t flags, uint32_t extra_size,
-                                 void** extra_buffer) {
-  auto native_object = CreateNative(sizeof(X_KENUMERATOR) + extra_size);
-  if (!native_object) {
-    return X_STATUS_NO_MEMORY;
-  }
-  auto guest_object = reinterpret_cast<X_KENUMERATOR*>(native_object);
-  guest_object->app_id = app_id;
-  guest_object->open_message = open_message;
-  guest_object->close_message = close_message;
-  guest_object->user_index = user_index;
-  guest_object->items_per_enumerate = static_cast<uint32_t>(items_per_enumerate_);
-  guest_object->flags = flags;
-  if (extra_buffer) {
-    *extra_buffer = !extra_buffer ? nullptr : &native_object[sizeof(X_KENUMERATOR)];
-  }
-  return X_STATUS_SUCCESS;
-}
-
-X_STATUS XEnumerator::Initialize(uint32_t user_index, uint32_t app_id, uint32_t open_message,
-                                 uint32_t close_message, uint32_t flags) {
-  return Initialize(user_index, app_id, open_message, close_message, flags, 0, nullptr);
-}
-
-uint8_t* XStaticUntypedEnumerator::AppendItem() {
+u8* StaticItems::Append() {
   size_t offset = buffer_.size();
-  buffer_.resize(offset + item_size());
+  buffer_.resize(offset + item_size_);
   item_count_++;
-  return const_cast<uint8_t*>(&buffer_.data()[offset]);
+  return const_cast<u8*>(&buffer_.data()[offset]);
 }
 
-uint32_t XStaticUntypedEnumerator::WriteItems(uint32_t buffer_ptr, uint8_t* buffer_data,
-                                              uint32_t* written_count) {
-  size_t count = std::min(item_count_ - current_item_, items_per_enumerate());
+u32 StaticItems::Write(u8* buffer_data, u32* written_count) {
+  size_t count = std::min(item_count_ - current_item_, items_per_enumerate_);
   if (!count) {
     return X_ERROR_NO_MORE_FILES;
   }
 
-  size_t size = count * item_size();
-  size_t offset = current_item_ * item_size();
+  size_t size = count * item_size_;
+  size_t offset = current_item_ * item_size_;
   std::memcpy(buffer_data, buffer_.data() + offset, size);
 
   current_item_ += count;
 
   if (written_count) {
-    *written_count = static_cast<uint32_t>(count);
+    *written_count = static_cast<u32>(count);
   }
 
   return X_ERROR_SUCCESS;
+}
+
+X_STATUS CreateEnumerator(KernelState* kernel_state, X_HANDLE* out_handle,
+                          const EnumeratorInit& init, EnumeratorObject&& enumerator, u32 extra_size,
+                          void** extra_buffer) {
+  memory::Memory* memory = kernel_state->memory();
+  GuestBlock block = AllocateGuestBlock(memory, sizeof(X_KENUMERATOR) + extra_size);
+  if (!block.address) {
+    return X_STATUS_NO_MEMORY;
+  }
+  auto* native_object = memory->TranslateVirtual<u8*>(block.address);
+  auto* guest_object = reinterpret_cast<X_KENUMERATOR*>(native_object);
+  guest_object->app_id = init.app_id;
+  guest_object->open_message = init.open_message;
+  guest_object->close_message = init.close_message;
+  guest_object->user_index = init.user_index;
+  guest_object->items_per_enumerate = static_cast<u32>(enumerator.items_per_enumerate);
+  guest_object->flags = init.flags;
+  if (extra_buffer) {
+    *extra_buffer = &native_object[sizeof(X_KENUMERATOR)];
+  }
+  return kernel_state->object_table()->Emplace<EnumeratorObject>(out_handle, AddOptions{{}, block},
+                                                                 std::move(enumerator));
 }
 
 }  // namespace rex::system

@@ -1,0 +1,174 @@
+/**
+ * @file        tests/unit/kernel/kernel_fixture.h
+ * @brief       A real tool mode Runtime and guest threads for kernel export tests
+ *
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ */
+
+#pragma once
+
+#include <filesystem>
+#include <functional>
+#include <initializer_list>
+#include <string_view>
+
+#include "codegen/tool_runtime.h"
+#include <rex/ppc/context.h>
+#include <rex/runtime.h>
+#include <rex/runtime/exports.h>
+#include <rex/types.h>
+
+namespace rex::testing {
+
+/** One frozen entry point call made the way recompiled code makes it. */
+class Caller {
+ public:
+  Caller(PPCContext& ctx, u8* base, Runtime& runtime) : ctx_(ctx), base_(base), runtime_(runtime) {}
+
+  /**
+   * Calls an export of xboxkrnl by name through its translation entry point.
+   *
+   * @param name The export name.
+   * @param args Integer arguments placed in r3 to r10.
+   * @return The value of r3.
+   */
+  u32 Kernel(std::string_view name, std::initializer_list<u64> args = {});
+
+  /**
+   * Calls an export of Xam by name through its translation entry point.
+   *
+   * @param name The export name.
+   * @param args Integer arguments placed in r3 to r10.
+   * @return The value of r3.
+   */
+  u32 XAM(std::string_view name, std::initializer_list<u64> args = {});
+
+  /**
+   * Allocates zeroed guest memory.
+   *
+   * @param size The size in bytes.
+   * @return The guest address.
+   */
+  u32 Alloc(u32 size);
+
+  /**
+   * Reads a big endian u32 from guest memory.
+   *
+   * @param address The guest address.
+   * @return The value.
+   */
+  u32 Load32(u32 address) const;
+
+  /**
+   * Writes a big endian u32 to guest memory.
+   *
+   * @param address The guest address.
+   * @param value The value.
+   */
+  void Store32(u32 address, u32 value);
+
+  /**
+   * Returns the guest address of a NUL terminated copy of text.
+   *
+   * @param text The text.
+   * @return The guest address.
+   */
+  u32 String(std::string_view text);
+
+  /**
+   * Writes a big endian u64 to guest memory.
+   *
+   * @param address The guest address.
+   * @param value The value.
+   */
+  void Store64(u32 address, u64 value);
+
+  /**
+   * Returns the guest address of a big endian 8 byte value.
+   *
+   * @param value The value.
+   * @return The guest address.
+   */
+  u32 Quad(i64 value);
+
+  /**
+   * Returns the guest address of an X_OBJECT_ATTRIBUTES whose name is the given text.
+   *
+   * @param name The object name.
+   * @return The guest address.
+   */
+  u32 Attributes(std::string_view name);
+
+  /**
+   * Runs a body on a new guest thread created through the ExCreateThread export.
+   *
+   * @param body The body, called with a Caller bound to the new thread.
+   * @param creation_flags The ExCreateThread creation flags, 1 creates the thread suspended.
+   * @return The thread handle written by the export.
+   */
+  u32 Spawn(std::function<void(Caller&)> body, u32 creation_flags = 0);
+
+  /**
+   * Registers a body so a test can pass the returned id as the start context of ExCreateThread.
+   *
+   * @param body The body, called with a Caller bound to the started thread.
+   * @return The start context id.
+   */
+  static u32 PutBodyForTest(std::function<void(Caller&)> body);
+
+  inline static u32 start_thunk = 0;
+
+  PPCContext& ctx() const { return ctx_; }
+  Runtime& runtime() const { return runtime_; }
+
+ private:
+  u32 Call(runtime::ExportModule module, std::string_view name, std::initializer_list<u64> args);
+
+  PPCContext& ctx_;
+  u8* base_;
+  Runtime& runtime_;
+};
+
+/** Owns a tool mode Runtime and runs test bodies on real guest threads. */
+class KernelFixture {
+ public:
+  /**
+   * @param populate Called with the game root before the Runtime mounts it, to create host files.
+   */
+  explicit KernelFixture(const std::function<void(const std::filesystem::path&)>& populate = {});
+  ~KernelFixture();
+
+  Runtime& runtime() { return tool_.runtime(); }
+
+  const std::filesystem::path& root() const { return root_.path; }
+
+  /**
+   * Runs a body on a guest thread created through the ExCreateThread export and waits for it.
+   *
+   * @param body The test body, called with a Caller bound to the guest thread.
+   */
+  void RunOnGuestThread(const std::function<void(Caller&)>& body);
+
+ private:
+  struct TempRoot {
+    TempRoot();
+    ~TempRoot();
+    std::filesystem::path path;
+  };
+
+  struct ThreadDrain {
+    ThreadDrain();
+    ~ThreadDrain();
+    u64 baseline;
+  };
+
+  ThreadDrain drain_;
+  TempRoot root_;
+  codegen::ToolRuntime tool_;
+};
+
+}  // namespace rex::testing

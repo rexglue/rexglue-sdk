@@ -291,37 +291,46 @@ uint8_t* Runtime::virtual_membase() const {
 X_STATUS Runtime::LoadXEXImage(const std::string_view module_path) {
   REXLOG_DEBUG(system, "Loading XEX image: {}", std::string(module_path));
 
-  auto module = system::object_ref<system::UserModule>(new system::UserModule(kernel_state_.get()));
-  X_STATUS status = module->LoadFromFile(module_path);
+  const X_HANDLE handle = system::CreateUserModule(kernel_state_.get());
+  if (!handle) {
+    return X_STATUS_NO_MEMORY;
+  }
+  auto module = kernel_state_->object_table()->Get<system::ModuleObject>(handle);
+  X_STATUS status = system::UserModuleLoadFromFile(kernel_state_.get(), *module, module_path);
   if (XFAILED(status)) {
+    kernel_state_->object_table()->Close(handle);
     REX_FAIL(system, status, "Runtime::LoadXEXImage: Failed to load module, status {:08X}", status);
   }
 
-  kernel_state_->SetExecutableModule(module);
+  kernel_state_->SetExecutableModule(handle);
   REXLOG_DEBUG(system, "  XEX image loaded successfully");
   return X_STATUS_SUCCESS;
 }
 
-system::object_ref<system::XThread> Runtime::PrepareModuleLaunch() {
-  auto executable = kernel_state_->GetExecutableModule();
+X_HANDLE Runtime::PrepareModuleLaunch() {
+  const X_HANDLE executable = kernel_state_->GetExecutableModule();
   if (!executable) {
-    REX_FAIL(system, nullptr, "Runtime::PrepareModuleLaunch: No executable module loaded");
+    REX_FAIL(system, 0, "Runtime::PrepareModuleLaunch: No executable module loaded");
   }
 
-  auto thread = kernel_state_->PrepareModuleLaunch(executable);
+  const X_HANDLE thread = kernel_state_->PrepareModuleLaunch(executable);
   if (!thread) {
-    REX_FAIL(system, nullptr, "Runtime::PrepareModuleLaunch: Failed to prepare module");
+    REX_FAIL(system, 0, "Runtime::PrepareModuleLaunch: Failed to prepare module");
   }
 
-  REXLOG_DEBUG(system, "  Module prepared on thread '{}'", thread->name());
+  if (auto record = kernel_state_->threads()->FindByHandle(thread)) {
+    REXLOG_DEBUG(system, "  Module prepared on thread '{}'", record->name());
+  }
   return thread;
 }
 
-system::object_ref<system::XThread> Runtime::LaunchModule() {
-  auto thread = PrepareModuleLaunch();
+X_HANDLE Runtime::LaunchModule() {
+  const X_HANDLE thread = PrepareModuleLaunch();
   if (thread) {
-    thread->Resume();
-    REXLOG_DEBUG(system, "  Module launched on thread '{}'", thread->name());
+    if (auto record = kernel_state_->threads()->FindByHandle(thread)) {
+      record->Resume();
+      REXLOG_DEBUG(system, "  Module launched on thread '{}'", record->name());
+    }
   }
   return thread;
 }

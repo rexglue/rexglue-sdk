@@ -32,7 +32,7 @@ constexpr u32 kInvalidHandleValue = 0xFFFFFFFF;
 REX_SHIM_FN(FindClose, u32, u32 hFindFile) {
   if (hFindFile == kInvalidHandleValue || hFindFile == 0)
     return 0;
-  auto status = REX_KERNEL_OBJECTS()->ReleaseHandle(hFindFile);
+  auto status = REX_KERNEL_OBJECTS()->Close(hFindFile);
   if (XFAILED(status)) {
     REXLOG_WARN(kernel, "rexshim_FindClose: unknown handle {:#x}", hFindFile);
     return 0;
@@ -80,7 +80,7 @@ REX_SHIM_FN(RemoveDirectoryA, u32, mapped_string lpPathName) {
 }
 
 REX_SHIM_FN(GetFileType, u32, u32 hFile) {
-  auto file = REX_KERNEL_OBJECTS()->LookupObject<rex::system::XFile>(static_cast<u32>(hFile));
+  auto file = REX_KERNEL_OBJECTS()->Get<rex::system::FileObject>(static_cast<u32>(hFile));
   if (!file)
     return 0;  // FILE_TYPE_UNKNOWN
   return 1;    // FILE_TYPE_DISK

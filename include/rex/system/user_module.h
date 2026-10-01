@@ -10,95 +10,117 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <string>
+#include <string_view>
 
 #include <rex/system/util/xex2_info.h>
 #include <rex/system/xex_module.h>
 #include <rex/system/xmodule.h>
 #include <rex/system/xtypes.h>
 
-namespace rex {
-namespace runtime {
-class XexModule;
-class ElfModule;
-}  // namespace runtime
-namespace system {
-class XThread;
-}  // namespace system
-}  // namespace rex
-
 namespace rex::system {
 
-class UserModule : public XModule {
- public:
-  UserModule(KernelState* kernel_state);
-  ~UserModule() override;
+/**
+ * Creates the record of a user module with its first handle.
+ *
+ * @param kernel_state The kernel state.
+ * @return The handle with a count of 1, 0 when the table cannot grow.
+ */
+X_HANDLE CreateUserModule(KernelState* kernel_state);
 
-  const std::string& path() const override { return path_; }
-  const std::string& name() const override { return name_; }
+/**
+ * Returns the XEX image of a user module.
+ *
+ * @param module A user module that holds an XEX image.
+ * @return The XEX module.
+ */
+rex::runtime::XexModule* UserModuleXex(const ModuleObject& module);
 
-  enum ModuleFormat {
-    kModuleFormatUndefined = 0,
-    kModuleFormatXex,
-    kModuleFormatElf,
-  };
+/**
+ * Returns the title ID of a user module.
+ *
+ * @param module A user module.
+ * @return The title ID of the XEX header, 0 when the module is not an XEX or has none.
+ */
+u32 UserModuleTitleID(const ModuleObject& module);
 
-  const rex::runtime::XexModule* xex_module() const {
-    assert_true(module_format_ == kModuleFormatXex);
-    return reinterpret_cast<rex::runtime::XexModule*>(processor_module_);
-  }
-  rex::runtime::XexModule* xex_module() {
-    assert_true(module_format_ == kModuleFormatXex);
-    return reinterpret_cast<rex::runtime::XexModule*>(processor_module_);
-  }
+/**
+ * Loads a module image from a file and applies a sibling XEX patch when one exists.
+ *
+ * @param kernel_state The kernel state.
+ * @param module A user module that holds no image yet.
+ * @param path The guest path of the file.
+ * @return X_STATUS_SUCCESS, or the status of the first step that failed.
+ */
+X_STATUS UserModuleLoadFromFile(KernelState* kernel_state, ModuleObject& module,
+                                std::string_view path);
 
-  const xex2_header* xex_header() const { return xex_module()->xex_header(); }
-  uint32_t guest_xex_header() const { return guest_xex_header_; }
-  // The title ID in the xex header or 0 if this is not a xex.
-  uint32_t title_id() const;
-  bool is_executable() const { return processor_module_->is_executable(); }
-  bool is_dll_module() const { return is_dll_module_; }
+/**
+ * Loads a module image from memory.
+ *
+ * @param kernel_state The kernel state.
+ * @param module A user module that holds no image yet.
+ * @param addr The host address of the image.
+ * @param length The size of the image.
+ * @return X_STATUS_PENDING for an XEX that needs its second load step, X_STATUS_SUCCESS for an ELF,
+ *         or the failure status.
+ */
+X_STATUS UserModuleLoadFromMemory(KernelState* kernel_state, ModuleObject& module, const void* addr,
+                                  size_t length);
 
-  uint32_t entry_point() const { return entry_point_; }
-  uint32_t stack_size() const { return stack_size_; }
+/**
+ * Unloads the image of a user module.
+ *
+ * @param module A user module.
+ * @return X_STATUS_SUCCESS, or X_STATUS_UNSUCCESSFUL when the image cannot be unloaded.
+ */
+X_STATUS UserModuleUnload(ModuleObject& module);
 
-  X_STATUS LoadFromFile(const std::string_view path);
-  X_STATUS LoadFromMemory(const void* addr, const size_t length);
-  X_STATUS Unload();
+/**
+ * Finds an optional XEX header. For host use only.
+ *
+ * @param module A user module.
+ * @param key The header key.
+ * @param out_ptr Receives the header value or a pointer to its data.
+ * @return X_STATUS_SUCCESS, X_STATUS_NOT_FOUND, or X_STATUS_UNSUCCESSFUL for an ELF.
+ */
+X_STATUS UserModuleGetOptHeader(ModuleObject& module, xex2_header_keys key, void** out_ptr);
 
-  uint32_t GetProcAddressByOrdinal(uint16_t ordinal, uint32_t caller_address = 0) override;
-  uint32_t GetProcAddressByName(const std::string_view name) override;
-  X_STATUS GetSection(const std::string_view name, uint32_t* out_section_data,
-                      uint32_t* out_section_size) override;
+/**
+ * Finds an optional XEX header. For host use only.
+ *
+ * @tparam T The type of the value the header holds.
+ * @param module A user module.
+ * @param key The header key.
+ * @param out_ptr Receives the header value or a pointer to its data.
+ * @return X_STATUS_SUCCESS, X_STATUS_NOT_FOUND, or X_STATUS_UNSUCCESSFUL for an ELF.
+ */
+template <typename T>
+X_STATUS UserModuleGetOptHeader(ModuleObject& module, xex2_header_keys key, T* out_ptr) {
+  return UserModuleGetOptHeader(module, key, reinterpret_cast<void**>(out_ptr));
+}
 
-  // Get optional header - FOR HOST USE ONLY!
-  X_STATUS GetOptHeader(xex2_header_keys key, void** out_ptr);
+/**
+ * Finds an optional XEX header and returns an address that recompiled code can read.
+ *
+ * @param module A user module.
+ * @param key The header key.
+ * @param out_header_guest_ptr Receives the header value or the guest address of its data.
+ * @return X_STATUS_SUCCESS, X_STATUS_NOT_FOUND, or X_STATUS_UNSUCCESSFUL for an ELF.
+ */
+X_STATUS UserModuleGetOptHeader(ModuleObject& module, xex2_header_keys key,
+                                u32* out_header_guest_ptr);
 
-  // Get optional header - FOR HOST USE ONLY!
-  template <typename T>
-  X_STATUS GetOptHeader(xex2_header_keys key, T* out_ptr) {
-    return GetOptHeader(key, reinterpret_cast<void**>(out_ptr));
-  }
-
-  // Get optional header that can safely be returned to guest code.
-  X_STATUS GetOptHeader(xex2_header_keys key, uint32_t* out_header_guest_ptr);
-  static X_STATUS GetOptHeader(const memory::Memory* memory, const xex2_header* header,
-                               xex2_header_keys key, uint32_t* out_header_guest_ptr);
-
-  void Dump();
-
- private:
-  X_STATUS LoadXexContinue();
-
-  std::string name_;
-  std::string path_;
-
-  uint32_t guest_xex_header_ = 0;
-  ModuleFormat module_format_ = kModuleFormatUndefined;
-
-  bool is_dll_module_ = false;
-  uint32_t entry_point_ = 0;
-  uint32_t stack_size_ = 0;
-};
+/**
+ * Finds an optional header of an XEX header in memory and returns an address that recompiled code
+ * can read.
+ *
+ * @param memory The guest memory.
+ * @param header The XEX header.
+ * @param key The header key.
+ * @param out_header_guest_ptr Receives the header value or the guest address of its data.
+ * @return X_STATUS_SUCCESS, or X_STATUS_NOT_FOUND.
+ */
+X_STATUS UserModuleGetOptHeader(const memory::Memory* memory, const xex2_header* header,
+                                xex2_header_keys key, u32* out_header_guest_ptr);
 
 }  // namespace rex::system

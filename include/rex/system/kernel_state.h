@@ -27,6 +27,8 @@
 #include <rex/filesystem.h>
 #include <rex/logging.h>
 #include <rex/system/achievement_manager.h>
+#include <rex/system/module_registry.h>
+#include <rex/system/thread_registry.h>
 #include <rex/system/thread_state.h>
 #include <rex/platform/fiber.h>
 #include <rex/system/util/native_list.h>
@@ -43,7 +45,7 @@
 #include <rex/system/xmemory.h>
 #include <rex/system/xobject.h>
 #include <rex/system/xtypes.h>
-#include <rex/platform/mutex.h>
+#include <rex/platform/lock_order.h>
 #include <rex/types.h>
 
 //=============================================================================
@@ -69,15 +71,8 @@ struct PPCContext;
 
 namespace rex::system {
 
-constexpr memory::fourcc_t kKernelSaveSignature = memory::make_fourcc("KRNL");
-
 class Dispatcher;
-class XHostThread;
-class KernelModule;
-class XModule;
-class XNotifyListener;
-class XThread;
-class UserModule;
+class ThreadRecord;
 
 // (?), used by KeGetCurrentProcessType
 constexpr uint32_t X_PROCTYPE_IDLE = 0;
@@ -179,14 +174,34 @@ class KernelState {
 
   uint32_t title_id() const;
   util::XdbfGameData title_xdbf() const;
-  util::XdbfGameData module_xdbf(object_ref<UserModule> exec_module) const;
+  util::XdbfGameData module_xdbf(const ModuleObject& exec_module) const;
 
   xam::AppManager* app_manager() const { return app_manager_.get(); }
   xam::ContentManager* content_manager() const { return content_manager_.get(); }
   xam::UserProfile* user_profile() const { return user_profile_.get(); }
 
-  // Access must be guarded by the global critical region.
   util::ObjectTable* object_table() { return &object_table_; }
+
+  /**
+   * Returns the lock that serializes the creation of an object behind a guest dispatch header.
+   *
+   * @return The identity mutex.
+   */
+  rex::platform::RankedMutex& identity_mutex() { return identity_mutex_; }
+
+  /**
+   * Returns the lock that serializes module load count changes against module lookups.
+   *
+   * @return The load count mutex.
+   */
+  rex::platform::RankedMutex& load_count_mutex() { return load_count_mutex_; }
+
+  /**
+   * Returns the lock that guards the DPC list.
+   *
+   * @return The DPC mutex.
+   */
+  rex::platform::RankedMutex& dpc_mutex() { return dpc_mutex_; }
 
   uint32_t process_type() const;
   void set_process_type(uint32_t value);
@@ -217,19 +232,68 @@ class KernelState {
   void RegisterTitleTerminateNotification(uint32_t routine, uint32_t priority);
   void RemoveTitleTerminateNotification(uint32_t routine);
 
-  void RegisterModule(XModule* module);
-  void UnregisterModule(XModule* module);
-  bool RegisterUserModule(object_ref<UserModule> module);
-  void UnregisterUserModule(UserModule* module);
-  bool IsKernelModule(const std::string_view name);
-  object_ref<XModule> GetModule(const std::string_view name, bool user_only = false);
+  /**
+   * Returns the module registry.
+   *
+   * @return The registry.
+   */
+  ModuleRegistry* modules() { return &modules_; }
 
-  object_ref<XThread> LaunchModule(object_ref<UserModule> module);
-  object_ref<XThread> PrepareModuleLaunch(object_ref<UserModule> module);
-  object_ref<UserModule> GetExecutableModule();
-  void SetExecutableModule(object_ref<UserModule> module);
-  object_ref<UserModule> LoadUserModule(const std::string_view name, bool call_entry = true);
-  void UnloadUserModule(const object_ref<UserModule>& module, bool call_entry = true);
+  /**
+   * Finds a loaded module.
+   *
+   * @param name A module name, a file name or a path, empty for the executable.
+   * @param user_only True to skip the kernel modules.
+   * @return The handle the registry owns, which the caller must not close, or 0.
+   */
+  X_HANDLE GetModule(const std::string_view name, bool user_only = false);
+
+  /**
+   * Prepares a module launch and resumes the main thread.
+   *
+   * @param module The handle of the executable module.
+   * @return The main thread handle with a count of 1 that the caller closes, 0 when it failed.
+   */
+  X_HANDLE LaunchModule(X_HANDLE module);
+
+  /**
+   * Makes a module the executable and creates its suspended main thread.
+   *
+   * @param module The handle of the executable module.
+   * @return The main thread handle with a count of 1 that the caller closes, 0 when it failed.
+   */
+  X_HANDLE PrepareModuleLaunch(X_HANDLE module);
+
+  /**
+   * Returns the executable module.
+   *
+   * @return The handle the registry owns, which the caller must not close, or 0.
+   */
+  X_HANDLE GetExecutableModule();
+
+  /**
+   * Sets the executable module and updates the title process from its XEX header.
+   *
+   * @param module Any handle of the module, or 0 to clear it.
+   */
+  void SetExecutableModule(X_HANDLE module);
+
+  /**
+   * Loads a user module, or finds it when it is already loaded.
+   *
+   * @param name A path, or a file name that is relative to the executable.
+   * @param call_entry True to call the entry point of a DLL module for the process attach.
+   * @return The handle the registry owns, which the caller must not close, or 0 when it failed.
+   */
+  X_HANDLE LoadUserModule(const std::string_view name, bool call_entry = true);
+
+  /**
+   * Unloads a user module and closes its handles.
+   *
+   * @param module Any handle of the module.
+   * @param call_entry True to call the entry point of a DLL module for the process detach.
+   */
+  void UnloadUserModule(X_HANDLE module, bool call_entry = true);
 
   // Recompiled module registry (populated by generated RegisterRecompiledModules)
   struct RecompiledModuleInfo {
@@ -242,18 +306,21 @@ class KernelState {
                                 const char* shared_lib_name);
   std::optional<RecompiledModuleInfo> FindRecompiledModule(std::string_view guest_path);
 
-  object_ref<KernelModule> GetKernelModule(const std::string_view name);
-  template <typename T>
-  object_ref<KernelModule> LoadKernelModule() {
-    auto kernel_module = object_ref<KernelModule>(new T(emulator_, this));
-    LoadKernelModule(kernel_module);
-    return kernel_module;
-  }
-  template <typename T>
-  object_ref<T> GetKernelModule(const std::string_view name) {
-    auto module = GetKernelModule(name);
-    return object_ref<T>(reinterpret_cast<T*>(module.release()));
-  }
+  /**
+   * Finds a kernel module.
+   *
+   * @param name A module name, a file name or a path.
+   * @return The handle the registry owns, which the caller must not close, or 0.
+   */
+  X_HANDLE GetKernelModule(const std::string_view name);
+
+  /**
+   * Registers a kernel module.
+   *
+   * @param created A handle of the module that a kernel module creator returned.
+   * @return The handle the registry owns, which the caller must not close, or 0.
+   */
+  X_HANDLE LoadKernelModule(X_HANDLE created);
 
   // Terminates a title: Unloads all modules, and kills all guest threads.
   // This DOES NOT RETURN if called from a guest thread!
@@ -267,11 +334,12 @@ class KernelState {
   void ExitTitle(runtime::TitleExitReason reason);
   bool is_terminating_title() const { return terminating_title_.load(std::memory_order_acquire); }
 
-  void RegisterThread(XThread* thread);
-  void UnregisterThread(XThread* thread);
-  void OnThreadExecute(XThread* thread);
-  void OnThreadExit(XThread* thread);
-  object_ref<XThread> GetThreadByID(uint32_t thread_id);
+  /**
+   * Returns the thread registry.
+   *
+   * @return The registry.
+   */
+  ThreadRegistry* threads() { return &threads_; }
 
   FiberInfo* LookupFiber(uint32_t guest_addr);
   void RegisterFiber(uint32_t guest_addr, const FiberInfo& info);
@@ -280,8 +348,13 @@ class KernelState {
   /// Returns a fiber name for profiling
   const char* GetOrCreateFiberName(uint32_t guest_addr, const char* thread_name);
 
-  void RegisterNotifyListener(XNotifyListener* listener);
-  void UnregisterNotifyListener(XNotifyListener* listener);
+  /**
+   * Registers a notify listener. The kernel keeps its own duplicate of the handle.
+   *
+   * @param listener_handle The handle of a NotifyListenerObject.
+   */
+  void RegisterNotifyListener(X_HANDLE listener_handle);
+
   void BroadcastNotification(XNotificationID id, uint32_t data);
 
   util::NativeList* dpc_list() { return &dpc_list_; }
@@ -326,7 +399,6 @@ class KernelState {
 
  private:
   void SignalAllWaitableObjects();
-  void LoadKernelModule(object_ref<KernelModule> kernel_module);
   void InitializeProcess(X_KPROCESS* process, uint32_t process_type, uint8_t unk_18, uint8_t unk_19,
                          uint8_t unk_1A);
   void SetProcessTLSVars(X_KPROCESS* process, uint32_t num_slots, uint32_t tls_data_size,
@@ -344,15 +416,19 @@ class KernelState {
   std::unique_ptr<xam::ContentManager> content_manager_;
   std::unique_ptr<xam::UserProfile> user_profile_;
 
-  rex::platform::global_critical_region global_critical_region_;
-
-  // Must be guarded by the global critical region.
-  util::ObjectTable object_table_;
-  std::unordered_map<uint32_t, XThread*> threads_by_id_;
-  std::vector<object_ref<XNotifyListener>> notify_listeners_;
+  ThreadRegistry threads_{&object_table_};
+  mutable util::ObjectTable object_table_;
+  ModuleRegistry modules_{&object_table_};
+  rex::platform::RankedMutex identity_mutex_{rex::platform::LockRank::Identity};
+  rex::platform::RankedMutex load_count_mutex_{rex::platform::LockRank::Identity};
+  rex::platform::RankedMutex notify_mutex_{rex::platform::LockRank::Leaf};
+  rex::platform::RankedMutex dpc_mutex_{rex::platform::LockRank::Leaf};
+  rex::platform::RankedMutex dispatch_mutex_{rex::platform::LockRank::Leaf};
+  rex::platform::RankedMutex fiber_mutex_{rex::platform::LockRank::Leaf};
+  rex::platform::RankedMutex recompiled_mutex_{rex::platform::LockRank::Leaf};
+  std::vector<X_HANDLE> notify_listeners_;
   bool has_notified_startup_ = false;
 
-  // Protected by global_critical_region_.
   std::unordered_map<uint32_t, FiberInfo> fiber_map_;
 
   // Fiber name pool for profiling.
@@ -361,11 +437,6 @@ class KernelState {
   std::unordered_map<uint32_t, std::unique_ptr<char[]>> fiber_name_pool_;
 
   uint32_t process_type_ = X_PROCTYPE_USER;
-  object_ref<UserModule> executable_module_;
-  std::vector<object_ref<KernelModule>> kernel_modules_;
-  std::vector<object_ref<UserModule>> user_modules_;
-  // Paths in-flight in LoadUserModule. Guarded by the global critical region.
-  std::unordered_set<std::string> loading_paths_;
   std::vector<TerminateNotification> terminate_notifications_;
   std::vector<RecompiledModuleInfo> recompiled_modules_;
   std::unordered_map<std::string, rex::platform::DynamicLibrary> module_libraries_;
@@ -379,13 +450,10 @@ class KernelState {
 
   std::atomic<bool> dispatch_thread_running_;
   std::atomic<bool> terminating_title_{false};
-  object_ref<XHostThread> dispatch_thread_;
-  // Must be guarded by the global critical region.
+  X_HANDLE dispatch_thread_ = 0;
   util::NativeList dpc_list_;
   std::condition_variable_any dispatch_cond_;
   std::list<std::function<void()>> dispatch_queue_;
-
-  friend class XObject;
 };
 
 // Global kernel state accessor (defined in kernel_state.cpp)
@@ -394,6 +462,40 @@ KernelState* kernel_state();
 // Convenience accessor for kernel memory
 inline memory::Memory* kernel_memory() {
   return kernel_state()->memory();
+}
+
+template <typename T>
+Pinned<T> ResolveGuest(KernelState* kernel_state, void* native_ptr, i32 as_type) {
+  return kernel_state->object_table()->Get<T>(
+      ResolveGuestObject(kernel_state, native_ptr, as_type));
+}
+
+template <typename T, typename... Args>
+X_STATUS CreateWithBlock(KernelState* kernel_state, X_HANDLE* out_handle, u32 attributes_ptr,
+                         u32 block_size, Args&&... args) {
+  GuestBlock block;
+  if (block_size) {
+    block = AllocateGuestBlock(kernel_state->memory(), block_size);
+    if (!block.address) {
+      return X_STATUS_NO_MEMORY;
+    }
+  }
+  const std::string name = NameFromAttributes(kernel_state->memory(), attributes_ptr);
+  X_HANDLE handle = 0;
+  const X_STATUS status = kernel_state->object_table()->Emplace<T>(&handle, AddOptions{name, block},
+                                                                   std::forward<Args>(args)...);
+  if (XFAILED(status)) {
+    if (block.address) {
+      FreeGuestBlock(kernel_state->memory(), block.address);
+    }
+    return status;
+  }
+  if (block.address) {
+    StashHandle(kernel_state->memory()->TranslateVirtual<X_DISPATCH_HEADER*>(block.address),
+                handle);
+  }
+  *out_handle = handle;
+  return X_STATUS_SUCCESS;
 }
 
 }  // namespace rex::system

@@ -1063,9 +1063,10 @@ bool XexModule::SetupLibraryImports(const std::string_view name,
   auto base_name = rex::utf8_find_base_name_from_guest_path(name);
 
   const auto kernel_module_id = rex::runtime::ModuleFromName(base_name);
-  system::object_ref<system::KernelModule> kernel_module;
-  if (kernel_module_id && kernel_state_->IsKernelModule(base_name)) {
-    kernel_module = kernel_state_->GetKernelModule(base_name);
+  system::Pinned<system::ModuleObject> kernel_module;
+  if (kernel_module_id && kernel_state_->modules()->IsKernel(base_name)) {
+    kernel_module = kernel_state_->object_table()->Get<system::ModuleObject>(
+        kernel_state_->GetKernelModule(base_name));
   }
 
   ImportLibrary library_info;
@@ -1101,7 +1102,7 @@ bool XexModule::SetupLibraryImports(const std::string_view name,
       if (kernel_module) {
         const auto* kernel_export = rex::runtime::FindByOrdinal(*kernel_module_id, ordinal);
         if (kernel_export && kernel_export->kind == rex::runtime::ExportKind::Variable) {
-          const uint32_t variable_ptr = kernel_module->Variable(ordinal);
+          const uint32_t variable_ptr = system::KernelModuleVariable(*kernel_module, ordinal);
           if (variable_ptr) {
             *record_slot = variable_ptr;
             REXLOG_DEBUG(system, "Patched variable import {}:{:#x} ({}) -> {:#x}", base_name,

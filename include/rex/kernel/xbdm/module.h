@@ -16,16 +16,14 @@
 #include <rex/system/kernel_module.h>
 #include <rex/system/kernel_state.h>
 
-namespace rex {
-namespace kernel {
-namespace xbdm {
+namespace rex::kernel::xbdm {
 
-class XbdmModule : public system::KernelModule {
- public:
-  XbdmModule(Runtime* emulator, system::KernelState* kernel_state);
-  virtual ~XbdmModule();
-};
+/**
+ * Creates the xbdm kernel module.
+ *
+ * @param kernel_state The kernel state.
+ * @return The handle with a count of 1, 0 when the table cannot grow.
+ */
+X_HANDLE CreateXbdmModule(system::KernelState* kernel_state);
 
-}  // namespace xbdm
-}  // namespace kernel
-}  // namespace rex
+}  // namespace rex::kernel::xbdm

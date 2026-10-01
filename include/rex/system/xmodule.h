@@ -10,8 +10,14 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <memory>
 #include <string>
+#include <string_view>
+#include <unordered_map>
+#include <vector>
 
+#include <rex/platform/thread.h>
+#include <rex/runtime/exports.h>
 #include <rex/system/module.h>
 #include <rex/system/xio.h>
 #include <rex/system/xobject.h>
@@ -19,7 +25,7 @@
 
 namespace rex::system {
 
-constexpr memory::fourcc_t kModuleSaveSignature = memory::make_fourcc("XMOD");
+class KernelState;
 
 // https://www.nirsoft.net/kernel_struct/vista/LDR_DATA_TABLE_ENTRY.html
 // HMODULE points to this struct!
@@ -51,44 +57,142 @@ struct X_LDR_DATA_TABLE_ENTRY {
   rex::be<uint32_t> traversal_parent;  // 0x60
 };
 
-class XModule : public XObject {
- public:
-  enum class ModuleType {
-    // Matches debugger Module type.
-    kKernelModule = 0,
-    kUserModule = 1,
+/** Whether a module is HLE kernel code or a loaded title image. */
+enum class ModuleType : u8 { Kernel, User };
+
+/** The container format of a loaded user module. */
+enum class ModuleFormat : u8 { Undefined, Xex, Elf };
+
+/** The launch request state that the Xam loader exports keep on the Xam module. */
+struct XamLoaderData {
+  bool launch_data_present = false;
+  std::vector<u8> launch_data;
+  u32 launch_flags = 0;
+  std::string launch_path;
+};
+
+/** The state only a kernel module has. */
+struct KernelModuleData {
+  /** Identifies a thunk by the module that asked for it and the export ordinal. */
+  struct ThunkKey {
+    u32 caller_module_base;
+    u16 ordinal;
+    bool operator==(const ThunkKey&) const = default;
   };
 
-  static const XObject::Type kObjectType = XObject::Type::Module;
+  /** Hashes a thunk key. */
+  struct ThunkKeyHash {
+    /**
+     * @param key The key.
+     * @return The hash.
+     */
+    size_t operator()(const ThunkKey& key) const noexcept;
+  };
 
-  XModule(KernelState* kernel_state, ModuleType module_type);
-  virtual ~XModule();
-
-  ModuleType module_type() const { return module_type_; }
-  virtual const std::string& path() const = 0;
-  virtual const std::string& name() const = 0;
-  bool Matches(const std::string_view name) const;
-
-  rex::runtime::Module* processor_module() const { return processor_module_; }
-  uint32_t hmodule_ptr() const { return hmodule_ptr_; }
-
-  virtual uint32_t GetProcAddressByOrdinal(uint16_t ordinal, uint32_t caller_address = 0) = 0;
-  virtual uint32_t GetProcAddressByName(const std::string_view name) = 0;
-  virtual X_STATUS GetSection(const std::string_view name, uint32_t* out_section_data,
-                              uint32_t* out_section_size);
-
-  static object_ref<XModule> GetFromHModule(KernelState* kernel_state, void* hmodule);
-  static uint32_t GetHandleFromHModule(void* hmodule);
-
- protected:
-  void OnLoad();
-  void OnUnload();
-
-  ModuleType module_type_;
-
-  rex::runtime::Module* processor_module_;
-
-  uint32_t hmodule_ptr_;  // This points to LDR_DATA_TABLE_ENTRY.
+  std::unordered_map<ThunkKey, u32, ThunkKeyHash> thunk_cache;
+  rex::runtime::ExportVariables variables;
+  XamLoaderData loader_data;
+  std::unique_ptr<rex::platform::HighResolutionTimer> timestamp_timer;
 };
+
+/** The state only a user module has. */
+struct UserModuleData {
+  u32 guest_xex_header = 0;
+  ModuleFormat module_format = ModuleFormat::Undefined;
+  bool is_dll_module = false;
+  u32 entry_point = 0;
+  u32 stack_size = 0;
+};
+
+/** The record data of a module. The kind is always known from type. */
+struct ModuleObject {
+  /**
+   * Allocates the loader data entry.
+   *
+   * @param kernel_state_in The kernel state.
+   * @param type_in Whether the module is kernel or user.
+   */
+  ModuleObject(KernelState* kernel_state_in, ModuleType type_in);
+  ModuleObject(const ModuleObject&) = delete;
+  ModuleObject& operator=(const ModuleObject&) = delete;
+  ~ModuleObject();
+
+  ModuleType type;
+  std::string name;
+  std::string path;
+  rex::runtime::Module* processor_module = nullptr;
+  u32 hmodule_ptr = 0;
+  KernelState* kernel_state;
+  UserModuleData user;
+  KernelModuleData kernel;
+};
+
+/**
+ * Creates a module record with its first handle and stores that handle in the loader data entry.
+ *
+ * @param kernel_state The kernel state.
+ * @param type Whether the module is kernel or user.
+ * @return The handle with a count of 1, 0 when the table cannot grow.
+ */
+X_HANDLE CreateModule(KernelState* kernel_state, ModuleType type);
+
+/**
+ * Tests whether a module answers to a name.
+ *
+ * @param module The module.
+ * @param name A path, a file name or a module name, compared case insensitively.
+ * @return True when the name matches the path, the file name or the name of the module.
+ */
+bool ModuleMatches(const ModuleObject& module, std::string_view name);
+
+/**
+ * Finds a resource section of a module.
+ *
+ * @param module The module.
+ * @param name The section name.
+ * @param out_section_data Receives the guest address of the section.
+ * @param out_section_size Receives the size of the section.
+ * @return X_STATUS_SUCCESS, X_STATUS_NOT_FOUND, or X_STATUS_UNSUCCESSFUL for a kernel module.
+ */
+X_STATUS ModuleGetSection(const ModuleObject& module, std::string_view name, u32* out_section_data,
+                          u32* out_section_size);
+
+/**
+ * Reads the handle that the loader data entry of an HMODULE holds.
+ *
+ * @param hmodule The host pointer of the loader data entry.
+ * @return The handle stored in the entry.
+ */
+u32 ModuleHandleFromHModule(void* hmodule);
+
+/**
+ * Finds the module of an HMODULE.
+ *
+ * @param kernel_state The kernel state.
+ * @param hmodule The host pointer of the loader data entry.
+ * @return The module handle, 0 when the stored handle does not name a module.
+ */
+X_HANDLE ModuleFromHModule(KernelState* kernel_state, void* hmodule);
+
+/**
+ * Finds an exported function of a module. A kernel module returns a thunk.
+ *
+ * @param kernel_state The kernel state.
+ * @param module The module.
+ * @param ordinal The export ordinal.
+ * @param caller_address The guest address of the caller, used to key kernel thunks.
+ * @return The guest address, 0 when the module has no such export.
+ */
+u32 ModuleGetProcAddressByOrdinal(KernelState* kernel_state, ModuleObject& module, u16 ordinal,
+                                  u32 caller_address = 0);
+
+/**
+ * Finds an exported function of a module by name.
+ *
+ * @param module The module.
+ * @param name The export name.
+ * @return The guest address, 0 when the module has no such export.
+ */
+u32 ModuleGetProcAddressByName(ModuleObject& module, std::string_view name);
 
 }  // namespace rex::system

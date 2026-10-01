@@ -29,8 +29,7 @@ namespace xam {
 using namespace rex::system;
 using namespace rex::system::xam;
 
-void AddODDContentTest(object_ref<XStaticEnumerator<XCONTENT_AGGREGATE_DATA>> e,
-                       XContentType content_type) {
+void AddODDContentTest(StaticItems& items, XContentType content_type) {
   constexpr std::string_view kRoot = "game:\\Content\\0000000000000000";
   auto* fs = REX_KERNEL_FS();
   auto titles = fs->List(kRoot, "????????");
@@ -48,7 +47,7 @@ void AddODDContentTest(object_ref<XStaticEnumerator<XCONTENT_AGGREGATE_DATA>> e,
                  "????????????????");
     if (contents) {
       while (auto content_entry = (*contents)->Next()) {
-        auto item = e->AppendItem();
+        auto item = items.Append<XCONTENT_AGGREGATE_DATA>();
         assert_not_null(item);
         if (item) {
           item->device_id = static_cast<uint32_t>(DummyDeviceId::ODD);
@@ -71,15 +70,7 @@ u32 XamContentAggregateCreateEnumerator_entry(u64 xuid, u32 device_id, u32 conte
     return X_E_INVALIDARG;
   }
 
-  auto e = make_object<XStaticEnumerator<XCONTENT_AGGREGATE_DATA>>(REX_KERNEL_STATE(), 1);
-  X_KENUMERATOR_CONTENT_AGGREGATE* extra;
-  auto result = e->Initialize(0xFF, 0xFE, 0x2000E, 0x20010, 0, &extra);
-  if (XFAILED(result)) {
-    return result;
-  }
-
-  extra->magic = kXObjSignature;
-  extra->handle = e->handle();
+  StaticItems items(1, sizeof(XCONTENT_AGGREGATE_DATA));
 
   auto content_type_enum = XContentType(uint32_t(content_type));
 
@@ -89,9 +80,10 @@ u32 XamContentAggregateCreateEnumerator_entry(u64 xuid, u32 device_id, u32 conte
     // Fetch any alternate title IDs defined in the XEX header
     // (used by games to load saves from other titles, etc)
     std::vector<uint32_t> title_ids{kCurrentlyRunningTitleId};
-    auto exe_module = REX_KERNEL_STATE()->GetExecutableModule();
-    if (exe_module && exe_module->xex_module()) {
-      const auto& alt_ids = exe_module->xex_module()->opt_alternate_title_ids();
+    auto exe_module =
+        REX_KERNEL_OBJECTS()->Get<ModuleObject>(REX_KERNEL_STATE()->GetExecutableModule());
+    if (exe_module && UserModuleXex(*exe_module)) {
+      const auto& alt_ids = UserModuleXex(*exe_module)->opt_alternate_title_ids();
       std::copy(alt_ids.cbegin(), alt_ids.cend(), std::back_inserter(title_ids));
     }
 
@@ -100,7 +92,7 @@ u32 XamContentAggregateCreateEnumerator_entry(u64 xuid, u32 device_id, u32 conte
       auto content_datas = REX_KERNEL_STATE()->content_manager()->ListContent(
           static_cast<uint32_t>(DummyDeviceId::HDD), xuid, content_type_enum, title_id);
       for (const auto& content_data : content_datas) {
-        auto item = e->AppendItem();
+        auto item = items.Append<XCONTENT_AGGREGATE_DATA>();
         assert_not_null(item);
         if (item) {
           *item = content_data;
@@ -112,7 +104,7 @@ u32 XamContentAggregateCreateEnumerator_entry(u64 xuid, u32 device_id, u32 conte
         auto common_datas = REX_KERNEL_STATE()->content_manager()->ListContent(
             static_cast<uint32_t>(DummyDeviceId::HDD), 0, content_type_enum, title_id);
         for (const auto& content_data : common_datas) {
-          auto item = e->AppendItem();
+          auto item = items.Append<XCONTENT_AGGREGATE_DATA>();
           assert_not_null(item);
           if (item) {
             *item = content_data;
@@ -123,13 +115,31 @@ u32 XamContentAggregateCreateEnumerator_entry(u64 xuid, u32 device_id, u32 conte
   }
 
   if (!device_info || device_info->device_type == DeviceType::ODD) {
-    AddODDContentTest(e, content_type_enum);
+    AddODDContentTest(items, content_type_enum);
   }
 
   REXLOG_DEBUG(kernel, "XamContentAggregateCreateEnumerator: added {} items to enumerator",
-               e->item_count());
+               items.item_count());
 
-  *handle_out = e->handle();
+  X_HANDLE handle = X_INVALID_HANDLE_VALUE;
+  void* extra_buffer = nullptr;
+  auto result = CreateEnumerator(
+      REX_KERNEL_STATE(), &handle, EnumeratorInit{0xFF, 0xFE, 0x2000E, 0x20010, 0},
+      EnumeratorObject(
+          1, sizeof(XCONTENT_AGGREGATE_DATA),
+          [items = std::move(items)](u32, u8* buffer_data, u32* written_count) mutable {
+            return items.Write(buffer_data, written_count);
+          }),
+      sizeof(X_KENUMERATOR_CONTENT_AGGREGATE), &extra_buffer);
+  if (XFAILED(result)) {
+    return result;
+  }
+
+  auto* extra = static_cast<X_KENUMERATOR_CONTENT_AGGREGATE*>(extra_buffer);
+  extra->magic = kXObjSignature;
+  extra->handle = handle;
+
+  *handle_out = handle;
   return X_ERROR_SUCCESS;
 }
 

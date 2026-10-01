@@ -262,7 +262,7 @@ X_RESULT ContentManager::ReadContentHeaderFile(const std::string_view file_name,
 X_RESULT ContentManager::CreateContent(const std::string_view root_name, uint64_t xuid,
                                        const XCONTENT_AGGREGATE_DATA& data) {
   {
-    auto global_lock = global_critical_region_.Acquire();
+    std::lock_guard lock(mutex_);
     if (open_packages_.count(string_key_case(root_name))) {
       return X_ERROR_ALREADY_EXISTS;
     }
@@ -279,7 +279,7 @@ X_RESULT ContentManager::CreateContent(const std::string_view root_name, uint64_
   assert_not_null(package);
 
   {
-    auto global_lock = global_critical_region_.Acquire();
+    std::lock_guard lock(mutex_);
     if (open_packages_.count(string_key_case(root_name))) {
       return X_ERROR_ALREADY_EXISTS;
     }
@@ -292,7 +292,7 @@ X_RESULT ContentManager::OpenContent(const std::string_view root_name, uint64_t 
                                      const XCONTENT_AGGREGATE_DATA& data,
                                      uint32_t& content_license) {
   {
-    auto global_lock = global_critical_region_.Acquire();
+    std::lock_guard lock(mutex_);
     if (open_packages_.count(string_key_case(root_name))) {
       return X_ERROR_ALREADY_EXISTS;
     }
@@ -309,7 +309,7 @@ X_RESULT ContentManager::OpenContent(const std::string_view root_name, uint64_t 
   content_license = package->GetPackageLicense();
 
   {
-    auto global_lock = global_critical_region_.Acquire();
+    std::lock_guard lock(mutex_);
     if (open_packages_.count(string_key_case(root_name))) {
       return X_ERROR_ALREADY_EXISTS;
     }
@@ -319,25 +319,26 @@ X_RESULT ContentManager::OpenContent(const std::string_view root_name, uint64_t 
 }
 
 X_RESULT ContentManager::CloseContent(const std::string_view root_name) {
-  ContentPackage* package = nullptr;
+  std::string open_root_name;
   {
-    auto global_lock = global_critical_region_.Acquire();
+    std::lock_guard lock(mutex_);
     // Some games use different casing between Create and Close (e.g. "save" vs "SAVE")
     auto it = open_packages_.find(string_key_case(root_name));
     if (it == open_packages_.end()) {
       return X_ERROR_FILE_NOT_FOUND;
     }
-    package = DetachPackage(it);
+    open_root_name = it->first.view();
   }
-  delete package;
+  CloseOpenedFilesFromContent(open_root_name);
+  delete DetachPackage(open_root_name);
   return X_ERROR_SUCCESS;
 }
 
 X_RESULT ContentManager::GetContentThumbnail(uint64_t xuid, const XCONTENT_AGGREGATE_DATA& data,
                                              std::vector<uint8_t>* buffer) {
-  auto global_lock = global_critical_region_.Acquire();
   auto package_path = ResolvePackagePath(xuid, data);
   auto thumb_path = package_path / kThumbnailFileName;
+  std::lock_guard lock(mutex_);
   if (std::filesystem::exists(thumb_path)) {
     std::ifstream file(thumb_path, std::ios::binary);
     buffer->assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
@@ -349,8 +350,8 @@ X_RESULT ContentManager::GetContentThumbnail(uint64_t xuid, const XCONTENT_AGGRE
 
 X_RESULT ContentManager::SetContentThumbnail(uint64_t xuid, const XCONTENT_AGGREGATE_DATA& data,
                                              std::vector<uint8_t> buffer) {
-  auto global_lock = global_critical_region_.Acquire();
   auto package_path = ResolvePackagePath(xuid, data);
+  std::lock_guard lock(mutex_);
   std::filesystem::create_directories(package_path);
   if (std::filesystem::exists(package_path)) {
     auto thumb_path = package_path / kThumbnailFileName;
@@ -364,14 +365,18 @@ X_RESULT ContentManager::SetContentThumbnail(uint64_t xuid, const XCONTENT_AGGRE
 }
 
 X_RESULT ContentManager::DeleteContent(uint64_t xuid, const XCONTENT_AGGREGATE_DATA& data) {
-  auto global_lock = global_critical_region_.Acquire();
+  auto package_path = ResolvePackagePath(xuid, data);
+  uint64_t used_xuid = (data.xuid != uint64_t(-1) && data.xuid != 0) ? uint64_t(data.xuid) : xuid;
+  auto header_path =
+      ResolvePackageHeaderPath(data.file_name(), used_xuid, data.title_id, data.content_type);
+
+  std::lock_guard lock(mutex_);
 
   if (IsContentOpen(data)) {
     // TODO(Gliniak): Get real error code for this case.
     return X_ERROR_ACCESS_DENIED;
   }
 
-  auto package_path = ResolvePackagePath(xuid, data);
   std::error_code ec;
   auto dir_removed = std::filesystem::remove_all(package_path, ec);
   if (ec ||
@@ -379,9 +384,6 @@ X_RESULT ContentManager::DeleteContent(uint64_t xuid, const XCONTENT_AGGREGATE_D
     return X_ERROR_ACCESS_DENIED;
   }
 
-  uint64_t used_xuid = (data.xuid != uint64_t(-1) && data.xuid != 0) ? uint64_t(data.xuid) : xuid;
-  auto header_path =
-      ResolvePackageHeaderPath(data.file_name(), used_xuid, data.title_id, data.content_type);
   std::error_code ec2;
   bool header_removed = std::filesystem::remove(header_path, ec2);
 
@@ -392,31 +394,39 @@ X_RESULT ContentManager::DeleteContent(uint64_t xuid, const XCONTENT_AGGREGATE_D
 }
 
 X_RESULT ContentManager::UnmountContent(uint64_t xuid, const XCONTENT_AGGREGATE_DATA& data) {
-  ContentPackage* package = nullptr;
+  const uint32_t running_title_id = kernel_state_->title_id();
+  std::string open_root_name;
   {
-    auto global_lock = global_critical_region_.Acquire();
-    auto it = FindOpenPackageByData(data);
+    std::lock_guard lock(mutex_);
+    auto it = FindOpenPackageByData(data, running_title_id);
     if (it == open_packages_.end()) {
       return X_ERROR_FILE_NOT_FOUND;
     }
-    package = DetachPackage(it);
+    open_root_name = it->first.view();
   }
-  delete package;
+  CloseOpenedFilesFromContent(open_root_name);
+  delete DetachPackage(open_root_name);
   return X_ERROR_SUCCESS;
 }
 
 X_RESULT ContentManager::UnmountAndDeleteContent(uint64_t xuid,
                                                  const XCONTENT_AGGREGATE_DATA& data) {
   // Unmount phase: tolerant of not-mounted state
-  ContentPackage* package = nullptr;
+  const uint32_t running_title_id = kernel_state_->title_id();
+  std::string open_root_name;
+  bool is_open = false;
   {
-    auto global_lock = global_critical_region_.Acquire();
-    auto it = FindOpenPackageByData(data);
+    std::lock_guard lock(mutex_);
+    auto it = FindOpenPackageByData(data, running_title_id);
     if (it != open_packages_.end()) {
-      package = DetachPackage(it);
+      open_root_name = it->first.view();
+      is_open = true;
     }
   }
-  delete package;
+  if (is_open) {
+    CloseOpenedFilesFromContent(open_root_name);
+    delete DetachPackage(open_root_name);
+  }
 
   // Delete phase: remove package directory and .header file
   auto package_path = ResolvePackagePath(xuid, data);
@@ -451,11 +461,12 @@ std::filesystem::path ContentManager::ResolveGameUserContentPath() {
 }
 
 std::unordered_map<string_key_case, ContentPackage*, string_key_case::Hash>::iterator
-ContentManager::FindOpenPackageByData(const XCONTENT_AGGREGATE_DATA& data) {
+ContentManager::FindOpenPackageByData(const XCONTENT_AGGREGATE_DATA& data,
+                                      uint32_t running_title_id) {
   // Resolve kCurrentlyRunningTitleId so both sides compare actual title IDs.
   uint32_t query_title = data.title_id;
   if (query_title == kCurrentlyRunningTitleId) {
-    query_title = kernel_state_->title_id();
+    query_title = running_title_id;
   }
 
   for (auto it = open_packages_.begin(); it != open_packages_.end(); ++it) {
@@ -463,7 +474,7 @@ ContentManager::FindOpenPackageByData(const XCONTENT_AGGREGATE_DATA& data) {
 
     uint32_t pkg_title = pkg.title_id;
     if (pkg_title == kCurrentlyRunningTitleId) {
-      pkg_title = kernel_state_->title_id();
+      pkg_title = running_title_id;
     }
 
     // Match on content_type + file_name + resolved title_id.
@@ -476,10 +487,12 @@ ContentManager::FindOpenPackageByData(const XCONTENT_AGGREGATE_DATA& data) {
   return open_packages_.end();
 }
 
-ContentPackage* ContentManager::DetachPackage(
-    const std::unordered_map<string_key_case, ContentPackage*, string_key_case::Hash>::iterator&
-        it) {
-  CloseOpenedFilesFromContent(it->first.view());
+ContentPackage* ContentManager::DetachPackage(const std::string_view root_name) {
+  std::lock_guard lock(mutex_);
+  auto it = open_packages_.find(string_key_case(root_name));
+  if (it == open_packages_.end()) {
+    return nullptr;
+  }
   ContentPackage* package = it->second;
   open_packages_.erase(it);
   return package;
@@ -502,18 +515,18 @@ std::filesystem::path ContentManager::GetOpenPackagePath(const std::string_view 
 void ContentManager::CloseOpenedFilesFromContent(const std::string_view root_name) {
   // TODO(Gliniak): Cleanup this code to care only about handles
   // related to provided content
-  const std::vector<object_ref<XFile>> all_files_handles =
-      kernel_state_->object_table()->GetObjectsByType<XFile>(XObject::Type::File);
+  const std::vector<Pinned<FileObject>> all_files_handles =
+      kernel_state_->object_table()->GetAll<FileObject>();
 
   const std::string resolved_path =
       kernel_state_->file_system()->FindLink(std::string(root_name) + ':').value_or("");
 
-  for (const object_ref<XFile>& file : all_files_handles) {
-    const std::string file_path = file->file().Info().absolute_path;
+  for (const Pinned<FileObject>& file : all_files_handles) {
+    const std::string file_path = file->file->Info().absolute_path;
     bool is_file_inside_content = rex::utf8_starts_with(file_path, resolved_path);
 
     if (is_file_inside_content) {
-      file->ReleaseHandle();
+      kernel_state_->object_table()->Close(file.handle());
     }
   }
 }
@@ -539,14 +552,15 @@ Result<XCONTENT_AGGREGATE_DATA> ContentManager::InstallContent(
   content_data.set_display_name(display_name.empty() ? rex::path_to_utf16(package_path.filename())
                                                      : display_name);
 
-  auto global_lock = global_critical_region_.Acquire();
+  const std::filesystem::path install_path = ResolvePackagePath(0, content_data);
+
+  std::lock_guard lock(mutex_);
   if (IsContentOpen(content_data)) {
     return Err<XCONTENT_AGGREGATE_DATA>(filesystem::MakeError(
         filesystem::Error::kExists,
         fmt::format("'{}' is open", rex::path_to_utf8(package_path.filename()))));
   }
 
-  const std::filesystem::path install_path = ResolvePackagePath(0, content_data);
   std::filesystem::path staging = install_path;
   staging += ".installing";
   std::error_code ec;

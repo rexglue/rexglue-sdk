@@ -19,6 +19,8 @@
 #include <rex/memory/ring_buffer.h>
 #include <rex/string/buffer.h>
 #include <rex/system/function_dispatcher.h>
+#include <rex/system/kernel_state.h>
+#include <rex/system/thread_registry.h>
 #include <rex/system/thread_state.h>
 #include <rex/system/xthread.h>
 #include "audio/cvar_table.h"
@@ -124,14 +126,13 @@ X_STATUS XmaDecoder::Setup(system::KernelState* kernel_state) {
   worker_running_ = true;
   work_event_ = rex::platform::Event::CreateAutoResetEvent(false);
   assert_not_null(work_event_);
-  worker_thread_ = system::object_ref<system::XHostThread>(
-      new system::XHostThread(kernel_state, 128 * 1024, 0, [this]() {
-        WorkerThreadMain();
-        return 0;
-      }));
-  worker_thread_->set_name("XMA Decoder");
-
-  worker_thread_->Create();
+  kernel_state_ = kernel_state;
+  auto record = std::make_unique<system::ThreadRecord>(kernel_state, 128 * 1024, 0, [this]() {
+    WorkerThreadMain();
+    return 0;
+  });
+  record->set_name("XMA Decoder");
+  kernel_state->threads()->Launch(std::move(record), &worker_thread_);
 
   return X_STATUS_SUCCESS;
 }
@@ -179,12 +180,17 @@ void XmaDecoder::Shutdown() {
   }
 
   // Wait up to 2 seconds for worker thread to exit gracefully.
-  auto result =
-      rex::platform::Wait(worker_thread_->thread(), false, std::chrono::milliseconds(2000));
-  if (result == rex::platform::WaitResult::kTimeout) {
-    REXLOG_WARN(audio, "XMA: Worker thread did not exit within 2s, abandoning");
+  {
+    system::ThreadPin pin = kernel_state_->threads()->FindByHandle(worker_thread_);
+    if (pin) {
+      auto result = rex::platform::Wait(pin->thread(), false, std::chrono::milliseconds(2000));
+      if (result == rex::platform::WaitResult::kTimeout) {
+        REXLOG_WARN(audio, "XMA: Worker thread did not exit within 2s, abandoning");
+      }
+    }
   }
-  worker_thread_.reset();
+  kernel_state_->object_table()->Close(worker_thread_);
+  worker_thread_ = 0;
 
   if (context_data_first_ptr_) {
     memory()->SystemHeapFree(context_data_first_ptr_);

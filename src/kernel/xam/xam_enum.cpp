@@ -37,18 +37,21 @@ uint32_t XamEnumerate(uint32_t handle, uint32_t flags, mapped_void buffer_ptr, u
                       uint32_t* items_returned, uint32_t overlapped_ptr) {
   assert_true(flags == 0);
 
-  auto e = REX_KERNEL_OBJECTS()->LookupObject<XEnumerator>(handle);
-  if (!e) {
+  auto* ks = REX_KERNEL_STATE();
+  if (!ks->object_table()->Get<EnumeratorObject>(handle)) {
     return X_ERROR_INVALID_HANDLE;
   }
 
-  auto run = [e, buffer_ptr](uint32_t& extended_error, uint32_t& length) -> X_RESULT {
+  auto run = [ks, handle, buffer_ptr](uint32_t& extended_error, uint32_t& length) -> X_RESULT {
     X_RESULT result;
     uint32_t item_count = 0;
-    if (!buffer_ptr) {
+    auto e = ks->object_table()->Get<EnumeratorObject>(handle);
+    if (!e) {
+      result = X_ERROR_INVALID_HANDLE;
+    } else if (!buffer_ptr) {
       result = X_ERROR_INVALID_PARAMETER;
     } else {
-      result = e->WriteItems(buffer_ptr.guest_address(), buffer_ptr.as<uint8_t*>(), &item_count);
+      result = e->write_items(buffer_ptr.guest_address(), buffer_ptr.as<uint8_t*>(), &item_count);
     }
     extended_error = X_HRESULT_FROM_WIN32(result);
     length = item_count;
@@ -90,14 +93,14 @@ u32 XamCreateEnumeratorHandle_entry(u32 unk1, u32 unk2, u32 unk3, u32 unk4, u32 
 }
 
 u32 XamGetPrivateEnumStructureFromHandle_entry(u32 handle, mapped_u32 out_object_ptr) {
-  REX_KERNEL_LOOKUP(e, XEnumerator, handle);
+  REX_KERNEL_LOOKUP(e, EnumeratorObject, handle);
 
   // Caller takes the reference.
   // It's released in ObDereferenceObject.
-  e->RetainHandle();
+  REX_KERNEL_OBJECTS()->RetainPrimary(e.slot());
 
   if (out_object_ptr.guest_address()) {
-    *out_object_ptr = e->guest_object();
+    *out_object_ptr = e.guest_object();
   }
 
   return X_STATUS_SUCCESS;

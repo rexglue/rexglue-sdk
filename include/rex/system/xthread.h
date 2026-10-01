@@ -12,26 +12,23 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <functional>
+#include <memory>
 #include <mutex>
 #include <string>
 
 #include <rex/platform.h>
 #include <rex/platform/fiber.h>
+#include <rex/system/pin_count.h>
 #include <rex/system/thread_state.h>
 #include <rex/system/util/native_list.h>
-#include <rex/system/xmutant.h>
 #include <rex/system/xobject.h>
 #include <rex/system/xsemaphore.h>
 #include <rex/system/xtimer.h>
 #include <rex/system/xtypes.h>
 #include <rex/platform/thread.h>
-#include <rex/platform/mutex.h>
 
 namespace rex::system {
-
-constexpr memory::fourcc_t kThreadSaveSignature = memory::make_fourcc("THRD");
-
-class XEvent;
 
 enum IRQL_FLAGS : uint8_t {
   IRQL_PASSIVE = 0,
@@ -289,142 +286,446 @@ struct X_KTHREAD {
 };
 static_assert_size(X_KTHREAD, 0xAB0);
 
-class XThread : public XObject {
- public:
-  static const XObject::Type kObjectType = XObject::Type::Thread;
+class ThreadRegistry;
 
-  static constexpr uint32_t kStackAddressRangeBegin = 0x70000000;
-  static constexpr uint32_t kStackAddressRangeEnd = 0x7F000000;
+/** The table slot data of a thread, naming the record in the registry by thread id. */
+struct ThreadRef {
+  /**
+   * @param thread_id_in The thread id.
+   * @param registry_in The registry that owns the record.
+   */
+  ThreadRef(u32 thread_id_in, ThreadRegistry* registry_in)
+      : thread_id(thread_id_in), registry(registry_in) {}
+  ThreadRef(const ThreadRef&) = delete;
+  ThreadRef& operator=(const ThreadRef&) = delete;
+  ~ThreadRef();
+
+  u32 thread_id;
+  ThreadRegistry* registry;
+};
+
+/** A guest thread or a host worker, owned by the thread registry. */
+class ThreadRecord {
+ public:
+  static constexpr u32 kStackAddressRangeBegin = 0x70000000;
+  static constexpr u32 kStackAddressRangeEnd = 0x7F000000;
 
   struct CreationParams {
-    uint32_t stack_size;
-    uint32_t xapi_thread_startup;
-    uint32_t start_address;
-    uint32_t start_context;
-    uint32_t creation_flags;
-    uint32_t guest_process;
+    u32 stack_size;
+    u32 xapi_thread_startup;
+    u32 start_address;
+    u32 start_context;
+    u32 creation_flags;
+    u32 guest_process;
   };
 
-  XThread(KernelState* kernel_state);
-  XThread(KernelState* kernel_state, uint32_t stack_size, uint32_t xapi_thread_startup,
-          uint32_t start_address, uint32_t start_context, uint32_t creation_flags,
-          bool guest_thread, bool main_thread = false, uint32_t guest_process = 0);
-  ~XThread() override;
+  /**
+   * Builds a guest thread record. The host thread starts when the registry launches the record.
+   *
+   * @param kernel_state The kernel state.
+   * @param stack_size The guest stack size, raised to 16 KiB when smaller.
+   * @param xapi_thread_startup The startup trampoline, or 0 for a raw thread.
+   * @param start_address The entry point.
+   * @param start_context The entry point argument.
+   * @param creation_flags The creation flags, bit 0 creates the thread suspended.
+   * @param guest_thread True for a thread created by the guest.
+   * @param main_thread True for the entry point thread.
+   * @param guest_process The title process block address, 0 for the title process.
+   */
+  ThreadRecord(KernelState* kernel_state, u32 stack_size, u32 xapi_thread_startup,
+               u32 start_address, u32 start_context, u32 creation_flags, bool guest_thread,
+               bool main_thread = false, u32 guest_process = 0);
 
-  static bool IsInThread(XThread* other);
+  /**
+   * Builds a host worker record.
+   *
+   * @param kernel_state The kernel state.
+   * @param stack_size The guest stack size.
+   * @param creation_flags The creation flags.
+   * @param host_fn The function the worker runs. Its result is the exit code.
+   */
+  ThreadRecord(KernelState* kernel_state, u32 stack_size, u32 creation_flags,
+               std::function<int()> host_fn);
+  ~ThreadRecord();
+  ThreadRecord(const ThreadRecord&) = delete;
+  ThreadRecord& operator=(const ThreadRecord&) = delete;
+
+  /**
+   * Tests whether the calling thread is the given record.
+   *
+   * @param other The record.
+   * @return True when it is.
+   */
+  static bool IsInThread(const ThreadRecord* other);
+
+  /**
+   * Tests whether the calling thread has a record.
+   *
+   * @return True when it does.
+   */
   static bool IsInThread();
-  static XThread* GetCurrentThread();
-  static uint32_t GetCurrentThreadHandle();
-  static uint32_t GetCurrentThreadId();
 
-  // If the title is terminating and this is a running guest thread, self-exits
-  // via Exit(0) and DOES NOT RETURN. Called from the kernel wait primitives.
+  /**
+   * Returns the record of the calling thread.
+   *
+   * @return The record.
+   */
+  static ThreadRecord* GetCurrentThread();
+
+  /**
+   * Returns the handle of the calling thread.
+   *
+   * @return The handle.
+   */
+  static u32 GetCurrentThreadHandle();
+
+  /**
+   * Returns the thread id of the calling thread.
+   *
+   * @return The thread id.
+   */
+  static u32 GetCurrentThreadId();
+
+  /** Exits the calling thread when the title is terminating. Does not return then. */
   static void CheckTitleTermination();
 
-  static uint32_t GetLastError();
-  static void SetLastError(uint32_t error_code);
+  /**
+   * Returns the last error of the calling thread.
+   *
+   * @return The error code.
+   */
+  static u32 GetLastError();
 
-  const CreationParams* creation_params() const { return &creation_params_; }
-  uint32_t tls_ptr() const { return tls_static_address_; }
-  uint32_t pcr_ptr() const { return pcr_address_; }
-  // True if the thread is created by the guest app.
-  bool is_guest_thread() const { return guest_thread_; }
-  bool main_thread() const { return main_thread_; }
-  bool is_running() const { return running_; }
+  /**
+   * Sets the last error of the calling thread.
+   *
+   * @param error_code The error code.
+   */
+  static void SetLastError(u32 error_code);
 
-  uint32_t thread_id() const { return thread_id_; }
-  uint32_t last_error();
-  void set_last_error(uint32_t error_code);
-  void set_name(const std::string_view name);
+  /**
+   * Returns the kernel state.
+   *
+   * @return The kernel state.
+   */
+  KernelState* kernel_state() const { return kernel_state_; }
 
-  X_STATUS Create();
-  X_STATUS Exit(int exit_code);
-  X_STATUS Terminate(int exit_code);
+  /**
+   * Returns the guest memory.
+   *
+   * @return The memory.
+   */
+  memory::Memory* memory() const;
 
-  virtual void Execute();
+  /**
+   * Returns the creation handle.
+   *
+   * @return The handle, 0 before launch.
+   */
+  X_HANDLE handle() const { return handle_; }
 
-  rex::platform::Fiber* main_fiber() const { return main_fiber_; }
-  void set_main_fiber(rex::platform::Fiber* fiber) { main_fiber_ = fiber; }
+  /**
+   * Returns the guest address of the thread block.
+   *
+   * @return The address.
+   */
+  u32 guest_object() const { return guest_object_ptr_; }
 
-  void EnterCriticalRegion();
-  void LeaveCriticalRegion();
-
-  void DeliverAPCs();
-  void LockApc();
-  void UnlockApc(bool queue_delivery);
-  void EnqueueApc(uint32_t normal_routine, uint32_t normal_context, uint32_t arg1, uint32_t arg2);
-
-  int32_t priority() const { return priority_; }
-  int32_t QueryPriority();
-  void SetPriority(int32_t increment);
-
-  // Xbox thread IDs:
-  // 0 - core 0, thread 0 - user
-  // 1 - core 0, thread 1 - user
-  // 2 - core 1, thread 0 - sometimes xcontent
-  // 3 - core 1, thread 1 - user
-  // 4 - core 2, thread 0 - xaudio
-  // 5 - core 2, thread 1 - user
-  void SetAffinity(uint32_t affinity);
-  uint8_t active_cpu() const;
-  void SetActiveCpu(uint8_t cpu_index);
-
-  bool GetTLSValue(uint32_t slot, uint32_t* value_out);
-  bool SetTLSValue(uint32_t slot, uint32_t value);
-
-  uint32_t suspend_count();
-  X_STATUS Resume(uint32_t* out_suspend_count = nullptr);
-  X_STATUS Suspend(uint32_t* out_suspend_count = nullptr);
-#if REX_PLATFORM_LINUX || REX_PLATFORM_MAC
-  // Increment suspend count and block until another thread resumes us.
-  uint32_t SelfSuspend();
-#endif
-  X_STATUS Delay(uint32_t processor_mode, uint32_t alertable, uint64_t interval);
-
-  rex::platform::Thread* thread() { return thread_.get(); }
-  runtime::ThreadState* thread_state() { return thread_state_.get(); }
-
-  // Internal - do not use.
-  void AcquireMutantOnStartup(object_ref<XMutant> mutant) {
-    pending_mutant_acquires_.push_back(mutant);
+  /**
+   * Returns the thread block as a host pointer.
+   *
+   * @tparam T The block type.
+   * @return The pointer.
+   */
+  template <typename T>
+  T* guest_object() {
+    return memory()->TranslateVirtual<T*>(guest_object_ptr_);
   }
 
+  /**
+   * Returns the thread name.
+   *
+   * @return The name.
+   */
+  const std::string& name() const { return thread_name_; }
+
+  /**
+   * Returns the creation parameters.
+   *
+   * @return The parameters.
+   */
+  const CreationParams* creation_params() const { return &creation_params_; }
+
+  /**
+   * Returns the guest address of the static TLS block.
+   *
+   * @return The address.
+   */
+  u32 tls_ptr() const { return tls_static_address_; }
+
+  /**
+   * Returns the guest address of the PCR.
+   *
+   * @return The address.
+   */
+  u32 pcr_ptr() const { return pcr_address_; }
+
+  /**
+   * Tests whether the title created the thread.
+   *
+   * @return True when it did.
+   */
+  bool is_guest_thread() const { return guest_thread_; }
+
+  /**
+   * Tests whether this is the entry point thread.
+   *
+   * @return True when it is.
+   */
+  bool main_thread() const { return main_thread_; }
+
+  /**
+   * Tests whether the thread is running.
+   *
+   * @return True while it runs.
+   */
+  bool is_running() const { return running_; }
+
+  /**
+   * Returns the thread id.
+   *
+   * @return The id.
+   */
+  u32 thread_id() const { return thread_id_; }
+
+  /**
+   * Returns the last error.
+   *
+   * @return The error code.
+   */
+  u32 last_error();
+
+  /**
+   * Sets the last error.
+   *
+   * @param error_code The error code.
+   */
+  void set_last_error(u32 error_code);
+
+  /**
+   * Sets the thread name.
+   *
+   * @param name The name, the handle is appended.
+   */
+  void set_name(const std::string_view name);
+
+  /**
+   * Exits the calling thread. Does not return.
+   *
+   * @param exit_code The exit code.
+   * @return Never returns on success.
+   */
+  X_STATUS Exit(int exit_code);
+
+  /**
+   * Terminates the thread.
+   *
+   * @param exit_code The exit code.
+   * @return X_STATUS_SUCCESS.
+   */
+  X_STATUS Terminate(int exit_code);
+
+  /**
+   * Returns the main fiber.
+   *
+   * @return The fiber, null before the thread runs.
+   */
+  rex::platform::Fiber* main_fiber() const { return main_fiber_; }
+
+  /**
+   * Sets the main fiber.
+   *
+   * @param fiber The fiber.
+   */
+  void set_main_fiber(rex::platform::Fiber* fiber) { main_fiber_ = fiber; }
+
+  /** Disables APC delivery by 1 level. */
+  void EnterCriticalRegion();
+
+  /** Enables APC delivery by 1 level. */
+  void LeaveCriticalRegion();
+
+  /** Runs the queued user APCs. */
+  void DeliverAPCs();
+
+  /** Takes the APC spin lock of the thread. */
+  void LockApc();
+
+  /**
+   * Releases the APC spin lock of the thread.
+   *
+   * @param queue_delivery True to wake the thread when APCs are queued.
+   */
+  void UnlockApc(bool queue_delivery);
+
+  /**
+   * Queues a user APC.
+   *
+   * @param normal_routine The routine.
+   * @param normal_context The routine context.
+   * @param arg1 The first argument.
+   * @param arg2 The second argument.
+   */
+  void EnqueueApc(u32 normal_routine, u32 normal_context, u32 arg1, u32 arg2);
+
+  /**
+   * Returns the stored priority.
+   *
+   * @return The priority.
+   */
+  i32 priority() const { return priority_; }
+
+  /**
+   * Queries the host priority.
+   *
+   * @return The priority.
+   */
+  i32 QueryPriority();
+
+  /**
+   * Sets the priority.
+   *
+   * @param increment The priority increment.
+   */
+  void SetPriority(i32 increment);
+
+  /**
+   * Sets the affinity. Logical processors are 0 core 0 thread 0, 1 core 0 thread 1, 2 core 1
+   * thread 0, 3 core 1 thread 1, 4 core 2 thread 0 and 5 core 2 thread 1.
+   *
+   * @param affinity The processor mask.
+   */
+  void SetAffinity(u32 affinity);
+
+  /**
+   * Returns the logical processor.
+   *
+   * @return The processor index.
+   */
+  u8 active_cpu() const;
+
+  /**
+   * Moves the thread to a logical processor.
+   *
+   * @param cpu_index The processor index.
+   */
+  void SetActiveCpu(u8 cpu_index);
+
+  /**
+   * Reads a TLS slot.
+   *
+   * @param slot The slot.
+   * @param value_out Receives the value.
+   * @return True when the slot is in range.
+   */
+  bool GetTLSValue(u32 slot, u32* value_out);
+
+  /**
+   * Writes a TLS slot.
+   *
+   * @param slot The slot.
+   * @param value The value.
+   * @return True when the slot is in range.
+   */
+  bool SetTLSValue(u32 slot, u32 value);
+
+  /**
+   * Returns the suspend count.
+   *
+   * @return The count.
+   */
+  u32 suspend_count();
+
+  /**
+   * Resumes the thread.
+   *
+   * @param out_suspend_count Receives the previous count, may be null.
+   * @return X_STATUS_SUCCESS, or X_STATUS_UNSUCCESSFUL.
+   */
+  X_STATUS Resume(u32* out_suspend_count = nullptr);
+
+  /**
+   * Suspends the thread.
+   *
+   * @param out_suspend_count Receives the previous count, may be null.
+   * @return X_STATUS_SUCCESS, or X_STATUS_UNSUCCESSFUL.
+   */
+  X_STATUS Suspend(u32* out_suspend_count = nullptr);
+#if REX_PLATFORM_LINUX || REX_PLATFORM_MAC
+
+  /**
+   * Increments the suspend count and blocks until another thread resumes the caller.
+   *
+   * @return The previous count.
+   */
+  u32 SelfSuspend();
+#endif
+
+  /**
+   * Sleeps the calling thread.
+   *
+   * @param processor_mode The processor mode.
+   * @param alertable True when the sleep ends on a user APC.
+   * @param interval The interval in 100 nanosecond ticks, negative for relative.
+   * @return X_STATUS_SUCCESS, or X_STATUS_USER_APC.
+   */
+  X_STATUS Delay(u32 processor_mode, u32 alertable, u64 interval);
+
+  /**
+   * Returns the host thread.
+   *
+   * @return The thread.
+   */
+  rex::platform::Thread* thread() { return thread_.get(); }
+
+  /**
+   * Returns the thread state.
+   *
+   * @return The state.
+   */
+  runtime::ThreadState* thread_state() { return thread_state_.get(); }
+
+  PinCount pins;
+
  protected:
-  bool AllocateStack(uint32_t size);
+  bool AllocateStack(u32 size);
   void FreeStack();
   void InitializeGuestObject();
 
   void RundownAPCs();
 
-  rex::platform::WaitHandle* GetWaitHandle() override { return thread_.get(); }
-
   CreationParams creation_params_ = {0, 0, 0, 0, 0, 0};
 
-  std::vector<object_ref<XMutant>> pending_mutant_acquires_;
-
-  uint32_t thread_id_ = 0;
-  uint32_t scratch_address_ = 0;
-  uint32_t scratch_size_ = 0;
-  uint32_t tls_static_address_ = 0;
-  uint32_t tls_dynamic_address_ = 0;
-  uint32_t tls_total_size_ = 0;
-  uint32_t pcr_address_ = 0;
-  uint32_t stack_alloc_base_ = 0;  // Stack alloc base
-  uint32_t stack_alloc_size_ = 0;  // Stack alloc size
-  uint32_t stack_base_ = 0;        // High address
-  uint32_t stack_limit_ = 0;       // Low address
+  u32 thread_id_ = 0;
+  u32 scratch_address_ = 0;
+  u32 scratch_size_ = 0;
+  u32 tls_static_address_ = 0;
+  u32 tls_dynamic_address_ = 0;
+  u32 tls_total_size_ = 0;
+  u32 pcr_address_ = 0;
+  u32 stack_alloc_base_ = 0;
+  u32 stack_alloc_size_ = 0;
+  u32 stack_base_ = 0;
+  u32 stack_limit_ = 0;
   bool guest_thread_ = false;
-  bool main_thread_ = false;  // Entry-point thread
-  // Atomic: written by the thread itself in Exit/Terminate, read cross-thread by
-  // KernelState::TerminateTitle's cooperative drain.
+  bool main_thread_ = false;
   std::atomic<bool> running_{false};
-  // Set by whichever of Exit and Terminate runs first, so only 1 of them tears the thread down.
   std::atomic<bool> exit_claimed_{false};
 
   std::string thread_name_;
   std::unique_ptr<runtime::ThreadState> thread_state_;
 
-  int32_t priority_ = 0;
+  i32 priority_ = 0;
 
 #if REX_PLATFORM_LINUX || REX_PLATFORM_MAC
   std::mutex suspend_mutex_;
@@ -433,22 +734,27 @@ class XThread : public XObject {
 
   std::mutex thread_lock_;
 
-  rex::platform::global_critical_region global_critical_region_;
-  uint32_t apc_lock_old_irql_ = 0;
+  u32 apc_lock_old_irql_ = 0;
 
   std::unique_ptr<rex::platform::Thread> thread_ = nullptr;
   rex::platform::Fiber* main_fiber_ = nullptr;
-};
-
-class XHostThread : public XThread {
- public:
-  XHostThread(KernelState* kernel_state, uint32_t stack_size, uint32_t creation_flags,
-              std::function<int()> host_fn);
-
-  virtual void Execute();
 
  private:
+  friend class ThreadRegistry;
+  X_STATUS Create();
+  void SetHandle(X_HANDLE handle) { handle_ = handle; }
+  void SetGuestObject(u32 address) { guest_object_ptr_ = address; }
+  void Execute();
+  void ReleaseSelf();
+
+  KernelState* kernel_state_;
+  X_HANDLE handle_ = 0;
+  u32 guest_object_ptr_ = 0;
   std::function<int()> host_fn_;
+  std::unique_ptr<rex::platform::Event> exit_gate_;
+  std::atomic<bool> released_{false};
+  bool exited_ = false;
+  bool handles_closed_ = false;
 };
 
 }  // namespace rex::system

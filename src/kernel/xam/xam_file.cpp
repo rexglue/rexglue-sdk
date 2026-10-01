@@ -77,16 +77,18 @@ REX_SHIM_FN(CreateFileA, u32, mapped_string lpFileName, u32 dwDesiredAccess, u32
     return kInvalidHandleValue;
   }
 
-  auto file = rex::system::object_ref<rex::system::XFile>(
-      new rex::system::XFile(ks, std::move(opened->file), true));
-  auto handle = file->handle();
+  X_HANDLE handle = X_INVALID_HANDLE_VALUE;
+  if (XFAILED(ks->object_table()->Emplace<rex::system::FileObject>(
+          &handle, rex::system::AddOptions{}, std::move(opened->file), true))) {
+    return kInvalidHandleValue;
+  }
   REXLOG_DEV(kernel, "rexshim_CreateFileA: '{}' -> handle={:#x}", path, handle);
   return handle;
 }
 
 REX_SHIM_FN(ReadFile, u32, u32 hFile, mapped_void lpBuffer, u32 nNumberOfBytesToRead,
             mapped_u32 lpNumberOfBytesRead, mapped_void lpOverlapped) {
-  auto file = REX_KERNEL_OBJECTS()->LookupObject<rex::system::XFile>(static_cast<u32>(hFile));
+  auto file = REX_KERNEL_OBJECTS()->Get<rex::system::FileObject>(static_cast<u32>(hFile));
   if (!file) {
     REXLOG_WARN(kernel, "rexshim_ReadFile: invalid handle {:#x}", static_cast<u32>(hFile));
     if (lpNumberOfBytesRead)
@@ -101,8 +103,9 @@ REX_SHIM_FN(ReadFile, u32, u32 hFile, mapped_void lpBuffer, u32 nNumberOfBytesTo
   }
 
   u32 bytes_read = 0;
-  X_STATUS status = file->Read(lpBuffer.guest_address(), static_cast<u32>(nNumberOfBytesToRead),
-                               offset, &bytes_read, 0);
+  X_STATUS status =
+      rex::system::FileRead(REX_KERNEL_STATE(), *file, lpBuffer.guest_address(),
+                            static_cast<u32>(nNumberOfBytesToRead), offset, &bytes_read, 0);
 
   if (lpOverlapped) {
     auto* ov = reinterpret_cast<rex::be<u32>*>(static_cast<u8*>(static_cast<void*>(lpOverlapped)));
@@ -117,7 +120,7 @@ REX_SHIM_FN(ReadFile, u32, u32 hFile, mapped_void lpBuffer, u32 nNumberOfBytesTo
 
 REX_SHIM_FN(WriteFile, u32, u32 hFile, mapped_void lpBuffer, u32 nNumberOfBytesToWrite,
             mapped_u32 lpNumberOfBytesWritten, mapped_void lpOverlapped) {
-  auto file = REX_KERNEL_OBJECTS()->LookupObject<rex::system::XFile>(static_cast<u32>(hFile));
+  auto file = REX_KERNEL_OBJECTS()->Get<rex::system::FileObject>(static_cast<u32>(hFile));
   if (!file) {
     if (lpNumberOfBytesWritten)
       *lpNumberOfBytesWritten = 0;
@@ -131,8 +134,9 @@ REX_SHIM_FN(WriteFile, u32, u32 hFile, mapped_void lpBuffer, u32 nNumberOfBytesT
   }
 
   u32 bytes_written = 0;
-  X_STATUS status = file->Write(lpBuffer.guest_address(), static_cast<u32>(nNumberOfBytesToWrite),
-                                offset, &bytes_written, 0);
+  X_STATUS status =
+      rex::system::FileWrite(REX_KERNEL_STATE(), *file, lpBuffer.guest_address(),
+                             static_cast<u32>(nNumberOfBytesToWrite), offset, &bytes_written, 0);
 
   if (lpOverlapped) {
     auto* ov = reinterpret_cast<rex::be<u32>*>(static_cast<u8*>(static_cast<void*>(lpOverlapped)));
@@ -147,7 +151,7 @@ REX_SHIM_FN(WriteFile, u32, u32 hFile, mapped_void lpBuffer, u32 nNumberOfBytesT
 
 REX_SHIM_FN(SetFilePointer, u32, u32 hFile, u32 lDistanceToMove, mapped_u32 lpDistanceToMoveHigh,
             u32 dwMoveMethod) {
-  auto file = REX_KERNEL_OBJECTS()->LookupObject<rex::system::XFile>(static_cast<u32>(hFile));
+  auto file = REX_KERNEL_OBJECTS()->Get<rex::system::FileObject>(static_cast<u32>(hFile));
   if (!file)
     return kInvalidHandleValue;
 
@@ -162,38 +166,38 @@ REX_SHIM_FN(SetFilePointer, u32, u32 hFile, u32 lDistanceToMove, mapped_u32 lpDi
       new_pos = static_cast<u64>(distance);
       break;
     case kFileCurrent:
-      new_pos = file->position() + distance;
+      new_pos = rex::system::FilePosition(*file) + distance;
       break;
     case kFileEnd:
-      new_pos = file->file().Info().size + distance;
+      new_pos = file->file->Info().size + distance;
       break;
     default:
       return kInvalidHandleValue;
   }
 
-  file->set_position(new_pos);
+  rex::system::FileSetPosition(*file, new_pos);
   if (lpDistanceToMoveHigh)
     *lpDistanceToMoveHigh = static_cast<u32>(new_pos >> 32);
   return static_cast<u32>(new_pos & 0xFFFFFFFF);
 }
 
 REX_SHIM_FN(GetFileSize, u32, u32 hFile, mapped_u32 lpFileSizeHigh) {
-  auto file = REX_KERNEL_OBJECTS()->LookupObject<rex::system::XFile>(static_cast<u32>(hFile));
+  auto file = REX_KERNEL_OBJECTS()->Get<rex::system::FileObject>(static_cast<u32>(hFile));
   if (!file)
     return kInvalidHandleValue;
 
-  u64 size = file->file().Info().size;
+  u64 size = file->file->Info().size;
   if (lpFileSizeHigh)
     *lpFileSizeHigh = static_cast<u32>(size >> 32);
   return static_cast<u32>(size & 0xFFFFFFFF);
 }
 
 REX_SHIM_FN(GetFileSizeEx, u32, u32 hFile, mapped_void lpFileSize) {
-  auto file = REX_KERNEL_OBJECTS()->LookupObject<rex::system::XFile>(static_cast<u32>(hFile));
+  auto file = REX_KERNEL_OBJECTS()->Get<rex::system::FileObject>(static_cast<u32>(hFile));
   if (!file)
     return 0;
 
-  u64 size = file->file().Info().size;
+  u64 size = file->file->Info().size;
   if (lpFileSize) {
     auto* out = reinterpret_cast<rex::be<u32>*>(static_cast<u8*>(static_cast<void*>(lpFileSize)));
     out[0] = static_cast<u32>(size >> 32);
@@ -203,10 +207,10 @@ REX_SHIM_FN(GetFileSizeEx, u32, u32 hFile, mapped_void lpFileSize) {
 }
 
 REX_SHIM_FN(SetEndOfFile, u32, u32 hFile) {
-  auto file = REX_KERNEL_OBJECTS()->LookupObject<rex::system::XFile>(static_cast<u32>(hFile));
+  auto file = REX_KERNEL_OBJECTS()->Get<rex::system::FileObject>(static_cast<u32>(hFile));
   if (!file)
     return 0;
-  X_STATUS status = file->SetLength(file->position());
+  X_STATUS status = rex::system::FileSetLength(*file, rex::system::FilePosition(*file));
   return XSUCCEEDED(status) ? 1u : 0u;
 }
 
@@ -227,7 +231,7 @@ REX_SHIM_FN(CloseHandle, u32, u32 hObject) {
   u32 h = static_cast<u32>(hObject);
   if (h == kInvalidHandleValue || h == 0)
     return 0;
-  auto status = REX_KERNEL_OBJECTS()->ReleaseHandle(h);
+  auto status = REX_KERNEL_OBJECTS()->Close(h);
   if (XFAILED(status)) {
     REXLOG_WARN(kernel, "rexshim_CloseHandle: unknown handle {:#x}", h);
     return 0;
@@ -273,29 +277,33 @@ REX_SHIM_FN(FindFirstFileA, u32, mapped_string lpFileName, mapped_void lpFindFil
     return kInvalidHandleValue;
   }
 
-  auto xfile = rex::system::object_ref<rex::system::XFile>(
-      new rex::system::XFile(ks, std::move(opened->file), true));
-  xfile->SetFindPattern(pattern);
+  X_HANDLE handle = X_INVALID_HANDLE_VALUE;
+  if (XFAILED(ks->object_table()->Emplace<rex::system::FileObject>(
+          &handle, rex::system::AddOptions{}, std::move(opened->file), true))) {
+    return kInvalidHandleValue;
+  }
+  auto xfile = ks->object_table()->Get<rex::system::FileObject>(handle);
+  rex::system::FileSetFindPattern(*xfile, pattern);
 
-  auto entry = xfile->FindNext();
+  auto entry = rex::system::FileFindNext(*xfile);
   if (!entry) {
     REXLOG_DEBUG(kernel, "rexshim_FindFirstFileA: no matches for '{}' in '{}'", pattern, dir);
-    REX_KERNEL_OBJECTS()->ReleaseHandle(xfile->handle());
+    REX_KERNEL_OBJECTS()->Close(handle);
     return kInvalidHandleValue;
   }
 
   FillFindData(lpFindFileData, *entry);
   REXLOG_TRACE(kernel, "rexshim_FindFirstFileA: '{}' first match='{}' handle={:#x}", path,
-               entry->name, xfile->handle());
-  return xfile->handle();
+               entry->name, handle);
+  return handle;
 }
 
 REX_SHIM_FN(FindNextFileA, u32, u32 hFindFile, mapped_void lpFindFileData) {
-  auto file = REX_KERNEL_OBJECTS()->LookupObject<rex::system::XFile>(static_cast<u32>(hFindFile));
+  auto file = REX_KERNEL_OBJECTS()->Get<rex::system::FileObject>(static_cast<u32>(hFindFile));
   if (!file)
     return 0;
 
-  auto entry = file->FindNext();
+  auto entry = rex::system::FileFindNext(*file);
   if (!entry)
     return 0;
 
@@ -349,7 +357,7 @@ REX_SHIM_FN(GetFileAttributesExA, u32, u32 fInfoLevelId, mapped_string lpFileNam
 
 REX_SHIM_FN(SetFilePointerEx, u32, u32 hFile, u32 distHigh, u32 distLow,
             mapped_void lpNewFilePointer, u32 dwMoveMethod) {
-  auto file = REX_KERNEL_OBJECTS()->LookupObject<rex::system::XFile>(static_cast<u32>(hFile));
+  auto file = REX_KERNEL_OBJECTS()->Get<rex::system::FileObject>(static_cast<u32>(hFile));
   if (!file)
     return 0;
 
@@ -362,16 +370,16 @@ REX_SHIM_FN(SetFilePointerEx, u32, u32 hFile, u32 distHigh, u32 distLow,
       new_pos = static_cast<u64>(distance);
       break;
     case kFileCurrent:
-      new_pos = file->position() + distance;
+      new_pos = rex::system::FilePosition(*file) + distance;
       break;
     case kFileEnd:
-      new_pos = file->file().Info().size + distance;
+      new_pos = file->file->Info().size + distance;
       break;
     default:
       return 0;
   }
 
-  file->set_position(new_pos);
+  rex::system::FileSetPosition(*file, new_pos);
 
   if (lpNewFilePointer) {
     auto* out = reinterpret_cast<be<u32>*>(static_cast<u8*>(static_cast<void*>(lpNewFilePointer)));

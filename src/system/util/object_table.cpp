@@ -9,379 +9,304 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <rex/system/util/object_table.h>
+
 #include <algorithm>
-#include <cstring>
+#include <mutex>
+#include <shared_mutex>
 
 #include <rex/logging.h>
-#include <rex/system/util/object_table.h>
-#include <rex/system/xobject.h>
 #include <rex/system/xthread.h>
+
+namespace rex::system {
+
+ObjectRecord::~ObjectRecord() {
+  if (owns_guest_block && memory != nullptr) {
+    FreeGuestBlock(memory, guest_ptr);
+  }
+}
+
+}  // namespace rex::system
 
 namespace rex::system::util {
 
-ObjectTable::ObjectTable() {}
+ObjectTable::ObjectTable(memory::Memory* memory) : memory_(memory) {}
 
 ObjectTable::~ObjectTable() {
   Reset();
 }
 
 void ObjectTable::Reset() {
-  auto global_lock = global_critical_region_.Acquire();
-
-  // Release all objects.
-  for (uint32_t n = 0; n < table_capacity_; n++) {
-    ObjectTableEntry& entry = table_[n];
-    if (entry.object) {
-      entry.object->Release();
+  std::vector<ObjectRecord*> retired;
+  {
+    std::unique_lock lock(mutex_);
+    std::lock_guard name_lock(name_mutex_);
+    for (auto& [raw, owned] : records_) {
+      retired.push_back(owned.release());
     }
+    records_.clear();
+    names_.clear();
+    slots_.clear();
+    last_free_slot_ = 0;
   }
-
-  table_capacity_ = 0;
-  last_free_entry_ = 0;
-  free(table_);
-  table_ = nullptr;
+  for (ObjectRecord* record : retired) {
+    Retire(record);
+  }
 }
 
-X_STATUS ObjectTable::FindFreeSlot(uint32_t* out_slot) {
-  // Find a free slot.
-  uint32_t slot = last_free_entry_;
-  uint32_t scan_count = 0;
-  while (scan_count < table_capacity_) {
-    ObjectTableEntry& entry = table_[slot];
-    if (!entry.object) {
+void ObjectTable::Retire(ObjectRecord* record) {
+  if (record->pins.Retire()) {
+    delete record;
+  }
+}
+
+X_HANDLE ObjectTable::Translate(X_HANDLE handle) const {
+  if (handle == 0xFFFFFFFF) {
+    return 0;
+  }
+  if (handle == 0xFFFFFFFE) {
+    return ThreadRecord::IsInThread() ? ThreadRecord::GetCurrentThreadHandle() : 0;
+  }
+  return handle;
+}
+
+ObjectTable::Slot* ObjectTable::FindSlot(X_HANDLE handle) {
+  if (handle < kHandleBase) {
+    return nullptr;
+  }
+  const u32 index = GetHandleSlot(handle);
+  if (index == 0 || index >= slots_.size()) {
+    return nullptr;
+  }
+  Slot* slot = &slots_[index];
+  return slot->record != nullptr ? slot : nullptr;
+}
+
+X_STATUS ObjectTable::AllocateSlot(u32* out_slot) {
+  const u32 capacity = static_cast<u32>(slots_.size());
+  u32 slot = last_free_slot_;
+  for (u32 scanned = 0; scanned < capacity; ++scanned) {
+    if (slot != 0 && slots_[slot].record == nullptr) {
       *out_slot = slot;
+      last_free_slot_ = slot;
       return X_STATUS_SUCCESS;
     }
-    scan_count++;
-    slot = (slot + 1) % table_capacity_;
-    if (slot == 0) {
-      // Never allow 0 handles.
-      scan_count++;
-      slot++;
-    }
+    slot = (slot + 1) % capacity;
   }
-
-  // Table out of slots, expand.
-  uint32_t new_table_capacity = std::max(16 * 1024u, table_capacity_ * 2);
-  if (!Resize(new_table_capacity)) {
-    return X_STATUS_NO_MEMORY;
-  }
-
-  // Never allow 0 handles.
-  slot = ++last_free_entry_;
-  *out_slot = slot;
-
+  const u32 new_capacity = std::max(16 * 1024u, capacity * 2);
+  slots_.resize(new_capacity);
+  last_free_slot_ = std::max(capacity, 1u);
+  *out_slot = last_free_slot_;
   return X_STATUS_SUCCESS;
 }
 
-bool ObjectTable::Resize(uint32_t new_capacity) {
-  uint32_t new_size = new_capacity * sizeof(ObjectTableEntry);
-  uint32_t old_size = table_capacity_ * sizeof(ObjectTableEntry);
-  auto new_table = reinterpret_cast<ObjectTableEntry*>(realloc(table_, new_size));
-  if (!new_table) {
-    return false;
-  }
-
-  // Zero out new entries.
-  if (new_size > old_size) {
-    std::memset(reinterpret_cast<uint8_t*>(new_table) + old_size, 0, new_size - old_size);
-  }
-
-  last_free_entry_ = table_capacity_;
-  table_capacity_ = new_capacity;
-  table_ = new_table;
-
-  return true;
-}
-
-X_STATUS ObjectTable::AddHandle(XObject* object, X_HANDLE* out_handle) {
-  X_STATUS result = X_STATUS_SUCCESS;
-
-  uint32_t handle = 0;
+X_STATUS ObjectTable::Insert(std::unique_ptr<ObjectRecord> record, const AddOptions& options,
+                             X_HANDLE* out_handle) {
+  record->memory = memory_;
+  record->guest_ptr = options.block.address;
+  record->owns_guest_block = options.block.owned;
+  X_HANDLE handle = 0;
   {
-    auto global_lock = global_critical_region_.Acquire();
-
-    // Find a free slot.
-    uint32_t slot = 0;
-    result = FindFreeSlot(&slot);
-
-    // Stash.
-    if (XSUCCEEDED(result)) {
-      ObjectTableEntry& entry = table_[slot];
-      entry.object = object;
-      entry.handle_ref_count = 1;
-      handle = XObject::kHandleBase + (slot << 2);
-      object->handles().push_back(handle);
-
-      // Retain so long as the object is in the table.
-      object->Retain();
-
-      REXLOG_DEV(system, "Added handle:{:08X} for {}", handle, typeid(*object).name());
+    std::unique_lock lock(mutex_);
+    u32 index = 0;
+    if (X_STATUS status = AllocateSlot(&index); XFAILED(status)) {
+      return status;
     }
-  }
-
-  if (XSUCCEEDED(result)) {
-    if (out_handle) {
-      *out_handle = handle;
+    handle = kHandleBase + (index << 2);
+    ObjectRecord* raw = record.get();
+    raw->handles.push_back(handle);
+    slots_[index] = Slot{raw, 1};
+    if (!options.name.empty() && XSUCCEEDED(AddName(options.name, handle))) {
+      raw->name = std::string(options.name);
     }
+    records_.emplace(raw, std::move(record));
   }
-
-  return result;
-}
-
-X_STATUS ObjectTable::DuplicateHandle(X_HANDLE handle, X_HANDLE* out_handle) {
-  X_STATUS result = X_STATUS_SUCCESS;
-  handle = TranslateHandle(handle);
-
-  XObject* object = LookupObject(handle, false);
-  if (object) {
-    result = AddHandle(object, out_handle);
-    object->Release();  // Release the ref that LookupObject took
-  } else {
-    result = X_STATUS_INVALID_HANDLE;
+  if (out_handle) {
+    *out_handle = handle;
   }
-
-  return result;
-}
-
-X_STATUS ObjectTable::RetainHandle(X_HANDLE handle) {
-  auto global_lock = global_critical_region_.Acquire();
-
-  ObjectTableEntry* entry = LookupTable(handle);
-  if (!entry) {
-    return X_STATUS_INVALID_HANDLE;
-  }
-
-  entry->handle_ref_count++;
   return X_STATUS_SUCCESS;
 }
 
-X_STATUS ObjectTable::ReleaseHandle(X_HANDLE handle) {
-  auto global_lock = global_critical_region_.Acquire();
-
-  ObjectTableEntry* entry = LookupTable(handle);
-  if (!entry) {
+X_STATUS ObjectTable::Duplicate(X_HANDLE handle, X_HANDLE* out_handle) {
+  handle = Translate(handle);
+  std::unique_lock lock(mutex_);
+  Slot* source = FindSlot(handle);
+  if (!source) {
     return X_STATUS_INVALID_HANDLE;
   }
-
-  if (--entry->handle_ref_count == 0) {
-    // No more references. Remove it from the table.
-    return RemoveHandle(handle);
+  ObjectRecord* record = source->record;
+  u32 index = 0;
+  if (X_STATUS status = AllocateSlot(&index); XFAILED(status)) {
+    return status;
   }
-
-  // FIXME: Return a status code telling the caller it wasn't released
-  // (but not a failure code)
+  const X_HANDLE copy = kHandleBase + (index << 2);
+  slots_[index] = Slot{record, 1};
+  record->handles.push_back(copy);
+  if (out_handle) {
+    *out_handle = copy;
+  }
   return X_STATUS_SUCCESS;
 }
 
-X_STATUS ObjectTable::RemoveHandle(X_HANDLE handle) {
-  X_STATUS result = X_STATUS_SUCCESS;
+ObjectRecord* ObjectTable::Detach(Slot& slot, X_HANDLE handle) {
+  ObjectRecord* record = slot.record;
+  slot = Slot{};
+  auto handle_entry = std::find(record->handles.begin(), record->handles.end(), handle);
+  if (handle_entry != record->handles.end()) {
+    record->handles.erase(handle_entry);
+  }
+  if (!record->name.empty()) {
+    RemoveName(record->name);
+  }
+  if (!record->handles.empty()) {
+    return nullptr;
+  }
+  auto owned = records_.find(record);
+  ObjectRecord* released = owned->second.release();
+  records_.erase(owned);
+  return released;
+}
 
-  handle = TranslateHandle(handle);
+X_STATUS ObjectTable::Retain(X_HANDLE handle) {
+  handle = Translate(handle);
+  std::unique_lock lock(mutex_);
+  Slot* slot = FindSlot(handle);
+  if (!slot) {
+    return X_STATUS_INVALID_HANDLE;
+  }
+  ++slot->ref_count;
+  return X_STATUS_SUCCESS;
+}
+
+X_STATUS ObjectTable::Close(X_HANDLE handle) {
+  handle = Translate(handle);
   if (!handle) {
     return X_STATUS_INVALID_HANDLE;
   }
-
-  ObjectTableEntry* entry = LookupTable(handle);
-  if (!entry) {
-    return X_STATUS_INVALID_HANDLE;
-  }
-
-  auto global_lock = global_critical_region_.Acquire();
-  if (entry->object) {
-    auto object = entry->object;
-    entry->object = nullptr;
-    assert_zero(entry->handle_ref_count);
-    entry->handle_ref_count = 0;
-
-    // Walk the object's handles and remove this one.
-    auto handle_entry = std::find(object->handles().begin(), object->handles().end(), handle);
-    if (handle_entry != object->handles().end()) {
-      object->handles().erase(handle_entry);
+  ObjectRecord* retired = nullptr;
+  {
+    std::unique_lock lock(mutex_);
+    Slot* slot = FindSlot(handle);
+    if (!slot) {
+      return X_STATUS_INVALID_HANDLE;
     }
-
-    REXLOG_DEV(system, "Removed handle:{:08X} for {}", handle, typeid(*object).name());
-
-    // Remove object name from mapping to prevent naming collision.
-    if (!object->name().empty()) {
-      RemoveNameMapping(object->name());
+    if (--slot->ref_count != 0) {
+      return X_STATUS_SUCCESS;
     }
-    // Release now that the object has been removed from the table.
-    object->Release();
+    retired = Detach(*slot, handle);
   }
-
+  if (retired) {
+    Retire(retired);
+  }
   return X_STATUS_SUCCESS;
 }
 
-std::vector<object_ref<XObject>> ObjectTable::GetAllObjects() {
-  auto lock = global_critical_region_.Acquire();
-  std::vector<object_ref<XObject>> results;
-
-  for (uint32_t slot = 0; slot < table_capacity_; slot++) {
-    auto& entry = table_[slot];
-    if (entry.object && std::find(results.begin(), results.end(), entry.object) == results.end()) {
-      entry.object->Retain();
-      results.push_back(object_ref<XObject>(entry.object));
-    }
+X_STATUS ObjectTable::Remove(X_HANDLE handle) {
+  handle = Translate(handle);
+  if (!handle) {
+    return X_STATUS_INVALID_HANDLE;
   }
+  ObjectRecord* retired = nullptr;
+  {
+    std::unique_lock lock(mutex_);
+    Slot* slot = FindSlot(handle);
+    if (!slot) {
+      return X_STATUS_INVALID_HANDLE;
+    }
+    slot->ref_count = 0;
+    retired = Detach(*slot, handle);
+  }
+  if (retired) {
+    Retire(retired);
+  }
+  return X_STATUS_SUCCESS;
+}
 
+X_STATUS ObjectTable::RetainPrimary(const PinnedSlot& slot) {
+  std::unique_lock lock(mutex_);
+  const ObjectRecord& record = slot.record();
+  if (record.handles.empty()) {
+    return X_STATUS_INVALID_HANDLE;
+  }
+  Slot* primary = FindSlot(record.handles.front());
+  if (!primary) {
+    return X_STATUS_INVALID_HANDLE;
+  }
+  ++primary->ref_count;
+  return X_STATUS_SUCCESS;
+}
+
+X_STATUS ObjectTable::ReleasePrimary(const PinnedSlot& slot) {
+  const X_HANDLE primary = PrimaryHandle(slot);
+  return primary ? Close(primary) : X_STATUS_INVALID_HANDLE;
+}
+
+X_HANDLE ObjectTable::PrimaryHandle(const PinnedSlot& slot) {
+  std::shared_lock lock(mutex_);
+  const std::vector<X_HANDLE>& handles = slot.record().handles;
+  return handles.empty() ? 0 : handles.front();
+}
+
+PinnedSlot ObjectTable::Get(X_HANDLE handle) {
+  handle = Translate(handle);
+  if (!handle) {
+    return {};
+  }
+  std::shared_lock lock(mutex_);
+  Slot* slot = FindSlot(handle);
+  if (!slot) {
+    return {};
+  }
+  slot->record->pins.Pin();
+  return PinnedSlot(slot->record, handle);
+}
+
+std::vector<PinnedSlot> ObjectTable::GetAll() {
+  std::vector<PinnedSlot> results;
+  std::shared_lock lock(mutex_);
+  results.reserve(records_.size());
+  for (auto& [raw, owned] : records_) {
+    raw->pins.Pin();
+    results.emplace_back(raw, raw->handles.empty() ? 0 : raw->handles.front());
+  }
   return results;
 }
 
-void ObjectTable::PurgeAllObjects() {
-  auto lock = global_critical_region_.Acquire();
-  for (uint32_t slot = 0; slot < table_capacity_; slot++) {
-    auto& entry = table_[slot];
-    if (entry.object && !entry.object->is_host_object()) {
-      entry.handle_ref_count = 0;
-      entry.object->Release();
-
-      entry.object = nullptr;
-    }
-  }
-}
-
-ObjectTable::ObjectTableEntry* ObjectTable::LookupTable(X_HANDLE handle) {
-  handle = TranslateHandle(handle);
-  if (!handle) {
-    return nullptr;
-  }
-
-  auto global_lock = global_critical_region_.Acquire();
-
-  // Lower 2 bits are ignored.
-  uint32_t slot = GetHandleSlot(handle);
-  if (slot < table_capacity_) {
-    return &table_[slot];
-  }
-
-  return nullptr;
-}
-
-// Generic lookup
-template <>
-object_ref<XObject> ObjectTable::LookupObject<XObject>(X_HANDLE handle) {
-  auto object = ObjectTable::LookupObject(handle, false);
-  auto result = object_ref<XObject>(reinterpret_cast<XObject*>(object));
-  return result;
-}
-
-XObject* ObjectTable::LookupObject(X_HANDLE handle, bool already_locked) {
-  handle = TranslateHandle(handle);
-  if (!handle) {
-    return nullptr;
-  }
-
-  XObject* object = nullptr;
-  if (!already_locked) {
-    global_critical_region_.mutex().lock();
-  }
-
-  // Lower 2 bits are ignored.
-  uint32_t slot = GetHandleSlot(handle);
-
-  // Verify slot.
-  if (slot < table_capacity_) {
-    ObjectTableEntry& entry = table_[slot];
-    if (entry.object) {
-      object = entry.object;
-    }
-  }
-
-  // Retain the object pointer.
-  if (object) {
-    object->Retain();
-  }
-
-  if (!already_locked) {
-    global_critical_region_.mutex().unlock();
-  }
-
-  return object;
-}
-
-void ObjectTable::GetObjectsByType(XObject::Type type, std::vector<object_ref<XObject>>* results) {
-  auto global_lock = global_critical_region_.Acquire();
-  for (uint32_t slot = 0; slot < table_capacity_; ++slot) {
-    auto& entry = table_[slot];
-    if (entry.object) {
-      if (entry.object->type() == type) {
-        entry.object->Retain();
-        results->push_back(object_ref<XObject>(entry.object));
-      }
-    }
-  }
-}
-
-X_HANDLE ObjectTable::TranslateHandle(X_HANDLE handle) {
-  if (handle == 0xFFFFFFFF) {
-    // CurrentProcess
-    // assert_always();
-    return 0;
-  } else if (handle == 0xFFFFFFFE) {
-    // CurrentThread
-    return XThread::GetCurrentThreadHandle();
-  } else {
-    return handle;
-  }
-}
-
-X_STATUS ObjectTable::AddNameMapping(const std::string_view name, X_HANDLE handle) {
-  std::lock_guard<std::mutex> name_lock(name_mutex_);
-  if (name_table_.count(string_key_case(name))) {
+X_STATUS ObjectTable::AddName(std::string_view name, X_HANDLE handle) {
+  std::lock_guard lock(name_mutex_);
+  if (names_.count(string_key_case(name))) {
     return X_STATUS_OBJECT_NAME_COLLISION;
   }
-  name_table_.insert({string_key_case::create(name), handle});
+  names_.insert({string_key_case::create(name), handle});
   return X_STATUS_SUCCESS;
 }
 
-void ObjectTable::RemoveNameMapping(const std::string_view name) {
-  // Names are case-insensitive.
-  std::lock_guard<std::mutex> name_lock(name_mutex_);
-  auto it = name_table_.find(string_key_case(name));
-  if (it != name_table_.end()) {
-    name_table_.erase(it);
+void ObjectTable::RemoveName(std::string_view name) {
+  std::lock_guard lock(name_mutex_);
+  auto it = names_.find(string_key_case(name));
+  if (it != names_.end()) {
+    names_.erase(it);
   }
 }
 
-X_STATUS ObjectTable::GetObjectByName(const std::string_view name, X_HANDLE* out_handle) {
-  // Names are case-insensitive.
-  // Look up handle under name lock only -- do NOT hold name_mutex_ while
-  // acquiring global lock (RemoveHandle takes global -> name ordering).
-  X_HANDLE handle;
+X_STATUS ObjectTable::OpenByName(std::string_view name, X_HANDLE* out_handle) {
+  std::unique_lock lock(mutex_);
+  X_HANDLE handle = X_INVALID_HANDLE_VALUE;
   {
-    std::lock_guard<std::mutex> name_lock(name_mutex_);
-    auto it = name_table_.find(string_key_case(name));
-    if (it == name_table_.end()) {
-      *out_handle = X_INVALID_HANDLE_VALUE;
-      return X_STATUS_OBJECT_NAME_NOT_FOUND;
+    std::lock_guard name_lock(name_mutex_);
+    auto it = names_.find(string_key_case(name));
+    if (it != names_.end()) {
+      handle = it->second;
     }
-    handle = it->second;
+  }
+  Slot* slot = handle == X_INVALID_HANDLE_VALUE ? nullptr : FindSlot(handle);
+  if (!slot) {
+    *out_handle = X_INVALID_HANDLE_VALUE;
+    return X_STATUS_OBJECT_NAME_NOT_FOUND;
   }
   *out_handle = handle;
-
-  // Retain under global lock via normal LookupObject path.
-  // The handle may have been removed between releasing name_mutex_ and
-  // acquiring global lock -- LookupObject returns nullptr in that case.
-  auto obj = LookupObject(handle, false);
-  if (obj) {
-    obj->RetainHandle();
-    obj->Release();
-  }
-
-  return X_STATUS_SUCCESS;
-}
-
-X_STATUS ObjectTable::RestoreHandle(X_HANDLE handle, XObject* object) {
-  uint32_t slot = GetHandleSlot(handle);
-  assert_true(table_capacity_ > slot);
-
-  if (table_capacity_ > slot) {
-    auto& entry = table_[slot];
-    entry.object = object;
-    object->Retain();
-  }
-
+  Slot* primary = FindSlot(slot->record->handles.front());
+  ++primary->ref_count;
   return X_STATUS_SUCCESS;
 }
 

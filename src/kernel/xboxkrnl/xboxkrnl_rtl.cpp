@@ -309,7 +309,7 @@ u32 RtlImageXexHeaderField_entry(ppc_ptr_t<xex2_header> xex_header, u32 field_dw
   uint32_t field_value = 0;
   uint32_t field = field_dword;  // VS acts weird going from u32 -> enum
 
-  UserModule::GetOptHeader(REX_KERNEL_MEMORY(), xex_header, xex2_header_keys(field), &field_value);
+  UserModuleGetOptHeader(REX_KERNEL_MEMORY(), xex_header, xex2_header_keys(field), &field_value);
 
   return field_value;
 }
@@ -384,7 +384,7 @@ u32 RtlInitializeCriticalSectionAndSpinCount_entry(ppc_ptr_t<X_RTL_CRITICAL_SECT
 }
 
 void RtlEnterCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
-  uint32_t cur_thread = XThread::GetCurrentThread()->guest_object();
+  uint32_t cur_thread = ThreadRecord::GetCurrentThread()->guest_object();
   uint32_t spin_count = cs->header.absolute * 256;
 
   if (cs->owning_thread == cur_thread) {
@@ -415,7 +415,7 @@ void RtlEnterCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
 }
 
 u32 RtlTryEnterCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
-  uint32_t thread = XThread::GetCurrentThread()->guest_object();
+  uint32_t thread = ThreadRecord::GetCurrentThread()->guest_object();
 
   if (rex::platform::atomic_cas(-1, 0, &cs->lock_count)) {
     // Able to steal the lock right away.
@@ -434,7 +434,7 @@ u32 RtlTryEnterCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
 }
 
 void RtlLeaveCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
-  assert_true(cs->owning_thread == XThread::GetCurrentThread()->guest_object());
+  assert_true(cs->owning_thread == ThreadRecord::GetCurrentThread()->guest_object());
 
   // Drop recursion count - if it isn't zero we still have the lock.
   assert_true(cs->recursion_count > 0);

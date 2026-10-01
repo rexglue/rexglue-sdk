@@ -16,29 +16,14 @@
 #include <rex/system/kernel_module.h>
 #include <rex/system/kernel_state.h>
 
-namespace rex {
-namespace kernel {
-namespace xam {
+namespace rex::kernel::xam {
 
-class XamModule : public system::KernelModule {
- public:
-  XamModule(Runtime* emulator, system::KernelState* kernel_state);
-  virtual ~XamModule();
+/**
+ * Creates the xam kernel module.
+ *
+ * @param kernel_state The kernel state.
+ * @return The handle with a count of 1, 0 when the table cannot grow.
+ */
+X_HANDLE CreateXamModule(system::KernelState* kernel_state);
 
-  struct LoaderData {
-    bool launch_data_present = false;
-    std::vector<uint8_t> launch_data;
-    uint32_t launch_flags = 0;
-    std::string launch_path;  // Full path to next xex
-  };
-
-  const LoaderData& loader_data() const { return loader_data_; }
-  LoaderData& loader_data() { return loader_data_; }
-
- private:
-  LoaderData loader_data_;
-};
-
-}  // namespace xam
-}  // namespace kernel
-}  // namespace rex
+}  // namespace rex::kernel::xam

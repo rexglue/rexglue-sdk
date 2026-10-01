@@ -10,15 +10,30 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <memory>
+
 #include <rex/logging.h>
 
 namespace rex::testing {
 
+namespace {
+std::unique_ptr<rex::memory::Memory> g_memory;
+}  // namespace
+
 rex::memory::Memory& GetTestMemory() {
-  static rex::memory::Memory memory;
-  static bool initialized = memory.Initialize();
-  REQUIRE(initialized);
-  return memory;
+  if (!g_memory) {
+    g_memory = std::make_unique<rex::memory::Memory>();
+    const bool initialized = g_memory->Initialize();
+    if (!initialized) {
+      g_memory.reset();
+    }
+    REQUIRE(initialized);
+  }
+  return *g_memory;
+}
+
+void ReleaseTestMemory() {
+  g_memory.reset();
 }
 
 }  // namespace rex::testing

@@ -17,6 +17,7 @@
 #include <rex/dbg.h>
 #include <rex/logging.h>
 #include <rex/perf/counter.h>
+#include <rex/platform/interrupt_mask.h>
 #include <rex/memory.h>
 #include <rex/ppc/context.h>
 #include <rex/runtime.h>
@@ -142,8 +143,7 @@ uint64_t FunctionDispatcher::ExecuteInterrupt(ThreadState* thread_state, uint32_
   REX_PROFILE_SCOPE("cpu");
   REX_PERF_INC(kInterruptDispatches);
 
-  // Hold the global lock during interrupt dispatch.
-  auto global_lock = global_critical_region_.Acquire();
+  rex::platform::InterruptMask::Guard mask;
 
   auto* ctx = thread_state->context();
   assert_true(arg_count <= 5);

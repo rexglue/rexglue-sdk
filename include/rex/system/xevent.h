@@ -10,9 +10,11 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <memory>
+
+#include <rex/platform/thread.h>
 #include <rex/system/xobject.h>
 #include <rex/system/xtypes.h>
-#include <rex/platform/thread.h>
 
 namespace rex::system {
 
@@ -22,29 +24,55 @@ struct X_KEVENT {
 };
 static_assert_size(X_KEVENT, 0x10);
 
-class XEvent : public XObject {
- public:
-  static const XObject::Type kObjectType = XObject::Type::Event;
+/** The host state of an event object. */
+struct EventObject {
+  /**
+   * @param manual_reset_in True for a notification event, false for a synchronization event.
+   * @param initial_state True when the event starts signaled.
+   */
+  EventObject(bool manual_reset_in, bool initial_state);
 
-  explicit XEvent(KernelState* kernel_state);
-  ~XEvent() override;
+  /**
+   * @param header The dispatch header of a title event, whose type and signal state seed the
+   * object.
+   */
+  explicit EventObject(const X_DISPATCH_HEADER& header);
 
-  void Initialize(bool manual_reset, bool initial_state);
-  void InitializeNative(void* native_ptr, X_DISPATCH_HEADER* header);
-
-  void Query(uint32_t* out_type, uint32_t* out_state);
-
-  int32_t Set(uint32_t priority_increment, bool wait);
-  int32_t Pulse(uint32_t priority_increment, bool wait);
-  int32_t Reset();
-  void Clear();
-
- protected:
-  rex::platform::WaitHandle* GetWaitHandle() override { return event_.get(); }
-
- private:
-  bool manual_reset_ = false;
-  std::unique_ptr<rex::platform::Event> event_;
+  bool manual_reset = false;
+  std::unique_ptr<rex::platform::Event> event;
 };
+
+/**
+ * Reads the type and the live state of an event.
+ *
+ * @param event The event.
+ * @param out_type Receives 0 for a manual reset event and 1 otherwise, may be null.
+ * @param out_state Receives 1 when signaled and 0 otherwise, may be null.
+ */
+void EventQuery(EventObject& event, u32* out_type, u32* out_state);
+
+/**
+ * Signals an event.
+ *
+ * @param event The event.
+ * @return The previous state as the kernel reports it, always 1.
+ */
+i32 EventSet(EventObject& event);
+
+/**
+ * Signals an event and releases the current waiters.
+ *
+ * @param event The event.
+ * @return The previous state as the kernel reports it, always 1.
+ */
+i32 EventPulse(EventObject& event);
+
+/**
+ * Clears an event.
+ *
+ * @param event The event.
+ * @return The previous state as the kernel reports it, always 1.
+ */
+i32 EventReset(EventObject& event);
 
 }  // namespace rex::system

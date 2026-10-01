@@ -522,8 +522,17 @@ runtime::MMIORange* Memory::LookupVirtualMappedRange(uint32_t virtual_address) {
   return mmio_handler_->LookupRange(virtual_address);
 }
 
-bool Memory::AccessViolationCallback(std::unique_lock<std::recursive_mutex> global_lock_locked_once,
-                                     void* host_address, bool is_write) {
+bool Memory::AccessViolationCallback(void* host_address, bool is_write) {
+  std::unique_lock lock(watch_mutex_);
+  {
+    rex::memory::PageAccess cur_access;
+    size_t page_length = rex::memory::page_size();
+    rex::memory::QueryProtect(host_address, page_length, cur_access);
+    if (cur_access != rex::memory::PageAccess::kNoAccess &&
+        (!is_write || cur_access != rex::memory::PageAccess::kReadOnly)) {
+      return true;
+    }
+  }
   // Access via physical_membase_ is special, when need to bypass everything
   // (for instance, for a data provider to actually write the data) so only
   // triggering callbacks on virtual memory regions.
@@ -541,16 +550,13 @@ bool Memory::AccessViolationCallback(std::unique_lock<std::recursive_mutex> glob
         rex::platform::current_thread_id());
   }
 
-  // Access violation callbacks from the guest are triggered when the global
-  // critical region mutex is locked once.
-  //
   // Will be rounded to physical page boundaries internally, so just pass 1 as
   // the length - guranteed not to cross page boundaries also.
   auto physical_heap = static_cast<PhysicalHeap*>(heap);
-  if (physical_heap->TriggerCallbacks(std::move(global_lock_locked_once), virtual_address, 1,
-                                      is_write, false)) {
+  if (physical_heap->TriggerCallbacksLocked(virtual_address, 1, is_write, false)) {
     return true;
   }
+  lock.unlock();
 
   // Recovery path for stale host protection state in physical memory:
   // if guest metadata says the page is writable but host protection is still
@@ -625,24 +631,22 @@ bool Memory::AccessViolationCallback(std::unique_lock<std::recursive_mutex> glob
   return false;
 }
 
-bool Memory::AccessViolationCallbackThunk(
-    std::unique_lock<std::recursive_mutex> global_lock_locked_once, void* context,
-    void* host_address, bool is_write) {
-  return reinterpret_cast<memory::Memory*>(context)->AccessViolationCallback(
-      std::move(global_lock_locked_once), host_address, is_write);
+bool Memory::AccessViolationCallbackThunk(void* context, void* host_address, bool is_write) {
+  return reinterpret_cast<memory::Memory*>(context)->AccessViolationCallback(host_address,
+                                                                             is_write);
 }
 
-bool Memory::TriggerPhysicalMemoryCallbacks(
-    std::unique_lock<std::recursive_mutex> global_lock_locked_once, uint32_t virtual_address,
-    uint32_t length, bool is_write, bool unwatch_exact_range, bool unprotect) {
+bool Memory::TriggerPhysicalMemoryCallbacks(uint32_t virtual_address, uint32_t length,
+                                            bool is_write, bool unwatch_exact_range,
+                                            bool unprotect) {
   BaseHeap* heap = LookupHeap(virtual_address);
   if (!heap) {
     return false;
   }
   if (heap->heap_type() == memory::HeapType::kGuestPhysical) {
     auto physical_heap = static_cast<PhysicalHeap*>(heap);
-    return physical_heap->TriggerCallbacks(std::move(global_lock_locked_once), virtual_address,
-                                           length, is_write, unwatch_exact_range, unprotect);
+    return physical_heap->TriggerCallbacks(virtual_address, length, is_write, unwatch_exact_range,
+                                           unprotect);
   }
   return false;
 }
@@ -650,7 +654,7 @@ bool Memory::TriggerPhysicalMemoryCallbacks(
 void* Memory::RegisterPhysicalMemoryInvalidationCallback(
     PhysicalMemoryInvalidationCallback callback, void* callback_context) {
   auto entry = new std::pair<PhysicalMemoryInvalidationCallback, void*>(callback, callback_context);
-  auto lock = global_critical_region_.Acquire();
+  std::lock_guard lock(watch_mutex_);
   physical_memory_invalidation_callbacks_.push_back(entry);
   return entry;
 }
@@ -659,7 +663,7 @@ void Memory::UnregisterPhysicalMemoryInvalidationCallback(void* callback_handle)
   auto entry =
       reinterpret_cast<std::pair<PhysicalMemoryInvalidationCallback, void*>*>(callback_handle);
   {
-    auto lock = global_critical_region_.Acquire();
+    std::lock_guard lock(watch_mutex_);
     auto it = std::find(physical_memory_invalidation_callbacks_.begin(),
                         physical_memory_invalidation_callbacks_.end(), entry);
     assert_true(it != physical_memory_invalidation_callbacks_.end());
@@ -878,11 +882,11 @@ BaseHeap::BaseHeap() : membase_(nullptr), heap_base_(0), heap_size_(0), page_siz
 
 BaseHeap::~BaseHeap() = default;
 
-std::unique_lock<std::recursive_mutex> BaseHeap::AcquireHostPageReconcileLock() const {
+std::unique_lock<rex::platform::RankedMutex> BaseHeap::AcquireHostPageReconcileLock() const {
   if (page_size_ >= memory_->system_page_size_) {
     return {};
   }
-  return rex::platform::global_critical_region::AcquireDirect();
+  return std::unique_lock(memory_->watch_mutex_);
 }
 
 bool BaseHeap::SyncHostPageAccess(uint32_t start_page_number, uint32_t end_page_number) {
@@ -890,10 +894,6 @@ bool BaseHeap::SyncHostPageAccess(uint32_t start_page_number, uint32_t end_page_
   if (page_size_ >= host_page_size) {
     return true;
   }
-
-  // The global critical region guards the watch flags read below and must
-  // already be held by the caller (AcquireHostPageReconcileLock), acquired
-  // ahead of heap_mutex_ so this never inverts against PhysicalHeap.
 
   // Multiple guest pages may share one host page. Keep the guest page table as
   // the source of truth, then grant the host page the union of the access needed
@@ -1154,6 +1154,12 @@ bool BaseHeap::AllocSystemHeap(uint32_t size, uint32_t alignment, uint32_t alloc
 
 bool BaseHeap::AllocFixed(uint32_t base_address, uint32_t size, uint32_t alignment,
                           uint32_t allocation_type, uint32_t protect) {
+  auto reconcile_lock = AcquireHostPageReconcileLock();
+  return AllocFixedLocked(base_address, size, alignment, allocation_type, protect);
+}
+
+bool BaseHeap::AllocFixedLocked(uint32_t base_address, uint32_t size, uint32_t alignment,
+                                uint32_t allocation_type, uint32_t protect) {
   alignment = rex::round_up(alignment, page_size_);
   if (base_address % alignment != 0) {
     if (base_address % page_size_ != 0) {
@@ -1178,9 +1184,6 @@ bool BaseHeap::AllocFixed(uint32_t base_address, uint32_t size, uint32_t alignme
     REX_FAIL(system, false, "BaseHeap::AllocFixed passed out of range address range");
   }
 
-  // Global critical region before heap_mutex_ - see
-  // AcquireHostPageReconcileLock for why the order matters.
-  auto global_lock = AcquireHostPageReconcileLock();
   std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
 
   // - If we are reserving the entire range requested must not be already
@@ -1253,6 +1256,14 @@ bool BaseHeap::AllocFixed(uint32_t base_address, uint32_t size, uint32_t alignme
 bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address, uint32_t size,
                           uint32_t alignment, uint32_t allocation_type, uint32_t protect,
                           bool top_down, uint32_t* out_address) {
+  auto reconcile_lock = AcquireHostPageReconcileLock();
+  return AllocRangeLocked(low_address, high_address, size, alignment, allocation_type, protect,
+                          top_down, out_address);
+}
+
+bool BaseHeap::AllocRangeLocked(uint32_t low_address, uint32_t high_address, uint32_t size,
+                                uint32_t alignment, uint32_t allocation_type, uint32_t protect,
+                                bool top_down, uint32_t* out_address) {
   *out_address = 0;
 
   alignment = rex::round_up(alignment, page_size_);
@@ -1275,9 +1286,6 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address, uint32_t 
     REX_FAIL(system, false, "BaseHeap::Alloc page count too big for requested range");
   }
 
-  // Global critical region before heap_mutex_ - see
-  // AcquireHostPageReconcileLock for why the order matters.
-  auto global_lock = AcquireHostPageReconcileLock();
   std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
 
   // Find a free page range.
@@ -1409,15 +1417,17 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address, uint32_t 
 }
 
 bool BaseHeap::Decommit(uint32_t address, uint32_t size) {
+  auto reconcile_lock = AcquireHostPageReconcileLock();
+  return DecommitLocked(address, size);
+}
+
+bool BaseHeap::DecommitLocked(uint32_t address, uint32_t size) {
   uint32_t page_count = get_page_count(size, page_size_, page_size_shift_);
   uint32_t start_page_number = (address - heap_base_) >> page_size_shift_;
   uint32_t end_page_number = start_page_number + page_count - 1;
   start_page_number = std::min(uint32_t(page_table_.size()) - 1, start_page_number);
   end_page_number = std::min(uint32_t(page_table_.size()) - 1, end_page_number);
 
-  // Global critical region before heap_mutex_ - see
-  // AcquireHostPageReconcileLock for why the order matters.
-  auto global_lock = AcquireHostPageReconcileLock();
   std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
 
   // Release from host.
@@ -1445,9 +1455,11 @@ bool BaseHeap::Decommit(uint32_t address, uint32_t size) {
 }
 
 bool BaseHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
-  // Global critical region before heap_mutex_ - see
-  // AcquireHostPageReconcileLock for why the order matters.
-  auto global_lock = AcquireHostPageReconcileLock();
+  auto reconcile_lock = AcquireHostPageReconcileLock();
+  return ReleaseLocked(base_address, out_region_size);
+}
+
+bool BaseHeap::ReleaseLocked(uint32_t base_address, uint32_t* out_region_size) {
   std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
 
   // Given address must be a region base address.
@@ -1505,6 +1517,12 @@ bool BaseHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
 }
 
 bool BaseHeap::Protect(uint32_t address, uint32_t size, uint32_t protect, uint32_t* old_protect) {
+  auto reconcile_lock = AcquireHostPageReconcileLock();
+  return ProtectLocked(address, size, protect, old_protect);
+}
+
+bool BaseHeap::ProtectLocked(uint32_t address, uint32_t size, uint32_t protect,
+                             uint32_t* old_protect) {
   if (!size) {
     REX_FAIL(system, false, "BaseHeap::Protect failed due to zero size");
   }
@@ -1535,9 +1553,6 @@ bool BaseHeap::Protect(uint32_t address, uint32_t size, uint32_t protect, uint32
              size, address);
   }
 
-  // Global critical region before heap_mutex_ - see
-  // AcquireHostPageReconcileLock for why the order matters.
-  auto global_lock = AcquireHostPageReconcileLock();
   std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
 
   // Ensure all pages are in the same reserved region and all are committed.
@@ -1755,24 +1770,22 @@ bool PhysicalHeap::Alloc(uint32_t size, uint32_t alignment, uint32_t allocation_
   size = rex::round_up(size, page_size_);
   alignment = rex::round_up(alignment, page_size_);
 
-  // Global critical region before heap_mutex_ - see
-  // AcquireHostPageReconcileLock for why the order matters.
-  auto global_lock = AcquireHostPageReconcileLock();
+  auto reconcile_lock = AcquireHostPageReconcileLock();
   std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
 
   // Allocate from parent heap (gets our physical address in 0-512mb).
   uint32_t parent_heap_start = GetPhysicalAddress(heap_base_);
   uint32_t parent_heap_end = GetPhysicalAddress(heap_base_ + (heap_size_ - 1));
   uint32_t parent_address;
-  if (!parent_heap_->AllocRange(parent_heap_start, parent_heap_end, size, alignment,
-                                allocation_type, protect, top_down, &parent_address)) {
+  if (!parent_heap_->AllocRangeLocked(parent_heap_start, parent_heap_end, size, alignment,
+                                      allocation_type, protect, top_down, &parent_address)) {
     REX_FAIL(system, false, "PhysicalHeap::Alloc unable to alloc physical memory in parent heap");
   }
 
   // Given the address we've reserved in the parent heap, pin that here.
   // Shouldn't be possible for it to be allocated already.
   uint32_t address = heap_base_ + parent_address - parent_heap_start;
-  if (!BaseHeap::AllocFixed(address, size, alignment, allocation_type, protect)) {
+  if (!BaseHeap::AllocFixedLocked(address, size, alignment, allocation_type, protect)) {
     REXLOG_ERROR(system, "PhysicalHeap::Alloc unable to pin physical memory in physical heap");
     // TODO(benvanik): don't leak parent memory.
     return false;
@@ -1787,9 +1800,7 @@ bool PhysicalHeap::AllocFixed(uint32_t base_address, uint32_t size, uint32_t ali
   size = rex::round_up(size, page_size_);
   alignment = rex::round_up(alignment, page_size_);
 
-  // Global critical region before heap_mutex_ - see
-  // AcquireHostPageReconcileLock for why the order matters.
-  auto global_lock = AcquireHostPageReconcileLock();
+  auto reconcile_lock = AcquireHostPageReconcileLock();
   std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
 
   // Allocate from parent heap (gets our physical address in 0-512mb).
@@ -1797,14 +1808,15 @@ bool PhysicalHeap::AllocFixed(uint32_t base_address, uint32_t size, uint32_t ali
   // committed pages in the requested physical range.
   // TODO(benvanik): flag for ensure-not-committed?
   uint32_t parent_base_address = GetPhysicalAddress(base_address);
-  if (!parent_heap_->AllocFixed(parent_base_address, size, alignment, allocation_type, protect)) {
+  if (!parent_heap_->AllocFixedLocked(parent_base_address, size, alignment, allocation_type,
+                                      protect)) {
     REX_FAIL(system, false, "PhysicalHeap::Alloc unable to alloc physical memory in parent heap");
   }
 
   // Given the address we've reserved in the parent heap, pin that here.
   // Shouldn't be possible for it to be allocated already.
   uint32_t address = heap_base_ + parent_base_address - GetPhysicalAddress(heap_base_);
-  if (!BaseHeap::AllocFixed(address, size, page_size_, allocation_type, protect)) {
+  if (!BaseHeap::AllocFixedLocked(address, size, page_size_, allocation_type, protect)) {
     REXLOG_ERROR(system, "PhysicalHeap::Alloc unable to pin physical memory in physical heap");
     // TODO(benvanik): don't leak parent memory.
     return false;
@@ -1822,9 +1834,7 @@ bool PhysicalHeap::AllocRange(uint32_t low_address, uint32_t high_address, uint3
   size = rex::round_up(size, page_size_);
   alignment = rex::round_up(alignment, page_size_);
 
-  // Global critical region before heap_mutex_ - see
-  // AcquireHostPageReconcileLock for why the order matters.
-  auto global_lock = AcquireHostPageReconcileLock();
+  auto reconcile_lock = AcquireHostPageReconcileLock();
   std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
 
   // Allocate from parent heap (gets our physical address in 0-512mb).
@@ -1833,15 +1843,15 @@ bool PhysicalHeap::AllocRange(uint32_t low_address, uint32_t high_address, uint3
   uint32_t parent_low_address = GetPhysicalAddress(low_address);
   uint32_t parent_high_address = GetPhysicalAddress(high_address);
   uint32_t parent_address;
-  if (!parent_heap_->AllocRange(parent_low_address, parent_high_address, size, alignment,
-                                allocation_type, protect, top_down, &parent_address)) {
+  if (!parent_heap_->AllocRangeLocked(parent_low_address, parent_high_address, size, alignment,
+                                      allocation_type, protect, top_down, &parent_address)) {
     REX_FAIL(system, false, "PhysicalHeap::Alloc unable to alloc physical memory in parent heap");
   }
 
   // Given the address we've reserved in the parent heap, pin that here.
   // Shouldn't be possible for it to be allocated already.
   uint32_t address = heap_base_ + parent_address - GetPhysicalAddress(heap_base_);
-  if (!BaseHeap::AllocFixed(address, size, page_size_, allocation_type, protect)) {
+  if (!BaseHeap::AllocFixedLocked(address, size, page_size_, allocation_type, protect)) {
     REXLOG_ERROR(system, "PhysicalHeap::Alloc unable to pin physical memory in physical heap");
     // TODO(benvanik): don't leak parent memory.
     return false;
@@ -1856,24 +1866,24 @@ bool PhysicalHeap::AllocSystemHeap(uint32_t size, uint32_t alignment, uint32_t a
 }
 
 bool PhysicalHeap::Decommit(uint32_t address, uint32_t size) {
-  auto global_lock = global_critical_region_.Acquire();
+  std::lock_guard lock(memory_->watch_mutex_);
 
   uint32_t parent_address = GetPhysicalAddress(address);
-  if (!parent_heap_->Decommit(parent_address, size)) {
+  if (!parent_heap_->DecommitLocked(parent_address, size)) {
     REX_FAIL(system, false, "PhysicalHeap::Decommit failed due to parent heap failure");
   }
 
   // Not caring about the contents anymore.
-  TriggerCallbacks(std::move(global_lock), address, size, true, true);
+  TriggerCallbacksLocked(address, size, true, true);
 
-  return BaseHeap::Decommit(address, size);
+  return BaseHeap::DecommitLocked(address, size);
 }
 
 bool PhysicalHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
-  auto global_lock = global_critical_region_.Acquire();
+  std::lock_guard lock(memory_->watch_mutex_);
 
   uint32_t parent_base_address = GetPhysicalAddress(base_address);
-  if (!parent_heap_->Release(parent_base_address, out_region_size)) {
+  if (!parent_heap_->ReleaseLocked(parent_base_address, out_region_size)) {
     REX_FAIL(system, false, "PhysicalHeap::Release failed due to parent heap failure");
   }
 
@@ -1887,27 +1897,27 @@ bool PhysicalHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
   // thus callback handlers will keep considering this range valid forever.
   uint32_t region_size;
   if (QuerySize(base_address, &region_size)) {
-    TriggerCallbacks(std::move(global_lock), base_address, region_size, true, true);
+    TriggerCallbacksLocked(base_address, region_size, true, true);
   }
 
-  return BaseHeap::Release(base_address, out_region_size);
+  return BaseHeap::ReleaseLocked(base_address, out_region_size);
 }
 
 bool PhysicalHeap::Protect(uint32_t address, uint32_t size, uint32_t protect,
                            uint32_t* old_protect) {
-  auto global_lock = global_critical_region_.Acquire();
+  std::lock_guard lock(memory_->watch_mutex_);
 
   // Only invalidate if making writable again, for simplicity - not when simply
   // marking some range as immutable, for instance.
   if (protect & memory::kMemoryProtectWrite) {
-    TriggerCallbacks(std::move(global_lock), address, size, true, true, false);
+    TriggerCallbacksLocked(address, size, true, true, false);
   }
 
-  if (!parent_heap_->Protect(GetPhysicalAddress(address), size, protect, old_protect)) {
+  if (!parent_heap_->ProtectLocked(GetPhysicalAddress(address), size, protect, old_protect)) {
     REX_FAIL(system, false, "PhysicalHeap::Protect failed due to parent heap failure");
   }
 
-  return BaseHeap::Protect(address, size, protect);
+  return BaseHeap::ProtectLocked(address, size, protect, nullptr);
 }
 
 void PhysicalHeap::EnableAccessCallbacks(uint32_t physical_address, uint32_t length,
@@ -1948,7 +1958,7 @@ void PhysicalHeap::EnableAccessCallbacks(uint32_t physical_address, uint32_t len
                                                : rex::memory::PageAccess::kReadOnly;
   uint8_t* protect_base = membase_ + heap_base_;
   uint32_t protect_system_page_first = UINT32_MAX;
-  auto global_lock = global_critical_region_.Acquire();
+  std::lock_guard lock(memory_->watch_mutex_);
   for (uint32_t i = system_page_first; i <= system_page_last; ++i) {
     // Check if need to enable callbacks for the page and raise its protection.
     //
@@ -2020,9 +2030,14 @@ void PhysicalHeap::EnableAccessCallbacks(uint32_t physical_address, uint32_t len
   }
 }
 
-bool PhysicalHeap::TriggerCallbacks(std::unique_lock<std::recursive_mutex> global_lock_locked_once,
-                                    uint32_t virtual_address, uint32_t length, bool is_write,
+bool PhysicalHeap::TriggerCallbacks(uint32_t virtual_address, uint32_t length, bool is_write,
                                     bool unwatch_exact_range, bool unprotect) {
+  std::lock_guard lock(memory_->watch_mutex_);
+  return TriggerCallbacksLocked(virtual_address, length, is_write, unwatch_exact_range, unprotect);
+}
+
+bool PhysicalHeap::TriggerCallbacksLocked(uint32_t virtual_address, uint32_t length, bool is_write,
+                                          bool unwatch_exact_range, bool unprotect) {
   // TODO(Triang3l): Support read watches.
   assert_true(is_write);
   if (!is_write) {
@@ -2177,10 +2192,10 @@ bool PhysicalHeap::TriggerCallbacks(std::unique_lock<std::recursive_mutex> globa
   return true;
 }
 
-std::unique_lock<std::recursive_mutex> PhysicalHeap::AcquireHostPageReconcileLock() const {
+std::unique_lock<rex::platform::RankedMutex> PhysicalHeap::AcquireHostPageReconcileLock() const {
   auto lock = BaseHeap::AcquireHostPageReconcileLock();
   if (!lock.owns_lock() && parent_heap_ && parent_heap_->page_size() < memory_->system_page_size_) {
-    lock = rex::platform::global_critical_region::AcquireDirect();
+    lock = std::unique_lock(memory_->watch_mutex_);
   }
   return lock;
 }

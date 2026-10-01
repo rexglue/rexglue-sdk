@@ -254,10 +254,14 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
   }
 
   auto entry_display_name = std::filesystem::path(targeted[0].config.filePath).filename().string();
-  ReportBinaryInfo(opts.reporter, entry_display_name,
-                   *runtime->kernel_state()->GetExecutableModule()->xex_module());
+  auto* kernelState = runtime->kernel_state();
+  {
+    auto executable = kernelState->object_table()->Get<rex::system::ModuleObject>(
+        kernelState->GetExecutableModule());
+    ReportBinaryInfo(opts.reporter, entry_display_name, *rex::system::UserModuleXex(*executable));
+  }
 
-  std::vector<rex::system::object_ref<rex::system::UserModule>> dllModules;
+  std::vector<rex::system::Pinned<rex::system::ModuleObject>> dllModules;
   for (size_t i = 1; i < targeted.size(); ++i) {
     const auto& dllConfig = targeted[i].config;
     fs::path dllXexPath = configDir / dllConfig.filePath;
@@ -276,15 +280,16 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     std::string relStr = relPath.string();
     std::replace(relStr.begin(), relStr.end(), '/', '\\');
     auto dllVfsPath = "game:\\" + relStr;
-    auto userMod = runtime->kernel_state()->LoadUserModule(dllVfsPath, false);
+    auto userMod = kernelState->object_table()->Get<rex::system::ModuleObject>(
+        kernelState->LoadUserModule(dllVfsPath, false));
     if (!userMod) {
       return Err<void>(ErrorCategory::IO,
                        fmt::format("Failed to load DLL module: {}", targeted[i].targetName));
     }
     REXLOG_TRACE(codegen, "Loaded DLL module '{}' at base 0x{:08X}", targeted[i].targetName,
-                 userMod->xex_module()->base_address());
+                 rex::system::UserModuleXex(*userMod)->base_address());
     auto dll_display_name = std::filesystem::path(targeted[i].config.filePath).filename().string();
-    ReportBinaryInfo(opts.reporter, dll_display_name, *userMod->xex_module());
+    ReportBinaryInfo(opts.reporter, dll_display_name, *rex::system::UserModuleXex(*userMod));
     dllModules.push_back(std::move(userMod));
   }
 
@@ -300,8 +305,9 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
   };
 
   {
-    auto execMod = runtime->kernel_state()->GetExecutableModule();
-    auto bv = BinaryView::fromModule(*execMod->xex_module());
+    auto execMod = kernelState->object_table()->Get<rex::system::ModuleObject>(
+        kernelState->GetExecutableModule());
+    auto bv = BinaryView::fromModule(*rex::system::UserModuleXex(*execMod));
 
     auto entry_display = make_display_name(targeted[0].config.filePath);
     RecompilerConfig cfg = std::move(targeted[0].config);
@@ -324,7 +330,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
 
   for (size_t i = 0; i < dllModules.size(); ++i) {
     auto& userMod = dllModules[i];
-    auto bv = BinaryView::fromModule(*userMod->xex_module());
+    auto bv = BinaryView::fromModule(*rex::system::UserModuleXex(*userMod));
 
     auto dll_display = make_display_name(targeted[i + 1].config.filePath);
     RecompilerConfig cfg = std::move(targeted[i + 1].config);

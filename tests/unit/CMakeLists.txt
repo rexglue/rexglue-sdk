@@ -7,6 +7,16 @@ add_executable(unit_tests
     kernel/object_table_test.cpp
     kernel/shim_registry_test.cpp
     kernel/exports_test.cpp
+    kernel/kernel_fixture.cpp
+    kernel/lock_order_test.cpp
+    kernel/pinned_wait_test.cpp
+    kernel/char_events_test.cpp
+    kernel/char_sync_test.cpp
+    kernel/char_handles_test.cpp
+    kernel/char_threads_test.cpp
+    kernel/char_files_test.cpp
+    kernel/char_identity_test.cpp
+    kernel/interrupt_test.cpp
     core/app_test.cpp
     core/cli_arg_list_test.cpp
     core/cvar_test.cpp

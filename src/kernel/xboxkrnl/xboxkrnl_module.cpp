@@ -40,10 +40,17 @@
 namespace rex::kernel::xboxkrnl {
 using namespace rex::system;
 
-XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
-    : KernelModule(kernel_state, "xe:\\xboxkrnl.exe"), timestamp_timer_(nullptr) {
+X_HANDLE CreateXboxkrnlModule(KernelState* kernel_state) {
+  const X_HANDLE handle = CreateKernelModule(kernel_state, "xe:\\xboxkrnl.exe");
+  if (!handle) {
+    return 0;
+  }
+  auto module_pin = kernel_state->object_table()->Get<ModuleObject>(handle);
+  ModuleObject& module = *module_pin;
+  auto* mem = kernel_state->memory();
+
   // Register video variable exports (VdGlobalDevice, VdGpuClockInMHz, etc.)
-  RegisterVideoExports(this, kernel_state_);
+  RegisterVideoExports(module, kernel_state);
 
   // KeDebugMonitorData (?*)
   // Set to a valid value when a remote debugger is attached.
@@ -51,35 +58,34 @@ XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
   // arguments. If we wanted to see what would happen we could fake that.
   uint32_t pKeDebugMonitorData;
   if (!REXCVAR_GET(::rex::runtime::cvars::debug_monitor)) {
-    pKeDebugMonitorData = memory_->SystemHeapAlloc(4);
-    auto lpKeDebugMonitorData = memory_->TranslateVirtual(pKeDebugMonitorData);
+    pKeDebugMonitorData = mem->SystemHeapAlloc(4);
+    auto lpKeDebugMonitorData = mem->TranslateVirtual(pKeDebugMonitorData);
     memory::store_and_swap<uint32_t>(lpKeDebugMonitorData, 0);
   } else {
-    pKeDebugMonitorData = memory_->SystemHeapAlloc(4 + sizeof(X_KEDEBUGMONITORDATA));
-    memory::store_and_swap<uint32_t>(memory_->TranslateVirtual(pKeDebugMonitorData),
+    pKeDebugMonitorData = mem->SystemHeapAlloc(4 + sizeof(X_KEDEBUGMONITORDATA));
+    memory::store_and_swap<uint32_t>(mem->TranslateVirtual(pKeDebugMonitorData),
                                      pKeDebugMonitorData + 4);
     auto lpKeDebugMonitorData =
-        memory_->TranslateVirtual<X_KEDEBUGMONITORDATA*>(pKeDebugMonitorData + 4);
+        mem->TranslateVirtual<X_KEDEBUGMONITORDATA*>(pKeDebugMonitorData + 4);
     std::memset(lpKeDebugMonitorData, 0, sizeof(X_KEDEBUGMONITORDATA));
   }
-  SetVariable(0x0059, pKeDebugMonitorData);
+  KernelModuleSetVariable(module, 0x0059, pKeDebugMonitorData);
 
   // KeCertMonitorData (?*)
   // Always set to zero, ignored.
   uint32_t pKeCertMonitorData;
   if (!REXCVAR_GET(::rex::runtime::cvars::cert_monitor)) {
-    pKeCertMonitorData = memory_->SystemHeapAlloc(4);
-    auto lpKeCertMonitorData = memory_->TranslateVirtual(pKeCertMonitorData);
+    pKeCertMonitorData = mem->SystemHeapAlloc(4);
+    auto lpKeCertMonitorData = mem->TranslateVirtual(pKeCertMonitorData);
     memory::store_and_swap<uint32_t>(lpKeCertMonitorData, 0);
   } else {
-    pKeCertMonitorData = memory_->SystemHeapAlloc(4 + sizeof(X_KECERTMONITORDATA));
-    memory::store_and_swap<uint32_t>(memory_->TranslateVirtual(pKeCertMonitorData),
+    pKeCertMonitorData = mem->SystemHeapAlloc(4 + sizeof(X_KECERTMONITORDATA));
+    memory::store_and_swap<uint32_t>(mem->TranslateVirtual(pKeCertMonitorData),
                                      pKeCertMonitorData + 4);
-    auto lpKeCertMonitorData =
-        memory_->TranslateVirtual<X_KECERTMONITORDATA*>(pKeCertMonitorData + 4);
+    auto lpKeCertMonitorData = mem->TranslateVirtual<X_KECERTMONITORDATA*>(pKeCertMonitorData + 4);
     std::memset(lpKeCertMonitorData, 0, sizeof(X_KECERTMONITORDATA));
   }
-  SetVariable(0x0266, pKeCertMonitorData);
+  KernelModuleSetVariable(module, 0x0266, pKeCertMonitorData);
 
   // XboxHardwareInfo (XboxHardwareInfo_t, 16b)
   // flags       cpu#  ?     ?     ?     ?           ?       ?
@@ -92,18 +98,18 @@ XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
   //
   // From kernel dissasembly, after storage is initialized
   // XboxHardwareInfo flags is set with flag 5 (0x20).
-  uint32_t pXboxHardwareInfo = memory_->SystemHeapAlloc(16);
-  auto lpXboxHardwareInfo = memory_->TranslateVirtual(pXboxHardwareInfo);
-  SetVariable(0x0156, pXboxHardwareInfo);
+  uint32_t pXboxHardwareInfo = mem->SystemHeapAlloc(16);
+  auto lpXboxHardwareInfo = mem->TranslateVirtual(pXboxHardwareInfo);
+  KernelModuleSetVariable(module, 0x0156, pXboxHardwareInfo);
   memory::store_and_swap<uint32_t>(lpXboxHardwareInfo + 0, 0x20);  // flags
   memory::store_and_swap<uint8_t>(lpXboxHardwareInfo + 4, 0x06);   // cpu count
   // Remaining 11b are zeroes?
 
   // ExConsoleGameRegion, probably same values as keyvault region uses?
   // Just return all 0xFF, should satisfy anything that checks it
-  uint32_t pExConsoleGameRegion = memory_->SystemHeapAlloc(4);
-  auto lpExConsoleGameRegion = memory_->TranslateVirtual(pExConsoleGameRegion);
-  SetVariable(0x000C, pExConsoleGameRegion);
+  uint32_t pExConsoleGameRegion = mem->SystemHeapAlloc(4);
+  auto lpExConsoleGameRegion = mem->TranslateVirtual(pExConsoleGameRegion);
+  KernelModuleSetVariable(module, 0x000C, pExConsoleGameRegion);
   memory::store<uint32_t>(lpExConsoleGameRegion, 0xFFFFFFFF);
 
   // XexExecutableModuleHandle (?**)
@@ -115,16 +121,16 @@ XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
   // 0x80101000 <- our module structure
   // 0x80101058 <- pointer to xex header
   // 0x80101100 <- xex header base
-  uint32_t ppXexExecutableModuleHandle = memory_->SystemHeapAlloc(4);
-  SetVariable(0x0193, ppXexExecutableModuleHandle);
+  uint32_t ppXexExecutableModuleHandle = mem->SystemHeapAlloc(4);
+  KernelModuleSetVariable(module, 0x0193, ppXexExecutableModuleHandle);
 
   // ExLoadedImageName (char*)
   // The full path to loaded image/xex including its name.
   // Used usually in custom dashboards (Aurora)
   // Todo(Gliniak): Confirm that official kernel always allocate space for this
   // variable.
-  uint32_t ppExLoadedImageName = memory_->SystemHeapAlloc(kExLoadedImageNameSize);
-  SetVariable(0x01AF, ppExLoadedImageName);
+  uint32_t ppExLoadedImageName = mem->SystemHeapAlloc(kExLoadedImageNameSize);
+  KernelModuleSetVariable(module, 0x01AF, ppExLoadedImageName);
 
   // ExLoadedCommandLine (char*)
   // The name of the xex. Not sure this is ever really used on real devices.
@@ -132,23 +138,23 @@ XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
   // Always set to "default.xex" (with quotes) for now.
   // TODO(gibbed): set this to the actual module name.
   std::string command_line("\"default.xex\"");
-  if (!kernel_state_->config().command_line.empty()) {
-    command_line += " " + kernel_state_->config().command_line;
+  if (!kernel_state->config().command_line.empty()) {
+    command_line += " " + kernel_state->config().command_line;
   }
   uint32_t command_line_length =
       rex::align(static_cast<uint32_t>(command_line.length()) + 1, 1024u);
-  uint32_t pExLoadedCommandLine = memory_->SystemHeapAlloc(command_line_length);
-  auto lpExLoadedCommandLine = memory_->TranslateVirtual(pExLoadedCommandLine);
-  SetVariable(0x01AE, pExLoadedCommandLine);
+  uint32_t pExLoadedCommandLine = mem->SystemHeapAlloc(command_line_length);
+  auto lpExLoadedCommandLine = mem->TranslateVirtual(pExLoadedCommandLine);
+  KernelModuleSetVariable(module, 0x01AE, pExLoadedCommandLine);
   std::memset(lpExLoadedCommandLine, 0, command_line_length);
   std::memcpy(lpExLoadedCommandLine, command_line.c_str(), command_line.length());
 
   // XboxKrnlVersion (8b)
   // Kernel version, looks like 2b.2b.2b.2b.
   // I've only seen games check >=, so we just fake something here.
-  uint32_t pXboxKrnlVersion = memory_->SystemHeapAlloc(8);
-  auto lpXboxKrnlVersion = memory_->TranslateVirtual(pXboxKrnlVersion);
-  SetVariable(0x0158, pXboxKrnlVersion);
+  uint32_t pXboxKrnlVersion = mem->SystemHeapAlloc(8);
+  auto lpXboxKrnlVersion = mem->TranslateVirtual(pXboxKrnlVersion);
+  KernelModuleSetVariable(module, 0x0158, pXboxKrnlVersion);
   memory::store_and_swap<uint16_t>(lpXboxKrnlVersion + 0, 2);
   memory::store_and_swap<uint16_t>(lpXboxKrnlVersion + 2, 0xFFFF);
   memory::store_and_swap<uint16_t>(lpXboxKrnlVersion + 4, 0xFFFF);
@@ -158,35 +164,40 @@ XboxkrnlModule::XboxkrnlModule(Runtime* emulator, KernelState* kernel_state)
   // KeTimeStampBundle (24b)
   // This must be updated during execution, at 1ms intevals.
   // We setup a system timer here to do that.
-  uint32_t pKeTimeStampBundle = memory_->SystemHeapAlloc(24);
-  auto lpKeTimeStampBundle = memory_->TranslateVirtual(pKeTimeStampBundle);
-  SetVariable(0x00AD, pKeTimeStampBundle);
+  uint32_t pKeTimeStampBundle = mem->SystemHeapAlloc(24);
+  auto lpKeTimeStampBundle = mem->TranslateVirtual(pKeTimeStampBundle);
+  KernelModuleSetVariable(module, 0x00AD, pKeTimeStampBundle);
   memory::store_and_swap<uint64_t>(lpKeTimeStampBundle + 0, 0);
   memory::store_and_swap<uint64_t>(lpKeTimeStampBundle + 8, 0);
   memory::store_and_swap<uint32_t>(lpKeTimeStampBundle + 16, Clock::QueryGuestUptimeMillis());
   memory::store_and_swap<uint32_t>(lpKeTimeStampBundle + 20, 0);
-  timestamp_timer_ = rex::platform::HighResolutionTimer::CreateRepeating(
+  module.kernel.timestamp_timer = rex::platform::HighResolutionTimer::CreateRepeating(
       std::chrono::milliseconds(1), [lpKeTimeStampBundle]() {
         memory::store_and_swap<uint32_t>(lpKeTimeStampBundle + 16, Clock::QueryGuestUptimeMillis());
       });
 
   // Wire kernel object type variables to KernelGuestGlobals.
   // KernelGuestGlobals is allocated in KernelState ctor, which runs before this.
-  auto kgg = kernel_state_->GetKernelGuestGlobals();
+  auto kgg = kernel_state->GetKernelGuestGlobals();
   assert_not_zero(kgg);
-  SetVariable(0x001B, kgg + offsetof(KernelGuestGlobals, ExThreadObjectType));
-  SetVariable(0x000E, kgg + offsetof(KernelGuestGlobals, ExEventObjectType));
-  SetVariable(0x0012, kgg + offsetof(KernelGuestGlobals, ExMutantObjectType));
-  SetVariable(0x0017, kgg + offsetof(KernelGuestGlobals, ExSemaphoreObjectType));
-  SetVariable(0x001C, kgg + offsetof(KernelGuestGlobals, ExTimerObjectType));
-  SetVariable(0x0036, kgg + offsetof(KernelGuestGlobals, IoCompletionObjectType));
-  SetVariable(0x003A, kgg + offsetof(KernelGuestGlobals, IoDeviceObjectType));
-  SetVariable(0x003E, kgg + offsetof(KernelGuestGlobals, IoFileObjectType));
-  SetVariable(0x0106, kgg + offsetof(KernelGuestGlobals, ObDirectoryObjectType));
-  SetVariable(0x0112, kgg + offsetof(KernelGuestGlobals, ObSymbolicLinkObjectType));
-  SetVariable(0x02DB, kgg + offsetof(KernelGuestGlobals, UsbdBootEnumerationDoneEvent));
-}
+  KernelModuleSetVariable(module, 0x001B, kgg + offsetof(KernelGuestGlobals, ExThreadObjectType));
+  KernelModuleSetVariable(module, 0x000E, kgg + offsetof(KernelGuestGlobals, ExEventObjectType));
+  KernelModuleSetVariable(module, 0x0012, kgg + offsetof(KernelGuestGlobals, ExMutantObjectType));
+  KernelModuleSetVariable(module, 0x0017,
+                          kgg + offsetof(KernelGuestGlobals, ExSemaphoreObjectType));
+  KernelModuleSetVariable(module, 0x001C, kgg + offsetof(KernelGuestGlobals, ExTimerObjectType));
+  KernelModuleSetVariable(module, 0x0036,
+                          kgg + offsetof(KernelGuestGlobals, IoCompletionObjectType));
+  KernelModuleSetVariable(module, 0x003A, kgg + offsetof(KernelGuestGlobals, IoDeviceObjectType));
+  KernelModuleSetVariable(module, 0x003E, kgg + offsetof(KernelGuestGlobals, IoFileObjectType));
+  KernelModuleSetVariable(module, 0x0106,
+                          kgg + offsetof(KernelGuestGlobals, ObDirectoryObjectType));
+  KernelModuleSetVariable(module, 0x0112,
+                          kgg + offsetof(KernelGuestGlobals, ObSymbolicLinkObjectType));
+  KernelModuleSetVariable(module, 0x02DB,
+                          kgg + offsetof(KernelGuestGlobals, UsbdBootEnumerationDoneEvent));
 
-XboxkrnlModule::~XboxkrnlModule() = default;
+  return handle;
+}
 
 }  // namespace rex::kernel::xboxkrnl

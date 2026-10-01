@@ -131,15 +131,11 @@ u32 XamContentCreateDeviceEnumerator_entry(u32 content_type, u32 content_flags, 
     *buffer_size_ptr = sizeof(X_CONTENT_DEVICE_DATA) * max_count;
   }
 
-  auto e = make_object<XStaticEnumerator<X_CONTENT_DEVICE_DATA>>(REX_KERNEL_STATE(), max_count);
-  auto result = e->Initialize(0xFE, 0xFE, 0x2000A, 0x20009, 0);
-  if (XFAILED(result)) {
-    return result;
-  }
+  StaticItems items(max_count, sizeof(X_CONTENT_DEVICE_DATA));
 
   for (const auto& device_info : dummy_device_infos_) {
     // Copy our dummy device into the enumerator
-    auto device_data = e->AppendItem();
+    auto device_data = items.Append<X_CONTENT_DEVICE_DATA>();
     assert_not_null(device_data);
     if (device_data) {
       device_data->device_id = static_cast<uint32_t>(device_info->device_id);
@@ -151,7 +147,19 @@ u32 XamContentCreateDeviceEnumerator_entry(u32 content_type, u32 content_flags, 
     }
   }
 
-  *handle_out = e->handle();
+  X_HANDLE handle = X_INVALID_HANDLE_VALUE;
+  auto result = CreateEnumerator(
+      REX_KERNEL_STATE(), &handle, EnumeratorInit{0xFE, 0xFE, 0x2000A, 0x20009, 0},
+      EnumeratorObject(
+          max_count, sizeof(X_CONTENT_DEVICE_DATA),
+          [items = std::move(items)](u32, u8* buffer_data, u32* written_count) mutable {
+            return items.Write(buffer_data, written_count);
+          }));
+  if (XFAILED(result)) {
+    return result;
+  }
+
+  *handle_out = handle;
   return X_ERROR_SUCCESS;
 }
 

@@ -9,39 +9,37 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <functional>
+
 #include <rex/chrono/chrono.h>
 #include <rex/chrono/clock.h>
 #include <rex/logging.h>
+#include <rex/system/kernel_state.h>
+#include <rex/system/thread_registry.h>
 #include <rex/system/xthread.h>
 #include <rex/system/xtimer.h>
 
 namespace rex::system {
 
-XTimer::XTimer(KernelState* kernel_state) : XObject(kernel_state, kObjectType) {}
-
-XTimer::~XTimer() = default;
-
-void XTimer::Initialize(uint32_t timer_type) {
-  assert_false(timer_);
+TimerObject::TimerObject(u32 timer_type) {
   switch (timer_type) {
-    case 0:  // NotificationTimer
-      timer_ = rex::platform::Timer::CreateManualResetTimer();
+    case 0:
+      timer = rex::platform::Timer::CreateManualResetTimer();
       break;
-    case 1:  // SynchronizationTimer
-      timer_ = rex::platform::Timer::CreateSynchronizationTimer();
+    case 1:
+      timer = rex::platform::Timer::CreateSynchronizationTimer();
       break;
     default:
       assert_always();
       break;
   }
-  assert_not_null(timer_);
+  assert_not_null(timer);
 }
 
-X_STATUS XTimer::SetTimer(int64_t due_time, uint32_t period_ms, uint32_t routine,
-                          uint32_t routine_arg, bool resume) {
+X_STATUS TimerSet(TimerObject& timer, KernelState* kernel_state, i64 due_time, u32 period_ms,
+                  u32 routine, u32 routine_arg, bool resume) {
   using rex::WinSystemClock;
   using rex::XSystemClock;
-  // Caller is checking for STATUS_TIMER_RESUME_IGNORED.
   if (resume) {
     return X_STATUS_TIMER_RESUME_IGNORED;
   }
@@ -49,47 +47,39 @@ X_STATUS XTimer::SetTimer(int64_t due_time, uint32_t period_ms, uint32_t routine
   period_ms = Clock::ScaleGuestDurationMillis(period_ms);
   WinSystemClock::time_point due_tp;
   if (due_time < 0) {
-    // Any timer implementation uses absolute times eventually, convert as early
-    // as possible for increased accuracy
     auto after = rex::hundrednanoseconds(-due_time);
     due_tp = std::chrono::clock_cast<WinSystemClock>(XSystemClock::now() + after);
   } else {
     due_tp = std::chrono::clock_cast<WinSystemClock>(XSystemClock::from_file_time(due_time));
   }
 
-  // Stash routine for callback.
-  callback_thread_ = XThread::GetCurrentThread();
-  callback_routine_ = routine;
-  callback_routine_arg_ = routine_arg;
+  timer.callback_thread_id = ThreadRecord::GetCurrentThread()->thread_id();
+  timer.callback_routine = routine;
+  timer.callback_routine_arg = routine_arg;
 
-  // This callback will only be issued when the timer is fired.
   std::function<void()> callback = nullptr;
-  if (callback_routine_) {
-    callback = [this]() {
-      // Queue APC to call back routine with (arg, low, high).
-      // It'll be executed on the thread that requested the timer.
-      uint64_t time = rex::Clock::QueryGuestSystemTime();
-      uint32_t time_low = static_cast<uint32_t>(time);
-      uint32_t time_high = static_cast<uint32_t>(time >> 32);
-      REXLOG_DEBUG(system, "XTimer enqueuing timer callback to {:08X}({:08X}, {:08X}, {:08X})",
-                   callback_routine_, callback_routine_arg_, time_low, time_high);
-      callback_thread_->EnqueueApc(callback_routine_, callback_routine_arg_, time_low, time_high);
+  if (routine) {
+    callback = [kernel_state, thread_id = timer.callback_thread_id, routine, routine_arg]() {
+      const u64 time = rex::Clock::QueryGuestSystemTime();
+      const u32 time_low = static_cast<u32>(time);
+      const u32 time_high = static_cast<u32>(time >> 32);
+      REXLOG_DEBUG(system, "timer enqueuing callback to {:08X}({:08X}, {:08X}, {:08X})", routine,
+                   routine_arg, time_low, time_high);
+      if (auto thread = kernel_state->threads()->Find(thread_id)) {
+        thread->EnqueueApc(routine, routine_arg, time_low, time_high);
+      }
     };
   }
 
-  bool result;
-  if (!period_ms) {
-    result = timer_->SetOnceAt(due_tp, std::move(callback));
-  } else {
-    result =
-        timer_->SetRepeatingAt(due_tp, std::chrono::milliseconds(period_ms), std::move(callback));
-  }
-
+  const bool result = period_ms
+                          ? timer.timer->SetRepeatingAt(
+                                due_tp, std::chrono::milliseconds(period_ms), std::move(callback))
+                          : timer.timer->SetOnceAt(due_tp, std::move(callback));
   return result ? X_STATUS_SUCCESS : X_STATUS_UNSUCCESSFUL;
 }
 
-X_STATUS XTimer::Cancel() {
-  return timer_->Cancel() ? X_STATUS_SUCCESS : X_STATUS_UNSUCCESSFUL;
+X_STATUS TimerCancel(TimerObject& timer) {
+  return timer.timer->Cancel() ? X_STATUS_SUCCESS : X_STATUS_UNSUCCESSFUL;
 }
 
 }  // namespace rex::system

@@ -26,7 +26,6 @@
 #include <rex/memory/mapped_memory.h>
 #include <rex/ppc/func.h>
 #include <rex/system/thread_state.h>
-#include <rex/platform/mutex.h>
 
 namespace rex::runtime {
 
@@ -124,8 +123,6 @@ class FunctionDispatcher : public IModuleRegistrar {
   ModuleTableInfo* FindModuleByAddress(uint32_t guest_address);
 
   memory::Memory* memory_ = nullptr;
-
-  rex::platform::global_critical_region global_critical_region_;
 
   // Host-side function lookup.
   std::unordered_map<uint32_t, ::PPCFunc*> function_table_;

@@ -26,7 +26,6 @@
 #include <rex/kernel.h>
 #include <rex/memory.h>
 #include <rex/system/xthread.h>
-#include <rex/platform/mutex.h>
 #include <rex/ui/graphics_provider.h>
 #include <rex/ui/presenter.h>
 
@@ -117,7 +116,7 @@ class GraphicsSystem : public IGraphicsBackend {
   uint32_t interrupt_callback_data_ = 0;
 
   std::atomic<bool> vsync_worker_running_;
-  system::object_ref<system::XHostThread> vsync_worker_thread_;
+  X_HANDLE vsync_worker_thread_ = 0;
 
   RegisterFile register_file_;
   std::unique_ptr<CommandProcessor> command_processor_;

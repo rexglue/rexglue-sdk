@@ -90,7 +90,7 @@ void SharedMemory::ShutdownCommon() {
 }
 
 void SharedMemory::InvalidateAllPages() {
-  auto global_lock = global_critical_region_.Acquire();
+  auto lock = AcquireLock();
 
   std::fill(system_page_flags_valid_.begin(), system_page_flags_valid_.end(), uint64_t(0));
   std::fill(system_page_flags_valid_and_gpu_written_.begin(),
@@ -98,7 +98,7 @@ void SharedMemory::InvalidateAllPages() {
 }
 
 void SharedMemory::SetSystemPageBlocksValidWithGpuDataWritten() {
-  auto global_lock = global_critical_region_.Acquire();
+  auto lock = AcquireLock();
 
   // Pages that are valid only because the CPU uploaded them lose their valid
   // bit here, so the next frame re-reads them from guest memory.
@@ -131,7 +131,7 @@ SharedMemory::GlobalWatchHandle SharedMemory::RegisterGlobalWatch(GlobalWatchCal
   watch->callback = callback;
   watch->callback_context = callback_context;
 
-  auto global_lock = global_critical_region_.Acquire();
+  auto lock = AcquireLock();
   global_watches_.push_back(watch);
 
   return reinterpret_cast<GlobalWatchHandle>(watch);
@@ -141,7 +141,7 @@ void SharedMemory::UnregisterGlobalWatch(GlobalWatchHandle handle) {
   auto watch = reinterpret_cast<GlobalWatch*>(handle);
 
   {
-    auto global_lock = global_critical_region_.Acquire();
+    auto lock = AcquireLock();
     auto it = std::find(global_watches_.begin(), global_watches_.end(), watch);
     assert_false(it == global_watches_.end());
     if (it != global_watches_.end()) {
@@ -152,11 +152,10 @@ void SharedMemory::UnregisterGlobalWatch(GlobalWatchHandle handle) {
   delete watch;
 }
 
-SharedMemory::WatchHandle SharedMemory::WatchMemoryRange(uint32_t start, uint32_t length,
-                                                         WatchCallback callback,
-                                                         void* callback_context,
-                                                         void* callback_data,
-                                                         uint64_t callback_argument) {
+SharedMemory::WatchHandle SharedMemory::WatchMemoryRange(
+    const std::unique_lock<rex::platform::RankedMutex>&, uint32_t start, uint32_t length,
+    WatchCallback callback, void* callback_context, void* callback_data,
+    uint64_t callback_argument) {
   if (length == 0 || start >= kBufferSize) {
     return nullptr;
   }
@@ -165,8 +164,6 @@ SharedMemory::WatchHandle SharedMemory::WatchMemoryRange(uint32_t start, uint32_
   uint32_t watch_page_last = (start + length - 1) >> page_size_log2_;
   uint32_t bucket_first = watch_page_first << page_size_log2_ >> kWatchBucketSizeLog2;
   uint32_t bucket_last = watch_page_last << page_size_log2_ >> kWatchBucketSizeLog2;
-
-  auto global_lock = global_critical_region_.Acquire();
 
   // Allocate the range.
   WatchRange* range = watch_range_first_free_;
@@ -219,21 +216,25 @@ SharedMemory::WatchHandle SharedMemory::WatchMemoryRange(uint32_t start, uint32_
 }
 
 void SharedMemory::UnwatchMemoryRange(WatchHandle handle) {
-  auto global_lock = global_critical_region_.Acquire();
+  auto lock = AcquireLock();
   UnlinkWatchRange(reinterpret_cast<WatchRange*>(handle));
 }
 
 void SharedMemory::FireWatches(uint32_t page_first, uint32_t page_last, bool invalidated_by_gpu) {
+  auto lock = AcquireLock();
+  FireWatchesLocked(page_first, page_last, invalidated_by_gpu);
+}
+
+void SharedMemory::FireWatchesLocked(uint32_t page_first, uint32_t page_last,
+                                     bool invalidated_by_gpu) {
   uint32_t address_first = page_first << page_size_log2_;
   uint32_t address_last = (page_last << page_size_log2_) + ((1 << page_size_log2_) - 1);
   uint32_t bucket_first = address_first >> kWatchBucketSizeLog2;
   uint32_t bucket_last = address_last >> kWatchBucketSizeLog2;
 
-  auto global_lock = global_critical_region_.Acquire();
-
   // Fire global watches.
   for (const auto global_watch : global_watches_) {
-    global_watch->callback(global_lock, global_watch->callback_context, address_first, address_last,
+    global_watch->callback(global_watch->callback_context, address_first, address_last,
                            invalidated_by_gpu);
   }
 
@@ -246,8 +247,8 @@ void SharedMemory::FireWatches(uint32_t page_first, uint32_t page_last, bool inv
       // will be broken.
       node = node->bucket_node_next;
       if (page_first <= range->page_last && page_last >= range->page_first) {
-        range->callback(global_lock, range->callback_context, range->callback_data,
-                        range->callback_argument, invalidated_by_gpu);
+        range->callback(range->callback_context, range->callback_data, range->callback_argument,
+                        invalidated_by_gpu);
         UnlinkWatchRange(range);
       }
     }
@@ -292,7 +293,7 @@ void SharedMemory::MakeRangeValid(uint32_t start, uint32_t length, bool written_
   uint32_t valid_block_last = valid_page_last >> 6;
 
   {
-    auto global_lock = global_critical_region_.Acquire();
+    auto lock = AcquireLock();
 
     for (uint32_t i = valid_block_first; i <= valid_block_last; ++i) {
       uint64_t valid_bits = UINT64_MAX;
@@ -404,7 +405,7 @@ bool SharedMemory::RequestRanges(const std::pair<uint32_t, uint32_t>* ranges, si
     upload_ranges_.emplace_back(page_start, page_count);
   };
   {
-    auto global_lock = global_critical_region_.Acquire();
+    auto lock = AcquireLock();
     for (const std::pair<uint32_t, uint32_t>& range : merged_ranges) {
       uint32_t page_first = range.first >> page_size_log2_;
       uint32_t page_last = (range.first + range.second - 1) >> page_size_log2_;
@@ -491,8 +492,6 @@ std::pair<uint32_t, uint32_t> SharedMemory::MemoryInvalidationCallback(
   uint32_t block_first = page_first >> 6;
   uint32_t block_last = page_last >> 6;
 
-  auto global_lock = global_critical_region_.Acquire();
-
   if (!exact_range) {
     // Check if a somewhat wider range (up to 256 KB with 4 KB pages) can be
     // invalidated - if no GPU-written data nearby that was not intended to be
@@ -527,7 +526,7 @@ std::pair<uint32_t, uint32_t> SharedMemory::MemoryInvalidationCallback(
     system_page_flags_valid_and_gpu_written_[i] &= ~invalidate_bits;
   }
 
-  FireWatches(page_first, page_last, false);
+  FireWatchesLocked(page_first, page_last, false);
 
   return std::make_pair(page_first << page_size_log2_, (page_last - page_first + 1)
                                                            << page_size_log2_);

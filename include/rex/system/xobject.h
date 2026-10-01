@@ -1,6 +1,4 @@
 #pragma once
-
-#include <format>
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -16,18 +14,19 @@
 #include <atomic>
 #include <concepts>
 #include <cstddef>
+#include <format>
+#include <span>
 #include <string>
 #include <vector>
 
 #include <fmt/format.h>
 
+#include <rex/platform/thread.h>
 #include <rex/system/xmemory.h>
 #include <rex/system/xtypes.h>
-#include <rex/platform/thread.h>
 
 namespace rex {
 class Runtime;
-class ByteStream;
 }  // namespace rex
 
 namespace rex::system {
@@ -35,9 +34,6 @@ namespace rex::system {
 constexpr memory::fourcc_t kXObjSignature = memory::make_fourcc('R', 'E', 'X', '\0');
 
 class KernelState;
-
-template <typename T>
-class object_ref;
 
 // https://www.nirsoft.net/kernel_struct/vista/DISPATCHER_HEADER.html
 typedef struct {
@@ -115,263 +111,146 @@ struct X_OBJECT_TYPE {
   rex::be<uint32_t> pool_tag;     // 0x18
 };
 
-class XObject {
- public:
-  // 45410806 needs proper handle value for certain calculations
-  // It gets handle value from TLS (without base handle value is 0x88)
-  // and substract 0xF8000088. Without base we're receiving wrong address
-  // Instead of receiving address that starts with 0x82... we're receiving
-  // one with 0x8A... which causes crash
-  static constexpr uint32_t kHandleBase = 0xF8000000;
-
-  enum class Type : uint32_t {
-    Undefined,
-    Enumerator,
-    Event,
-    File,
-    IOCompletion,
-    Module,
-    Mutant,
-    NotifyListener,
-    Semaphore,
-    Session,
-    Socket,
-    SymbolicLink,
-    Thread,
-    Timer,
-  };
-
-  XObject(Type type);
-  XObject(KernelState* kernel_state, Type type);
-  virtual ~XObject();
-
-  rex::Runtime* emulator() const;
-  KernelState* kernel_state() const;
-  rex::memory::Memory* memory() const;
-
-  Type type() const;
-
-  // Returns the primary handle of this object.
-  X_HANDLE handle() const { return handles_[0]; }
-
-  // Returns all associated handles with this object.
-  std::vector<X_HANDLE> handles() const { return handles_; }
-  std::vector<X_HANDLE>& handles() { return handles_; }
-
-  const std::string& name() const { return name_; }
-  uint32_t guest_object() const { return guest_object_ptr_; }
-
-  // Has this object been created for use by the host?
-  // Host objects are persisted through reloads/etc.
-  bool is_host_object() const { return host_object_; }
-  void set_host_object(bool host_object) { host_object_ = host_object; }
-
-  template <typename T>
-  T* guest_object() {
-    return memory()->TranslateVirtual<T*>(guest_object_ptr_);
-  }
-
-  void RetainHandle();
-  bool ReleaseHandle();
-  void Retain();
-  void Release();
-  X_STATUS Delete();
-
-  // Reference()
-  // Dereference()
-
-  void SetAttributes(uint32_t obj_attributes_ptr);
-
-  X_STATUS Wait(uint32_t wait_reason, uint32_t processor_mode, uint32_t alertable,
-                uint64_t* opt_timeout);
-  static X_STATUS SignalAndWait(XObject* signal_object, XObject* wait_object, uint32_t wait_reason,
-                                uint32_t processor_mode, uint32_t alertable, uint64_t* opt_timeout);
-  static X_STATUS WaitMultiple(uint32_t count, XObject** objects, uint32_t wait_type,
-                               uint32_t wait_reason, uint32_t processor_mode, uint32_t alertable,
-                               uint64_t* opt_timeout);
-
-  static object_ref<XObject> GetNativeObject(KernelState* kernel_state, void* native_ptr,
-                                             int32_t as_type = -1);
-  template <typename T>
-  static object_ref<T> GetNativeObject(KernelState* kernel_state, void* native_ptr,
-                                       int32_t as_type = -1);
-
- protected:
-  // Called on successful wait.
-  virtual void WaitCallback() {}
-  virtual rex::platform::WaitHandle* GetWaitHandle() { return nullptr; }
-
-  // Creates the kernel object for guest code to use. Typically not needed.
-  uint8_t* CreateNative(uint32_t size);
-  void SetNativePointer(uint32_t native_ptr, bool uninitialized = false);
-
-  template <typename T>
-  T* CreateNative() {
-    return reinterpret_cast<T*>(CreateNative(sizeof(T)));
-  }
-
-  // Stash native pointer into X_DISPATCH_HEADER
-  static void StashHandle(X_DISPATCH_HEADER* header, uint32_t handle) {
-    header->wait_list_flink = kXObjSignature;
-    header->wait_list_blink = handle;
-  }
-
-  static uint32_t TimeoutTicksToMs(int64_t timeout_ticks);
-
-  KernelState* kernel_state_;
-
-  // Host objects are persisted through resets/etc.
-  bool host_object_ = false;
-
- private:
-  std::atomic<int32_t> pointer_ref_count_;
-
-  Type type_;
-  std::vector<X_HANDLE> handles_;
-  std::string name_;  // May be zero length.
-
-  // Guest pointer for kernel object. Remember: X_OBJECT_HEADER precedes this
-  // if we allocated it!
-  uint32_t guest_object_ptr_ = 0;
-  bool allocated_guest_object_ = false;
+/** Kinds of kernel object a handle can name. */
+enum class ObjectKind : u8 {
+  Event,
+  Semaphore,
+  Mutant,
+  Timer,
+  File,
+  Socket,
+  NotifyListener,
+  IOCompletion,
+  Enumerator,
+  SymbolicLink,
+  Module,
+  Thread,
 };
 
-template <typename T>
-class object_ref {
- public:
-  object_ref() noexcept : value_(nullptr) {}
-  object_ref(std::nullptr_t) noexcept  // NOLINT(runtime/explicit)
-      : value_(nullptr) {}
-  object_ref& operator=(std::nullptr_t) noexcept {
-    reset();
-    return (*this);
-  }
+/** The value added to a table slot index, shifted left by 2, to form a handle. */
+inline constexpr u32 kHandleBase = 0xF8000000;
 
-  explicit object_ref(T* value) noexcept : value_(value) {
-    // Assumes retained on call.
-  }
-  explicit object_ref(const object_ref& right) noexcept {
-    reset(right.get());
-    if (value_)
-      value_->Retain();
-  }
-  template <class V>
-    requires std::convertible_to<V*, T*>
-  object_ref(const object_ref<V>& right) noexcept {
-    reset(right.get());
-    if (value_)
-      value_->Retain();
-  }
-
-  object_ref(object_ref&& right) noexcept : value_(right.release()) {}
-  object_ref& operator=(object_ref&& right) noexcept {
-    object_ref(std::move(right)).swap(*this);
-    return (*this);
-  }
-  template <typename V>
-  object_ref& operator=(object_ref<V>&& right) noexcept {
-    object_ref(std::move(right)).swap(*this);
-    return (*this);
-  }
-
-  object_ref& operator=(const object_ref& right) noexcept {
-    object_ref(right).swap(*this);  // NOLINT(runtime/explicit): misrecognized?
-    return (*this);
-  }
-  template <typename V>
-  object_ref& operator=(const object_ref<V>& right) noexcept {
-    object_ref(right).swap(*this);  // NOLINT(runtime/explicit): misrecognized?
-    return (*this);
-  }
-
-  void swap(object_ref& right) noexcept { std::swap(value_, right.value_); }
-
-  ~object_ref() noexcept {
-    if (value_) {
-      value_->Release();
-      value_ = nullptr;
-    }
-  }
-
-  typename std::add_lvalue_reference<T>::type operator*() const { return (*get()); }
-
-  T* operator->() const noexcept { return std::pointer_traits<T*>::pointer_to(**this); }
-
-  T* get() const noexcept { return value_; }
-
-  template <typename V>
-  V* get() const noexcept {
-    return reinterpret_cast<V*>(value_);
-  }
-
-  explicit operator bool() const noexcept { return value_ != nullptr; }
-
-  T* release() noexcept {
-    T* value = value_;
-    value_ = nullptr;
-    return value;
-  }
-
-  void reset() noexcept { object_ref().swap(*this); }
-
-  void reset(T* value) noexcept { object_ref(value).swap(*this); }
-
-  inline bool operator==(const T* right) const noexcept { return value_ == right; }
-  inline bool operator!=(const T* right) const noexcept { return value_ != right; }
-
-  // Explicit nullptr comparison to avoid C++20 synthesized operator ambiguity
-  inline bool operator==(std::nullptr_t) const noexcept { return value_ == nullptr; }
-  inline bool operator!=(std::nullptr_t) const noexcept { return value_ != nullptr; }
-
- private:
-  T* value_ = nullptr;
-};
-
-template <class _Ty>
-bool operator==(const object_ref<_Ty>& _Left, std::nullptr_t) noexcept {
-  return (_Left.get() == reinterpret_cast<_Ty*>(0));
+/**
+ * Writes the guest header stash that Ke exports use to find the handle.
+ *
+ * @param header The dispatch header inside a guest object.
+ * @param handle The handle to store.
+ */
+inline void StashHandle(X_DISPATCH_HEADER* header, u32 handle) {
+  header->wait_list_flink = kXObjSignature;
+  header->wait_list_blink = handle;
 }
 
-template <class _Ty>
-bool operator==(std::nullptr_t, const object_ref<_Ty>& _Right) noexcept {
-  return (reinterpret_cast<_Ty*>(0) == _Right.get());
-}
+/**
+ * Converts a relative timeout in 100 nanosecond ticks to milliseconds.
+ *
+ * @param timeout_ticks A negative relative timeout, or 0.
+ * @return The milliseconds. A positive absolute timeout asserts and returns 0.
+ */
+u32 TimeoutTicksToMs(i64 timeout_ticks);
 
-template <class _Ty>
-bool operator!=(const object_ref<_Ty>& _Left, std::nullptr_t _Right) noexcept {
-  return (!(_Left == _Right));
-}
-
-template <class _Ty>
-bool operator!=(std::nullptr_t _Left, const object_ref<_Ty>& _Right) noexcept {
-  return (!(_Left == _Right));
-}
-
-template <class T, class... Args>
-  requires(!std::is_array_v<T>)
-object_ref<T> make_object(Args&&... args) {
-  return object_ref<T>(new T(std::forward<Args>(args)...));
-}
+/**
+ * Reads the object name out of an X_OBJECT_ATTRIBUTES.
+ *
+ * @param memory The guest memory.
+ * @param obj_attributes_ptr The guest address of the attributes, or 0.
+ * @return The name, empty when the attributes or the name pointer are null.
+ */
+std::string NameFromAttributes(memory::Memory* memory, u32 obj_attributes_ptr);
 
 template <typename T>
-object_ref<T> retain_object(T* ptr) {
-  if (ptr)
-    ptr->Retain();
-  return object_ref<T>(ptr);
-}
+class Pinned;
 
+/**
+ * Waits on the object a handle names. A kind without a wait handle succeeds at once.
+ *
+ * @param kernel_state The kernel state.
+ * @param handle The handle, pseudo handles are translated.
+ * @param wait_reason The wait reason.
+ * @param processor_mode The processor mode.
+ * @param alertable Nonzero when a user APC ends the wait.
+ * @param opt_timeout The timeout in 100 nanosecond ticks, null to wait forever.
+ * @return X_STATUS_SUCCESS, X_STATUS_USER_APC, X_STATUS_TIMEOUT, X_STATUS_ABANDONED_WAIT_0, or
+ * X_STATUS_INVALID_HANDLE.
+ */
+X_STATUS WaitOn(KernelState* kernel_state, X_HANDLE handle, u32 wait_reason, u32 processor_mode,
+                u32 alertable, u64* opt_timeout);
+
+/**
+ * Waits on several objects.
+ *
+ * @param kernel_state The kernel state.
+ * @param handles The handles.
+ * @param wait_type Nonzero to wait for any object, 0 to wait for all.
+ * @param wait_reason The wait reason.
+ * @param processor_mode The processor mode.
+ * @param alertable Nonzero when a user APC ends the wait.
+ * @param opt_timeout The timeout in 100 nanosecond ticks, null to wait forever.
+ * @return The index of the signaled object for a wait on any, or the status as WaitOn does, or
+ * X_STATUS_INVALID_PARAMETER when a handle is invalid.
+ */
+X_STATUS WaitOnMany(KernelState* kernel_state, std::span<const X_HANDLE> handles, u32 wait_type,
+                    u32 wait_reason, u32 processor_mode, u32 alertable, u64* opt_timeout);
+
+/**
+ * Signals one object and waits on another as a single operation.
+ *
+ * @param kernel_state The kernel state.
+ * @param signal_handle The handle of the object to signal.
+ * @param wait_handle The handle of the object to wait on.
+ * @param wait_reason The wait reason.
+ * @param processor_mode The processor mode.
+ * @param alertable Nonzero when a user APC ends the wait.
+ * @param opt_timeout The timeout in 100 nanosecond ticks, null to wait forever.
+ * @return The status as WaitOn returns it, X_STATUS_INVALID_HANDLE when either handle is invalid.
+ */
+X_STATUS SignalAndWaitOn(KernelState* kernel_state, X_HANDLE signal_handle, X_HANDLE wait_handle,
+                         u32 wait_reason, u32 processor_mode, u32 alertable, u64* opt_timeout);
+
+/**
+ * Finds the handle of the object behind a guest dispatch header, creating the object on first use.
+ *
+ * @param kernel_state The kernel state.
+ * @param native_ptr The host pointer to the dispatch header.
+ * @param as_type The dispatcher type to create, -1 to read it from the header.
+ * @return The handle, 0 when the type is not supported.
+ */
+X_HANDLE ResolveGuestObject(KernelState* kernel_state, void* native_ptr, i32 as_type = -1);
+
+/**
+ * Pins the object behind a guest dispatch header as its object struct.
+ *
+ * @tparam T The expected object struct.
+ * @param kernel_state The kernel state.
+ * @param native_ptr The host pointer to the dispatch header.
+ * @param as_type The dispatcher type to create, -1 to read it from the header.
+ * @return The pin, empty when the object is absent or holds another kind.
+ */
 template <typename T>
-object_ref<T> XObject::GetNativeObject(KernelState* kernel_state, void* native_ptr,
-                                       int32_t as_type) {
-  return object_ref<T>(
-      reinterpret_cast<T*>(GetNativeObject(kernel_state, native_ptr, as_type).release()));
-}
+Pinned<T> ResolveGuest(KernelState* kernel_state, void* native_ptr, i32 as_type = -1);
+
+/**
+ * Constructs an object, backs it with a guest block when one is wanted, names it from the object
+ * attributes and stashes its handle in the block.
+ *
+ * @tparam T The object struct to construct.
+ * @tparam Args The constructor argument types of T.
+ * @param kernel_state The kernel state.
+ * @param out_handle Receives the handle.
+ * @param attributes_ptr The guest address of the object attributes, or 0.
+ * @param block_size The size of the guest block, 0 for none.
+ * @param args The constructor arguments of T.
+ * @return X_STATUS_SUCCESS, X_STATUS_NO_MEMORY, or the status of the table.
+ */
+template <typename T, typename... Args>
+X_STATUS CreateWithBlock(KernelState* kernel_state, X_HANDLE* out_handle, u32 attributes_ptr,
+                         u32 block_size, Args&&... args);
 
 }  // namespace rex::system
 
 /** Formats the enum as its underlying integer. */
 template <>
-struct std::formatter<rex::system::XObject::Type> : std::formatter<rex::u32> {
+struct std::formatter<rex::system::ObjectKind> : std::formatter<rex::u32> {
   /**
    * Formats the value.
    *
@@ -379,7 +258,7 @@ struct std::formatter<rex::system::XObject::Type> : std::formatter<rex::u32> {
    * @param ctx The format context.
    * @return The output iterator.
    */
-  auto format(rex::system::XObject::Type value, std::format_context& ctx) const {
+  auto format(rex::system::ObjectKind value, std::format_context& ctx) const {
     return std::formatter<rex::u32>::format(static_cast<rex::u32>(value), ctx);
   }
 };

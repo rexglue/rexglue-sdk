@@ -54,15 +54,18 @@ Result<CodegenContext> CodegenContext::Create(const std::filesystem::path& confi
   }
 
   // Get module and create BinaryView
-  auto user_module = runtime.kernel_state()->GetExecutableModule();
+  auto* kernel_state = runtime.kernel_state();
+  auto user_module = kernel_state->object_table()->Get<rex::system::ModuleObject>(
+      kernel_state->GetExecutableModule());
   if (!user_module) {
     return Err<CodegenContext>(ErrorCategory::Format,
                                "Failed to get executable module after loading");
   }
 
-  auto* module = user_module->xex_module();
+  auto* module = rex::system::UserModuleXex(*user_module);
   if (!module) {
-    return Err<CodegenContext>(ErrorCategory::Format, "Failed to get XexModule from UserModule");
+    return Err<CodegenContext>(ErrorCategory::Format,
+                               "Failed to get XexModule from the executable module");
   }
 
   ctx.binary_ = BinaryView::fromModule(*module);

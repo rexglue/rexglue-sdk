@@ -15,8 +15,11 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include <rex/filesystem.h>
+#include <rex/platform/thread.h>
 #include <rex/result.h>
 #include <rex/system/xevent.h>
 #include <rex/system/xio.h>
@@ -76,72 +79,162 @@ class X_FILE_DIRECTORY_INFORMATION {
   }
 };
 
-class XFile : public XObject {
- public:
-  static const XObject::Type kObjectType = XObject::Type::File;
+namespace util {
+class ObjectTable;
+}  // namespace util
 
-  XFile(KernelState* kernel_state, std::unique_ptr<filesystem::IFile> file, bool synchronous);
-  ~XFile() override;
+/** The host state of a file or directory object. */
+struct FileObject {
+  /**
+   * @param file_in The opened file or directory.
+   * @param synchronous True when the file was opened for synchronous IO.
+   */
+  FileObject(std::unique_ptr<filesystem::IFile> file_in, bool synchronous);
 
-  filesystem::IFile& file() const { return *file_; }
-  filesystem::Access file_access() const { return file_->access(); }
+  /** Closes the IO completion port handles the file owns. */
+  ~FileObject();
 
-  std::string path() const { return file_->Info().path; }
-  std::string name() const { return file_->Info().name; }
-
-  uint64_t position() const;
-  void set_position(uint64_t value);
-
-  X_STATUS QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info, size_t length,
-                          const std::string_view file_name, bool restart);
-
-  // Don't do within the global critical region because invalidation callbacks
-  // may be triggered (as per the usual rule of not doing I/O within the global
-  // critical region).
-  X_STATUS Read(uint32_t buffer_guess_address, uint32_t buffer_length, uint64_t byte_offset,
-                uint32_t* out_bytes_read, uint32_t apc_context, bool notify_completion = true);
-
-  X_STATUS ReadScatter(uint32_t segments_guest_address, uint32_t length, uint64_t byte_offset,
-                       uint32_t* out_bytes_read, uint32_t apc_context);
-
-  X_STATUS Write(uint32_t buffer_guess_address, uint32_t buffer_length, uint64_t byte_offset,
-                 uint32_t* out_bytes_written, uint32_t apc_context);
-
-  X_STATUS SetLength(u64 length);
-  X_STATUS Rename(std::string_view path);
-
-  void RegisterIOCompletionPort(uint32_t key, object_ref<XIOCompletion> port);
-  void RemoveIOCompletionPort(uint32_t key);
-
-  bool is_synchronous() const { return is_synchronous_; }
-
-  void SetFindPattern(std::string_view pattern);
-
-  std::optional<filesystem::FileInfo> FindNext();
-
- protected:
-  void NotifyIOCompletionPorts(XIOCompletion::IONotification& notification);
-
-  rex::platform::WaitHandle* GetWaitHandle() override { return async_event_.get(); }
-
- private:
-  XFile();
-
-  X_STATUS ReadInternal(uint32_t buffer_guest_address, uint32_t buffer_length, uint64_t byte_offset,
-                        uint32_t* out_bytes_read, uint32_t apc_context, bool notify_completion);
-
-  std::unique_ptr<filesystem::IFile> file_;
-  std::unique_ptr<rex::platform::Event> async_event_ = nullptr;
-
-  mutable std::mutex file_lock_;
-  std::mutex completion_port_lock_;
-  std::vector<std::pair<uint32_t, object_ref<XIOCompletion>>> completion_ports_;
-
-  uint64_t position_ = 0;
-
-  std::unique_ptr<filesystem::IDirectory> find_;
-
-  bool is_synchronous_ = false;
+  std::unique_ptr<filesystem::IFile> file;
+  std::unique_ptr<rex::platform::Event> async_event;
+  mutable std::mutex file_lock;
+  std::mutex completion_port_lock;
+  std::vector<std::pair<u32, X_HANDLE>> completion_ports;
+  util::ObjectTable* port_table = nullptr;
+  u64 position = 0;
+  std::unique_ptr<filesystem::IDirectory> find;
+  bool is_synchronous = false;
 };
+
+/**
+ * Writes the next directory entry that matches a pattern.
+ *
+ * @param kernel_state The kernel state.
+ * @param file The directory.
+ * @param out_info Receives the entry.
+ * @param length The size of the output buffer.
+ * @param file_name The pattern, empty to continue the current listing.
+ * @param restart True to restart the current listing.
+ * @return X_STATUS_SUCCESS, X_STATUS_NO_SUCH_FILE or X_STATUS_NO_MORE_FILES.
+ */
+X_STATUS FileQueryDirectory(KernelState* kernel_state, FileObject& file,
+                            X_FILE_DIRECTORY_INFORMATION* out_info, size_t length,
+                            std::string_view file_name, bool restart);
+
+/**
+ * Reads into guest memory and notifies the IO completion ports of the file.
+ *
+ * @param kernel_state The kernel state.
+ * @param file The file.
+ * @param buffer_guess_address The guest address of the buffer.
+ * @param buffer_length The bytes to read.
+ * @param byte_offset The file offset, or the maximum value to read at the current position.
+ * @param out_bytes_read Receives the bytes read, may be null.
+ * @param apc_context The context reported to the completion ports.
+ * @param notify_completion False to skip the completion ports and the async event.
+ * @return The status of the read.
+ */
+X_STATUS FileRead(KernelState* kernel_state, FileObject& file, u32 buffer_guess_address,
+                  u32 buffer_length, u64 byte_offset, u32* out_bytes_read, u32 apc_context,
+                  bool notify_completion = true);
+
+/**
+ * Reads into the page sized segments of a guest segment array.
+ *
+ * @param kernel_state The kernel state.
+ * @param file The file.
+ * @param segments_guest_address The guest address of the segment array.
+ * @param length The bytes to read.
+ * @param byte_offset The file offset, or a negative value to read at the current position.
+ * @param out_bytes_read Receives the bytes read, may be null.
+ * @param apc_context The context reported to the completion ports.
+ * @return The status of the first failed read, otherwise X_STATUS_SUCCESS.
+ */
+X_STATUS FileReadScatter(KernelState* kernel_state, FileObject& file, u32 segments_guest_address,
+                         u32 length, u64 byte_offset, u32* out_bytes_read, u32 apc_context);
+
+/**
+ * Writes from guest memory and notifies the IO completion ports of the file.
+ *
+ * @param kernel_state The kernel state.
+ * @param file The file.
+ * @param buffer_guess_address The guest address of the buffer.
+ * @param buffer_length The bytes to write.
+ * @param byte_offset The file offset, or the maximum value to write at the current position.
+ * @param out_bytes_written Receives the bytes written, may be null.
+ * @param apc_context The context reported to the completion ports.
+ * @return The status of the write.
+ */
+X_STATUS FileWrite(KernelState* kernel_state, FileObject& file, u32 buffer_guess_address,
+                   u32 buffer_length, u64 byte_offset, u32* out_bytes_written, u32 apc_context);
+
+/**
+ * Sets the length of the file.
+ *
+ * @param file The file.
+ * @param length The new length.
+ * @return X_STATUS_SUCCESS, or the mapped filesystem error.
+ */
+X_STATUS FileSetLength(FileObject& file, u64 length);
+
+/**
+ * Renames the file.
+ *
+ * @param file The file.
+ * @param path The new path.
+ * @return X_STATUS_SUCCESS, or the mapped filesystem error.
+ */
+X_STATUS FileRename(FileObject& file, std::string_view path);
+
+/**
+ * Associates an IO completion port with the file. The file owns a duplicate of the port handle.
+ *
+ * @param kernel_state The kernel state.
+ * @param file The file.
+ * @param key The completion key reported with each notification.
+ * @param port The handle of the IO completion port.
+ */
+void FileRegisterIOCompletionPort(KernelState* kernel_state, FileObject& file, u32 key,
+                                  X_HANDLE port);
+
+/**
+ * Removes the first IO completion port registered under a key and closes the duplicate handle.
+ *
+ * @param kernel_state The kernel state.
+ * @param file The file.
+ * @param key The completion key.
+ */
+void FileRemoveIOCompletionPort(KernelState* kernel_state, FileObject& file, u32 key);
+
+/**
+ * Reads the current position of the file.
+ *
+ * @param file The file.
+ * @return The position.
+ */
+u64 FilePosition(FileObject& file);
+
+/**
+ * Sets the current position of the file.
+ *
+ * @param file The file.
+ * @param value The new position.
+ */
+void FileSetPosition(FileObject& file, u64 value);
+
+/**
+ * Starts a directory listing.
+ *
+ * @param file The directory.
+ * @param pattern The pattern to match, empty for every entry.
+ */
+void FileSetFindPattern(FileObject& file, std::string_view pattern);
+
+/**
+ * Returns the next entry of the current listing.
+ *
+ * @param file The directory.
+ * @return The entry, empty when the listing is exhausted or absent.
+ */
+std::optional<filesystem::FileInfo> FileFindNext(FileObject& file);
 
 }  // namespace rex::system

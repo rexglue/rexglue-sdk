@@ -24,7 +24,6 @@ rex_target_pch(rexaudio
     <rex/memory.h>
     <rex/filesystem.h>
     <rex/platform/thread.h>
-    <rex/platform/mutex.h>
     <rex/ppc/context.h>
     <rex/system/kernel_state.h>
     <rex/system/xthread.h>

@@ -11,8 +11,6 @@
 
 #pragma once
 
-#include <memory>
-
 #include <rex/ppc/function.h>
 #include <rex/system/kernel_module.h>
 #include <rex/system/kernel_state.h>
@@ -23,13 +21,12 @@
 
 namespace rex::kernel::xboxkrnl {
 
-class XboxkrnlModule : public system::KernelModule {
- public:
-  XboxkrnlModule(Runtime* emulator, system::KernelState* kernel_state);
-  virtual ~XboxkrnlModule();
-
- private:
-  std::unique_ptr<rex::platform::HighResolutionTimer> timestamp_timer_;
-};
+/**
+ * Creates the xboxkrnl kernel module and binds its variable exports.
+ *
+ * @param kernel_state The kernel state.
+ * @return The handle with a count of 1, 0 when the table cannot grow.
+ */
+X_HANDLE CreateXboxkrnlModule(system::KernelState* kernel_state);
 
 }  // namespace rex::kernel::xboxkrnl

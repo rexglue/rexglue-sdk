@@ -274,7 +274,7 @@ void TextureCache::MarkRangeAsResolved(uint32_t start_unscaled, uint32_t length_
     uint32_t page_last = (start_unscaled + length_unscaled - 1) >> 12;
     uint32_t block_first = page_first >> 5;
     uint32_t block_last = page_last >> 5;
-    auto global_lock = global_critical_region_.Acquire();
+    auto watch_lock = shared_memory().AcquireLock();
     for (uint32_t i = block_first; i <= block_last; ++i) {
       uint32_t add_bits = UINT32_MAX;
       if (i == block_first) {
@@ -321,12 +321,12 @@ bool TextureCache::PrepareTextureLoad(Texture& texture, PendingTextureLoad& pend
   bool base_outdated = false;
   bool mips_outdated = false;
   {
-    auto global_lock = global_critical_region_.Acquire();
+    auto watch_lock = shared_memory().AcquireLock();
     if (outdated_mask & Texture::kOutdatedBitBase) {
-      base_outdated = texture.base_outdated(global_lock);
+      base_outdated = texture.base_outdated(watch_lock);
     }
     if (outdated_mask & Texture::kOutdatedBitMips) {
-      mips_outdated = texture.mips_outdated(global_lock);
+      mips_outdated = texture.mips_outdated(watch_lock);
     }
   }
   if (!base_outdated && !mips_outdated) {
@@ -388,7 +388,7 @@ bool TextureCache::CommitPreparedTextureLoad(const PendingTextureLoad& pending_l
   // resolves as well to detect when the CPU wants to reuse the memory for a
   // regular texture or a vertex buffer, and thus the scaled resolve version is
   // not up to date anymore.
-  texture.MakeUpToDateAndWatch(global_critical_region_.Acquire());
+  texture.MakeUpToDateAndWatch(shared_memory().AcquireLock());
   texture.LogAction("Loaded");
 
   return true;
@@ -632,20 +632,22 @@ TextureCache::Texture::~Texture() {
 }
 
 void TextureCache::Texture::MakeUpToDateAndWatch(
-    const std::unique_lock<std::recursive_mutex>& global_lock) {
+    const std::unique_lock<rex::platform::RankedMutex>& watch_lock) {
   SharedMemory& shared_memory = texture_cache().shared_memory();
   if (base_outdated_) {
     assert_not_zero(GetGuestBaseSize());
     base_outdated_ = false;
-    base_watch_handle_ = shared_memory.WatchMemoryRange(
-        key().base_page << 12, GetGuestBaseSize(), TextureCache::WatchCallback, this, nullptr, 0);
+    base_watch_handle_ =
+        shared_memory.WatchMemoryRange(watch_lock, key().base_page << 12, GetGuestBaseSize(),
+                                       TextureCache::WatchCallback, this, nullptr, 0);
     outdated_mask_.fetch_and(~kOutdatedBitBase, std::memory_order_release);
   }
   if (mips_outdated_) {
     assert_not_zero(GetGuestMipsSize());
     mips_outdated_ = false;
-    mips_watch_handle_ = shared_memory.WatchMemoryRange(
-        key().mip_page << 12, GetGuestMipsSize(), TextureCache::WatchCallback, this, nullptr, 1);
+    mips_watch_handle_ =
+        shared_memory.WatchMemoryRange(watch_lock, key().mip_page << 12, GetGuestMipsSize(),
+                                       TextureCache::WatchCallback, this, nullptr, 1);
     outdated_mask_.fetch_and(~kOutdatedBitMips, std::memory_order_release);
   }
 }
@@ -677,8 +679,7 @@ void TextureCache::Texture::MarkAsUsed() {
   texture_cache_.texture_used_last_ = this;
 }
 
-void TextureCache::Texture::WatchCallback(
-    [[maybe_unused]] const std::unique_lock<std::recursive_mutex>& global_lock, bool is_mip) {
+void TextureCache::Texture::WatchCallback(bool is_mip) {
   if (is_mip) {
     assert_not_zero(GetGuestMipsSize());
     mips_outdated_ = true;
@@ -692,11 +693,10 @@ void TextureCache::Texture::WatchCallback(
   }
 }
 
-void TextureCache::WatchCallback(const std::unique_lock<std::recursive_mutex>& global_lock,
-                                 void* context, void* data, uint64_t argument,
+void TextureCache::WatchCallback(void* context, void* data, uint64_t argument,
                                  bool invalidated_by_gpu) {
   Texture& texture = *static_cast<Texture*>(context);
-  texture.WatchCallback(global_lock, argument != 0);
+  texture.WatchCallback(argument != 0);
   texture.texture_cache().texture_became_outdated_.store(true, std::memory_order_release);
 }
 
@@ -981,7 +981,7 @@ bool TextureCache::IsRangeScaledResolved(uint32_t start_unscaled, uint32_t lengt
   uint32_t block_last = page_last >> 5;
   uint32_t l2_block_first = block_first >> 6;
   uint32_t l2_block_last = block_last >> 6;
-  auto global_lock = global_critical_region_.Acquire();
+  auto watch_lock = shared_memory().AcquireLock();
   for (uint32_t i = l2_block_first; i <= l2_block_last; ++i) {
     uint64_t l2_block = scaled_resolve_pages_l2_[i];
     if (i == l2_block_first) {
@@ -1009,17 +1009,15 @@ bool TextureCache::IsRangeScaledResolved(uint32_t start_unscaled, uint32_t lengt
   return false;
 }
 
-void TextureCache::ScaledResolveGlobalWatchCallbackThunk(
-    const std::unique_lock<std::recursive_mutex>& global_lock, void* context,
-    uint32_t address_first, uint32_t address_last, bool invalidated_by_gpu) {
+void TextureCache::ScaledResolveGlobalWatchCallbackThunk(void* context, uint32_t address_first,
+                                                         uint32_t address_last,
+                                                         bool invalidated_by_gpu) {
   TextureCache* texture_cache = reinterpret_cast<TextureCache*>(context);
-  texture_cache->ScaledResolveGlobalWatchCallback(global_lock, address_first, address_last,
-                                                  invalidated_by_gpu);
+  texture_cache->ScaledResolveGlobalWatchCallback(address_first, address_last, invalidated_by_gpu);
 }
 
-void TextureCache::ScaledResolveGlobalWatchCallback(
-    const std::unique_lock<std::recursive_mutex>& global_lock, uint32_t address_first,
-    uint32_t address_last, bool invalidated_by_gpu) {
+void TextureCache::ScaledResolveGlobalWatchCallback(uint32_t address_first, uint32_t address_last,
+                                                    bool invalidated_by_gpu) {
   assert_true(IsDrawResolutionScaled());
   if (invalidated_by_gpu) {
     // Resolves themselves do exactly the opposite of what this should do.
