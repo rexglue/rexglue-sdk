@@ -9,6 +9,10 @@
 
 #include <rex/ppc/context.h>
 #include <rex/ppc/stack.h>
+#include <rex/runtime.h>
+#include <rex/runtime/xmemory.h>
+
+#include "../kernel/kernel_fixture.h"
 
 // 64KB test memory, aligned
 alignas(64) static uint8_t g_mem[0x10000] = {};
@@ -141,4 +145,34 @@ TEST_CASE("nested stack_guards restore correctly", "[ppc][stack]") {
     CHECK(ctx.r1.u32 == 0x8000 - 8);
   }
   CHECK(ctx.r1.u32 == 0x8000);
+}
+
+TEST_CASE("stack_push and the PCR read reach the 0xE0 heap through its page offset",
+          "[ppc][stack]") {
+  rex::testing::KernelFixture fixture;
+  rex::runtime::Memory& memory = *fixture.runtime().memory();
+  rex::runtime::BaseHeap* heap = memory.LookupHeapByType(true, 4096);
+  u32 block = 0;
+  REQUIRE(heap->Alloc(
+      0x2000, 0x1000,
+      rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
+      rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite, false, &block));
+  REQUIRE(block >= 0xE0000000);
+  u8* base = memory.virtual_membase();
+
+  *memory.TranslateVirtual<rex::be<u32>*>(block + 0x74) = block;
+  PPCContext ctx{};
+  ctx.r13.u32 = block;
+  CHECK(rex::ppc::stack_limit_from_pcr(ctx, base) == block);
+
+  ctx.r1.u32 = block + 0x2000;
+  const u32 addr = rex::ppc::stack_push(ctx, base, u32{0x12345678});
+  CHECK(*memory.TranslateVirtual<rex::be<u32>*>(addr) == 0x12345678u);
+
+  const u32 raw = rex::ppc::stack_push(ctx, base, "abc", 4);
+  CHECK(std::memcmp(memory.TranslateVirtual(raw), "abc", 4) == 0);
+
+  const u32 str = rex::ppc::stack_push_string(ctx, base, "xyz");
+  CHECK(std::strcmp(memory.TranslateVirtual<const char*>(str), "xyz") == 0);
+  CHECK(heap->Release(block));
 }

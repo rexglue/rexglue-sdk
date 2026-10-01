@@ -295,7 +295,7 @@ static const struct {
     {
         0xE0000000,
         0xFFFFFFFF,
-        0x0000000100001000ull,
+        0x0000000100000000ull,
     },
     //          - physical raw
     {
@@ -352,8 +352,6 @@ int Memory::MapViewsMac() {
 
 int Memory::MapViews(uint8_t* mapping_base) {
   assert_true(rex::countof(map_info) == rex::countof(views_.all_views));
-  // 0xE0000000 4 KB offset is emulated via host_address_offset and on the CPU
-  // side if system allocation granularity is bigger than 4 KB.
   uint64_t granularity_mask = ~uint64_t(system_allocation_granularity_ - 1);
   for (size_t n = 0; n < rex::countof(map_info); n++) {
     views_.all_views[n] = reinterpret_cast<uint8_t*>(rex::memory::MapFileView(
@@ -431,15 +429,8 @@ VirtualHeap* Memory::GetPhysicalHeap() {
 }
 
 uint32_t Memory::HostToGuestVirtual(const void* host_address) const {
-  size_t virtual_address =
-      reinterpret_cast<size_t>(host_address) - reinterpret_cast<size_t>(virtual_membase_);
-  uint32_t vE0000000_host_offset = heaps_.vE0000000.host_address_offset();
-  size_t vE0000000_host_base = size_t(heaps_.vE0000000.heap_base()) + vE0000000_host_offset;
-  if (virtual_address >= vE0000000_host_base &&
-      virtual_address <= (vE0000000_host_base + (heaps_.vE0000000.heap_size() - 1))) {
-    virtual_address -= vE0000000_host_offset;
-  }
-  return uint32_t(virtual_address);
+  return detail::RemovePhysicalHostOffset(reinterpret_cast<size_t>(host_address) -
+                                          reinterpret_cast<size_t>(virtual_membase_));
 }
 
 uint32_t Memory::HostToGuestVirtualThunk(const void* context, const void* host_address) {
@@ -1741,12 +1732,7 @@ PhysicalHeap::~PhysicalHeap() = default;
 void PhysicalHeap::Initialize(runtime::Memory* memory, uint8_t* membase, HeapType heap_type,
                               uint32_t heap_base, uint32_t heap_size, uint32_t page_size,
                               VirtualHeap* parent_heap) {
-  uint32_t host_address_offset;
-  if (heap_base >= 0xE0000000 && rex::memory::allocation_granularity() > 0x1000) {
-    host_address_offset = 0x1000;
-  } else {
-    host_address_offset = 0;
-  }
+  const uint32_t host_address_offset = detail::PhysicalHostOffset(heap_base);
 
   BaseHeap::Initialize(memory, membase, heap_type, heap_base, heap_size, page_size,
                        host_address_offset);

@@ -38,6 +38,7 @@ add_executable(unit_tests
     runtime/thread_wait_test.cpp
     runtime/runtime_error_test.cpp
     runtime/runtime_interfaces_test.cpp
+    runtime/memory_view_test.cpp
     input/input_assignment_test.cpp
     ui/console_model_test.cpp
     ui/title_app_test.cpp

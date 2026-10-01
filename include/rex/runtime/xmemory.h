@@ -10,6 +10,8 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -24,22 +26,28 @@
 
 namespace rex::runtime::detail {
 
-/// Compensates for host allocation granularity coarser than 4KB on the 0xE0
-/// physical heap. When the granularity exceeds 0x1000, the backing file maps the
-/// 0xE0 heap at a 0x1000-byte offset that the mapping API rounds away (Windows
-/// MapViewOfFileEx rounds down to 64KB; macOS arm64 uses 16KB pages), so guest
-/// accesses must add it back. This must agree with Memory::MapViews, which only
-/// sets host_address_offset when allocation_granularity() > 0x1000:
-///   - Windows:        64KB granularity  -> offset
-///   - macOS arm64:    16KB granularity  -> offset
-///   - macOS x86_64:    4KB granularity  -> no offset
-///   - Linux (any):     4KB granularity  -> no offset (mmap handles it natively)
-constexpr u32 PhysicalHostOffset([[maybe_unused]] u32 guest_addr) noexcept {
-#if REX_PLATFORM_WIN32 || (REX_PLATFORM_MAC && defined(__aarch64__))
+/**
+ * Returns the host page offset of a guest address. The 0xE0 view maps physical 0 on every platform,
+ * so a guest address from 0xE0000000 up adds the 1 page that the hardware adds.
+ *
+ * @param guest_addr The guest virtual address.
+ * @return 0x1000 from 0xE0000000 up, else 0.
+ */
+constexpr u32 PhysicalHostOffset(u32 guest_addr) noexcept {
   return (guest_addr >= 0xE0000000u) ? 0x1000u : 0u;
-#else
-  return 0u;
-#endif
+}
+
+/**
+ * Inverts PhysicalHostOffset for a host offset from the virtual base.
+ *
+ * @param host_offset The host address minus the virtual base.
+ * @return The guest virtual address.
+ */
+constexpr u32 RemovePhysicalHostOffset(std::size_t host_offset) noexcept {
+  constexpr std::size_t kOffset = PhysicalHostOffset(0xE0000000u);
+  const bool shifted =
+      host_offset >= 0xE0000000u + kOffset && host_offset < 0x100000000ull + kOffset;
+  return static_cast<u32>(shifted ? host_offset - kOffset : host_offset);
 }
 
 }  // namespace rex::runtime::detail
@@ -440,17 +448,19 @@ class Memory {
   // This is often something like 0x100000000.
   inline uint8_t* virtual_membase() const { return virtual_membase_; }
 
-  // Translates a guest virtual address to a host address that can be accessed
-  // as a normal pointer.
-  // Note that the contents at the specified host address are big-endian.
+  /**
+   * Translates a guest virtual address to a host address, with the arithmetic recompiled code
+   * uses. The contents at the host address are big endian.
+   *
+   * @tparam T The pointer type to return.
+   * @param guest_address The guest virtual address.
+   * @return The host address.
+   */
   template <typename T = uint8_t*>
   inline T TranslateVirtual(uint32_t guest_address) const {
-    uint8_t* host_address = virtual_membase_ + guest_address;
-    const auto heap = LookupHeap(guest_address);
-    if (heap) {
-      host_address += heap->host_address_offset();
-    }
-    return reinterpret_cast<T>(host_address);
+    assert(!LookupHeap(guest_address) || LookupHeap(guest_address)->host_address_offset() ==
+                                             detail::PhysicalHostOffset(guest_address));
+    return GuestPtr<T>(virtual_membase_, guest_address);
   }
 
   // Base address of physical memory in the host address space.

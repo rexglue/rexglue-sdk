@@ -19,6 +19,7 @@
 #include <rex/ppc/context.h>
 #include <rex/runtime.h>
 #include <rex/runtime/thread_state.h>
+#include <rex/runtime/xmemory.h>
 #include <rex/types.h>
 
 namespace rex::ppc {
@@ -33,7 +34,7 @@ inline uint32_t stack_limit_from_pcr(PPCContext& ctx, uint8_t* base) {
   if (ctx.r13.u32 == 0)
     return 0;
   uint32_t raw;
-  std::memcpy(&raw, base + ctx.r13.u32 + 0x74, sizeof(raw));
+  std::memcpy(&raw, rex::runtime::GuestPtr(base, ctx.r13.u32 + 0x74), sizeof(raw));
   return __builtin_bswap32(raw);
 }
 
@@ -84,7 +85,7 @@ inline uint32_t stack_push(PPCContext& ctx, uint8_t* base, T value) {
     bits = __builtin_bswap64(bits);
     std::memcpy(&swapped, &bits, 8);
   }
-  std::memcpy(base + new_r1, &swapped, sizeof(T));
+  std::memcpy(rex::runtime::GuestPtr(base, new_r1), &swapped, sizeof(T));
   return new_r1;
 }
 
@@ -95,7 +96,7 @@ inline uint32_t stack_push_string(PPCContext& ctx, uint8_t* base, const char* st
   uint32_t new_r1 = ctx.r1.u32 - alloc;
   stack_bounds_check(ctx, base, new_r1);
   ctx.r1.u32 = new_r1;
-  std::memcpy(base + new_r1, str, len);
+  std::memcpy(rex::runtime::GuestPtr(base, new_r1), str, len);
   return new_r1;
 }
 
@@ -105,7 +106,7 @@ inline uint32_t stack_push(PPCContext& ctx, uint8_t* base, const void* data, uin
   uint32_t new_r1 = ctx.r1.u32 - alloc;
   stack_bounds_check(ctx, base, new_r1);
   ctx.r1.u32 = new_r1;
-  std::memcpy(base + new_r1, data, len);
+  std::memcpy(rex::runtime::GuestPtr(base, new_r1), data, len);
   return new_r1;
 }
 

@@ -50,11 +50,12 @@ constexpr u32 HEAP_ZERO_MEMORY = 0x00000008;
 namespace rex::kernel::shim {
 
 void* ReXHeap::GuestToHost(u32 guest_addr) const {
-  return membase_ + guest_addr;
+  return rex::runtime::GuestPtr<void*>(membase_, guest_addr);
 }
 
 u32 ReXHeap::HostToGuest(void* host_ptr) const {
-  return static_cast<u32>(static_cast<u8*>(host_ptr) - membase_);
+  return rex::runtime::detail::RemovePhysicalHostOffset(
+      static_cast<std::size_t>(static_cast<u8*>(host_ptr) - membase_));
 }
 
 bool ReXHeap::Init(u32 heap_size_bytes, rex::runtime::Memory* memory) {
