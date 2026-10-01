@@ -18,20 +18,20 @@
 #include <rex/memory.h>
 #include <rex/hook.h>
 #include <rex/types.h>
-#include <rex/system/info/file.h>
-#include <rex/system/info/volume.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/util/string_utils.h>
-#include <rex/system/xevent.h>
-#include <rex/system/xfile.h>
-#include <rex/system/xiocompletion.h>
-#include <rex/system/xsymboliclink.h>
-#include <rex/system/xthread.h>
-#include <rex/system/xtypes.h>
+#include <rex/runtime/info/file.h>
+#include <rex/runtime/info/volume.h>
+#include <rex/runtime.h>
+#include <rex/runtime/util/string_utils.h>
+#include <rex/runtime/xevent.h>
+#include <rex/runtime/xfile.h>
+#include <rex/runtime/xiocompletion.h>
+#include <rex/runtime/xsymboliclink.h>
+#include <rex/runtime/xthread.h>
+#include <rex/runtime/xtypes.h>
 #include "kernel/kernel_macros.h"
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::system;
+using namespace rex::runtime;
 
 static bool IsValidPath(const std::string_view s, bool is_pattern) {
   // TODO(gibbed): validate path components individually.
@@ -290,7 +290,7 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
     }
     case XFileRenameInformation: {
       auto info = info_ptr.as<X_FILE_RENAME_INFORMATION*>();
-      auto target_path = util::TranslateAnsiPath(REX_KERNEL_MEMORY(), &info->ansi_string);
+      auto target_path = util::TranslateAnsiPath(runtime::Current().memory(), &info->ansi_string);
       if (!IsValidPath(target_path, false)) {
         return X_STATUS_OBJECT_NAME_INVALID;
       }
@@ -326,11 +326,11 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
       auto handle = uint32_t(info->handle);
       auto key = uint32_t(info->key);
       out_length = sizeof(*info);
-      auto port = REX_KERNEL_OBJECTS()->Get<IOCompletionObject>(handle);
+      auto port = runtime::Current().object_table().Get<IOCompletionObject>(handle);
       if (!port) {
         result = X_STATUS_INVALID_HANDLE;
       } else {
-        FileRegisterIOCompletionPort(REX_KERNEL_STATE(), *file, key, port.handle());
+        FileRegisterIOCompletionPort(runtime::Current(), *file, key, port.handle());
       }
       break;
     }

@@ -28,7 +28,7 @@
 #include <rex/xenos/xenos.h>
 #include <rex/memory.h>
 #include <rex/memory/ring_buffer.h>
-#include <rex/system/xthread.h>
+#include <rex/runtime/xthread.h>
 #include <rex/platform/thread.h>
 #include <rex/ui/presenter.h>
 
@@ -79,7 +79,7 @@ class CommandProcessor {
     kFxaaExtreme,
   };
 
-  CommandProcessor(GraphicsSystem* graphics_system, system::KernelState* kernel_state);
+  CommandProcessor(GraphicsSystem* graphics_system, Runtime& runtime);
   virtual ~CommandProcessor();
 
   uint32_t counter() const { return counter_; }
@@ -225,8 +225,8 @@ class CommandProcessor {
   // Shared memexport readback enable state with backend legacy-flag override support.
   bool IsReadbackMemexportEnabled(bool legacy_backend_flag) const;
 
-  memory::Memory* memory_ = nullptr;
-  system::KernelState* kernel_state_ = nullptr;
+  runtime::Memory* memory_ = nullptr;
+  Runtime* runtime_ = nullptr;
   GraphicsSystem* graphics_system_ = nullptr;
   RegisterFile* register_file_ = nullptr;
 

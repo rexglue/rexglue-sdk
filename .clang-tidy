@@ -21,6 +21,9 @@ WarningsAsErrors: ''
 HeaderFilterRegex: 'include/rex/.*'
 
 CheckOptions:
+  # Discarding a result through a void cast is deliberate
+  - key: bugprone-unused-return-value.AllowCastToVoid
+    value: true
   # Classes and structs
   - key: readability-identifier-naming.ClassCase
     value: CamelCase

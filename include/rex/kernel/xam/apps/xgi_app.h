@@ -10,17 +10,20 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/system/kernel_state.h>
-#include <rex/system/xam/app_manager.h>
+#include <rex/runtime.h>
+#include <rex/runtime/xam/app_manager.h>
 
 namespace rex {
 namespace kernel {
 namespace xam {
 namespace apps {
 
-class XgiApp : public system::xam::App {
+class XgiApp : public runtime::xam::App {
  public:
-  explicit XgiApp(system::KernelState* kernel_state);
+  /**
+   * @param runtime The runtime the app serves.
+   */
+  explicit XgiApp(Runtime& runtime);
 
   X_HRESULT DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
                                 uint32_t buffer_length) override;

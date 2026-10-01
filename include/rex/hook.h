@@ -22,8 +22,8 @@
 #include <rex/logging.h>
 #include <rex/ppc/context.h>
 #include <rex/ppc/function.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/thread_state.h>
+#include <rex/runtime.h>
+#include <rex/runtime/thread_state.h>
 #include <rex/types.h>
 
 //=============================================================================
@@ -163,8 +163,7 @@ struct ImportFunction<R(Args...)> {
     auto* ts = rex::runtime::ThreadState::Get();
     PPCContext* parentCtx = ts->context();
 
-    auto* ks = rex::system::kernel_state();
-    uint8_t* base = ks->memory()->virtual_membase();
+    uint8_t* base = ts->memory()->virtual_membase();
 
     PPCContext ctx{};
     ctx.r1 = parentCtx->r1;
@@ -209,16 +208,16 @@ class [[deprecated("Use rex::ppc::stack_push / stack_guard instead")]] StackFram
   u32 addr(u32 offset) const { return ctx_.r1.u32 + offset; }
 
   void write_string(u32 offset, const char* str, u8* base) const {
-    std::memcpy(rex::memory::GuestPtr(base, addr(offset)), str, std::strlen(str) + 1);
+    std::memcpy(rex::runtime::GuestPtr(base, addr(offset)), str, std::strlen(str) + 1);
   }
 
   void write(u32 offset, const void* data, size_t len, u8* base) const {
-    std::memcpy(rex::memory::GuestPtr(base, addr(offset)), data, len);
+    std::memcpy(rex::runtime::GuestPtr(base, addr(offset)), data, len);
   }
 
   template <typename... A>
   size_t write_fmt(u32 offset, u8* base, fmt::format_string<A...> fmtstr, A&&... args) const {
-    char* dst = rex::memory::GuestPtr<char*>(base, addr(offset));
+    char* dst = rex::runtime::GuestPtr<char*>(base, addr(offset));
     auto result = fmt::format_to_n(dst, size_ - offset - 1, fmtstr, std::forward<A>(args)...);
     *result.out = '\0';
     return result.size;

@@ -17,12 +17,12 @@
 namespace rex {
 namespace kernel {
 namespace xam {
-using namespace rex::system;
-using namespace rex::system::xam;
+using namespace rex::runtime;
+using namespace rex::runtime::xam;
 namespace apps {
-using namespace rex::system;
+using namespace rex::runtime;
 
-XLiveBaseApp::XLiveBaseApp(KernelState* kernel_state) : App(kernel_state, 0xFC) {}
+XLiveBaseApp::XLiveBaseApp(Runtime& runtime) : App(runtime, 0xFC) {}
 
 // http://mb.mirage.org/bugzilla/xliveless/main.c
 

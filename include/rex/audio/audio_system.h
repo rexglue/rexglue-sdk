@@ -16,9 +16,9 @@
 
 #include <rex/kernel.h>
 #include <rex/memory.h>
-#include <rex/system/interfaces/audio.h>
-#include <rex/system/function_dispatcher.h>
-#include <rex/system/xthread.h>
+#include <rex/runtime/interfaces/audio.h>
+#include <rex/runtime/function_dispatcher.h>
+#include <rex/runtime/xthread.h>
 #include <rex/platform/thread.h>
 #include <rex/platform/lock_order.h>
 
@@ -29,15 +29,15 @@ constexpr memory::fourcc_t kAudioSaveSignature = memory::make_fourcc("XAUD");
 class AudioDriver;
 class XmaDecoder;
 
-class AudioSystem : public system::IAudioSystem {
+class AudioSystem : public runtime::IAudioSystem {
  public:
   virtual ~AudioSystem();
 
-  memory::Memory* memory() const { return memory_; }
+  runtime::Memory* memory() const { return memory_; }
   runtime::FunctionDispatcher* function_dispatcher() const { return function_dispatcher_; }
   XmaDecoder* xma_decoder() const { return xma_decoder_.get(); }
 
-  virtual X_STATUS Setup(system::KernelState* kernel_state);
+  virtual X_STATUS Setup(Runtime& runtime);
   virtual void Shutdown();
 
   X_STATUS RegisterClient(uint32_t callback, uint32_t callback_arg, size_t* out_index);
@@ -61,13 +61,13 @@ class AudioSystem : public system::IAudioSystem {
 
   static constexpr size_t kMaximumQueuedFrames = 64;
 
-  memory::Memory* memory_ = nullptr;
+  runtime::Memory* memory_ = nullptr;
   runtime::FunctionDispatcher* function_dispatcher_ = nullptr;
   std::unique_ptr<XmaDecoder> xma_decoder_;
   uint32_t queued_frames_;
 
   std::atomic<bool> worker_running_ = {false};
-  system::KernelState* kernel_state_ = nullptr;
+  Runtime* runtime_ = nullptr;
   X_HANDLE worker_thread_ = 0;
 
   rex::platform::RankedMutex mutex_{rex::platform::LockRank::Object};

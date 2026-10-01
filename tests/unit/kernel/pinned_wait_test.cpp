@@ -16,58 +16,59 @@
 #include <memory>
 #include <thread>
 
-#include <rex/system/kernel_state.h>
-#include <rex/system/xobject.h>
+#include <rex/runtime.h>
+#include <rex/runtime/error.h>
+#include <rex/runtime/xobject.h>
 
 #include "kernel_fixture.h"
 
 using rex::X_HANDLE;
 using rex::X_STATUS;
-using rex::system::AddOptions;
-using rex::system::EventObject;
-using rex::system::SymbolicLinkObject;
+using rex::runtime::AddOptions;
+using rex::runtime::EventObject;
+using rex::runtime::SymbolicLinkObject;
+using rex::runtime::ToXStatus;
 using rex::testing::Caller;
 using rex::testing::KernelFixture;
 
 TEST_CASE("WaitOn returns invalid handle for a missing handle", "[wait]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    auto* ks = c.runtime().kernel_state();
-    CHECK(rex::system::WaitOn(ks, 0xF8001230, 3, 1, 0, nullptr) == X_STATUS_INVALID_HANDLE);
+    CHECK(rex::runtime::WaitOn(c.runtime(), 0xF8001230, 3, 1, 0, nullptr) ==
+          X_STATUS_INVALID_HANDLE);
   });
 }
 
 TEST_CASE("WaitOn on a kind without a wait handle succeeds at once", "[wait]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    auto* ks = c.runtime().kernel_state();
-    X_HANDLE handle = 0;
-    REQUIRE(ks->object_table()->Emplace<SymbolicLinkObject>(&handle, AddOptions{}, "a", "b") ==
-            X_STATUS_SUCCESS);
-    CHECK(rex::system::WaitOn(ks, handle, 3, 1, 0, nullptr) == X_STATUS_SUCCESS);
-    ks->object_table()->Close(handle);
+    auto& table = c.runtime().object_table();
+    auto added = table.Emplace<SymbolicLinkObject>(AddOptions{}, "a", "b");
+    REQUIRE(added.has_value());
+    CHECK(rex::runtime::WaitOn(c.runtime(), *added, 3, 1, 0, nullptr) == X_STATUS_SUCCESS);
+    (void)table.Close(*added);
   });
 }
 
 TEST_CASE("WaitOn keeps the object alive when its handle closes mid wait", "[wait][pin]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    auto* ks = c.runtime().kernel_state();
-    X_HANDLE handle = 0;
-    REQUIRE(ks->object_table()->Emplace<EventObject>(&handle, AddOptions{}, true, false) ==
-            X_STATUS_SUCCESS);
+    auto& table = c.runtime().object_table();
+    auto added = table.Emplace<EventObject>(AddOptions{}, true, false);
+    REQUIRE(added.has_value());
+    const X_HANDLE handle = *added;
     auto result = std::make_shared<std::promise<u32>>();
     auto done = result->get_future();
     auto started = std::make_shared<std::promise<void>>();
     auto running = started->get_future();
-    const u32 waiter = c.Spawn([ks, handle, result, started](Caller&) {
+    const u32 waiter = c.Spawn([handle, result, started](Caller& w) {
       started->set_value();
       u64 timeout = static_cast<u64>(-100000000);
-      result->set_value(rex::system::WaitOn(ks, handle, 3, 1, 0, &timeout));
+      result->set_value(rex::runtime::WaitOn(w.runtime(), handle, 3, 1, 0, &timeout));
     });
     running.wait();
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    CHECK(ks->object_table()->Close(handle) == X_STATUS_SUCCESS);
+    CHECK(ToXStatus(table.Close(handle)) == X_STATUS_SUCCESS);
     CHECK(done.wait_for(std::chrono::seconds(20)) == std::future_status::ready);
     CHECK(done.get() == X_STATUS_TIMEOUT);
     c.Kernel("NtClose", {waiter});

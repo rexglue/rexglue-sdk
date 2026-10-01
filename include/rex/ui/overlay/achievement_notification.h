@@ -10,7 +10,7 @@
  */
 #pragma once
 
-#include <rex/system/achievement_manager.h>
+#include <rex/runtime/achievement_manager.h>
 #include <rex/ui/imgui_dialog.h>
 
 namespace rex::ui {
@@ -20,7 +20,7 @@ class AchievementNotificationDialog : public ImGuiDialog {
   ~AchievementNotificationDialog() override = default;
 
   // Thread-safe implementations may receive events from guest threads.
-  virtual void Push(const rex::system::AchievementEvent& event) = 0;
+  virtual void Push(const rex::runtime::AchievementEvent& event) = 0;
 
  protected:
   explicit AchievementNotificationDialog(ImGuiDrawer* drawer) : ImGuiDialog(drawer) {}

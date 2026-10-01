@@ -26,7 +26,7 @@ namespace rex::graphics {
 
 class ShaderInterpreter {
  public:
-  ShaderInterpreter(const RegisterFile& register_file, const memory::Memory& memory)
+  ShaderInterpreter(const RegisterFile& register_file, const runtime::Memory& memory)
       : register_file_(register_file), memory_(memory) {}
 
   class ExportSink {
@@ -119,7 +119,7 @@ class ShaderInterpreter {
   void ExecuteVertexFetchInstruction(ucode::VertexFetchInstruction instr);
 
   const RegisterFile& register_file_;
-  const memory::Memory& memory_;
+  const runtime::Memory& memory_;
 
   ExportSink* export_sink_ = nullptr;
 

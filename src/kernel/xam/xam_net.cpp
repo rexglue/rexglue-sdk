@@ -27,11 +27,11 @@
 #include <rex/hook.h>
 #include <rex/types.h>
 #include <rex/string.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/xevent.h>
-#include <rex/system/xsocket.h>
-#include <rex/system/xthread.h>
-#include <rex/system/xtypes.h>
+#include <rex/runtime.h>
+#include <rex/runtime/xevent.h>
+#include <rex/runtime/xsocket.h>
+#include <rex/runtime/xthread.h>
+#include <rex/runtime/xtypes.h>
 #include "kernel/kernel_macros.h"
 
 #if REX_PLATFORM_WIN32
@@ -48,8 +48,8 @@
 namespace rex {
 namespace kernel {
 namespace xam {
-using namespace rex::system;
-using namespace rex::system::xam;
+using namespace rex::runtime;
+using namespace rex::runtime::xam;
 
 // https://github.com/G91/TitanOffLine/blob/1e692d9bb9dfac386d08045ccdadf4ae3227bb5e/xkelib/xam/xamNet.h
 enum {
@@ -156,7 +156,7 @@ u32 NetDll_XNetStartup_entry(u32 caller, ppc_ptr_t<XNetStartupParams> params) {
 
   /*
   if (!xam->xnet()) {
-    auto xnet = new XNet(REX_KERNEL_STATE());
+    auto xnet = new XNet(runtime::Current());
     xnet->Initialize();
 
     xam->set_xnet(xnet);
@@ -208,7 +208,7 @@ u32 NetDll_WSAStartup_entry(u32 caller, u16 version, ppc_ptr_t<X_WSADATA> data_p
   ZeroMemory(&wsaData, sizeof(WSADATA));
   int ret = WSAStartup(version, &wsaData);
 
-  auto data_out = REX_KERNEL_MEMORY()->TranslateVirtual(data_ptr.guest_address());
+  auto data_out = runtime::Current().memory()->TranslateVirtual(data_ptr.guest_address());
 
   if (data_ptr) {
     data_ptr->version = wsaData.wVersion;
@@ -266,7 +266,7 @@ u32 NetDll_WSASendTo_entry(u32 caller, u32 socket_handle, ppc_ptr_t<XWSABUF> buf
   assert(!overlapped);
   assert(!completion_routine);
 
-  auto socket = REX_KERNEL_OBJECTS()->Get<SocketObject>(socket_handle);
+  auto socket = runtime::Current().object_table().Get<SocketObject>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
     ThreadRecord::SetLastError(0x2736);
@@ -284,7 +284,7 @@ u32 NetDll_WSASendTo_entry(u32 caller, u32 socket_handle, ppc_ptr_t<XWSABUF> buf
     uint8_t* combined_buffer = combined_buffer_mem.data();
 
     std::memcpy(combined_buffer + combined_buffer_offset,
-                REX_KERNEL_MEMORY()->TranslateVirtual(buffers[i].buf_ptr), buffers[i].len);
+                runtime::Current().memory()->TranslateVirtual(buffers[i].buf_ptr), buffers[i].len);
     combined_buffer_offset += buffers[i].len;
   }
 
@@ -321,16 +321,16 @@ u32 NetDll_WSAWaitForMultipleEvents_entry(u32 num_events, mapped_u32 events, u32
 }
 
 u32 NetDll_WSACreateEvent_entry() {
-  X_HANDLE handle = 0;
-  if (XFAILED(CreateWithBlock<EventObject>(REX_KERNEL_STATE(), &handle, 0, sizeof(X_KEVENT), true,
-                                           false))) {
+  auto added = runtime::Current().object_table().CreateWithBlock<EventObject>(0, sizeof(X_KEVENT),
+                                                                              true, false);
+  if (!added) {
     return 0;
   }
-  return handle;
+  return *added;
 }
 
 u32 NetDll_WSACloseEvent_entry(u32 event_handle) {
-  X_STATUS result = REX_KERNEL_OBJECTS()->Close(event_handle);
+  X_STATUS result = ToXStatus(runtime::Current().object_table().Close(event_handle));
   if (XFAILED(result)) {
     uint32_t error = xboxkrnl::RtlNtStatusToDosError(result);
     ThreadRecord::SetLastError(error);
@@ -459,13 +459,13 @@ u32 NetDll_XNetGetEthernetLinkStatus_entry(u32 caller) {
 u32 NetDll_XNetDnsLookup_entry(u32 caller, mapped_string host, u32 event_handle, mapped_u32 pdns) {
   // TODO(gibbed): actually implement this
   if (pdns) {
-    auto dns_guest = REX_KERNEL_MEMORY()->SystemHeapAlloc(sizeof(XNDNS));
-    auto dns = REX_KERNEL_MEMORY()->TranslateVirtual<XNDNS*>(dns_guest);
+    auto dns_guest = runtime::Current().memory()->SystemHeapAlloc(sizeof(XNDNS));
+    auto dns = runtime::Current().memory()->TranslateVirtual<XNDNS*>(dns_guest);
     dns->status = 1;  // non-zero = error
     *pdns = dns_guest;
   }
   if (event_handle) {
-    auto ev = REX_KERNEL_OBJECTS()->Get<EventObject>(event_handle);
+    auto ev = runtime::Current().object_table().Get<EventObject>(event_handle);
     assert_true(static_cast<bool>(ev));
     if (ev) {
       EventSet(*ev);
@@ -476,20 +476,20 @@ u32 NetDll_XNetDnsLookup_entry(u32 caller, mapped_string host, u32 event_handle,
 
 u32 NetDll_XNetDnsRelease_entry(u32 caller, ppc_ptr_t<XNDNS> dns) {
   REX_KERNEL_ARG(dns);
-  REX_KERNEL_MEMORY()->SystemHeapFree(dns.guest_address());
+  runtime::Current().memory()->SystemHeapFree(dns.guest_address());
   return 0;
 }
 
 u32 NetDll_XNetQosServiceLookup_entry(u32 caller, u32 flags, u32 event_handle, mapped_u32 pqos) {
   // Set pqos as some games will try accessing it despite non-successful result
   if (pqos) {
-    auto qos_guest = REX_KERNEL_MEMORY()->SystemHeapAlloc(sizeof(XNQOS));
-    auto qos = REX_KERNEL_MEMORY()->TranslateVirtual<XNQOS*>(qos_guest);
+    auto qos_guest = runtime::Current().memory()->SystemHeapAlloc(sizeof(XNQOS));
+    auto qos = runtime::Current().memory()->TranslateVirtual<XNQOS*>(qos_guest);
     qos->count = qos->count_pending = 0;
     *pqos = qos_guest;
   }
   if (event_handle) {
-    auto ev = REX_KERNEL_OBJECTS()->Get<EventObject>(event_handle);
+    auto ev = runtime::Current().object_table().Get<EventObject>(event_handle);
     assert_true(static_cast<bool>(ev));
     if (ev) {
       EventSet(*ev);
@@ -500,7 +500,7 @@ u32 NetDll_XNetQosServiceLookup_entry(u32 caller, u32 flags, u32 event_handle, m
 
 u32 NetDll_XNetQosRelease_entry(u32 caller, ppc_ptr_t<XNQOS> qos) {
   REX_KERNEL_ARG(qos);
-  REX_KERNEL_MEMORY()->SystemHeapFree(qos.guest_address());
+  runtime::Current().memory()->SystemHeapFree(qos.guest_address());
   return 0;
 }
 
@@ -526,15 +526,19 @@ u32 NetDll_inet_addr_entry(mapped_string addr_ptr) {
 }
 
 u32 NetDll_socket_entry(u32 caller, u32 af, u32 type, u32 protocol) {
-  auto* table = REX_KERNEL_OBJECTS();
+  auto& table = runtime::Current().object_table();
   X_HANDLE handle = X_INVALID_HANDLE_VALUE;
-  X_STATUS result =
-      table->Emplace<SocketObject>(&handle, AddOptions{}, SocketAddressFamily((uint32_t)af),
-                                   SocketType((uint32_t)type), SocketProtocol((uint32_t)protocol));
+  auto added =
+      table.Emplace<SocketObject>(AddOptions{}, SocketAddressFamily((uint32_t)af),
+                                  SocketType((uint32_t)type), SocketProtocol((uint32_t)protocol));
+  if (added) {
+    handle = *added;
+  }
+  X_STATUS result = ToXStatus(added);
   if (XSUCCEEDED(result)) {
-    result = SocketInitialize(*table->Get<SocketObject>(handle));
+    result = SocketInitialize(*table.Get<SocketObject>(handle));
     if (XFAILED(result)) {
-      table->Close(handle);
+      (void)table.Close(handle);
     }
   }
 
@@ -548,7 +552,7 @@ u32 NetDll_socket_entry(u32 caller, u32 af, u32 type, u32 protocol) {
 }
 
 u32 NetDll_closesocket_entry(u32 caller, u32 socket_handle) {
-  auto socket = REX_KERNEL_OBJECTS()->Get<SocketObject>(socket_handle);
+  auto socket = runtime::Current().object_table().Get<SocketObject>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
     ThreadRecord::SetLastError(0x2736);
@@ -558,12 +562,12 @@ u32 NetDll_closesocket_entry(u32 caller, u32 socket_handle) {
   // TODO: Absolutely delete this object. It is no longer valid after calling
   // closesocket.
   SocketClose(*socket);
-  REX_KERNEL_OBJECTS()->Close(socket_handle);
+  (void)runtime::Current().object_table().Close(socket_handle);
   return 0;
 }
 
 i32 NetDll_shutdown_entry(u32 caller, u32 socket_handle, i32 how) {
-  auto socket = REX_KERNEL_OBJECTS()->Get<SocketObject>(socket_handle);
+  auto socket = runtime::Current().object_table().Get<SocketObject>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
     ThreadRecord::SetLastError(0x2736);
@@ -584,7 +588,7 @@ i32 NetDll_shutdown_entry(u32 caller, u32 socket_handle, i32 how) {
 
 u32 NetDll_setsockopt_entry(u32 caller, u32 socket_handle, u32 level, u32 optname,
                             mapped_void optval_ptr, u32 optlen) {
-  auto socket = REX_KERNEL_OBJECTS()->Get<SocketObject>(socket_handle);
+  auto socket = runtime::Current().object_table().Get<SocketObject>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
     ThreadRecord::SetLastError(0x2736);
@@ -596,7 +600,7 @@ u32 NetDll_setsockopt_entry(u32 caller, u32 socket_handle, u32 level, u32 optnam
 }
 
 u32 NetDll_ioctlsocket_entry(u32 caller, u32 socket_handle, u32 cmd, mapped_void arg_ptr) {
-  auto socket = REX_KERNEL_OBJECTS()->Get<SocketObject>(socket_handle);
+  auto socket = runtime::Current().object_table().Get<SocketObject>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
     ThreadRecord::SetLastError(0x2736);
@@ -614,7 +618,7 @@ u32 NetDll_ioctlsocket_entry(u32 caller, u32 socket_handle, u32 cmd, mapped_void
 }
 
 u32 NetDll_bind_entry(u32 caller, u32 socket_handle, ppc_ptr_t<XSOCKADDR_IN> name, u32 namelen) {
-  auto socket = REX_KERNEL_OBJECTS()->Get<SocketObject>(socket_handle);
+  auto socket = runtime::Current().object_table().Get<SocketObject>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
     ThreadRecord::SetLastError(0x2736);
@@ -632,7 +636,7 @@ u32 NetDll_bind_entry(u32 caller, u32 socket_handle, ppc_ptr_t<XSOCKADDR_IN> nam
 }
 
 u32 NetDll_connect_entry(u32 caller, u32 socket_handle, ppc_ptr_t<XSOCKADDR> name, u32 namelen) {
-  auto socket = REX_KERNEL_OBJECTS()->Get<SocketObject>(socket_handle);
+  auto socket = runtime::Current().object_table().Get<SocketObject>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
     ThreadRecord::SetLastError(0x2736);
@@ -650,7 +654,7 @@ u32 NetDll_connect_entry(u32 caller, u32 socket_handle, ppc_ptr_t<XSOCKADDR> nam
 }
 
 u32 NetDll_listen_entry(u32 caller, u32 socket_handle, i32 backlog) {
-  auto socket = REX_KERNEL_OBJECTS()->Get<SocketObject>(socket_handle);
+  auto socket = runtime::Current().object_table().Get<SocketObject>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
     ThreadRecord::SetLastError(0x2736);
@@ -674,7 +678,7 @@ u32 NetDll_accept_entry(u32 caller, u32 socket_handle, ppc_ptr_t<XSOCKADDR> addr
     return -1;
   }
 
-  auto socket = REX_KERNEL_OBJECTS()->Get<SocketObject>(socket_handle);
+  auto socket = runtime::Current().object_table().Get<SocketObject>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
     ThreadRecord::SetLastError(0x2736);
@@ -683,7 +687,7 @@ u32 NetDll_accept_entry(u32 caller, u32 socket_handle, ppc_ptr_t<XSOCKADDR> addr
 
   N_XSOCKADDR native_addr(addr_ptr);
   int native_len = *addrlen_ptr;
-  X_HANDLE new_socket = SocketAccept(REX_KERNEL_STATE(), *socket, &native_addr, &native_len);
+  X_HANDLE new_socket = SocketAccept(runtime::Current(), *socket, &native_addr, &native_len);
   if (new_socket != X_INVALID_HANDLE_VALUE) {
     addr_ptr->address_family = native_addr.address_family;
     std::memcpy(addr_ptr->sa_data, native_addr.sa_data, *addrlen_ptr - 2);
@@ -714,7 +718,7 @@ struct host_set {
         break;
       }
       // Convert from Xenia -> native
-      auto socket = REX_KERNEL_OBJECTS()->Get<SocketObject>(socket_handle);
+      auto socket = runtime::Current().object_table().Get<SocketObject>(socket_handle);
       if (!socket) {
         this->count = i;
         break;
@@ -801,7 +805,7 @@ i32 NetDll_select_entry(i32 caller, i32 nfds, ppc_ptr_t<x_fd_set> readfds,
 }
 
 u32 NetDll_recv_entry(u32 caller, u32 socket_handle, mapped_void buf_ptr, u32 buf_len, u32 flags) {
-  auto socket = REX_KERNEL_OBJECTS()->Get<SocketObject>(socket_handle);
+  auto socket = runtime::Current().object_table().Get<SocketObject>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
     ThreadRecord::SetLastError(0x2736);
@@ -813,7 +817,7 @@ u32 NetDll_recv_entry(u32 caller, u32 socket_handle, mapped_void buf_ptr, u32 bu
 
 u32 NetDll_recvfrom_entry(u32 caller, u32 socket_handle, mapped_void buf_ptr, u32 buf_len,
                           u32 flags, ppc_ptr_t<XSOCKADDR_IN> from_ptr, mapped_u32 fromlen_ptr) {
-  auto socket = REX_KERNEL_OBJECTS()->Get<SocketObject>(socket_handle);
+  auto socket = runtime::Current().object_table().Get<SocketObject>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
     ThreadRecord::SetLastError(0x2736);
@@ -852,7 +856,7 @@ u32 NetDll_recvfrom_entry(u32 caller, u32 socket_handle, mapped_void buf_ptr, u3
 }
 
 u32 NetDll_send_entry(u32 caller, u32 socket_handle, mapped_void buf_ptr, u32 buf_len, u32 flags) {
-  auto socket = REX_KERNEL_OBJECTS()->Get<SocketObject>(socket_handle);
+  auto socket = runtime::Current().object_table().Get<SocketObject>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
     ThreadRecord::SetLastError(0x2736);
@@ -864,7 +868,7 @@ u32 NetDll_send_entry(u32 caller, u32 socket_handle, mapped_void buf_ptr, u32 bu
 
 u32 NetDll_sendto_entry(u32 caller, u32 socket_handle, mapped_void buf_ptr, u32 buf_len, u32 flags,
                         ppc_ptr_t<XSOCKADDR_IN> to_ptr, u32 to_len) {
-  auto socket = REX_KERNEL_OBJECTS()->Get<SocketObject>(socket_handle);
+  auto socket = runtime::Current().object_table().Get<SocketObject>(socket_handle);
   if (!socket) {
     // WSAENOTSOCK
     ThreadRecord::SetLastError(0x2736);

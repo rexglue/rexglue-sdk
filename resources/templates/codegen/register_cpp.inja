@@ -3,7 +3,7 @@
 //=============================================================================
 
 #include "{{ project }}_init.h"
-#include <rex/system/function_dispatcher.h>
+#include <rex/runtime/function_dispatcher.h>
 
 {% if is_dll %}
 #ifdef _WIN32

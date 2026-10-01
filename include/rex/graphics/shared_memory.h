@@ -107,7 +107,7 @@ class SharedMemory {
   void RangeWrittenByGpu(uint32_t start, uint32_t length);
 
  protected:
-  SharedMemory(memory::Memory& memory);
+  SharedMemory(runtime::Memory& memory);
   // Call in implementation-specific initialization.
   void InitializeCommon();
   void InitializeSparseHostGpuMemory(uint32_t granularity_log2);
@@ -121,7 +121,7 @@ class SharedMemory {
   static constexpr uint32_t kHostGpuMemoryOptimalSparseAllocationLog2 = 22;
   static_assert(kHostGpuMemoryOptimalSparseAllocationLog2 <= kBufferSizeLog2);
 
-  memory::Memory& memory() const { return memory_; }
+  runtime::Memory& memory() const { return memory_; }
 
   uint32_t page_size_log2() const { return page_size_log2_; }
 
@@ -152,7 +152,7 @@ class SharedMemory {
       const std::vector<std::pair<uint32_t, uint32_t>>& upload_page_ranges) = 0;
 
  private:
-  memory::Memory& memory_;
+  runtime::Memory& memory_;
 
   // Log2 of invalidation granularity (the system page size, but the dependency
   // on it is not hard - the access callback takes a range as an argument, and

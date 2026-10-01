@@ -13,8 +13,8 @@
 
 #include <memory>
 
-#include <rex/system/kernel_module.h>
-#include <rex/system/kernel_state.h>
+#include <rex/runtime/kernel_module.h>
+#include <rex/runtime.h>
 #include <rex/platform/thread.h>
 #include <rex/types.h>
 

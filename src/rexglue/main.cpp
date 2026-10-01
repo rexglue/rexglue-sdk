@@ -7,6 +7,7 @@
  */
 
 #include "cli_utils.h"
+#include "log_categories.h"
 #include "commands/codegen_command.h"
 #include "commands/init_command.h"
 #include "commands/vfs_command.h"
@@ -58,7 +59,7 @@ rex::Result<void> StartLogging(const std::string& level, const std::string& log_
   }
   config.file.enabled = !log_file.empty();
   config.file.path = log_file;
-  config.categories = {&rex::log::codegen, &rex::log::rexglue, &rex::log::system};
+  config.categories.assign(rexglue::kLogCategories.begin(), rexglue::kLogCategories.end());
   config.sinks = {&rexglue::ui::LogSink()};
   return rex::log::Start(config);
 }

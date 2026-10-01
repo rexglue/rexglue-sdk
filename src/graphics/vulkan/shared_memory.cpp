@@ -28,7 +28,7 @@
 namespace rex::graphics::vulkan {
 
 VulkanSharedMemory::VulkanSharedMemory(VulkanCommandProcessor& command_processor,
-                                       memory::Memory& memory,
+                                       runtime::Memory& memory,
                                        VkPipelineStageFlags guest_shader_pipeline_stages)
     : SharedMemory(memory),
       command_processor_(command_processor),

@@ -18,11 +18,10 @@
 #include <rex/hook.h>
 #include <rex/types.h>
 #include <rex/runtime.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/xtypes.h>
+#include <rex/runtime/xtypes.h>
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::system;
+using namespace rex::runtime;
 
 u32 XAudioGetSpeakerConfig_entry(mapped_u32 config_ptr) {
   *config_ptr = 0x00010001;
@@ -66,8 +65,7 @@ u32 XAudioRegisterRenderDriverClient_entry(mapped_u32 callback_ptr, mapped_u32 d
   }
   uint32_t callback_arg = callback_ptr[1];
 
-  auto* audio_system =
-      static_cast<audio::AudioSystem*>(REX_KERNEL_STATE()->emulator()->audio_system());
+  auto* audio_system = static_cast<audio::AudioSystem*>(runtime::Current().audio_system());
 
   size_t index;
   auto result = audio_system->RegisterClient(callback, callback_arg, &index);
@@ -83,8 +81,7 @@ u32 XAudioRegisterRenderDriverClient_entry(mapped_u32 callback_ptr, mapped_u32 d
 u32 XAudioUnregisterRenderDriverClient_entry(mapped_void driver_ptr) {
   assert_true((driver_ptr.guest_address() & 0xFFFF0000) == 0x41550000);
 
-  auto* audio_system =
-      static_cast<audio::AudioSystem*>(REX_KERNEL_STATE()->emulator()->audio_system());
+  auto* audio_system = static_cast<audio::AudioSystem*>(runtime::Current().audio_system());
   audio_system->UnregisterClient(driver_ptr.guest_address() & 0x0000FFFF);
   return X_ERROR_SUCCESS;
 }
@@ -99,8 +96,7 @@ u32 XAudioSubmitRenderDriverFrame_entry(mapped_void driver_ptr, mapped_void samp
     submit_krnl_count++;
   }
 
-  auto* audio_system =
-      static_cast<audio::AudioSystem*>(REX_KERNEL_STATE()->emulator()->audio_system());
+  auto* audio_system = static_cast<audio::AudioSystem*>(runtime::Current().audio_system());
   audio_system->SubmitFrame(driver_ptr.guest_address() & 0x0000FFFF, samples_ptr.guest_address());
 
   return X_ERROR_SUCCESS;

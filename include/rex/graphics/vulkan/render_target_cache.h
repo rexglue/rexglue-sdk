@@ -83,7 +83,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
         : framebuffer(framebuffer), host_extent(host_extent) {}
   };
 
-  VulkanRenderTargetCache(const RegisterFile& register_file, const memory::Memory& memory,
+  VulkanRenderTargetCache(const RegisterFile& register_file, const runtime::Memory& memory,
                           uint32_t draw_resolution_scale_x, uint32_t draw_resolution_scale_y,
                           VulkanCommandProcessor& command_processor);
   ~VulkanRenderTargetCache();
@@ -104,7 +104,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   // Performs the resolve to a shared memory area according to the current
   // register values, and also clears the render targets if needed. Must be in a
   // frame for calling.
-  bool Resolve(const memory::Memory& memory, VulkanSharedMemory& shared_memory,
+  bool Resolve(const runtime::Memory& memory, VulkanSharedMemory& shared_memory,
                VulkanTextureCache& texture_cache, uint32_t& written_address_out,
                uint32_t& written_length_out);
 

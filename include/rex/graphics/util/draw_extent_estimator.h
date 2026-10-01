@@ -22,7 +22,7 @@ namespace rex::graphics {
 
 class DrawExtentEstimator {
  public:
-  DrawExtentEstimator(const RegisterFile& register_file, const memory::Memory& memory)
+  DrawExtentEstimator(const RegisterFile& register_file, const runtime::Memory& memory)
       : register_file_(register_file),
         memory_(memory),
         shader_interpreter_(register_file, memory) {}
@@ -57,7 +57,7 @@ class DrawExtentEstimator {
   };
 
   const RegisterFile& register_file_;
-  const memory::Memory& memory_;
+  const runtime::Memory& memory_;
 
   ShaderInterpreter shader_interpreter_;
 };

@@ -23,7 +23,8 @@
 #include <rex/input/state_merge.h>
 #include <rex/input/xinput/xinput_input_driver.h>
 #include <rex/logging.h>
-#include <rex/system/kernel_state.h>
+#include <rex/runtime.h>
+#include <rex/runtime/thread_state.h>
 #include "input/cvar_table.h"
 
 namespace rex::input {
@@ -232,8 +233,8 @@ void InputSystem::UpdateConnectedUser(uint32_t user_index, bool connected) {
 
   // Titles poll capabilities off this rather than every frame, so without it
   // a pad plugged in mid-game is never noticed.
-  if (auto* kernel_state = REX_KERNEL_STATE()) {
-    kernel_state->BroadcastNotification(kXNotificationSystemInputDevicesChanged, 0);
+  if (auto* state = runtime::ThreadState::Get(); state && state->runtime()) {
+    state->runtime()->notifier().BroadcastNotification(kXNotificationSystemInputDevicesChanged, 0);
   }
 
   if (!connected) {

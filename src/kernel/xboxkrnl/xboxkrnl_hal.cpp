@@ -17,8 +17,8 @@
 #include <rex/hook.h>
 #include <rex/types.h>
 #include <rex/runtime/config.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/xtypes.h>
+#include <rex/runtime.h>
+#include <rex/runtime/xtypes.h>
 
 namespace rex::kernel::xboxkrnl {
 
@@ -29,7 +29,7 @@ void HalReturnToFirmware_entry(u32 routine) {
   // Routine must be 1 'HalRebootRoutine'
   assert_true(routine == 1);
   REXLOG_INFO(kernel, "Title requested a return to firmware");
-  REX_KERNEL_STATE()->ExitTitle(rex::runtime::TitleExitReason::HardExit);
+  runtime::Current().ExitTitle(rex::runtime::TitleExitReason::HardExit);
 }
 
 }  // namespace rex::kernel::xboxkrnl

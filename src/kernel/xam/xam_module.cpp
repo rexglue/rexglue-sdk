@@ -13,13 +13,13 @@
 
 #include <rex/kernel/xam/module.h>
 #include <rex/kernel/xam/private.h>
-#include <rex/system/kernel_state.h>
+#include <rex/runtime.h>
 
 namespace rex {
 namespace kernel {
 namespace xam {
-using namespace rex::system;
-using namespace rex::system::xam;
+using namespace rex::runtime;
+using namespace rex::runtime::xam;
 
 std::atomic<int> xam_dialogs_shown_ = {0};
 
@@ -27,8 +27,8 @@ bool XamIsUIActive() {
   return xam_dialogs_shown_ > 0;
 }
 
-X_HANDLE CreateXamModule(KernelState* kernel_state) {
-  return CreateKernelModule(kernel_state, "xe:\\xam.xex");
+X_HANDLE CreateXamModule(Runtime& runtime) {
+  return CreateKernelModule(runtime, "xe:\\xam.xex");
 }
 
 }  // namespace xam

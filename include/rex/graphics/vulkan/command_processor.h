@@ -37,7 +37,7 @@
 #include <rex/graphics/vulkan/texture_cache.h>
 #include <rex/xenos/xenos.h>
 #include <rex/hash.h>
-#include <rex/system/kernel_state.h>
+#include <rex/runtime.h>
 #include <rex/ui/vulkan/linked_type_descriptor_set_allocator.h>
 #include <rex/ui/vulkan/presenter.h>
 #include <rex/ui/vulkan/provider.h>
@@ -127,7 +127,7 @@ class VulkanCommandProcessor : public CommandProcessor {
     VkAccessFlags access_mask_ = 0;
   };
 
-  VulkanCommandProcessor(VulkanGraphicsSystem* graphics_system, system::KernelState* kernel_state);
+  VulkanCommandProcessor(VulkanGraphicsSystem* graphics_system, Runtime& runtime);
   ~VulkanCommandProcessor();
 
   void ClearCaches() override;

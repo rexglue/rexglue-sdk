@@ -18,19 +18,19 @@
 #include <rex/memory.h>
 #include <rex/hook.h>
 #include <rex/types.h>
-#include <rex/system/info/file.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/util/string_utils.h>
-#include <rex/system/xevent.h>
-#include <rex/system/xfile.h>
-#include <rex/system/xiocompletion.h>
-#include <rex/system/xsymboliclink.h>
-#include <rex/system/xthread.h>
-#include <rex/system/xtypes.h>
+#include <rex/runtime/info/file.h>
+#include <rex/runtime.h>
+#include <rex/runtime/util/string_utils.h>
+#include <rex/runtime/xevent.h>
+#include <rex/runtime/xfile.h>
+#include <rex/runtime/xiocompletion.h>
+#include <rex/runtime/xsymboliclink.h>
+#include <rex/runtime/xthread.h>
+#include <rex/runtime/xtypes.h>
 #include "kernel/kernel_macros.h"
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::system;
+using namespace rex::runtime;
 
 struct CreateOptions {
   // https://processhacker.sourceforge.io/doc/ntioapi_8h.html
@@ -117,10 +117,11 @@ u32 NtCreateFile_entry(mapped_u32 handle_out, u32 desired_access,
   }
   assert_not_null(handle_out);
 
-  auto object_name = REX_KERNEL_MEMORY()->TranslateVirtual<X_ANSI_STRING*>(object_attrs->name_ptr);
+  auto object_name =
+      runtime::Current().memory()->TranslateVirtual<X_ANSI_STRING*>(object_attrs->name_ptr);
 
   // Compute path, possibly attrs relative.
-  auto target_path = util::TranslateAnsiPath(REX_KERNEL_MEMORY(), object_name);
+  auto target_path = util::TranslateAnsiPath(runtime::Current().memory(), object_name);
   REXLOG_TRACE(kernel,
                "NtCreateFile "
                "path={} access={:#x} attrs={:#x} share={:#x} disp={:#x} options={:#x}",
@@ -135,7 +136,7 @@ u32 NtCreateFile_entry(mapped_u32 handle_out, u32 desired_access,
   Pinned<FileObject> root_file;
   if (object_attrs->root_directory != 0xFFFFFFFD &&  // ObDosDevices
       object_attrs->root_directory != 0) {
-    root_file = REX_KERNEL_OBJECTS()->Get<FileObject>(object_attrs->root_directory);
+    root_file = runtime::Current().object_table().Get<FileObject>(object_attrs->root_directory);
     assert_true(static_cast<bool>(root_file));
   }
 
@@ -145,8 +146,9 @@ u32 NtCreateFile_entry(mapped_u32 handle_out, u32 desired_access,
   options.access = static_cast<filesystem::Access>(static_cast<uint32_t>(desired_access));
   options.create_directory = (create_options & CreateOptions::FILE_DIRECTORY_FILE) != 0;
   options.require_file = (create_options & CreateOptions::FILE_NON_DIRECTORY_FILE) != 0;
-  auto opened = root_file ? REX_KERNEL_FS()->OpenRelative(*root_file->file, target_path, options)
-                          : REX_KERNEL_FS()->Open(target_path, options);
+  auto opened = root_file ? runtime::Current().file_system()->OpenRelative(*root_file->file,
+                                                                           target_path, options)
+                          : runtime::Current().file_system()->Open(target_path, options);
   X_STATUS result = X_STATUS_SUCCESS;
   filesystem::OpenAction file_action = filesystem::OpenAction::kDoesNotExist;
   if (opened) {
@@ -162,8 +164,12 @@ u32 NtCreateFile_entry(mapped_u32 handle_out, u32 desired_access,
     // If true, desired_access SYNCHRONIZE flag must be set.
     bool synchronous = (create_options & CreateOptions::FILE_SYNCHRONOUS_IO_ALERT) ||
                        (create_options & CreateOptions::FILE_SYNCHRONOUS_IO_NONALERT);
-    result = REX_KERNEL_OBJECTS()->Emplace<FileObject>(&handle, AddOptions{},
-                                                       std::move(opened->file), synchronous);
+    auto added = runtime::Current().object_table().Emplace<FileObject>(
+        AddOptions{}, std::move(opened->file), synchronous);
+    if (added) {
+      handle = *added;
+    }
+    result = ToXStatus(added);
   }
 
   if (io_status_block) {
@@ -209,12 +215,12 @@ u32 NtReadFile_entry(u32 file_handle, u32 event_handle, mapped_void apc_routine_
   bool apc_queued = false;
 
   bool signal_event = false;
-  auto ev = REX_KERNEL_OBJECTS()->Get<EventObject>(event_handle);
+  auto ev = runtime::Current().object_table().Get<EventObject>(event_handle);
   if (event_handle && !ev) {
     result = X_STATUS_INVALID_HANDLE;
   }
 
-  auto file = REX_KERNEL_OBJECTS()->Get<FileObject>(file_handle);
+  auto file = runtime::Current().object_table().Get<FileObject>(file_handle);
   if (!file) {
     result = X_STATUS_INVALID_HANDLE;
   }
@@ -223,7 +229,7 @@ u32 NtReadFile_entry(u32 file_handle, u32 event_handle, mapped_void apc_routine_
     if (true || file->is_synchronous) {
       // Synchronous.
       uint32_t bytes_read = 0;
-      result = FileRead(REX_KERNEL_STATE(), *file, buffer.guest_address(), buffer_length,
+      result = FileRead(runtime::Current(), *file, buffer.guest_address(), buffer_length,
                         byte_offset_ptr ? static_cast<uint64_t>(*byte_offset_ptr) : -1, &bytes_read,
                         apc_context.guest_address());
       if (io_status_block) {
@@ -244,7 +250,7 @@ u32 NtReadFile_entry(u32 file_handle, u32 event_handle, mapped_void apc_routine_
                        "NtReadFile "
                        "queue_apc thid={} normal={:#x} ctx={:#x} arg1={:#x} arg2=0",
                        thread ? thread->thread_id() : 0, apc_routine, apc_ctx, apc_arg1);
-          thread->EnqueueApc(apc_routine, apc_ctx, apc_arg1, 0);
+          thread->EnqueueAPC(apc_routine, apc_ctx, apc_arg1, 0);
           apc_queued = true;
         } else {
           REXLOG_TRACE(kernel,
@@ -310,12 +316,12 @@ u32 NtReadFileScatter_entry(u32 file_handle, u32 event_handle, mapped_void apc_r
   X_STATUS result = X_STATUS_SUCCESS;
 
   bool signal_event = false;
-  auto ev = REX_KERNEL_OBJECTS()->Get<EventObject>(event_handle);
+  auto ev = runtime::Current().object_table().Get<EventObject>(event_handle);
   if (event_handle && !ev) {
     result = X_STATUS_INVALID_HANDLE;
   }
 
-  auto file = REX_KERNEL_OBJECTS()->Get<FileObject>(file_handle);
+  auto file = runtime::Current().object_table().Get<FileObject>(file_handle);
   if (!file) {
     result = X_STATUS_INVALID_HANDLE;
   }
@@ -324,7 +330,7 @@ u32 NtReadFileScatter_entry(u32 file_handle, u32 event_handle, mapped_void apc_r
     if (true || file->is_synchronous) {
       // Synchronous.
       uint32_t bytes_read = 0;
-      result = FileReadScatter(REX_KERNEL_STATE(), *file, segment_array.guest_address(), length,
+      result = FileReadScatter(runtime::Current(), *file, segment_array.guest_address(), length,
                                byte_offset_ptr ? static_cast<uint64_t>(*byte_offset_ptr) : -1,
                                &bytes_read, apc_context.guest_address());
       if (io_status_block) {
@@ -338,7 +344,7 @@ u32 NtReadFileScatter_entry(u32 file_handle, u32 event_handle, mapped_void apc_r
       if ((uint32_t)apc_routine_ptr & ~1) {
         if (apc_context) {
           auto thread = ThreadRecord::GetCurrentThread();
-          thread->EnqueueApc(static_cast<uint32_t>(apc_routine_ptr) & ~1u,
+          thread->EnqueueAPC(static_cast<uint32_t>(apc_routine_ptr) & ~1u,
                              apc_context.guest_address(), io_status_block.guest_address(), 0);
         }
       }
@@ -387,13 +393,13 @@ u32 NtWriteFile_entry(u32 file_handle, u32 event_handle, u32 apc_routine, mapped
 
   // Grab event to signal.
   bool signal_event = false;
-  auto ev = REX_KERNEL_OBJECTS()->Get<EventObject>(event_handle);
+  auto ev = runtime::Current().object_table().Get<EventObject>(event_handle);
   if (event_handle && !ev) {
     result = X_STATUS_INVALID_HANDLE;
   }
 
   // Grab file.
-  auto file = REX_KERNEL_OBJECTS()->Get<FileObject>(file_handle);
+  auto file = runtime::Current().object_table().Get<FileObject>(file_handle);
   if (!file) {
     result = X_STATUS_INVALID_HANDLE;
   }
@@ -404,7 +410,7 @@ u32 NtWriteFile_entry(u32 file_handle, u32 event_handle, u32 apc_routine, mapped
     if (true || file->is_synchronous) {
       // Synchronous request.
       uint32_t bytes_written = 0;
-      result = FileWrite(REX_KERNEL_STATE(), *file, buffer.guest_address(), buffer_length,
+      result = FileWrite(runtime::Current(), *file, buffer.guest_address(), buffer_length,
                          byte_offset_ptr ? static_cast<uint64_t>(*byte_offset_ptr) : -1,
                          &bytes_written, apc_context.guest_address());
 
@@ -419,7 +425,7 @@ u32 NtWriteFile_entry(u32 file_handle, u32 event_handle, u32 apc_routine, mapped
       if ((uint32_t)apc_routine & ~1) {
         if (apc_context) {
           auto thread = ThreadRecord::GetCurrentThread();
-          thread->EnqueueApc(static_cast<uint32_t>(apc_routine) & ~1u, apc_context.guest_address(),
+          thread->EnqueueAPC(static_cast<uint32_t>(apc_routine) & ~1u, apc_context.guest_address(),
                              io_status_block.guest_address(), 0);
         }
       }
@@ -457,7 +463,11 @@ u32 NtWriteFile_entry(u32 file_handle, u32 event_handle, u32 apc_routine, mapped
 u32 NtCreateIoCompletion_entry(mapped_u32 out_handle, u32 desired_access,
                                mapped_void object_attribs, u32 num_concurrent_threads) {
   X_HANDLE handle = 0;
-  X_STATUS status = REX_KERNEL_OBJECTS()->Emplace<IOCompletionObject>(&handle, AddOptions{});
+  auto added = runtime::Current().object_table().Emplace<IOCompletionObject>(AddOptions{});
+  if (added) {
+    handle = *added;
+  }
+  X_STATUS status = ToXStatus(added);
   if (XSUCCEEDED(status) && out_handle) {
     *out_handle = handle;
   }
@@ -511,8 +521,9 @@ u32 NtRemoveIoCompletion_entry(u32 handle, mapped_u32 key_context, mapped_u32 ap
 
 u32 NtQueryFullAttributesFile_entry(ppc_ptr_t<X_OBJECT_ATTRIBUTES> obj_attribs,
                                     ppc_ptr_t<X_FILE_NETWORK_OPEN_INFORMATION> file_info) {
-  auto object_name = REX_KERNEL_MEMORY()->TranslateVirtual<X_ANSI_STRING*>(obj_attribs->name_ptr);
-  auto path_str = util::TranslateAnsiPath(REX_KERNEL_MEMORY(), object_name);
+  auto object_name =
+      runtime::Current().memory()->TranslateVirtual<X_ANSI_STRING*>(obj_attribs->name_ptr);
+  auto path_str = util::TranslateAnsiPath(runtime::Current().memory(), object_name);
   REXLOG_TRACE(kernel,
                "NtQueryFullAttributesFile "
                "path={}",
@@ -521,19 +532,19 @@ u32 NtQueryFullAttributesFile_entry(ppc_ptr_t<X_OBJECT_ATTRIBUTES> obj_attribs,
   Pinned<FileObject> root_file;
   if (obj_attribs->root_directory != 0xFFFFFFFD &&  // ObDosDevices
       obj_attribs->root_directory != 0) {
-    root_file = REX_KERNEL_OBJECTS()->Get<FileObject>(obj_attribs->root_directory);
+    root_file = runtime::Current().object_table().Get<FileObject>(obj_attribs->root_directory);
     assert_true(static_cast<bool>(root_file));
     assert_always();
   }
 
-  auto target_path = util::TranslateAnsiPath(REX_KERNEL_MEMORY(), object_name);
+  auto target_path = util::TranslateAnsiPath(runtime::Current().memory(), object_name);
 
   // Enforce that the path is ASCII.
   if (!IsValidPath(target_path, false)) {
     return X_STATUS_OBJECT_NAME_INVALID;
   }
 
-  if (auto entry = REX_KERNEL_FS()->Stat(target_path)) {
+  if (auto entry = runtime::Current().file_system()->Stat(target_path)) {
     file_info->creation_time = entry->create_time;
     file_info->last_access_time = entry->access_time;
     file_info->last_write_time = entry->write_time;
@@ -567,8 +578,8 @@ u32 NtQueryDirectoryFile_entry(u32 file_handle, u32 event_handle, u32 apc_routin
   X_STATUS result = X_STATUS_UNSUCCESSFUL;
   uint32_t info = 0;
 
-  auto file = REX_KERNEL_OBJECTS()->Get<FileObject>(file_handle);
-  auto name = util::TranslateAnsiPath(REX_KERNEL_MEMORY(), file_name);
+  auto file = runtime::Current().object_table().Get<FileObject>(file_handle);
+  auto name = util::TranslateAnsiPath(runtime::Current().memory(), file_name);
 
   // Enforce that the path is ASCII.
   if (!IsValidPath(name, true)) {
@@ -577,7 +588,7 @@ u32 NtQueryDirectoryFile_entry(u32 file_handle, u32 event_handle, u32 apc_routin
 
   if (file) {
     // X_FILE_DIRECTORY_INFORMATION dir_info = {0};
-    result = FileQueryDirectory(REX_KERNEL_STATE(), *file, file_info_ptr, length, name,
+    result = FileQueryDirectory(runtime::Current(), *file, file_info_ptr, length, name,
                                 restart_scan != 0);
     if (XSUCCEEDED(result)) {
       info = length;
@@ -617,9 +628,10 @@ u32 NtOpenSymbolicLinkObject_entry(mapped_u32 handle_out,
 
   assert_true(object_attrs->attributes == 64);  // case insensitive
 
-  auto object_name = REX_KERNEL_MEMORY()->TranslateVirtual<X_ANSI_STRING*>(object_attrs->name_ptr);
+  auto object_name =
+      runtime::Current().memory()->TranslateVirtual<X_ANSI_STRING*>(object_attrs->name_ptr);
 
-  auto target_path = util::TranslateAnsiPath(REX_KERNEL_MEMORY(), object_name);
+  auto target_path = util::TranslateAnsiPath(runtime::Current().memory(), object_name);
 
   // Enforce that the path is ASCII.
   if (!IsValidPath(target_path, false)) {
@@ -634,14 +646,18 @@ u32 NtOpenSymbolicLinkObject_entry(mapped_u32 handle_out,
     target_path = target_path.substr(4);  // Strip the full qualifier
   }
 
-  std::optional<std::string> link_path = REX_KERNEL_FS()->FindLink(target_path);
+  std::optional<std::string> link_path = runtime::Current().file_system()->FindLink(target_path);
   if (!link_path) {
     return X_STATUS_NO_SUCH_FILE;
   }
 
   X_HANDLE handle = X_INVALID_HANDLE_VALUE;
-  X_STATUS status = REX_KERNEL_OBJECTS()->Emplace<SymbolicLinkObject>(&handle, AddOptions{},
-                                                                      target_path, *link_path);
+  auto added = runtime::Current().object_table().Emplace<SymbolicLinkObject>(
+      AddOptions{}, target_path, *link_path);
+  if (added) {
+    handle = *added;
+  }
+  X_STATUS status = ToXStatus(added);
   if (XFAILED(status)) {
     return status;
   }
@@ -653,13 +669,13 @@ u32 NtOpenSymbolicLinkObject_entry(mapped_u32 handle_out,
 
 // https://docs.microsoft.com/en-us/windows/win32/devnotes/ntquerysymboliclinkobject
 u32 NtQuerySymbolicLinkObject_entry(u32 handle, ppc_ptr_t<X_ANSI_STRING> target) {
-  auto symlink = REX_KERNEL_OBJECTS()->Get<SymbolicLinkObject>(handle);
+  auto symlink = runtime::Current().object_table().Get<SymbolicLinkObject>(handle);
   if (!symlink) {
     return X_STATUS_NO_SUCH_FILE;
   }
   auto length = std::min(static_cast<size_t>(target->maximum_length), symlink->target.size());
   if (length > 0) {
-    auto target_buf = REX_KERNEL_MEMORY()->TranslateVirtual(target->pointer);
+    auto target_buf = runtime::Current().memory()->TranslateVirtual(target->pointer);
     std::memcpy(target_buf, symlink->target.c_str(), length);
   }
   target->length = static_cast<uint16_t>(length);
@@ -717,14 +733,14 @@ u32 IoCreateDevice_entry(u32 device_struct, u32 r4, u32 r5, u32 r6, u32 r7, mapp
   // We'll alloc some scratch space for it so it doesn't cause any exceptions
 
   // 0x24 is guessed size from accesses to out_struct - likely incorrect
-  auto out_guest = REX_KERNEL_MEMORY()->SystemHeapAlloc(0x24);
+  auto out_guest = runtime::Current().memory()->SystemHeapAlloc(0x24);
 
-  auto out = REX_KERNEL_MEMORY()->TranslateVirtual<uint8_t*>(out_guest);
+  auto out = runtime::Current().memory()->TranslateVirtual<uint8_t*>(out_guest);
   memset(out, 0, 0x24);
 
   // XMountUtilityDrive writes some kind of header here
   // 0x1000 bytes should be enough to store it
-  auto out_guest2 = REX_KERNEL_MEMORY()->SystemHeapAlloc(0x1000);
+  auto out_guest2 = runtime::Current().memory()->SystemHeapAlloc(0x1000);
   memory::store_and_swap(out + 0x18, out_guest2);
 
   *out_struct = out_guest;

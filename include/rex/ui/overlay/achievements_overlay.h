@@ -12,7 +12,7 @@
 
 #include <optional>
 
-#include <rex/system/achievement_manager.h>
+#include <rex/runtime/achievement_manager.h>
 #include <rex/ui/imgui_dialog.h>
 #include <rex/ui/overlay/achievement_icon_cache.h>
 
@@ -36,7 +36,7 @@ class AchievementsOverlayDialog : public ImGuiDialog {
 
  private:
   // Lazily loads icon_path, or icons/<image_id>.png when icon_path is empty.
-  ImmediateTexture* GetIcon(const rex::system::AchievementInfo& achievement);
+  ImmediateTexture* GetIcon(const rex::runtime::AchievementInfo& achievement);
 
   const OverlayContext& context_;
   std::optional<AchievementIconCache> icon_cache_;

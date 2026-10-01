@@ -1,0 +1,83 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ *
+ * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+ */
+
+#pragma once
+
+#include <memory>
+#include <optional>
+#include <string_view>
+#include <unordered_map>
+#include <vector>
+
+#include <rex/platform/lock_order.h>
+#include <rex/runtime/object_table.h>
+#include <rex/runtime/xmemory.h>
+#include <rex/string/key.h>
+
+namespace rex::runtime {
+
+/** The handle table of a runtime. */
+class ObjectTable final : public IObjectTable {
+ public:
+  /**
+   * @param memory The guest memory that owned guest blocks are freed from, null in tests.
+   */
+  explicit ObjectTable(Memory* memory);
+  ~ObjectTable() override;
+
+  /** Closes every handle and destroys every object. */
+  void Reset();
+
+  using IObjectTable::Get;
+  using IObjectTable::GetAll;
+
+  Result<X_HANDLE> Add(std::unique_ptr<ObjectRecord> record, const AddOptions& options) override;
+  Result<X_HANDLE> AddWithBlock(std::unique_ptr<ObjectRecord> record, u32 attributes_ptr,
+                                u32 block_size) override;
+  Result<X_HANDLE> Duplicate(X_HANDLE handle) override;
+  Result<void> Retain(X_HANDLE handle) override;
+  Result<void> Close(X_HANDLE handle) override;
+  Result<void> Remove(X_HANDLE handle) override;
+  Result<void> RetainPrimary(const PinnedSlot& slot) override;
+  Result<void> ReleasePrimary(const PinnedSlot& slot) override;
+  std::optional<X_HANDLE> PrimaryHandle(const PinnedSlot& slot) override;
+  PinnedSlot Get(X_HANDLE handle) override;
+  std::vector<PinnedSlot> GetAll() override;
+  Result<void> AddName(std::string_view name, X_HANDLE handle) override;
+  void RemoveName(std::string_view name) override;
+  Result<X_HANDLE> OpenByName(std::string_view name) override;
+  std::optional<X_HANDLE> ResolveGuestObject(u32 address, i32 as_type) override;
+
+ private:
+  struct Slot {
+    ObjectRecord* record = nullptr;
+    u32 ref_count = 0;
+  };
+
+  X_HANDLE Translate(X_HANDLE handle) const;
+  Slot* FindSlot(X_HANDLE handle);
+  u32 AllocateSlot();
+  ObjectRecord* Detach(Slot& slot, X_HANDLE handle);
+  static void Retire(ObjectRecord* record);
+
+  static constexpr u32 GetHandleSlot(X_HANDLE handle) { return (handle - kHandleBase) >> 2; }
+
+  Memory* memory_;
+  rex::platform::RankedMutex identity_mutex_{rex::platform::LockRank::Identity};
+  rex::platform::RankedSharedMutex mutex_{rex::platform::LockRank::Table};
+  rex::platform::RankedMutex name_mutex_{rex::platform::LockRank::Name};
+  std::vector<Slot> slots_;
+  u32 last_free_slot_ = 0;
+  std::unordered_map<ObjectRecord*, std::unique_ptr<ObjectRecord>> records_;
+  std::unordered_map<string_key_case, X_HANDLE> names_;
+};
+
+}  // namespace rex::runtime

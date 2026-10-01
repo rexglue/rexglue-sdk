@@ -23,17 +23,17 @@
 #include <rex/hook.h>
 #include <rex/types.h>
 #include <rex/string.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/user_module.h>
-#include <rex/system/util/string_utils.h>
-#include <rex/system/xevent.h>
-#include <rex/system/xthread.h>
+#include <rex/runtime.h>
+#include <rex/runtime/user_module.h>
+#include <rex/runtime/util/string_utils.h>
+#include <rex/runtime/xevent.h>
+#include <rex/runtime/xthread.h>
 #include <rex/platform/thread.h>
 #include <rex/platform/atomic.h>
 #include "kernel/kernel_macros.h"
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::system;
+using namespace rex::runtime;
 
 // https://msdn.microsoft.com/en-us/library/ff561778
 u32 RtlCompareMemory_entry(mapped_void source1, mapped_void source2, u32 length) {
@@ -149,7 +149,7 @@ void RtlInitAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> destination, mapped_string
 // https://msdn.microsoft.com/en-us/library/ff561899
 void RtlFreeAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> string) {
   if (string->pointer) {
-    REX_KERNEL_MEMORY()->SystemHeapFree(string->pointer);
+    runtime::Current().memory()->SystemHeapFree(string->pointer);
   }
 
   string->reset();
@@ -169,7 +169,7 @@ void RtlInitUnicodeString_entry(ppc_ptr_t<X_UNICODE_STRING> destination, mapped_
 // https://msdn.microsoft.com/en-us/library/ff561903
 void RtlFreeUnicodeString_entry(ppc_ptr_t<X_UNICODE_STRING> string) {
   if (string->pointer) {
-    REX_KERNEL_MEMORY()->SystemHeapFree(string->pointer);
+    runtime::Current().memory()->SystemHeapFree(string->pointer);
   }
 
   string->reset();
@@ -183,8 +183,8 @@ void RtlCopyString_entry(ppc_ptr_t<X_ANSI_STRING> destination, ppc_ptr_t<X_ANSI_
 
   auto length = std::min(destination->maximum_length, source->length);
   if (length > 0) {
-    auto dst_buf = REX_KERNEL_MEMORY()->TranslateVirtual(destination->pointer);
-    auto src_buf = REX_KERNEL_MEMORY()->TranslateVirtual(source->pointer);
+    auto dst_buf = runtime::Current().memory()->TranslateVirtual(destination->pointer);
+    auto src_buf = runtime::Current().memory()->TranslateVirtual(source->pointer);
     std::memcpy(dst_buf, src_buf, length);
   }
   destination->length = length;
@@ -199,8 +199,8 @@ void RtlCopyUnicodeString_entry(ppc_ptr_t<X_UNICODE_STRING> destination,
 
   auto length = std::min(destination->maximum_length, source->length);
   if (length > 0) {
-    auto dst_buf = REX_KERNEL_MEMORY()->TranslateVirtual(destination->pointer);
-    auto src_buf = REX_KERNEL_MEMORY()->TranslateVirtual(source->pointer);
+    auto dst_buf = runtime::Current().memory()->TranslateVirtual(destination->pointer);
+    auto src_buf = runtime::Current().memory()->TranslateVirtual(source->pointer);
     std::memcpy(dst_buf, src_buf, length * 2);
   }
   destination->length = length;
@@ -214,7 +214,8 @@ u32 RtlUnicodeStringToAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> destination_ptr,
   // _In_     PCUNICODE_STRING SourceString,
   // _In_     BOOLEAN AllocateDestinationString
 
-  std::u16string unicode_str = util::TranslateUnicodeString(REX_KERNEL_MEMORY(), source_ptr);
+  std::u16string unicode_str =
+      util::TranslateUnicodeString(runtime::Current().memory(), source_ptr);
   std::string ansi_str = rex::to_utf8(unicode_str);
   if (ansi_str.size() > 0xFFFF - 1) {
     return X_STATUS_INVALID_PARAMETER_2;
@@ -222,15 +223,17 @@ u32 RtlUnicodeStringToAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> destination_ptr,
 
   X_STATUS result = X_STATUS_SUCCESS;
   if (alloc_dest) {
-    uint32_t buffer_ptr = REX_KERNEL_MEMORY()->SystemHeapAlloc(uint32_t(ansi_str.size() + 1));
+    uint32_t buffer_ptr =
+        runtime::Current().memory()->SystemHeapAlloc(uint32_t(ansi_str.size() + 1));
 
-    memcpy(REX_KERNEL_MEMORY()->TranslateVirtual(buffer_ptr), ansi_str.data(), ansi_str.size() + 1);
+    memcpy(runtime::Current().memory()->TranslateVirtual(buffer_ptr), ansi_str.data(),
+           ansi_str.size() + 1);
     destination_ptr->length = static_cast<uint16_t>(ansi_str.size());
     destination_ptr->maximum_length = static_cast<uint16_t>(ansi_str.size() + 1);
     destination_ptr->pointer = static_cast<uint32_t>(buffer_ptr);
   } else {
     uint32_t buffer_capacity = destination_ptr->maximum_length;
-    auto buffer_ptr = REX_KERNEL_MEMORY()->TranslateVirtual(destination_ptr->pointer);
+    auto buffer_ptr = runtime::Current().memory()->TranslateVirtual(destination_ptr->pointer);
     if (buffer_capacity < ansi_str.size() + 1) {
       // Too large - we just write what we can.
       result = X_STATUS_BUFFER_OVERFLOW;
@@ -302,14 +305,15 @@ u32 RtlImageNtHeader_entry(mapped_void module) {
   if (nt_magic != 0x4550) {  // 'PE'
     return 0;
   }
-  return REX_KERNEL_MEMORY()->HostToGuestVirtual(nt_header);
+  return runtime::Current().memory()->HostToGuestVirtual(nt_header);
 }
 
 u32 RtlImageXexHeaderField_entry(ppc_ptr_t<xex2_header> xex_header, u32 field_dword) {
   uint32_t field_value = 0;
   uint32_t field = field_dword;  // VS acts weird going from u32 -> enum
 
-  UserModuleGetOptHeader(REX_KERNEL_MEMORY(), xex_header, xex2_header_keys(field), &field_value);
+  UserModuleGetOptHeader(runtime::Current().memory(), xex_header, xex2_header_keys(field),
+                         &field_value);
 
   return field_value;
 }
@@ -406,7 +410,7 @@ void RtlEnterCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
 
   if (rex::platform::atomic_inc(&cs->lock_count) != 0) {
     // Create a full waiter.
-    KeWaitForSingleObject(reinterpret_cast<void*>(cs.host_address()), 8, 0, 0, nullptr);
+    KeWaitForSingleObject(cs.guest_address(), 8, 0, 0, nullptr);
   }
 
   assert_true(cs->owning_thread == 0);
@@ -449,7 +453,7 @@ void RtlLeaveCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
   cs->owning_thread = 0;
   if (rex::platform::atomic_dec(&cs->lock_count) != -1) {
     // There were waiters - wake one of them.
-    KeSetEvent(reinterpret_cast<X_KEVENT*>(cs.host_address()), 1, 0);
+    KeSetEvent(cs.guest_address(), 1, 0);
   }
 }
 

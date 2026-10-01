@@ -13,11 +13,15 @@
 
 namespace rex {
 class Runtime;
-namespace system {
-class KernelState;
-}
 }  // namespace rex
 
 namespace rex::kernel {
-void InitializeKernel(Runtime* runtime, system::KernelState* kernel_state);
-}
+
+/**
+ * Registers the Xam apps and loads the xboxkrnl, Xam and Xbdm kernel modules.
+ *
+ * @param runtime The runtime being set up.
+ */
+void InitializeKernel(Runtime& runtime);
+
+}  // namespace rex::kernel

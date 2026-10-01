@@ -20,14 +20,14 @@
 
 #include <rex/macros.h>
 #include <rex/result.h>
-#include <rex/system/util/xex2_info.h>
-#include <rex/system/xcontent.h>
+#include <rex/runtime/util/xex2_info.h>
+#include <rex/runtime/xcontent.h>
 #include <rex/types.h>
 
 namespace rex::filesystem {
 
-using rex::system::XContentType;
-using rex::system::XLanguage;
+using rex::runtime::XContentType;
+using rex::runtime::XLanguage;
 
 /**
  * Converts a FAT date and time to Windows FILETIME ticks.

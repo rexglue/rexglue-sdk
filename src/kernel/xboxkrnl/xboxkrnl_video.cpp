@@ -29,9 +29,8 @@
 #include <rex/types.h>
 #include <rex/runtime.h>
 #include <rex/string/buffer.h>
-#include <rex/system/kernel_module.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/xtypes.h>
+#include <rex/runtime/kernel_module.h>
+#include <rex/runtime/xtypes.h>
 
 namespace {
 // Display gamma type: 0 - linear, 1 - sRGB (CRT), 2 - BT.709 (HDTV), 3 - power
@@ -49,7 +48,7 @@ void WarnNoGpuEmulation(const char* export_name, std::atomic<bool>& warned) {
 }  // namespace
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::system;
+using namespace rex::runtime;
 
 REX_EXPORT_STUB(__imp__VdBlockUntilGUIIdle);
 REX_EXPORT_STUB(__imp__VdDisplayFatalError);
@@ -280,7 +279,7 @@ void VdSetGraphicsInterruptCallback_entry(u32 callback, mapped_void user_data) {
   // callback takes 2 params
   // r3 = bool 0/1 - 0 is normal interrupt, 1 is some acquire/lock mumble
   // r4 = user_data (r4 of VdSetGraphicsInterruptCallback)
-  auto* graphics_system = REX_KERNEL_STATE()->emulator()->graphics_system();
+  auto* graphics_system = runtime::Current().graphics_system();
   if (!graphics_system) {
     static std::atomic<bool> warned{false};
     WarnNoGpuEmulation("VdSetGraphicsInterruptCallback", warned);
@@ -293,7 +292,7 @@ void VdInitializeRingBuffer_entry(mapped_void ptr, i32 size_log2) {
   // r3 = result of MmGetPhysicalAddress
   // r4 = log2(size)
   // Buffer pointers are from MmAllocatePhysicalMemory with WRITE_COMBINE.
-  auto* graphics_system = REX_KERNEL_STATE()->emulator()->graphics_system();
+  auto* graphics_system = runtime::Current().graphics_system();
   if (!graphics_system) {
     static std::atomic<bool> warned{false};
     WarnNoGpuEmulation("VdInitializeRingBuffer", warned);
@@ -304,7 +303,7 @@ void VdInitializeRingBuffer_entry(mapped_void ptr, i32 size_log2) {
 
 void VdEnableRingBufferRPtrWriteBack_entry(mapped_void ptr, i32 block_size_log2) {
   // r4 = log2(block size), 6, usually --- <=19
-  auto* graphics_system = REX_KERNEL_STATE()->emulator()->graphics_system();
+  auto* graphics_system = runtime::Current().graphics_system();
   if (!graphics_system) {
     static std::atomic<bool> warned{false};
     WarnNoGpuEmulation("VdEnableRingBufferRPtrWriteBack", warned);
@@ -378,10 +377,10 @@ u32 VdPersistDisplay_entry(u32 unk0, mapped_u32 unk1_ptr) {
   // unk1_ptr needs to be populated with a pointer passed to
   // MmFreePhysicalMemory(1, *unk1_ptr).
   if (unk1_ptr) {
-    auto heap = REX_KERNEL_MEMORY()->LookupHeapByType(true, 16 * 1024);
+    auto heap = runtime::Current().memory()->LookupHeapByType(true, 16 * 1024);
     uint32_t unk1_value;
-    heap->Alloc(64, 32, memory::kMemoryAllocationReserve | memory::kMemoryAllocationCommit,
-                memory::kMemoryProtectNoAccess, false, &unk1_value);
+    heap->Alloc(64, 32, runtime::kMemoryAllocationReserve | runtime::kMemoryAllocationCommit,
+                runtime::kMemoryProtectNoAccess, false, &unk1_value);
     *unk1_ptr = unk1_value;
   }
 
@@ -426,7 +425,7 @@ void VdSwap_entry(mapped_void buffer_ptr,      // ptr into primary ringbuffer
   uint32_t frontbuffer_virtual_address = gpu_fetch.base_address << 12;
   assert_true(*frontbuffer_ptr == frontbuffer_virtual_address);
   uint32_t frontbuffer_physical_address =
-      REX_KERNEL_MEMORY()->GetPhysicalAddress(frontbuffer_virtual_address);
+      runtime::Current().memory()->GetPhysicalAddress(frontbuffer_virtual_address);
   assert_true(frontbuffer_physical_address != UINT32_MAX);
   if (frontbuffer_physical_address == UINT32_MAX) {
     // Xenia-specific safety check.
@@ -477,31 +476,31 @@ void VdSwap_entry(mapped_void buffer_ptr,      // ptr into primary ringbuffer
   }
 }
 
-void RegisterVideoExports(ModuleObject& module, KernelState* kernel_state) {
-  auto memory = kernel_state->memory();
+void RegisterVideoExports(ModuleObject& module, Runtime& runtime) {
+  auto memory = runtime.memory();
 
   // VdGlobalDevice (4b)
   // Pointer to a global D3D device. Games only seem to set this, so we don't
   // have to do anything. We may want to read it back later, though.
-  uint32_t pVdGlobalDevice = memory->SystemHeapAlloc(4, 32, memory::kSystemHeapPhysical);
+  uint32_t pVdGlobalDevice = memory->SystemHeapAlloc(4, 32, runtime::kSystemHeapPhysical);
   KernelModuleSetVariable(module, 0x01BE, pVdGlobalDevice);
   memory::store_and_swap<uint32_t>(memory->TranslateVirtual(pVdGlobalDevice), 0);
 
   // VdGlobalXamDevice (4b)
   // Pointer to the XAM D3D device, which we don't have.
-  uint32_t pVdGlobalXamDevice = memory->SystemHeapAlloc(4, 32, memory::kSystemHeapPhysical);
+  uint32_t pVdGlobalXamDevice = memory->SystemHeapAlloc(4, 32, runtime::kSystemHeapPhysical);
   KernelModuleSetVariable(module, 0x01BF, pVdGlobalXamDevice);
   memory::store_and_swap<uint32_t>(memory->TranslateVirtual(pVdGlobalXamDevice), 0);
 
   // VdGpuClockInMHz (4b)
   // GPU clock. Xenos is 500MHz. Hope nothing is relying on this timing...
-  uint32_t pVdGpuClockInMHz = memory->SystemHeapAlloc(4, 32, memory::kSystemHeapPhysical);
+  uint32_t pVdGpuClockInMHz = memory->SystemHeapAlloc(4, 32, runtime::kSystemHeapPhysical);
   KernelModuleSetVariable(module, 0x01C0, pVdGpuClockInMHz);
   memory::store_and_swap<uint32_t>(memory->TranslateVirtual(pVdGpuClockInMHz), 500);
 
   // VdHSIOCalibrationLock (28b)
   // CriticalSection.
-  uint32_t pVdHSIOCalibrationLock = memory->SystemHeapAlloc(28, 32, memory::kSystemHeapPhysical);
+  uint32_t pVdHSIOCalibrationLock = memory->SystemHeapAlloc(28, 32, runtime::kSystemHeapPhysical);
   KernelModuleSetVariable(module, 0x01C1, pVdHSIOCalibrationLock);
   auto hsio_lock = memory->TranslateVirtual<X_RTL_CRITICAL_SECTION*>(pVdHSIOCalibrationLock);
   RtlInitializeCriticalSectionAndSpinCount(hsio_lock, pVdHSIOCalibrationLock, 10000);

@@ -15,11 +15,11 @@
 #include <rex/hook.h>
 #include <rex/types.h>
 #include <rex/string.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/function_dispatcher.h>
-#include <rex/system/user_module.h>
-#include <rex/system/xthread.h>
-#include <rex/system/xtypes.h>
+#include <rex/runtime.h>
+#include <rex/runtime/function_dispatcher.h>
+#include <rex/runtime/user_module.h>
+#include <rex/runtime/xthread.h>
+#include <rex/runtime/xtypes.h>
 #include "kernel/kernel_macros.h"
 
 #if REX_PLATFORM_WIN32
@@ -31,8 +31,8 @@
 namespace rex {
 namespace kernel {
 namespace xam {
-using namespace rex::system;
-using namespace rex::system::xam;
+using namespace rex::runtime;
+using namespace rex::runtime::xam;
 
 struct XTASK_MESSAGE {
   be<uint32_t> unknown_00;
@@ -50,25 +50,31 @@ u32 XamTaskSchedule_entry(mapped_void callback, ppc_ptr_t<XTASK_MESSAGE> message
   // TODO(gibbed): figure out what this is for
   *handle_ptr = 12345;
 
-  uint32_t stack_size = REX_KERNEL_OBJECTS()
-                            ->Get<ModuleObject>(REX_KERNEL_STATE()->GetExecutableModule())
-                            ->user.stack_size;
+  uint32_t stack_size =
+      runtime::Current()
+          .object_table()
+          .Get<ModuleObject>(runtime::Current().module_registry().executable().value_or(0))
+          ->user.stack_size;
 
   // Stack must be aligned to 16kb pages
   stack_size = std::max((uint32_t)0x4000, ((stack_size + 0xFFF) & 0xFFFFF000));
 
   auto record =
-      std::make_unique<ThreadRecord>(REX_KERNEL_STATE(), stack_size, 0, callback.guest_address(),
+      std::make_unique<ThreadRecord>(runtime::Current(), stack_size, 0, callback.guest_address(),
                                      message.guest_address(), 0, true);
 
   X_HANDLE task_thread = 0;
-  X_STATUS result = REX_KERNEL_STATE()->threads()->Launch(std::move(record), &task_thread);
+  auto launched = runtime::Current().thread_registry().Launch(std::move(record));
+  if (launched) {
+    task_thread = *launched;
+  }
+  X_STATUS result = ToXStatus(launched);
 
   if (XFAILED(result)) {
     // Failed!
     REX_FAIL(kernel, result, "XAM task creation failed: {:08X}", result);
   }
-  REX_KERNEL_OBJECTS()->Close(task_thread);
+  (void)runtime::Current().object_table().Close(task_thread);
 
   REXLOG_DEBUG(kernel, "XAM task ({:08X}) scheduled asynchronously", callback.guest_address());
 

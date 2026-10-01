@@ -15,16 +15,18 @@
 
 struct PPCFuncMapping;
 
-namespace rex::system {
-class KernelState;
-}
+namespace rex::runtime {
+class IModuleRegistry;
+}  // namespace rex::runtime
 
 namespace rex {
 
 /**
- * Callback for registering recompiled modules with KernelState (multi-binary projects).
+ * Registers the recompiled libraries of a project with several binaries.
+ *
+ * @param modules The module registry of the runtime being launched.
  */
-using RegisterModulesFunc = void (*)(system::KernelState*);
+using RegisterModulesFunc = void (*)(runtime::IModuleRegistry& modules);
 
 struct PPCCodegenFlags {
   bool skip_lr = false;

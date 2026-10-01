@@ -18,6 +18,7 @@
 #include <rex/types.h>
 
 namespace rex {
+class API;
 class Runtime;
 }  // namespace rex
 
@@ -40,13 +41,21 @@ class ToolRuntime : public MoveOnly {
    */
   [[nodiscard]] Runtime& runtime() const { return *runtime_; }
 
+  /**
+   * Returns the API that serves the runtime's interfaces.
+   *
+   * @return The API, valid until the ToolRuntime is destroyed.
+   */
+  API& api() const { return *api_; }
+
  private:
   friend Result<ToolRuntime> OpenToolRuntime(const std::filesystem::path& game_root);
 
-  explicit ToolRuntime(std::unique_ptr<Runtime> runtime);
+  ToolRuntime(std::unique_ptr<Runtime> runtime, API* api);
   void Release();
 
   std::unique_ptr<Runtime> runtime_;
+  API* api_ = nullptr;
 };
 
 /**

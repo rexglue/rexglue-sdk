@@ -16,8 +16,7 @@
 #include <vector>
 
 #include <rex/runtime.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/util/xdbf_utils.h>
+#include <rex/runtime/util/xdbf_utils.h>
 #include <rex/ui/image_decode.h>
 #include <rex/ui/immediate_drawer.h>
 
@@ -26,7 +25,7 @@ namespace rex::ui {
 AchievementIconCache::AchievementIconCache(ImmediateDrawer* immediate_drawer, rex::Runtime* runtime)
     : immediate_drawer_(immediate_drawer), runtime_(runtime) {}
 
-ImmediateTexture* AchievementIconCache::GetIcon(const rex::system::AchievementInfo& achievement) {
+ImmediateTexture* AchievementIconCache::GetIcon(const rex::runtime::AchievementInfo& achievement) {
   const std::string cache_key =
       "path:" + achievement.icon_path + "|image:" + std::to_string(achievement.image_id);
   auto it = cache_.find(cache_key);
@@ -99,17 +98,17 @@ std::unique_ptr<ImmediateTexture> AchievementIconCache::LoadMetadataTexture(
 }
 
 std::unique_ptr<ImmediateTexture> AchievementIconCache::LoadXdbfTexture(uint32_t image_id) {
-  if (!runtime_ || !runtime_->kernel_state()) {
+  if (!runtime_ || !runtime_->is_setup()) {
     return nullptr;
   }
 
-  const auto db = runtime_->kernel_state()->title_xdbf();
+  const auto db = runtime_->content_manager().title_xdbf();
   if (!db.is_valid()) {
     return nullptr;
   }
 
   const auto block =
-      db.GetEntry(rex::system::util::XdbfSection::kImage, static_cast<uint64_t>(image_id));
+      db.GetEntry(rex::runtime::util::XdbfSection::kImage, static_cast<uint64_t>(image_id));
   if (!block) {
     return nullptr;
   }

@@ -23,12 +23,12 @@
 
 #include <rex/logging.h>
 #include <rex/platform/file.h>
-#include <rex/system/guest_path.h>
+#include <rex/runtime/guest_path.h>
 
 namespace rex::codegen {
 
 std::string CanonicalizeModuleGuestPath(std::string_view path, std::string_view project_name) {
-  std::string guest_path = rex::system::NormalizeGuestPath(path);
+  std::string guest_path = rex::runtime::NormalizeGuestPath(path);
 
   if (!project_name.empty()) {
     std::string lower_project(project_name);

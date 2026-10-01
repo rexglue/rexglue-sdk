@@ -759,7 +759,7 @@ const ResolveCopyShaderInfo resolve_copy_shader_info[size_t(ResolveCopyShaderInd
     {"Resolve Copy Full 128bpp", true, 2, 4, 4, 3},
 };
 
-bool GetResolveInfo(const RegisterFile& regs, const memory::Memory& memory,
+bool GetResolveInfo(const RegisterFile& regs, const runtime::Memory& memory,
                     uint32_t draw_resolution_scale_x, uint32_t draw_resolution_scale_y,
                     bool fixed_rg16_truncated_to_minus_1_to_1,
                     bool fixed_rgba16_truncated_to_minus_1_to_1, ResolveInfo& info_out) {

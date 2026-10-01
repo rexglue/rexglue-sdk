@@ -13,8 +13,8 @@
 #include <rex/codegen/binary_view.h>
 #include <rex/logging.h>
 
-#include <rex/system/binary_types.h>
-#include <rex/system/module.h>
+#include <rex/runtime/binary_types.h>
+#include <rex/runtime/module.h>
 
 namespace rex::codegen {
 

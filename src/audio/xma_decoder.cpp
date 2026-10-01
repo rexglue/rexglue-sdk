@@ -18,11 +18,11 @@
 #include <rex/math.h>
 #include <rex/memory/ring_buffer.h>
 #include <rex/string/buffer.h>
-#include <rex/system/function_dispatcher.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/thread_registry.h>
-#include <rex/system/thread_state.h>
-#include <rex/system/xthread.h>
+#include <rex/runtime/function_dispatcher.h>
+#include <rex/runtime.h>
+#include <rex/runtime/thread_registry.h>
+#include <rex/runtime/thread_state.h>
+#include <rex/runtime/xthread.h>
 #include "audio/cvar_table.h"
 
 extern "C" {
@@ -87,7 +87,7 @@ void av_log_callback(void* avcl, int level, const char* fmt, va_list va) {
   }
 }
 
-X_STATUS XmaDecoder::Setup(system::KernelState* kernel_state) {
+X_STATUS XmaDecoder::Setup(Runtime& runtime) {
   // Setup ffmpeg logging callback
   av_log_set_callback(av_log_callback);
 
@@ -107,7 +107,7 @@ X_STATUS XmaDecoder::Setup(system::KernelState* kernel_state) {
   // X_PAGE_READWRITE and writes MmGetPhysicalAddress for the address to the
   // register.
   context_data_first_ptr_ = memory()->SystemHeapAlloc(sizeof(XMA_CONTEXT_DATA) * kContextCount, 256,
-                                                      memory::kSystemHeapPhysical);
+                                                      runtime::kSystemHeapPhysical);
   context_data_last_ptr_ = context_data_first_ptr_ + (sizeof(XMA_CONTEXT_DATA) * kContextCount - 1);
   register_file_[XmaRegister::ContextArrayAddress] =
       memory()->GetPhysicalAddress(context_data_first_ptr_);
@@ -126,13 +126,13 @@ X_STATUS XmaDecoder::Setup(system::KernelState* kernel_state) {
   worker_running_ = true;
   work_event_ = rex::platform::Event::CreateAutoResetEvent(false);
   assert_not_null(work_event_);
-  kernel_state_ = kernel_state;
-  auto record = std::make_unique<system::ThreadRecord>(kernel_state, 128 * 1024, 0, [this]() {
+  runtime_ = &runtime;
+  auto record = std::make_unique<runtime::ThreadRecord>(runtime, 128 * 1024, 0, [this]() {
     WorkerThreadMain();
     return 0;
   });
   record->set_name("XMA Decoder");
-  kernel_state->threads()->Launch(std::move(record), &worker_thread_);
+  worker_thread_ = runtime.thread_registry().Launch(std::move(record)).value_or(0);
 
   return X_STATUS_SUCCESS;
 }
@@ -181,7 +181,7 @@ void XmaDecoder::Shutdown() {
 
   // Wait up to 2 seconds for worker thread to exit gracefully.
   {
-    system::ThreadPin pin = kernel_state_->threads()->FindByHandle(worker_thread_);
+    runtime::ThreadPin pin = runtime_->thread_registry().FindByHandle(worker_thread_);
     if (pin) {
       auto result = rex::platform::Wait(pin->thread(), false, std::chrono::milliseconds(2000));
       if (result == rex::platform::WaitResult::kTimeout) {
@@ -189,7 +189,7 @@ void XmaDecoder::Shutdown() {
       }
     }
   }
-  kernel_state_->object_table()->Close(worker_thread_);
+  (void)runtime_->object_table().Close(worker_thread_);
   worker_thread_ = 0;
 
   if (context_data_first_ptr_) {

@@ -18,9 +18,9 @@
 
 struct O1HeapInstance;
 
-namespace rex::memory {
+namespace rex::runtime {
 class Memory;
-}  // namespace rex::memory
+}  // namespace rex::runtime
 
 namespace rex::kernel::shim {
 
@@ -43,7 +43,7 @@ class ReXHeap {
    * @param memory The guest memory the segment is carved from.
    * @return True when the segment was created.
    */
-  bool Init(u32 heap_size_bytes, rex::memory::Memory* memory);
+  bool Init(u32 heap_size_bytes, rex::runtime::Memory* memory);
 
   /**
    * Allocates a block.
@@ -90,7 +90,7 @@ class ReXHeap {
   std::vector<HeapSegment> segments_;
   u8* membase_ = nullptr;
   u32 initial_segment_size_ = 0;
-  rex::memory::Memory* memory_ = nullptr;
+  rex::runtime::Memory* memory_ = nullptr;
 
   void* GuestToHost(u32 guest_addr) const;
   u32 HostToGuest(void* host_ptr) const;
@@ -107,6 +107,6 @@ class ReXHeap {
  * @param memory The guest memory the heap is carved from.
  * @return True when the heap was created.
  */
-bool InitHeap(u32 heap_size_mb, rex::memory::Memory* memory);
+bool InitHeap(u32 heap_size_mb, rex::runtime::Memory* memory);
 
 }  // namespace rex::kernel::shim

@@ -12,13 +12,13 @@
 
 #pragma once
 
-#include <rex/system/xmemory.h>
+#include <rex/runtime/xmemory.h>
 
 namespace rex::testing {
 
 /// Returns the process-wide guest Memory, initializing it on first use.
 /// Fails the calling assertion if initialization did not succeed.
-rex::memory::Memory& GetTestMemory();
+rex::runtime::Memory& GetTestMemory();
 
 /// Destroys the shared Memory so another owner can create its own. The next
 /// GetTestMemory call creates it again.

@@ -144,6 +144,13 @@ class KernelFixture {
 
   Runtime& runtime() { return tool_.runtime(); }
 
+  /**
+   * Returns the API of the tool runtime, which serves the runtime interfaces.
+   *
+   * @return The API.
+   */
+  API& api() { return tool_.api(); }
+
   const std::filesystem::path& root() const { return root_.path; }
 
   /**

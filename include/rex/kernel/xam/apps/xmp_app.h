@@ -15,8 +15,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include <rex/system/kernel_state.h>
-#include <rex/system/xam/app_manager.h>
+#include <rex/runtime.h>
+#include <rex/runtime/xam/app_manager.h>
 #include <rex/platform/lock_order.h>
 
 namespace rex {
@@ -27,7 +27,7 @@ namespace apps {
 // Only source of docs for a lot of these functions:
 // https://github.com/oukiar/freestyledash/blob/master/Freestyle/Scenes/Media/Music/ScnMusic.cpp
 
-class XmpApp : public system::xam::App {
+class XmpApp : public runtime::xam::App {
  public:
   enum class State : uint32_t {
     kIdle = 0,
@@ -70,7 +70,10 @@ class XmpApp : public system::xam::App {
     std::vector<std::unique_ptr<Song>> songs;
   };
 
-  explicit XmpApp(system::KernelState* kernel_state);
+  /**
+   * @param runtime The runtime the app serves.
+   */
+  explicit XmpApp(Runtime& runtime);
 
   X_HRESULT XMPGetStatus(uint32_t status_ptr);
 

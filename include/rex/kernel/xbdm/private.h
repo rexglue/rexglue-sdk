@@ -10,7 +10,7 @@
  * @modified    Joseph Lee, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/system/kernel_state.h>
+#include <rex/runtime.h>
 
 namespace rex {
 namespace kernel {

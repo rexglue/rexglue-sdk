@@ -15,7 +15,7 @@
 #include <string>
 
 #include <rex/macros.h>
-#include <rex/system/xtypes.h>
+#include <rex/runtime/xtypes.h>
 #include <rex/types.h>
 
 namespace rex::runtime {
@@ -26,9 +26,9 @@ class GraphicsProvider;
 class Presenter;
 class WindowedAppContext;
 }  // namespace rex::ui
-namespace rex::system {
-class KernelState;
-}
+namespace rex {
+class Runtime;
+}  // namespace rex
 
 namespace rex::graphics {
 
@@ -75,11 +75,11 @@ class IGraphicsBackend {
    * Builds a headless provider when SetupPresentation was not called.
    *
    * @param function_dispatcher The runtime's dispatcher.
-   * @param kernel_state The runtime's kernel state.
+   * @param runtime The runtime the GPU workers belong to.
    * @return X_STATUS_SUCCESS or the backend's failure status.
    */
   virtual X_STATUS SetupGuestGPU(runtime::FunctionDispatcher* function_dispatcher,
-                                 system::KernelState* kernel_state) = 0;
+                                 Runtime& runtime) = 0;
 
   /**
    * @return True once SetupPresentation has built a presenter.
@@ -147,21 +147,20 @@ class IGraphicsBackend {
    * Runs SetupPresentation when wanted and not done, then SetupGuestGPU.
    *
    * @param function_dispatcher The runtime's dispatcher.
-   * @param kernel_state The runtime's kernel state.
+   * @param runtime The runtime the GPU workers belong to.
    * @param app_context The windowed app context, used only when with_presentation is true.
    * @param with_presentation True to build presentation first.
    * @return X_STATUS_SUCCESS or the first failure status.
    */
-  X_STATUS Setup(runtime::FunctionDispatcher* function_dispatcher,
-                 system::KernelState* kernel_state, ui::WindowedAppContext* app_context,
-                 bool with_presentation) {
+  X_STATUS Setup(runtime::FunctionDispatcher* function_dispatcher, Runtime& runtime,
+                 ui::WindowedAppContext* app_context, bool with_presentation) {
     if (with_presentation && !has_presentation()) {
       X_STATUS status = SetupPresentation(app_context);
       if (XFAILED(status)) {
         return status;
       }
     }
-    return SetupGuestGPU(function_dispatcher, kernel_state);
+    return SetupGuestGPU(function_dispatcher, runtime);
   }
 
   /**

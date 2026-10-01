@@ -17,7 +17,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include <rex/system/module.h>
+#include <rex/runtime/module.h>
 
 namespace rex::codegen {
 

@@ -1,6 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
-#include <rex/system/xtypes.h>
+#include <rex/runtime/xtypes.h>
 
 #include "kernel_fixture.h"
 

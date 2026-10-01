@@ -49,9 +49,8 @@ namespace shaders {
 #include "../shaders/bytecode/d3d12_5_1/resolve_downscale_cs.h"
 }  // namespace shaders
 
-D3D12CommandProcessor::D3D12CommandProcessor(D3D12GraphicsSystem* graphics_system,
-                                             system::KernelState* kernel_state)
-    : CommandProcessor(graphics_system, kernel_state), deferred_command_list_(*this) {
+D3D12CommandProcessor::D3D12CommandProcessor(D3D12GraphicsSystem* graphics_system, Runtime& runtime)
+    : CommandProcessor(graphics_system, runtime), deferred_command_list_(*this) {
   legacy_readback_memexport_cvar_ = &::rex::graphics::cvars::d3d12_readback_memexport;
 }
 D3D12CommandProcessor::~D3D12CommandProcessor() = default;
@@ -1966,7 +1965,7 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbu
     }
   }
 
-  system::X_VIDEO_MODE video_mode;
+  runtime::X_VIDEO_MODE video_mode;
   kernel::xboxkrnl::VdQueryVideoMode(&video_mode);
   uint32_t display_width = std::max(uint32_t(1), uint32_t(video_mode.display_width));
   uint32_t display_height = std::max(uint32_t(1), uint32_t(video_mode.display_height));

@@ -25,9 +25,9 @@
 
 #include <rex/logging.h>
 #include <rex/ppc/context.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/thread_state.h>
-#include <rex/system/xmemory.h>
+#include <rex/runtime.h>
+#include <rex/runtime/thread_state.h>
+#include <rex/runtime/xmemory.h>
 #include <rex/types.h>
 
 namespace rex::ppc {
@@ -102,7 +102,7 @@ struct ArgTranslator {
     }
     // Stack arguments at r1 + 0x54 + ((arg - 8) * 8)
     return __builtin_bswap32(
-        *rex::memory::GuestPtr<uint32_t*>(base, ctx.r1.u32 + 0x54 + ((arg - 8) * 8)));
+        *rex::runtime::GuestPtr<uint32_t*>(base, ctx.r1.u32 + 0x54 + ((arg - 8) * 8)));
   }
 
   // Get float/double argument value from FPR
@@ -175,7 +175,7 @@ struct ArgTranslator {
       }
     }
     // Stack-passed arguments (mirrors GetIntegerArgumentValue layout)
-    *rex::memory::GuestPtr<uint32_t*>(base, ctx.r1.u32 + 0x54 + ((arg - 8) * 8)) =
+    *rex::runtime::GuestPtr<uint32_t*>(base, ctx.r1.u32 + 0x54 + ((arg - 8) * 8)) =
         __builtin_bswap32(static_cast<uint32_t>(value));
   }
 
@@ -244,7 +244,7 @@ struct ArgTranslator {
       return T(nullptr);
     }
     uint32_t guest_addr = static_cast<uint32_t>(v);
-    inner_t* host_ptr = rex::memory::GuestPtr<inner_t*>(base, guest_addr);
+    inner_t* host_ptr = rex::runtime::GuestPtr<inner_t*>(base, guest_addr);
     return T(host_ptr, guest_addr);
   }
 
@@ -267,7 +267,7 @@ struct ArgTranslator {
       return nullptr;
     }
     uint32_t guest_addr = static_cast<uint32_t>(v);
-    return rex::memory::GuestPtr<T>(base, guest_addr);
+    return rex::runtime::GuestPtr<T>(base, guest_addr);
   }
 
   // Set typed value
@@ -425,15 +425,14 @@ T GuestToHostFunction(const TFunction& func, TArgs&&... argv) {
   }
   PPCContext* currentCtx = ts->context();
 
-  auto* ks = rex::system::kernel_state();
-  if (!ks || !ks->memory()) {
+  if (!ts->memory()) {
     if constexpr (std::is_void_v<T>) {
       return;
     } else {
       return T{};
     }
   }
-  uint8_t* base = ks->memory()->virtual_membase();
+  uint8_t* base = ts->memory()->virtual_membase();
 
   PPCContext newCtx{};
   newCtx.r1 = currentCtx->r1;
@@ -457,7 +456,7 @@ T GuestToHostFunction(const TFunction& func, TArgs&&... argv) {
     return;
   } else if constexpr (std::is_pointer_v<T>) {
     uint32_t guest_addr = newCtx.r3.u32;
-    return guest_addr ? rex::memory::GuestPtr<T>(base, guest_addr) : nullptr;
+    return guest_addr ? rex::runtime::GuestPtr<T>(base, guest_addr) : nullptr;
   } else if constexpr (is_precise_v<T>) {
     return static_cast<T>(newCtx.f1.f64);
   } else {

@@ -12,8 +12,8 @@
 #include <rex/kernel/xam/private.h>
 #include <rex/hook.h>
 #include <rex/types.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/xtypes.h>
+#include <rex/runtime.h>
+#include <rex/runtime/xtypes.h>
 
 // Disable warnings about unused parameters for kernel functions
 #pragma GCC diagnostic ignored "-Wunused-parameter"

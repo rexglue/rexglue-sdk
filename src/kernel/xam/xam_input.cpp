@@ -16,15 +16,14 @@
 #include <rex/hook.h>
 #include <rex/types.h>
 #include <rex/runtime.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/xtypes.h>
+#include <rex/runtime/xtypes.h>
 
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
 namespace rex {
 namespace kernel {
 namespace xam {
-using namespace rex::system;
+using namespace rex::runtime;
 
 using rex::input::X_INPUT_CAPABILITIES;
 using rex::input::X_INPUT_KEYSTROKE;
@@ -35,7 +34,7 @@ constexpr uint32_t XINPUT_FLAG_GAMEPAD = 0x01;
 constexpr uint32_t XINPUT_FLAG_ANY_USER = 1 << 30;
 
 rex::input::InputSystem* input_system() {
-  return static_cast<rex::input::InputSystem*>(REX_KERNEL_STATE()->emulator()->input_system());
+  return static_cast<rex::input::InputSystem*>(runtime::Current().input_system());
 }
 
 void XamResetInactivity_entry() {

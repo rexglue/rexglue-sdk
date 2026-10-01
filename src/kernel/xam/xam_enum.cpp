@@ -15,9 +15,9 @@
 #include <rex/hook.h>
 #include <rex/types.h>
 #include <rex/string.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/xenumerator.h>
-#include <rex/system/xtypes.h>
+#include <rex/runtime.h>
+#include <rex/runtime/xenumerator.h>
+#include <rex/runtime/xtypes.h>
 #include "kernel/kernel_macros.h"
 
 #if REX_PLATFORM_WIN32
@@ -29,23 +29,24 @@
 namespace rex {
 namespace kernel {
 namespace xam {
-using namespace rex::system;
-using namespace rex::system::xam;
+using namespace rex::runtime;
+using namespace rex::runtime::xam;
 
 // https://github.com/LestaD/SourceEngine2007/blob/master/se2007/engine/xboxsystem.cpp#L518
 uint32_t XamEnumerate(uint32_t handle, uint32_t flags, mapped_void buffer_ptr, uint32_t buffer_size,
                       uint32_t* items_returned, uint32_t overlapped_ptr) {
   assert_true(flags == 0);
 
-  auto* ks = REX_KERNEL_STATE();
-  if (!ks->object_table()->Get<EnumeratorObject>(handle)) {
+  auto& runtime = runtime::Current();
+  if (!runtime.object_table().Get<EnumeratorObject>(handle)) {
     return X_ERROR_INVALID_HANDLE;
   }
 
-  auto run = [ks, handle, buffer_ptr](uint32_t& extended_error, uint32_t& length) -> X_RESULT {
+  auto run = [runtime = &runtime, handle, buffer_ptr](uint32_t& extended_error,
+                                                      uint32_t& length) -> X_RESULT {
     X_RESULT result;
     uint32_t item_count = 0;
-    auto e = ks->object_table()->Get<EnumeratorObject>(handle);
+    auto e = runtime->object_table().Get<EnumeratorObject>(handle);
     if (!e) {
       result = X_ERROR_INVALID_HANDLE;
     } else if (!buffer_ptr) {
@@ -67,7 +68,7 @@ uint32_t XamEnumerate(uint32_t handle, uint32_t flags, mapped_void buffer_ptr, u
     return result;
   } else if (overlapped_ptr) {
     assert_true(!items_returned);
-    REX_KERNEL_STATE()->CompleteOverlappedDeferredEx(run, overlapped_ptr);
+    runtime::Current().dispatcher().CompleteOverlappedDeferredEx(run, overlapped_ptr);
     return X_ERROR_IO_PENDING;
   } else {
     assert_always();
@@ -97,7 +98,7 @@ u32 XamGetPrivateEnumStructureFromHandle_entry(u32 handle, mapped_u32 out_object
 
   // Caller takes the reference.
   // It's released in ObDereferenceObject.
-  REX_KERNEL_OBJECTS()->RetainPrimary(e.slot());
+  (void)runtime::Current().object_table().RetainPrimary(e.slot());
 
   if (out_object_ptr.guest_address()) {
     *out_object_ptr = e.guest_object();

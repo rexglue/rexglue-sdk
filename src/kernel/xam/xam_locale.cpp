@@ -11,15 +11,16 @@
 
 #include <cstring>
 
+#include <rex/api.h>
 #include <rex/cvar.h>
 #include <rex/kernel/xam/private.h>
 #include <rex/logging.h>
 #include <rex/hook.h>
 #include <rex/types.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/xenumerator.h>
-#include <rex/system/xthread.h>
-#include <rex/system/xtypes.h>
+#include <rex/runtime.h>
+#include <rex/runtime/xenumerator.h>
+#include <rex/runtime/xthread.h>
+#include <rex/runtime/xtypes.h>
 
 // TODO(gibbed): put these forward decls in a header somewhere.
 
@@ -185,7 +186,8 @@ uint8_t XamGetLocaleFromCountry(uint8_t id) {
 
 uint8_t XamGetLocaleEx(uint8_t max_country_id, uint8_t max_locale_id) {
   // TODO(gibbed): rework when XConfig is cleanly implemented.
-  uint8_t country_id = static_cast<uint8_t>(system::kernel_state()->config().user_country);
+  uint8_t country_id =
+      static_cast<uint8_t>(runtime::Current().config().runtime.kernel.user_country);
   /*if (XSUCCEEDED(xboxkrnl::ExGetXConfigSetting(
           3, 14, &country_id, sizeof(country_id), nullptr))) {*/
   if (country_id <= max_country_id) {

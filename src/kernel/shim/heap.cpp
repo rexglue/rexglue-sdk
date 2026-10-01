@@ -17,7 +17,7 @@
 #include <rex/math.h>
 #include <rex/hook.h>
 #include <rex/kernel/shim/define.h>
-#include <rex/system/xmemory.h>
+#include <rex/runtime/xmemory.h>
 #include <rex/logging.h>
 
 // ---------------------------------------------------------------------------
@@ -57,7 +57,7 @@ u32 ReXHeap::HostToGuest(void* host_ptr) const {
   return static_cast<u32>(static_cast<u8*>(host_ptr) - membase_);
 }
 
-bool ReXHeap::Init(u32 heap_size_bytes, rex::memory::Memory* memory) {
+bool ReXHeap::Init(u32 heap_size_bytes, rex::runtime::Memory* memory) {
   memory_ = memory;
   auto* mem = memory_;
   if (!mem) {
@@ -182,13 +182,13 @@ bool ReXHeap::AllocateSegmentLocked(u32 segment_size_bytes) {
 
   // Allocate from the regular virtual heap (top-down) instead of the system
   // heap. The system heap range is shared with kernel bookkeeping allocations
-  // (KernelState globals, thread PCR/TLS, module headers, etc.) and cannot
+  // (KernelGuestGlobals, thread PCR/TLS, module headers, etc.) and cannot
   // accommodate a large contiguous shim heap segment alongside them.
   auto* vheap = mem->LookupHeapByType(false, 4096);
   if (!vheap ||
       !vheap->Alloc(segment_size_bytes, O1HEAP_ALIGNMENT,
-                    rex::memory::kMemoryAllocationReserve | rex::memory::kMemoryAllocationCommit,
-                    rex::memory::kMemoryProtectRead | rex::memory::kMemoryProtectWrite, true,
+                    rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
+                    rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite, true,
                     &guest_base)) {
     REX_FAIL(kernel, false, "shim_heap: virtual heap allocation of {} bytes failed",
              segment_size_bytes);
@@ -320,7 +320,7 @@ REX_SHIM_FN(RtlReAllocateHeap, u32, u32 hHeap, u32 dwFlags, u32 ptr, u32 dwBytes
   return g_heap.Realloc(static_cast<u32>(ptr), dwBytes, dwFlags & HEAP_ZERO_MEMORY);
 }
 
-bool InitHeap(u32 heap_size_mb, rex::memory::Memory* memory) {
+bool InitHeap(u32 heap_size_mb, rex::runtime::Memory* memory) {
   return g_heap.Init(heap_size_mb * 1024u * 1024u, memory);
 }
 

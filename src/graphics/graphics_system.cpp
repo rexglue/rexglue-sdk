@@ -23,8 +23,8 @@
 #include <rex/graphics/command_processor.h>
 #include <rex/kernel/xboxkrnl/video.h>
 #include <rex/logging.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/xthread.h>
+#include <rex/runtime.h>
+#include <rex/runtime/xthread.h>
 #include <rex/ui/graphics_provider.h>
 #include <rex/ui/window.h>
 #include <rex/ui/windowed_app_context.h>
@@ -106,10 +106,10 @@ X_STATUS GraphicsSystem::SetupPresentation(ui::WindowedAppContext* app_context) 
 }
 
 X_STATUS GraphicsSystem::SetupGuestGPU(runtime::FunctionDispatcher* function_dispatcher,
-                                       system::KernelState* kernel_state) {
+                                       Runtime& runtime) {
   memory_ = function_dispatcher->memory();
   function_dispatcher_ = function_dispatcher;
-  kernel_state_ = kernel_state;
+  runtime_ = &runtime;
 
   // Headless path: no one set up presentation, so build a no-presentation
   // provider just for the command processor.
@@ -138,8 +138,8 @@ X_STATUS GraphicsSystem::SetupGuestGPU(runtime::FunctionDispatcher* function_dis
 
   // Guest vblank timer based on the configured guest video mode.
   vsync_worker_running_ = true;
-  auto record = std::make_unique<system::ThreadRecord>(kernel_state_, 128 * 1024, 0, [this]() {
-    system::X_VIDEO_MODE video_mode;
+  auto record = std::make_unique<runtime::ThreadRecord>(*runtime_, 128 * 1024, 0, [this]() {
+    runtime::X_VIDEO_MODE video_mode;
     kernel::xboxkrnl::VdQueryVideoMode(&video_mode);
     double refresh_rate_hz = std::max(1.0, double(float(video_mode.refresh_rate)));
     uint64_t guest_tick_frequency = Clock::guest_tick_frequency();
@@ -161,7 +161,7 @@ X_STATUS GraphicsSystem::SetupGuestGPU(runtime::FunctionDispatcher* function_dis
     return 0;
   });
   record->set_name("GPU VSync");
-  kernel_state_->threads()->Launch(std::move(record), &vsync_worker_thread_);
+  vsync_worker_thread_ = runtime_->thread_registry().Launch(std::move(record)).value_or(0);
 
   return X_STATUS_SUCCESS;
 }
@@ -174,8 +174,8 @@ void GraphicsSystem::Shutdown() {
 
   if (vsync_worker_thread_) {
     vsync_worker_running_ = false;
-    system::WaitOn(kernel_state_, vsync_worker_thread_, 0, 0, 0, nullptr);
-    kernel_state_->object_table()->Close(vsync_worker_thread_);
+    runtime::WaitOn(*runtime_, vsync_worker_thread_, 0, 0, 0, nullptr);
+    (void)runtime_->object_table().Close(vsync_worker_thread_);
     vsync_worker_thread_ = 0;
   }
 
@@ -227,7 +227,7 @@ uint32_t GraphicsSystem::ReadRegister(uint32_t addr) {
     case 0x0F01:  // RB_BC_CONTROL
       return 0x0000200E;
     case 0x194C: {  // R500_D1MODE_V_COUNTER
-      system::X_VIDEO_MODE video_mode;
+      runtime::X_VIDEO_MODE video_mode;
       kernel::xboxkrnl::VdQueryVideoMode(&video_mode);
       return std::min(uint32_t(video_mode.display_height), uint32_t(0x0FFF));
     }
@@ -235,7 +235,7 @@ uint32_t GraphicsSystem::ReadRegister(uint32_t addr) {
       return 1;     // vblank
     case 0x1961: {  // AVIVO_D1MODE_VIEWPORT_SIZE
       // Maximum [width(0x0FFF), height(0x0FFF)].
-      system::X_VIDEO_MODE video_mode;
+      runtime::X_VIDEO_MODE video_mode;
       kernel::xboxkrnl::VdQueryVideoMode(&video_mode);
       uint32_t viewport_width = std::min(uint32_t(video_mode.display_width), uint32_t(0x0FFF));
       uint32_t viewport_height = std::min(uint32_t(video_mode.display_height), uint32_t(0x0FFF));
@@ -288,7 +288,7 @@ void GraphicsSystem::DispatchInterruptCallback(uint32_t source, uint32_t cpu) {
     return;
   }
 
-  auto thread = system::ThreadRecord::GetCurrentThread();
+  auto thread = runtime::ThreadRecord::GetCurrentThread();
   assert_not_null(thread);
 
   // Pick a CPU, if needed. We're going to guess 2. Because.

@@ -13,17 +13,17 @@
 #include <string>
 
 #include <rex/ppc/function.h>
-#include <rex/system/kernel_module.h>
-#include <rex/system/kernel_state.h>
+#include <rex/runtime/kernel_module.h>
+#include <rex/runtime.h>
 
 namespace rex::kernel::xam {
 
 /**
- * Creates the xam kernel module.
+ * Creates the xam.xex kernel module and registers its exports.
  *
- * @param kernel_state The kernel state.
- * @return The handle with a count of 1, 0 when the table cannot grow.
+ * @param runtime The runtime the module belongs to.
+ * @return A handle of the module with a count of 1.
  */
-X_HANDLE CreateXamModule(system::KernelState* kernel_state);
+X_HANDLE CreateXamModule(Runtime& runtime);
 
 }  // namespace rex::kernel::xam

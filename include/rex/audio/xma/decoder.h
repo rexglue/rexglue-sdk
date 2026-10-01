@@ -19,7 +19,7 @@
 #include <rex/audio/xma/register_file.h>
 #include <rex/bit.h>
 #include <rex/kernel.h>
-#include <rex/system/xthread.h>
+#include <rex/runtime/xthread.h>
 
 namespace rex::runtime {
 class FunctionDispatcher;
@@ -34,10 +34,10 @@ class XmaDecoder {
   explicit XmaDecoder(runtime::FunctionDispatcher* function_dispatcher);
   ~XmaDecoder();
 
-  memory::Memory* memory() const { return memory_; }
+  runtime::Memory* memory() const { return memory_; }
   runtime::FunctionDispatcher* function_dispatcher() const { return function_dispatcher_; }
 
-  X_STATUS Setup(system::KernelState* kernel_state);
+  X_STATUS Setup(Runtime& runtime);
   void Shutdown();
 
   uint32_t context_array_ptr() const { return register_file_[XmaRegister::ContextArrayAddress]; }
@@ -68,11 +68,11 @@ class XmaDecoder {
   }
 
  protected:
-  memory::Memory* memory_ = nullptr;
+  runtime::Memory* memory_ = nullptr;
   runtime::FunctionDispatcher* function_dispatcher_ = nullptr;
 
   std::atomic<bool> worker_running_ = {false};
-  system::KernelState* kernel_state_ = nullptr;
+  Runtime* runtime_ = nullptr;
   X_HANDLE worker_thread_ = 0;
   std::unique_ptr<rex::platform::Event> work_event_ = nullptr;
 

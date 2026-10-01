@@ -12,8 +12,8 @@
 #pragma once
 
 #include <rex/logging.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/util/string_utils.h>
+#include <rex/runtime.h>
+#include <rex/runtime/util/string_utils.h>
 
 /**
  * Looks a handle up in the object table and returns X_STATUS_INVALID_HANDLE when it is absent.
@@ -26,10 +26,10 @@
  * REX_KERNEL_LOOKUP(file, FileObject, file_handle);
  * @endcode
  */
-#define REX_KERNEL_LOOKUP(VAR, TYPE, HANDLE)          \
-  auto VAR = REX_KERNEL_OBJECTS()->Get<TYPE>(HANDLE); \
-  if (!(VAR)) {                                       \
-    return X_STATUS_INVALID_HANDLE;                   \
+#define REX_KERNEL_LOOKUP(VAR, TYPE, HANDLE)                             \
+  auto VAR = ::rex::runtime::Current().object_table().Get<TYPE>(HANDLE); \
+  if (!(VAR)) {                                                          \
+    return X_STATUS_INVALID_HANDLE;                                      \
   }
 
 /**
@@ -73,25 +73,29 @@
  * REX_KERNEL_NAMED_CREATE(Event, handle_ptr, obj_attributes_ptr);
  * @endcode
  */
-#define REX_KERNEL_NAMED_CREATE(KIND, HANDLE_OUT, ATTRS)                                          \
-  if (ATTRS) {                                                                                    \
-    auto rex_attrs_ =                                                                             \
-        REX_KERNEL_MEMORY()->TranslateVirtual<X_OBJECT_ATTRIBUTES*>((ATTRS).guest_address());     \
-    assert_true(rex_attrs_->name_ptr != 0);                                                       \
-    auto rex_name_ = util::TranslateAnsiStringAddress(REX_KERNEL_MEMORY(), rex_attrs_->name_ptr); \
-    X_HANDLE rex_handle_ = X_INVALID_HANDLE_VALUE;                                                \
-    if (!rex_name_.empty() &&                                                                     \
-        XSUCCEEDED(REX_KERNEL_OBJECTS()->OpenByName(rex_name_, &rex_handle_))) {                  \
-      auto rex_existing_ = REX_KERNEL_OBJECTS()->Get(rex_handle_);                                \
-      if (rex_existing_) {                                                                        \
-        REX_KERNEL_OBJECTS()->Close(rex_handle_);                                                 \
-        if (rex_existing_.kind() == ::rex::system::ObjectKind::KIND) {                            \
-          if (HANDLE_OUT) {                                                                       \
-            REX_KERNEL_OBJECTS()->Retain(rex_handle_);                                            \
-            *(HANDLE_OUT) = rex_handle_;                                                          \
-          }                                                                                       \
-          return X_STATUS_OBJECT_NAME_EXISTS;                                                     \
-        }                                                                                         \
-      }                                                                                           \
-    }                                                                                             \
+#define REX_KERNEL_NAMED_CREATE(KIND, HANDLE_OUT, ATTRS)                                        \
+  if (ATTRS) {                                                                                  \
+    auto& rex_runtime_ = ::rex::runtime::Current();                                             \
+    auto rex_attrs_ =                                                                           \
+        rex_runtime_.memory()->TranslateVirtual<X_OBJECT_ATTRIBUTES*>((ATTRS).guest_address()); \
+    assert_true(rex_attrs_->name_ptr != 0);                                                     \
+    auto rex_name_ =                                                                            \
+        util::TranslateAnsiStringAddress(rex_runtime_.memory(), rex_attrs_->name_ptr);          \
+    auto& rex_table_ = rex_runtime_.object_table();                                             \
+    if (!rex_name_.empty()) {                                                                   \
+      if (auto rex_opened_ = rex_table_.OpenByName(rex_name_)) {                                \
+        const X_HANDLE rex_handle_ = *rex_opened_;                                              \
+        auto rex_existing_ = rex_table_.Get(rex_handle_);                                       \
+        if (rex_existing_) {                                                                    \
+          (void)rex_table_.Close(rex_handle_);                                                  \
+          if (rex_existing_.kind() == ::rex::runtime::ObjectKind::KIND) {                       \
+            if (HANDLE_OUT) {                                                                   \
+              (void)rex_table_.Retain(rex_handle_);                                             \
+              *(HANDLE_OUT) = rex_handle_;                                                      \
+            }                                                                                   \
+            return X_STATUS_OBJECT_NAME_EXISTS;                                                 \
+          }                                                                                     \
+        }                                                                                       \
+      }                                                                                         \
+    }                                                                                           \
   }

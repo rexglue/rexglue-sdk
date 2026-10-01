@@ -19,17 +19,17 @@
 #include <rex/logging.h>
 #include <rex/hook.h>
 #include <rex/types.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/util/string_utils.h>
-#include <rex/system/xevent.h>
-#include <rex/system/xobject.h>
-#include <rex/system/xsemaphore.h>
-#include <rex/system/xthread.h>
-#include <rex/system/xtypes.h>
+#include <rex/runtime.h>
+#include <rex/runtime/util/string_utils.h>
+#include <rex/runtime/xevent.h>
+#include <rex/runtime/xobject.h>
+#include <rex/runtime/xsemaphore.h>
+#include <rex/runtime/xthread.h>
+#include <rex/runtime/xtypes.h>
 #include "kernel/kernel_macros.h"
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::system;
+using namespace rex::runtime;
 
 u32 ObOpenObjectByName_entry(mapped_void obj_attributes_ptr, mapped_void object_type_ptr, u32 unk,
                              mapped_u32 handle_ptr) {
@@ -43,41 +43,41 @@ u32 ObOpenObjectByName_entry(mapped_void obj_attributes_ptr, mapped_void object_
 
   REX_KERNEL_ARG(obj_attributes_ptr);
 
-  auto obj_attributes = REX_KERNEL_MEMORY()->TranslateVirtual<X_OBJECT_ATTRIBUTES*>(
+  auto obj_attributes = runtime::Current().memory()->TranslateVirtual<X_OBJECT_ATTRIBUTES*>(
       obj_attributes_ptr.guest_address());
   assert_true(obj_attributes->name_ptr != 0);
-  auto name = util::TranslateAnsiStringAddress(REX_KERNEL_MEMORY(), obj_attributes->name_ptr);
+  auto name =
+      util::TranslateAnsiStringAddress(runtime::Current().memory(), obj_attributes->name_ptr);
 
-  X_HANDLE handle = X_INVALID_HANDLE_VALUE;
-  X_STATUS result = REX_KERNEL_OBJECTS()->OpenByName(name, &handle);
-  if (XSUCCEEDED(result)) {
-    *handle_ptr = handle;
+  auto opened = runtime::Current().object_table().OpenByName(name);
+  if (opened) {
+    *handle_ptr = *opened;
   }
 
-  return result;
+  return ToXStatus(opened);
 }
 
 u32 ObOpenObjectByPointer_entry(mapped_void object_ptr, mapped_u32 out_handle_ptr) {
-  const X_HANDLE handle = ResolveGuestObject(REX_KERNEL_STATE(), object_ptr);
-  auto object = REX_KERNEL_OBJECTS()->Get(handle);
+  auto& table = runtime::Current().object_table();
+  const X_HANDLE handle = table.ResolveGuestObject(object_ptr.guest_address(), -1).value_or(0);
+  auto object = table.Get(handle);
   if (!object) {
     return X_STATUS_UNSUCCESSFUL;
   }
 
-  // Retain the handle. Will be released in NtClose.
-  REX_KERNEL_OBJECTS()->RetainPrimary(object);
-  *out_handle_ptr = REX_KERNEL_OBJECTS()->PrimaryHandle(object);
+  (void)table.RetainPrimary(object);
+  *out_handle_ptr = table.PrimaryHandle(object).value_or(0);
   return X_STATUS_SUCCESS;
 }
 
 u32 ObLookupThreadByThreadId_entry(u32 thread_id, mapped_u32 out_object_ptr) {
-  auto thread = REX_KERNEL_STATE()->threads()->Find(thread_id);
+  auto thread = runtime::Current().thread_registry().Find(thread_id);
   if (!thread) {
     return X_STATUS_NOT_FOUND;
   }
 
   // Retain the object. Will be released in ObDereferenceObject.
-  REX_KERNEL_OBJECTS()->Retain(thread->handle());
+  (void)runtime::Current().object_table().Retain(thread->handle());
   *out_object_ptr = thread->guest_object();
   return X_STATUS_SUCCESS;
 }
@@ -88,20 +88,21 @@ u32 ObReferenceObjectByHandle_entry(u32 handle, u32 object_type_ptr, mapped_u32 
                "handle={:#x} type={:#x}",
                (uint32_t)handle, (uint32_t)object_type_ptr);
 
-  auto object = REX_KERNEL_OBJECTS()->Get(handle);
+  auto object = runtime::Current().object_table().Get(handle);
   if (!object) {
     return X_STATUS_INVALID_HANDLE;
   }
 
   uint32_t native_ptr = object.guest_object();
   if (object.kind() == ObjectKind::Thread) {
-    auto thread = REX_KERNEL_STATE()->threads()->Find(std::get<ThreadRef>(object.data()).thread_id);
+    auto thread =
+        runtime::Current().thread_registry().Find(std::get<ThreadRef>(object.data()).thread_id);
     native_ptr = thread ? thread->guest_object() : 0;
   }
 
   // Type check using real KernelGuestGlobals addresses.
   if (object_type_ptr) {
-    uint32_t globals_base = REX_KERNEL_STATE()->GetKernelGuestGlobals();
+    uint32_t globals_base = runtime::Current().GetKernelGuestGlobals();
     uint32_t expected_type = 0;
     switch (object.kind()) {
       case ObjectKind::Thread:
@@ -129,7 +130,7 @@ u32 ObReferenceObjectByHandle_entry(u32 handle, u32 object_type_ptr, mapped_u32 
 
   // Caller takes the reference.
   // It's released in ObDereferenceObject.
-  REX_KERNEL_OBJECTS()->RetainPrimary(object);
+  (void)runtime::Current().object_table().RetainPrimary(object);
   if (out_object_ptr.guest_address()) {
     *out_object_ptr = native_ptr;
   }
@@ -142,13 +143,12 @@ u32 ObReferenceObjectByHandle_entry(u32 handle, u32 object_type_ptr, mapped_u32 
 
 u32 ObReferenceObjectByName_entry(mapped_string name, u32 attributes, u32 object_type_ptr,
                                   mapped_void parse_context, mapped_u32 out_object_ptr) {
-  X_HANDLE handle = X_INVALID_HANDLE_VALUE;
-  X_STATUS result = REX_KERNEL_OBJECTS()->OpenByName(name.value(), &handle);
-  if (XSUCCEEDED(result)) {
-    return ObReferenceObjectByHandle_entry(handle, object_type_ptr, out_object_ptr);
+  auto opened = runtime::Current().object_table().OpenByName(name.value());
+  if (opened) {
+    return ObReferenceObjectByHandle_entry(*opened, object_type_ptr, out_object_ptr);
   }
 
-  return result;
+  return ToXStatus(opened);
 }
 
 u32 ObDereferenceObject_entry(u32 native_ptr) {
@@ -161,10 +161,10 @@ u32 ObDereferenceObject_entry(u32 native_ptr) {
     return 0;
   }
 
-  auto object = REX_KERNEL_OBJECTS()->Get(
-      ResolveGuestObject(REX_KERNEL_STATE(), REX_KERNEL_MEMORY()->TranslateVirtual(native_ptr)));
+  auto& table = runtime::Current().object_table();
+  auto object = table.Get(table.ResolveGuestObject(native_ptr, -1).value_or(0));
   if (object) {
-    REX_KERNEL_OBJECTS()->ReleasePrimary(object);
+    (void)table.ReleasePrimary(object);
   }
 
   return 0;
@@ -172,16 +172,16 @@ u32 ObDereferenceObject_entry(u32 native_ptr) {
 
 u32 ObCreateSymbolicLink_entry(ppc_ptr_t<X_ANSI_STRING> path_ptr,
                                ppc_ptr_t<X_ANSI_STRING> target_ptr) {
-  auto path =
-      rex::utf8_canonicalize_guest_path(util::TranslateAnsiPath(REX_KERNEL_MEMORY(), path_ptr));
-  auto target =
-      rex::utf8_canonicalize_guest_path(util::TranslateAnsiPath(REX_KERNEL_MEMORY(), target_ptr));
+  auto path = rex::utf8_canonicalize_guest_path(
+      util::TranslateAnsiPath(runtime::Current().memory(), path_ptr));
+  auto target = rex::utf8_canonicalize_guest_path(
+      util::TranslateAnsiPath(runtime::Current().memory(), target_ptr));
 
   if (rex::utf8_starts_with(path, u8"\\??\\")) {
     path = path.substr(4);  // Strip the full qualifier
   }
 
-  if (auto linked = REX_KERNEL_FS()->Link(path, target);
+  if (auto linked = runtime::Current().file_system()->Link(path, target);
       !linked && filesystem::CodeOf(linked.error()) != filesystem::Error::kExists) {
     return X_STATUS_UNSUCCESSFUL;
   }
@@ -190,8 +190,8 @@ u32 ObCreateSymbolicLink_entry(ppc_ptr_t<X_ANSI_STRING> path_ptr,
 }
 
 u32 ObDeleteSymbolicLink_entry(ppc_ptr_t<X_ANSI_STRING> path_ptr) {
-  auto path = util::TranslateAnsiPath(REX_KERNEL_MEMORY(), path_ptr);
-  if (!REX_KERNEL_FS()->Unlink(path)) {
+  auto path = util::TranslateAnsiPath(runtime::Current().memory(), path_ptr);
+  if (!runtime::Current().file_system()->Unlink(path)) {
     return X_STATUS_UNSUCCESSFUL;
   }
 
@@ -205,19 +205,18 @@ u32 NtDuplicateObject_entry(u32 handle, mapped_u32 new_handle_ptr, u32 options) 
   // This function actually just creates a new handle to the same object.
   // Most games use it to get real handles to the current thread or whatever.
 
-  X_HANDLE new_handle = X_INVALID_HANDLE_VALUE;
-  X_STATUS result = REX_KERNEL_OBJECTS()->Duplicate(handle, &new_handle);
+  auto& table = runtime::Current().object_table();
+  auto duplicated = table.Duplicate(handle);
 
   if (new_handle_ptr) {
-    *new_handle_ptr = new_handle;
+    *new_handle_ptr = duplicated.value_or(X_INVALID_HANDLE_VALUE);
   }
 
   if (options == 1 /* DUPLICATE_CLOSE_SOURCE */) {
-    // Always close the source object.
-    REX_KERNEL_OBJECTS()->Remove(handle);
+    (void)table.Remove(handle);
   }
 
-  return result;
+  return ToXStatus(duplicated);
 }
 
 u32 NtClose_entry(u32 handle) {
@@ -225,7 +224,7 @@ u32 NtClose_entry(u32 handle) {
                "NtClose "
                "handle={:#x}",
                (uint32_t)handle);
-  auto result = REX_KERNEL_OBJECTS()->Close(handle);
+  auto result = ToXStatus(runtime::Current().object_table().Close(handle));
   REXLOG_TRACE(kernel,
                "NtClose -> "
                "{:#x}",
@@ -236,7 +235,7 @@ u32 NtClose_entry(u32 handle) {
 u32 NtQueryEvent_entry(u32 handle, mapped_u32 out_struc) {
   X_STATUS result = X_STATUS_SUCCESS;
 
-  auto ev = REX_KERNEL_OBJECTS()->Get<EventObject>(handle);
+  auto ev = runtime::Current().object_table().Get<EventObject>(handle);
   if (ev) {
     uint32_t type_tmp, state_tmp;
     EventQuery(*ev, &type_tmp, &state_tmp);

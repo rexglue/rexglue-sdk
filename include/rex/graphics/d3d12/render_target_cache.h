@@ -39,7 +39,7 @@ class D3D12CommandProcessor;
 
 class D3D12RenderTargetCache final : public RenderTargetCache {
  public:
-  D3D12RenderTargetCache(const RegisterFile& register_file, const memory::Memory& memory,
+  D3D12RenderTargetCache(const RegisterFile& register_file, const runtime::Memory& memory,
                          uint32_t draw_resolution_scale_x, uint32_t draw_resolution_scale_y,
                          D3D12CommandProcessor& command_processor, bool bindless_resources_used)
       : RenderTargetCache(register_file, memory, draw_resolution_scale_x, draw_resolution_scale_y),
@@ -74,7 +74,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   // Performs the resolve to a shared memory area according to the current
   // register values, and also clears the render targets if needed. Must be in a
   // frame for calling.
-  bool Resolve(const memory::Memory& memory, D3D12SharedMemory& shared_memory,
+  bool Resolve(const runtime::Memory& memory, D3D12SharedMemory& shared_memory,
                D3D12TextureCache& texture_cache, uint32_t& written_address_out,
                uint32_t& written_length_out);
 

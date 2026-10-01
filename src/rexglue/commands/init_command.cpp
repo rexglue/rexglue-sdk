@@ -29,8 +29,7 @@
 #include <rex/platform/file.h>
 #include <rex/result.h>
 #include <rex/runtime.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/util/xdbf_utils.h>
+#include <rex/runtime/util/xdbf_utils.h>
 #include <rex/version.h>
 
 #include <CLI/CLI.hpp>
@@ -377,15 +376,15 @@ Result<void> InitAchievements(const InitAchievementsOptions& opts, const CLICont
                      fmt::format("Failed to load XEX '{}': {:#x}", opts.xex_path, rtStatus));
   }
 
-  const rex::system::util::XdbfGameData db = runtime->kernel_state()->title_xdbf();
+  const rex::runtime::util::XDBFGameData db = runtime->content_manager().title_xdbf();
   if (!db.is_valid()) {
     return Err<void>(ErrorCategory::IO, "No XDBF resource found in XEX (title_id section absent)");
   }
 
-  const rex::system::XLanguage lang =
-      db.GetExistingLanguage(static_cast<rex::system::XLanguage>(opts.language));
+  const rex::runtime::XLanguage lang =
+      db.GetExistingLanguage(static_cast<rex::runtime::XLanguage>(opts.language));
   const auto achievements = db.GetAchievements();
-  const uint32_t title_id = runtime->kernel_state()->title_id();
+  const uint32_t title_id = runtime->content_manager().title_id();
 
   auto escape_toml = [](const std::string& s) -> std::string {
     std::string out;
@@ -468,7 +467,7 @@ Result<void> InitAchievements(const InitAchievementsOptions& opts, const CLICont
       seen.push_back(img_id);
 
       auto block =
-          db.GetEntry(rex::system::util::XdbfSection::kImage, static_cast<uint64_t>(img_id));
+          db.GetEntry(rex::runtime::util::XdbfSection::kImage, static_cast<uint64_t>(img_id));
       if (!block || !block.buffer || block.size == 0) {
         ++icons_missing;
         continue;
@@ -534,7 +533,7 @@ struct InitModuleArgs {
 struct InitAchievementsArgs {
   std::string xex_path;
   std::string output_dir;
-  uint32_t language = static_cast<uint32_t>(rex::system::XLanguage::kEnglish);
+  uint32_t language = static_cast<uint32_t>(rex::runtime::XLanguage::kEnglish);
 };
 
 }  // namespace

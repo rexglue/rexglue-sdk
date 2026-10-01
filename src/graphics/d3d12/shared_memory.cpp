@@ -26,7 +26,7 @@
 namespace rex::graphics::d3d12 {
 
 D3D12SharedMemory::D3D12SharedMemory(D3D12CommandProcessor& command_processor,
-                                     memory::Memory& memory)
+                                     runtime::Memory& memory)
     : SharedMemory(memory), command_processor_(command_processor) {}
 
 D3D12SharedMemory::~D3D12SharedMemory() {

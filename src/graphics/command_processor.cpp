@@ -30,9 +30,9 @@
 #include <rex/math.h>
 #include <rex/memory.h>
 #include <rex/memory/ring_buffer.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/thread_registry.h>
-#include <rex/system/user_module.h>
+#include <rex/runtime.h>
+#include <rex/runtime/thread_registry.h>
+#include <rex/runtime/user_module.h>
 
 #include "graphics/cvar_table.h"
 
@@ -57,10 +57,9 @@ ReadbackResolveMode ParseReadbackResolveMode(std::string_view value) {
 
 }  // namespace
 
-CommandProcessor::CommandProcessor(GraphicsSystem* graphics_system,
-                                   system::KernelState* kernel_state)
+CommandProcessor::CommandProcessor(GraphicsSystem* graphics_system, Runtime& runtime)
     : memory_(graphics_system->memory()),
-      kernel_state_(kernel_state),
+      runtime_(&runtime),
       graphics_system_(graphics_system),
       register_file_(graphics_system_->register_file()),
       worker_running_(true),
@@ -92,12 +91,12 @@ bool CommandProcessor::Initialize() {
   }
 
   worker_running_ = true;
-  auto record = std::make_unique<system::ThreadRecord>(kernel_state_, 128 * 1024, 0, [this]() {
+  auto record = std::make_unique<runtime::ThreadRecord>(*runtime_, 128 * 1024, 0, [this]() {
     WorkerThreadMain();
     return 0;
   });
   record->set_name("GPU Commands");
-  kernel_state_->threads()->Launch(std::move(record), &worker_thread_);
+  worker_thread_ = runtime_->thread_registry().Launch(std::move(record)).value_or(0);
 
   return true;
 }
@@ -105,8 +104,8 @@ bool CommandProcessor::Initialize() {
 void CommandProcessor::Shutdown() {
   worker_running_ = false;
   write_ptr_index_event_->Set();
-  system::WaitOn(kernel_state_, worker_thread_, 0, 0, 0, nullptr);
-  kernel_state_->object_table()->Close(worker_thread_);
+  runtime::WaitOn(*runtime_, worker_thread_, 0, 0, 0, nullptr);
+  (void)runtime_->object_table().Close(worker_thread_);
   worker_thread_ = 0;
 }
 
@@ -114,8 +113,8 @@ void CommandProcessor::InitializeShaderStorage(const std::filesystem::path& cach
                                                uint32_t title_id, bool blocking) {}
 
 void CommandProcessor::CallInThread(std::function<void()> fn) {
-  if (pending_fns_.empty() && system::ThreadRecord::IsInThread(
-                                  kernel_state_->threads()->FindByHandle(worker_thread_).get())) {
+  if (pending_fns_.empty() && runtime::ThreadRecord::IsInThread(
+                                  runtime_->thread_registry().FindByHandle(worker_thread_).get())) {
     fn();
   } else {
     pending_fns_.push(std::move(fn));
@@ -233,7 +232,7 @@ void CommandProcessor::Resume() {
   }
   paused_ = false;
 
-  system::ThreadPin pin = kernel_state_->threads()->FindByHandle(worker_thread_);
+  runtime::ThreadPin pin = runtime_->thread_registry().FindByHandle(worker_thread_);
   pin->thread()->Resume();
 }
 

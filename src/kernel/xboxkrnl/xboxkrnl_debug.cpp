@@ -17,13 +17,13 @@
 #include <rex/logging.h>
 #include <rex/hook.h>
 #include <rex/types.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/xexception.h>
-#include <rex/system/xthread.h>
-#include <rex/system/xtypes.h>
+#include <rex/runtime.h>
+#include <rex/runtime/xexception.h>
+#include <rex/runtime/xthread.h>
+#include <rex/runtime/xtypes.h>
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::system;
+using namespace rex::runtime;
 
 void DbgBreakPoint_entry() {
   rex::platform::Break();
@@ -58,17 +58,18 @@ void HandleSetThreadName(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
 
   // TODO(gibbed): cvar for thread name encoding for conversion, some games use
   // SJIS and there's no way to automatically know this.
-  auto name =
-      std::string(REX_KERNEL_MEMORY()->TranslateVirtual<const char*>(thread_info->name_ptr));
+  auto name = std::string(
+      runtime::Current().memory()->TranslateVirtual<const char*>(thread_info->name_ptr));
   std::replace_if(name.begin(), name.end(), [](auto c) { return c < 32 || c > 127; }, '?');
 
   ThreadPin thread;
   if (thread_info->thread_id == -1) {
     // Current thread.
-    thread = REX_KERNEL_STATE()->threads()->Find(ThreadRecord::GetCurrentThread()->thread_id());
+    thread =
+        runtime::Current().thread_registry().Find(ThreadRecord::GetCurrentThread()->thread_id());
   } else {
     // Lookup thread by ID.
-    thread = REX_KERNEL_STATE()->threads()->Find(thread_info->thread_id);
+    thread = runtime::Current().thread_registry().Find(thread_info->thread_id);
   }
 
   if (thread) {
@@ -115,12 +116,12 @@ void HandleCppException(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
   assert_true(record->exception_information[0] == 0x19930520);
 
   auto thrown_ptr = record->exception_information[1];
-  auto thrown = REX_KERNEL_MEMORY()->TranslateVirtual(thrown_ptr);
+  auto thrown = runtime::Current().memory()->TranslateVirtual(thrown_ptr);
   auto vftable_ptr = *reinterpret_cast<rex::be<uint32_t>*>(thrown);
 
   auto throw_info_ptr = record->exception_information[2];
-  auto throw_info = REX_KERNEL_MEMORY()->TranslateVirtual<x_s__ThrowInfo*>(throw_info_ptr);
-  auto catchable_types = REX_KERNEL_MEMORY()->TranslateVirtual<x_s__CatchableTypeArray*>(
+  auto throw_info = runtime::Current().memory()->TranslateVirtual<x_s__ThrowInfo*>(throw_info_ptr);
+  auto catchable_types = runtime::Current().memory()->TranslateVirtual<x_s__CatchableTypeArray*>(
       throw_info->catchable_type_array_ptr);
 
   rex::platform::Break();

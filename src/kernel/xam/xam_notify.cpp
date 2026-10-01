@@ -13,15 +13,15 @@
 #include <rex/logging.h>
 #include <rex/hook.h>
 #include <rex/types.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/xnotifylistener.h>
-#include <rex/system/xtypes.h>
+#include <rex/runtime.h>
+#include <rex/runtime/xnotifylistener.h>
+#include <rex/runtime/xtypes.h>
 
 namespace rex {
 namespace kernel {
 namespace xam {
-using namespace rex::system;
-using namespace rex::system::xam;
+using namespace rex::runtime;
+using namespace rex::runtime::xam;
 
 uint32_t XamNotifyCreateListener(uint64_t mask, uint32_t is_system, uint32_t max_version) {
   assert_true(max_version < 11);
@@ -30,12 +30,13 @@ uint32_t XamNotifyCreateListener(uint64_t mask, uint32_t is_system, uint32_t max
     max_version = 10;
   }
 
-  X_HANDLE handle = X_INVALID_HANDLE_VALUE;
-  if (XFAILED(REX_KERNEL_OBJECTS()->Emplace<NotifyListenerObject>(&handle, AddOptions{}, mask,
-                                                                  max_version))) {
+  auto added = runtime::Current().object_table().Emplace<NotifyListenerObject>(AddOptions{}, mask,
+                                                                               max_version);
+  if (!added) {
     return 0;
   }
-  REX_KERNEL_STATE()->RegisterNotifyListener(handle);
+  const X_HANDLE handle = *added;
+  runtime::Current().notifier().RegisterNotifyListener(handle);
 
   REXLOG_DEBUG(
       kernel,
@@ -65,7 +66,7 @@ u32 XNotifyGetNext_entry(u32 handle, u32 match_id, mapped_u32 id_ptr, mapped_u32
   *id_ptr = 0;
 
   // Grab listener.
-  auto listener = REX_KERNEL_OBJECTS()->Get<NotifyListenerObject>(handle);
+  auto listener = runtime::Current().object_table().Get<NotifyListenerObject>(handle);
   if (!listener) {
     return 0;
   }

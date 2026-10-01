@@ -35,10 +35,9 @@
 #include <rex/runtime.h>
 #include <rex/string/numeric.h>
 #include <rex/system.h>
-#include <rex/system/achievement_manager.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/xobject.h>
-#include <rex/system/xthread.h>
+#include <rex/runtime/achievement_manager.h>
+#include <rex/runtime/xobject.h>
+#include <rex/runtime/xthread.h>
 #include <rex/ui/console/model.h>
 #include <rex/ui/console/view.h>
 #include <rex/ui/console/window.h>
@@ -497,7 +496,7 @@ Result<void> TitleApp::LaunchTitle() {
   runtime_config.kernel_init = kernel::InitializeKernel;
   runtime_config.graphics = graphics_;
   runtime_config.file_system = api().Get<filesystem::IFileSystem>();
-  if (XFAILED(runtime_->Setup(image_, std::move(runtime_config)))) {
+  if (XFAILED(runtime_->Setup(image_, runtime_config))) {
     return LaunchFailure("runtime setup failed");
   }
   if (auto* input = static_cast<input::InputSystem*>(runtime_->input_system())) {
@@ -505,7 +504,7 @@ Result<void> TitleApp::LaunchTitle() {
     input->SetActiveCallback([this] { return CaptureActive(); });
   }
   if (image_.register_modules) {
-    image_.register_modules(runtime_->kernel_state());
+    image_.register_modules(runtime_->module_registry());
   }
 
   constexpr std::string_view kImage = "game:\\default.xex";
@@ -526,8 +525,8 @@ Result<void> TitleApp::LaunchTitle() {
                                                       runtime_.get());
     toast_->SetOwned(true);
     std::weak_ptr<AchievementNotificationDialog> notification = toast_;
-    toast_listener_ = runtime_->kernel_state()->achievements().RegisterNotificationCallback(
-        [notification](const system::AchievementEvent& event) {
+    toast_listener_ = runtime_->achievement_manager().RegisterNotificationCallback(
+        [notification](const runtime::AchievementEvent& event) {
           if (auto dialog = notification.lock()) {
             dialog->Push(event);
           }
@@ -543,17 +542,17 @@ Result<void> TitleApp::LaunchTitle() {
     return LaunchFailure("the title's main thread could not be created");
   }
   if (graphics_ && !runtime_->cache_root().empty()) {
-    if (const u32 title_id = runtime_->kernel_state()->title_id(); title_id != 0) {
+    if (const u32 title_id = runtime_->content_manager().title_id(); title_id != 0) {
       graphics_->InitializeShaderStorage(runtime_->cache_root(), title_id, true);
     }
   }
   runtime_->OnTitleExit([this](runtime::TitleExitReason reason) {
     InvokeFunction([this, reason] { OnTitleExit(reason); });
   });
-  runtime_->kernel_state()->threads()->FindByHandle(main_thread)->Resume();
+  runtime_->thread_registry().FindByHandle(main_thread)->Resume();
   title_monitor_ = platform::Spawn("Title Monitor", [this, main_thread](const std::stop_token&) {
-    system::WaitOn(runtime_->kernel_state(), main_thread, 0, 0, 0, nullptr);
-    runtime_->kernel_state()->object_table()->Close(main_thread);
+    runtime::WaitOn(*runtime_, main_thread, 0, 0, 0, nullptr);
+    (void)runtime_->object_table().Close(main_thread);
     runtime_->ReportTitleExit(runtime::TitleExitReason::NormalExit);
   });
   return Ok();
@@ -599,15 +598,15 @@ void TitleApp::Stop() {
   if (context_ && !context_->HasQuitFromUIThread()) {
     context_->QuitFromUIThread();
   }
-  if (toast_listener_ != 0 && runtime_ && runtime_->kernel_state()) {
-    runtime_->kernel_state()->achievements().UnregisterCallback(toast_listener_);
+  if (toast_listener_ != 0 && runtime_ && runtime_->is_setup()) {
+    runtime_->achievement_manager().UnregisterCallback(toast_listener_);
     toast_listener_ = 0;
   }
   if (drawer_) {
     drawer_->DestroyDialogs();
   }
-  if (runtime_ && runtime_->kernel_state()) {
-    runtime_->kernel_state()->TerminateTitle();
+  if (runtime_ && runtime_->is_setup()) {
+    runtime_->TerminateTitle();
   }
   if (window_) {
     window_->RequestClose();

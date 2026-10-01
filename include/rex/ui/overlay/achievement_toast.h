@@ -33,7 +33,7 @@ class AchievementToastDialog : public AchievementNotificationDialog {
   ~AchievementToastDialog() override;
 
   // Thread-safe: safe to call from any thread, including guest threads.
-  void Push(const rex::system::AchievementEvent& event) override;
+  void Push(const rex::runtime::AchievementEvent& event) override;
 
  protected:
   void OnDraw(ImGuiIO& io) override;
@@ -42,7 +42,7 @@ class AchievementToastDialog : public AchievementNotificationDialog {
   static constexpr float kDisplaySeconds = 4.5f;
 
   struct PendingToast {
-    rex::system::AchievementEvent event;
+    rex::runtime::AchievementEvent event;
     std::chrono::steady_clock::time_point arrived;
     std::optional<std::chrono::steady_clock::time_point> visible_since;
   };

@@ -22,14 +22,17 @@
 
 namespace rex::codegen {
 
-ToolRuntime::ToolRuntime(std::unique_ptr<Runtime> runtime) : runtime_(std::move(runtime)) {}
+ToolRuntime::ToolRuntime(std::unique_ptr<Runtime> runtime, API* api)
+    : runtime_(std::move(runtime)), api_(api) {}
 
-ToolRuntime::ToolRuntime(ToolRuntime&& other) noexcept : runtime_(std::move(other.runtime_)) {}
+ToolRuntime::ToolRuntime(ToolRuntime&& other) noexcept
+    : runtime_(std::move(other.runtime_)), api_(std::exchange(other.api_, nullptr)) {}
 
 ToolRuntime& ToolRuntime::operator=(ToolRuntime&& other) noexcept {
   if (this != &other) {
     Release();
     runtime_ = std::move(other.runtime_);
+    api_ = std::exchange(other.api_, nullptr);
   }
   return *this;
 }
@@ -44,12 +47,13 @@ void ToolRuntime::Release() {
   }
   runtime_->Shutdown();
   runtime_.reset();
+  api_ = nullptr;
   rex::Shutdown();
 }
 
 Result<ToolRuntime> OpenToolRuntime(const std::filesystem::path& game_root) {
   Config config;
-  config.modules = {"rexfilesystem"};
+  config.modules = {"rexfilesystem", "rexruntime"};
   config.paths.game_data_root = game_root;
   REX_TRY(API * api, rex::Init(config));
   auto* file_system = api->Get<filesystem::IFileSystem>();
@@ -72,7 +76,7 @@ Result<ToolRuntime> OpenToolRuntime(const std::filesystem::path& game_root) {
     return Err<ToolRuntime>(ErrorCategory::IO,
                             std::format("Failed to initialize Runtime: {:#x}", status));
   }
-  return ToolRuntime(std::move(runtime));
+  return ToolRuntime(std::move(runtime), api);
 }
 
 }  // namespace rex::codegen

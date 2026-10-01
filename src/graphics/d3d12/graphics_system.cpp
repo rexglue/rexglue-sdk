@@ -16,7 +16,7 @@
 #include <rex/graphics/util/draw.h>
 #include <rex/logging.h>
 #include <rex/math.h>
-#include <rex/system/kernel_state.h>
+#include <rex/runtime.h>
 #include <rex/ui/d3d12/d3d12_util.h>
 
 namespace rex::graphics::d3d12 {
@@ -44,7 +44,7 @@ void D3D12GraphicsSystem::CreateProvider(bool /*with_presentation*/) {
 }
 
 std::unique_ptr<CommandProcessor> D3D12GraphicsSystem::CreateCommandProcessor() {
-  return std::unique_ptr<CommandProcessor>(new D3D12CommandProcessor(this, kernel_state_));
+  return std::unique_ptr<CommandProcessor>(new D3D12CommandProcessor(this, *runtime_));
 }
 
 }  // namespace rex::graphics::d3d12

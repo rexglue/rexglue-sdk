@@ -554,8 +554,8 @@ const VkDescriptorPoolSize VulkanCommandProcessor::kDescriptorPoolSizeTextures[2
 };
 
 VulkanCommandProcessor::VulkanCommandProcessor(VulkanGraphicsSystem* graphics_system,
-                                               system::KernelState* kernel_state)
-    : CommandProcessor(graphics_system, kernel_state),
+                                               Runtime& runtime)
+    : CommandProcessor(graphics_system, runtime),
       deferred_command_buffer_(*this),
       transient_descriptor_allocator_uniform_buffer_(
           static_cast<const ui::vulkan::VulkanProvider*>(graphics_system->provider())
@@ -2344,7 +2344,7 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
                frontbuffer_height_unscaled, guest_output_width, guest_output_height,
                static_cast<uint32_t>(frontbuffer_format));
 
-  system::X_VIDEO_MODE video_mode;
+  runtime::X_VIDEO_MODE video_mode;
   kernel::xboxkrnl::VdQueryVideoMode(&video_mode);
   uint32_t display_width = std::max(uint32_t(1), uint32_t(video_mode.display_width));
   uint32_t display_height = std::max(uint32_t(1), uint32_t(video_mode.display_height));

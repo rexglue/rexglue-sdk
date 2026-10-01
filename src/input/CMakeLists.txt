@@ -18,8 +18,8 @@ rex_target_pch(rexinput
     <rex/filesystem.h>
     <rex/platform/thread.h>
     <rex/ppc/context.h>
-    <rex/system/kernel_state.h>
-    <rex/system/xthread.h>
+    <rex/runtime.h>
+    <rex/runtime/xthread.h>
     <rex/ui/window.h>
     <rex/ui/presenter.h>
 )

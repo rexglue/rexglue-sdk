@@ -11,20 +11,20 @@
 
 #include <rex/kernel/xam/apps/xmp_app.h>
 #include <rex/logging.h>
-#include <rex/system/xthread.h>
+#include <rex/runtime/xthread.h>
 #include <rex/platform/thread.h>
 #include "kernel/kernel_macros.h"
 
 namespace rex {
 namespace kernel {
 namespace xam {
-using namespace rex::system;
-using namespace rex::system::xam;
+using namespace rex::runtime;
+using namespace rex::runtime::xam;
 namespace apps {
-using namespace rex::system;
+using namespace rex::runtime;
 
-XmpApp::XmpApp(KernelState* kernel_state)
-    : App(kernel_state, 0xFA),
+XmpApp::XmpApp(Runtime& runtime)
+    : App(runtime, 0xFA),
       state_(State::kIdle),
       playback_client_(PlaybackClient::kTitle),
       playback_mode_(PlaybackMode::kUnknown),
@@ -142,7 +142,7 @@ X_HRESULT XmpApp::XMPPlayTitlePlaylist(uint32_t playlist_handle, uint32_t song_h
   active_song_index_ = 0;
   state_ = State::kPlaying;
   OnStateChanged();
-  kernel_state_->BroadcastNotification(kMsgPlaybackBehaviorChanged, 1);
+  runtime_.notifier().BroadcastNotification(kMsgPlaybackBehaviorChanged, 1);
   return X_E_SUCCESS;
 }
 
@@ -201,7 +201,7 @@ X_HRESULT XmpApp::XMPPrevious() {
 }
 
 void XmpApp::OnStateChanged() {
-  kernel_state_->BroadcastNotification(kMsgStateChanged, static_cast<uint32_t>(state_));
+  runtime_.notifier().BroadcastNotification(kMsgStateChanged, static_cast<uint32_t>(state_));
 }
 
 X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
@@ -267,7 +267,7 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       playback_mode_ = static_cast<PlaybackMode>(uint32_t(args->playback_mode));
       repeat_mode_ = static_cast<RepeatMode>(uint32_t(args->repeat_mode));
       unknown_flags_ = args->flags;
-      kernel_state_->BroadcastNotification(kMsgPlaybackBehaviorChanged, 0);
+      runtime_.notifier().BroadcastNotification(kMsgPlaybackBehaviorChanged, 0);
       return X_E_SUCCESS;
     }
     case 0x00070009: {
@@ -392,7 +392,8 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
                    uint32_t(args->playback_client));
 
       playback_client_ = PlaybackClient(uint32_t(args->playback_client));
-      kernel_state_->BroadcastNotification(kMsgPlaybackControllerChanged, !args->playback_client);
+      runtime_.notifier().BroadcastNotification(kMsgPlaybackControllerChanged,
+                                                !args->playback_client);
       return X_E_SUCCESS;
     }
     case 0x0007001B: {

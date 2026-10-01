@@ -13,17 +13,17 @@
 #include <string>
 
 #include <rex/ppc/function.h>
-#include <rex/system/kernel_module.h>
-#include <rex/system/kernel_state.h>
+#include <rex/runtime/kernel_module.h>
+#include <rex/runtime.h>
 
 namespace rex::kernel::xbdm {
 
 /**
- * Creates the xbdm kernel module.
+ * Creates the xbdm.xex kernel module and registers its exports.
  *
- * @param kernel_state The kernel state.
- * @return The handle with a count of 1, 0 when the table cannot grow.
+ * @param runtime The runtime the module belongs to.
+ * @return A handle of the module with a count of 1.
  */
-X_HANDLE CreateXbdmModule(system::KernelState* kernel_state);
+X_HANDLE CreateXbdmModule(Runtime& runtime);
 
 }  // namespace rex::kernel::xbdm

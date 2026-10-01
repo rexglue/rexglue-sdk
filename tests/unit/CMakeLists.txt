@@ -32,10 +32,12 @@ add_executable(unit_tests
     core/thread_registry_test.cpp
     ppc/import_function_test.cpp
     ppc/stack_test.cpp
-    system/guest_path_test.cpp
-    system/achievement_manager_test.cpp
-    system/function_dispatcher_test.cpp
-    system/thread_wait_test.cpp
+    runtime/guest_path_test.cpp
+    runtime/achievement_manager_test.cpp
+    runtime/function_dispatcher_test.cpp
+    runtime/thread_wait_test.cpp
+    runtime/runtime_error_test.cpp
+    runtime/runtime_interfaces_test.cpp
     input/input_assignment_test.cpp
     ui/console_model_test.cpp
     ui/title_app_test.cpp
@@ -44,6 +46,7 @@ add_executable(unit_tests
     codegen/output_partition_test.cpp
     codegen/output_stamp_test.cpp
     codegen/shim_config_test.cpp
+    codegen/tool_runtime_test.cpp
 )
 
 target_sources(unit_tests PRIVATE

@@ -178,7 +178,7 @@ const VulkanRenderTargetCache::TransferModeInfo
 };
 
 VulkanRenderTargetCache::VulkanRenderTargetCache(const RegisterFile& register_file,
-                                                 const memory::Memory& memory,
+                                                 const runtime::Memory& memory,
                                                  uint32_t draw_resolution_scale_x,
                                                  uint32_t draw_resolution_scale_y,
                                                  VulkanCommandProcessor& command_processor)
@@ -1123,7 +1123,7 @@ void VulkanRenderTargetCache::EndSubmission() {
   }
 }
 
-bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
+bool VulkanRenderTargetCache::Resolve(const runtime::Memory& memory,
                                       VulkanSharedMemory& shared_memory,
                                       VulkanTextureCache& texture_cache,
                                       uint32_t& written_address_out, uint32_t& written_length_out) {

@@ -53,7 +53,7 @@ XmaContext::~XmaContext() {
   }
 }
 
-int XmaContext::Setup(uint32_t id, memory::Memory* memory, uint32_t guest_ptr) {
+int XmaContext::Setup(uint32_t id, runtime::Memory* memory, uint32_t guest_ptr) {
   id_ = id;
   memory_ = memory;
   guest_ptr_ = guest_ptr;

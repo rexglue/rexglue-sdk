@@ -24,7 +24,7 @@ AchievementToastDialog::AchievementToastDialog(ImGuiDrawer* drawer,
 
 AchievementToastDialog::~AchievementToastDialog() {}
 
-void AchievementToastDialog::Push(const rex::system::AchievementEvent& event) {
+void AchievementToastDialog::Push(const rex::runtime::AchievementEvent& event) {
   std::lock_guard<std::mutex> lock(mutex_);
   queue_.push_back({event, std::chrono::steady_clock::now()});
 }

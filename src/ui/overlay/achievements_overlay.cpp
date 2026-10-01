@@ -13,7 +13,6 @@
 #include <imgui.h>
 
 #include <rex/runtime.h>
-#include <rex/system/kernel_state.h>
 #include <rex/ui/immediate_drawer.h>
 #include <rex/ui/overlay.h>
 
@@ -25,7 +24,7 @@ AchievementsOverlayDialog::AchievementsOverlayDialog(const OverlayContext& conte
 AchievementsOverlayDialog::~AchievementsOverlayDialog() {}
 
 ImmediateTexture* AchievementsOverlayDialog::GetIcon(
-    const rex::system::AchievementInfo& achievement) {
+    const rex::runtime::AchievementInfo& achievement) {
   return icon_cache_ ? icon_cache_->GetIcon(achievement) : nullptr;
 }
 
@@ -42,7 +41,7 @@ void AchievementsOverlayDialog::OnDraw(ImGuiIO& io) {
 
   if (ImGui::Begin("Achievements##overlay", nullptr, ImGuiWindowFlags_NoCollapse)) {
     Runtime* runtime = context_.runtime();
-    if (!runtime || !runtime->kernel_state() || !context_.immediate_drawer()) {
+    if (!runtime || !runtime->is_setup() || !context_.immediate_drawer()) {
       ImGui::TextUnformatted("No title is running.");
       ImGui::End();
       ImGui::PopStyleVar(2);
@@ -51,7 +50,7 @@ void AchievementsOverlayDialog::OnDraw(ImGuiIO& io) {
     if (!icon_cache_) {
       icon_cache_.emplace(context_.immediate_drawer(), runtime);
     }
-    auto& manager = runtime->kernel_state()->achievements();
+    auto& manager = runtime->achievement_manager();
     const auto achievements = manager.ListAchievements();
 
     int unlocked_count = 0;

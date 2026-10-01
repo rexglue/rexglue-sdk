@@ -9,10 +9,10 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <rex/api.h>
 #include <rex/logging.h>
 #include <rex/hook.h>
 #include <rex/runtime.h>
-#include <rex/system/kernel_state.h>
 
 namespace rex {
 namespace kernel {
@@ -39,11 +39,11 @@ u32 XamShowNuiTroubleshooterUI_entry(u32 unk1, u32 unk2, u32 unk3) {
   // unk1 is 0xFF - possibly user index?
   // unk2, unk3 appear to always be zero.
 
-  if (system::kernel_state()->config().headless) {
+  if (runtime::Current().config().runtime.kernel.headless) {
     return 0;
   }
   // TODO(tomc): Implement imgui stuff
-  // const Runtime* emulator = REX_KERNEL_STATE()->emulator();
+  // const Runtime* emulator = &runtime::Current();
   // ui::Window* display_window = emulator->display_window();
   // ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
   // if (display_window && imgui_drawer) {

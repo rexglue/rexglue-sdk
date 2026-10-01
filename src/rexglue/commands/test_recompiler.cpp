@@ -34,7 +34,7 @@
 #include <rex/codegen/test_support.h>
 #include <rex/logging.h>
 #include <rex/string.h>
-#include <rex/system/map_parser.h>
+#include <rex/runtime/map_parser.h>
 
 #include "codegen/template_registry_internal.h"
 

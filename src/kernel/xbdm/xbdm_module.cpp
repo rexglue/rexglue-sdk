@@ -11,15 +11,15 @@
 
 #include <rex/kernel/xbdm/module.h>
 #include <rex/kernel/xbdm/private.h>
-#include <rex/system/kernel_state.h>
+#include <rex/runtime.h>
 
 namespace rex {
 namespace kernel {
 namespace xbdm {
-using namespace rex::system;
+using namespace rex::runtime;
 
-X_HANDLE CreateXbdmModule(KernelState* kernel_state) {
-  return CreateKernelModule(kernel_state, "xe:\\xbdm.xex");
+X_HANDLE CreateXbdmModule(Runtime& runtime) {
+  return CreateKernelModule(runtime, "xe:\\xbdm.xex");
 }
 
 }  // namespace xbdm

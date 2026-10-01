@@ -14,8 +14,9 @@
 #include <thread>
 
 #include <rex/platform/thread.h>
-#include <rex/system/function_dispatcher.h>
-#include <rex/system/xmemory.h>
+#include <rex/runtime/function_dispatcher.h>
+#include <rex/runtime/thread_state.h>
+#include <rex/runtime/xmemory.h>
 
 #include "../test_memory.h"
 
@@ -47,7 +48,7 @@ void TestStart(PPCContext& ctx, u8* base) {
     body = std::move(it->second);
     g_bodies.erase(it);
   }
-  Caller caller(ctx, base, *Runtime::instance());
+  Caller caller(ctx, base, runtime::Current());
   body(caller);
   ctx.r3.u64 = 0;
 }
@@ -188,6 +189,10 @@ void KernelFixture::RunOnGuestThread(const std::function<void(Caller&)>& body) {
   auto done = std::make_shared<std::promise<void>>();
   auto finished = done->get_future();
 
+  runtime::ThreadState host_state(0, 0, 0, runtime().memory(), &runtime());
+  runtime::ThreadState* previous = runtime::ThreadState::Get();
+  runtime::ThreadState::Bind(&host_state);
+
   PPCContext ctx{};
   u8* base = runtime().memory()->virtual_membase();
   Caller main_caller(ctx, base, runtime());
@@ -198,6 +203,7 @@ void KernelFixture::RunOnGuestThread(const std::function<void(Caller&)>& body) {
 
   REQUIRE(finished.wait_for(std::chrono::seconds(20)) == std::future_status::ready);
   main_caller.Kernel("NtClose", {handle});
+  runtime::ThreadState::Bind(previous);
 }
 
 }  // namespace rex::testing

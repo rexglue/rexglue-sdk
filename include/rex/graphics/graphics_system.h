@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include "rex/system/function_dispatcher.h"
+#include "rex/runtime/function_dispatcher.h"
 
 #include <atomic>
 #include <cstdint>
@@ -25,14 +25,9 @@
 #include <rex/graphics/register_file.h>
 #include <rex/kernel.h>
 #include <rex/memory.h>
-#include <rex/system/xthread.h>
+#include <rex/runtime/xthread.h>
 #include <rex/ui/graphics_provider.h>
 #include <rex/ui/presenter.h>
-
-// Forward declarations
-namespace rex {
-class Memory;
-}  // namespace rex
 
 namespace rex::ui {
 class WindowedAppContext;
@@ -48,15 +43,20 @@ class GraphicsSystem : public IGraphicsBackend {
 
   virtual std::string name() const = 0;
 
-  memory::Memory* memory() const { return memory_; }
+  runtime::Memory* memory() const { return memory_; }
   runtime::FunctionDispatcher* function_dispatcher() const { return function_dispatcher_; }
-  system::KernelState* kernel_state() const { return kernel_state_; }
+  /**
+   * Returns the runtime the GPU workers belong to.
+   *
+   * @return The runtime, null before SetupGuestGPU.
+   */
+  Runtime* runtime() const { return runtime_; }
   ::rex::ui::GraphicsProvider* provider() const override { return provider_.get(); }
   ::rex::ui::Presenter* presenter() const override { return presenter_.get(); }
 
   X_STATUS SetupPresentation(::rex::ui::WindowedAppContext* app_context) override;
   X_STATUS SetupGuestGPU(runtime::FunctionDispatcher* function_dispatcher,
-                         system::KernelState* kernel_state) override;
+                         Runtime& runtime) override;
   bool has_presentation() const override { return presenter_ != nullptr; }
   /** The backend slice the module received at Connect. Null until set. */
   void set_config(const BackendConfig* config) { config_ = config; }
@@ -104,9 +104,9 @@ class GraphicsSystem : public IGraphicsBackend {
 
   void MarkVblank();
 
-  memory::Memory* memory_ = nullptr;
+  runtime::Memory* memory_ = nullptr;
   runtime::FunctionDispatcher* function_dispatcher_ = nullptr;
-  system::KernelState* kernel_state_ = nullptr;
+  Runtime* runtime_ = nullptr;
   ::rex::ui::WindowedAppContext* app_context_ = nullptr;
   std::unique_ptr<::rex::ui::GraphicsProvider> provider_;
   const BackendConfig* config_ = nullptr;

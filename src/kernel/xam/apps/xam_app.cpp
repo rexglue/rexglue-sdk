@@ -11,19 +11,19 @@
 
 #include <rex/kernel/xam/apps/app.h>
 #include <rex/logging.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/xenumerator.h>
+#include <rex/runtime.h>
+#include <rex/runtime/xenumerator.h>
 #include <rex/platform/thread.h>
 
 namespace rex {
 namespace kernel {
 namespace xam {
-using namespace rex::system;
-using namespace rex::system::xam;
+using namespace rex::runtime;
+using namespace rex::runtime::xam;
 namespace apps {
-using namespace rex::system;
+using namespace rex::runtime;
 
-XamApp::XamApp(KernelState* kernel_state) : App(kernel_state, 0xFE) {}
+XamApp::XamApp(Runtime& runtime) : App(runtime, 0xFE) {}
 
 X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
                                       uint32_t buffer_length) {
@@ -49,7 +49,7 @@ X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
                    (uint32_t)data->length_ptr, (uint32_t)data->unk_1C);
       auto extra = memory_->TranslateVirtual<X_KENUMERATOR_CONTENT_AGGREGATE*>(data->extra_ptr);
       auto buffer = memory_->TranslateVirtual(data->buffer_ptr);
-      auto e = kernel_state_->object_table()->Get<EnumeratorObject>(extra->handle);
+      auto e = runtime_.object_table().Get<EnumeratorObject>(extra->handle);
       if (!e || !buffer || !extra) {
         return X_E_INVALIDARG;
       }

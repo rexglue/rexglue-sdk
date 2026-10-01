@@ -18,6 +18,7 @@
 
 #include <fmt/format.h>
 
+#include <rex/api.h>
 #include <rex/chrono/clock.h>
 #include <rex/cvar.h>
 #include <rex/dbg.h>
@@ -32,25 +33,24 @@
 #include <rex/hook.h>
 #include <rex/types.h>
 #include <rex/runtime.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/user_module.h>
-#include <rex/system/xthread.h>
-#include "system/cvar_table.h"
+#include <rex/runtime/user_module.h>
+#include <rex/runtime/xthread.h>
+#include "runtime/cvar_table.h"
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::system;
+using namespace rex::runtime;
 
-X_HANDLE CreateXboxkrnlModule(KernelState* kernel_state) {
-  const X_HANDLE handle = CreateKernelModule(kernel_state, "xe:\\xboxkrnl.exe");
+X_HANDLE CreateXboxkrnlModule(Runtime& runtime) {
+  const X_HANDLE handle = CreateKernelModule(runtime, "xe:\\xboxkrnl.exe");
   if (!handle) {
     return 0;
   }
-  auto module_pin = kernel_state->object_table()->Get<ModuleObject>(handle);
+  auto module_pin = runtime.object_table().Get<ModuleObject>(handle);
   ModuleObject& module = *module_pin;
-  auto* mem = kernel_state->memory();
+  auto* mem = runtime.memory();
 
   // Register video variable exports (VdGlobalDevice, VdGpuClockInMHz, etc.)
-  RegisterVideoExports(module, kernel_state);
+  RegisterVideoExports(module, runtime);
 
   // KeDebugMonitorData (?*)
   // Set to a valid value when a remote debugger is attached.
@@ -138,8 +138,8 @@ X_HANDLE CreateXboxkrnlModule(KernelState* kernel_state) {
   // Always set to "default.xex" (with quotes) for now.
   // TODO(gibbed): set this to the actual module name.
   std::string command_line("\"default.xex\"");
-  if (!kernel_state->config().command_line.empty()) {
-    command_line += " " + kernel_state->config().command_line;
+  if (!runtime.config().runtime.kernel.command_line.empty()) {
+    command_line += " " + runtime.config().runtime.kernel.command_line;
   }
   uint32_t command_line_length =
       rex::align(static_cast<uint32_t>(command_line.length()) + 1, 1024u);
@@ -177,8 +177,7 @@ X_HANDLE CreateXboxkrnlModule(KernelState* kernel_state) {
       });
 
   // Wire kernel object type variables to KernelGuestGlobals.
-  // KernelGuestGlobals is allocated in KernelState ctor, which runs before this.
-  auto kgg = kernel_state->GetKernelGuestGlobals();
+  auto kgg = runtime.GetKernelGuestGlobals();
   assert_not_zero(kgg);
   KernelModuleSetVariable(module, 0x001B, kgg + offsetof(KernelGuestGlobals, ExThreadObjectType));
   KernelModuleSetVariable(module, 0x000E, kgg + offsetof(KernelGuestGlobals, ExEventObjectType));

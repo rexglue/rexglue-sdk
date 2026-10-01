@@ -1152,7 +1152,8 @@ void D3D12RenderTargetCache::WriteEdramUintPow2UAVDescriptor(D3D12_CPU_DESCRIPTO
                                 D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
-bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMemory& shared_memory,
+bool D3D12RenderTargetCache::Resolve(const runtime::Memory& memory,
+                                     D3D12SharedMemory& shared_memory,
                                      D3D12TextureCache& texture_cache,
                                      uint32_t& written_address_out, uint32_t& written_length_out) {
   written_address_out = 0;

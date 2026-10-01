@@ -23,7 +23,7 @@
 #include <rex/input/input.h>
 #include <rex/input/input_driver.h>
 #include <rex/input/state_merge.h>
-#include <rex/system/interfaces/input.h>
+#include <rex/runtime/interfaces/input.h>
 
 namespace rex::ui {
 class Window;
@@ -31,7 +31,7 @@ class Window;
 
 namespace rex::input {
 
-class InputSystem : public system::IInputSystem {
+class InputSystem : public runtime::IInputSystem {
  public:
   explicit InputSystem(rex::ui::Window* window);
   ~InputSystem() override;

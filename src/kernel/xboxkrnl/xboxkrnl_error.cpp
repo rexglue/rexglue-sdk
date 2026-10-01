@@ -21,9 +21,9 @@
 #include <rex/hook.h>
 #include <rex/types.h>
 #include <rex/string.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/user_module.h>
-#include <rex/system/xthread.h>
+#include <rex/runtime.h>
+#include <rex/runtime/user_module.h>
+#include <rex/runtime/xthread.h>
 #include <rex/platform/atomic.h>
 
 namespace rex::kernel::xboxkrnl {

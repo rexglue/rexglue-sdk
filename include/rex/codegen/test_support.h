@@ -16,7 +16,7 @@
 #include <string>
 #include <string_view>
 
-#include <rex/system/module.h>
+#include <rex/runtime/module.h>
 
 namespace rex::codegen {
 

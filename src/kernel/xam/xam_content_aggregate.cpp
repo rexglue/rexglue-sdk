@@ -17,21 +17,21 @@
 #include <rex/types.h>
 #include <rex/string.h>
 #include <rex/string/numeric.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/user_module.h>
-#include <rex/system/xam/content_device.h>
-#include <rex/system/xenumerator.h>
-#include <rex/system/xtypes.h>
+#include <rex/runtime.h>
+#include <rex/runtime/user_module.h>
+#include <rex/runtime/xam/content_device.h>
+#include <rex/runtime/xenumerator.h>
+#include <rex/runtime/xtypes.h>
 
 namespace rex {
 namespace kernel {
 namespace xam {
-using namespace rex::system;
-using namespace rex::system::xam;
+using namespace rex::runtime;
+using namespace rex::runtime::xam;
 
 void AddODDContentTest(StaticItems& items, XContentType content_type) {
   constexpr std::string_view kRoot = "game:\\Content\\0000000000000000";
-  auto* fs = REX_KERNEL_FS();
+  auto* fs = runtime::Current().file_system();
   auto titles = fs->List(kRoot, "????????");
   if (!titles) {
     return;
@@ -74,22 +74,22 @@ u32 XamContentAggregateCreateEnumerator_entry(u64 xuid, u32 device_id, u32 conte
 
   auto content_type_enum = XContentType(uint32_t(content_type));
 
-  uint64_t userxuid = REX_KERNEL_STATE()->user_profile()->xuid();
+  uint64_t userxuid = runtime::Current().content_manager().user_profile().xuid();
 
   if (!device_info || device_info->device_type == DeviceType::HDD) {
     // Fetch any alternate title IDs defined in the XEX header
     // (used by games to load saves from other titles, etc)
     std::vector<uint32_t> title_ids{kCurrentlyRunningTitleId};
-    auto exe_module =
-        REX_KERNEL_OBJECTS()->Get<ModuleObject>(REX_KERNEL_STATE()->GetExecutableModule());
-    if (exe_module && UserModuleXex(*exe_module)) {
-      const auto& alt_ids = UserModuleXex(*exe_module)->opt_alternate_title_ids();
+    auto exe_module = runtime::Current().object_table().Get<ModuleObject>(
+        runtime::Current().module_registry().executable().value_or(0));
+    if (exe_module && UserModuleXEX(*exe_module)) {
+      const auto& alt_ids = UserModuleXEX(*exe_module)->opt_alternate_title_ids();
       std::copy(alt_ids.cbegin(), alt_ids.cend(), std::back_inserter(title_ids));
     }
 
     for (auto& title_id : title_ids) {
       // Get user-specific content
-      auto content_datas = REX_KERNEL_STATE()->content_manager()->ListContent(
+      auto content_datas = runtime::Current().content_manager().ListContent(
           static_cast<uint32_t>(DummyDeviceId::HDD), xuid, content_type_enum, title_id);
       for (const auto& content_data : content_datas) {
         auto item = items.Append<XCONTENT_AGGREGATE_DATA>();
@@ -101,7 +101,7 @@ u32 XamContentAggregateCreateEnumerator_entry(u64 xuid, u32 device_id, u32 conte
 
       // Also get common content (xuid=0)
       if (userxuid != 0) {
-        auto common_datas = REX_KERNEL_STATE()->content_manager()->ListContent(
+        auto common_datas = runtime::Current().content_manager().ListContent(
             static_cast<uint32_t>(DummyDeviceId::HDD), 0, content_type_enum, title_id);
         for (const auto& content_data : common_datas) {
           auto item = items.Append<XCONTENT_AGGREGATE_DATA>();
@@ -124,7 +124,7 @@ u32 XamContentAggregateCreateEnumerator_entry(u64 xuid, u32 device_id, u32 conte
   X_HANDLE handle = X_INVALID_HANDLE_VALUE;
   void* extra_buffer = nullptr;
   auto result = CreateEnumerator(
-      REX_KERNEL_STATE(), &handle, EnumeratorInit{0xFF, 0xFE, 0x2000E, 0x20010, 0},
+      runtime::Current(), &handle, EnumeratorInit{0xFF, 0xFE, 0x2000E, 0x20010, 0},
       EnumeratorObject(
           1, sizeof(XCONTENT_AGGREGATE_DATA),
           [items = std::move(items)](u32, u8* buffer_data, u32* written_count) mutable {

@@ -9,10 +9,10 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <rex/api.h>
 #include <rex/logging.h>
 #include <rex/runtime.h>
 #include <rex/string.h>
-#include <rex/system/kernel_state.h>
 
 #include <imgui.h>
 
@@ -20,7 +20,7 @@
 #include <rex/hook.h>
 #include <rex/input/input_system.h>
 #include <rex/types.h>
-#include <rex/system/xtypes.h>
+#include <rex/runtime/xtypes.h>
 #include <rex/platform/thread.h>
 #include <rex/ui/imgui_dialog.h>
 #include <rex/ui/imgui_drawer.h>
@@ -33,7 +33,7 @@
 namespace rex {
 namespace kernel {
 namespace xam {
-using namespace rex::system;
+using namespace rex::runtime;
 
 bool ShowDialog(ui::WindowedAppContext* context, const std::function<ui::ImGuiDialog*()>& create,
                 platform::Fence& fence) {
@@ -66,10 +66,8 @@ namespace {
 // not act on the presses driving it - including the one that dismisses it.
 class ScopedGuestInputBlock {
  public:
-  ScopedGuestInputBlock() {
-    auto* runtime = REX_KERNEL_STATE()->emulator();
-    input_system_ =
-        runtime ? static_cast<rex::input::InputSystem*>(runtime->input_system()) : nullptr;
+  ScopedGuestInputBlock()
+      : input_system_(static_cast<rex::input::InputSystem*>(runtime::Current().input_system())) {
     if (input_system_) {
       input_system_->AddUIInputBlocker();
     }
@@ -113,7 +111,7 @@ X_RESULT XamDispatchDialog(std::function<T*()> create, std::function<X_RESULT(T*
                            uint32_t overlapped) {
   auto pre = []() {
     // Broadcast XN_SYS_UI = true
-    REX_KERNEL_STATE()->BroadcastNotification(0x9, true);
+    runtime::Current().notifier().BroadcastNotification(0x9, true);
   };
   auto run = [create, close_callback]() -> X_RESULT {
     ScopedGuestInputBlock input_block;
@@ -125,7 +123,7 @@ X_RESULT XamDispatchDialog(std::function<T*()> create, std::function<X_RESULT(T*
           [dialog, &result, &close_callback] { result = close_callback(dialog); });
       return dialog;
     };
-    if (ShowDialog(REX_KERNEL_STATE()->emulator()->app_context(), build, fence)) {
+    if (ShowDialog(runtime::Current().app_context(), build, fence)) {
       ++xam_dialogs_shown_;
       fence.Wait();
       --xam_dialogs_shown_;
@@ -135,7 +133,7 @@ X_RESULT XamDispatchDialog(std::function<T*()> create, std::function<X_RESULT(T*
   auto post = []() {
     rex::platform::Sleep(std::chrono::milliseconds(100));
     // Broadcast XN_SYS_UI = false
-    REX_KERNEL_STATE()->BroadcastNotification(0x9, false);
+    runtime::Current().notifier().BroadcastNotification(0x9, false);
   };
   if (!overlapped) {
     pre();
@@ -143,7 +141,7 @@ X_RESULT XamDispatchDialog(std::function<T*()> create, std::function<X_RESULT(T*
     post();
     return result;
   } else {
-    REX_KERNEL_STATE()->CompleteOverlappedDeferred(run, overlapped, pre, post);
+    runtime::Current().dispatcher().CompleteOverlappedDeferred(run, overlapped, pre, post);
     return X_ERROR_IO_PENDING;
   }
 }
@@ -154,7 +152,7 @@ X_RESULT XamDispatchDialogEx(std::function<T*()> create,
                              uint32_t overlapped) {
   auto pre = []() {
     // Broadcast XN_SYS_UI = true
-    REX_KERNEL_STATE()->BroadcastNotification(0x9, true);
+    runtime::Current().notifier().BroadcastNotification(0x9, true);
   };
   auto run = [create, close_callback](uint32_t& extended_error, uint32_t& length) -> X_RESULT {
     ScopedGuestInputBlock input_block;
@@ -167,7 +165,7 @@ X_RESULT XamDispatchDialogEx(std::function<T*()> create,
       });
       return dialog;
     };
-    if (ShowDialog(REX_KERNEL_STATE()->emulator()->app_context(), build, fence)) {
+    if (ShowDialog(runtime::Current().app_context(), build, fence)) {
       ++xam_dialogs_shown_;
       fence.Wait();
       --xam_dialogs_shown_;
@@ -177,7 +175,7 @@ X_RESULT XamDispatchDialogEx(std::function<T*()> create,
   auto post = []() {
     rex::platform::Sleep(std::chrono::milliseconds(100));
     // Broadcast XN_SYS_UI = false
-    REX_KERNEL_STATE()->BroadcastNotification(0x9, false);
+    runtime::Current().notifier().BroadcastNotification(0x9, false);
   };
   if (!overlapped) {
     pre();
@@ -187,7 +185,7 @@ X_RESULT XamDispatchDialogEx(std::function<T*()> create,
     // TODO(gibbed): do something with extended_error/length?
     return result;
   } else {
-    REX_KERNEL_STATE()->CompleteOverlappedDeferredEx(run, overlapped, pre, post);
+    runtime::Current().dispatcher().CompleteOverlappedDeferredEx(run, overlapped, pre, post);
     return X_ERROR_IO_PENDING;
   }
 }
@@ -196,13 +194,13 @@ X_RESULT XamDispatchHeadless(std::function<X_RESULT()> run_callback, uint32_t ov
   auto pre = []() {
     REXLOG_DEBUG(kernel, "XamDispatchHeadless: Broadcasting XN_SYS_UI = true");
     // Broadcast XN_SYS_UI = true
-    REX_KERNEL_STATE()->BroadcastNotification(0x9, true);
+    runtime::Current().notifier().BroadcastNotification(0x9, true);
   };
   auto post = []() {
     rex::platform::Sleep(std::chrono::milliseconds(100));
     REXLOG_DEBUG(kernel, "XamDispatchHeadless: Broadcasting XN_SYS_UI = false");
     // Broadcast XN_SYS_UI = false
-    REX_KERNEL_STATE()->BroadcastNotification(0x9, false);
+    runtime::Current().notifier().BroadcastNotification(0x9, false);
   };
   if (!overlapped) {
     pre();
@@ -210,7 +208,7 @@ X_RESULT XamDispatchHeadless(std::function<X_RESULT()> run_callback, uint32_t ov
     post();
     return result;
   } else {
-    REX_KERNEL_STATE()->CompleteOverlappedDeferred(run_callback, overlapped, pre, post);
+    runtime::Current().dispatcher().CompleteOverlappedDeferred(run_callback, overlapped, pre, post);
     return X_ERROR_IO_PENDING;
   }
 }
@@ -288,25 +286,25 @@ u32 XamShowMessageBoxUI_entry(u32 user_index, mapped_wstring title_ptr, mapped_w
   std::string title;
   if (title_ptr) {
     title = rex::to_utf8(rex::memory::load_and_swap<std::u16string>(
-        REX_KERNEL_MEMORY()->TranslateVirtual(title_ptr.guest_address())));
+        runtime::Current().memory()->TranslateVirtual(title_ptr.guest_address())));
   } else {
     title = "";  // TODO(gibbed): default title based on flags?
   }
-  std::string text_str = text_ptr
-                             ? rex::to_utf8(rex::memory::load_and_swap<std::u16string>(
-                                   REX_KERNEL_MEMORY()->TranslateVirtual(text_ptr.guest_address())))
-                             : "";
+  std::string text_str =
+      text_ptr ? rex::to_utf8(rex::memory::load_and_swap<std::u16string>(
+                     runtime::Current().memory()->TranslateVirtual(text_ptr.guest_address())))
+               : "";
 
   std::vector<std::string> buttons;
   for (uint32_t i = 0; i < button_count; ++i) {
     uint32_t button_ptr = button_ptrs[i];
     auto button = rex::memory::load_and_swap<std::u16string>(
-        REX_KERNEL_MEMORY()->TranslateVirtual(button_ptr));
+        runtime::Current().memory()->TranslateVirtual(button_ptr));
     buttons.push_back(rex::to_utf8(button));
   }
 
   X_RESULT result;
-  if (kernel_state()->config().headless) {
+  if (runtime::Current().config().runtime.kernel.headless) {
     // Auto-pick the focused button.
     auto run = [result_ptr, active_button]() -> X_RESULT {
       *result_ptr = static_cast<uint32_t>(active_button);
@@ -333,7 +331,7 @@ u32 XamShowMessageBoxUI_entry(u32 user_index, mapped_wstring title_ptr, mapped_w
       *result_ptr = dialog->chosen_button();
       return X_ERROR_SUCCESS;
     };
-    const Runtime* emulator = REX_KERNEL_STATE()->emulator();
+    const Runtime* emulator = &runtime::Current();
     ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
     if (imgui_drawer) {
       result = XamDispatchDialog<MessageBoxDialog>(
@@ -449,7 +447,7 @@ u32 XamShowKeyboardUI_entry(u32 user_index, u32 flags, mapped_wstring default_te
   auto buffer_size = static_cast<size_t>(buffer_length) * 2;
 
   X_RESULT result;
-  if (kernel_state()->config().headless) {
+  if (runtime::Current().config().runtime.kernel.headless) {
     auto run = [default_text, buffer, buffer_length, buffer_size]() -> X_RESULT {
       // Redirect default_text back into the buffer.
       if (!default_text) {
@@ -476,22 +474,24 @@ u32 XamShowKeyboardUI_entry(u32 user_index, u32 flags, mapped_wstring default_te
         return X_ERROR_SUCCESS;
       }
     };
-    const Runtime* emulator = REX_KERNEL_STATE()->emulator();
+    const Runtime* emulator = &runtime::Current();
     ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
 
     // Read and convert title/description/default_text from guest memory as utf16 to utf8 strings
-    std::string title_str = title
-                                ? rex::to_utf8(rex::memory::load_and_swap<std::u16string>(
-                                      REX_KERNEL_MEMORY()->TranslateVirtual(title.guest_address())))
-                                : "";
+    std::string title_str =
+        title ? rex::to_utf8(rex::memory::load_and_swap<std::u16string>(
+                    runtime::Current().memory()->TranslateVirtual(title.guest_address())))
+              : "";
     std::string desc_str =
-        description ? rex::to_utf8(rex::memory::load_and_swap<std::u16string>(
-                          REX_KERNEL_MEMORY()->TranslateVirtual(description.guest_address())))
-                    : "";
+        description
+            ? rex::to_utf8(rex::memory::load_and_swap<std::u16string>(
+                  runtime::Current().memory()->TranslateVirtual(description.guest_address())))
+            : "";
     std::string def_text_str =
-        default_text ? rex::to_utf8(rex::memory::load_and_swap<std::u16string>(
-                           REX_KERNEL_MEMORY()->TranslateVirtual(default_text.guest_address())))
-                     : "";
+        default_text
+            ? rex::to_utf8(rex::memory::load_and_swap<std::u16string>(
+                  runtime::Current().memory()->TranslateVirtual(default_text.guest_address())))
+            : "";
 
     if (imgui_drawer) {
       uint32_t buffer_length_safe = buffer_length + 1;  // +1 for null terminator, just in case
@@ -537,7 +537,7 @@ void XamShowDirtyDiscErrorUI_entry(u32 user_index) {
   REXLOG_ERROR(kernel, "XamShowDirtyDiscErrorUI called! user_index={}", uint32_t(user_index));
   REXLOG_ERROR(kernel, "This indicates a disc/file read error - check that all game files exist");
 
-  const Runtime* emulator = REX_KERNEL_STATE()->emulator();
+  const Runtime* emulator = &runtime::Current();
   ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
   if (imgui_drawer) {
     XamDispatchDialog<MessageBoxDialog>(
@@ -557,7 +557,7 @@ void XamShowDirtyDiscErrorUI_entry(u32 user_index) {
     REXLOG_ERROR(kernel, "Missing files or bad mounts cause this error");
     REXLOG_ERROR(kernel, "===========================================");
   }
-  REX_KERNEL_STATE()->ExitTitle(rex::runtime::TitleExitReason::TitleDataError);
+  runtime::Current().ExitTitle(rex::runtime::TitleExitReason::TitleDataError);
 }
 
 u32 XamShowPartyUI_entry(u32 r3, u32 r4) {

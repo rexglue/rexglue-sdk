@@ -8,26 +8,29 @@
 
 #include <atomic>
 #include <memory>
+#include <optional>
 #include <thread>
 
-#include <rex/system/object_data.h>
-#include <rex/system/util/object_table.h>
+#include <rex/runtime/error.h>
+#include <rex/runtime/object_data.h>
+
+#include "runtime/object_table.h"
 
 using rex::X_HANDLE;
 using rex::X_STATUS;
-using rex::system::AddOptions;
-using rex::system::EventObject;
-using rex::system::ObjectKind;
-using rex::system::SemaphoreObject;
-using rex::system::util::ObjectTable;
+using rex::runtime::AddOptions;
+using rex::runtime::EventObject;
+using rex::runtime::ObjectKind;
+using rex::runtime::ObjectTable;
+using rex::runtime::SemaphoreObject;
+using rex::runtime::ToXStatus;
 
 namespace {
 
 X_HANDLE AddEvent(ObjectTable& table, std::string_view name = {}) {
-  X_HANDLE handle = 0;
-  REQUIRE(table.Emplace<EventObject>(&handle, AddOptions{name, {}}, true, false) ==
-          X_STATUS_SUCCESS);
-  return handle;
+  auto added = table.Emplace<EventObject>(AddOptions{name, {}}, true, false);
+  REQUIRE(added.has_value());
+  return *added;
 }
 
 }  // namespace
@@ -68,32 +71,33 @@ TEST_CASE("ObjectTable Get rejects 0 pseudo and unknown handles", "[kernel][obje
 TEST_CASE("ObjectTable Duplicate gives a new handle to the same object", "[kernel][object_table]") {
   ObjectTable table(nullptr);
   const X_HANDLE handle = AddEvent(table);
-  X_HANDLE copy = 0;
-  REQUIRE(table.Duplicate(handle, &copy) == X_STATUS_SUCCESS);
+  auto duplicated = table.Duplicate(handle);
+  REQUIRE(duplicated.has_value());
+  const X_HANDLE copy = *duplicated;
   CHECK(copy != handle);
   CHECK(&*table.Get<EventObject>(handle) == &*table.Get<EventObject>(copy));
-  CHECK(table.Duplicate(0xF8FFFFF0, &copy) == X_STATUS_INVALID_HANDLE);
+  CHECK(ToXStatus(table.Duplicate(0xF8FFFFF0)) == X_STATUS_INVALID_HANDLE);
 }
 
 TEST_CASE("ObjectTable Close removes at zero and reports bad handles", "[kernel][object_table]") {
   ObjectTable table(nullptr);
   const X_HANDLE handle = AddEvent(table);
-  CHECK(table.Close(handle) == X_STATUS_SUCCESS);
+  CHECK(ToXStatus(table.Close(handle)) == X_STATUS_SUCCESS);
   CHECK_FALSE(table.Get(handle));
-  CHECK(table.Close(handle) == X_STATUS_INVALID_HANDLE);
-  CHECK(table.Close(0) == X_STATUS_INVALID_HANDLE);
-  CHECK(table.Close(0xFFFFFFFF) == X_STATUS_INVALID_HANDLE);
+  CHECK(ToXStatus(table.Close(handle)) == X_STATUS_INVALID_HANDLE);
+  CHECK(ToXStatus(table.Close(0)) == X_STATUS_INVALID_HANDLE);
+  CHECK(ToXStatus(table.Close(0xFFFFFFFF)) == X_STATUS_INVALID_HANDLE);
 }
 
 TEST_CASE("ObjectTable Retain needs a matching Close", "[kernel][object_table]") {
   ObjectTable table(nullptr);
   const X_HANDLE handle = AddEvent(table);
-  REQUIRE(table.Retain(handle) == X_STATUS_SUCCESS);
-  CHECK(table.Close(handle) == X_STATUS_SUCCESS);
+  REQUIRE(ToXStatus(table.Retain(handle)) == X_STATUS_SUCCESS);
+  CHECK(ToXStatus(table.Close(handle)) == X_STATUS_SUCCESS);
   CHECK(table.Get(handle));
-  CHECK(table.Close(handle) == X_STATUS_SUCCESS);
+  CHECK(ToXStatus(table.Close(handle)) == X_STATUS_SUCCESS);
   CHECK_FALSE(table.Get(handle));
-  CHECK(table.Retain(handle) == X_STATUS_INVALID_HANDLE);
+  CHECK(ToXStatus(table.Retain(handle)) == X_STATUS_INVALID_HANDLE);
 }
 
 TEST_CASE("ObjectTable RetainPrimary needs a matching Close", "[kernel][object_table]") {
@@ -101,21 +105,22 @@ TEST_CASE("ObjectTable RetainPrimary needs a matching Close", "[kernel][object_t
   const X_HANDLE handle = AddEvent(table);
   {
     auto pin = table.Get(handle);
-    REQUIRE(table.RetainPrimary(pin) == X_STATUS_SUCCESS);
+    REQUIRE(ToXStatus(table.RetainPrimary(pin)) == X_STATUS_SUCCESS);
   }
-  CHECK(table.Close(handle) == X_STATUS_SUCCESS);
+  CHECK(ToXStatus(table.Close(handle)) == X_STATUS_SUCCESS);
   CHECK(table.Get(handle));
-  CHECK(table.Close(handle) == X_STATUS_SUCCESS);
+  CHECK(ToXStatus(table.Close(handle)) == X_STATUS_SUCCESS);
   CHECK_FALSE(table.Get(handle));
 }
 
 TEST_CASE("ObjectTable PrimaryHandle returns the first handle", "[kernel][object_table]") {
   ObjectTable table(nullptr);
   const X_HANDLE handle = AddEvent(table);
-  X_HANDLE copy = 0;
-  REQUIRE(table.Duplicate(handle, &copy) == X_STATUS_SUCCESS);
+  auto duplicated = table.Duplicate(handle);
+  REQUIRE(duplicated.has_value());
+  const X_HANDLE copy = *duplicated;
   auto pin = table.Get(copy);
-  CHECK(table.PrimaryHandle(pin) == handle);
+  CHECK(table.PrimaryHandle(pin) == std::optional<X_HANDLE>(handle));
 }
 
 TEST_CASE("ObjectTable ReleasePrimary closes the first handle", "[kernel][object_table]") {
@@ -123,7 +128,7 @@ TEST_CASE("ObjectTable ReleasePrimary closes the first handle", "[kernel][object
   const X_HANDLE handle = AddEvent(table);
   {
     auto pin = table.Get(handle);
-    CHECK(table.ReleasePrimary(pin) == X_STATUS_SUCCESS);
+    CHECK(ToXStatus(table.ReleasePrimary(pin)) == X_STATUS_SUCCESS);
   }
   CHECK_FALSE(table.Get(handle));
 }
@@ -133,9 +138,9 @@ TEST_CASE("ObjectTable Remove ignores the count", "[kernel][object_table]") {
   const X_HANDLE handle = AddEvent(table);
   {
     auto pin = table.Get(handle);
-    REQUIRE(table.RetainPrimary(pin) == X_STATUS_SUCCESS);
+    REQUIRE(ToXStatus(table.RetainPrimary(pin)) == X_STATUS_SUCCESS);
   }
-  CHECK(table.Remove(handle) == X_STATUS_SUCCESS);
+  CHECK(ToXStatus(table.Remove(handle)) == X_STATUS_SUCCESS);
   CHECK_FALSE(table.Get(handle));
 }
 
@@ -144,7 +149,7 @@ TEST_CASE("ObjectTable keeps a pinned object alive across Close", "[kernel][obje
   const X_HANDLE handle = AddEvent(table);
   auto pin = table.Get<EventObject>(handle);
   REQUIRE(pin);
-  CHECK(table.Close(handle) == X_STATUS_SUCCESS);
+  CHECK(ToXStatus(table.Close(handle)) == X_STATUS_SUCCESS);
   CHECK_FALSE(table.Get(handle));
   CHECK(pin->event != nullptr);
 }
@@ -167,7 +172,7 @@ TEST_CASE("ObjectTable destroys on the last pin when another thread closed first
     while (!pinned) {
       std::this_thread::yield();
     }
-    REQUIRE(table.Close(handle) == X_STATUS_SUCCESS);
+    REQUIRE(ToXStatus(table.Close(handle)) == X_STATUS_SUCCESS);
     closed = true;
     holder.join();
   }
@@ -176,33 +181,31 @@ TEST_CASE("ObjectTable destroys on the last pin when another thread closed first
 TEST_CASE("ObjectTable names are case insensitive and collide", "[kernel][object_table][names]") {
   ObjectTable table(nullptr);
   const X_HANDLE handle = AddEvent(table, "Alpha");
-  X_HANDLE found = 0;
-  CHECK(table.OpenByName("ALPHA", &found) == X_STATUS_SUCCESS);
-  CHECK(found == handle);
-  CHECK(table.AddName("alpha", 0xF8000008) == X_STATUS_OBJECT_NAME_COLLISION);
-  CHECK(table.OpenByName("Missing", &found) == X_STATUS_OBJECT_NAME_NOT_FOUND);
-  CHECK(found == X_INVALID_HANDLE_VALUE);
+  auto found = table.OpenByName("ALPHA");
+  REQUIRE(found.has_value());
+  CHECK(*found == handle);
+  CHECK(ToXStatus(table.AddName("alpha", 0xF8000008)) == X_STATUS_OBJECT_NAME_COLLISION);
+  auto missing = table.OpenByName("Missing");
+  CHECK(ToXStatus(missing) == X_STATUS_OBJECT_NAME_NOT_FOUND);
+  CHECK(missing.value_or(X_INVALID_HANDLE_VALUE) == X_INVALID_HANDLE_VALUE);
 }
 
 TEST_CASE("ObjectTable OpenByName takes a handle reference", "[kernel][object_table][names]") {
   ObjectTable table(nullptr);
   const X_HANDLE handle = AddEvent(table, "Beta");
-  X_HANDLE found = 0;
-  REQUIRE(table.OpenByName("Beta", &found) == X_STATUS_SUCCESS);
-  CHECK(table.Close(handle) == X_STATUS_SUCCESS);
+  REQUIRE(table.OpenByName("Beta").has_value());
+  CHECK(ToXStatus(table.Close(handle)) == X_STATUS_SUCCESS);
   CHECK(table.Get(handle));
-  CHECK(table.Close(handle) == X_STATUS_SUCCESS);
-  CHECK(table.OpenByName("Beta", &found) == X_STATUS_OBJECT_NAME_NOT_FOUND);
+  CHECK(ToXStatus(table.Close(handle)) == X_STATUS_SUCCESS);
+  CHECK(ToXStatus(table.OpenByName("Beta")) == X_STATUS_OBJECT_NAME_NOT_FOUND);
 }
 
 TEST_CASE("ObjectTable GetAll returns one pin per object of the type", "[kernel][object_table]") {
   ObjectTable table(nullptr);
   const X_HANDLE a = AddEvent(table);
   AddEvent(table);
-  X_HANDLE copy = 0;
-  REQUIRE(table.Duplicate(a, &copy) == X_STATUS_SUCCESS);
-  X_HANDLE semaphore = 0;
-  REQUIRE(table.Emplace<SemaphoreObject>(&semaphore, AddOptions{}, 1, 2) == X_STATUS_SUCCESS);
+  REQUIRE(table.Duplicate(a).has_value());
+  REQUIRE(table.Emplace<SemaphoreObject>(AddOptions{}, 1, 2).has_value());
   CHECK(table.GetAll<EventObject>().size() == 2);
   CHECK(table.GetAll<SemaphoreObject>().size() == 1);
   CHECK(table.GetAll().size() == 3);

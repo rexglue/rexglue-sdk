@@ -4,8 +4,8 @@
 #include <future>
 #include <memory>
 
-#include <rex/system/function_dispatcher.h>
-#include <rex/system/xtypes.h>
+#include <rex/runtime/function_dispatcher.h>
+#include <rex/runtime/xtypes.h>
 
 #include "kernel_fixture.h"
 

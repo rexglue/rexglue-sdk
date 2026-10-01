@@ -19,8 +19,8 @@
 #include <rex/platform.h>
 #include <rex/hook.h>
 #include <rex/types.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/xtypes.h>
+#include <rex/runtime.h>
+#include <rex/runtime/xtypes.h>
 #include "kernel/kernel_macros.h"
 
 #if REX_PLATFORM_WIN32

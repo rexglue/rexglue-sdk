@@ -22,11 +22,10 @@
 #include <rex/hook.h>
 #include <rex/types.h>
 #include <rex/runtime.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/xtypes.h>
+#include <rex/runtime/xtypes.h>
 
 namespace rex::kernel::xboxkrnl {
-using namespace rex::system;
+using namespace rex::runtime;
 
 using rex::audio::XMA_CONTEXT_DATA;
 
@@ -66,8 +65,7 @@ using rex::audio::XMA_CONTEXT_DATA;
 u32 XMACreateContext_entry(mapped_u32 context_out_ptr) {
   REXLOG_DEV(kernel, "XMACreateContext called!");
   auto xma_decoder =
-      static_cast<audio::AudioSystem*>(REX_KERNEL_STATE()->emulator()->audio_system())
-          ->xma_decoder();
+      static_cast<audio::AudioSystem*>(runtime::Current().audio_system())->xma_decoder();
   uint32_t context_ptr = xma_decoder->AllocateContext();
   *context_out_ptr = context_ptr;
   if (!context_ptr) {
@@ -78,18 +76,15 @@ u32 XMACreateContext_entry(mapped_u32 context_out_ptr) {
 
 u32 XMAReleaseContext_entry(mapped_void context_ptr) {
   auto xma_decoder =
-      static_cast<audio::AudioSystem*>(REX_KERNEL_STATE()->emulator()->audio_system())
-          ->xma_decoder();
+      static_cast<audio::AudioSystem*>(runtime::Current().audio_system())->xma_decoder();
   xma_decoder->ReleaseContext(context_ptr.guest_address());
   return 0;
 }
 
-void StoreXmaContextIndexedRegister(system::KernelState* kernel_state, uint32_t base_reg,
-                                    uint32_t context_ptr) {
-  uint32_t context_physical_address = REX_KERNEL_MEMORY()->GetPhysicalAddress(context_ptr);
+void StoreXmaContextIndexedRegister(Runtime& runtime, uint32_t base_reg, uint32_t context_ptr) {
+  uint32_t context_physical_address = runtime.memory()->GetPhysicalAddress(context_ptr);
   assert_true(context_physical_address != UINT32_MAX);
-  auto xma_decoder =
-      static_cast<audio::AudioSystem*>(kernel_state->emulator()->audio_system())->xma_decoder();
+  auto xma_decoder = static_cast<audio::AudioSystem*>(runtime.audio_system())->xma_decoder();
   uint32_t hw_index =
       (context_physical_address - xma_decoder->context_array_ptr()) / sizeof(XMA_CONTEXT_DATA);
   uint32_t reg_num = base_reg + (hw_index >> 5) * 4;
@@ -129,7 +124,7 @@ u32 XMAInitializeContext_entry(mapped_void context_ptr, ppc_ptr_t<XMA_CONTEXT_IN
   uint32_t input_buffer_0_physical_address = 0;
   if (input_buffer_0_guest_ptr) {
     input_buffer_0_physical_address =
-        REX_KERNEL_MEMORY()->GetPhysicalAddress(input_buffer_0_guest_ptr);
+        runtime::Current().memory()->GetPhysicalAddress(input_buffer_0_guest_ptr);
     // Xenia-specific safety check.
     assert_true(input_buffer_0_physical_address != UINT32_MAX);
     if (input_buffer_0_physical_address == UINT32_MAX) {
@@ -142,7 +137,7 @@ u32 XMAInitializeContext_entry(mapped_void context_ptr, ppc_ptr_t<XMA_CONTEXT_IN
   uint32_t input_buffer_1_physical_address = 0;
   if (input_buffer_1_guest_ptr) {
     input_buffer_1_physical_address =
-        REX_KERNEL_MEMORY()->GetPhysicalAddress(input_buffer_1_guest_ptr);
+        runtime::Current().memory()->GetPhysicalAddress(input_buffer_1_guest_ptr);
     assert_true(input_buffer_1_physical_address != UINT32_MAX);
     if (input_buffer_1_physical_address == UINT32_MAX) {
       REX_FAIL(kernel, X_E_FALSE,
@@ -153,7 +148,7 @@ u32 XMAInitializeContext_entry(mapped_void context_ptr, ppc_ptr_t<XMA_CONTEXT_IN
   uint32_t output_buffer_guest_ptr = context_init->output_buffer_ptr;
   assert_not_zero(output_buffer_guest_ptr);
   uint32_t output_buffer_physical_address =
-      REX_KERNEL_MEMORY()->GetPhysicalAddress(output_buffer_guest_ptr);
+      runtime::Current().memory()->GetPhysicalAddress(output_buffer_guest_ptr);
   assert_true(output_buffer_physical_address != UINT32_MAX);
   if (output_buffer_physical_address == UINT32_MAX) {
     REX_FAIL(kernel, X_E_FALSE,
@@ -186,7 +181,7 @@ u32 XMAInitializeContext_entry(mapped_void context_ptr, ppc_ptr_t<XMA_CONTEXT_IN
 
   context.Store(context_ptr);
 
-  StoreXmaContextIndexedRegister(REX_KERNEL_STATE(), 0x1A80, context_ptr.guest_address());
+  StoreXmaContextIndexedRegister(runtime::Current(), 0x1A80, context_ptr.guest_address());
 
   return 0;
 }
@@ -220,7 +215,7 @@ u32 XMASetInputBufferReadOffset_entry(mapped_void context_ptr, u32 value) {
 
 u32 XMASetInputBuffer0_entry(mapped_void context_ptr, mapped_void buffer, u32 packet_count) {
   uint32_t buffer_physical_address =
-      REX_KERNEL_MEMORY()->GetPhysicalAddress(buffer.guest_address());
+      runtime::Current().memory()->GetPhysicalAddress(buffer.guest_address());
   assert_true(buffer_physical_address != UINT32_MAX);
   if (buffer_physical_address == UINT32_MAX) {
     // Xenia-specific safety check.
@@ -253,7 +248,7 @@ u32 XMASetInputBuffer0Valid_entry(mapped_void context_ptr) {
 
 u32 XMASetInputBuffer1_entry(mapped_void context_ptr, mapped_void buffer, u32 packet_count) {
   uint32_t buffer_physical_address =
-      REX_KERNEL_MEMORY()->GetPhysicalAddress(buffer.guest_address());
+      runtime::Current().memory()->GetPhysicalAddress(buffer.guest_address());
   assert_true(buffer_physical_address != UINT32_MAX);
   if (buffer_physical_address == UINT32_MAX) {
     // Xenia-specific safety check.
@@ -321,14 +316,14 @@ u32 XMAGetPacketMetadata_entry(mapped_void context_ptr) {
 }
 
 u32 XMAEnableContext_entry(mapped_void context_ptr) {
-  StoreXmaContextIndexedRegister(REX_KERNEL_STATE(), 0x1940, context_ptr.guest_address());
+  StoreXmaContextIndexedRegister(runtime::Current(), 0x1940, context_ptr.guest_address());
   return 0;
 }
 
 u32 XMADisableContext_entry(mapped_void context_ptr, u32 wait) {
   X_HRESULT result = X_E_SUCCESS;
-  StoreXmaContextIndexedRegister(REX_KERNEL_STATE(), 0x1A40, context_ptr.guest_address());
-  if (!static_cast<audio::AudioSystem*>(REX_KERNEL_STATE()->emulator()->audio_system())
+  StoreXmaContextIndexedRegister(runtime::Current(), 0x1A40, context_ptr.guest_address());
+  if (!static_cast<audio::AudioSystem*>(runtime::Current().audio_system())
            ->xma_decoder()
            ->BlockOnContext(context_ptr.guest_address(), !wait)) {
     result = X_E_FALSE;

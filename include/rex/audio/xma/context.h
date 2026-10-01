@@ -204,7 +204,7 @@ class XmaContext {
   explicit XmaContext();
   ~XmaContext();
 
-  int Setup(uint32_t id, memory::Memory* memory, uint32_t guest_ptr);
+  int Setup(uint32_t id, runtime::Memory* memory, uint32_t guest_ptr);
   bool Work();
 
   void Enable();
@@ -213,7 +213,7 @@ class XmaContext {
   void Disable();
   void Release();
 
-  memory::Memory* memory() const { return memory_; }
+  runtime::Memory* memory() const { return memory_; }
 
   uint32_t id() { return id_; }
   uint32_t guest_ptr() { return guest_ptr_; }
@@ -266,7 +266,7 @@ class XmaContext {
 
   static void ConvertFrame(const uint8_t** samples, bool is_two_channel, uint8_t* output_buffer);
 
-  memory::Memory* memory_ = nullptr;
+  runtime::Memory* memory_ = nullptr;
   std::unique_ptr<rex::platform::Event> work_completion_event_;
 
   uint32_t id_ = 0;

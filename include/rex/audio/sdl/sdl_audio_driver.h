@@ -24,7 +24,7 @@ namespace rex::audio::sdl {
 
 class SDLAudioDriver : public AudioDriver {
  public:
-  SDLAudioDriver(memory::Memory* memory, rex::platform::Semaphore* semaphore);
+  SDLAudioDriver(runtime::Memory* memory, rex::platform::Semaphore* semaphore);
   ~SDLAudioDriver() override;
 
   bool Initialize();

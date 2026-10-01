@@ -18,20 +18,20 @@
 #include <rex/kernel/xbdm/module.h>
 #include <rex/kernel/xboxkrnl/module.h>
 #include <rex/runtime.h>
-#include <rex/system/kernel_state.h>
 
 namespace rex::kernel {
 
-void InitializeKernel(Runtime* runtime, system::KernelState* kernel_state) {
-  auto* app_mgr = kernel_state->app_manager();
-  app_mgr->RegisterApp(std::make_unique<xam::apps::XmpApp>(kernel_state));
-  app_mgr->RegisterApp(std::make_unique<xam::apps::XgiApp>(kernel_state));
-  app_mgr->RegisterApp(std::make_unique<xam::apps::XLiveBaseApp>(kernel_state));
-  app_mgr->RegisterApp(std::make_unique<xam::apps::XamApp>(kernel_state));
+void InitializeKernel(Runtime& runtime) {
+  auto& apps = runtime.content_manager().app_manager();
+  apps.RegisterApp(std::make_unique<xam::apps::XmpApp>(runtime));
+  apps.RegisterApp(std::make_unique<xam::apps::XgiApp>(runtime));
+  apps.RegisterApp(std::make_unique<xam::apps::XLiveBaseApp>(runtime));
+  apps.RegisterApp(std::make_unique<xam::apps::XamApp>(runtime));
 
-  kernel_state->LoadKernelModule(xboxkrnl::CreateXboxkrnlModule(kernel_state));
-  kernel_state->LoadKernelModule(xam::CreateXamModule(kernel_state));
-  kernel_state->LoadKernelModule(xbdm::CreateXbdmModule(kernel_state));
+  auto& modules = runtime.module_registry();
+  (void)modules.LoadKernelModule(xboxkrnl::CreateXboxkrnlModule(runtime));
+  (void)modules.LoadKernelModule(xam::CreateXamModule(runtime));
+  (void)modules.LoadKernelModule(xbdm::CreateXbdmModule(runtime));
 }
 
 }  // namespace rex::kernel

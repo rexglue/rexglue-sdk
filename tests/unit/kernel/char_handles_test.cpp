@@ -3,7 +3,7 @@
 #include <chrono>
 #include <future>
 #include <memory>
-#include <rex/system/xtypes.h>
+#include <rex/runtime/xtypes.h>
 
 #include "kernel_fixture.h"
 

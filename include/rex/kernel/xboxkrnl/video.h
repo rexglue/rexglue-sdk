@@ -11,25 +11,27 @@
 
 #pragma once
 
-#include <rex/system/xtypes.h>
-#include <rex/system/xvideo.h>
+#include <rex/runtime/xtypes.h>
+#include <rex/runtime/xvideo.h>
 
-namespace rex::system {
+namespace rex {
+class Runtime;
+}  // namespace rex
+
+namespace rex::runtime {
 struct ModuleObject;
-class KernelState;
-}  // namespace rex::system
+}  // namespace rex::runtime
 
 namespace rex::kernel::xboxkrnl {
 
-void VdQueryVideoMode(system::X_VIDEO_MODE* video_mode);
+void VdQueryVideoMode(runtime::X_VIDEO_MODE* video_mode);
 
 /**
- * Registers the video variable exports (VdGlobalDevice, VdHSIOCalibrationLock, etc.). Must be
- * called during kernel initialization before XEX modules are loaded.
+ * Registers the video exports of xboxkrnl.exe on its module.
  *
- * @param module The xboxkrnl module.
- * @param kernel_state The kernel state.
+ * @param module The xboxkrnl.exe module.
+ * @param runtime The runtime the module belongs to.
  */
-void RegisterVideoExports(system::ModuleObject& module, system::KernelState* kernel_state);
+void RegisterVideoExports(runtime::ModuleObject& module, Runtime& runtime);
 
 }  // namespace rex::kernel::xboxkrnl

@@ -17,20 +17,21 @@
 #include <rex/logging.h>
 #include <rex/hook.h>
 #include <rex/types.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/xevent.h>
-#include <rex/system/xio.h>
-#include <rex/system/xthread.h>
-#include <rex/system/xtypes.h>
+#include <rex/runtime.h>
+#include <rex/runtime/xevent.h>
+#include <rex/runtime/xio.h>
+#include <rex/runtime/xthread.h>
+#include <rex/runtime/xtypes.h>
 
 namespace rex {
 namespace kernel {
 namespace xam {
-using namespace rex::system;
-using namespace rex::system::xam;
+using namespace rex::runtime;
+using namespace rex::runtime::xam;
 
 u32 XMsgInProcessCall_entry(u32 app, u32 message, u32 arg1, u32 arg2) {
-  auto result = REX_KERNEL_STATE()->app_manager()->DispatchMessageSync(app, message, arg1, arg2);
+  auto result = runtime::Current().content_manager().app_manager().DispatchMessageSync(app, message,
+                                                                                       arg1, arg2);
   if (result == X_ERROR_NOT_FOUND) {
     REXLOG_ERROR(kernel, "XMsgInProcessCall: app {:08X} undefined", app);
   }
@@ -38,8 +39,8 @@ u32 XMsgInProcessCall_entry(u32 app, u32 message, u32 arg1, u32 arg2) {
 }
 
 u32 XMsgSystemProcessCall_entry(u32 app, u32 message, u32 buffer, u32 buffer_length) {
-  auto result =
-      REX_KERNEL_STATE()->app_manager()->DispatchMessageAsync(app, message, buffer, buffer_length);
+  auto result = runtime::Current().content_manager().app_manager().DispatchMessageAsync(
+      app, message, buffer, buffer_length);
   if (result == X_ERROR_NOT_FOUND) {
     REXLOG_ERROR(kernel, "XMsgSystemProcessCall: app {:08X} undefined", app);
   }
@@ -54,15 +55,15 @@ struct XMSGSTARTIOREQUEST_UNKNOWNARG {
 X_HRESULT XMsgStartIORequestEx(uint32_t app, uint32_t message, uint32_t overlapped_ptr,
                                uint32_t buffer_ptr, uint32_t buffer_length,
                                XMSGSTARTIOREQUEST_UNKNOWNARG* unknown) {
-  auto result = REX_KERNEL_STATE()->app_manager()->DispatchMessageAsync(app, message, buffer_ptr,
-                                                                        buffer_length);
+  auto result = runtime::Current().content_manager().app_manager().DispatchMessageAsync(
+      app, message, buffer_ptr, buffer_length);
   if (result == X_E_NOTFOUND) {
     REXLOG_ERROR(kernel, "XMsgStartIORequestEx: app {:08X} undefined", app);
     result = X_E_INVALIDARG;
     ThreadRecord::SetLastError(X_ERROR_NOT_FOUND);
   }
   if (overlapped_ptr) {
-    REX_KERNEL_STATE()->CompleteOverlappedImmediate(overlapped_ptr, result);
+    runtime::Current().dispatcher().CompleteOverlappedImmediate(overlapped_ptr, result);
     result = X_ERROR_IO_PENDING;
   }
   if (result == X_ERROR_SUCCESS || result == X_ERROR_IO_PENDING) {
@@ -87,7 +88,7 @@ u32 XMsgStartIORequest_entry(u32 app, u32 message, ppc_ptr_t<XAM_OVERLAPPED> ove
 u32 XMsgCancelIORequest_entry(ppc_ptr_t<XAM_OVERLAPPED> overlapped_ptr, u32 wait) {
   X_HANDLE event_handle = XOverlappedGetEvent(overlapped_ptr);
   if (event_handle && wait) {
-    WaitOn(REX_KERNEL_STATE(), event_handle, 0, 0, true, nullptr);
+    WaitOn(runtime::Current(), event_handle, 0, 0, true, nullptr);
   }
 
   return 0;
@@ -95,8 +96,8 @@ u32 XMsgCancelIORequest_entry(ppc_ptr_t<XAM_OVERLAPPED> overlapped_ptr, u32 wait
 
 u32 XMsgCompleteIORequest_entry(ppc_ptr_t<XAM_OVERLAPPED> overlapped_ptr, u32 result,
                                 u32 extended_error, u32 length) {
-  REX_KERNEL_STATE()->CompleteOverlappedImmediateEx(overlapped_ptr.guest_address(), result,
-                                                    extended_error, length);
+  runtime::Current().dispatcher().CompleteOverlappedImmediateEx(overlapped_ptr.guest_address(),
+                                                                result, extended_error, length);
   return X_ERROR_SUCCESS;
 }
 
@@ -108,7 +109,7 @@ u32 XamGetOverlappedResult_entry(ppc_ptr_t<XAM_OVERLAPPED> overlapped_ptr, mappe
   } else if (!overlapped_ptr->event) {
     result = X_ERROR_IO_INCOMPLETE;
   } else {
-    result = WaitOn(REX_KERNEL_STATE(), overlapped_ptr->event, 3, 1, 0, nullptr);
+    result = WaitOn(runtime::Current(), overlapped_ptr->event, 3, 1, 0, nullptr);
     if (XSUCCEEDED(result)) {
       result = overlapped_ptr->result;
     } else {

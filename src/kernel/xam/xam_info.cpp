@@ -15,11 +15,11 @@
 #include <rex/hook.h>
 #include <rex/types.h>
 #include <rex/string.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/user_module.h>
-#include <rex/system/xenumerator.h>
-#include <rex/system/xthread.h>
-#include <rex/system/xtypes.h>
+#include <rex/runtime.h>
+#include <rex/runtime/user_module.h>
+#include <rex/runtime/xenumerator.h>
+#include <rex/runtime/xthread.h>
+#include <rex/runtime/xtypes.h>
 #include "kernel/kernel_macros.h"
 
 #if REX_PLATFORM_WIN32
@@ -32,7 +32,18 @@
 namespace rex {
 namespace kernel {
 namespace xam {
-using namespace rex::system;
+using namespace rex::runtime;
+
+namespace {
+
+auto XamModule() {
+  auto& runtime = runtime::Current();
+  assert_true(runtime.module_registry().IsKernel("xam.xex"));
+  return runtime.object_table().Get<ModuleObject>(
+      runtime.module_registry().FindKernel("xam.xex").value_or(0));
+}
+
+}  // namespace
 
 u32 XamFeatureEnabled_entry(u32 unk) {
   return 0;
@@ -49,8 +60,8 @@ u32 XamGetOnlineSchema_entry() {
   static uint32_t schema_guest = 0;
 
   if (!schema_guest) {
-    schema_guest = REX_KERNEL_MEMORY()->SystemHeapAlloc(8 + sizeof(schema_bin));
-    auto schema = REX_KERNEL_MEMORY()->TranslateVirtual(schema_guest);
+    schema_guest = runtime::Current().memory()->SystemHeapAlloc(8 + sizeof(schema_bin));
+    auto schema = runtime::Current().memory()->TranslateVirtual(schema_guest);
     std::memcpy(schema + 8, schema_bin, sizeof(schema_bin));
     memory::store_and_swap<uint32_t>(schema + 0, schema_guest + 8);
     memory::store_and_swap<uint32_t>(schema + 4, sizeof(schema_bin));
@@ -204,7 +215,8 @@ u32 XGetLanguage_entry() {
 u32 XamGetCurrentTitleId_entry() {
   // NOTE(tomc): Switched this up to get title ID from executable module instead of runtime
   // (emulator)
-  auto module = REX_KERNEL_OBJECTS()->Get<ModuleObject>(REX_KERNEL_STATE()->GetExecutableModule());
+  auto module = runtime::Current().object_table().Get<ModuleObject>(
+      runtime::Current().module_registry().executable().value_or(0));
   if (module) {
     return UserModuleTitleID(*module);
   }
@@ -212,7 +224,8 @@ u32 XamGetCurrentTitleId_entry() {
 }
 
 u32 XamGetExecutionId_entry(mapped_u32 info_ptr) {
-  auto module = REX_KERNEL_OBJECTS()->Get<ModuleObject>(REX_KERNEL_STATE()->GetExecutableModule());
+  auto module = runtime::Current().object_table().Get<ModuleObject>(
+      runtime::Current().module_registry().executable().value_or(0));
   assert_true(module);
 
   uint32_t guest_hdr_ptr;
@@ -227,8 +240,7 @@ u32 XamGetExecutionId_entry(mapped_u32 info_ptr) {
 }
 
 u32 XamLoaderSetLaunchData_entry(mapped_void data, u32 size) {
-  auto xam =
-      REX_KERNEL_OBJECTS()->Get<ModuleObject>(REX_KERNEL_STATE()->GetKernelModule("xam.xex"));
+  auto xam = XamModule();
   auto& loader_data = xam->kernel.loader_data;
   loader_data.launch_data_present = size ? true : false;
   loader_data.launch_data.resize(size);
@@ -241,8 +253,7 @@ u32 XamLoaderGetLaunchDataSize_entry(mapped_u32 size_ptr) {
     return X_ERROR_INVALID_PARAMETER;
   }
 
-  auto xam =
-      REX_KERNEL_OBJECTS()->Get<ModuleObject>(REX_KERNEL_STATE()->GetKernelModule("xam.xex"));
+  auto xam = XamModule();
   auto& loader_data = xam->kernel.loader_data;
   if (!loader_data.launch_data_present) {
     *size_ptr = 0;
@@ -254,8 +265,7 @@ u32 XamLoaderGetLaunchDataSize_entry(mapped_u32 size_ptr) {
 }
 
 u32 XamLoaderGetLaunchData_entry(mapped_void buffer_ptr, u32 buffer_size) {
-  auto xam =
-      REX_KERNEL_OBJECTS()->Get<ModuleObject>(REX_KERNEL_STATE()->GetKernelModule("xam.xex"));
+  auto xam = XamModule();
   auto& loader_data = xam->kernel.loader_data;
   if (!loader_data.launch_data_present) {
     return X_ERROR_NOT_FOUND;
@@ -268,8 +278,7 @@ u32 XamLoaderGetLaunchData_entry(mapped_void buffer_ptr, u32 buffer_size) {
 
 void XamLoaderLaunchTitle_entry(mapped_string raw_name_ptr, u32 flags) {
   {
-    auto xam =
-        REX_KERNEL_OBJECTS()->Get<ModuleObject>(REX_KERNEL_STATE()->GetKernelModule("xam.xex"));
+    auto xam = XamModule();
 
     auto& loader_data = xam->kernel.loader_data;
     loader_data.launch_flags = flags;
@@ -281,8 +290,8 @@ void XamLoaderLaunchTitle_entry(mapped_string raw_name_ptr, u32 flags) {
         loader_data.launch_path = "game:\\default.xex";
       } else {
         if (rex::utf8_find_name_from_guest_path(path) == path) {
-          auto executable =
-              REX_KERNEL_OBJECTS()->Get<ModuleObject>(REX_KERNEL_STATE()->GetExecutableModule());
+          auto executable = runtime::Current().object_table().Get<ModuleObject>(
+              runtime::Current().module_registry().executable().value_or(0));
           path = rex::utf8_join_guest_paths(rex::utf8_find_base_guest_path(executable->path), path);
         }
         loader_data.launch_path = path;
@@ -293,12 +302,12 @@ void XamLoaderLaunchTitle_entry(mapped_string raw_name_ptr, u32 flags) {
   }
 
   // This function does not return.
-  REX_KERNEL_STATE()->TerminateTitle();
+  runtime::Current().TerminateTitle();
 }
 
 void XamLoaderTerminateTitle_entry() {
   // This function does not return.
-  REX_KERNEL_STATE()->TerminateTitle();
+  runtime::Current().TerminateTitle();
 }
 
 u32 XamAlloc_entry(u32 unk, u32 size, mapped_u32 out_ptr) {
@@ -306,14 +315,14 @@ u32 XamAlloc_entry(u32 unk, u32 size, mapped_u32 out_ptr) {
 
   // Allocate from the heap. Not sure why XAM does this specially, perhaps
   // it keeps stuff in a separate heap?
-  uint32_t ptr = REX_KERNEL_MEMORY()->SystemHeapAlloc(size);
+  uint32_t ptr = runtime::Current().memory()->SystemHeapAlloc(size);
   *out_ptr = ptr;
 
   return X_ERROR_SUCCESS;
 }
 
 u32 XamFree_entry(mapped_u32 ptr) {
-  REX_KERNEL_MEMORY()->SystemHeapFree(ptr.guest_address());
+  runtime::Current().memory()->SystemHeapFree(ptr.guest_address());
 
   return X_ERROR_SUCCESS;
 }

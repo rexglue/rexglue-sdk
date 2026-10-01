@@ -4,9 +4,9 @@
 #include <chrono>
 #include <thread>
 
-#include <rex/system/function_dispatcher.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/thread_state.h>
+#include <rex/runtime/function_dispatcher.h>
+#include <rex/runtime.h>
+#include <rex/runtime/thread_state.h>
 
 #include "kernel_fixture.h"
 
@@ -43,11 +43,11 @@ TEST_CASE("interrupt callbacks never overlap and never block guest threads", "[i
     const u32 stack_first = c.Alloc(0x10000) + 0x8000;
     const u32 stack_second = c.Alloc(0x10000) + 0x8000;
     std::thread first([&] {
-      rex::runtime::ThreadState state(1, stack_first, pcr_first, memory);
+      rex::runtime::ThreadState state(1, stack_first, pcr_first, memory, &c.runtime());
       dispatcher->ExecuteInterrupt(&state, callback, nullptr, 0);
     });
     std::thread second([&] {
-      rex::runtime::ThreadState state(2, stack_second, pcr_second, memory);
+      rex::runtime::ThreadState state(2, stack_second, pcr_second, memory, &c.runtime());
       dispatcher->ExecuteInterrupt(&state, callback, nullptr, 0);
     });
     for (int i = 0; i < 1000; ++i) {
@@ -70,7 +70,8 @@ TEST_CASE("interrupts leave the guest thread state intact", "[interrupt]") {
     REQUIRE(callback != 0);
     const u32 pcr = c.Alloc(0x1000);
     c.Store32(pcr, 0x1234);
-    rex::runtime::ThreadState state(3, c.Alloc(0x10000) + 0x8000, pcr, c.runtime().memory());
+    rex::runtime::ThreadState state(3, c.Alloc(0x10000) + 0x8000, pcr, c.runtime().memory(),
+                                    &c.runtime());
     CHECK(dispatcher->ExecuteInterrupt(&state, callback, nullptr, 0) == 0);
     CHECK(c.Load32(pcr) == 0x1234);
   });
@@ -80,7 +81,6 @@ TEST_CASE("interrupts leave the guest thread state intact", "[interrupt]") {
 TEST_CASE("DPC init and removal from 2 guest threads leaves the list empty", "[interrupt]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
-    auto* kernel = c.runtime().kernel_state();
     auto worker = [](Caller& o) {
       const u32 dpc = o.Alloc(0x40);
       for (int i = 0; i < 200; ++i) {
@@ -94,6 +94,6 @@ TEST_CASE("DPC init and removal from 2 guest threads leaves the list empty", "[i
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {second, 1, 0, c.Quad(-100000000)}) == 0);
     c.Kernel("NtClose", {first});
     c.Kernel("NtClose", {second});
-    CHECK_FALSE(kernel->dpc_list()->HasPending());
+    CHECK_FALSE(c.runtime().dispatcher().dpc_list().HasPending());
   });
 }

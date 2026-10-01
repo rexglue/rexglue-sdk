@@ -18,9 +18,9 @@
 #include <rex/math.h>
 #include <rex/memory/ring_buffer.h>
 #include <rex/string/buffer.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/thread_registry.h>
-#include <rex/system/thread_state.h>
+#include <rex/runtime.h>
+#include <rex/runtime/thread_registry.h>
+#include <rex/runtime/thread_state.h>
 #include <rex/platform/thread.h>
 #include <rex/cvar.h>
 
@@ -76,20 +76,20 @@ AudioSystem::~AudioSystem() {
   }
 }
 
-X_STATUS AudioSystem::Setup(system::KernelState* kernel_state) {
-  X_STATUS result = xma_decoder_->Setup(kernel_state);
+X_STATUS AudioSystem::Setup(Runtime& runtime) {
+  X_STATUS result = xma_decoder_->Setup(runtime);
   if (result) {
     return result;
   }
 
   worker_running_ = true;
-  kernel_state_ = kernel_state;
-  auto record = std::make_unique<system::ThreadRecord>(kernel_state, 128 * 1024, 0, [this]() {
+  runtime_ = &runtime;
+  auto record = std::make_unique<runtime::ThreadRecord>(runtime, 128 * 1024, 0, [this]() {
     WorkerThreadMain();
     return 0;
   });
   record->set_name("Audio Worker");
-  kernel_state->threads()->Launch(std::move(record), &worker_thread_);
+  worker_thread_ = runtime.thread_registry().Launch(std::move(record)).value_or(0);
 
   return X_STATUS_SUCCESS;
 }
@@ -148,7 +148,7 @@ void AudioSystem::WorkerThreadMain() {
         }
         REX_PROFILE_SCOPE_TEXT("apu", "rex::audio::AudioSystem->client_callback");
         uint64_t args[] = {client_callback_arg};
-        function_dispatcher_->Execute(system::ThreadRecord::GetCurrentThread()->thread_state(),
+        function_dispatcher_->Execute(runtime::ThreadRecord::GetCurrentThread()->thread_state(),
                                       client_callback, args, rex::countof(args));
         if (diag_pump_count < 10) {
           REXLOG_DEBUG(audio, "AudioWorker: callback returned for client {}", index);
@@ -207,7 +207,7 @@ void AudioSystem::Shutdown() {
     // resort. Give it a chance to unwind first: TerminateThread abandons any
     // lock the thread holds, including the CRT heap lock.
     {
-      system::ThreadPin pin = kernel_state_->threads()->FindByHandle(worker_thread_);
+      runtime::ThreadPin pin = runtime_->thread_registry().FindByHandle(worker_thread_);
       rex::platform::Thread* host_thread = pin ? pin->thread() : nullptr;
       bool exited =
           host_thread && rex::platform::Wait(host_thread, false, kWorkerShutdownTimeout) ==
@@ -220,7 +220,7 @@ void AudioSystem::Shutdown() {
         }
       }
     }
-    kernel_state_->object_table()->Close(worker_thread_);
+    (void)runtime_->object_table().Close(worker_thread_);
     worker_thread_ = 0;
   }
 

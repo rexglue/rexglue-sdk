@@ -21,7 +21,7 @@
 #include <rex/codegen/codegen_context.h>
 #include <rex/logging.h>
 #include <rex/memory/utils.h>
-#include <rex/system/binary_types.h>
+#include <rex/runtime/binary_types.h>
 #include <rex/types.h>
 
 using rex::codegen::ppc::decode_instruction;

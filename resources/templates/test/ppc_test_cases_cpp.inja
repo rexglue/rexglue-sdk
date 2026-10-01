@@ -7,12 +7,12 @@
 #include <stdexcept>
 #include "ppc_config.h"
 #include <rex/ppc.h>
-#include <rex/system/xmemory.h>
+#include <rex/runtime/xmemory.h>
 #include "ppc_test_decls.h"
 
 // Global memory instance - same class used by real runtime
-static rex::memory::Memory& get_memory() {
-    static rex::memory::Memory memory;
+static rex::runtime::Memory& get_memory() {
+    static rex::runtime::Memory memory;
     static bool initialized = false;
     if (!initialized) {
         if (!memory.Initialize()) {
@@ -23,8 +23,8 @@ static rex::memory::Memory& get_memory() {
         if (heap) {
             // Allocate from end of guard page (0x10000) up to cover test addresses
             heap->AllocFixed(0x10000, 0x10000000, 0x1000,
-                rex::memory::kMemoryAllocationReserve | rex::memory::kMemoryAllocationCommit,
-                rex::memory::kMemoryProtectRead | rex::memory::kMemoryProtectWrite);
+                rex::runtime::kMemoryAllocationReserve | rex::runtime::kMemoryAllocationCommit,
+                rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite);
         }
         initialized = true;
     }

@@ -14,6 +14,7 @@
 
 #include <cstring>
 
+#include <rex/api.h>
 #include <rex/cvar.h>
 #include <rex/kernel/xam/private.h>
 #include <rex/logging.h>
@@ -21,19 +22,19 @@
 #include <rex/hook.h>
 #include <rex/types.h>
 #include <rex/string.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/xam/user_profile.h>
-#include <rex/system/xenumerator.h>
-#include <rex/system/xio.h>
-#include <rex/system/xthread.h>
-#include <rex/system/xtypes.h>
+#include <rex/runtime.h>
+#include <rex/runtime/xam/user_profile.h>
+#include <rex/runtime/xenumerator.h>
+#include <rex/runtime/xio.h>
+#include <rex/runtime/xthread.h>
+#include <rex/runtime/xtypes.h>
 #include "kernel/kernel_macros.h"
 
 namespace rex {
 namespace kernel {
 namespace xam {
-using namespace rex::system;
-using namespace rex::system::xam;
+using namespace rex::runtime;
+using namespace rex::runtime::xam;
 
 i32 XamUserGetXUID_entry(u32 user_index, u32 type_mask, mapped_u64 xuid_ptr) {
   assert_true(type_mask == 1 || type_mask == 2 || type_mask == 3 || type_mask == 4 ||
@@ -45,15 +46,15 @@ i32 XamUserGetXUID_entry(u32 user_index, u32 type_mask, mapped_u64 xuid_ptr) {
   uint64_t xuid = 0;
   if (user_index < 4) {
     if (user_index == 0) {
-      const auto& user_profile = REX_KERNEL_STATE()->user_profile();
-      auto type = user_profile->type() & type_mask;
+      auto& user_profile = runtime::Current().content_manager().user_profile();
+      auto type = user_profile.type() & type_mask;
       if (type & (2 | 4)) {
         // maybe online profile?
-        xuid = user_profile->xuid();
+        xuid = user_profile.xuid();
         result = X_E_SUCCESS;
       } else if (type & 1) {
         // maybe offline profile?
-        xuid = user_profile->xuid();
+        xuid = user_profile.xuid();
         result = X_E_SUCCESS;
       }
     }
@@ -68,8 +69,8 @@ u32 XamUserGetSigninState_entry(u32 user_index) {
   uint32_t signin_state = 0;
   if (user_index < 4) {
     if (user_index == 0) {
-      const auto& user_profile = REX_KERNEL_STATE()->user_profile();
-      signin_state = user_profile->signin_state();
+      auto& user_profile = runtime::Current().content_manager().user_profile();
+      signin_state = user_profile.signin_state();
     }
   }
   return signin_state;
@@ -95,10 +96,10 @@ i32 XamUserGetSigninInfo_entry(u32 user_index, u32 flags, ppc_ptr_t<X_USER_SIGNI
     return X_E_NO_SUCH_USER;
   }
 
-  const auto& user_profile = REX_KERNEL_STATE()->user_profile();
-  info->xuid = user_profile->xuid();
-  info->signin_state = user_profile->signin_state();
-  rex::copy_truncating(info->name, user_profile->name(), rex::countof(info->name));
+  auto& user_profile = runtime::Current().content_manager().user_profile();
+  info->xuid = user_profile.xuid();
+  info->signin_state = user_profile.signin_state();
+  rex::copy_truncating(info->name, user_profile.name(), rex::countof(info->name));
   return X_E_SUCCESS;
 }
 
@@ -111,8 +112,8 @@ u32 XamUserGetName_entry(u32 user_index, mapped_string buffer, u32 buffer_len) {
     return X_E_NO_SUCH_USER;
   }
 
-  const auto& user_profile = REX_KERNEL_STATE()->user_profile();
-  const auto& user_name = user_profile->name();
+  auto& user_profile = runtime::Current().content_manager().user_profile();
+  const auto& user_name = user_profile.name();
   rex::copy_truncating(buffer, user_name, std::min(buffer_len, uint32_t(16)));
   return X_E_SUCCESS;
 }
@@ -130,8 +131,8 @@ u32 XamUserGetGamerTag_entry(u32 user_index, mapped_wstring buffer, u32 buffer_l
     return X_E_INVALIDARG;
   }
 
-  const auto& user_profile = REX_KERNEL_STATE()->user_profile();
-  auto user_name = rex::to_utf16(user_profile->name());
+  auto& user_profile = runtime::Current().content_manager().user_profile();
+  auto user_name = rex::to_utf16(user_profile.name());
   rex::copy_and_swap_truncating(buffer, user_name, std::min(buffer_len, uint32_t(16)));
   return X_E_SUCCESS;
 }
@@ -154,8 +155,8 @@ uint32_t XamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index, ui
     assert_true(xuid_count == 1);
     assert_not_null(xuids);
     // TODO(gibbed): allow proper lookup of arbitrary XUIDs
-    const auto& user_profile = REX_KERNEL_STATE()->user_profile();
-    assert_true(static_cast<uint64_t>(xuids[0]) == user_profile->xuid());
+    auto& user_profile = runtime::Current().content_manager().user_profile();
+    assert_true(static_cast<uint64_t>(xuids[0]) == user_profile.xuid());
     // TODO(gibbed): we assert here, but in case a title passes xuid_count > 1
     // until it's implemented for release builds...
     xuid_count = 1;
@@ -213,14 +214,14 @@ uint32_t XamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index, ui
   if (!xuids && user_index) {
     // Only support user 0.
     if (overlapped) {
-      REX_KERNEL_STATE()->CompleteOverlappedImmediate(
-          REX_KERNEL_MEMORY()->HostToGuestVirtual(overlapped), X_ERROR_NO_SUCH_USER);
+      runtime::Current().dispatcher().CompleteOverlappedImmediate(
+          runtime::Current().memory()->HostToGuestVirtual(overlapped), X_ERROR_NO_SUCH_USER);
       return X_ERROR_IO_PENDING;
     }
     return X_ERROR_NO_SUCH_USER;
   }
 
-  const auto& user_profile = REX_KERNEL_STATE()->user_profile();
+  auto& user_profile = runtime::Current().content_manager().user_profile();
 
   // First call asks for size (fill buffer_size_ptr).
   // Second call asks for buffer contents with that size.
@@ -230,7 +231,7 @@ uint32_t XamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index, ui
   bool any_missing = false;
   for (uint32_t i = 0; i < setting_count; ++i) {
     auto setting_id = static_cast<uint32_t>(setting_ids[i]);
-    auto setting = user_profile->GetSetting(setting_id);
+    auto setting = user_profile.GetSetting(setting_id);
     if (!setting) {
       any_missing = true;
       REX_KERNEL_STUB("XamUserReadProfileSettingsEx setting {:08X}", setting_id);
@@ -239,8 +240,8 @@ uint32_t XamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index, ui
   if (any_missing) {
     // TODO(benvanik): don't fail? most games don't even check!
     if (overlapped) {
-      REX_KERNEL_STATE()->CompleteOverlappedImmediate(
-          REX_KERNEL_MEMORY()->HostToGuestVirtual(overlapped), X_ERROR_INVALID_PARAMETER);
+      runtime::Current().dispatcher().CompleteOverlappedImmediate(
+          runtime::Current().memory()->HostToGuestVirtual(overlapped), X_ERROR_INVALID_PARAMETER);
       return X_ERROR_IO_PENDING;
     }
     return X_ERROR_INVALID_PARAMETER;
@@ -249,18 +250,18 @@ uint32_t XamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index, ui
   auto out_header = reinterpret_cast<X_USER_READ_PROFILE_SETTINGS*>(buffer);
   auto out_setting = reinterpret_cast<X_USER_PROFILE_SETTING*>(&out_header[1]);
   out_header->setting_count = static_cast<uint32_t>(setting_count);
-  out_header->settings_ptr = REX_KERNEL_MEMORY()->HostToGuestVirtual(out_setting);
+  out_header->settings_ptr = runtime::Current().memory()->HostToGuestVirtual(out_setting);
 
-  UserProfile::SettingByteStream out_stream(REX_KERNEL_MEMORY()->HostToGuestVirtual(buffer), buffer,
-                                            buffer_size, needed_header_size);
+  UserProfile::SettingByteStream out_stream(runtime::Current().memory()->HostToGuestVirtual(buffer),
+                                            buffer, buffer_size, needed_header_size);
   for (uint32_t n = 0; n < setting_count; ++n) {
     uint32_t setting_id = setting_ids[n];
-    auto setting = user_profile->GetSetting(setting_id);
+    auto setting = user_profile.GetSetting(setting_id);
 
     std::memset(out_setting, 0, sizeof(X_USER_PROFILE_SETTING));
     out_setting->from = !setting || !setting->is_set ? 0 : setting->is_title_specific() ? 2 : 1;
     if (xuids) {
-      out_setting->xuid = user_profile->xuid();
+      out_setting->xuid = user_profile.xuid();
     } else {
       out_setting->user_index = static_cast<uint32_t>(user_index);
     }
@@ -273,8 +274,8 @@ uint32_t XamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index, ui
   }
 
   if (overlapped) {
-    REX_KERNEL_STATE()->CompleteOverlappedImmediate(
-        REX_KERNEL_MEMORY()->HostToGuestVirtual(overlapped), X_ERROR_SUCCESS);
+    runtime::Current().dispatcher().CompleteOverlappedImmediate(
+        runtime::Current().memory()->HostToGuestVirtual(overlapped), X_ERROR_SUCCESS);
     return X_ERROR_IO_PENDING;
   }
   return X_ERROR_SUCCESS;
@@ -307,15 +308,15 @@ u32 XamUserWriteProfileSettings_entry(u32 title_id, u32 user_index, u32 setting_
   if (user_index) {
     // Only support user 0.
     if (overlapped) {
-      REX_KERNEL_STATE()->CompleteOverlappedImmediate(overlapped.guest_address(),
-                                                      X_ERROR_NO_SUCH_USER);
+      runtime::Current().dispatcher().CompleteOverlappedImmediate(overlapped.guest_address(),
+                                                                  X_ERROR_NO_SUCH_USER);
       return X_ERROR_IO_PENDING;
     }
     return X_ERROR_NO_SUCH_USER;
   }
 
   // Update and save settings.
-  const auto& user_profile = REX_KERNEL_STATE()->user_profile();
+  auto& user_profile = runtime::Current().content_manager().user_profile();
 
   for (uint32_t n = 0; n < setting_count; ++n) {
     const X_USER_PROFILE_SETTING& setting = settings[n];
@@ -333,7 +334,8 @@ u32 XamUserWriteProfileSettings_entry(u32 title_id, u32 user_index, u32 setting_
     switch (setting_type) {
       case UserProfile::Setting::Type::CONTENT:
       case UserProfile::Setting::Type::BINARY: {
-        uint8_t* binary_ptr = REX_KERNEL_MEMORY()->TranslateVirtual(setting.data.binary.ptr);
+        uint8_t* binary_ptr =
+            runtime::Current().memory()->TranslateVirtual(setting.data.binary.ptr);
         size_t binary_size = setting.data.binary.size;
         std::vector<uint8_t> bytes;
         if (setting.data.binary.ptr) {
@@ -344,7 +346,7 @@ u32 XamUserWriteProfileSettings_entry(u32 title_id, u32 user_index, u32 setting_
           // Data pointer was NULL, so just fill with zeroes
           bytes.resize(binary_size, 0);
         }
-        user_profile->AddSetting(
+        user_profile.AddSetting(
             std::make_unique<xam::UserProfile::BinarySetting>(setting.setting_id, bytes));
       } break;
       case UserProfile::Setting::Type::WSTRING:
@@ -360,7 +362,8 @@ u32 XamUserWriteProfileSettings_entry(u32 title_id, u32 user_index, u32 setting_
   }
 
   if (overlapped) {
-    REX_KERNEL_STATE()->CompleteOverlappedImmediate(overlapped.guest_address(), X_ERROR_SUCCESS);
+    runtime::Current().dispatcher().CompleteOverlappedImmediate(overlapped.guest_address(),
+                                                                X_ERROR_SUCCESS);
     return X_ERROR_IO_PENDING;
   }
   return X_ERROR_SUCCESS;
@@ -412,7 +415,7 @@ u32 XamUserContentRestrictionCheckAccess_entry(u32 user_index, u32 unk1, u32 unk
 
   if (overlapped_ptr) {
     // TODO(benvanik): does this need the access arg on it?
-    REX_KERNEL_STATE()->CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
+    runtime::Current().dispatcher().CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
   }
 
   return X_ERROR_SUCCESS;
@@ -441,8 +444,8 @@ u32 XamUserAreUsersFriends_entry(u32 user_index, u32 unk1, u32 unk2, mapped_u32 
     result = X_ERROR_INVALID_PARAMETER;
   } else {
     if (user_index == 0) {
-      const auto& user_profile = REX_KERNEL_STATE()->user_profile();
-      if (user_profile->signin_state() == 0) {
+      auto& user_profile = runtime::Current().content_manager().user_profile();
+      if (user_profile.signin_state() == 0) {
         result = X_ERROR_NOT_LOGGED_ON;
       } else {
         // No friends!
@@ -461,7 +464,7 @@ u32 XamUserAreUsersFriends_entry(u32 user_index, u32 unk1, u32 unk2, mapped_u32 
     return result;
   } else if (overlapped_ptr) {
     assert_true(!out_value);
-    REX_KERNEL_STATE()->CompleteOverlappedImmediateEx(
+    runtime::Current().dispatcher().CompleteOverlappedImmediateEx(
         overlapped_ptr, result == X_ERROR_SUCCESS ? X_ERROR_SUCCESS : X_ERROR_FUNCTION_FAILED,
         X_HRESULT_FROM_WIN32(result), result == X_ERROR_SUCCESS ? are_friends : 0);
     return X_ERROR_IO_PENDING;
@@ -477,10 +480,10 @@ u32 XamShowSigninUI_entry(u32 unk, u32 unk_mask) {
   // To fix game modes that display a 4 profile signin UI (even if playing
   // alone):
   // XN_SYS_SIGNINCHANGED
-  REX_KERNEL_STATE()->BroadcastNotification(0x0000000A, 1);
+  runtime::Current().notifier().BroadcastNotification(0x0000000A, 1);
   // Games seem to sit and loop until we trigger this notification:
   // XN_SYS_UI (off)
-  REX_KERNEL_STATE()->BroadcastNotification(0x00000009, 0);
+  runtime::Current().notifier().BroadcastNotification(0x00000009, 0);
   return X_ERROR_SUCCESS;
 }
 
@@ -611,9 +614,8 @@ u32 XamUserCreateAchievementEnumerator_entry(u32 title_id, u32 user_index, u32 x
   // ACHIEVED | ACHIEVED_ONLINE flags the game checks to consider an achievement earned.
   constexpr uint32_t kAchievedFlags = 0x00030000;
 
-  auto fill_unlock = [](AchievementItems::AchievementDetails& item, uint32_t id,
-                        const rex::system::KernelState* ks) {
-    uint64_t ft = ks->GetAchievementUnlockTime(id);
+  auto fill_unlock = [](AchievementItems::AchievementDetails& item, uint32_t id, Runtime& runtime) {
+    uint64_t ft = runtime.achievement_manager().GetUnlockTime(id).value_or(0);
     if (ft) {
       item.flags |= kAchievedFlags;
       item.unlock_time.unk_0 = static_cast<uint32_t>(ft & 0xFFFF'FFFF);
@@ -621,11 +623,11 @@ u32 XamUserCreateAchievementEnumerator_entry(u32 title_id, u32 user_index, u32 x
     }
   };
 
-  const auto* ks = REX_KERNEL_STATE();
+  auto& runtime = runtime::Current();
 
   // Prefer the runtime store (populated from TOML or XDBF at boot) so that
   // dev-edited labels/descriptions are visible to the game's own queries.
-  const auto store = ks->loaded_achievements();
+  const auto store = runtime.achievement_manager().ListAchievements();
   if (!store.empty()) {
     for (const auto& info : store) {
       auto item = AchievementItems::AchievementDetails{info.id,
@@ -636,14 +638,14 @@ u32 XamUserCreateAchievementEnumerator_entry(u32 title_id, u32 user_index, u32 x
                                                        info.gamerscore,
                                                        {0, 0},
                                                        info.flags};
-      fill_unlock(item, info.id, ks);
+      fill_unlock(item, info.id, runtime);
       items.Append(item);
     }
   } else {
-    const util::XdbfGameData db = ks->title_xdbf();
+    const util::XDBFGameData db = runtime.content_manager().title_xdbf();
     if (db.is_valid()) {
-      const XLanguage language =
-          db.GetExistingLanguage(static_cast<XLanguage>(kernel_state()->config().user_language));
+      const XLanguage language = db.GetExistingLanguage(
+          static_cast<XLanguage>(runtime::Current().config().runtime.kernel.user_language));
       for (const util::XdbfAchievementTableEntry& entry : db.GetAchievements()) {
         auto item = AchievementItems::AchievementDetails{
             entry.id,
@@ -654,7 +656,7 @@ u32 XamUserCreateAchievementEnumerator_entry(u32 title_id, u32 user_index, u32 x
             entry.gamerscore,
             {0, 0},
             entry.flags};
-        fill_unlock(item, entry.id, ks);
+        fill_unlock(item, entry.id, runtime);
         items.Append(item);
       }
     }
@@ -662,7 +664,7 @@ u32 XamUserCreateAchievementEnumerator_entry(u32 title_id, u32 user_index, u32 x
 
   X_HANDLE handle = X_INVALID_HANDLE_VALUE;
   auto result = CreateEnumerator(
-      REX_KERNEL_STATE(), &handle, EnumeratorInit{user_index, 0xFB, 0xB000A, 0xB000B, 0},
+      runtime::Current(), &handle, EnumeratorInit{user_index, 0xFB, 0xB000A, 0xB000B, 0},
       EnumeratorObject(
           count, entry_size,
           [items = std::move(items)](u32 buffer_ptr, u8* buffer_data, u32* written_count) mutable {
@@ -695,7 +697,7 @@ u32 XamReadTileToTexture_entry(u32 unknown, u32 title_id, u64 tile_id, u32 user_
   std::memset(buffer_ptr, 0xFF, size);
 
   if (overlapped_ptr) {
-    REX_KERNEL_STATE()->CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
+    runtime::Current().dispatcher().CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
     return X_ERROR_IO_PENDING;
   }
   return X_ERROR_SUCCESS;
@@ -703,7 +705,7 @@ u32 XamReadTileToTexture_entry(u32 unknown, u32 title_id, u64 tile_id, u32 user_
 
 u32 XamWriteGamerTile_entry(u32 arg1, u32 arg2, u32 arg3, u32 arg4, u32 arg5, u32 overlapped_ptr) {
   if (overlapped_ptr) {
-    REX_KERNEL_STATE()->CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
+    runtime::Current().dispatcher().CompleteOverlappedImmediate(overlapped_ptr, X_ERROR_SUCCESS);
     return X_ERROR_IO_PENDING;
   }
   return X_ERROR_SUCCESS;

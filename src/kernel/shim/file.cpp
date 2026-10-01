@@ -18,10 +18,10 @@
 #include <rex/kernel/shim/define.h>
 #include <rex/types.h>
 #include <rex/string.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/thread_state.h>
-#include <rex/system/xfile.h>
-#include <rex/system/xtypes.h>
+#include <rex/runtime.h>
+#include <rex/runtime/thread_state.h>
+#include <rex/runtime/xfile.h>
+#include <rex/runtime/xtypes.h>
 
 using rex::X_STATUS;
 
@@ -32,8 +32,7 @@ constexpr u32 kInvalidHandleValue = 0xFFFFFFFF;
 REX_SHIM_FN(FindClose, u32, u32 hFindFile) {
   if (hFindFile == kInvalidHandleValue || hFindFile == 0)
     return 0;
-  auto status = REX_KERNEL_OBJECTS()->Close(hFindFile);
-  if (XFAILED(status)) {
+  if (!runtime::Current().object_table().Close(hFindFile)) {
     REXLOG_WARN(kernel, "rexshim_FindClose: unknown handle {:#x}", hFindFile);
     return 0;
   }
@@ -44,7 +43,7 @@ REX_SHIM_FN(MoveFileA, u32, mapped_string lpExistingFileName, mapped_string lpNe
   const char* src = static_cast<const char*>(lpExistingFileName);
   const char* dst = static_cast<const char*>(lpNewFileName);
 
-  auto* fs = REX_KERNEL_FS();
+  auto* fs = runtime::Current().file_system();
   if (!fs->Stat(src)) {
     REXLOG_DEBUG(kernel, "rexshim_MoveFileA: source not found '{}'", src);
     return 0;
@@ -58,7 +57,7 @@ REX_SHIM_FN(MoveFileA, u32, mapped_string lpExistingFileName, mapped_string lpNe
 
   if (auto renamed = fs->Rename(src, dst); !renamed) {
     REXLOG_DEBUG(kernel, "rexshim_MoveFileA: rename failed '{}' -> '{}': {:#x}", src, dst,
-                 rex::system::ToXStatus(renamed.error(), X_STATUS_NOT_SUPPORTED));
+                 rex::runtime::ToXStatus(renamed.error(), X_STATUS_NOT_SUPPORTED));
     return 0;
   }
   REXLOG_TRACE(kernel, "rexshim_MoveFileA: '{}' -> '{}'", src, dst);
@@ -73,14 +72,15 @@ REX_SHIM_FN(SetFileAttributesA, u32, mapped_string lpFileName, u32 dwFileAttribu
 
 REX_SHIM_FN(RemoveDirectoryA, u32, mapped_string lpPathName) {
   const char* path = static_cast<const char*>(lpPathName);
-  bool ok = REX_KERNEL_FS()->Remove(path).has_value();
+  bool ok = runtime::Current().file_system()->Remove(path).has_value();
   if (!ok)
     REXLOG_DEBUG(kernel, "rexshim_RemoveDirectoryA: FAILED '{}'", path);
   return ok ? 1u : 0u;
 }
 
 REX_SHIM_FN(GetFileType, u32, u32 hFile) {
-  auto file = REX_KERNEL_OBJECTS()->Get<rex::system::FileObject>(static_cast<u32>(hFile));
+  auto file =
+      runtime::Current().object_table().Get<rex::runtime::FileObject>(static_cast<u32>(hFile));
   if (!file)
     return 0;  // FILE_TYPE_UNKNOWN
   return 1;    // FILE_TYPE_DISK

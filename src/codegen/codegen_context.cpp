@@ -16,9 +16,8 @@
 #include <rex/logging.h>
 
 #include <rex/runtime.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/user_module.h>
-#include <rex/system/xex_module.h>
+#include <rex/runtime/user_module.h>
+#include <rex/runtime/xex_module.h>
 
 namespace rex::codegen {
 
@@ -54,15 +53,14 @@ Result<CodegenContext> CodegenContext::Create(const std::filesystem::path& confi
   }
 
   // Get module and create BinaryView
-  auto* kernel_state = runtime.kernel_state();
-  auto user_module = kernel_state->object_table()->Get<rex::system::ModuleObject>(
-      kernel_state->GetExecutableModule());
+  auto user_module = runtime.object_table().Get<rex::runtime::ModuleObject>(
+      runtime.module_registry().executable().value_or(0));
   if (!user_module) {
     return Err<CodegenContext>(ErrorCategory::Format,
                                "Failed to get executable module after loading");
   }
 
-  auto* module = rex::system::UserModuleXex(*user_module);
+  auto* module = rex::runtime::UserModuleXEX(*user_module);
   if (!module) {
     return Err<CodegenContext>(ErrorCategory::Format,
                                "Failed to get XexModule from the executable module");

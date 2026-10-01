@@ -11,7 +11,7 @@
 
 #include <rex/graphics/vulkan/command_processor.h>
 #include <rex/graphics/vulkan/graphics_system.h>
-#include <rex/system/kernel_state.h>
+#include <rex/runtime.h>
 #include <rex/ui/vulkan/provider.h>
 
 namespace rex::graphics::vulkan {
@@ -30,7 +30,7 @@ void VulkanGraphicsSystem::CreateProvider(bool with_presentation) {
 }
 
 std::unique_ptr<CommandProcessor> VulkanGraphicsSystem::CreateCommandProcessor() {
-  return std::make_unique<VulkanCommandProcessor>(this, kernel_state_);
+  return std::make_unique<VulkanCommandProcessor>(this, *runtime_);
 }
 
 }  // namespace rex::graphics::vulkan

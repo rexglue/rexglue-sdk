@@ -181,7 +181,7 @@ class RenderTargetCache {
   uint32_t GetLastUpdateBoundRenderTargets(uint32_t* depth_and_color_formats_out = nullptr) const;
 
  protected:
-  RenderTargetCache(const RegisterFile& register_file, const memory::Memory& memory,
+  RenderTargetCache(const RegisterFile& register_file, const runtime::Memory& memory,
                     uint32_t draw_resolution_scale_x, uint32_t draw_resolution_scale_y)
       : register_file_(register_file),
         draw_extent_estimator_(register_file, memory),

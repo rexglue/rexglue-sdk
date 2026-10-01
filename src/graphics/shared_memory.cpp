@@ -22,7 +22,7 @@
 
 namespace rex::graphics {
 
-SharedMemory::SharedMemory(memory::Memory& memory) : memory_(memory) {
+SharedMemory::SharedMemory(runtime::Memory& memory) : memory_(memory) {
   page_size_log2_ = rex::log2_ceil(uint32_t(rex::memory::page_size()));
 }
 

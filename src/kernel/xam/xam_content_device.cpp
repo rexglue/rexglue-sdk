@@ -14,16 +14,16 @@
 #include <rex/math.h>
 #include <rex/hook.h>
 #include <rex/types.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/xam/content_device.h>
-#include <rex/system/xenumerator.h>
-#include <rex/system/xtypes.h>
+#include <rex/runtime.h>
+#include <rex/runtime/xam/content_device.h>
+#include <rex/runtime/xenumerator.h>
+#include <rex/runtime/xtypes.h>
 
 namespace rex {
 namespace kernel {
 namespace xam {
-using namespace rex::system;
-using namespace rex::system::xam;
+using namespace rex::runtime;
+using namespace rex::runtime::xam;
 
 // TODO(gibbed): real information.
 //
@@ -80,7 +80,7 @@ u32 XamContentGetDeviceState_entry(u32 device_id, mapped_void overlapped_ptr) {
   auto device_info = GetDummyDeviceInfo(device_id);
   if (device_info == nullptr) {
     if (overlapped_ptr) {
-      REX_KERNEL_STATE()->CompleteOverlappedImmediateEx(
+      runtime::Current().dispatcher().CompleteOverlappedImmediateEx(
           overlapped_ptr.guest_address(), X_ERROR_FUNCTION_FAILED, X_ERROR_DEVICE_NOT_CONNECTED, 0);
       return X_ERROR_IO_PENDING;
     } else {
@@ -88,8 +88,8 @@ u32 XamContentGetDeviceState_entry(u32 device_id, mapped_void overlapped_ptr) {
     }
   }
   if (overlapped_ptr) {
-    REX_KERNEL_STATE()->CompleteOverlappedImmediate(overlapped_ptr.guest_address(),
-                                                    X_ERROR_SUCCESS);
+    runtime::Current().dispatcher().CompleteOverlappedImmediate(overlapped_ptr.guest_address(),
+                                                                X_ERROR_SUCCESS);
     return X_ERROR_IO_PENDING;
   } else {
     return X_ERROR_SUCCESS;
@@ -149,7 +149,7 @@ u32 XamContentCreateDeviceEnumerator_entry(u32 content_type, u32 content_flags, 
 
   X_HANDLE handle = X_INVALID_HANDLE_VALUE;
   auto result = CreateEnumerator(
-      REX_KERNEL_STATE(), &handle, EnumeratorInit{0xFE, 0xFE, 0x2000A, 0x20009, 0},
+      runtime::Current(), &handle, EnumeratorInit{0xFE, 0xFE, 0x2000A, 0x20009, 0},
       EnumeratorObject(
           max_count, sizeof(X_CONTENT_DEVICE_DATA),
           [items = std::move(items)](u32, u8* buffer_data, u32* written_count) mutable {
@@ -169,7 +169,7 @@ u32 XamContentCreateDeviceEnumerator_entry(u32 content_type, u32 content_flags, 
 
 // fix me later
 namespace rex {
-namespace system {
+namespace runtime {
 namespace xam {
 
 const DummyDeviceInfo* GetDummyDeviceInfo(uint32_t device_id) {
@@ -177,7 +177,7 @@ const DummyDeviceInfo* GetDummyDeviceInfo(uint32_t device_id) {
 }
 
 }  // namespace xam
-}  // namespace system
+}  // namespace runtime
 }  // namespace rex
 
 REX_EXPORT(__imp__XamContentGetDeviceName, rex::kernel::xam::XamContentGetDeviceName_entry)

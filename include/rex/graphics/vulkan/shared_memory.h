@@ -25,7 +25,7 @@ class VulkanCommandProcessor;
 
 class VulkanSharedMemory : public SharedMemory {
  public:
-  VulkanSharedMemory(VulkanCommandProcessor& command_processor, memory::Memory& memory,
+  VulkanSharedMemory(VulkanCommandProcessor& command_processor, runtime::Memory& memory,
                      VkPipelineStageFlags guest_shader_pipeline_stages);
   ~VulkanSharedMemory() override;
 

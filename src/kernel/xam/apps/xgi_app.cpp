@@ -17,12 +17,12 @@
 namespace rex {
 namespace kernel {
 namespace xam {
-using namespace rex::system;
-using namespace rex::system::xam;
+using namespace rex::runtime;
+using namespace rex::runtime::xam;
 namespace apps {
-using namespace rex::system;
+using namespace rex::runtime;
 
-XgiApp::XgiApp(KernelState* kernel_state) : App(kernel_state, 0xFB) {}
+XgiApp::XgiApp(Runtime& runtime) : App(runtime, 0xFB) {}
 
 // http://mb.mirage.org/bugzilla/xliveless/main.c
 
@@ -87,7 +87,8 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
         for (uint32_t i = 0; i < achievement_count; ++i) {
           uint32_t id = memory::load_and_swap<uint32_t>(base + i * kEntryStride + kEntryIdOffset);
           REXLOG_DEBUG(kernel, "XGIUserWriteAchievements: id={} ({})", id, i);
-          kernel_state_->UnlockAchievement(id);
+          (void)runtime_.achievement_manager().UnlockAchievement(id,
+                                                                 AchievementNotification::kShow);
         }
       } else {
         REXLOG_DEBUG(kernel, "XGIUserWriteAchievements: skipped (count={} ptr={:08X})",

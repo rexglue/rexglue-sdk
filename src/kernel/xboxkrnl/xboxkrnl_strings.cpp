@@ -19,10 +19,10 @@
 #include <rex/logging.h>
 #include <rex/memory/utils.h>
 #include <rex/hook.h>
-#include <rex/system/format.h>
+#include <rex/runtime/format.h>
 
-using namespace rex::system::format;
-using rex::memory::GuestPtr;
+using namespace rex::runtime::format;
+using rex::runtime::GuestPtr;
 
 //=============================================================================
 // DbgPrint / XamDbgPrint

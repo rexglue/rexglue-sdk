@@ -188,7 +188,7 @@ class PrimitiveProcessor {
   static constexpr uint32_t kMinRequiredConvertedIndexBufferSize =
       sizeof(uint32_t) * (UINT16_MAX - 2) * 3 * +XE_GPU_PRIMITIVE_PROCESSOR_SIMD_SIZE;
 
-  PrimitiveProcessor(const RegisterFile& register_file, memory::Memory& memory,
+  PrimitiveProcessor(const RegisterFile& register_file, runtime::Memory& memory,
                      SharedMemory& shared_memory)
       : register_file_(register_file), memory_(memory), shared_memory_(shared_memory) {}
 
@@ -617,7 +617,7 @@ class PrimitiveProcessor {
   }
 
   const RegisterFile& register_file_;
-  memory::Memory& memory_;
+  runtime::Memory& memory_;
   SharedMemory& shared_memory_;
 
   bool full_32bit_vertex_indices_used_ = false;

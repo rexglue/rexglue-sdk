@@ -27,7 +27,7 @@ class D3D12CommandProcessor;
 
 class D3D12SharedMemory : public SharedMemory {
  public:
-  D3D12SharedMemory(D3D12CommandProcessor& command_processor, memory::Memory& memory);
+  D3D12SharedMemory(D3D12CommandProcessor& command_processor, runtime::Memory& memory);
   ~D3D12SharedMemory() override;
 
   bool Initialize();

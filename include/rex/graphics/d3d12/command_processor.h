@@ -36,7 +36,7 @@
 #include <rex/graphics/registers.h>
 #include <rex/graphics/util/draw.h>
 #include <rex/xenos/xenos.h>
-#include <rex/system/kernel_state.h>
+#include <rex/runtime.h>
 #include <rex/ui/d3d12/d3d12_descriptor_heap_pool.h>
 #include <rex/ui/d3d12/d3d12_provider.h>
 #include <rex/ui/d3d12/d3d12_upload_buffer_pool.h>
@@ -46,8 +46,7 @@ namespace rex::graphics::d3d12 {
 
 class D3D12CommandProcessor : public CommandProcessor {
  public:
-  explicit D3D12CommandProcessor(D3D12GraphicsSystem* graphics_system,
-                                 system::KernelState* kernel_state);
+  explicit D3D12CommandProcessor(D3D12GraphicsSystem* graphics_system, Runtime& runtime);
   ~D3D12CommandProcessor();
 
   void ClearCaches() override;

@@ -17,8 +17,8 @@
 
 #include <rex/logging.h>
 #include <rex/ppc/context.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/thread_state.h>
+#include <rex/runtime.h>
+#include <rex/runtime/thread_state.h>
 #include <rex/types.h>
 
 namespace rex::ppc {
@@ -141,7 +141,7 @@ inline PPCContext& current_ctx() {
   return *rex::runtime::ThreadState::Get()->context();
 }
 inline uint8_t* current_base() {
-  return rex::system::kernel_state()->memory()->virtual_membase();
+  return rex::runtime::ThreadState::Get()->memory()->virtual_membase();
 }
 }  // namespace detail
 

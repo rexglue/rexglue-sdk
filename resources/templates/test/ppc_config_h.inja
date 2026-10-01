@@ -11,7 +11,7 @@
 #include <rex/chrono/clock.h>
 #include <rex/perf/counter.h>
 #include <rex/platform/interrupt_mask.h>
-#include <rex/system/mmio_handler.h>
+#include <rex/runtime/mmio_handler.h>
 
 #include <atomic>
 #include <cassert>

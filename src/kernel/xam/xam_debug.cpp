@@ -13,7 +13,7 @@
 #include <rex/logging.h>
 #include <rex/hook.h>
 #include <rex/types.h>
-#include <rex/system/kernel_state.h>
+#include <rex/runtime.h>
 
 namespace rex {
 namespace kernel {

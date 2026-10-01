@@ -18,7 +18,7 @@ namespace rex::audio {
 
 class AudioDriver {
  public:
-  explicit AudioDriver(memory::Memory* memory);
+  explicit AudioDriver(runtime::Memory* memory);
   virtual ~AudioDriver();
 
   virtual void SubmitFrame(uint32_t samples_ptr) = 0;
@@ -28,7 +28,7 @@ class AudioDriver {
     return memory_->TranslatePhysical(guest_address);
   }
 
-  memory::Memory* memory_ = nullptr;
+  runtime::Memory* memory_ = nullptr;
 };
 
 }  // namespace rex::audio

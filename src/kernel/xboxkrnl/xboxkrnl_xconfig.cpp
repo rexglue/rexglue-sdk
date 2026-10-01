@@ -12,14 +12,15 @@
 // Disable warnings about unused parameters for kernel functions
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
+#include <rex/api.h>
 #include <rex/cvar.h>
 #include <rex/kernel/xboxkrnl/private.h>
 #include <rex/logging.h>
 #include <rex/hook.h>
 #include <rex/types.h>
-#include <rex/system/kernel_state.h>
-#include <rex/system/user_module.h>
-#include <rex/system/xtypes.h>
+#include <rex/runtime.h>
+#include <rex/runtime/user_module.h>
+#include <rex/runtime/xtypes.h>
 #include "kernel/kernel_macros.h"
 
 namespace rex::kernel::xboxkrnl {
@@ -61,7 +62,8 @@ X_STATUS ExGetXConfigSetting(uint16_t category, uint16_t setting, void* buffer,
           break;
         case 0x0009:  // XCONFIG_USER_LANGUAGE
           setting_size = 4;
-          memory::store_and_swap<uint32_t>(value, system::kernel_state()->config().user_language);
+          memory::store_and_swap<uint32_t>(
+              value, runtime::Current().config().runtime.kernel.user_language);
           break;
         case 0x000A:  // XCONFIG_USER_VIDEO_FLAGS
           setting_size = 4;
@@ -77,7 +79,7 @@ X_STATUS ExGetXConfigSetting(uint16_t category, uint16_t setting, void* buffer,
           break;
         case 0x000E:  // XCONFIG_USER_COUNTRY
           setting_size = 1;
-          value[0] = static_cast<uint8_t>(system::kernel_state()->config().user_country);
+          value[0] = static_cast<uint8_t>(runtime::Current().config().runtime.kernel.user_country);
           break;
         case 0x0019:  // XCONFIG_USER_PC_FLAGS
           setting_size = 1;

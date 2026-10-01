@@ -17,7 +17,7 @@
 #include <string>
 #include <unordered_map>
 
-#include <rex/system/achievement_store.h>
+#include <rex/runtime/achievement_info.h>
 
 namespace rex {
 class Runtime;
@@ -38,7 +38,7 @@ class AchievementIconCache {
   // 3. metadata icons/<image_id>.png
   // 4. embedded metadata icons/<image_id>.png
   // 5. title XDBF image <image_id> embedded in the loaded XEX
-  ImmediateTexture* GetIcon(const rex::system::AchievementInfo& achievement);
+  ImmediateTexture* GetIcon(const rex::runtime::AchievementInfo& achievement);
 
  private:
   std::unique_ptr<ImmediateTexture> CreateTextureFromBytes(const uint8_t* data, size_t size);

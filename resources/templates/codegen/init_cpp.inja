@@ -4,7 +4,7 @@
 #include "{{ project }}_init.h"
 
 {% if has_dll_modules and not is_dll %}
-void RegisterRecompiledModules(rex::system::KernelState*);
+void RegisterRecompiledModules(rex::runtime::IModuleRegistry&);
 {% endif %}
 
 const rex::PPCImageInfo PPCImageConfig = {
