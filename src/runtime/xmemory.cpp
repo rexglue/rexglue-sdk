@@ -13,6 +13,7 @@
 #include <array>
 #include <bit>
 #include <cstring>
+#include <span>
 #include <utility>
 
 #if REX_PLATFORM_MAC
@@ -395,14 +396,6 @@ void Memory::UnmapViews() {
   }
 }
 
-void Memory::Reset() {
-  heaps_.v00000000.Reset();
-  heaps_.v40000000.Reset();
-  heaps_.v80000000.Reset();
-  heaps_.v90000000.Reset();
-  heaps_.physical.Reset();
-}
-
 const BaseHeap* Memory::LookupHeap(uint32_t address) const {
   if (address < 0x40000000) {
     return &heaps_.v00000000;
@@ -710,6 +703,33 @@ void Memory::GetHeapsPageStatsSummary(const BaseHeap* const* provided_heaps, siz
   }
 }
 
+void Memory::SetBudget(u32 megabytes) {
+  budget_pages_.store(megabytes * 256, std::memory_order_relaxed);
+}
+
+u32 Memory::title_pages() const {
+  return title_pages_.load(std::memory_order_relaxed);
+}
+
+u32 Memory::budget_pages() const {
+  return budget_pages_.load(std::memory_order_relaxed);
+}
+
+bool Memory::AllocateTitlePage(u32 pages) {
+  const u32 budget = budget_pages_.load(std::memory_order_relaxed);
+  u32 used = title_pages_.load(std::memory_order_relaxed);
+  do {
+    if (budget && used + pages > budget) {
+      return false;
+    }
+  } while (!title_pages_.compare_exchange_weak(used, used + pages, std::memory_order_relaxed));
+  return true;
+}
+
+void Memory::ReleaseTitlePage(u32 pages) {
+  title_pages_.fetch_sub(pages, std::memory_order_relaxed);
+}
+
 //=============================================================================
 // Recompiled Code Function Table
 //=============================================================================
@@ -1012,13 +1032,6 @@ uint32_t BaseHeap::GetUnreservedPageCount() {
   return count;
 }
 
-void BaseHeap::Reset() {
-  // TODO(DrChat): protect pages.
-  std::memset(page_table_.data(), 0, sizeof(PageEntry) * page_table_.size());
-  // TODO(Triang3l): Remove access callbacks from pages if this is a physical
-  // memory heap.
-}
-
 bool BaseHeap::Alloc(uint32_t size, uint32_t alignment, uint32_t allocation_type, uint32_t protect,
                      bool top_down, uint32_t* out_address) {
   *out_address = 0;
@@ -1064,6 +1077,8 @@ bool BaseHeap::AllocFixed(uint32_t base_address, uint32_t size, uint32_t alignme
 
 bool BaseHeap::AllocFixedLocked(uint32_t base_address, uint32_t size, uint32_t alignment,
                                 uint32_t allocation_type, uint32_t protect) {
+  const bool title_memory = (allocation_type & runtime::kMemoryAllocationTitle) != 0;
+  allocation_type &= ~u32(runtime::kMemoryAllocationTitle);
   alignment = rex::round_up(alignment, page_size_);
   if (base_address % alignment != 0) {
     if (base_address % page_size_ != 0) {
@@ -1084,7 +1099,7 @@ bool BaseHeap::AllocFixedLocked(uint32_t base_address, uint32_t size, uint32_t a
   uint32_t page_count = get_page_count(size, page_size_, page_size_shift_);
   uint32_t start_page_number = (base_address - heap_base_) >> page_size_shift_;
   uint32_t end_page_number = start_page_number + page_count - 1;
-  if (start_page_number >= page_table_.size() || end_page_number > page_table_.size()) {
+  if (start_page_number >= page_table_.size() || end_page_number >= page_table_.size()) {
     REX_FAIL(system, false, "BaseHeap::AllocFixed passed out of range address range");
   }
 
@@ -1112,6 +1127,19 @@ bool BaseHeap::AllocFixedLocked(uint32_t base_address, uint32_t size, uint32_t a
     }
   }
 
+  u32 title_pages = 0;
+  if (title_memory && (allocation_type & runtime::kMemoryAllocationCommit)) {
+    const auto range = std::span(page_table_).subspan(start_page_number, page_count);
+    const auto uncommitted = std::ranges::count_if(range, [](const PageEntry& page_entry) {
+      return (page_entry.state & runtime::kMemoryAllocationCommit) == 0;
+    });
+    title_pages = static_cast<u32>(uncommitted) * (page_size_ >> 12);
+    if (title_pages && !memory_->AllocateTitlePage(title_pages)) {
+      REXLOG_WARN(system, "BaseHeap::AllocFixed over the title memory budget");
+      return false;
+    }
+  }
+
   // Allocate from host.
   if (allocation_type == runtime::kMemoryAllocationReserve) {
     // Reserve is not needed, as we are mapped already.
@@ -1123,6 +1151,7 @@ bool BaseHeap::AllocFixedLocked(uint32_t base_address, uint32_t size, uint32_t a
         rex::memory::AllocFixed(TranslateRelative(start_page_number << page_size_shift_),
                                 page_count << page_size_shift_, alloc_type, ToPageAccess(protect));
     if (!result) {
+      memory_->ReleaseTitlePage(title_pages);
       REX_FAIL(system, false, "BaseHeap::AllocFixed failed to alloc range from host");
     }
   }
@@ -1130,6 +1159,9 @@ bool BaseHeap::AllocFixedLocked(uint32_t base_address, uint32_t size, uint32_t a
   // Set page state.
   for (uint32_t page_number = start_page_number; page_number <= end_page_number; ++page_number) {
     auto& page_entry = page_table_[page_number];
+    if (title_pages && (page_entry.state & runtime::kMemoryAllocationCommit) == 0) {
+      page_entry.title = 1;
+    }
     if (allocation_type & runtime::kMemoryAllocationReserve) {
       if (!page_entry.state) {
         unreserved_page_count_--;
@@ -1169,6 +1201,8 @@ bool BaseHeap::AllocRangeLocked(uint32_t low_address, uint32_t high_address, uin
                                 uint32_t alignment, uint32_t allocation_type, uint32_t protect,
                                 bool top_down, uint32_t* out_address) {
   *out_address = 0;
+  const bool title_memory = (allocation_type & runtime::kMemoryAllocationTitle) != 0;
+  allocation_type &= ~u32(runtime::kMemoryAllocationTitle);
 
   alignment = rex::round_up(alignment, page_size_);
   uint32_t page_count = get_page_count(size, page_size_, page_size_shift_);
@@ -1271,9 +1305,14 @@ bool BaseHeap::AllocRangeLocked(uint32_t low_address, uint32_t high_address, uin
     }
   }
   if (start_page_number == UINT_MAX || end_page_number == UINT_MAX) {
-    // Out of memory.
-    REXLOG_ERROR(system, "BaseHeap::Alloc failed to find contiguous range");
-    assert_always("Heap exhausted!");
+    REXLOG_WARN(system, "BaseHeap::Alloc failed to find contiguous range");
+    return false;
+  }
+  const u32 title_pages = title_memory && (allocation_type & runtime::kMemoryAllocationCommit)
+                              ? page_count * (page_size_ >> 12)
+                              : 0;
+  if (title_pages && !memory_->AllocateTitlePage(title_pages)) {
+    REXLOG_WARN(system, "BaseHeap::Alloc over the title memory budget");
     return false;
   }
 
@@ -1288,6 +1327,7 @@ bool BaseHeap::AllocRangeLocked(uint32_t low_address, uint32_t high_address, uin
         rex::memory::AllocFixed(TranslateRelative(start_page_number << page_size_shift_),
                                 page_count << page_size_shift_, alloc_type, ToPageAccess(protect));
     if (!result) {
+      memory_->ReleaseTitlePage(title_pages);
       REX_FAIL(system, false, "BaseHeap::Alloc failed to alloc range from host");
     }
   }
@@ -1303,6 +1343,7 @@ bool BaseHeap::AllocRangeLocked(uint32_t low_address, uint32_t high_address, uin
     page_entry.allocation_protect = protect;
     page_entry.current_protect = protect;
     page_entry.state = runtime::kMemoryAllocationReserve | allocation_type;
+    page_entry.title = title_pages != 0;
   }
 
   if (!SyncHostPageAccess(start_page_number, end_page_number)) {
@@ -1345,11 +1386,14 @@ bool BaseHeap::DecommitLocked(uint32_t address, uint32_t size) {
     return false;
   }*/
 
-  // Perform table change.
+  u32 released = 0;
   for (uint32_t page_number = start_page_number; page_number <= end_page_number; ++page_number) {
     auto& page_entry = page_table_[page_number];
+    released += page_entry.title;
+    page_entry.title = 0;
     page_entry.state &= ~runtime::kMemoryAllocationCommit;
   }
+  memory_->ReleaseTitlePage(released * (page_size_ >> 12));
 
   if (!SyncHostPageAccess(start_page_number, end_page_number)) {
     return false;
@@ -1405,13 +1449,15 @@ bool BaseHeap::ReleaseLocked(uint32_t base_address, uint32_t* out_region_size) {
     }
   }
 
-  // Perform table change.
   uint32_t end_page_number = base_page_number + base_page_entry.region_page_count - 1;
+  u32 released = 0;
   for (uint32_t page_number = base_page_number; page_number <= end_page_number; ++page_number) {
     auto& page_entry = page_table_[page_number];
+    released += page_entry.title;
     page_entry.qword = 0;
     unreserved_page_count_++;
   }
+  memory_->ReleaseTitlePage(released * (page_size_ >> 12));
 
   if (!SyncHostPageAccess(base_page_number, end_page_number)) {
     return false;
@@ -1684,9 +1730,11 @@ bool PhysicalHeap::Alloc(uint32_t size, uint32_t alignment, uint32_t allocation_
   // Given the address we've reserved in the parent heap, pin that here.
   // Shouldn't be possible for it to be allocated already.
   uint32_t address = heap_base_ + parent_address - parent_heap_start;
-  if (!BaseHeap::AllocFixedLocked(address, size, alignment, allocation_type, protect)) {
+  if (!BaseHeap::AllocFixedLocked(address, size, alignment,
+                                  allocation_type & ~u32(runtime::kMemoryAllocationTitle),
+                                  protect)) {
     REXLOG_ERROR(system, "PhysicalHeap::Alloc unable to pin physical memory in physical heap");
-    // TODO(benvanik): don't leak parent memory.
+    parent_heap_->ReleaseLocked(parent_address, nullptr);
     return false;
   }
   *out_address = address;
@@ -1707,6 +1755,15 @@ bool PhysicalHeap::AllocFixed(uint32_t base_address, uint32_t size, uint32_t ali
   // committed pages in the requested physical range.
   // TODO(benvanik): flag for ensure-not-committed?
   uint32_t parent_base_address = GetPhysicalAddress(base_address);
+  std::lock_guard<std::recursive_mutex> parent_lock(parent_heap_->heap_mutex_);
+  const u32 parent_size = parent_base_address % alignment == 0 ? rex::align(size, alignment) : size;
+  const u32 parent_first =
+      (parent_base_address - parent_heap_->heap_base_) >> parent_heap_->page_size_shift_;
+  const u32 parent_count = parent_size >> parent_heap_->page_size_shift_;
+  const bool parent_was_free =
+      parent_first + parent_count <= parent_heap_->page_table_.size() &&
+      std::ranges::all_of(std::span(parent_heap_->page_table_).subspan(parent_first, parent_count),
+                          [](const PageEntry& page_entry) { return page_entry.state == 0; });
   if (!parent_heap_->AllocFixedLocked(parent_base_address, size, alignment, allocation_type,
                                       protect)) {
     REX_FAIL(system, false, "PhysicalHeap::Alloc unable to alloc physical memory in parent heap");
@@ -1715,9 +1772,13 @@ bool PhysicalHeap::AllocFixed(uint32_t base_address, uint32_t size, uint32_t ali
   // Given the address we've reserved in the parent heap, pin that here.
   // Shouldn't be possible for it to be allocated already.
   uint32_t address = heap_base_ + parent_base_address - GetPhysicalAddress(heap_base_);
-  if (!BaseHeap::AllocFixedLocked(address, size, page_size_, allocation_type, protect)) {
+  if (!BaseHeap::AllocFixedLocked(address, size, page_size_,
+                                  allocation_type & ~u32(runtime::kMemoryAllocationTitle),
+                                  protect)) {
     REXLOG_ERROR(system, "PhysicalHeap::Alloc unable to pin physical memory in physical heap");
-    // TODO(benvanik): don't leak parent memory.
+    if (parent_was_free) {
+      parent_heap_->ReleaseLocked(parent_base_address, nullptr);
+    }
     return false;
   }
 
@@ -1750,9 +1811,11 @@ bool PhysicalHeap::AllocRange(uint32_t low_address, uint32_t high_address, uint3
   // Given the address we've reserved in the parent heap, pin that here.
   // Shouldn't be possible for it to be allocated already.
   uint32_t address = heap_base_ + parent_address - GetPhysicalAddress(heap_base_);
-  if (!BaseHeap::AllocFixedLocked(address, size, page_size_, allocation_type, protect)) {
+  if (!BaseHeap::AllocFixedLocked(address, size, page_size_,
+                                  allocation_type & ~u32(runtime::kMemoryAllocationTitle),
+                                  protect)) {
     REXLOG_ERROR(system, "PhysicalHeap::Alloc unable to pin physical memory in physical heap");
-    // TODO(benvanik): don't leak parent memory.
+    parent_heap_->ReleaseLocked(parent_address, nullptr);
     return false;
   }
   *out_address = address;

@@ -36,6 +36,11 @@ struct KernelConfig {
 struct RuntimeConfig {
   /** Shim heap size in MiB, used when the image was recompiled with the shim heap. 1 to 2048. */
   u32 heap_size_mb = 256;
+  /**
+   * Title memory budget in MiB, shared by guest virtual commits and physical allocations. 0
+   * removes the cap.
+   */
+  u32 title_memory_mb = 480;
   /** Values the kernel reports to the title. */
   KernelConfig kernel;
   /** Time TerminateTitle waits for guest threads to exit before it terminates the rest. */

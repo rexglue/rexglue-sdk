@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cstddef>
 #include <cstring>
 #include <memory>
 #include <vector>
@@ -1126,6 +1127,9 @@ void KeReleaseSpinLockFromRaisedIrql_entry(mapped_u32 lock_ptr) {
 void KeEnterCriticalRegion_entry() {
   ThreadRecord::GetCurrentThread()->EnterCriticalRegion();
 }
+
+static_assert(offsetof(PPCContext, f31) - offsetof(PPCContext, f0) == 31 * sizeof(PPCRegister));
+static_assert(offsetof(PPCContext, v127) - offsetof(PPCContext, v0) == 127 * sizeof(PPCVRegister));
 
 // NOLINTNEXTLINE(readability-identifier-naming): frozen export entry name
 void KeSaveFloatingPointState_entry() {

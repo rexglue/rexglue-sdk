@@ -10,6 +10,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <atomic>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -22,6 +23,7 @@
 #include <rex/memory/utils.h>
 #include <rex/ppc/func.h>  // PPCFunc type
 #include <rex/platform/lock_order.h>
+#include <rex/types.h>
 
 namespace rex::runtime::detail {
 
@@ -80,6 +82,8 @@ enum class HeapType : uint8_t {
 enum MemoryAllocationFlag : uint32_t {
   kMemoryAllocationReserve = 1 << 0,
   kMemoryAllocationCommit = 1 << 1,
+  /** Counts the newly committed pages against the title memory budget. */
+  kMemoryAllocationTitle = 1 << 2,
 };
 
 enum MemoryProtectFlag : uint32_t {
@@ -128,7 +132,9 @@ union PageEntry {
     uint32_t current_protect : 4;
     // Allocation state of the page as a MemoryAllocationFlag bit mask.
     uint32_t state : 2;
-    uint32_t reserved : 14;
+    /** Set on a committed page that counts against the title memory budget. */
+    uint32_t title : 1;
+    uint32_t reserved : 13;
   };
 };
 
@@ -221,8 +227,6 @@ class BaseHeap {
   // Queries the currently strictest readability and writability for the entire
   // range.
   rex::memory::PageAccess QueryRangeAccess(uint32_t low_address, uint32_t high_address);
-
-  void Reset();
 
  protected:
   friend class PhysicalHeap;
@@ -444,9 +448,6 @@ class Memory {
   // mapping to the file system fails.
   bool Initialize();
 
-  // Resets all memory to zero and resets all allocations.
-  void Reset();
-
   // Full file name and path of the memory-mapped file backing all memory.
   const std::filesystem::path& file_name() const { return file_name_; }
 
@@ -616,6 +617,27 @@ class Memory {
   // Gets the physical base heap.
   VirtualHeap* GetPhysicalHeap();
 
+  /**
+   * Sets the title memory budget.
+   *
+   * @param megabytes Budget in MiB, 0 for no cap.
+   */
+  void SetBudget(u32 megabytes);
+
+  /**
+   * Returns the title pages counted against the budget.
+   *
+   * @return The count in 4 KB units.
+   */
+  [[nodiscard]] u32 title_pages() const;
+
+  /**
+   * Returns the title memory budget.
+   *
+   * @return The budget in 4 KB units, 0 when uncapped.
+   */
+  [[nodiscard]] u32 budget_pages() const;
+
   //==========================================================================
   // Recompiled Code Function Table API
   //==========================================================================
@@ -638,6 +660,21 @@ class Memory {
   bool ReserveMMIOBlocks() const;
 
   bool AccessViolationCallback(void* host_address, bool is_write);
+
+  /**
+   * Counts pages against the budget.
+   *
+   * @param pages Count in 4 KB units.
+   * @return True when the budget had room.
+   */
+  bool AllocateTitlePage(u32 pages);
+
+  /**
+   * Returns pages to the budget.
+   *
+   * @param pages Count in 4 KB units.
+   */
+  void ReleaseTitlePage(u32 pages);
 
   std::filesystem::path file_name_;
   uint32_t system_page_size_ = 0;
@@ -689,6 +726,8 @@ class Memory {
   rex::platform::RankedMutex watch_mutex_{rex::platform::LockRank::Leaf};
   std::vector<std::pair<PhysicalMemoryInvalidationCallback, void*>*>
       physical_memory_invalidation_callbacks_;
+  std::atomic<u32> title_pages_{0};
+  std::atomic<u32> budget_pages_{0};
 };
 
 }  // namespace rex::runtime

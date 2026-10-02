@@ -142,7 +142,7 @@ u32 NtAllocateVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_si
     allocation_type |= runtime::kMemoryAllocationReserve;
   }
   if (alloc_type & X_MEM_COMMIT) {
-    allocation_type |= runtime::kMemoryAllocationCommit;
+    allocation_type |= runtime::kMemoryAllocationCommit | runtime::kMemoryAllocationTitle;
   }
   if (alloc_type & X_MEM_RESET) {
     REX_KERNEL_STUB("X_MEM_RESET");
@@ -277,10 +277,19 @@ u32 NtFreeVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_size_p
   }
   bool result = false;
   if (free_type == X_MEM_DECOMMIT) {
-    // If zero, we may need to query size (free whole region).
-    assert_not_zero(region_size_value);
-
-    region_size_value = rex::round_up(region_size_value, heap->page_size());
+    const u32 page_size = heap->page_size();
+    if (region_size_value == 0) {
+      runtime::HeapAllocationInfo info{};
+      if (!heap->QueryRegionInfo(base_addr_value, &info) || !info.state ||
+          info.allocation_base != base_addr_value) {
+        return X_STATUS_UNSUCCESSFUL;
+      }
+      region_size_value = info.allocation_size;
+    } else {
+      const u64 end = rex::round_up(u64{base_addr_value} + region_size_value, page_size);
+      base_addr_value -= base_addr_value % page_size;
+      region_size_value = static_cast<u32>(end - base_addr_value);
+    }
     result = heap->Decommit(base_addr_value, region_size_value);
   } else {
     result = heap->Release(base_addr_value, &region_size_value);
@@ -385,7 +394,8 @@ u32 MmAllocatePhysicalMemoryEx_entry(u32 flags, u32 region_size, u32 protect_bit
   uint32_t adjusted_size = rex::round_up(region_size, page_size);
   uint32_t adjusted_alignment = rex::round_up(alignment, page_size);
 
-  uint32_t allocation_type = runtime::kMemoryAllocationReserve | runtime::kMemoryAllocationCommit;
+  uint32_t allocation_type = runtime::kMemoryAllocationReserve | runtime::kMemoryAllocationCommit |
+                             runtime::kMemoryAllocationTitle;
   uint32_t protect = FromXdkProtectFlags(protect_bits);
   bool top_down = true;
   auto heap = static_cast<runtime::PhysicalHeap*>(
@@ -511,14 +521,10 @@ u32 MmQueryStatistics_entry(ppc_ptr_t<X_MM_QUERY_STATISTICS_RESULT> stats_ptr) {
   // Zero out the struct.
   stats_ptr.Zero();
 
-  // Set the constants the game is likely asking for.
-  // These numbers are mostly guessed. If the game is just checking for
-  // memory, this should satisfy it. If it's actually verifying things
-  // this won't work :/
   stats_ptr->size = size;
 
   stats_ptr->total_physical_pages = 0x00020000;  // 512mb / 4kb pages
-  stats_ptr->kernel_pages = 0x00000100;
+  stats_ptr->kernel_pages = 0x00002000;
 
   uint32_t reserved_pages = 0;
   uint32_t unreserved_pages = 0;
@@ -535,8 +541,11 @@ u32 MmQueryStatistics_entry(ppc_ptr_t<X_MM_QUERY_STATISTICS_RESULT> stats_ptr) {
 
   assert_true(used_pages < stats_ptr->total_physical_pages);
 
-  stats_ptr->title.available_pages =
-      stats_ptr->total_physical_pages - stats_ptr->kernel_pages - used_pages;
+  auto* memory = runtime::Current().memory();
+  const u32 title_pages = stats_ptr->total_physical_pages - stats_ptr->kernel_pages;
+  const u32 budget = memory->budget_pages() ? memory->budget_pages() : title_pages;
+  const u32 used = memory->title_pages();
+  stats_ptr->title.available_pages = budget > used ? budget - used : 0;
   stats_ptr->title.total_virtual_memory_bytes = 0x2FFE0000;
   stats_ptr->title.reserved_virtual_memory_bytes = reserved_pages_bytes;
   stats_ptr->title.physical_pages = 0x00001000;  // TODO(gibbed): FIXME
@@ -704,9 +713,10 @@ u32 NtAllocateEncryptedMemory_entry(u32 unk, u32 region_size, mapped_u32 base_ad
   if (!heap) {
     return X_STATUS_UNSUCCESSFUL;
   }
-  if (!heap->AllocRange(
-          0x8C000000, 0x8FFFFFFF, region_size_adjusted, 64 * 1024, runtime::kMemoryAllocationCommit,
-          runtime::kMemoryProtectRead | runtime::kMemoryProtectWrite, false, &out_address)) {
+  if (!heap->AllocRange(0x8C000000, 0x8FFFFFFF, region_size_adjusted, 64 * 1024,
+                        runtime::kMemoryAllocationCommit | runtime::kMemoryAllocationTitle,
+                        runtime::kMemoryProtectRead | runtime::kMemoryProtectWrite, false,
+                        &out_address)) {
     return X_STATUS_UNSUCCESSFUL;
   }
 

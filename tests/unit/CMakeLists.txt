@@ -5,6 +5,7 @@ add_executable(unit_tests
     audio/xma_decoder_test.cpp
     memory/heap_allocation_test.cpp
     memory/access_violation_test.cpp
+    memory/memory_budget_test.cpp
     kernel/exit_title_test.cpp
     kernel/object_table_test.cpp
     kernel/shim_registry_test.cpp
@@ -62,12 +63,17 @@ add_executable(unit_tests
 target_sources(unit_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/src/rexglue/ui/ui.cpp
     ${PROJECT_SOURCE_DIR}/src/rexglue/ui/progress.cpp
+    ${PROJECT_SOURCE_DIR}/thirdparty/crypto/rijndael-alg-fst.c
 )
+
+set_source_files_properties(${PROJECT_SOURCE_DIR}/thirdparty/crypto/rijndael-alg-fst.c
+    PROPERTIES LANGUAGE CXX)
 
 target_include_directories(unit_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_SOURCE_DIR}/src
     ${PROJECT_SOURCE_DIR}/tests
+    ${PROJECT_SOURCE_DIR}/thirdparty
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 

@@ -115,6 +115,11 @@ X_STATUS Runtime::Setup(const RuntimeConfig& config) {
     REX_FAIL(system, X_STATUS_UNSUCCESSFUL,
              "Runtime::Setup called while another runtime is active");
   }
+  constexpr u32 kMaxTitleMemoryMB = 512;
+  if (config_.runtime.title_memory_mb > kMaxTitleMemoryMB) {
+    REX_FAIL(system, X_STATUS_INVALID_PARAMETER, "title_memory_mb {} is above {}",
+             config_.runtime.title_memory_mb, kMaxTitleMemoryMB);
+  }
 
   auto fail = [this](X_STATUS status, std::string_view reason) {
     REXLOG_ERROR(system, "Runtime::Setup failed: {}", reason);
@@ -140,6 +145,7 @@ X_STATUS Runtime::Setup(const RuntimeConfig& config) {
   if (!memory_->Initialize()) {
     return fail(X_STATUS_UNSUCCESSFUL, "memory init failed");
   }
+  memory_->SetBudget(config_.runtime.title_memory_mb);
   g_crash_runtime.store(this, std::memory_order_release);
   platform::SetCrashAddressDescriber(DescribeCrashAddress);
 

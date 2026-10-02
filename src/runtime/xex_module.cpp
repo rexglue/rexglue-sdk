@@ -61,7 +61,8 @@ uint32_t XexModule::GetProcAddress(uint16_t ordinal) const {
     auto e = memory()->TranslateVirtual<const X_IMAGE_EXPORT_DIRECTORY*>(base_address_ +
                                                                          directory->offset);
     assert_not_null(e);
-    auto* function_table = reinterpret_cast<const uint32_t*>(uintptr_t(e) + e->AddressOfFunctions);
+    const auto* bytes = reinterpret_cast<const u8*>(e);
+    auto* function_table = reinterpret_cast<const uint32_t*>(bytes + e->AddressOfFunctions);
     if (ordinal < e->NumberOfFunctions) {
       return base_address_ + function_table[ordinal];
     }
@@ -78,11 +79,12 @@ uint32_t XexModule::GetProcAddress(const std::string_view name) const {
   auto e = memory()->TranslateVirtual<const X_IMAGE_EXPORT_DIRECTORY*>(base_address_ +
                                                                        directory->offset);
   assert_not_null(e);
-  auto* function_table = reinterpret_cast<const uint32_t*>(uintptr_t(e) + e->AddressOfFunctions);
-  auto* name_table = reinterpret_cast<const uint32_t*>(uintptr_t(e) + e->AddressOfNames);
-  auto* ordinal_table = reinterpret_cast<const uint16_t*>(uintptr_t(e) + e->AddressOfNameOrdinals);
+  const auto* bytes = reinterpret_cast<const u8*>(e);
+  auto* function_table = reinterpret_cast<const uint32_t*>(bytes + e->AddressOfFunctions);
+  auto* name_table = reinterpret_cast<const uint32_t*>(bytes + e->AddressOfNames);
+  auto* ordinal_table = reinterpret_cast<const uint16_t*>(bytes + e->AddressOfNameOrdinals);
   for (uint32_t i = 0; i < e->NumberOfNames; i++) {
-    auto fn_name = reinterpret_cast<const char*>(uintptr_t(e) + name_table[i]);
+    auto fn_name = reinterpret_cast<const char*>(bytes + name_table[i]);
     if (name == std::string_view(fn_name)) {
       return base_address_ + function_table[ordinal_table[i]];
     }
@@ -108,7 +110,8 @@ int XexModule::ApplyPatch(XexModule* module) {
     const bool alloc_result = memory()
                                   ->LookupHeap(addr_new_mem)
                                   ->AllocFixed(addr_new_mem, size_delta, 4096,
-                                               kMemoryAllocationReserve | kMemoryAllocationCommit,
+                                               kMemoryAllocationReserve | kMemoryAllocationCommit |
+                                                   kMemoryAllocationTitle,
                                                kMemoryProtectRead | kMemoryProtectWrite);
     if (!alloc_result) {
       REX_FAIL(system, 6, "Unable to allocate XEX memory at {:08X}-{:08X}.", addr_new_mem,
@@ -172,9 +175,8 @@ bool XexModule::Load(const std::string_view name, const std::string_view path, c
                              : image_size();
 
   auto* heap = memory()->LookupHeap(base_address_);
-  heap->Reset();
   if (!heap->AllocFixed(base_address_, alloc_size, 4096,
-                        kMemoryAllocationReserve | kMemoryAllocationCommit,
+                        kMemoryAllocationReserve | kMemoryAllocationCommit | kMemoryAllocationTitle,
                         kMemoryProtectRead | kMemoryProtectWrite)) {
     REX_FAIL(system, false, "Unable to allocate XEX memory at {:08X}-{:08X}.", base_address_,
              alloc_size);

@@ -132,3 +132,12 @@ TEST_CASE("A host worker starts from the host policy FP control word", "[kernel]
     CHECK(policy == csr->load());
   });
 }
+
+TEST_CASE("A thread's FP save area starts with every FP exception masked", "[kernel][fp]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller&) {
+    u32 expected = 0;
+    FPSCRPlatform::InitHostExceptions(expected);
+    CHECK(rex::runtime::ThreadState::Get()->dpc_save_area().csr == expected);
+  });
+}
