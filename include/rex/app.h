@@ -108,7 +108,7 @@ class REX_API App : public NonCopyable {
   Result<void> Fail(std::string_view step, Error error);
 
   /**
-   * Sets the module list, the config slices and cvar defaults before any module loads.
+   * Sets the module list, the config structs and cvar defaults before any module loads.
    *
    * @param config The app's configuration. Init applies command line values over it
    *        afterward.
@@ -189,7 +189,7 @@ REX_API void RequestShutdown(i32 exit_code);
 REX_API void RequestRestart(std::vector<std::string> args = {});
 
 /**
- * Tests whether shutdown of the running app has been requested.
+ * Reports whether shutdown of the running app has been requested.
  *
  * @return True once rex::RequestShutdown or rex::RequestRestart has been called.
  */

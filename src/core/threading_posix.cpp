@@ -584,6 +584,13 @@ class PosixCondition<Timer> : public PosixConditionBase {
     }
   }
 
+  void Reset() {
+    Cancel();
+    std::lock_guard<std::mutex> lock(mutex_);
+    callback_ = nullptr;
+    signal_ = false;
+  }
+
   void* native_handle() const override {
     assert_always();
     return nullptr;
@@ -1346,6 +1353,10 @@ class PosixTimer : public PosixConditionHandle<Timer> {
   }
   bool Cancel() override {
     handle_.Cancel();
+    return true;
+  }
+  bool Reset() override {
+    handle_.Reset();
     return true;
   }
 };

@@ -77,10 +77,4 @@ struct KernelGuestGlobals {
   u8 UsbdBootEnumerationDoneEvent[0x10]; /**< An X_DISPATCH_HEADER. */
 };
 
-/** A title terminate routine registered through ExRegisterTitleTerminateNotification. */
-struct TerminateNotification {
-  u32 guest_routine;
-  u32 priority;
-};
-
 }  // namespace rex::runtime

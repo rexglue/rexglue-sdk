@@ -59,7 +59,7 @@ uint32_t get_page_count(uint32_t value, uint32_t page_size, uint32_t page_size_s
  *
  * We create our own heap of committed memory that lives at
  * memory_HEAP_LOW to memory_HEAP_HIGH - all normal user allocations
- * come from there. Since the Xbox has no paging, we know that the size of
+ * come from there. Since the console has no paging, we know that the size of
  * this heap will never need to be larger than ~512MB (realistically, smaller
  * than that). We place it far away from the XEX data and keep the memory
  * around it uncommitted so that we have some warning if things go astray.

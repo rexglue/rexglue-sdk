@@ -14,8 +14,6 @@
 #include <functional>
 
 #include <rex/macros.h>
-#include <rex/platform/lock_order.h>
-#include <rex/runtime/util/native_list.h>
 #include <rex/runtime/xtypes.h>
 #include <rex/types.h>
 
@@ -112,18 +110,29 @@ class IDispatcher {
                                             std::function<void()> post_callback = nullptr) = 0;
 
   /**
-   * Returns the DPC list.
+   * Queues a DPC unless it is queued. The caller drains when its IRQL allows it.
    *
-   * @return The list.
+   * @param dpc Address of the title's KDPC.
+   * @param arg1 SystemArgument1.
+   * @param arg2 SystemArgument2.
+   * @return True when the DPC was queued, false when it was already queued.
    */
-  [[nodiscard]] virtual util::NativeList& dpc_list() = 0;
+  virtual bool QueueDPC(u32 dpc, u32 arg1, u32 arg2) = 0;
 
   /**
-   * Returns the lock that guards the DPC list.
+   * Removes a queued DPC.
    *
-   * @return The lock.
+   * @param dpc Address of the title's KDPC.
+   * @return True when the DPC was queued.
    */
-  [[nodiscard]] virtual rex::platform::RankedMutex& dpc_mutex() = 0;
+  virtual bool RemoveDPC(u32 dpc) = 0;
+
+  /**
+   * Runs every queued DPC on the calling thread at DISPATCH_LEVEL, 1 at a time, on the DPC stack.
+   * Returns at once inside an ISR, inside a DPC, on a thread with no title state, or while another
+   * thread drains.
+   */
+  virtual void DrainDPCs() = 0;
 };
 
 }  // namespace rex::runtime

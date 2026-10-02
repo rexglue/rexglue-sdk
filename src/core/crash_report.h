@@ -50,6 +50,12 @@ struct FaultReport {
 bool BeginReport();
 
 /**
+ * Blocks a thread that faults while another thread holds the report guard, until the process
+ * ends. Returns at once on the thread that holds the guard.
+ */
+void WaitForOtherReport();
+
+/**
  * Reports whether InstallCrashReporter has run and UninstallCrashReporter has not.
  *
  * @return True when installed.

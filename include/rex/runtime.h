@@ -13,6 +13,7 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <filesystem>
 #include <functional>
@@ -28,6 +29,7 @@
 #include <rex/graphics/backend.h>
 #include <rex/image_info.h>
 #include <rex/memory.h>
+#include <rex/platform/lock_order.h>
 #include <rex/runtime/achievement_manager.h>
 #include <rex/runtime/config.h>
 #include <rex/runtime/content_manager.h>
@@ -98,14 +100,14 @@ struct RuntimeConfig {
   }
 
 /**
- * The runtime of a recompiled title. Owns the guest memory, the function dispatcher, the 7 runtime
- * concerns behind their interfaces, the process blocks and the audio and input systems.
+ * The runtime of a recompiled title. Owns the guest memory, the function dispatcher, the object
+ * table, the thread and module registries, the notifier, the content and achievement managers,
+ * the dispatcher, the process blocks and the audio and input systems.
  */
 class Runtime {
  public:
   /**
-   * @param config The configuration Init copied, read through API::config(). The paths and
-   *               runtime slices are used, the rest is available to hooks.
+   * @param config The configuration Init copied, read through API::config().
    */
   explicit Runtime(const Config& config);
   ~Runtime();
@@ -197,8 +199,7 @@ class Runtime {
   const std::filesystem::path& metadata_root() const { return metadata_root_; }
 
   /**
-   * Finds a metadata file or directory. An explicit metadata root disables the discovery of the
-   * older project layouts.
+   * Finds a metadata file or directory.
    *
    * @param relative_path The path under the metadata root.
    * @return The host path, empty when nothing is found.
@@ -216,9 +217,9 @@ class Runtime {
       const std::filesystem::path& relative_path) const;
 
   /**
-   * Sets the app context for presentation. Call before Setup.
+   * Sets the app context for presentation.
    *
-   * @param context The context.
+   * @param context The windowed app context, null to clear it.
    */
   void set_app_context(ui::WindowedAppContext* context) { app_context_ = context; }
 
@@ -232,7 +233,7 @@ class Runtime {
   /**
    * Sets the window dialogs present on.
    *
-   * @param window The window.
+   * @param window The window that dialogs present on, null to clear it.
    */
   void set_display_window(ui::Window* window) { display_window_ = window; }
 
@@ -246,7 +247,7 @@ class Runtime {
   /**
    * Sets the ImGui drawer dialogs draw with.
    *
-   * @param drawer The drawer.
+   * @param drawer The ImGui drawer that dialogs draw with, null to clear it.
    */
   void set_imgui_drawer(ui::ImGuiDrawer* drawer) { imgui_drawer_ = drawer; }
 
@@ -258,9 +259,10 @@ class Runtime {
   ui::ImGuiDrawer* imgui_drawer() const { return imgui_drawer_; }
 
   /**
-   * Builds the memory, the function dispatcher, the runtime concerns and the subsystems.
+   * Builds the memory, the function dispatcher, the object table, the registries, the managers and
+   * the subsystems.
    *
-   * @param config The subsystems. tool_mode skips the GPU.
+   * @param config The subsystems to create. tool_mode skips the GPU.
    * @return X_STATUS_SUCCESS, or the status of the step that failed.
    */
   X_STATUS Setup(const RuntimeConfig& config = {});
@@ -269,7 +271,7 @@ class Runtime {
    * Builds the runtime and the function dispatch table of a recompiled image.
    *
    * @param image_info The image the code was recompiled from.
-   * @param config The subsystems.
+   * @param config The subsystems to create.
    * @return X_STATUS_SUCCESS, or the status of the step that failed.
    */
   X_STATUS Setup(const PPCImageInfo& image_info, const RuntimeConfig& config = {});
@@ -282,13 +284,16 @@ class Runtime {
   const PPCCodegenFlags& codegen_flags() const { return codegen_flags_; }
 
   /**
-   * Tests whether the runtime runs without a GPU.
+   * Reports whether the runtime runs without a GPU.
    *
    * @return True in tool mode.
    */
   bool is_tool_mode() const { return tool_mode_; }
 
-  /** Stops the subsystems and destroys the runtime concerns, the dispatcher and the memory. */
+  /**
+   * Stops the subsystems and destroys the object table, the registries, the managers, the
+   * dispatcher and the memory.
+   */
   void Shutdown();
 
   /**
@@ -317,13 +322,12 @@ class Runtime {
   /**
    * Returns the host base of guest virtual memory for recompiled code.
    *
-   * @return The base.
+   * @return The host address of guest address 0.
    */
   u8* virtual_membase() const;
 
   /**
-   * Sets the function called when the title exits. It runs on the thread that exited the
-   * title. TitleApp posts it to the UI thread.
+   * Sets the function called on the thread that exited the title.
    *
    * @param callback Function receiving the reason.
    */
@@ -337,7 +341,7 @@ class Runtime {
   void ReportTitleExit(runtime::TitleExitReason reason);
 
   /**
-   * Returns the handle table.
+   * Returns the object table that maps guest handles to kernel objects.
    *
    * @return The table. Valid between Setup and Shutdown.
    */
@@ -432,8 +436,8 @@ class Runtime {
   u32 process_type() const;
 
   /**
-   * Terminates the title. Wakes and stops every guest thread, and does not return when called from
-   * a guest thread.
+   * Terminates the title. Runs the title terminate notifications, then wakes and stops every guest
+   * thread. Does not return when called from a guest thread.
    */
   void TerminateTitle();
 
@@ -445,33 +449,32 @@ class Runtime {
   void ExitTitle(runtime::TitleExitReason reason);
 
   /**
-   * Tests whether Setup succeeded and Shutdown has not run since.
+   * Reports whether Setup succeeded and Shutdown has not run since.
    *
    * @return True when the runtime owns its memory, interfaces and subsystems.
    */
   bool is_setup() const { return setup_complete_; }
 
   /**
-   * Tests whether TerminateTitle runs.
+   * Reports whether TerminateTitle runs.
    *
    * @return True from the start of TerminateTitle.
    */
   bool is_terminating_title() const { return terminating_title_.load(std::memory_order_acquire); }
 
   /**
-   * Records a title terminate routine.
+   * Registers a title terminate notification. TerminateTitle calls it with its registration.
    *
-   * @param routine The guest routine.
-   * @param priority The priority.
+   * @param registration Address of the title's EX_TITLE_TERMINATE_REGISTRATION.
    */
-  void RegisterTitleTerminateNotification(u32 routine, u32 priority);
+  void RegisterTitleTerminateNotification(u32 registration);
 
   /**
-   * Forgets a title terminate routine.
+   * Removes a title terminate notification.
    *
-   * @param routine The guest routine.
+   * @param registration Address of the title's EX_TITLE_TERMINATE_REGISTRATION.
    */
-  void RemoveTitleTerminateNotification(u32 routine);
+  void RemoveTitleTerminateNotification(u32 registration);
 
  private:
   void CreateConcerns();
@@ -483,6 +486,7 @@ class Runtime {
   void SetExecutableModule(X_HANDLE module);
   void LoadAchievementsData();
   void SignalAllWaitableObjects();
+  void RunTerminateNotifications(std::chrono::milliseconds timeout);
 
   std::mutex title_exit_mutex_;
   std::move_only_function<void(runtime::TitleExitReason)> title_exit_callback_;
@@ -516,7 +520,8 @@ class Runtime {
   std::unique_ptr<runtime::Dispatcher> dispatcher_;
   u32 kernel_guest_globals_ = 0;
   std::atomic<bool> terminating_title_{false};
-  std::vector<runtime::TerminateNotification> terminate_notifications_;
+  rex::platform::RankedMutex terminate_mutex_{rex::platform::LockRank::Leaf};
+  std::vector<u32> terminate_registrations_;
   graphics::IGraphicsBackend* graphics_system_ = nullptr;
   std::unique_ptr<runtime::IAudioSystem> audio_system_;
   std::unique_ptr<runtime::IInputSystem> input_system_;

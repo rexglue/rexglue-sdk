@@ -24,6 +24,7 @@
 #include <rex/runtime/xobject.h>
 #include <rex/runtime/xsemaphore.h>
 #include <rex/runtime/xthread.h>
+#include <rex/runtime/xtimer.h>
 
 namespace rex::runtime {
 
@@ -321,7 +322,9 @@ Result<X_HANDLE> ObjectTable::OpenByName(std::string_view name) {
 
 std::optional<X_HANDLE> ObjectTable::ResolveGuestObject(u32 address, i32 as_type) {
   assert_not_null(memory_);
-  assert_true(address != 0);
+  if (address == 0) {
+    return std::nullopt;
+  }
   void* native_ptr = memory_->TranslateVirtual(address);
   auto* header = reinterpret_cast<X_DISPATCH_HEADER*>(native_ptr);
   std::lock_guard lock(identity_mutex_);
@@ -337,18 +340,27 @@ std::optional<X_HANDLE> ObjectTable::ResolveGuestObject(u32 address, i32 as_type
     case 1:
       added = Emplace<EventObject>(AddOptions{}, *header);
       break;
-    case 2:
-      assert_always();
-      added = Emplace<MutantObject>(AddOptions{});
+    case DISPATCHER_MUTANT: {
+      const auto* mutant = reinterpret_cast<const X_KMUTANT*>(native_ptr);
+      const bool owned_here = static_cast<i32>(static_cast<u32>(header->signal_state)) <= 0 &&
+                              ThreadRecord::IsInThread() &&
+                              ThreadRecord::GetCurrentThread()->guest_object() ==
+                                  static_cast<u32>(mutant->owner_thread);
+      added = Emplace<MutantObject>(AddOptions{}, owned_here);
       break;
+    }
     case 5: {
       added = Emplace<SemaphoreObject>(AddOptions{}, *reinterpret_cast<X_KSEMAPHORE*>(native_ptr));
       [[maybe_unused]] auto semaphore = Get<SemaphoreObject>(added.value_or(0));
       assert_true(semaphore && semaphore->semaphore);
       break;
     }
+    case DISPATCHER_MANUAL_RESET_TIMER:
+    case DISPATCHER_AUTO_RESET_TIMER:
+      added = Emplace<TimerObject>(AddOptions{}, static_cast<u32>(as_type - 8));
+      break;
     default:
-      assert_always();
+      REXLOG_WARN(system, "Guest object at {:08X} has the unsupported type {}", address, as_type);
       return std::nullopt;
   }
   const X_HANDLE handle = added.value_or(0);

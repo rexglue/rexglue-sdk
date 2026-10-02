@@ -304,7 +304,7 @@ u32 NetDll_WSAWaitForMultipleEvents_entry(u32 num_events, mapped_u32 events, u32
     return ~0u;
   }
 
-  uint64_t timeout_wait = (uint64_t)timeout;
+  u64 timeout_wait = static_cast<u64>(-static_cast<i64>(timeout) * 10000);
 
   X_STATUS result = 0;
   do {
@@ -317,7 +317,7 @@ u32 NetDll_WSAWaitForMultipleEvents_entry(u32 num_events, mapped_u32 events, u32
     ThreadRecord::SetLastError(error);
     return ~0u;
   }
-  return 0;
+  return result;
 }
 
 u32 NetDll_WSACreateEvent_entry() {

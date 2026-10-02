@@ -10,6 +10,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <array>
 #include <cassert>
 #include <string>
 
@@ -21,6 +22,18 @@ class Runtime;
 }  // namespace rex
 
 namespace rex::runtime {
+
+/** FP and vector state the Ke save exports hold for the routine running on this thread. */
+struct DPCSaveArea {
+  /** f0 to f31. */
+  std::array<PPCRegister, 32> fpr{};
+  /** The host FP control word, which holds the guest rounding and flush bits. */
+  u32 csr = 0;
+  /** v0 to v127. */
+  std::array<PPCVRegister, 128> vr{};
+  /** The VSCR saturation bit. */
+  u8 vscr_sat = 0;
+};
 
 class ThreadState {
  public:
@@ -45,6 +58,13 @@ class ThreadState {
    */
   Runtime* runtime() const { return runtime_; }
 
+  /**
+   * Returns the FP and vector save area of the Ke save exports.
+   *
+   * @return The area.
+   */
+  DPCSaveArea& dpc_save_area() { return dpc_save_area_; }
+
   static void Bind(ThreadState* thread_state);
   static ThreadState* Get();
   static uint32_t GetThreadID();
@@ -58,6 +78,7 @@ class ThreadState {
 
   alignas(64)::PPCContext context_storage_{};
   ::PPCContext* context_ = &context_storage_;
+  DPCSaveArea dpc_save_area_;
 };
 
 inline PPCContext* current_ppc_context() {

@@ -1,5 +1,6 @@
 #include "runtime/thread_registry.h"
 
+#include <algorithm>
 #include <cstring>
 #include <mutex>
 #include <shared_mutex>
@@ -286,6 +287,23 @@ void ThreadRegistry::DestroyFibers() {
     }
   }
   fiber_map_.clear();
+}
+
+void ThreadRegistry::RegisterThreadNotify(u32 notification) {
+  std::lock_guard lock(notify_mutex_);
+  if (std::ranges::find(thread_notifications_, notification) == thread_notifications_.end()) {
+    thread_notifications_.push_back(notification);
+  }
+}
+
+void ThreadRegistry::RemoveThreadNotify(u32 notification) {
+  std::lock_guard lock(notify_mutex_);
+  std::erase(thread_notifications_, notification);
+}
+
+std::vector<u32> ThreadRegistry::ThreadNotifications() {
+  std::lock_guard lock(notify_mutex_);
+  return thread_notifications_;
 }
 
 }  // namespace rex::runtime

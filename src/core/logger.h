@@ -258,7 +258,7 @@ namespace rex::detail {
 /**
  * Starts the process logger. ModuleLoader::Connect calls it before any module loads.
  *
- * @param config The log slice.
+ * @param config The log configuration.
  * @param cvars The core cvar registry.
  * @return Ok, or the first registration error.
  */

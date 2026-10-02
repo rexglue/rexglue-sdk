@@ -25,7 +25,8 @@ namespace rex::platform {
  * may be taken while a Leaf is held.
  */
 enum class LockRank : u8 {
-  Identity = 1,
+  Interrupt = 1,
+  Identity,
   Table,
   Name,
   ThreadRegistry,

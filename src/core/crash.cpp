@@ -10,6 +10,7 @@
 #include <exception>
 #include <format>
 #include <mutex>
+#include <thread>
 #include <typeinfo>
 
 #include <rex/logging.h>
@@ -38,6 +39,7 @@ CrashReporterOptions g_options;
 std::atomic<bool> g_installed{false};
 std::atomic<CrashAddressDescriber> g_describer{nullptr};
 std::atomic_flag g_reporting = ATOMIC_FLAG_INIT;
+thread_local bool t_reporting = false;
 std::terminate_handler g_previous_terminate = nullptr;
 
 void WriteLine(std::string_view text) {
@@ -147,6 +149,8 @@ void DescribeContext(u64 address) {
     }
     detail::ReportMessage(message);
     detail::EndReport();
+  } else {
+    detail::WaitForOtherReport();
   }
   std::abort();
 }
@@ -156,7 +160,20 @@ void DescribeContext(u64 address) {
 namespace detail {
 
 bool BeginReport() {
-  return !g_reporting.test_and_set(std::memory_order_acq_rel);
+  if (g_reporting.test_and_set(std::memory_order_acq_rel)) {
+    return false;
+  }
+  t_reporting = true;
+  return true;
+}
+
+void WaitForOtherReport() {
+  if (t_reporting) {
+    return;
+  }
+  for (;;) {
+    std::this_thread::sleep_for(std::chrono::hours(1));
+  }
 }
 
 bool IsCrashReporterInstalled() {

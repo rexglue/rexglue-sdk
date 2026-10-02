@@ -37,10 +37,6 @@
 
 namespace rex::runtime {
 
-const uint32_t XAPC::kSize;
-const uint32_t XAPC::kDummyKernelRoutine;
-const uint32_t XAPC::kDummyRundownRoutine;
-
 ThreadRecord::ThreadRecord(Runtime& runtime, uint32_t stack_size, uint32_t xapi_thread_startup,
                            uint32_t start_address, uint32_t start_context, uint32_t creation_flags,
                            bool guest_thread, bool main_thread, uint32_t guest_process)
@@ -119,7 +115,7 @@ ThreadRecord* ThreadRecord::GetCurrentThread() {
 
 void ThreadRecord::CheckTitleTermination() {
   ThreadRecord* self = GetBoundCurrentThread();
-  if (self && self->is_guest_thread() && self->is_running() &&
+  if (self && !self->exiting_ && self->is_guest_thread() && self->is_running() &&
       self->runtime().is_terminating_title()) {
     // Unwind cleanly at this safe point. Does not return.
     self->Exit(0);
@@ -173,9 +169,8 @@ static uint8_t GetFakeCpuNumber(uint8_t proc_mask) {
     return next_cpu;  // is this reasonable?
     // TODO(Triang3l): Does the following apply here?
     // https://docs.microsoft.com/en-us/windows/win32/dxtecharts/coding-for-multiple-cores
-    // "On Xbox 360, you must explicitly assign software threads to a particular
-    //  hardware thread by using XSetThreadProcessor. Otherwise, all child
-    //  threads will stay on the same hardware thread as the parent."
+    // A title assigns software threads to hardware threads through XSetThreadProcessor.
+    // Otherwise child threads stay on the hardware thread of their parent.
   }
   assert_false(proc_mask & 0xC0);
 
@@ -453,8 +448,6 @@ X_STATUS ThreadRecord::Create() {
   // the current CPU in KPCR and KTHREAD.
   SetActiveCpu(cpu_index);
 
-  // TODO(tomc): do we need thread notifications (related to processor thread management)?
-
   if ((creation_params_.creation_flags & X_CREATE_SUSPENDED) == 0) {
     // Start the thread now that we're all setup.
     thread_->Resume();
@@ -470,6 +463,11 @@ X_STATUS ThreadRecord::Exit(int exit_code) {
   // Terminate got here first and is about to kill this thread.
   if (exit_claimed_.exchange(true)) {
     rex::platform::Wait(exit_gate_.get(), false, std::chrono::milliseconds::max());
+  }
+  exiting_ = true;
+
+  if (!host_fn_ && !runtime_->is_terminating_title()) {
+    CallThreadNotifyRoutines(false);
   }
 
   // Mark as terminated before running down APCs.
@@ -497,8 +495,6 @@ X_STATUS ThreadRecord::Exit(int exit_code) {
                                           old_irql);
   }
 
-  // TODO(tomc): do we need thread notifications (related to processor thread management)?
-
   // The guest stack belongs to the thread's execution lifetime, not the handle
   // lifetime. Games can keep thread handles after exit; holding the stack until
   // object destruction leaks the reserved stack range and eventually makes
@@ -525,8 +521,6 @@ X_STATUS ThreadRecord::Terminate(int exit_code) {
   X_KTHREAD* thread = guest_object<X_KTHREAD>();
   thread->header.signal_state = 1;
   thread->exit_status = exit_code;
-
-  // TODO(tomc): do we need thread notifications (related to processor thread management)?
 
   if (ThreadRecord::IsInThread(this)) {
     FreeStack();
@@ -558,6 +552,8 @@ void ThreadRecord::Execute() {
   REXLOG_DEV(system, "Execute thid {} (handle={:08X}, '{}', native={:08X})", thread_id_, handle(),
              thread_name_, thread_->system_id());
 
+  thread_state_->context()->fpscr.InitHost();
+
   if (host_fn_) {
     Exit(host_fn_());
     return;
@@ -565,6 +561,7 @@ void ThreadRecord::Execute() {
 
   // Dispatch any APCs that were queued before the thread was created first.
   DeliverAPCs();
+  CallThreadNotifyRoutines(true);
 
   uint32_t address;
   std::vector<uint64_t> args;
@@ -603,7 +600,7 @@ void ThreadRecord::Execute() {
   uint8_t* base = memory->virtual_membase();
 
   // Pass arguments in r3, r4, ... per PPC calling convention
-  if (args.size() > 0)
+  if (!args.empty())
     ctx->r3.u64 = args[0];
   if (args.size() > 1)
     ctx->r4.u64 = args[1];
@@ -619,8 +616,6 @@ void ThreadRecord::Execute() {
     ctx->r9.u64 = args[6];
   if (args.size() > 7)
     ctx->r10.u64 = args[7];
-
-  ctx->fpscr.InitHost();
 
   // Convert this host thread to a fiber so SwitchTo works bidirectionally.
   // Required on Windows before any CreateFiber; provides the fallback handle
@@ -815,6 +810,16 @@ void ThreadRecord::RundownAPCs() {
   }
 }
 
+void ThreadRecord::CallThreadNotifyRoutines(bool create) {
+  auto* dispatcher = runtime_->function_dispatcher();
+  for (const u32 notification : registry_->ThreadNotifications()) {
+    const u32 routine =
+        memory()->TranslateVirtual<X_THREAD_NOTIFICATION*>(notification)->notify_routine;
+    u64 args[] = {create ? 1u : 0u};
+    dispatcher->ExecuteTrap(thread_state_.get(), routine, args, rex::countof(args));
+  }
+}
+
 int32_t ThreadRecord::QueryPriority() {
   return thread_->priority();
 }
@@ -888,7 +893,7 @@ void ThreadRecord::SetActiveCpu(uint8_t cpu_index) {
   }
 }
 
-bool ThreadRecord::GetTLSValue(uint32_t slot, uint32_t* value_out) {
+bool ThreadRecord::GetTLSValue(uint32_t slot, uint32_t* value_out) const {
   if (slot * 4 > tls_total_size_) {
     return false;
   }
@@ -898,6 +903,7 @@ bool ThreadRecord::GetTLSValue(uint32_t slot, uint32_t* value_out) {
   return true;
 }
 
+// NOLINTNEXTLINE(readability-make-member-function-const): writes guest memory
 bool ThreadRecord::SetTLSValue(uint32_t slot, uint32_t value) {
   if (slot * 4 >= tls_total_size_) {
     return false;
@@ -956,6 +962,10 @@ X_STATUS ThreadRecord::Resume(uint32_t* out_suspend_count) {
 }
 
 X_STATUS ThreadRecord::Suspend(uint32_t* out_suspend_count) {
+  const bool self = IsInThread(this);
+  if (self) {
+    CheckTitleTermination();
+  }
   auto guest_thread = guest_object<X_KTHREAD>();
   uint8_t previous_suspend_count =
       reinterpret_cast<std::atomic_uint8_t*>(&guest_thread->suspend_count)->fetch_add(1);
@@ -968,35 +978,33 @@ X_STATUS ThreadRecord::Suspend(uint32_t* out_suspend_count) {
   if (guest_thread->suspend_count == 0) {
     return X_STATUS_SUCCESS;
   }
-  return thread_->Suspend(&unused_host_suspend_count) ? X_STATUS_SUCCESS : X_STATUS_UNSUCCESSFUL;
+  const bool suspended = thread_->Suspend(&unused_host_suspend_count);
+  if (self) {
+    CheckTitleTermination();
+  }
+  return suspended ? X_STATUS_SUCCESS : X_STATUS_UNSUCCESSFUL;
 }
 
 #if REX_PLATFORM_LINUX || REX_PLATFORM_MAC
 uint32_t ThreadRecord::SelfSuspend() {
+  CheckTitleTermination();
   auto guest_thread = guest_object<X_KTHREAD>();
-  std::unique_lock<std::mutex> lock(suspend_mutex_);
-  uint32_t previous = guest_thread->suspend_count;
-  guest_thread->suspend_count++;
-  suspend_cv_.wait(lock, [guest_thread]() { return guest_thread->suspend_count == 0; });
+  uint32_t previous = 0;
+  {
+    std::unique_lock<std::mutex> lock(suspend_mutex_);
+    previous = guest_thread->suspend_count;
+    guest_thread->suspend_count++;
+    suspend_cv_.wait(lock, [guest_thread]() { return guest_thread->suspend_count == 0; });
+  }
+  CheckTitleTermination();
   return previous;
 }
 #endif
 
+// NOLINTNEXTLINE(readability-make-member-function-const): waits on the host thread
 X_STATUS ThreadRecord::Delay(uint32_t processor_mode, uint32_t alertable, uint64_t interval) {
-  int64_t timeout_ticks = interval;
-  uint32_t timeout_ms;
-  if (timeout_ticks > 0) {
-    // Absolute time, based on January 1, 1601.
-    // TODO(benvanik): convert time to relative time.
-    assert_always();
-    timeout_ms = 0;
-  } else if (timeout_ticks < 0) {
-    // Relative time.
-    timeout_ms = uint32_t(-timeout_ticks / 10000);  // Ticks -> MS
-  } else {
-    timeout_ms = 0;
-  }
-  timeout_ms = Clock::ScaleGuestDurationMillis(timeout_ms);
+  const u32 timeout_ms =
+      Clock::ScaleGuestDurationMillis(TimeoutTicksToMs(static_cast<i64>(interval)));
   CheckTitleTermination();
   if (alertable) {
     auto result = rex::platform::AlertableSleep(std::chrono::milliseconds(timeout_ms));

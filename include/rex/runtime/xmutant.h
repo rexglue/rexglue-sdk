@@ -19,6 +19,21 @@
 
 namespace rex::runtime {
 
+/** A guest KMUTANT. */
+struct X_KMUTANT {
+  /** Dispatcher header with type 2. */
+  X_DISPATCH_HEADER header;
+  /** Links the mutant in the owner's mutant list. */
+  X_LIST_ENTRY mutant_list_entry;
+  /** Guest KTHREAD of the owner, 0 when free. */
+  rex::be<u32> owner_thread;
+  /** Nonzero when the owner exited without a release. */
+  u8 abandoned;
+  /** Padding to the KMUTANT size. */
+  u8 reserved[3];
+};
+static_assert_size(X_KMUTANT, 0x20);
+
 /** The host state of a mutant object. */
 struct MutantObject {
   MutantObject() = default;
@@ -30,16 +45,18 @@ struct MutantObject {
 
   std::unique_ptr<rex::platform::Mutant> mutant;
   std::atomic<u32> owner_thread_id{0};
+  std::atomic<i32> hold_count{0};
 };
 
 /**
  * Releases a mutant held by the current thread.
  *
- * @param mutant The mutant.
+ * @param mutant Host state of the mutant.
  * @param abandon True to abandon the mutant, which is not implemented.
+ * @param previous_state Receives the signal state before the release, may be null.
  * @return X_STATUS_SUCCESS, or X_STATUS_MUTANT_NOT_OWNED when the caller does not own it.
  */
-X_STATUS MutantRelease(MutantObject& mutant, bool abandon);
+X_STATUS MutantRelease(MutantObject& mutant, bool abandon, i32* previous_state = nullptr);
 
 /**
  * Records the current thread as the owner after a successful wait.

@@ -11,6 +11,25 @@
 #include <rex/kernel/xam/private.h>
 #include <rex/logging.h>
 #include <rex/hook.h>
+#include <rex/runtime.h>
+#include <rex/runtime/xthread.h>
+
+namespace rex::kernel::xam {
+
+void XRegisterThreadNotifyRoutine_entry(ppc_ptr_t<runtime::X_THREAD_NOTIFICATION> notification,
+                                        u32 register_notification) {
+  auto& registry = runtime::Current().thread_registry();
+  if (register_notification) {
+    registry.RegisterThreadNotify(notification.guest_address());
+  } else {
+    registry.RemoveThreadNotify(notification.guest_address());
+  }
+}
+
+}  // namespace rex::kernel::xam
+
+REX_EXPORT(__imp__XRegisterThreadNotifyRoutine,
+           rex::kernel::xam::XRegisterThreadNotifyRoutine_entry)
 
 // kinda gross but oh well
 REX_EXPORT_STUB(__imp__CancelWaitableTimer);
@@ -257,7 +276,6 @@ REX_EXPORT_STUB(__imp__XOnlinepFriendsAcceptRequest);
 REX_EXPORT_STUB(__imp__XOnlinepFriendsRejectRequest);
 REX_EXPORT_STUB(__imp__XOnlinepFriendsRemove);
 REX_EXPORT_STUB(__imp__XOnlinepFriendsRequest);
-REX_EXPORT_STUB(__imp__XRegisterThreadNotifyRoutine);
 REX_EXPORT_STUB(__imp__XTLGetLanguageV2);
 REX_EXPORT_STUB(__imp__XTLGetLocaleV1);
 REX_EXPORT_STUB(__imp__XTestOnlineIsConnectedToLive);

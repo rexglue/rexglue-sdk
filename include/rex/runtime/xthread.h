@@ -84,10 +84,24 @@ struct XDPC {
     type = 19;
     selected_cpu_number = 0;
     desired_cpu_number = 0;
+    list_entry.flink_ptr = 0;
+    list_entry.blink_ptr = 0;
     routine = guest_func;
     context = guest_context;
+    arg1 = 0;
+    arg2 = 0;
   }
 };
+static_assert_size(XDPC, 0x1C);
+
+/** A guest XTHREAD_NOTIFICATION. */
+struct X_THREAD_NOTIFICATION {
+  /** Links the registration in the title's list. */
+  X_LIST_ENTRY list_entry;
+  /** Called with TRUE when a guest thread starts and FALSE when it exits. */
+  rex::be<u32> notify_routine;
+};
+static_assert_size(X_THREAD_NOTIFICATION, 0xC);
 
 struct XAPC {
   static constexpr uint32_t kSize = 40;
@@ -354,7 +368,7 @@ class ThreadRecord {
   ThreadRecord& operator=(const ThreadRecord&) = delete;
 
   /**
-   * Tests whether the calling thread is the given record.
+   * Reports whether the calling thread is the given record.
    *
    * @param other The record.
    * @return True when it is.
@@ -362,7 +376,7 @@ class ThreadRecord {
   static bool IsInThread(const ThreadRecord* other);
 
   /**
-   * Tests whether the calling thread has a record.
+   * Reports whether the calling thread has a record.
    *
    * @return True when it does.
    */
@@ -474,21 +488,21 @@ class ThreadRecord {
   u32 pcr_ptr() const { return pcr_address_; }
 
   /**
-   * Tests whether the title created the thread.
+   * Reports whether the title created the thread.
    *
    * @return True when it did.
    */
   bool is_guest_thread() const { return guest_thread_; }
 
   /**
-   * Tests whether this is the entry point thread.
+   * Reports whether this is the entry point thread.
    *
    * @return True when it is.
    */
   bool main_thread() const { return main_thread_; }
 
   /**
-   * Tests whether the thread is running.
+   * Reports whether the thread is running.
    *
    * @return True while it runs.
    */
@@ -631,7 +645,7 @@ class ThreadRecord {
    * @param value_out Receives the value.
    * @return True when the slot is in range.
    */
-  bool GetTLSValue(u32 slot, u32* value_out);
+  bool GetTLSValue(u32 slot, u32* value_out) const;
 
   /**
    * Writes a TLS slot.
@@ -706,6 +720,7 @@ class ThreadRecord {
   void InitializeGuestObject();
 
   void RundownAPCs();
+  void CallThreadNotifyRoutines(bool create);
 
   CreationParams creation_params_ = {0, 0, 0, 0, 0, 0};
 
@@ -724,6 +739,7 @@ class ThreadRecord {
   bool main_thread_ = false;
   std::atomic<bool> running_{false};
   std::atomic<bool> exit_claimed_{false};
+  bool exiting_ = false;
 
   std::string thread_name_;
   std::unique_ptr<runtime::ThreadState> thread_state_;

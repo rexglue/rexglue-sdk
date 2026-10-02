@@ -64,6 +64,14 @@ class Caller {
   u32 Load32(u32 address) const;
 
   /**
+   * Reads a byte from guest memory.
+   *
+   * @param address The guest address.
+   * @return The byte at the address.
+   */
+  u8 Load8(u32 address) const;
+
+  /**
    * Writes a big endian u32 to guest memory.
    *
    * @param address The guest address.

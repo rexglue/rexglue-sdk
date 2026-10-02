@@ -117,7 +117,7 @@ X_STATUS UserModuleGetOptHeader(ModuleObject& module, xex2_header_keys key,
  * Finds an optional header of an XEX header in memory and returns an address that recompiled code
  * can read.
  *
- * @param memory The guest memory.
+ * @param memory The memory that holds the header.
  * @param header The XEX header.
  * @param key The header key.
  * @param out_header_guest_ptr Receives the header value or the guest address of its data.

@@ -109,7 +109,7 @@ REX_API u32 current_thread_system_id();
 
 /**
  * Returns the ID of the calling thread. Equals current_thread_system_id() until
- * set_current_thread_id overrides it. guest threads set it to their guest thread handle.
+ * set_current_thread_id overrides it. Guest threads set it to their guest thread handle.
  *
  * @return Thread ID.
  */
@@ -136,8 +136,8 @@ REX_API void MaybeYield();
 REX_API void SyncMemory();
 
 /**
- * Sleeps the calling thread for at least the duration. On Windows a duration under 100
- * microseconds yields instead.
+ * Sleeps the calling thread for at least the duration. On Windows a high resolution waitable timer
+ * covers all but the last 250 microseconds, which spin on the steady clock. A duration of 0 yields.
  *
  * @param duration Sleep time.
  */
@@ -550,6 +550,12 @@ class REX_API Timer : public WaitHandle {
    * @return True on success.
    */
   virtual bool Cancel() = 0;
+
+  /**
+   * Stops the timer, drops pending callbacks and resets it to non signaled.
+   * @return True on success.
+   */
+  virtual bool Reset() = 0;
 };
 
 #if REX_PLATFORM_WIN32

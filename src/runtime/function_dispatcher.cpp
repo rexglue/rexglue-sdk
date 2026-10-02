@@ -17,12 +17,14 @@
 #include <rex/dbg.h>
 #include <rex/logging.h>
 #include <rex/perf/counter.h>
-#include <rex/platform/interrupt_mask.h>
 #include <rex/memory.h>
 #include <rex/ppc/context.h>
 #include <rex/runtime.h>
 #include <rex/runtime/function_dispatcher.h>
 #include <rex/runtime/thread_state.h>
+#include <rex/runtime/xthread.h>
+
+#include "runtime/dispatcher.h"
 
 namespace rex::runtime {
 
@@ -130,24 +132,25 @@ uint64_t FunctionDispatcher::Execute(ThreadState* thread_state, uint32_t address
 uint64_t FunctionDispatcher::ExecuteTrap(ThreadState* thread_state, uint32_t address,
                                          uint64_t args[], size_t arg_count) {
   auto* ctx = thread_state->context();
-  PPCContext saved = *ctx;
+  const PPCContext saved = *ctx;
+  const u32 saved_csr = ctx->fpscr.getcsr();
 
-  uint64_t result = Execute(thread_state, address, args, arg_count);
+  const uint64_t result = Execute(thread_state, address, args, arg_count);
 
   *ctx = saved;
-  ctx->fpscr.restoreGuestBits(saved.fpscr.csr);
+  ctx->fpscr.csr = saved_csr;
+  ctx->fpscr.setcsr(saved_csr);
   return result;
 }
 
-uint64_t FunctionDispatcher::ExecuteInterrupt(ThreadState* thread_state, uint32_t address,
-                                              uint64_t args[], size_t arg_count) {
-  REX_PROFILE_SCOPE("cpu");
-  REX_PERF_INC(kInterruptDispatches);
-
-  rex::platform::InterruptMask::Guard mask;
+uint64_t FunctionDispatcher::RunInterrupt(ThreadState* thread_state, uint32_t address,
+                                          uint64_t args[], size_t arg_count) {
+  std::lock_guard interrupt_lock(interrupt_mutex_);
 
   auto* ctx = thread_state->context();
   assert_true(arg_count <= 5);
+  const PPCContext saved = *ctx;
+  const u32 saved_csr = ctx->fpscr.getcsr();
 
   if (arg_count > 0)
     ctx->r3.u64 = args[0];
@@ -160,20 +163,39 @@ uint64_t FunctionDispatcher::ExecuteInterrupt(ThreadState* thread_state, uint32_
   if (arg_count > 4)
     ctx->r7.u64 = args[4];
 
-  // TLS ptr must be zero during interrupts. Some games check this and early-exit
-  // routines when under interrupts.
-  auto pcr_address = memory_->TranslateVirtual(static_cast<uint32_t>(ctx->r13.u64));
-  uint32_t old_tls_ptr = memory::load_and_swap<uint32_t>(pcr_address);
-  memory::store_and_swap<uint32_t>(pcr_address, 0);
+  auto* pcr = memory_->TranslateVirtual<X_KPCR*>(static_cast<u32>(ctx->r13.u64));
+  const u32 old_tls_ptr = pcr->tls_ptr;
+  const u8 old_irql = pcr->current_irql;
+  pcr->tls_ptr = 0;
+  pcr->current_irql = IRQL_DPC;
 
-  if (!Execute(thread_state, address)) {
-    return 0xDEADBABE;
+  const bool executed = Execute(thread_state, address);
+  const uint64_t result = executed ? ctx->r3.u64 : 0xDEADBABE;
+
+  pcr->current_irql = old_irql;
+  pcr->tls_ptr = old_tls_ptr;
+  *ctx = saved;
+  ctx->fpscr.csr = saved_csr;
+  ctx->fpscr.setcsr(saved_csr);
+  return result;
+}
+
+uint64_t FunctionDispatcher::ExecuteInterrupt(ThreadState* thread_state, uint32_t address,
+                                              uint64_t args[], size_t arg_count) {
+  REX_PROFILE_SCOPE("cpu");
+  REX_PERF_INC(kInterruptDispatches);
+
+  EnterInterrupt();
+  const uint64_t result = RunInterrupt(thread_state, address, args, arg_count);
+  if (LeaveInterrupt()) {
+    if (Runtime* runtime = thread_state->runtime()) {
+      ThreadState* previous = ThreadState::Get();
+      ThreadState::Bind(thread_state);
+      runtime->dispatcher().DrainDPCs();
+      ThreadState::Bind(previous);
+    }
   }
-
-  // Restore TLS ptr.
-  memory::store_and_swap<uint32_t>(pcr_address, old_tls_ptr);
-
-  return ctx->r3.u64;
+  return result;
 }
 
 // rexglue function table management

@@ -125,7 +125,7 @@ struct STFSVolumeDescriptor {
   }
 
   /**
-   * Tests whether the descriptor length matches the structure.
+   * Reports whether the descriptor length matches the structure.
    *
    * @return True when descriptor_length is 0x24.
    */
@@ -214,7 +214,7 @@ struct STFSHashEntry {
   }
 
   /**
-   * Tests whether a higher level entry uses its secondary table.
+   * Reports whether a higher level entry uses its secondary table.
    *
    * @return True when the active index bit is set.
    */
@@ -230,7 +230,7 @@ struct STFSHashEntry {
   }
 
   /**
-   * Tests whether a higher level entry is writable.
+   * Reports whether a higher level entry is writable.
    *
    * @return True when the writable bit is set.
    */
@@ -563,7 +563,7 @@ struct XContentHeader {
   be<u32> header_size;            /**< Header bytes including the metadata. */
 
   /**
-   * Tests whether the magic is CON, LIVE or PIRS.
+   * Reports whether the magic is CON, LIVE or PIRS.
    *
    * @return True when the magic names a package.
    */

@@ -129,3 +129,31 @@ TEST_CASE("threads: a queued user APC runs during an alertable wait", "[char][th
     c.Kernel("NtClose", {thread});
   });
 }
+
+TEST_CASE("threads: title termination ends a thread that suspends itself",
+          "[char][threads][terminate]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    auto handle = std::make_shared<std::atomic<u32>>(0);
+    auto suspending = std::make_shared<std::atomic<bool>>(false);
+    handle->store(c.Spawn([handle, suspending](Caller& o) {
+      while (handle->load() == 0) {
+        std::this_thread::yield();
+      }
+      for (;;) {
+        suspending->store(true);
+        o.Kernel("NtSuspendThread", {handle->load(), 0});
+      }
+    }));
+    while (!suspending->load()) {
+      std::this_thread::yield();
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  });
+  const auto start = std::chrono::steady_clock::now();
+  fixture.runtime().TerminateTitle();
+  const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                           std::chrono::steady_clock::now() - start)
+                           .count();
+  CHECK(elapsed < 1500);
+}

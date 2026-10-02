@@ -70,6 +70,7 @@ LONG WINAPI CrashFilter(EXCEPTION_POINTERS* info) {
     return g_previous_filter(info);
   }
   if (!detail::BeginReport()) {
+    detail::WaitForOtherReport();
     return EXCEPTION_CONTINUE_SEARCH;
   }
   HostThreadContext context{};
@@ -97,6 +98,8 @@ void AbortSignal(int) {
   if (detail::BeginReport()) {
     detail::ReportMessage("SIGABRT (abort, failed assertion or uncaught exception)");
     detail::EndReport();
+  } else {
+    detail::WaitForOtherReport();
   }
 }
 

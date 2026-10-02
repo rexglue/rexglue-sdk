@@ -9,6 +9,7 @@
 #include <rex/runtime/thread_state.h>
 
 #include "kernel_fixture.h"
+#include "runtime/dispatcher.h"
 
 using rex::testing::Caller;
 using rex::testing::KernelFixture;
@@ -24,6 +25,25 @@ void RecordOverlap(PPCContext& ctx, u8*) {
   while (now > expected && !g_max.compare_exchange_weak(expected, now)) {}
   std::this_thread::sleep_for(std::chrono::milliseconds(20));
   --g_active;
+  ctx.r3.u64 = 0;
+}
+
+std::atomic<u32> g_isr_irql{0xFF};
+std::atomic<u32> g_isr_dpc{0};
+u64 g_dpc_r14 = 0;
+u64 g_after_r14 = 0;
+double g_after_f14 = 0.0;
+
+void RecordDPCRegisters(PPCContext& ctx, u8*) {
+  g_dpc_r14 = ctx.r14.u64;
+  ctx.r3.u64 = 0;
+}
+
+void ClobberingISR(PPCContext& ctx, u8* base) {
+  g_isr_irql = *rex::runtime::Current().memory()->TranslateVirtual<u8*>(ctx.r13.u32 + 0x18);
+  ctx.r14.u64 = 0xDEAD;
+  ctx.f14.f64 = 7.5;
+  Caller(ctx, base, rex::runtime::Current()).Kernel("KeInsertQueueDpc", {g_isr_dpc.load(), 0, 0});
   ctx.r3.u64 = 0;
 }
 
@@ -94,6 +114,36 @@ TEST_CASE("DPC init and removal from 2 guest threads leaves the list empty", "[i
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {second, 1, 0, c.Quad(-100000000)}) == 0);
     c.Kernel("NtClose", {first});
     c.Kernel("NtClose", {second});
-    CHECK_FALSE(c.runtime().dispatcher().dpc_list().HasPending());
+    CHECK_FALSE(static_cast<rex::runtime::Dispatcher&>(c.runtime().dispatcher()).HasQueuedDPCs());
   });
+}
+
+TEST_CASE("An interrupt runs at IRQL 3 and leaves no register change behind", "[interrupt]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    auto* dispatcher = c.runtime().function_dispatcher();
+    const u32 isr = dispatcher->AllocateThunk(&ClobberingISR, 0);
+    const u32 dpc_routine = dispatcher->AllocateThunk(&RecordDPCRegisters, 0);
+    REQUIRE(isr != 0);
+    REQUIRE(dpc_routine != 0);
+    const u32 dpc = c.Alloc(0x20);
+    c.Kernel("KeInitializeDpc", {dpc, dpc_routine, 0});
+    g_isr_dpc = dpc;
+    const u32 pcr = c.Alloc(0x1000);
+    const u32 stack = c.Alloc(0x10000) + 0x8000;
+    std::thread interrupt([&] {
+      rex::runtime::ThreadState state(7, stack, pcr, c.runtime().memory(), &c.runtime());
+      state.context()->r14.u64 = 0x1111;
+      state.context()->f14.f64 = 2.5;
+      dispatcher->ExecuteInterrupt(&state, isr, nullptr, 0);
+      g_after_r14 = state.context()->r14.u64;
+      g_after_f14 = state.context()->f14.f64;
+    });
+    interrupt.join();
+    CHECK(c.Load8(pcr + 0x18) == 0);
+  });
+  CHECK(g_isr_irql == 3);
+  CHECK(g_after_r14 == 0x1111);
+  CHECK(g_after_f14 == 2.5);
+  CHECK(g_dpc_r14 == 0x1111);
 }

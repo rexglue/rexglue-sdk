@@ -84,6 +84,29 @@ TEST_CASE("a leaf lock may follow any lock and nothing may follow a leaf", "[loc
   rex::platform::SetLockOrderHandler(previous);
 }
 
+TEST_CASE("an interrupt lock comes before every other rank", "[lock_order]") {
+#ifdef NDEBUG
+  SKIP("lock order is checked in debug builds only");
+#endif
+  g_violations = 0;
+  auto previous = rex::platform::SetLockOrderHandler(&CountViolation);
+  {
+    RankedMutex interrupt(LockRank::Interrupt);
+    RankedMutex identity(LockRank::Identity);
+    RankedMutex leaf(LockRank::Leaf);
+    {
+      std::lock_guard interrupt_lock(interrupt);
+      std::lock_guard identity_lock(identity);
+      std::lock_guard leaf_lock(leaf);
+    }
+    CHECK(g_violations == 0);
+    std::lock_guard identity_lock(identity);
+    std::lock_guard interrupt_lock(interrupt);
+    CHECK(g_violations == 1);
+  }
+  rex::platform::SetLockOrderHandler(previous);
+}
+
 TEST_CASE("lock order is tracked per thread", "[lock_order]") {
 #ifdef NDEBUG
   SKIP("lock order is checked in debug builds only");

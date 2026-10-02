@@ -93,11 +93,46 @@ void SyncMemory() {
   MemoryBarrier();
 }
 
+namespace {
+
+struct SleepTimer {
+  SleepTimer()
+      : handle(CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,
+                                      TIMER_ALL_ACCESS)) {}
+  ~SleepTimer() {
+    if (handle) {
+      CloseHandle(handle);
+    }
+  }
+  HANDLE handle;
+};
+
+bool WaitOnSleepTimer(std::chrono::microseconds duration) {
+  thread_local SleepTimer timer;
+  if (!timer.handle) {
+    return false;
+  }
+  LARGE_INTEGER due;
+  due.QuadPart = -duration.count() * 10;
+  return SetWaitableTimer(timer.handle, &due, 0, nullptr, nullptr, FALSE) &&
+         WaitForSingleObject(timer.handle, INFINITE) == WAIT_OBJECT_0;
+}
+
+}  // namespace
+
 void Sleep(std::chrono::microseconds duration) {
-  if (duration.count() < 100) {
+  if (duration <= std::chrono::microseconds::zero()) {
     MaybeYield();
-  } else {
-    ::Sleep(static_cast<DWORD>(duration.count() / 1000));
+    return;
+  }
+  constexpr std::chrono::microseconds kSpinTail{250};
+  const auto target = std::chrono::steady_clock::now() + duration;
+  if (duration > kSpinTail && !WaitOnSleepTimer(duration - kSpinTail)) {
+    ::Sleep(static_cast<DWORD>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(duration - kSpinTail).count()));
+  }
+  while (std::chrono::steady_clock::now() < target) {
+    YieldProcessor();
   }
 }
 
@@ -324,6 +359,16 @@ class Win32Timer : public Win32Handle<Timer> {
     std::lock_guard<std::mutex> lock(mutex_);
     callback_ = nullptr;
     return CancelWaitableTimer(handle_) ? true : false;
+  }
+
+  bool Reset() override {
+    std::lock_guard<std::mutex> lock(mutex_);
+    callback_ = nullptr;
+    LARGE_INTEGER due_time_li;
+    due_time_li.QuadPart =
+        -std::chrono::duration_cast<rex::hundrednanoseconds>(std::chrono::hours(1)).count();
+    return SetWaitableTimer(handle_, &due_time_li, 0, nullptr, nullptr, FALSE) &&
+           CancelWaitableTimer(handle_);
   }
 
  private:

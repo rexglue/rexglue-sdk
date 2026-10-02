@@ -28,7 +28,6 @@ set(REXSYSTEM_SOURCES
 
     # Utilities
     object_table.cpp
-    util/native_list.cpp
     util/xdbf_utils.cpp
     util/gameinfo_utils.cpp
 

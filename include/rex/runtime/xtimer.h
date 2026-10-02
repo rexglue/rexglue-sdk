@@ -13,6 +13,7 @@
 #include <memory>
 
 #include <rex/platform/thread.h>
+#include <rex/platform/timer_queue.h>
 #include <rex/runtime/xobject.h>
 #include <rex/runtime/xtypes.h>
 
@@ -39,8 +40,10 @@ struct TimerObject {
    * @param timer_type 0 for a notification timer, 1 for a synchronization timer.
    */
   explicit TimerObject(u32 timer_type);
+  ~TimerObject();
 
   std::unique_ptr<rex::platform::Timer> timer;
+  std::weak_ptr<rex::platform::TimerQueueWaitItem> expiry;
   u32 callback_thread_id = 0;
   u32 callback_routine = 0;
   u32 callback_routine_arg = 0;
@@ -60,6 +63,21 @@ struct TimerObject {
  */
 X_STATUS TimerSet(TimerObject& timer, Runtime& runtime, i64 due_time, u32 period_ms, u32 routine,
                   u32 routine_arg, bool resume);
+
+/**
+ * Arms a KTIMER on the timer queue. At expiry the KTIMER header is updated, its DPC is queued with
+ * the expiry system time for the Kernel Dispatch thread to drain, and then the timer is signaled.
+ *
+ * @param timer Host state of the KTIMER.
+ * @param runtime The runtime that owns the dispatcher.
+ * @param ktimer Address of the title's KTIMER.
+ * @param due_time A negative relative time in 100 nanosecond ticks, or an absolute file time.
+ * @param period_ms The repeat period in milliseconds, 0 for a single shot.
+ * @param dpc Address of the title's KDPC, 0 for none.
+ * @return X_STATUS_SUCCESS, or X_STATUS_UNSUCCESSFUL.
+ */
+X_STATUS TimerSetDPC(TimerObject& timer, Runtime& runtime, u32 ktimer, i64 due_time, u32 period_ms,
+                     u32 dpc);
 
 /**
  * Cancels a timer.

@@ -72,6 +72,16 @@ TEST_CASE("handles: ObReferenceObjectByHandle and ObDereferenceObject keep the o
   });
 }
 
+TEST_CASE("handles: ObDereferenceObject and ObOpenObjectByPointer reject a null object",
+          "[char][handles]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle_ptr = c.Alloc(4);
+    CHECK(c.Kernel("ObDereferenceObject", {0}) == 0);
+    CHECK(c.Kernel("ObOpenObjectByPointer", {0, handle_ptr}) != 0);
+  });
+}
+
 TEST_CASE("handles: ObOpenObjectByPointer returns a closable handle", "[char][handles]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {

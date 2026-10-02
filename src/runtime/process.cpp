@@ -9,8 +9,11 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <algorithm>
 #include <cstring>
 #include <filesystem>
+#include <functional>
+#include <future>
 #include <type_traits>
 #include <variant>
 #include <vector>
@@ -22,12 +25,15 @@
 #include <rex/math.h>
 #include <rex/ppc/function.h>
 #include <rex/runtime.h>
+#include <rex/runtime/function_dispatcher.h>
 #include <rex/runtime/kernel_module.h>
+#include <rex/runtime/thread_state.h>
 #include <rex/runtime/user_module.h>
 #include <rex/runtime/util/native_list.h>
 #include <rex/runtime/xam/app_manager.h>
 #include <rex/runtime/xam/user_profile.h>
 #include <rex/runtime/xevent.h>
+#include <rex/runtime/xexception.h>
 #include <rex/runtime/xmodule.h>
 #include <rex/runtime/xmutant.h>
 #include <rex/runtime/xsemaphore.h>
@@ -102,7 +108,7 @@ void Runtime::CreateConcerns() {
 void Runtime::DestroyConcerns() {
   app_manager_.reset();
   if (dispatcher_) {
-    dispatcher_->Stop();
+    dispatcher_->Stop(config_.runtime.terminate_timeout);
   }
   if (module_registry_) {
     module_registry_->UnloadAll();
@@ -131,7 +137,10 @@ void Runtime::DestroyConcerns() {
   thread_registry_.reset();
   user_profile_.reset();
   content_manager_.reset();
-  terminate_notifications_.clear();
+  {
+    std::lock_guard lock(terminate_mutex_);
+    terminate_registrations_.clear();
+  }
   terminating_title_.store(false, std::memory_order_release);
 }
 
@@ -213,20 +222,61 @@ void Runtime::set_process_type(u32 value) {
   globals->title_process.process_type = u8(value);
 }
 
-void Runtime::RegisterTitleTerminateNotification(u32 routine, u32 priority) {
-  TerminateNotification notify;
-  notify.guest_routine = routine;
-  notify.priority = priority;
-
-  terminate_notifications_.push_back(notify);
+void Runtime::RegisterTitleTerminateNotification(u32 registration) {
+  std::lock_guard lock(terminate_mutex_);
+  if (std::ranges::find(terminate_registrations_, registration) == terminate_registrations_.end()) {
+    terminate_registrations_.push_back(registration);
+  }
 }
 
-void Runtime::RemoveTitleTerminateNotification(u32 routine) {
-  for (auto it = terminate_notifications_.begin(); it != terminate_notifications_.end(); it++) {
-    if (it->guest_routine == routine) {
-      terminate_notifications_.erase(it);
-      break;
+void Runtime::RemoveTitleTerminateNotification(u32 registration) {
+  std::lock_guard lock(terminate_mutex_);
+  std::erase(terminate_registrations_, registration);
+}
+
+void Runtime::RunTerminateNotifications(std::chrono::milliseconds timeout) {
+  std::vector<u32> registrations;
+  {
+    std::lock_guard lock(terminate_mutex_);
+    registrations = std::exchange(terminate_registrations_, {});
+  }
+  if (registrations.empty() || !dispatcher_ || !dispatcher_->IsRunning()) {
+    return;
+  }
+  auto* memory = memory_.get();
+  std::ranges::stable_sort(registrations, std::greater<>{}, [memory](u32 registration) {
+    return static_cast<i32>(static_cast<u32>(
+        memory->TranslateVirtual<X_EX_TITLE_TERMINATE_REGISTRATION*>(registration)->priority));
+  });
+  struct Progress {
+    std::atomic<u32> routine{0};
+    std::promise<void> done;
+  };
+  auto progress = std::make_shared<Progress>();
+  std::future<void> done = progress->done.get_future();
+  auto run = [memory, functions = function_dispatcher_.get(), registrations, progress] {
+    runtime::ThreadState* state = runtime::ThreadState::Get();
+    for (const u32 registration : registrations) {
+      const u32 routine = memory->TranslateVirtual<X_EX_TITLE_TERMINATE_REGISTRATION*>(registration)
+                              ->notification_routine;
+      progress->routine = routine;
+      REXLOG_INFO(system, "Title terminate notification {:08X} with registration {:08X}", routine,
+                  registration);
+      u64 args[] = {registration};
+      functions->ExecuteTrap(state, routine, args, rex::countof(args));
     }
+    progress->routine = 0;
+    progress->done.set_value();
+  };
+  if (dispatcher_->IsDispatchThread()) {
+    run();
+    return;
+  }
+  dispatcher_->Post(std::move(run));
+  if (done.wait_for(timeout) == std::future_status::timeout) {
+    REXLOG_WARN(system, "Title terminate notification {:08X} still running after {} ms",
+                progress->routine.load(), timeout.count());
+    dispatcher_->Stop(std::chrono::milliseconds(0));
   }
 }
 
@@ -311,6 +361,7 @@ void Runtime::TerminateTitle() {
   REXLOG_DEBUG(system, "Runtime::TerminateTitle");
 
   const auto timeout = config_.runtime.terminate_timeout;
+  RunTerminateNotifications(timeout);
 
   terminating_title_.store(true, std::memory_order_release);
 
@@ -325,6 +376,7 @@ void Runtime::TerminateTitle() {
   SignalAllWaitableObjects();
   for (auto& thread : target_threads) {
     thread->thread()->QueueUserCallback([] {});
+    while (thread->suspend_count() > 0 && thread->Resume() == X_STATUS_SUCCESS) {}
   }
 
   WaitForThreadsToExit(target_threads, timeout);

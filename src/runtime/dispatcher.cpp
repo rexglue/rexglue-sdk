@@ -18,9 +18,13 @@
 
 #include <rex/assert.h>
 #include <rex/logging.h>
+#include <rex/math.h>
 #include <rex/platform/thread.h>
 #include <rex/runtime.h>
 #include <rex/runtime/error.h>
+#include <rex/runtime/function_dispatcher.h>
+#include <rex/runtime/thread_state.h>
+#include <rex/runtime/util/native_list.h>
 #include <rex/runtime/xevent.h>
 #include <rex/runtime/xio.h>
 #include <rex/runtime/xobject.h>
@@ -31,10 +35,38 @@ namespace rex::runtime {
 namespace {
 
 constexpr u32 kDeferredOverlappedDelayMillis = 100;
+constexpr u32 kDPCStackSize = 64 * 1024;
+constexpr u32 kDPCStackTopReserve = 0x100;
+constexpr u32 kDPCListEntryOffset = 4;
+
+thread_local u32 t_interrupt_depth = 0;
+thread_local bool t_draining = false;
 
 }  // namespace
 
-Dispatcher::Dispatcher(Runtime& runtime) : runtime_(runtime), dpc_list_(runtime.memory()) {}
+void EnterInterrupt() {
+  ++t_interrupt_depth;
+}
+
+bool LeaveInterrupt() {
+  return --t_interrupt_depth == 0;
+}
+
+Dispatcher::Dispatcher(Runtime& runtime) : runtime_(runtime) {
+  auto* memory = runtime.memory();
+  dpc_list_head_ = memory->SystemHeapAlloc(sizeof(X_LIST_ENTRY));
+  util::XeInitializeListHead(memory->TranslateVirtual<X_LIST_ENTRY*>(dpc_list_head_),
+                             dpc_list_head_);
+}
+
+Dispatcher::~Dispatcher() {
+  if (dpc_stack_base_) {
+    runtime_.memory()->LookupHeap(dpc_stack_base_)->Release(dpc_stack_base_);
+  }
+  if (dpc_list_head_) {
+    runtime_.memory()->SystemHeapFree(dpc_list_head_);
+  }
+}
 
 void Dispatcher::CompleteOverlappedEx(u32 overlapped_ptr, X_RESULT result, u32 extended_error,
                                       u32 length) {
@@ -141,45 +173,162 @@ void Dispatcher::CompleteOverlappedDeferredEx(
   dispatch_cond_.notify_all();
 }
 
-Dispatcher::DPCImpersonationScope Dispatcher::BeginDPCImpersonation() {
-  auto* ctx = ThreadRecord::GetCurrentThread()->thread_state()->context();
-  auto pcr = runtime_.memory()->TranslateVirtual<X_KPCR*>(static_cast<u32>(ctx->r13.u64));
+Dispatcher::DPCImpersonationScope Dispatcher::BeginDPCImpersonation(X_KPCR& pcr) {
   DPCImpersonationScope scope;
-  scope.previous_irql_ = pcr->current_irql;
-  pcr->current_irql = IRQL_DISPATCH;
-  pcr->prcb_data.dpc_active = 1;
+  scope.previous_irql_ = pcr.current_irql;
+  pcr.current_irql = IRQL_DISPATCH;
+  pcr.prcb_data.dpc_active = 1;
   return scope;
 }
 
-void Dispatcher::EndDPCImpersonation(const DPCImpersonationScope& scope) {
-  auto* ctx = ThreadRecord::GetCurrentThread()->thread_state()->context();
-  auto pcr = runtime_.memory()->TranslateVirtual<X_KPCR*>(static_cast<u32>(ctx->r13.u64));
-  pcr->prcb_data.dpc_active = 0;
-  pcr->current_irql = scope.previous_irql_;
+void Dispatcher::EndDPCImpersonation(X_KPCR& pcr, const DPCImpersonationScope& scope) {
+  pcr.prcb_data.dpc_active = 0;
+  pcr.current_irql = scope.previous_irql_;
+}
+
+bool Dispatcher::QueueDPC(u32 dpc, u32 arg1, u32 arg2) {
+  auto* memory = runtime_.memory();
+  std::lock_guard lock(dpc_mutex_);
+  auto* object = memory->TranslateVirtual<XDPC*>(dpc);
+  if (object->selected_cpu_number) {
+    return false;
+  }
+  object->selected_cpu_number = 1;
+  object->arg1 = arg1;
+  object->arg2 = arg2;
+  util::XeInsertTailList(dpc_list_head_, dpc + kDPCListEntryOffset, memory);
+  return true;
+}
+
+bool Dispatcher::RemoveDPC(u32 dpc) {
+  auto* memory = runtime_.memory();
+  std::lock_guard lock(dpc_mutex_);
+  auto* object = memory->TranslateVirtual<XDPC*>(dpc);
+  if (!object->selected_cpu_number) {
+    return false;
+  }
+  util::XeRemoveEntryList(&object->list_entry, memory);
+  object->selected_cpu_number = 0;
+  return true;
+}
+
+bool Dispatcher::HasQueuedDPCs() {
+  auto* memory = runtime_.memory();
+  std::lock_guard lock(dpc_mutex_);
+  return !util::XeIsListEmpty(memory->TranslateVirtual<X_LIST_ENTRY*>(dpc_list_head_), memory);
+}
+
+std::optional<Dispatcher::QueuedDPC> Dispatcher::PopDPC() {
+  auto* memory = runtime_.memory();
+  std::lock_guard lock(dpc_mutex_);
+  auto* head = memory->TranslateVirtual<X_LIST_ENTRY*>(dpc_list_head_);
+  if (util::XeIsListEmpty(head, memory)) {
+    return std::nullopt;
+  }
+  const u32 address = util::XeRemoveHeadList(head, memory) - kDPCListEntryOffset;
+  auto* object = memory->TranslateVirtual<XDPC*>(address);
+  object->selected_cpu_number = 0;
+  return QueuedDPC{address, object->routine, object->context, object->arg1, object->arg2};
+}
+
+void Dispatcher::RunQueuedDPCs(ThreadState& state) {
+  auto* ctx = state.context();
+  auto& pcr = *runtime_.memory()->TranslateVirtual<X_KPCR*>(static_cast<u32>(ctx->r13.u64));
+  auto* functions = runtime_.function_dispatcher();
+  const DPCImpersonationScope scope = BeginDPCImpersonation(pcr);
+  while (const std::optional<QueuedDPC> dpc = PopDPC()) {
+    const u64 saved_r1 = ctx->r1.u64;
+    ctx->r1.u64 = dpc_stack_top_;
+    u64 args[] = {dpc->address, dpc->context, dpc->arg1, dpc->arg2};
+    functions->ExecuteTrap(&state, dpc->routine, args, rex::countof(args));
+    ctx->r1.u64 = saved_r1;
+  }
+  EndDPCImpersonation(pcr, scope);
+}
+
+void Dispatcher::DrainDPCs() {
+  ThreadState* state = ThreadState::Get();
+  if (!state || !state->context()->r13.u64 || !dpc_stack_top_ || t_interrupt_depth || t_draining) {
+    return;
+  }
+  while (HasQueuedDPCs()) {
+    bool expected = false;
+    if (!draining_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
+      return;
+    }
+    t_draining = true;
+    RunQueuedDPCs(*state);
+    t_draining = false;
+    draining_.store(false, std::memory_order_release);
+  }
+}
+
+void Dispatcher::Post(std::function<void()> work) {
+  {
+    std::lock_guard lock(dispatch_mutex_);
+    dispatch_queue_.push_back(std::move(work));
+  }
+  dispatch_cond_.notify_all();
+}
+
+void Dispatcher::PostDrain() {
+  Post([this] { DrainDPCs(); });
+}
+
+bool Dispatcher::IsDispatchThread() const {
+  return dispatch_thread_ && ThreadRecord::IsInThread() &&
+         ThreadRecord::GetCurrentThread()->handle() == dispatch_thread_;
+}
+
+bool Dispatcher::IsRunning() const {
+  return dispatch_thread_running_.load();
+}
+
+bool Dispatcher::TrackTimerExpiry(std::weak_ptr<rex::platform::TimerQueueWaitItem> expiry) {
+  std::lock_guard lock(expiry_mutex_);
+  if (expiries_stopped_) {
+    return false;
+  }
+  std::erase_if(timer_expiries_, [](const auto& item) { return item.expired(); });
+  timer_expiries_.push_back(std::move(expiry));
+  return true;
 }
 
 void Dispatcher::Start() {
   if (dispatch_thread_running_) {
     return;
   }
+  {
+    std::lock_guard lock(expiry_mutex_);
+    expiries_stopped_ = false;
+  }
+  if (!dpc_stack_base_) {
+    auto* heap = runtime_.memory()->LookupHeap(ThreadRecord::kStackAddressRangeBegin);
+    u32 address = 0;
+    if (heap->AllocRange(ThreadRecord::kStackAddressRangeBegin, ThreadRecord::kStackAddressRangeEnd,
+                         kDPCStackSize, heap->page_size(),
+                         kMemoryAllocationReserve | kMemoryAllocationCommit,
+                         kMemoryProtectRead | kMemoryProtectWrite, false, &address)) {
+      dpc_stack_base_ = address;
+      dpc_stack_top_ = address + kDPCStackSize - kDPCStackTopReserve;
+    } else {
+      REXLOG_ERROR(system, "Unable to allocate the DPC stack");
+    }
+  }
   dispatch_thread_running_ = true;
   auto record = std::make_unique<ThreadRecord>(runtime_, 128 * 1024, 0, [this]() {
-    std::unique_lock lock(dispatch_mutex_, std::defer_lock);
-    while (dispatch_thread_running_) {
-      lock.lock();
-      if (dispatch_queue_.empty()) {
-        dispatch_cond_.wait(lock);
-        if (!dispatch_thread_running_) {
-          lock.unlock();
-          break;
-        }
+    std::unique_lock lock(dispatch_mutex_);
+    for (;;) {
+      dispatch_cond_.wait(lock,
+                          [this] { return !dispatch_queue_.empty() || !dispatch_thread_running_; });
+      if (!dispatch_thread_running_) {
+        break;
       }
       auto fn = std::move(dispatch_queue_.front());
       dispatch_queue_.pop_front();
       REXLOG_DEV(system, "Dispatch thread processing queued item ({} remaining)",
                  dispatch_queue_.size());
       lock.unlock();
-
       try {
         fn();
       } catch (const std::exception& e) {
@@ -188,6 +337,7 @@ void Dispatcher::Start() {
         REX_FATAL(system, "Dispatch thread: deferred completion threw non-std exception");
       }
       REXLOG_DEV(system, "Dispatch thread completed item");
+      lock.lock();
     }
     return 0;
   });
@@ -202,15 +352,36 @@ void Dispatcher::Start() {
   dispatch_thread_ = *launched;
 }
 
-void Dispatcher::Stop() {
-  if (!dispatch_thread_running_) {
-    return;
+void Dispatcher::Stop(std::chrono::milliseconds timeout) {
+  {
+    std::lock_guard lock(expiry_mutex_);
+    expiries_stopped_ = true;
+    for (const auto& expiry : timer_expiries_) {
+      if (auto item = expiry.lock()) {
+        item->Disarm();
+      }
+    }
+    timer_expiries_.clear();
   }
-  dispatch_thread_running_ = false;
-  dispatch_cond_.notify_all();
-  WaitOn(runtime_, dispatch_thread_, 0, 0, 0, nullptr);
-  (void)runtime_.object_table().Close(dispatch_thread_);
-  dispatch_thread_ = 0;
+  if (dispatch_thread_running_) {
+    {
+      std::lock_guard lock(dispatch_mutex_);
+      dispatch_thread_running_ = false;
+    }
+    dispatch_cond_.notify_all();
+    u64 wait = static_cast<u64>(-static_cast<i64>(timeout.count()) * 10000);
+    if (WaitOn(runtime_, dispatch_thread_, 0, 0, 0, &wait) == X_STATUS_TIMEOUT) {
+      REXLOG_WARN(system, "Kernel Dispatch thread still running after {} ms, terminating it",
+                  timeout.count());
+      if (ThreadPin thread = runtime_.thread_registry().FindByHandle(dispatch_thread_)) {
+        thread->Terminate(0);
+      }
+    }
+    (void)runtime_.object_table().Close(dispatch_thread_);
+    dispatch_thread_ = 0;
+    std::lock_guard lock(dispatch_mutex_);
+    dispatch_queue_.clear();
+  }
 }
 
 }  // namespace rex::runtime

@@ -11,6 +11,7 @@
 
 #include <rex/runtime/xobject.h>
 
+#include <algorithm>
 #include <chrono>
 #include <mutex>
 #include <type_traits>
@@ -95,14 +96,17 @@ X_STATUS MapResult(rex::platform::WaitResult result) {
 }  // namespace
 
 u32 TimeoutTicksToMs(i64 timeout_ticks) {
-  if (timeout_ticks > 0) {
-    assert_always();
-    return 0;
-  }
+  constexpr u64 kTicksPerMs = 10000;
+  constexpr u64 kLongestMs = 0xFFFFFFFE;
+  u64 ticks = 0;
   if (timeout_ticks < 0) {
-    return static_cast<u32>(-timeout_ticks / 10000);
+    ticks = 0 - static_cast<u64>(timeout_ticks);
+  } else if (timeout_ticks > 0) {
+    const u64 now = Clock::QueryGuestSystemTime();
+    const u64 deadline = static_cast<u64>(timeout_ticks);
+    ticks = deadline > now ? deadline - now : 0;
   }
-  return 0;
+  return static_cast<u32>(std::min(ticks / kTicksPerMs, kLongestMs));
 }
 
 std::string NameFromAttributes(runtime::Memory* memory, u32 obj_attributes_ptr) {
@@ -155,7 +159,7 @@ X_STATUS WaitOn(Runtime& runtime, X_HANDLE handle, u32 wait_reason, u32 processo
   auto result = rex::platform::Wait(target.handle, alertable ? true : false, timeout);
   ThreadRecord::CheckTitleTermination();
   const X_STATUS status = MapResult(result);
-  if (status == X_STATUS_SUCCESS && target.mutant) {
+  if ((status == X_STATUS_SUCCESS || status == X_STATUS_ABANDONED_WAIT_0) && target.mutant) {
     MutantAcquired(*target.mutant);
   }
   return status;
@@ -171,7 +175,7 @@ X_STATUS SignalAndWaitOn(Runtime& runtime, X_HANDLE signal_handle, X_HANDLE wait
   auto result = rex::platform::SignalAndWait(signal.handle, wait.handle, alertable ? true : false,
                                              TimeoutOf(opt_timeout));
   const X_STATUS status = MapResult(result);
-  if (status == X_STATUS_SUCCESS && wait.mutant) {
+  if ((status == X_STATUS_SUCCESS || status == X_STATUS_ABANDONED_WAIT_0) && wait.mutant) {
     MutantAcquired(*wait.mutant);
   }
   return status;
@@ -212,6 +216,9 @@ X_STATUS WaitOnMany(Runtime& runtime, std::span<const X_HANDLE> handles, u32 wai
       case rex::platform::WaitResult::kFailed:
         return X_STATUS_UNSUCCESSFUL;
       default:
+        if (targets[result.second].mutant) {
+          MutantAcquired(*targets[result.second].mutant);
+        }
         return X_STATUS(X_STATUS_ABANDONED_WAIT_0 + result.second);
     }
   }
@@ -231,6 +238,11 @@ X_STATUS WaitOnMany(Runtime& runtime, std::span<const X_HANDLE> handles, u32 wai
       rex::platform::MaybeYield();
       return X_STATUS_TIMEOUT;
     default:
+      for (WaitTarget& target : targets) {
+        if (target.mutant) {
+          MutantAcquired(*target.mutant);
+        }
+      }
       return X_STATUS_ABANDONED_WAIT_0;
   }
 }

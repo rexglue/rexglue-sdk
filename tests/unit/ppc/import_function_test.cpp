@@ -47,3 +47,10 @@ TEST_CASE("SetIntegerArgumentValue still works for register args 0-7", "[ppc][ar
   CHECK(ctx.r3.u64 == 0xAAAA);
   CHECK(ctx.r10.u64 == 0xBBBB);
 }
+
+TEST_CASE("A size_t argument reads the low word of a sign extended register",
+          "[ppc][arg_translator]") {
+  PPCContext ctx{};
+  ctx.r3.u64 = 0xFFFFFFFF00000010ull;
+  CHECK(ArgTranslator::GetValue<size_t>(ctx, g_test_mem, 0) == 0x10);
+}

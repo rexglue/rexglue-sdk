@@ -29,6 +29,7 @@ namespace {
 constexpr size_t kAltStackSize = 128 * 1024;
 constexpr int kBacktraceFrames = 32;
 constexpr u32 kMaxRepeatedFaults = 64;
+constexpr u32 kReportWatchdogSeconds = 10;
 constexpr std::array kReporterSignals = {SIGSEGV, SIGILL, SIGBUS, SIGFPE, SIGABRT};
 
 std::array<bool, kReporterSignals.size()> g_owned{};
@@ -161,9 +162,18 @@ namespace detail {
 }
 
 void ReportFatalSignal(int signal_number, siginfo_t* info, void* signal_context) {
-  if (!IsCrashReporterInstalled() || !BeginReport()) {
+  if (!IsCrashReporterInstalled()) {
     return;
   }
+  if (!BeginReport()) {
+    WaitForOtherReport();
+    return;
+  }
+  struct sigaction watchdog{};
+  watchdog.sa_handler = SIG_DFL;
+  sigemptyset(&watchdog.sa_mask);
+  sigaction(SIGALRM, &watchdog, nullptr);
+  alarm(kReportWatchdogSeconds);
   HostThreadContext context{};
   std::string_view access;
   const bool has_context = ReadContext(signal_context, context, access);

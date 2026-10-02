@@ -205,11 +205,9 @@ u32 XexGetProcedureAddress_entry(mapped_void hmodule, u32 ordinal, mapped_u32 ou
 void ExRegisterTitleTerminateNotification_entry(ppc_ptr_t<X_EX_TITLE_TERMINATE_REGISTRATION> reg,
                                                 u32 create) {
   if (create) {
-    // Adding.
-    runtime::Current().RegisterTitleTerminateNotification(reg->notification_routine, reg->priority);
+    runtime::Current().RegisterTitleTerminateNotification(reg.guest_address());
   } else {
-    // Removing.
-    runtime::Current().RemoveTitleTerminateNotification(reg->notification_routine);
+    runtime::Current().RemoveTitleTerminateNotification(reg.guest_address());
   }
 }
 

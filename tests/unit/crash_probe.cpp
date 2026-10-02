@@ -55,6 +55,12 @@ std::string DescribeForProbe(rex::u64 address) {
   return "probe describer " + std::to_string(address);
 }
 
+std::string DescribeWhileAnotherThreadFaults(rex::u64) {
+  std::thread([] { WriteNull(); }).detach();
+  std::this_thread::sleep_for(std::chrono::milliseconds(300));
+  return "probe concurrent describer";
+}
+
 std::pair<rex::u32, rex::u32> IgnoreInvalidation(void*, rex::u32, rex::u32, bool) {
   return {0, UINT32_MAX};
 }
@@ -104,6 +110,9 @@ int Run(std::string_view mode) {
     std::thread([] { WriteNull(); }).join();
   } else if (mode == "describer") {
     rex::platform::SetCrashAddressDescriber(DescribeForProbe);
+    WriteNull();
+  } else if (mode == "concurrent") {
+    rex::platform::SetCrashAddressDescriber(DescribeWhileAnotherThreadFaults);
     WriteNull();
   }
   return 4;

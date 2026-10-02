@@ -19,6 +19,7 @@
 #include <rex/runtime/xmemory.h>
 
 #include "../test_memory.h"
+#include "runtime/dispatcher.h"
 
 namespace rex::testing {
 
@@ -109,6 +110,10 @@ u32 Caller::Load32(u32 address) const {
   return memory::load_and_swap<u32>(runtime_.memory()->TranslateVirtual(address));
 }
 
+u8 Caller::Load8(u32 address) const {
+  return *runtime_.memory()->TranslateVirtual<u8*>(address);
+}
+
 void Caller::Store32(u32 address, u32 value) {
   memory::store_and_swap<u32>(runtime_.memory()->TranslateVirtual(address), value);
 }
@@ -181,6 +186,7 @@ KernelFixture::KernelFixture(const std::function<void(const std::filesystem::pat
                                               /*is_entrypoint=*/true));
   Caller::start_thunk = dispatcher->AllocateThunk(&TestStart, 0);
   REQUIRE(Caller::start_thunk != 0);
+  static_cast<runtime::Dispatcher&>(runtime().dispatcher()).Start();
 }
 
 KernelFixture::~KernelFixture() = default;

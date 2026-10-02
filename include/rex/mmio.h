@@ -42,7 +42,7 @@ constexpr u32 MMIOBlockBase(MMIOBlock block) {
 /**
  * Finds the register block that holds an address.
  *
- * @param address Guest address.
+ * @param address The guest address.
  * @return The block, or std::nullopt when the address is outside both blocks.
  */
 constexpr std::optional<MMIOBlock> MMIOBlockOf(u32 address) {
@@ -56,9 +56,9 @@ constexpr std::optional<MMIOBlock> MMIOBlockOf(u32 address) {
 }
 
 /**
- * Tests whether an address lies in a register block.
+ * Reports whether an address is in a register block.
  *
- * @param address Guest address.
+ * @param address The guest address.
  * @return True when the address is in the GPU or APU block.
  */
 constexpr bool IsMMIOBlockAddress(u32 address) {
@@ -76,8 +76,8 @@ struct MMIORecipient {
 };
 
 /**
- * Routes the loads and stores of a block to a recipient. Call it in a module's Init, before the
- * title starts. A recipient with no read or no write handler is refused with an error.
+ * Routes the loads and stores of a block to a recipient. A recipient with no read or no write
+ * handler is refused with an error.
  *
  * @param block The register block.
  * @param recipient The handler and its context.
@@ -85,8 +85,7 @@ struct MMIORecipient {
 REX_API void AttachMMIO(MMIOBlock block, const MMIORecipient& recipient);
 
 /**
- * Restores the null recipient when the block still routes to the context. Call it in a module's
- * Shutdown, after the title stops.
+ * Restores the null recipient when the block still routes to the context.
  *
  * @param block The register block.
  * @param context The context the owner attached.
@@ -95,13 +94,13 @@ REX_API void DetachMMIO(MMIOBlock block, const void* context);
 
 namespace detail {
 
-/** Recipient of each block, indexed by MMIOBlock. Generated code calls through it directly. */
+/** Recipient of each block, indexed by MMIOBlock. */
 REX_API extern MMIORecipient mmio_slots[2];
 
 /**
  * Loads a register for a guarded access.
  *
- * @param address Guest address.
+ * @param address The guest address.
  * @return The register value, or 0 when the address is outside both blocks.
  */
 REX_API u32 MMIOLoad(u32 address);
@@ -109,7 +108,7 @@ REX_API u32 MMIOLoad(u32 address);
 /**
  * Stores a register for a guarded access. A store outside both blocks is dropped.
  *
- * @param address Guest address.
+ * @param address The guest address.
  * @param value The register value.
  */
 REX_API void MMIOStore(u32 address, u32 value);

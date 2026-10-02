@@ -24,6 +24,7 @@
 
 #include <rex/memory.h>
 #include <rex/memory/mapped_memory.h>
+#include <rex/platform/lock_order.h>
 #include <rex/ppc/func.h>
 #include <rex/runtime/thread_state.h>
 
@@ -110,6 +111,8 @@ class FunctionDispatcher : public IModuleRegistrar {
 
  private:
   bool Execute(ThreadState* thread_state, uint32_t address);
+  uint64_t RunInterrupt(ThreadState* thread_state, uint32_t address, uint64_t args[],
+                        size_t arg_count);
 
   struct ModuleTableInfo {
     uint32_t code_base;
@@ -147,6 +150,8 @@ class FunctionDispatcher : public IModuleRegistrar {
 
   // Protects dispatcher metadata during module registration and callback dispatch.
   mutable std::recursive_mutex dispatch_mutex_;
+
+  rex::platform::RankedMutex interrupt_mutex_{rex::platform::LockRank::Interrupt};
 };
 
 }  // namespace rex::runtime

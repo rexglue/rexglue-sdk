@@ -163,7 +163,7 @@ class IObjectTable {
    *
    * @param address The guest address of the dispatch header.
    * @param as_type The dispatcher object type to create, -1 for the type in the header.
-   * @return The handle, empty for a header type the table cannot create.
+   * @return The handle, empty for a null address or a header type the table cannot create.
    */
   [[nodiscard]] virtual std::optional<X_HANDLE> ResolveGuestObject(u32 address, i32 as_type) = 0;
 

@@ -49,6 +49,8 @@ class ThreadRegistry final : public IThreadRegistry {
   void RegisterFiber(u32 address, const FiberInfo& info) override;
   void UnregisterFiber(u32 address) override;
   const char* GetOrCreateFiberName(u32 address, const char* thread_name) override;
+  void RegisterThreadNotify(u32 notification) override;
+  void RemoveThreadNotify(u32 notification) override;
 
   /**
    * Records that a thread finished running. The record is destroyed when its last handle is
@@ -69,6 +71,13 @@ class ThreadRegistry final : public IThreadRegistry {
   /** Destroys the host fibers no title deleted and frees their guest stacks and context blocks. */
   void DestroyFibers();
 
+  /**
+   * Returns a copy of the registered thread notifications.
+   *
+   * @return The addresses of the title's XTHREAD_NOTIFICATION blocks, in registration order.
+   */
+  std::vector<u32> ThreadNotifications();
+
  private:
   static void Dispose(std::unique_ptr<ThreadRecord> record);
 
@@ -78,6 +87,8 @@ class ThreadRegistry final : public IThreadRegistry {
   std::unordered_map<u32, std::unique_ptr<ThreadRecord>> threads_;
   std::atomic<u32> next_id_{0};
   rex::platform::RankedMutex fiber_mutex_{rex::platform::LockRank::Leaf};
+  rex::platform::RankedMutex notify_mutex_{rex::platform::LockRank::Leaf};
+  std::vector<u32> thread_notifications_;
   std::unordered_map<u32, FiberInfo> fiber_map_;
   std::mutex fiber_name_pool_mutex_;
   std::unordered_map<u32, std::unique_ptr<char[]>> fiber_name_pool_;

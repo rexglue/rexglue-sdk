@@ -140,17 +140,17 @@ inline void StashHandle(X_DISPATCH_HEADER* header, u32 handle) {
 }
 
 /**
- * Converts a relative timeout in 100 nanosecond ticks to milliseconds.
+ * Converts a wait timeout in 100 nanosecond ticks to milliseconds.
  *
- * @param timeout_ticks A negative relative timeout, or 0.
- * @return The milliseconds. A positive absolute timeout asserts and returns 0.
+ * @param timeout_ticks A negative relative timeout, a positive absolute system time, or 0.
+ * @return The milliseconds until the timeout, 0 when it has passed.
  */
 u32 TimeoutTicksToMs(i64 timeout_ticks);
 
 /**
  * Reads the object name out of an X_OBJECT_ATTRIBUTES.
  *
- * @param memory The guest memory.
+ * @param memory The memory that holds the attributes and the name.
  * @param obj_attributes_ptr The guest address of the attributes, or 0.
  * @return The name, empty when the attributes or the name pointer are null.
  */

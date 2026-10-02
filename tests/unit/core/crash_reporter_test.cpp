@@ -126,6 +126,13 @@ TEST_CASE("A fault on a thread the SDK did not start is reported", "[crash]") {
   CHECK(result.Reported());
 }
 
+TEST_CASE("A fault during another thread's report waits for the report to finish", "[crash]") {
+  const auto result = RunProbe("concurrent");
+  CHECK(result.status != 0);
+  CHECK(result.Has("probe concurrent describer"));
+  CHECK(result.Has("==== end of crash report ===="));
+}
+
 TEST_CASE("The describer text is part of the report", "[crash]") {
   const auto result = RunProbe("describer");
   CHECK(result.status != 0);

@@ -49,7 +49,7 @@ class ThreadPin {
   ~ThreadPin() { Reset(); }
 
   /**
-   * Tests whether the pin holds a record.
+   * Reports whether the pin holds a record.
    *
    * @return True when it does.
    */
@@ -174,6 +174,20 @@ class IThreadRegistry {
    * @return The name.
    */
   [[nodiscard]] virtual const char* GetOrCreateFiberName(u32 address, const char* thread_name) = 0;
+
+  /**
+   * Registers a thread notification. Every guest thread calls it at start and at exit.
+   *
+   * @param notification Address of the title's XTHREAD_NOTIFICATION.
+   */
+  virtual void RegisterThreadNotify(u32 notification) = 0;
+
+  /**
+   * Removes a thread notification.
+   *
+   * @param notification Address of the title's XTHREAD_NOTIFICATION.
+   */
+  virtual void RemoveThreadNotify(u32 notification) = 0;
 };
 
 }  // namespace rex::runtime
