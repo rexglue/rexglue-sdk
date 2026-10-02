@@ -54,9 +54,9 @@ std::string ManifestPath(const fs::path& target, const fs::path& base) {
   std::error_code ec;
   fs::path rel = fs::relative(target, base, ec);
   if (ec || rel.empty()) {
-    return LowercaseAscii(target.generic_string());
+    return target.generic_string();
   }
-  return LowercaseAscii(rel.generic_string());
+  return rel.generic_string();
 }
 
 std::string ModuleStem(const fs::path& xex) {
