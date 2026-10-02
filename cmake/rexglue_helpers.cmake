@@ -109,12 +109,13 @@ function(rexglue_configure_target target_name)
             COMMAND_EXPAND_LISTS
             VERBATIM
         )
-    elseif(APPLE)
-        # macOS: $<TARGET_RUNTIME_DLLS> does not resolve imported dylibs, so
-        # stage the shared runtime libraries explicitly next to the executable
-        # (paired with the @executable_path rpath above). Everything else the
-        # runtime links (fmt, spdlog, SDL3, ...) is static. Target names
-        # differ between an in-tree build and an installed SDK import.
+    elseif(UNIX)
+        # UNIX (Linux & macOS): $<TARGET_RUNTIME_DLLS> does not resolve imported
+        # .so / .dylib files, so stage the shared runtime libraries explicitly
+        # next to the executable (paired with the $ORIGIN / @executable_path
+        # rpath above). Everything else the runtime links (fmt, spdlog, SDL3,
+        # ...) is static. Target names differ between an in-tree build and an
+        # installed SDK import.
         foreach(_rexglue_runtime_lib rex::runtime rexruntime rex::TracyClient TracyClient)
             if(TARGET ${_rexglue_runtime_lib})
                 add_custom_command(TARGET ${target_name} POST_BUILD
