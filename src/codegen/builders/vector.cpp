@@ -1505,13 +1505,16 @@ bool build_vupkd3d128(BuilderContext& ctx) {
       // x, y, z --> floats, w --> float
       ctx.println("\t{}.u64[0] = {}.u64[1];", ctx.v_temp(), vSrc);
       // x (bits 0-19) - sign extend from 20 bits
-      ctx.println("\t{}.s32 = (int32_t({}.u64[0] << 44) >> 44);", ctx.temp(), ctx.v_temp());
+      ctx.println("\t{}.s32 = int32_t({}.u64[0] & 0xFFFFF);", ctx.temp(), ctx.v_temp());
+      ctx.println("\t{}.s32 = ({}.s32 ^ 0x80000) - 0x80000;", ctx.temp(), ctx.temp());
       ctx.println("\t{}.f32[0] = float({}.s32);", vDst, ctx.temp());
       // y (bits 20-39) - sign extend from 20 bits
-      ctx.println("\t{}.s32 = (int32_t({}.u64[0] << 24) >> 44);", ctx.temp(), ctx.v_temp());
+      ctx.println("\t{}.s32 = int32_t(({}.u64[0] >> 20) & 0xFFFFF);", ctx.temp(), ctx.v_temp());
+      ctx.println("\t{}.s32 = ({}.s32 ^ 0x80000) - 0x80000;", ctx.temp(), ctx.temp());
       ctx.println("\t{}.f32[1] = float({}.s32);", vDst, ctx.temp());
       // z (bits 40-59) - sign extend from 20 bits
-      ctx.println("\t{}.s32 = (int32_t({}.u64[0] << 4) >> 44);", ctx.temp(), ctx.v_temp());
+      ctx.println("\t{}.s32 = int32_t(({}.u64[0] >> 40) & 0xFFFFF);", ctx.temp(), ctx.v_temp());
+      ctx.println("\t{}.s32 = ({}.s32 ^ 0x80000) - 0x80000;", ctx.temp(), ctx.temp());
       ctx.println("\t{}.f32[2] = float({}.s32);", vDst, ctx.temp());
       // w (bits 60-63) - 4 bits
       ctx.println("\t{}.f32[3] = float({}.u64[0] >> 60);", vDst, ctx.v_temp());
