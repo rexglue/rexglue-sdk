@@ -162,9 +162,6 @@ class BaseHeap {
   // Disposes and decommits all memory and clears the page table.
   virtual void Dispose();
 
-  // Dumps information about all allocations within the heap to the log.
-  void DumpMap();
-
   uint32_t GetTotalPageCount();
   uint32_t GetUnreservedPageCount();
 
@@ -618,9 +615,6 @@ class Memory {
 
   // Gets the physical base heap.
   VirtualHeap* GetPhysicalHeap();
-
-  // Dumps a map of all allocated memory to the log.
-  void DumpMap();
 
   //==========================================================================
   // Recompiled Code Function Table API

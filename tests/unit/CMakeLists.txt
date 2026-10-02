@@ -24,6 +24,7 @@ add_executable(unit_tests
     core/cvar_test.cpp
     core/config_test.cpp
     core/core_fixes_test.cpp
+    core/crash_reporter_test.cpp
     core/fiber_test.cpp
     core/hash_test.cpp
     core/stream_test.cpp
@@ -74,7 +75,19 @@ target_link_libraries(unit_tests PRIVATE
     SDL3::Headers
 )
 
-add_dependencies(unit_tests rexfilesystem rex-sample-console rex-sample-title)
+add_executable(rex-crash-probe crash_probe.cpp)
+target_link_libraries(rex-crash-probe PRIVATE rexruntime)
+set_target_properties(rex-crash-probe PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>
+)
+if(UNIX AND NOT APPLE)
+    set_target_properties(rex-crash-probe PROPERTIES
+        INSTALL_RPATH "$ORIGIN"
+        BUILD_WITH_INSTALL_RPATH ON
+    )
+endif()
+
+add_dependencies(unit_tests rexfilesystem rex-sample-console rex-sample-title rex-crash-probe)
 
 add_dependencies(unit_tests
     rexmod-test-good rexmod-test-missing rexmod-test-badversion

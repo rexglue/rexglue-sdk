@@ -9,11 +9,16 @@
  *              See LICENSE file in the project root for full license text.
  */
 
+#include <atomic>
+#include <bit>
+#include <format>
+
 #include <rex/chrono/clock.h>
 #include <rex/cvar.h>
 #include <rex/filesystem.h>
 #include <rex/logging.h>
-#include <rex/ppc/context.h>          // PPCFuncMapping
+#include <rex/ppc/context.h>  // PPCFuncMapping
+#include <rex/platform/crash.h>
 #include <rex/platform/exceptions.h>  // SEH exception support
 #include <rex/runtime.h>
 #include <rex/runtime/function_dispatcher.h>
@@ -36,6 +41,31 @@
 #include "runtime/xam/content_manager.h"
 
 namespace rex {
+
+namespace {
+
+std::atomic<Runtime*> g_crash_runtime{nullptr};
+
+std::string DescribeCrashAddress(u64 host_address) {
+  constexpr u64 kGuestAddressSpace = u64{1} << 32;
+  std::string text;
+  Runtime* runtime = g_crash_runtime.load(std::memory_order_acquire);
+  runtime::Memory* memory = runtime ? runtime->memory() : nullptr;
+  if (memory && host_address) {
+    const u64 base = reinterpret_cast<u64>(memory->virtual_membase());
+    if (host_address >= base && host_address - base < kGuestAddressSpace) {
+      text = std::format("guest address 0x{:08X}",
+                         memory->HostToGuestVirtual(std::bit_cast<const void*>(host_address)));
+    }
+  }
+  if (const runtime::ThreadRecord* thread = runtime::ThreadRecord::GetCurrentThread()) {
+    text += std::format("{}guest thread {:08X} {}", text.empty() ? "" : ", ", thread->thread_id(),
+                        thread->name());
+  }
+  return text;
+}
+
+}  // namespace
 
 Runtime::Runtime(const Config& config)
     : config_(config),
@@ -110,6 +140,8 @@ X_STATUS Runtime::Setup(const RuntimeConfig& config) {
   if (!memory_->Initialize()) {
     return fail(X_STATUS_UNSUCCESSFUL, "memory init failed");
   }
+  g_crash_runtime.store(this, std::memory_order_release);
+  platform::SetCrashAddressDescriber(DescribeCrashAddress);
 
   function_dispatcher_ = std::make_unique<runtime::FunctionDispatcher>(memory_.get());
 
@@ -258,6 +290,10 @@ X_STATUS Runtime::Setup(const rex::PPCImageInfo& image_info, const RuntimeConfig
 void Runtime::Shutdown() {
   if (!setup_complete_ && !memory_) {
     return;
+  }
+  if (g_crash_runtime.load(std::memory_order_acquire) == this) {
+    platform::SetCrashAddressDescriber(nullptr);
+    g_crash_runtime.store(nullptr, std::memory_order_release);
   }
   if (graphics_system_) {
     graphics_system_->Shutdown();

@@ -5,6 +5,7 @@
 #include <cctype>
 #include <format>
 #include <ranges>
+#include <thread>
 #include <utility>
 
 #include <rex/platform/thread.h>
@@ -18,6 +19,13 @@ class detail_access {
 };
 
 namespace {
+
+thread_local bool t_in_sinks = false;
+
+struct InSinks {
+  InSinks() { t_in_sinks = true; }
+  ~InSinks() { t_in_sinks = false; }
+};
 
 constexpr std::array<std::string_view, 8> kLevelNames = {"trace", "dev",   "debug",    "info",
                                                          "warn",  "error", "critical", "off"};
@@ -398,6 +406,7 @@ void Logger::FlushLocked() {
 
 void Logger::Flush() {
   std::lock_guard lock(sinks_mutex_);
+  const InSinks in_sinks;
   FlushLocked();
 }
 
@@ -414,6 +423,7 @@ void Logger::Write(const Category& category, Level level, std::string_view text)
                       platform::current_thread_system_id(),
                       sequence_.fetch_add(1, std::memory_order_relaxed) + 1};
   std::lock_guard lock(sinks_mutex_);
+  const InSinks in_sinks;
   if (buffering_) {
     if (bootstrap_.size() == kBootstrapRecords) {
       bootstrap_.pop_front();
@@ -426,6 +436,52 @@ void Logger::Write(const Category& category, Level level, std::string_view text)
   if (level >= flush_level_) {
     FlushLocked();
   }
+}
+
+bool Logger::LockSinks(std::unique_lock<std::mutex>& lock, std::chrono::milliseconds timeout) {
+  if (t_in_sinks) {
+    return false;
+  }
+  const auto deadline = std::chrono::steady_clock::now() + timeout;
+  while (!lock.try_lock()) {
+    if (std::chrono::steady_clock::now() >= deadline) {
+      return false;
+    }
+    std::this_thread::yield();
+  }
+  return true;
+}
+
+bool Logger::TryWrite(const Category& category, Level level, std::string_view text,
+                      std::chrono::milliseconds timeout) {
+  const Record record{level,
+                      category.name(),
+                      text,
+                      std::chrono::system_clock::now(),
+                      platform::current_thread_system_id(),
+                      sequence_.fetch_add(1, std::memory_order_relaxed) + 1};
+  std::unique_lock lock(sinks_mutex_, std::defer_lock);
+  if (!LockSinks(lock, timeout)) {
+    return false;
+  }
+  const InSinks in_sinks;
+  if (!started_) {
+    return false;
+  }
+  for (ISink* sink : sinks_) {
+    sink->Write(record);
+  }
+  return !sinks_.empty();
+}
+
+bool Logger::TryFlush(std::chrono::milliseconds timeout) {
+  std::unique_lock lock(sinks_mutex_, std::defer_lock);
+  if (!LockSinks(lock, timeout)) {
+    return false;
+  }
+  const InSinks in_sinks;
+  FlushLocked();
+  return true;
 }
 
 void Logger::OpenSinks(const LogConfig& config) {
@@ -524,8 +580,9 @@ void Logger::OpenFile(const LogFileConfig& file, std::chrono::seconds interval) 
     RebuildSinksLocked();
   }
   if (interval.count() > 0) {
-    flush_thread_ = std::jthread(
-        [this, interval](const std::stop_token& stop) { RunFlushThread(stop, interval); });
+    flush_thread_ = platform::Spawn("Log Flush", [this, interval](const std::stop_token& stop) {
+      RunFlushThread(stop, interval);
+    });
   }
   if (!file_error.empty()) {
     REXLOG_ERROR(core, "{}", file_error);

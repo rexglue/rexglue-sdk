@@ -212,6 +212,13 @@ class TitleApp : public App {
   void ReportError(std::string_view message) override;
 
   /**
+   * Returns the crash reporter options, with a dialog unless the video driver is dummy.
+   *
+   * @return The app name and dialog choice of the report.
+   */
+  platform::CrashReporterOptions CrashOptions() override;
+
+  /**
    * Destroys every dialog the drawer owns, stops the title and every guest thread, then closes the
    * window.
    */

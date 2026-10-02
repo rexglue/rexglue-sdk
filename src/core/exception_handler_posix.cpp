@@ -30,6 +30,8 @@
 
 #include <ucontext.h>
 
+#include "core/crash_report.h"
+
 namespace rex::platform {
 
 namespace {
@@ -44,7 +46,7 @@ constexpr size_t kMaxHandlerCount = 8;
 
 std::pair<ExceptionHandler::Handler, void*> g_handlers[kMaxHandlerCount];
 
-const struct sigaction* OriginalAction(int signal_number) {
+struct sigaction* OriginalAction(int signal_number) {
   switch (signal_number) {
     case SIGILL:
       return &g_original_sigill_handler;
@@ -60,17 +62,12 @@ const struct sigaction* OriginalAction(int signal_number) {
 }
 
 void ForwardUnclaimed(int signal_number, siginfo_t* signal_info, void* signal_context) {
-  const struct sigaction* original = OriginalAction(signal_number);
-  if (original && (original->sa_flags & SA_SIGINFO) != 0 && original->sa_sigaction) {
-    original->sa_sigaction(signal_number, signal_info, signal_context);
-    return;
+  struct sigaction* original = OriginalAction(signal_number);
+  if (!original) {
+    detail::ReportFatalSignal(signal_number, signal_info, signal_context);
+    detail::DieWithDefaultDisposition(signal_number);
   }
-  if (original && (original->sa_flags & SA_SIGINFO) == 0 && original->sa_handler != SIG_DFL &&
-      original->sa_handler != SIG_IGN) {
-    original->sa_handler(signal_number);
-    return;
-  }
-  signal(signal_number, SIG_DFL);
+  detail::ForwardSignal(*original, signal_number, signal_info, signal_context);
 }
 }  // namespace
 
@@ -429,7 +426,7 @@ void ExceptionHandler::Install(Handler fn, void* data) {
 
     std::memset(&signal_handler, 0, sizeof(signal_handler));
     signal_handler.sa_sigaction = ExceptionHandlerCallback;
-    signal_handler.sa_flags = SA_SIGINFO;
+    signal_handler.sa_flags = SA_SIGINFO | SA_ONSTACK;
 
     if (sigaction(SIGILL, &signal_handler, &g_original_sigill_handler) != 0) {
       assert_always("Failed to install new SIGILL handler");

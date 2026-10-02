@@ -79,6 +79,27 @@ class Logger final : public ILogger {
   void Write(const Category& category, Level level, std::string_view text);
 
   /**
+   * Writes a record unless the sink mutex stays held past the timeout or the calling thread is
+   * inside a sink. Bypasses the level check.
+   *
+   * @param category The log category of the record.
+   * @param level The severity of the record.
+   * @param text The formatted record text.
+   * @param timeout How long to retry the sink mutex.
+   * @return True when a sink took the record.
+   */
+  bool TryWrite(const Category& category, Level level, std::string_view text,
+                std::chrono::milliseconds timeout);
+
+  /**
+   * Flushes every sink under the same rules as TryWrite.
+   *
+   * @param timeout How long to retry the sink mutex.
+   * @return True when the sinks were flushed.
+   */
+  bool TryFlush(std::chrono::milliseconds timeout);
+
+  /**
    * Opens the sinks of a configuration, registers core and consumer categories and attaches the
    * log cvars.
    *
@@ -140,6 +161,7 @@ class Logger final : public ILogger {
   void DetachCvar(Slot& slot);
   void RebuildSinksLocked();
   void FlushLocked();
+  bool LockSinks(std::unique_lock<std::mutex>& lock, std::chrono::milliseconds timeout);
   void RunFlushThread(const std::stop_token& stop, std::chrono::seconds interval);
   void OpenSinks(const LogConfig& config);
   void ApplyConfigLevels(const LogConfig& config);

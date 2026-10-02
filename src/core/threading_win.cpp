@@ -446,6 +446,7 @@ struct ThreadStartData {
 };
 DWORD WINAPI ThreadStartRoutine(LPVOID parameter) {
   detail::RegisterCurrentThread();
+  PrepareThreadForCrash();
   current_thread_ = std::make_unique<Win32Thread>(::GetCurrentThread());
 
   auto start_data = reinterpret_cast<ThreadStartData*>(parameter);

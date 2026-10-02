@@ -583,6 +583,10 @@ void TitleApp::ReportError(std::string_view message) {
   }
 }
 
+platform::CrashReporterOptions TitleApp::CrashOptions() {
+  return {.show_dialog = config().ui.video_driver != "dummy"};
+}
+
 void TitleApp::RequireModules(Config& config) {
   auto& modules = config.modules;
   auto filesystem = std::ranges::find(modules, "rexfilesystem");

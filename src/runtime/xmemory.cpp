@@ -108,17 +108,6 @@ bool OnAccessViolation(rex::platform::Exception* ex, void* data) {
 
 }  // namespace
 
-void CrashDump() {
-  static std::atomic<int> in_crash_dump(0);
-  if (in_crash_dump.fetch_add(1)) {
-    // rex::FatalError(
-    //     "Hard crash: the memory system crashed while dumping a crash dump.");
-    return;
-  }
-  active_memory_->DumpMap();
-  --in_crash_dump;
-}
-
 Memory::Memory() {
   system_page_size_ = uint32_t(rex::memory::page_size());
   system_allocation_granularity_ = uint32_t(rex::memory::allocation_granularity());
@@ -721,38 +710,6 @@ void Memory::GetHeapsPageStatsSummary(const BaseHeap* const* provided_heaps, siz
   }
 }
 
-void Memory::DumpMap() {
-  REXLOG_ERROR(system, "==================================================================");
-  REXLOG_ERROR(system, "Memory Dump");
-  REXLOG_ERROR(system, "==================================================================");
-  REXLOG_ERROR(system, "               System Page Size: {0} ({0:08X})", system_page_size_);
-  REXLOG_ERROR(system, "  System Allocation Granularity: {0} ({0:08X})",
-               system_allocation_granularity_);
-  REXLOG_ERROR(system, "                Virtual Membase: {}",
-               static_cast<const void*>(virtual_membase_));
-  REXLOG_ERROR(system, "               Physical Membase: {}",
-               static_cast<const void*>(physical_membase_));
-  REXLOG_ERROR(system, "");
-  REXLOG_ERROR(system, "------------------------------------------------------------------");
-  REXLOG_ERROR(system, "Virtual Heaps");
-  REXLOG_ERROR(system, "------------------------------------------------------------------");
-  REXLOG_ERROR(system, "");
-  heaps_.v00000000.DumpMap();
-  heaps_.v40000000.DumpMap();
-  heaps_.v80000000.DumpMap();
-  heaps_.v90000000.DumpMap();
-  REXLOG_ERROR(system, "");
-  REXLOG_ERROR(system, "------------------------------------------------------------------");
-  REXLOG_ERROR(system, "Physical Heaps");
-  REXLOG_ERROR(system, "------------------------------------------------------------------");
-  REXLOG_ERROR(system, "");
-  heaps_.physical.DumpMap();
-  heaps_.vA0000000.DumpMap();
-  heaps_.vC0000000.DumpMap();
-  heaps_.vE0000000.DumpMap();
-  REXLOG_ERROR(system, "");
-}
-
 //=============================================================================
 // Recompiled Code Function Table
 //=============================================================================
@@ -1021,56 +978,6 @@ void BaseHeap::Dispose() {
                                 rex::memory::DeallocationType::kRelease);
       page_number += page_entry.region_page_count;
     }
-  }
-}
-
-void BaseHeap::DumpMap() {
-  std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
-  REXLOG_ERROR(system, "------------------------------------------------------------------");
-  REXLOG_ERROR(system, "Heap: {:08X}-{:08X}", heap_base_, heap_base_ + (heap_size_ - 1));
-  REXLOG_ERROR(system, "------------------------------------------------------------------");
-  REXLOG_ERROR(system, "            Heap Base: {:08X}", heap_base_);
-  REXLOG_ERROR(system, "            Heap Size: {0} ({0:08X})", heap_size_);
-  REXLOG_ERROR(system, "            Page Size: {0} ({0:08X})", page_size_);
-  REXLOG_ERROR(system, "           Page Count: {}", page_table_.size());
-  REXLOG_ERROR(system, "  Host Address Offset: {0} ({0:08X})", host_address_offset_);
-  bool is_empty_span = false;
-  uint32_t empty_span_start = 0;
-  for (uint32_t i = 0; i < uint32_t(page_table_.size()); ++i) {
-    auto& page = page_table_[i];
-    if (!page.state) {
-      if (!is_empty_span) {
-        is_empty_span = true;
-        empty_span_start = i;
-      }
-      continue;
-    }
-    if (is_empty_span) {
-      REXLOG_ERROR(system, "  {:08X}-{:08X} {:6d}p {:10d}b unreserved",
-                   heap_base_ + (empty_span_start << page_size_shift_),
-                   heap_base_ + (i << page_size_shift_), i - empty_span_start,
-                   (i - empty_span_start) << page_size_shift_);
-      is_empty_span = false;
-    }
-    const char* state_name = "   ";
-    if (page.state & runtime::kMemoryAllocationCommit) {
-      state_name = "COM";
-    } else if (page.state & runtime::kMemoryAllocationReserve) {
-      state_name = "RES";
-    }
-    char access_r = (page.current_protect & runtime::kMemoryProtectRead) ? 'R' : ' ';
-    char access_w = (page.current_protect & runtime::kMemoryProtectWrite) ? 'W' : ' ';
-    uint32_t region_pages = page.region_page_count;
-    REXLOG_ERROR(system, "  {:08X}-{:08X} {:6d}p {:10d}b {} {}{}",
-                 heap_base_ + (i << page_size_shift_),
-                 heap_base_ + ((i + region_pages) << page_size_shift_), region_pages,
-                 region_pages << page_size_shift_, state_name, access_r, access_w);
-    i += region_pages - 1;
-  }
-  if (is_empty_span) {
-    REXLOG_ERROR(system, "  {:08X}-{:08X} - {} unreserved pages)",
-                 heap_base_ + (empty_span_start << page_size_shift_), heap_base_ + (heap_size_ - 1),
-                 page_table_.size() - empty_span_start);
   }
 }
 

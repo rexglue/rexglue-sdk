@@ -20,6 +20,7 @@
 #include <rex/logging.h>
 #include <rex/perf/counter.h>
 #include <rex/platform.h>
+#include <rex/platform/crash.h>
 #include <rex/platform/thread.h>
 
 #include "core/app_state.h"
@@ -32,7 +33,6 @@
 #include <pthread.h>
 
 #include <memory>
-#include <thread>
 #endif
 
 namespace rex {
@@ -91,7 +91,7 @@ void FinishTeardown() {
 #else
 struct sigaction g_old_int{};
 struct sigaction g_old_term{};
-pthread_t g_signal_thread_id{};
+std::jthread g_signal_thread;
 std::shared_ptr<std::atomic<bool>> g_signal_stop;
 
 sigset_t ShutdownSignals() {
@@ -103,7 +103,7 @@ sigset_t ShutdownSignals() {
 }
 
 void ForwardSignal(int received) {
-  pthread_kill(g_signal_thread_id, received);
+  pthread_kill(g_signal_thread.native_handle(), received);
 }
 
 void InstallSignalHandlers() {
@@ -111,7 +111,7 @@ void InstallSignalHandlers() {
   sigset_t old_mask;
   pthread_sigmask(SIG_BLOCK, &set, &old_mask);
   auto stop = std::make_shared<std::atomic<bool>>(false);
-  std::thread waiter([set, stop] {
+  g_signal_thread = platform::Spawn("Shutdown Signals", [set, stop](const std::stop_token&) {
     for (;;) {
       int received = 0;
       if (sigwait(&set, &received) != 0 || stop->load()) {
@@ -120,13 +120,12 @@ void InstallSignalHandlers() {
       RequestShutdown(0);
     }
   });
-  g_signal_thread_id = waiter.native_handle();
   g_signal_stop = std::move(stop);
-  waiter.detach();
   pthread_sigmask(SIG_SETMASK, &old_mask, nullptr);
   struct sigaction action{};
   action.sa_handler = ForwardSignal;
   sigemptyset(&action.sa_mask);
+  action.sa_flags = SA_ONSTACK;
   sigaction(SIGINT, &action, &g_old_int);
   sigaction(SIGTERM, &action, &g_old_term);
 }
@@ -136,7 +135,8 @@ void RemoveSignalHandlers() {
   sigaction(SIGTERM, &g_old_term, nullptr);
   if (g_signal_stop) {
     g_signal_stop->store(true);
-    pthread_kill(g_signal_thread_id, SIGTERM);
+    pthread_kill(g_signal_thread.native_handle(), SIGTERM);
+    g_signal_thread = {};
     g_signal_stop.reset();
   }
 }
@@ -254,6 +254,10 @@ void App::ReportError(std::string_view message) {
   REXLOG_ERROR(core, "{}", message);
 }
 
+platform::CrashReporterOptions App::CrashOptions() {
+  return {};
+}
+
 const CLIArgList& App::args() const {
   return args_;
 }
@@ -280,6 +284,9 @@ Result<void> App::Init(const CLIArgList& args) {
   stage_ = Stage::kConfigured;
   detail::ResetAppState();
   InstallSignalHandlers();
+  if (auto crash = platform::InstallCrashReporter({}); !crash) {
+    return Fail("crash reporter", crash.error());
+  }
 
   config_.log.file.enabled = true;
   if (auto configured = OnConfigure(config_); !configured) {
@@ -309,6 +316,9 @@ Result<void> App::Init(const CLIArgList& args) {
   }
   cvar::ApplyEnvironment(config_);
   RequireModules(config_);
+  if (auto crash = platform::InstallCrashReporter(CrashOptions()); !crash) {
+    return Fail("crash reporter", crash.error());
+  }
 
   auto& loader = detail::ModuleLoader::Instance();
   auto api = loader.Connect(config_);
@@ -381,6 +391,7 @@ i32 App::Shutdown() {
     }
   }
   RemoveSignalHandlers();
+  platform::UninstallCrashReporter();
   detail::SetShutdownWake({});
   stage_ = Stage::kShutdown;
   FinishTeardown();

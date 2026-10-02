@@ -20,6 +20,7 @@
 #include <rex/macros.h>
 #include <rex/api.h>
 #include <rex/cli_arg_list.h>
+#include <rex/platform/crash.h>
 #include <rex/platform/process.h>
 #include <rex/result.h>
 #include <rex/types.h>
@@ -88,6 +89,14 @@ class REX_API App : public NonCopyable {
    * @param message The error text.
    */
   virtual void ReportError(std::string_view message);
+
+  /**
+   * Returns the crash reporter options Init installs once the configuration is final. The base
+   * class names the app after the executable and shows no dialog.
+   *
+   * @return The app name and dialog choice of the report.
+   */
+  virtual platform::CrashReporterOptions CrashOptions();
 
   /**
    * Records a failed lifecycle step so Shutdown returns 1, and reports it.

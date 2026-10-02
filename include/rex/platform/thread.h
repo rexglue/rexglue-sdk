@@ -32,6 +32,7 @@
 #include <rex/macros.h>
 #include <rex/assert.h>
 #include <rex/chrono/chrono.h>
+#include <rex/platform/crash.h>
 #include <rex/literals.h>
 #include <rex/platform.h>
 #include <rex/platform/timer_queue.h>
@@ -720,6 +721,7 @@ std::jthread Spawn(std::string_view name, F&& fn) {
   return std::jthread(
       [thread_name = std::string(name), body = std::forward<F>(fn)](std::stop_token token) mutable {
         detail::RegisterCurrentThread();
+        PrepareThreadForCrash();
         set_current_thread_name(thread_name);
         body(std::move(token));
       });

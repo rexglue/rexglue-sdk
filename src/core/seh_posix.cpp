@@ -12,14 +12,29 @@
 static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only");
 
 #include <signal.h>
+#include <array>
 #include <cstdlib>
 
 #include <rex/platform/exceptions.h>
+
+#include "core/crash_report.h"
 
 namespace rex::platform {
 
 namespace {
 std::atomic<bool> g_seh_initialized{false};
+
+constexpr std::array kSEHSignals = {SIGSEGV, SIGBUS, SIGFPE, SIGILL};
+std::array<struct sigaction, kSEHSignals.size()> g_previous{};
+
+struct sigaction* PreviousAction(int signal_number) {
+  for (size_t i = 0; i < kSEHSignals.size(); ++i) {
+    if (kSEHSignals[i] == signal_number) {
+      return &g_previous[i];
+    }
+  }
+  return nullptr;
+}
 }  // namespace
 
 static thread_local SehThreadState tls_seh_state;
@@ -33,11 +48,14 @@ int seh_filter(u32 /*code*/, void* /*ep*/) {
   return 0;
 }
 
-static void signal_handler(int sig, siginfo_t* info, void* /*ucontext*/) {
+static void signal_handler(int sig, siginfo_t* info, void* ucontext) {
   if (!tls_seh_active) {
-    signal(sig, SIG_DFL);
-    raise(sig);
-    return;
+    if (struct sigaction* previous = PreviousAction(sig)) {
+      detail::ForwardSignal(*previous, sig, info, ucontext);
+      return;
+    }
+    detail::ReportFatalSignal(sig, info, ucontext);
+    detail::DieWithDefaultDisposition(sig);
   }
 
   SehException::Code code;
@@ -89,9 +107,8 @@ static void signal_handler(int sig, siginfo_t* info, void* /*ucontext*/) {
     default:
       abort();
   }
-  signal(sig, SIG_DFL);
-  raise(sig);
-  abort();
+  detail::ReportFatalSignal(sig, nullptr, nullptr);
+  detail::DieWithDefaultDisposition(sig);
 }
 
 void seh_initialize() {
@@ -99,15 +116,13 @@ void seh_initialize() {
     return;
   }
 
-  struct sigaction sa;
+  struct sigaction sa{};
   sa.sa_sigaction = signal_handler;
   sigemptyset(&sa.sa_mask);
-  sa.sa_flags = SA_SIGINFO | SA_NODEFER;
-
-  sigaction(SIGSEGV, &sa, nullptr);
-  sigaction(SIGBUS, &sa, nullptr);
-  sigaction(SIGFPE, &sa, nullptr);
-  sigaction(SIGILL, &sa, nullptr);
+  sa.sa_flags = SA_SIGINFO | SA_NODEFER | SA_ONSTACK;
+  for (size_t i = 0; i < kSEHSignals.size(); ++i) {
+    sigaction(kSEHSignals[i], &sa, &g_previous[i]);
+  }
 }
 
 bool& seh_active() {

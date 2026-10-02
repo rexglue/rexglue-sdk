@@ -7,6 +7,7 @@ add_library(rexcore SHARED
     cli_arg_list.cpp
     clock.cpp
     cvar_registry.cpp
+    crash.cpp
     exception_handler.cpp
     filesystem/container.cpp
     filesystem/gdfx.cpp
@@ -55,6 +56,7 @@ if(WIN32)
         clock_win.cpp
         dbg_win.cpp
         dynlib_win.cpp
+        crash_win.cpp
         exception_handler_win.cpp
         fiber_win32.cpp
         log_sinks_win.cpp
@@ -79,6 +81,7 @@ elseif(UNIX)
         clock_posix.cpp
         dbg_posix.cpp
         dynlib_posix.cpp
+        crash_posix.cpp
         exception_handler_posix.cpp
         fiber_posix.cpp
         log_sinks_posix.cpp
