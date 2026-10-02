@@ -21,4 +21,8 @@ namespace rex::ui {
 /// listener API. Returns VirtualKey::kNone for unmapped keys.
 VirtualKey TranslateSDLScancode(SDL_Scancode scancode);
 
+/// Maps a Win32-style VirtualKey to an SDL scancode for polling
+/// SDL_GetKeyboardState(). Returns SDL_SCANCODE_UNKNOWN for unmapped keys.
+SDL_Scancode TranslateVirtualKeyToSDLScancode(VirtualKey vk);
+
 }  // namespace rex::ui
