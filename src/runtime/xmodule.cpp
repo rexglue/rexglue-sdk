@@ -118,14 +118,14 @@ X_STATUS ModuleGetSection(const ModuleObject& module, std::string_view name, u32
     return X_STATUS_UNSUCCESSFUL;
   }
 
-  xex2_opt_resource_info* resource_header = nullptr;
-  if (!runtime::XexModule::GetOptHeader(UserModuleXEX(module)->xex_header(),
-                                        XEX_HEADER_RESOURCE_INFO, &resource_header)) {
+  const auto* resource_header =
+      UserModuleXEX(module)->image().OptHeader<xex2_opt_resource_info>(XEX_HEADER_RESOURCE_INFO);
+  if (!resource_header) {
     return X_STATUS_NOT_FOUND;
   }
   const u32 count = (resource_header->size - 4) / sizeof(xex2_resource);
   for (u32 i = 0; i < count; i++) {
-    auto& res = resource_header->resources[i];
+    const auto& res = resource_header->resources[i];
     if (rex::utf8_equal_z(name, std::string_view(res.name, 8))) {
       *out_section_data = res.address;
       *out_section_size = res.size;

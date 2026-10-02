@@ -20,7 +20,7 @@
 
 #include <rex/macros.h>
 #include <rex/result.h>
-#include <rex/runtime/util/xex2_info.h>
+#include <rex/filesystem/xex_types.h>
 #include <rex/runtime/xcontent.h>
 #include <rex/types.h>
 

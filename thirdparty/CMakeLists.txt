@@ -105,13 +105,6 @@ target_include_directories(simde INTERFACE
 # Compiled libraries (vendored sources)
 #=============================================================================
 
-# tiny-AES-c - AES encryption (used for XEX decryption)
-add_library(tiny-aes STATIC
-    tiny-aes-c/aes.c
-)
-target_include_directories(tiny-aes PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/tiny-aes-c)
-target_compile_definitions(tiny-aes PUBLIC AES128=1 CBC=1)
-
 # aes_128 - AES-128 encryption/decryption (used by kernel crypt routines)
 # From: https://github.com/openluopworld/aes_128
 add_library(aes128 STATIC
@@ -123,7 +116,7 @@ target_include_directories(aes128 PUBLIC
 # Suppress warnings in third-party C code
 target_compile_options(aes128 PRIVATE -w)
 
-# libmspack - LZX decompression (only lzxd.c needed for XEX decompression)
+# libmspack - LZX decompression for XEX images (lzxd.c only)
 # Uses cabextract version which has all needed headers in one place
 set(MSPACK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/libmspack/cabextract/mspack")
 add_library(mspack STATIC

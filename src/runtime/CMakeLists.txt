@@ -39,7 +39,6 @@ set(REXSYSTEM_SOURCES
 
     ppc_types.cpp
     elf_module.cpp
-    lzx.cpp
     map_parser.cpp
     module.cpp
     function_dispatcher.cpp
@@ -87,7 +86,6 @@ target_link_libraries(rexruntime
         SDL3::SDL3
     PRIVATE
         aes128
-        mspack
         xxHash::xxhash
 )
 

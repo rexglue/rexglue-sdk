@@ -13,6 +13,7 @@
 #include <vector>
 
 #include <rex/cvar.h>
+#include <rex/filesystem/xex.h>
 #include <rex/logging.h>
 #include <rex/string.h>
 #include <rex/runtime/elf_module.h>
@@ -40,21 +41,23 @@ X_STATUS LoadXexContinue(Runtime& runtime, ModuleObject& module) {
   }
 
   auto* memory = runtime.memory();
-  auto header = UserModuleXEX(module)->xex_header();
-  auto security_header = UserModuleXEX(module)->xex_security_info();
-  module.user.guest_xex_header = memory->SystemHeapAlloc(header->header_size);
+  const auto& image = UserModuleXEX(module)->image();
+  const auto header = image.header_bytes();
+  module.user.guest_xex_header = memory->SystemHeapAlloc(static_cast<u32>(header.size()));
 
   u8* xex_header_ptr = memory->TranslateVirtual(module.user.guest_xex_header);
-  std::memcpy(xex_header_ptr, header, header->header_size);
+  std::memcpy(xex_header_ptr, header.data(), header.size());
 
-  UserModuleXEX(module)->GetOptHeader(XEX_HEADER_ENTRY_POINT, &module.user.entry_point);
-  UserModuleXEX(module)->GetOptHeader(XEX_HEADER_DEFAULT_STACK_SIZE, &module.user.stack_size);
-  module.user.is_dll_module = !!(header->module_flags & XEX_MODULE_DLL_MODULE);
+  module.user.entry_point =
+      image.OptHeaderValue(XEX_HEADER_ENTRY_POINT).value_or(module.user.entry_point);
+  module.user.stack_size =
+      image.OptHeaderValue(XEX_HEADER_DEFAULT_STACK_SIZE).value_or(module.user.stack_size);
+  module.user.is_dll_module = !!(image.header().module_flags & XEX_MODULE_DLL_MODULE);
 
   auto ldr_data = memory->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(module.hmodule_ptr);
   ldr_data->dll_base = 0;
   ldr_data->xex_header_base = module.user.guest_xex_header;
-  ldr_data->full_image_size = security_header->image_size;
+  ldr_data->full_image_size = image.security().image_size;
   ldr_data->image_base = UserModuleXEX(module)->base_address();
   ldr_data->entry_point = module.user.entry_point;
 
@@ -76,16 +79,9 @@ u32 UserModuleTitleID(const ModuleObject& module) {
   if (module.user.module_format != ModuleFormat::Xex) {
     return 0;
   }
-  auto header = UserModuleXEX(module)->xex_header();
-  for (u32 i = 0; i < header->header_count; i++) {
-    auto& opt_header = header->headers[i];
-    if (opt_header.key == XEX_HEADER_EXECUTION_INFO) {
-      auto opt_header_ptr = reinterpret_cast<const u8*>(header) + opt_header.offset;
-      auto opt_exec_info = reinterpret_cast<const xex2_opt_execution_info*>(opt_header_ptr);
-      return static_cast<u32>(opt_exec_info->title_id);
-    }
-  }
-  return 0;
+  const auto* info =
+      UserModuleXEX(module)->image().OptHeader<xex2_opt_execution_info>(XEX_HEADER_EXECUTION_INFO);
+  return info ? static_cast<u32>(info->title_id) : 0;
 }
 
 X_STATUS UserModuleLoadFromFile(Runtime& runtime, ModuleObject& module, std::string_view path) {
@@ -210,10 +206,20 @@ X_STATUS UserModuleGetOptHeader(ModuleObject& module, xex2_header_keys key, void
     return X_STATUS_UNSUCCESSFUL;
   }
 
-  if (!UserModuleXEX(module)->GetOptHeader(key, out_ptr)) {
+  const auto& image = UserModuleXEX(module)->image();
+  if ((key & 0xFF) == 0x00) {
+    const auto value = image.OptHeaderValue(key);
+    if (!value) {
+      return X_STATUS_NOT_FOUND;
+    }
+    *reinterpret_cast<u32*>(out_ptr) = *value;
+    return X_STATUS_SUCCESS;
+  }
+  const void* data = image.OptHeader<void>(key);
+  if (!data) {
     return X_STATUS_NOT_FOUND;
   }
-
+  *out_ptr = const_cast<void*>(data);
   return X_STATUS_SUCCESS;
 }
 
@@ -234,30 +240,22 @@ X_STATUS UserModuleGetOptHeader(ModuleObject& module, xex2_header_keys key,
 X_STATUS UserModuleGetOptHeader(const runtime::Memory* memory, const xex2_header* header,
                                 xex2_header_keys key, u32* out_header_guest_ptr) {
   assert_not_null(out_header_guest_ptr);
-  u32 field_value = 0;
-  bool field_found = false;
-  for (u32 i = 0; i < header->header_count; i++) {
-    auto& opt_header = header->headers[i];
-    if (opt_header.key != key) {
-      continue;
-    }
-    field_found = true;
-    switch (opt_header.key & 0xFF) {
-      case 0x00:
-        field_value = opt_header.value;
-        break;
-      case 0x01:
-        field_value = memory->HostToGuestVirtual(&opt_header.value);
-        break;
-      default:
-        field_value = memory->HostToGuestVirtual(header) + opt_header.offset;
-        break;
-    }
-    break;
-  }
-  *out_header_guest_ptr = field_value;
-  if (!field_found) {
+  const auto entry = filesystem::FindOptHeaderEntry(
+      std::span(reinterpret_cast<const u8*>(header), header->header_size), key);
+  if (!entry) {
+    *out_header_guest_ptr = 0;
     return X_STATUS_NOT_FOUND;
+  }
+  switch (key & 0xFF) {
+    case 0x00:
+      *out_header_guest_ptr = entry->value;
+      break;
+    case 0x01:
+      *out_header_guest_ptr = memory->HostToGuestVirtual(&header->headers[entry->index].value);
+      break;
+    default:
+      *out_header_guest_ptr = memory->HostToGuestVirtual(header) + entry->value;
+      break;
   }
   return X_STATUS_SUCCESS;
 }

@@ -83,7 +83,7 @@ u32 XamContentAggregateCreateEnumerator_entry(u64 xuid, u32 device_id, u32 conte
     auto exe_module = runtime::Current().object_table().Get<ModuleObject>(
         runtime::Current().module_registry().executable().value_or(0));
     if (exe_module && UserModuleXEX(*exe_module)) {
-      const auto& alt_ids = UserModuleXEX(*exe_module)->opt_alternate_title_ids();
+      const auto alt_ids = UserModuleXEX(*exe_module)->image().alternate_title_ids();
       std::copy(alt_ids.cbegin(), alt_ids.cend(), std::back_inserter(title_ids));
     }
 

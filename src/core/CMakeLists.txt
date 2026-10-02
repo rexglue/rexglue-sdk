@@ -10,9 +10,12 @@ add_library(rexcore SHARED
     exception_handler.cpp
     filesystem/container.cpp
     filesystem/gdfx.cpp
+    filesystem/lzx.cpp
     filesystem/stfs.cpp
     filesystem/svod.cpp
     filesystem/xcontent.cpp
+    filesystem/xex.cpp
+    ${PROJECT_SOURCE_DIR}/thirdparty/crypto/rijndael-alg-fst.c
     hash.cpp
     instance_lock.cpp
     log_file.cpp
@@ -31,6 +34,10 @@ add_library(rexcore SHARED
     utf8.cpp
     vec128.cpp
 )
+
+set_source_files_properties(${PROJECT_SOURCE_DIR}/thirdparty/crypto/rijndael-alg-fst.c
+    PROPERTIES LANGUAGE CXX)
+
 add_library(rex::core ALIAS rexcore)
 target_compile_definitions(rexcore PRIVATE REX_BUILDING_CORE)
 rexglue_add_version_resource(rexcore DESCRIPTION "ReXGlue core")
@@ -108,6 +115,7 @@ target_include_directories(rexcore PRIVATE
     ${PROJECT_SOURCE_DIR}
     ${PROJECT_SOURCE_DIR}/src
     ${PROJECT_SOURCE_DIR}/thirdparty/cli11/include
+    ${PROJECT_SOURCE_DIR}/thirdparty
 )
 
 if(APPLE)
@@ -123,6 +131,7 @@ target_link_libraries(rexcore
         tomlplusplus
     PRIVATE
         disruptorplus
+        mspack
         utf8cpp
         xxHash::xxhash
 )

@@ -12,7 +12,7 @@
 
 #include <string_view>
 
-#include <rex/runtime/util/xex2_info.h>
+#include <rex/filesystem/xex_types.h>
 #include <rex/runtime/xex_module.h>
 #include <rex/runtime/xmodule.h>
 #include <rex/runtime/xtypes.h>
