@@ -18,12 +18,10 @@
 #include <rex/logging.h>
 #include <rex/macros.h>
 
-#include "audio/cvar_table.h"
-#include "input/cvar_table.h"
 #include "runtime/cvar_table.h"
 #include "ui/cvar_table.h"
 
-REXLOG_TABLE(kRuntimeLog, kernel, system, cpu, title, audio, input, ui, console)
+REXLOG_TABLE(kRuntimeLog, kernel, system, cpu, title, apu, hid, ui, console)
 
 namespace rex::runtime {
 
@@ -36,8 +34,8 @@ struct ScopeTable {
 
 const std::array<ScopeTable, 6> kTables = {{
     {"runtime", cvars::kRuntimeCvars},
-    {"audio", audio::cvars::kAudioCvars},
-    {"input", input::cvars::kInputCvars},
+    {"apu", cvars::kAPUCvars},
+    {"hid", {}},
     {"ui", ui::cvars::kUICvars},
     {"console", ui::cvars::kConsoleCvars},
     {"bind", {}},
@@ -51,11 +49,10 @@ Result<void> ValidateSlices(const Config& config) {
     return fail(std::format("config field runtime.heap_size_mb = {} is outside 1 to 2048",
                             config.runtime.heap_size_mb));
   }
-#if !REX_PLATFORM_WIN32
-  if (config.input.backend == input::Backend::XInput) {
-    return fail("config field input.backend = XInput is Windows only");
+  if (config.apu.max_queued_frames < 4 || config.apu.max_queued_frames > 64) {
+    return fail(std::format("config field apu.max_queued_frames = {} is outside 4 to 64",
+                            config.apu.max_queued_frames));
   }
-#endif
   return Ok();
 }
 
@@ -114,6 +111,14 @@ void* RuntimeModule::GetDispatcher() {
   return runtime != nullptr ? static_cast<IDispatcher*>(&runtime->dispatcher()) : nullptr;
 }
 
+apu::IBackend* RuntimeModule::apu_backend() {
+  return Instance().apu_;
+}
+
+hid::IBackend* RuntimeModule::hid_backend() {
+  return Instance().hid_;
+}
+
 const char* RuntimeModule::Name() const {
   return "rex-runtime";
 }
@@ -157,16 +162,26 @@ Result<void> RuntimeModule::Connect(IInterfaceFactory* factory, const Config& co
     REX_TRY_VOID(cvars_->SetDefault("ui.fullscreen_exclusive",
                                     window.fullscreen_exclusive ? "true" : "false"));
     REX_TRY_VOID(cvars_->SetDefault("ui.monitor", std::to_string(window.monitor)));
+    REX_TRY_VOID(
+        cvars_->SetDefault("apu.max_queued_frames", std::to_string(config.apu.max_queued_frames)));
     return Ok();
   };
   if (auto status = defaults(); !status) {
     Disconnect();
     return status;
   }
+  if (auto backend = factory->Get<apu::IBackend>(); backend) {
+    apu_ = *backend;
+  }
+  if (auto backend = factory->Get<hid::IBackend>(); backend) {
+    hid_ = *backend;
+  }
   return Ok();
 }
 
 void RuntimeModule::Disconnect() {
+  apu_ = nullptr;
+  hid_ = nullptr;
   if (logger_) {
     logger_->Unregister(log::kRuntimeLog);
   }

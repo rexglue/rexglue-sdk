@@ -30,26 +30,12 @@
 #pragma once
 #include <rex/cvar.h>
 #include <rex/ui/ui_event.h>
-#include <rex/ui/virtual_key.h>
+#include <rex/hid/virtual_key.h>
 #include <functional>
 #include <string>
 #include <string_view>
 
 namespace rex::ui {
-
-/**
- * Parse a human-readable key name to a VirtualKey enum value.
- * @param name  Key name string (e.g. "F3", "Backtick", "A", "Escape").
- * @return      Matching VirtualKey, or VirtualKey::kNone if unrecognized.
- */
-VirtualKey ParseVirtualKey(std::string_view name);
-
-/**
- * Convert a VirtualKey to its human-readable string name.
- * @param vk  VirtualKey to convert.
- * @return    Key name string (e.g. "F3", "LMB"), or empty if unrecognized.
- */
-std::string VirtualKeyToString(VirtualKey vk);
 
 /**
  * Register a named keybind with a default key and callback.

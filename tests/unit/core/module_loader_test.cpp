@@ -387,7 +387,7 @@ TEST_CASE_METHOD(Fixture, "Locks apply after values and unknown locks fail",
 TEST_CASE_METHOD(Fixture, "Every SDK cvar name is scope.leaf in a charter scope",
                  "[module_loader][cvar]") {
   static const std::vector<std::string_view> kScopes = {
-      "log", "clock", "perf",  "runtime", "audio",   "input", "ui",
+      "log", "clock", "perf",  "runtime", "apu",     "hid", "ui",
       "gpu", "xenos", "d3d12", "vulkan",  "console", "bind"};
   auto cfg = With({"rex-filesystem", "rex-runtime"});
   auto xenos = rex::platform::GetExecutableFolder() / rex::detail::ModuleFileName("rex-gpu-xenos");
@@ -415,7 +415,7 @@ TEST_CASE_METHOD(Fixture, "Every SDK cvar name is scope.leaf in a charter scope"
   }
   REQUIRE(count >= 70);
   if (cfg.modules.size() > 2)
-    REQUIRE(count == 163);
+    REQUIRE(count == 129);
 }
 
 TEST_CASE_METHOD(Fixture, "rex-runtime registers the module scopes at Connect",

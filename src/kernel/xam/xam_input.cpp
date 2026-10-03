@@ -9,8 +9,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <rex/input/input.h>
-#include <rex/input/input_system.h>
+#include <rex/hid.h>
 #include <rex/kernel/xam/private.h>
 #include <rex/logging.h>
 #include <rex/hook.h>
@@ -25,16 +24,20 @@ namespace kernel {
 namespace xam {
 using namespace rex::runtime;
 
-using rex::input::X_INPUT_CAPABILITIES;
-using rex::input::X_INPUT_KEYSTROKE;
-using rex::input::X_INPUT_STATE;
-using rex::input::X_INPUT_VIBRATION;
+using rex::hid::X_INPUT_CAPABILITIES;
+using rex::hid::X_INPUT_KEYSTROKE;
+using rex::hid::X_INPUT_STATE;
+using rex::hid::X_INPUT_VIBRATION;
 
 constexpr uint32_t XINPUT_FLAG_GAMEPAD = 0x01;
 constexpr uint32_t XINPUT_FLAG_ANY_USER = 1 << 30;
 
-rex::input::InputSystem* input_system() {
-  return static_cast<rex::input::InputSystem*>(runtime::Current().input_system());
+rex::hid::IBackend& HID() {
+  return runtime::Current().hid();
+}
+
+X_RESULT Fail(const rex::Error& error) {
+  return rex::hid::ToXResult(rex::hid::CodeOf(error));
 }
 
 void XamResetInactivity_entry() {
@@ -64,8 +67,13 @@ u32 XamInputGetCapabilities_entry(u32 user_index, u32 flags, ppc_ptr_t<X_INPUT_C
     actual_user_index = 0;
   }
 
-  auto* is = input_system();
-  return is->GetCapabilities(actual_user_index, flags, caps);
+  auto result = HID().GetCapabilities(actual_user_index, flags);
+  if (!result) {
+    return Fail(result.error());
+  }
+  X_INPUT_CAPABILITIES* out = caps;
+  *out = *result;
+  return X_ERROR_SUCCESS;
 }
 
 u32 XamInputGetCapabilitiesEx_entry(u32 unk, u32 user_index, u32 flags,
@@ -86,8 +94,13 @@ u32 XamInputGetCapabilitiesEx_entry(u32 unk, u32 user_index, u32 flags,
   }
 
   (void)unk;  // Unused in this implementation
-  auto* is = input_system();
-  return is->GetCapabilities(actual_user_index, flags, caps);
+  auto result = HID().GetCapabilities(actual_user_index, flags);
+  if (!result) {
+    return Fail(result.error());
+  }
+  X_INPUT_CAPABILITIES* out = caps;
+  *out = *result;
+  return X_ERROR_SUCCESS;
 }
 
 // https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetstate(v=vs.85).aspx
@@ -110,8 +123,15 @@ u32 XamInputGetState_entry(u32 user_index, u32 flags, ppc_ptr_t<X_INPUT_STATE> i
     actual_user_index = 0;
   }
 
-  auto* is = input_system();
-  return is->GetState(actual_user_index, input_state);
+  auto result = HID().GetState(actual_user_index);
+  if (!result) {
+    return Fail(result.error());
+  }
+  if (input_state) {
+    X_INPUT_STATE* out = input_state;
+    *out = *result;
+  }
+  return X_ERROR_SUCCESS;
 }
 
 // https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputsetstate(v=vs.85).aspx
@@ -127,8 +147,8 @@ u32 XamInputSetState_entry(u32 user_index, u32 unk, ppc_ptr_t<X_INPUT_VIBRATION>
   }
 
   (void)unk;  // Unused in this implementation
-  auto* is = input_system();
-  return is->SetState(actual_user_index, vibration);
+  auto result = HID().SetVibration(actual_user_index, *vibration);
+  return result ? X_ERROR_SUCCESS : Fail(result.error());
 }
 
 // https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetkeystroke(v=vs.85).aspx
@@ -152,8 +172,13 @@ u32 XamInputGetKeystroke_entry(u32 user_index, u32 flags, ppc_ptr_t<X_INPUT_KEYS
     actual_user_index = 0;
   }
 
-  auto* is = input_system();
-  return is->GetKeystroke(actual_user_index, flags, keystroke);
+  auto result = HID().GetKeystroke(actual_user_index, flags);
+  if (!result) {
+    return Fail(result.error());
+  }
+  X_INPUT_KEYSTROKE* out = keystroke;
+  *out = *result;
+  return X_ERROR_SUCCESS;
 }
 
 // Same as non-ex, just takes a pointer to user index.
@@ -174,12 +199,14 @@ u32 XamInputGetKeystrokeEx_entry(mapped_u32 user_index_ptr, u32 flags,
     user_index = 0;
   }
 
-  auto* is = input_system();
-  auto result = is->GetKeystroke(user_index, flags, keystroke);
-  if (XSUCCEEDED(result)) {
-    *user_index_ptr = keystroke->user_index;
+  auto result = HID().GetKeystroke(user_index, flags);
+  if (!result) {
+    return Fail(result.error());
   }
-  return result;
+  X_INPUT_KEYSTROKE* out = keystroke;
+  *out = *result;
+  *user_index_ptr = result->user_index;
+  return X_ERROR_SUCCESS;
 }
 
 i32 XamUserGetDeviceContext_entry(u32 user_index, u32 unk, mapped_u32 out_ptr) {

@@ -102,7 +102,7 @@ class ImGuiDrawer : public WindowInputListener, public gpu::IOverlayLayer {
   bool IsDrawingDialogs() const { return dialog_loop_next_index_ != SIZE_MAX; }
   void DetachIfLastDialogRemoved();
 
-  std::optional<ImGuiKey> VirtualKeyToImGuiKey(VirtualKey vkey);
+  std::optional<ImGuiKey> VirtualKeyToImGuiKey(hid::VirtualKey vkey);
 
   Window* window_;
   size_t z_order_;

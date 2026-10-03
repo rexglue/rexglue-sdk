@@ -26,9 +26,15 @@ REXCVAR_BOOL(runtime, protect_on_release, false, "Protect released memory to pre
 REXCVAR_BOOL(runtime, scribble_heap, false, "Scribble 0xCD into all allocated heap memory");
 REXCVAR_BOOL(runtime, ignore_thread_priorities, true, "Ignores game-specified thread priorities");
 REXCVAR_BOOL(runtime, ignore_thread_affinities, true, "Ignores game-specified thread affinities");
-REXCVAR_TABLE(kRuntimeCvars, pix, log_high_frequency_kernel_calls, writable_code_segments,
-              protect_zero, protect_on_release, scribble_heap, ignore_thread_priorities,
-              ignore_thread_affinities);
+REXCVAR_BOOL(runtime, ffmpeg_verbose, false, "Verbose FFmpeg output (debug and above)");
+REXCVAR_TABLE(kRuntimeCvars, writable_code_segments, protect_zero, protect_on_release,
+              scribble_heap, ignore_thread_priorities, ignore_thread_affinities, ffmpeg_verbose);
+REXCVAR_INT32(apu, max_queued_frames, 8,
+              "Audio frames queued per render client. Lower reduces latency, higher absorbs "
+              "stalls")
+    .range(4, 64)
+    .lifecycle(rex::cvar::Lifecycle::RequiresRestart);
+REXCVAR_TABLE(kAPUCvars, max_queued_frames);
 
 // NOLINTEND(bugprone-throwing-static-initialization)
 

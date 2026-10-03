@@ -32,8 +32,12 @@
 #include <rex/platform/thread.h>
 
 #include <rex/api.h>
+#include <rex/apu.h>
+#include <rex/hid.h>
 
 #include "runtime/achievement_manager.h"
+#include "runtime/apu.h"
+#include "runtime/cvar_table.h"
 #include "runtime/dispatcher.h"
 #include "runtime/module_registry.h"
 #include "runtime/notifier.h"
@@ -45,6 +49,8 @@
 namespace rex {
 
 namespace {
+
+constexpr u32 kXNotificationSystemInputDevicesChanged = 0x00000012;
 
 std::atomic<Runtime*> g_crash_runtime{nullptr};
 
@@ -164,38 +170,33 @@ Result<void> Runtime::Setup(const RuntimeConfig& config) {
 
   CreateConcerns();
 
-  // Initialize input from injected config
-  if (config.input_factory) {
-    input_system_ = config.input_factory(tool_mode_);
-    if (input_system_) {
-      X_STATUS input_status = input_system_->Setup();
-      if (XFAILED(input_status)) {
-        REXLOG_WARN(system, "Failed to initialize input system (status {:08X}) - input disabled",
-                    input_status);
-        input_system_.reset();
-      } else {
-        REXLOG_DEBUG(system, "Input system initialized");
-      }
-    }
+  hid_ = runtime::RuntimeModule::hid_backend();
+  if (!hid_) {
+    null_hid_ = std::make_unique<hid::NullBackend>();
+    hid_ = null_hid_.get();
+    REXLOG_INFO(hid, "no hid module is loaded, the title sees 1 idle pad on user 0");
   }
+  hid_->SetConnectionListener([this](u32, bool) {
+    notifier().BroadcastNotification(kXNotificationSystemInputDevicesChanged, 0);
+  });
 
   // HLE kernel modules and apps.
   if (config.kernel_init) {
     config.kernel_init(*this);
   }
 
-  // Initialize the APU (Audio Processing Unit) from injected config
-  if (config.audio_factory) {
-    audio_system_ = config.audio_factory(function_dispatcher_.get());
-    if (audio_system_) {
-      X_STATUS audio_status = audio_system_->Setup(*this);
-      if (XFAILED(audio_status)) {
-        REXLOG_WARN(system, "Failed to initialize audio system (status {:08X}) - audio disabled",
-                    audio_status);
-        audio_system_.reset();
-      } else {
-        REXLOG_DEBUG(system, "Audio system initialized");
-      }
+  if (!tool_mode_) {
+    apu::IBackend* apu_backend = runtime::RuntimeModule::apu_backend();
+    if (!apu_backend) {
+      null_apu_ = std::make_unique<apu::NullBackend>();
+      apu_backend = null_apu_.get();
+      REXLOG_INFO(apu, "no apu module is loaded, audio plays to the null backend");
+    }
+    const auto queued = static_cast<u32>(REXCVAR_GET(runtime::cvars::max_queued_frames));
+    apu_ = std::make_unique<runtime::APU>(*this, *apu_backend, queued);
+    if (auto started = apu_->Setup(); !started) {
+      REXLOG_WARN(apu, "the APU failed to start, audio is disabled: {}", started.error().message);
+      apu_.reset();
     }
   }
 
@@ -304,14 +305,16 @@ void Runtime::Shutdown() {
     gpu_->Shutdown();
     gpu_ = nullptr;
   }
-  if (audio_system_) {
-    audio_system_->Shutdown();
-    audio_system_.reset();
+  if (apu_) {
+    apu_->Shutdown();
+    apu_.reset();
   }
-  if (input_system_) {
-    input_system_->Shutdown();
-    input_system_.reset();
+  null_apu_.reset();
+  if (hid_) {
+    hid_->SetConnectionListener({});
+    hid_ = nullptr;
   }
+  null_hid_.reset();
   if (runtime::RuntimeModule::active() == this) {
     runtime::RuntimeModule::SetActive(nullptr);
   }
@@ -323,6 +326,16 @@ void Runtime::Shutdown() {
   }
   memory_.reset();
   setup_complete_ = false;
+}
+
+void Runtime::SetAudioPaused(bool paused) {
+  if (apu_) {
+    apu_->SetPaused(paused);
+  }
+}
+
+bool Runtime::audio_paused() const {
+  return apu_ && apu_->paused();
 }
 
 u8* Runtime::virtual_membase() const {

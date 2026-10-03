@@ -16,7 +16,10 @@
 #include <span>
 
 #include <rex/api.h>
+#include <rex/apu/backend.h>
+#include <rex/hid/backend.h>
 #include <rex/cvar/registry.h>
+#include <rex/logging/logger.h>
 #include <rex/module.h>
 #include <rex/runtime.h>
 
@@ -24,7 +27,8 @@ namespace rex::runtime {
 
 /**
  * The module rex-runtime.dll serves. Connect registers the cvar tables of the subsystems
- * rex-runtime holds and validates the runtime, input and graphics config slices.
+ * rex-runtime holds, reserves the apu and hid scopes, validates the runtime and apu config slices
+ * and fetches the backends the host service modules serve.
  */
 class RuntimeModule final : public IModule {
  public:
@@ -48,6 +52,20 @@ class RuntimeModule final : public IModule {
    * @return The runtime, null when none is active.
    */
   [[nodiscard]] static Runtime* active();
+
+  /**
+   * Returns the audio output a loaded apu module serves.
+   *
+   * @return The backend, null when no apu module is loaded.
+   */
+  [[nodiscard]] static apu::IBackend* apu_backend();
+
+  /**
+   * Returns the HID backend a loaded hid module serves.
+   *
+   * @return The backend, null when no hid module is loaded.
+   */
+  [[nodiscard]] static hid::IBackend* hid_backend();
 
   static void* GetObjectTable();
   static void* GetThreadRegistry();
@@ -112,6 +130,8 @@ class RuntimeModule final : public IModule {
   ILogger* logger_ = nullptr;
   size_t registered_ = 0;
   std::atomic<Runtime*> runtime_{nullptr};
+  apu::IBackend* apu_ = nullptr;
+  hid::IBackend* hid_ = nullptr;
 };
 
 }  // namespace rex::runtime

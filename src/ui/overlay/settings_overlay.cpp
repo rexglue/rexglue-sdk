@@ -64,8 +64,8 @@ static ImVec4 LifecycleColor(rex::cvar::Lifecycle lc, const SettingsStyle& style
   return style.lifecycle_unknown;
 }
 
-static rex::ui::VirtualKey ImGuiKeyToVirtualKey(ImGuiKey key) {
-  using VK = rex::ui::VirtualKey;
+static rex::hid::VirtualKey ImGuiKeyToVirtualKey(ImGuiKey key) {
+  using VK = rex::hid::VirtualKey;
   if (key >= ImGuiKey_A && key <= ImGuiKey_Z) {
     return static_cast<VK>(static_cast<uint16_t>(VK::kA) + (key - ImGuiKey_A));
   }
@@ -294,7 +294,7 @@ void SettingsDialog::OnDraw(ImGuiIO& /*io*/) {
   };
 
   auto is_keybind = [](const rex::cvar::IVar* v) -> bool {
-    return v->desc().name.starts_with("input.keybind_");
+    return v->desc().name.starts_with("hid.keybind_");
   };
 
   ImGui::BeginChild("##cvars", ImVec2(0, -30.0f), false);
@@ -334,7 +334,7 @@ void SettingsDialog::OnDraw(ImGuiIO& /*io*/) {
 
     if (is_keybind(var)) {
       // Grey out controller keybinds when MnK mode is disabled
-      bool mnk_disabled = registry_.Get("input.mnk_mode").value_or("false") != "true";
+      bool mnk_disabled = registry_.Get("hid.mnk_mode").value_or("false") != "true";
       if (mnk_disabled)
         ImGui::BeginDisabled();
 
@@ -356,7 +356,7 @@ void SettingsDialog::OnDraw(ImGuiIO& /*io*/) {
               continue;
             if (ImGui::IsKeyPressed(imgui_key)) {
               auto vk = ImGuiKeyToVirtualKey(imgui_key);
-              std::string name = rex::ui::VirtualKeyToString(vk);
+              std::string name = rex::hid::VirtualKeyToString(vk);
               if (!name.empty()) {
                 WarnIfFailed(desc.name, registry_.Set(desc.name, name));
               }

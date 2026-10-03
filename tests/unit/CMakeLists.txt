@@ -2,7 +2,12 @@
 
 add_executable(unit_tests
     test_memory.cpp
-    audio/xma_decoder_test.cpp
+    apu/null_backend_test.cpp
+    hid/null_backend_test.cpp
+    hid/xam_input_error_test.cpp
+    hid/input_assignment_test.cpp
+    hid/hub_test.cpp
+    hid/virtual_key_test.cpp
     memory/heap_allocation_test.cpp
     memory/access_violation_test.cpp
     memory/memory_budget_test.cpp
@@ -57,7 +62,9 @@ add_executable(unit_tests
     runtime/runtime_error_test.cpp
     runtime/runtime_interfaces_test.cpp
     runtime/memory_view_test.cpp
-    input/input_assignment_test.cpp
+    runtime/apu_test.cpp
+    runtime/xma_decoder_test.cpp
+    runtime/host_service_modules_test.cpp
     ui/console_model_test.cpp
     ui/title_app_test.cpp
     ui/ui_event_test.cpp
@@ -89,6 +96,7 @@ target_include_directories(unit_tests PRIVATE
 target_link_libraries(unit_tests PRIVATE
     rex-codegen
     rex-runtime
+    rex-hid-common
     xxHash::xxhash
     Catch2::Catch2WithMain
     SDL3::Headers
@@ -110,7 +118,11 @@ add_dependencies(unit_tests rex-filesystem rex-gpu-xenos rex-sample-console rex-
 
 add_dependencies(unit_tests
     rexmod-test-good rexmod-test-missing rexmod-test-badversion
-    rexmod-test-failinit rexmod-test-dupecho rexmod-test-null-gpu)
+    rexmod-test-failinit rexmod-test-dupecho rexmod-test-null-gpu
+    rexmod-test-apu rex-apu-sdl3 rexmod-test-hid rex-hid-sdl3)
+if(WIN32)
+    add_dependencies(unit_tests rex-hid-xinput)
+endif()
 
 # Strip Tracy/profiling instrumentation from test targets
 target_compile_options(unit_tests PRIVATE

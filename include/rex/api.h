@@ -18,11 +18,12 @@
 #include <vector>
 
 #include <rex/macros.h>
+#include <rex/apu.h>
 #include <rex/cli_arg_list.h>
 #include <rex/cvar.h>
 #include <rex/filesystem.h>
 #include <rex/gpu.h>
-#include <rex/input.h>
+#include <rex/hid.h>
 #include <rex/logging/config.h>
 #include <rex/module.h>
 #include <rex/paths.h>
@@ -54,8 +55,10 @@ struct Config {
   filesystem::FilesystemConfig filesystem;
   /** Runtime module config. */
   runtime::RuntimeConfig runtime;
-  /** Input module config. */
-  input::InputConfig input;
+  /** APU config, read by the runtime. */
+  apu::APUConfig apu;
+  /** HID config, read by the loaded hid module at Connect. */
+  hid::HIDConfig hid;
   /** UI module config. */
   ui::UIConfig ui;
   /** GPU backend config, read by the GPU backend module at Connect. */

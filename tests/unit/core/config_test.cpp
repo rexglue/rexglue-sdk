@@ -198,7 +198,7 @@ TEST_CASE("Config defaults for the 6a fields", "[config]") {
   rex::Config config;
   REQUIRE(config.single_instance.empty());
   REQUIRE(config.runtime.terminate_timeout == std::chrono::milliseconds(2000));
-  REQUIRE_FALSE(config.input.shared_pads);
+  REQUIRE_FALSE(config.hid.shared_pads);
   REQUIRE(config.ui.aspect_ratio == rex::ui::AspectRatio::kStretch);
   REQUIRE(config.ui.min_size.width_px == 0);
   REQUIRE(config.ui.title.empty());

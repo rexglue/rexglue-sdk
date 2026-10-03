@@ -1,6 +1,6 @@
 /**
  * @file        ui/sdl_virtual_key.cpp
- * @brief       SDL3 scancode to Win32-style VirtualKey translation
+ * @brief       SDL3 scancode to Win32-style hid::VirtualKey translation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -15,119 +15,120 @@
 
 namespace rex::ui {
 
-VirtualKey TranslateSDLScancode(SDL_Scancode scancode) {
+hid::VirtualKey TranslateSDLScancode(SDL_Scancode scancode) {
   // Contiguous ranges in both encodings.
   if (scancode >= SDL_SCANCODE_A && scancode <= SDL_SCANCODE_Z) {
-    return VirtualKey(uint32_t(VirtualKey::kA) + (scancode - SDL_SCANCODE_A));
+    return hid::VirtualKey(uint32_t(hid::VirtualKey::kA) + (scancode - SDL_SCANCODE_A));
   }
   if (scancode >= SDL_SCANCODE_1 && scancode <= SDL_SCANCODE_9) {
-    return VirtualKey(uint32_t(VirtualKey::k0) + 1 + (scancode - SDL_SCANCODE_1));
+    return hid::VirtualKey(uint32_t(hid::VirtualKey::k0) + 1 + (scancode - SDL_SCANCODE_1));
   }
   if (scancode >= SDL_SCANCODE_F1 && scancode <= SDL_SCANCODE_F12) {
-    return VirtualKey(uint32_t(VirtualKey::kF1) + (scancode - SDL_SCANCODE_F1));
+    return hid::VirtualKey(uint32_t(hid::VirtualKey::kF1) + (scancode - SDL_SCANCODE_F1));
   }
   if (scancode >= SDL_SCANCODE_F13 && scancode <= SDL_SCANCODE_F24) {
-    return VirtualKey(uint32_t(VirtualKey::kF13) + (scancode - SDL_SCANCODE_F13));
+    return hid::VirtualKey(uint32_t(hid::VirtualKey::kF13) + (scancode - SDL_SCANCODE_F13));
   }
   if (scancode >= SDL_SCANCODE_KP_1 && scancode <= SDL_SCANCODE_KP_9) {
     // SDL numpad order is 1..9,0; VK order is 0..9.
-    return VirtualKey(uint32_t(VirtualKey::kNumpad0) + 1 + (scancode - SDL_SCANCODE_KP_1));
+    return hid::VirtualKey(uint32_t(hid::VirtualKey::kNumpad0) + 1 +
+                           (scancode - SDL_SCANCODE_KP_1));
   }
   switch (scancode) {
     case SDL_SCANCODE_0:
-      return VirtualKey::k0;
+      return hid::VirtualKey::k0;
     case SDL_SCANCODE_KP_0:
-      return VirtualKey::kNumpad0;
+      return hid::VirtualKey::kNumpad0;
     case SDL_SCANCODE_RETURN:
     case SDL_SCANCODE_KP_ENTER:
-      return VirtualKey::kReturn;
+      return hid::VirtualKey::kReturn;
     case SDL_SCANCODE_ESCAPE:
-      return VirtualKey::kEscape;
+      return hid::VirtualKey::kEscape;
     case SDL_SCANCODE_BACKSPACE:
-      return VirtualKey::kBack;
+      return hid::VirtualKey::kBack;
     case SDL_SCANCODE_TAB:
-      return VirtualKey::kTab;
+      return hid::VirtualKey::kTab;
     case SDL_SCANCODE_SPACE:
-      return VirtualKey::kSpace;
+      return hid::VirtualKey::kSpace;
     case SDL_SCANCODE_LEFT:
-      return VirtualKey::kLeft;
+      return hid::VirtualKey::kLeft;
     case SDL_SCANCODE_UP:
-      return VirtualKey::kUp;
+      return hid::VirtualKey::kUp;
     case SDL_SCANCODE_RIGHT:
-      return VirtualKey::kRight;
+      return hid::VirtualKey::kRight;
     case SDL_SCANCODE_DOWN:
-      return VirtualKey::kDown;
+      return hid::VirtualKey::kDown;
     case SDL_SCANCODE_PAGEUP:
-      return VirtualKey::kPrior;
+      return hid::VirtualKey::kPrior;
     case SDL_SCANCODE_PAGEDOWN:
-      return VirtualKey::kNext;
+      return hid::VirtualKey::kNext;
     case SDL_SCANCODE_HOME:
-      return VirtualKey::kHome;
+      return hid::VirtualKey::kHome;
     case SDL_SCANCODE_END:
-      return VirtualKey::kEnd;
+      return hid::VirtualKey::kEnd;
     case SDL_SCANCODE_INSERT:
-      return VirtualKey::kInsert;
+      return hid::VirtualKey::kInsert;
     case SDL_SCANCODE_DELETE:
-      return VirtualKey::kDelete;
+      return hid::VirtualKey::kDelete;
     case SDL_SCANCODE_LSHIFT:
     case SDL_SCANCODE_RSHIFT:
-      return VirtualKey::kShift;
+      return hid::VirtualKey::kShift;
     case SDL_SCANCODE_LCTRL:
     case SDL_SCANCODE_RCTRL:
-      return VirtualKey::kControl;
+      return hid::VirtualKey::kControl;
     case SDL_SCANCODE_LALT:
     case SDL_SCANCODE_RALT:
-      return VirtualKey::kMenu;
+      return hid::VirtualKey::kMenu;
     case SDL_SCANCODE_LGUI:
-      return VirtualKey::kLWin;
+      return hid::VirtualKey::kLWin;
     case SDL_SCANCODE_RGUI:
-      return VirtualKey::kRWin;
+      return hid::VirtualKey::kRWin;
     case SDL_SCANCODE_APPLICATION:
-      return VirtualKey::kApps;
+      return hid::VirtualKey::kApps;
     case SDL_SCANCODE_CAPSLOCK:
-      return VirtualKey::kCapital;
+      return hid::VirtualKey::kCapital;
     case SDL_SCANCODE_PAUSE:
-      return VirtualKey::kPause;
+      return hid::VirtualKey::kPause;
     case SDL_SCANCODE_PRINTSCREEN:
-      return VirtualKey::kSnapshot;
+      return hid::VirtualKey::kSnapshot;
     case SDL_SCANCODE_SCROLLLOCK:
-      return VirtualKey::kScroll;
+      return hid::VirtualKey::kScroll;
     case SDL_SCANCODE_NUMLOCKCLEAR:
-      return VirtualKey::kNumLock;
+      return hid::VirtualKey::kNumLock;
     case SDL_SCANCODE_KP_MULTIPLY:
-      return VirtualKey::kMultiply;
+      return hid::VirtualKey::kMultiply;
     case SDL_SCANCODE_KP_PLUS:
-      return VirtualKey::kAdd;
+      return hid::VirtualKey::kAdd;
     case SDL_SCANCODE_KP_MINUS:
-      return VirtualKey::kSubtract;
+      return hid::VirtualKey::kSubtract;
     case SDL_SCANCODE_KP_PERIOD:
-      return VirtualKey::kDecimal;
+      return hid::VirtualKey::kDecimal;
     case SDL_SCANCODE_KP_DIVIDE:
-      return VirtualKey::kDivide;
+      return hid::VirtualKey::kDivide;
     case SDL_SCANCODE_SEMICOLON:
-      return VirtualKey::kOem1;
+      return hid::VirtualKey::kOem1;
     case SDL_SCANCODE_EQUALS:
-      return VirtualKey::kOemPlus;
+      return hid::VirtualKey::kOemPlus;
     case SDL_SCANCODE_COMMA:
-      return VirtualKey::kOemComma;
+      return hid::VirtualKey::kOemComma;
     case SDL_SCANCODE_MINUS:
-      return VirtualKey::kOemMinus;
+      return hid::VirtualKey::kOemMinus;
     case SDL_SCANCODE_PERIOD:
-      return VirtualKey::kOemPeriod;
+      return hid::VirtualKey::kOemPeriod;
     case SDL_SCANCODE_SLASH:
-      return VirtualKey::kOem2;
+      return hid::VirtualKey::kOem2;
     case SDL_SCANCODE_GRAVE:
-      return VirtualKey::kOem3;
+      return hid::VirtualKey::kOem3;
     case SDL_SCANCODE_LEFTBRACKET:
-      return VirtualKey::kOem4;
+      return hid::VirtualKey::kOem4;
     case SDL_SCANCODE_BACKSLASH:
-      return VirtualKey::kOem5;
+      return hid::VirtualKey::kOem5;
     case SDL_SCANCODE_RIGHTBRACKET:
-      return VirtualKey::kOem6;
+      return hid::VirtualKey::kOem6;
     case SDL_SCANCODE_APOSTROPHE:
-      return VirtualKey::kOem7;
+      return hid::VirtualKey::kOem7;
     default:
-      return VirtualKey::kNone;
+      return hid::VirtualKey::kNone;
   }
 }
 

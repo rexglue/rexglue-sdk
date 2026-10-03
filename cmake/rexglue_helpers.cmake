@@ -157,21 +157,31 @@ function(rexglue_configure_target target_name)
         target_sources(${target_name} PRIVATE "${_optimus_source}")
     endif()
 
-    if(TARGET rex-filesystem)
-        set(_rexglue_filesystem rex-filesystem)
-        add_dependencies(${target_name} rex-filesystem)
-    elseif(TARGET rex::filesystem)
-        set(_rexglue_filesystem rex::filesystem)
+    set(_rexglue_staged_modules rex-filesystem rex-apu-sdl3 rex-hid-sdl3)
+    if(WIN32)
+        list(APPEND _rexglue_staged_modules rex-hid-xinput)
     endif()
-    if(_rexglue_filesystem)
+    foreach(_module IN LISTS _rexglue_staged_modules)
+        string(REPLACE "rex-" "rex::" _imported ${_module})
+        if(TARGET ${_module})
+            set(_module_target ${_module})
+            add_dependencies(${target_name} ${_module})
+        elseif(TARGET ${_imported})
+            set(_module_target ${_imported})
+        else()
+            continue()
+        endif()
         add_custom_command(TARGET ${target_name} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                $<TARGET_FILE:${_rexglue_filesystem}>
+                $<TARGET_FILE:${_module_target}>
                 $<TARGET_FILE_DIR:${target_name}>
             VERBATIM
         )
-        unset(_rexglue_filesystem)
-    endif()
+        set_property(TARGET ${target_name} APPEND PROPERTY
+            LINK_DEPENDS "$<TARGET_FILE:${_module_target}>")
+        unset(_module_target)
+    endforeach()
+    unset(_rexglue_staged_modules)
 
     if(APPLE)
         _rexglue_stage_macos_vulkan_runtime(${target_name})

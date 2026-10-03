@@ -18,7 +18,7 @@
 
 #include <rex/types.h>
 #include <rex/ui.h>
-#include <rex/ui/virtual_key.h>
+#include <rex/hid/virtual_key.h>
 
 namespace rex::ui {
 
@@ -271,9 +271,9 @@ class KeyEvent : public UIEvent {
    * @param modifier_alt_pressed True while Alt is held.
    * @param modifier_super_pressed True while the Super key is held.
    */
-  KeyEvent(Type type, Window* target, VirtualKey virtual_key, i32 repeat_count, bool prev_state,
-           bool modifier_shift_pressed, bool modifier_ctrl_pressed, bool modifier_alt_pressed,
-           bool modifier_super_pressed)
+  KeyEvent(Type type, Window* target, hid::VirtualKey virtual_key, i32 repeat_count,
+           bool prev_state, bool modifier_shift_pressed, bool modifier_ctrl_pressed,
+           bool modifier_alt_pressed, bool modifier_super_pressed)
       : UIEvent(type, target),
         virtual_key_(virtual_key),
         repeat_count_(repeat_count),
@@ -312,7 +312,7 @@ class KeyEvent : public UIEvent {
    *
    * @return The key, or the typed code point for Char.
    */
-  VirtualKey virtual_key() const { return virtual_key_; }
+  hid::VirtualKey virtual_key() const { return virtual_key_; }
 
   /**
    * Returns the repeat count.
@@ -358,7 +358,7 @@ class KeyEvent : public UIEvent {
 
  private:
   bool handled_ = false;
-  VirtualKey virtual_key_ = VirtualKey::kNone;
+  hid::VirtualKey virtual_key_ = hid::VirtualKey::kNone;
   i32 repeat_count_ = 0;
   bool prev_state_ = false;
   bool modifier_shift_pressed_ = false;

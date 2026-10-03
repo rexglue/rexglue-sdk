@@ -1,5 +1,6 @@
 add_library(rex-core SHARED
     api.cpp
+    apu/null_backend.cpp
     app.cpp
     bit_map.cpp
     bit_stream.cpp
@@ -18,6 +19,8 @@ add_library(rex-core SHARED
     filesystem/xex.cpp
     ${PROJECT_SOURCE_DIR}/thirdparty/crypto/rijndael-alg-fst.c
     hash.cpp
+    hid/null_backend.cpp
+    hid/virtual_key.cpp
     log_file.cpp
     log_sinks.cpp
     logger.cpp

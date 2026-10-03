@@ -79,7 +79,7 @@ void DebugPrint(fmt::string_view format, const Args&... args) {
  * @param detail A null terminated string attached to the zone.
  *
  * @code
- * REX_PROFILE_SCOPE_TEXT("AudioSystem::Submit", client_name);
+ * REX_PROFILE_SCOPE_TEXT("APU::SubmitFrame", client_name);
  * @endcode
  */
 #define REX_PROFILE_SCOPE_TEXT(name, detail)             \

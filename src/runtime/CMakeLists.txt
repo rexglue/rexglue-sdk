@@ -44,6 +44,10 @@ set(REXSYSTEM_SOURCES
     module.cpp
     function_dispatcher.cpp
     runtime_module.cpp
+    apu.cpp
+    xma/context.cpp
+    xma/decoder.cpp
+    xma/register_file.cpp
     thread_state.cpp
     xex_module.cpp
 )

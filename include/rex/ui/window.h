@@ -28,7 +28,7 @@
 #include <rex/gpu/presenter.h>
 #include <rex/gpu/surface.h>
 #include <rex/ui/ui_event.h>
-#include <rex/ui/virtual_key.h>
+#include <rex/hid/virtual_key.h>
 #include <rex/ui/window_listener.h>
 #include <rex/ui/windowed_app_context.h>
 

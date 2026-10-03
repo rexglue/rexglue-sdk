@@ -34,8 +34,6 @@
 #include <rex/runtime/content_manager.h>
 #include <rex/runtime/dispatcher.h>
 #include <rex/runtime/error.h>
-#include <rex/runtime/interfaces/audio.h>
-#include <rex/runtime/interfaces/input.h>
 #include <rex/runtime/module_registry.h>
 #include <rex/runtime/notifier.h>
 #include <rex/runtime/object_table.h>
@@ -50,11 +48,22 @@ namespace rex {
 
 struct Config;
 
+namespace apu {
+class IBackend;
+class NullBackend;
+}  // namespace apu
+
+namespace hid {
+class IBackend;
+class NullBackend;
+}  // namespace hid
+
 namespace gpu {
 class IBackend;
 }  // namespace gpu
 
 namespace runtime {
+class APU;
 class FunctionDispatcher;
 class ObjectTable;
 class ThreadRegistry;
@@ -92,10 +101,6 @@ struct RuntimeConfig {
   gpu::IBackend* gpu = nullptr;
   /** The mount table. Required, Setup fails without it. */
   filesystem::IFileSystem* file_system = nullptr;
-  /** Builds the audio system once the function dispatcher exists. */
-  std::function<std::unique_ptr<runtime::IAudioSystem>(runtime::FunctionDispatcher*)> audio_factory;
-  /** Builds the input system. */
-  std::function<std::unique_ptr<runtime::IInputSystem>(bool tool_mode)> input_factory;
   /** Registers the Xam apps and the kernel modules. */
   std::function<void(Runtime&)> kernel_init;
   /** True to skip the GPU, for analysis tools. */
@@ -105,24 +110,9 @@ struct RuntimeConfig {
 };
 
 /**
- * Fills RuntimeConfig::audio_factory with a backend type that has a static Create taking the
- * function dispatcher.
- *
- * @param Type The audio backend type.
- *
- * @code
- * runtime_config.audio_factory = REX_AUDIO_BACKEND(audio::sdl::SDLAudioSystem);
- * @endcode
- */
-#define REX_AUDIO_BACKEND(Type)                                                                  \
-  [](::rex::runtime::FunctionDispatcher* _fd) -> std::unique_ptr<::rex::runtime::IAudioSystem> { \
-    return Type::Create(_fd);                                                                    \
-  }
-
-/**
  * The runtime of a recompiled title. Owns the guest memory, the function dispatcher, the object
  * table, the thread and module registries, the notifier, the content and achievement managers,
- * the dispatcher, the process blocks and the audio and input systems.
+ * the dispatcher, the process blocks, the APU and the HID backend.
  */
 class Runtime {
  public:
@@ -163,11 +153,25 @@ class Runtime {
   gpu::IBackend* gpu() const { return gpu_; }
 
   /**
-   * Returns the audio system.
+   * Returns the APU the XAudio and XMA exports reach.
    *
-   * @return The audio system, null when none was built.
+   * @return The APU, null in tool mode and before Setup.
    */
-  runtime::IAudioSystem* audio_system() const { return audio_system_.get(); }
+  runtime::APU* apu() const { return apu_.get(); }
+
+  /**
+   * Parks or resumes the audio worker and the XMA decoder.
+   *
+   * @param paused True to park.
+   */
+  void SetAudioPaused(bool paused);
+
+  /**
+   * Reports whether audio is parked.
+   *
+   * @return True while SetAudioPaused(true) holds.
+   */
+  bool audio_paused() const;
 
   /**
    * Returns the display mode Setup took from RuntimeConfig.
@@ -177,11 +181,12 @@ class Runtime {
   const runtime::VideoMode& video_mode() const { return video_mode_; }
 
   /**
-   * Returns the input system.
+   * Returns the HID backend the XamInput exports reach, a loaded hid module or the runtime's
+   * null provider.
    *
-   * @return The input system, null when none was built.
+   * @return The backend. Valid between Setup and Shutdown.
    */
-  runtime::IInputSystem* input_system() const { return input_system_.get(); }
+  hid::IBackend& hid() const { return *hid_; }
 
   /**
    * Returns the function dispatcher that runs guest functions and interrupts.
@@ -561,8 +566,10 @@ class Runtime {
   rex::platform::RankedMutex terminate_mutex_{rex::platform::LockRank::Leaf};
   std::vector<u32> terminate_registrations_;
   gpu::IBackend* gpu_ = nullptr;
-  std::unique_ptr<runtime::IAudioSystem> audio_system_;
-  std::unique_ptr<runtime::IInputSystem> input_system_;
+  std::unique_ptr<apu::NullBackend> null_apu_;
+  std::unique_ptr<runtime::APU> apu_;
+  std::unique_ptr<hid::NullBackend> null_hid_;
+  hid::IBackend* hid_ = nullptr;
 };
 
 }  // namespace rex

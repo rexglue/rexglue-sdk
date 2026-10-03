@@ -1,0 +1,5 @@
+add_subdirectory(common)
+add_subdirectory(sdl3)
+if(WIN32)
+    add_subdirectory(xinput)
+endif()

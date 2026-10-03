@@ -22,10 +22,9 @@
 #include <SDL3/SDL_hints.h>
 #include <imgui.h>
 
-#include <rex/audio/sdl/sdl_audio_system.h>
 #include <rex/filesystem.h>
 #include <rex/gpu.h>
-#include <rex/input/input_system.h>
+#include <rex/hid.h>
 #include <rex/kernel/shim/heap.h>
 #include <rex/kernel/init.h>
 #include <rex/logging.h>
@@ -199,6 +198,181 @@ class TitleApp::BindListener final : public WindowInputListener {
   void OnKeyDown(KeyEvent& e) override { ProcessKeyEvent(e); }
 };
 
+class TitleApp::HIDHost final : public hid::IInputHost,
+                                public WindowInputListener,
+                                public WindowListener {
+ public:
+  HIDHost(TitleApp& app, hid::IBackend& backend) : app_(app), backend_(backend) {}
+
+  void Attach() {
+    backend_.SetHost(this);
+    Window& window = *app_.window_;
+    backend_.OnEvent({.kind = hid::InputEvent::Kind::Resize,
+                      .width = window.GetActualPhysicalWidth(),
+                      .height = window.GetActualPhysicalHeight()});
+    backend_.OnEvent({.kind = window.HasFocus() ? hid::InputEvent::Kind::FocusGained
+                                                : hid::InputEvent::Kind::FocusLost});
+  }
+
+  void Detach() { backend_.SetHost(nullptr); }
+
+  bool Post(std::move_only_function<void()> work) override {
+    return InvokeFunction(std::move(work));
+  }
+
+  bool ApplyPointerMode(hid::PointerMode mode) override {
+    Window& window = *app_.window_;
+    if (applied_ == hid::PointerMode::Locked) {
+      window.SetRelativeMouseMode(false);
+      window.ReleaseMouse();
+    }
+    if (applied_ == hid::PointerMode::Free) {
+      arrow_ = window.GetCursorVisibility();
+    }
+    window.SetCursorVisibility(mode == hid::PointerMode::Free ? arrow_
+                                                              : Window::CursorVisibility::kHidden);
+    bool relative = false;
+    if (mode == hid::PointerMode::Locked) {
+      window.CaptureMouse();
+      relative = window.SetRelativeMouseMode(true);
+      if (!relative) {
+        REXLOG_WARN(hid, "pointer lock is unavailable, mouse look recenters the pointer instead");
+      }
+    }
+    applied_ = mode;
+    return relative;
+  }
+
+  std::optional<hid::PointerState> WarpPointerToCenter() override {
+    Window& window = *app_.window_;
+    i32 x = 0;
+    i32 y = 0;
+    if (!window.WarpMouseToCenter(x, y)) {
+      return std::nullopt;
+    }
+    return hid::PointerState{.x = static_cast<f32>(x),
+                             .y = static_cast<f32>(y),
+                             .window_width = window.GetActualPhysicalWidth(),
+                             .window_height = window.GetActualPhysicalHeight()};
+  }
+
+  bool capture_active() const override {
+    if (app_.window_ && !app_.window_->HasFocus()) {
+      return false;
+    }
+    if (!app_.overlays_ || !app_.overlays_->AnyVisible()) {
+      return true;
+    }
+    return !app_.drawer_->GetIO().WantCaptureMouse;
+  }
+
+  void OnKeyDown(KeyEvent& e) override {
+    if (!OverlayWants(true)) {
+      Key(hid::InputEvent::Kind::KeyDown, e);
+    }
+  }
+  void OnKeyUp(KeyEvent& e) override { Key(hid::InputEvent::Kind::KeyUp, e); }
+  void OnKeyChar(KeyEvent& e) override {
+    if (OverlayWants(true)) {
+      return;
+    }
+    backend_.OnEvent(
+        {.kind = hid::InputEvent::Kind::KeyChar, .character = static_cast<u32>(e.virtual_key())});
+  }
+  void OnMouseDown(MouseEvent& e) override {
+    if (!OverlayWants(false)) {
+      Button(hid::InputEvent::Kind::ButtonDown, e);
+    }
+  }
+  void OnMouseUp(MouseEvent& e) override { Button(hid::InputEvent::Kind::ButtonUp, e); }
+  void OnMouseMove(MouseEvent& e) override {
+    if (OverlayWants(false)) {
+      return;
+    }
+    backend_.OnEvent({.kind = hid::InputEvent::Kind::Motion,
+                      .x = static_cast<f32>(e.x()),
+                      .y = static_cast<f32>(e.y()),
+                      .dx = e.dx(),
+                      .dy = e.dy()});
+  }
+  void OnMouseWheel(MouseEvent& e) override {
+    const i32 detents = e.scroll_y() / static_cast<i32>(MouseEvent::kScrollPerDetent);
+    if (detents != 0 && !OverlayWants(false)) {
+      backend_.OnEvent({.kind = hid::InputEvent::Kind::Wheel, .wheel = detents});
+    }
+  }
+  void OnGotFocus(UISetupEvent&) override {
+    backend_.OnEvent({.kind = hid::InputEvent::Kind::FocusGained});
+  }
+  void OnLostFocus(UISetupEvent&) override {
+    backend_.OnEvent({.kind = hid::InputEvent::Kind::FocusLost});
+  }
+  void OnResize(UISetupEvent&) override {
+    Window& window = *app_.window_;
+    backend_.OnEvent({.kind = hid::InputEvent::Kind::Resize,
+                      .width = window.GetActualPhysicalWidth(),
+                      .height = window.GetActualPhysicalHeight()});
+  }
+
+ private:
+  bool OverlayWants(bool keyboard) const {
+    if (!app_.overlays_ || !app_.overlays_->AnyVisible()) {
+      return false;
+    }
+    const ImGuiIO& io = app_.drawer_->GetIO();
+    return keyboard ? io.WantCaptureKeyboard : io.WantCaptureMouse;
+  }
+
+  void Key(hid::InputEvent::Kind kind, const KeyEvent& e) {
+    hid::KeyModifiers modifiers = hid::KeyModifiers::None;
+    if (e.is_shift_pressed()) {
+      modifiers |= hid::KeyModifiers::Shift;
+    }
+    if (e.is_ctrl_pressed()) {
+      modifiers |= hid::KeyModifiers::Ctrl;
+    }
+    if (e.is_alt_pressed()) {
+      modifiers |= hid::KeyModifiers::Alt;
+    }
+    backend_.OnEvent({.kind = kind,
+                      .key = e.virtual_key(),
+                      .modifiers = modifiers,
+                      .repeat = kind == hid::InputEvent::Kind::KeyDown && e.prev_state()});
+  }
+
+  void Button(hid::InputEvent::Kind kind, const MouseEvent& e) {
+    hid::MouseButton button = hid::MouseButton::Left;
+    switch (e.button()) {
+      case MouseEvent::Button::kLeft:
+        button = hid::MouseButton::Left;
+        break;
+      case MouseEvent::Button::kRight:
+        button = hid::MouseButton::Right;
+        break;
+      case MouseEvent::Button::kMiddle:
+        button = hid::MouseButton::Middle;
+        break;
+      case MouseEvent::Button::kX1:
+        button = hid::MouseButton::X1;
+        break;
+      case MouseEvent::Button::kX2:
+        button = hid::MouseButton::X2;
+        break;
+      case MouseEvent::Button::kNone:
+        return;
+    }
+    backend_.OnEvent({.kind = kind,
+                      .button = button,
+                      .x = static_cast<f32>(e.x()),
+                      .y = static_cast<f32>(e.y())});
+  }
+
+  TitleApp& app_;
+  hid::IBackend& backend_;
+  hid::PointerMode applied_ = hid::PointerMode::Free;
+  Window::CursorVisibility arrow_ = Window::CursorVisibility::kVisible;
+};
+
 ImFontAtlas& TitleUI::fonts() {
   return *app_.drawer_->GetIO().Fonts;
 }
@@ -303,7 +477,7 @@ Result<void> TitleApp::Init(const CLIArgList& args, const PPCImageInfo& image) {
   const std::filesystem::path exe = platform::GetExecutablePath();
   const std::string name = exe.stem().string();
   Config& cfg = config();
-  cfg.modules = {"rex-gpu-xenos"};
+  cfg.modules = {"rex-apu-sdl3", "rex-hid-sdl3", "rex-gpu-xenos"};
   cfg.paths.user_data_root = platform::GetUserFolder() / name;
   cfg.paths.cache_root = cfg.paths.user_data_root / "cache";
   cfg.paths.config_file = exe.parent_path() / (name + ".toml");
@@ -359,6 +533,11 @@ Result<void> TitleApp::CreateTitleWindow() {
   window_->AddListener(listener_.get());
   window_->AddInputListener(listener_.get(), 1000);
   window_->AddInputListener(bind_listener_.get(), 0);
+  if (auto* hid_backend = api().Get<hid::IBackend>()) {
+    hid_host_ = std::make_unique<HIDHost>(*this, *hid_backend);
+    window_->AddListener(hid_host_.get());
+    window_->AddInputListener(hid_host_.get(), 0);
+  }
 
   auto* cvars = api().Get<cvar::ICvarRegistry>();
   if (cvars->Get("ui.fullscreen").value_or("true") == "true") {
@@ -436,6 +615,9 @@ Result<void> TitleApp::CreateTitleWindow() {
     window_->SetPresenter(presenter);
   }
   events_ready_ = true;
+  if (hid_host_) {
+    hid_host_->Attach();
+  }
   return Ok();
 }
 
@@ -451,16 +633,6 @@ void TitleApp::Run() {
     return;
   }
   context_->RunMainMessageLoop();
-}
-
-bool TitleApp::CaptureActive() const {
-  if (window_ && !window_->HasFocus()) {
-    return false;
-  }
-  if (!overlays_ || !overlays_->AnyVisible()) {
-    return true;
-  }
-  return !drawer_->GetIO().WantCaptureMouse;
 }
 
 Result<void> TitleApp::LaunchFailure(std::string_view message) {
@@ -489,10 +661,6 @@ Result<void> TitleApp::LaunchTitle() {
   runtime_->set_imgui_drawer(drawer_.get());
 
   RuntimeConfig runtime_config;
-  runtime_config.audio_factory = REX_AUDIO_BACKEND(audio::sdl::SDLAudioSystem);
-  runtime_config.input_factory = [this](bool tool_mode) {
-    return input::CreateDefaultInputSystem(api().config().input, tool_mode);
-  };
   runtime_config.kernel_init = kernel::InitializeKernel;
   runtime_config.gpu = gpu_;
   runtime_config.file_system = api().Get<filesystem::IFileSystem>();
@@ -500,10 +668,6 @@ Result<void> TitleApp::LaunchTitle() {
   runtime_config.video_mode.refresh_rate = ConfiguredRefreshRate();
   if (auto setup = runtime_->Setup(image_, runtime_config); !setup) {
     return LaunchFailure(std::format("runtime setup failed, {}", setup.error().message));
-  }
-  if (auto* input = static_cast<input::InputSystem*>(runtime_->input_system())) {
-    input->AttachWindow(window_.get());
-    input->SetActiveCallback([this] { return CaptureActive(); });
   }
   if (image_.register_modules) {
     image_.register_modules(runtime_->module_registry());
@@ -631,6 +795,14 @@ void TitleApp::Stop() {
 
 void TitleApp::Release() {
   events_ready_ = false;
+  if (hid_host_) {
+    hid_host_->Detach();
+    if (window_) {
+      window_->RemoveInputListener(hid_host_.get());
+      window_->RemoveListener(hid_host_.get());
+    }
+    hid_host_.reset();
+  }
   console_window_.reset();
   overlays_.reset();
   overlay_context_.reset();

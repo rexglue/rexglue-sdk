@@ -611,8 +611,8 @@ void WindowSDL::HandleDropEvent(SDL_Event& event) {
 }
 
 void WindowSDL::HandleKeyEvent(SDL_Event& event) {
-  VirtualKey virtual_key = TranslateSDLScancode(event.key.scancode);
-  if (virtual_key == VirtualKey::kNone) {
+  hid::VirtualKey virtual_key = TranslateSDLScancode(event.key.scancode);
+  if (virtual_key == hid::VirtualKey::kNone) {
     return;
   }
   SDL_Keymod mod = event.key.mod;
@@ -643,7 +643,7 @@ void WindowSDL::HandleTextInputEvent(SDL_Event& event) {
   const char* end = text + std::strlen(text);
   while (it < end) {
     uint32_t codepoint = utf8::unchecked::next(it);
-    KeyEvent e(UIEvent::Type::Char, this, VirtualKey(codepoint), 1, false, false, false, false,
+    KeyEvent e(UIEvent::Type::Char, this, hid::VirtualKey(codepoint), 1, false, false, false, false,
                false);
     OnKeyChar(e, destruction_receiver);
     if (destruction_receiver.IsWindowDestroyed()) {

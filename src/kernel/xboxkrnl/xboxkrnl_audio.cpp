@@ -12,13 +12,15 @@
 // Disable warnings about unused parameters for kernel functions
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
-#include <rex/audio/audio_system.h>
 #include <rex/kernel/xboxkrnl/private.h>
 #include <rex/logging.h>
 #include <rex/hook.h>
 #include <rex/types.h>
 #include <rex/runtime.h>
+#include <rex/runtime/error.h>
 #include <rex/runtime/xtypes.h>
+
+#include "runtime/apu.h"
 
 namespace rex::kernel::xboxkrnl {
 using namespace rex::runtime;
@@ -58,46 +60,51 @@ u32 XAudioRegisterRenderDriverClient_entry(mapped_u32 callback_ptr, mapped_u32 d
     return X_E_INVALIDARG;
   }
 
-  uint32_t callback = callback_ptr[0];
+  u32 callback = callback_ptr[0];
 
   if (!callback) {
     return X_E_INVALIDARG;
   }
-  uint32_t callback_arg = callback_ptr[1];
+  u32 callback_arg = callback_ptr[1];
 
-  auto* audio_system = static_cast<audio::AudioSystem*>(runtime::Current().audio_system());
-
-  size_t index;
-  auto result = audio_system->RegisterClient(callback, callback_arg, &index);
-  if (XFAILED(result)) {
-    return result;
+  runtime::APU* apu = runtime::Current().apu();
+  if (!apu) {
+    return X_STATUS_UNSUCCESSFUL;
   }
-
-  assert_true(!(index & ~0x0000FFFF));
-  *driver_ptr = 0x41550000 | (static_cast<uint32_t>(index) & 0x0000FFFF);
+  auto index = apu->RegisterClient(callback, callback_arg);
+  if (!index) {
+    return runtime::ToXStatus(index.error());
+  }
+  *driver_ptr = 0x41550000 | (*index & 0x0000FFFF);
   return X_ERROR_SUCCESS;
 }
 
 u32 XAudioUnregisterRenderDriverClient_entry(mapped_void driver_ptr) {
   assert_true((driver_ptr.guest_address() & 0xFFFF0000) == 0x41550000);
 
-  auto* audio_system = static_cast<audio::AudioSystem*>(runtime::Current().audio_system());
-  audio_system->UnregisterClient(driver_ptr.guest_address() & 0x0000FFFF);
+  runtime::APU* apu = runtime::Current().apu();
+  if (!apu) {
+    return X_ERROR_SUCCESS;
+  }
+  apu->UnregisterClient(driver_ptr.guest_address() & 0x0000FFFF);
   return X_ERROR_SUCCESS;
 }
 
 u32 XAudioSubmitRenderDriverFrame_entry(mapped_void driver_ptr, mapped_void samples_ptr) {
   assert_true((driver_ptr.guest_address() & 0xFFFF0000) == 0x41550000);
 
-  static uint32_t submit_krnl_count = 0;
+  static u32 submit_krnl_count = 0;
   if (submit_krnl_count < 10) {
     REXLOG_DEBUG(kernel, "XAudioSubmitRenderDriverFrame: driver={:08X} samples={:08X}",
                  driver_ptr.guest_address(), samples_ptr.guest_address());
     submit_krnl_count++;
   }
 
-  auto* audio_system = static_cast<audio::AudioSystem*>(runtime::Current().audio_system());
-  audio_system->SubmitFrame(driver_ptr.guest_address() & 0x0000FFFF, samples_ptr.guest_address());
+  runtime::APU* apu = runtime::Current().apu();
+  if (!apu) {
+    return X_ERROR_SUCCESS;
+  }
+  apu->SubmitFrame(driver_ptr.guest_address() & 0x0000FFFF, samples_ptr.guest_address());
 
   return X_ERROR_SUCCESS;
 }

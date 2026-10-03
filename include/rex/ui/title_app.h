@@ -272,9 +272,9 @@ class TitleApp : public App, public gpu::IUIThread {
   class Listener;
   class BindListener;
   class ConsoleDockHost;
+  class HIDHost;
 
   Result<void> LaunchFailure(std::string_view message);
-  bool CaptureActive() const;
 
   PPCImageInfo image_{};
   std::unique_ptr<SDLWindowedAppContext> context_;
@@ -290,6 +290,7 @@ class TitleApp : public App, public gpu::IUIThread {
   std::unique_ptr<Runtime> runtime_;
   std::unique_ptr<ConsoleModel> console_;
   std::unique_ptr<ConsoleDockHost> console_host_;
+  std::unique_ptr<HIDHost> hid_host_;
   std::unique_ptr<ConsoleWindow> console_window_;
   std::unique_ptr<OverlayContext> overlay_context_;
   std::unique_ptr<OverlayRegistry> overlays_;

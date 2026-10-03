@@ -18,7 +18,7 @@
 
 #include <rex/kernel/xam/private.h>
 #include <rex/hook.h>
-#include <rex/input/input_system.h>
+#include <rex/hid/backend.h>
 #include <rex/types.h>
 #include <rex/runtime/xtypes.h>
 #include <rex/platform/thread.h>
@@ -62,27 +62,18 @@ extern std::atomic<int> xam_dialogs_shown_;
 
 namespace {
 
-// Holds guest input for as long as a dialog is on screen, so the title does
-// not act on the presses driving it - including the one that dismisses it.
-class ScopedGuestInputBlock {
+// Holds title input for as long as a dialog is on screen, so the title does
+// not act on the presses driving it, including the one that dismisses it.
+class ScopedTitleInputBlock {
  public:
-  ScopedGuestInputBlock()
-      : input_system_(static_cast<rex::input::InputSystem*>(runtime::Current().input_system())) {
-    if (input_system_) {
-      input_system_->AddUIInputBlocker();
-    }
-  }
-  ~ScopedGuestInputBlock() {
-    if (input_system_) {
-      input_system_->RemoveUIInputBlocker();
-    }
-  }
+  ScopedTitleInputBlock() : hid_(runtime::Current().hid()) { hid_.AcquireUIBlock(); }
+  ~ScopedTitleInputBlock() { hid_.ReleaseUIBlock(); }
 
-  ScopedGuestInputBlock(const ScopedGuestInputBlock&) = delete;
-  ScopedGuestInputBlock& operator=(const ScopedGuestInputBlock&) = delete;
+  ScopedTitleInputBlock(const ScopedTitleInputBlock&) = delete;
+  ScopedTitleInputBlock& operator=(const ScopedTitleInputBlock&) = delete;
 
  private:
-  rex::input::InputSystem* input_system_ = nullptr;
+  rex::hid::IBackend& hid_;
 };
 
 }  // namespace
@@ -114,7 +105,7 @@ X_RESULT XamDispatchDialog(std::function<T*()> create, std::function<X_RESULT(T*
     runtime::Current().notifier().BroadcastNotification(0x9, true);
   };
   auto run = [create, close_callback]() -> X_RESULT {
-    ScopedGuestInputBlock input_block;
+    ScopedTitleInputBlock input_block;
     X_RESULT result = X_ERROR_CANCELLED;
     rex::platform::Fence fence;
     auto build = [&]() -> rex::ui::ImGuiDialog* {
@@ -155,7 +146,7 @@ X_RESULT XamDispatchDialogEx(std::function<T*()> create,
     runtime::Current().notifier().BroadcastNotification(0x9, true);
   };
   auto run = [create, close_callback](uint32_t& extended_error, uint32_t& length) -> X_RESULT {
-    ScopedGuestInputBlock input_block;
+    ScopedTitleInputBlock input_block;
     X_RESULT result = X_ERROR_CANCELLED;
     rex::platform::Fence fence;
     auto build = [&]() -> rex::ui::ImGuiDialog* {
