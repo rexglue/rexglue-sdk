@@ -35,10 +35,14 @@
 
 namespace rex::runtime {
 
+class WorkspaceHeap;
+
 /** A guest block that backs an object, with whether the table owns and frees it. */
 struct GuestBlock {
   u32 address = 0;
   bool owned = false;
+  /** The workspace that holds the block, null for the system heap. */
+  WorkspaceHeap* workspace = nullptr;
 };
 
 /**
@@ -46,17 +50,20 @@ struct GuestBlock {
  *
  * @param memory The guest memory.
  * @param size The size of the object body.
+ * @param workspace The workspace for the header and body, null for the system heap.
  * @return The block with owned set, address 0 when the allocation failed.
  */
-GuestBlock AllocateGuestBlock(runtime::Memory* memory, u32 size);
+GuestBlock AllocateGuestBlock(runtime::Memory* memory, u32 size,
+                              WorkspaceHeap* workspace = nullptr);
 
 /**
  * Frees a block made by AllocateGuestBlock, with its X_OBJECT_TYPE.
  *
  * @param memory The guest memory.
  * @param address The address of the object body, 0 for none.
+ * @param workspace The workspace AllocateGuestBlock used, null for the system heap.
  */
-void FreeGuestBlock(runtime::Memory* memory, u32 address);
+void FreeGuestBlock(runtime::Memory* memory, u32 address, WorkspaceHeap* workspace = nullptr);
 
 /** The data a table record owns, 1 alternative per ObjectKind in enumerator order. */
 using ObjectData = std::variant<EventObject, SemaphoreObject, MutantObject, TimerObject, FileObject,
@@ -89,6 +96,7 @@ struct ObjectRecord {
   u32 guest_ptr = 0;
   bool owns_guest_block = false;
   runtime::Memory* memory = nullptr;
+  WorkspaceHeap* workspace = nullptr;
   PinCount pins;
 };
 

@@ -23,6 +23,7 @@
 #include <rex/runtime.h>
 #include <rex/runtime/function_dispatcher.h>
 #include <rex/runtime/user_module.h>
+#include <rex/runtime/workspace_heap.h>
 #include <rex/runtime/xam/app_manager.h>
 #include <rex/runtime/xam/user_profile.h>
 #include <rex/runtime/xmemory.h>
@@ -390,6 +391,10 @@ runtime::IObjectTable& Runtime::object_table() {
 
 runtime::IThreadRegistry& Runtime::thread_registry() {
   return *thread_registry_;
+}
+
+runtime::WorkspaceHeap& Runtime::workspace() {
+  return *workspace_;
 }
 
 runtime::IModuleRegistry& Runtime::module_registry() {

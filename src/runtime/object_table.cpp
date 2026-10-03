@@ -30,7 +30,7 @@ namespace rex::runtime {
 
 ObjectRecord::~ObjectRecord() {
   if (owns_guest_block && memory != nullptr) {
-    FreeGuestBlock(memory, guest_ptr);
+    FreeGuestBlock(memory, guest_ptr, workspace);
   }
 }
 
@@ -106,6 +106,7 @@ Result<X_HANDLE> ObjectTable::Add(std::unique_ptr<ObjectRecord> record, const Ad
   record->memory = memory_;
   record->guest_ptr = options.block.address;
   record->owns_guest_block = options.block.owned;
+  record->workspace = options.block.workspace;
   std::unique_lock lock(mutex_);
   const u32 index = AllocateSlot();
   const X_HANDLE handle = kHandleBase + (index << 2);

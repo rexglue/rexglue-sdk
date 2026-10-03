@@ -155,6 +155,9 @@ u32 XamContentCreateDeviceEnumerator_entry(u32 content_type, u32 content_flags, 
           [items = std::move(items)](u32, u8* buffer_data, u32* written_count) mutable {
             return items.Write(buffer_data, written_count);
           }));
+  if (result == X_STATUS_NO_MEMORY) {
+    return X_ERROR_NOT_ENOUGH_MEMORY;
+  }
   if (XFAILED(result)) {
     return result;
   }

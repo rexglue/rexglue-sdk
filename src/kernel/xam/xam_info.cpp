@@ -17,6 +17,7 @@
 #include <rex/string.h>
 #include <rex/runtime.h>
 #include <rex/runtime/user_module.h>
+#include <rex/runtime/workspace_heap.h>
 #include <rex/runtime/xenumerator.h>
 #include <rex/runtime/xthread.h>
 #include <rex/runtime/xtypes.h>
@@ -285,7 +286,7 @@ void XamLoaderLaunchTitle_entry(mapped_string raw_name_ptr, u32 flags) {
 
     // Translate the launch path to a full path.
     if (raw_name_ptr) {
-      auto path = raw_name_ptr.value();
+      std::string path(raw_name_ptr.value());
       if (path.empty()) {
         loader_data.launch_path = "game:\\default.xex";
       } else {
@@ -313,17 +314,19 @@ void XamLoaderTerminateTitle_entry() {
 u32 XamAlloc_entry(u32 unk, u32 size, mapped_u32 out_ptr) {
   assert_true(unk == 0);
 
-  // Allocate from the heap. Not sure why XAM does this specially, perhaps
-  // it keeps stuff in a separate heap?
-  uint32_t ptr = runtime::Current().memory()->SystemHeapAlloc(size);
-  *out_ptr = ptr;
-
+  Result<u32> address = runtime::Current().workspace().Alloc(size);
+  if (!address) {
+    REXLOG_WARN(kernel, "XamAlloc: the title workspace has no room for {:#x} bytes, flags {:#010x}",
+                size, unk);
+    *out_ptr = 0;
+    return X_ERROR_NOT_ENOUGH_MEMORY;
+  }
+  *out_ptr = *address;
   return X_ERROR_SUCCESS;
 }
 
 u32 XamFree_entry(mapped_u32 ptr) {
-  runtime::Current().memory()->SystemHeapFree(ptr.guest_address());
-
+  runtime::Current().workspace().Free(ptr.guest_address());
   return X_ERROR_SUCCESS;
 }
 

@@ -60,6 +60,7 @@ class Notifier;
 class ContentManager;
 class AchievementManager;
 class Dispatcher;
+class WorkspaceHeap;
 namespace xam {
 class AppManager;
 class UserProfile;
@@ -360,6 +361,13 @@ class Runtime {
   runtime::IThreadRegistry& thread_registry();
 
   /**
+   * Returns the title workspace.
+   *
+   * @return The workspace. Valid between Setup and Shutdown.
+   */
+  runtime::WorkspaceHeap& workspace();
+
+  /**
    * Returns the module registry.
    *
    * @return The registry. Valid between Setup and Shutdown.
@@ -489,6 +497,7 @@ class Runtime {
   void SetProcessTLSVars(runtime::X_KPROCESS* process, u32 num_slots, u32 tls_data_size,
                          u32 tls_raw_data_address);
   void SetExecutableModule(X_HANDLE module);
+  void CreateWorkspace(u32 size);
   void LoadAchievementsData();
   void SignalAllWaitableObjects();
   void RunTerminateNotifications(std::chrono::milliseconds timeout);
@@ -523,6 +532,7 @@ class Runtime {
   std::unique_ptr<runtime::ContentManager> content_manager_;
   std::unique_ptr<runtime::AchievementManager> achievement_manager_;
   std::unique_ptr<runtime::Dispatcher> dispatcher_;
+  std::unique_ptr<runtime::WorkspaceHeap> workspace_;
   u32 kernel_guest_globals_ = 0;
   std::atomic<bool> terminating_title_{false};
   rex::platform::RankedMutex terminate_mutex_{rex::platform::LockRank::Leaf};

@@ -131,6 +131,9 @@ u32 XamContentAggregateCreateEnumerator_entry(u64 xuid, u32 device_id, u32 conte
             return items.Write(buffer_data, written_count);
           }),
       sizeof(X_KENUMERATOR_CONTENT_AGGREGATE), &extra_buffer);
+  if (result == X_STATUS_NO_MEMORY) {
+    return X_ERROR_NOT_ENOUGH_MEMORY;
+  }
   if (XFAILED(result)) {
     return result;
   }

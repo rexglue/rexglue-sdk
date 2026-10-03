@@ -9,6 +9,7 @@ set(REXSYSTEM_SOURCES
     xthread.cpp
     thread_registry.cpp
     guest_stack.cpp
+    workspace_heap.cpp
     xevent.cpp
     xfile.cpp
     xmutant.cpp

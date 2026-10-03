@@ -48,12 +48,7 @@ i32 XamUserGetXUID_entry(u32 user_index, u32 type_mask, mapped_u64 xuid_ptr) {
     if (user_index == 0) {
       auto& user_profile = runtime::Current().content_manager().user_profile();
       auto type = user_profile.type() & type_mask;
-      if (type & (2 | 4)) {
-        // maybe online profile?
-        xuid = user_profile.xuid();
-        result = X_E_SUCCESS;
-      } else if (type & 1) {
-        // maybe offline profile?
+      if (type & (1 | 2 | 4)) {
         xuid = user_profile.xuid();
         result = X_E_SUCCESS;
       }
@@ -249,7 +244,7 @@ uint32_t XamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index, ui
 
   auto out_header = reinterpret_cast<X_USER_READ_PROFILE_SETTINGS*>(buffer);
   auto out_setting = reinterpret_cast<X_USER_PROFILE_SETTING*>(&out_header[1]);
-  out_header->setting_count = static_cast<uint32_t>(setting_count);
+  out_header->setting_count = setting_count;
   out_header->settings_ptr = runtime::Current().memory()->HostToGuestVirtual(out_setting);
 
   UserProfile::SettingByteStream out_stream(runtime::Current().memory()->HostToGuestVirtual(buffer),
@@ -263,7 +258,7 @@ uint32_t XamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index, ui
     if (xuids) {
       out_setting->xuid = user_profile.xuid();
     } else {
-      out_setting->user_index = static_cast<uint32_t>(user_index);
+      out_setting->user_index = user_index;
     }
     out_setting->setting_id = setting_id;
 
@@ -582,7 +577,6 @@ class AchievementItems {
     return ptr;
   }
 
- private:
   size_t items_per_enumerate_;
   uint32_t flags_;
   std::vector<AchievementDetails> items_;
@@ -670,6 +664,9 @@ u32 XamUserCreateAchievementEnumerator_entry(u32 title_id, u32 user_index, u32 x
           [items = std::move(items)](u32 buffer_ptr, u8* buffer_data, u32* written_count) mutable {
             return items.Write(buffer_ptr, buffer_data, written_count);
           }));
+  if (result == X_STATUS_NO_MEMORY) {
+    return X_ERROR_NOT_ENOUGH_MEMORY;
+  }
   if (XFAILED(result)) {
     return result;
   }

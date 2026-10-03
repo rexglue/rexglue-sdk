@@ -114,6 +114,9 @@ u32 XamContentCreateEnumerator_entry(u32 user_index, u32 device_id, u32 content_
           [items = std::move(items)](u32, u8* buffer_data, u32* written_count) mutable {
             return items.Write(buffer_data, written_count);
           }));
+  if (result == X_STATUS_NO_MEMORY) {
+    return X_ERROR_NOT_ENOUGH_MEMORY;
+  }
   if (XFAILED(result)) {
     return result;
   }
@@ -122,7 +125,7 @@ u32 XamContentCreateEnumerator_entry(u32 user_index, u32 device_id, u32 content_
   return X_ERROR_SUCCESS;
 }
 
-enum class kDispositionState : uint32_t { Unknown = 0, Create = 1, Open = 2 };
+enum class kDispositionState : u8 { Unknown = 0, Create = 1, Open = 2 };
 
 u32 XamContentCreate(u32 user_index, mapped_string root_name, mapped_void content_data_ptr,
                      u32 content_data_size, u32 flags, mapped_u32 disposition_ptr,

@@ -14,6 +14,7 @@
 #include <rex/runtime.h>
 #include <rex/runtime/object_data.h>
 #include <rex/runtime/object_table.h>
+#include <rex/runtime/workspace_heap.h>
 
 namespace rex::runtime {
 
@@ -55,7 +56,8 @@ u32 StaticItems::Write(u8* buffer_data, u32* written_count) {
 X_STATUS CreateEnumerator(Runtime& runtime, X_HANDLE* out_handle, const EnumeratorInit& init,
                           EnumeratorObject&& enumerator, u32 extra_size, void** extra_buffer) {
   runtime::Memory* memory = runtime.memory();
-  GuestBlock block = AllocateGuestBlock(memory, sizeof(X_KENUMERATOR) + extra_size);
+  GuestBlock block =
+      AllocateGuestBlock(memory, sizeof(X_KENUMERATOR) + extra_size, &runtime.workspace());
   if (!block.address) {
     return X_STATUS_NO_MEMORY;
   }

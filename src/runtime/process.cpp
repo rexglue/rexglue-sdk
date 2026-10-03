@@ -29,6 +29,7 @@
 #include <rex/runtime/kernel_module.h>
 #include <rex/runtime/thread_state.h>
 #include <rex/runtime/user_module.h>
+#include <rex/runtime/workspace_heap.h>
 #include <rex/runtime/util/native_list.h>
 #include <rex/runtime/xam/app_manager.h>
 #include <rex/runtime/xam/user_profile.h>
@@ -59,6 +60,7 @@ void Runtime::CreateConcerns() {
   app_manager_ = std::make_unique<runtime::xam::AppManager>();
   user_profile_ = std::make_unique<runtime::xam::UserProfile>(*this);
   object_table_ = std::make_unique<runtime::ObjectTable>(memory_.get());
+  CreateWorkspace(WorkspaceHeap::ResolveSize(0));
   thread_registry_ = std::make_unique<runtime::ThreadRegistry>(*this, *object_table_);
   module_registry_ = std::make_unique<runtime::ModuleRegistry>(*this, *object_table_);
   notifier_ = std::make_unique<runtime::Notifier>(*object_table_);
@@ -140,6 +142,7 @@ void Runtime::DestroyConcerns() {
   module_registry_.reset();
   notifier_.reset();
   object_table_.reset();
+  workspace_.reset();
   thread_registry_.reset();
   user_profile_.reset();
   content_manager_.reset();
@@ -148,6 +151,16 @@ void Runtime::DestroyConcerns() {
     terminate_registrations_.clear();
   }
   terminating_title_.store(false, std::memory_order_release);
+}
+
+void Runtime::CreateWorkspace(u32 size) {
+  Result<std::unique_ptr<WorkspaceHeap>> workspace = WorkspaceHeap::Create(*memory_, size);
+  if (!workspace) {
+    REXLOG_ERROR(system, "Cannot commit a {:#x} byte title workspace, keeping {:#x} bytes", size,
+                 workspace_ ? workspace_->size() : 0u);
+    return;
+  }
+  workspace_ = std::move(*workspace);
 }
 
 void Runtime::InitializeProcess(X_KPROCESS* process, u32 process_type, u8 unk_18, u8 unk_19,
@@ -308,6 +321,15 @@ void Runtime::SetExecutableModule(X_HANDLE module_handle) {
     pib->tls_raw_data_size = tls_header->raw_data_size;
     SetProcessTLSVars(pib, tls_header->slot_count, tls_header->data_size,
                       tls_header->raw_data_address);
+  }
+  u32 workspace_size_address = 0;
+  UserModuleGetOptHeader(*module, XEX_HEADER_TITLE_WORKSPACE_SIZE, &workspace_size_address);
+  const u32 workspace_size = WorkspaceHeap::ResolveSize(
+      workspace_size_address
+          ? memory::load_and_swap<u32>(memory_->TranslateVirtual(workspace_size_address))
+          : 0);
+  if (!workspace_ || workspace_->size() != workspace_size) {
+    CreateWorkspace(workspace_size);
   }
 
   assert_true(module_registry_->IsKernel("xboxkrnl.exe"));

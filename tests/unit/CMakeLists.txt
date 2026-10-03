@@ -26,6 +26,7 @@ add_executable(unit_tests
     kernel/char_fp_state_test.cpp
     kernel/char_tls_test.cpp
     kernel/char_fiber_test.cpp
+    kernel/char_workspace_test.cpp
     core/app_test.cpp
     core/fat_timestamp_test.cpp
     core/cli_arg_list_test.cpp
