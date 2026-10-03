@@ -3,11 +3,8 @@
 #include <imgui.h>
 
 #include <rex/ui/console/view.h>
-#include <rex/ui/graphics_provider.h>
 #include <rex/ui/imgui_dialog.h>
 #include <rex/ui/imgui_drawer.h>
-#include <rex/ui/immediate_drawer.h>
-#include <rex/ui/presenter.h>
 #include <rex/ui/style.h>
 #include <rex/ui/window.h>
 #include <rex/ui/window_listener.h>
@@ -56,13 +53,10 @@ ConsoleWindow::ConsoleWindow() = default;
 ConsoleWindow::~ConsoleWindow() {
   dialog_.reset();
   if (drawer_) {
-    drawer_->SetPresenterAndImmediateDrawer(nullptr, nullptr);
+    drawer_->SetPresenterAndOverlayDrawer(nullptr, nullptr);
     drawer_.reset();
   }
-  if (immediate_drawer_) {
-    immediate_drawer_->SetPresenter(nullptr);
-    immediate_drawer_.reset();
-  }
+  overlay_drawer_.reset();
   if (window_) {
     window_->SetPresenter(nullptr);
     window_->RemoveListener(listener_.get());
@@ -72,7 +66,7 @@ ConsoleWindow::~ConsoleWindow() {
 }
 
 Result<std::unique_ptr<ConsoleWindow>> ConsoleWindow::Create(WindowedAppContext& context,
-                                                             GraphicsProvider& provider,
+                                                             gpu::IBackend& backend,
                                                              ImGuiDrawer& theme,
                                                              ConsoleModel& model,
                                                              ConsoleHost& host) {
@@ -88,15 +82,17 @@ Result<std::unique_ptr<ConsoleWindow>> ConsoleWindow::Create(WindowedAppContext&
   if (!console->window_->Open()) {
     return Err<Created>(ErrorCategory::Runtime, "console window open failed");
   }
-  console->presenter_ = provider.CreatePresenter();
-  if (!console->presenter_) {
-    return Err<Created>(ErrorCategory::Runtime, "console window presenter creation failed");
+  auto presenter = backend.CreatePresenter();
+  if (!presenter) {
+    return std::unexpected(presenter.error());
   }
+  console->presenter_ = std::move(*presenter);
   console->window_->SetPresenter(console->presenter_.get());
-  console->immediate_drawer_ = provider.CreateImmediateDrawer();
-  if (console->immediate_drawer_) {
-    console->immediate_drawer_->SetPresenter(console->presenter_.get());
+  auto overlay_drawer = backend.CreateOverlayDrawer(*console->presenter_);
+  if (!overlay_drawer) {
+    return std::unexpected(overlay_drawer.error());
   }
+  console->overlay_drawer_ = std::move(*overlay_drawer);
   const ImGuiStyle theme_imgui_style = theme.imgui_style();
   const Style theme_style = theme.style();
   console->drawer_ = std::make_unique<ImGuiDrawer>(
@@ -105,8 +101,8 @@ Result<std::unique_ptr<ConsoleWindow>> ConsoleWindow::Create(WindowedAppContext&
         imgui_style = theme_imgui_style;
         style = theme_style;
       });
-  console->drawer_->SetPresenterAndImmediateDrawer(console->presenter_.get(),
-                                                   console->immediate_drawer_.get());
+  console->drawer_->SetPresenterAndOverlayDrawer(console->presenter_.get(),
+                                                 console->overlay_drawer_.get());
   console->dialog_ = std::make_unique<Dialog>(*console->drawer_, model, host);
   return console;
 }

@@ -26,7 +26,6 @@
 #include <rex/cvar.h>
 #include <rex/embedded_metadata.h>
 #include <rex/filesystem.h>
-#include <rex/graphics/backend.h>
 #include <rex/image_info.h>
 #include <rex/memory.h>
 #include <rex/platform/lock_order.h>
@@ -51,6 +50,10 @@ namespace rex {
 
 struct Config;
 
+namespace gpu {
+class IBackend;
+}  // namespace gpu
+
 namespace runtime {
 class FunctionDispatcher;
 class ObjectTable;
@@ -65,6 +68,16 @@ namespace xam {
 class AppManager;
 class UserProfile;
 }  // namespace xam
+
+/** The display mode the title queries through VdQueryVideoMode and XGetVideoMode. */
+struct VideoMode {
+  /** Width in pixels. */
+  u32 width = 1280;
+  /** Height in pixels. */
+  u32 height = 720;
+  /** Refresh rate in hertz. */
+  f32 refresh_rate = 60.0f;
+};
 }  // namespace runtime
 
 namespace ui {
@@ -75,8 +88,8 @@ class ImGuiDrawer;
 
 /** The subsystems Runtime::Setup builds the runtime over. */
 struct RuntimeConfig {
-  /** The graphics backend, owned by its module. Null runs without GPU emulation. */
-  graphics::IGraphicsBackend* graphics = nullptr;
+  /** The GPU backend, owned by its module. Null runs without GPU emulation. */
+  gpu::IBackend* gpu = nullptr;
   /** The mount table. Required, Setup fails without it. */
   filesystem::IFileSystem* file_system = nullptr;
   /** Builds the audio system once the function dispatcher exists. */
@@ -87,6 +100,8 @@ struct RuntimeConfig {
   std::function<void(Runtime&)> kernel_init;
   /** True to skip the GPU, for analysis tools. */
   bool tool_mode = false;
+  /** The display mode the title queries. TitleApp fills it from the ui.video_mode cvars. */
+  runtime::VideoMode video_mode;
 };
 
 /**
@@ -141,11 +156,11 @@ class Runtime {
   filesystem::IFileSystem* file_system() const { return file_system_; }
 
   /**
-   * Returns the graphics backend.
+   * Returns the GPU backend.
    *
    * @return The backend, null without GPU emulation.
    */
-  graphics::IGraphicsBackend* graphics_system() const { return graphics_system_; }
+  gpu::IBackend* gpu() const { return gpu_; }
 
   /**
    * Returns the audio system.
@@ -153,6 +168,13 @@ class Runtime {
    * @return The audio system, null when none was built.
    */
   runtime::IAudioSystem* audio_system() const { return audio_system_.get(); }
+
+  /**
+   * Returns the display mode Setup took from RuntimeConfig.
+   *
+   * @return The video mode.
+   */
+  const runtime::VideoMode& video_mode() const { return video_mode_; }
 
   /**
    * Returns the input system.
@@ -517,6 +539,7 @@ class Runtime {
   ui::Window* display_window_ = nullptr;
   ui::ImGuiDrawer* imgui_drawer_ = nullptr;
   bool tool_mode_ = false;
+  runtime::VideoMode video_mode_;
   PPCCodegenFlags codegen_flags_{};
   bool setup_complete_ = false;
 
@@ -537,7 +560,7 @@ class Runtime {
   std::atomic<bool> terminating_title_{false};
   rex::platform::RankedMutex terminate_mutex_{rex::platform::LockRank::Leaf};
   std::vector<u32> terminate_registrations_;
-  graphics::IGraphicsBackend* graphics_system_ = nullptr;
+  gpu::IBackend* gpu_ = nullptr;
   std::unique_ptr<runtime::IAudioSystem> audio_system_;
   std::unique_ptr<runtime::IInputSystem> input_system_;
 };

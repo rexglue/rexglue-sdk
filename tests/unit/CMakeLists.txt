@@ -7,7 +7,10 @@ add_executable(unit_tests
     memory/access_violation_test.cpp
     memory/memory_budget_test.cpp
     gpu/backend_select_test.cpp
+    gpu/cvar_scope_test.cpp
+    gpu/overlay_contract_test.cpp
     kernel/exit_title_test.cpp
+    kernel/video_mode_test.cpp
     kernel/object_table_test.cpp
     kernel/shim_registry_test.cpp
     kernel/exports_test.cpp
@@ -103,11 +106,11 @@ if(UNIX AND NOT APPLE)
     )
 endif()
 
-add_dependencies(unit_tests rex-filesystem rex-sample-console rex-sample-title rex-crash-probe)
+add_dependencies(unit_tests rex-filesystem rex-gpu-xenos rex-sample-console rex-sample-title rex-crash-probe)
 
 add_dependencies(unit_tests
     rexmod-test-good rexmod-test-missing rexmod-test-badversion
-    rexmod-test-failinit rexmod-test-dupecho)
+    rexmod-test-failinit rexmod-test-dupecho rexmod-test-null-gpu)
 
 # Strip Tracy/profiling instrumentation from test targets
 target_compile_options(unit_tests PRIVATE

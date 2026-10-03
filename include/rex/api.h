@@ -21,7 +21,7 @@
 #include <rex/cli_arg_list.h>
 #include <rex/cvar.h>
 #include <rex/filesystem.h>
-#include <rex/graphics/backend.h>
+#include <rex/gpu.h>
 #include <rex/input.h>
 #include <rex/logging/config.h>
 #include <rex/module.h>
@@ -58,8 +58,8 @@ struct Config {
   input::InputConfig input;
   /** UI module config. */
   ui::UIConfig ui;
-  /** Graphics backend config, read by the graphics module at Connect. */
-  graphics::BackendConfig graphics;
+  /** GPU backend config, read by the GPU backend module at Connect. */
+  gpu::GPUConfig gpu;
   /** App::Init starts the Tracy profiler when the build has it. */
   bool profiler = false;
   /**

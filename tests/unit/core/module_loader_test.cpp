@@ -357,10 +357,11 @@ TEST_CASE_METHOD(Fixture, "Config validation fails before any module connects",
   REQUIRE(api.error().message.find("runtime.heap_size_mb") != std::string::npos);
   REQUIRE_FALSE(Ran("rexmod-test-good:connect"));
   cfg.runtime.heap_size_mb = 256;
-  cfg.graphics.resolution_scale_x = 9;
+  cfg.modules.push_back("rex-gpu-xenos");
+  cfg.gpu.resolution_scale_x = 9;
   api = rex::Init(cfg);
   REQUIRE_FALSE(api);
-  REQUIRE(api.error().message.find("graphics.resolution_scale_x") != std::string::npos);
+  REQUIRE(api.error().message.find("gpu.resolution_scale_x") != std::string::npos);
 }
 
 TEST_CASE_METHOD(Fixture, "Locks apply after values and unknown locks fail",
@@ -385,9 +386,9 @@ TEST_CASE_METHOD(Fixture, "Locks apply after values and unknown locks fail",
 
 TEST_CASE_METHOD(Fixture, "Every SDK cvar name is scope.leaf in a charter scope",
                  "[module_loader][cvar]") {
-  static const std::vector<std::string_view> kScopes = {"log",   "clock",  "perf",    "runtime",
-                                                        "audio", "input",  "ui",      "gpu",
-                                                        "d3d12", "vulkan", "console", "bind"};
+  static const std::vector<std::string_view> kScopes = {
+      "log", "clock", "perf",  "runtime", "audio",   "input", "ui",
+      "gpu", "xenos", "d3d12", "vulkan",  "console", "bind"};
   auto cfg = With({"rex-filesystem", "rex-runtime"});
   auto xenos = rex::platform::GetExecutableFolder() / rex::detail::ModuleFileName("rex-gpu-xenos");
   if (std::filesystem::exists(xenos))
@@ -412,7 +413,7 @@ TEST_CASE_METHOD(Fixture, "Every SDK cvar name is scope.leaf in a charter scope"
                std::isdigit(static_cast<unsigned char>(c)) || c == '_' || c == '.'));
     }
   }
-  REQUIRE(count >= 95);
+  REQUIRE(count >= 70);
   if (cfg.modules.size() > 2)
     REQUIRE(count == 163);
 }

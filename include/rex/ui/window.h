@@ -25,8 +25,8 @@
 #include <rex/types.h>
 #include <rex/ui.h>
 #include <rex/ui/menu_item.h>
-#include <rex/ui/presenter.h>
-#include <rex/ui/surface.h>
+#include <rex/gpu/presenter.h>
+#include <rex/gpu/surface.h>
 #include <rex/ui/ui_event.h>
 #include <rex/ui/virtual_key.h>
 #include <rex/ui/window_listener.h>
@@ -41,7 +41,7 @@ namespace rex::ui {
  * sends events to its listeners. The phases advance in order and loop, and kDeleting may be
  * entered from any phase.
  */
-class Window {
+class Window : public gpu::IPresentationHost {
  public:
   /** Life cycle phase of the window. */
   enum class Phase {
@@ -492,19 +492,22 @@ class Window {
    *
    * @param presenter The presenter, or null.
    */
-  void SetPresenter(Presenter* presenter);
+  void SetPresenter(gpu::IPresenter* presenter);
 
   /** Requests a repaint. Callable from any thread while the surface exists. */
-  void RequestPaint() {
+  void RequestPaint() override {
     if (presenter_surface_) {
       RequestPaintImpl();
     }
   }
 
+  /** The presenter left this window. Drops the surface without calling back. */
+  void OnPresenterDetached() override;
+
   /** Requests a repaint of the presenter UI from the UI thread. */
   void RequestPresenterUIPaintFromUIThread() {
     if (presenter_) {
-      presenter_->RequestUIPaintFromUIThread();
+      presenter_->RequestOverlayPaint();
     }
   }
 
@@ -681,7 +684,7 @@ class Window {
    *
    * @return The presenter, or null.
    */
-  Presenter* presenter() const { return presenter_; }
+  gpu::IPresenter* presenter() const { return presenter_; }
 
   /**
    * Tests whether a surface exists.
@@ -704,7 +707,8 @@ class Window {
    * @param allowed_types The surface types the presenter accepts.
    * @return The surface, or null.
    */
-  virtual std::unique_ptr<Surface> CreateSurfaceImpl(Surface::TypeFlags allowed_types) = 0;
+  virtual std::unique_ptr<gpu::Surface> CreateSurfaceImpl(
+      gpu::Surface::TypeFlags allowed_types) = 0;
 
   /** Requests a paint of the existing surface. */
   virtual void RequestPaintImpl() = 0;
@@ -917,7 +921,7 @@ class Window {
   void PropagateEventThroughInputListeners(std::function<bool(WindowInputListener*)> fn,
                                            WindowDestructionReceiver& destruction_receiver);
 
-  std::unique_ptr<Surface> CreateSurface(Surface::TypeFlags allowed_types) {
+  std::unique_ptr<gpu::Surface> CreateSurface(gpu::Surface::TypeFlags allowed_types) {
     if (phase_ != Phase::kOpen) {
       return nullptr;
     }
@@ -956,8 +960,8 @@ class Window {
 
   bool has_focus_ = false;
 
-  Presenter* presenter_ = nullptr;
-  std::unique_ptr<Surface> presenter_surface_;
+  gpu::IPresenter* presenter_ = nullptr;
+  std::unique_ptr<gpu::Surface> presenter_surface_;
   bool is_painting_ = false;
 };
 

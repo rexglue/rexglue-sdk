@@ -13,14 +13,14 @@
 
 #include <algorithm>
 
-#include <rex/ui/immediate_drawer.h>
+#include <rex/gpu/overlay.h>
 
 namespace rex::ui {
 
 AchievementToastDialog::AchievementToastDialog(ImGuiDrawer* drawer,
-                                               ImmediateDrawer* immediate_drawer,
+                                               gpu::IOverlayDrawer* overlay_drawer,
                                                rex::Runtime* runtime)
-    : AchievementNotificationDialog(drawer), icon_cache_(immediate_drawer, runtime) {}
+    : AchievementNotificationDialog(drawer), icon_cache_(overlay_drawer, runtime) {}
 
 AchievementToastDialog::~AchievementToastDialog() {}
 
@@ -77,7 +77,7 @@ void AchievementToastDialog::OnDraw(ImGuiIO& io) {
   ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, s.rounding);
   ImGui::PushStyleColor(ImGuiCol_Text, faded(s.text));
   if (ImGui::Begin("##ach_toast", nullptr, flags)) {
-    ImmediateTexture* icon = icon_cache_.GetIcon(toast.event.achievement);
+    gpu::OverlayTexture* icon = icon_cache_.GetIcon(toast.event.achievement);
     if (icon) {
       ImGui::Image(reinterpret_cast<ImTextureID>(icon), ImVec2(s.icon_size, s.icon_size));
       ImGui::SameLine();

@@ -14,10 +14,10 @@
 #include <array>
 #include <string>
 
-#include "graphics/backend_select.h"
+#include "gpu/xenos/backend_select.h"
 
-using rex::graphics::HostAPI;
-using rex::graphics::SelectHostAPI;
+using rex::gpu::HostAPI;
+using rex::gpu::SelectHostAPI;
 
 namespace {
 constexpr std::array kWindows{HostAPI::kD3D12, HostAPI::kVulkan};
@@ -39,7 +39,7 @@ TEST_CASE("A host API the platform lacks fails with its name and the platform", 
   auto selected = SelectHostAPI("d3d12", kVulkanOnly);
   REQUIRE_FALSE(selected);
   CHECK(selected.error().message.find("d3d12") != std::string::npos);
-  CHECK(selected.error().message.find(rex::graphics::kPlatformName) != std::string::npos);
+  CHECK(selected.error().message.find(rex::gpu::kPlatformName) != std::string::npos);
 }
 
 TEST_CASE("An unknown backend name fails with the name", "[gpu][backend]") {
@@ -50,10 +50,10 @@ TEST_CASE("An unknown backend name fails with the name", "[gpu][backend]") {
 
 TEST_CASE("The platform list matches the platform rule", "[gpu][backend]") {
 #if REX_PLATFORM_WIN32
-  CHECK(rex::graphics::kPlatformHostAPIs.size() == 2);
-  CHECK(rex::graphics::kPlatformHostAPIs[0] == HostAPI::kD3D12);
+  CHECK(rex::gpu::kPlatformHostAPIs.size() == 2);
+  CHECK(rex::gpu::kPlatformHostAPIs[0] == HostAPI::kD3D12);
 #else
-  CHECK(rex::graphics::kPlatformHostAPIs.size() == 1);
-  CHECK(rex::graphics::kPlatformHostAPIs[0] == HostAPI::kVulkan);
+  CHECK(rex::gpu::kPlatformHostAPIs.size() == 1);
+  CHECK(rex::gpu::kPlatformHostAPIs[0] == HostAPI::kVulkan);
 #endif
 }

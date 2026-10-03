@@ -1,0 +1,3 @@
+// VK_KHR_win32_surface functions used in ReXGlue.
+REXVK_FUNCTION(vkCreateWin32SurfaceKHR)
+REXVK_FUNCTION(vkGetPhysicalDeviceWin32PresentationSupportKHR)

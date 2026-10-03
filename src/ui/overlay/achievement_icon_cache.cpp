@@ -13,19 +13,21 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <span>
 #include <vector>
 
 #include <rex/runtime.h>
 #include <rex/runtime/util/xdbf_utils.h>
 #include <rex/ui/image_decode.h>
-#include <rex/ui/immediate_drawer.h>
 
 namespace rex::ui {
 
-AchievementIconCache::AchievementIconCache(ImmediateDrawer* immediate_drawer, rex::Runtime* runtime)
-    : immediate_drawer_(immediate_drawer), runtime_(runtime) {}
+AchievementIconCache::AchievementIconCache(gpu::IOverlayDrawer* overlay_drawer,
+                                           rex::Runtime* runtime)
+    : overlay_drawer_(overlay_drawer), runtime_(runtime) {}
 
-ImmediateTexture* AchievementIconCache::GetIcon(const rex::runtime::AchievementInfo& achievement) {
+gpu::OverlayTexture* AchievementIconCache::GetIcon(
+    const rex::runtime::AchievementInfo& achievement) {
   const std::string cache_key =
       "path:" + achievement.icon_path + "|image:" + std::to_string(achievement.image_id);
   auto it = cache_.find(cache_key);
@@ -33,7 +35,8 @@ ImmediateTexture* AchievementIconCache::GetIcon(const rex::runtime::AchievementI
     return it->second.get();
   }
 
-  std::unique_ptr<ImmediateTexture> texture;
+  texture_create_failed_ = false;
+  std::unique_ptr<gpu::OverlayTexture> texture;
   if (!achievement.icon_path.empty()) {
     texture = LoadMetadataTexture(std::filesystem::path(achievement.icon_path));
   }
@@ -45,14 +48,18 @@ ImmediateTexture* AchievementIconCache::GetIcon(const rex::runtime::AchievementI
     texture = LoadXdbfTexture(achievement.image_id);
   }
 
-  ImmediateTexture* raw = texture.get();
+  if (!texture && texture_create_failed_) {
+    return nullptr;
+  }
+
+  gpu::OverlayTexture* raw = texture.get();
   cache_.emplace(cache_key, std::move(texture));
   return raw;
 }
 
-std::unique_ptr<ImmediateTexture> AchievementIconCache::CreateTextureFromBytes(const uint8_t* data,
-                                                                               size_t size) {
-  if (!immediate_drawer_ || !data || size == 0) {
+std::unique_ptr<gpu::OverlayTexture> AchievementIconCache::CreateTextureFromBytes(
+    const uint8_t* data, size_t size) {
+  if (!overlay_drawer_ || !data || size == 0) {
     return nullptr;
   }
 
@@ -63,12 +70,17 @@ std::unique_ptr<ImmediateTexture> AchievementIconCache::CreateTextureFromBytes(c
     return nullptr;
   }
 
-  return immediate_drawer_->CreateTexture(static_cast<uint32_t>(width),
-                                          static_cast<uint32_t>(height),
-                                          ImmediateTextureFilter::kLinear, false, rgba.data());
+  auto texture = overlay_drawer_->CreateTexture(static_cast<u32>(width), static_cast<u32>(height),
+                                                gpu::OverlayTextureFilter::kLinear, false,
+                                                std::span<const u8>(rgba));
+  if (!texture) {
+    texture_create_failed_ = true;
+    return nullptr;
+  }
+  return std::move(*texture);
 }
 
-std::unique_ptr<ImmediateTexture> AchievementIconCache::LoadMetadataTexture(
+std::unique_ptr<gpu::OverlayTexture> AchievementIconCache::LoadMetadataTexture(
     const std::filesystem::path& relative_path) {
   if (!runtime_ || relative_path.empty()) {
     return nullptr;
@@ -97,7 +109,7 @@ std::unique_ptr<ImmediateTexture> AchievementIconCache::LoadMetadataTexture(
   return nullptr;
 }
 
-std::unique_ptr<ImmediateTexture> AchievementIconCache::LoadXdbfTexture(uint32_t image_id) {
+std::unique_ptr<gpu::OverlayTexture> AchievementIconCache::LoadXdbfTexture(uint32_t image_id) {
   if (!runtime_ || !runtime_->is_setup()) {
     return nullptr;
   }

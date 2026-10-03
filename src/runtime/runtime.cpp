@@ -16,6 +16,7 @@
 #include <rex/chrono/clock.h>
 #include <rex/cvar.h>
 #include <rex/filesystem.h>
+#include <rex/gpu/backend.h>
 #include <rex/logging.h>
 #include <rex/ppc/context.h>  // PPCFuncMapping
 #include <rex/platform/crash.h>
@@ -143,6 +144,7 @@ Result<void> Runtime::Setup(const RuntimeConfig& config) {
   platform::EnableAffinityConfiguration();
 
   tool_mode_ = config.tool_mode;
+  video_mode_ = config.video_mode;
 
   // Create memory system first
   memory_ = std::make_unique<runtime::Memory>();
@@ -217,17 +219,15 @@ Result<void> Runtime::Setup(const RuntimeConfig& config) {
   }
 
   // Initialize GPU from injected config
-  if (config.graphics) {
-    graphics_system_ = config.graphics;
-    bool with_presentation = (app_context_ != nullptr);
-    X_STATUS gpu_status =
-        graphics_system_->Setup(function_dispatcher_.get(), *this, app_context_, with_presentation);
-    if (XFAILED(gpu_status)) {
-      return fail(gpu_status, "GPU setup failed");
+  if (config.gpu) {
+    gpu_ = config.gpu;
+    if (auto status = gpu_->SetupGuestGPU(*function_dispatcher_, *this); !status) {
+      return fail(X_STATUS_UNSUCCESSFUL,
+                  std::format("GPU setup failed, {}", status.error().message));
     }
-    REXLOG_DEBUG(system, "GPU system initialized (presentation={})", with_presentation);
+    REXLOG_DEBUG(system, "GPU initialized");
   } else {
-    REXLOG_DEBUG(system, "Runtime initialized without graphics system (native rendering mode)");
+    REXLOG_DEBUG(system, "Runtime initialized without a GPU backend");
   }
 
   REXLOG_DEBUG(system, "Runtime initialized successfully");
@@ -300,9 +300,9 @@ void Runtime::Shutdown() {
     platform::SetCrashAddressDescriber(nullptr);
     g_crash_runtime.store(nullptr, std::memory_order_release);
   }
-  if (graphics_system_) {
-    graphics_system_->Shutdown();
-    graphics_system_ = nullptr;
+  if (gpu_) {
+    gpu_->Shutdown();
+    gpu_ = nullptr;
   }
   if (audio_system_) {
     audio_system_->Shutdown();

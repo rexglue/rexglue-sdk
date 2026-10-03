@@ -13,6 +13,7 @@
 
 #include <memory>
 
+#include <rex/gpu/backend.h>
 #include <rex/result.h>
 #include <rex/types.h>
 
@@ -20,10 +21,7 @@ namespace rex::ui {
 
 class ConsoleHost;
 class ConsoleModel;
-class GraphicsProvider;
 class ImGuiDrawer;
-class ImmediateDrawer;
-class Presenter;
 class Window;
 class WindowedAppContext;
 
@@ -34,16 +32,15 @@ class ConsoleWindow : public NonCopyable {
    * Opens the window.
    *
    * @param context The app context that owns the UI thread.
-   * @param provider Creates the window's presenter and immediate drawer.
+   * @param backend Creates the window's presenter and overlay drawer.
    * @param theme Drawer whose styles the window copies.
    * @param model The console model shown. Outlives the window.
    * @param host Receives dock changes. Outlives the window.
    * @return The window, or ErrorCategory::Runtime when the window or its presenter fails.
    */
   static Result<std::unique_ptr<ConsoleWindow>> Create(WindowedAppContext& context,
-                                                       GraphicsProvider& provider,
-                                                       ImGuiDrawer& theme, ConsoleModel& model,
-                                                       ConsoleHost& host);
+                                                       gpu::IBackend& backend, ImGuiDrawer& theme,
+                                                       ConsoleModel& model, ConsoleHost& host);
 
   /** Closes the window. */
   ~ConsoleWindow();
@@ -56,8 +53,8 @@ class ConsoleWindow : public NonCopyable {
 
   std::unique_ptr<Window> window_;
   std::unique_ptr<Listener> listener_;
-  std::unique_ptr<Presenter> presenter_;
-  std::unique_ptr<ImmediateDrawer> immediate_drawer_;
+  std::unique_ptr<gpu::IPresenter> presenter_;
+  std::unique_ptr<gpu::IOverlayDrawer> overlay_drawer_;
   std::unique_ptr<ImGuiDrawer> drawer_;
   std::unique_ptr<Dialog> dialog_;
 };

@@ -102,6 +102,9 @@ endif()
 
 target_sources(rex-core PRIVATE
     xenos/xenos.cpp
+    xenos/registers.cpp
+    xenos/register_file.cpp
+    xenos/ucode.cpp
     xenos/texture_info.cpp
     xenos/texture_info_formats.cpp
     xenos/texture_extent.cpp

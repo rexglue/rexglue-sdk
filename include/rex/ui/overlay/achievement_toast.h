@@ -24,11 +24,9 @@ class Runtime;
 
 namespace rex::ui {
 
-class ImmediateDrawer;
-
 class AchievementToastDialog : public AchievementNotificationDialog {
  public:
-  AchievementToastDialog(ImGuiDrawer* drawer, ImmediateDrawer* immediate_drawer,
+  AchievementToastDialog(ImGuiDrawer* drawer, gpu::IOverlayDrawer* overlay_drawer,
                          rex::Runtime* runtime);
   ~AchievementToastDialog() override;
 

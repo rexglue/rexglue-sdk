@@ -12,6 +12,7 @@
  */
 
 #include <rex/ui/title_app.h>
+#include <rex/ui/video_mode.h>
 
 #include <algorithm>
 #include <filesystem>
@@ -23,7 +24,7 @@
 
 #include <rex/audio/sdl/sdl_audio_system.h>
 #include <rex/filesystem.h>
-#include <rex/graphics/backend.h>
+#include <rex/gpu.h>
 #include <rex/input/input_system.h>
 #include <rex/kernel/shim/heap.h>
 #include <rex/kernel/init.h>
@@ -42,10 +43,8 @@
 #include <rex/ui/console/model.h>
 #include <rex/ui/console/view.h>
 #include <rex/ui/console/window.h>
-#include <rex/ui/graphics_provider.h>
 #include <rex/ui/imgui_dialog.h>
 #include <rex/ui/imgui_drawer.h>
-#include <rex/ui/immediate_drawer.h>
 #include <rex/ui/keybinds.h>
 #include <rex/ui/overlay/achievement_toast.h>
 #include <rex/ui/window.h>
@@ -220,8 +219,8 @@ OverlayRegistry& TitleUI::overlays() {
   return *app_.overlays_;
 }
 
-void TitleUI::SetDrawer(std::unique_ptr<ImmediateDrawer> drawer) {
-  app_.immediate_drawer_ = std::move(drawer);
+void TitleUI::SetOverlayDrawer(std::unique_ptr<gpu::IOverlayDrawer> drawer) {
+  app_.overlay_drawer_ = std::move(drawer);
 }
 
 void TitleUI::SetFrameStats(DebugOverlayDialog::FrameStatsProvider provider) {
@@ -232,7 +231,7 @@ class TitleApp::ConsoleDockHost final : public ConsoleHost {
  public:
   explicit ConsoleDockHost(TitleApp& app) : app_(app) {}
 
-  bool CanUndock() const override { return app_.graphics_ && app_.graphics_->provider(); }
+  bool CanUndock() const override { return app_.gpu_ != nullptr && app_.gpu_->has_presentation(); }
 
   void Undock() override {
     Defer([this] {
@@ -280,8 +279,8 @@ class TitleApp::ConsoleDockHost final : public ConsoleHost {
   }
 
   void OpenWindow() {
-    auto window = ConsoleWindow::Create(*app_.context_, *app_.graphics_->provider(), *app_.drawer_,
-                                        *app_.console_, *this);
+    auto window =
+        ConsoleWindow::Create(*app_.context_, *app_.gpu_, *app_.drawer_, *app_.console_, *this);
     if (!window) {
       REXLOG_ERROR(ui, "{}", window.error().message);
       app_.console_->set_dock(ConsoleDock::kDocked);
@@ -337,9 +336,12 @@ Result<void> TitleApp::CreateTitleWindow() {
     });
   });
 
-  graphics_ = api().Get<graphics::IGraphicsBackend>();
-  if (graphics_ && XFAILED(graphics_->SetupPresentation(context_.get()))) {
-    return LaunchFailure("graphics presentation setup failed");
+  gpu_ = api().Get<gpu::IBackend>();
+  if (gpu_) {
+    if (auto presented = gpu_->SetupPresentation(*this); !presented) {
+      return LaunchFailure(
+          std::format("GPU presentation setup failed, {}", presented.error().message));
+    }
   }
 
   const std::string title = cfg.ui.title.empty() ? platform::GetExecutablePath().stem().string() +
@@ -409,26 +411,27 @@ Result<void> TitleApp::CreateTitleWindow() {
     return LaunchFailure("window open failed");
   }
 
-  Presenter* presenter = graphics_ ? graphics_->presenter() : nullptr;
-  if (presenter && graphics_->provider()) {
-    immediate_drawer_ = graphics_->provider()->CreateImmediateDrawer();
-    if (immediate_drawer_) {
-      immediate_drawer_->SetPresenter(presenter);
+  gpu::IPresenter* presenter = gpu_ ? gpu_->presenter() : nullptr;
+  if (presenter) {
+    if (auto drawer = gpu_->CreateOverlayDrawer(*presenter); drawer) {
+      overlay_drawer_ = std::move(*drawer);
+    } else {
+      REXLOG_ERROR(ui, "{}", drawer.error().message);
     }
   }
   drawer_ = std::make_unique<ImGuiDrawer>(window_.get(), 64);
   console_ = std::make_unique<ConsoleModel>(
       *cvars, *log_capture_, api().config().paths.user_data_root / "console_history.txt");
   console_host_ = std::make_unique<ConsoleDockHost>(*this);
-  overlay_context_ = std::make_unique<OverlayContext>(*drawer_, immediate_drawer_, *cvars,
-                                                      *log_capture_, *console_, *console_host_,
-                                                      api().config(), runtime_, frame_stats_);
+  overlay_context_ =
+      std::make_unique<OverlayContext>(*drawer_, overlay_drawer_, *cvars, *log_capture_, *console_,
+                                       *console_host_, api().config(), runtime_, frame_stats_);
   overlays_ = std::make_unique<OverlayRegistry>(*window_, *drawer_, *overlay_context_);
 
   TitleUI ui(*this);
   OnCreateWindow(ui);
 
-  drawer_->SetPresenterAndImmediateDrawer(presenter, immediate_drawer_.get());
+  drawer_->SetPresenterAndOverlayDrawer(presenter, overlay_drawer_.get());
   if (presenter) {
     window_->SetPresenter(presenter);
   }
@@ -491,8 +494,10 @@ Result<void> TitleApp::LaunchTitle() {
     return input::CreateDefaultInputSystem(api().config().input, tool_mode);
   };
   runtime_config.kernel_init = kernel::InitializeKernel;
-  runtime_config.graphics = graphics_;
+  runtime_config.gpu = gpu_;
   runtime_config.file_system = api().Get<filesystem::IFileSystem>();
+  ConfiguredVideoMode(runtime_config.video_mode.width, runtime_config.video_mode.height);
+  runtime_config.video_mode.refresh_rate = ConfiguredRefreshRate();
   if (auto setup = runtime_->Setup(image_, runtime_config); !setup) {
     return LaunchFailure(std::format("runtime setup failed, {}", setup.error().message));
   }
@@ -518,8 +523,8 @@ Result<void> TitleApp::LaunchTitle() {
     return LaunchFailure("shim heap initialization failed");
   }
 
-  if (immediate_drawer_) {
-    toast_ = std::make_shared<AchievementToastDialog>(drawer_.get(), immediate_drawer_.get(),
+  if (overlay_drawer_) {
+    toast_ = std::make_shared<AchievementToastDialog>(drawer_.get(), overlay_drawer_.get(),
                                                       runtime_.get());
     toast_->SetOwned(true);
     std::weak_ptr<AchievementNotificationDialog> notification = toast_;
@@ -539,9 +544,12 @@ Result<void> TitleApp::LaunchTitle() {
   if (!main_thread) {
     return LaunchFailure("the title's main thread could not be created");
   }
-  if (graphics_ && !runtime_->cache_root().empty()) {
+  if (gpu_ && !runtime_->cache_root().empty()) {
     if (const u32 title_id = runtime_->content_manager().title_id(); title_id != 0) {
-      graphics_->InitializeShaderStorage(runtime_->cache_root(), title_id, true);
+      if (auto storage = gpu_->InitializeShaderStorage(runtime_->cache_root(), title_id, true);
+          !storage) {
+        REXLOG_WARN(ui, "{}", storage.error().message);
+      }
     }
   }
   runtime_->OnTitleExit([this](runtime::TitleExitReason reason) {
@@ -554,6 +562,10 @@ Result<void> TitleApp::LaunchTitle() {
     runtime_->ReportTitleExit(runtime::TitleExitReason::NormalExit);
   });
   return Ok();
+}
+
+void TitleApp::RunSynchronous(std::move_only_function<void()> work) {
+  context_->CallInUIThreadSynchronous([&work] { work(); });
 }
 
 void TitleApp::OnCreateWindow(TitleUI&) {}
@@ -624,13 +636,10 @@ void TitleApp::Release() {
   overlay_context_.reset();
   console_.reset();
   if (drawer_) {
-    drawer_->SetPresenterAndImmediateDrawer(nullptr, nullptr);
+    drawer_->SetPresenterAndOverlayDrawer(nullptr, nullptr);
     drawer_.reset();
   }
-  if (immediate_drawer_) {
-    immediate_drawer_->SetPresenter(nullptr);
-    immediate_drawer_.reset();
-  }
+  overlay_drawer_.reset();
   if (runtime_) {
     runtime_->set_display_window(nullptr);
     runtime_->set_imgui_drawer(nullptr);

@@ -5,11 +5,13 @@ set_target_properties(rex-input PROPERTIES EXPORT_NAME input)
 set_target_properties(rex-audio PROPERTIES EXPORT_NAME audio)
 set_target_properties(rex-runtime PROPERTIES EXPORT_NAME runtime)
 set_target_properties(rex-codegen PROPERTIES EXPORT_NAME codegen)
+set_target_properties(rex-gpu PROPERTIES EXPORT_NAME gpu)
 
 set(REXGLUE_INSTALL_TARGETS
     rex-core
     rex-runtime
     rex-sdk
+    rex-gpu
     rex-gpu-xenos
     rex-filesystem
     disruptorplus renderdoc simde tomlplusplus

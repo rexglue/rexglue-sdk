@@ -77,7 +77,7 @@ TEST_CASE("ParseCommandLine fills structural fields and modules", "[config]") {
   REQUIRE(cfg.paths.game_data_root == "X:/game");
   REQUIRE(cfg.paths.cache_root == "X:/cache");
   REQUIRE(cfg.paths.config_file == "X:/app.toml");
-  REQUIRE(cfg.graphics.backend == "vulkan");
+  REQUIRE(cfg.gpu.backend == "vulkan");
   REQUIRE(cfg.modules == std::vector<std::string>{"a", "b"});
   REQUIRE(cfg.cvars.values.empty());
 }

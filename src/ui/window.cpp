@@ -14,10 +14,9 @@
 
 #include <rex/assert.h>
 #include <rex/cvar.h>
-#include <rex/graphics/video_mode_util.h>
+#include <rex/ui/video_mode.h>
 #include <rex/logging.h>
 #include <rex/ui/imgui_drawer.h>
-#include <rex/ui/presenter.h>
 #include <rex/ui/window.h>
 
 #include "ui/cvar_table.h"
@@ -41,11 +40,11 @@ Window::~Window() {
   EnterDestructor();
 
   if (presenter_) {
-    Presenter* old_presenter = presenter_;
+    gpu::IPresenter* old_presenter = presenter_;
     // Null the pointer to prevent an infinite loop between
-    // SetWindowSurfaceFromUIThread and SetPresenter calling each other.
+    // Attach and SetPresenter calling each other.
     presenter_ = nullptr;
-    old_presenter->SetWindowSurfaceFromUIThread(nullptr, nullptr);
+    old_presenter->Attach(nullptr, nullptr);
     presenter_surface_.reset();
   }
 
@@ -301,7 +300,7 @@ void Window::ResolveConfiguredLogicalSize(uint32_t& width_out, uint32_t& height_
   int32_t configured_width = REXCVAR_GET(::rex::ui::cvars::window_width);
   int32_t configured_height = REXCVAR_GET(::rex::ui::cvars::window_height);
   if (configured_width <= 0 || configured_height <= 0) {
-    rex::graphics::video_mode_util::ResolveConfiguredSize(configured_width, configured_height);
+    ResolveConfiguredSize(configured_width, configured_height);
   }
   width_out = uint32_t(std::clamp(configured_width, 1, 8192));
   height_out = uint32_t(std::clamp(configured_height, 1, 8192));
@@ -458,18 +457,23 @@ void Window::Focus() {
   }
 }
 
-void Window::SetPresenter(Presenter* presenter) {
+void Window::OnPresenterDetached() {
+  presenter_ = nullptr;
+  presenter_surface_.reset();
+}
+
+void Window::SetPresenter(gpu::IPresenter* presenter) {
   if (presenter_ == presenter) {
     return;
   }
   if (presenter_) {
-    presenter_->SetWindowSurfaceFromUIThread(nullptr, nullptr);
+    presenter_->Attach(nullptr, nullptr);
     presenter_surface_.reset();
   }
   presenter_ = presenter;
   if (presenter_) {
-    presenter_surface_ = CreateSurface(presenter_->GetSupportedSurfaceTypes());
-    presenter_->SetWindowSurfaceFromUIThread(this, presenter_surface_.get());
+    presenter_surface_ = CreateSurface(presenter_->supported_surface_types());
+    presenter_->Attach(this, presenter_surface_.get());
   }
 }
 
@@ -480,7 +484,7 @@ void Window::OnSurfaceChanged(bool new_surface_potentially_exists) {
 
   // Detach the presenter from the old surface before attaching to the new one.
   if (presenter_surface_) {
-    presenter_->SetWindowSurfaceFromUIThread(this, nullptr);
+    presenter_->Attach(this, nullptr);
     presenter_surface_.reset();
   }
 
@@ -488,10 +492,10 @@ void Window::OnSurfaceChanged(bool new_surface_potentially_exists) {
     return;
   }
 
-  Surface::TypeFlags supported_types = presenter_->GetSupportedSurfaceTypes();
+  gpu::Surface::TypeFlags supported_types = presenter_->supported_surface_types();
   presenter_surface_ = CreateSurface(supported_types);
   if (presenter_surface_) {
-    presenter_->SetWindowSurfaceFromUIThread(this, presenter_surface_.get());
+    presenter_->Attach(this, presenter_surface_.get());
   } else if (phase_ == Phase::kOpen) {
     // Usually a session whose native surface extension the driver lacks.
     REXLOG_ERROR(
@@ -562,7 +566,7 @@ void Window::OnDpiChanged(UISetupEvent& e, WindowDestructionReceiver& destructio
 
 void Window::OnMonitorUpdate(MonitorUpdateEvent& e) {
   if (presenter_surface_) {
-    presenter_->OnSurfaceMonitorUpdateFromUIThread(e.old_monitor_potentially_disconnected());
+    presenter_->OnSurfaceMonitorUpdate(e.old_monitor_potentially_disconnected());
   }
 }
 
@@ -576,7 +580,7 @@ bool Window::OnActualSizeUpdate(uint32_t new_physical_width, uint32_t new_physic
   actual_physical_height_ = new_physical_height;
   // The listeners may reference the presenter, update the presenter first.
   if (presenter_surface_) {
-    presenter_->OnSurfaceResizeFromUIThread();
+    presenter_->OnSurfaceResize();
   }
   ResizeEvent e(this, {GetActualPhysicalWidth(), GetActualPhysicalHeight()});
   SendEventToListeners([&e](auto listener) { listener->OnResize(e); }, destruction_receiver);
@@ -644,7 +648,7 @@ void Window::OnPaint(bool force_paint) {
   }
   is_painting_ = true;
   if (presenter_surface_) {
-    presenter_->PaintFromUIThread(force_paint);
+    presenter_->Paint(force_paint);
   }
   is_painting_ = false;
 }

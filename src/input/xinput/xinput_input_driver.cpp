@@ -19,7 +19,8 @@
 #include <rex/logging.h>
 #include <rex/ui/virtual_key.h>
 #include "input/cvar_table.h"
-#include <xinput.h>  // NOLINT(build/include_order)
+#include <windows.h>  // NOLINT(build/include_order)
+#include <xinput.h>   // NOLINT(build/include_order)
 
 namespace {
 

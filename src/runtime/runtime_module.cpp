@@ -34,13 +34,11 @@ struct ScopeTable {
   std::span<const cvar::IVar* const> vars;
 };
 
-const std::array<ScopeTable, 8> kTables = {{
+const std::array<ScopeTable, 6> kTables = {{
     {"runtime", cvars::kRuntimeCvars},
     {"audio", audio::cvars::kAudioCvars},
     {"input", input::cvars::kInputCvars},
     {"ui", ui::cvars::kUICvars},
-    {"d3d12", ui::cvars::kD3D12Cvars},
-    {"vulkan", ui::cvars::kVulkanCvars},
     {"console", ui::cvars::kConsoleCvars},
     {"bind", {}},
 }};
@@ -52,19 +50,6 @@ Result<void> ValidateSlices(const Config& config) {
   if (config.runtime.heap_size_mb < 1 || config.runtime.heap_size_mb > 2048) {
     return fail(std::format("config field runtime.heap_size_mb = {} is outside 1 to 2048",
                             config.runtime.heap_size_mb));
-  }
-  if (config.graphics.resolution_scale_x < 1 || config.graphics.resolution_scale_x > 8) {
-    return fail(std::format("config field graphics.resolution_scale_x = {} is outside 1 to 8",
-                            config.graphics.resolution_scale_x));
-  }
-  if (config.graphics.resolution_scale_y < 1 || config.graphics.resolution_scale_y > 8) {
-    return fail(std::format("config field graphics.resolution_scale_y = {} is outside 1 to 8",
-                            config.graphics.resolution_scale_y));
-  }
-  const auto& backend = config.graphics.backend;
-  if (backend != "any" && backend != "d3d12" && backend != "vulkan") {
-    return fail(
-        std::format("config field graphics.backend = '{}' is not any, d3d12 or vulkan", backend));
   }
 #if !REX_PLATFORM_WIN32
   if (config.input.backend == input::Backend::XInput) {

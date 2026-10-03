@@ -107,15 +107,6 @@ endif()
 
 if(WIN32)
     target_link_libraries(rex-runtime PRIVATE ws2_32 winmm)
-    target_link_libraries(rex-runtime PUBLIC dxgi dxguid)
     target_compile_definitions(rex-runtime PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
 endif()
 
-if(REXGLUE_GPU_D3D12)
-    target_link_libraries(rex-runtime PUBLIC dxc-headers)
-endif()
-target_link_libraries(rex-runtime PUBLIC
-    Vulkan::Headers
-    GPUOpen::VulkanMemoryAllocator
-    spirv-tools-headers
-)

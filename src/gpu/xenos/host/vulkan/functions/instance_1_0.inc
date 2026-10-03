@@ -1,0 +1,11 @@
+// Vulkan 1.0 core instance functions used in ReXGlue.
+REXVK_FUNCTION(vkCreateDevice)
+REXVK_FUNCTION(vkDestroyDevice)
+REXVK_FUNCTION(vkEnumerateDeviceExtensionProperties)
+REXVK_FUNCTION(vkEnumeratePhysicalDevices)
+REXVK_FUNCTION(vkGetDeviceProcAddr)
+REXVK_FUNCTION(vkGetPhysicalDeviceFeatures)
+REXVK_FUNCTION(vkGetPhysicalDeviceFormatProperties)
+REXVK_FUNCTION(vkGetPhysicalDeviceMemoryProperties)
+REXVK_FUNCTION(vkGetPhysicalDeviceProperties)
+REXVK_FUNCTION(vkGetPhysicalDeviceQueueFamilyProperties)

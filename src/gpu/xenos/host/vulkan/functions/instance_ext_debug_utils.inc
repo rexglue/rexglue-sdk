@@ -1,0 +1,4 @@
+// VK_EXT_debug_utils functions used in ReXGlue.
+REXVK_FUNCTION(vkCreateDebugUtilsMessengerEXT)
+REXVK_FUNCTION(vkDestroyDebugUtilsMessengerEXT)
+REXVK_FUNCTION(vkSetDebugUtilsObjectNameEXT)

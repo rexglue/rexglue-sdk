@@ -19,8 +19,8 @@
 #include <optional>
 #include <vector>
 
-#include <rex/ui/immediate_drawer.h>
-#include <rex/ui/presenter.h>
+#include <rex/gpu/overlay.h>
+#include <rex/gpu/presenter.h>
 #include <rex/ui/style.h>
 #include <rex/ui/window.h>
 #include <rex/ui/window_listener.h>
@@ -31,7 +31,7 @@ namespace ui {
 class ImGuiDialog;
 class Window;
 
-class ImGuiDrawer : public WindowInputListener, public UIDrawer {
+class ImGuiDrawer : public WindowInputListener, public gpu::IOverlayLayer {
  public:
   using FontSetupCallback = std::function<void(ImFontAtlas*)>;
   using StyleSetupCallback = std::function<void(ImGuiStyle&, Style&)>;
@@ -66,15 +66,15 @@ class ImGuiDrawer : public WindowInputListener, public UIDrawer {
   bool HasDialogs() const { return !dialogs_.empty(); }
 
   // SetPresenter may be called from the destructor.
-  void SetPresenter(Presenter* new_presenter);
-  void SetImmediateDrawer(ImmediateDrawer* new_immediate_drawer);
-  void SetPresenterAndImmediateDrawer(Presenter* new_presenter,
-                                      ImmediateDrawer* new_immediate_drawer) {
+  void SetPresenter(gpu::IPresenter* new_presenter);
+  void SetOverlayDrawer(gpu::IOverlayDrawer* new_overlay_drawer);
+  void SetPresenterAndOverlayDrawer(gpu::IPresenter* new_presenter,
+                                    gpu::IOverlayDrawer* new_overlay_drawer) {
     SetPresenter(new_presenter);
-    SetImmediateDrawer(new_immediate_drawer);
+    SetOverlayDrawer(new_overlay_drawer);
   }
 
-  void Draw(UIDrawContext& ui_draw_context) override;
+  void Draw(gpu::OverlayDrawContext& context) override;
 
  protected:
   void OnKeyDown(KeyEvent& e) override;
@@ -92,7 +92,7 @@ class ImGuiDrawer : public WindowInputListener, public UIDrawer {
 
   void SetupFontTexture();
 
-  void RenderDrawLists(ImDrawData* data, UIDrawContext& ui_draw_context);
+  void RenderDrawLists(ImDrawData* data, gpu::OverlayDrawContext& context);
 
   void ClearInput();
   void OnKey(KeyEvent& e, bool is_down);
@@ -120,12 +120,12 @@ class ImGuiDrawer : public WindowInputListener, public UIDrawer {
   // SIZE_MAX if not currently in the dialog loop.
   size_t dialog_loop_next_index_ = SIZE_MAX;
 
-  Presenter* presenter_ = nullptr;
+  gpu::IPresenter* presenter_ = nullptr;
 
-  ImmediateDrawer* immediate_drawer_ = nullptr;
-  // Resources specific to an immediate drawer - must be destroyed before
+  gpu::IOverlayDrawer* overlay_drawer_ = nullptr;
+  // Resources specific to an overlay drawer - must be destroyed before
   // detaching the presenter.
-  std::unique_ptr<ImmediateTexture> font_texture_;
+  std::unique_ptr<gpu::OverlayTexture> font_texture_;
 
   // If there's an active pointer, the ImGui mouse is controlled by this touch.
   // If it's TouchEvent::kPointerIDNone, the ImGui mouse is controlled by the

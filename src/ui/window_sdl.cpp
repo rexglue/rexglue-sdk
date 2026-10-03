@@ -21,7 +21,7 @@
 #include <utf8.h>
 
 #include <rex/cvar.h>
-#include <rex/graphics/video_mode_util.h>
+#include <rex/ui/video_mode.h>
 #include <rex/logging.h>
 #include <rex/platform.h>
 #include <rex/ui/sdl_virtual_key.h>
@@ -29,15 +29,15 @@
 #include "ui/cvar_table.h"
 
 #if REX_PLATFORM_WIN32
-#include <rex/ui/surface_win.h>
+#include <rex/gpu/surface_win.h>
 #elif REX_PLATFORM_MAC
 #include <CoreFoundation/CoreFoundation.h>
 #include <SDL3/SDL_metal.h>
 
-#include <rex/ui/surface_mac.h>
+#include <rex/gpu/surface_mac.h>
 #else
 #include <X11/Xlib-xcb.h>
-#include <rex/ui/surface_gnulinux.h>
+#include <rex/gpu/surface_gnulinux.h>
 #endif
 
 namespace rex::ui {
@@ -373,8 +373,7 @@ void WindowSDL::ApplyFullscreenModeNow() {
   const SDL_DisplayID display = SDL_GetDisplayForWindow(sdl_window_);
   int32_t width = 0;
   int32_t height = 0;
-  if (!rex::graphics::video_mode_util::TryGetResolutionPresetFromCVar(width, height) ||
-      width <= 0 || height <= 0) {
+  if (!TryGetResolutionPresetFromCVar(width, height) || width <= 0 || height <= 0) {
     const SDL_DisplayMode* desktop = SDL_GetDesktopDisplayMode(display);
     if (!desktop) {
       REXLOG_WARN(ui, "No desktop mode for display {}: staying borderless", uint32_t(display));
@@ -475,50 +474,50 @@ void WindowSDL::FocusImpl() {
   SDL_RaiseWindow(sdl_window_);
 }
 
-std::unique_ptr<Surface> WindowSDL::CreateSurfaceImpl(Surface::TypeFlags allowed_types) {
+std::unique_ptr<gpu::Surface> WindowSDL::CreateSurfaceImpl(gpu::Surface::TypeFlags allowed_types) {
   if (!sdl_window_) {
     return nullptr;
   }
 #if REX_PLATFORM_WIN32
   SDL_PropertiesID props = SDL_GetWindowProperties(sdl_window_);
-  if (allowed_types & Surface::kTypeFlag_Win32Hwnd) {
+  if (allowed_types & gpu::Surface::kTypeFlag_Win32Hwnd) {
     HWND hwnd = static_cast<HWND>(
         SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr));
     HINSTANCE hinstance = static_cast<HINSTANCE>(
         SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_INSTANCE_POINTER, nullptr));
     if (hwnd) {
-      return std::make_unique<Win32HwndSurface>(hinstance, hwnd);
+      return std::make_unique<gpu::Win32HwndSurface>(hinstance, hwnd);
     }
   }
 #elif REX_PLATFORM_MAC
-  if (allowed_types & Surface::kTypeFlag_CAMetalLayer) {
+  if (allowed_types & gpu::Surface::kTypeFlag_CAMetalLayer) {
     SDL_MetalView metal_view = SDL_Metal_CreateView(sdl_window_);
     if (metal_view) {
       void* layer = SDL_Metal_GetLayer(metal_view);
       if (layer) {
-        return std::make_unique<CAMetalLayerSurface>(sdl_window_, metal_view, layer);
+        return std::make_unique<gpu::CAMetalLayerSurface>(sdl_window_, metal_view, layer);
       }
       SDL_Metal_DestroyView(metal_view);
     }
   }
 #else
   SDL_PropertiesID props = SDL_GetWindowProperties(sdl_window_);
-  if (allowed_types & Surface::kTypeFlag_WaylandSurface) {
+  if (allowed_types & gpu::Surface::kTypeFlag_WaylandSurface) {
     auto* wl_display_ptr = static_cast<struct wl_display*>(
         SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_DISPLAY_POINTER, nullptr));
     auto* wl_surface_ptr = static_cast<struct wl_surface*>(
         SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER, nullptr));
     if (wl_display_ptr && wl_surface_ptr) {
-      return std::make_unique<WaylandSurface>(wl_display_ptr, wl_surface_ptr, sdl_window_);
+      return std::make_unique<gpu::WaylandSurface>(wl_display_ptr, wl_surface_ptr, sdl_window_);
     }
   }
-  if (allowed_types & Surface::kTypeFlag_XcbWindow) {
+  if (allowed_types & gpu::Surface::kTypeFlag_XcbWindow) {
     auto* display = static_cast<Display*>(
         SDL_GetPointerProperty(props, SDL_PROP_WINDOW_X11_DISPLAY_POINTER, nullptr));
     auto x11_window = static_cast<xcb_window_t>(
         SDL_GetNumberProperty(props, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0));
     if (display && x11_window) {
-      return std::make_unique<XcbWindowSurface>(XGetXCBConnection(display), x11_window);
+      return std::make_unique<gpu::XcbWindowSurface>(XGetXCBConnection(display), x11_window);
     }
   }
 #endif

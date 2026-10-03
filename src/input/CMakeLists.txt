@@ -21,7 +21,6 @@ rex_target_pch(rex-input
     <rex/runtime.h>
     <rex/runtime/xthread.h>
     <rex/ui/window.h>
-    <rex/ui/presenter.h>
 )
 
 target_include_directories(rex-input PUBLIC

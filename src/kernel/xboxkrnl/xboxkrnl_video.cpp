@@ -17,9 +17,9 @@
 #include <string>
 
 #include <rex/cvar.h>
+#include <rex/gpu/backend.h>
 #include <rex/xenos/texture_info.h>
-#include <rex/graphics/register_file.h>
-#include <rex/graphics/video_mode_util.h>
+#include <rex/xenos/register_file.h>
 #include <rex/xenos/xenos.h>
 #include <rex/kernel/xboxkrnl/private.h>
 #include <rex/kernel/xboxkrnl/rtl.h>
@@ -192,10 +192,10 @@ void VdGetCurrentDisplayInformation_entry(ppc_ptr_t<X_DISPLAY_INFO> display_info
 
 void VdQueryVideoMode(X_VIDEO_MODE* video_mode) {
   // Exposed as CVARs so the guest can observe custom display settings.
-  uint32_t display_width = 0;
-  uint32_t display_height = 0;
-  rex::ui::ConfiguredVideoMode(display_width, display_height);
-  float refresh_rate_hz = rex::ui::ConfiguredRefreshRate();
+  const runtime::VideoMode& mode = runtime::Current().video_mode();
+  const u32 display_width = mode.width;
+  const u32 display_height = mode.height;
+  const f32 refresh_rate_hz = mode.refresh_rate;
 
   std::memset(video_mode, 0, sizeof(X_VIDEO_MODE));
   video_mode->display_width = display_width;
@@ -279,37 +279,37 @@ void VdSetGraphicsInterruptCallback_entry(u32 callback, mapped_void user_data) {
   // callback takes 2 params
   // r3 = bool 0/1 - 0 is normal interrupt, 1 is some acquire/lock mumble
   // r4 = user_data (r4 of VdSetGraphicsInterruptCallback)
-  auto* graphics_system = runtime::Current().graphics_system();
-  if (!graphics_system) {
+  auto* gpu = runtime::Current().gpu();
+  if (!gpu) {
     static std::atomic<bool> warned{false};
     WarnNoGpuEmulation("VdSetGraphicsInterruptCallback", warned);
     return;
   }
-  graphics_system->SetInterruptCallback(callback, user_data.guest_address());
+  gpu->SetInterruptCallback(callback, user_data.guest_address());
 }
 
 void VdInitializeRingBuffer_entry(mapped_void ptr, i32 size_log2) {
   // r3 = result of MmGetPhysicalAddress
   // r4 = log2(size)
   // Buffer pointers are from MmAllocatePhysicalMemory with WRITE_COMBINE.
-  auto* graphics_system = runtime::Current().graphics_system();
-  if (!graphics_system) {
+  auto* gpu = runtime::Current().gpu();
+  if (!gpu) {
     static std::atomic<bool> warned{false};
     WarnNoGpuEmulation("VdInitializeRingBuffer", warned);
     return;
   }
-  graphics_system->InitializeRingBuffer(ptr.guest_address(), size_log2);
+  gpu->InitializeRingBuffer(ptr.guest_address(), size_log2);
 }
 
 void VdEnableRingBufferRPtrWriteBack_entry(mapped_void ptr, i32 block_size_log2) {
   // r4 = log2(block size), 6, usually --- <=19
-  auto* graphics_system = runtime::Current().graphics_system();
-  if (!graphics_system) {
+  auto* gpu = runtime::Current().gpu();
+  if (!gpu) {
     static std::atomic<bool> warned{false};
     WarnNoGpuEmulation("VdEnableRingBufferRPtrWriteBack", warned);
     return;
   }
-  graphics_system->EnableReadPointerWriteBack(ptr.guest_address(), block_size_log2);
+  gpu->EnableReadPointerWriteBack(ptr.guest_address(), block_size_log2);
 }
 
 void VdGetSystemCommandBuffer_entry(mapped_void p0_ptr, mapped_void p1_ptr) {
@@ -454,8 +454,8 @@ void VdSwap_entry(mapped_void buffer_ptr,      // ptr into primary ringbuffer
   auto dwords = buffer_ptr.as_array<uint32_t>();
 
   // Write in the GPU texture fetch.
-  dwords[offset++] =
-      xenos::MakePacketType0(rex::graphics::XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0, 6);
+  dwords[offset++] = xenos::MakePacketType0(
+      std::to_underlying(rex::xenos::Register::SHADER_CONSTANT_FETCH_00_0), 6);
   dwords[offset++] = gpu_fetch.dword_0;
   dwords[offset++] = gpu_fetch.dword_1;
   dwords[offset++] = gpu_fetch.dword_2;

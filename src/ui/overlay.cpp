@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <format>
 
+#include <rex/gpu/overlay.h>
 #include <rex/ui/imgui_dialog.h>
 #include <rex/ui/imgui_drawer.h>
 #include <rex/ui/keybinds.h>
@@ -25,12 +26,12 @@
 namespace rex::ui {
 
 OverlayContext::OverlayContext(ImGuiDrawer& drawer,
-                               const std::unique_ptr<ImmediateDrawer>& immediate_drawer,
+                               const std::unique_ptr<gpu::IOverlayDrawer>& overlay_drawer,
                                cvar::ICvarRegistry& cvars, log::CaptureSink& log_capture,
                                const Config& config, const std::unique_ptr<Runtime>& runtime,
                                const DebugOverlayDialog::FrameStatsProvider& frame_stats)
     : drawer_(drawer),
-      immediate_drawer_(immediate_drawer),
+      overlay_drawer_(overlay_drawer),
       cvars_(cvars),
       log_capture_(log_capture),
       console_(console),
@@ -42,8 +43,8 @@ OverlayContext::OverlayContext(ImGuiDrawer& drawer,
 ImGuiDrawer& OverlayContext::drawer() const {
   return drawer_;
 }
-ImmediateDrawer* OverlayContext::immediate_drawer() const {
-  return immediate_drawer_.get();
+gpu::IOverlayDrawer* OverlayContext::overlay_drawer() const {
+  return overlay_drawer_.get();
 }
 cvar::ICvarRegistry& OverlayContext::cvars() const {
   return cvars_;

@@ -63,7 +63,7 @@ class WindowSDL final : public Window {
   void FocusImpl() override;
   void ApplySizeLimits() override;
 
-  std::unique_ptr<Surface> CreateSurfaceImpl(Surface::TypeFlags allowed_types) override;
+  std::unique_ptr<gpu::Surface> CreateSurfaceImpl(gpu::Surface::TypeFlags allowed_types) override;
   void RequestPaintImpl() override;
 
  private:

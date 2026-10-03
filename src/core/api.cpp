@@ -57,7 +57,7 @@ constexpr std::array<StructuralField, 8> kStructuralFields = {{
     {"--cache_root", [](Config& c, std::string_view v) { c.paths.cache_root = v; }},
     {"--metadata_root", [](Config& c, std::string_view v) { c.paths.metadata_root = v; }},
     {"--config_file", [](Config& c, std::string_view v) { c.paths.config_file = v; }},
-    {"--backend", [](Config& c, std::string_view v) { c.graphics.backend = std::string(v); }},
+    {"--backend", [](Config& c, std::string_view v) { c.gpu.backend = std::string(v); }},
 }};
 
 bool LowerToken(std::string_view part) {

@@ -1,0 +1,6 @@
+// VK_KHR_surface functions used in ReXGlue.
+REXVK_FUNCTION(vkDestroySurfaceKHR)
+REXVK_FUNCTION(vkGetPhysicalDeviceSurfaceCapabilitiesKHR)
+REXVK_FUNCTION(vkGetPhysicalDeviceSurfaceFormatsKHR)
+REXVK_FUNCTION(vkGetPhysicalDeviceSurfacePresentModesKHR)
+REXVK_FUNCTION(vkGetPhysicalDeviceSurfaceSupportKHR)

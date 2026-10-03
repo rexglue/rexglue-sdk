@@ -22,8 +22,6 @@ class Runtime;
 
 namespace rex::ui {
 
-class ImmediateDrawer;
-class ImmediateTexture;
 class OverlayContext;
 
 class AchievementsOverlayDialog : public ImGuiDialog {
@@ -36,7 +34,7 @@ class AchievementsOverlayDialog : public ImGuiDialog {
 
  private:
   // Lazily loads icon_path, or icons/<image_id>.png when icon_path is empty.
-  ImmediateTexture* GetIcon(const rex::runtime::AchievementInfo& achievement);
+  gpu::OverlayTexture* GetIcon(const rex::runtime::AchievementInfo& achievement);
 
   const OverlayContext& context_;
   std::optional<AchievementIconCache> icon_cache_;

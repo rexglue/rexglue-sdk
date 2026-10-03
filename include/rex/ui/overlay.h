@@ -30,6 +30,10 @@ class CaptureSink;
 }  // namespace log
 }  // namespace rex
 
+namespace rex::gpu {
+class IOverlayDrawer;
+}  // namespace rex::gpu
+
 namespace rex::cvar {
 class ICvarRegistry;
 }  // namespace rex::cvar
@@ -40,7 +44,6 @@ class ConsoleHost;
 class ConsoleModel;
 class ImGuiDialog;
 class ImGuiDrawer;
-class ImmediateDrawer;
 class Window;
 
 /** What an overlay may use. Valid for the overlay's whole life. */
@@ -50,7 +53,7 @@ class OverlayContext {
    * Creates a context. TitleApp creates the one every overlay receives.
    *
    * @param drawer ImGui drawer.
-   * @param immediate_drawer Slot holding the immediate drawer, which may be empty.
+   * @param overlay_drawer Slot holding the overlay drawer, which may be empty.
    * @param cvars Cvar registry.
    * @param log_capture Sink that keeps recent log lines.
    * @param console The console model every console view shows.
@@ -59,8 +62,9 @@ class OverlayContext {
    * @param runtime Slot holding the runtime once the title launches.
    * @param frame_stats Slot holding the frame time source.
    */
-  OverlayContext(ImGuiDrawer& drawer, const std::unique_ptr<ImmediateDrawer>& immediate_drawer,
-                 cvar::ICvarRegistry& cvars, log::CaptureSink& log_capture, const Config& config,
+  OverlayContext(ImGuiDrawer& drawer, const std::unique_ptr<gpu::IOverlayDrawer>& overlay_drawer,
+                 cvar::ICvarRegistry& cvars, log::CaptureSink& log_capture, ConsoleModel& console,
+                 ConsoleHost& console_host, const Config& config,
                  const std::unique_ptr<Runtime>& runtime,
                  const DebugOverlayDialog::FrameStatsProvider& frame_stats);
 
@@ -72,11 +76,11 @@ class OverlayContext {
   ImGuiDrawer& drawer() const;
 
   /**
-   * Returns the immediate drawer.
+   * Returns the overlay drawer.
    *
    * @return The drawer for textures and primitives, or nullptr when the app has none.
    */
-  ImmediateDrawer* immediate_drawer() const;
+  gpu::IOverlayDrawer* overlay_drawer() const;
 
   /**
    * Returns the cvar registry.
@@ -130,7 +134,7 @@ class OverlayContext {
 
  private:
   ImGuiDrawer& drawer_;
-  const std::unique_ptr<ImmediateDrawer>& immediate_drawer_;
+  const std::unique_ptr<gpu::IOverlayDrawer>& overlay_drawer_;
   cvar::ICvarRegistry& cvars_;
   log::CaptureSink& log_capture_;
   const Config& config_;

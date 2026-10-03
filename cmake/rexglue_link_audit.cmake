@@ -1,5 +1,5 @@
 set(REXGLUE_RUNTIME_OBJECT_LIBS rex-input rex-ui rex-audio)
-set(REXGLUE_ABOVE_CORE_TARGETS rex-runtime rex-filesystem rex-ui rex-input rex-audio rex-gpu-xenos rex-codegen)
+set(REXGLUE_ABOVE_CORE_TARGETS rex-runtime rex-filesystem rex-ui rex-input rex-audio rex-gpu rex-gpu-xenos rex-codegen)
 set(REXGLUE_REGISTRAR_REGEX "REXCVAR_DEFINE_|REXLOG_DEFINE_CATEGORY|REXLOG_DEFINE_SUBCATEGORY")
 
 function(_rexglue_collect_targets dir out_var)
@@ -144,7 +144,20 @@ function(rexglue_audit_module_links)
     endif()
 endfunction()
 
+function(rexglue_audit_ui_links)
+    set(forbidden rex-gpu-xenos d3d12 dxgi dxguid Vulkan::Headers
+        GPUOpen::VulkanMemoryAllocator spirv-tools-headers dxc-headers)
+    get_target_property(links rex-ui LINK_LIBRARIES)
+    get_target_property(interface_links rex-ui INTERFACE_LINK_LIBRARIES)
+    foreach(link IN LISTS links interface_links)
+        if(link IN_LIST forbidden)
+            message(FATAL_ERROR "link audit: rex-ui links the backend library ${link}")
+        endif()
+    endforeach()
+endfunction()
+
 rexglue_audit_core_linkage()
 rexglue_audit_core_tier()
 rexglue_audit_module_registrars()
 rexglue_audit_module_links()
+rexglue_audit_ui_links()

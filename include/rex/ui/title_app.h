@@ -21,6 +21,7 @@
 #include <rex/app.h>
 #include <rex/cli_arg_list.h>
 #include <rex/cvar/registry.h>
+#include <rex/gpu.h>
 #include <rex/image_info.h>
 #include <rex/logging.h>
 #include <rex/platform.h>
@@ -41,9 +42,6 @@ struct ImGuiStyle;
 
 namespace rex {
 class Runtime;
-namespace graphics {
-class IGraphicsBackend;
-}  // namespace graphics
 }  // namespace rex
 
 namespace rex::ui {
@@ -52,7 +50,6 @@ class AchievementNotificationDialog;
 class ConsoleModel;
 class ConsoleWindow;
 class ImGuiDrawer;
-class ImmediateDrawer;
 class SDLWindowedAppContext;
 class TitleApp;
 class Window;
@@ -105,11 +102,11 @@ class TitleUI {
   void SetFrameStats(DebugOverlayDialog::FrameStatsProvider provider);
 
   /**
-   * Replaces the presenter drawer, for apps that present the title themselves.
+   * Gives the title window an overlay drawer when no GPU backend module is loaded.
    *
-   * @param drawer Drawer the overlays draw through.
+   * @param drawer The drawer the UI tier draws through.
    */
-  void SetDrawer(std::unique_ptr<ImmediateDrawer> drawer);
+  void SetOverlayDrawer(std::unique_ptr<gpu::IOverlayDrawer> drawer);
 
  private:
   friend class TitleApp;
@@ -122,11 +119,18 @@ class TitleUI {
  * that order, and may call RunFrame between CreateTitleWindow and LaunchTitle. Every step and
  * every hook runs on the UI thread, the thread that called Init.
  */
-class TitleApp : public App {
+class TitleApp : public App, public gpu::IUIThread {
  public:
   /** Creates the app. Nothing starts until Init. */
   TitleApp();
   ~TitleApp() override;
+
+  /**
+   * Runs work on the UI thread through the windowed app context.
+   *
+   * @param work The work to run.
+   */
+  void RunSynchronous(std::move_only_function<void()> work) override;
 
   /**
    * Configures and initializes the app for a recompiled image. Starts the module list as
@@ -274,11 +278,11 @@ class TitleApp : public App {
 
   PPCImageInfo image_{};
   std::unique_ptr<SDLWindowedAppContext> context_;
-  graphics::IGraphicsBackend* graphics_ = nullptr;
+  gpu::IBackend* gpu_ = nullptr;
   std::unique_ptr<Window> window_;
   std::unique_ptr<Listener> listener_;
   std::unique_ptr<BindListener> bind_listener_;
-  std::unique_ptr<ImmediateDrawer> immediate_drawer_;
+  std::unique_ptr<gpu::IOverlayDrawer> overlay_drawer_;
   std::unique_ptr<ImGuiDrawer> drawer_;
   std::unique_ptr<log::CaptureSink> log_capture_;
   ILogger* logger_ = nullptr;

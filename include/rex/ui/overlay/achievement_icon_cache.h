@@ -17,6 +17,7 @@
 #include <string>
 #include <unordered_map>
 
+#include <rex/gpu/overlay.h>
 #include <rex/runtime/achievement_info.h>
 
 namespace rex {
@@ -25,12 +26,9 @@ class Runtime;
 
 namespace rex::ui {
 
-class ImmediateDrawer;
-class ImmediateTexture;
-
 class AchievementIconCache {
  public:
-  AchievementIconCache(ImmediateDrawer* immediate_drawer, rex::Runtime* runtime);
+  AchievementIconCache(gpu::IOverlayDrawer* overlay_drawer, rex::Runtime* runtime);
 
   // Loads the achievement icon in priority order:
   // 1. explicit metadata icon_path
@@ -38,16 +36,18 @@ class AchievementIconCache {
   // 3. metadata icons/<image_id>.png
   // 4. embedded metadata icons/<image_id>.png
   // 5. title XDBF image <image_id> embedded in the loaded XEX
-  ImmediateTexture* GetIcon(const rex::runtime::AchievementInfo& achievement);
+  gpu::OverlayTexture* GetIcon(const rex::runtime::AchievementInfo& achievement);
 
  private:
-  std::unique_ptr<ImmediateTexture> CreateTextureFromBytes(const uint8_t* data, size_t size);
-  std::unique_ptr<ImmediateTexture> LoadMetadataTexture(const std::filesystem::path& relative_path);
-  std::unique_ptr<ImmediateTexture> LoadXdbfTexture(uint32_t image_id);
+  std::unique_ptr<gpu::OverlayTexture> CreateTextureFromBytes(const uint8_t* data, size_t size);
+  std::unique_ptr<gpu::OverlayTexture> LoadMetadataTexture(
+      const std::filesystem::path& relative_path);
+  std::unique_ptr<gpu::OverlayTexture> LoadXdbfTexture(uint32_t image_id);
 
-  ImmediateDrawer* immediate_drawer_ = nullptr;
+  gpu::IOverlayDrawer* overlay_drawer_ = nullptr;
   rex::Runtime* runtime_ = nullptr;
-  std::unordered_map<std::string, std::unique_ptr<ImmediateTexture>> cache_;
+  bool texture_create_failed_ = false;
+  std::unordered_map<std::string, std::unique_ptr<gpu::OverlayTexture>> cache_;
 };
 
 }  // namespace rex::ui

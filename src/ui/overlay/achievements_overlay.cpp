@@ -13,7 +13,7 @@
 #include <imgui.h>
 
 #include <rex/runtime.h>
-#include <rex/ui/immediate_drawer.h>
+#include <rex/gpu/overlay.h>
 #include <rex/ui/overlay.h>
 
 namespace rex::ui {
@@ -23,7 +23,7 @@ AchievementsOverlayDialog::AchievementsOverlayDialog(const OverlayContext& conte
 
 AchievementsOverlayDialog::~AchievementsOverlayDialog() {}
 
-ImmediateTexture* AchievementsOverlayDialog::GetIcon(
+gpu::OverlayTexture* AchievementsOverlayDialog::GetIcon(
     const rex::runtime::AchievementInfo& achievement) {
   return icon_cache_ ? icon_cache_->GetIcon(achievement) : nullptr;
 }
@@ -41,14 +41,14 @@ void AchievementsOverlayDialog::OnDraw(ImGuiIO& io) {
 
   if (ImGui::Begin("Achievements##overlay", nullptr, ImGuiWindowFlags_NoCollapse)) {
     Runtime* runtime = context_.runtime();
-    if (!runtime || !runtime->is_setup() || !context_.immediate_drawer()) {
+    if (!runtime || !runtime->is_setup() || !context_.overlay_drawer()) {
       ImGui::TextUnformatted("No title is running.");
       ImGui::End();
       ImGui::PopStyleVar(2);
       return;
     }
     if (!icon_cache_) {
-      icon_cache_.emplace(context_.immediate_drawer(), runtime);
+      icon_cache_.emplace(context_.overlay_drawer(), runtime);
     }
     auto& manager = runtime->achievement_manager();
     const auto achievements = manager.ListAchievements();
@@ -101,7 +101,7 @@ void AchievementsOverlayDialog::OnDraw(ImGuiIO& io) {
       ImGui::Dummy(ImVec2(0.0f, pad * 0.5f));
 
       // Icon on the left. Locked icons are dimmed so the state reads clearly.
-      ImmediateTexture* icon = GetIcon(a);
+      gpu::OverlayTexture* icon = GetIcon(a);
       if (icon) {
         ImVec4 tint = is_unlocked ? style.unlocked_icon_tint : style.locked_icon_tint;
         ImGui::ImageWithBg(reinterpret_cast<ImTextureID>(icon),
