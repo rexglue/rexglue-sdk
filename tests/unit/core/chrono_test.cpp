@@ -228,7 +228,7 @@ static uint64_t recompose(int y, unsigned m, unsigned d, int hour, int min, int 
   if (!ymd.ok())
     return 0;
   auto dp = static_cast<std::chrono::sys_days>(ymd);
-  std::chrono::system_clock::time_point time = dp;
+  std::chrono::sys_time<rex::hundrednanoseconds> time = dp;
   time += std::chrono::hours{hour};
   time += std::chrono::minutes{min};
   time += std::chrono::seconds{sec};

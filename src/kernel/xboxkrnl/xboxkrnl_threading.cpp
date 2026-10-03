@@ -73,7 +73,6 @@ void DropStash(X_DISPATCH_HEADER& header) {
 
 // r13 + 0x100: pointer to thread local state
 // Thread local state:
-//   0x058: kernel time
 //   0x14C: thread id
 //   0x150: if >0 then error states don't get set
 //   0x160: last error
@@ -119,18 +118,8 @@ u32 ExCreateThread_entry(mapped_u32 handle_ptr, u32 stack_size, mapped_u32 threa
     guest_process = runtime.GetSystemProcess();
   }
 
-  uint32_t actual_stack_size = stack_size;
-
-  if (actual_stack_size == 0) {
-    actual_stack_size = runtime.object_table()
-                            .Get<ModuleObject>(runtime.module_registry().executable().value_or(0))
-                            ->user.stack_size;
-  }
-
-  actual_stack_size = std::max((uint32_t)0x4000, ((actual_stack_size + 0xFFF) & 0xFFFFF000));
-
   auto record = std::make_unique<ThreadRecord>(
-      runtime, actual_stack_size, xapi_thread_startup, start_address.guest_address(),
+      runtime, stack_size, xapi_thread_startup, start_address.guest_address(),
       start_context.guest_address(), creation_flags, true, false, guest_process);
   ThreadRecord* raw = record.get();
 
@@ -220,19 +209,7 @@ u32 NtSuspendThread_entry(u32 handle, mapped_u32 suspend_count_ptr) {
 
     REXLOG_TRACE(kernel, "NtSuspendThread handle={:08X} thread={}", uint32_t(handle),
                  thread->name());
-#if REX_PLATFORM_LINUX || REX_PLATFORM_MAC
-    auto* current_thread = ThreadRecord::GetCurrentThread();
-    bool is_self_suspend = current_thread && current_thread == thread.get();
-    if (is_self_suspend) {
-      REXLOG_TRACE(kernel, "NtSuspendThread self-suspend for thread={:08X}", uint32_t(handle));
-      suspend_count = thread->SelfSuspend();
-      result = X_STATUS_SUCCESS;
-    } else {
-      result = thread->Suspend(&suspend_count);
-    }
-#else
     result = thread->Suspend(&suspend_count);
-#endif
   } else {
     REXLOG_WARN(kernel, "NtSuspendThread handle={:08X} NOT FOUND", uint32_t(handle));
     result = X_STATUS_INVALID_HANDLE;
@@ -398,6 +375,7 @@ u32 KeDelayExecutionThread_entry(u32 processor_mode, u32 alertable, mapped_u64 i
 }
 
 u32 NtYieldExecution_entry() {
+  ThreadRecord::NoteKernelTime();
   rex::platform::MaybeYield();
   return X_STATUS_SUCCESS;
 }
@@ -743,8 +721,12 @@ void KeInitializeMutant_entry(ppc_ptr_t<X_KMUTANT> mutant, u32 initial_owner) {
   DropStash(mutant->header);
   ThreadRecord* thread = ThreadRecord::GetCurrentThread();
   mutant->header.type = DISPATCHER_MUTANT;
-  mutant->header.signal_state = initial_owner ? 0 : 1;
-  mutant->owner_thread = initial_owner ? thread->guest_object() : 0;
+  const bool owned = initial_owner && thread;
+  if (initial_owner && !thread) {
+    REXLOG_WARN(kernel, "KeInitializeMutant with an initial owner on a thread with no record");
+  }
+  mutant->header.signal_state = owned ? 0 : 1;
+  mutant->owner_thread = owned ? thread->guest_object() : 0;
   mutant->abandoned = 0;
   (void)runtime::Current().object_table().ResolveGuest<MutantObject>(mutant.guest_address(),
                                                                      DISPATCHER_MUTANT);
@@ -757,9 +739,15 @@ u32 KeReleaseMutant_entry(ppc_ptr_t<X_KMUTANT> mutant, u32 increment, u32 abando
     return X_STATUS_INVALID_HANDLE;
   }
   i32 previous = 0;
-  const X_STATUS status = MutantRelease(*object, false, &previous);
+  const X_STATUS status = MutantRelease(*object, abandoned != 0, &previous);
   if (XFAILED(status)) {
     return status;
+  }
+  if (abandoned) {
+    mutant->header.signal_state = 1;
+    mutant->abandoned = 1;
+    mutant->owner_thread = 0;
+    return static_cast<u32>(previous);
   }
   mutant->header.signal_state = static_cast<u32>(previous + 1);
   if (previous + 1 > 0) {

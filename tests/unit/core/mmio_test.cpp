@@ -119,3 +119,17 @@ TEST_CASE("An address outside both blocks reaches no recipient", "[mmio]") {
   rex::DetachMMIO(rex::MMIOBlock::GPU, &gpu);
   rex::DetachMMIO(rex::MMIOBlock::APU, &apu);
 }
+
+TEST_CASE("Narrow guarded loads read the big endian lane of the register", "[mmio]") {
+  Recorder gpu{.value = 0x11223344};
+  rex::AttachMMIO(rex::MMIOBlock::GPU, RecipientFor(gpu));
+  CHECK(rex::detail::MMIOLoad8(0x7FC80010) == 0x11u);
+  CHECK(rex::detail::MMIOLoad8(0x7FC80011) == 0x22u);
+  CHECK(rex::detail::MMIOLoad8(0x7FC80012) == 0x33u);
+  CHECK(rex::detail::MMIOLoad8(0x7FC80013) == 0x44u);
+  CHECK(gpu.last_address == 0x7FC80010u);
+  CHECK(rex::detail::MMIOLoad16(0x7FC80010) == 0x1122u);
+  CHECK(rex::detail::MMIOLoad16(0x7FC80012) == 0x3344u);
+  CHECK(gpu.last_address == 0x7FC80010u);
+  rex::DetachMMIO(rex::MMIOBlock::GPU, &gpu);
+}

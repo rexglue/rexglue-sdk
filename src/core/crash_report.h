@@ -87,6 +87,15 @@ void EndReport();
  */
 std::string DescribeCode(u64 address);
 
+/**
+ * Reports whether a host range can be read without a fault.
+ *
+ * @param address The first byte.
+ * @param size The byte count.
+ * @return True when every byte is readable.
+ */
+bool IsReadable(u64 address, u64 size);
+
 /** Writes up to 32 frames of the calling thread. */
 void LogBacktrace();
 

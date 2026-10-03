@@ -150,8 +150,17 @@ const void* XEXImage::FindOptHeader(xex2_header_keys key) const {
       return nullptr;
     case 0x01:
       return &header().headers[entry->index].value;
+    case 0xFF: {
+      if (u64{entry->value} + 4 > header_.size()) {
+        return nullptr;
+      }
+      const u32 size = *reinterpret_cast<const be<u32>*>(header_.data() + entry->value);
+      return size >= 4 && u64{entry->value} + size <= header_.size() ? header_.data() + entry->value
+                                                                     : nullptr;
+    }
     default:
-      return entry->value < header_.size() ? header_.data() + entry->value : nullptr;
+      return u64{entry->value} + (key & 0xFF) * 4u <= header_.size() ? header_.data() + entry->value
+                                                                     : nullptr;
   }
 }
 
@@ -355,6 +364,9 @@ Result<void> XEXImage::DecodeWith(const xex2_opt_file_format_info& format, std::
       return Ok();
     }
     case XEX_COMPRESSION_BASIC: {
+      if (format.info_size < 8) {
+        return FormatError<void>("XEX basic compression table is out of range");
+      }
       const u32 block_count = (format.info_size - 8) / 8;
       const auto* blocks = format.compression_info.basic.blocks;
       if (reinterpret_cast<const u8*>(blocks + block_count) > header_.data() + header_.size()) {

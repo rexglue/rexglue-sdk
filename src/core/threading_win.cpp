@@ -136,6 +136,19 @@ void Sleep(std::chrono::microseconds duration) {
   }
 }
 
+std::chrono::milliseconds QueryCurrentThreadCPUTime() {
+  FILETIME creation{};
+  FILETIME exit{};
+  FILETIME kernel{};
+  FILETIME user{};
+  if (!GetThreadTimes(GetCurrentThread(), &creation, &exit, &kernel, &user)) {
+    return std::chrono::milliseconds(0);
+  }
+  const u64 kernel_ticks = (u64(kernel.dwHighDateTime) << 32) | kernel.dwLowDateTime;
+  const u64 user_ticks = (u64(user.dwHighDateTime) << 32) | user.dwLowDateTime;
+  return std::chrono::milliseconds((kernel_ticks + user_ticks) / 10000);
+}
+
 SleepResult AlertableSleep(std::chrono::microseconds duration) {
   if (SleepEx(static_cast<DWORD>(duration.count() / 1000), TRUE) == WAIT_IO_COMPLETION) {
     return SleepResult::kAlerted;
@@ -156,6 +169,7 @@ uintptr_t GetTLSValue(TLSHandle handle) {
 }
 
 bool SetTLSValue(TLSHandle handle, uintptr_t value) {
+  // NOLINTNEXTLINE(performance-no-int-to-ptr): the Win32 API passes the pointer as an integer
   return TlsSetValue(handle, reinterpret_cast<void*>(value)) ? true : false;
 }
 
@@ -437,6 +451,7 @@ class Win32Thread : public Win32Handle<Thread> {
     std::function<void()> callback;
   };
   static void NTAPI DispatchApc(ULONG_PTR parameter) {
+    // NOLINTNEXTLINE(performance-no-int-to-ptr): the Win32 API passes the pointer as an integer
     auto apc_data = reinterpret_cast<ApcData*>(parameter);
     apc_data->callback();
     delete apc_data;
@@ -477,7 +492,9 @@ class Win32Thread : public Win32Handle<Thread> {
 
   void Terminate(int exit_code) override {
     detail::UnregisterThread(::GetThreadId(handle_));
-    TerminateThread(handle_, exit_code);
+    if (TerminateThread(handle_, exit_code)) {
+      WaitForSingleObject(handle_, INFINITE);
+    }
   }
 
  private:

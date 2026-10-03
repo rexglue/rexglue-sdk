@@ -200,6 +200,21 @@ TEST_CASE("ObjectTable OpenByName takes a handle reference", "[kernel][object_ta
   CHECK(ToXStatus(table.OpenByName("Beta")) == X_STATUS_OBJECT_NAME_NOT_FOUND);
 }
 
+TEST_CASE("ObjectTable keeps a name while any handle is open", "[kernel][object_table][names]") {
+  ObjectTable table(nullptr);
+  const X_HANDLE handle = AddEvent(table, "Gamma");
+  auto duplicated = table.Duplicate(handle);
+  REQUIRE(duplicated.has_value());
+  REQUIRE(ToXStatus(table.Close(handle)) == X_STATUS_SUCCESS);
+  auto found = table.OpenByName("Gamma");
+  REQUIRE(found.has_value());
+  CHECK(*found == *duplicated);
+  CHECK(ToXStatus(table.AddName("Gamma", 0xF8000010)) == X_STATUS_OBJECT_NAME_COLLISION);
+  REQUIRE(ToXStatus(table.Close(*duplicated)) == X_STATUS_SUCCESS);
+  REQUIRE(ToXStatus(table.Close(*duplicated)) == X_STATUS_SUCCESS);
+  CHECK(ToXStatus(table.OpenByName("Gamma")) == X_STATUS_OBJECT_NAME_NOT_FOUND);
+}
+
 TEST_CASE("ObjectTable GetAll returns one pin per object of the type", "[kernel][object_table]") {
   ObjectTable table(nullptr);
   const X_HANDLE a = AddEvent(table);

@@ -50,18 +50,8 @@ u32 XamTaskSchedule_entry(mapped_void callback, ppc_ptr_t<XTASK_MESSAGE> message
   // TODO(gibbed): figure out what this is for
   *handle_ptr = 12345;
 
-  uint32_t stack_size =
-      runtime::Current()
-          .object_table()
-          .Get<ModuleObject>(runtime::Current().module_registry().executable().value_or(0))
-          ->user.stack_size;
-
-  // Stack must be aligned to 16kb pages
-  stack_size = std::max((uint32_t)0x4000, ((stack_size + 0xFFF) & 0xFFFFF000));
-
-  auto record =
-      std::make_unique<ThreadRecord>(runtime::Current(), stack_size, 0, callback.guest_address(),
-                                     message.guest_address(), 0, true);
+  auto record = std::make_unique<ThreadRecord>(runtime::Current(), 0, 0, callback.guest_address(),
+                                               message.guest_address(), 0, true);
 
   X_HANDLE task_thread = 0;
   auto launched = runtime::Current().thread_registry().Launch(std::move(record));

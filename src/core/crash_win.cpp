@@ -91,7 +91,7 @@ LONG WINAPI CrashFilter(EXCEPTION_POINTERS* info) {
   }
   detail::ReportFault(fault);
   detail::EndReport();
-  return EXCEPTION_CONTINUE_SEARCH;
+  return g_previous_filter ? g_previous_filter(info) : EXCEPTION_CONTINUE_SEARCH;
 }
 
 void AbortSignal(int) {
@@ -106,6 +106,21 @@ void AbortSignal(int) {
 }  // namespace
 
 namespace detail {
+
+bool IsReadable(u64 address, u64 size) {
+  constexpr DWORD kReadable = PAGE_READONLY | PAGE_READWRITE | PAGE_WRITECOPY | PAGE_EXECUTE_READ |
+                              PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY;
+  const u64 end = address + size;
+  while (address < end) {
+    MEMORY_BASIC_INFORMATION info{};
+    if (!VirtualQuery(std::bit_cast<const void*>(address), &info, sizeof(info)) ||
+        info.State != MEM_COMMIT || !(info.Protect & kReadable) || (info.Protect & PAGE_GUARD)) {
+      return false;
+    }
+    address = std::bit_cast<u64>(info.BaseAddress) + info.RegionSize;
+  }
+  return true;
+}
 
 std::string DescribeCode(u64 address) {
   HMODULE module = nullptr;

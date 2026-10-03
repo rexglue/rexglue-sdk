@@ -18,6 +18,8 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include "filesystem/host_file.h"
 #include "filesystem/provider.h"
@@ -90,14 +92,15 @@ class HostNode final : public Node {
                                                         const HostInfo& info);
 
   /**
-   * Returns the host file or folder.
+   * Returns the host file or folder, read under the provider mutex.
    *
-   * @return The host path.
+   * @return A copy of the host path.
    */
-  [[nodiscard]] const std::filesystem::path& host_path() const { return host_path_; }
+  [[nodiscard]] std::filesystem::path host_path() const;
 
   /**
-   * Reads the host tree under this folder into child nodes.
+   * Reads the host tree under this folder into child nodes. A folder already on the walk, reached
+   * through a link, is listed without its children.
    */
   void Populate();
 
@@ -112,7 +115,10 @@ class HostNode final : public Node {
   [[nodiscard]] Result<std::unique_ptr<Node>> CreateChildImpl(std::string_view name,
                                                               FileAttributes attributes) override;
   [[nodiscard]] Result<void> DeleteChildImpl(Node& child) override;
-  [[nodiscard]] Result<void> RenameImpl(std::span<const std::string_view> parts) override;
+  [[nodiscard]] Result<void> MoveImpl(Node& new_parent, std::string_view name,
+                                      bool replace_existing) override;
+  void OnMoved() override;
+  void Populate(std::vector<std::pair<u64, u64>>& ancestors);
 
   [[nodiscard]] HostProvider& host() const { return static_cast<HostProvider&>(provider()); }
 

@@ -155,8 +155,15 @@ void Sleep(std::chrono::duration<Rep, Period> duration) {
   Sleep(std::chrono::duration_cast<std::chrono::microseconds>(duration));
 }
 
+/**
+ * Returns the CPU time the calling thread has used.
+ *
+ * @return Kernel plus user time.
+ */
+REX_API std::chrono::milliseconds QueryCurrentThreadCPUTime();
+
 /** Outcome of AlertableSleep. */
-enum class SleepResult {
+enum class SleepResult : u8 {
   kSuccess, /**< The full duration elapsed. */
   kAlerted, /**< A user callback ran and ended the sleep early. */
 };
@@ -262,7 +269,7 @@ class HighResolutionTimer {
 };
 
 /** Result of a wait operation. */
-enum class WaitResult {
+enum class WaitResult : u8 {
   kSuccess,      /**< The object is signaled. WaitAny also reports its index. */
   kUserCallback, /**< A user callback queued to the thread ended an alertable wait. */
   kTimeout,      /**< The timeout elapsed and the object is not signaled. */
@@ -687,7 +694,7 @@ class REX_API Thread : public WaitHandle {
 
   /**
    * Terminates the thread without running destructors. Signals the thread object and
-   * releases its waiters.
+   * releases its waiters. When another thread calls it, it returns once the thread has stopped.
    *
    * @param exit_code Thread exit code.
    */

@@ -128,6 +128,7 @@ void PushClose(FooApp& app) {
 }  // namespace
 
 TEST_CASE("A title window opens and Shutdown joins every thread", "[title_app]") {
+  rex::platform::detail::ShutdownTimerQueue();
   const rex::u64 before = rex::platform::detail::LiveCount();
   FooApp app;
   if (!Open(app)) {

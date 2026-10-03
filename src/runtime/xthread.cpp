@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <bit>
 #include <cstring>
 
 #include <fmt/format.h>
@@ -27,15 +28,22 @@
 #include <rex/runtime.h>
 #include <rex/runtime/function_dispatcher.h>
 #include <rex/runtime/thread_state.h>
-#include <rex/runtime/user_module.h>
+#include <rex/runtime/process.h>
 #include <rex/kernel/xboxkrnl/threading.h>
 #include <rex/runtime/xthread.h>
 #include <rex/platform/thread.h>
 #include <rex/vec128.h>
 #include "runtime/cvar_table.h"
 #include "runtime/thread_registry.h"
+#include "runtime/guest_stack.h"
 
 namespace rex::runtime {
+
+namespace {
+
+thread_local std::unique_ptr<rex::platform::Thread> t_exiting_thread;
+
+}  // namespace
 
 ThreadRecord::ThreadRecord(Runtime& runtime, uint32_t stack_size, uint32_t xapi_thread_startup,
                            uint32_t start_address, uint32_t start_context, uint32_t creation_flags,
@@ -54,11 +62,6 @@ ThreadRecord::ThreadRecord(Runtime& runtime, uint32_t stack_size, uint32_t xapi_
   creation_params_.creation_flags = creation_flags;
   creation_params_.guest_process = guest_process;
 
-  // Adjust stack size - min of 16k.
-  if (creation_params_.stack_size < 16 * 1024) {
-    creation_params_.stack_size = 16 * 1024;
-  }
-
   exit_gate_ = rex::platform::Event::CreateManualResetEvent(false);
 }
 
@@ -74,17 +77,31 @@ ThreadRecord::~ThreadRecord() {
     main_fiber_ = nullptr;
   }
 
+  if (thread_ && thread_.get() == rex::platform::Thread::GetCurrentThread()) {
+    t_exiting_thread = std::move(thread_);
+  }
   thread_.reset();
 
   runtime_->memory()->SystemHeapFree(scratch_address_);
-  runtime_->memory()->SystemHeapFree(tls_static_address_);
-  runtime_->memory()->SystemHeapFree(pcr_address_);
   FreeStack();
+  runtime_->memory()->SystemHeapFree(pcr_address_);
   FreeGuestBlock(memory(), guest_object_ptr_);
 }
 
 runtime::Memory* ThreadRecord::memory() const {
   return runtime_->memory();
+}
+
+u32 ThreadRecord::ProcessAddress() const {
+  return creation_params_.guest_process ? creation_params_.guest_process
+                                        : runtime_->process_info_block_address();
+}
+
+u8 ThreadRecord::ProcessorFromMask(u8 mask) {
+  assert_false(mask & 0xC0);
+  const u8 processor = static_cast<u8>(7 - std::countl_zero(mask));
+  assert_true((1u << processor) == mask);
+  return processor;
 }
 
 thread_local ThreadRecord* current_thread_tls_ = nullptr;
@@ -161,25 +178,6 @@ void ThreadRecord::set_name(const std::string_view name) {
   }
 }
 
-static uint8_t next_cpu = 0;
-static uint8_t GetFakeCpuNumber(uint8_t proc_mask) {
-  // NOTE: proc_mask is logical processors, not physical processors or cores.
-  if (!proc_mask) {
-    next_cpu = (next_cpu + 1) % 6;
-    return next_cpu;  // is this reasonable?
-    // TODO(Triang3l): Does the following apply here?
-    // https://docs.microsoft.com/en-us/windows/win32/dxtecharts/coding-for-multiple-cores
-    // A title assigns software threads to hardware threads through XSetThreadProcessor.
-    // Otherwise child threads stay on the hardware thread of their parent.
-  }
-  assert_false(proc_mask & 0xC0);
-
-  uint8_t cpu_number = 7 - rex::lzcnt(proc_mask);
-  assert_true(1 << cpu_number == proc_mask);
-  assert_true(cpu_number < 6);
-  return cpu_number;
-}
-
 void ThreadRecord::InitializeGuestObject() {
   auto guest_thread = guest_object<X_KTHREAD>();
   uint32_t guest_ptr = guest_object();
@@ -208,9 +206,7 @@ void ThreadRecord::InitializeGuestObject() {
   guest_thread->apc_lists[0].Initialize(memory());
   guest_thread->apc_lists[1].Initialize(memory());
 
-  // Set process pointer - use guest_process if provided, else default to title process.
-  uint32_t process_ptr = creation_params_.guest_process ? creation_params_.guest_process
-                                                        : runtime_->process_info_block_address();
+  uint32_t process_ptr = ProcessAddress();
   guest_thread->process = process_ptr;
   guest_thread->may_queue_apcs = 1;
 
@@ -260,96 +256,62 @@ void ThreadRecord::InitializeGuestObject() {
   guest_thread->unk_17C = 1;
 }
 
-bool ThreadRecord::AllocateStack(uint32_t size) {
-  auto heap = memory()->LookupHeap(kStackAddressRangeBegin);
-
-  auto alignment = heap->page_size();
-  auto padding = heap->page_size() * 2;  // Guard page size * 2
-  size = rex::round_up(size, alignment);
-  auto actual_size = size + padding;
-
-  uint32_t address = 0;
-  if (!heap->AllocRange(kStackAddressRangeBegin, kStackAddressRangeEnd, actual_size, alignment,
-                        runtime::kMemoryAllocationReserve | runtime::kMemoryAllocationCommit,
-                        runtime::kMemoryProtectRead | runtime::kMemoryProtectWrite, false,
-                        &address)) {
-    return false;
-  }
-
-  stack_alloc_base_ = address;
-  stack_alloc_size_ = actual_size;
-  stack_limit_ = address + (padding / 2);
-  stack_base_ = stack_limit_ + size;
-
-  // Initialize the stack with junk
-  memory()->Fill(stack_alloc_base_, actual_size, 0xBE);
-
-  // Setup the guard pages
-  heap->Protect(stack_alloc_base_, padding / 2, runtime::kMemoryProtectNoAccess);
-  heap->Protect(stack_base_, padding / 2, runtime::kMemoryProtectNoAccess);
-
-  return true;
-}
-
 void ThreadRecord::FreeStack() {
-  if (stack_alloc_base_) {
-    auto heap = memory()->LookupHeap(kStackAddressRangeBegin);
-    heap->Release(stack_alloc_base_);
-
-    stack_alloc_base_ = 0;
-    stack_alloc_size_ = 0;
-    stack_base_ = 0;
-    stack_limit_ = 0;
+  if (!stack_alloc_base_) {
+    return;
   }
+  const u32 globals_address = runtime_->GetKernelGuestGlobals();
+  ThreadRecord* caller = GetBoundCurrentThread();
+  ThreadRecord* owner = caller ? caller : this;
+  auto* lock = globals_address
+                   ? &memory()->TranslateVirtual<KernelGuestGlobals*>(globals_address)->tls_lock
+                   : nullptr;
+  if (lock && owner->thread_state_ && lock->prcb_of_owner != pcr_address_) {
+    const bool change_irql = caller != nullptr;
+    auto* ctx = owner->thread_state_->context();
+    const auto old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*memory(), ctx, lock, change_irql);
+    tls_slot_count_.store(0, std::memory_order_release);
+    kernel::xboxkrnl::KeKfReleaseSpinLock(*memory(), ctx, lock, old_irql, change_irql);
+  } else {
+    tls_slot_count_.store(0, std::memory_order_release);
+  }
+  FreeGuestStack(*memory(), stack_alloc_base_);
+  stack_alloc_base_ = 0;
+  stack_base_ = 0;
+  stack_limit_ = 0;
 }
 
 X_STATUS ThreadRecord::Create() {
-  // Allocate a stack.
-  if (!AllocateStack(creation_params_.stack_size)) {
+  const u32 process_address = ProcessAddress();
+  const auto* process =
+      process_address ? memory()->TranslateVirtual<const X_KPROCESS*>(process_address) : nullptr;
+  const u32 guest_default = process ? static_cast<u32>(process->kernel_stack_size) : 0;
+  const u32 data_size =
+      process ? rex::round_up(static_cast<u32>(process->tls_data_size), 4u, false) : 0;
+  const u32 slot_count =
+      process ? static_cast<u32>(process->tls_slot_size) / 4 : ResolveTLSSlotCount(0);
+  const u32 tls_size = data_size + slot_count * 4;
+  const u32 stack_size =
+      ResolveGuestStackSize(creation_params_.stack_size, guest_default, kMinimumThreadStackSize);
+  Result<GuestStack> stack = AllocateGuestStack(*memory(), stack_size, tls_size, guest_thread_);
+  if (!stack) {
     return X_STATUS_NO_MEMORY;
   }
+  stack_alloc_base_ = stack->alloc_base;
+  stack_limit_ = stack->limit;
+  stack_base_ = stack->base;
 
-  // Allocate thread scratch.
-  // This is used by interrupts/APCs/etc so we can round-trip pointers through.
   scratch_size_ = 4 * 16;
   scratch_address_ = memory()->SystemHeapAlloc(scratch_size_);
 
-  // Allocate TLS block.
-  // Games will specify a certain number of 4b slots that each thread will get.
-  xex2_opt_tls_info* tls_header = nullptr;
-  auto module = runtime_->object_table().Get<ModuleObject>(
-      runtime_->module_registry().executable().value_or(0));
-  if (module) {
-    UserModuleGetOptHeader(*module, XEX_HEADER_TLS_INFO, &tls_header);
+  tls_static_address_ = stack_base_;
+  tls_dynamic_address_ = stack_base_ + data_size;
+  memory()->Fill(tls_static_address_, tls_size, 0);
+  if (process && process->tls_raw_data_size) {
+    memory()->Copy(tls_static_address_, process->tls_static_data_address,
+                   std::min(static_cast<u32>(process->tls_raw_data_size), data_size));
   }
-
-  const uint32_t kDefaultTlsSlotCount = 1024;
-  uint32_t tls_slots = kDefaultTlsSlotCount;
-  uint32_t tls_extended_size = 0;
-  if (tls_header && tls_header->slot_count) {
-    tls_slots = tls_header->slot_count;
-    tls_extended_size = tls_header->data_size;
-  }
-
-  // Allocate both the slots and the extended data.
-  // Some TLS is compiled with the binary (declspec(thread)) vars. The game
-  // will directly access those through 0(r13).
-  uint32_t tls_slot_size = tls_slots * 4;
-  tls_total_size_ = tls_slot_size + tls_extended_size;
-  tls_static_address_ = memory()->SystemHeapAlloc(tls_total_size_);
-  tls_dynamic_address_ = tls_static_address_ + tls_extended_size;
-  if (!tls_static_address_) {
-    REXLOG_WARN(system, "Unable to allocate thread local storage block");
-    return X_STATUS_NO_MEMORY;
-  }
-
-  // Zero all of TLS.
-  memory()->Fill(tls_static_address_, tls_total_size_, 0);
-  if (tls_extended_size) {
-    // If game has extended data, copy in the default values.
-    assert_not_zero(tls_header->raw_data_address);
-    memory()->Copy(tls_static_address_, tls_header->raw_data_address, tls_header->raw_data_size);
-  }
+  tls_slot_count_.store(slot_count, std::memory_order_release);
 
   // Allocate thread state block from heap.
   // https://web.archive.org/web/20170704035330/https://www.microsoft.com/msj/archive/S2CE.aspx
@@ -379,7 +341,14 @@ X_STATUS ThreadRecord::Create() {
   REXLOG_DEV(system, "XThread{:08X} ({:X}) Stack: {:08X}-{:08X}", handle(), thread_id_,
              stack_limit_, stack_base_);
 
-  uint8_t cpu_index = GetFakeCpuNumber(static_cast<uint8_t>(creation_params_.creation_flags >> 24));
+  const u8 processor_mask = static_cast<u8>(creation_params_.creation_flags >> 24);
+  u8 cpu_index = 0;
+  if (processor_mask) {
+    cpu_index = ProcessorFromMask(processor_mask);
+  } else if (ThreadRecord* creator = GetBoundCurrentThread();
+             creator && creator->is_guest_thread()) {
+    cpu_index = creator->active_cpu();
+  }
 
   // Initialize the KTHREAD object.
   InitializeGuestObject();
@@ -419,6 +388,8 @@ X_STATUS ThreadRecord::Create() {
 
     // Execute user code.
     current_thread_tls_ = this;
+    started_ = true;
+    registry_->NoteStarted();
     running_ = true;
     Execute();
     running_ = false;
@@ -456,11 +427,44 @@ X_STATUS ThreadRecord::Create() {
   return X_STATUS_SUCCESS;
 }
 
+void ThreadRecord::NoteKernelTime() {
+  ThreadRecord* self = GetBoundCurrentThread();
+  if (!self || !self->guest_object_ptr_) {
+    return;
+  }
+  self->guest_object<X_KTHREAD>()->kernel_time =
+      static_cast<u32>(rex::platform::QueryCurrentThreadCPUTime().count());
+}
+
+void ThreadRecord::WriteExitState(u32 exit_code) {
+  auto* thread = guest_object<X_KTHREAD>();
+  thread->terminated = 1;
+  thread->thread_state = KTHREAD_STATE_TERMINATED;
+  if (IsInThread(this)) {
+    NoteKernelTime();
+  }
+  thread->exit_time = Clock::QueryGuestSystemTime();
+  thread->exit_status = exit_code;
+  thread->header.signal_state = 1;
+  const u32 process_address = thread->process;
+  if (!process_address) {
+    return;
+  }
+  ThreadRecord* caller = GetBoundCurrentThread();
+  const bool change_irql = caller != nullptr;
+  auto* ctx = (caller ? caller : this)->thread_state()->context();
+  auto* process = memory()->TranslateVirtual<X_KPROCESS*>(process_address);
+  const auto old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(
+      *memory(), ctx, &process->thread_list_spinlock, change_irql);
+  util::XeRemoveEntryList(&thread->process_threads, memory());
+  process->thread_count = process->thread_count - 1;
+  kernel::xboxkrnl::KeKfReleaseSpinLock(*memory(), ctx, &process->thread_list_spinlock, old_irql,
+                                        change_irql);
+}
+
 X_STATUS ThreadRecord::Exit(int exit_code) {
-  // This may only be called on the thread itself.
   assert_true(ThreadRecord::GetCurrentThread() == this);
 
-  // Terminate got here first and is about to kill this thread.
   if (exit_claimed_.exchange(true)) {
     rex::platform::Wait(exit_gate_.get(), false, std::chrono::milliseconds::max());
   }
@@ -470,58 +474,21 @@ X_STATUS ThreadRecord::Exit(int exit_code) {
     CallThreadNotifyRoutines(false);
   }
 
-  // Mark as terminated before running down APCs.
-  auto kthread = guest_object<X_KTHREAD>();
-  kthread->terminated = 1;
-
-  // TODO(benvanik): dispatch events? waiters? etc?
+  guest_object<X_KTHREAD>()->terminated = 1;
   RundownAPCs();
-
-  // Set exit code.
-  X_KTHREAD* thread = guest_object<X_KTHREAD>();
-  thread->header.signal_state = 1;
-  thread->exit_status = exit_code;
-
-  // Unlink thread from process thread list.
-  uint32_t process_guest = thread->process;
-  if (process_guest) {
-    auto* ctx = thread_state_->context();
-    auto kprocess = memory()->TranslateVirtual<X_KPROCESS*>(process_guest);
-    auto old_irql =
-        kernel::xboxkrnl::KeKfAcquireSpinLock(*memory(), ctx, &kprocess->thread_list_spinlock);
-    util::XeRemoveEntryList(&thread->process_threads, memory());
-    kprocess->thread_count = kprocess->thread_count - 1;
-    kernel::xboxkrnl::KeKfReleaseSpinLock(*memory(), ctx, &kprocess->thread_list_spinlock,
-                                          old_irql);
-  }
-
-  // The guest stack belongs to the thread's execution lifetime, not the handle
-  // lifetime. Games can keep thread handles after exit; holding the stack until
-  // object destruction leaks the reserved stack range and eventually makes
-  // ExCreateThread fail even though the old threads are no longer running.
+  WriteExitState(static_cast<u32>(exit_code));
   FreeStack();
-
-  // NOTE: unless PlatformExit fails, expect it to never return!
   ReleaseSelf();
-
-  // NOTE: this does not return!
   rex::platform::Thread::Exit(exit_code);
   return X_STATUS_SUCCESS;
 }
 
 X_STATUS ThreadRecord::Terminate(int exit_code) {
-  // TODO(benvanik): inform the profiler that this thread is exiting.
-
-  // Exit already tears the thread down.
   if (exit_claimed_.exchange(true)) {
     return X_STATUS_SUCCESS;
   }
 
-  // Set exit code.
-  X_KTHREAD* thread = guest_object<X_KTHREAD>();
-  thread->header.signal_state = 1;
-  thread->exit_status = exit_code;
-
+  WriteExitState(static_cast<u32>(exit_code));
   if (ThreadRecord::IsInThread(this)) {
     FreeStack();
     ReleaseSelf();
@@ -540,12 +507,17 @@ void ThreadRecord::ReleaseSelf() {
     return;
   }
   const X_HANDLE handle = handle_;
+  ThreadRegistry* registry = registry_;
+  const bool started = started_;
   running_ = false;
   if (IsInThread(this)) {
     current_thread_tls_ = nullptr;
   }
-  registry_->NoteExited(*this);
+  registry->NoteExited(*this);
   (void)runtime_->object_table().Close(handle);
+  if (started) {
+    registry->NoteStopped();
+  }
 }
 
 void ThreadRecord::Execute() {
@@ -849,7 +821,10 @@ void ThreadRecord::SetPriority(int32_t increment) {
 }
 
 void ThreadRecord::SetAffinity(uint32_t affinity) {
-  SetActiveCpu(GetFakeCpuNumber(affinity));
+  const u8 mask = static_cast<u8>(affinity);
+  if (mask) {
+    SetActiveCpu(ProcessorFromMask(mask));
+  }
 }
 
 uint8_t ThreadRecord::active_cpu() const {
@@ -894,7 +869,7 @@ void ThreadRecord::SetActiveCpu(uint8_t cpu_index) {
 }
 
 bool ThreadRecord::GetTLSValue(uint32_t slot, uint32_t* value_out) const {
-  if (slot * 4 > tls_total_size_) {
+  if (slot >= tls_slot_count_.load(std::memory_order_acquire)) {
     return false;
   }
 
@@ -905,7 +880,7 @@ bool ThreadRecord::GetTLSValue(uint32_t slot, uint32_t* value_out) const {
 
 // NOLINTNEXTLINE(readability-make-member-function-const): writes guest memory
 bool ThreadRecord::SetTLSValue(uint32_t slot, uint32_t value) {
-  if (slot * 4 >= tls_total_size_) {
+  if (slot >= tls_slot_count_.load(std::memory_order_acquire)) {
     return false;
   }
 
@@ -930,22 +905,16 @@ X_STATUS ThreadRecord::Resume(uint32_t* out_suspend_count) {
   }
   return thread_->Resume(&unused_host_suspend_count) ? X_STATUS_SUCCESS : X_STATUS_UNSUCCESSFUL;
 #elif REX_PLATFORM_LINUX || REX_PLATFORM_MAC
-  bool should_resume_host = false;
-  {
-    std::lock_guard<std::mutex> lock(suspend_mutex_);
-    uint8_t previous = guest_thread->suspend_count;
-    if (previous > 0) {
-      guest_thread->suspend_count--;
-    }
-    if (out_suspend_count) {
-      *out_suspend_count = previous;
-    }
-    should_resume_host = (guest_thread->suspend_count == 0);
-    suspend_cv_.notify_all();
+  std::lock_guard<std::mutex> lock(suspend_mutex_);
+  const u8 previous = guest_thread->suspend_count;
+  if (previous > 0) {
+    guest_thread->suspend_count--;
   }
-
-  // Self-suspended threads are resumed via guest suspend count transitions.
-  if (should_resume_host) {
+  if (out_suspend_count) {
+    *out_suspend_count = previous;
+  }
+  suspend_cv_.notify_all();
+  if (previous > 0) {
     thread_->Resume(&unused_host_suspend_count);
   }
   return X_STATUS_SUCCESS;
@@ -963,17 +932,36 @@ X_STATUS ThreadRecord::Resume(uint32_t* out_suspend_count) {
 
 X_STATUS ThreadRecord::Suspend(uint32_t* out_suspend_count) {
   const bool self = IsInThread(this);
+  auto guest_thread = guest_object<X_KTHREAD>();
+  uint32_t unused_host_suspend_count = 0;
+#if REX_PLATFORM_LINUX || REX_PLATFORM_MAC
+  if (self) {
+    const u32 previous = SelfSuspend();
+    if (out_suspend_count) {
+      *out_suspend_count = previous;
+    }
+    return X_STATUS_SUCCESS;
+  }
+  std::lock_guard<std::mutex> lock(suspend_mutex_);
+  const u8 previous = guest_thread->suspend_count;
+  guest_thread->suspend_count = static_cast<u8>(previous + 1);
+  if (out_suspend_count) {
+    *out_suspend_count = previous;
+  }
+  if (guest_thread->suspend_count == 0) {
+    return X_STATUS_SUCCESS;
+  }
+  return thread_->Suspend(&unused_host_suspend_count) ? X_STATUS_SUCCESS : X_STATUS_UNSUCCESSFUL;
+#else
   if (self) {
     CheckTitleTermination();
   }
-  auto guest_thread = guest_object<X_KTHREAD>();
   uint8_t previous_suspend_count =
       reinterpret_cast<std::atomic_uint8_t*>(&guest_thread->suspend_count)->fetch_add(1);
   if (out_suspend_count) {
     *out_suspend_count = previous_suspend_count;
   }
 
-  uint32_t unused_host_suspend_count = 0;
   // Wrapped to 0 - treat as not suspended.
   if (guest_thread->suspend_count == 0) {
     return X_STATUS_SUCCESS;
@@ -983,6 +971,7 @@ X_STATUS ThreadRecord::Suspend(uint32_t* out_suspend_count) {
     CheckTitleTermination();
   }
   return suspended ? X_STATUS_SUCCESS : X_STATUS_UNSUCCESSFUL;
+#endif
 }
 
 #if REX_PLATFORM_LINUX || REX_PLATFORM_MAC
@@ -1006,6 +995,7 @@ X_STATUS ThreadRecord::Delay(uint32_t processor_mode, uint32_t alertable, uint64
   const u32 timeout_ms =
       Clock::ScaleGuestDurationMillis(TimeoutTicksToMs(static_cast<i64>(interval)));
   CheckTitleTermination();
+  NoteKernelTime();
   if (alertable) {
     auto result = rex::platform::AlertableSleep(std::chrono::milliseconds(timeout_ms));
     CheckTitleTermination();

@@ -8,7 +8,9 @@
 
 #if !REX_PLATFORM_WIN32
 
+#include <algorithm>
 #include <array>
+#include <bit>
 #include <cstring>
 #include <format>
 
@@ -26,7 +28,7 @@ namespace rex::platform {
 
 namespace {
 
-constexpr size_t kAltStackSize = 128 * 1024;
+constexpr size_t kAltStackSize = size_t{128} * 1024;
 constexpr int kBacktraceFrames = 32;
 constexpr u32 kMaxRepeatedFaults = 64;
 constexpr u32 kReportWatchdogSeconds = 10;
@@ -225,8 +227,30 @@ void ForwardSignal(struct sigaction& original, int signal_number, siginfo_t* inf
   pthread_sigmask(SIG_SETMASK, &previous, nullptr);
 }
 
+bool IsReadable(u64 address, u64 size) {
+  std::array<int, 2> pipe_fds{};
+  if (pipe(pipe_fds.data()) != 0) {
+    return false;
+  }
+  bool readable = true;
+  for (u64 offset = 0; offset < size && readable;) {
+    const u64 chunk = std::min<u64>(size - offset, 512);
+    const ssize_t written = write(pipe_fds[1], std::bit_cast<const void*>(address + offset), chunk);
+    readable = written == static_cast<ssize_t>(chunk);
+    std::array<u8, 512> sink{};
+    if (written > 0 && read(pipe_fds[0], sink.data(), static_cast<size_t>(written)) < 0) {
+      readable = false;
+    }
+    offset += chunk;
+  }
+  close(pipe_fds[0]);
+  close(pipe_fds[1]);
+  return readable;
+}
+
 std::string DescribeCode(u64 address) {
   Dl_info info{};
+  // NOLINTNEXTLINE(performance-no-int-to-ptr): dladdr takes the code address as a pointer
   if (!dladdr(reinterpret_cast<void*>(address), &info) || !info.dli_fbase || !info.dli_fname) {
     return {};
   }

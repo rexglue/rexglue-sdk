@@ -96,6 +96,10 @@ void LogStackCodeAddresses(const HostThreadContext& context) {
   }
   const u64 limit = std::min(sp + kStackScanWords * sizeof(u64), (sp | (kScanPageSize - 1)) + 1);
   Line("stack code addresses (sp {:#018x}):", sp);
+  if (!detail::IsReadable(sp, limit - sp)) {
+    Line("    unreadable");
+    return;
+  }
   u32 found = 0;
   for (u64 slot = sp; slot + sizeof(u64) <= limit && found < kStackScanHits; slot += sizeof(u64)) {
     u64 value = 0;

@@ -48,13 +48,21 @@ Access ExpandAccess(Access access) {
   return access;
 }
 
+bool StartsWithComponents(std::string_view path, std::string_view prefix) {
+  if (!utf8_starts_with_case(path, prefix)) {
+    return false;
+  }
+  return path.size() == prefix.size() || prefix.ends_with('\\') || path[prefix.size()] == '\\';
+}
+
 }  // namespace
 
-Result<FileSystem::Resolved> FileSystem::ResolveMount(std::string_view path) const {
+Result<FileSystem::Resolved> FileSystem::ResolveMount(std::string_view path,
+                                                      bool log_missing) const {
   std::string resolved = utf8_canonicalize_guest_path(path);
   for (size_t depth = 0;; ++depth) {
     const auto link = std::ranges::find_if(
-        links_, [&](const auto& entry) { return utf8_starts_with_case(resolved, entry.first); });
+        links_, [&](const auto& entry) { return StartsWithComponents(resolved, entry.first); });
     if (link == links_.end()) {
       break;
     }
@@ -65,10 +73,10 @@ Result<FileSystem::Resolved> FileSystem::ResolveMount(std::string_view path) con
     resolved = link->second + resolved.substr(link->first.size());
   }
   const auto provider = std::ranges::find_if(providers_, [&](const auto& entry) {
-    return utf8_starts_with_case(resolved, entry->mount_path());
+    return StartsWithComponents(resolved, entry->mount_path());
   });
   if (provider == providers_.end()) {
-    if (path != "ShaderDumpxe:\\CompareBackEnds") {
+    if (log_missing) {
       REXLOG_ERROR(filesystem, "no mount covers '{}'", path);
     }
     return Err<Resolved>(MakeError(Error::kNoMount, std::format("no mount covers '{}'", path)));
@@ -85,6 +93,14 @@ Result<Node*> FileSystem::ResolveNode(std::string_view path) const {
   }
   REXLOG_TRACE(filesystem, "'{}' resolves to '{}'", path, node->absolute_path());
   return node;
+}
+
+std::unique_lock<std::recursive_mutex> FileSystem::LockMount(std::string_view path) const {
+  auto resolved = ResolveMount(path, false);
+  if (!resolved) {
+    return {};
+  }
+  return std::unique_lock(resolved->provider->mutex());
 }
 
 Result<Node*> FileSystem::CreatePath(Node* root, std::string_view path, FileAttributes attributes) {
@@ -119,6 +135,7 @@ Result<Opened> FileSystem::OpenFrom(Node* root, std::string_view requested,
   std::lock_guard lock(mutex_);
   const std::string canonical = utf8_canonicalize_guest_path(requested);
   const std::string_view path = canonical;
+  const auto mount_lock = root ? std::unique_lock(root->provider().mutex()) : LockMount(path);
   Access access = ExpandAccess(options.access);
   auto not_found = [&] {
     return Err<Opened>(MakeError(Error::kNotFound, std::format("'{}' does not exist", path)));
@@ -258,7 +275,8 @@ std::vector<MountEntry> FileSystem::Mounts() const {
 
 Result<void> FileSystem::Link(std::string_view link, std::string_view target) {
   std::lock_guard lock(mutex_);
-  if (std::ranges::any_of(links_, [&](const auto& entry) { return entry.first == link; })) {
+  if (std::ranges::any_of(links_,
+                          [&](const auto& entry) { return utf8_equal_case(entry.first, link); })) {
     return Err(MakeError(Error::kExists, std::format("link '{}' exists", link)));
   }
   links_.emplace_back(link, target);
@@ -281,7 +299,7 @@ Result<void> FileSystem::Unlink(std::string_view link) {
 std::optional<std::string> FileSystem::FindLink(std::string_view path) const {
   std::lock_guard lock(mutex_);
   const auto it = std::ranges::find_if(
-      links_, [&](const auto& entry) { return utf8_starts_with_case(path, entry.first); });
+      links_, [&](const auto& entry) { return StartsWithComponents(path, entry.first); });
   if (it == links_.end()) {
     return std::nullopt;
   }
@@ -343,6 +361,7 @@ Result<Opened> FileSystem::OpenRelative(IFile& root, std::string_view path,
 
 Result<FileInfo> FileSystem::Stat(std::string_view path) {
   std::lock_guard lock(mutex_);
+  const auto mount_lock = LockMount(path);
   REX_TRY(Node * node, ResolveNode(path));
   return node->Info();
 }
@@ -350,6 +369,7 @@ Result<FileInfo> FileSystem::Stat(std::string_view path) {
 Result<std::unique_ptr<IDirectory>> FileSystem::List(std::string_view path,
                                                      std::string_view pattern) {
   std::lock_guard lock(mutex_);
+  const auto mount_lock = LockMount(path);
   REX_TRY(Node * node, ResolveNode(path));
   if (!node->is_directory()) {
     return Err<std::unique_ptr<IDirectory>>(
@@ -360,6 +380,7 @@ Result<std::unique_ptr<IDirectory>> FileSystem::List(std::string_view path,
 
 Result<void> FileSystem::CreateDirectories(std::string_view path) {
   std::lock_guard lock(mutex_);
+  const auto mount_lock = LockMount(path);
   if (auto node = ResolveNode(path)) {
     if (!(*node)->is_directory()) {
       return Err(MakeError(Error::kNotDirectory, std::format("'{}' is a file", path)));
@@ -372,12 +393,14 @@ Result<void> FileSystem::CreateDirectories(std::string_view path) {
 
 Result<void> FileSystem::Remove(std::string_view path) {
   std::lock_guard lock(mutex_);
+  const auto mount_lock = LockMount(path);
   REX_TRY(Node * node, ResolveNode(path));
   return node->Delete();
 }
 
 Result<void> FileSystem::Rename(std::string_view from, std::string_view to) {
   std::lock_guard lock(mutex_);
+  const auto mount_lock = LockMount(from);
   REX_TRY(Node * node, ResolveNode(from));
   return node->Rename(to);
 }

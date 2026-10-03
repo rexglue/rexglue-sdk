@@ -2,8 +2,11 @@
 
 #include <atomic>
 #include <cstddef>
+#include <format>
+#include <string>
 #include <string_view>
 
+#include <rex/assert.h>
 #include <rex/logging.h>
 
 namespace rex {
@@ -61,6 +64,23 @@ void MMIOStore(u32 address, u32 value) {
   }
   const MMIORecipient& slot = Slot(*block);
   slot.write(slot.context, address, value);
+}
+
+u8 MMIOLoad8(u32 address) {
+  const u32 shift = (3 - (address & 3)) * 8;
+  return static_cast<u8>(MMIOLoad(address & ~3u) >> shift);
+}
+
+u16 MMIOLoad16(u32 address) {
+  const u32 shift = (2 - (address & 2)) * 8;
+  return static_cast<u16>(MMIOLoad(address & ~3u) >> shift);
+}
+
+void MMIONarrowWrite(u32 address, u32 size) {
+  const std::string message = std::format(
+      "A {} byte store to the register at 0x{:08X} is narrower than the register", size, address);
+  REXLOG_ERROR(core, "{}", message);
+  FatalError(message);
 }
 
 }  // namespace detail

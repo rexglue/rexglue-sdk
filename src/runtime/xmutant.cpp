@@ -10,6 +10,7 @@
  */
 
 #include <rex/logging.h>
+#include <rex/runtime/xmemory.h>
 #include <rex/runtime/xmutant.h>
 #include <rex/runtime/xthread.h>
 
@@ -23,7 +24,8 @@ u32 CurrentThreadId() {
 
 }  // namespace
 
-MutantObject::MutantObject(bool initial_owner) {
+MutantObject::MutantObject(bool initial_owner, u32 guest_mutant_in)
+    : guest_mutant(guest_mutant_in) {
   mutant = rex::platform::Mutant::Create(initial_owner);
   assert_not_null(mutant);
   if (initial_owner) {
@@ -33,10 +35,21 @@ MutantObject::MutantObject(bool initial_owner) {
 }
 
 X_STATUS MutantRelease(MutantObject& mutant, bool abandon, i32* previous_state) {
-  assert_false(abandon);
   const u32 self = CurrentThreadId();
   if (!self || mutant.owner_thread_id.load() != self) {
     return X_STATUS_MUTANT_NOT_OWNED;
+  }
+  if (abandon) {
+    const i32 held = mutant.hold_count.exchange(0);
+    mutant.owner_thread_id = 0;
+    mutant.abandoned = true;
+    for (i32 i = 0; i < held; ++i) {
+      mutant.mutant->Release();
+    }
+    if (previous_state) {
+      *previous_state = 1 - held;
+    }
+    return X_STATUS_SUCCESS;
   }
   const i32 held = mutant.hold_count.fetch_sub(1);
   if (held == 1) {
@@ -53,13 +66,18 @@ X_STATUS MutantRelease(MutantObject& mutant, bool abandon, i32* previous_state) 
   return X_STATUS_SUCCESS;
 }
 
-void MutantAcquired(MutantObject& mutant) {
-  const u32 self = ThreadRecord::GetCurrentThread()->thread_id();
+bool MutantAcquired(MutantObject& mutant) {
+  ThreadRecord* thread = ThreadRecord::GetCurrentThread();
+  const u32 self = thread->thread_id();
   if (mutant.owner_thread_id.exchange(self) == self) {
     mutant.hold_count.fetch_add(1);
   } else {
     mutant.hold_count = 1;
   }
+  if (mutant.guest_mutant) {
+    thread->memory()->TranslateVirtual<X_KMUTANT*>(mutant.guest_mutant)->abandoned = 0;
+  }
+  return mutant.abandoned.exchange(false);
 }
 
 }  // namespace rex::runtime

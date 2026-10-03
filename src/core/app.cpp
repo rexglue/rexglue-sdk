@@ -15,6 +15,7 @@
 #include <csignal>
 #include <format>
 #include <mutex>
+#include <thread>
 
 #include <rex/platform/file.h>
 #include <rex/logging.h>
@@ -93,6 +94,8 @@ struct sigaction g_old_int{};
 struct sigaction g_old_term{};
 std::jthread g_signal_thread;
 std::shared_ptr<std::atomic<bool>> g_signal_stop;
+std::atomic<bool> g_forwarding{false};
+std::atomic<i32> g_forwarders{0};
 
 sigset_t ShutdownSignals() {
   sigset_t set;
@@ -103,7 +106,11 @@ sigset_t ShutdownSignals() {
 }
 
 void ForwardSignal(int received) {
-  pthread_kill(g_signal_thread.native_handle(), received);
+  g_forwarders.fetch_add(1);
+  if (g_forwarding.load()) {
+    pthread_kill(g_signal_thread.native_handle(), received);
+  }
+  g_forwarders.fetch_sub(1);
 }
 
 void InstallSignalHandlers() {
@@ -121,6 +128,7 @@ void InstallSignalHandlers() {
     }
   });
   g_signal_stop = std::move(stop);
+  g_forwarding.store(true);
   pthread_sigmask(SIG_SETMASK, &old_mask, nullptr);
   struct sigaction action{};
   action.sa_handler = ForwardSignal;
@@ -133,8 +141,13 @@ void InstallSignalHandlers() {
 void RemoveSignalHandlers() {
   sigaction(SIGINT, &g_old_int, nullptr);
   sigaction(SIGTERM, &g_old_term, nullptr);
+  g_forwarding.store(false);
+  while (g_forwarders.load() != 0) {
+    std::this_thread::yield();
+  }
   if (g_signal_stop) {
     g_signal_stop->store(true);
+    // NOLINTNEXTLINE(bugprone-bad-signal-to-kill-thread): only wakes sigwait
     pthread_kill(g_signal_thread.native_handle(), SIGTERM);
     g_signal_thread = {};
     g_signal_stop.reset();

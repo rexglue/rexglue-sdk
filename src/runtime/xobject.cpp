@@ -156,11 +156,13 @@ X_STATUS WaitOn(Runtime& runtime, X_HANDLE handle, u32 wait_reason, u32 processo
   }
   const auto timeout = TimeoutOf(opt_timeout);
   ThreadRecord::CheckTitleTermination();
+  ThreadRecord::NoteKernelTime();
   auto result = rex::platform::Wait(target.handle, alertable ? true : false, timeout);
   ThreadRecord::CheckTitleTermination();
   const X_STATUS status = MapResult(result);
-  if ((status == X_STATUS_SUCCESS || status == X_STATUS_ABANDONED_WAIT_0) && target.mutant) {
-    MutantAcquired(*target.mutant);
+  if ((status == X_STATUS_SUCCESS || status == X_STATUS_ABANDONED_WAIT_0) && target.mutant &&
+      MutantAcquired(*target.mutant)) {
+    return X_STATUS_ABANDONED_WAIT_0;
   }
   return status;
 }
@@ -172,11 +174,13 @@ X_STATUS SignalAndWaitOn(Runtime& runtime, X_HANDLE signal_handle, X_HANDLE wait
   if (!signal.slot || !wait.slot) {
     return X_STATUS_INVALID_HANDLE;
   }
+  ThreadRecord::NoteKernelTime();
   auto result = rex::platform::SignalAndWait(signal.handle, wait.handle, alertable ? true : false,
                                              TimeoutOf(opt_timeout));
   const X_STATUS status = MapResult(result);
-  if ((status == X_STATUS_SUCCESS || status == X_STATUS_ABANDONED_WAIT_0) && wait.mutant) {
-    MutantAcquired(*wait.mutant);
+  if ((status == X_STATUS_SUCCESS || status == X_STATUS_ABANDONED_WAIT_0) && wait.mutant &&
+      MutantAcquired(*wait.mutant)) {
+    return X_STATUS_ABANDONED_WAIT_0;
   }
   return status;
 }
@@ -198,14 +202,15 @@ X_STATUS WaitOnMany(Runtime& runtime, std::span<const X_HANDLE> handles, u32 wai
   }
   const auto timeout = TimeoutOf(opt_timeout);
   ThreadRecord::CheckTitleTermination();
+  ThreadRecord::NoteKernelTime();
   if (wait_type) {
     auto result =
         rex::platform::WaitAny(std::move(wait_handles), alertable ? true : false, timeout);
     ThreadRecord::CheckTitleTermination();
     switch (result.first) {
       case rex::platform::WaitResult::kSuccess:
-        if (targets[result.second].mutant) {
-          MutantAcquired(*targets[result.second].mutant);
+        if (targets[result.second].mutant && MutantAcquired(*targets[result.second].mutant)) {
+          return X_STATUS(X_STATUS_ABANDONED_WAIT_0 + result.second);
         }
         return X_STATUS(result.second);
       case rex::platform::WaitResult::kUserCallback:
@@ -217,7 +222,7 @@ X_STATUS WaitOnMany(Runtime& runtime, std::span<const X_HANDLE> handles, u32 wai
         return X_STATUS_UNSUCCESSFUL;
       default:
         if (targets[result.second].mutant) {
-          MutantAcquired(*targets[result.second].mutant);
+          (void)MutantAcquired(*targets[result.second].mutant);
         }
         return X_STATUS(X_STATUS_ABANDONED_WAIT_0 + result.second);
     }
@@ -225,13 +230,15 @@ X_STATUS WaitOnMany(Runtime& runtime, std::span<const X_HANDLE> handles, u32 wai
   auto result = rex::platform::WaitAll(std::move(wait_handles), alertable ? true : false, timeout);
   ThreadRecord::CheckTitleTermination();
   switch (result) {
-    case rex::platform::WaitResult::kSuccess:
+    case rex::platform::WaitResult::kSuccess: {
+      bool abandoned = false;
       for (WaitTarget& target : targets) {
-        if (target.mutant) {
-          MutantAcquired(*target.mutant);
+        if (target.mutant && MutantAcquired(*target.mutant)) {
+          abandoned = true;
         }
       }
-      return X_STATUS_SUCCESS;
+      return abandoned ? X_STATUS_ABANDONED_WAIT_0 : X_STATUS_SUCCESS;
+    }
     case rex::platform::WaitResult::kUserCallback:
       return X_STATUS_USER_APC;
     case rex::platform::WaitResult::kTimeout:
@@ -240,7 +247,7 @@ X_STATUS WaitOnMany(Runtime& runtime, std::span<const X_HANDLE> handles, u32 wai
     default:
       for (WaitTarget& target : targets) {
         if (target.mutant) {
-          MutantAcquired(*target.mutant);
+          (void)MutantAcquired(*target.mutant);
         }
       }
       return X_STATUS_ABANDONED_WAIT_0;

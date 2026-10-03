@@ -84,8 +84,9 @@ struct FiberInfo {
   u32 uid;                          /**< A unique id for profiler names. */
   u32 guest_context_addr;           /**< The guest fiber context block. */
   u32 guest_stack_base;             /**< The top of the guest stack, 0 for a thread fiber. */
-  u32 guest_stack_bottom;           /**< The bottom of the guest stack, 0 for a thread fiber. */
-  bool is_thread_fiber; /**< True for ConvertThreadToFiber, whose stack the thread owns. */
+  u32 guest_stack_bottom; /**< The first byte of the guest stack allocation, 0 for a thread fiber.
+                           */
+  bool is_thread_fiber;   /**< True for ConvertThreadToFiber, whose stack the thread owns. */
 };
 
 /** Owns every thread record, finds them by id or handle, and keeps the TLS slots and fibers. */

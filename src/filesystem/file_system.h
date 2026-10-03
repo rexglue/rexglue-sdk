@@ -60,15 +60,16 @@ class FileSystem final : public IFileSystem {
     std::string relative;
   };
 
-  [[nodiscard]] Result<Resolved> ResolveMount(std::string_view path) const;
+  [[nodiscard]] Result<Resolved> ResolveMount(std::string_view path, bool log_missing = true) const;
   [[nodiscard]] Result<Node*> ResolveNode(std::string_view path) const;
+  [[nodiscard]] std::unique_lock<std::recursive_mutex> LockMount(std::string_view path) const;
   [[nodiscard]] Result<Node*> CreatePath(Node* root, std::string_view path,
                                          FileAttributes attributes);
   [[nodiscard]] Result<Opened> OpenFrom(Node* root, std::string_view path,
                                         const OpenOptions& options);
 
   mutable std::recursive_mutex mutex_;
-  std::vector<std::unique_ptr<Provider>> providers_;
+  std::vector<std::shared_ptr<Provider>> providers_;
   std::vector<std::pair<std::string, std::string>> links_;
   MountFlags game_mount_flags_ = MountFlags::kNone;
 };

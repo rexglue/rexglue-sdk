@@ -1,6 +1,7 @@
 add_executable(filesystem_tests
     file_system_test.cpp
     host_file_test.cpp
+    open_node_test.cpp
     overwrite_test.cpp
     providers_test.cpp
 )

@@ -80,6 +80,21 @@ TEST_CASE_METHOD(Fixture, "Links substitute by prefix and repeat", "[filesystem]
   CHECK(OpenError(*this, "outer:\\a.txt", {}) == Error::kNoMount);
 }
 
+TEST_CASE_METHOD(Fixture, "Links and mounts match whole path components", "[filesystem][links]") {
+  WriteHost(temp() / "a.txt", "alpha");
+  MountTemp("\\Device\\Cdrom0");
+  REQUIRE(fs().Link("cd:", "\\Device\\Cdrom0"));
+
+  CHECK(ReadText(*Open("\\Device\\Cdrom0\\a.txt").file) == "alpha");
+  CHECK(ReadText(*Open("cd:\\a.txt").file) == "alpha");
+  CHECK(OpenError(*this, "\\Device\\Cdrom01\\a.txt", {}) == Error::kNoMount);
+  CHECK(fs().FindLink("cdx:\\a.txt") == std::nullopt);
+
+  auto again = fs().Link("CD:", "\\Device\\Other");
+  REQUIRE_FALSE(again);
+  CHECK(CodeOf(again.error()) == Error::kExists);
+}
+
 TEST_CASE_METHOD(Fixture, "A link that never ends is kInvalidPath", "[filesystem][links]") {
   MountTemp(kRoot);
   REQUIRE(fs().Link("loop:", "loop:\\again"));

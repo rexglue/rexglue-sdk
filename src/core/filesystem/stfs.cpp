@@ -176,7 +176,8 @@ Result<void> ParseSTFS(const STFSHeader& header, std::span<const u8> file,
         }
       }
       ContainerNode node;
-      node.name.assign(entry.name, entry.flags.name_length & 0x3F);
+      node.name.assign(entry.name,
+                       std::min<size_t>(entry.flags.name_length & 0x3F, sizeof(entry.name)));
       node.parent = parent;
       node.size = entry.length;
       node.allocation_size = round_up(static_cast<u64>(entry.length), static_cast<u64>(kBlockSize));

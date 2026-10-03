@@ -12,6 +12,7 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -68,6 +69,20 @@ class ThreadRegistry final : public IThreadRegistry {
    */
   void NoteHandlesClosed(u32 thread_id);
 
+  /** Counts a thread whose host thread began running its record. */
+  void NoteStarted();
+
+  /** Uncounts a started thread once its exit no longer touches the runtime. */
+  void NoteStopped();
+
+  /**
+   * Waits until every started thread has stopped touching the runtime.
+   *
+   * @param timeout The longest wait.
+   * @return True when every started thread stopped in time.
+   */
+  bool JoinThreads(std::chrono::milliseconds timeout);
+
   /** Destroys the host fibers no title deleted and frees their guest stacks and context blocks. */
   void DestroyFibers();
 
@@ -86,6 +101,7 @@ class ThreadRegistry final : public IThreadRegistry {
   rex::platform::RankedSharedMutex mutex_{rex::platform::LockRank::ThreadRegistry};
   std::unordered_map<u32, std::unique_ptr<ThreadRecord>> threads_;
   std::atomic<u32> next_id_{0};
+  std::atomic<u32> started_threads_{0};
   rex::platform::RankedMutex fiber_mutex_{rex::platform::LockRank::Leaf};
   rex::platform::RankedMutex notify_mutex_{rex::platform::LockRank::Leaf};
   std::vector<u32> thread_notifications_;

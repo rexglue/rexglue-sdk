@@ -10,11 +10,16 @@
  */
 
 #include "runtime/dispatcher.h"
+#include "runtime/guest_stack.h"
 
 #include <chrono>
 #include <exception>
 #include <memory>
 #include <mutex>
+
+#if defined(__GLIBCXX__)
+#include <cxxabi.h>
+#endif
 
 #include <rex/assert.h>
 #include <rex/logging.h>
@@ -60,9 +65,7 @@ Dispatcher::Dispatcher(Runtime& runtime) : runtime_(runtime) {
 }
 
 Dispatcher::~Dispatcher() {
-  if (dpc_stack_base_) {
-    runtime_.memory()->LookupHeap(dpc_stack_base_)->Release(dpc_stack_base_);
-  }
+  FreeGuestStack(*runtime_.memory(), dpc_stack_base_);
   if (dpc_list_head_) {
     runtime_.memory()->SystemHeapFree(dpc_list_head_);
   }
@@ -303,14 +306,10 @@ void Dispatcher::Start() {
     expiries_stopped_ = false;
   }
   if (!dpc_stack_base_) {
-    auto* heap = runtime_.memory()->LookupHeap(ThreadRecord::kStackAddressRangeBegin);
-    u32 address = 0;
-    if (heap->AllocRange(ThreadRecord::kStackAddressRangeBegin, ThreadRecord::kStackAddressRangeEnd,
-                         kDPCStackSize, heap->page_size(),
-                         kMemoryAllocationReserve | kMemoryAllocationCommit,
-                         kMemoryProtectRead | kMemoryProtectWrite, false, &address)) {
-      dpc_stack_base_ = address;
-      dpc_stack_top_ = address + kDPCStackSize - kDPCStackTopReserve;
+    if (Result<GuestStack> stack =
+            AllocateGuestStack(*runtime_.memory(), kDPCStackSize, 0, false)) {
+      dpc_stack_base_ = stack->alloc_base;
+      dpc_stack_top_ = stack->base - kDPCStackTopReserve;
     } else {
       REXLOG_ERROR(system, "Unable to allocate the DPC stack");
     }
@@ -331,6 +330,10 @@ void Dispatcher::Start() {
       lock.unlock();
       try {
         fn();
+#if defined(__GLIBCXX__)
+      } catch (const abi::__forced_unwind&) {
+        throw;
+#endif
       } catch (const std::exception& e) {
         REX_FATAL(system, "Dispatch thread: deferred completion threw '{}'", e.what());
       } catch (...) {

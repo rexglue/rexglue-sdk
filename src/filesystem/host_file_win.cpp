@@ -132,8 +132,49 @@ Result<void> HostFile::SetLength(u64 length) {
   return Ok();
 }
 
-void HostFile::Flush() const {
-  FlushFileBuffers(Native(native_));
+Result<void> HostFile::Flush() const {
+  if (!FlushFileBuffers(Native(native_))) {
+    return Err(HostError("flush", path_));
+  }
+  return Ok();
+}
+
+Result<void> HostCreateNew(const std::filesystem::path& path) {
+  HANDLE handle = CreateFileW(path.c_str(), GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                              nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+  if (handle == INVALID_HANDLE_VALUE) {
+    const DWORD error = GetLastError();
+    Error code = Error::kIO;
+    if (error == ERROR_FILE_EXISTS || error == ERROR_ALREADY_EXISTS) {
+      code = Error::kExists;
+    } else if (error == ERROR_ACCESS_DENIED) {
+      code = Error::kAccessDenied;
+    }
+    return Err(MakeError(
+        code, std::format("cannot create host file '{}', error {}", path_to_utf8(path), error)));
+  }
+  CloseHandle(handle);
+  return Ok();
+}
+
+Result<void> HostMove(const std::filesystem::path& from, const std::filesystem::path& to,
+                      bool replace_existing) {
+  if (MoveFileExW(from.c_str(), to.c_str(), replace_existing ? MOVEFILE_REPLACE_EXISTING : 0)) {
+    return Ok();
+  }
+  const DWORD error = GetLastError();
+  Error code = Error::kIO;
+  if (error == ERROR_ALREADY_EXISTS || error == ERROR_FILE_EXISTS) {
+    code = Error::kExists;
+  } else if (error == ERROR_SHARING_VIOLATION) {
+    code = Error::kSharingViolation;
+  } else if (error == ERROR_ACCESS_DENIED) {
+    code = Error::kAccessDenied;
+  } else if (error == ERROR_NOT_SAME_DEVICE) {
+    code = Error::kNotSameDevice;
+  }
+  return Err(MakeError(code, std::format("cannot move '{}' to '{}', error {}", path_to_utf8(from),
+                                         path_to_utf8(to), error)));
 }
 
 std::optional<HostInfo> HostStat(const std::filesystem::path& path) {

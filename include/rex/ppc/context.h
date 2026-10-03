@@ -76,9 +76,9 @@ struct CRRegister {
     uint8_t un;
   };
 
-  inline uint32_t raw() const noexcept { return (lt << 3) | (gt << 2) | (eq << 1) | so; }
+  uint32_t raw() const noexcept { return (lt << 3) | (gt << 2) | (eq << 1) | so; }
 
-  inline void set_raw(uint32_t value) noexcept {
+  void set_raw(uint32_t value) noexcept {
     lt = (value >> 3) & 1;
     gt = (value >> 2) & 1;
     eq = (value >> 1) & 1;
@@ -86,21 +86,21 @@ struct CRRegister {
   }
 
   template <typename T>
-  inline void compare(T left, T right, const XERRegister& xer) noexcept {
+  void compare(T left, T right, const XERRegister& xer) noexcept {
     lt = left < right;
     gt = left > right;
     eq = left == right;
     so = xer.so;
   }
 
-  inline void compare(double left, double right) noexcept {
+  void compare(double left, double right) noexcept {
     un = __builtin_isnan(left) || __builtin_isnan(right);
     lt = !un && (left < right);
     gt = !un && (left > right);
     eq = !un && (left == right);
   }
 
-  inline void setFromMask(simde__m128 mask, int imm) noexcept {
+  void setFromMask(simde__m128 mask, int imm) noexcept {
     int m = simde_mm_movemask_ps(mask);
     lt = m == imm;
     gt = 0;
@@ -108,7 +108,7 @@ struct CRRegister {
     so = 0;
   }
 
-  inline void setFromMask(simde__m128i mask, int imm) noexcept {
+  void setFromMask(simde__m128i mask, int imm) noexcept {
     int m = simde_mm_movemask_epi8(mask);
     lt = m == imm;
     gt = 0;
@@ -157,51 +157,51 @@ struct FPSCRRegister {
   // Bits the guest owns; the rest is host policy seeded by InitHost.
   static constexpr uint32_t GuestMask = uint32_t(RoundMaskVal) | uint32_t(FlushMask);
 
-  inline uint32_t getcsr() noexcept { return Platform::getcsr(); }
-  inline void setcsr(uint32_t csr) noexcept { Platform::setcsr(csr); }
+  uint32_t getcsr() noexcept { return Platform::getcsr(); }
+  void setcsr(uint32_t csr) noexcept { Platform::setcsr(csr); }
 
   // Restoring the whole word would unmask every FP exception when csr is 0.
-  inline void restoreGuestBits(uint32_t saved) noexcept {
+  void restoreGuestBits(uint32_t saved) noexcept {
     csr = (getcsr() & ~GuestMask) | (saved & GuestMask);
     setcsr(csr);
   }
 
-  inline uint32_t loadFromHost() noexcept {
+  uint32_t loadFromHost() noexcept {
     csr = getcsr();
     return HostToGuest[(csr & RoundMaskVal) >> RoundShift];
   }
 
-  inline void storeFromGuest(uint32_t value) noexcept {
+  void storeFromGuest(uint32_t value) noexcept {
     csr &= ~RoundMaskVal;
     csr |= Platform::GuestToHost[value & kRoundMask];
     setcsr(csr);
   }
 
-  inline void enableFlushModeUnconditional() noexcept {
+  void enableFlushModeUnconditional() noexcept {
     csr |= FlushMask;
     setcsr(csr);
   }
 
-  inline void disableFlushModeUnconditional() noexcept {
+  void disableFlushModeUnconditional() noexcept {
     csr &= ~FlushMask;
     setcsr(csr);
   }
 
-  inline void enableFlushMode() noexcept {
+  void enableFlushMode() noexcept {
     if ((csr & FlushMask) != FlushMask) [[unlikely]] {
       csr |= FlushMask;
       setcsr(csr);
     }
   }
 
-  inline void disableFlushMode() noexcept {
+  void disableFlushMode() noexcept {
     if ((csr & FlushMask) != 0) [[unlikely]] {
       csr &= ~FlushMask;
       setcsr(csr);
     }
   }
 
-  inline void InitHost() noexcept {
+  void InitHost() noexcept {
     csr = getcsr();
     Platform::InitHostExceptions(csr);
     setcsr(csr);
@@ -443,11 +443,37 @@ struct alignas(0x40) PPCContext {
   //--- Non-volatile register save/restore --------
   // Layout: r14-r31 (144) | f14-f31 (144) | v14-v31 (288) | v64-v127 (1024)
   //       | cr2-cr4 (12) | fpscr (4).  Total: 1616 bytes.
+  /**
+   * Packs cr0 to cr7 into the 32 bit CR layout.
+   *
+   * @return The CR word, cr0 in the top nibble.
+   */
+  rex::u32 cr() const noexcept {
+    return (cr0.raw() << 28) | (cr1.raw() << 24) | (cr2.raw() << 20) | (cr3.raw() << 16) |
+           (cr4.raw() << 12) | (cr5.raw() << 8) | (cr6.raw() << 4) | cr7.raw();
+  }
+
+  /**
+   * Unpacks a 32 bit CR word into cr0 to cr7.
+   *
+   * @param value The CR word, cr0 in the top nibble.
+   */
+  void set_cr(rex::u32 value) noexcept {
+    cr0.set_raw(value >> 28);
+    cr1.set_raw(value >> 24);
+    cr2.set_raw(value >> 20);
+    cr3.set_raw(value >> 16);
+    cr4.set_raw(value >> 12);
+    cr5.set_raw(value >> 8);
+    cr6.set_raw(value >> 4);
+    cr7.set_raw(value);
+  }
+
   static constexpr size_t kNonVolatileSaveSize =
       18 * sizeof(PPCRegister) + 18 * sizeof(PPCRegister) + 18 * sizeof(PPCVRegister) +
       64 * sizeof(PPCVRegister) + 3 * sizeof(PPCCRRegister) + sizeof(PPCFPSCRRegister);
 
-  inline void SaveNonVolatiles(uint8_t* dst) const {
+  void SaveNonVolatiles(uint8_t* dst) const {
     std::memcpy(dst, &r14, 18 * sizeof(PPCRegister));
     dst += 18 * sizeof(PPCRegister);
     std::memcpy(dst, &f14, 18 * sizeof(PPCRegister));
@@ -461,7 +487,7 @@ struct alignas(0x40) PPCContext {
     std::memcpy(dst, &fpscr, sizeof(PPCFPSCRRegister));
   }
 
-  inline void RestoreNonVolatiles(const uint8_t* src) {
+  void RestoreNonVolatiles(const uint8_t* src) {
     std::memcpy(&r14, src, 18 * sizeof(PPCRegister));
     src += 18 * sizeof(PPCRegister);
     std::memcpy(&f14, src, 18 * sizeof(PPCRegister));

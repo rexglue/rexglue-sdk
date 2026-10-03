@@ -48,12 +48,61 @@ HostInfo FromStat(std::filesystem::path name, const struct stat& st) {
   info.create_time = ToFileTime(st.st_ctime);
   info.access_time = ToFileTime(st.st_atime);
   info.write_time = ToFileTime(st.st_mtime);
+  info.device = static_cast<u64>(st.st_dev);
+  info.inode = static_cast<u64>(st.st_ino);
   return info;
 }
 
 rex::Error HostError(std::string_view what, const std::filesystem::path& path) {
   return MakeError(Error::kIO, std::format("{} '{}' failed, {}", what, path_to_utf8(path),
                                            std::strerror(errno)));
+}
+
+bool NoNativeExclusiveMove(int error) {
+  return error == EINVAL || error == ENOSYS || error == ENOTSUP;
+}
+
+int MoveReplacing(const std::filesystem::path& from, const std::filesystem::path& to) {
+  return rename(from.c_str(), to.c_str()) == 0 ? 0 : errno;
+}
+
+int MoveNoReplace(const std::filesystem::path& from, const std::filesystem::path& to) {
+#if defined(__linux__)
+  if (renameat2(AT_FDCWD, from.c_str(), AT_FDCWD, to.c_str(), RENAME_NOREPLACE) == 0) {
+    return 0;
+  }
+  if (!NoNativeExclusiveMove(errno)) {
+    return errno;
+  }
+#elif defined(__APPLE__)
+  if (renamex_np(from.c_str(), to.c_str(), RENAME_EXCL) == 0) {
+    return 0;
+  }
+  if (!NoNativeExclusiveMove(errno)) {
+    return errno;
+  }
+#endif
+  struct stat st{};
+  if (lstat(from.c_str(), &st) != 0) {
+    return errno;
+  }
+  if (!S_ISDIR(st.st_mode)) {
+    if (link(from.c_str(), to.c_str()) == 0) {
+      if (unlink(from.c_str()) == 0) {
+        return 0;
+      }
+      const int error = errno;
+      unlink(to.c_str());
+      return error;
+    }
+    if (errno == EEXIST || !(errno == EPERM || errno == EMLINK || NoNativeExclusiveMove(errno))) {
+      return errno;
+    }
+  }
+  if (lstat(to.c_str(), &st) == 0) {
+    return EEXIST;
+  }
+  return MoveReplacing(from, to);
 }
 
 }  // namespace
@@ -113,8 +162,46 @@ Result<void> HostFile::SetLength(u64 length) {
   return Ok();
 }
 
-void HostFile::Flush() const {
-  fsync(Native(native_));
+Result<void> HostFile::Flush() const {
+  if (fsync(Native(native_)) < 0) {
+    return Err(HostError("flush", path_));
+  }
+  return Ok();
+}
+
+Result<void> HostCreateNew(const std::filesystem::path& path) {
+  const int handle = open(path.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0644);
+  if (handle == -1) {
+    const int error = errno;
+    Error code = Error::kIO;
+    if (error == EEXIST) {
+      code = Error::kExists;
+    } else if (error == EACCES || error == EPERM || error == EROFS) {
+      code = Error::kAccessDenied;
+    }
+    return Err(MakeError(code, std::format("cannot create host file '{}', {}", path_to_utf8(path),
+                                           std::strerror(error))));
+  }
+  close(handle);
+  return Ok();
+}
+
+Result<void> HostMove(const std::filesystem::path& from, const std::filesystem::path& to,
+                      bool replace_existing) {
+  const int error = replace_existing ? MoveReplacing(from, to) : MoveNoReplace(from, to);
+  if (error == 0) {
+    return Ok();
+  }
+  Error code = Error::kIO;
+  if (error == EEXIST || error == ENOTEMPTY) {
+    code = Error::kExists;
+  } else if (error == EACCES || error == EPERM || error == EROFS) {
+    code = Error::kAccessDenied;
+  } else if (error == EXDEV) {
+    code = Error::kNotSameDevice;
+  }
+  return Err(MakeError(code, std::format("cannot move '{}' to '{}', {}", path_to_utf8(from),
+                                         path_to_utf8(to), std::strerror(error))));
 }
 
 std::optional<HostInfo> HostStat(const std::filesystem::path& path) {
@@ -136,13 +223,10 @@ std::vector<HostInfo> HostList(const std::filesystem::path& path) {
       continue;
     }
     struct stat st{};
-    stat((path / entry->d_name).c_str(), &st);
-    HostInfo info = FromStat(entry->d_name, st);
-    info.directory = entry->d_type == DT_DIR;
-    if (info.directory) {
-      info.size = 0;
+    if (stat((path / entry->d_name).c_str(), &st) != 0) {
+      continue;
     }
-    result.push_back(std::move(info));
+    result.push_back(FromStat(entry->d_name, st));
   }
   closedir(dir);
   return result;

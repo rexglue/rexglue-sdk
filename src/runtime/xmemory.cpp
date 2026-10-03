@@ -704,7 +704,8 @@ void Memory::GetHeapsPageStatsSummary(const BaseHeap* const* provided_heaps, siz
 }
 
 void Memory::SetBudget(u32 megabytes) {
-  budget_pages_.store(megabytes * 256, std::memory_order_relaxed);
+  budget_pages_.store(static_cast<u32>(std::min<u64>(u64{megabytes} * 256, UINT32_MAX)),
+                      std::memory_order_relaxed);
 }
 
 u32 Memory::title_pages() const {
@@ -1413,7 +1414,7 @@ bool BaseHeap::ReleaseLocked(uint32_t base_address, uint32_t* out_region_size) {
   // Given address must be a region base address.
   uint32_t base_page_number = (base_address - heap_base_) >> page_size_shift_;
   auto base_page_entry = page_table_[base_page_number];
-  if (base_page_entry.base_address != base_page_number) {
+  if (!base_page_entry.state || base_page_entry.base_address != base_page_number) {
     REX_FAIL(system, false, "BaseHeap::Release failed because address is not a region start");
   }
 
@@ -1751,19 +1752,26 @@ bool PhysicalHeap::AllocFixed(uint32_t base_address, uint32_t size, uint32_t ali
   std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
 
   // Allocate from parent heap (gets our physical address in 0-512mb).
-  // NOTE: this can potentially overwrite heap contents if there are already
-  // committed pages in the requested physical range.
-  // TODO(benvanik): flag for ensure-not-committed?
   uint32_t parent_base_address = GetPhysicalAddress(base_address);
   std::lock_guard<std::recursive_mutex> parent_lock(parent_heap_->heap_mutex_);
   const u32 parent_size = parent_base_address % alignment == 0 ? rex::align(size, alignment) : size;
   const u32 parent_first =
       (parent_base_address - parent_heap_->heap_base_) >> parent_heap_->page_size_shift_;
   const u32 parent_count = parent_size >> parent_heap_->page_size_shift_;
+  const bool parent_in_range = parent_first + parent_count <= parent_heap_->page_table_.size();
+  const auto parent_pages =
+      parent_in_range ? std::span(parent_heap_->page_table_).subspan(parent_first, parent_count)
+                      : std::span<PageEntry>();
   const bool parent_was_free =
-      parent_first + parent_count <= parent_heap_->page_table_.size() &&
-      std::ranges::all_of(std::span(parent_heap_->page_table_).subspan(parent_first, parent_count),
-                          [](const PageEntry& page_entry) { return page_entry.state == 0; });
+      parent_in_range && std::ranges::all_of(parent_pages, [](const PageEntry& page_entry) {
+        return page_entry.state == 0;
+      });
+  if (parent_in_range && !parent_was_free &&
+      std::ranges::any_of(parent_pages,
+                          [](const PageEntry& page_entry) { return page_entry.state == 0; })) {
+    REX_FAIL(system, false, "PhysicalHeap::AllocFixed range at {:08X} is partly in use",
+             base_address);
+  }
   if (!parent_heap_->AllocFixedLocked(parent_base_address, size, alignment, allocation_type,
                                       protect)) {
     REX_FAIL(system, false, "PhysicalHeap::Alloc unable to alloc physical memory in parent heap");

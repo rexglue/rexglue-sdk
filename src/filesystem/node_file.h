@@ -32,11 +32,14 @@ class NodeFile final : public IFile {
   /**
    * Wraps an open stream of a node.
    *
-   * @param node The node, which outlives the file.
+   * @param node The node. The file keeps it and its provider alive.
    * @param access The access bits, generic bits expanded.
    * @param stream The provider stream.
    */
   NodeFile(Node& node, Access access, std::unique_ptr<NodeStream> stream);
+
+  /** Closes the stream, then releases the node, which deletes it when delete on close is set. */
+  ~NodeFile() override;
 
   /**
    * Returns the node the file is open on.
@@ -60,6 +63,7 @@ class NodeFile final : public IFile {
   [[nodiscard]] Result<std::span<const u8>> View() override;
 
  private:
+  std::shared_ptr<Provider> provider_;
   Node* node_;
   Access access_;
   std::unique_ptr<NodeStream> stream_;
@@ -71,16 +75,20 @@ class NodeDirectory final : public IDirectory {
   /**
    * Starts a walk.
    *
-   * @param node The directory, which outlives the walk.
+   * @param node The directory. The walk keeps it and its provider alive.
    * @param pattern The wildcard pattern, empty for every child.
    */
   NodeDirectory(Node& node, std::string_view pattern);
+
+  /** Releases the node. */
+  ~NodeDirectory() override;
 
   [[nodiscard]] std::optional<FileInfo> Next() override;
   void Restart() override { index_ = 0; }
   [[nodiscard]] u64 position() const override { return index_; }
 
  private:
+  std::shared_ptr<Provider> provider_;
   Node* node_;
   WildcardMatcher matcher_;
   size_t index_ = 0;

@@ -12,6 +12,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
+#include <cstring>
 #include <filesystem>
 #include <random>
 #include <span>
@@ -22,6 +23,7 @@
 #include <rex/filesystem/container.h>
 #include <rex/filesystem/error.h>
 #include <rex/filesystem/xcontent.h>
+#include <rex/math.h>
 #include <rex/platform/file.h>
 
 namespace rex {
@@ -224,6 +226,33 @@ TEST_CASE("Container refuses a dot dot name and removes its output", "[core][con
   REQUIRE_FALSE(extracted);
   CHECK(fs::CodeOf(extracted.error()) == fs::Error::kInvalidPath);
   CHECK_FALSE(std::filesystem::exists(out));
+}
+
+TEST_CASE("Container walks a long GDFX sibling chain without recursion", "[core][container]") {
+  constexpr rex::u32 kEntries = 16000;
+  constexpr size_t kSector = 0x800;
+  TempFolder temp;
+  auto gdfx = Fixture("gdfx.iso");
+  const size_t table = rex::round_up(gdfx.size(), kSector);
+  const size_t table_size = size_t{kEntries} * 16;
+  gdfx.resize(table + table_size, 0);
+  for (rex::u32 i = 0; i < kEntries; ++i) {
+    const size_t entry = table + (size_t{i} * 16);
+    const rex::u16 next = i + 1 < kEntries ? static_cast<rex::u16>((i + 1) * 4) : 0;
+    std::memcpy(&gdfx[entry + 2], &next, sizeof(next));
+    gdfx[entry + 12] = 0x80;
+    gdfx[entry + 13] = 1;
+    gdfx[entry + 14] = 'f';
+  }
+  const size_t volume = 32 * kSector;
+  const auto root_sector = static_cast<rex::u32>(table / kSector);
+  const auto root_size = static_cast<rex::u32>(table_size);
+  std::memcpy(&gdfx[volume + 20], &root_sector, sizeof(root_sector));
+  std::memcpy(&gdfx[volume + 24], &root_size, sizeof(root_size));
+
+  auto container = fs::Container::Open(WriteVariant(temp, "chain.iso", gdfx));
+  REQUIRE(container);
+  CHECK(container->root().children.size() == kEntries);
 }
 
 TEST_CASE("Container reports truncated and out of range images as corrupt", "[core][container]") {

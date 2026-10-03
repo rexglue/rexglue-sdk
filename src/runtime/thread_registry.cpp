@@ -1,9 +1,11 @@
 #include "runtime/thread_registry.h"
+#include "runtime/guest_stack.h"
 
 #include <algorithm>
 #include <cstring>
 #include <mutex>
 #include <shared_mutex>
+#include <thread>
 
 #include <fmt/format.h>
 
@@ -130,6 +132,25 @@ void ThreadRegistry::NoteHandlesClosed(u32 thread_id) {
     }
   }
   Dispose(std::move(retired));
+}
+
+void ThreadRegistry::NoteStarted() {
+  started_threads_.fetch_add(1, std::memory_order_acq_rel);
+}
+
+void ThreadRegistry::NoteStopped() {
+  started_threads_.fetch_sub(1, std::memory_order_acq_rel);
+}
+
+bool ThreadRegistry::JoinThreads(std::chrono::milliseconds timeout) {
+  const auto deadline = std::chrono::steady_clock::now() + timeout;
+  while (started_threads_.load(std::memory_order_acquire) != 0) {
+    if (std::chrono::steady_clock::now() >= deadline) {
+      return false;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  return true;
 }
 
 std::optional<u32> ThreadRegistry::AllocateTLS(PPCContext* context) {
@@ -279,8 +300,8 @@ void ThreadRegistry::DestroyFibers() {
     if (info.host_fiber) {
       info.host_fiber->Destroy();
     }
-    if (!info.is_thread_fiber && info.guest_stack_bottom) {
-      runtime_.memory()->LookupHeap(0x70000000)->Release(info.guest_stack_bottom);
+    if (!info.is_thread_fiber) {
+      FreeGuestStack(*runtime_.memory(), info.guest_stack_bottom);
     }
     if (info.guest_context_addr) {
       runtime_.memory()->SystemHeapFree(info.guest_context_addr);

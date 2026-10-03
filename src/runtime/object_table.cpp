@@ -165,7 +165,15 @@ ObjectRecord* ObjectTable::Detach(Slot& slot, X_HANDLE handle) {
     record->handles.erase(handle_entry);
   }
   if (!record->name.empty()) {
-    RemoveName(record->name);
+    std::lock_guard name_lock(name_mutex_);
+    auto it = names_.find(string_key_case(record->name));
+    if (it != names_.end() && it->second == handle) {
+      if (record->handles.empty()) {
+        names_.erase(it);
+      } else {
+        it->second = record->handles.front();
+      }
+    }
   }
   if (!record->handles.empty()) {
     return nullptr;
@@ -346,7 +354,7 @@ std::optional<X_HANDLE> ObjectTable::ResolveGuestObject(u32 address, i32 as_type
                               ThreadRecord::IsInThread() &&
                               ThreadRecord::GetCurrentThread()->guest_object() ==
                                   static_cast<u32>(mutant->owner_thread);
-      added = Emplace<MutantObject>(AddOptions{}, owned_here);
+      added = Emplace<MutantObject>(AddOptions{}, owned_here, address);
       break;
     }
     case 5: {

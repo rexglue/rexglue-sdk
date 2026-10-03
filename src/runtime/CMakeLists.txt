@@ -8,6 +8,7 @@ set(REXSYSTEM_SOURCES
     user_module.cpp
     xthread.cpp
     thread_registry.cpp
+    guest_stack.cpp
     xevent.cpp
     xfile.cpp
     xmutant.cpp

@@ -1,0 +1,137 @@
+/**
+ * @file        tests/unit/kernel/char_fiber_test.cpp
+ * @brief       Fiber switches through the shim fiber routines
+ *
+ * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
+ *              All rights reserved.
+ *
+ * @license     BSD 3-Clause License
+ *              See LICENSE file in the project root for full license text.
+ */
+
+#include <catch2/catch_test_macros.hpp>
+
+#include <atomic>
+#include <cstring>
+
+#include <rex/runtime/function_dispatcher.h>
+#include <rex/runtime/xmemory.h>
+
+#include "kernel_fixture.h"
+#include "runtime/guest_stack.h"
+
+// NOLINTBEGIN(readability-identifier-naming) frozen shim entry names
+extern "C" void rexshim_ConvertThreadToFiber(PPCContext& ctx, rex::u8* base);
+extern "C" void rexshim_ConvertFiberToThread(PPCContext& ctx, rex::u8* base);
+extern "C" void rexshim_CreateFiber(PPCContext& ctx, rex::u8* base);
+extern "C" void rexshim_DeleteFiber(PPCContext& ctx, rex::u8* base);
+extern "C" void rexshim_SwitchToFiber(PPCContext& ctx, rex::u8* base);
+// NOLINTEND(readability-identifier-naming)
+
+using rex::u32;
+using rex::u64;
+using rex::u8;
+using rex::testing::Caller;
+using rex::testing::KernelFixture;
+
+namespace {
+
+constexpr PPCRegister PPCContext::* kGPRs[] = {
+    &PPCContext::r14, &PPCContext::r15, &PPCContext::r16, &PPCContext::r17, &PPCContext::r18,
+    &PPCContext::r19, &PPCContext::r20, &PPCContext::r21, &PPCContext::r22, &PPCContext::r23,
+    &PPCContext::r24, &PPCContext::r25, &PPCContext::r26, &PPCContext::r27, &PPCContext::r28,
+    &PPCContext::r29, &PPCContext::r30, &PPCContext::r31};
+
+constexpr PPCRegister PPCContext::* kFPRs[] = {
+    &PPCContext::f14, &PPCContext::f15, &PPCContext::f16, &PPCContext::f17, &PPCContext::f18,
+    &PPCContext::f19, &PPCContext::f20, &PPCContext::f21, &PPCContext::f22, &PPCContext::f23,
+    &PPCContext::f24, &PPCContext::f25, &PPCContext::f26, &PPCContext::f27, &PPCContext::f28,
+    &PPCContext::f29, &PPCContext::f30, &PPCContext::f31};
+
+constexpr PPCVRegister PPCContext::* kVRs[] = {&PPCContext::v14, &PPCContext::v31, &PPCContext::v64,
+                                               &PPCContext::v95, &PPCContext::v127};
+
+u32 g_main_fiber = 0;
+std::atomic<u32> g_fiber_kthread{0};
+
+void Fill(PPCContext& ctx, u64 gpr, rex::f64 fpr, u8 vr) {
+  for (const auto reg : kGPRs) {
+    (ctx.*reg).u64 = gpr;
+  }
+  for (const auto reg : kFPRs) {
+    (ctx.*reg).f64 = fpr;
+  }
+  for (const auto reg : kVRs) {
+    std::memset(&(ctx.*reg), vr, sizeof(PPCVRegister));
+  }
+}
+
+void FiberBody(PPCContext& ctx, u8* base) {
+  g_fiber_kthread = Caller(ctx, base, rex::runtime::Current()).Load32(ctx.r13.u32 + 0x100);
+  Fill(ctx, 0xBAD, -1.0, 0xEE);
+  ctx.set_cr(0x12345678);
+  ctx.lr = 0x8200BEEF;
+  ctx.fpscr.storeFromGuest(rex::ppc::kRoundUp);
+  ctx.r3.u64 = g_main_fiber;
+  rexshim_SwitchToFiber(ctx, base);
+}
+
+}  // namespace
+
+TEST_CASE("fibers: a switch away and back keeps the nonvolatile state", "[char][fibers]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    PPCContext& ctx = c.ctx();
+    auto* memory = c.runtime().memory();
+    u8* base = memory->virtual_membase();
+    ctx.r3.u64 = 0;
+    rexshim_ConvertThreadToFiber(ctx, base);
+    g_main_fiber = ctx.r3.u32;
+    REQUIRE(g_main_fiber != 0);
+
+    const u32 body = c.runtime().function_dispatcher()->AllocateThunk(&FiberBody, 0);
+    REQUIRE(body != 0);
+    const u32 used = memory->title_pages();
+    ctx.r3.u64 = 0;
+    ctx.r4.u64 = body;
+    ctx.r5.u64 = 0;
+    rexshim_CreateFiber(ctx, base);
+    const u32 fiber = ctx.r3.u32;
+    REQUIRE(fiber != 0);
+    CHECK(memory->title_pages() == used + 16);
+
+    Fill(ctx, 0x1234, 3.25, 0x5A);
+    ctx.set_cr(0x89ABCDEF);
+    ctx.lr = 0x82001234;
+    ctx.fpscr.storeFromGuest(rex::ppc::kRoundDown);
+    ctx.r3.u64 = fiber;
+    rexshim_SwitchToFiber(ctx, base);
+
+    for (const auto reg : kGPRs) {
+      CHECK((ctx.*reg).u64 == 0x1234);
+    }
+    for (const auto reg : kFPRs) {
+      CHECK((ctx.*reg).f64 == 3.25);
+    }
+    for (const auto reg : kVRs) {
+      CHECK((ctx.*reg).u64[0] == 0x5A5A5A5A5A5A5A5Aull);
+      CHECK((ctx.*reg).u64[1] == 0x5A5A5A5A5A5A5A5Aull);
+    }
+    CHECK(ctx.cr() == 0x89ABCDEF);
+    CHECK(ctx.lr == 0x82001234);
+    CHECK(ctx.fpscr.loadFromHost() == rex::ppc::kRoundDown);
+    CHECK(g_fiber_kthread == c.Load32(ctx.r13.u32 + 0x100));
+
+    ctx.r3.u64 = fiber;
+    rexshim_DeleteFiber(ctx, base);
+    CHECK(memory->title_pages() == used);
+    rexshim_ConvertFiberToThread(ctx, base);
+    ctx.fpscr.storeFromGuest(rex::ppc::kRoundNearest);
+  });
+}
+
+TEST_CASE("fibers: ResolveGuestStackSize allows 12 KB fiber stacks", "[char][fibers]") {
+  CHECK(rex::runtime::ResolveGuestStackSize(0x2000, 0x10000, 12 * 1024) == 0x3000);
+  CHECK(rex::runtime::ResolveGuestStackSize(0, 0x10000, 12 * 1024) == 0x10000);
+  CHECK(rex::runtime::ResolveGuestStackSize(0x3001, 0x10000, 12 * 1024) == 0x4000);
+}

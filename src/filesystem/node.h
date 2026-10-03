@@ -30,7 +30,7 @@ class Provider;
 class WildcardMatcher;
 
 /**
- * Tests whether access allows reading.
+ * Reports whether access allows reading.
  *
  * @param access The open access bits.
  * @return True when a generic read or read data bit is set.
@@ -38,7 +38,7 @@ class WildcardMatcher;
 [[nodiscard]] bool CanRead(Access access);
 
 /**
- * Tests whether access allows writing.
+ * Reports whether access allows writing.
  *
  * @param access The open access bits.
  * @return True when a generic write, write data or append data bit is set.
@@ -46,7 +46,7 @@ class WildcardMatcher;
 [[nodiscard]] bool CanWrite(Access access);
 
 /**
- * Tests whether access allows a size change.
+ * Reports whether access allows a size change.
  *
  * @param access The open access bits.
  * @return True when a generic write or write data bit is set.
@@ -143,7 +143,7 @@ class Node : public NonCopyable {
   [[nodiscard]] FileAttributes attributes() const { return attributes_; }
 
   /**
-   * Tests whether the node is a directory.
+   * Reports whether the node is a directory.
    *
    * @return True when kDirectory is set.
    */
@@ -152,25 +152,41 @@ class Node : public NonCopyable {
   }
 
   /**
-   * Tests whether the mount of the node refuses writes.
+   * Reports whether the mount of the node refuses writes.
    *
    * @return True on a read only mount.
    */
   [[nodiscard]] bool read_only() const;
 
   /**
-   * Tests whether a delete on close request is recorded.
+   * Reports whether a delete on close request is recorded.
    *
    * @return True when requested.
    */
-  [[nodiscard]] bool delete_on_close() const { return delete_on_close_; }
+  [[nodiscard]] bool delete_on_close() const;
 
   /**
    * Records or withdraws a delete on close request.
    *
    * @param delete_on_close True to request.
    */
-  void set_delete_on_close(bool delete_on_close) { delete_on_close_ = delete_on_close; }
+  void set_delete_on_close(bool delete_on_close);
+
+  /**
+   * Returns the count of open files and walks on the node and its descendants.
+   *
+   * @return The count.
+   */
+  [[nodiscard]] u32 open_count() const { return open_count_; }
+
+  /** Counts 1 open file or walk on the node and its ancestors. */
+  void AddOpen();
+
+  /**
+   * Uncounts 1 open file or walk. At the last close the node is deleted when delete on close is
+   * recorded, and a detached node is freed. The node may be gone when this returns.
+   */
+  void ReleaseOpen();
 
   /**
    * Returns the node information.
@@ -220,7 +236,8 @@ class Node : public NonCopyable {
   Node* AddChild(std::unique_ptr<Node> child);
 
   /**
-   * Removes a child from the tree without a host change, for a child whose backing is gone.
+   * Removes a child from the tree without a host change, for a child whose backing is gone. A child
+   * with open files moves to the detached list of the provider until its last close.
    *
    * @param child A child of this node.
    */
@@ -239,7 +256,8 @@ class Node : public NonCopyable {
    * Deletes a child through the provider.
    *
    * @param child A child of this node.
-   * @return kAccessDenied on a read only mount or when the provider refuses.
+   * @return kAccessDenied on a read only mount, when the child or a descendant is open, or when the
+   *         provider refuses.
    */
   [[nodiscard]] Result<void> DeleteChild(Node& child);
 
@@ -270,7 +288,7 @@ class Node : public NonCopyable {
   virtual void Refresh();
 
   /**
-   * Tests whether the provider lost a cached child.
+   * Reports whether the provider lost a cached child.
    *
    * @param child A child of this node.
    * @return True when the backing file of child is gone.
@@ -351,6 +369,7 @@ class Node : public NonCopyable {
  private:
   Provider* provider_;
   Node* parent_;
+  u32 open_count_ = 0;
   bool delete_on_close_ = false;
 };
 

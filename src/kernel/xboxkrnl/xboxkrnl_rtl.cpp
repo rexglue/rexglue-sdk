@@ -505,7 +505,7 @@ u32 RtlTimeFieldsToTime_entry(ppc_ptr_t<X_TIME_FIELDS> time_fields_ptr, mapped_u
     return 0;
   }
   auto dp = static_cast<std::chrono::sys_days>(year_month_day);
-  std::chrono::system_clock::time_point time = dp;
+  std::chrono::sys_time<rex::hundrednanoseconds> time = dp;
   time += std::chrono::hours{time_fields_ptr->hour};
   time += std::chrono::minutes{time_fields_ptr->minute};
   time += std::chrono::seconds{time_fields_ptr->second};

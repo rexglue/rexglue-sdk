@@ -22,7 +22,17 @@
 namespace rex::filesystem {
 
 NodeFile::NodeFile(Node& node, Access access, std::unique_ptr<NodeStream> stream)
-    : node_(&node), access_(access), stream_(std::move(stream)) {}
+    : provider_(node.provider().shared_from_this()),
+      node_(&node),
+      access_(access),
+      stream_(std::move(stream)) {
+  node_->AddOpen();
+}
+
+NodeFile::~NodeFile() {
+  stream_.reset();
+  node_->ReleaseOpen();
+}
 
 FileInfo NodeFile::Info() const {
   return node_->Info();
@@ -77,7 +87,13 @@ Result<std::span<const u8>> NodeFile::View() {
 }
 
 NodeDirectory::NodeDirectory(Node& node, std::string_view pattern)
-    : node_(&node), matcher_(pattern) {}
+    : provider_(node.provider().shared_from_this()), node_(&node), matcher_(pattern) {
+  node_->AddOpen();
+}
+
+NodeDirectory::~NodeDirectory() {
+  node_->ReleaseOpen();
+}
 
 std::optional<FileInfo> NodeDirectory::Next() {
   Node* child = node_->IterateChildren(matcher_, &index_);

@@ -18,6 +18,7 @@
 #include <mutex>
 
 #include <rex/filesystem/error.h>
+#include <rex/logging.h>
 #include <rex/macros.h>
 #include <rex/string.h>
 
@@ -66,6 +67,16 @@ bool Node::read_only() const {
   return provider_->read_only();
 }
 
+bool Node::delete_on_close() const {
+  std::lock_guard lock(provider_->mutex());
+  return delete_on_close_;
+}
+
+void Node::set_delete_on_close(bool delete_on_close) {
+  std::lock_guard lock(provider_->mutex());
+  delete_on_close_ = delete_on_close;
+}
+
 FileInfo Node::Info() const {
   std::lock_guard lock(provider_->mutex());
   return {name_,        path_,        absolute_path_, attributes_, size_, allocation_size_,
@@ -110,8 +121,43 @@ Node* Node::AddChild(std::unique_ptr<Node> child) {
 
 void Node::DropChild(Node& child) {
   std::lock_guard lock(provider_->mutex());
-  std::erase_if(children_,
-                [&](const std::unique_ptr<Node>& entry) { return entry.get() == &child; });
+  const auto it = std::ranges::find_if(
+      children_, [&](const std::unique_ptr<Node>& entry) { return entry.get() == &child; });
+  if (it == children_.end()) {
+    return;
+  }
+  std::unique_ptr<Node> dropped = std::move(*it);
+  children_.erase(it);
+  if (dropped->open_count_ == 0) {
+    return;
+  }
+  for (Node* node = this; node; node = node->parent_) {
+    node->open_count_ -= dropped->open_count_;
+  }
+  dropped->parent_ = nullptr;
+  provider_->Detach(std::move(dropped));
+}
+
+void Node::AddOpen() {
+  std::lock_guard lock(provider_->mutex());
+  for (Node* node = this; node; node = node->parent_) {
+    ++node->open_count_;
+  }
+}
+
+void Node::ReleaseOpen() {
+  Provider& provider = *provider_;
+  std::lock_guard lock(provider.mutex());
+  for (Node* node = this; node; node = node->parent_) {
+    --node->open_count_;
+  }
+  if (open_count_ == 0 && delete_on_close_ && parent_) {
+    if (auto deleted = parent_->DeleteChild(*this); !deleted) {
+      REXLOG_WARN(filesystem, "delete on close of '{}' failed, {}", absolute_path_,
+                  deleted.error().message);
+    }
+  }
+  provider.ReleaseDetached();
 }
 
 Result<Node*> Node::CreateChild(std::string_view name, FileAttributes attributes) {
@@ -137,6 +183,9 @@ Result<void> Node::DeleteChild(Node& child) {
   if (child.parent_ != this) {
     return Err(MakeError(Error::kNotFound,
                          std::format("'{}' is not a child of '{}'", child.name_, absolute_path_)));
+  }
+  if (child.open_count_ != 0) {
+    return Err(MakeError(Error::kAccessDenied, std::format("'{}' is open", child.absolute_path_)));
   }
   REX_TRY_VOID(DeleteChildImpl(child));
   DropChild(child);

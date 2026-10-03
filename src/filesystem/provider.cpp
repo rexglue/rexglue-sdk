@@ -14,6 +14,7 @@
 #include "filesystem/provider.h"
 
 #include <format>
+#include <mutex>
 #include <utility>
 
 #include <rex/filesystem/error.h>
@@ -30,6 +31,17 @@ Provider::~Provider() = default;
 
 Node* Provider::Resolve(std::string_view path) {
   return root_->ResolvePath(path);
+}
+
+void Provider::Detach(std::unique_ptr<Node> node) {
+  std::lock_guard lock(mutex_);
+  detached_.push_back(std::move(node));
+}
+
+void Provider::ReleaseDetached() {
+  std::lock_guard lock(mutex_);
+  std::erase_if(detached_,
+                [](const std::unique_ptr<Node>& node) { return node->open_count() == 0; });
 }
 
 Result<std::unique_ptr<Provider>> CreateProvider(const MountEntry& entry) {

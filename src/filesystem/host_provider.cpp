@@ -34,6 +34,12 @@ namespace {
 constexpr u32 kBytesPerSector = 0x200;
 constexpr u32 kAllocationUnits = 128 * 1024;
 
+bool IsHostName(std::string_view name) {
+  return !name.empty() && name != "." && name != ".." &&
+         name.find_first_of(":<>\"|?*\\/") == std::string_view::npos &&
+         std::ranges::none_of(name, [](char c) { return static_cast<u8>(c) < 0x20; });
+}
+
 class HostStream final : public NodeStream {
  public:
   HostStream(HostNode& node, Access access, std::unique_ptr<HostFile> file)
@@ -46,6 +52,10 @@ class HostStream final : public NodeStream {
     auto count = file_->Read(offset, buffer);
     if (!count) {
       return Err<size_t>(MakeError(Error::kEndOfFile, count.error().message));
+    }
+    if (*count == 0 && !buffer.empty()) {
+      return Err<size_t>(
+          MakeError(Error::kEndOfFile, "read starts at or past the end of the file"));
     }
     return *count;
   }
@@ -73,10 +83,11 @@ class HostStream final : public NodeStream {
 
   Result<std::span<const u8>> View() override {
     if (!map_) {
-      map_ = memory::MappedMemory::Open(node_.host_path(), memory::MappedMemory::Mode::kRead);
+      const std::filesystem::path host_path = node_.host_path();
+      map_ = memory::MappedMemory::Open(host_path, memory::MappedMemory::Mode::kRead);
       if (!map_) {
         return Err<std::span<const u8>>(
-            MakeError(Error::kIO, std::format("cannot map '{}'", path_to_utf8(node_.host_path()))));
+            MakeError(Error::kIO, std::format("cannot map '{}'", path_to_utf8(host_path))));
       }
     }
     return std::span<const u8>(map_->data(), map_->size());
@@ -128,6 +139,9 @@ Node* HostProvider::Resolve(std::string_view path) {
       current = static_cast<HostNode*>(child);
       continue;
     }
+    if (!IsHostName(part)) {
+      return nullptr;
+    }
     std::optional<HostInfo> info = HostStat(current->host_path() / to_path(part));
     if (!info) {
       std::vector<HostInfo> children = HostList(current->host_path());
@@ -152,6 +166,11 @@ HostNode::HostNode(HostProvider& provider, Node* parent, std::string path,
   }
 }
 
+std::filesystem::path HostNode::host_path() const {
+  std::lock_guard lock(provider().mutex());
+  return host_path_;
+}
+
 std::unique_ptr<HostNode> HostNode::Create(HostProvider& provider, HostNode& parent,
                                            const HostInfo& info) {
   auto node = std::make_unique<HostNode>(
@@ -174,11 +193,26 @@ std::unique_ptr<HostNode> HostNode::Create(HostProvider& provider, HostNode& par
 }
 
 void HostNode::Populate() {
+  std::vector<std::pair<u64, u64>> ancestors;
+  if (const std::optional<HostInfo> self = HostStat(host_path_)) {
+    ancestors.emplace_back(self->device, self->inode);
+  }
+  Populate(ancestors);
+}
+
+void HostNode::Populate(std::vector<std::pair<u64, u64>>& ancestors) {
   for (const HostInfo& info : HostList(host_path_)) {
     auto* child = static_cast<HostNode*>(AddChild(Create(host(), *this, info)));
-    if (info.directory) {
-      child->Populate();
+    if (!info.directory) {
+      continue;
     }
+    const std::pair<u64, u64> id{info.device, info.inode};
+    if (info.inode && std::ranges::find(ancestors, id) != ancestors.end()) {
+      continue;
+    }
+    ancestors.push_back(id);
+    child->Populate(ancestors);
+    ancestors.pop_back();
   }
 }
 
@@ -214,7 +248,7 @@ Result<void> HostNode::Truncate() {
 }
 
 void HostNode::Refresh() {
-  const std::optional<HostInfo> info = HostStat(host_path_);
+  const std::optional<HostInfo> info = HostStat(host_path());
   if (!info || info->directory) {
     return;
   }
@@ -252,6 +286,10 @@ Result<void> HostNode::SetTimes(const FileTimes& times) {
 
 Result<std::unique_ptr<Node>> HostNode::CreateChildImpl(std::string_view name,
                                                         FileAttributes attributes) {
+  if (!IsHostName(name)) {
+    return Err<std::unique_ptr<Node>>(
+        MakeError(Error::kInvalidPath, std::format("'{}' is not a valid host name", name)));
+  }
   const std::filesystem::path full_path = host_path_ / to_path(name);
   auto refuse = [&] {
     return Err<std::unique_ptr<Node>>(MakeError(
@@ -300,6 +338,10 @@ Result<void> HostNode::DeleteChildImpl(Node& child) {
 Result<void> HostNode::RenameImpl(std::span<const std::string_view> parts) {
   std::filesystem::path destination = host().entry().source;
   for (std::string_view part : parts) {
+    if (!IsHostName(part)) {
+      return Err(
+          MakeError(Error::kInvalidPath, std::format("'{}' is not a valid host name", part)));
+    }
     destination /= to_path(part);
   }
   std::error_code ec;

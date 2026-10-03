@@ -22,8 +22,6 @@
 #include <rex/chrono/clock.h>
 #include <rex/cvar.h>
 #include <rex/dbg.h>
-#include <rex/kernel/xboxkrnl/cert_monitor.h>
-#include <rex/kernel/xboxkrnl/debug_monitor.h>
 #include <rex/kernel/xboxkrnl/module.h>
 #include <rex/kernel/xboxkrnl/private.h>
 #include <rex/kernel/xboxkrnl/video.h>
@@ -52,40 +50,11 @@ X_HANDLE CreateXboxkrnlModule(Runtime& runtime) {
   // Register video variable exports (VdGlobalDevice, VdGpuClockInMHz, etc.)
   RegisterVideoExports(module, runtime);
 
-  // KeDebugMonitorData (?*)
-  // Set to a valid value when a remote debugger is attached.
-  // Offset 0x18 is a 4b pointer to a handler function that seems to take two
-  // arguments. If we wanted to see what would happen we could fake that.
-  uint32_t pKeDebugMonitorData;
-  if (!REXCVAR_GET(::rex::runtime::cvars::debug_monitor)) {
-    pKeDebugMonitorData = mem->SystemHeapAlloc(4);
-    auto lpKeDebugMonitorData = mem->TranslateVirtual(pKeDebugMonitorData);
-    memory::store_and_swap<uint32_t>(lpKeDebugMonitorData, 0);
-  } else {
-    pKeDebugMonitorData = mem->SystemHeapAlloc(4 + sizeof(X_KEDEBUGMONITORDATA));
-    memory::store_and_swap<uint32_t>(mem->TranslateVirtual(pKeDebugMonitorData),
-                                     pKeDebugMonitorData + 4);
-    auto lpKeDebugMonitorData =
-        mem->TranslateVirtual<X_KEDEBUGMONITORDATA*>(pKeDebugMonitorData + 4);
-    std::memset(lpKeDebugMonitorData, 0, sizeof(X_KEDEBUGMONITORDATA));
+  for (const u32 ordinal : {0x0059u, 0x0266u}) {
+    const u32 monitor_data = mem->SystemHeapAlloc(4);
+    memory::store_and_swap<u32>(mem->TranslateVirtual(monitor_data), 0);
+    KernelModuleSetVariable(module, ordinal, monitor_data);
   }
-  KernelModuleSetVariable(module, 0x0059, pKeDebugMonitorData);
-
-  // KeCertMonitorData (?*)
-  // Always set to zero, ignored.
-  uint32_t pKeCertMonitorData;
-  if (!REXCVAR_GET(::rex::runtime::cvars::cert_monitor)) {
-    pKeCertMonitorData = mem->SystemHeapAlloc(4);
-    auto lpKeCertMonitorData = mem->TranslateVirtual(pKeCertMonitorData);
-    memory::store_and_swap<uint32_t>(lpKeCertMonitorData, 0);
-  } else {
-    pKeCertMonitorData = mem->SystemHeapAlloc(4 + sizeof(X_KECERTMONITORDATA));
-    memory::store_and_swap<uint32_t>(mem->TranslateVirtual(pKeCertMonitorData),
-                                     pKeCertMonitorData + 4);
-    auto lpKeCertMonitorData = mem->TranslateVirtual<X_KECERTMONITORDATA*>(pKeCertMonitorData + 4);
-    std::memset(lpKeCertMonitorData, 0, sizeof(X_KECERTMONITORDATA));
-  }
-  KernelModuleSetVariable(module, 0x0266, pKeCertMonitorData);
 
   // XboxHardwareInfo (XboxHardwareInfo_t, 16b)
   // flags       cpu#  ?     ?     ?     ?           ?       ?

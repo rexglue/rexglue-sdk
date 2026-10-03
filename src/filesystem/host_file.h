@@ -35,6 +35,8 @@ struct HostInfo {
   u64 create_time = 0;        /**< Creation time in FILETIME ticks. */
   u64 access_time = 0;        /**< Last access time in FILETIME ticks. */
   u64 write_time = 0;         /**< Last write time in FILETIME ticks. */
+  u64 device = 0;             /**< Host device id, 0 where the host reports none. */
+  u64 inode = 0;              /**< Host file id on the device, 0 where the host reports none. */
 };
 
 /** An open host file read and written at explicit offsets. */

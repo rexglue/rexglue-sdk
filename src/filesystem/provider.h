@@ -17,6 +17,7 @@
 #include <mutex>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <rex/filesystem/info.h>
 #include <rex/filesystem/mount.h>
@@ -27,8 +28,11 @@
 
 namespace rex::filesystem {
 
-/** The backing of 1 mount. Owns the node tree and the mutex its changes take. */
-class Provider : public NonCopyable {
+/**
+ * The backing of 1 mount. Owns the node tree and the mutex its changes take. Open files and walks
+ * share ownership, so an unmount frees the tree at the last close.
+ */
+class Provider : public NonCopyable, public std::enable_shared_from_this<Provider> {
  public:
   virtual ~Provider();
 
@@ -47,7 +51,7 @@ class Provider : public NonCopyable {
   [[nodiscard]] const std::string& mount_path() const { return entry_.path; }
 
   /**
-   * Tests whether the mount refuses writes.
+   * Reports whether the mount refuses writes.
    *
    * @return True when kWritable is clear.
    */
@@ -82,6 +86,16 @@ class Provider : public NonCopyable {
    */
   [[nodiscard]] std::recursive_mutex& mutex() const { return mutex_; }
 
+  /**
+   * Keeps a node that left the tree while files are open on it.
+   *
+   * @param node The node, with open files.
+   */
+  void Detach(std::unique_ptr<Node> node);
+
+  /** Frees the detached nodes with no open file left. */
+  void ReleaseDetached();
+
  protected:
   /**
    * Stores the mount description.
@@ -95,6 +109,7 @@ class Provider : public NonCopyable {
  private:
   MountEntry entry_;
   mutable std::recursive_mutex mutex_;
+  std::vector<std::unique_ptr<Node>> detached_;
 };
 
 /**

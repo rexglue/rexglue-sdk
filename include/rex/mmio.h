@@ -113,6 +113,30 @@ REX_API u32 MMIOLoad(u32 address);
  */
 REX_API void MMIOStore(u32 address, u32 value);
 
+/**
+ * Loads 1 byte of a register for a guarded access, from the big endian lane the address names.
+ *
+ * @param address The guest address of the byte.
+ * @return The byte, or 0 when the address is outside both blocks.
+ */
+REX_API u8 MMIOLoad8(u32 address);
+
+/**
+ * Loads 2 bytes of a register for a guarded access, from the big endian half the address names.
+ *
+ * @param address The guest address of the halfword.
+ * @return The halfword, or 0 when the address is outside both blocks.
+ */
+REX_API u16 MMIOLoad16(u32 address);
+
+/**
+ * Ends the process with an error naming a store narrower than a register.
+ *
+ * @param address The guest address of the store.
+ * @param size The store size in bytes.
+ */
+[[noreturn]] REX_API void MMIONarrowWrite(u32 address, u32 size);
+
 }  // namespace detail
 
 }  // namespace rex

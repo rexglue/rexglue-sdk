@@ -93,6 +93,10 @@ struct RuntimeConfig {
  * function dispatcher.
  *
  * @param Type The audio backend type.
+ *
+ * @code
+ * runtime_config.audio_factory = REX_AUDIO_BACKEND(audio::sdl::SDLAudioSystem);
+ * @endcode
  */
 #define REX_AUDIO_BACKEND(Type)                                                                  \
   [](::rex::runtime::FunctionDispatcher* _fd) -> std::unique_ptr<::rex::runtime::IAudioSystem> { \

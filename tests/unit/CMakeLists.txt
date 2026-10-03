@@ -24,6 +24,8 @@ add_executable(unit_tests
     kernel/char_wait_test.cpp
     kernel/char_notify_test.cpp
     kernel/char_fp_state_test.cpp
+    kernel/char_tls_test.cpp
+    kernel/char_fiber_test.cpp
     core/app_test.cpp
     core/cli_arg_list_test.cpp
     core/cvar_test.cpp

@@ -68,7 +68,52 @@ std::vector<u8> MakePatchDescriptor(const XEXImage& base) {
   return desc;
 }
 
+u32 GetBE32(std::span<const u8> data, size_t offset) {
+  return (u32{data[offset]} << 24) | (u32{data[offset + 1]} << 16) | (u32{data[offset + 2]} << 8) |
+         u32{data[offset + 3]};
+}
+
+void MoveOptHeader(std::vector<u8>& file, u32 key, u32 value) {
+  const u32 count = GetBE32(file, 0x14);
+  for (u32 i = 0; i < count; ++i) {
+    const size_t entry = 0x18 + i * 8;
+    if (GetBE32(file, entry) == key) {
+      test::PutBE32(file, entry + 4, value);
+      return;
+    }
+  }
+  FAIL("optional header key not present");
+}
+
 }  // namespace
+
+TEST_CASE("XEX optional headers that end past the header are not returned", "[xex]") {
+  XEXSpec spec;
+  spec.image = TestImage(0x1000);
+  spec.alternate_title_ids = {0x11111111, 0x22222222};
+  auto file = BuildXEX(spec);
+  const u32 header_size = GetBE32(file, 0x8);
+
+  auto fixed = file;
+  MoveOptHeader(fixed, XEX_HEADER_EXECUTION_INFO, header_size - 4);
+  auto fixed_image = XEXImage::Parse(fixed);
+  REQUIRE(fixed_image);
+  CHECK_FALSE(fixed_image->OptHeader<xex2_opt_execution_info>(XEX_HEADER_EXECUTION_INFO));
+
+  auto variable = file;
+  MoveOptHeader(variable, XEX_HEADER_ALTERNATE_TITLE_IDS, header_size - 2);
+  auto variable_image = XEXImage::Parse(variable);
+  REQUIRE(variable_image);
+  CHECK_FALSE(variable_image->OptHeader<xex2_opt_generic_u32>(XEX_HEADER_ALTERNATE_TITLE_IDS));
+
+  auto long_length = file;
+  MoveOptHeader(long_length, XEX_HEADER_ALTERNATE_TITLE_IDS, header_size - 8);
+  test::PutBE32(long_length, header_size - 8, 0x100);
+  auto long_image = XEXImage::Parse(long_length);
+  REQUIRE(long_image);
+  CHECK_FALSE(long_image->OptHeader<xex2_opt_generic_u32>(XEX_HEADER_ALTERNATE_TITLE_IDS));
+  CHECK(long_image->alternate_title_ids().empty());
+}
 
 TEST_CASE("XEX header and optional headers parse", "[xex]") {
   XEXSpec spec;

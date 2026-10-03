@@ -81,37 +81,31 @@ struct NtSystemClock {
   }
 
   /**
-   * Converts a host time point to std::chrono::system_clock. Convert XSystemClock time with
-   * clock_cast to WinSystemClock first.
+   * Converts a host time point to system time in 100ns ticks, which holds every FILETIME. Convert
+   * XSystemClock time with clock_cast to WinSystemClock first.
    *
    * @param tp The host time point.
-   * @return The same instant on std::chrono::system_clock.
+   * @return The same instant as std::chrono::sys_time.
    */
-  static constexpr std::chrono::system_clock::time_point to_sys(const time_point& tp)
+  static constexpr std::chrono::sys_time<duration> to_sys(const time_point& tp)
     requires(domain_ == Domain::Host)
   {
-    using sys_duration = std::chrono::system_clock::duration;
-    using sys_time = std::chrono::system_clock::time_point;
-
-    auto dp = tp;
-    dp += unix_epoch_delta();
-    auto cdp = std::chrono::time_point_cast<sys_duration>(dp);
-    return sys_time{cdp.time_since_epoch()};
+    return std::chrono::sys_time<duration>{tp.time_since_epoch() + unix_epoch_delta()};
   }
 
   /**
-   * Converts a std::chrono::system_clock time point to host time.
+   * Converts system time to host time, truncated to 100ns ticks.
    *
-   * @param tp The system_clock time point.
+   * @tparam SysDuration The duration of the system time point.
+   * @param tp The system time point.
    * @return The same instant on this clock.
    */
-  static constexpr time_point from_sys(const std::chrono::system_clock::time_point& tp)
+  template <typename SysDuration>
+  static constexpr time_point from_sys(const std::chrono::sys_time<SysDuration>& tp)
     requires(domain_ == Domain::Host)
   {
     auto ctp = std::chrono::time_point_cast<duration>(tp);
-    auto dp = time_point{ctp.time_since_epoch()};
-    dp -= unix_epoch_delta();
-    return dp;
+    return time_point{ctp.time_since_epoch() - unix_epoch_delta()};
   }
 
   /**
@@ -128,7 +122,7 @@ struct NtSystemClock {
 
 }  // namespace detail
 
-/** Unscaled host FILETIME clock. It converts to and from std::chrono::system_clock. */
+/** Unscaled host FILETIME clock. It converts to and from std::chrono::sys_time. */
 using WinSystemClock = detail::NtSystemClock<detail::Domain::Host>;
 
 /** Scaled guest FILETIME clock. Convert it with clock_cast to WinSystemClock. */

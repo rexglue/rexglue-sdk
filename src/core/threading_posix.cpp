@@ -21,7 +21,10 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 #include <deque>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <type_traits>
+#include <utility>
+#include <vector>
 
 #include <pthread.h>
 #include <semaphore.h>
@@ -105,7 +108,7 @@ inline timespec DurationToTimeSpec(std::chrono::duration<_Rep, _Period> duration
 // This implementation uses the SIGRTMAX - SIGRTMIN to signal to a thread
 // gdb tip, for SIG = SIGRTMIN + SignalType : handle SIG nostop
 // lldb tip, for SIG = SIGRTMIN + SignalType : process handle SIG -s false
-enum class SignalType {
+enum class SignalType : u8 {
   kThreadSuspend,
   kThreadUserCallback,
 #if REX_PLATFORM_ANDROID
@@ -209,6 +212,13 @@ void Sleep(std::chrono::microseconds duration) {
   } while (ret == -1 && errno == EINTR);
 }
 
+std::chrono::milliseconds QueryCurrentThreadCPUTime() {
+  timespec now{};
+  clock_gettime(CLOCK_THREAD_CPUTIME_ID, &now);
+  return std::chrono::seconds(now.tv_sec) + std::chrono::duration_cast<std::chrono::milliseconds>(
+                                                std::chrono::nanoseconds(now.tv_nsec));
+}
+
 // TODO(bwrsandman) Implement by allowing alert interrupts from IO operations
 thread_local bool alertable_state_ = false;
 bool DispatchCurrentThreadUserCallback();
@@ -247,6 +257,7 @@ uintptr_t GetTLSValue(TLSHandle handle) {
 }
 
 bool SetTLSValue(TLSHandle handle, uintptr_t value) {
+  // NOLINTNEXTLINE(performance-no-int-to-ptr): the pthread API carries the value as a pointer
   return pthread_setspecific(static_cast<pthread_key_t>(handle), reinterpret_cast<void*>(value)) ==
          0;
 }
@@ -317,7 +328,7 @@ class PosixConditionBase {
     }
     if (executed) {
       post_execution();
-      return WaitResult::kSuccess;
+      return TakeAbandoned() ? WaitResult::kAbandoned : WaitResult::kSuccess;
     } else {
       return WaitResult::kTimeout;
     }
@@ -397,12 +408,23 @@ class PosixConditionBase {
       }
 
       if (condition_met) {
+        size_t first_abandoned = std::numeric_limits<size_t>::max();
         if (wait_all) {
           for (size_t i = 0; i < handles.size(); ++i) {
             handles[i]->post_execution();
+            if (handles[i]->TakeAbandoned() &&
+                first_abandoned == std::numeric_limits<size_t>::max()) {
+              first_abandoned = i;
+            }
           }
         } else {
           handles[first_signaled]->post_execution();
+          if (handles[first_signaled]->TakeAbandoned()) {
+            first_abandoned = first_signaled;
+          }
+        }
+        if (first_abandoned != std::numeric_limits<size_t>::max()) {
+          return std::make_pair(WaitResult::kAbandoned, first_abandoned);
         }
         return std::make_pair(WaitResult::kSuccess, first_signaled);
       }
@@ -431,6 +453,7 @@ class PosixConditionBase {
  protected:
   inline virtual bool signaled() const = 0;
   inline virtual void post_execution() = 0;
+  virtual bool TakeAbandoned() { return false; }
   std::condition_variable cond_;
   std::mutex mutex_;
 };
@@ -462,8 +485,8 @@ class PosixCondition<Event> : public PosixConditionBase {
   }
 
  private:
-  inline bool signaled() const override { return signal_; }
-  inline void post_execution() override {
+  bool signaled() const override { return signal_; }
+  void post_execution() override {
     if (!manual_reset_) {
       signal_ = false;
     }
@@ -494,8 +517,8 @@ class PosixCondition<Semaphore> : public PosixConditionBase {
   }
 
  private:
-  inline bool signaled() const override { return count_ > 0; }
-  inline void post_execution() override {
+  bool signaled() const override { return count_ > 0; }
+  void post_execution() override {
     count_--;
     cond_.notify_all();
   }
@@ -503,44 +526,101 @@ class PosixCondition<Semaphore> : public PosixConditionBase {
   const uint32_t maximum_count_;
 };
 
+namespace {
+void ArmMutantAbandonOnExit();
+}  // namespace
+
 template <>
 class PosixCondition<Mutant> : public PosixConditionBase {
  public:
-  explicit PosixCondition(bool initial_owner) : count_(0) {
+  explicit PosixCondition(bool initial_owner) {
     if (initial_owner) {
       count_ = 1;
-      owner_ = std::this_thread::get_id();
+      owner_ = pthread_self();
+      ArmMutantAbandonOnExit();
     }
+    auto& registry = Registry();
+    std::lock_guard<std::mutex> lock(registry.mutex);
+    registry.mutants.push_back(this);
+  }
+
+  ~PosixCondition() override {
+    auto& registry = Registry();
+    std::lock_guard<std::mutex> lock(registry.mutex);
+    std::erase(registry.mutants, this);
   }
 
   bool Signal() override { return Release(); }
 
   bool Release() {
-    if (owner_ == std::this_thread::get_id() && count_ > 0) {
-      auto lock = std::unique_lock<std::mutex>(mutex_);
-      --count_;
-      // Free to be acquired by another thread
-      if (count_ == 0) {
-        cond_.notify_all();
-      }
-      return true;
+    auto lock = std::unique_lock<std::mutex>(mutex_);
+    if (count_ == 0 || !pthread_equal(owner_, pthread_self())) {
+      return false;
     }
-    return false;
+    --count_;
+    if (count_ == 0) {
+      cond_.notify_all();
+    }
+    return true;
+  }
+
+  static void AbandonOwnedBy(pthread_t thread) {
+    auto& registry = Registry();
+    std::lock_guard<std::mutex> registry_lock(registry.mutex);
+    for (PosixCondition* mutant : registry.mutants) {
+      auto lock = std::unique_lock<std::mutex>(mutant->mutex_);
+      if (mutant->count_ == 0 || !pthread_equal(mutant->owner_, thread)) {
+        continue;
+      }
+      mutant->count_ = 0;
+      mutant->abandoned_ = true;
+      mutant->cond_.notify_all();
+    }
   }
 
   void* native_handle() const override { return const_cast<std::mutex&>(mutex_).native_handle(); }
 
  private:
-  inline bool signaled() const override {
-    return count_ == 0 || owner_ == std::this_thread::get_id();
+  struct MutantRegistry {
+    std::mutex mutex;
+    std::vector<PosixCondition*> mutants;
+  };
+
+  static MutantRegistry& Registry() {
+    static auto* registry = new MutantRegistry();
+    return *registry;
   }
-  inline void post_execution() override {
+
+  bool signaled() const override { return count_ == 0 || pthread_equal(owner_, pthread_self()); }
+  void post_execution() override {
     count_++;
-    owner_ = std::this_thread::get_id();
+    owner_ = pthread_self();
+    ArmMutantAbandonOnExit();
   }
-  uint32_t count_;
-  std::thread::id owner_;
+  bool TakeAbandoned() override { return std::exchange(abandoned_, false); }
+  uint32_t count_ = 0;
+  pthread_t owner_{};
+  bool abandoned_ = false;
 };
+
+namespace {
+
+struct MutantExitGuard {
+  bool armed = false;
+  ~MutantExitGuard() {
+    if (armed) {
+      PosixCondition<Mutant>::AbandonOwnedBy(pthread_self());
+    }
+  }
+};
+
+thread_local MutantExitGuard t_mutant_exit_guard;
+
+void ArmMutantAbandonOnExit() {
+  t_mutant_exit_guard.armed = true;
+}
+
+}  // namespace
 
 template <>
 class PosixCondition<Timer> : public PosixConditionBase {
@@ -612,9 +692,8 @@ class PosixCondition<Timer> : public PosixConditionBase {
     }
   }
 
- private:
-  inline bool signaled() const override { return signal_; }
-  inline void post_execution() override {
+  bool signaled() const override { return signal_; }
+  void post_execution() override {
     if (!manual_reset_) {
       signal_ = false;
     }
@@ -633,7 +712,7 @@ struct ThreadStartData {
 
 template <>
 class PosixCondition<Thread> : public PosixConditionBase {
-  enum class State {
+  enum class State : u8 {
     kUninitialized,
     kRunning,
     kSuspended,
@@ -771,7 +850,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
   uint32_t system_id() const { return static_cast<uint32_t>(thread_); }
 #endif
 
-  uint64_t affinity_mask() {
+  uint64_t affinity_mask() const {
     WaitStarted();
 #if defined(__APPLE__)
     // macOS doesn't expose Linux-style pthread affinity masks; report every
@@ -802,6 +881,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
 #endif
   }
 
+  // NOLINTNEXTLINE(readability-make-member-function-const): changes the scheduling of the thread
   void set_affinity_mask(uint64_t mask) {
     WaitStarted();
 #if defined(__APPLE__)
@@ -828,7 +908,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
 #endif
   }
 
-  int priority() {
+  int priority() const {
     WaitStarted();
     int policy;
     sched_param param{};
@@ -840,6 +920,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
     return param.sched_priority;
   }
 
+  // NOLINTNEXTLINE(readability-make-member-function-const): changes the scheduling of the thread
   void set_priority(int new_priority) {
     WaitStarted();
     sched_param param{};
@@ -946,17 +1027,21 @@ class PosixCondition<Thread> : public PosixConditionBase {
     }
     WaitStarted();
     bool is_current_thread = pthread_self() == thread_;
+    bool already_suspended = false;
     {
       std::unique_lock<std::mutex> lock(state_mutex_);
       if (out_previous_suspend_count) {
         *out_previous_suspend_count = suspend_count_;
       }
       state_ = State::kSuspended;
-      ++suspend_count_;
+      already_suspended = suspend_count_++ > 0;
     }
 
     if (is_current_thread) {
       WaitSuspended();
+      return true;
+    }
+    if (already_suspended) {
       return true;
     }
 
@@ -982,31 +1067,28 @@ class PosixCondition<Thread> : public PosixConditionBase {
       state_ = State::kFinished;
     }
 
-    {
-      std::lock_guard<std::mutex> lock(mutex_);
-
-      exit_code_ = exit_code;
-      signaled_ = true;
-      cond_.notify_all();
-    }
     if (is_current_thread) {
+      PosixCondition<Mutant>::AbandonOwnedBy(thread_);
+      SignalExit(exit_code, false);
+      // NOLINTNEXTLINE(performance-no-int-to-ptr): the pthread API carries the value as a pointer
       pthread_exit(reinterpret_cast<void*>(exit_code));
-    } else {
-#if REX_PLATFORM_ANDROID
-      if (pthread_kill(thread_, GetSystemSignal(SignalType::kThreadTerminate)) != 0) {
-        assert_always();
-      }
-#else
-      if constexpr (std::is_pointer_v<pthread_t>) {
-        detail::UnregisterThread(reinterpret_cast<uintptr_t>(thread_));
-      } else {
-        detail::UnregisterThread(static_cast<u64>(thread_));
-      }
-      if (pthread_cancel(thread_) != 0) {
-        assert_always();
-      }
-#endif
     }
+#if REX_PLATFORM_ANDROID
+    if (pthread_kill(thread_, GetSystemSignal(SignalType::kThreadTerminate)) != 0) {
+      assert_always();
+    }
+#else
+    if constexpr (std::is_pointer_v<pthread_t>) {
+      detail::UnregisterThread(reinterpret_cast<uintptr_t>(thread_));
+    } else {
+      detail::UnregisterThread(static_cast<u64>(thread_));
+    }
+    if (pthread_cancel(thread_) != 0) {
+      assert_always();
+    }
+#endif
+    pthread_join(thread_, nullptr);
+    SignalExit(exit_code, true);
   }
 
   void WaitStarted() const {
@@ -1022,13 +1104,21 @@ class PosixCondition<Thread> : public PosixConditionBase {
     } while (ret == -1 && errno == EINTR);
   }
 
+  // NOLINTNEXTLINE(performance-no-int-to-ptr): the pthread API carries the value as a pointer
   void* native_handle() const override { return reinterpret_cast<void*>(thread_); }
 
  private:
   static void* ThreadStartRoutine(void* parameter);
-  inline bool signaled() const override { return signaled_; }
-  inline void post_execution() override {
-    if (thread_) {
+  void SignalExit(int exit_code, bool joined) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    joined_ = joined;
+    exit_code_ = exit_code;
+    signaled_ = true;
+    cond_.notify_all();
+  }
+  bool signaled() const override { return signaled_; }
+  void post_execution() override {
+    if (thread_ && !std::exchange(joined_, true)) {
       pthread_join(thread_, nullptr);
     }
 #if defined(__APPLE__)
@@ -1042,6 +1132,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
   }
   pthread_t thread_;
   bool signaled_;
+  bool joined_ = false;
   int exit_code_;
   State state_;             // Protected by state_mutex_
   uint32_t suspend_count_;  // Protected by state_mutex_
@@ -1459,17 +1550,13 @@ void* PosixCondition<Thread>::ThreadStartRoutine(void* parameter) {
 
   start_routine();
 
+  PosixCondition<Mutant>::AbandonOwnedBy(pthread_self());
   {
     std::unique_lock<std::mutex> lock(thread->handle_.state_mutex_);
     thread->handle_.state_ = State::kFinished;
   }
 
-  {
-    std::unique_lock<std::mutex> lock(thread->handle_.mutex_);
-    thread->handle_.exit_code_ = 0;
-    thread->handle_.signaled_ = true;
-    thread->handle_.cond_.notify_all();
-  }
+  thread->handle_.SignalExit(0, false);
 
   current_thread_ = nullptr;
   current_thread_condition_ = nullptr;
@@ -1522,6 +1609,7 @@ void Thread::Exit(int exit_code) {
     current_thread_->Terminate(exit_code);
   } else {
     // Should only happen with the main thread
+    // NOLINTNEXTLINE(performance-no-int-to-ptr): the pthread API carries the value as a pointer
     pthread_exit(reinterpret_cast<void*>(exit_code));
   }
   // Function must not return

@@ -131,8 +131,9 @@ struct X_FIBER_CONTEXT {
   rex::be<uint32_t> stack_alloc_base;        // 0x04  KTHREAD.stack_alloc_base (0xD0)
   rex::be<uint32_t> stack_base;              // 0x08  KTHREAD.stack_base (0x5C), PCR.stack_base_ptr
   rex::be<uint32_t> stack_limit;             // 0x0C  KTHREAD.stack_limit (0x60), PCR.stack_end_ptr
-  uint8_t reserved_10[0x0C];                 // 0x10  padding
-  rex::be<uint32_t> lr_save;                 // 0x1C  saved LR (zeroed, unused by host)
+  rex::be<uint32_t> cr_save;                 // 0x10  saved CR
+  uint8_t reserved_14[0x08];                 // 0x14  padding
+  rex::be<uint32_t> lr_save;                 // 0x1C  saved LR
   uint8_t reserved_20[0x10];                 // 0x20  padding
   rex::be<uint64_t> sp_save;                 // 0x30  saved r1
   uint8_t register_save_area[0xA50 - 0x38];  // non-volatile PPCContext register save area
@@ -234,7 +235,7 @@ struct X_KTHREAD {
   rex::be<uint32_t> unk_14;          // 0x14
   X_KTIMER wait_timeout_timer;       // 0x18
   X_KWAIT_BLOCK wait_timeout_block;  // 0x40
-  uint8_t unk_58[0x4];               // 0x58
+  rex::be<uint32_t> kernel_time;     // 0x58
   rex::be<uint32_t> stack_base;      // 0x5C
   rex::be<uint32_t> stack_limit;     // 0x60
   rex::be<uint32_t> stack_kernel;    // 0x64
@@ -341,7 +342,7 @@ class ThreadRecord {
    * Builds a guest thread record. The host thread starts when the registry launches the record.
    *
    * @param runtime The runtime the thread belongs to.
-   * @param stack_size The guest stack size, raised to 16 KiB when smaller.
+   * @param stack_size The guest stack size, 0 for the process default.
    * @param xapi_thread_startup The startup trampoline, or 0 for a raw thread.
    * @param start_address The entry point.
    * @param start_context The entry point argument.
@@ -405,6 +406,9 @@ class ThreadRecord {
 
   /** Exits the calling thread when the title is terminating. Does not return then. */
   static void CheckTitleTermination();
+
+  /** Writes the CPU time of the calling thread to its KTHREAD. Does nothing without a record. */
+  static void NoteKernelTime();
 
   /**
    * Returns the last error of the calling thread.
@@ -678,15 +682,6 @@ class ThreadRecord {
    * @return X_STATUS_SUCCESS, or X_STATUS_UNSUCCESSFUL.
    */
   X_STATUS Suspend(u32* out_suspend_count = nullptr);
-#if REX_PLATFORM_LINUX || REX_PLATFORM_MAC
-
-  /**
-   * Increments the suspend count and blocks until another thread resumes the caller.
-   *
-   * @return The previous count.
-   */
-  u32 SelfSuspend();
-#endif
 
   /**
    * Sleeps the calling thread.
@@ -715,7 +710,6 @@ class ThreadRecord {
   PinCount pins;
 
  protected:
-  bool AllocateStack(u32 size);
   void FreeStack();
   void InitializeGuestObject();
 
@@ -729,10 +723,9 @@ class ThreadRecord {
   u32 scratch_size_ = 0;
   u32 tls_static_address_ = 0;
   u32 tls_dynamic_address_ = 0;
-  u32 tls_total_size_ = 0;
+  std::atomic<u32> tls_slot_count_{0};
   u32 pcr_address_ = 0;
   u32 stack_alloc_base_ = 0;
-  u32 stack_alloc_size_ = 0;
   u32 stack_base_ = 0;
   u32 stack_limit_ = 0;
   bool guest_thread_ = false;
@@ -765,6 +758,37 @@ class ThreadRecord {
   void SetGuestObject(u32 address) { guest_object_ptr_ = address; }
   void Execute();
   void ReleaseSelf();
+#if REX_PLATFORM_LINUX || REX_PLATFORM_MAC
+
+  /**
+   * Increments the suspend count and blocks until another thread resumes the caller.
+   *
+   * @return The previous count.
+   */
+  u32 SelfSuspend();
+#endif
+
+  /**
+   * Returns the guest address of the process block the thread belongs to.
+   *
+   * @return The address, 0 before the runtime has kernel globals.
+   */
+  u32 ProcessAddress() const;
+
+  /**
+   * Writes the exit state to the KTHREAD and unlinks it from its process.
+   *
+   * @param exit_code The exit status.
+   */
+  void WriteExitState(u32 exit_code);
+
+  /**
+   * Returns the processor of a single bit affinity mask.
+   *
+   * @param mask The mask, 1 bit below bit 6.
+   * @return The processor index.
+   */
+  static u8 ProcessorFromMask(u8 mask);
 
   Runtime* runtime_;
   ThreadRegistry* registry_ = nullptr;
@@ -773,6 +797,7 @@ class ThreadRecord {
   std::function<int()> host_fn_;
   std::unique_ptr<rex::platform::Event> exit_gate_;
   std::atomic<bool> released_{false};
+  std::atomic<bool> started_{false};
   bool exited_ = false;
   bool handles_closed_ = false;
 };

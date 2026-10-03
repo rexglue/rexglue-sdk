@@ -398,7 +398,7 @@ TEST_CASE_METHOD(Fixture, "Every SDK cvar name is scope.leaf in a charter scope"
   }
   REQUIRE(count >= 95);
   if (cfg.modules.size() > 2)
-    REQUIRE(count == 168);
+    REQUIRE(count == 173);
 }
 
 TEST_CASE_METHOD(Fixture, "rexruntime registers the module scopes at Connect",

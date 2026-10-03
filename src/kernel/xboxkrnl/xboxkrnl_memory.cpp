@@ -21,8 +21,11 @@
 #include <rex/hook.h>
 #include <rex/types.h>
 #include <rex/runtime.h>
+#include <rex/runtime/process.h>
+#include <rex/runtime/xthread.h>
 #include <rex/runtime/xtypes.h>
 #include "kernel/kernel_macros.h"
+#include "runtime/guest_stack.h"
 
 namespace rex::kernel::xboxkrnl {
 using namespace rex::runtime;
@@ -292,6 +295,9 @@ u32 NtFreeVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_size_p
     }
     result = heap->Decommit(base_addr_value, region_size_value);
   } else {
+    if (region_size_value != 0) {
+      return X_STATUS_INVALID_PARAMETER;
+    }
     result = heap->Release(base_addr_value, &region_size_value);
   }
   if (!result) {
@@ -544,7 +550,7 @@ u32 MmQueryStatistics_entry(ppc_ptr_t<X_MM_QUERY_STATISTICS_RESULT> stats_ptr) {
   auto* memory = runtime::Current().memory();
   const u32 title_pages = stats_ptr->total_physical_pages - stats_ptr->kernel_pages;
   const u32 budget = memory->budget_pages() ? memory->budget_pages() : title_pages;
-  const u32 used = memory->title_pages();
+  const u32 used = memory->budget_pages() ? memory->title_pages() : used_pages;
   stats_ptr->title.available_pages = budget > used ? budget - used : 0;
   stats_ptr->title.total_virtual_memory_bytes = 0x2FFE0000;
   stats_ptr->title.reserved_virtual_memory_bytes = reserved_pages_bytes;
@@ -661,29 +667,31 @@ u32 KeLockL2_entry() {
 void KeUnlockL2_entry() {}
 
 u32 MmCreateKernelStack_entry(u32 stack_size, u32 r4) {
-  assert_zero(r4);  // Unknown argument.
-
-  auto stack_size_aligned = (stack_size + 0xFFF) & 0xFFFFF000;
-  uint32_t stack_alignment = (stack_size & 0xF000) ? 0x1000 : 0x10000;
-
-  uint32_t stack_address;
-  runtime::Current()
-      .memory()
-      ->LookupHeap(0x70000000)
-      ->AllocRange(0x70000000, 0x7F000000, stack_size_aligned, stack_alignment,
-                   runtime::kMemoryAllocationReserve | runtime::kMemoryAllocationCommit,
-                   runtime::kMemoryProtectRead | runtime::kMemoryProtectWrite, false,
-                   &stack_address);
-  return stack_address + stack_size;
+  assert_zero(r4);
+  auto& runtime = runtime::Current();
+  const auto* process =
+      runtime.memory()->TranslateVirtual<const X_KPROCESS*>(runtime.GetTitleProcess());
+  const u32 size =
+      ResolveGuestStackSize(stack_size, process->kernel_stack_size, kMinimumThreadStackSize);
+  Result<GuestStack> stack = AllocateGuestStack(*runtime.memory(), size, 0, true);
+  return stack ? stack->base : 0;
 }
 
 u32 MmDeleteKernelStack_entry(mapped_void stack_base, mapped_void stack_end) {
-  // Release the stack (where stack_end is the low address)
-  if (runtime::Current().memory()->LookupHeap(0x70000000)->Release(stack_end.guest_address())) {
-    return X_STATUS_SUCCESS;
+  auto* memory = runtime::Current().memory();
+  const u32 base = stack_base.guest_address();
+  if (base <= ThreadRecord::kStackAddressRangeBegin || base > ThreadRecord::kStackAddressRangeEnd ||
+      stack_end.guest_address() >= base) {
+    return X_STATUS_INVALID_PARAMETER;
   }
-
-  return X_STATUS_UNSUCCESSFUL;
+  runtime::HeapAllocationInfo info{};
+  if (!memory->LookupHeap(base - 1)->QueryRegionInfo(base - 1, &info) || !info.state ||
+      info.allocation_base + info.allocation_size != base ||
+      stack_end.guest_address() < info.allocation_base + kGuestStackPageSize) {
+    return X_STATUS_INVALID_PARAMETER;
+  }
+  FreeGuestStack(*memory, info.allocation_base);
+  return X_STATUS_SUCCESS;
 }
 
 u32 ExAllocatePoolWithTag_entry(u32 numbytes, u32 tag, u32 zero) {

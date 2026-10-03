@@ -433,3 +433,43 @@ TEST_CASE("mutants: a Ke mutant abandoned by its owner is released by the next o
     CHECK(c.Kernel("KeReleaseMutant", {mutant, 0, 0, 0}) == 0);
   });
 }
+
+TEST_CASE("mutants: a Ke mutant abandoned by a release from its owner is free and reports it once",
+          "[char][mutants]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 mutant = c.Alloc(0x20);
+    c.Kernel("KeInitializeMutant", {mutant, 0});
+    CHECK(WaitObject(c, mutant, -10000000) == 0);
+    CHECK(WaitObject(c, mutant, -10000000) == 0);
+    CHECK(c.Kernel("KeReleaseMutant", {mutant, 0, 1, 0}) == 0xFFFFFFFF);
+    CHECK(c.Load32(mutant + 4) == 1);
+    CHECK(c.Load32(mutant + 0x18) == 0);
+    CHECK(c.Load8(mutant + 0x1C) == 1);
+    const u32 thread = c.Spawn([mutant](Caller& o) {
+      CHECK(WaitObject(o, mutant, -10000000) == X_STATUS_ABANDONED_WAIT_0);
+      CHECK(o.Load8(mutant + 0x1C) == 0);
+      CHECK(o.Kernel("KeReleaseMutant", {mutant, 0, 0, 0}) == 0);
+      CHECK(WaitObject(o, mutant, -10000000) == 0);
+      CHECK(o.Kernel("KeReleaseMutant", {mutant, 0, 0, 0}) == 0);
+    });
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.Quad(-50000000)}) == 0);
+    c.Kernel("NtClose", {thread});
+  });
+}
+
+TEST_CASE("mutants: a Ke mutant abandon by a thread that does not own it fails",
+          "[char][mutants]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 mutant = c.Alloc(0x20);
+    c.Kernel("KeInitializeMutant", {mutant, 1});
+    const u32 thread = c.Spawn([mutant](Caller& o) {
+      CHECK(o.Kernel("KeReleaseMutant", {mutant, 0, 1, 0}) == X_STATUS_MUTANT_NOT_OWNED);
+    });
+    CHECK(c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.Quad(-50000000)}) == 0);
+    c.Kernel("NtClose", {thread});
+    CHECK(c.Load32(mutant + 4) == 0);
+    CHECK(c.Kernel("KeReleaseMutant", {mutant, 0, 0, 0}) == 0);
+  });
+}

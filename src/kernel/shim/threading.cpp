@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cstring>
 #include <memory>
+#include <tuple>
 
 #include <rex/dbg.h>
 #include <rex/logging.h>
@@ -25,7 +26,9 @@
 #include <rex/runtime/xmemory.h>
 #include <rex/runtime/xthread.h>
 #include <rex/runtime/xtypes.h>
+#include <rex/runtime/process.h>
 #include <rex/platform/fiber.h>
+#include "runtime/guest_stack.h"
 
 namespace rex::kernel::shim {
 using namespace rex::runtime;
@@ -77,6 +80,7 @@ static void FiberEntryPoint(void* raw_arg) {
   auto* thread = ThreadRecord::GetCurrentThread();
   auto* mem = args->runtime->memory();
   PPCContext& ctx = *thread->thread_state()->context();
+  ctx.fpscr.setcsr(ctx.fpscr.csr);
 
   // Read fiber_data (lpParameter) from guest context buffer
   auto* fiber = mem->TranslateVirtual<X_FIBER_CONTEXT*>(args->guest_fiber_addr);
@@ -184,44 +188,27 @@ REX_SHIM_FN(CreateFiber, u32, u32 dwStackSize, u32 lpStartAddress, mapped_void l
   auto* thread = ThreadRecord::GetCurrentThread();
   Runtime& runtime = thread->runtime();
   auto* mem = runtime.memory();
+  auto [kthread, pcr, ctx, _mem] = GetGuestThreadPtrs(thread);
 
-  // Determine guest stack size
-  u32 guest_stack_size = dwStackSize;
-  if (guest_stack_size == 0)
-    guest_stack_size = 0x10000;                            // 64KB default
-  guest_stack_size = (guest_stack_size + 0xFFF) & ~0xFFF;  // page-align
-  if (guest_stack_size < 0x4000)
-    guest_stack_size = 0x4000;  // 16KB minimum
-
-  // Allocate guest kernel stack (for PPC stack variables via ctx.r1).
-  // guest_stack_size is already page-aligned.
-  u32 stack_alignment = (guest_stack_size & 0xF000) ? 0x1000 : 0x10000;
-  u32 stack_address = 0;
-  mem->LookupHeap(0x70000000)
-      ->AllocRange(0x70000000, 0x7F000000, guest_stack_size, stack_alignment,
-                   runtime::kMemoryAllocationReserve | runtime::kMemoryAllocationCommit,
-                   runtime::kMemoryProtectRead | runtime::kMemoryProtectWrite, false,
-                   &stack_address);
-  if (!stack_address) {
-    auto [kthread, pcr, ctx, _mem] = GetGuestThreadPtrs(thread);
+  const auto* process =
+      mem->TranslateVirtual<const X_KPROCESS*>(static_cast<u32>(kthread->process));
+  const u32 guest_stack_size =
+      ResolveGuestStackSize(dwStackSize, process->kernel_stack_size, kMinimumFiberStackSize);
+  Result<GuestStack> stack = AllocateGuestStack(*mem, guest_stack_size, 0, true);
+  if (!stack) {
     kthread->last_error = 8;  // ERROR_NOT_ENOUGH_MEMORY
     return 0;
   }
-  u32 stack_top = stack_address + guest_stack_size;
-  u32 stack_bottom = stack_address;
-  u32 initial_sp = stack_top - 0x50;
-
-  // Zero the initial 80-byte frame
+  const u32 stack_top = stack->base;
+  const u32 stack_bottom = stack->limit;
+  const u32 initial_sp = stack_top - 0x50;
   std::memset(mem->TranslateVirtual(initial_sp), 0, 0x50);
 
-  // Resolve start address to host function pointer
   PPCFunc* start_fn = runtime.function_dispatcher()->GetFunction(lpStartAddress);
 
-  // Allocate guest fiber context buffer
   u32 buf_addr = mem->SystemHeapAlloc(sizeof(X_FIBER_CONTEXT));
   if (!buf_addr) {
-    mem->LookupHeap(0x70000000)->Release(stack_address);
-    auto [kthread, pcr, ctx, _mem] = GetGuestThreadPtrs(thread);
+    FreeGuestStack(*mem, stack->alloc_base);
     kthread->last_error = 8;
     return 0;
   }
@@ -230,11 +217,10 @@ REX_SHIM_FN(CreateFiber, u32, u32 dwStackSize, u32 lpStartAddress, mapped_void l
 
   fiber->fiber_data = lpParameter.guest_address();
   fiber->stack_alloc_base = stack_top;
-  fiber->stack_base = stack_top;  // = alloc_base initially
+  fiber->stack_base = stack_top;
   fiber->stack_limit = stack_bottom;
   fiber->sp_save = initial_sp;
 
-  // Create host fiber
   size_t host_stack =
       std::max(static_cast<size_t>(guest_stack_size), static_cast<size_t>(256u * 1024u));
   auto args_owner = std::make_unique<FiberEntryArgs>(FiberEntryArgs{
@@ -244,12 +230,12 @@ REX_SHIM_FN(CreateFiber, u32, u32 dwStackSize, u32 lpStartAddress, mapped_void l
   });
   auto* host_fiber = rex::platform::Fiber::Create(host_stack, FiberEntryPoint, args_owner.get());
   if (host_fiber) {
-    args_owner.release();  // FiberEntryPoint takes ownership
+    std::ignore = args_owner.release();
   }
 
   runtime.thread_registry().RegisterFiber(
       buf_addr,
-      FiberInfo{host_fiber, unique_fiber_count++, buf_addr, stack_top, stack_bottom, false});
+      FiberInfo{host_fiber, unique_fiber_count++, buf_addr, stack_top, stack->alloc_base, false});
 
   REXLOG_DEBUG(kernel, "CreateFiber: fiber={:#010x} start={:#010x} stack={:#x} param={:#010x}",
                buf_addr, lpStartAddress, guest_stack_size, lpParameter.guest_address());
@@ -276,8 +262,8 @@ REX_SHIM_FN(DeleteFiber, void, mapped_void lpFiber) {
 
   auto info = runtime.thread_registry().LookupFiber(fiber_addr);
   if (info) {
-    if (!info->is_thread_fiber && info->guest_stack_bottom) {
-      mem->LookupHeap(0x70000000)->Release(info->guest_stack_bottom);
+    if (!info->is_thread_fiber) {
+      FreeGuestStack(*mem, info->guest_stack_bottom);
     }
     if (info->host_fiber) {
       info->host_fiber->Destroy();
@@ -307,6 +293,8 @@ REX_SHIM_FN(SwitchToFiber, void, mapped_void lpFiber) {
     auto* current_fiber = mem->TranslateVirtual<X_FIBER_CONTEXT*>(current_addr);
     ctx->SaveNonVolatiles(current_fiber->register_save_area);
     current_fiber->sp_save = ctx->r1.u64;
+    current_fiber->cr_save = ctx->cr();
+    current_fiber->lr_save = static_cast<u32>(ctx->lr);
   }
 
   // Set target as active
@@ -315,6 +303,8 @@ REX_SHIM_FN(SwitchToFiber, void, mapped_void lpFiber) {
   // Restore target's non-volatile registers and guest stack state
   auto* target_fiber = mem->TranslateVirtual<X_FIBER_CONTEXT*>(target_addr);
   ctx->RestoreNonVolatiles(target_fiber->register_save_area);
+  ctx->set_cr(target_fiber->cr_save);
+  ctx->lr = target_fiber->lr_save;
   UpdateGuestStackPointers(kthread, pcr, ctx, static_cast<u32>(target_fiber->sp_save),
                            static_cast<u32>(target_fiber->stack_alloc_base),
                            static_cast<u32>(target_fiber->stack_base),
@@ -330,7 +320,7 @@ REX_SHIM_FN(SwitchToFiber, void, mapped_void lpFiber) {
 
   // Host fiber switch -- suspends here, resumes when switched back
   rex::platform::Fiber::SwitchTo(target_info->host_fiber);
-  // Resumed: non-volatile regs and stack state already restored by the fiber that switched back.
+  ctx->fpscr.setcsr(ctx->fpscr.csr);
 }
 
 }  // namespace rex::kernel::shim

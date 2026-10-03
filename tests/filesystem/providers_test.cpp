@@ -136,6 +136,29 @@ TEST_CASE_METHOD(Fixture, "Host provider finds files created on the host after t
   CHECK(ReadText(*Open("\\Device\\Test\\MIXED.txt").file) == "mixed");
 }
 
+TEST_CASE_METHOD(Fixture, "Host provider refuses names that leave the mounted folder",
+                 "[filesystem][providers]") {
+  WriteHost(temp() / "outside.txt", "outside");
+  WriteHost(temp() / "mount" / "a.txt", "alpha");
+  REQUIRE(fs().Mount(
+      {std::string(kRoot), ProviderKind::kHostDirectory, temp() / "mount", MountFlags::kWritable}));
+
+  std::string escape(kRoot);
+  escape += '\\';
+  escape += temp().root_name().string();
+  for (const auto& part : temp().relative_path()) {
+    escape += '\\';
+    escape += part.string();
+  }
+  escape += "\\outside.txt";
+  CHECK_FALSE(fs().Stat(escape));
+
+  auto stream = fs().Open("\\Device\\Test\\a.txt:hidden",
+                          {.disposition = Disposition::kCreate, .access = Access::kGenericWrite});
+  CHECK_FALSE(stream);
+  CHECK_FALSE(std::filesystem::exists(temp() / "mount" / "a.txt:hidden"));
+}
+
 TEST_CASE_METHOD(Fixture, "Null provider answers only its paths", "[filesystem][providers]") {
   REQUIRE(fs().Mount({"\\Device\\Null",
                       ProviderKind::kNull,

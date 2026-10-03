@@ -48,6 +48,7 @@
 #include "runtime/object_table.h"
 #include "runtime/thread_registry.h"
 #include "runtime/thread_wait.h"
+#include "runtime/guest_stack.h"
 #include "runtime/xam/content_manager.h"
 
 namespace rex {
@@ -103,12 +104,17 @@ void Runtime::CreateConcerns() {
   SetProcessTLSVars(&globals->system_process, 32, 0, 0);
 
   InitializeProcess(&globals->title_process, X_PROCTYPE_USER, 0, 0, 0);
+  SetProcessTLSVars(&globals->title_process, 0, 0, 0);
 }
 
 void Runtime::DestroyConcerns() {
   app_manager_.reset();
   if (dispatcher_) {
     dispatcher_->Stop(config_.runtime.terminate_timeout);
+  }
+  if (thread_registry_ && !thread_registry_->JoinThreads(config_.runtime.terminate_timeout)) {
+    REXLOG_WARN(system, "Guest threads still running after {} ms",
+                config_.runtime.terminate_timeout.count());
   }
   if (module_registry_) {
     module_registry_->UnloadAll();
@@ -153,7 +159,7 @@ void Runtime::InitializeProcess(X_KPROCESS* process, u32 process_type, u8 unk_18
   process->quantum = 60;
   process->clrdataa_masked_ptr = 0;
   process->thread_count = 0;
-  process->kernel_stack_size = 16 * 1024;
+  process->kernel_stack_size = kDefaultGuestStackSize;
   process->tls_slot_size = 0x80;
   process->process_type = static_cast<u8>(process_type);
   runtime::util::XeInitializeListHead(&process->thread_list, memory_.get());
@@ -162,20 +168,13 @@ void Runtime::InitializeProcess(X_KPROCESS* process, u32 process_type, u8 unk_18
 
 void Runtime::SetProcessTLSVars(X_KPROCESS* process, u32 num_slots, u32 tls_data_size,
                                 u32 tls_raw_data_address) {
-  u32 slots_padded = (num_slots + 3) & ~u32(3);
-  process->tls_slot_size = static_cast<u16>(4 * slots_padded);
+  const u32 slot_count = ResolveTLSSlotCount(num_slots);
+  process->tls_slot_size = static_cast<u16>(4 * slot_count);
+  process->tls_data_size = tls_data_size;
   process->tls_static_data_address = tls_raw_data_address;
-
-  u32 bitmap_slots = slots_padded / 32;
-  for (u32 i = 0; i < 8; i++) {
-    if (i < bitmap_slots) {
-      process->tls_slot_bitmap[i] = 0xFFFFFFFF;
-    } else if (i == bitmap_slots) {
-      u32 remaining = slots_padded % 32;
-      process->tls_slot_bitmap[i] = remaining ? ~0u << (32 - remaining) : 0;
-    } else {
-      process->tls_slot_bitmap[i] = 0;
-    }
+  for (u32 i = 0; i < 8; ++i) {
+    const u32 bits = std::min(slot_count - std::min(slot_count, i * 32), 32u);
+    process->tls_slot_bitmap[i] = bits ? ~0u << (32 - bits) : 0u;
   }
 }
 
@@ -300,17 +299,12 @@ void Runtime::SetExecutableModule(X_HANDLE module_handle) {
   u32 default_stack_size = 0;
   UserModuleGetOptHeader(*module, XEX_HEADER_DEFAULT_STACK_SIZE, &default_stack_size);
   if (default_stack_size) {
-    default_stack_size = rex::round_up(default_stack_size, 4096u);
-    if (default_stack_size < 16 * 1024) {
-      default_stack_size = 16 * 1024;
-    }
-    pib->kernel_stack_size = default_stack_size;
+    pib->kernel_stack_size = ResolveGuestStackSize(default_stack_size, 0, kMinimumThreadStackSize);
   }
 
   xex2_opt_tls_info* tls_header = nullptr;
   UserModuleGetOptHeader(*module, XEX_HEADER_TLS_INFO, &tls_header);
   if (tls_header) {
-    pib->tls_data_size = tls_header->data_size;
     pib->tls_raw_data_size = tls_header->raw_data_size;
     SetProcessTLSVars(pib, tls_header->slot_count, tls_header->data_size,
                       tls_header->raw_data_address);

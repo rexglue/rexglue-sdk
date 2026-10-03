@@ -105,21 +105,21 @@
   do {                                                                               \
     u32 _mmio_addr = (addr);                                                         \
     if (rex::IsMMIOBlockAddress(_mmio_addr)) {                                       \
-      rex::detail::MMIOStore(_mmio_addr, static_cast<u32>(val));                     \
+      rex::detail::MMIONarrowWrite(_mmio_addr, 1);                                   \
     } else {                                                                         \
       *(volatile u8*)(base + _mmio_addr + REX_PHYS_HOST_OFFSET(_mmio_addr)) = (val); \
     }                                                                                \
   } while (0)
 
-#define REX_MM_STORE_U16(addr, val)                                         \
-  do {                                                                      \
-    u32 _mmio_addr = (addr);                                                \
-    if (rex::IsMMIOBlockAddress(_mmio_addr)) {                              \
-      rex::detail::MMIOStore(_mmio_addr, static_cast<u32>(val));            \
-    } else {                                                                \
+#define REX_MM_STORE_U16(addr, val)                                            \
+  do {                                                                         \
+    u32 _mmio_addr = (addr);                                                   \
+    if (rex::IsMMIOBlockAddress(_mmio_addr)) {                                 \
+      rex::detail::MMIONarrowWrite(_mmio_addr, 2);                             \
+    } else {                                                                   \
       *(volatile u16*)(base + _mmio_addr + REX_PHYS_HOST_OFFSET(_mmio_addr)) = \
-          __builtin_bswap16(val);                                           \
-    }                                                                       \
+          __builtin_bswap16(val);                                              \
+    }                                                                          \
   } while (0)
 
 #define REX_MM_STORE_U32(addr, val)                                         \
@@ -150,15 +150,15 @@
   ({                                                                             \
     u32 _mmio_addr = (addr);                                                     \
     rex::IsMMIOBlockAddress(_mmio_addr)                                          \
-        ? static_cast<u8>(rex::detail::MMIOLoad(_mmio_addr))                     \
+        ? rex::detail::MMIOLoad8(_mmio_addr)                                     \
         : *(volatile u8*)(base + _mmio_addr + REX_PHYS_HOST_OFFSET(_mmio_addr)); \
   })
 
-#define REX_MM_LOAD_U16(addr)                                                                     \
-  ({                                                                                              \
-    u32 _mmio_addr = (addr);                                                                      \
-    rex::IsMMIOBlockAddress(_mmio_addr)                                                           \
-        ? static_cast<u16>(rex::detail::MMIOLoad(_mmio_addr))                                     \
+#define REX_MM_LOAD_U16(addr)                                                                        \
+  ({                                                                                                 \
+    u32 _mmio_addr = (addr);                                                                         \
+    rex::IsMMIOBlockAddress(_mmio_addr)                                                              \
+        ? rex::detail::MMIOLoad16(_mmio_addr)                                                        \
         : __builtin_bswap16(*(volatile u16*)(base + _mmio_addr + REX_PHYS_HOST_OFFSET(_mmio_addr))); \
   })
 

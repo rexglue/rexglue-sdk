@@ -9,6 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
+#include <atomic>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -55,8 +56,10 @@ std::string DescribeForProbe(rex::u64 address) {
   return "probe describer " + std::to_string(address);
 }
 
+std::atomic<bool> g_fault_other_thread{false};
+
 std::string DescribeWhileAnotherThreadFaults(rex::u64) {
-  std::thread([] { WriteNull(); }).detach();
+  g_fault_other_thread = true;
   std::this_thread::sleep_for(std::chrono::milliseconds(300));
   return "probe concurrent describer";
 }
@@ -83,8 +86,9 @@ int Run(std::string_view mode) {
   } else if (mode == "seh") {
     rex::initialize_seh();
     bool caught = false;
+    void (*volatile write_null)() = WriteNull;
     SEH_TRY {
-      WriteNull();
+      write_null();
     }
     SEH_CATCH_ALL {
       caught = true;
@@ -113,6 +117,12 @@ int Run(std::string_view mode) {
     WriteNull();
   } else if (mode == "concurrent") {
     rex::platform::SetCrashAddressDescriber(DescribeWhileAnotherThreadFaults);
+    std::thread([] {
+      while (!g_fault_other_thread) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      }
+      WriteNull();
+    }).detach();
     WriteNull();
   }
   return 4;

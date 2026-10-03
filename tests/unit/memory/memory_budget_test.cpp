@@ -208,6 +208,30 @@ TEST_CASE("A failed alias pin returns the parent pages", "[memory][budget]") {
   REQUIRE(alias->Release(address));
 }
 
+TEST_CASE("A fixed physical allocation over a partly used range fails", "[memory][budget]") {
+  Memory& memory = GetTestMemory();
+  memory.SetBudget(0);
+  auto* alias = static_cast<PhysicalHeap*>(memory.LookupHeapByType(true, 0x1000));
+  BaseHeap* parent = memory.GetPhysicalHeap();
+  const u32 reserve = rex::runtime::kMemoryAllocationReserve;
+  u32 address = 0;
+  REQUIRE(alias->Alloc(0x2000, 0x1000, reserve, kRW, true, &address));
+  const u32 physical = alias->GetPhysicalAddress(address);
+  REQUIRE(alias->Release(address));
+  REQUIRE(parent->AllocFixed(physical, 0x1000, 0x1000, reserve, kRW));
+  const u32 before = memory.title_pages();
+
+  CHECK_FALSE(alias->AllocFixed(address, 0x2000, 0x1000, reserve, kRW));
+  HeapAllocationInfo info{};
+  REQUIRE(parent->QueryRegionInfo(physical + 0x1000, &info));
+  CHECK(info.state == 0);
+  REQUIRE(parent->QueryRegionInfo(physical, &info));
+  CHECK(info.region_size == 0x1000);
+  CHECK(memory.title_pages() == before);
+
+  REQUIRE(parent->Release(physical));
+}
+
 namespace {
 
 u32 CommitVirtual(Caller& c, u32 size, u32* out_status) {
@@ -282,6 +306,32 @@ TEST_CASE("MmQueryStatistics available pages track the title pages", "[memory][b
     FreeVirtual(c, address);
     CHECK(AvailablePages(c) == first);
   });
+}
+
+TEST_CASE("MmQueryStatistics without a cap reports the free physical pages",
+          "[memory][budget][kernel]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    Memory& memory = *c.runtime().memory();
+    memory.SetBudget(0);
+    const u32 first = AvailablePages(c);
+    const u32 address =
+        c.Kernel("MmAllocatePhysicalMemoryEx", {0, 0x10000, 0x04, 0, 0xFFFFFFFF, 0});
+    REQUIRE(address != 0);
+    CHECK(AvailablePages(c) == first - 16);
+    c.Kernel("MmFreePhysicalMemory", {0, address});
+    CHECK(AvailablePages(c) == first);
+    memory.SetBudget(480);
+  });
+}
+
+TEST_CASE("SetBudget saturates instead of wrapping", "[memory][budget]") {
+  KernelFixture fixture;
+  Memory& memory = *fixture.runtime().memory();
+  memory.SetBudget(0x01000000);
+  CHECK(memory.budget_pages() == UINT32_MAX);
+  memory.SetBudget(480);
+  CHECK(memory.budget_pages() == 480 * 256);
 }
 
 TEST_CASE("Loading an XEX keeps the other allocations in its heap", "[memory][budget][kernel]") {
@@ -443,4 +493,45 @@ TEST_CASE("Setup rejects a title memory budget above 512 MB", "[memory][budget][
   CHECK(budget_pages == 512 * 256);
   CHECK(SetupWithBudget(0, &budget_pages) == X_STATUS_SUCCESS);
   CHECK(budget_pages == 0);
+}
+
+TEST_CASE("A release of the free first page of a heap fails and changes nothing",
+          "[memory][budget][kernel]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    Memory& memory = *c.runtime().memory();
+    BaseHeap* heap = memory.LookupHeap(0x40000000);
+    REQUIRE(PageState(heap, 0x40000000) == 0);
+    const u32 unreserved = heap->GetUnreservedPageCount();
+    const u32 before = memory.title_pages();
+
+    const u32 base_ptr = c.Alloc(4);
+    const u32 size_ptr = c.Alloc(4);
+    c.Store32(base_ptr, 0x40000000);
+    CHECK(c.Kernel("NtFreeVirtualMemory", {base_ptr, size_ptr, 0x8000, 0}) != 0);
+    CHECK(PageState(heap, 0x40000000) == 0);
+    CHECK(heap->GetUnreservedPageCount() == unreserved);
+    CHECK(memory.title_pages() == before);
+  });
+}
+
+TEST_CASE("A release with a nonzero size fails and changes nothing", "[memory][budget][kernel]") {
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    Memory& memory = *c.runtime().memory();
+    BaseHeap* heap = VirtualHeap4K(memory);
+    u32 region = 0;
+    REQUIRE(heap->Alloc(0x3000, 4096, kTitle, kRW, false, &region));
+    const u32 before = memory.title_pages();
+
+    const u32 base_ptr = c.Alloc(4);
+    const u32 size_ptr = c.Alloc(4);
+    c.Store32(base_ptr, region);
+    c.Store32(size_ptr, 0x3000);
+    CHECK(c.Kernel("NtFreeVirtualMemory", {base_ptr, size_ptr, 0x8000, 0}) == 0xC000000D);
+    CHECK(PageState(heap, region) == kCommit);
+    CHECK(memory.title_pages() == before);
+
+    REQUIRE(heap->Release(region));
+  });
 }
