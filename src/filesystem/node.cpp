@@ -51,6 +51,10 @@ Result<void> NodeStream::SetLength(u64 length) {
   return Err(MakeError(Error::kUnsupported, "the provider has no size change"));
 }
 
+Result<void> NodeStream::Flush() {
+  return Ok();
+}
+
 Result<std::span<const u8>> NodeStream::View() {
   return Err<std::span<const u8>>(MakeError(Error::kUnsupported, "the provider has no view"));
 }
@@ -200,17 +204,71 @@ Result<void> Node::Delete() {
   return parent_->DeleteChild(*this);
 }
 
-Result<void> Node::Rename(std::string_view path) {
-  const std::string text(path);
-  std::vector<std::string_view> parts = utf8_split_path(text);
-  if (!parts.empty()) {
-    parts.erase(parts.begin());
-  }
-  REX_TRY_VOID(RenameImpl(parts));
+Result<void> Node::MoveTo(Node& new_parent, std::string_view name, bool replace_existing) {
   std::lock_guard lock(provider_->mutex());
-  path_ = utf8_join_guest_paths(parts);
-  absolute_path_ = utf8_join_guest_paths(provider_->mount_path(), path_);
-  name_ = std::string(utf8_find_name_from_guest_path(text));
+  if (read_only()) {
+    return Err(MakeError(Error::kAccessDenied,
+                         std::format("'{}' is on a read only mount", absolute_path_)));
+  }
+  if (!parent_) {
+    return Err(MakeError(Error::kAccessDenied,
+                         std::format("the root of '{}' cannot be moved", absolute_path_)));
+  }
+  for (const Node* node = &new_parent; node; node = node->parent_) {
+    if (node == this) {
+      return Err(MakeError(Error::kInvalidPath,
+                           std::format("'{}' cannot move below itself", absolute_path_)));
+    }
+  }
+  if (std::ranges::any_of(
+          children_, [](const std::unique_ptr<Node>& child) { return child->open_count_ != 0; })) {
+    return Err(MakeError(Error::kAccessDenied,
+                         std::format("'{}' has an open file below it", absolute_path_)));
+  }
+  Node* existing = provider_->Resolve(utf8_join_guest_paths(new_parent.path_, name));
+  if (existing == this) {
+    existing = nullptr;
+  }
+  if (existing) {
+    if (!replace_existing) {
+      return Err(MakeError(Error::kExists, std::format("'{}' exists", existing->absolute_path_)));
+    }
+    if (existing->is_directory() || existing->open_count_ != 0) {
+      return Err(MakeError(Error::kAccessDenied,
+                           std::format("'{}' cannot be replaced", existing->absolute_path_)));
+    }
+  }
+  REX_TRY_VOID(MoveImpl(new_parent, name, existing != nullptr));
+  if (existing) {
+    new_parent.DropChild(*existing);
+  }
+
+  auto& siblings = parent_->children_;
+  const auto it = std::ranges::find_if(
+      siblings, [&](const std::unique_ptr<Node>& entry) { return entry.get() == this; });
+  std::unique_ptr<Node> self = std::move(*it);
+  siblings.erase(it);
+  for (Node* node = parent_; node; node = node->parent_) {
+    node->open_count_ -= open_count_;
+  }
+  parent_ = &new_parent;
+  for (Node* node = parent_; node; node = node->parent_) {
+    node->open_count_ += open_count_;
+  }
+  new_parent.children_.push_back(std::move(self));
+  name_ = std::string(name);
+
+  std::vector<Node*> pending{this};
+  while (!pending.empty()) {
+    Node* node = pending.back();
+    pending.pop_back();
+    node->path_ = utf8_join_guest_paths(node->parent_->path_, node->name_);
+    node->absolute_path_ = utf8_join_guest_paths(provider_->mount_path(), node->path_);
+    node->OnMoved();
+    for (const std::unique_ptr<Node>& child : node->children_) {
+      pending.push_back(child.get());
+    }
+  }
   return Ok();
 }
 
@@ -247,9 +305,13 @@ Result<void> Node::DeleteChildImpl(Node& child) {
   return Err(MakeError(Error::kUnsupported, "the provider cannot delete"));
 }
 
-Result<void> Node::RenameImpl(std::span<const std::string_view> parts) {
-  (void)parts;
+Result<void> Node::MoveImpl(Node& new_parent, std::string_view name, bool replace_existing) {
+  (void)new_parent;
+  (void)name;
+  (void)replace_existing;
   return Err(MakeError(Error::kUnsupported, "the provider cannot rename"));
 }
+
+void Node::OnMoved() {}
 
 }  // namespace rex::filesystem

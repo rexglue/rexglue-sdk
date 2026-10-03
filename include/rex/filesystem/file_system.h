@@ -159,10 +159,24 @@ class IFileSystem {
    * Moves a file or directory inside its mount.
    *
    * @param from The guest path to move.
-   * @param to The new guest path, first component dropped as in IFile::Rename.
-   * @return kNotFound, or the provider error.
+   * @param to The new guest path, resolved through links and mounts.
+   * @param replace_existing True to replace a closed file at the new path.
+   * @return kNotFound, kExists, kNotSameDevice, kInvalidPath, kAccessDenied, or the provider error.
    */
-  [[nodiscard]] virtual Result<void> Rename(std::string_view from, std::string_view to) = 0;
+  [[nodiscard]] virtual Result<void> Rename(std::string_view from, std::string_view to,
+                                            bool replace_existing) = 0;
+
+  /**
+   * Moves an open file or directory inside its mount.
+   *
+   * @param file The open file to move.
+   * @param to The new path. A bare name with no root stays in the folder of the file.
+   * @param replace_existing True to replace a closed file at the new path.
+   * @param root An open directory the new path is relative to, or null.
+   * @return kNotFound, kExists, kNotSameDevice, kInvalidPath, kAccessDenied, or the provider error.
+   */
+  [[nodiscard]] virtual Result<void> Rename(IFile& file, std::string_view to, bool replace_existing,
+                                            IFile* root = nullptr) = 0;
 
   /**
    * Returns the volume information of the mount that owns a path.

@@ -28,6 +28,7 @@ using rex::filesystem::Disposition;
 using rex::filesystem::Error;
 using rex::filesystem::FileAttributes;
 using rex::filesystem::MountFlags;
+using rex::filesystem::OpenAction;
 using rex::filesystem::ProviderKind;
 using rex::filesystem::test::Fixture;
 using rex::filesystem::test::ReadText;
@@ -85,7 +86,7 @@ TEST_CASE_METHOD(Fixture, "Host provider reads, writes and changes files",
                  "[filesystem][providers]") {
   WriteHost(temp() / "a.txt", "alpha");
   WriteHost(temp() / "b.bin", "bravo");
-  MountTemp(kRoot, MountFlags::kWritable | MountFlags::kShareDelete);
+  MountTemp(kRoot, MountFlags::kWritable);
   REQUIRE(fs().Link("test:", kRoot));
 
   auto opened = Open("\\Device\\Test\\a.txt", {.access = Access::kGenericAll});
@@ -112,7 +113,7 @@ TEST_CASE_METHOD(Fixture, "Host provider reads, writes and changes files",
   CHECK(Names(*this, kRoot, "") == std::vector<std::string>{"a.txt", "b.bin"});
 
   auto renamed = Open("\\Device\\Test\\b.bin", {.access = Access::kGenericAll});
-  REQUIRE(renamed.file->Rename("test:\\c.bin"));
+  REQUIRE(fs().Rename(*renamed.file, "test:\\c.bin", false));
   CHECK(renamed.file->Info().name == "c.bin");
   renamed.file.reset();
   CHECK(std::filesystem::exists(temp() / "c.bin"));
@@ -134,6 +135,44 @@ TEST_CASE_METHOD(Fixture, "Host provider finds files created on the host after t
   REQUIRE(fs().Stat("\\Device\\Test\\mixed.TXT"));
   CHECK(ReadText(*Open("\\Device\\Test\\late.txt").file) == "late");
   CHECK(ReadText(*Open("\\Device\\Test\\MIXED.txt").file) == "mixed");
+}
+
+TEST_CASE_METHOD(Fixture, "Open if keeps a host file added after the mount",
+                 "[filesystem][providers]") {
+  WriteHost(temp() / "sub" / "seen.txt", "seen");
+  MountTemp(kRoot);
+  WriteHost(temp() / "sub" / "late.txt", "late bytes");
+  WriteHost(temp() / "root_late.txt", "root bytes");
+
+  auto opened = Open("\\Device\\Test\\sub\\late.txt",
+                     {.disposition = Disposition::kOpenIf, .access = Access::kGenericAll});
+  CHECK(opened.action == OpenAction::kOpened);
+  CHECK(ReadText(*opened.file) == "late bytes");
+  opened.file.reset();
+  auto at_root = Open("\\Device\\Test\\root_late.txt",
+                      {.disposition = Disposition::kOpenIf, .access = Access::kGenericAll});
+  CHECK(at_root.action == OpenAction::kOpened);
+  at_root.file.reset();
+
+  auto host = rex::platform::ReadWholeFile(temp() / "sub" / "late.txt");
+  REQUIRE(host);
+  CHECK(std::string(host->begin(), host->end()) == "late bytes");
+  auto root_host = rex::platform::ReadWholeFile(temp() / "root_late.txt");
+  REQUIRE(root_host);
+  CHECK(std::string(root_host->begin(), root_host->end()) == "root bytes");
+}
+
+TEST_CASE_METHOD(Fixture, "Create of a name that exists only on the host is kExists",
+                 "[filesystem][providers]") {
+  MountTemp(kRoot);
+  WriteHost(temp() / "late.txt", "late");
+  auto created = fs().Open("\\Device\\Test\\late.txt",
+                           {.disposition = Disposition::kCreate, .access = Access::kGenericWrite});
+  REQUIRE_FALSE(created);
+  CHECK(CodeOf(created.error()) == Error::kExists);
+  auto host = rex::platform::ReadWholeFile(temp() / "late.txt");
+  REQUIRE(host);
+  CHECK(std::string(host->begin(), host->end()) == "late");
 }
 
 TEST_CASE_METHOD(Fixture, "Host provider refuses names that leave the mounted folder",

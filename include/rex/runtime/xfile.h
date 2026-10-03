@@ -171,13 +171,26 @@ X_STATUS FileWrite(Runtime& runtime, FileObject& file, u32 buffer_guess_address,
 X_STATUS FileSetLength(FileObject& file, u64 length);
 
 /**
- * Renames the file.
+ * Sets the allocation size of the file, which truncates only a file that is longer.
  *
  * @param file The file.
- * @param path The new path.
+ * @param size The allocation size in bytes.
  * @return X_STATUS_SUCCESS, or the mapped filesystem error.
  */
-X_STATUS FileRename(FileObject& file, std::string_view path);
+X_STATUS FileSetAllocation(FileObject& file, u64 size);
+
+/**
+ * Moves the file inside its mount.
+ *
+ * @param file_system The file system that serves the file.
+ * @param file The file.
+ * @param path The new path.
+ * @param replace_existing True to replace a closed file at the new path.
+ * @param root The directory the new path is relative to, or null.
+ * @return X_STATUS_SUCCESS, or the mapped filesystem error.
+ */
+X_STATUS FileRename(filesystem::IFileSystem& file_system, FileObject& file, std::string_view path,
+                    bool replace_existing, FileObject* root);
 
 /**
  * Associates an IO completion port with the file. The file owns a duplicate of the port handle.

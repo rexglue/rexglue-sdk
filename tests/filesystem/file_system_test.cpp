@@ -258,7 +258,7 @@ TEST_CASE_METHOD(Fixture, "Stat, List, CreateDirectories, Rename and Remove",
   REQUIRE(fs().CreateDirectories("\\Device\\Test\\x\\y"));
   CHECK(std::filesystem::is_directory(temp() / "x" / "y"));
 
-  REQUIRE(fs().Rename("\\Device\\Test\\b.bin", "test:\\x\\moved.bin"));
+  REQUIRE(fs().Rename("\\Device\\Test\\b.bin", "\\Device\\Test\\x\\moved.bin", false));
   CHECK(std::filesystem::exists(temp() / "x" / "moved.bin"));
   CHECK_FALSE(std::filesystem::exists(temp() / "b.bin"));
 

@@ -1,7 +1,12 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <filesystem>
 #include <fstream>
+#include <string_view>
 
+#include <rex/api.h>
+#include <rex/filesystem.h>
+#include <rex/runtime/info/file.h>
 #include <rex/runtime/xtypes.h>
 
 #include "kernel_fixture.h"
@@ -13,7 +18,109 @@ using rex::testing::KernelFixture;
 
 namespace {
 constexpr u32 kInvalidHandle = X_STATUS_INVALID_HANDLE;
+constexpr u32 kReadWriteAccess = 0xC0100000;
+
+void MountScratch(KernelFixture& fixture) {
+  namespace fs = rex::filesystem;
+  auto* file_system = fixture.api().Get<fs::IFileSystem>();
+  REQUIRE(file_system);
+  REQUIRE(file_system->Mount({"\\Device\\Scratch", fs::ProviderKind::kHostDirectory,
+                              fixture.root() / "scratch", fs::MountFlags::kWritable}));
+  REQUIRE(file_system->Link("scratch:", "\\Device\\Scratch"));
+}
+
+void WriteScratch(const std::filesystem::path& root, const char* name, std::streamsize size) {
+  std::filesystem::create_directories(root / "scratch");
+  std::ofstream out(root / "scratch" / name, std::ios::binary);
+  const std::string bytes(static_cast<size_t>(size), 'x');
+  out.write(bytes.data(), size);
+}
 }  // namespace
+
+TEST_CASE("files: an allocation size only truncates below the end of file", "[char][files]") {
+  KernelFixture fixture([](const std::filesystem::path& root) { WriteScratch(root, "a.bin", 16); });
+  MountScratch(fixture);
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle_ptr = c.Alloc(4);
+    const u32 status_block = c.Alloc(8);
+    REQUIRE(c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes("scratch:\\a.bin"),
+                                      status_block, 0, 0, 3, 1, 0x20}) == 0);
+    const u32 handle = c.Load32(handle_ptr);
+    const u32 info = c.Alloc(8);
+    c.Store64(info, 4096);
+    CHECK(c.Kernel("NtSetInformationFile",
+                   {handle, status_block, info, 8, rex::runtime::XFileAllocationInformation}) == 0);
+    c.Store64(info, 8);
+    CHECK(c.Kernel("NtSetInformationFile",
+                   {handle, status_block, info, 8, rex::runtime::XFileAllocationInformation}) == 0);
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
+  });
+  CHECK(std::filesystem::file_size(fixture.root() / "scratch" / "a.bin") == 8);
+}
+
+TEST_CASE("files: a flush reaches the file and fails on a bad handle", "[char][files]") {
+  KernelFixture fixture([](const std::filesystem::path& root) { WriteScratch(root, "f.bin", 16); });
+  MountScratch(fixture);
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle_ptr = c.Alloc(4);
+    const u32 status_block = c.Alloc(8);
+    REQUIRE(c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes("scratch:\\f.bin"),
+                                      status_block, 0, 0, 3, 1, 0x20}) == 0);
+    const u32 handle = c.Load32(handle_ptr);
+    CHECK(c.Kernel("NtFlushBuffersFile", {handle, status_block}) == 0);
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
+    CHECK(c.Kernel("NtFlushBuffersFile", {handle, status_block}) == kInvalidHandle);
+  });
+}
+
+TEST_CASE("files: a rename onto a file needs replace existing", "[char][files]") {
+  KernelFixture fixture([](const std::filesystem::path& root) {
+    WriteScratch(root, "r1.bin", 16);
+    WriteScratch(root, "r2.bin", 4);
+  });
+  MountScratch(fixture);
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle_ptr = c.Alloc(4);
+    const u32 status_block = c.Alloc(8);
+    REQUIRE(
+        c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes("scratch:\\r1.bin"),
+                                  status_block, 0, 0, 3, 1, 0x20}) == 0);
+    const u32 handle = c.Load32(handle_ptr);
+    constexpr std::string_view kTarget = "scratch:\\r2.bin";
+    const u32 info = c.Alloc(16);
+    c.Store32(info, 0);
+    c.Store32(info + 4, 0);
+    c.Store32(info + 8, static_cast<u32>(kTarget.size() << 16 | kTarget.size()));
+    c.Store32(info + 12, c.String(kTarget));
+    CHECK(c.Kernel("NtSetInformationFile",
+                   {handle, status_block, info, 16, rex::runtime::XFileRenameInformation}) ==
+          X_STATUS_OBJECT_NAME_COLLISION);
+    c.Store32(info, 1);
+    CHECK(c.Kernel("NtSetInformationFile",
+                   {handle, status_block, info, 16, rex::runtime::XFileRenameInformation}) == 0);
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
+  });
+  CHECK_FALSE(std::filesystem::exists(fixture.root() / "scratch" / "r1.bin"));
+  CHECK(std::filesystem::file_size(fixture.root() / "scratch" / "r2.bin") == 16);
+}
+
+TEST_CASE("files: an allocation size above the end of file keeps the size", "[char][files]") {
+  KernelFixture fixture([](const std::filesystem::path& root) { WriteScratch(root, "b.bin", 16); });
+  MountScratch(fixture);
+  fixture.RunOnGuestThread([](Caller& c) {
+    const u32 handle_ptr = c.Alloc(4);
+    const u32 status_block = c.Alloc(8);
+    REQUIRE(c.Kernel("NtCreateFile", {handle_ptr, kReadWriteAccess, c.Attributes("scratch:\\b.bin"),
+                                      status_block, 0, 0, 3, 1, 0x20}) == 0);
+    const u32 handle = c.Load32(handle_ptr);
+    const u32 info = c.Alloc(8);
+    c.Store64(info, 4096);
+    CHECK(c.Kernel("NtSetInformationFile",
+                   {handle, status_block, info, 8, rex::runtime::XFileAllocationInformation}) == 0);
+    CHECK(c.Kernel("NtClose", {handle}) == 0);
+  });
+  CHECK(std::filesystem::file_size(fixture.root() / "scratch" / "b.bin") == 16);
+}
 
 TEST_CASE("files: create read write seek and query", "[char][files]") {
   KernelFixture fixture([](const std::filesystem::path& root) {

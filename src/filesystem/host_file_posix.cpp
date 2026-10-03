@@ -14,6 +14,7 @@
 #include "filesystem/host_file.h"
 
 #include <cerrno>
+#include <cstdio>
 #include <cstring>
 #include <format>
 
@@ -107,7 +108,7 @@ int MoveNoReplace(const std::filesystem::path& from, const std::filesystem::path
 
 }  // namespace
 
-HostFile::HostFile(std::filesystem::path path, std::intptr_t native)
+HostFile::HostFile(Key /*key*/, std::filesystem::path path, std::intptr_t native)
     : path_(std::move(path)), native_(native) {}
 
 HostFile::~HostFile() {
@@ -115,8 +116,7 @@ HostFile::~HostFile() {
 }
 
 Result<std::unique_ptr<HostFile>> HostFile::OpenExisting(const std::filesystem::path& path,
-                                                         Access access, bool share_delete) {
-  (void)share_delete;
+                                                         Access access) {
   constexpr Access kReadRights = Access::kGenericRead | Access::kGenericAll | Access::kReadData;
   constexpr Access kWriteRights =
       Access::kGenericWrite | Access::kGenericAll | Access::kWriteData | Access::kAppendData;
@@ -130,11 +130,20 @@ Result<std::unique_ptr<HostFile>> HostFile::OpenExisting(const std::filesystem::
   }
   const int handle = open(path.c_str(), mode);
   if (handle == -1) {
+    const int error = errno;
+    Error code = Error::kIO;
+    if (error == ENOENT || error == ENOTDIR) {
+      code = Error::kNotFound;
+    } else if (error == EACCES || error == EPERM || error == EROFS) {
+      code = Error::kAccessDenied;
+    } else if (error == ETXTBSY) {
+      code = Error::kSharingViolation;
+    }
     return Err<std::unique_ptr<HostFile>>(MakeError(
-        Error::kNotFound,
-        std::format("cannot open host file '{}', {}", path_to_utf8(path), std::strerror(errno))));
+        code,
+        std::format("cannot open host file '{}', {}", path_to_utf8(path), std::strerror(error))));
   }
-  return std::unique_ptr<HostFile>(new HostFile(path, handle));
+  return std::make_unique<HostFile>(Key{}, path, handle);
 }
 
 Result<size_t> HostFile::Read(u64 offset, std::span<u8> buffer) {

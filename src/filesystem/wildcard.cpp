@@ -1,6 +1,6 @@
 /**
  * @file        filesystem/wildcard.cpp
- * @brief       Case insensitive Xbox wildcard matching of directory entry names
+ * @brief       Case insensitive wildcard matching of directory entry names
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -13,68 +13,67 @@
 
 #include "filesystem/wildcard.h"
 
+#include <algorithm>
+#include <vector>
+
 #include <rex/string.h>
 
 namespace rex::filesystem {
 
-WildcardMatcher::WildcardMatcher(std::string_view pattern) {
-  bool from_start = true;
-  size_t last = 0;
-  size_t n = 0;
-  while ((n = pattern.find_first_of("*?", last)) != std::string_view::npos) {
-    if (last != n) {
-      rules_.push_back(
-          {utf8_lower_ascii(pattern.substr(last, n - last)), from_start, false, false});
-    }
-    if (pattern[n] == '?') {
-      const size_t end = pattern.find_first_not_of('?', n + 1);
-      const size_t count = end == std::string_view::npos ? pattern.size() - n : end - n;
-      rules_.push_back({std::string(pattern.substr(n, count)), false, false, true});
-      last = n + count;
-    } else {
-      last = n + 1;
-    }
-    from_start = false;
-  }
-  if (last != pattern.size()) {
-    rules_.push_back({utf8_lower_ascii(pattern.substr(last)), last == 0, true, false});
-  }
-}
-
-bool WildcardMatcher::Check(const Rule& rule, std::string_view lower, size_t* offset) {
-  if (rule.text.empty()) {
-    return true;
-  }
-  if (lower.size() - *offset < rule.text.size()) {
-    return false;
-  }
-  if (rule.exact_length) {
-    *offset += rule.text.size();
-    return true;
-  }
-  const size_t found = lower.find(rule.text, *offset);
-  if (found == std::string_view::npos) {
-    return false;
-  }
-  if (rule.from_start && found != *offset) {
-    return false;
-  }
-  if (rule.to_end && found != lower.size() - rule.text.size()) {
-    return false;
-  }
-  *offset = found + rule.text.size();
-  return true;
-}
+WildcardMatcher::WildcardMatcher(std::string_view pattern)
+    : pattern_(pattern == "*.*" ? std::string("*") : utf8_lower_ascii(pattern)) {}
 
 bool WildcardMatcher::Match(std::string_view name) const {
-  const std::string lower = utf8_lower_ascii(name);
-  size_t offset = 0;
-  for (const Rule& rule : rules_) {
-    if (!Check(rule, lower, &offset)) {
-      return false;
-    }
+  if (pattern_.empty()) {
+    return true;
   }
-  return true;
+  const std::string lower = utf8_lower_ascii(name);
+  const size_t last_dot = lower.rfind('.');
+  const size_t count = pattern_.size();
+  std::vector<bool> active(count + 1);
+  std::vector<bool> next(count + 1);
+  active[0] = true;
+  for (size_t n = 0;; ++n) {
+    const bool at_end = n == lower.size();
+    const char c = at_end ? '\0' : lower[n];
+    for (size_t p = 0; p < count; ++p) {
+      const char token = pattern_[p];
+      if (active[p] && (token == '*' || token == '<' || (token == '>' && (at_end || c == '.')) ||
+                        (token == '"' && at_end))) {
+        active[p + 1] = true;
+      }
+    }
+    if (at_end) {
+      return active[count];
+    }
+    std::ranges::fill(next, false);
+    for (size_t p = 0; p < count; ++p) {
+      if (!active[p]) {
+        continue;
+      }
+      switch (pattern_[p]) {
+        case '*':
+          next[p] = true;
+          break;
+        case '<':
+          next[p] = next[p] || c != '.' || n != last_dot;
+          break;
+        case '?':
+          next[p + 1] = true;
+          break;
+        case '>':
+          next[p + 1] = next[p + 1] || c != '.';
+          break;
+        case '"':
+          next[p + 1] = next[p + 1] || c == '.';
+          break;
+        default:
+          next[p + 1] = next[p + 1] || pattern_[p] == c;
+          break;
+      }
+    }
+    std::swap(active, next);
+  }
 }
 
 }  // namespace rex::filesystem

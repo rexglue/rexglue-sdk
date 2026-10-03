@@ -41,17 +41,28 @@ struct HostInfo {
 
 /** An open host file read and written at explicit offsets. */
 class HostFile : public NonCopyable {
+  struct Key {};
+
  public:
   /**
-   * Opens a file that exists.
+   * Opens a file that exists. The file stays free to be moved or deleted while open.
    *
    * @param path The host file.
    * @param access The requested access bits.
-   * @param share_delete True when the file may be deleted or replaced while open.
-   * @return The handle, or kNotFound when the host refuses.
+   * @return The handle, kNotFound when the file is missing, kSharingViolation when another handle
+   *         refuses sharing, kAccessDenied when the host refuses access, or kIO.
    */
   [[nodiscard]] static Result<std::unique_ptr<HostFile>> OpenExisting(
-      const std::filesystem::path& path, Access access, bool share_delete);
+      const std::filesystem::path& path, Access access);
+
+  /**
+   * Wraps an open host handle. Only OpenExisting can make the key.
+   *
+   * @param key The private construction key.
+   * @param path The host file.
+   * @param native The open host handle, closed by the destructor.
+   */
+  HostFile(Key key, std::filesystem::path path, std::intptr_t native);
 
   ~HostFile();
 
@@ -88,15 +99,36 @@ class HostFile : public NonCopyable {
    */
   [[nodiscard]] Result<void> SetLength(u64 length);
 
-  /** Writes pending host buffers to the device. */
-  void Flush() const;
+  /**
+   * Writes pending host buffers to the device.
+   *
+   * @return kIO when the host refuses.
+   */
+  [[nodiscard]] Result<void> Flush() const;
 
  private:
-  HostFile(std::filesystem::path path, std::intptr_t native);
-
   std::filesystem::path path_;
   std::intptr_t native_;
 };
+
+/**
+ * Creates an empty host file that does not exist yet.
+ *
+ * @param path The host file.
+ * @return kExists when the path exists, kAccessDenied when the host refuses, or kIO.
+ */
+[[nodiscard]] Result<void> HostCreateNew(const std::filesystem::path& path);
+
+/**
+ * Moves a host file or folder.
+ *
+ * @param from The host path to move.
+ * @param to The new host path.
+ * @param replace_existing True to replace a file at the new path.
+ * @return kExists when the new path exists and replace_existing is false, kAccessDenied, or kIO.
+ */
+[[nodiscard]] Result<void> HostMove(const std::filesystem::path& from,
+                                    const std::filesystem::path& to, bool replace_existing);
 
 /**
  * Returns the host view of a path.

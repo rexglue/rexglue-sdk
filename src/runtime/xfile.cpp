@@ -286,9 +286,21 @@ X_STATUS FileSetLength(FileObject& file, u64 length) {
   return status ? X_STATUS_SUCCESS : ToXStatus(status.error(), X_STATUS_NOT_IMPLEMENTED);
 }
 
-X_STATUS FileRename(FileObject& file, std::string_view path) {
+X_STATUS FileSetAllocation(FileObject& file, u64 size) {
   std::lock_guard<std::mutex> lock(file.file_lock);
-  auto status = file.file->Rename(path);
+  file.file->Refresh();
+  if (size >= file.file->Info().size) {
+    return X_STATUS_SUCCESS;
+  }
+  auto status = file.file->SetLength(size);
+  return status ? X_STATUS_SUCCESS : ToXStatus(status.error(), X_STATUS_NOT_IMPLEMENTED);
+}
+
+X_STATUS FileRename(filesystem::IFileSystem& file_system, FileObject& file, std::string_view path,
+                    bool replace_existing, FileObject* root) {
+  std::lock_guard<std::mutex> lock(file.file_lock);
+  auto status =
+      file_system.Rename(*file.file, path, replace_existing, root ? root->file.get() : nullptr);
   return status ? X_STATUS_SUCCESS : ToXStatus(status.error(), X_STATUS_NOT_SUPPORTED);
 }
 

@@ -131,7 +131,7 @@ Result<Node*> FileSystem::CreatePath(Node* root, std::string_view path, FileAttr
 }
 
 Result<Opened> FileSystem::OpenFrom(Node* root, std::string_view requested,
-                                    const OpenOptions& options) {
+                                    const OpenOptions& options, bool retried) {
   std::lock_guard lock(mutex_);
   const std::string canonical = utf8_canonicalize_guest_path(requested);
   const std::string_view path = canonical;
@@ -144,20 +144,20 @@ Result<Opened> FileSystem::OpenFrom(Node* root, std::string_view requested,
   Node* parent = nullptr;
   Node* node = nullptr;
   const std::string base = utf8_find_base_guest_path(path);
-  if (!base.empty()) {
-    if (root) {
-      parent = root->ResolvePath(base);
-    } else {
-      REX_TRY(parent, ResolveNode(base));
-    }
+  if (root) {
+    Provider& provider = root->provider();
+    parent = base.empty() ? root : provider.Resolve(utf8_join_guest_paths(root->path(), base));
     if (!parent) {
       return not_found();
     }
-    node = parent->GetChild(utf8_find_name_from_guest_path(path));
-  } else if (root) {
-    node = root->GetChild(path);
-  } else if (auto resolved = ResolveNode(path)) {
-    node = *resolved;
+    node = provider.Resolve(utf8_join_guest_paths(root->path(), path));
+  } else {
+    if (!base.empty()) {
+      REX_TRY(parent, ResolveNode(base));
+    }
+    if (auto resolved = ResolveNode(path)) {
+      node = *resolved;
+    }
   }
 
   if (node) {
@@ -230,7 +230,12 @@ Result<Opened> FileSystem::OpenFrom(Node* root, std::string_view requested,
         options.create_directory ? FileAttributes::kDirectory : FileAttributes::kNormal;
     auto created = CreatePath(root, path, attributes);
     if (!created) {
-      return Err<Opened>(MakeError(Error::kAccessDenied, created.error().message));
+      const bool exists = CodeOf(created.error()) == Error::kExists;
+      if (exists && options.disposition != Disposition::kCreate && !retried) {
+        return OpenFrom(root, requested, options, true);
+      }
+      return Err<Opened>(
+          MakeError(exists ? Error::kExists : Error::kAccessDenied, created.error().message));
     }
     node = *created;
   }
@@ -398,11 +403,50 @@ Result<void> FileSystem::Remove(std::string_view path) {
   return node->Delete();
 }
 
-Result<void> FileSystem::Rename(std::string_view from, std::string_view to) {
+Result<void> FileSystem::Rename(std::string_view from, std::string_view to, bool replace_existing) {
   std::lock_guard lock(mutex_);
   const auto mount_lock = LockMount(from);
   REX_TRY(Node * node, ResolveNode(from));
-  return node->Rename(to);
+  return Move(*node, to, replace_existing, nullptr);
+}
+
+Result<void> FileSystem::Rename(IFile& file, std::string_view to, bool replace_existing,
+                                IFile* root) {
+  std::lock_guard lock(mutex_);
+  Node& node = static_cast<NodeFile&>(file).node();
+  const std::unique_lock mount_lock(node.provider().mutex());
+  return Move(node, to, replace_existing, root ? &static_cast<NodeFile*>(root)->node() : nullptr);
+}
+
+Result<void> FileSystem::Move(Node& node, std::string_view to, bool replace_existing, Node* root) {
+  const std::string target = utf8_canonicalize_guest_path(to);
+  const std::string base = utf8_find_base_guest_path(target);
+  const std::string name(utf8_find_name_from_guest_path(target));
+  Node* parent = nullptr;
+  if (root) {
+    parent =
+        base.empty() ? root : root->provider().Resolve(utf8_join_guest_paths(root->path(), base));
+  } else if (base.empty()) {
+    parent = node.parent();
+  } else {
+    REX_TRY(Resolved resolved, ResolveMount(base));
+    if (resolved.provider != &node.provider()) {
+      return Err(MakeError(Error::kNotSameDevice, std::format("'{}' is not on the mount of '{}'",
+                                                              to, node.absolute_path())));
+    }
+    parent = resolved.provider->Resolve(resolved.relative);
+  }
+  if (root && &root->provider() != &node.provider()) {
+    return Err(MakeError(Error::kNotSameDevice, std::format("'{}' is not on the mount of '{}'", to,
+                                                            node.absolute_path())));
+  }
+  if (!parent || !parent->is_directory()) {
+    return Err(MakeError(Error::kNotFound, std::format("the folder of '{}' does not exist", to)));
+  }
+  if (name.empty()) {
+    return Err(MakeError(Error::kInvalidPath, std::format("'{}' has no name", to)));
+  }
+  return node.MoveTo(*parent, name, replace_existing);
 }
 
 Result<VolumeInfo> FileSystem::Volume(std::string_view path) {

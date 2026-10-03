@@ -21,19 +21,21 @@ namespace rex::filesystem {
 
 /** Filesystem error codes, stored in rex::Error::code. */
 enum class Error : i32 {
-  kNone = 0,     /**< No error. */
-  kNotFound,     /**< The path or 1 of its parents does not exist. */
-  kExists,       /**< The path exists and the request needs it absent. */
-  kIsDirectory,  /**< A file was required and the path names a directory. */
-  kNotDirectory, /**< A directory was required and the path names a file. */
-  kAccessDenied, /**< The provider refused the operation. */
-  kEndOfFile,    /**< A read started at or past the end of the file. */
-  kUnsupported,  /**< The provider does not implement the operation. */
-  kNoMount,      /**< No mount covers the path. */
-  kMountExists,  /**< A mount with the same path exists. */
-  kInvalidPath,  /**< The path is malformed or escapes its root. */
-  kCorrupt,      /**< A container image failed validation. */
-  kIO,           /**< The host reported an I/O failure. */
+  kNone = 0,         /**< No error. */
+  kNotFound,         /**< The path or 1 of its parents does not exist. */
+  kExists,           /**< The path exists and the request needs it absent. */
+  kIsDirectory,      /**< A file was required and the path names a directory. */
+  kNotDirectory,     /**< A directory was required and the path names a file. */
+  kAccessDenied,     /**< The provider refused the operation. */
+  kEndOfFile,        /**< A read started at or past the end of the file. */
+  kUnsupported,      /**< The provider does not implement the operation. */
+  kNoMount,          /**< No mount covers the path. */
+  kMountExists,      /**< A mount with the same path exists. */
+  kInvalidPath,      /**< The path is malformed or escapes its root. */
+  kCorrupt,          /**< A container image failed validation. */
+  kIO,               /**< The host reported an I/O failure. */
+  kSharingViolation, /**< Another open handle holds the file with sharing that refuses the open. */
+  kNotSameDevice,    /**< A move names a path on another mount. */
 };
 
 /**

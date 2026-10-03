@@ -55,10 +55,10 @@ class NodeFile final : public IFile {
   [[nodiscard]] Result<size_t> Read(std::span<u8> buffer, u64 offset) override;
   [[nodiscard]] Result<size_t> Write(std::span<const u8> buffer, u64 offset) override;
   [[nodiscard]] Result<void> SetLength(u64 length) override;
+  [[nodiscard]] Result<void> Flush() override;
   [[nodiscard]] Result<void> SetAttributes(FileAttributes attributes) override;
   [[nodiscard]] Result<void> SetTimes(const FileTimes& times) override;
   void SetDeleteOnClose(bool delete_on_close) override;
-  [[nodiscard]] Result<void> Rename(std::string_view path) override;
   [[nodiscard]] Result<std::unique_ptr<IDirectory>> List(std::string_view pattern) override;
   [[nodiscard]] Result<std::span<const u8>> View() override;
 

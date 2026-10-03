@@ -4,6 +4,9 @@ add_executable(filesystem_tests
     open_node_test.cpp
     overwrite_test.cpp
     providers_test.cpp
+    rename_test.cpp
+    wildcard_test.cpp
+    ${PROJECT_SOURCE_DIR}/src/filesystem/wildcard.cpp
 )
 
 if(WIN32)

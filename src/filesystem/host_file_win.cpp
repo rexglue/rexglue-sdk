@@ -53,7 +53,7 @@ rex::Error HostError(std::string_view what, const std::filesystem::path& path) {
 
 }  // namespace
 
-HostFile::HostFile(std::filesystem::path path, std::intptr_t native)
+HostFile::HostFile(Key /*key*/, std::filesystem::path path, std::intptr_t native)
     : path_(std::move(path)), native_(native) {}
 
 HostFile::~HostFile() {
@@ -61,7 +61,7 @@ HostFile::~HostFile() {
 }
 
 Result<std::unique_ptr<HostFile>> HostFile::OpenExisting(const std::filesystem::path& path,
-                                                         Access access, bool share_delete) {
+                                                         Access access) {
   DWORD open_access = 0;
   if (HasFlags(access, Access::kGenericRead)) {
     open_access |= GENERIC_READ;
@@ -84,18 +84,23 @@ Result<std::unique_ptr<HostFile>> HostFile::OpenExisting(const std::filesystem::
   if (HasFlags(access, Access::kAppendData)) {
     open_access |= FILE_APPEND_DATA;
   }
-  DWORD share_mode = FILE_SHARE_READ | FILE_SHARE_WRITE;
-  if (share_delete) {
-    share_mode |= FILE_SHARE_DELETE;
-  }
-  HANDLE handle = CreateFileW(path.c_str(), open_access, share_mode, nullptr, OPEN_EXISTING,
+  constexpr DWORD kShareMode = FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;
+  HANDLE handle = CreateFileW(path.c_str(), open_access, kShareMode, nullptr, OPEN_EXISTING,
                               FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS, nullptr);
   if (handle == INVALID_HANDLE_VALUE) {
+    const DWORD error = GetLastError();
+    Error code = Error::kIO;
+    if (error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND) {
+      code = Error::kNotFound;
+    } else if (error == ERROR_SHARING_VIOLATION || error == ERROR_LOCK_VIOLATION) {
+      code = Error::kSharingViolation;
+    } else if (error == ERROR_ACCESS_DENIED) {
+      code = Error::kAccessDenied;
+    }
     return Err<std::unique_ptr<HostFile>>(MakeError(
-        Error::kNotFound,
-        std::format("cannot open host file '{}', error {}", path_to_utf8(path), GetLastError())));
+        code, std::format("cannot open host file '{}', error {}", path_to_utf8(path), error)));
   }
-  return std::unique_ptr<HostFile>(new HostFile(path, reinterpret_cast<std::intptr_t>(handle)));
+  return std::make_unique<HostFile>(Key{}, path, reinterpret_cast<std::intptr_t>(handle));
 }
 
 Result<size_t> HostFile::Read(u64 offset, std::span<u8> buffer) {
@@ -103,6 +108,9 @@ Result<size_t> HostFile::Read(u64 offset, std::span<u8> buffer) {
   DWORD bytes_read = 0;
   if (!ReadFile(Native(native_), buffer.data(), static_cast<DWORD>(buffer.size()), &bytes_read,
                 &overlapped)) {
+    if (GetLastError() == ERROR_HANDLE_EOF) {
+      return size_t{0};
+    }
     if (GetLastError() == ERROR_NOACCESS) {
       REXLOG_WARN(filesystem, "host read of {:#x} bytes into {} was refused, read only memory",
                   buffer.size(), static_cast<const void*>(buffer.data()));
@@ -123,10 +131,9 @@ Result<size_t> HostFile::Write(u64 offset, std::span<const u8> buffer) {
 }
 
 Result<void> HostFile::SetLength(u64 length) {
-  LARGE_INTEGER position{};
-  position.QuadPart = static_cast<LONGLONG>(length);
-  if (!SetFilePointerEx(Native(native_), position, nullptr, FILE_BEGIN) ||
-      !SetEndOfFile(Native(native_))) {
+  FILE_END_OF_FILE_INFO info{};
+  info.EndOfFile.QuadPart = static_cast<LONGLONG>(length);
+  if (!SetFileInformationByHandle(Native(native_), FileEndOfFileInfo, &info, sizeof(info))) {
     return Err(HostError("set length of", path_));
   }
   return Ok();
@@ -170,8 +177,6 @@ Result<void> HostMove(const std::filesystem::path& from, const std::filesystem::
     code = Error::kSharingViolation;
   } else if (error == ERROR_ACCESS_DENIED) {
     code = Error::kAccessDenied;
-  } else if (error == ERROR_NOT_SAME_DEVICE) {
-    code = Error::kNotSameDevice;
   }
   return Err(MakeError(code, std::format("cannot move '{}' to '{}', error {}", path_to_utf8(from),
                                          path_to_utf8(to), error)));

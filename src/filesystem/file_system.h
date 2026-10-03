@@ -51,10 +51,15 @@ class FileSystem final : public IFileSystem {
                                                          std::string_view pattern) override;
   [[nodiscard]] Result<void> CreateDirectories(std::string_view path) override;
   [[nodiscard]] Result<void> Remove(std::string_view path) override;
-  [[nodiscard]] Result<void> Rename(std::string_view from, std::string_view to) override;
+  [[nodiscard]] Result<void> Rename(std::string_view from, std::string_view to,
+                                    bool replace_existing) override;
+  [[nodiscard]] Result<void> Rename(IFile& file, std::string_view to, bool replace_existing,
+                                    IFile* root = nullptr) override;
   [[nodiscard]] Result<VolumeInfo> Volume(std::string_view path) override;
 
  private:
+  [[nodiscard]] Result<void> Move(Node& node, std::string_view to, bool replace_existing,
+                                  Node* root);
   struct Resolved {
     Provider* provider = nullptr;
     std::string relative;
@@ -66,7 +71,7 @@ class FileSystem final : public IFileSystem {
   [[nodiscard]] Result<Node*> CreatePath(Node* root, std::string_view path,
                                          FileAttributes attributes);
   [[nodiscard]] Result<Opened> OpenFrom(Node* root, std::string_view path,
-                                        const OpenOptions& options);
+                                        const OpenOptions& options, bool retried = false);
 
   mutable std::recursive_mutex mutex_;
   std::vector<std::shared_ptr<Provider>> providers_;

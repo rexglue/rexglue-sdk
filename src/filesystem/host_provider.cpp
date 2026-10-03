@@ -49,37 +49,29 @@ class HostStream final : public NodeStream {
     if (!CanRead(access_)) {
       return Err<size_t>(MakeError(Error::kAccessDenied, "the file was opened without read"));
     }
-    auto count = file_->Read(offset, buffer);
-    if (!count) {
-      return Err<size_t>(MakeError(Error::kEndOfFile, count.error().message));
-    }
-    if (*count == 0 && !buffer.empty()) {
+    REX_TRY(const size_t count, file_->Read(offset, buffer));
+    if (count == 0 && !buffer.empty()) {
       return Err<size_t>(
           MakeError(Error::kEndOfFile, "read starts at or past the end of the file"));
     }
-    return *count;
+    return count;
   }
 
   Result<size_t> Write(std::span<const u8> buffer, u64 offset) override {
     if (!CanWrite(access_)) {
       return Err<size_t>(MakeError(Error::kAccessDenied, "the file was opened without write"));
     }
-    auto count = file_->Write(offset, buffer);
-    if (!count) {
-      return Err<size_t>(MakeError(Error::kEndOfFile, count.error().message));
-    }
-    return *count;
+    return file_->Write(offset, buffer);
   }
 
   Result<void> SetLength(u64 length) override {
     if (!CanSetLength(access_)) {
       return Err(MakeError(Error::kAccessDenied, "the file was opened without write"));
     }
-    if (auto status = file_->SetLength(length); !status) {
-      return Err(MakeError(Error::kEndOfFile, status.error().message));
-    }
-    return Ok();
+    return file_->SetLength(length);
   }
+
+  Result<void> Flush() override { return file_->Flush(); }
 
   Result<std::span<const u8>> View() override {
     if (!map_) {
@@ -221,8 +213,7 @@ Result<std::unique_ptr<NodeStream>> HostNode::Open(Access access) {
     return Err<std::unique_ptr<NodeStream>>(MakeError(
         Error::kAccessDenied, std::format("'{}' is on a read only mount", absolute_path_)));
   }
-  REX_TRY(std::unique_ptr<HostFile> file,
-          HostFile::OpenExisting(host_path_, access, host().share_delete()));
+  REX_TRY(std::unique_ptr<HostFile> file, HostFile::OpenExisting(host_path_, access));
   return std::unique_ptr<NodeStream>(std::make_unique<HostStream>(*this, access, std::move(file)));
 }
 
@@ -231,8 +222,7 @@ Result<void> HostNode::Truncate() {
     return Err(
         MakeError(Error::kAccessDenied, std::format("cannot truncate '{}'", absolute_path_)));
   }
-  if (auto file =
-          HostFile::OpenExisting(host_path_, Access::kGenericWrite, host().share_delete())) {
+  if (auto file = HostFile::OpenExisting(host_path_, Access::kGenericWrite)) {
     REX_TRY_VOID((*file)->SetLength(0));
   } else {
     std::ofstream stream(host_path_, std::ios::binary | std::ios::trunc);
@@ -297,14 +287,15 @@ Result<std::unique_ptr<Node>> HostNode::CreateChildImpl(std::string_view name,
   };
   if (HasFlags(attributes, FileAttributes::kDirectory)) {
     std::error_code ec;
-    if (!std::filesystem::create_directories(full_path, ec)) {
+    if (!std::filesystem::create_directory(full_path, ec)) {
+      if (!ec) {
+        return Err<std::unique_ptr<Node>>(MakeError(
+            Error::kExists, std::format("'{}' exists on the host", path_to_utf8(full_path))));
+      }
       return refuse();
     }
   } else {
-    std::ofstream stream(full_path, std::ios::binary | std::ios::trunc);
-    if (!stream) {
-      return refuse();
-    }
+    REX_TRY_VOID(HostCreateNew(full_path));
   }
   const std::optional<HostInfo> info = HostStat(full_path);
   if (!info) {
@@ -335,24 +326,16 @@ Result<void> HostNode::DeleteChildImpl(Node& child) {
   return Ok();
 }
 
-Result<void> HostNode::RenameImpl(std::span<const std::string_view> parts) {
-  std::filesystem::path destination = host().entry().source;
-  for (std::string_view part : parts) {
-    if (!IsHostName(part)) {
-      return Err(
-          MakeError(Error::kInvalidPath, std::format("'{}' is not a valid host name", part)));
-    }
-    destination /= to_path(part);
+Result<void> HostNode::MoveImpl(Node& new_parent, std::string_view name, bool replace_existing) {
+  if (!IsHostName(name)) {
+    return Err(MakeError(Error::kInvalidPath, std::format("'{}' is not a valid host name", name)));
   }
-  std::error_code ec;
-  std::filesystem::rename(host_path_, destination, ec);
-  if (ec) {
-    REX_FAIL(filesystem, Err(MakeError(Error::kAccessDenied, ec.message())),
-             "cannot rename '{}' to '{}', {}", path_to_utf8(host_path_), path_to_utf8(destination),
-             ec.message());
-  }
-  host_path_ = std::move(destination);
-  return Ok();
+  return HostMove(host_path_, static_cast<HostNode&>(new_parent).host_path_ / to_path(name),
+                  replace_existing);
+}
+
+void HostNode::OnMoved() {
+  host_path_ = static_cast<const HostNode*>(parent())->host_path_ / to_path(name());
 }
 
 }  // namespace rex::filesystem

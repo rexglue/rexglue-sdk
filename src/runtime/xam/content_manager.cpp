@@ -55,8 +55,7 @@ ContentPackage::ContentPackage(Runtime& runtime, const std::string_view root_nam
   entry.path = device_path_;
   entry.kind = folder ? filesystem::ProviderKind::kHostDirectory : filesystem::ProviderKind::kSTFS;
   entry.source = package_path;
-  entry.flags = folder ? filesystem::MountFlags::kWritable | filesystem::MountFlags::kShareDelete
-                       : filesystem::MountFlags::kNone;
+  entry.flags = folder ? filesystem::MountFlags::kWritable : filesystem::MountFlags::kNone;
   if (auto mounted = fs->Mount(entry); !mounted) {
     REXLOG_WARN(system, "content package '{}' is not mounted, {}", rex::path_to_utf8(package_path),
                 mounted.error().message);

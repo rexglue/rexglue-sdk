@@ -54,15 +54,6 @@ class HostProvider final : public Provider {
    */
   [[nodiscard]] Node* Resolve(std::string_view path) override;
 
-  /**
-   * Tests whether host handles let an open file be deleted or replaced.
-   *
-   * @return True when kShareDelete is set.
-   */
-  [[nodiscard]] bool share_delete() const {
-    return HasFlags(entry().flags, MountFlags::kShareDelete);
-  }
-
  private:
   explicit HostProvider(MountEntry entry);
 };

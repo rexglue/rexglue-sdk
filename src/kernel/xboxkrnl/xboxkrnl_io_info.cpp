@@ -300,13 +300,21 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
         return X_STATUS_INVALID_PARAMETER;
       }
 
-      result = FileRename(*file, target_path);
+      Pinned<FileObject> root;
+      if (info->root_dir_handle) {
+        root = runtime::Current().object_table().Get<FileObject>(info->root_dir_handle);
+        if (!root) {
+          return X_STATUS_INVALID_HANDLE;
+        }
+      }
+      result = FileRename(*runtime::Current().file_system(), *file, target_path,
+                          info->replace_existing != 0, root ? &*root : nullptr);
       out_length = sizeof(*info);
       break;
     }
     case XFileAllocationInformation: {
       auto info = info_ptr.as<X_FILE_ALLOCATION_INFORMATION*>();
-      result = FileSetLength(*file, info->allocation_size);
+      result = FileSetAllocation(*file, info->allocation_size);
       out_length = sizeof(*info);
 
       file->file->Refresh();

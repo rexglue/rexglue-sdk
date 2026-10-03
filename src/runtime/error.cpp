@@ -42,6 +42,10 @@ X_STATUS ToXStatus(const rex::Error& error, X_STATUS unsupported) {
       return X_STATUS_NOT_A_DIRECTORY;
     case Error::kAccessDenied:
       return X_STATUS_ACCESS_DENIED;
+    case Error::kSharingViolation:
+      return X_STATUS_SHARING_VIOLATION;
+    case Error::kNotSameDevice:
+      return X_STATUS_NOT_SAME_DEVICE;
     case Error::kEndOfFile:
       return X_STATUS_END_OF_FILE;
     case Error::kUnsupported:

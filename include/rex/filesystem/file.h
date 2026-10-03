@@ -83,6 +83,13 @@ class IFile {
   [[nodiscard]] virtual Result<void> SetLength(u64 length) = 0;
 
   /**
+   * Writes buffered data of the file to its device.
+   *
+   * @return kIO when the host refuses. Ok on a provider with nothing to write.
+   */
+  [[nodiscard]] virtual Result<void> Flush() = 0;
+
+  /**
    * Replaces the attribute bits of the node.
    *
    * @param attributes The new bits.
@@ -104,15 +111,6 @@ class IFile {
    * @param delete_on_close True to request, false to withdraw.
    */
   virtual void SetDeleteOnClose(bool delete_on_close) = 0;
-
-  /**
-   * Moves the node. The first component of path, the colon or device prefix, is dropped and the
-   * rest is relative to the mount of this file.
-   *
-   * @param path The new guest path.
-   * @return kAccessDenied when the host refuses, kUnsupported when the provider cannot rename.
-   */
-  [[nodiscard]] virtual Result<void> Rename(std::string_view path) = 0;
 
   /**
    * Starts a walk of the children of this directory.

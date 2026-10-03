@@ -39,9 +39,8 @@ enum class ProviderKind : u32 {
 
 /** Mount behavior bits. */
 enum class MountFlags : u32 {
-  kNone = 0,        /**< Read only, no share delete. */
-  kWritable = 1,    /**< Writes, creation and deletion are allowed. */
-  kShareDelete = 2, /**< Host handles let an open file be deleted or replaced. */
+  kNone = 0,     /**< Read only. */
+  kWritable = 1, /**< Writes, creation and deletion are allowed. */
 };
 
 /** Description of 1 mount. */

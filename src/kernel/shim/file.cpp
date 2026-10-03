@@ -43,19 +43,7 @@ REX_SHIM_FN(MoveFileA, u32, mapped_string lpExistingFileName, mapped_string lpNe
   const char* src = static_cast<const char*>(lpExistingFileName);
   const char* dst = static_cast<const char*>(lpNewFileName);
 
-  auto* fs = runtime::Current().file_system();
-  if (!fs->Stat(src)) {
-    REXLOG_DEBUG(kernel, "rexshim_MoveFileA: source not found '{}'", src);
-    return 0;
-  }
-  // Win32 MoveFileA fails if the destination already exists; callers wanting
-  // overwrite semantics use MoveFileExA with MOVEFILE_REPLACE_EXISTING.
-  if (fs->Stat(dst)) {
-    REXLOG_DEBUG(kernel, "rexshim_MoveFileA: destination exists '{}'", dst);
-    return 0;
-  }
-
-  if (auto renamed = fs->Rename(src, dst); !renamed) {
+  if (auto renamed = runtime::Current().file_system()->Rename(src, dst, false); !renamed) {
     REXLOG_DEBUG(kernel, "rexshim_MoveFileA: rename failed '{}' -> '{}': {:#x}", src, dst,
                  rex::runtime::ToXStatus(renamed.error(), X_STATUS_NOT_SUPPORTED));
     return 0;

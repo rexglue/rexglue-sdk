@@ -610,7 +610,11 @@ u32 NtQueryDirectoryFile_entry(u32 file_handle, u32 event_handle, u32 apc_routin
 }
 
 u32 NtFlushBuffersFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_status_block_ptr) {
-  auto result = X_STATUS_SUCCESS;
+  X_STATUS result = X_STATUS_INVALID_HANDLE;
+  if (auto file = runtime::Current().object_table().Get<FileObject>(file_handle)) {
+    auto flushed = file->file->Flush();
+    result = flushed ? X_STATUS_SUCCESS : ToXStatus(flushed.error());
+  }
 
   if (io_status_block_ptr) {
     io_status_block_ptr->status = result;

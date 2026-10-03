@@ -1,6 +1,6 @@
 /**
  * @file        filesystem/wildcard.h
- * @brief       Case insensitive Xbox wildcard matching of directory entry names
+ * @brief       Case insensitive wildcard matching of directory entry names
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -15,11 +15,16 @@
 
 #include <string>
 #include <string_view>
-#include <vector>
 
 namespace rex::filesystem {
 
-/** Matches names against a pattern where a star is any run and a question mark is 1 character. */
+/**
+ * Matches names against an NT file name expression.
+ *
+ * A star is any run and a question mark is 1 character. The DOS star `<` is any run up to the
+ * final dot, the DOS question mark `>` is 1 character or nothing before a dot or the end, and the
+ * DOS dot `"` is a dot or the end. The pattern `*.*` matches every name.
+ */
 class WildcardMatcher {
  public:
   /**
@@ -30,7 +35,7 @@ class WildcardMatcher {
   explicit WildcardMatcher(std::string_view pattern = {});
 
   /**
-   * Tests whether a name matches, ignoring ASCII case.
+   * Reports whether a name matches, ignoring ASCII case.
    *
    * @param name The name to test.
    * @return True when the name matches.
@@ -38,16 +43,7 @@ class WildcardMatcher {
   [[nodiscard]] bool Match(std::string_view name) const;
 
  private:
-  struct Rule {
-    std::string text;
-    bool from_start = false;
-    bool to_end = false;
-    bool exact_length = false;
-  };
-
-  static bool Check(const Rule& rule, std::string_view lower, size_t* offset);
-
-  std::vector<Rule> rules_;
+  std::string pattern_;
 };
 
 }  // namespace rex::filesystem

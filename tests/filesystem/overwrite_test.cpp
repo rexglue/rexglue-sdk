@@ -36,8 +36,8 @@ class ScopedRoot : public Fixture {
  public:
   ScopedRoot() {
     WriteHost(HostPath(), kOriginal);
-    REQUIRE(fs().Mount({std::string(kMountPath), ProviderKind::kHostDirectory, temp(),
-                        MountFlags::kWritable | MountFlags::kShareDelete}));
+    REQUIRE(fs().Mount(
+        {std::string(kMountPath), ProviderKind::kHostDirectory, temp(), MountFlags::kWritable}));
     REQUIRE(fs().Link("test:", kMountPath));
   }
 

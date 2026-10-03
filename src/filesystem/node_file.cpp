@@ -58,6 +58,10 @@ Result<void> NodeFile::SetLength(u64 length) {
   return stream_->SetLength(length);
 }
 
+Result<void> NodeFile::Flush() {
+  return stream_->Flush();
+}
+
 Result<void> NodeFile::SetAttributes(FileAttributes attributes) {
   return node_->SetAttributes(attributes);
 }
@@ -68,10 +72,6 @@ Result<void> NodeFile::SetTimes(const FileTimes& times) {
 
 void NodeFile::SetDeleteOnClose(bool delete_on_close) {
   node_->set_delete_on_close(delete_on_close);
-}
-
-Result<void> NodeFile::Rename(std::string_view path) {
-  return node_->Rename(path);
 }
 
 Result<std::unique_ptr<IDirectory>> NodeFile::List(std::string_view pattern) {

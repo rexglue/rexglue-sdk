@@ -38,8 +38,8 @@ class OpenRoot : public Fixture {
  public:
   OpenRoot() {
     WriteHost(HostPath(), "held");
-    REQUIRE(fs().Mount({std::string(kMountPath), ProviderKind::kHostDirectory, temp(),
-                        MountFlags::kWritable | MountFlags::kShareDelete}));
+    REQUIRE(fs().Mount(
+        {std::string(kMountPath), ProviderKind::kHostDirectory, temp(), MountFlags::kWritable}));
   }
 
   std::filesystem::path HostPath() const { return temp() / "held.dat"; }

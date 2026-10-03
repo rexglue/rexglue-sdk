@@ -85,6 +85,13 @@ class NodeStream {
   [[nodiscard]] virtual Result<void> SetLength(u64 length);
 
   /**
+   * Writes buffered data of the node to its device.
+   *
+   * @return Ok when the provider has nothing to write, or the error.
+   */
+  [[nodiscard]] virtual Result<void> Flush();
+
+  /**
    * Returns the whole node as read only bytes.
    *
    * @return The bytes, or kUnsupported.
@@ -269,13 +276,16 @@ class Node : public NonCopyable {
   [[nodiscard]] Result<void> Delete();
 
   /**
-   * Moves the node through the provider. The first component of path is dropped and the rest is
-   * relative to the mount.
+   * Moves the node under another directory of the same mount, with its descendants and open count.
    *
-   * @param path The new guest path.
-   * @return The provider error.
+   * @param new_parent A directory of the same provider.
+   * @param name The new last path component.
+   * @param replace_existing True to replace a closed file with that name.
+   * @return kAccessDenied on a read only mount, for the root, for a folder with an open file below
+   *         it, or for an open or directory target, kInvalidPath when new_parent is the node or
+   *         below it, kExists, or the provider error.
    */
-  [[nodiscard]] Result<void> Rename(std::string_view path);
+  [[nodiscard]] Result<void> MoveTo(Node& new_parent, std::string_view name, bool replace_existing);
 
   /**
    * Cuts the file to 0 bytes.
@@ -350,10 +360,16 @@ class Node : public NonCopyable {
   /**
    * Moves the backing of this node.
    *
-   * @param parts The new path components relative to the mount.
-   * @return Ok, or kUnsupported.
+   * @param new_parent The directory the node moves under.
+   * @param name The new last path component.
+   * @param replace_existing True when a backing with that name may be replaced.
+   * @return Ok, kExists, or kUnsupported.
    */
-  [[nodiscard]] virtual Result<void> RenameImpl(std::span<const std::string_view> parts);
+  [[nodiscard]] virtual Result<void> MoveImpl(Node& new_parent, std::string_view name,
+                                              bool replace_existing);
+
+  /** Updates provider state that follows the path, after the node or an ancestor moved. */
+  virtual void OnMoved();
 
   std::string name_;                                  /**< Last path component. */
   std::string path_;                                  /**< Path relative to the mount. */

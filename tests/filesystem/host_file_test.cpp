@@ -10,9 +10,17 @@
  */
 
 #include <array>
+#include <atomic>
+#include <cstdio>
 #include <string_view>
+#include <thread>
+#include <vector>
 
 #include <catch2/catch_test_macros.hpp>
+
+#if defined(_WIN32)
+#include <share.h>
+#endif
 
 #include "filesystem/fixture.h"
 #include "filesystem/host_file.h"
@@ -22,6 +30,8 @@ namespace {
 using rex::u8;
 using rex::filesystem::Access;
 using rex::filesystem::HostFile;
+using rex::filesystem::HostInfo;
+using rex::filesystem::HostList;
 using rex::filesystem::test::TempFolder;
 using rex::filesystem::test::WriteHost;
 
@@ -37,7 +47,7 @@ std::filesystem::path WritePayload(const TempFolder& temp) {
 
 TEST_CASE("OpenExisting read only handle reads", "[filesystem][host]") {
   TempFolder temp;
-  auto handle = HostFile::OpenExisting(WritePayload(temp), Access::kGenericRead, false);
+  auto handle = HostFile::OpenExisting(WritePayload(temp), Access::kGenericRead);
   REQUIRE(handle);
 
   std::array<u8, 16> buffer{};
@@ -49,9 +59,9 @@ TEST_CASE("OpenExisting read only handle reads", "[filesystem][host]") {
 
 TEST_CASE("OpenExisting read and write handle keeps read access", "[filesystem][host]") {
   TempFolder temp;
-  auto handle = HostFile::OpenExisting(
-      WritePayload(temp),
-      Access::kGenericRead | Access::kGenericWrite | Access::kReadData | Access::kWriteData, false);
+  auto handle =
+      HostFile::OpenExisting(WritePayload(temp), Access::kGenericRead | Access::kGenericWrite |
+                                                     Access::kReadData | Access::kWriteData);
   REQUIRE(handle);
 
   std::array<u8, 16> buffer{};
@@ -71,7 +81,7 @@ TEST_CASE("OpenExisting read and write handle keeps read access", "[filesystem][
 
 TEST_CASE("OpenExisting kGenericAll grants both directions", "[filesystem][host]") {
   TempFolder temp;
-  auto handle = HostFile::OpenExisting(WritePayload(temp), Access::kGenericAll, false);
+  auto handle = HostFile::OpenExisting(WritePayload(temp), Access::kGenericAll);
   REQUIRE(handle);
 
   const std::array<u8, 1> patch{'Z'};
@@ -88,17 +98,17 @@ TEST_CASE("OpenExisting kGenericAll grants both directions", "[filesystem][host]
 TEST_CASE("OpenExisting write only handle writes at the requested offset", "[filesystem][host]") {
   TempFolder temp;
   const auto path = WritePayload(temp);
-  auto handle = HostFile::OpenExisting(path, Access::kGenericWrite | Access::kAppendData, false);
+  auto handle = HostFile::OpenExisting(path, Access::kGenericWrite | Access::kAppendData);
   REQUIRE(handle);
 
   const std::array<u8, 1> patch{'Q'};
   auto written = (*handle)->Write(1, patch);
   REQUIRE(written);
   CHECK(*written == 1);
-  (*handle)->Flush();
+  REQUIRE((*handle)->Flush());
   handle->reset();
 
-  auto reader = HostFile::OpenExisting(path, Access::kGenericRead, false);
+  auto reader = HostFile::OpenExisting(path, Access::kGenericRead);
   REQUIRE(reader);
   std::array<u8, 16> buffer{};
   auto read = (*reader)->Read(0, buffer);
@@ -109,16 +119,89 @@ TEST_CASE("OpenExisting write only handle writes at the requested offset", "[fil
 
 TEST_CASE("OpenExisting write only handle refuses reads", "[filesystem][host]") {
   TempFolder temp;
-  auto handle = HostFile::OpenExisting(WritePayload(temp), Access::kGenericWrite, false);
+  auto handle = HostFile::OpenExisting(WritePayload(temp), Access::kGenericWrite);
   REQUIRE(handle);
 
   std::array<u8, 16> buffer{};
   CHECK_FALSE((*handle)->Read(0, buffer));
 }
 
+TEST_CASE("A read at or past the end returns 0 bytes", "[filesystem][host]") {
+  TempFolder temp;
+  auto handle = HostFile::OpenExisting(WritePayload(temp), Access::kGenericRead);
+  REQUIRE(handle);
+
+  std::array<u8, 16> buffer{};
+  auto at_end = (*handle)->Read(kPayload.size(), buffer);
+  REQUIRE(at_end);
+  CHECK(*at_end == 0);
+  auto past_end = (*handle)->Read(kPayload.size() + 100, buffer);
+  REQUIRE(past_end);
+  CHECK(*past_end == 0);
+}
+
+TEST_CASE("SetLength is exact while another thread reads", "[filesystem][host]") {
+  TempFolder temp;
+  auto handle =
+      HostFile::OpenExisting(WritePayload(temp), Access::kGenericRead | Access::kGenericWrite |
+                                                     Access::kReadData | Access::kWriteData);
+  REQUIRE(handle);
+  HostFile& file = **handle;
+
+  std::atomic<bool> stop = false;
+  std::jthread reader([&] {
+    std::array<u8, 1> byte{};
+    while (!stop.load(std::memory_order_relaxed)) {
+      (void)file.Read(0, byte);
+    }
+  });
+  bool exact = true;
+  for (u64 i = 0; i < 2000 && exact; ++i) {
+    const u64 length = (i % 2 == 0) ? 4096 : 8192;
+    REQUIRE(file.SetLength(length));
+    std::array<u8, 1> byte{};
+    auto last = file.Read(length - 1, byte);
+    auto after = file.Read(length, byte);
+    exact = last && *last == 1 && after && *after == 0;
+  }
+  stop = true;
+  CHECK(exact);
+}
+
+TEST_CASE("HostList reports a link to a folder as a folder", "[filesystem][host]") {
+  TempFolder temp;
+  std::filesystem::create_directories(temp.path / "real");
+  std::error_code ec;
+  std::filesystem::create_directory_symlink(temp.path / "real", temp.path / "link", ec);
+  if (ec) {
+    SKIP("the host refuses folder links, " << ec.message());
+  }
+
+  const std::vector<HostInfo> children = HostList(temp.path);
+  REQUIRE(children.size() == 2);
+  for (const HostInfo& child : children) {
+    CHECK(child.directory);
+    CHECK(child.size == 0);
+  }
+}
+
+#if defined(_WIN32)
+TEST_CASE("OpenExisting of a file another handle locks is kSharingViolation",
+          "[filesystem][host]") {
+  TempFolder temp;
+  const auto path = WritePayload(temp);
+  FILE* locked = _wfsopen(path.c_str(), L"r+b", _SH_DENYRW);
+  REQUIRE(locked);
+  auto handle = HostFile::OpenExisting(path, Access::kGenericRead);
+  std::fclose(locked);
+  REQUIRE_FALSE(handle);
+  CHECK(rex::filesystem::CodeOf(handle.error()) == rex::filesystem::Error::kSharingViolation);
+}
+#endif
+
 TEST_CASE("OpenExisting of a missing file is kNotFound", "[filesystem][host]") {
   TempFolder temp;
-  auto handle = HostFile::OpenExisting(temp.path / "missing.bin", Access::kGenericRead, false);
+  auto handle = HostFile::OpenExisting(temp.path / "missing.bin", Access::kGenericRead);
   REQUIRE_FALSE(handle);
   CHECK(rex::filesystem::CodeOf(handle.error()) == rex::filesystem::Error::kNotFound);
 }

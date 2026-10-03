@@ -54,6 +54,8 @@ TEST_CASE("ToXStatus keeps the filesystem mapping", "[runtime][error]") {
   CHECK(rt::ToXStatus(MakeError(Error::kUnsupported, "a"), X_STATUS_NOT_SUPPORTED) ==
         X_STATUS_NOT_SUPPORTED);
   CHECK(rt::ToXStatus(MakeError(Error::kIO, "a")) == X_STATUS_UNSUCCESSFUL);
+  CHECK(rt::ToXStatus(MakeError(Error::kSharingViolation, "a")) == X_STATUS_SHARING_VIOLATION);
+  CHECK(rt::ToXStatus(MakeError(Error::kNotSameDevice, "a")) == X_STATUS_NOT_SAME_DEVICE);
 }
 
 TEST_CASE("ToXResult maps another category to the fallback", "[runtime][error]") {
