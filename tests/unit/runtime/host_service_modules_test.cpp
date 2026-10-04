@@ -15,6 +15,7 @@
 
 #include <rex/api.h>
 #include <rex/apu.h>
+#include <rex/gpu.h>
 #include <rex/hid.h>
 #include <rex/runtime.h>
 
@@ -135,5 +136,32 @@ TEST_CASE_METHOD(Fixture, "Tool mode keeps the hid fallback", "[modules][hid]") 
   setup.tool_mode = true;
   REQUIRE(runtime.Setup(setup));
   CHECK(runtime.hid().GetState(0));
+  runtime.Shutdown();
+}
+
+TEST_CASE_METHOD(Fixture, "Without a GPU module the runtime runs on the null GPU",
+                 "[modules][gpu]") {
+  rex::Config config = BaseConfig();
+  config.modules = {"rex-filesystem", "rex-runtime"};
+  auto api = rex::Init(config);
+  REQUIRE(api);
+  CHECK((*api)->Get<rex::gpu::IBackend>() == nullptr);
+  rex::Runtime runtime((*api)->config());
+  REQUIRE(runtime.Setup(SetupConfig(**api)));
+  REQUIRE(runtime.gpu() != nullptr);
+  CHECK_FALSE(runtime.gpu()->has_presentation());
+  runtime.Shutdown();
+}
+
+TEST_CASE_METHOD(Fixture, "Tool mode builds no GPU", "[modules][gpu]") {
+  rex::Config config = BaseConfig();
+  config.modules = {"rex-filesystem", "rex-runtime"};
+  auto api = rex::Init(config);
+  REQUIRE(api);
+  rex::Runtime runtime((*api)->config());
+  rex::RuntimeConfig setup = SetupConfig(**api);
+  setup.tool_mode = true;
+  REQUIRE(runtime.Setup(setup));
+  CHECK(runtime.gpu() == nullptr);
   runtime.Shutdown();
 }

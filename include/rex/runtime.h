@@ -64,6 +64,7 @@ class IBackend;
 
 namespace runtime {
 class APU;
+class NullGPU;
 class FunctionDispatcher;
 class ObjectTable;
 class ThreadRegistry;
@@ -97,7 +98,7 @@ class ImGuiDrawer;
 
 /** The subsystems Runtime::Setup builds the runtime over. */
 struct RuntimeConfig {
-  /** The GPU backend, owned by its module. Null runs without GPU emulation. */
+  /** The GPU backend, owned by its module. Null runs on the runtime's null GPU. */
   gpu::IBackend* gpu = nullptr;
   /** The mount table. Required, Setup fails without it. */
   filesystem::IFileSystem* file_system = nullptr;
@@ -146,9 +147,9 @@ class Runtime {
   filesystem::IFileSystem* file_system() const { return file_system_; }
 
   /**
-   * Returns the GPU backend.
+   * Returns the GPU backend, the module's or the runtime's null GPU.
    *
-   * @return The backend, null without GPU emulation.
+   * @return The backend, null in tool mode.
    */
   gpu::IBackend* gpu() const { return gpu_; }
 
@@ -566,6 +567,7 @@ class Runtime {
   rex::platform::RankedMutex terminate_mutex_{rex::platform::LockRank::Leaf};
   std::vector<u32> terminate_registrations_;
   gpu::IBackend* gpu_ = nullptr;
+  std::unique_ptr<runtime::NullGPU> null_gpu_;
   std::unique_ptr<apu::NullBackend> null_apu_;
   std::unique_ptr<runtime::APU> apu_;
   std::unique_ptr<hid::NullBackend> null_hid_;

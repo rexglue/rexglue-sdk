@@ -297,7 +297,7 @@ void GraphicsSystem::DispatchInterruptCallback(uint32_t source, uint32_t cpu) {
   if (cpu == 0xFFFFFFFF) {
     cpu = 2;
   }
-  thread->SetActiveCpu(cpu);
+  thread->SetActiveCPU(cpu);
 
   uint64_t args[] = {source, interrupt_callback_data_};
   function_dispatcher_->ExecuteInterrupt(thread->thread_state(), interrupt_callback_, args,

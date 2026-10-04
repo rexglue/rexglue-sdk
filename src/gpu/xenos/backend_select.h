@@ -26,6 +26,7 @@ namespace rex::gpu {
 enum class HostAPI : u8 {
   kD3D12,
   kVulkan,
+  kNull,
 };
 
 #if REX_PLATFORM_WIN32
@@ -48,11 +49,14 @@ inline constexpr std::string_view kPlatformName = "linux";
 /**
  * Picks the host API a backend name selects.
  *
- * @param name "any", "d3d12" or "vulkan".
+ * @param name "any", "d3d12", "vulkan" or "null". "null" is valid on every platform.
  * @param available The host APIs the platform builds, in preference order.
  * @return The host API, or an error naming the backend and the platform.
  */
 inline Result<HostAPI> SelectHostAPI(std::string_view name, std::span<const HostAPI> available) {
+  if (name == "null") {
+    return HostAPI::kNull;
+  }
   if (name == "any" && !available.empty()) {
     return available.front();
   }

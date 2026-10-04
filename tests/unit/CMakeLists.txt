@@ -12,6 +12,7 @@ add_executable(unit_tests
     memory/access_violation_test.cpp
     memory/memory_budget_test.cpp
     gpu/backend_select_test.cpp
+    gpu/null_command_processor_test.cpp
     gpu/cvar_scope_test.cpp
     gpu/overlay_contract_test.cpp
     kernel/exit_title_test.cpp
@@ -65,6 +66,7 @@ add_executable(unit_tests
     runtime/apu_test.cpp
     runtime/xma_decoder_test.cpp
     runtime/host_service_modules_test.cpp
+    runtime/null_gpu_test.cpp
     ui/console_model_test.cpp
     ui/title_app_test.cpp
     ui/ui_event_test.cpp

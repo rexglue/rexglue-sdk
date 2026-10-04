@@ -57,3 +57,16 @@ TEST_CASE("The platform list matches the platform rule", "[gpu][backend]") {
   CHECK(rex::gpu::kPlatformHostAPIs[0] == HostAPI::kVulkan);
 #endif
 }
+
+TEST_CASE("null is picked on every platform and never by any", "[gpu][backend]") {
+  CHECK(SelectHostAPI("null", kWindows).value() == HostAPI::kNull);
+  CHECK(SelectHostAPI("null", kVulkanOnly).value() == HostAPI::kNull);
+  CHECK(SelectHostAPI("null", rex::gpu::kPlatformHostAPIs).value() == HostAPI::kNull);
+  CHECK(SelectHostAPI("any", rex::gpu::kPlatformHostAPIs).value() != HostAPI::kNull);
+}
+
+TEST_CASE("A misspelled null fails with the name", "[gpu][backend]") {
+  auto selected = SelectHostAPI("nul", rex::gpu::kPlatformHostAPIs);
+  REQUIRE_FALSE(selected);
+  CHECK(selected.error().message.find("nul") != std::string::npos);
+}

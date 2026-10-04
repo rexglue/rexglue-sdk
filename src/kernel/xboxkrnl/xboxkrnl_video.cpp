@@ -40,9 +40,7 @@ constexpr double kDisplayGammaPower = 2.22222233;
 
 void WarnNoGpuEmulation(const char* export_name, std::atomic<bool>& warned) {
   if (!warned.exchange(true)) {
-    REXLOG_WARN(kernel,
-                "{}: no GPU emulation loaded (no graphics module in Config::modules); call ignored",
-                export_name);
+    REXLOG_WARN(kernel, "{}: tool mode runs without a GPU, call ignored", export_name);
   }
 }
 }  // namespace

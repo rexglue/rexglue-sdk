@@ -24,7 +24,7 @@ namespace rex::gpu {
 
 /** Structural configuration for the GPU backend module. */
 struct GPUConfig {
-  /** Backend host API, "any", "d3d12" or "vulkan". */
+  /** Backend host API, "any", "d3d12", "vulkan" or "null". */
   std::string backend = "any";
   /** D3D12 adapter index. -1 picks the first hardware adapter, -2 picks WARP. */
   i32 d3d12_adapter = -1;

@@ -24,8 +24,6 @@
 #include <rex/runtime/xmemory.h>
 #include <rex/xenos/xenos.h>
 
-#include "test_memory.h"
-
 namespace {
 
 rex::Config NullConfig() {
@@ -37,10 +35,7 @@ rex::Config NullConfig() {
 }
 
 struct Fixture {
-  Fixture() {
-    rex::Shutdown();
-    rex::testing::ReleaseTestMemory();
-  }
+  Fixture() { rex::Shutdown(); }
   ~Fixture() { rex::Shutdown(); }
 };
 

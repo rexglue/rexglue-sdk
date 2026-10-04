@@ -236,7 +236,7 @@ void ThreadRecord::InitializeGuestObject() {
   }
 
   guest_thread->msr_mask = 0xFDFFD7FF;
-  // current_cpu is expected to be initialized externally via SetActiveCpu.
+  // current_cpu is expected to be initialized externally via SetActiveCPU.
   guest_thread->stack_alloc_base = stack_base_;
   guest_thread->create_time = Clock::QueryGuestSystemTime();
 
@@ -417,7 +417,7 @@ X_STATUS ThreadRecord::Create() {
 
   // Assign the newly created thread to the logical processor, and also set up
   // the current CPU in KPCR and KTHREAD.
-  SetActiveCpu(cpu_index);
+  SetActiveCPU(cpu_index);
 
   if ((creation_params_.creation_flags & X_CREATE_SUSPENDED) == 0) {
     // Start the thread now that we're all setup.
@@ -823,13 +823,13 @@ void ThreadRecord::SetPriority(int32_t increment) {
 void ThreadRecord::SetAffinity(uint32_t affinity) {
   const u8 mask = static_cast<u8>(affinity);
   if (mask) {
-    SetActiveCpu(ProcessorFromMask(mask));
+    SetActiveCPU(ProcessorFromMask(mask));
   }
 }
 
 uint8_t ThreadRecord::active_cpu() const {
   // Prefer reading from guest KTHREAD (always available for guest threads,
-  // kept in sync by SetActiveCpu). Avoids dependency on pcr_address_ which
+  // kept in sync by SetActiveCPU). Avoids dependency on pcr_address_ which
   // may not be set yet if the thread is mid-creation.
   if (is_guest_thread()) {
     auto* kthread = memory()->TranslateVirtual<const X_KTHREAD*>(guest_object());
@@ -842,7 +842,7 @@ uint8_t ThreadRecord::active_cpu() const {
   return pcr.prcb_data.current_cpu;
 }
 
-void ThreadRecord::SetActiveCpu(uint8_t cpu_index) {
+void ThreadRecord::SetActiveCPU(uint8_t cpu_index) {
   // May be called during thread creation - don't skip if current == new.
 
   assert_true(cpu_index < 6);

@@ -640,7 +640,7 @@ class ThreadRecord {
    *
    * @param cpu_index The processor index.
    */
-  void SetActiveCpu(u8 cpu_index);
+  void SetActiveCPU(u8 cpu_index);
 
   /**
    * Reads a TLS slot.

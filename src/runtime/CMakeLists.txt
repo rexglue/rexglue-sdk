@@ -45,6 +45,7 @@ set(REXSYSTEM_SOURCES
     function_dispatcher.cpp
     runtime_module.cpp
     apu.cpp
+    null_gpu.cpp
     xma/context.cpp
     xma/decoder.cpp
     xma/register_file.cpp

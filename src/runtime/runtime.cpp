@@ -41,6 +41,7 @@
 #include "runtime/dispatcher.h"
 #include "runtime/module_registry.h"
 #include "runtime/notifier.h"
+#include "runtime/null_gpu.h"
 #include "runtime/object_table.h"
 #include "runtime/runtime_module.h"
 #include "runtime/thread_registry.h"
@@ -220,16 +221,15 @@ Result<void> Runtime::Setup(const RuntimeConfig& config) {
   }
 
   // Initialize GPU from injected config
-  if (config.gpu) {
-    gpu_ = config.gpu;
-    if (auto status = gpu_->SetupGuestGPU(*function_dispatcher_, *this); !status) {
-      return fail(X_STATUS_UNSUCCESSFUL,
-                  std::format("GPU setup failed, {}", status.error().message));
-    }
-    REXLOG_DEBUG(system, "GPU initialized");
-  } else {
-    REXLOG_DEBUG(system, "Runtime initialized without a GPU backend");
+  gpu_ = config.gpu;
+  if (!gpu_) {
+    null_gpu_ = std::make_unique<runtime::NullGPU>();
+    gpu_ = null_gpu_.get();
   }
+  if (auto status = gpu_->SetupGuestGPU(*function_dispatcher_, *this); !status) {
+    return fail(X_STATUS_UNSUCCESSFUL, std::format("GPU setup failed, {}", status.error().message));
+  }
+  REXLOG_DEBUG(system, "GPU initialized");
 
   REXLOG_DEBUG(system, "Runtime initialized successfully");
   setup_complete_ = true;
@@ -304,6 +304,7 @@ void Runtime::Shutdown() {
   if (gpu_) {
     gpu_->Shutdown();
     gpu_ = nullptr;
+    null_gpu_.reset();
   }
   if (apu_) {
     apu_->Shutdown();

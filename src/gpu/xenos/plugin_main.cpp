@@ -31,6 +31,7 @@ REXLOG_TABLE(kGPULog, gpu)
 #include "gpu/xenos/d3d12/graphics_system.h"
 #endif
 #include "gpu/xenos/vulkan/graphics_system.h"
+#include "gpu/xenos/null/null_graphics_system.h"
 
 #include "gpu/xenos/backend_select.h"
 
@@ -103,6 +104,9 @@ class XenosModule final : public rex::IModule {
         backend_ = std::make_unique<d3d12::D3D12GraphicsSystem>();
         break;
 #endif
+      case HostAPI::kNull:
+        backend_ = std::make_unique<null::NullGraphicsSystem>();
+        break;
       default:
         backend_ = std::make_unique<vulkan::VulkanGraphicsSystem>();
         break;
