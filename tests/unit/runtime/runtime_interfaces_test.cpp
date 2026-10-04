@@ -134,7 +134,7 @@ TEST_CASE("Setup fails while another runtime is active", "[runtime][interfaces]"
   rex::Runtime other(fixture.api().config());
   rex::RuntimeConfig config;
   config.tool_mode = true;
-  CHECK(other.Setup(config) == X_STATUS_UNSUCCESSFUL);
+  CHECK_FALSE(other.Setup(config));
   CheckServed(fixture.api(), fixture.runtime());
 }
 
@@ -167,7 +167,7 @@ TEST_CASE("is_setup holds only between a successful Setup and Shutdown", "[runti
   rex::Runtime other(fixture.api().config());
   rex::RuntimeConfig config;
   config.tool_mode = true;
-  CHECK(other.Setup(config) == X_STATUS_UNSUCCESSFUL);
+  CHECK_FALSE(other.Setup(config));
   CHECK_FALSE(other.is_setup());
   fixture.runtime().Shutdown();
   CHECK_FALSE(fixture.runtime().is_setup());

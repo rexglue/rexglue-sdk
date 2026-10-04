@@ -14,7 +14,7 @@
 #include <rex/filesystem/xcontent.h>
 
 #include <cstring>
-#include <ctime>
+#include <chrono>
 #include <format>
 
 #include <rex/filesystem/error.h>
@@ -49,23 +49,15 @@ u32 LanguageSlot(XLanguage language) {
 }  // namespace
 
 u64 decode_fat_timestamp(u32 date, u32 time) {
-  std::tm tm{};
-  tm.tm_year = static_cast<int>(((0xFE00 & date) >> 9) + 80);
-  tm.tm_mon = static_cast<int>(((0x01E0 & date) >> 5)) - 1;
-  tm.tm_mday = static_cast<int>(0x001F & date);
-  tm.tm_hour = static_cast<int>((0xF800 & time) >> 11);
-  tm.tm_min = static_cast<int>((0x07E0 & time) >> 5);
-  tm.tm_sec = static_cast<int>((0x001F & time) << 1);
-  tm.tm_isdst = 0;
-#if REX_PLATFORM_WIN32
-  const std::time_t seconds = _mkgmtime(&tm);
-#else
-  const std::time_t seconds = timegm(&tm);
-#endif
-  if (seconds == -1) {
-    return 0;
-  }
-  return static_cast<u64>((static_cast<i64>(seconds) + kUnixToFileTimeSeconds) * kTicksPerSecond);
+  using namespace std::chrono;
+  const year_month first = year{1980 + static_cast<i32>((date >> 9) & 0x7F)} / January;
+  const year_month month = first + months{static_cast<i32>((date >> 5) & 0x0F) - 1};
+  const sys_days day = sys_days{month / 1} + days{static_cast<i32>(date & 0x1F) - 1};
+  const sys_seconds stamp = day + hours{static_cast<i32>((time >> 11) & 0x1F)} +
+                            minutes{static_cast<i32>((time >> 5) & 0x3F)} +
+                            seconds{static_cast<i32>((time & 0x1F) * 2)};
+  return static_cast<u64>((stamp.time_since_epoch().count() + kUnixToFileTimeSeconds) *
+                          kTicksPerSecond);
 }
 
 std::u16string XContentMetadata::display_name(XLanguage language) const {

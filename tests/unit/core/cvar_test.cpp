@@ -70,7 +70,7 @@ namespace {
 
 struct Fixture {
   std::unique_ptr<rex::detail::CvarRegistryImpl> registry = rex::detail::CreateCvarRegistry();
-  rex::detail::CvarRegistryImpl& reg() { return *registry; }
+  rex::detail::CvarRegistryImpl& reg() const { return *registry; }
 };
 
 }  // namespace
@@ -122,12 +122,15 @@ TEST_CASE_METHOD(Fixture, "set on an unregistered var fails NotFound", "[cvar]")
 
 TEST_CASE_METHOD(Fixture, "Register exposes descriptors, scopes and order", "[cvar]") {
   REQUIRE(reg().Register("test", test_cvars::kTestCvars));
-  auto* d = reg().Find("test.count");
-  REQUIRE(d != nullptr);
-  REQUIRE(d->desc().type == rex::cvar::Type::Int32);
-  REQUIRE(d->DefaultText() == "42");
-  REQUIRE(d->desc().lifecycle == rex::cvar::Lifecycle::HotReload);
-  REQUIRE(reg().Find("test.once")->desc().lifecycle == rex::cvar::Lifecycle::InitOnly);
+  auto found = reg().Find("test.count");
+  REQUIRE(found);
+  // NOLINTNEXTLINE(bugprone-unchecked-optional-access) checked by REQUIRE above
+  const rex::cvar::IVar& d = found->get();
+  REQUIRE(d.desc().type == rex::cvar::Type::Int32);
+  REQUIRE(d.DefaultText() == "42");
+  REQUIRE(d.desc().lifecycle == rex::cvar::Lifecycle::HotReload);
+  // NOLINTNEXTLINE(bugprone-unchecked-optional-access) checked by REQUIRE above
+  REQUIRE(reg().Find("test.once")->get().desc().lifecycle == rex::cvar::Lifecycle::InitOnly);
   auto all = reg().Enumerate("test");
   REQUIRE(all.size() == 10);
   REQUIRE(all[0]->desc().name == "test.flag");
@@ -167,13 +170,14 @@ TEST_CASE_METHOD(Fixture, "A duplicate full name in a free scope fails Duplicate
   auto dupe = reg().Register("test", other_scope_dupe);
   REQUIRE_FALSE(dupe);
   REQUIRE(dupe.error().code == static_cast<int>(rex::cvar::Error::DuplicateScope));
-  REQUIRE(reg().Find("test.flag") == &test_cvars::flag);
+  // NOLINTNEXTLINE(bugprone-unchecked-optional-access) registered above
+  REQUIRE(&reg().Find("test.flag")->get() == &test_cvars::flag);
 }
 
 TEST_CASE_METHOD(Fixture, "Unregister frees the scope and re registration works", "[cvar]") {
   REQUIRE(reg().Register("test", test_cvars::kTestCvars));
   reg().Unregister(test_cvars::kTestCvars);
-  REQUIRE(reg().Find("test.flag") == nullptr);
+  REQUIRE_FALSE(reg().Find("test.flag"));
   REQUIRE(reg().Scopes().empty());
   REQUIRE(test_cvars::flag.registry() == nullptr);
   REQUIRE(reg().Register("test", test_cvars::kTestCvars));
@@ -225,7 +229,8 @@ TEST_CASE_METHOD(Fixture, "SetDefault applies only while the source is Default",
   REQUIRE(reg().ResetToDefault("test.count"));
   REQUIRE(test_cvars::count.get() == 6);
   REQUIRE(reg().Source("test.count") == rex::cvar::CvarSource::Default);
-  REQUIRE(reg().Find("test.count")->DefaultText() == "42");
+  // NOLINTNEXTLINE(bugprone-unchecked-optional-access) registered above
+  REQUIRE(reg().Find("test.count")->get().DefaultText() == "42");
   REQUIRE(reg().Get("test.count").value() == "6");
   REQUIRE(test_cvars::count.Parse("42"));
 }
@@ -365,7 +370,7 @@ TEST_CASE_METHOD(Fixture, "Add extends a reserved scope and pinned scopes surviv
   REQUIRE_FALSE(bad);
   REQUIRE(bad.error().code == static_cast<int>(rex::cvar::Error::BadName));
   reg().Unregister(one);
-  REQUIRE(reg().Find("bind.console") == nullptr);
+  REQUIRE_FALSE(reg().Find("bind.console"));
   REQUIRE(reg().Scopes() == std::vector<std::string_view>{"bind"});
   REQUIRE(reg().Add(one));
   reg().Unregister(one);

@@ -154,13 +154,14 @@ const void* XEXImage::FindOptHeader(xex2_header_keys key) const {
       if (u64{entry->value} + 4 > header_.size()) {
         return nullptr;
       }
-      const u32 size = *reinterpret_cast<const be<u32>*>(header_.data() + entry->value);
+      const u32 size = *reinterpret_cast<const be_u32*>(header_.data() + entry->value);
       return size >= 4 && u64{entry->value} + size <= header_.size() ? header_.data() + entry->value
                                                                      : nullptr;
     }
     default:
-      return u64{entry->value} + (key & 0xFF) * 4u <= header_.size() ? header_.data() + entry->value
-                                                                     : nullptr;
+      return u64{entry->value} + static_cast<u64>(key & 0xFF) * 4 <= header_.size()
+                 ? header_.data() + entry->value
+                 : nullptr;
   }
 }
 

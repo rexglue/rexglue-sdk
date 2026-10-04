@@ -416,7 +416,7 @@ u32 NtWriteFile_entry(u32 file_handle, u32 event_handle, u32 apc_routine, mapped
 
       if (io_status_block) {
         io_status_block->status = result;
-        io_status_block->information = static_cast<uint32_t>(bytes_written);
+        io_status_block->information = bytes_written;
       }
 
       // Queue the APC callback. It must be delivered via the APC mechanism even

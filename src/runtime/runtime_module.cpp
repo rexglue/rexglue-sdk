@@ -140,10 +140,7 @@ std::span<const char* const> RuntimeModule::RequiredInterfaces() const {
 
 Result<void> RuntimeModule::Connect(IInterfaceFactory* factory, const Config& config) {
   REX_TRY_VOID(ValidateSlices(config));
-  cvars_ = factory->Get<cvar::ICvarRegistry>();
-  if (!cvars_) {
-    return Err(ErrorCategory::Module, "rexruntime: rex.cvar is not served");
-  }
+  REX_TRY(cvars_, factory->Get<cvar::ICvarRegistry>());
   registered_ = 0;
   for (const ScopeTable& table : kTables) {
     if (auto status = cvars_->Register(table.scope, table.vars); !status) {
@@ -152,11 +149,12 @@ Result<void> RuntimeModule::Connect(IInterfaceFactory* factory, const Config& co
     }
     ++registered_;
   }
-  logger_ = factory->Get<ILogger>();
-  if (!logger_) {
+  auto logger = factory->Get<ILogger>();
+  if (!logger) {
     Disconnect();
-    return Err(ErrorCategory::Module, "rexruntime: the logger is not served");
+    return Err(logger.error());
   }
+  logger_ = *logger;
   if (auto status = logger_->Register(log::kRuntimeLog); !status) {
     logger_ = nullptr;
     Disconnect();

@@ -207,7 +207,7 @@ Result<void> InitProject(const InitOptions& opts, const CLIContext& ctx) {
                      "Path exists but is not a directory: " + projectRoot.string());
   }
 
-  enum class RegeneratePolicy { AlwaysRegenerate, FirstInitOnly, RequiresForce };
+  enum class RegeneratePolicy : u8 { AlwaysRegenerate, FirstInitOnly, RequiresForce };
   struct Render {
     std::string template_id;
     fs::path out;
@@ -370,10 +370,9 @@ Result<void> InitAchievements(const InitAchievementsOptions& opts, const CLICont
   }
   rex::Runtime* runtime = &tool->runtime();
 
-  rex::X_STATUS rtStatus = runtime->LoadXEXImage(entryVfsPath);
-  if (!XSUCCEEDED(rtStatus)) {
-    return Err<void>(ErrorCategory::IO,
-                     fmt::format("Failed to load XEX '{}': {:#x}", opts.xex_path, rtStatus));
+  if (auto loaded = runtime->LoadXEXImage(entryVfsPath); !loaded) {
+    return Err<void>(ErrorCategory::IO, fmt::format("Failed to load XEX '{}': {}", opts.xex_path,
+                                                    loaded.error().message));
   }
 
   const rex::runtime::util::XDBFGameData db = runtime->content_manager().title_xdbf();

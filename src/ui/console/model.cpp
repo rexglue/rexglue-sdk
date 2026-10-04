@@ -126,8 +126,8 @@ void ConsoleModel::Execute(std::string_view line) {
   const std::string name(command.substr(0, space));
   const std::string_view args =
       space == std::string_view::npos ? std::string_view{} : Trim(command.substr(space + 1));
-  const cvar::IVar* var = cvars_.Find(name);
-  if (var && var->desc().type == cvar::Type::Command) {
+  const auto var = cvars_.Find(name);
+  if (var && var->get().desc().type == cvar::Type::Command) {
     if (auto invoked = cvars_.Invoke(name, args); !invoked) {
       Add(log::Level::kWarn, invoked.error().message);
     }
@@ -204,10 +204,11 @@ std::string ConsoleModel::HelpLine(std::string_view input) const {
       return std::format("{}. {}", name, built_in.description);
     }
   }
-  const cvar::IVar* var = cvars_.Find(name);
-  if (!var) {
+  const auto found = cvars_.Find(name);
+  if (!found) {
     return {};
   }
+  const cvar::IVar* var = &found->get();
   const cvar::Desc& desc = var->desc();
   if (desc.type == cvar::Type::Command) {
     return std::format("{} command. {}", name, desc.description);

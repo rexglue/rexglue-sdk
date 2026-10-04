@@ -120,6 +120,22 @@ TEST_CASE_METHOD(Fixture, "The only interface request before Init is the rex.cva
   REQUIRE(g_events[1] == "rexmod-test-good:connect");
 }
 
+TEST_CASE_METHOD(Fixture, "The interface factory reports a missing or mismatched interface",
+                 "[module_loader]") {
+  REQUIRE(rex::Init(rex::Config{}));
+  rex::IInterfaceFactory& factory = rex::detail::ModuleLoader::Instance();
+  using Registry = rex::cvar::ICvarRegistry;
+  auto typed = factory.Get<Registry>();
+  REQUIRE(typed);
+  CHECK(*typed != nullptr);
+  auto missing = factory.Get("rex.nothing", 1);
+  REQUIRE_FALSE(missing);
+  CHECK(missing.error().code == static_cast<int>(rex::InterfaceStatus::NotFound));
+  auto wrong = factory.Get(Registry::kInterfaceName, Registry::kInterfaceVersion + 1);
+  REQUIRE_FALSE(wrong);
+  CHECK(wrong.error().code == static_cast<int>(rex::InterfaceStatus::VersionMismatch));
+}
+
 TEST_CASE_METHOD(Fixture, "rex_create_interface with a null name reports NotFound",
                  "[module_loader]") {
   Pinned pin("rexmod-test-good");
@@ -331,7 +347,7 @@ TEST_CASE_METHOD(Fixture, "A consumer table with a bad name fails before any loa
   REQUIRE(g_events.empty());
 }
 
-TEST_CASE_METHOD(Fixture, "Slice validation fails before any module connects",
+TEST_CASE_METHOD(Fixture, "Config validation fails before any module connects",
                  "[module_loader][cvar]") {
   Pinned pin("rexmod-test-good");
   auto cfg = With({"rexfilesystem", "rexruntime", "rexmod-test-good"});
@@ -407,19 +423,31 @@ TEST_CASE_METHOD(Fixture, "rexruntime registers the module scopes at Connect",
   REQUIRE(api);
   REQUIRE(api.value()->IsLoaded("rexruntime"));
   auto* registry = api.value()->Get<rex::cvar::ICvarRegistry>();
-  REQUIRE(registry->Find("runtime.protect_zero") != nullptr);
-  REQUIRE(registry->Find("ui.window_width") != nullptr);
+  REQUIRE(registry->Find("runtime.protect_zero"));
+  REQUIRE(registry->Find("ui.window_width"));
   auto scopes = registry->Scopes();
   REQUIRE(std::find(scopes.begin(), scopes.end(), "bind") != scopes.end());
+}
+
+TEST_CASE_METHOD(Fixture, "Runtime config sets the code segment and zero page defaults",
+                 "[module_loader][cvar]") {
+  auto cfg = With({"rexfilesystem", "rexruntime"});
+  cfg.runtime.writable_code_segments = true;
+  cfg.runtime.protect_zero = false;
+  auto api = rex::Init(cfg);
+  REQUIRE(api);
+  auto* registry = api.value()->Get<rex::cvar::ICvarRegistry>();
+  REQUIRE(registry->Get("runtime.writable_code_segments").value() == "true");
+  REQUIRE(registry->Get("runtime.protect_zero").value() == "false");
 }
 
 TEST_CASE_METHOD(Fixture, "Without rexruntime no module scope exists", "[module_loader][cvar]") {
   auto api = rex::Init(rex::Config{});
   REQUIRE(api);
   auto* registry = api.value()->Get<rex::cvar::ICvarRegistry>();
-  REQUIRE(registry->Find("runtime.protect_zero") == nullptr);
-  REQUIRE(registry->Find("ui.window_width") == nullptr);
+  REQUIRE_FALSE(registry->Find("runtime.protect_zero"));
+  REQUIRE_FALSE(registry->Find("ui.window_width"));
   auto scopes = registry->Scopes();
   REQUIRE(std::find(scopes.begin(), scopes.end(), "bind") == scopes.end());
-  REQUIRE(registry->Find("log.level") != nullptr);
+  REQUIRE(registry->Find("log.level"));
 }

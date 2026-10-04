@@ -131,9 +131,9 @@ struct X_FIBER_CONTEXT {
   rex::be<uint32_t> stack_alloc_base;        // 0x04  KTHREAD.stack_alloc_base (0xD0)
   rex::be<uint32_t> stack_base;              // 0x08  KTHREAD.stack_base (0x5C), PCR.stack_base_ptr
   rex::be<uint32_t> stack_limit;             // 0x0C  KTHREAD.stack_limit (0x60), PCR.stack_end_ptr
-  rex::be<uint32_t> cr_save;                 // 0x10  saved CR
+  rex::be_u32 cr_save;                       // 0x10  saved CR
   uint8_t reserved_14[0x08];                 // 0x14  padding
-  rex::be<uint32_t> lr_save;                 // 0x1C  saved LR
+  rex::be_u32 lr_save;                       // 0x1C  saved LR
   uint8_t reserved_20[0x10];                 // 0x20  padding
   rex::be<uint64_t> sp_save;                 // 0x30  saved r1
   uint8_t register_save_area[0xA50 - 0x38];  // non-volatile PPCContext register save area
@@ -235,7 +235,7 @@ struct X_KTHREAD {
   rex::be<uint32_t> unk_14;          // 0x14
   X_KTIMER wait_timeout_timer;       // 0x18
   X_KWAIT_BLOCK wait_timeout_block;  // 0x40
-  rex::be<uint32_t> kernel_time;     // 0x58
+  rex::be_u32 kernel_time;           // 0x58
   rex::be<uint32_t> stack_base;      // 0x5C
   rex::be<uint32_t> stack_limit;     // 0x60
   rex::be<uint32_t> stack_kernel;    // 0x64

@@ -106,6 +106,7 @@ TEST_CASE_METHOD(OpenRoot, "An open file outlives the unmount of its mount",
   CHECK(ReadText(*reader.file) == "held");
   auto entry = (*list)->Next();
   REQUIRE(entry);
+  // NOLINTNEXTLINE(bugprone-unchecked-optional-access) checked by REQUIRE above
   CHECK(entry->name == "held.dat");
 
   fs().Clear();

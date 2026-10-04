@@ -52,7 +52,7 @@ using namespace rex::runtime;
 using namespace rex::runtime::xam;
 
 // https://github.com/G91/TitanOffLine/blob/1e692d9bb9dfac386d08045ccdadf4ae3227bb5e/xkelib/xam/xamNet.h
-enum {
+enum : u8 {
   XNCALLER_INVALID = 0x0,
   XNCALLER_TITLE = 0x1,
   XNCALLER_SYSAPP = 0x2,
@@ -518,7 +518,7 @@ u32 NetDll_inet_addr_entry(mapped_string addr_ptr) {
   // https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-inet_addr#return-value
   // Based on console research it seems like x360 uses old version of inet_addr
   // In case of empty string it return 0 instead of -1
-  if (addr == -1 && !addr_ptr.value().length()) {
+  if (addr == -1 && addr_ptr.value().empty()) {
     return 0;
   }
 

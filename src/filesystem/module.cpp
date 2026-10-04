@@ -46,10 +46,7 @@ std::span<const char* const> FilesystemModule::RequiredInterfaces() const {
 }
 
 Result<void> FilesystemModule::Connect(IInterfaceFactory* factory, const Config& config) {
-  logger_ = factory->Get<ILogger>();
-  if (!logger_) {
-    return Err(ErrorCategory::Module, "rexfilesystem: the logger is not served");
-  }
+  REX_TRY(logger_, factory->Get<ILogger>());
   REX_TRY_VOID(logger_->Register(log::kFilesystemLog));
   file_system_.set_game_mount_flags(config.filesystem.game_mount_flags);
   return Ok();

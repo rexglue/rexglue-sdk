@@ -18,6 +18,7 @@
 #include <rex/api.h>
 #include <rex/filesystem.h>
 #include <rex/kernel/init.h>
+#include <rex/runtime/error.h>
 #include <rex/runtime.h>
 #include <rex/runtime/xex_module.h>
 #include <rex/runtime/xmemory.h>
@@ -476,8 +477,9 @@ X_STATUS SetupWithBudget(u32 megabytes, u32* out_budget_pages) {
     setup.file_system = (*api)->Get<rex::filesystem::IFileSystem>();
     setup.kernel_init = rex::kernel::InitializeKernel;
     setup.tool_mode = true;
-    status = runtime.Setup(setup);
-    *out_budget_pages = status == X_STATUS_SUCCESS ? runtime.memory()->budget_pages() : 0;
+    const rex::Result<void> result = runtime.Setup(setup);
+    status = result ? X_STATUS_SUCCESS : rex::runtime::ToXStatus(result.error());
+    *out_budget_pages = result ? runtime.memory()->budget_pages() : 0;
     runtime.Shutdown();
   }
   rex::Shutdown();

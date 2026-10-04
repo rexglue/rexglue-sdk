@@ -30,7 +30,7 @@ using hundrednanoseconds = std::chrono::duration<i64, hundrednano>;
 namespace detail {
 
 /** Time domain an NtSystemClock reads. */
-enum class Domain {
+enum class Domain : u8 {
   Host, /**< Unscaled host time. */
   Guest /**< guest time, with the Clock time scalar and time base applied. */
 };
@@ -63,7 +63,6 @@ struct NtSystemClock {
     return fp.time_since_epoch() - sp.time_since_epoch();
   }
 
- public:
   /**
    * @param tp The time point to convert.
    * @return The time point as a FILETIME.
@@ -130,6 +129,7 @@ using XSystemClock = detail::NtSystemClock<detail::Domain::Guest>;
 
 }  // namespace rex
 
+// NOLINTNEXTLINE(bugprone-std-namespace-modification) permitted specialization
 namespace std::chrono {
 
 #ifdef __APPLE__
@@ -171,8 +171,7 @@ struct clock_time_conversion<::rex::WinSystemClock, ::rex::XSystemClock> {
    * @return The same instant in host time.
    */
   template <typename Duration>
-  typename WClock_::time_point operator()(
-      const std::chrono::time_point<XClock_, Duration>& t) const {
+  WClock_::time_point operator()(const std::chrono::time_point<XClock_, Duration>& t) const {
     std::atomic_thread_fence(std::memory_order_acq_rel);
     auto w_now = WClock_::now();
     auto x_now = XClock_::now();
@@ -203,8 +202,7 @@ struct clock_time_conversion<::rex::XSystemClock, ::rex::WinSystemClock> {
    * @return The same instant in guest time.
    */
   template <typename Duration>
-  typename XClock_::time_point operator()(
-      const std::chrono::time_point<WClock_, Duration>& t) const {
+  XClock_::time_point operator()(const std::chrono::time_point<WClock_, Duration>& t) const {
     std::atomic_thread_fence(std::memory_order_acq_rel);
     auto w_now = WClock_::now();
     auto x_now = XClock_::now();

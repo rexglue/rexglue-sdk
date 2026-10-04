@@ -59,10 +59,8 @@
  * @param version The interface version, an integer literal.
  *
  * @code
- * class IFileSystem {
- *  public:
- *   REX_INTERFACE(IFileSystem, "rex.filesystem", 1);
- * };
+ * const char* name = IFileSystem::kInterfaceName;
+ * rex::u32 version = IFileSystem::kInterfaceVersion;
  * @endcode
  */
 #define REX_INTERFACE(Class, name, version)           \
@@ -122,8 +120,10 @@
  * @param a The first token.
  * @param b The second token.
  *
+ * The example yields the token _rex_try_12.
+ *
  * @code
- * REX_TRY_CONCAT_IMPL(_rex_try_, 12)  // _rex_try_12
+ * REX_TRY_CONCAT_IMPL(_rex_try_, 12)
  * @endcode
  */
 #define REX_TRY_CONCAT_IMPL(a, b) a##b

@@ -46,7 +46,7 @@ struct X_KPROCESS {
 };
 static_assert_size(X_KPROCESS, 0x60);
 
-/** An object with a self referencing list head that titles probe. */
+/** An object with a self referencing list head that titles read. */
 struct X_UNKNOWN_TYPE_REFED {
   rex::be<u32> field0;
   rex::be<u32> field4;

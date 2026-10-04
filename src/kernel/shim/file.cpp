@@ -79,8 +79,7 @@ REX_SHIM_FN(RemoveDirectoryA, u32, mapped_string lpPathName) {
 }
 
 REX_SHIM_FN(GetFileType, u32, u32 hFile) {
-  auto file =
-      runtime::Current().object_table().Get<rex::runtime::FileObject>(static_cast<u32>(hFile));
+  auto file = runtime::Current().object_table().Get<rex::runtime::FileObject>(hFile);
   if (!file)
     return 0;  // FILE_TYPE_UNKNOWN
   return 1;    // FILE_TYPE_DISK

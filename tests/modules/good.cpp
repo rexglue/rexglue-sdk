@@ -47,9 +47,7 @@ class GoodModule final : public rex::IModule, public rex::test::IEcho {
   }
   rex::Result<void> Connect(rex::IInterfaceFactory* factory, const rex::Config&) override {
     Record(kName, "connect");
-    cvars_ = factory->Get<rex::cvar::ICvarRegistry>();
-    if (!cvars_)
-      return rex::Err(rex::ErrorCategory::Module, "rex.cvar not served");
+    REX_TRY(cvars_, factory->Get<rex::cvar::ICvarRegistry>());
     return cvars_->Register("echo", kEchoCvars);
   }
   void Disconnect() override {

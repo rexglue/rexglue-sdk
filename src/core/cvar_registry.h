@@ -41,7 +41,8 @@ class REX_API CvarRegistryImpl final : public cvar::ICvarRegistry {
   Result<void> SetDefault(std::string_view name, std::string_view value) override;
   Result<void> Lock(std::string_view name) override;
   Result<void> ResetToDefault(std::string_view name) override;
-  const cvar::IVar* Find(std::string_view name) const override;
+  [[nodiscard]] std::optional<std::reference_wrapper<const cvar::IVar>> Find(
+      std::string_view name) const override;
   cvar::CvarSource Source(std::string_view name) const override;
   std::vector<const cvar::IVar*> Enumerate(std::string_view scope = {}) const override;
   std::vector<std::string_view> Scopes() const override;

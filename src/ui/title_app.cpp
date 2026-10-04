@@ -34,6 +34,7 @@
 #include <rex/platform/thread.h>
 #include <rex/runtime.h>
 #include <rex/string/numeric.h>
+#include <rex/string/utf8.h>
 #include <rex/system.h>
 #include <rex/runtime/achievement_manager.h>
 #include <rex/runtime/xobject.h>
@@ -71,11 +72,7 @@ CLIArgList WindowsCommandLine() {
   }
   std::vector<std::string> args;
   for (i32 index = 1; index < count; ++index) {
-    const i32 length =
-        WideCharToMultiByte(CP_UTF8, 0, wide[index], -1, nullptr, 0, nullptr, nullptr);
-    std::string arg(size_t(length > 0 ? length - 1 : 0), '\0');
-    WideCharToMultiByte(CP_UTF8, 0, wide[index], -1, arg.data(), length, nullptr, nullptr);
-    args.push_back(std::move(arg));
+    args.push_back(rex::to_utf8(reinterpret_cast<const char16_t*>(wide[index])));
   }
   LocalFree(static_cast<HLOCAL>(wide));
   return CLIArgList::Parse(args);
@@ -496,8 +493,8 @@ Result<void> TitleApp::LaunchTitle() {
   runtime_config.kernel_init = kernel::InitializeKernel;
   runtime_config.graphics = graphics_;
   runtime_config.file_system = api().Get<filesystem::IFileSystem>();
-  if (XFAILED(runtime_->Setup(image_, runtime_config))) {
-    return LaunchFailure("runtime setup failed");
+  if (auto setup = runtime_->Setup(image_, runtime_config); !setup) {
+    return LaunchFailure(std::format("runtime setup failed, {}", setup.error().message));
   }
   if (auto* input = static_cast<input::InputSystem*>(runtime_->input_system())) {
     input->AttachWindow(window_.get());
@@ -512,8 +509,9 @@ Result<void> TitleApp::LaunchTitle() {
     return LaunchFailure(std::format("Entrypoint XEX not found: {}",
                                      (paths.game_data_root / "default.xex").string()));
   }
-  if (XFAILED(runtime_->LoadXEXImage(kImage))) {
-    return LaunchFailure(std::format("Failed to load XEX ({})", kImage));
+  if (auto loaded = runtime_->LoadXEXImage(kImage); !loaded) {
+    return LaunchFailure(
+        std::format("Failed to load XEX ({}), {}", kImage, loaded.error().message));
   }
   if (image_.shim_heap &&
       !kernel::shim::InitHeap(api().config().runtime.heap_size_mb, runtime_->memory())) {

@@ -113,8 +113,8 @@ class CodegenContext {
   // Non-copyable, movable
   CodegenContext(const CodegenContext&) = delete;
   CodegenContext& operator=(const CodegenContext&) = delete;
-  CodegenContext(CodegenContext&&);
-  CodegenContext& operator=(CodegenContext&&);
+  CodegenContext(CodegenContext&&) noexcept;
+  CodegenContext& operator=(CodegenContext&&) noexcept;
   ~CodegenContext();
 
   // === OWNED DATA (single source of truth) ===

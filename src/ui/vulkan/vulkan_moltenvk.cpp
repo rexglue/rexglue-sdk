@@ -17,11 +17,11 @@
 
 #include <algorithm>
 #include <array>
-#include <cstdlib>
 #include <string>
 #include <string_view>
 #include <system_error>
 
+#include <rex/platform/env.h>
 #include <rex/platform/file.h>
 
 namespace rex::ui::vulkan {
@@ -133,15 +133,15 @@ std::vector<fs::path> CollectSdkRoots() {
   CollectExecutableRoots(roots);
 
   for (std::string_view environment_variable : kSdkEnvironmentVariables) {
-    const char* sdk_root = std::getenv(environment_variable.data());
-    if (sdk_root && sdk_root[0]) {
-      AppendNormalizedRoot(roots, sdk_root);
+    auto sdk_root = rex::platform::GetEnvironmentValue(environment_variable);
+    if (sdk_root && !sdk_root->empty()) {
+      AppendNormalizedRoot(roots, *sdk_root);
     }
   }
 
-  const char* home = std::getenv("HOME");
-  if (home && home[0]) {
-    fs::path user_sdk_dir = fs::path(home) / "VulkanSDK";
+  auto home = rex::platform::GetEnvironmentValue("HOME");
+  if (home && !home->empty()) {
+    fs::path user_sdk_dir = fs::path(*home) / "VulkanSDK";
     if (IsDirectory(user_sdk_dir)) {
       std::vector<fs::path> version_dirs;
       std::error_code ec;
@@ -163,6 +163,13 @@ std::vector<fs::path> CollectSdkRoots() {
   }
 
   return roots;
+}
+
+void SetIfUnset(std::string_view name, const fs::path& value) {
+  auto current = rex::platform::GetEnvironmentValue(name);
+  if (!current || current->empty()) {
+    rex::platform::SetEnvironmentValue(name, value.string());
+  }
 }
 
 }  // namespace
@@ -188,24 +195,11 @@ MacOSVulkanRuntimePaths DetectMacOSVulkanRuntimePaths() {
 
 void ConfigureMacOSVulkanEnvironment(const MacOSVulkanRuntimePaths& paths) {
   if (!paths.sdk_root.empty()) {
-    const char* vulkan_sdk = std::getenv("VULKAN_SDK");
-    if (!vulkan_sdk || !vulkan_sdk[0]) {
-      std::string sdk_root = paths.sdk_root.string();
-      setenv("VULKAN_SDK", sdk_root.c_str(), 1);
-    }
+    SetIfUnset("VULKAN_SDK", paths.sdk_root);
   }
-
   if (!paths.moltenvk_icd.empty()) {
-    std::string moltenvk_icd = paths.moltenvk_icd.string();
-    const char* vk_driver_files = std::getenv("VK_DRIVER_FILES");
-    if (!vk_driver_files || !vk_driver_files[0]) {
-      setenv("VK_DRIVER_FILES", moltenvk_icd.c_str(), 1);
-    }
-
-    const char* vk_icd_filenames = std::getenv("VK_ICD_FILENAMES");
-    if (!vk_icd_filenames || !vk_icd_filenames[0]) {
-      setenv("VK_ICD_FILENAMES", moltenvk_icd.c_str(), 1);
-    }
+    SetIfUnset("VK_DRIVER_FILES", paths.moltenvk_icd);
+    SetIfUnset("VK_ICD_FILENAMES", paths.moltenvk_icd);
   }
 }
 

@@ -26,6 +26,8 @@ void ConsoleFind(std::string_view args);
 
 namespace rex::ui::cvars {
 
+// NOLINTBEGIN(bugprone-throwing-static-initialization) constant descriptors registered at Connect
+
 REXCVAR_BOOL(d3d12, allow_tearing, true, "Allow variable refresh rate and tearing");
 REXCVAR_BOOL(d3d12, debug, false, "Enable Direct3D 12 and DXGI debug layer")
     .lifecycle(rex::cvar::Lifecycle::InitOnly);
@@ -135,5 +137,7 @@ REXCVAR_TABLE(kVulkanCvars, require_geometry_shader, require_fill_mode_non_solid
               allow_present_mode_mailbox, allow_present_mode_fifo_relaxed, validation,
               prefer_geometry_shader, prefer_fragment_stores_and_atomics,
               prefer_vertex_pipeline_stores_and_atomics, prefer_fill_mode_non_solid);
+
+// NOLINTEND(bugprone-throwing-static-initialization)
 
 }  // namespace rex::ui::cvars

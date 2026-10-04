@@ -195,7 +195,8 @@ class SVODReader {
     return Ok();
   }
 
-  Result<void> Emit(Visit visit, std::vector<ContainerNode>& nodes, std::vector<Visit>& stack) {
+  Result<void> Emit(Visit visit, std::vector<ContainerNode>& nodes,
+                    std::vector<Visit>& stack) const {
     const DirectoryEntry& entry = visit.entry;
     const u64 root_time = nodes.front().create_time;
     ContainerNode node;

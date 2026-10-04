@@ -149,13 +149,13 @@ TEST_CASE_METHOD(Fixture, "A disabled level does not evaluate its arguments", "[
 TEST_CASE_METHOD(Fixture, "Register adds a cvar per category and rejects conflicts", "[logger]") {
   rex::ILogger& logger = Start();
   REQUIRE(logger.Register(rex::log::kTestLog));
-  REQUIRE(Cvars().Find("log.test_alpha") != nullptr);
+  REQUIRE(Cvars().Find("log.test_alpha"));
   REQUIRE_FALSE(logger.Register(rex::log::kTestLog));
   REQUIRE_FALSE(logger.Register(rex::log::kCollidingLog));
   REQUIRE(Cvars().Set("log.test_beta", "trace"));
   REQUIRE(logger.GetLevel("test_beta").value() == Level::kTrace);
   logger.Unregister(rex::log::kTestLog);
-  REQUIRE(Cvars().Find("log.test_alpha") == nullptr);
+  REQUIRE_FALSE(Cvars().Find("log.test_alpha"));
 }
 
 TEST_CASE_METHOD(Fixture, "A config file value reaches a category registered at start",

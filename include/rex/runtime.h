@@ -76,7 +76,7 @@ class ImGuiDrawer;
 struct RuntimeConfig {
   /** The graphics backend, owned by its module. Null runs without GPU emulation. */
   graphics::IGraphicsBackend* graphics = nullptr;
-  /** The mount table. Required, Setup fails with X_STATUS_INVALID_PARAMETER without it. */
+  /** The mount table. Required, Setup fails without it. */
   filesystem::IFileSystem* file_system = nullptr;
   /** Builds the audio system once the function dispatcher exists. */
   std::function<std::unique_ptr<runtime::IAudioSystem>(runtime::FunctionDispatcher*)> audio_factory;
@@ -267,18 +267,19 @@ class Runtime {
    * the subsystems.
    *
    * @param config The subsystems to create. tool_mode skips the GPU.
-   * @return X_STATUS_SUCCESS, or the status of the step that failed.
+   * @return Ok, or a Runtime error whose code is the status of the step that failed.
    */
-  X_STATUS Setup(const RuntimeConfig& config = {});
+  [[nodiscard]] Result<void> Setup(const RuntimeConfig& config = {});
 
   /**
    * Builds the runtime and the function dispatch table of a recompiled image.
    *
    * @param image_info The image the code was recompiled from.
    * @param config The subsystems to create.
-   * @return X_STATUS_SUCCESS, or the status of the step that failed.
+   * @return Ok, or a Runtime error whose code is the status of the step that failed.
    */
-  X_STATUS Setup(const PPCImageInfo& image_info, const RuntimeConfig& config = {});
+  [[nodiscard]] Result<void> Setup(const PPCImageInfo& image_info,
+                                   const RuntimeConfig& config = {});
 
   /**
    * Returns the codegen flags of the recompiled image.
@@ -304,9 +305,9 @@ class Runtime {
    * Loads an XEX image into guest memory and makes it the executable.
    *
    * @param module_path The guest path of the image.
-   * @return X_STATUS_SUCCESS, or the status of the load.
+   * @return Ok, or a Runtime error whose code is the status of the load.
    */
-  X_STATUS LoadXEXImage(const std::string_view module_path);
+  [[nodiscard]] Result<void> LoadXEXImage(const std::string_view module_path);
 
   /**
    * Launches the executable loaded by LoadXEXImage on its main thread.

@@ -1,6 +1,6 @@
 /**
  * @file        input.h
- * @brief       Input module facade and configuration slice
+ * @brief       Input module facade and module config
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -24,7 +24,7 @@ enum class Backend : u8 {
   XInput, /**< XInput, Windows only. */
 };
 
-/** Input module slice. */
+/** Input module config. */
 struct InputConfig {
   /** Which controller backend reads the pads. XInput is rejected in Init on other platforms. */
   Backend backend = Backend::SDL;

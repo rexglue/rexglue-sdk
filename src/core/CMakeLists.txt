@@ -18,7 +18,6 @@ add_library(rexcore SHARED
     filesystem/xex.cpp
     ${PROJECT_SOURCE_DIR}/thirdparty/crypto/rijndael-alg-fst.c
     hash.cpp
-    instance_lock.cpp
     log_file.cpp
     log_sinks.cpp
     logger.cpp
@@ -58,6 +57,7 @@ if(WIN32)
         dynlib_win.cpp
         crash_win.cpp
         exception_handler_win.cpp
+        instance_lock_win.cpp
         fiber_win32.cpp
         log_sinks_win.cpp
         mapped_memory_win.cpp
@@ -84,6 +84,7 @@ elseif(UNIX)
         crash_posix.cpp
         exception_handler_posix.cpp
         fiber_posix.cpp
+        instance_lock_posix.cpp
         log_sinks_posix.cpp
         mapped_memory_posix.cpp
         math_gcc.cpp

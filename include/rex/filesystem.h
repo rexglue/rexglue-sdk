@@ -1,6 +1,6 @@
 /**
  * @file        filesystem.h
- * @brief       The filesystem facade and the filesystem slice of rex::Config
+ * @brief       The filesystem facade and the filesystem module config of rex::Config
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -22,7 +22,7 @@
 
 namespace rex::filesystem {
 
-/** Filesystem module slice. */
+/** Filesystem module config. */
 struct FilesystemConfig {
   /** Mount flags of the game data mount. kWritable lets the title write under game_data_root. */
   MountFlags game_mount_flags = MountFlags::kNone;

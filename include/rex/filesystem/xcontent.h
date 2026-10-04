@@ -34,7 +34,8 @@ using rex::runtime::XLanguage;
  *
  * @param date FAT date, 7 bits of years since 1980, 4 bits of month, 5 bits of day.
  * @param time FAT time, 5 bits of hours, 6 bits of minutes, 5 bits of 2 second units.
- * @return 100 nanosecond intervals since 1601-01-01 UTC, or 0 when the date is invalid.
+ * @return 100 nanosecond intervals since 1601-01-01 UTC. An out of range field carries into the
+ * next field.
  */
 REX_API u64 decode_fat_timestamp(u32 date, u32 time);
 
@@ -78,8 +79,8 @@ enum class XContentPackageType : u32 {
 };
 
 /** Volume layout of a package. */
-enum class XContentVolumeType : u32 {
-  kSTFS = 0, /**< Secure transacted file system, 1 file. */
+enum class XContentVolumeType : u32 {  // NOLINT(performance-enum-size) guest memory field
+  kSTFS = 0,                           /**< Secure transacted file system, 1 file. */
   kSVOD = 1, /**< Secure virtual optical disc, a header file and data fragments. */
 };
 

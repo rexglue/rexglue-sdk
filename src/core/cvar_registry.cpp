@@ -391,10 +391,14 @@ Result<void> CvarRegistryImpl::ResetToDefault(std::string_view name) {
   return Ok();
 }
 
-const IVar* CvarRegistryImpl::Find(std::string_view name) const {
+std::optional<std::reference_wrapper<const IVar>> CvarRegistryImpl::Find(
+    std::string_view name) const {
   std::lock_guard lock(mutex_);
   const Entry* entry = FindEntry(name);
-  return entry ? entry->var : nullptr;
+  if (!entry) {
+    return std::nullopt;
+  }
+  return std::cref(*entry->var);
 }
 
 CvarSource CvarRegistryImpl::Source(std::string_view name) const {

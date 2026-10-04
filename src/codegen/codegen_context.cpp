@@ -45,11 +45,10 @@ Result<CodegenContext> CodegenContext::Create(const std::filesystem::path& confi
   // Load XEX via Runtime
   auto xexFilename = xexPath.filename();
   auto vfsPath = "game:\\" + xexFilename.string();
-  auto status = runtime.LoadXEXImage(vfsPath);
-  if (status != X_STATUS_SUCCESS) {
+  if (auto loaded = runtime.LoadXEXImage(vfsPath); !loaded) {
     return Err<CodegenContext>(
         ErrorCategory::Format,
-        fmt::format("Failed to load XEX: {} (status {:#x})", xexPath.string(), status));
+        fmt::format("Failed to load XEX: {}, {}", xexPath.string(), loaded.error().message));
   }
 
   // Get module and create BinaryView
@@ -88,8 +87,8 @@ CodegenContext CodegenContext::Create(BinaryView binary, RecompilerConfig config
 }
 
 CodegenContext::~CodegenContext() = default;
-CodegenContext::CodegenContext(CodegenContext&&) = default;
-CodegenContext& CodegenContext::operator=(CodegenContext&&) = default;
+CodegenContext::CodegenContext(CodegenContext&&) noexcept = default;
+CodegenContext& CodegenContext::operator=(CodegenContext&&) noexcept = default;
 
 DecodedBinary& CodegenContext::decoded() {
   assert(decoded_ && "Call initDecoded() before accessing decoded()");

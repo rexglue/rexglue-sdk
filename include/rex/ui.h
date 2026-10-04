@@ -1,6 +1,6 @@
 /**
  * @file        ui.h
- * @brief       UI module facade and configuration slice
+ * @brief       UI module facade and module config
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -51,7 +51,7 @@ struct WindowSize {
   u32 height_px = 0;
 };
 
-/** UI module slice. */
+/** UI module config. */
 struct UIConfig {
   /** Initial window placement. */
   WindowConfig window;

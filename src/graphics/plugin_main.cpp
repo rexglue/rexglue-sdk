@@ -54,14 +54,8 @@ class XenosModule final : public rex::IModule {
 
   rex::Result<void> Connect(rex::IInterfaceFactory* factory, const rex::Config& config) override {
     config_ = &config.graphics;
-    cvars_ = factory->Get<rex::cvar::ICvarRegistry>();
-    if (!cvars_) {
-      return rex::Err(rex::ErrorCategory::Module, "rexgpu-xenos: rex.cvar is not served");
-    }
-    logger_ = factory->Get<rex::ILogger>();
-    if (!logger_) {
-      return rex::Err(rex::ErrorCategory::Module, "rexgpu-xenos: the logger is not served");
-    }
+    REX_TRY(cvars_, factory->Get<rex::cvar::ICvarRegistry>());
+    REX_TRY(logger_, factory->Get<rex::ILogger>());
     REX_TRY_VOID(logger_->Register(rex::log::kGPULog));
     REX_TRY_VOID(cvars_->Register("gpu", cvars::kGPUCvars));
     REX_TRY_VOID(

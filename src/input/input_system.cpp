@@ -67,7 +67,7 @@ void InputSystem::AttachWindow(rex::ui::Window* window) {
   }
 }
 
-void InputSystem::SetActiveCallback(std::function<bool()> callback) {
+void InputSystem::SetActiveCallback(const std::function<bool()>& callback) {
   for (auto& driver : drivers_) {
     driver->set_is_active_callback(callback);
   }
@@ -348,7 +348,11 @@ bool InputSystem::GetVibrationEnabled() const {
 }
 
 void InputSystem::ToggleVibration() {
-  REXCVAR_SET(::rex::input::cvars::vibration, !REXCVAR_GET(::rex::input::cvars::vibration));
+  if (auto set =
+          REXCVAR_SET(::rex::input::cvars::vibration, !REXCVAR_GET(::rex::input::cvars::vibration));
+      !set) {
+    REXLOG_WARN(input, "cannot toggle vibration, {}", set.error().message);
+  }
   // The guest's next SetState may never come while a motor is running.
   X_INPUT_VIBRATION silence = {};
   for (uint32_t user_index = 0; user_index < kMaxGuestUsers; user_index++) {

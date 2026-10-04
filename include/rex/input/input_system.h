@@ -43,7 +43,7 @@ class InputSystem : public runtime::IInputSystem {
 
   void AddDriver(std::unique_ptr<InputDriver> driver);
   void AttachWindow(rex::ui::Window* window);
-  void SetActiveCallback(std::function<bool()> callback);
+  void SetActiveCallback(const std::function<bool()>& callback);
 
   /// Replaces any previous assignment. Call before the guest starts polling.
   void SetDeviceAssignment(std::unique_ptr<DeviceAssignment> assignment);

@@ -12,6 +12,7 @@
 #pragma once
 
 #include <functional>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -52,7 +53,8 @@ class ICvarRegistry {
    * @param vars The vars to register, each named scope.leaf.
    * @return Ok, or the error.
    */
-  virtual Result<void> Register(std::string_view scope, std::span<const IVar* const> vars) = 0;
+  [[nodiscard]] virtual Result<void> Register(std::string_view scope,
+                                              std::span<const IVar* const> vars) = 0;
   /**
    * Adds vars to scopes that are already reserved, for vars created at runtime such as keybinds.
    * A value Init received for a name in a scope reserved with an empty table waits here and is
@@ -62,7 +64,7 @@ class ICvarRegistry {
    * @param vars The vars to add.
    * @return Ok, or the error.
    */
-  virtual Result<void> Add(std::span<const IVar* const> vars) = 0;
+  [[nodiscard]] virtual Result<void> Add(std::span<const IVar* const> vars) = 0;
   /**
    * Removes the vars. A scope reserved through Register with vars is released when its last var
    * leaves. A scope reserved with an empty table stays until Reset.
@@ -74,52 +76,53 @@ class ICvarRegistry {
    * Sets with source Runtime, validated. Fails with NotFound, Invalid, InitOnly after
    * finalize, or Locked.
    *
-   * @param name The cvar name.
+   * @param name Dotted cvar name such as gpu.vsync.
    * @param value The value as text.
    * @return Ok, or the error.
    */
-  virtual Result<void> Set(std::string_view name, std::string_view value) = 0;
+  [[nodiscard]] virtual Result<void> Set(std::string_view name, std::string_view value) = 0;
   /**
    * Renders the current value. Fails with NotFound.
    *
-   * @param name The cvar name.
+   * @param name Dotted cvar name such as gpu.vsync.
    * @return The value as text, or the error.
    */
-  virtual Result<std::string> Get(std::string_view name) const = 0;
+  [[nodiscard]] virtual Result<std::string> Get(std::string_view name) const = 0;
   /**
    * Changes the default and applies it when the current source is Default.
    *
-   * @param name The cvar name.
+   * @param name Dotted cvar name such as gpu.vsync.
    * @param value The new default as text.
    * @return Ok, or the error.
    */
-  virtual Result<void> SetDefault(std::string_view name, std::string_view value) = 0;
+  [[nodiscard]] virtual Result<void> SetDefault(std::string_view name, std::string_view value) = 0;
   /**
-   * Set fails with Locked from now on. Values already applied stay.
+   * Locks a cvar so every later Set fails with Locked. Values already applied stay.
    *
-   * @param name The cvar name.
+   * @param name Dotted cvar name such as gpu.vsync.
    * @return Ok, or NotFound.
    */
-  virtual Result<void> Lock(std::string_view name) = 0;
+  [[nodiscard]] virtual Result<void> Lock(std::string_view name) = 0;
   /**
    * Restores the default, the source becomes Default, callbacks fire.
    *
-   * @param name The cvar name.
+   * @param name Dotted cvar name such as gpu.vsync.
    * @return Ok, or NotFound.
    */
-  virtual Result<void> ResetToDefault(std::string_view name) = 0;
+  [[nodiscard]] virtual Result<void> ResetToDefault(std::string_view name) = 0;
   /**
    * Looks up a var.
    *
-   * @param name The cvar name.
-   * @return The var, or null. Valid until the var is unregistered. Read desc(), Render() and
-   *         DefaultText() on it, never Parse or Invoke, those go through Set and Invoke here.
+   * @param name Dotted cvar name such as gpu.vsync.
+   * @return The var, or empty when the name is not registered. Valid until the var is
+   *         unregistered. Only desc(), Render() and DefaultText() are read on it.
    */
-  virtual const IVar* Find(std::string_view name) const = 0;
+  [[nodiscard]] virtual std::optional<std::reference_wrapper<const IVar>> Find(
+      std::string_view name) const = 0;
   /**
    * Reports where a value came from.
    *
-   * @param name The cvar name.
+   * @param name Dotted cvar name such as gpu.vsync.
    * @return Where the value came from. Default for an unknown name.
    */
   virtual CvarSource Source(std::string_view name) const = 0;
@@ -131,34 +134,43 @@ class ICvarRegistry {
    */
   virtual std::vector<const IVar*> Enumerate(std::string_view scope = {}) const = 0;
   /**
+   * Lists reserved scopes.
+   *
    * @return Every reserved scope, in reservation order.
    */
   virtual std::vector<std::string_view> Scopes() const = 0;
   /**
    * Registers a change callback. Fails with NotFound.
    *
-   * @param name The cvar name.
+   * @param name Dotted cvar name such as gpu.vsync.
    * @param callback Called after each change.
    * @return The handle that owns the registration, or the error.
    */
-  virtual Result<CallbackHandle> OnChange(std::string_view name, ChangeCallback callback) = 0;
+  [[nodiscard]] virtual Result<CallbackHandle> OnChange(std::string_view name,
+                                                        ChangeCallback callback) = 0;
   /**
    * Runs a command. Fails with NotFound or NotACommand.
    *
-   * @param name The command name.
+   * @param name Dotted command name such as console.echo.
    * @param args The argument text.
    * @return Ok, or the error.
    */
-  virtual Result<void> Invoke(std::string_view name, std::string_view args) = 0;
+  [[nodiscard]] virtual Result<void> Invoke(std::string_view name, std::string_view args) = 0;
   /**
+   * Lists the cvars waiting for a restart.
+   *
    * @return RequiresRestart vars changed with source Runtime after finalize.
    */
   virtual std::vector<std::string> PendingRestart() const = 0;
   /**
+   * Renders the non default values as TOML.
+   *
    * @return Non default values as TOML, 1 [scope] table per scope, strings escaped.
    */
   virtual std::string Serialize() const = 0;
   /**
+   * Reports whether Init finalized the registry.
+   *
    * @return True after Init finalized the registry.
    */
   virtual bool IsFinalized() const = 0;
@@ -166,7 +178,7 @@ class ICvarRegistry {
  protected:
   friend class CallbackHandle;
   /**
-   * Called by CallbackHandle. Removes 1 registration by id.
+   * Removes 1 change callback registration by id.
    *
    * @param id The registration id.
    */
@@ -179,10 +191,12 @@ class ICvarRegistry {
 class CallbackHandle : public MoveOnly {
  public:
   /**
-   * An empty handle that owns nothing.
+   * Constructs an empty handle that owns nothing.
    */
   CallbackHandle() = default;
   /**
+   * Constructs a handle that owns 1 registration.
+   *
    * @param registry The registry that issued the handle.
    * @param id The registration id inside the registry.
    */
@@ -196,6 +210,9 @@ class CallbackHandle : public MoveOnly {
       : registry_(std::exchange(other.registry_, nullptr)), id_(std::exchange(other.id_, 0)) {}
   /**
    * Releases this registration and takes over the registration of other.
+   *
+   * @param other The handle to take over, which becomes empty.
+   * @return This handle.
    */
   CallbackHandle& operator=(CallbackHandle&& other) noexcept {
     if (this != &other) {
@@ -210,6 +227,8 @@ class CallbackHandle : public MoveOnly {
    */
   ~CallbackHandle() { Reset(); }
   /**
+   * Reports whether the handle owns a registration.
+   *
    * @return True while the handle owns a registration.
    */
   explicit operator bool() const { return registry_ != nullptr; }

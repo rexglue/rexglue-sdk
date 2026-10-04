@@ -122,7 +122,7 @@ class GDFXReader {
     return Ok();
   }
 
-  void Emit(Visit visit, std::vector<ContainerNode>& nodes, std::vector<Visit>& stack) {
+  void Emit(Visit visit, std::vector<ContainerNode>& nodes, std::vector<Visit>& stack) const {
     ContainerNode node;
     node.name = std::move(visit.name);
     node.parent = visit.parent;

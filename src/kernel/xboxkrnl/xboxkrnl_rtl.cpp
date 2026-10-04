@@ -201,7 +201,7 @@ void RtlCopyUnicodeString_entry(ppc_ptr_t<X_UNICODE_STRING> destination,
   if (length > 0) {
     auto dst_buf = runtime::Current().memory()->TranslateVirtual(destination->pointer);
     auto src_buf = runtime::Current().memory()->TranslateVirtual(source->pointer);
-    std::memcpy(dst_buf, src_buf, length * 2);
+    std::memcpy(dst_buf, src_buf, static_cast<size_t>(length) * 2);
   }
   destination->length = length;
 }
@@ -230,7 +230,7 @@ u32 RtlUnicodeStringToAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> destination_ptr,
            ansi_str.size() + 1);
     destination_ptr->length = static_cast<uint16_t>(ansi_str.size());
     destination_ptr->maximum_length = static_cast<uint16_t>(ansi_str.size() + 1);
-    destination_ptr->pointer = static_cast<uint32_t>(buffer_ptr);
+    destination_ptr->pointer = buffer_ptr;
   } else {
     uint32_t buffer_capacity = destination_ptr->maximum_length;
     auto buffer_ptr = runtime::Current().memory()->TranslateVirtual(destination_ptr->pointer);

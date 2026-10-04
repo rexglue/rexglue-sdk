@@ -65,16 +65,16 @@ Result<ToolRuntime> OpenToolRuntime(const std::filesystem::path& game_root) {
                     filesystem::IFileSystem::kInterfaceVersion));
   }
   auto runtime = std::make_unique<Runtime>(api->config());
-  const X_STATUS status = runtime->Setup(RuntimeConfig{
+  auto setup = runtime->Setup(RuntimeConfig{
       .file_system = file_system,
       .kernel_init = kernel::InitializeKernel,
       .tool_mode = true,
   });
-  if (status != X_STATUS_SUCCESS) {
+  if (!setup) {
     runtime.reset();
     rex::Shutdown();
     return Err<ToolRuntime>(ErrorCategory::IO,
-                            std::format("Failed to initialize Runtime: {:#x}", status));
+                            std::format("Failed to initialize Runtime: {}", setup.error().message));
   }
   return ToolRuntime(std::move(runtime), api);
 }

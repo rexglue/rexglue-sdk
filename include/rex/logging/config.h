@@ -1,6 +1,6 @@
 /**
  * @file        logging/config.h
- * @brief       The log slice of rex::Config
+ * @brief       Logger config inside rex::Config
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

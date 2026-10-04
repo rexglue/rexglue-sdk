@@ -385,29 +385,22 @@ void ModuleLoader::UnregisterTables() {
   cvars_->Reset();
 }
 
-void* ModuleLoader::Get(const char* name, u32 version, InterfaceStatus* out_status) {
+Result<void*> ModuleLoader::Get(std::string_view name, u32 version) {
   ++request_count_;
-  if (!name) {
-    if (out_status)
-      *out_status = InterfaceStatus::NotFound;
-    return nullptr;
-  }
   for (const auto& reg : registry_) {
     if (reg.name != name) {
       continue;
     }
     if (reg.version != version) {
-      if (out_status)
-        *out_status = InterfaceStatus::VersionMismatch;
-      return nullptr;
+      return Err<void*>(
+          Error(ErrorCategory::Module,
+                std::format("{} is served at version {}, not {}", name, reg.version, version),
+                static_cast<int>(InterfaceStatus::VersionMismatch)));
     }
-    if (out_status)
-      *out_status = InterfaceStatus::Ok;
     return reg.get();
   }
-  if (out_status)
-    *out_status = InterfaceStatus::NotFound;
-  return nullptr;
+  return Err<void*>(Error(ErrorCategory::Module, std::format("{}@{} is not served", name, version),
+                          static_cast<int>(InterfaceStatus::NotFound)));
 }
 
 void* ModuleLoader::GetForAPI(const char* name, u32 version) const {

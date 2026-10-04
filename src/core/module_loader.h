@@ -62,7 +62,7 @@ class REX_API ModuleLoader final : public IInterfaceFactory {
   Config& mutable_config() { return config_; }
   void Shutdown();
 
-  void* Get(const char* name, u32 version, InterfaceStatus* out_status) override;
+  [[nodiscard]] Result<void*> Get(std::string_view name, u32 version) override;
   void* GetForAPI(const char* name, u32 version) const;
   bool IsLoaded(std::string_view module_name) const;
   const Config& config() const { return config_; }

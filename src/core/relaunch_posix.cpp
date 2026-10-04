@@ -11,7 +11,7 @@
 
 #include <rex/platform/process.h>
 
-#include <cstdlib>
+#include <cerrno>
 #include <cstring>
 #include <format>
 #include <string>
@@ -19,14 +19,15 @@
 
 #include <unistd.h>
 
+#include <rex/platform/env.h>
 #include <rex/platform/file.h>
 
 namespace rex::platform {
 
 Result<void> Relaunch(std::span<const std::string> args) {
-  const char* appimage = std::getenv("APPIMAGE");
+  const auto appimage = GetEnvironmentValue("APPIMAGE");
   const std::string exe =
-      appimage && *appimage ? std::string(appimage) : platform::GetExecutablePath().string();
+      appimage && !appimage->empty() ? *appimage : platform::GetExecutablePath().string();
   std::vector<std::string> storage;
   storage.push_back(exe);
   storage.insert(storage.end(), args.begin(), args.end());
@@ -49,11 +50,11 @@ Result<void> Relaunch(std::span<const std::string> args) {
 }
 
 bool CanRelaunch() {
-  const char* desktop = std::getenv("XDG_CURRENT_DESKTOP");
-  if (desktop && std::string_view(desktop).find("gamescope") != std::string_view::npos) {
+  const auto desktop = GetEnvironmentValue("XDG_CURRENT_DESKTOP");
+  if (desktop && desktop->find("gamescope") != std::string::npos) {
     return false;
   }
-  return std::getenv("GAMESCOPE_WAYLAND_DISPLAY") == nullptr;
+  return !GetEnvironmentValue("GAMESCOPE_WAYLAND_DISPLAY").has_value();
 }
 
 }  // namespace rex::platform

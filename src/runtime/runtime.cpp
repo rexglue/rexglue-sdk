@@ -65,6 +65,10 @@ std::string DescribeCrashAddress(u64 host_address) {
   return text;
 }
 
+rex::Error SetupError(X_STATUS status, std::string message) {
+  return {ErrorCategory::Runtime, std::move(message), static_cast<int>(status)};
+}
+
 }  // namespace
 
 Runtime::Runtime(const Config& config)
@@ -110,21 +114,20 @@ std::optional<EmbeddedMetadataAsset> Runtime::FindEmbeddedMetadata(
   return FindEmbeddedMetadataAsset(relative_path);
 }
 
-X_STATUS Runtime::Setup(const RuntimeConfig& config) {
+Result<void> Runtime::Setup(const RuntimeConfig& config) {
   if (runtime::RuntimeModule::active() != nullptr) {
-    REX_FAIL(system, X_STATUS_UNSUCCESSFUL,
-             "Runtime::Setup called while another runtime is active");
+    return Err(SetupError(X_STATUS_UNSUCCESSFUL, "another runtime is active"));
   }
   constexpr u32 kMaxTitleMemoryMB = 512;
   if (config_.runtime.title_memory_mb > kMaxTitleMemoryMB) {
-    REX_FAIL(system, X_STATUS_INVALID_PARAMETER, "title_memory_mb {} is above {}",
-             config_.runtime.title_memory_mb, kMaxTitleMemoryMB);
+    return Err(SetupError(X_STATUS_INVALID_PARAMETER,
+                          std::format("title_memory_mb {} is above {}",
+                                      config_.runtime.title_memory_mb, kMaxTitleMemoryMB)));
   }
 
-  auto fail = [this](X_STATUS status, std::string_view reason) {
-    REXLOG_ERROR(system, "Runtime::Setup failed: {}", reason);
+  auto fail = [this](X_STATUS status, std::string_view reason) -> Result<void> {
     Shutdown();
-    return status;
+    return Err(SetupError(status, std::string(reason)));
   };
 
   // Initialize SEH exception support for hardware exception handling
@@ -209,7 +212,7 @@ X_STATUS Runtime::Setup(const RuntimeConfig& config) {
     REXLOG_DEBUG(system, "Runtime initialized in tool mode (no GPU)");
     setup_complete_ = true;
     runtime::RuntimeModule::SetActive(this);
-    return X_STATUS_SUCCESS;
+    return Ok();
   }
 
   // Initialize GPU from injected config
@@ -229,23 +232,19 @@ X_STATUS Runtime::Setup(const RuntimeConfig& config) {
   REXLOG_DEBUG(system, "Runtime initialized successfully");
   setup_complete_ = true;
   runtime::RuntimeModule::SetActive(this);
-  return X_STATUS_SUCCESS;
+  return Ok();
 }
 
-X_STATUS Runtime::Setup(const rex::PPCImageInfo& image_info, const RuntimeConfig& config) {
-  X_STATUS status = Setup(config);
-  if (status != X_STATUS_SUCCESS) {
-    return status;
-  }
+Result<void> Runtime::Setup(const rex::PPCImageInfo& image_info, const RuntimeConfig& config) {
+  REX_TRY_VOID(Setup(config));
 
   codegen_flags_ = image_info.codegen_flags;
 
   if (!function_dispatcher_->InitializeFunctionTable(image_info.code_base, image_info.code_size,
                                                      image_info.image_base, image_info.image_size,
                                                      /*is_entrypoint=*/true)) {
-    REXLOG_ERROR(system, "Failed to initialize function table");
     Shutdown();
-    return X_STATUS_UNSUCCESSFUL;
+    return Err(SetupError(X_STATUS_UNSUCCESSFUL, "the function table cannot be initialized"));
   }
 
   if (image_info.func_mappings) {
@@ -271,10 +270,9 @@ X_STATUS Runtime::Setup(const rex::PPCImageInfo& image_info, const RuntimeConfig
     REXLOG_DEBUG(system, "Registered {} recompiled functions ({} duplicates, {} rejected)", count,
                  duplicates, rejected);
     if (rejected > 0) {
-      REXLOG_ERROR(system, "PPCImageInfo registration: {} func_mappings entries rejected",
-                   rejected);
       Shutdown();
-      return X_STATUS_UNSUCCESSFUL;
+      return Err(SetupError(X_STATUS_UNSUCCESSFUL,
+                            std::format("{} func_mappings entries were rejected", rejected)));
     }
   }
 
@@ -290,7 +288,7 @@ X_STATUS Runtime::Setup(const rex::PPCImageInfo& image_info, const RuntimeConfig
                flags.cr_as_local, flags.reserved_as_local, flags.non_argument_as_local,
                flags.non_volatile_as_local);
 
-  return X_STATUS_SUCCESS;
+  return Ok();
 }
 
 void Runtime::Shutdown() {
@@ -330,23 +328,24 @@ u8* Runtime::virtual_membase() const {
   return memory_ ? memory_->virtual_membase() : nullptr;
 }
 
-X_STATUS Runtime::LoadXEXImage(const std::string_view module_path) {
+Result<void> Runtime::LoadXEXImage(const std::string_view module_path) {
   REXLOG_DEBUG(system, "Loading XEX image: {}", std::string(module_path));
 
   const X_HANDLE handle = runtime::CreateUserModule(*this);
   if (!handle) {
-    return X_STATUS_NO_MEMORY;
+    return Err(SetupError(X_STATUS_NO_MEMORY, "no module object for the image"));
   }
   auto module = object_table_->Get<runtime::ModuleObject>(handle);
   X_STATUS status = runtime::UserModuleLoadFromFile(*this, *module, module_path);
   if (XFAILED(status)) {
     (void)object_table_->Close(handle);
-    REX_FAIL(system, status, "Runtime::LoadXEXImage: Failed to load module, status {:08X}", status);
+    return Err(
+        SetupError(status, std::format("cannot load {}, status {:08X}", module_path, status)));
   }
 
   SetExecutableModule(handle);
   REXLOG_DEBUG(system, "  XEX image loaded successfully");
-  return X_STATUS_SUCCESS;
+  return Ok();
 }
 
 X_HANDLE Runtime::PrepareModuleLaunch() {

@@ -34,6 +34,12 @@ SettingsDialog::SettingsDialog(const OverlayContext& context)
 
 SettingsDialog::~SettingsDialog() {}
 
+static void WarnIfFailed(std::string_view name, const Result<void>& status) {
+  if (!status) {
+    REXLOG_WARN(ui, "cannot change '{}', {}", name, status.error().message);
+  }
+}
+
 static const char* LifecycleBadge(rex::cvar::Lifecycle lc) {
   switch (lc) {
     case rex::cvar::Lifecycle::HotReload:
@@ -352,7 +358,7 @@ void SettingsDialog::OnDraw(ImGuiIO& /*io*/) {
               auto vk = ImGuiKeyToVirtualKey(imgui_key);
               std::string name = rex::ui::VirtualKeyToString(vk);
               if (!name.empty()) {
-                registry_.Set(desc.name, name);
+                WarnIfFailed(desc.name, registry_.Set(desc.name, name));
               }
               capturing_bind_name_.clear();
               break;
@@ -361,7 +367,7 @@ void SettingsDialog::OnDraw(ImGuiIO& /*io*/) {
           for (int mb = 0; mb < 3; ++mb) {
             if (ImGui::IsMouseClicked(mb)) {
               const char* names[] = {"LMB", "RMB", "MMB"};
-              registry_.Set(desc.name, names[mb]);
+              WarnIfFailed(desc.name, registry_.Set(desc.name, names[mb]));
               capturing_bind_name_.clear();
               break;
             }
@@ -376,7 +382,7 @@ void SettingsDialog::OnDraw(ImGuiIO& /*io*/) {
         }
         ImGui::SameLine();
         if (ImGui::SmallButton("Reset##v")) {
-          registry_.Set(desc.name, var->DefaultText());
+          WarnIfFailed(desc.name, registry_.Set(desc.name, var->DefaultText()));
         }
       }
 
@@ -435,7 +441,7 @@ void SettingsDialog::OnDraw(ImGuiIO& /*io*/) {
       if (desc.type == rex::cvar::Type::Bool) {
         bool v = rex::from_string<bool>(current_val, false);
         if (ImGui::Checkbox("##v", &v)) {
-          registry_.Set(desc.name, v ? "true" : "false");
+          WarnIfFailed(desc.name, registry_.Set(desc.name, v ? "true" : "false"));
         }
       } else if (desc.type == rex::cvar::Type::String && !desc.constraints.allowed.empty()) {
         const auto& opts = desc.constraints.allowed;
@@ -452,7 +458,7 @@ void SettingsDialog::OnDraw(ImGuiIO& /*io*/) {
             bool sel = (i == cur_idx);
             const std::string opt(opts[i]);
             if (ImGui::Selectable(opt.c_str(), sel)) {
-              registry_.Set(desc.name, opt);
+              WarnIfFailed(desc.name, registry_.Set(desc.name, opt));
             }
             if (sel)
               ImGui::SetItemDefaultFocus();
@@ -461,6 +467,7 @@ void SettingsDialog::OnDraw(ImGuiIO& /*io*/) {
         }
       } else if (desc.type == rex::cvar::Type::Int32 || desc.type == rex::cvar::Type::Int64 ||
                  desc.type == rex::cvar::Type::UInt32 || desc.type == rex::cvar::Type::UInt64) {
+        // NOLINTNEXTLINE(bugprone-unchecked-string-to-number-conversion) invalid text reads as 0
         int v = std::atoi(current_val.c_str());
         int vmin =
             desc.constraints.min.has_value() ? static_cast<int>(*desc.constraints.min) : INT_MIN;
@@ -468,26 +475,27 @@ void SettingsDialog::OnDraw(ImGuiIO& /*io*/) {
             desc.constraints.max.has_value() ? static_cast<int>(*desc.constraints.max) : INT_MAX;
         if (ImGui::InputInt("##v", &v)) {
           v = std::clamp(v, vmin, vmax);
-          registry_.Set(desc.name, std::to_string(v));
+          WarnIfFailed(desc.name, registry_.Set(desc.name, std::to_string(v)));
         }
       } else if (desc.type == rex::cvar::Type::Double) {
+        // NOLINTNEXTLINE(bugprone-unchecked-string-to-number-conversion) invalid text reads as 0
         double v = std::atof(current_val.c_str());
         if (ImGui::InputDouble("##v", &v, 0.0, 0.0, "%.4f")) {
           if (desc.constraints.min)
             v = std::max(v, *desc.constraints.min);
           if (desc.constraints.max)
             v = std::min(v, *desc.constraints.max);
-          registry_.Set(desc.name, std::to_string(v));
+          WarnIfFailed(desc.name, registry_.Set(desc.name, std::to_string(v)));
         }
       } else if (desc.type == rex::cvar::Type::Command) {
         if (ImGui::Button((name + "##v").c_str())) {
-          registry_.Invoke(desc.name, "");
+          WarnIfFailed(desc.name, registry_.Invoke(desc.name, ""));
         }
       } else {
         char buf[256];
         rex::copy_truncating(buf, current_val, sizeof(buf));
         if (ImGui::InputText("##v", buf, sizeof(buf), ImGuiInputTextFlags_EnterReturnsTrue)) {
-          registry_.Set(desc.name, buf);
+          WarnIfFailed(desc.name, registry_.Set(desc.name, buf));
         }
       }
     }

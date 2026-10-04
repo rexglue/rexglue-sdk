@@ -15,6 +15,8 @@
 
 namespace rex::cvars {
 
+// NOLINTBEGIN(bugprone-throwing-static-initialization) constant descriptors registered at Connect
+
 REXCVAR_BOOL(clock, no_scaling, false, "Disable clock scaling (inverted: false = scaling enabled)");
 REXCVAR_BOOL(clock, source_raw, false, "Use raw clock source without scaling");
 REXCVAR_TABLE(kClockCvars, no_scaling, source_raw);
@@ -31,5 +33,7 @@ REXCVAR_TABLE(kLogCvars, level, file, flush_interval);
 REXCVAR_BOOL(perf, profiler, false, "Start the Tracy profiler at startup when the build has it")
     .lifecycle(rex::cvar::Lifecycle::InitOnly);
 REXCVAR_TABLE(kPerfCvars, profiler);
+
+// NOLINTEND(bugprone-throwing-static-initialization)
 
 }  // namespace rex::cvars

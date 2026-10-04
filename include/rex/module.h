@@ -11,7 +11,10 @@
 
 #pragma once
 
+#include <expected>
 #include <span>
+#include <string_view>
+#include <utility>
 
 #include <rex/macros.h>
 #include <rex/result.h>
@@ -40,22 +43,25 @@ class IInterfaceFactory {
   /**
    * Fetches an interface.
    *
-   * @param name Dotted interface name, for example "rex.graphics.backend".
+   * @param name Interface name, the kInterfaceName of the requested interface class.
    * @param version Version the caller was compiled against.
-   * @param out_status Receives the status. May be null.
-   * @return The interface, or null when the status is not Ok.
+   * @return The interface, or a Module error whose code is the InterfaceStatus.
    */
-  virtual void* Get(const char* name, u32 version, InterfaceStatus* out_status) = 0;
+  [[nodiscard]] virtual Result<void*> Get(std::string_view name, u32 version) = 0;
 
   /**
    * Typed fetch by T::kInterfaceName and T::kInterfaceVersion.
    *
    * @tparam T The interface class, which declares kInterfaceName and kInterfaceVersion.
-   * @return The interface, or null when it is not served at that version.
+   * @return The interface, or a Module error whose code is the InterfaceStatus.
    */
   template <typename T>
-  T* Get() {
-    return static_cast<T*>(Get(T::kInterfaceName, T::kInterfaceVersion, nullptr));
+  [[nodiscard]] Result<T*> Get() {
+    auto found = Get(T::kInterfaceName, T::kInterfaceVersion);
+    if (!found) {
+      return std::unexpected(std::move(found).error());
+    }
+    return static_cast<T*>(*found);
   }
 };
 
@@ -69,12 +75,16 @@ class IModule {
   virtual ~IModule() = default;
 
   /**
-   * @return The module's DLL base name, for example "rexgpu-xenos".
+   * Returns the module's DLL base name.
+   *
+   * @return The DLL base name, for example "rexgpu-xenos".
    */
   virtual const char* Name() const = 0;
 
   /**
-   * @return Interfaces this module needs from modules listed before it, as "name@version".
+   * Returns the interfaces this module needs from modules listed before it.
+   *
+   * @return The required interfaces, each as "name@version".
    */
   virtual std::span<const char* const> RequiredInterfaces() const = 0;
 
@@ -83,10 +93,10 @@ class IModule {
    * module initialized.
    *
    * @param factory Serves every loaded module's interfaces.
-   * @param config The consumer's configuration. The module stores a pointer to its slice.
+   * @param config The consumer's configuration. The module keeps a pointer to its module config.
    * @return Ok, or an error that aborts Init before any module's Init runs.
    */
-  virtual Result<void> Connect(IInterfaceFactory* factory, const Config& config) = 0;
+  [[nodiscard]] virtual Result<void> Connect(IInterfaceFactory* factory, const Config& config) = 0;
 
   /**
    * Releases what Connect acquired. Cannot fail.
@@ -94,11 +104,11 @@ class IModule {
   virtual void Disconnect() = 0;
 
   /**
-   * Does the module's real work using its config slice.
+   * Builds the module's state from its module config.
    *
    * @return Ok, or an error that unwinds every module initialized before it.
    */
-  virtual Result<void> Init() = 0;
+  [[nodiscard]] virtual Result<void> Init() = 0;
 
   /**
    * Tears down what Init built. Cannot fail.

@@ -282,7 +282,7 @@ TEST_CASE("Closing the window destroys the overlays", "[title_app]") {
   REQUIRE(g_destroyed == 1);
   REQUIRE(app.overlays().Get("test") == nullptr);
   REQUIRE_FALSE(app.overlays().AnyVisible());
-  REQUIRE(app.api().Get<rex::cvar::ICvarRegistry>()->Find("bind.test") == nullptr);
+  REQUIRE_FALSE(app.api().Get<rex::cvar::ICvarRegistry>()->Find("bind.test"));
   REQUIRE(app.Shutdown() == 0);
   REQUIRE(g_constructed == 1);
   REQUIRE(g_destroyed == 1);
@@ -296,7 +296,7 @@ TEST_CASE("Overlay tables bind, toggle without destroying, and die with the app"
     app.Shutdown();
     SKIP("SDL dummy video driver unavailable");
   }
-  REQUIRE(app.api().Get<rex::cvar::ICvarRegistry>()->Find("bind.test") != nullptr);
+  REQUIRE(app.api().Get<rex::cvar::ICvarRegistry>()->Find("bind.test"));
   app.overlays().Toggle("test");
   app.overlays().Toggle("test");
   REQUIRE(g_constructed == 1);
