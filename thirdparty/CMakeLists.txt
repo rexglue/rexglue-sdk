@@ -43,14 +43,12 @@ set(REQUIRED_SUBMODULES
     sdl3
 )
 
-if(REXGLUE_USE_VULKAN)
-    list(APPEND REQUIRED_SUBMODULES
-        vulkan-headers vulkan-memory-allocator
-        spirv-headers spirv-tools glslang
-    )
-    if(APPLE)
-        list(APPEND REQUIRED_SUBMODULES vulkan-loader moltenvk)
-    endif()
+list(APPEND REQUIRED_SUBMODULES
+    vulkan-headers vulkan-memory-allocator
+    spirv-headers spirv-tools glslang
+)
+if(APPLE)
+    list(APPEND REQUIRED_SUBMODULES vulkan-loader moltenvk)
 endif()
 
 
@@ -169,41 +167,34 @@ add_subdirectory(utfcpp)
 #=============================================================================
 # Vulkan dependencies (only when Vulkan backend is enabled)
 #=============================================================================
-if(REXGLUE_USE_VULKAN)
-    message(STATUS "Vulkan stack: SDK ${REXGLUE_VULKAN_SDK_VERSION}")
+message(STATUS "Vulkan stack: SDK ${REXGLUE_VULKAN_SDK_VERSION}")
 
-    # Vulkan-Headers
-    set(VULKAN_HEADERS_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
-    set(VULKAN_HEADERS_ENABLE_INSTALL ON CACHE BOOL "" FORCE)
-    set(VULKAN_HEADERS_ENABLE_MODULE OFF CACHE BOOL "" FORCE)
-    add_subdirectory(vulkan-headers)
+# Vulkan-Headers
+set(VULKAN_HEADERS_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
+set(VULKAN_HEADERS_ENABLE_INSTALL ON CACHE BOOL "" FORCE)
+set(VULKAN_HEADERS_ENABLE_MODULE OFF CACHE BOOL "" FORCE)
+add_subdirectory(vulkan-headers)
 
-    # VulkanMemoryAllocator
-    set(VMA_ENABLE_INSTALL ON CACHE BOOL "" FORCE)
-    add_subdirectory(vulkan-memory-allocator)
+# VulkanMemoryAllocator
+set(VMA_ENABLE_INSTALL ON CACHE BOOL "" FORCE)
+add_subdirectory(vulkan-memory-allocator)
 
-    if(APPLE)
-        # Build the loader and MoltenVK revisions shipped by the pinned SDK.
-        # They remain runtime-loaded; no Vulkan implementation is linked into
-        # rexglue itself.
-        set(BUILD_TESTS OFF CACHE BOOL "" FORCE)
-        set(BUILD_WERROR OFF CACHE BOOL "" FORCE)
-        set(LOADER_CODEGEN OFF CACHE BOOL "" FORCE)
-        string(REGEX REPLACE "\\.[0-9]+$" "" VulkanHeaders_VERSION
-            "${REXGLUE_VULKAN_SDK_VERSION}")
-        add_subdirectory(vulkan-loader EXCLUDE_FROM_ALL)
-        set_target_properties(vulkan PROPERTIES EXCLUDE_FROM_ALL FALSE)
+if(APPLE)
+    # Build the loader and MoltenVK revisions shipped by the pinned SDK.
+    # They remain runtime-loaded; no Vulkan implementation is linked into
+    # rexglue itself.
+    set(BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(BUILD_WERROR OFF CACHE BOOL "" FORCE)
+    set(LOADER_CODEGEN OFF CACHE BOOL "" FORCE)
+    string(REGEX REPLACE "\\.[0-9]+$" "" VulkanHeaders_VERSION
+        "${REXGLUE_VULKAN_SDK_VERSION}")
+    add_subdirectory(vulkan-loader EXCLUDE_FROM_ALL)
+    set_target_properties(vulkan PROPERTIES EXCLUDE_FROM_ALL FALSE)
 
-        set(MVK_BUILD_SHADER_CONVERTER_TOOL OFF CACHE BOOL "" FORCE)
-        set(MVK_EXCLUDE_SPIRV_TOOLS ON CACHE BOOL "" FORCE)
-        add_subdirectory(moltenvk)
-    endif()
+    set(MVK_BUILD_SHADER_CONVERTER_TOOL OFF CACHE BOOL "" FORCE)
+    set(MVK_EXCLUDE_SPIRV_TOOLS ON CACHE BOOL "" FORCE)
+    add_subdirectory(moltenvk)
 endif()
-
-#=============================================================================
-# FidelityFX (optional, fetched on demand)
-#=============================================================================
-include(${PROJECT_SOURCE_DIR}/cmake/rexglue_fidelityfx.cmake)
 
 #=============================================================================
 # imgui - Immediate mode GUI (no CMakeLists.txt, manual target)
@@ -287,7 +278,7 @@ add_subdirectory(sdl3)
 #=============================================================================
 # DXC API headers (vendored from DirectXShaderCompiler, runtime-loaded)
 #=============================================================================
-if(REXGLUE_USE_D3D12)
+if(REXGLUE_GPU_D3D12)
     add_library(dxc-headers INTERFACE)
     target_include_directories(dxc-headers INTERFACE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/dxc/include>
@@ -297,34 +288,32 @@ endif()
 #=============================================================================
 # SPIR-V toolchain (only when Vulkan backend is enabled)
 #=============================================================================
-if(REXGLUE_USE_VULKAN)
-    # SPIRV-Headers
-    set(SPIRV_HEADERS_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
-    set(SPIRV_HEADERS_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
-    add_subdirectory(spirv-headers)
+# SPIRV-Headers
+set(SPIRV_HEADERS_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
+set(SPIRV_HEADERS_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+add_subdirectory(spirv-headers)
 
-    add_library(spirv-tools-headers INTERFACE)
-    target_include_directories(spirv-tools-headers SYSTEM INTERFACE
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/spirv-tools/include>
-        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+add_library(spirv-tools-headers INTERFACE)
+target_include_directories(spirv-tools-headers SYSTEM INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/spirv-tools/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 
-    # glslang/SPIRV - SPIR-V code generation for shader translation
-    set(ENABLE_GLSLANG_BINARIES OFF CACHE BOOL "" FORCE)
-    set(ENABLE_SPVREMAPPER OFF CACHE BOOL "" FORCE)
-    set(ENABLE_HLSL OFF CACHE BOOL "" FORCE)
-    set(ENABLE_OPT OFF CACHE BOOL "" FORCE)
-    set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
-    set(SKIP_GLSLANG_INSTALL ON CACHE BOOL "" FORCE)
-    # Enable RTTI for spv::Builder inheritance in SpirvBuilder
-    set(ENABLE_RTTI ON CACHE BOOL "" FORCE)
+# glslang/SPIRV - SPIR-V code generation for shader translation
+set(ENABLE_GLSLANG_BINARIES OFF CACHE BOOL "" FORCE)
+set(ENABLE_SPVREMAPPER OFF CACHE BOOL "" FORCE)
+set(ENABLE_HLSL OFF CACHE BOOL "" FORCE)
+set(ENABLE_OPT OFF CACHE BOOL "" FORCE)
+set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+set(SKIP_GLSLANG_INSTALL ON CACHE BOOL "" FORCE)
+# Enable RTTI for spv::Builder inheritance in SpirvBuilder
+set(ENABLE_RTTI ON CACHE BOOL "" FORCE)
 
-    # Set policy minimum for older glslang versions with outdated cmake_minimum_required
-    set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "" FORCE)
-    add_subdirectory(glslang)
-    # Create alias for older glslang versions that don't provide it
-    if(NOT TARGET glslang::SPIRV)
-        add_library(glslang::SPIRV ALIAS SPIRV)
-    endif()
+# Set policy minimum for older glslang versions with outdated cmake_minimum_required
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "" FORCE)
+add_subdirectory(glslang)
+# Create alias for older glslang versions that don't provide it
+if(NOT TARGET glslang::SPIRV)
+    add_library(glslang::SPIRV ALIAS SPIRV)
 endif()
 
 #=============================================================================

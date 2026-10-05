@@ -1,5 +1,5 @@
 /**
- * @file        rexcodegen/builders/comparison.cpp
+ * @file        codegen/builders/comparison.cpp
  * @brief       PPC comparison instruction code generation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>

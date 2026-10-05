@@ -9,14 +9,14 @@ target_compile_definitions(core_tests PRIVATE
 )
 
 target_link_libraries(core_tests PRIVATE
-    rexcore
+    rex-core
     Catch2::Catch2WithMain
 )
 
 target_include_directories(core_tests PRIVATE ${PROJECT_SOURCE_DIR}/thirdparty)
 
 set_target_properties(core_tests PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexcore>
+    RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rex-core>
 )
 if(UNIX AND NOT APPLE)
     set_target_properties(core_tests PROPERTIES

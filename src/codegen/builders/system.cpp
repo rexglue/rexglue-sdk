@@ -1,5 +1,5 @@
 /**
- * @file        rexcodegen/builders/system.cpp
+ * @file        codegen/builders/system.cpp
  * @brief       PPC system instruction code generation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>

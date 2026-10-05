@@ -1,5 +1,5 @@
 /**
- * @file        rexcodegen/codegen_context.h
+ * @file        codegen/codegen_context.h
  * @brief       Unified context for codegen pipeline
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>

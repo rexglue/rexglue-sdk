@@ -1,5 +1,5 @@
 /**
- * @file        rexcodegen/instruction_dispatch.cpp
+ * @file        codegen/instruction_dispatch.cpp
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

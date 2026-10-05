@@ -1,5 +1,5 @@
 /**
- * @file        rexcodegen/builders/control_flow.cpp
+ * @file        codegen/builders/control_flow.cpp
  * @brief       PPC control flow instruction code generation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>

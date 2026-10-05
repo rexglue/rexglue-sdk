@@ -1,8 +1,8 @@
-# rexgpu-xenos: Xenos GPU emulation plugin (ported from Xenia)
+# rex-gpu-xenos: Xenos GPU emulation plugin (ported from Xenia)
 # Namespace: rex::graphics
 #
 # Loaded at runtime through rex::Init as a module; consumers never link this
-# target. The Xenos format layer is compiled into rexcore.
+# target. The Xenos format layer is compiled into rex-core.
 
 set(REXGPU_XENOS_SOURCES
     plugin_main.cpp
@@ -54,7 +54,7 @@ set(REXGPU_XENOS_VULKAN_SOURCES
 )
 
 # D3D12 backend
-if(REXGLUE_USE_D3D12)
+if(REXGLUE_GPU_D3D12)
     # DXBC third-party dependency
     set(REXGPU_XENOS_DXBC_THIRDPARTY_SOURCES
         ${REXGLUE_ROOT}/thirdparty/dxbc/DXBCChecksum.cpp
@@ -84,36 +84,34 @@ if(REXGLUE_USE_D3D12)
     )
 endif()
 
-if(REXGLUE_USE_VULKAN)
-    list(APPEND REXGPU_XENOS_SOURCES ${REXGPU_XENOS_SPIRV_SOURCES} ${REXGPU_XENOS_VULKAN_SOURCES})
-endif()
+list(APPEND REXGPU_XENOS_SOURCES ${REXGPU_XENOS_SPIRV_SOURCES} ${REXGPU_XENOS_VULKAN_SOURCES})
 
-if(REXGLUE_USE_D3D12)
+if(REXGLUE_GPU_D3D12)
     list(APPEND REXGPU_XENOS_SOURCES
         ${REXGPU_XENOS_DXBC_THIRDPARTY_SOURCES}
         ${REXGPU_XENOS_DXBC_SOURCES}
         ${REXGPU_XENOS_D3D12_SOURCES})
 endif()
 
-add_library(rexgpu-xenos SHARED ${REXGPU_XENOS_SOURCES})
-add_library(rex::gpu-xenos ALIAS rexgpu-xenos)
+add_library(rex-gpu-xenos SHARED ${REXGPU_XENOS_SOURCES})
+add_library(rex::gpu-xenos ALIAS rex-gpu-xenos)
 
-set_target_properties(rexgpu-xenos PROPERTIES
+set_target_properties(rex-gpu-xenos PROPERTIES
     EXPORT_NAME gpu-xenos
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN ON
 )
-rexglue_add_version_resource(rexgpu-xenos DESCRIPTION "ReXGlue Xenos GPU emulation")
+rexglue_add_version_resource(rex-gpu-xenos DESCRIPTION "ReXGlue Xenos GPU emulation")
 
-target_include_directories(rexgpu-xenos PRIVATE
+target_include_directories(rex-gpu-xenos PRIVATE
     ${REXGLUE_ROOT}/src
     ${REXGLUE_ROOT}/thirdparty/renderdoc
     ${REXGLUE_ROOT}  # For thirdparty/dxbc/DXBCChecksum.h include
 )
 
-target_compile_options(rexgpu-xenos PRIVATE -Wno-unused-variable)
+target_compile_options(rex-gpu-xenos PRIVATE -Wno-unused-variable)
 
-rex_target_pch(rexgpu-xenos
+rex_target_pch(rex-gpu-xenos
     <mutex>
     <unordered_map>
     <rex/math.h>
@@ -130,26 +128,24 @@ if(REXGPU_XENOS_DXBC_THIRDPARTY_SOURCES)
         PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
 endif()
 
-target_link_libraries(rexgpu-xenos PRIVATE
-    rexruntime
+target_link_libraries(rex-gpu-xenos PRIVATE
+    rex-runtime
     xxHash::xxhash
 )
 
-if(REXGLUE_USE_VULKAN)
-    target_link_libraries(rexgpu-xenos PRIVATE
-        Vulkan::Headers
-        glslang::SPIRV
-        GPUOpen::VulkanMemoryAllocator
-        glslang
-        MachineIndependent
-        GenericCodeGen
-        OSDependent
-        OGLCompiler
-    )
-endif()
+target_link_libraries(rex-gpu-xenos PRIVATE
+    Vulkan::Headers
+    glslang::SPIRV
+    GPUOpen::VulkanMemoryAllocator
+    glslang
+    MachineIndependent
+    GenericCodeGen
+    OSDependent
+    OGLCompiler
+)
 
-if(REXGLUE_USE_D3D12)
-    target_link_libraries(rexgpu-xenos PRIVATE
+if(REXGLUE_GPU_D3D12)
+    target_link_libraries(rex-gpu-xenos PRIVATE
         d3d12
         dxgi
         dxguid

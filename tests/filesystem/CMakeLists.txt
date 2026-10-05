@@ -25,14 +25,14 @@ target_include_directories(filesystem_tests PRIVATE
 )
 
 target_link_libraries(filesystem_tests PRIVATE
-    rexcore
+    rex-core
     Catch2::Catch2WithMain
 )
 
-add_dependencies(filesystem_tests rexfilesystem)
+add_dependencies(filesystem_tests rex-filesystem)
 
 set_target_properties(filesystem_tests PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexcore>
+    RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rex-core>
 )
 if(UNIX AND NOT APPLE)
     set_target_properties(filesystem_tests PROPERTIES

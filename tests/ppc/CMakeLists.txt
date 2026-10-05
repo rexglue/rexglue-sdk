@@ -63,28 +63,13 @@ target_include_directories(ppc_tests PRIVATE
 
 target_link_libraries(ppc_tests PRIVATE
     simde
-    rexruntime
+    rex-runtime
     fmt::fmt
     Catch2::Catch2WithMain
 )
 
-# Delay-load FidelityFX DLLs so ppc_tests can run without them.
-if(WIN32)
-    if(TARGET amd_fidelityfx_vk)
-        target_link_options(ppc_tests PRIVATE
-            "LINKER:/DELAYLOAD:$<TARGET_FILE_NAME:amd_fidelityfx_vk>")
-    endif()
-    if(TARGET amd_fidelityfx_dx12)
-        target_link_options(ppc_tests PRIVATE
-            "LINKER:/DELAYLOAD:$<TARGET_FILE_NAME:amd_fidelityfx_dx12>")
-    endif()
-    if(TARGET amd_fidelityfx_vk OR TARGET amd_fidelityfx_dx12)
-        target_link_libraries(ppc_tests PRIVATE delayimp)
-    endif()
-endif()
-
 set_target_properties(ppc_tests PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>
+    RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rex-runtime>
 )
 if(UNIX AND NOT APPLE)
     set_target_properties(ppc_tests PROPERTIES

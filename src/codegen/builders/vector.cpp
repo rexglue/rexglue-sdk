@@ -1,5 +1,5 @@
 /**
- * @file        rexcodegen/builders/vector.cpp
+ * @file        codegen/builders/vector.cpp
  * @brief       PPC vector instruction code generation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>

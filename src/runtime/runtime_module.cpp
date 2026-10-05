@@ -1,6 +1,6 @@
 /**
  * @file        runtime/runtime_module.cpp
- * @brief       The module interface served by rexruntime.dll
+ * @brief       The module interface served by rex-runtime.dll
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -130,7 +130,7 @@ void* RuntimeModule::GetDispatcher() {
 }
 
 const char* RuntimeModule::Name() const {
-  return "rexruntime";
+  return "rex-runtime";
 }
 
 std::span<const char* const> RuntimeModule::RequiredInterfaces() const {

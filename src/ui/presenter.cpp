@@ -22,200 +22,14 @@
 #include <rex/ui/presenter.h>
 #include <rex/ui/window.h>
 
-#if defined(REX_HAS_FIDELITYFX_RUNTIME) && REX_HAS_FIDELITYFX_RUNTIME
-#include <ffx_api/ffx_api.h>
-#include <ffx_api/ffx_upscale.h>
-#endif
-
 #include "ui/cvar_table.h"
 
 namespace {
 using GuestOutputPaintConfig = rex::ui::Presenter::GuestOutputPaintConfig;
 
-GuestOutputPaintConfig::Effect ParsePresentEffect(const std::string& effect_name) {
-  std::string lowered = effect_name;
-  std::transform(lowered.begin(), lowered.end(), lowered.begin(),
-                 [](unsigned char c) { return char(std::tolower(c)); });
-#if defined(REX_HAS_FIDELITYFX_SDK)
-  if (lowered == "cas") {
-    return GuestOutputPaintConfig::Effect::kCas;
-  }
-  if (lowered == "fsr") {
-    return GuestOutputPaintConfig::Effect::kFsr;
-  }
-  if (lowered == "fsr2") {
-    return GuestOutputPaintConfig::Effect::kFsr2;
-  }
-  if (lowered == "fsr3") {
-    return GuestOutputPaintConfig::Effect::kFsr3;
-  }
-#endif
-  return GuestOutputPaintConfig::Effect::kBilinear;
-}
-
-#if defined(REX_HAS_FIDELITYFX_SDK)
-bool IsTemporalFsrCompatibilityEffect(GuestOutputPaintConfig::Effect effect) {
-  return effect == GuestOutputPaintConfig::Effect::kFsr2 ||
-         effect == GuestOutputPaintConfig::Effect::kFsr3;
-}
-
-GuestOutputPaintConfig::FsrQualityMode ParsePresentFsrQualityMode(const std::string& mode_name) {
-  std::string lowered = mode_name;
-  std::transform(lowered.begin(), lowered.end(), lowered.begin(), [](unsigned char c) {
-    c = static_cast<unsigned char>(std::tolower(c));
-    return c == '-' ? '_' : char(c);
-  });
-  if (lowered == "nativeaa" || lowered == "native_aa" || lowered == "native") {
-    return GuestOutputPaintConfig::FsrQualityMode::kNativeAa;
-  }
-  if (lowered == "quality") {
-    return GuestOutputPaintConfig::FsrQualityMode::kQuality;
-  }
-  if (lowered == "balanced") {
-    return GuestOutputPaintConfig::FsrQualityMode::kBalanced;
-  }
-  if (lowered == "performance") {
-    return GuestOutputPaintConfig::FsrQualityMode::kPerformance;
-  }
-  if (lowered == "ultra_performance" || lowered == "ultra") {
-    return GuestOutputPaintConfig::FsrQualityMode::kUltraPerformance;
-  }
-  return GuestOutputPaintConfig::FsrQualityMode::kAuto;
-}
-
-bool GetFsrQualityModeApiValue(GuestOutputPaintConfig::FsrQualityMode mode,
-                               uint32_t& api_mode_out) {
-  switch (mode) {
-    case GuestOutputPaintConfig::FsrQualityMode::kAuto:
-      return false;
-    case GuestOutputPaintConfig::FsrQualityMode::kNativeAa:
-#if defined(REX_HAS_FIDELITYFX_RUNTIME) && REX_HAS_FIDELITYFX_RUNTIME
-      api_mode_out = FFX_UPSCALE_QUALITY_MODE_NATIVEAA;
-#else
-      api_mode_out = 0;
-#endif
-      return true;
-    case GuestOutputPaintConfig::FsrQualityMode::kQuality:
-#if defined(REX_HAS_FIDELITYFX_RUNTIME) && REX_HAS_FIDELITYFX_RUNTIME
-      api_mode_out = FFX_UPSCALE_QUALITY_MODE_QUALITY;
-#else
-      api_mode_out = 1;
-#endif
-      return true;
-    case GuestOutputPaintConfig::FsrQualityMode::kBalanced:
-#if defined(REX_HAS_FIDELITYFX_RUNTIME) && REX_HAS_FIDELITYFX_RUNTIME
-      api_mode_out = FFX_UPSCALE_QUALITY_MODE_BALANCED;
-#else
-      api_mode_out = 2;
-#endif
-      return true;
-    case GuestOutputPaintConfig::FsrQualityMode::kPerformance:
-#if defined(REX_HAS_FIDELITYFX_RUNTIME) && REX_HAS_FIDELITYFX_RUNTIME
-      api_mode_out = FFX_UPSCALE_QUALITY_MODE_PERFORMANCE;
-#else
-      api_mode_out = 3;
-#endif
-      return true;
-    case GuestOutputPaintConfig::FsrQualityMode::kUltraPerformance:
-#if defined(REX_HAS_FIDELITYFX_RUNTIME) && REX_HAS_FIDELITYFX_RUNTIME
-      api_mode_out = FFX_UPSCALE_QUALITY_MODE_ULTRA_PERFORMANCE;
-#else
-      api_mode_out = 4;
-#endif
-      return true;
-  }
-  return false;
-}
-
-float GetFsrQualityModeRatioFallback(GuestOutputPaintConfig::FsrQualityMode mode) {
-  switch (mode) {
-    case GuestOutputPaintConfig::FsrQualityMode::kNativeAa:
-      return 1.0f;
-    case GuestOutputPaintConfig::FsrQualityMode::kQuality:
-      return 1.5f;
-    case GuestOutputPaintConfig::FsrQualityMode::kBalanced:
-      return 1.7f;
-    case GuestOutputPaintConfig::FsrQualityMode::kPerformance:
-      return 2.0f;
-    case GuestOutputPaintConfig::FsrQualityMode::kUltraPerformance:
-      return 3.0f;
-    case GuestOutputPaintConfig::FsrQualityMode::kAuto:
-    default:
-      return 1.0f;
-  }
-}
-
-bool QueryTemporalFsrRenderResolutionFromQualityMode(uint32_t display_width,
-                                                     uint32_t display_height,
-                                                     GuestOutputPaintConfig::FsrQualityMode mode,
-                                                     uint32_t& render_width_out,
-                                                     uint32_t& render_height_out) {
-  uint32_t api_mode = 0;
-  if (!GetFsrQualityModeApiValue(mode, api_mode)) {
-    return false;
-  }
-
-#if defined(REX_HAS_FIDELITYFX_RUNTIME) && REX_HAS_FIDELITYFX_RUNTIME
-  ffxQueryDescUpscaleGetRenderResolutionFromQualityMode query_desc = {};
-  query_desc.header.type = FFX_API_QUERY_DESC_TYPE_UPSCALE_GETRENDERRESOLUTIONFROMQUALITYMODE;
-  query_desc.header.pNext = nullptr;
-  query_desc.displayWidth = display_width;
-  query_desc.displayHeight = display_height;
-  query_desc.qualityMode = api_mode;
-  query_desc.pOutRenderWidth = &render_width_out;
-  query_desc.pOutRenderHeight = &render_height_out;
-  if (ffxQuery(nullptr, &query_desc.header) == FFX_API_RETURN_OK && render_width_out &&
-      render_height_out) {
-    return true;
-  }
-#endif
-
-  float ratio = GetFsrQualityModeRatioFallback(mode);
-  render_width_out = std::max(uint32_t(1), uint32_t(float(display_width) / ratio + 0.5f));
-  render_height_out = std::max(uint32_t(1), uint32_t(float(display_height) / ratio + 0.5f));
-  return true;
-}
-
-void LogTemporalFsrCompatibilityPathOnce() {
-  static std::atomic<bool> temporal_fsr_compatibility_logged = false;
-  if (!temporal_fsr_compatibility_logged.exchange(true)) {
-    REXLOG_WARN(ui,
-                "present_effect=fsr2/fsr3 uses an experimental temporal upscaler path "
-                "with synthesized depth/motion inputs and may fall back to spatial FSR");
-  }
-}
-
-void LogTemporalFsrQualityModeInputLimitOnce() {
-  static std::atomic<bool> temporal_fsr_quality_mode_input_limit_logged = false;
-  if (!temporal_fsr_quality_mode_input_limit_logged.exchange(true)) {
-    REXLOG_WARN(ui,
-                "present_fsr_quality_mode requested a render size larger than the "
-                "guest output; using guest output size");
-  }
-}
-#endif  // defined(REX_HAS_FIDELITYFX_SDK)
-
 GuestOutputPaintConfig BuildGuestOutputPaintConfigFromCVar() {
   GuestOutputPaintConfig config;
-  GuestOutputPaintConfig::Effect parsed_effect =
-      ParsePresentEffect(REXCVAR_GET(::rex::ui::cvars::present_effect));
-#if defined(REX_HAS_FIDELITYFX_SDK)
-  if (IsTemporalFsrCompatibilityEffect(parsed_effect)) {
-    LogTemporalFsrCompatibilityPathOnce();
-  }
-#endif
   config.SetAllowOverscanCutoff(REXCVAR_GET(::rex::ui::cvars::present_allow_overscan_cutoff));
-  config.SetEffect(parsed_effect);
-#if defined(REX_HAS_FIDELITYFX_SDK)
-  config.SetCasAdditionalSharpness(
-      float(REXCVAR_GET(::rex::ui::cvars::present_cas_additional_sharpness)));
-  config.SetFsrMaxUpsamplingPasses(uint32_t(
-      std::max(int32_t(1), REXCVAR_GET(::rex::ui::cvars::present_fsr_max_upsampling_passes))));
-  config.SetFsrSharpnessReduction(
-      float(REXCVAR_GET(::rex::ui::cvars::present_fsr_sharpness_reduction)));
-  config.SetFsrQualityMode(
-      ParsePresentFsrQualityMode(REXCVAR_GET(::rex::ui::cvars::present_fsr_quality_mode)));
-#endif
   config.SetDither(REXCVAR_GET(::rex::ui::cvars::present_dither));
   return config;
 }
@@ -603,44 +417,10 @@ void Presenter::SetGuestOutputPaintConfigFromUIThread(const GuestOutputPaintConf
   // request UI thread guest output redraws when not needed.
   bool modified = false;
   bool request_repaint = false;
-  if (guest_output_paint_config_.GetEffect() != new_config.GetEffect()) {
-    modified = true;
-    request_repaint = true;
-  }
-#if defined(REX_HAS_FIDELITYFX_SDK)
-  if (guest_output_paint_config_.GetFsrSharpnessReduction() !=
-      new_config.GetFsrSharpnessReduction()) {
-    modified = true;
-    if (new_config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr ||
-        new_config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr2 ||
-        new_config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr3) {
-      request_repaint = true;
-    }
-  }
-  if (guest_output_paint_config_.GetCasAdditionalSharpness() !=
-      new_config.GetCasAdditionalSharpness()) {
-    modified = true;
-    if (new_config.GetEffect() == GuestOutputPaintConfig::Effect::kCas ||
-        new_config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr ||
-        new_config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr2 ||
-        new_config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr3) {
-      request_repaint = true;
-    }
-  }
-#endif
   if (guest_output_paint_config_.GetDither() != new_config.GetDither()) {
     modified = true;
     request_repaint = true;
   }
-#if defined(REX_HAS_FIDELITYFX_SDK)
-  if (guest_output_paint_config_.GetFsrQualityMode() != new_config.GetFsrQualityMode()) {
-    modified = true;
-    if (new_config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr2 ||
-        new_config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr3) {
-      request_repaint = true;
-    }
-  }
-#endif
   if (modified) {
     {
       std::unique_lock<std::mutex> config_lock(guest_output_paint_config_mutex_);
@@ -976,141 +756,14 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
   // larger than that as they include the overscan area that will be outside the
   // screen. Make sure the intermediate images can't be larger than the maximum
   // render target size.
-  uint32_t output_width_clamped = std::min(output_width, max_rt_width);
-  uint32_t output_height_clamped = std::min(output_height, max_rt_height);
-
-#if defined(REX_HAS_FIDELITYFX_SDK)
-  if (config.GetEffect() == GuestOutputPaintConfig::Effect::kCas ||
-      config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr ||
-      config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr2 ||
-      config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr3) {
-    // FidelityFX Super Resolution and Contrast Adaptive Sharpening only work
-    // good for up to 2x2 upscaling due to the way they fetch texels.
-    // CAS is primarily a sharpening filter, not an upscaling one (its upscaling
-    // eliminates reduces blurriness, but doesn't preserve the shapes of edges,
-    // and executing it multiple times will only result in oversharpening. So,
-    // using it for scales only of up to 2x2, then simply stretching with
-    // bilinear filtering.
-    // EASU of FSR, however, preserves edges, it's not supposed to blur them or
-    // to make them jagged, so it can be executed multiple times - running
-    // multiple EASU passes for scale factors of over 2x2.
-    // Just one EASU pass rather than multiple for scaling to factors bigger
-    // than 2x2 (especially significantly bigger, such as 1152x640 to 3840x2160,
-    // or 3.333x3.375) results in blurry edges and an overall noisy look,
-    // multiple passes improve visual stability.
-    std::pair<uint32_t, uint32_t> ffx_last_size;
-    if (flow.effect_count) {
-      ffx_last_size = flow.effect_output_sizes[flow.effect_count - 1];
-    } else {
-      ffx_last_size.first = properties.frontbuffer_width;
-      ffx_last_size.second = properties.frontbuffer_height;
-    }
-    bool is_temporal_effect = config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr2 ||
-                              config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr3;
-    bool temporal_quality_mode_forced =
-        is_temporal_effect &&
-        config.GetFsrQualityMode() != GuestOutputPaintConfig::FsrQualityMode::kAuto;
-    if ((config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr || is_temporal_effect) &&
-        ((ffx_last_size.first < output_width_clamped ||
-          ffx_last_size.second < output_height_clamped) ||
-         temporal_quality_mode_forced)) {
-      // AMD FidelityFX Super Resolution - upsample along at least one axis.
-      // Using the output size clamped to the maximum render target size here as
-      // EASU will always write to intermediate images, and RCAS supports only
-      // 1:1.
-      if (is_temporal_effect) {
-        uint32_t temporal_input_width = ffx_last_size.first;
-        uint32_t temporal_input_height = ffx_last_size.second;
-        uint32_t quality_mode_render_width = 0;
-        uint32_t quality_mode_render_height = 0;
-        if (QueryTemporalFsrRenderResolutionFromQualityMode(
-                output_width_clamped, output_height_clamped, config.GetFsrQualityMode(),
-                quality_mode_render_width, quality_mode_render_height)) {
-          quality_mode_render_width =
-              std::max(uint32_t(1), std::min(quality_mode_render_width, output_width_clamped));
-          quality_mode_render_height =
-              std::max(uint32_t(1), std::min(quality_mode_render_height, output_height_clamped));
-          if (quality_mode_render_width < temporal_input_width ||
-              quality_mode_render_height < temporal_input_height) {
-            temporal_input_width = quality_mode_render_width;
-            temporal_input_height = quality_mode_render_height;
-            if (temporal_input_width != ffx_last_size.first ||
-                temporal_input_height != ffx_last_size.second) {
-              assert_true(flow.effect_count < flow.effects.size());
-              flow.effect_output_sizes[flow.effect_count] =
-                  std::make_pair(temporal_input_width, temporal_input_height);
-              // Pre-temporal quality mode may request a lower render
-              // resolution. Use CAS resample since bilinear is not allowed in
-              // intermediate passes.
-              flow.effects[flow.effect_count++] = GuestOutputPaintEffect::kCasResample;
-              ffx_last_size.first = temporal_input_width;
-              ffx_last_size.second = temporal_input_height;
-            }
-          } else if (quality_mode_render_width > temporal_input_width ||
-                     quality_mode_render_height > temporal_input_height) {
-            LogTemporalFsrQualityModeInputLimitOnce();
-          }
-        }
-
-        // A single temporal upscaler dispatch can target the final clamped
-        // size directly, unlike the spatial multi-pass chain.
-        ffx_last_size.first = output_width_clamped;
-        ffx_last_size.second = output_height_clamped;
-        assert_true(flow.effect_count < flow.effects.size());
-        flow.effect_output_sizes[flow.effect_count] = ffx_last_size;
-        flow.effects[flow.effect_count++] = GuestOutputPaintEffect::kFsrEasu;
-      } else {
-        uint32_t easu_max_passes = config.GetFsrMaxUpsamplingPasses();
-        uint32_t easu_pass_count = 0;
-        while (easu_pass_count < easu_max_passes &&
-               (ffx_last_size.first < output_width_clamped ||
-                ffx_last_size.second < output_height_clamped)) {
-          ffx_last_size.first = std::min(ffx_last_size.first * uint32_t(2), output_width_clamped);
-          ffx_last_size.second =
-              std::min(ffx_last_size.second * uint32_t(2), output_height_clamped);
-          assert_true(flow.effect_count < flow.effects.size());
-          flow.effect_output_sizes[flow.effect_count] = ffx_last_size;
-          flow.effects[flow.effect_count++] = GuestOutputPaintEffect::kFsrEasu;
-          ++easu_pass_count;
-        }
-      }
-      assert_true(flow.effect_count < flow.effects.size());
-      flow.effect_output_sizes[flow.effect_count] = ffx_last_size;
-      flow.effects[flow.effect_count++] = GuestOutputPaintEffect::kFsrRcas;
-    } else {
-      // AMD FidelityFX Contrast Adaptive Sharpening - sharpen or downsample, or
-      // upsample up to 2x2 if CAS is specified to be used for upscaling too.
-      // Using the unclamped output size as CAS may be the last pass - if a
-      // bilinear pass is needed afterwards, and the CAS pass will be writing to
-      // an intermediate image, the CAS pass output size will be clamped while
-      // adding the bilinear stretch.
-      std::pair<uint32_t, uint32_t> pre_cas_size = ffx_last_size;
-      ffx_last_size.first = std::min(ffx_last_size.first * uint32_t(2), output_width);
-      ffx_last_size.second = std::min(ffx_last_size.second * uint32_t(2), output_height);
-      assert_true(flow.effect_count < flow.effects.size());
-      flow.effect_output_sizes[flow.effect_count] = ffx_last_size;
-      flow.effects[flow.effect_count++] = ffx_last_size == pre_cas_size
-                                              ? GuestOutputPaintEffect::kCasSharpen
-                                              : GuestOutputPaintEffect::kCasResample;
-    }
-  }
-#endif  // defined(REX_HAS_FIDELITYFX_SDK)
-
   std::pair<uint32_t, uint32_t>* last_pre_bilinear_effect_size =
       flow.effect_count ? &flow.effect_output_sizes[flow.effect_count - 1] : nullptr;
   if (!last_pre_bilinear_effect_size || last_pre_bilinear_effect_size->first != output_width ||
       last_pre_bilinear_effect_size->second != output_height) {
-    // If not using FidelityFX, or it has reached its upscaling capabilities,
-    // but more is needed, stretch via bilinear filtering.
+    // Stretch via bilinear filtering.
     // Clamp the output size of the last effect to the maximum render target
     // size because it will go to an intermediate image now.
     if (last_pre_bilinear_effect_size) {
-#if defined(REX_HAS_FIDELITYFX_SDK)
-      // RCAS only works for 1:1, clamping must be done explicitly for FSR.
-      assert_false(flow.effects[flow.effect_count - 1] == GuestOutputPaintEffect::kFsrRcas &&
-                   (last_pre_bilinear_effect_size->first > max_rt_width ||
-                    last_pre_bilinear_effect_size->second > max_rt_height));
-#endif
       last_pre_bilinear_effect_size->first =
           std::min(last_pre_bilinear_effect_size->first, max_rt_width);
       last_pre_bilinear_effect_size->second =
@@ -1137,17 +790,6 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
           last_effect = GuestOutputPaintEffect::kBilinearDither;
         }
         break;
-#if defined(REX_HAS_FIDELITYFX_SDK)
-      case GuestOutputPaintEffect::kCasSharpen:
-        last_effect = GuestOutputPaintEffect::kCasSharpenDither;
-        break;
-      case GuestOutputPaintEffect::kCasResample:
-        last_effect = GuestOutputPaintEffect::kCasResampleDither;
-        break;
-      case GuestOutputPaintEffect::kFsrRcas:
-        last_effect = GuestOutputPaintEffect::kFsrRcasDither;
-        break;
-#endif
       default:
         break;
     }

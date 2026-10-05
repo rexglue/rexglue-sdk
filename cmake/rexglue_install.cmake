@@ -17,15 +17,6 @@ install(TARGETS rexglue
     CONFIGURATIONS Release
 )
 
-if(REXGLUE_INSTALL_FIDELITYFX_TARGETS)
-    install(TARGETS ${REXGLUE_INSTALL_FIDELITYFX_TARGETS}
-        EXPORT rexglueTargets
-        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    )
-endif()
-
 # Install public headers
 install(DIRECTORY include/rex
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
@@ -72,16 +63,14 @@ install(FILES
 )
 
 # Install SPIRV-Tools headers (only the public API, not opt/linker)
-if(REXGLUE_USE_VULKAN)
-    install(FILES
-        thirdparty/spirv-tools/include/spirv-tools/libspirv.h
-        thirdparty/spirv-tools/include/spirv-tools/libspirv.hpp
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/spirv-tools
-    )
-endif()
+install(FILES
+    thirdparty/spirv-tools/include/spirv-tools/libspirv.h
+    thirdparty/spirv-tools/include/spirv-tools/libspirv.hpp
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/spirv-tools
+)
 
 # Install DXC API headers (vendored, for D3D12 backend)
-if(REXGLUE_USE_D3D12)
+if(REXGLUE_GPU_D3D12)
     install(FILES
         thirdparty/dxc/include/DxbcConverter.h
         thirdparty/dxc/include/dxcapi.h
@@ -89,7 +78,7 @@ if(REXGLUE_USE_D3D12)
     )
 endif()
 
-if(APPLE AND REXGLUE_USE_VULKAN)
+if(APPLE)
     install(FILES "$<TARGET_FILE:Vulkan::Loader>"
         DESTINATION ${CMAKE_INSTALL_LIBDIR}
         CONFIGURATIONS Release
@@ -127,6 +116,7 @@ install(FILES
 
 install(FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_helpers.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_optimus.cpp.in
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/rexglue
 )
 

@@ -7,6 +7,7 @@
 #   rexglue_configure_module_target(<target> ...)  - guest DLL module
 #==========================================================
 include_guard(GLOBAL)
+set(_REXGLUE_HELPERS_DIR ${CMAKE_CURRENT_LIST_DIR})
 
 function(_rexglue_stage_macos_vulkan_runtime target_name)
     if(TARGET Vulkan::Loader AND TARGET MoltenVK::MoltenVK)
@@ -67,8 +68,8 @@ endfunction()
 #
 # Adds:
 #   - Build-config define for the version stamp
-#   - $ORIGIN RPATH on UNIX so the host finds librexruntime.so next to itself
-#   - Windows POST_BUILD copy of TARGET_RUNTIME_DLLS and the FidelityFX DLLs.
+#   - $ORIGIN RPATH on UNIX so the host finds librex-runtime.so next to itself
+#   - Windows POST_BUILD copy of TARGET_RUNTIME_DLLS.
 #     Guest modules colocate with the host (see rexglue_configure_module_target),
 #     so this single copy handles them transitively.
 #==========================================================
@@ -84,7 +85,7 @@ function(rexglue_configure_target target_name)
             BUILD_WITH_INSTALL_RPATH ON
         )
     elseif(APPLE)
-        # macOS analogue of $ORIGIN: resolve @rpath dylibs (librexruntime,
+        # macOS analogue of $ORIGIN: resolve @rpath dylibs (librex-runtime,
         # libTracyClient, ...) next to the executable. Pairs with the runtime
         # dylib staging below so the app is self-contained.
         set_target_properties(${target_name} PROPERTIES
@@ -96,7 +97,7 @@ function(rexglue_configure_target target_name)
     rexglue_apply_target_settings(${target_name})
 
     if(WIN32)
-        # Stage runtime DLLs (rexruntime, TracyClient, etc.) next to the host
+        # Stage runtime DLLs (rex-runtime, TracyClient, etc.) next to the host
         # binary on every link. The host relinks when a staged DLL changes,
         # since an unchanged import library skips the link otherwise.
         add_custom_command(TARGET ${target_name} POST_BUILD
@@ -112,7 +113,7 @@ function(rexglue_configure_target target_name)
         # (paired with the @executable_path rpath above). Everything else the
         # runtime links (fmt, SDL3, ...) is static. Target names
         # differ between an in-tree build and an installed SDK import.
-        foreach(_rexglue_runtime_lib rex::core rexcore rex::runtime rexruntime rex::TracyClient TracyClient)
+        foreach(_rexglue_runtime_lib rex::core rex-core rex::runtime rex-runtime rex::TracyClient TracyClient)
             if(TARGET ${_rexglue_runtime_lib})
                 add_custom_command(TARGET ${target_name} POST_BUILD
                     COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -124,29 +125,12 @@ function(rexglue_configure_target target_name)
         endforeach()
     endif()
 
-    if(WIN32)
-        # FidelityFX is linked PRIVATE by rexui (to avoid propagating DLL
-        # requirements to tool-mode targets), so copy its DLLs explicitly.
-        foreach(_fx amd_fidelityfx_vk amd_fidelityfx_dx12)
-            if(TARGET ${_fx})
-                add_custom_command(TARGET ${target_name} POST_BUILD
-                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                        $<TARGET_FILE:${_fx}>
-                        $<TARGET_FILE_DIR:${target_name}>
-                    VERBATIM
-                )
-                set_property(TARGET ${target_name} APPEND PROPERTY
-                    LINK_DEPENDS "$<TARGET_FILE:${_fx}>")
-            endif()
-        endforeach()
-    endif()
-
     # Stage requested GPU emulation plugins next to the executable. Plugins
     # are runtime-loaded (never linked), so TARGET_RUNTIME_DLLS misses them.
     foreach(_plugin IN LISTS ARG_GPU_PLUGINS)
-        if(TARGET rexgpu-${_plugin})
+        if(TARGET rex-gpu-${_plugin})
             # In-tree build: depend on it so it gets built.
-            set(_plugin_target rexgpu-${_plugin})
+            set(_plugin_target rex-gpu-${_plugin})
             add_dependencies(${target_name} ${_plugin_target})
         elseif(TARGET rex::gpu-${_plugin})
             # Installed SDK import.
@@ -154,7 +138,7 @@ function(rexglue_configure_target target_name)
         else()
             message(FATAL_ERROR
                 "rexglue_configure_target: unknown GPU plugin '${_plugin}' "
-                "(no target rexgpu-${_plugin} or rex::gpu-${_plugin})")
+                "(no target rex-gpu-${_plugin} or rex::gpu-${_plugin})")
         endif()
         add_custom_command(TARGET ${target_name} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -167,9 +151,15 @@ function(rexglue_configure_target target_name)
         unset(_plugin_target)
     endforeach()
 
-    if(TARGET rexfilesystem)
-        set(_rexglue_filesystem rexfilesystem)
-        add_dependencies(${target_name} rexfilesystem)
+    if(WIN32)
+        set(_optimus_source "${CMAKE_CURRENT_BINARY_DIR}/${target_name}_optimus.cpp")
+        configure_file("${_REXGLUE_HELPERS_DIR}/rexglue_optimus.cpp.in" "${_optimus_source}" COPYONLY)
+        target_sources(${target_name} PRIVATE "${_optimus_source}")
+    endif()
+
+    if(TARGET rex-filesystem)
+        set(_rexglue_filesystem rex-filesystem)
+        add_dependencies(${target_name} rex-filesystem)
     elseif(TARGET rex::filesystem)
         set(_rexglue_filesystem rex::filesystem)
     endif()
@@ -183,7 +173,7 @@ function(rexglue_configure_target target_name)
         unset(_rexglue_filesystem)
     endif()
 
-    if(APPLE AND REXGLUE_USE_VULKAN)
+    if(APPLE)
         _rexglue_stage_macos_vulkan_runtime(${target_name})
     endif()
 endfunction()

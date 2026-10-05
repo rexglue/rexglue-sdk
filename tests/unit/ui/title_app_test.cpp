@@ -401,11 +401,11 @@ TEST_CASE("OnEvent receives nothing before OnCreateWindow returns", "[title_app]
   REQUIRE(app.closing_events == 1);
 }
 
-TEST_CASE("TitleApp puts rexfilesystem and rexruntime first", "[title_app]") {
+TEST_CASE("TitleApp puts rex-filesystem and rex-runtime first", "[title_app]") {
   FooApp app;
   app.modules = {"rexmod-test-good"};
   REQUIRE(app.Init(rex::CLIArgList::Parse(std::span<const std::string>{}), rex::PPCImageInfo{}));
   REQUIRE(app.config().modules ==
-          std::vector<std::string>{"rexfilesystem", "rexruntime", "rexmod-test-good"});
+          std::vector<std::string>{"rex-filesystem", "rex-runtime", "rexmod-test-good"});
   REQUIRE(app.Shutdown() == 0);
 }

@@ -81,17 +81,17 @@ add_custom_command(
 
 add_custom_target(embed_templates DEPENDS ${EMBEDDED_HEADERS})
 
-add_library(rexcodegen STATIC
+add_library(rex-codegen STATIC
     ${CODEGEN_CORE_SOURCES}
     ${CODEGEN_PPC_SOURCES}
     ${CODEGEN_BUILDER_SOURCES}
 )
-add_library(rex::codegen ALIAS rexcodegen)
-add_dependencies(rexcodegen embed_templates)
+add_library(rex::codegen ALIAS rex-codegen)
+add_dependencies(rex-codegen embed_templates)
 
-rex_target_pch(rexcodegen <rex/codegen/function_types.h>)
+rex_target_pch(rex-codegen <rex/codegen/function_types.h>)
 
-target_include_directories(rexcodegen
+target_include_directories(rex-codegen
     PUBLIC
         $<BUILD_INTERFACE:${REXGLUE_ROOT}/include>
         $<BUILD_INTERFACE:${REXGLUE_ROOT}/thirdparty/inja/single_include>
@@ -104,9 +104,9 @@ target_include_directories(rexcodegen
         ${CMAKE_CURRENT_BINARY_DIR}/generated/templates
 )
 
-target_link_libraries(rexcodegen
+target_link_libraries(rex-codegen
     PUBLIC
-        rexruntime
+        rex-runtime
         fmt::fmt
     PRIVATE
         tomlplusplus

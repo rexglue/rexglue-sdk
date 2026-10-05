@@ -6,6 +6,7 @@ add_executable(unit_tests
     memory/heap_allocation_test.cpp
     memory/access_violation_test.cpp
     memory/memory_budget_test.cpp
+    gpu/backend_select_test.cpp
     kernel/exit_title_test.cpp
     kernel/object_table_test.cpp
     kernel/shim_registry_test.cpp
@@ -83,17 +84,17 @@ target_include_directories(unit_tests PRIVATE
 )
 
 target_link_libraries(unit_tests PRIVATE
-    rexcodegen
-    rexruntime
+    rex-codegen
+    rex-runtime
     xxHash::xxhash
     Catch2::Catch2WithMain
     SDL3::Headers
 )
 
 add_executable(rex-crash-probe crash_probe.cpp)
-target_link_libraries(rex-crash-probe PRIVATE rexruntime)
+target_link_libraries(rex-crash-probe PRIVATE rex-runtime)
 set_target_properties(rex-crash-probe PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>
+    RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rex-runtime>
 )
 if(UNIX AND NOT APPLE)
     set_target_properties(rex-crash-probe PROPERTIES
@@ -102,7 +103,7 @@ if(UNIX AND NOT APPLE)
     )
 endif()
 
-add_dependencies(unit_tests rexfilesystem rex-sample-console rex-sample-title rex-crash-probe)
+add_dependencies(unit_tests rex-filesystem rex-sample-console rex-sample-title rex-crash-probe)
 
 add_dependencies(unit_tests
     rexmod-test-good rexmod-test-missing rexmod-test-badversion
@@ -115,7 +116,7 @@ target_compile_options(unit_tests PRIVATE
 )
 
 set_target_properties(unit_tests PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>
+    RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rex-runtime>
 )
 if(UNIX AND NOT APPLE)
     set_target_properties(unit_tests PROPERTIES

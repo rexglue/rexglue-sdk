@@ -304,7 +304,7 @@ Result<void> TitleApp::Init(const CLIArgList& args, const PPCImageInfo& image) {
   const std::filesystem::path exe = platform::GetExecutablePath();
   const std::string name = exe.stem().string();
   Config& cfg = config();
-  cfg.modules = {"rexgpu-xenos"};
+  cfg.modules = {"rex-gpu-xenos"};
   cfg.paths.user_data_root = platform::GetUserFolder() / name;
   cfg.paths.cache_root = cfg.paths.user_data_root / "cache";
   cfg.paths.config_file = exe.parent_path() / (name + ".toml");
@@ -587,12 +587,12 @@ platform::CrashReporterOptions TitleApp::CrashOptions() {
 
 void TitleApp::RequireModules(Config& config) {
   auto& modules = config.modules;
-  auto filesystem = std::ranges::find(modules, "rexfilesystem");
+  auto filesystem = std::ranges::find(modules, "rex-filesystem");
   if (filesystem == modules.end()) {
-    filesystem = modules.insert(modules.begin(), "rexfilesystem");
+    filesystem = modules.insert(modules.begin(), "rex-filesystem");
   }
-  if (std::ranges::find(modules, "rexruntime") == modules.end()) {
-    modules.insert(std::next(filesystem), "rexruntime");
+  if (std::ranges::find(modules, "rex-runtime") == modules.end()) {
+    modules.insert(std::next(filesystem), "rex-runtime");
   }
 }
 

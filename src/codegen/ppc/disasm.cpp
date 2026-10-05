@@ -1,5 +1,5 @@
 /**
- * @file        rexcodegen/disasm.cpp
+ * @file        codegen/disasm.cpp
  * @brief       PPC disassembly implementation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>

@@ -1,7 +1,7 @@
-# rexaudio - Audio subsystem library
+# rex-audio - Audio subsystem library
 # Audio processing and XMA decoding for Xbox 360 emulation
 
-add_library(rexaudio OBJECT
+add_library(rex-audio OBJECT
     
     audio_driver.cpp
     audio_system.cpp
@@ -15,9 +15,9 @@ add_library(rexaudio OBJECT
     sdl/sdl_audio_system.cpp
     sdl/sdl_audio_driver.cpp
 )
-add_library(rex::audio ALIAS rexaudio)
+add_library(rex::audio ALIAS rex-audio)
 
-rex_target_pch(rexaudio
+rex_target_pch(rex-audio
     <mutex>
     <rex/math.h>
     <rex/string.h>
@@ -29,13 +29,13 @@ rex_target_pch(rexaudio
     <rex/runtime/xthread.h>
 )
 
-target_include_directories(rexaudio PUBLIC
+target_include_directories(rex-audio PUBLIC
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
-target_include_directories(rexaudio PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_include_directories(rex-audio PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
-target_link_libraries(rexaudio
-    PUBLIC rexcore SDL3::SDL3
+target_link_libraries(rex-audio
+    PUBLIC rex-core SDL3::SDL3
     PRIVATE libavcodec libavutil
 )

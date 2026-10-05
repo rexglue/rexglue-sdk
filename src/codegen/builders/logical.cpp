@@ -1,5 +1,5 @@
 /**
- * @file        rexcodegen/builders/logical.cpp
+ * @file        codegen/builders/logical.cpp
  * @brief       PPC logical instruction code generation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>

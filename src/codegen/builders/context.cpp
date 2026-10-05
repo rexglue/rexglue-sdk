@@ -1,5 +1,5 @@
 /**
- * @file        rexcodegen/builders/context.cpp
+ * @file        codegen/builders/context.cpp
  * @brief       PPC context instruction code generation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>

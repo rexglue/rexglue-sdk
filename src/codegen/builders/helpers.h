@@ -1,5 +1,5 @@
 /**
- * @file        rexcodegen/internal/helpers.h
+ * @file        codegen/internal/helpers.h
  * @brief       Recompiler helper utilities
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>

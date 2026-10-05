@@ -1,5 +1,5 @@
 /**
- * @file        rexcodegen/config.cpp
+ * @file        codegen/config.cpp
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

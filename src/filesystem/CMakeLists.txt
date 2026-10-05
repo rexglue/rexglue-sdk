@@ -1,4 +1,4 @@
-add_library(rexfilesystem SHARED
+add_library(rex-filesystem SHARED
     container_provider.cpp
     file_system.cpp
     host_provider.cpp
@@ -9,20 +9,20 @@ add_library(rexfilesystem SHARED
     provider.cpp
     wildcard.cpp
 )
-add_library(rex::filesystem ALIAS rexfilesystem)
+add_library(rex::filesystem ALIAS rex-filesystem)
 
 if(WIN32)
-    target_sources(rexfilesystem PRIVATE host_file_win.cpp)
+    target_sources(rex-filesystem PRIVATE host_file_win.cpp)
 elseif(UNIX)
-    target_sources(rexfilesystem PRIVATE host_file_posix.cpp)
+    target_sources(rex-filesystem PRIVATE host_file_posix.cpp)
 endif()
 
-set_target_properties(rexfilesystem PROPERTIES
+set_target_properties(rex-filesystem PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN ON
 )
-rexglue_add_version_resource(rexfilesystem DESCRIPTION "ReXGlue filesystem")
+rexglue_add_version_resource(rex-filesystem DESCRIPTION "ReXGlue filesystem")
 
-target_include_directories(rexfilesystem PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_include_directories(rex-filesystem PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
-target_link_libraries(rexfilesystem PRIVATE rexcore)
+target_link_libraries(rex-filesystem PRIVATE rex-core)

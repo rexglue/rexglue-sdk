@@ -16,22 +16,19 @@ find_dependency(fmt CONFIG)
 find_dependency(utf8cpp CONFIG)
 find_dependency(SDL3 CONFIG)
 
-set(REXGLUE_USE_VULKAN @REXGLUE_USE_VULKAN@)
-if(REXGLUE_USE_VULKAN)
-    find_dependency(VulkanHeaders CONFIG)
-    find_dependency(VulkanMemoryAllocator CONFIG)
-    if(APPLE)
-        if(NOT TARGET rex::vulkan-loader)
-            add_library(rex::vulkan-loader SHARED IMPORTED)
-            set_target_properties(rex::vulkan-loader PROPERTIES
-                IMPORTED_LOCATION "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_LIBDIR@/libvulkan.1.dylib")
-        endif()
+find_dependency(VulkanHeaders CONFIG)
+find_dependency(VulkanMemoryAllocator CONFIG)
+if(APPLE)
+    if(NOT TARGET rex::vulkan-loader)
+        add_library(rex::vulkan-loader SHARED IMPORTED)
+        set_target_properties(rex::vulkan-loader PROPERTIES
+            IMPORTED_LOCATION "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_LIBDIR@/libvulkan.1.dylib")
+    endif()
 
-        if(NOT TARGET rex::moltenvk)
-            add_library(rex::moltenvk SHARED IMPORTED)
-            set_target_properties(rex::moltenvk PROPERTIES
-                IMPORTED_LOCATION "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_LIBDIR@/libMoltenVK.dylib")
-        endif()
+    if(NOT TARGET rex::moltenvk)
+        add_library(rex::moltenvk SHARED IMPORTED)
+        set_target_properties(rex::moltenvk PROPERTIES
+            IMPORTED_LOCATION "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_LIBDIR@/libMoltenVK.dylib")
     endif()
 endif()
 

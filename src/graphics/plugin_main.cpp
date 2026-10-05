@@ -1,6 +1,6 @@
 /**
  * @file        graphics/plugin_main.cpp
- * @brief       rexgpu-xenos module entry, serves the module and graphics backend interfaces
+ * @brief       rex-gpu-xenos module entry, serves the module and graphics backend interfaces
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -15,24 +15,23 @@
 #include <string>
 #include <string_view>
 
-#include <format>
-
 #include <rex/api.h>
 #include <rex/cvar.h>
 #include <rex/graphics/graphics_system.h>
 #include <rex/logging.h>
 #include <rex/module.h>
+#include <rex/platform.h>
 
 #include "graphics/cvar_table.h"
 
 REXLOG_TABLE(kGPULog, gpu)
 
-#if REX_HAS_D3D12
+#if REX_PLATFORM_WIN32
 #include <rex/graphics/d3d12/graphics_system.h>
 #endif
-#if REX_HAS_VULKAN
 #include <rex/graphics/vulkan/graphics_system.h>
-#endif
+
+#include "graphics/backend_select.h"
 
 namespace rex::graphics {
 
@@ -46,7 +45,7 @@ class XenosModule final : public rex::IModule {
       {IGraphicsBackend::kInterfaceName, IGraphicsBackend::kInterfaceVersion, &GetBackend},
   }};
 
-  const char* Name() const override { return "rexgpu-xenos"; }
+  const char* Name() const override { return "rex-gpu-xenos"; }
   std::span<const char* const> RequiredInterfaces() const override {
     static constexpr std::array<const char*, 1> kRequired = {"rex.cvar@1"};
     return kRequired;
@@ -76,24 +75,20 @@ class XenosModule final : public rex::IModule {
   }
 
   rex::Result<void> Init() override {
-    std::string_view backend = config_ ? std::string_view(config_->backend) : "any";
-#if REX_HAS_D3D12
-    if (backend == "any" || backend == "d3d12") {
-      backend_ = std::make_unique<d3d12::D3D12GraphicsSystem>();
-      backend_->set_config(config_);
-      return rex::Ok();
-    }
+    std::string_view name = config_ ? std::string_view(config_->backend) : "any";
+    REX_TRY(HostAPI api, SelectHostAPI(name, kPlatformHostAPIs));
+    switch (api) {
+#if REX_PLATFORM_WIN32
+      case HostAPI::kD3D12:
+        backend_ = std::make_unique<d3d12::D3D12GraphicsSystem>();
+        break;
 #endif
-#if REX_HAS_VULKAN
-    if (backend == "any" || backend == "vulkan") {
-      backend_ = std::make_unique<vulkan::VulkanGraphicsSystem>();
-      backend_->set_config(config_);
-      return rex::Ok();
+      default:
+        backend_ = std::make_unique<vulkan::VulkanGraphicsSystem>();
+        break;
     }
-#endif
-    return rex::Err(
-        rex::ErrorCategory::Module,
-        std::format("rexgpu-xenos: backend '{}' is not compiled into this module", backend));
+    backend_->set_config(config_);
+    return rex::Ok();
   }
 
   void Shutdown() override { backend_.reset(); }

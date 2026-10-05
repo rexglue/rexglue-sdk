@@ -132,12 +132,6 @@ class D3D12Presenter final : public Presenter {
 
   enum GuestOutputPaintRootSignatureIndex : size_t {
     kGuestOutputPaintRootSignatureIndexBilinear,
-#if defined(REX_HAS_FIDELITYFX_SDK)
-    kGuestOutputPaintRootSignatureIndexCasSharpen,
-    kGuestOutputPaintRootSignatureIndexCasResample,
-    kGuestOutputPaintRootSignatureIndexFsrEasu,
-    kGuestOutputPaintRootSignatureIndexFsrRcas,
-#endif
 
     kGuestOutputPaintRootSignatureCount,
   };
@@ -148,19 +142,6 @@ class D3D12Presenter final : public Presenter {
       case GuestOutputPaintEffect::kBilinear:
       case GuestOutputPaintEffect::kBilinearDither:
         return kGuestOutputPaintRootSignatureIndexBilinear;
-#if defined(REX_HAS_FIDELITYFX_SDK)
-      case GuestOutputPaintEffect::kCasSharpen:
-      case GuestOutputPaintEffect::kCasSharpenDither:
-        return kGuestOutputPaintRootSignatureIndexCasSharpen;
-      case GuestOutputPaintEffect::kCasResample:
-      case GuestOutputPaintEffect::kCasResampleDither:
-        return kGuestOutputPaintRootSignatureIndexCasResample;
-      case GuestOutputPaintEffect::kFsrEasu:
-        return kGuestOutputPaintRootSignatureIndexFsrEasu;
-      case GuestOutputPaintEffect::kFsrRcas:
-      case GuestOutputPaintEffect::kFsrRcasDither:
-        return kGuestOutputPaintRootSignatureIndexFsrRcas;
-#endif
       default:
         assert_unhandled_case(effect);
         return kGuestOutputPaintRootSignatureCount;
@@ -262,17 +243,6 @@ class D3D12Presenter final : public Presenter {
 
   bool InitializeSurfaceIndependent();
 
-#if defined(REX_HAS_FIDELITYFX_RUNTIME) && REX_HAS_FIDELITYFX_RUNTIME
-  bool EnsureTemporalUpscalerContext(uint32_t render_width, uint32_t render_height,
-                                     uint32_t output_width, uint32_t output_height);
-  bool DispatchTemporalUpscaler(ID3D12GraphicsCommandList* command_list,
-                                ID3D12Resource* input_resource, uint32_t input_width,
-                                uint32_t input_height, ID3D12Resource* output_resource,
-                                uint32_t output_width, uint32_t output_height,
-                                const GuestOutputPaintConfig& config);
-  void DestroyTemporalUpscalerContext();
-#endif
-
   const D3D12Provider& provider_;
 
   // Whether DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING is supported by DXGI (depends in
@@ -311,15 +281,6 @@ class D3D12Presenter final : public Presenter {
   // DisconnectPaintingFromSurfaceFromUIThreadImpl) by the thread doing it, as
   // well as by presenter initialization and shutdown.
   PaintContext paint_context_;
-
-#if defined(REX_HAS_FIDELITYFX_RUNTIME) && REX_HAS_FIDELITYFX_RUNTIME
-  void* temporal_upscaler_context_ = nullptr;
-  uint32_t temporal_upscaler_max_render_width_ = 0;
-  uint32_t temporal_upscaler_max_render_height_ = 0;
-  uint32_t temporal_upscaler_max_output_width_ = 0;
-  uint32_t temporal_upscaler_max_output_height_ = 0;
-  bool temporal_upscaler_provider_logged_ = false;
-#endif
 };
 
 }  // namespace rex::ui::d3d12

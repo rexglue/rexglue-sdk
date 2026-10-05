@@ -1,5 +1,5 @@
 /**
- * @file        rexcodegen/internal/config.h
+ * @file        codegen/config.h
  * @brief       Recompiler configuration types
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>

@@ -1,6 +1,6 @@
 /**
  * @file        filesystem/file_system.cpp
- * @brief       The mount table rexfilesystem serves
+ * @brief       The mount table rex-filesystem serves
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

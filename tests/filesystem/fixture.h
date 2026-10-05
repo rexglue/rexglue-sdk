@@ -1,6 +1,6 @@
 /**
  * @file        tests/filesystem/fixture.h
- * @brief       Catch2 fixture that loads rexfilesystem through rex::Init
+ * @brief       Catch2 fixture that loads rex-filesystem through rex::Init
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -69,17 +69,17 @@ inline std::string ReadText(IFile& file) {
   return {bytes.begin(), bytes.begin() + static_cast<std::ptrdiff_t>(*read)};
 }
 
-/** Loads rexfilesystem, holds its IFileSystem and a temp folder, and shuts down. */
+/** Loads rex-filesystem, holds its IFileSystem and a temp folder, and shuts down. */
 class Fixture : public NonCopyable {
  public:
   /**
-   * Runs rex::Init with rexfilesystem as the only module.
+   * Runs rex::Init with rex-filesystem as the only module.
    *
    * @param game_mount_flags The filesystem slice value handed to Connect.
    */
   explicit Fixture(MountFlags game_mount_flags = MountFlags::kNone) {
     Config config;
-    config.modules = {"rexfilesystem"};
+    config.modules = {"rex-filesystem"};
     config.filesystem.game_mount_flags = game_mount_flags;
     auto api = rex::Init(config);
     REQUIRE(api);

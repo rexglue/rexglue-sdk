@@ -46,25 +46,6 @@ REXCVAR_BOOL(ui, present_from_non_ui_thread, true, "Allow presentation from non-
 REXCVAR_BOOL(ui, present_letterbox, true, "Enable letterboxing for non-native aspect ratios");
 REXCVAR_INT32(ui, present_safe_area_x, 90, "Horizontal safe area percentage (0-100)").range(0, 100);
 REXCVAR_INT32(ui, present_safe_area_y, 90, "Vertical safe area percentage (0-100)").range(0, 100);
-REXCVAR_STRING(ui, present_effect, "bilinear",
-               "guest output effect: bilinear, cas, fsr, fsr2, fsr3")
-    .allowed(REXCVAR_ALLOWED("bilinear", "cas", "fsr", "fsr2", "fsr3"))
-    .lifecycle(rex::cvar::Lifecycle::RequiresRestart);
-REXCVAR_DOUBLE(ui, present_cas_additional_sharpness, 0.0, "Additional CAS sharpness in [0, 1]")
-    .range(0.0, 1.0)
-    .lifecycle(rex::cvar::Lifecycle::RequiresRestart);
-REXCVAR_INT32(ui, present_fsr_max_upsampling_passes, 4, "Maximum chained FSR EASU passes")
-    .range(1, 4)
-    .lifecycle(rex::cvar::Lifecycle::RequiresRestart);
-REXCVAR_DOUBLE(ui, present_fsr_sharpness_reduction, 0.2, "FSR RCAS sharpness reduction in stops")
-    .range(0.0, 2.0)
-    .lifecycle(rex::cvar::Lifecycle::RequiresRestart);
-REXCVAR_STRING(ui, present_fsr_quality_mode, "auto",
-               "Temporal FSR quality mode: auto, nativeaa, quality, balanced, performance, "
-               "ultra_performance")
-    .allowed(REXCVAR_ALLOWED("auto", "nativeaa", "quality", "balanced", "performance",
-                             "ultra_performance"))
-    .lifecycle(rex::cvar::Lifecycle::RequiresRestart);
 REXCVAR_BOOL(ui, present_dither, false, "Enable output dithering in the final present pass")
     .lifecycle(rex::cvar::Lifecycle::RequiresRestart);
 REXCVAR_BOOL(ui, present_allow_overscan_cutoff, false,
@@ -97,9 +78,7 @@ REXCVAR_DOUBLE(ui, cursor_timeout, 0.0,
                "Seconds without mouse movement over the window before the cursor hides, 0 never")
     .range(0.0, 3600.0);
 REXCVAR_TABLE(kUICvars, present_from_non_ui_thread, present_letterbox, present_safe_area_x,
-              present_safe_area_y, present_effect, present_cas_additional_sharpness,
-              present_fsr_max_upsampling_passes, present_fsr_sharpness_reduction,
-              present_fsr_quality_mode, present_dither, present_allow_overscan_cutoff, window_width,
+              present_safe_area_y, present_dither, present_allow_overscan_cutoff, window_width,
               window_height, fullscreen, fullscreen_exclusive, monitor, video_mode_width,
               video_mode_height, resolution, video_mode_refresh_rate, cursor_timeout);
 

@@ -1,6 +1,6 @@
 /**
  * @file        codegen/tool_runtime.h
- * @brief       A tool mode Runtime over the mount table rexfilesystem serves
+ * @brief       A tool mode Runtime over the mount table rex-filesystem serves
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -59,7 +59,7 @@ class ToolRuntime : public MoveOnly {
 };
 
 /**
- * Runs rex::Init with the rexfilesystem module and builds a tool mode Runtime whose game colon
+ * Runs rex::Init with the rex-filesystem module and builds a tool mode Runtime whose game colon
  * mount is game_root.
  *
  * @param game_root The host folder that game colon names.

@@ -1,5 +1,5 @@
 /**
- * @file        rexcodegen/phases.h
+ * @file        codegen/phases.h
  * @brief       Analysis phase entry points
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>

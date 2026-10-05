@@ -9,8 +9,8 @@ foreach(name good missing badversion failinit dupecho)
         CXX_VISIBILITY_PRESET hidden
         VISIBILITY_INLINES_HIDDEN ON
         PREFIX ""
-        RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>
-        LIBRARY_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rexruntime>
+        RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rex-runtime>
+        LIBRARY_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rex-runtime>
     )
     rex_config_postfix(${target})
     if(NOT WIN32)

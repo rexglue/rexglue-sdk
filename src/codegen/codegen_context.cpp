@@ -1,5 +1,5 @@
 /**
- * @file        rexcodegen/codegen_context.cpp
+ * @file        codegen/codegen_context.cpp
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

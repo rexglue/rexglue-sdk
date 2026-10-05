@@ -1,5 +1,5 @@
 /**
- * @file        rexcodegen/vtable_scanner.cpp
+ * @file        codegen/vtable_scanner.cpp
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

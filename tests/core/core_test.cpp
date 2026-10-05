@@ -1,6 +1,6 @@
 /**
  * @file        tests/core/core_test.cpp
- * @brief       Tests that rexcore stands alone with no module loaded
+ * @brief       Tests that rex-core stands alone with no module loaded
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

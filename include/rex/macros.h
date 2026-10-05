@@ -19,8 +19,8 @@
 #include <rex/types.h>
 
 /**
- * Marks a declaration that rexcore exports. It expands to the export form while rexcore builds and
- * to the import form in every other binary.
+ * Marks a declaration that rex-core exports. It expands to the export form while rex-core builds
+ * and to the import form in every other binary.
  *
  * @code
  * class REX_API Clock;

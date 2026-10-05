@@ -20,7 +20,6 @@ project(ReXGlue
 #==========================================================
 option(REXGLUE_BUILD_TESTS       "Build PPC instruction and unit tests" OFF)
 option(REXGLUE_ENABLE_SANITIZERS "Enable UndefinedBehaviorSanitizer" OFF)
-option(REXGLUE_ENABLE_FIDELITYFX "Enable optional AMD FidelityFX integration (experimental)" OFF)
 option(REXGLUE_ENABLE_TRACY                "Enable Tracy profiler integration" ON)
 option(REXGLUE_ENABLE_PERF_COUNTERS        "Enable lightweight perf counter registry and overlay" ON)
 # Propagate profiling defines globally (compiled out in Release)
@@ -31,25 +30,10 @@ if(REXGLUE_ENABLE_PERF_COUNTERS)
     add_compile_definitions($<$<NOT:$<CONFIG:Release>>:REXGLUE_ENABLE_PERF_COUNTERS>)
 endif()
 
-# Graphics backend selection
-# D3D12: Windows only, ON by default.
-# Vulkan: Cross-platform, ON by default on Linux, OFF by default on Windows.
 if(WIN32)
-    option(REXGLUE_USE_D3D12  "Enable D3D12 graphics backend" ON)
-    option(REXGLUE_USE_VULKAN "Enable Vulkan graphics backend" OFF)
+    set(REXGLUE_GPU_D3D12 ON)
 else()
-    set(REXGLUE_USE_D3D12 OFF)
-    option(REXGLUE_USE_VULKAN "Enable Vulkan graphics backend" ON)
-endif()
-
-if(NOT REXGLUE_USE_D3D12 AND NOT REXGLUE_USE_VULKAN)
-    message(FATAL_ERROR "At least one graphics backend must be enabled (REXGLUE_USE_D3D12 or REXGLUE_USE_VULKAN)")
-endif()
-
-if (REXGLUE_ENABLE_FIDELITYFX AND
-    NOT (REXGLUE_USE_VULKAN OR REXGLUE_USE_D3D12))
-    message(FATAL_ERROR
-        "REXGLUE_ENABLE_FIDELITYFX requires at least one graphics backend")
+    set(REXGLUE_GPU_D3D12 OFF)
 endif()
 
 # Root of the SDK source tree
@@ -285,8 +269,7 @@ message(STATUS "  Compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSIO
 message(STATUS "  Configurations: ${CMAKE_CONFIGURATION_TYPES}")
 message(STATUS "  Output Dir: ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 message(STATUS "  C++ Standard: C++${CMAKE_CXX_STANDARD}")
-message(STATUS "  Graphics: D3D12=${REXGLUE_USE_D3D12} Vulkan=${REXGLUE_USE_VULKAN}")
-message(STATUS "  FidelityFX: ${REXGLUE_ENABLE_FIDELITYFX}")
+message(STATUS "  GPU: D3D12=${REXGLUE_GPU_D3D12} Vulkan=ON")
 message(STATUS "  Tracy: ${REXGLUE_ENABLE_TRACY}")
 message(STATUS "  Perf Counters: ${REXGLUE_ENABLE_PERF_COUNTERS}")
 message(STATUS "===========================================")
@@ -300,7 +283,7 @@ if(PROJECT_IS_TOP_LEVEL)
 else()
     # When consumed via add_subdirectory(), provide the same interface as find_package().
     include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rexglue_helpers.cmake)
-    foreach(target IN LISTS REXGLUE_INSTALL_TARGETS REXGLUE_INSTALL_FIDELITYFX_TARGETS)
+    foreach(target IN LISTS REXGLUE_INSTALL_TARGETS)
         get_target_property(export_name ${target} EXPORT_NAME)
         if(NOT export_name)
             set(export_name ${target})

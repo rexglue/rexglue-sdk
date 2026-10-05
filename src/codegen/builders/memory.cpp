@@ -1,5 +1,5 @@
 /**
- * @file        rexcodegen/builders/memory.cpp
+ * @file        codegen/builders/memory.cpp
  * @brief       PPC memory instruction code generation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>

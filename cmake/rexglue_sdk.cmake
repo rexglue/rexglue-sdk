@@ -1,4 +1,4 @@
-add_library(rexsdk INTERFACE)
-target_link_libraries(rexsdk INTERFACE rexcore rexruntime)
-set_target_properties(rexsdk PROPERTIES EXPORT_NAME sdk)
-add_library(rex::sdk ALIAS rexsdk)
+add_library(rex-sdk INTERFACE)
+target_link_libraries(rex-sdk INTERFACE rex-core rex-runtime)
+set_target_properties(rex-sdk PROPERTIES EXPORT_NAME sdk)
+add_library(rex::sdk ALIAS rex-sdk)

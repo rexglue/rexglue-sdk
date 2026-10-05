@@ -205,7 +205,7 @@ TEST_CASE_METHOD(Fixture, "Duplicate name and invalid name are rejected before l
     REQUIRE(api.error().message == std::string("module '") + bad + "' has an invalid name");
   }
   REQUIRE_FALSE(rex::detail::IsValidModuleName(".."));
-  REQUIRE(rex::detail::IsValidModuleName("rexgpu-xenos"));
+  REQUIRE(rex::detail::IsValidModuleName("rex-gpu-xenos"));
 }
 
 TEST_CASE_METHOD(Fixture, "An interface served by 2 modules is rejected", "[module_loader]") {
@@ -350,7 +350,7 @@ TEST_CASE_METHOD(Fixture, "A consumer table with a bad name fails before any loa
 TEST_CASE_METHOD(Fixture, "Config validation fails before any module connects",
                  "[module_loader][cvar]") {
   Pinned pin("rexmod-test-good");
-  auto cfg = With({"rexfilesystem", "rexruntime", "rexmod-test-good"});
+  auto cfg = With({"rex-filesystem", "rex-runtime", "rexmod-test-good"});
   cfg.runtime.heap_size_mb = 0;
   auto api = rex::Init(cfg);
   REQUIRE_FALSE(api);
@@ -388,10 +388,10 @@ TEST_CASE_METHOD(Fixture, "Every SDK cvar name is scope.leaf in a charter scope"
   static const std::vector<std::string_view> kScopes = {"log",   "clock",  "perf",    "runtime",
                                                         "audio", "input",  "ui",      "gpu",
                                                         "d3d12", "vulkan", "console", "bind"};
-  auto cfg = With({"rexfilesystem", "rexruntime"});
-  auto xenos = rex::platform::GetExecutableFolder() / rex::detail::ModuleFileName("rexgpu-xenos");
+  auto cfg = With({"rex-filesystem", "rex-runtime"});
+  auto xenos = rex::platform::GetExecutableFolder() / rex::detail::ModuleFileName("rex-gpu-xenos");
   if (std::filesystem::exists(xenos))
-    cfg.modules.push_back("rexgpu-xenos");
+    cfg.modules.push_back("rex-gpu-xenos");
   auto api = rex::Init(cfg);
   if (!api && cfg.modules.size() > 2) {
     cfg.modules.pop_back();
@@ -414,14 +414,14 @@ TEST_CASE_METHOD(Fixture, "Every SDK cvar name is scope.leaf in a charter scope"
   }
   REQUIRE(count >= 95);
   if (cfg.modules.size() > 2)
-    REQUIRE(count == 173);
+    REQUIRE(count == 163);
 }
 
-TEST_CASE_METHOD(Fixture, "rexruntime registers the module scopes at Connect",
+TEST_CASE_METHOD(Fixture, "rex-runtime registers the module scopes at Connect",
                  "[module_loader][cvar]") {
-  auto api = rex::Init(With({"rexfilesystem", "rexruntime"}));
+  auto api = rex::Init(With({"rex-filesystem", "rex-runtime"}));
   REQUIRE(api);
-  REQUIRE(api.value()->IsLoaded("rexruntime"));
+  REQUIRE(api.value()->IsLoaded("rex-runtime"));
   auto* registry = api.value()->Get<rex::cvar::ICvarRegistry>();
   REQUIRE(registry->Find("runtime.protect_zero"));
   REQUIRE(registry->Find("ui.window_width"));
@@ -431,7 +431,7 @@ TEST_CASE_METHOD(Fixture, "rexruntime registers the module scopes at Connect",
 
 TEST_CASE_METHOD(Fixture, "Runtime config sets the code segment and zero page defaults",
                  "[module_loader][cvar]") {
-  auto cfg = With({"rexfilesystem", "rexruntime"});
+  auto cfg = With({"rex-filesystem", "rex-runtime"});
   cfg.runtime.writable_code_segments = true;
   cfg.runtime.protect_zero = false;
   auto api = rex::Init(cfg);
@@ -441,7 +441,7 @@ TEST_CASE_METHOD(Fixture, "Runtime config sets the code segment and zero page de
   REQUIRE(registry->Get("runtime.protect_zero").value() == "false");
 }
 
-TEST_CASE_METHOD(Fixture, "Without rexruntime no module scope exists", "[module_loader][cvar]") {
+TEST_CASE_METHOD(Fixture, "Without rex-runtime no module scope exists", "[module_loader][cvar]") {
   auto api = rex::Init(rex::Config{});
   REQUIRE(api);
   auto* registry = api.value()->Get<rex::cvar::ICvarRegistry>();

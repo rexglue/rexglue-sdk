@@ -209,116 +209,22 @@ class Presenter {
 
   class GuestOutputPaintConfig {
    public:
-    enum class Effect {
-      kBilinear,
-#if defined(REX_HAS_FIDELITYFX_SDK)
-      kCas,
-      // AMD FidelityFX Super Resolution upsampling, Contrast Adaptive
-      // Sharpening otherwise.
-      kFsr,
-      // FidelityFX FSR2 selection. Uses the runtime temporal upscaler path
-      // where available; currently still experimental due to limited temporal
-      // inputs in the presenter path.
-      kFsr2,
-      // FidelityFX FSR3 selection. Uses the runtime temporal upscaler path
-      // where available; currently still experimental due to limited temporal
-      // inputs in the presenter path.
-      kFsr3,
-#endif
-    };
-
-#if defined(REX_HAS_FIDELITYFX_SDK)
-    enum class FsrQualityMode {
-      // Keep current behavior and use the guest output size as-is.
-      kAuto,
-      kNativeAa,
-      kQuality,
-      kBalanced,
-      kPerformance,
-      kUltraPerformance,
-    };
-
-    // This value is used as a lerp factor.
-    static constexpr float kCasAdditionalSharpnessMin = 0.0f;
-    static constexpr float kCasAdditionalSharpnessMax = 1.0f;
-    static constexpr float kCasAdditionalSharpnessDefault = 0.0f;
-    static_assert(kCasAdditionalSharpnessDefault >= kCasAdditionalSharpnessMin &&
-                  kCasAdditionalSharpnessDefault <= kCasAdditionalSharpnessMax);
-
-    // EASU (as well as CAS) is designed for scaling by factors of up to 2x2.
-    // Some sensible limit for unusual cases, when the game for some reason
-    // presents a very small back buffer.
-    // This is enough for 480p > 960p > 1920p > 3840p > 7680p (bigger than 8K,
-    // or 4320p).
-    static constexpr uint32_t kFsrMaxUpscalingPassesMax = 4;
-
-    static constexpr float kFsrSharpnessReductionMin = 0.0f;
-    // "Values above 2.0 won't make a visible difference."
-    // https://raw.githubusercontent.com/GPUOpen-Effects/FidelityFX-FSR/master/docs/FidelityFX-FSR-Overview-Integration.pdf
-    static constexpr float kFsrSharpnessReductionMax = 2.0f;
-    static constexpr float kFsrSharpnessReductionDefault = 0.2f;
-    static_assert(kFsrSharpnessReductionDefault >= kFsrSharpnessReductionMin &&
-                  kFsrSharpnessReductionDefault <= kFsrSharpnessReductionMax);
-#endif  // defined(REX_HAS_FIDELITYFX_SDK)
-
-    // In the sharpness setters, min / max with a constant as the first argument
-    // also drops NaNs.
-
     bool GetAllowOverscanCutoff() const { return allow_overscan_cutoff_; }
     void SetAllowOverscanCutoff(bool new_allow_overscan_cutoff) {
       allow_overscan_cutoff_ = new_allow_overscan_cutoff;
     }
 
-    Effect GetEffect() const { return effect_; }
-    void SetEffect(Effect new_effect) { effect_ = new_effect; }
-
-#if defined(REX_HAS_FIDELITYFX_SDK)
-    float GetCasAdditionalSharpness() const { return cas_additional_sharpness_; }
-    void SetCasAdditionalSharpness(float new_cas_additional_sharpness) {
-      cas_additional_sharpness_ =
-          std::min(kCasAdditionalSharpnessMax,
-                   std::max(kCasAdditionalSharpnessMin, new_cas_additional_sharpness));
-    }
-
-    uint32_t GetFsrMaxUpsamplingPasses() const { return fsr_max_upsampling_passes_; }
-    void SetFsrMaxUpsamplingPasses(uint32_t new_fsr_max_upsampling_passes) {
-      fsr_max_upsampling_passes_ =
-          std::min(kFsrMaxUpscalingPassesMax, std::max(uint32_t(1), new_fsr_max_upsampling_passes));
-    }
-
-    // In stops.
-    float GetFsrSharpnessReduction() const { return fsr_sharpness_reduction_; }
-    void SetFsrSharpnessReduction(float new_fsr_sharpness_reduction) {
-      fsr_sharpness_reduction_ =
-          std::min(kFsrSharpnessReductionMax,
-                   std::max(kFsrSharpnessReductionMin, new_fsr_sharpness_reduction));
-    }
-
-    FsrQualityMode GetFsrQualityMode() const { return fsr_quality_mode_; }
-    void SetFsrQualityMode(FsrQualityMode new_fsr_quality_mode) {
-      fsr_quality_mode_ = new_fsr_quality_mode;
-    }
-#endif  // defined(REX_HAS_FIDELITYFX_SDK)
-
     // Very tiny effect, but highly noticeable, for instance, on the sky in the
-    // 4D5307E6 main menu (prominently in Custom Games, especially with FSR -
-    // banding around the clouds can be clearly seen without dithering with 8bpc
-    // final host output).
+    // 4D5307E6 main menu (banding around the clouds can be clearly seen without
+    // dithering with 8bpc final host output).
     bool GetDither() const { return dither_; }
     void SetDither(bool new_dither) { dither_ = new_dither; }
 
    private:
     // Tools, rather than the emulator itself, must not allow overscan cutoff
-    // and must use the kBilinear effect as the image must be as close to the
+    // and must use the bilinear effect as the image must be as close to the
     // original front buffer as possible.
     bool allow_overscan_cutoff_ = false;
-    Effect effect_ = Effect::kBilinear;
-#if defined(REX_HAS_FIDELITYFX_SDK)
-    float cas_additional_sharpness_ = kCasAdditionalSharpnessDefault;
-    uint32_t fsr_max_upsampling_passes_ = kFsrMaxUpscalingPassesMax;
-    float fsr_sharpness_reduction_ = kFsrSharpnessReductionDefault;
-    FsrQualityMode fsr_quality_mode_ = FsrQualityMode::kAuto;
-#endif
     bool dither_ = false;
   };
 
@@ -426,15 +332,6 @@ class Presenter {
   enum class GuestOutputPaintEffect {
     kBilinear,
     kBilinearDither,
-#if defined(REX_HAS_FIDELITYFX_SDK)
-    kCasSharpen,
-    kCasSharpenDither,
-    kCasResample,
-    kCasResampleDither,
-    kFsrEasu,
-    kFsrRcas,
-    kFsrRcasDither,
-#endif
 
     kCount,
   };
@@ -445,11 +342,6 @@ class Presenter {
       // Dithering is never performed in intermediate passes because it may be
       // interpreted as features by the subsequent passes.
       case GuestOutputPaintEffect::kBilinearDither:
-#if defined(REX_HAS_FIDELITYFX_SDK)
-      case GuestOutputPaintEffect::kCasSharpenDither:
-      case GuestOutputPaintEffect::kCasResampleDither:
-      case GuestOutputPaintEffect::kFsrRcasDither:
-#endif
         return false;
       default:
         // The result of any other effect can be stretched with bilinear
@@ -460,27 +352,12 @@ class Presenter {
 
   static constexpr bool CanGuestOutputPaintEffectBeFinal(GuestOutputPaintEffect effect) {
     switch (effect) {
-#if defined(REX_HAS_FIDELITYFX_SDK)
-      case GuestOutputPaintEffect::kFsrEasu:
-        return false;
-#endif
       default:
         return true;
     };
   }
 
-#if defined(REX_HAS_FIDELITYFX_SDK)
-  // The longest path is kFsrMaxUpscalingPassesMax + optionally RCAS +
-  // optionally bilinear, when upscaling by more than
-  // 2^kFsrMaxUpscalingPassesMax along any direction.
-  // Non-FSR paths are either only bilinear, only CAS, or (when upscaling by
-  // more than 2 along any direction) CAS followed by bilinear.
-  static constexpr size_t kMaxGuestOutputPaintEffects =
-      GuestOutputPaintConfig::kFsrMaxUpscalingPassesMax + 2;
-#else
-  // Bilinear-only path: at most 1 effect.
   static constexpr size_t kMaxGuestOutputPaintEffects = 1;
-#endif
 
   struct GuestOutputPaintFlow {
     // Letterbox on up to 4 sides.
@@ -546,75 +423,6 @@ class Presenter {
       output_size_inv[1] = 1.0f / float(output_size.second);
     }
   };
-
-#if defined(REX_HAS_FIDELITYFX_SDK)
-  static constexpr float CalculateCasPostSetupSharpness(float sharpness) {
-    // CasSetup const1.x.
-    return -1.0f / (8.0f - 3.0f * sharpness);
-  }
-
-  struct CasSharpenConstants {
-    int32_t output_offset[2];
-    float sharpness_post_setup;
-
-    void Initialize(const GuestOutputPaintFlow& flow, size_t effect_index,
-                    const GuestOutputPaintConfig& config) {
-      flow.GetEffectOutputOffset(effect_index, output_offset[0], output_offset[1]);
-      sharpness_post_setup = CalculateCasPostSetupSharpness(config.GetCasAdditionalSharpness());
-    }
-  };
-
-  struct CasResampleConstants {
-    int32_t output_offset[2];
-    // Input size / output size.
-    float input_output_size_ratio[2];
-    float sharpness_post_setup;
-
-    void Initialize(const GuestOutputPaintFlow& flow, size_t effect_index,
-                    const GuestOutputPaintConfig& config) {
-      flow.GetEffectOutputOffset(effect_index, output_offset[0], output_offset[1]);
-      uint32_t input_width, input_height;
-      flow.GetEffectInputSize(effect_index, input_width, input_height);
-      const std::pair<uint32_t, uint32_t>& output_size = flow.effect_output_sizes[effect_index];
-      input_output_size_ratio[0] = float(input_width) / float(output_size.first);
-      input_output_size_ratio[1] = float(input_height) / float(output_size.second);
-      sharpness_post_setup = CalculateCasPostSetupSharpness(config.GetCasAdditionalSharpness());
-    }
-  };
-
-  struct FsrEasuConstants {
-    // No output offset because the EASU pass is always done to an intermediate
-    // framebuffer.
-    float input_output_size_ratio[2];
-    float input_size_inv[2];
-
-    void Initialize(const GuestOutputPaintFlow& flow, size_t effect_index) {
-      uint32_t input_width, input_height;
-      flow.GetEffectInputSize(effect_index, input_width, input_height);
-      const std::pair<uint32_t, uint32_t>& output_size = flow.effect_output_sizes[effect_index];
-      input_output_size_ratio[0] = float(input_width) / float(output_size.first);
-      input_output_size_ratio[1] = float(input_height) / float(output_size.second);
-      input_size_inv[0] = 1.0f / float(input_width);
-      input_size_inv[1] = 1.0f / float(input_height);
-    }
-  };
-
-  struct FsrRcasConstants {
-    int32_t output_offset[2];
-    float sharpness_post_setup;
-
-    static float CalculatePostSetupSharpness(float sharpness_reduction_stops) {
-      // FsrRcasCon const0.x.
-      return std::exp2f(-sharpness_reduction_stops);
-    }
-
-    void Initialize(const GuestOutputPaintFlow& flow, size_t effect_index,
-                    const GuestOutputPaintConfig& config) {
-      flow.GetEffectOutputOffset(effect_index, output_offset[0], output_offset[1]);
-      sharpness_post_setup = CalculatePostSetupSharpness(config.GetFsrSharpnessReduction());
-    }
-  };
-#endif  // defined(REX_HAS_FIDELITYFX_SDK)
 
   explicit Presenter(HostGpuLossCallback host_gpu_loss_callback)
       : host_gpu_loss_callback_(host_gpu_loss_callback) {}

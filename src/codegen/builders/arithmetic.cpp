@@ -1,5 +1,5 @@
 /**
- * @file        rexcodegen/builders/arithmetic.cpp
+ * @file        codegen/builders/arithmetic.cpp
  * @brief       PPC arithmetic instruction code generation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>

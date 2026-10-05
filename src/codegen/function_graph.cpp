@@ -1,5 +1,5 @@
 /**
- * @file        rexcodegen/function_graph.cpp
+ * @file        codegen/function_graph.cpp
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

@@ -1,6 +1,6 @@
 /**
  * @file        codegen/tool_runtime.cpp
- * @brief       A tool mode Runtime over the mount table rexfilesystem serves
+ * @brief       A tool mode Runtime over the mount table rex-filesystem serves
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -53,7 +53,7 @@ void ToolRuntime::Release() {
 
 Result<ToolRuntime> OpenToolRuntime(const std::filesystem::path& game_root) {
   Config config;
-  config.modules = {"rexfilesystem", "rexruntime"};
+  config.modules = {"rex-filesystem", "rex-runtime"};
   config.paths.game_data_root = game_root;
   REX_TRY(API * api, rex::Init(config));
   auto* file_system = api->Get<filesystem::IFileSystem>();
@@ -61,7 +61,7 @@ Result<ToolRuntime> OpenToolRuntime(const std::filesystem::path& game_root) {
     rex::Shutdown();
     return Err<ToolRuntime>(
         ErrorCategory::Module,
-        std::format("rexfilesystem does not serve {}@{}", filesystem::IFileSystem::kInterfaceName,
+        std::format("rex-filesystem does not serve {}@{}", filesystem::IFileSystem::kInterfaceName,
                     filesystem::IFileSystem::kInterfaceVersion));
   }
   auto runtime = std::make_unique<Runtime>(api->config());

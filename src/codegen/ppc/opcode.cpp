@@ -1,5 +1,5 @@
 /**
- * @file        rexcodegen/internal/ppc/opcodes.cpp
+ * @file        codegen/internal/ppc/opcodes.cpp
  * @brief       PPC opcode table implementation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>

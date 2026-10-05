@@ -1,4 +1,4 @@
 # Dev tooling pins shared by CI and the pre-commit hook.
 # Install: python -m pip install -r scripts/requirements-dev.txt
 clang-format==20.1.8
-pytest==9.0.2
+pytest==9.1.1

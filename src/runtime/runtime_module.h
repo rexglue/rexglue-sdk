@@ -1,6 +1,6 @@
 /**
  * @file        runtime/runtime_module.h
- * @brief       The module interface served by rexruntime.dll
+ * @brief       The module interface served by rex-runtime.dll
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -23,15 +23,15 @@
 namespace rex::runtime {
 
 /**
- * The module rexruntime.dll serves. Connect registers the cvar tables of the subsystems rexruntime
- * holds and validates the runtime, input and graphics config slices.
+ * The module rex-runtime.dll serves. Connect registers the cvar tables of the subsystems
+ * rex-runtime holds and validates the runtime, input and graphics config slices.
  */
 class RuntimeModule final : public IModule {
  public:
   /**
    * Returns the module instance for its interface table entry.
    *
-   * @return The IModule of rexruntime.
+   * @return The IModule of rex-runtime.
    */
   static void* GetModule();
 
@@ -57,7 +57,7 @@ class RuntimeModule final : public IModule {
   static void* GetAchievementManager();
   static void* GetDispatcher();
 
-  /** The interfaces rexruntime.dll serves. The 7 runtime interfaces are null without a runtime. */
+  /** The interfaces rex-runtime.dll serves. The 7 runtime interfaces are null without a runtime. */
   static constexpr std::array<InterfaceEntry, 8> kInterfaces = {{
       {IModule::kInterfaceName, IModule::kInterfaceVersion, &GetModule},
       {IObjectTable::kInterfaceName, IObjectTable::kInterfaceVersion, &GetObjectTable},
@@ -71,9 +71,9 @@ class RuntimeModule final : public IModule {
   }};
 
   /**
-   * Returns the module name the loader resolves to rexruntime.dll.
+   * Returns the module name the loader resolves to rex-runtime.dll.
    *
-   * @return "rexruntime".
+   * @return "rex-runtime".
    */
   const char* Name() const override;
 
@@ -85,7 +85,7 @@ class RuntimeModule final : public IModule {
   std::span<const char* const> RequiredInterfaces() const override;
 
   /**
-   * Validates the config slices rexruntime reads and registers its cvar tables.
+   * Validates the config slices rex-runtime reads and registers its cvar tables.
    *
    * @param factory Serves the cvar registry.
    * @param config The configuration rex::Init was called with.
