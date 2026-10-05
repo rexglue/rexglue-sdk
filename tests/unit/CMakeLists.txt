@@ -45,6 +45,7 @@ add_executable(unit_tests
     ppc/stack_test.cpp
     runtime/guest_path_test.cpp
     runtime/achievement_manager_test.cpp
+    runtime/xcontent_test.cpp
     runtime/function_dispatcher_test.cpp
     runtime/thread_wait_test.cpp
     runtime/runtime_error_test.cpp

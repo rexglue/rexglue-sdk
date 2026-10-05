@@ -123,9 +123,7 @@ struct XCONTENT_DATA {
   }
 
   std::string file_name() const {
-    std::string value;
-    value.assign(file_name_raw, std::min(strlen(file_name_raw), countof(file_name_raw)));
-    return value;
+    return std::string(file_name_raw, strnlen(file_name_raw, countof(file_name_raw)));
   }
 
   void set_display_name(const std::u16string_view value) {
