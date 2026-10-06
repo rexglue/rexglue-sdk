@@ -14,6 +14,7 @@
 #include <atomic>
 #include <bitset>
 #include <memory>
+#include <mutex>
 #include <utility>
 #include <vector>
 
@@ -62,9 +63,15 @@ class InputSystem : public system::IInputSystem {
   bool GetVibrationEnabled() const;
   void ToggleVibration();
 
-  std::bitset<kMaxGuestUsers> GetConnectedUsers() const { return connected_users_; }
+  std::bitset<kMaxGuestUsers> GetConnectedUsers() const {
+    std::lock_guard lock(devices_mutex_);
+    return connected_users_;
+  }
   /// Guest user whose device most recently produced a button press.
-  uint32_t GetLastUsedUser() const { return last_used_user_; }
+  uint32_t GetLastUsedUser() const {
+    std::lock_guard lock(devices_mutex_);
+    return last_used_user_;
+  }
 
  private:
   using JoystickValue = std::pair<uint16_t, uint16_t>;
@@ -84,6 +91,10 @@ class InputSystem : public system::IInputSystem {
   rex::ui::Window* window_ = nullptr;
 
   std::vector<std::unique_ptr<InputDriver>> drivers_;
+
+  // Held by every public entry point, since guest threads poll concurrently.
+  // Recursive because entry points call each other.
+  mutable std::recursive_mutex devices_mutex_;
 
   std::unique_ptr<DeviceAssignment> assignment_;
   ActiveDeviceTracker active_devices_;

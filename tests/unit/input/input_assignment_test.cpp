@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <string>
+#include <thread>
 #include <vector>
 
 #include <rex/input/device_assignment.h>
@@ -53,6 +55,8 @@ class FakeDriver final : public InputDriver {
     DeviceInfo info;
     info.id = static_cast<DeviceId>(id);
     info.synthetic = synthetic;
+    // Past the small-string buffer, so rebuilding the device list touches the heap.
+    info.name = "Fake controller #" + std::to_string(id);
     devices_.push_back(info);
     states_[static_cast<DeviceId>(id)] = {};
   }
@@ -235,4 +239,37 @@ TEST_CASE("A synthetic device does not push the first pad off guest user 0", "[i
   REQUIRE(system->GetState(0, &state) == X_ERROR_SUCCESS);
   REQUIRE(static_cast<uint16_t>(state.gamepad.buttons) == X_INPUT_GAMEPAD_B);
   REQUIRE(system->GetState(1, &state) == X_ERROR_DEVICE_NOT_CONNECTED);
+}
+
+TEST_CASE("Concurrent polls do not race on the device list", "[input]") {
+  FakeDriver* driver = nullptr;
+  auto system = SharedSystem(&driver);
+  driver->Add(1);
+  driver->Add(2);
+
+  // Titles poll from several guest threads at once, and every poll rebuilds
+  // the device list.
+  constexpr int kThreads = 4;
+  constexpr int kIterations = 5000;
+  std::vector<std::thread> threads;
+  for (int t = 0; t < kThreads; t++) {
+    threads.emplace_back([&system] {
+      for (int i = 0; i < kIterations; i++) {
+        X_INPUT_STATE state = {};
+        system->GetState(0, &state);
+        X_INPUT_CAPABILITIES caps = {};
+        system->GetCapabilities(0, 0, &caps);
+        X_INPUT_VIBRATION vibration = {};
+        system->SetState(0, &vibration);
+        X_INPUT_KEYSTROKE ks = {};
+        system->GetKeystroke(0, 0, &ks);
+      }
+    });
+  }
+  for (auto& thread : threads) {
+    thread.join();
+  }
+
+  X_INPUT_STATE state = {};
+  REQUIRE(system->GetState(0, &state) == X_ERROR_SUCCESS);
 }
