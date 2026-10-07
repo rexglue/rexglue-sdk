@@ -20,6 +20,7 @@
 #include "runtime/xma/register_file.h"
 #include <rex/bit.h>
 #include <rex/kernel.h>
+#include <rex/macros.h>
 
 namespace rex::runtime {
 
@@ -27,7 +28,7 @@ class FunctionDispatcher;
 
 struct XMA_CONTEXT_DATA;
 
-class XMADecoder {
+class REX_RUNTIME_API XMADecoder {
  public:
   explicit XMADecoder(FunctionDispatcher* function_dispatcher);
   ~XMADecoder();

@@ -48,10 +48,7 @@ thread_local std::unique_ptr<rex::platform::Thread> t_exiting_thread;
 ThreadRecord::ThreadRecord(Runtime& runtime, uint32_t stack_size, uint32_t xapi_thread_startup,
                            uint32_t start_address, uint32_t start_context, uint32_t creation_flags,
                            bool guest_thread, bool main_thread, uint32_t guest_process)
-    : guest_thread_(guest_thread),
-      main_thread_(main_thread),
-      apc_lock_old_irql_(0),
-      runtime_(&runtime) {
+    : guest_thread_(guest_thread), main_thread_(main_thread), runtime_(&runtime) {
   creation_params_.stack_size = stack_size;
   creation_params_.xapi_thread_startup = xapi_thread_startup;
   creation_params_.start_address = start_address;
@@ -615,25 +612,6 @@ void ThreadRecord::LeaveCriticalRegion() {
   if (apc_disable_count == 0) {
     // NOTE: intentionally not calling CheckApcs() here.
     // Delivering APCs here can cause them to fire in wrong contexts.
-  }
-}
-
-void ThreadRecord::LockApc() {
-  auto kthread = guest_object<X_KTHREAD>();
-  apc_lock_old_irql_ = kernel::xboxkrnl::KeKfAcquireSpinLock(*memory(), thread_state_->context(),
-                                                             &kthread->apc_lock);
-}
-
-void ThreadRecord::UnlockApc(bool queue_delivery) {
-  auto kthread = guest_object<X_KTHREAD>();
-  auto mem = memory();
-  bool needs_apc = !kthread->apc_lists[0].empty(mem) || !kthread->apc_lists[1].empty(mem);
-  kernel::xboxkrnl::KeKfReleaseSpinLock(*memory(), thread_state_->context(), &kthread->apc_lock,
-                                        apc_lock_old_irql_);
-  if (needs_apc && queue_delivery) {
-    // Match Edge/Canary behavior: callback is only a wakeup hint.
-    // User APC execution happens on alertable wait return paths.
-    thread_->QueueUserCallback([]() {});
   }
 }
 

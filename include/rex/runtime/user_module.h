@@ -13,6 +13,7 @@
 #include <string_view>
 
 #include <rex/filesystem/xex_types.h>
+#include <rex/macros.h>
 #include <rex/runtime/xex_module.h>
 #include <rex/runtime/xmodule.h>
 #include <rex/runtime/xtypes.h>
@@ -29,7 +30,7 @@ namespace rex::runtime {
  * @param runtime The runtime the call runs in.
  * @return The handle with a count of 1, 0 when the table cannot grow.
  */
-X_HANDLE CreateUserModule(Runtime& runtime);
+REX_RUNTIME_API X_HANDLE CreateUserModule(Runtime& runtime);
 
 /**
  * Returns the XEX image of a user module.
@@ -37,7 +38,7 @@ X_HANDLE CreateUserModule(Runtime& runtime);
  * @param module A user module that holds an XEX image.
  * @return The XEX module.
  */
-rex::runtime::XexModule* UserModuleXEX(const ModuleObject& module);
+REX_RUNTIME_API rex::runtime::XexModule* UserModuleXEX(const ModuleObject& module);
 
 /**
  * Returns the title ID of a user module.
@@ -45,7 +46,7 @@ rex::runtime::XexModule* UserModuleXEX(const ModuleObject& module);
  * @param module A user module.
  * @return The title ID of the XEX header, 0 when the module is not an XEX or has none.
  */
-u32 UserModuleTitleID(const ModuleObject& module);
+REX_RUNTIME_API u32 UserModuleTitleID(const ModuleObject& module);
 
 /**
  * Loads a module image from a file and applies a sibling XEX patch when one exists.
@@ -55,7 +56,8 @@ u32 UserModuleTitleID(const ModuleObject& module);
  * @param path The guest path of the file.
  * @return X_STATUS_SUCCESS, or the status of the first step that failed.
  */
-X_STATUS UserModuleLoadFromFile(Runtime& runtime, ModuleObject& module, std::string_view path);
+REX_RUNTIME_API X_STATUS UserModuleLoadFromFile(Runtime& runtime, ModuleObject& module,
+                                                std::string_view path);
 
 /**
  * Loads a module image from memory.
@@ -67,8 +69,8 @@ X_STATUS UserModuleLoadFromFile(Runtime& runtime, ModuleObject& module, std::str
  * @return X_STATUS_PENDING for an XEX that needs its second load step, X_STATUS_SUCCESS for an ELF,
  *         or the failure status.
  */
-X_STATUS UserModuleLoadFromMemory(Runtime& runtime, ModuleObject& module, const void* addr,
-                                  size_t length);
+REX_RUNTIME_API X_STATUS UserModuleLoadFromMemory(Runtime& runtime, ModuleObject& module,
+                                                  const void* addr, size_t length);
 
 /**
  * Unloads the image of a user module.
@@ -76,7 +78,7 @@ X_STATUS UserModuleLoadFromMemory(Runtime& runtime, ModuleObject& module, const 
  * @param module A user module.
  * @return X_STATUS_SUCCESS, or X_STATUS_UNSUCCESSFUL when the image cannot be unloaded.
  */
-X_STATUS UserModuleUnload(ModuleObject& module);
+REX_RUNTIME_API X_STATUS UserModuleUnload(ModuleObject& module);
 
 /**
  * Finds an optional XEX header. For host use only.
@@ -86,7 +88,8 @@ X_STATUS UserModuleUnload(ModuleObject& module);
  * @param out_ptr Receives the header value or a pointer to its data.
  * @return X_STATUS_SUCCESS, X_STATUS_NOT_FOUND, or X_STATUS_UNSUCCESSFUL for an ELF.
  */
-X_STATUS UserModuleGetOptHeader(ModuleObject& module, xex2_header_keys key, void** out_ptr);
+REX_RUNTIME_API X_STATUS UserModuleGetOptHeader(ModuleObject& module, xex2_header_keys key,
+                                                void** out_ptr);
 
 /**
  * Finds an optional XEX header. For host use only.
@@ -110,8 +113,8 @@ X_STATUS UserModuleGetOptHeader(ModuleObject& module, xex2_header_keys key, T* o
  * @param out_header_guest_ptr Receives the header value or the guest address of its data.
  * @return X_STATUS_SUCCESS, X_STATUS_NOT_FOUND, or X_STATUS_UNSUCCESSFUL for an ELF.
  */
-X_STATUS UserModuleGetOptHeader(ModuleObject& module, xex2_header_keys key,
-                                u32* out_header_guest_ptr);
+REX_RUNTIME_API X_STATUS UserModuleGetOptHeader(ModuleObject& module, xex2_header_keys key,
+                                                u32* out_header_guest_ptr);
 
 /**
  * Finds an optional header of an XEX header in memory and returns an address that recompiled code
@@ -123,7 +126,8 @@ X_STATUS UserModuleGetOptHeader(ModuleObject& module, xex2_header_keys key,
  * @param out_header_guest_ptr Receives the header value or the guest address of its data.
  * @return X_STATUS_SUCCESS, or X_STATUS_NOT_FOUND.
  */
-X_STATUS UserModuleGetOptHeader(const runtime::Memory* memory, const xex2_header* header,
-                                xex2_header_keys key, u32* out_header_guest_ptr);
+REX_RUNTIME_API X_STATUS UserModuleGetOptHeader(const runtime::Memory* memory,
+                                                const xex2_header* header, xex2_header_keys key,
+                                                u32* out_header_guest_ptr);
 
 }  // namespace rex::runtime

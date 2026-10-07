@@ -147,12 +147,6 @@ ImGuiDialog* OverlayRegistry::Get(std::string_view name) {
   return entry ? entry->overlay.get() : nullptr;
 }
 
-void OverlayRegistry::HideAll() {
-  for (Entry& entry : entries_) {
-    Show(entry.name, false);
-  }
-}
-
 bool OverlayRegistry::AnyVisible() const {
   return std::ranges::any_of(entries_, &Entry::visible);
 }

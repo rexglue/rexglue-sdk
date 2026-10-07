@@ -20,6 +20,7 @@
 #include <optional>
 #include <vector>
 
+#include <rex/macros.h>
 #include <rex/platform/lock_order.h>
 #include <rex/platform/timer_queue.h>
 #include <rex/runtime/dispatcher.h>
@@ -34,17 +35,17 @@ struct X_KPCR;
 class ThreadState;
 
 /** Marks the calling thread as running an ISR. */
-void EnterInterrupt();
+REX_RUNTIME_API void EnterInterrupt();
 
 /**
  * Marks the end of an ISR on the calling thread.
  *
  * @return True when the outermost ISR ended.
  */
-bool LeaveInterrupt();
+REX_RUNTIME_API bool LeaveInterrupt();
 
 /** The dispatcher of a runtime, its DPC queue and its dispatch thread. */
-class Dispatcher final : public IDispatcher {
+class REX_RUNTIME_API Dispatcher final : public IDispatcher {
  public:
   /**
    * @param runtime The runtime whose memory, table and thread registry completions use.

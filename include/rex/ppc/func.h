@@ -17,6 +17,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#include <rex/macros.h>
+
 //=============================================================================
 // PPCFunc Type Definition
 //=============================================================================
@@ -30,7 +32,7 @@ struct PPCContext;
 using PPCFunc = void(PPCContext& ctx, uint8_t* base);
 
 namespace rex::runtime {
-PPCFunc* ResolveIndirectFunction(uint32_t guest_address);
+REX_RUNTIME_API PPCFunc* ResolveIndirectFunction(uint32_t guest_address);
 }  // namespace rex::runtime
 
 //=============================================================================

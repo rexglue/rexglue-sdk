@@ -24,6 +24,7 @@
 #include <rex/gpu.h>
 #include <rex/image_info.h>
 #include <rex/logging.h>
+#include <rex/macros.h>
 #include <rex/platform.h>
 #include <rex/result.h>
 #include <rex/runtime/config.h>
@@ -56,7 +57,7 @@ class Window;
 struct Style;
 
 /** Setup access passed to TitleApp::OnCreateWindow. Valid only while that hook runs. */
-class TitleUI {
+class REX_RUNTIME_API TitleUI {
  public:
   /**
    * Returns the ImGui font atlas before it is built.
@@ -119,7 +120,7 @@ class TitleUI {
  * that order, and may call RunFrame between CreateTitleWindow and LaunchTitle. Every step and
  * every hook runs on the UI thread, the thread that called Init.
  */
-class TitleApp : public App, public gpu::IUIThread {
+class REX_RUNTIME_API TitleApp : public App, public gpu::IUIThread {
  public:
   /** Creates the app. Nothing starts until Init. */
   TitleApp();
@@ -308,7 +309,7 @@ class TitleApp : public App, public gpu::IUIThread {
  * @param fn Function to run on the UI thread.
  * @return False when no title app has a window, in which case fn is discarded.
  */
-bool InvokeFunction(std::move_only_function<void()> fn);
+REX_RUNTIME_API bool InvokeFunction(std::move_only_function<void()> fn);
 
 }  // namespace rex::ui
 
@@ -319,7 +320,7 @@ namespace rex::detail {
  *
  * @return The parsed arguments without the program name.
  */
-CLIArgList WindowsCommandLine();
+REX_RUNTIME_API CLIArgList WindowsCommandLine();
 
 }  // namespace rex::detail
 

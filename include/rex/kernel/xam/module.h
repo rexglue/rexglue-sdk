@@ -12,6 +12,7 @@
 
 #include <string>
 
+#include <rex/macros.h>
 #include <rex/ppc/function.h>
 #include <rex/runtime/kernel_module.h>
 #include <rex/runtime.h>
@@ -24,6 +25,6 @@ namespace rex::kernel::xam {
  * @param runtime The runtime the module belongs to.
  * @return A handle of the module with a count of 1.
  */
-X_HANDLE CreateXamModule(Runtime& runtime);
+REX_RUNTIME_API X_HANDLE CreateXamModule(Runtime& runtime);
 
 }  // namespace rex::kernel::xam

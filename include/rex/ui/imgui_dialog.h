@@ -15,6 +15,7 @@
 #include <memory>
 #include <vector>
 
+#include <rex/macros.h>
 #include <rex/platform/thread.h>
 #include <rex/ui/imgui_drawer.h>
 #include <rex/ui/window_listener.h>
@@ -24,7 +25,7 @@ struct ImGuiIO;
 namespace rex {
 namespace ui {
 
-class ImGuiDialog {
+class REX_RUNTIME_API ImGuiDialog {
  public:
   virtual ~ImGuiDialog();
 

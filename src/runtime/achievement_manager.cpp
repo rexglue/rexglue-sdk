@@ -121,16 +121,6 @@ std::vector<AchievementInfo> AchievementManager::ListAchievements() const {
   return achievements_;
 }
 
-std::optional<AchievementInfo> AchievementManager::FindAchievement(u32 id) const {
-  std::lock_guard lock(mutex_);
-  auto it = std::find_if(achievements_.begin(), achievements_.end(),
-                         [&](const AchievementInfo& info) { return info.id == id; });
-  if (it == achievements_.end()) {
-    return std::nullopt;
-  }
-  return *it;
-}
-
 AchievementUnlockResult AchievementManager::UnlockAchievement(
     u32 id, AchievementNotification notification) {
   AchievementEvent event;
@@ -148,32 +138,15 @@ AchievementUnlockResult AchievementManager::UnlockAchievement(
     if (!inserted) {
       return AchievementUnlockResult::kAlreadyUnlocked;
     }
-    event = {*info, it->second};
+    event = {*info};
   }
 
   REXLOG_INFO(system, "Achievement unlocked: {:08X}", id);
   SaveUnlockState();
-  DispatchCallbacks(unlock_callbacks_, event);
   if (notification == AchievementNotification::kShow) {
     DispatchCallbacks(notification_callbacks_, event);
   }
   return AchievementUnlockResult::kUnlocked;
-}
-
-Result<void> AchievementManager::ShowAchievementNotification(u32 id) {
-  AchievementEvent event;
-  {
-    std::lock_guard lock(mutex_);
-    auto info = std::find_if(achievements_.begin(), achievements_.end(),
-                             [&](const AchievementInfo& current) { return current.id == id; });
-    if (info == achievements_.end()) {
-      return Err(ErrorCategory::NotFound, std::format("achievement {} is not registered", id));
-    }
-    auto unlock = unlocked_achievements_.find(id);
-    event = {*info, unlock != unlocked_achievements_.end() ? unlock->second : 0};
-  }
-  DispatchCallbacks(notification_callbacks_, event);
-  return Ok();
 }
 
 bool AchievementManager::IsUnlocked(u32 id) const {
@@ -190,16 +163,6 @@ std::optional<u64> AchievementManager::GetUnlockTime(u32 id) const {
   return it->second;
 }
 
-AchievementListenerHandle AchievementManager::RegisterUnlockCallback(AchievementCallback callback) {
-  if (!callback) {
-    return 0;
-  }
-  std::lock_guard lock(mutex_);
-  AchievementListenerHandle handle = next_listener_handle_++;
-  unlock_callbacks_.emplace(handle, std::move(callback));
-  return handle;
-}
-
 AchievementListenerHandle AchievementManager::RegisterNotificationCallback(
     AchievementCallback callback) {
   if (!callback) {
@@ -213,7 +176,6 @@ AchievementListenerHandle AchievementManager::RegisterNotificationCallback(
 
 void AchievementManager::UnregisterCallback(AchievementListenerHandle handle) {
   std::lock_guard lock(mutex_);
-  unlock_callbacks_.erase(handle);
   notification_callbacks_.erase(handle);
 }
 

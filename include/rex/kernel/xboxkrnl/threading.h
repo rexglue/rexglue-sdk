@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <rex/macros.h>
 #include <rex/ppc/context.h>
 #include <rex/runtime/xevent.h>
 #include <rex/runtime/xthread.h>
@@ -19,27 +20,32 @@
 
 namespace rex::kernel::xboxkrnl {
 
-uint32_t NtSetEvent(uint32_t handle, rex::be<uint32_t>* previous_state_ptr);
-uint32_t NtClearEvent(uint32_t handle);
+REX_RUNTIME_API uint32_t NtSetEvent(uint32_t handle, rex::be<uint32_t>* previous_state_ptr);
+REX_RUNTIME_API uint32_t NtClearEvent(uint32_t handle);
 
-uint32_t NtWaitForMultipleObjectsEx(uint32_t count, rex::be<uint32_t>* handles, uint32_t wait_type,
-                                    uint32_t wait_mode, uint32_t alertable, uint64_t* timeout_ptr);
+REX_RUNTIME_API uint32_t NtWaitForMultipleObjectsEx(uint32_t count, rex::be<uint32_t>* handles,
+                                                    uint32_t wait_type, uint32_t wait_mode,
+                                                    uint32_t alertable, uint64_t* timeout_ptr);
 
-uint32_t KeWaitForSingleObject(u32 object_address, uint32_t wait_reason, uint32_t processor_mode,
-                               uint32_t alertable, uint64_t* timeout_ptr);
-uint32_t KeSetEvent(u32 event_address, uint32_t increment, uint32_t wait);
+REX_RUNTIME_API uint32_t KeWaitForSingleObject(u32 object_address, uint32_t wait_reason,
+                                               uint32_t processor_mode, uint32_t alertable,
+                                               uint64_t* timeout_ptr);
+REX_RUNTIME_API uint32_t KeSetEvent(u32 event_address, uint32_t increment, uint32_t wait);
 
 // Guest-memory spinlock helpers (PPCContext* for r13/PCR access)
-uint32_t KeKfAcquireSpinLock(rex::runtime::Memory& memory, PPCContext* ctx, rex::X_KSPINLOCK* lock,
-                             bool change_irql = true);
-void KeKfReleaseSpinLock(rex::runtime::Memory& memory, PPCContext* ctx, rex::X_KSPINLOCK* lock,
-                         uint32_t old_irql, bool change_irql = true);
+REX_RUNTIME_API uint32_t KeKfAcquireSpinLock(rex::runtime::Memory& memory, PPCContext* ctx,
+                                             rex::X_KSPINLOCK* lock, bool change_irql = true);
+REX_RUNTIME_API void KeKfReleaseSpinLock(rex::runtime::Memory& memory, PPCContext* ctx,
+                                         rex::X_KSPINLOCK* lock, uint32_t old_irql,
+                                         bool change_irql = true);
 
 // Guest-memory APC helpers
-void KeInitializeApc(rex::runtime::XAPC* apc, uint32_t thread_ptr, uint32_t kernel_routine,
-                     uint32_t rundown_routine, uint32_t normal_routine, uint32_t apc_mode,
-                     uint32_t normal_context);
-uint32_t KeInsertQueueApc(rex::runtime::Memory& memory, rex::runtime::XAPC* apc, uint32_t arg1,
-                          uint32_t arg2, uint32_t priority_increment, PPCContext* ctx);
+REX_RUNTIME_API void KeInitializeApc(rex::runtime::XAPC* apc, uint32_t thread_ptr,
+                                     uint32_t kernel_routine, uint32_t rundown_routine,
+                                     uint32_t normal_routine, uint32_t apc_mode,
+                                     uint32_t normal_context);
+REX_RUNTIME_API uint32_t KeInsertQueueApc(rex::runtime::Memory& memory, rex::runtime::XAPC* apc,
+                                          uint32_t arg1, uint32_t arg2, uint32_t priority_increment,
+                                          PPCContext* ctx);
 
 }  // namespace rex::kernel::xboxkrnl

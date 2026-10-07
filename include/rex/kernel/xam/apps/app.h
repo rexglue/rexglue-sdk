@@ -10,6 +10,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <rex/macros.h>
 #include <rex/runtime.h>
 #include <rex/runtime/xam/app_manager.h>
 
@@ -23,10 +24,10 @@ class XamApp : public runtime::xam::App {
   /**
    * @param runtime The runtime the app serves.
    */
-  explicit XamApp(Runtime& runtime);
+  REX_RUNTIME_API explicit XamApp(Runtime& runtime);
 
-  X_HRESULT DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
-                                uint32_t buffer_length) override;
+  REX_RUNTIME_API X_HRESULT DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
+                                                uint32_t buffer_length) override;
 };
 
 }  // namespace apps

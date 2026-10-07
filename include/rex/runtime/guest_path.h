@@ -14,6 +14,8 @@
 #include <string>
 #include <string_view>
 
+#include <rex/macros.h>
+
 namespace rex::runtime {
 
 /**
@@ -25,6 +27,6 @@ namespace rex::runtime {
  * strip on top of this; both must agree on this base form for runtime
  * lookups to find the registered module.
  */
-std::string NormalizeGuestPath(std::string_view path);
+REX_RUNTIME_API std::string NormalizeGuestPath(std::string_view path);
 
 }  // namespace rex::runtime

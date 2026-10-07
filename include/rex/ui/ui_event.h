@@ -269,19 +269,17 @@ class KeyEvent : public UIEvent {
    * @param modifier_shift_pressed True while Shift is held.
    * @param modifier_ctrl_pressed True while Ctrl is held.
    * @param modifier_alt_pressed True while Alt is held.
-   * @param modifier_super_pressed True while the Super key is held.
    */
   KeyEvent(Type type, Window* target, hid::VirtualKey virtual_key, i32 repeat_count,
            bool prev_state, bool modifier_shift_pressed, bool modifier_ctrl_pressed,
-           bool modifier_alt_pressed, bool modifier_super_pressed)
+           bool modifier_alt_pressed)
       : UIEvent(type, target),
         virtual_key_(virtual_key),
         repeat_count_(repeat_count),
         prev_state_(prev_state),
         modifier_shift_pressed_(modifier_shift_pressed),
         modifier_ctrl_pressed_(modifier_ctrl_pressed),
-        modifier_alt_pressed_(modifier_alt_pressed),
-        modifier_super_pressed_(modifier_super_pressed) {}
+        modifier_alt_pressed_(modifier_alt_pressed) {}
 
   /**
    * Tests whether this class carries a type.
@@ -349,13 +347,6 @@ class KeyEvent : public UIEvent {
    */
   bool is_alt_pressed() const { return modifier_alt_pressed_; }
 
-  /**
-   * Tests whether the Super key was held.
-   *
-   * @return True while the Super key is held.
-   */
-  bool is_super_pressed() const { return modifier_super_pressed_; }
-
  private:
   bool handled_ = false;
   hid::VirtualKey virtual_key_ = hid::VirtualKey::kNone;
@@ -364,7 +355,6 @@ class KeyEvent : public UIEvent {
   bool modifier_shift_pressed_ = false;
   bool modifier_ctrl_pressed_ = false;
   bool modifier_alt_pressed_ = false;
-  bool modifier_super_pressed_ = false;
 };
 
 /** Carries a mouse button, move or wheel change. */

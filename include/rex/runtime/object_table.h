@@ -143,13 +143,6 @@ class IObjectTable {
   [[nodiscard]] virtual Result<void> AddName(std::string_view name, X_HANDLE handle) = 0;
 
   /**
-   * Removes a name.
-   *
-   * @param name The name.
-   */
-  virtual void RemoveName(std::string_view name) = 0;
-
-  /**
    * Finds a handle by name and adds 1 to the count of the first handle of its object.
    *
    * @param name The name.

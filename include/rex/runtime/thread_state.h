@@ -14,6 +14,7 @@
 #include <cassert>
 #include <string>
 
+#include <rex/macros.h>
 #include <rex/runtime/xmemory.h>
 #include <rex/ppc/context.h>
 
@@ -35,7 +36,7 @@ struct DPCSaveArea {
   u8 vscr_sat = 0;
 };
 
-class ThreadState {
+class REX_RUNTIME_API ThreadState {
  public:
   /**
    * @param thread_id The guest thread id, UINT32_MAX for a host thread id.
@@ -90,7 +91,7 @@ inline PPCContext* current_ppc_context() {
 namespace detail {
 
 /** Logs that Current() ran on a thread with no runtime and aborts, in every build. */
-[[noreturn]] void AbortNoRuntime();
+[[noreturn]] REX_RUNTIME_API void AbortNoRuntime();
 
 }  // namespace detail
 

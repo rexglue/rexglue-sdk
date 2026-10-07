@@ -23,6 +23,7 @@
 #include <rex/platform/file.h>
 #include <rex/logging.h>
 #include <rex/platform.h>
+#include <rex/platform/thread.h>
 
 namespace rex::detail {
 
@@ -296,6 +297,13 @@ Result<void> ModuleLoader::InitAll() {
 }
 
 void ModuleLoader::UnwindAll() {
+  ShutdownModules();
+  platform::detail::ShutdownTimerQueue();
+  CloseLibraries();
+  StopLogger();
+}
+
+void ModuleLoader::ShutdownModules() {
   for (auto it = loaded_.rbegin(); it != loaded_.rend(); ++it) {
     if (it->initialized) {
       it->module->Shutdown();

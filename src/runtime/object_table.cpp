@@ -302,14 +302,6 @@ Result<void> ObjectTable::AddName(std::string_view name, X_HANDLE handle) {
   return Ok();
 }
 
-void ObjectTable::RemoveName(std::string_view name) {
-  std::lock_guard lock(name_mutex_);
-  auto it = names_.find(string_key_case(name));
-  if (it != names_.end()) {
-    names_.erase(it);
-  }
-}
-
 Result<X_HANDLE> ObjectTable::OpenByName(std::string_view name) {
   std::unique_lock lock(mutex_);
   X_HANDLE handle = X_INVALID_HANDLE_VALUE;

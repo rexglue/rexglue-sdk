@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <rex/macros.h>
 #include <rex/result.h>
 #include <rex/types.h>
 
@@ -48,7 +49,8 @@ struct GuestStack {
  * @param minimum The smallest size the caller allows.
  * @return The size rounded up to 4 KB and raised to the minimum.
  */
-[[nodiscard]] u32 ResolveGuestStackSize(u32 requested, u32 guest_default, u32 minimum);
+[[nodiscard]] REX_RUNTIME_API u32 ResolveGuestStackSize(u32 requested, u32 guest_default,
+                                                        u32 minimum);
 
 /**
  * Resolves the TLS slot count of a process.
@@ -56,7 +58,7 @@ struct GuestStack {
  * @param xex_slot_count The XEX slot count, 0 when the header is missing.
  * @return The slot count, at least 32 and at most 256.
  */
-[[nodiscard]] u32 ResolveTLSSlotCount(u32 xex_slot_count);
+[[nodiscard]] REX_RUNTIME_API u32 ResolveTLSSlotCount(u32 xex_slot_count);
 
 /**
  * Allocates a guest stack in the stack range.
@@ -67,8 +69,9 @@ struct GuestStack {
  * @param title_memory True when the pages count against the title memory budget.
  * @return The stack, or an error when the range or the budget has no room.
  */
-[[nodiscard]] Result<GuestStack> AllocateGuestStack(Memory& memory, u32 size, u32 tls_size,
-                                                    bool title_memory);
+[[nodiscard]] REX_RUNTIME_API Result<GuestStack> AllocateGuestStack(Memory& memory, u32 size,
+                                                                    u32 tls_size,
+                                                                    bool title_memory);
 
 /**
  * Releases a stack from AllocateGuestStack.
@@ -76,6 +79,6 @@ struct GuestStack {
  * @param memory Guest memory.
  * @param alloc_base The alloc_base of the stack, 0 for none.
  */
-void FreeGuestStack(Memory& memory, u32 alloc_base);
+REX_RUNTIME_API void FreeGuestStack(Memory& memory, u32 alloc_base);
 
 }  // namespace rex::runtime

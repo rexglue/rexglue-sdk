@@ -12,6 +12,7 @@
 
 #include <memory>
 
+#include <rex/macros.h>
 #include <rex/platform/thread.h>
 #include <rex/runtime/xobject.h>
 #include <rex/runtime/xtypes.h>
@@ -30,12 +31,12 @@ struct SemaphoreObject {
    * @param initial_count The starting count.
    * @param maximum_count_in The count the semaphore cannot exceed.
    */
-  SemaphoreObject(i32 initial_count, i32 maximum_count_in);
+  REX_RUNTIME_API SemaphoreObject(i32 initial_count, i32 maximum_count_in);
 
   /**
    * @param header The guest semaphore whose signal state and limit seed the object.
    */
-  explicit SemaphoreObject(const X_KSEMAPHORE& header);
+  REX_RUNTIME_API explicit SemaphoreObject(const X_KSEMAPHORE& header);
 
   std::unique_ptr<rex::platform::Semaphore> semaphore;
   u32 maximum_count = 0;
@@ -49,6 +50,7 @@ struct SemaphoreObject {
  * @param out_previous_count Receives the count before the release, may be null.
  * @return True when the release stayed within the maximum count.
  */
-bool SemaphoreRelease(SemaphoreObject& semaphore, i32 release_count, i32* out_previous_count);
+REX_RUNTIME_API bool SemaphoreRelease(SemaphoreObject& semaphore, i32 release_count,
+                                      i32* out_previous_count);
 
 }  // namespace rex::runtime

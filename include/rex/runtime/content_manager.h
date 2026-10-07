@@ -119,26 +119,6 @@ class IContentManager {
                                                    const xam::XCONTENT_AGGREGATE_DATA& data) = 0;
 
   /**
-   * Unmounts an open package.
-   *
-   * @param xuid The owner.
-   * @param data The content data.
-   * @return Ok, or X_ERROR_FILE_NOT_FOUND.
-   */
-  [[nodiscard]] virtual Result<void> UnmountContent(u64 xuid,
-                                                    const xam::XCONTENT_AGGREGATE_DATA& data) = 0;
-
-  /**
-   * Unmounts a package when it is open, then deletes it.
-   *
-   * @param xuid The owner.
-   * @param data The content data.
-   * @return Ok, or X_ERROR_ACCESS_DENIED or X_ERROR_FILE_NOT_FOUND.
-   */
-  [[nodiscard]] virtual Result<void> UnmountAndDeleteContent(
-      u64 xuid, const xam::XCONTENT_AGGREGATE_DATA& data) = 0;
-
-  /**
    * Writes the header file of a package.
    *
    * @param xuid The owner.
@@ -183,15 +163,6 @@ class IContentManager {
    * @param root_name The root name.
    */
   virtual void CloseOpenedFilesFromContent(std::string_view root_name) = 0;
-
-  /**
-   * Returns the host path of the package open under a root name.
-   *
-   * @param root_name The root name.
-   * @return The path, empty when no package is open under the name.
-   */
-  [[nodiscard]] virtual std::optional<std::filesystem::path> GetOpenPackagePath(
-      std::string_view root_name) const = 0;
 
   /**
    * Extracts an STFS or SVOD package into the content tree and writes its header file. The

@@ -16,6 +16,7 @@
 #include <vector>
 
 #include <rex/assert.h>
+#include <rex/macros.h>
 #include <rex/platform/thread.h>
 #include <rex/runtime/xcontent.h>
 #include <rex/runtime/xobject.h>
@@ -46,7 +47,7 @@ struct NotifyListenerObject {
    * @param mask_in The bit mask of notification areas the listener receives.
    * @param max_version_in The highest notification version the listener receives.
    */
-  NotifyListenerObject(u64 mask_in, u32 max_version_in);
+  REX_RUNTIME_API NotifyListenerObject(u64 mask_in, u32 max_version_in);
 
   std::unique_ptr<rex::platform::Event> wait_handle;
   std::mutex notifications_lock;
@@ -62,7 +63,8 @@ struct NotifyListenerObject {
  * @param id The notification id.
  * @param data The notification data.
  */
-void NotifyListenerEnqueue(NotifyListenerObject& listener, XNotificationID id, u32 data);
+REX_RUNTIME_API void NotifyListenerEnqueue(NotifyListenerObject& listener, XNotificationID id,
+                                           u32 data);
 
 /**
  * Removes the oldest notification.
@@ -72,7 +74,8 @@ void NotifyListenerEnqueue(NotifyListenerObject& listener, XNotificationID id, u
  * @param out_data Receives the data.
  * @return True when a notification was removed.
  */
-bool NotifyListenerDequeue(NotifyListenerObject& listener, XNotificationID* out_id, u32* out_data);
+REX_RUNTIME_API bool NotifyListenerDequeue(NotifyListenerObject& listener, XNotificationID* out_id,
+                                           u32* out_data);
 
 /**
  * Removes the oldest notification with a given id.
@@ -82,6 +85,7 @@ bool NotifyListenerDequeue(NotifyListenerObject& listener, XNotificationID* out_
  * @param out_data Receives the data.
  * @return True when a notification was removed.
  */
-bool NotifyListenerDequeueByID(NotifyListenerObject& listener, XNotificationID id, u32* out_data);
+REX_RUNTIME_API bool NotifyListenerDequeueByID(NotifyListenerObject& listener, XNotificationID id,
+                                               u32* out_data);
 
 }  // namespace rex::runtime

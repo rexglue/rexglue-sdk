@@ -58,11 +58,10 @@ TEST_CASE("Every function row links to a translation entry and no variable does"
   }
 }
 
-TEST_CASE("Lookups round trip every row", "[kernel][exports]") {
+TEST_CASE("Ordinal lookups round trip every row", "[kernel][exports]") {
   for (const auto module : kModules) {
     for (const auto& entry : Exports(module)) {
       REQUIRE(FindByOrdinal(module, entry.ordinal) == &entry);
-      REQUIRE(FindByName(module, entry.name) == &entry);
     }
   }
 }
@@ -70,8 +69,6 @@ TEST_CASE("Lookups round trip every row", "[kernel][exports]") {
 TEST_CASE("Lookups that miss return null", "[kernel][exports]") {
   for (const auto module : kModules) {
     CHECK(FindByOrdinal(module, 0xFFFF) == nullptr);
-    CHECK(FindByName(module, "") == nullptr);
-    CHECK(FindByName(module, "NoSuchExportName") == nullptr);
   }
 }
 

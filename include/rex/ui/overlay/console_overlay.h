@@ -10,8 +10,10 @@
  */
 
 #pragma once
-#include <rex/cvar.h>
-#include <rex/logging.h>
+
+#include <rex/macros.h>
+#include <rex/ui/console/model.h>
+#include <rex/ui/console/view.h>
 #include <rex/ui/imgui_dialog.h>
 
 namespace rex::ui {
@@ -19,7 +21,7 @@ namespace rex::ui {
 class OverlayContext;
 
 /** The console docked at the top left of the title window, resizable on its right and bottom. */
-class ConsoleDialog : public ImGuiDialog {
+class REX_RUNTIME_API ConsoleDialog : public ImGuiDialog {
  public:
   /**
    * Builds the dialog over the context's console model.

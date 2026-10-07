@@ -21,10 +21,10 @@
 #include <utility>
 #include <vector>
 
+#include <rex/macros.h>
 #include <rex/platform.h>
 #include <rex/types.h>
 #include <rex/ui.h>
-#include <rex/ui/menu_item.h>
 #include <rex/gpu/presenter.h>
 #include <rex/gpu/surface.h>
 #include <rex/ui/ui_event.h>
@@ -41,7 +41,7 @@ namespace rex::ui {
  * sends events to its listeners. The phases advance in order and loop, and kDeleting may be
  * entered from any phase.
  */
-class Window : public gpu::IPresentationHost {
+class REX_RUNTIME_API Window : public gpu::IPresentationHost {
  public:
   /** Life cycle phase of the window. */
   enum class Phase {
@@ -187,38 +187,6 @@ class Window : public gpu::IPresentationHost {
   u32 SizeToPhysical(u32 size) const { return ConvertSizeDpi(size, GetDpi(), GetMediumDpi()); }
 
   /**
-   * Converts a position between 2 DPIs, rounding to the nearest the way MulDiv does.
-   *
-   * @param position The position.
-   * @param new_dpi The DPI to convert to.
-   * @param old_dpi The DPI of position.
-   * @return The converted position.
-   */
-  static constexpr i32 ConvertPositionDpi(i32 position, u32 new_dpi, u32 old_dpi) {
-    return i32((i64(position) * new_dpi + i32(old_dpi >> 1) * (position < 0 ? -1 : 1)) / old_dpi);
-  }
-
-  /**
-   * Converts a physical position to a logical one.
-   *
-   * @param position The physical position.
-   * @return The logical position.
-   */
-  i32 PositionToLogical(i32 position) const {
-    return ConvertPositionDpi(position, GetMediumDpi(), GetDpi());
-  }
-
-  /**
-   * Converts a logical position to a physical one.
-   *
-   * @param position The logical position.
-   * @return The physical position.
-   */
-  i32 PositionToPhysical(i32 position) const {
-    return ConvertPositionDpi(position, GetDpi(), GetMediumDpi());
-  }
-
-  /**
    * Returns the desired logical width of the window when it is neither maximized nor
    * fullscreen.
    *
@@ -263,20 +231,6 @@ class Window : public gpu::IPresentationHost {
    * @return The height, or 0 without actual state.
    */
   u32 GetActualPhysicalHeight() const { return HasActualState() ? actual_physical_height_ : 0; }
-
-  /**
-   * Returns the logical width of the client area.
-   *
-   * @return The width.
-   */
-  u32 GetActualLogicalWidth() const { return SizeToLogical(GetActualPhysicalWidth()); }
-
-  /**
-   * Returns the logical height of the client area.
-   *
-   * @return The height.
-   */
-  u32 GetActualLogicalHeight() const { return SizeToLogical(GetActualPhysicalHeight()); }
 
   /**
    * Reads the pixel size of the display the window is on.
@@ -336,17 +290,6 @@ class Window : public gpu::IPresentationHost {
    */
   void SetTitle(const std::string_view new_title);
 
-  /**
-   * Sets the icon from Windows .ico data.
-   *
-   * @param buffer The .ico data, or null to reset the icon.
-   * @param size Size of buffer, or 0 to reset the icon.
-   */
-  void SetIcon(const void* buffer, size_t size);
-
-  /** Resets the icon to the default. */
-  void ResetIcon() { SetIcon(nullptr, 0); }
-
   /** Brings the window to the front and gives it focus. */
   virtual void Raise() {}
 
@@ -380,30 +323,6 @@ class Window : public gpu::IPresentationHost {
    * @param ratio The shape, AspectRatio::kStretch for none.
    */
   void SetAspectRatio(AspectRatio ratio);
-
-  /**
-   * Sets the main menu.
-   *
-   * @param new_main_menu The menu, or null to remove it.
-   */
-  void SetMainMenu(std::unique_ptr<MenuItem> new_main_menu);
-
-  /** Applies changes made to the main menu items. */
-  void CompleteMainMenuItemsUpdate();
-
-  /**
-   * Enables or disables the main menu.
-   *
-   * @param enabled True enables it.
-   */
-  void SetMainMenuEnabled(bool enabled);
-
-  /**
-   * Tests whether any caller holds a mouse capture.
-   *
-   * @return True while the capture count is not 0.
-   */
-  bool IsMouseCaptureRequested() const { return mouse_capture_request_count_ != 0; }
 
   /** Adds a mouse capture request. */
   void CaptureMouse();
@@ -627,37 +546,6 @@ class Window : public gpu::IPresentationHost {
   /** Applies a changed title. */
   virtual void ApplyNewTitle() {}
 
-  /**
-   * Stores the icon and applies it when possible.
-   *
-   * @param buffer Windows .ico data, or null for the default icon.
-   * @param size Size of buffer, or 0 for the default icon.
-   * @param can_apply_state_in_current_phase True when the native window surely exists.
-   */
-  virtual void LoadAndApplyIcon(const void* buffer, size_t size,
-                                bool can_apply_state_in_current_phase) {
-    (void)buffer;
-    (void)size;
-    (void)can_apply_state_in_current_phase;
-  }
-
-  /**
-   * Returns the main menu.
-   *
-   * @return The menu, or null.
-   */
-  MenuItem* GetMainMenu() const { return main_menu_.get(); }
-
-  /**
-   * Adds, replaces or removes the native main menu.
-   *
-   * @param old_main_menu The menu before the change, or null.
-   */
-  virtual void ApplyNewMainMenu(MenuItem* old_main_menu) { (void)old_main_menu; }
-
-  /** Brings the native main menu in line with its MenuItems. */
-  virtual void CompleteMainMenuItemsUpdateImpl() {}
-
   /** Captures the mouse, even when it is already assumed captured. */
   virtual void ApplyNewMouseCapture() {}
 
@@ -685,13 +573,6 @@ class Window : public gpu::IPresentationHost {
    * @return The presenter, or null.
    */
   gpu::IPresenter* presenter() const { return presenter_; }
-
-  /**
-   * Tests whether a surface exists.
-   *
-   * @return True while the presenter surface exists.
-   */
-  bool HasSurface() const { return presenter_surface_ != nullptr; }
 
   /**
    * Recreates or destroys the presenter surface. Calls no virtual function when
@@ -781,13 +662,6 @@ class Window : public gpu::IPresentationHost {
    */
   bool OnActualSizeUpdate(u32 new_physical_width, u32 new_physical_height,
                           WindowDestructionReceiver& destruction_receiver);
-
-  /**
-   * Records a fullscreen state the platform chose.
-   *
-   * @param new_fullscreen The state.
-   */
-  void OnDesiredFullscreenUpdate(bool new_fullscreen) { fullscreen_ = new_fullscreen; }
 
   /**
    * Records a focus change and notifies the listeners.
@@ -947,8 +821,6 @@ class Window : public gpu::IPresentationHost {
   i32 monitor_ = 0;
 
   std::string title_;
-
-  std::unique_ptr<MenuItem> main_menu_;
 
   u32 mouse_capture_request_count_ = 0;
 

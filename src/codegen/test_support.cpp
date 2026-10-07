@@ -46,10 +46,6 @@ void TestModule::Load(uint32_t base_address, const uint8_t* data, size_t size) {
   });
 }
 
-bool TestModule::ContainsAddress(uint32_t address) {
-  return address >= base_address_ && address < base_address_ + size_;
-}
-
 // --- AnalyzeTestBinary ---
 
 void AnalyzeTestBinary(CodegenContext& ctx, std::string_view testName,

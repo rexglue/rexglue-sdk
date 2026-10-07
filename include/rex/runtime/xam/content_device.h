@@ -10,6 +10,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <rex/macros.h>
 #include <rex/runtime/xtypes.h>
 
 namespace rex {
@@ -34,7 +35,7 @@ struct DummyDeviceInfo {
   const std::u16string_view name;
 };
 
-const DummyDeviceInfo* GetDummyDeviceInfo(uint32_t device_id);
+REX_RUNTIME_API const DummyDeviceInfo* GetDummyDeviceInfo(uint32_t device_id);
 
 }  // namespace xam
 }  // namespace runtime

@@ -504,7 +504,6 @@ TEST_CASE("A release of the free first page of a heap fails and changes nothing"
     Memory& memory = *c.runtime().memory();
     BaseHeap* heap = memory.LookupHeap(0x40000000);
     REQUIRE(PageState(heap, 0x40000000) == 0);
-    const u32 unreserved = heap->GetUnreservedPageCount();
     const u32 before = memory.title_pages();
 
     const u32 base_ptr = c.Alloc(4);
@@ -512,7 +511,6 @@ TEST_CASE("A release of the free first page of a heap fails and changes nothing"
     c.Store32(base_ptr, 0x40000000);
     CHECK(c.Kernel("NtFreeVirtualMemory", {base_ptr, size_ptr, 0x8000, 0}) != 0);
     CHECK(PageState(heap, 0x40000000) == 0);
-    CHECK(heap->GetUnreservedPageCount() == unreserved);
     CHECK(memory.title_pages() == before);
   });
 }

@@ -13,12 +13,13 @@
 #include <string>
 #include <vector>
 
+#include <rex/macros.h>
 #include <rex/runtime/module.h>
 
 namespace rex::runtime {
 
 // ELF module: Used to load libxenon executables.
-class ElfModule : public Module {
+class REX_RUNTIME_API ElfModule : public Module {
  public:
   explicit ElfModule(FunctionDispatcher* function_dispatcher);
   virtual ~ElfModule();

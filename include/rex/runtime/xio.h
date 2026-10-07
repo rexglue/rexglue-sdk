@@ -44,17 +44,9 @@ struct XAM_OVERLAPPED {
   be<uint32_t> extended_error;      // 0x18
 };
 
-inline uint32_t XOverlappedGetResult(void* ptr) {
-  auto p = reinterpret_cast<uint32_t*>(ptr);
-  return memory::load_and_swap<uint32_t>(&p[0]);
-}
 inline void XOverlappedSetResult(void* ptr, uint32_t value) {
   auto p = reinterpret_cast<uint32_t*>(ptr);
   memory::store_and_swap<uint32_t>(&p[0], value);
-}
-inline uint32_t XOverlappedGetLength(void* ptr) {
-  auto p = reinterpret_cast<uint32_t*>(ptr);
-  return memory::load_and_swap<uint32_t>(&p[1]);
 }
 inline void XOverlappedSetLength(void* ptr, uint32_t value) {
   auto p = reinterpret_cast<uint32_t*>(ptr);
@@ -75,10 +67,6 @@ inline X_HANDLE XOverlappedGetEvent(void* ptr) {
 inline uint32_t XOverlappedGetCompletionRoutine(void* ptr) {
   auto p = reinterpret_cast<uint32_t*>(ptr);
   return memory::load_and_swap<uint32_t>(&p[4]);
-}
-inline uint32_t XOverlappedGetCompletionContext(void* ptr) {
-  auto p = reinterpret_cast<uint32_t*>(ptr);
-  return memory::load_and_swap<uint32_t>(&p[5]);
 }
 inline void XOverlappedSetExtendedError(void* ptr, uint32_t value) {
   auto p = reinterpret_cast<uint32_t*>(ptr);

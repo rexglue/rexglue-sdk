@@ -53,7 +53,6 @@ class TestModule : public runtime::Module {
   uint32_t base_address() const override { return base_address_; }
   uint32_t image_size() const override { return size_; }
   uint32_t entry_point() const override { return base_address_; }
-  bool ContainsAddress(uint32_t address) override;
 
  private:
   std::string name_{"test"};

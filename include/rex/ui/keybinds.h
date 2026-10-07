@@ -29,6 +29,7 @@
  */
 #pragma once
 #include <rex/cvar.h>
+#include <rex/macros.h>
 #include <rex/ui/ui_event.h>
 #include <rex/hid/virtual_key.h>
 #include <functional>
@@ -48,21 +49,21 @@ namespace rex::ui {
  * @param description  Human-readable description for the settings UI.
  * @param callback     Function to invoke when the bound key is pressed.
  */
-void RegisterBind(std::string_view name, std::string_view default_key, std::string_view description,
-                  std::function<void()> callback);
+REX_RUNTIME_API void RegisterBind(std::string_view name, std::string_view default_key,
+                                  std::string_view description, std::function<void()> callback);
 
 /**
  * Remove a previously registered keybind and its cvar.
  * @param name  The name used when registering the bind.
  */
-void UnregisterBind(std::string_view name);
+REX_RUNTIME_API void UnregisterBind(std::string_view name);
 
 /**
  * Attaches the registry that serves the bind cvars, adding every bind registered so far, or
  * detaches with null, unregistering them. TitleApp attaches after Init and detaches in
  * Release.
  */
-void AttachBindRegistry(cvar::ICvarRegistry* registry);
+REX_RUNTIME_API void AttachBindRegistry(cvar::ICvarRegistry* registry);
 
 /**
  * Process a key-down event against all registered binds.
@@ -74,6 +75,6 @@ void AttachBindRegistry(cvar::ICvarRegistry* registry);
  * @param e  The key event to process.
  * @return   True if a bind matched and the event was consumed.
  */
-bool ProcessKeyEvent(KeyEvent& e);
+REX_RUNTIME_API bool ProcessKeyEvent(KeyEvent& e);
 
 }  // namespace rex::ui

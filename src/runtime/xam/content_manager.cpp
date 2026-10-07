@@ -412,64 +412,6 @@ Result<void> ContentManager::DeleteContent(u64 xuid, const XCONTENT_AGGREGATE_DA
   return Err(ResultError(X_ERROR_FILE_NOT_FOUND));
 }
 
-Result<void> ContentManager::UnmountContent(u64 xuid, const XCONTENT_AGGREGATE_DATA& data) {
-  const u32 running_title_id = this->title_id();
-  std::string open_root_name;
-  {
-    std::lock_guard lock(mutex_);
-    auto it = FindOpenPackageByData(data, running_title_id);
-    if (it == open_packages_.end()) {
-      return Err(ResultError(X_ERROR_FILE_NOT_FOUND));
-    }
-    open_root_name = it->first.view();
-  }
-  CloseOpenedFilesFromContent(open_root_name);
-  delete DetachPackage(open_root_name);
-  return Ok();
-}
-
-Result<void> ContentManager::UnmountAndDeleteContent(u64 xuid,
-                                                     const XCONTENT_AGGREGATE_DATA& data) {
-  // Unmount phase: tolerant of not-mounted state
-  const u32 running_title_id = this->title_id();
-  std::string open_root_name;
-  bool is_open = false;
-  {
-    std::lock_guard lock(mutex_);
-    auto it = FindOpenPackageByData(data, running_title_id);
-    if (it != open_packages_.end()) {
-      open_root_name = it->first.view();
-      is_open = true;
-    }
-  }
-  if (is_open) {
-    CloseOpenedFilesFromContent(open_root_name);
-    delete DetachPackage(open_root_name);
-  }
-
-  // Delete phase: remove package directory and .header file
-  auto package_path = ResolvePackagePath(xuid, data);
-
-  u64 used_xuid = (data.xuid != u64(-1) && data.xuid != 0) ? u64(data.xuid) : xuid;
-  auto header_path =
-      ResolvePackageHeaderPath(data.file_name(), used_xuid, data.title_id, data.content_type);
-
-  std::error_code ec;
-  auto dir_removed = std::filesystem::remove_all(package_path, ec);
-  if (ec ||
-      std::filesystem::status(package_path, ec).type() != std::filesystem::file_type::not_found) {
-    return Err(ResultError(X_ERROR_ACCESS_DENIED));
-  }
-
-  std::error_code ec2;
-  bool header_removed = std::filesystem::remove(header_path, ec2);
-
-  if (dir_removed > 0 || header_removed) {
-    return Ok();
-  }
-  return Err(ResultError(X_ERROR_FILE_NOT_FOUND));
-}
-
 std::filesystem::path ContentManager::ResolveGameUserContentPath() {
   auto title_id = fmt::format("{:08X}", this->title_id());
   auto user_name = rex::to_path(user_profile_.name());
@@ -477,32 +419,6 @@ std::filesystem::path ContentManager::ResolveGameUserContentPath() {
   // Per-game per-profile data location:
   // content_root/title_id/profile/user_name
   return root_path_ / title_id / kGameUserContentDirName / user_name;
-}
-
-std::unordered_map<string_key_case, ContentPackage*, string_key_case::Hash>::iterator
-ContentManager::FindOpenPackageByData(const XCONTENT_AGGREGATE_DATA& data, u32 running_title_id) {
-  // Resolve kCurrentlyRunningTitleId so both sides compare actual title IDs.
-  u32 query_title = data.title_id;
-  if (query_title == kCurrentlyRunningTitleId) {
-    query_title = running_title_id;
-  }
-
-  for (auto it = open_packages_.begin(); it != open_packages_.end(); ++it) {
-    const auto& pkg = it->second->GetPackageContentData();
-
-    u32 pkg_title = pkg.title_id;
-    if (pkg_title == kCurrentlyRunningTitleId) {
-      pkg_title = running_title_id;
-    }
-
-    // Match on content_type + file_name + resolved title_id.
-    // device_id is a virtual storage selector, not a content identifier.
-    if (data.content_type == pkg.content_type && data.file_name() == pkg.file_name() &&
-        query_title == pkg_title) {
-      return it;
-    }
-  }
-  return open_packages_.end();
 }
 
 ContentPackage* ContentManager::DetachPackage(const std::string_view root_name) {
@@ -520,15 +436,6 @@ bool ContentManager::IsContentOpen(const XCONTENT_AGGREGATE_DATA& data) const {
   return std::any_of(open_packages_.cbegin(), open_packages_.cend(), [&data](const auto& content) {
     return data == content.second->GetPackageContentData();
   });
-}
-
-std::optional<std::filesystem::path> ContentManager::GetOpenPackagePath(
-    const std::string_view root_name) const {
-  auto it = open_packages_.find(string_key_case(root_name));
-  if (it == open_packages_.end()) {
-    return std::nullopt;
-  }
-  return it->second->package_path();
 }
 
 void ContentManager::CloseOpenedFilesFromContent(const std::string_view root_name) {

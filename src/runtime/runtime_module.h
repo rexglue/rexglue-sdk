@@ -20,6 +20,7 @@
 #include <rex/hid/backend.h>
 #include <rex/cvar/registry.h>
 #include <rex/logging/logger.h>
+#include <rex/macros.h>
 #include <rex/module.h>
 #include <rex/runtime.h>
 
@@ -30,7 +31,7 @@ namespace rex::runtime {
  * rex-runtime holds, reserves the apu and hid scopes, validates the runtime and apu config slices
  * and fetches the backends the host service modules serve.
  */
-class RuntimeModule final : public IModule {
+class REX_RUNTIME_API RuntimeModule final : public IModule {
  public:
   /**
    * Returns the module instance for its interface table entry.

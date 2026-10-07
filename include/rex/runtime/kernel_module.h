@@ -12,6 +12,7 @@
 
 #include <string_view>
 
+#include <rex/macros.h>
 #include <rex/runtime/exports.h>
 #include <rex/runtime/xmodule.h>
 
@@ -28,7 +29,7 @@ namespace rex::runtime {
  * @param path The guest path of the module, its name is the file name of the path.
  * @return The handle with a count of 1, 0 when the table cannot grow.
  */
-X_HANDLE CreateKernelModule(Runtime& runtime, std::string_view path);
+REX_RUNTIME_API X_HANDLE CreateKernelModule(Runtime& runtime, std::string_view path);
 
 /**
  * Erases the cached thunks whose guest address falls in a range.
@@ -37,7 +38,7 @@ X_HANDLE CreateKernelModule(Runtime& runtime, std::string_view path);
  * @param lo The first address of the range.
  * @param hi The address after the last address of the range.
  */
-void KernelModuleInvalidateThunkCacheInRange(ModuleObject& module, u32 lo, u32 hi);
+REX_RUNTIME_API void KernelModuleInvalidateThunkCacheInRange(ModuleObject& module, u32 lo, u32 hi);
 
 /**
  * Binds a variable export to the guest address that holds it.

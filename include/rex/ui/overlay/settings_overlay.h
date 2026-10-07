@@ -13,13 +13,14 @@
 #include <filesystem>
 #include <string>
 #include <rex/cvar.h>
+#include <rex/macros.h>
 #include <rex/ui/imgui_dialog.h>
 
 namespace rex::ui {
 
 class OverlayContext;
 
-class SettingsDialog : public ImGuiDialog {
+class REX_RUNTIME_API SettingsDialog : public ImGuiDialog {
  public:
   explicit SettingsDialog(const OverlayContext& context);
   ~SettingsDialog();

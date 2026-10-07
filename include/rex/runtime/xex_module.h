@@ -15,6 +15,7 @@
 #include <vector>
 
 #include <rex/filesystem/xex.h>
+#include <rex/macros.h>
 #include <rex/runtime/module.h>
 
 namespace rex {
@@ -27,7 +28,7 @@ constexpr memory::fourcc_t kXEX1Signature = memory::make_fourcc("XEX1");
 constexpr memory::fourcc_t kXEX2Signature = memory::make_fourcc("XEX2");
 constexpr memory::fourcc_t kElfSignature = memory::make_fourcc(0x7F, 'E', 'L', 'F');
 
-class XexModule : public Module {
+class REX_RUNTIME_API XexModule : public Module {
  public:
   struct ImportLibraryFn {
    public:
@@ -53,8 +54,6 @@ class XexModule : public Module {
 
   uint32_t image_size() const override;
 
-  const std::vector<ImportLibrary>* import_libraries() const { return &import_libs_; }
-
   uint32_t base_address() const override { return base_address_; }
 
   uint32_t entry_point() const override {
@@ -70,7 +69,6 @@ class XexModule : public Module {
   }
 
   std::span<const BinarySection> binary_sections() const override;
-  const BinarySection* FindSectionByName(std::string_view name) const override;
   std::span<const BinarySymbol> binary_symbols() const override;
 
   uint32_t GetProcAddress(uint16_t ordinal) const;
@@ -81,8 +79,6 @@ class XexModule : public Module {
             size_t xex_length);
   bool LoadContinue();
   bool Unload();
-
-  bool ContainsAddress(uint32_t address) override;
 
   const std::string& name() const override { return name_; }
   bool is_executable() const override {
@@ -104,8 +100,6 @@ class XexModule : public Module {
   bool finished_load_ = false;
 
   uint32_t base_address_ = 0;
-  uint32_t low_address_ = 0;
-  uint32_t high_address_ = 0;
 };
 
 }  // namespace rex::runtime

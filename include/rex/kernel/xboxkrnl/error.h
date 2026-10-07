@@ -11,10 +11,11 @@
 
 #pragma once
 
+#include <rex/macros.h>
 #include <rex/runtime/xtypes.h>
 
 namespace rex::kernel::xboxkrnl {
 
-uint32_t RtlNtStatusToDosError(uint32_t source_status);
+REX_RUNTIME_API uint32_t RtlNtStatusToDosError(uint32_t source_status);
 
 }  // namespace rex::kernel::xboxkrnl

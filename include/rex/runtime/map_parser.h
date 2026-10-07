@@ -18,6 +18,7 @@
 #include <string_view>
 #include <vector>
 
+#include <rex/macros.h>
 #include <rex/runtime/binary_types.h>
 
 namespace rex::runtime {
@@ -75,7 +76,7 @@ constexpr std::string_view to_string(MapParseError error) {
  * @param options     Parsing options (base address, filters)
  * @return            Vector of parsed symbols or error
  */
-std::expected<std::vector<BinarySymbol>, MapParseError> ParseNmMap(
+REX_RUNTIME_API std::expected<std::vector<BinarySymbol>, MapParseError> ParseNmMap(
     const std::filesystem::path& map_path, const MapParseOptions& options = {});
 
 /**
@@ -85,7 +86,7 @@ std::expected<std::vector<BinarySymbol>, MapParseError> ParseNmMap(
  * @param options     Parsing options
  * @return            Vector of parsed symbols or error
  */
-std::expected<std::vector<BinarySymbol>, MapParseError> ParseNmMapString(
+REX_RUNTIME_API std::expected<std::vector<BinarySymbol>, MapParseError> ParseNmMapString(
     std::string_view map_data, const MapParseOptions& options = {});
 
 }  // namespace rex::runtime

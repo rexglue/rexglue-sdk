@@ -22,13 +22,14 @@
 #include <thread>
 
 #include <rex/assert.h>
+#include <rex/macros.h>
 
 namespace rex {
 namespace ui {
 
 // Context for inputs provided by the entry point and interacting with the
 // platform's UI loop, to be implemented by platforms.
-class WindowedAppContext {
+class REX_RUNTIME_API WindowedAppContext {
  public:
   WindowedAppContext(const WindowedAppContext& context) = delete;
   WindowedAppContext& operator=(const WindowedAppContext& context) = delete;
@@ -114,14 +115,6 @@ class WindowedAppContext {
   // explicit completion forcing in case the storage of the pointer is lost
   // before the function is called).
   void QuitFromUIThread();
-  // Callable from any thread. This is a special case where a completely
-  // fire-and-forget CallInUIThreadDeferred is safe, as the function only
-  // references nonvirtual functions of the context itself, and will be called
-  // at most from the destructor. No need to return the result - it doesn't
-  // matter if has quit already or not, as that's the intention anyway.
-  void RequestDeferredQuit() {
-    CallInUIThreadDeferred([this] { QuitFromUIThread(); });
-  }
 
  protected:
   WindowedAppContext() : ui_thread_id_(std::this_thread::get_id()) {}

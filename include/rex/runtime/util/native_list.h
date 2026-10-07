@@ -71,13 +71,6 @@ uint32_t XeRemoveHeadList(X_LIST_ENTRY* entry, VirtualTranslator context) {
 }
 
 template <typename VirtualTranslator>
-uint32_t XeRemoveTailList(X_LIST_ENTRY* entry, VirtualTranslator context) {
-  uint32_t result = entry->blink_ptr;
-  XeRemoveEntryList(result, context);
-  return result;
-}
-
-template <typename VirtualTranslator>
 void XeInsertTailList(X_LIST_ENTRY* list_head, uint32_t list_head_guest, X_LIST_ENTRY* host_entry,
                       uint32_t entry, VirtualTranslator context) {
   uint32_t old_tail = list_head->blink_ptr;
@@ -213,11 +206,6 @@ struct X_TYPED_LIST : public X_LIST_ENTRY {
   template <typename VirtualTranslator>
   TObject* HeadObject(VirtualTranslator vt) {
     return ListEntryObject(vt->template TranslateVirtual<X_LIST_ENTRY*>(flink_ptr));
-  }
-
-  template <typename VirtualTranslator>
-  TObject* TailObject(VirtualTranslator vt) {
-    return ListEntryObject(vt->template TranslateVirtual<X_LIST_ENTRY*>(blink_ptr));
   }
 };
 

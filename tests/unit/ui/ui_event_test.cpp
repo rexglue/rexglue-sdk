@@ -17,7 +17,7 @@ using rex::ui::UIEvent;
 
 TEST_CASE("As returns the class that carries the type", "[ui_event]") {
   rex::ui::KeyEvent key(UIEvent::Type::KeyDown, nullptr, rex::hid::VirtualKey::kF3, 1, false, false,
-                        false, false, false);
+                        false, false);
   const UIEvent& event = key;
   REQUIRE(event.type() == UIEvent::Type::KeyDown);
   REQUIRE(event.As<rex::ui::KeyEvent>() == &key);

@@ -2,6 +2,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstring>
@@ -64,11 +65,17 @@ codegen::ToolRuntime MakeTool(const std::filesystem::path& root,
   return std::move(*tool);
 }
 
+const runtime::ExportEntry* FindExport(runtime::ExportModule module, std::string_view name) {
+  const auto table = runtime::Exports(module);
+  const auto it = std::ranges::find(table, name, &runtime::ExportEntry::name);
+  return it == table.end() ? nullptr : &*it;
+}
+
 }  // namespace
 
 u32 Caller::Call(runtime::ExportModule module, std::string_view name,
                  std::initializer_list<u64> args) {
-  const auto* entry = runtime::FindByName(module, name);
+  const auto* entry = FindExport(module, name);
   REQUIRE(entry != nullptr);
   REQUIRE(entry->fn != nullptr);
   PPCRegister* registers[] = {&ctx_.r3, &ctx_.r4, &ctx_.r5, &ctx_.r6,

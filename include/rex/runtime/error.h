@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <rex/macros.h>
 #include <rex/result.h>
 #include <rex/runtime/xtypes.h>
 
@@ -22,7 +23,7 @@ namespace rex::runtime {
  * @param status The NT status the frozen export returns.
  * @return The error, in category Runtime, with the status as its code.
  */
-[[nodiscard]] rex::Error StatusError(X_STATUS status);
+[[nodiscard]] REX_RUNTIME_API rex::Error StatusError(X_STATUS status);
 
 /**
  * Builds the error a runtime interface returns when a platform call fails with a Win32 code.
@@ -30,7 +31,7 @@ namespace rex::runtime {
  * @param result The Win32 code the frozen export returns.
  * @return The error, in category Runtime, with the code as its code.
  */
-[[nodiscard]] rex::Error ResultError(X_RESULT result);
+[[nodiscard]] REX_RUNTIME_API rex::Error ResultError(X_RESULT result);
 
 /**
  * Maps an error to the NT status the kernel reports.
@@ -39,8 +40,8 @@ namespace rex::runtime {
  * @param unsupported The status for the filesystem code kUnsupported.
  * @return The code of a Runtime error, otherwise the status of the filesystem code.
  */
-[[nodiscard]] X_STATUS ToXStatus(const rex::Error& error,
-                                 X_STATUS unsupported = X_STATUS_NOT_IMPLEMENTED);
+[[nodiscard]] REX_RUNTIME_API X_STATUS ToXStatus(const rex::Error& error,
+                                                 X_STATUS unsupported = X_STATUS_NOT_IMPLEMENTED);
 
 /**
  * Maps an error to the Win32 code Xam reports.
@@ -49,8 +50,8 @@ namespace rex::runtime {
  * @param unsupported The code for an error of another category.
  * @return The code of a Runtime error, otherwise unsupported.
  */
-[[nodiscard]] X_RESULT ToXResult(const rex::Error& error,
-                                 X_RESULT unsupported = X_ERROR_FUNCTION_FAILED);
+[[nodiscard]] REX_RUNTIME_API X_RESULT ToXResult(const rex::Error& error,
+                                                 X_RESULT unsupported = X_ERROR_FUNCTION_FAILED);
 
 /**
  * Maps a result to the NT status the kernel reports.

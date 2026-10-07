@@ -29,9 +29,6 @@ install(FILES
 )
 
 # Install vendored header-only library headers
-install(DIRECTORY thirdparty/disruptorplus/include/
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/disruptorplus
-)
 install(DIRECTORY thirdparty/renderdoc/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/renderdoc
     FILES_MATCHING PATTERN "*.h"

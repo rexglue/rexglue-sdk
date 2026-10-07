@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include <rex/macros.h>
 #include <rex/memory.h>
 #include <rex/memory/mapped_memory.h>
 #include <rex/platform/lock_order.h>
@@ -48,7 +49,7 @@ class IModuleRegistrar {
   ~IModuleRegistrar() = default;
 };
 
-class FunctionDispatcher : public IModuleRegistrar {
+class REX_RUNTIME_API FunctionDispatcher : public IModuleRegistrar {
  public:
   /**
    * Callback type for module registration functions.
@@ -81,7 +82,6 @@ class FunctionDispatcher : public IModuleRegistrar {
                                uint32_t image_size, bool is_entrypoint = false);
   bool SetFunction(uint32_t guest_address, ::PPCFunc* func) override;
   ::PPCFunc* GetFunction(uint32_t guest_address);
-  bool HasAnyFunctionTable() const { return !module_tables_.empty(); }
   /**
    * caller_address must be inside a registered module, or 0 to mean "host-
    * initiated, route to the entrypoint pool".

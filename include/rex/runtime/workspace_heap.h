@@ -14,6 +14,7 @@
 #include <memory>
 #include <mutex>
 
+#include <rex/macros.h>
 #include <rex/result.h>
 #include <rex/types.h>
 
@@ -24,7 +25,7 @@ namespace rex::runtime {
 class Memory;
 
 /** The title workspace, title memory the system uses on the title's behalf. */
-class WorkspaceHeap : public NonCopyable {
+class REX_RUNTIME_API WorkspaceHeap : public NonCopyable {
  public:
   /**
    * Commits the workspace.

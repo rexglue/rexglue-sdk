@@ -16,6 +16,7 @@
 #include <string_view>
 #include <vector>
 
+#include <rex/macros.h>
 #include <rex/runtime/xmemory.h>
 #include <rex/runtime/binary_types.h>
 
@@ -23,7 +24,7 @@ namespace rex::runtime {
 
 class FunctionDispatcher;
 
-class Module {
+class REX_RUNTIME_API Module {
  public:
   explicit Module(FunctionDispatcher* function_dispatcher);
   virtual ~Module();
@@ -33,8 +34,6 @@ class Module {
 
   virtual const std::string& name() const = 0;
   virtual bool is_executable() const = 0;
-
-  virtual bool ContainsAddress(uint32_t address);
 
   // Binary introspection interface (virtual with defaults for backwards compat)
   virtual uint32_t base_address() const { return 0; }
@@ -53,18 +52,10 @@ class Module {
 
   // Section access - default implementations return empty
   virtual std::span<const BinarySection> binary_sections() const;
-  virtual const BinarySection* FindSectionByName(std::string_view name) const;
   virtual const BinarySection* FindSectionByAddress(uint32_t address) const;
 
   // Symbol access - default implementations return empty
   virtual std::span<const BinarySymbol> binary_symbols() const;
-  virtual const BinarySymbol* FindSymbolByName(std::string_view name) const;
-  virtual const BinarySymbol* FindSymbolByAddress(uint32_t address) const;
-  virtual const BinarySymbol* FindSymbolContainingAddress(uint32_t address) const;
-
-  // Symbol manipulation helpers (for external symbol loading, e.g., from map files)
-  void AddBinarySymbol(BinarySymbol symbol);
-  void ClearBinarySymbols();
 
  protected:
   FunctionDispatcher* function_dispatcher_ = nullptr;

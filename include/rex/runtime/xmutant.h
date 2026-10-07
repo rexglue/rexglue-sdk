@@ -13,6 +13,7 @@
 #include <atomic>
 #include <memory>
 
+#include <rex/macros.h>
 #include <rex/platform/thread.h>
 #include <rex/runtime/xobject.h>
 #include <rex/runtime/xtypes.h>
@@ -42,7 +43,7 @@ struct MutantObject {
    * @param initial_owner True when the creating thread owns the mutant at once.
    * @param guest_mutant_in The guest KMUTANT the object backs, 0 for none.
    */
-  explicit MutantObject(bool initial_owner, u32 guest_mutant_in = 0);
+  REX_RUNTIME_API explicit MutantObject(bool initial_owner, u32 guest_mutant_in = 0);
 
   std::unique_ptr<rex::platform::Mutant> mutant;
   std::atomic<u32> owner_thread_id{0};
@@ -61,7 +62,8 @@ struct MutantObject {
  * @param previous_state Receives the signal state before the release, may be null.
  * @return X_STATUS_SUCCESS, or X_STATUS_MUTANT_NOT_OWNED when the caller does not own it.
  */
-X_STATUS MutantRelease(MutantObject& mutant, bool abandon, i32* previous_state = nullptr);
+REX_RUNTIME_API X_STATUS MutantRelease(MutantObject& mutant, bool abandon,
+                                       i32* previous_state = nullptr);
 
 /**
  * Records the current thread as the owner after a successful wait.
@@ -69,6 +71,6 @@ X_STATUS MutantRelease(MutantObject& mutant, bool abandon, i32* previous_state =
  * @param mutant The mutant.
  * @return True when the mutant was abandoned since its last acquire.
  */
-bool MutantAcquired(MutantObject& mutant);
+REX_RUNTIME_API bool MutantAcquired(MutantObject& mutant);
 
 }  // namespace rex::runtime

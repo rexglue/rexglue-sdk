@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include <rex/macros.h>
 #include <rex/platform/lock_order.h>
 #include <rex/runtime/object_table.h>
 #include <rex/runtime/xmemory.h>
@@ -25,7 +26,7 @@
 namespace rex::runtime {
 
 /** The handle table of a runtime. */
-class ObjectTable final : public IObjectTable {
+class REX_RUNTIME_API ObjectTable final : public IObjectTable {
  public:
   /**
    * @param memory The guest memory that owned guest blocks are freed from, null in tests.
@@ -52,7 +53,6 @@ class ObjectTable final : public IObjectTable {
   PinnedSlot Get(X_HANDLE handle) override;
   std::vector<PinnedSlot> GetAll() override;
   Result<void> AddName(std::string_view name, X_HANDLE handle) override;
-  void RemoveName(std::string_view name) override;
   Result<X_HANDLE> OpenByName(std::string_view name) override;
   std::optional<X_HANDLE> ResolveGuestObject(u32 address, i32 as_type) override;
 

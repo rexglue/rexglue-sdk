@@ -17,6 +17,7 @@
 #include <string_view>
 #include <vector>
 
+#include <rex/macros.h>
 #include <rex/result.h>
 #include <rex/types.h>
 #include <rex/ui/overlay/debug_overlay.h>
@@ -47,7 +48,7 @@ class ImGuiDrawer;
 class Window;
 
 /** What an overlay may use. Valid for the overlay's whole life. */
-class OverlayContext {
+class REX_RUNTIME_API OverlayContext {
  public:
   /**
    * Creates a context. TitleApp creates the one every overlay receives.
@@ -153,7 +154,7 @@ struct OverlayDesc {
 };
 
 /** Persistent overlays. Toggling shows and hides, it never destroys. */
-class OverlayRegistry : public NonCopyable, private WindowListener {
+class REX_RUNTIME_API OverlayRegistry : public NonCopyable, private WindowListener {
  public:
   /**
    * Creates an empty registry that destroys its overlays when the window closes.
@@ -166,9 +167,6 @@ class OverlayRegistry : public NonCopyable, private WindowListener {
 
   /** Unregisters every toggle bind and destroys every overlay. */
   ~OverlayRegistry() override;
-
-  /** Hides every overlay. */
-  void HideAll();
 
   /**
    * Tests whether any overlay is shown.
@@ -227,7 +225,7 @@ class OverlayRegistry : public NonCopyable, private WindowListener {
 };
 
 namespace detail {
-std::span<const OverlayDesc> StandardOverlays();
+REX_RUNTIME_API std::span<const OverlayDesc> StandardOverlays();
 }  // namespace detail
 
 /**

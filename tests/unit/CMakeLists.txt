@@ -20,6 +20,7 @@ add_executable(unit_tests
     kernel/object_table_test.cpp
     kernel/shim_registry_test.cpp
     kernel/exports_test.cpp
+    kernel/exports_visibility_test.cpp
     kernel/kernel_fixture.cpp
     kernel/lock_order_test.cpp
     kernel/pinned_wait_test.cpp
@@ -103,6 +104,9 @@ target_link_libraries(unit_tests PRIVATE
     Catch2::Catch2WithMain
     SDL3::Headers
 )
+
+target_compile_definitions(unit_tests PRIVATE
+    REX_TEST_RUNTIME_PATH="$<TARGET_FILE:rex-runtime>")
 
 add_executable(rex-crash-probe crash_probe.cpp)
 target_link_libraries(rex-crash-probe PRIVATE rex-runtime)

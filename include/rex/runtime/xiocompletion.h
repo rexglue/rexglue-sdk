@@ -14,6 +14,7 @@
 #include <mutex>
 #include <queue>
 
+#include <rex/macros.h>
 #include <rex/platform/thread.h>
 #include <rex/runtime/xobject.h>
 #include <rex/runtime/xtypes.h>
@@ -32,7 +33,7 @@ struct IONotification {
 struct IOCompletionObject {
   static constexpr u32 kMaxNotifications = 1024;
 
-  IOCompletionObject();
+  REX_RUNTIME_API IOCompletionObject();
 
   std::mutex notification_lock;
   std::queue<IONotification> notifications;
@@ -45,7 +46,8 @@ struct IOCompletionObject {
  * @param port The port.
  * @param notification The notification to queue.
  */
-void IOCompletionQueue(IOCompletionObject& port, const IONotification& notification);
+REX_RUNTIME_API void IOCompletionQueue(IOCompletionObject& port,
+                                       const IONotification& notification);
 
 /**
  * Waits for a notification and dequeues it.
@@ -55,6 +57,7 @@ void IOCompletionQueue(IOCompletionObject& port, const IONotification& notificat
  * @param notify Receives the notification when one arrived.
  * @return True when the wait ended because a notification was received.
  */
-bool IOCompletionWait(IOCompletionObject& port, u64 wait_ticks, IONotification* notify);
+REX_RUNTIME_API bool IOCompletionWait(IOCompletionObject& port, u64 wait_ticks,
+                                      IONotification* notify);
 
 }  // namespace rex::runtime

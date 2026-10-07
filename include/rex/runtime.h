@@ -27,6 +27,7 @@
 #include <rex/embedded_metadata.h>
 #include <rex/filesystem.h>
 #include <rex/image_info.h>
+#include <rex/macros.h>
 #include <rex/memory.h>
 #include <rex/platform/lock_order.h>
 #include <rex/runtime/achievement_manager.h>
@@ -115,7 +116,7 @@ struct RuntimeConfig {
  * table, the thread and module registries, the notifier, the content and achievement managers,
  * the dispatcher, the process blocks, the APU and the HID backend.
  */
-class Runtime {
+class REX_RUNTIME_API Runtime {
  public:
   /**
    * @param config The configuration Init copied, read through API::config().
@@ -318,13 +319,6 @@ class Runtime {
   const PPCCodegenFlags& codegen_flags() const { return codegen_flags_; }
 
   /**
-   * Reports whether the runtime runs without a GPU.
-   *
-   * @return True in tool mode.
-   */
-  bool is_tool_mode() const { return tool_mode_; }
-
-  /**
    * Stops the subsystems and destroys the object table, the registries, the managers, the
    * dispatcher and the memory.
    */
@@ -337,13 +331,6 @@ class Runtime {
    * @return Ok, or a Runtime error whose code is the status of the load.
    */
   [[nodiscard]] Result<void> LoadXEXImage(const std::string_view module_path);
-
-  /**
-   * Launches the executable loaded by LoadXEXImage on its main thread.
-   *
-   * @return The main thread handle with a count of 1 that the caller closes, 0 when it failed.
-   */
-  X_HANDLE LaunchModule();
 
   /**
    * Creates the suspended main thread of the loaded executable. The caller resumes it after any

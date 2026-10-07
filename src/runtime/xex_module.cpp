@@ -211,24 +211,11 @@ bool XexModule::LoadContinue() {
     section.address += base_address_;
   }
 
-  low_address_ = UINT_MAX;
-  high_address_ = 0;
-  u32 page = 0;
-  for (const auto& range : image_.security().pages) {
-    const u32 start_address = base_address_ + page * page_size;
-    const u32 end_address = start_address + range.page_count * page_size;
-    if (range.type == XEX_SECTION_CODE) {
-      low_address_ = std::min(low_address_, start_address);
-      high_address_ = std::max(high_address_, end_address);
-    }
-    page += range.page_count;
-  }
-
   for (const auto& library : image_.imports()) {
     SetupLibraryImports(library.name, library);
   }
 
-  page = 0;
+  u32 page = 0;
   for (const auto& range : image_.security().pages) {
     const u32 address = base_address_ + page * page_size;
     const u32 size = range.page_count * page_size;
@@ -331,10 +318,6 @@ bool XexModule::SetupLibraryImports(std::string_view name,
   return true;
 }
 
-bool XexModule::ContainsAddress(uint32_t address) {
-  return address >= low_address_ && address < high_address_;
-}
-
 void XexModule::PopulateBinaryData() {
   binary_sections_.clear();
   binary_symbols_.clear();
@@ -362,15 +345,6 @@ void XexModule::PopulateBinaryData() {
 
 std::span<const BinarySection> XexModule::binary_sections() const {
   return binary_sections_;
-}
-
-const BinarySection* XexModule::FindSectionByName(std::string_view name) const {
-  for (const auto& sec : binary_sections_) {
-    if (sec.name == name) {
-      return &sec;
-    }
-  }
-  return nullptr;
 }
 
 std::span<const BinarySymbol> XexModule::binary_symbols() const {

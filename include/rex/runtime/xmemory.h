@@ -20,6 +20,7 @@
 #include <utility>
 #include <vector>
 
+#include <rex/macros.h>
 #include <rex/memory/utils.h>
 #include <rex/ppc/func.h>  // PPCFunc type
 #include <rex/platform/lock_order.h>
@@ -76,7 +77,6 @@ enum class HeapType : uint8_t {
   kGuestVirtual,
   kGuestXex,
   kGuestPhysical,
-  kHostPhysical,
 };
 
 enum MemoryAllocationFlag : uint32_t {
@@ -139,7 +139,7 @@ union PageEntry {
 };
 
 // Heap abstraction for page-based allocation.
-class BaseHeap {
+class REX_RUNTIME_API BaseHeap {
  public:
   virtual ~BaseHeap();
 
@@ -167,9 +167,6 @@ class BaseHeap {
 
   // Disposes and decommits all memory and clears the page table.
   virtual void Dispose();
-
-  uint32_t GetTotalPageCount();
-  uint32_t GetUnreservedPageCount();
 
   uint32_t total_page_count() const { return uint32_t(page_table_.size()); }
   uint32_t unreserved_page_count() const { return unreserved_page_count_; }
@@ -216,9 +213,6 @@ class BaseHeap {
 
   // Queries the size of the region containing the given address.
   bool QuerySize(uint32_t address, uint32_t* out_size);
-
-  // Queries the base and size of a region containing the given address.
-  bool QueryBaseAndSize(uint32_t* in_out_address, uint32_t* out_size);
 
   // Queries the current protection mode of the region containing the given
   // address.
@@ -333,7 +327,7 @@ class BaseHeap {
 };
 
 // Normal heap allowing allocations from guest virtual address ranges.
-class VirtualHeap : public BaseHeap {
+class REX_RUNTIME_API VirtualHeap : public BaseHeap {
  public:
   VirtualHeap();
   ~VirtualHeap() override;
@@ -350,7 +344,7 @@ class VirtualHeap : public BaseHeap {
 // The physical heap and the behavior of sharing pages with virtual pages is
 // implemented by having a 'parent' heap that is used to perform allocation in
 // the guest virtual address space 1:1 with the physical address space.
-class PhysicalHeap : public BaseHeap {
+class REX_RUNTIME_API PhysicalHeap : public BaseHeap {
  public:
   PhysicalHeap();
   ~PhysicalHeap() override;
@@ -438,7 +432,7 @@ enum class AccessViolationResult : u8 {
 // overlap with other ranges. Each range is represented by a BaseHeap of either
 // VirtualHeap or PhysicalHeap depending on type. Heaps model the page tables
 // and can handle reservation and committing of requested pages.
-class Memory {
+class REX_RUNTIME_API Memory {
  public:
   Memory();
   ~Memory();
@@ -498,11 +492,6 @@ class Memory {
 
   // Copies a non-overlapping range of guest memory (like a memcpy).
   void Copy(uint32_t dest, uint32_t src, uint32_t size) const;
-
-  // Searches the given range of guest memory for a run of dword values in
-  // big-endian order.
-  uint32_t SearchAligned(uint32_t start, uint32_t end, const uint32_t* values,
-                         size_t value_count) const;
 
   /**
    * Resolves a host access violation inside guest memory.
@@ -649,7 +638,6 @@ class Memory {
   bool DestroyFunctionTable(uint32_t code_base);
   // Returns false if guest_address is outside every registered module range.
   bool SetFunction(uint32_t guest_address, PPCFunc* host_function);
-  bool HasAnyFunctionTable() const;
 
  private:
 #if REX_PLATFORM_MAC

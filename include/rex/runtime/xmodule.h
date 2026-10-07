@@ -16,6 +16,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include <rex/macros.h>
 #include <rex/platform/thread.h>
 #include <rex/runtime/exports.h>
 #include <rex/runtime/module.h>
@@ -88,7 +89,7 @@ struct KernelModuleData {
      * @param key The key.
      * @return The hash.
      */
-    size_t operator()(const ThunkKey& key) const noexcept;
+    REX_RUNTIME_API size_t operator()(const ThunkKey& key) const noexcept;
   };
 
   std::unordered_map<ThunkKey, u32, ThunkKeyHash> thunk_cache;
@@ -114,10 +115,10 @@ struct ModuleObject {
    * @param runtime_in The runtime the module belongs to.
    * @param type_in Whether the module is kernel or user.
    */
-  ModuleObject(Runtime* runtime_in, ModuleType type_in);
+  REX_RUNTIME_API ModuleObject(Runtime* runtime_in, ModuleType type_in);
   ModuleObject(const ModuleObject&) = delete;
   ModuleObject& operator=(const ModuleObject&) = delete;
-  ~ModuleObject();
+  REX_RUNTIME_API ~ModuleObject();
 
   ModuleType type;
   std::string name;
@@ -136,7 +137,7 @@ struct ModuleObject {
  * @param type Whether the module is kernel or user.
  * @return The handle with a count of 1, 0 when the table cannot grow.
  */
-X_HANDLE CreateModule(Runtime& runtime, ModuleType type);
+REX_RUNTIME_API X_HANDLE CreateModule(Runtime& runtime, ModuleType type);
 
 /**
  * Tests whether a module answers to a name.
@@ -145,7 +146,7 @@ X_HANDLE CreateModule(Runtime& runtime, ModuleType type);
  * @param name A path, a file name or a module name, compared case insensitively.
  * @return True when the name matches the path, the file name or the name of the module.
  */
-bool ModuleMatches(const ModuleObject& module, std::string_view name);
+REX_RUNTIME_API bool ModuleMatches(const ModuleObject& module, std::string_view name);
 
 /**
  * Finds a resource section of a module.
@@ -156,8 +157,8 @@ bool ModuleMatches(const ModuleObject& module, std::string_view name);
  * @param out_section_size Receives the size of the section.
  * @return X_STATUS_SUCCESS, X_STATUS_NOT_FOUND, or X_STATUS_UNSUCCESSFUL for a kernel module.
  */
-X_STATUS ModuleGetSection(const ModuleObject& module, std::string_view name, u32* out_section_data,
-                          u32* out_section_size);
+REX_RUNTIME_API X_STATUS ModuleGetSection(const ModuleObject& module, std::string_view name,
+                                          u32* out_section_data, u32* out_section_size);
 
 /**
  * Reads the handle that the loader data entry of an HMODULE holds.
@@ -165,7 +166,7 @@ X_STATUS ModuleGetSection(const ModuleObject& module, std::string_view name, u32
  * @param hmodule The host pointer of the loader data entry.
  * @return The handle stored in the entry.
  */
-u32 ModuleHandleFromHModule(void* hmodule);
+REX_RUNTIME_API u32 ModuleHandleFromHModule(void* hmodule);
 
 /**
  * Finds the module of an HMODULE.
@@ -174,7 +175,7 @@ u32 ModuleHandleFromHModule(void* hmodule);
  * @param hmodule The host pointer of the loader data entry.
  * @return The module handle, 0 when the stored handle does not name a module.
  */
-X_HANDLE ModuleFromHModule(Runtime& runtime, void* hmodule);
+REX_RUNTIME_API X_HANDLE ModuleFromHModule(Runtime& runtime, void* hmodule);
 
 /**
  * Finds an exported function of a module. A kernel module returns a thunk.
@@ -185,8 +186,8 @@ X_HANDLE ModuleFromHModule(Runtime& runtime, void* hmodule);
  * @param caller_address The guest address of the caller, used to key kernel thunks.
  * @return The guest address, 0 when the module has no such export.
  */
-u32 ModuleGetProcAddressByOrdinal(Runtime& runtime, ModuleObject& module, u16 ordinal,
-                                  u32 caller_address = 0);
+REX_RUNTIME_API u32 ModuleGetProcAddressByOrdinal(Runtime& runtime, ModuleObject& module,
+                                                  u16 ordinal, u32 caller_address = 0);
 
 /**
  * Finds an exported function of a module by name.
@@ -195,6 +196,6 @@ u32 ModuleGetProcAddressByOrdinal(Runtime& runtime, ModuleObject& module, u16 or
  * @param name The export name.
  * @return The guest address, 0 when the module has no such export.
  */
-u32 ModuleGetProcAddressByName(ModuleObject& module, std::string_view name);
+REX_RUNTIME_API u32 ModuleGetProcAddressByName(ModuleObject& module, std::string_view name);
 
 }  // namespace rex::runtime

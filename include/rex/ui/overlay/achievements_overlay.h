@@ -12,6 +12,7 @@
 
 #include <optional>
 
+#include <rex/macros.h>
 #include <rex/runtime/achievement_manager.h>
 #include <rex/ui/imgui_dialog.h>
 #include <rex/ui/overlay/achievement_icon_cache.h>
@@ -26,15 +27,15 @@ class OverlayContext;
 
 class AchievementsOverlayDialog : public ImGuiDialog {
  public:
-  explicit AchievementsOverlayDialog(const OverlayContext& context);
-  ~AchievementsOverlayDialog() override;
+  REX_RUNTIME_API explicit AchievementsOverlayDialog(const OverlayContext& context);
+  REX_RUNTIME_API ~AchievementsOverlayDialog() override;
 
  protected:
-  void OnDraw(ImGuiIO& io) override;
+  REX_RUNTIME_API void OnDraw(ImGuiIO& io) override;
 
  private:
   // Lazily loads icon_path, or icons/<image_id>.png when icon_path is empty.
-  gpu::OverlayTexture* GetIcon(const rex::runtime::AchievementInfo& achievement);
+  REX_RUNTIME_API gpu::OverlayTexture* GetIcon(const rex::runtime::AchievementInfo& achievement);
 
   const OverlayContext& context_;
   std::optional<AchievementIconCache> icon_cache_;

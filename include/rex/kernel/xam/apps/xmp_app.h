@@ -15,6 +15,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include <rex/macros.h>
 #include <rex/runtime.h>
 #include <rex/runtime/xam/app_manager.h>
 #include <rex/platform/lock_order.h>
@@ -27,7 +28,7 @@ namespace apps {
 // Only source of docs for a lot of these functions:
 // https://github.com/oukiar/freestyledash/blob/master/Freestyle/Scenes/Media/Music/ScnMusic.cpp
 
-class XmpApp : public runtime::xam::App {
+class REX_RUNTIME_API XmpApp : public runtime::xam::App {
  public:
   enum class State : uint32_t {
     kIdle = 0,

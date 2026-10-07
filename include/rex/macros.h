@@ -52,6 +52,40 @@
 #endif
 
 /**
+ * Marks a declaration that rex-runtime exports. It expands to the export form while rex-runtime
+ * builds and to the import form in every other binary.
+ *
+ * @code
+ * class REX_RUNTIME_API Memory;
+ * REX_RUNTIME_API std::span<const ExportEntry> Exports(ExportModule module);
+ * @endcode
+ */
+#if REX_PLATFORM_WIN32
+#if defined(REX_BUILDING_RUNTIME)
+#define REX_RUNTIME_API __declspec(dllexport)
+#else
+#define REX_RUNTIME_API __declspec(dllimport)
+#endif
+#else
+#define REX_RUNTIME_API __attribute__((visibility("default")))
+#endif
+
+/**
+ * Marks a translation entry point definition for export. It expands to the export form while
+ * rex-runtime builds and to nothing in every other binary, so a hook a consumer defines stays
+ * local to the consumer.
+ *
+ * @code
+ * extern "C" REX_DETAIL_ENTRY_EXPORT REX_FUNC(__imp__NtClose) {}
+ * @endcode
+ */
+#if defined(REX_BUILDING_RUNTIME)
+#define REX_DETAIL_ENTRY_EXPORT REX_RUNTIME_API
+#else
+#define REX_DETAIL_ENTRY_EXPORT
+#endif
+
+/**
  * Declares the interface name and version constants on an interface class.
  *
  * @param Class The interface class the constants belong to.

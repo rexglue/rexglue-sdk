@@ -18,25 +18,23 @@
 #include <unordered_map>
 #include <vector>
 
+#include <rex/macros.h>
 #include <rex/runtime/achievement_manager.h>
 
 namespace rex::runtime {
 
 /** The achievement manager of a runtime. */
-class AchievementManager final : public IAchievementManager {
+class REX_RUNTIME_API AchievementManager final : public IAchievementManager {
  public:
   Result<void> RegisterAchievement(AchievementInfo info) override;
   void RegisterAchievements(std::span<const AchievementInfo> achievements) override;
   void ReplaceAchievements(std::vector<AchievementInfo> achievements) override;
   Result<void> LoadMetadataFile(const std::filesystem::path& path) override;
   std::vector<AchievementInfo> ListAchievements() const override;
-  std::optional<AchievementInfo> FindAchievement(u32 id) const override;
   AchievementUnlockResult UnlockAchievement(
       u32 id, AchievementNotification notification = AchievementNotification::kSuppress) override;
-  Result<void> ShowAchievementNotification(u32 id) override;
   bool IsUnlocked(u32 id) const override;
   std::optional<u64> GetUnlockTime(u32 id) const override;
-  AchievementListenerHandle RegisterUnlockCallback(AchievementCallback callback) override;
   AchievementListenerHandle RegisterNotificationCallback(AchievementCallback callback) override;
   void UnregisterCallback(AchievementListenerHandle handle) override;
   void SetUnlockSavePath(std::filesystem::path path) override;
@@ -55,7 +53,6 @@ class AchievementManager final : public IAchievementManager {
   std::vector<AchievementInfo> achievements_;
   std::unordered_map<u32, u64> unlocked_achievements_;
   std::filesystem::path unlock_save_path_;
-  std::unordered_map<AchievementListenerHandle, AchievementCallback> unlock_callbacks_;
   std::unordered_map<AchievementListenerHandle, AchievementCallback> notification_callbacks_;
   AchievementListenerHandle next_listener_handle_ = 1;
 };

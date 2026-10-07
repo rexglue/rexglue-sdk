@@ -90,8 +90,6 @@ class ContentManager final : public IContentManager {
   Result<void> SetContentThumbnail(u64 xuid, const xam::XCONTENT_AGGREGATE_DATA& data,
                                    std::vector<u8> buffer) override;
   Result<void> DeleteContent(u64 xuid, const xam::XCONTENT_AGGREGATE_DATA& data) override;
-  Result<void> UnmountContent(u64 xuid, const xam::XCONTENT_AGGREGATE_DATA& data) override;
-  Result<void> UnmountAndDeleteContent(u64 xuid, const xam::XCONTENT_AGGREGATE_DATA& data) override;
   Result<void> WriteContentHeaderFile(u64 xuid, xam::XCONTENT_AGGREGATE_DATA data,
                                       u32 license_mask = 0) override;
   Result<xam::XCONTENT_AGGREGATE_DATA> ReadContentHeaderFile(
@@ -99,8 +97,6 @@ class ContentManager final : public IContentManager {
   std::filesystem::path ResolveGameUserContentPath() override;
   bool IsContentOpen(const xam::XCONTENT_AGGREGATE_DATA& data) const override;
   void CloseOpenedFilesFromContent(std::string_view root_name) override;
-  std::optional<std::filesystem::path> GetOpenPackagePath(
-      std::string_view root_name) const override;
   Result<xam::XCONTENT_AGGREGATE_DATA> InstallContent(
       const std::filesystem::path& package_path) override;
   u32 title_id() const override;
@@ -117,16 +113,6 @@ class ContentManager final : public IContentManager {
   std::filesystem::path ResolvePackagePath(u64 xuid, const xam::XCONTENT_AGGREGATE_DATA& data);
   std::filesystem::path ResolvePackageHeaderPath(const std::string_view file_name, u64 xuid,
                                                  u32 title_id, XContentType content_type) const;
-
-  /**
-   * Finds an open package by its content data. The caller holds mutex_.
-   *
-   * @param data The content data to match.
-   * @param running_title_id The title ID that kCurrentlyRunningTitleId resolves to.
-   * @return The matching entry, or end().
-   */
-  std::unordered_map<string_key_case, xam::ContentPackage*, string_key_case::Hash>::iterator
-  FindOpenPackageByData(const xam::XCONTENT_AGGREGATE_DATA& data, u32 running_title_id);
 
   /**
    * Removes an open package from the table.

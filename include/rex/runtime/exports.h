@@ -77,7 +77,7 @@ class ExportVariables {
  * @param module The module.
  * @return The table rows.
  */
-REX_API std::span<const ExportEntry> Exports(ExportModule module);
+REX_RUNTIME_API std::span<const ExportEntry> Exports(ExportModule module);
 
 /**
  * Finds a row by ordinal.
@@ -86,16 +86,7 @@ REX_API std::span<const ExportEntry> Exports(ExportModule module);
  * @param ordinal The ordinal.
  * @return The row, or null when the module has no such ordinal.
  */
-REX_API const ExportEntry* FindByOrdinal(ExportModule module, u16 ordinal);
-
-/**
- * Finds a row by name.
- *
- * @param module The module.
- * @param name The export name.
- * @return The row, or null when the module has no such name.
- */
-REX_API const ExportEntry* FindByName(ExportModule module, std::string_view name);
+REX_RUNTIME_API const ExportEntry* FindByOrdinal(ExportModule module, u16 ordinal);
 
 /**
  * Maps a module name to a table.
@@ -106,6 +97,6 @@ REX_API const ExportEntry* FindByName(ExportModule module, std::string_view name
  * @param name The module name.
  * @return The module, or nothing when the name is not a kernel module.
  */
-REX_API std::optional<ExportModule> ModuleFromName(std::string_view name);
+REX_RUNTIME_API std::optional<ExportModule> ModuleFromName(std::string_view name);
 
 }  // namespace rex::runtime

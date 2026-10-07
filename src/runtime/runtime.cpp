@@ -388,17 +388,6 @@ X_HANDLE Runtime::PrepareModuleLaunch() {
   return *launched;
 }
 
-X_HANDLE Runtime::LaunchModule() {
-  const X_HANDLE thread = PrepareModuleLaunch();
-  if (thread) {
-    if (auto record = thread_registry_->FindByHandle(thread)) {
-      record->Resume();
-      REXLOG_DEBUG(system, "  Module launched on thread '{}'", record->name());
-    }
-  }
-  return thread;
-}
-
 runtime::IObjectTable& Runtime::object_table() {
   return *object_table_;
 }

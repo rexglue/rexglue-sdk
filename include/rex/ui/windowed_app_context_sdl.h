@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <rex/macros.h>
 #include <rex/ui.h>
 
 #include <chrono>
@@ -25,7 +26,7 @@ namespace rex::ui {
 
 class WindowSDL;
 
-class SDLWindowedAppContext final : public WindowedAppContext {
+class REX_RUNTIME_API SDLWindowedAppContext final : public WindowedAppContext {
  public:
   SDLWindowedAppContext() = default;
   ~SDLWindowedAppContext() override;

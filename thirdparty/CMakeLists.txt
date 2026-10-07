@@ -74,12 +74,6 @@ endforeach()
 # Header-only libraries (vendored, not in vcpkg)
 #=============================================================================
 
-# disruptorplus - lock-free queue (header-only)
-add_library(disruptorplus INTERFACE)
-target_include_directories(disruptorplus INTERFACE
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/disruptorplus/include>
-    $<INSTALL_INTERFACE:include/disruptorplus>)
-
 # renderdoc - RenderDoc API header (header-only)
 add_library(renderdoc INTERFACE)
 target_include_directories(renderdoc INTERFACE
@@ -202,7 +196,6 @@ endif()
 set(IMGUI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/imgui")
 add_library(imgui OBJECT
     ${IMGUI_DIR}/imgui.cpp
-    ${IMGUI_DIR}/imgui_demo.cpp
     ${IMGUI_DIR}/imgui_draw.cpp
     ${IMGUI_DIR}/imgui_tables.cpp
     ${IMGUI_DIR}/imgui_widgets.cpp
@@ -211,6 +204,15 @@ add_library(imgui::imgui ALIAS imgui)
 target_include_directories(imgui PUBLIC
     $<BUILD_INTERFACE:${IMGUI_DIR}>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+target_include_directories(imgui PRIVATE
+    ${PROJECT_SOURCE_DIR}/include
+    ${PROJECT_BINARY_DIR}/include)
+set_target_properties(imgui PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON)
+target_compile_definitions(imgui
+    PRIVATE REX_BUILDING_RUNTIME
+    PUBLIC "IMGUI_USER_CONFIG=\"rex/ui/imgui_config.h\"")
 target_compile_options(imgui PRIVATE -w)
 
 #=============================================================================

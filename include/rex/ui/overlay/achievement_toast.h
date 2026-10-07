@@ -15,6 +15,7 @@
 #include <deque>
 #include <mutex>
 #include <optional>
+#include <rex/macros.h>
 #include <rex/ui/overlay/achievement_notification.h>
 #include <rex/ui/overlay/achievement_icon_cache.h>
 
@@ -24,7 +25,7 @@ class Runtime;
 
 namespace rex::ui {
 
-class AchievementToastDialog : public AchievementNotificationDialog {
+class REX_RUNTIME_API AchievementToastDialog : public AchievementNotificationDialog {
  public:
   AchievementToastDialog(ImGuiDrawer* drawer, gpu::IOverlayDrawer* overlay_drawer,
                          rex::Runtime* runtime);

@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <rex/macros.h>
 #include <rex/runtime/xtypes.h>
 #include <rex/runtime/xvideo.h>
 
@@ -24,7 +25,7 @@ struct ModuleObject;
 
 namespace rex::kernel::xboxkrnl {
 
-void VdQueryVideoMode(runtime::X_VIDEO_MODE* video_mode);
+REX_RUNTIME_API void VdQueryVideoMode(runtime::X_VIDEO_MODE* video_mode);
 
 /**
  * Registers the video exports of xboxkrnl.exe on its module.
@@ -32,6 +33,6 @@ void VdQueryVideoMode(runtime::X_VIDEO_MODE* video_mode);
  * @param module The xboxkrnl.exe module.
  * @param runtime The runtime the module belongs to.
  */
-void RegisterVideoExports(runtime::ModuleObject& module, Runtime& runtime);
+REX_RUNTIME_API void RegisterVideoExports(runtime::ModuleObject& module, Runtime& runtime);
 
 }  // namespace rex::kernel::xboxkrnl

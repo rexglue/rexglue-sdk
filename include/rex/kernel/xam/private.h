@@ -10,13 +10,14 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <rex/macros.h>
 #include <rex/runtime.h>
 
 namespace rex {
 namespace kernel {
 namespace xam {
 
-bool XamIsUIActive();
+REX_RUNTIME_API bool XamIsUIActive();
 
 }  // namespace xam
 }  // namespace kernel

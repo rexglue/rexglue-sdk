@@ -12,6 +12,7 @@
 
 #include <memory>
 
+#include <rex/macros.h>
 #include <rex/platform/thread.h>
 #include <rex/platform/timer_queue.h>
 #include <rex/runtime/xobject.h>
@@ -39,8 +40,8 @@ struct TimerObject {
   /**
    * @param timer_type 0 for a notification timer, 1 for a synchronization timer.
    */
-  explicit TimerObject(u32 timer_type);
-  ~TimerObject();
+  REX_RUNTIME_API explicit TimerObject(u32 timer_type);
+  REX_RUNTIME_API ~TimerObject();
 
   std::unique_ptr<rex::platform::Timer> timer;
   std::weak_ptr<rex::platform::TimerQueueWaitItem> expiry;
@@ -61,8 +62,8 @@ struct TimerObject {
  * @param resume True to request a resume from suspend, which is ignored.
  * @return X_STATUS_SUCCESS, X_STATUS_TIMER_RESUME_IGNORED or X_STATUS_UNSUCCESSFUL.
  */
-X_STATUS TimerSet(TimerObject& timer, Runtime& runtime, i64 due_time, u32 period_ms, u32 routine,
-                  u32 routine_arg, bool resume);
+REX_RUNTIME_API X_STATUS TimerSet(TimerObject& timer, Runtime& runtime, i64 due_time, u32 period_ms,
+                                  u32 routine, u32 routine_arg, bool resume);
 
 /**
  * Arms a KTIMER on the timer queue. At expiry the KTIMER header is updated, its DPC is queued with
@@ -76,8 +77,8 @@ X_STATUS TimerSet(TimerObject& timer, Runtime& runtime, i64 due_time, u32 period
  * @param dpc Address of the title's KDPC, 0 for none.
  * @return X_STATUS_SUCCESS, or X_STATUS_UNSUCCESSFUL.
  */
-X_STATUS TimerSetDPC(TimerObject& timer, Runtime& runtime, u32 ktimer, i64 due_time, u32 period_ms,
-                     u32 dpc);
+REX_RUNTIME_API X_STATUS TimerSetDPC(TimerObject& timer, Runtime& runtime, u32 ktimer, i64 due_time,
+                                     u32 period_ms, u32 dpc);
 
 /**
  * Cancels a timer.
@@ -85,6 +86,6 @@ X_STATUS TimerSetDPC(TimerObject& timer, Runtime& runtime, u32 ktimer, i64 due_t
  * @param timer The timer.
  * @return X_STATUS_SUCCESS, or X_STATUS_UNSUCCESSFUL.
  */
-X_STATUS TimerCancel(TimerObject& timer);
+REX_RUNTIME_API X_STATUS TimerCancel(TimerObject& timer);
 
 }  // namespace rex::runtime

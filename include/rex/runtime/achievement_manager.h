@@ -26,8 +26,7 @@ namespace rex::runtime {
 
 /** An unlock or notification event of an achievement. */
 struct AchievementEvent {
-  AchievementInfo achievement;  /**< The achievement. */
-  u64 unlocked_at_filetime = 0; /**< The FILETIME of the unlock, 0 when locked. */
+  AchievementInfo achievement; /**< The achievement. */
 };
 
 /** Selects whether an unlock also raises the notification callbacks. */
@@ -93,14 +92,6 @@ class IAchievementManager {
   [[nodiscard]] virtual std::vector<AchievementInfo> ListAchievements() const = 0;
 
   /**
-   * Finds an achievement.
-   *
-   * @param id The id.
-   * @return The achievement, empty when the id is not registered.
-   */
-  [[nodiscard]] virtual std::optional<AchievementInfo> FindAchievement(u32 id) const = 0;
-
-  /**
    * Unlocks an achievement and persists the unlock.
    *
    * @param id The id.
@@ -109,14 +100,6 @@ class IAchievementManager {
    */
   virtual AchievementUnlockResult UnlockAchievement(
       u32 id, AchievementNotification notification = AchievementNotification::kSuppress) = 0;
-
-  /**
-   * Raises the notification callbacks for an achievement.
-   *
-   * @param id The id.
-   * @return Ok, or a NotFound error when the id is not registered.
-   */
-  [[nodiscard]] virtual Result<void> ShowAchievementNotification(u32 id) = 0;
 
   /**
    * Tests whether an achievement is unlocked.
@@ -133,14 +116,6 @@ class IAchievementManager {
    * @return The FILETIME of the unlock, empty when it is locked.
    */
   [[nodiscard]] virtual std::optional<u64> GetUnlockTime(u32 id) const = 0;
-
-  /**
-   * Registers a callback for every unlock.
-   *
-   * @param callback The callback.
-   * @return The handle UnregisterCallback takes.
-   */
-  virtual AchievementListenerHandle RegisterUnlockCallback(AchievementCallback callback) = 0;
 
   /**
    * Registers a callback for every notification.

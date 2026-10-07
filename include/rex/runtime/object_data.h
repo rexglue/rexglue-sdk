@@ -17,6 +17,7 @@
 #include <variant>
 #include <vector>
 
+#include <rex/macros.h>
 #include <rex/runtime/pin_count.h>
 #include <rex/runtime/xenumerator.h>
 #include <rex/runtime/xevent.h>
@@ -53,8 +54,8 @@ struct GuestBlock {
  * @param workspace The workspace for the header and body, null for the system heap.
  * @return The block with owned set, address 0 when the allocation failed.
  */
-GuestBlock AllocateGuestBlock(runtime::Memory* memory, u32 size,
-                              WorkspaceHeap* workspace = nullptr);
+REX_RUNTIME_API GuestBlock AllocateGuestBlock(runtime::Memory* memory, u32 size,
+                                              WorkspaceHeap* workspace = nullptr);
 
 /**
  * Frees a block made by AllocateGuestBlock, with its X_OBJECT_TYPE.
@@ -63,7 +64,8 @@ GuestBlock AllocateGuestBlock(runtime::Memory* memory, u32 size,
  * @param address The address of the object body, 0 for none.
  * @param workspace The workspace AllocateGuestBlock used, null for the system heap.
  */
-void FreeGuestBlock(runtime::Memory* memory, u32 address, WorkspaceHeap* workspace = nullptr);
+REX_RUNTIME_API void FreeGuestBlock(runtime::Memory* memory, u32 address,
+                                    WorkspaceHeap* workspace = nullptr);
 
 /** The data a table record owns, 1 alternative per ObjectKind in enumerator order. */
 using ObjectData = std::variant<EventObject, SemaphoreObject, MutantObject, TimerObject, FileObject,
@@ -81,7 +83,7 @@ struct ObjectRecord {
   template <typename T, typename... Args>
   explicit ObjectRecord(std::in_place_type_t<T> tag, Args&&... args)
       : data(tag, std::forward<Args>(args)...) {}
-  ~ObjectRecord();
+  REX_RUNTIME_API ~ObjectRecord();
 
   /**
    * Returns the kind of the data.

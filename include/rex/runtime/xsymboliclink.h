@@ -13,6 +13,7 @@
 #include <string>
 #include <string_view>
 
+#include <rex/macros.h>
 #include <rex/runtime/xobject.h>
 #include <rex/runtime/xtypes.h>
 
@@ -24,7 +25,7 @@ struct SymbolicLinkObject {
    * @param path_in The path the link is opened by.
    * @param target_in The path the link resolves to.
    */
-  SymbolicLinkObject(std::string_view path_in, std::string_view target_in);
+  REX_RUNTIME_API SymbolicLinkObject(std::string_view path_in, std::string_view target_in);
 
   std::string path;
   std::string target;

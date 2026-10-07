@@ -621,8 +621,7 @@ void WindowSDL::HandleKeyEvent(SDL_Event& event) {
              /*prev_state=*/event.key.repeat,
              /*modifier_shift_pressed=*/(mod & SDL_KMOD_SHIFT) != 0,
              /*modifier_ctrl_pressed=*/(mod & SDL_KMOD_CTRL) != 0,
-             /*modifier_alt_pressed=*/(mod & SDL_KMOD_ALT) != 0,
-             /*modifier_super_pressed=*/(mod & SDL_KMOD_GUI) != 0);
+             /*modifier_alt_pressed=*/(mod & SDL_KMOD_ALT) != 0);
   WindowDestructionReceiver destruction_receiver(this);
   if (event.type == SDL_EVENT_KEY_DOWN) {
     OnKeyDown(e, destruction_receiver);
@@ -643,7 +642,7 @@ void WindowSDL::HandleTextInputEvent(SDL_Event& event) {
   const char* end = text + std::strlen(text);
   while (it < end) {
     uint32_t codepoint = utf8::unchecked::next(it);
-    KeyEvent e(UIEvent::Type::Char, this, hid::VirtualKey(codepoint), 1, false, false, false, false,
+    KeyEvent e(UIEvent::Type::Char, this, hid::VirtualKey(codepoint), 1, false, false, false,
                false);
     OnKeyChar(e, destruction_receiver);
     if (destruction_receiver.IsWindowDestroyed()) {

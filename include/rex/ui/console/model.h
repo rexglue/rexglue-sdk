@@ -21,6 +21,7 @@
 
 #include <rex/logging/level.h>
 #include <rex/logging/sink.h>
+#include <rex/macros.h>
 #include <rex/types.h>
 
 namespace rex::cvar {
@@ -54,7 +55,7 @@ enum class ConsoleDock : u8 {
 };
 
 /** Console state that outlives every view. */
-class ConsoleModel : public NonCopyable {
+class REX_RUNTIME_API ConsoleModel : public NonCopyable {
  public:
   /** Lines kept. */
   static constexpr size_t kMaxLines = 4096;

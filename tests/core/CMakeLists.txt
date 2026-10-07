@@ -1,4 +1,4 @@
-add_executable(core_tests core_test.cpp container_test.cpp logger_test.cpp sleep_test.cpp thread_time_test.cpp xex_test.cpp
+add_executable(core_tests core_test.cpp container_test.cpp logger_test.cpp sleep_test.cpp thread_time_test.cpp timer_queue_test.cpp xex_test.cpp
     ${PROJECT_SOURCE_DIR}/thirdparty/crypto/rijndael-alg-fst.c)
 
 set_source_files_properties(${PROJECT_SOURCE_DIR}/thirdparty/crypto/rijndael-alg-fst.c

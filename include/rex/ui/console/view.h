@@ -16,6 +16,7 @@
 
 #include <imgui.h>
 
+#include <rex/macros.h>
 #include <rex/types.h>
 #include <rex/ui/console/model.h>
 
@@ -51,7 +52,7 @@ class ConsoleHost {
 };
 
 /** Draws a console model into the current ImGui window. */
-class ConsoleView : public NonCopyable {
+class REX_RUNTIME_API ConsoleView : public NonCopyable {
  public:
   /**
    * Builds a view.

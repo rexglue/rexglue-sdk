@@ -15,7 +15,7 @@ set(REXGLUE_INSTALL_TARGETS
     rex-hid-sdl3
     rex-gpu-xenos
     rex-filesystem
-    disruptorplus renderdoc simde tomlplusplus
+    renderdoc simde tomlplusplus
     aes128 mspack o1heap disasm xxhash
     libavcodec libavutil
 )

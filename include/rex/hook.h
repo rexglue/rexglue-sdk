@@ -20,6 +20,7 @@
 #include <fmt/format.h>
 
 #include <rex/logging.h>
+#include <rex/macros.h>
 #include <rex/ppc/context.h>
 #include <rex/ppc/function.h>
 #include <rex/runtime.h>
@@ -36,37 +37,37 @@
 #ifdef REXGLUE_ENABLE_PROFILING
 #include <tracy/Tracy.hpp>
 #define REX_HOOK(subroutine, function)                           \
-  extern "C" REX_FUNC(subroutine) {                              \
+  extern "C" REX_DETAIL_ENTRY_EXPORT REX_FUNC(subroutine) {      \
     ZoneNamedN(___tracy_hook_zone, #subroutine, TracyIsStarted); \
     rex::ppc::HostToGuestFunction<function>(ctx, base);          \
   }
 #else
-#define REX_HOOK(subroutine, function)                  \
-  extern "C" REX_FUNC(subroutine) {                     \
-    rex::ppc::HostToGuestFunction<function>(ctx, base); \
+#define REX_HOOK(subroutine, function)                      \
+  extern "C" REX_DETAIL_ENTRY_EXPORT REX_FUNC(subroutine) { \
+    rex::ppc::HostToGuestFunction<function>(ctx, base);     \
   }
 #endif
 
 // Define a raw hook with direct ctx/base access.
-#define REX_HOOK_RAW(name) extern "C" REX_FUNC(name)
+#define REX_HOOK_RAW(name) extern "C" REX_DETAIL_ENTRY_EXPORT REX_FUNC(name)
 
 // Stub: logs a warning on the first call and Dev after.
 #define REX_STUB(subroutine)                                        \
-  extern "C" REX_FUNC(subroutine) {                                 \
+  extern "C" REX_DETAIL_ENTRY_EXPORT REX_FUNC(subroutine) {         \
     (void)base;                                                     \
     static constinit ::std::atomic_flag rex_stub_seen_;             \
     ::rex::log::detail::WriteStub(rex_stub_seen_, #subroutine, {}); \
   }
 
 #define REX_STUB_LOG(subroutine, msg)                                \
-  extern "C" REX_FUNC(subroutine) {                                  \
+  extern "C" REX_DETAIL_ENTRY_EXPORT REX_FUNC(subroutine) {          \
     (void)base;                                                      \
     static constinit ::std::atomic_flag rex_stub_seen_;              \
     ::rex::log::detail::WriteStub(rex_stub_seen_, #subroutine, msg); \
   }
 
 #define REX_STUB_RETURN(subroutine, value)                                 \
-  extern "C" REX_FUNC(subroutine) {                                        \
+  extern "C" REX_DETAIL_ENTRY_EXPORT REX_FUNC(subroutine) {                \
     (void)base;                                                            \
     static constinit ::std::atomic_flag rex_stub_seen_;                    \
     ::rex::log::detail::WriteStub(                                         \

@@ -470,30 +470,6 @@ void Memory::Copy(uint32_t dest, uint32_t src, uint32_t size) const {
   std::memcpy(pdest, psrc, size);
 }
 
-uint32_t Memory::SearchAligned(uint32_t start, uint32_t end, const uint32_t* values,
-                               size_t value_count) const {
-  assert_true(start <= end);
-  auto p = TranslateVirtual<const uint32_t*>(start);
-  auto pe = TranslateVirtual<const uint32_t*>(end);
-  while (p != pe) {
-    if (*p == values[0]) {
-      const uint32_t* pc = p + 1;
-      size_t matched = 1;
-      for (size_t n = 1; n < value_count; n++, pc++) {
-        if (*pc != values[n]) {
-          break;
-        }
-        matched++;
-      }
-      if (matched == value_count) {
-        return HostToGuestVirtual(p);
-      }
-    }
-    p++;
-  }
-  return 0;
-}
-
 bool Memory::ReserveMMIOBlocks() const {
   const size_t host_page_size = rex::memory::page_size();
   return std::ranges::all_of(std::array{MMIOBlock::GPU, MMIOBlock::APU}, [&](MMIOBlock block) {
@@ -814,11 +790,6 @@ bool Memory::SetFunction(uint32_t guest_address, PPCFunc* host_function) {
   return true;
 }
 
-bool Memory::HasAnyFunctionTable() const {
-  std::lock_guard lock(function_tables_mutex_);
-  return !function_tables_.empty();
-}
-
 rex::memory::PageAccess ToPageAccess(uint32_t protect) {
   bool is_writable =
       (protect & runtime::kMemoryProtectWrite) || (protect & runtime::kMemoryProtectWriteCombine);
@@ -1000,37 +971,6 @@ void BaseHeap::Dispose() {
       page_number += page_entry.region_page_count;
     }
   }
-}
-
-uint32_t BaseHeap::GetTotalPageCount() {
-  return uint32_t(page_table_.size());
-}
-
-uint32_t BaseHeap::GetUnreservedPageCount() {
-  std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
-  uint32_t count = 0;
-  bool is_empty_span = false;
-  uint32_t empty_span_start = 0;
-  uint32_t size = uint32_t(page_table_.size());
-  for (uint32_t i = 0; i < size; ++i) {
-    auto& page = page_table_[i];
-    if (!page.state) {
-      if (!is_empty_span) {
-        is_empty_span = true;
-        empty_span_start = i;
-      }
-      continue;
-    }
-    if (is_empty_span) {
-      is_empty_span = false;
-      count += i - empty_span_start;
-    }
-    i += page.region_page_count - 1;
-  }
-  if (is_empty_span) {
-    count += size - empty_span_start;
-  }
-  return count;
 }
 
 bool BaseHeap::Alloc(uint32_t size, uint32_t alignment, uint32_t allocation_type, uint32_t protect,
@@ -1614,20 +1554,6 @@ bool BaseHeap::QuerySize(uint32_t address, uint32_t* out_size) {
   }
   std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
   auto page_entry = page_table_[page_number];
-  *out_size = (page_entry.region_page_count << page_size_shift_);
-  return true;
-}
-
-bool BaseHeap::QueryBaseAndSize(uint32_t* in_out_address, uint32_t* out_size) {
-  uint32_t page_number = (*in_out_address - heap_base_) >> page_size_shift_;
-  if (page_number > page_table_.size()) {
-    REXLOG_ERROR(system, "BaseHeap::QuerySize base page out of range");
-    *out_size = 0;
-    return false;
-  }
-  std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
-  auto page_entry = page_table_[page_number];
-  *in_out_address = (page_entry.base_address << page_size_shift_);
   *out_size = (page_entry.region_page_count << page_size_shift_);
   return true;
 }

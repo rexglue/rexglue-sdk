@@ -9,7 +9,6 @@ set(REXUI_CORE_SOURCES
     imgui_dialog.cpp
     imgui_drawer.cpp
     keybinds.cpp
-    menu_item.cpp
     overlay.cpp
     sdl_virtual_key.cpp
     title_app.cpp
@@ -39,6 +38,10 @@ set(REXUI_SOURCES
 
 add_library(rex-ui OBJECT ${REXUI_SOURCES})
 add_library(rex::ui ALIAS rex-ui)
+set_target_properties(rex-ui PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON)
+target_compile_definitions(rex-ui PRIVATE REX_BUILDING_RUNTIME)
 
 rex_target_pch(rex-ui <rex/math.h>)
 

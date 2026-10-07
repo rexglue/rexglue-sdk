@@ -168,7 +168,7 @@ REX_SHIM_FN(ConvertThreadToFiber, u32, mapped_void lpParameter) {
   }
 
   runtime.thread_registry().RegisterFiber(
-      buf_addr, FiberInfo{host_fiber, unique_fiber_count++, buf_addr, 0, 0, true});
+      buf_addr, FiberInfo{host_fiber, unique_fiber_count++, buf_addr, 0, true});
 
   REXLOG_DEBUG(kernel, "ConvertThreadToFiber: fiber={:#010x} param={:#010x}", buf_addr,
                lpParameter.guest_address());
@@ -234,8 +234,7 @@ REX_SHIM_FN(CreateFiber, u32, u32 dwStackSize, u32 lpStartAddress, mapped_void l
   }
 
   runtime.thread_registry().RegisterFiber(
-      buf_addr,
-      FiberInfo{host_fiber, unique_fiber_count++, buf_addr, stack_top, stack->alloc_base, false});
+      buf_addr, FiberInfo{host_fiber, unique_fiber_count++, buf_addr, stack->alloc_base, false});
 
   REXLOG_DEBUG(kernel, "CreateFiber: fiber={:#010x} start={:#010x} stack={:#x} param={:#010x}",
                buf_addr, lpStartAddress, guest_stack_size, lpParameter.guest_address());

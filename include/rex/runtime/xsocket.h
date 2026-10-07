@@ -12,9 +12,8 @@
 
 #include <cstring>
 #include <memory>
-#include <mutex>
-#include <queue>
 
+#include <rex/macros.h>
 #include <rex/math.h>
 #include <rex/platform/thread.h>
 #include <rex/runtime/xobject.h>
@@ -97,15 +96,6 @@ enum SocketProtocol {
   X_IPPROTO_VDP = 254,
 };
 
-/** A packet queued on a socket, with its addresses in network byte order. */
-struct SocketPacket {
-  rex::be<uint16_t> src_port;
-  rex::be<uint32_t> src_ip;
-
-  uint16_t data_len;
-  uint8_t data[1];
-};
-
 /** The host state of a socket object. */
 struct SocketObject {
   /**
@@ -113,10 +103,11 @@ struct SocketObject {
    * @param type_in The socket type.
    * @param proto_in The protocol.
    */
-  SocketObject(SocketAddressFamily af_in, SocketType type_in, SocketProtocol proto_in);
+  REX_RUNTIME_API SocketObject(SocketAddressFamily af_in, SocketType type_in,
+                               SocketProtocol proto_in);
 
   /** Closes the native socket. */
-  ~SocketObject();
+  REX_RUNTIME_API ~SocketObject();
 
   u64 native_handle = static_cast<u64>(-1);
   SocketAddressFamily af;
@@ -127,8 +118,6 @@ struct SocketObject {
   u16 bound_port = 0;
   bool broadcast_socket = false;
   std::unique_ptr<rex::platform::Event> event;
-  std::mutex incoming_packet_mutex;
-  std::queue<u8*> incoming_packets;
 };
 
 /**
@@ -137,7 +126,7 @@ struct SocketObject {
  * @param sock The socket.
  * @return X_STATUS_SUCCESS, or X_STATUS_UNSUCCESSFUL.
  */
-X_STATUS SocketInitialize(SocketObject& sock);
+REX_RUNTIME_API X_STATUS SocketInitialize(SocketObject& sock);
 
 /**
  * Closes the native socket.
@@ -145,7 +134,7 @@ X_STATUS SocketInitialize(SocketObject& sock);
  * @param sock The socket.
  * @return X_STATUS_SUCCESS, or X_STATUS_UNSUCCESSFUL.
  */
-X_STATUS SocketClose(SocketObject& sock);
+REX_RUNTIME_API X_STATUS SocketClose(SocketObject& sock);
 
 /**
  * Sets a socket option.
@@ -157,7 +146,8 @@ X_STATUS SocketClose(SocketObject& sock);
  * @param optlen The size of the option value.
  * @return X_STATUS_SUCCESS, or X_STATUS_UNSUCCESSFUL.
  */
-X_STATUS SocketSetOption(SocketObject& sock, u32 level, u32 optname, void* optval_ptr, u32 optlen);
+REX_RUNTIME_API X_STATUS SocketSetOption(SocketObject& sock, u32 level, u32 optname,
+                                         void* optval_ptr, u32 optlen);
 
 /**
  * Runs an IO control command.
@@ -167,7 +157,7 @@ X_STATUS SocketSetOption(SocketObject& sock, u32 level, u32 optname, void* optva
  * @param arg_ptr The command argument.
  * @return X_STATUS_SUCCESS, or X_STATUS_UNSUCCESSFUL.
  */
-X_STATUS SocketIOControl(SocketObject& sock, u32 cmd, u8* arg_ptr);
+REX_RUNTIME_API X_STATUS SocketIOControl(SocketObject& sock, u32 cmd, u8* arg_ptr);
 
 /**
  * Connects to an address.
@@ -177,7 +167,7 @@ X_STATUS SocketIOControl(SocketObject& sock, u32 cmd, u8* arg_ptr);
  * @param name_len The size of the address.
  * @return X_STATUS_SUCCESS, or X_STATUS_UNSUCCESSFUL.
  */
-X_STATUS SocketConnect(SocketObject& sock, N_XSOCKADDR* name, int name_len);
+REX_RUNTIME_API X_STATUS SocketConnect(SocketObject& sock, N_XSOCKADDR* name, int name_len);
 
 /**
  * Binds to an address.
@@ -187,7 +177,7 @@ X_STATUS SocketConnect(SocketObject& sock, N_XSOCKADDR* name, int name_len);
  * @param name_len The size of the address.
  * @return X_STATUS_SUCCESS, or X_STATUS_UNSUCCESSFUL.
  */
-X_STATUS SocketBind(SocketObject& sock, N_XSOCKADDR_IN* name, int name_len);
+REX_RUNTIME_API X_STATUS SocketBind(SocketObject& sock, N_XSOCKADDR_IN* name, int name_len);
 
 /**
  * Starts listening for connections.
@@ -196,7 +186,7 @@ X_STATUS SocketBind(SocketObject& sock, N_XSOCKADDR_IN* name, int name_len);
  * @param backlog The length of the pending connection queue.
  * @return X_STATUS_SUCCESS, or X_STATUS_UNSUCCESSFUL.
  */
-X_STATUS SocketListen(SocketObject& sock, int backlog);
+REX_RUNTIME_API X_STATUS SocketListen(SocketObject& sock, int backlog);
 
 /**
  * Accepts a connection and creates a socket object for it.
@@ -207,7 +197,8 @@ X_STATUS SocketListen(SocketObject& sock, int backlog);
  * @param name_len Receives the size of the peer address.
  * @return The handle of the new socket with a count of 1, or X_INVALID_HANDLE_VALUE.
  */
-X_HANDLE SocketAccept(Runtime& runtime, SocketObject& sock, N_XSOCKADDR* name, int* name_len);
+REX_RUNTIME_API X_HANDLE SocketAccept(Runtime& runtime, SocketObject& sock, N_XSOCKADDR* name,
+                                      int* name_len);
 
 /**
  * Shuts a connection down.
@@ -216,7 +207,7 @@ X_HANDLE SocketAccept(Runtime& runtime, SocketObject& sock, N_XSOCKADDR* name, i
  * @param how Which directions to shut down.
  * @return The native result.
  */
-int SocketShutdown(SocketObject& sock, int how);
+REX_RUNTIME_API int SocketShutdown(SocketObject& sock, int how);
 
 /**
  * Receives data.
@@ -227,7 +218,7 @@ int SocketShutdown(SocketObject& sock, int how);
  * @param flags The native flags.
  * @return The native result.
  */
-int SocketRecv(SocketObject& sock, u8* buf, u32 buf_len, u32 flags);
+REX_RUNTIME_API int SocketRecv(SocketObject& sock, u8* buf, u32 buf_len, u32 flags);
 
 /**
  * Sends data.
@@ -238,7 +229,7 @@ int SocketRecv(SocketObject& sock, u8* buf, u32 buf_len, u32 flags);
  * @param flags The native flags.
  * @return The native result.
  */
-int SocketSend(SocketObject& sock, const u8* buf, u32 buf_len, u32 flags);
+REX_RUNTIME_API int SocketSend(SocketObject& sock, const u8* buf, u32 buf_len, u32 flags);
 
 /**
  * Receives a datagram.
@@ -251,8 +242,8 @@ int SocketSend(SocketObject& sock, const u8* buf, u32 buf_len, u32 flags);
  * @param from_len Receives the size of the sender address, may be null.
  * @return The native result.
  */
-int SocketRecvFrom(SocketObject& sock, u8* buf, u32 buf_len, u32 flags, N_XSOCKADDR_IN* from,
-                   u32* from_len);
+REX_RUNTIME_API int SocketRecvFrom(SocketObject& sock, u8* buf, u32 buf_len, u32 flags,
+                                   N_XSOCKADDR_IN* from, u32* from_len);
 
 /**
  * Sends a datagram.
@@ -265,19 +256,7 @@ int SocketRecvFrom(SocketObject& sock, u8* buf, u32 buf_len, u32 flags, N_XSOCKA
  * @param to_len The size of the destination address.
  * @return The native result.
  */
-int SocketSendTo(SocketObject& sock, u8* buf, u32 buf_len, u32 flags, N_XSOCKADDR_IN* to,
-                 u32 to_len);
-
-/**
- * Queues a packet into the internal buffer of the socket.
- *
- * @param sock The socket.
- * @param src_ip The sender address in network byte order.
- * @param src_port The sender port in network byte order.
- * @param buf The packet data.
- * @param len The size of the packet data.
- * @return True when the packet was queued.
- */
-bool SocketQueuePacket(SocketObject& sock, u32 src_ip, u16 src_port, const u8* buf, size_t len);
+REX_RUNTIME_API int SocketSendTo(SocketObject& sock, u8* buf, u32 buf_len, u32 flags,
+                                 N_XSOCKADDR_IN* to, u32 to_len);
 
 }  // namespace rex::runtime

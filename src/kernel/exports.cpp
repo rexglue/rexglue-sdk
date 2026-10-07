@@ -110,12 +110,6 @@ const ExportEntry* FindByOrdinal(ExportModule module, u16 ordinal) {
   return it != table.end() && it->ordinal == ordinal ? &*it : nullptr;
 }
 
-const ExportEntry* FindByName(ExportModule module, std::string_view name) {
-  const auto table = Exports(module);
-  const auto it = std::ranges::find(table, name, &ExportEntry::name);
-  return it != table.end() ? &*it : nullptr;
-}
-
 std::optional<ExportModule> ModuleFromName(std::string_view name) {
   for (const auto& entry : kModuleNames) {
     const bool is_short = name.size() == entry.short_name.size() &&

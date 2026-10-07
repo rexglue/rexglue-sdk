@@ -15,6 +15,7 @@
 #include <functional>
 #include <vector>
 
+#include <rex/macros.h>
 #include <rex/runtime/xobject.h>
 #include <rex/runtime/xtypes.h>
 
@@ -56,8 +57,8 @@ struct EnumeratorObject {
    * @param item_size_in The size of 1 item.
    * @param write_items_in The callback that writes the next batch.
    */
-  EnumeratorObject(size_t items_per_enumerate_in, size_t item_size_in,
-                   EnumeratorWriter write_items_in);
+  REX_RUNTIME_API EnumeratorObject(size_t items_per_enumerate_in, size_t item_size_in,
+                                   EnumeratorWriter write_items_in);
 
   size_t items_per_enumerate;
   size_t item_size;
@@ -65,7 +66,7 @@ struct EnumeratorObject {
 };
 
 /** A fixed list of items that an enumerator hands out in batches. */
-class StaticItems {
+class REX_RUNTIME_API StaticItems {
  public:
   /**
    * @param items_per_enumerate The items returned by 1 Write call.
@@ -135,8 +136,8 @@ struct EnumeratorInit {
  * @param extra_buffer Receives the host address of the reserved bytes, may be null.
  * @return X_STATUS_SUCCESS, or X_STATUS_NO_MEMORY.
  */
-X_STATUS CreateEnumerator(Runtime& runtime, X_HANDLE* out_handle, const EnumeratorInit& init,
-                          EnumeratorObject&& enumerator, u32 extra_size = 0,
-                          void** extra_buffer = nullptr);
+REX_RUNTIME_API X_STATUS CreateEnumerator(Runtime& runtime, X_HANDLE* out_handle,
+                                          const EnumeratorInit& init, EnumeratorObject&& enumerator,
+                                          u32 extra_size = 0, void** extra_buffer = nullptr);
 
 }  // namespace rex::runtime

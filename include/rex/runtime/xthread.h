@@ -17,6 +17,7 @@
 #include <mutex>
 #include <string>
 
+#include <rex/macros.h>
 #include <rex/platform.h>
 #include <rex/platform/fiber.h>
 #include <rex/runtime/pin_count.h>
@@ -317,14 +318,14 @@ struct ThreadRef {
       : thread_id(thread_id_in), registry(registry_in) {}
   ThreadRef(const ThreadRef&) = delete;
   ThreadRef& operator=(const ThreadRef&) = delete;
-  ~ThreadRef();
+  REX_RUNTIME_API ~ThreadRef();
 
   u32 thread_id;
   ThreadRegistry* registry;
 };
 
 /** A guest thread or a host worker, owned by the thread registry. */
-class ThreadRecord {
+class REX_RUNTIME_API ThreadRecord {
  public:
   static constexpr u32 kStackAddressRangeBegin = 0x70000000;
   static constexpr u32 kStackAddressRangeEnd = 0x7F000000;
@@ -579,16 +580,6 @@ class ThreadRecord {
   /** Runs the queued user APCs. */
   void DeliverAPCs();
 
-  /** Takes the APC spin lock of the thread. */
-  void LockApc();
-
-  /**
-   * Releases the APC spin lock of the thread.
-   *
-   * @param queue_delivery True to wake the thread when APCs are queued.
-   */
-  void UnlockApc(bool queue_delivery);
-
   /**
    * Queues a user APC.
    *
@@ -745,8 +736,6 @@ class ThreadRecord {
 #endif
 
   std::mutex thread_lock_;
-
-  u32 apc_lock_old_irql_ = 0;
 
   std::unique_ptr<rex::platform::Thread> thread_ = nullptr;
   rex::platform::Fiber* main_fiber_ = nullptr;

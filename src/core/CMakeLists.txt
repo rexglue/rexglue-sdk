@@ -42,6 +42,9 @@ set_source_files_properties(${PROJECT_SOURCE_DIR}/thirdparty/crypto/rijndael-alg
     PROPERTIES LANGUAGE CXX)
 
 add_library(rex::core ALIAS rex-core)
+set_target_properties(rex-core PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON)
 target_compile_definitions(rex-core PRIVATE REX_BUILDING_CORE)
 rexglue_add_version_resource(rex-core DESCRIPTION "ReXGlue core")
 
@@ -124,7 +127,6 @@ target_include_directories(rex-core PUBLIC
 target_include_directories(rex-core PRIVATE
     ${PROJECT_SOURCE_DIR}
     ${PROJECT_SOURCE_DIR}/src
-    ${PROJECT_SOURCE_DIR}/thirdparty/cli11/include
     ${PROJECT_SOURCE_DIR}/thirdparty
 )
 
@@ -140,7 +142,6 @@ target_link_libraries(rex-core
         simde
         tomlplusplus
     PRIVATE
-        disruptorplus
         mspack
         utf8cpp
         xxHash::xxhash

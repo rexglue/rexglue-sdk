@@ -321,68 +321,6 @@ void Window::SetTitle(const std::string_view new_title) {
   }
 }
 
-void Window::SetIcon(const void* buffer, size_t size) {
-  bool reset = !buffer || !size;
-  WindowDestructionReceiver destruction_receiver(this);
-  LoadAndApplyIcon(reset ? nullptr : buffer, reset ? 0 : size, CanApplyState());
-  if (destruction_receiver.IsWindowDestroyedOrStateInapplicable()) {
-    return;
-  }
-}
-
-void Window::SetMainMenu(std::unique_ptr<MenuItem> new_main_menu) {
-  // The primary reason for this comparison (of two unique pointers) is
-  // nullptr == nullptr.
-  if (main_menu_ == new_main_menu) {
-    return;
-  }
-  // Keep the old menu object existing while it's still being detached from
-  // the platform window.
-  std::unique_ptr<MenuItem> old_main_menu = std::move(main_menu_);
-  main_menu_ = std::move(new_main_menu);
-  if (!CanApplyState()) {
-    return;
-  }
-  WindowDestructionReceiver destruction_receiver(this);
-  ApplyNewMainMenu(old_main_menu.get());
-  if (destruction_receiver.IsWindowDestroyedOrStateInapplicable()) {
-    return;
-  }
-}
-
-void Window::CompleteMainMenuItemsUpdate() {
-  if (!main_menu_ || !CanApplyState()) {
-    return;
-  }
-  WindowDestructionReceiver destruction_receiver(this);
-  CompleteMainMenuItemsUpdateImpl();
-  if (destruction_receiver.IsWindowDestroyedOrStateInapplicable()) {
-    return;
-  }
-}
-
-void Window::SetMainMenuEnabled(bool enabled) {
-  if (!main_menu_) {
-    return;
-  }
-  // Not comparing to the actual enabled state, it's a part of the MenuItem, not
-  // the Window.
-  // In case enabling (or even disabling) causes menu-related events (like
-  // pressing) that may execute callbacks potentially destroying the Window via
-  // the outer architecture.
-  WindowDestructionReceiver destruction_receiver(this);
-  main_menu_->SetEnabled(enabled);
-  if (destruction_receiver.IsWindowDestroyed()) {
-    return;
-  }
-  // Modifying the state of the items, notify the implementation so it makes the
-  // displaying of the main menu consistent.
-  CompleteMainMenuItemsUpdate();
-  if (destruction_receiver.IsWindowDestroyed()) {
-    return;
-  }
-}
-
 void Window::CaptureMouse() {
   ++mouse_capture_request_count_;
   if (!CanApplyState()) {

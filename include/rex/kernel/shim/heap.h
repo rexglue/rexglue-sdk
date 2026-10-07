@@ -14,6 +14,7 @@
 #include <mutex>
 #include <vector>
 
+#include <rex/macros.h>
 #include <rex/types.h>
 
 struct O1HeapInstance;
@@ -34,7 +35,7 @@ struct HeapDiagnostics {
 };
 
 /** The heap that serves the shim Rtl heap routines from guest memory. */
-class ReXHeap {
+class REX_RUNTIME_API ReXHeap {
  public:
   /**
    * Creates the first heap segment.
@@ -107,6 +108,6 @@ class ReXHeap {
  * @param memory The guest memory the heap is carved from.
  * @return True when the heap was created.
  */
-bool InitHeap(u32 heap_size_mb, rex::runtime::Memory* memory);
+REX_RUNTIME_API bool InitHeap(u32 heap_size_mb, rex::runtime::Memory* memory);
 
 }  // namespace rex::kernel::shim

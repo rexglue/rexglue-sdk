@@ -338,21 +338,4 @@ void FileRegisterIOCompletionPort(Runtime& runtime, FileObject& file, u32 key, X
   file.completion_ports.emplace_back(key, *owned);
 }
 
-void FileRemoveIOCompletionPort(Runtime& runtime, FileObject& file, u32 key) {
-  X_HANDLE owned = 0;
-  {
-    std::lock_guard<std::mutex> lock(file.completion_port_lock);
-    for (auto it = file.completion_ports.begin(); it != file.completion_ports.end(); it++) {
-      if (it->first == key) {
-        owned = it->second;
-        file.completion_ports.erase(it);
-        break;
-      }
-    }
-  }
-  if (owned) {
-    (void)runtime.object_table().Close(owned);
-  }
-}
-
 }  // namespace rex::runtime

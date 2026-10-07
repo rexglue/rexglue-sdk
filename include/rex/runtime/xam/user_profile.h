@@ -20,6 +20,7 @@
 
 #include <fmt/format.h>
 
+#include <rex/macros.h>
 #include <rex/memory.h>
 #include <rex/stream.h>
 #include <rex/runtime/xtypes.h>
@@ -219,15 +220,15 @@ class UserProfile {
   /**
    * @param runtime The runtime whose content manager holds the profile settings.
    */
-  explicit UserProfile(Runtime& runtime);
+  REX_RUNTIME_API explicit UserProfile(Runtime& runtime);
 
   uint64_t xuid() const { return xuid_; }
   std::string name() const { return name_; }
   uint32_t signin_state() const { return 1; }
   uint32_t type() const { return 1 | 2; /* local | online profile? */ }
 
-  void AddSetting(std::unique_ptr<Setting> setting);
-  Setting* GetSetting(uint32_t setting_id);
+  REX_RUNTIME_API void AddSetting(std::unique_ptr<Setting> setting);
+  REX_RUNTIME_API Setting* GetSetting(uint32_t setting_id);
 
  private:
   uint64_t xuid_;
@@ -236,8 +237,8 @@ class UserProfile {
   std::unordered_map<uint32_t, Setting*> settings_;
   Runtime& runtime_;
 
-  void LoadSetting(UserProfile::Setting*);
-  void SaveSetting(UserProfile::Setting*);
+  REX_RUNTIME_API void LoadSetting(UserProfile::Setting*);
+  REX_RUNTIME_API void SaveSetting(UserProfile::Setting*);
 };
 
 }  // namespace xam

@@ -21,6 +21,7 @@
 
 #include <fmt/format.h>
 
+#include <rex/macros.h>
 #include <rex/platform/thread.h>
 #include <rex/runtime/xmemory.h>
 #include <rex/runtime/xtypes.h>
@@ -145,7 +146,7 @@ inline void StashHandle(X_DISPATCH_HEADER* header, u32 handle) {
  * @param timeout_ticks A negative relative timeout, a positive absolute system time, or 0.
  * @return The milliseconds until the timeout, 0 when it has passed.
  */
-u32 TimeoutTicksToMs(i64 timeout_ticks);
+REX_RUNTIME_API u32 TimeoutTicksToMs(i64 timeout_ticks);
 
 /**
  * Reads the object name out of an X_OBJECT_ATTRIBUTES.
@@ -154,7 +155,7 @@ u32 TimeoutTicksToMs(i64 timeout_ticks);
  * @param obj_attributes_ptr The guest address of the attributes, or 0.
  * @return The name, empty when the attributes or the name pointer are null.
  */
-std::string NameFromAttributes(runtime::Memory* memory, u32 obj_attributes_ptr);
+REX_RUNTIME_API std::string NameFromAttributes(runtime::Memory* memory, u32 obj_attributes_ptr);
 
 template <typename T>
 class Pinned;
@@ -171,8 +172,8 @@ class Pinned;
  * @return X_STATUS_SUCCESS, X_STATUS_USER_APC, X_STATUS_TIMEOUT, X_STATUS_ABANDONED_WAIT_0, or
  * X_STATUS_INVALID_HANDLE.
  */
-X_STATUS WaitOn(Runtime& runtime, X_HANDLE handle, u32 wait_reason, u32 processor_mode,
-                u32 alertable, u64* opt_timeout);
+REX_RUNTIME_API X_STATUS WaitOn(Runtime& runtime, X_HANDLE handle, u32 wait_reason,
+                                u32 processor_mode, u32 alertable, u64* opt_timeout);
 
 /**
  * Waits on several objects.
@@ -187,8 +188,9 @@ X_STATUS WaitOn(Runtime& runtime, X_HANDLE handle, u32 wait_reason, u32 processo
  * @return The index of the signaled object for a wait on any, or the status as WaitOn does, or
  * X_STATUS_INVALID_PARAMETER when a handle is invalid.
  */
-X_STATUS WaitOnMany(Runtime& runtime, std::span<const X_HANDLE> handles, u32 wait_type,
-                    u32 wait_reason, u32 processor_mode, u32 alertable, u64* opt_timeout);
+REX_RUNTIME_API X_STATUS WaitOnMany(Runtime& runtime, std::span<const X_HANDLE> handles,
+                                    u32 wait_type, u32 wait_reason, u32 processor_mode,
+                                    u32 alertable, u64* opt_timeout);
 
 /**
  * Signals one object and waits on another as a single operation.
@@ -202,8 +204,9 @@ X_STATUS WaitOnMany(Runtime& runtime, std::span<const X_HANDLE> handles, u32 wai
  * @param opt_timeout The timeout in 100 nanosecond ticks, null to wait forever.
  * @return The status as WaitOn returns it, X_STATUS_INVALID_HANDLE when either handle is invalid.
  */
-X_STATUS SignalAndWaitOn(Runtime& runtime, X_HANDLE signal_handle, X_HANDLE wait_handle,
-                         u32 wait_reason, u32 processor_mode, u32 alertable, u64* opt_timeout);
+REX_RUNTIME_API X_STATUS SignalAndWaitOn(Runtime& runtime, X_HANDLE signal_handle,
+                                         X_HANDLE wait_handle, u32 wait_reason, u32 processor_mode,
+                                         u32 alertable, u64* opt_timeout);
 
 }  // namespace rex::runtime
 

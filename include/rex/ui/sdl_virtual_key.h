@@ -14,11 +14,12 @@
 #include <SDL3/SDL_scancode.h>
 
 #include <rex/hid/virtual_key.h>
+#include <rex/macros.h>
 
 namespace rex::ui {
 
 /// Maps an SDL scancode to the Win32-style hid::VirtualKey used by the input
 /// listener API. Returns hid::VirtualKey::kNone for unmapped keys.
-hid::VirtualKey TranslateSDLScancode(SDL_Scancode scancode);
+REX_RUNTIME_API hid::VirtualKey TranslateSDLScancode(SDL_Scancode scancode);
 
 }  // namespace rex::ui

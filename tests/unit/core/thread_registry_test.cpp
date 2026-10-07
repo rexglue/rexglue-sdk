@@ -15,7 +15,9 @@
 #include <chrono>
 #include <latch>
 
+#include <rex/api.h>
 #include <rex/platform/thread.h>
+#include <rex/platform/timer_queue.h>
 
 using namespace std::chrono_literals;
 
@@ -59,6 +61,16 @@ TEST_CASE("Terminate removes the terminated thread", "[thread_registry]") {
   thread->Terminate(0);
   rex::platform::Wait(thread.get(), false);
   REQUIRE(rex::platform::detail::LiveCount() == before);
+}
+
+TEST_CASE("Shutdown joins the timer queue thread", "[thread_registry]") {
+  const rex::u64 before = rex::platform::detail::LiveCount();
+  REQUIRE(rex::Init(rex::Config{}));
+  const auto item = rex::platform::QueueTimerOnce(
+      [](void*) {}, nullptr, rex::platform::TimerQueueWaitItem::clock::now() + 1h);
+  REQUIRE_FALSE(item.expired());
+  rex::Shutdown();
+  CHECK(rex::platform::detail::LiveCount() == before);
 }
 
 TEST_CASE("ShutdownTimerQueue without a queue does nothing", "[thread_registry]") {

@@ -9,6 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <filesystem>
@@ -95,49 +96,43 @@ flags = 4
   manager.ReplaceAchievements({MakeAchievement(1, "Embedded")});
   REQUIRE(manager.LoadMetadataFile(metadata_path).has_value());
 
-  auto first = manager.FindAchievement(1);
-  REQUIRE(first);
+  const auto achievements = manager.ListAchievements();
+  const auto first = std::ranges::find(achievements, 1u, &rex::runtime::AchievementInfo::id);
+  REQUIRE(first != achievements.end());
   CHECK(first->label == "Metadata override");
   CHECK(first->icon_path == "custom/one.png");
-  CHECK(manager.ListAchievements().size() == 2);
+  CHECK(achievements.size() == 2);
 
   REQUIRE(manager.RegisterAchievement(MakeAchievement(2, "Recomp override")).has_value());
-  auto second = manager.FindAchievement(2);
-  REQUIRE(second);
+  const auto updated = manager.ListAchievements();
+  const auto second = std::ranges::find(updated, 2u, &rex::runtime::AchievementInfo::id);
+  REQUIRE(second != updated.end());
   CHECK(second->label == "Recomp override");
 }
 
-TEST_CASE("achievement notifications are explicit and replaceable", "[achievements]") {
+TEST_CASE("achievement notifications follow the unlock request", "[achievements]") {
   rex::runtime::AchievementManager manager;
   (void)manager.RegisterAchievement(MakeAchievement(1, "One"));
   (void)manager.RegisterAchievement(MakeAchievement(2, "Two"));
 
-  int unlock_count = 0;
   int notification_count = 0;
-  auto unlock_listener = manager.RegisterUnlockCallback(
-      [&](const rex::runtime::AchievementEvent&) { ++unlock_count; });
   auto notification_listener = manager.RegisterNotificationCallback(
       [&](const rex::runtime::AchievementEvent&) { ++notification_count; });
 
   CHECK(manager.UnlockAchievement(1) == rex::runtime::AchievementUnlockResult::kUnlocked);
-  CHECK(unlock_count == 1);
   CHECK(notification_count == 0);
-
-  CHECK(manager.ShowAchievementNotification(1).has_value());
-  CHECK(notification_count == 1);
 
   CHECK(manager.UnlockAchievement(1, rex::runtime::AchievementNotification::kShow) ==
         rex::runtime::AchievementUnlockResult::kAlreadyUnlocked);
-  CHECK(notification_count == 1);
+  CHECK(notification_count == 0);
 
   CHECK(manager.UnlockAchievement(2, rex::runtime::AchievementNotification::kShow) ==
         rex::runtime::AchievementUnlockResult::kUnlocked);
-  CHECK(unlock_count == 2);
-  CHECK(notification_count == 2);
+  CHECK(notification_count == 1);
 
-  manager.UnregisterCallback(unlock_listener);
   manager.UnregisterCallback(notification_listener);
-  CHECK_FALSE(manager.ShowAchievementNotification(99).has_value());
+  CHECK(manager.UnlockAchievement(3) == rex::runtime::AchievementUnlockResult::kUnknownAchievement);
+  CHECK(notification_count == 1);
 }
 
 TEST_CASE("achievement unlock state persists across manager instances", "[achievements]") {

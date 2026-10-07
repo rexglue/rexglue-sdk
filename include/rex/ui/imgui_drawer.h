@@ -21,6 +21,7 @@
 
 #include <rex/gpu/overlay.h>
 #include <rex/gpu/presenter.h>
+#include <rex/macros.h>
 #include <rex/ui/style.h>
 #include <rex/ui/window.h>
 #include <rex/ui/window_listener.h>
@@ -31,7 +32,7 @@ namespace ui {
 class ImGuiDialog;
 class Window;
 
-class ImGuiDrawer : public WindowInputListener, public gpu::IOverlayLayer {
+class REX_RUNTIME_API ImGuiDrawer : public WindowInputListener, public gpu::IOverlayLayer {
  public:
   using FontSetupCallback = std::function<void(ImFontAtlas*)>;
   using StyleSetupCallback = std::function<void(ImGuiStyle&, Style&)>;

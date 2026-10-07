@@ -12,12 +12,14 @@
 #include <cstdint>
 #include <vector>
 
+#include <rex/macros.h>
+
 namespace rex::ui {
 
 // Decodes a PNG (or any stb-supported image) byte buffer to tightly-packed
 // R8G8B8A8 pixels. Returns an empty vector on failure; on success fills
 // out_width/out_height and returns width*height*4 bytes.
-std::vector<uint8_t> DecodeImageRGBA(const uint8_t* data, size_t size, int& out_width,
-                                     int& out_height);
+REX_RUNTIME_API std::vector<uint8_t> DecodeImageRGBA(const uint8_t* data, size_t size,
+                                                     int& out_width, int& out_height);
 
 }  // namespace rex::ui

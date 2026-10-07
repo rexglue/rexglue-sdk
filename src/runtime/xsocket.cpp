@@ -193,18 +193,4 @@ int SocketSendTo(SocketObject& sock, u8* buf, u32 buf_len, u32 flags, N_XSOCKADD
                 to ? (sockaddr*)&nto : nullptr, to_len);
 }
 
-bool SocketQueuePacket(SocketObject& sock, u32 src_ip, u16 src_port, const u8* buf, size_t len) {
-  SocketPacket* pkt = reinterpret_cast<SocketPacket*>(new u8[sizeof(SocketPacket) + len]);
-  pkt->src_ip = src_ip;
-  pkt->src_port = src_port;
-
-  pkt->data_len = (u16)len;
-  std::memcpy(pkt->data, buf, len);
-
-  std::lock_guard<std::mutex> lock(sock.incoming_packet_mutex);
-  sock.incoming_packets.push((u8*)pkt);
-
-  return true;
-}
-
 }  // namespace rex::runtime

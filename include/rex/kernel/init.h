@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include <rex/macros.h>
+
 namespace rex {
 class Runtime;
 }  // namespace rex
@@ -22,6 +24,6 @@ namespace rex::kernel {
  *
  * @param runtime The runtime being set up.
  */
-void InitializeKernel(Runtime& runtime);
+REX_RUNTIME_API void InitializeKernel(Runtime& runtime);
 
 }  // namespace rex::kernel

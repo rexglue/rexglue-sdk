@@ -13,6 +13,7 @@
 
 #include <functional>
 
+#include <rex/macros.h>
 #include <rex/platform/thread.h>
 #include <rex/ui/imgui_dialog.h>
 #include <rex/ui/windowed_app_context.h>
@@ -27,7 +28,8 @@ namespace rex::kernel::xam {
  * @param fence Signaled when the dialog closes or the drawer destroys it.
  * @return True when the dialog was created, false when the UI thread runs no more functions.
  */
-bool ShowDialog(ui::WindowedAppContext* context, const std::function<ui::ImGuiDialog*()>& create,
-                platform::Fence& fence);
+REX_RUNTIME_API bool ShowDialog(ui::WindowedAppContext* context,
+                                const std::function<ui::ImGuiDialog*()>& create,
+                                platform::Fence& fence);
 
 }  // namespace rex::kernel::xam

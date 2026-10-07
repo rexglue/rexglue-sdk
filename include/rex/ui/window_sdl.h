@@ -20,12 +20,13 @@
 
 #include <SDL3/SDL.h>
 
+#include <rex/macros.h>
 #include <rex/ui/window.h>
 #include <rex/ui/windowed_app_context_sdl.h>
 
 namespace rex::ui {
 
-class WindowSDL final : public Window {
+class REX_RUNTIME_API WindowSDL final : public Window {
  public:
   WindowSDL(WindowedAppContext& app_context, const std::string_view title,
             uint32_t desired_logical_width, uint32_t desired_logical_height);

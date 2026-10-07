@@ -17,6 +17,7 @@
 #include <mutex>
 
 #include <rex/apu/backend.h>
+#include <rex/macros.h>
 #include <rex/platform/lock_order.h>
 #include <rex/platform/thread.h>
 #include <rex/result.h>
@@ -32,7 +33,7 @@ namespace rex::runtime {
 class XMADecoder;
 
 /** The APU. Owns 8 render client slots, the "Audio Worker" guest thread and the XMA decoder. */
-class APU : public NonCopyable {
+class REX_RUNTIME_API APU : public NonCopyable {
  public:
   /** Render client slots. */
   static constexpr u32 kMaxClients = 8;

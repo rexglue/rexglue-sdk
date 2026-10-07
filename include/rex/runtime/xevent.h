@@ -12,6 +12,7 @@
 
 #include <memory>
 
+#include <rex/macros.h>
 #include <rex/platform/thread.h>
 #include <rex/runtime/xobject.h>
 #include <rex/runtime/xtypes.h>
@@ -30,13 +31,13 @@ struct EventObject {
    * @param manual_reset_in True for a notification event, false for a synchronization event.
    * @param initial_state True when the event starts signaled.
    */
-  EventObject(bool manual_reset_in, bool initial_state);
+  REX_RUNTIME_API EventObject(bool manual_reset_in, bool initial_state);
 
   /**
    * @param header The dispatch header of a title event, whose type and signal state seed the
    * object.
    */
-  explicit EventObject(const X_DISPATCH_HEADER& header);
+  REX_RUNTIME_API explicit EventObject(const X_DISPATCH_HEADER& header);
 
   bool manual_reset = false;
   std::unique_ptr<rex::platform::Event> event;
@@ -49,7 +50,7 @@ struct EventObject {
  * @param out_type Receives 0 for a manual reset event and 1 otherwise, may be null.
  * @param out_state Receives 1 when signaled and 0 otherwise, may be null.
  */
-void EventQuery(EventObject& event, u32* out_type, u32* out_state);
+REX_RUNTIME_API void EventQuery(EventObject& event, u32* out_type, u32* out_state);
 
 /**
  * Signals an event.
@@ -57,7 +58,7 @@ void EventQuery(EventObject& event, u32* out_type, u32* out_state);
  * @param event The event.
  * @return The previous state as the kernel reports it, always 1.
  */
-i32 EventSet(EventObject& event);
+REX_RUNTIME_API i32 EventSet(EventObject& event);
 
 /**
  * Signals an event and releases the current waiters.
@@ -65,7 +66,7 @@ i32 EventSet(EventObject& event);
  * @param event The event.
  * @return The previous state as the kernel reports it, always 1.
  */
-i32 EventPulse(EventObject& event);
+REX_RUNTIME_API i32 EventPulse(EventObject& event);
 
 /**
  * Clears an event.
@@ -73,6 +74,6 @@ i32 EventPulse(EventObject& event);
  * @param event The event.
  * @return The previous state as the kernel reports it, always 1.
  */
-i32 EventReset(EventObject& event);
+REX_RUNTIME_API i32 EventReset(EventObject& event);
 
 }  // namespace rex::runtime

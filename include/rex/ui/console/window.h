@@ -14,6 +14,7 @@
 #include <memory>
 
 #include <rex/gpu/backend.h>
+#include <rex/macros.h>
 #include <rex/result.h>
 #include <rex/types.h>
 
@@ -26,7 +27,7 @@ class Window;
 class WindowedAppContext;
 
 /** An OS window filled with a console view. Closing it docks the console back. */
-class ConsoleWindow : public NonCopyable {
+class REX_RUNTIME_API ConsoleWindow : public NonCopyable {
  public:
   /**
    * Opens the window.

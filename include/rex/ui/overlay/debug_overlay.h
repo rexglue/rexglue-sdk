@@ -10,6 +10,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 #pragma once
+#include <rex/macros.h>
 #include <rex/ui/imgui_dialog.h>
 #include <array>
 #include <cstdint>
@@ -25,7 +26,7 @@ struct FrameStats {
   uint64_t frame_count = 0;
 };
 
-class DebugOverlayDialog : public ImGuiDialog {
+class REX_RUNTIME_API DebugOverlayDialog : public ImGuiDialog {
  public:
   using FrameStatsProvider = std::function<FrameStats()>;
 

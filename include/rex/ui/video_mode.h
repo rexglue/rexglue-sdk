@@ -15,6 +15,8 @@
 #include <string>
 #include <string_view>
 
+#include <rex/macros.h>
+
 namespace rex::ui {
 
 inline bool TryParsePositiveInt32(std::string_view value, int32_t& value_out) {
@@ -108,23 +110,23 @@ inline bool TryParseResolutionPreset(std::string_view resolution_value, int32_t&
 /**
  * @return True when ui.resolution names a preset, with its size in the outputs.
  */
-bool TryGetResolutionPresetFromCVar(int32_t& width_out, int32_t& height_out);
+REX_RUNTIME_API bool TryGetResolutionPresetFromCVar(int32_t& width_out, int32_t& height_out);
 
 /**
  * Resolves the configured size from ui.resolution, then ui.window_width and ui.window_height,
  * then ui.video_mode_width and ui.video_mode_height.
  */
-bool ResolveConfiguredSize(int32_t& width_out, int32_t& height_out);
+REX_RUNTIME_API bool ResolveConfiguredSize(int32_t& width_out, int32_t& height_out);
 
 /**
  * The video mode the guest sees. ui.video_mode_width and ui.video_mode_height when either was
  * set, otherwise the resolved window size.
  */
-void ConfiguredVideoMode(uint32_t& width, uint32_t& height);
+REX_RUNTIME_API void ConfiguredVideoMode(uint32_t& width, uint32_t& height);
 
 /**
  * ui.video_mode_refresh_rate clamped to 24 to 240.
  */
-float ConfiguredRefreshRate();
+REX_RUNTIME_API float ConfiguredRefreshRate();
 
 }  // namespace rex::ui

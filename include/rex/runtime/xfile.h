@@ -19,6 +19,7 @@
 #include <vector>
 
 #include <rex/filesystem.h>
+#include <rex/macros.h>
 #include <rex/platform/thread.h>
 #include <rex/result.h>
 #include <rex/runtime/error.h>
@@ -83,10 +84,10 @@ struct FileObject {
    * @param file_in The opened file or directory.
    * @param synchronous True when the file was opened for synchronous IO.
    */
-  FileObject(std::unique_ptr<filesystem::IFile> file_in, bool synchronous);
+  REX_RUNTIME_API FileObject(std::unique_ptr<filesystem::IFile> file_in, bool synchronous);
 
   /** Closes the IO completion port handles the file owns. */
-  ~FileObject();
+  REX_RUNTIME_API ~FileObject();
 
   std::unique_ptr<filesystem::IFile> file;
   std::unique_ptr<rex::platform::Event> async_event;
@@ -110,9 +111,9 @@ struct FileObject {
  * @param restart True to restart the current listing.
  * @return X_STATUS_SUCCESS, X_STATUS_NO_SUCH_FILE or X_STATUS_NO_MORE_FILES.
  */
-X_STATUS FileQueryDirectory(Runtime& runtime, FileObject& file,
-                            X_FILE_DIRECTORY_INFORMATION* out_info, size_t length,
-                            std::string_view file_name, bool restart);
+REX_RUNTIME_API X_STATUS FileQueryDirectory(Runtime& runtime, FileObject& file,
+                                            X_FILE_DIRECTORY_INFORMATION* out_info, size_t length,
+                                            std::string_view file_name, bool restart);
 
 /**
  * Reads into guest memory and notifies the IO completion ports of the file.
@@ -127,9 +128,9 @@ X_STATUS FileQueryDirectory(Runtime& runtime, FileObject& file,
  * @param notify_completion False to skip the completion ports and the async event.
  * @return The status of the read.
  */
-X_STATUS FileRead(Runtime& runtime, FileObject& file, u32 buffer_guess_address, u32 buffer_length,
-                  u64 byte_offset, u32* out_bytes_read, u32 apc_context,
-                  bool notify_completion = true);
+REX_RUNTIME_API X_STATUS FileRead(Runtime& runtime, FileObject& file, u32 buffer_guess_address,
+                                  u32 buffer_length, u64 byte_offset, u32* out_bytes_read,
+                                  u32 apc_context, bool notify_completion = true);
 
 /**
  * Reads into the page sized segments of a guest segment array.
@@ -143,8 +144,9 @@ X_STATUS FileRead(Runtime& runtime, FileObject& file, u32 buffer_guess_address, 
  * @param apc_context The context reported to the completion ports.
  * @return The status of the first failed read, otherwise X_STATUS_SUCCESS.
  */
-X_STATUS FileReadScatter(Runtime& runtime, FileObject& file, u32 segments_guest_address, u32 length,
-                         u64 byte_offset, u32* out_bytes_read, u32 apc_context);
+REX_RUNTIME_API X_STATUS FileReadScatter(Runtime& runtime, FileObject& file,
+                                         u32 segments_guest_address, u32 length, u64 byte_offset,
+                                         u32* out_bytes_read, u32 apc_context);
 
 /**
  * Writes from guest memory and notifies the IO completion ports of the file.
@@ -158,8 +160,9 @@ X_STATUS FileReadScatter(Runtime& runtime, FileObject& file, u32 segments_guest_
  * @param apc_context The context reported to the completion ports.
  * @return The status of the write.
  */
-X_STATUS FileWrite(Runtime& runtime, FileObject& file, u32 buffer_guess_address, u32 buffer_length,
-                   u64 byte_offset, u32* out_bytes_written, u32 apc_context);
+REX_RUNTIME_API X_STATUS FileWrite(Runtime& runtime, FileObject& file, u32 buffer_guess_address,
+                                   u32 buffer_length, u64 byte_offset, u32* out_bytes_written,
+                                   u32 apc_context);
 
 /**
  * Sets the length of the file.
@@ -168,7 +171,7 @@ X_STATUS FileWrite(Runtime& runtime, FileObject& file, u32 buffer_guess_address,
  * @param length The new length.
  * @return X_STATUS_SUCCESS, or the mapped filesystem error.
  */
-X_STATUS FileSetLength(FileObject& file, u64 length);
+REX_RUNTIME_API X_STATUS FileSetLength(FileObject& file, u64 length);
 
 /**
  * Sets the allocation size of the file, which truncates only a file that is longer.
@@ -177,7 +180,7 @@ X_STATUS FileSetLength(FileObject& file, u64 length);
  * @param size The allocation size in bytes.
  * @return X_STATUS_SUCCESS, or the mapped filesystem error.
  */
-X_STATUS FileSetAllocation(FileObject& file, u64 size);
+REX_RUNTIME_API X_STATUS FileSetAllocation(FileObject& file, u64 size);
 
 /**
  * Moves the file inside its mount.
@@ -189,8 +192,8 @@ X_STATUS FileSetAllocation(FileObject& file, u64 size);
  * @param root The directory the new path is relative to, or null.
  * @return X_STATUS_SUCCESS, or the mapped filesystem error.
  */
-X_STATUS FileRename(filesystem::IFileSystem& file_system, FileObject& file, std::string_view path,
-                    bool replace_existing, FileObject* root);
+REX_RUNTIME_API X_STATUS FileRename(filesystem::IFileSystem& file_system, FileObject& file,
+                                    std::string_view path, bool replace_existing, FileObject* root);
 
 /**
  * Associates an IO completion port with the file. The file owns a duplicate of the port handle.
@@ -200,16 +203,8 @@ X_STATUS FileRename(filesystem::IFileSystem& file_system, FileObject& file, std:
  * @param key The completion key reported with each notification.
  * @param port The handle of the IO completion port.
  */
-void FileRegisterIOCompletionPort(Runtime& runtime, FileObject& file, u32 key, X_HANDLE port);
-
-/**
- * Removes the first IO completion port registered under a key and closes the duplicate handle.
- *
- * @param runtime The runtime the call runs in.
- * @param file The file.
- * @param key The completion key.
- */
-void FileRemoveIOCompletionPort(Runtime& runtime, FileObject& file, u32 key);
+REX_RUNTIME_API void FileRegisterIOCompletionPort(Runtime& runtime, FileObject& file, u32 key,
+                                                  X_HANDLE port);
 
 /**
  * Reads the current position of the file.
@@ -217,7 +212,7 @@ void FileRemoveIOCompletionPort(Runtime& runtime, FileObject& file, u32 key);
  * @param file The file.
  * @return The position.
  */
-u64 FilePosition(FileObject& file);
+REX_RUNTIME_API u64 FilePosition(FileObject& file);
 
 /**
  * Sets the current position of the file.
@@ -225,7 +220,7 @@ u64 FilePosition(FileObject& file);
  * @param file The file.
  * @param value The new position.
  */
-void FileSetPosition(FileObject& file, u64 value);
+REX_RUNTIME_API void FileSetPosition(FileObject& file, u64 value);
 
 /**
  * Starts a directory listing.
@@ -233,7 +228,7 @@ void FileSetPosition(FileObject& file, u64 value);
  * @param file The directory.
  * @param pattern The pattern to match, empty for every entry.
  */
-void FileSetFindPattern(FileObject& file, std::string_view pattern);
+REX_RUNTIME_API void FileSetFindPattern(FileObject& file, std::string_view pattern);
 
 /**
  * Returns the next entry of the current listing.
@@ -241,6 +236,6 @@ void FileSetFindPattern(FileObject& file, std::string_view pattern);
  * @param file The directory.
  * @return The entry, empty when the listing is exhausted or absent.
  */
-std::optional<filesystem::FileInfo> FileFindNext(FileObject& file);
+REX_RUNTIME_API std::optional<filesystem::FileInfo> FileFindNext(FileObject& file);
 
 }  // namespace rex::runtime

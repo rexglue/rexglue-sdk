@@ -14,6 +14,7 @@
 #include <string>
 #include <vector>
 
+#include <rex/macros.h>
 #include <rex/memory.h>
 #include <rex/runtime/xcontent.h>
 #include <rex/runtime/xtypes.h>
@@ -104,7 +105,7 @@ struct XdbfBlock {
 
 // Wraps an XBDF (XboxDataBaseFormat) in-memory database.
 // https://free60project.github.io/wiki/XDBF.html
-class XdbfWrapper {
+class REX_RUNTIME_API XdbfWrapper {
  public:
   XdbfWrapper(const uint8_t* data, size_t data_size);
 
@@ -130,7 +131,7 @@ class XdbfWrapper {
   const XbdfFileLoc* files_ = nullptr;
 };
 
-class XDBFGameData : public XdbfWrapper {
+class REX_RUNTIME_API XDBFGameData : public XdbfWrapper {
  public:
   XDBFGameData(const uint8_t* data, size_t data_size) : XdbfWrapper(data, data_size) {}
 

@@ -31,7 +31,6 @@ set(REXSYSTEM_SOURCES
     # Utilities
     object_table.cpp
     util/xdbf_utils.cpp
-    util/gameinfo_utils.cpp
 
     # XAM services
     xam/app_manager.cpp
@@ -56,7 +55,12 @@ set(REXSYSTEM_SOURCES
 add_library(rex-runtime SHARED ${REXSYSTEM_SOURCES})
 add_library(rex::runtime ALIAS rex-runtime)
 
-set_target_properties(rex-runtime PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
+set_target_properties(rex-runtime PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON)
+target_compile_definitions(rex-runtime
+    PRIVATE REX_BUILDING_RUNTIME
+    PUBLIC "IMGUI_USER_CONFIG=\"rex/ui/imgui_config.h\"")
 rexglue_add_version_resource(rex-runtime DESCRIPTION "ReXGlue runtime")
 
 rex_target_pch(rex-runtime

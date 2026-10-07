@@ -10,20 +10,16 @@
  */
 
 #include <algorithm>
+#include <condition_variable>
 #include <forward_list>
+#include <iterator>
 #include <memory>
 #include <mutex>
-
-#include <disruptorplus/multi_threaded_claim_strategy.hpp>
-#include <disruptorplus/ring_buffer.hpp>
-#include <disruptorplus/sequence_barrier.hpp>
-#include <disruptorplus/spin_wait_strategy.hpp>
+#include <vector>
 
 #include <rex/assert.h>
 #include <rex/platform/thread.h>
 #include <rex/platform/timer_queue.h>
-
-namespace dp = disruptorplus;
 
 namespace rex::platform {
 
@@ -34,121 +30,86 @@ class TimerQueue {
   using clock = WaitItem::clock;
   static_assert(clock::is_steady);
 
- public:
-  TimerQueue()
-      : buffer_(kWaitCount),
-        wait_strategy_(),
-        claim_strategy_(kWaitCount, wait_strategy_),
-        consumed_(wait_strategy_) {
-    claim_strategy_.add_claim_barrier(consumed_);
+  TimerQueue() {
     dispatch_thread_ =
         Spawn("rex::platform::TimerQueue",
               [this](const std::stop_token& stop_token) { TimerThreadMain(stop_token); });
   }
 
-  ~TimerQueue() {
-    dispatch_thread_.request_stop();
-
-    // Kick dispatch thread to check stop token
-    auto wait_item = std::make_shared<WaitItem>(nullptr, nullptr, this, clock::time_point::min(),
-                                                clock::duration::zero());
-    wait_item->Disarm();
-    QueueTimer(std::move(wait_item));
-
-    // std::jthread auto-joins on destruction
-  }
-
-  void TimerThreadMain(std::stop_token stop_token) {
-    dp::sequence_t next_sequence = 0;
+  void TimerThreadMain(const std::stop_token& stop_token) {
     const auto comp = [](const std::shared_ptr<WaitItem>& left,
                          const std::shared_ptr<WaitItem>& right) {
       return left->due_ < right->due_;
     };
 
     while (!stop_token.stop_requested()) {
+      std::vector<std::shared_ptr<WaitItem>> arrived;
       {
-        // Consume new wait items and add them to sorted wait queue
-        dp::sequence_t available = claim_strategy_.wait_until_published(
-            next_sequence, next_sequence - 1,
-            wait_queue_.empty() ? clock::time_point::max() : wait_queue_.front()->due_);
-
-        // Check for timeout
-        if (available != next_sequence - 1) {
-          std::forward_list<std::shared_ptr<WaitItem>> wait_items;
-          do {
-            wait_items.push_front(std::move(buffer_[next_sequence]));
-          } while (next_sequence++ != available);
-
-          consumed_.publish(available);
-
-          wait_items.sort(comp);
-          wait_queue_.merge(wait_items, comp);
+        std::unique_lock lock(mutex_);
+        const auto has_pending = [this] { return !pending_.empty(); };
+        if (wait_queue_.empty()) {
+          wake_.wait(lock, stop_token, has_pending);
+        } else {
+          wake_.wait_until(lock, stop_token, wait_queue_.front()->due_, has_pending);
         }
+        arrived.swap(pending_);
       }
 
-      {
-        // Check wait queue, invoke callbacks and reschedule
-        std::forward_list<std::shared_ptr<WaitItem>> wait_items;
-        while (!wait_queue_.empty() && wait_queue_.front()->due_ <= clock::now()) {
-          auto wait_item = std::move(wait_queue_.front());
-          wait_queue_.pop_front();
-
-          // Ensure that it isn't disarmed
-          auto state = WaitItem::State::kIdle;
-          if (wait_item->state_.compare_exchange_strong(state, WaitItem::State::kInCallback,
-                                                        std::memory_order_acq_rel)) {
-            // Possibility to dispatch to a thread pool here
-            assert_not_null(wait_item->callback_);
-            wait_item->callback_(wait_item->userdata_);
-
-            if (wait_item->interval_ != clock::duration::zero() &&
-                wait_item->state_.load(std::memory_order_acquire) !=
-                    WaitItem::State::kInCallbackSelfDisarmed) {
-              // Item is recurring and didn't self-disarm during callback:
-              wait_item->due_ += wait_item->interval_;
-              wait_item->state_.store(WaitItem::State::kIdle, std::memory_order_release);
-              wait_item->state_.notify_all();
-              wait_items.push_front(std::move(wait_item));
-            } else {
-              wait_item->state_.store(WaitItem::State::kDisarmed, std::memory_order_release);
-              wait_item->state_.notify_all();
-            }
-          } else {
-            // Specifically, kInCallback is illegal here
-            assert_true(WaitItem::State::kDisarmed == state);
-          }
-        }
+      if (!arrived.empty()) {
+        std::forward_list<std::shared_ptr<WaitItem>> wait_items(
+            std::make_move_iterator(arrived.begin()), std::make_move_iterator(arrived.end()));
         wait_items.sort(comp);
         wait_queue_.merge(wait_items, comp);
       }
+
+      std::forward_list<std::shared_ptr<WaitItem>> rescheduled;
+      while (!wait_queue_.empty() && wait_queue_.front()->due_ <= clock::now()) {
+        auto wait_item = std::move(wait_queue_.front());
+        wait_queue_.pop_front();
+
+        auto state = WaitItem::State::kIdle;
+        if (wait_item->state_.compare_exchange_strong(state, WaitItem::State::kInCallback,
+                                                      std::memory_order_acq_rel)) {
+          assert_not_null(wait_item->callback_);
+          wait_item->callback_(wait_item->userdata_);
+
+          if (wait_item->interval_ != clock::duration::zero() &&
+              wait_item->state_.load(std::memory_order_acquire) !=
+                  WaitItem::State::kInCallbackSelfDisarmed) {
+            wait_item->due_ += wait_item->interval_;
+            wait_item->state_.store(WaitItem::State::kIdle, std::memory_order_release);
+            wait_item->state_.notify_all();
+            rescheduled.push_front(std::move(wait_item));
+          } else {
+            wait_item->state_.store(WaitItem::State::kDisarmed, std::memory_order_release);
+            wait_item->state_.notify_all();
+          }
+        } else {
+          assert_true(WaitItem::State::kDisarmed == state);
+        }
+      }
+      rescheduled.sort(comp);
+      wait_queue_.merge(rescheduled, comp);
     }
   }
 
   std::weak_ptr<WaitItem> QueueTimer(std::shared_ptr<WaitItem> wait_item) {
-    auto wait_item_weak = std::weak_ptr<WaitItem>(wait_item);
-
-    // Mitigate callback flooding
+    std::weak_ptr<WaitItem> wait_item_weak = wait_item;
     wait_item->due_ = std::max(clock::now() - wait_item->interval_, wait_item->due_);
-
-    auto sequence = claim_strategy_.claim_one();
-    buffer_[sequence] = std::move(wait_item);
-    claim_strategy_.publish(sequence);
-
+    {
+      std::lock_guard lock(mutex_);
+      pending_.push_back(std::move(wait_item));
+    }
+    wake_.notify_one();
     return wait_item_weak;
   }
 
   std::jthread::id dispatch_thread_id() const { return dispatch_thread_.get_id(); }
 
  private:
-  // This ring buffer will be used to introduce timers queued by the public API
-  static constexpr size_t kWaitCount = 512;
-  dp::ring_buffer<std::shared_ptr<WaitItem>> buffer_;
-  dp::spin_wait_strategy wait_strategy_;
-  dp::multi_threaded_claim_strategy<dp::spin_wait_strategy> claim_strategy_;
-  dp::sequence_barrier<dp::spin_wait_strategy> consumed_;
-
-  // This is a _sorted_ (ascending due_) list of active timers managed by a
-  // dedicated thread
+  std::mutex mutex_;
+  std::condition_variable_any wake_;
+  std::vector<std::shared_ptr<WaitItem>> pending_;
   std::forward_list<std::shared_ptr<WaitItem>> wait_queue_;
   std::jthread dispatch_thread_;
 };
