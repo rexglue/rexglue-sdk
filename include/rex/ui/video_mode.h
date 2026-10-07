@@ -5,26 +5,30 @@
  * Copyright 2026 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
+ *
+ * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
 #pragma once
 
-#include <charconv>
 #include <cctype>
-#include <cstdint>
+#include <charconv>
 #include <string>
 #include <string_view>
 
-#include <rex/macros.h>
+#include <rex/cvar/registry.h>
+#include <rex/types.h>
 
 namespace rex::ui {
 
-inline bool TryParsePositiveInt32(std::string_view value, int32_t& value_out) {
+namespace detail {
+
+inline bool TryParsePositiveInt32(std::string_view value, i32& value_out) {
   if (value.empty()) {
     return false;
   }
 
-  int32_t parsed_value = 0;
+  i32 parsed_value = 0;
   auto [parse_end, parse_error] =
       std::from_chars(value.data(), value.data() + value.size(), parsed_value);
   if (parse_error != std::errc() || parse_end != value.data() + value.size() || parsed_value <= 0) {
@@ -35,8 +39,19 @@ inline bool TryParsePositiveInt32(std::string_view value, int32_t& value_out) {
   return true;
 }
 
-inline bool TryParseResolutionPreset(std::string_view resolution_value, int32_t& width_out,
-                                     int32_t& height_out) {
+}  // namespace detail
+
+/**
+ * Parses a resolution preset. Spaces, underscores and hyphens are ignored and case does not
+ * matter.
+ *
+ * @param resolution_value Text such as "1920x1080", "1080p" or "4k".
+ * @param width_out Receives the width.
+ * @param height_out Receives the height.
+ * @return True when the text names a size.
+ */
+inline bool TryParseResolutionPreset(std::string_view resolution_value, i32& width_out,
+                                     i32& height_out) {
   std::string normalized;
   normalized.reserve(resolution_value.size());
   for (char c : resolution_value) {
@@ -44,7 +59,7 @@ inline bool TryParseResolutionPreset(std::string_view resolution_value, int32_t&
     if (std::isspace(c_unsigned) || c == '_' || c == '-') {
       continue;
     }
-    normalized.push_back(char(std::tolower(c_unsigned)));
+    normalized.push_back(static_cast<char>(std::tolower(c_unsigned)));
   }
   if (normalized.empty()) {
     return false;
@@ -52,11 +67,12 @@ inline bool TryParseResolutionPreset(std::string_view resolution_value, int32_t&
 
   size_t x_position = normalized.find('x');
   if (x_position != std::string::npos && x_position > 0 && x_position + 1 < normalized.size()) {
-    int32_t parsed_width = 0;
-    int32_t parsed_height = 0;
-    if (!TryParsePositiveInt32(std::string_view(normalized).substr(0, x_position), parsed_width) ||
-        !TryParsePositiveInt32(std::string_view(normalized).substr(x_position + 1),
-                               parsed_height)) {
+    i32 parsed_width = 0;
+    i32 parsed_height = 0;
+    if (!detail::TryParsePositiveInt32(std::string_view(normalized).substr(0, x_position),
+                                       parsed_width) ||
+        !detail::TryParsePositiveInt32(std::string_view(normalized).substr(x_position + 1),
+                                       parsed_height)) {
       return false;
     }
     width_out = parsed_width;
@@ -108,25 +124,17 @@ inline bool TryParseResolutionPreset(std::string_view resolution_value, int32_t&
 }
 
 /**
- * @return True when ui.resolution names a preset, with its size in the outputs.
+ * Reads ui.resolution and parses it as a preset.
+ *
+ * @param cvars Registry holding ui.resolution.
+ * @param width_out Receives the width.
+ * @param height_out Receives the height.
+ * @return True when ui.resolution exists and names a size.
  */
-REX_RUNTIME_API bool TryGetResolutionPresetFromCVar(int32_t& width_out, int32_t& height_out);
-
-/**
- * Resolves the configured size from ui.resolution, then ui.window_width and ui.window_height,
- * then ui.video_mode_width and ui.video_mode_height.
- */
-REX_RUNTIME_API bool ResolveConfiguredSize(int32_t& width_out, int32_t& height_out);
-
-/**
- * The video mode the guest sees. ui.video_mode_width and ui.video_mode_height when either was
- * set, otherwise the resolved window size.
- */
-REX_RUNTIME_API void ConfiguredVideoMode(uint32_t& width, uint32_t& height);
-
-/**
- * ui.video_mode_refresh_rate clamped to 24 to 240.
- */
-REX_RUNTIME_API float ConfiguredRefreshRate();
+inline bool TryGetResolutionPresetFromCVar(const cvar::ICvarRegistry& cvars, i32& width_out,
+                                           i32& height_out) {
+  auto value = cvars.Get("ui.resolution");
+  return value && TryParseResolutionPreset(*value, width_out, height_out);
+}
 
 }  // namespace rex::ui

@@ -42,6 +42,7 @@
 #include <rex/runtime/thread_registry.h>
 #include <rex/runtime/thread_state.h>
 #include <rex/runtime/xmemory.h>
+#include <rex/ui/user_interface.h>
 
 struct PPCFuncMapping;
 
@@ -81,21 +82,8 @@ class UserProfile;
 }  // namespace xam
 
 /** The display mode the title queries through VdQueryVideoMode and XGetVideoMode. */
-struct VideoMode {
-  /** Width in pixels. */
-  u32 width = 1280;
-  /** Height in pixels. */
-  u32 height = 720;
-  /** Refresh rate in hertz. */
-  f32 refresh_rate = 60.0f;
-};
+using VideoMode = ui::VideoMode;
 }  // namespace runtime
-
-namespace ui {
-class WindowedAppContext;
-class Window;
-class ImGuiDrawer;
-}  // namespace ui
 
 /** The subsystems Runtime::Setup builds the runtime over. */
 struct RuntimeConfig {
@@ -107,8 +95,10 @@ struct RuntimeConfig {
   std::function<void(Runtime&)> kernel_init;
   /** True to skip the GPU, for analysis tools. */
   bool tool_mode = false;
-  /** The display mode the title queries. TitleApp fills it from the ui.video_mode cvars. */
+  /** The display mode the title queries. TitleApp fills it from the user interface. */
   runtime::VideoMode video_mode;
+  /** The user interface dialogs show through. TitleApp sets it, analysis tools leave it null. */
+  ui::IUserInterface* ui = nullptr;
 };
 
 /**
@@ -251,46 +241,11 @@ class REX_RUNTIME_API Runtime {
       const std::filesystem::path& relative_path) const;
 
   /**
-   * Sets the app context for presentation.
+   * Returns the user interface dialogs show through.
    *
-   * @param context The windowed app context, null to clear it.
+   * @return The interface, or null for a runtime built without one.
    */
-  void set_app_context(ui::WindowedAppContext* context) { app_context_ = context; }
-
-  /**
-   * Returns the app context for presentation.
-   *
-   * @return The context, null when none is set.
-   */
-  ui::WindowedAppContext* app_context() const { return app_context_; }
-
-  /**
-   * Sets the window dialogs present on.
-   *
-   * @param window The window that dialogs present on, null to clear it.
-   */
-  void set_display_window(ui::Window* window) { display_window_ = window; }
-
-  /**
-   * Returns the window dialogs present on.
-   *
-   * @return The window, null when none is set.
-   */
-  ui::Window* display_window() const { return display_window_; }
-
-  /**
-   * Sets the ImGui drawer dialogs draw with.
-   *
-   * @param drawer The ImGui drawer that dialogs draw with, null to clear it.
-   */
-  void set_imgui_drawer(ui::ImGuiDrawer* drawer) { imgui_drawer_ = drawer; }
-
-  /**
-   * Returns the ImGui drawer dialogs draw with.
-   *
-   * @return The drawer, null when none is set.
-   */
-  ui::ImGuiDrawer* imgui_drawer() const { return imgui_drawer_; }
+  ui::IUserInterface* ui() const { return ui_; }
 
   /**
    * Builds the memory, the function dispatcher, the object table, the registries, the managers and
@@ -528,9 +483,7 @@ class REX_RUNTIME_API Runtime {
   std::filesystem::path cache_root_;
   std::filesystem::path metadata_root_;
 
-  ui::WindowedAppContext* app_context_ = nullptr;
-  ui::Window* display_window_ = nullptr;
-  ui::ImGuiDrawer* imgui_drawer_ = nullptr;
+  ui::IUserInterface* ui_ = nullptr;
   bool tool_mode_ = false;
   runtime::VideoMode video_mode_;
   PPCCodegenFlags codegen_flags_{};

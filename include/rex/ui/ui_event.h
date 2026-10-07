@@ -22,7 +22,7 @@
 
 namespace rex::ui {
 
-class Window;
+class IWindow;
 
 /** Base of every window and input event. */
 class UIEvent {
@@ -55,7 +55,7 @@ class UIEvent {
    * @param type Kind of the event.
    * @param target Window the event belongs to.
    */
-  UIEvent(Type type, Window* target) : type_(type), target_(target) {}
+  UIEvent(Type type, IWindow* target) : type_(type), target_(target) {}
 
   virtual ~UIEvent() = default;
 
@@ -71,7 +71,7 @@ class UIEvent {
    *
    * @return The target window.
    */
-  Window* target() const { return target_; }
+  IWindow* target() const { return target_; }
 
   /**
    * Casts this event to the class that carries its data.
@@ -86,7 +86,7 @@ class UIEvent {
 
  private:
   Type type_;
-  Window* target_;
+  IWindow* target_;
 };
 
 /** Carries the setup state for the window opening, DPI, resize, focus and monitor events. */
@@ -99,7 +99,7 @@ class UISetupEvent : public UIEvent {
    * @param target Window the event belongs to.
    * @param is_initial_setup True when the window is opening.
    */
-  UISetupEvent(Type type, Window* target, bool is_initial_setup = false)
+  UISetupEvent(Type type, IWindow* target, bool is_initial_setup = false)
       : UIEvent(type, target), is_initial_setup_(is_initial_setup) {}
 
   /**
@@ -134,7 +134,7 @@ class ResizeEvent : public UISetupEvent {
    * @param size The client area size after the change.
    * @param is_initial_setup True when the window is opening.
    */
-  ResizeEvent(Window* target, WindowSize size, bool is_initial_setup = false)
+  ResizeEvent(IWindow* target, WindowSize size, bool is_initial_setup = false)
       : UISetupEvent(Type::Resize, target, is_initial_setup), size_(size) {}
 
   /**
@@ -166,7 +166,7 @@ class FocusEvent : public UISetupEvent {
    * @param focused True when the window gained focus.
    * @param is_initial_setup True when the window is opening.
    */
-  FocusEvent(Window* target, bool focused, bool is_initial_setup = false)
+  FocusEvent(IWindow* target, bool focused, bool is_initial_setup = false)
       : UISetupEvent(Type::Focus, target, is_initial_setup), focused_(focused) {}
 
   /**
@@ -198,7 +198,7 @@ class MonitorUpdateEvent : public UISetupEvent {
    * @param old_monitor_potentially_disconnected True when the previous monitor may be gone.
    * @param is_initial_setup True when the window is opening.
    */
-  MonitorUpdateEvent(Window* target, bool old_monitor_potentially_disconnected,
+  MonitorUpdateEvent(IWindow* target, bool old_monitor_potentially_disconnected,
                      bool is_initial_setup = false)
       : UISetupEvent(Type::MonitorUpdate, target, is_initial_setup),
         old_monitor_potentially_disconnected_(old_monitor_potentially_disconnected) {}
@@ -233,7 +233,7 @@ class FileDropEvent : public UIEvent {
    * @param target Window the event belongs to.
    * @param filename Path of the dropped file.
    */
-  FileDropEvent(Window* target, std::filesystem::path filename)
+  FileDropEvent(IWindow* target, std::filesystem::path filename)
       : UIEvent(Type::FileDrop, target), filename_(std::move(filename)) {}
 
   /**
@@ -270,7 +270,7 @@ class KeyEvent : public UIEvent {
    * @param modifier_ctrl_pressed True while Ctrl is held.
    * @param modifier_alt_pressed True while Alt is held.
    */
-  KeyEvent(Type type, Window* target, hid::VirtualKey virtual_key, i32 repeat_count,
+  KeyEvent(Type type, IWindow* target, hid::VirtualKey virtual_key, i32 repeat_count,
            bool prev_state, bool modifier_shift_pressed, bool modifier_ctrl_pressed,
            bool modifier_alt_pressed)
       : UIEvent(type, target),
@@ -386,7 +386,7 @@ class MouseEvent : public UIEvent {
    * @param dx Motion since the previous event in physical pixels.
    * @param dy Motion since the previous event in physical pixels.
    */
-  MouseEvent(Type type, Window* target, Button button, i32 x, i32 y, i32 scroll_x = 0,
+  MouseEvent(Type type, IWindow* target, Button button, i32 x, i32 y, i32 scroll_x = 0,
              i32 scroll_y = 0, f32 dx = 0.0f, f32 dy = 0.0f)
       : UIEvent(type, target),
         button_(button),
@@ -458,7 +458,7 @@ class MouseEvent : public UIEvent {
   i32 scroll_y() const { return scroll_y_; }
 
   /**
-   * Returns the motion since the previous event. Moves under Window::SetRelativeMouseMode,
+   * Returns the motion since the previous event. Moves while the pointer is locked for mouse look,
    * where x and y do not.
    *
    * @return Fractional physical pixels.
@@ -466,7 +466,7 @@ class MouseEvent : public UIEvent {
   f32 dx() const { return dx_; }
 
   /**
-   * Returns the motion since the previous event. Moves under Window::SetRelativeMouseMode,
+   * Returns the motion since the previous event. Moves while the pointer is locked for mouse look,
    * where x and y do not.
    *
    * @return Fractional physical pixels.
@@ -508,7 +508,7 @@ class TouchEvent : public UIEvent {
    * @param x Point x, possibly outside the surface.
    * @param y Point y, possibly outside the surface.
    */
-  TouchEvent(Type type, Window* target, u32 pointer_id, Action action, f32 x, f32 y)
+  TouchEvent(Type type, IWindow* target, u32 pointer_id, Action action, f32 x, f32 y)
       : UIEvent(type, target), pointer_id_(pointer_id), action_(action), x_(x), y_(y) {}
 
   /**

@@ -113,7 +113,7 @@ function(rexglue_configure_target target_name)
         # (paired with the @executable_path rpath above). Everything else the
         # runtime links (fmt, SDL3, ...) is static. Target names
         # differ between an in-tree build and an installed SDK import.
-        foreach(_rexglue_runtime_lib rex::core rex-core rex::runtime rex-runtime rex::TracyClient TracyClient)
+        foreach(_rexglue_runtime_lib rex::core rex-core rex::imgui rex-imgui rex::runtime rex-runtime rex::TracyClient TracyClient)
             if(TARGET ${_rexglue_runtime_lib})
                 add_custom_command(TARGET ${target_name} POST_BUILD
                     COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -157,7 +157,7 @@ function(rexglue_configure_target target_name)
         target_sources(${target_name} PRIVATE "${_optimus_source}")
     endif()
 
-    set(_rexglue_staged_modules rex-filesystem rex-apu-sdl3 rex-hid-sdl3)
+    set(_rexglue_staged_modules rex-filesystem rex-apu-sdl3 rex-hid-sdl3 rex-ui-sdl3)
     if(WIN32)
         list(APPEND _rexglue_staged_modules rex-hid-xinput)
     endif()

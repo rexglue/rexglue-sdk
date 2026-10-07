@@ -152,6 +152,7 @@ Result<void> Runtime::Setup(const RuntimeConfig& config) {
 
   tool_mode_ = config.tool_mode;
   video_mode_ = config.video_mode;
+  ui_ = config.ui;
 
   // Create memory system first
   memory_ = std::make_unique<runtime::Memory>();

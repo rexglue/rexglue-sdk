@@ -51,9 +51,15 @@ void ToolRuntime::Release() {
   rex::Shutdown();
 }
 
-Result<ToolRuntime> OpenToolRuntime(const std::filesystem::path& game_root) {
+Result<ToolRuntime> OpenToolRuntime(const std::filesystem::path& game_root,
+                                    std::span<const std::string> extra_modules,
+                                    ui::IUserInterface* ui) {
   Config config;
   config.modules = {"rex-filesystem", "rex-runtime"};
+  config.modules.insert(config.modules.end(), extra_modules.begin(), extra_modules.end());
+  if (!extra_modules.empty()) {
+    config.ui.video_driver = "dummy";
+  }
   config.paths.game_data_root = game_root;
   REX_TRY(API * api, rex::Init(config));
   auto* file_system = api->Get<filesystem::IFileSystem>();
@@ -69,6 +75,7 @@ Result<ToolRuntime> OpenToolRuntime(const std::filesystem::path& game_root) {
       .file_system = file_system,
       .kernel_init = kernel::InitializeKernel,
       .tool_mode = true,
+      .ui = ui != nullptr ? ui : api->Get<ui::IUserInterface>(),
   });
   if (!setup) {
     runtime.reset();

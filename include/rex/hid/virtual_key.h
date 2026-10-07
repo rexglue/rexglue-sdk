@@ -15,6 +15,7 @@
 #include <string_view>
 
 #include <rex/macros.h>
+#include <rex/types.h>
 
 namespace rex::hid {
 
@@ -30,7 +31,7 @@ namespace rex::hid {
 // Base virtual key codes as of _WIN32_WINNT 0x0500 (Windows 2000, which the
 // Xbox 360's kernel is based on), virtual key codes added later are marked
 // explicitly as such.
-enum class VirtualKey : uint16_t {
+enum class VirtualKey : u16 {
   // Not a valid key - MapVirtualKey returns zero when there is no translation.
   kNone,
 
@@ -47,6 +48,8 @@ enum class VirtualKey : uint16_t {
 
   kClear = 0x0C,
   kReturn = 0x0D,  // Enter.
+  kWheelUp = 0x0E,
+  kWheelDown = 0x0F,
 
   kShift = 0x10,
   kControl = 0x11,  // Ctrl.

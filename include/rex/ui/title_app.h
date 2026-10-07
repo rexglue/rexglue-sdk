@@ -30,9 +30,10 @@
 #include <rex/runtime/config.h>
 #include <rex/types.h>
 #include <rex/ui.h>
+#include <rex/ui/null_user_interface.h>
 #include <rex/ui/overlay.h>
-#include <rex/ui/overlay/debug_overlay.h>
 #include <rex/ui/ui_event.h>
+#include <rex/ui/user_interface.h>
 
 #if REX_PLATFORM_WIN32
 #include <windows.h>
@@ -47,13 +48,7 @@ class Runtime;
 
 namespace rex::ui {
 
-class AchievementNotificationDialog;
-class ConsoleModel;
-class ConsoleWindow;
-class ImGuiDrawer;
-class SDLWindowedAppContext;
 class TitleApp;
-class Window;
 struct Style;
 
 /** Setup access passed to TitleApp::OnCreateWindow. Valid only while that hook runs. */
@@ -62,37 +57,37 @@ class REX_RUNTIME_API TitleUI {
   /**
    * Returns the ImGui font atlas before it is built.
    *
-   * @return The atlas the drawer builds after OnCreateWindow returns.
+   * @return The atlas the ui module builds after OnCreateWindow returns.
    */
-  ImFontAtlas& fonts();
+  ImFontAtlas& Fonts();
 
   /**
    * Returns the ImGui style.
    *
    * @return The style every overlay draws with.
    */
-  ImGuiStyle& style();
+  ImGuiStyle& GetImGuiStyle();
 
   /**
-   * Returns the SDK theme.
+   * Returns the SDK style.
    *
-   * @return The theme the SDK overlays read.
+   * @return The style the SDK overlays read.
    */
-  Style& theme();
+  Style& GetStyle();
 
   /**
    * Returns the window being created.
    *
    * @return The open window.
    */
-  Window& window();
+  IWindow& GetWindow();
 
   /**
-   * Returns the overlay registry.
+   * Returns the user interface that owns the overlays.
    *
-   * @return The registry the app adds its overlays to.
+   * @return The interface the app adds its overlays to.
    */
-  OverlayRegistry& overlays();
+  IUserInterface& Overlays();
 
   /**
    * Sets the frame time source the debug overlay reads, for apps that present the title
@@ -100,7 +95,7 @@ class REX_RUNTIME_API TitleUI {
    *
    * @param provider Function the debug overlay calls once per frame.
    */
-  void SetFrameStats(DebugOverlayDialog::FrameStatsProvider provider);
+  void SetFrameStats(FrameStatsProvider provider);
 
   /**
    * Gives the title window an overlay drawer when no GPU backend module is loaded.
@@ -127,7 +122,7 @@ class REX_RUNTIME_API TitleApp : public App, public gpu::IUIThread {
   ~TitleApp() override;
 
   /**
-   * Runs work on the UI thread through the windowed app context.
+   * Runs work on the UI thread through the user interface.
    *
    * @param work The work to run.
    */
@@ -135,8 +130,9 @@ class REX_RUNTIME_API TitleApp : public App, public gpu::IUIThread {
 
   /**
    * Configures and initializes the app for a recompiled image. Starts the module list as
-   * {"rex-gpu-xenos"}, then runs App::Init, which puts rex-filesystem and rex-runtime first through
-   * RequireModules.
+   * {"rex-apu-sdl3", "rex-hid-sdl3", "rex-gpu-xenos", "rex-ui-sdl3"}, then runs App::Init, which
+   * puts rex-filesystem and rex-runtime first through RequireModules. Fetches the user interface
+   * afterwards and runs headless on a null provider when no module serves one.
    *
    * @param args The process command line.
    * @param image The recompiled image descriptor codegen generates.
@@ -145,9 +141,10 @@ class REX_RUNTIME_API TitleApp : public App, public gpu::IUIThread {
   [[nodiscard]] Result<void> Init(const CLIArgList& args, const PPCImageInfo& image);
 
   /**
-   * Creates the title window. Opens the SDL context and the window from Config::ui, creates the
-   * drawers and the overlay registry, calls OnCreateWindow, then builds the fonts. Returns Ok
-   * without doing anything once shutdown has been requested.
+   * Creates the title window. Opens the window from Config::ui through the user interface, hands
+   * the GPU backend its presentation, creates the overlay drawer, calls OnCreateWindow, then lets
+   * the ui module build the fonts. Opens no window and skips OnCreateWindow on the headless
+   * provider. Returns Ok without doing anything once shutdown has been requested.
    *
    * @return Ok when the window is open, or when shutdown has been requested.
    */
@@ -157,7 +154,7 @@ class REX_RUNTIME_API TitleApp : public App, public gpu::IUIThread {
    * Runs 1 loop iteration. Processes window events, runs posted functions and draws the
    * overlays. Lets the app show its own UI before LaunchTitle.
    *
-   * @return False once shutdown has been requested.
+   * @return False once shutdown has been requested or the UI loop quit.
    */
   bool RunFrame();
 
@@ -175,9 +172,10 @@ class REX_RUNTIME_API TitleApp : public App, public gpu::IUIThread {
 
  protected:
   /**
-   * Runs while the window is created, before the font atlas is built.
+   * Runs while the window is created, before the font atlas is built. Does not run on the
+   * headless provider.
    *
-   * @param ui Setup access to fonts, style, theme, window, overlays, drawer and frame stats.
+   * @param ui Setup access to fonts, style, window, overlays and frame stats.
    */
   virtual void OnCreateWindow(TitleUI& ui);
 
@@ -203,7 +201,7 @@ class REX_RUNTIME_API TitleApp : public App, public gpu::IUIThread {
 
   /**
    * Runs when the title exits while the app keeps running. The default shows a prompt with
-   * Restart and Exit.
+   * Restart and Exit, and requests shutdown on the headless provider.
    *
    * @param reason Why the title exited.
    */
@@ -224,12 +222,12 @@ class REX_RUNTIME_API TitleApp : public App, public gpu::IUIThread {
   platform::CrashReporterOptions CrashOptions() override;
 
   /**
-   * Destroys every dialog the drawer owns, stops the title and every guest thread, then closes the
+   * Cancels every pending prompt, stops the title and every guest thread, then closes the
    * window.
    */
   void Stop() override;
 
-  /** Destroys the window and shuts down the runtime. */
+  /** Clears the invoke target and shuts down the runtime. */
   void Release() override;
 
   /**
@@ -245,69 +243,49 @@ class REX_RUNTIME_API TitleApp : public App, public gpu::IUIThread {
    *
    * @return The runtime, or nullptr before LaunchTitle and after Release.
    */
-  Runtime* runtime();
+  Runtime* GetRuntime();
 
   /**
    * Returns the title window.
    *
-   * @return The window. Valid from OnCreateWindow until Release destroys it.
+   * @return The window. Valid from OnCreateWindow until Stop closes it. Never call it on the
+   *         headless provider, which opens no window.
    */
-  Window& window();
+  IWindow& GetWindow();
 
   /**
-   * Returns the ImGui drawer.
+   * Returns the user interface.
    *
-   * @return The drawer. Valid from OnCreateWindow until Release destroys it.
+   * @return The interface a module serves, or the headless fallback. Valid from Init until
+   *         Release.
    */
-  ImGuiDrawer& drawer();
-
-  /**
-   * Returns the overlay registry, for overlays added after the window exists.
-   *
-   * @return The registry. Valid from OnCreateWindow until Release destroys it.
-   */
-  OverlayRegistry& overlays();
+  IUserInterface& UI();
 
  private:
   friend class TitleUI;
-  class Listener;
-  class BindListener;
-  class ConsoleDockHost;
-  class HIDHost;
+  friend struct TitleAppProbe;
 
+  bool OnWindowEvent(const UIEvent& event);
   Result<void> LaunchFailure(std::string_view message);
 
   PPCImageInfo image_{};
-  std::unique_ptr<SDLWindowedAppContext> context_;
   gpu::IBackend* gpu_ = nullptr;
-  std::unique_ptr<Window> window_;
-  std::unique_ptr<Listener> listener_;
-  std::unique_ptr<BindListener> bind_listener_;
-  std::unique_ptr<gpu::IOverlayDrawer> overlay_drawer_;
-  std::unique_ptr<ImGuiDrawer> drawer_;
-  std::unique_ptr<log::CaptureSink> log_capture_;
-  ILogger* logger_ = nullptr;
-  DebugOverlayDialog::FrameStatsProvider frame_stats_;
+  IUserInterface* ui_ = nullptr;
+  NullUserInterface null_ui_;
   std::unique_ptr<Runtime> runtime_;
-  std::unique_ptr<ConsoleModel> console_;
-  std::unique_ptr<ConsoleDockHost> console_host_;
-  std::unique_ptr<HIDHost> hid_host_;
-  std::unique_ptr<ConsoleWindow> console_window_;
-  std::unique_ptr<OverlayContext> overlay_context_;
-  std::unique_ptr<OverlayRegistry> overlays_;
-  std::vector<cvar::CallbackHandle> window_callbacks_;
-  std::shared_ptr<AchievementNotificationDialog> toast_;
-  u64 toast_listener_ = 0;
   std::jthread title_monitor_;
   bool com_initialized_ = false;
   bool events_ready_ = false;
 };
 
 /**
- * Queues a function to run on the UI thread during the next frame. Callable from any thread.
+ * Queues a function to run on the UI thread during the next frame. Callable from any thread. The
+ * target is the user interface of the live title app, set by Init and cleared by Release, the
+ * only process wide state the app keeps.
  *
  * @param fn Function to run on the UI thread.
- * @return False when no title app has a window, in which case fn is discarded.
+ * @return False when no title app is live or the UI thread runs no more functions, in which case
+ *         fn is discarded.
  */
 REX_RUNTIME_API bool InvokeFunction(std::move_only_function<void()> fn);
 

@@ -12,6 +12,8 @@
 #include <array>
 #include <memory>
 
+#include <SDL3/SDL_hints.h>
+
 #include "hid/common/module_base.h"
 #include "hid/sdl3/sdl3_driver.h"
 
@@ -28,6 +30,11 @@ class SDL3Module final : public HIDModuleBase {
   }};
 
   const char* Name() const override { return "rex-hid-sdl3"; }
+
+  Result<void> Connect(IInterfaceFactory* factory, const Config& config) override {
+    SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "1");
+    return HIDModuleBase::Connect(factory, config);
+  }
 
  protected:
   Result<std::unique_ptr<Driver>> CreatePadDriver(const HIDConfig& config) override {

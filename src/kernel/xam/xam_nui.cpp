@@ -18,8 +18,6 @@ namespace rex {
 namespace kernel {
 namespace xam {
 
-extern std::atomic<int> xam_dialogs_shown_;
-
 struct X_NUI_DEVICE_STATUS {
   rex::be<uint32_t> unk0;
   rex::be<uint32_t> unk1;
@@ -38,28 +36,6 @@ void XamNuiGetDeviceStatus_entry(ppc_ptr_t<X_NUI_DEVICE_STATUS> status_ptr) {
 u32 XamShowNuiTroubleshooterUI_entry(u32 unk1, u32 unk2, u32 unk3) {
   // unk1 is 0xFF - possibly user index?
   // unk2, unk3 appear to always be zero.
-
-  if (runtime::Current().config().runtime.kernel.headless) {
-    return 0;
-  }
-  // TODO(tomc): Implement imgui stuff
-  // const Runtime* emulator = &runtime::Current();
-  // ui::Window* display_window = emulator->display_window();
-  // ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
-  // if (display_window && imgui_drawer) {
-  //  rex::platform::Fence fence;
-  //  if (display_window->app_context().CallInUIThreadSynchronous([&]() {
-  //        rex::ui::ImGuiDialog::ShowMessageBox(
-  //            imgui_drawer, "NUI Troubleshooter",
-  //            "The game has indicated there is a problem with NUI (Kinect).")
-  //            ->Then(&fence);
-  //      })) {
-  //    ++xam_dialogs_shown_;
-  //    fence.Wait();
-  //    --xam_dialogs_shown_;
-  //  }
-  //}
-
   return 0;
 }
 

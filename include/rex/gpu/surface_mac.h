@@ -19,12 +19,7 @@ namespace gpu {
 
 class CAMetalLayerSurface final : public Surface {
  public:
-  // Takes ownership of `metal_view` (an SDL_MetalView) and destroys it on
-  // teardown. `layer` is the CAMetalLayer backing that view. `window` is
-  // borrowed and used only to query the current pixel size.
-  CAMetalLayerSurface(SDL_Window* window, void* metal_view, const void* layer)
-      : window_(window), metal_view_(metal_view), layer_(layer) {}
-  ~CAMetalLayerSurface() override;
+  CAMetalLayerSurface(SDL_Window* window, const void* layer) : window_(window), layer_(layer) {}
 
   TypeIndex GetType() const override { return kTypeIndex_CAMetalLayer; }
   const void* layer() const { return layer_; }
@@ -34,7 +29,6 @@ class CAMetalLayerSurface final : public Surface {
 
  private:
   SDL_Window* window_;
-  void* metal_view_;
   const void* layer_;
 };
 

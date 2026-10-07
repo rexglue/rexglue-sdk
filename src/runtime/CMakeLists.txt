@@ -50,6 +50,7 @@ set(REXSYSTEM_SOURCES
     xma/register_file.cpp
     thread_state.cpp
     xex_module.cpp
+    title_app.cpp
 )
 
 add_library(rex-runtime SHARED ${REXSYSTEM_SOURCES})
@@ -58,9 +59,7 @@ add_library(rex::runtime ALIAS rex-runtime)
 set_target_properties(rex-runtime PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN ON)
-target_compile_definitions(rex-runtime
-    PRIVATE REX_BUILDING_RUNTIME
-    PUBLIC "IMGUI_USER_CONFIG=\"rex/ui/imgui_config.h\"")
+target_compile_definitions(rex-runtime PRIVATE REX_BUILDING_RUNTIME)
 rexglue_add_version_resource(rex-runtime DESCRIPTION "ReXGlue runtime")
 
 rex_target_pch(rex-runtime
@@ -78,7 +77,6 @@ rex_target_pch(rex-runtime
 target_include_directories(rex-runtime PUBLIC
     $<BUILD_INTERFACE:${REXGLUE_ROOT}/include>
     $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
-    $<BUILD_INTERFACE:${REXGLUE_ROOT}/thirdparty/imgui>
     $<BUILD_INTERFACE:${REXGLUE_ROOT}/thirdparty/xxHash>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
@@ -90,10 +88,10 @@ target_include_directories(rex-runtime PRIVATE
 target_link_libraries(rex-runtime
     PUBLIC
         rex-core
+        rex-ui
         simde
         fmt::fmt
         tomlplusplus
-        SDL3::SDL3
     PRIVATE
         aes128
         xxHash::xxhash

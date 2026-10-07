@@ -19,7 +19,6 @@
 #include <rex/macros.h>
 
 #include "runtime/cvar_table.h"
-#include "ui/cvar_table.h"
 
 REXLOG_TABLE(kRuntimeLog, kernel, system, cpu, title, apu, hid, ui, console)
 
@@ -32,13 +31,10 @@ struct ScopeTable {
   std::span<const cvar::IVar* const> vars;
 };
 
-const std::array<ScopeTable, 6> kTables = {{
+const std::array<ScopeTable, 3> kTables = {{
     {"runtime", cvars::kRuntimeCvars},
     {"apu", cvars::kAPUCvars},
     {"hid", {}},
-    {"ui", ui::cvars::kUICvars},
-    {"console", ui::cvars::kConsoleCvars},
-    {"bind", {}},
 }};
 
 Result<void> ValidateSlices(const Config& config) {
@@ -150,18 +146,11 @@ Result<void> RuntimeModule::Connect(IInterfaceFactory* factory, const Config& co
     Disconnect();
     return status;
   }
-  const auto& window = config.ui.window;
   auto defaults = [&]() -> Result<void> {
     REX_TRY_VOID(cvars_->SetDefault("runtime.writable_code_segments",
                                     config.runtime.writable_code_segments ? "true" : "false"));
     REX_TRY_VOID(
         cvars_->SetDefault("runtime.protect_zero", config.runtime.protect_zero ? "true" : "false"));
-    REX_TRY_VOID(cvars_->SetDefault("ui.window_width", std::to_string(window.width)));
-    REX_TRY_VOID(cvars_->SetDefault("ui.window_height", std::to_string(window.height)));
-    REX_TRY_VOID(cvars_->SetDefault("ui.fullscreen", window.fullscreen ? "true" : "false"));
-    REX_TRY_VOID(cvars_->SetDefault("ui.fullscreen_exclusive",
-                                    window.fullscreen_exclusive ? "true" : "false"));
-    REX_TRY_VOID(cvars_->SetDefault("ui.monitor", std::to_string(window.monitor)));
     REX_TRY_VOID(
         cvars_->SetDefault("apu.max_queued_frames", std::to_string(config.apu.max_queued_frames)));
     return Ok();

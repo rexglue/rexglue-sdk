@@ -19,6 +19,7 @@ add_library(rex-core SHARED
     filesystem/xex.cpp
     ${PROJECT_SOURCE_DIR}/thirdparty/crypto/rijndael-alg-fst.c
     hash.cpp
+    hid/key_chord.cpp
     hid/null_backend.cpp
     hid/virtual_key.cpp
     log_file.cpp

@@ -288,6 +288,7 @@ TEST_CASE("Keyboard pad releases bound keys and drops motion on focus loss", "[h
   REQUIRE(REXCVAR_SET(rex::hid::cvars::mnk_mouse, true));
   Hub hub;
   rex::hid::KeyboardMouseDriver pad(hub);
+  pad.Attach(*registry);
   std::vector<rex::hid::DeviceInfo> devices;
   pad.EnumerateDevices(devices);
   REQUIRE(devices.size() == 1);
@@ -313,6 +314,73 @@ TEST_CASE("Keyboard pad releases bound keys and drops motion on focus loss", "[h
   CHECK(static_cast<rex::i16>(state->gamepad.thumb_rx) == 0);
 
   REQUIRE(REXCVAR_SET(rex::hid::cvars::mnk_mouse, false));
+  REQUIRE(REXCVAR_SET(rex::hid::cvars::mnk_mode, false));
+  registry->Unregister(rex::hid::cvars::kHIDCvars);
+}
+
+namespace {
+
+std::vector<rex::u16> Drain(rex::hid::KeyboardMouseDriver& pad, rex::hid::DeviceId id) {
+  std::vector<rex::u16> keys;
+  while (auto stroke = pad.GetDeviceKeystroke(id, 0)) {
+    keys.push_back(static_cast<rex::u16>(stroke->virtual_key));
+  }
+  return keys;
+}
+
+}  // namespace
+
+TEST_CASE("Keyboard pad binds fire only with their exact modifiers and follow cvar changes",
+          "[hid][key_chord]") {
+  auto registry = rex::detail::CreateCvarRegistry();
+  REQUIRE(registry->Register("hid", rex::hid::cvars::kHIDCvars));
+  REQUIRE(REXCVAR_SET(rex::hid::cvars::mnk_mode, true));
+  Hub hub;
+  rex::hid::KeyboardMouseDriver pad(hub);
+  pad.Attach(*registry);
+  std::vector<rex::hid::DeviceInfo> devices;
+  pad.EnumerateDevices(devices);
+  REQUIRE(devices.size() == 1);
+  const auto id = devices[0].id;
+  const auto dpad_up = static_cast<rex::u16>(VirtualKey::kXInputPadDpadUp);
+  const auto rstick_up = static_cast<rex::u16>(VirtualKey::kXInputPadRThumbUp);
+  const auto pad_x = static_cast<rex::u16>(VirtualKey::kXInputPadX);
+
+  pad.OnEvent(Key(Kind::KeyDown, VirtualKey::kShift));
+  pad.OnEvent(Key(Kind::KeyDown, VirtualKey::kUp));
+  CHECK(Drain(pad, id) == std::vector<rex::u16>{dpad_up});
+  pad.OnEvent(Key(Kind::KeyUp, VirtualKey::kUp));
+  CHECK(Drain(pad, id) == std::vector<rex::u16>{dpad_up});
+  pad.OnEvent(Key(Kind::KeyUp, VirtualKey::kShift));
+  pad.OnEvent(Key(Kind::KeyDown, VirtualKey::kUp));
+  CHECK(Drain(pad, id) == std::vector<rex::u16>{rstick_up});
+  pad.OnEvent(Key(Kind::KeyUp, VirtualKey::kUp));
+  CHECK(Drain(pad, id) == std::vector<rex::u16>{rstick_up});
+
+  REQUIRE(registry->Set("hid.keybind_x", "Ctrl+J"));
+  pad.OnEvent(Key(Kind::KeyDown, VirtualKey::kJ));
+  CHECK(Drain(pad, id).empty());
+  pad.OnEvent(Key(Kind::KeyUp, VirtualKey::kJ));
+  pad.OnEvent(Key(Kind::KeyDown, VirtualKey::kControl));
+  pad.OnEvent(Key(Kind::KeyDown, VirtualKey::kJ));
+  CHECK(Drain(pad, id) == std::vector<rex::u16>{pad_x});
+  pad.OnEvent(Key(Kind::KeyUp, VirtualKey::kJ));
+  CHECK(Drain(pad, id) == std::vector<rex::u16>{pad_x});
+
+  REQUIRE(registry->Set("hid.keybind_x", "Ctrl+NoSuchKey"));
+  pad.OnEvent(Key(Kind::KeyDown, VirtualKey::kJ));
+  CHECK(Drain(pad, id) == std::vector<rex::u16>{pad_x});
+  pad.OnEvent(Key(Kind::KeyUp, VirtualKey::kJ));
+  pad.OnEvent(Key(Kind::KeyUp, VirtualKey::kControl));
+  Drain(pad, id);
+
+  REQUIRE(registry->Set("hid.keybind_x", "NoSuchKey, J"));
+  pad.OnEvent(Key(Kind::KeyDown, VirtualKey::kJ));
+  CHECK(Drain(pad, id) == std::vector<rex::u16>{pad_x});
+  pad.OnEvent(Key(Kind::KeyUp, VirtualKey::kJ));
+  Drain(pad, id);
+
+  REQUIRE(registry->ResetToDefault("hid.keybind_x"));
   REQUIRE(REXCVAR_SET(rex::hid::cvars::mnk_mode, false));
   registry->Unregister(rex::hid::cvars::kHIDCvars);
 }

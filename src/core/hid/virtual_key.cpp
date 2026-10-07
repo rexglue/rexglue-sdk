@@ -127,6 +127,8 @@ constexpr auto kKeyNames = std::to_array<KeyName>({
     {"LMB", VirtualKey::kLButton},
     {"RMB", VirtualKey::kRButton},
     {"MMB", VirtualKey::kMButton},
+    {"WheelUp", VirtualKey::kWheelUp},
+    {"WheelDown", VirtualKey::kWheelDown},
 });
 
 }  // namespace

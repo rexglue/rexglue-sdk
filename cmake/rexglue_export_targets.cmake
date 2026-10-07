@@ -7,9 +7,12 @@ set_target_properties(rex-gpu PROPERTIES EXPORT_NAME gpu)
 
 set(REXGLUE_INSTALL_TARGETS
     rex-core
+    rex-imgui
     rex-runtime
     rex-sdk
     rex-gpu
+    rex-ui
+    rex-ui-sdl3
     rex-apu-sdl3
     rex-hid-common
     rex-hid-sdl3

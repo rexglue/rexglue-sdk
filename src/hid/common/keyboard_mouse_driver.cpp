@@ -3,12 +3,15 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <ranges>
 #include <string>
 #include <string_view>
 
 #include <rex/bit.h>
 #include <rex/cvar.h>
+#include <rex/hid/key_chord.h>
 #include <rex/hid/virtual_key.h>
+#include <rex/logging.h>
 
 #include "hid/common/cvar_table.h"
 #include "hid/common/hub.h"
@@ -23,74 +26,33 @@ constexpr DeviceId kKeyboardMouseDevice = static_cast<DeviceId>(0x4D4E4B00);
 // Bounds the queue for titles that never call XamInputGetKeystroke.
 constexpr size_t kMaxQueuedKeystrokes = 256;
 
-// Bind values are a comma-separated list of alternatives, each optionally
-// carrying modifier prefixes: "Q,I" or "Shift+W". Modifier matching is exact,
-// so "Up" stays silent while Shift is held and "Shift+Up" stays silent without
-// it. That is what lets the D-pad share the arrow keys. A consequence is
-// that binding a bare modifier name ("Shift") can never fire, since holding it
-// makes the live mask non-zero while the bind wants zero.
-constexpr u8 kModShift = 1u << 0;
-constexpr u8 kModCtrl = 1u << 1;
-constexpr u8 kModAlt = 1u << 2;
+constexpr std::string_view kBlanks = " \t";
 
-u8 LiveModifiers(const bool (&key_down)[256]) {
-  u8 mods = 0;
+std::string_view TrimBlanks(std::string_view text) {
+  const size_t first = text.find_first_not_of(kBlanks);
+  if (first == std::string_view::npos) {
+    return {};
+  }
+  return text.substr(first, text.find_last_not_of(kBlanks) - first + 1);
+}
+
+KeyModifiers LiveModifiers(const bool (&key_down)[256]) {
+  KeyModifiers mods = KeyModifiers::None;
   if (key_down[static_cast<u16>(VirtualKey::kShift)])
-    mods |= kModShift;
+    mods |= KeyModifiers::Shift;
   if (key_down[static_cast<u16>(VirtualKey::kControl)])
-    mods |= kModCtrl;
+    mods |= KeyModifiers::Ctrl;
   if (key_down[static_cast<u16>(VirtualKey::kMenu)])
-    mods |= kModAlt;
+    mods |= KeyModifiers::Alt;
   return mods;
 }
 
-// Strips leading modifier prefixes off 'token', advancing it to the bare key
-// name and returning the mask they require.
-u8 TakeModifiers(std::string_view& token) {
-  u8 mods = 0;
-  for (;;) {
-    size_t plus = token.find('+');
-    if (plus == std::string_view::npos || plus == 0) {
-      break;
-    }
-    std::string_view head = token.substr(0, plus);
-    u8 bit = 0;
-    if (head == "Shift") {
-      bit = kModShift;
-    } else if (head == "Ctrl" || head == "Control") {
-      bit = kModCtrl;
-    } else if (head == "Alt") {
-      bit = kModAlt;
-    } else {
-      break;
-    }
-    mods |= bit;
-    token.remove_prefix(plus + 1);
-  }
-  return mods;
-}
-
-std::string_view TrimSpaces(std::string_view s) {
-  while (!s.empty() && s.front() == ' ') {
-    s.remove_prefix(1);
-  }
-  while (!s.empty() && s.back() == ' ') {
-    s.remove_suffix(1);
-  }
-  return s;
-}
-
-bool TokenPressed(const bool (&key_down)[256], std::string_view token, u8 live_mods) {
-  u8 want = TakeModifiers(token);
-  if (want != live_mods) {
-    return false;
-  }
-  VirtualKey vk = ParseVirtualKey(token);
-  if (vk == VirtualKey::kNone) {
-    return false;
-  }
-  u16 idx = static_cast<u16>(vk);
-  return idx < 256 && key_down[idx];
+bool IsBindPressed(const bool (&key_down)[256], const std::vector<KeyChord>& chords) {
+  const KeyModifiers live = LiveModifiers(key_down);
+  return std::ranges::any_of(chords, [&](const KeyChord& chord) {
+    const u16 index = static_cast<u16>(chord.key);
+    return chord.mods == live && index < 256 && key_down[index];
+  });
 }
 
 // hid::VirtualKey follows Windows VK_ numbering; the title wants USB HID usage
@@ -204,69 +166,127 @@ u8 VirtualKeyToHIDUsage(VirtualKey vk_enum) {
   }
 }
 
-// Sticks and triggers are included: XInput reports those as directional pad
-// keys, which is what menu navigation reads.
-struct PadBind {
-  std::string keys;
+enum BindIndex : size_t {
+  kBindA,
+  kBindB,
+  kBindX,
+  kBindY,
+  kBindLeftShoulder,
+  kBindRightShoulder,
+  kBindLeftTrigger,
+  kBindRightTrigger,
+  kBindLStickPress,
+  kBindRStickPress,
+  kBindBack,
+  kBindStart,
+  kBindDPadUp,
+  kBindDPadDown,
+  kBindDPadLeft,
+  kBindDPadRight,
+  kBindLStickUp,
+  kBindLStickDown,
+  kBindLStickLeft,
+  kBindLStickRight,
+  kBindRStickUp,
+  kBindRStickDown,
+  kBindRStickLeft,
+  kBindRStickRight,
+  kBindGuide,
+};
+
+struct BindSpec {
+  const cvar::Var<std::string>* var;
   VirtualKey pad_key;
 };
 
-// Rebuilt per call because the cvars are live-editable.
-std::array<PadBind, 24> PadBinds() {
-  return {{
-      {REXCVAR_GET(cvars::keybind_a), VirtualKey::kXInputPadA},
-      {REXCVAR_GET(cvars::keybind_b), VirtualKey::kXInputPadB},
-      {REXCVAR_GET(cvars::keybind_x), VirtualKey::kXInputPadX},
-      {REXCVAR_GET(cvars::keybind_y), VirtualKey::kXInputPadY},
-      {REXCVAR_GET(cvars::keybind_left_shoulder), VirtualKey::kXInputPadLShoulder},
-      {REXCVAR_GET(cvars::keybind_right_shoulder), VirtualKey::kXInputPadRShoulder},
-      {REXCVAR_GET(cvars::keybind_left_trigger), VirtualKey::kXInputPadLTrigger},
-      {REXCVAR_GET(cvars::keybind_right_trigger), VirtualKey::kXInputPadRTrigger},
-      {REXCVAR_GET(cvars::keybind_lstick_press), VirtualKey::kXInputPadLThumbPress},
-      {REXCVAR_GET(cvars::keybind_rstick_press), VirtualKey::kXInputPadRThumbPress},
-      {REXCVAR_GET(cvars::keybind_back), VirtualKey::kXInputPadBack},
-      {REXCVAR_GET(cvars::keybind_start), VirtualKey::kXInputPadStart},
-      {REXCVAR_GET(cvars::keybind_dpad_up), VirtualKey::kXInputPadDpadUp},
-      {REXCVAR_GET(cvars::keybind_dpad_down), VirtualKey::kXInputPadDpadDown},
-      {REXCVAR_GET(cvars::keybind_dpad_left), VirtualKey::kXInputPadDpadLeft},
-      {REXCVAR_GET(cvars::keybind_dpad_right), VirtualKey::kXInputPadDpadRight},
-      {REXCVAR_GET(cvars::keybind_lstick_up), VirtualKey::kXInputPadLThumbUp},
-      {REXCVAR_GET(cvars::keybind_lstick_down), VirtualKey::kXInputPadLThumbDown},
-      {REXCVAR_GET(cvars::keybind_lstick_left), VirtualKey::kXInputPadLThumbLeft},
-      {REXCVAR_GET(cvars::keybind_lstick_right), VirtualKey::kXInputPadLThumbRight},
-      {REXCVAR_GET(cvars::keybind_rstick_up), VirtualKey::kXInputPadRThumbUp},
-      {REXCVAR_GET(cvars::keybind_rstick_down), VirtualKey::kXInputPadRThumbDown},
-      {REXCVAR_GET(cvars::keybind_rstick_left), VirtualKey::kXInputPadRThumbLeft},
-      {REXCVAR_GET(cvars::keybind_rstick_right), VirtualKey::kXInputPadRThumbRight},
-  }};
-}
+const std::array<BindSpec, KeyboardMouseDriver::kBindCount> kBindSpecs = {{
+    {&cvars::keybind_a, VirtualKey::kXInputPadA},
+    {&cvars::keybind_b, VirtualKey::kXInputPadB},
+    {&cvars::keybind_x, VirtualKey::kXInputPadX},
+    {&cvars::keybind_y, VirtualKey::kXInputPadY},
+    {&cvars::keybind_left_shoulder, VirtualKey::kXInputPadLShoulder},
+    {&cvars::keybind_right_shoulder, VirtualKey::kXInputPadRShoulder},
+    {&cvars::keybind_left_trigger, VirtualKey::kXInputPadLTrigger},
+    {&cvars::keybind_right_trigger, VirtualKey::kXInputPadRTrigger},
+    {&cvars::keybind_lstick_press, VirtualKey::kXInputPadLThumbPress},
+    {&cvars::keybind_rstick_press, VirtualKey::kXInputPadRThumbPress},
+    {&cvars::keybind_back, VirtualKey::kXInputPadBack},
+    {&cvars::keybind_start, VirtualKey::kXInputPadStart},
+    {&cvars::keybind_dpad_up, VirtualKey::kXInputPadDpadUp},
+    {&cvars::keybind_dpad_down, VirtualKey::kXInputPadDpadDown},
+    {&cvars::keybind_dpad_left, VirtualKey::kXInputPadDpadLeft},
+    {&cvars::keybind_dpad_right, VirtualKey::kXInputPadDpadRight},
+    {&cvars::keybind_lstick_up, VirtualKey::kXInputPadLThumbUp},
+    {&cvars::keybind_lstick_down, VirtualKey::kXInputPadLThumbDown},
+    {&cvars::keybind_lstick_left, VirtualKey::kXInputPadLThumbLeft},
+    {&cvars::keybind_lstick_right, VirtualKey::kXInputPadLThumbRight},
+    {&cvars::keybind_rstick_up, VirtualKey::kXInputPadRThumbUp},
+    {&cvars::keybind_rstick_down, VirtualKey::kXInputPadRThumbDown},
+    {&cvars::keybind_rstick_left, VirtualKey::kXInputPadRThumbLeft},
+    {&cvars::keybind_rstick_right, VirtualKey::kXInputPadRThumbRight},
+    {&cvars::keybind_guide, VirtualKey::kNone},
+}};
+
+static_assert(kBindGuide + 1 == KeyboardMouseDriver::kBindCount);
 
 bool IsPassthroughEnabled() {
   return REXCVAR_GET(cvars::mnk_passthrough);
 }
 
-bool IsBindPressed(const bool (&key_down)[256], const std::string& cvar_val) {
-  const u8 live_mods = LiveModifiers(key_down);
-  std::string_view rest(cvar_val);
-  while (!rest.empty()) {
-    size_t comma = rest.find(',');
-    std::string_view token = rest.substr(0, comma);
-    if (comma == std::string_view::npos) {
-      rest = std::string_view();
-    } else {
-      rest.remove_prefix(comma + 1);
-    }
-    token = TrimSpaces(token);
-    if (!token.empty() && TokenPressed(key_down, token, live_mods)) {
-      return true;
-    }
-  }
-  return false;
-}
-
 }  // namespace
 
 KeyboardMouseDriver::KeyboardMouseDriver(Hub& hub) : hub_(hub) {}
+
+void KeyboardMouseDriver::Attach(cvar::ICvarRegistry& cvars) {
+  Detach();
+  for (size_t i = 0; i < kBindSpecs.size(); i++) {
+    const cvar::Var<std::string>& var = *kBindSpecs[i].var;
+    SetBind(i, var.get());
+    auto handle =
+        cvars.OnChange(var.desc().name,
+                       [this, i](std::string_view, std::string_view value) { SetBind(i, value); });
+    if (!handle) {
+      REXLOG_WARN(hid, "{} is not followed, {}", var.desc().name, handle.error().message);
+      continue;
+    }
+    handles_[i] = std::move(*handle);
+  }
+}
+
+void KeyboardMouseDriver::Detach() {
+  for (auto& handle : handles_) {
+    handle.Reset();
+  }
+  std::lock_guard lock(state_mutex_);
+  for (auto& chords : binds_) {
+    chords.clear();
+  }
+}
+
+void KeyboardMouseDriver::SetBind(size_t index, std::string_view text) {
+  const std::string_view name = kBindSpecs[index].var->desc().name;
+  std::vector<KeyChord> chords;
+  bool any_item = false;
+  for (const auto part : std::views::split(text, ',')) {
+    const std::string_view item = TrimBlanks(std::string_view(part.begin(), part.end()));
+    if (item.empty()) {
+      continue;
+    }
+    any_item = true;
+    auto chord = ParseKeyChord(item);
+    if (!chord) {
+      REXLOG_WARN(hid, "{} skips an item, {}", name, chord.error().message);
+      continue;
+    }
+    chords.push_back(*chord);
+  }
+  if (any_item && chords.empty()) {
+    REXLOG_WARN(hid, "{} keeps its previous keys, no item of '{}' names a key", name, text);
+    return;
+  }
+  std::lock_guard lock(state_mutex_);
+  binds_[index] = std::move(chords);
+}
 
 bool KeyboardMouseDriver::IsEnabled() const {
   // Passthrough enables the device on its own.
@@ -340,60 +360,60 @@ Result<X_INPUT_STATE> KeyboardMouseDriver::GetDeviceState(DeviceId id) {
   std::lock_guard guard(state_mutex_);
 
   u16 buttons = 0;
-  if (IsBindPressed(key_down_, REXCVAR_GET(cvars::keybind_a)))
+  if (IsBindPressed(key_down_, binds_[kBindA]))
     buttons |= X_INPUT_GAMEPAD_A;
-  if (IsBindPressed(key_down_, REXCVAR_GET(cvars::keybind_b)))
+  if (IsBindPressed(key_down_, binds_[kBindB]))
     buttons |= X_INPUT_GAMEPAD_B;
-  if (IsBindPressed(key_down_, REXCVAR_GET(cvars::keybind_x)))
+  if (IsBindPressed(key_down_, binds_[kBindX]))
     buttons |= X_INPUT_GAMEPAD_X;
-  if (IsBindPressed(key_down_, REXCVAR_GET(cvars::keybind_y)))
+  if (IsBindPressed(key_down_, binds_[kBindY]))
     buttons |= X_INPUT_GAMEPAD_Y;
-  if (IsBindPressed(key_down_, REXCVAR_GET(cvars::keybind_left_shoulder)))
+  if (IsBindPressed(key_down_, binds_[kBindLeftShoulder]))
     buttons |= X_INPUT_GAMEPAD_LEFT_SHOULDER;
-  if (IsBindPressed(key_down_, REXCVAR_GET(cvars::keybind_right_shoulder)))
+  if (IsBindPressed(key_down_, binds_[kBindRightShoulder]))
     buttons |= X_INPUT_GAMEPAD_RIGHT_SHOULDER;
-  if (IsBindPressed(key_down_, REXCVAR_GET(cvars::keybind_lstick_press)))
+  if (IsBindPressed(key_down_, binds_[kBindLStickPress]))
     buttons |= X_INPUT_GAMEPAD_LEFT_THUMB;
-  if (IsBindPressed(key_down_, REXCVAR_GET(cvars::keybind_rstick_press)))
+  if (IsBindPressed(key_down_, binds_[kBindRStickPress]))
     buttons |= X_INPUT_GAMEPAD_RIGHT_THUMB;
-  if (IsBindPressed(key_down_, REXCVAR_GET(cvars::keybind_back)))
+  if (IsBindPressed(key_down_, binds_[kBindBack]))
     buttons |= X_INPUT_GAMEPAD_BACK;
-  if (IsBindPressed(key_down_, REXCVAR_GET(cvars::keybind_start)))
+  if (IsBindPressed(key_down_, binds_[kBindStart]))
     buttons |= X_INPUT_GAMEPAD_START;
-  if (IsBindPressed(key_down_, REXCVAR_GET(cvars::keybind_guide)))
+  if (IsBindPressed(key_down_, binds_[kBindGuide]))
     buttons |= X_INPUT_GAMEPAD_GUIDE;
-  if (IsBindPressed(key_down_, REXCVAR_GET(cvars::keybind_dpad_up)))
+  if (IsBindPressed(key_down_, binds_[kBindDPadUp]))
     buttons |= X_INPUT_GAMEPAD_DPAD_UP;
-  if (IsBindPressed(key_down_, REXCVAR_GET(cvars::keybind_dpad_down)))
+  if (IsBindPressed(key_down_, binds_[kBindDPadDown]))
     buttons |= X_INPUT_GAMEPAD_DPAD_DOWN;
-  if (IsBindPressed(key_down_, REXCVAR_GET(cvars::keybind_dpad_left)))
+  if (IsBindPressed(key_down_, binds_[kBindDPadLeft]))
     buttons |= X_INPUT_GAMEPAD_DPAD_LEFT;
-  if (IsBindPressed(key_down_, REXCVAR_GET(cvars::keybind_dpad_right)))
+  if (IsBindPressed(key_down_, binds_[kBindDPadRight]))
     buttons |= X_INPUT_GAMEPAD_DPAD_RIGHT;
 
-  u8 lt = IsBindPressed(key_down_, REXCVAR_GET(cvars::keybind_left_trigger)) ? 0xFF : 0;
-  u8 rt = IsBindPressed(key_down_, REXCVAR_GET(cvars::keybind_right_trigger)) ? 0xFF : 0;
+  u8 lt = IsBindPressed(key_down_, binds_[kBindLeftTrigger]) ? 0xFF : 0;
+  u8 rt = IsBindPressed(key_down_, binds_[kBindRightTrigger]) ? 0xFF : 0;
 
   i32 lx = 0;
   i32 ly = 0;
-  if (IsBindPressed(key_down_, REXCVAR_GET(cvars::keybind_lstick_left)))
+  if (IsBindPressed(key_down_, binds_[kBindLStickLeft]))
     lx -= INT16_MAX;
-  if (IsBindPressed(key_down_, REXCVAR_GET(cvars::keybind_lstick_right)))
+  if (IsBindPressed(key_down_, binds_[kBindLStickRight]))
     lx += INT16_MAX;
-  if (IsBindPressed(key_down_, REXCVAR_GET(cvars::keybind_lstick_up)))
+  if (IsBindPressed(key_down_, binds_[kBindLStickUp]))
     ly += INT16_MAX;
-  if (IsBindPressed(key_down_, REXCVAR_GET(cvars::keybind_lstick_down)))
+  if (IsBindPressed(key_down_, binds_[kBindLStickDown]))
     ly -= INT16_MAX;
 
   i32 rx = 0;
   i32 ry = 0;
-  if (IsBindPressed(key_down_, REXCVAR_GET(cvars::keybind_rstick_left)))
+  if (IsBindPressed(key_down_, binds_[kBindRStickLeft]))
     rx -= INT16_MAX;
-  if (IsBindPressed(key_down_, REXCVAR_GET(cvars::keybind_rstick_right)))
+  if (IsBindPressed(key_down_, binds_[kBindRStickRight]))
     rx += INT16_MAX;
-  if (IsBindPressed(key_down_, REXCVAR_GET(cvars::keybind_rstick_up)))
+  if (IsBindPressed(key_down_, binds_[kBindRStickUp]))
     ry += INT16_MAX;
-  if (IsBindPressed(key_down_, REXCVAR_GET(cvars::keybind_rstick_down)))
+  if (IsBindPressed(key_down_, binds_[kBindRStickDown]))
     ry -= INT16_MAX;
 
   if (REXCVAR_GET(cvars::mnk_mouse)) {
@@ -518,25 +538,22 @@ void KeyboardMouseDriver::EnqueueRawKeystroke(const InputEvent& event, bool down
 }
 
 void KeyboardMouseDriver::RefreshBoundKeystrokesLocked() {
-  const auto binds = PadBinds();
   u32 pressed = 0;
-  for (size_t i = 0; i < binds.size(); i++) {
-    if (IsBindPressed(key_down_, binds[i].keys)) {
+  for (size_t i = 0; i < kBindSpecs.size(); i++) {
+    if (kBindSpecs[i].pad_key != VirtualKey::kNone && IsBindPressed(key_down_, binds_[i])) {
       pressed |= u32{1} << i;
     }
   }
 
-  // The whole table is diffed rather than the key that moved: binds carry
-  // modifiers, so Shift alone can flip several of them at once.
   const u32 changed = pressed ^ bound_pressed_;
   bound_pressed_ = pressed;
   if (!changed) {
     return;
   }
-  for (size_t i = 0; i < binds.size(); i++) {
+  for (size_t i = 0; i < kBindSpecs.size(); i++) {
     const u32 bit = u32{1} << i;
     if (changed & bit) {
-      EnqueueKeystroke(static_cast<u16>(binds[i].pad_key), (pressed & bit) != 0);
+      EnqueueKeystroke(static_cast<u16>(kBindSpecs[i].pad_key), (pressed & bit) != 0);
     }
   }
 }

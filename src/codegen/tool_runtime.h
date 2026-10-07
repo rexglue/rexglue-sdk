@@ -13,6 +13,8 @@
 
 #include <filesystem>
 #include <memory>
+#include <span>
+#include <string>
 
 #include <rex/result.h>
 #include <rex/types.h>
@@ -20,6 +22,9 @@
 namespace rex {
 class API;
 class Runtime;
+namespace ui {
+class IUserInterface;
+}  // namespace ui
 }  // namespace rex
 
 namespace rex::codegen {
@@ -49,7 +54,9 @@ class ToolRuntime : public MoveOnly {
   API& api() const { return *api_; }
 
  private:
-  friend Result<ToolRuntime> OpenToolRuntime(const std::filesystem::path& game_root);
+  friend Result<ToolRuntime> OpenToolRuntime(const std::filesystem::path& game_root,
+                                             std::span<const std::string> extra_modules,
+                                             ui::IUserInterface* ui);
 
   ToolRuntime(std::unique_ptr<Runtime> runtime, API* api);
   void Release();
@@ -59,12 +66,18 @@ class ToolRuntime : public MoveOnly {
 };
 
 /**
- * Runs rex::Init with the rex-filesystem module and builds a tool mode Runtime whose game colon
- * mount is game_root.
+ * Runs rex::Init with the rex-filesystem module, the rex-runtime module and the extra modules,
+ * and builds a tool mode Runtime whose game colon mount is game_root. A non empty module list also
+ * selects the dummy video driver.
  *
  * @param game_root The host folder that game colon names.
+ * @param extra_modules Modules loaded after rex-runtime.
+ * @param ui The user interface the Runtime shows prompts through. Null uses the one a module
+ *        serves, or none.
  * @return The runtime, or the rex::Init or Runtime::Setup error.
  */
-[[nodiscard]] Result<ToolRuntime> OpenToolRuntime(const std::filesystem::path& game_root);
+[[nodiscard]] Result<ToolRuntime> OpenToolRuntime(const std::filesystem::path& game_root,
+                                                  std::span<const std::string> extra_modules = {},
+                                                  ui::IUserInterface* ui = nullptr);
 
 }  // namespace rex::codegen

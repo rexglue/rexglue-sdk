@@ -71,6 +71,26 @@
 #endif
 
 /**
+ * Marks a declaration that rex-imgui exports. It expands to the export form while rex-imgui
+ * builds and to the import form in every other binary.
+ *
+ * @code
+ * class REX_IMGUI_API ImGuiDialog;
+ * REX_IMGUI_API void ApplyDefaultStyle(ImGuiStyle& imgui_style, const Palette& palette,
+ *                                      const Metrics& metrics);
+ * @endcode
+ */
+#if REX_PLATFORM_WIN32
+#if defined(REX_BUILDING_IMGUI)
+#define REX_IMGUI_API __declspec(dllexport)
+#else
+#define REX_IMGUI_API __declspec(dllimport)
+#endif
+#else
+#define REX_IMGUI_API __attribute__((visibility("default")))
+#endif
+
+/**
  * Marks a translation entry point definition for export. It expands to the export form while
  * rex-runtime builds and to nothing in every other binary, so a hook a consumer defines stays
  * local to the consumer.

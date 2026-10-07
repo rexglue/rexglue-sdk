@@ -191,31 +191,6 @@ if(APPLE)
 endif()
 
 #=============================================================================
-# imgui - Immediate mode GUI (no CMakeLists.txt, manual target)
-#=============================================================================
-set(IMGUI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/imgui")
-add_library(imgui OBJECT
-    ${IMGUI_DIR}/imgui.cpp
-    ${IMGUI_DIR}/imgui_draw.cpp
-    ${IMGUI_DIR}/imgui_tables.cpp
-    ${IMGUI_DIR}/imgui_widgets.cpp
-)
-add_library(imgui::imgui ALIAS imgui)
-target_include_directories(imgui PUBLIC
-    $<BUILD_INTERFACE:${IMGUI_DIR}>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-target_include_directories(imgui PRIVATE
-    ${PROJECT_SOURCE_DIR}/include
-    ${PROJECT_BINARY_DIR}/include)
-set_target_properties(imgui PROPERTIES
-    CXX_VISIBILITY_PRESET hidden
-    VISIBILITY_INLINES_HIDDEN ON)
-target_compile_definitions(imgui
-    PRIVATE REX_BUILDING_RUNTIME
-    PUBLIC "IMGUI_USER_CONFIG=\"rex/ui/imgui_config.h\"")
-target_compile_options(imgui PRIVATE -w)
-
-#=============================================================================
 # SDL3 - Cross-platform media layer
 #=============================================================================
 set(SDL_INSTALL ON CACHE BOOL "" FORCE)

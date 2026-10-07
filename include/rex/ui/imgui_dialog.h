@@ -9,51 +9,70 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#ifndef REX_UI_IMGUI_DIALOG_H_
-#define REX_UI_IMGUI_DIALOG_H_
-
-#include <memory>
-#include <vector>
+#pragma once
 
 #include <rex/macros.h>
-#include <rex/platform/thread.h>
-#include <rex/ui/imgui_drawer.h>
-#include <rex/ui/window_listener.h>
+#include <rex/types.h>
 
 struct ImGuiIO;
 
-namespace rex {
-namespace ui {
+namespace rex::ui {
 
-class REX_RUNTIME_API ImGuiDialog {
+class ImGuiDialog;
+
+/** Owner of a set of dialogs that draws them each frame and removes a dialog that closed. */
+class IDialogHost {
  public:
+  virtual ~IDialogHost() = default;
+
+  /**
+   * Stops drawing a dialog and detaches it. Called by a dialog that closed during Draw and by a
+   * dialog that is destroyed while attached.
+   *
+   * @param dialog The dialog to remove.
+   */
+  virtual void RemoveDialog(ImGuiDialog& dialog) = 0;
+};
+
+/**
+ * A window that an IDialogHost draws with ImGui. A dialog never adds itself and never deletes
+ * itself, its owner creates it, hands it to a host and destroys it. Every hook runs on the UI
+ * thread.
+ */
+class REX_IMGUI_API ImGuiDialog : public NonCopyable {
+ public:
+  /** Removes the dialog from its host when it is still attached. */
   virtual ~ImGuiDialog();
 
-  // Shows a simple message box containing a text message.
-  // Callers can want for the dialog to close with Wait().
-  // Dialogs retain themselves and will delete themselves when closed.
-  static ImGuiDialog* ShowMessageBox(ImGuiDrawer* imgui_drawer, std::string title,
-                                     std::string body);
-
-  // A fence to signal when the dialog is closed.
-  void Then(rex::platform::Fence* fence);
-
+  /**
+   * Draws the dialog. When Close was requested during the draw, marks the dialog closed, calls
+   * OnClose once and asks the host to remove it.
+   */
   void Draw();
 
   /**
-   * Marks the dialog as owned by a smart pointer outside the drawer, so
-   * ImGuiDrawer::DestroyDialogs leaves it to its owner.
+   * Reports whether a drawn Close request completed.
    *
-   * @param owned True when a smart pointer outside the drawer owns the dialog.
+   * @return True once a Close request was drawn.
    */
-  void SetOwned(bool owned) { owned_ = owned; }
+  bool Closed() const;
 
   /**
-   * Tests whether a smart pointer outside the drawer owns the dialog.
+   * Reports whether a host draws the dialog.
    *
-   * @return True for an owned dialog.
+   * @return True while a host holds the dialog.
    */
-  bool owned() const { return owned_; }
+  bool Attached() const;
+
+  /**
+   * Sets the host that draws the dialog. Only a host calls this.
+   *
+   * @param host The host, or nullptr to detach.
+   */
+  void Attach(IDialogHost* host);
+
+  /** Called when an overlay registry shows the dialog. */
+  virtual void OnShow() {}
 
   /**
    * Lets an overlay handle its toggle bind itself while hidden.
@@ -63,28 +82,25 @@ class REX_RUNTIME_API ImGuiDialog {
   virtual bool OnToggle() { return false; }
 
  protected:
-  friend class OverlayRegistry;
+  ImGuiDialog() = default;
 
-  ImGuiDialog(ImGuiDrawer* imgui_drawer);
-
-  ImGuiDrawer* imgui_drawer() const { return imgui_drawer_; }
-  ImGuiIO& GetIO();
-
-  // Closes the dialog and returns to any waiters.
+  /** Requests that the next Draw closes the dialog. */
   void Close();
 
-  virtual void OnShow() {}
+  /** Called once from Draw after a Close request, before the host removes the dialog. */
   virtual void OnClose() {}
+
+  /**
+   * Draws the contents of the dialog.
+   *
+   * @param io The IO of the current ImGui context.
+   */
   virtual void OnDraw(ImGuiIO& io) { (void)io; }
 
  private:
-  ImGuiDrawer* imgui_drawer_ = nullptr;
-  bool has_close_pending_ = false;
-  bool owned_ = false;
-  std::vector<rex::platform::Fence*> waiting_fences_;
+  IDialogHost* host_ = nullptr;
+  bool close_pending_ = false;
+  bool closed_ = false;
 };
 
-}  // namespace ui
-}  // namespace rex
-
-#endif  // REX_UI_IMGUI_DIALOG_H_
+}  // namespace rex::ui

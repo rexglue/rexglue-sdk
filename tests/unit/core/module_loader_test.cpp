@@ -389,12 +389,12 @@ TEST_CASE_METHOD(Fixture, "Every SDK cvar name is scope.leaf in a charter scope"
   static const std::vector<std::string_view> kScopes = {
       "log", "clock", "perf",  "runtime", "apu",     "hid", "ui",
       "gpu", "xenos", "d3d12", "vulkan",  "console", "bind"};
-  auto cfg = With({"rex-filesystem", "rex-runtime"});
+  auto cfg = With({"rex-filesystem", "rex-runtime", "rex-ui-sdl3"});
   auto xenos = rex::platform::GetExecutableFolder() / rex::detail::ModuleFileName("rex-gpu-xenos");
   if (std::filesystem::exists(xenos))
     cfg.modules.push_back("rex-gpu-xenos");
   auto api = rex::Init(cfg);
-  if (!api && cfg.modules.size() > 2) {
+  if (!api && cfg.modules.size() > 3) {
     cfg.modules.pop_back();
     api = rex::Init(cfg);
   }
@@ -414,7 +414,7 @@ TEST_CASE_METHOD(Fixture, "Every SDK cvar name is scope.leaf in a charter scope"
     }
   }
   REQUIRE(count >= 70);
-  if (cfg.modules.size() > 2)
+  if (cfg.modules.size() > 3)
     REQUIRE(count == 129);
 }
 
@@ -425,9 +425,9 @@ TEST_CASE_METHOD(Fixture, "rex-runtime registers the module scopes at Connect",
   REQUIRE(api.value()->IsLoaded("rex-runtime"));
   auto* registry = api.value()->Get<rex::cvar::ICvarRegistry>();
   REQUIRE(registry->Find("runtime.protect_zero"));
-  REQUIRE(registry->Find("ui.window_width"));
+  REQUIRE_FALSE(registry->Find("ui.window_width"));
   auto scopes = registry->Scopes();
-  REQUIRE(std::find(scopes.begin(), scopes.end(), "bind") != scopes.end());
+  REQUIRE(std::find(scopes.begin(), scopes.end(), "bind") == scopes.end());
 }
 
 TEST_CASE_METHOD(Fixture, "Runtime config sets the code segment and zero page defaults",

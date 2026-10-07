@@ -21,7 +21,7 @@
 
 #include <rex/cvar.h>
 #include <rex/logging/sink.h>
-#include <rex/ui/console/model.h>
+#include "ui/sdl3/console/model.h"
 
 #include "core/cvar_registry.h"
 

@@ -12,6 +12,8 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
+#include <atomic>
+#include <memory>
 #include <span>
 #include <string>
 #include <vector>
@@ -32,6 +34,7 @@
 namespace {
 
 std::vector<std::string> g_events;
+std::atomic<rex::i32> g_owned_destroyed{0};
 
 void Sink(const char*, const char* event) {
   g_events.emplace_back(event);
@@ -39,7 +42,7 @@ void Sink(const char*, const char* event) {
 
 class ShownDialog final : public rex::ui::ImGuiDialog {
  public:
-  explicit ShownDialog(const rex::ui::OverlayContext& context) : ImGuiDialog(&context.drawer()) {}
+  explicit ShownDialog(const rex::ui::OverlayContext&) {}
 
  protected:
   void OnDraw(ImGuiIO&) override {
@@ -51,22 +54,46 @@ class ShownDialog final : public rex::ui::ImGuiDialog {
   }
 };
 
-REX_OVERLAY_TABLE(kContractOverlays, REX_OVERLAY(ShownDialog, "contract", "F10"));
+class OwnedDialog final : public rex::ui::ImGuiDialog {
+ public:
+  ~OwnedDialog() override { ++g_owned_destroyed; }
+  using ImGuiDialog::Close;
+
+ protected:
+  void OnDraw(ImGuiIO&) override {
+    ImGui::SetNextWindowSize(ImVec2(200, 100));
+    if (ImGui::Begin("owned")) {
+      ImGui::TextUnformatted("owned");
+    }
+    ImGui::End();
+  }
+};
+
+REX_OVERLAY_TABLE(kContractOverlays,
+                  REX_OVERLAY(ShownDialog, "contract",
+                              ::rex::hid::KeyChord{::rex::hid::VirtualKey::kF10}));
+
+class TestDrawContext final : public rex::gpu::OverlayDrawContext {
+ public:
+  explicit TestDrawContext(rex::gpu::IPresenter* presenter)
+      : OverlayDrawContext(presenter, 1280, 720) {}
+};
 
 class NullGPUApp : public rex::ui::TitleApp {
  public:
+  using TitleApp::UI;
   rex::gpu::IPresenter* TitlePresenter() { return api().Get<rex::gpu::IBackend>()->presenter(); }
 
  protected:
   rex::Result<void> OnConfigure(rex::Config& config) override {
-    config.modules = {"rexmod-test-null-gpu"};
+    config.modules = {"rexmod-test-null-gpu", "rex-ui-sdl3"};
     config.ui.video_driver = "dummy";
     config.paths.config_file.clear();
     return rex::Ok();
   }
-  void OnCreateWindow(rex::ui::TitleUI& ui) override {
-    REQUIRE(ui.overlays().Add(kContractOverlays));
-    ui.overlays().Show("contract", true);
+  void OnCreateWindow(rex::ui::TitleUI& title_ui) override {
+    REQUIRE(title_ui.Overlays().AddOverlays(kContractOverlays));
+    title_ui.Overlays().ShowOverlay("contract", true);
   }
 };
 
@@ -78,8 +105,8 @@ class NullGPUModule {
         rex::platform::SymbolResolution::kImmediate));
     library_.GetSymbol<void (*)(RexModTestSink)>("rexmod_test_set_sink")(&Sink);
   }
-  void FailTextures(int count) {
-    library_.GetSymbol<void (*)(int)>("rexmod_test_null_gpu_fail_textures")(count);
+  void FailTextures(rex::i32 count) {
+    library_.GetSymbol<void (*)(rex::i32)>("rexmod_test_null_gpu_fail_textures")(count);
   }
 
  private:
@@ -124,6 +151,46 @@ TEST_CASE("The title window draws 1 overlay frame through the backend drawer", "
   CHECK(std::ranges::count(g_events, std::string("texture_freed")) >= 1);
 }
 
+TEST_CASE("The title window reports its SDL window", "[gpu][overlay]") {
+  g_events.clear();
+  NullGPUModule module;
+  NullGPUApp app;
+  if (!Open(app)) {
+    app.Shutdown();
+    SKIP("SDL dummy video driver unavailable");
+  }
+  CHECK(app.UI().GetWindow()->Native().sdl != nullptr);
+  ImGuiIO* io = app.UI().GetImGuiIO();
+  REQUIRE(io != nullptr);
+  CHECK(io->Fonts == app.UI().Fonts());
+  REQUIRE(app.Shutdown() == 0);
+}
+
+TEST_CASE("DrawOverlays draws the shown overlays through the overlay drawer", "[gpu][overlay]") {
+  g_events.clear();
+  NullGPUModule module;
+  NullGPUApp app;
+  if (!Open(app)) {
+    app.Shutdown();
+    SKIP("SDL dummy video driver unavailable");
+  }
+  REQUIRE(app.TitlePresenter() != nullptr);
+  REQUIRE(app.UI().OverlayDrawer() != nullptr);
+  app.TitlePresenter()->Paint(true);
+  g_events.clear();
+  TestDrawContext context(app.TitlePresenter());
+  app.UI().DrawOverlays(context);
+  const auto begin = std::ranges::find(g_events, std::string("begin_batch"));
+  const auto draw = std::ranges::find(g_events, std::string("draw"));
+  const auto end = std::ranges::find(g_events, std::string("end_batch"));
+  REQUIRE(begin != g_events.end());
+  REQUIRE(draw != g_events.end());
+  REQUIRE(end != g_events.end());
+  CHECK(begin < draw);
+  CHECK(draw < end);
+  REQUIRE(app.Shutdown() == 0);
+}
+
 TEST_CASE("A failed font texture is created again on the next frame", "[gpu][overlay]") {
   g_events.clear();
   NullGPUModule module;
@@ -139,5 +206,30 @@ TEST_CASE("A failed font texture is created again on the next frame", "[gpu][ove
   app.TitlePresenter()->Paint(true);
   CHECK(std::ranges::count(g_events, std::string("create_texture_failed")) == 1);
   CHECK(std::ranges::count(g_events, std::string("create_texture")) == 1);
+  REQUIRE(app.Shutdown() == 0);
+}
+
+TEST_CASE("A dialog closed while its owner holds it survives the frame", "[gpu][overlay]") {
+  g_events.clear();
+  g_owned_destroyed = 0;
+  NullGPUModule module;
+  NullGPUApp app;
+  if (!Open(app)) {
+    app.Shutdown();
+    SKIP("SDL dummy video driver unavailable");
+  }
+  REQUIRE(app.TitlePresenter() != nullptr);
+  app.UI().ShowOverlay("contract", false);
+  REQUIRE_FALSE(app.UI().HasDialogs());
+  auto dialog = std::make_unique<OwnedDialog>();
+  app.UI().AddDialog(*dialog);
+  REQUIRE(app.UI().HasDialogs());
+  dialog->Close();
+  app.TitlePresenter()->Paint(true);
+  CHECK(dialog->Closed());
+  CHECK_FALSE(app.UI().HasDialogs());
+  CHECK(g_owned_destroyed == 0);
+  dialog.reset();
+  CHECK(g_owned_destroyed == 1);
   REQUIRE(app.Shutdown() == 0);
 }

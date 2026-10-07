@@ -25,6 +25,10 @@
 #include "hid/common/device_assignment.h"
 #include "hid/common/state_merge.h"
 
+namespace rex::cvar {
+class ICvarRegistry;
+}  // namespace rex::cvar
+
 namespace rex::hid {
 
 class KeyboardMouseDriver;
@@ -55,6 +59,17 @@ class Hub final : public IBackend, public NonCopyable {
    * @param assignment The assignment.
    */
   void SetDeviceAssignment(std::unique_ptr<DeviceAssignment> assignment);
+
+  /**
+   * Starts the keyboard and mouse driver parsing the hid.keybind_* cvars and following their
+   * changes.
+   *
+   * @param cvars The registry that serves the hid cvars. It outlives the attachment.
+   */
+  void AttachCvars(cvar::ICvarRegistry& cvars);
+
+  /** Stops the keyboard and mouse driver following the hid.keybind_* cvars. */
+  void DetachCvars();
 
   /** Asks the UI thread to reapply the pointer mode. Safe on any thread. */
   void RefreshPointerMode();

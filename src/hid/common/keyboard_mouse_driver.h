@@ -11,11 +11,16 @@
 
 #pragma once
 
+#include <array>
 #include <atomic>
 #include <mutex>
 #include <queue>
+#include <string_view>
+#include <vector>
 
+#include <rex/cvar/registry.h>
 #include <rex/hid/driver.h>
+#include <rex/hid/key_chord.h>
 
 namespace rex::hid {
 
@@ -45,7 +50,22 @@ class KeyboardMouseDriver final : public Driver {
    */
   bool wants_pointer_lock() const { return pointer_lock_.load(std::memory_order_relaxed); }
 
+  /** Number of hid.keybind_* cvars the driver follows. */
+  static constexpr size_t kBindCount = 25;
+
+  /**
+   * Parses every hid.keybind_* value once and parses it again after each change. An item that
+   * names no key is logged and skipped. A value whose every item fails keeps the previous chords.
+   *
+   * @param cvars The registry that serves the hid cvars. It outlives the attachment.
+   */
+  void Attach(cvar::ICvarRegistry& cvars);
+
+  /** Stops following the hid.keybind_* cvars and drops the parsed chords. */
+  void Detach();
+
  private:
+  void SetBind(size_t index, std::string_view text);
   bool IsEnabled() const;
   void SetKeyState(u16 key, bool down);
   void EnqueueKeystroke(u16 pad_key, bool down);
@@ -65,6 +85,8 @@ class KeyboardMouseDriver final : public Driver {
   f32 mouse_dx_ = 0.0f;
   f32 mouse_dy_ = 0.0f;
   std::queue<X_INPUT_KEYSTROKE> keystroke_queue_;
+  std::array<std::vector<KeyChord>, kBindCount> binds_;
+  std::array<cvar::CallbackHandle, kBindCount> handles_;
   u32 bound_pressed_ = 0;
   u32 packet_number_ = 0;
 };

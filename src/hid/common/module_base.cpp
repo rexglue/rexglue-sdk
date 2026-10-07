@@ -19,6 +19,7 @@ Result<void> HIDModuleBase::Connect(IInterfaceFactory* factory, const Config& co
     cvars_ = nullptr;
     return added;
   }
+  hub_.AttachCvars(*cvars_);
   config_ = config.hid;
   if (config_.shared_pads) {
     hub_.SetDeviceAssignment(std::make_unique<SharedAssignment>());
@@ -30,6 +31,7 @@ Result<void> HIDModuleBase::Connect(IInterfaceFactory* factory, const Config& co
 
 void HIDModuleBase::Disconnect() {
   if (cvars_) {
+    hub_.DetachCvars();
     cvars_->Unregister(cvars::kHIDCvars);
   }
   cvars_ = nullptr;

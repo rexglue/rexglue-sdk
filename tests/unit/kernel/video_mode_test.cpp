@@ -11,6 +11,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <string>
+
 #include <rex/api.h>
 #include <rex/cvar/registry.h>
 #include <rex/kernel/xboxkrnl/video.h>
@@ -19,7 +21,8 @@
 #include "kernel_fixture.h"
 
 TEST_CASE("VdQueryVideoMode returns the runtime video mode", "[kernel][video]") {
-  rex::testing::KernelFixture fixture;
+  const std::string modules[] = {"rex-ui-sdl3"};
+  rex::testing::KernelFixture fixture({}, modules);
   auto* cvars = fixture.api().Get<rex::cvar::ICvarRegistry>();
   REQUIRE(cvars != nullptr);
   REQUIRE(cvars->Set("ui.video_mode_width", "1920"));

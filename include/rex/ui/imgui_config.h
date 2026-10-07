@@ -14,10 +14,10 @@
 #include <rex/macros.h>
 
 /**
- * Marks the ImGui API, which rex-runtime exports until the UI has its own binary.
+ * Marks the ImGui API, which rex-imgui exports and every other binary imports.
  *
  * @code
  * IMGUI_API bool Begin(const char* name, bool* p_open, ImGuiWindowFlags flags);
  * @endcode
  */
-#define IMGUI_API REX_RUNTIME_API
+#define IMGUI_API REX_IMGUI_API

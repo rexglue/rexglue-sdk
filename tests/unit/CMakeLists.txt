@@ -7,6 +7,7 @@ add_executable(unit_tests
     hid/xam_input_error_test.cpp
     hid/input_assignment_test.cpp
     hid/hub_test.cpp
+    hid/key_chord_test.cpp
     hid/virtual_key_test.cpp
     memory/heap_allocation_test.cpp
     memory/access_violation_test.cpp
@@ -49,6 +50,7 @@ add_executable(unit_tests
     core/hash_test.cpp
     core/stream_test.cpp
     core/chrono_test.cpp
+    core/color_test.cpp
     core/macros_test.cpp
     core/mmio_test.cpp
     core/module_loader_test.cpp
@@ -68,7 +70,14 @@ add_executable(unit_tests
     runtime/xma_decoder_test.cpp
     runtime/host_service_modules_test.cpp
     runtime/null_gpu_test.cpp
+    ui/bind_test.cpp
     ui/console_model_test.cpp
+    ui/imgui_dialog_test.cpp
+    ui/null_user_interface_test.cpp
+    ui/prompt_test.cpp
+    ui/xam_prompt_test.cpp
+    ui/style_test.cpp
+    ui/imgui_style_test.cpp
     ui/title_app_test.cpp
     ui/ui_event_test.cpp
     codegen/codegen_writer_test.cpp
@@ -99,7 +108,10 @@ target_include_directories(unit_tests PRIVATE
 target_link_libraries(unit_tests PRIVATE
     rex-codegen
     rex-runtime
+    rex-imgui
+    rex-ui
     rex-hid-common
+    rex-ui-sdl3-static
     xxHash::xxhash
     Catch2::Catch2WithMain
     SDL3::Headers
@@ -125,7 +137,7 @@ add_dependencies(unit_tests rex-filesystem rex-gpu-xenos rex-sample-console rex-
 add_dependencies(unit_tests
     rexmod-test-good rexmod-test-missing rexmod-test-badversion
     rexmod-test-failinit rexmod-test-dupecho rexmod-test-null-gpu
-    rexmod-test-apu rex-apu-sdl3 rexmod-test-hid rex-hid-sdl3)
+    rexmod-test-apu rex-apu-sdl3 rexmod-test-hid rex-hid-sdl3 rex-ui-sdl3)
 if(WIN32)
     add_dependencies(unit_tests rex-hid-xinput)
 endif()

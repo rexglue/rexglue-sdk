@@ -56,11 +56,12 @@ void TestStart(PPCContext& ctx, u8* base) {
 }
 
 codegen::ToolRuntime MakeTool(const std::filesystem::path& root,
-                              const std::function<void(const std::filesystem::path&)>& populate) {
+                              const std::function<void(const std::filesystem::path&)>& populate,
+                              std::span<const std::string> modules, ui::IUserInterface* ui) {
   if (populate) {
     populate(root);
   }
-  auto tool = codegen::OpenToolRuntime(root);
+  auto tool = codegen::OpenToolRuntime(root, modules, ui);
   REQUIRE(tool.has_value());
   return std::move(*tool);
 }
@@ -186,8 +187,9 @@ KernelFixture::TempRoot::~TempRoot() {
   std::filesystem::remove_all(path, error);
 }
 
-KernelFixture::KernelFixture(const std::function<void(const std::filesystem::path&)>& populate)
-    : tool_((ReleaseTestMemory(), MakeTool(root_.path, populate))) {
+KernelFixture::KernelFixture(const std::function<void(const std::filesystem::path&)>& populate,
+                             std::span<const std::string> modules, ui::IUserInterface* ui)
+    : tool_((ReleaseTestMemory(), MakeTool(root_.path, populate, modules, ui))) {
   auto* dispatcher = runtime().function_dispatcher();
   REQUIRE(dispatcher->InitializeFunctionTable(kCodeBase, kCodeSize, kCodeBase, kImageSize,
                                               /*is_entrypoint=*/true));

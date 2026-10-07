@@ -76,7 +76,8 @@ class NullPresenter final : public rex::gpu::IPresenter {
   void OnSurfaceResize() override {}
   void Paint(bool) override {
     NullContext context(this);
-    for (auto& [z_order, layer] : layers_) {
+    const std::multimap<size_t, rex::gpu::IOverlayLayer*> layers = layers_;
+    for (const auto& [z_order, layer] : layers) {
       layer->Draw(context);
     }
   }

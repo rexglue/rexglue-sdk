@@ -36,6 +36,14 @@ Hub::Hub() : assignment_(std::make_unique<SlotAssignment>()) {
 
 Hub::~Hub() = default;
 
+void Hub::AttachCvars(cvar::ICvarRegistry& cvars) {
+  keyboard_mouse_->Attach(cvars);
+}
+
+void Hub::DetachCvars() {
+  keyboard_mouse_->Detach();
+}
+
 void Hub::AddPadDriver(std::unique_ptr<Driver> driver) {
   std::lock_guard lock(mutex_);
   driver->AttachHost(host_.load(std::memory_order_acquire));

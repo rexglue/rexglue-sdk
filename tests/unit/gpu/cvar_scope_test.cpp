@@ -41,7 +41,7 @@ struct Fixture {
 
 TEST_CASE_METHOD(Fixture, "rex-gpu-xenos registers the 4 GPU scopes", "[gpu][cvar]") {
   rex::Config config = BaseConfig();
-  config.modules = {"rex-filesystem", "rex-runtime", "rex-gpu-xenos"};
+  config.modules = {"rex-filesystem", "rex-runtime", "rex-gpu-xenos", "rex-ui-sdl3"};
   auto api = rex::Init(config);
   REQUIRE(api);
   auto& cvars = *api.value()->Get<rex::cvar::ICvarRegistry>();
@@ -62,7 +62,7 @@ TEST_CASE_METHOD(Fixture, "rex-gpu-xenos registers the 4 GPU scopes", "[gpu][cva
 TEST_CASE_METHOD(Fixture, "Without a GPU module the GPU scopes are absent and ui stays",
                  "[gpu][cvar]") {
   rex::Config config = BaseConfig();
-  config.modules = {"rex-filesystem", "rex-runtime"};
+  config.modules = {"rex-filesystem", "rex-runtime", "rex-ui-sdl3"};
   auto api = rex::Init(config);
   REQUIRE(api);
   auto& cvars = *api.value()->Get<rex::cvar::ICvarRegistry>();
@@ -149,7 +149,7 @@ TEST_CASE_METHOD(Fixture, "The default host modules bring the SDK to 70 cvars",
                  "[apu][hid][cvar]") {
   rex::platform::SetEnvironmentValue("SDL_AUDIO_DRIVER", "dummy");
   rex::Config config = BaseConfig();
-  config.modules = {"rex-filesystem", "rex-runtime", "rex-apu-sdl3", "rex-hid-sdl3"};
+  config.modules = {"rex-filesystem", "rex-runtime", "rex-apu-sdl3", "rex-hid-sdl3", "rex-ui-sdl3"};
   auto api = rex::Init(config);
   REQUIRE(api);
   auto& cvars = *api.value()->Get<rex::cvar::ICvarRegistry>();

@@ -146,8 +146,12 @@ class KernelFixture {
  public:
   /**
    * @param populate Called with the game root before the Runtime mounts it, to create host files.
+   * @param modules Modules loaded after rex-runtime.
+   * @param ui The user interface the Runtime shows prompts through, null for the served one.
    */
-  explicit KernelFixture(const std::function<void(const std::filesystem::path&)>& populate = {});
+  explicit KernelFixture(const std::function<void(const std::filesystem::path&)>& populate = {},
+                         std::span<const std::string> modules = {},
+                         ui::IUserInterface* ui = nullptr);
   ~KernelFixture();
 
   Runtime& runtime() { return tool_.runtime(); }
