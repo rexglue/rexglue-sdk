@@ -17,9 +17,6 @@
 #include <cstring>
 #include <filesystem>
 
-#define UTF_CPP_CPLUSPLUS 201703L  // -fno-char8_t
-#include <utf8.h>
-
 #include <rex/cvar.h>
 #include <rex/ui/video_mode.h>
 #include <rex/logging.h>
@@ -219,6 +216,7 @@ NativeWindow WindowSDL::Native() {
       static_cast<u64>(SDL_GetNumberProperty(props, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0));
   if (x11_window) {
     result.kind = NativeWindow::Kind::X11;
+    // NOLINTNEXTLINE(performance-no-int-to-ptr): an X11 window is an integer XID
     result.window = reinterpret_cast<void*>(x11_window);
     result.display = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_X11_DISPLAY_POINTER, nullptr);
   }
@@ -337,7 +335,7 @@ uint32_t WindowSDL::GetLatestDpiImpl() const {
   if (scale <= 0.0f) {
     return GetMediumDpi();
   }
-  return uint32_t(scale * float(GetMediumDpi()) + 0.5f);
+  return static_cast<uint32_t>(std::lround(scale * static_cast<float>(GetMediumDpi())));
 }
 
 void WindowSDL::ApplyNewFullscreen() {
@@ -672,9 +670,9 @@ void WindowSDL::HandleTextInputEvent(SDL_Event& event) {
   }
   WindowDestructionReceiver destruction_receiver(this);
   const char* it = text;
-  const char* end = text + std::strlen(text);
-  while (it < end) {
-    uint32_t codepoint = utf8::unchecked::next(it);
+  size_t remaining = std::strlen(text);
+  while (remaining > 0) {
+    const u32 codepoint = SDL_StepUTF8(&it, &remaining);
     KeyEvent e(UIEvent::Type::Char, this, hid::VirtualKey(codepoint), 1, false, false, false,
                false);
     OnKeyChar(e, destruction_receiver);

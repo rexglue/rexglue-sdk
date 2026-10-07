@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <filesystem>
+#include <iterator>
 #include <locale>
 #include <numeric>
 #include <tuple>
@@ -19,21 +20,187 @@
 
 #include <rex/string/utf8.h>
 
-#define UTF_CPP_CPLUSPLUS 201703L
-#include <utf8.h>
-
-namespace utfcpp = utf8;
-
-using UTF8Iterator = utfcpp::iterator<std::string_view::const_iterator>;
-
 namespace rex {
 
+namespace {
+
+constexpr char32_t kReplacement = 0xFFFD;
+
+bool IsContinuation(char c) {
+  return (static_cast<u8>(c) & 0xC0) == 0x80;
+}
+
+bool IsEncodable(char32_t code_point) {
+  return code_point <= 0x10FFFF && (code_point < 0xD800 || code_point > 0xDFFF);
+}
+
+char32_t DecodeUTF8(const char*& it, const char* end) {
+  const auto lead = static_cast<u8>(*it++);
+  if (lead < 0x80) {
+    return lead;
+  }
+  u32 trail_count = 0;
+  char32_t code_point = 0;
+  u8 low = 0x80;
+  u8 high = 0xBF;
+  if (lead >= 0xC2 && lead <= 0xDF) {
+    trail_count = 1;
+    code_point = lead & 0x1F;
+  } else if (lead >= 0xE0 && lead <= 0xEF) {
+    trail_count = 2;
+    code_point = lead & 0x0F;
+    low = lead == 0xE0 ? 0xA0 : 0x80;
+    high = lead == 0xED ? 0x9F : 0xBF;
+  } else if (lead >= 0xF0 && lead <= 0xF4) {
+    trail_count = 3;
+    code_point = lead & 0x07;
+    low = lead == 0xF0 ? 0x90 : 0x80;
+    high = lead == 0xF4 ? 0x8F : 0xBF;
+  } else {
+    return kReplacement;
+  }
+  for (u32 i = 0; i < trail_count; ++i) {
+    if (it == end) {
+      return kReplacement;
+    }
+    const auto trail = static_cast<u8>(*it);
+    if (trail < low || trail > high) {
+      return kReplacement;
+    }
+    code_point = (code_point << 6) | (trail & 0x3F);
+    low = 0x80;
+    high = 0xBF;
+    ++it;
+  }
+  return code_point;
+}
+
+void EncodeUTF8(char32_t code_point, std::string& out) {
+  if (!IsEncodable(code_point)) {
+    code_point = kReplacement;
+  }
+  if (code_point < 0x80) {
+    out.push_back(static_cast<char>(code_point));
+  } else if (code_point < 0x800) {
+    out.push_back(static_cast<char>(0xC0 | (code_point >> 6)));
+    out.push_back(static_cast<char>(0x80 | (code_point & 0x3F)));
+  } else if (code_point < 0x10000) {
+    out.push_back(static_cast<char>(0xE0 | (code_point >> 12)));
+    out.push_back(static_cast<char>(0x80 | ((code_point >> 6) & 0x3F)));
+    out.push_back(static_cast<char>(0x80 | (code_point & 0x3F)));
+  } else {
+    out.push_back(static_cast<char>(0xF0 | (code_point >> 18)));
+    out.push_back(static_cast<char>(0x80 | ((code_point >> 12) & 0x3F)));
+    out.push_back(static_cast<char>(0x80 | ((code_point >> 6) & 0x3F)));
+    out.push_back(static_cast<char>(0x80 | (code_point & 0x3F)));
+  }
+}
+
+char32_t DecodeUTF16(const char16_t*& it, const char16_t* end) {
+  const char16_t unit = *it++;
+  if (unit < 0xD800 || unit > 0xDFFF) {
+    return unit;
+  }
+  if (unit > 0xDBFF || it == end || *it < 0xDC00 || *it > 0xDFFF) {
+    return kReplacement;
+  }
+  const char16_t trail = *it++;
+  return 0x10000 + ((static_cast<char32_t>(unit) - 0xD800) << 10) +
+         (static_cast<char32_t>(trail) - 0xDC00);
+}
+
+void EncodeUTF16(char32_t code_point, std::u16string& out) {
+  if (!IsEncodable(code_point)) {
+    code_point = kReplacement;
+  }
+  if (code_point < 0x10000) {
+    out.push_back(static_cast<char16_t>(code_point));
+    return;
+  }
+  code_point -= 0x10000;
+  out.push_back(static_cast<char16_t>(0xD800 + (code_point >> 10)));
+  out.push_back(static_cast<char16_t>(0xDC00 + (code_point & 0x3FF)));
+}
+
+class CodepointIterator {
+ public:
+  // NOLINTBEGIN(readability-identifier-naming): std::iterator_traits reads these names
+  using iterator_category = std::bidirectional_iterator_tag;
+  using value_type = u32;
+  using difference_type = std::ptrdiff_t;
+  using pointer = void;
+  using reference = u32;
+  // NOLINTEND(readability-identifier-naming)
+
+  CodepointIterator() = default;
+  CodepointIterator(const char* position, const char* range_begin, const char* range_end)
+      : position_(position), range_begin_(range_begin), range_end_(range_end) {}
+
+  [[nodiscard]] const char* Base() const { return position_; }
+
+  u32 operator*() const {
+    const char* it = position_;
+    return DecodeUTF8(it, range_end_);
+  }
+
+  CodepointIterator& operator++() {
+    DecodeUTF8(position_, range_end_);
+    return *this;
+  }
+
+  CodepointIterator operator++(int) {
+    CodepointIterator previous = *this;
+    ++*this;
+    return previous;
+  }
+
+  CodepointIterator& operator--() {
+    const char* start = position_ - 1;
+    for (u32 i = 0; i < 3 && start > range_begin_ && IsContinuation(*start); ++i) {
+      --start;
+    }
+    const char* probe = start;
+    DecodeUTF8(probe, range_end_);
+    position_ = probe == position_ ? start : position_ - 1;
+    return *this;
+  }
+
+  CodepointIterator operator--(int) {
+    CodepointIterator previous = *this;
+    --*this;
+    return previous;
+  }
+
+  bool operator==(const CodepointIterator& other) const { return position_ == other.position_; }
+
+ private:
+  const char* position_ = nullptr;
+  const char* range_begin_ = nullptr;
+  const char* range_end_ = nullptr;
+};
+
+}  // namespace
+
 std::string to_utf8(const std::u16string_view source) {
-  return utfcpp::utf16to8(source);
+  std::string result;
+  result.reserve(source.size());
+  const char16_t* it = source.data();
+  const char16_t* end = it + source.size();
+  while (it != end) {
+    EncodeUTF8(DecodeUTF16(it, end), result);
+  }
+  return result;
 }
 
 std::u16string to_utf16(const std::string_view source) {
-  return utfcpp::utf8to16(source);
+  std::u16string result;
+  result.reserve(source.size());
+  const char* it = source.data();
+  const char* end = it + source.size();
+  while (it != end) {
+    EncodeUTF16(DecodeUTF8(it, end), result);
+  }
+  return result;
 }
 
 namespace {
@@ -77,7 +244,7 @@ std::filesystem::path to_path(const std::u16string_view source) {
 namespace {
 std::string ToString(char32_t c) {
   std::string result;
-  utfcpp::append(c, result);
+  EncodeUTF8(c, result);
   return result;
 }
 
@@ -93,31 +260,33 @@ bool EqualASCIICase(const u32 l, const u32 r) {
   return l == r || LowerASCII(l) == LowerASCII(r);
 }
 
-std::pair<UTF8Iterator, UTF8Iterator> MakeIterators(const std::string_view view) {
-  return {UTF8Iterator(view.cbegin(), view.cbegin(), view.cend()),
-          UTF8Iterator(view.cend(), view.cbegin(), view.cend())};
+std::pair<CodepointIterator, CodepointIterator> MakeIterators(const std::string_view view) {
+  const char* first = view.data();
+  const char* last = first + view.size();
+  return {CodepointIterator(first, first, last), CodepointIterator(last, first, last)};
 }
 
-std::pair<UTF8Iterator, UTF8Iterator> MakeIterators(const UTF8Iterator begin,
-                                                    const UTF8Iterator end) {
-  return {UTF8Iterator(begin.base(), begin.base(), end.base()),
-          UTF8Iterator(end.base(), begin.base(), end.base())};
+std::pair<CodepointIterator, CodepointIterator> MakeIterators(const CodepointIterator begin,
+                                                              const CodepointIterator end) {
+  return {CodepointIterator(begin.Base(), begin.Base(), end.Base()),
+          CodepointIterator(end.Base(), begin.Base(), end.Base())};
 }
 
-size_t ByteLength(UTF8Iterator begin, UTF8Iterator end) {
-  return size_t(std::distance(begin.base(), end.base()));
+size_t ByteLength(CodepointIterator begin, CodepointIterator end) {
+  return size_t(std::distance(begin.Base(), end.Base()));
 }
 }  // namespace
 
 size_t utf8_count(const std::string_view view) {
-  return size_t(utfcpp::distance(view.cbegin(), view.cend()));
+  auto [begin, end] = MakeIterators(view);
+  return static_cast<size_t>(std::distance(begin, end));
 }
 
 std::string utf8_lower_ascii(const std::string_view view) {
   auto [begin, end] = MakeIterators(view);
   std::string result;
   for (auto it = begin; it != end; ++it) {
-    utfcpp::append(char32_t(LowerASCII(*it)), result);
+    EncodeUTF8(static_cast<char32_t>(LowerASCII(*it)), result);
   }
   return result;
 }
@@ -126,7 +295,7 @@ std::string utf8_upper_ascii(const std::string_view view) {
   auto [begin, end] = MakeIterators(view);
   std::string result;
   for (auto it = begin; it != end; ++it) {
-    utfcpp::append(char32_t(UpperASCII(*it)), result);
+    EncodeUTF8(static_cast<char32_t>(UpperASCII(*it)), result);
   }
   return result;
 }
@@ -168,8 +337,8 @@ size_t utf8_hash_fnv1a_case(const std::string_view view) {
 }
 
 namespace {
-inline UTF8Iterator FindNeedle(UTF8Iterator haystack_it, UTF8Iterator haystack_end,
-                               UTF8Iterator needle_begin, UTF8Iterator needle_end) {
+inline CodepointIterator FindNeedle(CodepointIterator haystack_it, CodepointIterator haystack_end,
+                                    CodepointIterator needle_begin, CodepointIterator needle_end) {
   return std::find_if(haystack_it, haystack_end, [&](const auto& c) {
     for (auto needle = needle_begin; needle != needle_end; ++needle) {
       if (c == *needle) {
@@ -180,8 +349,10 @@ inline UTF8Iterator FindNeedle(UTF8Iterator haystack_it, UTF8Iterator haystack_e
   });
 }
 
-inline UTF8Iterator FindNeedleCase(UTF8Iterator haystack_it, UTF8Iterator haystack_end,
-                                   UTF8Iterator needle_begin, UTF8Iterator needle_end) {
+inline CodepointIterator FindNeedleCase(CodepointIterator haystack_it,
+                                        CodepointIterator haystack_end,
+                                        CodepointIterator needle_begin,
+                                        CodepointIterator needle_end) {
   return std::find_if(haystack_it, haystack_end, [&](const auto& c) {
     for (auto needle = needle_begin; needle != needle_end; ++needle) {
       if (EqualASCIICase(c, *needle)) {
@@ -510,13 +681,13 @@ std::string utf8_join_paths(const std::string_view left_path, const std::string_
     return std::string(left_path);
   }
 
-  UTF8Iterator it;
+  CodepointIterator it;
   std::tie(std::ignore, it) = MakeIterators(left_path);
   --it;
 
   std::string result = std::string(left_path);
   if (*it != static_cast<u32>(separator)) {
-    utfcpp::append(separator, result);
+    EncodeUTF8(separator, result);
   }
   return result + std::string(right_path);
 }
@@ -563,7 +734,7 @@ std::string utf8_fix_path_separators(const std::string_view path, char32_t new_s
   };
 
   if (is_separator(*it)) {
-    utfcpp::append(new_separator, result);
+    EncodeUTF8(new_separator, result);
     ++it;
     last = it;
   }
@@ -578,7 +749,7 @@ std::string utf8_fix_path_separators(const std::string_view path, char32_t new_s
       auto offset = ByteLength(path_begin, last);
       auto length = ByteLength(path_begin, it) - offset;
       result += path.substr(offset, length);
-      utfcpp::append(new_separator, result);
+      EncodeUTF8(new_separator, result);
     }
 
     ++it;

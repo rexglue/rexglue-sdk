@@ -49,7 +49,7 @@ function(rex_ui_sdl3_configure target_name)
         ${REXGLUE_ROOT}/thirdparty/stb
     )
     target_link_libraries(${target_name} PRIVATE
-        rex-core rex-ui rex-gpu rex-imgui rex-runtime SDL3::SDL3 utf8cpp)
+        rex-core rex-ui rex-gpu rex-imgui rex-runtime SDL3::SDL3)
     if(APPLE)
         target_link_libraries(${target_name} PRIVATE "-framework CoreFoundation")
     endif()

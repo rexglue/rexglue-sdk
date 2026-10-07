@@ -144,7 +144,6 @@ target_link_libraries(rex-core
         tomlplusplus
     PRIVATE
         mspack
-        utf8cpp
         xxHash::xxhash
 )
 

@@ -23,9 +23,6 @@
 [submodule "thirdparty/catch2"]
 	path = thirdparty/catch2
 	url = https://github.com/catchorg/Catch2.git
-[submodule "thirdparty/utfcpp"]
-	path = thirdparty/utfcpp
-	url = https://github.com/nemtrif/utfcpp.git
 [submodule "thirdparty/vulkan-headers"]
 	path = thirdparty/vulkan-headers
 	url = https://github.com/KhronosGroup/Vulkan-Headers.git

@@ -38,7 +38,6 @@ set(REQUIRED_SUBMODULES
     simde
     xxHash
     fmt
-    utfcpp
     imgui
     sdl3
 )
@@ -152,11 +151,6 @@ set(FMT_TEST OFF CACHE BOOL "" FORCE)
 set(FMT_INSTALL ON CACHE BOOL "" FORCE)
 add_subdirectory(fmt)
 target_compile_options(fmt PRIVATE -w)
-
-#=============================================================================
-# utfcpp - UTF-8 string library (header-only)
-#=============================================================================
-add_subdirectory(utfcpp)
 
 #=============================================================================
 # Vulkan dependencies (only when Vulkan backend is enabled)

@@ -339,16 +339,6 @@ REX_API std::string utf8_fix_path_separators(const std::string_view path,
                                              char32_t new_separator = kUTF8PathSeparator);
 
 /**
- * Rewrites a path to use backslashes and collapses repeated separators.
- *
- * @param path Path to rewrite.
- * @return The rewritten guest path.
- */
-inline std::string utf8_fix_guest_path_separators(const std::string_view path) {
-  return utf8_fix_path_separators(path, kUTF8GuestPathSeparator);
-}
-
-/**
  * Returns the last component of a path, ignoring trailing separators.
  *
  * @param path Path to read.
