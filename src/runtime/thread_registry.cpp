@@ -7,7 +7,7 @@
 #include <shared_mutex>
 #include <thread>
 
-#include <fmt/format.h>
+#include <format>
 
 #include <rex/kernel/xboxkrnl/threading.h>
 #include <rex/logging.h>
@@ -286,7 +286,7 @@ const char* ThreadRegistry::GetOrCreateFiberName(u32 address, const char* thread
   if (it != fiber_name_pool_.end()) {
     return it->second.get();
   }
-  auto name = fmt::format("Fiber {:08X} ({})", address, thread_name);
+  auto name = std::format("Fiber {:08X} ({})", address, thread_name);
   auto buf = std::make_unique<char[]>(name.size() + 1);
   std::memcpy(buf.get(), name.c_str(), name.size() + 1);
   const char* ptr = buf.get();

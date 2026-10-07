@@ -14,7 +14,7 @@
 #include <rex/codegen/phases.h>
 #include "phase_helpers.h"
 
-#include <fmt/format.h>
+#include <format>
 
 #include <rex/codegen/config.h>
 #include <rex/logging.h>
@@ -479,7 +479,7 @@ Result<void> registerEntryPoints(CodegenContext& ctx) {
 
       if (resolvedName.empty()) {
         REXLOG_ERROR(codegen, "Cannot resolve ordinal {} from {}", ordinal, lib_name);
-        resolvedName = fmt::format("sub_{:X}", sym.address);
+        resolvedName = std::format("sub_{:X}", sym.address);
         unresolvedCount++;
       }
 
@@ -507,7 +507,7 @@ Result<void> registerEntryPoints(CodegenContext& ctx) {
       uint32_t addr = base14 + static_cast<uint32_t>((i - 14) * stride);
       uint32_t size = static_cast<uint32_t>((endReg + 1 - i) * stride + extraSize);
       graph.addFunction(addr, size, FunctionAuthority::HELPER, true);
-      graph.setFunctionName(addr, fmt::format("{}{}", prefix, i));
+      graph.setFunctionName(addr, std::format("{}{}", prefix, i));
     }
   };
 
@@ -524,7 +524,7 @@ Result<void> registerEntryPoints(CodegenContext& ctx) {
       uint32_t addr = state.restVmx64Address + static_cast<uint32_t>((i - 64) * 8);
       uint32_t size = static_cast<uint32_t>((128 - i) * 8 + 4);
       graph.addFunction(addr, size, FunctionAuthority::HELPER, true);
-      graph.setFunctionName(addr, fmt::format("__restvmx_{}", i));
+      graph.setFunctionName(addr, std::format("__restvmx_{}", i));
     }
   }
   if (state.saveVmx64Address != 0) {
@@ -532,7 +532,7 @@ Result<void> registerEntryPoints(CodegenContext& ctx) {
       uint32_t addr = state.saveVmx64Address + static_cast<uint32_t>((i - 64) * 8);
       uint32_t size = static_cast<uint32_t>((128 - i) * 8 + 4);
       graph.addFunction(addr, size, FunctionAuthority::HELPER, true);
-      graph.setFunctionName(addr, fmt::format("__savevmx_{}", i));
+      graph.setFunctionName(addr, std::format("__savevmx_{}", i));
     }
   }
 
@@ -540,7 +540,7 @@ Result<void> registerEntryPoints(CodegenContext& ctx) {
   size_t configFuncs = 0, configChunks = 0;
   for (const auto& [address, cfg] : config.functions) {
     uint32_t size = cfg.getSize(address);
-    std::string name = cfg.name.empty() ? fmt::format("sub_{:08X}", address) : cfg.name;
+    std::string name = cfg.name.empty() ? std::format("sub_{:08X}", address) : cfg.name;
     auto* node = graph.addFunction(address, size, FunctionAuthority::CONFIG, true);
     graph.setFunctionName(address, name);
     if (node && cfg.shareRegisters) {
@@ -568,7 +568,7 @@ Result<void> registerEntryPoints(CodegenContext& ctx) {
   auto* pdataSection = binary.findSection(pdataAddr);
   if (!pdataSection) {
     return Err(ErrorCategory::Format,
-               fmt::format("Cannot find section containing PDATA at 0x{:08X}", pdataAddr));
+               std::format("Cannot find section containing PDATA at 0x{:08X}", pdataAddr));
   }
 
   uint32_t offsetInSection = pdataAddr - pdataSection->baseAddress;

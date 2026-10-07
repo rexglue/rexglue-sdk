@@ -18,7 +18,7 @@
 #include <stack>
 #include <unordered_set>
 
-#include <fmt/format.h>
+#include <format>
 
 #include <rex/codegen/binary_view.h>
 #include <rex/codegen/codegen_context.h>

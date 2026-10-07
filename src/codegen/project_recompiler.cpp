@@ -13,11 +13,10 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <format>
 #include <span>
 #include <unordered_map>
 
-#include <fmt/format.h>
-#include <fmt/ranges.h>
 #include <nlohmann/json.hpp>
 
 #include <rex/codegen/analyze.h>
@@ -80,21 +79,21 @@ std::string FingerprintModule(const RecompilerConfig& cfg,
                               std::span<const std::filesystem::path> inputs, const Limits& limits,
                               std::string_view sdkVersion) {
   std::vector<std::string> flags{
-      fmt::format("templates={}", EmbeddedTemplatesHash()),
-      fmt::format("generate_exception_handlers={}", cfg.generateExceptionHandlers),
-      fmt::format("max_jump_extension={}", cfg.maxJumpExtension),
-      fmt::format("data_region_threshold={}", cfg.dataRegionThreshold),
-      fmt::format("max_file_size_bytes={}", limits.max_file_size_bytes),
-      fmt::format("max_discovery_iterations={}", limits.max_discovery_iterations),
-      fmt::format("max_vtable_iterations={}", limits.max_vtable_iterations),
-      fmt::format("max_resolve_iterations={}", limits.max_resolve_iterations),
-      fmt::format("max_eh_states={}", limits.max_eh_states),
-      fmt::format("max_eh_try_blocks={}", limits.max_eh_try_blocks),
-      fmt::format("max_eh_ip_map_entries={}", limits.max_eh_ip_map_entries),
-      fmt::format("max_seh_scope_entries={}", limits.max_seh_scope_entries),
-      fmt::format("backward_scan_limit={}", limits.backward_scan_limit),
-      fmt::format("max_jump_table_entries={}", limits.max_jump_table_entries),
-      fmt::format("max_blocks_per_function={}", limits.max_blocks_per_function),
+      std::format("templates={}", EmbeddedTemplatesHash()),
+      std::format("generate_exception_handlers={}", cfg.generateExceptionHandlers),
+      std::format("max_jump_extension={}", cfg.maxJumpExtension),
+      std::format("data_region_threshold={}", cfg.dataRegionThreshold),
+      std::format("max_file_size_bytes={}", limits.max_file_size_bytes),
+      std::format("max_discovery_iterations={}", limits.max_discovery_iterations),
+      std::format("max_vtable_iterations={}", limits.max_vtable_iterations),
+      std::format("max_resolve_iterations={}", limits.max_resolve_iterations),
+      std::format("max_eh_states={}", limits.max_eh_states),
+      std::format("max_eh_try_blocks={}", limits.max_eh_try_blocks),
+      std::format("max_eh_ip_map_entries={}", limits.max_eh_ip_map_entries),
+      std::format("max_seh_scope_entries={}", limits.max_seh_scope_entries),
+      std::format("backward_scan_limit={}", limits.backward_scan_limit),
+      std::format("max_jump_table_entries={}", limits.max_jump_table_entries),
+      std::format("max_blocks_per_function={}", limits.max_blocks_per_function),
   };
 
   return ComputeInputFingerprint(inputs, sdkVersion, flags);
@@ -175,7 +174,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
         list += unknown[i];
       }
       return Err<void>(ErrorCategory::Config,
-                       fmt::format("Unknown --target value(s): {}. Known DLL targets: {}", list,
+                       std::format("Unknown --target value(s): {}. Known DLL targets: {}", list,
                                    known.empty() ? "(none)" : known));
     }
   }
@@ -201,7 +200,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     if (!inserted) {
       return Err<void>(
           ErrorCategory::Validation,
-          fmt::format("out_directory_path '{}' is shared by '{}' and '{}'; each binary "
+          std::format("out_directory_path '{}' is shared by '{}' and '{}'; each binary "
                       "needs its own output directory",
                       outDir, it->second, m.targetName));
     }
@@ -212,7 +211,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
   fs::path entryXexPath = configDir / entryConfig.filePath;
   if (!fs::exists(entryXexPath)) {
     return Err<void>(ErrorCategory::IO,
-                     fmt::format("Entrypoint XEX not found: {}", entryXexPath.string()));
+                     std::format("Entrypoint XEX not found: {}", entryXexPath.string()));
   }
   entryXexPath = fs::canonical(entryXexPath);
 
@@ -223,7 +222,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     fs::path resolved = configDir / *manifest_.gameRoot;
     if (!fs::exists(resolved) || !fs::is_directory(resolved)) {
       return Err<void>(ErrorCategory::Validation,
-                       fmt::format("[project].game_root '{}' does not resolve to a directory",
+                       std::format("[project].game_root '{}' does not resolve to a directory",
                                    resolved.string()));
     }
     gameRoot = fs::canonical(resolved);
@@ -234,7 +233,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
   fs::path entryRel = fs::relative(entryXexPath, gameRoot);
   if (entryRel.empty() || *entryRel.begin() == "..") {
     return Err<void>(ErrorCategory::Validation,
-                     fmt::format("Entrypoint XEX '{}' resolves outside game root '{}'",
+                     std::format("Entrypoint XEX '{}' resolves outside game root '{}'",
                                  entryXexPath.string(), gameRoot.string()));
   }
 
@@ -249,7 +248,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
   auto entryVfsPath = "game:\\" + entryRelStr;
   if (auto loaded = runtime->LoadXEXImage(entryVfsPath); !loaded) {
     return Err<void>(ErrorCategory::IO,
-                     fmt::format("Failed to load entrypoint XEX: {}", loaded.error().message));
+                     std::format("Failed to load entrypoint XEX: {}", loaded.error().message));
   }
 
   auto entry_display_name = std::filesystem::path(targeted[0].config.filePath).filename().string();
@@ -265,14 +264,14 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     fs::path dllXexPath = configDir / dllConfig.filePath;
     if (!fs::exists(dllXexPath)) {
       return Err<void>(ErrorCategory::IO,
-                       fmt::format("DLL XEX not found: {}", dllXexPath.string()));
+                       std::format("DLL XEX not found: {}", dllXexPath.string()));
     }
     dllXexPath = fs::canonical(dllXexPath);
 
     auto relPath = fs::relative(dllXexPath, gameRoot);
     if (relPath.empty() || *relPath.begin() == "..") {
       return Err<void>(ErrorCategory::Validation,
-                       fmt::format("DLL '{}' resolves outside game root '{}': {}",
+                       std::format("DLL '{}' resolves outside game root '{}': {}",
                                    targeted[i].targetName, gameRoot.string(), dllXexPath.string()));
     }
     std::string relStr = relPath.string();
@@ -283,7 +282,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
         loaded ? *loaded : rex::X_HANDLE(0));
     if (!userMod) {
       return Err<void>(ErrorCategory::IO,
-                       fmt::format("Failed to load DLL module: {}", targeted[i].targetName));
+                       std::format("Failed to load DLL module: {}", targeted[i].targetName));
     }
     REXLOG_TRACE(codegen, "Loaded DLL module '{}' at base 0x{:08X}", targeted[i].targetName,
                  rex::runtime::UserModuleXEX(*userMod)->base_address());
@@ -402,7 +401,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
       uint32_t b_end = b_base + contexts[j].ctx.binary().imageSize();
       if (a_base < b_end && b_base < a_end) {
         return Err<void>(ErrorCategory::Validation,
-                         fmt::format("Module '{}' [{:08X}, {:08X}) overlaps '{}' [{:08X}, {:08X})",
+                         std::format("Module '{}' [{:08X}, {:08X}) overlaps '{}' [{:08X}, {:08X})",
                                      contexts[i].module->targetName, a_base, a_end,
                                      contexts[j].module->targetName, b_base, b_end));
       }
@@ -421,7 +420,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     CodegenWriter writer(entry.ctx, runtime);
     if (!writer.write(opts.force)) {
       return Err<void>(ErrorCategory::Validation,
-                       fmt::format("Write failed for '{}'", entry.module->targetName));
+                       std::format("Write failed for '{}'", entry.module->targetName));
     }
     deletedFiles_.insert(deletedFiles_.end(), writer.deletedFiles().begin(),
                          writer.deletedFiles().end());
@@ -441,7 +440,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     auto outDir = entry.ctx.configDir() / entry.ctx.Config().outDirectoryPath;
     if (WriteIfChanged(outDir / kStampFileName, stamp.Serialize()) == WriteOutcome::Failed) {
       return Err<void>(ErrorCategory::IO,
-                       fmt::format("Failed to write stamp for '{}'", entry.module->targetName));
+                       std::format("Failed to write stamp for '{}'", entry.module->targetName));
     }
 
     if (opts.reporter) {
@@ -459,11 +458,16 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     auto buildStamp = fs::absolute(buildDir / kBuildStampFileName);
     if (!WriteDepfile(buildDir / kDepfileName, buildStamp, allInputs)) {
       return Err<void>(ErrorCategory::IO,
-                       fmt::format("Failed to write {}", (buildDir / kDepfileName).string()));
+                       std::format("Failed to write {}", (buildDir / kDepfileName).string()));
+    }
+    std::string stamp_text;
+    for (const auto& fingerprint : fingerprints) {
+      stamp_text += fingerprint;
+      stamp_text += '\n';
     }
     // Never WriteIfChanged: the build rule re-runs until this mtime passes its inputs.
-    if (!WriteFileBytes(buildStamp, fmt::format("{}\n", fmt::join(fingerprints, "\n")))) {
-      return Err<void>(ErrorCategory::IO, fmt::format("Failed to write {}", buildStamp.string()));
+    if (!WriteFileBytes(buildStamp, stamp_text)) {
+      return Err<void>(ErrorCategory::IO, std::format("Failed to write {}", buildStamp.string()));
     }
   }
 
@@ -476,7 +480,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
   std::error_code mk_ec;
   fs::create_directories(outputPath, mk_ec);
   if (mk_ec) {
-    return Err<void>(ErrorCategory::IO, fmt::format("Failed to create output dir {}: {}",
+    return Err<void>(ErrorCategory::IO, std::format("Failed to create output dir {}: {}",
                                                     outputPath.string(), mk_ec.message()));
   }
 
@@ -506,7 +510,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     switch (WriteIfChanged(registryPath, registryContent)) {
       case WriteOutcome::Failed:
         return Err<void>(ErrorCategory::IO,
-                         fmt::format("Failed while writing {}", registryPath.string()));
+                         std::format("Failed while writing {}", registryPath.string()));
       case WriteOutcome::Unchanged:
         unchangedFiles_.push_back(registryPath.filename().string());
         break;
@@ -543,7 +547,7 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
     switch (WriteIfChanged(dllCmakePath, dllCmakeContent)) {
       case WriteOutcome::Failed:
         return Err<void>(ErrorCategory::IO,
-                         fmt::format("Failed while writing {}", dllCmakePath.string()));
+                         std::format("Failed while writing {}", dllCmakePath.string()));
       case WriteOutcome::Unchanged:
         unchangedFiles_.push_back(dllCmakePath.filename().string());
         break;

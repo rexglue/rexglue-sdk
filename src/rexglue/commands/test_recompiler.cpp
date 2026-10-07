@@ -23,7 +23,7 @@
 #include <vector>
 
 #include <CLI/CLI.hpp>
-#include <fmt/format.h>
+#include <format>
 #include <nlohmann/json.hpp>
 
 #include <rex/codegen/binary_view.h>
@@ -274,7 +274,7 @@ nlohmann::json SerializeMemory(const std::vector<MemValue>& mems) {
     nlohmann::json bytes = nlohmann::json::array();
     for (size_t i = 0; i < mv.data.size(); ++i) {
       bytes.push_back(
-          {{"offset", fmt::format("{:X}", i)}, {"value", fmt::format("{:02X}", mv.data[i])}});
+          {{"offset", std::format("{:X}", i)}, {"value", std::format("{:02X}", mv.data[i])}});
     }
     mem["bytes"] = bytes;
     arr.push_back(mem);
@@ -334,7 +334,7 @@ bool RecompileTests(std::string_view binDir, std::string_view asmDir, std::strin
     if (fileData.empty())
       continue;
 
-    auto mapPath = fmt::format("{}/{}.map", binDir, stem);
+    auto mapPath = std::format("{}/{}.map", binDir, stem);
     auto symbols = ParseMapFile(mapPath);
     if (symbols.empty()) {
       REXLOG_ERROR(rexglue, "No symbols found in map file: {}", mapPath);
@@ -369,7 +369,7 @@ bool RecompileTests(std::string_view binDir, std::string_view asmDir, std::strin
       if (code.empty())
         continue;
       functionsByFile[stem].emplace(fn->base());
-      allFunctionNames.push_back(fmt::format("{}_{:X}", stem, fn->base()));
+      allFunctionNames.push_back(std::format("{}_{:X}", stem, fn->base()));
       recompiledCode += code;
     }
     functionsOut << recompiledCode << '\n';
@@ -377,18 +377,18 @@ bool RecompileTests(std::string_view binDir, std::string_view asmDir, std::strin
 
   std::unordered_map<std::string, std::string> allSymbols;
   for (const auto& [stem, addresses] : functionsByFile) {
-    auto mapPath = fmt::format("{}/{}.map", binDir, stem);
+    auto mapPath = std::format("{}/{}.map", binDir, stem);
     auto mapSymbols = ParseMapFile(mapPath);
     for (const auto& [addr, name] : mapSymbols) {
       if (addresses.count(addr))
-        allSymbols.emplace(name, fmt::format("{}_{:X}", stem, addr));
+        allSymbols.emplace(name, std::format("{}_{:X}", stem, addr));
     }
     if (!mapSymbols.empty())
       continue;
 
     std::vector<size_t> sortedAddresses(addresses.begin(), addresses.end());
     std::sort(sortedAddresses.begin(), sortedAddresses.end());
-    std::ifstream in(fmt::format("{}/{}.s", asmDir, stem));
+    std::ifstream in(std::format("{}/{}.s", asmDir, stem));
     if (!in.is_open())
       continue;
     std::string line;
@@ -401,7 +401,7 @@ bool RecompileTests(std::string_view binDir, std::string_view asmDir, std::strin
         continue;
       auto name = line.substr(0, colonIdx);
       if (functionIndex < sortedAddresses.size()) {
-        allSymbols.emplace(name, fmt::format("{}_{:X}", stem, sortedAddresses[functionIndex]));
+        allSymbols.emplace(name, std::format("{}_{:X}", stem, sortedAddresses[functionIndex]));
         ++functionIndex;
       }
     }
@@ -420,7 +420,7 @@ bool RecompileTests(std::string_view binDir, std::string_view asmDir, std::strin
   templateData["tests"] = nlohmann::json::array();
   size_t totalTests = 0;
   for (const auto& [stem, addresses] : functionsByFile) {
-    auto specs = ParseTestSpecs(fmt::format("{}/{}.s", asmDir, stem), allSymbols);
+    auto specs = ParseTestSpecs(std::format("{}/{}.s", asmDir, stem), allSymbols);
     std::string category = CategoryFromStem(stem);
     for (const auto& spec : specs) {
       nlohmann::json testJson;
@@ -440,7 +440,7 @@ bool RecompileTests(std::string_view binDir, std::string_view asmDir, std::strin
   codegen::TemplateRegistry registry;
   auto writeRendered = [&](std::string_view templateId, std::string_view filename) {
     auto rendered = codegen::renderWithJson(registry, std::string(templateId), templateData);
-    std::ofstream out(fmt::format("{}/{}", outDir, filename));
+    std::ofstream out(std::format("{}/{}", outDir, filename));
     out << rendered;
   };
   writeRendered("test/ppc_config_h", "ppc_config.h");

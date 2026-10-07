@@ -14,8 +14,7 @@
 #pragma once
 
 #include <cstring>
-
-#include <fmt/format.h>
+#include <format>
 
 #include <rex/macros.h>
 #include <rex/types.h>
@@ -45,12 +44,12 @@ REX_API void DebugPrint(const char* s);
  * OutputDebugStringA and POSIX writes it to std::clog.
  *
  * @tparam Args The format argument types.
- * @param format The fmt format string.
+ * @param format The std::format string, checked at compile time.
  * @param args The format arguments.
  */
 template <typename... Args>
-void DebugPrint(fmt::string_view format, const Args&... args) {
-  detail::DebugPrint(fmt::vformat(format, fmt::make_format_args(args...)).c_str());
+void DebugPrint(std::format_string<const Args&...> format, const Args&... args) {
+  detail::DebugPrint(std::format(format, args...).c_str());
 }
 
 }  // namespace rex::platform

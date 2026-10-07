@@ -14,7 +14,7 @@
 #include <fstream>
 #include <memory>
 
-#include <fmt/format.h>
+#include <format>
 
 namespace rex {
 
@@ -27,7 +27,7 @@ struct StateDeleter {
 };
 
 std::string HexDigest(XXH128_hash_t digest) {
-  return fmt::format("{:016x}{:016x}", digest.high64, digest.low64);
+  return std::format("{:016x}{:016x}", digest.high64, digest.low64);
 }
 
 }  // namespace

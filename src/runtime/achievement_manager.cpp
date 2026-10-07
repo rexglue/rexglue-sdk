@@ -18,7 +18,6 @@
 #include <string>
 #include <utility>
 
-#include <fmt/format.h>
 #include <rex/logging.h>
 #include <rex/platform/file.h>
 #include <toml++/toml.hpp>
@@ -251,7 +250,7 @@ void AchievementManager::SaveUnlockState() const {
 
   std::string content = "# Achievement unlock state - managed by ReXGlue runtime\n\n";
   for (const auto& [id, filetime] : unlocked) {
-    content += fmt::format("[unlocked.{}]\nfiletime = {}\n\n", id, filetime);
+    content += std::format("[unlocked.{}]\nfiletime = {}\n\n", id, filetime);
   }
 
   auto written = rex::platform::WriteWholeFile(

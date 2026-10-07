@@ -21,7 +21,7 @@
 #include <string>
 
 #include <CLI/CLI.hpp>
-#include <fmt/format.h>
+#include <format>
 
 #include <rex/filesystem/container.h>
 

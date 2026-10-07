@@ -18,11 +18,10 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <format>
 #include <string>
 #include <string_view>
 #include <type_traits>
-
-#include <fmt/format.h>
 
 #include <rex/assert.h>
 #include <rex/platform.h>
@@ -43,7 +42,7 @@ namespace rex {
  * @return The hex digits without a prefix.
  */
 inline std::string to_hex_string(u32 value) {
-  return fmt::format("{:08X}", value);
+  return std::format("{:08X}", value);
 }
 
 /**
@@ -53,7 +52,7 @@ inline std::string to_hex_string(u32 value) {
  * @return The hex digits without a prefix.
  */
 inline std::string to_hex_string(u64 value) {
-  return fmt::format("{:016X}", value);
+  return std::format("{:016X}", value);
 }
 
 /**
@@ -89,7 +88,7 @@ inline std::string to_hex_string(f64 value) {
  * @return The lanes as "[XXXXXXXX XXXXXXXX XXXXXXXX XXXXXXXX]".
  */
 inline std::string to_hex_string(const vec128_t& value) {
-  return fmt::format("[{:08X} {:08X} {:08X} {:08X}]", value.u32[0], value.u32[1], value.u32[2],
+  return std::format("[{:08X} {:08X} {:08X} {:08X}]", value.u32[0], value.u32[1], value.u32[2],
                      value.u32[3]);
 }
 

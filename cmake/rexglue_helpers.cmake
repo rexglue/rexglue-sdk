@@ -111,7 +111,7 @@ function(rexglue_configure_target target_name)
         # macOS: $<TARGET_RUNTIME_DLLS> does not resolve imported dylibs, so
         # stage the shared runtime libraries explicitly next to the executable
         # (paired with the @executable_path rpath above). Everything else the
-        # runtime links (fmt, SDL3, ...) is static. Target names
+        # runtime links (SDL3, ...) is static. Target names
         # differ between an in-tree build and an installed SDK import.
         foreach(_rexglue_runtime_lib rex::core rex-core rex::imgui rex-imgui rex::runtime rex-runtime rex::TracyClient TracyClient)
             if(TARGET ${_rexglue_runtime_lib})

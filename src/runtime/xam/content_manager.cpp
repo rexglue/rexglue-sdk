@@ -17,7 +17,7 @@
 #include <string>
 #include <system_error>
 
-#include <fmt/format.h>
+#include <format>
 
 #include <rex/filesystem.h>
 #include <rex/filesystem/container.h>
@@ -45,7 +45,7 @@ ContentPackage::ContentPackage(Runtime& runtime, const std::string_view root_nam
                                const XCONTENT_AGGREGATE_DATA& data,
                                const std::filesystem::path& package_path)
     : runtime_(runtime), root_name_(root_name), package_path_(package_path), license_(0) {
-  device_path_ = fmt::format("\\Device\\Content\\{0}\\", ++g_content_device_id);
+  device_path_ = std::format("\\Device\\Content\\{0}\\", ++g_content_device_id);
   content_data_ = data;
 
   auto* fs = runtime_.file_system();
@@ -127,9 +127,9 @@ std::filesystem::path ContentManager::ResolvePackageRoot(u64 xuid, XContentType 
   if (title_id == kCurrentlyRunningTitleId) {
     title_id = this->title_id();
   }
-  auto xuid_str = fmt::format("{:016X}", xuid);
-  auto title_id_str = fmt::format("{:08X}", title_id);
-  auto content_type_str = fmt::format("{:08X}", u32(content_type));
+  auto xuid_str = std::format("{:016X}", xuid);
+  auto title_id_str = std::format("{:08X}", title_id);
+  auto content_type_str = std::format("{:08X}", u32(content_type));
 
   // Package root path:
   // content_root/xuid/title_id/content_type/
@@ -162,9 +162,9 @@ std::filesystem::path ContentManager::ResolvePackageHeaderPath(const std::string
     xuid = 0;
   }
 
-  auto xuid_str = fmt::format("{:016X}", xuid);
-  auto title_id_str = fmt::format("{:08X}", title_id);
-  auto content_type_str = fmt::format("{:08X}", u32(content_type));
+  auto xuid_str = std::format("{:016X}", xuid);
+  auto title_id_str = std::format("{:08X}", title_id);
+  auto content_type_str = std::format("{:08X}", u32(content_type));
   std::string final_name = std::string(file_name) + ".header";
 
   // Header root path:
@@ -413,7 +413,7 @@ Result<void> ContentManager::DeleteContent(u64 xuid, const XCONTENT_AGGREGATE_DA
 }
 
 std::filesystem::path ContentManager::ResolveGameUserContentPath() {
-  auto title_id = fmt::format("{:08X}", this->title_id());
+  auto title_id = std::format("{:08X}", this->title_id());
   auto user_name = rex::to_path(user_profile_.name());
 
   // Per-game per-profile data location:
@@ -463,7 +463,7 @@ Result<XCONTENT_AGGREGATE_DATA> ContentManager::InstallContent(
   const filesystem::STFSHeader* header = container.header();
   if (!header) {
     return Err<XCONTENT_AGGREGATE_DATA>(filesystem::MakeError(
-        filesystem::Error::kCorrupt, fmt::format("'{}' is a disc image, not a content package",
+        filesystem::Error::kCorrupt, std::format("'{}' is a disc image, not a content package",
                                                  rex::path_to_utf8(package_path))));
   }
   const auto& metadata = header->metadata;
@@ -484,7 +484,7 @@ Result<XCONTENT_AGGREGATE_DATA> ContentManager::InstallContent(
   if (IsContentOpen(content_data)) {
     return Err<XCONTENT_AGGREGATE_DATA>(filesystem::MakeError(
         filesystem::Error::kExists,
-        fmt::format("'{}' is open", rex::path_to_utf8(package_path.filename()))));
+        std::format("'{}' is open", rex::path_to_utf8(package_path.filename()))));
   }
 
   std::filesystem::path staging = install_path;
@@ -498,7 +498,7 @@ Result<XCONTENT_AGGREGATE_DATA> ContentManager::InstallContent(
     std::filesystem::remove_all(staging, ec);
     return Err<XCONTENT_AGGREGATE_DATA>(filesystem::MakeError(
         filesystem::Error::kIO,
-        fmt::format("cannot move the package into '{}'", rex::path_to_utf8(install_path))));
+        std::format("cannot move the package into '{}'", rex::path_to_utf8(install_path))));
   }
 
   const u32 thumbnail_size =
@@ -517,7 +517,7 @@ Result<XCONTENT_AGGREGATE_DATA> ContentManager::InstallContent(
   if (!WriteContentHeaderFile(0, content_data, license_mask)) {
     return Err<XCONTENT_AGGREGATE_DATA>(filesystem::MakeError(
         filesystem::Error::kIO,
-        fmt::format("cannot write the header file of '{}'", rex::path_to_utf8(install_path))));
+        std::format("cannot write the header file of '{}'", rex::path_to_utf8(install_path))));
   }
   return content_data;
 }
@@ -548,7 +548,7 @@ util::XDBFGameData ContentManager::module_xdbf(const ModuleObject& exec_module) 
   u32 resource_data = 0;
   u32 resource_size = 0;
   if (XSUCCEEDED(ModuleGetSection(exec_module,
-                                  fmt::format("{:08X}", UserModuleTitleID(exec_module)),
+                                  std::format("{:08X}", UserModuleTitleID(exec_module)),
                                   &resource_data, &resource_size))) {
     util::XDBFGameData db(runtime_.memory()->TranslateVirtual(resource_data), resource_size);
     return db;

@@ -14,7 +14,7 @@
 #include <bit>
 #include <cstring>
 
-#include <fmt/format.h>
+#include <format>
 
 #include <rex/chrono/clock.h>
 #include <rex/cvar.h>
@@ -166,7 +166,7 @@ void ThreadRecord::set_last_error(uint32_t error_code) {
 
 void ThreadRecord::set_name(const std::string_view name) {
   std::lock_guard<std::mutex> lock(thread_lock_);
-  thread_name_ = fmt::format("{} ({:08X})", name, handle());
+  thread_name_ = std::format("{} ({:08X})", name, handle());
 
   if (thread_) {
     // May be getting set before the thread is created.
@@ -405,7 +405,7 @@ X_STATUS ThreadRecord::Create() {
 
   // Set the thread name based on host ID (for easier debugging).
   if (thread_name_.empty()) {
-    set_name(fmt::format("XThread{:04X}", thread_->system_id()));
+    set_name(std::format("XThread{:04X}", thread_->system_id()));
   }
 
   if (creation_params_.creation_flags & 0x60) {

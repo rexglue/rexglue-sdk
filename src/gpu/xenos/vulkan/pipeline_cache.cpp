@@ -21,7 +21,7 @@
 #include <utility>
 #include <vector>
 
-#include <fmt/format.h>
+#include <format>
 
 #include <rex/assert.h>
 #include <rex/cvar.h>
@@ -83,19 +83,19 @@ constexpr bool IsPatchIndexedHostVertexShaderType(
 std::string GetTessellationSystemConstantsBlockGlsl() {
   std::string source;
   source += "layout(set = 0, binding = 0, std140) uniform XeSystemConstants {\n";
-  source += fmt::format("  layout(offset = {}) uint xe_vertex_index_endian;\n",
+  source += std::format("  layout(offset = {}) uint xe_vertex_index_endian;\n",
                         offsetof(SpirvShaderTranslator::SystemConstants, vertex_index_endian));
-  source += fmt::format("  layout(offset = {}) int xe_vertex_base_index;\n",
+  source += std::format("  layout(offset = {}) int xe_vertex_base_index;\n",
                         offsetof(SpirvShaderTranslator::SystemConstants, vertex_base_index));
-  source += fmt::format("  layout(offset = {}) uint xe_vertex_index_min;\n",
+  source += std::format("  layout(offset = {}) uint xe_vertex_index_min;\n",
                         offsetof(SpirvShaderTranslator::SystemConstants, vertex_index_min));
-  source += fmt::format("  layout(offset = {}) uint xe_vertex_index_max;\n",
+  source += std::format("  layout(offset = {}) uint xe_vertex_index_max;\n",
                         offsetof(SpirvShaderTranslator::SystemConstants, vertex_index_max));
   source +=
-      fmt::format("  layout(offset = {}) float xe_tessellation_factor_range_min;\n",
+      std::format("  layout(offset = {}) float xe_tessellation_factor_range_min;\n",
                   offsetof(SpirvShaderTranslator::SystemConstants, tessellation_factor_range_min));
   source +=
-      fmt::format("  layout(offset = {}) float xe_tessellation_factor_range_max;\n",
+      std::format("  layout(offset = {}) float xe_tessellation_factor_range_max;\n",
                   offsetof(SpirvShaderTranslator::SystemConstants, tessellation_factor_range_max));
   source += "} xe_system_cbuffer;\n";
   return source;
@@ -181,7 +181,7 @@ std::string GetTessellationControlShaderGlsl(Shader::HostVertexShaderType host_v
   source += "layout(location = 0) patch out vec4 xe_out_patch_control_point_indices;\n";
   // In GLSL, primitive mode / spacing / winding are TES layout qualifiers.
   // TCS only supports `layout(vertices = N) out`.
-  source += fmt::format("layout(vertices = {}) out;\n", output_control_points);
+  source += std::format("layout(vertices = {}) out;\n", output_control_points);
 
   source += R"(
 void main() {
@@ -407,7 +407,7 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
   std::set<std::pair<uint64_t, uint64_t>> shader_translations_needed;
   auto pipeline_storage_file_path =
       shader_storage_shareable_root /
-      fmt::format("{:08X}.{}.vk.xpso", title_id, edram_fragment_shader_interlock ? "fsi" : "fbo");
+      std::format("{:08X}.{}.vk.xpso", title_id, edram_fragment_shader_interlock ? "fsi" : "fbo");
   pipeline_storage_file_path_ = pipeline_storage_file_path;
   if (!OpenStorageFile(pipeline_storage_file_, pipeline_storage_file_path)) {
     REXLOG_ERROR(gpu,
@@ -489,7 +489,7 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
 
   // Initialize the Xenos shader storage stream.
   auto shader_storage_file_path =
-      shader_storage_shareable_root / fmt::format("{:08X}.xsh", title_id);
+      shader_storage_shareable_root / std::format("{:08X}.xsh", title_id);
   shader_storage_file_path_ = shader_storage_file_path;
   if (!OpenStorageFile(shader_storage_file_, shader_storage_file_path)) {
     REXLOG_ERROR(gpu,
@@ -2006,7 +2006,7 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
   for (uint32_t i = 0; i < key.interpolator_count; ++i) {
     spv::Id out_interpolator =
         builder.createVariable(spv::NoPrecision, spv::StorageClassOutput, type_float4,
-                               fmt::format("xe_out_interpolator_{}", i).c_str());
+                               std::format("xe_out_interpolator_{}", i).c_str());
     out_interpolators[i] = out_interpolator;
     builder.addDecoration(out_interpolator, spv::DecorationLocation, int(output_location));
     builder.addDecoration(out_interpolator, spv::DecorationInvariant);
@@ -2033,7 +2033,7 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
     spv::Id in_interpolator = builder.createVariable(
         spv::NoPrecision, spv::StorageClassInput,
         builder.makeArrayType(type_float4, const_input_primitive_vertex_count, 0),
-        fmt::format("xe_in_interpolator_{}", i).c_str());
+        std::format("xe_in_interpolator_{}", i).c_str());
     in_interpolators[i] = in_interpolator;
     builder.addDecoration(in_interpolator, spv::DecorationLocation, int(input_location));
     main_interface.push_back(in_interpolator);

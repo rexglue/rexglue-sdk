@@ -15,7 +15,7 @@
 #include <mutex>
 #include <vector>
 
-#include <fmt/format.h>
+#include <format>
 
 #include <rex/logging.h>
 #include <rex/math.h>
@@ -199,7 +199,7 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
       }
     }
     auto chunk = std::make_unique<Chunk>(chunk_size_);
-    auto chunk_path = path_.replace_extension(fmt::format(".{}", chunks_.size()));
+    auto chunk_path = path_.replace_extension(std::format(".{}", chunks_.size()));
     if (!chunk->Open(chunk_path, low_address_space_)) {
       return nullptr;
     }

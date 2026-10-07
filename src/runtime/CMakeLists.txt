@@ -90,7 +90,6 @@ target_link_libraries(rex-runtime
         rex-core
         rex-ui
         simde
-        fmt::fmt
         tomlplusplus
     PRIVATE
         aes128

@@ -18,7 +18,7 @@
 #include <utility>
 #include <vector>
 
-#include <fmt/format.h>
+#include <format>
 
 #include <rex/assert.h>
 #include "gpu/xenos/pipeline/shader/shader.h"
@@ -280,7 +280,7 @@ class RenderTargetCache {
     uint32_t GetWidth() const { return GetWidth(pitch_tiles_at_32bpp, msaa_samples); }
 
     std::string GetDebugName() const {
-      return fmt::format("RT @ {}t, <{}t>, {}xMSAA, {}", base_tiles, GetPitchTiles(),
+      return std::format("RT @ {}t, <{}t>, {}xMSAA, {}", base_tiles, GetPitchTiles(),
                          uint32_t(1) << uint32_t(msaa_samples), GetFormatName());
     }
   };

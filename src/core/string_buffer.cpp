@@ -20,7 +20,7 @@
 namespace rex {
 
 StringBuffer::StringBuffer(size_t initial_capacity) {
-  buffer_capacity_ = std::max(initial_capacity, static_cast<size_t>(16_KiB));
+  buffer_capacity_ = std::max(initial_capacity, 16_KiB);
   buffer_ = reinterpret_cast<char*>(std::malloc(buffer_capacity_));
   assert_not_null(buffer_);
   buffer_[0] = 0;

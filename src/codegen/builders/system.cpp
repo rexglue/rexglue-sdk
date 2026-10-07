@@ -97,8 +97,8 @@ bool build_tdi(BuilderContext& ctx) {
   uint32_t to = (ctx.insn.instruction >> 21) & 0x1F;
   uint32_t ra = (ctx.insn.instruction >> 16) & 0x1F;
   int64_t simm = static_cast<int16_t>(ctx.insn.instruction & 0xFFFF);
-  emitTrap(ctx, to, fmt::format("{}.s64", ctx.r(ra)), fmt::format("{}.u64", ctx.r(ra)),
-           fmt::format("{}ll", simm), fmt::format("{}ull", static_cast<uint64_t>(simm)));
+  emitTrap(ctx, to, std::format("{}.s64", ctx.r(ra)), std::format("{}.u64", ctx.r(ra)),
+           std::format("{}ll", simm), std::format("{}ull", static_cast<uint64_t>(simm)));
   return true;
 }
 
@@ -114,8 +114,8 @@ bool build_twi(BuilderContext& ctx) {
     return true;
   }
 
-  emitTrap(ctx, to, fmt::format("{}.s32", ctx.r(ra)), fmt::format("{}.u32", ctx.r(ra)),
-           fmt::format("{}", simm), fmt::format("{}u", static_cast<uint32_t>(simm)));
+  emitTrap(ctx, to, std::format("{}.s32", ctx.r(ra)), std::format("{}.u32", ctx.r(ra)),
+           std::format("{}", simm), std::format("{}u", static_cast<uint32_t>(simm)));
   return true;
 }
 
@@ -123,8 +123,8 @@ bool build_td(BuilderContext& ctx) {
   uint32_t to = (ctx.insn.instruction >> 21) & 0x1F;
   uint32_t ra = (ctx.insn.instruction >> 16) & 0x1F;
   uint32_t rb = (ctx.insn.instruction >> 11) & 0x1F;
-  emitTrap(ctx, to, fmt::format("{}.s64", ctx.r(ra)), fmt::format("{}.u64", ctx.r(ra)),
-           fmt::format("{}.s64", ctx.r(rb)), fmt::format("{}.u64", ctx.r(rb)));
+  emitTrap(ctx, to, std::format("{}.s64", ctx.r(ra)), std::format("{}.u64", ctx.r(ra)),
+           std::format("{}.s64", ctx.r(rb)), std::format("{}.u64", ctx.r(rb)));
   return true;
 }
 
@@ -132,8 +132,8 @@ bool build_tw(BuilderContext& ctx) {
   uint32_t to = (ctx.insn.instruction >> 21) & 0x1F;
   uint32_t ra = (ctx.insn.instruction >> 16) & 0x1F;
   uint32_t rb = (ctx.insn.instruction >> 11) & 0x1F;
-  emitTrap(ctx, to, fmt::format("{}.s32", ctx.r(ra)), fmt::format("{}.u32", ctx.r(ra)),
-           fmt::format("{}.s32", ctx.r(rb)), fmt::format("{}.u32", ctx.r(rb)));
+  emitTrap(ctx, to, std::format("{}.s32", ctx.r(ra)), std::format("{}.u32", ctx.r(ra)),
+           std::format("{}.s32", ctx.r(rb)), std::format("{}.u32", ctx.r(rb)));
   return true;
 }
 

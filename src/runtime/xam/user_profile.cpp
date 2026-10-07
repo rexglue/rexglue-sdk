@@ -11,7 +11,7 @@
 
 #include <sstream>
 
-#include <fmt/format.h>
+#include <format>
 
 #include <rex/logging.h>
 #include <rex/platform/file.h>
@@ -135,7 +135,7 @@ UserProfile::Setting* UserProfile::GetSetting(uint32_t setting_id) {
 void UserProfile::LoadSetting(UserProfile::Setting* setting) {
   if (setting->is_title_specific()) {
     auto content_dir = runtime_.content_manager().ResolveGameUserContentPath();
-    auto setting_id = fmt::format("{:08X}", setting->setting_id);
+    auto setting_id = std::format("{:08X}", setting->setting_id);
     auto file_path = content_dir / setting_id;
     if (auto serialized_data = rex::platform::ReadWholeFile(file_path)) {
       setting->Deserialize(*serialized_data);
@@ -153,7 +153,7 @@ void UserProfile::SaveSetting(UserProfile::Setting* setting) {
     auto serialized_setting = setting->Serialize();
     auto content_dir = runtime_.content_manager().ResolveGameUserContentPath();
     std::filesystem::create_directories(content_dir);
-    auto setting_id = fmt::format("{:08X}", setting->setting_id);
+    auto setting_id = std::format("{:08X}", setting->setting_id);
     auto file_path = content_dir / setting_id;
     if (auto written = rex::platform::WriteWholeFile(file_path, serialized_setting); !written) {
       REXLOG_WARN(system, "profile setting is not saved, {}", written.error().message);

@@ -15,7 +15,7 @@
 #include <cstring>
 #include <string_view>
 
-#include <fmt/format.h>
+#include <format>
 
 #include <rex/cvar.h>
 #include <rex/dbg.h>

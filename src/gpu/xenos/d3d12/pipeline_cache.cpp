@@ -22,7 +22,7 @@
 #include <utility>
 #include <vector>
 
-#include <fmt/format.h>
+#include <format>
 
 #include <rex/assert.h>
 #include <rex/chrono/clock.h>
@@ -239,7 +239,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
   std::set<std::pair<uint64_t, uint64_t>> shader_translations_needed;
   auto pipeline_storage_file_path =
       shader_storage_shareable_root /
-      fmt::format("{:08X}.{}.d3d12.xpso", title_id, edram_rov_used ? "rov" : "rtv");
+      std::format("{:08X}.{}.d3d12.xpso", title_id, edram_rov_used ? "rov" : "rtv");
   pipeline_storage_file_path_ = pipeline_storage_file_path;
   if (!OpenStorageFile(pipeline_storage_file_, pipeline_storage_file_path)) {
     REXLOG_ERROR(gpu,
@@ -314,7 +314,7 @@ void PipelineCache::InitializeShaderStorage(const std::filesystem::path& cache_r
   // Initialize the Xenos shader storage stream.
   uint64_t shader_storage_initialization_start = rex::Clock::QueryHostTickCount();
   auto shader_storage_file_path =
-      shader_storage_shareable_root / fmt::format("{:08X}.xsh", title_id);
+      shader_storage_shareable_root / std::format("{:08X}.xsh", title_id);
   shader_storage_file_path_ = shader_storage_file_path;
   if (!OpenStorageFile(shader_storage_file_, shader_storage_file_path)) {
     REXLOG_ERROR(gpu,
@@ -3031,12 +3031,12 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
   }
   std::u16string name;
   if (runtime_description.pixel_shader != nullptr) {
-    name = rex::to_utf16(fmt::format("VS {:016X}, PS {:016X}",
+    name = rex::to_utf16(std::format("VS {:016X}, PS {:016X}",
                                      runtime_description.vertex_shader->shader().ucode_data_hash(),
                                      runtime_description.pixel_shader->shader().ucode_data_hash()));
   } else {
     name = rex::to_utf16(
-        fmt::format("VS {:016X}", runtime_description.vertex_shader->shader().ucode_data_hash()));
+        std::format("VS {:016X}", runtime_description.vertex_shader->shader().ucode_data_hash()));
   }
   state->SetName(reinterpret_cast<LPCWSTR>(name.c_str()));
   return state;

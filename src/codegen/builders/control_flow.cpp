@@ -12,7 +12,7 @@
 #include "builder_context.h"
 #include "helpers.h"
 
-#include <fmt/format.h>
+#include <format>
 
 #include <rex/logging.h>
 
@@ -206,7 +206,7 @@ bool build_bnectr(BuilderContext& ctx) {
 
 bool build_bdz(BuilderContext& ctx) {
   ctx.println("\t--{}.u64;", ctx.ctr());
-  emitBranchWithBoundsCheck(ctx, ctx.insn.operands[0], fmt::format("{}.u32 == 0", ctx.ctr()),
+  emitBranchWithBoundsCheck(ctx, ctx.insn.operands[0], std::format("{}.u32 == 0", ctx.ctr()),
                             "bdz");
   return true;
 }
@@ -225,7 +225,7 @@ bool build_bdnzlr(BuilderContext& ctx) {
 
 bool build_bdnz(BuilderContext& ctx) {
   ctx.println("\t--{}.u64;", ctx.ctr());
-  emitBranchWithBoundsCheck(ctx, ctx.insn.operands[0], fmt::format("{}.u32 != 0", ctx.ctr()),
+  emitBranchWithBoundsCheck(ctx, ctx.insn.operands[0], std::format("{}.u32 != 0", ctx.ctr()),
                             "bdnz");
   return true;
 }
@@ -235,7 +235,7 @@ bool build_bdnzf(BuilderContext& ctx) {
   ctx.println("\t--{}.u64;", ctx.ctr());
   emitBranchWithBoundsCheck(
       ctx, ctx.insn.operands[1],
-      fmt::format("{}.u32 != 0 && !{}.{}", ctx.ctr(), ctx.cr(ctx.insn.operands[0] / 4), bit),
+      std::format("{}.u32 != 0 && !{}.{}", ctx.ctr(), ctx.cr(ctx.insn.operands[0] / 4), bit),
       "bdnzf");
   return true;
 }
@@ -245,7 +245,7 @@ bool build_bdnzt(BuilderContext& ctx) {
   ctx.println("\t--{}.u64;", ctx.ctr());
   emitBranchWithBoundsCheck(
       ctx, ctx.insn.operands[1],
-      fmt::format("{}.u32 != 0 && {}.{}", ctx.ctr(), ctx.cr(ctx.insn.operands[0] / 4), bit),
+      std::format("{}.u32 != 0 && {}.{}", ctx.ctr(), ctx.cr(ctx.insn.operands[0] / 4), bit),
       "bdnzt");
   return true;
 }
@@ -255,7 +255,7 @@ bool build_bdzf(BuilderContext& ctx) {
   ctx.println("\t--{}.u64;", ctx.ctr());
   emitBranchWithBoundsCheck(
       ctx, ctx.insn.operands[1],
-      fmt::format("{}.u32 == 0 && !{}.{}", ctx.ctr(), ctx.cr(ctx.insn.operands[0] / 4), bit),
+      std::format("{}.u32 == 0 && !{}.{}", ctx.ctr(), ctx.cr(ctx.insn.operands[0] / 4), bit),
       "bdzf");
   return true;
 }

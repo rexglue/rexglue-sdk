@@ -195,7 +195,7 @@ REX_API std::string_view::size_type utf8_find_first_of_case(const std::string_vi
                                                             const std::string_view needle);
 
 /**
- * Tests whether a string starts with a prefix.
+ * Reports whether a string starts with a prefix.
  *
  * @param haystack Text to test.
  * @param needle Prefix.
@@ -204,7 +204,7 @@ REX_API std::string_view::size_type utf8_find_first_of_case(const std::string_vi
 REX_API bool utf8_starts_with(const std::string_view haystack, const std::string_view needle);
 
 /**
- * Tests whether a string starts with a prefix, ignoring ASCII case.
+ * Reports whether a string starts with a prefix, ignoring ASCII case.
  *
  * @param haystack Text to test.
  * @param needle Prefix.
@@ -213,7 +213,7 @@ REX_API bool utf8_starts_with(const std::string_view haystack, const std::string
 REX_API bool utf8_starts_with_case(const std::string_view haystack, const std::string_view needle);
 
 /**
- * Tests whether a string ends with a suffix.
+ * Reports whether a string ends with a suffix.
  *
  * @param haystack Text to test.
  * @param needle Suffix.
@@ -222,7 +222,7 @@ REX_API bool utf8_starts_with_case(const std::string_view haystack, const std::s
 REX_API bool utf8_ends_with(const std::string_view haystack, const std::string_view needle);
 
 /**
- * Tests whether a string ends with a suffix, ignoring ASCII case.
+ * Reports whether a string ends with a suffix, ignoring ASCII case.
  *
  * @param haystack Text to test.
  * @param needle Suffix.

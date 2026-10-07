@@ -11,7 +11,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include <fmt/format.h>
+#include <format>
 
 #include <algorithm>
 #include <array>
@@ -233,7 +233,7 @@ TEST_CASE("Every name a recomp file calls is declared in its header", "[codegen_
 
     auto index = name.substr(name.find("_recomp.") + 8);
     index = index.substr(0, index.find('.'));
-    auto header = fx.outputDir() / fmt::format("testproj_funcs.{}.h", index);
+    auto header = fx.outputDir() / std::format("testproj_funcs.{}.h", index);
     REQUIRE(fs::exists(header));
 
     std::string body = ReadAll(entry.path());

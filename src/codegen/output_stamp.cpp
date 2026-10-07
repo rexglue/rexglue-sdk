@@ -13,7 +13,7 @@
 
 #include <fstream>
 
-#include <fmt/format.h>
+#include <format>
 #include <nlohmann/json.hpp>
 
 #include <rex/hash.h>
@@ -88,11 +88,11 @@ std::string ComputeInputFingerprint(std::span<const std::filesystem::path> input
         // Weaker than content, but a constant here would report a locked input
         // as unchanged and skip the module forever.
         REXLOG_WARN(codegen, "Could not read {} for fingerprinting", path.string());
-        digest = fmt::format("<unreadable:{}:{}>", std::filesystem::file_size(path, ec),
+        digest = std::format("<unreadable:{}:{}>", std::filesystem::file_size(path, ec),
                              std::filesystem::last_write_time(path, ec).time_since_epoch().count());
       }
     }
-    accumulator += fmt::format("file={} {}\n", path.filename().string(), digest);
+    accumulator += std::format("file={} {}\n", path.filename().string(), digest);
   }
 
   return rex::hash_bytes(accumulator);

@@ -14,7 +14,7 @@
 #include <algorithm>
 #include <vector>
 
-#include <fmt/format.h>
+#include <format>
 
 #include "ppc/instruction.h"
 
@@ -78,7 +78,7 @@ void AnalyzeTestBinary(CodegenContext& ctx, std::string_view testName,
     if (node) {
       // kRegistered -> kDiscovered -> kSealed
       node->discover({{fnAddr, fnSize}}, {}, {});
-      ctx.graph.setFunctionName(fnAddr, fmt::format("{}_{:X}", testName, fnAddr));
+      ctx.graph.setFunctionName(fnAddr, std::format("{}_{:X}", testName, fnAddr));
       node->seal();
     }
   }

@@ -107,16 +107,16 @@ inline void emitCRBitOperation(BuilderContext& ctx, std::string_view op, bool in
   uint32_t crField_B = crB / 4;
   uint32_t crBit_B = crB % 4;
 
-  std::string aExpr = fmt::format("{}.{}", ctx.cr(crField_A), crBitName(crBit_A));
+  std::string aExpr = std::format("{}.{}", ctx.cr(crField_A), crBitName(crBit_A));
 
-  std::string bExpr = fmt::format("{}.{}", ctx.cr(crField_B), crBitName(crBit_B));
+  std::string bExpr = std::format("{}.{}", ctx.cr(crField_B), crBitName(crBit_B));
 
   if (invertA)
     aExpr = "!(" + aExpr + ")";
   if (invertB)
     bExpr = "!(" + bExpr + ")";
 
-  std::string expr = fmt::format("{} {} {}", aExpr, op, bExpr);
+  std::string expr = std::format("{} {} {}", aExpr, op, bExpr);
 
   if (invertResult)
     expr = "!(" + expr + ")";
@@ -437,15 +437,15 @@ inline void emitTrap(BuilderContext& ctx, uint32_t to, const std::string& aSigne
     cond += c;
   };
   if (to & 0x10)
-    add(fmt::format("{} < {}", aSigned, bSigned));
+    add(std::format("{} < {}", aSigned, bSigned));
   if (to & 0x08)
-    add(fmt::format("{} > {}", aSigned, bSigned));
+    add(std::format("{} > {}", aSigned, bSigned));
   if (to & 0x04)
-    add(fmt::format("{} == {}", aSigned, bSigned));
+    add(std::format("{} == {}", aSigned, bSigned));
   if (to & 0x02)
-    add(fmt::format("{} < {}", aUnsigned, bUnsigned));
+    add(std::format("{} < {}", aUnsigned, bUnsigned));
   if (to & 0x01)
-    add(fmt::format("{} > {}", aUnsigned, bUnsigned));
+    add(std::format("{} > {}", aUnsigned, bUnsigned));
 
   ctx.println("\tif ({}) ppc_trap(ctx, base, 0);", cond);
 }

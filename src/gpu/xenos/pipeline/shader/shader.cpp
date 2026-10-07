@@ -14,7 +14,7 @@
 #include <fstream>
 #include <utility>
 
-#include <fmt/format.h>
+#include <format>
 
 #include <rex/xenos/ucode.h>
 #include "gpu/xenos/pipeline/shader/shader.h"
@@ -69,7 +69,7 @@ std::pair<std::filesystem::path, std::filesystem::path> Shader::Translation::Dum
   const char* type_extension = shader().type() == xenos::ShaderType::kVertex ? "vert" : "frag";
 
   std::filesystem::path binary_path =
-      target_path / fmt::format("shader_{:016X}_{:016X}.{}.bin.{}", shader().ucode_data_hash(),
+      target_path / std::format("shader_{:016X}_{:016X}.{}.bin.{}", shader().ucode_data_hash(),
                                 modification(), path_prefix, type_extension);
   std::ofstream binary_file(binary_path, std::ios::binary | std::ios::trunc);
   binary_file.write(
@@ -79,7 +79,7 @@ std::pair<std::filesystem::path, std::filesystem::path> Shader::Translation::Dum
   std::filesystem::path disasm_path;
   if (!host_disassembly_.empty()) {
     disasm_path =
-        target_path / fmt::format("shader_{:016X}_{:016X}.{}.{}", shader().ucode_data_hash(),
+        target_path / std::format("shader_{:016X}_{:016X}.{}.{}", shader().ucode_data_hash(),
                                   modification(), path_prefix, type_extension);
     std::ofstream disasm_file(disasm_path, std::ios::trunc);
     disasm_file.write(host_disassembly_.data(),
@@ -126,7 +126,7 @@ std::pair<std::filesystem::path, std::filesystem::path> Shader::DumpUcode(
   const char* type_extension = type() == xenos::ShaderType::kVertex ? "vert" : "frag";
 
   std::filesystem::path binary_path =
-      target_path / fmt::format("shader_{:016X}.ucode.bin.{}", ucode_data_hash(), type_extension);
+      target_path / std::format("shader_{:016X}.ucode.bin.{}", ucode_data_hash(), type_extension);
   std::ofstream binary_file(binary_path, std::ios::binary | std::ios::trunc);
   binary_file.write(
       reinterpret_cast<const char*>(ucode_data().data()),
@@ -135,7 +135,7 @@ std::pair<std::filesystem::path, std::filesystem::path> Shader::DumpUcode(
   std::filesystem::path disasm_path;
   if (is_ucode_analyzed()) {
     disasm_path =
-        target_path / fmt::format("shader_{:016X}.ucode.{}", ucode_data_hash(), type_extension);
+        target_path / std::format("shader_{:016X}.ucode.{}", ucode_data_hash(), type_extension);
     std::ofstream disasm_file(disasm_path, std::ios::trunc);
     disasm_file.write(ucode_disassembly().data(),
                       static_cast<std::streamsize>(ucode_disassembly().size()));

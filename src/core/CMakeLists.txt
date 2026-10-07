@@ -139,7 +139,6 @@ endif()
 
 target_link_libraries(rex-core
     PUBLIC
-        fmt::fmt
         simde
         tomlplusplus
     PRIVATE

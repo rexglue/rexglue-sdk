@@ -11,7 +11,7 @@
 
 #include <rex/codegen/phases.h>
 
-#include <fmt/format.h>
+#include <format>
 
 #include <rex/codegen/analysis_errors.h>
 #include <rex/codegen/config.h>
@@ -160,7 +160,7 @@ Result<void> validateGraph(CodegenContext& ctx) {
           if (!targetExists) {
             // Target is not in any function - this is an error that must stop the build
             errors.Add(AnalysisErrors::Category::UnresolvedCall, target, site,
-                       fmt::format("{} 0x{:08X} from 0x{:08X} - target not in any function",
+                       std::format("{} 0x{:08X} from 0x{:08X} - target not in any function",
                                    isCall ? "bl" : "b", target, site));
             continue;
           }
@@ -174,7 +174,7 @@ Result<void> validateGraph(CodegenContext& ctx) {
               if (!containingFunc) {
                 // Target is not in any function - this is an error (call the cops)
                 errors.Add(AnalysisErrors::Category::UnresolvedCall, target, site,
-                           fmt::format("{} 0x{:08X} from 0x{:08X} in {} - no CallEdge recorded",
+                           std::format("{} 0x{:08X} from 0x{:08X} in {} - no CallEdge recorded",
                                        isCall ? "bl" : "b", target, site, node->name()));
               }
               // If target is inside another function, it will be handled as a tail call
@@ -195,7 +195,7 @@ Result<void> validateGraph(CodegenContext& ctx) {
     REXLOG_ERROR(codegen, "Analyze: found {} errors", errors.Count());
     errors.PrintReport();
     return Err(ErrorCategory::Validation,
-               fmt::format("Validation failed: {} unresolved calls",
+               std::format("Validation failed: {} unresolved calls",
                            errors.Count(AnalysisErrors::Category::UnresolvedCall)));
   }
 

@@ -95,9 +95,9 @@ std::string BuilderContext::r(size_t index) {
        (index == 0 || index == 2 || index == 11 || index == 12)) ||
       (localizeNonVolatiles() && index >= 14)) {
     locals.r[index] = true;
-    return fmt::format("r{}", index);
+    return std::format("r{}", index);
   }
-  return fmt::format("ctx.r{}", index);
+  return std::format("ctx.r{}", index);
 }
 
 std::string BuilderContext::f(size_t index) {
@@ -105,9 +105,9 @@ std::string BuilderContext::f(size_t index) {
   if ((cfg.nonArgumentRegistersAsLocalVariables && index == 0) ||
       (localizeNonVolatiles() && index >= 14)) {
     locals.f[index] = true;
-    return fmt::format("f{}", index);
+    return std::format("f{}", index);
   }
-  return fmt::format("ctx.f{}", index);
+  return std::format("ctx.f{}", index);
 }
 
 std::string BuilderContext::v(size_t index) {
@@ -115,17 +115,17 @@ std::string BuilderContext::v(size_t index) {
   if ((cfg.nonArgumentRegistersAsLocalVariables && (index >= 32 && index <= 63)) ||
       (localizeNonVolatiles() && ((index >= 14 && index <= 31) || (index >= 64 && index <= 127)))) {
     locals.v[index] = true;
-    return fmt::format("v{}", index);
+    return std::format("v{}", index);
   }
-  return fmt::format("ctx.v{}", index);
+  return std::format("ctx.v{}", index);
 }
 
 std::string BuilderContext::cr(size_t index) {
   if (config().crRegistersAsLocalVariables) {
     locals.cr[index] = true;
-    return fmt::format("cr{}", index);
+    return std::format("cr{}", index);
   }
-  return fmt::format("ctx.cr{}", index);
+  return std::format("ctx.cr{}", index);
 }
 
 const char* BuilderContext::ctr() {

@@ -14,10 +14,9 @@
 #pragma once
 
 #include <cstdarg>
+#include <format>
 #include <string>
 #include <vector>
-
-#include <fmt/format.h>
 
 #include <rex/macros.h>
 #include <rex/types.h>
@@ -82,16 +81,15 @@ class REX_API StringBuffer {
   void Append(const std::string_view value);
 
   /**
-   * Appends text formatted with fmt.
+   * Appends text formatted with std::format.
    *
    * @tparam Args Argument types.
-   * @param format fmt format string, checked at run time.
+   * @param format Format string, checked at compile time.
    * @param args Format arguments.
    */
   template <typename... Args>
-  void AppendFormat(const char* format, const Args&... args) {
-    auto s = fmt::format(fmt::runtime(format), args...);
-    Append(s.c_str());
+  void AppendFormat(std::format_string<const Args&...> format, const Args&... args) {
+    Append(std::format(format, args...));
   }
 
   /**

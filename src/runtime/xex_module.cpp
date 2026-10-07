@@ -12,7 +12,7 @@
 #include <algorithm>
 #include <unordered_map>
 
-#include <fmt/format.h>
+#include <format>
 
 #include <rex/logging.h>
 #include <rex/math.h>
@@ -334,7 +334,7 @@ void XexModule::PopulateBinaryData() {
   for (const auto& lib : import_libs_) {
     for (const auto& import : lib.imports) {
       BinarySymbol sym;
-      sym.name = fmt::format("{}@{}", lib.name, import.ordinal);
+      sym.name = std::format("{}@{}", lib.name, import.ordinal);
       sym.address = import.thunk_address;
       sym.size = 16;
       sym.type = BinarySymbolType::Import;

@@ -17,9 +17,7 @@
 #include <array>
 #include <chrono>
 #include <ctime>
-
-#include <fmt/chrono.h>
-#include <fmt/format.h>
+#include <format>
 
 namespace rexglue::ui {
 
@@ -82,7 +80,7 @@ void ProgressView::renderActiveLine() {
                                                          : std::string_view{current_phase_});
     acc.writeRaw("]");
   } else if (active_line_kind_ == ActiveLineKind::ProjectPhase) {
-    acc.writeColored(color::kBold, fmt::format("project::{}", current_project_phase_));
+    acc.writeColored(color::kBold, std::format("project::{}", current_project_phase_));
   }
   acc.flush();
 }
@@ -103,13 +101,13 @@ void ProgressView::binaryInfo(const rex::codegen::BinaryInfo& info) {
     filetime = "(none)";
   } else {
     std::time_t t = static_cast<std::time_t>(info.pe_time_date_stamp);
-    filetime = fmt::format("{:%Y-%m-%d %H:%M:%S} UTC", fmt::gmtime(t));
+    filetime = std::format("{:%F %T} UTC", std::chrono::sys_seconds{std::chrono::seconds{t}});
   }
 
   std::array<KeyValueRow, 4> rows{{
-      {"Title ID", fmt::format("{:08X}", info.title_id)},
-      {"Media ID", fmt::format("{:08X}", info.media_id)},
-      {"Version", fmt::format("{}.{}.{}.{}", info.version_major, info.version_minor,
+      {"Title ID", std::format("{:08X}", info.title_id)},
+      {"Media ID", std::format("{:08X}", info.media_id)},
+      {"Version", std::format("{}.{}.{}.{}", info.version_major, info.version_minor,
                               info.version_build, info.version_qfe)},
       {"Filetime", std::move(filetime)},
   }};
@@ -127,7 +125,7 @@ void ProgressView::moduleStarted(std::string_view name, std::size_t index, std::
 
   if (!tty_) {
     detail::GlobalSinkAccessor acc;
-    acc.writeLine(fmt::format("  start  {}", name));
+    acc.writeLine(std::format("  start  {}", name));
     return;
   }
 
@@ -144,7 +142,7 @@ void ProgressView::phaseChanged(std::string_view name) {
 
   if (!tty_) {
     detail::GlobalSinkAccessor acc;
-    acc.writeLine(fmt::format("  phase  {}: {}", modules_[current_module_].name, name));
+    acc.writeLine(std::format("  phase  {}: {}", modules_[current_module_].name, name));
     return;
   }
 
@@ -161,7 +159,7 @@ void ProgressView::moduleFinished(std::chrono::milliseconds elapsed) {
 
   if (!tty_) {
     detail::GlobalSinkAccessor acc;
-    acc.writeLine(fmt::format("  done   {} ({:.1f}s)", modules_[current_module_].name,
+    acc.writeLine(std::format("  done   {} ({:.1f}s)", modules_[current_module_].name,
                               elapsed.count() / 1000.0));
     return;
   }
@@ -173,7 +171,7 @@ void ProgressView::moduleFinished(std::chrono::milliseconds elapsed) {
   acc.writeRaw(" ");
   acc.writeRaw(modules_[current_module_].name);
   acc.writeRaw(" ");
-  acc.writeColored(color::kDim, fmt::format("({:.1f}s)", elapsed.count() / 1000.0));
+  acc.writeColored(color::kDim, std::format("({:.1f}s)", elapsed.count() / 1000.0));
   acc.writeRaw("\n");
   active_line_kind_ = ActiveLineKind::None;
 }
@@ -184,7 +182,7 @@ void ProgressView::projectPhaseStarted(std::string_view name) {
 
   if (!tty_) {
     detail::GlobalSinkAccessor acc;
-    acc.writeLine(fmt::format("  start  project::{}", name));
+    acc.writeLine(std::format("  start  project::{}", name));
     return;
   }
 
@@ -205,7 +203,7 @@ void ProgressView::projectPhaseFinished() {
   acc.writeRaw("  ");
   acc.writeColored(color::kGreen, glyphs::kCheckMark);
   acc.writeRaw(" ");
-  acc.writeRaw(fmt::format("project::{}\n", current_project_phase_));
+  acc.writeRaw(std::format("project::{}\n", current_project_phase_));
   active_line_kind_ = ActiveLineKind::None;
 }
 

@@ -24,7 +24,7 @@
 #include <rex/platform.h>
 #endif
 
-#include <fmt/format.h>
+#include <format>
 
 namespace rex {
 namespace kernel {

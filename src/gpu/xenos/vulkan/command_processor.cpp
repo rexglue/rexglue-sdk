@@ -741,7 +741,7 @@ bool VulkanCommandProcessor::CompileGlslToSpirv(VkShaderStageFlagBits stage,
       glslang_stage = EShLangCompute;
       break;
     default:
-      error_out = fmt::format("Unsupported Vulkan shader stage mask {}", uint32_t(stage));
+      error_out = std::format("Unsupported Vulkan shader stage mask {}", uint32_t(stage));
       return false;
   }
   return CompileGlslToSpirvInternal(glslang_stage, source, spirv_out, error_out);

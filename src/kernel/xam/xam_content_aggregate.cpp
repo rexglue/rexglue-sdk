@@ -37,7 +37,7 @@ void AddODDContentTest(StaticItems& items, XContentType content_type) {
     return;
   }
 
-  auto content_type_path = fmt::format("{:08X}", uint32_t(content_type));
+  auto content_type_path = std::format("{:08X}", uint32_t(content_type));
 
   while (auto title_entry = (*titles)->Next()) {
     auto title_id = rex::from_string<uint32_t>(title_entry->name, true);

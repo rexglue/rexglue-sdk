@@ -20,7 +20,7 @@
 #include <sys/mman.h>
 #endif
 
-#include <fmt/format.h>
+#include <format>
 
 #include <rex/assert.h>
 #include <rex/chrono/clock.h>
@@ -148,7 +148,7 @@ Memory::~Memory() {
 }
 
 bool Memory::Initialize() {
-  file_name_ = fmt::format("xenia_memory_{}", Clock::QueryHostTickCount());
+  file_name_ = std::format("xenia_memory_{}", Clock::QueryHostTickCount());
 
   // Create main page file-backed mapping. This is all reserved but
   // uncommitted (so it shouldn't expand page file).

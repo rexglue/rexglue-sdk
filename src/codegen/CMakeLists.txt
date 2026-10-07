@@ -4,7 +4,6 @@
 set(CODEGEN_CORE_SOURCES
     codegen.cpp
     analyze.cpp
-    code_emitter.cpp
     decoded_binary.cpp
     codegen_writer.cpp
     output_partition.cpp
@@ -107,7 +106,6 @@ target_include_directories(rex-codegen
 target_link_libraries(rex-codegen
     PUBLIC
         rex-runtime
-        fmt::fmt
     PRIVATE
         tomlplusplus
         disasm

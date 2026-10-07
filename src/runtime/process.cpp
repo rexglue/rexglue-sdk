@@ -18,7 +18,7 @@
 #include <variant>
 #include <vector>
 
-#include <fmt/format.h>
+#include <format>
 
 #include <rex/api.h>
 #include <rex/logging.h>
@@ -219,7 +219,7 @@ void Runtime::LoadAchievementsData() {
   const auto user_root = user_data_root();
   if (!user_root.empty()) {
     achievement_manager_->SetUnlockSavePath(
-        user_root / "achievements" / fmt::format("{:08X}.toml", content_manager_->title_id()));
+        user_root / "achievements" / std::format("{:08X}.toml", content_manager_->title_id()));
     achievement_manager_->LoadUnlockState();
   }
 }

@@ -27,8 +27,7 @@
 #include <windows.h>
 #endif
 
-#include <fmt/format.h>
-#include <fmt/xchar.h>
+#include <format>
 
 namespace rex {
 namespace kernel {
@@ -93,7 +92,7 @@ void XamFormatDateString_entry(u32 unk, u64 filetime, mapped_void output_buffer,
 #if REX_PLATFORM_WIN32
   auto st = GetLocalSystemTime(filetime);
   // TODO: format this depending on users locale?
-  auto str = fmt::format(u"{:02d}/{:02d}/{}", st.wMonth, st.wDay, st.wYear);
+  auto str = rex::to_utf16(std::format("{:02d}/{:02d}/{}", st.wMonth, st.wDay, st.wYear));
   rex::copy_and_swap_truncating(output_buffer.as<char16_t*>(), str, output_count);
 #else
   assert_always();
@@ -107,7 +106,7 @@ void XamFormatTimeString_entry(u32 unk, u64 filetime, mapped_void output_buffer,
 #if REX_PLATFORM_WIN32
   auto st = GetLocalSystemTime(filetime);
   // TODO: format this depending on users locale?
-  auto str = fmt::format(u"{:02d}:{:02d}", st.wHour, st.wMinute);
+  auto str = rex::to_utf16(std::format("{:02d}:{:02d}", st.wHour, st.wMinute));
   rex::copy_and_swap_truncating(output_buffer.as<char16_t*>(), str, output_count);
 #else
   assert_always();
@@ -119,11 +118,13 @@ u32 keXamBuildResourceLocator(uint64_t module, std::u16string_view container,
                               uint32_t buffer_count) {
   std::u16string path;
   if (!module) {
-    path = fmt::format(u"file://media:/{}.xzp#{}", container, resource);
+    path = rex::to_utf16(
+        std::format("file://media:/{}.xzp#{}", rex::to_utf8(container), rex::to_utf8(resource)));
     REXLOG_DEBUG(kernel, "XamBuildResourceLocator({0}) returning locator to local file {0}.xzp",
                  rex::to_utf8(container));
   } else {
-    path = fmt::format(u"section://{:X},{}#{}", (uint32_t)module, container, resource);
+    path = rex::to_utf16(std::format("section://{:X},{}#{}", static_cast<u32>(module),
+                                     rex::to_utf8(container), rex::to_utf8(resource)));
   }
   rex::copy_and_swap_truncating(buffer_ptr.as<char16_t*>(), path, buffer_count);
   return 0;

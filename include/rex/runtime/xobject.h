@@ -19,8 +19,6 @@
 #include <string>
 #include <vector>
 
-#include <fmt/format.h>
-
 #include <rex/macros.h>
 #include <rex/platform/thread.h>
 #include <rex/runtime/xmemory.h>

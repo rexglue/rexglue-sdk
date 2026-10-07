@@ -18,7 +18,7 @@
 #include <stdexcept>
 #include <string>
 
-#include <fmt/format.h>
+#include <format>
 
 #include <rex/logging.h>
 #include <rex/platform/console.h>
@@ -249,7 +249,7 @@ void ManualReviewList(std::string_view header, std::span<const ManualReviewRow> 
 
 void DoneSummary(std::chrono::milliseconds elapsed) {
   detail::GlobalSinkAccessor acc;
-  acc.writeColored(color::kBoldGreen, fmt::format("Done in {:.1f}s.", elapsed.count() / 1000.0));
+  acc.writeColored(color::kBoldGreen, std::format("Done in {:.1f}s.", elapsed.count() / 1000.0));
   acc.writeRaw("\n");
   acc.flush();
 }
@@ -257,7 +257,7 @@ void DoneSummary(std::chrono::milliseconds elapsed) {
 void FailureSummary(std::string_view reason, std::chrono::milliseconds elapsed) {
   detail::GlobalSinkAccessor acc;
   acc.writeColored(color::kBoldRed,
-                   fmt::format("Failed: {} (after {:.1f}s)", reason, elapsed.count() / 1000.0));
+                   std::format("Failed: {} (after {:.1f}s)", reason, elapsed.count() / 1000.0));
   acc.writeRaw("\n");
   acc.flush();
 }

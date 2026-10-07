@@ -19,7 +19,7 @@
 #include <string>
 
 #include <CLI/CLI.hpp>
-#include <fmt/format.h>
+#include <format>
 
 #include <rex/logging.h>
 #include <rex/platform/console.h>
@@ -30,7 +30,7 @@
 namespace {
 
 std::string TitleString() {
-  return fmt::format("ReXGlue v{} - Xbox 360 Recompilation Toolkit", REXGLUE_VERSION_STRING);
+  return std::format("ReXGlue v{} - Xbox 360 Recompilation Toolkit", REXGLUE_VERSION_STRING);
 }
 
 bool IsStderrTty() {

@@ -11,11 +11,10 @@
 
 #pragma once
 
+#include <format>
 #include <string>
 #include <string_view>
 #include <vector>
-
-#include <fmt/core.h>
 
 #include <rex/codegen/codegen_context.h>
 
@@ -24,9 +23,6 @@ class Runtime;
 }
 
 namespace rex::codegen {
-
-/// True for output files this writer owns and may delete.
-bool IsGeneratedOutputName(std::string_view filename, std::string_view projectName);
 
 class CodegenWriter {
  public:
@@ -61,13 +57,13 @@ class CodegenWriter {
   std::vector<std::string> unchangedFiles_;
 
   template <class... Args>
-  void print(fmt::format_string<Args...> fmt, Args&&... args) {
-    fmt::vformat_to(std::back_inserter(out), fmt.get(), fmt::make_format_args(args...));
+  void print(std::format_string<Args...> fmt, Args&&... args) {
+    std::vformat_to(std::back_inserter(out), fmt.get(), std::make_format_args(args...));
   }
 
   template <class... Args>
-  void println(fmt::format_string<Args...> fmt, Args&&... args) {
-    fmt::vformat_to(std::back_inserter(out), fmt.get(), fmt::make_format_args(args...));
+  void println(std::format_string<Args...> fmt, Args&&... args) {
+    std::vformat_to(std::back_inserter(out), fmt.get(), std::make_format_args(args...));
     out += '\n';
   }
 

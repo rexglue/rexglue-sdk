@@ -64,7 +64,6 @@ target_include_directories(ppc_tests PRIVATE
 target_link_libraries(ppc_tests PRIVATE
     simde
     rex-runtime
-    fmt::fmt
     Catch2::Catch2WithMain
 )
 

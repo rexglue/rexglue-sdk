@@ -18,7 +18,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include <fmt/format.h>
+#include <format>
 #include <inja/inja.hpp>
 
 #include <rex/codegen/function_graph.h>
@@ -63,11 +63,11 @@ nlohmann::json buildTemplateData(const rex::codegen::CodegenContext& ctx,
     } else if (!fn->name().empty()) {
       funcName = fn->name();
     } else {
-      funcName = fmt::format("sub_{:08X}", fn->base());
+      funcName = std::format("sub_{:08X}", fn->base());
     }
 
     functionsJson.push_back({
-        {"address", fmt::format("0x{:X}", fn->base())},
+        {"address", std::format("0x{:X}", fn->base())},
         {"name", funcName},
         {"below_code_base", (fn->base() < codeMin)},
         {"is_import", fn->authority() == rex::codegen::FunctionAuthority::IMPORT},
@@ -88,12 +88,12 @@ nlohmann::json buildTemplateData(const rex::codegen::CodegenContext& ctx,
 
   return {
       {"project", cfg.projectName},
-      {"image_base", fmt::format("0x{:X}", ctx.binary().baseAddress())},
-      {"image_size", fmt::format("0x{:X}", ctx.binary().imageSize())},
-      {"code_base", fmt::format("0x{:X}", codeMin)},
-      {"code_size", fmt::format("0x{:X}", codeMax - codeMin)},
+      {"image_base", std::format("0x{:X}", ctx.binary().baseAddress())},
+      {"image_size", std::format("0x{:X}", ctx.binary().imageSize())},
+      {"code_base", std::format("0x{:X}", codeMin)},
+      {"code_size", std::format("0x{:X}", codeMax - codeMin)},
       {"shim_heap", cfg.UsesShimHeap() ? 1 : 0},
-      {"thunk_reserve_size", fmt::format("0x{:X}", 0x10000u)},
+      {"thunk_reserve_size", std::format("0x{:X}", 0x10000u)},
       {"has_dll_modules", ctx.hasDllModules()},
       {"is_dll", ctx.isDllModule()},
       {"config_flags", configFlags},
@@ -105,6 +105,8 @@ nlohmann::json buildTemplateData(const rex::codegen::CodegenContext& ctx,
 }  // namespace
 
 namespace rex::codegen {
+
+namespace {
 
 bool IsGeneratedOutputName(std::string_view filename, std::string_view projectName) {
   auto dot = filename.rfind('.');
@@ -129,12 +131,14 @@ bool IsGeneratedOutputName(std::string_view filename, std::string_view projectNa
   return filename.starts_with(projectPrefix);
 }
 
+}  // namespace
+
 constexpr size_t kOutputBufferReserveSize = size_t{32} * 1024 * 1024;
 
 namespace {
 
 std::string HexAddress(u32 address) {
-  return fmt::format("0x{:08X}", address);
+  return std::format("0x{:08X}", address);
 }
 
 std::string_view BlockName(MMIOAccess access) {
@@ -243,7 +247,7 @@ bool CodegenWriter::write(bool force) {
   // Build shim reverse map and rename graph nodes
   std::unordered_map<uint32_t, std::string> shimByAddr;
   for (const auto& [name, addr] : config().shimFunctions) {
-    auto shimName = fmt::format("rexshim_{}", name);
+    auto shimName = std::format("rexshim_{}", name);
     shimByAddr[addr] = shimName;
     if (auto* node = graph().getFunction(addr)) {
       node->setName(std::move(shimName));
@@ -261,28 +265,28 @@ bool CodegenWriter::write(bool force) {
   // Generate {project}_pch.h (config + macros, stable enough to precompile)
   REXLOG_TRACE(codegen, "Recompile: generating {}_pch.h", projectName);
   out = renderWithJson(registry, "codegen/pch_h", tmplData);
-  SaveCurrentOutData(fmt::format("{}_pch.h", projectName));
+  SaveCurrentOutData(std::format("{}_pch.h", projectName));
 
   // Generate {project}_funcs.h (every guest function declaration)
   REXLOG_TRACE(codegen, "Recompile: generating {}_funcs.h", projectName);
   out = renderWithJson(registry, "codegen/funcs_h", tmplData);
-  SaveCurrentOutData(fmt::format("{}_funcs.h", projectName));
+  SaveCurrentOutData(std::format("{}_funcs.h", projectName));
 
   // Generate {project}_init.h (the full surface, for init.cpp and consumers)
   REXLOG_TRACE(codegen, "Recompile: generating {}_init.h", projectName);
   out = renderWithJson(registry, "codegen/init_h", tmplData);
-  SaveCurrentOutData(fmt::format("{}_init.h", projectName));
+  SaveCurrentOutData(std::format("{}_init.h", projectName));
 
   // Generate {project}_init.cpp (PPCImageConfig + PPCFuncMappings)
   REXLOG_TRACE(codegen, "Recompile: generating {}_init.cpp", projectName);
   out = renderWithJson(registry, "codegen/init_cpp", tmplData);
-  SaveCurrentOutData(fmt::format("{}_init.cpp", projectName));
+  SaveCurrentOutData(std::format("{}_init.cpp", projectName));
 
   // Generate {project}_register.cpp (registration function for hash-based dispatch)
   REXLOG_TRACE(codegen, "Recompile: generating {}_register.cpp", projectName);
   tmplData["is_dll"] = ctx_.isDllModule();
   out = renderWithJson(registry, "codegen/register_cpp", tmplData);
-  SaveCurrentOutData(fmt::format("{}_register.cpp", projectName));
+  SaveCurrentOutData(std::format("{}_register.cpp", projectName));
 
   // Filter out imports and shim functions before recompilation
   std::erase_if(functions, [](const FunctionNode* fn) {
@@ -361,13 +365,13 @@ bool CodegenWriter::write(bool force) {
     for (const auto& name : ordered) {
       println("DECLARE_REX_FUNC({});", name);
     }
-    SaveCurrentOutData(fmt::format("{}_funcs.{}.h", projectName, index));
+    SaveCurrentOutData(std::format("{}_funcs.{}.h", projectName, index));
 
     println("#include \"{}_funcs.{}.h\"\n", projectName, index);
     for (size_t entry : buckets[index]) {
       out += bodies[entry];
     }
-    SaveCurrentOutData(fmt::format("{}_recomp.{}.cpp", projectName, index));
+    SaveCurrentOutData(std::format("{}_recomp.{}.cpp", projectName, index));
   }
 
   out = partition.Serialize();
@@ -384,7 +388,7 @@ bool CodegenWriter::write(bool force) {
     auto& recompFiles = tmplData["recomp_files"];
     recompFiles = nlohmann::json::array();
     for (size_t i = 0; i < buckets.size(); ++i) {
-      recompFiles.push_back(fmt::format("{}_recomp.{}.cpp", projectName, i));
+      recompFiles.push_back(std::format("{}_recomp.{}.cpp", projectName, i));
     }
     out = renderWithJson(registry, "codegen/sources_cmake", tmplData);
     SaveCurrentOutData("sources.cmake");

@@ -1,11 +1,12 @@
 #include "list_command.h"
 
+#include <cstdio>
+#include <format>
 #include <memory>
 #include <string>
 #include <vector>
 
 #include <CLI/CLI.hpp>
-#include <fmt/format.h>
 #include <nlohmann/json.hpp>
 
 #include <rex/kernel/shim/registry.h>
@@ -37,11 +38,13 @@ rex::Result<void> ListShim(const ListShimArgs& args) {
           {"description", std::string(entry.description)},
       });
     } else {
-      fmt::print("{:<24}{:<12}{}\n", entry.name, traits.name, entry.description);
+      std::fputs(
+          std::format("{:<24}{:<12}{}\n", entry.name, traits.name, entry.description).c_str(),
+          stdout);
     }
   }
   if (args.json) {
-    fmt::print("{}\n", rows.dump(2));
+    std::fputs((rows.dump(2) + "\n").c_str(), stdout);
   }
   return {};
 }
@@ -57,6 +60,7 @@ void RegisterList(CLI::App& parent, const CLIContext& ctx, DeferredAction& pendi
           ->fallthrough();
   auto args = std::make_shared<ListShimArgs>();
   std::vector<std::string> groups;
+  groups.reserve(std::size(shim::kGroups));
   for (const auto& traits : shim::kGroups) {
     groups.emplace_back(traits.name);
   }

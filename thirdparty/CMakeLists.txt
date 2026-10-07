@@ -37,7 +37,6 @@ set(REQUIRED_SUBMODULES
     tomlplusplus
     simde
     xxHash
-    fmt
     imgui
     sdl3
 )
@@ -142,15 +141,6 @@ target_compile_options(xxhash PRIVATE -w)
 add_subdirectory(disasm)
 # Suppress warnings in disasm
 target_compile_options(disasm PRIVATE -w)
-
-#=============================================================================
-# fmt - Formatting library
-#=============================================================================
-set(FMT_DOC OFF CACHE BOOL "" FORCE)
-set(FMT_TEST OFF CACHE BOOL "" FORCE)
-set(FMT_INSTALL ON CACHE BOOL "" FORCE)
-add_subdirectory(fmt)
-target_compile_options(fmt PRIVATE -w)
 
 #=============================================================================
 # Vulkan dependencies (only when Vulkan backend is enabled)

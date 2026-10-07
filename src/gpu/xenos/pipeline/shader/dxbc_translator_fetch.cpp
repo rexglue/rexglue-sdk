@@ -14,7 +14,7 @@
 #include <memory>
 #include <sstream>
 
-#include <fmt/format.h>
+#include <format>
 
 #include <rex/assert.h>
 #include <rex/cvar.h>
@@ -485,7 +485,7 @@ uint32_t DxbcShaderTranslator::FindOrAddTextureBinding(uint32_t fetch_constant,
         dimension_name = "2d";
     }
     new_texture_binding.bindful_name =
-        fmt::format("xe_texture{}_{}_{}", fetch_constant, dimension_name, is_signed ? 's' : 'u');
+        std::format("xe_texture{}_{}_{}", fetch_constant, dimension_name, is_signed ? 's' : 'u');
   } else {
     new_texture_binding.bindful_srv_index = kBindingIndexUnallocated;
   }

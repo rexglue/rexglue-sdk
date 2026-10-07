@@ -11,10 +11,9 @@
 #pragma once
 
 #include <cstdint>
+#include <format>
 #include <string>
 #include <string_view>
-
-#include <fmt/core.h>
 
 #include <rex/codegen/config.h>
 #include <rex/codegen/function_graph.h>
@@ -164,8 +163,8 @@ struct BuilderContext {
    * @param args Values to substitute into placeholders
    */
   template <class... Args>
-  void print(fmt::format_string<Args...> fmt, Args&&... args) {
-    fmt::vformat_to(std::back_inserter(out), fmt.get(), fmt::make_format_args(args...));
+  void print(std::format_string<Args...> fmt, Args&&... args) {
+    std::vformat_to(std::back_inserter(out), fmt.get(), std::make_format_args(args...));
   }
 
   /**
@@ -175,8 +174,8 @@ struct BuilderContext {
    * @param args Values to substitute into placeholders
    */
   template <class... Args>
-  void println(fmt::format_string<Args...> fmt, Args&&... args) {
-    fmt::vformat_to(std::back_inserter(out), fmt.get(), fmt::make_format_args(args...));
+  void println(std::format_string<Args...> fmt, Args&&... args) {
+    std::vformat_to(std::back_inserter(out), fmt.get(), std::make_format_args(args...));
     out += '\n';
   }
 

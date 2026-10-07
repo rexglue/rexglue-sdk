@@ -18,8 +18,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include <fmt/format.h>
-
 #include <rex/macros.h>
 #include <rex/memory.h>
 #include <rex/stream.h>

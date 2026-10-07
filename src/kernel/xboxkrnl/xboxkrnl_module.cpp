@@ -16,7 +16,7 @@
 #include <memory>
 #include <vector>
 
-#include <fmt/format.h>
+#include <format>
 
 #include <rex/api.h>
 #include <rex/chrono/clock.h>

@@ -18,7 +18,7 @@
 #include <vector>
 
 #include <SPIRV/GLSL.std.450.h>
-#include <fmt/format.h>
+#include <format>
 
 #include <rex/assert.h>
 #include "gpu/xenos/pipeline/shader/spirv.h"
@@ -535,14 +535,14 @@ void SpirvShaderTranslator::StartTranslation() {
       for (uint32_t i = 0; i < clip_distance_count; ++i) {
         var_main_rectangle_clip_distances_[i] = builder_->createVariable(
             spv::NoPrecision, spv::StorageClassFunction, type_rectangle_distance_array,
-            fmt::format("xe_var_rectangle_clip_distance_{}", i).c_str());
+            std::format("xe_var_rectangle_clip_distance_{}", i).c_str());
       }
       uint32_t cull_distance_count = shader_modification.GetVertexCullDistanceCount();
       assert_true(cull_distance_count <= kMaxRectanglePerVertexDistances);
       for (uint32_t i = 0; i < cull_distance_count; ++i) {
         var_main_rectangle_cull_distances_[i] = builder_->createVariable(
             spv::NoPrecision, spv::StorageClassFunction, type_rectangle_distance_array,
-            fmt::format("xe_var_rectangle_cull_distance_{}", i).c_str());
+            std::format("xe_var_rectangle_cull_distance_{}", i).c_str());
       }
       uint32_t interpolators_remaining = GetModificationInterpolatorMask();
       uint32_t interpolator_index;
@@ -552,7 +552,7 @@ void SpirvShaderTranslator::StartTranslation() {
             builder_->makeArrayType(type_float4_, builder_->makeUintConstant(3), 0);
         var_main_rectangle_interpolators_[interpolator_index] = builder_->createVariable(
             spv::NoPrecision, spv::StorageClassFunction, type_rectangle_interpolator_array,
-            fmt::format("xe_var_rectangle_interpolator_{}", interpolator_index).c_str());
+            std::format("xe_var_rectangle_interpolator_{}", interpolator_index).c_str());
       }
     }
     if (memexport_used) {
@@ -565,7 +565,7 @@ void SpirvShaderTranslator::StartTranslation() {
         memexport_eM_remaining &= ~(uint8_t(1) << memexport_eM_index);
         var_main_memexport_data_[memexport_eM_index] = builder_->createVariable(
             spv::NoPrecision, spv::StorageClassFunction, type_float4_,
-            fmt::format("xe_var_memexport_data_{}", memexport_eM_index).c_str(), const_float4_0_);
+            std::format("xe_var_memexport_data_{}", memexport_eM_index).c_str(), const_float4_0_);
       }
       var_main_memexport_data_written_ =
           builder_->createVariable(spv::NoPrecision, spv::StorageClassFunction, type_uint_,
@@ -1680,7 +1680,7 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderBeforeMain() {
       interpolators_remaining &= ~(UINT32_C(1) << interpolator_index);
       spv::Id interpolator = builder_->createVariable(
           spv::NoPrecision, spv::StorageClassOutput, type_float4_,
-          fmt::format("xe_out_interpolator_{}", interpolator_index).c_str());
+          std::format("xe_out_interpolator_{}", interpolator_index).c_str());
       input_output_interpolators_[interpolator_index] = interpolator;
       builder_->addDecoration(interpolator, spv::DecorationLocation, int(output_location));
       builder_->addDecoration(interpolator, spv::DecorationInvariant);
@@ -2862,7 +2862,7 @@ void SpirvShaderTranslator::StartFragmentShaderBeforeMain() {
         interpolators_remaining &= ~(UINT32_C(1) << interpolator_index);
         spv::Id interpolator = builder_->createVariable(
             spv::NoPrecision, spv::StorageClassInput, type_float4_,
-            fmt::format("xe_in_interpolator_{}", interpolator_index).c_str());
+            std::format("xe_in_interpolator_{}", interpolator_index).c_str());
         input_output_interpolators_[interpolator_index] = interpolator;
         builder_->addDecoration(interpolator, spv::DecorationLocation, int(input_location));
         if (shader_modification.pixel.interpolators_centroid &

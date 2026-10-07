@@ -20,7 +20,7 @@
 #include <system_error>
 #include <unordered_set>
 
-#include <fmt/format.h>
+#include <format>
 #include <nlohmann/json.hpp>
 #include <rex/codegen/template_registry.h>
 #include <rex/logging.h>
@@ -105,7 +105,7 @@ std::vector<SourceWarning> ScanStaleIncludes(
       std::string basename = pos == std::string::npos ? target : target.substr(pos + 1);
       if (!removed_lower.contains(ToLower(basename)))
         continue;
-      matches.push_back({entry.path(), line_number, fmt::format("stale include: {}", target),
+      matches.push_back({entry.path(), line_number, std::format("stale include: {}", target),
                          "header no longer emitted by codegen; update or remove the include"});
     }
   }

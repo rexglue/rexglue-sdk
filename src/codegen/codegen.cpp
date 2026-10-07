@@ -9,7 +9,7 @@
  *              See LICENSE file in the project root for full license text.
  */
 
-#include <fmt/format.h>
+#include <format>
 
 #include <rex/codegen/analyze.h>
 #include <rex/codegen/codegen.h>
@@ -32,7 +32,7 @@ Result<CodegenPipeline> CodegenPipeline::Create(const std::filesystem::path& con
   RecompilerConfig tempConfig;
   if (!tempConfig.Load(configPath.string())) {
     return Err<CodegenPipeline>(ErrorCategory::Config,
-                                fmt::format("Failed to load config: {}", configPath.string()));
+                                std::format("Failed to load config: {}", configPath.string()));
   }
 
   auto configDir = configPath.parent_path();
@@ -41,7 +41,7 @@ Result<CodegenPipeline> CodegenPipeline::Create(const std::filesystem::path& con
 
   if (!std::filesystem::exists(xexPath)) {
     return Err<CodegenPipeline>(ErrorCategory::IO,
-                                fmt::format("XEX file not found: {}", xexPath.string()));
+                                std::format("XEX file not found: {}", xexPath.string()));
   }
   xexPath = std::filesystem::canonical(xexPath);
 

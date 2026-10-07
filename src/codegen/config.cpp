@@ -19,7 +19,7 @@
 #include <string_view>
 #include <vector>
 
-#include <fmt/format.h>
+#include <format>
 
 #include <rex/codegen/config.h>
 #include <rex/kernel/shim/registry.h>
@@ -116,7 +116,7 @@ bool ApplyToml(const toml::table& toml, RecompilerConfig& cfg, const std::string
     for (const auto& [name, val] : *retired) {
       if (auto addr = val.value<int64_t>()) {
         converted +=
-            fmt::format("\n{} = 0x{:08X}", std::string(name.str()), static_cast<uint32_t>(*addr));
+            std::format("\n{} = 0x{:08X}", std::string(name.str()), static_cast<uint32_t>(*addr));
       }
     }
     REXLOG_ERROR(codegen, "config {}: the [rexcrt] table was renamed, replace it with\n{}",
@@ -578,7 +578,7 @@ RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
   // Helper to check 4-byte alignment (PPC instructions are 4-byte aligned)
   auto checkAlignment = [&](uint32_t addr, const char* name) {
     if (addr != 0 && (addr & 0x3) != 0) {
-      result.errors.push_back(fmt::format("{} address 0x{:08X} is not 4-byte aligned", name, addr));
+      result.errors.push_back(std::format("{} address 0x{:08X} is not 4-byte aligned", name, addr));
       result.valid = false;
     }
   };
@@ -593,15 +593,15 @@ RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
   for (const auto& [name, addr] : shimFunctions) {
     if (addr & 0x3) {
       result.errors.push_back(
-          fmt::format("shim function '{}' address 0x{:08X} is not 4-byte aligned", name, addr));
+          std::format("shim function '{}' address 0x{:08X} is not 4-byte aligned", name, addr));
       result.valid = false;
     }
     if (!rex::kernel::shim::IsRegistered(name)) {
       const auto nearest = NearestShimName(name);
       result.errors.push_back(
           nearest.empty()
-              ? fmt::format("shim function '{}' is not in the shim registry", name)
-              : fmt::format("shim function '{}' is not in the shim registry, did you mean '{}'?",
+              ? std::format("shim function '{}' is not in the shim registry", name)
+              : std::format("shim function '{}' is not in the shim registry, did you mean '{}'?",
                             name, nearest));
       result.valid = false;
     }
@@ -610,7 +610,7 @@ RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
   // Check function address alignment
   for (const auto& [addr, size] : functions) {
     if (addr & 0x3) {
-      result.errors.push_back(fmt::format("Function address 0x{:08X} is not 4-byte aligned", addr));
+      result.errors.push_back(std::format("Function address 0x{:08X} is not 4-byte aligned", addr));
       result.valid = false;
     }
   }
@@ -624,9 +624,9 @@ RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
       if (it != seen.end()) {
         if (it->second == funcSize) {
           result.errors.push_back(
-              fmt::format("Duplicate function boundary: 0x{:08X} size 0x{:X}", addr, funcSize));
+              std::format("Duplicate function boundary: 0x{:08X} size 0x{:X}", addr, funcSize));
         } else {
-          result.errors.push_back(fmt::format("Conflicting sizes at 0x{:08X}: 0x{:X} vs 0x{:X}",
+          result.errors.push_back(std::format("Conflicting sizes at 0x{:08X}: 0x{:X} vs 0x{:X}",
                                               addr, it->second, funcSize));
         }
         result.valid = false;
@@ -647,7 +647,7 @@ RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
     for (size_t i = 1; i < sorted.size(); ++i) {
       uint32_t prev_end = sorted[i - 1].first + sorted[i - 1].second;
       if (sorted[i].first < prev_end) {
-        result.errors.push_back(fmt::format(
+        result.errors.push_back(std::format(
             "Overlapping boundaries: 0x{:08X}+0x{:X} overlaps 0x{:08X}+0x{:X}", sorted[i - 1].first,
             sorted[i - 1].second, sorted[i].first, sorted[i].second));
         result.valid = false;
@@ -678,7 +678,7 @@ RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
     }
     if (found > 0 && found < total) {
       result.errors.push_back(
-          fmt::format("[shim] {} group is incomplete ({}/{} specified), missing: {}", traits.name,
+          std::format("[shim] {} group is incomplete ({}/{} specified), missing: {}", traits.name,
                       found, total, missing));
       result.valid = false;
     }

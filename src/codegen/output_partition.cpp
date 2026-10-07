@@ -17,7 +17,7 @@
 #include <map>
 #include <system_error>
 
-#include <fmt/format.h>
+#include <format>
 #include <nlohmann/json.hpp>
 
 #include <rex/logging.h>
@@ -88,7 +88,7 @@ std::string OutputPartition::Serialize() const {
   // Ordered so the sidecar is byte-stable across runs.
   std::map<std::string, size_t> ordered;
   for (const auto& [address, file] : addressToFile_) {
-    ordered.emplace(fmt::format("{:08X}", address), file);
+    ordered.emplace(std::format("{:08X}", address), file);
   }
 
   nlohmann::json doc;

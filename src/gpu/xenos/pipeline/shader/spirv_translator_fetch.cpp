@@ -16,7 +16,7 @@
 #include <utility>
 
 #include <SPIRV/GLSL.std.450.h>
-#include <fmt/format.h>
+#include <format>
 
 #include <rex/assert.h>
 #include "gpu/xenos/pipeline/shader/spirv_translator.h"
@@ -2114,7 +2114,7 @@ size_t SpirvShaderTranslator::FindOrAddTextureBinding(uint32_t fetch_constant,
       spv::NoPrecision, spv::StorageClassUniformConstant,
       builder_->makeImageType(type_float_, type_dimension, false, is_array, false, 1,
                               spv::ImageFormatUnknown),
-      fmt::format("xe_texture{}_{}_{}", fetch_constant, dimension_name, is_signed ? 's' : 'u')
+      std::format("xe_texture{}_{}_{}", fetch_constant, dimension_name, is_signed ? 's' : 'u')
           .c_str());
   builder_->addDecoration(
       new_texture_binding.variable, spv::DecorationDescriptorSet,

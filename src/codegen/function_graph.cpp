@@ -22,10 +22,9 @@
 #include <vector>
 #include <unordered_set>
 
-#include <fmt/format.h>
+#include <format>
 
 #include <rex/codegen/binary_view.h>
-#include <rex/codegen/code_emitter.h>
 #include <rex/codegen/function_graph.h>
 #include <rex/codegen/function_scanner.h>
 #include <rex/logging.h>
@@ -339,14 +338,14 @@ namespace {
 
 // Helper: append formatted text to a raw string (matches Recompiler::println pattern)
 template <class... Args>
-void emit_println(std::string& out, fmt::format_string<Args...> fmt, Args&&... args) {
-  fmt::vformat_to(std::back_inserter(out), fmt.get(), fmt::make_format_args(args...));
+void emit_println(std::string& out, std::format_string<Args...> fmt, Args&&... args) {
+  std::vformat_to(std::back_inserter(out), fmt.get(), std::make_format_args(args...));
   out += '\n';
 }
 
 template <class... Args>
-void emit_print(std::string& out, fmt::format_string<Args...> fmt, Args&&... args) {
-  fmt::vformat_to(std::back_inserter(out), fmt.get(), fmt::make_format_args(args...));
+void emit_print(std::string& out, std::format_string<Args...> fmt, Args&&... args) {
+  std::vformat_to(std::back_inserter(out), fmt.get(), std::make_format_args(args...));
 }
 
 bool IsSwitchPattern(const u32* data) {
@@ -450,7 +449,7 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
     } else if (!name_.empty()) {
       name = name_;
     } else {
-      name = fmt::format("sub_{:08X}", base());
+      name = std::format("sub_{:08X}", base());
     }
 
     emit_println(out, "// STUB: Function at 0x{:08X} has no discovered code blocks", base());
@@ -584,7 +583,7 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
   } else if (!name_.empty()) {
     name = name_;
   } else {
-    name = fmt::format("sub_{:08X}", base());
+    name = std::format("sub_{:08X}", base());
   }
 
   // Function signature with weak/alias pattern
@@ -687,7 +686,7 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
     for (auto it = sehInfo->scopes.rbegin(); it != sehInfo->scopes.rend(); ++it) {
       const auto& scope = *it;
       if (scope.filter == 0 && scope.handler != 0) {
-        ctx.reference(fmt::format("sub_{:08X}", scope.handler));
+        ctx.reference(std::format("sub_{:08X}", scope.handler));
         emit_println(body, "\t\t\tsub_{:08X}(ctx, base);  // __finally handler", scope.handler);
       }
     }
@@ -1160,11 +1159,11 @@ void FunctionGraph::sealAll() {
       } else if (node->blocks().empty() && !node->isImport()) {
         reason = "has 0 blocks (non-import)";
       } else if (!node->unresolvedJumps().empty()) {
-        reason = fmt::format("{} unresolved jumps", node->unresolvedJumps().size());
+        reason = std::format("{} unresolved jumps", node->unresolvedJumps().size());
       } else {
         reason = "unknown reason";
       }
-      errors.emplace_back(base, fmt::format("{} (0x{:08X}): {}", node->name(), base, reason));
+      errors.emplace_back(base, std::format("{} (0x{:08X}): {}", node->name(), base, reason));
       continue;
     }
 
@@ -1172,9 +1171,9 @@ void FunctionGraph::sealAll() {
   }
 
   if (!errors.empty()) {
-    std::string msg = fmt::format("sealAll: {} functions cannot be sealed:\n", errors.size());
+    std::string msg = std::format("sealAll: {} functions cannot be sealed:\n", errors.size());
     for (const auto& [addr, err] : errors) {
-      msg += fmt::format("  - {}\n", err);
+      msg += std::format("  - {}\n", err);
     }
     throw std::runtime_error(msg);
   }

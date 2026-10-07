@@ -10,7 +10,7 @@
 
 #include "decoded_binary.h"
 
-#include <fmt/format.h>
+#include <format>
 
 #include <rex/codegen/codegen_context.h>
 #include <rex/logging.h>
@@ -28,7 +28,7 @@ Result<CodegenContext> CodegenContext::Create(const std::filesystem::path& confi
   // Load configuration
   if (!ctx.config_.Load(configPath.string())) {
     return Err<CodegenContext>(ErrorCategory::Config,
-                               fmt::format("Failed to load config: {}", configPath.string()));
+                               std::format("Failed to load config: {}", configPath.string()));
   }
   ctx.configDir_ = configPath.parent_path();
 
@@ -39,7 +39,7 @@ Result<CodegenContext> CodegenContext::Create(const std::filesystem::path& confi
     xexPath = std::filesystem::canonical(xexPath);
   } else {
     return Err<CodegenContext>(ErrorCategory::NotFound,
-                               fmt::format("XEX file not found: {}", xexPath.string()));
+                               std::format("XEX file not found: {}", xexPath.string()));
   }
 
   // Load XEX via Runtime
@@ -48,7 +48,7 @@ Result<CodegenContext> CodegenContext::Create(const std::filesystem::path& confi
   if (auto loaded = runtime.LoadXEXImage(vfsPath); !loaded) {
     return Err<CodegenContext>(
         ErrorCategory::Format,
-        fmt::format("Failed to load XEX: {}, {}", xexPath.string(), loaded.error().message));
+        std::format("Failed to load XEX: {}, {}", xexPath.string(), loaded.error().message));
   }
 
   // Get module and create BinaryView
