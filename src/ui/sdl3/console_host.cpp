@@ -48,12 +48,12 @@ void ConsoleDockHost::ToggleWindow() {
   });
 }
 
-void ConsoleDockHost::Defer(std::function<void()> action) {
+void ConsoleDockHost::Defer(std::move_only_function<void()> action) {
   SDLWindowedAppContext* context = ui_.context_.get();
   if (!context) {
     return;
   }
-  context->CallInUIThreadDeferred([this, action = std::move(action)] {
+  context->CallInUIThreadDeferred([this, action = std::move(action)]() mutable {
     if (ui_.console_ && ui_.overlays_) {
       action();
     }

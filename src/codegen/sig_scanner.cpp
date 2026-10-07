@@ -14,8 +14,6 @@
 #include <rex/memory/utils.h>
 #include <rex/types.h>
 
-using rex::memory::load_and_swap;
-
 namespace rex::codegen {
 
 SigScanner::SigScanner(const runtime::Module& module) : module_(module) {}
@@ -85,7 +83,7 @@ std::vector<uint32_t> SigScanner::scanRange(uint32_t start, uint32_t end,
     uint32_t offset = addr - sectionBase;
 
     for (size_t i = 0; i < pattern.size() && matched; i++) {
-      uint32_t dword = load_and_swap<uint32_t>(data + offset + i * 4);
+      uint32_t dword = memory::load<be_u32>(data + offset + i * 4);
       uint32_t masked = dword & mask[i];
       uint32_t expected = pattern[i] & mask[i];
 

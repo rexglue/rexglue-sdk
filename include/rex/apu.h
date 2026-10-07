@@ -1,6 +1,5 @@
 /**
  * @file        apu.h
- * @brief       Audio output facade
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

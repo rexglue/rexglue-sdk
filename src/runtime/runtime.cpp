@@ -1,6 +1,5 @@
 /**
  * @file        runtime/runtime.cpp
- * @brief       Runtime subsystem implementation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

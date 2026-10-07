@@ -48,7 +48,7 @@ std::string KindName(fs::ContainerKind kind) {
   return "unknown";
 }
 
-rex::Result<void> Dump(const VFSDumpArgs& args) {
+[[nodiscard]] rex::Result<void> Dump(const VFSDumpArgs& args) {
   auto container = fs::Container::Open(args.source);
   if (!container) {
     return rex::Err(container.error());

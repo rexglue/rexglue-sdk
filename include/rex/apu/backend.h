@@ -1,6 +1,5 @@
 /**
  * @file        apu/backend.h
- * @brief       The audio output interface served by apu modules and its null provider
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

@@ -15,8 +15,6 @@
 
 #include <rex/memory/utils.h>
 
-using rex::memory::load_and_swap;
-
 namespace rex::codegen {
 
 namespace {
@@ -39,7 +37,7 @@ void mergeAndSeal(CodegenContext& ctx) {
     if (offset + 4 > section->size) {
       return std::nullopt;
     }
-    return load_and_swap<uint32_t>(section->data + offset);
+    return memory::load<be_u32>(section->data + offset);
   });
 
   size_t iteration = 0;
@@ -86,7 +84,7 @@ void mergeAndSeal(CodegenContext& ctx) {
 
 namespace phases {
 
-Result<void> Merge(CodegenContext& ctx, ProgressReporter* reporter) {
+[[nodiscard]] Result<void> Merge(CodegenContext& ctx, ProgressReporter* reporter) {
   (void)reporter;
   mergeAndSeal(ctx);
   return Ok();

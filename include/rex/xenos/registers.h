@@ -28,7 +28,7 @@
 //
 // https://gitlab.freedesktop.org/mesa/mesa/-/blob/main/src/freedreno/registers/adreno/a2xx.xml
 //
-// The Adreno 200, however, has various differences in its registers (primarily
+// The Adreno 200, however, has differences in its registers (primarily
 // in the render backend, but not limited to that). Before adding the
 // definitions from the Adreno 200, see the actual values of those registers set
 // by games, and/or test them on the Xenos hardware.
@@ -38,8 +38,8 @@
 // it's the closest relative of the R400 architecture that is available on the
 // PC. Documentation for newer AMD GPUs, such as Evergreen, Northern Islands,
 // and even GCN also can provide details in some cases. The earlier ATI's
-// architecture, R3xx/R5xx, has very differently structured registers (although
-// some are still very similar), but can provide some historical context.
+// architecture, R3xx/R5xx, has differently structured registers (although
+// some are still similar), but can provide some historical context.
 //
 // Display controller register addresses mostly match the M56 ones:
 // https://www.x.org/docs/AMD/old/RRG-216M56-03oOEM.pdf
@@ -92,7 +92,7 @@ union alignas(uint32_t) COHER_STATUS_HOST {
   };
   static constexpr Register register_index = xenos::Register::COHER_STATUS_HOST;
 };
-static_assert_size(COHER_STATUS_HOST, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(COHER_STATUS_HOST, sizeof(uint32_t));
 
 union alignas(uint32_t) WAIT_UNTIL {
   uint32_t value;
@@ -117,7 +117,7 @@ union alignas(uint32_t) WAIT_UNTIL {
   };
   static constexpr Register register_index = xenos::Register::WAIT_UNTIL;
 };
-static_assert_size(WAIT_UNTIL, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(WAIT_UNTIL, sizeof(uint32_t));
 
 /*******************************************************************************
   ___ ___ ___  _   _ ___ _  _  ___ ___ ___
@@ -150,7 +150,7 @@ union alignas(uint32_t) SQ_PROGRAM_CNTL {
   };
   static constexpr Register register_index = xenos::Register::SQ_PROGRAM_CNTL;
 };
-static_assert_size(SQ_PROGRAM_CNTL, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(SQ_PROGRAM_CNTL, sizeof(uint32_t));
 
 union alignas(uint32_t) SQ_CONTEXT_MISC {
   uint32_t value;
@@ -185,7 +185,7 @@ union alignas(uint32_t) SQ_CONTEXT_MISC {
     //     that the multiplication by c221.xy is done to flip the direction of
     //     the Y axis in gl_FragCoord (c221.y is probably -1). According to the
     //     tests performed with triangles and point sprites, the hardware uses
-    //     the top-left rasterization rule just like Direct3D (tie-breaking
+    //     the top-left rasterization rule like Direct3D (tie-breaking
     //     sample coverage towards gl_FragCoord.-x+y, while Direct3D tie-breaks
     //     towards VPOS.-x-y), and the R400 / Z430 doesn't seem to have the
     //     equivalent of R5xx's SC_EDGERULE register for configuring this).
@@ -206,8 +206,8 @@ union alignas(uint32_t) SQ_CONTEXT_MISC {
     //   OpenGL ES bottom-to-top screen coordinates - but towards -PsParamGen.y
     //   likely, see the explanation of gl_FragCoord.xy above), 1 in the bottom
     //   (towards -gl_FragCoord.y, or +PsParamGen.y likely). The point sprite
-    //   coordinates are exposed differently on the Xbox 360 and the PC
-    //   Direct3D 9 - the Xbox 360 passes the whole PsParamGen register via the
+    //   coordinates are exposed differently on the console and the PC
+    //   Direct3D 9 - the console passes the whole PsParamGen register via the
     //   SPRITETEXCOORD input semantic directly (unlike on the PC, where point
     //   sprite coordinates are written to XY of TEXCOORD0), and shaders should
     //   take abs(SPRITETEXCOORD.zw) explicitly.
@@ -242,7 +242,7 @@ union alignas(uint32_t) SQ_CONTEXT_MISC {
   };
   static constexpr Register register_index = xenos::Register::SQ_CONTEXT_MISC;
 };
-static_assert_size(SQ_CONTEXT_MISC, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(SQ_CONTEXT_MISC, sizeof(uint32_t));
 
 union alignas(uint32_t) SQ_INTERPOLATOR_CNTL {
   uint32_t value;
@@ -254,7 +254,7 @@ union alignas(uint32_t) SQ_INTERPOLATOR_CNTL {
   };
   static constexpr Register register_index = xenos::Register::SQ_INTERPOLATOR_CNTL;
 };
-static_assert_size(SQ_INTERPOLATOR_CNTL, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(SQ_INTERPOLATOR_CNTL, sizeof(uint32_t));
 
 union alignas(uint32_t) SQ_VS_CONST {
   uint32_t value;
@@ -267,7 +267,7 @@ union alignas(uint32_t) SQ_VS_CONST {
   };
   static constexpr Register register_index = xenos::Register::SQ_VS_CONST;
 };
-static_assert_size(SQ_VS_CONST, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(SQ_VS_CONST, sizeof(uint32_t));
 
 // Same as SQ_VS_CONST.
 union alignas(uint32_t) SQ_PS_CONST {
@@ -281,7 +281,7 @@ union alignas(uint32_t) SQ_PS_CONST {
   };
   static constexpr Register register_index = xenos::Register::SQ_PS_CONST;
 };
-static_assert_size(SQ_PS_CONST, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(SQ_PS_CONST, sizeof(uint32_t));
 
 /*******************************************************************************
  __   _____ ___ _____ _____  __
@@ -331,11 +331,11 @@ union alignas(uint32_t) VGT_DRAW_INITIATOR {
   };
   static constexpr Register register_index = xenos::Register::VGT_DRAW_INITIATOR;
 };
-static_assert_size(VGT_DRAW_INITIATOR, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(VGT_DRAW_INITIATOR, sizeof(uint32_t));
 
 // Unlike on R6xx (but closer to R5xx), and according to the Adreno 200 header,
 // the registers related to the vertex index are 24-bit. Vertex indices are
-// unsigned, and only the lower 24 bits of them are actually used by the GPU -
+// unsigned, and only the lower 24 bits of them are used by the GPU -
 // this has been verified on an Adreno 200 phone (LG Optimus L7) on OpenGL ES
 // using a GL_UNSIGNED_INT element array buffer with junk in the upper 8 bits
 // that had no effect on drawing.
@@ -359,16 +359,16 @@ union alignas(uint32_t) VGT_MULTI_PRIM_IB_RESET_INDX {
   };
   static constexpr Register register_index = xenos::Register::VGT_MULTI_PRIM_IB_RESET_INDX;
 };
-static_assert_size(VGT_MULTI_PRIM_IB_RESET_INDX, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(VGT_MULTI_PRIM_IB_RESET_INDX, sizeof(uint32_t));
 
 union alignas(uint32_t) VGT_INDX_OFFSET {
   uint32_t value;
   struct {
     // Unlike R5xx's VAP_INDEX_OFFSET, which is signed 25-bit, this is 24-bit -
     // and signedness doesn't matter as index calculations are done in 24-bit
-    // integers, and ((0xFFFFFE + 3) & 0xFFFFFF) == 1 anyway, just like
+    // integers, and ((0xFFFFFE + 3) & 0xFFFFFF) == 1 anyway, like
     // ((0xFFFFFFFE + 3) & 0xFFFFFF) == 1 if we treated it as signed by
-    // sign-extending on the host. Direct3D 9 just writes BaseVertexIndex as a
+    // sign-extending on the host. Direct3D 9 writes BaseVertexIndex as a
     // signed int32 to the entire register, but the upper 8 bits are ignored
     // anyway, and that has no effect on offsets that fit in 24 bits.
     uint32_t indx_offset : 24;  // +0
@@ -376,7 +376,7 @@ union alignas(uint32_t) VGT_INDX_OFFSET {
   };
   static constexpr Register register_index = xenos::Register::VGT_INDX_OFFSET;
 };
-static_assert_size(VGT_INDX_OFFSET, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(VGT_INDX_OFFSET, sizeof(uint32_t));
 
 union alignas(uint32_t) VGT_MIN_VTX_INDX {
   uint32_t value;
@@ -386,7 +386,7 @@ union alignas(uint32_t) VGT_MIN_VTX_INDX {
   };
   static constexpr Register register_index = xenos::Register::VGT_MIN_VTX_INDX;
 };
-static_assert_size(VGT_MIN_VTX_INDX, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(VGT_MIN_VTX_INDX, sizeof(uint32_t));
 
 union alignas(uint32_t) VGT_MAX_VTX_INDX {
   uint32_t value;
@@ -397,7 +397,7 @@ union alignas(uint32_t) VGT_MAX_VTX_INDX {
   };
   static constexpr Register register_index = xenos::Register::VGT_MAX_VTX_INDX;
 };
-static_assert_size(VGT_MAX_VTX_INDX, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(VGT_MAX_VTX_INDX, sizeof(uint32_t));
 
 union alignas(uint32_t) VGT_OUTPUT_PATH_CNTL {
   uint32_t value;
@@ -407,7 +407,7 @@ union alignas(uint32_t) VGT_OUTPUT_PATH_CNTL {
   };
   static constexpr Register register_index = xenos::Register::VGT_OUTPUT_PATH_CNTL;
 };
-static_assert_size(VGT_OUTPUT_PATH_CNTL, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(VGT_OUTPUT_PATH_CNTL, sizeof(uint32_t));
 
 union alignas(uint32_t) VGT_HOS_CNTL {
   uint32_t value;
@@ -417,7 +417,7 @@ union alignas(uint32_t) VGT_HOS_CNTL {
   };
   static constexpr Register register_index = xenos::Register::VGT_HOS_CNTL;
 };
-static_assert_size(VGT_HOS_CNTL, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(VGT_HOS_CNTL, sizeof(uint32_t));
 
 /*******************************************************************************
   ___ ___ ___ __  __ ___ _____ _____   _____
@@ -441,7 +441,7 @@ union alignas(uint32_t) PA_SU_POINT_MINMAX {
   };
   static constexpr Register register_index = xenos::Register::PA_SU_POINT_MINMAX;
 };
-static_assert_size(PA_SU_POINT_MINMAX, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(PA_SU_POINT_MINMAX, sizeof(uint32_t));
 
 union alignas(uint32_t) PA_SU_POINT_SIZE {
   uint32_t value;
@@ -452,7 +452,7 @@ union alignas(uint32_t) PA_SU_POINT_SIZE {
   };
   static constexpr Register register_index = xenos::Register::PA_SU_POINT_SIZE;
 };
-static_assert_size(PA_SU_POINT_SIZE, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(PA_SU_POINT_SIZE, sizeof(uint32_t));
 
 // Setup Unit / Scanline Converter mode cntl
 union alignas(uint32_t) PA_SU_SC_MODE_CNTL {
@@ -489,7 +489,7 @@ union alignas(uint32_t) PA_SU_SC_MODE_CNTL {
   };
   static constexpr Register register_index = xenos::Register::PA_SU_SC_MODE_CNTL;
 };
-static_assert_size(PA_SU_SC_MODE_CNTL, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(PA_SU_SC_MODE_CNTL, sizeof(uint32_t));
 
 // Setup Unit Vertex Control
 union alignas(uint32_t) PA_SU_VTX_CNTL {
@@ -502,7 +502,7 @@ union alignas(uint32_t) PA_SU_VTX_CNTL {
   };
   static constexpr Register register_index = xenos::Register::PA_SU_VTX_CNTL;
 };
-static_assert_size(PA_SU_VTX_CNTL, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(PA_SU_VTX_CNTL, sizeof(uint32_t));
 
 union alignas(uint32_t) PA_SC_MPASS_PS_CNTL {
   uint32_t value;
@@ -513,7 +513,7 @@ union alignas(uint32_t) PA_SC_MPASS_PS_CNTL {
   };
   static constexpr Register register_index = xenos::Register::PA_SC_MPASS_PS_CNTL;
 };
-static_assert_size(PA_SC_MPASS_PS_CNTL, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(PA_SC_MPASS_PS_CNTL, sizeof(uint32_t));
 
 // Scanline converter viz query, used by D3D for gpu side conditional rendering
 union alignas(uint32_t) PA_SC_VIZ_QUERY {
@@ -530,7 +530,7 @@ union alignas(uint32_t) PA_SC_VIZ_QUERY {
   };
   static constexpr Register register_index = xenos::Register::PA_SC_VIZ_QUERY;
 };
-static_assert_size(PA_SC_VIZ_QUERY, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(PA_SC_VIZ_QUERY, sizeof(uint32_t));
 
 // Clipper clip control
 union alignas(uint32_t) PA_CL_CLIP_CNTL {
@@ -562,7 +562,7 @@ union alignas(uint32_t) PA_CL_CLIP_CNTL {
   };
   static constexpr Register register_index = xenos::Register::PA_CL_CLIP_CNTL;
 };
-static_assert_size(PA_CL_CLIP_CNTL, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(PA_CL_CLIP_CNTL, sizeof(uint32_t));
 
 // Viewport transform engine control
 union alignas(uint32_t) PA_CL_VTE_CNTL {
@@ -583,7 +583,7 @@ union alignas(uint32_t) PA_CL_VTE_CNTL {
   };
   static constexpr Register register_index = xenos::Register::PA_CL_VTE_CNTL;
 };
-static_assert_size(PA_CL_VTE_CNTL, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(PA_CL_VTE_CNTL, sizeof(uint32_t));
 
 union alignas(uint32_t) PA_SC_SCREEN_SCISSOR_TL {
   uint32_t value;
@@ -595,7 +595,7 @@ union alignas(uint32_t) PA_SC_SCREEN_SCISSOR_TL {
   };
   static constexpr Register register_index = xenos::Register::PA_SC_SCREEN_SCISSOR_TL;
 };
-static_assert_size(PA_SC_SCREEN_SCISSOR_TL, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(PA_SC_SCREEN_SCISSOR_TL, sizeof(uint32_t));
 
 union alignas(uint32_t) PA_SC_SCREEN_SCISSOR_BR {
   uint32_t value;
@@ -607,7 +607,7 @@ union alignas(uint32_t) PA_SC_SCREEN_SCISSOR_BR {
   };
   static constexpr Register register_index = xenos::Register::PA_SC_SCREEN_SCISSOR_BR;
 };
-static_assert_size(PA_SC_SCREEN_SCISSOR_BR, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(PA_SC_SCREEN_SCISSOR_BR, sizeof(uint32_t));
 
 union alignas(uint32_t) PA_SC_WINDOW_OFFSET {
   uint32_t value;
@@ -619,7 +619,7 @@ union alignas(uint32_t) PA_SC_WINDOW_OFFSET {
   };
   static constexpr Register register_index = xenos::Register::PA_SC_WINDOW_OFFSET;
 };
-static_assert_size(PA_SC_WINDOW_OFFSET, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(PA_SC_WINDOW_OFFSET, sizeof(uint32_t));
 
 union alignas(uint32_t) PA_SC_WINDOW_SCISSOR_TL {
   uint32_t value;
@@ -632,7 +632,7 @@ union alignas(uint32_t) PA_SC_WINDOW_SCISSOR_TL {
   };
   static constexpr Register register_index = xenos::Register::PA_SC_WINDOW_SCISSOR_TL;
 };
-static_assert_size(PA_SC_WINDOW_SCISSOR_TL, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(PA_SC_WINDOW_SCISSOR_TL, sizeof(uint32_t));
 
 union alignas(uint32_t) PA_SC_WINDOW_SCISSOR_BR {
   uint32_t value;
@@ -644,7 +644,7 @@ union alignas(uint32_t) PA_SC_WINDOW_SCISSOR_BR {
   };
   static constexpr Register register_index = xenos::Register::PA_SC_WINDOW_SCISSOR_BR;
 };
-static_assert_size(PA_SC_WINDOW_SCISSOR_BR, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(PA_SC_WINDOW_SCISSOR_BR, sizeof(uint32_t));
 
 /*******************************************************************************
   ___ ___ _  _ ___  ___ ___
@@ -667,7 +667,7 @@ union alignas(uint32_t) RB_MODECONTROL {
   };
   static constexpr Register register_index = xenos::Register::RB_MODECONTROL;
 };
-static_assert_size(RB_MODECONTROL, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(RB_MODECONTROL, sizeof(uint32_t));
 
 union alignas(uint32_t) RB_SURFACE_INFO {
   uint32_t value;
@@ -679,7 +679,7 @@ union alignas(uint32_t) RB_SURFACE_INFO {
   };
   static constexpr Register register_index = xenos::Register::RB_SURFACE_INFO;
 };
-static_assert_size(RB_SURFACE_INFO, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(RB_SURFACE_INFO, sizeof(uint32_t));
 
 union alignas(uint32_t) RB_COLORCONTROL {
   uint32_t value;
@@ -733,7 +733,7 @@ union alignas(uint32_t) RB_COLORCONTROL {
   };
   static constexpr Register register_index = xenos::Register::RB_COLORCONTROL;
 };
-static_assert_size(RB_COLORCONTROL, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(RB_COLORCONTROL, sizeof(uint32_t));
 
 union alignas(uint32_t) RB_COLOR_INFO {
   uint32_t value;
@@ -752,7 +752,7 @@ union alignas(uint32_t) RB_COLOR_INFO {
   // RB_COLOR[1-3]_INFO also use this format.
   REX_API static const Register rt_register_indices[4];
 };
-static_assert_size(RB_COLOR_INFO, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(RB_COLOR_INFO, sizeof(uint32_t));
 
 union alignas(uint32_t) RB_COLOR_MASK {
   uint32_t value;
@@ -777,7 +777,7 @@ union alignas(uint32_t) RB_COLOR_MASK {
   };
   static constexpr Register register_index = xenos::Register::RB_COLOR_MASK;
 };
-static_assert_size(RB_COLOR_MASK, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(RB_COLOR_MASK, sizeof(uint32_t));
 
 union alignas(uint32_t) RB_BLENDCONTROL {
   uint32_t value;
@@ -796,7 +796,7 @@ union alignas(uint32_t) RB_BLENDCONTROL {
   static constexpr Register register_index = xenos::Register::RB_BLENDCONTROL0;
   REX_API static const Register rt_register_indices[4];
 };
-static_assert_size(RB_BLENDCONTROL, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(RB_BLENDCONTROL, sizeof(uint32_t));
 
 union alignas(uint32_t) RB_DEPTHCONTROL {
   uint32_t value;
@@ -804,7 +804,7 @@ union alignas(uint32_t) RB_DEPTHCONTROL {
     uint32_t stencil_enable : 1;  // +0
     uint32_t z_enable : 1;        // +1
     uint32_t z_write_enable : 1;  // +2
-    // EARLY_Z_ENABLE was added on Adreno, never set by Xbox 360 games.
+    // EARLY_Z_ENABLE was added on Adreno, never set by titles.
     uint32_t _pad_3 : 1;                        // +3
     xenos::CompareFunction zfunc : 3;           // +4
     uint32_t backface_enable : 1;               // +7
@@ -819,7 +819,7 @@ union alignas(uint32_t) RB_DEPTHCONTROL {
   };
   static constexpr Register register_index = xenos::Register::RB_DEPTHCONTROL;
 };
-static_assert_size(RB_DEPTHCONTROL, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(RB_DEPTHCONTROL, sizeof(uint32_t));
 
 union alignas(uint32_t) RB_STENCILREFMASK {
   uint32_t value;
@@ -832,7 +832,7 @@ union alignas(uint32_t) RB_STENCILREFMASK {
   static constexpr Register register_index = xenos::Register::RB_STENCILREFMASK;
   // RB_STENCILREFMASK_BF also uses this format.
 };
-static_assert_size(RB_STENCILREFMASK, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(RB_STENCILREFMASK, sizeof(uint32_t));
 
 union alignas(uint32_t) RB_DEPTH_INFO {
   uint32_t value;
@@ -848,9 +848,9 @@ union alignas(uint32_t) RB_DEPTH_INFO {
   };
   static constexpr Register register_index = xenos::Register::RB_DEPTH_INFO;
 };
-static_assert_size(RB_DEPTH_INFO, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(RB_DEPTH_INFO, sizeof(uint32_t));
 
-// Copy registers are very different than on Adreno.
+// Copy registers are different than on Adreno.
 
 union alignas(uint32_t) RB_COPY_CONTROL {
   uint32_t value;
@@ -867,7 +867,7 @@ union alignas(uint32_t) RB_COPY_CONTROL {
   };
   static constexpr Register register_index = xenos::Register::RB_COPY_CONTROL;
 };
-static_assert_size(RB_COPY_CONTROL, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(RB_COPY_CONTROL, sizeof(uint32_t));
 
 union alignas(uint32_t) RB_COPY_DEST_INFO {
   uint32_t value;
@@ -884,7 +884,7 @@ union alignas(uint32_t) RB_COPY_DEST_INFO {
   };
   static constexpr Register register_index = xenos::Register::RB_COPY_DEST_INFO;
 };
-static_assert_size(RB_COPY_DEST_INFO, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(RB_COPY_DEST_INFO, sizeof(uint32_t));
 
 union alignas(uint32_t) RB_COPY_DEST_PITCH {
   uint32_t value;
@@ -896,7 +896,7 @@ union alignas(uint32_t) RB_COPY_DEST_PITCH {
   };
   static constexpr Register register_index = xenos::Register::RB_COPY_DEST_PITCH;
 };
-static_assert_size(RB_COPY_DEST_PITCH, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(RB_COPY_DEST_PITCH, sizeof(uint32_t));
 
 /*******************************************************************************
   ___ ___ ___ ___ _      ___   __
@@ -922,7 +922,7 @@ union alignas(uint32_t) DC_LUT_RW_INDEX {
   };
   static constexpr Register register_index = xenos::Register::DC_LUT_RW_INDEX;
 };
-static_assert_size(DC_LUT_RW_INDEX, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(DC_LUT_RW_INDEX, sizeof(uint32_t));
 
 union alignas(uint32_t) DC_LUT_SEQ_COLOR {
   uint32_t value;
@@ -932,7 +932,7 @@ union alignas(uint32_t) DC_LUT_SEQ_COLOR {
   };
   static constexpr Register register_index = xenos::Register::DC_LUT_SEQ_COLOR;
 };
-static_assert_size(DC_LUT_SEQ_COLOR, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(DC_LUT_SEQ_COLOR, sizeof(uint32_t));
 
 union alignas(uint32_t) DC_LUT_PWL_DATA {
   uint32_t value;
@@ -949,7 +949,7 @@ union alignas(uint32_t) DC_LUT_PWL_DATA {
   };
   static constexpr Register register_index = xenos::Register::DC_LUT_PWL_DATA;
 };
-static_assert_size(DC_LUT_PWL_DATA, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(DC_LUT_PWL_DATA, sizeof(uint32_t));
 
 union alignas(uint32_t) DC_LUT_30_COLOR {
   uint32_t value;
@@ -961,7 +961,7 @@ union alignas(uint32_t) DC_LUT_30_COLOR {
   };
   static constexpr Register register_index = xenos::Register::DC_LUT_30_COLOR;
 };
-static_assert_size(DC_LUT_30_COLOR, sizeof(uint32_t));
+REX_STATIC_ASSERT_SIZE(DC_LUT_30_COLOR, sizeof(uint32_t));
 
 }  // namespace reg
 

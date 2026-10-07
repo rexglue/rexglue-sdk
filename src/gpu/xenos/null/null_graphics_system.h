@@ -1,6 +1,5 @@
 /**
  * @file        gpu/xenos/null/null_graphics_system.h
- * @brief       The Xenos graphics system with no host API
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

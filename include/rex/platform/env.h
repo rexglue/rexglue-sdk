@@ -1,6 +1,5 @@
 /**
  * @file        platform/env.h
- * @brief       Environment variable access in UTF-8
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

@@ -1,6 +1,5 @@
 /**
  * @file        ui/title_app.h
- * @brief       The title app, its lifecycle steps and entry point macros
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -197,7 +196,7 @@ class REX_RUNTIME_API TitleApp : public App, public gpu::IUIThread {
    * @return Ok to start the title. An error makes LaunchTitle return it before any guest thread
    *         runs.
    */
-  virtual Result<void> OnTitleLaunch(Runtime& runtime);
+  [[nodiscard]] virtual Result<void> OnTitleLaunch(Runtime& runtime);
 
   /**
    * Runs when the title exits while the app keeps running. The default shows a prompt with
@@ -266,7 +265,7 @@ class REX_RUNTIME_API TitleApp : public App, public gpu::IUIThread {
   friend struct TitleAppProbe;
 
   bool OnWindowEvent(const UIEvent& event);
-  Result<void> LaunchFailure(std::string_view message);
+  [[nodiscard]] Result<void> LaunchFailure(std::string_view message);
 
   PPCImageInfo image_{};
   gpu::IBackend* gpu_ = nullptr;

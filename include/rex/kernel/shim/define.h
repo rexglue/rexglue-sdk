@@ -1,6 +1,5 @@
 /**
  * @file        kernel/shim/define.h
- * @brief       Declaration macros for shim functions
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

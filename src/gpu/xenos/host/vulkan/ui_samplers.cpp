@@ -18,9 +18,9 @@ namespace gpu {
 namespace vulkan {
 
 std::unique_ptr<UISamplers> UISamplers::Create(const VulkanDevice* const vulkan_device) {
-  assert_not_null(vulkan_device);
+  REX_ASSERT(vulkan_device != nullptr);
 
-  std::unique_ptr<UISamplers> ui_samplers(new UISamplers(vulkan_device));
+  auto ui_samplers = std::make_unique<UISamplers>(Key{}, vulkan_device);
 
   const VulkanDevice::Functions& dfn = vulkan_device->functions();
   const VkDevice device = vulkan_device->device();
@@ -71,8 +71,8 @@ UISamplers::~UISamplers() {
   }
 }
 
-UISamplers::UISamplers(const VulkanDevice* vulkan_device) : vulkan_device_(vulkan_device) {
-  assert_not_null(vulkan_device);
+UISamplers::UISamplers(Key, const VulkanDevice* vulkan_device) : vulkan_device_(vulkan_device) {
+  REX_ASSERT(vulkan_device != nullptr);
 
   samplers_.fill(VK_NULL_HANDLE);
 }

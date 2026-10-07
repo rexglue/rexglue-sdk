@@ -40,20 +40,21 @@ class REX_RUNTIME_API ObjectTable final : public IObjectTable {
   using IObjectTable::Get;
   using IObjectTable::GetAll;
 
-  Result<X_HANDLE> Add(std::unique_ptr<ObjectRecord> record, const AddOptions& options) override;
-  Result<X_HANDLE> AddWithBlock(std::unique_ptr<ObjectRecord> record, u32 attributes_ptr,
-                                u32 block_size) override;
-  Result<X_HANDLE> Duplicate(X_HANDLE handle) override;
-  Result<void> Retain(X_HANDLE handle) override;
-  Result<void> Close(X_HANDLE handle) override;
-  Result<void> Remove(X_HANDLE handle) override;
-  Result<void> RetainPrimary(const PinnedSlot& slot) override;
-  Result<void> ReleasePrimary(const PinnedSlot& slot) override;
+  [[nodiscard]] Result<X_HANDLE> Add(std::unique_ptr<ObjectRecord> record,
+                                     const AddOptions& options) override;
+  [[nodiscard]] Result<X_HANDLE> AddWithBlock(std::unique_ptr<ObjectRecord> record,
+                                              u32 attributes_ptr, u32 block_size) override;
+  [[nodiscard]] Result<X_HANDLE> Duplicate(X_HANDLE handle) override;
+  [[nodiscard]] Result<void> Retain(X_HANDLE handle) override;
+  [[nodiscard]] Result<void> Close(X_HANDLE handle) override;
+  [[nodiscard]] Result<void> Remove(X_HANDLE handle) override;
+  [[nodiscard]] Result<void> RetainPrimary(const PinnedSlot& slot) override;
+  [[nodiscard]] Result<void> ReleasePrimary(const PinnedSlot& slot) override;
   std::optional<X_HANDLE> PrimaryHandle(const PinnedSlot& slot) override;
   PinnedSlot Get(X_HANDLE handle) override;
   std::vector<PinnedSlot> GetAll() override;
-  Result<void> AddName(std::string_view name, X_HANDLE handle) override;
-  Result<X_HANDLE> OpenByName(std::string_view name) override;
+  [[nodiscard]] Result<void> AddName(std::string_view name, X_HANDLE handle) override;
+  [[nodiscard]] Result<X_HANDLE> OpenByName(std::string_view name) override;
   std::optional<X_HANDLE> ResolveGuestObject(u32 address, i32 as_type) override;
 
  private:

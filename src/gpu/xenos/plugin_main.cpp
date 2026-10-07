@@ -53,7 +53,8 @@ class XenosModule final : public rex::IModule {
     return kRequired;
   }
 
-  rex::Result<void> Connect(rex::IInterfaceFactory* factory, const rex::Config& config) override {
+  [[nodiscard]] rex::Result<void> Connect(rex::IInterfaceFactory* factory,
+                                          const rex::Config& config) override {
     const gpu::GPUConfig& gpu = config.gpu;
     if (gpu.resolution_scale_x < 1 || gpu.resolution_scale_x > 8) {
       return rex::Err(rex::ErrorCategory::Config,
@@ -95,7 +96,7 @@ class XenosModule final : public rex::IModule {
     config_ = nullptr;
   }
 
-  rex::Result<void> Init() override {
+  [[nodiscard]] rex::Result<void> Init() override {
     std::string_view name = config_ ? std::string_view(config_->backend) : "any";
     REX_TRY(HostAPI api, SelectHostAPI(name, kPlatformHostAPIs));
     switch (api) {

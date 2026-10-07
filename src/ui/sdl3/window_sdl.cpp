@@ -1,6 +1,5 @@
 /**
  * @file        ui/sdl3/window_sdl.cpp
- * @brief       SDL3 implementation of the Window abstraction
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -130,12 +129,13 @@ bool WindowSDL::OpenImpl() {
   SDL_ShowWindow(sdl_window_);
 
   // Actualize state for the common Window code. Listener dispatch is handled
-  // by Window::Open after OpenImpl returns; these only record initial state.
+  // by Window::Open after OpenImpl returns; these only store initial state.
   int pixel_width = 0;
   int pixel_height = 0;
   SDL_GetWindowSizeInPixels(sdl_window_, &pixel_width, &pixel_height);
   WindowDestructionReceiver destruction_receiver(this);
-  OnActualSizeUpdate(uint32_t(pixel_width), uint32_t(pixel_height), destruction_receiver);
+  OnActualSizeUpdate(static_cast<uint32_t>(pixel_width), static_cast<uint32_t>(pixel_height),
+                     destruction_receiver);
   if (destruction_receiver.IsWindowDestroyed()) {
     return true;
   }
@@ -243,7 +243,8 @@ void WindowSDL::ApplySizeLimits() {
   if (!sdl_window_) {
     return;
   }
-  SDL_SetWindowMinimumSize(sdl_window_, i32(min_size_.width_px), i32(min_size_.height_px));
+  SDL_SetWindowMinimumSize(sdl_window_, static_cast<i32>(min_size_.width_px),
+                           static_cast<i32>(min_size_.height_px));
   f32 ratio = 0.0f;
   switch (aspect_ratio_) {
     case AspectRatio::kStretch:
@@ -295,8 +296,8 @@ bool WindowSDL::WarpMouseToCenter(int32_t& x_out, int32_t& y_out) {
   if (width <= 0 || height <= 0) {
     return false;
   }
-  float center_x = float(width) * 0.5f;
-  float center_y = float(height) * 0.5f;
+  float center_x = static_cast<float>(width) * 0.5f;
+  float center_y = static_cast<float>(height) * 0.5f;
   SDL_WarpMouseInWindow(sdl_window_, center_x, center_y);
   // The warp reports nothing back and compositors may drop it, so confirm.
   float actual_x = 0.0f;
@@ -306,8 +307,8 @@ bool WindowSDL::WarpMouseToCenter(int32_t& x_out, int32_t& y_out) {
     return false;
   }
   float density = GetPixelDensity();
-  x_out = int32_t(center_x * density);
-  y_out = int32_t(center_y * density);
+  x_out = static_cast<int32_t>(center_x * density);
+  y_out = static_cast<int32_t>(center_y * density);
   return true;
 }
 
@@ -319,8 +320,8 @@ bool WindowSDL::GetDisplayPixelSize(uint32_t& width, uint32_t& height) const {
   if (!mode) {
     return false;
   }
-  width = uint32_t(float(mode->w) * mode->pixel_density);
-  height = uint32_t(float(mode->h) * mode->pixel_density);
+  width = static_cast<uint32_t>(static_cast<float>(mode->w) * mode->pixel_density);
+  height = static_cast<uint32_t>(static_cast<float>(mode->h) * mode->pixel_density);
   return width > 0 && height > 0;
 }
 
@@ -412,7 +413,8 @@ void WindowSDL::ApplyFullscreenModeNow() {
       width <= 0 || height <= 0) {
     const SDL_DisplayMode* desktop = SDL_GetDesktopDisplayMode(display);
     if (!desktop) {
-      REXLOG_WARN(ui, "No desktop mode for display {}: staying borderless", uint32_t(display));
+      REXLOG_WARN(ui, "No desktop mode for display {}: staying borderless",
+                  static_cast<uint32_t>(display));
       SDL_SetWindowFullscreenMode(sdl_window_, nullptr);
       return;
     }
@@ -422,8 +424,8 @@ void WindowSDL::ApplyFullscreenModeNow() {
 
   SDL_DisplayMode mode = {};
   if (!SDL_GetClosestFullscreenDisplayMode(display, width, height, 0.0f, true, &mode)) {
-    REXLOG_WARN(ui, "Display {} has no mode near {}x{}: staying borderless", uint32_t(display),
-                width, height);
+    REXLOG_WARN(ui, "Display {} has no mode near {}x{}: staying borderless",
+                static_cast<uint32_t>(display), width, height);
     SDL_SetWindowFullscreenMode(sdl_window_, nullptr);
     return;
   }
@@ -433,7 +435,7 @@ void WindowSDL::ApplyFullscreenModeNow() {
     return;
   }
   REXLOG_INFO(ui, "Exclusive fullscreen mode {}x{} @ {:.3g}Hz on display {}", mode.w, mode.h,
-              mode.refresh_rate, uint32_t(display));
+              mode.refresh_rate, static_cast<uint32_t>(display));
 }
 
 void WindowSDL::ApplyNewTitle() {
@@ -576,8 +578,8 @@ void WindowSDL::HandleWindowEvent(SDL_Event& event) {
   WindowDestructionReceiver destruction_receiver(this);
   switch (event.type) {
     case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
-      OnActualSizeUpdate(uint32_t(event.window.data1), uint32_t(event.window.data2),
-                         destruction_receiver);
+      OnActualSizeUpdate(static_cast<uint32_t>(event.window.data1),
+                         static_cast<uint32_t>(event.window.data2), destruction_receiver);
       break;
     case SDL_EVENT_WINDOW_RESIZED: {
       // Track the user-driven size as the desired size for the normal state
@@ -588,10 +590,11 @@ void WindowSDL::HandleWindowEvent(SDL_Event& event) {
         // Cocoa reports the client size in logical points. Converting it from
         // the backing DPI a second time would halve the desired size on Retina
         // displays.
-        OnDesiredLogicalSizeUpdate(uint32_t(event.window.data1), uint32_t(event.window.data2));
+        OnDesiredLogicalSizeUpdate(static_cast<uint32_t>(event.window.data1),
+                                   static_cast<uint32_t>(event.window.data2));
 #else
-        OnDesiredLogicalSizeUpdate(SizeToLogical(uint32_t(event.window.data1)),
-                                   SizeToLogical(uint32_t(event.window.data2)));
+        OnDesiredLogicalSizeUpdate(SizeToLogical(static_cast<uint32_t>(event.window.data1)),
+                                   SizeToLogical(static_cast<uint32_t>(event.window.data2)));
 #endif
       }
       break;
@@ -693,7 +696,8 @@ void WindowSDL::HandleMouseEvent(SDL_Event& event) {
         RearmCursorAutoHideTimer();
       }
       MouseEvent e(UIEvent::Type::MouseMove, this, MouseEvent::Button::kNone,
-                   int32_t(event.motion.x * density), int32_t(event.motion.y * density), 0, 0,
+                   static_cast<int32_t>(event.motion.x * density),
+                   static_cast<int32_t>(event.motion.y * density), 0, 0,
                    event.motion.xrel * density, event.motion.yrel * density);
       OnMouseMove(e, destruction_receiver);
       break;
@@ -703,7 +707,8 @@ void WindowSDL::HandleMouseEvent(SDL_Event& event) {
       MouseEvent e(event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ? UIEvent::Type::MouseDown
                                                              : UIEvent::Type::MouseUp,
                    this, TranslateSDLMouseButton(event.button.button),
-                   int32_t(event.button.x * density), int32_t(event.button.y * density));
+                   static_cast<int32_t>(event.button.x * density),
+                   static_cast<int32_t>(event.button.y * density));
       if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
         OnMouseDown(e, destruction_receiver);
       } else {
@@ -712,10 +717,12 @@ void WindowSDL::HandleMouseEvent(SDL_Event& event) {
       break;
     }
     case SDL_EVENT_MOUSE_WHEEL: {
-      MouseEvent e(UIEvent::Type::MouseWheel, this, MouseEvent::Button::kNone,
-                   int32_t(event.wheel.mouse_x * density), int32_t(event.wheel.mouse_y * density),
-                   int32_t(event.wheel.x * float(MouseEvent::kScrollPerDetent)),
-                   int32_t(event.wheel.y * float(MouseEvent::kScrollPerDetent)));
+      MouseEvent e(
+          UIEvent::Type::MouseWheel, this, MouseEvent::Button::kNone,
+          static_cast<int32_t>(event.wheel.mouse_x * density),
+          static_cast<int32_t>(event.wheel.mouse_y * density),
+          static_cast<int32_t>(event.wheel.x * static_cast<float>(MouseEvent::kScrollPerDetent)),
+          static_cast<int32_t>(event.wheel.y * static_cast<float>(MouseEvent::kScrollPerDetent)));
       OnMouseWheel(e, destruction_receiver);
       break;
     }

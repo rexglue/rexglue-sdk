@@ -25,7 +25,18 @@ namespace rex::filesystem {
 
 /** Serves a container image. Every node is read only. */
 class ContainerProvider final : public Provider {
+  struct Key {};
+
  public:
+  /**
+   * Wraps an opened container. Only Create can make the key.
+   *
+   * @param key The private construction key.
+   * @param entry The mount description.
+   * @param container The opened image.
+   */
+  ContainerProvider(Key, MountEntry entry, Container container);
+
   /**
    * Opens the container and builds the node tree. kWritable is cleared.
    *
@@ -50,8 +61,6 @@ class ContainerProvider final : public Provider {
   [[nodiscard]] const Container& container() const { return container_; }
 
  private:
-  ContainerProvider(MountEntry entry, Container container);
-
   void Build(Node& parent, const ContainerNode& source);
 
   Container container_;

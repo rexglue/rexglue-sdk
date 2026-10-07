@@ -1,6 +1,5 @@
 /**
  * @file        codegen/builders/system.cpp
- * @brief       PPC system instruction code generation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -267,7 +266,7 @@ bool build_mffs(BuilderContext& ctx) {
 }
 
 bool build_mftb(BuilderContext& ctx) {
-  // Xbox 360 timebase runs at 50 MHz (guest tick frequency)
+  // The timebase runs at 50 MHz (guest tick frequency)
   // Using REX_QUERY_TIMEBASE() macro provides properly scaled timing from the runtime
   ctx.println("\t{}.u64 = REX_QUERY_TIMEBASE();", ctx.r(ctx.insn.operands[0]));
   return true;

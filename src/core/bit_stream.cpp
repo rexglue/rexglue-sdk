@@ -13,6 +13,7 @@
 #include <cstring>
 
 #include <rex/assert.h>
+#include <rex/memory/utils.h>
 #include <rex/stream.h>
 #include <rex/types.h>
 
@@ -24,7 +25,7 @@ BitStream::BitStream(uint8_t* buffer, size_t size_in_bits)
 BitStream::~BitStream() = default;
 
 void BitStream::SetOffset(size_t offset_bits) {
-  assert_false(offset_bits > size_bits_);
+  REX_ASSERT(!(offset_bits > size_bits_));
   offset_bits_ = std::min(offset_bits, size_bits_);
 }
 
@@ -36,19 +37,15 @@ uint64_t BitStream::Peek(size_t num_bits) {
   // FYI: The reason we can't copy more than 57 bits is:
   // 57 = 7 * 8 + 1 - that can only span a maximum of 8 bytes.
   // We can't read in 9 bytes (easily), so we limit it.
-  assert_false(num_bits > 57);
-  assert_false(offset_bits_ + num_bits > size_bits_);
+  REX_ASSERT(!(num_bits > 57));
+  REX_ASSERT(!(offset_bits_ + num_bits > size_bits_));
 
   size_t offset_bytes = offset_bits_ >> 3;
   size_t rel_offset_bits = offset_bits_ - (offset_bytes << 3);
 
   // offset -->
   // ..[junk]..| target bits |....[junk].............
-  uint64_t bits = *(uint64_t*)(buffer_ + offset_bytes);
-
-  // We need the data in little endian.
-  // TODO: Have a flag specifying endianness of data?
-  bits = rex::byte_swap(bits);
+  uint64_t bits = memory::load<be_u64>(buffer_ + offset_bytes);
 
   // Shift right
   // .....[junk]........| target bits |
@@ -70,8 +67,8 @@ uint64_t BitStream::Read(size_t num_bits) {
 
 // TODO: This is totally not tested!
 bool BitStream::Write(uint64_t val, size_t num_bits) {
-  assert_false(num_bits > 57);
-  assert_false(offset_bits_ + num_bits >= size_bits_);
+  REX_ASSERT(!(num_bits > 57));
+  REX_ASSERT(!(offset_bits_ + num_bits >= size_bits_));
 
   size_t offset_bytes = offset_bits_ >> 3;
   size_t rel_offset_bits = offset_bits_ - (offset_bytes << 3);
@@ -86,7 +83,7 @@ bool BitStream::Write(uint64_t val, size_t num_bits) {
 
   // offset ----->
   // ....[junk]...| target bits w/ junk |....[junk]......
-  uint64_t bits = *(uint64_t*)(buffer_ + offset_bytes);
+  uint64_t bits = *reinterpret_cast<const uint64_t*>(buffer_ + offset_bytes);
 
   // AND with mask
   // ....[junk]...| target bits (0) |........[junk]......
@@ -97,7 +94,7 @@ bool BitStream::Write(uint64_t val, size_t num_bits) {
   bits |= val;
 
   // Store into the bitstream.
-  *(uint64_t*)(buffer_ + offset_bytes) = bits;
+  *reinterpret_cast<uint64_t*>(buffer_ + offset_bytes) = bits;
 
   // Advance the bitstream forward.
   Advance(num_bits);
@@ -114,9 +111,9 @@ size_t BitStream::Copy(uint8_t* dest_buffer, size_t num_bits) {
   // First: Copy the first few bits up to a byte boundary.
   if (rel_offset_bits) {
     uint64_t bits = Peek(8 - rel_offset_bits);
-    uint8_t clear_mask = ~((uint8_t(1) << rel_offset_bits) - 1);
+    uint8_t clear_mask = ~((static_cast<uint8_t>(1) << rel_offset_bits) - 1);
     dest_buffer[out_offset_bytes] &= clear_mask;
-    dest_buffer[out_offset_bytes] |= (uint8_t)bits;
+    dest_buffer[out_offset_bytes] |= static_cast<uint8_t>(bits);
 
     bits_left -= 8 - rel_offset_bits;
     Advance(8 - rel_offset_bits);
@@ -137,9 +134,9 @@ size_t BitStream::Copy(uint8_t* dest_buffer, size_t num_bits) {
     uint64_t bits = Peek(bits_left);
     bits <<= 8 - bits_left;
 
-    uint8_t clear_mask = ((uint8_t(1) << bits_left) - 1);
+    uint8_t clear_mask = ((static_cast<uint8_t>(1) << bits_left) - 1);
     dest_buffer[out_offset_bytes] &= clear_mask;
-    dest_buffer[out_offset_bytes] |= (uint8_t)bits;
+    dest_buffer[out_offset_bytes] |= static_cast<uint8_t>(bits);
     Advance(bits_left);
   }
 

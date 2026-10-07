@@ -427,7 +427,7 @@ Code CollectCode(std::span<const MMIOCodeBlock> blocks) {
   Code code;
   for (const MMIOCodeBlock& block : blocks) {
     for (size_t offset = 0; offset + 4 <= block.bytes.size(); offset += 4) {
-      const u32 word = rex::memory::load_and_swap<u32>(block.bytes.data() + offset);
+      const u32 word = memory::load<be_u32>(block.bytes.data() + offset);
       code.instructions.push_back(
           {block.base + static_cast<u32>(offset), word, DecodeAccess(word)});
     }

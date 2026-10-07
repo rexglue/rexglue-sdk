@@ -28,7 +28,7 @@ class VulkanUploadBufferPool : public GraphicsUploadBufferPool {
                           VkBuffer& buffer_out, VkDeviceSize& offset_out, VkDeviceSize& size_out);
 
  protected:
-  Page* CreatePageImplementation() override;
+  std::unique_ptr<Page> CreatePageImplementation() override;
 
   void FlushPageWrites(Page* page, size_t offset, size_t size) override;
 

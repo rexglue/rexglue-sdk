@@ -129,7 +129,7 @@ VulkanPresenter::~VulkanPresenter() {
   // Await completion of the usage of everything before destroying anything
   // (paint submission completion already awaited).
   // From most likely the latest to most likely the earliest to be signaled, so
-  // just one sleep will likely be needed.
+  // only one sleep will likely be needed.
   ui_submission_tracker_.Shutdown();
   guest_output_image_refresher_submission_tracker_.Shutdown();
 
@@ -318,7 +318,7 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(gpu::Surface& n
   // surface and create the new swapchain.
   if (paint_context_.swapchain == VK_NULL_HANDLE) {
     // DestroySwapchainAndVulkanSurface should have been called previously.
-    assert_true(paint_context_.vulkan_surface == VK_NULL_HANDLE);
+    REX_ASSERT(paint_context_.vulkan_surface == VK_NULL_HANDLE);
     gpu::Surface::TypeIndex surface_type = new_surface.GetType();
     // Check if the surface type is supported according to the Vulkan
     // extensions.
@@ -379,7 +379,7 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(gpu::Surface& n
       } break;
 #endif
       default:
-        assert_unhandled_case(surface_type);
+        REX_UNHANDLED_CASE(surface_type);
         REX_FAIL(ui, SurfacePaintConnectResult::kFailureSurfaceUnusable,
                  "VulkanPresenter: Tried to create a Vulkan surface for an "
                  "unknown ReXGlue surface type");
@@ -401,7 +401,7 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(gpu::Surface& n
       return surface_unusable ? SurfacePaintConnectResult::kFailureSurfaceUnusable
                               : SurfacePaintConnectResult::kFailure;
     }
-    // Successfully attached (at least for now).
+    // Successfully attached.
   }
 
   // From now on, in case of failure,
@@ -463,7 +463,8 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(gpu::Surface& n
     render_pass_create_info.pAttachments = &render_pass_attachment;
     render_pass_create_info.subpassCount = 1;
     render_pass_create_info.pSubpasses = &render_pass_subpass;
-    render_pass_create_info.dependencyCount = uint32_t(rex::countof(render_pass_dependencies));
+    render_pass_create_info.dependencyCount =
+        static_cast<uint32_t>(rex::countof(render_pass_dependencies));
     render_pass_create_info.pDependencies = render_pass_dependencies;
     VkRenderPass new_render_pass;
     if (dfn.vkCreateRenderPass(device, &render_pass_create_info, nullptr, &new_render_pass) !=
@@ -484,7 +485,7 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(gpu::Surface& n
   paint_context_.swapchain_images.clear();
   VkResult swapchain_images_get_result;
   for (;;) {
-    uint32_t swapchain_image_count = uint32_t(paint_context_.swapchain_images.size());
+    uint32_t swapchain_image_count = static_cast<uint32_t>(paint_context_.swapchain_images.size());
     bool swapchain_images_were_empty = !swapchain_image_count;
     swapchain_images_get_result = dfn.vkGetSwapchainImagesKHR(
         device, paint_context_.swapchain, &swapchain_image_count,
@@ -508,7 +509,7 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(gpu::Surface& n
   }
 
   // Create the image views and the framebuffers.
-  assert_true(paint_context_.swapchain_framebuffers.empty());
+  REX_ASSERT(paint_context_.swapchain_framebuffers.empty());
   paint_context_.swapchain_framebuffers.reserve(paint_context_.swapchain_images.size());
   VkImageViewCreateInfo image_view_create_info;
   image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -565,9 +566,10 @@ void VulkanPresenter::DisconnectPaintingFromSurfaceFromUIThreadImpl() {
 
 bool VulkanPresenter::RefreshGuestOutputImpl(
     uint32_t mailbox_index, uint32_t frontbuffer_width, uint32_t frontbuffer_height,
-    std::function<bool(GuestOutputRefreshContext& context)> refresher, bool& is_8bpc_out_ref) {
-  assert_not_zero(frontbuffer_width);
-  assert_not_zero(frontbuffer_height);
+    std::move_only_function<bool(GuestOutputRefreshContext& context)> refresher,
+    bool& is_8bpc_out_ref) {
+  REX_ASSERT(frontbuffer_width != 0);
+  REX_ASSERT(frontbuffer_height != 0);
   VkExtent2D max_framebuffer_extent = util::GetMax2DFramebufferExtent(vulkan_device_->properties());
   if (frontbuffer_width > max_framebuffer_extent.width ||
       frontbuffer_height > max_framebuffer_extent.height) {
@@ -649,7 +651,7 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
   // of the fields in theory may not be informative as the surface doesn't need
   // to go to presentation anyway, thus there's no need to return real
   // information, and ui_surface_unusable_out (from which it may not be possible
-  // to recover on certain platforms at all) may be set to true spuriously if
+  // to recover on some platforms at all) may be set to true spuriously if
   // any checks set it to true. VkSurfaceKHR may have zero-area bounds in some
   // window state cases on Windows, for example. Also clamp the requested size
   // to the maximum supported by the physical device as long as minImageExtent
@@ -717,7 +719,7 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
   std::vector<VkSurfaceFormatKHR> surface_formats;
   VkResult surface_formats_get_result;
   for (;;) {
-    uint32_t surface_format_count = uint32_t(surface_formats.size());
+    uint32_t surface_format_count = static_cast<uint32_t>(surface_formats.size());
     bool surface_formats_were_empty = !surface_format_count;
     surface_formats_get_result = ifn.vkGetPhysicalDeviceSurfaceFormatsKHR(
         physical_device, surface, &surface_format_count,
@@ -797,7 +799,7 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
       // No 8888, but some sRGB format is available.
       image_format = *any_non_8888_srgb_it;
     } else {
-      // Just pick any format.
+      // Pick any format.
       image_format = surface_formats.front();
     }
   }
@@ -806,7 +808,7 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
   std::vector<VkPresentModeKHR> present_modes;
   VkResult present_modes_get_result;
   for (;;) {
-    uint32_t present_mode_count = uint32_t(present_modes.size());
+    uint32_t present_mode_count = static_cast<uint32_t>(present_modes.size());
     bool present_modes_were_empty = !present_mode_count;
     present_modes_get_result = ifn.vkGetPhysicalDeviceSurfacePresentModesKHR(
         physical_device, surface, &present_mode_count,
@@ -870,14 +872,14 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
           : VK_SURFACE_TRANSFORM_INHERIT_BIT_KHR;
   // Prefer opaque to avoid blending in the window system, or let that be
   // specified via the window system if it can't be forced. As a last resort,
-  // just pick any - guest output will write alpha of 1 anyway.
+  // pick any - guest output will write alpha of 1 anyway.
   if (surface_capabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR) {
     swapchain_create_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
   } else if (surface_capabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR) {
     swapchain_create_info.compositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
   } else {
     uint32_t composite_alpha_shift;
-    if (!rex::bit_scan_forward(uint32_t(surface_capabilities.supportedCompositeAlpha),
+    if (!rex::bit_scan_forward(static_cast<uint32_t>(surface_capabilities.supportedCompositeAlpha),
                                &composite_alpha_shift)) {
       // Against the Vulkan specification, but breaks the logic here.
       REX_FAIL(ui, VK_NULL_HANDLE,
@@ -885,7 +887,7 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
                "mode");
     }
     swapchain_create_info.compositeAlpha =
-        VkCompositeAlphaFlagBitsKHR(uint32_t(1) << composite_alpha_shift);
+        VkCompositeAlphaFlagBitsKHR(static_cast<uint32_t>(1) << composite_alpha_shift);
   }
   // As presentation is usually controlled by the GPU command processor, it's
   // better to use modes that allow as quick acquisition as possible to avoid
@@ -924,9 +926,9 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
               "VulkanPresenter: Created {}x{} swapchain with format {}, color space "
               "{}, presentation mode {}",
               swapchain_create_info.imageExtent.width, swapchain_create_info.imageExtent.height,
-              uint32_t(swapchain_create_info.imageFormat),
-              uint32_t(swapchain_create_info.imageColorSpace),
-              uint32_t(swapchain_create_info.presentMode));
+              static_cast<uint32_t>(swapchain_create_info.imageFormat),
+              static_cast<uint32_t>(swapchain_create_info.imageColorSpace),
+              static_cast<uint32_t>(swapchain_create_info.presentMode));
 
   present_queue_family_out = queue_family_index_present;
   image_format_out = swapchain_create_info.imageFormat;
@@ -1038,11 +1040,11 @@ bool VulkanPresenter::GuestOutputImage::Initialize() {
 }
 
 Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_drawers) {
-  // Begin the submission in place of the one not currently potentially used on
+  // Begin the submission in place of the one not potentially used on
   // the GPU.
   uint64_t current_paint_submission_index =
       paint_context_.submission_tracker.GetCurrentSubmission();
-  uint64_t paint_submission_count = uint64_t(paint_context_.submissions.size());
+  uint64_t paint_submission_count = static_cast<uint64_t>(paint_context_.submissions.size());
   if (current_paint_submission_index >= paint_submission_count) {
     paint_context_.submission_tracker.AwaitSubmissionCompletion(current_paint_submission_index -
                                                                 paint_submission_count);
@@ -1090,7 +1092,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
     case VK_ERROR_OUT_OF_DATE_KHR:
     case VK_ERROR_SURFACE_LOST_KHR:
     case VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT:
-      // Not an error, reporting just as info (may normally occur while resizing
+      // Not an error, reporting as info (may normally occur while resizing
       // on some platforms).
       REXLOG_INFO(ui,
                   "VulkanPresenter: Presentation to the swapchain image has been "
@@ -1103,8 +1105,8 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
 
   // Non-zero extents needed for both the viewport (width must not be zero) and
   // the guest output rectangle.
-  assert_not_zero(paint_context_.swapchain_extent.width);
-  assert_not_zero(paint_context_.swapchain_extent.height);
+  REX_ASSERT(paint_context_.swapchain_extent.width != 0);
+  REX_ASSERT(paint_context_.swapchain_extent.height != 0);
 
   bool swapchain_image_clear_needed = true;
   VkClearAttachment swapchain_image_clear_attachment;
@@ -1142,7 +1144,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
     std::unique_lock<std::mutex> guest_output_consumer_lock(ConsumeGuestOutput(
         guest_output_mailbox_index, &guest_output_properties, &guest_output_paint_config));
     if (guest_output_mailbox_index != UINT32_MAX) {
-      assert_true(guest_output_images_[guest_output_mailbox_index].ever_successfully_refreshed);
+      REX_ASSERT(guest_output_images_[guest_output_mailbox_index].ever_successfully_refreshed);
       guest_output_image = guest_output_images_[guest_output_mailbox_index].image;
     }
     // Incremented the reference count of the guest output image - safe to leave
@@ -1165,7 +1167,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
       size_t guest_output_image_paint_ref_index = SIZE_MAX;
       size_t guest_output_image_paint_ref_new_index = SIZE_MAX;
       // Try to find the existing reference to the same image, or an already
-      // released (or a taken, but never actually used) slot.
+      // released (or a taken, but never used) slot.
       for (size_t i = 0; i < paint_context_.guest_output_image_paint_refs.size(); ++i) {
         const std::pair<uint64_t, std::shared_ptr<GuestOutputImage>>& guest_output_image_paint_ref =
             paint_context_.guest_output_image_paint_refs[i];
@@ -1197,10 +1199,10 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
                   .first);
         }
         guest_output_image_paint_ref_index = guest_output_image_paint_ref_new_index;
-        // The actual submission index will be set if the image is actually
+        // The actual submission index will be set if the image is
         // used, not dropped due to some error.
         paint_context_.guest_output_image_paint_refs[guest_output_image_paint_ref_index] =
-            std::make_pair(uint64_t(0), guest_output_image);
+            std::make_pair(static_cast<uint64_t>(0), guest_output_image);
         // Create the descriptors of the new image.
         VkDescriptorImageInfo guest_output_image_descriptor_image_info;
         guest_output_image_descriptor_image_info.sampler = VK_NULL_HANDLE;
@@ -1229,7 +1231,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
         // for the render pass with the up-to-date image format.
         GuestOutputPaintEffect swapchain_effect = guest_output_flow.effect;
         PaintContext::GuestOutputPaintPipeline& swapchain_effect_pipeline =
-            paint_context_.guest_output_paint_pipelines[size_t(swapchain_effect)];
+            paint_context_.guest_output_paint_pipelines[static_cast<size_t>(swapchain_effect)];
         if (swapchain_effect_pipeline.swapchain_pipeline != VK_NULL_HANDLE &&
             swapchain_effect_pipeline.swapchain_format !=
                 paint_context_.swapchain_render_pass_format) {
@@ -1239,7 +1241,8 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
                                      swapchain_effect_pipeline.swapchain_pipeline);
         }
         if (swapchain_effect_pipeline.swapchain_pipeline == VK_NULL_HANDLE) {
-          assert_true(guest_output_paint_fs_[size_t(swapchain_effect)] != VK_NULL_HANDLE);
+          REX_ASSERT(guest_output_paint_fs_[static_cast<size_t>(swapchain_effect)] !=
+                     VK_NULL_HANDLE);
           swapchain_effect_pipeline.swapchain_pipeline = CreateGuestOutputPaintPipeline(
               swapchain_effect, paint_context_.swapchain_render_pass);
           if (swapchain_effect_pipeline.swapchain_pipeline == VK_NULL_HANDLE) {
@@ -1249,7 +1252,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
       }
 
       if (guest_output_flow.has_effect) {
-        // Actually draw the guest output.
+        // Draw the guest output.
         paint_context_.guest_output_image_paint_refs[guest_output_image_paint_ref_index].first =
             current_paint_submission_index;
         paint_context_.guest_output_image_paint_last_submission = current_paint_submission_index;
@@ -1290,17 +1293,17 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
         dfn.vkCmdBeginRenderPass(draw_command_buffer, &swapchain_render_pass_begin_info,
                                  VK_SUBPASS_CONTENTS_INLINE);
         swapchain_image_pass_begun = true;
-        guest_output_viewport.width = float(paint_context_.swapchain_extent.width);
-        guest_output_viewport.height = float(paint_context_.swapchain_extent.height);
+        guest_output_viewport.width = static_cast<float>(paint_context_.swapchain_extent.width);
+        guest_output_viewport.height = static_cast<float>(paint_context_.swapchain_extent.height);
         guest_output_scissor.extent.width = paint_context_.swapchain_extent.width;
         guest_output_scissor.extent.height = paint_context_.swapchain_extent.height;
         dfn.vkCmdSetViewport(draw_command_buffer, 0, 1, &guest_output_viewport);
         dfn.vkCmdSetScissor(draw_command_buffer, 0, 1, &guest_output_scissor);
 
         const PaintContext::GuestOutputPaintPipeline& effect_pipeline =
-            paint_context_.guest_output_paint_pipelines[size_t(effect)];
+            paint_context_.guest_output_paint_pipelines[static_cast<size_t>(effect)];
         VkPipeline effect_vulkan_pipeline = effect_pipeline.swapchain_pipeline;
-        assert_true(effect_vulkan_pipeline != VK_NULL_HANDLE);
+        REX_ASSERT(effect_vulkan_pipeline != VK_NULL_HANDLE);
         dfn.vkCmdBindPipeline(draw_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                               effect_vulkan_pipeline);
 
@@ -1321,10 +1324,11 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
         GuestOutputPaintRectangleConstants effect_rect_constants;
         float effect_x_to_ndc = 2.0f / guest_output_viewport.width;
         float effect_y_to_ndc = 2.0f / guest_output_viewport.height;
-        effect_rect_constants.x = -1.0f + float(effect_rect_x) * effect_x_to_ndc;
-        effect_rect_constants.y = -1.0f + float(effect_rect_y) * effect_y_to_ndc;
-        effect_rect_constants.width = float(effect_rect_size.first) * effect_x_to_ndc;
-        effect_rect_constants.height = float(effect_rect_size.second) * effect_y_to_ndc;
+        effect_rect_constants.x = -1.0f + static_cast<float>(effect_rect_x) * effect_x_to_ndc;
+        effect_rect_constants.y = -1.0f + static_cast<float>(effect_rect_y) * effect_y_to_ndc;
+        effect_rect_constants.width = static_cast<float>(effect_rect_size.first) * effect_x_to_ndc;
+        effect_rect_constants.height =
+            static_cast<float>(effect_rect_size.second) * effect_y_to_ndc;
         dfn.vkCmdPushConstants(draw_command_buffer, guest_output_paint_pipeline_layout,
                                VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(effect_rect_constants),
                                &effect_rect_constants);
@@ -1357,16 +1361,19 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
             VkClearRect& letterbox_clear_vulkan_rectangle = letterbox_clear_vulkan_rectangles[i];
             const GuestOutputPaintFlow::ClearRectangle& letterbox_clear_rectangle =
                 guest_output_flow.letterbox_clear_rectangles[i];
-            letterbox_clear_vulkan_rectangle.rect.offset.x = int32_t(letterbox_clear_rectangle.x);
-            letterbox_clear_vulkan_rectangle.rect.offset.y = int32_t(letterbox_clear_rectangle.y);
+            letterbox_clear_vulkan_rectangle.rect.offset.x =
+                static_cast<int32_t>(letterbox_clear_rectangle.x);
+            letterbox_clear_vulkan_rectangle.rect.offset.y =
+                static_cast<int32_t>(letterbox_clear_rectangle.y);
             letterbox_clear_vulkan_rectangle.rect.extent.width = letterbox_clear_rectangle.width;
             letterbox_clear_vulkan_rectangle.rect.extent.height = letterbox_clear_rectangle.height;
             letterbox_clear_vulkan_rectangle.baseArrayLayer = 0;
             letterbox_clear_vulkan_rectangle.layerCount = 1;
           }
-          dfn.vkCmdClearAttachments(draw_command_buffer, 1, &swapchain_image_clear_attachment,
-                                    uint32_t(guest_output_flow.letterbox_clear_rectangle_count),
-                                    letterbox_clear_vulkan_rectangles);
+          dfn.vkCmdClearAttachments(
+              draw_command_buffer, 1, &swapchain_image_clear_attachment,
+              static_cast<uint32_t>(guest_output_flow.letterbox_clear_rectangle_count),
+              letterbox_clear_vulkan_rectangles);
         }
         swapchain_image_clear_needed = false;
       }
@@ -1374,7 +1381,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
   }
 
   // Release main target guest output image references that aren't needed
-  // anymore (this is done after various potential guest-output-related main
+  // anymore (this is done after potential guest-output-related main
   // target submission tracker waits so the completed submission value is the
   // most actual).
   uint64_t completed_paint_submission =
@@ -1488,7 +1495,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
             .last_usage_submission_index = 0;
       }
       // The image is in an acquired state - but now, it will be in it forever.
-      // To avoid that, recreate the swapchain - don't return just
+      // To avoid that, recreate the swapchain - don't return only
       // kNotPresented.
       return PaintResult::kNotPresentedConnectionOutdated;
     }
@@ -1521,7 +1528,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
     case VK_ERROR_OUT_OF_DATE_KHR:
     case VK_ERROR_SURFACE_LOST_KHR:
     case VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT:
-      // Not an error, reporting just as info (may normally occur while resizing
+      // Not an error, reporting as info (may normally occur while resizing
       // on some platforms).
       REXLOG_INFO(ui,
                   "VulkanPresenter: Presentation to the swapchain image has been "
@@ -1532,7 +1539,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(bool execute_ui_draw
     default:
       REXLOG_ERROR(ui, "VulkanPresenter: Failed to present the swapchain image");
       // The image is in an acquired state - but now, it will be in it forever.
-      // To avoid that, recreate the swapchain - don't return just
+      // To avoid that, recreate the swapchain - don't return only
       // kNotPresented.
       return PaintResult::kNotPresentedConnectionOutdated;
   }
@@ -1561,7 +1568,7 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
   guest_output_paint_image_descriptor_set_layout_create_info.pNext = nullptr;
   guest_output_paint_image_descriptor_set_layout_create_info.flags = 0;
   guest_output_paint_image_descriptor_set_layout_create_info.bindingCount =
-      uint32_t(rex::countof(guest_output_image_sampler_bindings));
+      static_cast<uint32_t>(rex::countof(guest_output_image_sampler_bindings));
   guest_output_paint_image_descriptor_set_layout_create_info.pBindings =
       guest_output_image_sampler_bindings;
   if (dfn.vkCreateDescriptorSetLayout(
@@ -1600,11 +1607,11 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
         guest_output_paint_push_constant_range.size = sizeof(BilinearConstants);
         break;
       default:
-        assert_unhandled_case(GuestOutputPaintPipelineLayoutIndex(i));
+        REX_UNHANDLED_CASE(GuestOutputPaintPipelineLayoutIndex(i));
         continue;
     }
     guest_output_paint_pipeline_layout_create_info.pushConstantRangeCount =
-        1 + uint32_t(guest_output_paint_push_constant_range.size != 0);
+        1 + static_cast<uint32_t>(guest_output_paint_push_constant_range.size != 0);
     if (dfn.vkCreatePipelineLayout(device, &guest_output_paint_pipeline_layout_create_info, nullptr,
                                    &guest_output_paint_pipeline_layouts_[i]) != VK_SUCCESS) {
       REX_FAIL(ui, false,
@@ -1653,9 +1660,9 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
 
   // Initialize connection-independent parts of the painting context.
 
-  for (size_t i = 0; i < paint_context_.submissions.size(); ++i) {
-    paint_context_.submissions[i] = PaintContext::Submission::Create(vulkan_device_);
-    if (!paint_context_.submissions[i]) {
+  for (auto& submission : paint_context_.submissions) {
+    submission = PaintContext::Submission::Create(vulkan_device_);
+    if (!submission) {
       return false;
     }
   }
@@ -1679,7 +1686,7 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
   guest_output_paint_descriptor_pool_create_info.maxSets =
       PaintContext::kGuestOutputDescriptorSetCount;
   guest_output_paint_descriptor_pool_create_info.poolSizeCount =
-      uint32_t(rex::countof(guest_output_paint_descriptor_pool_sizes));
+      static_cast<uint32_t>(rex::countof(guest_output_paint_descriptor_pool_sizes));
   guest_output_paint_descriptor_pool_create_info.pPoolSizes =
       guest_output_paint_descriptor_pool_sizes;
   if (dfn.vkCreateDescriptorPool(device, &guest_output_paint_descriptor_pool_create_info, nullptr,
@@ -1724,8 +1731,8 @@ VkPipeline VulkanPresenter::CreateGuestOutputPaintPipeline(GuestOutputPaintEffec
     stage.pName = "main";
   }
   stages[0].module = guest_output_paint_vs_;
-  stages[1].module = guest_output_paint_fs_[size_t(effect)];
-  assert_true(stages[1].module != VK_NULL_HANDLE);
+  stages[1].module = guest_output_paint_fs_[static_cast<size_t>(effect)];
+  REX_ASSERT(stages[1].module != VK_NULL_HANDLE);
 
   VkPipelineVertexInputStateCreateInfo vertex_input_state = {};
   vertex_input_state.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -1765,14 +1772,14 @@ VkPipeline VulkanPresenter::CreateGuestOutputPaintPipeline(GuestOutputPaintEffec
   };
   VkPipelineDynamicStateCreateInfo dynamic_state = {};
   dynamic_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-  dynamic_state.dynamicStateCount = uint32_t(rex::countof(kPipelineDynamicStates));
+  dynamic_state.dynamicStateCount = static_cast<uint32_t>(rex::countof(kPipelineDynamicStates));
   dynamic_state.pDynamicStates = kPipelineDynamicStates;
 
   VkGraphicsPipelineCreateInfo pipeline_create_info;
   pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
   pipeline_create_info.pNext = nullptr;
   pipeline_create_info.flags = 0;
-  pipeline_create_info.stageCount = uint32_t(rex::countof(stages));
+  pipeline_create_info.stageCount = static_cast<uint32_t>(rex::countof(stages));
   pipeline_create_info.pStages = stages;
   pipeline_create_info.pVertexInputState = &vertex_input_state;
   pipeline_create_info.pInputAssemblyState = &input_assembly_state;
@@ -1799,7 +1806,7 @@ VkPipeline VulkanPresenter::CreateGuestOutputPaintPipeline(GuestOutputPaintEffec
     REX_FAIL(ui, VK_NULL_HANDLE,
              "VulkanPresenter: Failed to create the guest output painting pipeline "
              "for effect {}",
-             size_t(effect));
+             static_cast<size_t>(effect));
   }
   return pipeline;
 }

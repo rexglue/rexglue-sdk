@@ -18,6 +18,7 @@
 #include <SPIRV/SpvBuilder.h>
 
 #include <rex/assert.h>
+#include <rex/types.h>
 
 namespace rex::gpu {
 
@@ -47,14 +48,14 @@ class SpirvBuilder : public spv::Builder {
 
   // Helper to use for building nested control flow with if-then-else with
   // additions over SpvBuilder::If.
-  class IfBuilder {
+  class IfBuilder : public rex::NonCopyable {
    public:
     IfBuilder(spv::Id condition, unsigned int control, SpirvBuilder& builder,
               unsigned int thenWeight = 0, unsigned int elseWeight = 0);
 
     ~IfBuilder() {
 #ifndef NDEBUG
-      assert_true(currentBranch == Branch::kMerge);
+      REX_ASSERT(currentBranch == Branch::kMerge);
 #endif
     }
 
@@ -74,9 +75,6 @@ class SpirvBuilder : public spv::Builder {
       kElse,
       kMerge,
     };
-
-    IfBuilder(const IfBuilder& ifBuilder) = delete;
-    IfBuilder& operator=(const IfBuilder& ifBuilder) = delete;
 
     SpirvBuilder& builder;
     spv::Id condition;
@@ -104,7 +102,7 @@ class SpirvBuilder : public spv::Builder {
   class SwitchBuilder {
    public:
     SwitchBuilder(spv::Id selector, unsigned int selection_control, SpirvBuilder& builder);
-    ~SwitchBuilder() { assert_true(current_branch_ == Branch::kMerge); }
+    ~SwitchBuilder() { REX_ASSERT(current_branch_ == Branch::kMerge); }
 
     void makeBeginDefault();
     void makeBeginCase(unsigned int literal);

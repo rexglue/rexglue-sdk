@@ -1,6 +1,5 @@
 /**
  * @file        rex/codegen/binary_view.h
- * @brief       Self-contained binary view that owns section data
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -16,6 +15,8 @@
 #include <string>
 #include <string_view>
 #include <vector>
+
+#include <rex/types.h>
 
 namespace rex::runtime {
 class Module;
@@ -49,16 +50,10 @@ struct ImportSymbol {
 };
 
 /// Self-contained binary view that owns all section data
-class BinaryView {
+class BinaryView : public rex::MoveOnly {
  public:
   /// Factory - copies all data from Module
   static BinaryView fromModule(const runtime::Module& module);
-
-  // Move-only (owns large buffers)
-  BinaryView(BinaryView&&) noexcept = default;
-  BinaryView& operator=(BinaryView&&) noexcept = default;
-  BinaryView(const BinaryView&) = delete;
-  BinaryView& operator=(const BinaryView&) = delete;
 
   // Section access
   const uint8_t* translate(uint32_t addr) const;

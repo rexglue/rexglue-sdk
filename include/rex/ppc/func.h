@@ -1,6 +1,5 @@
 /**
  * @file        ppc/func.h
- * @brief       Recompiled PPC function signature, mapping table, and definition macros
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

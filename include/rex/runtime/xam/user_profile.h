@@ -36,43 +36,43 @@ struct X_USER_PROFILE_SETTING_DATA {
   // are not always zeroed by the game.
   uint8_t type;
   uint8_t unk_1[3];
-  rex::be<uint32_t> unk_4;
+  be_u32 unk_4;
   // TODO(sabretooth): not sure if this is a union, but it seems likely.
   // Haven't run into cases other than "binary data" yet.
   union {
-    rex::be<int32_t> s32;
-    rex::be<int64_t> s64;
-    rex::be<uint32_t> u32;
-    rex::be<double> f64;
+    be_i32 s32;
+    be_i64 s64;
+    be_u32 u32;
+    be_f64 f64;
     struct {
-      rex::be<uint32_t> size;
-      rex::be<uint32_t> ptr;
+      be_u32 size;
+      be_u32 ptr;
     } unicode;
-    rex::be<float> f32;
+    be_f32 f32;
     struct {
-      rex::be<uint32_t> size;
-      rex::be<uint32_t> ptr;
+      be_u32 size;
+      be_u32 ptr;
     } binary;
-    rex::be<uint64_t> filetime;
+    be_u64 filetime;
   };
 };
-static_assert_size(X_USER_PROFILE_SETTING_DATA, 16);
+REX_STATIC_ASSERT_SIZE(X_USER_PROFILE_SETTING_DATA, 16);
 
 struct X_USER_PROFILE_SETTING {
-  rex::be<uint32_t> from;
-  rex::be<uint32_t> unk04;
+  be_u32 from;
+  be_u32 unk04;
   union {
-    rex::be<uint32_t> user_index;
-    rex::be<uint64_t> xuid;
+    be_u32 user_index;
+    be_u64 xuid;
   };
-  rex::be<uint32_t> setting_id;
-  rex::be<uint32_t> unk14;
+  be_u32 setting_id;
+  be_u32 unk14;
   union {
     uint8_t data_bytes[sizeof(X_USER_PROFILE_SETTING_DATA)];
     X_USER_PROFILE_SETTING_DATA data;
   };
 };
-static_assert_size(X_USER_PROFILE_SETTING, 40);
+REX_STATIC_ASSERT_SIZE(X_USER_PROFILE_SETTING, 40);
 
 class UserProfile {
  public:
@@ -161,12 +161,12 @@ class UserProfile {
       } else {
         size_t count = value.size() + 1;
         size_t size = 2 * count;
-        assert_true(size <= std::numeric_limits<uint32_t>::max());
+        REX_ASSERT(size <= std::numeric_limits<uint32_t>::max());
         data->unicode.size = static_cast<uint32_t>(size);
         data->unicode.ptr = stream->ptr();
         auto buffer = reinterpret_cast<uint16_t*>(&stream->data()[stream->offset()]);
         stream->Advance(size);
-        memory::copy_and_swap(buffer, (uint16_t*)value.data(), count);
+        memory::copy_and_swap(buffer, reinterpret_cast<const uint16_t*>(value.data()), count);
       }
     }
   };
@@ -191,7 +191,7 @@ class UserProfile {
         data->binary.ptr = 0;
       } else {
         size_t size = value.size();
-        assert_true(size <= std::numeric_limits<uint32_t>::max());
+        REX_ASSERT(size <= std::numeric_limits<uint32_t>::max());
         data->binary.size = static_cast<uint32_t>(size);
         data->binary.ptr = stream->ptr();
         stream->Write(value.data(), size);

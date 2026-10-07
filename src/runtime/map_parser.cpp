@@ -1,6 +1,5 @@
 /**
  * @file        runtime/map_parser.cpp
- * @brief       Implementation of map file parsing utilities
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

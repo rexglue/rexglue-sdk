@@ -19,7 +19,7 @@ class ConsoleDockHost final : public ConsoleHost {
   void ToggleWindow() override;
 
  private:
-  void Defer(std::function<void()> action);
+  void Defer(std::move_only_function<void()> action);
   void OpenWindow();
 
   SDL3UserInterface& ui_;

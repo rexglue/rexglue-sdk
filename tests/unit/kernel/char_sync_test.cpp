@@ -19,8 +19,8 @@ using rex::testing::Caller;
 using rex::testing::KernelFixture;
 
 namespace {
-constexpr u32 kInvalidHandle = X_STATUS_INVALID_HANDLE;
-constexpr u32 kTimeout = X_STATUS_TIMEOUT;
+constexpr u32 kInvalidHandle = rex::X_STATUS_INVALID_HANDLE;
+constexpr u32 kTimeout = rex::X_STATUS_TIMEOUT;
 u32 Poll(Caller& c) {
   return c.Quad(0);
 }
@@ -40,7 +40,7 @@ TEST_CASE("semaphores: create release wait and limit", "[char][semaphores]") {
     CHECK(c.Kernel("NtReleaseSemaphore", {handle, 1, previous}) == 0);
     CHECK(c.Load32(previous) == 1);
     CHECK(c.Kernel("NtReleaseSemaphore", {handle, 1, previous}) ==
-          X_STATUS_SEMAPHORE_LIMIT_EXCEEDED);
+          rex::X_STATUS_SEMAPHORE_LIMIT_EXCEEDED);
     CHECK(c.Kernel("NtReleaseSemaphore", {0xF8001230, 1, previous}) == kInvalidHandle);
     CHECK(c.Kernel("NtClose", {handle}) == 0);
   });
@@ -67,7 +67,7 @@ TEST_CASE("mutants: recursive ownership and release", "[char][mutants]") {
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, Poll(c)}) == 0);
     CHECK(c.Kernel("NtReleaseMutant", {handle, 0}) == 0);
     CHECK(c.Kernel("NtReleaseMutant", {handle, 0}) == 0);
-    CHECK(c.Kernel("NtReleaseMutant", {handle, 0}) == X_STATUS_MUTANT_NOT_OWNED);
+    CHECK(c.Kernel("NtReleaseMutant", {handle, 0}) == rex::X_STATUS_MUTANT_NOT_OWNED);
     CHECK(c.Kernel("NtReleaseMutant", {0xF8001230, 0}) == kInvalidHandle);
     CHECK(c.Kernel("NtClose", {handle}) == 0);
   });
@@ -102,7 +102,7 @@ TEST_CASE("timers: create set wait cancel", "[char][timers]") {
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {handle, 1, 0, c.Quad(-5000000)}) == 0);
     CHECK(c.Kernel("NtCancelTimer", {handle, 0}) == 0);
     CHECK(c.Kernel("NtSetTimerEx", {handle, c.Quad(-100000), 0, 1, 0, 1, 0, 0}) ==
-          X_STATUS_TIMER_RESUME_IGNORED);
+          rex::X_STATUS_TIMER_RESUME_IGNORED);
     CHECK(c.Kernel("NtSetTimerEx", {0xF8001230, c.Quad(-100000), 0, 1, 0, 0, 0, 0}) ==
           kInvalidHandle);
     CHECK(c.Kernel("NtClose", {handle}) == 0);
@@ -129,7 +129,7 @@ TEST_CASE("timers: completion routine runs as an APC on the setting thread",
     const u32 event_ptr = c.Alloc(4);
     REQUIRE(c.Kernel("NtCreateEvent", {event_ptr, 0, 0, 0}) == 0);
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {c.Load32(event_ptr), 1, 1, c.Quad(-5000000)}) ==
-          X_STATUS_USER_APC);
+          rex::X_STATUS_USER_APC);
     CHECK(g_routine_calls == 1);
     c.Kernel("NtClose", {handle});
     c.Kernel("NtClose", {c.Load32(event_ptr)});
@@ -186,7 +186,7 @@ TEST_CASE("mutants: a Ke mutant release by a thread that does not own it fails",
     const u32 mutant = c.Alloc(0x20);
     c.Kernel("KeInitializeMutant", {mutant, 1});
     const u32 thread = c.Spawn([mutant](Caller& o) {
-      CHECK(o.Kernel("KeReleaseMutant", {mutant, 0, 0, 0}) == X_STATUS_MUTANT_NOT_OWNED);
+      CHECK(o.Kernel("KeReleaseMutant", {mutant, 0, 0, 0}) == rex::X_STATUS_MUTANT_NOT_OWNED);
     });
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.Quad(-50000000)}) == 0);
     c.Kernel("NtClose", {thread});
@@ -204,7 +204,7 @@ TEST_CASE("mutants: a wait all takes the Ke mutant only when every object is sig
     c.Kernel("KeInitializeEvent", {event, 0, 0});
     const u32 thread = c.Spawn([mutant, event](Caller& o) {
       CHECK(WaitAll(o, {mutant, event}, -500000) == kTimeout);
-      CHECK(o.Kernel("KeReleaseMutant", {mutant, 0, 0, 0}) == X_STATUS_MUTANT_NOT_OWNED);
+      CHECK(o.Kernel("KeReleaseMutant", {mutant, 0, 0, 0}) == rex::X_STATUS_MUTANT_NOT_OWNED);
       o.Kernel("KeSetEvent", {event, 0, 0});
       CHECK(WaitAll(o, {mutant, event}, -10000000) == 0);
       CHECK(o.Kernel("KeReleaseMutant", {mutant, 0, 0, 0}) == 0);
@@ -429,7 +429,7 @@ TEST_CASE("mutants: a Ke mutant abandoned by its owner is released by the next o
         c.Spawn([mutant](Caller& o) { CHECK(WaitObject(o, mutant, -10000000) == 0); });
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.Quad(-50000000)}) == 0);
     c.Kernel("NtClose", {thread});
-    CHECK(WaitObject(c, mutant, -10000000) == X_STATUS_ABANDONED_WAIT_0);
+    CHECK(WaitObject(c, mutant, -10000000) == rex::X_STATUS_ABANDONED_WAIT_0);
     CHECK(c.Kernel("KeReleaseMutant", {mutant, 0, 0, 0}) == 0);
   });
 }
@@ -447,7 +447,7 @@ TEST_CASE("mutants: a Ke mutant abandoned by a release from its owner is free an
     CHECK(c.Load32(mutant + 0x18) == 0);
     CHECK(c.Load8(mutant + 0x1C) == 1);
     const u32 thread = c.Spawn([mutant](Caller& o) {
-      CHECK(WaitObject(o, mutant, -10000000) == X_STATUS_ABANDONED_WAIT_0);
+      CHECK(WaitObject(o, mutant, -10000000) == rex::X_STATUS_ABANDONED_WAIT_0);
       CHECK(o.Load8(mutant + 0x1C) == 0);
       CHECK(o.Kernel("KeReleaseMutant", {mutant, 0, 0, 0}) == 0);
       CHECK(WaitObject(o, mutant, -10000000) == 0);
@@ -465,7 +465,7 @@ TEST_CASE("mutants: a Ke mutant abandon by a thread that does not own it fails",
     const u32 mutant = c.Alloc(0x20);
     c.Kernel("KeInitializeMutant", {mutant, 1});
     const u32 thread = c.Spawn([mutant](Caller& o) {
-      CHECK(o.Kernel("KeReleaseMutant", {mutant, 0, 1, 0}) == X_STATUS_MUTANT_NOT_OWNED);
+      CHECK(o.Kernel("KeReleaseMutant", {mutant, 0, 1, 0}) == rex::X_STATUS_MUTANT_NOT_OWNED);
     });
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {thread, 1, 0, c.Quad(-50000000)}) == 0);
     c.Kernel("NtClose", {thread});

@@ -1,8 +1,6 @@
 /**
  * @file        ui/sdl3/overlay/settings_overlay.cpp
  *
- * @brief       Settings overlay implementation. See settings_overlay.h for details.
- *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
  *

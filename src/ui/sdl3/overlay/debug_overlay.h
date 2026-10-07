@@ -1,8 +1,6 @@
 /**
  * @file        ui/sdl3/overlay/debug_overlay.h
  *
- * @brief       ImGui debug overlay dialog for frame timing display.
- *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
  *

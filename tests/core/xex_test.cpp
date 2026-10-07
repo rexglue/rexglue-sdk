@@ -1,6 +1,5 @@
 /**
  * @file        tests/core/xex_test.cpp
- * @brief       Tests for the XEX image parser and the PE parser
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

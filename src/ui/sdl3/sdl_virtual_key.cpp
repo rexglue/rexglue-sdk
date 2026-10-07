@@ -18,20 +18,24 @@ namespace rex::ui {
 hid::VirtualKey TranslateSDLScancode(SDL_Scancode scancode) {
   // Contiguous ranges in both encodings.
   if (scancode >= SDL_SCANCODE_A && scancode <= SDL_SCANCODE_Z) {
-    return hid::VirtualKey(uint32_t(hid::VirtualKey::kA) + (scancode - SDL_SCANCODE_A));
+    return hid::VirtualKey(static_cast<uint32_t>(hid::VirtualKey::kA) +
+                           (scancode - SDL_SCANCODE_A));
   }
   if (scancode >= SDL_SCANCODE_1 && scancode <= SDL_SCANCODE_9) {
-    return hid::VirtualKey(uint32_t(hid::VirtualKey::k0) + 1 + (scancode - SDL_SCANCODE_1));
+    return hid::VirtualKey(static_cast<uint32_t>(hid::VirtualKey::k0) + 1 +
+                           (scancode - SDL_SCANCODE_1));
   }
   if (scancode >= SDL_SCANCODE_F1 && scancode <= SDL_SCANCODE_F12) {
-    return hid::VirtualKey(uint32_t(hid::VirtualKey::kF1) + (scancode - SDL_SCANCODE_F1));
+    return hid::VirtualKey(static_cast<uint32_t>(hid::VirtualKey::kF1) +
+                           (scancode - SDL_SCANCODE_F1));
   }
   if (scancode >= SDL_SCANCODE_F13 && scancode <= SDL_SCANCODE_F24) {
-    return hid::VirtualKey(uint32_t(hid::VirtualKey::kF13) + (scancode - SDL_SCANCODE_F13));
+    return hid::VirtualKey(static_cast<uint32_t>(hid::VirtualKey::kF13) +
+                           (scancode - SDL_SCANCODE_F13));
   }
   if (scancode >= SDL_SCANCODE_KP_1 && scancode <= SDL_SCANCODE_KP_9) {
     // SDL numpad order is 1..9,0; VK order is 0..9.
-    return hid::VirtualKey(uint32_t(hid::VirtualKey::kNumpad0) + 1 +
+    return hid::VirtualKey(static_cast<uint32_t>(hid::VirtualKey::kNumpad0) + 1 +
                            (scancode - SDL_SCANCODE_KP_1));
   }
   switch (scancode) {

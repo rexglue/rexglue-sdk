@@ -1,6 +1,5 @@
 /**
  * @file        filesystem/module.cpp
- * @brief       The module interface served by rex-filesystem.dll
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

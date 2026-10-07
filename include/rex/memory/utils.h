@@ -1,6 +1,5 @@
 /**
  * @file        memory/utils.h
- * @brief       Host page allocation, protection, file mappings and byte order helpers
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -13,6 +12,7 @@
 
 #pragma once
 
+#include <bit>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -51,7 +51,7 @@ void Reinterpret(Dst& REX_RESTRICT_VAR dst, const Src& REX_RESTRICT_VAR src) {
   static_assert(sizeof(Dst) == sizeof(Src));
   static_assert(std::is_trivially_copyable_v<Dst>);
   static_assert(std::is_trivially_copyable_v<Src>);
-  std::memcpy(&dst, &src, sizeof(Dst));
+  dst = std::bit_cast<Dst>(src);
 }
 
 /**
@@ -99,14 +99,14 @@ enum class PageAccess {
   kExecuteReadWrite = kReadWrite | 1 << 2, /**< Read, write and execute. */
 };
 
-/** Kind of allocation AllocFixed performs. */
+/** Allocation mode AllocFixed uses. */
 enum class AllocationType {
   kReserve = 1 << 0,                   /**< Reserve address space without backing it. */
   kCommit = 1 << 1,                    /**< Back reserved address space with memory. */
   kReserveCommit = kReserve | kCommit, /**< Reserve and commit in 1 step. */
 };
 
-/** Kind of deallocation DeallocFixed performs. */
+/** Deallocation mode DeallocFixed uses. */
 enum class DeallocationType {
   kRelease = 1 << 0,  /**< Return the address space to the system. */
   kDecommit = 1 << 1, /**< Drop the backing memory and keep the reservation. */
@@ -282,7 +282,7 @@ size_t hash_combine(size_t hash, const T& v, const Ts&... vs) {
  * @return The pointer with the upper 32 bits cleared.
  */
 inline void* low_address(void* address) {
-  return reinterpret_cast<void*>(u64(address) & 0xFFFFFFFF);
+  return reinterpret_cast<void*>(reinterpret_cast<u64>(address) & 0xFFFFFFFF);
 }
 
 /**
@@ -406,7 +406,7 @@ void copy_and_swap(T* dest, const T* src, size_t count) {
       copy_and_swap_64_unaligned(pd, ps, count);
     }
   } else {
-    assert_always("Invalid memory::copy_and_swap size");
+    REX_ASSERT_ALWAYS("Invalid memory::copy_and_swap size");
   }
 }
 

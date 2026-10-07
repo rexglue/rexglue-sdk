@@ -1,6 +1,5 @@
 /**
  * @file        logging/category.h
- * @brief       Constant initialized log category descriptors
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

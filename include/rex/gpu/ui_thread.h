@@ -1,6 +1,5 @@
 /**
  * @file        gpu/ui_thread.h
- * @brief       The thread that owns windows and presentation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

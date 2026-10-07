@@ -38,7 +38,7 @@ namespace {
 
 auto XamModule() {
   auto& runtime = runtime::Current();
-  assert_true(runtime.module_registry().IsKernel("xam.xex"));
+  REX_ASSERT(runtime.module_registry().IsKernel("xam.xex"));
   return runtime.object_table().Get<ModuleObject>(
       runtime.module_registry().FindKernel("xam.xex").value_or(0));
 }
@@ -56,15 +56,22 @@ uint8_t schema_bin[] = {
     0x00, 0x2C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x18,
 };
 
+struct XAM_SCHEMA_INFO {
+  be_u32 data_ptr;
+  be_u32 size;
+};
+REX_STATIC_ASSERT_SIZE(XAM_SCHEMA_INFO, 8);
+
 u32 XamGetOnlineSchema_entry() {
   static uint32_t schema_guest = 0;
 
   if (!schema_guest) {
-    schema_guest = runtime::Current().memory()->SystemHeapAlloc(8 + sizeof(schema_bin));
-    auto schema = runtime::Current().memory()->TranslateVirtual(schema_guest);
-    std::memcpy(schema + 8, schema_bin, sizeof(schema_bin));
-    memory::store_and_swap<uint32_t>(schema + 0, schema_guest + 8);
-    memory::store_and_swap<uint32_t>(schema + 4, sizeof(schema_bin));
+    schema_guest =
+        runtime::Current().memory()->SystemHeapAlloc(sizeof(XAM_SCHEMA_INFO) + sizeof(schema_bin));
+    auto* info = runtime::Current().memory()->TranslateVirtual<XAM_SCHEMA_INFO*>(schema_guest);
+    std::memcpy(info + 1, schema_bin, sizeof(schema_bin));
+    info->data_ptr = schema_guest + sizeof(XAM_SCHEMA_INFO);
+    info->size = static_cast<u32>(sizeof(schema_bin));
   }
 
   // return pointer to the schema ptr/schema size struct
@@ -75,12 +82,12 @@ u32 XamGetOnlineSchema_entry() {
 static SYSTEMTIME GetLocalSystemTime(uint64_t filetime) {
   FILETIME t;
   t.dwHighDateTime = filetime >> 32;
-  t.dwLowDateTime = (uint32_t)filetime;
+  t.dwLowDateTime = static_cast<uint32_t>(filetime);
 
   SYSTEMTIME st;
   SYSTEMTIME local_st;
   FileTimeToSystemTime(&t, &st);
-  SystemTimeToTzSpecificLocalTime(NULL, &st, &local_st);
+  SystemTimeToTzSpecificLocalTime(nullptr, &st, &local_st);
   return local_st;
 }
 #endif
@@ -95,7 +102,7 @@ void XamFormatDateString_entry(u32 unk, u64 filetime, mapped_void output_buffer,
   auto str = rex::to_utf16(std::format("{:02d}/{:02d}/{}", st.wMonth, st.wDay, st.wYear));
   rex::copy_and_swap_truncating(output_buffer.as<char16_t*>(), str, output_count);
 #else
-  assert_always();
+  REX_ASSERT_ALWAYS();
 #endif
 }
 
@@ -109,7 +116,7 @@ void XamFormatTimeString_entry(u32 unk, u64 filetime, mapped_void output_buffer,
   auto str = rex::to_utf16(std::format("{:02d}:{:02d}", st.wHour, st.wMinute));
   rex::copy_and_swap_truncating(output_buffer.as<char16_t*>(), str, output_count);
 #else
-  assert_always();
+  REX_ASSERT_ALWAYS();
 #endif
 }
 
@@ -138,7 +145,7 @@ u32 XamBuildResourceLocator_entry(u64 module, mapped_wstring container, mapped_w
 
 u32 XamBuildGamercardResourceLocator_entry(mapped_wstring filename, mapped_void buffer_ptr,
                                            u32 buffer_count) {
-  // On an actual xbox these funcs would return a locator to xam.xex resources,
+  // On an actual console these funcs would return a locator to xam.xex resources,
   // but for Xenia we can return a locator to the resources as local files. (big
   // thanks to MS for letting XamBuildResourceLocator return local file
   // locators!)
@@ -166,7 +173,7 @@ u32 XamBuildXamResourceLocator_entry(mapped_wstring filename, mapped_void buffer
 }
 
 u32 XamGetSystemVersion_entry() {
-  // eh, just picking one. If we go too low we may break new games, but
+  // eh, picking one. If we go too low we may break new games, but
   // this value seems to be used for conditionally loading symbols and if
   // we pretend to be old we have less to worry with implementing.
   // 0x200A3200
@@ -211,7 +218,7 @@ u32 XGetLanguage_entry() {
   }
   // Add more overrides?
 
-  return uint32_t(desired_language);
+  return static_cast<uint32_t>(desired_language);
 }
 
 u32 XamGetCurrentTitleId_entry() {
@@ -228,7 +235,7 @@ u32 XamGetCurrentTitleId_entry() {
 u32 XamGetExecutionId_entry(mapped_u32 info_ptr) {
   auto module = runtime::Current().object_table().Get<ModuleObject>(
       runtime::Current().module_registry().executable().value_or(0));
-  assert_true(module);
+  REX_ASSERT(module);
 
   uint32_t guest_hdr_ptr;
   X_STATUS result = UserModuleGetOptHeader(*module, XEX_HEADER_EXECUTION_INFO, &guest_hdr_ptr);
@@ -262,7 +269,7 @@ u32 XamLoaderGetLaunchDataSize_entry(mapped_u32 size_ptr) {
     return X_ERROR_NOT_FOUND;
   }
 
-  *size_ptr = uint32_t(loader_data.launch_data.size());
+  *size_ptr = static_cast<uint32_t>(loader_data.launch_data.size());
   return X_ERROR_SUCCESS;
 }
 
@@ -273,7 +280,8 @@ u32 XamLoaderGetLaunchData_entry(mapped_void buffer_ptr, u32 buffer_size) {
     return X_ERROR_NOT_FOUND;
   }
 
-  uint32_t copy_size = std::min(uint32_t(loader_data.launch_data.size()), uint32_t(buffer_size));
+  uint32_t copy_size = std::min(static_cast<uint32_t>(loader_data.launch_data.size()),
+                                static_cast<uint32_t>(buffer_size));
   std::memcpy(buffer_ptr, loader_data.launch_data.data(), copy_size);
   return X_ERROR_SUCCESS;
 }
@@ -299,7 +307,7 @@ void XamLoaderLaunchTitle_entry(mapped_string raw_name_ptr, u32 flags) {
         loader_data.launch_path = path;
       }
     } else {
-      assert_always("Game requested exit to dashboard via XamLoaderLaunchTitle");
+      REX_ASSERT_ALWAYS("Game requested exit to dashboard via XamLoaderLaunchTitle");
     }
   }
 
@@ -313,7 +321,7 @@ void XamLoaderTerminateTitle_entry() {
 }
 
 u32 XamAlloc_entry(u32 unk, u32 size, mapped_u32 out_ptr) {
-  assert_true(unk == 0);
+  REX_ASSERT(unk == 0);
 
   Result<u32> address = runtime::Current().workspace().Alloc(size);
   if (!address) {
@@ -346,7 +354,7 @@ u32 XamLoaderGetDvdTrayState_entry(mapped_u32 out_state) {
 u32 XamSwapDisc_entry(u32 disc_number) {
   // Stub for multi-disc games. Single-disc games (like Blue Dragon's reblue test)
   // don't need this, but the game may look it up dynamically via XexGetProcedureAddress.
-  REX_KERNEL_STUB("XamSwapDisc({})", (uint32_t)disc_number);
+  REX_KERNEL_STUB("XamSwapDisc({})", static_cast<uint32_t>(disc_number));
   return X_STATUS_SUCCESS;
 }
 

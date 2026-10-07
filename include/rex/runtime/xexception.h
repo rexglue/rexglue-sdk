@@ -7,7 +7,7 @@
  ******************************************************************************
  *
  * @modified    2026 Tom Clay <tomc@tctechstuff.com>
- *              Modified for rexglue - Xbox 360 recompilation framework
+ *              Modified for rexglue - recompilation framework
  *
  * @changes     - Extracted exception types from xbox.h
  */
@@ -22,22 +22,22 @@ namespace rex::runtime {
 #pragma pack(push, 4)
 
 struct X_EX_TITLE_TERMINATE_REGISTRATION {
-  be<uint32_t> notification_routine;  // 0x0
-  be<uint32_t> priority;              // 0x4
-  X_LIST_ENTRY list_entry;            // 0x8
+  be_u32 notification_routine;  // 0x0
+  be_u32 priority;              // 0x4
+  X_LIST_ENTRY list_entry;      // 0x8
 };
-static_assert_size(X_EX_TITLE_TERMINATE_REGISTRATION, 16);
+REX_STATIC_ASSERT_SIZE(X_EX_TITLE_TERMINATE_REGISTRATION, 16);
 
 // https://msdn.microsoft.com/en-us/library/windows/desktop/aa363082.aspx
 struct X_EXCEPTION_RECORD {
-  be<uint32_t> code;
-  be<uint32_t> exception_flags;
-  be<uint32_t> exception_record;
-  be<uint32_t> exception_address;
-  be<uint32_t> number_parameters;
-  be<uint32_t> exception_information[15];
+  be_u32 code;
+  be_u32 exception_flags;
+  be_u32 exception_record;
+  be_u32 exception_address;
+  be_u32 number_parameters;
+  be_u32 exception_information[15];
 };
-static_assert_size(X_EXCEPTION_RECORD, 0x50);
+REX_STATIC_ASSERT_SIZE(X_EXCEPTION_RECORD, 0x50);
 
 #pragma pack(pop)
 

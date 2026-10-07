@@ -1,6 +1,5 @@
 /**
  * @file        core/filesystem/svod.cpp
- * @brief       SVOD package parser
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -79,7 +78,7 @@ class SVODReader {
   SVODReader(const STFSHeader& header, std::span<const std::span<const u8>> files)
       : header_(header), files_(files) {}
 
-  Result<u64> DetectLayout() {
+  [[nodiscard]] Result<u64> DetectLayout() {
     std::span<const u8> first = files_[0];
     if (header_.metadata.volume_descriptor.svod.features.bits.enhanced_gdf_layout) {
       if (!HasMagic(first, 0x2000, kMediaMagic)) {
@@ -136,7 +135,7 @@ class SVODReader {
     return Location{.file = static_cast<u32>(file_index), .offset = address};
   }
 
-  Result<void> Walk(u32 root_block, std::vector<ContainerNode>& nodes) {
+  [[nodiscard]] Result<void> Walk(u32 root_block, std::vector<ContainerNode>& nodes) {
     std::vector<Visit> stack;
     stack.push_back({.block = root_block});
     while (!stack.empty()) {
@@ -161,7 +160,7 @@ class SVODReader {
     std::string name;
   };
 
-  Result<void> Expand(const Visit& visit, std::vector<Visit>& stack) {
+  [[nodiscard]] Result<void> Expand(const Visit& visit, std::vector<Visit>& stack) {
     if (!visited_.insert({visit.block, visit.ordinal}).second) {
       return Err(
           Corrupt(std::format("SVOD entry {} of block {} repeats", visit.ordinal, visit.block)));
@@ -195,8 +194,8 @@ class SVODReader {
     return Ok();
   }
 
-  Result<void> Emit(Visit visit, std::vector<ContainerNode>& nodes,
-                    std::vector<Visit>& stack) const {
+  [[nodiscard]] Result<void> Emit(Visit visit, std::vector<ContainerNode>& nodes,
+                                  std::vector<Visit>& stack) const {
     const DirectoryEntry& entry = visit.entry;
     const u64 root_time = nodes.front().create_time;
     ContainerNode node;
@@ -251,8 +250,9 @@ class SVODReader {
 
 }  // namespace
 
-Result<void> ParseSVOD(const STFSHeader& header, std::span<const std::span<const u8>> files,
-                       std::vector<ContainerNode>& nodes) {
+[[nodiscard]] Result<void> ParseSVOD(const STFSHeader& header,
+                                     std::span<const std::span<const u8>> files,
+                                     std::vector<ContainerNode>& nodes) {
   if (files.empty()) {
     return Err(Corrupt("SVOD has no data file"));
   }

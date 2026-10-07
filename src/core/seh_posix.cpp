@@ -1,6 +1,5 @@
 /**
  * @file        core/seh_posix.cpp
- * @brief       POSIX platform SEH implementations
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  * @license     BSD 3-Clause License

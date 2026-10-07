@@ -1,6 +1,5 @@
 /**
  * @file        logging/macros.h
- * @brief       Log category declaration and the logging macros
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

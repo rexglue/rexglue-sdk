@@ -1,6 +1,5 @@
 /**
  * @file        core/system_win.cpp
- * @brief       Windows implementations of rex/system.h platform helpers.
  *
  * @copyright   Copyright (c) 2026 Tom Clay
  * @license     BSD 3-Clause License

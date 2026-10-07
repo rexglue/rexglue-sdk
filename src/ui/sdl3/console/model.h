@@ -74,7 +74,7 @@ class ConsoleModel : public NonCopyable {
   ConsoleModel(cvar::ICvarRegistry& cvars, log::CaptureSink& capture,
                std::filesystem::path history_path);
 
-  /** Pulls new records from the capture sink. The view calls it once per frame. */
+  /** Pulls new entries from the capture sink. The view calls it once per frame. */
   void Poll();
 
   /**

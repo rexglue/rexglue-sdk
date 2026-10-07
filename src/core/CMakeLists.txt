@@ -68,7 +68,6 @@ if(WIN32)
         fiber_win32.cpp
         log_sinks_win.cpp
         mapped_memory_win.cpp
-        math_msvc.cpp
         memory_win.cpp
         platform/console_win.cpp
         platform/env_win.cpp
@@ -94,7 +93,6 @@ elseif(UNIX)
         instance_lock_posix.cpp
         log_sinks_posix.cpp
         mapped_memory_posix.cpp
-        math_gcc.cpp
         memory_posix.cpp
         platform/console_posix.cpp
         platform/env_posix.cpp

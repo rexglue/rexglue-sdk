@@ -1,6 +1,5 @@
 /**
  * @file        ui/overlay.h
- * @brief       Overlay tables and the context overlays receive
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

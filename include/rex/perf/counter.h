@@ -1,6 +1,5 @@
 /**
  * @file        perf/counter.h
- * @brief       Performance counter registry and profiler
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

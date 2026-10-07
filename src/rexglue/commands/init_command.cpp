@@ -1,6 +1,5 @@
 /**
  * @file        rexglue/commands/init_command.cpp
- * @brief       Project initialization command implementation
  *
  * @copyright   Copyright (c) 2026 Tom Clay
  * @license     BSD 3-Clause License
@@ -421,17 +420,18 @@ Result<void> InitAchievements(const InitAchievementsOptions& opts, const CLICont
 
   for (const auto& entry : achievements) {
     content += "[[achievements]]\n";
-    content += std::format("id                    = {}\n", uint32_t(entry.id));
+    content += std::format("id                    = {}\n", static_cast<uint32_t>(entry.id));
     content += std::format("label                 = \"{}\"\n",
                            escape_toml(db.GetStringTableEntry(lang, entry.label_id)));
     content += std::format("description           = \"{}\"\n",
                            escape_toml(db.GetStringTableEntry(lang, entry.description_id)));
     content += std::format("unachieved_description = \"{}\"\n",
                            escape_toml(db.GetStringTableEntry(lang, entry.unachieved_id)));
-    content += std::format("gamerscore            = {}\n", uint32_t(entry.gamerscore));
-    content += std::format("image_id              = {}\n", uint32_t(entry.image_id));
-    content += std::format("icon_path             = \"icons/{}.png\"\n", uint32_t(entry.image_id));
-    content += std::format("flags                 = {}\n\n", uint32_t(entry.flags));
+    content += std::format("gamerscore            = {}\n", static_cast<uint32_t>(entry.gamerscore));
+    content += std::format("image_id              = {}\n", static_cast<uint32_t>(entry.image_id));
+    content += std::format("icon_path             = \"icons/{}.png\"\n",
+                           static_cast<uint32_t>(entry.image_id));
+    content += std::format("flags                 = {}\n\n", static_cast<uint32_t>(entry.flags));
   }
 
   fs::path outPath = outDir / "achievements.toml";
@@ -531,7 +531,7 @@ struct InitModuleArgs {
 struct InitAchievementsArgs {
   std::string xex_path;
   std::string output_dir;
-  uint32_t language = static_cast<uint32_t>(rex::runtime::XLanguage::kEnglish);
+  uint32_t language = std::to_underlying(rex::runtime::XLanguage::kEnglish);
 };
 
 }  // namespace

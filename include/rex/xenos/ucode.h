@@ -20,8 +20,8 @@
 #include <rex/platform.h>
 
 // The XNA Game Studio 3.1 contains Graphics.ShaderCompiler.AssembleFromSource,
-// which, for TargetPlatform.Xbox360, can validate and assemble Xbox 360 shader
-// microcode from Xbox 360 and Direct3D 9 shader assembly, returning the binary,
+// which, for TargetPlatform.Xbox360, can validate and assemble Xenos shader
+// microcode from Xenos and Direct3D 9 shader assembly, returning the binary,
 // as well as validation warnings and errors and the disassembly via the warning
 // output. It is the primary source of information about the binary encoding of
 // the instructions, as well as valid usage of instruction parameters and
@@ -51,7 +51,7 @@
 //
 // Also, the R600, while having a different 5-scalar, as opposed to vec4|scalar,
 // parallelism model and instruction encodings and targeting Direct3D 10 rather
-// that 9, inherits a lot of instructions and architectural concepts from the
+// that 9, inherits many instructions and architectural concepts from the
 // R400.
 // https://www.x.org/docs/AMD/old/r600isa.pdf
 // https://developer.amd.com/wordpress/media/2012/10/r600isa.pdf
@@ -102,14 +102,14 @@ enum class ControlFlowOpcode : uint32_t {
   // Conditionally executes based on a bool const then ends execution.
   // PredicateClean = false.
   // According to the IPR2015-00325 sequencer specification, execution ends only
-  // if the condition is actually met (unlike on the R600, where execution ends
+  // if the condition is met (unlike on the R600, where execution ends
   // unconditionally if END_OF_PROGRAM is set in the control flow instruction).
   // 4D5307ED has many shaders (used, in particular, in the Press Start screen
   // background) with if / else in its tail done via cexece - cexece b130, then
   // cexece !b130, and then an empty exece (if the condition was ignored, the
   // second cexece would have never been reached). Also, the validator reports
   // "Shader will try to execute instruction 3.0, but last possible instruction
-  // is 2.1" for a shader that contains just one cexece without an exece.
+  // is 2.1" for a shader that contains only one cexece without an exece.
   kCondExecEnd = 4,
   // Conditionally executes based on the current predicate.
   // Since 64 vertices or pixels are processed by each sequencer in the Xenos
@@ -124,7 +124,7 @@ enum class ControlFlowOpcode : uint32_t {
   kCondExecPred = 5,
   // Conditionally executes based on the current predicate then ends execution.
   // According to the IPR2015-00325 sequencer specification, execution ends only
-  // if the condition is actually met for any of the invocations (unlike on the
+  // if the condition is met for any of the invocations (unlike on the
   // R600, where execution ends unconditionally if END_OF_PROGRAM is set in the
   // control flow instruction).
   kCondExecPredEnd = 6,
@@ -200,7 +200,7 @@ enum class AddressingMode : uint32_t {
 };
 
 // Defines the type of a ControlFlowOpcode::kAlloc instruction.
-// The allocation is just a size reservation and there may be multiple in a
+// The allocation is a size reservation and there may be multiple in a
 // shader.
 enum class AllocType : uint32_t {
   // ?
@@ -254,7 +254,7 @@ struct ControlFlowExecInstruction {
   AddressingMode address_mode_ : 1;
   ControlFlowOpcode opcode_ : 4;
 };
-static_assert_size(ControlFlowExecInstruction, sizeof(uint32_t) * 2);
+REX_STATIC_ASSERT_SIZE(ControlFlowExecInstruction, sizeof(uint32_t) * 2);
 
 // Instruction data for ControlFlowOpcode::kCondExec, kCondExecEnd,
 // kCondExecPredClean and kCondExecPredCleanEnd.
@@ -290,7 +290,7 @@ struct ControlFlowCondExecInstruction {
   AddressingMode address_mode_ : 1;
   ControlFlowOpcode opcode_ : 4;
 };
-static_assert_size(ControlFlowCondExecInstruction, sizeof(uint32_t) * 2);
+REX_STATIC_ASSERT_SIZE(ControlFlowCondExecInstruction, sizeof(uint32_t) * 2);
 
 // Instruction data for ControlFlowOpcode::kCondExecPred and kCondExecPredEnd.
 struct ControlFlowCondExecPredInstruction {
@@ -325,7 +325,7 @@ struct ControlFlowCondExecPredInstruction {
   AddressingMode address_mode_ : 1;
   ControlFlowOpcode opcode_ : 4;
 };
-static_assert_size(ControlFlowCondExecPredInstruction, sizeof(uint32_t) * 2);
+REX_STATIC_ASSERT_SIZE(ControlFlowCondExecPredInstruction, sizeof(uint32_t) * 2);
 
 // Instruction data for ControlFlowOpcode::kLoopStart.
 struct ControlFlowLoopStartInstruction {
@@ -353,7 +353,7 @@ struct ControlFlowLoopStartInstruction {
   AddressingMode address_mode_ : 1;
   ControlFlowOpcode opcode_ : 4;
 };
-static_assert_size(ControlFlowLoopStartInstruction, sizeof(uint32_t) * 2);
+REX_STATIC_ASSERT_SIZE(ControlFlowLoopStartInstruction, sizeof(uint32_t) * 2);
 
 // Instruction data for ControlFlowOpcode::kLoopEnd.
 struct ControlFlowLoopEndInstruction {
@@ -385,7 +385,7 @@ struct ControlFlowLoopEndInstruction {
   AddressingMode address_mode_ : 1;
   ControlFlowOpcode opcode_ : 4;
 };
-static_assert_size(ControlFlowLoopEndInstruction, sizeof(uint32_t) * 2);
+REX_STATIC_ASSERT_SIZE(ControlFlowLoopEndInstruction, sizeof(uint32_t) * 2);
 
 // Instruction data for ControlFlowOpcode::kCondCall.
 struct ControlFlowCondCallInstruction {
@@ -416,7 +416,7 @@ struct ControlFlowCondCallInstruction {
   AddressingMode address_mode_ : 1;
   ControlFlowOpcode opcode_ : 4;
 };
-static_assert_size(ControlFlowCondCallInstruction, sizeof(uint32_t) * 2);
+REX_STATIC_ASSERT_SIZE(ControlFlowCondCallInstruction, sizeof(uint32_t) * 2);
 
 // Instruction data for ControlFlowOpcode::kReturn.
 struct ControlFlowReturnInstruction {
@@ -432,7 +432,7 @@ struct ControlFlowReturnInstruction {
   AddressingMode address_mode_ : 1;
   ControlFlowOpcode opcode_ : 4;
 };
-static_assert_size(ControlFlowReturnInstruction, sizeof(uint32_t) * 2);
+REX_STATIC_ASSERT_SIZE(ControlFlowReturnInstruction, sizeof(uint32_t) * 2);
 
 // Instruction data for ControlFlowOpcode::kCondJmp.
 struct ControlFlowCondJmpInstruction {
@@ -464,7 +464,7 @@ struct ControlFlowCondJmpInstruction {
   AddressingMode address_mode_ : 1;
   ControlFlowOpcode opcode_ : 4;
 };
-static_assert_size(ControlFlowCondJmpInstruction, sizeof(uint32_t) * 2);
+REX_STATIC_ASSERT_SIZE(ControlFlowCondJmpInstruction, sizeof(uint32_t) * 2);
 
 // Instruction data for ControlFlowOpcode::kAlloc.
 struct ControlFlowAllocInstruction {
@@ -486,7 +486,7 @@ struct ControlFlowAllocInstruction {
   uint32_t : 1;
   ControlFlowOpcode opcode_ : 4;
 };
-static_assert_size(ControlFlowAllocInstruction, sizeof(uint32_t) * 2);
+REX_STATIC_ASSERT_SIZE(ControlFlowAllocInstruction, sizeof(uint32_t) * 2);
 
 union ControlFlowInstruction {
   ControlFlowOpcode opcode() const { return opcode_value; }
@@ -511,7 +511,7 @@ union ControlFlowInstruction {
     ControlFlowOpcode opcode_value : 4;
   };
 };
-static_assert_size(ControlFlowInstruction, sizeof(uint32_t) * 2);
+REX_STATIC_ASSERT_SIZE(ControlFlowInstruction, sizeof(uint32_t) * 2);
 
 inline void UnpackControlFlowInstructions(const uint32_t* dwords, ControlFlowInstruction* out_ab) {
   uint32_t dword_0 = dwords[0];
@@ -768,7 +768,7 @@ struct alignas(uint32_t) VertexFetchInstruction {
   };
   Data data_;
 };
-static_assert_size(VertexFetchInstruction, sizeof(uint32_t) * 3);
+REX_STATIC_ASSERT_SIZE(VertexFetchInstruction, sizeof(uint32_t) * 3);
 
 struct alignas(uint32_t) TextureFetchInstruction {
   FetchOpcode opcode() const { return data_.opcode_value; }
@@ -860,7 +860,7 @@ struct alignas(uint32_t) TextureFetchInstruction {
   };
   Data data_;
 };
-static_assert_size(TextureFetchInstruction, sizeof(uint32_t) * 3);
+REX_STATIC_ASSERT_SIZE(TextureFetchInstruction, sizeof(uint32_t) * 3);
 
 union alignas(uint32_t) FetchInstruction {
  public:
@@ -913,7 +913,7 @@ union alignas(uint32_t) FetchInstruction {
   VertexFetchInstruction vertex_fetch_;
   TextureFetchInstruction texture_fetch_;
 };
-static_assert_size(FetchInstruction, sizeof(uint32_t) * 3);
+REX_STATIC_ASSERT_SIZE(FetchInstruction, sizeof(uint32_t) * 3);
 
 // What follows is largely a mash up of the microcode assembly naming and the
 // R600 docs that have a near 1:1 with the instructions available in the Xenos
@@ -953,9 +953,9 @@ static_assert_size(FetchInstruction, sizeof(uint32_t) * 3);
 //   when the instruction that would write it fails its predication check.
 // - Direct3D 9 rules (like in GCN v_*_legacy_f32 instructions) for
 //   multiplication (+-0 or denormal * anything = +0) wherever it's present
-//   (mul, mad, dp, etc.) and for NaN in min/max. It's very important to respect
+//   (mul, mad, dp and others) and for NaN in min/max. It's important to respect
 //   this rule for multiplication, as games often rely on it in vector
-//   normalization (rcp and mul), Infinity * 0 resulting in NaN breaks a lot of
+//   normalization (rcp and mul), Infinity * 0 resulting in NaN breaks many
 //   things in games - causes white screen in 4D5307E6, white specular on
 //   characters in 545407F2. The result is always positive zero in this case, no
 //   matter what the signs of the other operands are, according to R5xx
@@ -1330,8 +1330,8 @@ struct AluScalarOpcodeInfo {
 extern REX_API const AluScalarOpcodeInfo kAluScalarOpcodeInfos[64];
 
 inline const AluScalarOpcodeInfo& GetAluScalarOpcodeInfo(AluScalarOpcode opcode) {
-  assert_true(uint32_t(opcode) < rex::countof(kAluScalarOpcodeInfos));
-  return kAluScalarOpcodeInfos[uint32_t(opcode)];
+  REX_ASSERT(static_cast<uint32_t>(opcode) < rex::countof(kAluScalarOpcodeInfos));
+  return kAluScalarOpcodeInfos[static_cast<uint32_t>(opcode)];
 }
 
 enum class AluVectorOpcode : uint32_t {
@@ -1537,7 +1537,7 @@ enum class AluVectorOpcode : uint32_t {
   //     } else {
   //       dest.xyzw = src0.w;
   //     }
-  // However, the comparisons may be >= actually - the XNA documentation on
+  // However, the comparisons may be >= instead - the XNA documentation on
   // MSDN, as well as R600 and GCN documentation, describe `max` as being
   // implemented via >= rather than >. `max4` is documented vaguely, without the
   // exact calculations for each component - MSDN describes it as max(xyzw), and
@@ -1708,20 +1708,20 @@ struct AluVectorOpcodeInfo {
 extern REX_API const AluVectorOpcodeInfo kAluVectorOpcodeInfos[32];
 
 inline const AluVectorOpcodeInfo& GetAluVectorOpcodeInfo(AluVectorOpcode opcode) {
-  assert_true(uint32_t(opcode) < rex::countof(kAluVectorOpcodeInfos));
-  return kAluVectorOpcodeInfos[uint32_t(opcode)];
+  REX_ASSERT(static_cast<uint32_t>(opcode) < rex::countof(kAluVectorOpcodeInfos));
+  return kAluVectorOpcodeInfos[static_cast<uint32_t>(opcode)];
 }
 
 // Whether each component of a source operand is needed for the instruction if
 // executed with the specified write mask, and thus can't be thrown away or be
 // undefined in translation. For per-component operations, for example, only the
 // components specified in the write mask are needed, but there are instructions
-// with special behavior for certain components.
+// with special behavior for some components.
 inline uint32_t GetAluVectorOpNeededSourceComponents(AluVectorOpcode vector_opcode,
                                                      uint32_t src_index,
                                                      uint32_t used_result_components) {
-  assert_not_zero(src_index);
-  assert_zero(used_result_components & ~uint32_t(0b1111));
+  REX_ASSERT(src_index != 0);
+  REX_ASSERT((used_result_components & ~static_cast<uint32_t>(0b1111)) == 0);
   uint32_t components = used_result_components;
   switch (vector_opcode) {
     case AluVectorOpcode::kDp4:
@@ -1873,7 +1873,7 @@ struct alignas(uint32_t) AluInstruction {
       case 3:
         return data_.src3_reg;
       default:
-        assert_unhandled_case(i);
+        REX_UNHANDLED_CASE(i);
         return 0;
     }
   }
@@ -1886,14 +1886,14 @@ struct alignas(uint32_t) AluInstruction {
       case 3:
         return bool(data_.src3_sel);
       default:
-        assert_unhandled_case(i);
+        REX_UNHANDLED_CASE(i);
         return 0;
     }
   }
-  // Whether the specified operand is actually a constant is disregarded in this
-  // function so its scope is limited to just parsing the structure's layout -
+  // Whether the specified operand is a constant is disregarded in this
+  // function so its scope is limited to parsing the structure's layout -
   // to decide whether to use relative addressing for the operand as a whole,
-  // check externally whether the operand is actually a constant first.
+  // check externally whether the operand is a constant first.
   //
   // For the constant operand in mulsc, addsc, subsc, this should be called for
   // the operand index 3. Note that the XNA disassembler takes the addressing
@@ -1910,7 +1910,7 @@ struct alignas(uint32_t) AluInstruction {
   // scalar operand). Passing the disassembly produced by XNA back to the
   // assembler results in different microcode in this case. This indicates that
   // most likely there's a bug in the XNA disassembler, and that the addressing
-  // mode for the constant scalar operand should actually be taken the same way
+  // mode for the constant scalar operand should be taken the same way
   // as for the third vector operand - from const_0_rel_abs if there are no
   // constant vector operands, or from const_1_rel_abs if there is at least one.
   bool src_const_is_addressed(size_t i) const {
@@ -1928,7 +1928,7 @@ struct alignas(uint32_t) AluInstruction {
         return bool((src_is_temp(1) && src_is_temp(2)) ? data_.const_0_rel_abs
                                                        : data_.const_1_rel_abs);
       default:
-        assert_unhandled_case(i);
+        REX_UNHANDLED_CASE(i);
         return false;
     }
   }
@@ -1941,7 +1941,7 @@ struct alignas(uint32_t) AluInstruction {
       case 3:
         return data_.src3_swiz;
       default:
-        assert_unhandled_case(i);
+        REX_UNHANDLED_CASE(i);
         return 0;
     }
   }
@@ -1954,13 +1954,14 @@ struct alignas(uint32_t) AluInstruction {
       case 3:
         return data_.src3_reg_negate == 1;
       default:
-        assert_unhandled_case(i);
+        REX_UNHANDLED_CASE(i);
         return 0;
     }
   }
 
   uint32_t scalar_const_reg_op_src_temp_reg() const {
-    return (uint32_t(data_.scalar_opc) & 1) | (data_.src3_sel << 1) | (data_.src3_swiz & 0x3C);
+    return (static_cast<uint32_t>(data_.scalar_opc) & 1) | (data_.src3_sel << 1) |
+           (data_.src3_swiz & 0x3C);
   }
 
   // Helpers.
@@ -2008,7 +2009,7 @@ struct alignas(uint32_t) AluInstruction {
     struct {
       // If exporting, both vector and scalar operations use the vector
       // destination (which can't be relative in this case).
-      // Not very important note: If both scalar and vector operations exporting
+      // Minor note: If both scalar and vector operations exporting
       // something have empty write mask, the XNA assembler forces vector_dest
       // to 0 (interpolator 0 or color 0) directly in the microcode.
       uint32_t vector_dest : 6;
@@ -2060,6 +2061,6 @@ struct alignas(uint32_t) AluInstruction {
   };
   Data data_;
 };
-static_assert_size(AluInstruction, sizeof(uint32_t) * 3);
+REX_STATIC_ASSERT_SIZE(AluInstruction, sizeof(uint32_t) * 3);
 
 }  // namespace rex::xenos::ucode

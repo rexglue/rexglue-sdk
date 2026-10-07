@@ -1,6 +1,5 @@
 /**
  * @file        hid/common/cvar_table.h
- * @brief       hid cvars
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

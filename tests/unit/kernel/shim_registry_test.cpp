@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/kernel/shim_registry_test.cpp
- * @brief       Tests for the shim registry
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

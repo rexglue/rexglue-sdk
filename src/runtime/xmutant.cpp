@@ -27,7 +27,7 @@ u32 CurrentThreadId() {
 MutantObject::MutantObject(bool initial_owner, u32 guest_mutant_in)
     : guest_mutant(guest_mutant_in) {
   mutant = rex::platform::Mutant::Create(initial_owner);
-  assert_not_null(mutant);
+  REX_ASSERT(mutant != nullptr);
   if (initial_owner) {
     owner_thread_id = CurrentThreadId();
     hold_count = 1;

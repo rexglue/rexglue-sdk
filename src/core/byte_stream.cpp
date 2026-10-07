@@ -23,18 +23,18 @@ ByteStream::ByteStream(uint8_t* data, size_t data_length, size_t offset)
 ByteStream::~ByteStream() = default;
 
 void ByteStream::Advance(size_t num_bytes) {
-  assert_true(offset_ + num_bytes <= data_length_);
+  REX_ASSERT(offset_ + num_bytes <= data_length_);
   offset_ += num_bytes;
 }
 
 void ByteStream::Read(std::span<uint8_t> buf) {
-  assert_true(offset_ + buf.size() <= data_length_);
+  REX_ASSERT(offset_ + buf.size() <= data_length_);
   std::memcpy(buf.data(), data_ + offset_, buf.size());
   Advance(buf.size());
 }
 
 void ByteStream::Write(std::span<const uint8_t> buf) {
-  assert_true(offset_ + buf.size() <= data_length_);
+  REX_ASSERT(offset_ + buf.size() <= data_length_);
   std::memcpy(data_ + offset_, buf.data(), buf.size());
   Advance(buf.size());
 }

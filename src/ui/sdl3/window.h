@@ -161,7 +161,7 @@ class Window : public IWindow, public gpu::IPresentationHost {
    * @return The converted size.
    */
   static constexpr u32 ConvertSizeDpi(u32 size, u32 new_dpi, u32 old_dpi) {
-    return u32((u64(size) * new_dpi + (old_dpi - 1)) / old_dpi);
+    return static_cast<u32>((static_cast<u64>(size) * new_dpi + (old_dpi - 1)) / old_dpi);
   }
 
   /**
@@ -419,13 +419,6 @@ class Window : public IWindow, public gpu::IPresentationHost {
   /** The presenter left this window. Drops the surface without calling back. */
   void OnPresenterDetached() override;
 
-  /** Requests a repaint of the presenter UI from the UI thread. */
-  void RequestPresenterUIPaintFromUIThread() {
-    if (presenter_) {
-      presenter_->RequestOverlayPaint();
-    }
-  }
-
  protected:
   /**
    * Detects destruction of the window from within an event handler. Create 1 on the stack
@@ -448,7 +441,7 @@ class Window : public IWindow, public gpu::IPresentationHost {
 
     ~WindowDestructionReceiver() {
       if (window_) {
-        assert_true(window_->innermost_destruction_receiver_ == this);
+        REX_ASSERT(window_->innermost_destruction_receiver_ == this);
         window_->innermost_destruction_receiver_ = outer_receiver_;
       }
     }
@@ -459,13 +452,6 @@ class Window : public IWindow, public gpu::IPresentationHost {
      * @return True once the window destructor ran.
      */
     bool IsWindowDestroyed() const { return window_ == nullptr; }
-
-    /**
-     * Tests whether the window was destroyed or closed.
-     *
-     * @return True when the native window can no longer be used.
-     */
-    bool IsWindowDestroyedOrClosed() const { return IsWindowDestroyed() || window_->IsClosed(); }
 
     /**
      * Tests whether state may no longer be applied.
@@ -638,7 +624,7 @@ class Window : public IWindow, public gpu::IPresentationHost {
   void OnMonitorUpdate(MonitorUpdateEvent& e);
 
   /**
-   * Records a desired logical size the platform chose.
+   * Stores a desired logical size the platform chose.
    *
    * @param new_desired_logical_width The width.
    * @param new_desired_logical_height The height.
@@ -649,7 +635,7 @@ class Window : public IWindow, public gpu::IPresentationHost {
   }
 
   /**
-   * Records a client area size and notifies what depends on it.
+   * Stores a client area size and notifies what depends on it.
    *
    * @param new_physical_width The width.
    * @param new_physical_height The height.
@@ -660,7 +646,7 @@ class Window : public IWindow, public gpu::IPresentationHost {
                           WindowDestructionReceiver& destruction_receiver);
 
   /**
-   * Records a focus change and notifies the listeners.
+   * Stores a focus change and notifies the listeners.
    *
    * @param new_has_focus True when the window gained focus.
    * @param destruction_receiver Receiver that detects destruction during the call.
@@ -776,8 +762,6 @@ class Window : public IWindow, public gpu::IPresentationHost {
     size_t current_z_order;
   };
 
-  bool IsClosed() const { return phase_ < Phase::kOpening || phase_ > Phase::kOpenBeforeClosing; }
-
   bool CanApplyState() const {
     return phase_ >= Phase::kOpen && phase_ <= Phase::kOpenBeforeClosing;
   }
@@ -786,10 +770,10 @@ class Window : public IWindow, public gpu::IPresentationHost {
     return phase_ >= Phase::kOpen && phase_ <= Phase::kOpenBeforeClosing;
   }
 
-  void SendEventToListeners(std::function<void(WindowListener*)> fn,
-                            WindowDestructionReceiver& destruction_receiver);
-  void PropagateEventThroughInputListeners(std::function<bool(WindowInputListener*)> fn,
-                                           WindowDestructionReceiver& destruction_receiver);
+  template <std::invocable<WindowListener*> F>
+  void SendEventToListeners(F&& fn, WindowDestructionReceiver& destruction_receiver);
+  template <std::predicate<WindowInputListener*> F>
+  void PropagateEventThroughInputListeners(F&& fn, WindowDestructionReceiver& destruction_receiver);
 
   std::unique_ptr<gpu::Surface> CreateSurface(gpu::Surface::TypeFlags allowed_types) {
     if (phase_ != Phase::kOpen) {

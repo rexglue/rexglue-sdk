@@ -268,7 +268,7 @@ void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
         command_list->SetMarker(1, label_name, static_cast<UINT>(args.label_length + 1));
       } break;
       default:
-        assert_unhandled_case(header.command);
+        REX_UNHANDLED_CASE(header.command);
         break;
     }
     stream += header.arguments_size_elements;
@@ -283,7 +283,7 @@ void* DeferredCommandList::WriteCommand(Command command, size_t arguments_size_b
   command_stream_.resize(offset + kCommandHeaderSizeElements + arguments_size_elements);
   CommandHeader& header = *reinterpret_cast<CommandHeader*>(command_stream_.data() + offset);
   header.command = command;
-  header.arguments_size_elements = uint32_t(arguments_size_elements);
+  header.arguments_size_elements = static_cast<uint32_t>(arguments_size_elements);
   return command_stream_.data() + (offset + kCommandHeaderSizeElements);
 }
 

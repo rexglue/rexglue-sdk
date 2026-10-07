@@ -1,6 +1,5 @@
 /**
  * @file        core/perf/counter.cpp
- * @brief       Performance counter registry implementation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

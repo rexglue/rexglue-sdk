@@ -1,6 +1,5 @@
 /**
  * @file        platform/fpscr.h
- * @brief       Platform-specific FPSCR constants and intrinsics
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

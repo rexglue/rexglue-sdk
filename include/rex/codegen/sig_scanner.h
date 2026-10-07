@@ -1,6 +1,5 @@
 /**
  * @file        rex/codegen/sig_scanner.h
- * @brief       Signature scanner for pattern-based function discovery
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -53,7 +52,7 @@ class SigScanner {
 
   // Built-in signature sets
   static std::vector<Signature> helperSignatures();  // __save/__restore helpers
-  static std::vector<Signature> hleSignatures();     // memset, memmove, etc. (future)
+  static std::vector<Signature> hleSignatures();     // memset, memmove and others (future)
 
  private:
   const runtime::Module& module_;

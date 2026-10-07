@@ -1,6 +1,5 @@
 /**
  * @file        rex/codegen/progress_reporter.h
- * @brief       Abstract callback interface for codegen pipeline progress
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

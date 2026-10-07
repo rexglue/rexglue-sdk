@@ -1,6 +1,5 @@
 /**
  * @file        gpu.h
- * @brief       GPU backend configuration and interfaces
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

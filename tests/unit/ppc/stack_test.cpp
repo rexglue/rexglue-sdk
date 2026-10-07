@@ -2,6 +2,7 @@
  * Tests for rex::ppc stack push/pop/guard operations.
  */
 
+#include <bit>
 #include <cstdint>
 #include <cstring>
 
@@ -27,7 +28,7 @@ TEST_CASE("stack_push scalar decrements r1 and writes byte-swapped value", "[ppc
   CHECK(addr == ctx.r1.u32);
   uint32_t raw;
   std::memcpy(&raw, g_mem + addr, 4);
-  CHECK(raw == __builtin_bswap32(0x12345678));
+  CHECK(raw == std::byteswap(u32{0x12345678}));
 }
 
 TEST_CASE("stack_push float writes byte-swapped float", "[ppc][stack]") {
@@ -42,7 +43,7 @@ TEST_CASE("stack_push float writes byte-swapped float", "[ppc][stack]") {
   std::memcpy(&raw, g_mem + addr, 4);
   uint32_t val_bits;
   std::memcpy(&val_bits, &val, 4);
-  CHECK(raw == __builtin_bswap32(val_bits));
+  CHECK(raw == std::byteswap(val_bits));
 }
 
 TEST_CASE("stack_push_string writes NUL-terminated string", "[ppc][stack]") {
@@ -160,14 +161,14 @@ TEST_CASE("stack_push and the PCR read reach the 0xE0 heap through its page offs
   REQUIRE(block >= 0xE0000000);
   u8* base = memory.virtual_membase();
 
-  *memory.TranslateVirtual<rex::be<u32>*>(block + 0x74) = block;
+  *memory.TranslateVirtual<be_u32*>(block + 0x74) = block;
   PPCContext ctx{};
   ctx.r13.u32 = block;
   CHECK(rex::ppc::stack_limit_from_pcr(ctx, base) == block);
 
   ctx.r1.u32 = block + 0x2000;
   const u32 addr = rex::ppc::stack_push(ctx, base, u32{0x12345678});
-  CHECK(*memory.TranslateVirtual<rex::be<u32>*>(addr) == 0x12345678u);
+  CHECK(*memory.TranslateVirtual<be_u32*>(addr) == 0x12345678u);
 
   const u32 raw = rex::ppc::stack_push(ctx, base, "abc", 4);
   CHECK(std::memcmp(memory.TranslateVirtual(raw), "abc", 4) == 0);

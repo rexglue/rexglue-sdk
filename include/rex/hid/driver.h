@@ -1,6 +1,5 @@
 /**
  * @file        hid/driver.h
- * @brief       The pad driver contract a HID backend aggregates
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

@@ -1,6 +1,5 @@
 /**
  * @file        codegen/codegen.cpp
- * @brief       Codegen pipeline implementation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

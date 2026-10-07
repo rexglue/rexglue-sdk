@@ -1,6 +1,5 @@
 /**
  * @file        apu/sdl3/module.cpp
- * @brief       rex-apu-sdl3 module entry, serves the module and apu backend interfaces
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -39,7 +38,7 @@ class SDL3Module final : public IModule {
     return kRequired;
   }
 
-  Result<void> Connect(IInterfaceFactory* factory, const Config&) override {
+  [[nodiscard]] Result<void> Connect(IInterfaceFactory* factory, const Config&) override {
     SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "1");
     REX_TRY(cvars_, factory->Get<cvar::ICvarRegistry>());
     if (auto added = cvars_->Add(cvars::kSDL3Cvars); !added) {
@@ -56,7 +55,7 @@ class SDL3Module final : public IModule {
     cvars_ = nullptr;
   }
 
-  Result<void> Init() override { return backend_.Init(); }
+  [[nodiscard]] Result<void> Init() override { return backend_.Init(); }
 
   void Shutdown() override { backend_.Shutdown(); }
 

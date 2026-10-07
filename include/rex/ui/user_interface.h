@@ -1,6 +1,5 @@
 /**
  * @file        ui/user_interface.h
- * @brief       The ui service interface and the window it opens
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

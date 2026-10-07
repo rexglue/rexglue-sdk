@@ -19,12 +19,12 @@ namespace rex::runtime {
 NotifyListenerObject::NotifyListenerObject(u64 mask_in, u32 max_version_in)
     : mask(mask_in), max_version(max_version_in) {
   wait_handle = rex::platform::Event::CreateManualResetEvent(false);
-  assert_not_null(wait_handle);
+  REX_ASSERT(wait_handle != nullptr);
 }
 
 void NotifyListenerEnqueue(NotifyListenerObject& listener, XNotificationID id, u32 data) {
   auto key = XNotificationKey(id);
-  if ((listener.mask & u64(1ULL << key.mask_index)) == 0) {
+  if ((listener.mask & static_cast<u64>(1ULL << key.mask_index)) == 0) {
     return;
   }
   if (key.version > listener.max_version) {

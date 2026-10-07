@@ -31,7 +31,7 @@ u32 XAudioGetSpeakerConfig_entry(mapped_u32 config_ptr) {
 }
 
 u32 XAudioGetVoiceCategoryVolumeChangeMask_entry(mapped_void driver_ptr, mapped_u32 out_ptr) {
-  assert_true((driver_ptr.guest_address() & 0xFFFF0000) == 0x41550000);
+  REX_ASSERT((driver_ptr.guest_address() & 0xFFFF0000) == 0x41550000);
 
   rex::platform::Sleep(std::chrono::microseconds(1));
 
@@ -80,7 +80,7 @@ u32 XAudioRegisterRenderDriverClient_entry(mapped_u32 callback_ptr, mapped_u32 d
 }
 
 u32 XAudioUnregisterRenderDriverClient_entry(mapped_void driver_ptr) {
-  assert_true((driver_ptr.guest_address() & 0xFFFF0000) == 0x41550000);
+  REX_ASSERT((driver_ptr.guest_address() & 0xFFFF0000) == 0x41550000);
 
   runtime::APU* apu = runtime::Current().apu();
   if (!apu) {
@@ -91,7 +91,7 @@ u32 XAudioUnregisterRenderDriverClient_entry(mapped_void driver_ptr) {
 }
 
 u32 XAudioSubmitRenderDriverFrame_entry(mapped_void driver_ptr, mapped_void samples_ptr) {
-  assert_true((driver_ptr.guest_address() & 0xFFFF0000) == 0x41550000);
+  REX_ASSERT((driver_ptr.guest_address() & 0xFFFF0000) == 0x41550000);
 
   static u32 submit_krnl_count = 0;
   if (submit_krnl_count < 10) {

@@ -23,8 +23,8 @@ SingleLayoutDescriptorSetPool::SingleLayoutDescriptorSetPool(
     const VkDescriptorPoolSize* const set_layout_descriptor_counts,
     const VkDescriptorSetLayout set_layout)
     : vulkan_device_(vulkan_device), pool_set_count_(pool_set_count), set_layout_(set_layout) {
-  assert_not_null(vulkan_device);
-  assert_not_zero(pool_set_count);
+  REX_ASSERT(vulkan_device != nullptr);
+  REX_ASSERT(pool_set_count != 0);
   pool_descriptor_counts_.resize(set_layout_descriptor_counts_count);
   for (uint32_t i = 0; i < set_layout_descriptor_counts_count; ++i) {
     VkDescriptorPoolSize& pool_descriptor_type_count = pool_descriptor_counts_[i];
@@ -69,7 +69,7 @@ size_t SingleLayoutDescriptorSetPool::Allocate() {
       pool_create_info.pNext = nullptr;
       pool_create_info.flags = 0;
       pool_create_info.maxSets = pool_set_count_;
-      pool_create_info.poolSizeCount = uint32_t(pool_descriptor_counts_.size());
+      pool_create_info.poolSizeCount = static_cast<uint32_t>(pool_descriptor_counts_.size());
       pool_create_info.pPoolSizes = pool_descriptor_counts_.data();
       if (dfn.vkCreateDescriptorPool(device, &pool_create_info, nullptr, &current_pool_) !=
           VK_SUCCESS) {

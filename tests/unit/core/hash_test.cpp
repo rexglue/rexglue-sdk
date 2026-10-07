@@ -1,6 +1,5 @@
 /**
  * @file        core/hash_test.cpp
- * @brief       Tests for the XXH3 digest helpers
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

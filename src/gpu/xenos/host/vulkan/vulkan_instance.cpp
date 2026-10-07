@@ -33,7 +33,7 @@ namespace vulkan {
 
 std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
                                                        const bool try_enable_validation) {
-  std::unique_ptr<VulkanInstance> vulkan_instance(new VulkanInstance());
+  auto vulkan_instance = std::make_unique<VulkanInstance>(Key{});
 
   // Load the RenderDoc API if connected.
 
@@ -201,7 +201,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
     if (requested_extension_it == requested_extensions.cend()) {
       continue;
     }
-    assert_not_null(requested_extension_it->second);
+    REX_ASSERT(requested_extension_it->second != nullptr);
     if (!*requested_extension_it->second) {
       enabled_extensions.emplace_back(requested_extension_it->first.c_str());
       *requested_extension_it->second = true;
@@ -306,7 +306,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
           if (requested_extension_it == requested_extensions.cend()) {
             continue;
           }
-          assert_not_null(requested_extension_it->second);
+          REX_ASSERT(requested_extension_it->second != nullptr);
           // Don't add the extension to the enabled vector multiple times if
           // provided by the implementation itself or by another layer.
           if (!*requested_extension_it->second) {
@@ -316,7 +316,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
           }
         }
 
-        assert_not_null(requested_layer_it->second);
+        REX_ASSERT(requested_layer_it->second != nullptr);
         if (!*requested_layer_it->second) {
           enabled_layers.emplace_back(requested_layer_it->first.c_str());
           *requested_layer_it->second = true;
@@ -353,9 +353,9 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
     instance_create_info.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
   }
   instance_create_info.pApplicationInfo = &application_info;
-  instance_create_info.enabledLayerCount = uint32_t(enabled_layers.size());
+  instance_create_info.enabledLayerCount = static_cast<uint32_t>(enabled_layers.size());
   instance_create_info.ppEnabledLayerNames = enabled_layers.data();
-  instance_create_info.enabledExtensionCount = uint32_t(enabled_extensions.size());
+  instance_create_info.enabledExtensionCount = static_cast<uint32_t>(enabled_extensions.size());
   instance_create_info.ppEnabledExtensionNames = enabled_extensions.data();
   VkResult instance_create_result =
       ifn.vkCreateInstance(&instance_create_info, nullptr, &vulkan_instance->instance_);
@@ -370,7 +370,8 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
       *requested_layer.second = false;
     }
     instance_create_info.enabledLayerCount = 0;
-    instance_create_info.enabledExtensionCount = uint32_t(enabled_implementation_extension_count);
+    instance_create_info.enabledExtensionCount =
+        static_cast<uint32_t>(enabled_implementation_extension_count);
     instance_create_result =
         ifn.vkCreateInstance(&instance_create_info, nullptr, &vulkan_instance->instance_);
   }

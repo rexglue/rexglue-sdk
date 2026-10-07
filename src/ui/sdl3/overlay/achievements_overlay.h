@@ -1,6 +1,5 @@
 /**
  * @file        ui/sdl3/overlay/achievements_overlay.h
- * @brief       Default ImGui achievements overlay dialog.
  *
  * @copyright   Copyright (c) 2026 Rien Gupta <rgupta9@scu.edu>
  *              All rights reserved.

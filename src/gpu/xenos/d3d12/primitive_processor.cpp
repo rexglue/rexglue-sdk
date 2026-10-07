@@ -35,7 +35,7 @@ bool D3D12PrimitiveProcessor::Initialize() {
   }
   frame_index_buffer_pool_ = std::make_unique<gpu::d3d12::D3D12UploadBufferPool>(
       command_processor_.GetD3D12Provider(),
-      std::max(size_t(kMinRequiredConvertedIndexBufferSize),
+      std::max(static_cast<size_t>(kMinRequiredConvertedIndexBufferSize),
                gpu::GraphicsUploadBufferPool::kDefaultPageSize));
   return true;
 }
@@ -83,9 +83,9 @@ void D3D12PrimitiveProcessor::EndFrame() {
 
 bool D3D12PrimitiveProcessor::InitializeBuiltinIndexBuffer(
     size_t size_bytes, std::function<void(void*)> fill_callback) {
-  assert_not_zero(size_bytes);
-  assert_null(builtin_index_buffer_);
-  assert_null(builtin_index_buffer_upload_);
+  REX_ASSERT(size_bytes != 0);
+  REX_ASSERT(builtin_index_buffer_ == nullptr);
+  REX_ASSERT(builtin_index_buffer_upload_ == nullptr);
 
   const gpu::d3d12::D3D12Provider& provider = command_processor_.GetD3D12Provider();
   ID3D12Device* device = provider.GetDevice();

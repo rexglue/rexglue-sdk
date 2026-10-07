@@ -83,46 +83,46 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
 
 #if REX_ARCH_AMD64
 #if REX_PLATFORM_MAC
-  thread_context.rip = u64(mcontext->__ss.__rip);
-  thread_context.eflags = u32(mcontext->__ss.__rflags);
-  thread_context.rax = u64(mcontext->__ss.__rax);
-  thread_context.rcx = u64(mcontext->__ss.__rcx);
-  thread_context.rdx = u64(mcontext->__ss.__rdx);
-  thread_context.rbx = u64(mcontext->__ss.__rbx);
-  thread_context.rsp = u64(mcontext->__ss.__rsp);
-  thread_context.rbp = u64(mcontext->__ss.__rbp);
-  thread_context.rsi = u64(mcontext->__ss.__rsi);
-  thread_context.rdi = u64(mcontext->__ss.__rdi);
-  thread_context.r8 = u64(mcontext->__ss.__r8);
-  thread_context.r9 = u64(mcontext->__ss.__r9);
-  thread_context.r10 = u64(mcontext->__ss.__r10);
-  thread_context.r11 = u64(mcontext->__ss.__r11);
-  thread_context.r12 = u64(mcontext->__ss.__r12);
-  thread_context.r13 = u64(mcontext->__ss.__r13);
-  thread_context.r14 = u64(mcontext->__ss.__r14);
-  thread_context.r15 = u64(mcontext->__ss.__r15);
+  thread_context.rip = static_cast<u64>(mcontext->__ss.__rip);
+  thread_context.eflags = static_cast<u32>(mcontext->__ss.__rflags);
+  thread_context.rax = static_cast<u64>(mcontext->__ss.__rax);
+  thread_context.rcx = static_cast<u64>(mcontext->__ss.__rcx);
+  thread_context.rdx = static_cast<u64>(mcontext->__ss.__rdx);
+  thread_context.rbx = static_cast<u64>(mcontext->__ss.__rbx);
+  thread_context.rsp = static_cast<u64>(mcontext->__ss.__rsp);
+  thread_context.rbp = static_cast<u64>(mcontext->__ss.__rbp);
+  thread_context.rsi = static_cast<u64>(mcontext->__ss.__rsi);
+  thread_context.rdi = static_cast<u64>(mcontext->__ss.__rdi);
+  thread_context.r8 = static_cast<u64>(mcontext->__ss.__r8);
+  thread_context.r9 = static_cast<u64>(mcontext->__ss.__r9);
+  thread_context.r10 = static_cast<u64>(mcontext->__ss.__r10);
+  thread_context.r11 = static_cast<u64>(mcontext->__ss.__r11);
+  thread_context.r12 = static_cast<u64>(mcontext->__ss.__r12);
+  thread_context.r13 = static_cast<u64>(mcontext->__ss.__r13);
+  thread_context.r14 = static_cast<u64>(mcontext->__ss.__r14);
+  thread_context.r15 = static_cast<u64>(mcontext->__ss.__r15);
   std::memcpy(thread_context.xmm_registers, &mcontext->__fs.__fpu_xmm0,
               sizeof(thread_context.xmm_registers));
 #else
-  thread_context.rip = u64(mcontext.gregs[REG_RIP]);
-  thread_context.eflags = u32(mcontext.gregs[REG_EFL]);
+  thread_context.rip = static_cast<u64>(mcontext.gregs[REG_RIP]);
+  thread_context.eflags = static_cast<u32>(mcontext.gregs[REG_EFL]);
   // The REG_ order differs from the register numbers in the instruction encoding.
-  thread_context.rax = u64(mcontext.gregs[REG_RAX]);
-  thread_context.rcx = u64(mcontext.gregs[REG_RCX]);
-  thread_context.rdx = u64(mcontext.gregs[REG_RDX]);
-  thread_context.rbx = u64(mcontext.gregs[REG_RBX]);
-  thread_context.rsp = u64(mcontext.gregs[REG_RSP]);
-  thread_context.rbp = u64(mcontext.gregs[REG_RBP]);
-  thread_context.rsi = u64(mcontext.gregs[REG_RSI]);
-  thread_context.rdi = u64(mcontext.gregs[REG_RDI]);
-  thread_context.r8 = u64(mcontext.gregs[REG_R8]);
-  thread_context.r9 = u64(mcontext.gregs[REG_R9]);
-  thread_context.r10 = u64(mcontext.gregs[REG_R10]);
-  thread_context.r11 = u64(mcontext.gregs[REG_R11]);
-  thread_context.r12 = u64(mcontext.gregs[REG_R12]);
-  thread_context.r13 = u64(mcontext.gregs[REG_R13]);
-  thread_context.r14 = u64(mcontext.gregs[REG_R14]);
-  thread_context.r15 = u64(mcontext.gregs[REG_R15]);
+  thread_context.rax = static_cast<u64>(mcontext.gregs[REG_RAX]);
+  thread_context.rcx = static_cast<u64>(mcontext.gregs[REG_RCX]);
+  thread_context.rdx = static_cast<u64>(mcontext.gregs[REG_RDX]);
+  thread_context.rbx = static_cast<u64>(mcontext.gregs[REG_RBX]);
+  thread_context.rsp = static_cast<u64>(mcontext.gregs[REG_RSP]);
+  thread_context.rbp = static_cast<u64>(mcontext.gregs[REG_RBP]);
+  thread_context.rsi = static_cast<u64>(mcontext.gregs[REG_RSI]);
+  thread_context.rdi = static_cast<u64>(mcontext.gregs[REG_RDI]);
+  thread_context.r8 = static_cast<u64>(mcontext.gregs[REG_R8]);
+  thread_context.r9 = static_cast<u64>(mcontext.gregs[REG_R9]);
+  thread_context.r10 = static_cast<u64>(mcontext.gregs[REG_R10]);
+  thread_context.r11 = static_cast<u64>(mcontext.gregs[REG_R11]);
+  thread_context.r12 = static_cast<u64>(mcontext.gregs[REG_R12]);
+  thread_context.r13 = static_cast<u64>(mcontext.gregs[REG_R13]);
+  thread_context.r14 = static_cast<u64>(mcontext.gregs[REG_R14]);
+  thread_context.r15 = static_cast<u64>(mcontext.gregs[REG_R15]);
   std::memcpy(thread_context.xmm_registers, mcontext.fpregs->_xmm,
               sizeof(thread_context.xmm_registers));
 #endif
@@ -168,7 +168,7 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
         break;
     }
   }
-  assert_not_null(mcontext_fpsimd);
+  REX_ASSERT(mcontext_fpsimd != nullptr);
   if (mcontext_fpsimd) {
     thread_context.fpsr = mcontext_fpsimd->fpsr;
     thread_context.fpcr = mcontext_fpsimd->fpcr;
@@ -186,7 +186,7 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
       // macOS raises SIGBUS for a write to a protected page.
 #if !REX_PLATFORM_MAC
       // Elsewhere SIGBUS is a misaligned access, not a protection fault.
-      assert_unhandled_case(signal_number);
+      REX_UNHANDLED_CASE(signal_number);
       return;
 #endif
       [[fallthrough]];
@@ -196,13 +196,15 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
       // X86_PF_WRITE bit of the page fault error code.
       constexpr u64 kX86PageFaultErrorCodeWrite = UINT64_C(1) << 1;
 #if REX_PLATFORM_MAC
-      access_violation_operation = (u64(mcontext->__es.__err) & kX86PageFaultErrorCodeWrite)
-                                       ? Exception::AccessViolationOperation::kWrite
-                                       : Exception::AccessViolationOperation::kRead;
+      access_violation_operation =
+          (static_cast<u64>(mcontext->__es.__err) & kX86PageFaultErrorCodeWrite)
+              ? Exception::AccessViolationOperation::kWrite
+              : Exception::AccessViolationOperation::kRead;
 #else
-      access_violation_operation = (u64(mcontext.gregs[REG_ERR]) & kX86PageFaultErrorCodeWrite)
-                                       ? Exception::AccessViolationOperation::kWrite
-                                       : Exception::AccessViolationOperation::kRead;
+      access_violation_operation =
+          (static_cast<u64>(mcontext.gregs[REG_ERR]) & kX86PageFaultErrorCodeWrite)
+              ? Exception::AccessViolationOperation::kWrite
+              : Exception::AccessViolationOperation::kRead;
 #endif
 #elif REX_ARCH_ARM64
       // Bit 6 of a Data Abort syndrome is set for a write.
@@ -221,7 +223,7 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
                                              ? Exception::AccessViolationOperation::kWrite
                                              : Exception::AccessViolationOperation::kRead;
           } else {
-            assert_always(
+            REX_ASSERT_ALWAYS(
                 "No ESR in the exception thread context, or it's not a Data "
                 "Abort, and the faulting instruction is not a known load, "
                 "prefetch or store instruction");
@@ -243,7 +245,7 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
                                            ? Exception::AccessViolationOperation::kWrite
                                            : Exception::AccessViolationOperation::kRead;
         } else {
-          assert_always(
+          REX_ASSERT_ALWAYS(
               "No ESR in the exception thread context, or it's not a Data "
               "Abort, and the faulting instruction is not a known load, "
               "prefetch or store instruction");
@@ -258,7 +260,7 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
                                    access_violation_operation);
     } break;
     default:
-      assert_unhandled_case(signal_number);
+      REX_UNHANDLED_CASE(signal_number);
   }
 
   for (size_t i = 0; i < rex::countof(g_handlers) && g_handlers[i].first; ++i) {
@@ -321,7 +323,7 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
             mcontext->__ss.__r15 = thread_context.int_registers[modified_register_index];
             break;
           default:
-            assert_unhandled_case(modified_register_index);
+            REX_UNHANDLED_CASE(modified_register_index);
         }
       }
       u16 modified_xmm_registers_remaining = ex.modified_xmm_registers();
@@ -422,21 +424,19 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
 
 void ExceptionHandler::Install(Handler fn, void* data) {
   if (!g_signal_handlers_installed) {
-    struct sigaction signal_handler;
-
-    std::memset(&signal_handler, 0, sizeof(signal_handler));
+    struct sigaction signal_handler{};
     signal_handler.sa_sigaction = ExceptionHandlerCallback;
     signal_handler.sa_flags = SA_SIGINFO | SA_ONSTACK;
 
     if (sigaction(SIGILL, &signal_handler, &g_original_sigill_handler) != 0) {
-      assert_always("Failed to install new SIGILL handler");
+      REX_ASSERT_ALWAYS("Failed to install new SIGILL handler");
     }
     if (sigaction(SIGSEGV, &signal_handler, &g_original_sigsegv_handler) != 0) {
-      assert_always("Failed to install new SIGSEGV handler");
+      REX_ASSERT_ALWAYS("Failed to install new SIGSEGV handler");
     }
 #if REX_PLATFORM_MAC
     if (sigaction(SIGBUS, &signal_handler, &g_original_sigbus_handler) != 0) {
-      assert_always("Failed to install new SIGBUS handler");
+      REX_ASSERT_ALWAYS("Failed to install new SIGBUS handler");
     }
 #endif
     g_signal_handlers_installed = true;
@@ -449,7 +449,7 @@ void ExceptionHandler::Install(Handler fn, void* data) {
       return;
     }
   }
-  assert_always("Too many exception handlers installed");
+  REX_ASSERT_ALWAYS("Too many exception handlers installed");
 }
 
 void ExceptionHandler::Uninstall(Handler fn, void* data) {
@@ -473,15 +473,15 @@ void ExceptionHandler::Uninstall(Handler fn, void* data) {
   }
   if (!has_any) {
     if (g_signal_handlers_installed) {
-      if (sigaction(SIGILL, &g_original_sigill_handler, NULL) != 0) {
-        assert_always("Failed to restore original SIGILL handler");
+      if (sigaction(SIGILL, &g_original_sigill_handler, nullptr) != 0) {
+        REX_ASSERT_ALWAYS("Failed to restore original SIGILL handler");
       }
-      if (sigaction(SIGSEGV, &g_original_sigsegv_handler, NULL) != 0) {
-        assert_always("Failed to restore original SIGSEGV handler");
+      if (sigaction(SIGSEGV, &g_original_sigsegv_handler, nullptr) != 0) {
+        REX_ASSERT_ALWAYS("Failed to restore original SIGSEGV handler");
       }
 #if REX_PLATFORM_MAC
-      if (sigaction(SIGBUS, &g_original_sigbus_handler, NULL) != 0) {
-        assert_always("Failed to restore original SIGBUS handler");
+      if (sigaction(SIGBUS, &g_original_sigbus_handler, nullptr) != 0) {
+        REX_ASSERT_ALWAYS("Failed to restore original SIGBUS handler");
       }
 #endif
       g_signal_handlers_installed = false;

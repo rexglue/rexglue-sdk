@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <memory>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -27,6 +28,7 @@
 #include "gpu/xenos/util/draw.h"
 #include "gpu/xenos/util/draw_extent_estimator.h"
 #include <rex/xenos/xenos.h>
+#include <rex/types.h>
 
 namespace rex::gpu {
 
@@ -62,7 +64,7 @@ class RenderTargetCache {
     // - 16_16_FLOAT, k_16_16_16_16_FLOAT - the Xenos float16 doesn't have
     //   special values.
     // Significant differences:
-    // - 8_8_8_8_GAMMA - the piecewise linear gamma curve is very different than
+    // - 8_8_8_8_GAMMA - the piecewise linear gamma curve is different than
     //   sRGB, one possible path is conversion in shaders (resulting in
     //   incorrect blending, especially visible on decals in 4D5307E6), another
     //   is using sRGB render targets and either conversion on resolve or
@@ -90,13 +92,15 @@ class RenderTargetCache {
     kPSIColorFormatFlag_FixedPointColor_Shift,
     kPSIColorFormatFlag_FixedPointAlpha_Shift,
 
-    kPSIColorFormatFlag_64bpp = uint32_t(1) << kPSIColorFormatFlag_64bpp_Shift,
-    kPSIColorFormatFlag_FixedPointColor = uint32_t(1) << kPSIColorFormatFlag_FixedPointColor_Shift,
-    kPSIColorFormatFlag_FixedPointAlpha = uint32_t(1) << kPSIColorFormatFlag_FixedPointAlpha_Shift,
+    kPSIColorFormatFlag_64bpp = static_cast<uint32_t>(1) << kPSIColorFormatFlag_64bpp_Shift,
+    kPSIColorFormatFlag_FixedPointColor = static_cast<uint32_t>(1)
+                                          << kPSIColorFormatFlag_FixedPointColor_Shift,
+    kPSIColorFormatFlag_FixedPointAlpha = static_cast<uint32_t>(1)
+                                          << kPSIColorFormatFlag_FixedPointAlpha_Shift,
   };
 
   static constexpr uint32_t AddPSIColorFormatFlags(xenos::ColorRenderTargetFormat format) {
-    uint32_t format_flags = uint32_t(format);
+    uint32_t format_flags = static_cast<uint32_t>(format);
     if (format == xenos::ColorRenderTargetFormat::k_16_16_16_16 ||
         format == xenos::ColorRenderTargetFormat::k_16_16_16_16_FLOAT ||
         format == xenos::ColorRenderTargetFormat::k_32_32_FLOAT) {
@@ -141,13 +145,13 @@ class RenderTargetCache {
   // becoming whole-pixel - stretching the second column / row of pixels into
   // the first - will not work in this case, as for one-pixel primitives without
   // half-pixel offset (covering only the first pixel, but not the second, with
-  // 1.5x), it will actually cause the pixel to be erased with 1.5x scaling. As
+  // 1.5x), it will cause the pixel to be erased with 1.5x scaling. As
   // within one pass there can be geometry both with and without the half-pixel
   // offset (not only depending on PA_SU_VTX_CNTL::PIX_CENTER, but also with the
   // half-pixel offset possibly reverted manually), the emulator can't decide
-  // whether the stretching workaround actually needs to be used. So, with 1.5x,
+  // whether the stretching workaround needs to be used. So, with 1.5x,
   // depending on how the game draws its screen-space effects and on whether the
-  // workaround is used, in some cases, nothing will just be drawn to the first
+  // workaround is used, in some cases, nothing will be drawn to the first
   // pixel, while in other cases, the effect will be drawn to it, but the
   // stretching workaround will replace it with the undefined value in the
   // second pixel. Also, with 1.5x, rounding of integer coordinates becomes
@@ -175,7 +179,7 @@ class RenderTargetCache {
                       xenos::reg::RB_DEPTHCONTROL normalized_depth_control,
                       uint32_t normalized_color_mask, const Shader& vertex_shader);
 
-  // Returns bits where 0 is whether a depth render target is currently bound on
+  // Returns bits where 0 is whether a depth render target is bound on
   // the host and 1... are whether the same applies to color render targets, and
   // formats (resource formats, but if needed, with gamma taken into account) of
   // each.
@@ -188,8 +192,8 @@ class RenderTargetCache {
         draw_extent_estimator_(register_file, memory),
         draw_resolution_scale_x_(draw_resolution_scale_x),
         draw_resolution_scale_y_(draw_resolution_scale_y) {
-    assert_not_zero(draw_resolution_scale_x);
-    assert_not_zero(draw_resolution_scale_y);
+    REX_ASSERT(draw_resolution_scale_x != 0);
+    REX_ASSERT(draw_resolution_scale_y != 0);
   }
 
   const xenos::RegisterFile& register_file() const { return register_file_; }
@@ -236,7 +240,7 @@ class RenderTargetCache {
       uint32_t resource_format : xenos::kRenderTargetFormatBits;  // 26
     };
 
-    RenderTargetKey() : key(0) { static_assert_size(*this, sizeof(key)); }
+    RenderTargetKey() : key(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(key)); }
 
     struct Hasher {
       size_t operator()(const RenderTargetKey& render_target_key) const {
@@ -253,11 +257,11 @@ class RenderTargetCache {
     }
 
     xenos::ColorRenderTargetFormat GetColorFormat() const {
-      assert_false(is_depth);
+      REX_ASSERT(!is_depth);
       return xenos::ColorRenderTargetFormat(resource_format);
     }
     xenos::DepthRenderTargetFormat GetDepthFormat() const {
-      assert_true(is_depth);
+      REX_ASSERT(is_depth);
       return xenos::DepthRenderTargetFormat(resource_format);
     }
     bool Is64bpp() const {
@@ -275,24 +279,21 @@ class RenderTargetCache {
     static constexpr uint32_t GetWidth(uint32_t pitch_tiles_at_32bpp,
                                        xenos::MSAASamples msaa_samples) {
       return pitch_tiles_at_32bpp *
-             (xenos::kEDRAMTileWidthSamples >> uint32_t(msaa_samples >= xenos::MSAASamples::k4X));
+             (xenos::kEDRAMTileWidthSamples >>
+              static_cast<uint32_t>(msaa_samples >= xenos::MSAASamples::k4X));
     }
     uint32_t GetWidth() const { return GetWidth(pitch_tiles_at_32bpp, msaa_samples); }
 
     std::string GetDebugName() const {
       return std::format("RT @ {}t, <{}t>, {}xMSAA, {}", base_tiles, GetPitchTiles(),
-                         uint32_t(1) << uint32_t(msaa_samples), GetFormatName());
+                         static_cast<uint32_t>(1) << uint32_t(msaa_samples), GetFormatName());
     }
   };
 
-  class RenderTarget {
+  class RenderTarget : public rex::NonCopyable {
    public:
     virtual ~RenderTarget() = default;
     // Exclusive ownership, plus no point in moving (only allocated via new).
-    RenderTarget(const RenderTarget& render_target) = delete;
-    RenderTarget& operator=(const RenderTarget& render_target) = delete;
-    RenderTarget(RenderTarget&& render_target) = delete;
-    RenderTarget& operator=(RenderTarget&& render_target) = delete;
     RenderTargetKey key() const { return key_; }
 
    protected:
@@ -313,7 +314,7 @@ class RenderTargetCache {
           end_tiles(end_tiles),
           source(source),
           host_depth_source(host_depth_source) {
-      assert_true(start_tiles < end_tiles);
+      REX_ASSERT(start_tiles < end_tiles);
     }
     struct Rectangle {
       uint32_t x_pixels;
@@ -357,7 +358,9 @@ class RenderTargetCache {
       uint32_t width_pixels_div_8_minus_1 : xenos::kResolveSizeBits - 1 -
                                             xenos::kResolveAlignmentPixelsLog2;
     };
-    HostDepthStoreRectangleConstant() : constant(0) { static_assert_size(*this, sizeof(constant)); }
+    HostDepthStoreRectangleConstant() : constant(0) {
+      REX_STATIC_ASSERT_SIZE(*this, sizeof(constant));
+    }
   };
 
   union HostDepthStoreRenderTargetConstant {
@@ -370,7 +373,7 @@ class RenderTargetCache {
       uint32_t msaa_2x_supported : 1;
     };
     HostDepthStoreRenderTargetConstant() : constant(0) {
-      static_assert_size(*this, sizeof(constant));
+      REX_STATIC_ASSERT_SIZE(*this, sizeof(constant));
     }
   };
 
@@ -470,12 +473,12 @@ class RenderTargetCache {
   // if the implementation supports mixed-size render targets, so the
   // implementation can freely disable individual render targets and let the
   // other ones use the newly available space without restarting the whole
-  // render pass (on Vulkan, the actually used height is specified in
+  // render pass (on Vulkan, the used height is specified in
   // VkFramebuffer).
   uint32_t GetRenderTargetHeight(uint32_t pitch_tiles_at_32bpp,
                                  xenos::MSAASamples msaa_samples) const;
 
-  virtual RenderTarget* CreateRenderTarget(RenderTargetKey key) = 0;
+  virtual std::unique_ptr<RenderTarget> CreateRenderTarget(RenderTargetKey key) = 0;
 
   // Whether depth buffer is encoded differently on the host, thus after
   // aliasing naively, precision may be lost - host depth must only be
@@ -483,18 +486,18 @@ class RenderTargetCache {
   // when converted to the guest format (this catches the usual case of
   // overwriting the depth buffer for clearing it mostly). 534507D6 intro
   // cutscene, for example, has a good example of corruption that happens if
-  // this is not handled - the upper 1280x384 pixels are rendered in a very
+  // this is not handled - the upper 1280x384 pixels are rendered in a
   // "striped" way if the depth precision is lost (if this is made always return
   // false).
   virtual bool IsHostDepthEncodingDifferent(xenos::DepthRenderTargetFormat format) const = 0;
 
   void ResetAccumulatedRenderTargets() { are_accumulated_render_targets_valid_ = false; }
   RenderTarget* const* last_update_accumulated_render_targets() const {
-    assert_true(GetPath() == Path::kHostRenderTargets);
+    REX_ASSERT(GetPath() == Path::kHostRenderTargets);
     return last_update_accumulated_render_targets_;
   }
   const std::vector<Transfer>* last_update_transfers() const {
-    assert_true(GetPath() == Path::kHostRenderTargets);
+    REX_ASSERT(GetPath() == Path::kHostRenderTargets);
     return last_update_transfers_;
   }
 
@@ -503,11 +506,11 @@ class RenderTargetCache {
     HostDepthStoreRenderTargetConstant constant;
     constant.pitch_tiles = pitch_tiles;
     // 3 bits for each.
-    assert_true(draw_resolution_scale_x() <= 7);
-    assert_true(draw_resolution_scale_y() <= 7);
+    REX_ASSERT(draw_resolution_scale_x() <= 7);
+    REX_ASSERT(draw_resolution_scale_y() <= 7);
     constant.resolution_scale_x = draw_resolution_scale_x();
     constant.resolution_scale_y = draw_resolution_scale_y();
-    constant.msaa_2x_supported = uint32_t(msaa_2x_supported);
+    constant.msaa_2x_supported = static_cast<uint32_t>(msaa_2x_supported);
     return constant;
   }
   void GetHostDepthStoreRectangleInfo(const Transfer::Rectangle& transfer_rectangle,
@@ -574,7 +577,7 @@ class RenderTargetCache {
     // to emulate both unorm24 and float24 (Vulkan on AMD), the unorm24 and
     // float24 render targets are tracked separately from each other, so
     // switching between unorm24 and float24 for the same depth data (clearing
-    // of most render targets is done through unorm24 without a viewport - very
+    // of most render targets is done through unorm24 without a viewport -
     // common) is not destructive as well (f32tof24(host_f32) == guest_f24 does
     // not imply f32tou24(host_f32) == guest_u24, thus aliasing float24 with
     // unorm24 through the same float32 buffer will drop the precision of the
@@ -592,9 +595,9 @@ class RenderTargetCache {
           host_depth_render_target_float24(host_depth_render_target_float24) {}
     const RenderTargetKey& GetHostDepthRenderTarget(
         xenos::DepthRenderTargetFormat resource_format) const {
-      assert_true(resource_format == xenos::DepthRenderTargetFormat::kD24S8 ||
-                      resource_format == xenos::DepthRenderTargetFormat::kD24FS8,
-                  "Illegal resource format");
+      REX_ASSERT(resource_format == xenos::DepthRenderTargetFormat::kD24S8 ||
+                     resource_format == xenos::DepthRenderTargetFormat::kD24FS8,
+                 "Illegal resource format");
       return resource_format == xenos::DepthRenderTargetFormat::kD24S8
                  ? host_depth_render_target_unorm24
                  : host_depth_render_target_float24;
@@ -652,9 +655,10 @@ class RenderTargetCache {
 
   // If failed to create, may contain nullptr to prevent attempting to create a
   // render target twice.
-  std::unordered_map<RenderTargetKey, RenderTarget*, RenderTargetKey::Hasher> render_targets_;
+  std::unordered_map<RenderTargetKey, std::unique_ptr<RenderTarget>, RenderTargetKey::Hasher>
+      render_targets_;
 
-  // Map of host render targets currently containing the most up-to-date version
+  // Map of host render targets containing the most up-to-date version
   // of the tile. Has no gaps, unused parts are represented by empty render
   // target keys.
   // TODO(Triang3l): Pool allocator (or a custom red-black tree with one even),
@@ -662,7 +666,7 @@ class RenderTargetCache {
   // changes to this throughout a frame are pretty rare.
   std::map<uint32_t, OwnershipRange> ownership_ranges_;
 
-  // Render targets actually used by the draw call with the last successful
+  // Render targets used by the draw call with the last successful
   // update. 0 is depth, color starting from 1, nullptr if not bound.
   // Only valid for non-pixel-shader-interlock paths.
   RenderTarget* last_update_used_render_targets_[1 + xenos::kMaxColorRenderTargets];

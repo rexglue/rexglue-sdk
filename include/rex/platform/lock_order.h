@@ -52,28 +52,26 @@ using LockOrderHandler = void (*)(LockRank held, LockRank acquiring);
 REX_API LockOrderHandler SetLockOrderHandler(LockOrderHandler handler);
 
 /**
- * Records an acquire on the calling thread and reports an order violation in a debug build.
+ * Notes an acquire on the calling thread and reports an order violation in a debug build.
  *
  * @param rank The rank being taken.
  */
 REX_API void NoteLockAcquire(LockRank rank);
 
 /**
- * Records a release on the calling thread.
+ * Notes a release on the calling thread.
  *
  * @param rank The rank being released.
  */
 REX_API void NoteLockRelease(LockRank rank);
 
 /** A non recursive mutex that reports order violations in a debug build. */
-class RankedMutex {
+class RankedMutex : public rex::NonCopyable {
  public:
   /**
    * @param rank The rank of this lock.
    */
   explicit RankedMutex(LockRank rank) : rank_(rank) {}
-  RankedMutex(const RankedMutex&) = delete;
-  RankedMutex& operator=(const RankedMutex&) = delete;
 
   /** Locks the mutex. */
   void lock() {
@@ -106,14 +104,12 @@ class RankedMutex {
 };
 
 /** A non recursive shared mutex that reports order violations in a debug build. */
-class RankedSharedMutex {
+class RankedSharedMutex : public rex::NonCopyable {
  public:
   /**
    * @param rank The rank of this lock.
    */
   explicit RankedSharedMutex(LockRank rank) : rank_(rank) {}
-  RankedSharedMutex(const RankedSharedMutex&) = delete;
-  RankedSharedMutex& operator=(const RankedSharedMutex&) = delete;
 
   /** Locks the mutex exclusively. */
   void lock() {

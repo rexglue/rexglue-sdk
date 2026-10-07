@@ -34,7 +34,7 @@ XexModule::XexModule(FunctionDispatcher* function_dispatcher, Runtime& runtime)
 XexModule::~XexModule() = default;
 
 uint32_t XexModule::image_size() const {
-  assert_not_zero(base_address_);
+  REX_ASSERT(base_address_ != 0);
   const u32 page_size = memory()->LookupHeap(base_address_)->page_size();
   u32 total = 0;
   for (const auto& range : image_.security().pages) {
@@ -55,12 +55,12 @@ uint32_t XexModule::GetProcAddress(uint16_t ordinal) const {
     return ordinal_offset;
   }
 
-  assert_not_zero(base_address_);
+  REX_ASSERT(base_address_ != 0);
   if (const auto* directory =
           image_.OptHeader<xex2_opt_data_directory>(XEX_HEADER_EXPORTS_BY_NAME)) {
     auto e = memory()->TranslateVirtual<const X_IMAGE_EXPORT_DIRECTORY*>(base_address_ +
                                                                          directory->offset);
-    assert_not_null(e);
+    REX_ASSERT(e != nullptr);
     const auto* bytes = reinterpret_cast<const u8*>(e);
     auto* function_table = reinterpret_cast<const uint32_t*>(bytes + e->AddressOfFunctions);
     if (ordinal < e->NumberOfFunctions) {
@@ -71,14 +71,14 @@ uint32_t XexModule::GetProcAddress(uint16_t ordinal) const {
 }
 
 uint32_t XexModule::GetProcAddress(const std::string_view name) const {
-  assert_not_zero(base_address_);
+  REX_ASSERT(base_address_ != 0);
   const auto* directory = image_.OptHeader<xex2_opt_data_directory>(XEX_HEADER_EXPORTS_BY_NAME);
   if (!directory) {
     return 0;
   }
   auto e = memory()->TranslateVirtual<const X_IMAGE_EXPORT_DIRECTORY*>(base_address_ +
                                                                        directory->offset);
-  assert_not_null(e);
+  REX_ASSERT(e != nullptr);
   const auto* bytes = reinterpret_cast<const u8*>(e);
   auto* function_table = reinterpret_cast<const uint32_t*>(bytes + e->AddressOfFunctions);
   auto* name_table = reinterpret_cast<const uint32_t*>(bytes + e->AddressOfNames);
@@ -153,7 +153,7 @@ bool XexModule::Load(const std::string_view name, const std::string_view path, c
   if (!parsed) {
     return false;
   }
-  assert_false(loaded_);
+  REX_ASSERT(!loaded_);
   loaded_ = true;
   image_ = std::move(*parsed);
 
@@ -193,7 +193,7 @@ bool XexModule::Load(const std::string_view name, const std::string_view path, c
 }
 
 bool XexModule::LoadContinue() {
-  assert_false(finished_load_);
+  REX_ASSERT(!finished_load_);
   if (finished_load_) {
     return true;
   }
@@ -244,7 +244,7 @@ bool XexModule::Unload() {
   }
   loaded_ = false;
   if (!image_.is_patch()) {
-    assert_not_zero(base_address_);
+    REX_ASSERT(base_address_ != 0);
     memory()->LookupHeap(base_address_)->Release(base_address_);
   }
   image_ = filesystem::XEXImage();
@@ -273,7 +273,7 @@ bool XexModule::SetupLibraryImports(std::string_view name,
     if (!record_addr) {
       continue;
     }
-    auto record_slot = memory()->TranslateVirtual<rex::be<uint32_t>*>(record_addr);
+    auto record_slot = memory()->TranslateVirtual<be_u32*>(record_addr);
     const uint32_t record_value = *record_slot;
     const uint16_t record_type = (record_value & 0xFF000000) >> 24;
     const uint16_t ordinal = record_value & 0xFFFF;

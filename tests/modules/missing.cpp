@@ -37,12 +37,12 @@ class MissingModule final : public rex::IModule {
     static constexpr const char* kRequired[] = {"rex.test.absent@1"};
     return kRequired;
   }
-  rex::Result<void> Connect(rex::IInterfaceFactory*, const rex::Config&) override {
+  [[nodiscard]] rex::Result<void> Connect(rex::IInterfaceFactory*, const rex::Config&) override {
     Record(kName, "connect");
     return rex::Ok();
   }
   void Disconnect() override { Record(kName, "disconnect"); }
-  rex::Result<void> Init() override {
+  [[nodiscard]] rex::Result<void> Init() override {
     Record(kName, "init");
     return rex::Ok();
   }

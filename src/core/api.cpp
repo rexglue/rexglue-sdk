@@ -1,6 +1,5 @@
 /**
  * @file        core/api.cpp
- * @brief       rex::Init, rex::Shutdown, rex::API, the command line and the config file helpers
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -116,7 +115,7 @@ const Config& API::config() const {
   return loader_->config();
 }
 
-Result<API*> Init(const Config& config) {
+[[nodiscard]] Result<API*> Init(const Config& config) {
   return detail::ModuleLoader::Instance().Init(config);
 }
 
@@ -155,7 +154,7 @@ std::vector<std::string> ParseCommandLine(Config& config, const CLIArgList& args
   return unknown;
 }
 
-Result<void> LoadConfigFile(Config& config, const std::filesystem::path& path) {
+[[nodiscard]] Result<void> LoadConfigFile(Config& config, const std::filesystem::path& path) {
   std::error_code ec;
   if (!std::filesystem::exists(path, ec))
     return Ok();
@@ -189,8 +188,8 @@ Result<void> LoadConfigFile(Config& config, const std::filesystem::path& path) {
   return Ok();
 }
 
-Result<void> SaveConfigFile(const cvar::ICvarRegistry& registry,
-                            const std::filesystem::path& path) {
+[[nodiscard]] Result<void> SaveConfigFile(const cvar::ICvarRegistry& registry,
+                                          const std::filesystem::path& path) {
   std::ofstream out(path, std::ios::binary | std::ios::trunc);
   if (!out) {
     return Err(ErrorCategory::Config, std::format("{}: cannot open for writing", path.string()));
@@ -206,7 +205,7 @@ Result<void> SaveConfigFile(const cvar::ICvarRegistry& registry,
 
 namespace rex::detail {
 
-Result<void> RegisterBuiltinCvars(cvar::ICvarRegistry& registry) {
+[[nodiscard]] Result<void> RegisterBuiltinCvars(cvar::ICvarRegistry& registry) {
   REX_TRY_VOID(registry.Register("log", rex::cvars::kLogCvars));
   REX_TRY_VOID(registry.Register("clock", rex::cvars::kClockCvars));
   REX_TRY_VOID(registry.Register("perf", rex::cvars::kPerfCvars));

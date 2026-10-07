@@ -20,7 +20,7 @@ namespace ui {
 
 WindowedAppContext::~WindowedAppContext() {
   // The UI thread is responsible for managing the lifetime of the context.
-  assert_true(IsInUIThread());
+  REX_ASSERT(IsInUIThread());
 
   // It's okay to destroy the context from a platform's internal UI loop
   // callback, primarily on platforms where the loop is run by the OS itself,
@@ -46,7 +46,7 @@ WindowedAppContext::~WindowedAppContext() {
   ExecutePendingFunctionsFromUIThread(true);
 }
 
-bool WindowedAppContext::CallInUIThreadDeferred(std::function<void()> function) {
+bool WindowedAppContext::CallInUIThreadDeferred(std::move_only_function<void()> function) {
   {
     std::unique_lock<std::mutex> pending_functions_lock(pending_functions_mutex_);
     if (!pending_functions_accepted_) {
@@ -55,7 +55,7 @@ bool WindowedAppContext::CallInUIThreadDeferred(std::function<void()> function) 
     }
     pending_functions_.emplace_back(std::move(function));
   }
-  // Notify unconditionally, even if currently running pending functions. It's
+  // Notify unconditionally, even if running pending functions. It's
   // possible for pending functions themselves to run inner platform message
   // loops, such as when displaying dialogs - in this case, the notification is
   // needed to run the new function from such an inner loop. A modal loop can be
@@ -80,9 +80,9 @@ bool WindowedAppContext::CallInUIThreadDeferred(std::function<void()> function) 
   return true;
 }
 
-bool WindowedAppContext::CallInUIThread(std::function<void()> function) {
+bool WindowedAppContext::CallInUIThread(std::move_only_function<void()> function) {
   if (IsInUIThread()) {
-    // The intention is just to make sure the code is executed in the UI thread,
+    // The intention is to make sure the code is executed in the UI thread,
     // don't defer execution if no need to.
     function();
     return true;
@@ -90,25 +90,8 @@ bool WindowedAppContext::CallInUIThread(std::function<void()> function) {
   return CallInUIThreadDeferred(std::move(function));
 }
 
-bool WindowedAppContext::CallInUIThreadSynchronous(std::function<void()> function) {
-  if (IsInUIThread()) {
-    // Prevent deadlock if called from the UI thread.
-    function();
-    return true;
-  }
-  rex::platform::Fence fence;
-  if (!CallInUIThreadDeferred([&function, &fence]() {
-        function();
-        fence.Signal();
-      })) {
-    return false;
-  }
-  fence.Wait();
-  return true;
-}
-
 void WindowedAppContext::QuitFromUIThread() {
-  assert_true(IsInUIThread());
+  REX_ASSERT(IsInUIThread());
   bool has_quit_previously = has_quit_;
   // Make sure PlatformQuitFromUIThread is called only once, not from nested
   // pending function execution during the quit - otherwise it will be called
@@ -136,16 +119,16 @@ void WindowedAppContext::QuitFromUIThread() {
 }
 
 void WindowedAppContext::ExecutePendingFunctionsFromUIThread(bool is_final) {
-  assert_true(IsInUIThread());
+  REX_ASSERT(IsInUIThread());
   std::unique_lock<std::mutex> pending_functions_lock(pending_functions_mutex_);
   while (!pending_functions_.empty()) {
     // Removing the function from the queue before executing it, as the function
     // itself may call ExecutePendingFunctionsFromUIThread - if it's kept, the
     // inner loop will try to execute it again, resulting in potentially endless
     // recursion, and even if it's terminated, each level will be trying to
-    // remove the same function from the queue - instead, actually removing
+    // remove the same function from the queue - instead, removing
     // other functions, or even beyond the end of the queue.
-    std::function<void()> function = std::move(pending_functions_.front());
+    std::move_only_function<void()> function = std::move(pending_functions_.front());
     pending_functions_.pop_front();
     // Call the function with the lock released as it may take an indefinitely
     // long time to execute if it opens some dialog (possibly with its own
@@ -163,7 +146,7 @@ void WindowedAppContext::ExecutePendingFunctionsFromUIThread(bool is_final) {
     // enqueue new functions from the leftover ones as there still was
     // opportunity to call them, so it wasn't necessary to disallow adding
     // before executing, but now new functions will potentially never be
-    // executed. This is done even if this is just an inner pending functions
+    // executed. This is done even if this is only an inner pending functions
     // execution and there's still potential possibility of adding and executing
     // new functions in the outer loops - for simplicity and consistency (so
     // QuitFromUIThread's behavior doesn't depend as much on the location of the

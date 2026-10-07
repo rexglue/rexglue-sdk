@@ -10,8 +10,8 @@ using rex::testing::Caller;
 using rex::testing::KernelFixture;
 
 namespace {
-constexpr u32 kInvalidHandle = X_STATUS_INVALID_HANDLE;
-constexpr u32 kTimeout = X_STATUS_TIMEOUT;
+constexpr u32 kInvalidHandle = rex::X_STATUS_INVALID_HANDLE;
+constexpr u32 kTimeout = rex::X_STATUS_TIMEOUT;
 u32 Poll(Caller& c) {
   return c.Quad(0);
 }

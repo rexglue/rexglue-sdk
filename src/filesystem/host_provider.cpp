@@ -1,6 +1,5 @@
 /**
  * @file        filesystem/host_provider.cpp
- * @brief       The provider that serves a host folder
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -45,7 +44,7 @@ class HostStream final : public NodeStream {
   HostStream(HostNode& node, Access access, std::unique_ptr<HostFile> file)
       : node_(node), access_(access), file_(std::move(file)) {}
 
-  Result<size_t> Read(std::span<u8> buffer, u64 offset) override {
+  [[nodiscard]] Result<size_t> Read(std::span<u8> buffer, u64 offset) override {
     if (!CanRead(access_)) {
       return Err<size_t>(MakeError(Error::kAccessDenied, "the file was opened without read"));
     }
@@ -57,23 +56,23 @@ class HostStream final : public NodeStream {
     return count;
   }
 
-  Result<size_t> Write(std::span<const u8> buffer, u64 offset) override {
+  [[nodiscard]] Result<size_t> Write(std::span<const u8> buffer, u64 offset) override {
     if (!CanWrite(access_)) {
       return Err<size_t>(MakeError(Error::kAccessDenied, "the file was opened without write"));
     }
     return file_->Write(offset, buffer);
   }
 
-  Result<void> SetLength(u64 length) override {
+  [[nodiscard]] Result<void> SetLength(u64 length) override {
     if (!CanSetLength(access_)) {
       return Err(MakeError(Error::kAccessDenied, "the file was opened without write"));
     }
     return file_->SetLength(length);
   }
 
-  Result<void> Flush() override { return file_->Flush(); }
+  [[nodiscard]] Result<void> Flush() override { return file_->Flush(); }
 
-  Result<std::span<const u8>> View() override {
+  [[nodiscard]] Result<std::span<const u8>> View() override {
     if (!map_) {
       const std::filesystem::path host_path = node_.host_path();
       map_ = memory::MappedMemory::Open(host_path, memory::MappedMemory::Mode::kRead);
@@ -94,10 +93,10 @@ class HostStream final : public NodeStream {
 
 }  // namespace
 
-HostProvider::HostProvider(MountEntry entry) : Provider(std::move(entry)) {}
+HostProvider::HostProvider(Key, MountEntry entry) : Provider(std::move(entry)) {}
 
 Result<std::unique_ptr<Provider>> HostProvider::Create(const MountEntry& entry) {
-  std::unique_ptr<HostProvider> provider(new HostProvider(entry));
+  auto provider = std::make_unique<HostProvider>(Key{}, entry);
   std::error_code ec;
   if (!std::filesystem::exists(entry.source, ec)) {
     if (provider->read_only()) {

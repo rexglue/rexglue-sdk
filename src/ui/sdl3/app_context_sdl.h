@@ -1,6 +1,5 @@
 /**
  * @file        ui/sdl3/app_context_sdl.h
- * @brief       SDL3 implementation of the windowed app UI loop context
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

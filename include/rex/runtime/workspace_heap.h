@@ -26,7 +26,21 @@ class Memory;
 
 /** The title workspace, title memory the system uses on the title's behalf. */
 class REX_RUNTIME_API WorkspaceHeap : public NonCopyable {
+  /** Limits construction to Create. */
+  struct Key {};
+
  public:
+  /**
+   * Wraps a committed workspace. Only Create can make the key.
+   *
+   * @param key The private construction key.
+   * @param memory The guest memory.
+   * @param base The guest address of the workspace.
+   * @param size The byte count.
+   * @param heap The o1heap instance over the workspace.
+   */
+  WorkspaceHeap(Key, Memory& memory, u32 base, u32 size, O1HeapInstance* heap);
+
   /**
    * Commits the workspace.
    *
@@ -68,8 +82,6 @@ class REX_RUNTIME_API WorkspaceHeap : public NonCopyable {
   void Free(u32 address);
 
  private:
-  WorkspaceHeap(Memory& memory, u32 base, u32 size, O1HeapInstance* heap);
-
   Memory& memory_;
   u32 base_;
   u32 size_;

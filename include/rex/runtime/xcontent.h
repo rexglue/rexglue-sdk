@@ -7,7 +7,7 @@
  ******************************************************************************
  *
  * @modified    2026 Tom Clay <tomc@tctechstuff.com>
- *              Modified for rexglue - Xbox 360 recompilation framework
+ *              Modified for rexglue - recompilation framework
  *
  * @changes     - Extracted content types from xbox.h
  */
@@ -94,7 +94,7 @@ namespace rex::runtime::xam {
 constexpr u32 kCurrentlyRunningTitleId = 0xFFFFFFFF;
 
 struct XCONTENT_DATA {
-  be<u32> device_id;
+  be_u32 device_id;
   be<XContentType> content_type;
   union {
     // this should be be<u16>, but that stops copy constructor being
@@ -142,11 +142,11 @@ struct XCONTENT_DATA {
     padding[0] = padding[1] = 0;
   }
 };
-static_assert_size(XCONTENT_DATA, 0x134);
+REX_STATIC_ASSERT_SIZE(XCONTENT_DATA, 0x134);
 
 struct XCONTENT_AGGREGATE_DATA : XCONTENT_DATA {
-  be<u64> xuid;  // some titles store XUID here?
-  be<u32> title_id;
+  be_u64 xuid;  // some titles store XUID here?
+  be_u32 title_id;
 
   XCONTENT_AGGREGATE_DATA() = default;
   XCONTENT_AGGREGATE_DATA(const XCONTENT_DATA& other) {
@@ -166,6 +166,6 @@ struct XCONTENT_AGGREGATE_DATA : XCONTENT_DATA {
            content_type == other.content_type && file_name() == other.file_name();
   }
 };
-static_assert_size(XCONTENT_AGGREGATE_DATA, 0x148);
+REX_STATIC_ASSERT_SIZE(XCONTENT_AGGREGATE_DATA, 0x148);
 
 }  // namespace rex::runtime::xam

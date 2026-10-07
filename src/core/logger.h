@@ -1,6 +1,5 @@
 /**
  * @file        core/logger.h
- * @brief       The logger core serves
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -34,7 +33,7 @@ namespace rex::log {
 /** Slots in the level table. */
 inline constexpr size_t kMaxCategories = 256;
 
-/** Records kept before the logger starts. */
+/** Entries kept before the logger starts. */
 inline constexpr size_t kBootstrapRecords = 512;
 
 /** The logger. 1 instance per process, returned by GetLoggerInstance. */
@@ -42,10 +41,11 @@ class Logger final : public ILogger {
  public:
   Logger();
 
-  Result<void> Register(std::span<const Category* const> categories) override;
+  [[nodiscard]] Result<void> Register(std::span<const Category* const> categories) override;
   void Unregister(std::span<const Category* const> categories) override;
-  Result<void> SetLevel(std::string_view category, std::optional<Level> level) override;
-  Result<Level> GetLevel(std::string_view category) const override;
+  [[nodiscard]] Result<void> SetLevel(std::string_view category,
+                                      std::optional<Level> level) override;
+  [[nodiscard]] Result<Level> GetLevel(std::string_view category) const override;
   std::vector<CategoryInfo> Categories() const override;
   void AddSink(ISink& sink) override;
   void RemoveSink(ISink& sink) override;
@@ -70,7 +70,7 @@ class Logger final : public ILogger {
   Level SlotLevel(u16 slot) const { return levels_[slot].load(std::memory_order_relaxed); }
 
   /**
-   * Writes a record to every sink.
+   * Writes a message to every sink.
    *
    * @param category The category.
    * @param level The level.
@@ -79,14 +79,14 @@ class Logger final : public ILogger {
   void Write(const Category& category, Level level, std::string_view text);
 
   /**
-   * Writes a record unless the sink mutex stays held past the timeout or the calling thread is
+   * Writes a message unless the sink mutex stays held past the timeout or the calling thread is
    * inside a sink. Bypasses the level check.
    *
-   * @param category The log category of the record.
-   * @param level The severity of the record.
-   * @param text The formatted record text.
+   * @param category The log category of the message.
+   * @param level The severity of the message.
+   * @param text The formatted message text.
    * @param timeout How long to retry the sink mutex.
-   * @return True when a sink took the record.
+   * @return True when a sink took the message.
    */
   bool TryWrite(const Category& category, Level level, std::string_view text,
                 std::chrono::milliseconds timeout);
@@ -107,10 +107,10 @@ class Logger final : public ILogger {
    * @param cvars The registry holding the log scope.
    * @return Ok, or the first registration error.
    */
-  Result<void> Start(const LogConfig& config, cvar::ICvarRegistry& cvars);
+  [[nodiscard]] Result<void> Start(const LogConfig& config, cvar::ICvarRegistry& cvars);
 
   /**
-   * Opens the log file with the log.file value, replays the bootstrap records into it and starts
+   * Opens the log file with the log.file value, replays the bootstrap entries into it and starts
    * the flush thread. Runs after the loader applies the cvar values.
    *
    * @param cvars The registry holding the log scope.
@@ -128,7 +128,7 @@ class Logger final : public ILogger {
    * @param config The configuration.
    * @return Ok, or an error when the logger is already started or a registration fails.
    */
-  Result<void> StartStandalone(const LogConfig& config);
+  [[nodiscard]] Result<void> StartStandalone(const LogConfig& config);
 
   /** Stops a standalone logger and returns to bootstrap output. */
   void StopStandalone();
@@ -155,7 +155,7 @@ class Logger final : public ILogger {
   u16 CreateLocked(std::string_view name, std::string_view description);
   void RecomputeLocked(u16 slot);
   void RecomputeAllLocked();
-  Result<void> ApplyLevel(std::string_view category, std::optional<Level> level);
+  [[nodiscard]] Result<void> ApplyLevel(std::string_view category, std::optional<Level> level);
   void ApplyCvarLevel(std::string_view category, std::string_view value);
   void AttachCvar(u16 slot);
   void DetachCvar(Slot& slot);
@@ -168,7 +168,7 @@ class Logger final : public ILogger {
   void HookCvars(cvar::ICvarRegistry& cvars);
   void UnhookCvars();
   void OpenFile(const LogFileConfig& file, std::chrono::seconds interval);
-  Result<void> RegisterStarted(const LogConfig& config);
+  [[nodiscard]] Result<void> RegisterStarted(const LogConfig& config);
   void StopAll();
 
   std::array<std::atomic<Level>, kMaxCategories> levels_{};
@@ -262,7 +262,7 @@ namespace rex::detail {
  * @param cvars The core cvar registry.
  * @return Ok, or the first registration error.
  */
-Result<void> StartLogger(const LogConfig& config, cvar::ICvarRegistry& cvars);
+[[nodiscard]] Result<void> StartLogger(const LogConfig& config, cvar::ICvarRegistry& cvars);
 
 /**
  * Opens the log file and starts the flush thread. ModuleLoader::Connect calls it after it applies

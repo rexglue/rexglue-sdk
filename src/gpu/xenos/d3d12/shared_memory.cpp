@@ -55,7 +55,7 @@ bool D3D12SharedMemory::Initialize() {
     }
     static_assert(D3D12_TILED_RESOURCE_TILE_SIZE_IN_BYTES == (1 << 16));
     InitializeSparseHostGpuMemory(
-        std::max(kHostGpuMemoryOptimalSparseAllocationLog2, uint32_t(16)));
+        std::max(kHostGpuMemoryOptimalSparseAllocationLog2, static_cast<uint32_t>(16)));
   } else {
     REXLOG_INFO(gpu,
                 "Direct3D 12 tiled resources are not used for shared memory "
@@ -82,7 +82,7 @@ bool D3D12SharedMemory::Initialize() {
 
   D3D12_DESCRIPTOR_HEAP_DESC buffer_descriptor_heap_desc;
   buffer_descriptor_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-  buffer_descriptor_heap_desc.NumDescriptors = uint32_t(BufferDescriptorIndex::kCount);
+  buffer_descriptor_heap_desc.NumDescriptors = std::to_underlying(BufferDescriptorIndex::kCount);
   buffer_descriptor_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
   buffer_descriptor_heap_desc.NodeMask = 0;
   if (FAILED(device->CreateDescriptorHeap(&buffer_descriptor_heap_desc,
@@ -95,47 +95,49 @@ bool D3D12SharedMemory::Initialize() {
   gpu::d3d12::util::CreateBufferRawSRV(
       device,
       provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
-                                    uint32_t(BufferDescriptorIndex::kRawSRV)),
+                                    std::to_underlying(BufferDescriptorIndex::kRawSRV)),
       buffer_, kBufferSize);
   gpu::d3d12::util::CreateBufferTypedSRV(
       device,
       provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
-                                    uint32_t(BufferDescriptorIndex::kR32UintSRV)),
+                                    std::to_underlying(BufferDescriptorIndex::kR32UintSRV)),
       buffer_, DXGI_FORMAT_R32_UINT, kBufferSize >> 2);
   gpu::d3d12::util::CreateBufferTypedSRV(
       device,
       provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
-                                    uint32_t(BufferDescriptorIndex::kR32G32UintSRV)),
+                                    std::to_underlying(BufferDescriptorIndex::kR32G32UintSRV)),
       buffer_, DXGI_FORMAT_R32G32_UINT, kBufferSize >> 3);
   gpu::d3d12::util::CreateBufferTypedSRV(
       device,
-      provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
-                                    uint32_t(BufferDescriptorIndex::kR32G32B32A32UintSRV)),
+      provider.OffsetViewDescriptor(
+          buffer_descriptor_heap_start_,
+          std::to_underlying(BufferDescriptorIndex::kR32G32B32A32UintSRV)),
       buffer_, DXGI_FORMAT_R32G32B32A32_UINT, kBufferSize >> 4);
   gpu::d3d12::util::CreateBufferRawUAV(
       device,
       provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
-                                    uint32_t(BufferDescriptorIndex::kRawUAV)),
+                                    std::to_underlying(BufferDescriptorIndex::kRawUAV)),
       buffer_, kBufferSize);
   gpu::d3d12::util::CreateBufferTypedUAV(
       device,
       provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
-                                    uint32_t(BufferDescriptorIndex::kR32UintUAV)),
+                                    std::to_underlying(BufferDescriptorIndex::kR32UintUAV)),
       buffer_, DXGI_FORMAT_R32_UINT, kBufferSize >> 2);
   gpu::d3d12::util::CreateBufferTypedUAV(
       device,
       provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
-                                    uint32_t(BufferDescriptorIndex::kR32G32UintUAV)),
+                                    std::to_underlying(BufferDescriptorIndex::kR32G32UintUAV)),
       buffer_, DXGI_FORMAT_R32G32_UINT, kBufferSize >> 3);
   gpu::d3d12::util::CreateBufferTypedUAV(
       device,
-      provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
-                                    uint32_t(BufferDescriptorIndex::kR32G32B32A32UintUAV)),
+      provider.OffsetViewDescriptor(
+          buffer_descriptor_heap_start_,
+          std::to_underlying(BufferDescriptorIndex::kR32G32B32A32UintUAV)),
       buffer_, DXGI_FORMAT_R32G32B32A32_UINT, kBufferSize >> 4);
 
   upload_buffer_pool_ = std::make_unique<gpu::d3d12::D3D12UploadBufferPool>(
       provider, rex::align(gpu::d3d12::D3D12UploadBufferPool::kDefaultPageSize,
-                           size_t(1) << page_size_log2()));
+                           static_cast<size_t>(1) << page_size_log2()));
 
   return true;
 }
@@ -195,7 +197,7 @@ void D3D12SharedMemory::WriteRawSRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle
   device->CopyDescriptorsSimple(
       1, handle,
       provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
-                                    uint32_t(BufferDescriptorIndex::kRawSRV)),
+                                    std::to_underlying(BufferDescriptorIndex::kRawSRV)),
       D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
@@ -205,7 +207,7 @@ void D3D12SharedMemory::WriteRawUAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle
   device->CopyDescriptorsSimple(
       1, handle,
       provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
-                                    uint32_t(BufferDescriptorIndex::kRawUAV)),
+                                    std::to_underlying(BufferDescriptorIndex::kRawUAV)),
       D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
@@ -223,14 +225,15 @@ void D3D12SharedMemory::WriteUintPow2SRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE h
       descriptor_index = BufferDescriptorIndex::kR32G32B32A32UintSRV;
       break;
     default:
-      assert_unhandled_case(element_size_bytes_pow2);
+      REX_UNHANDLED_CASE(element_size_bytes_pow2);
       return;
   }
   const gpu::d3d12::D3D12Provider& provider = command_processor_.GetD3D12Provider();
   ID3D12Device* device = provider.GetDevice();
   device->CopyDescriptorsSimple(
       1, handle,
-      provider.OffsetViewDescriptor(buffer_descriptor_heap_start_, uint32_t(descriptor_index)),
+      provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
+                                    static_cast<uint32_t>(descriptor_index)),
       D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
@@ -248,14 +251,15 @@ void D3D12SharedMemory::WriteUintPow2UAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE h
       descriptor_index = BufferDescriptorIndex::kR32G32B32A32UintUAV;
       break;
     default:
-      assert_unhandled_case(element_size_bytes_pow2);
+      REX_UNHANDLED_CASE(element_size_bytes_pow2);
       return;
   }
   const gpu::d3d12::D3D12Provider& provider = command_processor_.GetD3D12Provider();
   ID3D12Device* device = provider.GetDevice();
   device->CopyDescriptorsSimple(
       1, handle,
-      provider.OffsetViewDescriptor(buffer_descriptor_heap_start_, uint32_t(descriptor_index)),
+      provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
+                                    static_cast<uint32_t>(descriptor_index)),
       D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
@@ -315,19 +319,20 @@ bool D3D12SharedMemory::UploadRanges(
       size_t upload_buffer_offset, upload_buffer_size;
       uint8_t* upload_buffer_mapping = upload_buffer_pool_->RequestPartial(
           command_processor_.GetCurrentSubmission(), upload_range_length << page_size_log2(),
-          size_t(1) << page_size_log2(), &upload_buffer, &upload_buffer_offset, &upload_buffer_size,
-          nullptr);
+          static_cast<size_t>(1) << page_size_log2(), &upload_buffer, &upload_buffer_offset,
+          &upload_buffer_size, nullptr);
       if (upload_buffer_mapping == nullptr) {
         REX_FAIL(gpu, false, "Shared memory: Failed to get an upload buffer");
       }
-      MakeRangeValid(upload_range_start << page_size_log2(), uint32_t(upload_buffer_size), false);
+      MakeRangeValid(upload_range_start << page_size_log2(),
+                     static_cast<uint32_t>(upload_buffer_size), false);
       std::memcpy(upload_buffer_mapping,
                   memory().TranslatePhysical(upload_range_start << page_size_log2()),
                   upload_buffer_size);
       command_list.D3DCopyBufferRegion(buffer_, upload_range_start << page_size_log2(),
                                        upload_buffer, UINT64(upload_buffer_offset),
                                        UINT64(upload_buffer_size));
-      uint32_t upload_buffer_pages = uint32_t(upload_buffer_size >> page_size_log2());
+      uint32_t upload_buffer_pages = static_cast<uint32_t>(upload_buffer_size >> page_size_log2());
       upload_range_start += upload_buffer_pages;
       upload_range_length -= upload_buffer_pages;
     }

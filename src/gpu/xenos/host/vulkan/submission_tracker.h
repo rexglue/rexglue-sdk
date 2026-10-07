@@ -16,6 +16,7 @@
 #include <vector>
 
 #include <rex/assert.h>
+#include <rex/types.h>
 #include "gpu/xenos/host/vulkan/device.h"
 
 namespace rex {
@@ -38,15 +39,13 @@ namespace vulkan {
 // the new queue does not happen before the last signal on the old one), call
 // AwaitAllSubmissionsCompletion before doing the first submission on the new
 // one.
-class VulkanSubmissionTracker {
+class VulkanSubmissionTracker : public rex::NonCopyable {
  public:
-  class FenceAcquisition {
+  class FenceAcquisition : public rex::MoveOnly {
    public:
     FenceAcquisition() : submission_tracker_(nullptr), fence_(VK_NULL_HANDLE) {}
     FenceAcquisition(VulkanSubmissionTracker& submission_tracker, VkFence fence)
         : submission_tracker_(&submission_tracker), fence_(fence) {}
-    FenceAcquisition(const FenceAcquisition& fence_acquisition) = delete;
-    FenceAcquisition& operator=(const FenceAcquisition& fence_acquisition) = delete;
     FenceAcquisition(FenceAcquisition&& fence_acquisition) { *this = std::move(fence_acquisition); }
     FenceAcquisition& operator=(FenceAcquisition&& fence_acquisition) {
       if (this == &fence_acquisition) {
@@ -86,11 +85,8 @@ class VulkanSubmissionTracker {
   };
 
   VulkanSubmissionTracker(const VulkanDevice* vulkan_device) : vulkan_device_(vulkan_device) {
-    assert_not_null(vulkan_device);
+    REX_ASSERT(vulkan_device != nullptr);
   }
-
-  VulkanSubmissionTracker(const VulkanSubmissionTracker& submission_tracker) = delete;
-  VulkanSubmissionTracker& operator=(const VulkanSubmissionTracker& submission_tracker) = delete;
 
   ~VulkanSubmissionTracker() { Shutdown(); }
 
@@ -99,9 +95,9 @@ class VulkanSubmissionTracker {
   uint64_t GetCurrentSubmission() const { return submission_current_; }
   uint64_t UpdateAndGetCompletedSubmission();
 
-  // Returns whether the expected GPU signal has actually been reached (rather
+  // Returns whether the expected GPU signal has been reached (rather
   // than some fallback condition) for cases when stronger completeness
-  // guarantees as needed (when downloading, as opposed to just destroying).
+  // guarantees as needed (when downloading, as opposed to destroying).
   // If false is returned, it's also not guaranteed that GetCompletedSubmission
   // will return a value >= submission_index.
   bool AwaitSubmissionCompletion(uint64_t submission_index);

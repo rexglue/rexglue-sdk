@@ -27,7 +27,7 @@ namespace vulkan {
 std::unique_ptr<VulkanProvider> VulkanProvider::Create(const bool with_gpu_emulation,
                                                        const bool with_presentation,
                                                        const int32_t device_index) {
-  std::unique_ptr<VulkanProvider> provider(new VulkanProvider());
+  auto provider = std::make_unique<VulkanProvider>(Key{});
 
   provider->vulkan_instance_ =
       VulkanInstance::Create(with_presentation, REXCVAR_GET(::rex::gpu::cvars::validation));
@@ -56,9 +56,9 @@ std::unique_ptr<VulkanProvider> VulkanProvider::Create(const bool with_gpu_emula
     REXLOG_WARN(ui, "* {}: {}", physical_device_index, physical_device_properties.deviceName);
   }
 
-  if (device_index >= 0 && uint32_t(device_index) < physical_devices.size()) {
+  if (device_index >= 0 && static_cast<uint32_t>(device_index) < physical_devices.size()) {
     provider->vulkan_device_ = VulkanDevice::CreateIfSupported(
-        provider->vulkan_instance_.get(), physical_devices[size_t(device_index)],
+        provider->vulkan_instance_.get(), physical_devices[static_cast<size_t>(device_index)],
         with_gpu_emulation, with_presentation);
   }
 
@@ -140,7 +140,7 @@ std::unique_ptr<VulkanProvider> VulkanProvider::Create(const bool with_gpu_emula
 
 std::unique_ptr<Presenter> VulkanProvider::CreatePresenter(
     Presenter::HostGpuLossCallback host_gpu_loss_callback) {
-  return VulkanPresenter::Create(host_gpu_loss_callback, vulkan_device(), ui_samplers());
+  return VulkanPresenter::Create(std::move(host_gpu_loss_callback), vulkan_device(), ui_samplers());
 }
 
 std::unique_ptr<ImmediateDrawer> VulkanProvider::CreateImmediateDrawer() {

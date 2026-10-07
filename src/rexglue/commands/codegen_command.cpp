@@ -1,6 +1,5 @@
 /**
  * @file        rexglue/commands/codegen_command.cpp
- * @brief       Code generation command implementation
  *
  * @copyright   Copyright (c) 2026 Tom Clay
  * @license     BSD 3-Clause License
@@ -64,9 +63,9 @@ void ReportStaleIncludes(const fs::path& manifest_path,
                                matches.size()));
 }
 
-Result<void> RecompileProject(const fs::path& manifest_path, const CLIContext& ctx,
-                              const std::vector<std::string>& targets, bool ignore_stamp,
-                              const rex::codegen::Limits& limits) {
+[[nodiscard]] Result<void> RecompileProject(const fs::path& manifest_path, const CLIContext& ctx,
+                                            const std::vector<std::string>& targets,
+                                            bool ignore_stamp, const rex::codegen::Limits& limits) {
   auto manifest = rex::codegen::ManifestConfig::Load(manifest_path);
   if (!manifest) {
     return Err<void>(rex::ErrorCategory::Config, "Failed to load manifest");
@@ -101,7 +100,7 @@ struct ManifestSummary {
   std::size_t module_count = 0;
 };
 
-rex::Result<ManifestSummary> LoadManifestSummary(const fs::path& manifest_path) {
+[[nodiscard]] rex::Result<ManifestSummary> LoadManifestSummary(const fs::path& manifest_path) {
   auto manifest = rex::codegen::ManifestConfig::Load(manifest_path);
   if (!manifest) {
     return Err<ManifestSummary>(rex::ErrorCategory::Config, "Failed to load manifest");

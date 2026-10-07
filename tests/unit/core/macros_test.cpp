@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/core/macros_test.cpp
- * @brief       Unit tests for REX_TRY, REX_TRY_VOID and REX_CHECK
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -18,24 +17,24 @@
 
 namespace {
 
-rex::Result<int> Give(bool ok) {
+[[nodiscard]] rex::Result<int> Give(bool ok) {
   if (ok) {
     return 7;
   }
   return rex::Err<int>(rex::ErrorCategory::Validation, "no");
 }
 
-rex::Result<void> Check(bool ok) {
+[[nodiscard]] rex::Result<void> Check(bool ok) {
   REX_CHECK(ok, rex::Error(rex::ErrorCategory::Validation, "check failed"));
   return rex::Ok();
 }
 
-rex::Result<int> UseTry(bool ok) {
+[[nodiscard]] rex::Result<int> UseTry(bool ok) {
   REX_TRY(int value, Give(ok));
   return value + 1;
 }
 
-rex::Result<void> UseTryVoid(bool ok) {
+[[nodiscard]] rex::Result<void> UseTryVoid(bool ok) {
   REX_TRY_VOID(Check(ok));
   return rex::Ok();
 }

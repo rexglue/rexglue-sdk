@@ -34,66 +34,66 @@ enum class XdbfSection : uint16_t {
 
 #pragma pack(push, 1)
 struct XbdfHeader {
-  rex::be<uint32_t> magic;
-  rex::be<uint32_t> version;
-  rex::be<uint32_t> entry_count;
-  rex::be<uint32_t> entry_used;
-  rex::be<uint32_t> free_count;
-  rex::be<uint32_t> free_used;
+  be_u32 magic;
+  be_u32 version;
+  be_u32 entry_count;
+  be_u32 entry_used;
+  be_u32 free_count;
+  be_u32 free_used;
 };
-static_assert_size(XbdfHeader, 24);
+REX_STATIC_ASSERT_SIZE(XbdfHeader, 24);
 
 struct XbdfEntry {
-  rex::be<uint16_t> section;
-  rex::be<uint64_t> id;
-  rex::be<uint32_t> offset;
-  rex::be<uint32_t> size;
+  be_u16 section;
+  be_u64 id;
+  be_u32 offset;
+  be_u32 size;
 };
-static_assert_size(XbdfEntry, 18);
+REX_STATIC_ASSERT_SIZE(XbdfEntry, 18);
 
 struct XbdfFileLoc {
-  rex::be<uint32_t> offset;
-  rex::be<uint32_t> size;
+  be_u32 offset;
+  be_u32 size;
 };
-static_assert_size(XbdfFileLoc, 8);
+REX_STATIC_ASSERT_SIZE(XbdfFileLoc, 8);
 
 struct XdbfXstc {
-  rex::be<uint32_t> magic;
-  rex::be<uint32_t> version;
-  rex::be<uint32_t> size;
-  rex::be<uint32_t> default_language;
+  be_u32 magic;
+  be_u32 version;
+  be_u32 size;
+  be_u32 default_language;
 };
-static_assert_size(XdbfXstc, 16);
+REX_STATIC_ASSERT_SIZE(XdbfXstc, 16);
 
 struct XdbfSectionHeader {
-  rex::be<uint32_t> magic;
-  rex::be<uint32_t> version;
-  rex::be<uint32_t> size;
-  rex::be<uint16_t> count;
+  be_u32 magic;
+  be_u32 version;
+  be_u32 size;
+  be_u16 count;
 };
-static_assert_size(XdbfSectionHeader, 14);
+REX_STATIC_ASSERT_SIZE(XdbfSectionHeader, 14);
 
 struct XdbfStringTableEntry {
-  rex::be<uint16_t> id;
-  rex::be<uint16_t> string_length;
+  be_u16 id;
+  be_u16 string_length;
 };
-static_assert_size(XdbfStringTableEntry, 4);
+REX_STATIC_ASSERT_SIZE(XdbfStringTableEntry, 4);
 
 struct XdbfAchievementTableEntry {
-  rex::be<uint16_t> id;
-  rex::be<uint16_t> label_id;
-  rex::be<uint16_t> description_id;
-  rex::be<uint16_t> unachieved_id;
-  rex::be<uint32_t> image_id;
-  rex::be<uint16_t> gamerscore;
-  rex::be<uint16_t> unkE;
-  rex::be<uint32_t> flags;
-  rex::be<uint32_t> unk14;
-  rex::be<uint32_t> unk18;
-  rex::be<uint32_t> unk1C;
-  rex::be<uint32_t> unk20;
+  be_u16 id;
+  be_u16 label_id;
+  be_u16 description_id;
+  be_u16 unachieved_id;
+  be_u32 image_id;
+  be_u16 gamerscore;
+  be_u16 unkE;
+  be_u32 flags;
+  be_u32 unk14;
+  be_u32 unk18;
+  be_u32 unk1C;
+  be_u32 unk20;
 };
-static_assert_size(XdbfAchievementTableEntry, 0x24);
+REX_STATIC_ASSERT_SIZE(XdbfAchievementTableEntry, 0x24);
 #pragma pack(pop)
 
 struct XdbfBlock {

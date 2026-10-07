@@ -1,7 +1,5 @@
 /**
  * @file        tests/unit/core/chrono_test.cpp
- * @brief       Unit tests for rex::chrono types (NtSystemClock, WinSystemClock)
- *              and the date:: calendar API surface used in xboxkrnl_rtl.cpp.
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

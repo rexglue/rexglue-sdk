@@ -1,6 +1,5 @@
 /**
  * @file        hid/xinput/module.cpp
- * @brief       rex-hid-xinput module entry, serves the module and hid backend interfaces
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -30,7 +29,7 @@ class XInputModule final : public HIDModuleBase {
   const char* Name() const override { return "rex-hid-xinput"; }
 
  protected:
-  Result<std::unique_ptr<Driver>> CreatePadDriver(const HIDConfig&) override {
+  [[nodiscard]] Result<std::unique_ptr<Driver>> CreatePadDriver(const HIDConfig&) override {
     auto driver = std::make_unique<XInputDriver>();
     REX_TRY_VOID(driver->Setup());
     return std::unique_ptr<Driver>(std::move(driver));

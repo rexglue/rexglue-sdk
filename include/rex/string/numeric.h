@@ -1,6 +1,5 @@
 /**
  * @file        string/numeric.h
- * @brief       Hex formatters and string to number parsers
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -13,6 +12,7 @@
 
 #pragma once
 
+#include <bit>
 #include <charconv>
 #include <cerrno>
 #include <cstdint>
@@ -63,8 +63,7 @@ inline std::string to_hex_string(u64 value) {
  */
 inline std::string to_hex_string(f32 value) {
   static_assert(sizeof(u32) == sizeof(value));
-  u32 pun;
-  std::memcpy(&pun, &value, sizeof(value));
+  u32 pun = std::bit_cast<u32>(value);
   return to_hex_string(pun);
 }
 
@@ -76,8 +75,7 @@ inline std::string to_hex_string(f32 value) {
  */
 inline std::string to_hex_string(f64 value) {
   static_assert(sizeof(u64) == sizeof(value));
-  u64 pun;
-  std::memcpy(&pun, &value, sizeof(value));
+  u64 pun = std::bit_cast<u64>(value);
   return to_hex_string(pun);
 }
 
@@ -144,7 +142,7 @@ inline T ifs(const std::string_view value, bool force_hex) {
   }
   auto [p, error] = std::from_chars(range.data(), range.data() + range.size(), result, base);
   if (error != std::errc()) {
-    assert_always();
+    REX_ASSERT_ALWAYS();
     return T();
   }
   if (is_negative) {
@@ -221,7 +219,7 @@ inline T fpfs(const std::string_view value, bool force_hex) {
     if (is_negative) {
       pun = make_negative(pun);
     }
-    std::memcpy(&result, &pun, sizeof(PUN));
+    result = std::bit_cast<T>(pun);
   } else {
 #if REX_PLATFORM_MAC
     auto [p, error] = portable_float_from_chars(range.data(), range.data() + range.size(), result);
@@ -230,7 +228,7 @@ inline T fpfs(const std::string_view value, bool force_hex) {
                                       std::chars_format::general);
 #endif
     if (error != std::errc()) {
-      assert_always();
+      REX_ASSERT_ALWAYS();
       return T();
     }
     if (is_negative) {
@@ -410,7 +408,7 @@ inline vec128_t from_string<vec128_t>(const std::string_view value, bool force_h
     is_hex = true;
   }
   if (p == end) {
-    assert_always();
+    REX_ASSERT_ALWAYS();
     return vec128_t();
   }
   if (is_hex) {
@@ -419,12 +417,12 @@ inline vec128_t from_string<vec128_t>(const std::string_view value, bool force_h
         ++p;
       }
       if (p == end) {
-        assert_always();
+        REX_ASSERT_ALWAYS();
         return vec128_t();
       }
       auto result = std::from_chars(p, end, v.u32[i], 16);
       if (result.ec != std::errc()) {
-        assert_always();
+        REX_ASSERT_ALWAYS();
         return vec128_t();
       }
       p = result.ptr;
@@ -435,7 +433,7 @@ inline vec128_t from_string<vec128_t>(const std::string_view value, bool force_h
         ++p;
       }
       if (p == end) {
-        assert_always();
+        REX_ASSERT_ALWAYS();
         return vec128_t();
       }
 #if REX_PLATFORM_MAC
@@ -444,7 +442,7 @@ inline vec128_t from_string<vec128_t>(const std::string_view value, bool force_h
       auto result = std::from_chars(p, end, v.f32[i], std::chars_format::general);
 #endif
       if (result.ec != std::errc()) {
-        assert_always();
+        REX_ASSERT_ALWAYS();
         return vec128_t();
       }
       p = result.ptr;

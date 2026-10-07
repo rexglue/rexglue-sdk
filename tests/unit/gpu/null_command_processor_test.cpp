@@ -40,11 +40,11 @@ struct Fixture {
 };
 
 void Put(rex::runtime::Memory& memory, rex::u32 physical, rex::u32 value) {
-  rex::memory::store_and_swap<rex::u32>(memory.TranslatePhysical(physical), value);
+  *memory.TranslatePhysical<be_u32*>(physical) = value;
 }
 
 rex::u32 Get(rex::runtime::Memory& memory, rex::u32 physical) {
-  return rex::memory::load_and_swap<rex::u32>(memory.TranslatePhysical(physical));
+  return *memory.TranslatePhysical<const be_u32*>(physical);
 }
 
 constexpr rex::u32 kWritePointerRegister = 0x01C5;
@@ -69,7 +69,7 @@ TEST_CASE_METHOD(Fixture, "backend null runs a MEM_WRITE and an EVENT_WRITE_SHD"
   const rex::u32 ring = memory.GetPhysicalAddress(block);
   const rex::u32 writeback = ring + 0x1000;
   const rex::u32 target = ring + 0x1100;
-  const auto swap = static_cast<rex::u32>(rex::xenos::Endian::k8in32);
+  const auto swap = std::to_underlying(rex::xenos::Endian::k8in32);
 
   const rex::u32 packets[] = {
       rex::xenos::MakePacketType3(rex::xenos::PM4_MEM_WRITE, 2),

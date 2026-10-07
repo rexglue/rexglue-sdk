@@ -1,6 +1,5 @@
 /**
  * @file        ui/sdl3/image_decode.cpp
- * @brief       PNG decode via stb_image. See image_decode.h.
  *
  * @copyright   Copyright (c) 2026 Rien Gupta <rgupta9@scu.edu>
  *              All rights reserved.

@@ -1,6 +1,5 @@
 /**
  * @file        filesystem/node.h
- * @brief       The shared tree node of a mount and the byte stream of 1 open node
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -166,14 +165,14 @@ class Node : public NonCopyable {
   [[nodiscard]] bool read_only() const;
 
   /**
-   * Reports whether a delete on close request is recorded.
+   * Reports whether a delete on close request is set.
    *
    * @return True when requested.
    */
   [[nodiscard]] bool delete_on_close() const;
 
   /**
-   * Records or withdraws a delete on close request.
+   * Sets or withdraws a delete on close request.
    *
    * @param delete_on_close True to request.
    */
@@ -191,7 +190,7 @@ class Node : public NonCopyable {
 
   /**
    * Uncounts 1 open file or walk. At the last close the node is deleted when delete on close is
-   * recorded, and a detached node is freed. The node may be gone when this returns.
+   * set, and a detached node is freed. The node may be gone when this returns.
    */
   void ReleaseOpen();
 

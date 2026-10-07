@@ -1,6 +1,5 @@
 /**
  * @file        memory/ring_buffer.h
- * @brief       Byte ring buffer over caller owned memory
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -20,6 +19,7 @@
 
 #include <rex/macros.h>
 #include <rex/assert.h>
+#include <rex/memory/utils.h>
 #include <rex/types.h>
 
 namespace rex::memory {
@@ -74,7 +74,9 @@ class REX_API RingBuffer {
    *
    * @return buffer() plus read_offset().
    */
-  uintptr_t read_ptr() const { return uintptr_t(buffer_) + static_cast<uintptr_t>(read_offset_); }
+  uintptr_t read_ptr() const {
+    return reinterpret_cast<uintptr_t>(buffer_) + static_cast<uintptr_t>(read_offset_);
+  }
 
   /**
    * Sets the read offset.
@@ -113,7 +115,9 @@ class REX_API RingBuffer {
    *
    * @return buffer() plus write_offset().
    */
-  uintptr_t write_ptr() const { return uintptr_t(buffer_) + static_cast<uintptr_t>(write_offset_); }
+  uintptr_t write_ptr() const {
+    return reinterpret_cast<uintptr_t>(buffer_) + static_cast<uintptr_t>(write_offset_);
+  }
 
   /**
    * Sets the write offset.
@@ -213,7 +217,7 @@ class REX_API RingBuffer {
 
     T imm;
     size_t read = Read(reinterpret_cast<u8*>(&imm), sizeof(T));
-    assert_true(read == sizeof(T));
+    REX_ASSERT(read == sizeof(T));
     return imm;
   }
 
@@ -229,7 +233,7 @@ class REX_API RingBuffer {
 
     T imm;
     size_t read = Read(reinterpret_cast<u8*>(&imm), sizeof(T));
-    assert_true(read == sizeof(T));
+    REX_ASSERT(read == sizeof(T));
     imm = rex::byte_swap(imm);
     return imm;
   }
@@ -283,15 +287,14 @@ class REX_API RingBuffer {
  */
 template <>
 inline u32 RingBuffer::ReadAndSwap<u32>() {
-  assert_true(capacity_ >= 4);
+  REX_ASSERT(capacity_ >= 4);
   ring_size_t read_offs = read_offset_;
   ring_size_t next_read_offs = read_offs + 4;
   if (next_read_offs == capacity_) [[unlikely]] {
     next_read_offs = 0;
   }
   read_offset_ = next_read_offs;
-  u32 ring_value = *(u32*)(buffer_ + read_offs);
-  return rex::byte_swap(ring_value);
+  return memory::load<be_u32>(buffer_ + read_offs);
 }
 
 }  // namespace rex::memory

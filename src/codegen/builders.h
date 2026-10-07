@@ -1,6 +1,5 @@
 /**
  * @file        codegen/internal/builders.h
- * @brief       Code builder interface definitions
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

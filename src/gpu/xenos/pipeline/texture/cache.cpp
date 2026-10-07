@@ -157,15 +157,14 @@ TextureCache::TextureCache(const xenos::RegisterFile& register_file, SharedMemor
       shared_memory_(shared_memory),
       draw_resolution_scale_x_(draw_resolution_scale_x),
       draw_resolution_scale_y_(draw_resolution_scale_y) {
-  assert_true(draw_resolution_scale_x >= 1);
-  assert_true(draw_resolution_scale_x <= kMaxDrawResolutionScaleAlongAxis);
-  assert_true(draw_resolution_scale_y >= 1);
-  assert_true(draw_resolution_scale_y <= kMaxDrawResolutionScaleAlongAxis);
+  REX_ASSERT(draw_resolution_scale_x >= 1);
+  REX_ASSERT(draw_resolution_scale_x <= kMaxDrawResolutionScaleAlongAxis);
+  REX_ASSERT(draw_resolution_scale_y >= 1);
+  REX_ASSERT(draw_resolution_scale_y <= kMaxDrawResolutionScaleAlongAxis);
 
   if (draw_resolution_scale_x > 1 || draw_resolution_scale_y > 1) {
     constexpr uint32_t kScaledResolvePageDwordCount = SharedMemory::kBufferSize / 4096 / 32;
-    scaled_resolve_pages_ = std::unique_ptr<uint32_t[]>(new uint32_t[kScaledResolvePageDwordCount]);
-    std::memset(scaled_resolve_pages_.get(), 0, kScaledResolvePageDwordCount * sizeof(uint32_t));
+    scaled_resolve_pages_ = std::make_unique<uint32_t[]>(kScaledResolvePageDwordCount);
     std::memset(scaled_resolve_pages_l2_, 0, sizeof(scaled_resolve_pages_l2_));
     scaled_resolve_global_watch_handle_ =
         shared_memory.RegisterGlobalWatch(ScaledResolveGlobalWatchCallbackThunk, this);
@@ -181,10 +180,10 @@ TextureCache::~TextureCache() {
 }
 
 bool TextureCache::GetConfigDrawResolutionScale(uint32_t& x_out, uint32_t& y_out) {
-  uint32_t config_x =
-      uint32_t(std::max(INT32_C(1), REXCVAR_GET(::rex::gpu::cvars::resolution_scale_x)));
-  uint32_t config_y =
-      uint32_t(std::max(INT32_C(1), REXCVAR_GET(::rex::gpu::cvars::resolution_scale_y)));
+  uint32_t config_x = static_cast<uint32_t>(
+      std::max(INT32_C(1), REXCVAR_GET(::rex::gpu::cvars::resolution_scale_x)));
+  uint32_t config_y = static_cast<uint32_t>(
+      std::max(INT32_C(1), REXCVAR_GET(::rex::gpu::cvars::resolution_scale_y)));
   uint32_t clamped_x = std::min(kMaxDrawResolutionScaleAlongAxis, config_x);
   uint32_t clamped_y = std::min(kMaxDrawResolutionScaleAlongAxis, config_y);
   x_out = clamped_x;
@@ -230,16 +229,16 @@ void TextureCache::CompletedSubmissionUpdated(uint64_t completed_submission_inde
       destroyed_any = true;
       // The texture being destroyed might have been bound in the previous
       // submissions, and nothing has overwritten the binding yet, so completion
-      // of the submission where the texture was last actually used on the GPU
-      // doesn't imply that it's not bound currently. Reset bindings if
+      // of the submission where the texture was last used on the GPU
+      // doesn't imply that it's not bound. Reset bindings if
       // any texture has been destroyed.
       ResetTextureBindings();
     }
     // Remove the texture from the map and destroy it via its unique_ptr.
     auto found_texture_it = textures_.find(texture->key());
-    assert_true(found_texture_it != textures_.end());
+    REX_ASSERT(found_texture_it != textures_.end());
     if (found_texture_it != textures_.end()) {
-      assert_true(found_texture_it->second.get() == texture);
+      REX_ASSERT(found_texture_it->second.get() == texture);
       textures_.erase(found_texture_it);
       // `texture` is invalid now.
     }
@@ -250,7 +249,7 @@ void TextureCache::CompletedSubmissionUpdated(uint64_t completed_submission_inde
 }
 
 void TextureCache::BeginSubmission(uint64_t new_submission_index) {
-  assert_true(new_submission_index > current_submission_index_);
+  REX_ASSERT(new_submission_index > current_submission_index_);
   current_submission_index_ = new_submission_index;
   current_submission_time_ = rex::Clock::QueryHostUptimeMillis();
 }
@@ -506,9 +505,9 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
   }
 
   REX_PROFILE_PLOT("gpu/texture_cache/request_textures_pending_load_count",
-                   uint32_t(pending_texture_loads.size()));
+                   static_cast<uint32_t>(pending_texture_loads.size()));
   REX_PROFILE_PLOT("gpu/texture_cache/request_textures_pending_range_count",
-                   uint32_t(pending_shared_memory_ranges.size()));
+                   static_cast<uint32_t>(pending_shared_memory_ranges.size()));
 
   bool batched_shared_memory_request_succeeded = true;
   std::vector<std::pair<uint32_t, uint32_t>> pending_shared_memory_range_pairs;
@@ -548,7 +547,7 @@ const char* TextureCache::TextureKey::GetLogDimensionName(xenos::DataDimension d
     case xenos::DataDimension::kCube:
       return "cube";
     default:
-      assert_unhandled_case(dimension);
+      REX_UNHANDLED_CASE(dimension);
       return "unknown";
   }
 }
@@ -635,7 +634,7 @@ void TextureCache::Texture::MakeUpToDateAndWatch(
     const std::unique_lock<rex::platform::RankedMutex>& watch_lock) {
   SharedMemory& shared_memory = texture_cache().shared_memory();
   if (base_outdated_) {
-    assert_not_zero(GetGuestBaseSize());
+    REX_ASSERT(GetGuestBaseSize() != 0);
     base_outdated_ = false;
     base_watch_handle_ =
         shared_memory.WatchMemoryRange(watch_lock, key().base_page << 12, GetGuestBaseSize(),
@@ -643,7 +642,7 @@ void TextureCache::Texture::MakeUpToDateAndWatch(
     outdated_mask_.fetch_and(~kOutdatedBitBase, std::memory_order_release);
   }
   if (mips_outdated_) {
-    assert_not_zero(GetGuestMipsSize());
+    REX_ASSERT(GetGuestMipsSize() != 0);
     mips_outdated_ = false;
     mips_watch_handle_ =
         shared_memory.WatchMemoryRange(watch_lock, key().mip_page << 12, GetGuestMipsSize(),
@@ -656,8 +655,8 @@ void TextureCache::Texture::MarkAsUsed() {
   if (!in_usage_list_) {
     return;
   }
-  assert_true(last_usage_submission_index_ <= texture_cache_.current_submission_index_);
-  // This is called very frequently, don't relink unless needed for caching.
+  REX_ASSERT(last_usage_submission_index_ <= texture_cache_.current_submission_index_);
+  // This is called frequently, don't relink unless needed for caching.
   if (last_usage_submission_index_ >= texture_cache_.current_submission_index_) {
     return;
   }
@@ -681,12 +680,12 @@ void TextureCache::Texture::MarkAsUsed() {
 
 void TextureCache::Texture::WatchCallback(bool is_mip) {
   if (is_mip) {
-    assert_not_zero(GetGuestMipsSize());
+    REX_ASSERT(GetGuestMipsSize() != 0);
     mips_outdated_ = true;
     mips_watch_handle_ = nullptr;
     outdated_mask_.fetch_or(kOutdatedBitMips, std::memory_order_release);
   } else {
-    assert_not_zero(GetGuestBaseSize());
+    REX_ASSERT(GetGuestBaseSize() != 0);
     base_outdated_ = true;
     base_watch_handle_ = nullptr;
     outdated_mask_.fetch_or(kOutdatedBitBase, std::memory_order_release);
@@ -817,7 +816,7 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
       key.LogAction("Failed to create");
       return nullptr;
     }
-    assert_true(new_texture->key() == key);
+    REX_ASSERT(new_texture->key() == key);
     texture = textures_.emplace(key, std::move(new_texture)).first->second.get();
   }
   REX_PROFILE_PLOT("gpu/texture_cache/textures", textures_.size());
@@ -849,7 +848,8 @@ void TextureCache::BindingInfoFromFetchConstant(const xenos::TextureFetch& fetch
   // Reset the key and the signedness.
   key_out.MakeInvalid();
   if (swizzled_signs_out != nullptr) {
-    *swizzled_signs_out = uint8_t(xenos::TextureSign::kUnsigned) * uint8_t(0b01010101);
+    *swizzled_signs_out =
+        static_cast<uint8_t>(xenos::TextureSign::kUnsigned) * static_cast<uint8_t>(0b01010101);
   }
 
   switch (fetch.type) {
@@ -895,7 +895,7 @@ void TextureCache::BindingInfoFromFetchConstant(const xenos::TextureFetch& fetch
                    width_minus_1 + 1);
       is_invalid_1d = true;
     }
-    assert_false(fetch.tiled);
+    REX_ASSERT(!fetch.tiled);
     if (fetch.tiled) {
       REXLOG_ERROR(gpu,
                    "1D texture has tiling enabled in the fetch constant, but this "
@@ -903,7 +903,7 @@ void TextureCache::BindingInfoFromFetchConstant(const xenos::TextureFetch& fetch
                    "developers");
       is_invalid_1d = true;
     }
-    assert_false(fetch.packed_mips);
+    REX_ASSERT(!fetch.packed_mips);
     if (fetch.packed_mips) {
       REXLOG_ERROR(gpu,
                    "1D texture has packed mips enabled in the fetch constant, but this "
@@ -956,8 +956,9 @@ void TextureCache::ResetTextureBindings(bool from_destructor) {
 
 void TextureCache::UpdateTexturesTotalHostMemoryUsage(uint64_t add, uint64_t subtract) {
   textures_total_host_memory_usage_ = textures_total_host_memory_usage_ - subtract + add;
-  REX_PROFILE_PLOT("gpu/texture_cache/total_host_memory_usage_mb",
-                   uint32_t((textures_total_host_memory_usage_ + ((UINT32_C(1) << 20) - 1)) >> 20));
+  REX_PROFILE_PLOT(
+      "gpu/texture_cache/total_host_memory_usage_mb",
+      static_cast<uint32_t>((textures_total_host_memory_usage_ + ((UINT32_C(1) << 20) - 1)) >> 20));
 }
 
 bool TextureCache::IsRangeScaledResolved(uint32_t start_unscaled, uint32_t length_unscaled) {
@@ -1018,7 +1019,7 @@ void TextureCache::ScaledResolveGlobalWatchCallbackThunk(void* context, uint32_t
 
 void TextureCache::ScaledResolveGlobalWatchCallback(uint32_t address_first, uint32_t address_last,
                                                     bool invalidated_by_gpu) {
-  assert_true(IsDrawResolutionScaled());
+  REX_ASSERT(IsDrawResolutionScaled());
   if (invalidated_by_gpu) {
     // Resolves themselves do exactly the opposite of what this should do.
     return;

@@ -1,6 +1,5 @@
 /**
  * @file        hid/sdl3/module.cpp
- * @brief       rex-hid-sdl3 module entry, serves the module and hid backend interfaces
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -31,13 +30,13 @@ class SDL3Module final : public HIDModuleBase {
 
   const char* Name() const override { return "rex-hid-sdl3"; }
 
-  Result<void> Connect(IInterfaceFactory* factory, const Config& config) override {
+  [[nodiscard]] Result<void> Connect(IInterfaceFactory* factory, const Config& config) override {
     SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "1");
     return HIDModuleBase::Connect(factory, config);
   }
 
  protected:
-  Result<std::unique_ptr<Driver>> CreatePadDriver(const HIDConfig& config) override {
+  [[nodiscard]] Result<std::unique_ptr<Driver>> CreatePadDriver(const HIDConfig& config) override {
     auto driver = std::make_unique<SDL3Driver>(config.mappings_file);
     REX_TRY_VOID(driver->Setup());
     return std::unique_ptr<Driver>(std::move(driver));

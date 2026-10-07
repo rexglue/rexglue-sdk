@@ -1,6 +1,5 @@
 /**
  * @file        ui/vulkan_moltenvk.cpp
- * @brief       MoltenVK Vulkan runtime detection and configuration for macOS
  *
  * @copyright   Copyright (c) 2026 Rien Gupta <rgupta9@scu.edu>
  *              All rights reserved.

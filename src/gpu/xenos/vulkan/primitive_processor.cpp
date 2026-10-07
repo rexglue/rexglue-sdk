@@ -58,7 +58,7 @@ bool VulkanPrimitiveProcessor::Initialize() {
   }
   frame_index_buffer_pool_ = std::make_unique<gpu::vulkan::VulkanUploadBufferPool>(
       vulkan_device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-      std::max(size_t(kMinRequiredConvertedIndexBufferSize),
+      std::max(static_cast<size_t>(kMinRequiredConvertedIndexBufferSize),
                gpu::GraphicsUploadBufferPool::kDefaultPageSize));
   return true;
 }
@@ -135,11 +135,11 @@ void VulkanPrimitiveProcessor::EndFrame() {
 
 bool VulkanPrimitiveProcessor::InitializeBuiltinIndexBuffer(
     size_t size_bytes, std::function<void(void*)> fill_callback) {
-  assert_not_zero(size_bytes);
-  assert_true(builtin_index_buffer_ == VK_NULL_HANDLE);
-  assert_true(builtin_index_buffer_memory_ == VK_NULL_HANDLE);
-  assert_true(builtin_index_buffer_upload_ == VK_NULL_HANDLE);
-  assert_true(builtin_index_buffer_upload_memory_ == VK_NULL_HANDLE);
+  REX_ASSERT(size_bytes != 0);
+  REX_ASSERT(builtin_index_buffer_ == VK_NULL_HANDLE);
+  REX_ASSERT(builtin_index_buffer_memory_ == VK_NULL_HANDLE);
+  REX_ASSERT(builtin_index_buffer_upload_ == VK_NULL_HANDLE);
+  REX_ASSERT(builtin_index_buffer_upload_memory_ == VK_NULL_HANDLE);
 
   const gpu::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
   const gpu::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();

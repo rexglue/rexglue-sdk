@@ -28,7 +28,7 @@ namespace rex::kernel::shim {
 /** Usage counters of the heap. */
 struct HeapDiagnostics {
   u64 capacity;          /**< Total capacity in bytes. */
-  u64 allocated;         /**< Bytes currently allocated. */
+  u64 allocated;         /**< Bytes allocated. */
   u64 peak_allocated;    /**< Highest allocated byte count seen. */
   u64 peak_request_size; /**< Largest single request seen. */
   u64 oom_count;         /**< Allocations that failed for lack of space. */

@@ -38,19 +38,7 @@ Shader::Shader(xenos::ShaderType shader_type, uint64_t ucode_data_hash,
   }
 }
 
-Shader::~Shader() {
-  for (auto it : translations_) {
-    delete it.second;
-  }
-}
-
-std::string Shader::Translation::GetTranslatedBinaryString() const {
-  std::string result;
-  result.resize(translated_binary_.size());
-  std::memcpy(const_cast<char*>(result.data()), translated_binary_.data(),
-              translated_binary_.size());
-  return result;
-}
+Shader::~Shader() = default;
 
 std::pair<std::filesystem::path, std::filesystem::path> Shader::Translation::Dump(
     const std::filesystem::path& base_path, const char* path_prefix) const {
@@ -95,14 +83,13 @@ Shader::Translation* Shader::GetOrCreateTranslation(uint64_t modification, bool*
     if (is_new) {
       *is_new = false;
     }
-    return it->second;
+    return it->second.get();
   }
-  Translation* translation = CreateTranslationInstance(modification);
-  translations_.emplace(modification, translation);
+  auto inserted = translations_.emplace(modification, CreateTranslationInstance(modification));
   if (is_new) {
     *is_new = true;
   }
-  return translation;
+  return inserted.first->second.get();
 }
 
 void Shader::DestroyTranslation(uint64_t modification) {
@@ -110,7 +97,6 @@ void Shader::DestroyTranslation(uint64_t modification) {
   if (it == translations_.end()) {
     return;
   }
-  delete it->second;
   translations_.erase(it);
 }
 
@@ -144,9 +130,9 @@ std::pair<std::filesystem::path, std::filesystem::path> Shader::DumpUcode(
   return std::make_pair(std::move(binary_path), std::move(disasm_path));
 }
 
-Shader::Translation* Shader::CreateTranslationInstance(uint64_t modification) {
+std::unique_ptr<Shader::Translation> Shader::CreateTranslationInstance(uint64_t modification) {
   // Default implementation for simple cases like ucode disassembly.
-  return new Translation(*this, modification);
+  return std::make_unique<Translation>(*this, modification);
 }
 
 }  // namespace rex::gpu

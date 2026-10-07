@@ -1,6 +1,5 @@
 /**
  * @file        core/threading_posix.cpp
- * @brief       POSIX platform threading implementations
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  * @license     BSD 3-Clause License
@@ -79,11 +78,11 @@ static int (*android_pthread_getname_np_)(pthread_t pthread, char* buf, size_t n
 void AndroidInitialize() {
   if (rex::GetAndroidApiLevel() >= 26) {
     android_libc_ = dlopen("libc.so", RTLD_NOW);
-    assert_not_null(android_libc_);
+    REX_ASSERT(android_libc_ != nullptr);
     if (android_libc_) {
       android_pthread_getname_np_ = reinterpret_cast<decltype(android_pthread_getname_np_)>(
           dlsym(android_libc_, "pthread_getname_np"));
-      assert_not_null(android_pthread_getname_np_);
+      REX_ASSERT(android_pthread_getname_np_ != nullptr);
     }
   }
 }
@@ -114,7 +113,7 @@ enum class SignalType : u8 {
 #if REX_PLATFORM_ANDROID
   // pthread_cancel is not available on Android, using a signal handler for
   // simplified PTHREAD_CANCEL_ASYNCHRONOUS-like behavior - not disabling
-  // cancellation currently, so should be enough.
+  // cancellation, so should be enough.
   kThreadTerminate,
 #endif
   k_Count
@@ -130,12 +129,12 @@ int GetSystemSignal(SignalType num) {
     case SignalType::kThreadUserCallback:
       return SIGUSR2;
     default:
-      assert_unhandled_case(num);
+      REX_UNHANDLED_CASE(num);
       return SIGUSR1;
   }
 #else
   auto result = SIGRTMIN + static_cast<int>(num);
-  assert_true(result < SIGRTMAX);
+  REX_ASSERT(result < SIGRTMAX);
   return result;
 #endif
 }
@@ -148,7 +147,7 @@ SignalType GetSystemSignalType(int num) {
     case SIGUSR2:
       return SignalType::kThreadUserCallback;
     default:
-      assert_unhandled_case(num);
+      REX_UNHANDLED_CASE(num);
       return SignalType::kThreadSuspend;
   }
 #else
@@ -243,8 +242,8 @@ SleepResult AlertableSleep(std::chrono::microseconds duration) {
 TLSHandle AllocateTLSHandle() {
   auto key = static_cast<pthread_key_t>(-1);
   auto res = pthread_key_create(&key, nullptr);
-  assert_zero(res);
-  assert_true(key != static_cast<pthread_key_t>(-1));
+  REX_ASSERT(res == 0);
+  REX_ASSERT(key != static_cast<pthread_key_t>(-1));
   return static_cast<TLSHandle>(key);
 }
 
@@ -337,7 +336,7 @@ class PosixConditionBase {
   static std::pair<WaitResult, size_t> WaitMultiple(std::vector<PosixConditionBase*>&& handles,
                                                     bool wait_all,
                                                     std::chrono::milliseconds timeout) {
-    assert_true(!handles.empty());
+    REX_ASSERT(!handles.empty());
 
     if (handles.size() == 1) {
       auto result = handles[0]->Wait(timeout);
@@ -458,7 +457,7 @@ class PosixConditionBase {
   std::mutex mutex_;
 };
 
-// There really is no native POSIX handle for a single wait/signal construct
+// There is no native POSIX handle for a single wait/signal construct
 // pthreads is at a lower level with more handles for such a mechanism.
 // This simple wrapper class functions as our handle and uses conditional
 // variables for waits and signals.
@@ -672,13 +671,13 @@ class PosixCondition<Timer> : public PosixConditionBase {
   }
 
   void* native_handle() const override {
-    assert_always();
+    REX_ASSERT_ALWAYS();
     return nullptr;
   }
 
  private:
   static void CompletionRoutine(void* userdata) {
-    assert_not_null(userdata);
+    REX_ASSERT(userdata != nullptr);
     auto timer = reinterpret_cast<PosixCondition<Timer>*>(userdata);
     timer->Signal();
     // As the callback may reset the timer, store local.
@@ -705,7 +704,7 @@ class PosixCondition<Timer> : public PosixConditionBase {
 };
 
 struct ThreadStartData {
-  std::function<void()> start_routine;
+  std::move_only_function<void()> start_routine;
   bool create_suspended;
   Thread* thread_obj;
 };
@@ -735,7 +734,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
     android_pre_api_26_name_[0] = '\0';
 #endif
   }
-  bool Initialize(Thread::CreationParameters params, ThreadStartData* start_data) {
+  bool Initialize(Thread::CreationParameters params, std::unique_ptr<ThreadStartData> start_data) {
     start_data->create_suspended = params.create_suspended;
     pthread_attr_t attr;
     if (pthread_attr_init(&attr) != 0)
@@ -756,10 +755,11 @@ class PosixCondition<Thread> : public PosixConditionBase {
         return false;
       }
     }
-    if (pthread_create(&thread_, &attr, ThreadStartRoutine, start_data) != 0) {
+    if (pthread_create(&thread_, &attr, ThreadStartRoutine, start_data.get()) != 0) {
       pthread_attr_destroy(&attr);
       return false;
     }
+    start_data.release();
     pthread_attr_destroy(&attr);
     return true;
   }
@@ -801,7 +801,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
       // should be enough in most cases.
       if (android_pthread_getname_np_) {
         if (android_pthread_getname_np_(thread_, result.data(), result.size() - 1) != 0) {
-          assert_always();
+          REX_ASSERT_ALWAYS();
         }
       } else {
         std::lock_guard<std::mutex> lock(android_pre_api_26_name_mutex_);
@@ -809,7 +809,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
       }
 #else
       if (pthread_getname_np(thread_, result.data(), result.size() - 1) != 0) {
-        assert_always();
+        REX_ASSERT_ALWAYS();
       }
 #endif
     }
@@ -859,16 +859,16 @@ class PosixCondition<Thread> : public PosixConditionBase {
     if (cpu_count == 64) {
       return std::numeric_limits<uint64_t>::max();
     }
-    return (uint64_t(1) << cpu_count) - 1;
+    return (static_cast<uint64_t>(1) << cpu_count) - 1;
 #else
     cpu_set_t cpu_set;
 #if REX_PLATFORM_ANDROID
     if (sched_getaffinity(pthread_gettid_np(thread_), sizeof(cpu_set_t), &cpu_set) != 0) {
-      assert_always();
+      REX_ASSERT_ALWAYS();
     }
 #else
     if (pthread_getaffinity_np(thread_, sizeof(cpu_set_t), &cpu_set) != 0) {
-      assert_always();
+      REX_ASSERT_ALWAYS();
     }
 #endif
     uint64_t result = 0;
@@ -898,11 +898,11 @@ class PosixCondition<Thread> : public PosixConditionBase {
     }
 #if REX_PLATFORM_ANDROID
     if (sched_setaffinity(pthread_gettid_np(thread_), sizeof(cpu_set_t), &cpu_set) != 0) {
-      assert_always();
+      REX_ASSERT_ALWAYS();
     }
 #else
     if (pthread_setaffinity_np(thread_, sizeof(cpu_set_t), &cpu_set) != 0) {
-      assert_always();
+      REX_ASSERT_ALWAYS();
     }
 #endif
 #endif
@@ -932,7 +932,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
           REXLOG_WARN(system, "set_priority: permission denied");
           break;
         case EINVAL:
-          assert_always();
+          REX_ASSERT_ALWAYS();
           break;
         default:
           REXLOG_WARN(system, "set_priority: pthread_setschedparam failed ({})", result);
@@ -941,7 +941,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
     }
   }
 
-  void QueueUserCallback(std::function<void()> callback) {
+  void QueueUserCallback(std::move_only_function<void()> callback) {
     WaitStarted();
     {
       std::unique_lock<std::mutex> lock(callback_mutex_);
@@ -982,7 +982,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
       return false;
     }
 
-    std::function<void()> callback;
+    std::move_only_function<void()> callback;
     {
       std::unique_lock<std::mutex> lock(callback_mutex_);
       if (user_callbacks_.empty()) {
@@ -1055,11 +1055,11 @@ class PosixCondition<Thread> : public PosixConditionBase {
       std::unique_lock<std::mutex> lock(state_mutex_);
       if (state_ == State::kFinished) {
         if (is_current_thread) {
-          // This is really bad. Some thread must have called Terminate() on us
-          // just before we decided to terminate ourselves
-          assert_always();
+          // This is bad. Some thread must have called Terminate() on us
+          // right before we decided to terminate ourselves
+          REX_ASSERT_ALWAYS();
           for (;;) {
-            // Wait for pthread_cancel() to actually happen.
+            // Wait for pthread_cancel() to happen.
           }
         }
         return;
@@ -1075,7 +1075,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
     }
 #if REX_PLATFORM_ANDROID
     if (pthread_kill(thread_, GetSystemSignal(SignalType::kThreadTerminate)) != 0) {
-      assert_always();
+      REX_ASSERT_ALWAYS();
     }
 #else
     if constexpr (std::is_pointer_v<pthread_t>) {
@@ -1084,7 +1084,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
       detail::UnregisterThread(static_cast<u64>(thread_));
     }
     if (pthread_cancel(thread_) != 0) {
-      assert_always();
+      REX_ASSERT_ALWAYS();
     }
 #endif
     pthread_join(thread_, nullptr);
@@ -1146,7 +1146,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
   mutable std::mutex state_mutex_;
   mutable std::mutex callback_mutex_;
   mutable std::condition_variable state_signal_;
-  std::deque<std::function<void()>> user_callbacks_;
+  std::deque<std::move_only_function<void()>> user_callbacks_;
   std::atomic<bool> has_pending_user_callbacks_{false};
 #if REX_PLATFORM_ANDROID
   // Name accessible via name() on Android before API 26 which added
@@ -1466,9 +1466,9 @@ class PosixThread : public PosixConditionHandle<Thread> {
   explicit PosixThread(pthread_t thread) : PosixConditionHandle(thread) {}
   ~PosixThread() override = default;
 
-  bool Initialize(CreationParameters params, std::function<void()> start_routine) {
-    auto start_data = new ThreadStartData({std::move(start_routine), false, this});
-    return handle_.Initialize(params, start_data);
+  bool Initialize(CreationParameters params, std::move_only_function<void()> start_routine) {
+    auto start_data = std::make_unique<ThreadStartData>(std::move(start_routine), false, this);
+    return handle_.Initialize(params, std::move(start_data));
   }
 
   void set_name(std::string name) override {
@@ -1488,7 +1488,7 @@ class PosixThread : public PosixConditionHandle<Thread> {
   int priority() override { return handle_.priority(); }
   void set_priority(int new_priority) override { handle_.set_priority(new_priority); }
 
-  void QueueUserCallback(std::function<void()> callback) override {
+  void QueueUserCallback(std::move_only_function<void()> callback) override {
     handle_.QueueUserCallback(std::move(callback));
   }
 
@@ -1510,21 +1510,21 @@ thread_local PosixThread* current_thread_ = nullptr;
 void* PosixCondition<Thread>::ThreadStartRoutine(void* parameter) {
 #if !REX_PLATFORM_ANDROID
   if (pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, nullptr) != 0) {
-    assert_always();
+    REX_ASSERT_ALWAYS();
   }
 #endif
   set_current_thread_name("");
   detail::RegisterCurrentThread();
   PrepareThreadForCrash();
 
-  auto start_data = static_cast<ThreadStartData*>(parameter);
-  assert_not_null(start_data);
-  assert_not_null(start_data->thread_obj);
+  std::unique_ptr<ThreadStartData> start_data(static_cast<ThreadStartData*>(parameter));
+  REX_ASSERT(start_data != nullptr);
+  REX_ASSERT(start_data->thread_obj != nullptr);
 
   auto thread = dynamic_cast<PosixThread*>(start_data->thread_obj);
   auto start_routine = std::move(start_data->start_routine);
   auto create_suspended = start_data->create_suspended;
-  delete start_data;
+  start_data.reset();
 
   current_thread_ = thread;
   current_thread_condition_ = &thread->handle_;
@@ -1564,7 +1564,7 @@ void* PosixCondition<Thread>::ThreadStartRoutine(void* parameter) {
 }
 
 std::unique_ptr<Thread> Thread::Create(CreationParameters params,
-                                       std::function<void()> start_routine) {
+                                       std::move_only_function<void()> start_routine) {
   install_signal_handler(SignalType::kThreadSuspend);
   install_signal_handler(SignalType::kThreadUserCallback);
 #if REX_PLATFORM_ANDROID
@@ -1573,7 +1573,7 @@ std::unique_ptr<Thread> Thread::Create(CreationParameters params,
   auto thread = std::make_unique<PosixThread>();
   if (!thread->Initialize(params, std::move(start_routine)))
     return nullptr;
-  assert_not_null(thread);
+  REX_ASSERT(thread != nullptr);
   return thread;
 }
 
@@ -1613,7 +1613,7 @@ void Thread::Exit(int exit_code) {
     pthread_exit(reinterpret_cast<void*>(exit_code));
   }
   // Function must not return
-  assert_always();
+  REX_ASSERT_ALWAYS();
 }
 
 void set_current_thread_name(const std::string_view name) {
@@ -1647,7 +1647,7 @@ static void signal_handler(int signal, siginfo_t* /*info*/, void* /*context*/) {
     } break;
 #endif
     default:
-      assert_always();
+      REX_ASSERT_ALWAYS();
   }
 }
 

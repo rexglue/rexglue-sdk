@@ -50,7 +50,8 @@ class SDL3UserInterface final : public IUserInterface, public IDialogHost {
                gpu::IBackend* gpu, runtime::IAchievementManager* achievements, ILogger* logger);
   void Disconnect();
 
-  Result<IWindow*> OpenWindow(const UIConfig& config, EventCallback callback) override;
+  [[nodiscard]] Result<IWindow*> OpenWindow(const UIConfig& config,
+                                            EventCallback callback) override;
   void CloseWindow() override;
   IWindow* GetWindow() override;
   void Run() override;
@@ -63,7 +64,7 @@ class SDL3UserInterface final : public IUserInterface, public IDialogHost {
   ImGuiStyle* GetImGuiStyle() override;
   ImGuiIO* GetImGuiIO() override;
   Style& GetStyle() override;
-  Result<void> AddOverlays(std::span<const OverlayDesc> table) override;
+  [[nodiscard]] Result<void> AddOverlays(std::span<const OverlayDesc> table) override;
   void ShowOverlay(std::string_view name, bool visible) override;
   void ToggleOverlay(std::string_view name) override;
   ImGuiDialog* Overlay(std::string_view name) override;
@@ -79,10 +80,11 @@ class SDL3UserInterface final : public IUserInterface, public IDialogHost {
   void SetRuntime(Runtime* runtime) override;
   VideoMode GetVideoMode() const override;
   void ShowMessage(MessageKind kind, std::string_view title, std::string_view body) override;
-  Result<u32> ShowChoice(const ChoiceDesc& desc) override;
+  [[nodiscard]] Result<u32> ShowChoice(const ChoiceDesc& desc) override;
   void Prompt(PromptDesc desc, std::move_only_function<void(PromptResult)> done) override;
   void CancelPrompts() override;
-  Result<std::vector<std::filesystem::path>> ShowFileDialog(const FileDialogDesc& desc) override;
+  [[nodiscard]] Result<std::vector<std::filesystem::path>> ShowFileDialog(
+      const FileDialogDesc& desc) override;
   std::vector<DisplayInfo> Displays() override;
   std::vector<HostLocale> PreferredLocales() override;
 
@@ -92,8 +94,8 @@ class SDL3UserInterface final : public IUserInterface, public IDialogHost {
   void ApplyWindowCvars();
   void EnsureToast();
   void ReleaseToast();
-  Result<u32> ShowBox(MessageKind kind, std::string_view title, std::string_view body,
-                      std::span<const std::string> buttons);
+  [[nodiscard]] Result<u32> ShowBox(MessageKind kind, std::string_view title, std::string_view body,
+                                    std::span<const std::string> buttons);
 
   const Config* config_ = nullptr;
   cvar::ICvarRegistry* cvars_ = nullptr;

@@ -14,6 +14,7 @@
 #pragma once
 
 #include <bit>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 
@@ -94,7 +95,7 @@ struct CRRegister {
   }
 
   void compare(double left, double right) noexcept {
-    un = __builtin_isnan(left) || __builtin_isnan(right);
+    un = std::isnan(left) || std::isnan(right);
     lt = !un && (left < right);
     gt = !un && (left > right);
     eq = !un && (left == right);
@@ -155,7 +156,8 @@ struct FPSCRRegister {
   static constexpr size_t FlushMask = Platform::FlushMask;
 
   // Bits the guest owns; the rest is host policy seeded by InitHost.
-  static constexpr uint32_t GuestMask = uint32_t(RoundMaskVal) | uint32_t(FlushMask);
+  static constexpr uint32_t GuestMask =
+      static_cast<uint32_t>(RoundMaskVal) | static_cast<uint32_t>(FlushMask);
 
   uint32_t getcsr() noexcept { return Platform::getcsr(); }
   void setcsr(uint32_t csr) noexcept { Platform::setcsr(csr); }

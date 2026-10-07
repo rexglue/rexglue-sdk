@@ -1,6 +1,5 @@
 /**
  * @file        filesystem/directory.h
- * @brief       Enumeration of the children of 1 directory
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -19,7 +18,7 @@
 namespace rex::filesystem {
 
 /**
- * Walks the live children of a directory that match a pattern, case insensitive, with the Xbox
+ * Walks the live children of a directory that match a pattern, case insensitive, with the console
  * wildcard rules. A star matches any run, a question mark matches 1 character.
  */
 class IDirectory {

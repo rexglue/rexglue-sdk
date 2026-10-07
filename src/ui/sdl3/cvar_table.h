@@ -1,6 +1,5 @@
 /**
  * @file        ui/sdl3/cvar_table.h
- * @brief       ui module cvars
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

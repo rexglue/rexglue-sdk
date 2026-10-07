@@ -1,6 +1,5 @@
 /**
  * @file        dbg.h
- * @brief       Debugger queries, breakpoints, debugger output and Tracy profiling macros
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

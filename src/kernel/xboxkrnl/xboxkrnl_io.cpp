@@ -115,7 +115,7 @@ u32 NtCreateFile_entry(mapped_u32 handle_out, u32 desired_access,
     // ..? Some games do this. This parameter is not optional.
     return X_STATUS_INVALID_PARAMETER;
   }
-  assert_not_null(handle_out);
+  REX_ASSERT(handle_out != nullptr);
 
   auto object_name =
       runtime::Current().memory()->TranslateVirtual<X_ANSI_STRING*>(object_attrs->name_ptr);
@@ -125,8 +125,9 @@ u32 NtCreateFile_entry(mapped_u32 handle_out, u32 desired_access,
   REXLOG_TRACE(kernel,
                "NtCreateFile "
                "path={} access={:#x} attrs={:#x} share={:#x} disp={:#x} options={:#x}",
-               target_path, (uint32_t)desired_access, (uint32_t)file_attributes,
-               (uint32_t)share_access, (uint32_t)creation_disposition, (uint32_t)create_options);
+               target_path, static_cast<uint32_t>(desired_access),
+               static_cast<uint32_t>(file_attributes), static_cast<uint32_t>(share_access),
+               static_cast<uint32_t>(creation_disposition), static_cast<uint32_t>(create_options));
 
   // Enforce that the path is ASCII.
   if (!IsValidPath(target_path, false)) {
@@ -137,7 +138,7 @@ u32 NtCreateFile_entry(mapped_u32 handle_out, u32 desired_access,
   if (object_attrs->root_directory != 0xFFFFFFFD &&  // ObDosDevices
       object_attrs->root_directory != 0) {
     root_file = runtime::Current().object_table().Get<FileObject>(object_attrs->root_directory);
-    assert_true(static_cast<bool>(root_file));
+    REX_ASSERT(static_cast<bool>(root_file));
   }
 
   filesystem::OpenOptions options;
@@ -174,7 +175,7 @@ u32 NtCreateFile_entry(mapped_u32 handle_out, u32 desired_access,
 
   if (io_status_block) {
     io_status_block->status = result;
-    io_status_block->information = (uint32_t)file_action;
+    io_status_block->information = static_cast<uint32_t>(file_action);
   }
 
   *handle_out = handle;
@@ -208,9 +209,10 @@ u32 NtReadFile_entry(u32 file_handle, u32 event_handle, mapped_void apc_routine_
       kernel,
       "NtReadFile "
       "handle={:#x} event={:#x} apc={:#x} apc_ctx={:#x} iosb={:#x} buf={:#x} len={:#x} offset={}",
-      (uint32_t)file_handle, (uint32_t)event_handle, apc_routine_ptr.guest_address(),
-      apc_context.guest_address(), io_status_block.guest_address(), buffer.guest_address(),
-      (uint32_t)buffer_length, byte_offset_ptr ? (int64_t)byte_offset : -1);
+      static_cast<uint32_t>(file_handle), static_cast<uint32_t>(event_handle),
+      apc_routine_ptr.guest_address(), apc_context.guest_address(), io_status_block.guest_address(),
+      buffer.guest_address(), static_cast<uint32_t>(buffer_length),
+      byte_offset_ptr ? static_cast<int64_t>(byte_offset) : -1);
   X_STATUS result = X_STATUS_SUCCESS;
   bool apc_queued = false;
 
@@ -240,7 +242,7 @@ u32 NtReadFile_entry(u32 file_handle, u32 event_handle, mapped_void apc_routine_
       // Queue the APC callback. It must be delivered via the APC mechanism even
       // though were are completing immediately.
       // Low bit probably means do not queue to IO ports.
-      if ((uint32_t)apc_routine_ptr & ~1) {
+      if (static_cast<uint32_t>(apc_routine_ptr) & ~1) {
         if (apc_context && result == X_STATUS_SUCCESS) {
           auto thread = ThreadRecord::GetCurrentThread();
           uint32_t apc_routine = static_cast<uint32_t>(apc_routine_ptr) & ~1u;
@@ -298,9 +300,10 @@ u32 NtReadFile_entry(u32 file_handle, u32 event_handle, mapped_void apc_routine_
         "NtReadFile -> "
         "{:#x} (sync={}, iosb_status={:#x}, iosb_info={}, ev_signaled={}, apc_requested={}, "
         "apc_queued={})",
-        result, file->is_synchronous, io_status_block ? (uint32_t)io_status_block->status : 0xDEAD,
-        io_status_block ? (uint32_t)io_status_block->information : 0, ev && signal_event,
-        apc_requested, apc_queued);
+        result, file->is_synchronous,
+        io_status_block ? static_cast<uint32_t>(io_status_block->status) : 0xDEAD,
+        io_status_block ? static_cast<uint32_t>(io_status_block->information) : 0,
+        ev && signal_event, apc_requested, apc_queued);
   } else {
     REXLOG_TRACE(kernel,
                  "NtReadFile -> "
@@ -341,7 +344,7 @@ u32 NtReadFileScatter_entry(u32 file_handle, u32 event_handle, mapped_void apc_r
       // Queue the APC callback. It must be delivered via the APC mechanism even
       // though were are completing immediately.
       // Low bit probably means do not queue to IO ports.
-      if ((uint32_t)apc_routine_ptr & ~1) {
+      if (static_cast<uint32_t>(apc_routine_ptr) & ~1) {
         if (apc_context) {
           auto thread = ThreadRecord::GetCurrentThread();
           thread->EnqueueAPC(static_cast<uint32_t>(apc_routine_ptr) & ~1u,
@@ -422,7 +425,7 @@ u32 NtWriteFile_entry(u32 file_handle, u32 event_handle, u32 apc_routine, mapped
       // Queue the APC callback. It must be delivered via the APC mechanism even
       // though were are completing immediately.
       // Low bit probably means do not queue to IO ports.
-      if ((uint32_t)apc_routine & ~1) {
+      if (static_cast<uint32_t>(apc_routine) & ~1) {
         if (apc_context) {
           auto thread = ThreadRecord::GetCurrentThread();
           thread->EnqueueAPC(static_cast<uint32_t>(apc_routine) & ~1u, apc_context.guest_address(),
@@ -533,8 +536,8 @@ u32 NtQueryFullAttributesFile_entry(ppc_ptr_t<X_OBJECT_ATTRIBUTES> obj_attribs,
   if (obj_attribs->root_directory != 0xFFFFFFFD &&  // ObDosDevices
       obj_attribs->root_directory != 0) {
     root_file = runtime::Current().object_table().Get<FileObject>(obj_attribs->root_directory);
-    assert_true(static_cast<bool>(root_file));
-    assert_always();
+    REX_ASSERT(static_cast<bool>(root_file));
+    REX_ASSERT_ALWAYS();
   }
 
   auto target_path = util::TranslateAnsiPath(runtime::Current().memory(), object_name);
@@ -628,9 +631,9 @@ u32 NtFlushBuffersFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_st
 u32 NtOpenSymbolicLinkObject_entry(mapped_u32 handle_out,
                                    ppc_ptr_t<X_OBJECT_ATTRIBUTES> object_attrs) {
   REX_KERNEL_ARG(object_attrs);
-  assert_not_null(handle_out);
+  REX_ASSERT(handle_out != nullptr);
 
-  assert_true(object_attrs->attributes == 64);  // case insensitive
+  REX_ASSERT(object_attrs->attributes == 64);  // case insensitive
 
   auto object_name =
       runtime::Current().memory()->TranslateVirtual<X_ANSI_STRING*>(object_attrs->name_ptr);
@@ -643,7 +646,7 @@ u32 NtOpenSymbolicLinkObject_entry(mapped_u32 handle_out,
   }
 
   if (object_attrs->root_directory != 0) {
-    assert_always();
+    REX_ASSERT_ALWAYS();
   }
 
   if (rex::utf8_starts_with(target_path, "\\??\\")) {
@@ -696,6 +699,18 @@ u32 FscSetCacheElementCount_entry(u32 unk_0, u32 unk_1) {
   return X_STATUS_SUCCESS;
 }
 
+struct X_DISK_CACHE_GEOMETRY {
+  be_u32 sector_count;
+  be_u32 sector_size;
+};
+REX_STATIC_ASSERT_SIZE(X_DISK_CACHE_GEOMETRY, 8);
+
+struct X_DISK_CACHE_PARTITION {
+  be_u64 start_offset;
+  be_u64 length;
+};
+REX_STATIC_ASSERT_SIZE(X_DISK_CACHE_PARTITION, 0x10);
+
 u32 NtDeviceIoControlFile_entry(u32 handle, u32 event_handle, u32 apc_routine, u32 apc_context,
                                 u32 io_status_block, u32 io_control_code, mapped_void input_buffer,
                                 u32 input_buffer_len, mapped_void output_buffer,
@@ -710,21 +725,23 @@ u32 NtDeviceIoControlFile_entry(u32 handle, u32 event_handle, u32 apc_routine, u
 
   if (io_control_code == X_IOCTL_DISK_GET_DRIVE_GEOMETRY) {
     if (output_buffer_len < 0x8) {
-      assert_always();
+      REX_ASSERT_ALWAYS();
       return X_STATUS_BUFFER_TOO_SMALL;
     }
-    memory::store_and_swap<uint32_t>(output_buffer, cache_size / 512);
-    memory::store_and_swap<uint32_t>(output_buffer + 4, 512);
+    auto* geometry = output_buffer.as<X_DISK_CACHE_GEOMETRY*>();
+    geometry->sector_count = cache_size / 512;
+    geometry->sector_size = 512;
   } else if (io_control_code == X_IOCTL_DISK_GET_PARTITION_INFO) {
     if (output_buffer_len < 0x10) {
-      assert_always();
+      REX_ASSERT_ALWAYS();
       return X_STATUS_BUFFER_TOO_SMALL;
     }
-    memory::store_and_swap<uint64_t>(output_buffer, 0);
-    memory::store_and_swap<uint64_t>(output_buffer + 8, cache_size);
+    auto* partition = output_buffer.as<X_DISK_CACHE_PARTITION*>();
+    partition->start_offset = 0;
+    partition->length = cache_size;
   } else {
-    REX_KERNEL_STUB("NtDeviceIoControlFile(0x{:X})", uint32_t(io_control_code));
-    assert_always();
+    REX_KERNEL_STUB("NtDeviceIoControlFile(0x{:X})", static_cast<uint32_t>(io_control_code));
+    REX_ASSERT_ALWAYS();
     return X_STATUS_INVALID_PARAMETER;
   }
 
@@ -742,17 +759,17 @@ u32 IoCreateDevice_entry(u32 device_struct, u32 r4, u32 r5, u32 r6, u32 r7, mapp
   auto out = runtime::Current().memory()->TranslateVirtual<uint8_t*>(out_guest);
   memset(out, 0, 0x24);
 
-  // XMountUtilityDrive writes some kind of header here
+  // XMountUtilityDrive writes a header here
   // 0x1000 bytes should be enough to store it
   auto out_guest2 = runtime::Current().memory()->SystemHeapAlloc(0x1000);
-  memory::store_and_swap(out + 0x18, out_guest2);
+  memory::store<be_u32>(out + 0x18, out_guest2);
 
   *out_struct = out_guest;
   return X_STATUS_SUCCESS;
 }
 
 u32 IoDismountVolumeByFileHandle_entry(u32 handle) {
-  REX_KERNEL_STUB("IoDismountVolumeByFileHandle({:#x})", (uint32_t)handle);
+  REX_KERNEL_STUB("IoDismountVolumeByFileHandle({:#x})", static_cast<uint32_t>(handle));
   return X_STATUS_SUCCESS;
 }
 
@@ -765,7 +782,7 @@ u32 IoSynchronousDeviceIoControlRequest_entry(u32 ioctl, mapped_void device_obje
                                               mapped_void input_buffer, u32 input_length,
                                               mapped_void output_buffer, u32 output_length,
                                               mapped_u32 returned_length, u32 unk) {
-  REX_KERNEL_STUB("IoSynchronousDeviceIoControlRequest({:#x})", (uint32_t)ioctl);
+  REX_KERNEL_STUB("IoSynchronousDeviceIoControlRequest({:#x})", static_cast<uint32_t>(ioctl));
   return X_STATUS_SUCCESS;
 }
 
@@ -777,7 +794,7 @@ u32 StfsCreateDevice_entry(mapped_void device_object, u32 flags, mapped_u32 out_
 
 u32 StfsControlDevice_entry(mapped_void device_object, u32 ioctl, mapped_void input_buffer,
                             u32 input_length, mapped_void output_buffer, u32 output_length) {
-  REX_KERNEL_STUB("StfsControlDevice({:#x})", (uint32_t)ioctl);
+  REX_KERNEL_STUB("StfsControlDevice({:#x})", static_cast<uint32_t>(ioctl));
   return X_STATUS_SUCCESS;
 }
 

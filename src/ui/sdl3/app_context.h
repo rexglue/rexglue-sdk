@@ -23,16 +23,16 @@
 
 #include <rex/assert.h>
 #include <rex/macros.h>
+#include <rex/platform/thread.h>
+#include <rex/types.h>
 
 namespace rex {
 namespace ui {
 
 // Context for inputs provided by the entry point and interacting with the
 // platform's UI loop, to be implemented by platforms.
-class WindowedAppContext {
+class WindowedAppContext : public rex::NonCopyable {
  public:
-  WindowedAppContext(const WindowedAppContext& context) = delete;
-  WindowedAppContext& operator=(const WindowedAppContext& context) = delete;
   virtual ~WindowedAppContext();
 
   // The thread where the object is created will be assumed to be the UI thread,
@@ -44,7 +44,7 @@ class WindowedAppContext {
   // executed at some point the future when the UI thread is running the loop
   // and is not busy doing other things.
   // Therefore, references to objects in the function may outlive the owners of
-  // those objects, so use-after-free is very easy to create if not being
+  // those objects, so use-after-free is easy to create if not being
   // careful enough.
   // There are two solutions to this issue:
   // - Signaling a fence in the function, awaiting it before destroying objects
@@ -72,11 +72,27 @@ class WindowedAppContext {
   // be executed directly from the platform main loop as
   // ExecutePendingFunctionsFromUIThread may be called anywhere (for instance,
   // to await pending functions before destroying what they are referencing).
-  bool CallInUIThreadDeferred(std::function<void()> function);
+  bool CallInUIThreadDeferred(std::move_only_function<void()> function);
   // Executes the function immediately if already in the UI thread, enqueues it
   // otherwise.
-  bool CallInUIThread(std::function<void()> function);
-  bool CallInUIThreadSynchronous(std::function<void()> function);
+  bool CallInUIThread(std::move_only_function<void()> function);
+  template <std::invocable<> F>
+  bool CallInUIThreadSynchronous(F&& function) {
+    if (IsInUIThread()) {
+      // Prevent deadlock if called from the UI thread.
+      function();
+      return true;
+    }
+    rex::platform::Fence fence;
+    if (!CallInUIThreadDeferred([&function, &fence]() {
+          function();
+          fence.Signal();
+        })) {
+      return false;
+    }
+    fence.Wait();
+    return true;
+  }
   // It's okay to call this function from the queued functions themselves (such
   // as in the case of waiting for a pending async CallInUIThreadDeferred
   // described above - the wait may be done inside a CallInUIThreadSynchronous
@@ -92,7 +108,7 @@ class WindowedAppContext {
   // itself (in the worst case, in the destructor where virtual methods can't be
   // called), and in this case, this will be returning true.
   bool HasQuitFromUIThread() const {
-    assert_true(IsInUIThread());
+    REX_ASSERT(IsInUIThread());
     return has_quit_;
   }
 
@@ -163,11 +179,11 @@ class WindowedAppContext {
   // queued, as it will never be called (thus CallInUIThreadSynchronous for it
   // will never return, for instance).
   std::mutex pending_functions_mutex_;
-  std::deque<std::function<void()>> pending_functions_;
+  std::deque<std::move_only_function<void()>> pending_functions_;
   // Protected by pending_functions_mutex_, writable by the UI thread, readable
   // by any thread. Must be set to false before exiting the main platform loop,
   // but before that, all pending functions must be executed no matter what, as
-  // they may need to signal fences currently being awaited (like the
+  // they may need to signal fences being awaited (like the
   // CallInUIThreadSynchronous fence).
   bool pending_functions_accepted_ = true;
 };

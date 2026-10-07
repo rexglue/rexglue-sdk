@@ -28,7 +28,7 @@ class NullStream final : public NodeStream {
  public:
   explicit NullStream(Access access) : access_(access) {}
 
-  Result<size_t> Read(std::span<u8> buffer, u64 offset) override {
+  [[nodiscard]] Result<size_t> Read(std::span<u8> buffer, u64 offset) override {
     (void)buffer;
     (void)offset;
     if (!HasFlags(access_, Access::kReadData)) {
@@ -37,7 +37,7 @@ class NullStream final : public NodeStream {
     return size_t{0};
   }
 
-  Result<size_t> Write(std::span<const u8> buffer, u64 offset) override {
+  [[nodiscard]] Result<size_t> Write(std::span<const u8> buffer, u64 offset) override {
     (void)buffer;
     (void)offset;
     if ((access_ & (Access::kWriteData | Access::kAppendData)) == Access::kNone) {
@@ -46,7 +46,7 @@ class NullStream final : public NodeStream {
     return size_t{0};
   }
 
-  Result<void> SetLength(u64 length) override {
+  [[nodiscard]] Result<void> SetLength(u64 length) override {
     (void)length;
     if (!HasFlags(access_, Access::kWriteData)) {
       return Err(MakeError(Error::kAccessDenied, "the file was opened without write"));
@@ -60,10 +60,10 @@ class NullStream final : public NodeStream {
 
 }  // namespace
 
-NullProvider::NullProvider(MountEntry entry) : Provider(std::move(entry)) {}
+NullProvider::NullProvider(Key, MountEntry entry) : Provider(std::move(entry)) {}
 
 Result<std::unique_ptr<Provider>> NullProvider::Create(const MountEntry& entry) {
-  std::unique_ptr<NullProvider> provider(new NullProvider(entry));
+  auto provider = std::make_unique<NullProvider>(Key{}, entry);
   auto root = std::make_unique<NullNode>(*provider, nullptr, std::string());
   for (const std::string& path : entry.null_paths) {
     root->AddChild(std::make_unique<NullNode>(*provider, root.get(), path));

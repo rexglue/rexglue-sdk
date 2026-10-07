@@ -1,6 +1,5 @@
 /**
  * @file        ppc.h
- * @brief       PPC recompilation support -- umbrella header
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

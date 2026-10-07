@@ -1,6 +1,5 @@
 /**
  * @file        core/app.cpp
- * @brief       rex::App and the shutdown request functions
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -231,7 +230,7 @@ void SetRelaunchForTest(RelaunchFunction relaunch, bool can_relaunch) {
   g_test_can_relaunch = can_relaunch;
 }
 
-Result<void> RelaunchProcess(std::span<const std::string> args) {
+[[nodiscard]] Result<void> RelaunchProcess(std::span<const std::string> args) {
   return g_test_relaunch ? g_test_relaunch(args) : platform::Relaunch(args);
 }
 

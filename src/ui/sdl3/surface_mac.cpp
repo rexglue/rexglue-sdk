@@ -22,8 +22,8 @@ bool CAMetalLayerSurface::GetSizeImpl(uint32_t& width_out, uint32_t& height_out)
   if (!SDL_GetWindowSizeInPixels(window_, &pixel_width, &pixel_height)) {
     return false;
   }
-  width_out = uint32_t(pixel_width);
-  height_out = uint32_t(pixel_height);
+  width_out = static_cast<uint32_t>(pixel_width);
+  height_out = static_cast<uint32_t>(pixel_height);
   return true;
 }
 

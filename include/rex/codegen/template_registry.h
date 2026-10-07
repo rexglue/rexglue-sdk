@@ -1,6 +1,5 @@
 /**
  * @file        rex/codegen/template_registry.h
- * @brief       Template registry for inja-based code generation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  * @license     BSD 3-Clause License
@@ -14,6 +13,8 @@
 #include <string_view>
 #include <vector>
 #include <stdexcept>
+
+#include <rex/types.h>
 
 namespace rex::codegen {
 
@@ -37,13 +38,11 @@ class TemplateError : public std::runtime_error {
 /// Uses pimpl to keep inja.hpp and nlohmann/json.hpp out of this header.
 /// The render() method accepts serialized JSON (const std::string&) to avoid
 /// exposing nlohmann::json in the public API.
-class TemplateRegistry {
+class TemplateRegistry : public rex::MoveOnly {
  public:
   TemplateRegistry();
   ~TemplateRegistry();
 
-  TemplateRegistry(const TemplateRegistry&) = delete;
-  TemplateRegistry& operator=(const TemplateRegistry&) = delete;
   TemplateRegistry(TemplateRegistry&&) noexcept;
   TemplateRegistry& operator=(TemplateRegistry&&) noexcept;
 

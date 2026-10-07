@@ -1,6 +1,5 @@
 /**
  * @file        math.h
- * @brief       Integer, alignment, bit scan and saturating arithmetic helpers
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -26,9 +25,7 @@
 #include <rex/platform.h>
 #include <rex/types.h>
 
-#if REX_ARCH_AMD64
-#include <xmmintrin.h>
-#endif
+#include <simde/x86/sse2.h>
 
 namespace rex {
 
@@ -209,49 +206,65 @@ constexpr u32 bit_count(T v) {
  * @param v The value to scan.
  * @return The number of leading zero bits, or 8 when v is 0.
  */
-REX_API u8 lzcnt(u8 v);
+inline u8 lzcnt(u8 v) {
+  return static_cast<u8>(std::countl_zero(v));
+}
 
 /**
  * @param v The value to scan.
  * @return The number of leading zero bits, or 16 when v is 0.
  */
-REX_API u8 lzcnt(u16 v);
+inline u8 lzcnt(u16 v) {
+  return static_cast<u8>(std::countl_zero(v));
+}
 
 /**
  * @param v The value to scan.
  * @return The number of leading zero bits, or 32 when v is 0.
  */
-REX_API u8 lzcnt(u32 v);
+inline u8 lzcnt(u32 v) {
+  return static_cast<u8>(std::countl_zero(v));
+}
 
 /**
  * @param v The value to scan.
  * @return The number of leading zero bits, or 64 when v is 0.
  */
-REX_API u8 lzcnt(u64 v);
+inline u8 lzcnt(u64 v) {
+  return static_cast<u8>(std::countl_zero(v));
+}
 
 /**
  * @param v The value to scan.
  * @return The number of trailing zero bits, or 8 when v is 0.
  */
-REX_API u8 tzcnt(u8 v);
+inline u8 tzcnt(u8 v) {
+  return static_cast<u8>(std::countr_zero(v));
+}
 
 /**
  * @param v The value to scan.
  * @return The number of trailing zero bits, or 16 when v is 0.
  */
-REX_API u8 tzcnt(u16 v);
+inline u8 tzcnt(u16 v) {
+  return static_cast<u8>(std::countr_zero(v));
+}
 
 /**
  * @param v The value to scan.
  * @return The number of trailing zero bits, or 32 when v is 0.
  */
-REX_API u8 tzcnt(u32 v);
+inline u8 tzcnt(u32 v) {
+  return static_cast<u8>(std::countr_zero(v));
+}
 
 /**
  * @param v The value to scan.
  * @return The number of trailing zero bits, or 64 when v is 0.
  */
-REX_API u8 tzcnt(u64 v);
+inline u8 tzcnt(u64 v) {
+  return static_cast<u8>(std::countr_zero(v));
+}
 
 /**
  * @param v The value to scan, read as unsigned.
@@ -324,7 +337,13 @@ inline u8 tzcnt(i64 v) {
  * @param out_first_set_index Receives the index of the lowest set bit.
  * @return False when v is 0, leaving out_first_set_index invalid.
  */
-REX_API bool bit_scan_forward(u32 v, u32* out_first_set_index);
+inline bool bit_scan_forward(u32 v, u32* out_first_set_index) {
+  if (v == 0) {
+    return false;
+  }
+  *out_first_set_index = static_cast<u32>(std::countr_zero(v));
+  return true;
+}
 
 /**
  * Finds the lowest set bit, like the x86 BSF instruction.
@@ -333,7 +352,13 @@ REX_API bool bit_scan_forward(u32 v, u32* out_first_set_index);
  * @param out_first_set_index Receives the index of the lowest set bit.
  * @return False when v is 0, leaving out_first_set_index invalid.
  */
-REX_API bool bit_scan_forward(u64 v, u32* out_first_set_index);
+inline bool bit_scan_forward(u64 v, u32* out_first_set_index) {
+  if (v == 0) {
+    return false;
+  }
+  *out_first_set_index = static_cast<u32>(std::countr_zero(v));
+  return true;
+}
 
 /**
  * Finds the lowest set bit, like the x86 BSF instruction.
@@ -388,16 +413,15 @@ inline T rotate_left(T v, u8 sh) {
   return (T(v) << sh) | (T(v) >> ((sizeof(T) * 8) - sh));
 }
 
-#if REX_ARCH_AMD64
 /**
  * @tparam N Lane index, 0 to 3.
  * @param v The SSE register.
  * @return Lane N of v as f32.
  */
 template <int N>
-f32 m128_f32(const __m128& v) {
+f32 m128_f32(const simde__m128& v) {
   f32 ret;
-  _mm_store_ss(&ret, _mm_shuffle_ps(v, v, _MM_SHUFFLE(N, N, N, N)));
+  simde_mm_store_ss(&ret, simde_mm_shuffle_ps(v, v, SIMDE_MM_SHUFFLE(N, N, N, N)));
   return ret;
 }
 
@@ -407,9 +431,9 @@ f32 m128_f32(const __m128& v) {
  * @return The bits of lane N of v as i32.
  */
 template <int N>
-i32 m128_i32(const __m128& v) {
+i32 m128_i32(const simde__m128& v) {
   f32 f;
-  _mm_store_ss(&f, _mm_shuffle_ps(v, v, _MM_SHUFFLE(N, N, N, N)));
+  simde_mm_store_ss(&f, simde_mm_shuffle_ps(v, v, SIMDE_MM_SHUFFLE(N, N, N, N)));
   return std::bit_cast<i32>(f);
 }
 
@@ -419,9 +443,9 @@ i32 m128_i32(const __m128& v) {
  * @return Lane N of v as f64.
  */
 template <int N>
-f64 m128_f64(const __m128d& v) {
+f64 m128_f64(const simde__m128d& v) {
   f64 ret;
-  _mm_store_sd(&ret, _mm_shuffle_pd(v, v, _MM_SHUFFLE2(N, N)));
+  simde_mm_store_sd(&ret, simde_mm_shuffle_pd(v, v, SIMDE_MM_SHUFFLE2(N, N)));
   return ret;
 }
 
@@ -431,8 +455,8 @@ f64 m128_f64(const __m128d& v) {
  * @return Lane N of v as f64.
  */
 template <int N>
-f64 m128_f64(const __m128& v) {
-  return m128_f64<N>(_mm_castps_pd(v));
+f64 m128_f64(const simde__m128& v) {
+  return m128_f64<N>(simde_mm_castps_pd(v));
 }
 
 /**
@@ -441,9 +465,9 @@ f64 m128_f64(const __m128& v) {
  * @return The bits of lane N of v as i64.
  */
 template <int N>
-i64 m128_i64(const __m128d& v) {
+i64 m128_i64(const simde__m128d& v) {
   f64 f;
-  _mm_store_sd(&f, _mm_shuffle_pd(v, v, _MM_SHUFFLE2(N, N)));
+  simde_mm_store_sd(&f, simde_mm_shuffle_pd(v, v, SIMDE_MM_SHUFFLE2(N, N)));
   return std::bit_cast<i64>(f);
 }
 
@@ -453,10 +477,9 @@ i64 m128_i64(const __m128d& v) {
  * @return The bits of lane N of v as i64.
  */
 template <int N>
-i64 m128_i64(const __m128& v) {
-  return m128_i64<N>(_mm_castps_pd(v));
+i64 m128_i64(const simde__m128& v) {
+  return m128_i64<N>(simde_mm_castps_pd(v));
 }
-#endif
 
 /**
  * Saturating addition, from https://locklessinc.com/articles/sat_arithmetic/

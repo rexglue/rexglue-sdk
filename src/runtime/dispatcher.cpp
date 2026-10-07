@@ -80,7 +80,7 @@ void Dispatcher::CompleteOverlappedEx(u32 overlapped_ptr, X_RESULT result, u32 e
   X_HANDLE event_handle = XOverlappedGetEvent(ptr);
   if (event_handle) {
     auto ev = runtime_.object_table().Get<EventObject>(event_handle);
-    assert_true(static_cast<bool>(ev));
+    REX_ASSERT(static_cast<bool>(ev));
     if (ev) {
       EventSet(*ev);
     }
@@ -266,7 +266,7 @@ void Dispatcher::DrainDPCs() {
   }
 }
 
-void Dispatcher::Post(std::function<void()> work) {
+void Dispatcher::Post(std::move_only_function<void()> work) {
   {
     std::lock_guard lock(dispatch_mutex_);
     dispatch_queue_.push_back(std::move(work));

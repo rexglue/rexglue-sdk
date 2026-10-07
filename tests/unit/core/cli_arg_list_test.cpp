@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/core/cli_arg_list_test.cpp
- * @brief       Unit tests for CLIArgList and ParseCommandLine
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

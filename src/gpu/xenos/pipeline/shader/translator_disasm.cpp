@@ -100,7 +100,7 @@ void DisassembleSourceOperand(const InstructionOperand& op, StringBuffer* out) {
       break;
     case InstructionStorageSource::kTextureFetchConstant:
     case InstructionStorageSource::kVertexFetchConstant:
-      assert_always();
+      REX_ASSERT_ALWAYS();
       break;
   }
   if (op.is_absolute_value) {

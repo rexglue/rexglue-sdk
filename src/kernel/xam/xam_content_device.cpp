@@ -30,11 +30,11 @@ using namespace rex::runtime::xam;
 // Until we expose real information about a HDD device, we
 // claim there is 3GB free on a 4GB dummy HDD.
 //
-// There is a possibility that certain games are bugged in that
+// There is a possibility that some games are bugged in that
 // they incorrectly only look at the lower 32-bits of free_bytes,
 // when it is a 64-bit value. Which means any size above ~4GB
 // will not be recognized properly.
-#define ONE_GB (1024ull * 1024ull * 1024ull)
+constexpr u64 ONE_GB = 1024ull * 1024ull * 1024ull;
 
 static const DummyDeviceInfo dummy_hdd_device_info_ = {
     DummyDeviceId::HDD, DeviceType::HDD,
@@ -52,7 +52,6 @@ static const DummyDeviceInfo* dummy_device_infos_[] = {
     &dummy_hdd_device_info_,
     &dummy_odd_device_info_,
 };
-#undef ONE_GB
 
 const DummyDeviceInfo* GetDummyDeviceInfo(uint32_t device_id) {
   const auto& begin = std::begin(dummy_device_infos_);
@@ -96,17 +95,17 @@ u32 XamContentGetDeviceState_entry(u32 device_id, mapped_void overlapped_ptr) {
   }
 }
 
-typedef struct {
-  rex::be<uint32_t> device_id;
-  rex::be<uint32_t> device_type;
-  rex::be<uint64_t> total_bytes;
-  rex::be<uint64_t> free_bytes;
+struct X_CONTENT_DEVICE_DATA {
+  be_u32 device_id;
+  be_u32 device_type;
+  be_u64 total_bytes;
+  be_u64 free_bytes;
   union {
-    rex::be<uint16_t> name[28];
+    be_u16 name[28];
     char16_t name_chars[28];
   };
-} X_CONTENT_DEVICE_DATA;
-static_assert_size(X_CONTENT_DEVICE_DATA, 0x50);
+};
+REX_STATIC_ASSERT_SIZE(X_CONTENT_DEVICE_DATA, 0x50);
 
 u32 XamContentGetDeviceData_entry(u32 device_id, ppc_ptr_t<X_CONTENT_DEVICE_DATA> device_data) {
   auto device_info = GetDummyDeviceInfo(device_id);
@@ -125,7 +124,7 @@ u32 XamContentGetDeviceData_entry(u32 device_id, ppc_ptr_t<X_CONTENT_DEVICE_DATA
 
 u32 XamContentCreateDeviceEnumerator_entry(u32 content_type, u32 content_flags, u32 max_count,
                                            mapped_u32 buffer_size_ptr, mapped_u32 handle_out) {
-  assert_not_null(handle_out);
+  REX_ASSERT(handle_out != nullptr);
 
   if (buffer_size_ptr) {
     *buffer_size_ptr = sizeof(X_CONTENT_DEVICE_DATA) * max_count;
@@ -136,7 +135,7 @@ u32 XamContentCreateDeviceEnumerator_entry(u32 content_type, u32 content_flags, 
   for (const auto& device_info : dummy_device_infos_) {
     // Copy our dummy device into the enumerator
     auto device_data = items.Append<X_CONTENT_DEVICE_DATA>();
-    assert_not_null(device_data);
+    REX_ASSERT(device_data != nullptr);
     if (device_data) {
       device_data->device_id = static_cast<uint32_t>(device_info->device_id);
       device_data->device_type = static_cast<uint32_t>(device_info->device_type);

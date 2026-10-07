@@ -1,6 +1,5 @@
 /**
  * @file        filesystem.h
- * @brief       The filesystem facade and the filesystem module config of rex::Config
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

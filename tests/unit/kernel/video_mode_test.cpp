@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/kernel/video_mode_test.cpp
- * @brief       VdQueryVideoMode reads the runtime video mode
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -31,9 +30,9 @@ TEST_CASE("VdQueryVideoMode returns the runtime video mode", "[kernel][video]") 
   fixture.RunOnGuestThread([expected](rex::testing::Caller&) {
     rex::runtime::X_VIDEO_MODE mode{};
     rex::kernel::xboxkrnl::VdQueryVideoMode(&mode);
-    CHECK(rex::u32(mode.display_width) == expected.width);
-    CHECK(rex::u32(mode.display_height) == expected.height);
-    CHECK(float(mode.refresh_rate) == expected.refresh_rate);
+    CHECK(static_cast<rex::u32>(mode.display_width) == expected.width);
+    CHECK(static_cast<rex::u32>(mode.display_height) == expected.height);
+    CHECK(static_cast<float>(mode.refresh_rate) == expected.refresh_rate);
   });
   CHECK(expected.width == 1280);
   CHECK(expected.height == 720);

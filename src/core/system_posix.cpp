@@ -1,6 +1,5 @@
 /**
  * @file        core/system_posix.cpp
- * @brief       POSIX implementations of rex/system.h platform helpers.
  *
  * @copyright   Copyright (c) 2026 Tom Clay
  * @license     BSD 3-Clause License

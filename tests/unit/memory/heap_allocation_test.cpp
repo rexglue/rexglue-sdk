@@ -1,6 +1,5 @@
 /**
  * @file        heap_allocation_test.cpp
- * @brief       Unit tests for memory heap allocation behavior
  *
  * These tests validate the BaseHeap allocation, protection, and query
  * operations based on observed runtime behavior.
@@ -112,7 +111,7 @@ TEST_CASE("Heap allocation rounds alignment up to page size", "[memory][heap]") 
         rex::runtime::kMemoryProtectRead | rex::runtime::kMemoryProtectWrite, false, &addr);
     REQUIRE(result);
 
-    // Address should be page-aligned (4096), not just 32-byte aligned
+    // Address should be page-aligned (4096), not only 32-byte aligned
     CHECK((addr % 4096) == 0);
 
     heap->Release(addr, nullptr);

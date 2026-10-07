@@ -85,7 +85,7 @@ bool IsExecutable(std::span<const u8> image) {
 }
 
 template <typename T>
-Result<T> FormatError(std::string message) {
+[[nodiscard]] Result<T> FormatError(std::string message) {
   return Err<T>(ErrorCategory::Format, std::move(message));
 }
 
@@ -585,7 +585,7 @@ Result<void> XEXImage::ApplyImageDelta(const XEXImage& patch, std::span<u8> imag
   return Ok();
 }
 
-Result<PEInfo> ParsePE(std::span<const u8> image) {
+[[nodiscard]] Result<PEInfo> ParsePE(std::span<const u8> image) {
   if (image.size() < sizeof(IMAGE_DOS_HEADER)) {
     return FormatError<PEInfo>("PE image is smaller than its DOS header");
   }

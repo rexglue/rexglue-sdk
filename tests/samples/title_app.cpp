@@ -1,6 +1,5 @@
 /**
  * @file        tests/samples/title_app.cpp
- * @brief       Compile check for REX_TITLE_APP
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

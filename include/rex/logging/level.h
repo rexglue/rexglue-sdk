@@ -1,6 +1,5 @@
 /**
  * @file        logging/level.h
- * @brief       Log levels and their names
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

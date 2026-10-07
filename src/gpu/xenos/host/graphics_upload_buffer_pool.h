@@ -12,6 +12,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 
 #include <rex/literals.h>
 
@@ -54,7 +55,7 @@ class GraphicsUploadBufferPool {
   Page* RequestPartial(uint64_t submission_index, size_t size, size_t alignment, size_t& offset_out,
                        size_t& size_out);
 
-  virtual Page* CreatePageImplementation() = 0;
+  virtual std::unique_ptr<Page> CreatePageImplementation() = 0;
 
   virtual void FlushPageWrites(Page* page, size_t offset, size_t size);
 
@@ -64,7 +65,7 @@ class GraphicsUploadBufferPool {
   size_t page_size_;
 
   // A list of buffers with free space, with the first buffer being the one
-  // currently being filled.
+  // being filled.
   Page* writable_first_ = nullptr;
   Page* writable_last_ = nullptr;
   // A list of full buffers that can be reclaimed when the GPU doesn't use them

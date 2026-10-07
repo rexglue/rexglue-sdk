@@ -1,6 +1,5 @@
 /**
  * @file        platform/fiber.h
- * @brief       Host OS fiber primitive for cooperative context switching
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

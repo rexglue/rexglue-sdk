@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/core/config_test.cpp
- * @brief       Unit tests for ParseCommandLine, LoadConfigFile, SaveConfigFile and ApplyEnvironment
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

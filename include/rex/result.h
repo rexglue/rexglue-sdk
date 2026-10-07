@@ -1,6 +1,5 @@
 /**
  * @file        result.h
- * @brief       Error handling using std::expected
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -18,7 +17,7 @@
 namespace rex {
 
 /**
- * Broad classification of an error. Sub-project specific codes go in Error::code.
+ * Broad classification of an error. Specific codes go in Error::code.
  */
 enum class ErrorCategory {
   NoError,        /**< Success. */
@@ -110,7 +109,7 @@ using Result = std::expected<T, Error>;
  * @return A Result<T> holding the value.
  */
 template <typename T>
-inline Result<T> Ok(T&& value) {
+[[nodiscard]] inline Result<T> Ok(T&& value) {
   return Result<T>(std::forward<T>(value));
 }
 
@@ -119,7 +118,7 @@ inline Result<T> Ok(T&& value) {
  *
  * @return A Result<void> holding success.
  */
-inline Result<void> Ok() {
+[[nodiscard]] inline Result<void> Ok() {
   return Result<void>();
 }
 

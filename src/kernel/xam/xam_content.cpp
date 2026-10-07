@@ -51,7 +51,7 @@ u32 XamContentResolve_entry(u32 user_index, mapped_void content_data_ptr, mapped
   // Result of buffer_ptr is sent to RtlInitAnsiString.
   // buffer_size is usually 260 (max path).
   // Games expect zero if resolve was successful.
-  assert_always();
+  REX_ASSERT_ALWAYS();
   REX_KERNEL_STUB("XamContentResolve");
   return X_ERROR_NOT_FOUND;
 }
@@ -61,7 +61,7 @@ u32 XamContentResolve_entry(u32 user_index, mapped_void content_data_ptr, mapped
 u32 XamContentCreateEnumerator_entry(u32 user_index, u32 device_id, u32 content_type,
                                      u32 content_flags, u32 items_per_enumerate,
                                      mapped_u32 buffer_size_ptr, mapped_u32 handle_out) {
-  assert_not_null(handle_out);
+  REX_ASSERT(handle_out != nullptr);
 
   auto device_info = device_id == 0 ? nullptr : GetDummyDeviceInfo(device_id);
   if ((device_id && device_info == nullptr) || !handle_out) {
@@ -82,7 +82,8 @@ u32 XamContentCreateEnumerator_entry(u32 user_index, u32 device_id, u32 content_
   if (!device_info || device_info->device_id == DummyDeviceId::HDD) {
     // Enumerate user-specific content
     auto content_datas = runtime::Current().content_manager().ListContent(
-        static_cast<uint32_t>(DummyDeviceId::HDD), xuid, XContentType(uint32_t(content_type)));
+        std::to_underlying(DummyDeviceId::HDD), xuid,
+        XContentType(static_cast<uint32_t>(content_type)));
     for (const auto& content_data : content_datas) {
       auto item = items.Append<XCONTENT_DATA>();
       *item = content_data;
@@ -91,7 +92,8 @@ u32 XamContentCreateEnumerator_entry(u32 user_index, u32 device_id, u32 content_
     // Also enumerate common content (xuid=0)
     if (xuid != 0) {
       auto common_datas = runtime::Current().content_manager().ListContent(
-          static_cast<uint32_t>(DummyDeviceId::HDD), 0, XContentType(uint32_t(content_type)));
+          std::to_underlying(DummyDeviceId::HDD), 0,
+          XContentType(static_cast<uint32_t>(content_type)));
       for (const auto& content_data : common_datas) {
         auto item = items.Append<XCONTENT_DATA>();
         *item = content_data;
@@ -139,7 +141,7 @@ u32 XamContentCreate(u32 user_index, mapped_string root_name, mapped_void conten
   } else if (content_data_size == sizeof(XCONTENT_AGGREGATE_DATA)) {
     content_data = *content_data_ptr.as<XCONTENT_AGGREGATE_DATA*>();
   } else {
-    assert_always();
+    REX_ASSERT_ALWAYS();
     return X_ERROR_INVALID_PARAMETER;
   }
 
@@ -209,7 +211,7 @@ u32 XamContentCreate(u32 user_index, mapped_string root_name, mapped_void conten
         }
         break;
       default:
-        assert_unhandled_case(flags & 0xF);
+        REX_UNHANDLED_CASE(flags & 0xF);
         break;
     }
 
@@ -343,7 +345,7 @@ u32 XamContentGetCreator_entry(u32 user_index, mapped_void content_data_ptr,
 u32 XamContentGetThumbnail_entry(u32 user_index, mapped_void content_data_ptr,
                                  mapped_void buffer_ptr, mapped_u32 buffer_size_ptr,
                                  mapped_void overlapped_ptr) {
-  assert_not_null(buffer_size_ptr);
+  REX_ASSERT(buffer_size_ptr != nullptr);
   uint32_t buffer_size = *buffer_size_ptr;
   uint64_t xuid = runtime::Current().content_manager().user_profile().xuid();
   XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_DATA*>();
@@ -356,18 +358,18 @@ u32 XamContentGetThumbnail_entry(u32 user_index, mapped_void content_data_ptr,
   }
   auto result = ToXResult(thumbnail);
 
-  *buffer_size_ptr = uint32_t(buffer.size());
+  *buffer_size_ptr = static_cast<uint32_t>(buffer.size());
 
   if (result == X_ERROR_SUCCESS) {
     // Write data, if we were given a pointer.
-    // This may have just been a size query.
+    // This may have been only a size query.
     if (buffer_ptr) {
       if (buffer_size < buffer.size()) {
         // Dest buffer too small.
         result = X_ERROR_INSUFFICIENT_BUFFER;
       } else {
         // Copy data.
-        std::memcpy((uint8_t*)buffer_ptr, buffer.data(), buffer.size());
+        std::memcpy(static_cast<uint8_t*>(buffer_ptr), buffer.data(), buffer.size());
       }
     }
   }
@@ -388,7 +390,8 @@ u32 XamContentSetThumbnail_entry(u32 user_index, mapped_void content_data_ptr,
   XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_DATA*>();
 
   // Buffer is PNG data.
-  auto buffer = std::vector<uint8_t>((uint8_t*)buffer_ptr, (uint8_t*)buffer_ptr + buffer_size);
+  auto buffer = std::vector<uint8_t>(static_cast<uint8_t*>(buffer_ptr),
+                                     static_cast<uint8_t*>(buffer_ptr) + buffer_size);
   auto result = ToXResult(runtime::Current().content_manager().SetContentThumbnail(
       xuid, content_data, std::move(buffer)));
 

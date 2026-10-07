@@ -63,7 +63,7 @@ TextureExtent TextureExtent::Calculate(const FormatInfo* format_info, u32 pitch,
 }
 
 TextureExtent TextureExtent::Calculate(const TextureInfo* info, bool is_guest) {
-  assert_not_null(info);
+  REX_ASSERT(info != nullptr);
   return CalculateExtent(info->format_info(), info->pitch, info->height + 1, info->depth + 1,
                          info->is_tiled, is_guest);
 }

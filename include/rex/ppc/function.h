@@ -1,6 +1,5 @@
 /**
  * @file        ppc/function.h
- * @brief       PPC calling convention translation, host/PPC wrappers, and hooks
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -15,6 +14,7 @@
 
 #include <array>
 #include <atomic>
+#include <bit>
 #include <concepts>
 #include <cstdint>
 #include <cstring>
@@ -101,7 +101,7 @@ struct ArgTranslator {
       }
     }
     // Stack arguments at r1 + 0x54 + ((arg - 8) * 8)
-    return __builtin_bswap32(
+    return std::byteswap(
         *rex::runtime::GuestPtr<uint32_t*>(base, ctx.r1.u32 + 0x54 + ((arg - 8) * 8)));
   }
 
@@ -176,7 +176,7 @@ struct ArgTranslator {
     }
     // Stack-passed arguments (mirrors GetIntegerArgumentValue layout)
     *rex::runtime::GuestPtr<uint32_t*>(base, ctx.r1.u32 + 0x54 + ((arg - 8) * 8)) =
-        __builtin_bswap32(static_cast<uint32_t>(value));
+        std::byteswap(static_cast<uint32_t>(value));
   }
 
   // Set float/double argument value

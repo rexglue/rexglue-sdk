@@ -146,7 +146,7 @@ void LogBacktrace() {
   }
 }
 
-Result<void> InstallPlatform() {
+[[nodiscard]] Result<void> InstallPlatform() {
   g_previous_filter = SetUnhandledExceptionFilter(CrashFilter);
   g_previous_abort = std::signal(SIGABRT, AbortSignal);
   if (g_previous_abort == SIG_ERR) {

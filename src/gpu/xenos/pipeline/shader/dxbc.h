@@ -68,7 +68,7 @@ class DxbcShader : public Shader {
   }
 
  protected:
-  Translation* CreateTranslationInstance(uint64_t modification) override;
+  std::unique_ptr<Translation> CreateTranslationInstance(uint64_t modification) override;
 
  private:
   friend class DxbcShaderTranslator;

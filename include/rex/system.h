@@ -1,6 +1,5 @@
 /**
  * @file        system.h
- * @brief       Host shell helpers such as native message boxes
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

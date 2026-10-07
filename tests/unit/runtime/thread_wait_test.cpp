@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/system/thread_wait_test.cpp
- * @brief       Unit tests for the bounded wait on guest threads
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

@@ -58,7 +58,7 @@ Record View(const CapturedRecord& record) {
 
 }  // namespace
 
-Result<Level> ParseLevel(std::string_view text) {
+[[nodiscard]] Result<Level> ParseLevel(std::string_view text) {
   const std::string lower = Lowercase(text);
   for (const auto& [index, name] : std::views::enumerate(kLevelNames)) {
     if (name == lower) {

@@ -1,6 +1,5 @@
 /**
  * @file        filesystem/error.h
- * @brief       Filesystem error codes carried in rex::Error
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

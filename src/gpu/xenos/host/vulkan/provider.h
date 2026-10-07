@@ -22,7 +22,11 @@ namespace gpu {
 namespace vulkan {
 
 class VulkanProvider : public GraphicsProvider {
+  struct Key {};
+
  public:
+  explicit VulkanProvider(Key) {}
+
   static std::unique_ptr<VulkanProvider> Create(bool with_gpu_emulation, bool with_presentation,
                                                 int32_t device_index);
 
@@ -39,8 +43,6 @@ class VulkanProvider : public GraphicsProvider {
   std::unique_ptr<ImmediateDrawer> CreateImmediateDrawer() override;
 
  private:
-  explicit VulkanProvider() = default;
-
   std::unique_ptr<VulkanInstance> vulkan_instance_;
 
   // Depends on the instance.

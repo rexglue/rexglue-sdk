@@ -1,6 +1,5 @@
 /**
  * @file        codegen/disasm.cpp
- * @brief       PPC disassembly implementation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -37,7 +36,7 @@ int DisassemblerEngine::Disassemble(const void* code, size_t size, uint64_t base
     return 0;
   }
 
-  info.buffer = (bfd_byte*)code;
+  info.buffer = static_cast<const bfd_byte*>(code);
   info.buffer_vma = base;
   info.buffer_length = size;
   return decode_insn_ppc(base, &info, &out);

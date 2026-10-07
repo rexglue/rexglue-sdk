@@ -15,6 +15,7 @@
 
 #include <rex/platform.h>
 #include <rex/platform/dynlib.h>
+#include <rex/types.h>
 #include "gpu/xenos/host/renderdoc_api.h"
 #include "gpu/xenos/host/vulkan/api.h"
 
@@ -22,14 +23,13 @@ namespace rex {
 namespace gpu {
 namespace vulkan {
 
-class VulkanInstance {
- public:
-  static std::unique_ptr<VulkanInstance> Create(bool with_surface, bool try_enable_validation);
+class VulkanInstance : public rex::NonCopyable {
+  struct Key {};
 
-  VulkanInstance(const VulkanInstance&) = delete;
-  VulkanInstance& operator=(const VulkanInstance&) = delete;
-  VulkanInstance(VulkanInstance&&) = delete;
-  VulkanInstance& operator=(VulkanInstance&&) = delete;
+ public:
+  explicit VulkanInstance(Key) {}
+
+  static std::unique_ptr<VulkanInstance> Create(bool with_surface, bool try_enable_validation);
 
   ~VulkanInstance();
 
@@ -117,8 +117,6 @@ class VulkanInstance {
   void EnumeratePhysicalDevices(std::vector<VkPhysicalDevice>& physical_devices_out) const;
 
  private:
-  explicit VulkanInstance() = default;
-
   std::unique_ptr<RenderDocAPI> renderdoc_api_;
 
   rex::platform::DynamicLibrary loader_;

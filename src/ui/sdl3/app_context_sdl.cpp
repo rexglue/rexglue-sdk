@@ -1,6 +1,5 @@
 /**
  * @file        ui/sdl3/app_context_sdl.cpp
- * @brief       SDL3 implementation of the windowed app UI loop context
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -90,7 +89,7 @@ int SDLWindowedAppContext::RunMainMessageLoop() {
 
 void SDLWindowedAppContext::PumpEvents(std::chrono::milliseconds max_wait) {
   SDL_Event event;
-  if (!SDL_WaitEventTimeout(&event, i32(max_wait.count()))) {
+  if (!SDL_WaitEventTimeout(&event, static_cast<i32>(max_wait.count()))) {
     return;
   }
   ProcessEvent(event);

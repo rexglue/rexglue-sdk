@@ -95,8 +95,8 @@ uint32_t DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
     return xenos::kTexture2DCubeMaxWidthHeight;
   }
 
-  assert_true(vertex_shader.type() == xenos::ShaderType::kVertex);
-  assert_true(vertex_shader.is_ucode_analyzed());
+  REX_ASSERT(vertex_shader.type() == xenos::ShaderType::kVertex);
+  REX_ASSERT(vertex_shader.is_ucode_analyzed());
   if (!ShaderInterpreter::CanInterpretShader(vertex_shader)) {
     return xenos::kTexture2DCubeMaxWidthHeight;
   }
@@ -118,10 +118,10 @@ uint32_t DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
       } else if (index_endian == xenos::Endian::k16in32) {
         index_endian = xenos::Endian::kNone;
       }
-      index_buffer_base &= ~uint32_t(sizeof(uint16_t) - 1);
+      index_buffer_base &= ~static_cast<uint32_t>(sizeof(uint16_t) - 1);
     } else {
-      assert_true(vgt_draw_initiator.index_size == xenos::IndexFormat::kInt32);
-      index_buffer_base &= ~uint32_t(sizeof(uint32_t) - 1);
+      REX_ASSERT(vgt_draw_initiator.index_size == xenos::IndexFormat::kInt32);
+      index_buffer_base &= ~static_cast<uint32_t>(sizeof(uint32_t) - 1);
     }
     index_buffer = memory_.TranslatePhysical(index_buffer_base);
   }
@@ -144,12 +144,12 @@ uint32_t DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
   float point_constant_radius_y = 0.0f;
   if (vgt_draw_initiator.prim_type == xenos::PrimitiveType::kPointList) {
     auto pa_su_point_minmax = regs.Get<xenos::reg::PA_SU_POINT_MINMAX>();
-    point_vertex_min_diameter_float =
-        rex::memory::Reinterpret<int32_t>(float(pa_su_point_minmax.min_size) * (2.0f / 16.0f));
-    point_vertex_max_diameter_float =
-        rex::memory::Reinterpret<int32_t>(float(pa_su_point_minmax.max_size) * (2.0f / 16.0f));
+    point_vertex_min_diameter_float = rex::memory::Reinterpret<int32_t>(
+        static_cast<float>(pa_su_point_minmax.min_size) * (2.0f / 16.0f));
+    point_vertex_max_diameter_float = rex::memory::Reinterpret<int32_t>(
+        static_cast<float>(pa_su_point_minmax.max_size) * (2.0f / 16.0f));
     point_constant_radius_y =
-        float(regs.Get<xenos::reg::PA_SU_POINT_SIZE>().height) * (1.0f / 16.0f);
+        static_cast<float>(regs.Get<xenos::reg::PA_SU_POINT_SIZE>().height) * (1.0f / 16.0f);
   }
 
   float max_y = -FLT_MAX;
@@ -176,7 +176,7 @@ uint32_t DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
         continue;
       }
     } else {
-      assert_true(vgt_draw_initiator.source_select == xenos::SourceSelect::kAutoIndex);
+      REX_ASSERT(vgt_draw_initiator.source_select == xenos::SourceSelect::kAutoIndex);
       vertex_index = i;
     }
     vertex_index =
@@ -184,7 +184,7 @@ uint32_t DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
 
     position_y_export_sink.Reset();
 
-    shader_interpreter_.temp_registers()[0] = float(vertex_index);
+    shader_interpreter_.temp_registers()[0] = static_cast<float>(vertex_index);
     shader_interpreter_.Execute();
 
     if (position_y_export_sink.vertex_kill().has_value() &&
@@ -243,7 +243,7 @@ uint32_t DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
   }
   // Top-left rule - .5 exclusive without MSAA, 1. exclusive with MSAA.
   auto rb_surface_info = regs.Get<xenos::reg::RB_SURFACE_INFO>();
-  return (uint32_t(std::max(int32_t(0), max_y_24p8)) +
+  return (static_cast<uint32_t>(std::max(static_cast<int32_t>(0), max_y_24p8)) +
           ((rb_surface_info.msaa_samples == xenos::MSAASamples::k1X) ? 127 : 255)) >>
          8;
 }
@@ -259,15 +259,15 @@ uint32_t DrawExtentEstimator::EstimateMaxY(bool try_to_estimate_vertex_max_y,
 
   // Scissor.
   auto pa_sc_window_scissor_br = regs.Get<xenos::reg::PA_SC_WINDOW_SCISSOR_BR>();
-  int32_t scissor_bottom = int32_t(pa_sc_window_scissor_br.br_y);
+  int32_t scissor_bottom = static_cast<int32_t>(pa_sc_window_scissor_br.br_y);
   bool scissor_window_offset =
       !regs.Get<xenos::reg::PA_SC_WINDOW_SCISSOR_TL>().window_offset_disable;
   if (scissor_window_offset) {
     scissor_bottom += window_y_offset;
   }
   auto pa_sc_screen_scissor_br = regs.Get<xenos::reg::PA_SC_SCREEN_SCISSOR_BR>();
-  scissor_bottom = std::min(scissor_bottom, int32_t(pa_sc_screen_scissor_br.br_y));
-  uint32_t max_y = uint32_t(std::max(scissor_bottom, int32_t(0)));
+  scissor_bottom = std::min(scissor_bottom, static_cast<int32_t>(pa_sc_screen_scissor_br.br_y));
+  uint32_t max_y = static_cast<uint32_t>(std::max(scissor_bottom, static_cast<int32_t>(0)));
 
   if (regs.Get<xenos::reg::PA_CL_CLIP_CNTL>().clip_disable) {
     // Actual extent from the vertices.
@@ -279,15 +279,16 @@ uint32_t DrawExtentEstimator::EstimateMaxY(bool try_to_estimate_vertex_max_y,
       } else {
         estimate_vertex_max_y = false;
         if (scissor_bottom >= xenos::kTexture2DCubeMaxWidthHeight) {
-          // Handle just the usual special 8192x8192 case in Direct3D 9 - 8192
+          // Handle the usual special 8192x8192 case in Direct3D 9 - 8192
           // may be a normal render target height (80x8192 is well within the
           // EDRAM size, for instance), no need to process the vertices on the
           // CPU in this case.
-          int32_t scissor_right = int32_t(pa_sc_window_scissor_br.br_x);
+          int32_t scissor_right = static_cast<int32_t>(pa_sc_window_scissor_br.br_x);
           if (scissor_window_offset) {
             scissor_right += pa_sc_window_offset.window_x_offset;
           }
-          scissor_right = std::min(scissor_right, int32_t(pa_sc_screen_scissor_br.br_x));
+          scissor_right =
+              std::min(scissor_right, static_cast<int32_t>(pa_sc_screen_scissor_br.br_x));
           if (scissor_right >= xenos::kTexture2DCubeMaxWidthHeight) {
             estimate_vertex_max_y = true;
           }
@@ -306,7 +307,7 @@ uint32_t DrawExtentEstimator::EstimateMaxY(bool try_to_estimate_vertex_max_y,
     // First calculate all the integer.0 or integer.5 offsetting exactly at full
     // precision.
     if (regs.Get<xenos::reg::PA_SU_SC_MODE_CNTL>().vtx_window_offset_enable) {
-      viewport_bottom += float(window_y_offset);
+      viewport_bottom += static_cast<float>(window_y_offset);
     }
     if (regs.Get<xenos::reg::PA_SU_VTX_CNTL>().pix_center == xenos::PixelCenter::kD3DZero) {
       viewport_bottom += 0.5f;
@@ -324,8 +325,9 @@ uint32_t DrawExtentEstimator::EstimateMaxY(bool try_to_estimate_vertex_max_y,
     // draw_util::GetHostViewportInfo.
     // max(0.0f, viewport_bottom) to drop NaN and < 0 - max picks the first
     // argument in the !(a < b) case (always for NaN), min as float (max_y is
-    // well below 2^24) to safely drop very large values.
-    max_y = uint32_t(std::min(float(max_y), std::max(0.0f, viewport_bottom)));
+    // well below 2^24) to safely drop large values.
+    max_y =
+        static_cast<uint32_t>(std::min(static_cast<float>(max_y), std::max(0.0f, viewport_bottom)));
   }
 
   return max_y;

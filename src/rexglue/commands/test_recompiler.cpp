@@ -1,6 +1,5 @@
 /**
  * @file        rexglue/commands/test_recompiler.cpp
- * @brief       Recompiler test command implementation
  *
  * @copyright   Copyright (c) 2026 Tom Clay
  * @license     BSD 3-Clause License

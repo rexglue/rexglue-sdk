@@ -27,7 +27,7 @@ void HalReturnToFirmware_entry(u32 routine) {
   // IN FIRMWARE_REENTRY  Routine
 
   // Routine must be 1 'HalRebootRoutine'
-  assert_true(routine == 1);
+  REX_ASSERT(routine == 1);
   REXLOG_INFO(kernel, "Title requested a return to firmware");
   runtime::Current().ExitTitle(rex::runtime::TitleExitReason::HardExit);
 }

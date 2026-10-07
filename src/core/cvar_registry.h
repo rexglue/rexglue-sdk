@@ -33,22 +33,23 @@ class REX_API CvarRegistryImpl final : public cvar::ICvarRegistry {
   CvarRegistryImpl() = default;
   ~CvarRegistryImpl() override;
 
-  Result<void> Register(std::string_view scope, std::span<const cvar::IVar* const> vars) override;
-  Result<void> Add(std::span<const cvar::IVar* const> vars) override;
+  [[nodiscard]] Result<void> Register(std::string_view scope,
+                                      std::span<const cvar::IVar* const> vars) override;
+  [[nodiscard]] Result<void> Add(std::span<const cvar::IVar* const> vars) override;
   void Unregister(std::span<const cvar::IVar* const> vars) override;
-  Result<void> Set(std::string_view name, std::string_view value) override;
-  Result<std::string> Get(std::string_view name) const override;
-  Result<void> SetDefault(std::string_view name, std::string_view value) override;
-  Result<void> Lock(std::string_view name) override;
-  Result<void> ResetToDefault(std::string_view name) override;
+  [[nodiscard]] Result<void> Set(std::string_view name, std::string_view value) override;
+  [[nodiscard]] Result<std::string> Get(std::string_view name) const override;
+  [[nodiscard]] Result<void> SetDefault(std::string_view name, std::string_view value) override;
+  [[nodiscard]] Result<void> Lock(std::string_view name) override;
+  [[nodiscard]] Result<void> ResetToDefault(std::string_view name) override;
   [[nodiscard]] std::optional<std::reference_wrapper<const cvar::IVar>> Find(
       std::string_view name) const override;
   cvar::CvarSource Source(std::string_view name) const override;
   std::vector<const cvar::IVar*> Enumerate(std::string_view scope = {}) const override;
   std::vector<std::string_view> Scopes() const override;
-  Result<cvar::CallbackHandle> OnChange(std::string_view name,
-                                        cvar::ChangeCallback callback) override;
-  Result<void> Invoke(std::string_view name, std::string_view args) override;
+  [[nodiscard]] Result<cvar::CallbackHandle> OnChange(std::string_view name,
+                                                      cvar::ChangeCallback callback) override;
+  [[nodiscard]] Result<void> Invoke(std::string_view name, std::string_view args) override;
   std::vector<std::string> PendingRestart() const override;
   std::string Serialize() const override;
   bool IsFinalized() const override;
@@ -59,11 +60,12 @@ class REX_API CvarRegistryImpl final : public cvar::ICvarRegistry {
    * Returns the overrides whose names are not registered. A rejected value is an error naming the
    * cvar, the value, the source and the reason.
    */
-  Result<std::vector<CvarOverride>> ApplyOverrides(std::span<const CvarOverride> overrides);
+  [[nodiscard]] Result<std::vector<CvarOverride>> ApplyOverrides(
+      std::span<const CvarOverride> overrides);
   /**
    * Locks every name. An unknown name is an error.
    */
-  Result<void> ApplyLocks(std::span<const std::string> names);
+  [[nodiscard]] Result<void> ApplyLocks(std::span<const std::string> names);
   /**
    * Marks the registry finalized. InitOnly is enforced and RequiresRestart marks pending from
    * here.
@@ -97,8 +99,10 @@ class REX_API CvarRegistryImpl final : public cvar::ICvarRegistry {
   void RemoveCallback(u64 id) override;
   Entry* FindEntry(std::string_view name);
   const Entry* FindEntry(std::string_view name) const;
-  Result<void> Validate(const Entry& entry, std::string_view value, cvar::CvarSource source) const;
-  Result<void> Apply(Entry& entry, std::string_view value, cvar::CvarSource source, Fired& fired);
+  [[nodiscard]] Result<void> Validate(const Entry& entry, std::string_view value,
+                                      cvar::CvarSource source) const;
+  [[nodiscard]] Result<void> Apply(Entry& entry, std::string_view value, cvar::CvarSource source,
+                                   Fired& fired);
   void Fire(Fired& fired);
   void ApplyPending(Entry& entry, Fired& fired);
   std::string_view DefaultOf(const Entry& entry) const;

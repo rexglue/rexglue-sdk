@@ -1,6 +1,5 @@
 /**
  * @file        codegen/internal/ppc/opcodes.cpp
- * @brief       PPC opcode table implementation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -397,7 +396,7 @@ static const std::array<OpcodeInfo, 320> g_opcode_table = {{
     {Opcode::mtvscr, InstrFormat::kX, OpcodeGroup::kVector, "mtvscr", 4, 1604, true},
 
     //=========================================================================
-    // VMX128 (Xbox 360 Extensions)
+    // VMX128 Extensions
     //=========================================================================
     {Opcode::lvx128, InstrFormat::kX, OpcodeGroup::kVector, "lvx128", 4, 0, true},
     {Opcode::stvx128, InstrFormat::kX, OpcodeGroup::kVector, "stvx128", 4, 0, true},
@@ -469,7 +468,7 @@ static void init_opcode_lookup_map_impl() {
     if (info.opcode == Opcode::kUnknown)
       continue;
 
-    u64 key = ((u64)info.primary_opcode << 32) | info.extended_opcode;
+    u64 key = (static_cast<u64>(info.primary_opcode) << 32) | info.extended_opcode;
     g_opcode_lookup_map[key] = i;
   }
 }
@@ -1043,7 +1042,7 @@ Opcode lookup_opcode(u32 code) {
         return Opcode::vcmpgtsw;
     }
 
-    // VMX128 Load/Store instructions (Xbox 360 extension)
+    // VMX128 Load/Store instructions
     // These use primary opcode 4 with bits 30-31 = 11 (value 3)
     u32 bits_30_31 = code & 0x3;  // Extract bits 30-31
     if (bits_30_31 == 3) {

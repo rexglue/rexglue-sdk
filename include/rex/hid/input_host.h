@@ -1,6 +1,5 @@
 /**
  * @file        hid/input_host.h
- * @brief       The window side of the HID backend
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

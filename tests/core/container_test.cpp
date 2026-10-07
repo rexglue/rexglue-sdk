@@ -1,6 +1,5 @@
 /**
  * @file        tests/core/container_test.cpp
- * @brief       Tests for the container parsers, the host file helpers and the flag operators
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -36,7 +35,7 @@ enum class ContainerTestFlags : u8 {
 };
 
 template <>
-// NOLINTNEXTLINE(readability-identifier-naming): charter 12.1 names the trait
+// NOLINTNEXTLINE(readability-identifier-naming): the trait uses snake case
 inline constexpr bool is_flags_enum<ContainerTestFlags> = true;
 
 }  // namespace rex

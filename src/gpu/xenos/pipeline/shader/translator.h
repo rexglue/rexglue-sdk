@@ -48,7 +48,7 @@ class ShaderTranslator {
   // Resets translator state before beginning translation.
   virtual void Reset();
 
-  // Shader and modification currently being translated.
+  // Shader and modification being translated.
   Shader::Translation& current_translation() const { return *translation_; }
   Shader& current_shader() const { return current_translation().shader(); }
 
@@ -68,7 +68,7 @@ class ShaderTranslator {
   virtual void EmitTranslationError(const char* message, bool is_fatal = true);
 
   // Handles the start of translation.
-  // At this point the vertex and texture bindings have been gathered.
+  // The vertex and texture bindings have been gathered.
   virtual void StartTranslation() {}
 
   // Handles the end of translation when all ucode has been processed.

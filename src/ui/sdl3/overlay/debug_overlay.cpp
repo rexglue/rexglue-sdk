@@ -1,8 +1,6 @@
 /**
  * @file        ui/sdl3/overlay/debug_overlay.cpp
  *
- * @brief       Debug overlay implementation. See debug_overlay.h for details.
- *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
  *

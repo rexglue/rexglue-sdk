@@ -27,7 +27,7 @@ class Runtime;
 namespace rex::runtime {
 
 struct XSOCKADDR {
-  rex::be<uint16_t> address_family;
+  be_u16 address_family;
   char sa_data[14];
 };
 
@@ -45,11 +45,11 @@ struct N_XSOCKADDR {
 };
 
 struct XSOCKADDR_IN {
-  rex::be<uint16_t> sin_family;
+  be_u16 sin_family;
 
   // Always big-endian!
-  rex::be<uint16_t> sin_port;
-  rex::be<uint32_t> sin_addr;
+  be_u16 sin_port;
+  be_u32 sin_addr;
   // sin_zero is defined as __pad on Android, so prefixed here.
   char x_sin_zero[8];
 };
@@ -68,8 +68,8 @@ struct N_XSOCKADDR_IN {
   }
 
   uint16_t sin_family;
-  rex::be<uint16_t> sin_port;
-  rex::be<uint32_t> sin_addr;
+  be_u16 sin_port;
+  be_u32 sin_addr;
   // sin_zero is defined as __pad on Android, so prefixed here.
   char x_sin_zero[8];
 };

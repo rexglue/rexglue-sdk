@@ -93,11 +93,11 @@ static int (*android_ASharedMemory_create_)(const char* name, size_t size);
 void AndroidInitialize() {
   if (rex::GetAndroidApiLevel() >= 26) {
     libandroid_ = dlopen("libandroid.so", RTLD_NOW);
-    assert_not_null(libandroid_);
+    REX_ASSERT(libandroid_ != nullptr);
     if (libandroid_) {
       android_ASharedMemory_create_ = reinterpret_cast<decltype(android_ASharedMemory_create_)>(
           dlsym(libandroid_, "ASharedMemory_create"));
-      assert_not_null(android_ASharedMemory_create_);
+      REX_ASSERT(android_ASharedMemory_create_ != nullptr);
     }
   }
 }
@@ -131,7 +131,7 @@ uint32_t ToPosixProtectFlags(PageAccess access) {
     case PageAccess::kExecuteReadWrite:
       return PROT_READ | PROT_WRITE | PROT_EXEC;
     default:
-      assert_unhandled_case(access);
+      REX_UNHANDLED_CASE(access);
       return PROT_NONE;
   }
 }
@@ -333,7 +333,7 @@ bool DeallocFixed(void* base_address, size_t length, DeallocationType deallocati
     }
     default:
       // how we get here? :(
-      assert_always();
+      REX_ASSERT_ALWAYS();
       return false;
   }
 }
@@ -351,9 +351,9 @@ bool Protect(void* base_address, size_t length, PageAccess access, PageAccess* o
     QueryProtect(base_address, old_region_length, *out_old_access);
   }
 #elif REX_PLATFORM_LINUX
-  // NOTE(tomc): we may want to look at doing this differently. it should work for now
+  // NOTE(tomc): we may want to look at doing this differently. it should work
   //             but there is a TOCTOU window between reading and changing.
-  //             This really shouldn't be an issue since VirtualProtect on Windows isn't truly
+  //             This shouldn't be an issue since VirtualProtect on Windows isn't truly
   //             atomic in a mutli-threaded process either, but it's something to be aware of.
   // Query old access before changing, if the caller needs it
   if (out_old_access) {
@@ -469,7 +469,7 @@ FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, siz
       oflag = O_RDWR;
       break;
     default:
-      assert_always();
+      REX_ASSERT_ALWAYS();
       return kFileMappingHandleInvalid;
   }
   oflag |= O_CREAT;

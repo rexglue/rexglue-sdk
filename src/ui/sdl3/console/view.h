@@ -1,6 +1,5 @@
 /**
  * @file        ui/sdl3/console/view.h
- * @brief       ImGui drawing of a console model
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

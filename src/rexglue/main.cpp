@@ -1,6 +1,5 @@
 /**
  * @file        rexglue/main.cpp
- * @brief       ReXGlue CLI tool entry point
  *
  * @copyright   Copyright (c) 2026 Tom Clay
  * @license     BSD 3-Clause License
@@ -45,8 +44,8 @@ bool ColorEnabled(bool tty) {
   return tty;
 }
 
-rex::Result<void> StartLogging(const std::string& level, const std::string& log_file,
-                               bool verbose) {
+[[nodiscard]] rex::Result<void> StartLogging(const std::string& level, const std::string& log_file,
+                                             bool verbose) {
   rex::LogConfig config;
   config.debugger = false;
   config.format.category = false;

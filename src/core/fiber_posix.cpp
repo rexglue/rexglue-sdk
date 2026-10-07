@@ -1,6 +1,5 @@
 /**
  * @file        rex/core/fiber_posix.cpp
- * @brief       POSIX backend for rex::platform::Fiber (makecontext/swapcontext)
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -20,6 +19,7 @@
 #include <rex/platform/fiber.h>
 
 #include <cassert>
+#include <memory>
 
 namespace rex::platform {
 
@@ -32,31 +32,29 @@ Fiber* Fiber::Current() {
 }
 
 Fiber* Fiber::ConvertCurrentThread() {
-  auto* f = new Fiber();
+  auto f = std::make_unique<Fiber>();
   if (getcontext(&f->context_) == -1) {
-    delete f;
     return nullptr;
   }
   f->is_thread_fiber_ = true;
-  g_current_fiber = f;
-  return f;
+  g_current_fiber = f.get();
+  return f.release();
 }
 
 Fiber* Fiber::Create(size_t stack_size, void (*entry)(void*), void* arg) {
-  auto* f = new Fiber();
+  auto f = std::make_unique<Fiber>();
   f->entry_ = entry;
   f->arg_ = arg;
   f->stack_.resize(stack_size);
 
   if (getcontext(&f->context_) == -1) {
-    delete f;
     return nullptr;
   }
   f->context_.uc_stack.ss_sp = f->stack_.data();
   f->context_.uc_stack.ss_size = f->stack_.size();
   f->context_.uc_link = nullptr;
   makecontext(&f->context_, &Fiber::Trampoline, 0);
-  return f;
+  return f.release();
 }
 
 /*static*/ void Fiber::Trampoline() {

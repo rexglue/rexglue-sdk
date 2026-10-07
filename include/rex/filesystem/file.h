@@ -1,6 +1,5 @@
 /**
  * @file        filesystem/file.h
- * @brief       An open file or directory of the mount table
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -49,7 +48,7 @@ class IFile {
   [[nodiscard]] virtual Access access() const = 0;
 
   /**
-   * Returns the volume the file lives on.
+   * Returns the volume the file resides on.
    *
    * @return The volume information of the mount.
    */
@@ -106,7 +105,7 @@ class IFile {
   [[nodiscard]] virtual Result<void> SetTimes(const FileTimes& times) = 0;
 
   /**
-   * Records a delete on close request on the node.
+   * Stores a delete on close request on the node.
    *
    * @param delete_on_close True to request, false to withdraw.
    */
@@ -123,7 +122,7 @@ class IFile {
   /**
    * Returns the whole file as read only bytes without a copy.
    *
-   * @return The bytes, valid while this file lives, or kUnsupported.
+   * @return The bytes, valid while this file exists, or kUnsupported.
    */
   [[nodiscard]] virtual Result<std::span<const u8>> View() = 0;
 };

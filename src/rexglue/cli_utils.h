@@ -20,6 +20,6 @@ struct CLIContext {
   bool generate_despite_errors = false;
 };
 
-using DeferredAction = std::function<rex::Result<void>()>;
+using DeferredAction = std::move_only_function<rex::Result<void>()>;
 
 }  // namespace rexglue::cli

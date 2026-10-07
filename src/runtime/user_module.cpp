@@ -71,7 +71,7 @@ X_HANDLE CreateUserModule(Runtime& runtime) {
 }
 
 rex::runtime::XexModule* UserModuleXEX(const ModuleObject& module) {
-  assert_true(module.user.module_format == ModuleFormat::Xex);
+  REX_ASSERT(module.user.module_format == ModuleFormat::Xex);
   return static_cast<rex::runtime::XexModule*>(module.processor_module);
 }
 
@@ -153,24 +153,23 @@ X_STATUS UserModuleLoadFromMemory(Runtime& runtime, ModuleObject& module, const 
   } else if (magic == runtime::kElfSignature) {
     module.user.module_format = ModuleFormat::Elf;
   } else {
-    REX_FAIL(system, X_STATUS_NOT_IMPLEMENTED, "Unknown module magic: {:08X}", u32(magic));
+    REX_FAIL(system, X_STATUS_NOT_IMPLEMENTED, "Unknown module magic: {:08X}",
+             static_cast<u32>(magic));
   }
 
   if (module.user.module_format == ModuleFormat::Xex) {
-    auto xex_module = new runtime::XexModule(dispatcher, runtime);
+    auto xex_module = std::make_unique<runtime::XexModule>(dispatcher, runtime);
     if (!xex_module->Load(module.name, module.path, addr, length)) {
-      delete xex_module;
       return X_STATUS_UNSUCCESSFUL;
     }
 
-    module.processor_module = xex_module;
+    module.processor_module = xex_module.release();
     return X_STATUS_PENDING;
   }
 
   if (module.user.module_format == ModuleFormat::Elf) {
-    auto elf_module = new runtime::ElfModule(dispatcher);
+    auto elf_module = std::make_unique<runtime::ElfModule>(dispatcher);
     if (!elf_module->Load(module.name, module.path, addr, length)) {
-      delete elf_module;
       return X_STATUS_UNSUCCESSFUL;
     }
 
@@ -178,7 +177,7 @@ X_STATUS UserModuleLoadFromMemory(Runtime& runtime, ModuleObject& module, const 
     module.user.stack_size = 1024 * 1024;
     module.user.is_dll_module = false;
 
-    module.processor_module = elf_module;
+    module.processor_module = elf_module.release();
     return X_STATUS_SUCCESS;
   }
 
@@ -200,7 +199,7 @@ X_STATUS UserModuleUnload(ModuleObject& module) {
 }
 
 X_STATUS UserModuleGetOptHeader(ModuleObject& module, xex2_header_keys key, void** out_ptr) {
-  assert_not_null(out_ptr);
+  REX_ASSERT(out_ptr != nullptr);
 
   if (module.user.module_format == ModuleFormat::Elf) {
     return X_STATUS_UNSUCCESSFUL;
@@ -239,7 +238,7 @@ X_STATUS UserModuleGetOptHeader(ModuleObject& module, xex2_header_keys key,
 
 X_STATUS UserModuleGetOptHeader(const runtime::Memory* memory, const xex2_header* header,
                                 xex2_header_keys key, u32* out_header_guest_ptr) {
-  assert_not_null(out_header_guest_ptr);
+  REX_ASSERT(out_header_guest_ptr != nullptr);
   const auto entry = filesystem::FindOptHeaderEntry(
       std::span(reinterpret_cast<const u8*>(header), header->header_size), key);
   if (!entry) {

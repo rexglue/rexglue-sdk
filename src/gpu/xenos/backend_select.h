@@ -1,6 +1,5 @@
 /**
  * @file        graphics/backend_select.h
- * @brief       Host API selection from GPUConfig::backend
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -53,7 +52,8 @@ inline constexpr std::string_view kPlatformName = "linux";
  * @param available The host APIs the platform builds, in preference order.
  * @return The host API, or an error naming the backend and the platform.
  */
-inline Result<HostAPI> SelectHostAPI(std::string_view name, std::span<const HostAPI> available) {
+[[nodiscard]] inline Result<HostAPI> SelectHostAPI(std::string_view name,
+                                                   std::span<const HostAPI> available) {
   if (name == "null") {
     return HostAPI::kNull;
   }

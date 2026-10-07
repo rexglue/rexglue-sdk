@@ -1,6 +1,5 @@
 /**
  * @file        rexglue/commands/init_command.h
- * @brief       Project initialization command interface
  *
  * @copyright   Copyright (c) 2026 Tom Clay
  * @license     BSD 3-Clause License
@@ -46,9 +45,10 @@ struct InitAchievementsOptions {
   uint32_t language = 1;
 };
 
-Result<void> InitProject(const InitOptions& opts, const CLIContext& ctx);
-Result<void> InitModule(const InitModuleOptions& opts, const CLIContext& ctx);
-Result<void> InitAchievements(const InitAchievementsOptions& opts, const CLIContext& ctx);
+[[nodiscard]] Result<void> InitProject(const InitOptions& opts, const CLIContext& ctx);
+[[nodiscard]] Result<void> InitModule(const InitModuleOptions& opts, const CLIContext& ctx);
+[[nodiscard]] Result<void> InitAchievements(const InitAchievementsOptions& opts,
+                                            const CLIContext& ctx);
 
 void RegisterInit(CLI::App& parent, const CLIContext& ctx, DeferredAction& pending);
 

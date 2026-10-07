@@ -82,7 +82,7 @@ inline uint32_t ChooseMemoryType(const VulkanDevice::MemoryTypes& memory_types,
       return ChooseHostMemoryType(memory_types, supported_types,
                                   purpose == MemoryPurpose::kReadback);
     default:
-      assert_unhandled_case(purpose);
+      REX_UNHANDLED_CASE(purpose);
       return UINT32_MAX;
   }
 }

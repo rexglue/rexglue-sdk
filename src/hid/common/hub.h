@@ -105,7 +105,7 @@ class Hub final : public IBackend, public NonCopyable {
   Driver* DriverForDeviceLocked(DeviceId id);
   const DeviceInfo* DeviceInfoForLocked(DeviceId id) const;
   DeviceId ChooseDeviceForUserLocked(u32 user) const;
-  Result<X_INPUT_STATE> ReadStateLocked(u32 user);
+  [[nodiscard]] Result<X_INPUT_STATE> ReadStateLocked(u32 user);
   void UpdateConnectedUserLocked(u32 user, bool connected);
   void AdjustDeadzoneLevels(u32 user, X_INPUT_GAMEPAD& gamepad) const;
   PointerMode EffectiveMode() const;

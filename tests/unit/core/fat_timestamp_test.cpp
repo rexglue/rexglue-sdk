@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/core/fat_timestamp_test.cpp
- * @brief       decode_fat_timestamp against known FILETIME values
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

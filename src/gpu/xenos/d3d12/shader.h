@@ -48,7 +48,7 @@ class D3D12Shader : public DxbcShader {
   void SetSamplerBindingLayoutUserUID(size_t uid) { sampler_binding_layout_user_uid_ = uid; }
 
  protected:
-  Translation* CreateTranslationInstance(uint64_t modification) override;
+  std::unique_ptr<Translation> CreateTranslationInstance(uint64_t modification) override;
 
  private:
   std::atomic_flag binding_layout_user_uids_set_up_ = ATOMIC_FLAG_INIT;

@@ -37,7 +37,7 @@ void AddODDContentTest(StaticItems& items, XContentType content_type) {
     return;
   }
 
-  auto content_type_path = std::format("{:08X}", uint32_t(content_type));
+  auto content_type_path = std::format("{:08X}", static_cast<uint32_t>(content_type));
 
   while (auto title_entry = (*titles)->Next()) {
     auto title_id = rex::from_string<uint32_t>(title_entry->name, true);
@@ -48,9 +48,9 @@ void AddODDContentTest(StaticItems& items, XContentType content_type) {
     if (contents) {
       while (auto content_entry = (*contents)->Next()) {
         auto item = items.Append<XCONTENT_AGGREGATE_DATA>();
-        assert_not_null(item);
+        REX_ASSERT(item != nullptr);
         if (item) {
-          item->device_id = static_cast<uint32_t>(DummyDeviceId::ODD);
+          item->device_id = std::to_underlying(DummyDeviceId::ODD);
           item->content_type = content_type;
           item->set_display_name(to_utf16(content_entry->name));
           item->set_file_name(content_entry->name);
@@ -63,7 +63,7 @@ void AddODDContentTest(StaticItems& items, XContentType content_type) {
 
 u32 XamContentAggregateCreateEnumerator_entry(u64 xuid, u32 device_id, u32 content_type, u32 unk3,
                                               mapped_u32 handle_out) {
-  assert_not_null(handle_out);
+  REX_ASSERT(handle_out != nullptr);
 
   auto device_info = device_id == 0 ? nullptr : GetDummyDeviceInfo(device_id);
   if ((device_id && device_info == nullptr) || !handle_out) {
@@ -72,13 +72,13 @@ u32 XamContentAggregateCreateEnumerator_entry(u64 xuid, u32 device_id, u32 conte
 
   StaticItems items(1, sizeof(XCONTENT_AGGREGATE_DATA));
 
-  auto content_type_enum = XContentType(uint32_t(content_type));
+  auto content_type_enum = XContentType(static_cast<uint32_t>(content_type));
 
   uint64_t userxuid = runtime::Current().content_manager().user_profile().xuid();
 
   if (!device_info || device_info->device_type == DeviceType::HDD) {
     // Fetch any alternate title IDs defined in the XEX header
-    // (used by games to load saves from other titles, etc)
+    // (used by games to load saves from other titles)
     std::vector<uint32_t> title_ids{kCurrentlyRunningTitleId};
     auto exe_module = runtime::Current().object_table().Get<ModuleObject>(
         runtime::Current().module_registry().executable().value_or(0));
@@ -90,10 +90,10 @@ u32 XamContentAggregateCreateEnumerator_entry(u64 xuid, u32 device_id, u32 conte
     for (auto& title_id : title_ids) {
       // Get user-specific content
       auto content_datas = runtime::Current().content_manager().ListContent(
-          static_cast<uint32_t>(DummyDeviceId::HDD), xuid, content_type_enum, title_id);
+          std::to_underlying(DummyDeviceId::HDD), xuid, content_type_enum, title_id);
       for (const auto& content_data : content_datas) {
         auto item = items.Append<XCONTENT_AGGREGATE_DATA>();
-        assert_not_null(item);
+        REX_ASSERT(item != nullptr);
         if (item) {
           *item = content_data;
         }
@@ -102,10 +102,10 @@ u32 XamContentAggregateCreateEnumerator_entry(u64 xuid, u32 device_id, u32 conte
       // Also get common content (xuid=0)
       if (userxuid != 0) {
         auto common_datas = runtime::Current().content_manager().ListContent(
-            static_cast<uint32_t>(DummyDeviceId::HDD), 0, content_type_enum, title_id);
+            std::to_underlying(DummyDeviceId::HDD), 0, content_type_enum, title_id);
         for (const auto& content_data : common_datas) {
           auto item = items.Append<XCONTENT_AGGREGATE_DATA>();
-          assert_not_null(item);
+          REX_ASSERT(item != nullptr);
           if (item) {
             *item = content_data;
           }

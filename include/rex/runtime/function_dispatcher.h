@@ -66,8 +66,8 @@ class REX_RUNTIME_API FunctionDispatcher : public IModuleRegistrar {
                             size_t arg_count);
 
   /**
-   * Executes guest code on a thread already running guest code, then restores
-   * its full register state, matching the 360 kernel's trap-frame APC delivery.
+   * Executes recompiled code on a thread already running recompiled code, then restores
+   * its full register state, matching the console kernel's trap-frame APC delivery.
    */
   uint64_t ExecuteTrap(ThreadState* thread_state, uint32_t address, uint64_t args[],
                        size_t arg_count);
@@ -95,7 +95,7 @@ class REX_RUNTIME_API FunctionDispatcher : public IModuleRegistrar {
   uint32_t FindCallerModuleBase(uint32_t guest_address);
 
   /**
-   * Register a module while recording guest addresses written via SetFunction.
+   * Register a module while tracking guest addresses written via SetFunction.
    * `code_base` must equal the value previously passed to InitializeFunctionTable
    * for the same module.
    */
@@ -145,7 +145,7 @@ class REX_RUNTIME_API FunctionDispatcher : public IModuleRegistrar {
     std::vector<uint32_t> addresses;
   };
 
-  // Recorded state per module, keyed by module_id.
+  // Stored state per module, keyed by module_id.
   std::unordered_map<std::string, ModuleRegistration> module_addresses_;
 
   // Protects dispatcher metadata during module registration and callback dispatch.

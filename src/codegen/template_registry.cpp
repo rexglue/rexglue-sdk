@@ -1,6 +1,5 @@
 /**
  * @file        codegen/template_registry.cpp
- * @brief       Template registry implementation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  * @license     BSD 3-Clause License

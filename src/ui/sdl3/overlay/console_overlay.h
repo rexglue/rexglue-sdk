@@ -1,6 +1,5 @@
 /**
  * @file        ui/sdl3/overlay/console_overlay.h
- * @brief       Console overlay docked in the title window
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

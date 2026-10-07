@@ -1,8 +1,6 @@
 /**
  * @file        ui/sdl3/overlay/settings_overlay.h
  *
- * @brief       ImGui settings overlay dialog for cvar editing with save-to-config.
- *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
  *

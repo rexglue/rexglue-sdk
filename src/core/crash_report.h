@@ -112,7 +112,7 @@ void WriteBacktraceFrame(u32 index, u64 address);
  *
  * @return Ok, or a Platform error.
  */
-Result<void> InstallPlatform();
+[[nodiscard]] Result<void> InstallPlatform();
 
 /** Restores what InstallPlatform replaced. */
 void UninstallPlatform();

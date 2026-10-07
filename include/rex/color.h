@@ -1,6 +1,5 @@
 /**
  * @file        color.h
- * @brief       The color value type shared by every ReX layer
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

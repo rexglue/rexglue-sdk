@@ -12,7 +12,9 @@
 #include <rex/memory/utils.h>
 #include <rex/platform.h>
 
-#if REX_ARCH_ARM64
+#if REX_ARCH_AMD64
+#include <simde/x86/ssse3.h>
+#elif REX_ARCH_ARM64
 #include <arm_neon.h>
 #endif
 
@@ -47,19 +49,19 @@ void copy_128_aligned(void* dest, const void* src, size_t count) {
 #define REX_WORKAROUND_CONSTANT_RETURN_IF(x)
 #endif
 void copy_and_swap_16_aligned(void* dest_ptr, const void* src_ptr, size_t count) {
-  assert_zero(reinterpret_cast<uintptr_t>(dest_ptr) & 0xF);
-  assert_zero(reinterpret_cast<uintptr_t>(src_ptr) & 0xF);
+  REX_ASSERT((reinterpret_cast<uintptr_t>(dest_ptr) & 0xF) == 0);
+  REX_ASSERT((reinterpret_cast<uintptr_t>(src_ptr) & 0xF) == 0);
 
   auto dest = reinterpret_cast<uint16_t*>(dest_ptr);
   auto src = reinterpret_cast<const uint16_t*>(src_ptr);
-  __m128i shufmask = _mm_set_epi8(0x0E, 0x0F, 0x0C, 0x0D, 0x0A, 0x0B, 0x08, 0x09, 0x06, 0x07, 0x04,
-                                  0x05, 0x02, 0x03, 0x00, 0x01);
+  simde__m128i shufmask = simde_mm_set_epi8(0x0E, 0x0F, 0x0C, 0x0D, 0x0A, 0x0B, 0x08, 0x09, 0x06,
+                                            0x07, 0x04, 0x05, 0x02, 0x03, 0x00, 0x01);
 
   size_t i = 0;
   for (i = 0; i + 8 <= count; i += 8) {
-    __m128i input = _mm_load_si128(reinterpret_cast<const __m128i*>(&src[i]));
-    __m128i output = _mm_shuffle_epi8(input, shufmask);
-    _mm_store_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
+    simde__m128i input = simde_mm_load_si128(reinterpret_cast<const simde__m128i*>(&src[i]));
+    simde__m128i output = simde_mm_shuffle_epi8(input, shufmask);
+    simde_mm_store_si128(reinterpret_cast<simde__m128i*>(&dest[i]), output);
   }
   REX_WORKAROUND_CONSTANT_RETURN_IF(count % 8 == 0);
   for (; i < count; ++i) {  // handle residual elements
@@ -70,14 +72,14 @@ void copy_and_swap_16_aligned(void* dest_ptr, const void* src_ptr, size_t count)
 void copy_and_swap_16_unaligned(void* dest_ptr, const void* src_ptr, size_t count) {
   auto dest = reinterpret_cast<uint16_t*>(dest_ptr);
   auto src = reinterpret_cast<const uint16_t*>(src_ptr);
-  __m128i shufmask = _mm_set_epi8(0x0E, 0x0F, 0x0C, 0x0D, 0x0A, 0x0B, 0x08, 0x09, 0x06, 0x07, 0x04,
-                                  0x05, 0x02, 0x03, 0x00, 0x01);
+  simde__m128i shufmask = simde_mm_set_epi8(0x0E, 0x0F, 0x0C, 0x0D, 0x0A, 0x0B, 0x08, 0x09, 0x06,
+                                            0x07, 0x04, 0x05, 0x02, 0x03, 0x00, 0x01);
 
   size_t i;
   for (i = 0; i + 8 <= count; i += 8) {
-    __m128i input = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&src[i]));
-    __m128i output = _mm_shuffle_epi8(input, shufmask);
-    _mm_storeu_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
+    simde__m128i input = simde_mm_loadu_si128(reinterpret_cast<const simde__m128i*>(&src[i]));
+    simde__m128i output = simde_mm_shuffle_epi8(input, shufmask);
+    simde_mm_storeu_si128(reinterpret_cast<simde__m128i*>(&dest[i]), output);
   }
   REX_WORKAROUND_CONSTANT_RETURN_IF(count % 8 == 0);
   for (; i < count; ++i) {  // handle residual elements
@@ -86,19 +88,19 @@ void copy_and_swap_16_unaligned(void* dest_ptr, const void* src_ptr, size_t coun
 }
 
 void copy_and_swap_32_aligned(void* dest_ptr, const void* src_ptr, size_t count) {
-  assert_zero(reinterpret_cast<uintptr_t>(dest_ptr) & 0xF);
-  assert_zero(reinterpret_cast<uintptr_t>(src_ptr) & 0xF);
+  REX_ASSERT((reinterpret_cast<uintptr_t>(dest_ptr) & 0xF) == 0);
+  REX_ASSERT((reinterpret_cast<uintptr_t>(src_ptr) & 0xF) == 0);
 
   auto dest = reinterpret_cast<uint32_t*>(dest_ptr);
   auto src = reinterpret_cast<const uint32_t*>(src_ptr);
-  __m128i shufmask = _mm_set_epi8(0x0C, 0x0D, 0x0E, 0x0F, 0x08, 0x09, 0x0A, 0x0B, 0x04, 0x05, 0x06,
-                                  0x07, 0x00, 0x01, 0x02, 0x03);
+  simde__m128i shufmask = simde_mm_set_epi8(0x0C, 0x0D, 0x0E, 0x0F, 0x08, 0x09, 0x0A, 0x0B, 0x04,
+                                            0x05, 0x06, 0x07, 0x00, 0x01, 0x02, 0x03);
 
   size_t i;
   for (i = 0; i + 4 <= count; i += 4) {
-    __m128i input = _mm_load_si128(reinterpret_cast<const __m128i*>(&src[i]));
-    __m128i output = _mm_shuffle_epi8(input, shufmask);
-    _mm_store_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
+    simde__m128i input = simde_mm_load_si128(reinterpret_cast<const simde__m128i*>(&src[i]));
+    simde__m128i output = simde_mm_shuffle_epi8(input, shufmask);
+    simde_mm_store_si128(reinterpret_cast<simde__m128i*>(&dest[i]), output);
   }
   REX_WORKAROUND_CONSTANT_RETURN_IF(count % 4 == 0);
   for (; i < count; ++i) {  // handle residual elements
@@ -109,14 +111,14 @@ void copy_and_swap_32_aligned(void* dest_ptr, const void* src_ptr, size_t count)
 void copy_and_swap_32_unaligned(void* dest_ptr, const void* src_ptr, size_t count) {
   auto dest = reinterpret_cast<uint32_t*>(dest_ptr);
   auto src = reinterpret_cast<const uint32_t*>(src_ptr);
-  __m128i shufmask = _mm_set_epi8(0x0C, 0x0D, 0x0E, 0x0F, 0x08, 0x09, 0x0A, 0x0B, 0x04, 0x05, 0x06,
-                                  0x07, 0x00, 0x01, 0x02, 0x03);
+  simde__m128i shufmask = simde_mm_set_epi8(0x0C, 0x0D, 0x0E, 0x0F, 0x08, 0x09, 0x0A, 0x0B, 0x04,
+                                            0x05, 0x06, 0x07, 0x00, 0x01, 0x02, 0x03);
 
   size_t i;
   for (i = 0; i + 4 <= count; i += 4) {
-    __m128i input = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&src[i]));
-    __m128i output = _mm_shuffle_epi8(input, shufmask);
-    _mm_storeu_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
+    simde__m128i input = simde_mm_loadu_si128(reinterpret_cast<const simde__m128i*>(&src[i]));
+    simde__m128i output = simde_mm_shuffle_epi8(input, shufmask);
+    simde_mm_storeu_si128(reinterpret_cast<simde__m128i*>(&dest[i]), output);
   }
   REX_WORKAROUND_CONSTANT_RETURN_IF(count % 4 == 0);
   for (; i < count; ++i) {  // handle residual elements
@@ -125,19 +127,19 @@ void copy_and_swap_32_unaligned(void* dest_ptr, const void* src_ptr, size_t coun
 }
 
 void copy_and_swap_64_aligned(void* dest_ptr, const void* src_ptr, size_t count) {
-  assert_zero(reinterpret_cast<uintptr_t>(dest_ptr) & 0xF);
-  assert_zero(reinterpret_cast<uintptr_t>(src_ptr) & 0xF);
+  REX_ASSERT((reinterpret_cast<uintptr_t>(dest_ptr) & 0xF) == 0);
+  REX_ASSERT((reinterpret_cast<uintptr_t>(src_ptr) & 0xF) == 0);
 
   auto dest = reinterpret_cast<uint64_t*>(dest_ptr);
   auto src = reinterpret_cast<const uint64_t*>(src_ptr);
-  __m128i shufmask = _mm_set_epi8(0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x00, 0x01, 0x02,
-                                  0x03, 0x04, 0x05, 0x06, 0x07);
+  simde__m128i shufmask = simde_mm_set_epi8(0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x00,
+                                            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07);
 
   size_t i;
   for (i = 0; i + 2 <= count; i += 2) {
-    __m128i input = _mm_load_si128(reinterpret_cast<const __m128i*>(&src[i]));
-    __m128i output = _mm_shuffle_epi8(input, shufmask);
-    _mm_store_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
+    simde__m128i input = simde_mm_load_si128(reinterpret_cast<const simde__m128i*>(&src[i]));
+    simde__m128i output = simde_mm_shuffle_epi8(input, shufmask);
+    simde_mm_store_si128(reinterpret_cast<simde__m128i*>(&dest[i]), output);
   }
   REX_WORKAROUND_CONSTANT_RETURN_IF(count % 2 == 0);
   for (; i < count; ++i) {  // handle residual elements
@@ -148,14 +150,14 @@ void copy_and_swap_64_aligned(void* dest_ptr, const void* src_ptr, size_t count)
 void copy_and_swap_64_unaligned(void* dest_ptr, const void* src_ptr, size_t count) {
   auto dest = reinterpret_cast<uint64_t*>(dest_ptr);
   auto src = reinterpret_cast<const uint64_t*>(src_ptr);
-  __m128i shufmask = _mm_set_epi8(0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x00, 0x01, 0x02,
-                                  0x03, 0x04, 0x05, 0x06, 0x07);
+  simde__m128i shufmask = simde_mm_set_epi8(0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x00,
+                                            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07);
 
   size_t i;
   for (i = 0; i + 2 <= count; i += 2) {
-    __m128i input = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&src[i]));
-    __m128i output = _mm_shuffle_epi8(input, shufmask);
-    _mm_storeu_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
+    simde__m128i input = simde_mm_loadu_si128(reinterpret_cast<const simde__m128i*>(&src[i]));
+    simde__m128i output = simde_mm_shuffle_epi8(input, shufmask);
+    simde_mm_storeu_si128(reinterpret_cast<simde__m128i*>(&dest[i]), output);
   }
   REX_WORKAROUND_CONSTANT_RETURN_IF(count % 2 == 0);
   for (; i < count; ++i) {  // handle residual elements
@@ -168,9 +170,10 @@ void copy_and_swap_16_in_32_aligned(void* dest_ptr, const void* src_ptr, size_t 
   auto src = reinterpret_cast<const uint32_t*>(src_ptr);
   size_t i;
   for (i = 0; i + 4 <= count; i += 4) {
-    __m128i input = _mm_load_si128(reinterpret_cast<const __m128i*>(&src[i]));
-    __m128i output = _mm_or_si128(_mm_slli_epi32(input, 16), _mm_srli_epi32(input, 16));
-    _mm_store_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
+    simde__m128i input = simde_mm_load_si128(reinterpret_cast<const simde__m128i*>(&src[i]));
+    simde__m128i output =
+        simde_mm_or_si128(simde_mm_slli_epi32(input, 16), simde_mm_srli_epi32(input, 16));
+    simde_mm_store_si128(reinterpret_cast<simde__m128i*>(&dest[i]), output);
   }
   REX_WORKAROUND_CONSTANT_RETURN_IF(count % 4 == 0);
   for (; i < count; ++i) {  // handle residual elements
@@ -183,9 +186,10 @@ void copy_and_swap_16_in_32_unaligned(void* dest_ptr, const void* src_ptr, size_
   auto src = reinterpret_cast<const uint32_t*>(src_ptr);
   size_t i;
   for (i = 0; i + 4 <= count; i += 4) {
-    __m128i input = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&src[i]));
-    __m128i output = _mm_or_si128(_mm_slli_epi32(input, 16), _mm_srli_epi32(input, 16));
-    _mm_storeu_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
+    simde__m128i input = simde_mm_loadu_si128(reinterpret_cast<const simde__m128i*>(&src[i]));
+    simde__m128i output =
+        simde_mm_or_si128(simde_mm_slli_epi32(input, 16), simde_mm_srli_epi32(input, 16));
+    simde_mm_storeu_si128(reinterpret_cast<simde__m128i*>(&dest[i]), output);
   }
   REX_WORKAROUND_CONSTANT_RETURN_IF(count % 4 == 0);
   for (; i < count; ++i) {  // handle residual elements
@@ -197,7 +201,7 @@ void copy_and_swap_16_in_32_unaligned(void* dest_ptr, const void* src_ptr, size_
 
 // Although NEON offers vector rev instructions (like vrev32q_u8), they are
 // slower in benchmarks. Also, using uint8x16xN_t wasn't any faster in the
-// benchmarks, hence we use just use one SIMD register to minimize residual
+// benchmarks, hence we use one SIMD register to minimize residual
 // processing.
 
 void copy_and_swap_16_aligned(void* dst_ptr, const void* src_ptr, size_t count) {

@@ -54,7 +54,7 @@ class Presenter;
 
 // The presenter displays up to two layers of content on a host surface:
 // - Guest output image, focusing on lowering latency and maintaining stable
-//   frame pacing, with various scaling and sharpening methods and letterboxing;
+//   frame pacing, with several scaling and sharpening methods and letterboxing;
 // - Xenia's internal UI (such as the profiler and Dear ImGui).
 //
 // The guest output image may be refreshed from any thread generating it
@@ -74,7 +74,7 @@ class Presenter;
 // - If the UI overlays (owned by the UI thread) are present, painting of both
 //   the guest output (is available) and the UI is done exclusively from the
 //   platform paint event handler. The guest output without UI overlays may also
-//   be painted from the platform paint callback in certain cases, such as when
+//   be painted from the platform paint callback in some cases, such as when
 //   an additional paint beyond the guest's frame rate may be needed (like when
 //   resizing the window), or when painting from the thread refreshing the guest
 //   output is undesirable (for instance, if it will result in waiting for host
@@ -112,7 +112,7 @@ class Presenter;
 // the thread refreshing the guest output, and on some platforms, result in the
 // frame rate limiting of paint events manifesting itself, there must be no
 // persistent UI overlays that haven't been explicitly requested by the user.
-// However, for temporary (primarily non-modal) UI elements such as various
+// However, for temporary (primarily non-modal) UI elements such as
 // timed notifications, using the Presenter should be preferred to implementing
 // them via overlaying native windows on top of the presentation surface on
 // platforms where the concept of independent presentation exists, as multiple
@@ -124,21 +124,19 @@ class Presenter;
 // requesting painting) to try to recover - but the guest output refresh thread
 // must not try to reconnect by itself, as methods of the Surface are available
 // only to the UI thread.
-class Presenter : public gpu::IPresenter {
+class Presenter : public gpu::IPresenter, public rex::NonCopyable {
  public:
-  // May be actually called on the UI thread even if statically_from_ui_thread
+  // May be called on the UI thread even if statically_from_ui_thread
   // is false, such as when the guest output is refreshed by the UI thread.
   using HostGpuLossCallback =
-      std::function<void(bool is_responsible, bool statically_from_ui_thread)>;
+      std::move_only_function<void(bool is_responsible, bool statically_from_ui_thread)>;
   static void FatalErrorHostGpuLossCallback(bool is_responsible, bool statically_from_ui_thread);
 
-  class GuestOutputRefreshContext {
+  class GuestOutputRefreshContext : public rex::NonCopyable {
    public:
-    GuestOutputRefreshContext(const GuestOutputRefreshContext& context) = delete;
-    GuestOutputRefreshContext& operator=(const GuestOutputRefreshContext& context) = delete;
     virtual ~GuestOutputRefreshContext() = default;
 
-    // Sets whether the source actually has no more than 8 bits of precision
+    // Sets whether the source has no more than 8 bits of precision
     // (though the image provided by the refresher may still have a higher
     // storage precision). If never called, assuming it's false.
     void SetIs8bpc(bool is_8bpc) { is_8bpc_out_ref_ = is_8bpc; }
@@ -159,7 +157,7 @@ class Presenter : public gpu::IPresenter {
       allow_overscan_cutoff_ = new_allow_overscan_cutoff;
     }
 
-    // Very tiny effect, but highly noticeable, for instance, on the sky in the
+    // Tiny effect, but highly noticeable, for instance, on the sky in the
     // 4D5307E6 main menu (banding around the clouds can be clearly seen without
     // dithering with 8bpc final host output).
     bool GetDither() const { return dither_; }
@@ -173,8 +171,6 @@ class Presenter : public gpu::IPresenter {
     bool dither_ = false;
   };
 
-  Presenter(const Presenter& presenter) = delete;
-  Presenter& operator=(const Presenter& presenter) = delete;
   virtual ~Presenter();
 
   gpu::Surface::TypeFlags supported_surface_types() const override {
@@ -193,15 +189,16 @@ class Presenter : public gpu::IPresenter {
   // Pass 0 as width or height to disable guest output until the next refresh
   // with an actual size. The display aspect ratio may be specified like 16:9 or
   // like 1280:720, both are accepted, for simplicity, the guest display size
-  // may just be passed. The callback will receive a backend-specific context,
+  // may be passed. The callback will receive a backend-specific context,
   // and will not be called in case of an error such as the wrong size, or if
   // guest output is disabled. Returns whether the callback was called and it
   // returned true. The callback must submit all updating work to the host GPU
   // before successfully returning, and also signal all the GPU synchronization
   // primitives required by the GuestOutputRefreshContext implementation.
-  bool RefreshGuestOutput(uint32_t frontbuffer_width, uint32_t frontbuffer_height,
-                          uint32_t display_aspect_ratio_x, uint32_t display_aspect_ratio_y,
-                          std::function<bool(GuestOutputRefreshContext& context)> refresher);
+  bool RefreshGuestOutput(
+      uint32_t frontbuffer_width, uint32_t frontbuffer_height, uint32_t display_aspect_ratio_x,
+      uint32_t display_aspect_ratio_y,
+      std::move_only_function<bool(GuestOutputRefreshContext& context)> refresher);
 
   void AddOverlayLayer(gpu::IOverlayLayer* layer, size_t z_order) override;
   void RemoveOverlayLayer(gpu::IOverlayLayer* layer) override;
@@ -322,13 +319,13 @@ class Presenter : public gpu::IPresenter {
       output_offset[0] = flow.output_x;
       output_offset[1] = flow.output_y;
       const std::pair<uint32_t, uint32_t>& output_size = flow.effect_output_size;
-      output_size_inv[0] = 1.0f / float(output_size.first);
-      output_size_inv[1] = 1.0f / float(output_size.second);
+      output_size_inv[0] = 1.0f / static_cast<float>(output_size.first);
+      output_size_inv[1] = 1.0f / static_cast<float>(output_size.second);
     }
   };
 
   explicit Presenter(HostGpuLossCallback host_gpu_loss_callback)
-      : host_gpu_loss_callback_(host_gpu_loss_callback) {}
+      : host_gpu_loss_callback_(std::move(host_gpu_loss_callback)) {}
 
   // Must be called by the implementation's initialization, before the presenter
   // is used for anything.
@@ -361,7 +358,7 @@ class Presenter : public gpu::IPresenter {
   // counting for the guest output images, which doesn't have to be atomic
   // though for the reason described later in this paragraph, or assumptions
   // like of main target painting being possible only in at most one thread at
-  // once). While this lock is held, the currently acquired image index can't be
+  // once). While this lock is held, the acquired image index can't be
   // changed (by other consumers advancing the acquired image index to the new
   // ready image index), so the image with the index given by this function
   // can't be released and be made writable or given to a different consumer
@@ -389,15 +386,16 @@ class Presenter : public gpu::IPresenter {
                                                uint32_t host_rt_width, uint32_t host_rt_height,
                                                uint32_t max_rt_width, uint32_t max_rt_height,
                                                const GuestOutputPaintConfig& config) const;
-  // is_8bpc_out_ref is where to write whether the source actually has no more
+  // is_8bpc_out_ref is where to write whether the source has no more
   // than 8 bits of precision per channel (though the image provided by the
   // refresher may still have a higher storage precision) - if not written, it
   // will be assumed to be false.
   virtual bool RefreshGuestOutputImpl(
       uint32_t mailbox_index, uint32_t frontbuffer_width, uint32_t frontbuffer_height,
-      std::function<bool(GuestOutputRefreshContext& context)> refresher, bool& is_8bpc_out_ref) = 0;
+      std::move_only_function<bool(GuestOutputRefreshContext& context)> refresher,
+      bool& is_8bpc_out_ref) = 0;
 
-  // Paints and presents the guest output if available (or just solid black
+  // Paints and presents the guest output if available (or solid black
   // color), and if requested, the UI on top of it.
   //
   // May be called from the non-UI thread, but only to paint the guest output
@@ -410,12 +408,6 @@ class Presenter : public gpu::IPresenter {
   void ExecuteUIDrawersFromUIThread(gpu::OverlayDrawContext& ui_draw_context);
 
  private:
-  const GuestOutputPaintConfig& GetGuestOutputPaintConfigFromUIThread() const {
-    return guest_output_paint_config_;
-  }
-  // For simplicity, may be called repeatedly even if no changes have been made.
-  void SetGuestOutputPaintConfigFromUIThread(const GuestOutputPaintConfig& new_config);
-
   enum class PaintMode {
     // Don't paint at all.
     // Painting lifecycle is accessible only by the UI thread.
@@ -526,7 +518,7 @@ class Presenter : public gpu::IPresenter {
   // Window object keeps being attached to the Presenter), for instance.
   void UpdateSurfaceMonitorFromUIThread(bool old_monitor_potentially_disconnected);
   // Platform-specific function returning whether the surface the presenter is
-  // currently attached it is actually visible on any monitor. UI thread
+  // attached it is visible on any monitor. UI thread
   // painting may be dropped if this returns false - need to request painting if
   // the surface appears on a monitor again. May be using the state cached at
   // window / surface state changes, not the actual state from the platform.
@@ -546,7 +538,7 @@ class Presenter : public gpu::IPresenter {
   bool AreUITicksNeededFromUIThread() const {
     // UI drawing should be done, and painting needs to be possible (coarsely
     // checking because the actual connection state, including outdated, may be
-    // currently unavailable from the UI thread).
+    // unavailable from the UI thread).
     // There's no need to limit the frame rate manually if there is vertical
     // sync in the presentation already as that might result in inconsistent
     // frame pacing and potentially skipped vertical sync intervals.
@@ -571,7 +563,7 @@ class Presenter : public gpu::IPresenter {
   // disconnecting painting).
   gpu::IPresentationHost* host_ = nullptr;
 
-  // The surface of the `host_` the presenter is currently attached to.
+  // The surface of the `host_` the presenter is attached to.
   gpu::Surface* surface_ = nullptr;
 
   // Mutex protecting paint_mode_ (and, in the guest output thread, objects
@@ -602,7 +594,7 @@ class Presenter : public gpu::IPresenter {
       SurfacePaintConnectionState::kUnconnectedRetryAtStateChange;
   // If the surface connection was optimal at the last paint attempt, but now
   // has become suboptimal, need to try to reconnect. But only in this case - if
-  // the connection has been suboptimal from the very beginning don't try to
+  // the connection has been suboptimal from the beginning don't try to
   // reconnect every frame.
   bool surface_paint_connection_was_optimal_at_successful_paint_ = false;
 
@@ -637,7 +629,7 @@ class Presenter : public gpu::IPresenter {
   // for presenting of the most up-to-date guest output image without long
   // interlocking between guest output refreshing and painting.
   static_assert(kGuestOutputMailboxSize == 3);
-  // The "acquired" image (in bits 0:1) is the one that is currently being read,
+  // The "acquired" image (in bits 0:1) is the one that is being read,
   // or was last read, by a consumer of the guest output. The index of it can be
   // modified only by the consumer and stays the same while it's processing the
   // image.
@@ -683,7 +675,7 @@ class Presenter : public gpu::IPresenter {
   std::multimap<size_t, UIDrawerReference>::iterator ui_draw_next_iterator_;
   bool is_executing_ui_drawers_ = false;
 
-  // Whether currently running the logic of PaintFromUIThread, so certain
+  // Whether running the logic of PaintFromUIThread, so some
   // actions (such as changing the paint mode, requesting a redraw) must be
   // deferred and be handled by the tail of PaintFromUIThread for consistency
   // with what PaintFromUIThread does internally.
@@ -708,7 +700,7 @@ class Presenter : public gpu::IPresenter {
   void DXGIUITickThread();
 
   // Accessible only from the UI thread, to avoid updating monitor-dependent
-  // information such as the DXGI output if the monitor hasn't actually been
+  // information such as the DXGI output if the monitor hasn't been
   // changed in the current state change (such as window positioning changes).
   HMONITOR surface_win32_monitor_ = nullptr;
 

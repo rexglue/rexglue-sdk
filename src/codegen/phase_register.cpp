@@ -16,6 +16,7 @@
 
 #include <format>
 
+#include <rex/assert.h>
 #include <rex/codegen/config.h>
 #include <rex/logging.h>
 
@@ -27,7 +28,6 @@
 
 using rex::codegen::ppc::decode_instruction;
 using rex::codegen::ppc::Opcode;
-using rex::memory::load_and_swap;
 
 namespace rex::codegen {
 
@@ -51,6 +51,20 @@ struct IMAGE_CE_RUNTIME_FUNCTION {
   };
 };
 #pragma pack(pop)
+
+struct SehHeader {
+  be_u32 handlerThunk;
+  be_u32 tableAddr;
+};
+REX_STATIC_ASSERT_SIZE(SehHeader, 8);
+
+struct SehScopeEntry {
+  be_u32 tryStart;
+  be_u32 tryEnd;
+  be_u32 filter;
+  be_u32 handler;
+};
+REX_STATIC_ASSERT_SIZE(SehScopeEntry, 16);
 
 //=============================================================================
 // Exception Info Parsing
@@ -94,7 +108,7 @@ PrologInfo scanProlog(const BinaryView& binary, uint32_t funcAddr, uint32_t prol
   }
 
   for (uint32_t i = 0; i < prologLength; i++) {
-    uint32_t raw = load_and_swap<uint32_t>(code + i * 4);
+    uint32_t raw = memory::load<be_u32>(code + i * 4);
     uint32_t addr = funcAddr + i * 4;
     auto decoded = decode_instruction(addr, raw);
 
@@ -114,7 +128,7 @@ PrologInfo scanProlog(const BinaryView& binary, uint32_t funcAddr, uint32_t prol
   }
 
   // NOTE(tomc): info.valid may be false for handler functions that receive frame in r12
-  // The caller should warn only if frameSize is actually needed (i.e., function has SEH scopes)
+  // The caller should warn only if frameSize is needed (i.e., function has SEH scopes)
   return info;
 }
 
@@ -135,13 +149,13 @@ std::optional<ParsedExceptionInfo> parseSehScopeTable(uint32_t handlerThunk,
 
   uint32_t maxAddr = functionBeginAddr;
 
-  const uint32_t* entriesData = reinterpret_cast<const uint32_t*>(rdataBase + tableOffset + 4);
+  const auto* entries = reinterpret_cast<const SehScopeEntry*>(rdataBase + tableOffset + 4);
   for (uint32_t i = 0; i < count; i++) {
     SehScope scope;
-    scope.tryStart = byte_swap(entriesData[i * 4 + 0]);
-    scope.tryEnd = byte_swap(entriesData[i * 4 + 1]);
-    scope.filter = byte_swap(entriesData[i * 4 + 2]);
-    scope.handler = byte_swap(entriesData[i * 4 + 3]);
+    scope.tryStart = entries[i].tryStart;
+    scope.tryEnd = entries[i].tryEnd;
+    scope.filter = entries[i].filter;
+    scope.handler = entries[i].handler;
 
     // __finally has layout [2]=handler, [3]=0; __except has [2]=filter, [3]=handler
     if (scope.handler == 0 && scope.filter != 0) {
@@ -190,10 +204,10 @@ std::optional<ParsedExceptionInfo> parseCxxFuncInfo(const Limits& limits, uint32
   }
 
   auto readU32 = [&](uint32_t addr) {
-    return load_and_swap<uint32_t>(rdataBase + (addr - rdataStart));
+    return memory::load<be_u32>(rdataBase + (addr - rdataStart));
   };
   auto readI32 = [&](uint32_t addr) {
-    return static_cast<int32_t>(load_and_swap<uint32_t>(rdataBase + (addr - rdataStart)));
+    return i32{memory::load<be_i32>(rdataBase + (addr - rdataStart))};
   };
 
   CxxExceptionInfo cxxInfo;
@@ -310,9 +324,9 @@ std::optional<ParsedExceptionInfo> parseExceptionInfo(const BinaryView& binary,
     return std::nullopt;
   }
 
-  const uint8_t* headerData = textSection->data + headerOffset;
-  uint32_t handlerThunk = load_and_swap<uint32_t>(headerData);
-  uint32_t tableAddr = load_and_swap<uint32_t>(headerData + 4);
+  const auto* header = reinterpret_cast<const SehHeader*>(textSection->data + headerOffset);
+  uint32_t handlerThunk = header->handlerThunk;
+  uint32_t tableAddr = header->tableAddr;
 
   auto* rdataSection = binary.findSectionByName(".rdata");
   if (!rdataSection || !rdataSection->data) {
@@ -333,7 +347,7 @@ std::optional<ParsedExceptionInfo> parseExceptionInfo(const BinaryView& binary,
     return std::nullopt;
   }
 
-  uint32_t firstWord = load_and_swap<uint32_t>(rdataBase + tableOffset);
+  uint32_t firstWord = memory::load<be_u32>(rdataBase + tableOffset);
   std::vector<uint32_t> discoveredFuncs;
 
   if (firstWord == CXX_EH_MAGIC) {
@@ -376,7 +390,7 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
     const size_t base = section.baseAddress;
 
     for (size_t offset = 0; offset + 4 <= size; offset += 4) {
-      uint32_t instr = load_and_swap<uint32_t>(data + offset);
+      uint32_t instr = memory::load<be_u32>(data + offset);
       uint32_t addr = static_cast<uint32_t>(base + offset);
 
       for (auto& p : patterns) {
@@ -387,7 +401,7 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
       }
 
       if (offset + 8 <= size) {
-        uint32_t next = load_and_swap<uint32_t>(data + offset + 4);
+        uint32_t next = memory::load<be_u32>(data + offset + 4);
 
         if (instr == 0x3960fee0) {
           if (next == 0x7dcb60ce && state.restVmx14Address == 0) {
@@ -417,7 +431,7 @@ void detectSaveRestoreHelpers(const BinaryView& binary, AnalysisState& state) {
 // Register Phase: imports, helpers, PDATA, config functions
 //=============================================================================
 
-Result<void> registerEntryPoints(CodegenContext& ctx) {
+[[nodiscard]] Result<void> registerEntryPoints(CodegenContext& ctx) {
   REXLOG_TRACE(codegen, "Analyze: registering entry points...");
 
   auto& graph = ctx.graph;
@@ -581,8 +595,8 @@ Result<void> registerEntryPoints(CodegenContext& ctx) {
 
   size_t pdataAdded = 0;
   for (size_t i = 0; i < count; i++) {
-    uint32_t beginAddr = byte_swap(entries[i].BeginAddress);
-    uint32_t data = byte_swap(entries[i].Data);
+    uint32_t beginAddr = memory::load<be_u32>(&entries[i].BeginAddress);
+    uint32_t data = memory::load<be_u32>(&entries[i].Data);
 
     IMAGE_CE_RUNTIME_FUNCTION fn;
     fn.BeginAddress = beginAddr;
@@ -690,7 +704,7 @@ Result<void> registerEntryPoints(CodegenContext& ctx) {
 
 namespace phases {
 
-Result<void> Register(CodegenContext& ctx, ProgressReporter* reporter) {
+[[nodiscard]] Result<void> Register(CodegenContext& ctx, ProgressReporter* reporter) {
   (void)reporter;
   return registerEntryPoints(ctx);
 }

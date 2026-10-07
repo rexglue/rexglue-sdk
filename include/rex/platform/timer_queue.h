@@ -1,6 +1,5 @@
 /**
  * @file        platform/timer_queue.h
- * @brief       Timer queue that runs callbacks on 1 dispatch thread
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

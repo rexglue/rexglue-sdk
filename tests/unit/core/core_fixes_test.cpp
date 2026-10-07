@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/core/core_fixes_test.cpp
- * @brief       Unit tests for BitMap, StringBuffer and the UTF-8 case helpers
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

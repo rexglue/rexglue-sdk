@@ -322,7 +322,7 @@ Result<X_HANDLE> ObjectTable::OpenByName(std::string_view name) {
 }
 
 std::optional<X_HANDLE> ObjectTable::ResolveGuestObject(u32 address, i32 as_type) {
-  assert_not_null(memory_);
+  REX_ASSERT(memory_ != nullptr);
   if (address == 0) {
     return std::nullopt;
   }
@@ -353,7 +353,7 @@ std::optional<X_HANDLE> ObjectTable::ResolveGuestObject(u32 address, i32 as_type
     case 5: {
       added = Emplace<SemaphoreObject>(AddOptions{}, *reinterpret_cast<X_KSEMAPHORE*>(native_ptr));
       [[maybe_unused]] auto semaphore = Get<SemaphoreObject>(added.value_or(0));
-      assert_true(semaphore && semaphore->semaphore);
+      REX_ASSERT(semaphore && semaphore->semaphore);
       break;
     }
     case DISPATCHER_MANUAL_RESET_TIMER:

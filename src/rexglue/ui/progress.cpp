@@ -1,6 +1,5 @@
 /**
  * @file        rexglue/ui/progress.cpp
- * @brief       ProgressView implementation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -35,16 +34,14 @@ ProgressView::ProgressView(std::string_view title) : title_(title) {
   }
   if (tty_) {
     detail::SetSinkActiveProgress(true);
-    spinner_thread_ = std::thread(&ProgressView::spinnerLoop, this);
+    spinner_thread_ = std::jthread([this](std::stop_token stop) { spinnerLoop(stop); });
   }
 }
 
 ProgressView::~ProgressView() {
   if (tty_) {
-    stop_spinner_.store(true, std::memory_order_release);
-    spinner_cv_.notify_all();
-    if (spinner_thread_.joinable())
-      spinner_thread_.join();
+    spinner_thread_.request_stop();
+    spinner_thread_.join();
     detail::SetSinkActiveProgress(false);
   }
   std::lock_guard lock(state_mutex_);
@@ -53,14 +50,6 @@ ProgressView::~ProgressView() {
     acc.writeRaw(kEraseLine);
     active_line_kind_ = ActiveLineKind::None;
   }
-}
-
-void ProgressView::clearActiveLine() {
-  if (active_line_kind_ == ActiveLineKind::None || !tty_)
-    return;
-  detail::GlobalSinkAccessor acc;
-  acc.writeRaw(kEraseLine);
-  active_line_kind_ = ActiveLineKind::None;
 }
 
 void ProgressView::renderActiveLine() {
@@ -85,13 +74,12 @@ void ProgressView::renderActiveLine() {
   acc.flush();
 }
 
-void ProgressView::spinnerLoop() {
+void ProgressView::spinnerLoop(std::stop_token stop) {
   std::unique_lock cv_lock(state_mutex_);
-  while (!stop_spinner_.load(std::memory_order_acquire)) {
+  while (!stop.stop_requested()) {
     if (active_line_kind_ != ActiveLineKind::None)
       renderActiveLine();
-    spinner_cv_.wait_for(cv_lock, kSpinnerInterval,
-                         [this] { return stop_spinner_.load(std::memory_order_acquire); });
+    spinner_cv_.wait_for(cv_lock, stop, kSpinnerInterval, [] { return false; });
   }
 }
 

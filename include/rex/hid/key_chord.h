@@ -1,6 +1,5 @@
 /**
  * @file        hid/key_chord.h
- * @brief       A key with its modifiers, parsed from and written to text
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

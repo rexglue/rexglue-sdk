@@ -22,7 +22,7 @@ namespace vulkan {
 
 VmaAllocator CreateVmaAllocator(const VulkanDevice* const vulkan_device,
                                 const bool externally_synchronized) {
-  assert_not_null(vulkan_device);
+  REX_ASSERT(vulkan_device != nullptr);
 
   const VulkanInstance* const vulkan_instance = vulkan_device->vulkan_instance();
   const VulkanInstance::Functions& ifn = vulkan_instance->functions();

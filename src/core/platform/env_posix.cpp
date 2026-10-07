@@ -1,6 +1,5 @@
 /**
  * @file        core/platform/env_posix.cpp
- * @brief       POSIX implementation of rex::platform::env.
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

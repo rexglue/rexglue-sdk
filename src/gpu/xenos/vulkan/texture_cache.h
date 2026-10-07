@@ -27,7 +27,15 @@ namespace rex::gpu::vulkan {
 class VulkanCommandProcessor;
 
 class VulkanTextureCache final : public TextureCache {
+  struct Key {};
+
  public:
+  explicit VulkanTextureCache(Key, const xenos::RegisterFile& register_file,
+                              VulkanSharedMemory& shared_memory, uint32_t draw_resolution_scale_x,
+                              uint32_t draw_resolution_scale_y,
+                              VulkanCommandProcessor& command_processor,
+                              VkPipelineStageFlags guest_shader_pipeline_stages);
+
   // Sampler parameters that can be directly converted to a host sampler or used
   // for checking whether samplers bindings are up to date.
   union SamplerParameters {
@@ -47,7 +55,7 @@ class VulkanTextureCache final : public TextureCache {
       // can be used to limit fetching to mip_min_level.
     };
 
-    SamplerParameters() : value(0) { static_assert_size(*this, sizeof(value)); }
+    SamplerParameters() : value(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(value)); }
     struct Hasher {
       size_t operator()(const SamplerParameters& parameters) const {
         return std::hash<uint32_t>{}(parameters.value);
@@ -64,9 +72,9 @@ class VulkanTextureCache final : public TextureCache {
       u32 draw_resolution_scale_x, u32 draw_resolution_scale_y,
       VulkanCommandProcessor& command_processor,
       VkPipelineStageFlags guest_shader_pipeline_stages) {
-    std::unique_ptr<VulkanTextureCache> texture_cache(new VulkanTextureCache(
-        register_file, shared_memory, draw_resolution_scale_x, draw_resolution_scale_y,
-        command_processor, guest_shader_pipeline_stages));
+    auto texture_cache = std::make_unique<VulkanTextureCache>(
+        Key{}, register_file, shared_memory, draw_resolution_scale_x, draw_resolution_scale_y,
+        command_processor, guest_shader_pipeline_stages);
     if (!texture_cache->Initialize()) {
       return nullptr;
     }
@@ -221,7 +229,7 @@ class VulkanTextureCache final : public TextureCache {
         uint32_t is_array : 1;
       };
 
-      ViewKey() : key(0) { static_assert_size(*this, sizeof(key)); }
+      ViewKey() : key(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(key)); }
 
       struct Hasher {
         size_t operator()(const ViewKey& key) const {
@@ -307,12 +315,6 @@ class VulkanTextureCache final : public TextureCache {
         return false;
     }
   }
-
-  explicit VulkanTextureCache(const xenos::RegisterFile& register_file,
-                              VulkanSharedMemory& shared_memory, uint32_t draw_resolution_scale_x,
-                              uint32_t draw_resolution_scale_y,
-                              VulkanCommandProcessor& command_processor,
-                              VkPipelineStageFlags guest_shader_pipeline_stages);
 
   bool Initialize();
   bool InitializeScaledResolveBuffer();

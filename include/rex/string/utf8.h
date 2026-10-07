@@ -1,6 +1,5 @@
 /**
  * @file        string/utf8.h
- * @brief       UTF-8 conversion, comparison, search and path helpers
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

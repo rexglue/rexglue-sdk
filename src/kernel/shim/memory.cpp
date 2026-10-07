@@ -2,7 +2,7 @@
  * @file        kernel/shim/memory.cpp
  *
  * @brief       Native memory operation hooks -- replaces recompiled PPC
- *              implementations of memcpy, memmove, memset, etc.
+ *              implementations of memcpy, memmove, memset and others.
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  * @license     BSD 3-Clause License
@@ -35,7 +35,7 @@ REX_SHIM_FN(memchr, void*, const void* ptr, int val, size_t n) {
 }
 
 // ---------------------------------------------------------------------------
-// Xbox/VMX-optimized variants (same semantics, native speed)
+// VMX optimized variants (same semantics, native speed)
 // ---------------------------------------------------------------------------
 
 REX_SHIM_FN(XMemSet128, void*, void* dst, int val, size_t n) {

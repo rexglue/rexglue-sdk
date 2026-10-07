@@ -41,7 +41,7 @@ using rex::ui::PromptResult;
 
 class TestFactory final : public rex::IInterfaceFactory {
  public:
-  rex::Result<void*> Get(std::string_view name, rex::u32 version) override {
+  [[nodiscard]] rex::Result<void*> Get(std::string_view name, rex::u32 version) override {
     (void)version;
     if (name == rex::cvar::ICvarRegistry::kInterfaceName) {
       return static_cast<void*>(registry);

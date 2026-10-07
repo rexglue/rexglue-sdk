@@ -1,6 +1,5 @@
 /**
  * @file        filesystem/wildcard.h
- * @brief       Case insensitive wildcard matching of directory entry names
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

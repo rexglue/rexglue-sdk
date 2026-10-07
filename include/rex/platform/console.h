@@ -1,6 +1,5 @@
 /**
  * @file        platform/console.h
- * @brief       Terminal capability queries
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

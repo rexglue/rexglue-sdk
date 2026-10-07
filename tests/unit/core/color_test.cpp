@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/core/color_test.cpp
- * @brief       rex::Color factories, modifiers and packed converters
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

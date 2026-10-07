@@ -2,7 +2,7 @@
  * @file        kernel/shim/string.cpp
  *
  * @brief       Native string operation hooks -- replaces recompiled PPC
- *              implementations of strncmp, strchr, lstrlenA, etc.
+ *              implementations of strncmp, strchr, lstrlenA and others.
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  * @license     BSD 3-Clause License
@@ -10,10 +10,6 @@
 #include <cstring>
 
 #include <rex/platform.h>
-
-#if !REX_PLATFORM_WIN32
-#include <strings.h>
-#endif
 
 #include <rex/hook.h>
 #include <rex/kernel/shim/define.h>
@@ -59,11 +55,7 @@ REX_SHIM_FN(strtok, char*, char* s, const char* delim) {
 }
 
 REX_SHIM_FN(_stricmp, int, const char* s1, const char* s2) {
-#if REX_PLATFORM_WIN32
-  return _stricmp(s1, s2);
-#else
-  return strcasecmp(s1, s2);
-#endif
+  return rex::compare_case(s1, s2);
 }
 
 REX_SHIM_FN(strcpy_s, int, char* dst, size_t dstsz, const char* src) {
@@ -87,11 +79,7 @@ REX_SHIM_FN(strcpy_s, int, char* dst, size_t dstsz, const char* src) {
 // ---------------------------------------------------------------------------
 
 REX_SHIM_FN(lstrcmpiA, int, const char* s1, const char* s2) {
-#if REX_PLATFORM_WIN32
-  return _stricmp(s1, s2);
-#else
-  return strcasecmp(s1, s2);
-#endif
+  return rex::compare_case(s1, s2);
 }
 
 // ---------------------------------------------------------------------------
@@ -110,13 +98,13 @@ REX_SHIM_FN(wcscmp, u32, const i16* lhs, const i16* rhs) {
     lhs++;
     rhs++;
   }
-  return (int)(*lhs) - (int)(*rhs);
+  return static_cast<int>(*lhs) - static_cast<int>(*rhs);
 }
 
 REX_SHIM_FN(wcsncmp, u32, const i16* lhs, const i16* rhs, int count) {
   for (; count > 0; count--, lhs++, rhs++) {
     if (*lhs != *rhs)
-      return (int)(*lhs) - (int)(*rhs);
+      return static_cast<int>(*lhs) - static_cast<int>(*rhs);
 
     if (*lhs == L'\0')
       return 0;
@@ -135,7 +123,7 @@ REX_SHIM_FN(wcschr, i16*, const i16* str, i16 ch) {
   while (*str && *str != ch)
     str++;
 
-  return (*str == ch) ? (i16*)str : 0;
+  return (*str == ch) ? const_cast<i16*>(str) : 0;
 }
 
 REX_SHIM_FN(wcsrchr, i16*, const i16* str, i16 ch) {
@@ -145,7 +133,7 @@ REX_SHIM_FN(wcsrchr, i16*, const i16* str, i16 ch) {
     if (*str == ch)
       res = str;
 
-  return (i16*)(ch ? res : str);
+  return const_cast<i16*>(ch ? res : str);
 }
 
 REX_SHIM_FN(wcscpy, i16*, const i16* src, i16* dst) {
@@ -188,7 +176,7 @@ REX_SHIM_FN(wcsncpy_s, u32, i16* dst, size_t dstsz, const i16* src, size_t count
 
 REX_SHIM_FN(wcsstr, i16*, const i16* dest, const i16* src) {
   if (!*src)
-    return (i16*)dest;
+    return const_cast<i16*>(dest);
 
   for (; *dest; dest++) {
     const i16* d = dest;
@@ -200,7 +188,7 @@ REX_SHIM_FN(wcsstr, i16*, const i16* dest, const i16* src) {
     }
 
     if (!*s)
-      return (i16*)dest;
+      return const_cast<i16*>(dest);
   }
 
   return 0;

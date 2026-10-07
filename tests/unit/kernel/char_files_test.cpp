@@ -17,7 +17,7 @@ using rex::testing::Caller;
 using rex::testing::KernelFixture;
 
 namespace {
-constexpr u32 kInvalidHandle = X_STATUS_INVALID_HANDLE;
+constexpr u32 kInvalidHandle = rex::X_STATUS_INVALID_HANDLE;
 constexpr u32 kReadWriteAccess = 0xC0100000;
 
 void MountScratch(KernelFixture& fixture) {
@@ -94,7 +94,7 @@ TEST_CASE("files: a rename onto a file needs replace existing", "[char][files]")
     c.Store32(info + 12, c.String(kTarget));
     CHECK(c.Kernel("NtSetInformationFile",
                    {handle, status_block, info, 16, rex::runtime::XFileRenameInformation}) ==
-          X_STATUS_OBJECT_NAME_COLLISION);
+          rex::X_STATUS_OBJECT_NAME_COLLISION);
     c.Store32(info, 1);
     CHECK(c.Kernel("NtSetInformationFile",
                    {handle, status_block, info, 16, rex::runtime::XFileRenameInformation}) == 0);
@@ -141,7 +141,7 @@ TEST_CASE("files: create read write seek and query", "[char][files]") {
     CHECK(c.Kernel("NtReadFile", {handle, 0, 0, 0, status_block, buffer, 8, c.Quad(8)}) == 0);
     CHECK(c.Load32(buffer) == 0x08090A0B);
     CHECK(c.Kernel("NtReadFile", {handle, 0, 0, 0, status_block, buffer, 8, c.Quad(16)}) ==
-          X_STATUS_END_OF_FILE);
+          rex::X_STATUS_END_OF_FILE);
     CHECK(c.Kernel("NtClose", {handle}) == 0);
     CHECK(c.Kernel("NtReadFile", {handle, 0, 0, 0, status_block, buffer, 8, c.Quad(0)}) ==
           kInvalidHandle);
@@ -154,7 +154,7 @@ TEST_CASE("files: missing file", "[char][files]") {
     const u32 handle_ptr = c.Alloc(4);
     const u32 status_block = c.Alloc(8);
     CHECK(c.Kernel("NtCreateFile", {handle_ptr, 0x80100000, c.Attributes("game:\\missing.bin"),
-                                    status_block, 0, 0, 3, 1, 0x20}) == X_STATUS_NO_SUCH_FILE);
+                                    status_block, 0, 0, 3, 1, 0x20}) == rex::X_STATUS_NO_SUCH_FILE);
   });
 }
 
@@ -168,7 +168,7 @@ TEST_CASE("io completion: set remove and timeout", "[char][files]") {
     const u32 context = c.Alloc(4);
     const u32 status_block = c.Alloc(8);
     CHECK(c.Kernel("NtRemoveIoCompletion", {port, key, context, status_block, c.Quad(0)}) ==
-          X_STATUS_TIMEOUT);
+          rex::X_STATUS_TIMEOUT);
     CHECK(c.Kernel("NtSetIoCompletion", {port, 11, 22, 0, 33}) == 0);
     CHECK(c.Kernel("NtRemoveIoCompletion", {port, key, context, status_block, c.Quad(0)}) == 0);
     CHECK(c.Load32(key) == 11);

@@ -34,7 +34,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
   // If this is vfetch_full, the address may still be needed for vfetch_mini -
   // don't exit before calculating the address.
   if (!needed_words && instr.is_mini_fetch) {
-    // Nothing to load - just constant 0/1 writes, or the swizzle includes only
+    // Nothing to load - constant 0/1 writes, or the swizzle includes only
     // components that don't exist in the format (writing zero instead of them).
     // Unpacking assumes at least some word is needed.
     StoreResult(instr.result, spv::NoResult);
@@ -165,7 +165,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
   // If needed_words is not zero (checked in the beginning), this must not be
   // zero too. For simplicity, it's assumed that something will be unpacked
   // here.
-  assert_not_zero(used_format_components);
+  REX_ASSERT(used_format_components != 0);
   uint32_t used_format_component_count = rex::bit_count(used_format_components);
   spv::Id result_type = type_float_vectors_[used_format_component_count - 1];
   bool format_is_packed = false;
@@ -216,7 +216,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     case xenos::VertexFormat::k_16_16_FLOAT:
     case xenos::VertexFormat::k_16_16_16_16_FLOAT: {
       // FIXME(Triang3l): This converts from GLSL float16 with NaNs instead of
-      // Xbox 360 float16 with extended range. However, haven't encountered
+      // Xenos float16 with extended range. However, haven't encountered
       // games relying on that yet.
       spv::Id word_needed_component_values[2] = {};
       for (uint32_t i = 0; i < 2; ++i) {
@@ -246,7 +246,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
       } else {
         // Bypassing the assertion in spv::Builder::createCompositeConstruct as
         // of November 5, 2020 - can construct vectors by concatenating vectors,
-        // not just from individual scalars.
+        // not only from individual scalars.
         std::unique_ptr<spv::Instruction> composite_construct_op =
             std::make_unique<spv::Instruction>(builder_->getUniqueId(), result_type,
                                                spv::OpCompositeConstruct);
@@ -260,7 +260,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     case xenos::VertexFormat::k_32:
     case xenos::VertexFormat::k_32_32:
     case xenos::VertexFormat::k_32_32_32_32:
-      assert_true(used_format_components == needed_words);
+      REX_ASSERT(used_format_components == needed_words);
       if (instr.attributes.is_signed) {
         result = builder_->createUnaryOp(spv::OpBitcast,
                                          type_int_vectors_[used_format_component_count - 1], words);
@@ -293,7 +293,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
                                                           const_no_zero);
             } break;
             default:
-              assert_unhandled_case(instr.attributes.signed_rf_mode);
+              REX_UNHANDLED_CASE(instr.attributes.signed_rf_mode);
           }
         } else {
           result =
@@ -307,16 +307,16 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     case xenos::VertexFormat::k_32_32_FLOAT:
     case xenos::VertexFormat::k_32_32_32_32_FLOAT:
     case xenos::VertexFormat::k_32_32_32_FLOAT:
-      assert_true(used_format_components == needed_words);
+      REX_ASSERT(used_format_components == needed_words);
       result = builder_->createUnaryOp(spv::OpBitcast, type_float_vectors_[word_count - 1], words);
       break;
 
     default:
-      assert_unhandled_case(instr.attributes.data_format);
+      REX_UNHANDLED_CASE(instr.attributes.data_format);
   }
 
   if (format_is_packed) {
-    assert_true(result == spv::NoResult);
+    REX_ASSERT(result == spv::NoResult);
     // Extract the components from the words as individual ints or uints.
     if (instr.attributes.is_signed) {
       // Sign-extending extraction - in GLSL the sign-extending overload accepts
@@ -343,7 +343,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
         }
       }
       int extraction_width = packed_widths[i];
-      assert_not_zero(extraction_width);
+      REX_ASSERT(extraction_width != 0);
       extracted_widths[extracted_component_count] = extraction_width;
       extracted_components[extracted_component_count] = builder_->createTriOp(
           instr.attributes.is_signed ? spv::OpBitFieldSExtract : spv::OpBitFieldUExtract,
@@ -353,7 +353,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
       ++extracted_component_count;
     }
     // Combine extracted components into a vector.
-    assert_true(extracted_component_count == used_format_component_count);
+    REX_ASSERT(extracted_component_count == used_format_component_count);
     if (used_format_component_count > 1) {
       id_vector_temp_.clear();
       id_vector_temp_.insert(id_vector_temp_.cend(), extracted_components,
@@ -376,16 +376,17 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
         int extracted_width = extracted_widths[i];
         // The signed case would result in 1.0 / 0.0 for 1-bit components, but
         // there are no Xenos formats with them.
-        assert_true(extracted_width >= 2);
+        REX_ASSERT(extracted_width >= 2);
         packed_scales_same &= extracted_width != extracted_widths[0];
         float packed_scale_inv;
         if (instr.attributes.is_signed) {
-          packed_scale_inv = float((uint32_t(1) << (extracted_width - 1)) - 1);
+          packed_scale_inv =
+              static_cast<float>((static_cast<uint32_t>(1) << (extracted_width - 1)) - 1);
           if (instr.attributes.signed_rf_mode == xenos::SignedRepeatingFractionMode::kNoZero) {
             packed_scale_inv += 0.5f;
           }
         } else {
-          packed_scale_inv = float((uint32_t(1) << extracted_width) - 1);
+          packed_scale_inv = static_cast<float>((static_cast<uint32_t>(1) << extracted_width) - 1);
         }
         packed_scales[i] = 1.0f / packed_scale_inv;
       }
@@ -434,7 +435,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
                     : id_vector_temp_[0]);
             break;
           default:
-            assert_unhandled_case(instr.attributes.signed_rf_mode);
+            REX_UNHANDLED_CASE(instr.attributes.signed_rf_mode);
         }
       }
     }
@@ -454,7 +455,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     if (used_missing_components) {
       // Bypassing the assertion in spv::Builder::createCompositeConstruct as of
       // November 5, 2020 - can construct vectors by concatenating vectors, not
-      // just from individual scalars.
+      // only from individual scalars.
       std::unique_ptr<spv::Instruction> composite_construct_op = std::make_unique<spv::Instruction>(
           builder_->getUniqueId(), type_float_vectors_[rex::bit_count(used_result_components) - 1],
           spv::OpCompositeConstruct);
@@ -504,7 +505,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
     case xenos::ucode::FetchOpcode::kGetTextureBorderColorFrac:
       // TODO(Triang3l): Bind a black texture with a white border to calculate
       // the border color fraction (in the X component of the result).
-      assert_always();
+      REX_ASSERT_ALWAYS();
       EmitTranslationError("getBCF is unimplemented", false);
       used_result_nonzero_components = 0;
       break;
@@ -513,8 +514,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
     case xenos::ucode::FetchOpcode::kGetTextureGradients:
       break;
     case xenos::ucode::FetchOpcode::kGetTextureWeights:
-      // FIXME(Triang3l): Currently disregarding the LOD completely in
-      // getWeights because the needed code would be very complicated, while
+      // FIXME(Triang3l): Disregarding the LOD completely in
+      // getWeights because the needed code would be complicated, while
       // getWeights is mostly used for things like PCF of shadow maps, that
       // don't have mips. The LOD would be needed for the mip lerp factor in W
       // of the return value and to choose the LOD where interpolation would
@@ -524,10 +525,10 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
       // divergence, unlike explicit gradients), or sampling a texture filled
       // with LOD numbers (easier and more consistent - unclamped LOD doesn't
       // make sense for getWeights anyway). The same applies to offsets.
-      used_result_nonzero_components &= ~uint32_t(0b1000);
+      used_result_nonzero_components &= ~static_cast<uint32_t>(0b1000);
       break;
     default:
-      assert_unhandled_case(instr.opcode);
+      REX_UNHANDLED_CASE(instr.opcode);
       EmitTranslationError("Unknown texture fetch operation");
       used_result_nonzero_components = 0;
   }
@@ -580,7 +581,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                             (is_pixel_shader() || instr.attributes.use_register_gradients);
     if (instr.opcode == xenos::ucode::FetchOpcode::kGetTextureComputedLod &&
         (!use_computed_lod || instr.attributes.use_register_gradients)) {
-      assert_always();
+      REX_ASSERT_ALWAYS();
       EmitTranslationError(
           "getCompTexLOD used with explicit LOD or gradients - contradicts "
           "MSDN",
@@ -670,7 +671,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
     // FIXME(Triang3l): Offsets need to be applied at the LOD being fetched, not
     // at LOD 0. However, since offsets have granularity of 0.5, not 1, on the
     // Xenos, they can't be passed directly as ConstOffset to the image sample
-    // instruction (plus-minus 0.5 offsets are very common in games). But
+    // instruction (plus-minus 0.5 offsets are common in games). But
     // offsetting at mip levels is a rare usage case, mostly offsets are used
     // for things like shadow maps and blur, where there are no mips.
     float offset_values[3] = {};
@@ -679,10 +680,10 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
       // Add a small epsilon to the offset (1.5/4 the fixed-point texture
       // coordinate ULP with 8-bit subtexel precision - shouldn't significantly
       // effect the fixed-point conversion; 1/4 is also not enough with 3x
-      // resolution scaling very noticeably on the weapon in 4D5307E6, at least
+      // resolution scaling noticeably on the weapon in 4D5307E6, at least
       // on the Direct3D 12 backend) to resolve ambiguity when fetching
       // point-sampled textures between texels. This applies to both normalized
-      // (58410954 Xbox Live Arcade logo, coordinates interpolated between
+      // (58410954 logo, coordinates interpolated between
       // vertices with half-pixel offset) and unnormalized (4D5307E6 lighting
       // G-buffer reading, ps_param_gen pixels) coordinates. On Nvidia Pascal,
       // without this adjustment, blockiness is visible in both cases. Possibly
@@ -698,7 +699,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           offset_values[0] = instr.attributes.offset_x + kRoundingOffset;
           if (instr.opcode == xenos::ucode::FetchOpcode::kGetTextureWeights) {
             // For coordinate lerp factors. This needs to be done separately for
-            // point mag/min filters, but they're currently not handled here
+            // point mag/min filters, but they're not handled here
             // anyway.
             offset_values[0] -= 0.5f;
           }
@@ -763,7 +764,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
     bool data_is_3d_needed = false;
     if (instr.opcode == xenos::ucode::FetchOpcode::kGetTextureWeights) {
       // Size needed for denormalization for coordinate lerp factor.
-      // FIXME(Triang3l): Currently disregarding the LOD completely in
+      // FIXME(Triang3l): Disregarding the LOD completely in
       // getWeights. However, if the LOD lerp factor and the LOD where filtering
       // would happen are ever calculated, all components of the size may be
       // needed for ALU LOD calculation with normalized coordinates (or, if a
@@ -865,7 +866,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                 spv::OpBitFieldUExtract, type_uint_, fetch_constant_word_2, const_uint_0_,
                 builder_->makeUintConstant(xenos::kTexture1DMaxWidthLog2));
           }
-          assert_zero(size_needed_components & 0b110);
+          REX_ASSERT((size_needed_components & 0b110) == 0);
         } break;
         case xenos::FetchOpDimension::k2D:
         case xenos::FetchOpDimension::kCube: {
@@ -881,7 +882,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                 builder_->createTriOp(spv::OpBitFieldUExtract, type_uint_, fetch_constant_word_2,
                                       width_height_bit_count, width_height_bit_count);
           }
-          assert_zero(size_needed_components & 0b100);
+          REX_ASSERT((size_needed_components & 0b100) == 0);
         } break;
         case xenos::FetchOpDimension::k3DOrStacked: {
           if (size_needed_components & 0b1) {
@@ -891,7 +892,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
             spv::Id size_2d = builder_->createTriOp(
                 spv::OpBitFieldUExtract, type_uint_, fetch_constant_word_2, const_uint_0_,
                 builder_->makeUintConstant(xenos::kTexture2DCubeMaxWidthHeightLog2));
-            assert_true(data_is_3d != spv::NoResult);
+            REX_ASSERT(data_is_3d != spv::NoResult);
             size[0] =
                 builder_->createTriOp(spv::OpSelect, type_uint_, data_is_3d, size_3d, size_2d);
           }
@@ -906,7 +907,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
             spv::Id size_2d =
                 builder_->createTriOp(spv::OpBitFieldUExtract, type_uint_, fetch_constant_word_2,
                                       width_height_bit_count_2d, width_height_bit_count_2d);
-            assert_true(data_is_3d != spv::NoResult);
+            REX_ASSERT(data_is_3d != spv::NoResult);
             size[1] =
                 builder_->createTriOp(spv::OpSelect, type_uint_, data_is_3d, size_3d, size_2d);
           }
@@ -919,7 +920,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                 spv::OpBitFieldUExtract, type_uint_, fetch_constant_word_2,
                 builder_->makeUintConstant(xenos::kTexture2DCubeMaxWidthHeightLog2 * 2),
                 builder_->makeUintConstant(xenos::kTexture2DMaxStackDepthLog2));
-            assert_true(data_is_3d != spv::NoResult);
+            REX_ASSERT(data_is_3d != spv::NoResult);
             size[2] =
                 builder_->createTriOp(spv::OpSelect, type_uint_, data_is_3d, size_3d, size_2d);
           }
@@ -947,16 +948,16 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
     // LOD that would be applicable to explicit gradients and vertex shaders.
     // Also, with point sampling, possibly lerp factors need to be 0. W (mip
     // lerp factor) should have been masked out previously because it's not
-    // supported currently.
-    assert_false(instr.opcode == xenos::ucode::FetchOpcode::kGetTextureWeights &&
-                 (used_result_nonzero_components & 0b1000));
+    // supported.
+    REX_ASSERT(!(instr.opcode == xenos::ucode::FetchOpcode::kGetTextureWeights &&
+                 (used_result_nonzero_components & 0b1000)));
 
     // Load the needed original values of the coordinates operand.
     uint32_t coordinates_needed_components =
         instr.opcode == xenos::ucode::FetchOpcode::kGetTextureWeights
             ? used_result_nonzero_components
             : ((UINT32_C(1) << xenos::GetFetchOpDimensionComponentCount(instr.dimension)) - 1);
-    assert_not_zero(coordinates_needed_components);
+    REX_ASSERT(coordinates_needed_components != 0);
     spv::Id coordinates_operand = GetOperandComponents(
         LoadOperandStorage(instr.operands[0]), instr.operands[0], coordinates_needed_components);
     spv::Id coordinates[] = {const_float_0_, const_float_0_, const_float_0_};
@@ -976,7 +977,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
     }
     spv::Id texture_resolution_scaled = spv::NoResult;
     uint32_t revert_resolution_scale_axes =
-        uint32_t(draw_resolution_scale_x_ > 1) | (uint32_t(draw_resolution_scale_y_ > 1) << 1);
+        static_cast<uint32_t>(draw_resolution_scale_x_ > 1) |
+        (static_cast<uint32_t>(draw_resolution_scale_y_ > 1) << 1);
     spv::Id const_texture_resolution_scale[] = {spv::NoResult, spv::NoResult};
     spv::Id const_texture_resolution_scale_reciprocal[] = {spv::NoResult, spv::NoResult};
     if (revert_resolution_scale_axes) {
@@ -993,15 +995,15 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           const_uint_0_);
       if (revert_resolution_scale_axes & 0b001) {
         const_texture_resolution_scale[0] =
-            builder_->makeFloatConstant(float(draw_resolution_scale_x_));
+            builder_->makeFloatConstant(static_cast<float>(draw_resolution_scale_x_));
         const_texture_resolution_scale_reciprocal[0] =
-            builder_->makeFloatConstant(1.0f / float(draw_resolution_scale_x_));
+            builder_->makeFloatConstant(1.0f / static_cast<float>(draw_resolution_scale_x_));
       }
       if (revert_resolution_scale_axes & 0b010) {
         const_texture_resolution_scale[1] =
-            builder_->makeFloatConstant(float(draw_resolution_scale_y_));
+            builder_->makeFloatConstant(static_cast<float>(draw_resolution_scale_y_));
         const_texture_resolution_scale_reciprocal[1] =
-            builder_->makeFloatConstant(1.0f / float(draw_resolution_scale_y_));
+            builder_->makeFloatConstant(1.0f / static_cast<float>(draw_resolution_scale_y_));
       }
     }
 
@@ -1023,7 +1025,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                 coordinates[i]);
           }
           if (resolution_scaled_size_components & (UINT32_C(1) << i)) {
-            assert_true(size[i] != spv::NoResult);
+            REX_ASSERT(size[i] != spv::NoResult);
             size[i] = builder_->createTriOp(
                 spv::OpSelect, type_float_, texture_resolution_scaled,
                 builder_->createNoContractionBinOp(spv::OpFMul, type_float_, size[i],
@@ -1044,7 +1046,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
         // Need unnormalized coordinates.
         if (!instr.attributes.unnormalized_coordinates) {
           spv::Id size_component = size[coordinate_component_index];
-          assert_true(size_component != spv::NoResult);
+          REX_ASSERT(size_component != spv::NoResult);
           result_component = builder_->createNoContractionBinOp(spv::OpFMul, type_float_,
                                                                 result_component, size_component);
         }
@@ -1063,7 +1065,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
       // kTextureFetch or kGetTextureComputedLod.
 
       // Normalize the XY coordinates, and apply the offset.
-      for (uint32_t i = 0; i <= uint32_t(instr.dimension != xenos::FetchOpDimension::k1D); ++i) {
+      for (uint32_t i = 0;
+           i <= static_cast<uint32_t>(instr.dimension != xenos::FetchOpDimension::k1D); ++i) {
         spv::Id& coordinate_ref = coordinates[i];
         spv::Id component_offset =
             offset_values[i] ? builder_->makeFloatConstant(offset_values[i]) : spv::NoResult;
@@ -1082,12 +1085,12 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
             coordinate_ref = builder_->createNoContractionBinOp(spv::OpFAdd, type_float_,
                                                                 coordinate_ref, component_offset);
           }
-          assert_true(size_component != spv::NoResult);
+          REX_ASSERT(size_component != spv::NoResult);
           coordinate_ref = builder_->createNoContractionBinOp(spv::OpFDiv, type_float_,
                                                               coordinate_ref, size_component);
         } else {
           if (component_offset != spv::NoResult) {
-            assert_true(size_component != spv::NoResult);
+            REX_ASSERT(size_component != spv::NoResult);
             spv::Id component_offset_normalized = builder_->createNoContractionBinOp(
                 spv::OpFDiv, type_float_, component_offset, size_component);
             coordinate_ref = builder_->createNoContractionBinOp(
@@ -1106,12 +1109,12 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
             z_coordinate_ref = builder_->createNoContractionBinOp(spv::OpFAdd, type_float_,
                                                                   z_coordinate_ref, z_offset);
           }
-          assert_true(data_is_3d != spv::NoResult);
+          REX_ASSERT(data_is_3d != spv::NoResult);
           SpirvBuilder::IfBuilder if_data_is_3d(data_is_3d, spv::SelectionControlDontFlattenMask,
                                                 *builder_);
           spv::Id z_3d;
           {
-            assert_true(z_size != spv::NoResult);
+            REX_ASSERT(z_size != spv::NoResult);
             z_3d = builder_->createNoContractionBinOp(spv::OpFDiv, type_float_, z_coordinate_ref,
                                                       z_size);
           }
@@ -1127,7 +1130,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           spv::Block& block_dimension_stacked = builder_->makeNewBlock();
           builder_->createSelectionMerge(&block_dimension_merge,
                                          spv::SelectionControlDontFlattenMask);
-          assert_true(data_is_3d != spv::NoResult);
+          REX_ASSERT(data_is_3d != spv::NoResult);
           builder_->createConditionalBranch(
               data_is_3d, block_dimension_3d ? block_dimension_3d : &block_dimension_merge,
               &block_dimension_stacked);
@@ -1136,7 +1139,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           if (block_dimension_3d) {
             builder_->setBuildPoint(block_dimension_3d);
             if (z_offset != spv::NoResult) {
-              assert_true(z_size != spv::NoResult);
+              REX_ASSERT(z_size != spv::NoResult);
               spv::Id z_offset_normalized =
                   builder_->createNoContractionBinOp(spv::OpFDiv, type_float_, z_offset, z_size);
               z_3d = builder_->createNoContractionBinOp(spv::OpFAdd, type_float_, z_3d,
@@ -1147,7 +1150,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           // Stacked case.
           builder_->setBuildPoint(&block_dimension_stacked);
           spv::Id z_stacked = z_coordinate_ref;
-          assert_true(z_size != spv::NoResult);
+          REX_ASSERT(z_size != spv::NoResult);
           z_stacked =
               builder_->createNoContractionBinOp(spv::OpFMul, type_float_, z_stacked, z_size);
           if (z_offset != spv::NoResult) {
@@ -1314,7 +1317,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
             builder_->createTriOp(spv::OpBitFieldUExtract, type_uint_, swizzled_signs_word,
                                   builder_->makeUintConstant(swizzled_signs_word_offset),
                                   builder_->makeUintConstant(8)),
-            builder_->makeUintConstant(uint32_t(xenos::TextureSign::kSigned) * 0b01010101));
+            builder_->makeUintConstant(std::to_underlying(xenos::TextureSign::kSigned) *
+                                       0b01010101));
 
         // OpImageQueryLod doesn't need the array layer component.
         // So, 3 coordinate components for 3D cube, 2 in other cases (including
@@ -1322,7 +1326,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
         // OpSampledImage must be in the same block as where its result is used.
         if (instr.dimension == xenos::FetchOpDimension::k3DOrStacked) {
           // Check if the texture is 3D or stacked.
-          assert_true(data_is_3d != spv::NoResult);
+          REX_ASSERT(data_is_3d != spv::NoResult);
           SpirvBuilder::IfBuilder if_data_is_3d(data_is_3d, spv::SelectionControlDontFlattenMask,
                                                 *builder_);
           spv::Id lod_3d;
@@ -1368,7 +1372,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
         }
       } else {
         // kTextureFetch.
-        assert_true(instr.opcode == xenos::ucode::FetchOpcode::kTextureFetch);
+        REX_ASSERT(instr.opcode == xenos::ucode::FetchOpcode::kTextureFetch);
 
         // Extract the signedness for each component of the swizzled result, and
         // get which bindings (unsigned and signed) are needed.
@@ -1378,7 +1382,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
         spv::Id is_any_signed = spv::NoResult;
         spv::Id const_uint_2 = builder_->makeUintConstant(2);
         spv::Id const_uint_sign_signed =
-            builder_->makeUintConstant(uint32_t(xenos::TextureSign::kSigned));
+            builder_->makeUintConstant(std::to_underlying(xenos::TextureSign::kSigned));
         {
           uint32_t result_remaining_components = used_result_nonzero_components;
           uint32_t result_component_index;
@@ -1456,8 +1460,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
         // 3D vectors for k3DOrStacked, kCube.
         spv::Id gradients_h = spv::NoResult, gradients_v = spv::NoResult;
         if (use_computed_lod) {
-          // TODO(Triang3l): Gradient exponent adjustment is currently not done
-          // in getCompTexLOD, so not doing it here too for now. Apply the
+          // TODO(Triang3l): Gradient exponent adjustment is not done
+          // in getCompTexLOD, so not doing it here too. Apply the
           // gradient exponent biases from the word 4 of the fetch constant in
           // the future when it's handled in getCompTexLOD somehow.
           spv::Id lod_gradient_scale = builder_->createUnaryBuiltinCall(
@@ -1479,7 +1483,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                     spv::NoPrecision);
                 if (instr.attributes.unnormalized_coordinates) {
                   // Normalize the gradients.
-                  assert_true(size[0] != spv::NoResult);
+                  REX_ASSERT(size[0] != spv::NoResult);
                   gradient_h_1d = builder_->createNoContractionBinOp(spv::OpFDiv, type_float_,
                                                                      gradient_h_1d, size[0]);
                   gradient_v_1d = builder_->createNoContractionBinOp(spv::OpFDiv, type_float_,
@@ -1517,10 +1521,10 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                       builder_->createCompositeExtract(register_gradient_3d, type_float_, 1);
                   if (instr.attributes.unnormalized_coordinates) {
                     // Normalize the gradients.
-                    assert_true(size[0] != spv::NoResult);
+                    REX_ASSERT(size[0] != spv::NoResult);
                     register_gradient_x = builder_->createNoContractionBinOp(
                         spv::OpFDiv, type_float_, register_gradient_x, size[0]);
-                    assert_true(size[1] != spv::NoResult);
+                    REX_ASSERT(size[1] != spv::NoResult);
                     register_gradient_y = builder_->createNoContractionBinOp(
                         spv::OpFDiv, type_float_, register_gradient_y, size[1]);
                   }
@@ -1558,7 +1562,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                     spv::Id& gradient_ref = i ? gradients_v : gradients_h;
                     id_vector_temp_.clear();
                     for (uint32_t j = 0; j < 3; ++j) {
-                      assert_true(size[j] != spv::NoResult);
+                      REX_ASSERT(size[j] != spv::NoResult);
                       id_vector_temp_.push_back(builder_->createNoContractionBinOp(
                           spv::OpFDiv, type_float_,
                           builder_->createCompositeExtract(gradient_ref, type_float_, j), size[j]));
@@ -1627,7 +1631,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           // component, 2 gradient components, two fetches if the Z axis is
           // linear-filtered).
 
-          assert_true(data_is_3d != spv::NoResult);
+          REX_ASSERT(data_is_3d != spv::NoResult);
           SpirvBuilder::IfBuilder if_data_is_3d(data_is_3d, spv::SelectionControlDontFlattenMask,
                                                 *builder_);
           spv::Id sample_result_unsigned_3d, sample_result_signed_3d;
@@ -1682,7 +1686,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                   builder_->createCompositeExtract(gradients_v, type_float_, 2));
               if (!instr.attributes.unnormalized_coordinates) {
                 // Denormalize the gradient if provided as normalized.
-                assert_true(size[2] != spv::NoResult);
+                REX_ASSERT(size[2] != spv::NoResult);
                 layer_max_gradient = builder_->createNoContractionBinOp(
                     spv::OpFMul, type_float_, layer_max_gradient, size[2]);
               }
@@ -1690,7 +1694,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
               spv::Id is_minifying_z =
                   builder_->createBinOp(spv::OpFOrdLessThan, type_bool_, layer_max_gradient,
                                         builder_->makeFloatConstant(1.0f));
-              // Choose what filter is actually used, the minification or the
+              // Choose what filter is used, the minification or the
               // magnification one.
               spv::Id vol_mag_filter_is_linear_loaded =
                   vol_mag_filter_is_fetch_const
@@ -1964,15 +1968,17 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
               // Make unsigned (do nothing, take the unsigned component in the
               // phi) the default, and also, if unsigned or signed has already
               // been selected in swizzling, make signed the default to since
-              // it, just like unsigned, doesn't need any transformations.
+              // it, like unsigned, doesn't need any transformations.
               sign_switch_op->addIdOperand(block_sign_merge.getId());
               if (block_sign_signed) {
-                sign_switch_op->addImmediateOperand(uint32_t(xenos::TextureSign::kSigned));
+                sign_switch_op->addImmediateOperand(
+                    std::to_underlying(xenos::TextureSign::kSigned));
                 sign_switch_op->addIdOperand(block_sign_signed->getId());
               }
-              sign_switch_op->addImmediateOperand(uint32_t(xenos::TextureSign::kUnsignedBiased));
+              sign_switch_op->addImmediateOperand(
+                  std::to_underlying(xenos::TextureSign::kUnsignedBiased));
               sign_switch_op->addIdOperand(block_sign_unsigned_biased.getId());
-              sign_switch_op->addImmediateOperand(uint32_t(xenos::TextureSign::kGamma));
+              sign_switch_op->addImmediateOperand(std::to_underlying(xenos::TextureSign::kGamma));
               sign_switch_op->addIdOperand(block_sign_gamma_start.getId());
               builder_->getBuildPoint()->addInstruction(std::move(sign_switch_op));
             }
@@ -2084,7 +2090,7 @@ size_t SpirvShaderTranslator::FindOrAddTextureBinding(uint32_t fetch_constant,
       return i;
     }
   }
-  // TODO(Triang3l): Limit the total count to that actually supported by the
+  // TODO(Triang3l): Limit the total count to that supported by the
   // implementation.
   size_t new_texture_binding_index = texture_bindings_.size();
   TextureBinding& new_texture_binding = texture_bindings_.emplace_back();
@@ -2133,7 +2139,7 @@ size_t SpirvShaderTranslator::FindOrAddSamplerBinding(uint32_t fetch_constant,
                                                       xenos::TextureFilter mip_filter,
                                                       xenos::AnisoFilter aniso_filter) {
   if (aniso_filter != xenos::AnisoFilter::kUseFetchConst) {
-    // TODO(Triang3l): Limit to what's actually supported by the implementation.
+    // TODO(Triang3l): Limit to what's supported by the implementation.
     aniso_filter = std::min(aniso_filter, xenos::AnisoFilter::kMax_16_1);
   }
   for (size_t i = 0; i < sampler_bindings_.size(); ++i) {
@@ -2144,7 +2150,7 @@ size_t SpirvShaderTranslator::FindOrAddSamplerBinding(uint32_t fetch_constant,
       return i;
     }
   }
-  // TODO(Triang3l): Limit the total count to that actually supported by the
+  // TODO(Triang3l): Limit the total count to that supported by the
   // implementation.
   size_t new_sampler_binding_index = sampler_bindings_.size();
   SamplerBinding& new_sampler_binding = sampler_bindings_.emplace_back();
@@ -2155,13 +2161,15 @@ size_t SpirvShaderTranslator::FindOrAddSamplerBinding(uint32_t fetch_constant,
   new_sampler_binding.aniso_filter = aniso_filter;
   std::ostringstream name;
   static const char kFilterSuffixes[] = {'p', 'l', 'b', 'f'};
-  name << "xe_sampler" << fetch_constant << '_' << kFilterSuffixes[uint32_t(mag_filter)]
-       << kFilterSuffixes[uint32_t(min_filter)] << kFilterSuffixes[uint32_t(mip_filter)];
+  name << "xe_sampler" << fetch_constant << '_'
+       << kFilterSuffixes[static_cast<uint32_t>(mag_filter)]
+       << kFilterSuffixes[static_cast<uint32_t>(min_filter)]
+       << kFilterSuffixes[static_cast<uint32_t>(mip_filter)];
   if (aniso_filter != xenos::AnisoFilter::kUseFetchConst) {
     if (aniso_filter == xenos::AnisoFilter::kDisabled) {
       name << "_a0";
     } else {
-      name << "_a" << (UINT32_C(1) << (uint32_t(aniso_filter) - 1));
+      name << "_a" << (UINT32_C(1) << (static_cast<uint32_t>(aniso_filter) - 1));
     }
   }
   new_sampler_binding.variable =

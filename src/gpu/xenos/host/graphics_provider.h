@@ -14,6 +14,7 @@
 
 #include "gpu/xenos/host/immediate_drawer.h"
 #include "gpu/xenos/host/presenter.h"
+#include <rex/types.h>
 
 namespace rex {
 namespace gpu {
@@ -23,7 +24,7 @@ class Window;
 // Factory for graphics contexts.
 // All contexts created by the same provider will be able to share resources
 // according to the rules of the backing graphics API.
-class GraphicsProvider {
+class GraphicsProvider : public rex::NonCopyable {
  public:
   enum class GpuVendorID {
     kAMD = 0x1002,
@@ -35,11 +36,6 @@ class GraphicsProvider {
     kNvidia = 0x10DE,
     kQualcomm = 0x5143,
   };
-
-  GraphicsProvider(const GraphicsProvider&) = delete;
-  GraphicsProvider& operator=(const GraphicsProvider&) = delete;
-  GraphicsProvider(GraphicsProvider&&) = delete;
-  GraphicsProvider& operator=(GraphicsProvider&&) = delete;
 
   virtual ~GraphicsProvider() = default;
 

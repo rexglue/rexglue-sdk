@@ -1,6 +1,5 @@
 /**
  * @file        arch/ppc/instruction.cpp
- * @brief       PowerPC instruction implementation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -56,29 +55,6 @@ bool Instruction::is_return() const {
   return false;
 }
 
-bool Instruction::is_indirect_branch() const {
-  return opcode == Opcode::bclr || opcode == Opcode::bcctr;
-}
-
-bool Instruction::is_record_form() const {
-  switch (format) {
-    case InstrFormat::kX:
-      return X.Rc != 0;
-    case InstrFormat::kXO:
-      return XO.Rc != 0;
-    case InstrFormat::kM:
-      return M.Rc != 0;
-    case InstrFormat::kMD:
-      return MD.Rc != 0;
-    case InstrFormat::kA:
-      return A.Rc != 0;
-    case InstrFormat::kVXR:
-      return VXR.Rc != 0;
-    default:
-      return false;
-  }
-}
-
 bool Instruction::is_conditional() const {
   switch (opcode) {
     case Opcode::bc:
@@ -95,139 +71,6 @@ bool Instruction::is_conditional() const {
     default:
       return false;
   }
-}
-
-std::vector<u8> Instruction::get_register_reads() const {
-  std::vector<u8> regs;
-
-  switch (format) {
-    case InstrFormat::kD:
-      if (D.RA != 0)
-        regs.push_back((u8)D.RA);
-      break;
-    case InstrFormat::kX:
-      if (X.RA != 0)
-        regs.push_back((u8)X.RA);
-      if (X.RB != 0)
-        regs.push_back((u8)X.RB);
-      break;
-    case InstrFormat::kXO:
-      if (XO.RA != 0)
-        regs.push_back((u8)XO.RA);
-      if (XO.RB != 0)
-        regs.push_back((u8)XO.RB);
-      break;
-    case InstrFormat::kM:
-      regs.push_back((u8)M.RS);
-      break;
-    default:
-      break;
-  }
-
-  return regs;
-}
-
-std::vector<u8> Instruction::get_register_writes() const {
-  std::vector<u8> regs;
-
-  switch (format) {
-    case InstrFormat::kD:
-      regs.push_back((u8)D.RT);
-      break;
-    case InstrFormat::kX:
-      regs.push_back((u8)X.RT);
-      break;
-    case InstrFormat::kXO:
-      regs.push_back((u8)XO.RT);
-      break;
-    case InstrFormat::kM:
-      regs.push_back((u8)M.RA);
-      break;
-    default:
-      break;
-  }
-
-  return regs;
-}
-
-Instruction::Semantics Instruction::get_semantics() const {
-  Semantics sem;
-
-  sem.reads_gpr = get_register_reads();
-  sem.writes_gpr = get_register_writes();
-  sem.is_branch = is_branch();
-  sem.is_call = is_call();
-  sem.is_return = is_return();
-
-  // Memory access
-  const auto& info = get_opcode_info(opcode);
-  if (info.group == OpcodeGroup::kMemory) {
-    switch (opcode) {
-      case Opcode::lbz:
-      case Opcode::lbzu:
-      case Opcode::lhz:
-      case Opcode::lhzu:
-      case Opcode::lwz:
-      case Opcode::lwzu:
-      case Opcode::ld:
-      case Opcode::ldu:
-        sem.reads_memory = true;
-        break;
-      case Opcode::stb:
-      case Opcode::stbu:
-      case Opcode::sth:
-      case Opcode::sthu:
-      case Opcode::stw:
-      case Opcode::stwu:
-      case Opcode::std:
-      case Opcode::stdu:
-        sem.writes_memory = true;
-        break;
-      default:
-        break;
-    }
-  }
-
-  // Special register access
-  if (opcode == Opcode::mfspr) {
-    u32 spr = XFX.spr_num();
-    if (spr == SPR_LR)
-      sem.reads_lr = true;
-    else if (spr == SPR_CTR)
-      sem.reads_ctr = true;
-  } else if (opcode == Opcode::mtspr) {
-    u32 spr = XFX.spr_num();
-    if (spr == SPR_LR)
-      sem.writes_lr = true;
-    else if (spr == SPR_CTR)
-      sem.writes_ctr = true;
-  }
-
-  // Simplified mnemonics
-  if (opcode == Opcode::mflr)
-    sem.reads_lr = true;
-  if (opcode == Opcode::mtlr)
-    sem.writes_lr = true;
-  if (opcode == Opcode::mfctr)
-    sem.reads_ctr = true;
-  if (opcode == Opcode::mtctr)
-    sem.writes_ctr = true;
-
-  // Branch instructions
-  if (opcode == Opcode::bclr || opcode == Opcode::bclrl) {
-    sem.reads_lr = true;
-  }
-  if (opcode == Opcode::bcctr || opcode == Opcode::bcctrl) {
-    sem.reads_ctr = true;
-  }
-
-  // Condition register
-  if (opcode == Opcode::cmp || opcode == Opcode::cmpi || opcode == Opcode::cmpl ||
-      opcode == Opcode::cmpli) {
-    sem.writes_cr = true;
-  }
-
-  return sem;
 }
 
 //=============================================================================

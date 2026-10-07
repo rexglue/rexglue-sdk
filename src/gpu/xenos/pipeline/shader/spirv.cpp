@@ -20,8 +20,8 @@ SpirvShader::SpirvShader(xenos::ShaderType shader_type, uint64_t ucode_data_hash
                          std::endian ucode_source_endian)
     : Shader(shader_type, ucode_data_hash, ucode_dwords, ucode_dword_count, ucode_source_endian) {}
 
-Shader::Translation* SpirvShader::CreateTranslationInstance(uint64_t modification) {
-  return new SpirvTranslation(*this, modification);
+std::unique_ptr<Shader::Translation> SpirvShader::CreateTranslationInstance(uint64_t modification) {
+  return std::make_unique<SpirvTranslation>(*this, modification);
 }
 
 }  // namespace rex::gpu

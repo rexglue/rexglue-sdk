@@ -66,7 +66,7 @@ bool SDL3UserInterface::IsUIThread() const {
 }
 
 Result<IWindow*> SDL3UserInterface::OpenWindow(const UIConfig& config, EventCallback callback) {
-  assert_true(IsUIThread());
+  REX_ASSERT(IsUIThread());
   if (window_) {
     return Err<IWindow*>(ErrorCategory::Runtime, "a window is already open");
   }
@@ -177,7 +177,7 @@ void SDL3UserInterface::CloseWindow() {
   if (!context_ && !window_) {
     return;
   }
-  assert_true(IsUIThread());
+  REX_ASSERT(IsUIThread());
   open_ = false;
   if (context_ && !context_->HasQuitFromUIThread()) {
     context_->QuitFromUIThread();
@@ -232,14 +232,14 @@ IWindow* SDL3UserInterface::GetWindow() {
 }
 
 void SDL3UserInterface::Run() {
-  assert_true(IsUIThread());
+  REX_ASSERT(IsUIThread());
   if (context_ && !context_->HasQuitFromUIThread()) {
     context_->RunMainMessageLoop();
   }
 }
 
 bool SDL3UserInterface::PumpFrame() {
-  assert_true(IsUIThread());
+  REX_ASSERT(IsUIThread());
   if (!context_ || context_->HasQuitFromUIThread()) {
     return false;
   }
@@ -308,7 +308,7 @@ Style& SDL3UserInterface::GetStyle() {
 }
 
 Result<void> SDL3UserInterface::AddOverlays(std::span<const OverlayDesc> table) {
-  assert_true(IsUIThread());
+  REX_ASSERT(IsUIThread());
   if (!overlays_) {
     return Err<void>(ErrorCategory::Runtime, "no window is open");
   }
@@ -316,38 +316,38 @@ Result<void> SDL3UserInterface::AddOverlays(std::span<const OverlayDesc> table) 
 }
 
 void SDL3UserInterface::ShowOverlay(std::string_view name, bool visible) {
-  assert_true(IsUIThread());
+  REX_ASSERT(IsUIThread());
   if (overlays_) {
     overlays_->Show(name, visible);
   }
 }
 
 void SDL3UserInterface::ToggleOverlay(std::string_view name) {
-  assert_true(IsUIThread());
+  REX_ASSERT(IsUIThread());
   if (overlays_) {
     overlays_->Toggle(name);
   }
 }
 
 ImGuiDialog* SDL3UserInterface::Overlay(std::string_view name) {
-  assert_true(IsUIThread());
+  REX_ASSERT(IsUIThread());
   return overlays_ ? overlays_->Get(name) : nullptr;
 }
 
 bool SDL3UserInterface::AnyOverlayVisible() const {
-  assert_true(IsUIThread());
+  REX_ASSERT(IsUIThread());
   return overlays_ && overlays_->AnyVisible();
 }
 
 void SDL3UserInterface::AddDialog(ImGuiDialog& dialog) {
-  assert_true(IsUIThread());
+  REX_ASSERT(IsUIThread());
   if (drawer_) {
     drawer_->AddDialog(dialog);
   }
 }
 
 void SDL3UserInterface::RemoveDialog(ImGuiDialog& dialog) {
-  assert_true(IsUIThread());
+  REX_ASSERT(IsUIThread());
   if (drawer_) {
     drawer_->RemoveDialog(dialog);
   }
@@ -358,14 +358,14 @@ bool SDL3UserInterface::HasDialogs() const {
 }
 
 void SDL3UserInterface::DrawOverlays(gpu::OverlayDrawContext& context) {
-  assert_true(IsUIThread());
+  REX_ASSERT(IsUIThread());
   if (drawer_) {
     drawer_->Draw(context);
   }
 }
 
 void SDL3UserInterface::SetPresenter(gpu::IPresenter* presenter) {
-  assert_true(IsUIThread());
+  REX_ASSERT(IsUIThread());
   presenter_ = presenter;
   if (!drawer_) {
     return;
@@ -384,7 +384,7 @@ void SDL3UserInterface::SetPresenter(gpu::IPresenter* presenter) {
 }
 
 void SDL3UserInterface::SetOverlayDrawer(std::unique_ptr<gpu::IOverlayDrawer> drawer) {
-  assert_true(IsUIThread());
+  REX_ASSERT(IsUIThread());
   if (drawer_) {
     drawer_->SetOverlayDrawer(nullptr);
   }
@@ -400,12 +400,12 @@ gpu::IOverlayDrawer* SDL3UserInterface::OverlayDrawer() {
 }
 
 void SDL3UserInterface::SetFrameStats(FrameStatsProvider provider) {
-  assert_true(IsUIThread());
+  REX_ASSERT(IsUIThread());
   frame_stats_ = std::move(provider);
 }
 
 void SDL3UserInterface::SetRuntime(Runtime* runtime) {
-  assert_true(IsUIThread());
+  REX_ASSERT(IsUIThread());
   if (!runtime) {
     ReleaseToast();
     achievements_ = nullptr;

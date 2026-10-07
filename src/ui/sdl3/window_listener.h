@@ -23,7 +23,7 @@ class WindowListener {
  public:
   virtual ~WindowListener() = default;
 
-  // OnOpened will be followed by various initial setup listeners.
+  // OnOpened will be followed by the initial setup listeners.
   virtual void OnOpened(UISetupEvent&) {}
   virtual void OnClosing(UIEvent&) {}
 

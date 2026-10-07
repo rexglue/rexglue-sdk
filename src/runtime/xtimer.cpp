@@ -59,10 +59,10 @@ TimerObject::TimerObject(u32 timer_type) {
       timer = rex::platform::Timer::CreateSynchronizationTimer();
       break;
     default:
-      assert_always();
+      REX_ASSERT_ALWAYS();
       break;
   }
-  assert_not_null(timer);
+  REX_ASSERT(timer != nullptr);
 }
 
 TimerObject::~TimerObject() {

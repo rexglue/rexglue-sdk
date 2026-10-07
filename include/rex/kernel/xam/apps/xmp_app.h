@@ -25,7 +25,7 @@ namespace kernel {
 namespace xam {
 namespace apps {
 
-// Only source of docs for a lot of these functions:
+// Only source of docs for many of these functions:
 // https://github.com/oukiar/freestyledash/blob/master/Freestyle/Scenes/Media/Music/ScnMusic.cpp
 
 class REX_RUNTIME_API XmpApp : public runtime::xam::App {
@@ -110,7 +110,7 @@ class REX_RUNTIME_API XmpApp : public runtime::xam::App {
   int active_song_index_;
 
   rex::platform::RankedMutex mutex_{rex::platform::LockRank::Leaf};
-  std::unordered_map<uint32_t, Playlist*> playlists_;
+  std::unordered_map<u32, std::unique_ptr<Playlist>> playlists_;
   uint32_t next_playlist_handle_;
   uint32_t next_song_handle_;
 };

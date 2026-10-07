@@ -1,6 +1,5 @@
 /**
  * @file        core/filesystem/container.cpp
- * @brief       Container mapping, detection, lookup, reads and extraction
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

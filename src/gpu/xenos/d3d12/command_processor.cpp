@@ -9,6 +9,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <bit>
 #include <algorithm>
 #include <cstdarg>
 #include <cstring>
@@ -138,7 +139,7 @@ void D3D12CommandProcessor::InvalidateVertexBufferResidency(uint32_t vfetch_inde
   if (vfetch_index >= vertex_buffer_states_.size()) {
     return;
   }
-  vertex_buffers_in_sync_[vfetch_index >> 6] &= ~(uint64_t(1) << (vfetch_index & 63));
+  vertex_buffers_in_sync_[vfetch_index >> 6] &= ~(static_cast<uint64_t>(1) << (vfetch_index & 63));
 }
 
 void D3D12CommandProcessor::InvalidateVertexBufferResidencyRange(uint32_t first_vfetch,
@@ -149,7 +150,7 @@ void D3D12CommandProcessor::InvalidateVertexBufferResidencyRange(uint32_t first_
   if (first_vfetch >= vertex_buffer_states_.size()) {
     return;
   }
-  last_vfetch = std::min(last_vfetch, uint32_t(vertex_buffer_states_.size() - 1));
+  last_vfetch = std::min(last_vfetch, static_cast<uint32_t>(vertex_buffer_states_.size() - 1));
   for (uint32_t vfetch_index = first_vfetch; vfetch_index <= last_vfetch; ++vfetch_index) {
     InvalidateVertexBufferResidency(vfetch_index);
   }
@@ -168,8 +169,8 @@ bool D3D12CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffe
     return CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(reader, packet, count);
   }
 
-  const uint32_t kQueryFinished = rex::byte_swap(0xFFFFFEED);
-  assert_true(count == 1);
+  constexpr u32 kQueryFinished = std::byteswap(0xFFFFFEEDu);
+  REX_ASSERT(count == 1);
   uint32_t initiator = reader->ReadAndSwap<uint32_t>();
   WriteRegister(std::to_underlying(xenos::Register::VGT_EVENT_INITIATOR), initiator & 0x3F);
 
@@ -181,7 +182,7 @@ bool D3D12CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffe
     return true;
   }
 
-  auto write_fallback_result = [sample_counts, kQueryFinished]() -> bool {
+  auto write_fallback_result = [sample_counts]() -> bool {
     auto fake_sample_count = REXCVAR_GET(::rex::gpu::cvars::query_occlusion_fake_sample_count);
     if (fake_sample_count < 0) {
       return true;
@@ -284,13 +285,17 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(const DxbcShader* v
       tessellated ? D3D12_SHADER_VISIBILITY_DOMAIN : D3D12_SHADER_VISIBILITY_VERTEX;
 
   uint32_t texture_count_vertex =
-      uint32_t(vertex_shader->GetTextureBindingsAfterTranslation().size());
+      static_cast<uint32_t>(vertex_shader->GetTextureBindingsAfterTranslation().size());
   uint32_t sampler_count_vertex =
-      uint32_t(vertex_shader->GetSamplerBindingsAfterTranslation().size());
+      static_cast<uint32_t>(vertex_shader->GetSamplerBindingsAfterTranslation().size());
   uint32_t texture_count_pixel =
-      pixel_shader ? uint32_t(pixel_shader->GetTextureBindingsAfterTranslation().size()) : 0;
+      pixel_shader
+          ? static_cast<uint32_t>(pixel_shader->GetTextureBindingsAfterTranslation().size())
+          : 0;
   uint32_t sampler_count_pixel =
-      pixel_shader ? uint32_t(pixel_shader->GetSamplerBindingsAfterTranslation().size()) : 0;
+      pixel_shader
+          ? static_cast<uint32_t>(pixel_shader->GetSamplerBindingsAfterTranslation().size())
+          : 0;
 
   // Better put the pixel texture/sampler in the lower bits probably because it
   // changes often.
@@ -304,9 +309,10 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(const DxbcShader* v
   index_offset += D3D12Shader::kMaxTextureBindingIndexBits;
   index |= sampler_count_vertex << index_offset;
   index_offset += D3D12Shader::kMaxSamplerBindingIndexBits;
-  index |= uint32_t(vertex_visibility == D3D12_SHADER_VISIBILITY_DOMAIN) << index_offset;
+  index |= static_cast<uint32_t>(vertex_visibility == D3D12_SHADER_VISIBILITY_DOMAIN)
+           << index_offset;
   ++index_offset;
-  assert_true(index_offset <= 32);
+  REX_ASSERT(index_offset <= 32);
 
   // Try an existing root signature.
   auto it = root_signatures_bindful_.find(index);
@@ -330,7 +336,7 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(const DxbcShader* v
     auto& parameter = parameters[kRootParameter_Bindful_FetchConstants];
     parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
     parameter.Descriptor.ShaderRegister =
-        uint32_t(DxbcShaderTranslator::CbufferRegister::kFetchConstants);
+        std::to_underlying(DxbcShaderTranslator::CbufferRegister::kFetchConstants);
     parameter.Descriptor.RegisterSpace = 0;
     parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
   }
@@ -340,7 +346,7 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(const DxbcShader* v
     auto& parameter = parameters[kRootParameter_Bindful_FloatConstantsVertex];
     parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
     parameter.Descriptor.ShaderRegister =
-        uint32_t(DxbcShaderTranslator::CbufferRegister::kFloatConstants);
+        std::to_underlying(DxbcShaderTranslator::CbufferRegister::kFloatConstants);
     parameter.Descriptor.RegisterSpace = 0;
     parameter.ShaderVisibility = vertex_visibility;
   }
@@ -350,7 +356,7 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(const DxbcShader* v
     auto& parameter = parameters[kRootParameter_Bindful_FloatConstantsPixel];
     parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
     parameter.Descriptor.ShaderRegister =
-        uint32_t(DxbcShaderTranslator::CbufferRegister::kFloatConstants);
+        std::to_underlying(DxbcShaderTranslator::CbufferRegister::kFloatConstants);
     parameter.Descriptor.RegisterSpace = 0;
     parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
   }
@@ -360,7 +366,7 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(const DxbcShader* v
     auto& parameter = parameters[kRootParameter_Bindful_SystemConstants];
     parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
     parameter.Descriptor.ShaderRegister =
-        uint32_t(DxbcShaderTranslator::CbufferRegister::kSystemConstants);
+        std::to_underlying(DxbcShaderTranslator::CbufferRegister::kSystemConstants);
     parameter.Descriptor.RegisterSpace = 0;
     parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
   }
@@ -370,7 +376,7 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(const DxbcShader* v
     auto& parameter = parameters[kRootParameter_Bindful_BoolLoopConstants];
     parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
     parameter.Descriptor.ShaderRegister =
-        uint32_t(DxbcShaderTranslator::CbufferRegister::kBoolLoopConstants);
+        std::to_underlying(DxbcShaderTranslator::CbufferRegister::kBoolLoopConstants);
     parameter.Descriptor.RegisterSpace = 0;
     parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
   }
@@ -386,9 +392,9 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(const DxbcShader* v
     shared_memory_and_edram_ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
     shared_memory_and_edram_ranges[0].NumDescriptors = 1;
     shared_memory_and_edram_ranges[0].BaseShaderRegister =
-        uint32_t(DxbcShaderTranslator::SRVMainRegister::kSharedMemory);
+        std::to_underlying(DxbcShaderTranslator::SRVMainRegister::kSharedMemory);
     shared_memory_and_edram_ranges[0].RegisterSpace =
-        uint32_t(DxbcShaderTranslator::SRVSpace::kMain);
+        std::to_underlying(DxbcShaderTranslator::SRVSpace::kMain);
     shared_memory_and_edram_ranges[0].OffsetInDescriptorsFromTableStart = 0;
     shared_memory_and_edram_ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
     shared_memory_and_edram_ranges[1].NumDescriptors = 1;
@@ -420,8 +426,8 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(const DxbcShader* v
     range_textures_pixel.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
     range_textures_pixel.NumDescriptors = texture_count_pixel;
     range_textures_pixel.BaseShaderRegister =
-        uint32_t(DxbcShaderTranslator::SRVMainRegister::kBindfulTexturesStart);
-    range_textures_pixel.RegisterSpace = uint32_t(DxbcShaderTranslator::SRVSpace::kMain);
+        std::to_underlying(DxbcShaderTranslator::SRVMainRegister::kBindfulTexturesStart);
+    range_textures_pixel.RegisterSpace = std::to_underlying(DxbcShaderTranslator::SRVSpace::kMain);
     range_textures_pixel.OffsetInDescriptorsFromTableStart = 0;
     ++desc.NumParameters;
   }
@@ -453,8 +459,8 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(const DxbcShader* v
     range_textures_vertex.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
     range_textures_vertex.NumDescriptors = texture_count_vertex;
     range_textures_vertex.BaseShaderRegister =
-        uint32_t(DxbcShaderTranslator::SRVMainRegister::kBindfulTexturesStart);
-    range_textures_vertex.RegisterSpace = uint32_t(DxbcShaderTranslator::SRVSpace::kMain);
+        std::to_underlying(DxbcShaderTranslator::SRVMainRegister::kBindfulTexturesStart);
+    range_textures_vertex.RegisterSpace = std::to_underlying(DxbcShaderTranslator::SRVSpace::kMain);
     range_textures_vertex.OffsetInDescriptorsFromTableStart = 0;
     ++desc.NumParameters;
   }
@@ -517,8 +523,8 @@ uint32_t D3D12CommandProcessor::GetRootBindfulExtraParameterIndices(
 uint64_t D3D12CommandProcessor::RequestViewBindfulDescriptors(
     uint64_t previous_heap_index, uint32_t count_for_partial_update, uint32_t count_for_full_update,
     D3D12_CPU_DESCRIPTOR_HANDLE& cpu_handle_out, D3D12_GPU_DESCRIPTOR_HANDLE& gpu_handle_out) {
-  assert_false(bindless_resources_used_);
-  assert_true(submission_open_);
+  REX_ASSERT(!bindless_resources_used_);
+  REX_ASSERT(submission_open_);
   uint32_t descriptor_index;
   uint64_t current_heap_index = view_bindful_heap_pool_->Request(
       frame_current_, previous_heap_index, count_for_partial_update, count_for_full_update,
@@ -542,7 +548,7 @@ uint64_t D3D12CommandProcessor::RequestViewBindfulDescriptors(
 }
 
 uint32_t D3D12CommandProcessor::RequestPersistentViewBindlessDescriptor() {
-  assert_true(bindless_resources_used_);
+  REX_ASSERT(bindless_resources_used_);
   if (!view_bindless_heap_free_.empty()) {
     uint32_t descriptor_index = view_bindless_heap_free_.back();
     view_bindless_heap_free_.pop_back();
@@ -555,17 +561,17 @@ uint32_t D3D12CommandProcessor::RequestPersistentViewBindlessDescriptor() {
 }
 
 void D3D12CommandProcessor::ReleaseViewBindlessDescriptorImmediately(uint32_t descriptor_index) {
-  assert_true(bindless_resources_used_);
+  REX_ASSERT(bindless_resources_used_);
   view_bindless_heap_free_.push_back(descriptor_index);
 }
 
 bool D3D12CommandProcessor::RequestOneUseSingleViewDescriptors(
     uint32_t count, gpu::d3d12::util::DescriptorCpuGpuHandlePair* handles_out) {
-  assert_true(submission_open_);
+  REX_ASSERT(submission_open_);
   if (!count) {
     return true;
   }
-  assert_not_null(handles_out);
+  REX_ASSERT(handles_out != nullptr);
   const gpu::d3d12::D3D12Provider& provider = GetD3D12Provider();
   if (bindless_resources_used_) {
     // Request separate bindless descriptors that will be freed when this
@@ -607,11 +613,11 @@ bool D3D12CommandProcessor::RequestOneUseSingleViewDescriptors(
 
 gpu::d3d12::util::DescriptorCpuGpuHandlePair D3D12CommandProcessor::GetSystemBindlessViewHandlePair(
     SystemBindlessView view) const {
-  assert_true(bindless_resources_used_);
+  REX_ASSERT(bindless_resources_used_);
   const gpu::d3d12::D3D12Provider& provider = GetD3D12Provider();
   return std::make_pair(
-      provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_, uint32_t(view)),
-      provider.OffsetViewDescriptor(view_bindless_heap_gpu_start_, uint32_t(view)));
+      provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_, static_cast<uint32_t>(view)),
+      provider.OffsetViewDescriptor(view_bindless_heap_gpu_start_, static_cast<uint32_t>(view)));
 }
 
 gpu::d3d12::util::DescriptorCpuGpuHandlePair
@@ -629,7 +635,7 @@ D3D12CommandProcessor::GetSharedMemoryUintPow2BindlessSRVHandlePair(
       view = SystemBindlessView::kSharedMemoryR32G32B32A32UintSRV;
       break;
     default:
-      assert_unhandled_case(element_size_bytes_pow2);
+      REX_UNHANDLED_CASE(element_size_bytes_pow2);
       view = SystemBindlessView::kSharedMemoryR32UintSRV;
   }
   return GetSystemBindlessViewHandlePair(view);
@@ -650,7 +656,7 @@ D3D12CommandProcessor::GetSharedMemoryUintPow2BindlessUAVHandlePair(
       view = SystemBindlessView::kSharedMemoryR32G32B32A32UintUAV;
       break;
     default:
-      assert_unhandled_case(element_size_bytes_pow2);
+      REX_UNHANDLED_CASE(element_size_bytes_pow2);
       view = SystemBindlessView::kSharedMemoryR32UintUAV;
   }
   return GetSystemBindlessViewHandlePair(view);
@@ -671,7 +677,7 @@ D3D12CommandProcessor::GetEdramUintPow2BindlessSRVHandlePair(
       view = SystemBindlessView::kEDRAMR32G32B32A32UintSRV;
       break;
     default:
-      assert_unhandled_case(element_size_bytes_pow2);
+      REX_UNHANDLED_CASE(element_size_bytes_pow2);
       view = SystemBindlessView::kEDRAMR32UintSRV;
   }
   return GetSystemBindlessViewHandlePair(view);
@@ -692,7 +698,7 @@ D3D12CommandProcessor::GetEdramUintPow2BindlessUAVHandlePair(
       view = SystemBindlessView::kEDRAMR32G32B32A32UintUAV;
       break;
     default:
-      assert_unhandled_case(element_size_bytes_pow2);
+      REX_UNHANDLED_CASE(element_size_bytes_pow2);
       view = SystemBindlessView::kEDRAMR32UintUAV;
   }
   return GetSystemBindlessViewHandlePair(view);
@@ -701,8 +707,8 @@ D3D12CommandProcessor::GetEdramUintPow2BindlessUAVHandlePair(
 uint64_t D3D12CommandProcessor::RequestSamplerBindfulDescriptors(
     uint64_t previous_heap_index, uint32_t count_for_partial_update, uint32_t count_for_full_update,
     D3D12_CPU_DESCRIPTOR_HANDLE& cpu_handle_out, D3D12_GPU_DESCRIPTOR_HANDLE& gpu_handle_out) {
-  assert_false(bindless_resources_used_);
-  assert_true(submission_open_);
+  REX_ASSERT(!bindless_resources_used_);
+  REX_ASSERT(submission_open_);
   uint32_t descriptor_index;
   uint64_t current_heap_index = sampler_bindful_heap_pool_->Request(
       frame_current_, previous_heap_index, count_for_partial_update, count_for_full_update,
@@ -727,8 +733,8 @@ uint64_t D3D12CommandProcessor::RequestSamplerBindfulDescriptors(
 
 ID3D12Resource* D3D12CommandProcessor::RequestScratchGPUBuffer(uint32_t size,
                                                                D3D12_RESOURCE_STATES state) {
-  assert_true(submission_open_);
-  assert_false(scratch_buffer_used_);
+  REX_ASSERT(submission_open_);
+  REX_ASSERT(!scratch_buffer_used_);
   if (!submission_open_ || scratch_buffer_used_ || size == 0) {
     return nullptr;
   }
@@ -765,8 +771,8 @@ ID3D12Resource* D3D12CommandProcessor::RequestScratchGPUBuffer(uint32_t size,
 
 void D3D12CommandProcessor::ReleaseScratchGPUBuffer(ID3D12Resource* buffer,
                                                     D3D12_RESOURCE_STATES new_state) {
-  assert_true(submission_open_);
-  assert_true(scratch_buffer_used_);
+  REX_ASSERT(submission_open_);
+  REX_ASSERT(scratch_buffer_used_);
   scratch_buffer_used_ = false;
   if (buffer == scratch_buffer_) {
     scratch_buffer_state_ = new_state;
@@ -836,7 +842,7 @@ std::string D3D12CommandProcessor::GetWindowTitleText() const {
   std::ostringstream title;
   title << "Direct3D 12";
   if (render_target_cache_) {
-    // Rasterizer-ordered views are a feature very rarely used as of 2020 and
+    // Rasterizer-ordered views are a feature rarely used as of 2020 and
     // that faces adoption complications (outside of Direct3D - on Vulkan - at
     // least), but crucial to Xenia - raise awareness of its usage.
     // https://github.com/KhronosGroup/Vulkan-Ecosystem/issues/27#issuecomment-455712319
@@ -959,7 +965,7 @@ bool D3D12CommandProcessor::SetupContext() {
     }
     view_bindless_heap_cpu_start_ = view_bindless_heap_->GetCPUDescriptorHandleForHeapStart();
     view_bindless_heap_gpu_start_ = view_bindless_heap_->GetGPUDescriptorHandleForHeapStart();
-    view_bindless_heap_allocated_ = uint32_t(SystemBindlessView::kCount);
+    view_bindless_heap_allocated_ = std::to_underlying(SystemBindlessView::kCount);
 
     D3D12_DESCRIPTOR_HEAP_DESC sampler_bindless_heap_desc;
     sampler_bindless_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
@@ -1001,7 +1007,7 @@ bool D3D12CommandProcessor::SetupContext() {
       auto& parameter = root_parameters_bindless[kRootParameter_Bindless_FetchConstants];
       parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
       parameter.Descriptor.ShaderRegister =
-          uint32_t(DxbcShaderTranslator::CbufferRegister::kFetchConstants);
+          std::to_underlying(DxbcShaderTranslator::CbufferRegister::kFetchConstants);
       parameter.Descriptor.RegisterSpace = 0;
       parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
     }
@@ -1010,7 +1016,7 @@ bool D3D12CommandProcessor::SetupContext() {
       auto& parameter = root_parameters_bindless[kRootParameter_Bindless_FloatConstantsVertex];
       parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
       parameter.Descriptor.ShaderRegister =
-          uint32_t(DxbcShaderTranslator::CbufferRegister::kFloatConstants);
+          std::to_underlying(DxbcShaderTranslator::CbufferRegister::kFloatConstants);
       parameter.Descriptor.RegisterSpace = 0;
       parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
     }
@@ -1019,7 +1025,7 @@ bool D3D12CommandProcessor::SetupContext() {
       auto& parameter = root_parameters_bindless[kRootParameter_Bindless_FloatConstantsPixel];
       parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
       parameter.Descriptor.ShaderRegister =
-          uint32_t(DxbcShaderTranslator::CbufferRegister::kFloatConstants);
+          std::to_underlying(DxbcShaderTranslator::CbufferRegister::kFloatConstants);
       parameter.Descriptor.RegisterSpace = 0;
       parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
     }
@@ -1028,7 +1034,7 @@ bool D3D12CommandProcessor::SetupContext() {
       auto& parameter = root_parameters_bindless[kRootParameter_Bindless_DescriptorIndicesPixel];
       parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
       parameter.Descriptor.ShaderRegister =
-          uint32_t(DxbcShaderTranslator::CbufferRegister::kDescriptorIndices);
+          std::to_underlying(DxbcShaderTranslator::CbufferRegister::kDescriptorIndices);
       parameter.Descriptor.RegisterSpace = 0;
       parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
     }
@@ -1037,7 +1043,7 @@ bool D3D12CommandProcessor::SetupContext() {
       auto& parameter = root_parameters_bindless[kRootParameter_Bindless_DescriptorIndicesVertex];
       parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
       parameter.Descriptor.ShaderRegister =
-          uint32_t(DxbcShaderTranslator::CbufferRegister::kDescriptorIndices);
+          std::to_underlying(DxbcShaderTranslator::CbufferRegister::kDescriptorIndices);
       parameter.Descriptor.RegisterSpace = 0;
       parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
     }
@@ -1046,7 +1052,7 @@ bool D3D12CommandProcessor::SetupContext() {
       auto& parameter = root_parameters_bindless[kRootParameter_Bindless_SystemConstants];
       parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
       parameter.Descriptor.ShaderRegister =
-          uint32_t(DxbcShaderTranslator::CbufferRegister::kSystemConstants);
+          std::to_underlying(DxbcShaderTranslator::CbufferRegister::kSystemConstants);
       parameter.Descriptor.RegisterSpace = 0;
       parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
     }
@@ -1055,7 +1061,7 @@ bool D3D12CommandProcessor::SetupContext() {
       auto& parameter = root_parameters_bindless[kRootParameter_Bindless_BoolLoopConstants];
       parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
       parameter.Descriptor.ShaderRegister =
-          uint32_t(DxbcShaderTranslator::CbufferRegister::kBoolLoopConstants);
+          std::to_underlying(DxbcShaderTranslator::CbufferRegister::kBoolLoopConstants);
       parameter.Descriptor.RegisterSpace = 0;
       parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
     }
@@ -1065,7 +1071,7 @@ bool D3D12CommandProcessor::SetupContext() {
       auto& parameter = root_parameters_bindless[kRootParameter_Bindless_SharedMemory];
       parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
       parameter.DescriptorTable.NumDescriptorRanges =
-          uint32_t(rex::countof(root_shared_memory_view_ranges));
+          static_cast<uint32_t>(rex::countof(root_shared_memory_view_ranges));
       parameter.DescriptorTable.pDescriptorRanges = root_shared_memory_view_ranges;
       parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
       {
@@ -1111,8 +1117,8 @@ bool D3D12CommandProcessor::SetupContext() {
       parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
       // EDRAM.
       if (render_target_cache_->GetPath() == RenderTargetCache::Path::kPixelShaderInterlock) {
-        assert_true(parameter.DescriptorTable.NumDescriptorRanges <
-                    rex::countof(root_bindless_view_ranges));
+        REX_ASSERT(parameter.DescriptorTable.NumDescriptorRanges <
+                   rex::countof(root_bindless_view_ranges));
         auto& range = root_bindless_view_ranges[parameter.DescriptorTable.NumDescriptorRanges++];
         range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
         range.NumDescriptors = 1;
@@ -1125,8 +1131,8 @@ bool D3D12CommandProcessor::SetupContext() {
       // other types.
       // 2D array textures.
       {
-        assert_true(parameter.DescriptorTable.NumDescriptorRanges <
-                    rex::countof(root_bindless_view_ranges));
+        REX_ASSERT(parameter.DescriptorTable.NumDescriptorRanges <
+                   rex::countof(root_bindless_view_ranges));
         auto& range = root_bindless_view_ranges[parameter.DescriptorTable.NumDescriptorRanges++];
         range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
         range.NumDescriptors = UINT_MAX;
@@ -1136,8 +1142,8 @@ bool D3D12CommandProcessor::SetupContext() {
       }
       // 3D textures.
       {
-        assert_true(parameter.DescriptorTable.NumDescriptorRanges <
-                    rex::countof(root_bindless_view_ranges));
+        REX_ASSERT(parameter.DescriptorTable.NumDescriptorRanges <
+                   rex::countof(root_bindless_view_ranges));
         auto& range = root_bindless_view_ranges[parameter.DescriptorTable.NumDescriptorRanges++];
         range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
         range.NumDescriptors = UINT_MAX;
@@ -1147,8 +1153,8 @@ bool D3D12CommandProcessor::SetupContext() {
       }
       // Cube textures.
       {
-        assert_true(parameter.DescriptorTable.NumDescriptorRanges <
-                    rex::countof(root_bindless_view_ranges));
+        REX_ASSERT(parameter.DescriptorTable.NumDescriptorRanges <
+                   rex::countof(root_bindless_view_ranges));
         auto& range = root_bindless_view_ranges[parameter.DescriptorTable.NumDescriptorRanges++];
         range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
         range.NumDescriptors = UINT_MAX;
@@ -1476,13 +1482,13 @@ bool D3D12CommandProcessor::SetupContext() {
     gpu::d3d12::util::CreateBufferRawSRV(
         device,
         provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_,
-                                      uint32_t(SystemBindlessView::kNullRawSRV)),
+                                      std::to_underlying(SystemBindlessView::kNullRawSRV)),
         nullptr, 0);
     // kNullRawUAV.
     gpu::d3d12::util::CreateBufferRawUAV(
         device,
         provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_,
-                                      uint32_t(SystemBindlessView::kNullRawUAV)),
+                                      std::to_underlying(SystemBindlessView::kNullRawUAV)),
         nullptr, 0);
     // kNullTexture2DArray.
     D3D12_SHADER_RESOURCE_VIEW_DESC null_srv_desc;
@@ -1500,7 +1506,7 @@ bool D3D12CommandProcessor::SetupContext() {
     device->CreateShaderResourceView(
         nullptr, &null_srv_desc,
         provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_,
-                                      uint32_t(SystemBindlessView::kNullTexture2DArray)));
+                                      std::to_underlying(SystemBindlessView::kNullTexture2DArray)));
     // kNullTexture3D.
     null_srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE3D;
     null_srv_desc.Texture3D.MostDetailedMip = 0;
@@ -1509,7 +1515,7 @@ bool D3D12CommandProcessor::SetupContext() {
     device->CreateShaderResourceView(
         nullptr, &null_srv_desc,
         provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_,
-                                      uint32_t(SystemBindlessView::kNullTexture3D)));
+                                      std::to_underlying(SystemBindlessView::kNullTexture3D)));
     // kNullTextureCube.
     null_srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
     null_srv_desc.TextureCube.MostDetailedMip = 0;
@@ -1518,94 +1524,102 @@ bool D3D12CommandProcessor::SetupContext() {
     device->CreateShaderResourceView(
         nullptr, &null_srv_desc,
         provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_,
-                                      uint32_t(SystemBindlessView::kNullTextureCube)));
+                                      std::to_underlying(SystemBindlessView::kNullTextureCube)));
     // kSharedMemoryRawSRV.
-    shared_memory_->WriteRawSRVDescriptor(provider.OffsetViewDescriptor(
-        view_bindless_heap_cpu_start_, uint32_t(SystemBindlessView::kSharedMemoryRawSRV)));
+    shared_memory_->WriteRawSRVDescriptor(
+        provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_,
+                                      std::to_underlying(SystemBindlessView::kSharedMemoryRawSRV)));
     // kSharedMemoryR32UintSRV.
     shared_memory_->WriteUintPow2SRVDescriptor(
-        provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_,
-                                      uint32_t(SystemBindlessView::kSharedMemoryR32UintSRV)),
+        provider.OffsetViewDescriptor(
+            view_bindless_heap_cpu_start_,
+            std::to_underlying(SystemBindlessView::kSharedMemoryR32UintSRV)),
         2);
     // kSharedMemoryR32G32UintSRV.
     shared_memory_->WriteUintPow2SRVDescriptor(
-        provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_,
-                                      uint32_t(SystemBindlessView::kSharedMemoryR32G32UintSRV)),
+        provider.OffsetViewDescriptor(
+            view_bindless_heap_cpu_start_,
+            std::to_underlying(SystemBindlessView::kSharedMemoryR32G32UintSRV)),
         3);
     // kSharedMemoryR32G32B32A32UintSRV.
     shared_memory_->WriteUintPow2SRVDescriptor(
         provider.OffsetViewDescriptor(
             view_bindless_heap_cpu_start_,
-            uint32_t(SystemBindlessView::kSharedMemoryR32G32B32A32UintSRV)),
+            std::to_underlying(SystemBindlessView::kSharedMemoryR32G32B32A32UintSRV)),
         4);
     // kSharedMemoryRawUAV.
-    shared_memory_->WriteRawUAVDescriptor(provider.OffsetViewDescriptor(
-        view_bindless_heap_cpu_start_, uint32_t(SystemBindlessView::kSharedMemoryRawUAV)));
+    shared_memory_->WriteRawUAVDescriptor(
+        provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_,
+                                      std::to_underlying(SystemBindlessView::kSharedMemoryRawUAV)));
     // kSharedMemoryR32UintUAV.
     shared_memory_->WriteUintPow2UAVDescriptor(
-        provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_,
-                                      uint32_t(SystemBindlessView::kSharedMemoryR32UintUAV)),
+        provider.OffsetViewDescriptor(
+            view_bindless_heap_cpu_start_,
+            std::to_underlying(SystemBindlessView::kSharedMemoryR32UintUAV)),
         2);
     // kSharedMemoryR32G32UintUAV.
     shared_memory_->WriteUintPow2UAVDescriptor(
-        provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_,
-                                      uint32_t(SystemBindlessView::kSharedMemoryR32G32UintUAV)),
+        provider.OffsetViewDescriptor(
+            view_bindless_heap_cpu_start_,
+            std::to_underlying(SystemBindlessView::kSharedMemoryR32G32UintUAV)),
         3);
     // kSharedMemoryR32G32B32A32UintUAV.
     shared_memory_->WriteUintPow2UAVDescriptor(
         provider.OffsetViewDescriptor(
             view_bindless_heap_cpu_start_,
-            uint32_t(SystemBindlessView::kSharedMemoryR32G32B32A32UintUAV)),
+            std::to_underlying(SystemBindlessView::kSharedMemoryR32G32B32A32UintUAV)),
         4);
     // kEDRAMRawSRV.
     render_target_cache_->WriteEdramRawSRVDescriptor(provider.OffsetViewDescriptor(
-        view_bindless_heap_cpu_start_, uint32_t(SystemBindlessView::kEDRAMRawSRV)));
+        view_bindless_heap_cpu_start_, std::to_underlying(SystemBindlessView::kEDRAMRawSRV)));
     // kEDRAMR32UintSRV.
     render_target_cache_->WriteEdramUintPow2SRVDescriptor(
         provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_,
-                                      uint32_t(SystemBindlessView::kEDRAMR32UintSRV)),
+                                      std::to_underlying(SystemBindlessView::kEDRAMR32UintSRV)),
         2);
     // kEDRAMR32G32UintSRV.
     render_target_cache_->WriteEdramUintPow2SRVDescriptor(
         provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_,
-                                      uint32_t(SystemBindlessView::kEDRAMR32G32UintSRV)),
+                                      std::to_underlying(SystemBindlessView::kEDRAMR32G32UintSRV)),
         3);
     // kEDRAMR32G32B32A32UintSRV.
     render_target_cache_->WriteEdramUintPow2SRVDescriptor(
-        provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_,
-                                      uint32_t(SystemBindlessView::kEDRAMR32G32B32A32UintSRV)),
+        provider.OffsetViewDescriptor(
+            view_bindless_heap_cpu_start_,
+            std::to_underlying(SystemBindlessView::kEDRAMR32G32B32A32UintSRV)),
         4);
     // kEDRAMRawUAV.
     render_target_cache_->WriteEdramRawUAVDescriptor(provider.OffsetViewDescriptor(
-        view_bindless_heap_cpu_start_, uint32_t(SystemBindlessView::kEDRAMRawUAV)));
+        view_bindless_heap_cpu_start_, std::to_underlying(SystemBindlessView::kEDRAMRawUAV)));
     // kEDRAMR32UintUAV.
     render_target_cache_->WriteEdramUintPow2UAVDescriptor(
         provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_,
-                                      uint32_t(SystemBindlessView::kEDRAMR32UintUAV)),
+                                      std::to_underlying(SystemBindlessView::kEDRAMR32UintUAV)),
         2);
     // kEDRAMR32G32UintUAV.
     render_target_cache_->WriteEdramUintPow2UAVDescriptor(
         provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_,
-                                      uint32_t(SystemBindlessView::kEDRAMR32G32UintUAV)),
+                                      std::to_underlying(SystemBindlessView::kEDRAMR32G32UintUAV)),
         3);
     // kEDRAMR32G32B32A32UintUAV.
     render_target_cache_->WriteEdramUintPow2UAVDescriptor(
-        provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_,
-                                      uint32_t(SystemBindlessView::kEDRAMR32G32B32A32UintUAV)),
+        provider.OffsetViewDescriptor(
+            view_bindless_heap_cpu_start_,
+            std::to_underlying(SystemBindlessView::kEDRAMR32G32B32A32UintUAV)),
         4);
     // kGammaRampTableSRV.
-    WriteGammaRampSRV(
-        false, provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_,
-                                             uint32_t(SystemBindlessView::kGammaRampTableSRV)));
+    WriteGammaRampSRV(false, provider.OffsetViewDescriptor(
+                                 view_bindless_heap_cpu_start_,
+                                 std::to_underlying(SystemBindlessView::kGammaRampTableSRV)));
     // kGammaRampPWLSRV.
-    WriteGammaRampSRV(
-        true, provider.OffsetViewDescriptor(view_bindless_heap_cpu_start_,
-                                            uint32_t(SystemBindlessView::kGammaRampPWLSRV)));
+    WriteGammaRampSRV(true, provider.OffsetViewDescriptor(
+                                view_bindless_heap_cpu_start_,
+                                std::to_underlying(SystemBindlessView::kGammaRampPWLSRV)));
   }
 
   occlusion_query_resources_available_ = InitializeOcclusionQueryResources();
 
-  // Just not to expose uninitialized memory.
+  // Not to expose uninitialized memory.
   std::memset(&system_constants_, 0, sizeof(system_constants_));
 
   return true;
@@ -1925,8 +1939,8 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbu
   // The swap gamma / FXAA pass samples source texels by pixel index, but swap
   // textures may be allocation-padded. Prefer the active frontbuffer region
   // from the swap packet, scaled proportionally to the actual source texture.
-  uint32_t source_width_scaled = uint32_t(swap_texture_desc.Width);
-  uint32_t source_height_scaled = uint32_t(swap_texture_desc.Height);
+  uint32_t source_width_scaled = static_cast<uint32_t>(swap_texture_desc.Width);
+  uint32_t source_height_scaled = static_cast<uint32_t>(swap_texture_desc.Height);
   auto get_active_swap_dimension = [](uint32_t packet_unscaled, uint32_t source_unscaled,
                                       uint32_t source_scaled) -> uint32_t {
     if (!source_scaled) {
@@ -1939,8 +1953,9 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbu
     if (source_unscaled) {
       active_unscaled = std::min(active_unscaled, source_unscaled);
       uint64_t active_scaled =
-          (uint64_t(active_unscaled) * source_scaled + (source_unscaled >> 1)) / source_unscaled;
-      return uint32_t(std::clamp<uint64_t>(active_scaled, 1, source_scaled));
+          (static_cast<uint64_t>(active_unscaled) * source_scaled + (source_unscaled >> 1)) /
+          source_unscaled;
+      return static_cast<uint32_t>(std::clamp<uint64_t>(active_scaled, 1, source_scaled));
     }
     return std::min(active_unscaled, source_scaled);
   };
@@ -1975,8 +1990,10 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbu
 
   runtime::X_VIDEO_MODE video_mode;
   kernel::xboxkrnl::VdQueryVideoMode(&video_mode);
-  uint32_t display_width = std::max(uint32_t(1), uint32_t(video_mode.display_width));
-  uint32_t display_height = std::max(uint32_t(1), uint32_t(video_mode.display_height));
+  uint32_t display_width =
+      std::max(static_cast<uint32_t>(1), static_cast<uint32_t>(video_mode.display_width));
+  uint32_t display_height =
+      std::max(static_cast<uint32_t>(1), static_cast<uint32_t>(video_mode.display_height));
 
   presenter->RefreshGuestOutput(
       guest_output_width, guest_output_height, display_width, display_height,
@@ -2047,7 +2064,7 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbu
                                  : gamma_ramp_256_entry_table_up_to_date_)) {
           uint32_t gamma_ramp_offset_bytes = use_pwl_gamma_ramp ? 256 * 4 : 0;
           uint32_t gamma_ramp_upload_offset_bytes =
-              uint32_t(frame_current_ % kQueueFrames) * ((256 + 128 * 3) * 4) +
+              static_cast<uint32_t>(frame_current_ % kQueueFrames) * ((256 + 128 * 3) * 4) +
               gamma_ramp_offset_bytes;
           uint32_t gamma_ramp_size_bytes = (use_pwl_gamma_ramp ? 128 * 3 : 256) * 4;
           if (std::endian::native != std::endian::little && use_pwl_gamma_ramp) {
@@ -2166,9 +2183,9 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbu
         if (use_fxaa) {
           // Destination and source.
           gpu::d3d12::util::DescriptorCpuGpuHandlePair fxaa_descriptors[2];
-          if (!RequestOneUseSingleViewDescriptors(uint32_t(rex::countof(fxaa_descriptors)),
-                                                  fxaa_descriptors)) {
-            // Failed to obtain descriptors for FXAA - just copy after gamma
+          if (!RequestOneUseSingleViewDescriptors(
+                  static_cast<uint32_t>(rex::countof(fxaa_descriptors)), fxaa_descriptors)) {
+            // Failed to obtain descriptors for FXAA - copy after gamma
             // ramp application without applying FXAA.
             PushTransitionBarrier(apply_gamma_dest, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
                                   D3D12_RESOURCE_STATE_COPY_SOURCE);
@@ -2183,8 +2200,8 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbu
                                   gpu::d3d12::D3D12Presenter::kGuestOutputInternalState);
             return false;
           } else {
-            assert_true(apply_gamma_dest_initial_state ==
-                        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+            REX_ASSERT(apply_gamma_dest_initial_state ==
+                       D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
             PushTransitionBarrier(apply_gamma_dest, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
                                   apply_gamma_dest_initial_state);
             PushTransitionBarrier(guest_output_resource,
@@ -2196,8 +2213,8 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbu
             FxaaConstants fxaa_constants;
             fxaa_constants.size[0] = guest_output_width;
             fxaa_constants.size[1] = guest_output_height;
-            fxaa_constants.size_inv[0] = 1.0f / float(fxaa_constants.size[0]);
-            fxaa_constants.size_inv[1] = 1.0f / float(fxaa_constants.size[1]);
+            fxaa_constants.size_inv[0] = 1.0f / static_cast<float>(fxaa_constants.size[0]);
+            fxaa_constants.size_inv[1] = 1.0f / static_cast<float>(fxaa_constants.size[1]);
             deferred_command_list_.D3DSetComputeRoot32BitConstants(
                 UINT(FxaaRootParameter::kConstants), sizeof(fxaa_constants) / sizeof(uint32_t),
                 &fxaa_constants, 0);
@@ -2231,8 +2248,8 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbu
                                   gpu::d3d12::D3D12Presenter::kGuestOutputInternalState);
           }
         } else {
-          assert_true(apply_gamma_dest_initial_state ==
-                      gpu::d3d12::D3D12Presenter::kGuestOutputInternalState);
+          REX_ASSERT(apply_gamma_dest_initial_state ==
+                     gpu::d3d12::D3D12Presenter::kGuestOutputInternalState);
           PushTransitionBarrier(apply_gamma_dest, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
                                 apply_gamma_dest_initial_state);
         }
@@ -2293,8 +2310,8 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
   bool primitive_polygonal = draw_util::IsPrimitivePolygonal(regs);
   bool is_rasterization_done = draw_util::IsRasterizationPotentiallyDone(regs, primitive_polygonal);
   if (surface_pitch_is_zero && is_rasterization_done) {
-    // Doesn't actually draw.
-    // Unlikely that zero would even really be legal though.
+    // Doesn't draw.
+    // Unlikely that zero would even be legal though.
     return true;
   }
   D3D12Shader* pixel_shader = nullptr;
@@ -2363,7 +2380,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
     return false;
   }
 
-  // Create the pipeline (for this, need the actually used render target formats
+  // Create the pipeline (for this, need the used render target formats
   // from the render target cache), translating the shaders - doing this now to
   // obtain the used textures.
   D3D12Shader::D3D12Translation* vertex_shader_translation =
@@ -2431,8 +2448,9 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
   std::memcpy(viewport_key.vport_regs,
               &regs[std::to_underlying(xenos::Register::PA_CL_VPORT_XSCALE)],
               sizeof(viewport_key.vport_regs));
-  viewport_key.flags = (uint32_t(convert_z_to_float24) << 0) |
-                       (uint32_t(host_render_targets_used) << 1) | (uint32_t(ps_writes_depth) << 2);
+  viewport_key.flags = (static_cast<uint32_t>(convert_z_to_float24) << 0) |
+                       (static_cast<uint32_t>(host_render_targets_used) << 1) |
+                       (static_cast<uint32_t>(ps_writes_depth) << 2);
 
   draw_util::ViewportInfo viewport_info;
   if (viewport_cache_valid_ && viewport_key == previous_viewport_key_) {
@@ -2476,9 +2494,9 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
     uint32_t vfetch_bits_remaining = constant_map_vertex.vertex_fetch_bitmap[i];
     uint32_t j;
     while (rex::bit_scan_forward(vfetch_bits_remaining, &j)) {
-      vfetch_bits_remaining &= ~(uint32_t(1) << j);
+      vfetch_bits_remaining &= ~(static_cast<uint32_t>(1) << j);
       uint32_t vfetch_index = i * 32 + j;
-      uint64_t vfetch_bit = uint64_t(1) << (vfetch_index & 63);
+      uint64_t vfetch_bit = static_cast<uint64_t>(1) << (vfetch_index & 63);
       if (vertex_buffers_in_sync_[vfetch_index >> 6] & vfetch_bit) {
         continue;
       }
@@ -2572,8 +2590,8 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
         REXLOG_ERROR(gpu,
                      "Host tessellated primitive type {} returned by the primitive "
                      "processor is not supported by the Direct3D 12 command processor",
-                     uint32_t(primitive_processing_result.host_primitive_type));
-        assert_unhandled_case(primitive_processing_result.host_primitive_type);
+                     static_cast<uint32_t>(primitive_processing_result.host_primitive_type));
+        REX_UNHANDLED_CASE(primitive_processing_result.host_primitive_type);
         return false;
     }
   } else {
@@ -2601,8 +2619,8 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
         REXLOG_ERROR(gpu,
                      "Host primitive type {} returned by the primitive processor is not "
                      "supported by the Direct3D 12 command processor",
-                     uint32_t(primitive_processing_result.host_primitive_type));
-        assert_unhandled_case(primitive_processing_result.host_primitive_type);
+                     static_cast<uint32_t>(primitive_processing_result.host_primitive_type));
+        REX_UNHANDLED_CASE(primitive_processing_result.host_primitive_type);
         return false;
     }
   }
@@ -2667,7 +2685,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
             primitive_processing_result.host_index_buffer_handle);
         break;
       default:
-        assert_unhandled_case(primitive_processing_result.index_buffer_type);
+        REX_UNHANDLED_CASE(primitive_processing_result.index_buffer_type);
         return false;
     }
     deferred_command_list_.D3DIASetIndexBuffer(&index_buffer_view);
@@ -2941,7 +2959,7 @@ bool D3D12CommandProcessor::IssueCopy_ReadbackResolvePath() {
     xenos::reg::RB_COPY_DEST_INFO copy_dest_info =
         register_file_->Get<xenos::reg::RB_COPY_DEST_INFO>();
     const xenos::FormatInfo* format_info =
-        xenos::FormatInfo::Get(uint32_t(copy_dest_info.copy_dest_format));
+        xenos::FormatInfo::Get(static_cast<uint32_t>(copy_dest_info.copy_dest_format));
     uint32_t bits_per_pixel = format_info->bits_per_pixel;
     if (bits_per_pixel != 8 && bits_per_pixel != 16 && bits_per_pixel != 32 &&
         bits_per_pixel != 64) {
@@ -2952,13 +2970,14 @@ bool D3D12CommandProcessor::IssueCopy_ReadbackResolvePath() {
     if (!rex::bit_scan_forward(bits_per_pixel >> 3, &pixel_size_log2)) {
       return true;
     }
-    uint32_t tile_size_1x = 32 * 32 * (uint32_t(1) << pixel_size_log2);
+    uint32_t tile_size_1x = 32 * 32 * (static_cast<uint32_t>(1) << pixel_size_log2);
     uint32_t tile_count = written_length / tile_size_1x;
     if (!tile_count) {
       return true;
     }
 
-    uint32_t scaled_length = uint32_t(texture_cache_->GetCurrentScaledResolveRangeLengthScaled());
+    uint32_t scaled_length =
+        static_cast<uint32_t>(texture_cache_->GetCurrentScaledResolveRangeLengthScaled());
     uint64_t scaled_address = texture_cache_->GetCurrentScaledResolveRangeStartScaled();
     if (!scaled_length) {
       return true;
@@ -2996,7 +3015,7 @@ bool D3D12CommandProcessor::IssueCopy_ReadbackResolvePath() {
     if (!scaled_resolve_buffer) {
       return true;
     }
-    uint64_t scaled_buffer_base = uint64_t(scaled_resolve_buffer_index) << 30;
+    uint64_t scaled_buffer_base = static_cast<uint64_t>(scaled_resolve_buffer_index) << 30;
     if (scaled_address < scaled_buffer_base) {
       return true;
     }
@@ -3010,12 +3029,12 @@ bool D3D12CommandProcessor::IssueCopy_ReadbackResolvePath() {
     const gpu::d3d12::D3D12Provider& provider = GetD3D12Provider();
     ID3D12Device* device = provider.GetDevice();
     uint32_t aligned_scaled_length =
-        rex::align(scaled_length, uint32_t(D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT));
+        rex::align(scaled_length, static_cast<uint32_t>(D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT));
     gpu::d3d12::util::CreateBufferRawSRV(device, downscale_descriptors[0].first,
                                          scaled_resolve_buffer, aligned_scaled_length,
                                          source_offset);
     uint32_t aligned_written_length =
-        rex::align(written_length, uint32_t(D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT));
+        rex::align(written_length, static_cast<uint32_t>(D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT));
     gpu::d3d12::util::CreateBufferRawUAV(device, downscale_descriptors[1].first,
                                          resolve_downscale_buffer_.Get(), aligned_written_length,
                                          0);
@@ -3105,7 +3124,7 @@ void D3D12CommandProcessor::CheckSubmissionFence(uint64_t await_submission) {
     }
     // Ending an open submission should result in queue operations done directly
     // (like UpdateTileMappings) to be tracked within the scope of that
-    // submission, but just in case of a failure, or queue operations being done
+    // submission, but in case of a failure, or queue operations being done
     // outside of a submission, await explicitly.
     if (queue_operations_done_since_submission_signal_) {
       UINT64 fence_value = ++queue_operations_since_submission_fence_last_;
@@ -3280,9 +3299,9 @@ bool D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
   // open the frame.
   if (is_opening_frame) {
     // Update the completed frame index, also obtaining the actual completed
-    // frame number (since the CPU may be actually less than 3 frames behind)
+    // frame number (since the CPU may be less than 3 frames behind)
     // before reclaiming resources tracked with the frame number.
-    frame_completed_ = std::max(frame_current_, uint64_t(kQueueFrames)) - kQueueFrames;
+    frame_completed_ = std::max(frame_current_, static_cast<uint64_t>(kQueueFrames)) - kQueueFrames;
     for (uint64_t frame = frame_completed_ + 1; frame < frame_current_; ++frame) {
       if (closed_frame_submissions_[frame % kQueueFrames] > submission_completed_) {
         break;
@@ -3396,7 +3415,7 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
   }
 
   if (submission_open_) {
-    assert_false(scratch_buffer_used_);
+    REX_ASSERT(!scratch_buffer_used_);
 
     if (active_occlusion_query_.valid && occlusion_query_heap_) {
       deferred_command_list_.D3DEndQuery(occlusion_query_heap_.Get(), D3D12_QUERY_TYPE_OCCLUSION,
@@ -3522,10 +3541,10 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
 
   // Viewport.
   D3D12_VIEWPORT viewport;
-  viewport.TopLeftX = float(viewport_info.xy_offset[0]);
-  viewport.TopLeftY = float(viewport_info.xy_offset[1]);
-  viewport.Width = float(viewport_info.xy_extent[0]);
-  viewport.Height = float(viewport_info.xy_extent[1]);
+  viewport.TopLeftX = static_cast<float>(viewport_info.xy_offset[0]);
+  viewport.TopLeftY = static_cast<float>(viewport_info.xy_offset[1]);
+  viewport.Width = static_cast<float>(viewport_info.xy_extent[0]);
+  viewport.Height = static_cast<float>(viewport_info.xy_extent[1]);
   viewport.MinDepth = viewport_info.z_min;
   viewport.MaxDepth = viewport_info.z_max;
   SetViewport(viewport);
@@ -3618,7 +3637,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   // flow.
   xenos::reg::RB_COLOR_INFO color_infos[4];
   float rt_clamp[4][4];
-  // Two UINT32_MAX if no components actually existing in the RT are written.
+  // Two UINT32_MAX if no components existing in the RT are written.
   uint32_t rt_keep_masks[4][2];
   for (uint32_t i = 0; i < 4; ++i) {
     auto color_info =
@@ -3689,7 +3708,8 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   xenos::CompareFunction alpha_test_function = rb_colorcontrol.alpha_test_enable
                                                    ? rb_colorcontrol.alpha_func
                                                    : xenos::CompareFunction::kAlways;
-  flags |= uint32_t(alpha_test_function) << DxbcShaderTranslator::kSysFlag_AlphaPassIfLess_Shift;
+  flags |= static_cast<uint32_t>(alpha_test_function)
+           << DxbcShaderTranslator::kSysFlag_AlphaPassIfLess_Shift;
   // Gamma writing.
   if (!render_target_cache_->gamma_render_target_as_unorm16()) {
     for (uint32_t i = 0; i < 4; ++i) {
@@ -3701,7 +3721,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   if (edram_rov_used && depth_stencil_enabled) {
     flags |= DxbcShaderTranslator::kSysFlag_ROVDepthStencil;
     if (normalized_depth_control.z_enable) {
-      flags |= uint32_t(normalized_depth_control.zfunc)
+      flags |= static_cast<uint32_t>(normalized_depth_control.zfunc)
                << DxbcShaderTranslator::kSysFlag_ROVDepthPassIfLess_Shift;
       if (normalized_depth_control.z_write_enable) {
         flags |= DxbcShaderTranslator::kSysFlag_ROVDepthWrite;
@@ -3755,7 +3775,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
 
   // User clip planes (UCP_ENA_#), when not CLIP_DISABLE.
   // The shader knows only the total count - tightly packing the user clip
-  // planes that are actually used.
+  // planes that are used.
   if (!pa_cl_clip_cntl.clip_disable) {
     float* user_clip_plane_write_ptr = system_constants_.user_clip_planes[0];
     uint32_t user_clip_planes_remaining = pa_cl_clip_cntl.ucp_ena;
@@ -3784,10 +3804,12 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   if (vgt_draw_initiator.prim_type == xenos::PrimitiveType::kPointList) {
     auto pa_su_point_minmax = regs.Get<xenos::reg::PA_SU_POINT_MINMAX>();
     auto pa_su_point_size = regs.Get<xenos::reg::PA_SU_POINT_SIZE>();
-    float point_vertex_diameter_min = float(pa_su_point_minmax.min_size) * (2.0f / 16.0f);
-    float point_vertex_diameter_max = float(pa_su_point_minmax.max_size) * (2.0f / 16.0f);
-    float point_constant_diameter_x = float(pa_su_point_size.width) * (2.0f / 16.0f);
-    float point_constant_diameter_y = float(pa_su_point_size.height) * (2.0f / 16.0f);
+    float point_vertex_diameter_min =
+        static_cast<float>(pa_su_point_minmax.min_size) * (2.0f / 16.0f);
+    float point_vertex_diameter_max =
+        static_cast<float>(pa_su_point_minmax.max_size) * (2.0f / 16.0f);
+    float point_constant_diameter_x = static_cast<float>(pa_su_point_size.width) * (2.0f / 16.0f);
+    float point_constant_diameter_y = static_cast<float>(pa_su_point_size.height) * (2.0f / 16.0f);
     dirty |= system_constants_.point_vertex_diameter_min != point_vertex_diameter_min;
     dirty |= system_constants_.point_vertex_diameter_max != point_vertex_diameter_max;
     dirty |= system_constants_.point_constant_diameter[0] != point_constant_diameter_x;
@@ -3800,11 +3822,11 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     // to radius conversion to avoid multiplying the per-vertex diameter by an
     // additional constant in the shader.
     float point_screen_diameter_to_ndc_radius_x =
-        (/* 0.5f * 2.0f * */ float(draw_resolution_scale_x)) /
-        std::max(viewport_info.xy_extent[0], uint32_t(1));
+        (/* 0.5f * 2.0f * */ static_cast<float>(draw_resolution_scale_x)) /
+        std::max(viewport_info.xy_extent[0], static_cast<uint32_t>(1));
     float point_screen_diameter_to_ndc_radius_y =
-        (/* 0.5f * 2.0f * */ float(draw_resolution_scale_y)) /
-        std::max(viewport_info.xy_extent[1], uint32_t(1));
+        (/* 0.5f * 2.0f * */ static_cast<float>(draw_resolution_scale_y)) /
+        std::max(viewport_info.xy_extent[1], static_cast<uint32_t>(1));
     dirty |= system_constants_.point_screen_diameter_to_ndc_radius[0] !=
              point_screen_diameter_to_ndc_radius_x;
     dirty |= system_constants_.point_screen_diameter_to_ndc_radius[1] !=
@@ -3820,16 +3842,17 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   uint32_t textures_remaining = used_texture_mask;
   uint32_t texture_index;
   while (rex::bit_scan_forward(textures_remaining, &texture_index)) {
-    textures_remaining &= ~(uint32_t(1) << texture_index);
+    textures_remaining &= ~(static_cast<uint32_t>(1) << texture_index);
     uint32_t& texture_signs_uint = system_constants_.texture_swizzled_signs[texture_index >> 2];
     uint32_t texture_signs_shift = (texture_index & 3) * 8;
     uint8_t texture_signs = texture_cache_->GetActiveTextureSwizzledSigns(texture_index);
-    uint32_t texture_signs_shifted = uint32_t(texture_signs) << texture_signs_shift;
-    uint32_t texture_signs_mask = uint32_t(0b11111111) << texture_signs_shift;
+    uint32_t texture_signs_shifted = static_cast<uint32_t>(texture_signs) << texture_signs_shift;
+    uint32_t texture_signs_mask = static_cast<uint32_t>(0b11111111) << texture_signs_shift;
     dirty |= (texture_signs_uint & texture_signs_mask) != texture_signs_shifted;
     texture_signs_uint = (texture_signs_uint & ~texture_signs_mask) | texture_signs_shifted;
     textures_resolution_scaled |=
-        uint32_t(texture_cache_->IsActiveTextureResolutionScaled(texture_index)) << texture_index;
+        static_cast<uint32_t>(texture_cache_->IsActiveTextureResolutionScaled(texture_index))
+        << texture_index;
   }
   dirty |= system_constants_.textures_resolution_scaled != textures_resolution_scaled;
   system_constants_.textures_resolution_scaled = textures_resolution_scaled;
@@ -3883,7 +3906,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
       }
     }
     auto color_exp_bias_scale =
-        rex::memory::Reinterpret<float>(int32_t(0x3F800000 + (color_exp_bias << 23)));
+        rex::memory::Reinterpret<float>(static_cast<int32_t>(0x3F800000 + (color_exp_bias << 23)));
     dirty |= system_constants_.color_exp_bias[i] != color_exp_bias_scale;
     system_constants_.color_exp_bias[i] = color_exp_bias_scale;
     if (edram_rov_used) {
@@ -3979,8 +4002,8 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
         dirty |= system_constants_.edram_stencil_back_func_ops != stencil_func_ops_bf;
         system_constants_.edram_stencil_back_func_ops = stencil_func_ops_bf;
       } else {
-        dirty |= std::memcmp(system_constants_.edram_stencil_back,
-                             system_constants_.edram_stencil_front, 4 * sizeof(uint32_t)) != 0;
+        dirty |= !std::ranges::equal(system_constants_.edram_stencil_back,
+                                     system_constants_.edram_stencil_front);
         std::memcpy(system_constants_.edram_stencil_back, system_constants_.edram_stencil_front,
                     4 * sizeof(uint32_t));
       }
@@ -4052,12 +4075,12 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
   //
 
   // These are the constant base addresses/ranges for shaders.
-  // We have these hardcoded right now cause nothing seems to differ on the Xbox
-  // 360 (however, OpenGL ES on Adreno 200 on Android has different ranges).
-  assert_true(regs[std::to_underlying(xenos::Register::SQ_VS_CONST)] == 0x000FF000 ||
-              regs[std::to_underlying(xenos::Register::SQ_VS_CONST)] == 0x00000000);
-  assert_true(regs[std::to_underlying(xenos::Register::SQ_PS_CONST)] == 0x000FF100 ||
-              regs[std::to_underlying(xenos::Register::SQ_PS_CONST)] == 0x00000000);
+  // We have these hardcoded right now cause nothing seems to differ on the console
+  // (however, OpenGL ES on Adreno 200 on Android has different ranges).
+  REX_ASSERT(regs[std::to_underlying(xenos::Register::SQ_VS_CONST)] == 0x000FF000 ||
+             regs[std::to_underlying(xenos::Register::SQ_VS_CONST)] == 0x00000000);
+  REX_ASSERT(regs[std::to_underlying(xenos::Register::SQ_PS_CONST)] == 0x000FF100 ||
+             regs[std::to_underlying(xenos::Register::SQ_PS_CONST)] == 0x00000000);
   // Check if the float constant layout is still the same and get the counts.
   const Shader::ConstantRegisterMap& float_constant_map_vertex =
       vertex_shader->constant_register_map();
@@ -4107,7 +4130,8 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
     // root signature doesn't have float constants at all, still allocate an
     // empty buffer.
     uint8_t* float_constants = constant_buffer_pool_->Request(
-        frame_current_, sizeof(float) * 4 * std::max(float_constant_count_vertex, uint32_t(1)),
+        frame_current_,
+        sizeof(float) * 4 * std::max(float_constant_count_vertex, static_cast<uint32_t>(1)),
         D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT, nullptr, nullptr,
         &cbuffer_binding_float_vertex_.address);
     if (float_constants == nullptr) {
@@ -4130,7 +4154,8 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
   }
   if (!cbuffer_binding_float_pixel_.up_to_date) {
     uint8_t* float_constants = constant_buffer_pool_->Request(
-        frame_current_, sizeof(float) * 4 * std::max(float_constant_count_pixel, uint32_t(1)),
+        frame_current_,
+        sizeof(float) * 4 * std::max(float_constant_count_pixel, static_cast<uint32_t>(1)),
         D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT, nullptr, nullptr,
         &cbuffer_binding_float_pixel_.address);
     if (float_constants == nullptr) {
@@ -4243,7 +4268,7 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
         bindful_samplers_written_pixel_ = false;
       }
       current_samplers_pixel_.resize(
-          std::max(current_samplers_pixel_.size(), size_t(sampler_count_pixel)));
+          std::max(current_samplers_pixel_.size(), static_cast<size_t>(sampler_count_pixel)));
       for (uint32_t i = 0; i < sampler_count_pixel; ++i) {
         D3D12TextureCache::SamplerParameters parameters =
             texture_cache_->GetSamplerParameters((*samplers_pixel)[i]);
@@ -4263,7 +4288,7 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
     sampler_count_pixel = 0;
   }
 
-  assert_true(sampler_count_vertex + sampler_count_pixel <= kSamplerHeapSize);
+  REX_ASSERT(sampler_count_vertex + sampler_count_pixel <= kSamplerHeapSize);
 
   if (bindless_resources_used_) {
     //
@@ -4328,7 +4353,7 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
           sampler_bindless_heap_gpu_start_ =
               sampler_bindless_heap_current_->GetGPUDescriptorHandleForHeapStart();
           sampler_bindless_heap_allocated_ = 0;
-          // The only thing the heap is used for now is texture cache samplers -
+          // The only thing the heap is used for is texture cache samplers -
           // invalidate all of them.
           texture_cache_bindless_sampler_map_.clear();
           deferred_command_list_.SetDescriptorHeaps(view_bindless_heap_,
@@ -4337,8 +4362,9 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
         }
         bool samplers_overflowed = false;
         if (sampler_count_vertex && !cbuffer_binding_descriptor_indices_vertex_.up_to_date) {
-          current_sampler_bindless_indices_vertex_.resize(std::max(
-              current_sampler_bindless_indices_vertex_.size(), size_t(sampler_count_vertex)));
+          current_sampler_bindless_indices_vertex_.resize(
+              std::max(current_sampler_bindless_indices_vertex_.size(),
+                       static_cast<size_t>(sampler_count_vertex)));
           for (uint32_t j = 0; j < sampler_count_vertex; ++j) {
             D3D12TextureCache::SamplerParameters sampler_parameters = current_samplers_vertex_[j];
             uint32_t sampler_index;
@@ -4363,8 +4389,9 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
           continue;
         }
         if (sampler_count_pixel && !cbuffer_binding_descriptor_indices_pixel_.up_to_date) {
-          current_sampler_bindless_indices_pixel_.resize(std::max(
-              current_sampler_bindless_indices_pixel_.size(), size_t(sampler_count_pixel)));
+          current_sampler_bindless_indices_pixel_.resize(
+              std::max(current_sampler_bindless_indices_pixel_.size(),
+                       static_cast<size_t>(sampler_count_pixel)));
           for (uint32_t j = 0; j < sampler_count_pixel; ++j) {
             D3D12TextureCache::SamplerParameters sampler_parameters = current_samplers_pixel_[j];
             uint32_t sampler_index;
@@ -4394,7 +4421,8 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
     if (!cbuffer_binding_descriptor_indices_vertex_.up_to_date) {
       uint32_t* descriptor_indices = reinterpret_cast<uint32_t*>(constant_buffer_pool_->Request(
           frame_current_,
-          std::max(texture_count_vertex + sampler_count_vertex, size_t(1)) * sizeof(uint32_t),
+          std::max(texture_count_vertex + sampler_count_vertex, static_cast<size_t>(1)) *
+              sizeof(uint32_t),
           D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT, nullptr, nullptr,
           &cbuffer_binding_descriptor_indices_vertex_.address));
       if (!descriptor_indices) {
@@ -4404,12 +4432,12 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
         const D3D12Shader::TextureBinding& texture = textures_vertex[i];
         descriptor_indices[texture.bindless_descriptor_index] =
             texture_cache_->GetActiveTextureBindlessSRVIndex(texture) -
-            uint32_t(SystemBindlessView::kUnboundedSRVsStart);
+            std::to_underlying(SystemBindlessView::kUnboundedSRVsStart);
       }
       current_texture_layout_uid_vertex_ = texture_layout_uid_vertex;
       if (texture_count_vertex) {
-        current_texture_srv_keys_vertex_.resize(
-            std::max(current_texture_srv_keys_vertex_.size(), size_t(texture_count_vertex)));
+        current_texture_srv_keys_vertex_.resize(std::max(
+            current_texture_srv_keys_vertex_.size(), static_cast<size_t>(texture_count_vertex)));
         texture_cache_->WriteActiveTextureSRVKeys(current_texture_srv_keys_vertex_.data(),
                                                   textures_vertex.data(), texture_count_vertex);
       }
@@ -4425,7 +4453,8 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
     if (!cbuffer_binding_descriptor_indices_pixel_.up_to_date) {
       uint32_t* descriptor_indices = reinterpret_cast<uint32_t*>(constant_buffer_pool_->Request(
           frame_current_,
-          std::max(texture_count_pixel + sampler_count_pixel, size_t(1)) * sizeof(uint32_t),
+          std::max(texture_count_pixel + sampler_count_pixel, static_cast<size_t>(1)) *
+              sizeof(uint32_t),
           D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT, nullptr, nullptr,
           &cbuffer_binding_descriptor_indices_pixel_.address));
       if (!descriptor_indices) {
@@ -4435,12 +4464,12 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
         const D3D12Shader::TextureBinding& texture = (*textures_pixel)[i];
         descriptor_indices[texture.bindless_descriptor_index] =
             texture_cache_->GetActiveTextureBindlessSRVIndex(texture) -
-            uint32_t(SystemBindlessView::kUnboundedSRVsStart);
+            std::to_underlying(SystemBindlessView::kUnboundedSRVsStart);
       }
       current_texture_layout_uid_pixel_ = texture_layout_uid_pixel;
       if (texture_count_pixel) {
-        current_texture_srv_keys_pixel_.resize(
-            std::max(current_texture_srv_keys_pixel_.size(), size_t(texture_count_pixel)));
+        current_texture_srv_keys_pixel_.resize(std::max(current_texture_srv_keys_pixel_.size(),
+                                                        static_cast<size_t>(texture_count_pixel)));
         texture_cache_->WriteActiveTextureSRVKeys(current_texture_srv_keys_pixel_.data(),
                                                   textures_pixel->data(), texture_count_pixel);
       }
@@ -4496,8 +4525,8 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
     D3D12_GPU_DESCRIPTOR_HANDLE view_gpu_handle;
     uint32_t descriptor_size_view = provider.GetViewDescriptorSize();
     uint64_t view_heap_index = RequestViewBindfulDescriptors(
-        draw_view_bindful_heap_index_, uint32_t(view_count_partial_update),
-        uint32_t(view_count_full_update), view_cpu_handle, view_gpu_handle);
+        draw_view_bindful_heap_index_, static_cast<uint32_t>(view_count_partial_update),
+        static_cast<uint32_t>(view_count_full_update), view_cpu_handle, view_gpu_handle);
     if (view_heap_index == gpu::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid) {
       REX_FAIL(gpu, false, "Failed to allocate view descriptors");
     }
@@ -4514,8 +4543,8 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
     uint64_t sampler_heap_index = gpu::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid;
     if (sampler_count_vertex != 0 || sampler_count_pixel != 0) {
       sampler_heap_index = RequestSamplerBindfulDescriptors(
-          draw_sampler_bindful_heap_index_, uint32_t(sampler_count_partial_update),
-          uint32_t(sampler_count_vertex + sampler_count_pixel), sampler_cpu_handle,
+          draw_sampler_bindful_heap_index_, static_cast<uint32_t>(sampler_count_partial_update),
+          static_cast<uint32_t>(sampler_count_vertex + sampler_count_pixel), sampler_cpu_handle,
           sampler_gpu_handle);
       if (sampler_heap_index == gpu::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid) {
         REX_FAIL(gpu, false, "Failed to allocate sampler descriptors");
@@ -4567,8 +4596,8 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
 
     // Write the descriptors.
     if (write_textures_vertex) {
-      assert_true(current_graphics_root_bindful_extras_.textures_vertex !=
-                  RootBindfulExtraParameterIndices::kUnavailable);
+      REX_ASSERT(current_graphics_root_bindful_extras_.textures_vertex !=
+                 RootBindfulExtraParameterIndices::kUnavailable);
       gpu_handle_textures_vertex_ = view_gpu_handle;
       for (size_t i = 0; i < texture_count_vertex; ++i) {
         texture_cache_->WriteActiveTextureBindfulSRV(textures_vertex[i], view_cpu_handle);
@@ -4576,8 +4605,8 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
         view_gpu_handle.ptr += descriptor_size_view;
       }
       current_texture_layout_uid_vertex_ = texture_layout_uid_vertex;
-      current_texture_srv_keys_vertex_.resize(
-          std::max(current_texture_srv_keys_vertex_.size(), size_t(texture_count_vertex)));
+      current_texture_srv_keys_vertex_.resize(std::max(current_texture_srv_keys_vertex_.size(),
+                                                       static_cast<size_t>(texture_count_vertex)));
       texture_cache_->WriteActiveTextureSRVKeys(current_texture_srv_keys_vertex_.data(),
                                                 textures_vertex.data(), texture_count_vertex);
       bindful_textures_written_vertex_ = true;
@@ -4585,8 +4614,8 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
           ~(1u << current_graphics_root_bindful_extras_.textures_vertex);
     }
     if (write_textures_pixel) {
-      assert_true(current_graphics_root_bindful_extras_.textures_pixel !=
-                  RootBindfulExtraParameterIndices::kUnavailable);
+      REX_ASSERT(current_graphics_root_bindful_extras_.textures_pixel !=
+                 RootBindfulExtraParameterIndices::kUnavailable);
       gpu_handle_textures_pixel_ = view_gpu_handle;
       for (size_t i = 0; i < texture_count_pixel; ++i) {
         texture_cache_->WriteActiveTextureBindfulSRV((*textures_pixel)[i], view_cpu_handle);
@@ -4594,8 +4623,8 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
         view_gpu_handle.ptr += descriptor_size_view;
       }
       current_texture_layout_uid_pixel_ = texture_layout_uid_pixel;
-      current_texture_srv_keys_pixel_.resize(
-          std::max(current_texture_srv_keys_pixel_.size(), size_t(texture_count_pixel)));
+      current_texture_srv_keys_pixel_.resize(std::max(current_texture_srv_keys_pixel_.size(),
+                                                      static_cast<size_t>(texture_count_pixel)));
       texture_cache_->WriteActiveTextureSRVKeys(current_texture_srv_keys_pixel_.data(),
                                                 textures_pixel->data(), texture_count_pixel);
       bindful_textures_written_pixel_ = true;
@@ -4603,8 +4632,8 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
           ~(1u << current_graphics_root_bindful_extras_.textures_pixel);
     }
     if (write_samplers_vertex) {
-      assert_true(current_graphics_root_bindful_extras_.samplers_vertex !=
-                  RootBindfulExtraParameterIndices::kUnavailable);
+      REX_ASSERT(current_graphics_root_bindful_extras_.samplers_vertex !=
+                 RootBindfulExtraParameterIndices::kUnavailable);
       gpu_handle_samplers_vertex_ = sampler_gpu_handle;
       for (size_t i = 0; i < sampler_count_vertex; ++i) {
         texture_cache_->WriteSampler(current_samplers_vertex_[i], sampler_cpu_handle);
@@ -4617,8 +4646,8 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
           ~(1u << current_graphics_root_bindful_extras_.samplers_vertex);
     }
     if (write_samplers_pixel) {
-      assert_true(current_graphics_root_bindful_extras_.samplers_pixel !=
-                  RootBindfulExtraParameterIndices::kUnavailable);
+      REX_ASSERT(current_graphics_root_bindful_extras_.samplers_pixel !=
+                 RootBindfulExtraParameterIndices::kUnavailable);
       gpu_handle_samplers_pixel_ = sampler_gpu_handle;
       for (size_t i = 0; i < sampler_count_pixel; ++i) {
         texture_cache_->WriteSampler(current_samplers_pixel_[i], sampler_cpu_handle);
@@ -4666,14 +4695,14 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
   }
   if (!(current_graphics_root_up_to_date_ &
         (1u << root_parameter_shared_memory_and_bindful_edram))) {
-    assert_true(current_shared_memory_binding_is_uav_.has_value());
+    REX_ASSERT(current_shared_memory_binding_is_uav_.has_value());
     D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_shared_memory_and_bindful_edram;
     if (bindless_resources_used_) {
       gpu_handle_shared_memory_and_bindful_edram = provider.OffsetViewDescriptor(
           view_bindless_heap_gpu_start_,
-          uint32_t(current_shared_memory_binding_is_uav_.value()
-                       ? SystemBindlessView ::kNullRawSRVAndSharedMemoryRawUAVStart
-                       : SystemBindlessView ::kSharedMemoryRawSRVAndNullRawUAVStart));
+          static_cast<uint32_t>(current_shared_memory_binding_is_uav_.value()
+                                    ? SystemBindlessView ::kNullRawSRVAndSharedMemoryRawUAVStart
+                                    : SystemBindlessView ::kSharedMemoryRawSRVAndNullRawUAVStart));
     } else {
       gpu_handle_shared_memory_and_bindful_edram = current_shared_memory_binding_is_uav_.value()
                                                        ? gpu_handle_shared_memory_uav_and_edram_
@@ -4980,7 +5009,8 @@ void D3D12CommandProcessor::WriteGuestOcclusionResult(xenos::DepthSampleCounts* 
   if (!sample_counts) {
     return;
   }
-  uint32_t clamped = samples > uint64_t(UINT32_MAX) ? UINT32_MAX : uint32_t(samples);
+  uint32_t clamped =
+      samples > static_cast<uint64_t>(UINT32_MAX) ? UINT32_MAX : static_cast<uint32_t>(samples);
   sample_counts->Total_A = clamped;
   sample_counts->Total_B = 0;
   sample_counts->ZPass_A = clamped;

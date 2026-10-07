@@ -1,6 +1,5 @@
 /**
  * @file        hid/device.h
- * @brief       Input device identity shared by drivers and device assignment.
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

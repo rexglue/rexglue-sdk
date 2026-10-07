@@ -19,7 +19,7 @@ namespace rex::runtime {
 EventObject::EventObject(bool manual_reset_in, bool initial_state) : manual_reset(manual_reset_in) {
   event = manual_reset ? rex::platform::Event::CreateManualResetEvent(initial_state)
                        : rex::platform::Event::CreateAutoResetEvent(initial_state);
-  assert_not_null(event);
+  REX_ASSERT(event != nullptr);
 }
 
 EventObject::EventObject(const X_DISPATCH_HEADER& header) {
@@ -31,13 +31,13 @@ EventObject::EventObject(const X_DISPATCH_HEADER& header) {
       manual_reset = false;
       break;
     default:
-      assert_always();
+      REX_ASSERT_ALWAYS();
       return;
   }
   const bool initial_state = header.signal_state ? true : false;
   event = manual_reset ? rex::platform::Event::CreateManualResetEvent(initial_state)
                        : rex::platform::Event::CreateAutoResetEvent(initial_state);
-  assert_not_null(event);
+  REX_ASSERT(event != nullptr);
 }
 
 void EventQuery(EventObject& event, u32* out_type, u32* out_state) {

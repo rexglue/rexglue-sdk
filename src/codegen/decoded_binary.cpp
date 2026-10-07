@@ -15,8 +15,6 @@
 #include <rex/memory/utils.h>
 #include <rex/types.h>
 
-using rex::memory::load_and_swap;
-
 namespace rex::codegen {
 
 //=============================================================================
@@ -45,7 +43,7 @@ void DecodedBinary::decode() {
 
       for (uint32_t offset = 0; offset < section.size; offset += 4) {
         uint32_t addr = section.baseAddress + offset;
-        uint32_t raw = load_and_swap<uint32_t>(section.data + offset);
+        uint32_t raw = memory::load<be_u32>(section.data + offset);
 
         auto insn = rex::codegen::ppc::decode_instruction(addr, raw);
         sec.instructions.push_back(insn);
@@ -106,23 +104,6 @@ const CodeRegion* DecodedBinary::regionContaining(uint32_t addr) const {
       return &region;
   }
   return nullptr;
-}
-
-bool DecodedBinary::crossesNullBoundary(uint32_t from, uint32_t to) const {
-  const CodeRegion* fromRegion = regionContaining(from);
-  const CodeRegion* toRegion = regionContaining(to);
-
-  // If either is not in a code region, or they're in different regions
-  return !fromRegion || !toRegion || fromRegion != toRegion;
-}
-
-bool DecodedBinary::isInCodeRegion(uint32_t addr) const {
-  return regionContaining(addr) != nullptr;
-}
-
-bool DecodedBinary::isNullPadding(uint32_t addr) const {
-  const DecodedInsn* insn = get(addr);
-  return insn && isInvalid(*insn);
 }
 
 size_t DecodedBinary::instructionCount() const {

@@ -224,7 +224,7 @@ class VulkanPipelineCache {
     }
     struct Hasher {
       size_t operator()(const PipelineDescription& description) const {
-        return size_t(description.GetHash());
+        return static_cast<size_t>(description.GetHash());
       }
     };
   });
@@ -289,7 +289,7 @@ class VulkanPipelineCache {
       xenos::TessellationMode tessellation_mode : 2;
     };
 
-    TessellationControlShaderKey() : key(0) { static_assert_size(*this, sizeof(key)); }
+    TessellationControlShaderKey() : key(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(key)); }
 
     struct Hasher {
       size_t operator()(const TessellationControlShaderKey& key) const {
@@ -315,7 +315,7 @@ class VulkanPipelineCache {
       uint32_t point_ps_ucp_mode : 2;
     };
 
-    GeometryShaderKey() : key(0) { static_assert_size(*this, sizeof(key)); }
+    GeometryShaderKey() : key(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(key)); }
 
     struct Hasher {
       size_t operator()(const GeometryShaderKey& key) const {
@@ -398,7 +398,8 @@ class VulkanPipelineCache {
       texture_binding_layout_map_;
 
   // Ucode hash -> shader.
-  std::unordered_map<uint64_t, VulkanShader*, rex::IdentityHasher<uint64_t>> shaders_;
+  std::unordered_map<uint64_t, std::unique_ptr<VulkanShader>, rex::IdentityHasher<uint64_t>>
+      shaders_;
 
   // Geometry shaders for Xenos primitive types not supported by Vulkan.
   // Stores VK_NULL_HANDLE if failed to create.
@@ -431,14 +432,14 @@ class VulkanPipelineCache {
   std::deque<std::pair<uint64_t, VkPipeline>> deferred_destroy_pipelines_;
   std::mutex deferred_destroy_lock_;
 
-  // Currently open shader storage path.
+  // Open shader storage path.
   std::filesystem::path shader_storage_cache_root_;
   uint32_t shader_storage_title_id_ = 0;
 
   // Shader storage output stream, for preload in the next emulator runs.
   std::fstream shader_storage_file_;
   std::filesystem::path shader_storage_file_path_;
-  // For only writing shaders to the currently open storage once, incremented
+  // For only writing shaders to the open storage once, incremented
   // when switching the storage.
   uint32_t shader_storage_index_ = 0;
   bool shader_storage_file_flush_needed_ = false;

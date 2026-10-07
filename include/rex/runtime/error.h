@@ -1,6 +1,5 @@
 /**
  * @file        runtime/error.h
- * @brief       Errors the runtime interfaces return and their platform status mapping
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

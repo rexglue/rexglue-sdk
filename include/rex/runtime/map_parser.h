@@ -1,6 +1,5 @@
 /**
  * @file        runtime/map_parser.h
- * @brief       Utilities for parsing symbol map files
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

@@ -35,11 +35,11 @@ class ContainerStream final : public NodeStream {
   ContainerStream(const Container& container, const ContainerNode& node)
       : container_(container), node_(node) {}
 
-  Result<size_t> Read(std::span<u8> buffer, u64 offset) override {
+  [[nodiscard]] Result<size_t> Read(std::span<u8> buffer, u64 offset) override {
     return container_.Read(node_, offset, buffer);
   }
 
-  Result<std::span<const u8>> View() override {
+  [[nodiscard]] Result<std::span<const u8>> View() override {
     const std::span<const u8> bytes = container_.View(node_);
     if (bytes.empty() && node_.size != 0) {
       return Err<std::span<const u8>>(
@@ -67,7 +67,7 @@ MountEntry ReadOnly(MountEntry entry) {
 
 }  // namespace
 
-ContainerProvider::ContainerProvider(MountEntry entry, Container container)
+ContainerProvider::ContainerProvider(Key, MountEntry entry, Container container)
     : Provider(ReadOnly(std::move(entry))), container_(std::move(container)) {}
 
 Result<std::unique_ptr<Provider>> ContainerProvider::Create(const MountEntry& entry) {
@@ -77,7 +77,7 @@ Result<std::unique_ptr<Provider>> ContainerProvider::Create(const MountEntry& en
         Error::kCorrupt, std::format("'{}' does not hold the container kind mount '{}' names",
                                      path_to_utf8(entry.source), entry.path)));
   }
-  std::unique_ptr<ContainerProvider> provider(new ContainerProvider(entry, std::move(container)));
+  auto provider = std::make_unique<ContainerProvider>(Key{}, entry, std::move(container));
   auto root = std::make_unique<ContainerNodeImpl>(*provider, nullptr, std::string(),
                                                   provider->container_.root());
   provider->Build(*root, provider->container_.root());

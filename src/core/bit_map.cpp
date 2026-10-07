@@ -9,6 +9,8 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <algorithm>
+
 #include <rex/assert.h>
 #include <rex/bit.h>
 #include <rex/math.h>
@@ -23,7 +25,7 @@ BitMap::BitMap(size_t size_bits) {
 }
 
 BitMap::BitMap(uint64_t* data, size_t size_bits) {
-  assert_true(size_bits % kDataSizeBits == 0);
+  REX_ASSERT(size_bits % kDataSizeBits == 0);
 
   data_.resize(size_bits / kDataSizeBits);
   std::memcpy(data_.data(), data, data_.size() * sizeof(uint64_t));
@@ -47,7 +49,7 @@ size_t BitMap::Acquire() {
       // Entry has a free bit. Acquire it.
       uint64_t bit = 1ull << (kDataSizeBits - index - 1);
       new_entry = entry & ~bit;
-      assert_not_zero(entry & bit);
+      REX_ASSERT((entry & bit) != 0);
 
       acquired_idx = index;
     } while (!platform::atomic_cas(entry, new_entry, &data_[i]));
@@ -71,7 +73,7 @@ void BitMap::Release(size_t index) {
   uint64_t new_entry = 0;
   do {
     entry = data_[slot];
-    assert_zero(entry & bit);
+    REX_ASSERT((entry & bit) == 0);
 
     new_entry = entry | bit;
   } while (!platform::atomic_cas(entry, new_entry, &data_[slot]));
@@ -79,7 +81,7 @@ void BitMap::Release(size_t index) {
 
 void BitMap::Resize(size_t new_size_bits) {
   auto old_size = data_.size();
-  assert_true(new_size_bits % kDataSizeBits == 0);
+  REX_ASSERT(new_size_bits % kDataSizeBits == 0);
   data_.resize(new_size_bits / kDataSizeBits);
 
   // Initialize new entries.
@@ -91,9 +93,7 @@ void BitMap::Resize(size_t new_size_bits) {
 }
 
 void BitMap::Reset() {
-  for (size_t i = 0; i < data_.size(); i++) {
-    data_[i] = -1;
-  }
+  std::ranges::fill(data_, -1);
 }
 
 }  // namespace rex

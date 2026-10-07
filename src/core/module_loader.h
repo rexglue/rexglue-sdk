@@ -56,9 +56,9 @@ class REX_API ModuleLoader final : public IInterfaceFactory {
  public:
   static ModuleLoader& Instance();
 
-  Result<API*> Connect(const Config& config);
-  Result<void> InitModules();
-  Result<API*> Init(const Config& config);
+  [[nodiscard]] Result<API*> Connect(const Config& config);
+  [[nodiscard]] Result<void> InitModules();
+  [[nodiscard]] Result<API*> Init(const Config& config);
   Config& mutable_config() { return config_; }
   void Shutdown();
 
@@ -89,14 +89,14 @@ class REX_API ModuleLoader final : public IInterfaceFactory {
 
   ModuleLoader() : api_(this) {}
 
-  Result<void> LoadAll();
-  Result<void> BuildRegistry();
-  Result<void> CheckRequirements() const;
-  Result<void> ConnectAll();
-  Result<void> InitAll();
+  [[nodiscard]] Result<void> LoadAll();
+  [[nodiscard]] Result<void> BuildRegistry();
+  [[nodiscard]] Result<void> CheckRequirements() const;
+  [[nodiscard]] Result<void> ConnectAll();
+  [[nodiscard]] Result<void> InitAll();
   void UnwindAll();
-  Result<void> RegisterConsumerTables();
-  Result<void> ApplyCvarValues();
+  [[nodiscard]] Result<void> RegisterConsumerTables();
+  [[nodiscard]] Result<void> ApplyCvarValues();
   void UnregisterTables();
   static Error ModuleError(std::string message);
 
@@ -113,7 +113,7 @@ class REX_API ModuleLoader final : public IInterfaceFactory {
 };
 
 /** Registers the log, clock and perf tables core owns. */
-REX_API Result<void> RegisterBuiltinCvars(cvar::ICvarRegistry& registry);
+[[nodiscard]] REX_API Result<void> RegisterBuiltinCvars(cvar::ICvarRegistry& registry);
 /** Unregisters the tables RegisterBuiltinCvars registered, in reverse order. */
 REX_API void UnregisterBuiltinCvars(cvar::ICvarRegistry& registry);
 

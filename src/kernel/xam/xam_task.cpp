@@ -35,15 +35,15 @@ using namespace rex::runtime;
 using namespace rex::runtime::xam;
 
 struct XTASK_MESSAGE {
-  be<uint32_t> unknown_00;
-  be<uint32_t> unknown_04;
-  be<uint32_t> unknown_08;
-  be<uint32_t> callback_arg_ptr;
-  be<uint32_t> event_handle;
-  be<uint32_t> unknown_14;
-  be<uint32_t> task_handle;
+  be_u32 unknown_00;
+  be_u32 unknown_04;
+  be_u32 unknown_08;
+  be_u32 callback_arg_ptr;
+  be_u32 event_handle;
+  be_u32 unknown_14;
+  be_u32 task_handle;
 };
-static_assert_size(XTASK_MESSAGE, 0x1C);
+REX_STATIC_ASSERT_SIZE(XTASK_MESSAGE, 0x1C);
 
 u32 XamTaskSchedule_entry(mapped_void callback, ppc_ptr_t<XTASK_MESSAGE> message,
                           mapped_u32 unknown, mapped_u32 handle_ptr) {
@@ -76,7 +76,7 @@ u32 XamTaskShouldExit_entry(u32 r3) {
 }
 
 u32 XamTaskCloseHandle_entry(u32 handle) {
-  REX_KERNEL_STUB("XamTaskCloseHandle({:#x})", (uint32_t)handle);
+  REX_KERNEL_STUB("XamTaskCloseHandle({:#x})", static_cast<uint32_t>(handle));
   return X_STATUS_SUCCESS;
 }
 

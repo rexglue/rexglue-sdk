@@ -23,6 +23,7 @@
 #include <rex/runtime/xio.h>
 #include <rex/runtime/xobject.h>
 #include <rex/runtime/xtypes.h>
+#include <rex/types.h>
 
 namespace rex {
 class Runtime;
@@ -37,27 +38,27 @@ struct X_LDR_DATA_TABLE_ENTRY {
   X_LIST_ENTRY in_memory_order_links;          // 0x8
   X_LIST_ENTRY in_initialization_order_links;  // 0x10
 
-  rex::be<uint32_t> dll_base;    // 0x18
-  rex::be<uint32_t> image_base;  // 0x1C
-  rex::be<uint32_t> image_size;  // 0x20
+  be_u32 dll_base;    // 0x18
+  be_u32 image_base;  // 0x1C
+  be_u32 image_size;  // 0x20
 
   X_UNICODE_STRING full_dll_name;  // 0x24
   X_UNICODE_STRING base_dll_name;  // 0x2C
 
-  rex::be<uint32_t> flags;              // 0x34
-  rex::be<uint32_t> full_image_size;    // 0x38
-  rex::be<uint32_t> entry_point;        // 0x3C
-  rex::be<uint16_t> load_count;         // 0x40
-  rex::be<uint16_t> module_index;       // 0x42
-  rex::be<uint32_t> dll_base_original;  // 0x44
-  rex::be<uint32_t> checksum;           // 0x48 hijacked to hold kernel handle
-  rex::be<uint32_t> load_flags;         // 0x4C
-  rex::be<uint32_t> time_date_stamp;    // 0x50
-  rex::be<uint32_t> loaded_imports;     // 0x54
-  rex::be<uint32_t> xex_header_base;    // 0x58
+  be_u32 flags;              // 0x34
+  be_u32 full_image_size;    // 0x38
+  be_u32 entry_point;        // 0x3C
+  be_u16 load_count;         // 0x40
+  be_u16 module_index;       // 0x42
+  be_u32 dll_base_original;  // 0x44
+  be_u32 checksum;           // 0x48 hijacked to hold kernel handle
+  be_u32 load_flags;         // 0x4C
+  be_u32 time_date_stamp;    // 0x50
+  be_u32 loaded_imports;     // 0x54
+  be_u32 xex_header_base;    // 0x58
   // X_ANSI_STRING load_file_name;     // 0x5C
-  rex::be<uint32_t> closure_root;      // 0x5C
-  rex::be<uint32_t> traversal_parent;  // 0x60
+  be_u32 closure_root;      // 0x5C
+  be_u32 traversal_parent;  // 0x60
 };
 
 /** Whether a module is HLE kernel code or a loaded title image. */
@@ -108,7 +109,7 @@ struct UserModuleData {
 };
 
 /** The record data of a module. The kind is always known from type. */
-struct ModuleObject {
+struct ModuleObject : public rex::NonCopyable {
   /**
    * Allocates the loader data entry.
    *
@@ -116,8 +117,6 @@ struct ModuleObject {
    * @param type_in Whether the module is kernel or user.
    */
   REX_RUNTIME_API ModuleObject(Runtime* runtime_in, ModuleType type_in);
-  ModuleObject(const ModuleObject&) = delete;
-  ModuleObject& operator=(const ModuleObject&) = delete;
   REX_RUNTIME_API ~ModuleObject();
 
   ModuleType type;

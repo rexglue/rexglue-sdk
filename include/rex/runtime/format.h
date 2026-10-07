@@ -13,6 +13,7 @@
 #pragma once
 
 #include <algorithm>
+#include <bit>
 #include <concepts>
 #include <cstdint>
 #include <cstring>
@@ -21,6 +22,7 @@
 #include <string>
 
 #include <rex/assert.h>
+#include <rex/memory/utils.h>
 #include <rex/ppc/context.h>
 #include <rex/ppc/function.h>
 #include <rex/types.h>
@@ -118,8 +120,8 @@ inline std::string format_double(double value, int32_t precision, uint16_t c, ui
 //=============================================================================
 // StackArgList — reads variadic args from PPC registers/stack
 //=============================================================================
-// For sprintf, _snprintf, DbgPrint, etc. where varargs follow fixed params.
-// Xbox 360 PPC has 64-bit GPRs. Variadic args in r3-r10, then stack at
+// For sprintf, _snprintf, DbgPrint and others where varargs follow fixed params.
+// Xenon PPC has 64-bit GPRs. Variadic args in r3-r10, then stack at
 // r1+0x54 in 8-byte slots.
 class StackArgList {
  public:
@@ -163,7 +165,7 @@ class StackArgList {
     } else {
       // Stack arguments: 8-byte big-endian values at r1 + 0x54 + ((index - 8) * 8)
       uint32_t stack_addr = ctx_.r1.u32 + 0x54 + ((index_ - 8) * 8);
-      value = static_cast<u64>(*rex::runtime::GuestPtr<rex::be<u64>*>(base_, stack_addr));
+      value = static_cast<u64>(*rex::runtime::GuestPtr<be_u64*>(base_, stack_addr));
     }
     ++index_;
     return value;
@@ -176,10 +178,10 @@ class StackArgList {
 };
 
 //=============================================================================
-// ArrayArgList — reads from guest va_list (8-byte-aligned array in memory)
+// ArrayArgList reads from guest va_list (8-byte-aligned array in memory)
 //=============================================================================
-// For vsprintf, _vsnprintf, etc. where a va_list pointer is passed.
-// On Xbox 360, va_list is a pointer to an array of 8-byte-aligned values.
+// For vsprintf, _vsnprintf and others where a va_list pointer is passed.
+// On the console, va_list is a pointer to an array of 8-byte-aligned values.
 class ArrayArgList {
  public:
   ArrayArgList(uint8_t* base, uint32_t arg_ptr) : base_(base), arg_ptr_(arg_ptr), index_(0) {}
@@ -188,7 +190,7 @@ class ArrayArgList {
 
   uint64_t get64() {
     uint32_t addr = arg_ptr_ + (8 * index_);
-    uint64_t value = static_cast<u64>(*rex::runtime::GuestPtr<rex::be<u64>*>(base_, addr));
+    uint64_t value = static_cast<u64>(*rex::runtime::GuestPtr<be_u64*>(base_, addr));
     ++index_;
     return value;
   }
@@ -247,14 +249,14 @@ class WideStringFormatData {
   explicit WideStringFormatData(const uint16_t* input) : input_(input) {}
 
   uint16_t get() {
-    uint16_t result = *input_;
+    uint16_t result = memory::load<be_u16>(input_);
     if (result) {
       input_++;
     }
-    return rex::byte_swap(result);
+    return result;
   }
 
-  uint16_t peek(int32_t offset) { return rex::byte_swap(input_[offset]); }
+  uint16_t peek(int32_t offset) { return memory::load<be_u16>(input_ + offset); }
 
   void skip(int32_t count) {
     while (count-- > 0) {
@@ -284,14 +286,14 @@ class WideCountFormatData {
   explicit WideCountFormatData(const uint16_t* input) : input_(input), count_(0) {}
 
   uint16_t get() {
-    uint16_t result = *input_;
+    uint16_t result = memory::load<be_u16>(input_);
     if (result) {
       input_++;
     }
-    return rex::byte_swap(result);
+    return result;
   }
 
-  uint16_t peek(int32_t offset) { return rex::byte_swap(input_[offset]); }
+  uint16_t peek(int32_t offset) { return memory::load<be_u16>(input_ + offset); }
 
   void skip(int32_t count) {
     while (count-- > 0) {
@@ -380,7 +382,7 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
       case FS_Unknown:
       case FS_End:
       default: {
-        assert_always();
+        REX_ASSERT_ALWAYS();
       }
 
       case FS_Start: {
@@ -432,7 +434,7 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
 
       case FS_Width: {
         if (c == '*') {
-          width = (int32_t)args.get32();
+          width = static_cast<int32_t>(args.get32());
           if (width < 0) {
             flags |= FF_LeftJustify;
             width = -width;
@@ -460,7 +462,7 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
 
       case FS_Precision: {
         if (c == '*') {
-          precision = (int32_t)args.get32();
+          precision = static_cast<int32_t>(args.get32());
           if (precision < 0) {
             precision = -1;
           }
@@ -534,12 +536,12 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
             auto value = args.get32();
 
             if (!is_wide) {
-              work8[0] = (uint8_t)value;
+              work8[0] = static_cast<uint8_t>(value);
               text.buffer = &work8[0];
               text.length = 1;
               text.is_wide = false;
             } else {
-              work16[0] = (uint16_t)value;
+              work16[0] = static_cast<uint16_t>(value);
               text.buffer = &work16[0];
               text.length = 1;
               text.is_wide = true;
@@ -556,23 +558,23 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
             radix = 10;
 
           integer:
-            assert_not_null(digits);
-            assert_not_zero(radix);
+            REX_ASSERT(digits != nullptr);
+            REX_ASSERT(radix != 0);
 
             int64_t value;
 
             if (flags & FF_IsLongLong) {
-              value = (int64_t)args.get64();
+              value = static_cast<int64_t>(args.get64());
             } else if (flags & FF_IsLong) {
-              value = (int32_t)args.get32();
+              value = static_cast<int32_t>(args.get32());
             } else if (flags & FF_IsShort) {
-              value = (int16_t)args.get32();
+              value = static_cast<int16_t>(args.get32());
             } else {
-              value = (int32_t)args.get32();
+              value = static_cast<int32_t>(args.get32());
             }
 
             if (precision >= 0) {
-              precision = std::min(precision, (int32_t)std::size(work8));
+              precision = std::min(precision, static_cast<int32_t>(std::size(work8)));
             } else {
               precision = 1;
             }
@@ -595,9 +597,9 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
             start[0] = '\0';
 
             while (precision-- > 0 || value != 0) {
-              auto digit = (int32_t)(value % radix);
+              auto digit = static_cast<int32_t>(value % radix);
               value /= radix;
-              assert_true(digit < (int32_t)strlen(digits));
+              REX_ASSERT(digit < static_cast<int32_t>(strlen(digits)));
               *--start = digits[digit];
             }
 
@@ -606,7 +608,7 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
             }
 
             text.buffer = start;
-            text.length = (int32_t)(end - start);
+            text.length = static_cast<int32_t>(end - start);
             text.is_wide = false;
             break;
           }
@@ -650,8 +652,7 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
             flags |= FF_IsSigned;
 
             int64_t dummy = args.get64();
-            double value;
-            std::memcpy(&value, &dummy, sizeof(double));
+            f64 value = std::bit_cast<f64>(dummy);
 
             if (value < 0) {
               value = -value;
@@ -659,8 +660,8 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
             }
 
             auto s = format_double(value, precision, c, flags);
-            auto length = (int32_t)s.size();
-            assert_true(length < (int32_t)std::size(work8));
+            auto length = static_cast<int32_t>(s.size());
+            REX_ASSERT(length < static_cast<int32_t>(std::size(work8)));
 
             auto fstart = &work8[0];
             auto fend = &fstart[length];
@@ -669,18 +670,18 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
             fend[0] = '\0';
 
             text.buffer = fstart;
-            text.length = (int32_t)(fend - fstart);
+            text.length = static_cast<int32_t>(fend - fstart);
             text.is_wide = false;
             break;
           }
 
           // %n: write character count to guest memory
           case 'n': {
-            auto pointer = (uint32_t)args.get32();
+            auto pointer = static_cast<uint32_t>(args.get32());
             if (flags & FF_IsShort) {
-              *rex::runtime::GuestPtr<rex::be<u16>*>(base, pointer) = (u16)count;
+              *rex::runtime::GuestPtr<be_u16*>(base, pointer) = static_cast<u16>(count);
             } else {
-              *rex::runtime::GuestPtr<rex::be<u32>*>(base, pointer) = (u32)count;
+              *rex::runtime::GuestPtr<be_u32*>(base, pointer) = static_cast<u32>(count);
             }
             continue;
           }
@@ -706,7 +707,7 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
             if (pointer == 0) {
               auto nullstr = "(null)";
               text.buffer = nullstr;
-              text.length = std::min((int32_t)strlen(nullstr), cap);
+              text.length = std::min(static_cast<int32_t>(strlen(nullstr)), cap);
               text.is_wide = false;
             } else {
               void* str = rex::runtime::GuestPtr<void*>(base, pointer);
@@ -722,12 +723,12 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
 
               if (!is_wide) {
                 length = 0;
-                for (auto s = (const uint8_t*)str; cap > 0 && *s; ++s, cap--) {
+                for (auto s = static_cast<const uint8_t*>(str); cap > 0 && *s; ++s, cap--) {
                   length++;
                 }
               } else {
                 length = 0;
-                for (auto s = (const uint16_t*)str; cap > 0 && *s; ++s, cap--) {
+                for (auto s = static_cast<const uint16_t*>(str); cap > 0 && *s; ++s, cap--) {
                   length++;
                 }
               }
@@ -741,12 +742,12 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
 
           // ANSI_STRING / UNICODE_STRING (not implemented)
           case 'Z': {
-            assert_always();
+            REX_ASSERT_ALWAYS();
             break;
           }
 
           default: {
-            assert_always();
+            REX_ASSERT_ALWAYS();
           }
         }
       }
@@ -798,17 +799,17 @@ int32_t format_core(uint8_t* base, Data& data, Args& args, const bool wide) {
 
     int32_t remaining = text.length;
     if (!text.is_wide) {
-      auto b = (const uint8_t*)text.buffer;
+      auto b = static_cast<const uint8_t*>(text.buffer);
       while (remaining-- > 0) {
         if (!data.put(*b++)) {
           return -1;
         }
       }
     } else {
-      auto b = (const uint16_t*)text.buffer;
+      auto b = static_cast<const uint16_t*>(text.buffer);
       if (text.swap_wide) {
         while (remaining-- > 0) {
-          if (!data.put(rex::byte_swap(*b++))) {
+          if (!data.put(memory::load<be_u16>(b++))) {
             return -1;
           }
         }

@@ -1,6 +1,5 @@
 /**
  * @file        chrono/chrono.h
- * @brief       NT FILETIME clocks for host and guest time with std::chrono conversions
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

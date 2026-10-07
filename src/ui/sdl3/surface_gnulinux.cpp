@@ -35,8 +35,8 @@ bool WaylandSurface::GetSizeImpl(uint32_t& width_out, uint32_t& height_out) cons
   if (!SDL_GetWindowSizeInPixels(sdl_window_, &w, &h) || w <= 0 || h <= 0) {
     return false;
   }
-  width_out = uint32_t(w);
-  height_out = uint32_t(h);
+  width_out = static_cast<uint32_t>(w);
+  height_out = static_cast<uint32_t>(h);
   return true;
 }
 

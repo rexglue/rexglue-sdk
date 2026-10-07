@@ -1,6 +1,5 @@
 /**
  * @file        vec128.h
- * @brief       128 bit vector register value and lane constructors
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -27,7 +26,7 @@ namespace rex {
  * 128 bit vector register value.
  *
  * Lanes are stored in AVX little endian order, the reverse of the Altivec big endian order.
- * Big endian element i lives at u32[i ^ 0x3], u16[i ^ 0x7] and u8[i ^ 0xF]. Code should avoid
+ * Big endian element i is stored at u32[i ^ 0x3], u16[i ^ 0x7] and u8[i ^ 0xF]. Code should avoid
  * fixed lane offsets where a loop over the lanes works.
  */
 struct alignas(16) vec128_s {

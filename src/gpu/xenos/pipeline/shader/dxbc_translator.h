@@ -31,7 +31,7 @@ namespace rex::gpu {
 // IMPORTANT CONTRIBUTION NOTES:
 //
 // While DXBC may look like a flexible and high-level representation with highly
-// generalized building blocks, actually it has a lot of restrictions on operand
+// generalized building blocks, it has many restrictions on operand
 // usage!
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -70,7 +70,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   //   unconditionally referenced in all these stages.
   // - Point coordinates (XESPRITETEXCOORD) - GS > RS > PS, must be present in
   //   none or in all, if drawing points, and PsParamGen is used.
-  // - Position (SV_Position) - VS > GS > RS > PS, used in PS if actually needed
+  // - Position (SV_Position) - VS > GS > RS > PS, used in PS if needed
   //   for something (PsParamGen, alpha to coverage when oC0 is written, depth
   //   conversion, ROV render backend), the presence in PS depends on the usage
   //   within the PS, not on linkage, therefore it's the last in PS so it can be
@@ -179,7 +179,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     } pixel;
 
     explicit Modification(uint64_t modification_value = 0) : value(modification_value) {
-      static_assert_size(*this, sizeof(value));
+      REX_STATIC_ASSERT_SIZE(*this, sizeof(value));
     }
 
     uint32_t GetVertexClipDistanceCount() const {
@@ -192,7 +192,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   };
 
   // Constant buffer bindings in space 0.
-  enum class CbufferRegister {
+  enum class CbufferRegister : uint32_t {
     kSystemConstants,
     kFloatConstants,
     kBoolLoopConstants,
@@ -226,7 +226,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysFlag_ROVDepthWrite_Shift,
     kSysFlag_ROVStencilTest_Shift,
     // If the depth / stencil test has failed, but resulted in a stencil value
-    // that is different than the one currently in the depth buffer, write it
+    // that is different than the one in the depth buffer, write it
     // anyway and don't run the rest of the shader (to check if the sample may
     // be discarded some way) - use when alpha test and alpha to coverage are
     // disabled. Ignored by the shader if not applicable to it (like if it has
@@ -442,12 +442,12 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
       kCount,
     };
-    static_assert(uint32_t(Index::kCount) <= 64,
+    static_assert(std::to_underlying(Index::kCount) <= 64,
                   "Too many system constants, can't use uint64_t for usage bits");
   };
 
   // Shader resource view binding spaces.
-  enum class SRVSpace {
+  enum class SRVSpace : uint32_t {
     // SRVMainSpaceRegister t# layout.
     kMain,
     kBindlessTextures2DArray,
@@ -456,7 +456,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   };
 
   // Shader resource view bindings in SRVSpace::kMain.
-  enum class SRVMainRegister {
+  enum class SRVMainRegister : uint32_t {
     kSharedMemory,
     kBindfulTexturesStart,
   };
@@ -481,7 +481,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Arbitrary limit - there can't be more than 2048 in a shader-visible
   // descriptor heap, though some older hardware (tier 1 resource binding -
   // Nvidia Fermi) doesn't support more than 16 samplers bound at once (we can't
-  // really do anything if a game uses more than 16), but just to have some
+  // do anything if a game uses more than 16), but to have some
   // limit so sampler count can easily be packed into 32-bit map keys (for
   // instance, for root signatures). But shaders can specify overrides for
   // filtering modes, and the number of possible combinations is huge - let's
@@ -499,7 +499,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   };
 
   // Unordered access view bindings in space 0.
-  enum class UAVRegister {
+  enum class UAVRegister : uint32_t {
     kSharedMemory,
     kEDRAM,
   };
@@ -608,22 +608,23 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // building the source unconditionally - in general, LoadSystemConstant must
   // be used instead.
   void MarkSystemConstantUsed(SystemConstants::Index index) {
-    system_constants_used_ |= uint64_t(1) << uint32_t(index);
+    system_constants_used_ |= static_cast<uint64_t>(1) << uint32_t(index);
   }
   // Offset should be offsetof(SystemConstants, field). Swizzle values are
   // relative to the first component in the vector according to offsetof - to
   // request a scalar, use XXXX swizzle, and if it's at +4 in its 16-byte
-  // vector, it will be turned into YYYY, and so on. The swizzle may include
+  // vector, it will be turned into YYYY, and likewise. The swizzle may include
   // out-of-bounds components of the vector for simplicity of use, assuming they
   // will be dropped anyway later.
   dxbc::Src GetSystemConstantSrc(size_t offset, uint32_t swizzle) const {
-    uint32_t first_component = uint32_t((offset >> 2) & 3);
-    return dxbc::Src::CB(cbuffer_index_system_constants_,
-                         uint32_t(CbufferRegister::kSystemConstants), uint32_t(offset >> 4),
-                         std::min((swizzle & 3) + first_component, uint32_t(3)) |
-                             std::min(((swizzle >> 2) & 3) + first_component, uint32_t(3)) << 2 |
-                             std::min(((swizzle >> 4) & 3) + first_component, uint32_t(3)) << 4 |
-                             std::min(((swizzle >> 6) & 3) + first_component, uint32_t(3)) << 6);
+    uint32_t first_component = static_cast<uint32_t>((offset >> 2) & 3);
+    return dxbc::Src::CB(
+        cbuffer_index_system_constants_, std::to_underlying(CbufferRegister::kSystemConstants),
+        static_cast<uint32_t>(offset >> 4),
+        std::min((swizzle & 3) + first_component, static_cast<uint32_t>(3)) |
+            std::min(((swizzle >> 2) & 3) + first_component, static_cast<uint32_t>(3)) << 2 |
+            std::min(((swizzle >> 4) & 3) + first_component, static_cast<uint32_t>(3)) << 4 |
+            std::min(((swizzle >> 6) & 3) + first_component, static_cast<uint32_t>(3)) << 6);
   }
   dxbc::Src LoadSystemConstant(SystemConstants::Index index, size_t offset, uint32_t swizzle) {
     MarkSystemConstantUsed(index);
@@ -675,7 +676,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void ExportToMemory(uint8_t export_eM);
 
   bool IsSampleRate() const {
-    assert_true(is_pixel_shader());
+    REX_ASSERT(is_pixel_shader());
     return DSV_IsWritingFloat24Depth() && !current_shader().writes_depth();
   }
   bool IsDepthStencilSystemTempUsed() const {
@@ -706,7 +707,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Whether it's possible and worth skipping running the translated shader for
   // 2x2 quads.
   bool ROV_IsDepthStencilEarly() const {
-    assert_true(edram_rov_used_);
+    REX_ASSERT(edram_rov_used_);
     return !is_depth_only_pixel_shader_ && !current_shader().writes_depth() &&
            !current_shader().memexport_eM_written();
   }
@@ -757,7 +758,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
                                     const dxbc::Src& src);
   void StartVertexShader_LoadVertexIndex();
   void StartVertexOrDomainShader();
-  void StartDomainShader();
   void StartPixelShader_LoadROVParameters();
   void StartPixelShader();
 
@@ -811,7 +811,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // As an optimization, where possible, the DXBC translator tries to merge
   // multiple execs into one, not creating endif/if doing nothing, if the
   // execution condition is the same. This can't be done across labels
-  // (obviously) and in case `setp` is done in a predicated exec - in this case,
+  // and in case `setp` is done in a predicated exec - in this case,
   // the predicate value in the current exec may not match the predicate value
   // in the next exec.
   // Instruction-level predicate checks are also merged, and until a `setp` is
@@ -855,7 +855,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Returns the number of texture SRV and sampler offsets that need to be
   // passed via a constant buffer to the shader.
   uint32_t GetBindlessResourceCount() const {
-    return uint32_t(texture_bindings_.size() + sampler_bindings_.size());
+    return static_cast<uint32_t>(texture_bindings_.size() + sampler_bindings_.size());
   }
   // Marks fetch constants as used by the DXBC shader and returns dxbc::Src
   // for the words 01 (pair 0), 23 (pair 1) or 45 (pair 2) of the texture fetch
@@ -866,7 +866,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
       cbuffer_index_fetch_constants_ = cbuffer_count_++;
     }
     uint32_t total_pair_index = fetch_constant_index * 3 + pair_index;
-    return dxbc::Src::CB(cbuffer_index_fetch_constants_, uint32_t(CbufferRegister::kFetchConstants),
+    return dxbc::Src::CB(cbuffer_index_fetch_constants_,
+                         std::to_underlying(CbufferRegister::kFetchConstants),
                          total_pair_index >> 1, (total_pair_index & 1) ? 0b10101110 : 0b00000100);
   }
   dxbc::Src RequestTextureFetchConstantWord(uint32_t fetch_constant_index, uint32_t word_index) {
@@ -937,12 +938,12 @@ class DxbcShaderTranslator : public ShaderTranslator {
   uint32_t draw_resolution_scale_x_;
   uint32_t draw_resolution_scale_y_;
 
-  // Is currently writing the empty depth-only pixel shader, for
+  // Is writing the empty depth-only pixel shader, for
   // CompleteTranslation.
   bool is_depth_only_pixel_shader_ = false;
 
   // Data types used in constants buffers. Listed in dependency order.
-  enum class ShaderRdefTypeIndex {
+  enum class ShaderRdefTypeIndex : uint32_t {
     kFloat,
     kFloat2,
     kFloat3,
@@ -980,7 +981,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     uint16_t element_count;
     ShaderRdefTypeIndex array_element_type;
   };
-  static const ShaderRdefType rdef_types_[size_t(ShaderRdefTypeIndex::kCount)];
+  static const ShaderRdefType rdef_types_[std::to_underlying(ShaderRdefTypeIndex::kCount)];
 
   static constexpr uint32_t kBindingIndexUnallocated = UINT32_MAX;
 
@@ -999,7 +1000,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
     uint32_t size;
     uint32_t padding_after;
   };
-  static const SystemConstantRdef system_constant_rdef_[size_t(SystemConstants::Index::kCount)];
+  static const SystemConstantRdef
+      system_constant_rdef_[std::to_underlying(SystemConstants::Index::kCount)];
   // Mask of system constants (1 << SystemConstants::Index) used in the shader,
   // so the remaining ones can be marked as unused in RDEF.
   uint64_t system_constants_used_;
@@ -1019,16 +1021,16 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // needed anyway due to depth conversion.
   uint32_t in_reg_ps_front_face_sample_index_;
 
-  // Mask of domain location actually used in the domain shader.
+  // Mask of domain location used in the domain shader.
   uint32_t in_domain_location_used_;
   // Whether kInRegisterDSControlPointIndex has been used in the shader.
   bool in_control_point_index_used_;
-  // Mask of the pixel/sample position actually used in the pixel shader.
+  // Mask of the pixel/sample position used in the pixel shader.
   uint32_t in_position_used_;
   // Whether the faceness has been used in the pixel shader.
   bool in_front_face_used_;
 
-  // Number of currently allocated Xenia internal r# registers.
+  // Number of allocated Xenia internal r# registers.
   uint32_t system_temp_count_current_;
   // Total maximum number of temporary registers ever used during this
   // translation (for the declaration).
@@ -1110,7 +1112,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // may be needed by vfetch_mini.
   uint32_t system_temp_grad_v_vfetch_address_;
 
-  // The bool constant number containing the condition for the currently
+  // The bool constant number containing the condition for the
   // processed exec (or the last - unless a label has reset this), or
   // kCfExecBoolConstantNone if it's not checked.
   uint32_t cf_exec_bool_constant_;
@@ -1118,12 +1120,12 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // The expected bool constant value in the current exec if
   // cf_exec_bool_constant_ is not kCfExecBoolConstantNone.
   bool cf_exec_bool_constant_condition_;
-  // Whether the currently processed exec is executed if a predicate is
+  // Whether the processed exec is executed if a predicate is
   // set/unset.
   bool cf_exec_predicated_;
   // The expected predicated condition if cf_exec_predicated_ is true.
   bool cf_exec_predicate_condition_;
-  // Whether an `if` for instruction-level predicate check is currently open.
+  // Whether an `if` for instruction-level predicate check is open.
   bool cf_instruction_predicate_if_open_;
   // The expected predicate condition for the current or the last instruction if
   // cf_exec_instruction_predicated_ is true.

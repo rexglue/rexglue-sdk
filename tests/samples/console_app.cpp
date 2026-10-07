@@ -1,6 +1,5 @@
 /**
  * @file        tests/samples/console_app.cpp
- * @brief       Compile check for REX_CONSOLE_APP
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

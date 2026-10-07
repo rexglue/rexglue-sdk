@@ -1,6 +1,5 @@
 /**
  * @file        filesystem/xcontent.h
- * @brief       On disk XContent, STFS and SVOD package structures
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -104,8 +103,8 @@ struct STFSVolumeDescriptor {
   u16 file_table_block_count;        /**< Number of directory blocks, little endian. */
   u8 file_table_block_number_raw[3]; /**< First directory block, 24 bit little endian. */
   u8 top_hash_table_hash[0x14];      /**< SHA1 of the top hash table. */
-  be<u32> total_block_count;         /**< Data blocks in the volume. */
-  be<u32> free_block_count;          /**< Unallocated data blocks. */
+  be_u32 total_block_count;          /**< Data blocks in the volume. */
+  be_u32 free_block_count;           /**< Unallocated data blocks. */
 
   /**
    * Returns the first directory block.
@@ -147,8 +146,8 @@ enum class STFSHashState : u8 {
 
 /** 1 hash table entry, the hash and chain information of 1 block. */
 struct STFSHashEntry {
-  u8 sha1[0x14];    /**< SHA1 of the block. */
-  be<u32> info_raw; /**< Packed chain and allocation fields. */
+  u8 sha1[0x14];   /**< SHA1 of the block. */
+  be_u32 info_raw; /**< Packed chain and allocation fields. */
 
   /**
    * Returns the next block of a level 0 chain.
@@ -251,7 +250,7 @@ static_assert(sizeof(STFSHashEntry) == 0x18);
 /** 1 STFS hash table block. */
 struct STFSHashTable {
   STFSHashEntry entries[170]; /**< Entries for 170 blocks or tables. */
-  be<u32> num_blocks;         /**< Level 0 blocks this table covers. */
+  be_u32 num_blocks;          /**< Level 0 blocks this table covers. */
   u8 padding[12];             /**< Unused. */
 };
 static_assert(sizeof(STFSHashTable) == 0x1000);
@@ -268,12 +267,12 @@ struct STFSDirectoryEntry {
   u8 valid_data_blocks_raw[3];     /**< Blocks holding data, 24 bit little endian. */
   u8 allocated_data_blocks_raw[3]; /**< Blocks allocated, 24 bit little endian. */
   u8 start_block_number_raw[3];    /**< First data block, 24 bit little endian. */
-  be<u16> directory_index;         /**< Index of the parent entry, 0xFFFF for the root. */
-  be<u32> length;                  /**< File size in bytes. */
-  be<u16> create_date;             /**< FAT creation date. */
-  be<u16> create_time;             /**< FAT creation time. */
-  be<u16> modified_date;           /**< FAT modification date. */
-  be<u16> modified_time;           /**< FAT modification time. */
+  be_u16 directory_index;          /**< Index of the parent entry, 0xFFFF for the root. */
+  be_u32 length;                   /**< File size in bytes. */
+  be_u16 create_date;              /**< FAT creation date. */
+  be_u16 create_time;              /**< FAT creation time. */
+  be_u16 modified_date;            /**< FAT modification date. */
+  be_u16 modified_time;            /**< FAT modification time. */
 
   /**
    * Returns the blocks holding data.
@@ -378,25 +377,25 @@ static_assert(sizeof(SVODDeviceDescriptor) == 0x24);
 
 /** 1 package license entry. */
 struct XContentLicense {
-  be<u64> licensee_id;   /**< Profile or console the license binds to. */
-  be<u32> license_bits;  /**< License mask. */
-  be<u32> license_flags; /**< License flags, 0 for an unused entry. */
+  be_u64 licensee_id;   /**< Profile or console the license binds to. */
+  be_u32 license_bits;  /**< License mask. */
+  be_u32 license_flags; /**< License flags, 0 for an unused entry. */
 };
 static_assert(sizeof(XContentLicense) == 0x10);
 
 /** Media metadata of a video package. */
 struct XContentMediaData {
-  u8 series_id[0x10];     /**< Series GUID. */
-  u8 season_id[0x10];     /**< Season GUID. */
-  be<u16> season_number;  /**< Season number. */
-  be<u16> episode_number; /**< Episode number. */
+  u8 series_id[0x10];    /**< Series GUID. */
+  u8 season_id[0x10];    /**< Season GUID. */
+  be_u16 season_number;  /**< Season number. */
+  be_u16 episode_number; /**< Episode number. */
 };
 static_assert(sizeof(XContentMediaData) == 0x24);
 
 /** Avatar asset metadata of an avatar item package. */
 struct XContentAvatarAssetData {
-  be<u32> sub_category;     /**< Asset category. */
-  be<u32> colorizable;      /**< Nonzero when the asset takes colors. */
+  be_u32 sub_category;      /**< Asset category. */
+  be_u32 colorizable;       /**< Nonzero when the asset takes colors. */
   u8 asset_id[0x10];        /**< Asset GUID. */
   u8 skeleton_version_mask; /**< Skeleton versions the asset supports. */
   u8 reserved[0xB];         /**< Unused. */
@@ -429,21 +428,21 @@ struct XContentMetadata {
   static constexpr u32 kNumLanguagesV2 = 12;
 
   be<XContentType> content_type;          /**< Content type of the package. */
-  be<u32> metadata_version;               /**< 1 or 2. */
-  be<u64> content_size;                   /**< Content bytes. */
+  be_u32 metadata_version;                /**< 1 or 2. */
+  be_u64 content_size;                    /**< Content bytes. */
   xex2_opt_execution_info execution_info; /**< Title and media the package is for. */
   u8 console_id[5];                       /**< Console that created the package. */
-  be<u64> profile_id;                     /**< Profile that created the package. */
+  be_u64 profile_id;                      /**< Profile that created the package. */
   /** Volume descriptor, chosen by volume_type. */
   union {
     STFSVolumeDescriptor stfs; /**< STFS layout. */
     SVODDeviceDescriptor svod; /**< SVOD layout. */
   } volume_descriptor;
-  be<u32> data_file_count;            /**< SVOD data fragments. */
-  be<u64> data_file_size;             /**< SVOD data bytes. */
+  be_u32 data_file_count;             /**< SVOD data fragments. */
+  be_u64 data_file_size;              /**< SVOD data bytes. */
   be<XContentVolumeType> volume_type; /**< Layout of the volume. */
-  be<u64> online_creator;             /**< Live creator XUID. */
-  be<u32> category;                   /**< Content category. */
+  be_u64 online_creator;              /**< Live creator XUID. */
+  be_u32 category;                    /**< Content category. */
   u8 reserved2[0x20];                 /**< Unused. */
   /** Type specific metadata. */
   union {
@@ -453,22 +452,22 @@ struct XContentMetadata {
   u8 device_id[0x14]; /**< Device the package was created on. */
   /** Display names, 1 per version 1 language. */
   union {
-    be<u16> uint[kNumLanguagesV1][128];   /**< Big endian code units. */
+    be_u16 uint[kNumLanguagesV1][128];    /**< Big endian code units. */
     char16_t chars[kNumLanguagesV1][128]; /**< The same storage as characters. */
   } display_name_raw;
   /** Descriptions, 1 per version 1 language. */
   union {
-    be<u16> uint[kNumLanguagesV1][128];   /**< Big endian code units. */
+    be_u16 uint[kNumLanguagesV1][128];    /**< Big endian code units. */
     char16_t chars[kNumLanguagesV1][128]; /**< The same storage as characters. */
   } description_raw;
   /** Publisher name. */
   union {
-    be<u16> uint[64];   /**< Big endian code units. */
+    be_u16 uint[64];    /**< Big endian code units. */
     char16_t chars[64]; /**< The same storage as characters. */
   } publisher_raw;
   /** Title name. */
   union {
-    be<u16> uint[64];   /**< Big endian code units. */
+    be_u16 uint[64];    /**< Big endian code units. */
     char16_t chars[64]; /**< The same storage as characters. */
   } title_name_raw;
   /** Transfer and feature bits. */
@@ -476,18 +475,18 @@ struct XContentMetadata {
     u8 as_byte;              /**< The bits as 1 byte. */
     XContentAttributes bits; /**< The bits by name. */
   } flags;
-  be<u32> thumbnail_size;       /**< Bytes of thumbnail in use. */
-  be<u32> title_thumbnail_size; /**< Bytes of title_thumbnail in use. */
+  be_u32 thumbnail_size;        /**< Bytes of thumbnail in use. */
+  be_u32 title_thumbnail_size;  /**< Bytes of title_thumbnail in use. */
   u8 thumbnail[kThumbLengthV2]; /**< Package thumbnail, a PNG. */
   /** Display names of the 3 version 2 languages. */
   union {
-    be<u16> uint[kNumLanguagesV2 - kNumLanguagesV1][128];   /**< Big endian code units. */
+    be_u16 uint[kNumLanguagesV2 - kNumLanguagesV1][128];    /**< Big endian code units. */
     char16_t chars[kNumLanguagesV2 - kNumLanguagesV1][128]; /**< The same storage as characters. */
   } display_name_ex_raw;
   u8 title_thumbnail[kThumbLengthV2]; /**< Title thumbnail, a PNG. */
   /** Descriptions of the 3 version 2 languages. */
   union {
-    be<u16> uint[kNumLanguagesV2 - kNumLanguagesV1][128];   /**< Big endian code units. */
+    be_u16 uint[kNumLanguagesV2 - kNumLanguagesV1][128];    /**< Big endian code units. */
     char16_t chars[kNumLanguagesV2 - kNumLanguagesV1][128]; /**< The same storage as characters. */
   } description_ex_raw;
 
@@ -561,7 +560,7 @@ struct XContentHeader {
   u8 signature[0x228];            /**< Signature over the header. */
   XContentLicense licenses[0x10]; /**< License entries. */
   u8 content_id[0x14];            /**< SHA1 of the metadata, the content ID. */
-  be<u32> header_size;            /**< Header bytes including the metadata. */
+  be_u32 header_size;             /**< Header bytes including the metadata. */
 
   /**
    * Reports whether the magic is CON, LIVE or PIRS.

@@ -36,7 +36,8 @@ UINT IconFlag(MessageKind kind) {
   return MB_ICONINFORMATION;
 }
 
-Result<u32> ShowTopmostBox(MessageKind kind, const std::string& title, const std::string& body) {
+[[nodiscard]] Result<u32> ShowTopmostBox(MessageKind kind, const std::string& title,
+                                         const std::string& body) {
   const std::u16string wide_title = to_utf16(title);
   const std::u16string wide_body = to_utf16(body);
   const int pressed = MessageBoxW(nullptr, reinterpret_cast<const wchar_t*>(wide_body.c_str()),
@@ -50,8 +51,9 @@ Result<u32> ShowTopmostBox(MessageKind kind, const std::string& title, const std
 
 }  // namespace
 
-Result<u32> ShowNativeBox(MessageKind kind, const std::string& title, const std::string& body,
-                          std::span<const std::string> buttons, SDL_Window* parent) {
+[[nodiscard]] Result<u32> ShowNativeBox(MessageKind kind, const std::string& title,
+                                        const std::string& body,
+                                        std::span<const std::string> buttons, SDL_Window* parent) {
   (void)parent;
   std::vector<HWND> minimized;
   EnumWindows(MinimizeProcessWindow, reinterpret_cast<LPARAM>(&minimized));

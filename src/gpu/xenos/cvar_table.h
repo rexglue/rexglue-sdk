@@ -1,6 +1,5 @@
 /**
  * @file        gpu/xenos/cvar_table.h
- * @brief       GPU backend module cvars
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

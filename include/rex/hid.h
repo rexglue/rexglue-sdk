@@ -1,6 +1,5 @@
 /**
  * @file        hid.h
- * @brief       HID facade
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

@@ -32,28 +32,29 @@ X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
   switch (message) {
     case 0x0002000E: {
       struct message_data {
-        rex::be<uint32_t> user_index;
-        rex::be<uint32_t> unk_04;
-        rex::be<uint32_t> extra_ptr;
-        rex::be<uint32_t> buffer_ptr;
-        rex::be<uint32_t> buffer_size;
-        rex::be<uint32_t> unk_14;
-        rex::be<uint32_t> length_ptr;
-        rex::be<uint32_t> unk_1C;
+        be_u32 user_index;
+        be_u32 unk_04;
+        be_u32 extra_ptr;
+        be_u32 buffer_ptr;
+        be_u32 buffer_size;
+        be_u32 unk_14;
+        be_u32 length_ptr;
+        be_u32 unk_1C;
       }* data = reinterpret_cast<message_data*>(buffer);
       REXLOG_DEBUG(kernel,
                    "XamAppEnumerateContentAggregate({}, {:08X}, {:08X}, {:08X}, {}, "
                    "{:08X}, {:08X}, {:08X})",
-                   (uint32_t)data->user_index, (uint32_t)data->unk_04, (uint32_t)data->extra_ptr,
-                   (uint32_t)data->buffer_ptr, (uint32_t)data->buffer_size, (uint32_t)data->unk_14,
-                   (uint32_t)data->length_ptr, (uint32_t)data->unk_1C);
+                   static_cast<uint32_t>(data->user_index), static_cast<uint32_t>(data->unk_04),
+                   static_cast<uint32_t>(data->extra_ptr), static_cast<uint32_t>(data->buffer_ptr),
+                   static_cast<uint32_t>(data->buffer_size), static_cast<uint32_t>(data->unk_14),
+                   static_cast<uint32_t>(data->length_ptr), static_cast<uint32_t>(data->unk_1C));
       auto extra = memory_->TranslateVirtual<X_KENUMERATOR_CONTENT_AGGREGATE*>(data->extra_ptr);
       auto buffer = memory_->TranslateVirtual(data->buffer_ptr);
       auto e = runtime_.object_table().Get<EnumeratorObject>(extra->handle);
       if (!e || !buffer || !extra) {
         return X_E_INVALIDARG;
       }
-      assert_true(extra->magic == kXObjSignature);
+      REX_ASSERT(extra->magic == kXObjSignature);
       if (data->buffer_size) {
         std::memset(buffer, 0, data->buffer_size);
       }
@@ -62,7 +63,7 @@ X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
 
       if (result == X_ERROR_SUCCESS && item_count >= 1) {
         if (data->length_ptr) {
-          auto length_ptr = memory_->TranslateVirtual<be<uint32_t>*>(data->length_ptr);
+          auto length_ptr = memory_->TranslateVirtual<be_u32*>(data->length_ptr);
           *length_ptr = 1;
         }
         return X_E_SUCCESS;
@@ -72,15 +73,16 @@ X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
     case 0x00020021: {
       struct message_data {
         char unk_00[64];
-        rex::be<uint32_t> unk_40;  // KeGetCurrentProcessType() < 1 ? 1 : 0
-        rex::be<uint32_t> unk_44;  // ? output_ptr ?
-        rex::be<uint32_t> unk_48;  // ? overlapped_ptr ?
+        be_u32 unk_40;  // KeGetCurrentProcessType() < 1 ? 1 : 0
+        be_u32 unk_44;  // ? output_ptr ?
+        be_u32 unk_48;  // ? overlapped_ptr ?
       }* data = reinterpret_cast<message_data*>(buffer);
-      assert_true(buffer_length == sizeof(message_data));
-      auto unk = memory_->TranslateVirtual<rex::be<uint32_t>*>(data->unk_44);
+      REX_ASSERT(buffer_length == sizeof(message_data));
+      auto unk = memory_->TranslateVirtual<be_u32*>(data->unk_44);
       *unk = 0;
       REXLOG_DEBUG(kernel, "XamApp(0x00020021)('{}', {:08X}, {:08X}, {:08X})", data->unk_00,
-                   (uint32_t)data->unk_40, (uint32_t)data->unk_44, (uint32_t)data->unk_48);
+                   static_cast<uint32_t>(data->unk_40), static_cast<uint32_t>(data->unk_44),
+                   static_cast<uint32_t>(data->unk_48));
       return X_E_SUCCESS;
     }
     case 0x00021012: {
@@ -89,14 +91,14 @@ X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
     }
     case 0x00022005: {
       struct message_data {
-        rex::be<uint32_t> unk_00;  // ? output_ptr ?
-        rex::be<uint32_t> unk_04;  // ? value/jump to? ?
+        be_u32 unk_00;  // ? output_ptr ?
+        be_u32 unk_04;  // ? value/jump to? ?
       }* data = reinterpret_cast<message_data*>(buffer);
-      assert_true(buffer_length == sizeof(message_data));
-      auto unk = memory_->TranslateVirtual<rex::be<uint32_t>*>(data->unk_00);
+      REX_ASSERT(buffer_length == sizeof(message_data));
+      auto unk = memory_->TranslateVirtual<be_u32*>(data->unk_00);
       auto adr = *unk;
-      REXLOG_DEBUG(kernel, "XamApp(0x00022005)(%.8X, %.8X)", (uint32_t)data->unk_00,
-                   (uint32_t)data->unk_04);
+      REXLOG_DEBUG(kernel, "XamApp(0x00022005)(%.8X, %.8X)", static_cast<uint32_t>(data->unk_00),
+                   static_cast<uint32_t>(data->unk_04));
       return X_E_SUCCESS;
     }
   }

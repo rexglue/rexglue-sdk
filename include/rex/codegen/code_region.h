@@ -1,6 +1,5 @@
 /**
  * @file        rex/codegen/code_region.h
- * @brief       Lightweight code region struct (no PPC dependencies)
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

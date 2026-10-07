@@ -7,7 +7,7 @@
  ******************************************************************************
  *
  * @modified    2026 Tom Clay <tomc@tctechstuff.com>
- *              Modified for rexglue - Xbox 360 recompilation framework
+ *              Modified for rexglue - recompilation framework
  *
  * @changes     - Extracted X_VIDEO_MODE from xbox.h
  */
@@ -22,18 +22,18 @@ namespace rex::runtime {
 
 // https://github.com/CodeAsm/ffplay360/blob/master/Common/XTLOnPC.h
 struct X_VIDEO_MODE {
-  be<uint32_t> display_width;
-  be<uint32_t> display_height;
-  be<uint32_t> is_interlaced;
-  be<uint32_t> is_widescreen;
-  be<uint32_t> is_hi_def;
-  be<float> refresh_rate;
-  be<uint32_t> video_standard;
-  be<uint32_t> unknown_0x8a;
-  be<uint32_t> unknown_0x01;
-  be<uint32_t> reserved[3];
+  be_u32 display_width;
+  be_u32 display_height;
+  be_u32 is_interlaced;
+  be_u32 is_widescreen;
+  be_u32 is_hi_def;
+  be_f32 refresh_rate;
+  be_u32 video_standard;
+  be_u32 unknown_0x8a;
+  be_u32 unknown_0x01;
+  be_u32 reserved[3];
 };
-static_assert_size(X_VIDEO_MODE, 48);
+REX_STATIC_ASSERT_SIZE(X_VIDEO_MODE, 48);
 
 #pragma pack(pop)
 

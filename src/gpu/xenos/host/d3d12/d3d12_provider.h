@@ -19,7 +19,11 @@
 namespace rex::gpu::d3d12 {
 
 class D3D12Provider : public GraphicsProvider {
+  struct Key {};
+
  public:
+  explicit D3D12Provider(Key) {}
+
   ~D3D12Provider();
 
   static bool IsD3D12APIAvailable();
@@ -121,14 +125,12 @@ class D3D12Provider : public GraphicsProvider {
   }
 
  private:
-  D3D12Provider() = default;
-
   static bool EnableIncreaseBasePriorityPrivilege();
   bool Initialize(int32_t adapter_index);
 
-  typedef HRESULT(WINAPI* PFNCreateDXGIFactory2)(UINT Flags, REFIID riid,
+  using PFNCreateDXGIFactory2 = HRESULT(WINAPI*)(UINT Flags, REFIID riid,
                                                  _COM_Outptr_ void** ppFactory);
-  typedef HRESULT(WINAPI* PFNDXGIGetDebugInterface1)(UINT Flags, REFIID riid,
+  using PFNDXGIGetDebugInterface1 = HRESULT(WINAPI*)(UINT Flags, REFIID riid,
                                                      _COM_Outptr_ void** pDebug);
 
   HMODULE library_dxgi_ = nullptr;

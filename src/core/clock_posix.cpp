@@ -1,6 +1,5 @@
 /**
  * @file        core/clock_posix.cpp
- * @brief       POSIX platform clock implementations
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  * @license     BSD 3-Clause License
@@ -24,12 +23,13 @@ uint64_t Clock::host_tick_frequency_platform() noexcept {
 #ifdef __APPLE__
   mach_timebase_info_data_t info;
   mach_timebase_info(&info);
-  return (uint64_t)((1000000000ull * (uint64_t)info.denom) / (uint64_t)info.numer);
+  return static_cast<uint64_t>((1000000000ull * static_cast<uint64_t>(info.denom)) /
+                               static_cast<uint64_t>(info.numer));
 #else
   timespec res;
   int error = clock_getres(CLOCK_MONOTONIC_RAW, &res);
-  assert_zero(error);
-  assert_zero(res.tv_sec);  // Sub second resolution is required.
+  REX_ASSERT(error == 0);
+  REX_ASSERT(res.tv_sec == 0);  // Sub second resolution is required.
 
   // Convert nano seconds to hertz. Resolution is 1ns on most systems.
   return 1000000000ull / res.tv_nsec;
@@ -46,7 +46,7 @@ uint64_t Clock::host_tick_count_platform() {
 #else
   timespec tp;
   int error = clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
-  assert_zero(error);
+  REX_ASSERT(error == 0);
 
   return tp.tv_nsec + tp.tv_sec * 1000000000ull;
 #endif
@@ -60,7 +60,7 @@ uint64_t Clock::QueryHostSystemTime() noexcept {
 
   timeval now;
   int error = gettimeofday(&now, nullptr);
-  assert_zero(error);
+  REX_ASSERT(error == 0);
 
   // NT systems use 100ns intervals.
   return static_cast<uint64_t>(

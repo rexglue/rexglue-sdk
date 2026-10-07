@@ -142,7 +142,7 @@ void UserProfile::LoadSetting(UserProfile::Setting* setting) {
       setting->loaded_title_id = runtime_.content_manager().title_id();
     }
   } else {
-    // Unsupported for now.  Other settings aren't per-game and need to be
+    // Unsupported.  Other settings aren't per-game and need to be
     // stored some other way.
     REXLOG_WARN(system, "Attempting to load unsupported profile setting from disk");
   }
@@ -159,7 +159,7 @@ void UserProfile::SaveSetting(UserProfile::Setting* setting) {
       REXLOG_WARN(system, "profile setting is not saved, {}", written.error().message);
     }
   } else {
-    // Unsupported for now.  Other settings aren't per-game and need to be
+    // Unsupported.  Other settings aren't per-game and need to be
     // stored some other way.
     REXLOG_WARN(system, "Attempting to save unsupported profile setting to disk");
   }

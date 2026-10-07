@@ -69,8 +69,8 @@ std::string XdbfWrapper::GetStringTableEntry(XLanguage language, uint16_t string
   }
 
   auto xstr_head = reinterpret_cast<const XdbfSectionHeader*>(language_block.buffer);
-  assert_true(xstr_head->magic == kXdbfSignatureXstr);
-  assert_true(xstr_head->version == 1);
+  REX_ASSERT(xstr_head->magic == kXdbfSignatureXstr);
+  REX_ASSERT(xstr_head->version == 1);
 
   const uint8_t* ptr = language_block.buffer + sizeof(XdbfSectionHeader);
   for (uint16_t i = 0; i < xstr_head->count; ++i) {
@@ -93,8 +93,8 @@ std::vector<XdbfAchievementTableEntry> XdbfWrapper::GetAchievements() const {
   }
 
   auto xach_head = reinterpret_cast<const XdbfSectionHeader*>(achievement_table.buffer);
-  assert_true(xach_head->magic == kXdbfSignatureXach);
-  assert_true(xach_head->version == 1);
+  REX_ASSERT(xach_head->magic == kXdbfSignatureXach);
+  REX_ASSERT(xach_head->version == 1);
 
   const uint8_t* ptr = achievement_table.buffer + sizeof(XdbfSectionHeader);
   for (uint16_t i = 0; i < xach_head->count; ++i) {
@@ -106,7 +106,7 @@ std::vector<XdbfAchievementTableEntry> XdbfWrapper::GetAchievements() const {
 }
 
 XLanguage XDBFGameData::GetExistingLanguage(XLanguage language_to_check) const {
-  // A bit of a hack. Check if title in specific language exist.
+  // A hack. Check if title in specific language exist.
   // If it doesn't then for sure language is not supported.
   return title(language_to_check).empty() ? default_language() : language_to_check;
 }
@@ -121,7 +121,7 @@ XLanguage XDBFGameData::default_language() const {
     return XLanguage::kEnglish;
   }
   auto xstc = reinterpret_cast<const XdbfXstc*>(block.buffer);
-  assert_true(xstc->magic == kXdbfSignatureXstc);
+  REX_ASSERT(xstc->magic == kXdbfSignatureXstc);
   return static_cast<XLanguage>(static_cast<uint32_t>(xstc->default_language));
 }
 

@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/ui/imgui_dialog_test.cpp
- * @brief       Unit tests for ImGuiDialog and its host contract
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -18,7 +17,7 @@
 
 namespace {
 
-class ImGuiFrame {
+class ImGuiFrame : public rex::NonCopyable {
  public:
   ImGuiFrame() {
     context_ = ImGui::CreateContext();
@@ -36,9 +35,6 @@ class ImGuiFrame {
     ImGui::EndFrame();
     ImGui::DestroyContext(context_);
   }
-
-  ImGuiFrame(const ImGuiFrame&) = delete;
-  ImGuiFrame& operator=(const ImGuiFrame&) = delete;
 
  private:
   ImGuiContext* context_ = nullptr;

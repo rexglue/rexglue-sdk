@@ -1,6 +1,5 @@
 /**
  * @file        filesystem/node_file.h
- * @brief       IFile and IDirectory over a shared tree node
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

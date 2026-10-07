@@ -1,6 +1,5 @@
 /**
  * @file        platform/exceptions.h
- * @brief       Structured Exception Handling (SEH) support for recompiled code
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -107,12 +106,10 @@ inline void initialize_seh() {
 #if REX_PLATFORM_WIN32
 
 /** Scope marker for SEH regions. Empty on Windows, where __try handles the scope. */
-class SehGuard {
+class SehGuard : public rex::NonCopyable {
  public:
   SehGuard() = default;
   ~SehGuard() = default;
-  SehGuard(const SehGuard&) = delete;
-  SehGuard& operator=(const SehGuard&) = delete;
 };
 
 /**
@@ -145,7 +142,7 @@ class SehGuard {
 #else  // !REX_PLATFORM_WIN32
 
 /** Sets the SEH scope flag of the calling thread for its lifetime and restores it after. */
-class SehGuard {
+class SehGuard : public rex::NonCopyable {
  public:
   /** Saves the current flag and sets it. */
   SehGuard() {
@@ -154,9 +151,6 @@ class SehGuard {
   }
 
   ~SehGuard() { platform::seh_active() = was_active_; }
-
-  SehGuard(const SehGuard&) = delete;
-  SehGuard& operator=(const SehGuard&) = delete;
 
  private:
   bool was_active_ = false;

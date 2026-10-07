@@ -1,6 +1,5 @@
 /**
  * @file        runtime/notifier.h
- * @brief       The notification interface of Xam listeners
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

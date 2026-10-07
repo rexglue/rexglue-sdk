@@ -1,6 +1,5 @@
 /**
  * @file        kernel/init.h
- * @brief       Kernel initialization entry point
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

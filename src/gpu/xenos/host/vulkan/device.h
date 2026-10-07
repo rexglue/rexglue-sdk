@@ -10,27 +10,29 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <bit>
 #include <memory>
 #include <mutex>
 #include <vector>
 
 #include "gpu/xenos/host/vulkan/instance.h"
+#include <rex/types.h>
 
 namespace rex {
 namespace gpu {
 namespace vulkan {
 
-class VulkanDevice {
+class VulkanDevice : public rex::NonCopyable {
+  struct Key {};
+
  public:
+  explicit VulkanDevice(Key, const VulkanInstance* vulkan_instance,
+                        VkPhysicalDevice physical_device);
+
   static std::unique_ptr<VulkanDevice> CreateIfSupported(const VulkanInstance* vulkan_instance,
                                                          VkPhysicalDevice physical_device,
                                                          bool with_gpu_emulation,
                                                          bool with_swapchain);
-
-  VulkanDevice(const VulkanDevice&) = delete;
-  VulkanDevice& operator=(const VulkanDevice&) = delete;
-  VulkanDevice(VulkanDevice&&) = delete;
-  VulkanDevice& operator=(VulkanDevice&&) = delete;
 
   ~VulkanDevice();
 
@@ -58,7 +60,7 @@ class VulkanDevice {
     uint32_t maxImageDimension3D = 256;
     uint32_t maxImageDimensionCube = 4096;
     uint32_t maxImageArrayLayers = 256;
-    uint32_t maxStorageBufferRange = uint32_t(1) << 27;
+    uint32_t maxStorageBufferRange = static_cast<uint32_t>(1) << 27;
     uint32_t maxSamplerAllocationCount = 4000;
     uint32_t maxPerStageDescriptorSamplers = 16;
     uint32_t maxPerStageDescriptorStorageBuffers = 4;
@@ -235,7 +237,7 @@ class VulkanDevice {
     object_name_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
     object_name_info.pNext = nullptr;
     object_name_info.objectType = object_type;
-    object_name_info.objectHandle = (uint64_t)object_handle;
+    object_name_info.objectHandle = std::bit_cast<uint64_t>(object_handle);
     object_name_info.pObjectName = object_name;
     vulkan_instance()->functions().vkSetDebugUtilsObjectNameEXT(device(), &object_name_info);
   }
@@ -293,8 +295,6 @@ class VulkanDevice {
   bool requires_fill_mode_non_solid() const { return requires_fill_mode_non_solid_; }
 
  private:
-  explicit VulkanDevice(const VulkanInstance* vulkan_instance, VkPhysicalDevice physical_device);
-
   bool requires_geometry_shader_ = false;
   bool requires_fill_mode_non_solid_ = false;
 

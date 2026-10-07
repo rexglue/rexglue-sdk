@@ -1,6 +1,5 @@
 /**
  * @file        codegen/internal/helpers.h
- * @brief       Recompiler helper utilities
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -65,7 +64,7 @@ inline bool isRecordForm(const ppc_insn& insn) {
 /**
  * Emit CR0 comparison for record-form instructions.
  *
- * Record-form instructions (those with '.' suffix like add., and., etc.)
+ * Record-form instructions (those with '.' suffix like add. and and.)
  * update CR0 based on the result compared to zero:
  *   CR0[LT] = result < 0
  *   CR0[GT] = result > 0
@@ -174,7 +173,7 @@ inline void emitCompareImmediate(BuilderContext& ctx, const char* type_name, con
  * Emit D-form load with update instruction.
  *
  * Pattern: EA = (rA) + d; rD = MEM[EA]; rA = EA
- * Used by: lbzu, lwzu, ldu, etc.
+ * Used by: lbzu, lwzu, ldu and others
  *
  * @param ctx The builder context
  * @param load_macro The REX_LOAD_* macro to use (e.g., "REX_LOAD_U8")
@@ -211,7 +210,7 @@ inline void emitLoadXFormWithUpdate(BuilderContext& ctx, const char* load_macro)
  * Emit D-form store with update instruction.
  *
  * Pattern: EA = (rA) + d; MEM[EA] = rS; rA = EA
- * Used by: stbu, stwu, stdu, etc.
+ * Used by: stbu, stwu, stdu and others
  *
  * @param ctx The builder context
  * @param store_macro The REX_STORE_* macro to use (e.g., "REX_STORE_U8")

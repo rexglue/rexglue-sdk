@@ -18,6 +18,7 @@
 #include <vector>
 
 #include <rex/assert.h>
+#include <rex/types.h>
 #include "gpu/xenos/host/vulkan/device.h"
 
 namespace rex {
@@ -29,27 +30,27 @@ namespace vulkan {
 //
 // "LinkedType" means that the allocator is designed for allocating descriptor
 // sets containing descriptors of multiple types together - for instance, it
-// will mark the entire page as full even if no space is left in it for just one
+// will mark the entire page as full even if no space is left in it for only one
 // of the descriptor types (not all at once).
 //
-// The primary usage scenario for this kind of an allocator is allocating image
-// and sampler descriptors in a single descriptor set if they both are actually
+// The primary usage scenario for this allocator is allocating image
+// and sampler descriptors in a single descriptor set if they both are
 // used in one. It is expected that the ratio of the numbers of descriptors per
 // type specified during the initialization will roughly correspond to the ratio
-// of the numbers of descriptors that will actually be allocated. For instance,
+// of the numbers of descriptors that will be allocated. For instance,
 // if there are approximately 2 images for each 1 sampler, it's recommended to
 // make the image count per page twice the sampler count per page.
 //
-// If some allocations use just one type, and some use just another, completely
+// If some allocations use only one type, and some use only another, completely
 // independently, it's preferable to use separate allocators rather than a
 // single one.
 //
 // This allocator is also suitable for allocating variable-length descriptor
-// sets containing descriptors of just a single type.
+// sets containing descriptors of only a single type.
 //
 // There's no way to free these descriptors within the allocator object itself,
 // per-layout free lists should be used externally.
-class LinkedTypeDescriptorSetAllocator {
+class LinkedTypeDescriptorSetAllocator : public rex::NonCopyable {
  public:
   // Multiple descriptor sizes for the same descriptor type, and zero sizes, are
   // not allowed.
@@ -58,27 +59,25 @@ class LinkedTypeDescriptorSetAllocator {
                                             const uint32_t descriptor_size_count,
                                             const uint32_t descriptor_sets_per_page)
       : vulkan_device_(vulkan_device),
-        descriptor_pool_sizes_(new VkDescriptorPoolSize[descriptor_size_count]),
+        descriptor_pool_sizes_(
+            std::make_unique_for_overwrite<VkDescriptorPoolSize[]>(descriptor_size_count)),
         descriptor_pool_size_count_(descriptor_size_count),
         descriptor_sets_per_page_(descriptor_sets_per_page) {
-    assert_not_null(vulkan_device);
-    assert_not_zero(descriptor_size_count);
-    assert_not_zero(descriptor_sets_per_page_);
+    REX_ASSERT(vulkan_device != nullptr);
+    REX_ASSERT(descriptor_size_count != 0);
+    REX_ASSERT(descriptor_sets_per_page_ != 0);
 #ifndef NDEBUG
     for (uint32_t i = 0; i < descriptor_size_count; ++i) {
       const VkDescriptorPoolSize& descriptor_size = descriptor_sizes[i];
-      assert_not_zero(descriptor_size.descriptorCount);
+      REX_ASSERT(descriptor_size.descriptorCount != 0);
       for (uint32_t j = 0; j < i; ++j) {
-        assert_true(descriptor_sizes[j].type != descriptor_size.type);
+        REX_ASSERT(descriptor_sizes[j].type != descriptor_size.type);
       }
     }
 #endif
     std::memcpy(descriptor_pool_sizes_.get(), descriptor_sizes,
                 sizeof(VkDescriptorPoolSize) * descriptor_size_count);
   }
-  LinkedTypeDescriptorSetAllocator(const LinkedTypeDescriptorSetAllocator& allocator) = delete;
-  LinkedTypeDescriptorSetAllocator& operator=(const LinkedTypeDescriptorSetAllocator& allocator) =
-      delete;
   ~LinkedTypeDescriptorSetAllocator() { Reset(); }
 
   void Reset();

@@ -1,6 +1,5 @@
 /**
  * @file        gpu/xenos/null/null_command_processor.h
- * @brief       The command processor of the null host path
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

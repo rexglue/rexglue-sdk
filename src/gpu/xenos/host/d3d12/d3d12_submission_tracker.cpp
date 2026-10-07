@@ -54,7 +54,7 @@ bool D3D12SubmissionTracker::AwaitSubmissionCompletion(UINT64 submission_index) 
   // hasn't even started being recorded yet, the client has provided a
   // completely invalid value or has done overly optimistic math if such an
   // index has been obtained somehow.
-  assert_true(submission_index <= submission_current_);
+  REX_ASSERT(submission_index <= submission_current_);
   // Waiting for the current submission is fine if there was a refusal to
   // submit, and the submission index wasn't incremented, but still need to
   // release objects referenced in the dropped submission (while shutting down,
@@ -81,23 +81,10 @@ bool D3D12SubmissionTracker::AwaitSubmissionCompletion(UINT64 submission_index) 
   return fence_value == submission_index;
 }
 
-void D3D12SubmissionTracker::SetQueue(ID3D12CommandQueue* new_queue) {
-  if (queue_.Get() == new_queue) {
-    return;
-  }
-  if (queue_) {
-    // Make sure the first signal on the new queue won't happen before the last
-    // signal, if pending, on the old one, as that would result first in too
-    // early submission completion indication, and then in rewinding.
-    AwaitAllSubmissionsCompletion();
-  }
-  queue_ = new_queue;
-}
-
 bool D3D12SubmissionTracker::NextSubmission() {
   ++submission_current_;
-  assert_not_null(queue_);
-  assert_not_null(fence_);
+  REX_ASSERT(queue_ != nullptr);
+  REX_ASSERT(fence_ != nullptr);
   return TrySignalEnqueueing();
 }
 

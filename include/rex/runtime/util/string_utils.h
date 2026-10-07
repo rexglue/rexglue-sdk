@@ -1,6 +1,5 @@
 /**
  * @file        kernel/util/string_utils.h
- * @brief       String utility functions for kernel operations
  *
  * @copyright   Copyright 2022 Ben Vanik. All rights reserved. (Xenia Project)
  *
@@ -55,12 +54,11 @@ inline std::u16string TranslateUnicodeString(const runtime::Memory* memory,
   if (!length) {
     return u"";
   }
-  auto src = memory->TranslateVirtual<const uint16_t*>(unicode_string->pointer);
+  auto src = memory->TranslateVirtual<const be_u16*>(unicode_string->pointer);
   std::u16string result;
   result.reserve(length);
   for (uint16_t i = 0; i < length / 2; ++i) {
-    uint16_t c = rex::byte_swap(src[i]);
-    result.push_back(c);
+    result.push_back(src[i]);
   }
   return result;
 }

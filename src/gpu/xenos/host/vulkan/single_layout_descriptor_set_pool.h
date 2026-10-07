@@ -36,7 +36,7 @@ class SingleLayoutDescriptorSetPool {
   // Returns SIZE_MAX in case of a failure.
   size_t Allocate();
   void Free(size_t index) {
-    assert_true(index < descriptor_sets_.size());
+    REX_ASSERT(index < descriptor_sets_.size());
     descriptor_sets_free_.push_back(index);
   }
   VkDescriptorSet Get(size_t index) const { return descriptor_sets_[index]; }

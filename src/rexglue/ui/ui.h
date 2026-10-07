@@ -22,6 +22,7 @@
 #include <vector>
 
 #include <rex/logging/sink.h>
+#include <rex/types.h>
 
 namespace rexglue::ui {
 
@@ -93,12 +94,9 @@ bool SinkIsTty();
 void SetSinkActiveProgress(bool active);
 
 /** RAII lock on the global sink's mutex for write access. */
-class GlobalSinkAccessor {
+class GlobalSinkAccessor : public rex::NonCopyable {
  public:
   GlobalSinkAccessor();
-  ~GlobalSinkAccessor();
-  GlobalSinkAccessor(const GlobalSinkAccessor&) = delete;
-  GlobalSinkAccessor& operator=(const GlobalSinkAccessor&) = delete;
 
   void writeLine(std::string_view s);
   void writeRaw(std::string_view s);
@@ -107,6 +105,9 @@ class GlobalSinkAccessor {
   bool color() const;
 
   void writeColored(std::string_view code, std::string_view text);
+
+ private:
+  std::unique_lock<std::mutex> lock_;
 };
 
 }  // namespace detail
@@ -115,7 +116,6 @@ namespace color {
 inline constexpr std::string_view kReset = "\033[0m";
 inline constexpr std::string_view kBold = "\033[1m";
 inline constexpr std::string_view kDim = "\033[2m";
-inline constexpr std::string_view kRed = "\033[31m";
 inline constexpr std::string_view kGreen = "\033[32m";
 inline constexpr std::string_view kCyan = "\033[36m";
 inline constexpr std::string_view kBoldGreen = "\033[1;32m";

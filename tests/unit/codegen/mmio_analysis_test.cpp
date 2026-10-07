@@ -85,7 +85,7 @@ std::vector<u8> Encode(std::initializer_list<u32> words) {
   std::vector<u8> bytes(words.size() * 4);
   size_t offset = 0;
   for (u32 word : words) {
-    rex::memory::store_and_swap<u32>(bytes.data() + offset, word);
+    rex::memory::store<be_u32>(bytes.data() + offset, word);
     offset += 4;
   }
   return bytes;

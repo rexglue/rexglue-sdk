@@ -21,9 +21,9 @@ namespace rex::runtime {
 
 struct X_KSEMAPHORE {
   X_DISPATCH_HEADER header;
-  rex::be<uint32_t> limit;
+  be_u32 limit;
 };
-static_assert_size(X_KSEMAPHORE, 0x14);
+REX_STATIC_ASSERT_SIZE(X_KSEMAPHORE, 0x14);
 
 /** The host state of a semaphore object. */
 struct SemaphoreObject {

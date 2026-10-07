@@ -1,6 +1,5 @@
 /**
  * @file        stream.h
- * @brief       Bit and byte cursors over caller owned buffers
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -242,7 +241,7 @@ class REX_API ByteStream {
    * @param str String to write.
    */
   void Write(const std::string_view str) {
-    Write(u32(str.length()));
+    Write(static_cast<u32>(str.length()));
     Write(str.data(), str.length() * sizeof(char));
   }
 
@@ -252,7 +251,7 @@ class REX_API ByteStream {
    * @param str String to write.
    */
   void Write(const std::u16string_view str) {
-    Write(u32(str.length()));
+    Write(static_cast<u32>(str.length()));
     Write(str.data(), str.length() * sizeof(char16_t));
   }
 

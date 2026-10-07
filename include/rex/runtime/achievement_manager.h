@@ -1,6 +1,5 @@
 /**
  * @file        runtime/achievement_manager.h
- * @brief       The achievement catalog, persistence and event interface
  *
  * @copyright   Copyright (c) 2026 Rien Gupta <rgupta9@scu.edu>
  *              All rights reserved.

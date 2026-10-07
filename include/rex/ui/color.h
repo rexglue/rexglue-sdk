@@ -1,6 +1,5 @@
 /**
  * @file        ui/color.h
- * @brief       Conversions between rex::Color and the ImGui color types
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

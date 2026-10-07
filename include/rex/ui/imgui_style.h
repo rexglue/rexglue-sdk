@@ -1,6 +1,5 @@
 /**
  * @file        ui/imgui_style.h
- * @brief       The mapping from the Palette and Metrics onto the ImGui style
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

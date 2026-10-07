@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/hid/virtual_key_test.cpp
- * @brief       Tests for the key name table
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

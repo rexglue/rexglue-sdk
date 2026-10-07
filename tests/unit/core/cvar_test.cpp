@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/core/cvar_test.cpp
- * @brief       Unit tests for the cvar types and the registry
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -374,7 +373,7 @@ TEST_CASE_METHOD(Fixture, "Add extends a reserved scope and pinned scopes surviv
   REQUIRE(reg().Scopes() == std::vector<std::string_view>{"bind"});
   REQUIRE(reg().Add(one));
   reg().Unregister(one);
-  dynamic.reset(new rex::cvar::Var<std::string>("bind.other", "F1", "d"));
+  dynamic = std::make_unique<rex::cvar::Var<std::string>>("bind.other", "F1", "d");
   const rex::cvar::IVar* two[] = {dynamic.get()};
   REQUIRE(reg().Add(two));
   reg().Unregister(two);

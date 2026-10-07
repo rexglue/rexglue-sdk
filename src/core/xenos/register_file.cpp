@@ -9,16 +9,10 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <cstring>
-
 #include <rex/xenos/register_file.h>
 #include <rex/math.h>
 
 namespace rex::xenos {
-
-RegisterFile::RegisterFile() {
-  std::memset(values, 0, sizeof(values));
-}
 
 const RegisterInfo* RegisterFile::GetRegisterInfo(uint32_t index) {
   switch (index) {

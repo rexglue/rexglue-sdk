@@ -1,6 +1,5 @@
 /**
  * @file        filesystem/node.cpp
- * @brief       The shared tree node of a mount and the byte stream of 1 open node
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

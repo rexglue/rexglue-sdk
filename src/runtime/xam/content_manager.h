@@ -80,24 +80,25 @@ class ContentManager final : public IContentManager {
                                                         XContentType content_type,
                                                         u32 title_id = 0xFFFFFFFF) override;
   bool ContentExists(u64 xuid, const xam::XCONTENT_AGGREGATE_DATA& data) override;
-  Result<void> CreateContent(std::string_view root_name, u64 xuid,
-                             const xam::XCONTENT_AGGREGATE_DATA& data) override;
-  Result<u32> OpenContent(std::string_view root_name, u64 xuid,
-                          const xam::XCONTENT_AGGREGATE_DATA& data) override;
-  Result<void> CloseContent(std::string_view root_name) override;
-  Result<std::vector<u8>> GetContentThumbnail(u64 xuid,
-                                              const xam::XCONTENT_AGGREGATE_DATA& data) override;
-  Result<void> SetContentThumbnail(u64 xuid, const xam::XCONTENT_AGGREGATE_DATA& data,
-                                   std::vector<u8> buffer) override;
-  Result<void> DeleteContent(u64 xuid, const xam::XCONTENT_AGGREGATE_DATA& data) override;
-  Result<void> WriteContentHeaderFile(u64 xuid, xam::XCONTENT_AGGREGATE_DATA data,
-                                      u32 license_mask = 0) override;
-  Result<xam::XCONTENT_AGGREGATE_DATA> ReadContentHeaderFile(
+  [[nodiscard]] Result<void> CreateContent(std::string_view root_name, u64 xuid,
+                                           const xam::XCONTENT_AGGREGATE_DATA& data) override;
+  [[nodiscard]] Result<u32> OpenContent(std::string_view root_name, u64 xuid,
+                                        const xam::XCONTENT_AGGREGATE_DATA& data) override;
+  [[nodiscard]] Result<void> CloseContent(std::string_view root_name) override;
+  [[nodiscard]] Result<std::vector<u8>> GetContentThumbnail(
+      u64 xuid, const xam::XCONTENT_AGGREGATE_DATA& data) override;
+  [[nodiscard]] Result<void> SetContentThumbnail(u64 xuid, const xam::XCONTENT_AGGREGATE_DATA& data,
+                                                 std::vector<u8> buffer) override;
+  [[nodiscard]] Result<void> DeleteContent(u64 xuid,
+                                           const xam::XCONTENT_AGGREGATE_DATA& data) override;
+  [[nodiscard]] Result<void> WriteContentHeaderFile(u64 xuid, xam::XCONTENT_AGGREGATE_DATA data,
+                                                    u32 license_mask = 0) override;
+  [[nodiscard]] Result<xam::XCONTENT_AGGREGATE_DATA> ReadContentHeaderFile(
       std::string_view file_name, u64 xuid, u32 title_id, XContentType content_type) const override;
   std::filesystem::path ResolveGameUserContentPath() override;
   bool IsContentOpen(const xam::XCONTENT_AGGREGATE_DATA& data) const override;
   void CloseOpenedFilesFromContent(std::string_view root_name) override;
-  Result<xam::XCONTENT_AGGREGATE_DATA> InstallContent(
+  [[nodiscard]] Result<xam::XCONTENT_AGGREGATE_DATA> InstallContent(
       const std::filesystem::path& package_path) override;
   u32 title_id() const override;
   util::XDBFGameData title_xdbf() const override;
@@ -120,7 +121,7 @@ class ContentManager final : public IContentManager {
    * @param root_name The root name the package is mounted under.
    * @return The detached package, or null when none is open under the name.
    */
-  xam::ContentPackage* DetachPackage(const std::string_view root_name);
+  std::unique_ptr<xam::ContentPackage> DetachPackage(const std::string_view root_name);
 
   Runtime& runtime_;
   std::filesystem::path root_path_;
@@ -128,7 +129,8 @@ class ContentManager final : public IContentManager {
   xam::UserProfile& user_profile_;
 
   rex::platform::RankedMutex mutex_{rex::platform::LockRank::Leaf};
-  std::unordered_map<string_key_case, xam::ContentPackage*, string_key_case::Hash> open_packages_;
+  std::unordered_map<string_key_case, std::unique_ptr<xam::ContentPackage>, string_key_case::Hash>
+      open_packages_;
 };
 
 }  // namespace rex::runtime

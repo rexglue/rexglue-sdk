@@ -251,7 +251,7 @@ class PipelineCache {
       uint32_t point_ps_ucp_mode : 2;
     };
 
-    GeometryShaderKey() : key(0) { static_assert_size(*this, sizeof(key)); }
+    GeometryShaderKey() : key(0) { REX_STATIC_ASSERT_SIZE(*this, sizeof(key)); }
 
     struct Hasher {
       size_t operator()(const GeometryShaderKey& key) const {
@@ -312,7 +312,8 @@ class PipelineCache {
   IDxcCompiler* dxc_compiler_ = nullptr;
 
   // Ucode hash -> shader.
-  std::unordered_map<uint64_t, D3D12Shader*, rex::IdentityHasher<uint64_t>> shaders_;
+  std::unordered_map<uint64_t, std::unique_ptr<D3D12Shader>, rex::IdentityHasher<uint64_t>>
+      shaders_;
 
   struct LayoutUID {
     size_t uid;
@@ -359,21 +360,22 @@ class PipelineCache {
     }
   };
   // All previously generated pipelines identified by hash and the description.
-  std::unordered_multimap<uint64_t, Pipeline*, rex::IdentityHasher<uint64_t>> pipelines_;
+  std::unordered_multimap<uint64_t, std::unique_ptr<Pipeline>, rex::IdentityHasher<uint64_t>>
+      pipelines_;
 
   // Previously used pipeline. This matches our current state settings and
   // allows us to quickly(ish) reuse the pipeline if no registers have been
   // changed.
   Pipeline* current_pipeline_ = nullptr;
 
-  // Currently open shader storage path.
+  // Open shader storage path.
   std::filesystem::path shader_storage_cache_root_;
   uint32_t shader_storage_title_id_ = 0;
 
   // Shader storage output stream, for preload in the next emulator runs.
   std::fstream shader_storage_file_;
   std::filesystem::path shader_storage_file_path_;
-  // For only writing shaders to the currently open storage once, incremented
+  // For only writing shaders to the open storage once, incremented
   // when switching the storage.
   uint32_t shader_storage_index_ = 0;
   bool shader_storage_file_flush_needed_ = false;
@@ -405,7 +407,7 @@ class PipelineCache {
   // when set.
   std::priority_queue<Pipeline*, std::vector<Pipeline*>, PipelineCreationPriorityComparator>
       creation_queue_;
-  // Number of threads that are currently creating a pipeline - incremented when
+  // Number of threads that are creating a pipeline - incremented when
   // a pipeline is dequeued (the completion event can't be triggered before this
   // is zero). Protected with creation_request_lock_.
   size_t creation_threads_busy_ = 0;

@@ -1,6 +1,5 @@
 /**
  * @file        filesystem/host_provider.h
- * @brief       The provider that serves a host folder
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -28,7 +27,17 @@ namespace rex::filesystem {
 
 /** Serves a host folder. The tree is read at mount, a missing path is looked up on demand. */
 class HostProvider final : public Provider {
+  struct Key {};
+
  public:
+  /**
+   * Serves the folder of a mount entry. Only Create can make the key.
+   *
+   * @param key The private construction key.
+   * @param entry The mount description.
+   */
+  explicit HostProvider(Key, MountEntry entry);
+
   /**
    * Builds the provider and reads the folder tree. A missing folder is created on a writable
    * mount.
@@ -55,7 +64,6 @@ class HostProvider final : public Provider {
   [[nodiscard]] Node* Resolve(std::string_view path) override;
 
  private:
-  explicit HostProvider(MountEntry entry);
 };
 
 /** 1 host file or folder. */

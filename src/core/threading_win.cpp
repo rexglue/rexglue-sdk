@@ -1,6 +1,5 @@
 /**
  * @file        core/threading_win.cpp
- * @brief       Windows platform threading implementations
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  * @license     BSD 3-Clause License
@@ -21,7 +20,7 @@ static_assert(REX_PLATFORM_WIN32, "This file is Windows-only");
 #define LOG_LASTERROR() \
   { REXLOG_ERROR(core, "Win32 error 0x{:08X} in {}", GetLastError(), __FUNCTION__); }
 
-typedef HANDLE (*SetThreadDescriptionFn)(HANDLE hThread, PCWSTR lpThreadDescription);
+using SetThreadDescriptionFn = HANDLE (*)(HANDLE hThread, PCWSTR lpThreadDescription);
 
 namespace rex::platform {
 
@@ -144,8 +143,8 @@ std::chrono::milliseconds QueryCurrentThreadCPUTime() {
   if (!GetThreadTimes(GetCurrentThread(), &creation, &exit, &kernel, &user)) {
     return std::chrono::milliseconds(0);
   }
-  const u64 kernel_ticks = (u64(kernel.dwHighDateTime) << 32) | kernel.dwLowDateTime;
-  const u64 user_ticks = (u64(user.dwHighDateTime) << 32) | user.dwLowDateTime;
+  const u64 kernel_ticks = (static_cast<u64>(kernel.dwHighDateTime) << 32) | kernel.dwLowDateTime;
+  const u64 user_ticks = (static_cast<u64>(user.dwHighDateTime) << 32) | user.dwLowDateTime;
   return std::chrono::milliseconds((kernel_ticks + user_ticks) / 10000);
 }
 
@@ -176,7 +175,7 @@ bool SetTLSValue(TLSHandle handle, uintptr_t value) {
 template <typename T>
 class Win32Handle : public T {
  public:
-  explicit Win32Handle(HANDLE handle) : handle_(handle) { assert_not_null(handle); }
+  explicit Win32Handle(HANDLE handle) : handle_(handle) { REX_ASSERT(handle != nullptr); }
   ~Win32Handle() override {
     CloseHandle(handle_);
     handle_ = nullptr;
@@ -340,7 +339,7 @@ class Win32Timer : public Win32Handle<Timer> {
     LARGE_INTEGER due_time_li;
     due_time_li.QuadPart = WClock_::to_file_time(due_time);
     auto completion_routine =
-        callback_ ? reinterpret_cast<PTIMERAPCROUTINE>(CompletionRoutine) : NULL;
+        callback_ ? reinterpret_cast<PTIMERAPCROUTINE>(CompletionRoutine) : nullptr;
     return SetWaitableTimer(handle_, &due_time_li, 0, completion_routine, this, FALSE) ? true
                                                                                        : false;
   }
@@ -361,9 +360,9 @@ class Win32Timer : public Win32Handle<Timer> {
     LARGE_INTEGER due_time_li;
     due_time_li.QuadPart = WClock_::to_file_time(due_time);
     auto completion_routine =
-        callback_ ? reinterpret_cast<PTIMERAPCROUTINE>(CompletionRoutine) : NULL;
-    return SetWaitableTimer(handle_, &due_time_li, int32_t(period.count()), completion_routine,
-                            this, FALSE)
+        callback_ ? reinterpret_cast<PTIMERAPCROUTINE>(CompletionRoutine) : nullptr;
+    return SetWaitableTimer(handle_, &due_time_li, static_cast<int32_t>(period.count()),
+                            completion_routine, this, FALSE)
                ? true
                : false;
   }
@@ -401,7 +400,7 @@ class Win32Timer : public Win32Handle<Timer> {
 };
 
 std::unique_ptr<Timer> Timer::CreateManualResetTimer() {
-  HANDLE handle = CreateWaitableTimer(NULL, TRUE, NULL);
+  HANDLE handle = CreateWaitableTimer(nullptr, TRUE, nullptr);
   if (handle) {
     return std::make_unique<Win32Timer>(handle);
   } else {
@@ -411,7 +410,7 @@ std::unique_ptr<Timer> Timer::CreateManualResetTimer() {
 }
 
 std::unique_ptr<Timer> Timer::CreateSynchronizationTimer() {
-  HANDLE handle = CreateWaitableTimer(NULL, FALSE, NULL);
+  HANDLE handle = CreateWaitableTimer(nullptr, FALSE, nullptr);
   if (handle) {
     return std::make_unique<Win32Timer>(handle);
   } else {
@@ -448,18 +447,19 @@ class Win32Thread : public Win32Handle<Thread> {
   }
 
   struct ApcData {
-    std::function<void()> callback;
+    std::move_only_function<void()> callback;
   };
   static void NTAPI DispatchApc(ULONG_PTR parameter) {
     // NOLINTNEXTLINE(performance-no-int-to-ptr): the Win32 API passes the pointer as an integer
-    auto apc_data = reinterpret_cast<ApcData*>(parameter);
+    std::unique_ptr<ApcData> apc_data(reinterpret_cast<ApcData*>(parameter));
     apc_data->callback();
-    delete apc_data;
   }
 
-  void QueueUserCallback(std::function<void()> callback) override {
-    auto apc_data = new ApcData({std::move(callback)});
-    QueueUserAPC(DispatchApc, handle_, reinterpret_cast<ULONG_PTR>(apc_data));
+  void QueueUserCallback(std::move_only_function<void()> callback) override {
+    auto apc_data = std::make_unique<ApcData>(std::move(callback));
+    if (QueueUserAPC(DispatchApc, handle_, reinterpret_cast<ULONG_PTR>(apc_data.get()))) {
+      apc_data.release();
+    }
   }
 
   bool Resume(uint32_t* out_previous_suspend_count = nullptr) override {
@@ -498,35 +498,34 @@ class Win32Thread : public Win32Handle<Thread> {
   }
 
  private:
-  void AssertCallingThread() { assert_true(GetCurrentThreadId() == GetThreadId(handle_)); }
+  void AssertCallingThread() { REX_ASSERT(GetCurrentThreadId() == GetThreadId(handle_)); }
 };
 
 thread_local std::unique_ptr<Win32Thread> current_thread_ = nullptr;
 
 struct ThreadStartData {
-  std::function<void()> start_routine;
+  std::move_only_function<void()> start_routine;
 };
 DWORD WINAPI ThreadStartRoutine(LPVOID parameter) {
   detail::RegisterCurrentThread();
   PrepareThreadForCrash();
   current_thread_ = std::make_unique<Win32Thread>(::GetCurrentThread());
 
-  auto start_data = reinterpret_cast<ThreadStartData*>(parameter);
+  std::unique_ptr<ThreadStartData> start_data(static_cast<ThreadStartData*>(parameter));
   start_data->start_routine();
-  delete start_data;
   return 0;
 }
 
 std::unique_ptr<Thread> Thread::Create(CreationParameters params,
-                                       std::function<void()> start_routine) {
-  auto start_data = new ThreadStartData({std::move(start_routine)});
-  HANDLE handle = CreateThread(NULL, params.stack_size, ThreadStartRoutine, start_data,
-                               params.create_suspended ? CREATE_SUSPENDED : 0, NULL);
+                                       std::move_only_function<void()> start_routine) {
+  auto start_data = std::make_unique<ThreadStartData>(std::move(start_routine));
+  HANDLE handle = CreateThread(nullptr, params.stack_size, ThreadStartRoutine, start_data.get(),
+                               params.create_suspended ? CREATE_SUSPENDED : 0, nullptr);
   if (handle) {
+    start_data.release();
     return std::make_unique<Win32Thread>(handle);
   } else {
     LOG_LASTERROR();
-    delete start_data;
     return nullptr;
   }
 }

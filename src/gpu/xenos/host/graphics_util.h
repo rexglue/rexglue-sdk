@@ -16,7 +16,7 @@ namespace rex {
 namespace gpu {
 
 // For estimating coverage extents from vertices. This may give results that are
-// different than what the GPU will actually draw (this is the reference
+// different than what the GPU will draw (this is the reference
 // conversion with 1/2 ULP accuracy, but Direct3D 11 permits 0.6 ULP tolerance
 // in floating point to fixed point conversion), but is enough to tie-break
 // vertices at pixel centers (due to the half-pixel offset applied to integer

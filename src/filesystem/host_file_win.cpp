@@ -1,6 +1,5 @@
 /**
  * @file        filesystem/host_file_win.cpp
- * @brief       Windows host file handle and host directory queries
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -146,7 +145,7 @@ Result<void> HostFile::Flush() const {
   return Ok();
 }
 
-Result<void> HostCreateNew(const std::filesystem::path& path) {
+[[nodiscard]] Result<void> HostCreateNew(const std::filesystem::path& path) {
   HANDLE handle = CreateFileW(path.c_str(), GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
                               nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
   if (handle == INVALID_HANDLE_VALUE) {
@@ -164,8 +163,8 @@ Result<void> HostCreateNew(const std::filesystem::path& path) {
   return Ok();
 }
 
-Result<void> HostMove(const std::filesystem::path& from, const std::filesystem::path& to,
-                      bool replace_existing) {
+[[nodiscard]] Result<void> HostMove(const std::filesystem::path& from,
+                                    const std::filesystem::path& to, bool replace_existing) {
   if (MoveFileExW(from.c_str(), to.c_str(), replace_existing ? MOVEFILE_REPLACE_EXISTING : 0)) {
     return Ok();
   }

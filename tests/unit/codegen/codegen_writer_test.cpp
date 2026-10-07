@@ -1,6 +1,5 @@
 /**
  * @file        codegen/codegen_writer_test.cpp
- * @brief       Tests for content-addressed codegen output writing
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

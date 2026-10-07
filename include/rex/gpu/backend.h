@@ -1,6 +1,5 @@
 /**
  * @file        gpu/backend.h
- * @brief       The GPU backend interface served by backend modules
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

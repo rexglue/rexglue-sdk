@@ -1,6 +1,5 @@
 /**
  * @file        runtime/embedded_metadata.cpp
- * @brief       Embedded metadata registry implementation.
  *
  * @copyright   Copyright (c) 2026 Rien Gupta <rgupta9@scu.edu>
  *              All rights reserved.

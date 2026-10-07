@@ -146,7 +146,7 @@ void NullGPU::WriteRegister(u32 address, u32 value) {
   }
   const u32 writeback = read_pointer_writeback_.load(std::memory_order_acquire);
   if (writeback != 0) {
-    memory::store_and_swap<u32>(runtime_->memory()->TranslatePhysical(writeback), value);
+    *runtime_->memory()->TranslatePhysical<be_u32*>(writeback) = value;
   }
 }
 

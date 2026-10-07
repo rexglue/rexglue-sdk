@@ -13,6 +13,7 @@
 #include <memory>
 
 #include <rex/platform/dynlib.h>
+#include <rex/types.h>
 
 #if REX_PLATFORM_MAC
 struct RENDERDOC_API_1_0_0;
@@ -23,12 +24,13 @@ struct RENDERDOC_API_1_0_0;
 namespace rex {
 namespace gpu {
 
-class RenderDocAPI {
- public:
-  static std::unique_ptr<RenderDocAPI> CreateIfConnected();
+class RenderDocAPI : public rex::NonCopyable {
+  struct Key {};
 
-  RenderDocAPI(const RenderDocAPI&) = delete;
-  RenderDocAPI& operator=(const RenderDocAPI&) = delete;
+ public:
+  explicit RenderDocAPI(Key) {}
+
+  static std::unique_ptr<RenderDocAPI> CreateIfConnected();
 
   ~RenderDocAPI();
 
@@ -36,8 +38,6 @@ class RenderDocAPI {
   const RENDERDOC_API_1_0_0* api_1_0_0() const { return api_1_0_0_; }
 
  private:
-  explicit RenderDocAPI() = default;
-
   rex::platform::DynamicLibrary library_;
 
   const RENDERDOC_API_1_0_0* api_1_0_0_ = nullptr;

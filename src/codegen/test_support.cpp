@@ -1,6 +1,5 @@
 /**
  * @file        codegen/test_support.cpp
- * @brief       Test support utilities
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -25,7 +24,6 @@
 #include <rex/types.h>
 
 using rex::codegen::ppc::decode_instruction;
-using rex::memory::load_and_swap;
 
 namespace rex::codegen {
 
@@ -95,7 +93,7 @@ void AnalyzeTestBinary(CodegenContext& ctx, std::string_view testName,
     // Scan each instruction in this function
     for (uint32_t offset = 0; offset < fnSize; offset += 4) {
       uint32_t pc = fnAddr + offset;
-      uint32_t raw = load_and_swap<uint32_t>(data + (fnAddr - baseAddress) + offset);
+      uint32_t raw = memory::load<be_u32>(data + (fnAddr - baseAddress) + offset);
       auto decoded = decode_instruction(pc, raw);
 
       // Check for bl (branch with link = function call)

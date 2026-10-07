@@ -1,6 +1,5 @@
 /**
  * @file        cli_arg_list.h
- * @brief       The command line a process was started with
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

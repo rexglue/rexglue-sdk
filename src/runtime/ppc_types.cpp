@@ -1,6 +1,5 @@
 /**
  * @file        runtime/ppc_types.cpp
- * @brief       PPC thread-local state definitions
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

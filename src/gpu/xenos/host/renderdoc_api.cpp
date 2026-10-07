@@ -21,7 +21,7 @@ std::unique_ptr<RenderDocAPI> RenderDocAPI::CreateIfConnected() {
   // Keep RenderDoc optional and simply report "not connected" on this platform.
   return nullptr;
 #else
-  std::unique_ptr<RenderDocAPI> renderdoc_api(new RenderDocAPI());
+  auto renderdoc_api = std::make_unique<RenderDocAPI>(Key{});
 
   pRENDERDOC_GetAPI get_api = nullptr;
 
@@ -35,10 +35,11 @@ std::unique_ptr<RenderDocAPI> RenderDocAPI::CreateIfConnected() {
 
   // get_api will be null if RenderDoc is not connected, or the API isn't
   // available on this platform, or there was an error.
-  if (!get_api || !get_api(eRENDERDOC_API_Version_1_0_0, (void**)&renderdoc_api->api_1_0_0_) ||
-      !renderdoc_api->api_1_0_0_) {
+  void* api = nullptr;
+  if (!get_api || !get_api(eRENDERDOC_API_Version_1_0_0, &api) || !api) {
     return nullptr;
   }
+  renderdoc_api->api_1_0_0_ = static_cast<const RENDERDOC_API_1_0_0*>(api);
 
   REXLOG_INFO(ui, "RenderDoc API initialized");
 

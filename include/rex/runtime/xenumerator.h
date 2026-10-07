@@ -26,18 +26,18 @@ class Runtime;
 namespace rex::runtime {
 
 struct X_KENUMERATOR {
-  be<uint32_t> app_id;
-  be<uint32_t> open_message;
-  be<uint32_t> close_message;
-  be<uint32_t> user_index;
-  be<uint32_t> items_per_enumerate;
-  be<uint32_t> flags;
+  be_u32 app_id;
+  be_u32 open_message;
+  be_u32 close_message;
+  be_u32 user_index;
+  be_u32 items_per_enumerate;
+  be_u32 flags;
 };
-static_assert_size(X_KENUMERATOR, 0x18);
+REX_STATIC_ASSERT_SIZE(X_KENUMERATOR, 0x18);
 
 struct X_KENUMERATOR_CONTENT_AGGREGATE {
-  be<uint32_t> magic;
-  be<uint32_t> handle;
+  be_u32 magic;
+  be_u32 handle;
 };
 
 /**
@@ -48,7 +48,8 @@ struct X_KENUMERATOR_CONTENT_AGGREGATE {
  * @param written_count Receives the number of items written.
  * @return The guest error code.
  */
-using EnumeratorWriter = std::function<u32(u32 buffer_ptr, u8* buffer_data, u32* written_count)>;
+using EnumeratorWriter =
+    std::move_only_function<u32(u32 buffer_ptr, u8* buffer_data, u32* written_count)>;
 
 /** The host state of an enumerator object. */
 struct EnumeratorObject {

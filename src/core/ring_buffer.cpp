@@ -73,10 +73,10 @@ size_t RingBuffer::Read(uint8_t* buffer, size_t count) {
 
   // Sanity check: Make sure we don't read over the write offset.
   if (read_offset_ < write_offset_) {
-    assert_true(read_offset_ + cnt <= write_offset_);
+    REX_ASSERT(read_offset_ + cnt <= write_offset_);
   } else if (read_offset_ + cnt >= capacity_) {
     ring_size_t left_half = capacity_ - read_offset_;
-    assert_true(cnt - left_half <= write_offset_);
+    REX_ASSERT(cnt - left_half <= write_offset_);
   }
 
   if (read_offset_ + cnt < capacity_) {
@@ -103,10 +103,10 @@ size_t RingBuffer::Write(const uint8_t* buffer, size_t count) {
 
   // Sanity check: Make sure we don't write over the read offset.
   if (write_offset_ < read_offset_) {
-    assert_true(write_offset_ + cnt <= read_offset_);
+    REX_ASSERT(write_offset_ + cnt <= read_offset_);
   } else if (write_offset_ + cnt >= capacity_) {
     ring_size_t left_half = capacity_ - write_offset_;
-    assert_true(cnt - left_half <= read_offset_);
+    REX_ASSERT(cnt - left_half <= read_offset_);
   }
 
   if (write_offset_ + cnt < capacity_) {

@@ -1,6 +1,5 @@
 /**
  * @file        ui/null_user_interface.h
- * @brief       The ui provider used when no ui module is loaded
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

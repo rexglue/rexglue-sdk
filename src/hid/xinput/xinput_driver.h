@@ -29,7 +29,7 @@ class XInputDriver final : public Driver {
   XInputDriver() = default;
   ~XInputDriver() override = default;
 
-  Result<void> Setup();
+  [[nodiscard]] Result<void> Setup();
 
   void EnumerateDevices(std::vector<DeviceInfo>& out) override;
   [[nodiscard]] Result<X_INPUT_STATE> GetDeviceState(DeviceId id) override;

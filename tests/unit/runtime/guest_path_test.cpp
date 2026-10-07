@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/system/guest_path_test.cpp
- * @brief       Unit tests for guest path normalization
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

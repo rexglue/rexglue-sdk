@@ -1,6 +1,5 @@
 /**
  * @file        filesystem/xex.h
- * @brief       Parser for XEX1 and XEX2 executable images
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -52,7 +51,7 @@ struct XEXSecurityInfo {
   std::array<u8, 0x100> rsa_signature{};
   /** Image key, encrypted with the retail or devkit key. */
   std::array<u8, 0x10> aes_key{};
-  /** Image size the security info records. */
+  /** Image size the security info stores. */
   u32 image_size = 0;
   /** `xex2_image_flags` bits. */
   u32 image_flags = 0;
@@ -227,11 +226,11 @@ class REX_API XEXImage : public MoveOnly {
 
  private:
   const void* FindOptHeader(xex2_header_keys key) const;
-  Result<void> ReadHeader();
-  Result<void> ReadSecurityInfo();
-  Result<void> ReadImports();
-  Result<void> DecodeWith(const xex2_opt_file_format_info& format, std::span<const u8> data,
-                          std::span<u8> image) const;
+  [[nodiscard]] Result<void> ReadHeader();
+  [[nodiscard]] Result<void> ReadSecurityInfo();
+  [[nodiscard]] Result<void> ReadImports();
+  [[nodiscard]] Result<void> DecodeWith(const xex2_opt_file_format_info& format,
+                                        std::span<const u8> data, std::span<u8> image) const;
   XEXImage Clone() const;
 
   std::vector<u8> header_;

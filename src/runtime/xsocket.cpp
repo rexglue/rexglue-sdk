@@ -71,7 +71,7 @@ X_STATUS SocketSetOption(SocketObject& sock, u32 level, u32 optname, void* optva
     return X_STATUS_SUCCESS;
   }
 
-  int ret = setsockopt(sock.native_handle, level, optname, (char*)optval_ptr, optlen);
+  int ret = setsockopt(sock.native_handle, level, optname, static_cast<char*>(optval_ptr), optlen);
   if (ret < 0) {
     return X_STATUS_UNSUCCESSFUL;
   }
@@ -93,7 +93,7 @@ X_STATUS SocketIOControl(SocketObject& sock, u32 cmd, u8* arg_ptr) {
 }
 
 X_STATUS SocketConnect(SocketObject& sock, N_XSOCKADDR* name, int name_len) {
-  int ret = connect(sock.native_handle, (sockaddr*)name, name_len);
+  int ret = connect(sock.native_handle, reinterpret_cast<sockaddr*>(name), name_len);
   if (ret < 0) {
     return X_STATUS_UNSUCCESSFUL;
   }
@@ -102,7 +102,7 @@ X_STATUS SocketConnect(SocketObject& sock, N_XSOCKADDR* name, int name_len) {
 }
 
 X_STATUS SocketBind(SocketObject& sock, N_XSOCKADDR_IN* name, int name_len) {
-  int ret = bind(sock.native_handle, (sockaddr*)name, name_len);
+  int ret = bind(sock.native_handle, reinterpret_cast<sockaddr*>(name), name_len);
   if (ret < 0) {
     return X_STATUS_UNSUCCESSFUL;
   }
@@ -161,7 +161,7 @@ int SocketRecvFrom(SocketObject& sock, u8* buf, u32 buf_len, u32 flags, N_XSOCKA
   sockaddr_in nfrom;
   socklen_t nfromlen = sizeof(sockaddr_in);
   int ret = recvfrom(sock.native_handle, reinterpret_cast<char*>(buf), buf_len, flags,
-                     (sockaddr*)&nfrom, &nfromlen);
+                     reinterpret_cast<sockaddr*>(&nfrom), &nfromlen);
   if (from) {
     from->sin_family = nfrom.sin_family;
     from->sin_addr = ntohl(nfrom.sin_addr.s_addr);
@@ -190,7 +190,7 @@ int SocketSendTo(SocketObject& sock, u8* buf, u32 buf_len, u32 flags, N_XSOCKADD
   }
 
   return sendto(sock.native_handle, reinterpret_cast<char*>(buf), buf_len, flags,
-                to ? (sockaddr*)&nto : nullptr, to_len);
+                to ? reinterpret_cast<sockaddr*>(&nto) : nullptr, to_len);
 }
 
 }  // namespace rex::runtime

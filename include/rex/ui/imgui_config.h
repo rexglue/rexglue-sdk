@@ -1,6 +1,5 @@
 /**
  * @file        ui/imgui_config.h
- * @brief       ImGui build configuration of the SDK
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

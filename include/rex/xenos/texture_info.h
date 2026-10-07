@@ -1,6 +1,5 @@
 /**
  * @file        xenos/texture_info.h
- * @brief       Xenos texture format table, extents and fetch constant decoding
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -102,7 +101,7 @@ inline size_t GetTexelSize(xenos::TextureFormat format) {
     case xenos::TextureFormat::k_11_11_10:
       return 4;
     default:
-      assert_unhandled_case(format);
+      REX_UNHANDLED_CASE(format);
       return 0;
   }
 }
@@ -127,7 +126,7 @@ inline xenos::TextureFormat DepthRenderTargetToTextureFormat(
     case xenos::DepthRenderTargetFormat::kD24FS8:
       return xenos::TextureFormat::k_24_8_FLOAT;
     default:
-      assert_unhandled_case(depth_format);
+      REX_UNHANDLED_CASE(depth_format);
       return xenos::TextureFormat(~0);
   }
 }

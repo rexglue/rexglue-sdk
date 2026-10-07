@@ -18,8 +18,6 @@
 
 #include <rex/memory/utils.h>
 
-using rex::memory::load_and_swap;
-
 namespace rex::codegen {
 
 namespace {
@@ -46,7 +44,7 @@ std::vector<CodeRegion> segmentSection(const SectionView& section,
 
   while (data < dataEnd) {
     uint32_t addr = section.baseAddress + static_cast<uint32_t>(data - section.data);
-    uint32_t word = load_and_swap<uint32_t>(data);
+    uint32_t word = memory::load<be_u32>(data);
 
     if (word == 0x00000000) {
       if (inCode) {
@@ -55,7 +53,7 @@ std::vector<CodeRegion> segmentSection(const SectionView& section,
       }
 
       if (data + 12 <= dataEnd) {
-        uint32_t nextWord = load_and_swap<uint32_t>(data + 4);
+        uint32_t nextWord = memory::load<be_u32>(data + 4);
         if (exceptionHandlerFuncs.contains(nextWord)) {
           data += 12;
           continue;
@@ -135,7 +133,7 @@ void scanBinary(CodegenContext& ctx) {
 
     while (data < dataEnd) {
       uint32_t addr = section.baseAddress + static_cast<uint32_t>(data - section.data);
-      uint32_t insn = load_and_swap<uint32_t>(data);
+      uint32_t insn = memory::load<be_u32>(data);
 
       bool isInvalid = (insn == 0x00000000 || insn == 0xFFFFFFFF);
       if (isInvalid) {
@@ -166,7 +164,7 @@ void scanBinary(CodegenContext& ctx) {
 
 namespace phases {
 
-Result<void> Scan(CodegenContext& ctx, ProgressReporter* reporter) {
+[[nodiscard]] Result<void> Scan(CodegenContext& ctx, ProgressReporter* reporter) {
   (void)reporter;
   scanBinary(ctx);
   return Ok();

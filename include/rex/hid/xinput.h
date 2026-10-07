@@ -104,21 +104,21 @@ struct X_INPUT_GAMEPAD {
   be_i16 thumb_rx;
   be_i16 thumb_ry;
 };
-static_assert_size(X_INPUT_GAMEPAD, 12);
+REX_STATIC_ASSERT_SIZE(X_INPUT_GAMEPAD, 12);
 
 /** An XInput state packet. */
 struct X_INPUT_STATE {
   be_u32 packet_number;
   X_INPUT_GAMEPAD gamepad;
 };
-static_assert_size(X_INPUT_STATE, sizeof(X_INPUT_GAMEPAD) + 4);
+REX_STATIC_ASSERT_SIZE(X_INPUT_STATE, sizeof(X_INPUT_GAMEPAD) + 4);
 
 /** XInput motor speeds. */
 struct X_INPUT_VIBRATION {
   be_u16 left_motor_speed;
   be_u16 right_motor_speed;
 };
-static_assert_size(X_INPUT_VIBRATION, 4);
+REX_STATIC_ASSERT_SIZE(X_INPUT_VIBRATION, 4);
 
 /** XInput device capabilities. */
 struct X_INPUT_CAPABILITIES {
@@ -128,7 +128,8 @@ struct X_INPUT_CAPABILITIES {
   X_INPUT_GAMEPAD gamepad;
   X_INPUT_VIBRATION vibration;
 };
-static_assert_size(X_INPUT_CAPABILITIES, sizeof(X_INPUT_GAMEPAD) + sizeof(X_INPUT_VIBRATION) + 4);
+REX_STATIC_ASSERT_SIZE(X_INPUT_CAPABILITIES,
+                       sizeof(X_INPUT_GAMEPAD) + sizeof(X_INPUT_VIBRATION) + 4);
 
 /** https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinput_keystroke(v=vs.85).aspx */
 struct X_INPUT_KEYSTROKE {
@@ -138,7 +139,7 @@ struct X_INPUT_KEYSTROKE {
   u8 user_index;
   u8 hid_code;
 };
-static_assert_size(X_INPUT_KEYSTROKE, 8);
+REX_STATIC_ASSERT_SIZE(X_INPUT_KEYSTROKE, 8);
 
 // NOLINTEND(readability-identifier-naming)
 

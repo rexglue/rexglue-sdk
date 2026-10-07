@@ -1,6 +1,5 @@
 /**
  * @file        core/module_loader.cpp
- * @brief       Module loader implementation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -403,12 +402,12 @@ Result<void*> ModuleLoader::Get(std::string_view name, u32 version) {
       return Err<void*>(
           Error(ErrorCategory::Module,
                 std::format("{} is served at version {}, not {}", name, reg.version, version),
-                static_cast<int>(InterfaceStatus::VersionMismatch)));
+                std::to_underlying(InterfaceStatus::VersionMismatch)));
     }
     return reg.get();
   }
   return Err<void*>(Error(ErrorCategory::Module, std::format("{}@{} is not served", name, version),
-                          static_cast<int>(InterfaceStatus::NotFound)));
+                          std::to_underlying(InterfaceStatus::NotFound)));
 }
 
 void* ModuleLoader::GetForAPI(const char* name, u32 version) const {

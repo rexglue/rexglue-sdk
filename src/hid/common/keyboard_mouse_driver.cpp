@@ -38,11 +38,11 @@ std::string_view TrimBlanks(std::string_view text) {
 
 KeyModifiers LiveModifiers(const bool (&key_down)[256]) {
   KeyModifiers mods = KeyModifiers::None;
-  if (key_down[static_cast<u16>(VirtualKey::kShift)])
+  if (key_down[std::to_underlying(VirtualKey::kShift)])
     mods |= KeyModifiers::Shift;
-  if (key_down[static_cast<u16>(VirtualKey::kControl)])
+  if (key_down[std::to_underlying(VirtualKey::kControl)])
     mods |= KeyModifiers::Ctrl;
-  if (key_down[static_cast<u16>(VirtualKey::kMenu)])
+  if (key_down[std::to_underlying(VirtualKey::kMenu)])
     mods |= KeyModifiers::Alt;
   return mods;
 }
@@ -603,13 +603,13 @@ void KeyboardMouseDriver::OnButton(const InputEvent& event, bool down) {
   std::lock_guard lock(state_mutex_);
   switch (event.button) {
     case MouseButton::Left:
-      SetKeyState(static_cast<u16>(VirtualKey::kLButton), down);
+      SetKeyState(std::to_underlying(VirtualKey::kLButton), down);
       break;
     case MouseButton::Right:
-      SetKeyState(static_cast<u16>(VirtualKey::kRButton), down);
+      SetKeyState(std::to_underlying(VirtualKey::kRButton), down);
       break;
     case MouseButton::Middle:
-      SetKeyState(static_cast<u16>(VirtualKey::kMButton), down);
+      SetKeyState(std::to_underlying(VirtualKey::kMButton), down);
       break;
     default:
       break;

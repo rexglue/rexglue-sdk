@@ -21,6 +21,8 @@
 #include <rex/platform.h>
 #include <rex/stream.h>
 
+#include <simde/x86/ssse3.h>
+
 extern "C" {
 #if REX_COMPILER_MSVC
 #pragma warning(push)
@@ -60,7 +62,7 @@ int XMAContext::Setup(uint32_t id, runtime::Memory* memory, uint32_t guest_ptr) 
 
   // Allocate ffmpeg stuff:
   av_packet_ = av_packet_alloc();
-  assert_not_null(av_packet_);
+  REX_ASSERT(av_packet_ != nullptr);
   av_packet_->buf = av_buffer_alloc(128 * 1024);
 
   // find the XMA2 audio decoder
@@ -74,7 +76,7 @@ int XMAContext::Setup(uint32_t id, runtime::Memory* memory, uint32_t guest_ptr) 
     REX_FAIL(apu, 1, "XMAContext {}: Couldn't allocate context", id);
   }
 
-  // Initialize these to 0. They'll actually be set later.
+  // Initialize these to 0. They'll be set later.
   av_context_->channels = 0;
   av_context_->sample_rate = 0;
 
@@ -105,7 +107,7 @@ bool XMAContext::Work() {
 
   memory::RingBuffer output_rb = PrepareOutputRingBuffer(&data);
 
-  // Consume-only context: no input, just drain remaining subframes.
+  // Consume-only context: no input, drain remaining subframes.
   if (data.IsConsumeOnlyContext()) {
     if (current_frame_remaining_subframes_ == 0) {
       return true;
@@ -152,13 +154,10 @@ void XMAContext::Enable() {
 }
 
 bool XMAContext::Block(bool poll) {
-  if (!lock_.try_lock()) {
-    if (poll) {
-      return false;
-    }
-    lock_.lock();
+  if (poll) {
+    return std::unique_lock(lock_, std::try_to_lock).owns_lock();
   }
-  lock_.unlock();
+  std::scoped_lock lock(lock_);
   return true;
 }
 
@@ -213,7 +212,7 @@ void XMAContext::Disable() {
 
 void XMAContext::Release() {
   std::lock_guard<std::mutex> lock(lock_);
-  assert_true(is_allocated());
+  REX_ASSERT(is_allocated());
 
   set_is_allocated(false);
   ResetDecoderState();
@@ -257,11 +256,11 @@ int XMAContext::GetSampleRate(int id) {
 
 int16_t XMAContext::GetPacketNumber(size_t size, size_t bit_offset) {
   if (bit_offset < kBitsPerPacketHeader) {
-    assert_always();
+    REX_ASSERT_ALWAYS();
     return -1;
   }
   if (bit_offset >= (size << 3)) {
-    assert_always();
+    REX_ASSERT_ALWAYS();
     return -1;
   }
   size_t byte_offset = bit_offset >> 3;
@@ -477,7 +476,7 @@ int XMAContext::PrepareDecoder(int sample_rate, bool is_two_channel) {
     av_context_->channels = channels;
     av_context_->flags2 |= AV_CODEC_FLAG2_SKIP_MANUAL;
 
-    if (avcodec_open2(av_context_, av_codec_, NULL) < 0) {
+    if (avcodec_open2(av_context_, av_codec_, nullptr) < 0) {
       REX_FAIL(apu, -1, "XMAContext: Failed to reopen FFmpeg context");
     }
     return 1;
@@ -491,7 +490,7 @@ void XMAContext::PreparePacket(uint32_t frame_size, uint32_t frame_padding) {
                                       (((frame_padding + frame_size) % 8) ? 1 : 0));
 
   auto padding_end = av_packet_->size * 8 - (8 + frame_padding + frame_size);
-  assert_true(padding_end < 8);
+  REX_ASSERT(padding_end < 8);
   xma_frame_[0] = ((frame_padding & 7) << 5) | ((padding_end & 7) << 2);
 }
 
@@ -664,7 +663,7 @@ void XMAContext::Decode(XMA_CONTEXT_DATA* data) {
                  decoded_frame_.data());
 
     // Realign the decoder's output onto the bitstream's sample numbering: the
-    // samples of the frame just decoded run from kDecoderStartPadding into this
+    // samples of the most recently decoded frame run from kDecoderStartPadding into this
     // block and finish in the head of the next one.
     const size_t pad_bytes = kDecoderStartPadding * kBytesPerSample << data->is_stereo;
     const size_t carry_bytes = (kBytesPerFrameChannel << data->is_stereo) - pad_bytes;
@@ -744,67 +743,52 @@ void XMAContext::ConvertFrame(const uint8_t** samples, bool is_two_channel,
   // For testing of vectorized versions, stereo audio is common in 4D5307E6,
   // since the first menu frame; the intro cutscene also has more than 2
   // channels.
-#if REX_ARCH_AMD64
   static_assert(kSamplesPerFrame % 8 == 0);
   const auto in_channel_0 = reinterpret_cast<const float*>(samples[0]);
-  const __m128 scale_mm = _mm_set1_ps(scale);
+  const simde__m128 scale_mm = simde_mm_set1_ps(scale);
   if (is_two_channel) {
     const auto in_channel_1 = reinterpret_cast<const float*>(samples[1]);
-    const __m128i shufmask = _mm_set_epi8(14, 15, 6, 7, 12, 13, 4, 5, 10, 11, 2, 3, 8, 9, 0, 1);
+    const simde__m128i shufmask =
+        simde_mm_set_epi8(14, 15, 6, 7, 12, 13, 4, 5, 10, 11, 2, 3, 8, 9, 0, 1);
     for (uint32_t i = 0; i < kSamplesPerFrame; i += 4) {
       // Load 8 samples, 4 for each channel.
-      __m128 in_mm0 = _mm_loadu_ps(&in_channel_0[i]);
-      __m128 in_mm1 = _mm_loadu_ps(&in_channel_1[i]);
+      simde__m128 in_mm0 = simde_mm_loadu_ps(&in_channel_0[i]);
+      simde__m128 in_mm1 = simde_mm_loadu_ps(&in_channel_1[i]);
       // Rescale.
-      in_mm0 = _mm_mul_ps(in_mm0, scale_mm);
-      in_mm1 = _mm_mul_ps(in_mm1, scale_mm);
+      in_mm0 = simde_mm_mul_ps(in_mm0, scale_mm);
+      in_mm1 = simde_mm_mul_ps(in_mm1, scale_mm);
       // Cast to int32.
-      __m128i out_mm0 = _mm_cvtps_epi32(in_mm0);
-      __m128i out_mm1 = _mm_cvtps_epi32(in_mm1);
+      simde__m128i out_mm0 = simde_mm_cvtps_epi32(in_mm0);
+      simde__m128i out_mm1 = simde_mm_cvtps_epi32(in_mm1);
       // Saturated cast and pack to int16.
-      __m128i out_mm = _mm_packs_epi32(out_mm0, out_mm1);
+      simde__m128i out_mm = simde_mm_packs_epi32(out_mm0, out_mm1);
       // Interleave channels and byte swap.
-      out_mm = _mm_shuffle_epi8(out_mm, shufmask);
+      out_mm = simde_mm_shuffle_epi8(out_mm, shufmask);
       // Store, as [out + i * 4] movdqu.
-      _mm_storeu_si128(reinterpret_cast<__m128i*>(&out[i * 2]), out_mm);
+      simde_mm_storeu_si128(reinterpret_cast<simde__m128i*>(&out[i * 2]), out_mm);
     }
   } else {
-    const __m128i shufmask = _mm_set_epi8(14, 15, 12, 13, 10, 11, 8, 9, 6, 7, 4, 5, 2, 3, 0, 1);
+    const simde__m128i shufmask =
+        simde_mm_set_epi8(14, 15, 12, 13, 10, 11, 8, 9, 6, 7, 4, 5, 2, 3, 0, 1);
     for (uint32_t i = 0; i < kSamplesPerFrame; i += 8) {
       // Load 8 samples, as [in_channel_0 + i * 4] and
       // [in_channel_0 + i * 4 + 16] movups.
-      __m128 in_mm0 = _mm_loadu_ps(&in_channel_0[i]);
-      __m128 in_mm1 = _mm_loadu_ps(&in_channel_0[i + 4]);
+      simde__m128 in_mm0 = simde_mm_loadu_ps(&in_channel_0[i]);
+      simde__m128 in_mm1 = simde_mm_loadu_ps(&in_channel_0[i + 4]);
       // Rescale.
-      in_mm0 = _mm_mul_ps(in_mm0, scale_mm);
-      in_mm1 = _mm_mul_ps(in_mm1, scale_mm);
+      in_mm0 = simde_mm_mul_ps(in_mm0, scale_mm);
+      in_mm1 = simde_mm_mul_ps(in_mm1, scale_mm);
       // Cast to int32.
-      __m128i out_mm0 = _mm_cvtps_epi32(in_mm0);
-      __m128i out_mm1 = _mm_cvtps_epi32(in_mm1);
+      simde__m128i out_mm0 = simde_mm_cvtps_epi32(in_mm0);
+      simde__m128i out_mm1 = simde_mm_cvtps_epi32(in_mm1);
       // Saturated cast and pack to int16.
-      __m128i out_mm = _mm_packs_epi32(out_mm0, out_mm1);
+      simde__m128i out_mm = simde_mm_packs_epi32(out_mm0, out_mm1);
       // Byte swap.
-      out_mm = _mm_shuffle_epi8(out_mm, shufmask);
+      out_mm = simde_mm_shuffle_epi8(out_mm, shufmask);
       // Store, as [out + i * 2] movdqu.
-      _mm_storeu_si128(reinterpret_cast<__m128i*>(&out[i]), out_mm);
+      simde_mm_storeu_si128(reinterpret_cast<simde__m128i*>(&out[i]), out_mm);
     }
   }
-#else
-  uint32_t o = 0;
-  for (uint32_t i = 0; i < kSamplesPerFrame; i++) {
-    for (uint32_t j = 0; j <= uint32_t(is_two_channel); j++) {
-      // Select the appropriate array based on the current channel.
-      auto in = reinterpret_cast<const float*>(samples[j]);
-
-      // Raw samples sometimes aren't within [-1, 1]
-      float scaled_sample = rex::clamp_float(in[i], -1.0f, 1.0f) * scale;
-
-      // Convert the sample and output it in big endian.
-      auto sample = static_cast<int16_t>(scaled_sample);
-      out[o++] = rex::byte_swap(sample);
-    }
-  }
-#endif
 }
 
 }  // namespace rex::runtime

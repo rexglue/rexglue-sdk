@@ -1,6 +1,5 @@
 /**
  * @file        core/platform/console_posix.cpp
- * @brief       POSIX implementation of rex::platform::console.
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

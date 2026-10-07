@@ -64,7 +64,7 @@ u32 Reference(Caller& c, u32 handle) {
 }
 
 u64 Load64(Caller& c, u32 address) {
-  return (u64(c.Load32(address)) << 32) | c.Load32(address + 4);
+  return (static_cast<u64>(c.Load32(address)) << 32) | c.Load32(address + 4);
 }
 
 u32 ExitCodeXAPI(Caller& c, u32 kthread) {
@@ -146,7 +146,8 @@ TEST_CASE("threads: ObLookupThreadByThreadId finds a live thread and not a dead 
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {c.Load32(handle_ptr), 1, 0, c.Quad(-50000000)}) ==
           0);
     c.Kernel("NtClose", {c.Load32(handle_ptr)});
-    CHECK(c.Kernel("ObLookupThreadByThreadId", {0x7FFFFFF0, object_ptr}) == X_STATUS_NOT_FOUND);
+    CHECK(c.Kernel("ObLookupThreadByThreadId", {0x7FFFFFF0, object_ptr}) ==
+          rex::X_STATUS_NOT_FOUND);
   });
 }
 
@@ -187,7 +188,7 @@ TEST_CASE("threads: a queued user APC runs during an alertable wait", "[char][th
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     c.Kernel("NtQueueApcThread", {thread, routine, 5, 6, 7});
     CHECK(done.wait_for(std::chrono::seconds(10)) == std::future_status::ready);
-    CHECK(done.get() == X_STATUS_USER_APC);
+    CHECK(done.get() == rex::X_STATUS_USER_APC);
     CHECK(g_apc_calls == 1);
     c.Kernel("NtClose", {thread});
   });
@@ -316,8 +317,8 @@ TEST_CASE("threads: MmDeleteKernelStack refuses a base that is not the top of a 
     const u32 base = c.Kernel("MmCreateKernelStack", {0x4000, 0});
     REQUIRE(base != 0);
     CHECK(c.Kernel("MmDeleteKernelStack", {base - 0x1000, base - 0x4000}) ==
-          X_STATUS_INVALID_PARAMETER);
-    CHECK(c.Kernel("MmDeleteKernelStack", {base, base}) == X_STATUS_INVALID_PARAMETER);
+          rex::X_STATUS_INVALID_PARAMETER);
+    CHECK(c.Kernel("MmDeleteKernelStack", {base, base}) == rex::X_STATUS_INVALID_PARAMETER);
     CHECK(c.Kernel("MmIsAddressValid", {base - 0x4000}) == 1);
     CHECK(c.Kernel("MmDeleteKernelStack", {base, base - 0x4000}) == 0);
   });

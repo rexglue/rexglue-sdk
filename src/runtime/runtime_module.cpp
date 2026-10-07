@@ -1,6 +1,5 @@
 /**
  * @file        runtime/runtime_module.cpp
- * @brief       The module interface served by rex-runtime.dll
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -37,7 +36,7 @@ const std::array<ScopeTable, 3> kTables = {{
     {"hid", {}},
 }};
 
-Result<void> ValidateSlices(const Config& config) {
+[[nodiscard]] Result<void> ValidateSlices(const Config& config) {
   auto fail = [](const std::string& message) {
     REX_FAIL(system, Err(Error(ErrorCategory::Config, message)), "{}", message);
   };

@@ -17,10 +17,10 @@ using rex::X_RESULT;
 using rex::hid::Error;
 
 TEST_CASE("Each hid::Error maps to its X_ERROR code and back", "[hid]") {
-  CHECK(rex::hid::ToXResult(Error::NotConnected) == X_ERROR_DEVICE_NOT_CONNECTED);
-  CHECK(rex::hid::ToXResult(Error::Empty) == X_ERROR_EMPTY);
-  CHECK(rex::hid::ToXResult(Error::BadArguments) == X_ERROR_BAD_ARGUMENTS);
-  CHECK(rex::hid::ToXResult(Error::Failed) == X_ERROR_FUNCTION_FAILED);
+  CHECK(rex::hid::ToXResult(Error::NotConnected) == rex::X_ERROR_DEVICE_NOT_CONNECTED);
+  CHECK(rex::hid::ToXResult(Error::Empty) == rex::X_ERROR_EMPTY);
+  CHECK(rex::hid::ToXResult(Error::BadArguments) == rex::X_ERROR_BAD_ARGUMENTS);
+  CHECK(rex::hid::ToXResult(Error::Failed) == rex::X_ERROR_FUNCTION_FAILED);
   for (Error code : {Error::NotConnected, Error::Empty, Error::BadArguments, Error::Failed}) {
     CHECK(rex::hid::ErrorOf(rex::hid::ToXResult(code)) == code);
   }

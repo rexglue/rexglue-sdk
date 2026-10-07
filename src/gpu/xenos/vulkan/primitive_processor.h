@@ -40,7 +40,7 @@ class VulkanPrimitiveProcessor final : public PrimitiveProcessor {
   void EndFrame();
 
   std::pair<VkBuffer, VkDeviceSize> GetBuiltinIndexBuffer(size_t handle) const {
-    assert_not_null(builtin_index_buffer_);
+    REX_ASSERT(builtin_index_buffer_ != nullptr);
     return std::make_pair(builtin_index_buffer_,
                           VkDeviceSize(GetBuiltinIndexBufferOffsetBytes(handle)));
   }

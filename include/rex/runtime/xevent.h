@@ -23,7 +23,7 @@ namespace rex::runtime {
 struct X_KEVENT {
   X_DISPATCH_HEADER header;
 };
-static_assert_size(X_KEVENT, 0x10);
+REX_STATIC_ASSERT_SIZE(X_KEVENT, 0x10);
 
 /** The host state of an event object. */
 struct EventObject {

@@ -84,7 +84,7 @@ void GraphicsUploadBufferPool::FlushWrites() {
   if (current_page_flushed_ >= current_page_used_) {
     return;
   }
-  assert_not_null(writable_first_);
+  REX_ASSERT(writable_first_ != nullptr);
   FlushPageWrites(writable_first_, current_page_flushed_,
                   current_page_used_ - current_page_flushed_);
   current_page_flushed_ = current_page_used_;
@@ -93,15 +93,15 @@ void GraphicsUploadBufferPool::FlushWrites() {
 GraphicsUploadBufferPool::Page* GraphicsUploadBufferPool::Request(uint64_t submission_index,
                                                                   size_t size, size_t alignment,
                                                                   size_t& offset_out) {
-  alignment = std::max(alignment, size_t(1));
-  assert_true(rex::is_pow2(alignment));
+  alignment = std::max(alignment, static_cast<size_t>(1));
+  REX_ASSERT(rex::is_pow2(alignment));
   size = rex::align(size, alignment);
-  assert_true(size <= page_size_);
+  REX_ASSERT(size <= page_size_);
   if (size > page_size_) {
     return nullptr;
   }
-  assert_true(!current_page_used_ || submission_index >= writable_first_->last_submission_index_);
-  assert_true(!submitted_last_ || submission_index >= submitted_last_->last_submission_index_);
+  REX_ASSERT(!current_page_used_ || submission_index >= writable_first_->last_submission_index_);
+  REX_ASSERT(!submitted_last_ || submission_index >= submitted_last_->last_submission_index_);
   size_t current_page_used_aligned = rex::align(current_page_used_, alignment);
   if (current_page_used_aligned + size > page_size_ || !writable_first_) {
     // Start a new page if can't fit all the bytes or don't have an open page.
@@ -122,11 +122,11 @@ GraphicsUploadBufferPool::Page* GraphicsUploadBufferPool::Request(uint64_t submi
     }
     if (!writable_first_) {
       // Create a new page if none available.
-      writable_first_ = CreatePageImplementation();
-      if (!writable_first_) {
-        // Failed to create.
+      std::unique_ptr<Page> created = CreatePageImplementation();
+      if (!created) {
         return nullptr;
       }
+      writable_first_ = created.release();
       writable_first_->last_submission_index_ = submission_index;
       writable_first_->next_ = nullptr;
       writable_last_ = writable_first_;
@@ -148,8 +148,8 @@ GraphicsUploadBufferPool::Page* GraphicsUploadBufferPool::RequestPartial(uint64_
                                                                          size_t alignment,
                                                                          size_t& offset_out,
                                                                          size_t& size_out) {
-  alignment = std::max(alignment, size_t(1));
-  assert_true(rex::is_pow2(alignment));
+  alignment = std::max(alignment, static_cast<size_t>(1));
+  REX_ASSERT(rex::is_pow2(alignment));
   size = rex::align(size, alignment);
   size = std::min(size, page_size_);
   size_t current_page_used_aligned = rex::align(current_page_used_, alignment);

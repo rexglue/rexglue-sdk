@@ -1,6 +1,5 @@
 /**
  * @file        filesystem/module.h
- * @brief       The module interface served by rex-filesystem.dll
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -67,7 +66,7 @@ class FilesystemModule final : public IModule {
    * @param config The configuration rex::Init was called with.
    * @return Ok, or the registration error.
    */
-  Result<void> Connect(IInterfaceFactory* factory, const Config& config) override;
+  [[nodiscard]] Result<void> Connect(IInterfaceFactory* factory, const Config& config) override;
 
   /** Unregisters the log category. */
   void Disconnect() override;
@@ -77,7 +76,7 @@ class FilesystemModule final : public IModule {
    *
    * @return Ok.
    */
-  Result<void> Init() override;
+  [[nodiscard]] Result<void> Init() override;
 
   /** Empties the mount table. */
   void Shutdown() override;

@@ -1,6 +1,5 @@
 /**
  * @file        arch/ppc/opcode.h
- * @brief       PowerPC opcode definitions for Xbox 360
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -242,7 +241,7 @@ enum class Opcode : uint16_t {
   mtfsb1,  // Move to FPSCR bit 1
 
   //=========================================================================
-  // VMX/VMX128 Vector Instructions (Xbox 360)
+  // VMX/VMX128 Vector Instructions
   //=========================================================================
 
   // Vector load/store (standard VMX)
@@ -289,7 +288,7 @@ enum class Opcode : uint16_t {
   vmaxfp,     // Vector maximum floating-point
   vminfp,     // Vector minimum floating-point
 
-  // VMX128 floating-point arithmetic (Xbox 360 specific)
+  // VMX128 floating-point arithmetic
   vaddfp128,     // Vector add floating-point (128-reg)
   vsubfp128,     // Vector subtract floating-point (128-reg)
   vmaddfp128,    // Vector multiply-add floating-point (128-reg)
@@ -302,7 +301,7 @@ enum class Opcode : uint16_t {
   vexptefp128,   // Vector 2^x estimate floating-point (128-reg)
   vlogefp128,    // Vector log2 estimate floating-point (128-reg)
 
-  // VMX128 dot product instructions (Xbox 360 specific)
+  // VMX128 dot product instructions
   vdot3fp128,   // Vector 3-element dot product (128-reg)
   vdot4fp128,   // Vector 4-element dot product (128-reg)
   vmsum3fp128,  // Vector multiply-sum 3-element (128-reg)
@@ -334,7 +333,7 @@ enum class Opcode : uint16_t {
   vnor,   // Vector NOR
   vsel,   // Vector select
 
-  // VMX128 logical (Xbox 360 specific)
+  // VMX128 logical
   vand128,   // Vector AND (128-reg)
   vandc128,  // Vector AND with complement (128-reg)
   vor128,    // Vector OR (128-reg)
@@ -364,7 +363,7 @@ enum class Opcode : uint16_t {
   vcmpgtsh,  // Vector compare greater-than signed halfword
   vcmpgtsw,  // Vector compare greater-than signed word
 
-  // VMX128 compare (Xbox 360 specific)
+  // VMX128 compare
   vcmpeqfp128,  // Vector compare equal-to floating-point (128-reg)
   vcmpgefp128,  // Vector compare greater-than-or-equal floating-point (128-reg)
   vcmpgtfp128,  // Vector compare greater-than floating-point (128-reg)
@@ -381,7 +380,7 @@ enum class Opcode : uint16_t {
   vmrglh,    // Vector merge low halfword
   vmrglw,    // Vector merge low word
 
-  // VMX128 merge (Xbox 360 specific)
+  // VMX128 merge
   vmrghw128,   // Vector merge high word (128-reg)
   vmrglw128,   // Vector merge low word (128-reg)
   vpermwi128,  // Vector permute word immediate (128-reg)
@@ -400,7 +399,7 @@ enum class Opcode : uint16_t {
   vupklsb,  // Vector unpack low signed byte
   vupklsh,  // Vector unpack low signed halfword
 
-  // VMX128 pack (Xbox 360 specific)
+  // VMX128 pack
   vpkshss128,  // Vector pack signed halfword signed saturate (128-reg)
   vpkshus128,  // Vector pack signed halfword unsigned saturate (128-reg)
   vpkswss128,  // Vector pack signed word signed saturate (128-reg)
@@ -420,7 +419,7 @@ enum class Opcode : uint16_t {
   vspltish,  // Vector splat immediate signed halfword
   vspltisw,  // Vector splat immediate signed word
 
-  // VMX128 splat (Xbox 360 specific)
+  // VMX128 splat
   vspltw128,    // Vector splat word (128-reg)
   vspltisw128,  // Vector splat immediate signed word (128-reg)
 
@@ -452,7 +451,7 @@ enum class Opcode : uint16_t {
   vrfip,   // Vector round to floating-point integer toward +infinity
   vrfim,   // Vector round to floating-point integer toward -infinity
 
-  // VMX128 conversion (Xbox 360 specific)
+  // VMX128 conversion
   vcfpsxws128,  // Vector convert from FP to signed fixed-point word saturate (128-reg)
   vcfpuxws128,  // Vector convert from FP to unsigned fixed-point word saturate (128-reg)
   vcsxwfp128,   // Vector convert from signed fixed-point word to FP (128-reg)
@@ -491,46 +490,6 @@ enum class OpcodeGroup : uint8_t {
   kFloat,    // Floating-point
   kVector,   // VMX/VMX128 vector
 };
-
-/**
- * Check if opcode is a branch instruction
- * Used for basic block boundary detection
- */
-inline bool is_branch_instruction(Opcode op) {
-  switch (op) {
-    case Opcode::b:
-    case Opcode::ba:
-    case Opcode::bl:
-    case Opcode::bla:
-    case Opcode::bc:
-    case Opcode::bca:
-    case Opcode::bcl:
-    case Opcode::bcla:
-    case Opcode::bclr:
-    case Opcode::bclrl:
-    case Opcode::bcctr:
-    case Opcode::bcctrl:
-      return true;
-    default:
-      return false;
-  }
-}
-
-/**
- * Check if opcode is an unconditional branch (always taken)
- * Used for control flow analysis
- */
-inline bool is_unconditional_branch(Opcode op) {
-  switch (op) {
-    case Opcode::b:
-    case Opcode::ba:
-    case Opcode::bl:
-    case Opcode::bla:
-      return true;
-    default:
-      return false;
-  }
-}
 
 /**
  * Check if opcode terminates a basic block (branch or return)

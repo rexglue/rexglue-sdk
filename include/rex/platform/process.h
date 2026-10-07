@@ -1,6 +1,5 @@
 /**
  * @file        platform/process.h
- * @brief       Process level helpers, the instance lock and relaunch
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -49,7 +48,7 @@ class REX_API InstanceLock : public MoveOnly {
    * @param name Lock name, shared by every process of the app.
    * @return The held lock, or ErrorCategory::Platform when another process holds it.
    */
-  static Result<InstanceLock> Acquire(std::string_view name);
+  [[nodiscard]] static Result<InstanceLock> Acquire(std::string_view name);
 
  private:
   explicit InstanceLock(std::unique_ptr<detail::LockHandle> handle);
@@ -62,7 +61,7 @@ class REX_API InstanceLock : public MoveOnly {
  * @param args Arguments for the new process.
  * @return Ok, or ErrorCategory::Platform with the OS error.
  */
-REX_API Result<void> Relaunch(std::span<const std::string> args);
+[[nodiscard]] REX_API Result<void> Relaunch(std::span<const std::string> args);
 
 /**
  * Tests whether this process may start a new one.

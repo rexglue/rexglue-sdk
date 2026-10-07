@@ -11,7 +11,6 @@
 
 #pragma once
 
-#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>
@@ -22,17 +21,15 @@
 #include <vector>
 
 #include <rex/codegen/progress_reporter.h>
+#include <rex/types.h>
 
 namespace rexglue::ui {
 
 /** Per-module task-list view that implements rex::codegen::ProgressReporter. */
-class ProgressView final : public rex::codegen::ProgressReporter {
+class ProgressView final : public rex::codegen::ProgressReporter, public rex::NonCopyable {
  public:
   explicit ProgressView(std::string_view title);
   ~ProgressView() override;
-
-  ProgressView(const ProgressView&) = delete;
-  ProgressView& operator=(const ProgressView&) = delete;
 
   void binaryInfo(const rex::codegen::BinaryInfo& info) override;
   void moduleStarted(std::string_view name, std::size_t index, std::size_t total) override;
@@ -52,8 +49,7 @@ class ProgressView final : public rex::codegen::ProgressReporter {
   enum class ActiveLineKind { None, Module, ProjectPhase };
 
   void renderActiveLine();
-  void clearActiveLine();
-  void spinnerLoop();
+  void spinnerLoop(std::stop_token stop);
 
   std::mutex state_mutex_;
   std::string title_;
@@ -65,9 +61,8 @@ class ProgressView final : public rex::codegen::ProgressReporter {
   ActiveLineKind active_line_kind_ = ActiveLineKind::None;
   bool tty_ = false;
 
-  std::atomic<bool> stop_spinner_{false};
-  std::condition_variable spinner_cv_;
-  std::thread spinner_thread_;
+  std::condition_variable_any spinner_cv_;
+  std::jthread spinner_thread_;
 };
 
 }  // namespace rexglue::ui

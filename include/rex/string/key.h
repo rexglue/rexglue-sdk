@@ -1,6 +1,5 @@
 /**
  * @file        string/key.h
- * @brief       String keys for hashed containers, case sensitive and case insensitive
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

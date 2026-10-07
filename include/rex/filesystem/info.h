@@ -1,6 +1,5 @@
 /**
  * @file        filesystem/info.h
- * @brief       File attributes, file information and volume information
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -63,7 +62,7 @@ struct FileTimes {
   std::optional<u64> write;  /**< New last write time in FILETIME ticks. */
 };
 
-/** Information about the volume a file lives on. */
+/** Information about the volume a file resides on. */
 struct VolumeInfo {
   std::string name;                    /**< File system name titles see, such as STFS. */
   u32 attributes = 0;                  /**< NT file system attribute bits. */
@@ -78,5 +77,5 @@ struct VolumeInfo {
 
 /** Opts FileAttributes into the flag operators. */
 template <>
-// NOLINTNEXTLINE(readability-identifier-naming): charter 12.1 names the trait
+// NOLINTNEXTLINE(readability-identifier-naming)
 inline constexpr bool rex::is_flags_enum<rex::filesystem::FileAttributes> = true;

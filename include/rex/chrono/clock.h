@@ -1,6 +1,5 @@
 /**
  * @file        chrono/clock.h
- * @brief       Host and guest tick counts, system time and time scaling
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

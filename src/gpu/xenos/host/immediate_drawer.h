@@ -13,16 +13,14 @@
 #include <memory>
 
 #include <rex/gpu/overlay.h>
+#include <rex/types.h>
 #include "gpu/xenos/host/presenter.h"
 
 namespace rex {
 namespace gpu {
 
-class ImmediateDrawer : public gpu::IOverlayDrawer {
+class ImmediateDrawer : public gpu::IOverlayDrawer, public rex::NonCopyable {
  public:
-  ImmediateDrawer(const ImmediateDrawer& immediate_drawer) = delete;
-  ImmediateDrawer& operator=(const ImmediateDrawer& immediate_drawer) = delete;
-
   virtual ~ImmediateDrawer() = default;
 
   void SetPresenter(Presenter* new_presenter);

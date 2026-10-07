@@ -1,6 +1,5 @@
 /**
  * @file        codegen/config.h
- * @brief       Recompiler configuration types
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -75,7 +74,7 @@ struct SectionInfo {
   std::string name;
   uint64_t address = 0;
   uint64_t size = 0;
-  std::string flags;  // "rx", "rw", "r" etc.
+  std::string flags;  // "rx", "rw" or "r"
 };
 
 // Function entry for analysis output

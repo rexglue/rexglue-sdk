@@ -15,6 +15,9 @@
 
 #include "platform_win.h"
 
+#include <algorithm>
+#include <iterator>
+
 #include <rex/assert.h>
 #include <rex/math.h>
 
@@ -97,14 +100,12 @@ void ExceptionHandler::Install(Handler fn, void* data) {
     g_veh_handle = AddVectoredExceptionHandler(1, ExceptionHandlerCallback);
   }
 
-  for (size_t i = 0; i < rex::countof(g_handlers); ++i) {
-    if (!g_handlers[i].first) {
-      g_handlers[i].first = fn;
-      g_handlers[i].second = data;
-      return;
-    }
+  auto slot = std::ranges::find_if(g_handlers, [](const auto& handler) { return !handler.first; });
+  if (slot != std::end(g_handlers)) {
+    *slot = {fn, data};
+    return;
   }
-  assert_always("Too many exception handlers installed");
+  REX_ASSERT_ALWAYS("Too many exception handlers installed");
 }
 
 void ExceptionHandler::Uninstall(Handler fn, void* data) {
@@ -119,14 +120,7 @@ void ExceptionHandler::Uninstall(Handler fn, void* data) {
     }
   }
 
-  bool has_any = false;
-  for (size_t i = 0; i < rex::countof(g_handlers); ++i) {
-    if (g_handlers[i].first) {
-      has_any = true;
-      break;
-    }
-  }
-  if (!has_any) {
+  if (std::ranges::none_of(g_handlers, [](const auto& handler) { return handler.first; })) {
     if (g_veh_handle) {
       RemoveVectoredExceptionHandler(g_veh_handle);
       g_veh_handle = nullptr;

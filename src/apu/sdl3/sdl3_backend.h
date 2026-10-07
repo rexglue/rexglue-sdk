@@ -1,6 +1,5 @@
 /**
  * @file        apu/sdl3/sdl3_backend.h
- * @brief       SDL3 audio output
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -62,7 +61,7 @@ class SDL3Backend final : public IBackend, public NonCopyable {
 
   static void Callback(void* userdata, SDL_AudioStream* stream, int additional_amount,
                        int total_amount);
-  Result<SDL_AudioStream*> OpenDeviceStream(Stream& stream);
+  [[nodiscard]] Result<SDL_AudioStream*> OpenDeviceStream(Stream& stream);
 
   bool initialized_ = false;
   std::mutex streams_mutex_;

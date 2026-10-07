@@ -155,7 +155,7 @@ u32 NtQueryInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> i
       break;
     };
     case XFileNetworkOpenInformation: {
-      // Make sure we're working with up-to-date information, just in case the
+      // Make sure we're working with up-to-date information, in case the
       // file size has changed via something other than NtSetInfoFile
       // (eg. seems NtWriteFile might extend the file in some cases)
       file->file->Refresh();
@@ -180,8 +180,8 @@ u32 NtQueryInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> i
       break;
     }
     default: {
-      // Unsupported, for now.
-      assert_always();
+      // Unsupported.
+      REX_ASSERT_ALWAYS();
       status = X_STATUS_INVALID_PARAMETER;
       out_length = 0;
       break;
@@ -331,8 +331,8 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
     case XFileCompletionInformation: {
       // Info contains IO Completion handle and completion key
       auto info = info_ptr.as<X_FILE_COMPLETION_INFORMATION*>();
-      auto handle = uint32_t(info->handle);
-      auto key = uint32_t(info->key);
+      auto handle = static_cast<uint32_t>(info->handle);
+      auto key = static_cast<uint32_t>(info->key);
       out_length = sizeof(*info);
       auto port = runtime::Current().object_table().Get<IOCompletionObject>(handle);
       if (!port) {
@@ -343,8 +343,8 @@ u32 NtSetInformationFile_entry(u32 file_handle, ppc_ptr_t<X_IO_STATUS_BLOCK> io_
       break;
     }
     default:
-      // Unsupported, for now.
-      assert_always();
+      // Unsupported.
+      REX_ASSERT_ALWAYS();
       out_length = 0;
       break;
   }
@@ -396,7 +396,7 @@ u32 NtQueryVolumeInformationFile_entry(u32 file_handle,
     case XFileFsVolumeInformation: {
       auto info = info_ptr.as<X_FILE_FS_VOLUME_INFORMATION*>();
       info->creation_time = 0;
-      info->serial_number = 0;  // set for FATX, but we don't do that currently
+      info->serial_number = 0;  // set for FATX, but we don't do that
       info->supports_objects = 0;
       info->label_length = 0;
       out_length = offsetof(X_FILE_FS_VOLUME_INFORMATION, label);
@@ -410,7 +410,7 @@ u32 NtQueryVolumeInformationFile_entry(u32 file_handle,
       info->sectors_per_allocation_unit = volume.sectors_per_allocation_unit;
       info->bytes_per_sector = volume.bytes_per_sector;
       // TODO(gibbed): sanity check, XCTD userland code seems to require this.
-      assert_true(info->bytes_per_sector == 0x200);
+      REX_ASSERT(info->bytes_per_sector == 0x200);
       out_length = sizeof(*info);
       break;
     }
@@ -420,7 +420,7 @@ u32 NtQueryVolumeInformationFile_entry(u32 file_handle,
       auto info = info_ptr.as<X_FILE_FS_ATTRIBUTE_INFORMATION*>();
       info->attributes = volume.attributes;
       info->component_name_max_length = volume.component_name_max_length;
-      info->name_length = uint32_t(name.size());
+      info->name_length = static_cast<uint32_t>(name.size());
       if (info_length >= 12 + name.size()) {
         std::memcpy(info->name, name.data(), name.size());
         out_length = offsetof(X_FILE_FS_ATTRIBUTE_INFORMATION, name) + info->name_length;
@@ -439,8 +439,8 @@ u32 NtQueryVolumeInformationFile_entry(u32 file_handle,
       break;
     }
     default: {
-      // Unsupported, for now.
-      assert_always();
+      // Unsupported.
+      REX_ASSERT_ALWAYS();
       out_length = 0;
       break;
     }

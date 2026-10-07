@@ -1,6 +1,5 @@
 /**
  * @file        runtime/object_table.h
- * @brief       The handle table interface
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

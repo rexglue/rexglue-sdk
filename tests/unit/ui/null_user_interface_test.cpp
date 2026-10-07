@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/ui/null_user_interface_test.cpp
- * @brief       Unit tests for the null ui provider
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

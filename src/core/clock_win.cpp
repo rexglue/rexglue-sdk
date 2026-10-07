@@ -1,6 +1,5 @@
 /**
  * @file        core/clock_win.cpp
- * @brief       Windows platform clock implementations
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  * @license     BSD 3-Clause License
@@ -33,7 +32,7 @@ uint64_t Clock::host_tick_count_platform() {
 uint64_t Clock::QueryHostSystemTime() noexcept {
   FILETIME t;
   GetSystemTimeAsFileTime(&t);
-  return (uint64_t(t.dwHighDateTime) << 32) | t.dwLowDateTime;
+  return (static_cast<uint64_t>(t.dwHighDateTime) << 32) | t.dwLowDateTime;
 }
 
 uint64_t Clock::QueryHostUptimeMillis() {

@@ -71,7 +71,7 @@ class PosixMappedMemory : public MappedMemory {
         close(file_descriptor);
         return nullptr;
       }
-      map_length = size_t(file_stat.st_size);
+      map_length = static_cast<size_t>(file_stat.st_size);
     }
 
     void* data = mmap(0, map_length, protection, MAP_SHARED, file_descriptor, offset);

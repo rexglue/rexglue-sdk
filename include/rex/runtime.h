@@ -1,6 +1,5 @@
 /**
  * @file        runtime.h
- * @brief       Runtime subsystem entry point
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -43,6 +42,7 @@
 #include <rex/runtime/thread_state.h>
 #include <rex/runtime/xmemory.h>
 #include <rex/ui/user_interface.h>
+#include <rex/types.h>
 
 struct PPCFuncMapping;
 
@@ -106,15 +106,13 @@ struct RuntimeConfig {
  * table, the thread and module registries, the notifier, the content and achievement managers,
  * the dispatcher, the process blocks, the APU and the HID backend.
  */
-class REX_RUNTIME_API Runtime {
+class REX_RUNTIME_API Runtime : public rex::NonCopyable {
  public:
   /**
    * @param config The configuration Init copied, read through API::config().
    */
   explicit Runtime(const Config& config);
   ~Runtime();
-  Runtime(const Runtime&) = delete;
-  Runtime& operator=(const Runtime&) = delete;
 
   /**
    * Returns the configuration the runtime was constructed with.

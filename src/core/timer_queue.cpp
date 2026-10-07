@@ -70,7 +70,7 @@ class TimerQueue {
         auto state = WaitItem::State::kIdle;
         if (wait_item->state_.compare_exchange_strong(state, WaitItem::State::kInCallback,
                                                       std::memory_order_acq_rel)) {
-          assert_not_null(wait_item->callback_);
+          REX_ASSERT(wait_item->callback_ != nullptr);
           wait_item->callback_(wait_item->userdata_);
 
           if (wait_item->interval_ != clock::duration::zero() &&
@@ -85,7 +85,7 @@ class TimerQueue {
             wait_item->state_.notify_all();
           }
         } else {
-          assert_true(WaitItem::State::kDisarmed == state);
+          REX_ASSERT(WaitItem::State::kDisarmed == state);
         }
       }
       rescheduled.sort(comp);

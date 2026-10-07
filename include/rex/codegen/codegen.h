@@ -1,6 +1,5 @@
 /**
  * @file        rex/codegen/codegen.h
- * @brief       Codegen pipeline orchestrator
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -16,6 +15,7 @@
 
 #include <rex/codegen/codegen_context.h>
 #include <rex/result.h>
+#include <rex/types.h>
 
 namespace rex {
 class Runtime;
@@ -33,13 +33,11 @@ class ToolRuntime;
  *   if (!pipeline) { handle error }
  *   auto result = pipeline->Run();
  */
-class CodegenPipeline {
+class CodegenPipeline : public rex::MoveOnly {
  public:
   ~CodegenPipeline();
 
   // Non-copyable, movable
-  CodegenPipeline(const CodegenPipeline&) = delete;
-  CodegenPipeline& operator=(const CodegenPipeline&) = delete;
   CodegenPipeline(CodegenPipeline&&) noexcept;
   CodegenPipeline& operator=(CodegenPipeline&&) noexcept;
 
@@ -50,11 +48,11 @@ class CodegenPipeline {
    * @param configPath Path to TOML config file
    * @return Pipeline on success, error on failure
    */
-  static Result<CodegenPipeline> Create(const std::filesystem::path& configPath);
+  [[nodiscard]] static Result<CodegenPipeline> Create(const std::filesystem::path& configPath);
 
-  Result<void> Run(bool force = false);
-  Result<void> RunAnalyze();
-  Result<void> RunWrite(bool force = false);
+  [[nodiscard]] Result<void> Run(bool force = false);
+  [[nodiscard]] Result<void> RunAnalyze();
+  [[nodiscard]] Result<void> RunWrite(bool force = false);
 
   CodegenContext& context() { return *ctx_; }
   const CodegenContext& context() const { return *ctx_; }

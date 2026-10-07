@@ -20,7 +20,7 @@ namespace rex::runtime {
 
 /**
  * Translates between guest virtual addresses and host addresses with the same results as Memory.
- * Valid while the Memory it was built from lives. Host code that only translates holds a view,
+ * Valid while the Memory it was built from exists. Host code that only translates holds a view,
  * host code that allocates holds the runtime.
  */
 class MemoryView {

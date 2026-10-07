@@ -1,6 +1,5 @@
 /**
  * @file        platform/crash.h
- * @brief       Process crash reporter
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

@@ -1,6 +1,5 @@
 /**
  * @file        core/filesystem/stfs.cpp
- * @brief       STFS package parser
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -146,8 +145,8 @@ void AppendExtent(ContainerNode& node, u64 offset, u64 length) {
 
 }  // namespace
 
-Result<void> ParseSTFS(const STFSHeader& header, std::span<const u8> file,
-                       std::vector<ContainerNode>& nodes) {
+[[nodiscard]] Result<void> ParseSTFS(const STFSHeader& header, std::span<const u8> file,
+                                     std::vector<ContainerNode>& nodes) {
   STFSReader reader(header, file);
   const auto& descriptor = header.metadata.volume_descriptor.stfs;
   const u32 table_blocks = descriptor.file_table_block_count;

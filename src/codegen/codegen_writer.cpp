@@ -1,6 +1,5 @@
 /**
  * @file        codegen/codegen_writer.cpp
- * @brief       Consolidated codegen output writer
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -39,7 +38,7 @@ nlohmann::json buildTemplateData(const rex::codegen::CodegenContext& ctx,
   const auto& cfg = ctx.Config();
 
   // Compute code_base and code_size from binary sections
-  size_t codeMin = ~size_t(0);
+  size_t codeMin = ~static_cast<size_t>(0);
   size_t codeMax = 0;
   for (const auto& section : ctx.binary().sections()) {
     if (section.executable) {

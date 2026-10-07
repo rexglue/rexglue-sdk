@@ -75,7 +75,7 @@ namespace rex::gpu {
 
 // SIMD processing here assumes that alignment is not required (neither AVX nor
 // Neon requires it) and there's no punishment for using an unaligned access
-// instruction when the data is actually aligned (AVX has separate aligned /
+// instruction when the data is aligned (AVX has separate aligned /
 // unaligned movs, but they have the same performance nowadays; Neon dropped the
 // alignment specifier in AArch64), but truly unaligned access may result in two
 // hardware memory operations if some boundary that is >= vector size is
@@ -145,11 +145,11 @@ bool PrimitiveProcessor::InitializeCommon(bool full_32bit_vertex_indices_support
   uint32_t builtin_ib_two_triangle_strip_count = 0;
   if (expand_point_sprites_in_vs_) {
     builtin_ib_two_triangle_strip_count =
-        std::max(uint32_t(UINT16_MAX), builtin_ib_two_triangle_strip_count);
+        std::max(static_cast<uint32_t>(UINT16_MAX), builtin_ib_two_triangle_strip_count);
   }
   if (expand_rectangle_lists_in_vs_) {
     builtin_ib_two_triangle_strip_count =
-        std::max(uint32_t(UINT16_MAX / 3), builtin_ib_two_triangle_strip_count);
+        std::max(static_cast<uint32_t>(UINT16_MAX / 3), builtin_ib_two_triangle_strip_count);
   }
   if (builtin_ib_two_triangle_strip_count) {
     builtin_ib_offset_two_triangle_strips_ = builtin_index_buffer_size;
@@ -202,8 +202,8 @@ bool PrimitiveProcessor::InitializeCommon(bool full_32bit_vertex_indices_support
                 uint16_t* triangle_list_ptr =
                     mapping_16bit + builtin_ib_offset_triangle_fans_to_lists_ / sizeof(uint16_t);
                 for (uint32_t i = 2; i < UINT16_MAX; ++i) {
-                  *(triangle_list_ptr++) = uint16_t(i - 1);
-                  *(triangle_list_ptr++) = uint16_t(i);
+                  *(triangle_list_ptr++) = static_cast<uint16_t>(i - 1);
+                  *(triangle_list_ptr++) = static_cast<uint16_t>(i);
                   *(triangle_list_ptr++) = 0;
                 }
               }
@@ -213,7 +213,7 @@ bool PrimitiveProcessor::InitializeCommon(bool full_32bit_vertex_indices_support
                     builtin_ib_offset_quad_lists_to_triangle_lists_ / sizeof(uint16_t);
                 // TODO(Triang3l): SIMD for faster initialization?
                 for (uint32_t i = 0; i < UINT16_MAX / 4; ++i) {
-                  uint16_t quad_first_index = uint16_t(i * 4);
+                  uint16_t quad_first_index = static_cast<uint16_t>(i * 4);
                   // TODO(Triang3l): Find the correct order.
                   // v0, v1, v2.
                   *(triangle_list_ptr++) = quad_first_index;
@@ -285,9 +285,9 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
   xenos::TessellationMode tessellation_mode = regs.Get<xenos::reg::VGT_HOS_CNTL>().tess_mode;
   Shader::HostVertexShaderType host_vertex_shader_type;
   if (tessellation_enabled) {
-    // Currently only supporting tessellation in known cases for safety, and not
+    // Only supporting tessellation in known cases for safety, and not
     // yet converting patch strips / fans to patch lists until games using them
-    // are found for easier debugging when it actually happens.
+    // are found for easier debugging when it happens.
     // TODO(Triang3l): Conversion of patch strips / fans if found.
     host_vertex_shader_type = Shader::HostVertexShaderType(-1);
     switch (guest_primitive_type) {
@@ -349,8 +349,9 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
       REXLOG_ERROR(gpu,
                    "Primitive processor: Unsupported tessellation mode {} for primitive "
                    "type {}. Report the title to ReXGlue developers!",
-                   uint32_t(tessellation_mode), uint32_t(guest_primitive_type));
-      assert_always();
+                   static_cast<uint32_t>(tessellation_mode),
+                   static_cast<uint32_t>(guest_primitive_type));
+      REX_ASSERT_ALWAYS();
       return false;
     }
   } else {
@@ -393,8 +394,8 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
         REXLOG_ERROR(gpu,
                      "Primitive processor: Unsupported primitive type {}. Report the "
                      "title to ReXGlue developers!",
-                     uint32_t(guest_primitive_type));
-        assert_always();
+                     static_cast<uint32_t>(guest_primitive_type));
+        REX_ASSERT_ALWAYS();
         return false;
     }
   }
@@ -429,20 +430,20 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
     cacheable.host_draw_vertex_count = GetTwoTriangleStripIndexCount(primitive_count);
     cacheable.host_index_format = xenos::IndexFormat::kInt32;
     cacheable.host_primitive_reset_enabled = true;
-    assert_true(builtin_ib_offset_two_triangle_strips_ != SIZE_MAX);
+    REX_ASSERT(builtin_ib_offset_two_triangle_strips_ != SIZE_MAX);
     cacheable.host_index_buffer_handle = builtin_ib_offset_two_triangle_strips_;
     if (vgt_draw_initiator.source_select == xenos::SourceSelect::kAutoIndex) {
       cacheable.index_buffer_type = ProcessedIndexBufferType::kHostBuiltinForAuto;
       cacheable.host_shader_index_endian = xenos::Endian::kNone;
     } else {
       // There is an index buffer.
-      assert_true(vgt_draw_initiator.source_select == xenos::SourceSelect::kDMA);
+      REX_ASSERT(vgt_draw_initiator.source_select == xenos::SourceSelect::kDMA);
       if (vgt_draw_initiator.source_select != xenos::SourceSelect::kDMA) {
         // TODO(Triang3l): Support immediate-indexed vertices.
         REX_FAIL(gpu, false,
                  "Primitive processor: Unsupported vertex index source {}. Report "
                  "the title to ReXGlue developers!",
-                 uint32_t(vgt_draw_initiator.source_select));
+                 static_cast<uint32_t>(vgt_draw_initiator.source_select));
       }
       xenos::IndexFormat guest_index_format = vgt_draw_initiator.index_size;
       // Normalize the endian.
@@ -458,7 +459,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
                     "behavior (ignore or actually swap across adjacent indices)! "
                     "Currently disabling the swap for 16-and-32 and replacing 8-in-32 "
                     "with 8-in-16.",
-                    uint32_t(guest_index_endian));
+                    static_cast<uint32_t>(guest_index_endian));
         guest_index_endian = guest_index_endian == xenos::Endian::k8in32 ? xenos::Endian::k8in16
                                                                          : xenos::Endian::kNone;
       }
@@ -467,7 +468,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
       uint32_t index_size_log2 = guest_index_format == xenos::IndexFormat::kInt16 ? 1 : 2;
       // The base should already be aligned, but aligning here too for safety.
       guest_index_base = regs[std::to_underlying(xenos::Register::VGT_DMA_BASE)] &
-                         ~uint32_t((1 << index_size_log2) - 1);
+                         ~static_cast<uint32_t>((1 << index_size_log2) - 1);
       guest_index_buffer_needed_bytes = guest_draw_vertex_count << index_size_log2;
       if (guest_index_base > SharedMemory::kBufferSize ||
           SharedMemory::kBufferSize - guest_index_base < guest_index_buffer_needed_bytes) {
@@ -475,7 +476,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
                      "Primitive processor: Index buffer at 0x{:08X}, 0x{:X} bytes "
                      "required, is out of the physical memory bounds",
                      guest_index_base, guest_index_buffer_needed_bytes);
-        assert_always();
+        REX_ASSERT_ALWAYS();
         return false;
       }
     }
@@ -487,7 +488,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
                    "Primitive processor: Adaptive tessellation requires 32-bit "
                    "floating-point edge tessellation factors in the index buffer, but "
                    "no index buffer is provided by the guest.");
-      assert_always();
+      REX_ASSERT_ALWAYS();
       return false;
     }
     cacheable.host_index_format = xenos::IndexFormat::kInt16;
@@ -497,18 +498,18 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
     if (host_primitive_type != guest_primitive_type) {
       switch (guest_primitive_type) {
         case xenos::PrimitiveType::kTriangleFan:
-          assert_true(host_primitive_type == xenos::PrimitiveType::kTriangleList);
+          REX_ASSERT(host_primitive_type == xenos::PrimitiveType::kTriangleList);
           cacheable.host_draw_vertex_count =
               GetTriangleFanListIndexCount(cacheable.host_draw_vertex_count);
           cacheable.index_buffer_type = ProcessedIndexBufferType::kHostBuiltinForAuto;
-          assert_true(builtin_ib_offset_triangle_fans_to_lists_ != SIZE_MAX);
+          REX_ASSERT(builtin_ib_offset_triangle_fans_to_lists_ != SIZE_MAX);
           cacheable.host_index_buffer_handle = builtin_ib_offset_triangle_fans_to_lists_;
           break;
         case xenos::PrimitiveType::kLineLoop:
           // Plus 1 element (if there's anything to draw) in the strip, still
           // auto-indexed, but the added excess index should be treated as 0 by
           // the vertex shaders.
-          assert_true(host_primitive_type == xenos::PrimitiveType::kLineStrip);
+          REX_ASSERT(host_primitive_type == xenos::PrimitiveType::kLineStrip);
           cacheable.host_draw_vertex_count =
               GetLineLoopStripIndexCount(cacheable.host_draw_vertex_count);
           if (cacheable.host_draw_vertex_count) {
@@ -516,27 +517,27 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
           }
           break;
         case xenos::PrimitiveType::kQuadList:
-          assert_true(host_primitive_type == xenos::PrimitiveType::kTriangleList);
+          REX_ASSERT(host_primitive_type == xenos::PrimitiveType::kTriangleList);
           cacheable.host_draw_vertex_count =
               GetQuadListTriangleListIndexCount(cacheable.host_draw_vertex_count);
           cacheable.index_buffer_type = ProcessedIndexBufferType::kHostBuiltinForAuto;
-          assert_true(builtin_ib_offset_quad_lists_to_triangle_lists_ != SIZE_MAX);
+          REX_ASSERT(builtin_ib_offset_quad_lists_to_triangle_lists_ != SIZE_MAX);
           cacheable.host_index_buffer_handle = builtin_ib_offset_quad_lists_to_triangle_lists_;
           break;
         default:
-          assert_always();
+          REX_ASSERT_ALWAYS();
           return false;
       }
     }
   } else {
     // There is an index buffer.
-    assert_true(vgt_draw_initiator.source_select == xenos::SourceSelect::kDMA);
+    REX_ASSERT(vgt_draw_initiator.source_select == xenos::SourceSelect::kDMA);
     if (vgt_draw_initiator.source_select != xenos::SourceSelect::kDMA) {
       // TODO(Triang3l): Support immediate-indexed vertices.
       REX_FAIL(gpu, false,
                "Primitive processor: Unsupported vertex index source {}. Report the "
                "title to ReXGlue developers!",
-               uint32_t(vgt_draw_initiator.source_select));
+               static_cast<uint32_t>(vgt_draw_initiator.source_select));
     }
     xenos::IndexFormat guest_index_format = vgt_draw_initiator.index_size;
     cacheable.host_index_format = guest_index_format;
@@ -552,7 +553,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
                   "(ignore or actually swap across adjacent indices)! Currently "
                   "disabling the swap for 16-and-32 and replacing 8-in-32 with "
                   "8-in-16.",
-                  uint32_t(guest_index_endian));
+                  static_cast<uint32_t>(guest_index_endian));
       guest_index_endian = guest_index_endian == xenos::Endian::k8in32 ? xenos::Endian::k8in16
                                                                        : xenos::Endian::kNone;
     }
@@ -566,7 +567,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
                      "Primitive processor: Adaptive tessellation requires 32-bit "
                      "floating-point edge tessellation factors in the index buffer, but "
                      "16-bit index buffer is provided by the guest.");
-        assert_always();
+        REX_ASSERT_ALWAYS();
         return false;
       }
     } else {
@@ -606,7 +607,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
     uint32_t index_size_log2 = guest_index_format == xenos::IndexFormat::kInt16 ? 1 : 2;
     // The base should already be aligned, but aligning here too for safety.
     guest_index_base = regs[std::to_underlying(xenos::Register::VGT_DMA_BASE)] &
-                       ~uint32_t((1 << index_size_log2) - 1);
+                       ~static_cast<uint32_t>((1 << index_size_log2) - 1);
     guest_index_buffer_needed_bytes = guest_draw_vertex_count << index_size_log2;
     if (guest_index_base > SharedMemory::kBufferSize ||
         SharedMemory::kBufferSize - guest_index_base < guest_index_buffer_needed_bytes) {
@@ -614,7 +615,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
                    "Primitive processor: Index buffer at 0x{:08X}, 0x{:X} bytes "
                    "required, is out of the physical memory bounds",
                    guest_index_base, guest_index_buffer_needed_bytes);
-      assert_always();
+      REX_ASSERT_ALWAYS();
       return false;
     }
 
@@ -650,12 +651,12 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
             host_index_count_getter = GetQuadListTriangleListIndexCount;
             break;
           default:
-            assert_unhandled_case(guest_primitive_type);
+            REX_UNHANDLED_CASE(guest_primitive_type);
             return false;
         }
         single_primitive_ranges_.clear();
         if (guest_index_format == xenos::IndexFormat::kInt16) {
-          // 16-bit indices - just convert the primitive (or multiple
+          // 16-bit indices - convert the primitive (or multiple
           // primitives) to the host topology.
           // TODO(Triang3l): 16-bit > 32-bit primitive type conversion for
           // Metal, where primitive reset is always enabled, if UINT16_MAX is
@@ -742,7 +743,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
                                              single_primitive_ranges_end);
                 break;
               default:
-                assert_unhandled_case(guest_index_endian);
+                REX_UNHANDLED_CASE(guest_index_endian);
                 return false;
             }
             cacheable.host_shader_index_endian = xenos::Endian::kNone;
@@ -811,7 +812,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
           // ProcessedIndexBufferType::kGuestDMA, the host needs to read the
           // buffer indirectly in the vertex shaders and swap, and for
           // ProcessedIndexBufferType::kHostConverted (if primitive reset is
-          // actually used, thus exactly 0xFFFFFFFF must be sent to the host for
+          // used, thus exactly 0xFFFFFFFF must be sent to the host for
           // it in a true index buffer), no indirection is done, but
           // pre-swapping and pre-masking is done here.
           // Not specifying the primitive type in the cache key because not
@@ -851,7 +852,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
                     host_indices, guest_indices, guest_draw_vertex_count,
                     guest_primitive_reset_index_guest_endian, guest_index_mask_guest_endian);
               } else {
-                assert_unhandled_case(guest_index_endian);
+                REX_UNHANDLED_CASE(guest_index_endian);
                 return false;
               }
               cacheable.host_shader_index_endian =
@@ -868,7 +869,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
       if (cacheable.index_buffer_type == ProcessedIndexBufferType::kGuestDMA &&
           guest_index_format == xenos::IndexFormat::kInt32 && !full_32bit_vertex_indices_used_ &&
           host_vertex_shader_type != Shader::HostVertexShaderType::kVertex) {
-        // No primitive-type conversion, just index normalization.
+        // No primitive-type conversion, index normalization.
         CacheTransaction cache_transaction(
             *this, CacheKey(guest_index_base, guest_draw_vertex_count, guest_index_format,
                             guest_index_endian, guest_primitive_reset_enabled,
@@ -943,13 +944,14 @@ bool PrimitiveProcessor::IsResetUsed(const uint16_t* source, uint32_t count,
       SimdVectorU16 source_simd = LoadAlignedVectorU16(source);
       source += kSimdVectorU16Elements;
 #if REX_ARCH_AMD64
-      if (_mm_movemask_epi8(_mm_cmpeq_epi16(source_simd, reset_index_guest_endian_simd))) {
+      if (simde_mm_movemask_epi8(
+              simde_mm_cmpeq_epi16(source_simd, reset_index_guest_endian_simd))) {
         return true;
       }
 #elif REX_ARCH_ARM64
       uint64x1_t is_any = vreinterpret_u64_u32(
           vqmovn_u64(vreinterpretq_u64_u16(vceqq_u16(source_simd, reset_index_guest_endian_simd))));
-      if (*reinterpret_cast<const uint64_t*>(&is_any)) {
+      if (vget_lane_u64(is_any, 0)) {
         return true;
       }
 #else
@@ -1003,9 +1005,9 @@ void PrimitiveProcessor::Get16BitResetIndexUsage(const uint16_t* source, uint32_
       SimdVectorU16 source_simd = LoadAlignedVectorU16(source);
       source += kSimdVectorU16Elements;
 #if REX_ARCH_AMD64
-      is_reset_simd =
-          _mm_or_si128(is_reset_simd, _mm_cmpeq_epi16(source_simd, reset_index_guest_endian_simd));
-      is_ffff_simd = _mm_or_si128(is_ffff_simd, _mm_cmpeq_epi16(source_simd, ffff_simd));
+      is_reset_simd = simde_mm_or_si128(
+          is_reset_simd, simde_mm_cmpeq_epi16(source_simd, reset_index_guest_endian_simd));
+      is_ffff_simd = simde_mm_or_si128(is_ffff_simd, simde_mm_cmpeq_epi16(source_simd, ffff_simd));
 #elif REX_ARCH_ARM64
       is_reset_simd =
           vorrq_u16(is_reset_simd, vceqq_u16(source_simd, reset_index_guest_endian_simd));
@@ -1015,21 +1017,21 @@ void PrimitiveProcessor::Get16BitResetIndexUsage(const uint16_t* source, uint32_
 #endif  // REX_ARCH_AMD64
     }
 #if REX_ARCH_AMD64
-    if (_mm_movemask_epi8(is_reset_simd)) {
+    if (simde_mm_movemask_epi8(is_reset_simd)) {
       is_reset_index_used_out = true;
     }
-    if (_mm_movemask_epi8(is_ffff_simd)) {
+    if (simde_mm_movemask_epi8(is_ffff_simd)) {
       is_ffff_used_as_vertex_index_out = true;
     }
 #elif REX_ARCH_ARM64
     uint64x1_t is_reset_any =
         vreinterpret_u64_u32(vqmovn_u64(vreinterpretq_u64_u16(is_reset_simd)));
-    if (*reinterpret_cast<const uint64_t*>(&is_reset_any)) {
+    if (vget_lane_u64(is_reset_any, 0)) {
       is_reset_index_used_out = true;
     }
     uint64x1_t is_ffff_any =
         vreinterpret_u64_u32(vqmovn_u64(vreinterpretq_u64_u16(vceqq_u16(is_ffff_simd, ffff_simd))));
-    if (*reinterpret_cast<const uint64_t*>(&is_ffff_any)) {
+    if (vget_lane_u64(is_ffff_any, 0)) {
       is_ffff_used_as_vertex_index_out = true;
     }
 #else
@@ -1051,7 +1053,7 @@ void PrimitiveProcessor::Get16BitResetIndexUsage(const uint16_t* source, uint32_
 bool PrimitiveProcessor::IsResetUsed(const uint32_t* source, uint32_t count,
                                      uint32_t reset_index_guest_endian,
                                      uint32_t low_bits_mask_guest_endian) {
-  // The Xbox 360's GPU only uses the low 24 bits of the index - masking before
+  // The Xenos only uses the low 24 bits of the index - masking before
   // comparing.
 #if REXGPU_PRIMITIVE_PROCESSOR_SIMD_SIZE
   while (count &&
@@ -1069,15 +1071,16 @@ bool PrimitiveProcessor::IsResetUsed(const uint32_t* source, uint32_t count,
       source += kSimdVectorU32Elements;
       SimdVectorU32 low_bits_mask_guest_endian_simd = ReplicateU32(low_bits_mask_guest_endian);
 #if REX_ARCH_AMD64
-      source_simd = _mm_and_si128(source_simd, low_bits_mask_guest_endian_simd);
-      if (_mm_movemask_epi8(_mm_cmpeq_epi32(source_simd, reset_index_guest_endian_simd))) {
+      source_simd = simde_mm_and_si128(source_simd, low_bits_mask_guest_endian_simd);
+      if (simde_mm_movemask_epi8(
+              simde_mm_cmpeq_epi32(source_simd, reset_index_guest_endian_simd))) {
         return true;
       }
 #elif REX_ARCH_ARM64
       source_simd = vandq_u32(source_simd, low_bits_mask_guest_endian_simd);
       uint64x1_t is_any = vreinterpret_u64_u32(
           vqmovn_u64(vreinterpretq_u64_u32(vceqq_u32(source_simd, reset_index_guest_endian_simd))));
-      if (*reinterpret_cast<const uint64_t*>(&is_any)) {
+      if (vget_lane_u64(is_any, 0)) {
         return true;
       }
 #else
@@ -1115,8 +1118,8 @@ void PrimitiveProcessor::ReplaceResetIndex16To16(uint16_t* dest, const uint16_t*
       source += kSimdVectorU16Elements;
       SimdVectorU16 result_simd;
 #if REX_ARCH_AMD64
-      result_simd =
-          _mm_or_si128(source_simd, _mm_cmpeq_epi16(source_simd, reset_index_guest_endian_simd));
+      result_simd = simde_mm_or_si128(
+          source_simd, simde_mm_cmpeq_epi16(source_simd, reset_index_guest_endian_simd));
 #elif REX_ARCH_ARM64
       result_simd = vorrq_u16(source_simd, vceqq_u16(source_simd, reset_index_guest_endian_simd));
 #else
@@ -1159,13 +1162,13 @@ void PrimitiveProcessor::ReplaceResetIndex16To24(uint32_t* dest, const uint16_t*
       //    primitive reset index is different).
       // 4) Store.
 #if REX_ARCH_AMD64
-      __m128i are_reset = _mm_cmpeq_epi16(source_simd, reset_index_guest_endian_simd);
-      __m128i result = _mm_or_si128(source_simd, are_reset);
-      StoreUnalignedVectorU32(dest, _mm_unpacklo_epi16(result, are_reset));
+      simde__m128i are_reset = simde_mm_cmpeq_epi16(source_simd, reset_index_guest_endian_simd);
+      simde__m128i result = simde_mm_or_si128(source_simd, are_reset);
+      StoreUnalignedVectorU32(dest, simde_mm_unpacklo_epi16(result, are_reset));
       // Expecting kSimdVectorU16Elements / 2 to be in the immediate offset
       // part of the address.
       StoreUnalignedVectorU32(dest + kSimdVectorU16Elements / 2,
-                              _mm_unpackhi_epi16(result, are_reset));
+                              simde_mm_unpackhi_epi16(result, are_reset));
 #elif REX_ARCH_ARM64
       // Interleaving the indices and 0 / 0xFFFF via st2.
       uint16x8x2_t result;
@@ -1248,10 +1251,10 @@ void PrimitiveProcessor::LineLoopToStrip(uint32_t* dest, const uint32_t* source,
   dest[source_index_count] = source[0];
 }
 
+template <std::invocable<uint32_t> F>
 uint32_t PrimitiveProcessor::GetMultiPrimitiveHostIndexCountAndRanges(
-    std::function<uint32_t(uint32_t)> single_primitive_guest_to_host_count, const uint16_t* source,
-    uint32_t source_index_count, uint16_t reset_index_guest_endian,
-    std::deque<SinglePrimitiveRange>& ranges_append_out) {
+    F single_primitive_guest_to_host_count, const uint16_t* source, uint32_t source_index_count,
+    uint16_t reset_index_guest_endian, std::deque<SinglePrimitiveRange>& ranges_append_out) {
   uint32_t host_total_index_count = 0;
   uint32_t guest_index_offset = 0;
   for (;;) {
@@ -1281,10 +1284,11 @@ uint32_t PrimitiveProcessor::GetMultiPrimitiveHostIndexCountAndRanges(
   return host_total_index_count;
 }
 
+template <std::invocable<uint32_t> F>
 uint32_t PrimitiveProcessor::GetMultiPrimitiveHostIndexCountAndRanges(
-    std::function<uint32_t(uint32_t)> single_primitive_guest_to_host_count, const uint32_t* source,
-    uint32_t source_index_count, uint32_t reset_index_guest_endian,
-    uint32_t low_bits_mask_guest_endian, std::deque<SinglePrimitiveRange>& ranges_append_out) {
+    F single_primitive_guest_to_host_count, const uint32_t* source, uint32_t source_index_count,
+    uint32_t reset_index_guest_endian, uint32_t low_bits_mask_guest_endian,
+    std::deque<SinglePrimitiveRange>& ranges_append_out) {
   uint32_t host_total_index_count = 0;
   uint32_t guest_index_offset = 0;
   for (;;) {
@@ -1316,7 +1320,7 @@ uint32_t PrimitiveProcessor::GetMultiPrimitiveHostIndexCountAndRanges(
 
 PrimitiveProcessor::CacheTransaction::CacheTransaction(PrimitiveProcessor& processor, CacheKey key)
     : processor_(processor), key_(key) {
-  assert_zero(processor_.cache_currently_processing_size_bytes_);
+  REX_ASSERT(processor_.cache_currently_processing_size_bytes_ == 0);
   if (REXCVAR_GET(::rex::gpu::cvars::primitive_processor_cache_min_indices) < 0 ||
       key_.count <
           uint32_t(REXCVAR_GET(::rex::gpu::cvars::primitive_processor_cache_min_indices))) {
@@ -1385,7 +1389,7 @@ PrimitiveProcessor::CacheTransaction::~CacheTransaction() {
       new_entry.buckets_prev[link_index] = SIZE_MAX;
       uint32_t bucket_index = bucket_start_index + link_index;
       uint64_t& bucket_non_empty_l1_ref = processor_.cache_buckets_non_empty_l1_[bucket_index >> 6];
-      uint64_t bucket_non_empty_l1_bit = uint64_t(1) << (bucket_index & 63);
+      uint64_t bucket_non_empty_l1_bit = static_cast<uint64_t>(1) << (bucket_index & 63);
       size_t& bucket_first_entry_ref = processor_.cache_bucket_first_entries_[bucket_index];
       if (bucket_non_empty_l1_ref & bucket_non_empty_l1_bit) {
         // There is at least one entry already in the bucket - link to the
@@ -1416,7 +1420,7 @@ PrimitiveProcessor::CacheTransaction::~CacheTransaction() {
 std::pair<uint32_t, uint32_t> PrimitiveProcessor::MemoryInvalidationCallback(
     uint32_t physical_address_start, uint32_t length, bool exact_range) {
   if (length == 0 || physical_address_start >= SharedMemory::kBufferSize) {
-    return std::make_pair(uint32_t(0), UINT32_MAX);
+    return std::make_pair(static_cast<uint32_t>(0), UINT32_MAX);
   }
   length = std::min(length, SharedMemory::kBufferSize - physical_address_start);
   uint32_t physical_address_end = physical_address_start + length;
@@ -1439,11 +1443,12 @@ std::pair<uint32_t, uint32_t> PrimitiveProcessor::MemoryInvalidationCallback(
        bucket_l2_bits_index <= bucket_l2_bits_index_last; ++bucket_l2_bits_index) {
     uint64_t bucket_l2_bits_mask = UINT64_MAX;
     if (bucket_l2_bits_index == bucket_l2_bits_index_first) {
-      bucket_l2_bits_mask &= ~((uint64_t(1) << (bucket_l1_bits_index_first & 63)) - 1);
+      bucket_l2_bits_mask &= ~((static_cast<uint64_t>(1) << (bucket_l1_bits_index_first & 63)) - 1);
     }
     if (bucket_l2_bits_index == bucket_l2_bits_index_last &&
         (bucket_l1_bits_index_last & 63) != 63) {
-      bucket_l2_bits_mask &= (uint64_t(1) << ((bucket_l1_bits_index_last & 63) + 1)) - 1;
+      bucket_l2_bits_mask &=
+          (static_cast<uint64_t>(1) << ((bucket_l1_bits_index_last & 63) + 1)) - 1;
     }
     // Not caching L2 bits because they may be modified by unlinking.
     // Loop until any bits in the 64-bit portion of the L2 bit set are left.
@@ -1454,14 +1459,14 @@ std::pair<uint32_t, uint32_t> PrimitiveProcessor::MemoryInvalidationCallback(
               &bucket_l2_bit_shift)) {
         break;
       }
-      bucket_l2_bits_mask &= ~(uint64_t(1) << bucket_l2_bit_shift);
+      bucket_l2_bits_mask &= ~(static_cast<uint64_t>(1) << bucket_l2_bit_shift);
       uint32_t bucket_l1_bits_index = (bucket_l2_bits_index << 6) | bucket_l2_bit_shift;
       uint64_t bucket_l1_bits_mask = UINT64_MAX;
       if (bucket_l1_bits_index == bucket_l1_bits_index_first) {
-        bucket_l1_bits_mask &= ~((uint64_t(1) << (bucket_index_first & 63)) - 1);
+        bucket_l1_bits_mask &= ~((static_cast<uint64_t>(1) << (bucket_index_first & 63)) - 1);
       }
       if (bucket_l1_bits_index == bucket_l1_bits_index_last && (bucket_index_last & 63) != 63) {
-        bucket_l1_bits_mask &= (uint64_t(1) << ((bucket_index_last & 63) + 1)) - 1;
+        bucket_l1_bits_mask &= (static_cast<uint64_t>(1) << ((bucket_index_last & 63) + 1)) - 1;
       }
       // Not caching L1 bits because they may be modified by unlinking.
       // Loop over buckets until any bits in the 64-bit portion of the L1 bit
@@ -1473,7 +1478,7 @@ std::pair<uint32_t, uint32_t> PrimitiveProcessor::MemoryInvalidationCallback(
                 &bucket_l1_bit_shift)) {
           break;
         }
-        bucket_l1_bits_mask &= ~(uint64_t(1) << bucket_l1_bit_shift);
+        bucket_l1_bits_mask &= ~(static_cast<uint64_t>(1) << bucket_l1_bit_shift);
         uint32_t bucket_index = (bucket_l1_bits_index << 6) | bucket_l1_bit_shift;
         // Invalidate the entries in the bucket, fully or partially.
         size_t entry_index = cache_bucket_first_entries_[bucket_index];
@@ -1485,8 +1490,8 @@ std::pair<uint32_t, uint32_t> PrimitiveProcessor::MemoryInvalidationCallback(
           // may belong only to at most 2 buckets, bucket_index must be its [1]
           // bucket.
           uint32_t entry_bucket_index_first = entry_key.base >> kCacheBucketSizeBytesLog2;
-          assert_true((bucket_index - entry_bucket_index_first) <= 1,
-                      "Cache entries only store list links within two buckets");
+          REX_ASSERT((bucket_index - entry_bucket_index_first) <= 1,
+                     "Cache entries only store list links within two buckets");
           size_t next_entry_index = entry.buckets_next[bucket_index - entry_bucket_index_first];
           // For exact_range, don't invalidate bucket entries that are outside
           // the specified range.
@@ -1497,15 +1502,15 @@ std::pair<uint32_t, uint32_t> PrimitiveProcessor::MemoryInvalidationCallback(
               any_invalidated = true;
               // Remove the entry from the cache map.
               auto entry_map_it = cache_map_.find(entry_key);
-              assert_true(entry_map_it != cache_map_.end());
+              REX_ASSERT(entry_map_it != cache_map_.end());
               if (entry_map_it != cache_map_.end()) {
                 cache_map_.erase(entry_map_it);
               }
               // Unlink the entry from the bucket's list.
               uint32_t entry_link_index_last =
                   ((entry_end - 1) >> kCacheBucketSizeBytesLog2) - entry_bucket_index_first;
-              assert_true(entry_link_index_last <= 1,
-                          "Cache entries only store list links within two buckets");
+              REX_ASSERT(entry_link_index_last <= 1,
+                         "Cache entries only store list links within two buckets");
               for (uint32_t entry_link_index = 0; entry_link_index <= entry_link_index_last;
                    ++entry_link_index) {
                 uint32_t entry_bucket_index = entry_bucket_index_first + entry_link_index;
@@ -1513,7 +1518,7 @@ std::pair<uint32_t, uint32_t> PrimitiveProcessor::MemoryInvalidationCallback(
                 size_t entry_link_next = entry.buckets_next[entry_link_index];
                 if (entry_link_prev != SIZE_MAX) {
                   CacheEntry& entry_prev = cache_entry_pool_[entry_link_prev];
-                  entry_prev.buckets_next[size_t(
+                  entry_prev.buckets_next[static_cast<size_t>(
                       (entry_prev.key.base >> kCacheBucketSizeBytesLog2) != entry_bucket_index)] =
                       entry_link_next;
                 } else {
@@ -1523,13 +1528,13 @@ std::pair<uint32_t, uint32_t> PrimitiveProcessor::MemoryInvalidationCallback(
                     // The only entry that was remaining in the bucket - it's
                     // empty now.
                     cache_buckets_non_empty_l1_[entry_bucket_index >> 6] &=
-                        ~(uint64_t(1) << (entry_bucket_index & 63));
+                        ~(static_cast<uint64_t>(1) << (entry_bucket_index & 63));
                     UpdateCacheBucketsNonEmptyL2(entry_bucket_index >> 6, cache_lock);
                   }
                 }
                 if (entry_link_next != SIZE_MAX) {
                   CacheEntry& entry_next = cache_entry_pool_[entry_link_next];
-                  entry_next.buckets_prev[size_t(
+                  entry_next.buckets_prev[static_cast<size_t>(
                       (entry_next.key.base >> kCacheBucketSizeBytesLog2) != entry_bucket_index)] =
                       entry_link_prev;
                 }
@@ -1546,7 +1551,7 @@ std::pair<uint32_t, uint32_t> PrimitiveProcessor::MemoryInvalidationCallback(
   }
   return any_invalidated
              ? std::make_pair(physical_address_start, physical_address_end - physical_address_start)
-             : std::make_pair(uint32_t(0), UINT32_MAX);
+             : std::make_pair(static_cast<uint32_t>(0), UINT32_MAX);
 }
 
 std::pair<uint32_t, uint32_t> PrimitiveProcessor::MemoryInvalidationCallbackThunk(

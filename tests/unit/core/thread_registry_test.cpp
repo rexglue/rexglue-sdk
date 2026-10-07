@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/core/thread_registry_test.cpp
- * @brief       Unit tests for the SDK host thread registry
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

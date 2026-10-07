@@ -9,16 +9,10 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
-#include <cstring>
-
 #include "runtime/xma/register_file.h"
 #include <rex/math.h>
 
 namespace rex::runtime {
-
-XMARegisterFile::XMARegisterFile() {
-  std::memset(values, 0, sizeof(values));
-}
 
 const XmaRegisterInfo* XMARegisterFile::GetRegisterInfo(uint32_t index) {
   switch (index) {

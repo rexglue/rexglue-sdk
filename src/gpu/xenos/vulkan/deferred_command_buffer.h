@@ -34,7 +34,7 @@ class DeferredCommandBuffer {
   // render_pass_begin->pNext of all barriers must be null.
   void CmdVkBeginRenderPass(const VkRenderPassBeginInfo* render_pass_begin,
                             VkSubpassContents contents) {
-    assert_null(render_pass_begin->pNext);
+    REX_ASSERT(render_pass_begin->pNext == nullptr);
     size_t arguments_size = sizeof(ArgsVkBeginRenderPass);
     uint32_t clear_value_count = render_pass_begin->clearValueCount;
     size_t clear_values_offset = 0;

@@ -231,7 +231,7 @@ u32 Runtime::process_type() const {
 
 void Runtime::set_process_type(u32 value) {
   auto globals = memory_->TranslateVirtual<KernelGuestGlobals*>(kernel_guest_globals_);
-  globals->title_process.process_type = u8(value);
+  globals->title_process.process_type = static_cast<u8>(value);
 }
 
 void Runtime::RegisterTitleTerminateNotification(u32 registration) {
@@ -326,19 +326,19 @@ void Runtime::SetExecutableModule(X_HANDLE module_handle) {
   UserModuleGetOptHeader(*module, XEX_HEADER_TITLE_WORKSPACE_SIZE, &workspace_size_address);
   const u32 workspace_size = WorkspaceHeap::ResolveSize(
       workspace_size_address
-          ? memory::load_and_swap<u32>(memory_->TranslateVirtual(workspace_size_address))
+          ? u32{*memory_->TranslateVirtual<const be_u32*>(workspace_size_address)}
           : 0);
   if (!workspace_ || workspace_->size() != workspace_size) {
     CreateWorkspace(workspace_size);
   }
 
-  assert_true(module_registry_->IsKernel("xboxkrnl.exe"));
+  REX_ASSERT(module_registry_->IsKernel("xboxkrnl.exe"));
   auto xboxkrnl =
       object_table_->Get<ModuleObject>(module_registry_->FindKernel("xboxkrnl.exe").value_or(0));
   if (xboxkrnl) {
     if (const u32 address =
             KernelModuleVariable(*xboxkrnl, 0x0193 /* executable module handle */)) {
-      auto variable_ptr = memory_->TranslateVirtual<be<u32>*>(address);
+      auto variable_ptr = memory_->TranslateVirtual<be_u32*>(address);
       *variable_ptr = module->hmodule_ptr;
     }
     if (const u32 address = KernelModuleVariable(*xboxkrnl, 0x01AF /* ExLoadedImageName */)) {

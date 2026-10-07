@@ -62,11 +62,12 @@ VulkanShader::VulkanShader(const gpu::vulkan::VulkanDevice* const vulkan_device,
     : SpirvShader(shader_type, ucode_data_hash, ucode_dwords, ucode_dword_count,
                   ucode_source_endian),
       vulkan_device_(vulkan_device) {
-  assert_not_null(vulkan_device);
+  REX_ASSERT(vulkan_device != nullptr);
 }
 
-Shader::Translation* VulkanShader::CreateTranslationInstance(uint64_t modification) {
-  return new VulkanTranslation(*this, modification);
+std::unique_ptr<Shader::Translation> VulkanShader::CreateTranslationInstance(
+    uint64_t modification) {
+  return std::make_unique<VulkanTranslation>(*this, modification);
 }
 
 }  // namespace rex::gpu::vulkan

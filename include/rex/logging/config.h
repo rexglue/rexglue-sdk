@@ -1,6 +1,5 @@
 /**
  * @file        logging/config.h
- * @brief       Logger config inside rex::Config
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

@@ -1,6 +1,5 @@
 /**
  * @file        runtime/dispatcher.h
- * @brief       The overlapped completion and DPC list interface
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

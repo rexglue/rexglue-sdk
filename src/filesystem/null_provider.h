@@ -26,7 +26,17 @@ namespace rex::filesystem {
  * code that probes raw partitions sees them present.
  */
 class NullProvider final : public Provider {
+  struct Key {};
+
  public:
+  /**
+   * Serves the null paths of a mount entry. Only Create can make the key.
+   *
+   * @param key The private construction key.
+   * @param entry The mount description.
+   */
+  explicit NullProvider(Key, MountEntry entry);
+
   /**
    * Builds the provider with 1 file per null path.
    *
@@ -51,7 +61,6 @@ class NullProvider final : public Provider {
   [[nodiscard]] Node* Resolve(std::string_view path) override;
 
  private:
-  explicit NullProvider(MountEntry entry);
 };
 
 /** The root or 1 null file. */

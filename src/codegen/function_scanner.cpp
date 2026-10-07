@@ -34,7 +34,6 @@ namespace rex::codegen {
 using rex::codegen::ppc::decode_instruction;
 using rex::codegen::ppc::Instruction;
 using rex::codegen::ppc::Opcode;
-using rex::memory::load_and_swap;
 
 //=============================================================================
 // Constructors
@@ -65,7 +64,7 @@ bool FunctionScanner::is_prologue_pattern(guest_addr_t address) {
   if (!host_ptr)
     return false;
 
-  u32 code = load_and_swap<u32>(host_ptr);
+  u32 code = memory::load<be_u32>(host_ptr);
   Instruction instr = decode_instruction(address, code);
 
   // Check for mflr
@@ -95,7 +94,7 @@ bool FunctionScanner::is_epilogue_pattern(guest_addr_t address) {
   if (!host_ptr)
     return false;
 
-  u32 code = load_and_swap<u32>(host_ptr);
+  u32 code = memory::load<be_u32>(host_ptr);
 
   Instruction instr = decode_instruction(address, code);
 
@@ -125,7 +124,7 @@ bool FunctionScanner::is_restgprlr_function(guest_addr_t address) {
   if (!host_ptr)
     return false;
 
-  u32 first = load_and_swap<u32>(host_ptr);
+  u32 first = memory::load<be_u32>(host_ptr);
 
   // Check single-instruction patterns (4 bytes each)
   constexpr u32 RESTGPRLR_14 = 0xe9c1ff68;  // ld r14, -0x98(r1)
@@ -143,7 +142,7 @@ bool FunctionScanner::is_restgprlr_function(guest_addr_t address) {
   if (first == 0x3960fee0) {  // li r11, -0x120
     auto second_ptr = translate_address<u32>(address + 4);
     if (second_ptr) {
-      u32 second = load_and_swap<u32>(second_ptr);
+      u32 second = memory::load<be_u32>(second_ptr);
       constexpr u32 RESTVMX_14 = 0x7dcb60ce;  // lvx v14, r11, r12
       constexpr u32 SAVEVMX_14 = 0x7dcb61ce;  // stvx v14, r11, r12
       if (second == RESTVMX_14 || second == SAVEVMX_14) {
@@ -156,7 +155,7 @@ bool FunctionScanner::is_restgprlr_function(guest_addr_t address) {
   if (first == 0x3960fc00) {  // li r11, -0x400
     auto second_ptr = translate_address<u32>(address + 4);
     if (second_ptr) {
-      u32 second = load_and_swap<u32>(second_ptr);
+      u32 second = memory::load<be_u32>(second_ptr);
       constexpr u32 RESTVMX_64 = 0x100b60cb;  // lvx128 v64, r11, r12
       constexpr u32 SAVEVMX_64 = 0x100b61cb;  // stvx128 v64, r11, r12
       if (second == RESTVMX_64 || second == SAVEVMX_64) {
@@ -171,7 +170,7 @@ bool FunctionScanner::is_restgprlr_function(guest_addr_t address) {
 //=============================================================================
 // Jump Table Pattern Detection
 //=============================================================================
-// Xbox 360 compilers emit 4 distinct jump table patterns (maybe more?):
+// Console compilers emit 4 distinct jump table patterns (maybe more?):
 //
 // 1. ABSOLUTE: lwzx loads full 32-bit target addresses
 //    lis rT, table@ha; addi rT, rT, table@l; rlwinm rI, rIdx, 2; lwzx rT, rI, rT; mtctr; bctr
@@ -257,7 +256,7 @@ BoundsInfo scanForBounds(const FunctionScanner& scanner, guest_addr_t bctr_addre
     if (!host_ptr)
       break;
 
-    u32 code = load_and_swap<u32>(host_ptr);
+    u32 code = memory::load<be_u32>(host_ptr);
     if (code == 0)
       break;
 
@@ -335,7 +334,7 @@ BoundsInfo scanForBounds(const FunctionScanner& scanner, guest_addr_t bctr_addre
       bool cr_matches = (cr_field != 0xFF && cmp_cr == cr_field);
       bool reg_matches = (cmp_ra == expected_index_reg);
 
-      // CRITICAL: Reject very small immediates (0 or 1) even if register matches
+      // CRITICAL: Reject small immediates (0 or 1) even if register matches
       // These are likely unrelated comparisons (checking for zero/null, boolean tests)
       // A real switch table bounds check would have immediate >= 2 (at least 3 cases)
       if (cmp_imm <= 1) {
@@ -382,7 +381,7 @@ std::vector<guest_addr_t> read_table_entries(const FunctionScanner& scanner,
         auto entry_ptr = scanner.translate_address<u32>(table_addr + (i * 4));
         if (!entry_ptr)
           goto done;
-        target = load_and_swap<u32>(entry_ptr);
+        target = memory::load<be_u32>(entry_ptr);
         break;
       }
 
@@ -411,7 +410,7 @@ std::vector<guest_addr_t> read_table_entries(const FunctionScanner& scanner,
         auto entry_ptr = scanner.translate_address<u16>(table_addr + (i * 2));
         if (!entry_ptr)
           goto done;
-        u16 offset = load_and_swap<u16>(entry_ptr);
+        u16 offset = memory::load<be_u16>(entry_ptr);
         target = match.base_address() + offset;
         break;
       }
@@ -425,7 +424,7 @@ std::vector<guest_addr_t> read_table_entries(const FunctionScanner& scanner,
     if (target == 0 && match.type == JumpTableType::kAbsolute)
       goto done;
 
-    // Validate target is in EXECUTABLE section (not just mapped memory)
+    // Validate target is in EXECUTABLE section (not only mapped memory)
     // This prevents false positives from data tables containing addresses
     if (!scanner.isExecutableSection(target)) {
       // For absolute tables, non-executable target means wrong table address
@@ -490,7 +489,7 @@ static bool is_function_boundary(u32 code, const Instruction& instr, guest_addr_
 
   // nop (ori r0,r0,0 = 0x60000000) - often used as padding
   // But nops can appear mid-function too, so only treat consecutive nops as boundary
-  // For now, don't treat single nop as boundary
+  // A single nop is not treated as a boundary
 
   return false;
 }
@@ -523,7 +522,7 @@ std::optional<JumpTable> FunctionScanner::detect_jump_table(guest_addr_t bctr_ad
       break;
 
     // Read as big-endian (PPC is big-endian)
-    u32 code = load_and_swap<u32>(host_ptr);
+    u32 code = memory::load<be_u32>(host_ptr);
 
     Instruction instr = decode_instruction(addr, code);
 
@@ -914,7 +913,7 @@ FunctionBlocks FunctionScanner::discover_blocks(rex::guest_addr_t entry_point,
     if (scannedAddrs.count(addr)) {
       // Block ends here - don't include the already-scanned instruction
       if (addr > block.base) {
-        // Record the overlap address as a successor so codegen emits a goto
+        // Add the overlap address as a successor so codegen emits a goto
         block.successors.push_back(addr);
         block.has_terminator = true;
         result.blocks.push_back(block);
@@ -948,7 +947,7 @@ FunctionBlocks FunctionScanner::discover_blocks(rex::guest_addr_t entry_point,
       continue;
     }
 
-    u32 code = load_and_swap<u32>(host_ptr);
+    u32 code = memory::load<be_u32>(host_ptr);
 
     // Null instruction ends block
     if (code == 0x00000000) {
@@ -1092,7 +1091,7 @@ FunctionBlocks FunctionScanner::discover_blocks(rex::guest_addr_t entry_point,
 
     // Check for conditional return (bclr/bclrl with conditional BO)
     // These return to LR if condition is met, otherwise fall through
-    // Examples: blelr, bgtlr, bnelr, beqlr, etc.
+    // Examples: blelr, bgtlr, bnelr, beqlr
     if ((instr.opcode == Opcode::bclr || instr.opcode == Opcode::bclrl) &&
         !instr.is_return()) {  // is_return() only matches unconditional blr
       guest_addr_t fall_through = addr + 4;
@@ -1112,7 +1111,7 @@ FunctionBlocks FunctionScanner::discover_blocks(rex::guest_addr_t entry_point,
       continue;
     }
 
-    // Check for conditional branch (bc, bca, etc.)
+    // Check for conditional branch (bc, bca and others)
     if (instr.is_branch() && instr.branch_target.has_value()) {
       guest_addr_t target = instr.branch_target.value();
       guest_addr_t fall_through = addr + 4;
@@ -1229,7 +1228,7 @@ bool isProloguePattern(const DecodedInsn& insn) {
   using namespace rex::codegen::ppc;
   switch (insn.opcode) {
     case Opcode::mflr:
-    case Opcode::mfspr:  // mflr is really mfspr with SPR=8
+    case Opcode::mfspr:  // mflr is mfspr with SPR=8
       return true;
     case Opcode::stwu:
       // stwu r1, -X(r1) - stack frame setup
@@ -1345,7 +1344,7 @@ BoundsInfo scanForBounds(DecodedBinary& decoded, const Limits& limits, uint32_t 
     }
 
     // Look for clrlwi (rlwinm rA, rS, 0, MB, 31) which masks bits
-    // MB must be > 0 to actually mask something; MB=0 is a no-op
+    // MB must be > 0 to mask something; MB=0 is a no-op
     if (insn->opcode == Opcode::rlwinm) {
       if (insn->M.RA == expectedReg && insn->M.SH == 0 && insn->M.ME == 31 && insn->M.MB > 0) {
         // Masked to (32 - MB) bits, max value is 2^(32-MB) - 1
@@ -1514,7 +1513,7 @@ std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, const Limits& l
     // slwi rA, rS, n is rlwinm rA, rS, n, 0, 31-n (MB=0, ME=31-SH)
     // This scales the index for table lookup (e.g., slwi r0, r31, 1 for halfword table)
     // DON'T trace back through extrwi/other rlwinm variants - those transform the value
-    // NOTE: SH must be > 0 for a real shift; SH=0 is just a move/no-op (clrlwi r,r,0)
+    // NOTE: SH must be > 0 for a real shift; SH=0 is a move/no-op (clrlwi r,r,0)
     // IMPORTANT: Stop tracing if another instruction writes to indexReg (breaks the chain)
     if (foundLoad && indexReg != 0xFF) {
       // Check if this instruction writes to indexReg
@@ -1764,7 +1763,7 @@ std::optional<JumpTable> detectJumpTable(DecodedBinary& decoded, const Limits& l
     }
 
     // Validate target is within code region - jump table targets help DEFINE function extent
-    // Don't constrain by funcEnd since that's just PDATA which may not include out-of-line code
+    // Don't constrain by funcEnd since that is only PDATA which may not include out-of-line code
     if (target == 0 || !containingRegion.contains(target)) {
       // TODO(tomc): Figure out what this voodoo does on real hardware. Its a jump target that
       // points to a null value..?
@@ -1910,7 +1909,7 @@ BlockDiscoveryResult discoverBlocks(
         if (isCall(*insn)) {
           // bl - function call
           if (target) {
-            // All bl instructions need to be recorded as unresolved branches
+            // All bl instructions need to be added as unresolved branches
             // so they can be resolved to CallEdges during merge phase
             result.unresolvedBranches.push_back({addr, *target, true, false});
 
@@ -1927,7 +1926,7 @@ BlockDiscoveryResult discoverBlocks(
         } else if (insn->opcode == rex::codegen::ppc::Opcode::bcctr && isConditional(*insn)) {
           // Conditional bcctr (e.g. bnectr/beqctr): branches to CTR when the
           // condition is met, otherwise falls through to the next instruction.
-          // Record the fall-through and continue the linear scan (mirrors the
+          // Follow the fall-through and continue the linear scan (mirrors the
           // conditional-branch case below) so the rest of the function is not
           // dropped. The CTR target is indirect and has no static label.
           uint32_t fallthrough = addr + 4;
@@ -1976,7 +1975,7 @@ BlockDiscoveryResult discoverBlocks(
               // function; don't import that function's blocks into this one
               // (mirrors isInternalTarget's treatment of regular branches,
               // and now also applies to auto-detected table targets, not
-              // just manual ones).
+              // only manual ones).
               if (t != entryPoint && knownFunctions.contains(t)) {
                 if (jtIsManual) {
                   // A manually configured table is authoritative, so a drop
@@ -2054,7 +2053,7 @@ BlockDiscoveryResult discoverBlocks(
         }
       }
 
-      // Check for block terminator (null, prologue of next function, etc.)
+      // Check for block terminator (null, prologue of next function and others)
       if (isBlockTerminator(*insn, addr, containingRegion, knownFunctions)) {
         REXLOG_TRACE(codegen, "discoverBlocks: 0x{:08X} block terminator at 0x{:08X}", entryPoint,
                      addr);

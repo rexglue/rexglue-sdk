@@ -37,8 +37,8 @@ using namespace rex::runtime;
 using namespace rex::runtime::xam;
 
 i32 XamUserGetXUID_entry(u32 user_index, u32 type_mask, mapped_u64 xuid_ptr) {
-  assert_true(type_mask == 1 || type_mask == 2 || type_mask == 3 || type_mask == 4 ||
-              type_mask == 7);
+  REX_ASSERT(type_mask == 1 || type_mask == 2 || type_mask == 3 || type_mask == 4 ||
+             type_mask == 7);
   if (!xuid_ptr) {
     return X_E_INVALIDARG;
   }
@@ -71,15 +71,15 @@ u32 XamUserGetSigninState_entry(u32 user_index) {
   return signin_state;
 }
 
-typedef struct {
-  rex::be<uint64_t> xuid;
-  rex::be<uint32_t> unk08;  // maybe zero?
-  rex::be<uint32_t> signin_state;
-  rex::be<uint32_t> unk10;  // ?
-  rex::be<uint32_t> unk14;  // ?
+struct X_USER_SIGNIN_INFO {
+  be_u64 xuid;
+  be_u32 unk08;  // maybe zero?
+  be_u32 signin_state;
+  be_u32 unk10;  // ?
+  be_u32 unk14;  // ?
   char name[16];
-} X_USER_SIGNIN_INFO;
-static_assert_size(X_USER_SIGNIN_INFO, 40);
+};
+REX_STATIC_ASSERT_SIZE(X_USER_SIGNIN_INFO, 40);
 
 i32 XamUserGetSigninInfo_entry(u32 user_index, u32 flags, ppc_ptr_t<X_USER_SIGNIN_INFO> info) {
   if (!info) {
@@ -109,7 +109,7 @@ u32 XamUserGetName_entry(u32 user_index, mapped_string buffer, u32 buffer_len) {
 
   auto& user_profile = runtime::Current().content_manager().user_profile();
   const auto& user_name = user_profile.name();
-  rex::copy_truncating(buffer, user_name, std::min(buffer_len, uint32_t(16)));
+  rex::copy_truncating(buffer, user_name, std::min(buffer_len, static_cast<uint32_t>(16)));
   return X_E_SUCCESS;
 }
 
@@ -128,35 +128,34 @@ u32 XamUserGetGamerTag_entry(u32 user_index, mapped_wstring buffer, u32 buffer_l
 
   auto& user_profile = runtime::Current().content_manager().user_profile();
   auto user_name = rex::to_utf16(user_profile.name());
-  rex::copy_and_swap_truncating(buffer, user_name, std::min(buffer_len, uint32_t(16)));
+  rex::copy_and_swap_truncating(buffer, user_name, std::min(buffer_len, static_cast<uint32_t>(16)));
   return X_E_SUCCESS;
 }
 
-typedef struct {
-  rex::be<uint32_t> setting_count;
-  rex::be<uint32_t> settings_ptr;
-} X_USER_READ_PROFILE_SETTINGS;
-static_assert_size(X_USER_READ_PROFILE_SETTINGS, 8);
+struct X_USER_READ_PROFILE_SETTINGS {
+  be_u32 setting_count;
+  be_u32 settings_ptr;
+};
+REX_STATIC_ASSERT_SIZE(X_USER_READ_PROFILE_SETTINGS, 8);
 
 // https://github.com/oukiar/freestyledash/blob/master/Freestyle/Tools/Generic/xboxtools.cpp
 uint32_t XamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index, uint32_t xuid_count,
-                                      be<uint64_t>* xuids, uint32_t setting_count,
-                                      be<uint32_t>* setting_ids, uint32_t unk,
-                                      be<uint32_t>* buffer_size_ptr, uint8_t* buffer,
+                                      be_u64* xuids, uint32_t setting_count, be_u32* setting_ids,
+                                      uint32_t unk, be_u32* buffer_size_ptr, uint8_t* buffer,
                                       XAM_OVERLAPPED* overlapped) {
   if (!xuid_count) {
-    assert_null(xuids);
+    REX_ASSERT(xuids == nullptr);
   } else {
-    assert_true(xuid_count == 1);
-    assert_not_null(xuids);
+    REX_ASSERT(xuid_count == 1);
+    REX_ASSERT(xuids != nullptr);
     // TODO(gibbed): allow proper lookup of arbitrary XUIDs
     auto& user_profile = runtime::Current().content_manager().user_profile();
-    assert_true(static_cast<uint64_t>(xuids[0]) == user_profile.xuid());
+    REX_ASSERT(static_cast<uint64_t>(xuids[0]) == user_profile.xuid());
     // TODO(gibbed): we assert here, but in case a title passes xuid_count > 1
     // until it's implemented for release builds...
     xuid_count = 1;
   }
-  assert_zero(unk);  // probably flags
+  REX_ASSERT(unk == 0);  // probably flags
 
   // must have at least 1 to 32 settings
   if (setting_count < 1 || setting_count > 32) {
@@ -324,7 +323,8 @@ u32 XamUserWriteProfileSettings_entry(u32 title_id, u32 user_index, u32 setting_
     REXLOG_DEBUG(kernel,
                  "XamUserWriteProfileSettings: setting index [{}]:"
                  " from={} setting_id={:08X} data.type={}",
-                 n, (uint32_t)setting.from, (uint32_t)setting.setting_id, setting.data.type);
+                 n, static_cast<uint32_t>(setting.from), static_cast<uint32_t>(setting.setting_id),
+                 setting.data.type);
 
     switch (setting_type) {
       case UserProfile::Setting::Type::CONTENT:
@@ -338,7 +338,7 @@ u32 XamUserWriteProfileSettings_entry(u32 title_id, u32 user_index, u32 setting_
           bytes.resize(binary_size);
           std::memcpy(bytes.data(), binary_ptr, binary_size);
         } else {
-          // Data pointer was NULL, so just fill with zeroes
+          // Data pointer was NULL, so fill with zeroes
           bytes.resize(binary_size, 0);
         }
         user_profile.AddSetting(
@@ -454,17 +454,17 @@ u32 XamUserAreUsersFriends_entry(u32 user_index, u32 unk1, u32 unk2, mapped_u32 
   }
 
   if (out_value) {
-    assert_true(!overlapped_ptr);
+    REX_ASSERT(!overlapped_ptr);
     *out_value = result == X_ERROR_SUCCESS ? are_friends : 0;
     return result;
   } else if (overlapped_ptr) {
-    assert_true(!out_value);
+    REX_ASSERT(!out_value);
     runtime::Current().dispatcher().CompleteOverlappedImmediateEx(
         overlapped_ptr, result == X_ERROR_SUCCESS ? X_ERROR_SUCCESS : X_ERROR_FUNCTION_FAILED,
         X_HRESULT_FROM_WIN32(result), result == X_ERROR_SUCCESS ? are_friends : 0);
     return X_ERROR_IO_PENDING;
   } else {
-    assert_always();
+    REX_ASSERT_ALWAYS();
     return X_ERROR_INVALID_PARAMETER;
   }
 }
@@ -482,25 +482,25 @@ u32 XamShowSigninUI_entry(u32 unk, u32 unk_mask) {
   return X_ERROR_SUCCESS;
 }
 
-// TODO(gibbed): probably a FILETIME/LARGE_INTEGER, unknown currently
+// TODO(gibbed): probably a FILETIME/LARGE_INTEGER, unknown
 struct X_ACHIEVEMENT_UNLOCK_TIME {
-  rex::be<uint32_t> unk_0;
-  rex::be<uint32_t> unk_4;
+  be_u32 unk_0;
+  be_u32 unk_4;
 };
 
 struct X_ACHIEVEMENT_DETAILS {
-  rex::be<uint32_t> id;
-  rex::be<uint32_t> label_ptr;
-  rex::be<uint32_t> description_ptr;
-  rex::be<uint32_t> unachieved_ptr;
-  rex::be<uint32_t> image_id;
-  rex::be<uint32_t> gamerscore;
+  be_u32 id;
+  be_u32 label_ptr;
+  be_u32 description_ptr;
+  be_u32 unachieved_ptr;
+  be_u32 image_id;
+  be_u32 gamerscore;
   X_ACHIEVEMENT_UNLOCK_TIME unlock_time;
-  rex::be<uint32_t> flags;
+  be_u32 flags;
 
   static const size_t kStringBufferSize = 464;
 };
-static_assert_size(X_ACHIEVEMENT_DETAILS, 36);
+REX_STATIC_ASSERT_SIZE(X_ACHIEVEMENT_DETAILS, 36);
 
 class AchievementItems {
  public:
@@ -566,7 +566,7 @@ class AchievementItems {
     size_t count = string.length() + 1;
     size_t size = count * sizeof(char16_t);
     if (size > sb.remaining_bytes) {
-      assert_always();
+      REX_ASSERT_ALWAYS();
       return 0;
     }
     auto ptr = sb.ptr;
@@ -690,7 +690,7 @@ u32 XamReadTileToTexture_entry(u32 unknown, u32 title_id, u64 tile_id, u32 user_
     return X_ERROR_INVALID_PARAMETER;
   }
 
-  size_t size = size_t(stride) * size_t(height);
+  size_t size = static_cast<size_t>(stride) * static_cast<size_t>(height);
   std::memset(buffer_ptr, 0xFF, size);
 
   if (overlapped_ptr) {
@@ -714,7 +714,7 @@ u32 XamSessionCreateHandle_entry(mapped_u32 handle_ptr) {
 }
 
 u32 XamSessionRefObjByHandle_entry(u32 handle, mapped_u32 obj_ptr) {
-  assert_true(handle == 0xCAFEDEAD);
+  REX_ASSERT(handle == 0xCAFEDEAD);
   // TODO(PermaNull): Implement this properly,
   // For the time being returning 0xDEADF00D will prevent crashing.
   *obj_ptr = 0xDEADF00D;

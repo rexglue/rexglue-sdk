@@ -35,12 +35,10 @@ struct RegisterInfo {
 
 class REX_API RegisterFile {
  public:
-  RegisterFile();
-
   static const RegisterInfo* GetRegisterInfo(uint32_t index);
 
   static constexpr size_t kRegisterCount = 0x5003;
-  uint32_t values[kRegisterCount];
+  u32 values[kRegisterCount]{};
 
   const uint32_t& operator[](uint32_t reg) const { return values[reg]; }
   uint32_t& operator[](uint32_t reg) { return values[reg]; }
@@ -61,7 +59,7 @@ class REX_API RegisterFile {
   }
 
   xenos::VertexFetch GetVertexFetch(uint32_t index) const {
-    assert_true(index < 96);
+    REX_ASSERT(index < 96);
     xenos::VertexFetch fetch;
     std::memcpy(&fetch,
                 &values[std::to_underlying(xenos::Register::SHADER_CONSTANT_FETCH_00_0) +
@@ -71,7 +69,7 @@ class REX_API RegisterFile {
   }
 
   xenos::TextureFetch GetTextureFetch(uint32_t index) const {
-    assert_true(index < 32);
+    REX_ASSERT(index < 32);
     xenos::TextureFetch fetch;
     std::memcpy(&fetch,
                 &values[std::to_underlying(xenos::Register::SHADER_CONSTANT_FETCH_00_0) +
@@ -81,7 +79,7 @@ class REX_API RegisterFile {
   }
 
   xenos::MemExportStream GetMemExportStream(uint32_t float_constant_index) const {
-    assert_true(float_constant_index < 512);
+    REX_ASSERT(float_constant_index < 512);
     xenos::MemExportStream stream;
     std::memcpy(&stream,
                 &values[std::to_underlying(xenos::Register::SHADER_CONSTANT_000_X) +

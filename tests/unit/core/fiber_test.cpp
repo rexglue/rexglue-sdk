@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/core/fiber_test.cpp
- * @brief       Unit tests for rex::platform::Fiber
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

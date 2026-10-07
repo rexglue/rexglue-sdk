@@ -63,7 +63,7 @@ ThreadRecord::ThreadRecord(Runtime& runtime, uint32_t stack_size, uint32_t xapi_
 }
 
 ThreadRecord::ThreadRecord(Runtime& runtime, uint32_t stack_size, uint32_t creation_flags,
-                           std::function<int()> host_fn)
+                           std::move_only_function<int()> host_fn)
     : ThreadRecord(runtime, stack_size, 0, 0, 0, creation_flags, false) {
   host_fn_ = std::move(host_fn);
 }
@@ -95,9 +95,9 @@ u32 ThreadRecord::ProcessAddress() const {
 }
 
 u8 ThreadRecord::ProcessorFromMask(u8 mask) {
-  assert_false(mask & 0xC0);
+  REX_ASSERT(!(mask & 0xC0));
   const u8 processor = static_cast<u8>(7 - std::countl_zero(mask));
-  assert_true((1u << processor) == mask);
+  REX_ASSERT((1u << processor) == mask);
   return processor;
 }
 
@@ -122,7 +122,7 @@ bool ThreadRecord::IsInThread(const ThreadRecord* other) {
 ThreadRecord* ThreadRecord::GetCurrentThread() {
   ThreadRecord* thread = GetBoundCurrentThread();
   if (!thread) {
-    assert_always("Attempting to use kernel stuff from a non-kernel thread");
+    REX_ASSERT_ALWAYS("Attempting to use kernel stuff from a non-kernel thread");
   }
   return thread;
 }
@@ -313,8 +313,8 @@ X_STATUS ThreadRecord::Create() {
   // Allocate thread state block from heap.
   // https://web.archive.org/web/20170704035330/https://www.microsoft.com/msj/archive/S2CE.aspx
   // This is set as r13 for user code and some special inlined Win32 calls
-  // (like GetLastError/etc) will poke it directly.
-  // We try to use it as our primary store of data just to keep things all
+  // (like GetLastError) will poke it directly.
+  // We try to use it as our primary store of data to keep things all
   // consistent.
   // 0x000: pointer to tls data
   // 0x100: pointer to TEB(?)
@@ -460,7 +460,7 @@ void ThreadRecord::WriteExitState(u32 exit_code) {
 }
 
 X_STATUS ThreadRecord::Exit(int exit_code) {
-  assert_true(ThreadRecord::GetCurrentThread() == this);
+  REX_ASSERT(ThreadRecord::GetCurrentThread() == this);
 
   if (exit_claimed_.exchange(true)) {
     rex::platform::Wait(exit_gate_.get(), false, std::chrono::milliseconds::max());
@@ -646,6 +646,21 @@ void ThreadRecord::EnqueueAPC(uint32_t normal_routine, uint32_t normal_context, 
   thread_->QueueUserCallback([]() {});
 }
 
+namespace {
+
+struct XAPC_DISPATCH_ARGS {
+  be_u32 normal_routine;
+  be_u32 normal_context;
+  be_u32 arg1;
+  be_u32 arg2;
+};
+REX_STATIC_ASSERT_SIZE(XAPC_DISPATCH_ARGS, 0x10);
+static_assert(offsetof(XAPC_DISPATCH_ARGS, normal_context) == 4);
+static_assert(offsetof(XAPC_DISPATCH_ARGS, arg1) == 8);
+static_assert(offsetof(XAPC_DISPATCH_ARGS, arg2) == 12);
+
+}  // namespace
+
 void ThreadRecord::DeliverAPCs() {
   auto mem = memory();
   auto* ctx = thread_state_->context();
@@ -666,11 +681,11 @@ void ThreadRecord::DeliverAPCs() {
 
     kernel::xboxkrnl::KeKfReleaseSpinLock(*memory(), ctx, &kthread->apc_lock, old_irql);
 
-    uint8_t* scratch_ptr = mem->TranslateVirtual(scratch_address_);
-    memory::store_and_swap<uint32_t>(scratch_ptr + 0, apc->normal_routine);
-    memory::store_and_swap<uint32_t>(scratch_ptr + 4, apc->normal_context);
-    memory::store_and_swap<uint32_t>(scratch_ptr + 8, apc->arg1);
-    memory::store_and_swap<uint32_t>(scratch_ptr + 12, apc->arg2);
+    auto* args = mem->TranslateVirtual<XAPC_DISPATCH_ARGS*>(scratch_address_);
+    args->normal_routine = apc->normal_routine;
+    args->normal_context = apc->normal_context;
+    args->arg1 = apc->arg1;
+    args->arg2 = apc->arg2;
 
     if (apc->kernel_routine != XAPC::kDummyKernelRoutine) {
       if (dispatcher->GetFunction(apc->kernel_routine)) {
@@ -680,17 +695,17 @@ void ThreadRecord::DeliverAPCs() {
                                 rex::countof(kernel_args));
       } else {
         REXLOG_ERROR(system, "DeliverAPCs: kernel_routine {:08X} not found",
-                     uint32_t(apc->kernel_routine));
+                     static_cast<uint32_t>(apc->kernel_routine));
       }
     } else {
       mem->SystemHeapFree(apc_ptr);
       needs_freeing = false;
     }
 
-    uint32_t normal_routine = memory::load_and_swap<uint32_t>(scratch_ptr + 0);
-    uint32_t normal_context = memory::load_and_swap<uint32_t>(scratch_ptr + 4);
-    uint32_t arg1 = memory::load_and_swap<uint32_t>(scratch_ptr + 8);
-    uint32_t arg2 = memory::load_and_swap<uint32_t>(scratch_ptr + 12);
+    uint32_t normal_routine = args->normal_routine;
+    uint32_t normal_context = args->normal_context;
+    uint32_t arg1 = args->arg1;
+    uint32_t arg2 = args->arg2;
 
     if (normal_routine) {
       if (dispatcher->GetFunction(normal_routine)) {
@@ -716,7 +731,7 @@ void ThreadRecord::DeliverAPCs() {
 }
 
 void ThreadRecord::RundownAPCs() {
-  assert_true(ThreadRecord::GetCurrentThread() == this);
+  REX_ASSERT(ThreadRecord::GetCurrentThread() == this);
   auto mem = memory();
   auto kthread = guest_object<X_KTHREAD>();
   auto* ctx = thread_state_->context();
@@ -746,7 +761,7 @@ void ThreadRecord::RundownAPCs() {
                               rex::countof(rundown_args));
         } else {
           REXLOG_WARN(system, "RundownAPCs: rundown_routine {:08X} not found",
-                      uint32_t(apc->rundown_routine));
+                      static_cast<uint32_t>(apc->rundown_routine));
         }
       }
 
@@ -823,7 +838,7 @@ uint8_t ThreadRecord::active_cpu() const {
 void ThreadRecord::SetActiveCPU(uint8_t cpu_index) {
   // May be called during thread creation - don't skip if current == new.
 
-  assert_true(cpu_index < 6);
+  REX_ASSERT(cpu_index < 6);
 
   // Write to guest KTHREAD (always available for guest threads).
   if (is_guest_thread()) {
@@ -839,7 +854,7 @@ void ThreadRecord::SetActiveCPU(uint8_t cpu_index) {
 
   if (rex::platform::logical_processor_count() >= 6) {
     if (!REXCVAR_GET(::rex::runtime::cvars::ignore_thread_affinities)) {
-      thread_->set_affinity_mask(uint64_t(1) << cpu_index);
+      thread_->set_affinity_mask(static_cast<uint64_t>(1) << cpu_index);
     }
   } else {
     REXLOG_WARN(system, "Too few processor cores - scheduling will be wonky");
@@ -852,7 +867,7 @@ bool ThreadRecord::GetTLSValue(uint32_t slot, uint32_t* value_out) const {
   }
 
   auto mem = memory()->TranslateVirtual(tls_dynamic_address_ + slot * 4);
-  *value_out = memory::load_and_swap<uint32_t>(mem);
+  *value_out = memory::load<be_u32>(mem);
   return true;
 }
 
@@ -863,7 +878,7 @@ bool ThreadRecord::SetTLSValue(uint32_t slot, uint32_t value) {
   }
 
   auto mem = memory()->TranslateVirtual(tls_dynamic_address_ + slot * 4);
-  memory::store_and_swap<uint32_t>(mem, value);
+  memory::store<be_u32>(mem, value);
   return true;
 }
 

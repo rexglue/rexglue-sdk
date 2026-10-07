@@ -20,6 +20,7 @@
 
 #include <rex/platform/thread.h>
 #include <rex/platform/timer_queue.h>
+#include <rex/types.h>
 
 namespace {
 
@@ -38,10 +39,8 @@ bool WaitFor(Predicate predicate, std::chrono::milliseconds timeout = 2000ms) {
   return true;
 }
 
-struct QueueReset {
+struct QueueReset : public rex::NonCopyable {
   QueueReset() = default;
-  QueueReset(const QueueReset&) = delete;
-  QueueReset& operator=(const QueueReset&) = delete;
   ~QueueReset() { rex::platform::detail::ShutdownTimerQueue(); }
 };
 

@@ -21,28 +21,23 @@ REX_SHIM_FN(lstrlenA, int, const char* s) {
   return s ? static_cast<int>(std::strlen(s)) : 0;
 }
 
-REX_SHIM_FN(lstrcpyA, char*, char* dst, const char* src) {
 #if REX_PLATFORM_WIN32
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
+
+REX_SHIM_FN(lstrcpyA, char*, char* dst, const char* src) {
   return std::strcpy(dst, src);
 }
 
 REX_SHIM_FN(lstrcpynA, char*, char* dst, const char* src, int maxlen) {
   if (maxlen <= 0)
     return dst;
-#if REX_PLATFORM_WIN32
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif
   std::strncpy(dst, src, static_cast<size_t>(maxlen) - 1);
   dst[maxlen - 1] = '\0';
   return dst;
 }
 
 REX_SHIM_FN(lstrcatA, char*, char* dst, const char* src) {
-#if REX_PLATFORM_WIN32
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif
   return std::strcat(dst, src);
 }
 

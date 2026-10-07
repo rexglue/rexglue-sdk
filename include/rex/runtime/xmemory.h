@@ -168,7 +168,7 @@ class REX_RUNTIME_API BaseHeap {
   // Disposes and decommits all memory and clears the page table.
   virtual void Dispose();
 
-  uint32_t total_page_count() const { return uint32_t(page_table_.size()); }
+  uint32_t total_page_count() const { return static_cast<uint32_t>(page_table_.size()); }
   uint32_t unreserved_page_count() const { return unreserved_page_count_; }
   uint32_t reserved_page_count() const { return total_page_count() - unreserved_page_count(); }
 
@@ -218,7 +218,7 @@ class REX_RUNTIME_API BaseHeap {
   // address.
   bool QueryProtect(uint32_t address, uint32_t* out_protect);
 
-  // Queries the currently strictest readability and writability for the entire
+  // Queries the strictest readability and writability for the entire
   // range.
   rex::memory::PageAccess QueryRangeAccess(uint32_t low_address, uint32_t high_address);
 
@@ -303,9 +303,9 @@ class REX_RUNTIME_API BaseHeap {
    */
   bool ProtectLocked(uint32_t address, uint32_t size, uint32_t protect, uint32_t* old_protect);
 
-  // Whether a host page is currently write-watched for guest invalidation.
+  // Whether a host page is write-watched for guest invalidation.
   // SyncHostPageAccess must not restore write access to such a page: the watch
-  // is recorded in a flag that EnableAccessCallbacks checks before re-applying
+  // is stored in a flag that EnableAccessCallbacks checks before re-applying
   // protection, so silently unprotecting here would disable the watch forever.
   // Only PhysicalHeap tracks this; every other heap has no watch state.
   virtual bool IsHostPageWriteWatched(uint32_t host_page_number) const { return false; }
@@ -425,7 +425,7 @@ enum class AccessViolationResult : u8 {
 // The memory is backed by a memory mapped file and is placed at a stable
 // fixed address in the host address space (like 0x100000000). This allows
 // efficient guest<->host address translations as well as easy sharing of the
-// memory across various subsystems.
+// memory across subsystems.
 //
 // The guest memory address space is split into several ranges that have varying
 // properties such as page sizes, caching strategies, protections, and
@@ -526,7 +526,7 @@ class REX_RUNTIME_API Memory {
   //
   // - Invalidation notifications:
   //
-  // Protecting from writing. One-shot callbacks for invalidation of various
+  // Protecting from writing. One-shot callbacks for invalidation of
   // kinds of physical memory caches (such as the GPU copy of the memory).
   //
   // May be triggered for a single page (in case of a write access violation or
@@ -553,7 +553,7 @@ class REX_RUNTIME_API Memory {
   // Returns start and length of the smallest physical memory region surrounding
   // the watched region that can be safely unwatched, if it doesn't matter,
   // return (0, UINT32_MAX).
-  typedef std::pair<uint32_t, uint32_t> (*PhysicalMemoryInvalidationCallback)(
+  using PhysicalMemoryInvalidationCallback = std::pair<uint32_t, uint32_t> (*)(
       void* context_ptr, uint32_t physical_address_start, uint32_t length, bool exact_range);
   // Returns a handle for unregistering or for skipping one notification handler
   // while triggering data providers.
@@ -712,7 +712,7 @@ class REX_RUNTIME_API Memory {
 
   friend class PhysicalHeap;
   rex::platform::RankedMutex watch_mutex_{rex::platform::LockRank::Leaf};
-  std::vector<std::pair<PhysicalMemoryInvalidationCallback, void*>*>
+  std::vector<std::unique_ptr<std::pair<PhysicalMemoryInvalidationCallback, void*>>>
       physical_memory_invalidation_callbacks_;
   std::atomic<u32> title_pages_{0};
   std::atomic<u32> budget_pages_{0};

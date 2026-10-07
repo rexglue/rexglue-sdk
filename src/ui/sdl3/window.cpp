@@ -36,7 +36,7 @@ Window::Window(WindowedAppContext& app_context, const std::string_view title,
 Window::~Window() {
   // In case the implementation didn't need to call EnterDestructor. Though
   // that was likely a mistake, so placing an assertion.
-  assert_true(phase_ == Phase::kDeleting);
+  REX_ASSERT(phase_ == Phase::kDeleting);
   EnterDestructor();
 
   if (presenter_) {
@@ -58,7 +58,7 @@ Window::~Window() {
 }
 
 void Window::AddListener(WindowListener* listener) {
-  assert_not_null(listener);
+  REX_ASSERT(listener != nullptr);
   // Check if already added.
   if (std::find(listeners_.cbegin(), listeners_.cend(), listener) != listeners_.cend()) {
     return;
@@ -67,7 +67,7 @@ void Window::AddListener(WindowListener* listener) {
 }
 
 void Window::RemoveListener(WindowListener* listener) {
-  assert_not_null(listener);
+  REX_ASSERT(listener != nullptr);
   auto it = std::find(listeners_.cbegin(), listeners_.cend(), listener);
   if (it == listeners_.cend()) {
     return;
@@ -75,7 +75,7 @@ void Window::RemoveListener(WindowListener* listener) {
   // Actualize the next listener indices after the erasure from the vector.
   ListenerIterationContext* iteration_context = innermost_listener_iteration_context_;
   if (iteration_context) {
-    size_t existing_index = size_t(std::distance(listeners_.cbegin(), it));
+    size_t existing_index = static_cast<size_t>(std::distance(listeners_.cbegin(), it));
     while (iteration_context) {
       if (iteration_context->next_index > existing_index) {
         --iteration_context->next_index;
@@ -87,7 +87,7 @@ void Window::RemoveListener(WindowListener* listener) {
 }
 
 void Window::AddInputListener(WindowInputListener* listener, size_t z_order) {
-  assert_not_null(listener);
+  REX_ASSERT(listener != nullptr);
   // Check if already added.
   for (auto it_existing = input_listeners_.rbegin(); it_existing != input_listeners_.rend();
        ++it_existing) {
@@ -118,10 +118,10 @@ void Window::AddInputListener(WindowInputListener* listener, size_t z_order) {
     // loop to effectively terminate all outer ones).
   }
   auto it_new = std::prev(std::make_reverse_iterator(input_listeners_.emplace(z_order, listener)));
-  // If adding to layers in between the currently being processed ones (from
+  // If adding to layers in between the ones being processed (from
   // highest to lowest) and the previously next, make sure the new listener is
   // executed too. Execution within one layer, however, happens in the reverse
-  // order of addition, so if adding to the Z layer currently being processed,
+  // order of addition, so if adding to the Z layer being processed,
   // the new listener must not be executed within the loop. But, if adding to
   // the next Z layer after the current one, it must be executed immediately.
   {
@@ -138,7 +138,7 @@ void Window::AddInputListener(WindowInputListener* listener, size_t z_order) {
 }
 
 void Window::RemoveInputListener(WindowInputListener* listener) {
-  assert_not_null(listener);
+  REX_ASSERT(listener != nullptr);
   for (auto it_existing = input_listeners_.rbegin(); it_existing != input_listeners_.rend();
        ++it_existing) {
     if (it_existing->second != listener) {
@@ -168,9 +168,9 @@ bool Window::Open() {
   // defaults for a closed window.
   // Note that this is performed in Open, not after closing, because there's
   // only one entry point for opening a window, while closing may be done
-  // different ways - by actually closing, by destroying, or by failing to call
+  // different ways - by closing, by destroying, or by failing to call
   // OpenImpl - instead of performing this reset in every possible close case,
-  // just returning these defaults from the actual state getters if
+  // returning these defaults from the actual state getters if
   // HasActualState is false.
   actual_physical_width_ = 0;
   actual_physical_height_ = 0;
@@ -189,7 +189,7 @@ bool Window::Open() {
 
   // Call the listeners (OnOpened with all the new state so the listeners are
   // aware that they can start interacting with the open Window, and after that,
-  // in case certain listeners don't handle OnOpened, but rather, only need the
+  // in case some listeners don't handle OnOpened, but rather, only need the
   // more granular callbacks, make sure those callbacks receive the new state
   // too) for the actual state of the new window (that may be different than the
   // desired, depending on how the platform has interpreted the desired state).
@@ -302,8 +302,8 @@ void Window::ResolveConfiguredLogicalSize(uint32_t& width_out, uint32_t& height_
   if (configured_width <= 0 || configured_height <= 0) {
     detail::ResolveConfiguredSize(configured_width, configured_height);
   }
-  width_out = uint32_t(std::clamp(configured_width, 1, 8192));
-  height_out = uint32_t(std::clamp(configured_height, 1, 8192));
+  width_out = static_cast<uint32_t>(std::clamp(configured_width, 1, 8192));
+  height_out = static_cast<uint32_t>(std::clamp(configured_height, 1, 8192));
 }
 
 void Window::SetTitle(const std::string_view new_title) {
@@ -336,7 +336,7 @@ void Window::CaptureMouse() {
 }
 
 void Window::ReleaseMouse() {
-  assert_not_zero(mouse_capture_request_count_);
+  REX_ASSERT(mouse_capture_request_count_ != 0);
   if (!mouse_capture_request_count_) {
     return;
   }
@@ -452,7 +452,7 @@ void Window::OnBeforeClose(WindowDestructionReceiver& destruction_receiver) {
 
   bool was_open = phase_ == Phase::kOpen;
   bool was_open_or_opening = was_open || phase_ == Phase::kOpening;
-  assert_true(was_open_or_opening);
+  REX_ASSERT(was_open_or_opening);
   if (!was_open_or_opening) {
     return;
   }
@@ -463,7 +463,7 @@ void Window::OnBeforeClose(WindowDestructionReceiver& destruction_receiver) {
     // If the window was focused, notify the listeners that focus is being lost
     // because the window is being closed (the implementation usually wouldn't
     // be sending any events to the listeners after OnClosing even if the OS
-    // actually sends the focus loss event as part of the closing process).
+    // sends the focus loss event as part of the closing process).
     OnFocusUpdate(false, destruction_receiver);
     if (destruction_receiver.IsWindowDestroyed()) {
       return;
@@ -486,7 +486,7 @@ void Window::OnBeforeClose(WindowDestructionReceiver& destruction_receiver) {
 }
 
 void Window::OnAfterClose() {
-  assert_true(phase_ == Phase::kClosing);
+  REX_ASSERT(phase_ == Phase::kClosing);
   if (phase_ != Phase::kClosing) {
     return;
   }
@@ -694,8 +694,8 @@ void Window::OnTouchEvent(TouchEvent& e, WindowDestructionReceiver& destruction_
   }
 }
 
-void Window::SendEventToListeners(std::function<void(WindowListener*)> fn,
-                                  WindowDestructionReceiver& destruction_receiver) {
+template <std::invocable<WindowListener*> F>
+void Window::SendEventToListeners(F&& fn, WindowDestructionReceiver& destruction_receiver) {
   if (!CanSendEventsToListeners()) {
     return;
   }
@@ -719,7 +719,7 @@ void Window::SendEventToListeners(std::function<void(WindowListener*)> fn,
       break;
     }
   }
-  assert_true(innermost_listener_iteration_context_ == &iteration_context);
+  REX_ASSERT(innermost_listener_iteration_context_ == &iteration_context);
   innermost_listener_iteration_context_ = innermost_listener_iteration_context_->outer_context;
   if (phase_ == Phase::kClosedLeavingListeners && !innermost_listener_iteration_context_ &&
       !innermost_input_listener_iteration_context_) {
@@ -727,7 +727,8 @@ void Window::SendEventToListeners(std::function<void(WindowListener*)> fn,
   }
 }
 
-void Window::PropagateEventThroughInputListeners(std::function<bool(WindowInputListener*)> fn,
+template <std::predicate<WindowInputListener*> F>
+void Window::PropagateEventThroughInputListeners(F&& fn,
                                                  WindowDestructionReceiver& destruction_receiver) {
   if (!CanSendEventsToListeners()) {
     return;
@@ -758,7 +759,7 @@ void Window::PropagateEventThroughInputListeners(std::function<bool(WindowInputL
       break;
     }
   }
-  assert_true(innermost_input_listener_iteration_context_ == &iteration_context);
+  REX_ASSERT(innermost_input_listener_iteration_context_ == &iteration_context);
   innermost_input_listener_iteration_context_ =
       innermost_input_listener_iteration_context_->outer_context;
   if (phase_ == Phase::kClosedLeavingListeners && !innermost_listener_iteration_context_ &&

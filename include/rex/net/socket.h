@@ -1,6 +1,5 @@
 /**
  * @file        net/socket.h
- * @brief       Platform-agnostic socket operations
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

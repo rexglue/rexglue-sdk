@@ -29,9 +29,9 @@ namespace rex::hid {
 class HIDModuleBase : public IModule {
  public:
   std::span<const char* const> RequiredInterfaces() const override;
-  Result<void> Connect(IInterfaceFactory* factory, const Config& config) override;
+  [[nodiscard]] Result<void> Connect(IInterfaceFactory* factory, const Config& config) override;
   void Disconnect() override;
-  Result<void> Init() override;
+  [[nodiscard]] Result<void> Init() override;
   void Shutdown() override;
 
   /**
@@ -48,7 +48,8 @@ class HIDModuleBase : public IModule {
    * @param config The hid config slice.
    * @return The driver, or the reason it is unavailable.
    */
-  virtual Result<std::unique_ptr<Driver>> CreatePadDriver(const HIDConfig& config) = 0;
+  [[nodiscard]] virtual Result<std::unique_ptr<Driver>> CreatePadDriver(
+      const HIDConfig& config) = 0;
 
  private:
   cvar::ICvarRegistry* cvars_ = nullptr;

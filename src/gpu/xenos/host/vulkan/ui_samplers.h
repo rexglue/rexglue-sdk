@@ -14,6 +14,7 @@
 #include <memory>
 
 #include "gpu/xenos/host/vulkan/device.h"
+#include <rex/types.h>
 
 namespace rex {
 namespace gpu {
@@ -24,14 +25,13 @@ namespace vulkan {
 /// GPUs primarily), no other samplers must be created for UI purposes.
 /// The rest of the sampler allocation space on the device must be available to
 /// GPU emulation.
-class UISamplers {
- public:
-  static std::unique_ptr<UISamplers> Create(const VulkanDevice* vulkan_device);
+class UISamplers : public rex::NonCopyable {
+  struct Key {};
 
-  UISamplers(const UISamplers&) = delete;
-  UISamplers& operator=(const UISamplers&) = delete;
-  UISamplers(UISamplers&&) = delete;
-  UISamplers& operator=(UISamplers&&) = delete;
+ public:
+  explicit UISamplers(Key, const VulkanDevice* vulkan_device);
+
+  static std::unique_ptr<UISamplers> Create(const VulkanDevice* vulkan_device);
 
   ~UISamplers();
 
@@ -47,8 +47,6 @@ class UISamplers {
   const std::array<VkSampler, kSamplerCount>& samplers() const { return samplers_; }
 
  private:
-  explicit UISamplers(const VulkanDevice* vulkan_device);
-
   const VulkanDevice* vulkan_device_;
 
   std::array<VkSampler, kSamplerCount> samplers_;

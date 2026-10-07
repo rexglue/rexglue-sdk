@@ -34,7 +34,6 @@
 #include <ppc.h>
 
 using rex::codegen::ppc::Disassemble;
-using rex::memory::load_and_swap;
 
 namespace rex::codegen {
 
@@ -353,7 +352,7 @@ bool IsSwitchPattern(const u32* data) {
   constexpr u32 kMoveToCtr = 0x7C0003A6;
   constexpr u32 kNop = 0x60000000;
   for (i32 back = 1; back <= 3; ++back) {
-    const u32 previous = load_and_swap<u32>(data - back);
+    const u32 previous = memory::load<be_u32>(data - back);
     if ((previous & kMoveToCtrMask) == kMoveToCtr) {
       return true;
     }
@@ -479,7 +478,7 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
 
     for (size_t addr = block.base; addr < block.end(); addr += 4) {
       const uint32_t instruction =
-          load_and_swap<uint32_t>((const uint8_t*)blockData + addr - block.base);
+          memory::load<be_u32>(reinterpret_cast<const uint8_t*>(blockData) + addr - block.base);
       if (!PPC_BL(instruction)) {
         const size_t op = PPC_OP(instruction);
         if (op == PPC_OP_B)
@@ -763,7 +762,7 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
 }
 
 void FunctionGraph::addCodeBuffer(uint32_t baseAddress, const uint8_t* data, size_t size) {
-  assert_always("FunctionGraph::addCodeBuffer not implemented. Use Recompiler with builders");
+  REX_ASSERT_ALWAYS("FunctionGraph::addCodeBuffer not implemented. Use Recompiler with builders");
   // CodeBuffer buffer;
   // buffer.baseAddress = baseAddress;
   // buffer.data.assign(data, data + size);
@@ -773,7 +772,7 @@ void FunctionGraph::addCodeBuffer(uint32_t baseAddress, const uint8_t* data, siz
 }
 
 const uint8_t* FunctionGraph::translateCode(uint32_t addr) const {
-  assert_always("FunctionGraph::translateCode not implemented. Use Recompiler with builders");
+  REX_ASSERT_ALWAYS("FunctionGraph::translateCode not implemented. Use Recompiler with builders");
   return nullptr;
   // for (const auto& buffer : codeBuffers_) {
   //     if (buffer.contains(addr)) {
@@ -781,20 +780,6 @@ const uint8_t* FunctionGraph::translateCode(uint32_t addr) const {
   //     }
   // }
   // return nullptr;
-}
-
-void FunctionGraph::updateFunctionCodePointers() {
-  // size_t updated = 0;
-  // for (auto& [base, node] : functions_) {
-  //     const uint8_t* code = translateCode(base);
-  //     if (code) {
-  //         node->setCode(code);
-  //         updated++;
-  //     } else {
-  //         REXLOG_WARN(codegen, "FunctionGraph: no code buffer for function 0x{:08X}", base);
-  //     }
-  // }
-  // REXLOG_DEBUG(codegen, "FunctionGraph: updated code pointers for {} functions", updated);
 }
 
 //=============================================================================

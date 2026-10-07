@@ -41,7 +41,7 @@ u32 RtlCompareMemory_entry(mapped_void source1, mapped_void source2, u32 length)
   uint8_t* p2 = source2;
 
   // Note that the return value is the number of bytes that match, so it's best
-  // we just do this ourselves vs. using memcmp.
+  // we do this ourselves vs. using memcmp.
   // On Windows we could use the builtin function.
 
   uint32_t c = 0;
@@ -76,13 +76,7 @@ u32 RtlCompareMemoryUlong_entry(mapped_void source, u32 length, u32 pattern) {
 // https://msdn.microsoft.com/en-us/library/ff552263
 void RtlFillMemoryUlong_entry(mapped_void destination, u32 length, u32 pattern) {
   // NOTE: length must be % 4, so we can work on uint32s.
-  uint32_t count = length >> 2;
-
-  uint32_t* p = destination.as<uint32_t*>();
-  uint32_t swapped_pattern = rex::byte_swap(pattern);
-  for (uint32_t n = 0; n < count; n++, p++) {
-    *p = swapped_pattern;
-  }
+  std::fill_n(destination.as<be_u32*>(), length >> 2, pattern);
 }
 
 u32 RtlUpperChar_entry(u32 in) {
@@ -116,10 +110,10 @@ u32 RtlCompareStringN_entry(mapped_string string_1, u32 string_1_len, mapped_str
   uint32_t len2 = string_2_len;
 
   if (string_1_len == 0xFFFF) {
-    len1 = uint32_t(std::strlen(string_1));
+    len1 = static_cast<uint32_t>(std::strlen(string_1));
   }
   if (string_2_len == 0xFFFF) {
-    len2 = uint32_t(std::strlen(string_2));
+    len2 = static_cast<uint32_t>(std::strlen(string_2));
   }
   auto len = std::min(string_1_len, string_2_len);
 
@@ -136,7 +130,7 @@ void RtlInitAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> destination, mapped_string
                "str={}",
                source ? source.value() : "(null)");
   if (source) {
-    uint16_t length = (uint16_t)strlen(source);
+    uint16_t length = static_cast<uint16_t>(strlen(source));
     destination->length = length;
     destination->maximum_length = length + 1;
   } else {
@@ -158,8 +152,8 @@ void RtlFreeAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> string) {
 // https://msdn.microsoft.com/en-us/library/ff561934
 void RtlInitUnicodeString_entry(ppc_ptr_t<X_UNICODE_STRING> destination, mapped_wstring source) {
   if (source) {
-    destination->length = (uint16_t)source.value().size() * 2;
-    destination->maximum_length = (uint16_t)(source.value().size() + 1) * 2;
+    destination->length = static_cast<uint16_t>(source.value().size()) * 2;
+    destination->maximum_length = static_cast<uint16_t>(source.value().size() + 1) * 2;
     destination->pointer = source.guest_address();
   } else {
     destination->reset();
@@ -224,7 +218,7 @@ u32 RtlUnicodeStringToAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> destination_ptr,
   X_STATUS result = X_STATUS_SUCCESS;
   if (alloc_dest) {
     uint32_t buffer_ptr =
-        runtime::Current().memory()->SystemHeapAlloc(uint32_t(ansi_str.size() + 1));
+        runtime::Current().memory()->SystemHeapAlloc(static_cast<uint32_t>(ansi_str.size() + 1));
 
     memcpy(runtime::Current().memory()->TranslateVirtual(buffer_ptr), ansi_str.data(),
            ansi_str.size() + 1);
@@ -235,7 +229,7 @@ u32 RtlUnicodeStringToAnsiString_entry(ppc_ptr_t<X_ANSI_STRING> destination_ptr,
     uint32_t buffer_capacity = destination_ptr->maximum_length;
     auto buffer_ptr = runtime::Current().memory()->TranslateVirtual(destination_ptr->pointer);
     if (buffer_capacity < ansi_str.size() + 1) {
-      // Too large - we just write what we can.
+      // Too large - we write what we can.
       result = X_STATUS_BUFFER_OVERFLOW;
       memcpy(buffer_ptr, ansi_str.data(), buffer_capacity - 1);
     } else {
@@ -276,7 +270,7 @@ u32 RtlUnicodeToMultiByteN_entry(ppc_ptr_t<uint8_t> destination_ptr, u32 destina
   // TODO(benvanik): maybe use UnicodeToMultiByte on Win32?
   for (uint32_t i = 0; i < copy_len; i++) {
     uint16_t c = source_ptr[i];
-    destination_ptr[i] = c < 256 ? (uint8_t)c : '?';
+    destination_ptr[i] = c < 256 ? static_cast<uint8_t>(c) : '?';
   }
 
   if (written_ptr.guest_address() != 0) {
@@ -319,8 +313,8 @@ u32 RtlImageXexHeaderField_entry(ppc_ptr_t<xex2_header> xex_header, u32 field_dw
 }
 
 // Unfortunately the Windows RTL_CRITICAL_SECTION object is bigger than the one
-// on the 360 (32b vs. 28b). This means that we can't do in-place splatting of
-// the critical sections. Also, the 360 never calls RtlDeleteCriticalSection
+// on the console (32b vs. 28b). This means that we can't do in-place splatting of
+// the critical sections. Also, the console never calls RtlDeleteCriticalSection
 // so we can't clean up the native handles.
 //
 // Because of this, we reimplement it poorly. Hooray.
@@ -333,18 +327,18 @@ u32 RtlImageXexHeaderField_entry(ppc_ptr_t<xex2_header> xex_header, u32 field_dw
 // Ref:
 // https://github.com/reactos/reactos/blob/master/sdk/lib/rtl/critical.c
 
-// This structure tries to match the one on the 360 as best I can figure out.
+// This structure tries to match the one on the console as best I can figure out.
 // Unfortunately some games have the critical sections pre-initialized in
 // their embedded data and InitializeCriticalSection will never be called.
 #pragma pack(push, 1)
 struct X_RTL_CRITICAL_SECTION {
   X_DISPATCH_HEADER header;
-  int32_t lock_count;                // 0x10 -1 -> 0 on first lock
-  rex::be<int32_t> recursion_count;  // 0x14  0 -> 1 on first lock
-  rex::be<uint32_t> owning_thread;   // 0x18 PKTHREAD 0 unless locked
+  int32_t lock_count;      // 0x10 -1 -> 0 on first lock
+  be_i32 recursion_count;  // 0x14  0 -> 1 on first lock
+  be_u32 owning_thread;    // 0x18 PKTHREAD 0 unless locked
 };
 #pragma pack(pop)
-static_assert_size(X_RTL_CRITICAL_SECTION, 28);
+REX_STATIC_ASSERT_SIZE(X_RTL_CRITICAL_SECTION, 28);
 
 void RtlInitializeCriticalSection(X_RTL_CRITICAL_SECTION* cs, uint32_t cs_ptr) {
   cs->header.type = 1;      // EventSynchronizationObject (auto reset)
@@ -413,7 +407,7 @@ void RtlEnterCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
     KeWaitForSingleObject(cs.guest_address(), 8, 0, 0, nullptr);
   }
 
-  assert_true(cs->owning_thread == 0);
+  REX_ASSERT(cs->owning_thread == 0);
   cs->owning_thread = cur_thread;
   cs->recursion_count = 1;
 }
@@ -438,12 +432,12 @@ u32 RtlTryEnterCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
 }
 
 void RtlLeaveCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
-  assert_true(cs->owning_thread == ThreadRecord::GetCurrentThread()->guest_object());
+  REX_ASSERT(cs->owning_thread == ThreadRecord::GetCurrentThread()->guest_object());
 
   // Drop recursion count - if it isn't zero we still have the lock.
-  assert_true(cs->recursion_count > 0);
+  REX_ASSERT(cs->recursion_count > 0);
   if (--cs->recursion_count != 0) {
-    assert_true(cs->recursion_count >= 0);
+    REX_ASSERT(cs->recursion_count >= 0);
 
     rex::platform::atomic_dec(&cs->lock_count);
     return;
@@ -458,20 +452,20 @@ void RtlLeaveCriticalSection_entry(ppc_ptr_t<X_RTL_CRITICAL_SECTION> cs) {
 }
 
 struct X_TIME_FIELDS {
-  rex::be<uint16_t> year;
-  rex::be<uint16_t> month;
-  rex::be<uint16_t> day;
-  rex::be<uint16_t> hour;
-  rex::be<uint16_t> minute;
-  rex::be<uint16_t> second;
-  rex::be<uint16_t> milliseconds;
-  rex::be<uint16_t> weekday;
+  be_u16 year;
+  be_u16 month;
+  be_u16 day;
+  be_u16 hour;
+  be_u16 minute;
+  be_u16 second;
+  be_u16 milliseconds;
+  be_u16 weekday;
 };
-static_assert_size(X_TIME_FIELDS, 16);
+REX_STATIC_ASSERT_SIZE(X_TIME_FIELDS, 16);
 
 // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtltimetotimefields
 void RtlTimeToTimeFields_entry(mapped_u64 time_ptr, ppc_ptr_t<X_TIME_FIELDS> time_fields_ptr) {
-  // Use host clock because we don't want scaling to be applied, just conversion
+  // Use host clock because we don't want scaling to be applied, only conversion
   using rex::WinSystemClock;
   auto tp = WinSystemClock::to_sys(WinSystemClock::from_file_time(time_ptr.value()));
   auto dp = std::chrono::floor<std::chrono::days>(tp);

@@ -1,6 +1,5 @@
 /**
  * @file        tests/filesystem/host_file_test.cpp
- * @brief       Tests for the host file handle access modes
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

@@ -30,7 +30,7 @@ X_STATUS ExGetXConfigSetting(uint16_t category, uint16_t setting, void* buffer,
   uint16_t setting_size = 0;
   alignas(uint32_t) uint8_t value[4];
 
-  // TODO(benvanik): have real structs here that just get copied from.
+  // TODO(benvanik): have real structs here that get copied from.
   // https://free60project.github.io/wiki/XConfig.html
   // https://github.com/oukiar/freestyledash/blob/master/Freestyle/Tools/Generic/ExConfig.h
   switch (category) {
@@ -39,7 +39,7 @@ X_STATUS ExGetXConfigSetting(uint16_t category, uint16_t setting, void* buffer,
       switch (setting) {
         case 0x0002:  // XCONFIG_SECURED_AV_REGION
           setting_size = 4;
-          memory::store_and_swap<uint32_t>(value, 0x00001000);  // USA/Canada
+          memory::store<be_u32>(value, 0x00001000);  // USA/Canada
           break;
         default:
           REX_KERNEL_STUB("XConfig SECURED setting 0x{:04X}", setting);
@@ -58,24 +58,23 @@ X_STATUS ExGetXConfigSetting(uint16_t category, uint16_t setting, void* buffer,
         case 0x0007:  // XCONFIG_USER_TIME_ZONE_DLT_BIAS
           setting_size = 4;
           // TODO(benvanik): get this value.
-          memory::store_and_swap<uint32_t>(value, 0);
+          memory::store<be_u32>(value, 0);
           break;
         case 0x0009:  // XCONFIG_USER_LANGUAGE
           setting_size = 4;
-          memory::store_and_swap<uint32_t>(
-              value, runtime::Current().config().runtime.kernel.user_language);
+          memory::store<be_u32>(value, runtime::Current().config().runtime.kernel.user_language);
           break;
         case 0x000A:  // XCONFIG_USER_VIDEO_FLAGS
           setting_size = 4;
-          memory::store_and_swap<uint32_t>(value, 0x00040000);
+          memory::store<be_u32>(value, 0x00040000);
           break;
         case 0x000B:  // XCONFIG_USER_AUDIO_FLAGS
           setting_size = 4;
-          memory::store_and_swap<uint32_t>(value, 0x00010001);
+          memory::store<be_u32>(value, 0x00010001);
           break;
         case 0x000C:  // XCONFIG_USER_RETAIL_FLAGS
           setting_size = 4;
-          memory::store_and_swap<uint32_t>(value, 0x40);
+          memory::store<be_u32>(value, 0x40);
           break;
         case 0x000E:  // XCONFIG_USER_COUNTRY
           setting_size = 1;

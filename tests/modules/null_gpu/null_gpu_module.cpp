@@ -40,7 +40,7 @@ class NullContext final : public rex::gpu::OverlayDrawContext {
 
 class NullDrawer final : public rex::gpu::IOverlayDrawer {
  public:
-  rex::Result<std::unique_ptr<rex::gpu::OverlayTexture>> CreateTexture(
+  [[nodiscard]] rex::Result<std::unique_ptr<rex::gpu::OverlayTexture>> CreateTexture(
       rex::u32 width, rex::u32 height, rex::gpu::OverlayTextureFilter, bool,
       std::span<const rex::u8>) override {
     if (g_fail_textures > 0) {
@@ -106,27 +106,28 @@ class NullGPUModule final : public rex::IModule, public rex::gpu::IBackend {
 
   const char* Name() const override { return kName; }
   std::span<const char* const> RequiredInterfaces() const override { return {}; }
-  rex::Result<void> Connect(rex::IInterfaceFactory*, const rex::Config&) override {
+  [[nodiscard]] rex::Result<void> Connect(rex::IInterfaceFactory*, const rex::Config&) override {
     return rex::Ok();
   }
   void Disconnect() override {}
-  rex::Result<void> Init() override { return rex::Ok(); }
+  [[nodiscard]] rex::Result<void> Init() override { return rex::Ok(); }
   void Shutdown() override { presenter_.reset(); }
 
-  rex::Result<void> SetupPresentation(rex::gpu::IUIThread& ui_thread) override {
+  [[nodiscard]] rex::Result<void> SetupPresentation(rex::gpu::IUIThread& ui_thread) override {
     ui_thread.RunSynchronous([this] { presenter_ = std::make_unique<NullPresenter>(); });
     return rex::Ok();
   }
-  rex::Result<void> SetupGuestGPU(rex::runtime::FunctionDispatcher&, rex::Runtime&) override {
+  [[nodiscard]] rex::Result<void> SetupGuestGPU(rex::runtime::FunctionDispatcher&,
+                                                rex::Runtime&) override {
     return rex::Ok();
   }
   bool has_presentation() const override { return presenter_ != nullptr; }
   rex::gpu::IPresenter* presenter() const override { return presenter_.get(); }
-  rex::Result<std::unique_ptr<rex::gpu::IPresenter>> CreatePresenter() override {
+  [[nodiscard]] rex::Result<std::unique_ptr<rex::gpu::IPresenter>> CreatePresenter() override {
     Record(kName, "create_presenter");
     return std::unique_ptr<rex::gpu::IPresenter>(std::make_unique<NullPresenter>());
   }
-  rex::Result<std::unique_ptr<rex::gpu::IOverlayDrawer>> CreateOverlayDrawer(
+  [[nodiscard]] rex::Result<std::unique_ptr<rex::gpu::IOverlayDrawer>> CreateOverlayDrawer(
       rex::gpu::IPresenter&) override {
     Record(kName, "create_drawer");
     return std::unique_ptr<rex::gpu::IOverlayDrawer>(std::make_unique<NullDrawer>());
@@ -134,7 +135,8 @@ class NullGPUModule final : public rex::IModule, public rex::gpu::IBackend {
   void SetInterruptCallback(rex::u32, rex::u32) override {}
   void InitializeRingBuffer(rex::u32, rex::u32) override {}
   void EnableReadPointerWriteBack(rex::u32, rex::u32) override {}
-  rex::Result<void> InitializeShaderStorage(const std::filesystem::path&, rex::u32, bool) override {
+  [[nodiscard]] rex::Result<void> InitializeShaderStorage(const std::filesystem::path&, rex::u32,
+                                                          bool) override {
     return rex::Ok();
   }
 

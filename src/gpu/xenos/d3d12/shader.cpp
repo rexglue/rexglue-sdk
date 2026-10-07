@@ -37,7 +37,7 @@ void D3D12Shader::D3D12Translation::DisassembleDxbcAndDxil(
             translated_binary().data(), translated_binary().size(),
             D3D_DISASM_ENABLE_INSTRUCTION_NUMBERING | D3D_DISASM_ENABLE_INSTRUCTION_OFFSET, nullptr,
             &dxbc_disassembly))) {
-      assert_true(is_first_disassembly);
+      REX_ASSERT(is_first_disassembly);
       is_first_disassembly = false;
       disassembly.append(reinterpret_cast<const char*>(dxbc_disassembly->GetBufferPointer()));
       dxbc_disassembly->Release();
@@ -91,8 +91,8 @@ void D3D12Shader::D3D12Translation::DisassembleDxbcAndDxil(
   set_host_disassembly(std::move(disassembly));
 }
 
-Shader::Translation* D3D12Shader::CreateTranslationInstance(uint64_t modification) {
-  return new D3D12Translation(*this, modification);
+std::unique_ptr<Shader::Translation> D3D12Shader::CreateTranslationInstance(uint64_t modification) {
+  return std::make_unique<D3D12Translation>(*this, modification);
 }
 
 }  // namespace rex::gpu::d3d12

@@ -1,6 +1,5 @@
 /**
  * @file        platform.h
- * @brief       Target platform, compiler and architecture detection
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -162,6 +161,15 @@
 #endif
 
 namespace rex::platform {
+
+/** True when the host is Windows. */
+inline constexpr bool kWindows = REX_PLATFORM_WIN32;
+/** True when the host is Linux. */
+inline constexpr bool kLinux = REX_PLATFORM_LINUX;
+/** True when the host is macOS. */
+inline constexpr bool kMac = REX_PLATFORM_MAC;
+/** True when the host is Linux or macOS. */
+inline constexpr bool kPosix = kLinux || kMac;
 
 #if REX_PLATFORM_WIN32
 /** Native path separator of the host. */

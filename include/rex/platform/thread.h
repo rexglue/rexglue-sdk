@@ -1,6 +1,5 @@
 /**
  * @file        platform/thread.h
- * @brief       Host threads, wait handles and synchronization primitives
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -63,14 +62,14 @@ class Fence {
   /** Blocks until the fence is signaled. The last waiter to return clears the signal. */
   void Wait() {
     std::unique_lock<std::mutex> lock(mutex_);
-    assert_true((signal_state_.load() & ~SIGMASK_) < (SIGMASK_ - 1) && "Too many threads?");
+    REX_ASSERT((signal_state_.load() & ~SIGMASK_) < (SIGMASK_ - 1) && "Too many threads?");
 
     auto signal_state = signal_state_.fetch_add(1) + 1;
     for (; !(signal_state & SIGMASK_); signal_state = signal_state_.load()) {
       cond_.wait(lock);
     }
 
-    assert_true((signal_state & ~SIGMASK_) > 0);
+    REX_ASSERT((signal_state & ~SIGMASK_) > 0);
     if (signal_state == (1 | SIGMASK_)) {
       signal_state_.store(0, std::memory_order_release);
     } else {
@@ -232,19 +231,23 @@ REX_API bool SetTLSValue(TLSHandle handle, uintptr_t value);
  * on that thread, so keep them short. Destruction cancels the timer.
  */
 class HighResolutionTimer {
+  /** Limits construction to the Create functions. */
+  struct Key {};
+
+ public:
   /**
    * Starts the timer.
    *
+   * @param key The private construction key.
    * @param interval Period.
    * @param callback Function called each period.
    */
-  HighResolutionTimer(std::chrono::milliseconds interval, std::function<void()> callback) {
-    assert_not_null(callback);
+  HighResolutionTimer(Key, std::chrono::milliseconds interval, std::function<void()> callback) {
+    REX_ASSERT(callback != nullptr);
     wait_item_ = QueueTimerRecurring([callback = std::move(callback)](void*) { callback(); },
                                      nullptr, TimerQueueWaitItem::clock::now(), interval);
   }
 
- public:
   ~HighResolutionTimer() {
     if (auto wait_item = wait_item_.lock()) {
       wait_item->Disarm();
@@ -260,8 +263,7 @@ class HighResolutionTimer {
    */
   static std::unique_ptr<HighResolutionTimer> CreateRepeating(std::chrono::milliseconds period,
                                                               std::function<void()> callback) {
-    return std::unique_ptr<HighResolutionTimer>(
-        new HighResolutionTimer(period, std::move(callback)));
+    return std::make_unique<HighResolutionTimer>(Key{}, period, std::move(callback));
   }
 
  private:
@@ -603,7 +605,7 @@ class REX_API Thread : public WaitHandle {
    * @return The thread, or null on failure.
    */
   static std::unique_ptr<Thread> Create(CreationParameters params,
-                                        std::function<void()> start_routine);
+                                        std::move_only_function<void()> start_routine);
   /**
    * Returns the Thread object of the calling thread, wrapping threads that Create did not start.
    *
@@ -674,7 +676,7 @@ class REX_API Thread : public WaitHandle {
    *
    * @param callback Function to run on the thread.
    */
-  virtual void QueueUserCallback(std::function<void()> callback) = 0;
+  virtual void QueueUserCallback(std::move_only_function<void()> callback) = 0;
 
   /**
    * Decrements the suspend count. The thread runs again when it reaches 0.

@@ -470,7 +470,7 @@ X_STATUS SetupWithBudget(u32 megabytes, u32* out_budget_pages) {
   config.runtime.title_memory_mb = megabytes;
   auto api = rex::Init(config);
   REQUIRE(api);
-  X_STATUS status = X_STATUS_UNSUCCESSFUL;
+  X_STATUS status = rex::X_STATUS_UNSUCCESSFUL;
   {
     rex::Runtime runtime((*api)->config());
     rex::RuntimeConfig setup;
@@ -478,7 +478,7 @@ X_STATUS SetupWithBudget(u32 megabytes, u32* out_budget_pages) {
     setup.kernel_init = rex::kernel::InitializeKernel;
     setup.tool_mode = true;
     const rex::Result<void> result = runtime.Setup(setup);
-    status = result ? X_STATUS_SUCCESS : rex::runtime::ToXStatus(result.error());
+    status = result ? rex::X_STATUS_SUCCESS : rex::runtime::ToXStatus(result.error());
     *out_budget_pages = result ? runtime.memory()->budget_pages() : 0;
     runtime.Shutdown();
   }
@@ -490,10 +490,10 @@ X_STATUS SetupWithBudget(u32 megabytes, u32* out_budget_pages) {
 
 TEST_CASE("Setup rejects a title memory budget above 512 MB", "[memory][budget][runtime]") {
   u32 budget_pages = 1;
-  CHECK(SetupWithBudget(513, &budget_pages) == X_STATUS_INVALID_PARAMETER);
-  CHECK(SetupWithBudget(512, &budget_pages) == X_STATUS_SUCCESS);
+  CHECK(SetupWithBudget(513, &budget_pages) == rex::X_STATUS_INVALID_PARAMETER);
+  CHECK(SetupWithBudget(512, &budget_pages) == rex::X_STATUS_SUCCESS);
   CHECK(budget_pages == 512 * 256);
-  CHECK(SetupWithBudget(0, &budget_pages) == X_STATUS_SUCCESS);
+  CHECK(SetupWithBudget(0, &budget_pages) == rex::X_STATUS_SUCCESS);
   CHECK(budget_pages == 0);
 }
 

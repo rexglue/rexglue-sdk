@@ -76,7 +76,7 @@ void ImGuiDrawer::AddDialog(ImGuiDialog& dialog) {
 }
 
 void ImGuiDrawer::AddDialog(std::unique_ptr<ImGuiDialog> dialog) {
-  assert_not_null(dialog.get());
+  REX_ASSERT(dialog.get() != nullptr);
   ImGuiDialog& added = *dialog;
   if (added.Attached()) {
     return;
@@ -92,7 +92,7 @@ ImGuiStyle& ImGuiDrawer::imgui_style() {
 }
 
 void ImGuiDrawer::DestroyDialogs() {
-  assert_true(!IsDrawingDialogs());
+  REX_ASSERT(!IsDrawingDialogs());
   std::vector<std::unique_ptr<ImGuiDialog>> doomed = std::move(owned_);
   owned_.clear();
   while (!dialogs_.empty()) {
@@ -114,7 +114,7 @@ void ImGuiDrawer::PublishDialogCount() {
 }
 
 void ImGuiDrawer::DestroyOwnedDialogs() {
-  assert_true(!IsDrawingDialogs());
+  REX_ASSERT(!IsDrawingDialogs());
   std::vector<std::unique_ptr<ImGuiDialog>> doomed = std::move(owned_);
   owned_.clear();
   for (const std::unique_ptr<ImGuiDialog>& dialog : doomed) {
@@ -171,7 +171,7 @@ void ImGuiDrawer::Initialize() {
     return clipboard.c_str();
   };
 
-  // TODO(gibbed): disable imgui.ini saving for now,
+  // TODO(gibbed): disable imgui.ini saving,
   // imgui assumes paths are char* so we can't throw a good path at it on
   // Windows.
   io.IniFilename = nullptr;
@@ -190,7 +190,7 @@ void ImGuiDrawer::Initialize() {
 
 #if REX_PLATFORM_WIN32
   // TODO(benvanik): jp font on other platforms?
-  // https://github.com/Koruri/kibitaki looks really good, but is 1.5MiB.
+  // https://github.com/Koruri/kibitaki looks good, but is 1.5MiB.
   const char* jp_font_path = "C:\\Windows\\Fonts\\msgothic.ttc";
   if (std::filesystem::exists(jp_font_path)) {
     ImFontConfig jp_font_config;
@@ -209,7 +209,7 @@ void ImGuiDrawer::Initialize() {
     font_setup_(io.Fonts);
   }
 
-  frame_time_tick_frequency_ = double(rex::Clock::QueryHostTickFrequency());
+  frame_time_tick_frequency_ = static_cast<double>(rex::Clock::QueryHostTickFrequency());
   last_frame_time_ticks_ = rex::Clock::QueryHostTickCount();
 
   touch_pointer_id_ = TouchEvent::kPointerIDNone;
@@ -340,8 +340,8 @@ void ImGuiDrawer::SetupFontTexture() {
   int height;
   io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
   auto texture = overlay_drawer_->CreateTexture(
-      u32(width), u32(height), gpu::OverlayTextureFilter::kLinear, true,
-      std::span<const u8>(pixels, size_t(width) * size_t(height) * 4));
+      static_cast<u32>(width), static_cast<u32>(height), gpu::OverlayTextureFilter::kLinear, true,
+      std::span<const u8>(pixels, static_cast<size_t>(width) * static_cast<size_t>(height) * 4));
   if (!texture) {
     return;
   }
@@ -401,7 +401,8 @@ void ImGuiDrawer::Draw(gpu::OverlayDrawContext& context) {
 
   uint64_t current_frame_time_ticks = rex::Clock::QueryHostTickCount();
   io.DeltaTime =
-      float(double(current_frame_time_ticks - last_frame_time_ticks_) / frame_time_tick_frequency_);
+      static_cast<float>(static_cast<double>(current_frame_time_ticks - last_frame_time_ticks_) /
+                         frame_time_tick_frequency_);
   if (!(io.DeltaTime > 0.0f) || current_frame_time_ticks < last_frame_time_ticks_) {
     // For safety as Dear ImGui doesn't allow non-positive DeltaTime. Using the
     // same default value as in the official samples.
@@ -409,13 +410,14 @@ void ImGuiDrawer::Draw(gpu::OverlayDrawContext& context) {
   }
   last_frame_time_ticks_ = current_frame_time_ticks;
 
-  float physical_to_logical = float(window_->GetMediumDpi()) / float(window_->GetDpi());
+  float physical_to_logical =
+      static_cast<float>(window_->GetMediumDpi()) / static_cast<float>(window_->GetDpi());
   io.DisplaySize.x = window_->GetActualPhysicalWidth() * physical_to_logical;
   io.DisplaySize.y = window_->GetActualPhysicalHeight() * physical_to_logical;
 
   ImGui::NewFrame();
 
-  assert_true(!IsDrawingDialogs());
+  REX_ASSERT(!IsDrawingDialogs());
   dialog_loop_next_index_ = 0;
   while (dialog_loop_next_index_ < dialogs_.size()) {
     dialogs_[dialog_loop_next_index_++]->Draw();
@@ -455,9 +457,10 @@ void ImGuiDrawer::RenderDrawLists(ImDrawData* data, gpu::OverlayDrawContext& con
   for (int i = 0; i < data->CmdListsCount; ++i) {
     const auto cmd_list = data->CmdLists[i];
 
-    gpu::OverlayBatch batch{{reinterpret_cast<const gpu::OverlayVertex*>(cmd_list->VtxBuffer.Data),
-                             size_t(cmd_list->VtxBuffer.Size)},
-                            {cmd_list->IdxBuffer.Data, size_t(cmd_list->IdxBuffer.Size)}};
+    gpu::OverlayBatch batch{
+        {reinterpret_cast<const gpu::OverlayVertex*>(cmd_list->VtxBuffer.Data),
+         static_cast<size_t>(cmd_list->VtxBuffer.Size)},
+        {cmd_list->IdxBuffer.Data, static_cast<size_t>(cmd_list->IdxBuffer.Size)}};
     overlay_drawer_->BeginBatch(batch);
 
     for (int j = 0; j < cmd_list->CmdBuffer.size(); ++j) {
@@ -568,7 +571,8 @@ void ImGuiDrawer::OnMouseUp(MouseEvent& e) {
 void ImGuiDrawer::OnMouseWheel(MouseEvent& e) {
   SwitchToPhysicalMouseAndUpdateMousePosition(e);
   auto& io = GetIO();
-  io.MouseWheel += float(e.scroll_y()) / float(MouseEvent::kScrollPerDetent);
+  io.MouseWheel +=
+      static_cast<float>(e.scroll_y()) / static_cast<float>(MouseEvent::kScrollPerDetent);
 }
 
 void ImGuiDrawer::OnTouchEvent(TouchEvent& e) {
@@ -651,7 +655,8 @@ void ImGuiDrawer::OnKey(KeyEvent& e, bool is_down) {
 
 void ImGuiDrawer::UpdateMousePosition(float x, float y) {
   auto& io = GetIO();
-  float physical_to_logical = float(window_->GetMediumDpi()) / float(window_->GetDpi());
+  float physical_to_logical =
+      static_cast<float>(window_->GetMediumDpi()) / static_cast<float>(window_->GetDpi());
   io.MousePos.x = x * physical_to_logical;
   io.MousePos.y = y * physical_to_logical;
 }
@@ -667,7 +672,7 @@ void ImGuiDrawer::SwitchToPhysicalMouseAndUpdateMousePosition(const MouseEvent& 
     // resetting to no buttons down (therefore not capturing).
   }
   reset_mouse_position_after_next_frame_ = false;
-  UpdateMousePosition(float(e.x()), float(e.y()));
+  UpdateMousePosition(static_cast<float>(e.x()), static_cast<float>(e.y()));
 }
 
 void ImGuiDrawer::PlatformSetImeData(ImGuiContext* context, ImGuiViewport* viewport,

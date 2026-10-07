@@ -21,7 +21,7 @@
 
 namespace rex::codegen {
 
-Result<void> Analyze(CodegenContext& ctx, ProgressReporter* reporter) {
+[[nodiscard]] Result<void> Analyze(CodegenContext& ctx, ProgressReporter* reporter) {
   REXLOG_TRACE(codegen, "Analyze: starting analysis...");
 
   ctx.initDecoded();
@@ -53,7 +53,7 @@ Result<void> Analyze(CodegenContext& ctx, ProgressReporter* reporter) {
   }
 
   // 3.5. Function pointer scan: find lis/addi pairs loading code addresses
-  // TODO(tomc): disabled for now, causes too many false positives
+  // TODO(tomc): disabled, causes too many false positives
   // functionPointerScan(ctx);
 
   // 4. Gap fill uncovered regions + discover blocks for gap-filled functions + cleanup

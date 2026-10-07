@@ -1,6 +1,5 @@
 /**
  * @file        tests/core/thread_time_test.cpp
- * @brief       CPU time of the calling thread from the platform layer
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

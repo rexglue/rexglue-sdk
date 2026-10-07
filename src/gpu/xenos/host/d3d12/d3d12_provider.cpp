@@ -12,6 +12,7 @@
 #include <cstdlib>
 
 #include <rex/cvar.h>
+#include <rex/assert.h>
 #include <rex/logging.h>
 #include <rex/math.h>
 #include "gpu/xenos/host/d3d12/d3d12_immediate_drawer.h"
@@ -34,14 +35,13 @@ bool D3D12Provider::IsD3D12APIAvailable() {
 }
 
 std::unique_ptr<D3D12Provider> D3D12Provider::Create(int32_t adapter_index) {
-  std::unique_ptr<D3D12Provider> provider(new D3D12Provider);
+  auto provider = std::make_unique<D3D12Provider>(Key{});
   if (!provider->Initialize(adapter_index)) {
-    rex::FatalError(
-        "Unable to initialize Direct3D 12 graphics subsystem.\n"
-        "\n"
-        "Ensure that you have the latest drivers for your GPU and it supports "
-        "Direct3D 12 with the feature level of at least 11_0.");
-    return nullptr;
+    REX_FATAL(gpu,
+              "Unable to initialize Direct3D 12 graphics subsystem.\n"
+              "\n"
+              "Ensure that you have the latest drivers for your GPU and it supports "
+              "Direct3D 12 with the feature level of at least 11_0.");
   }
   return provider;
 }
@@ -298,15 +298,14 @@ bool D3D12Provider::Initialize(int32_t adapter_index_wanted) {
         D3D12_MESSAGE_SEVERITY_INFO,
     };
     D3D12_MESSAGE_ID d3d12_info_queue_denied_messages[] = {
-        // Xbox 360 vertex fetch is explicit in shaders.
+        // Console vertex fetch is explicit in shaders.
         D3D12_MESSAGE_ID_CREATEINPUTLAYOUT_EMPTY_LAYOUT,
         // Bug in the debug layer (fixed in some version of Windows) - gaps in
         // render target bindings must be represented with a fully typed RTV
         // descriptor and DXGI_FORMAT_UNKNOWN in the pipeline state, but older
         // debug layer versions give a format mismatch error in this case.
         D3D12_MESSAGE_ID_RENDER_TARGET_FORMAT_MISMATCH_PIPELINE_STATE,
-        // Render targets and shader exports don't have to match on the Xbox
-        // 360.
+        // Render targets and shader exports don't have to match on the console.
         D3D12_MESSAGE_ID_CREATEGRAPHICSPIPELINESTATE_RENDERTARGETVIEW_NOT_SET,
         // Arbitrary scissor can be specified by the guest, also it can be
         // explicitly used to disable drawing.
@@ -434,9 +433,11 @@ bool D3D12Provider::Initialize(int32_t adapter_index_wanted) {
               virtual_address_bits_per_resource_,
               (heap_flag_create_not_zeroed_ & D3D12_HEAP_FLAG_CREATE_NOT_ZEROED) ? "yes" : "no",
               ps_specified_stencil_reference_supported_ ? "yes" : "no",
-              uint32_t(programmable_sample_positions_tier_),
-              rasterizer_ordered_views_supported_ ? "yes" : "no", uint32_t(resource_binding_tier_),
-              uint32_t(tiled_resources_tier_), unaligned_block_textures_supported_ ? "yes" : "no");
+              static_cast<uint32_t>(programmable_sample_positions_tier_),
+              rasterizer_ordered_views_supported_ ? "yes" : "no",
+              static_cast<uint32_t>(resource_binding_tier_),
+              static_cast<uint32_t>(tiled_resources_tier_),
+              unaligned_block_textures_supported_ ? "yes" : "no");
 
   // Get the graphics analysis interface, will silently fail if PIX is not
   // attached.
@@ -447,7 +448,7 @@ bool D3D12Provider::Initialize(int32_t adapter_index_wanted) {
 
 std::unique_ptr<Presenter> D3D12Provider::CreatePresenter(
     Presenter::HostGpuLossCallback host_gpu_loss_callback) {
-  return D3D12Presenter::Create(host_gpu_loss_callback, *this);
+  return D3D12Presenter::Create(std::move(host_gpu_loss_callback), *this);
 }
 
 std::unique_ptr<ImmediateDrawer> D3D12Provider::CreateImmediateDrawer() {

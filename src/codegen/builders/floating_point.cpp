@@ -1,6 +1,5 @@
 /**
  * @file        codegen/builders/floating_point.cpp
- * @brief       PPC floating point instruction code generation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

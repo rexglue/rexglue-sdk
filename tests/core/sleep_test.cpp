@@ -1,6 +1,5 @@
 /**
  * @file        tests/core/sleep_test.cpp
- * @brief       Sleep durations of the platform layer
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

@@ -1,6 +1,5 @@
 /**
  * @file        filesystem/host_file_posix.cpp
- * @brief       POSIX host file handle and host directory queries
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -178,7 +177,7 @@ Result<void> HostFile::Flush() const {
   return Ok();
 }
 
-Result<void> HostCreateNew(const std::filesystem::path& path) {
+[[nodiscard]] Result<void> HostCreateNew(const std::filesystem::path& path) {
   const int handle = open(path.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0644);
   if (handle == -1) {
     const int error = errno;
@@ -195,8 +194,8 @@ Result<void> HostCreateNew(const std::filesystem::path& path) {
   return Ok();
 }
 
-Result<void> HostMove(const std::filesystem::path& from, const std::filesystem::path& to,
-                      bool replace_existing) {
+[[nodiscard]] Result<void> HostMove(const std::filesystem::path& from,
+                                    const std::filesystem::path& to, bool replace_existing) {
   const int error = replace_existing ? MoveReplacing(from, to) : MoveNoReplace(from, to);
   if (error == 0) {
     return Ok();

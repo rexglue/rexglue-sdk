@@ -1,6 +1,5 @@
 /**
  * @file        logging/format.h
- * @brief       Log records and the line format of text sinks
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

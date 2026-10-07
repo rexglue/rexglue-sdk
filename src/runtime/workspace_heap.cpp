@@ -22,7 +22,7 @@ constexpr u32 kPageSize = 4096;
 
 }  // namespace
 
-WorkspaceHeap::WorkspaceHeap(Memory& memory, u32 base, u32 size, O1HeapInstance* heap)
+WorkspaceHeap::WorkspaceHeap(Key, Memory& memory, u32 base, u32 size, O1HeapInstance* heap)
     : memory_(memory), base_(base), size_(size), heap_(heap) {}
 
 WorkspaceHeap::~WorkspaceHeap() {
@@ -43,7 +43,7 @@ Result<std::unique_ptr<WorkspaceHeap>> WorkspaceHeap::Create(Memory& memory, u32
     heap->Release(base);
     return Err<std::unique_ptr<WorkspaceHeap>>(StatusError(X_STATUS_NO_MEMORY));
   }
-  return std::unique_ptr<WorkspaceHeap>(new WorkspaceHeap(memory, base, size, instance));
+  return std::make_unique<WorkspaceHeap>(Key{}, memory, base, size, instance);
 }
 
 u32 WorkspaceHeap::ResolveSize(u32 header_size) {

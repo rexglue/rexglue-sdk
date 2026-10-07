@@ -1,6 +1,6 @@
 /**
  * @file        kernel/xio.h
- * @brief       Xbox 360 I/O structures (overlapped, strings, file attributes)
+ * @brief       I/O structures (overlapped, strings, file attributes)
  *
  * @copyright   Copyright 2020 Ben Vanik. All rights reserved. (Xenia Project)
  *
@@ -33,50 +33,45 @@ enum X_FILE_ATTRIBUTES : uint32_t {
   X_FILE_ATTRIBUTE_ENCRYPTED = 0x4000,
 };
 
-// Known as XOVERLAPPED to 360 code.
+// Known as XOVERLAPPED to recompiled code.
 struct XAM_OVERLAPPED {
-  be<uint32_t> result;              // 0x0
-  be<uint32_t> length;              // 0x4
-  be<uint32_t> context;             // 0x8
-  be<uint32_t> event;               // 0xC
-  be<uint32_t> completion_routine;  // 0x10
-  be<uint32_t> completion_context;  // 0x14
-  be<uint32_t> extended_error;      // 0x18
+  be_u32 result;              // 0x0
+  be_u32 length;              // 0x4
+  be_u32 context;             // 0x8
+  be_u32 event;               // 0xC
+  be_u32 completion_routine;  // 0x10
+  be_u32 completion_context;  // 0x14
+  be_u32 extended_error;      // 0x18
 };
 
+REX_STATIC_ASSERT_SIZE(XAM_OVERLAPPED, 0x1C);
+
 inline void XOverlappedSetResult(void* ptr, uint32_t value) {
-  auto p = reinterpret_cast<uint32_t*>(ptr);
-  memory::store_and_swap<uint32_t>(&p[0], value);
+  static_cast<XAM_OVERLAPPED*>(ptr)->result = value;
 }
 inline void XOverlappedSetLength(void* ptr, uint32_t value) {
-  auto p = reinterpret_cast<uint32_t*>(ptr);
-  memory::store_and_swap<uint32_t>(&p[1], value);
+  static_cast<XAM_OVERLAPPED*>(ptr)->length = value;
 }
 inline uint32_t XOverlappedGetContext(void* ptr) {
-  auto p = reinterpret_cast<uint32_t*>(ptr);
-  return memory::load_and_swap<uint32_t>(&p[2]);
+  return static_cast<XAM_OVERLAPPED*>(ptr)->context;
 }
 inline void XOverlappedSetContext(void* ptr, uint32_t value) {
-  auto p = reinterpret_cast<uint32_t*>(ptr);
-  memory::store_and_swap<uint32_t>(&p[2], value);
+  static_cast<XAM_OVERLAPPED*>(ptr)->context = value;
 }
 inline X_HANDLE XOverlappedGetEvent(void* ptr) {
-  auto p = reinterpret_cast<uint32_t*>(ptr);
-  return memory::load_and_swap<uint32_t>(&p[3]);
+  return static_cast<XAM_OVERLAPPED*>(ptr)->event;
 }
 inline uint32_t XOverlappedGetCompletionRoutine(void* ptr) {
-  auto p = reinterpret_cast<uint32_t*>(ptr);
-  return memory::load_and_swap<uint32_t>(&p[4]);
+  return static_cast<XAM_OVERLAPPED*>(ptr)->completion_routine;
 }
 inline void XOverlappedSetExtendedError(void* ptr, uint32_t value) {
-  auto p = reinterpret_cast<uint32_t*>(ptr);
-  memory::store_and_swap<uint32_t>(&p[6], value);
+  static_cast<XAM_OVERLAPPED*>(ptr)->extended_error = value;
 }
 
 struct X_ANSI_STRING {
-  be<uint16_t> length;
-  be<uint16_t> maximum_length;
-  be<uint32_t> pointer;
+  be_u16 length;
+  be_u16 maximum_length;
+  be_u32 pointer;
 
   void reset() {
     length = 0;
@@ -84,12 +79,12 @@ struct X_ANSI_STRING {
     pointer = 0;
   }
 };
-static_assert_size(X_ANSI_STRING, 8);
+REX_STATIC_ASSERT_SIZE(X_ANSI_STRING, 8);
 
 struct X_UNICODE_STRING {
-  be<uint16_t> length;          // 0x0
-  be<uint16_t> maximum_length;  // 0x2
-  be<uint32_t> pointer;         // 0x4
+  be_u16 length;          // 0x0
+  be_u16 maximum_length;  // 0x2
+  be_u32 pointer;         // 0x4
 
   void reset() {
     length = 0;
@@ -97,21 +92,21 @@ struct X_UNICODE_STRING {
     pointer = 0;
   }
 };
-static_assert_size(X_UNICODE_STRING, 8);
+REX_STATIC_ASSERT_SIZE(X_UNICODE_STRING, 8);
 
 // https://msdn.microsoft.com/en-us/library/windows/hardware/ff550671(v=vs.85).aspx
 struct X_IO_STATUS_BLOCK {
   union {
     be<X_STATUS> status;
-    be<uint32_t> pointer;
+    be_u32 pointer;
   };
-  be<uint32_t> information;
+  be_u32 information;
 };
 
 struct X_OBJECT_ATTRIBUTES {
-  be<uint32_t> root_directory;  // 0x0
-  be<uint32_t> name_ptr;        // 0x4 PANSI_STRING
-  be<uint32_t> attributes;      // 0xC
+  be_u32 root_directory;  // 0x0
+  be_u32 name_ptr;        // 0x4 PANSI_STRING
+  be_u32 attributes;      // 0xC
 };
 
 #pragma pack(pop)

@@ -1,6 +1,5 @@
 /**
  * @file        chrono/chrono_steady_cast.h
- * @brief       clock_cast between WinSystemClock and std::chrono::steady_clock
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

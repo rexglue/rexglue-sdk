@@ -1,6 +1,5 @@
 /**
  * @file        rex/codegen/function_graph.h
- * @brief       Function graph - reactive model for function discovery and resolution
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -30,7 +29,7 @@ namespace rex::codegen {
 
 class FunctionGraph {
  public:
-  using MemoryReader = std::function<std::optional<uint32_t>(uint32_t addr)>;
+  using MemoryReader = std::move_only_function<std::optional<uint32_t>(uint32_t addr) const>;
 
   //=========================================================================
   // Code Buffer Management
@@ -45,9 +44,6 @@ class FunctionGraph {
   // Get all code buffers (for iteration/debugging)
   const std::vector<CodeBuffer>& codeBuffers() const { return codeBuffers_; }
 
-  // Update all function code pointers (call after loading code buffers)
-  void updateFunctionCodePointers();
-
   //=========================================================================
   // Function Management
   //=========================================================================
@@ -55,7 +51,7 @@ class FunctionGraph {
   // Add a function to the graph.
   // Returns the new node, or existing node if already present (higher authority wins).
   // Notifies all PENDING functions to try resolution against the new entry.
-  // hasXrefs: true if this is a known call target (bl target, etc.)
+  // hasXrefs: true if this is a known call target (bl target and others)
   FunctionNode* addFunction(uint32_t base, uint32_t size, FunctionAuthority authority,
                             bool hasXrefs = false);
 

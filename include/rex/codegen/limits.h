@@ -1,6 +1,5 @@
 /**
  * @file        codegen/limits.h
- * @brief       Recompiler analysis limits
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

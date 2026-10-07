@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <filesystem>
+#include <memory>
 #include <set>
 #include <string>
 #include <unordered_map>
@@ -95,7 +96,7 @@ enum class InstructionStorageAddressingMode {
 };
 
 // Describes the source value of a particular component.
-enum class SwizzleSource {
+enum class SwizzleSource : u32 {
   // Component receives the source X.
   kX,
   // Component receives the source Y.
@@ -117,10 +118,6 @@ constexpr SwizzleSource GetSwizzledAluSourceComponent(uint32_t swizzle, uint32_t
   return GetSwizzleFromComponentIndex(
       xenos::ucode::AluInstruction::GetSwizzledComponentIndex(swizzle, component_index));
 }
-inline char GetCharForComponentIndex(uint32_t i) {
-  const static char kChars[] = {'x', 'y', 'z', 'w'};
-  return kChars[i];
-}
 inline char GetCharForSwizzle(SwizzleSource swizzle_source) {
   const static char kChars[] = {'x', 'y', 'z', 'w', '0', '1'};
   return kChars[static_cast<uint32_t>(swizzle_source)];
@@ -138,12 +135,12 @@ struct InstructionResult {
   bool is_clamped = false;
   // Defines whether each output component is written, though this is from the
   // original microcode, not taking into account whether such components
-  // actually exist in the target.
+  // exist in the target.
   uint32_t original_write_mask = 0b0000;
   // Defines the source for each output component xyzw.
   SwizzleSource components[4] = {SwizzleSource::kX, SwizzleSource::kY, SwizzleSource::kZ,
                                  SwizzleSource::kW};
-  // Returns the write mask containing only components actually present in the
+  // Returns the write mask containing only components present in the
   // target.
   uint32_t GetUsedWriteMask() const {
     uint32_t target_component_count = GetInstructionStorageTargetUsedComponentCount(storage_target);
@@ -163,7 +160,8 @@ struct InstructionResult {
     for (uint32_t i = 0; i < 4; ++i) {
       if ((used_write_mask & (1 << i)) && components[i] >= SwizzleSource::kX &&
           components[i] <= SwizzleSource::kW) {
-        used_components |= 1 << (uint32_t(components[i]) - uint32_t(SwizzleSource::kX));
+        used_components |=
+            1 << (static_cast<uint32_t>(components[i]) - std::to_underlying(SwizzleSource::kX));
       }
     }
     return used_components;
@@ -224,7 +222,7 @@ struct InstructionOperand {
   SwizzleSource components[4] = {SwizzleSource::kX, SwizzleSource::kY, SwizzleSource::kZ,
                                  SwizzleSource::kW};
   // Returns the swizzle source for the component, replicating the rightmost
-  // component if there are less than 4 components (similar to what the Xbox 360
+  // component if there are less than 4 components (similar to what the console
   // shader compiler does as a general rule for unspecified components).
   SwizzleSource GetComponent(uint32_t index) const {
     return components[std::min(index, component_count - 1)];
@@ -253,7 +251,7 @@ struct InstructionOperand {
     }
     uint32_t identical_components = 0;
     for (uint32_t i = 0; i < 4; ++i) {
-      identical_components |= uint32_t(GetComponent(i) == other.GetComponent(i)) << i;
+      identical_components |= static_cast<uint32_t>(GetComponent(i) == other.GetComponent(i)) << i;
     }
     return identical_components;
   }
@@ -446,7 +444,7 @@ struct ParsedVertexFetchInstruction {
   // Note that for vfetch_mini, which inherits the operands from vfetch_full,
   // the index operand register may been overwritten between the vfetch_full and
   // the vfetch_mini (happens in 4D530910 for wheels), but that should have no
-  // effect on the index actually used for fetching. A copy of the index
+  // effect on the index used for fetching. A copy of the index
   // therefore must be stored by vfetch_full (the base address, stride and
   // rounding may be pre-applied to it since they will be the same in the
   // vfetch_full and all its vfetch_mini instructions).
@@ -552,7 +550,7 @@ struct ParsedAluInstruction {
   // nop, it outputs the entire constant mask in the scalar operation
   // destination). Normally the XNA disassembler outputs the constant mask in
   // both vector and scalar operations, but that's not required by assembler, so
-  // it doesn't really matter whether it's specified in the vector operation, in
+  // it doesn't matter whether it's specified in the vector operation, in
   // the scalar operation, or in both.
   InstructionResult vector_and_constant_result;
   // Describes how the scalar operation result is stored.
@@ -573,18 +571,18 @@ struct ParsedAluInstruction {
   InstructionOperand scalar_operands[2];
 
   // Whether the vector part of the instruction is the same as if it was omitted
-  // in the assembly (if compiled or assembled with the Xbox 360 shader
+  // in the assembly (if compiled or assembled with the Xenos shader
   // compiler), and thus reassembling the shader with this instruction omitted
-  // will result in the same microcode (since instructions with just an empty
+  // will result in the same microcode (since instructions with only an empty
   // write mask may have different values in other fields).
   // This is for disassembly! Translators should use the write masks and
   // the changed state bits in the opcode info to skip operations, as this only
-  // covers one very specific nop format!
+  // covers one specific nop format!
   bool IsVectorOpDefaultNop() const;
   // Whether the scalar part of the instruction is the same as if it was omitted
-  // in the assembly (if compiled or assembled with the Xbox 360 shader
+  // in the assembly (if compiled or assembled with the Xenos shader
   // compiler), and thus reassembling the shader with this instruction omitted
-  // will result in the same microcode (since instructions with just an empty
+  // will result in the same microcode (since instructions with only an empty
   // write mask may have different values in other fields).
   bool IsScalarOpDefaultNop() const;
 
@@ -724,7 +722,7 @@ class Shader {
     bool float_dynamic_addressing;
 
     // Returns the index of the float4 constant as if all float4 constant
-    // registers actually referenced were tightly packed in a buffer, or
+    // registers referenced were tightly packed in a buffer, or
     // UINT32_MAX if not found.
     uint32_t GetPackedFloatConstantIndex(uint32_t float_constant) const {
       if (float_constant >= 256) {
@@ -736,14 +734,15 @@ class Shader {
       }
       uint32_t block_index = float_constant / 64;
       uint32_t bit_index = float_constant % 64;
-      if (!(float_bitmap[block_index] & (uint64_t(1) << bit_index))) {
+      if (!(float_bitmap[block_index] & (static_cast<uint64_t>(1) << bit_index))) {
         return UINT32_MAX;
       }
       uint32_t offset = 0;
       for (uint32_t i = 0; i < block_index; ++i) {
         offset += rex::bit_count(float_bitmap[i]);
       }
-      return offset + rex::bit_count(float_bitmap[block_index] & ((uint64_t(1) << bit_index) - 1));
+      return offset + rex::bit_count(float_bitmap[block_index] &
+                                     ((static_cast<uint64_t>(1) << bit_index) - 1));
     }
   };
 
@@ -760,6 +759,8 @@ class Shader {
 
   class Translation {
    public:
+    Translation(Shader& shader, uint64_t modification)
+        : shader_(shader), modification_(modification) {}
     virtual ~Translation() {}
 
     Shader& shader() const { return shader_; }
@@ -779,14 +780,6 @@ class Shader {
     // Translated shader binary (or text).
     const std::vector<uint8_t>& translated_binary() const { return translated_binary_; }
 
-    // Gets the translated shader binary as a string.
-    // This is only valid if it is actually text.
-    std::string GetTranslatedBinaryString() const;
-
-    // Disassembly of the translated from the host graphics layer.
-    // May be empty if the host does not support disassembly.
-    const std::string& host_disassembly() const { return host_disassembly_; }
-
     // In case disassembly depends on the GPU backend, for setting it
     // externally.
     void set_host_disassembly(std::string disassembly) {
@@ -800,9 +793,6 @@ class Shader {
         const std::filesystem::path& base_path, const char* path_prefix) const;
 
    protected:
-    Translation(Shader& shader, uint64_t modification)
-        : shader_(shader), modification_(modification) {}
-
     // If there was some failure during preparation on the implementation side.
     void MakeInvalid() { is_valid_ = false; }
 
@@ -846,9 +836,6 @@ class Shader {
   // Microcode disassembly in D3D format.
   const std::string& ucode_disassembly() const { return ucode_disassembly_; }
 
-  // All vertex bindings used in the shader.
-  const std::vector<VertexBinding>& vertex_bindings() const { return vertex_bindings_; }
-
   // All texture bindings used in the shader.
   const std::vector<TextureBinding>& texture_bindings() const { return texture_bindings_; }
 
@@ -881,11 +868,11 @@ class Shader {
   // Upper bound of temporary registers addressed statically by the shader -
   // highest static register address + 1, or 0 if no registers referenced this
   // way. SQ_PROGRAM_CNTL is not always reliable - some draws (like single point
-  // draws with oPos = 0001 that are done by Xbox 360's Direct3D 9 sometimes;
+  // draws with oPos = 0001 that are done by the console's Direct3D 9 sometimes;
   // can be reproduced by launching the intro mission in 4D5307E6 from the
   // campaign lobby) that aren't supposed to cover any pixels use an invalid
   // (zero) SQ_PROGRAM_CNTL, but with an outdated pixel shader loaded, in this
-  // case SQ_PROGRAM_CNTL may contain a number smaller than actually needed by
+  // case SQ_PROGRAM_CNTL may contain a number smaller than needed by
   // the pixel shader - SQ_PROGRAM_CNTL should be used to go above this count if
   // uses_register_dynamic_addressing is true.
   uint32_t register_static_address_bound() const { return register_static_address_bound_; }
@@ -903,7 +890,8 @@ class Shader {
     if (!uses_register_dynamic_addressing()) {
       return 0;
     }
-    return std::max(program_cntl_num_reg + uint32_t(1), register_static_address_bound());
+    return std::max(program_cntl_num_reg + static_cast<uint32_t>(1),
+                    register_static_address_bound());
   }
 
   // True if the current shader has any `kill` instructions.
@@ -945,16 +933,18 @@ class Shader {
   // Whether each color render target is written to on any execution path.
   uint32_t writes_color_targets() const { return writes_color_targets_; }
   bool writes_color_target(uint32_t i) const {
-    return (writes_color_targets() & (uint32_t(1) << i)) != 0;
+    return (writes_color_targets() & (static_cast<uint32_t>(1) << i)) != 0;
   }
 
   // Host translations with the specified modification bits. Not thread-safe
   // with respect to translation creation/destruction.
-  const std::unordered_map<uint64_t, Translation*>& translations() const { return translations_; }
+  const std::unordered_map<uint64_t, std::unique_ptr<Translation>>& translations() const {
+    return translations_;
+  }
   Translation* GetTranslation(uint64_t modification) const {
     auto it = translations_.find(modification);
     if (it != translations_.cend()) {
-      return it->second;
+      return it->second.get();
     }
     return nullptr;
   }
@@ -979,14 +969,14 @@ class Shader {
  protected:
   friend class ShaderTranslator;
 
-  virtual Translation* CreateTranslationInstance(uint64_t modification);
+  virtual std::unique_ptr<Translation> CreateTranslationInstance(uint64_t modification);
 
   xenos::ShaderType shader_type_;
   std::vector<uint32_t> ucode_data_;
   uint64_t ucode_data_hash_;
 
   // Whether info needed before translating has been gathered already - may be
-  // needed to determine which modifications are actually needed and make sense
+  // needed to determine which modifications are needed and make sense
   // (for instance, there may be draws not covering anything and not allocating
   // any pixel shader registers in SQ_PROGRAM_CNTL, but still using the pixel
   // shader from the previous draw - in this case, every shader that happens to
@@ -1029,7 +1019,7 @@ class Shader {
   std::set<uint32_t> memexport_stream_constants_;
 
   // Modification bits -> translation.
-  std::unordered_map<uint64_t, Translation*> translations_;
+  std::unordered_map<uint64_t, std::unique_ptr<Translation>> translations_;
 
   uint32_t ucode_storage_index_ = UINT32_MAX;
 

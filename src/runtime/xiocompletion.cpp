@@ -20,7 +20,7 @@ namespace rex::runtime {
 
 IOCompletionObject::IOCompletionObject() {
   notification_semaphore = rex::platform::Semaphore::Create(0, kMaxNotifications);
-  assert_not_null(notification_semaphore);
+  REX_ASSERT(notification_semaphore != nullptr);
 }
 
 void IOCompletionQueue(IOCompletionObject& port, const IONotification& notification) {
@@ -35,9 +35,9 @@ bool IOCompletionWait(IOCompletionObject& port, u64 wait_ticks, IONotification* 
   auto res = rex::platform::Wait(port.notification_semaphore.get(), false, ms);
   if (res == rex::platform::WaitResult::kSuccess) {
     std::unique_lock<std::mutex> lock(port.notification_lock);
-    assert_false(port.notifications.empty());
+    REX_ASSERT(!port.notifications.empty());
 
-    std::memcpy(notify, &port.notifications.front(), sizeof(IONotification));
+    *notify = port.notifications.front();
     port.notifications.pop();
 
     return true;

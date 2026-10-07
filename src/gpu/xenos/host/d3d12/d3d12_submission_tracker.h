@@ -12,6 +12,7 @@
 #pragma once
 
 #include "gpu/xenos/host/d3d12/d3d12_api.h"
+#include <rex/types.h>
 
 namespace rex::gpu::d3d12 {
 
@@ -28,21 +29,15 @@ namespace rex::gpu::d3d12 {
 // The submission index timeline survives Shutdown / Initialize, so submission
 // indices can be given to clients that are not aware of the lifetime of the
 // tracker.
-class D3D12SubmissionTracker {
+class D3D12SubmissionTracker : public rex::NonCopyable {
  public:
   D3D12SubmissionTracker() = default;
-  D3D12SubmissionTracker(const D3D12SubmissionTracker& submission_tracker) = delete;
-  D3D12SubmissionTracker& operator=(const D3D12SubmissionTracker& submission_tracker) = delete;
   ~D3D12SubmissionTracker() { Shutdown(); }
 
   // The queue may be null if it's going to be set dynamically. Will also take a
   // reference to the queue.
   bool Initialize(ID3D12Device* device, ID3D12CommandQueue* queue);
   void Shutdown();
-
-  // Will perform an ownership transfer if the queue is different than the
-  // current one, and take a reference to the queue.
-  void SetQueue(ID3D12CommandQueue* new_queue);
 
   UINT64 GetCurrentSubmission() const { return submission_current_; }
   // May be lower than a value awaited by AwaitSubmissionCompletion if it
@@ -54,9 +49,9 @@ class D3D12SubmissionTracker {
     return fence_ ? fence_->GetCompletedValue() : (GetCurrentSubmission() - 1);
   }
 
-  // Returns whether the expected GPU signal has actually been reached (rather
+  // Returns whether the expected GPU signal has been reached (rather
   // than some fallback condition) for cases when stronger completeness
-  // guarantees as needed (when downloading, as opposed to just destroying).
+  // guarantees as needed (when downloading, as opposed to destroying).
   // If false is returned, it's also not guaranteed that GetCompletedSubmission
   // will return a value >= submission_index.
   bool AwaitSubmissionCompletion(UINT64 submission_index);

@@ -1,6 +1,5 @@
 /**
  * @file        xenos/texture_conversion.h
- * @brief       Xenos texel block conversion and 2D untiling
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

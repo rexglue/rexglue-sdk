@@ -1,6 +1,5 @@
 /**
  * @file        rex/core/fiber_win32.cpp
- * @brief       Win32 backend for rex::platform::Fiber
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -15,6 +14,7 @@
 #include <rex/platform/fiber.h>
 
 #include <cassert>
+#include <memory>
 
 namespace rex::platform {
 
@@ -27,25 +27,23 @@ Fiber* Fiber::Current() {
 }
 
 Fiber* Fiber::ConvertCurrentThread() {
-  auto* f = new Fiber();
+  auto f = std::make_unique<Fiber>();
   f->handle_ = ::ConvertThreadToFiber(nullptr);
   if (!f->handle_) {
-    delete f;
     return nullptr;
   }
   f->is_thread_fiber_ = true;
-  g_current_fiber = f;
-  return f;
+  g_current_fiber = f.get();
+  return f.release();
 }
 
 Fiber* Fiber::Create(size_t stack_size, void (*entry)(void*), void* arg) {
-  auto* f = new Fiber();
+  auto f = std::make_unique<Fiber>();
   f->handle_ = ::CreateFiber(stack_size, reinterpret_cast<LPFIBER_START_ROUTINE>(entry), arg);
   if (!f->handle_) {
-    delete f;
     return nullptr;
   }
-  return f;
+  return f.release();
 }
 
 void Fiber::SwitchTo(Fiber* target) {

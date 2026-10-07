@@ -1,6 +1,5 @@
 /**
  * @file        apu/sdl3/cvar_table.h
- * @brief       rex-apu-sdl3 cvars
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

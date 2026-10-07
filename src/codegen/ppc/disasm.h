@@ -1,6 +1,5 @@
 /**
  * @file        codegen/internal/ppc/disasm.h
- * @brief       PPC disassembler interface
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

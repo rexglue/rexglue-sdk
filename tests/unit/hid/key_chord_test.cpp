@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/hid/key_chord_test.cpp
- * @brief       Key chord parsing and formatting
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

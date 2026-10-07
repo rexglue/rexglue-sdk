@@ -1,6 +1,5 @@
 /**
  * @file        rexglue/ui/ui.cpp
- * @brief       Presentation layer implementation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -120,11 +119,7 @@ namespace detail {
 
 GlobalSinkAccessor::GlobalSinkAccessor() {
   RequireGlobalSink();
-  g_sink->sink_mutex().lock();
-}
-
-GlobalSinkAccessor::~GlobalSinkAccessor() {
-  g_sink->sink_mutex().unlock();
+  lock_ = std::unique_lock(g_sink->sink_mutex());
 }
 
 void GlobalSinkAccessor::writeRaw(std::string_view s) {

@@ -34,11 +34,11 @@ namespace shaders {
 
 std::unique_ptr<VulkanImmediateDrawer> VulkanImmediateDrawer::Create(
     const VulkanDevice* const vulkan_device, const UISamplers* const ui_samplers) {
-  assert_not_null(vulkan_device);
-  assert_not_null(ui_samplers);
+  REX_ASSERT(vulkan_device != nullptr);
+  REX_ASSERT(ui_samplers != nullptr);
 
   auto immediate_drawer =
-      std::unique_ptr<VulkanImmediateDrawer>(new VulkanImmediateDrawer(vulkan_device, ui_samplers));
+      std::make_unique<VulkanImmediateDrawer>(Key{}, vulkan_device, ui_samplers);
   if (!immediate_drawer->Initialize()) {
     return nullptr;
   }
@@ -98,11 +98,11 @@ VulkanImmediateDrawer::~VulkanImmediateDrawer() {
                              texture_descriptor_set_layout_);
 }
 
-VulkanImmediateDrawer::VulkanImmediateDrawer(const VulkanDevice* const vulkan_device,
+VulkanImmediateDrawer::VulkanImmediateDrawer(Key, const VulkanDevice* const vulkan_device,
                                              const UISamplers* const ui_samplers)
     : vulkan_device_(vulkan_device), ui_samplers_(ui_samplers) {
-  assert_not_null(vulkan_device);
-  assert_not_null(ui_samplers);
+  REX_ASSERT(vulkan_device != nullptr);
+  REX_ASSERT(ui_samplers != nullptr);
 }
 
 bool VulkanImmediateDrawer::Initialize() {
@@ -150,7 +150,8 @@ bool VulkanImmediateDrawer::Initialize() {
   pipeline_layout_create_info.flags = 0;
   pipeline_layout_create_info.setLayoutCount = 1;
   pipeline_layout_create_info.pSetLayouts = &texture_descriptor_set_layout_;
-  pipeline_layout_create_info.pushConstantRangeCount = uint32_t(rex::countof(push_constant_ranges));
+  pipeline_layout_create_info.pushConstantRangeCount =
+      static_cast<uint32_t>(rex::countof(push_constant_ranges));
   pipeline_layout_create_info.pPushConstantRanges = push_constant_ranges;
   if (dfn.vkCreatePipelineLayout(device, &pipeline_layout_create_info, nullptr,
                                  &pipeline_layout_) != VK_SUCCESS) {
@@ -167,7 +168,7 @@ Result<std::unique_ptr<gpu::OverlayTexture>> VulkanImmediateDrawer::CreateTextur
     u32 width, u32 height, gpu::OverlayTextureFilter filter, bool repeat,
     std::span<const u8> rgba8) {
   const u8* data = rgba8.data();
-  assert_not_null(data);
+  REX_ASSERT(data != nullptr);
   auto texture = std::make_unique<VulkanImmediateTexture>(width, height);
   size_t pending_upload_index;
   if (!CreateTextureResource(width, height, filter, repeat, data, texture->resource_,
@@ -186,7 +187,7 @@ Result<std::unique_ptr<gpu::OverlayTexture>> VulkanImmediateDrawer::CreateTextur
 void VulkanImmediateDrawer::Begin(gpu::OverlayDrawContext& context, f32 width, f32 height) {
   ImmediateDrawer::Begin(context, width, height);
 
-  assert_false(batch_open_);
+  REX_ASSERT(!batch_open_);
 
   const VulkanOverlayDrawContext& vulkan_ui_draw_context =
       static_cast<const VulkanOverlayDrawContext&>(context);
@@ -241,8 +242,8 @@ void VulkanImmediateDrawer::Begin(gpu::OverlayDrawContext& context, f32 width, f
   VkViewport viewport;
   viewport.x = 0.0f;
   viewport.y = 0.0f;
-  viewport.width = float(vulkan_ui_draw_context.render_target_width());
-  viewport.height = float(vulkan_ui_draw_context.render_target_height());
+  viewport.width = static_cast<float>(vulkan_ui_draw_context.render_target_width());
+  viewport.height = static_cast<float>(vulkan_ui_draw_context.render_target_height());
   viewport.minDepth = 0.0f;
   viewport.maxDepth = 1.0f;
   dfn.vkCmdSetViewport(draw_command_buffer, 0, 1, &viewport);
@@ -262,7 +263,7 @@ void VulkanImmediateDrawer::Begin(gpu::OverlayDrawContext& context, f32 width, f
 }
 
 void VulkanImmediateDrawer::BeginBatch(const gpu::OverlayBatch& batch) {
-  assert_false(batch_open_);
+  REX_ASSERT(!batch_open_);
 
   const VulkanOverlayDrawContext& vulkan_ui_draw_context =
       *static_cast<const VulkanOverlayDrawContext*>(ui_draw_context());
@@ -329,7 +330,7 @@ void VulkanImmediateDrawer::Draw(const gpu::OverlayDraw& draw) {
       pipeline = pipeline_triangle_;
       break;
     default:
-      assert_unhandled_case(draw.primitive);
+      REX_UNHANDLED_CASE(draw.primitive);
       return;
   }
   if (pipeline == VK_NULL_HANDLE) {
@@ -346,8 +347,8 @@ void VulkanImmediateDrawer::Draw(const gpu::OverlayDraw& draw) {
     // value also).
     return;
   }
-  scissor.offset.x = int32_t(scissor_left);
-  scissor.offset.y = int32_t(scissor_top);
+  scissor.offset.x = static_cast<int32_t>(scissor_left);
+  scissor.offset.y = static_cast<int32_t>(scissor_top);
   if (current_scissor_.offset.x != scissor.offset.x ||
       current_scissor_.offset.y != scissor.offset.y ||
       current_scissor_.extent.width != scissor.extent.width ||
@@ -392,7 +393,7 @@ void VulkanImmediateDrawer::EndBatch() {
 }
 
 void VulkanImmediateDrawer::End() {
-  assert_false(batch_open_);
+  REX_ASSERT(!batch_open_);
 
   // Upload textures.
   if (!texture_uploads_pending_.empty()) {
@@ -424,7 +425,7 @@ void VulkanImmediateDrawer::End() {
       }
       dfn.vkCmdPipelineBarrier(setup_command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                                VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr,
-                               uint32_t(image_memory_barriers.size()),
+                               static_cast<uint32_t>(image_memory_barriers.size()),
                                image_memory_barriers.data());
 
       // Do transfer operations and transition to
@@ -481,7 +482,7 @@ void VulkanImmediateDrawer::End() {
       }
       dfn.vkCmdPipelineBarrier(setup_command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
                                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr,
-                               uint32_t(image_memory_barriers.size()),
+                               static_cast<uint32_t>(image_memory_barriers.size()),
                                image_memory_barriers.data());
 
       texture_uploads_pending_.clear();
@@ -593,7 +594,7 @@ bool VulkanImmediateDrawer::EnsurePipelinesCreatedForCurrentRenderPass() {
   vertex_input_state.vertexBindingDescriptionCount = 1;
   vertex_input_state.pVertexBindingDescriptions = &vertex_input_binding;
   vertex_input_state.vertexAttributeDescriptionCount =
-      uint32_t(rex::countof(vertex_input_attributes));
+      static_cast<uint32_t>(rex::countof(vertex_input_attributes));
   vertex_input_state.pVertexAttributeDescriptions = vertex_input_attributes;
 
   VkPipelineInputAssemblyStateCreateInfo input_assembly_state;
@@ -647,14 +648,14 @@ bool VulkanImmediateDrawer::EnsurePipelinesCreatedForCurrentRenderPass() {
   dynamic_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
   dynamic_state.pNext = nullptr;
   dynamic_state.flags = 0;
-  dynamic_state.dynamicStateCount = uint32_t(rex::countof(dynamic_states));
+  dynamic_state.dynamicStateCount = static_cast<uint32_t>(rex::countof(dynamic_states));
   dynamic_state.pDynamicStates = dynamic_states;
 
   VkGraphicsPipelineCreateInfo pipeline_create_info;
   pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
   pipeline_create_info.pNext = nullptr;
   pipeline_create_info.flags = VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT;
-  pipeline_create_info.stageCount = uint32_t(rex::countof(stages));
+  pipeline_create_info.stageCount = static_cast<uint32_t>(rex::countof(stages));
   pipeline_create_info.pStages = stages;
   pipeline_create_info.pVertexInputState = &vertex_input_state;
   pipeline_create_info.pInputAssemblyState = &input_assembly_state;
@@ -703,10 +704,10 @@ uint32_t VulkanImmediateDrawer::AllocateTextureDescriptor() {
   // Try to reuse a recycled descriptor first.
   if (texture_descriptor_pool_recycled_first_) {
     TextureDescriptorPool* pool = texture_descriptor_pool_recycled_first_;
-    assert_not_zero(pool->recycled_bits);
+    REX_ASSERT(pool->recycled_bits != 0);
     uint32_t local_index;
     rex::bit_scan_forward(pool->recycled_bits, &local_index);
-    pool->recycled_bits &= ~(uint64_t(1) << local_index);
+    pool->recycled_bits &= ~(static_cast<uint64_t>(1) << local_index);
     if (!pool->recycled_bits) {
       texture_descriptor_pool_recycled_first_ = pool->recycled_next;
     }
@@ -726,7 +727,7 @@ uint32_t VulkanImmediateDrawer::AllocateTextureDescriptor() {
   // unallocated descriptors left.
   while (texture_descriptor_pool_unallocated_first_) {
     TextureDescriptorPool* pool = texture_descriptor_pool_unallocated_first_;
-    assert_not_zero(pool->unallocated_count);
+    REX_ASSERT(pool->unallocated_count != 0);
     allocate_info.descriptorPool = pool->pool;
     uint32_t local_index = TextureDescriptorPool::kDescriptorCount - pool->unallocated_count;
     VkResult allocate_result =
@@ -776,7 +777,7 @@ uint32_t VulkanImmediateDrawer::AllocateTextureDescriptor() {
   TextureDescriptorPool* new_pool = new TextureDescriptorPool;
   new_pool->pool = descriptor_pool;
   new_pool->sets[0] = descriptor_set;
-  uint32_t new_pool_index = uint32_t(texture_descriptor_pools_.size());
+  uint32_t new_pool_index = static_cast<uint32_t>(texture_descriptor_pools_.size());
   new_pool->index = new_pool_index;
   new_pool->unallocated_count = TextureDescriptorPool::kDescriptorCount - 1;
   new_pool->recycled_bits = 0;
@@ -789,26 +790,26 @@ uint32_t VulkanImmediateDrawer::AllocateTextureDescriptor() {
 
 VkDescriptorSet VulkanImmediateDrawer::GetTextureDescriptor(uint32_t descriptor_index) const {
   uint32_t pool_index = descriptor_index >> 6;
-  assert_true(pool_index < texture_descriptor_pools_.size());
+  REX_ASSERT(pool_index < texture_descriptor_pools_.size());
   const TextureDescriptorPool* pool = texture_descriptor_pools_[pool_index];
   uint32_t allocation_index = descriptor_index & 63;
-  assert_true(allocation_index < TextureDescriptorPool::kDescriptorCount - pool->unallocated_count);
+  REX_ASSERT(allocation_index < TextureDescriptorPool::kDescriptorCount - pool->unallocated_count);
   return pool->sets[allocation_index];
 }
 
 void VulkanImmediateDrawer::FreeTextureDescriptor(uint32_t descriptor_index) {
   uint32_t pool_index = descriptor_index >> 6;
-  assert_true(pool_index < texture_descriptor_pools_.size());
+  REX_ASSERT(pool_index < texture_descriptor_pools_.size());
   TextureDescriptorPool* pool = texture_descriptor_pools_[pool_index];
   uint32_t allocation_index = descriptor_index & 63;
-  assert_true(allocation_index < TextureDescriptorPool::kDescriptorCount - pool->unallocated_count);
-  assert_zero(pool->recycled_bits & (uint64_t(1) << allocation_index));
+  REX_ASSERT(allocation_index < TextureDescriptorPool::kDescriptorCount - pool->unallocated_count);
+  REX_ASSERT((pool->recycled_bits & (static_cast<uint64_t>(1) << allocation_index)) == 0);
   if (!pool->recycled_bits) {
     // Add to the free list if not already in it.
     pool->recycled_next = texture_descriptor_pool_recycled_first_;
     texture_descriptor_pool_recycled_first_ = pool;
   }
-  pool->recycled_bits |= uint64_t(1) << allocation_index;
+  pool->recycled_bits |= static_cast<uint64_t>(1) << allocation_index;
 }
 
 bool VulkanImmediateDrawer::CreateTextureResource(uint32_t width, uint32_t height,
@@ -858,7 +859,7 @@ bool VulkanImmediateDrawer::CreateTextureResource(uint32_t width, uint32_t heigh
   image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
   image_view_create_info.format = VK_FORMAT_R8G8B8A8_UNORM;
   // data == nullptr is a special case for (1, 1, 1, 1), though the image will
-  // be cleared to (1, 1, 1, 1) anyway, just a micro-optimization.
+  // be cleared to (1, 1, 1, 1) anyway, only a micro-optimization.
   VkComponentSwizzle swizzle = (data || !vulkan_device_->properties().imageViewFormatSwizzle)
                                    ? VK_COMPONENT_SWIZZLE_IDENTITY
                                    : VK_COMPONENT_SWIZZLE_ONE;

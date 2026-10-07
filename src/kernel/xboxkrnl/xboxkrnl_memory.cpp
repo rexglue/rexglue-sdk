@@ -71,8 +71,8 @@ u32 NtAllocateVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_si
   REXLOG_TRACE(kernel,
                "NtAllocateVirtualMemory "
                "base={:#x} size={:#x} type={:#x} protect={:#x} debug={}",
-               input_base, input_size, (uint32_t)alloc_type, (uint32_t)protect_bits,
-               (uint32_t)debug_memory);
+               input_base, input_size, static_cast<uint32_t>(alloc_type),
+               static_cast<uint32_t>(protect_bits), static_cast<uint32_t>(debug_memory));
 
   // NTSTATUS
   // _Inout_  PVOID *BaseAddress,
@@ -81,19 +81,18 @@ u32 NtAllocateVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_si
   // _In_     ULONG Protect
   // _In_     BOOLEAN DebugMemory
 
-  assert_not_null(base_addr_ptr);
-  assert_not_null(region_size_ptr);
+  REX_ASSERT(base_addr_ptr != nullptr);
+  REX_ASSERT(region_size_ptr != nullptr);
 
   // Set to TRUE when allocation is from devkit memory area.
-  // assert_true(debug_memory == 0);
-  // just warn tf am i gunna do about it
-  if ((uint32_t)debug_memory != 0)
+  // only warn, nothing else to do about it
+  if (static_cast<uint32_t>(debug_memory) != 0)
     REXLOG_WARN(kernel, "attmpted allocation to devkit memory area (debug_memory={})",
-                (uint32_t)debug_memory);
+                static_cast<uint32_t>(debug_memory));
 
   // This allocates memory from the kernel heap, which is initialized on startup
   // and shared by both the kernel implementation and user code.
-  // The memory reference object is used to actually get the memory, and although
+  // The memory reference object is used to get the memory, and although
   // it's simple today we could extend it to do better things in the future.
 
   // Must request a size.
@@ -133,10 +132,11 @@ u32 NtAllocateVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_si
   // Round the base address down to the nearest page boundary.
   uint32_t adjusted_base = *base_addr_ptr - (*base_addr_ptr % page_size);
   // For some reason, some games pass in negative sizes.
-  uint32_t adjusted_size =
-      int32_t(*region_size_ptr) < 0 ? -int32_t(region_size_ptr.value()) : region_size_ptr.value();
+  uint32_t adjusted_size = int32_t(*region_size_ptr) < 0
+                               ? -static_cast<int32_t>(region_size_ptr.value())
+                               : region_size_ptr.value();
   // Use 64KB allocation granularity when no base address is specified,
-  // matching Xbox 360 behavior. With a base address, use the heap's page size.
+  // matching console behavior. With a base address, use the heap's page size.
   adjusted_size = rex::round_up(adjusted_size, adjusted_base ? page_size : 64 * 1024);
 
   // Allocate.
@@ -149,7 +149,7 @@ u32 NtAllocateVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_si
   }
   if (alloc_type & X_MEM_RESET) {
     REX_KERNEL_STUB("X_MEM_RESET");
-    assert_always();
+    REX_ASSERT_ALWAYS();
   }
   uint32_t protect = FromXdkProtectFlags(protect_bits);
   uint32_t address = 0;
@@ -209,7 +209,7 @@ u32 NtAllocateVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_si
 u32 NtProtectVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_size_ptr,
                                  u32 protect_bits, mapped_u32 old_protect, u32 debug_memory) {
   // Set to TRUE when this memory refers to devkit memory area.
-  assert_true(debug_memory == 0);
+  REX_ASSERT(debug_memory == 0);
 
   // Must request a size.
   if (!base_addr_ptr || !region_size_ptr || !*region_size_ptr) {
@@ -258,7 +258,8 @@ u32 NtFreeVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_size_p
   REXLOG_TRACE(kernel,
                "NtFreeVirtualMemory "
                "base={:#x} size={:#x} type={:#x} debug={}",
-               base_addr_value, region_size_value, (uint32_t)free_type, (uint32_t)debug_memory);
+               base_addr_value, region_size_value, static_cast<uint32_t>(free_type),
+               static_cast<uint32_t>(debug_memory));
   // X_MEM_DECOMMIT | X_MEM_RELEASE
 
   // NTSTATUS
@@ -268,7 +269,7 @@ u32 NtFreeVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_size_p
   // _In_     BOOLEAN DebugMemory
 
   // Set to TRUE when freeing external devkit memory.
-  assert_true(debug_memory == 0);
+  REX_ASSERT(debug_memory == 0);
 
   if (!base_addr_value) {
     return X_STATUS_MEMORY_NOT_ALLOCATED;
@@ -313,19 +314,19 @@ u32 NtFreeVirtualMemory_entry(mapped_u32 base_addr_ptr, mapped_u32 region_size_p
 }
 
 struct X_MEMORY_BASIC_INFORMATION {
-  be<uint32_t> base_address;
-  be<uint32_t> allocation_base;
-  be<uint32_t> allocation_protect;
-  be<uint32_t> region_size;
-  be<uint32_t> state;
-  be<uint32_t> protect;
-  be<uint32_t> type;
+  be_u32 base_address;
+  be_u32 allocation_base;
+  be_u32 allocation_protect;
+  be_u32 region_size;
+  be_u32 state;
+  be_u32 protect;
+  be_u32 type;
 };
 
 u32 NtQueryVirtualMemory_entry(u32 base_address,
                                ppc_ptr_t<X_MEMORY_BASIC_INFORMATION> memory_basic_information_ptr,
                                u32 region_type) {
-  switch ((uint32_t)region_type) {
+  switch (static_cast<uint32_t>(region_type)) {
     case 0:
     case 1:
     case 2:
@@ -351,7 +352,7 @@ u32 NtQueryVirtualMemory_entry(u32 base_address,
   // State queried by Beautiful Katamari before displaying the loading screen.
   uint32_t x_state;
   if (alloc_info.state & runtime::kMemoryAllocationCommit) {
-    assert_not_zero(alloc_info.state & runtime::kMemoryAllocationReserve);
+    REX_ASSERT((alloc_info.state & runtime::kMemoryAllocationReserve) != 0);
     x_state = X_MEM_COMMIT;
   } else if (alloc_info.state & runtime::kMemoryAllocationReserve) {
     x_state = X_MEM_RESERVE;
@@ -370,8 +371,9 @@ u32 MmAllocatePhysicalMemoryEx_entry(u32 flags, u32 region_size, u32 protect_bit
   REXLOG_TRACE(kernel,
                "MmAllocatePhysicalMemoryEx "
                "flags={:#x} size={:#x} protect={:#x} min={:#x} max={:#x} align={:#x}",
-               (uint32_t)flags, (uint32_t)region_size, (uint32_t)protect_bits,
-               (uint32_t)min_addr_range, (uint32_t)max_addr_range, (uint32_t)alignment);
+               static_cast<uint32_t>(flags), static_cast<uint32_t>(region_size),
+               static_cast<uint32_t>(protect_bits), static_cast<uint32_t>(min_addr_range),
+               static_cast<uint32_t>(max_addr_range), static_cast<uint32_t>(alignment));
 
   // Check protection bits.
   if (!(protect_bits & (X_PAGE_READONLY | X_PAGE_READWRITE))) {
@@ -440,9 +442,9 @@ void MmFreePhysicalMemory_entry(u32 type, u32 base_address) {
   REXLOG_TRACE(kernel,
                "MmFreePhysicalMemory "
                "type={:#x} addr={:#x}",
-               (uint32_t)type, (uint32_t)base_address);
+               static_cast<uint32_t>(type), static_cast<uint32_t>(base_address));
 
-  assert_true((base_address & 0x1F) == 0);
+  REX_ASSERT((base_address & 0x1F) == 0);
 
   auto heap = runtime::Current().memory()->LookupHeap(base_address);
   heap->Release(base_address);
@@ -463,8 +465,8 @@ void MmSetAddressProtect_entry(mapped_void base_address, u32 region_size, u32 pr
   constexpr uint32_t required_protect_bits = X_PAGE_NOACCESS | X_PAGE_READONLY | X_PAGE_READWRITE |
                                              X_PAGE_EXECUTE_READ | X_PAGE_EXECUTE_READWRITE;
 
-  if (rex::bit_count(uint32_t(protect_bits) & required_protect_bits) != 1) {
-    assert_false(rex::bit_count(uint32_t(protect_bits) & required_protect_bits) > 1);
+  if (rex::bit_count(static_cast<uint32_t>(protect_bits) & required_protect_bits) != 1) {
+    REX_ASSERT(!(rex::bit_count(static_cast<uint32_t>(protect_bits) & required_protect_bits) > 1));
     return;
   }
 
@@ -492,28 +494,28 @@ u32 MmQueryAllocationSize_entry(mapped_void base_address) {
 
 // https://code.google.com/p/vdash/source/browse/trunk/vdash/include/kernel.h
 struct X_MM_QUERY_STATISTICS_SECTION {
-  rex::be<uint32_t> available_pages;
-  rex::be<uint32_t> total_virtual_memory_bytes;
-  rex::be<uint32_t> reserved_virtual_memory_bytes;
-  rex::be<uint32_t> physical_pages;
-  rex::be<uint32_t> pool_pages;
-  rex::be<uint32_t> stack_pages;
-  rex::be<uint32_t> image_pages;
-  rex::be<uint32_t> heap_pages;
-  rex::be<uint32_t> virtual_pages;
-  rex::be<uint32_t> page_table_pages;
-  rex::be<uint32_t> cache_pages;
+  be_u32 available_pages;
+  be_u32 total_virtual_memory_bytes;
+  be_u32 reserved_virtual_memory_bytes;
+  be_u32 physical_pages;
+  be_u32 pool_pages;
+  be_u32 stack_pages;
+  be_u32 image_pages;
+  be_u32 heap_pages;
+  be_u32 virtual_pages;
+  be_u32 page_table_pages;
+  be_u32 cache_pages;
 };
 
 struct X_MM_QUERY_STATISTICS_RESULT {
-  rex::be<uint32_t> size;
-  rex::be<uint32_t> total_physical_pages;
-  rex::be<uint32_t> kernel_pages;
+  be_u32 size;
+  be_u32 total_physical_pages;
+  be_u32 kernel_pages;
   X_MM_QUERY_STATISTICS_SECTION title;
   X_MM_QUERY_STATISTICS_SECTION system;
-  rex::be<uint32_t> highest_physical_page;
+  be_u32 highest_physical_page;
 };
-static_assert_size(X_MM_QUERY_STATISTICS_RESULT, 104);
+REX_STATIC_ASSERT_SIZE(X_MM_QUERY_STATISTICS_RESULT, 104);
 
 u32 MmQueryStatistics_entry(ppc_ptr_t<X_MM_QUERY_STATISTICS_RESULT> stats_ptr) {
   REX_KERNEL_ARG(stats_ptr);
@@ -545,7 +547,7 @@ u32 MmQueryStatistics_entry(ppc_ptr_t<X_MM_QUERY_STATISTICS_RESULT> stats_ptr) {
                                                         unreserved_pages, reserved_pages,
                                                         used_pages, reserved_pages_bytes);
 
-  assert_true(used_pages < stats_ptr->total_physical_pages);
+  REX_ASSERT(used_pages < stats_ptr->total_physical_pages);
 
   auto* memory = runtime::Current().memory();
   const u32 title_pages = stats_ptr->total_physical_pages - stats_ptr->kernel_pages;
@@ -584,24 +586,24 @@ u32 MmQueryStatistics_entry(ppc_ptr_t<X_MM_QUERY_STATISTICS_RESULT> stats_ptr) {
 u32 MmGetPhysicalAddress_entry(u32 base_address) {
   // base_address = result of MmAllocatePhysicalMemory.
   uint32_t physical_address = runtime::Current().memory()->GetPhysicalAddress(base_address);
-  assert_true(physical_address != UINT32_MAX);
+  REX_ASSERT(physical_address != UINT32_MAX);
   if (physical_address == UINT32_MAX) {
     physical_address = 0;
   }
   REXLOG_TRACE(kernel,
                "MmGetPhysicalAddress -> "
                "addr={:#x} -> {:#x}",
-               (uint32_t)base_address, physical_address);
+               static_cast<uint32_t>(base_address), physical_address);
   return physical_address;
 }
 
 u32 MmMapIoSpace_entry(u32 unk0, mapped_void src_address, u32 size, u32 flags) {
   // I've only seen this used to map XMA audio contexts.
-  // The code seems fine with taking the src address, so this just returns that.
+  // The code seems fine with taking the src address, so this returns that.
   // If others start using it there could be problems.
-  assert_true(unk0 == 2);
-  assert_true(size == 0x40);
-  assert_true(flags == 0x404);
+  REX_ASSERT(unk0 == 2);
+  REX_ASSERT(size == 0x40);
+  REX_ASSERT(flags == 0x404);
 
   return src_address.guest_address();
 }
@@ -611,9 +613,9 @@ struct X_POOL_ALLOC_HEADER {
   uint8_t unk_1;
   uint8_t unk_2;
   uint8_t unk_3;
-  rex::be<uint32_t> tag;
+  be_u32 tag;
 };
-static_assert_size(X_POOL_ALLOC_HEADER, 8);
+REX_STATIC_ASSERT_SIZE(X_POOL_ALLOC_HEADER, 8);
 
 u32 ExAllocatePoolTypeWithTag_entry(u32 size, u32 tag, u32 zero) {
   if (size <= 0xFD8) {
@@ -623,7 +625,7 @@ u32 ExAllocatePoolTypeWithTag_entry(u32 size, u32 tag, u32 zero) {
       return 0;
     auto header = runtime::Current().memory()->TranslateVirtual<X_POOL_ALLOC_HEADER*>(addr);
     header->unk_2 = 170;  // magic marker
-    header->tag = (uint32_t)tag;
+    header->tag = static_cast<uint32_t>(tag);
     return addr + sizeof(X_POOL_ALLOC_HEADER);
   } else {
     return runtime::Current().memory()->SystemHeapAlloc(size, 4096);
@@ -667,7 +669,7 @@ u32 KeLockL2_entry() {
 void KeUnlockL2_entry() {}
 
 u32 MmCreateKernelStack_entry(u32 stack_size, u32 r4) {
-  assert_zero(r4);
+  REX_ASSERT(r4 == 0);
   auto& runtime = runtime::Current();
   const auto* process =
       runtime.memory()->TranslateVirtual<const X_KPROCESS*>(runtime.GetTitleProcess());
@@ -711,7 +713,8 @@ u32 NtAllocateEncryptedMemory_entry(u32 unk, u32 region_size, mapped_u32 base_ad
     return X_STATUS_INVALID_PARAMETER;
   }
 
-  const uint32_t region_size_adjusted = rex::round_up(uint32_t(region_size), 64 * 1024);
+  const uint32_t region_size_adjusted =
+      rex::round_up(static_cast<uint32_t>(region_size), 64 * 1024);
   if (region_size_adjusted > 16 * 1024 * 1024) {
     return X_STATUS_INVALID_PARAMETER;
   }

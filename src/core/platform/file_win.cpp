@@ -1,6 +1,5 @@
 /**
  * @file        core/platform/file_win.cpp
- * @brief       Windows host folder queries
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

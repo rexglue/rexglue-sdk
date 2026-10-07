@@ -1,6 +1,5 @@
 /**
  * @file        cvar/registry.h
- * @brief       The cvar registry interface, served by core
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -73,8 +72,7 @@ class ICvarRegistry {
    */
   virtual void Unregister(std::span<const IVar* const> vars) = 0;
   /**
-   * Sets with source Runtime, validated. Fails with NotFound, Invalid, InitOnly after
-   * finalize, or Locked.
+   * Sets a cvar. Fails with NotFound, Invalid, InitOnly after finalize, or Locked.
    *
    * @param name Dotted cvar name such as gpu.vsync.
    * @param value The value as text.
@@ -159,7 +157,7 @@ class ICvarRegistry {
   /**
    * Lists the cvars waiting for a restart.
    *
-   * @return RequiresRestart vars changed with source Runtime after finalize.
+   * @return RequiresRestart vars changed after finalize.
    */
   virtual std::vector<std::string> PendingRestart() const = 0;
   /**

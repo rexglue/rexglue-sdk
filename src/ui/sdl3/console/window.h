@@ -1,6 +1,5 @@
 /**
  * @file        ui/sdl3/console/window.h
- * @brief       The console in its own OS window
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -31,6 +30,8 @@ class WindowedAppContext;
 
 /** An OS window filled with a console view. Closing it docks the console back. */
 class ConsoleWindow : public NonCopyable {
+  struct Key {};
+
  public:
   /**
    * Opens the window.
@@ -43,11 +44,16 @@ class ConsoleWindow : public NonCopyable {
    * @param host Receives dock changes. Outlives the window.
    * @return The window, or ErrorCategory::Runtime when the window or its presenter fails.
    */
-  static Result<std::unique_ptr<ConsoleWindow>> Create(WindowedAppContext& context,
-                                                       gpu::IBackend& backend,
-                                                       const ImGuiStyle& imgui_style,
-                                                       const Style& style, ConsoleModel& model,
-                                                       ConsoleHost& host);
+  [[nodiscard]] static Result<std::unique_ptr<ConsoleWindow>> Create(
+      WindowedAppContext& context, gpu::IBackend& backend, const ImGuiStyle& imgui_style,
+      const Style& style, ConsoleModel& model, ConsoleHost& host);
+
+  /**
+   * Builds an empty window. Only Create can make the key.
+   *
+   * @param key The private construction key.
+   */
+  explicit ConsoleWindow(Key);
 
   /** Closes the window. */
   ~ConsoleWindow();
@@ -55,8 +61,6 @@ class ConsoleWindow : public NonCopyable {
  private:
   class Dialog;
   class Listener;
-
-  ConsoleWindow();
 
   std::unique_ptr<Window> window_;
   std::unique_ptr<Listener> listener_;

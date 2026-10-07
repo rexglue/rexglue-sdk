@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/ui/console_model_test.cpp
- * @brief       Console model execution, completion, help, history and output
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

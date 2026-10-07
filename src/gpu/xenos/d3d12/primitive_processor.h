@@ -42,7 +42,7 @@ class D3D12PrimitiveProcessor final : public PrimitiveProcessor {
   void EndFrame();
 
   D3D12_GPU_VIRTUAL_ADDRESS GetBuiltinIndexBufferGpuAddress(size_t handle) const {
-    assert_not_null(builtin_index_buffer_);
+    REX_ASSERT(builtin_index_buffer_ != nullptr);
     return D3D12_GPU_VIRTUAL_ADDRESS(builtin_index_buffer_gpu_address_ +
                                      GetBuiltinIndexBufferOffsetBytes(handle));
   }

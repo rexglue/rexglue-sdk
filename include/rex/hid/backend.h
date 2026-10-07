@@ -1,6 +1,5 @@
 /**
  * @file        hid/backend.h
- * @brief       The HID interface served by hid modules and its null provider
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

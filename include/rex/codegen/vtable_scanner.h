@@ -16,29 +16,32 @@
 #include <string>
 #include <vector>
 
+#include <rex/assert.h>
 #include <rex/codegen/binary_view.h>
+#include <rex/types.h>
 
 namespace rex::codegen {
 
 //=============================================================================
-// RTTI Structures (MSVC-based, Xbox 360)
+// RTTI Structures (MSVC-based)
 //=============================================================================
 
 // Type descriptor - contains mangled class name
 struct RTTITypeDescriptor {
-  uint32_t pVFTable;  // Always points to type_info vtable
-  uint32_t spare;     // Runtime use, always 0 in image
-                      // char name[];         // Mangled name: ".?AVClassName@@"
+  be_u32 pVFTable;  // Always points to type_info vtable
+  be_u32 spare;     // Runtime use, always 0 in image
+                    // char name[];         // Mangled name: ".?AVClassName@@"
 };
 
 // Complete Object Locator - links vtable to type info
 struct RTTICompleteObjectLocator {
-  uint32_t signature;        // Always 0 for 32-bit
-  uint32_t offset;           // Offset of this vtable in complete class
-  uint32_t cdOffset;         // Constructor displacement offset
-  uint32_t pTypeDescriptor;  // Pointer to TypeDescriptor
-  uint32_t pClassHierarchy;  // Pointer to class hierarchy descriptor
+  be_u32 signature;        // Always 0 for 32-bit
+  be_u32 offset;           // Offset of this vtable in complete class
+  be_u32 cdOffset;         // Constructor displacement offset
+  be_u32 pTypeDescriptor;  // Pointer to TypeDescriptor
+  be_u32 pClassHierarchy;  // Pointer to class hierarchy descriptor
 };
+REX_STATIC_ASSERT_SIZE(RTTICompleteObjectLocator, 20);
 
 //=============================================================================
 // VTableInfo - Result of vtable scanning

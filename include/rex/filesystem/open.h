@@ -1,6 +1,5 @@
 /**
  * @file        filesystem/open.h
- * @brief       Access bits, dispositions and the options and result of an open
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -79,5 +78,5 @@ struct Opened {
 
 /** Opts Access into the flag operators. */
 template <>
-// NOLINTNEXTLINE(readability-identifier-naming): charter 12.1 names the trait
+// NOLINTNEXTLINE(readability-identifier-naming)
 inline constexpr bool rex::is_flags_enum<rex::filesystem::Access> = true;

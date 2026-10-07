@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/core/module_loader_test.cpp
- * @brief       Unit tests for rex::Init, rex::Shutdown, the interface registry and ParseCommandLine
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -143,10 +142,10 @@ TEST_CASE_METHOD(Fixture, "rex_create_interface with a null name reports NotFoun
   REQUIRE(create != nullptr);
   rex::i32 status = -1;
   REQUIRE(create(nullptr, 1, &status) == nullptr);
-  REQUIRE(status == static_cast<rex::i32>(rex::InterfaceStatus::NotFound));
+  REQUIRE(status == std::to_underlying(rex::InterfaceStatus::NotFound));
   status = -1;
   REQUIRE(create(rex::IModule::kInterfaceName, 99, &status) == nullptr);
-  REQUIRE(status == static_cast<rex::i32>(rex::InterfaceStatus::VersionMismatch));
+  REQUIRE(status == std::to_underlying(rex::InterfaceStatus::VersionMismatch));
 }
 
 TEST_CASE_METHOD(Fixture, "Missing requirement fails before any Connect", "[module_loader]") {

@@ -24,30 +24,30 @@ ElfModule::~ElfModule() = default;
 // ELF structures
 struct elf32_ehdr {
   uint8_t e_ident[16];
-  rex::be<uint16_t> e_type;
-  rex::be<uint16_t> e_machine;
-  rex::be<uint32_t> e_version;
+  be_u16 e_type;
+  be_u16 e_machine;
+  be_u32 e_version;
   rex::be<uint32_t> e_entry;
-  rex::be<uint32_t> e_phoff;
-  rex::be<uint32_t> e_shoff;
-  rex::be<uint32_t> e_flags;
-  rex::be<uint16_t> e_ehsize;
-  rex::be<uint16_t> e_phentsize;
-  rex::be<uint16_t> e_phnum;
-  rex::be<uint16_t> e_shentsize;
-  rex::be<uint16_t> e_shnum;
-  rex::be<uint16_t> e_shtrndx;
+  be_u32 e_phoff;
+  be_u32 e_shoff;
+  be_u32 e_flags;
+  be_u16 e_ehsize;
+  be_u16 e_phentsize;
+  be_u16 e_phnum;
+  be_u16 e_shentsize;
+  be_u16 e_shnum;
+  be_u16 e_shtrndx;
 };
 
 struct elf32_phdr {
-  rex::be<uint32_t> p_type;
-  rex::be<uint32_t> p_offset;
-  rex::be<uint32_t> p_vaddr;
-  rex::be<uint32_t> p_paddr;
-  rex::be<uint32_t> p_filesz;
-  rex::be<uint32_t> p_memsz;
-  rex::be<uint32_t> p_flags;
-  rex::be<uint32_t> p_align;
+  be_u32 p_type;
+  be_u32 p_offset;
+  be_u32 p_vaddr;
+  be_u32 p_paddr;
+  be_u32 p_filesz;
+  be_u32 p_memsz;
+  be_u32 p_flags;
+  be_u32 p_align;
 };
 
 bool ElfModule::is_executable() const {
@@ -61,15 +61,15 @@ bool ElfModule::Load(const std::string_view name, const std::string_view path, c
   path_ = path;
   (void)elf_length;
 
-  uint8_t* pelf = (uint8_t*)elf_addr;
-  elf32_ehdr* hdr = (elf32_ehdr*)(pelf + 0x0);
+  auto pelf = static_cast<const uint8_t*>(elf_addr);
+  auto hdr = reinterpret_cast<const elf32_ehdr*>(pelf);
   if (hdr->e_ident[0] != 0x7F || hdr->e_ident[1] != 'E' || hdr->e_ident[2] != 'L' ||
       hdr->e_ident[3] != 'F') {
     // Not an ELF file!
     return false;
   }
 
-  assert_true(hdr->e_ident[4] == 1);  // 32bit
+  REX_ASSERT(hdr->e_ident[4] == 1);  // 32bit
 
   if (hdr->e_type != 2 /* ET_EXEC */) {
     // Not executable (shared objects not supported yet)
@@ -82,7 +82,7 @@ bool ElfModule::Load(const std::string_view name, const std::string_view path, c
     REX_FAIL(system, false,
              "ELF: Could not load ELF because target machine is not PPC! (target: "
              "{})",
-             uint32_t(hdr->e_machine));
+             static_cast<uint32_t>(hdr->e_machine));
   }
 
   // Parse LOAD program headers and load into memory.
@@ -101,8 +101,8 @@ bool ElfModule::Load(const std::string_view name, const std::string_view path, c
   elf_header_mem_.resize(hdr->e_ehsize);
   std::memcpy(elf_header_mem_.data(), hdr, hdr->e_ehsize);
 
-  assert_true(hdr->e_phentsize == sizeof(elf32_phdr));
-  elf32_phdr* phdr = (elf32_phdr*)(pelf + hdr->e_phoff);
+  REX_ASSERT(hdr->e_phentsize == sizeof(elf32_phdr));
+  auto phdr = reinterpret_cast<const elf32_phdr*>(pelf + hdr->e_phoff);
 
   // Calculate base address and image size from loaded segments
   uint32_t min_addr = UINT32_MAX;
@@ -120,12 +120,12 @@ bool ElfModule::Load(const std::string_view name, const std::string_view path, c
       // Base address @ 0x80000000
       if (phdr[i].p_vaddr < 0x80000000 || phdr[i].p_vaddr > 0x9FFFFFFF) {
         REX_FAIL(system, false, "ELF: Could not allocate memory for section @ address 0x{:08X}",
-                 uint32_t(phdr[i].p_vaddr));
+                 static_cast<uint32_t>(phdr[i].p_vaddr));
       }
 
       uint32_t virtual_addr = phdr[i].p_vaddr & ~(phdr[i].p_align - 1);
       uint32_t virtual_size =
-          rex::round_up(phdr[i].p_vaddr + phdr[i].p_memsz, uint32_t(phdr[i].p_align)) -
+          rex::round_up(phdr[i].p_vaddr + phdr[i].p_memsz, static_cast<uint32_t>(phdr[i].p_align)) -
           virtual_addr;
       if (!memory()
                ->LookupHeap(virtual_addr)

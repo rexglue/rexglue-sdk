@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/core/relaunch_test.cpp
- * @brief       Unit tests for the relaunch command line
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -36,7 +35,7 @@ TEST_CASE("BuildCommandLine round trips through CommandLineToArgvW", "[relaunch]
   int argc = 0;
   LPWSTR* argv = CommandLineToArgvW(command.c_str(), &argc);
   REQUIRE(argv != nullptr);
-  REQUIRE(size_t(argc) == args.size() + 1);
+  REQUIRE(static_cast<size_t>(argc) == args.size() + 1);
   for (size_t i = 0; i < args.size(); ++i) {
     CHECK(std::wstring(argv[i + 1]) == std::wstring(args[i].begin(), args[i].end()));
   }

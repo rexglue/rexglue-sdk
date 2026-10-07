@@ -1,6 +1,5 @@
 /**
  * @file        kernel/kernel_init.cpp
- * @brief       Kernel initialization - loads kernel modules and registers apps
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

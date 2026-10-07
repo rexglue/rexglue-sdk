@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/ui/title_app_test.cpp
- * @brief       Unit tests for TitleApp without a title
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -67,7 +66,7 @@ class FooApp : public rex::ui::TitleApp {
   void ExitTitle(rex::runtime::TitleExitReason reason) { OnTitleExit(reason); }
 
  protected:
-  rex::Result<void> OnConfigure(rex::Config& config) override {
+  [[nodiscard]] rex::Result<void> OnConfigure(rex::Config& config) override {
     config.modules = modules;
     config.ui.video_driver = "dummy";
     config.paths.config_file.clear();

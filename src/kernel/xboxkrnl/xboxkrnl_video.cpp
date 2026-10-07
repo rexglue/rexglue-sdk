@@ -114,60 +114,60 @@ void VdGetCurrentDisplayGamma_entry(mapped_u32 type_ptr, mapped_f32 power_ptr) {
   // Anything else - linear.
   // Used in D3D SetGammaRamp/SetPWLGamma to adjust the ramp for the display.
   *type_ptr = kDisplayGammaType;
-  *power_ptr = float(kDisplayGammaPower);
+  *power_ptr = static_cast<float>(kDisplayGammaPower);
 }
 
 struct X_D3DPRIVATE_RECT {
-  rex::be<uint32_t> x1;  // 0x0
-  rex::be<uint32_t> y1;  // 0x4
-  rex::be<uint32_t> x2;  // 0x8
-  rex::be<uint32_t> y2;  // 0xC
+  be_u32 x1;  // 0x0
+  be_u32 y1;  // 0x4
+  be_u32 x2;  // 0x8
+  be_u32 y2;  // 0xC
 };
-static_assert_size(X_D3DPRIVATE_RECT, 0x10);
+REX_STATIC_ASSERT_SIZE(X_D3DPRIVATE_RECT, 0x10);
 
 struct X_D3DFILTER_PARAMETERS {
-  rex::be<float> nyquist;         // 0x0
-  rex::be<float> flicker_filter;  // 0x4
-  rex::be<float> beta;            // 0x8
+  be_f32 nyquist;         // 0x0
+  be_f32 flicker_filter;  // 0x4
+  be_f32 beta;            // 0x8
 };
-static_assert_size(X_D3DFILTER_PARAMETERS, 0xC);
+REX_STATIC_ASSERT_SIZE(X_D3DFILTER_PARAMETERS, 0xC);
 
 struct X_D3DPRIVATE_SCALER_PARAMETERS {
   X_D3DPRIVATE_RECT scaler_source_rect;                 // 0x0
-  rex::be<uint32_t> scaled_output_width;                // 0x10
-  rex::be<uint32_t> scaled_output_height;               // 0x14
-  rex::be<uint32_t> vertical_filter_type;               // 0x18
+  be_u32 scaled_output_width;                           // 0x10
+  be_u32 scaled_output_height;                          // 0x14
+  be_u32 vertical_filter_type;                          // 0x18
   X_D3DFILTER_PARAMETERS vertical_filter_parameters;    // 0x1C
-  rex::be<uint32_t> horizontal_filter_type;             // 0x28
+  be_u32 horizontal_filter_type;                        // 0x28
   X_D3DFILTER_PARAMETERS horizontal_filter_parameters;  // 0x2C
 };
-static_assert_size(X_D3DPRIVATE_SCALER_PARAMETERS, 0x38);
+REX_STATIC_ASSERT_SIZE(X_D3DPRIVATE_SCALER_PARAMETERS, 0x38);
 
 struct X_DISPLAY_INFO {
-  rex::be<uint16_t> front_buffer_width;              // 0x0
-  rex::be<uint16_t> front_buffer_height;             // 0x2
+  be_u16 front_buffer_width;                         // 0x0
+  be_u16 front_buffer_height;                        // 0x2
   uint8_t front_buffer_color_format;                 // 0x4
   uint8_t front_buffer_pixel_format;                 // 0x5
   X_D3DPRIVATE_SCALER_PARAMETERS scaler_parameters;  // 0x8
-  rex::be<uint16_t> display_window_overscan_left;    // 0x40
-  rex::be<uint16_t> display_window_overscan_top;     // 0x42
-  rex::be<uint16_t> display_window_overscan_right;   // 0x44
-  rex::be<uint16_t> display_window_overscan_bottom;  // 0x46
-  rex::be<uint16_t> display_width;                   // 0x48
-  rex::be<uint16_t> display_height;                  // 0x4A
-  rex::be<float> display_refresh_rate;               // 0x4C
-  rex::be<uint32_t> display_interlaced;              // 0x50
+  be_u16 display_window_overscan_left;               // 0x40
+  be_u16 display_window_overscan_top;                // 0x42
+  be_u16 display_window_overscan_right;              // 0x44
+  be_u16 display_window_overscan_bottom;             // 0x46
+  be_u16 display_width;                              // 0x48
+  be_u16 display_height;                             // 0x4A
+  be_f32 display_refresh_rate;                       // 0x4C
+  be_u32 display_interlaced;                         // 0x50
   uint8_t display_color_format;                      // 0x54
-  rex::be<uint16_t> actual_display_width;            // 0x56
+  be_u16 actual_display_width;                       // 0x56
 };
-static_assert_size(X_DISPLAY_INFO, 0x58);
+REX_STATIC_ASSERT_SIZE(X_DISPLAY_INFO, 0x58);
 
 void VdGetCurrentDisplayInformation_entry(ppc_ptr_t<X_DISPLAY_INFO> display_info) {
   X_VIDEO_MODE mode;
   VdQueryVideoMode(&mode);
   display_info.Zero();
-  display_info->front_buffer_width = (uint16_t)mode.display_width;
-  display_info->front_buffer_height = (uint16_t)mode.display_height;
+  display_info->front_buffer_width = static_cast<uint16_t>(mode.display_width);
+  display_info->front_buffer_height = static_cast<uint16_t>(mode.display_height);
 
   display_info->scaler_parameters.scaler_source_rect.x2 = mode.display_width;
   display_info->scaler_parameters.scaler_source_rect.y2 = mode.display_height;
@@ -176,16 +176,16 @@ void VdGetCurrentDisplayInformation_entry(ppc_ptr_t<X_DISPLAY_INFO> display_info
   display_info->scaler_parameters.horizontal_filter_type = 1;
   display_info->scaler_parameters.vertical_filter_type = 1;
 
-  uint16_t overscan_x = uint16_t(uint32_t(mode.display_width) / 4);
-  uint16_t overscan_y = uint16_t(uint32_t(mode.display_height) / 4);
+  uint16_t overscan_x = static_cast<uint16_t>(static_cast<uint32_t>(mode.display_width) / 4);
+  uint16_t overscan_y = static_cast<uint16_t>(static_cast<uint32_t>(mode.display_height) / 4);
   display_info->display_window_overscan_left = overscan_x;
   display_info->display_window_overscan_top = overscan_y;
   display_info->display_window_overscan_right = overscan_x;
   display_info->display_window_overscan_bottom = overscan_y;
-  display_info->display_width = (uint16_t)mode.display_width;
-  display_info->display_height = (uint16_t)mode.display_height;
+  display_info->display_width = static_cast<uint16_t>(mode.display_width);
+  display_info->display_height = static_cast<uint16_t>(mode.display_height);
   display_info->display_refresh_rate = mode.refresh_rate;
-  display_info->actual_display_width = (uint16_t)mode.display_width;
+  display_info->actual_display_width = static_cast<uint16_t>(mode.display_width);
 }
 
 void VdQueryVideoMode(X_VIDEO_MODE* video_mode) {
@@ -242,7 +242,7 @@ u32 VdSetDisplayMode_entry(u32 flags) {
 }
 
 u32 VdSetDisplayModeOverride_entry(u32 unk0, u32 unk1, f64 refresh_rate, u32 unk3, u32 unk4) {
-  // refresh_rate = 0, 50, 59.9, etc.
+  // refresh_rate = 0, 50 or 59.9
   return 0;
 }
 
@@ -257,19 +257,19 @@ u32 VdInitializeEngines_entry(u32 unk0, u32 callback, mapped_void arg, mapped_u3
 }
 
 void VdShutdownEngines_entry() {
-  // Ignored for now.
+  // Ignored.
   // Games seem to call an Initialize/Shutdown pair to query info, then
   // re-initialize.
 }
 
 u32 VdGetGraphicsAsicID_entry() {
   // Games compare for < 0x10 and do VdInitializeEDRAM, else other
-  // (retrain/etc).
+  // (retrain and others).
   return 0x11;
 }
 
 u32 VdEnableDisableClockGating_entry(u32 enabled) {
-  // Ignored, as it really doesn't matter.
+  // Ignored, as it doesn't matter.
   return 0;
 }
 
@@ -312,8 +312,8 @@ void VdEnableRingBufferRPtrWriteBack_entry(mapped_void ptr, i32 block_size_log2)
 
 void VdGetSystemCommandBuffer_entry(mapped_void p0_ptr, mapped_void p1_ptr) {
   p0_ptr.Zero(0x94);
-  memory::store_and_swap<uint32_t>(p0_ptr, 0xBEEF0000);
-  memory::store_and_swap<uint32_t>(p1_ptr, 0xBEEF0001);
+  memory::store<be_u32>(p0_ptr, 0xBEEF0000);
+  memory::store<be_u32>(p1_ptr, 0xBEEF0001);
 }
 
 void VdSetSystemCommandBufferGpuIdentifierAddress_entry(mapped_void unk) {
@@ -342,23 +342,23 @@ u32 VdInitializeScalerCommandBuffer_entry(
 ) {
   // We could fake the commands here, but I'm not sure the game checks for
   // anything but success (non-zero ret).
-  // For now, we just fill it with NOPs.
+  // We fill it with NOPs.
   auto dest = dest_ptr.as_array<uint32_t>();
   for (size_t i = 0; i < dest_count; ++i) {
     dest[i] = 0x80000000;
   }
-  return (uint32_t)dest_count;
+  return static_cast<uint32_t>(dest_count);
 }
 
 struct BufferScaling {
-  rex::be<uint16_t> fb_width;
-  rex::be<uint16_t> fb_height;
-  rex::be<uint16_t> bb_width;
-  rex::be<uint16_t> bb_height;
+  be_u16 fb_width;
+  be_u16 fb_height;
+  be_u16 bb_width;
+  be_u16 bb_height;
 };
 
 u32 VdCallGraphicsNotificationRoutines_entry(u32 unk0, ppc_ptr_t<BufferScaling> args_ptr) {
-  assert_true(unk0 == 1);
+  REX_ASSERT(unk0 == 1);
 
   // TODO(benvanik): what does this mean, I forget:
   // callbacks get 0, r3, r4
@@ -421,10 +421,10 @@ void VdSwap_entry(mapped_void buffer_ptr,      // ptr into primary ringbuffer
   // proper fetch constants like ones used to bind textures to shaders, not CPU
   // MMU addresses, so translation from virtual to physical is needed.
   uint32_t frontbuffer_virtual_address = gpu_fetch.base_address << 12;
-  assert_true(*frontbuffer_ptr == frontbuffer_virtual_address);
+  REX_ASSERT(*frontbuffer_ptr == frontbuffer_virtual_address);
   uint32_t frontbuffer_physical_address =
       runtime::Current().memory()->GetPhysicalAddress(frontbuffer_virtual_address);
-  assert_true(frontbuffer_physical_address != UINT32_MAX);
+  REX_ASSERT(frontbuffer_physical_address != UINT32_MAX);
   if (frontbuffer_physical_address == UINT32_MAX) {
     // Xenia-specific safety check.
     REXLOG_ERROR(kernel, "VdSwap: Invalid front buffer virtual address 0x{:08X}",
@@ -435,15 +435,15 @@ void VdSwap_entry(mapped_void buffer_ptr,      // ptr into primary ringbuffer
 
   auto texture_format = rex::xenos::TextureFormat(texture_format_ptr.value());
   auto color_space = *color_space_ptr;
-  assert_true(texture_format == rex::xenos::TextureFormat::k_8_8_8_8 ||
-              texture_format == rex::xenos::TextureFormat::k_2_10_10_10_AS_16_16_16_16);
-  assert_true(color_space == 0);  // RGB(0)
-  assert_true(*width == 1 + gpu_fetch.size_2d.width);
-  assert_true(*height == 1 + gpu_fetch.size_2d.height);
+  REX_ASSERT(texture_format == rex::xenos::TextureFormat::k_8_8_8_8 ||
+             texture_format == rex::xenos::TextureFormat::k_2_10_10_10_AS_16_16_16_16);
+  REX_ASSERT(color_space == 0);  // RGB(0)
+  REX_ASSERT(*width == 1 + gpu_fetch.size_2d.width);
+  REX_ASSERT(*height == 1 + gpu_fetch.size_2d.height);
 
   // The caller seems to reserve 64 words (256b) in the primary ringbuffer
-  // for this method to do what it needs. We just zero them out and send a
-  // token value. It'd be nice to figure out what this is really doing so
+  // for this method to do what it needs. We zero them out and send a
+  // token value. It'd be nice to figure out what this is doing so
   // that we could simulate it, though due to TCR I bet all games need to
   // use this method.
   buffer_ptr.Zero(64 * 4);
@@ -482,19 +482,19 @@ void RegisterVideoExports(ModuleObject& module, Runtime& runtime) {
   // have to do anything. We may want to read it back later, though.
   uint32_t pVdGlobalDevice = memory->SystemHeapAlloc(4, 32, runtime::kSystemHeapPhysical);
   KernelModuleSetVariable(module, 0x01BE, pVdGlobalDevice);
-  memory::store_and_swap<uint32_t>(memory->TranslateVirtual(pVdGlobalDevice), 0);
+  *memory->TranslateVirtual<be_u32*>(pVdGlobalDevice) = 0;
 
   // VdGlobalXamDevice (4b)
   // Pointer to the XAM D3D device, which we don't have.
   uint32_t pVdGlobalXamDevice = memory->SystemHeapAlloc(4, 32, runtime::kSystemHeapPhysical);
   KernelModuleSetVariable(module, 0x01BF, pVdGlobalXamDevice);
-  memory::store_and_swap<uint32_t>(memory->TranslateVirtual(pVdGlobalXamDevice), 0);
+  *memory->TranslateVirtual<be_u32*>(pVdGlobalXamDevice) = 0;
 
   // VdGpuClockInMHz (4b)
   // GPU clock. Xenos is 500MHz. Hope nothing is relying on this timing...
   uint32_t pVdGpuClockInMHz = memory->SystemHeapAlloc(4, 32, runtime::kSystemHeapPhysical);
   KernelModuleSetVariable(module, 0x01C0, pVdGpuClockInMHz);
-  memory::store_and_swap<uint32_t>(memory->TranslateVirtual(pVdGpuClockInMHz), 500);
+  *memory->TranslateVirtual<be_u32*>(pVdGpuClockInMHz) = 500;
 
   // VdHSIOCalibrationLock (28b)
   // CriticalSection.

@@ -1,6 +1,5 @@
 /**
  * @file        hook.h
- * @brief       Hook authoring API: macros, typed imports, RAII helpers
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -30,7 +29,7 @@
 //=============================================================================
 
 // Hook a recompiled function with an auto-marshaled native C++ function.
-// The native function uses plain types (u32, mapped_u32, etc.) and
+// The native function uses plain types (u32, mapped_u32 and others) and
 // HostToGuestFunction handles register translation automatically.
 #ifdef REXGLUE_ENABLE_PROFILING
 #include <tracy/Tracy.hpp>
@@ -104,9 +103,9 @@ namespace rex {
 //=============================================================================
 // For side calls that must not disturb the outer hook's register state.
 // Stack-allocated, NOT zero-initialized. Only copies the registers a callee
-// actually needs from the parent context.
+// needs from the parent context.
 
-struct CallFrame {
+struct CallFrame : public rex::NonCopyable {
   PPCContext ctx;
   PPCContext& parent_;
 
@@ -119,9 +118,6 @@ struct CallFrame {
   ~CallFrame() { parent_.fpscr = ctx.fpscr; }
 
   operator PPCContext&() { return ctx; }
-
-  CallFrame(const CallFrame&) = delete;
-  CallFrame& operator=(const CallFrame&) = delete;
 };
 
 }  // namespace rex

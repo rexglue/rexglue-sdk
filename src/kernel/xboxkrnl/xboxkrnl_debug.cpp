@@ -30,13 +30,13 @@ void DbgBreakPoint_entry() {
 }
 
 // https://msdn.microsoft.com/en-us/library/xcb2z8hs.aspx
-typedef struct {
-  rex::be<uint32_t> type;
-  rex::be<uint32_t> name_ptr;
-  rex::be<uint32_t> thread_id;
-  rex::be<uint32_t> flags;
-} X_THREADNAME_INFO;
-static_assert_size(X_THREADNAME_INFO, 0x10);
+struct X_THREADNAME_INFO {
+  be_u32 type;
+  be_u32 name_ptr;
+  be_u32 thread_id;
+  be_u32 flags;
+};
+REX_STATIC_ASSERT_SIZE(X_THREADNAME_INFO, 0x10);
 
 void HandleSetThreadName(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
   // SetThreadName. FFS.
@@ -46,7 +46,7 @@ void HandleSetThreadName(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
   // correct size.
   auto thread_info = reinterpret_cast<X_THREADNAME_INFO*>(&record->exception_information[0]);
 
-  assert_true(thread_info->type == 0x1000);
+  REX_ASSERT(thread_info->type == 0x1000);
 
   if (!thread_info->name_ptr) {
     REXLOG_DEBUG(kernel, "SetThreadName called with null name_ptr");
@@ -80,31 +80,31 @@ void HandleSetThreadName(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
   // TODO(benvanik): unwinding required here?
 }
 
-typedef struct {
-  rex::be<int32_t> mdisp;
-  rex::be<int32_t> pdisp;
-  rex::be<int32_t> vdisp;
-} x_PMD;
+struct x_PMD {
+  be_i32 mdisp;
+  be_i32 pdisp;
+  be_i32 vdisp;
+};
 
-typedef struct {
-  rex::be<uint32_t> properties;
-  rex::be<uint32_t> type_ptr;
+struct x_s__CatchableType {
+  be_u32 properties;
+  be_u32 type_ptr;
   x_PMD this_displacement;
-  rex::be<int32_t> size_or_offset;
-  rex::be<uint32_t> copy_function_ptr;
-} x_s__CatchableType;
+  be_i32 size_or_offset;
+  be_u32 copy_function_ptr;
+};
 
-typedef struct {
-  rex::be<int32_t> number_catchable_types;
-  rex::be<uint32_t> catchable_type_ptrs[1];
-} x_s__CatchableTypeArray;
+struct x_s__CatchableTypeArray {
+  be_i32 number_catchable_types;
+  be_u32 catchable_type_ptrs[1];
+};
 
-typedef struct {
-  rex::be<uint32_t> attributes;
-  rex::be<uint32_t> unwind_ptr;
-  rex::be<uint32_t> forward_compat_ptr;
-  rex::be<uint32_t> catchable_type_array_ptr;
-} x_s__ThrowInfo;
+struct x_s__ThrowInfo {
+  be_u32 attributes;
+  be_u32 unwind_ptr;
+  be_u32 forward_compat_ptr;
+  be_u32 catchable_type_array_ptr;
+};
 
 void HandleCppException(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
   // C++ exception.
@@ -112,12 +112,12 @@ void HandleCppException(ppc_ptr_t<X_EXCEPTION_RECORD> record) {
   // http://www.drdobbs.com/visual-c-exception-handling-instrumentat/184416600
   // http://www.openrce.org/articles/full_view/21
 
-  assert_true(record->number_parameters == 3);
-  assert_true(record->exception_information[0] == 0x19930520);
+  REX_ASSERT(record->number_parameters == 3);
+  REX_ASSERT(record->exception_information[0] == 0x19930520);
 
   auto thrown_ptr = record->exception_information[1];
   auto thrown = runtime::Current().memory()->TranslateVirtual(thrown_ptr);
-  auto vftable_ptr = *reinterpret_cast<rex::be<uint32_t>*>(thrown);
+  auto vftable_ptr = *reinterpret_cast<be_u32*>(thrown);
 
   auto throw_info_ptr = record->exception_information[2];
   auto throw_info = runtime::Current().memory()->TranslateVirtual<x_s__ThrowInfo*>(throw_info_ptr);
@@ -149,7 +149,7 @@ void KeBugCheckEx_entry(u32 code, u32 param1, u32 param2, u32 param3, u32 param4
                param2, param3, param4);
   fflush(stdout);
   rex::platform::Break();
-  assert_always();
+  REX_ASSERT_ALWAYS();
 }
 
 void KeBugCheck_entry(u32 code) {

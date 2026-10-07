@@ -1,6 +1,5 @@
 /**
  * @file        core/relaunch_posix.cpp
- * @brief       Relaunch of the running executable on Linux and macOS
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -24,7 +23,7 @@
 
 namespace rex::platform {
 
-Result<void> Relaunch(std::span<const std::string> args) {
+[[nodiscard]] Result<void> Relaunch(std::span<const std::string> args) {
   const auto appimage = GetEnvironmentValue("APPIMAGE");
   const std::string exe =
       appimage && !appimage->empty() ? *appimage : platform::GetExecutablePath().string();

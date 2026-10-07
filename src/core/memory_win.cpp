@@ -54,14 +54,14 @@ DWORD ToWin32ProtectFlags(PageAccess access) {
     case PageAccess::kExecuteReadWrite:
       return PAGE_EXECUTE_READWRITE;
     default:
-      assert_unhandled_case(access);
+      REX_UNHANDLED_CASE(access);
       return PAGE_NOACCESS;
   }
 }
 
 PageAccess ToXeniaProtectFlags(DWORD access) {
   if (access & PAGE_GUARD) {
-    // Strip the page guard flag for now...
+    // Strip the page guard flag.
     access &= ~PAGE_GUARD;
   }
 
@@ -105,7 +105,7 @@ void* AllocFixed(void* base_address, size_t length, AllocationType allocation_ty
       alloc_type = MEM_RESERVE | MEM_COMMIT;
       break;
     default:
-      assert_unhandled_case(allocation_type);
+      REX_UNHANDLED_CASE(allocation_type);
       break;
   }
   DWORD protect = ToWin32ProtectFlags(access);
@@ -127,7 +127,7 @@ bool DeallocFixed(void* base_address, size_t length, DeallocationType deallocati
       free_type = MEM_DECOMMIT;
       break;
     default:
-      assert_unhandled_case(deallocation_type);
+      REX_UNHANDLED_CASE(deallocation_type);
       break;
   }
   return VirtualFree(base_address, length, free_type) ? true : false;
@@ -213,7 +213,7 @@ void* MapFileView(FileMappingHandle handle, void* base_address, size_t length, P
       break;
     case PageAccess::kNoAccess:
     default:
-      assert_unhandled_case(access);
+      REX_UNHANDLED_CASE(access);
       return nullptr;
   }
   return MapViewOfFileEx(reinterpret_cast<HANDLE>(handle), file_access, target_address_high,

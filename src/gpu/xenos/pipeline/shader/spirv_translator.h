@@ -92,7 +92,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
     uint64_t value = 0;
 
     explicit Modification(uint64_t modification_value = 0) : value(modification_value) {
-      static_assert_size(*this, sizeof(value));
+      REX_STATIC_ASSERT_SIZE(*this, sizeof(value));
     }
 
     uint32_t GetVertexClipDistanceCount() const {
@@ -141,7 +141,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
     kSysFlag_FSIDepthWrite_Shift,
     kSysFlag_FSIStencilTest_Shift,
     // If the depth / stencil test has failed, but resulted in a stencil value
-    // that is different than the one currently in the depth buffer, write it
+    // that is different than the one in the depth buffer, write it
     // anyway and don't run the rest of the shader (to check if the sample may
     // be discarded some way) - use when alpha test and alpha to coverage are
     // disabled. Ignored by the shader if not applicable to it (like if it has
@@ -541,7 +541,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
            !edram_fragment_shader_interlock_ && current_shader().implicit_early_z_write_allowed();
   }
   bool IsWritingFloat24Depth() const {
-    assert_true(is_pixel_shader());
+    REX_ASSERT(is_pixel_shader());
     if (edram_fragment_shader_interlock_) {
       return false;
     }
@@ -551,7 +551,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
            depth_stencil_mode == Modification::DepthStencilMode::kFloat24Rounding;
   }
   bool IsSampleRate() const {
-    assert_true(is_pixel_shader());
+    REX_ASSERT(is_pixel_shader());
     return IsWritingFloat24Depth() && !current_shader().writes_depth();
   }
 
@@ -708,7 +708,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   // Whether it's possible and worth skipping running the translated shader for
   // 2x2 quads.
   bool FSI_IsDepthStencilEarly() const {
-    assert_true(edram_fragment_shader_interlock_);
+    REX_ASSERT(edram_fragment_shader_interlock_);
     return !is_depth_only_fragment_shader_ && !current_shader().writes_depth() &&
            !current_shader().memexport_eM_written();
   }
@@ -759,7 +759,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   uint32_t draw_resolution_scale_x_;
   uint32_t draw_resolution_scale_y_;
 
-  // Is currently writing the empty depth-only pixel shader, such as for depth
+  // Is writing the empty depth-only pixel shader, such as for depth
   // and stencil testing with fragment shader interlock.
   bool is_depth_only_fragment_shader_ = false;
 
@@ -920,7 +920,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   // Xenia uses separate variables, not an array (so the interpolation
   // qualifiers can be applied to each element separately), the interpolators
   // must also be separate variables in the other stage, including the geometry
-  // shader (not just an array assuming that consecutive locations will be
+  // shader (not only an array assuming that consecutive locations will be
   // linked as consecutive array elements, on Qualcomm, they won't be linked at
   // all).
   std::array<spv::Id, xenos::kMaxInterpolators> input_output_interpolators_;
@@ -982,7 +982,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   // Bit field of which eM# elements have been written so far by the invocation
   // since the last memory write - uint.
   spv::Id var_main_memexport_data_written_;
-  // If memory export is disabled in certain invocations or (if emulating some
+  // If memory export is disabled in some invocations or (if emulating some
   // primitive types without a geometry shader) at specific guest vertex loop
   // iterations because the translated shader is executed multiple times for the
   // same guest vertex or pixel, this contains whether memory export is allowed

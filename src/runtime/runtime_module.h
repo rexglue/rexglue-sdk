@@ -1,6 +1,5 @@
 /**
  * @file        runtime/runtime_module.h
- * @brief       The module interface served by rex-runtime.dll
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -111,7 +110,7 @@ class REX_RUNTIME_API RuntimeModule final : public IModule {
    * @return Ok, or the first slice or registration error, with every table registered so far
    *         unregistered again.
    */
-  Result<void> Connect(IInterfaceFactory* factory, const Config& config) override;
+  [[nodiscard]] Result<void> Connect(IInterfaceFactory* factory, const Config& config) override;
 
   /** Unregisters the cvar tables in reverse order. */
   void Disconnect() override;
@@ -121,7 +120,7 @@ class REX_RUNTIME_API RuntimeModule final : public IModule {
    *
    * @return Ok.
    */
-  Result<void> Init() override;
+  [[nodiscard]] Result<void> Init() override;
 
   /** Does nothing. */
   void Shutdown() override;

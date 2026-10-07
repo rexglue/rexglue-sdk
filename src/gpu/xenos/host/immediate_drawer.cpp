@@ -25,7 +25,7 @@ void ImmediateDrawer::SetPresenter(Presenter* new_presenter) {
     return;
   }
   // Changing the presenter while drawing would make the state inconsistent.
-  assert_null(ui_draw_context_);
+  REX_ASSERT(ui_draw_context_ == nullptr);
   if (presenter_) {
     OnLeavePresenter();
   }
@@ -37,14 +37,14 @@ void ImmediateDrawer::SetPresenter(Presenter* new_presenter) {
 
 void ImmediateDrawer::Begin(gpu::OverlayDrawContext& context, f32 coordinate_space_width,
                             f32 coordinate_space_height) {
-  assert_true(context.presenter() == presenter_);
+  REX_ASSERT(context.presenter() == presenter_);
   ui_draw_context_ = &context;
   // In case of non-positive values (or NaNs) - use render target coordinates
   // according to the contract of the function, and also for safety because
   // there will be division by the coordinate space size in several places.
   if (!(coordinate_space_width > 0.0f) || !(coordinate_space_height > 0.0f)) {
-    coordinate_space_width = f32(context.render_target_width());
-    coordinate_space_height = f32(context.render_target_height());
+    coordinate_space_width = static_cast<f32>(context.render_target_width());
+    coordinate_space_height = static_cast<f32>(context.render_target_height());
   }
   coordinate_space_width_ = coordinate_space_width;
   coordinate_space_height_ = coordinate_space_height;
@@ -66,8 +66,8 @@ bool ImmediateDrawer::ScissorToRenderTarget(const gpu::OverlayDraw& draw, u32& o
     return render_target_width && render_target_height;
   }
   const gpu::OverlayRect& scissor = *draw.scissor;
-  float render_target_width_float = float(render_target_width);
-  float render_target_height_float = float(render_target_height);
+  float render_target_width_float = static_cast<float>(render_target_width);
+  float render_target_height_float = static_cast<float>(render_target_height);
   // Scale to render target coordinates, drop NaNs, and clamp to the render
   // target size, below which the values are representable as 16p8 fixed-point.
   float scale_x = render_target_width / coordinate_space_width();
@@ -83,16 +83,16 @@ bool ImmediateDrawer::ScissorToRenderTarget(const gpu::OverlayDraw& draw, u32& o
   // Bottom-right - exclude .5.
   int32_t x1 = (FloatToD3D11Fixed16p8(x1_float) + 127) >> 8;
   int32_t y1 = (FloatToD3D11Fixed16p8(y1_float) + 127) >> 8;
-  assert_true(x0 >= 0);
-  assert_true(y0 >= 0);
-  assert_true(x1 >= x0);
-  assert_true(y1 >= y0);
-  assert_true(x1 <= int32_t(render_target_width));
-  assert_true(y1 <= int32_t(render_target_height));
-  out_left = uint32_t(x0);
-  out_top = uint32_t(y0);
-  out_width = uint32_t(x1 - x0);
-  out_height = uint32_t(y1 - y0);
+  REX_ASSERT(x0 >= 0);
+  REX_ASSERT(y0 >= 0);
+  REX_ASSERT(x1 >= x0);
+  REX_ASSERT(y1 >= y0);
+  REX_ASSERT(x1 <= static_cast<int32_t>(render_target_width));
+  REX_ASSERT(y1 <= static_cast<int32_t>(render_target_height));
+  out_left = static_cast<uint32_t>(x0);
+  out_top = static_cast<uint32_t>(y0);
+  out_width = static_cast<uint32_t>(x1 - x0);
+  out_height = static_cast<uint32_t>(y1 - y0);
   return x1 > x0 && y1 > y0;
 }
 

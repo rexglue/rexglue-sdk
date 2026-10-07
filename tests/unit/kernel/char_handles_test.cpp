@@ -13,8 +13,8 @@ using rex::testing::Caller;
 using rex::testing::KernelFixture;
 
 namespace {
-constexpr u32 kInvalidHandle = X_STATUS_INVALID_HANDLE;
-constexpr u32 kTimeout = X_STATUS_TIMEOUT;
+constexpr u32 kInvalidHandle = rex::X_STATUS_INVALID_HANDLE;
+constexpr u32 kTimeout = rex::X_STATUS_TIMEOUT;
 u32 Poll(Caller& c) {
   return c.Quad(0);
 }
@@ -104,7 +104,7 @@ TEST_CASE("names: case insensitive open and collision", "[char][names]") {
     REQUIRE(c.Kernel("NtCreateEvent", {handle_ptr, c.Attributes("TestEvent"), 0, 0}) == 0);
     const u32 handle = c.Load32(handle_ptr);
     CHECK(c.Kernel("NtCreateEvent", {again_ptr, c.Attributes("testevent"), 0, 0}) ==
-          X_STATUS_OBJECT_NAME_EXISTS);
+          rex::X_STATUS_OBJECT_NAME_EXISTS);
     CHECK(c.Load32(again_ptr) == handle);
     CHECK(c.Kernel("ObOpenObjectByName", {c.Attributes("TESTEVENT"), 0, 0, again_ptr}) == 0);
     CHECK(c.Load32(again_ptr) == handle);
@@ -112,7 +112,7 @@ TEST_CASE("names: case insensitive open and collision", "[char][names]") {
     c.Kernel("NtClose", {handle});
     c.Kernel("NtClose", {handle});
     CHECK(c.Kernel("ObOpenObjectByName", {c.Attributes("TestEvent"), 0, 0, again_ptr}) ==
-          X_STATUS_OBJECT_NAME_NOT_FOUND);
+          rex::X_STATUS_OBJECT_NAME_NOT_FOUND);
   });
 }
 
@@ -152,7 +152,7 @@ TEST_CASE("waits: wait any and wait all", "[char][waits]") {
     CHECK(c.Kernel("NtWaitForMultipleObjectsEx", {2, handles, 0, 1, 0, Poll(c)}) == 0);
     c.Store32(handles + 4, 0xF8001230);
     CHECK(c.Kernel("NtWaitForMultipleObjectsEx", {2, handles, 0, 1, 0, Poll(c)}) ==
-          X_STATUS_INVALID_PARAMETER);
+          rex::X_STATUS_INVALID_PARAMETER);
     c.Kernel("NtClose", {first});
     c.Kernel("NtClose", {second});
   });

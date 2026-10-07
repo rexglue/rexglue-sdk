@@ -30,7 +30,8 @@ namespace {
 
 class RecordingBackend final : public rex::apu::IBackend {
  public:
-  rex::Result<rex::u32> OpenStream(std::move_only_function<void()> on_frame_played) override {
+  [[nodiscard]] rex::Result<rex::u32> OpenStream(
+      std::move_only_function<void()> on_frame_played) override {
     std::lock_guard lock(mutex_);
     const rex::u32 id = next_++;
     callbacks_.emplace(id, std::move(on_frame_played));
@@ -109,7 +110,7 @@ TEST_CASE("APU refuses a 9th client with X_STATUS_NO_MEMORY", "[apu]") {
   }
   auto ninth = apu.RegisterClient(0, 0);
   REQUIRE_FALSE(ninth);
-  CHECK(rex::runtime::ToXStatus(ninth.error()) == X_STATUS_NO_MEMORY);
+  CHECK(rex::runtime::ToXStatus(ninth.error()) == rex::X_STATUS_NO_MEMORY);
   CHECK(backend.open() == rex::runtime::APU::kMaxClients);
   apu.Shutdown();
 }

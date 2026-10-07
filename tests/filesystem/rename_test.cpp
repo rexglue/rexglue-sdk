@@ -1,6 +1,5 @@
 /**
  * @file        tests/filesystem/rename_test.cpp
- * @brief       Tests for moving files and directories inside a mount
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

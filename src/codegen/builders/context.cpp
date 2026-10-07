@@ -1,6 +1,5 @@
 /**
  * @file        codegen/builders/context.cpp
- * @brief       PPC context instruction code generation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -388,7 +387,7 @@ void BuilderContext::emit_mid_asm_hook() {
   if (returnsBool)
     print("if (");
 
-  // Build call -- no ctx/base prefix, just register arguments resolved through accessors
+  // Build call -- no ctx/base prefix, only register arguments resolved through accessors
   print("{}(", midAsmHook->second.name);
   for (auto& reg : midAsmHook->second.registers) {
     if (out.back() != '(')

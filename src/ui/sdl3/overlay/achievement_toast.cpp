@@ -1,6 +1,5 @@
 /**
  * @file        ui/sdl3/overlay/achievement_toast.cpp
- * @brief       Achievement toast implementation. See achievement_toast.h for details.
  *
  * @copyright   Copyright (c) 2026 Rien Gupta <rgupta9@scu.edu>
  *              All rights reserved.

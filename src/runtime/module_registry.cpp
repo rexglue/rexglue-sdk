@@ -238,7 +238,7 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
   std::string path(raw_name);
   if (name == raw_name) {
     auto executable_module = table_.Get<ModuleObject>(executable().value_or(0));
-    assert_true(executable_module);
+    REX_ASSERT(executable_module);
     path =
         rex::utf8_join_guest_paths(rex::utf8_find_base_guest_path(executable_module->path), name);
   }
@@ -326,7 +326,7 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
                                                          register_func);
           std::lock_guard lock(recompiled_mutex_);
           auto lib_it = module_libraries_.find(lib_key);
-          assert_true(lib_it != module_libraries_.end());
+          REX_ASSERT(lib_it != module_libraries_.end());
           lib_it->second = std::move(library_local);
           wired_recomp = true;
         }

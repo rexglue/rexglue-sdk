@@ -115,7 +115,7 @@ std::string NameFromAttributes(runtime::Memory* memory, u32 obj_attributes_ptr) 
     return {};
   }
   auto name = util::TranslateAnsiStringAddress(
-      memory, memory::load_and_swap<u32>(memory->TranslateVirtual(obj_attributes_ptr + 4)));
+      memory, *memory->TranslateVirtual<const be_u32*>(obj_attributes_ptr + 4));
   return std::string(name);
 }
 
@@ -202,7 +202,7 @@ X_STATUS WaitOnMany(Runtime& runtime, std::span<const X_HANDLE> handles, u32 wai
     if (!target.slot) {
       return X_STATUS_INVALID_PARAMETER;
     }
-    assert_not_null(target.handle);
+    REX_ASSERT(target.handle != nullptr);
     wait_handles.push_back(target.handle);
     targets.push_back(std::move(target));
   }

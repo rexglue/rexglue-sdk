@@ -1,6 +1,5 @@
 /**
  * @file        tests/core/utf8_test.cpp
- * @brief       UTF-8 and UTF-16 conversion and the UTF-8 string helpers
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

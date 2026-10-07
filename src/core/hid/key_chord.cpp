@@ -38,7 +38,7 @@ std::string_view Trim(std::string_view text) {
 
 }  // namespace
 
-Result<KeyChord> ParseKeyChord(std::string_view text) {
+[[nodiscard]] Result<KeyChord> ParseKeyChord(std::string_view text) {
   if (text.empty()) {
     return KeyChord{};
   }
@@ -69,7 +69,7 @@ Result<KeyChord> ParseKeyChord(std::string_view text) {
   return chord;
 }
 
-Result<std::vector<KeyChord>> ParseKeyChordList(std::string_view text) {
+[[nodiscard]] Result<std::vector<KeyChord>> ParseKeyChordList(std::string_view text) {
   std::vector<KeyChord> chords;
   while (!text.empty()) {
     const size_t comma = text.find(',');

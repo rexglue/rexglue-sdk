@@ -121,7 +121,7 @@ SpirvBuilder::IfBuilder::IfBuilder(spv::Id condition, unsigned int control, Spir
 
 void SpirvBuilder::IfBuilder::makeBeginElse(bool branchToMerge) {
 #ifndef NDEBUG
-  assert_true(currentBranch == Branch::kThen);
+  REX_ASSERT(currentBranch == Branch::kThen);
 #endif
 
   // A block may have only one terminator, and glslang's createBranch appends
@@ -146,7 +146,7 @@ void SpirvBuilder::IfBuilder::makeBeginElse(bool branchToMerge) {
 
 void SpirvBuilder::IfBuilder::makeEndIf(bool branchToMerge) {
 #ifndef NDEBUG
-  assert_true(currentBranch == Branch::kThen || currentBranch == Branch::kElse);
+  REX_ASSERT(currentBranch == Branch::kThen || currentBranch == Branch::kElse);
 #endif
 
   // Don't add a second terminator, as in makeBeginElse.
@@ -186,7 +186,7 @@ void SpirvBuilder::IfBuilder::makeEndIf(bool branchToMerge) {
 
 spv::Id SpirvBuilder::IfBuilder::createMergePhi(spv::Id then_variable,
                                                 spv::Id else_variable) const {
-  assert_true(builder.getBuildPoint() == mergeBlock);
+  REX_ASSERT(builder.getBuildPoint() == mergeBlock);
   return builder.createQuadOp(spv::OpPhi, builder.getTypeId(then_variable), then_variable,
                               getThenPhiParent(), else_variable, getElsePhiParent());
 }
@@ -203,7 +203,7 @@ SpirvBuilder::SwitchBuilder::SwitchBuilder(spv::Id selector, unsigned int select
 }
 
 void SpirvBuilder::SwitchBuilder::makeBeginDefault() {
-  assert_null(default_block_);
+  REX_ASSERT(default_block_ == nullptr);
 
   endSegment();
 
@@ -228,7 +228,7 @@ void SpirvBuilder::SwitchBuilder::makeBeginCase(unsigned int literal) {
 }
 
 void SpirvBuilder::SwitchBuilder::addCurrentCaseLiteral(unsigned int literal) {
-  assert_true(current_branch_ == Branch::kCase);
+  REX_ASSERT(current_branch_ == Branch::kCase);
 
   cases_.emplace_back(literal, cases_.back().second);
 }
@@ -262,8 +262,8 @@ void SpirvBuilder::SwitchBuilder::makeEndSwitch() {
 }
 
 void SpirvBuilder::SwitchBuilder::endSegment() {
-  assert_true(current_branch_ == Branch::kSelection || current_branch_ == Branch::kDefault ||
-              current_branch_ == Branch::kCase);
+  REX_ASSERT(current_branch_ == Branch::kSelection || current_branch_ == Branch::kDefault ||
+             current_branch_ == Branch::kCase);
 
   if (current_branch_ == Branch::kSelection) {
     return;

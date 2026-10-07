@@ -1,6 +1,5 @@
 /**
  * @file        kernel/xboxkrnl/xboxkrnl_strings.cpp
- * @brief       Xbox kernel string function exports
  *
  * @copyright   Copyright 2022 Ben Vanik. All rights reserved. (Xenia Project)
  *
@@ -346,7 +345,7 @@ REX_HOOK_RAW(__imp___vscwprintf) {
   WideCountFormatData data(format);
 
   int32_t count = format_core(base, data, args, true);
-  assert_true(count < 0 || data.count() == count);
+  REX_ASSERT(count < 0 || data.count() == count);
   ctx.r3.u64 = count;
 }
 

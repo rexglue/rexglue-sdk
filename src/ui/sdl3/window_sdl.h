@@ -1,6 +1,5 @@
 /**
  * @file        ui/sdl3/window_sdl.h
- * @brief       SDL3 implementation of the Window abstraction
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

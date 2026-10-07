@@ -87,7 +87,7 @@ TEST_CASE("ByteStream Write and Read template primitives", "[stream][bytestream]
   std::array<uint8_t, 32> buffer{};
   ByteStream stream(buffer.data(), buffer.size());
 
-  // Write various types
+  // Write mixed types
   stream.Write<uint8_t>(0x12);
   stream.Write<uint16_t>(0x3456);
   stream.Write<uint32_t>(0x789ABCDE);

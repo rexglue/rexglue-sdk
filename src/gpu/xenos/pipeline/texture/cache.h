@@ -25,6 +25,7 @@
 #include <rex/xenos/xenos.h>
 #include <rex/hash.h>
 #include <rex/platform/lock_order.h>
+#include <rex/types.h>
 
 namespace rex::gpu {
 
@@ -53,7 +54,7 @@ namespace rex::gpu {
 // TODO(Triang3l): Attach the largest LOD to existing textures with a valid
 // mip_address but no base ever used yet (no base_address) to save memory
 // because textures are streamed this way anyway.
-class TextureCache {
+class TextureCache : public rex::NonCopyable {
  public:
   // Hard limit, originating from the half-pixel offset filling hack in the
   // resolve shaders only filling up to 3 pixels, due to the bit counts used for
@@ -62,8 +63,6 @@ class TextureCache {
   // buffer binding (counted as R32 for a byte address buffer).
   static constexpr uint32_t kMaxDrawResolutionScaleAlongAxis = 7;
 
-  TextureCache(const TextureCache& texture_cache) = delete;
-  TextureCache& operator=(const TextureCache& texture_cache) = delete;
   virtual ~TextureCache();
 
   // Returns whether the actual scale is not smaller than the requested one.
@@ -193,10 +192,8 @@ class TextureCache {
     void LogAction(const char* action) const;
   };
 
-  class Texture {
+  class Texture : public rex::NonCopyable {
    public:
-    Texture(const Texture& texture) = delete;
-    Texture& operator=(const Texture& texture) = delete;
     virtual ~Texture();
 
     TextureCache& texture_cache() const { return texture_cache_; }
@@ -211,8 +208,6 @@ class TextureCache {
     // may still need to be interpreted as 3D.
     bool force_load_3d_tiling() const { return force_load_3d_tiling_; }
     void SetForceLoad3DTiling(bool force) { force_load_3d_tiling_ = force; }
-
-    uint64_t GetHostMemoryUsage() const { return host_memory_usage_; }
 
     uint64_t last_usage_submission_index() const { return last_usage_submission_index_; }
     uint64_t last_usage_time() const { return last_usage_time_; }
@@ -344,7 +339,7 @@ class TextureCache {
   //       resolving is only possible to tiled textures, so linear textures will
   //       never be resolution-scaled.
   //     - Tiled textures have potentially referenced guest 32x32-block tiles
-  //       loaded in their entirety. So, just like for unscaled textures, if any
+  //       loaded in their entirety. So, like for unscaled textures, if any
   //       block within a tile is available, the entire tile is as well.
   // - Destination writing (to the linear buffer):
   //   - host_x_blocks_per_thread specifies how many pixels can be written
@@ -448,7 +443,7 @@ class TextureCache {
   };
 
   static constexpr uint8_t kSwizzledSignsUnsigned =
-      uint8_t(xenos::TextureSign::kUnsigned) * uint8_t(0b01010101);
+      static_cast<uint8_t>(xenos::TextureSign::kUnsigned) * static_cast<uint8_t>(0b01010101);
 
   struct TextureBinding {
     TextureKey key;
@@ -494,7 +489,7 @@ class TextureCache {
   virtual bool IsScaledResolveSupportedForFormat(TextureKey /*key*/) const { return false; }
   // For formats with less than 4 components, implementations normally should
   // replicate the last component into the non-existent ones, similar to what is
-  // done for unused components of operands in shaders by Microsoft's Xbox 360
+  // done for unused components of operands in shaders by Microsoft's
   // shader compiler (.xxxx, .xyyy, .xyzz, .xyzw).
   // For DXT3A and DXT5A, RRRR swizzle is specified in:
   // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
@@ -517,13 +512,13 @@ class TextureCache {
   Texture* FindOrCreateTexture(TextureKey key);
 
   static const LoadShaderInfo& GetLoadShaderInfo(LoadShaderIndex load_shader_index) {
-    assert_true(load_shader_index < kLoadShaderCount);
+    REX_ASSERT(load_shader_index < kLoadShaderCount);
     return load_shader_info_[load_shader_index];
   }
   bool LoadTextureData(Texture& texture);
   // Writes the texture data (for base, mips or both - but not neither) from the
   // shared memory or the scaled resolve memory. The shared memory management is
-  // done outside this function, the implementation just needs to load the data
+  // done outside this function, the implementation only needs to load the data
   // into the texture object.
   virtual bool LoadTextureDataFromResidentMemoryImpl(Texture& texture, bool load_base,
                                                      bool load_mips) = 0;

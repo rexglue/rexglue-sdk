@@ -1,6 +1,5 @@
 /**
  * @file        exception_handler.h
- * @brief       Host exception handling, host thread context and register definitions
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -21,10 +20,6 @@
 #include <rex/platform.h>
 #include <rex/types.h>
 #include <rex/vec128.h>
-
-#if REX_ARCH_AMD64
-#include <xmmintrin.h>
-#endif
 
 namespace rex::platform {
 
@@ -337,7 +332,7 @@ REX_API bool IsArm64LoadPrefetchStore(u32 instruction, bool& is_store_out);
  */
 class Exception {
  public:
-  /** Kind of exception. */
+  /** Exception kind. */
   enum class Code {
     kInvalidException = 0, /**< Not initialized. */
     kAccessViolation,      /**< Memory access violation. */
@@ -377,7 +372,7 @@ class Exception {
   }
 
   /**
-   * @return The kind of exception.
+   * @return The exception kind.
    */
   Code code() const { return code_; }
 
@@ -400,7 +395,7 @@ class Exception {
 #elif REX_ARCH_ARM64
     return thread_context_->pc;
 #else
-    assert_always();
+    REX_ASSERT_ALWAYS();
     return 0;
 #endif  // REX_ARCH
   }
@@ -416,7 +411,7 @@ class Exception {
 #elif REX_ARCH_ARM64
     thread_context_->pc = pc;
 #else
-    assert_always();
+    REX_ASSERT_ALWAYS();
 #endif  // REX_ARCH
   }
 
@@ -428,13 +423,13 @@ class Exception {
    * @return The register in the thread context.
    */
   u64& ModifyIntRegister(u32 index) {
-    assert_true(index <= 15);
+    REX_ASSERT(index <= 15);
     modified_int_registers_ |= UINT16_C(1) << index;
     return thread_context_->int_registers[index];
   }
 
   /**
-   * @return A bit mask of the general purpose registers marked as modified.
+   * @return The bit mask of the general purpose registers marked as modified.
    */
   u16 modified_int_registers() const { return modified_int_registers_; }
 
@@ -445,13 +440,13 @@ class Exception {
    * @return The register in the thread context.
    */
   vec128_t& ModifyXmmRegister(u32 index) {
-    assert_true(index <= 15);
+    REX_ASSERT(index <= 15);
     modified_xmm_registers_ |= UINT16_C(1) << index;
     return thread_context_->xmm_registers[index];
   }
 
   /**
-   * @return A bit mask of the XMM registers marked as modified.
+   * @return The bit mask of the XMM registers marked as modified.
    */
   u16 modified_xmm_registers() const { return modified_xmm_registers_; }
 #elif REX_ARCH_ARM64
@@ -462,13 +457,13 @@ class Exception {
    * @return The register in the thread context.
    */
   u64& ModifyXRegister(u32 index) {
-    assert_true(index <= 30);
+    REX_ASSERT(index <= 30);
     modified_x_registers_ |= UINT32_C(1) << index;
     return thread_context_->x[index];
   }
 
   /**
-   * @return A bit mask of the X registers marked as modified.
+   * @return The bit mask of the X registers marked as modified.
    */
   u32 modified_x_registers() const { return modified_x_registers_; }
 
@@ -479,13 +474,13 @@ class Exception {
    * @return The register in the thread context.
    */
   vec128_t& ModifyVRegister(u32 index) {
-    assert_true(index <= 31);
+    REX_ASSERT(index <= 31);
     modified_v_registers_ |= UINT32_C(1) << index;
     return thread_context_->v[index];
   }
 
   /**
-   * @return A bit mask of the V registers marked as modified.
+   * @return The bit mask of the V registers marked as modified.
    */
   u32 modified_v_registers() const { return modified_v_registers_; }
 #endif  // REX_ARCH

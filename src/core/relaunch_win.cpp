@@ -1,6 +1,5 @@
 /**
  * @file        core/relaunch_win.cpp
- * @brief       Relaunch of the running executable on Windows
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -22,9 +21,10 @@ namespace rex::platform {
 namespace {
 
 std::wstring Widen(std::string_view text) {
-  const i32 length = MultiByteToWideChar(CP_UTF8, 0, text.data(), i32(text.size()), nullptr, 0);
-  std::wstring wide(size_t(length), L'\0');
-  MultiByteToWideChar(CP_UTF8, 0, text.data(), i32(text.size()), wide.data(), length);
+  const i32 length =
+      MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<i32>(text.size()), nullptr, 0);
+  std::wstring wide(static_cast<size_t>(length), L'\0');
+  MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<i32>(text.size()), wide.data(), length);
   return wide;
 }
 
@@ -54,7 +54,7 @@ std::wstring detail::BuildCommandLine(std::wstring_view exe, std::span<const std
   return command;
 }
 
-Result<void> Relaunch(std::span<const std::string> args) {
+[[nodiscard]] Result<void> Relaunch(std::span<const std::string> args) {
   const std::wstring exe = platform::GetExecutablePath().wstring();
   std::wstring command = detail::BuildCommandLine(exe, args);
   STARTUPINFOW startup{};

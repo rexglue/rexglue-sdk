@@ -21,7 +21,7 @@ namespace rex::gpu::d3d12 {
 // D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT anyway).
 D3D12UploadBufferPool::D3D12UploadBufferPool(const D3D12Provider& provider, size_t page_size)
     : GraphicsUploadBufferPool(
-          rex::align(page_size, size_t(D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT))),
+          rex::align(page_size, static_cast<size_t>(D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT))),
       provider_(provider) {}
 
 uint8_t* D3D12UploadBufferPool::Request(uint64_t submission_index, size_t size, size_t alignment,
@@ -70,7 +70,7 @@ uint8_t* D3D12UploadBufferPool::RequestPartial(uint64_t submission_index, size_t
   return reinterpret_cast<uint8_t*>(page->mapping_) + offset;
 }
 
-GraphicsUploadBufferPool::Page* D3D12UploadBufferPool::CreatePageImplementation() {
+std::unique_ptr<GraphicsUploadBufferPool::Page> D3D12UploadBufferPool::CreatePageImplementation() {
   D3D12_RESOURCE_DESC buffer_desc;
   util::FillBufferResourceDesc(buffer_desc, page_size_, D3D12_RESOURCE_FLAG_NONE);
   Microsoft::WRL::ComPtr<ID3D12Resource> buffer;
@@ -89,7 +89,7 @@ GraphicsUploadBufferPool::Page* D3D12UploadBufferPool::CreatePageImplementation(
     return nullptr;
   }
   // Unmapping will be done implicitly when the resource is destroyed.
-  return new D3D12Page(buffer.Get(), mapping);
+  return std::make_unique<D3D12Page>(buffer.Get(), mapping);
 }
 
 D3D12UploadBufferPool::D3D12Page::D3D12Page(ID3D12Resource* buffer, void* mapping)

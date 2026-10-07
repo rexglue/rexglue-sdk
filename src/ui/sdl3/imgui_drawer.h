@@ -36,7 +36,7 @@ class Window;
 
 class ImGuiDrawer : public WindowInputListener, public gpu::IOverlayLayer, public IDialogHost {
  public:
-  using FontSetupCallback = std::function<void(ImFontAtlas*)>;
+  using FontSetupCallback = std::move_only_function<void(ImFontAtlas*)>;
   ImGuiDrawer(Window* window, size_t z_order, FontSetupCallback font_setup = nullptr);
   ~ImGuiDrawer();
 
@@ -113,7 +113,7 @@ class ImGuiDrawer : public WindowInputListener, public gpu::IOverlayLayer, publi
   void OnMouseUp(MouseEvent& e) override;
   void OnMouseWheel(MouseEvent& e) override;
   void OnTouchEvent(TouchEvent& e) override;
-  // For now, no need for OnDpiChanged because redrawing is done continuously.
+  // No need for OnDpiChanged because redrawing is done continuously.
 
  private:
   void Initialize();
@@ -146,7 +146,7 @@ class ImGuiDrawer : public WindowInputListener, public gpu::IOverlayLayer, publi
   // Using an index, not an iterator, because after the erasure, the adjustment
   // must be done for the vector element indices that would be in the iterator
   // range that would be invalidated.
-  // SIZE_MAX if not currently in the dialog loop.
+  // SIZE_MAX if not in the dialog loop.
   size_t dialog_loop_next_index_ = SIZE_MAX;
 
   gpu::IPresenter* presenter_ = nullptr;

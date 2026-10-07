@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <bit>
 #include <concepts>
 #include <cstdint>
 #include <cstring>
@@ -35,7 +36,7 @@ inline uint32_t stack_limit_from_pcr(PPCContext& ctx, uint8_t* base) {
     return 0;
   uint32_t raw;
   std::memcpy(&raw, rex::runtime::GuestPtr(base, ctx.r13.u32 + 0x74), sizeof(raw));
-  return __builtin_bswap32(raw);
+  return std::byteswap(raw);
 }
 
 inline void stack_bounds_check(PPCContext& ctx, uint8_t* base, uint32_t new_r1) {
@@ -70,20 +71,17 @@ inline uint32_t stack_push(PPCContext& ctx, uint8_t* base, T value) {
   if constexpr (sizeof(T) == 1) {
     swapped = value;
   } else if constexpr (sizeof(T) == 2) {
-    uint16_t bits;
-    std::memcpy(&bits, &value, 2);
-    bits = __builtin_bswap16(bits);
-    std::memcpy(&swapped, &bits, 2);
+    u16 bits = std::bit_cast<u16>(value);
+    bits = std::byteswap(bits);
+    swapped = std::bit_cast<T>(bits);
   } else if constexpr (sizeof(T) == 4) {
-    uint32_t bits;
-    std::memcpy(&bits, &value, 4);
-    bits = __builtin_bswap32(bits);
-    std::memcpy(&swapped, &bits, 4);
+    u32 bits = std::bit_cast<u32>(value);
+    bits = std::byteswap(bits);
+    swapped = std::bit_cast<T>(bits);
   } else if constexpr (sizeof(T) == 8) {
-    uint64_t bits;
-    std::memcpy(&bits, &value, 8);
-    bits = __builtin_bswap64(bits);
-    std::memcpy(&swapped, &bits, 8);
+    u64 bits = std::bit_cast<u64>(value);
+    bits = std::byteswap(bits);
+    swapped = std::bit_cast<T>(bits);
   }
   std::memcpy(rex::runtime::GuestPtr(base, new_r1), &swapped, sizeof(T));
   return new_r1;
@@ -120,7 +118,7 @@ inline void stack_pop(PPCContext& ctx, uint32_t size) {
 //=============================================================================
 
 /// RAII guard that saves r1 on construction and restores on destruction.
-class stack_guard {
+class stack_guard : public rex::NonCopyable {
   PPCContext& ctx_;
   uint32_t saved_r1_;
 
@@ -128,9 +126,6 @@ class stack_guard {
   explicit stack_guard(PPCContext& ctx) : ctx_(ctx), saved_r1_(ctx.r1.u32) {}
   stack_guard() : stack_guard(*rex::runtime::ThreadState::Get()->context()) {}
   ~stack_guard() { ctx_.r1.u32 = saved_r1_; }
-
-  stack_guard(const stack_guard&) = delete;
-  stack_guard& operator=(const stack_guard&) = delete;
 };
 
 //=============================================================================

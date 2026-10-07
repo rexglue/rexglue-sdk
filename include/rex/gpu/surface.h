@@ -13,6 +13,7 @@
 #include <cstdint>
 
 #include <rex/assert.h>
+#include <rex/types.h>
 
 namespace rex {
 namespace gpu {
@@ -20,7 +21,7 @@ namespace gpu {
 // Represents a surface that presenting can be performed to.
 // Surface methods can be called only from the UI thread.
 
-class Surface {
+class Surface : public rex::NonCopyable {
  public:
   enum TypeIndex {
     // Within one platform, the more preferable surface types are earlier in
@@ -43,8 +44,6 @@ class Surface {
     kTypeFlag_CAMetalLayer = TypeFlags(1) << kTypeIndex_CAMetalLayer,
   };
 
-  Surface(const Surface& surface) = delete;
-  Surface& operator=(const Surface& surface) = delete;
   virtual ~Surface() = default;
 
   virtual TypeIndex GetType() const = 0;

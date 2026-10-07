@@ -1,6 +1,5 @@
 /**
  * @file        string.h
- * @brief       C string comparison, trimming and bounded copy helpers
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -138,7 +137,7 @@ inline size_t copy_truncating(char* dest, const std::string_view source, size_t 
   if (!dest_buffer_count) {
     return 0;
   }
-  size_t chars_copied = std::min(source.size(), dest_buffer_count - size_t(1));
+  size_t chars_copied = std::min(source.size(), dest_buffer_count - static_cast<size_t>(1));
   std::memcpy(dest, source.data(), chars_copied);
   dest[chars_copied] = '\0';
   return chars_copied;
@@ -157,7 +156,7 @@ inline size_t copy_truncating(char16_t* dest, const std::u16string_view source,
   if (!dest_buffer_count) {
     return 0;
   }
-  size_t chars_copied = std::min(source.size(), dest_buffer_count - size_t(1));
+  size_t chars_copied = std::min(source.size(), dest_buffer_count - static_cast<size_t>(1));
   std::memcpy(dest, source.data(), chars_copied * sizeof(char16_t));
   dest[chars_copied] = u'\0';
   return chars_copied;
@@ -177,7 +176,7 @@ inline size_t copy_and_swap_truncating(char16_t* dest, const std::u16string_view
   if (!dest_buffer_count) {
     return 0;
   }
-  size_t chars_copied = std::min(source.size(), dest_buffer_count - size_t(1));
+  size_t chars_copied = std::min(source.size(), dest_buffer_count - static_cast<size_t>(1));
   memory::copy_and_swap(dest, source.data(), chars_copied);
   dest[chars_copied] = u'\0';
   return chars_copied;

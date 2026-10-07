@@ -64,7 +64,7 @@ void D3D12DescriptorHeapPool::ChangeSubmissionTimeline() {
 
 void D3D12DescriptorHeapPool::ClearCache() {
   // Not checking current_page_used_ != 0 because asking for 0 descriptors
-  // returns a valid heap also - but actually the new heap will be different now
+  // returns a valid heap also - but the new heap will be different now
   // and the old one must be unbound since it doesn't exist anymore.
   ++current_heap_index_;
   current_page_used_ = 0;
@@ -85,13 +85,13 @@ void D3D12DescriptorHeapPool::ClearCache() {
 uint64_t D3D12DescriptorHeapPool::Request(uint64_t submission_index, uint64_t previous_heap_index,
                                           uint32_t count_for_partial_update,
                                           uint32_t count_for_full_update, uint32_t& index_out) {
-  assert_true(count_for_partial_update <= count_for_full_update);
-  assert_true(count_for_full_update <= page_size_);
+  REX_ASSERT(count_for_partial_update <= count_for_full_update);
+  REX_ASSERT(count_for_full_update <= page_size_);
   if (count_for_partial_update > count_for_full_update || count_for_full_update > page_size_) {
     return kHeapIndexInvalid;
   }
-  assert_true(!current_page_used_ || submission_index >= writable_first_->last_submission_index);
-  assert_true(!submitted_last_ || submission_index >= submitted_last_->last_submission_index);
+  REX_ASSERT(!current_page_used_ || submission_index >= writable_first_->last_submission_index);
+  REX_ASSERT(!submitted_last_ || submission_index >= submitted_last_->last_submission_index);
   // If the last full update happened on the current page, a partial update is
   // possible.
   uint32_t count =

@@ -1,6 +1,5 @@
 /**
  * @file        codegen/output_partition_test.cpp
- * @brief       Tests for stable recomp file partitioning
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

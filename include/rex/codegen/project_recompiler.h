@@ -1,6 +1,5 @@
 /**
  * @file        rex/codegen/project_recompiler.h
- * @brief       Project-level recompiler driving manifest-based multi-binary codegen
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -41,7 +40,7 @@ struct ProjectRecompilerOptions {
 class ProjectRecompiler {
  public:
   explicit ProjectRecompiler(ManifestConfig manifest);
-  Result<void> Run(const ProjectRecompilerOptions& opts);
+  [[nodiscard]] Result<void> Run(const ProjectRecompilerOptions& opts);
 
   /**
    * Aggregated basenames of files removed across all modules during the most

@@ -68,7 +68,7 @@ class FakeDriver final : public Driver {
 
   void EnumerateDevices(std::vector<DeviceInfo>& out) override { out = devices_; }
 
-  rex::Result<X_INPUT_STATE> GetDeviceState(DeviceId id) override {
+  [[nodiscard]] rex::Result<X_INPUT_STATE> GetDeviceState(DeviceId id) override {
     auto it = states_.find(id);
     if (it == states_.end()) {
       return std::unexpected(Unplugged());
@@ -76,7 +76,8 @@ class FakeDriver final : public Driver {
     return it->second;
   }
 
-  rex::Result<X_INPUT_CAPABILITIES> GetDeviceCapabilities(DeviceId id, rex::u32) override {
+  [[nodiscard]] rex::Result<X_INPUT_CAPABILITIES> GetDeviceCapabilities(DeviceId id,
+                                                                        rex::u32) override {
     if (states_.find(id) == states_.end()) {
       return std::unexpected(Unplugged());
     }
@@ -86,14 +87,15 @@ class FakeDriver final : public Driver {
     return caps;
   }
 
-  rex::Result<void> SetDeviceVibration(DeviceId id, const X_INPUT_VIBRATION&) override {
+  [[nodiscard]] rex::Result<void> SetDeviceVibration(DeviceId id,
+                                                     const X_INPUT_VIBRATION&) override {
     if (!states_.contains(id)) {
       return std::unexpected(Unplugged());
     }
     return rex::Ok();
   }
 
-  rex::Result<X_INPUT_KEYSTROKE> GetDeviceKeystroke(DeviceId id, rex::u32) override {
+  [[nodiscard]] rex::Result<X_INPUT_KEYSTROKE> GetDeviceKeystroke(DeviceId id, rex::u32) override {
     if (states_.find(id) == states_.end()) {
       return std::unexpected(Unplugged());
     }

@@ -24,7 +24,7 @@ VulkanSubmissionTracker::FenceAcquisition::~FenceAcquisition() {
     // Dropped submission or left after std::move.
     return;
   }
-  assert_true(submission_tracker_->fence_acquired_ == fence_);
+  REX_ASSERT(submission_tracker_->fence_acquired_ == fence_);
   if (fence_ != VK_NULL_HANDLE) {
     if (signal_failed_) {
       // Left in the unsignaled state.
@@ -51,7 +51,7 @@ void VulkanSubmissionTracker::Shutdown() {
     dfn.vkDestroyFence(device, fence_pair.second, nullptr);
   }
   fences_pending_.clear();
-  assert_true(fence_acquired_ == VK_NULL_HANDLE);
+  REX_ASSERT(fence_acquired_ == VK_NULL_HANDLE);
   util::DestroyAndNullHandle(dfn.vkDestroyFence, device, fence_acquired_);
 }
 
@@ -59,7 +59,7 @@ void VulkanSubmissionTracker::FenceAcquisition::SubmissionFailedOrDropped() {
   if (!submission_tracker_) {
     return;
   }
-  assert_true(submission_tracker_->fence_acquired_ == fence_);
+  REX_ASSERT(submission_tracker_->fence_acquired_ == fence_);
   if (fence_ != VK_NULL_HANDLE) {
     submission_tracker_->fences_reclaimed_.push_back(fence_);
   }
@@ -76,7 +76,7 @@ uint64_t VulkanSubmissionTracker::UpdateAndGetCompletedSubmission() {
     const VkDevice device = vulkan_device_->device();
     while (!fences_pending_.empty()) {
       const std::pair<uint64_t, VkFence>& pending_pair = fences_pending_.front();
-      assert_true(pending_pair.first > submission_completed_on_gpu_);
+      REX_ASSERT(pending_pair.first > submission_completed_on_gpu_);
       if (dfn.vkGetFenceStatus(device, pending_pair.second) != VK_SUCCESS) {
         break;
       }
@@ -93,7 +93,7 @@ bool VulkanSubmissionTracker::AwaitSubmissionCompletion(uint64_t submission_inde
   // hasn't even started being recorded yet, the client has provided a
   // completely invalid value or has done overly optimistic math if such an
   // index has been obtained somehow.
-  assert_true(submission_index <= submission_current_);
+  REX_ASSERT(submission_index <= submission_current_);
   // Waiting for the current submission is fine if there was a failure or a
   // refusal to submit, and the submission index wasn't incremented, but still
   // need to release objects referenced in the dropped submission (while
@@ -116,7 +116,7 @@ bool VulkanSubmissionTracker::AwaitSubmissionCompletion(uint64_t submission_inde
     const VkDevice device = vulkan_device_->device();
     while (reclaim_end) {
       const std::pair<uint64_t, VkFence>& pending_pair = fences_pending_[reclaim_end - 1];
-      assert_true(pending_pair.first > submission_completed_on_gpu_);
+      REX_ASSERT(pending_pair.first > submission_completed_on_gpu_);
       if (pending_pair.first <= submission_index) {
         // Wait if requested.
         if (dfn.vkWaitForFences(device, 1, &pending_pair.second, VK_TRUE, UINT64_MAX) ==
@@ -124,7 +124,7 @@ bool VulkanSubmissionTracker::AwaitSubmissionCompletion(uint64_t submission_inde
           break;
         }
       }
-      // Just refresh the completed submission.
+      // Refresh the completed submission.
       if (dfn.vkGetFenceStatus(device, pending_pair.second) == VK_SUCCESS) {
         break;
       }
@@ -143,7 +143,7 @@ bool VulkanSubmissionTracker::AwaitSubmissionCompletion(uint64_t submission_inde
 
 VulkanSubmissionTracker::FenceAcquisition
 VulkanSubmissionTracker::AcquireFenceToAdvanceSubmission() {
-  assert_true(fence_acquired_ == VK_NULL_HANDLE);
+  REX_ASSERT(fence_acquired_ == VK_NULL_HANDLE);
   // Reclaim fences if the client only gets the completed submission index or
   // awaits in special cases such as shutdown.
   UpdateAndGetCompletedSubmission();

@@ -1,6 +1,5 @@
 /**
  * @file        memory/mapped_memory.h
- * @brief       Memory mapped files
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -24,7 +23,7 @@
 namespace rex::memory {
 
 /** A file, or a range of a file, mapped into host memory. */
-class REX_API MappedMemory {
+class REX_API MappedMemory : public rex::NonCopyable {
  public:
   /** Access mode of the mapping. */
   enum class Mode {
@@ -54,10 +53,6 @@ class REX_API MappedMemory {
    * @param size Byte count.
    */
   MappedMemory(void* data, size_t size) : data_(data), size_(size) {}
-  MappedMemory(const MappedMemory& mapped_memory) = delete;
-  MappedMemory& operator=(const MappedMemory& mapped_memory) = delete;
-  MappedMemory(MappedMemory&& mapped_memory) = delete;
-  MappedMemory& operator=(MappedMemory&& mapped_memory) = delete;
   virtual ~MappedMemory() = default;
 
   /**
@@ -69,7 +64,7 @@ class REX_API MappedMemory {
    * @return The view.
    */
   std::unique_ptr<MappedMemory> Slice(size_t offset, size_t length) {
-    return std::unique_ptr<MappedMemory>(new MappedMemory(data() + offset, length));
+    return std::make_unique<MappedMemory>(data() + offset, length);
   }
 
   /**

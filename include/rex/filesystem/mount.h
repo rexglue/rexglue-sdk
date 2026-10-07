@@ -1,6 +1,5 @@
 /**
  * @file        filesystem/mount.h
- * @brief       Provider kinds, mount flags and the description of 1 mount
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -56,5 +55,5 @@ struct MountEntry {
 
 /** Opts MountFlags into the flag operators. */
 template <>
-// NOLINTNEXTLINE(readability-identifier-naming): charter 12.1 names the trait
+// NOLINTNEXTLINE(readability-identifier-naming)
 inline constexpr bool rex::is_flags_enum<rex::filesystem::MountFlags> = true;

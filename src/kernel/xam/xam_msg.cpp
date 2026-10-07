@@ -48,8 +48,8 @@ u32 XMsgSystemProcessCall_entry(u32 app, u32 message, u32 buffer, u32 buffer_len
 }
 
 struct XMSGSTARTIOREQUEST_UNKNOWNARG {
-  be<uint32_t> unk_0;
-  be<uint32_t> unk_1;
+  be_u32 unk_0;
+  be_u32 unk_1;
 };
 
 X_HRESULT XMsgStartIORequestEx(uint32_t app, uint32_t message, uint32_t overlapped_ptr,

@@ -32,16 +32,16 @@ X_HRESULT XLiveBaseApp::DispatchMessageSync(uint32_t message, uint32_t buffer_pt
   auto buffer = memory_->TranslateVirtual(buffer_ptr);
   switch (message) {
     case 0x00058004: {
-      // Called on startup, seems to just return a bool in the buffer.
-      assert_true(!buffer_length || buffer_length == 4);
+      // Called on startup, seems to return a bool in the buffer.
+      REX_ASSERT(!buffer_length || buffer_length == 4);
       REXLOG_DEBUG(kernel, "XLiveBaseGetLogonId({:08X})", buffer_ptr);
-      memory::store_and_swap<uint32_t>(buffer + 0, 1);  // ?
+      memory::store<be_u32>(buffer + 0, 1);  // ?
       return X_E_SUCCESS;
     }
     case 0x00058006: {
-      assert_true(!buffer_length || buffer_length == 4);
+      REX_ASSERT(!buffer_length || buffer_length == 4);
       REXLOG_DEBUG(kernel, "XLiveBaseGetNatType({:08X})", buffer_ptr);
-      memory::store_and_swap<uint32_t>(buffer + 0, 1);  // XONLINE_NAT_OPEN
+      memory::store<be_u32>(buffer + 0, 1);  // XONLINE_NAT_OPEN
       return X_E_SUCCESS;
     }
     case 0x00058007: {

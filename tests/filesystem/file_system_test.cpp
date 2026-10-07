@@ -1,6 +1,5 @@
 /**
  * @file        tests/filesystem/file_system_test.cpp
- * @brief       Tests for path resolution, links, mounts and open dispositions
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

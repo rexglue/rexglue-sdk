@@ -8,10 +8,11 @@
 #include <SDL3/SDL_video.h>
 
 #include <rex/platform.h>
+#include <rex/types.h>
 
 namespace rex::ui {
 
-class VideoScope {
+class VideoScope : public rex::NonCopyable {
  public:
   VideoScope() {
 #if REX_PLATFORM_MAC
@@ -35,9 +36,6 @@ class VideoScope {
       SDL_QuitSubSystem(SDL_INIT_VIDEO);
     }
   }
-
-  VideoScope(const VideoScope&) = delete;
-  VideoScope& operator=(const VideoScope&) = delete;
 
   bool Ok() const { return ok_; }
   const std::string& GetError() const { return error_; }

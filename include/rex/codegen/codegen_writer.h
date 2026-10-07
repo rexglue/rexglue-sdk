@@ -1,6 +1,5 @@
 /**
  * @file        rex/codegen/codegen_writer.h
- * @brief       Consolidated codegen output writer
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

@@ -171,7 +171,7 @@ Result<u32> APU::RegisterClient(u32 callback, u32 callback_arg) {
   }
   semaphore->Release(static_cast<i32>(queued_frames_), nullptr);
   const u32 ptr = runtime_.memory()->SystemHeapAlloc(0x4);
-  memory::store_and_swap<u32>(runtime_.memory()->TranslateVirtual(ptr), callback_arg);
+  *runtime_.memory()->TranslateVirtual<be_u32*>(ptr) = callback_arg;
   *free = {*stream, callback, callback_arg, ptr, true};
   return index;
 }

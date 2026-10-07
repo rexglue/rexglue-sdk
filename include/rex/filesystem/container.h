@@ -1,6 +1,5 @@
 /**
  * @file        filesystem/container.h
- * @brief       STFS, SVOD and GDFX container images parsed into a file tree
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -152,7 +151,7 @@ class REX_API Container : public MoveOnly {
    * Returns the bytes of a file node without a copy.
    *
    * @param node A file node of this container.
-   * @return The bytes, valid while the container lives, empty when the file is not 1 extent.
+   * @return The bytes, valid while the container exists, empty when the file is not 1 extent.
    */
   [[nodiscard]] std::span<const u8> View(const ContainerNode& node) const;
 

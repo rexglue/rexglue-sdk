@@ -28,7 +28,7 @@ class D3D12UploadBufferPool : public GraphicsUploadBufferPool {
                           D3D12_GPU_VIRTUAL_ADDRESS* gpu_address_out);
 
  protected:
-  Page* CreatePageImplementation() override;
+  std::unique_ptr<Page> CreatePageImplementation() override;
 
  private:
   struct D3D12Page : public Page {

@@ -31,39 +31,39 @@ enum X_FILE_DEVICE_TYPE : uint32_t {
 
 // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddk/ns-ntddk-_file_fs_volume_information
 struct X_FILE_FS_VOLUME_INFORMATION {
-  be<uint64_t> creation_time;
-  be<uint32_t> serial_number;
-  be<uint32_t> label_length;
+  be_u64 creation_time;
+  be_u32 serial_number;
+  be_u32 label_length;
   uint8_t supports_objects;
   char label[1];
   uint8_t pad[6];
 };
-static_assert_size(X_FILE_FS_VOLUME_INFORMATION, 24);
+REX_STATIC_ASSERT_SIZE(X_FILE_FS_VOLUME_INFORMATION, 24);
 
 // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddk/ns-ntddk-_file_fs_size_information
 struct X_FILE_FS_SIZE_INFORMATION {
-  be<uint64_t> total_allocation_units;
-  be<uint64_t> available_allocation_units;
-  be<uint32_t> sectors_per_allocation_unit;
-  be<uint32_t> bytes_per_sector;
+  be_u64 total_allocation_units;
+  be_u64 available_allocation_units;
+  be_u32 sectors_per_allocation_unit;
+  be_u32 bytes_per_sector;
 };
-static_assert_size(X_FILE_FS_SIZE_INFORMATION, 24);
+REX_STATIC_ASSERT_SIZE(X_FILE_FS_SIZE_INFORMATION, 24);
 
 // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_file_fs_attribute_information
 struct X_FILE_FS_ATTRIBUTE_INFORMATION {
-  be<uint32_t> attributes;
-  be<int32_t> component_name_max_length;
-  be<uint32_t> name_length;
+  be_u32 attributes;
+  be_i32 component_name_max_length;
+  be_u32 name_length;
   char name[1];
   uint8_t pad[3];
 };
-static_assert_size(X_FILE_FS_ATTRIBUTE_INFORMATION, 16);
+REX_STATIC_ASSERT_SIZE(X_FILE_FS_ATTRIBUTE_INFORMATION, 16);
 
 struct X_FILE_FS_DEVICE_INFORMATION {
   be<X_FILE_DEVICE_TYPE> device_type;
-  be<uint32_t> characteristics;
+  be_u32 characteristics;
 };
-static_assert_size(X_FILE_FS_DEVICE_INFORMATION, 8);
+REX_STATIC_ASSERT_SIZE(X_FILE_FS_DEVICE_INFORMATION, 8);
 
 #pragma pack(pop)
 

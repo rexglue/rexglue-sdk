@@ -35,7 +35,7 @@ TEST_CASE("WaitOn returns invalid handle for a missing handle", "[wait]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
     CHECK(rex::runtime::WaitOn(c.runtime(), 0xF8001230, 3, 1, 0, nullptr) ==
-          X_STATUS_INVALID_HANDLE);
+          rex::X_STATUS_INVALID_HANDLE);
   });
 }
 
@@ -45,7 +45,7 @@ TEST_CASE("WaitOn on a kind without a wait handle succeeds at once", "[wait]") {
     auto& table = c.runtime().object_table();
     auto added = table.Emplace<SymbolicLinkObject>(AddOptions{}, "a", "b");
     REQUIRE(added.has_value());
-    CHECK(rex::runtime::WaitOn(c.runtime(), *added, 3, 1, 0, nullptr) == X_STATUS_SUCCESS);
+    CHECK(rex::runtime::WaitOn(c.runtime(), *added, 3, 1, 0, nullptr) == rex::X_STATUS_SUCCESS);
     (void)table.Close(*added);
   });
 }
@@ -68,9 +68,9 @@ TEST_CASE("WaitOn keeps the object alive when its handle closes mid wait", "[wai
     });
     running.wait();
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    CHECK(ToXStatus(table.Close(handle)) == X_STATUS_SUCCESS);
+    CHECK(ToXStatus(table.Close(handle)) == rex::X_STATUS_SUCCESS);
     CHECK(done.wait_for(std::chrono::seconds(20)) == std::future_status::ready);
-    CHECK(done.get() == X_STATUS_TIMEOUT);
+    CHECK(done.get() == rex::X_STATUS_TIMEOUT);
     c.Kernel("NtClose", {waiter});
   });
 }

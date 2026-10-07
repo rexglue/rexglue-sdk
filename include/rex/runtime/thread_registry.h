@@ -1,6 +1,5 @@
 /**
  * @file        runtime/thread_registry.h
- * @brief       The thread registry interface, thread pins and fiber records
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -26,7 +25,7 @@
 namespace rex::runtime {
 
 /** A transient pin on a thread record. Never stored. Move only. */
-class ThreadPin {
+class ThreadPin : public rex::MoveOnly {
  public:
   ThreadPin() = default;
   /**
@@ -44,8 +43,6 @@ class ThreadPin {
     }
     return *this;
   }
-  ThreadPin(const ThreadPin&) = delete;
-  ThreadPin& operator=(const ThreadPin&) = delete;
   ~ThreadPin() { Reset(); }
 
   /**
@@ -151,7 +148,7 @@ class IThreadRegistry {
   [[nodiscard]] virtual std::optional<FiberInfo> LookupFiber(u32 address) = 0;
 
   /**
-   * Records a fiber, replacing a record with the same address.
+   * Registers a fiber, replacing a record with the same address.
    *
    * @param address The guest address of the fiber context block.
    * @param info The fiber data.

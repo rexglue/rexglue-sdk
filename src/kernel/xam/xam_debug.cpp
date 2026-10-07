@@ -1,6 +1,5 @@
 /**
  * @file        kernel/xam/xam_debug.cpp
- * @brief       XAM debug export implementations
  *
  * @copyright   Copyright 2022 Ben Vanik. All rights reserved. (Xenia Project)
  *

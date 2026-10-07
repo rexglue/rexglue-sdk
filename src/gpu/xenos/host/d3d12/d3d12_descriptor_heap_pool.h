@@ -61,7 +61,7 @@ class D3D12DescriptorHeapPool {
                    uint32_t count_for_partial_update, uint32_t count_for_full_update,
                    uint32_t& index_out);
 
-  // The current heap, for binding and actually writing - may be called only
+  // The current heap, for binding and writing - may be called only
   // after a successful request because before a request, the heap may not exist
   // yet.
   ID3D12DescriptorHeap* GetLastRequestHeap() const { return writable_first_->heap.Get(); }
@@ -86,7 +86,7 @@ class D3D12DescriptorHeapPool {
   };
 
   // A list of heap with free space, with the first buffer being the one
-  // currently being filled.
+  // being filled.
   Page* writable_first_ = nullptr;
   Page* writable_last_ = nullptr;
   // A list of full heaps that can be reclaimed when the GPU doesn't use them
@@ -94,7 +94,7 @@ class D3D12DescriptorHeapPool {
   Page* submitted_first_ = nullptr;
   Page* submitted_last_ = nullptr;
   // Monotonically increased when a new request is going to a different
-  // ID3D12DescriptorHeap than the one that may be bound currently. See Request
+  // ID3D12DescriptorHeap than the one that may be bound. See Request
   // for more information.
   uint64_t current_heap_index_ = 0;
   uint32_t current_page_used_ = 0;

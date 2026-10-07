@@ -22,7 +22,7 @@ struct ListShimArgs {
   bool json = false;
 };
 
-rex::Result<void> ListShim(const ListShimArgs& args) {
+[[nodiscard]] rex::Result<void> ListShim(const ListShimArgs& args) {
   nlohmann::json rows = nlohmann::json::array();
   for (const auto& entry : shim::kRegistry) {
     const auto& traits = shim::TraitsOf(entry.group);

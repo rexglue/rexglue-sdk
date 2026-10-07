@@ -206,7 +206,7 @@ void SDL3Backend::Callback(void* userdata, SDL_AudioStream* stream, int addition
             sequential_6_BE_to_interleaved_6_LE(data, buffer.get(), kChannelSamples, mix, gain);
             break;
           default:
-            assert_unhandled_case(stream_state->device_channels);
+            REX_UNHANDLED_CASE(stream_state->device_channels);
             break;
         }
       }

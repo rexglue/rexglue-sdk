@@ -1,6 +1,5 @@
 /**
  * @file        runtime/config.h
- * @brief       Runtime module config inside rex::Config
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

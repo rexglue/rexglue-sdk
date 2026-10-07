@@ -1,6 +1,5 @@
 /**
  * @file        kernel.h
- * @brief       Umbrella header for Xbox kernel types and objects
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -26,7 +25,7 @@
 #include <rex/runtime/xthread.h>
 #include <rex/runtime/xtimer.h>
 
-// Memory (Xbox API wrappers - core Memory class is in rex/memory.h)
+// Memory (API wrappers - core Memory class is in rex/memory.h)
 #include <rex/runtime/xmemory.h>
 
 // System state

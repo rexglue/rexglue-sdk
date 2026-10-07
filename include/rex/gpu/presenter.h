@@ -1,6 +1,5 @@
 /**
  * @file        gpu/presenter.h
- * @brief       The presenter and its window side
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

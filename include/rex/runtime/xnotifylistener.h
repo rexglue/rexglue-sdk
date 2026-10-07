@@ -35,7 +35,7 @@ union XNotificationKey {
 
   constexpr XNotificationKey(XNotificationID notification_id = XNotificationID(0))
       : id(notification_id) {
-    static_assert_size(*this, sizeof(id));
+    REX_STATIC_ASSERT_SIZE(*this, sizeof(id));
   }
 
   constexpr operator XNotificationID() { return id; }

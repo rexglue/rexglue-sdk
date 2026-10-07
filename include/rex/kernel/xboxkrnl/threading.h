@@ -20,10 +20,10 @@
 
 namespace rex::kernel::xboxkrnl {
 
-REX_RUNTIME_API uint32_t NtSetEvent(uint32_t handle, rex::be<uint32_t>* previous_state_ptr);
+REX_RUNTIME_API uint32_t NtSetEvent(uint32_t handle, be_u32* previous_state_ptr);
 REX_RUNTIME_API uint32_t NtClearEvent(uint32_t handle);
 
-REX_RUNTIME_API uint32_t NtWaitForMultipleObjectsEx(uint32_t count, rex::be<uint32_t>* handles,
+REX_RUNTIME_API uint32_t NtWaitForMultipleObjectsEx(uint32_t count, be_u32* handles,
                                                     uint32_t wait_type, uint32_t wait_mode,
                                                     uint32_t alertable, uint64_t* timeout_ptr);
 

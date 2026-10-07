@@ -1,6 +1,5 @@
 /**
  * @file        runtime/achievement_manager.h
- * @brief       The achievement manager of a runtime
  *
  * @copyright   Copyright (c) 2026 Rien Gupta <rgupta9@scu.edu>
  *              All rights reserved.
@@ -26,10 +25,10 @@ namespace rex::runtime {
 /** The achievement manager of a runtime. */
 class REX_RUNTIME_API AchievementManager final : public IAchievementManager {
  public:
-  Result<void> RegisterAchievement(AchievementInfo info) override;
+  [[nodiscard]] Result<void> RegisterAchievement(AchievementInfo info) override;
   void RegisterAchievements(std::span<const AchievementInfo> achievements) override;
   void ReplaceAchievements(std::vector<AchievementInfo> achievements) override;
-  Result<void> LoadMetadataFile(const std::filesystem::path& path) override;
+  [[nodiscard]] Result<void> LoadMetadataFile(const std::filesystem::path& path) override;
   std::vector<AchievementInfo> ListAchievements() const override;
   AchievementUnlockResult UnlockAchievement(
       u32 id, AchievementNotification notification = AchievementNotification::kSuppress) override;

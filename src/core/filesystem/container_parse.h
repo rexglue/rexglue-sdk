@@ -73,8 +73,8 @@ inline rex::Error Corrupt(std::string message) {
  * @param nodes The node list to fill.
  * @return kCorrupt when a table, a chain or an index is out of range.
  */
-Result<void> ParseSTFS(const STFSHeader& header, std::span<const u8> file,
-                       std::vector<ContainerNode>& nodes);
+[[nodiscard]] Result<void> ParseSTFS(const STFSHeader& header, std::span<const u8> file,
+                                     std::vector<ContainerNode>& nodes);
 
 /**
  * Parses an SVOD package into nodes. nodes holds the root on entry.
@@ -84,8 +84,9 @@ Result<void> ParseSTFS(const STFSHeader& header, std::span<const u8> file,
  * @param nodes The node list to fill.
  * @return kCorrupt when the magic block is missing or an entry is out of range.
  */
-Result<void> ParseSVOD(const STFSHeader& header, std::span<const std::span<const u8>> files,
-                       std::vector<ContainerNode>& nodes);
+[[nodiscard]] Result<void> ParseSVOD(const STFSHeader& header,
+                                     std::span<const std::span<const u8>> files,
+                                     std::vector<ContainerNode>& nodes);
 
 /**
  * Tests whether an image holds the GDFX magic at 1 of the probe offsets.
@@ -102,6 +103,6 @@ bool IsGDFX(std::span<const u8> image);
  * @param nodes The node list to fill.
  * @return kCorrupt when the magic is missing or an entry is out of range.
  */
-Result<void> ParseGDFX(std::span<const u8> image, std::vector<ContainerNode>& nodes);
+[[nodiscard]] Result<void> ParseGDFX(std::span<const u8> image, std::vector<ContainerNode>& nodes);
 
 }  // namespace rex::filesystem::detail

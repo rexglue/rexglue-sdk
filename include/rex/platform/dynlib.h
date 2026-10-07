@@ -1,6 +1,5 @@
 /**
  * @file        platform/dynlib.h
- * @brief       Dynamic library loading with OS error text
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -16,6 +15,7 @@
 
 #include <rex/macros.h>
 #include <rex/platform.h>
+#include <rex/types.h>
 
 namespace rex::platform {
 
@@ -30,13 +30,11 @@ enum class SymbolResolution {
 /**
  * Loads a shared library and resolves symbols from it. Move only.
  */
-class REX_API DynamicLibrary {
+class REX_API DynamicLibrary : public rex::MoveOnly {
  public:
   DynamicLibrary() = default;
   ~DynamicLibrary();
 
-  DynamicLibrary(const DynamicLibrary&) = delete;
-  DynamicLibrary& operator=(const DynamicLibrary&) = delete;
   DynamicLibrary(DynamicLibrary&& other) noexcept;
   DynamicLibrary& operator=(DynamicLibrary&& other) noexcept;
 

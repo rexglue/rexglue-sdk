@@ -21,8 +21,8 @@ bool Win32HwndSurface::GetSizeImpl(uint32_t& width_out, uint32_t& height_out) co
     return false;
   }
   // GetClientRect returns a rectangle with 0 origin.
-  width_out = uint32_t(client_rect.right);
-  height_out = uint32_t(client_rect.bottom);
+  width_out = static_cast<uint32_t>(client_rect.right);
+  height_out = static_cast<uint32_t>(client_rect.bottom);
   return true;
 }
 #endif

@@ -25,10 +25,13 @@
 namespace rex::gpu::d3d12 {
 
 class D3D12ImmediateDrawer final : public ImmediateDrawer {
+  struct Key {};
+
  public:
+  explicit D3D12ImmediateDrawer(Key, const D3D12Provider& provider) : provider_(provider) {}
+
   static std::unique_ptr<D3D12ImmediateDrawer> Create(const D3D12Provider& provider) {
-    auto immediate_drawer =
-        std::unique_ptr<D3D12ImmediateDrawer>(new D3D12ImmediateDrawer(provider));
+    auto immediate_drawer = std::make_unique<D3D12ImmediateDrawer>(Key{}, provider);
     if (!immediate_drawer->Initialize()) {
       return nullptr;
     }
@@ -91,7 +94,6 @@ class D3D12ImmediateDrawer final : public ImmediateDrawer {
     UINT64 last_usage_submission_index_ = 0;
   };
 
-  D3D12ImmediateDrawer(const D3D12Provider& provider) : provider_(provider) {}
   bool Initialize();
 
   void OnImmediateTextureDestroyed(D3D12ImmediateTexture& texture);

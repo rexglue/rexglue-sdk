@@ -91,7 +91,7 @@ class CommandProcessor {
   virtual bool Initialize();
   virtual void Shutdown();
 
-  void CallInThread(std::function<void()> fn);
+  void CallInThread(std::move_only_function<void()> fn);
 
   virtual void ClearCaches();
   virtual void InvalidateGpuMemory();
@@ -232,7 +232,7 @@ class CommandProcessor {
   std::atomic<bool> worker_running_;
   X_HANDLE worker_thread_ = 0;
 
-  std::queue<std::function<void()>> pending_fns_;
+  std::queue<std::move_only_function<void()>> pending_fns_;
 
   // MicroEngine binary from PM4_ME_INIT
   std::vector<uint32_t> me_bin_;

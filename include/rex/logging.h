@@ -1,6 +1,5 @@
 /**
  * @file        logging.h
- * @brief       Logging facade
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

@@ -38,7 +38,7 @@ namespace shaders {
 D3D12Presenter::~D3D12Presenter() {
   // Await completion of the usage of everything before destroying anything.
   // From most likely the latest to most likely the earliest to be signaled, so
-  // just one sleep will likely be needed.
+  // only one sleep will likely be needed.
   paint_context_.AwaitSwapChainUsageCompletion();
   guest_output_resource_refresher_submission_tracker_.Shutdown();
   ui_submission_tracker_.Shutdown();
@@ -59,9 +59,9 @@ D3D12Presenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(gpu::Surface& ne
                                                                 bool was_paintable,
                                                                 bool& is_vsync_implicit_out) {
   uint32_t new_swap_chain_width =
-      std::min(new_surface_width, uint32_t(D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION));
+      std::min(new_surface_width, static_cast<uint32_t>(D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION));
   uint32_t new_swap_chain_height =
-      std::min(new_surface_height, uint32_t(D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION));
+      std::min(new_surface_height, static_cast<uint32_t>(D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION));
 
   // ConnectOrReconnectPaintingToSurfaceFromUIThread may be called only for the
   // surface of the current swap chain or when the old swap chain has already
@@ -151,7 +151,7 @@ D3D12Presenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(gpu::Surface& ne
       } break;
 #endif
       default:
-        assert_unhandled_case(surface_type);
+        REX_UNHANDLED_CASE(surface_type);
         REX_FAIL(ui, SurfacePaintConnectResult::kFailureSurfaceUnusable,
                  "D3D12Presenter: Tried to create a swap chain for an unsupported "
                  "ReXGlue surface type");
@@ -205,9 +205,10 @@ void D3D12Presenter::DisconnectPaintingFromSurfaceFromUIThreadImpl() {
 
 bool D3D12Presenter::RefreshGuestOutputImpl(
     uint32_t mailbox_index, uint32_t frontbuffer_width, uint32_t frontbuffer_height,
-    std::function<bool(GuestOutputRefreshContext& context)> refresher, bool& is_8bpc_out_ref) {
-  assert_not_zero(frontbuffer_width);
-  assert_not_zero(frontbuffer_height);
+    std::move_only_function<bool(GuestOutputRefreshContext& context)> refresher,
+    bool& is_8bpc_out_ref) {
+  REX_ASSERT(frontbuffer_width != 0);
+  REX_ASSERT(frontbuffer_height != 0);
   std::pair<UINT64, Microsoft::WRL::ComPtr<ID3D12Resource>>& guest_output_resource_ref =
       guest_output_resources_[mailbox_index];
   if (guest_output_resource_ref.second) {
@@ -271,7 +272,7 @@ void D3D12Presenter::PaintContext::DestroySwapChain() {
 }
 
 Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawers) {
-  // Begin the command list with the command allocator not currently potentially
+  // Begin the command list with the command allocator not potentially
   // used on the GPU.
   UINT64 current_paint_submission = paint_context_.paint_submission_tracker.GetCurrentSubmission();
   UINT64 command_allocator_count = UINT64(paint_context_.command_allocators.size());
@@ -324,7 +325,7 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
         guest_output_paint_config);
 
     if (guest_output_flow.has_effect &&
-        !guest_output_paint_pipelines_[size_t(guest_output_flow.effect)]) {
+        !guest_output_paint_pipelines_[static_cast<size_t>(guest_output_flow.effect)]) {
       guest_output_flow.has_effect = false;
     }
 
@@ -339,7 +340,7 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
       size_t guest_output_resource_paint_ref_index = SIZE_MAX;
       size_t guest_output_resource_paint_ref_new_index = SIZE_MAX;
       // Try to find the existing reference to the same texture, or an already
-      // released (or a taken, but never actually used) slot.
+      // released (or a taken, but never used) slot.
       for (size_t i = 0; i < paint_context_.guest_output_resource_paint_refs.size(); ++i) {
         const std::pair<UINT64, Microsoft::WRL::ComPtr<ID3D12Resource>>&
             guest_output_resource_paint_ref = paint_context_.guest_output_resource_paint_refs[i];
@@ -373,7 +374,7 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
                   .first);
         }
         guest_output_resource_paint_ref_index = guest_output_resource_paint_ref_new_index;
-        // The actual submission index will be set if the texture is actually
+        // The actual submission index will be set if the texture is
         // used, not dropped due to some error.
         paint_context_.guest_output_resource_paint_refs[guest_output_resource_paint_ref_index] =
             std::make_pair(UINT64(0), guest_output_resource);
@@ -389,9 +390,10 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
         guest_output_resource_srv_desc.Texture2D.ResourceMinLODClamp = 0.0f;
         device->CreateShaderResourceView(
             guest_output_resource.Get(), &guest_output_resource_srv_desc,
-            provider_.OffsetViewDescriptor(view_heap_cpu_start,
-                                           PaintContext::kViewIndexGuestOutput0Srv +
-                                               uint32_t(guest_output_resource_paint_ref_index)));
+            provider_.OffsetViewDescriptor(
+                view_heap_cpu_start,
+                PaintContext::kViewIndexGuestOutput0Srv +
+                    static_cast<uint32_t>(guest_output_resource_paint_ref_index)));
       }
 
       paint_context_.guest_output_resource_paint_refs[guest_output_resource_paint_ref_index].first =
@@ -424,8 +426,8 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
       D3D12_VIEWPORT viewport;
       viewport.TopLeftX = 0.0f;
       viewport.TopLeftY = 0.0f;
-      viewport.Width = float(back_buffer_desc.Width);
-      viewport.Height = float(back_buffer_desc.Height);
+      viewport.Width = static_cast<float>(back_buffer_desc.Width);
+      viewport.Height = static_cast<float>(back_buffer_desc.Height);
       viewport.MinDepth = 0.0f;
       viewport.MaxDepth = 1.0f;
       command_list->RSSetViewports(1, &viewport);
@@ -436,11 +438,13 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
       scissor.bottom = LONG(back_buffer_desc.Height);
       command_list->RSSetScissorRects(1, &scissor);
 
-      command_list->SetPipelineState(guest_output_paint_pipelines_[size_t(effect)].Get());
+      command_list->SetPipelineState(
+          guest_output_paint_pipelines_[static_cast<size_t>(effect)].Get());
       GuestOutputPaintRootSignatureIndex guest_output_paint_root_signature_index =
           GetGuestOutputPaintRootSignatureIndex(effect);
       command_list->SetGraphicsRootSignature(
-          guest_output_paint_root_signatures_[size_t(guest_output_paint_root_signature_index)]
+          guest_output_paint_root_signatures_[static_cast<size_t>(
+                                                  guest_output_paint_root_signature_index)]
               .Get());
 
       UINT effect_src_view_index =
@@ -452,13 +456,15 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
       GuestOutputPaintRectangleConstants effect_rect_constants;
       float effect_x_to_ndc = 2.0f / viewport.Width;
       float effect_y_to_ndc = 2.0f / viewport.Height;
-      effect_rect_constants.x = -1.0f + float(guest_output_flow.output_x) * effect_x_to_ndc;
+      effect_rect_constants.x =
+          -1.0f + static_cast<float>(guest_output_flow.output_x) * effect_x_to_ndc;
       // +Y is -V.
-      effect_rect_constants.y = 1.0f - float(guest_output_flow.output_y) * effect_y_to_ndc;
+      effect_rect_constants.y =
+          1.0f - static_cast<float>(guest_output_flow.output_y) * effect_y_to_ndc;
       effect_rect_constants.width =
-          float(guest_output_flow.effect_output_size.first) * effect_x_to_ndc;
+          static_cast<float>(guest_output_flow.effect_output_size.first) * effect_x_to_ndc;
       effect_rect_constants.height =
-          -float(guest_output_flow.effect_output_size.second) * effect_y_to_ndc;
+          -static_cast<float>(guest_output_flow.effect_output_size.second) * effect_y_to_ndc;
       command_list->SetGraphicsRoot32BitConstants(UINT(GuestOutputPaintRootParameter::kRectangle),
                                                   sizeof(effect_rect_constants) / sizeof(uint32_t),
                                                   &effect_rect_constants, 0);
@@ -508,7 +514,7 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
   }
 
   // Release main target guest output texture references that aren't needed
-  // anymore (this is done after various potential guest-output-related main
+  // anymore (this is done after potential guest-output-related main
   // target submission tracker waits so the completed submission value is the
   // most actual).
   UINT64 completed_paint_submission =

@@ -1,6 +1,5 @@
 /**
  * @file        paths.h
- * @brief       Host path configuration
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

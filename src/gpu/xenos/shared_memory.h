@@ -11,6 +11,7 @@
  */
 
 #include <cstdint>
+#include <memory>
 #include <mutex>
 #include <utility>
 #include <vector>
@@ -35,9 +36,9 @@ class SharedMemory {
   void SetSystemPageBlocksValidWithGpuDataWritten();
   void InvalidateAllPages();
 
-  typedef void (*GlobalWatchCallback)(void* context, uint32_t address_first, uint32_t address_last,
-                                      bool invalidated_by_gpu);
-  typedef void* GlobalWatchHandle;
+  using GlobalWatchCallback = void (*)(void* context, uint32_t address_first, uint32_t address_last,
+                                       bool invalidated_by_gpu);
+  using GlobalWatchHandle = void*;
   // Registers a callback invoked when something is invalidated in the GPU
   // memory copy by the CPU or (if triggered explicitly - such as by a resolve)
   // by the GPU. It will be fired for writes to pages previously requested, but
@@ -48,9 +49,9 @@ class SharedMemory {
   // The callback is called with the memory watch lock held.
   GlobalWatchHandle RegisterGlobalWatch(GlobalWatchCallback callback, void* callback_context);
   void UnregisterGlobalWatch(GlobalWatchHandle handle);
-  typedef void (*WatchCallback)(void* context, void* data, uint64_t argument,
-                                bool invalidated_by_gpu);
-  typedef void* WatchHandle;
+  using WatchCallback = void (*)(void* context, void* data, uint64_t argument,
+                                 bool invalidated_by_gpu);
+  using WatchHandle = void*;
   // Registers a callback invoked when the specified memory range is invalidated
   // in the GPU memory copy by the CPU or (if triggered explicitly - such as by
   // a resolve) by the GPU. It will be fired for writes to pages previously
@@ -132,7 +133,7 @@ class SharedMemory {
 
   // Allocations in the host buffer are aligned the same way as in the guest
   // physical memory (for instance, if an allocation is 64 KB, it can represent
-  // 0-64 KB, 64-128 KB, 128-192 KB in the guest memory, and so on, but not
+  // 0-64 KB, 64-128 KB, 128-192 KB in the guest memory, onward, but not
   // something like 16-80 KB. This is assumed by the rules for texture data
   // access in the texture cache.
   virtual bool AllocateSparseHostGpuMemoryRange(uint32_t offset_allocations,
@@ -190,7 +191,7 @@ class SharedMemory {
     GlobalWatchCallback callback;
     void* callback_context;
   };
-  std::vector<GlobalWatch*> global_watches_;
+  std::vector<std::unique_ptr<GlobalWatch>> global_watches_;
   struct WatchNode;
   // Watched range placed by other GPU subsystems.
   struct WatchRange {
@@ -231,8 +232,8 @@ class SharedMemory {
   // used, and linearly allocating from the current pool.
   static constexpr uint32_t kWatchRangePoolSize = 8192;
   static constexpr uint32_t kWatchNodePoolSize = 8192;
-  std::vector<WatchRange*> watch_range_pools_;
-  std::vector<WatchNode*> watch_node_pools_;
+  std::vector<std::unique_ptr<WatchRange[]>> watch_range_pools_;
+  std::vector<std::unique_ptr<WatchNode[]>> watch_node_pools_;
   uint32_t watch_range_current_pool_allocated_ = 0;
   uint32_t watch_node_current_pool_allocated_ = 0;
   WatchRange* watch_range_first_free_ = nullptr;

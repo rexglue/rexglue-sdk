@@ -1,6 +1,5 @@
 /**
  * @file        api.h
- * @brief       SDK entry points, configuration and the API handle
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -145,8 +144,8 @@ REX_API void Shutdown();
 REX_API std::vector<std::string> ParseCommandLine(Config& config, const CLIArgList& args);
 
 /**
- * Parses a TOML file into config.cvars.values with source Config. A [scope] table with leaf keys
- * and a flat scope.leaf key both name the cvar scope.leaf. A missing file is Ok.
+ * Parses a TOML file into config.cvars.values. A [scope] table with leaf keys and a flat
+ * scope.leaf key both name the cvar scope.leaf. A missing file is Ok.
  *
  * @param config The configuration to fill.
  * @param path The TOML file.

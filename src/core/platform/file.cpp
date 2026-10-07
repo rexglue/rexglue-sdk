@@ -31,7 +31,7 @@ std::filesystem::path GetExecutableFolder() {
   return GetExecutablePath().parent_path();
 }
 
-Result<std::vector<u8>> ReadWholeFile(const std::filesystem::path& path) {
+[[nodiscard]] Result<std::vector<u8>> ReadWholeFile(const std::filesystem::path& path) {
   std::ifstream stream(path, std::ios::binary | std::ios::ate);
   if (!stream) {
     return Err<std::vector<u8>>(IOError("cannot open", path));
@@ -49,7 +49,8 @@ Result<std::vector<u8>> ReadWholeFile(const std::filesystem::path& path) {
   return bytes;
 }
 
-Result<void> WriteWholeFile(const std::filesystem::path& path, std::span<const u8> data) {
+[[nodiscard]] Result<void> WriteWholeFile(const std::filesystem::path& path,
+                                          std::span<const u8> data) {
   std::error_code ec;
   if (path.has_parent_path()) {
     std::filesystem::create_directories(path.parent_path(), ec);

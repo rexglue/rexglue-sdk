@@ -1,6 +1,5 @@
 /**
  * @file        logging/sink.h
- * @brief       The sink interface and the standard sinks
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

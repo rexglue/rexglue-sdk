@@ -28,12 +28,10 @@ struct XmaRegisterInfo {
 
 class XMARegisterFile {
  public:
-  XMARegisterFile();
-
   static const XmaRegisterInfo* GetRegisterInfo(uint32_t index);
 
   static const size_t kRegisterCount = (0xFFFF + 1) / 4;
-  uint32_t values[kRegisterCount];
+  uint32_t values[kRegisterCount]{};
 
   uint32_t operator[](uint32_t reg) const { return values[reg]; }
   uint32_t& operator[](uint32_t reg) { return values[reg]; }

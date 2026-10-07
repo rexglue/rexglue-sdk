@@ -24,7 +24,7 @@ using rex::testing::KernelFixture;
 
 namespace {
 
-constexpr u32 kTimeout = X_STATUS_TIMEOUT;
+constexpr u32 kTimeout = rex::X_STATUS_TIMEOUT;
 constexpr i64 kTicksPerMs = 10000;
 
 u64 SystemTime(Caller& c) {

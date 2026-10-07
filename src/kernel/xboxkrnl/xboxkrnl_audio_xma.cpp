@@ -12,6 +12,7 @@
 // Disable warnings about unused parameters for kernel functions
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
+#include <bit>
 #include <cstring>
 
 #include <rex/assert.h>
@@ -68,7 +69,7 @@ runtime::XMADecoder* Decoder(Runtime& runtime) {
 // d> XMAReleaseContext(000103E0)
 //
 // XAudio2 uses XMA under the covers, and seems to map with the same
-// restrictions of frame/subframe/etc:
+// restrictions of frame and subframe:
 // https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.xaudio2.xaudio2_buffer(v=vs.85).aspx
 
 u32 XMACreateContext_entry(mapped_u32 context_out_ptr) {
@@ -96,7 +97,7 @@ u32 XMAReleaseContext_entry(mapped_void context_ptr) {
 
 void StoreXmaContextIndexedRegister(Runtime& runtime, uint32_t base_reg, uint32_t context_ptr) {
   uint32_t context_physical_address = runtime.memory()->GetPhysicalAddress(context_ptr);
-  assert_true(context_physical_address != UINT32_MAX);
+  REX_ASSERT(context_physical_address != UINT32_MAX);
   auto* xma_decoder = Decoder(runtime);
   if (!xma_decoder) {
     return;
@@ -105,33 +106,33 @@ void StoreXmaContextIndexedRegister(Runtime& runtime, uint32_t base_reg, uint32_
       (context_physical_address - xma_decoder->context_array_ptr()) / sizeof(XMA_CONTEXT_DATA);
   uint32_t reg_num = base_reg + (hw_index >> 5) * 4;
   uint32_t reg_value = 1 << (hw_index & 0x1F);
-  xma_decoder->WriteRegister(reg_num, rex::byte_swap(reg_value));
+  xma_decoder->WriteRegister(reg_num, std::byteswap(reg_value));
 }
 
 struct XMA_LOOP_DATA {
-  rex::be<uint32_t> loop_start;
-  rex::be<uint32_t> loop_end;
+  be_u32 loop_start;
+  be_u32 loop_end;
   uint8_t loop_count;
   uint8_t loop_subframe_end;
   uint8_t loop_subframe_skip;
 };
-static_assert_size(XMA_LOOP_DATA, 12);
+REX_STATIC_ASSERT_SIZE(XMA_LOOP_DATA, 12);
 
 struct XMA_CONTEXT_INIT {
-  rex::be<uint32_t> input_buffer_0_ptr;
-  rex::be<uint32_t> input_buffer_0_packet_count;
-  rex::be<uint32_t> input_buffer_1_ptr;
-  rex::be<uint32_t> input_buffer_1_packet_count;
-  rex::be<uint32_t> input_buffer_read_offset;
-  rex::be<uint32_t> output_buffer_ptr;
-  rex::be<uint32_t> output_buffer_block_count;
-  rex::be<uint32_t> work_buffer;
-  rex::be<uint32_t> subframe_decode_count;
-  rex::be<uint32_t> channel_count;
-  rex::be<uint32_t> sample_rate;
+  be_u32 input_buffer_0_ptr;
+  be_u32 input_buffer_0_packet_count;
+  be_u32 input_buffer_1_ptr;
+  be_u32 input_buffer_1_packet_count;
+  be_u32 input_buffer_read_offset;
+  be_u32 output_buffer_ptr;
+  be_u32 output_buffer_block_count;
+  be_u32 work_buffer;
+  be_u32 subframe_decode_count;
+  be_u32 channel_count;
+  be_u32 sample_rate;
   XMA_LOOP_DATA loop_data;
 };
-static_assert_size(XMA_CONTEXT_INIT, 56);
+REX_STATIC_ASSERT_SIZE(XMA_CONTEXT_INIT, 56);
 
 u32 XMAInitializeContext_entry(mapped_void context_ptr, ppc_ptr_t<XMA_CONTEXT_INIT> context_init) {
   // Input buffers may be null (buffer 1 in 415607D4).
@@ -142,7 +143,7 @@ u32 XMAInitializeContext_entry(mapped_void context_ptr, ppc_ptr_t<XMA_CONTEXT_IN
     input_buffer_0_physical_address =
         runtime::Current().memory()->GetPhysicalAddress(input_buffer_0_guest_ptr);
     // Xenia-specific safety check.
-    assert_true(input_buffer_0_physical_address != UINT32_MAX);
+    REX_ASSERT(input_buffer_0_physical_address != UINT32_MAX);
     if (input_buffer_0_physical_address == UINT32_MAX) {
       REX_FAIL(kernel, X_E_FALSE,
                "XMAInitializeContext: Invalid input buffer 0 virtual address {:08X}",
@@ -154,7 +155,7 @@ u32 XMAInitializeContext_entry(mapped_void context_ptr, ppc_ptr_t<XMA_CONTEXT_IN
   if (input_buffer_1_guest_ptr) {
     input_buffer_1_physical_address =
         runtime::Current().memory()->GetPhysicalAddress(input_buffer_1_guest_ptr);
-    assert_true(input_buffer_1_physical_address != UINT32_MAX);
+    REX_ASSERT(input_buffer_1_physical_address != UINT32_MAX);
     if (input_buffer_1_physical_address == UINT32_MAX) {
       REX_FAIL(kernel, X_E_FALSE,
                "XMAInitializeContext: Invalid input buffer 1 virtual address {:08X}",
@@ -162,10 +163,10 @@ u32 XMAInitializeContext_entry(mapped_void context_ptr, ppc_ptr_t<XMA_CONTEXT_IN
     }
   }
   uint32_t output_buffer_guest_ptr = context_init->output_buffer_ptr;
-  assert_not_zero(output_buffer_guest_ptr);
+  REX_ASSERT(output_buffer_guest_ptr != 0);
   uint32_t output_buffer_physical_address =
       runtime::Current().memory()->GetPhysicalAddress(output_buffer_guest_ptr);
-  assert_true(output_buffer_physical_address != UINT32_MAX);
+  REX_ASSERT(output_buffer_physical_address != UINT32_MAX);
   if (output_buffer_physical_address == UINT32_MAX) {
     REX_FAIL(kernel, X_E_FALSE,
              "XMAInitializeContext: Invalid output buffer virtual address {:08X}",
@@ -232,7 +233,7 @@ u32 XMASetInputBufferReadOffset_entry(mapped_void context_ptr, u32 value) {
 u32 XMASetInputBuffer0_entry(mapped_void context_ptr, mapped_void buffer, u32 packet_count) {
   uint32_t buffer_physical_address =
       runtime::Current().memory()->GetPhysicalAddress(buffer.guest_address());
-  assert_true(buffer_physical_address != UINT32_MAX);
+  REX_ASSERT(buffer_physical_address != UINT32_MAX);
   if (buffer_physical_address == UINT32_MAX) {
     // Xenia-specific safety check.
     REX_FAIL(kernel, X_E_FALSE, "XMASetInputBuffer0: Invalid buffer virtual address {:08X}",
@@ -265,7 +266,7 @@ u32 XMASetInputBuffer0Valid_entry(mapped_void context_ptr) {
 u32 XMASetInputBuffer1_entry(mapped_void context_ptr, mapped_void buffer, u32 packet_count) {
   uint32_t buffer_physical_address =
       runtime::Current().memory()->GetPhysicalAddress(buffer.guest_address());
-  assert_true(buffer_physical_address != UINT32_MAX);
+  REX_ASSERT(buffer_physical_address != UINT32_MAX);
   if (buffer_physical_address == UINT32_MAX) {
     // Xenia-specific safety check.
     REX_FAIL(kernel, X_E_FALSE, "XMASetInputBuffer1: Invalid buffer virtual address {:08X}",

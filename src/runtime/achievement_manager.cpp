@@ -1,6 +1,5 @@
 /**
  * @file        runtime/achievement_manager.cpp
- * @brief       AchievementManager implementation.
  *
  * @copyright   Copyright (c) 2026 Rien Gupta <rgupta9@scu.edu>
  *              All rights reserved.

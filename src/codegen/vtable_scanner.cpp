@@ -14,8 +14,6 @@
 #include <rex/memory/utils.h>
 #include <rex/types.h>
 
-using rex::memory::load_and_swap;
-
 namespace rex::codegen {
 
 VTableScanner::VTableScanner(const BinaryView& binary) : binary_(binary) {}
@@ -78,8 +76,8 @@ std::vector<uint32_t> VTableScanner::findCompleteObjectLocators() {
   for (size_t offset = 0; offset + sizeof(RTTICompleteObjectLocator) <= size; offset += 4) {
     auto* col = reinterpret_cast<const RTTICompleteObjectLocator*>(data + offset);
 
-    uint32_t signature = load_and_swap<uint32_t>(&col->signature);
-    uint32_t typeDescPtr = load_and_swap<uint32_t>(&col->pTypeDescriptor);
+    uint32_t signature = col->signature;
+    uint32_t typeDescPtr = col->pTypeDescriptor;
 
     // COL signature must be 0 for 32-bit MSVC RTTI
     if (signature != 0) {
@@ -122,7 +120,7 @@ std::optional<uint32_t> VTableScanner::findVTableForCOL(uint32_t colAddr) {
   size_t size = rdata->size;
 
   for (size_t offset = 0; offset + 4 <= size; offset += 4) {
-    uint32_t value = load_and_swap<uint32_t>(data + offset);
+    uint32_t value = memory::load<be_u32>(data + offset);
 
     if (value == colAddr) {
       // Found reference to COL - vtable starts at next dword
@@ -204,7 +202,7 @@ std::optional<uint32_t> VTableScanner::readDword(uint32_t addr) const {
     return std::nullopt;
   }
 
-  return load_and_swap<uint32_t>(section->data + offset);
+  return memory::load<be_u32>(section->data + offset);
 }
 
 std::string VTableScanner::readString(uint32_t addr, size_t maxLen) const {

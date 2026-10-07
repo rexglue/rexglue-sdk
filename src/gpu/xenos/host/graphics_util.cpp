@@ -9,6 +9,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <bit>
 #include <cmath>
 
 #include "gpu/xenos/host/graphics_util.h"
@@ -31,7 +32,7 @@ int32_t FloatToD3D11Fixed16p8(float f32) {
   if (f32 <= -32768.0f) {
     return -32768 * 256;
   }
-  uint32_t f32_bits = *reinterpret_cast<const uint32_t*>(&f32);
+  uint32_t f32_bits = std::bit_cast<uint32_t>(f32);
   // Copy float32 mantissa bits [22:0] into corresponding bits [22:0] of a
   // result buffer that has at least 24 bits total storage (before reaching
   // rounding step further below). This includes one bit for the hidden 1.
@@ -49,8 +50,8 @@ int32_t FloatToD3D11Fixed16p8(float f32) {
   }
   // Final calculation: extraBits = (mantissa - f) - n.unbiasedExponent
   // (guaranteed to be >= 0).
-  int32_t exponent = int32_t((f32_bits >> 23) & 255) - 127;
-  uint32_t extra_bits = uint32_t(15 - exponent);
+  int32_t exponent = static_cast<int32_t>((f32_bits >> 23) & 255) - 127;
+  uint32_t extra_bits = static_cast<uint32_t>(15 - exponent);
   if (extra_bits) {
     // Round the 32-bit value to a decimal that is extraBits to the left of
     // the LSB end, using nearest-even.

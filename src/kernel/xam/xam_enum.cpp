@@ -35,7 +35,7 @@ using namespace rex::runtime::xam;
 // https://github.com/LestaD/SourceEngine2007/blob/master/se2007/engine/xboxsystem.cpp#L518
 uint32_t XamEnumerate(uint32_t handle, uint32_t flags, mapped_void buffer_ptr, uint32_t buffer_size,
                       uint32_t* items_returned, uint32_t overlapped_ptr) {
-  assert_true(flags == 0);
+  REX_ASSERT(flags == 0);
 
   auto& runtime = runtime::Current();
   if (!runtime.object_table().Get<EnumeratorObject>(handle)) {
@@ -60,18 +60,18 @@ uint32_t XamEnumerate(uint32_t handle, uint32_t flags, mapped_void buffer_ptr, u
   };
 
   if (items_returned) {
-    assert_true(!overlapped_ptr);
+    REX_ASSERT(!overlapped_ptr);
     uint32_t extended_error;
     uint32_t item_count;
     X_RESULT result = run(extended_error, item_count);
     *items_returned = result == X_ERROR_SUCCESS ? item_count : 0;
     return result;
   } else if (overlapped_ptr) {
-    assert_true(!items_returned);
+    REX_ASSERT(!items_returned);
     runtime::Current().dispatcher().CompleteOverlappedDeferredEx(run, overlapped_ptr);
     return X_ERROR_IO_PENDING;
   } else {
-    assert_always();
+    REX_ASSERT_ALWAYS();
     return X_ERROR_INVALID_PARAMETER;
   }
 }

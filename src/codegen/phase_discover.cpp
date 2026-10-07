@@ -27,7 +27,6 @@
 #include <ppc.h>
 
 using rex::codegen::ppc::Opcode;
-using rex::memory::load_and_swap;
 
 namespace rex::codegen {
 
@@ -152,7 +151,7 @@ void discoverFunction(CodegenContext& ctx, uint32_t funcAddr,
           continue;
         }
 
-        uint32_t insn = load_and_swap<uint32_t>(funcData + offset);
+        uint32_t insn = memory::load<be_u32>(funcData + offset);
         uint32_t opcode = PPC_OP(insn);
 
         if (opcode != PPC_OP_B && opcode != PPC_OP_BC)
@@ -228,9 +227,7 @@ void discoverAllFunctions(CodegenContext& ctx) {
     size_t newFunctions = 0;
 
     for (const auto& vt : vtables) {
-      for (size_t i = 0; i < vt.slots.size(); i++) {
-        uint32_t funcAddr = vt.slots[i];
-
+      for (uint32_t funcAddr : vt.slots) {
         if (graph.isEntryPoint(funcAddr))
           continue;
         if (binary.isInImportExportRange(funcAddr))
@@ -343,10 +340,10 @@ void functionPointerScan(CodegenContext& ctx) {
           continue;
 
         // Skip if it's an internal address (within same function's likely range)
-        // Heuristic: if target is very close to current address, probably internal label
+        // Heuristic: if target is close to current address, probably internal label
         int32_t distance = static_cast<int32_t>(fullAddr) - static_cast<int32_t>(addr);
         if (distance > -0x1000 && distance < 0x1000) {
-          // Could be local label, skip for now
+          // Could be local label, skip
           continue;
         }
 
@@ -420,7 +417,7 @@ size_t discoverPendingFunctions(CodegenContext& ctx,
 
 namespace phases {
 
-Result<void> Discover(CodegenContext& ctx, ProgressReporter* reporter) {
+[[nodiscard]] Result<void> Discover(CodegenContext& ctx, ProgressReporter* reporter) {
   (void)reporter;
   discoverAllFunctions(ctx);
   return Ok();

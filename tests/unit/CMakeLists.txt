@@ -12,10 +12,13 @@ add_executable(unit_tests
     memory/heap_allocation_test.cpp
     memory/access_violation_test.cpp
     memory/memory_budget_test.cpp
+    memory/mapped_memory_test.cpp
+    memory/bit_cast_copy_test.cpp
     gpu/backend_select_test.cpp
     gpu/null_command_processor_test.cpp
     gpu/cvar_scope_test.cpp
     gpu/overlay_contract_test.cpp
+    gpu/shader_translation_test.cpp
     kernel/exit_title_test.cpp
     kernel/video_mode_test.cpp
     kernel/object_table_test.cpp
@@ -61,6 +64,7 @@ add_executable(unit_tests
     runtime/guest_path_test.cpp
     runtime/achievement_manager_test.cpp
     runtime/xcontent_test.cpp
+    runtime/xtypes_test.cpp
     runtime/function_dispatcher_test.cpp
     runtime/thread_wait_test.cpp
     runtime/runtime_error_test.cpp
@@ -89,6 +93,7 @@ add_executable(unit_tests
 )
 
 target_sources(unit_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/gpu/xenos/pipeline/shader/shader.cpp
     ${PROJECT_SOURCE_DIR}/src/rexglue/ui/ui.cpp
     ${PROJECT_SOURCE_DIR}/src/rexglue/ui/progress.cpp
     ${PROJECT_SOURCE_DIR}/thirdparty/crypto/rijndael-alg-fst.c

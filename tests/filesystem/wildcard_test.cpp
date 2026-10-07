@@ -1,6 +1,5 @@
 /**
  * @file        tests/filesystem/wildcard_test.cpp
- * @brief       Tests for directory entry name matching
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

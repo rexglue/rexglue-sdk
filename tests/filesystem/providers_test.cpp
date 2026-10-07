@@ -1,6 +1,5 @@
 /**
  * @file        tests/filesystem/providers_test.cpp
- * @brief       Tests for the host, null, STFS and disc image providers
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

@@ -21,6 +21,7 @@
 
 #include <rex/cvar.h>
 #include "gpu/xenos/command_processor.h"
+#include <rex/assert.h>
 #include <rex/logging.h>
 #include <rex/mmio.h>
 #include <rex/runtime.h>
@@ -98,7 +99,7 @@ Result<void> GraphicsSystem::SetupGuestGPU(runtime::FunctionDispatcher& dispatch
   runtime_ = &runtime;
 
   // Headless path: no one set up presentation, so build a no-presentation
-  // provider just for the command processor.
+  // provider only for the command processor.
   if (!provider_) {
     CreateProvider(false);
     provider_supports_presentation_ = false;
@@ -119,11 +120,14 @@ Result<void> GraphicsSystem::SetupGuestGPU(runtime::FunctionDispatcher& dispatch
   // Guest vblank timer based on the configured guest video mode.
   vsync_worker_running_ = true;
   auto record = std::make_unique<runtime::ThreadRecord>(*runtime_, 128 * 1024, 0, [this]() {
-    double refresh_rate_hz = std::max(1.0, double(runtime_->video_mode().refresh_rate));
+    double refresh_rate_hz =
+        std::max(1.0, static_cast<double>(runtime_->video_mode().refresh_rate));
     uint64_t guest_tick_frequency = Clock::guest_tick_frequency();
-    uint64_t vsync_interval_ticks =
-        std::max(uint64_t(1), uint64_t(double(guest_tick_frequency) / refresh_rate_hz));
-    uint64_t no_vsync_interval_ticks = std::max(uint64_t(1), guest_tick_frequency / 1000);
+    uint64_t vsync_interval_ticks = std::max(
+        static_cast<uint64_t>(1),
+        static_cast<uint64_t>(static_cast<double>(guest_tick_frequency) / refresh_rate_hz));
+    uint64_t no_vsync_interval_ticks =
+        std::max(static_cast<uint64_t>(1), guest_tick_frequency / 1000);
     uint64_t last_frame_time = Clock::QueryGuestTickCount();
     while (vsync_worker_running_) {
       uint64_t current_time = Clock::QueryGuestTickCount();
@@ -212,7 +216,7 @@ void GraphicsSystem::OnHostGpuLossFromAnyThread([[maybe_unused]] bool is_respons
   if (host_gpu_loss_reported_.test_and_set(std::memory_order_relaxed)) {
     return;
   }
-  rex::FatalError("Graphics device lost (probably due to an internal error)");
+  REX_FATAL(gpu, "Graphics device lost (probably due to an internal error)");
 }
 
 u32 GraphicsSystem::ReadRegisterThunk(void* context, u32 addr) {
@@ -232,15 +236,15 @@ uint32_t GraphicsSystem::ReadRegister(uint32_t addr) {
     case 0x0F01:  // RB_BC_CONTROL
       return 0x0000200E;
     case 0x194C: {  // R500_D1MODE_V_COUNTER
-      return std::min(runtime_->video_mode().height, uint32_t(0x0FFF));
+      return std::min(runtime_->video_mode().height, static_cast<uint32_t>(0x0FFF));
     }
     case 0x1951:    // interrupt status
       return 1;     // vblank
     case 0x1961: {  // AVIVO_D1MODE_VIEWPORT_SIZE
       // Maximum [width(0x0FFF), height(0x0FFF)].
       const runtime::VideoMode& video_mode = runtime_->video_mode();
-      uint32_t viewport_width = std::min(video_mode.width, uint32_t(0x0FFF));
-      uint32_t viewport_height = std::min(video_mode.height, uint32_t(0x0FFF));
+      uint32_t viewport_width = std::min(video_mode.width, static_cast<uint32_t>(0x0FFF));
+      uint32_t viewport_height = std::min(video_mode.height, static_cast<uint32_t>(0x0FFF));
       return (viewport_width << 16) | viewport_height;
     }
     default:
@@ -249,7 +253,7 @@ uint32_t GraphicsSystem::ReadRegister(uint32_t addr) {
       }
   }
 
-  assert_true(r < xenos::RegisterFile::kRegisterCount);
+  REX_ASSERT(r < xenos::RegisterFile::kRegisterCount);
   return register_file_.values[r];
 }
 
@@ -267,7 +271,7 @@ void GraphicsSystem::WriteRegister(uint32_t addr, uint32_t value) {
       break;
   }
 
-  assert_true(r < xenos::RegisterFile::kRegisterCount);
+  REX_ASSERT(r < xenos::RegisterFile::kRegisterCount);
   register_file_.values[r] = value;
 }
 
@@ -291,7 +295,7 @@ void GraphicsSystem::DispatchInterruptCallback(uint32_t source, uint32_t cpu) {
   }
 
   auto thread = runtime::ThreadRecord::GetCurrentThread();
-  assert_not_null(thread);
+  REX_ASSERT(thread != nullptr);
 
   // Pick a CPU, if needed. We're going to guess 2. Because.
   if (cpu == 0xFFFFFFFF) {

@@ -183,7 +183,7 @@ bool ReXHeap::AllocateSegmentLocked(u32 segment_size_bytes) {
 
   // Allocate from the regular virtual heap (top-down) instead of the system
   // heap. The system heap range is shared with kernel bookkeeping allocations
-  // (KernelGuestGlobals, thread PCR/TLS, module headers, etc.) and cannot
+  // (KernelGuestGlobals, thread PCR/TLS and module headers) and cannot
   // accommodate a large contiguous shim heap segment alongside them.
   auto* vheap = mem->LookupHeapByType(false, 4096);
   if (!vheap ||

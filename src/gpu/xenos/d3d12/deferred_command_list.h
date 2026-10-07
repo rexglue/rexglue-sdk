@@ -53,7 +53,7 @@ class DeferredCommandList {
     D3D12_RECT* allocated_rects = ClearDepthStencilViewAllocatedRects(
         depth_stencil_view, clear_flags, depth, stencil, num_rects);
     if (num_rects) {
-      assert_not_null(allocated_rects);
+      REX_ASSERT(allocated_rects != nullptr);
       std::memcpy(allocated_rects, rects, num_rects * sizeof(D3D12_RECT));
     }
   }
@@ -117,8 +117,8 @@ class DeferredCommandList {
   void D3DCopyTextureRegion(const D3D12_TEXTURE_COPY_LOCATION* dst, UINT dst_x, UINT dst_y,
                             UINT dst_z, const D3D12_TEXTURE_COPY_LOCATION* src,
                             const D3D12_BOX* src_box) {
-    assert_not_null(dst);
-    assert_not_null(src);
+    REX_ASSERT(dst != nullptr);
+    REX_ASSERT(src != nullptr);
     auto& args = *reinterpret_cast<D3DCopyTextureRegionArguments*>(
         WriteCommand(Command::kD3DCopyTextureRegion, sizeof(D3DCopyTextureRegionArguments)));
     std::memcpy(&args.dst, dst, sizeof(D3D12_TEXTURE_COPY_LOCATION));

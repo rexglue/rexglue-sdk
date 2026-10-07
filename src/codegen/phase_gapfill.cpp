@@ -24,7 +24,6 @@
 
 using rex::codegen::ppc::decode_instruction;
 using rex::codegen::ppc::Opcode;
-using rex::memory::load_and_swap;
 
 namespace rex::codegen {
 
@@ -46,7 +45,7 @@ std::vector<CodeRegion> splitRegionOnTerminators(
     if (!data)
       break;
 
-    uint32_t raw = load_and_swap<uint32_t>(data);
+    uint32_t raw = memory::load<be_u32>(data);
     auto decoded = decode_instruction(addr, raw);
     bool shouldSplit = false;
     const char* reason = nullptr;
@@ -92,8 +91,8 @@ bool looksLikeExceptionData(const BinaryView& binary, const FunctionGraph& graph
   // Exception handler data pattern:
   // [addr+0]: pointer to __C_specific_handler (entry point)
   // [addr+4]: pointer to scope table in .rdata
-  uint32_t firstDword = load_and_swap<uint32_t>(data);
-  uint32_t secondDword = load_and_swap<uint32_t>(data + 4);
+  uint32_t firstDword = memory::load<be_u32>(data);
+  uint32_t secondDword = memory::load<be_u32>(data + 4);
 
   // Check if first dword is a known entry point (like __C_specific_handler)
   if (!graph.isEntryPoint(firstDword)) {
@@ -216,7 +215,7 @@ void cleanupAbsorbedGapFills(CodegenContext& ctx) {
 
 namespace phases {
 
-Result<void> GapFill(CodegenContext& ctx, ProgressReporter* reporter) {
+[[nodiscard]] Result<void> GapFill(CodegenContext& ctx, ProgressReporter* reporter) {
   (void)reporter;
   gapFillCodeRegions(ctx);
 

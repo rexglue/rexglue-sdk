@@ -27,7 +27,7 @@ u32 XexCheckExecutablePrivilege_entry(u32 privilege) {
   REXLOG_TRACE(kernel,
                "XexCheckExecutablePrivilege "
                "priv={}",
-               (uint32_t)privilege);
+               static_cast<uint32_t>(privilege));
   // BOOL
   // DWORD Privilege
 
@@ -153,7 +153,7 @@ u32 XexUnloadImage_entry(mapped_void hmodule) {
 
 u32 XexGetProcedureAddress_entry(mapped_void hmodule, u32 ordinal, mapped_u32 out_function_ptr) {
   // May be entry point?
-  assert_not_zero(ordinal);
+  REX_ASSERT(ordinal != 0);
 
   uint32_t caller_address = 0;
   auto* thread = ThreadRecord::GetCurrentThread();

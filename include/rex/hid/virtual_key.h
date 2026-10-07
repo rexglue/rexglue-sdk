@@ -19,7 +19,7 @@
 
 namespace rex::hid {
 
-// Windows and Xbox 360 / XInput virtual key enumeration.
+// Windows and XInput virtual key enumeration.
 // This is what platform-specific keys should be translated to, for both HID
 // keystroke emulation and Xenia-internal UI events. On Windows, the translation
 // is a simple cast.
@@ -29,7 +29,7 @@ namespace rex::hid {
 // VK_ on Windows are defined up to 0xFF (0xFE not counting the reserved 0xFF)
 // as of Windows SDK 10.0.19041.0, and XInput virtual key codes are 16-bit.
 // Base virtual key codes as of _WIN32_WINNT 0x0500 (Windows 2000, which the
-// Xbox 360's kernel is based on), virtual key codes added later are marked
+// console's kernel is based on), virtual key codes added later are marked
 // explicitly as such.
 enum class VirtualKey : u16 {
   // Not a valid key - MapVirtualKey returns zero when there is no translation.
@@ -246,7 +246,7 @@ enum class VirtualKey : u16 {
   // exception of the Xbox Device Portal Remote Input REST API in the "UWP on
   // Xbox One" section).
   // Xenia uses VK_PAD_* (kXInputPad*) for HID emulation internally instead
-  // because XInput is the API used for the Xbox 360 controller.
+  // because XInput is the API used for the console controller.
   // To avoid confusion between VK_GAMEPAD_* and VK_PAD_*, here they are
   // prefixed with kXboxOne and kXInput respectively.
   kXboxOneGamepadA = 0xC3,
@@ -321,8 +321,8 @@ enum class VirtualKey : u16 {
   kOemClear = 0xFE,
 
   // VK_PAD_* from XInput.h for XInputGetKeystroke. kXInput prefix added to
-  // distinguish from VK_GAMEPAD_*, added much later for the Xbox One
-  // controller.
+  // distinguish from VK_GAMEPAD_*, added much later for newer
+  // controllers.
 
   kXInputPadA = 0x5800,
   kXInputPadB = 0x5801,

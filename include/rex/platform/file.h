@@ -1,6 +1,5 @@
 /**
  * @file        platform/file.h
- * @brief       Host folder queries and whole file helpers
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

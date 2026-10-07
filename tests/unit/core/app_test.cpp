@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/core/app_test.cpp
- * @brief       Unit tests for rex::App and the shutdown request functions
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -54,13 +53,13 @@ class Pinned {
   rex::platform::DynamicLibrary library_;
 };
 
-rex::Result<void> FakeRelaunch(std::span<const std::string> args) {
+[[nodiscard]] rex::Result<void> FakeRelaunch(std::span<const std::string> args) {
   g_relaunched.assign(args.begin(), args.end());
   g_events.push_back("relaunch");
   return rex::Ok();
 }
 
-rex::Result<void> FailRelaunch(std::span<const std::string>) {
+[[nodiscard]] rex::Result<void> FailRelaunch(std::span<const std::string>) {
   return rex::Err<void>(rex::ErrorCategory::Runtime, "no relaunch");
 }
 
@@ -76,7 +75,7 @@ class TestApp : public rex::App {
   rex::i32 code = 0;
 
  protected:
-  rex::Result<void> OnConfigure(rex::Config& config) override {
+  [[nodiscard]] rex::Result<void> OnConfigure(rex::Config& config) override {
     g_events.push_back("app:configure");
     config.modules = modules;
     config.paths.game_data_root = game_root;
@@ -87,7 +86,7 @@ class TestApp : public rex::App {
     return rex::Ok();
   }
 
-  rex::Result<void> OnInit(rex::Config&, rex::API& api) override {
+  [[nodiscard]] rex::Result<void> OnInit(rex::Config&, rex::API& api) override {
     g_events.push_back("app:init");
     saw_echo = api.Get<rex::test::IEcho>() != nullptr;
     if (fail_init) {

@@ -27,9 +27,9 @@ void GetSubresourcesFromFetchConstant(const xenos::TextureFetch& fetch, u32* wid
   u32 depth_or_array_size_minus_1 = 0;
   switch (fetch.dimension) {
     case xenos::DataDimension::k1D:
-      assert_false(fetch.stacked);
-      assert_false(fetch.tiled);
-      assert_false(fetch.packed_mips);
+      REX_ASSERT(!fetch.stacked);
+      REX_ASSERT(!fetch.tiled);
+      REX_ASSERT(!fetch.packed_mips);
       width_minus_1 = fetch.size_1d.width;
       break;
     case xenos::DataDimension::k2DOrStacked:
@@ -38,14 +38,14 @@ void GetSubresourcesFromFetchConstant(const xenos::TextureFetch& fetch, u32* wid
       depth_or_array_size_minus_1 = fetch.stacked ? fetch.size_2d.stack_depth : 0;
       break;
     case xenos::DataDimension::k3D:
-      assert_false(fetch.stacked);
+      REX_ASSERT(!fetch.stacked);
       width_minus_1 = fetch.size_3d.width;
       height_minus_1 = fetch.size_3d.height;
       depth_or_array_size_minus_1 = fetch.size_3d.depth;
       break;
     case xenos::DataDimension::kCube:
-      assert_false(fetch.stacked);
-      assert_true(fetch.size_2d.stack_depth == 5);
+      REX_ASSERT(!fetch.stacked);
+      REX_ASSERT(fetch.size_2d.stack_depth == 5);
       width_minus_1 = fetch.size_2d.width;
       height_minus_1 = fetch.size_2d.height;
       depth_or_array_size_minus_1 = 5;
@@ -65,7 +65,7 @@ void GetSubresourcesFromFetchConstant(const xenos::TextureFetch& fetch, u32* wid
   if (fetch.dimension == xenos::DataDimension::k3D) {
     longest_axis_minus_1 = std::max(longest_axis_minus_1, depth_or_array_size_minus_1);
   }
-  u32 size_mip_max_level = rex::log2_floor(longest_axis_minus_1 + u32(1));
+  u32 size_mip_max_level = rex::log2_floor(longest_axis_minus_1 + static_cast<u32>(1));
 
   u32 base_page = fetch.base_address & 0x1FFFF;
   u32 mip_page = fetch.mip_address & 0x1FFFF;
@@ -76,12 +76,13 @@ void GetSubresourcesFromFetchConstant(const xenos::TextureFetch& fetch, u32* wid
     mip_min_level = 0;
     mip_max_level = 0;
   } else {
-    mip_min_level = std::min(u32(fetch.mip_min_level), size_mip_max_level);
-    mip_max_level = std::max(std::min(u32(fetch.mip_max_level), size_mip_max_level), mip_min_level);
+    mip_min_level = std::min(static_cast<u32>(fetch.mip_min_level), size_mip_max_level);
+    mip_max_level = std::max(std::min(static_cast<u32>(fetch.mip_max_level), size_mip_max_level),
+                             mip_min_level);
   }
   if (mip_max_level != 0) {
     if (base_page == 0) {
-      mip_min_level = std::max(mip_min_level, u32(1));
+      mip_min_level = std::max(mip_min_level, static_cast<u32>(1));
     }
     if (mip_min_level != 0) {
       base_page = 0;
@@ -166,9 +167,9 @@ TextureGuestLayout GetGuestTextureLayout(xenos::DataDimension dimension,
   TextureGuestLayout layout;
 
   if (dimension == xenos::DataDimension::k1D) {
-    assert_false(is_tiled);
+    REX_ASSERT(!is_tiled);
     // GetPackedMipOffset may pack along Y when width > height.
-    assert_false(has_packed_levels);
+    REX_ASSERT(!has_packed_levels);
     height_texels = 1;
   }
   u32 depth = dimension == xenos::DataDimension::k3D ? depth_or_array_size : 1;
@@ -185,13 +186,13 @@ TextureGuestLayout GetGuestTextureLayout(xenos::DataDimension dimension,
 
   // The extent math assumes at least 1 row, so an empty texture returns here.
   if (!width_texels || !height_texels || !depth || !layout.array_size) {
-    std::memset(&layout, 0, sizeof(layout));
+    layout = {};
     return layout;
   }
 
   u32 max_level_for_dimensions =
       rex::log2_floor(std::max(std::max(width_texels, height_texels), depth));
-  assert_true(max_level <= max_level_for_dimensions);
+  REX_ASSERT(max_level <= max_level_for_dimensions);
   max_level = std::min(max_level, max_level_for_dimensions);
   layout.max_level = max_level;
 
@@ -199,16 +200,16 @@ TextureGuestLayout GetGuestTextureLayout(xenos::DataDimension dimension,
       has_packed_levels ? GetPackedMipLevel(width_texels, height_texels) : UINT32_MAX;
 
   if (!has_base) {
-    std::memset(&layout.base, 0, sizeof(layout.base));
+    layout.base = {};
   }
   if (layout.packed_level != 0) {
-    std::memset(&layout.mips[0], 0, sizeof(layout.mips[0]));
+    layout.mips[0] = {};
   }
   u32 max_stored_level = std::min(max_level, layout.packed_level);
   {
     u32 mips_end = max_stored_level + 1;
-    assert_true(mips_end <= rex::countof(layout.mips));
-    u32 mips_unused_count = u32(rex::countof(layout.mips)) - mips_end;
+    REX_ASSERT(mips_end <= rex::countof(layout.mips));
+    u32 mips_unused_count = static_cast<u32>(rex::countof(layout.mips)) - mips_end;
     if (mips_unused_count) {
       std::memset(&layout.mips[mips_end], 0, sizeof(layout.mips[0]) * mips_unused_count);
       std::memset(&layout.mip_offsets_bytes[mips_end], 0,
@@ -223,7 +224,7 @@ TextureGuestLayout GetGuestTextureLayout(xenos::DataDimension dimension,
   // With the packed tail at level 0, iteration 0 is the base tail and iteration 1 the mip tail.
   u32 loop_level_last;
   if (layout.packed_level == 0) {
-    loop_level_last = u32(max_level != 0);
+    loop_level_last = static_cast<u32>(max_level != 0);
   } else {
     loop_level_last = max_stored_level;
   }
@@ -240,9 +241,10 @@ TextureGuestLayout GetGuestTextureLayout(xenos::DataDimension dimension,
       row_pitch_texels_unaligned = base_pitch_texels_div_32 << 5;
       z_slice_stride_texel_rows_unaligned = height_texels;
     } else {
-      row_pitch_texels_unaligned = std::max(rex::next_pow2(width_texels) >> level, u32(1));
+      row_pitch_texels_unaligned =
+          std::max(rex::next_pow2(width_texels) >> level, static_cast<u32>(1));
       z_slice_stride_texel_rows_unaligned =
-          std::max(rex::next_pow2(height_texels) >> level, u32(1));
+          std::max(rex::next_pow2(height_texels) >> level, static_cast<u32>(1));
     }
     u32 row_pitch_blocks_tile_aligned = rex::align(
         rex::align(row_pitch_texels_unaligned, format_info->block_width) / format_info->block_width,
@@ -283,28 +285,32 @@ TextureGuestLayout GetGuestTextureLayout(xenos::DataDimension dimension,
         u32 packed_sublevel_z;
         GetPackedMipOffset(width_texels, height_texels, depth, format, packed_sublevel,
                            packed_sublevel_x_blocks, packed_sublevel_y_blocks, packed_sublevel_z);
-        level_layout.x_extent_blocks = std::max(
-            level_layout.x_extent_blocks,
-            packed_sublevel_x_blocks + rex::align(std::max(width_texels >> packed_sublevel, u32(1)),
-                                                  format_info->block_width) /
-                                           format_info->block_width);
+        level_layout.x_extent_blocks =
+            std::max(level_layout.x_extent_blocks,
+                     packed_sublevel_x_blocks +
+                         rex::align(std::max(width_texels >> packed_sublevel, static_cast<u32>(1)),
+                                    format_info->block_width) /
+                             format_info->block_width);
         level_layout.y_extent_blocks =
             std::max(level_layout.y_extent_blocks,
                      packed_sublevel_y_blocks +
-                         rex::align(std::max(height_texels >> packed_sublevel, u32(1)),
+                         rex::align(std::max(height_texels >> packed_sublevel, static_cast<u32>(1)),
                                     format_info->block_height) /
                              format_info->block_height);
-        level_layout.z_extent = std::max(
-            level_layout.z_extent, packed_sublevel_z + std::max(depth >> packed_sublevel, u32(1)));
+        level_layout.z_extent =
+            std::max(level_layout.z_extent,
+                     packed_sublevel_z + std::max(depth >> packed_sublevel, static_cast<u32>(1)));
       }
     } else {
       level_layout.x_extent_blocks =
-          rex::align(std::max(width_texels >> level, u32(1)), format_info->block_width) /
+          rex::align(std::max(width_texels >> level, static_cast<u32>(1)),
+                     format_info->block_width) /
           format_info->block_width;
       level_layout.y_extent_blocks =
-          rex::align(std::max(height_texels >> level, u32(1)), format_info->block_height) /
+          rex::align(std::max(height_texels >> level, static_cast<u32>(1)),
+                     format_info->block_height) /
           format_info->block_height;
-      level_layout.z_extent = std::max(depth >> level, u32(1));
+      level_layout.z_extent = std::max(depth >> level, static_cast<u32>(1));
     }
     if (is_tiled) {
       u32 bytes_per_block_log2 = rex::log2_floor(bytes_per_block);
@@ -340,7 +346,7 @@ TextureGuestLayout GetGuestTextureLayout(xenos::DataDimension dimension,
 
 i32 GetTiledOffset2D(i32 x, i32 y, u32 pitch, u32 bytes_per_block_log2) {
   pitch = rex::align(pitch, xenos::kTextureTileWidthHeight);
-  i32 macro = ((x >> 5) + (y >> 5) * i32(pitch >> 5)) << (bytes_per_block_log2 + 7);
+  i32 macro = ((x >> 5) + (y >> 5) * static_cast<i32>(pitch >> 5)) << (bytes_per_block_log2 + 7);
   i32 micro = ((x & 7) + ((y & 0xE) << 2)) << bytes_per_block_log2;
   i32 offset = macro + ((micro & ~0xF) << 1) + (micro & 0xF) + ((y & 1) << 4);
   return ((offset & ~0x1FF) << 3) + ((y & 16) << 7) + ((offset & 0x1C0) << 2) +
@@ -350,7 +356,8 @@ i32 GetTiledOffset2D(i32 x, i32 y, u32 pitch, u32 bytes_per_block_log2) {
 i32 GetTiledOffset3D(i32 x, i32 y, i32 z, u32 pitch, u32 height, u32 bytes_per_block_log2) {
   pitch = rex::align(pitch, xenos::kTextureTileWidthHeight);
   height = rex::align(height, xenos::kTextureTileWidthHeight);
-  i32 macro_outer = ((y >> 4) + (z >> 2) * i32(height >> 4)) * i32(pitch >> 5);
+  i32 macro_outer =
+      ((y >> 4) + (z >> 2) * static_cast<i32>(height >> 4)) * static_cast<i32>(pitch >> 5);
   i32 macro = ((((x >> 5) + macro_outer) << (bytes_per_block_log2 + 6)) & 0xFFFFFFF) << 1;
   i32 micro = (((x & 7) + ((y & 6) << 2)) << (bytes_per_block_log2 + 6)) >> 6;
   i32 offset_outer = ((y >> 3) + (z >> 2)) & 1;
@@ -372,9 +379,10 @@ u32 GetTiledAddressUpperBound2D(u32 right, u32 bottom, u32 pitch, u32 bytes_per_
   if (!right || !bottom) {
     return 0;
   }
-  u32 upper_bound = u32(GetTiledOffset2D(i32((right - 1) & ~(xenos::kTextureTileWidthHeight - 1)),
-                                         i32((bottom - 1) & ~(xenos::kTextureTileWidthHeight - 1)),
-                                         pitch, bytes_per_block_log2));
+  u32 upper_bound = static_cast<u32>(
+      GetTiledOffset2D(static_cast<i32>((right - 1) & ~(xenos::kTextureTileWidthHeight - 1)),
+                       static_cast<i32>((bottom - 1) & ~(xenos::kTextureTileWidthHeight - 1)),
+                       pitch, bytes_per_block_log2));
   switch (bytes_per_block_log2) {
     case 0:
       // 128x128 portions address independently, the extent is 0xA00 bytes from the tile origin.
@@ -396,10 +404,11 @@ u32 GetTiledAddressUpperBound3D(u32 right, u32 bottom, u32 back, u32 pitch, u32 
   if (!right || !bottom || !back) {
     return 0;
   }
-  u32 upper_bound = u32(GetTiledOffset3D(i32((right - 1) & ~(xenos::kTextureTileWidthHeight - 1)),
-                                         i32((bottom - 1) & ~(xenos::kTextureTileWidthHeight - 1)),
-                                         i32((back - 1) & ~(xenos::kTextureTileDepth - 1)), pitch,
-                                         height, bytes_per_block_log2));
+  u32 upper_bound = static_cast<u32>(
+      GetTiledOffset3D(static_cast<i32>((right - 1) & ~(xenos::kTextureTileWidthHeight - 1)),
+                       static_cast<i32>((bottom - 1) & ~(xenos::kTextureTileWidthHeight - 1)),
+                       static_cast<i32>((back - 1) & ~(xenos::kTextureTileDepth - 1)), pitch,
+                       height, bytes_per_block_log2));
   u32 pitch_aligned = rex::align(pitch, xenos::kTextureTileWidthHeight);
   switch (bytes_per_block_log2) {
     case 0:
@@ -422,10 +431,10 @@ u8 SwizzleSigns(const xenos::TextureFetch& fetch) {
   for (u32 i = 0; i < 4; ++i) {
     u32 swizzle = (fetch.swizzle >> (i * 3)) & 0b111;
     if (swizzle & 0b100) {
-      constant_mask |= u8(1) << (i * 2);
+      constant_mask |= static_cast<u8>(1) << (i * 2);
     } else {
       xenos::TextureSign sign = xenos::TextureSign((fetch.dword_0 >> (2 + swizzle * 2)) & 0b11);
-      signs |= u8(sign) << (i * 2);
+      signs |= static_cast<u8>(sign) << (i * 2);
       if (sign == xenos::TextureSign::kSigned) {
         any_signed = true;
       } else {
@@ -436,7 +445,8 @@ u8 SwizzleSigns(const xenos::TextureFetch& fetch) {
   xenos::TextureSign constants_sign = xenos::TextureSign::kUnsigned;
   if (constant_mask == 0b01010101) {
     // A swizzle of constants only follows the original format, shaders still bind it for queries.
-    if (((fetch.dword_0 >> 2) & 0b11111111) == u32(xenos::TextureSign::kSigned) * 0b01010101) {
+    if (((fetch.dword_0 >> 2) & 0b11111111) ==
+        std::to_underlying(xenos::TextureSign::kSigned) * 0b01010101) {
       constants_sign = xenos::TextureSign::kSigned;
     }
   } else {
@@ -444,7 +454,7 @@ u8 SwizzleSigns(const xenos::TextureFetch& fetch) {
       constants_sign = xenos::TextureSign::kSigned;
     }
   }
-  signs |= u8(constants_sign) * constant_mask;
+  signs |= static_cast<u8>(constants_sign) * constant_mask;
   return signs;
 }
 

@@ -1,6 +1,5 @@
 /**
  * @file        rex/codegen/function_types.h
- * @brief       Types and structures used by FunctionNode and FunctionGraph
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -277,7 +276,7 @@ struct UnresolvedJump {
   uint32_t site;       // Address of the branch instruction
   uint32_t target;     // Target address
   bool isCall;         // true = bl (call), false = b (tail call)
-  bool isConditional;  // true = bc/beq/bne/etc, false = b
+  bool isConditional;  // true = bc/beq/bne and others, false = b
 };
 
 //=============================================================================

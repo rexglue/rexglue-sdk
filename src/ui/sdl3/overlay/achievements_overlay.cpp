@@ -1,6 +1,5 @@
 /**
  * @file        ui/sdl3/overlay/achievements_overlay.cpp
- * @brief       Achievements overlay implementation. See achievements_overlay.h for details.
  *
  * @copyright   Copyright (c) 2026 Rien Gupta <rgupta9@scu.edu>
  *              All rights reserved.

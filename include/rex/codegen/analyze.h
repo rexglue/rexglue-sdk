@@ -1,6 +1,5 @@
 /**
  * @file        rex/codegen/analyze.h
- * @brief       Function graph analysis (builds + validates)
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -32,6 +31,6 @@ namespace rex::codegen {
  * @param ctx CodegenContext with binary and config loaded
  * @return Success if graph is valid, error otherwise
  */
-Result<void> Analyze(CodegenContext& ctx, ProgressReporter* reporter = nullptr);
+[[nodiscard]] Result<void> Analyze(CodegenContext& ctx, ProgressReporter* reporter = nullptr);
 
 }  // namespace rex::codegen

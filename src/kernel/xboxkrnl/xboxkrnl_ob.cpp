@@ -45,7 +45,7 @@ u32 ObOpenObjectByName_entry(mapped_void obj_attributes_ptr, mapped_void object_
 
   auto obj_attributes = runtime::Current().memory()->TranslateVirtual<X_OBJECT_ATTRIBUTES*>(
       obj_attributes_ptr.guest_address());
-  assert_true(obj_attributes->name_ptr != 0);
+  REX_ASSERT(obj_attributes->name_ptr != 0);
   auto name =
       util::TranslateAnsiStringAddress(runtime::Current().memory(), obj_attributes->name_ptr);
 
@@ -86,7 +86,7 @@ u32 ObReferenceObjectByHandle_entry(u32 handle, u32 object_type_ptr, mapped_u32 
   REXLOG_TRACE(kernel,
                "ObReferenceObjectByHandle "
                "handle={:#x} type={:#x}",
-               (uint32_t)handle, (uint32_t)object_type_ptr);
+               static_cast<uint32_t>(handle), static_cast<uint32_t>(object_type_ptr));
 
   auto object = runtime::Current().object_table().Get(handle);
   if (!object) {
@@ -155,7 +155,7 @@ u32 ObDereferenceObject_entry(u32 native_ptr) {
   REXLOG_TRACE(kernel,
                "ObDereferenceObject "
                "ptr={:#x}",
-               (uint32_t)native_ptr);
+               static_cast<uint32_t>(native_ptr));
   // Check if a dummy value from ObReferenceObjectByHandle.
   if (native_ptr == 0xDEADF00D) {
     return 0;
@@ -199,10 +199,10 @@ u32 ObDeleteSymbolicLink_entry(ppc_ptr_t<X_ANSI_STRING> path_ptr) {
 }
 
 u32 NtDuplicateObject_entry(u32 handle, mapped_u32 new_handle_ptr, u32 options) {
-  // NOTE: new_handle_ptr can be zero to just close a handle.
+  // NOTE: new_handle_ptr can be zero to close a handle.
   // NOTE: this function seems to be used to get the current thread handle
   //       (passed handle=-2).
-  // This function actually just creates a new handle to the same object.
+  // This function creates a new handle to the same object.
   // Most games use it to get real handles to the current thread or whatever.
 
   auto& table = runtime::Current().object_table();
@@ -223,7 +223,7 @@ u32 NtClose_entry(u32 handle) {
   REXLOG_TRACE(kernel,
                "NtClose "
                "handle={:#x}",
-               (uint32_t)handle);
+               static_cast<uint32_t>(handle));
   auto result = ToXStatus(runtime::Current().object_table().Close(handle));
   REXLOG_TRACE(kernel,
                "NtClose -> "

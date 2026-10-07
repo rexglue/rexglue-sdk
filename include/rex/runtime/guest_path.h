@@ -1,6 +1,6 @@
 /**
  * @file        rex/runtime/guest_path.h
- * @brief       Guest path normalization for Xbox 360 VFS paths
+ * @brief       Guest path normalization for VFS paths
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

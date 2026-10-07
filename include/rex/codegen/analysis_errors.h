@@ -1,6 +1,5 @@
 /**
  * @file        codegen/analysis_errors.h
- * @brief       Scoped error collection for analysis
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

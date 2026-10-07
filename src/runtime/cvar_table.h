@@ -1,6 +1,5 @@
 /**
  * @file        runtime/cvar_table.h
- * @brief       system module cvars
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

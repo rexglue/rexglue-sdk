@@ -28,6 +28,7 @@
 #include <rex/runtime/xtimer.h>
 #include <rex/runtime/xtypes.h>
 #include <rex/platform/thread.h>
+#include <rex/types.h>
 
 namespace rex {
 class Runtime;
@@ -72,14 +73,14 @@ constexpr uint32_t X_CREATE_SUSPENDED = 0x00000001;
 constexpr uint32_t X_TLS_OUT_OF_INDEXES = UINT32_MAX;
 
 struct XDPC {
-  rex::be<uint16_t> type;
+  be_u16 type;
   uint8_t selected_cpu_number;
   uint8_t desired_cpu_number;
   X_LIST_ENTRY list_entry;
-  rex::be<uint32_t> routine;
-  rex::be<uint32_t> context;
-  rex::be<uint32_t> arg1;
-  rex::be<uint32_t> arg2;
+  be_u32 routine;
+  be_u32 context;
+  be_u32 arg1;
+  be_u32 arg2;
 
   void Initialize(uint32_t guest_func, uint32_t guest_context) {
     type = 19;
@@ -93,16 +94,16 @@ struct XDPC {
     arg2 = 0;
   }
 };
-static_assert_size(XDPC, 0x1C);
+REX_STATIC_ASSERT_SIZE(XDPC, 0x1C);
 
 /** A guest XTHREAD_NOTIFICATION. */
 struct X_THREAD_NOTIFICATION {
   /** Links the registration in the title's list. */
   X_LIST_ENTRY list_entry;
   /** Called with TRUE when a guest thread starts and FALSE when it exits. */
-  rex::be<u32> notify_routine;
+  be_u32 notify_routine;
 };
-static_assert_size(X_THREAD_NOTIFICATION, 0xC);
+REX_STATIC_ASSERT_SIZE(X_THREAD_NOTIFICATION, 0xC);
 
 struct XAPC {
   static constexpr uint32_t kSize = 40;
@@ -112,34 +113,34 @@ struct XAPC {
   // KAPC is 0x28(40) bytes? (what's passed to ExAllocatePoolWithTag)
   // This is 4b shorter than NT - looks like the reserved dword at +4 is gone.
   // NOTE: stored in guest memory.
-  uint16_t type;                      // +0
-  uint8_t apc_mode;                   // +2
-  uint8_t enqueued;                   // +3
-  rex::be<uint32_t> thread_ptr;       // +4
-  X_LIST_ENTRY list_entry;            // +8
-  rex::be<uint32_t> kernel_routine;   // +16
-  rex::be<uint32_t> rundown_routine;  // +20
-  rex::be<uint32_t> normal_routine;   // +24
-  rex::be<uint32_t> normal_context;   // +28
-  rex::be<uint32_t> arg1;             // +32
-  rex::be<uint32_t> arg2;             // +36
+  uint16_t type;            // +0
+  uint8_t apc_mode;         // +2
+  uint8_t enqueued;         // +3
+  be_u32 thread_ptr;        // +4
+  X_LIST_ENTRY list_entry;  // +8
+  be_u32 kernel_routine;    // +16
+  be_u32 rundown_routine;   // +20
+  be_u32 normal_routine;    // +24
+  be_u32 normal_context;    // +28
+  be_u32 arg1;              // +32
+  be_u32 arg2;              // +36
 };
-static_assert_size(XAPC, 40);
+REX_STATIC_ASSERT_SIZE(XAPC, 40);
 
 /// Guest fiber context buffer layout.
 struct X_FIBER_CONTEXT {
-  rex::be<uint32_t> fiber_data;              // 0x00  lpParameter
-  rex::be<uint32_t> stack_alloc_base;        // 0x04  KTHREAD.stack_alloc_base (0xD0)
-  rex::be<uint32_t> stack_base;              // 0x08  KTHREAD.stack_base (0x5C), PCR.stack_base_ptr
-  rex::be<uint32_t> stack_limit;             // 0x0C  KTHREAD.stack_limit (0x60), PCR.stack_end_ptr
+  be_u32 fiber_data;                         // 0x00  lpParameter
+  be_u32 stack_alloc_base;                   // 0x04  KTHREAD.stack_alloc_base (0xD0)
+  be_u32 stack_base;                         // 0x08  KTHREAD.stack_base (0x5C), PCR.stack_base_ptr
+  be_u32 stack_limit;                        // 0x0C  KTHREAD.stack_limit (0x60), PCR.stack_end_ptr
   rex::be_u32 cr_save;                       // 0x10  saved CR
   uint8_t reserved_14[0x08];                 // 0x14  padding
   rex::be_u32 lr_save;                       // 0x1C  saved LR
   uint8_t reserved_20[0x10];                 // 0x20  padding
-  rex::be<uint64_t> sp_save;                 // 0x30  saved r1
+  be_u64 sp_save;                            // 0x30  saved r1
   uint8_t register_save_area[0xA50 - 0x38];  // non-volatile PPCContext register save area
 };
-static_assert_size(X_FIBER_CONTEXT, 0xA50);
+REX_STATIC_ASSERT_SIZE(X_FIBER_CONTEXT, 0xA50);
 static_assert(sizeof(X_FIBER_CONTEXT::register_save_area) >= ::PPCContext::kNonVolatileSaveSize,
               "fiber register save area too small for PPCContext non-volatiles");
 
@@ -151,10 +152,10 @@ struct X_KWAIT_BLOCK {
   TypedGuestPointer<X_KTHREAD> thread;               // 0x8
   TypedGuestPointer<X_DISPATCH_HEADER> object;       // 0xC
   TypedGuestPointer<X_KWAIT_BLOCK> next_wait_block;  // 0x10
-  rex::be<uint16_t> wait_result_xstatus;             // 0x14
-  rex::be<uint16_t> wait_type;                       // 0x16
+  be_u16 wait_result_xstatus;                        // 0x14
+  be_u16 wait_type;                                  // 0x16
 };
-static_assert_size(X_KWAIT_BLOCK, 0x18);
+REX_STATIC_ASSERT_SIZE(X_KWAIT_BLOCK, 0x18);
 
 struct X_KPRCB {
   TypedGuestPointer<X_KTHREAD> current_thread;       // 0x0
@@ -162,25 +163,25 @@ struct X_KPRCB {
   TypedGuestPointer<X_KTHREAD> idle_thread;          // 0x8
   uint8_t current_cpu;                               // 0xC
   uint8_t unk_D[3];                                  // 0xD
-  rex::be<uint32_t> processor_mask;                  // 0x10
-  rex::be<uint32_t> dpc_clock;                       // 0x14
-  rex::be<uint32_t> interrupt_clock;                 // 0x18
-  rex::be<uint32_t> unk_1C;                          // 0x1C
-  rex::be<uint32_t> unk_20;                          // 0x20
-  rex::be<uint32_t> ipi_args[3];                     // 0x24
-  rex::be<uint32_t> targeted_ipi_cpus_mask;          // 0x30
-  rex::be<uint32_t> ipi_function;                    // 0x34
+  be_u32 processor_mask;                             // 0x10
+  be_u32 dpc_clock;                                  // 0x14
+  be_u32 interrupt_clock;                            // 0x18
+  be_u32 unk_1C;                                     // 0x1C
+  be_u32 unk_20;                                     // 0x20
+  be_u32 ipi_args[3];                                // 0x24
+  be_u32 targeted_ipi_cpus_mask;                     // 0x30
+  be_u32 ipi_function;                               // 0x34
   TypedGuestPointer<X_KPRCB> ipi_initiator_prcb;     // 0x38
-  rex::be<uint32_t> unk_3C;                          // 0x3C
-  rex::be<uint32_t> dpc_related_40;                  // 0x40
-  rex::be<uint32_t> dpc_lock;                        // 0x44
+  be_u32 unk_3C;                                     // 0x3C
+  be_u32 dpc_related_40;                             // 0x40
+  be_u32 dpc_lock;                                   // 0x44
   X_LIST_ENTRY queued_dpcs_list_head;                // 0x48
-  rex::be<uint32_t> dpc_active;                      // 0x50
+  be_u32 dpc_active;                                 // 0x50
   X_KSPINLOCK spin_lock;                             // 0x54
   TypedGuestPointer<X_KTHREAD> running_idle_thread;  // 0x58
   X_SINGLE_LIST_ENTRY enqueued_threads_list;         // 0x5C
-  rex::be<uint32_t> has_ready_thread_by_priority;    // 0x60
-  rex::be<uint32_t> unk_mask_64;                     // 0x64
+  be_u32 has_ready_thread_by_priority;               // 0x60
+  be_u32 unk_mask_64;                                // 0x64
   X_LIST_ENTRY unk_68[32];                           // 0x68
   XDPC thread_exit_dpc;                              // 0x168
   X_LIST_ENTRY terminating_threads_list;             // 0x184
@@ -189,58 +190,58 @@ struct X_KPRCB {
 
 // Processor Control Region
 struct X_KPCR {
-  rex::be<uint32_t> tls_ptr;   // 0x0
-  rex::be<uint32_t> msr_mask;  // 0x4
+  be_u32 tls_ptr;   // 0x0
+  be_u32 msr_mask;  // 0x4
   union {
-    rex::be<uint16_t> software_interrupt_state;  // 0x8
+    be_u16 software_interrupt_state;  // 0x8
     struct {
       uint8_t generic_software_interrupt;    // 0x8
       uint8_t apc_software_interrupt_state;  // 0x9
     };
   };
-  rex::be<uint16_t> unk_0A;              // 0xA
+  be_u16 unk_0A;                         // 0xA
   uint8_t processtype_value_in_dpc;      // 0xC
   uint8_t timeslice_ended;               // 0xD
   uint8_t timer_pending;                 // 0xE
   uint8_t unk_0F;                        // 0xF
-  rex::be<uint32_t> thread_fpu_related;  // 0x10
-  rex::be<uint32_t> thread_vmx_related;  // 0x14
+  be_u32 thread_fpu_related;             // 0x10
+  be_u32 thread_vmx_related;             // 0x14
   uint8_t current_irql;                  // 0x18
   uint8_t background_scheduling_active;  // 0x19
   uint8_t background_scheduling_1A;      // 0x1A
   uint8_t background_scheduling_1B;      // 0x1B
-  rex::be<uint32_t> timer_related;       // 0x1C
+  be_u32 timer_related;                  // 0x1C
   uint8_t unk_20[0x10];                  // 0x20
-  rex::be<uint64_t> pcr_ptr;             // 0x30
+  be_u64 pcr_ptr;                        // 0x30
   union {
     uint8_t unk_38[8];    // 0x38
     uint64_t host_stash;  // 0x38
   };
-  uint8_t unk_40[28];                        // 0x40
-  rex::be<uint32_t> unk_stack_5c;            // 0x5C
-  uint8_t unk_60[12];                        // 0x60
-  rex::be<uint32_t> use_alternative_stack;   // 0x6C
-  rex::be<uint32_t> stack_base_ptr;          // 0x70 Stack base address (high addr)
-  rex::be<uint32_t> stack_end_ptr;           // 0x74 Stack end (low addr)
-  rex::be<uint32_t> alt_stack_base_ptr;      // 0x78
-  rex::be<uint32_t> alt_stack_end_ptr;       // 0x7C
-  rex::be<uint32_t> interrupt_handlers[32];  // 0x80
-  X_KPRCB prcb_data;                         // 0x100
-  TypedGuestPointer<X_KPRCB> prcb;           // 0x2A8
-  uint8_t unk_2AC[0x2C];                     // 0x2AC
+  uint8_t unk_40[28];               // 0x40
+  be_u32 unk_stack_5c;              // 0x5C
+  uint8_t unk_60[12];               // 0x60
+  be_u32 use_alternative_stack;     // 0x6C
+  be_u32 stack_base_ptr;            // 0x70 Stack base address (high addr)
+  be_u32 stack_end_ptr;             // 0x74 Stack end (low addr)
+  be_u32 alt_stack_base_ptr;        // 0x78
+  be_u32 alt_stack_end_ptr;         // 0x7C
+  be_u32 interrupt_handlers[32];    // 0x80
+  X_KPRCB prcb_data;                // 0x100
+  TypedGuestPointer<X_KPRCB> prcb;  // 0x2A8
+  uint8_t unk_2AC[0x2C];            // 0x2AC
 };
 
 struct X_KTHREAD {
   X_DISPATCH_HEADER header;          // 0x0
-  rex::be<uint32_t> unk_10;          // 0x10
-  rex::be<uint32_t> unk_14;          // 0x14
+  be_u32 unk_10;                     // 0x10
+  be_u32 unk_14;                     // 0x14
   X_KTIMER wait_timeout_timer;       // 0x18
   X_KWAIT_BLOCK wait_timeout_block;  // 0x40
   rex::be_u32 kernel_time;           // 0x58
-  rex::be<uint32_t> stack_base;      // 0x5C
-  rex::be<uint32_t> stack_limit;     // 0x60
-  rex::be<uint32_t> stack_kernel;    // 0x64
-  rex::be<uint32_t> tls_address;     // 0x68
+  be_u32 stack_base;                 // 0x5C
+  be_u32 stack_limit;                // 0x60
+  be_u32 stack_kernel;               // 0x64
+  be_u32 tls_address;                // 0x68
   uint8_t thread_state;              // 0x6C
   uint8_t alerted[2];                // 0x6D
   uint8_t alertable;                 // 0x6F
@@ -256,14 +257,14 @@ struct X_KTHREAD {
   uint8_t user_apc_pending;                                           // 0x8A
   uint8_t may_queue_apcs;                                             // 0x8B
   X_KSPINLOCK apc_lock;                                               // 0x8C
-  rex::be<uint32_t> num_context_switches_to;                          // 0x90
+  be_u32 num_context_switches_to;                                     // 0x90
   X_LIST_ENTRY ready_prcb_entry;                                      // 0x94
-  rex::be<uint32_t> msr_mask;                                         // 0x9C
+  be_u32 msr_mask;                                                    // 0x9C
   rex::be<X_STATUS> wait_result;                                      // 0xA0
   uint8_t wait_irql;                                                  // 0xA4
   uint8_t unk_A5[0xB];                                                // 0xA5
   int32_t apc_disable_count;                                          // 0xB0
-  rex::be<int32_t> quantum;                                           // 0xB4
+  be_i32 quantum;                                                     // 0xB4
   uint8_t unk_B8;                                                     // 0xB8
   uint8_t unk_B9;                                                     // 0xB9
   uint8_t unk_BA;                                                     // 0xBA
@@ -279,45 +280,43 @@ struct X_KTHREAD {
   uint8_t unk_CA;                                                     // 0xCA
   uint8_t unk_CB;                                                     // 0xCB
   X_KSPINLOCK timer_list_lock;                                        // 0xCC
-  rex::be<uint32_t> stack_alloc_base;                                 // 0xD0
+  be_u32 stack_alloc_base;                                            // 0xD0
   XAPC on_suspend;                                                    // 0xD4
   X_KSEMAPHORE suspend_sema;                                          // 0xFC
   X_LIST_ENTRY process_threads;                                       // 0x110
-  rex::be<uint32_t> unk_118;                                          // 0x118
+  be_u32 unk_118;                                                     // 0x118
   X_LIST_ENTRY queue_related;                                         // 0x11C
-  rex::be<uint32_t> unk_124;                                          // 0x124
-  rex::be<uint32_t> unk_128;                                          // 0x128
-  rex::be<uint32_t> unk_12C;                                          // 0x12C
-  rex::be<uint64_t> create_time;                                      // 0x130
-  rex::be<uint64_t> exit_time;                                        // 0x138
-  rex::be<uint32_t> exit_status;                                      // 0x140
+  be_u32 unk_124;                                                     // 0x124
+  be_u32 unk_128;                                                     // 0x128
+  be_u32 unk_12C;                                                     // 0x12C
+  be_u64 create_time;                                                 // 0x130
+  be_u64 exit_time;                                                   // 0x138
+  be_u32 exit_status;                                                 // 0x140
   X_LIST_ENTRY timer_list;                                            // 0x144
-  rex::be<uint32_t> thread_id;                                        // 0x14C
-  rex::be<uint32_t> start_address;                                    // 0x150
+  be_u32 thread_id;                                                   // 0x14C
+  be_u32 start_address;                                               // 0x150
   X_LIST_ENTRY unk_154;                                               // 0x154
   uint8_t unk_15C[0x4];                                               // 0x15C
-  rex::be<uint32_t> last_error;                                       // 0x160
-  rex::be<uint32_t> fiber_ptr;                                        // 0x164
+  be_u32 last_error;                                                  // 0x160
+  be_u32 fiber_ptr;                                                   // 0x164
   uint8_t unk_168[0x4];                                               // 0x168
-  rex::be<uint32_t> creation_flags;                                   // 0x16C
+  be_u32 creation_flags;                                              // 0x16C
   uint8_t unk_170[0xC];                                               // 0x170
-  rex::be<uint32_t> unk_17C;                                          // 0x17C
+  be_u32 unk_17C;                                                     // 0x17C
   uint8_t unk_180[0x930];                                             // 0x180
 };
-static_assert_size(X_KTHREAD, 0xAB0);
+REX_STATIC_ASSERT_SIZE(X_KTHREAD, 0xAB0);
 
 class ThreadRegistry;
 
 /** The table slot data of a thread, naming the record in the registry by thread id. */
-struct ThreadRef {
+struct ThreadRef : public rex::NonCopyable {
   /**
    * @param thread_id_in The thread id.
    * @param registry_in The registry that owns the record.
    */
   ThreadRef(u32 thread_id_in, ThreadRegistry* registry_in)
       : thread_id(thread_id_in), registry(registry_in) {}
-  ThreadRef(const ThreadRef&) = delete;
-  ThreadRef& operator=(const ThreadRef&) = delete;
   REX_RUNTIME_API ~ThreadRef();
 
   u32 thread_id;
@@ -325,7 +324,7 @@ struct ThreadRef {
 };
 
 /** A guest thread or a host worker, owned by the thread registry. */
-class REX_RUNTIME_API ThreadRecord {
+class REX_RUNTIME_API ThreadRecord : public rex::NonCopyable {
  public:
   static constexpr u32 kStackAddressRangeBegin = 0x70000000;
   static constexpr u32 kStackAddressRangeEnd = 0x7F000000;
@@ -364,10 +363,9 @@ class REX_RUNTIME_API ThreadRecord {
    * @param creation_flags The creation flags.
    * @param host_fn The function the worker runs. Its result is the exit code.
    */
-  ThreadRecord(Runtime& runtime, u32 stack_size, u32 creation_flags, std::function<int()> host_fn);
+  ThreadRecord(Runtime& runtime, u32 stack_size, u32 creation_flags,
+               std::move_only_function<int()> host_fn);
   ~ThreadRecord();
-  ThreadRecord(const ThreadRecord&) = delete;
-  ThreadRecord& operator=(const ThreadRecord&) = delete;
 
   /**
    * Reports whether the calling thread is the given record.
@@ -783,7 +781,7 @@ class REX_RUNTIME_API ThreadRecord {
   ThreadRegistry* registry_ = nullptr;
   X_HANDLE handle_ = 0;
   u32 guest_object_ptr_ = 0;
-  std::function<int()> host_fn_;
+  std::move_only_function<int()> host_fn_;
   std::unique_ptr<rex::platform::Event> exit_gate_;
   std::atomic<bool> released_{false};
   std::atomic<bool> started_{false};

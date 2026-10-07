@@ -1,6 +1,5 @@
 /**
  * @file        ui/style.h
- * @brief       The color roles, sizes and per overlay values every ui overlay draws with
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

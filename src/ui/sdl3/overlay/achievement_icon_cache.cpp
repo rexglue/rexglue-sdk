@@ -1,6 +1,5 @@
 /**
  * @file        ui/sdl3/overlay/achievement_icon_cache.cpp
- * @brief       Shared achievement icon texture cache implementation.
  *
  * @copyright   Copyright (c) 2026 Rien Gupta <rgupta9@scu.edu>
  *              All rights reserved.

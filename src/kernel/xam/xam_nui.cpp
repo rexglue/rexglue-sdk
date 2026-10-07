@@ -19,12 +19,12 @@ namespace kernel {
 namespace xam {
 
 struct X_NUI_DEVICE_STATUS {
-  rex::be<uint32_t> unk0;
-  rex::be<uint32_t> unk1;
-  rex::be<uint32_t> unk2;
-  rex::be<uint32_t> status;
-  rex::be<uint32_t> unk4;
-  rex::be<uint32_t> unk5;
+  be_u32 unk0;
+  be_u32 unk1;
+  be_u32 unk2;
+  be_u32 status;
+  be_u32 unk4;
+  be_u32 unk5;
 };
 static_assert(sizeof(X_NUI_DEVICE_STATUS) == 24, "Size matters");
 

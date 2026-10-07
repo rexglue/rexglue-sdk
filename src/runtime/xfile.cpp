@@ -45,7 +45,7 @@ X_STATUS ReadInternal(Runtime& runtime, FileObject& file, u32 buffer_guest_addre
                       u32 buffer_length, u64 byte_offset, u32* out_bytes_read, u32 apc_context,
                       bool notify_completion) {
   auto* memory = runtime.memory();
-  if (byte_offset == u64(-1)) {
+  if (byte_offset == static_cast<u64>(-1)) {
     byte_offset = file.position;
   }
 
@@ -103,13 +103,13 @@ X_STATUS ReadInternal(Runtime& runtime, FileObject& file, u32 buffer_guest_addre
   }
 
   if (out_bytes_read) {
-    *out_bytes_read = u32(bytes_read);
+    *out_bytes_read = static_cast<u32>(bytes_read);
   }
 
   if (notify_completion) {
     IONotification notify;
     notify.apc_context = apc_context;
-    notify.num_bytes = u32(bytes_read);
+    notify.num_bytes = static_cast<u32>(bytes_read);
     notify.status = result;
 
     NotifyIOCompletionPorts(runtime, file, notify);
@@ -125,7 +125,7 @@ X_STATUS ReadInternal(Runtime& runtime, FileObject& file, u32 buffer_guest_addre
 FileObject::FileObject(std::unique_ptr<filesystem::IFile> file_in, bool synchronous)
     : file(std::move(file_in)), is_synchronous(synchronous) {
   async_event = rex::platform::Event::CreateAutoResetEvent(false);
-  assert_not_null(async_event);
+  REX_ASSERT(async_event != nullptr);
 }
 
 FileObject::~FileObject() {
@@ -140,12 +140,12 @@ FileObject::~FileObject() {
 X_STATUS FileQueryDirectory(Runtime&, FileObject& file, X_FILE_DIRECTORY_INFORMATION* out_info,
                             size_t length, std::string_view file_name, bool restart) {
   std::lock_guard<std::mutex> lock(file.file_lock);
-  assert_not_null(out_info);
+  REX_ASSERT(out_info != nullptr);
 
   std::optional<filesystem::FileInfo> entry;
 
   if (!file_name.empty()) {
-    assert_true(rex::utf8_find_any_of(file_name, "\\") == std::string_view::npos);
+    REX_ASSERT(rex::utf8_find_any_of(file_name, "\\") == std::string_view::npos);
     FileSetFindPattern(file, file_name);
     entry = FileFindNext(file);
     if (!entry) {
@@ -166,7 +166,7 @@ X_STATUS FileQueryDirectory(Runtime&, FileObject& file, X_FILE_DIRECTORY_INFORMA
   auto end = reinterpret_cast<u8*>(out_info) + length;
   const std::string& entry_name = entry->name;
   if (reinterpret_cast<u8*>(&out_info->file_name[0]) + entry_name.size() > end) {
-    assert_always("Buffer overflow?");
+    REX_ASSERT_ALWAYS("Buffer overflow?");
     return X_STATUS_NO_SUCH_FILE;
   }
 
@@ -197,8 +197,8 @@ X_STATUS FileReadScatter(Runtime& runtime, FileObject& file, u32 segments_guest_
   std::lock_guard<std::mutex> lock(file.file_lock);
   X_STATUS result = X_STATUS_SUCCESS;
 
-  rex::be<u32>* segments =
-      reinterpret_cast<rex::be<u32>*>(runtime.memory()->TranslateVirtual(segments_guest_address));
+  be_u32* segments =
+      reinterpret_cast<be_u32*>(runtime.memory()->TranslateVirtual(segments_guest_address));
 
   u32 page_size = 4096;
 
@@ -247,7 +247,7 @@ X_STATUS FileReadScatter(Runtime& runtime, FileObject& file, u32 segments_guest_
 X_STATUS FileWrite(Runtime& runtime, FileObject& file, u32 buffer_guest_address, u32 buffer_length,
                    u64 byte_offset, u32* out_bytes_written, u32 apc_context) {
   std::lock_guard<std::mutex> lock(file.file_lock);
-  if (byte_offset == u64(-1)) {
+  if (byte_offset == static_cast<u64>(-1)) {
     byte_offset = file.position;
   }
 
@@ -267,13 +267,13 @@ X_STATUS FileWrite(Runtime& runtime, FileObject& file, u32 buffer_guest_address,
 
   IONotification notify;
   notify.apc_context = apc_context;
-  notify.num_bytes = u32(bytes_written);
+  notify.num_bytes = static_cast<u32>(bytes_written);
   notify.status = result;
 
   NotifyIOCompletionPorts(runtime, file, notify);
 
   if (out_bytes_written) {
-    *out_bytes_written = u32(bytes_written);
+    *out_bytes_written = static_cast<u32>(bytes_written);
   }
 
   file.async_event->Set();

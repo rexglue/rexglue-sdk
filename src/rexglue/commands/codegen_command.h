@@ -1,6 +1,5 @@
 /**
  * @file        rexglue/commands/codegen_command.h
- * @brief       Code generation command interface
  *
  * @copyright   Copyright (c) 2026 Tom Clay
  * @license     BSD 3-Clause License
@@ -24,11 +23,12 @@ namespace rexglue::cli {
 
 using rex::Result;
 
-Result<void> CodegenFromConfig(const std::string& config_path, const CLIContext& ctx,
-                               const std::vector<std::string>& targets, bool ignore_stamp = false,
-                               const rex::codegen::Limits& limits = {});
+[[nodiscard]] Result<void> CodegenFromConfig(const std::string& config_path, const CLIContext& ctx,
+                                             const std::vector<std::string>& targets,
+                                             bool ignore_stamp = false,
+                                             const rex::codegen::Limits& limits = {});
 
-Result<std::string> DiscoverManifestInCwd();
+[[nodiscard]] Result<std::string> DiscoverManifestInCwd();
 
 void RegisterCodegen(CLI::App& parent, const CLIContext& ctx, DeferredAction& pending);
 

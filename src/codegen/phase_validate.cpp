@@ -22,8 +22,6 @@
 
 #include <ppc.h>
 
-using rex::memory::load_and_swap;
-
 namespace rex::codegen {
 
 namespace {
@@ -88,7 +86,7 @@ void validateConfigBoundaries(CodegenContext& ctx) {
   }
 }
 
-Result<void> validateGraph(CodegenContext& ctx) {
+[[nodiscard]] Result<void> validateGraph(CodegenContext& ctx) {
   REXLOG_TRACE(codegen, "Analyze: validating call graph...");
 
   auto& graph = ctx.graph;
@@ -110,7 +108,7 @@ Result<void> validateGraph(CodegenContext& ctx) {
         continue;
 
       for (size_t offset = 0; offset < block.size; offset += 4) {
-        uint32_t insn = load_and_swap<uint32_t>(data + offset);
+        uint32_t insn = memory::load<be_u32>(data + offset);
 
         if (PPC_OP(insn) == PPC_OP_B && !PPC_BA(insn)) {
           uint32_t site = block.base + static_cast<uint32_t>(offset);
@@ -207,7 +205,7 @@ Result<void> validateGraph(CodegenContext& ctx) {
 
 namespace phases {
 
-Result<void> Validate(CodegenContext& ctx, ProgressReporter* reporter) {
+[[nodiscard]] Result<void> Validate(CodegenContext& ctx, ProgressReporter* reporter) {
   (void)reporter;
   return validateGraph(ctx);
 }

@@ -27,13 +27,13 @@ struct X_KMUTANT {
   /** Links the mutant in the owner's mutant list. */
   X_LIST_ENTRY mutant_list_entry;
   /** Guest KTHREAD of the owner, 0 when free. */
-  rex::be<u32> owner_thread;
+  be_u32 owner_thread;
   /** Nonzero when the owner exited without a release. */
   u8 abandoned;
   /** Padding to the KMUTANT size. */
   u8 reserved[3];
 };
-static_assert_size(X_KMUTANT, 0x20);
+REX_STATIC_ASSERT_SIZE(X_KMUTANT, 0x20);
 
 /** The host state of a mutant object. */
 struct MutantObject {
@@ -66,7 +66,7 @@ REX_RUNTIME_API X_STATUS MutantRelease(MutantObject& mutant, bool abandon,
                                        i32* previous_state = nullptr);
 
 /**
- * Records the current thread as the owner after a successful wait.
+ * Sets the current thread as the owner after a successful wait.
  *
  * @param mutant The mutant.
  * @return True when the mutant was abandoned since its last acquire.

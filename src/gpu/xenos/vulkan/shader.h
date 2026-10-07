@@ -52,7 +52,7 @@ class VulkanShader : public SpirvShader {
   void SetSamplerBindingLayoutUserUID(size_t uid) { sampler_binding_layout_user_uid_ = uid; }
 
  protected:
-  Translation* CreateTranslationInstance(uint64_t modification) override;
+  std::unique_ptr<Translation> CreateTranslationInstance(uint64_t modification) override;
 
  private:
   const gpu::vulkan::VulkanDevice* vulkan_device_;

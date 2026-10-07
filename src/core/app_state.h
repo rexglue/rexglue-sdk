@@ -66,7 +66,7 @@ REX_API void SetRelaunchForTest(RelaunchFunction relaunch, bool can_relaunch);
  * @param args Arguments for the new process.
  * @return The result of the relaunch.
  */
-REX_API Result<void> RelaunchProcess(std::span<const std::string> args);
+[[nodiscard]] REX_API Result<void> RelaunchProcess(std::span<const std::string> args);
 
 /**
  * Tests whether a relaunch may run.

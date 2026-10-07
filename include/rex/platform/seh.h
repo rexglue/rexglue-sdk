@@ -1,6 +1,5 @@
 /**
  * @file        platform/seh.h
- * @brief       Per thread SEH state and host exception hooks
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

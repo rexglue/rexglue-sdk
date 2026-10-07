@@ -24,10 +24,11 @@ namespace util {
 void FlushMappedMemoryRange(const VulkanDevice* const vulkan_device, const VkDeviceMemory memory,
                             const uint32_t memory_type, const VkDeviceSize offset,
                             const VkDeviceSize memory_size, const VkDeviceSize size) {
-  assert_false(size != VK_WHOLE_SIZE && memory_size == VK_WHOLE_SIZE);
-  assert_true(memory_size == VK_WHOLE_SIZE || offset <= memory_size);
-  assert_true(memory_size == VK_WHOLE_SIZE || size <= memory_size - offset);
-  if (!size || (vulkan_device->memory_types().host_coherent & (uint32_t(1) << memory_type))) {
+  REX_ASSERT(!(size != VK_WHOLE_SIZE && memory_size == VK_WHOLE_SIZE));
+  REX_ASSERT(memory_size == VK_WHOLE_SIZE || offset <= memory_size);
+  REX_ASSERT(memory_size == VK_WHOLE_SIZE || size <= memory_size - offset);
+  if (!size ||
+      (vulkan_device->memory_types().host_coherent & (static_cast<uint32_t>(1) << memory_type))) {
     return;
   }
   VkMappedMemoryRange range;

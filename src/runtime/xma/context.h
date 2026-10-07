@@ -21,7 +21,7 @@
 
 // XMA audio format:
 // From research, XMA appears to be based on WMA Pro with
-// a few (very slight) modifications.
+// a few slight modifications.
 // XMA2 is fully backwards-compatible with XMA1.
 
 // Helpful resources:
@@ -150,7 +150,7 @@ struct XMA_CONTEXT_DATA {
     return (input_buffer_0_packet_count | input_buffer_1_packet_count) == 0;
   }
 };
-static_assert_size(XMA_CONTEXT_DATA, 64);
+REX_STATIC_ASSERT_SIZE(XMA_CONTEXT_DATA, 64);
 
 struct kPacketInfo {
   uint8_t frame_count_ = 0;
@@ -220,11 +220,6 @@ class XMAContext {
   void SignalWorkDone() {
     if (work_completion_event_) {
       work_completion_event_->Set();
-    }
-  }
-  void WaitForWorkDone() {
-    if (work_completion_event_) {
-      rex::platform::Wait(work_completion_event_.get(), false);
     }
   }
 

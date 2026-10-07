@@ -45,8 +45,8 @@ struct VulkanFeatures {
 std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
     const VulkanInstance* const vulkan_instance, const VkPhysicalDevice physical_device,
     const bool with_gpu_emulation, const bool with_swapchain) {
-  assert_not_null(vulkan_instance);
-  assert_not_null(physical_device);
+  REX_ASSERT(vulkan_instance != nullptr);
+  REX_ASSERT(physical_device != nullptr);
 
   const VulkanInstance::Functions& ifn = vulkan_instance->functions();
 
@@ -85,7 +85,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
       //   depth / stencil.
       // Not supported only on the proprietary driver for the Qualcomm
       // Adreno 4xx, where the driver is largely experimental and doesn't expose
-      // a lot of the functionality available in the hardware.
+      // much of the functionality available in the hardware.
       REXLOG_WARN(ui,
                   "Vulkan device '{}' doesn't support the independentBlend feature "
                   "required for GPU emulation",
@@ -126,7 +126,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
 
   // Enable needed extensions.
 
-  std::unique_ptr<VulkanDevice> device(new VulkanDevice(vulkan_instance, physical_device));
+  auto device = std::make_unique<VulkanDevice>(Key{}, vulkan_instance, physical_device);
   device->requires_geometry_shader_ = REXCVAR_GET(::rex::gpu::cvars::require_geometry_shader);
   device->requires_fill_mode_non_solid_ =
       REXCVAR_GET(::rex::gpu::cvars::require_fill_mode_non_solid);
@@ -140,7 +140,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
 
   const auto request_promoted_extension = [&](const char* const name, uint32_t const major,
                                               uint32_t const minor, bool* const supported_ptr) {
-    assert_not_null(supported_ptr);
+    REX_ASSERT(supported_ptr != nullptr);
     if (properties.apiVersion >= VK_MAKE_API_VERSION(0, major, minor, 0)) {
       *supported_ptr = true;
     } else {
@@ -255,14 +255,14 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
         REXLOG_WARN(ui, "Failed to get the Vulkan device '{}' extensions", properties.deviceName);
         return nullptr;
       }
-      assert_true(supported_extension_count == supported_extensions.size());
+      REX_ASSERT(supported_extension_count == supported_extensions.size());
       for (const VkExtensionProperties& supported_extension : supported_extensions) {
         const auto requested_extension_it =
             requested_extensions.find(supported_extension.extensionName);
         if (requested_extension_it == requested_extensions.cend()) {
           continue;
         }
-        assert_not_null(requested_extension_it->second);
+        REX_ASSERT(requested_extension_it->second != nullptr);
         if (!*requested_extension_it->second) {
           enabled_extensions.emplace_back(requested_extension_it->first.c_str());
           *requested_extension_it->second = true;
@@ -278,7 +278,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
 
   VkDeviceCreateInfo device_create_info = {VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
 
-  device_create_info.enabledExtensionCount = uint32_t(enabled_extensions.size());
+  device_create_info.enabledExtensionCount = static_cast<uint32_t>(enabled_extensions.size());
   device_create_info.ppEnabledExtensionNames = enabled_extensions.data();
 
   // Get supported Vulkan 1.1+ and extension properties and features.
@@ -413,7 +413,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
       queue_family.may_support_presentation = true;
 #endif
       if (queue_family.may_support_presentation) {
-        queue_family.queues.resize(std::max(size_t(1), queue_family.queues.size()));
+        queue_family.queues.resize(std::max(static_cast<size_t>(1), queue_family.queues.size()));
         has_presentation_queue_family = true;
       }
     }
@@ -467,11 +467,13 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
     device->queue_family_sparse_binding_ = first_queue_family_sparse_binding;
   }
 
-  device->queue_families_[device->queue_family_graphics_compute_].queues.resize(std::max(
-      size_t(1), device->queue_families_[device->queue_family_graphics_compute_].queues.size()));
+  device->queue_families_[device->queue_family_graphics_compute_].queues.resize(
+      std::max(static_cast<size_t>(1),
+               device->queue_families_[device->queue_family_graphics_compute_].queues.size()));
   if (device->queue_family_sparse_binding_ != UINT32_MAX) {
-    device->queue_families_[device->queue_family_sparse_binding_].queues.resize(std::max(
-        size_t(1), device->queue_families_[device->queue_family_sparse_binding_].queues.size()));
+    device->queue_families_[device->queue_family_sparse_binding_].queues.resize(
+        std::max(static_cast<size_t>(1),
+                 device->queue_families_[device->queue_family_sparse_binding_].queues.size()));
   }
 
   size_t max_enabled_queues_per_family = 0;
@@ -491,17 +493,17 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
     queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
     queue_create_info.pNext = nullptr;
     queue_create_info.flags = 0;
-    queue_create_info.queueFamilyIndex = uint32_t(queue_family_index);
-    queue_create_info.queueCount = uint32_t(queue_family.queues.size());
+    queue_create_info.queueFamilyIndex = static_cast<uint32_t>(queue_family_index);
+    queue_create_info.queueCount = static_cast<uint32_t>(queue_family.queues.size());
     queue_create_info.pQueuePriorities = queue_priorities.data();
   }
-  device_create_info.queueCreateInfoCount = uint32_t(queue_create_infos.size());
+  device_create_info.queueCreateInfoCount = static_cast<uint32_t>(queue_create_infos.size());
   device_create_info.pQueueCreateInfos = queue_create_infos.data();
 
   // Enable needed features and copy the properties.
   //
-  // Enabling only actually used features because drivers may take more optimal
-  // paths when certain features are disabled. Also, in VK_EXT_shader_object,
+  // Enabling only used features because drivers may take more optimal
+  // paths when some features are disabled. Also, in VK_EXT_shader_object,
   // the state that the application must set for the draw depends on which
   // features are enabled.
 
@@ -804,8 +806,8 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
     QueueFamily& queue_family = device->queue_families_[queue_family_index];
     for (size_t queue_index = 0; queue_index < queue_family.queues.size(); ++queue_index) {
       VkQueue queue;
-      dfn.vkGetDeviceQueue(device->device_, uint32_t(queue_family_index), uint32_t(queue_index),
-                           &queue);
+      dfn.vkGetDeviceQueue(device->device_, static_cast<uint32_t>(queue_family_index),
+                           static_cast<uint32_t>(queue_index), &queue);
       queue_family.queues[queue_index] = std::make_unique<Queue>(queue);
     }
   }
@@ -816,7 +818,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   ifn.vkGetPhysicalDeviceMemoryProperties(physical_device, &memory_properties);
   for (uint32_t memory_type_index = 0; memory_type_index < memory_properties.memoryTypeCount;
        ++memory_type_index) {
-    const uint32_t memory_type_bit = uint32_t(1) << memory_type_index;
+    const uint32_t memory_type_bit = static_cast<uint32_t>(1) << memory_type_index;
     const VkMemoryPropertyFlags memory_type_flags =
         memory_properties.memoryTypes[memory_type_index].propertyFlags;
     if (memory_type_flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) {
@@ -842,11 +844,11 @@ VulkanDevice::~VulkanDevice() {
   }
 }
 
-VulkanDevice::VulkanDevice(const VulkanInstance* const vulkan_instance,
+VulkanDevice::VulkanDevice(Key, const VulkanInstance* const vulkan_instance,
                            const VkPhysicalDevice physical_device)
     : vulkan_instance_(vulkan_instance), physical_device_(physical_device) {
-  assert_not_null(vulkan_instance);
-  assert_not_null(physical_device);
+  REX_ASSERT(vulkan_instance != nullptr);
+  REX_ASSERT(physical_device != nullptr);
 }
 
 }  // namespace vulkan

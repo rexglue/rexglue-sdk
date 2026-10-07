@@ -6,12 +6,13 @@
 #include <type_traits>
 #include <vector>
 
+#include <rex/types.h>
 #include <rex/ui/imgui_dialog.h>
 #include <rex/ui/user_interface.h>
 
 namespace rex::ui {
 
-class PromptDone {
+class PromptDone : public rex::MoveOnly {
  public:
   PromptDone() = default;
 
@@ -29,9 +30,6 @@ class PromptDone {
     }
     return *this;
   }
-
-  PromptDone(const PromptDone&) = delete;
-  PromptDone& operator=(const PromptDone&) = delete;
 
   ~PromptDone() { (*this)(PromptResult{}); }
 

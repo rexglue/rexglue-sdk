@@ -1,6 +1,5 @@
 /**
  * @file        string/buffer.h
- * @brief       Growable NUL terminated character buffer
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

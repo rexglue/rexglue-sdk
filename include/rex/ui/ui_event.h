@@ -1,6 +1,5 @@
 /**
  * @file        ui/ui_event.h
- * @brief       Window and input events
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -52,7 +51,7 @@ class UIEvent {
   /**
    * Creates an event.
    *
-   * @param type Kind of the event.
+   * @param type Event kind.
    * @param target Window the event belongs to.
    */
   UIEvent(Type type, IWindow* target) : type_(type), target_(target) {}
@@ -60,7 +59,7 @@ class UIEvent {
   virtual ~UIEvent() = default;
 
   /**
-   * Returns the kind of this event.
+   * Returns the event kind.
    *
    * @return The type the event was created with.
    */

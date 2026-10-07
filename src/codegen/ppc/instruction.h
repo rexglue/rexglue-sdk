@@ -1,6 +1,5 @@
 /**
  * @file        arch/ppc/instruction.h
- * @brief       PowerPC instruction representation and decoding
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -29,8 +28,8 @@ namespace rex::codegen::ppc {
  * Includes semantic information for future recompilation support.
  */
 struct Instruction {
-  uint32_t address = 0;       // Guest address of instruction
-  rex::be<uint32_t> code{0};  // Raw instruction encoding (big-endian)
+  uint32_t address = 0;  // Guest address of instruction
+  be_u32 code{0};        // Raw instruction encoding (big-endian)
   Opcode opcode = Opcode::kUnknown;
   InstrFormat format = InstrFormat::kUnknown;
 
@@ -51,7 +50,7 @@ struct Instruction {
     // Get sign-extended branch target offset
     int32_t offset() const {
       // Sign-extend 24-bit to 32-bit, then multiply by 4
-      int32_t val = (int32_t)(LI << 8) >> 6;  // Sign extend and * 4
+      int32_t val = static_cast<int32_t>(LI << 8) >> 6;  // Sign extend and * 4
       return val;
     }
   };
@@ -71,13 +70,13 @@ struct Instruction {
     // Get sign-extended branch target offset
     int32_t offset() const {
       // Sign-extend 14-bit to 32-bit, then multiply by 4
-      int32_t val = (int32_t)(BD << 18) >> 16;  // Sign extend and * 4
+      int32_t val = static_cast<int32_t>(BD << 18) >> 16;  // Sign extend and * 4
       return val;
     }
   };
 
   /**
-   * Format D - Immediate operations (load, store, addi, etc.)
+   * Format D - Immediate operations (load, store, addi and others)
    * Fields: RT/RS (5-bit), RA (5-bit), d/SIMM/UIMM (16-bit)
    */
   struct FormatD {
@@ -88,11 +87,11 @@ struct Instruction {
 
     // Signed immediate
     int32_t SIMM() const {
-      return (int32_t)((int16_t)d);  // Sign-extend 16-bit
+      return static_cast<int32_t>(static_cast<int16_t>(d));  // Sign-extend 16-bit
     }
 
     // Unsigned immediate
-    uint32_t UIMM() const { return (uint32_t)d; }
+    uint32_t UIMM() const { return static_cast<uint32_t>(d); }
 
     // Register S (store instructions use this field)
     uint32_t RS() const { return RT; }
@@ -111,7 +110,7 @@ struct Instruction {
 
     // Get sign-extended displacement (multiple of 4)
     int32_t displacement() const {
-      return (int32_t)((int16_t)(DS << 2));  // Sign-extend and * 4
+      return static_cast<int32_t>(static_cast<int16_t>(DS << 2));  // Sign-extend and * 4
     }
 
     uint32_t RS() const { return RT; }
@@ -211,7 +210,7 @@ struct Instruction {
   };
 
   /**
-   * Format A - Floating-point arithmetic (fmadd, fmul, etc.)
+   * Format A - Floating-point arithmetic (fmadd, fmul and others)
    * Fields: FRT (5-bit), FRA (5-bit), FRB (5-bit), FRC (5-bit), XO (5-bit), Rc (1-bit)
    */
   struct FormatA {
@@ -225,7 +224,7 @@ struct Instruction {
   };
 
   /**
-   * Format VA - Vector 4-operand (vperm, vmaddfp, etc.)
+   * Format VA - Vector 4-operand (vperm, vmaddfp and others)
    * Fields: VRT (5-bit), VRA (5-bit), VRB (5-bit), VRC (5-bit), XO (6-bit)
    */
   struct FormatVA {
@@ -241,7 +240,7 @@ struct Instruction {
   };
 
   /**
-   * Format VX - Vector 3-operand/2-operand (vaddfp, vand, etc.)
+   * Format VX - Vector 3-operand/2-operand (vaddfp, vand and others)
    * Fields: VRT (5-bit), VRA (5-bit), VRB (5-bit), XO (11-bit)
    */
   struct FormatVX {
@@ -253,7 +252,9 @@ struct Instruction {
 
     // Alias for immediate in some instructions (UIMM in VRA field)
     uint32_t UIMM() const { return VRA; }
-    int32_t SIMM() const { return (int32_t)((int8_t)(VRA << 3) >> 3); }  // Sign extend 5-bit
+    int32_t SIMM() const {
+      return static_cast<int32_t>(static_cast<int8_t>(VRA << 3) >> 3);
+    }  // Sign extend 5-bit
     uint32_t VD() const { return VRT; }
   };
 
@@ -273,7 +274,7 @@ struct Instruction {
   };
 
   /**
-   * Format VMX128 - Xbox 360 extended vector format
+   * Format VMX128 - Console extended vector format
    * Uses different register encoding for 128 vector registers
    */
   struct FormatVMX128 {
@@ -304,7 +305,7 @@ struct Instruction {
     FormatVA VA;          // Vector A-form (4 operands)
     FormatVX VX;          // Vector X-form (3 operands)
     FormatVXR VXR;        // Vector X-form with record bit
-    FormatVMX128 VMX128;  // Xbox 360 VMX128 extended
+    FormatVMX128 VMX128;  // VMX128 extended
     uint32_t raw;         // Raw 32-bit value for direct access
   };
 
@@ -359,61 +360,15 @@ struct Instruction {
   bool is_return() const;
 
   /**
-   * Check if this is an indirect branch (bcctr, bclr)
-   */
-  bool is_indirect_branch() const;
-
-  /**
-   * Check if this is a record-form instruction (sets CR0).
-   * Checks the Rc bit based on the instruction format.
-   */
-  bool is_record_form() const;
-
-  /**
    * Check if this is a conditional branch
    * Returns false for unconditional branches (BO=20)
    */
   bool is_conditional() const;
 
   /**
-   * Get register numbers that this instruction reads from
-   */
-  std::vector<uint8_t> get_register_reads() const;
-
-  /**
-   * Get register numbers that this instruction writes to
-   */
-  std::vector<uint8_t> get_register_writes() const;
-
-  /**
    * Disassemble instruction to string
    */
   std::string to_string() const;
-
-  //=========================================================================
-  // Semantic information (for future HIR translation)
-  //=========================================================================
-
-  struct Semantics {
-    std::vector<uint8_t> reads_gpr;   // GPR registers read
-    std::vector<uint8_t> writes_gpr;  // GPR registers written
-    bool reads_memory = false;
-    bool writes_memory = false;
-    bool reads_lr = false;
-    bool writes_lr = false;
-    bool reads_ctr = false;
-    bool writes_ctr = false;
-    bool reads_cr = false;  // Condition register
-    bool writes_cr = false;
-    bool is_branch = false;
-    bool is_call = false;
-    bool is_return = false;
-  };
-
-  /**
-   * Get semantic information (computed on demand)
-   */
-  Semantics get_semantics() const;
 };
 
 /**
@@ -423,42 +378,5 @@ struct Instruction {
  * @return Decoded instruction structure
  */
 Instruction decode_instruction(uint32_t address, uint32_t code);
-
-/**
- * PowerPC disassembler to string converter
- *
- * Converts instructions to GNU objdump-style assembly text.
- * Examples:
- *   bl 0x82001234
- *   addi r3, r1, 100
- *   stw r4, 0x20(r1)
- */
-class InstructionString {
- public:
-  /**
-   * Disassemble a single instruction
-   * @param instr Decoded instruction
-   * @return Assembly text string
-   */
-  static std::string disassemble(const Instruction& instr);
-
- private:
-  // Format helpers
-  static std::string format_register(u8 reg);
-  static std::string format_immediate(i32 imm);
-  static std::string format_address(guest_addr_t addr);
-  static std::string format_offset(i32 offset, u8 base_reg);
-
-  // Instruction-specific formatters
-  static std::string format_branch(const Instruction& instr);
-  static std::string format_load_store(const Instruction& instr);
-  static std::string format_immediate_alu(const Instruction& instr);
-  static std::string format_register_alu(const Instruction& instr);
-  static std::string format_compare(const Instruction& instr);
-  static std::string format_spr(const Instruction& instr);
-  static std::string format_rotate(const Instruction& instr);
-  static std::string format_float(const Instruction& instr);
-  static std::string format_vector(const Instruction& instr);
-};
 
 }  // namespace rex::codegen::ppc

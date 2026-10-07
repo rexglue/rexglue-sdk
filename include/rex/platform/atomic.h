@@ -1,6 +1,5 @@
 /**
  * @file        platform/atomic.h
- * @brief       Atomic operations on plain volatile integers
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

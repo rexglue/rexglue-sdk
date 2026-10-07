@@ -1,6 +1,5 @@
 /**
  * @file        rex/codegen/function_node.h
- * @brief       FunctionNode - core object representing a function in the graph
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

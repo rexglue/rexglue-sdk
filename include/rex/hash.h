@@ -1,6 +1,5 @@
 /**
  * @file        hash.h
- * @brief       XXH3 hashers for unordered containers and hex digest helpers
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

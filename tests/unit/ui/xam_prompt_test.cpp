@@ -51,8 +51,8 @@ class ScriptedUI final : public rex::ui::IUserInterface {
   }
   rex::ui::IWindow* GetWindow() override { return window_; }
 
-  rex::Result<rex::ui::IWindow*> OpenWindow(const rex::ui::UIConfig& config,
-                                            rex::ui::EventCallback callback) override {
+  [[nodiscard]] rex::Result<rex::ui::IWindow*> OpenWindow(
+      const rex::ui::UIConfig& config, rex::ui::EventCallback callback) override {
     return null_.OpenWindow(config, std::move(callback));
   }
   void CloseWindow() override { null_.CloseWindow(); }
@@ -68,7 +68,8 @@ class ScriptedUI final : public rex::ui::IUserInterface {
   ImGuiStyle* GetImGuiStyle() override { return null_.GetImGuiStyle(); }
   ImGuiIO* GetImGuiIO() override { return null_.GetImGuiIO(); }
   rex::ui::Style& GetStyle() override { return null_.GetStyle(); }
-  rex::Result<void> AddOverlays(std::span<const rex::ui::OverlayDesc> table) override {
+  [[nodiscard]] rex::Result<void> AddOverlays(
+      std::span<const rex::ui::OverlayDesc> table) override {
     return null_.AddOverlays(table);
   }
   void ShowOverlay(std::string_view name, bool visible) override {
@@ -95,11 +96,11 @@ class ScriptedUI final : public rex::ui::IUserInterface {
                    std::string_view body) override {
     null_.ShowMessage(kind, title, body);
   }
-  rex::Result<rex::u32> ShowChoice(const rex::ui::ChoiceDesc& choice) override {
+  [[nodiscard]] rex::Result<rex::u32> ShowChoice(const rex::ui::ChoiceDesc& choice) override {
     return null_.ShowChoice(choice);
   }
   void CancelPrompts() override { null_.CancelPrompts(); }
-  rex::Result<std::vector<std::filesystem::path>> ShowFileDialog(
+  [[nodiscard]] rex::Result<std::vector<std::filesystem::path>> ShowFileDialog(
       const rex::ui::FileDialogDesc& file_desc) override {
     return null_.ShowFileDialog(file_desc);
   }

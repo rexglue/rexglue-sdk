@@ -39,7 +39,8 @@ Result<GuestStack> AllocateGuestStack(Memory& memory, u32 size, u32 tls_size, bo
                         kMemoryProtectNoAccess, false, &alloc_base)) {
     return Err<GuestStack>(StatusError(X_STATUS_NO_MEMORY));
   }
-  const u32 commit = kMemoryAllocationCommit | (title_memory ? u32(kMemoryAllocationTitle) : 0u);
+  const u32 commit =
+      kMemoryAllocationCommit | (title_memory ? static_cast<u32>(kMemoryAllocationTitle) : 0u);
   const u32 read_write = kMemoryProtectRead | kMemoryProtectWrite;
   if (!heap->AllocFixed(alloc_base + kGuestStackPageSize, committed_size, kGuestStackPageSize,
                         commit, read_write) ||

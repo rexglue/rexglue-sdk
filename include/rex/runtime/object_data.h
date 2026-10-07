@@ -1,6 +1,5 @@
 /**
  * @file        runtime/object_data.h
- * @brief       Object table entry data, records and transient pins
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -33,6 +32,7 @@
 #include <rex/runtime/xthread.h>
 #include <rex/runtime/xtimer.h>
 #include <rex/runtime/xtypes.h>
+#include <rex/types.h>
 
 namespace rex::runtime {
 
@@ -86,7 +86,7 @@ struct ObjectRecord {
   REX_RUNTIME_API ~ObjectRecord();
 
   /**
-   * Returns the kind of the data.
+   * Returns the data kind.
    *
    * @return The kind.
    */
@@ -103,7 +103,7 @@ struct ObjectRecord {
 };
 
 /** A transient pin on a record. Never stored. Move only. */
-class PinnedSlot {
+class PinnedSlot : public rex::MoveOnly {
  public:
   PinnedSlot() = default;
   /**
@@ -131,19 +131,17 @@ class PinnedSlot {
     }
     return *this;
   }
-  PinnedSlot(const PinnedSlot&) = delete;
-  PinnedSlot& operator=(const PinnedSlot&) = delete;
   ~PinnedSlot() { Reset(); }
 
   /**
-   * Tests whether the pin holds a record.
+   * Reports whether the pin holds a record.
    *
    * @return True when it does.
    */
   explicit operator bool() const noexcept { return record_ != nullptr; }
 
   /**
-   * Returns the kind of the pinned record.
+   * Returns the pinned record kind.
    *
    * @return The kind.
    */

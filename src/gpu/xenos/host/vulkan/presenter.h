@@ -21,6 +21,7 @@
 #include <rex/assert.h>
 #include "gpu/xenos/host/presenter.h"
 #include <rex/gpu/surface.h>
+#include <rex/types.h>
 #include "gpu/xenos/host/vulkan/device.h"
 #include "gpu/xenos/host/vulkan/instance.h"
 #include "gpu/xenos/host/vulkan/submission_tracker.h"
@@ -59,7 +60,21 @@ class VulkanOverlayDrawContext final : public gpu::OverlayDrawContext {
 };
 
 class VulkanPresenter final : public Presenter {
+  struct Key {};
+
  public:
+  explicit VulkanPresenter(Key, HostGpuLossCallback host_gpu_loss_callback,
+                           const VulkanDevice* vulkan_device, const UISamplers* ui_samplers)
+      : Presenter(std::move(host_gpu_loss_callback)),
+        vulkan_device_(vulkan_device),
+        ui_samplers_(ui_samplers),
+        guest_output_image_refresher_submission_tracker_(vulkan_device),
+        ui_submission_tracker_(vulkan_device),
+        paint_context_(vulkan_device) {
+    REX_ASSERT(vulkan_device != nullptr);
+    REX_ASSERT(ui_samplers != nullptr);
+  }
+
   // Maximum number of different guest output image versions still potentially
   // considered alive that may be given to the refresher - this many instances
   // of dependent objects (such as framebuffers) may need to be kept by the
@@ -112,8 +127,8 @@ class VulkanPresenter final : public Presenter {
   static std::unique_ptr<VulkanPresenter> Create(HostGpuLossCallback host_gpu_loss_callback,
                                                  const VulkanDevice* vulkan_device,
                                                  const UISamplers* ui_samplers) {
-    auto presenter = std::unique_ptr<VulkanPresenter>(
-        new VulkanPresenter(host_gpu_loss_callback, vulkan_device, ui_samplers));
+    auto presenter = std::make_unique<VulkanPresenter>(Key{}, std::move(host_gpu_loss_callback),
+                                                       vulkan_device, ui_samplers);
     if (!presenter->InitializeSurfaceIndependent()) {
       return nullptr;
     }
@@ -139,30 +154,36 @@ class VulkanPresenter final : public Presenter {
       bool was_paintable, bool& is_vsync_implicit_out) override;
   void DisconnectPaintingFromSurfaceFromUIThreadImpl() override;
 
-  bool RefreshGuestOutputImpl(uint32_t mailbox_index, uint32_t frontbuffer_width,
-                              uint32_t frontbuffer_height,
-                              std::function<bool(GuestOutputRefreshContext& context)> refresher,
-                              bool& is_8bpc_out_ref) override;
+  bool RefreshGuestOutputImpl(
+      uint32_t mailbox_index, uint32_t frontbuffer_width, uint32_t frontbuffer_height,
+      std::move_only_function<bool(GuestOutputRefreshContext& context)> refresher,
+      bool& is_8bpc_out_ref) override;
 
   PaintResult PaintAndPresentImpl(bool execute_ui_drawers) override;
 
  private:
-  class GuestOutputImage {
+  class GuestOutputImage : public rex::NonCopyable {
+    struct Key {};
+
    public:
+    GuestOutputImage(Key, const VulkanDevice* const vulkan_device, const uint32_t width,
+                     const uint32_t height)
+        : vulkan_device_(vulkan_device) {
+      extent_.width = width;
+      extent_.height = height;
+    }
+
     static std::unique_ptr<GuestOutputImage> Create(const VulkanDevice* const vulkan_device,
                                                     const uint32_t width, const uint32_t height) {
-      assert_not_zero(width);
-      assert_not_zero(height);
-      auto image =
-          std::unique_ptr<GuestOutputImage>(new GuestOutputImage(vulkan_device, width, height));
+      REX_ASSERT(width != 0);
+      REX_ASSERT(height != 0);
+      auto image = std::make_unique<GuestOutputImage>(Key{}, vulkan_device, width, height);
       if (!image->Initialize()) {
         return nullptr;
       }
       return std::move(image);
     }
 
-    GuestOutputImage(const GuestOutputImage& image) = delete;
-    GuestOutputImage& operator=(const GuestOutputImage& image) = delete;
     ~GuestOutputImage();
 
     const VkExtent2D& extent() const { return extent_; }
@@ -172,13 +193,6 @@ class VulkanPresenter final : public Presenter {
     VkImageView view() const { return view_; }
 
    private:
-    GuestOutputImage(const VulkanDevice* const vulkan_device, const uint32_t width,
-                     const uint32_t height)
-        : vulkan_device_(vulkan_device) {
-      extent_.width = width;
-      extent_.height = height;
-    }
-
     bool Initialize();
 
     const VulkanDevice* vulkan_device_;
@@ -238,24 +252,27 @@ class VulkanPresenter final : public Presenter {
       case GuestOutputPaintEffect::kBilinearDither:
         return kGuestOutputPaintPipelineLayoutIndexBilinear;
       default:
-        assert_unhandled_case(effect);
+        REX_UNHANDLED_CASE(effect);
         return kGuestOutputPaintPipelineLayoutCount;
     }
   }
 
-  struct PaintContext {
-    class Submission {
+  struct PaintContext : public rex::NonCopyable {
+    class Submission : public rex::NonCopyable {
+      struct Key {};
+
      public:
+      explicit Submission(Key, const VulkanDevice* const vulkan_device)
+          : vulkan_device_(vulkan_device) {}
+
       static std::unique_ptr<Submission> Create(const VulkanDevice* const vulkan_device) {
-        auto submission = std::unique_ptr<Submission>(new Submission(vulkan_device));
+        auto submission = std::make_unique<Submission>(Key{}, vulkan_device);
         if (!submission->Initialize()) {
           return nullptr;
         }
         return submission;
       }
 
-      Submission(const Submission& submission) = delete;
-      Submission& operator=(const Submission& submission) = delete;
       ~Submission();
 
       VkSemaphore acquire_semaphore() const { return acquire_semaphore_; }
@@ -264,8 +281,6 @@ class VulkanPresenter final : public Presenter {
       VkCommandBuffer draw_command_buffer() const { return draw_command_buffer_; }
 
      private:
-      explicit Submission(const VulkanDevice* const vulkan_device)
-          : vulkan_device_(vulkan_device) {}
       bool Initialize();
 
       const VulkanDevice* vulkan_device_;
@@ -315,8 +330,6 @@ class VulkanPresenter final : public Presenter {
 
     explicit PaintContext(const VulkanDevice* const vulkan_device)
         : vulkan_device(vulkan_device), submission_tracker(vulkan_device) {}
-    PaintContext(const PaintContext& paint_context) = delete;
-    PaintContext& operator=(const PaintContext& paint_context) = delete;
 
     // The old swapchain, if passed, should be assumed to be retired after this
     // call (though it may fail before the vkCreateSwapchainKHR that will
@@ -342,7 +355,7 @@ class VulkanPresenter final : public Presenter {
     std::array<std::unique_ptr<PaintContext::Submission>, kSubmissionCount> submissions;
     VulkanSubmissionTracker submission_tracker;
 
-    std::array<GuestOutputPaintPipeline, size_t(GuestOutputPaintEffect::kCount)>
+    std::array<GuestOutputPaintPipeline, static_cast<size_t>(GuestOutputPaintEffect::kCount)>
         guest_output_paint_pipelines;
 
     VkDescriptorPool guest_output_descriptor_pool = VK_NULL_HANDLE;
@@ -382,18 +395,6 @@ class VulkanPresenter final : public Presenter {
     std::vector<SwapchainFramebuffer> swapchain_framebuffers;
   };
 
-  explicit VulkanPresenter(HostGpuLossCallback host_gpu_loss_callback,
-                           const VulkanDevice* vulkan_device, const UISamplers* ui_samplers)
-      : Presenter(host_gpu_loss_callback),
-        vulkan_device_(vulkan_device),
-        ui_samplers_(ui_samplers),
-        guest_output_image_refresher_submission_tracker_(vulkan_device),
-        ui_submission_tracker_(vulkan_device),
-        paint_context_(vulkan_device) {
-    assert_not_null(vulkan_device);
-    assert_not_null(ui_samplers);
-  }
-
   bool InitializeSurfaceIndependent();
 
   [[nodiscard]] VkPipeline CreateGuestOutputPaintPipeline(GuestOutputPaintEffect effect,
@@ -409,13 +410,14 @@ class VulkanPresenter final : public Presenter {
   std::array<VkPipelineLayout, kGuestOutputPaintPipelineLayoutCount>
       guest_output_paint_pipeline_layouts_ = {};
   VkShaderModule guest_output_paint_vs_ = VK_NULL_HANDLE;
-  std::array<VkShaderModule, size_t(GuestOutputPaintEffect::kCount)> guest_output_paint_fs_ = {};
+  std::array<VkShaderModule, static_cast<size_t>(GuestOutputPaintEffect::kCount)>
+      guest_output_paint_fs_ = {};
 
   // Value monotonically increased every time a new guest output image is
   // initialized, for recreation of dependent objects such as framebuffers in
   // the refreshers - saving and comparing the handle in the refresher is not
   // enough as Create > Destroy > Create may result in the same handle for
-  // actually different objects without the refresher being aware of the
+  // different objects without the refresher being aware of the
   // destruction.
   uint64_t guest_output_image_next_version_ = 0;
   std::array<GuestOutputImageInstance, kGuestOutputMailboxSize> guest_output_images_;

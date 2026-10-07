@@ -228,7 +228,7 @@ void WriteBacktraceFrame(u32 index, u64 address) {
 
 }  // namespace detail
 
-Result<void> InstallCrashReporter(const CrashReporterOptions& options) {
+[[nodiscard]] Result<void> InstallCrashReporter(const CrashReporterOptions& options) {
   std::lock_guard lock(g_install_mutex);
   g_options = options;
   if (g_options.app_name.empty()) {

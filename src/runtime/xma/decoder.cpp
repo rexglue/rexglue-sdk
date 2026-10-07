@@ -9,6 +9,8 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <bit>
+
 #include "runtime/xma/context.h"
 #include "runtime/xma/decoder.h"
 #include <rex/cvar.h>
@@ -32,7 +34,7 @@ extern "C" {
 // structures (as opposed to the XMA* calls), meaning that we have to support
 // both.
 //
-// The XMA*() functions just manipulate the audio system in the guest context
+// The XMA*() functions manipulate the audio system in the guest context
 // and let the normal XMADecoder handling take it, to prevent duplicate
 // implementations. They can be found in xboxkrnl_audio_xma.cc
 //
@@ -41,7 +43,7 @@ extern "C" {
 // https://github.com/gdawg/fsbext/blob/master/src/xma_header.h
 //
 // XAudio2 uses XMA under the covers, and seems to map with the same
-// restrictions of frame/subframe/etc:
+// restrictions of frame and subframe:
 // https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.xaudio2.xaudio2_buffer(v=vs.85).aspx
 //
 // XMA contexts are 64b in size and tight bitfields. They are in physical
@@ -93,7 +95,7 @@ X_STATUS XMADecoder::Setup() {
   rex::AttachMMIO(rex::MMIOBlock::APU, {this, MMIOReadRegisterThunk, MMIOWriteRegisterThunk});
 
   // Setup XMA context data.
-  // The Xbox 360 kernel allocates the contexts with X_PAGE_NOCACHE |
+  // The console kernel allocates the contexts with X_PAGE_NOCACHE |
   // X_PAGE_READWRITE and writes MmGetPhysicalAddress for the address to the
   // register.
   context_data_first_ptr_ = memory()->SystemHeapAlloc(sizeof(XMA_CONTEXT_DATA) * kContextCount, 256,
@@ -107,14 +109,14 @@ X_STATUS XMADecoder::Setup() {
     uint32_t guest_ptr = context_data_first_ptr_ + i * sizeof(XMA_CONTEXT_DATA);
     XMAContext& context = contexts_[i];
     if (context.Setup(i, memory(), guest_ptr)) {
-      assert_always();
+      REX_ASSERT_ALWAYS();
     }
   }
   register_file_[XMARegister::NextContextIndex] = 1;
   context_bitmap_.Resize(kContextCount);
 
   work_event_ = rex::platform::Event::CreateAutoResetEvent(false);
-  assert_not_null(work_event_);
+  REX_ASSERT(work_event_ != nullptr);
   worker_exited_ = rex::platform::Event::CreateManualResetEvent(false);
   worker_ = rex::platform::Spawn("XMA Decoder", [this](const std::stop_token& stop) {
     WorkerThreadMain(stop);
@@ -178,11 +180,11 @@ void XMADecoder::Shutdown() {
 }
 
 int XMADecoder::GetContextId(uint32_t guest_ptr) const {
-  static_assert_size(XMA_CONTEXT_DATA, 64);
+  REX_STATIC_ASSERT_SIZE(XMA_CONTEXT_DATA, 64);
   if (guest_ptr < context_data_first_ptr_ || guest_ptr > context_data_last_ptr_) {
     return -1;
   }
-  assert_zero(guest_ptr & 0x3F);
+  REX_ASSERT((guest_ptr & 0x3F) == 0);
   return (guest_ptr - context_data_first_ptr_) >> 6;
 }
 
@@ -194,24 +196,24 @@ uint32_t XMADecoder::AllocateContext() {
   }
 
   XMAContext& context = contexts_[index];
-  assert_false(context.is_allocated());
+  REX_ASSERT(!context.is_allocated());
   context.set_is_allocated(true);
   return context.guest_ptr();
 }
 
 void XMADecoder::ReleaseContext(uint32_t guest_ptr) {
   auto context_id = GetContextId(guest_ptr);
-  assert_true(context_id >= 0);
+  REX_ASSERT(context_id >= 0);
 
   XMAContext& context = contexts_[context_id];
-  assert_true(context.is_allocated());
+  REX_ASSERT(context.is_allocated());
   context.Release();
   context_bitmap_.Release(context_id);
 }
 
 bool XMADecoder::BlockOnContext(uint32_t guest_ptr, bool poll) {
   auto context_id = GetContextId(guest_ptr);
-  assert_true(context_id >= 0);
+  REX_ASSERT(context_id >= 0);
 
   XMAContext& context = contexts_[context_id];
   return context.Block(poll);
@@ -220,7 +222,7 @@ bool XMADecoder::BlockOnContext(uint32_t guest_ptr, bool poll) {
 uint32_t XMADecoder::ReadRegister(uint32_t addr) {
   auto r = (addr & 0xFFFF) / 4;
 
-  assert_true(r < XMARegisterFile::kRegisterCount);
+  REX_ASSERT(r < XMARegisterFile::kRegisterCount);
 
   switch (r) {
     case XMARegister::ContextArrayAddress:
@@ -248,22 +250,22 @@ uint32_t XMADecoder::ReadRegister(uint32_t addr) {
       break;
   }
 
-  return rex::byte_swap(register_file_[r]);
+  return std::byteswap(register_file_[r]);
 }
 
 void XMADecoder::WriteRegister(uint32_t addr, uint32_t value) {
   REX_PROFILE_SCOPE("apu");
 
   uint32_t r = (addr & 0xFFFF) / 4;
-  value = rex::byte_swap(value);
+  value = std::byteswap(value);
 
-  assert_true(r < XMARegisterFile::kRegisterCount);
+  REX_ASSERT(r < XMARegisterFile::kRegisterCount);
   register_file_[r] = value;
 
   if (r >= XMARegister::Context0Kick && r <= XMARegister::Context9Kick) {
     // Context kick command.
     // This will kick off the given hardware contexts.
-    // Basically, this kicks the SPU and says "hey, decode that audio!"
+    // This kicks the SPU and says "hey, decode that audio!"
     // XMAEnableContext
 
     // The context ID is a bit in the range of the entire context array.

@@ -1,6 +1,5 @@
 /**
  * @file        core/filesystem/gdfx.cpp
- * @brief       GDFX disc image parser
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -71,7 +70,7 @@ class GDFXReader {
   GDFXReader(std::span<const u8> image, u64 game_offset)
       : image_(image), game_offset_(game_offset) {}
 
-  Result<void> Walk(u64 root_table, std::vector<ContainerNode>& nodes) {
+  [[nodiscard]] Result<void> Walk(u64 root_table, std::vector<ContainerNode>& nodes) {
     std::vector<Visit> stack;
     stack.push_back({.table = root_table});
     while (!stack.empty()) {
@@ -87,7 +86,7 @@ class GDFXReader {
   }
 
  private:
-  Result<void> Expand(const Visit& visit, std::vector<Visit>& stack) {
+  [[nodiscard]] Result<void> Expand(const Visit& visit, std::vector<Visit>& stack) {
     if (!visited_.insert({visit.table, visit.ordinal}).second) {
       return Err(Corrupt(
           std::format("GDFX entry {} of the table at {:#x} repeats", visit.ordinal, visit.table)));
@@ -156,7 +155,7 @@ bool IsGDFX(std::span<const u8> image) {
   return FindGameOffset(image).has_value();
 }
 
-Result<void> ParseGDFX(std::span<const u8> image, std::vector<ContainerNode>& nodes) {
+[[nodiscard]] Result<void> ParseGDFX(std::span<const u8> image, std::vector<ContainerNode>& nodes) {
   auto game_offset = FindGameOffset(image);
   if (!game_offset) {
     return Err(Corrupt("GDFX magic not found"));

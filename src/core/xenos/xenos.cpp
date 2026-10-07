@@ -78,7 +78,7 @@ f32 Float7e3To32(u32 f10) {
   u32 exponent = f10 >> 7;
   if (!exponent) {
     u32 mantissa_lzcnt = rex::lzcnt(mantissa) - (32 - 8);
-    exponent = u32(1 - i32(mantissa_lzcnt));
+    exponent = static_cast<u32>(1 - static_cast<i32>(mantissa_lzcnt));
     mantissa = (mantissa << mantissa_lzcnt) & 0x7F;
   }
   return rex::memory::Reinterpret<f32>(((exponent + 124) << 23) | (mantissa << 16));
@@ -93,7 +93,7 @@ u32 Float32To20e4(f32 value, bool round_to_nearest_even) {
     return 0xFFFFFF;
   }
   if (f32u32 < 0x38800000) {
-    u32 shift = std::min(u32(113 - (f32u32 >> 23)), u32(24));
+    u32 shift = std::min(static_cast<u32>(113 - (f32u32 >> 23)), static_cast<u32>(24));
     f32u32 = (0x800000 | (f32u32 & 0x7FFFFF)) >> shift;
   } else {
     f32u32 += 0xC8000000u;
@@ -113,7 +113,7 @@ f32 Float20e4To32(u32 f24) {
   u32 exponent = f24 >> 20;
   if (!exponent) {
     u32 mantissa_lzcnt = rex::lzcnt(mantissa) - (32 - 21);
-    exponent = u32(1 - i32(mantissa_lzcnt));
+    exponent = static_cast<u32>(1 - static_cast<i32>(mantissa_lzcnt));
     mantissa = (mantissa << mantissa_lzcnt) & 0xFFFFF;
   }
   return rex::memory::Reinterpret<f32>(((exponent + 112) << 23) | (mantissa << 3));

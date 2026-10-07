@@ -273,7 +273,7 @@ std::pair<CodepointIterator, CodepointIterator> MakeIterators(const CodepointIte
 }
 
 size_t ByteLength(CodepointIterator begin, CodepointIterator end) {
-  return size_t(std::distance(begin.Base(), end.Base()));
+  return static_cast<size_t>(std::distance(begin.Base(), end.Base()));
 }
 }  // namespace
 
@@ -319,10 +319,10 @@ inline size_t HashFNV1a(const std::string_view view) {
     } else {
       c = *it;
     }
-    hash = work(hash, u8((c >> 0) & 0xFF));
-    hash = work(hash, u8((c >> 8) & 0xFF));
-    hash = work(hash, u8((c >> 16) & 0xFF));
-    hash = work(hash, u8((c >> 24) & 0xFF));
+    hash = work(hash, static_cast<u8>((c >> 0) & 0xFF));
+    hash = work(hash, static_cast<u8>((c >> 8) & 0xFF));
+    hash = work(hash, static_cast<u8>((c >> 16) & 0xFF));
+    hash = work(hash, static_cast<u8>((c >> 24) & 0xFF));
   }
   return hash;
 }
@@ -565,7 +565,7 @@ bool StartsWithCodePoint(const std::string_view haystack, char32_t needle) {
     return false;
   }
   auto [it, end] = MakeIterators(haystack);
-  return *it == u32(needle);
+  return *it == static_cast<u32>(needle);
 }
 }  // namespace
 
@@ -730,7 +730,7 @@ std::string utf8_fix_path_separators(const std::string_view path, char32_t new_s
   auto last = it;
 
   auto is_separator = [old_separator, new_separator](char32_t c) {
-    return c == u32(old_separator) || c == u32(new_separator);
+    return c == static_cast<u32>(old_separator) || c == static_cast<u32>(new_separator);
   };
 
   if (is_separator(*it)) {
@@ -778,7 +778,7 @@ std::string utf8_find_name_from_path(const std::string_view path, char32_t separ
   auto it = end;
   --it;
 
-  while (*it == u32(separator)) {
+  while (*it == static_cast<u32>(separator)) {
     if (it == begin) {
       return std::string();
     }
@@ -787,14 +787,14 @@ std::string utf8_find_name_from_path(const std::string_view path, char32_t separ
 
   end = std::next(it);
 
-  while (*it != u32(separator)) {
+  while (*it != static_cast<u32>(separator)) {
     if (it == begin) {
       break;
     }
     --it;
   }
 
-  if (*it == u32(separator)) {
+  if (*it == static_cast<u32>(separator)) {
     ++it;
   }
 
@@ -815,7 +815,7 @@ std::string utf8_find_base_name_from_path(const std::string_view path, char32_t 
   --it;
 
   while (it != begin) {
-    if (*it == u32('.')) {
+    if (*it == static_cast<u32>('.')) {
       break;
     }
     --it;
@@ -840,14 +840,14 @@ std::string utf8_find_base_path(const std::string_view path, char32_t separator)
   auto it = end;
   --it;
 
-  while (*it == u32(separator)) {
+  while (*it == static_cast<u32>(separator)) {
     if (it == begin) {
       return std::string();
     }
     --it;
   }
 
-  while (*it != u32(separator)) {
+  while (*it != static_cast<u32>(separator)) {
     if (it == begin) {
       return std::string();
     }
@@ -856,7 +856,7 @@ std::string utf8_find_base_path(const std::string_view path, char32_t separator)
 
   auto sep_pos = it;
 
-  while (*it == u32(separator)) {
+  while (*it == static_cast<u32>(separator)) {
     if (it == begin) {
       return std::string();
     }
@@ -864,7 +864,7 @@ std::string utf8_find_base_path(const std::string_view path, char32_t separator)
   }
 
   // A drive letter such as "D:" keeps its root separator.
-  if (*it == u32(':')) {
+  if (*it == static_cast<u32>(':')) {
     auto length = ByteLength(begin, std::next(sep_pos));
     return std::string(path.substr(0, length));
   }

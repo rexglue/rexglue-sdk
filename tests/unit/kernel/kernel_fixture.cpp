@@ -115,7 +115,7 @@ u32 Caller::Alloc(u32 size) {
 }
 
 u32 Caller::Load32(u32 address) const {
-  return memory::load_and_swap<u32>(runtime_.memory()->TranslateVirtual(address));
+  return *runtime_.memory()->TranslateVirtual<const be_u32*>(address);
 }
 
 u8 Caller::Load8(u32 address) const {
@@ -123,7 +123,7 @@ u8 Caller::Load8(u32 address) const {
 }
 
 void Caller::Store32(u32 address, u32 value) {
-  memory::store_and_swap<u32>(runtime_.memory()->TranslateVirtual(address), value);
+  *runtime_.memory()->TranslateVirtual<be_u32*>(address) = value;
 }
 
 u32 Caller::String(std::string_view text) {
@@ -133,7 +133,7 @@ u32 Caller::String(std::string_view text) {
 }
 
 void Caller::Store64(u32 address, u64 value) {
-  memory::store_and_swap<u64>(runtime_.memory()->TranslateVirtual(address), value);
+  *runtime_.memory()->TranslateVirtual<be_u64*>(address) = value;
 }
 
 u32 Caller::Quad(i64 value) {

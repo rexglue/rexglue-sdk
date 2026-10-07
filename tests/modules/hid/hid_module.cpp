@@ -29,11 +29,11 @@ class HIDModule final : public rex::IModule {
 
   const char* Name() const override { return "rexmod-test-hid"; }
   std::span<const char* const> RequiredInterfaces() const override { return {}; }
-  rex::Result<void> Connect(rex::IInterfaceFactory*, const rex::Config&) override {
+  [[nodiscard]] rex::Result<void> Connect(rex::IInterfaceFactory*, const rex::Config&) override {
     return rex::Ok();
   }
   void Disconnect() override {}
-  rex::Result<void> Init() override { return rex::Ok(); }
+  [[nodiscard]] rex::Result<void> Init() override { return rex::Ok(); }
   void Shutdown() override {}
 
  private:

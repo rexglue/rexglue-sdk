@@ -33,7 +33,7 @@ namespace rex::runtime {
 constexpr memory::fourcc_t kXObjSignature = memory::make_fourcc('R', 'E', 'X', '\0');
 
 // https://www.nirsoft.net/kernel_struct/vista/DISPATCHER_HEADER.html
-typedef struct {
+struct X_DISPATCH_HEADER {
   struct {
     uint8_t type;
 
@@ -55,57 +55,57 @@ typedef struct {
     };
   };
 
-  rex::be<uint32_t> signal_state;
-  rex::be<uint32_t> wait_list_flink;
-  rex::be<uint32_t> wait_list_blink;
-} X_DISPATCH_HEADER;
-static_assert_size(X_DISPATCH_HEADER, 0x10);
+  be_u32 signal_state;
+  be_u32 wait_list_flink;
+  be_u32 wait_list_blink;
+};
+REX_STATIC_ASSERT_SIZE(X_DISPATCH_HEADER, 0x10);
 
 // https://www.nirsoft.net/kernel_struct/vista/OBJECT_HEADER.html
 struct X_OBJECT_HEADER {
-  rex::be<uint32_t> pointer_count;
+  be_u32 pointer_count;
   union {
-    rex::be<uint32_t> handle_count;
-    rex::be<uint32_t> next_to_free;
+    be_u32 handle_count;
+    be_u32 next_to_free;
   };
   uint8_t name_info_offset;
   uint8_t handle_info_offset;
   uint8_t quota_info_offset;
   uint8_t flags;
   union {
-    rex::be<uint32_t> object_create_info;  // X_OBJECT_CREATE_INFORMATION
-    rex::be<uint32_t> quota_block_charged;
+    be_u32 object_create_info;  // X_OBJECT_CREATE_INFORMATION
+    be_u32 quota_block_charged;
   };
-  rex::be<uint32_t> object_type_ptr;  // -0x8 POBJECT_TYPE
-  rex::be<uint32_t> unk_04;           // -0x4
+  be_u32 object_type_ptr;  // -0x8 POBJECT_TYPE
+  be_u32 unk_04;           // -0x4
 
-  // Object lives after this header.
-  // (There's actually a body field here which is the object itself)
+  // Object resides after this header.
+  // (There's a body field here which is the object itself)
 };
 
 // https://www.nirsoft.net/kernel_struct/vista/OBJECT_CREATE_INFORMATION.html
 struct X_OBJECT_CREATE_INFORMATION {
-  rex::be<uint32_t> attributes;                  // 0x0
-  rex::be<uint32_t> root_directory_ptr;          // 0x4
-  rex::be<uint32_t> parse_context_ptr;           // 0x8
-  rex::be<uint32_t> probe_mode;                  // 0xC
-  rex::be<uint32_t> paged_pool_charge;           // 0x10
-  rex::be<uint32_t> non_paged_pool_charge;       // 0x14
-  rex::be<uint32_t> security_descriptor_charge;  // 0x18
-  rex::be<uint32_t> security_descriptor;         // 0x1C
-  rex::be<uint32_t> security_qos_ptr;            // 0x20
+  be_u32 attributes;                  // 0x0
+  be_u32 root_directory_ptr;          // 0x4
+  be_u32 parse_context_ptr;           // 0x8
+  be_u32 probe_mode;                  // 0xC
+  be_u32 paged_pool_charge;           // 0x10
+  be_u32 non_paged_pool_charge;       // 0x14
+  be_u32 security_descriptor_charge;  // 0x18
+  be_u32 security_descriptor;         // 0x1C
+  be_u32 security_qos_ptr;            // 0x20
 
   // Security QoS here (SECURITY_QUALITY_OF_SERVICE) too!
 };
 
 struct X_OBJECT_TYPE {
-  rex::be<uint32_t> constructor;  // 0x0
-  rex::be<uint32_t> destructor;   // 0x4
-  rex::be<uint32_t> unk_08;       // 0x8
-  rex::be<uint32_t> unk_0C;       // 0xC
-  rex::be<uint32_t> unk_10;       // 0x10
-  rex::be<uint32_t> unk_14;       // 0x14 probably offset from ntobject to keobject
-  rex::be<uint32_t> pool_tag;     // 0x18
+  be_u32 constructor;  // 0x0
+  be_u32 destructor;   // 0x4
+  be_u32 unk_08;       // 0x8
+  be_u32 unk_0C;       // 0xC
+  be_u32 unk_10;       // 0x10
+  be_u32 unk_14;       // 0x14 probably offset from ntobject to keobject
+  be_u32 pool_tag;     // 0x18
 };
 
 /** Kinds of kernel object a handle can name. */

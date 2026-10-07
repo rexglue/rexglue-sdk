@@ -1,6 +1,5 @@
 /**
  * @file        cvar.h
- * @brief       Cvar declaration types, the REXCVAR_ macros and the values that reach Init
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -142,7 +141,7 @@ class IVar {
   /**
    * Returns the default as text.
    *
-   * @return The default text, from storage that lives as long as the var.
+   * @return The default text, from storage that lasts as long as the var.
    */
   virtual std::string_view DefaultText() const = 0;
   /**
@@ -183,7 +182,7 @@ class IVar {
 class detail_access {
  public:
   /**
-   * Records the registry that holds a var.
+   * Stores the registry that holds a var.
    *
    * @param var The var.
    * @param registry The registry, or null.
@@ -414,7 +413,7 @@ class Var final : public IVar {
    */
   T get() const;
   /**
-   * Sets through the registry with source Runtime.
+   * Sets the cvar.
    *
    * @param value The new value.
    * @return Ok, NotFound when the var is not registered, otherwise as ICvarRegistry::Set.
@@ -576,8 +575,8 @@ inline bool IsSet(const IVar& var) {
 }
 
 /**
- * Reads every REX_<SCOPE>_<LEAF> environment variable into config.cvars.values with source
- * Environment. The first underscore separates the scope from the leaf.
+ * Reads every REX_<SCOPE>_<LEAF> environment variable into config.cvars.values. The first
+ * underscore separates the scope from the leaf.
  *
  * @param config The configuration to fill.
  */
@@ -682,7 +681,7 @@ struct CvarOverride {
   std::string name;
   /** The value as text. */
   std::string value;
-  /** Source the registry records for the value. */
+  /** Source the registry stores for the value. */
   cvar::CvarSource source = cvar::CvarSource::CommandLine;
 };
 
@@ -925,7 +924,7 @@ struct CvarConfig {
  */
 #define REXCVAR_GET(name) ((name).get())
 /**
- * Sets a cvar through the registry with source Runtime.
+ * Sets a cvar.
  *
  * @param name The cvar variable.
  * @param value The new value.

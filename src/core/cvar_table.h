@@ -1,6 +1,5 @@
 /**
  * @file        core/cvar_table.h
- * @brief       core module cvars
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

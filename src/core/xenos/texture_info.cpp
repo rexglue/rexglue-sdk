@@ -36,7 +36,7 @@ bool TextureInfo::Prepare(const TextureFetch& fetch, TextureInfo* out_info) {
     case xenos::DataDimension::k1D:
       info.dimension = DataDimension::k2DOrStacked;
       info.width = fetch.size_1d.width;
-      assert_true(!fetch.stacked);
+      REX_ASSERT(!fetch.stacked);
       break;
     case xenos::DataDimension::k2DOrStacked:
       info.width = fetch.size_2d.width;
@@ -50,23 +50,24 @@ bool TextureInfo::Prepare(const TextureFetch& fetch, TextureInfo* out_info) {
       info.width = fetch.size_3d.width;
       info.height = fetch.size_3d.height;
       info.depth = fetch.size_3d.depth;
-      assert_true(!fetch.stacked);
+      REX_ASSERT(!fetch.stacked);
       break;
     case xenos::DataDimension::kCube:
       info.width = fetch.size_2d.width;
       info.height = fetch.size_2d.height;
-      assert_true(fetch.size_2d.stack_depth == 5);
+      REX_ASSERT(fetch.size_2d.stack_depth == 5);
       info.depth = fetch.size_2d.stack_depth;
-      assert_true(!fetch.stacked);
+      REX_ASSERT(!fetch.stacked);
       break;
     default:
-      assert_unhandled_case(info.dimension);
+      REX_UNHANDLED_CASE(info.dimension);
       break;
   }
   info.pitch = fetch.pitch << 5;
 
   info.mip_min_level = fetch.mip_min_level;
-  info.mip_max_level = std::max(u32(fetch.mip_min_level), u32(fetch.mip_max_level));
+  info.mip_max_level =
+      std::max(static_cast<u32>(fetch.mip_min_level), static_cast<u32>(fetch.mip_max_level));
 
   info.is_tiled = fetch.tiled;
   info.has_packed_mips = fetch.packed_mips;
@@ -78,7 +79,7 @@ bool TextureInfo::Prepare(const TextureFetch& fetch, TextureInfo* out_info) {
     info.mip_max_level = 0;
   }
 
-  assert_true(info.mip_min_level <= info.mip_max_level);
+  REX_ASSERT(info.mip_min_level <= info.mip_max_level);
 
   return true;
 }
@@ -86,8 +87,8 @@ bool TextureInfo::Prepare(const TextureFetch& fetch, TextureInfo* out_info) {
 bool TextureInfo::PrepareResolve(u32 physical_address, xenos::TextureFormat format,
                                  xenos::Endian endian, u32 pitch, u32 width, u32 height, u32 depth,
                                  TextureInfo* out_info) {
-  assert_true(width > 0);
-  assert_true(height > 0);
+  REX_ASSERT(width > 0);
+  REX_ASSERT(height > 0);
 
   std::memset(out_info, 0, sizeof(TextureInfo));
 
@@ -133,8 +134,8 @@ const TextureExtent TextureInfo::GetMipExtent(u32 mip, bool is_guest) const {
 }
 
 void TextureInfo::GetMipSize(u32 mip, u32* out_width, u32* out_height) const {
-  assert_not_null(out_width);
-  assert_not_null(out_height);
+  REX_ASSERT(out_width != nullptr);
+  REX_ASSERT(out_height != nullptr);
   if (mip == 0) {
     *out_width = width + 1;
     *out_height = height + 1;
@@ -271,7 +272,7 @@ void TextureInfo::SetupMemoryInfo(u32 base_address, u32 mip_address) {
       mip_address = base_address;
       base_address = 0;
     } else if (base_address || !mip_address) {
-      assert_always();
+      REX_ASSERT_ALWAYS();
     }
   }
 

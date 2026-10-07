@@ -76,21 +76,21 @@ class FakePad final : public rex::hid::Driver {
     info.id = static_cast<rex::hid::DeviceId>(7);
     out.push_back(info);
   }
-  rex::Result<rex::hid::X_INPUT_STATE> GetDeviceState(rex::hid::DeviceId) override {
+  [[nodiscard]] rex::Result<rex::hid::X_INPUT_STATE> GetDeviceState(rex::hid::DeviceId) override {
     rex::hid::X_INPUT_STATE state{};
     state.gamepad.buttons = buttons;
     return state;
   }
-  rex::Result<rex::hid::X_INPUT_CAPABILITIES> GetDeviceCapabilities(rex::hid::DeviceId,
-                                                                    rex::u32) override {
+  [[nodiscard]] rex::Result<rex::hid::X_INPUT_CAPABILITIES> GetDeviceCapabilities(
+      rex::hid::DeviceId, rex::u32) override {
     return rex::hid::X_INPUT_CAPABILITIES{};
   }
-  rex::Result<void> SetDeviceVibration(rex::hid::DeviceId,
-                                       const rex::hid::X_INPUT_VIBRATION&) override {
+  [[nodiscard]] rex::Result<void> SetDeviceVibration(rex::hid::DeviceId,
+                                                     const rex::hid::X_INPUT_VIBRATION&) override {
     return rex::Ok();
   }
-  rex::Result<rex::hid::X_INPUT_KEYSTROKE> GetDeviceKeystroke(rex::hid::DeviceId,
-                                                              rex::u32) override {
+  [[nodiscard]] rex::Result<rex::hid::X_INPUT_KEYSTROKE> GetDeviceKeystroke(rex::hid::DeviceId,
+                                                                            rex::u32) override {
     return std::unexpected(rex::hid::MakeError(rex::hid::Error::Empty, "none"));
   }
   rex::u16 buttons = 0;
@@ -342,9 +342,9 @@ TEST_CASE("Keyboard pad binds fire only with their exact modifiers and follow cv
   pad.EnumerateDevices(devices);
   REQUIRE(devices.size() == 1);
   const auto id = devices[0].id;
-  const auto dpad_up = static_cast<rex::u16>(VirtualKey::kXInputPadDpadUp);
-  const auto rstick_up = static_cast<rex::u16>(VirtualKey::kXInputPadRThumbUp);
-  const auto pad_x = static_cast<rex::u16>(VirtualKey::kXInputPadX);
+  const auto dpad_up = std::to_underlying(VirtualKey::kXInputPadDpadUp);
+  const auto rstick_up = std::to_underlying(VirtualKey::kXInputPadRThumbUp);
+  const auto pad_x = std::to_underlying(VirtualKey::kXInputPadX);
 
   pad.OnEvent(Key(Kind::KeyDown, VirtualKey::kShift));
   pad.OnEvent(Key(Kind::KeyDown, VirtualKey::kUp));

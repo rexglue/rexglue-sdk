@@ -1,6 +1,5 @@
 /**
  * @file        runtime/dispatcher.h
- * @brief       The dispatcher of a runtime and its dispatch thread
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -86,7 +85,7 @@ class REX_RUNTIME_API Dispatcher final : public IDispatcher {
    *
    * @param work The function the dispatch thread runs.
    */
-  void Post(std::function<void()> work);
+  void Post(std::move_only_function<void()> work);
 
   /** Drains the DPC queue on the dispatch thread, standing in for the clock interrupt. */
   void PostDrain();
@@ -118,7 +117,7 @@ class REX_RUNTIME_API Dispatcher final : public IDispatcher {
 
   /**
    * Disarms the KTIMER expiries, stops the dispatch thread, terminates it when it outlives the
-   * timeout and closes its handle. The DPC stack lives until the dispatcher is destroyed.
+   * timeout and closes its handle. The DPC stack stays allocated until the dispatcher is destroyed.
    *
    * @param timeout How long to wait for the thread to finish its current work.
    */
@@ -151,7 +150,7 @@ class REX_RUNTIME_API Dispatcher final : public IDispatcher {
   rex::platform::RankedMutex dpc_mutex_{rex::platform::LockRank::Leaf};
   rex::platform::RankedMutex dispatch_mutex_{rex::platform::LockRank::Leaf};
   std::condition_variable_any dispatch_cond_;
-  std::list<std::function<void()>> dispatch_queue_;
+  std::list<std::move_only_function<void()>> dispatch_queue_;
   std::atomic<bool> dispatch_thread_running_{false};
   X_HANDLE dispatch_thread_ = 0;
   rex::platform::RankedMutex expiry_mutex_{rex::platform::LockRank::Leaf};

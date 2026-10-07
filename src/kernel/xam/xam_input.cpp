@@ -51,7 +51,7 @@ u32 XamEnableInactivityProcessing_entry(u32 unk, u32 enable) {
 // https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetcapabilities(v=vs.85).aspx
 u32 XamInputGetCapabilities_entry(u32 user_index, u32 flags, ppc_ptr_t<X_INPUT_CAPABILITIES> caps) {
   REXLOG_TRACE(kernel, "XAM XamInputGetCapabilities called: user={}, flags=0x{:X}",
-               (uint32_t)user_index, (uint32_t)flags);
+               static_cast<uint32_t>(user_index), static_cast<uint32_t>(flags));
   if (!caps) {
     return X_ERROR_BAD_ARGUMENTS;
   }
@@ -108,8 +108,8 @@ u32 XamInputGetState_entry(u32 user_index, u32 flags, ppc_ptr_t<X_INPUT_STATE> i
   // Games call this with a NULL state ptr, probably as a query.
   static int call_count = 0;
   if (++call_count <= 5) {
-    REXLOG_TRACE(kernel, "XAM XamInputGetState called: user={}, flags=0x{:X}", (uint32_t)user_index,
-                 (uint32_t)flags);
+    REXLOG_TRACE(kernel, "XAM XamInputGetState called: user={}, flags=0x{:X}",
+                 static_cast<uint32_t>(user_index), static_cast<uint32_t>(flags));
   }
 
   if ((flags & 0xFF) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
@@ -181,7 +181,7 @@ u32 XamInputGetKeystroke_entry(u32 user_index, u32 flags, ppc_ptr_t<X_INPUT_KEYS
   return X_ERROR_SUCCESS;
 }
 
-// Same as non-ex, just takes a pointer to user index.
+// Same as non-ex, but takes a pointer to user index.
 u32 XamInputGetKeystrokeEx_entry(mapped_u32 user_index_ptr, u32 flags,
                                  ppc_ptr_t<X_INPUT_KEYSTROKE> keystroke) {
   if (!keystroke) {
@@ -212,7 +212,7 @@ u32 XamInputGetKeystrokeEx_entry(mapped_u32 user_index_ptr, u32 flags,
 i32 XamUserGetDeviceContext_entry(u32 user_index, u32 unk, mapped_u32 out_ptr) {
   // Games check the result - usually with some masking.
   // If this function fails they assume zero, so let's fail AND
-  // set zero just to be safe.
+  // set zero to be safe.
   *out_ptr = 0;
   if (!user_index || (user_index & 0xFF) == 0xFF) {
     return X_E_SUCCESS;

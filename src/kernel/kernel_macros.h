@@ -78,7 +78,7 @@
     auto& rex_runtime_ = ::rex::runtime::Current();                                             \
     auto rex_attrs_ =                                                                           \
         rex_runtime_.memory()->TranslateVirtual<X_OBJECT_ATTRIBUTES*>((ATTRS).guest_address()); \
-    assert_true(rex_attrs_->name_ptr != 0);                                                     \
+    REX_ASSERT(rex_attrs_->name_ptr != 0);                                                      \
     auto rex_name_ =                                                                            \
         util::TranslateAnsiStringAddress(rex_runtime_.memory(), rex_attrs_->name_ptr);          \
     auto& rex_table_ = rex_runtime_.object_table();                                             \

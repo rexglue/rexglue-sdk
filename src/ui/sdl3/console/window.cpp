@@ -48,7 +48,7 @@ class ConsoleWindow::Listener final : public WindowListener {
   ConsoleHost& host_;
 };
 
-ConsoleWindow::ConsoleWindow() = default;
+ConsoleWindow::ConsoleWindow(Key) {}
 
 ConsoleWindow::~ConsoleWindow() {
   dialog_.reset();
@@ -69,7 +69,7 @@ Result<std::unique_ptr<ConsoleWindow>> ConsoleWindow::Create(
     WindowedAppContext& context, gpu::IBackend& backend, const ImGuiStyle& imgui_style,
     const Style& style, ConsoleModel& model, ConsoleHost& host) {
   using Created = std::unique_ptr<ConsoleWindow>;
-  Created console(new ConsoleWindow());
+  Created console = std::make_unique<ConsoleWindow>(Key{});
   console->window_ = Window::Create(context, "Console");
   if (!console->window_) {
     return Err<Created>(ErrorCategory::Runtime, "console window creation failed");

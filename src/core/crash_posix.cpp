@@ -267,7 +267,7 @@ void LogBacktrace() {
   }
 }
 
-Result<void> InstallPlatform() {
+[[nodiscard]] Result<void> InstallPlatform() {
   for (size_t i = 0; i < kReporterSignals.size(); ++i) {
     struct sigaction current{};
     if (sigaction(kReporterSignals[i], nullptr, &current) != 0) {

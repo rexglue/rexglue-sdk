@@ -1,6 +1,5 @@
 /**
  * @file        runtime/module_registry.h
- * @brief       The module registry interface
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -116,7 +115,7 @@ class IModuleRegistry {
   [[nodiscard]] virtual Result<X_HANDLE> LoadKernelModule(X_HANDLE created) = 0;
 
   /**
-   * Records the recompiled library that serves a title module path. Generated code calls it.
+   * Registers the recompiled library that serves a title module path. Generated code calls it.
    *
    * @param pe_name The PE name of the module.
    * @param guest_path The guest path of the module.

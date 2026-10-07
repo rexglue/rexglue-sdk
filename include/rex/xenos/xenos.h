@@ -35,7 +35,7 @@ enum class ShaderType : u32 {
 /** Number of low vertex index bits the GPU uses. */
 constexpr u32 kVertexIndexBits = 24;
 /** Mask of the vertex index bits the GPU uses. */
-constexpr u32 kVertexIndexMask = (u32(1) << kVertexIndexBits) - 1;
+constexpr u32 kVertexIndexMask = (static_cast<u32>(1) << kVertexIndexBits) - 1;
 
 /**
  * Primitive type of a draw.
@@ -101,7 +101,7 @@ constexpr bool ClampModeUsesBorder(ClampMode clamp_mode) {
   return clamp_mode == ClampMode::kClampToBorder || clamp_mode == ClampMode::kMirrorClampToBorder;
 }
 
-/** Texture component signedness (TEX_FORMAT_COMP, GPUSIGN on the Xbox 360). */
+/** Texture component signedness (TEX_FORMAT_COMP, GPUSIGN on Xenos). */
 enum class TextureSign : u32 {
   kUnsigned = 0,       /**< Unsigned data. */
   kSigned = 1,         /**< Two's complement data. */
@@ -160,7 +160,7 @@ inline int GetFetchOpDimensionComponentCount(FetchOpDimension dimension) {
     case FetchOpDimension::kCube:
       return 3;
     default:
-      assert_unhandled_case(dimension);
+      REX_UNHANDLED_CASE(dimension);
       return 1;
   }
 }
@@ -279,7 +279,7 @@ inline u32 GetColorRenderTargetFormatComponentCount(ColorRenderTargetFormat form
     case ColorRenderTargetFormat::k_32_FLOAT:
       return 1;
     default:
-      assert_unhandled_case(format);
+      REX_UNHANDLED_CASE(format);
       return 0;
   }
 }
@@ -363,7 +363,7 @@ REX_API f32 Float20e4To32(u32 f24);
  * @return Converted value.
  */
 constexpr f32 UNorm24To32(u32 n24) {
-  return f32(n24 + (n24 >> 23)) * (1.0f / f32(1 << 24));
+  return static_cast<f32>(n24 + (n24 >> 23)) * (1.0f / static_cast<f32>(1 << 24));
 }
 
 /**
@@ -599,7 +599,7 @@ inline int GetVertexFormatComponentCount(VertexFormat format) {
     case VertexFormat::k_32_32_32_32_FLOAT:
       return 4;
     default:
-      assert_unhandled_case(format);
+      REX_UNHANDLED_CASE(format);
       return 0;
   }
 }
@@ -612,7 +612,7 @@ inline int GetVertexFormatComponentCount(VertexFormat format) {
  * @return Mask of needed words in bits 0:3.
  */
 inline u32 GetVertexFormatNeededWords(VertexFormat format, u32 used_components) {
-  assert_zero(used_components & ~u32(0b1111));
+  REX_ASSERT((used_components & ~static_cast<u32>(0b1111)) == 0);
   if (!used_components) {
     return 0;
   }
@@ -642,7 +642,7 @@ inline u32 GetVertexFormatNeededWords(VertexFormat format, u32 used_components) 
     case VertexFormat::k_32_32_32_FLOAT:
       return used_components & 0b0111;
     default:
-      assert_unhandled_case(format);
+      REX_UNHANDLED_CASE(format);
       return 0b0000;
   }
 }
@@ -785,12 +785,12 @@ enum class SampleControl : u32 {
 inline u32 GetInterpolatorSamplingPattern(MSAASamples msaa_samples, SampleControl sample_control,
                                           u32 interpolator_control_sampling_pattern) {
   if (msaa_samples == MSAASamples::k1X || sample_control == SampleControl::kCentersOnly) {
-    return ((1 << kMaxInterpolators) - 1) * u32(SampleLocation::kCenter);
+    return ((1 << kMaxInterpolators) - 1) * std::to_underlying(SampleLocation::kCenter);
   }
   if (sample_control == SampleControl::kCentroidsOnly) {
-    return ((1 << kMaxInterpolators) - 1) * u32(SampleLocation::kCentroid);
+    return ((1 << kMaxInterpolators) - 1) * std::to_underlying(SampleLocation::kCentroid);
   }
-  assert_true(sample_control == SampleControl::kCentroidsAndCenters);
+  REX_ASSERT(sample_control == SampleControl::kCentroidsAndCenters);
   return interpolator_control_sampling_pattern;
 }
 
@@ -949,7 +949,7 @@ inline u16 GPUSwap(u16 value, Endian endianness) {
     case Endian::k8in16:
       return ((value << 8) & 0xFF00FF00) | ((value >> 8) & 0x00FF00FF);
     default:
-      assert_unhandled_case(endianness);
+      REX_UNHANDLED_CASE(endianness);
       return value;
   }
 }
@@ -969,7 +969,7 @@ inline u32 GPUSwap(u32 value, Endian endianness) {
     case Endian::k8in16:
       return ((value << 8) & 0xFF00FF00) | ((value >> 8) & 0x00FF00FF);
     case Endian::k8in32:
-      return rex::byte_swap(value);
+      return std::byteswap(value);
     case Endian::k16in32:
       return ((value >> 16) & 0xFFFF) | (value << 16);
   }
@@ -1022,7 +1022,7 @@ union alignas(u32) LoopConstant {
     u32 _pad_24 : 8; /**< Bit 24, padding. */
   };
 };
-static_assert_size(LoopConstant, sizeof(u32));
+REX_STATIC_ASSERT_SIZE(LoopConstant, sizeof(u32));
 
 /** Fetch constant type (SQ_TEX_VTX_INVALID/VALID_TEXTURE/BUFFER). */
 enum class FetchConstantType : u32 {
@@ -1052,7 +1052,7 @@ union alignas(u32) VertexFetch {
     u32 _pad_1_26 : 6; /**< Dword 1 bit 26, padding. */
   };
 };
-static_assert_size(VertexFetch, sizeof(u32) * 2);
+REX_STATIC_ASSERT_SIZE(VertexFetch, sizeof(u32) * 2);
 
 /** Log2 of the byte alignment of texture subresources, also omitted from base and mip addresses. */
 constexpr u32 kTextureSubresourceAlignmentBytesLog2 = 12;
@@ -1104,7 +1104,7 @@ constexpr u32 kTextureTileDepth = 1 << kTextureTileDepthLog2;
  * @return Log2 of the X period in blocks.
  */
 constexpr u32 GetTextureTiledXBaseGranularityLog2(bool is_3d, u32 bytes_per_block_log2) {
-  return 7 - std::min(UINT32_C(2), bytes_per_block_log2 + u32(is_3d));
+  return 7 - std::min(UINT32_C(2), bytes_per_block_log2 + static_cast<u32>(is_3d));
 }
 
 /**
@@ -1208,7 +1208,7 @@ union alignas(u32) TextureFetch {
     u32 mip_address : 20;         /**< Dword 5 bit 12, mip address >> 12. */
   };
 };
-static_assert_size(TextureFetch, sizeof(u32) * 6);
+REX_STATIC_ASSERT_SIZE(TextureFetch, sizeof(u32) * 6);
 
 /** Group of 6 fetch constant dwords, as 1 texture fetch or 3 vertex fetches. */
 union alignas(u32) FetchGroup {
@@ -1238,7 +1238,7 @@ union alignas(u32) FetchGroup {
     u32 data_2_b : 32; /**< Dword 5. */
   };
 };
-static_assert_size(FetchGroup, sizeof(u32) * 6);
+REX_STATIC_ASSERT_SIZE(FetchGroup, sizeof(u32) * 6);
 
 /**
  * Memory export stream constant.
@@ -1279,7 +1279,7 @@ union alignas(u32) MemExportStream {
     u32 const_0x96 : 9;   /**< Dword 3 bit 23, exponent 23. */
   };
 };
-static_assert_size(MemExportStream, sizeof(u32) * 4);
+REX_STATIC_ASSERT_SIZE(MemExportStream, sizeof(u32) * 4);
 
 /**
  * Depth sample counters written by the GPU.
@@ -1297,7 +1297,7 @@ struct alignas(u32) DepthSampleCounts {
   le<u32> StencilFail_A; /**< Stencil test failures, half A. */
   le<u32> StencilFail_B; /**< Stencil test failures, half B. */
 };
-static_assert_size(DepthSampleCounts, sizeof(u32) * 8);
+REX_STATIC_ASSERT_SIZE(DepthSampleCounts, sizeof(u32) * 8);
 
 /** Event values for VGT_EVENT_INITIATOR. */
 enum Event {
@@ -1457,7 +1457,7 @@ inline u16 FloatToHalf(f32 value, bool preserve_denormal = false,
   } else {
     if (abs_value < 0x38800000u) {
       if (preserve_denormal) {
-        u32 shift = std::min(u32(113u - (abs_value >> 23u)), u32(24u));
+        u32 shift = std::min(static_cast<u32>(113u - (abs_value >> 23u)), static_cast<u32>(24u));
         result = (0x800000u | (abs_value & 0x7FFFFFu)) >> shift;
       } else {
         result = 0u;
@@ -1470,7 +1470,7 @@ inline u16 FloatToHalf(f32 value, bool preserve_denormal = false,
     }
     result = (result >> 13u) & 0x7FFFu;
   }
-  return u16(result | ((integer_value & 0x80000000u) >> 16u));
+  return static_cast<u16>(result | ((integer_value & 0x80000000u) >> 16u));
 }
 
 /**
@@ -1487,15 +1487,16 @@ inline f32 HalfToFloat(u16 value, bool preserve_denormal = false) {
     if (!preserve_denormal) {
       mantissa = 0;
     } else if (mantissa) {
-      u32 mantissa_lzcnt = u32(std::countl_zero(mantissa)) - (32u - 11u);
-      exponent = u32(1 - i32(mantissa_lzcnt));
+      u32 mantissa_lzcnt = static_cast<u32>(std::countl_zero(mantissa)) - (32u - 11u);
+      exponent = static_cast<u32>(1 - static_cast<i32>(mantissa_lzcnt));
       mantissa = (mantissa << mantissa_lzcnt) & 0x3FFu;
     }
     if (!mantissa) {
-      exponent = u32(-112);
+      exponent = static_cast<u32>(-112);
     }
   }
-  u32 result = (u32(value & 0x8000u) << 16u) | ((exponent + 112u) << 23u) | (mantissa << 13u);
+  u32 result =
+      (static_cast<u32>(value & 0x8000u) << 16u) | ((exponent + 112u) << 23u) | (mantissa << 13u);
   return std::bit_cast<f32>(result);
 }
 

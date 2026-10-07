@@ -1,6 +1,5 @@
 /**
  * @file        core/seh_win.cpp
- * @brief       Windows platform SEH implementations
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  * @license     BSD 3-Clause License

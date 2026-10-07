@@ -61,7 +61,7 @@ D3D12ImmediateDrawer::~D3D12ImmediateDrawer() {
 
   // Texture resources and descriptors are owned and tracked by the immediate
   // drawer. Zombie texture objects are supported, but are meaningless.
-  assert_true(textures_.empty());
+  REX_ASSERT(textures_.empty());
   for (D3D12ImmediateTexture* texture : textures_) {
     texture->OnImmediateDrawerDestroyed();
   }
@@ -72,10 +72,10 @@ bool D3D12ImmediateDrawer::Initialize() {
   ID3D12Device* device = provider_.GetDevice();
 
   // Create the root signature.
-  D3D12_ROOT_PARAMETER root_parameters[size_t(RootParameter::kCount)];
+  D3D12_ROOT_PARAMETER root_parameters[static_cast<size_t>(RootParameter::kCount)];
   D3D12_DESCRIPTOR_RANGE descriptor_range_texture, descriptor_range_sampler;
   {
-    auto& root_parameter = root_parameters[size_t(RootParameter::kTexture)];
+    auto& root_parameter = root_parameters[static_cast<size_t>(RootParameter::kTexture)];
     root_parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     root_parameter.DescriptorTable.NumDescriptorRanges = 1;
     root_parameter.DescriptorTable.pDescriptorRanges = &descriptor_range_texture;
@@ -87,7 +87,7 @@ bool D3D12ImmediateDrawer::Initialize() {
     root_parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
   }
   {
-    auto& root_parameter = root_parameters[size_t(RootParameter::kSampler)];
+    auto& root_parameter = root_parameters[static_cast<size_t>(RootParameter::kSampler)];
     root_parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     root_parameter.DescriptorTable.NumDescriptorRanges = 1;
     root_parameter.DescriptorTable.pDescriptorRanges = &descriptor_range_sampler;
@@ -99,7 +99,8 @@ bool D3D12ImmediateDrawer::Initialize() {
     root_parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
   }
   {
-    auto& root_parameter = root_parameters[size_t(RootParameter::kCoordinateSpaceSizeInv)];
+    auto& root_parameter =
+        root_parameters[static_cast<size_t>(RootParameter::kCoordinateSpaceSizeInv)];
     root_parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
     root_parameter.Constants.ShaderRegister = 0;
     root_parameter.Constants.RegisterSpace = 0;
@@ -184,25 +185,25 @@ bool D3D12ImmediateDrawer::Initialize() {
   sampler_desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
   sampler_desc.MaxAnisotropy = 1;
   D3D12_CPU_DESCRIPTOR_HANDLE sampler_handle;
-  sampler_handle.ptr =
-      sampler_heap_cpu_start_.ptr + uint32_t(SamplerIndex::kNearestClamp) * sampler_size;
+  sampler_handle.ptr = sampler_heap_cpu_start_.ptr +
+                       static_cast<uint32_t>(SamplerIndex::kNearestClamp) * sampler_size;
   device->CreateSampler(&sampler_desc, sampler_handle);
   // Bilinear, clamp.
   sampler_desc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
-  sampler_handle.ptr =
-      sampler_heap_cpu_start_.ptr + uint32_t(SamplerIndex::kLinearClamp) * sampler_size;
+  sampler_handle.ptr = sampler_heap_cpu_start_.ptr +
+                       static_cast<uint32_t>(SamplerIndex::kLinearClamp) * sampler_size;
   device->CreateSampler(&sampler_desc, sampler_handle);
   // Bilinear, repeat.
   sampler_desc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
   sampler_desc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
   sampler_desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-  sampler_handle.ptr =
-      sampler_heap_cpu_start_.ptr + uint32_t(SamplerIndex::kLinearRepeat) * sampler_size;
+  sampler_handle.ptr = sampler_heap_cpu_start_.ptr +
+                       static_cast<uint32_t>(SamplerIndex::kLinearRepeat) * sampler_size;
   device->CreateSampler(&sampler_desc, sampler_handle);
   // Nearest neighbor, repeat.
   sampler_desc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
-  sampler_handle.ptr =
-      sampler_heap_cpu_start_.ptr + uint32_t(SamplerIndex::kNearestRepeat) * sampler_size;
+  sampler_handle.ptr = sampler_heap_cpu_start_.ptr +
+                       static_cast<uint32_t>(SamplerIndex::kNearestRepeat) * sampler_size;
   device->CreateSampler(&sampler_desc, sampler_handle);
 
   // Create pools for draws.
@@ -309,7 +310,7 @@ Result<std::unique_ptr<gpu::OverlayTexture>> D3D12ImmediateDrawer::CreateTexture
 void D3D12ImmediateDrawer::Begin(gpu::OverlayDrawContext& context, f32 width, f32 height) {
   ImmediateDrawer::Begin(context, width, height);
 
-  assert_false(batch_open_);
+  REX_ASSERT(!batch_open_);
 
   const D3D12OverlayDrawContext& d3d12_ui_draw_context =
       static_cast<const D3D12OverlayDrawContext&>(context);
@@ -357,8 +358,8 @@ void D3D12ImmediateDrawer::Begin(gpu::OverlayDrawContext& context, f32 width, f3
   D3D12_VIEWPORT viewport;
   viewport.TopLeftX = 0.0f;
   viewport.TopLeftY = 0.0f;
-  viewport.Width = float(d3d12_ui_draw_context.render_target_width());
-  viewport.Height = float(d3d12_ui_draw_context.render_target_height());
+  viewport.Width = static_cast<float>(d3d12_ui_draw_context.render_target_width());
+  viewport.Height = static_cast<float>(d3d12_ui_draw_context.render_target_height());
   viewport.MinDepth = 0.0f;
   viewport.MaxDepth = 1.0f;
   command_list->RSSetViewports(1, &viewport);
@@ -382,7 +383,7 @@ void D3D12ImmediateDrawer::Begin(gpu::OverlayDrawContext& context, f32 width, f3
 }
 
 void D3D12ImmediateDrawer::BeginBatch(const gpu::OverlayBatch& batch) {
-  assert_false(batch_open_);
+  REX_ASSERT(!batch_open_);
 
   const D3D12OverlayDrawContext& d3d12_ui_draw_context =
       *static_cast<const D3D12OverlayDrawContext*>(ui_draw_context());
@@ -518,7 +519,8 @@ void D3D12ImmediateDrawer::Draw(const gpu::OverlayDraw& draw) {
     current_sampler_index_ = sampler_index;
     command_list->SetGraphicsRootDescriptorTable(
         UINT(RootParameter::kSampler),
-        provider_.OffsetSamplerDescriptor(sampler_heap_gpu_start_, uint32_t(sampler_index)));
+        provider_.OffsetSamplerDescriptor(sampler_heap_gpu_start_,
+                                          static_cast<uint32_t>(sampler_index)));
   }
 
   // Set the primitive type and the pipeline for it.
@@ -534,7 +536,7 @@ void D3D12ImmediateDrawer::Draw(const gpu::OverlayDraw& draw) {
       pipeline = pipeline_triangle_.Get();
       break;
     default:
-      assert_unhandled_case(draw.primitive);
+      REX_UNHANDLED_CASE(draw.primitive);
       return;
   }
   if (current_primitive_topology_ != primitive_topology) {
@@ -556,7 +558,7 @@ void D3D12ImmediateDrawer::EndBatch() {
 }
 
 void D3D12ImmediateDrawer::End() {
-  assert_false(batch_open_);
+  REX_ASSERT(!batch_open_);
 
   ImmediateDrawer::End();
 }
@@ -584,7 +586,7 @@ void D3D12ImmediateDrawer::OnLeavePresenter() {
 void D3D12ImmediateDrawer::OnImmediateTextureDestroyed(D3D12ImmediateTexture& texture) {
   // Remove from the texture list.
   size_t texture_index = texture.immediate_drawer_index();
-  assert_true(texture_index != SIZE_MAX);
+  REX_ASSERT(texture_index != SIZE_MAX);
   D3D12ImmediateTexture*& texture_at_index = textures_[texture_index];
   texture_at_index = textures_.back();
   texture_at_index->SetImmediateDrawerIndex(texture_index);
@@ -639,7 +641,7 @@ void D3D12ImmediateDrawer::UploadTextures() {
                                             last_paint_submission_index_);
   }
   texture_uploads_pending_.clear();
-  assert_false(barriers.empty());
+  REX_ASSERT(!barriers.empty());
   command_list->ResourceBarrier(UINT(barriers.size()), barriers.data());
 }
 

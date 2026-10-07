@@ -1,6 +1,5 @@
 /**
  * @file        codegen/output_stamp_test.cpp
- * @brief       Tests for the codegen input fingerprint and output stamp
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

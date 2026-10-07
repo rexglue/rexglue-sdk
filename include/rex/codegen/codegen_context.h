@@ -1,6 +1,5 @@
 /**
  * @file        codegen/codegen_context.h
- * @brief       Unified context for codegen pipeline
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -23,6 +22,7 @@
 #include <rex/codegen/function_graph.h>
 #include <rex/codegen/limits.h>
 #include <rex/result.h>
+#include <rex/types.h>
 
 namespace rex {
 class Runtime;
@@ -84,7 +84,7 @@ struct AnalysisState {
  * - Analysis errors
  * - Scan artifacts
  */
-class CodegenContext {
+class CodegenContext : public rex::MoveOnly {
  public:
   // === FACTORY ===
   /**
@@ -99,7 +99,8 @@ class CodegenContext {
    * @param runtime Runtime instance (must be set up with correct content_root)
    * @return CodegenContext on success, error on failure
    */
-  static Result<CodegenContext> Create(const std::filesystem::path& configPath, Runtime& runtime);
+  [[nodiscard]] static Result<CodegenContext> Create(const std::filesystem::path& configPath,
+                                                     Runtime& runtime);
 
   /**
    * Create a CodegenContext from pre-loaded binary and config.
@@ -111,8 +112,6 @@ class CodegenContext {
   static CodegenContext Create(BinaryView binary, RecompilerConfig config);
 
   // Non-copyable, movable
-  CodegenContext(const CodegenContext&) = delete;
-  CodegenContext& operator=(const CodegenContext&) = delete;
   CodegenContext(CodegenContext&&) noexcept;
   CodegenContext& operator=(CodegenContext&&) noexcept;
   ~CodegenContext();

@@ -47,9 +47,9 @@ struct RecompilerLocalVariables {
  * - **Unknown**: Initial state or after function call. Next FP/VMX instruction
  *   will emit a conditional mode check.
  * - **FPU**: Denormals preserved (flush-to-zero disabled). Used by scalar
- *   floating-point instructions (fadd, fmul, etc.)
+ *   floating-point instructions (fadd, fmul and others)
  * - **VMX**: Denormals flushed to zero. Used by vector floating-point
- *   instructions (vaddfp, vmaddfp, etc.)
+ *   instructions (vaddfp, vmaddfp and others)
  */
 enum class CSRState { Unknown, FPU, VMX };
 
@@ -63,7 +63,7 @@ struct BuilderContext {
   /// Emission context (binary, config, graph)
   const EmitContext& emitCtx;
 
-  /// The function currently being recompiled (FunctionNode from graph)
+  /// The function being recompiled (FunctionNode from graph)
   const FunctionNode& fn;
 
   /// The decoded instruction being processed (opcode, operands, disassembly)
@@ -119,7 +119,7 @@ struct BuilderContext {
 
   /**
    * @brief Get expression for vector register access.
-   * @param index Register index (0-127, Xbox 360 extended VMX128)
+   * @param index Register index (0-127, extended VMX128)
    * @return "vN" for local variables, "ctx.vN" for context access
    */
   std::string v(size_t index);
@@ -275,7 +275,7 @@ struct BuilderContext {
    * @param simd_op The SIMDE function name
    * @param element_type The vector element type suffix
    *
-   * Same as emit_vec_int_binary but swaps vA and vB order (useful for andnot, etc.)
+   * Same as emit_vec_int_binary but swaps vA and vB order (useful for andnot)
    */
   void emit_vec_int_binary_swapped(const char* simd_op, const char* element_type);
 

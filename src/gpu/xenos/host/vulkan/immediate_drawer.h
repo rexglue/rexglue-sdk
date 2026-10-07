@@ -25,7 +25,12 @@ namespace gpu {
 namespace vulkan {
 
 class VulkanImmediateDrawer : public ImmediateDrawer {
+  struct Key {};
+
  public:
+  explicit VulkanImmediateDrawer(Key, const VulkanDevice* vulkan_device,
+                                 const UISamplers* ui_samplers);
+
   static std::unique_ptr<VulkanImmediateDrawer> Create(const VulkanDevice* vulkan_device,
                                                        const UISamplers* ui_samplers);
 
@@ -87,7 +92,6 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
     TextureDescriptorPool* recycled_next;
   };
 
-  explicit VulkanImmediateDrawer(const VulkanDevice* vulkan_device, const UISamplers* ui_samplers);
   bool Initialize();
 
   bool EnsurePipelinesCreatedForCurrentRenderPass();

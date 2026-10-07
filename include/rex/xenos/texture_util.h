@@ -1,6 +1,5 @@
 /**
  * @file        xenos/texture_util.h
- * @brief       Xenos texture layout, tiled addressing and fetch constant helpers
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -169,9 +168,9 @@ REX_API i32 GetTiledOffset3D(i32 x, i32 y, i32 z, u32 pitch, u32 height, u32 byt
  * @return The lower bound byte offset.
  */
 inline u32 GetTiledAddressLowerBound2D(u32 left, u32 top, u32 pitch, u32 bytes_per_block_log2) {
-  return u32(GetTiledOffset2D(i32(left & ~(xenos::kTextureTileWidthHeight - 1)),
-                              i32(top & ~(xenos::kTextureTileWidthHeight - 1)), pitch,
-                              bytes_per_block_log2));
+  return static_cast<u32>(GetTiledOffset2D(
+      static_cast<i32>(left & ~(xenos::kTextureTileWidthHeight - 1)),
+      static_cast<i32>(top & ~(xenos::kTextureTileWidthHeight - 1)), pitch, bytes_per_block_log2));
 }
 
 /**
@@ -187,10 +186,10 @@ inline u32 GetTiledAddressLowerBound2D(u32 left, u32 top, u32 pitch, u32 bytes_p
  */
 inline u32 GetTiledAddressLowerBound3D(u32 left, u32 top, u32 front, u32 pitch, u32 height,
                                        u32 bytes_per_block_log2) {
-  return u32(GetTiledOffset3D(i32(left & ~(xenos::kTextureTileWidthHeight - 1)),
-                              i32(top & ~(xenos::kTextureTileWidthHeight - 1)),
-                              i32(front & ~(xenos::kTextureTileDepth)), pitch, height,
-                              bytes_per_block_log2));
+  return static_cast<u32>(GetTiledOffset3D(
+      static_cast<i32>(left & ~(xenos::kTextureTileWidthHeight - 1)),
+      static_cast<i32>(top & ~(xenos::kTextureTileWidthHeight - 1)),
+      static_cast<i32>(front & ~(xenos::kTextureTileDepth)), pitch, height, bytes_per_block_log2));
 }
 
 /**
@@ -232,7 +231,7 @@ REX_API u8 SwizzleSigns(const xenos::TextureFetch& fetch);
  * @return True when any component is not kSigned.
  */
 constexpr bool IsAnySignNotSigned(u8 packed_signs) {
-  return packed_signs != u32(xenos::TextureSign::kSigned) * 0b01010101;
+  return packed_signs != std::to_underlying(xenos::TextureSign::kSigned) * 0b01010101;
 }
 
 /**
@@ -240,7 +239,7 @@ constexpr bool IsAnySignNotSigned(u8 packed_signs) {
  * @return True when any component is kSigned.
  */
 constexpr bool IsAnySignSigned(u8 packed_signs) {
-  u32 xor_signed = packed_signs ^ (u32(xenos::TextureSign::kSigned) * 0b01010101);
+  u32 xor_signed = packed_signs ^ (std::to_underlying(xenos::TextureSign::kSigned) * 0b01010101);
   return ((xor_signed | (xor_signed >> 1)) & 0b01010101) != 0b01010101;
 }
 

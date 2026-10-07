@@ -1,6 +1,5 @@
 /**
  * @file        codegen/builders/memory.cpp
- * @brief       PPC memory instruction code generation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -15,7 +14,7 @@
 namespace rex::codegen {
 
 //=============================================================================
-// Load Immediate (not really memory operations, but L* category)
+// Load Immediate (not memory operations, but L* category)
 //=============================================================================
 
 bool build_li(BuilderContext& ctx) {

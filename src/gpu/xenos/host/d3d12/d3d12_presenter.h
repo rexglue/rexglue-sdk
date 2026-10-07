@@ -20,6 +20,7 @@
 #include "gpu/xenos/host/d3d12/d3d12_submission_tracker.h"
 #include "gpu/xenos/host/presenter.h"
 #include <rex/gpu/surface.h>
+#include <rex/types.h>
 
 namespace rex::gpu::d3d12 {
 
@@ -44,7 +45,13 @@ class D3D12OverlayDrawContext final : public gpu::OverlayDrawContext {
 };
 
 class D3D12Presenter final : public Presenter {
+  struct Key {};
+
  public:
+  explicit D3D12Presenter(Key, HostGpuLossCallback host_gpu_loss_callback,
+                          const D3D12Provider& provider)
+      : Presenter(std::move(host_gpu_loss_callback)), provider_(provider) {}
+
   static constexpr DXGI_FORMAT kGuestOutputFormat = DXGI_FORMAT_R10G10B10A2_UNORM;
   static constexpr D3D12_RESOURCE_STATES kGuestOutputInternalState =
       D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
@@ -70,7 +77,7 @@ class D3D12Presenter final : public Presenter {
   static std::unique_ptr<D3D12Presenter> Create(HostGpuLossCallback host_gpu_loss_callback,
                                                 const D3D12Provider& provider) {
     auto presenter =
-        std::unique_ptr<D3D12Presenter>(new D3D12Presenter(host_gpu_loss_callback, provider));
+        std::make_unique<D3D12Presenter>(Key{}, std::move(host_gpu_loss_callback), provider);
     if (!presenter->InitializeSurfaceIndependent()) {
       return nullptr;
     }
@@ -93,10 +100,10 @@ class D3D12Presenter final : public Presenter {
       bool was_paintable, bool& is_vsync_implicit_out) override;
   void DisconnectPaintingFromSurfaceFromUIThreadImpl() override;
 
-  bool RefreshGuestOutputImpl(uint32_t mailbox_index, uint32_t frontbuffer_width,
-                              uint32_t frontbuffer_height,
-                              std::function<bool(GuestOutputRefreshContext& context)> refresher,
-                              bool& is_8bpc_out) override;
+  bool RefreshGuestOutputImpl(
+      uint32_t mailbox_index, uint32_t frontbuffer_width, uint32_t frontbuffer_height,
+      std::move_only_function<bool(GuestOutputRefreshContext& context)> refresher,
+      bool& is_8bpc_out) override;
 
   PaintResult PaintAndPresentImpl(bool execute_ui_drawers) override;
 
@@ -139,15 +146,13 @@ class D3D12Presenter final : public Presenter {
       case GuestOutputPaintEffect::kBilinearDither:
         return kGuestOutputPaintRootSignatureIndexBilinear;
       default:
-        assert_unhandled_case(effect);
+        REX_UNHANDLED_CASE(effect);
         return kGuestOutputPaintRootSignatureCount;
     }
   }
 
-  struct PaintContext {
+  struct PaintContext : public rex::NonCopyable {
     explicit PaintContext() = default;
-    PaintContext(const PaintContext& paint_context) = delete;
-    PaintContext& operator=(const PaintContext& paint_context) = delete;
 
     static constexpr uint32_t kSwapChainBufferCount = 3;
 
@@ -172,7 +177,7 @@ class D3D12Presenter final : public Presenter {
       present_submission_tracker.AwaitAllSubmissionsCompletion();
       // Paint (render target) usage. While the presentation fence is signaled
       // on the same queue, and presentation happens after painting, awaiting
-      // anyway for safety just to make less assumptions in the architecture.
+      // anyway for safety to make less assumptions in the architecture.
       paint_submission_tracker.AwaitAllSubmissionsCompletion();
     }
 
@@ -217,11 +222,6 @@ class D3D12Presenter final : public Presenter {
     std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, kSwapChainBufferCount> swap_chain_buffers;
   };
 
-  explicit D3D12Presenter(HostGpuLossCallback host_gpu_loss_callback, const D3D12Provider& provider)
-      : Presenter(host_gpu_loss_callback), provider_(provider) {}
-
-  bool dxgi_supports_tearing() const { return dxgi_supports_tearing_; }
-
   bool InitializeSurfaceIndependent();
 
   const D3D12Provider& provider_;
@@ -236,7 +236,8 @@ class D3D12Presenter final : public Presenter {
   // completion).
   std::array<Microsoft::WRL::ComPtr<ID3D12RootSignature>, kGuestOutputPaintRootSignatureCount>
       guest_output_paint_root_signatures_;
-  std::array<Microsoft::WRL::ComPtr<ID3D12PipelineState>, size_t(GuestOutputPaintEffect::kCount)>
+  std::array<Microsoft::WRL::ComPtr<ID3D12PipelineState>,
+             static_cast<size_t>(GuestOutputPaintEffect::kCount)>
       guest_output_paint_pipelines_;
 
   // The first is the refresher submission tracker fence value at which the

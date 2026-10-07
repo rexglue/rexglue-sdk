@@ -129,7 +129,7 @@ std::filesystem::path ContentManager::ResolvePackageRoot(u64 xuid, XContentType 
   }
   auto xuid_str = std::format("{:016X}", xuid);
   auto title_id_str = std::format("{:08X}", title_id);
-  auto content_type_str = std::format("{:08X}", u32(content_type));
+  auto content_type_str = std::format("{:08X}", static_cast<u32>(content_type));
 
   // Package root path:
   // content_root/xuid/title_id/content_type/
@@ -138,7 +138,8 @@ std::filesystem::path ContentManager::ResolvePackageRoot(u64 xuid, XContentType 
 
 std::filesystem::path ContentManager::ResolvePackagePath(u64 xuid,
                                                          const XCONTENT_AGGREGATE_DATA& data) {
-  u64 used_xuid = (data.xuid != u64(-1) && data.xuid != 0) ? u64(data.xuid) : xuid;
+  u64 used_xuid =
+      (data.xuid != static_cast<u64>(-1) && data.xuid != 0) ? static_cast<u64>(data.xuid) : xuid;
 
   // DLCs are stored in common directory
   if (data.content_type == XContentType::kMarketplaceContent) {
@@ -164,7 +165,7 @@ std::filesystem::path ContentManager::ResolvePackageHeaderPath(const std::string
 
   auto xuid_str = std::format("{:016X}", xuid);
   auto title_id_str = std::format("{:08X}", title_id);
-  auto content_type_str = std::format("{:08X}", u32(content_type));
+  auto content_type_str = std::format("{:08X}", static_cast<u32>(content_type));
   std::string final_name = std::string(file_name) + ".header";
 
   // Header root path:
@@ -227,13 +228,14 @@ bool ContentManager::ContentExists(u64 xuid, const XCONTENT_AGGREGATE_DATA& data
 
 Result<void> ContentManager::WriteContentHeaderFile(u64 xuid, XCONTENT_AGGREGATE_DATA data,
                                                     u32 license_mask) {
-  if (data.title_id == u32(-1)) {
+  if (data.title_id == static_cast<u32>(-1)) {
     data.title_id = this->title_id();
   }
-  if (data.xuid == u64(-1)) {
+  if (data.xuid == static_cast<u64>(-1)) {
     data.xuid = xuid;
   }
-  u64 used_xuid = (data.xuid != u64(-1) && data.xuid != 0) ? u64(data.xuid) : xuid;
+  u64 used_xuid =
+      (data.xuid != static_cast<u64>(-1) && data.xuid != 0) ? static_cast<u64>(data.xuid) : xuid;
 
   auto header_path =
       ResolvePackageHeaderPath(data.file_name(), used_xuid, data.title_id, data.content_type);
@@ -297,14 +299,14 @@ Result<void> ContentManager::CreateContent(const std::string_view root_name, u64
     return Err(ResultError(X_ERROR_ACCESS_DENIED));
   }
   auto package = ResolvePackage(root_name, xuid, data);
-  assert_not_null(package);
+  REX_ASSERT(package != nullptr);
 
   {
     std::lock_guard lock(mutex_);
     if (open_packages_.count(string_key_case(root_name))) {
       return Err(ResultError(X_ERROR_ALREADY_EXISTS));
     }
-    open_packages_.insert({string_key_case::create(root_name), package.release()});
+    open_packages_.emplace(string_key_case::create(root_name), std::move(package));
   }
   return Ok();
 }
@@ -323,7 +325,7 @@ Result<u32> ContentManager::OpenContent(const std::string_view root_name, u64 xu
     return Err<u32>(ResultError(X_ERROR_FILE_NOT_FOUND));
   }
   auto package = ResolvePackage(root_name, xuid, data);
-  assert_not_null(package);
+  REX_ASSERT(package != nullptr);
   package->LoadPackageLicenseMask(
       ResolvePackageHeaderPath(data.file_name(), xuid, this->title_id(), data.content_type));
   const u32 license = package->GetPackageLicense();
@@ -333,7 +335,7 @@ Result<u32> ContentManager::OpenContent(const std::string_view root_name, u64 xu
     if (open_packages_.count(string_key_case(root_name))) {
       return Err<u32>(ResultError(X_ERROR_ALREADY_EXISTS));
     }
-    open_packages_.insert({string_key_case::create(root_name), package.release()});
+    open_packages_.emplace(string_key_case::create(root_name), std::move(package));
   }
   return license;
 }
@@ -350,7 +352,7 @@ Result<void> ContentManager::CloseContent(const std::string_view root_name) {
     open_root_name = it->first.view();
   }
   CloseOpenedFilesFromContent(open_root_name);
-  delete DetachPackage(open_root_name);
+  DetachPackage(open_root_name);
   return Ok();
 }
 
@@ -385,7 +387,8 @@ Result<void> ContentManager::SetContentThumbnail(u64 xuid, const XCONTENT_AGGREG
 
 Result<void> ContentManager::DeleteContent(u64 xuid, const XCONTENT_AGGREGATE_DATA& data) {
   auto package_path = ResolvePackagePath(xuid, data);
-  u64 used_xuid = (data.xuid != u64(-1) && data.xuid != 0) ? u64(data.xuid) : xuid;
+  u64 used_xuid =
+      (data.xuid != static_cast<u64>(-1) && data.xuid != 0) ? static_cast<u64>(data.xuid) : xuid;
   auto header_path =
       ResolvePackageHeaderPath(data.file_name(), used_xuid, data.title_id, data.content_type);
 
@@ -421,13 +424,13 @@ std::filesystem::path ContentManager::ResolveGameUserContentPath() {
   return root_path_ / title_id / kGameUserContentDirName / user_name;
 }
 
-ContentPackage* ContentManager::DetachPackage(const std::string_view root_name) {
+std::unique_ptr<ContentPackage> ContentManager::DetachPackage(const std::string_view root_name) {
   std::lock_guard lock(mutex_);
   auto it = open_packages_.find(string_key_case(root_name));
   if (it == open_packages_.end()) {
     return nullptr;
   }
-  ContentPackage* package = it->second;
+  std::unique_ptr<ContentPackage> package = std::move(it->second);
   open_packages_.erase(it);
   return package;
 }
@@ -469,7 +472,7 @@ Result<XCONTENT_AGGREGATE_DATA> ContentManager::InstallContent(
   const auto& metadata = header->metadata;
 
   XCONTENT_AGGREGATE_DATA content_data;
-  content_data.device_id = static_cast<u32>(xam::DummyDeviceId::HDD);
+  content_data.device_id = std::to_underlying(xam::DummyDeviceId::HDD);
   content_data.content_type = metadata.content_type;
   content_data.title_id = metadata.execution_info.title_id;
   content_data.xuid = 0;
@@ -525,7 +528,7 @@ Result<XCONTENT_AGGREGATE_DATA> ContentManager::InstallContent(
 u32 ContentManager::title_id() const {
   auto module = runtime_.object_table().Get<ModuleObject>(
       runtime_.module_registry().executable().value_or(0));
-  assert_true(module);
+  REX_ASSERT(module);
 
   xex2_opt_execution_info* exec_info = 0;
   UserModuleGetOptHeader(*module, XEX_HEADER_EXECUTION_INFO, &exec_info);
@@ -540,7 +543,7 @@ u32 ContentManager::title_id() const {
 util::XDBFGameData ContentManager::title_xdbf() const {
   auto module = runtime_.object_table().Get<ModuleObject>(
       runtime_.module_registry().executable().value_or(0));
-  assert_true(module);
+  REX_ASSERT(module);
   return module_xdbf(*module);
 }
 

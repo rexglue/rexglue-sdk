@@ -30,7 +30,7 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
     return;
   }
 
-  assert_zero(export_eM & ~current_shader().memexport_eM_written());
+  REX_ASSERT((export_eM & ~current_shader().memexport_eM_written()) == 0);
 
   if (!IsMemoryExportSupported()) {
     return;
@@ -84,11 +84,11 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
 
   using EMIdArray = std::array<spv::Id, xenos::ucode::kMaxMemExportElementCount>;
 
-  auto for_each_eM = [&](std::function<void(uint32_t eM_index)> fn) {
+  auto for_each_eM = [&]<std::invocable<uint32_t> F>(F&& fn) {
     uint8_t eM_remaining = export_eM;
     uint32_t eM_index;
     while (rex::bit_scan_forward(eM_remaining, &eM_index)) {
-      eM_remaining &= ~(uint8_t(1) << eM_index);
+      eM_remaining &= ~(static_cast<uint8_t>(1) << eM_index);
       fn(eM_index);
     }
   };
@@ -102,11 +102,11 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
 
   // Swap red and blue if needed.
   spv::Id format_info = builder_->createCompositeExtract(eA_vector, type_uint_, 2);
-  spv::Id swap_red_blue =
-      builder_->createBinOp(spv::OpINotEqual, type_bool_,
-                            builder_->createBinOp(spv::OpBitwiseAnd, type_uint_, format_info,
-                                                  builder_->makeUintConstant(uint32_t(1) << 19)),
-                            const_uint_0_);
+  spv::Id swap_red_blue = builder_->createBinOp(
+      spv::OpINotEqual, type_bool_,
+      builder_->createBinOp(spv::OpBitwiseAnd, type_uint_, format_info,
+                            builder_->makeUintConstant(static_cast<uint32_t>(1) << 19)),
+      const_uint_0_);
   EMIdArray eM_swapped;
   uint_vector_temp_.clear();
   uint_vector_temp_.push_back(2);
@@ -122,16 +122,16 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
   });
 
   // Extract the numeric format.
-  spv::Id is_signed =
-      builder_->createBinOp(spv::OpINotEqual, type_bool_,
-                            builder_->createBinOp(spv::OpBitwiseAnd, type_uint_, format_info,
-                                                  builder_->makeUintConstant(uint32_t(1) << 16)),
-                            const_uint_0_);
-  spv::Id is_norm =
-      builder_->createBinOp(spv::OpIEqual, type_bool_,
-                            builder_->createBinOp(spv::OpBitwiseAnd, type_uint_, format_info,
-                                                  builder_->makeUintConstant(uint32_t(1) << 17)),
-                            const_uint_0_);
+  spv::Id is_signed = builder_->createBinOp(
+      spv::OpINotEqual, type_bool_,
+      builder_->createBinOp(spv::OpBitwiseAnd, type_uint_, format_info,
+                            builder_->makeUintConstant(static_cast<uint32_t>(1) << 16)),
+      const_uint_0_);
+  spv::Id is_norm = builder_->createBinOp(
+      spv::OpIEqual, type_bool_,
+      builder_->createBinOp(spv::OpBitwiseAnd, type_uint_, format_info,
+                            builder_->makeUintConstant(static_cast<uint32_t>(1) << 17)),
+      const_uint_0_);
 
   // Perform format packing.
 
@@ -183,7 +183,7 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
         offsets[component_count] = offsets[component_count - 1] + widths[component_count - 1];
       }
     }
-    assert_not_zero(component_count);
+    REX_ASSERT(component_count != 0);
 
     // Extract the needed components.
     EMIdArray eM_unflushed = eM_swapped;
@@ -223,7 +223,7 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
         for (unsigned int component_index = 0; component_index < component_count;
              ++component_index) {
           id_vector_temp_.push_back(builder_->makeFloatConstant(
-              float((uint32_t(1) << (widths[component_index] - 1)) - 1)));
+              static_cast<float>((static_cast<uint32_t>(1) << (widths[component_index] - 1)) - 1)));
         }
         spv::Id const_max_value =
             component_count > 1 ? builder_->makeCompositeConstant(
@@ -273,8 +273,8 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
         id_vector_temp_.clear();
         for (unsigned int component_index = 0; component_index < component_count;
              ++component_index) {
-          id_vector_temp_.push_back(
-              builder_->makeFloatConstant(float((uint32_t(1) << widths[component_index]) - 1)));
+          id_vector_temp_.push_back(builder_->makeFloatConstant(
+              static_cast<float>((static_cast<uint32_t>(1) << widths[component_index]) - 1)));
         }
         spv::Id const_max_value =
             component_count > 1 ? builder_->makeCompositeConstant(
@@ -432,8 +432,8 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
       {
         // Signed normalized.
         id_vector_temp_.clear();
-        id_vector_temp_.resize(4,
-                               builder_->makeFloatConstant(float((uint32_t(1) << (16 - 1)) - 1)));
+        id_vector_temp_.resize(4, builder_->makeFloatConstant(static_cast<float>(
+                                      (static_cast<uint32_t>(1) << (16 - 1)) - 1)));
         spv::Id const_snorm16_max_value =
             builder_->makeCompositeConstant(type_float4_, id_vector_temp_);
         for_each_eM([&](uint32_t eM_index) {
@@ -476,7 +476,8 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
       {
         // Unsigned normalized.
         id_vector_temp_.clear();
-        id_vector_temp_.resize(4, builder_->makeFloatConstant(float((uint32_t(1) << 16) - 1)));
+        id_vector_temp_.resize(4, builder_->makeFloatConstant(
+                                      static_cast<float>((static_cast<uint32_t>(1) << 16) - 1)));
         spv::Id const_unorm16_max_value =
             builder_->makeCompositeConstant(type_float4_, id_vector_temp_);
         for_each_eM([&](uint32_t eM_index) {
@@ -720,7 +721,7 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
       builder_->createBinOp(spv::OpShiftLeftLogical, type_uint_, eM0_index, element_bytes_log2));
 
   // Store based on the element size.
-  auto store_needed_eM = [&](std::function<void(uint32_t eM_index)> fn) {
+  auto store_needed_eM = [&]<std::invocable<uint32_t> F>(F&& fn) {
     for_each_eM([&](uint32_t eM_index) {
       SpirvBuilder::IfBuilder if_eM_needed(
           builder_->createBinOp(

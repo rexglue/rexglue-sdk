@@ -1,6 +1,5 @@
 /**
  * @file        kernel/shim/registry.h
- * @brief       Registry of the shim functions that replace statically linked recompiled code
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

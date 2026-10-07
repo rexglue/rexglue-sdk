@@ -57,8 +57,8 @@ ID3D12PipelineState* CreateComputePipeline(ID3D12Device* device, const void* sha
 
 void CreateBufferRawSRV(ID3D12Device* device, D3D12_CPU_DESCRIPTOR_HANDLE handle,
                         ID3D12Resource* buffer, uint32_t size, uint64_t offset) {
-  assert_false(size & (D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT - 1));
-  assert_false(offset & (D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT - 1));
+  REX_ASSERT(!(size & (D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT - 1)));
+  REX_ASSERT(!(offset & (D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT - 1)));
   D3D12_SHADER_RESOURCE_VIEW_DESC desc;
   desc.Format = DXGI_FORMAT_R32_TYPELESS;
   desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
@@ -72,8 +72,8 @@ void CreateBufferRawSRV(ID3D12Device* device, D3D12_CPU_DESCRIPTOR_HANDLE handle
 
 void CreateBufferRawUAV(ID3D12Device* device, D3D12_CPU_DESCRIPTOR_HANDLE handle,
                         ID3D12Resource* buffer, uint32_t size, uint64_t offset) {
-  assert_false(size & (D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT - 1));
-  assert_false(offset & (D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT - 1));
+  REX_ASSERT(!(size & (D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT - 1)));
+  REX_ASSERT(!(offset & (D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT - 1)));
   D3D12_UNORDERED_ACCESS_VIEW_DESC desc;
   desc.Format = DXGI_FORMAT_R32_TYPELESS;
   desc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;

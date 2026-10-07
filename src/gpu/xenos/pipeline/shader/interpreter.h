@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 
@@ -37,15 +38,14 @@ class ShaderInterpreter {
                         uint32_t /*value_mask*/) {}
   };
 
-  ExportSink* GetExportSink() const { return export_sink_; }
   void SetExportSink(ExportSink* new_export_sink) { export_sink_ = new_export_sink; }
 
   const float* temp_registers() const { return &temp_registers_[0][0]; }
   float* temp_registers() { return &temp_registers_[0][0]; }
 
   static bool CanInterpretShader(const Shader& shader) {
-    assert_true(shader.is_ucode_analyzed());
-    // Texture instructions are not very common in vertex shaders (and not used
+    REX_ASSERT(shader.is_ucode_analyzed());
+    // Texture instructions are not common in vertex shaders (and not used
     // in Direct3D 9's internal rectangles such as clears) and are extremely
     // complex, not implemented.
     if (shader.uses_texture_fetch_instruction_results()) {
@@ -58,7 +58,7 @@ class ShaderInterpreter {
     ucode_ = ucode;
   }
   void SetShader(const Shader& shader) {
-    assert_true(CanInterpretShader(shader));
+    REX_ASSERT(CanInterpretShader(shader));
     SetShader(shader.type(), shader.ucode_dwords());
   }
 
@@ -77,10 +77,10 @@ class ShaderInterpreter {
     int32_t address_register;
     bool predicate;
 
-    void Reset() { std::memset(this, 0, sizeof(*this)); }
+    void Reset() { *this = {}; }
 
     int32_t GetLoopAddress() const {
-      assert_true(loop_stack_depth && loop_stack_depth < 4);
+      REX_ASSERT(loop_stack_depth && loop_stack_depth < 4);
       if (!loop_stack_depth || loop_stack_depth >= 4) {
         return 0;
       }
@@ -88,21 +88,23 @@ class ShaderInterpreter {
       // Clamp to the real range specified in the IPR2015-00325 sequencer
       // specification.
       // https://portal.unifiedpatents.com/ptab/case/IPR2015-00325
-      return std::min(INT32_C(256),
-                      std::max(INT32_C(-256), int32_t(int32_t(loop_iterators[loop_stack_depth]) *
-                                                          loop_constant.step +
-                                                      loop_constant.start)));
+      return std::min(
+          INT32_C(256),
+          std::max(INT32_C(-256),
+                   static_cast<int32_t>(static_cast<int32_t>(loop_iterators[loop_stack_depth]) *
+                                            loop_constant.step +
+                                        loop_constant.start)));
     }
   };
 
   static float FlushDenormal(float value) {
-    uint32_t bits = *reinterpret_cast<const uint32_t*>(&value);
+    uint32_t bits = std::bit_cast<uint32_t>(value);
     bits &= (bits & UINT32_C(0x7F800000)) ? ~UINT32_C(0) : (UINT32_C(1) << 31);
-    return *reinterpret_cast<const float*>(&bits);
+    return std::bit_cast<float>(bits);
   }
 
   uint32_t GetTempRegisterIndex(uint32_t address, bool is_relative) const {
-    return (int32_t(address) + (is_relative ? state_.GetLoopAddress() : 0)) &
+    return (static_cast<int32_t>(address) + (is_relative ? state_.GetLoopAddress() : 0)) &
            ((UINT32_C(1) << xenos::kMaxShaderTempRegistersLog2) - 1);
   }
   const float* GetTempRegister(uint32_t address, bool is_relative) const {

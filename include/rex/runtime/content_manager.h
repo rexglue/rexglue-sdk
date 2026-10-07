@@ -1,6 +1,5 @@
 /**
  * @file        runtime/content_manager.h
- * @brief       The content package interface and the title identity
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

@@ -1,6 +1,5 @@
 /**
  * @file        codegen/builders/vector.cpp
- * @brief       PPC vector instruction code generation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -12,6 +11,7 @@
 #include "builder_context.h"
 #include "helpers.h"
 
+#include <bit>
 #include <cmath>
 
 #include <simde/x86/sse.h>
@@ -744,7 +744,7 @@ bool build_vcfsx(BuilderContext& ctx) {
     ctx.println(
         "simde_mm_mul_ps(simde_mm_cvtepi32_ps(simde_mm_load_si128((simde__m128i*){}.u32)), "
         "simde_mm_castsi128_ps(simde_mm_set1_epi32(int(0x{:X})))));",
-        ctx.v(ctx.insn.operands[1]), *reinterpret_cast<const uint32_t*>(&value));
+        ctx.v(ctx.insn.operands[1]), std::bit_cast<uint32_t>(value));
   } else {
     ctx.println("simde_mm_cvtepi32_ps(simde_mm_load_si128((simde__m128i*){}.u32)));",
                 ctx.v(ctx.insn.operands[1]));
@@ -761,7 +761,7 @@ bool build_vcfux(BuilderContext& ctx) {
         "simde_mm_mul_ps(rex::ppc::simde_mm_cvtepu32_ps_(simde_mm_load_si128((simde__m128i*){}.u32)"
         "), "
         "simde_mm_castsi128_ps(simde_mm_set1_epi32(int(0x{:X})))));",
-        ctx.v(ctx.insn.operands[1]), *reinterpret_cast<const uint32_t*>(&value));
+        ctx.v(ctx.insn.operands[1]), std::bit_cast<uint32_t>(value));
   } else {
     ctx.println("rex::ppc::simde_mm_cvtepu32_ps_(simde_mm_load_si128((simde__m128i*){}.u32)));",
                 ctx.v(ctx.insn.operands[1]));

@@ -1,6 +1,5 @@
 /**
  * @file        rex/codegen/function_scanner.h
- * @brief       Function scanner and block discovery
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -218,7 +217,7 @@ struct UnresolvedBranch {
   uint32_t site;       // Address of branch instruction
   uint32_t target;     // Target address
   bool isCall;         // true = bl (call), false = b (tail/jump)
-  bool isConditional;  // true = bc/beq/etc, false = unconditional
+  bool isConditional;  // true = bc/beq and others, false = unconditional
 };
 
 struct BlockDiscoveryResult {

@@ -28,7 +28,7 @@ namespace vulkan {
 VulkanUploadBufferPool::VulkanUploadBufferPool(const VulkanDevice* const vulkan_device,
                                                const VkBufferUsageFlags usage,
                                                const size_t page_size)
-    : GraphicsUploadBufferPool(size_t(
+    : GraphicsUploadBufferPool(static_cast<size_t>(
           rex::round_up(VkDeviceSize(page_size), vulkan_device->properties().nonCoherentAtomSize))),
       vulkan_device_(vulkan_device),
       usage_(usage) {}
@@ -61,7 +61,7 @@ uint8_t* VulkanUploadBufferPool::RequestPartial(uint64_t submission_index, size_
   return reinterpret_cast<uint8_t*>(page->mapping_) + offset;
 }
 
-GraphicsUploadBufferPool::Page* VulkanUploadBufferPool::CreatePageImplementation() {
+std::unique_ptr<GraphicsUploadBufferPool::Page> VulkanUploadBufferPool::CreatePageImplementation() {
   if (memory_type_ == kMemoryTypeUnavailable) {
     // Don't try to create everything again and again if totally broken.
     return nullptr;
@@ -112,7 +112,7 @@ GraphicsUploadBufferPool::Page* VulkanUploadBufferPool::CreatePageImplementation
             vulkan_device_->memory_types(), memory_requirements.memoryTypeBits, false);
         if (memory_requirements_expanded.size <= allocation_size_ &&
             memory_type_expanded != UINT32_MAX) {
-          page_size_ = size_t(allocation_size_);
+          page_size_ = static_cast<size_t>(allocation_size_);
           allocation_size_ = memory_requirements_expanded.size;
           memory_type_ = memory_type_expanded;
           dfn.vkDestroyBuffer(device, buffer, nullptr);
@@ -163,7 +163,7 @@ GraphicsUploadBufferPool::Page* VulkanUploadBufferPool::CreatePageImplementation
     return nullptr;
   }
 
-  return new VulkanPage(vulkan_device_, buffer, memory, mapping);
+  return std::make_unique<VulkanPage>(vulkan_device_, buffer, memory, mapping);
 }
 
 void VulkanUploadBufferPool::FlushPageWrites(Page* page, size_t offset, size_t size) {

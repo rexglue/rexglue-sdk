@@ -1,6 +1,5 @@
 /**
  * @file        macros.h
- * @brief       Public macro catalog, core family
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

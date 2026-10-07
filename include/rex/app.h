@@ -1,6 +1,5 @@
 /**
  * @file        app.h
- * @brief       The app framework, lifecycle steps and shutdown requests
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -47,7 +46,7 @@ class REX_API App : public NonCopyable {
    */
   [[nodiscard]] Result<void> Init(const CLIArgList& args);
 
-  /** Runs the app. The base class calls OnRun and records the exit code it returns. */
+  /** Runs the app. The base class calls OnRun and stores the exit code it returns. */
   virtual void Run();
 
   /**
@@ -99,13 +98,13 @@ class REX_API App : public NonCopyable {
   virtual platform::CrashReporterOptions CrashOptions();
 
   /**
-   * Records a failed lifecycle step so Shutdown returns 1, and reports it.
+   * Notes a failed lifecycle step so Shutdown returns 1, and reports it.
    *
    * @param step Name of the step, used in the report.
    * @param error The error.
    * @return The error, for the step to return.
    */
-  Result<void> Fail(std::string_view step, Error error);
+  [[nodiscard]] Result<void> Fail(std::string_view step, Error error);
 
   /**
    * Sets the module list, the config structs and cvar defaults before any module loads.
@@ -115,7 +114,7 @@ class REX_API App : public NonCopyable {
    *
    * @return Ok to continue. An error makes Init return it.
    */
-  virtual Result<void> OnConfigure(Config& config);
+  [[nodiscard]] virtual Result<void> OnConfigure(Config& config);
 
   /**
    * Runs after every module is connected and before any module is initialized.
@@ -124,7 +123,7 @@ class REX_API App : public NonCopyable {
    * @param api The connected modules and the core interfaces.
    * @return Ok to continue. An error makes Init return it.
    */
-  virtual Result<void> OnInit(Config& config, API& api);
+  [[nodiscard]] virtual Result<void> OnInit(Config& config, API& api);
 
   /**
    * Does the work of a console app. The base Run calls it once.

@@ -1,6 +1,5 @@
 /**
  * @file        hid/error.h
- * @brief       HID error codes and their Win32 mapping
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

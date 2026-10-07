@@ -1,6 +1,5 @@
 /**
  * @file        runtime/thread_registry.h
- * @brief       The thread registry of a runtime
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -40,7 +39,7 @@ class ThreadRegistry final : public IThreadRegistry {
   ThreadRegistry(Runtime& runtime, ObjectTable& table);
   ~ThreadRegistry() override;
 
-  Result<X_HANDLE> Launch(std::unique_ptr<ThreadRecord> record) override;
+  [[nodiscard]] Result<X_HANDLE> Launch(std::unique_ptr<ThreadRecord> record) override;
   ThreadPin Find(u32 thread_id) override;
   ThreadPin FindByHandle(X_HANDLE handle) override;
   std::vector<ThreadPin> All() override;
@@ -54,22 +53,22 @@ class ThreadRegistry final : public IThreadRegistry {
   void RemoveThreadNotify(u32 notification) override;
 
   /**
-   * Records that a thread finished running. The record is destroyed when its last handle is
+   * Notes that a thread finished running. The record is destroyed when its last handle is
    * already closed and no pin is held.
    *
-   * @param record The record of the finished thread.
+   * @param record The finished thread.
    */
   void NoteExited(ThreadRecord& record);
 
   /**
-   * Records that the last handle of a thread closed. The record is destroyed when the thread
+   * Notes that the last handle of a thread closed. The record is destroyed when the thread
    * already finished and no pin is held.
    *
    * @param thread_id The thread id.
    */
   void NoteHandlesClosed(u32 thread_id);
 
-  /** Counts a thread whose host thread began running its record. */
+  /** Counts a thread whose host thread began running its ThreadRecord. */
   void NoteStarted();
 
   /** Uncounts a started thread once its exit no longer touches the runtime. */

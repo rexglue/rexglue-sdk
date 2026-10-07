@@ -1,6 +1,5 @@
 /**
  * @file        runtime/module_registry.h
- * @brief       The module registry of a runtime
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -36,7 +35,7 @@ class ModuleRegistry final : public IModuleRegistry {
  public:
   /**
    * @param runtime The runtime whose file system, memory and function dispatcher modules use.
-   * @param table The table that holds the module records.
+   * @param table The table that holds the modules.
    */
   ModuleRegistry(Runtime& runtime, ObjectTable& table);
 
@@ -49,7 +48,7 @@ class ModuleRegistry final : public IModuleRegistry {
   std::vector<X_HANDLE> user_modules() override;
   Result<X_HANDLE> LoadUserModule(std::string_view name, bool call_entry = true) override;
   void UnloadUserModule(X_HANDLE module, bool call_entry = true) override;
-  Result<X_HANDLE> LoadKernelModule(X_HANDLE created) override;
+  [[nodiscard]] Result<X_HANDLE> LoadKernelModule(X_HANDLE created) override;
   void RegisterRecompiledModule(const char* pe_name, const char* guest_path,
                                 const char* shared_lib_name) override;
   rex::platform::RankedMutex& load_count_mutex() override { return load_count_mutex_; }

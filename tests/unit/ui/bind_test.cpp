@@ -1,6 +1,5 @@
 /**
  * @file        tests/unit/ui/bind_test.cpp
- * @brief       BindTable chords, cvar changes and bad values
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

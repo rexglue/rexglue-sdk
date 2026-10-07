@@ -10,7 +10,7 @@ namespace rex::platform {
 namespace {
 
 void DefaultHandler(LockRank, LockRank) {
-  assert_always("lock order violation");
+  REX_ASSERT_ALWAYS("lock order violation");
 }
 
 std::atomic<LockOrderHandler> g_handler{&DefaultHandler};

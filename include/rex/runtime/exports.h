@@ -1,6 +1,5 @@
 /**
  * @file        runtime/exports.h
- * @brief       Kernel export tables and the lookups over them
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -31,7 +30,7 @@ enum class ExportModule : u8 {
   XBDM,
 };
 
-/** The kind of an export, code or data. */
+/** The export kind, code or data. */
 enum class ExportKind : u8 {
   Function,
   Variable,

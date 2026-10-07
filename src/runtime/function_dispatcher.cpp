@@ -75,7 +75,7 @@ bool FunctionDispatcher::Execute(ThreadState* thread_state, uint32_t address) {
   // Rebind the active guest thread for cross-module callbacks.
   ThreadState::Bind(thread_state);
 
-  // Pad out stack a bit, as some games seem to overwrite the caller by about 16 to 32b.
+  // Pad out stack, as some games seem to overwrite the caller by about 16 to 32b.
   ctx->r1.u64 -= 64 + 112;
 
   uint64_t previous_lr = ctx->lr;
@@ -118,8 +118,7 @@ uint64_t FunctionDispatcher::Execute(ThreadState* thread_state, uint32_t address
     auto stack_arg_base =
         memory_->TranslateVirtual(static_cast<uint32_t>(ctx->r1.u64) + 0x54 - (64 + 112));
     for (size_t i = 8; i < arg_count; i++) {
-      memory::store_and_swap<uint32_t>(stack_arg_base + ((i - 8) * 8),
-                                       static_cast<uint32_t>(args[i]));
+      memory::store<be_u32>(stack_arg_base + ((i - 8) * 8), static_cast<uint32_t>(args[i]));
     }
   }
 
@@ -148,7 +147,7 @@ uint64_t FunctionDispatcher::RunInterrupt(ThreadState* thread_state, uint32_t ad
   std::lock_guard interrupt_lock(interrupt_mutex_);
 
   auto* ctx = thread_state->context();
-  assert_true(arg_count <= 5);
+  REX_ASSERT(arg_count <= 5);
   const PPCContext saved = *ctx;
   const u32 saved_csr = ctx->fpscr.getcsr();
 
@@ -269,7 +268,7 @@ uint32_t FunctionDispatcher::FindCallerModuleBase(uint32_t guest_address) {
 
 bool FunctionDispatcher::SetFunction(uint32_t guest_address, ::PPCFunc* func) {
   std::lock_guard<std::recursive_mutex> lock(dispatch_mutex_);
-  assert_true(!module_tables_.empty());
+  REX_ASSERT(!module_tables_.empty());
 
   if (!FindModuleByAddress(guest_address)) {
     REX_FAIL(cpu, false, "SetFunction: address {:08X} outside all registered module ranges",

@@ -1,6 +1,5 @@
 /**
  * @file        bit.h
- * @brief       Atomic free list bitmap, bit range scan and fill helpers, flag enum operators
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -97,7 +96,7 @@ class REX_API BitMap {
 template <typename Block>
 std::pair<size_t, size_t> GetNextRangeUnset(const Block* bits, size_t first, size_t length) {
   if (!length) {
-    return std::make_pair(size_t(first), size_t(0));
+    return std::make_pair(static_cast<size_t>(first), static_cast<size_t>(0));
   }
   size_t last = first + length - 1;
   const size_t block_bits = sizeof(Block) * CHAR_BIT;
@@ -132,9 +131,9 @@ std::pair<size_t, size_t> GetNextRangeUnset(const Block* bits, size_t first, siz
     }
   }
   if (range_start != SIZE_MAX) {
-    return std::make_pair(range_start, last + size_t(1) - range_start);
+    return std::make_pair(range_start, last + static_cast<size_t>(1) - range_start);
   }
-  return std::make_pair(first + length, size_t(0));
+  return std::make_pair(first + length, static_cast<size_t>(0));
 }
 
 /**
@@ -181,7 +180,7 @@ void SetRange(Block* bits, size_t first, size_t length) {
  * @endcode
  */
 template <typename E>
-// NOLINTNEXTLINE(readability-identifier-naming): charter 12.1 names the trait
+// NOLINTNEXTLINE(readability-identifier-naming)
 inline constexpr bool is_flags_enum = false;
 
 /**

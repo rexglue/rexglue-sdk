@@ -12,6 +12,7 @@
 // Disable warnings about unused parameters for kernel functions
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
+#include <bit>
 #include <cstring>
 
 #if REX_PLATFORM_MAC
@@ -62,71 +63,71 @@ enum : u8 {
 };
 
 // https://github.com/pmrowla/hl2sdk-csgo/blob/master/common/xbox/xboxstubs.h
-typedef struct {
+struct XNADDR {
   // FYI: IN_ADDR should be in network-byte order.
-  in_addr ina;                    // IP address (zero if not static/DHCP)
-  in_addr inaOnline;              // Online IP address (zero if not online)
-  rex::be<uint16_t> wPortOnline;  // Online port
-  uint8_t abEnet[6];              // Ethernet MAC address
-  uint8_t abOnline[20];           // Online identification
-} XNADDR;
+  in_addr ina;           // IP address (zero if not static/DHCP)
+  in_addr inaOnline;     // Online IP address (zero if not online)
+  be_u16 wPortOnline;    // Online port
+  uint8_t abEnet[6];     // Ethernet MAC address
+  uint8_t abOnline[20];  // Online identification
+};
 
-typedef struct {
-  rex::be<int32_t> status;
-  rex::be<uint32_t> cina;
+struct XNDNS {
+  be_i32 status;
+  be_u32 cina;
   in_addr aina[8];
-} XNDNS;
+};
 
-typedef struct {
+struct XNQOSINFO {
   uint8_t flags;
   uint8_t reserved;
-  rex::be<uint16_t> probes_xmit;
-  rex::be<uint16_t> probes_recv;
-  rex::be<uint16_t> data_len;
-  rex::be<uint32_t> data_ptr;
-  rex::be<uint16_t> rtt_min_in_msecs;
-  rex::be<uint16_t> rtt_med_in_msecs;
-  rex::be<uint32_t> up_bits_per_sec;
-  rex::be<uint32_t> down_bits_per_sec;
-} XNQOSINFO;
+  be_u16 probes_xmit;
+  be_u16 probes_recv;
+  be_u16 data_len;
+  be_u32 data_ptr;
+  be_u16 rtt_min_in_msecs;
+  be_u16 rtt_med_in_msecs;
+  be_u32 up_bits_per_sec;
+  be_u32 down_bits_per_sec;
+};
 
-typedef struct {
-  rex::be<uint32_t> count;
-  rex::be<uint32_t> count_pending;
+struct XNQOS {
+  be_u32 count;
+  be_u32 count_pending;
   XNQOSINFO info[1];
-} XNQOS;
+};
 
 struct Xsockaddr_t {
-  rex::be<uint16_t> sa_family;
+  be_u16 sa_family;
   char sa_data[14];
 };
 
 struct X_WSADATA {
-  rex::be<uint16_t> version;
-  rex::be<uint16_t> version_high;
+  be_u16 version;
+  be_u16 version_high;
   char description[256 + 1];
   char system_status[128 + 1];
-  rex::be<uint16_t> max_sockets;
-  rex::be<uint16_t> max_udpdg;
-  rex::be<uint32_t> vendor_info_ptr;
+  be_u16 max_sockets;
+  be_u16 max_udpdg;
+  be_u32 vendor_info_ptr;
 };
 
 struct XWSABUF {
-  rex::be<uint32_t> len;
-  rex::be<uint32_t> buf_ptr;
+  be_u32 len;
+  be_u32 buf_ptr;
 };
 
 struct XWSAOVERLAPPED {
-  rex::be<uint32_t> internal;
-  rex::be<uint32_t> internal_high;
+  be_u32 internal;
+  be_u32 internal_high;
   union {
     struct {
-      rex::be<uint32_t> low;
-      rex::be<uint32_t> high;
+      be_u32 low;
+      be_u32 high;
     } offset;  // must be named to avoid GCC error
-    rex::be<uint32_t> pointer;
+    be_u32 pointer;
   };
-  rex::be<uint32_t> event_handle;
+  be_u32 event_handle;
 };
 
 // https://github.com/joolswills/mameox/blob/master/MAMEoX/Sources/xbox_Network.cpp#L136
@@ -150,7 +151,7 @@ XNetStartupParams xnet_startup_params = {};
 
 u32 NetDll_XNetStartup_entry(u32 caller, ppc_ptr_t<XNetStartupParams> params) {
   if (params) {
-    assert_true(params->cfgSizeOfStruct == sizeof(XNetStartupParams));
+    REX_ASSERT(params->cfgSizeOfStruct == sizeof(XNetStartupParams));
     std::memcpy(&xnet_startup_params, params, sizeof(XNetStartupParams));
   }
 
@@ -178,7 +179,7 @@ u32 NetDll_XNetCleanup_entry(u32 caller, mapped_void params) {
 
 u32 NetDll_XNetGetOpt_entry(u32 one, u32 option_id, mapped_void buffer_ptr,
                             mapped_u32 buffer_size) {
-  assert_true(one == 1);
+  REX_ASSERT(one == 1);
   switch (option_id) {
     case 1:
       if (*buffer_size < sizeof(XNetStartupParams)) {
@@ -194,7 +195,7 @@ u32 NetDll_XNetGetOpt_entry(u32 one, u32 option_id, mapped_void buffer_ptr,
 }
 
 u32 NetDll_XNetRandom_entry(u32 caller, mapped_void buffer_ptr, u32 length) {
-  // For now, constant values.
+  // Constant values.
   // This makes replicating things easier.
   std::memset(buffer_ptr, 0xBB, length);
 
@@ -208,8 +209,6 @@ u32 NetDll_WSAStartup_entry(u32 caller, u16 version, ppc_ptr_t<X_WSADATA> data_p
   ZeroMemory(&wsaData, sizeof(WSADATA));
   int ret = WSAStartup(version, &wsaData);
 
-  auto data_out = runtime::Current().memory()->TranslateVirtual(data_ptr.guest_address());
-
   if (data_ptr) {
     data_ptr->version = wsaData.wVersion;
     data_ptr->version_high = wsaData.wHighVersion;
@@ -217,11 +216,6 @@ u32 NetDll_WSAStartup_entry(u32 caller, u16 version, ppc_ptr_t<X_WSADATA> data_p
     std::memcpy(&data_ptr->system_status, wsaData.szSystemStatus, 0x80);
     data_ptr->max_sockets = wsaData.iMaxSockets;
     data_ptr->max_udpdg = wsaData.iMaxUdpDg;
-
-    // Some games (5841099F) want this value round-tripped - they'll compare if
-    // it changes and bugcheck if it does.
-    uint32_t vendor_ptr = memory::load_and_swap<uint32_t>(data_out + 0x190);
-    memory::store_and_swap<uint32_t>(data_out + 0x190, vendor_ptr);
   }
 #else
   int ret = 0;
@@ -376,23 +370,23 @@ struct XnAddrStatus {
   static const uint32_t XNET_GET_XNADDR_GATEWAY = 0x00000020;
   // Host has one or more DNS servers configured
   static const uint32_t XNET_GET_XNADDR_DNS = 0x00000040;
-  // Host is currently connected to online service
+  // Host is connected to online service
   static const uint32_t XNET_GET_XNADDR_ONLINE = 0x00000080;
   // Network configuration requires troubleshooting
   static const uint32_t XNET_GET_XNADDR_TROUBLESHOOT = 0x00008000;
 };
 
 u32 NetDll_XNetGetTitleXnAddr_entry(u32 caller, ppc_ptr_t<XNADDR> addr_ptr) {
-  // Just return a loopback address atm.
+  // Return a loopback address.
   addr_ptr->ina.s_addr = htonl(INADDR_LOOPBACK);
   addr_ptr->inaOnline.s_addr = 0;
   addr_ptr->wPortOnline = 0;
 
   // TODO(gibbed): A proper mac address.
-  // RakNet's 360 version appears to depend on abEnet to create "random" 64-bit
+  // RakNet's console version appears to depend on abEnet to create "random" 64-bit
   // numbers. A zero value will cause RakPeer::Startup to fail. This causes
   // 58411436 to crash on startup.
-  // The 360-specific code is scrubbed from the RakNet repo, but there's still
+  // The console specific code is scrubbed from the RakNet repo, but there's still
   // traces of what it's doing which match the game code.
   // https://github.com/facebookarchive/RakNet/blob/master/Source/RakPeer.cpp#L382
   // https://github.com/facebookarchive/RakNet/blob/master/Source/RakPeer.cpp#L4527
@@ -457,7 +451,7 @@ u32 NetDll_XNetGetEthernetLinkStatus_entry(u32 caller) {
 }
 
 u32 NetDll_XNetDnsLookup_entry(u32 caller, mapped_string host, u32 event_handle, mapped_u32 pdns) {
-  // TODO(gibbed): actually implement this
+  // TODO(gibbed): implement this
   if (pdns) {
     auto dns_guest = runtime::Current().memory()->SystemHeapAlloc(sizeof(XNDNS));
     auto dns = runtime::Current().memory()->TranslateVirtual<XNDNS*>(dns_guest);
@@ -466,7 +460,7 @@ u32 NetDll_XNetDnsLookup_entry(u32 caller, mapped_string host, u32 event_handle,
   }
   if (event_handle) {
     auto ev = runtime::Current().object_table().Get<EventObject>(event_handle);
-    assert_true(static_cast<bool>(ev));
+    REX_ASSERT(static_cast<bool>(ev));
     if (ev) {
       EventSet(*ev);
     }
@@ -490,7 +484,7 @@ u32 NetDll_XNetQosServiceLookup_entry(u32 caller, u32 flags, u32 event_handle, m
   }
   if (event_handle) {
     auto ev = runtime::Current().object_table().Get<EventObject>(event_handle);
-    assert_true(static_cast<bool>(ev));
+    REX_ASSERT(static_cast<bool>(ev));
     if (ev) {
       EventSet(*ev);
     }
@@ -522,15 +516,15 @@ u32 NetDll_inet_addr_entry(mapped_string addr_ptr) {
     return 0;
   }
 
-  return rex::byte_swap(addr);
+  return std::byteswap(addr);
 }
 
 u32 NetDll_socket_entry(u32 caller, u32 af, u32 type, u32 protocol) {
   auto& table = runtime::Current().object_table();
   X_HANDLE handle = X_INVALID_HANDLE_VALUE;
-  auto added =
-      table.Emplace<SocketObject>(AddOptions{}, SocketAddressFamily((uint32_t)af),
-                                  SocketType((uint32_t)type), SocketProtocol((uint32_t)protocol));
+  auto added = table.Emplace<SocketObject>(
+      AddOptions{}, SocketAddressFamily(static_cast<uint32_t>(af)),
+      SocketType(static_cast<uint32_t>(type)), SocketProtocol(static_cast<uint32_t>(protocol)));
   if (added) {
     handle = *added;
   }
@@ -700,8 +694,8 @@ u32 NetDll_accept_entry(u32 caller, u32 socket_handle, ppc_ptr_t<XSOCKADDR> addr
 }
 
 struct x_fd_set {
-  rex::be<uint32_t> fd_count;
-  rex::be<uint32_t> fd_array[64];
+  be_u32 fd_count;
+  be_u32 fd_array[64];
 };
 
 struct host_set {
@@ -709,7 +703,7 @@ struct host_set {
   Pinned<SocketObject> sockets[64];
 
   void Load(const x_fd_set* guest_set) {
-    assert_true(guest_set->fd_count < 64);
+    REX_ASSERT(guest_set->fd_count < 64);
     this->count = guest_set->fd_count;
     for (uint32_t i = 0; i < this->count; ++i) {
       auto socket_handle = static_cast<X_HANDLE>(guest_set->fd_array[i]);
@@ -779,10 +773,10 @@ i32 NetDll_select_entry(i32 caller, i32 nfds, ppc_ptr_t<x_fd_set> readfds,
   timeval* timeout_in = nullptr;
   timeval timeout;
   if (timeout_ptr) {
-    timeout = {static_cast<int32_t>(timeout_ptr.as_array<int32_t>()[0]),
-               static_cast<int32_t>(timeout_ptr.as_array<int32_t>()[1])};
-    Clock::ScaleGuestDurationTimeval(reinterpret_cast<int32_t*>(&timeout.tv_sec),
-                                     reinterpret_cast<int32_t*>(&timeout.tv_usec));
+    i32 timeout_sec = static_cast<int32_t>(timeout_ptr.as_array<int32_t>()[0]);
+    i32 timeout_usec = static_cast<int32_t>(timeout_ptr.as_array<int32_t>()[1]);
+    Clock::ScaleGuestDurationTimeval(&timeout_sec, &timeout_usec);
+    timeout = {timeout_sec, timeout_usec};
     timeout_in = &timeout;
   }
   int ret = select(nfds, readfds ? &native_readfds : nullptr, writefds ? &native_writefds : nullptr,
@@ -800,7 +794,7 @@ i32 NetDll_select_entry(i32 caller, i32 nfds, ppc_ptr_t<x_fd_set> readfds,
     host_exceptfds.Store(exceptfds);
   }
 
-  // TODO(gibbed): modify ret to be what's actually copied to the guest fd_sets?
+  // TODO(gibbed): modify ret to be what's copied to the guest fd_sets?
   return ret;
 }
 
@@ -880,7 +874,8 @@ u32 NetDll_sendto_entry(u32 caller, u32 socket_handle, mapped_void buf_ptr, u32 
 }
 
 u32 NetDll___WSAFDIsSet_entry(u32 socket_handle, ppc_ptr_t<x_fd_set> fd_set) {
-  const uint8_t max_fd_count = std::min((uint32_t)fd_set->fd_count, uint32_t(64));
+  const uint8_t max_fd_count =
+      std::min(static_cast<uint32_t>(fd_set->fd_count), static_cast<uint32_t>(64));
   for (uint8_t i = 0; i < max_fd_count; i++) {
     if (fd_set->fd_array[i] == socket_handle) {
       return 1;

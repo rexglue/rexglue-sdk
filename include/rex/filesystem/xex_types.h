@@ -348,8 +348,8 @@ struct xex2_game_ratings_t {
 };
 
 struct xex2_file_basic_compression_block {
-  be<uint32_t> data_size;
-  be<uint32_t> zero_size;
+  be_u32 data_size;
+  be_u32 zero_size;
 };
 
 struct xex2_file_basic_compression_info {
@@ -357,17 +357,17 @@ struct xex2_file_basic_compression_info {
 };
 
 struct xex2_compressed_block_info {
-  be<uint32_t> block_size;
+  be_u32 block_size;
   uint8_t block_hash[20];
 };
 
 struct xex2_file_normal_compression_info {
-  be<uint32_t> window_size;
+  be_u32 window_size;
   xex2_compressed_block_info first_block;
 };
 
 struct xex2_opt_file_format_info {
-  be<uint32_t> info_size;
+  be_u32 info_size;
   be<xex2_encryption_type> encryption_type;
   be<xex2_compression_type> compression_type;
   union {
@@ -392,78 +392,78 @@ struct xex2_opt_lan_key {
 };
 
 struct xex2_opt_bound_path {
-  be<uint32_t> size;
+  be_u32 size;
   char path[1];
 };
 
 struct xex2_opt_static_library {
-  char name[8];                // 0x0
-  be<uint16_t> version_major;  // 0x8
-  be<uint16_t> version_minor;  // 0xA
-  be<uint16_t> version_build;  // 0xC
-  uint8_t approval_type;       // 0xE
-  uint8_t version_qfe;         // 0xF
+  char name[8];           // 0x0
+  be_u16 version_major;   // 0x8
+  be_u16 version_minor;   // 0xA
+  be_u16 version_build;   // 0xC
+  uint8_t approval_type;  // 0xE
+  uint8_t version_qfe;    // 0xF
 };
-static_assert_size(xex2_opt_static_library, 0x10);
+REX_STATIC_ASSERT_SIZE(xex2_opt_static_library, 0x10);
 
 struct xex2_opt_static_libraries {
-  be<uint32_t> size;                     // 0x0
+  be_u32 size;                           // 0x0
   xex2_opt_static_library libraries[1];  // 0x4
 };
 
 struct xex2_opt_original_pe_name {
-  be<uint32_t> size;
+  be_u32 size;
   char name[1];
 };
 
 struct xex2_opt_data_directory {
-  be<uint32_t> offset;  // 0x0
-  be<uint32_t> size;    // 0x4
+  be_u32 offset;  // 0x0
+  be_u32 size;    // 0x4
 };
-static_assert_size(xex2_opt_data_directory, 0x8);
+REX_STATIC_ASSERT_SIZE(xex2_opt_data_directory, 0x8);
 
 struct xex2_opt_tls_info {
-  be<uint32_t> slot_count;        // 0x0
-  be<uint32_t> raw_data_address;  // 0x4
-  be<uint32_t> data_size;         // 0x8
-  be<uint32_t> raw_data_size;     // 0xC
+  be_u32 slot_count;        // 0x0
+  be_u32 raw_data_address;  // 0x4
+  be_u32 data_size;         // 0x8
+  be_u32 raw_data_size;     // 0xC
 };
-static_assert_size(xex2_opt_tls_info, 0x10);
+REX_STATIC_ASSERT_SIZE(xex2_opt_tls_info, 0x10);
 
 struct xex2_resource {
-  char name[8];          // 0x0
-  be<uint32_t> address;  // 0x8
-  be<uint32_t> size;     // 0xC
+  char name[8];    // 0x0
+  be_u32 address;  // 0x8
+  be_u32 size;     // 0xC
 };
-static_assert_size(xex2_resource, 0x10);
+REX_STATIC_ASSERT_SIZE(xex2_resource, 0x10);
 
 struct xex2_opt_resource_info {
-  be<uint32_t> size;           // 0x0 Resource count is (size - 4) / 16
+  be_u32 size;                 // 0x0 Resource count is (size - 4) / 16
   xex2_resource resources[1];  // 0x4
 };
 
 struct xex2_delta_patch {
-  be<uint32_t> old_addr;
-  be<uint32_t> new_addr;
-  be<uint16_t> uncompressed_len;
-  be<uint16_t> compressed_len;
+  be_u32 old_addr;
+  be_u32 new_addr;
+  be_u16 uncompressed_len;
+  be_u16 compressed_len;
   char patch_data[1];
 };
 
 struct xex2_opt_delta_patch_descriptor {
-  be<uint32_t> size;                         // 0x0
-  be<uint32_t> target_version_value;         // 0x4
-  be<uint32_t> source_version_value;         // 0x8
-  uint8_t digest_source[0x14];               // 0xC
-  uint8_t image_key_source[0x10];            // 0x20
-  be<uint32_t> size_of_target_headers;       // 0x30
-  be<uint32_t> delta_headers_source_offset;  // 0x34
-  be<uint32_t> delta_headers_source_size;    // 0x38
-  be<uint32_t> delta_headers_target_offset;  // 0x3C
-  be<uint32_t> delta_image_source_offset;    // 0x40
-  be<uint32_t> delta_image_source_size;      // 0x44
-  be<uint32_t> delta_image_target_offset;    // 0x48
-  xex2_delta_patch info;                     // 0x4C
+  be_u32 size;                         // 0x0
+  be_u32 target_version_value;         // 0x4
+  be_u32 source_version_value;         // 0x8
+  uint8_t digest_source[0x14];         // 0xC
+  uint8_t image_key_source[0x10];      // 0x20
+  be_u32 size_of_target_headers;       // 0x30
+  be_u32 delta_headers_source_offset;  // 0x34
+  be_u32 delta_headers_source_size;    // 0x38
+  be_u32 delta_headers_target_offset;  // 0x3C
+  be_u32 delta_image_source_offset;    // 0x40
+  be_u32 delta_image_source_size;      // 0x44
+  be_u32 delta_image_target_offset;    // 0x48
+  xex2_delta_patch info;               // 0x4C
 
   xex2_version target_version() const { return xex2_version{target_version_value}; }
 
@@ -475,15 +475,15 @@ struct xex2_opt_delta_patch_descriptor {
 };
 
 struct xex2_opt_execution_info {
-  be<uint32_t> media_id;            // 0x0
-  be<uint32_t> version_value;       // 0x4
-  be<uint32_t> base_version_value;  // 0x8
-  be<uint32_t> title_id;            // 0xC
-  uint8_t platform;                 // 0x10
-  uint8_t executable_table;         // 0x11
-  uint8_t disc_number;              // 0x12
-  uint8_t disc_count;               // 0x13
-  be<uint32_t> savegame_id;         // 0x14
+  be_u32 media_id;            // 0x0
+  be_u32 version_value;       // 0x4
+  be_u32 base_version_value;  // 0x8
+  be_u32 title_id;            // 0xC
+  uint8_t platform;           // 0x10
+  uint8_t executable_table;   // 0x11
+  uint8_t disc_number;        // 0x12
+  uint8_t disc_count;         // 0x13
+  be_u32 savegame_id;         // 0x14
 
   xex2_version version() const { return xex2_version{version_value}; }
 
@@ -493,26 +493,26 @@ struct xex2_opt_execution_info {
 
   void set_base_version(xex2_version version) { base_version_value = version.value; }
 };
-static_assert_size(xex2_opt_execution_info, 0x18);
+REX_STATIC_ASSERT_SIZE(xex2_opt_execution_info, 0x18);
 
 struct xex2_opt_import_libraries {
-  be<uint32_t> size;  // 0x0
+  be_u32 size;  // 0x0
   struct {
-    be<uint32_t> size;   // 0x4
-    be<uint32_t> count;  // 0x8
-    char data[1];        // 0xC string_table_size bytes
+    be_u32 size;   // 0x4
+    be_u32 count;  // 0x8
+    char data[1];  // 0xC string_table_size bytes
   } string_table;
 };
 
 struct xex2_import_library {
-  be<uint32_t> size;               // 0x0
-  char next_import_digest[0x14];   // 0x4
-  be<uint32_t> id;                 // 0x18
-  be<uint32_t> version_value;      // 0x1C
-  be<uint32_t> version_min_value;  // 0x20
-  be<uint16_t> name_index;         // 0x24
-  be<uint16_t> count;              // 0x26
-  be<uint32_t> import_table[1];    // 0x28
+  be_u32 size;                    // 0x0
+  char next_import_digest[0x14];  // 0x4
+  be_u32 id;                      // 0x18
+  be_u32 version_value;           // 0x1C
+  be_u32 version_min_value;       // 0x20
+  be_u16 name_index;              // 0x24
+  be_u16 count;                   // 0x26
+  be_u32 import_table[1];         // 0x28
 
   xex2_version version() const { return xex2_version{version_value}; }
 
@@ -524,35 +524,35 @@ struct xex2_import_library {
 };
 
 struct xex2_opt_generic_u32 {
-  be<uint32_t> size;
-  be<uint32_t> values[1];
+  be_u32 size;
+  be_u32 values[1];
 
   uint32_t count() const { return (size - 4) / 4; }
 };
 
 struct xex2_opt_header {
-  be<uint32_t> key;  // 0x0
+  be_u32 key;  // 0x0
 
   union {
-    be<uint32_t> value;   // 0x4
-    be<uint32_t> offset;  // 0x4
+    be_u32 value;   // 0x4
+    be_u32 offset;  // 0x4
   };
 };
 
 struct xex2_header {
-  be<uint32_t> magic;                  // 0x0 'XEX2'
+  be_u32 magic;                        // 0x0 'XEX2'
   be<xex2_module_flags> module_flags;  // 0x4
-  be<uint32_t> header_size;            // 0x8
-  be<uint32_t> reserved;               // 0xC
-  be<uint32_t> security_offset;        // 0x10
-  be<uint32_t> header_count;           // 0x14
+  be_u32 header_size;                  // 0x8
+  be_u32 reserved;                     // 0xC
+  be_u32 security_offset;              // 0x10
+  be_u32 header_count;                 // 0x14
 
   xex2_opt_header headers[1];  // 0x18
 };
 
 struct xex2_page_descriptor {
   union {
-    be<uint32_t> value;  // 0x0
+    be_u32 value;  // 0x0
     struct {
       xex2_section_type info : 4;
       uint32_t page_count : 28;
@@ -562,50 +562,50 @@ struct xex2_page_descriptor {
 };
 
 struct xex2_security_info {
-  be<uint32_t> header_size;                  // 0x0
-  be<uint32_t> image_size;                   // 0x4
+  be_u32 header_size;                        // 0x0
+  be_u32 image_size;                         // 0x4
   char rsa_signature[0x100];                 // 0x8
-  be<uint32_t> unk_108;                      // 0x108 unk length
-  be<uint32_t> image_flags;                  // 0x10C
-  be<uint32_t> load_address;                 // 0x110
+  be_u32 unk_108;                            // 0x108 unk length
+  be_u32 image_flags;                        // 0x10C
+  be_u32 load_address;                       // 0x110
   char section_digest[0x14];                 // 0x114
-  be<uint32_t> import_table_count;           // 0x128
+  be_u32 import_table_count;                 // 0x128
   char import_table_digest[0x14];            // 0x12C
   char xgd2_media_id[0x10];                  // 0x140
   char aes_key[0x10];                        // 0x150
-  be<uint32_t> export_table;                 // 0x160
+  be_u32 export_table;                       // 0x160
   char header_digest[0x14];                  // 0x164
-  be<uint32_t> region;                       // 0x178
-  be<uint32_t> allowed_media_types;          // 0x17C
-  be<uint32_t> page_descriptor_count;        // 0x180
+  be_u32 region;                             // 0x178
+  be_u32 allowed_media_types;                // 0x17C
+  be_u32 page_descriptor_count;              // 0x180
   xex2_page_descriptor page_descriptors[1];  // 0x184
 };
 
 struct xex1_security_info {
-  be<uint32_t> header_size;
-  be<uint32_t> image_size;
+  be_u32 header_size;
+  be_u32 image_size;
   char rsa_signature[0x100];
   char image_digest[0x14];
   char import_table_digest[0x14];
-  be<uint32_t> load_address;
+  be_u32 load_address;
   char aes_key[0x10];
   char xgd2_media_id[0x10];
-  be<uint32_t> region;
-  be<uint32_t> image_flags;
-  be<uint32_t> export_table;
-  be<uint32_t> allowed_media_types;
-  be<uint32_t> page_descriptor_count;
+  be_u32 region;
+  be_u32 image_flags;
+  be_u32 export_table;
+  be_u32 allowed_media_types;
+  be_u32 page_descriptor_count;
   xex2_page_descriptor page_descriptors[1];
 };
 
 struct xex2_export_table {
-  be<uint32_t> magic[3];         // 0x0
-  be<uint32_t> modulenumber[2];  // 0xC
-  be<uint32_t> version[3];       // 0x14
-  be<uint32_t> imagebaseaddr;    // 0x20 must be <<16 to be accurate
-  be<uint32_t> count;            // 0x24
-  be<uint32_t> base;             // 0x28
-  be<uint32_t> ordOffset[1];     // 0x2C ordOffset[0] + (imagebaseaddr << 16) = function
+  be_u32 magic[3];         // 0x0
+  be_u32 modulenumber[2];  // 0xC
+  be_u32 version[3];       // 0x14
+  be_u32 imagebaseaddr;    // 0x20 must be <<16 to be accurate
+  be_u32 count;            // 0x24
+  be_u32 base;             // 0x28
+  be_u32 ordOffset[1];     // 0x2C ordOffset[0] + (imagebaseaddr << 16) = function
 };
 
 // Little endian PE export directory (from winnt.h)

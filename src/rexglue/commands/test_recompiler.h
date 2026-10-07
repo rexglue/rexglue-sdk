@@ -1,6 +1,5 @@
 /**
  * @file        rexglue/commands/test_recompiler.h
- * @brief       Recompiler test command interface
  *
  * @copyright   Copyright (c) 2026 Tom Clay
  * @license     BSD 3-Clause License

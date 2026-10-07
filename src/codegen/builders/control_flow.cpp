@@ -1,6 +1,5 @@
 /**
  * @file        codegen/builders/control_flow.cpp
- * @brief       PPC control flow instruction code generation
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -130,7 +129,7 @@ bool build_bctr(BuilderContext& ctx) {
       ctx.println("\tcase {}:", i);
       auto label = jt->targets[i];
 
-      // TODO(tomc): Figure out if this actually is triggered on real hardware and what would
+      // TODO(tomc): Figure out if this is triggered on real hardware and what would
       // happen?
       if (label == 0) {
         ctx.println("\t\t__builtin_trap(); // ERROR - detected jump to null value");
@@ -175,7 +174,7 @@ bool build_bctr(BuilderContext& ctx) {
     ctx.reset_switch_table();
   } else {
     // No switch table - assume tail call via CTR
-    // NOTE(tomc): If this is actually an unresolved switch table, the code after
+    // NOTE(tomc): If this is an unresolved switch table, the code after
     // will be unreachable. This is caught during analysis by discover_blocks.
     // The validation phase will report missing switch tables.
     ctx.println("\tREX_CALL_INDIRECT_FUNC({}.u32);", ctx.ctr());

@@ -1,6 +1,5 @@
 /**
  * @file        gpu/overlay.h
- * @brief       Overlay drawing types and interfaces
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -55,7 +54,7 @@ class OverlayTexture : public NonCopyable {
 
  protected:
   /**
-   * Records the size of the texture.
+   * Stores the size of the texture.
    *
    * @param width Width in pixels.
    * @param height Height in pixels.
@@ -145,7 +144,7 @@ class OverlayDrawContext : public NonCopyable {
 
  protected:
   /**
-   * Records the render target.
+   * Stores the render target.
    *
    * @param presenter The presenter, or null.
    * @param render_target_width Width in pixels.

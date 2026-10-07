@@ -22,10 +22,10 @@
 
 #include <SDL3/SDL.h>
 
-#define HID_SDL_THUMB_THRES 0x4E00
-#define HID_SDL_TRIGG_THRES 0x1F
-#define HID_SDL_REPEAT_DELAY 400
-#define HID_SDL_REPEAT_RATE 100
+inline constexpr i32 HID_SDL_THUMB_THRES = 0x4E00;
+inline constexpr i32 HID_SDL_TRIGG_THRES = 0x1F;
+inline constexpr i32 HID_SDL_REPEAT_DELAY = 400;
+inline constexpr i32 HID_SDL_REPEAT_RATE = 100;
 
 namespace rex::hid::sdl3 {
 
@@ -34,7 +34,7 @@ class SDL3Driver final : public Driver {
   explicit SDL3Driver(std::filesystem::path mappings_file);
   ~SDL3Driver() override;
 
-  Result<void> Setup();
+  [[nodiscard]] Result<void> Setup();
 
   void EnumerateDevices(std::vector<DeviceInfo>& out) override;
   [[nodiscard]] Result<X_INPUT_STATE> GetDeviceState(DeviceId id) override;

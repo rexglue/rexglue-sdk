@@ -1,6 +1,5 @@
 /**
  * @file        rex/codegen/test_support.h
- * @brief       Test support utilities
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

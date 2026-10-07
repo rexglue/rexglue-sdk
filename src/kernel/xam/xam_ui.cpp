@@ -40,13 +40,10 @@ extern std::atomic<int> xam_dialogs_shown_;
 
 namespace {
 
-class ScopedTitleInputBlock {
+class ScopedTitleInputBlock : public rex::NonCopyable {
  public:
   ScopedTitleInputBlock() : hid_(runtime::Current().hid()) { hid_.AcquireUIBlock(); }
   ~ScopedTitleInputBlock() { hid_.ReleaseUIBlock(); }
-
-  ScopedTitleInputBlock(const ScopedTitleInputBlock&) = delete;
-  ScopedTitleInputBlock& operator=(const ScopedTitleInputBlock&) = delete;
 
  private:
   rex::hid::IBackend& hid_;
@@ -57,8 +54,8 @@ bool HasWindow() {
   return user_interface != nullptr && user_interface->GetWindow() != nullptr;
 }
 
-X_RESULT XamPromptAndWait(const ui::PromptDesc& desc,
-                          const std::function<X_RESULT(const ui::PromptResult&)>& complete) {
+template <std::invocable<const ui::PromptResult&> F>
+X_RESULT XamPromptAndWait(const ui::PromptDesc& desc, const F& complete) {
   ScopedTitleInputBlock input_block;
   X_RESULT result = X_ERROR_CANCELLED;
   rex::platform::Fence fence;
@@ -144,9 +141,9 @@ u32 XamShowMessageBoxUI_entry(u32 user_index, mapped_wstring title_ptr, mapped_w
   REXLOG_DEBUG(
       kernel,
       "XamShowMessageBoxUI({:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X})",
-      u32(user_index), title_ptr.guest_address(), text_ptr.guest_address(), u32(button_count),
-      button_ptrs.guest_address(), u32(active_button), u32(flags), result_ptr.guest_address(),
-      overlapped.guest_address());
+      static_cast<u32>(user_index), title_ptr.guest_address(), text_ptr.guest_address(),
+      static_cast<u32>(button_count), button_ptrs.guest_address(), static_cast<u32>(active_button),
+      static_cast<u32>(flags), result_ptr.guest_address(), overlapped.guest_address());
   std::string title;
   if (title_ptr) {
     title = rex::to_utf8(rex::memory::load_and_swap<std::u16string>(
@@ -189,14 +186,14 @@ u32 XamShowKeyboardUI_entry(u32 user_index, u32 flags, mapped_wstring default_te
                             u32 buffer_length, mapped_void overlapped) {
   REXLOG_DEBUG(kernel,
                "XamShowKeyboardUI({:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X}, {:08X})",
-               u32(user_index), u32(flags), default_text.guest_address(), title.guest_address(),
-               description.guest_address(), buffer.guest_address(), u32(buffer_length),
-               overlapped.guest_address());
+               static_cast<u32>(user_index), static_cast<u32>(flags), default_text.guest_address(),
+               title.guest_address(), description.guest_address(), buffer.guest_address(),
+               static_cast<u32>(buffer_length), overlapped.guest_address());
   if (!buffer) {
     return X_ERROR_INVALID_PARAMETER;
   }
 
-  assert_true(overlapped.guest_address() != 0);
+  REX_ASSERT(overlapped.guest_address() != 0);
 
   auto buffer_size = static_cast<size_t>(buffer_length) * 2;
 
@@ -265,9 +262,9 @@ u32 XamShowDeviceSelectorUI_entry(u32 user_index, u32 content_type, u32 content_
                                   u64 total_requested, mapped_u32 device_id_ptr,
                                   mapped_void overlapped) {
   REXLOG_DEBUG(kernel, "XamShowDeviceSelectorUI({:08X}, {:08X}, {:08X}, {:016X}, {:08X}, {:08X})",
-               uint32_t(user_index), uint32_t(content_type), uint32_t(content_flags),
-               uint64_t(total_requested), device_id_ptr.guest_address(),
-               overlapped.guest_address());
+               static_cast<uint32_t>(user_index), static_cast<uint32_t>(content_type),
+               static_cast<uint32_t>(content_flags), static_cast<uint64_t>(total_requested),
+               device_id_ptr.guest_address(), overlapped.guest_address());
   return XamDispatchHeadless(
       [device_id_ptr]() -> X_RESULT {
         // NOTE: 0x00000001 is our dummy device ID from xam_content.cc
@@ -278,7 +275,8 @@ u32 XamShowDeviceSelectorUI_entry(u32 user_index, u32 content_type, u32 content_
 }
 
 void XamShowDirtyDiscErrorUI_entry(u32 user_index) {
-  REXLOG_ERROR(kernel, "XamShowDirtyDiscErrorUI called! user_index={}", u32(user_index));
+  REXLOG_ERROR(kernel, "XamShowDirtyDiscErrorUI called! user_index={}",
+               static_cast<u32>(user_index));
   REXLOG_ERROR(kernel, "This indicates a disc/file read error - check that all game files exist");
 
   if (HasWindow()) {

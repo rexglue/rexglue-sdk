@@ -1,6 +1,5 @@
 /**
  * @file        literals.h
- * @brief       Binary size user defined literals
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

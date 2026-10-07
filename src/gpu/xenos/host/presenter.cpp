@@ -43,13 +43,13 @@ namespace gpu {
 
 void Presenter::FatalErrorHostGpuLossCallback([[maybe_unused]] bool is_responsible,
                                               [[maybe_unused]] bool statically_from_ui_thread) {
-  rex::FatalError("Graphics device lost (probably due to an internal error)");
+  REX_FATAL(gpu, "Graphics device lost (probably due to an internal error)");
 }
 
 Presenter::~Presenter() {
   // No intrusive lifetime management must be performed from UI drawers - defer
   // it if needed.
-  assert_false(is_executing_ui_drawers_);
+  REX_ASSERT(!is_executing_ui_drawers_);
 
 #if REX_PLATFORM_WIN32
   if (dxgi_ui_tick_thread_.joinable()) {
@@ -73,11 +73,11 @@ void Presenter::SetWindowSurfaceFromUIThread(gpu::IPresentationHost* new_host,
                                              gpu::Surface* new_surface) {
   // No intrusive lifetime management must be performed from UI drawers - defer
   // it if needed.
-  assert_false(is_executing_ui_drawers_);
+  REX_ASSERT(!is_executing_ui_drawers_);
 
   // There can't be a valid surface pointer without a window, as a surface is
   // created and owned by the window.
-  assert_false(new_surface && !new_host);
+  REX_ASSERT(!(new_surface && !new_host));
 
   if (host_ == new_host && (!host_ || surface_ == new_surface)) {
     // Nothing has changed (or a recursive SetWindowSurfaceFromUIThread >
@@ -102,10 +102,10 @@ void Presenter::SetWindowSurfaceFromUIThread(gpu::IPresentationHost* new_host,
     // The window pointer may be accessed by the guest output thread if painting
     // is possible (or was possible, but the paint attempt has resulted in the
     // implementation reporting that the connection has become outdated).
-    // However, a painting connection is currently not established at all, so
+    // However, a painting connection is not established at all, so
     // it's safe to modify the window pointer here.
 
-    // Detach from the old window if attaching to a different one or just
+    // Detach from the old window if attaching to a different one or
     // detaching. SetPresenter for the new window might have been called without
     // it having been called with nullptr for the old window.
     if (host_) {
@@ -121,11 +121,11 @@ void Presenter::SetWindowSurfaceFromUIThread(gpu::IPresentationHost* new_host,
   }
 
   if (new_surface) {
-    assert_true(paint_mode_ == PaintMode::kNone);
+    REX_ASSERT(paint_mode_ == PaintMode::kNone);
     surface_ = new_surface;
     UpdateSurfaceMonitorFromUIThread(true);
-    assert_true(surface_paint_connection_state_ ==
-                SurfacePaintConnectionState::kUnconnectedRetryAtStateChange);
+    REX_ASSERT(surface_paint_connection_state_ ==
+               SurfacePaintConnectionState::kUnconnectedRetryAtStateChange);
     bool request_repaint;
     UpdateSurfacePaintConnectionFromUIThread(&request_repaint, true);
     // Request to paint as soon as possible in the UI thread if connected
@@ -139,7 +139,7 @@ void Presenter::SetWindowSurfaceFromUIThread(gpu::IPresentationHost* new_host,
 void Presenter::OnSurfaceMonitorUpdateFromUIThread(bool old_monitor_potentially_disconnected) {
   // No intrusive lifetime management must be performed from UI drawers - defer
   // it if needed.
-  assert_false(is_executing_ui_drawers_);
+  REX_ASSERT(!is_executing_ui_drawers_);
 
   if (!surface_) {
     return;
@@ -151,7 +151,7 @@ void Presenter::OnSurfaceMonitorUpdateFromUIThread(bool old_monitor_potentially_
 void Presenter::OnSurfaceResizeFromUIThread() {
   // No intrusive lifetime management must be performed from UI drawers - defer
   // it if needed.
-  assert_false(is_executing_ui_drawers_);
+  REX_ASSERT(!is_executing_ui_drawers_);
 
   if (!surface_) {
     return;
@@ -189,7 +189,7 @@ void Presenter::PaintFromUIThread(bool force_paint) {
 
   // Defer changes to the paint mode as well as window paint requests, and do
   // them in this function so they're consistent with the assumptions made here.
-  assert_false(is_in_ui_thread_paint_);
+  REX_ASSERT(!is_in_ui_thread_paint_);
   is_in_ui_thread_paint_ = true;
   request_guest_output_paint_after_current_ui_thread_paint_ = false;
   request_ui_paint_after_current_ui_thread_paint_ = false;
@@ -214,7 +214,7 @@ void Presenter::PaintFromUIThread(bool force_paint) {
   bool request_repaint_at_tick = false;
   bool request_repaint_immediately = false;
   if (do_paint) {
-    // Take ownership of painting if it's currently owned by the guest output
+    // Take ownership of painting if it's owned by the guest output
     // thread (downgrade from kGuestOutputThreadImmediately to
     // kUIThreadOnRequest - not to kNone so if during this paint a new guest
     // output frame is generated, the notification will still be sent to the UI
@@ -256,7 +256,7 @@ void Presenter::PaintFromUIThread(bool force_paint) {
     // If can't paint anymore, notify the paint mode refresh below (which is not
     // guaranteed to have access to have ownership of painting as it's taken
     // here only conditionally, thus can't know whether the connection is
-    // actually in a paintable state).
+    // in a paintable state).
     if (surface_paint_connection_state_ != SurfacePaintConnectionState::kConnectedPaintable) {
       SetPaintModeFromUIThread(PaintMode::kNone);
     }
@@ -265,7 +265,7 @@ void Presenter::PaintFromUIThread(bool force_paint) {
   // Transfer the ownership of painting back to the guest output thread if it
   // was taken or if needed for any reason (however, it's taken conditionally -
   // no guarantees that the actual connection state is accessible here, so only
-  // checking whether the mode is not kNone currently, not the connection
+  // checking whether the mode is not kNone, not the connection
   // state), and overall synchronize the state taking into account both what has
   // been done in this function and what could have been done by the UI drawer
   // callbacks.
@@ -288,7 +288,7 @@ void Presenter::PaintFromUIThread(bool force_paint) {
   }
 
   // Request refresh if needed.
-  // Can't check the exact paintability as the connection state may currently
+  // Can't check the exact paintability as the connection state may
   // be owned by the guest output thread, so check conservatively via
   // paint_mode_.
   if (paint_mode_ != PaintMode::kNone) {
@@ -310,7 +310,7 @@ void Presenter::PaintFromUIThread(bool force_paint) {
 bool Presenter::RefreshGuestOutput(
     uint32_t frontbuffer_width, uint32_t frontbuffer_height, uint32_t display_aspect_ratio_x,
     uint32_t display_aspect_ratio_y,
-    std::function<bool(GuestOutputRefreshContext& context)> refresher) {
+    std::move_only_function<bool(GuestOutputRefreshContext& context)> refresher) {
   GuestOutputProperties& writable_properties =
       guest_output_properties_[guest_output_mailbox_writable_];
   writable_properties.frontbuffer_width = frontbuffer_width;
@@ -321,8 +321,9 @@ bool Presenter::RefreshGuestOutput(
   bool is_active = writable_properties.IsActive();
   if (is_active) {
     if (!RefreshGuestOutputImpl(guest_output_mailbox_writable_, frontbuffer_width,
-                                frontbuffer_height, refresher, writable_properties.is_8bpc)) {
-      // If failed to refresh, don't send the currently writable image to the
+                                frontbuffer_height, std::move(refresher),
+                                writable_properties.is_8bpc)) {
+      // If failed to refresh, don't send the writable image to the
       // mailbox as it may be in an undefined state. Don't disable the guest
       // output either though because the failure may be something transient.
       return false;
@@ -359,7 +360,7 @@ bool Presenter::RefreshGuestOutput(
   uint32_t last_acquired = last_acquired_and_ready & 3;
   if (last_acquired == guest_output_mailbox_writable_) {
     // The new image has already been acquired by the time the compare-exchange
-    // loop has finished (acquired == ready == currently writable).
+    // loop has finished (acquired == ready == writable).
     // It's a valid situation from the ownership perspective, and the semantics
     // of the weak compare-exchange explicitly permit spurious `false` results.
     // (3 - a - b) % 3 cannot be used here, as (3 - a - a) % 3 results in `a` -
@@ -370,7 +371,7 @@ bool Presenter::RefreshGuestOutput(
     guest_output_mailbox_writable_ = (guest_output_mailbox_writable_ + 1) % 3;
   } else {
     // Take the image other than the last acquired one and the new one,
-    // currently not accessible to the host presentation.
+    // not accessible to the host presentation.
     guest_output_mailbox_writable_ = (3 - last_acquired - guest_output_mailbox_writable_) % 3;
   }
 
@@ -410,38 +411,8 @@ bool Presenter::RefreshGuestOutput(
   return is_active;
 }
 
-void Presenter::SetGuestOutputPaintConfigFromUIThread(const GuestOutputPaintConfig& new_config) {
-  // For simplicity, this may be called externally repeatedly.
-  // Lock the mutex only when something has been modified, and also don't
-  // request UI thread guest output redraws when not needed.
-  bool modified = false;
-  bool request_repaint = false;
-  if (guest_output_paint_config_.GetDither() != new_config.GetDither()) {
-    modified = true;
-    request_repaint = true;
-  }
-  if (modified) {
-    {
-      std::unique_lock<std::mutex> config_lock(guest_output_paint_config_mutex_);
-      guest_output_paint_config_ = new_config;
-    }
-    // Coarsely check the availability of painting and of the window (for
-    // calling RequestPaint) via paint_mode_ because the actual painting
-    // connection state may currently be owned not by the UI thread.
-    if (request_repaint && paint_mode_ != PaintMode::kNone) {
-      if (is_in_ui_thread_paint_) {
-        // Defer until the end of the current paint if called from, for
-        // instance, a UI drawer.
-        request_guest_output_paint_after_current_ui_thread_paint_ = true;
-      } else {
-        RequestPaintOrConnectionRecoveryViaWindow(true);
-      }
-    }
-  }
-}
-
 void Presenter::AddOverlayLayer(gpu::IOverlayLayer* layer, size_t z_order) {
-  assert_not_null(layer);
+  REX_ASSERT(layer != nullptr);
   // Obtain whether the iterator list was empty before erasing in case of
   // replacing with a new entry with a different Z order happens.
   bool drawers_were_empty = ui_drawers_.empty();
@@ -466,7 +437,7 @@ void Presenter::AddOverlayLayer(gpu::IOverlayLayer* layer, size_t z_order) {
     break;
   }
   auto it_new = ui_drawers_.emplace(z_order, UIDrawerReference(layer, drawer_last_draw));
-  // If adding to the Z layer currently being processed (for drawing, from the
+  // If adding to the Z layer being processed (for drawing, from the
   // lowest to the highest), or to layers in between the current and the
   // previously next, make sure the new drawer is executed too.
   if (is_executing_ui_drawers_ && z_order >= ui_draw_current_z_order_ &&
@@ -477,7 +448,7 @@ void Presenter::AddOverlayLayer(gpu::IOverlayLayer* layer, size_t z_order) {
 }
 
 void Presenter::RemoveOverlayLayer(gpu::IOverlayLayer* layer) {
-  assert_not_null(layer);
+  REX_ASSERT(layer != nullptr);
   for (auto it_existing = ui_drawers_.begin(); it_existing != ui_drawers_.end(); ++it_existing) {
     if (it_existing->second.layer != layer) {
       continue;
@@ -496,7 +467,7 @@ void Presenter::RemoveOverlayLayer(gpu::IOverlayLayer* layer) {
 void Presenter::RequestOverlayPaint() {
   if (is_in_ui_thread_paint_) {
     // The paint request will be done once in the end of PaintFromUIThread
-    // according to the actual state at the moment that happens. It's common for
+    // according to the actual state at the time that happens. It's common for
     // drawers to call this (even every frame), and no need to do too many OS
     // paint request calls.
     request_ui_paint_after_current_ui_thread_paint_ = true;
@@ -555,7 +526,7 @@ std::unique_lock<std::mutex> Presenter::ConsumeGuestOutput(
   // Desired acquired = current ready.
   // Desired ready = current ready (changed only by the producer).
   uint32_t desired_acquired_and_ready =
-      (old_acquired_and_ready & ~uint32_t(3)) | (old_acquired_and_ready >> 2);
+      (old_acquired_and_ready & ~static_cast<uint32_t>(3)) | (old_acquired_and_ready >> 2);
   // Either the same image as during the last consumption, or a new one, is
   // satisfying. However, if it's new, using memory_order_acq_rel to acquire the
   // new ready image (to make it acquired) and to release the old acquired image
@@ -565,7 +536,7 @@ std::unique_lock<std::mutex> Presenter::ConsumeGuestOutput(
              old_acquired_and_ready, desired_acquired_and_ready, std::memory_order_acq_rel,
              std::memory_order_relaxed)) {
     desired_acquired_and_ready =
-        (old_acquired_and_ready & ~uint32_t(3)) | (old_acquired_and_ready >> 2);
+        (old_acquired_and_ready & ~static_cast<uint32_t>(3)) | (old_acquired_and_ready >> 2);
   }
   uint32_t mailbox_index = desired_acquired_and_ready & 3;
   // Give the current acquired image to the caller, or UINT32_MAX if it's
@@ -586,8 +557,8 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
   // FIXME(Triang3l): Configuration variables racing with per-game config
   // loading.
 
-  assert_not_zero(max_rt_width);
-  assert_not_zero(max_rt_height);
+  REX_ASSERT(max_rt_width != 0);
+  REX_ASSERT(max_rt_height != 0);
 
   // Initialize one clear rectangle for the case of drawing no guest output, for
   // consistency with fewer state dependencies.
@@ -605,7 +576,8 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
 
   // Multiplication-division rounding to the nearest.
   auto rescale_unsigned = [](uint32_t value, uint32_t new_scale, uint32_t old_scale) -> uint32_t {
-    return uint32_t((uint64_t(value) * new_scale + (old_scale >> 1)) / old_scale);
+    return static_cast<uint32_t>((static_cast<uint64_t>(value) * new_scale + (old_scale >> 1)) /
+                                 old_scale);
   };
   auto rescale_signed = [](int32_t value, uint32_t new_scale, uint32_t old_scale) -> int32_t {
     // Plus old_scale / 2 for positive values, minus old_scale / 2 for
@@ -619,16 +591,19 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
     // (0 + 1) / 3 == 0
     // (1 + 1) / 3 == 0
     // (2 + 1) / 3 == 1
-    return int32_t((int64_t(value) * new_scale + int32_t(old_scale >> 1) * (value < 0 ? -1 : 1)) /
-                   old_scale);
+    return static_cast<int32_t>((static_cast<int64_t>(value) * new_scale +
+                                 static_cast<int32_t>(old_scale >> 1) * (value < 0 ? -1 : 1)) /
+                                old_scale);
   };
 
   // Final output location and dimensions.
   // All host location calculations are DPI-independent, conceptually depending
   // only on the aspect ratios, not the absolute values.
   uint32_t output_width, output_height;
-  if (uint64_t(surface_width_in_paint_connection_) * properties.display_aspect_ratio_y >
-      uint64_t(surface_height_in_paint_connection_) * properties.display_aspect_ratio_x) {
+  if (static_cast<uint64_t>(surface_width_in_paint_connection_) *
+          properties.display_aspect_ratio_y >
+      static_cast<uint64_t>(surface_height_in_paint_connection_) *
+          properties.display_aspect_ratio_x) {
     // The window is wider that the source - crop along Y to preserve the aspect
     // ratio while stretching throughout the entire surface's width, then limit
     // the Y cropping via letterboxing or stretching along X.
@@ -636,7 +611,8 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
     if (config.GetAllowOverscanCutoff() &&
         REXCVAR_GET(::rex::gpu::cvars::present_safe_area_y) > 0 &&
         REXCVAR_GET(::rex::gpu::cvars::present_safe_area_y) < 100) {
-      present_safe_area = uint32_t(REXCVAR_GET(::rex::gpu::cvars::present_safe_area_y));
+      present_safe_area =
+          static_cast<uint32_t>(REXCVAR_GET(::rex::gpu::cvars::present_safe_area_y));
     } else {
       present_safe_area = 100;
     }
@@ -657,14 +633,18 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
                                       properties.display_aspect_ratio_y * present_safe_area);
       // output_width might have been rounded up already by rescale_unsigned, so
       // rounding down in this division.
-      flow.output_x = (int32_t(surface_width_in_paint_connection_) - int32_t(output_width)) / 2;
+      flow.output_x = (static_cast<int32_t>(surface_width_in_paint_connection_) -
+                       static_cast<int32_t>(output_width)) /
+                      2;
     } else {
       output_width = surface_width_in_paint_connection_;
       flow.output_x = 0;
     }
     // output_height might have been rounded up already by rescale_unsigned, so
     // rounding down in this division.
-    flow.output_y = (int32_t(surface_height_in_paint_connection_) - int32_t(output_height)) / 2;
+    flow.output_y = (static_cast<int32_t>(surface_height_in_paint_connection_) -
+                     static_cast<int32_t>(output_height)) /
+                    2;
   } else {
     // The window is taller that the source - crop along X to preserve the
     // aspect ratio while stretching throughout the entire surface's height,
@@ -673,7 +653,8 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
     if (config.GetAllowOverscanCutoff() &&
         REXCVAR_GET(::rex::gpu::cvars::present_safe_area_x) > 0 &&
         REXCVAR_GET(::rex::gpu::cvars::present_safe_area_x) < 100) {
-      present_safe_area = uint32_t(REXCVAR_GET(::rex::gpu::cvars::present_safe_area_x));
+      present_safe_area =
+          static_cast<uint32_t>(REXCVAR_GET(::rex::gpu::cvars::present_safe_area_x));
     } else {
       present_safe_area = 100;
     }
@@ -693,14 +674,18 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
                                        properties.display_aspect_ratio_x * present_safe_area);
       // output_height might have been rounded up already by rescale_unsigned,
       // so rounding down in this division.
-      flow.output_y = (int32_t(surface_height_in_paint_connection_) - int32_t(output_height)) / 2;
+      flow.output_y = (static_cast<int32_t>(surface_height_in_paint_connection_) -
+                       static_cast<int32_t>(output_height)) /
+                      2;
     } else {
       output_height = surface_height_in_paint_connection_;
       flow.output_y = 0;
     }
     // output_width might have been rounded up already by rescale_unsigned, so
     // rounding down in this division.
-    flow.output_x = (int32_t(surface_width_in_paint_connection_) - int32_t(output_width)) / 2;
+    flow.output_x = (static_cast<int32_t>(surface_width_in_paint_connection_) -
+                     static_cast<int32_t>(output_width)) /
+                    2;
   }
 
   // Convert the location from surface pixels (which have 1:1 aspect ratio
@@ -724,8 +709,8 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
   // The out-of-bounds checks are needed for correct letterbox calculations.
   // Though this normally shouldn't happen, but in case of rounding issues with
   // extreme values.
-  int32_t output_right = flow.output_x + int32_t(output_width);
-  int32_t output_bottom = flow.output_y + int32_t(output_height);
+  int32_t output_right = flow.output_x + static_cast<int32_t>(output_width);
+  int32_t output_bottom = flow.output_y + static_cast<int32_t>(output_height);
   // In rare cases (for example, when surface and render-target coordinate
   // spaces diverge unexpectedly), the computed output may become anchored at
   // the top-left and smaller than the host render target. This results in only
@@ -741,11 +726,12 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
     }
     output_width = host_rt_width;
     output_height = host_rt_height;
-    output_right = int32_t(output_width);
-    output_bottom = int32_t(output_height);
+    output_right = static_cast<int32_t>(output_width);
+    output_bottom = static_cast<int32_t>(output_height);
   }
   if (!output_width || !output_height || output_right <= 0 || output_bottom <= 0 ||
-      flow.output_x >= int32_t(host_rt_width) || flow.output_y >= int32_t(host_rt_height)) {
+      flow.output_x >= static_cast<int32_t>(host_rt_width) ||
+      flow.output_y >= static_cast<int32_t>(host_rt_height)) {
     return flow;
   }
 
@@ -763,10 +749,11 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
   // Calculate the letterbox geometry.
   if (flow.has_effect) {
     flow.letterbox_clear_rectangle_count = 0;
-    uint32_t letterbox_mid_top = uint32_t(std::max(flow.output_y, int32_t(0)));
+    uint32_t letterbox_mid_top =
+        static_cast<uint32_t>(std::max(flow.output_y, static_cast<int32_t>(0)));
     // Top.
     if (letterbox_mid_top) {
-      assert_true(flow.letterbox_clear_rectangle_count < flow.letterbox_clear_rectangles.size());
+      REX_ASSERT(flow.letterbox_clear_rectangle_count < flow.letterbox_clear_rectangles.size());
       GuestOutputPaintFlow::ClearRectangle& letterbox_clear_rectangle_top =
           flow.letterbox_clear_rectangles[flow.letterbox_clear_rectangle_count++];
       letterbox_clear_rectangle_top.x = 0;
@@ -774,31 +761,31 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
       letterbox_clear_rectangle_top.width = host_rt_width;
       letterbox_clear_rectangle_top.height = letterbox_mid_top;
     }
-    uint32_t letterbox_mid_bottom = std::min(uint32_t(output_bottom), host_rt_height);
+    uint32_t letterbox_mid_bottom = std::min(static_cast<uint32_t>(output_bottom), host_rt_height);
     uint32_t letterbox_mid_height = letterbox_mid_bottom - letterbox_mid_top;
     // Middle-left.
     if (flow.output_x > 0) {
-      assert_true(flow.letterbox_clear_rectangle_count < flow.letterbox_clear_rectangles.size());
+      REX_ASSERT(flow.letterbox_clear_rectangle_count < flow.letterbox_clear_rectangles.size());
       GuestOutputPaintFlow::ClearRectangle& letterbox_clear_rectangle_left =
           flow.letterbox_clear_rectangles[flow.letterbox_clear_rectangle_count++];
       letterbox_clear_rectangle_left.x = 0;
       letterbox_clear_rectangle_left.y = letterbox_mid_top;
-      letterbox_clear_rectangle_left.width = uint32_t(flow.output_x);
+      letterbox_clear_rectangle_left.width = static_cast<uint32_t>(flow.output_x);
       letterbox_clear_rectangle_left.height = letterbox_mid_height;
     }
     // Middle-right.
-    if (uint32_t(output_right) < host_rt_width) {
-      assert_true(flow.letterbox_clear_rectangle_count < flow.letterbox_clear_rectangles.size());
+    if (static_cast<uint32_t>(output_right) < host_rt_width) {
+      REX_ASSERT(flow.letterbox_clear_rectangle_count < flow.letterbox_clear_rectangles.size());
       GuestOutputPaintFlow::ClearRectangle& letterbox_clear_rectangle_right =
           flow.letterbox_clear_rectangles[flow.letterbox_clear_rectangle_count++];
-      letterbox_clear_rectangle_right.x = uint32_t(output_right);
+      letterbox_clear_rectangle_right.x = static_cast<uint32_t>(output_right);
       letterbox_clear_rectangle_right.y = letterbox_mid_top;
-      letterbox_clear_rectangle_right.width = host_rt_width - uint32_t(output_right);
+      letterbox_clear_rectangle_right.width = host_rt_width - static_cast<uint32_t>(output_right);
       letterbox_clear_rectangle_right.height = letterbox_mid_height;
     }
     // Bottom.
     if (letterbox_mid_bottom < host_rt_height) {
-      assert_true(flow.letterbox_clear_rectangle_count < flow.letterbox_clear_rectangles.size());
+      REX_ASSERT(flow.letterbox_clear_rectangle_count < flow.letterbox_clear_rectangles.size());
       GuestOutputPaintFlow::ClearRectangle& letterbox_clear_rectangle_top =
           flow.letterbox_clear_rectangles[flow.letterbox_clear_rectangle_count++];
       letterbox_clear_rectangle_top.x = 0;
@@ -813,10 +800,10 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
 
 void Presenter::ExecuteUIDrawersFromUIThread(gpu::OverlayDrawContext& ui_draw_context) {
   // May be called by the implementations only when requested.
-  assert_true(is_in_ui_thread_paint_);
+  REX_ASSERT(is_in_ui_thread_paint_);
   // Drawers can add or remove drawers (including themselves), need to ensure
   // iterator validity in this case.
-  assert_false(is_executing_ui_drawers_);
+  REX_ASSERT(!is_executing_ui_drawers_);
   ui_draw_next_iterator_ = ui_drawers_.begin();
   is_executing_ui_drawers_ = true;
   while (ui_draw_next_iterator_ != ui_drawers_.end()) {
@@ -855,7 +842,7 @@ void Presenter::SetPaintModeFromUIThread(PaintMode new_mode) {
 Presenter::PaintMode Presenter::GetDesiredPaintModeFromUIThread(bool is_paintable) const {
   if (!is_paintable) {
     // The only case when kNone can be returned, for surface connection updates
-    // when it's known that the UI thread currently has access to the connection
+    // when it's known that the UI thread has access to the connection
     // lifecycle.
     return PaintMode::kNone;
   }
@@ -878,7 +865,7 @@ Presenter::PaintMode Presenter::GetDesiredPaintModeFromUIThread(bool is_paintabl
 }
 
 void Presenter::DisconnectPaintingFromSurfaceFromUIThread(SurfacePaintConnectionState new_state) {
-  assert_false(IsConnectedSurfacePaintConnectionState(new_state));
+  REX_ASSERT(!IsConnectedSurfacePaintConnectionState(new_state));
   if (IsConnectedSurfacePaintConnectionState(surface_paint_connection_state_)) {
     DisconnectPaintingFromSurfaceFromUIThreadImpl();
   }
@@ -890,12 +877,12 @@ void Presenter::DisconnectPaintingFromSurfaceFromUIThread(SurfacePaintConnection
 
 void Presenter::UpdateSurfacePaintConnectionFromUIThread(bool* repaint_needed_out,
                                                          bool update_paint_mode_to_desired) {
-  assert_not_null(surface_);
+  REX_ASSERT(surface_ != nullptr);
 
-  // Validate that painting lifecycle is accessible by the UI thread currently,
+  // Validate that painting lifecycle is accessible by the UI thread,
   // not given to the guest output thread. The mode can be modified only by
   // the UI thread, so no need to lock the mutex.
-  assert_true(paint_mode_ != PaintMode::kGuestOutputThreadImmediately);
+  REX_ASSERT(paint_mode_ != PaintMode::kGuestOutputThreadImmediately);
 
   // Initialize repaint_needed_out for failure cases.
   if (repaint_needed_out) {
@@ -910,7 +897,7 @@ void Presenter::UpdateSurfacePaintConnectionFromUIThread(bool* repaint_needed_ou
     uint32_t surface_width = 0, surface_height = 0;
     bool surface_area_available = surface_->GetSize(surface_width, surface_height);
     if (!surface_area_available) {
-      // The surface is currently zero-area (or has become zero-area), try again
+      // The surface is zero-area (or has become zero-area), try again
       // when it's resized.
       DisconnectPaintingFromSurfaceFromUIThread(
           SurfacePaintConnectionState::kUnconnectedRetryAtStateChange);
@@ -961,8 +948,8 @@ bool Presenter::RequestPaintOrConnectionRecoveryViaWindow(bool force_ui_thread_p
   // and it's known to have a Surface that will be the same throughout this
   // call - not doing any checks whether this request can be satisfied
   // theoretically. For safety, check whether the window exists unconditionally.
-  assert_not_null(host_);
-  assert_not_null(surface_);
+  REX_ASSERT(host_ != nullptr);
+  REX_ASSERT(surface_ != nullptr);
   if (ui_thread_paint_requested_.exchange(true, std::memory_order_relaxed)) {
     // Invalidation pending already, no need to do it twice.
     return false;
@@ -977,7 +964,7 @@ bool Presenter::RequestPaintOrConnectionRecoveryViaWindow(bool force_ui_thread_p
 void Presenter::UpdateSurfaceMonitorFromUIThread(bool old_monitor_potentially_disconnected) {
   // For dropping the monitor when the window is closing and is losing its
   // surface, the existence of `surface_` (which implies that `host_` exists
-  // too) must be the condition for a non-null monitor, not just the existence
+  // too) must be the condition for a non-null monitor, not only the existence
   // of `host_`.
 #if REX_PLATFORM_WIN32
   HMONITOR surface_new_win32_monitor = nullptr;
@@ -1044,8 +1031,8 @@ bool Presenter::InSurfaceOnMonitorFromUIThread() const {
 }
 
 Presenter::PaintResult Presenter::PaintAndPresent(bool execute_ui_drawers) {
-  assert_false(execute_ui_drawers && !is_in_ui_thread_paint_);
-  assert_true(surface_paint_connection_state_ == SurfacePaintConnectionState::kConnectedPaintable);
+  REX_ASSERT(!(execute_ui_drawers && !is_in_ui_thread_paint_));
+  REX_ASSERT(surface_paint_connection_state_ == SurfacePaintConnectionState::kConnectedPaintable);
   PaintResult result = PaintAndPresentImpl(execute_ui_drawers);
   switch (result) {
     case PaintResult::kPresented:
@@ -1054,7 +1041,7 @@ Presenter::PaintResult Presenter::PaintAndPresent(bool execute_ui_drawers) {
     case PaintResult::kPresentedSuboptimal:
       // Make outdated if previously optimal, now suboptimal, but don't cause
       // the connection to become outdated if it has been suboptimal from the
-      // very beginning.
+      // beginning.
       if (surface_paint_connection_was_optimal_at_successful_paint_) {
         surface_paint_connection_state_ = SurfacePaintConnectionState::kConnectedOutdated;
       }
@@ -1081,7 +1068,7 @@ void Presenter::HandleUIDrawersChangeFromUIThread(bool drawers_were_empty) {
 
   if (paint_mode_ == PaintMode::kNone) {
     // Not connected, no point in refreshing (checking a more conservative
-    // paint_mode_ because the actual connection state may currently be owned by
+    // paint_mode_ because the actual connection state may be owned by
     // the guest output thread instead) or in toggling the ownership (the rest
     // of the function can assume it's not kNone).
     return;
@@ -1146,7 +1133,7 @@ void Presenter::WaitForUITickFromUIThread() {
       // If there have been multiple vblanks during the wait for some reason,
       // next time draw the UI immediately.
       dxgi_ui_tick_last_draw_ =
-          std::min(last_vblank_before_wait + uint64_t(1), dxgi_ui_tick_last_vblank_);
+          std::min(last_vblank_before_wait + static_cast<uint64_t>(1), dxgi_ui_tick_last_vblank_);
       return;
     }
     dxgi_ui_tick_signal_condition_.wait(dxgi_ui_tick_lock);

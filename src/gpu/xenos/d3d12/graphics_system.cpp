@@ -44,7 +44,7 @@ void D3D12GraphicsSystem::CreateProvider(bool /*with_presentation*/) {
 }
 
 std::unique_ptr<CommandProcessor> D3D12GraphicsSystem::CreateCommandProcessor() {
-  return std::unique_ptr<CommandProcessor>(new D3D12CommandProcessor(this, *runtime_));
+  return std::make_unique<D3D12CommandProcessor>(this, *runtime_);
 }
 
 }  // namespace rex::gpu::d3d12

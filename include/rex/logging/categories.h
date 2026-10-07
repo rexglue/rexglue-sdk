@@ -1,6 +1,5 @@
 /**
  * @file        logging/categories.h
- * @brief       The SDK log categories
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.

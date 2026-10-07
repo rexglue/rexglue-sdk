@@ -19,6 +19,7 @@
 
 #include <rex/codegen/binary_view.h>
 #include <rex/codegen/code_region.h>
+#include <rex/types.h>
 
 namespace rex::codegen {
 
@@ -75,15 +76,9 @@ class InsnRange {
 // Decoded Binary - Single-pass instruction decoder
 //=============================================================================
 
-class DecodedBinary {
+class DecodedBinary : public rex::NonCopyable {
  public:
   explicit DecodedBinary(const BinaryView& binary);
-
-  // Non-copyable, non-movable (holds reference to binary)
-  DecodedBinary(DecodedBinary&&) = delete;
-  DecodedBinary& operator=(DecodedBinary&&) = delete;
-  DecodedBinary(const DecodedBinary&) = delete;
-  DecodedBinary& operator=(const DecodedBinary&) = delete;
 
   /// Decode all executable sections (call once after construction)
   void decode();
@@ -110,18 +105,8 @@ class DecodedBinary {
   /// Find code region containing address
   const CodeRegion* regionContaining(uint32_t addr) const;
 
-  /// Check if branch from->to crosses a null boundary
-  bool crossesNullBoundary(uint32_t from, uint32_t to) const;
-
-  /// Check if address is in any code region
-  bool isInCodeRegion(uint32_t addr) const;
-
-  /// Check if instruction at address is null/invalid
-  bool isNullPadding(uint32_t addr) const;
-
   /// Statistics
   size_t instructionCount() const;
-  size_t sectionCount() const { return sections_.size(); }
 
  private:
   struct Section {
@@ -210,11 +195,6 @@ inline bool isCall(const DecodedInsn& insn) {
 /// Check if instruction is a return (blr)
 inline bool isReturn(const DecodedInsn& insn) {
   return insn.is_return();
-}
-
-/// Check if instruction is indirect branch (bcctr/bclr)
-inline bool isIndirect(const DecodedInsn& insn) {
-  return insn.is_indirect_branch();
 }
 
 /// Check if instruction is a terminator (unconditional branch, return, bctr)

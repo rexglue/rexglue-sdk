@@ -1,6 +1,5 @@
 /**
  * @file        core/filesystem/xcontent.cpp
- * @brief       XContent metadata accessors and the package header reader
  *
  * @copyright   Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *              All rights reserved.
@@ -30,7 +29,7 @@ namespace {
 constexpr i64 kUnixToFileTimeSeconds = 11644473600LL;
 constexpr i64 kTicksPerSecond = 10000000;
 
-std::u16string ReadBigEndian(const be<u16>* units, size_t count) {
+std::u16string ReadBigEndian(const be_u16* units, size_t count) {
   std::u16string result;
   for (size_t i = 0; i < count && units[i] != 0; ++i) {
     result.push_back(static_cast<char16_t>(static_cast<u16>(units[i])));
@@ -41,7 +40,7 @@ std::u16string ReadBigEndian(const be<u16>* units, size_t count) {
 u32 LanguageSlot(XLanguage language) {
   const u32 slot = static_cast<u32>(language) - 1;
   if (slot >= XContentMetadata::kNumLanguagesV2) {
-    return static_cast<u32>(XLanguage::kEnglish) - 1;
+    return std::to_underlying(XLanguage::kEnglish) - 1;
   }
   return slot;
 }
@@ -128,7 +127,7 @@ void XContentMetadata::set_title_name(std::u16string_view value) {
   copy_and_swap_truncating(title_name_raw.chars, value, countof(title_name_raw.chars));
 }
 
-Result<STFSHeader> ReadSTFSHeader(std::span<const u8> bytes) {
+[[nodiscard]] Result<STFSHeader> ReadSTFSHeader(std::span<const u8> bytes) {
   if (bytes.size() < sizeof(STFSHeader)) {
     return Err<STFSHeader>(
         MakeError(Error::kCorrupt, std::format("package header needs {:#x} bytes, {:#x} present",
@@ -142,7 +141,7 @@ Result<STFSHeader> ReadSTFSHeader(std::span<const u8> bytes) {
   return header;
 }
 
-Result<STFSHeader> ReadSTFSHeader(const std::filesystem::path& path) {
+[[nodiscard]] Result<STFSHeader> ReadSTFSHeader(const std::filesystem::path& path) {
   auto map = memory::MappedMemory::Open(path, memory::MappedMemory::Mode::kRead);
   if (!map) {
     return Err<STFSHeader>(

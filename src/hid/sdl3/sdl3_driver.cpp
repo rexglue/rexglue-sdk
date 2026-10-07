@@ -242,7 +242,7 @@ void SDL3Driver::OnHostAttached(IInputHost* host) {
 
 bool SDL3Driver::EventWatch(void* userdata, SDL_Event* event) {
   if (!userdata || !event) {
-    assert_always();
+    REX_ASSERT_ALWAYS();
     return false;
   }
 
@@ -321,7 +321,7 @@ X_RESULT SDL3Driver::ReadDeviceCapabilities(DeviceId id, uint32_t flags,
   // battery information) so this needs to be refreshed every time.
   UpdateXCapabilities(*controller);
 
-  std::memcpy(out_caps, &controller->caps, sizeof(*out_caps));
+  *out_caps = controller->caps;
 
   return X_ERROR_SUCCESS;
 }
@@ -350,11 +350,11 @@ X_RESULT SDL3Driver::ReadDeviceState(DeviceId id, X_INPUT_STATE* out_state) {
     controller->is_active = is_active;
     controller->state_changed = false;
   }
-  std::memcpy(out_state, &controller->state, sizeof(*out_state));
+  *out_state = controller->state;
   if (!is_active) {
     // Simulate an "untouched" controller. When we become active again the
     // pressed buttons aren't lost and will be visible again.
-    std::memset(&out_state->gamepad, 0, sizeof(out_state->gamepad));
+    out_state->gamepad = {};
   }
   return X_ERROR_SUCCESS;
 }
@@ -452,7 +452,7 @@ X_RESULT SDL3Driver::ReadDeviceKeystroke(DeviceId id, uint32_t flags,
   const uint64_t curr_butts =
       is_active ? (static_cast<uint64_t>(static_cast<uint16_t>(controller->state.gamepad.buttons)) |
                    AnalogToKeyfield(controller->state.gamepad))
-                : uint64_t(0);
+                : static_cast<uint64_t>(0);
   KeystrokeState& last = controller->keystroke;
 
   // Handle repeating
@@ -466,8 +466,8 @@ X_RESULT SDL3Driver::ReadDeviceKeystroke(DeviceId id, uint32_t flags,
       (last.repeat_time + HID_SDL_REPEAT_RATE < guest_now)) {
     last.repeat_time = guest_now;
     VirtualKey vk = kVkLookup.at(last.repeat_butt_idx);
-    assert_true(vk != VirtualKey::kNone);
-    out_keystroke->virtual_key = uint16_t(vk);
+    REX_ASSERT(vk != VirtualKey::kNone);
+    out_keystroke->virtual_key = static_cast<uint16_t>(vk);
     out_keystroke->unicode = 0;
     // The hub stamps the title user this device is assigned to.
     out_keystroke->user_index = 0;
@@ -486,7 +486,7 @@ X_RESULT SDL3Driver::ReadDeviceKeystroke(DeviceId id, uint32_t flags,
   // up before THUMB_LEFT is down.
   for (auto [clear_pass, pass] = std::tuple{true, 0}; pass < 2; clear_pass = false, pass++) {
     for (uint8_t i = 0; i < uint8_t(std::size(kVkLookup)); i++) {
-      auto fbutton = uint64_t(1) << i;
+      auto fbutton = static_cast<uint64_t>(1) << i;
       if (!(butts_changed & fbutton)) {
         continue;
       }
@@ -495,7 +495,7 @@ X_RESULT SDL3Driver::ReadDeviceKeystroke(DeviceId id, uint32_t flags,
         continue;
       }
 
-      out_keystroke->virtual_key = uint16_t(vk);
+      out_keystroke->virtual_key = static_cast<uint16_t>(vk);
       out_keystroke->unicode = 0;
       out_keystroke->user_index = 0;
       out_keystroke->hid_code = 0;
@@ -603,7 +603,7 @@ void SDL3Driver::OnJoystickDeviceAddedLocked(const SDL_Event& event) {
 void SDL3Driver::OnControllerDeviceAddedLocked(const SDL_Event& event) {
   const auto controller = SDL_OpenGamepad(event.gdevice.which);
   if (!controller) {
-    assert_always();
+    REX_ASSERT_ALWAYS();
     return;
   }
   char guid_text[33] = {};
@@ -696,7 +696,7 @@ void SDL3Driver::OnControllerDeviceAxisMotionLocked(const SDL_Event& event) {
       pad.right_trigger = static_cast<uint8_t>(event.gaxis.value >> 7);
       break;
     default:
-      assert_always();
+      REX_ASSERT_ALWAYS();
       break;
   }
   controllers_.at(*idx).state_changed = true;
@@ -724,10 +724,10 @@ void SDL3Driver::OnControllerDeviceButtonChangedLocked(const SDL_Event& event) {
           X_INPUT_GAMEPAD_DPAD_LEFT,
           X_INPUT_GAMEPAD_DPAD_RIGHT,
           // There are additional buttons only available on some controllers.
-          // For now just assign sensible defaults
+          // Assign sensible defaults
           // Misc:
           X_INPUT_GAMEPAD_GUIDE,
-          // Xbox Elite paddles:
+          // Elite paddles:
           X_INPUT_GAMEPAD_Y,
           X_INPUT_GAMEPAD_B,
           X_INPUT_GAMEPAD_X,
@@ -890,19 +890,19 @@ inline uint64_t SDL3Driver::AnalogToKeyfield(const X_INPUT_GAMEPAD& gamepad) con
     uint64_t l = thumb_x < ~HID_SDL_THUMB_THRES;
     if (u && l) {
       u = l = 0;
-      f |= uint64_t(1) << (22 + i);
+      f |= static_cast<uint64_t>(1) << (22 + i);
     }
     if (u && r) {
       u = r = 0;
-      f |= uint64_t(1) << (23 + i);
+      f |= static_cast<uint64_t>(1) << (23 + i);
     }
     if (d && r) {
       d = r = 0;
-      f |= uint64_t(1) << (24 + i);
+      f |= static_cast<uint64_t>(1) << (24 + i);
     }
     if (d && l) {
       d = l = 0;
-      f |= uint64_t(1) << (25 + i);
+      f |= static_cast<uint64_t>(1) << (25 + i);
     }
     f |= u << (18 + i);
     f |= d << (19 + i);
