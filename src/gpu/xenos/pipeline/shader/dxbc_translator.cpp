@@ -12,6 +12,7 @@
 #include "thirdparty/dxbc/DXBCChecksum.h"
 
 #include <algorithm>
+#include <functional>
 #include <atomic>
 #include <cstring>
 #include <memory>

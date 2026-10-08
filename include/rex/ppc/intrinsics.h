@@ -232,8 +232,8 @@ inline simde__m128i simde_mm_vsl(simde__m128i a, simde__m128i b) {
     return a;
 
   // Split into high and low 64-bit parts
-  simde__m128i low_shifted = simde_mm_slli_epi64(a, shift);
-  simde__m128i high_carry = simde_mm_srli_epi64(a, 64 - shift);
+  simde__m128i low_shifted = simde_mm_sll_epi64(a, simde_mm_cvtsi32_si128(shift));
+  simde__m128i high_carry = simde_mm_srl_epi64(a, simde_mm_cvtsi32_si128(64 - shift));
   // Shift the carry from low qword to high qword position
   high_carry = simde_mm_slli_si128(high_carry, 8);
   return simde_mm_or_si128(low_shifted, high_carry);
