@@ -17,6 +17,7 @@
 
 #include <mutex>
 #include <optional>
+#include <span>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -110,7 +111,7 @@ class REX_RUNTIME_API FunctionDispatcher : public IModuleRegistrar {
   std::optional<std::pair<uint32_t, uint32_t>> UnregisterModule(const std::string& module_id);
 
  private:
-  bool Execute(ThreadState* thread_state, uint32_t address);
+  bool Run(ThreadState* thread_state, uint32_t address, std::span<const uint64_t> args);
   uint64_t RunInterrupt(ThreadState* thread_state, uint32_t address, uint64_t args[],
                         size_t arg_count);
 

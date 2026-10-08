@@ -96,32 +96,6 @@
  */
 #define REX_EXPORT_STUB_RETURN(name, retval) REX_STUB_RETURN(name, retval)
 
-namespace rex {
-
-//=============================================================================
-// CallFrame - Lightweight isolated calling context
-//=============================================================================
-// For side calls that must not disturb the outer hook's register state.
-// Stack-allocated, NOT zero-initialized. Only copies the registers a callee
-// needs from the parent context.
-
-struct CallFrame : public rex::NonCopyable {
-  PPCContext ctx;
-  PPCContext& parent_;
-
-  explicit CallFrame(PPCContext& parent) : parent_(parent) {
-    ctx.r1 = parent.r1;
-    ctx.r13 = parent.r13;
-    ctx.fpscr = parent.fpscr;
-  }
-
-  ~CallFrame() { parent_.fpscr = ctx.fpscr; }
-
-  operator PPCContext&() { return ctx; }
-};
-
-}  // namespace rex
-
 namespace rex::ppc {
 
 //=============================================================================
@@ -136,49 +110,12 @@ struct ImportFunction<R(Args...)> {
   PPCFunc& fn;
 
   R operator()(PPCContext& ctx, uint8_t* base, Args... args) const {
-    auto tpl = std::make_tuple(args...);
-    _translate_args_to_guest(ctx, base, tpl);
-    fn(ctx, base);
-    if constexpr (std::is_void_v<R>) {
-      return;
-    } else if constexpr (is_precise_v<R>) {
-      return static_cast<R>(ctx.f1.f64);
-    } else {
-      return static_cast<R>(ctx.r3.u64);
-    }
+    return Call<R>(ctx, base, fn, args...);
   }
 
-  R operator()(rex::CallFrame& frame, uint8_t* base, Args... args) const {
-    return (*this)(frame.ctx, base, args...);
-  }
-
-  /// Auto-isolating call: retrieves ctx/base internally, creates isolated
-  /// context with 0x70 frame, calls function, returns result.
   R operator()(Args... args) const {
     auto* ts = rex::runtime::ThreadState::Get();
-    PPCContext* parentCtx = ts->context();
-
-    uint8_t* base = ts->memory()->virtual_membase();
-
-    PPCContext ctx{};
-    ctx.r1 = parentCtx->r1;
-    ctx.r1.u32 -= 0x70;
-    ctx.r13 = parentCtx->r13;
-    ctx.fpscr = parentCtx->fpscr;
-
-    auto tpl = std::make_tuple(args...);
-    _translate_args_to_guest(ctx, base, tpl);
-    fn(ctx, base);
-
-    parentCtx->fpscr = ctx.fpscr;
-
-    if constexpr (std::is_void_v<R>) {
-      return;
-    } else if constexpr (is_precise_v<R>) {
-      return static_cast<R>(ctx.f1.f64);
-    } else {
-      return static_cast<R>(ctx.r3.u64);
-    }
+    return Call<R>(*ts->context(), ts->memory()->virtual_membase(), fn, args...);
   }
 };
 

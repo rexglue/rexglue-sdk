@@ -66,6 +66,7 @@ add_executable(unit_tests
     runtime/xcontent_test.cpp
     runtime/xtypes_test.cpp
     runtime/function_dispatcher_test.cpp
+    runtime/call_test.cpp
     runtime/thread_wait_test.cpp
     runtime/runtime_error_test.cpp
     runtime/runtime_interfaces_test.cpp
@@ -85,6 +86,7 @@ add_executable(unit_tests
     ui/title_app_test.cpp
     ui/ui_event_test.cpp
     codegen/codegen_writer_test.cpp
+    codegen/midasm_hook_config_test.cpp
     codegen/output_partition_test.cpp
     codegen/output_stamp_test.cpp
     codegen/shim_config_test.cpp

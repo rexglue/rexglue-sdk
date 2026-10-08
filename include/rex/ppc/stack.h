@@ -18,34 +18,13 @@
 
 #include <rex/logging.h>
 #include <rex/ppc/context.h>
+#include <rex/ppc/function.h>
 #include <rex/runtime.h>
 #include <rex/runtime/thread_state.h>
 #include <rex/runtime/xmemory.h>
 #include <rex/types.h>
 
 namespace rex::ppc {
-
-//=============================================================================
-// Stack bounds helper
-//=============================================================================
-
-/// Read stack_end_ptr from KPCR at r13 + 0x74.
-/// Returns 0 if r13 is not set (e.g. in unit tests without a live thread).
-inline uint32_t stack_limit_from_pcr(PPCContext& ctx, uint8_t* base) {
-  if (ctx.r13.u32 == 0)
-    return 0;
-  uint32_t raw;
-  std::memcpy(&raw, rex::runtime::GuestPtr(base, ctx.r13.u32 + 0x74), sizeof(raw));
-  return std::byteswap(raw);
-}
-
-inline void stack_bounds_check(PPCContext& ctx, uint8_t* base, uint32_t new_r1) {
-  uint32_t limit = stack_limit_from_pcr(ctx, base);
-  if (limit != 0) {
-    REX_FATAL_IF(cpu, new_r1 > limit, "PPC stack overflow: r1 ({:#x}) below stack_end_ptr ({:#x})",
-                 new_r1, limit);
-  }
-}
 
 // note(tomc): PPC64 ABI requires 16-byte frame alignment, but r1 is already frame-aligned
 // on entry; individual pushes round to 8 bytes to maintain doubleword alignment.
@@ -117,7 +96,7 @@ inline void stack_pop(PPCContext& ctx, uint32_t size) {
 // Scope guard
 //=============================================================================
 
-/// RAII guard that saves r1 on construction and restores on destruction.
+/** Restores r1 when the scope ends, releasing what the scope pushed. */
 class stack_guard : public rex::NonCopyable {
   PPCContext& ctx_;
   uint32_t saved_r1_;
@@ -133,9 +112,6 @@ class stack_guard : public rex::NonCopyable {
 //=============================================================================
 
 namespace detail {
-inline PPCContext& current_ctx() {
-  return *rex::runtime::ThreadState::Get()->context();
-}
 inline uint8_t* current_base() {
   return rex::runtime::ThreadState::Get()->memory()->virtual_membase();
 }
@@ -144,19 +120,21 @@ inline uint8_t* current_base() {
 template <typename T>
   requires std::is_arithmetic_v<T>
 inline uint32_t stack_push(T value) {
-  return stack_push(detail::current_ctx(), detail::current_base(), value);
+  return stack_push(*rex::runtime::ThreadState::Get()->context(), detail::current_base(), value);
 }
 
 inline uint32_t stack_push_string(const char* str) {
-  return stack_push_string(detail::current_ctx(), detail::current_base(), str);
+  return stack_push_string(*rex::runtime::ThreadState::Get()->context(), detail::current_base(),
+                           str);
 }
 
 inline uint32_t stack_push(const void* data, uint32_t len) {
-  return stack_push(detail::current_ctx(), detail::current_base(), data, len);
+  return stack_push(*rex::runtime::ThreadState::Get()->context(), detail::current_base(), data,
+                    len);
 }
 
 inline void stack_pop(uint32_t size) {
-  stack_pop(detail::current_ctx(), size);
+  stack_pop(*rex::runtime::ThreadState::Get()->context(), size);
 }
 
 }  // namespace rex::ppc

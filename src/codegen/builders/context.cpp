@@ -383,6 +383,8 @@ void BuilderContext::emit_mid_asm_hook() {
                      midAsmHook->second.jumpAddressOnFalse != 0 ||
                      midAsmHook->second.jumpAddressOnTrue != 0;
 
+  const std::string r1 = r(1);
+  println("\t{}.u64 -= rex::ppc::kRedZone;", r1);
   print("\t");
   if (returnsBool)
     print("if (");
@@ -425,6 +427,7 @@ void BuilderContext::emit_mid_asm_hook() {
 
   if (returnsBool) {
     println(")) {{");
+    println("\t\t{}.u64 += rex::ppc::kRedZone;", r1);
 
     if (midAsmHook->second.returnOnTrue)
       println("\t\treturn;");
@@ -434,6 +437,7 @@ void BuilderContext::emit_mid_asm_hook() {
     println("\t}}");
 
     println("\telse {{");
+    println("\t\t{}.u64 += rex::ppc::kRedZone;", r1);
 
     if (midAsmHook->second.returnOnFalse)
       println("\t\treturn;");
@@ -443,6 +447,7 @@ void BuilderContext::emit_mid_asm_hook() {
     println("\t}}");
   } else {
     println(");");
+    println("\t{}.u64 += rex::ppc::kRedZone;", r1);
 
     if (midAsmHook->second.ret)
       println("\treturn;");

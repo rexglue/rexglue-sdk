@@ -607,6 +607,15 @@ RecompilerConfig::ValidationResult RecompilerConfig::Validate() const {
     }
   }
 
+  for (const auto& [addr, hook] : midAsmHooks) {
+    if (std::ranges::contains(hook.registers, "r1")) {
+      result.errors.push_back(std::format(
+          "midasm hook '{}' at 0x{:08X} takes r1, which the hook call moves under the red zone",
+          hook.name, addr));
+      result.valid = false;
+    }
+  }
+
   // Check function address alignment
   for (const auto& [addr, size] : functions) {
     if (addr & 0x3) {

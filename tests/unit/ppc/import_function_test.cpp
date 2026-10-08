@@ -1,5 +1,5 @@
 /**
- * Tests for ArgTranslator stack argument support and ImportFunction isolation.
+ * Tests for ArgTranslator stack argument support.
  */
 
 #include <cstdint>
@@ -52,5 +52,5 @@ TEST_CASE("A size_t argument reads the low word of a sign extended register",
           "[ppc][arg_translator]") {
   PPCContext ctx{};
   ctx.r3.u64 = 0xFFFFFFFF00000010ull;
-  CHECK(ArgTranslator::GetValue<size_t>(ctx, g_test_mem, 0) == 0x10);
+  CHECK(ArgTranslator::GetValue<size_t>(ctx, g_test_mem, rex::ppc::Argument{}) == 0x10);
 }

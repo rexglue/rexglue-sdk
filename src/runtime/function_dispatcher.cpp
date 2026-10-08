@@ -13,12 +13,15 @@
  *              role as a function dispatch table rather than a CPU emulator.
  */
 
+#include <ranges>
+
 #include <rex/assert.h>
 #include <rex/dbg.h>
 #include <rex/logging.h>
 #include <rex/perf/counter.h>
 #include <rex/memory.h>
 #include <rex/ppc/context.h>
+#include <rex/ppc/function.h>
 #include <rex/runtime.h>
 #include <rex/runtime/function_dispatcher.h>
 #include <rex/runtime/thread_state.h>
@@ -60,7 +63,8 @@ FunctionDispatcher::FunctionDispatcher(rex::runtime::Memory* memory) : memory_(m
 
 FunctionDispatcher::~FunctionDispatcher() = default;
 
-bool FunctionDispatcher::Execute(ThreadState* thread_state, uint32_t address) {
+bool FunctionDispatcher::Run(ThreadState* thread_state, uint32_t address,
+                             std::span<const uint64_t> args) {
   REX_PROFILE_SCOPE("cpu");
   REX_PERF_INC(kFunctionsDispatched);
 
@@ -71,20 +75,27 @@ bool FunctionDispatcher::Execute(ThreadState* thread_state, uint32_t address) {
 
   auto* ctx = thread_state->context();
   auto* previous_thread_state = ThreadState::Get();
-
-  // Rebind the active guest thread for cross-module callbacks.
   ThreadState::Bind(thread_state);
 
-  // Pad out stack, as some games seem to overwrite the caller by about 16 to 32b.
-  ctx->r1.u64 -= 64 + 112;
+  const u32 stack_bytes = args.size() > 8 ? static_cast<u32>(args.size() - 8) * 8 : 0;
+  const uint64_t previous_lr = ctx->lr;
+  const u32 caller_r1 = ppc::OpenCallFrame(*ctx, memory_->virtual_membase(), stack_bytes);
 
-  uint64_t previous_lr = ctx->lr;
-  ctx->lr = 0xBCBCBCBC;
+  PPCRegister* registers[] = {&ctx->r3, &ctx->r4, &ctx->r5, &ctx->r6,
+                              &ctx->r7, &ctx->r8, &ctx->r9, &ctx->r10};
+  for (const auto [index, value] : std::views::enumerate(args)) {
+    if (index < 8) {
+      registers[index]->u64 = value;
+    } else {
+      *memory_->TranslateVirtual<be_u32*>(ctx->r1.u32 + 0x54 + static_cast<u32>(index - 8) * 8) =
+          static_cast<u32>(value);
+    }
+  }
 
   fn(*ctx, memory_->virtual_membase());
 
   ctx->lr = previous_lr;
-  ctx->r1.u64 += 64 + 112;
+  ctx->r1.u64 = caller_r1;
   ThreadState::Bind(previous_thread_state);
 
   return true;
@@ -92,40 +103,14 @@ bool FunctionDispatcher::Execute(ThreadState* thread_state, uint32_t address) {
 
 uint64_t FunctionDispatcher::Execute(ThreadState* thread_state, uint32_t address, uint64_t args[],
                                      size_t arg_count) {
-  REX_PROFILE_SCOPE("cpu");
-
   auto* ctx = thread_state->context();
-
-  if (arg_count > 0)
-    ctx->r3.u64 = args[0];
-  if (arg_count > 1)
-    ctx->r4.u64 = args[1];
-  if (arg_count > 2)
-    ctx->r5.u64 = args[2];
-  if (arg_count > 3)
-    ctx->r6.u64 = args[3];
-  if (arg_count > 4)
-    ctx->r7.u64 = args[4];
-  if (arg_count > 5)
-    ctx->r8.u64 = args[5];
-  if (arg_count > 6)
-    ctx->r9.u64 = args[6];
-  if (arg_count > 7)
-    ctx->r10.u64 = args[7];
-
-  // FIXME: stack-arg path assumes 32-bit values; 64-bit and float args are wrong.
-  if (arg_count > 8) {
-    auto stack_arg_base =
-        memory_->TranslateVirtual(static_cast<uint32_t>(ctx->r1.u64) + 0x54 - (64 + 112));
-    for (size_t i = 8; i < arg_count; i++) {
-      memory::store<be_u32>(stack_arg_base + ((i - 8) * 8), static_cast<uint32_t>(args[i]));
-    }
-  }
-
-  if (!Execute(thread_state, address)) {
-    return 0xDEADBABE;
-  }
-  return ctx->r3.u64;
+  const PPCContext saved = *ctx;
+  const uint64_t result =
+      Run(thread_state, address, std::span(args, arg_count)) ? ctx->r3.u64 : 0xDEADBABE;
+  const PPCFPSCRRegister fpscr = ctx->fpscr;
+  *ctx = saved;
+  ctx->fpscr = fpscr;
+  return result;
 }
 
 uint64_t FunctionDispatcher::ExecuteTrap(ThreadState* thread_state, uint32_t address,
@@ -151,24 +136,13 @@ uint64_t FunctionDispatcher::RunInterrupt(ThreadState* thread_state, uint32_t ad
   const PPCContext saved = *ctx;
   const u32 saved_csr = ctx->fpscr.getcsr();
 
-  if (arg_count > 0)
-    ctx->r3.u64 = args[0];
-  if (arg_count > 1)
-    ctx->r4.u64 = args[1];
-  if (arg_count > 2)
-    ctx->r5.u64 = args[2];
-  if (arg_count > 3)
-    ctx->r6.u64 = args[3];
-  if (arg_count > 4)
-    ctx->r7.u64 = args[4];
-
   auto* pcr = memory_->TranslateVirtual<X_KPCR*>(static_cast<u32>(ctx->r13.u64));
   const u32 old_tls_ptr = pcr->tls_ptr;
   const u8 old_irql = pcr->current_irql;
   pcr->tls_ptr = 0;
   pcr->current_irql = IRQL_DPC;
 
-  const bool executed = Execute(thread_state, address);
+  const bool executed = Run(thread_state, address, std::span(args, arg_count));
   const uint64_t result = executed ? ctx->r3.u64 : 0xDEADBABE;
 
   pcr->current_irql = old_irql;

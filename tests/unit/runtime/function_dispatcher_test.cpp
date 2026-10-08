@@ -198,7 +198,12 @@ TEST_CASE("FunctionDispatcher: ExecuteTrap restores the interrupted register sta
   constexpr uint32_t kAddr = kTrapModBase + 0x40;
   REQUIRE(dispatcher.SetFunction(kAddr, &ScribbleFn));
 
-  rex::runtime::ThreadState thread_state(1, 0x70000000u, 0x60000000u, &memory, nullptr);
+  constexpr uint32_t kStackSize = 0x10000u;
+  const uint32_t stack = memory.SystemHeapAlloc(kStackSize);
+  REQUIRE(stack != 0);
+  const uint32_t pcr = memory.SystemHeapAlloc(0x100);
+  *memory.TranslateVirtual<rex::be_u32*>(pcr + 0x74) = stack;
+  rex::runtime::ThreadState thread_state(1, stack + kStackSize, pcr, &memory, nullptr);
   auto* ctx = thread_state.context();
   ctx->r14.u64 = 0x14141414;
   ctx->r31.u64 = 0x2E0B57D0;
@@ -222,6 +227,8 @@ TEST_CASE("FunctionDispatcher: ExecuteTrap restores the interrupted register sta
   CHECK(ctx->f14.f64 == 2.5);
   CHECK(ctx->v14.u32[0] == 0x5555);
   CHECK(ctx->r1.u64 == saved_r1);
+  memory.SystemHeapFree(pcr);
+  memory.SystemHeapFree(stack);
 }
 
 TEST_CASE("PPCContext: non-volatile save area round-trips cr2-cr4 and fpscr",

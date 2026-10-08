@@ -11,7 +11,6 @@
  */
 
 #include <array>
-#include <cassert>
 #include <string>
 
 #include <rex/macros.h>
@@ -49,6 +48,11 @@ class REX_RUNTIME_API ThreadState {
   ~ThreadState();
 
   Memory* memory() const { return memory_; }
+  /**
+   * Returns the register file of this thread.
+   *
+   * @return The context.
+   */
   ::PPCContext* context() const { return context_; }
   uint32_t thread_id() const { return thread_id_; }
 
@@ -81,12 +85,6 @@ class REX_RUNTIME_API ThreadState {
   ::PPCContext* context_ = &context_storage_;
   DPCSaveArea dpc_save_area_;
 };
-
-inline PPCContext* current_ppc_context() {
-  auto* ts = ThreadState::Get();
-  assert(ts && "current_ppc_context() called without bound ThreadState");
-  return ts->context();
-}
 
 namespace detail {
 

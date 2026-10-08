@@ -208,9 +208,8 @@ void KernelFixture::RunOnGuestThread(const std::function<void(Caller&)>& body) {
   runtime::ThreadState* previous = runtime::ThreadState::Get();
   runtime::ThreadState::Bind(&host_state);
 
-  PPCContext ctx{};
   u8* base = runtime().memory()->virtual_membase();
-  Caller main_caller(ctx, base, runtime());
+  Caller main_caller(*host_state.context(), base, runtime());
   const u32 handle = main_caller.Spawn([body, done](Caller& caller) {
     body(caller);
     done->set_value();
