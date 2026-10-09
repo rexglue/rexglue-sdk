@@ -27,6 +27,7 @@
 #include <windows.h>
 #endif
 
+#include <ctime>
 #include <format>
 
 namespace rex {
@@ -78,48 +79,60 @@ u32 XamGetOnlineSchema_entry() {
   return schema_guest;
 }
 
+struct LocalDateTime {
+  u32 year;
+  u32 month;
+  u32 day;
+  u32 hour;
+  u32 minute;
+};
+
+static LocalDateTime ToLocalDateTime(u64 filetime) {
 #if REX_PLATFORM_WIN32
-static SYSTEMTIME GetLocalSystemTime(uint64_t filetime) {
   FILETIME t;
   t.dwHighDateTime = filetime >> 32;
-  t.dwLowDateTime = static_cast<uint32_t>(filetime);
+  t.dwLowDateTime = static_cast<u32>(filetime);
 
-  SYSTEMTIME st;
-  SYSTEMTIME local_st;
+  SYSTEMTIME st = {};
+  SYSTEMTIME local_st = {};
   FileTimeToSystemTime(&t, &st);
   SystemTimeToTzSpecificLocalTime(nullptr, &st, &local_st);
-  return local_st;
-}
+  return {local_st.wYear, local_st.wMonth, local_st.wDay, local_st.wHour, local_st.wMinute};
+#else
+  constexpr i64 kUnixEpochFiletime = 116444736000000000;
+  constexpr i64 kFiletimeTicksPerSecond = 10000000;
+  const i64 ticks = static_cast<i64>(filetime) - kUnixEpochFiletime;
+  i64 seconds = ticks / kFiletimeTicksPerSecond;
+  if (ticks % kFiletimeTicksPerSecond < 0) {
+    --seconds;
+  }
+  const auto time = static_cast<std::time_t>(seconds);
+  std::tm local = {};
+  localtime_r(&time, &local);
+  return {static_cast<u32>(local.tm_year + 1900), static_cast<u32>(local.tm_mon + 1),
+          static_cast<u32>(local.tm_mday), static_cast<u32>(local.tm_hour),
+          static_cast<u32>(local.tm_min)};
 #endif
+}
 
 void XamFormatDateString_entry([[maybe_unused]] u32 unk, u64 filetime, mapped_void output_buffer,
                                u32 output_count) {
   std::memset(output_buffer, 0, output_count * sizeof(char16_t));
 
-// TODO: implement this for other platforms
-#if REX_PLATFORM_WIN32
-  auto st = GetLocalSystemTime(filetime);
+  const LocalDateTime local = ToLocalDateTime(filetime);
   // TODO: format this depending on users locale?
-  auto str = rex::to_utf16(std::format("{:02d}/{:02d}/{}", st.wMonth, st.wDay, st.wYear));
+  auto str = rex::to_utf16(std::format("{:02d}/{:02d}/{}", local.month, local.day, local.year));
   rex::copy_and_swap_truncating(output_buffer.as<char16_t*>(), str, output_count);
-#else
-  REX_ASSERT_ALWAYS();
-#endif
 }
 
 void XamFormatTimeString_entry([[maybe_unused]] u32 unk, u64 filetime, mapped_void output_buffer,
                                u32 output_count) {
   std::memset(output_buffer, 0, output_count * sizeof(char16_t));
 
-// TODO: implement this for other platforms
-#if REX_PLATFORM_WIN32
-  auto st = GetLocalSystemTime(filetime);
+  const LocalDateTime local = ToLocalDateTime(filetime);
   // TODO: format this depending on users locale?
-  auto str = rex::to_utf16(std::format("{:02d}:{:02d}", st.wHour, st.wMinute));
+  auto str = rex::to_utf16(std::format("{:02d}:{:02d}", local.hour, local.minute));
   rex::copy_and_swap_truncating(output_buffer.as<char16_t*>(), str, output_count);
-#else
-  REX_ASSERT_ALWAYS();
-#endif
 }
 
 u32 keXamBuildResourceLocator(uint64_t module, std::u16string_view container,
