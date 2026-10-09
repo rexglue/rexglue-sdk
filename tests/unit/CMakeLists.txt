@@ -31,6 +31,7 @@ add_executable(unit_tests
     kernel/pinned_wait_test.cpp
     kernel/char_events_test.cpp
     kernel/char_sync_test.cpp
+    kernel/char_enumerate_test.cpp
     kernel/char_handles_test.cpp
     kernel/char_strings_test.cpp
     kernel/shutdown_test.cpp

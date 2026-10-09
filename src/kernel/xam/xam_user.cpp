@@ -523,7 +523,7 @@ class AchievementItems {
 
   void Append(AchievementDetails item) { items_.push_back(std::move(item)); }
 
-  uint32_t Write(uint32_t buffer_ptr, uint8_t* buffer_data, uint32_t* written_count) {
+  u32 Write(u32 buffer_ptr, u8* buffer_data, u32* written_count) {
     size_t count = std::min(items_.size() - current_item_, items_per_enumerate_);
     if (!count) {
       return X_ERROR_NO_MORE_FILES;

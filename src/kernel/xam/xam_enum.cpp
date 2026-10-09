@@ -33,8 +33,8 @@ using namespace rex::runtime;
 using namespace rex::runtime::xam;
 
 // https://github.com/LestaD/SourceEngine2007/blob/master/se2007/engine/xboxsystem.cpp#L518
-uint32_t XamEnumerate(uint32_t handle, uint32_t flags, mapped_void buffer_ptr, uint32_t buffer_size,
-                      uint32_t* items_returned, uint32_t overlapped_ptr) {
+u32 XamEnumerate(u32 handle, u32 flags, mapped_void buffer_ptr, u32* items_returned,
+                 u32 overlapped_ptr) {
   REX_ASSERT(flags == 0);
 
   auto& runtime = runtime::Current();
@@ -76,12 +76,12 @@ uint32_t XamEnumerate(uint32_t handle, uint32_t flags, mapped_void buffer_ptr, u
   }
 }
 
-u32 XamEnumerate_entry(u32 handle, u32 flags, mapped_void buffer, u32 buffer_length,
-                       mapped_u32 items_returned, ppc_ptr_t<XAM_OVERLAPPED> overlapped) {
+u32 XamEnumerate_entry(u32 handle, u32 flags, mapped_void buffer,
+                       [[maybe_unused]] u32 buffer_length, mapped_u32 items_returned,
+                       ppc_ptr_t<XAM_OVERLAPPED> overlapped) {
   uint32_t dummy;
-  auto result =
-      XamEnumerate(handle, flags, buffer, buffer_length,
-                   !overlapped.guest_address() ? &dummy : nullptr, overlapped.guest_address());
+  auto result = XamEnumerate(handle, flags, buffer, !overlapped.guest_address() ? &dummy : nullptr,
+                             overlapped.guest_address());
   if (!overlapped && items_returned) {
     *items_returned = dummy;
   }
