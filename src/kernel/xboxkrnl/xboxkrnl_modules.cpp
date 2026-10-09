@@ -89,8 +89,8 @@ u32 XexGetModuleSection_entry(mapped_void hmodule, mapped_string name, mapped_u3
   return result;
 }
 
-u32 XexLoadImage_entry(mapped_string module_name, u32 module_flags, u32 min_version,
-                       mapped_u32 hmodule_ptr) {
+u32 XexLoadImage_entry(mapped_string module_name, [[maybe_unused]] u32 module_flags,
+                       [[maybe_unused]] u32 min_version, mapped_u32 hmodule_ptr) {
   X_STATUS result = X_STATUS_NO_SUCH_FILE;
 
   auto& runtime = runtime::Current();
@@ -211,7 +211,7 @@ void ExRegisterTitleTerminateNotification_entry(ppc_ptr_t<X_EX_TITLE_TERMINATE_R
   }
 }
 
-u32 XexLoadImageHeaders_entry(mapped_string path, mapped_void headers) {
+u32 XexLoadImageHeaders_entry(mapped_string path, [[maybe_unused]] mapped_void headers) {
   REX_KERNEL_STUB("XexLoadImageHeaders({})", path.value());
   return X_STATUS_NOT_IMPLEMENTED;
 }

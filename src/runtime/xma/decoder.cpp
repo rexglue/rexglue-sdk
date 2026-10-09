@@ -61,7 +61,7 @@ XMADecoder::~XMADecoder() {
   Shutdown();
 }
 
-void av_log_callback(void* avcl, int level, const char* fmt, va_list va) {
+void av_log_callback([[maybe_unused]] void* avcl, int level, const char* fmt, va_list va) {
   if (!REXCVAR_GET(::rex::runtime::cvars::ffmpeg_verbose) && level > AV_LOG_WARNING) {
     return;
   }

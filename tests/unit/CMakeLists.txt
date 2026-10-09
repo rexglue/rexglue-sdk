@@ -32,6 +32,7 @@ add_executable(unit_tests
     kernel/char_events_test.cpp
     kernel/char_sync_test.cpp
     kernel/char_handles_test.cpp
+    kernel/char_strings_test.cpp
     kernel/shutdown_test.cpp
     kernel/char_threads_test.cpp
     kernel/char_files_test.cpp

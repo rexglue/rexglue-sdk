@@ -194,8 +194,8 @@ void FreeGuestBlock(runtime::Memory* memory, u32 address, WorkspaceHeap* workspa
   }
 }
 
-X_STATUS WaitOn(Runtime& runtime, X_HANDLE handle, u32 wait_reason, u32 processor_mode,
-                u32 alertable, u64* opt_timeout) {
+X_STATUS WaitOn(Runtime& runtime, X_HANDLE handle, [[maybe_unused]] u32 wait_reason,
+                [[maybe_unused]] u32 processor_mode, u32 alertable, u64* opt_timeout) {
   WaitTarget target = Resolve(runtime, handle);
   if (!target.slot) {
     return X_STATUS_INVALID_HANDLE;
@@ -222,7 +222,8 @@ X_STATUS WaitOn(Runtime& runtime, X_HANDLE handle, u32 wait_reason, u32 processo
 }
 
 X_STATUS SignalAndWaitOn(Runtime& runtime, X_HANDLE signal_handle, X_HANDLE wait_handle,
-                         u32 wait_reason, u32 processor_mode, u32 alertable, u64* opt_timeout) {
+                         [[maybe_unused]] u32 wait_reason, [[maybe_unused]] u32 processor_mode,
+                         u32 alertable, u64* opt_timeout) {
   WaitTarget signal = Resolve(runtime, signal_handle);
   WaitTarget wait = Resolve(runtime, wait_handle);
   if (!signal.slot || !wait.slot) {
@@ -251,7 +252,8 @@ X_STATUS SignalAndWaitOn(Runtime& runtime, X_HANDLE signal_handle, X_HANDLE wait
 }
 
 X_STATUS WaitOnMany(Runtime& runtime, std::span<const X_HANDLE> handles, u32 wait_type,
-                    u32 wait_reason, u32 processor_mode, u32 alertable, u64* opt_timeout) {
+                    [[maybe_unused]] u32 wait_reason, [[maybe_unused]] u32 processor_mode,
+                    u32 alertable, u64* opt_timeout) {
   std::vector<WaitTarget> targets;
   targets.reserve(handles.size());
   std::vector<rex::platform::WaitHandle*> wait_handles;

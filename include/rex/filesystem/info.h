@@ -57,9 +57,9 @@ struct FileInfo {
 
 /** Times to change on a file. An empty field keeps the current time. */
 struct FileTimes {
-  std::optional<u64> create; /**< New creation time in FILETIME ticks. */
-  std::optional<u64> access; /**< New last access time in FILETIME ticks. */
-  std::optional<u64> write;  /**< New last write time in FILETIME ticks. */
+  std::optional<u64> create = {}; /**< New creation time in FILETIME ticks. */
+  std::optional<u64> access = {}; /**< New last access time in FILETIME ticks. */
+  std::optional<u64> write = {};  /**< New last write time in FILETIME ticks. */
 };
 
 /** Information about the volume a file resides on. */

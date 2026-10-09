@@ -59,25 +59,25 @@ struct ChoiceDesc {
   /** Severity, which picks the box icon. */
   MessageKind kind = MessageKind::Error;
   /** Box title. */
-  std::string title;
+  std::string title = {};
   /** Box text. */
-  std::string body;
+  std::string body = {};
   /** Button labels. The first is the default and the last is the escape button. */
-  std::vector<std::string> buttons;
+  std::vector<std::string> buttons = {};
 };
 
 /** A prompt shown inside the title window. */
 struct PromptDesc {
   /** Prompt title. */
-  std::string title;
+  std::string title = {};
   /** Prompt text. */
-  std::string body;
+  std::string body = {};
   /** Button labels. Empty means a single OK button. */
-  std::vector<std::string> buttons;
+  std::vector<std::string> buttons = {};
   /** True shows a text field. */
   bool text_input = false;
   /** Initial text of the field. */
-  std::string default_text;
+  std::string default_text = {};
   /** Longest text the field accepts in characters. 0 means no limit. */
   u32 max_length = 0;
 };
@@ -89,7 +89,7 @@ struct PromptResult {
   /** Index of the pressed button. */
   u32 button = 0;
   /** Text of the field when the prompt had one. */
-  std::string text;
+  std::string text = {};
 };
 
 /** One file type filter of a file dialog. */

@@ -286,9 +286,10 @@ Result<X_INPUT_STATE> SDL3Driver::GetDeviceState(DeviceId id) {
   return ToResult(ReadDeviceState(id, &state), state);
 }
 
-Result<X_INPUT_CAPABILITIES> SDL3Driver::GetDeviceCapabilities(DeviceId id, u32 flags) {
+Result<X_INPUT_CAPABILITIES> SDL3Driver::GetDeviceCapabilities(DeviceId id,
+                                                               [[maybe_unused]] u32 flags) {
   X_INPUT_CAPABILITIES caps{};
-  return ToResult(ReadDeviceCapabilities(id, flags, &caps), caps);
+  return ToResult(ReadDeviceCapabilities(id, &caps), caps);
 }
 
 Result<void> SDL3Driver::SetDeviceVibration(DeviceId id, const X_INPUT_VIBRATION& vibration) {
@@ -296,13 +297,12 @@ Result<void> SDL3Driver::SetDeviceVibration(DeviceId id, const X_INPUT_VIBRATION
   return ToResult(WriteDeviceVibration(id, &copy));
 }
 
-Result<X_INPUT_KEYSTROKE> SDL3Driver::GetDeviceKeystroke(DeviceId id, u32 flags) {
+Result<X_INPUT_KEYSTROKE> SDL3Driver::GetDeviceKeystroke(DeviceId id, [[maybe_unused]] u32 flags) {
   X_INPUT_KEYSTROKE keystroke{};
-  return ToResult(ReadDeviceKeystroke(id, flags, &keystroke), keystroke);
+  return ToResult(ReadDeviceKeystroke(id, &keystroke), keystroke);
 }
 
-X_RESULT SDL3Driver::ReadDeviceCapabilities(DeviceId id, uint32_t flags,
-                                            X_INPUT_CAPABILITIES* out_caps) {
+X_RESULT SDL3Driver::ReadDeviceCapabilities(DeviceId id, X_INPUT_CAPABILITIES* out_caps) {
   assert(sdl_events_initialized_ && SDL_Gamepad_initialized_);
   if (!out_caps) {
     return X_ERROR_BAD_ARGUMENTS;
@@ -380,8 +380,7 @@ X_RESULT SDL3Driver::WriteDeviceVibration(DeviceId id, X_INPUT_VIBRATION* vibrat
              : X_ERROR_FUNCTION_FAILED;
 }
 
-X_RESULT SDL3Driver::ReadDeviceKeystroke(DeviceId id, uint32_t flags,
-                                         X_INPUT_KEYSTROKE* out_keystroke) {
+X_RESULT SDL3Driver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_keystroke) {
   // TODO(JoelLinn): Figure out the flags
   // https://github.com/evilC/UCR/blob/0489929e2a8e39caa3484c67f3993d3fba39e46f/Libraries/XInput.ahk#L85-L98
   assert(sdl_events_initialized_ && SDL_Gamepad_initialized_);

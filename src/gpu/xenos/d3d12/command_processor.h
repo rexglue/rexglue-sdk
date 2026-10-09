@@ -403,8 +403,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   bool InitializeOcclusionQueryResources();
   void ShutdownOcclusionQueryResources();
   bool BeginGuestOcclusionQuery(uint32_t sample_count_address);
-  bool EndGuestOcclusionQuery(uint32_t sample_count_address,
-                              xenos::DepthSampleCounts* sample_counts);
+  bool EndGuestOcclusionQuery(xenos::DepthSampleCounts* sample_counts);
   bool AcquireOcclusionQueryIndex(uint32_t& host_index_out);
   void DisableHostOcclusionQueries();
   uint64_t NormalizeOcclusionSamples(uint64_t samples) const;

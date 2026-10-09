@@ -20,6 +20,7 @@
 #include <rex/platform.h>
 #include "gpu/xenos/host/vulkan/instance.h"
 #include "gpu/xenos/host/vulkan/presenter.h"
+#include "gpu/xenos/host/vulkan/util.h"
 
 #if REX_PLATFORM_MAC
 #include "vulkan_moltenvk.h"
@@ -476,8 +477,9 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
 
   if (vulkan_instance->extensions_.ext_EXT_debug_utils &&
       REXCVAR_GET(::rex::gpu::cvars::log_debug_messages)) {
-    VkDebugUtilsMessengerCreateInfoEXT debug_utils_messenger_create_info = {
-        VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT};
+    auto debug_utils_messenger_create_info =
+        util::InitializeStructure<VkDebugUtilsMessengerCreateInfoEXT>(
+            VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT);
     if (rex::log::gpu.Enabled(rex::log::Level::kDebug)) {
       debug_utils_messenger_create_info.messageSeverity |=
           VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT;

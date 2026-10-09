@@ -164,7 +164,9 @@ GraphicsUploadBufferPool::Page* GraphicsUploadBufferPool::RequestPartial(uint64_
   return page;
 }
 
-void GraphicsUploadBufferPool::FlushPageWrites(Page* page, size_t offset, size_t size) {}
+void GraphicsUploadBufferPool::FlushPageWrites([[maybe_unused]] Page* page,
+                                               [[maybe_unused]] size_t offset,
+                                               [[maybe_unused]] size_t size) {}
 
 }  // namespace gpu
 }  // namespace rex

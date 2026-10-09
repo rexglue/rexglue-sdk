@@ -223,7 +223,7 @@ bool D3D12CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffe
     return write_fallback_result();
   }
 
-  if (!EndGuestOcclusionQuery(sample_count_addr, sample_counts)) {
+  if (!EndGuestOcclusionQuery(sample_counts)) {
     return write_fallback_result();
   }
 
@@ -1900,8 +1900,8 @@ void D3D12CommandProcessor::OnGammaRampPWLValueWritten() {
   gamma_ramp_pwl_up_to_date_ = false;
 }
 
-void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
-                                      uint32_t frontbuffer_height) {
+void D3D12CommandProcessor::IssueSwap([[maybe_unused]] uint32_t frontbuffer_ptr,
+                                      uint32_t frontbuffer_width, uint32_t frontbuffer_height) {
   REX_PROFILE_SCOPE("gpu");
   vertex_buffers_in_sync_[0] = 0;
   vertex_buffers_in_sync_[1] = 0;
@@ -2277,14 +2277,16 @@ void D3D12CommandProcessor::OnPrimaryBufferEnd() {
   }
 }
 
-Shader* D3D12CommandProcessor::LoadShader(xenos::ShaderType shader_type, uint32_t guest_address,
+Shader* D3D12CommandProcessor::LoadShader(xenos::ShaderType shader_type,
+                                          [[maybe_unused]] uint32_t guest_address,
                                           const uint32_t* host_address, uint32_t dword_count) {
   return pipeline_cache_->LoadShader(shader_type, host_address, dword_count);
 }
 
-bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint32_t index_count,
-                                      IndexBufferInfo* index_buffer_info,
-                                      bool major_mode_explicit) {
+bool D3D12CommandProcessor::IssueDraw([[maybe_unused]] xenos::PrimitiveType primitive_type,
+                                      [[maybe_unused]] uint32_t index_count,
+                                      [[maybe_unused]] IndexBufferInfo* index_buffer_info,
+                                      [[maybe_unused]] bool major_mode_explicit) {
 #if REXGPU_FINE_GRAINED_DRAW_SCOPES
   REX_PROFILE_SCOPE("gpu");
 #endif  // REXGPU_FINE_GRAINED_DRAW_SCOPES
@@ -4954,8 +4956,7 @@ bool D3D12CommandProcessor::BeginGuestOcclusionQuery(uint32_t sample_count_addre
   return true;
 }
 
-bool D3D12CommandProcessor::EndGuestOcclusionQuery(uint32_t sample_count_address,
-                                                   xenos::DepthSampleCounts* sample_counts) {
+bool D3D12CommandProcessor::EndGuestOcclusionQuery(xenos::DepthSampleCounts* sample_counts) {
   if (!REXCVAR_GET(::rex::gpu::cvars::occlusion_query_enable) ||
       !occlusion_query_resources_available_ || !active_occlusion_query_.valid ||
       !occlusion_query_heap_ || !occlusion_query_readback_) {

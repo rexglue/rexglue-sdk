@@ -1230,9 +1230,9 @@ REXGPU_PRIMITIVE_PROCESSOR_INSTANTIATE_CONVERSION(QuadListToTriangleList)
 #undef REXGPU_PRIMITIVE_PROCESSOR_INSTANTIATE_CONVERSION_NO_PASSTHROUGH
 #undef REXGPU_PRIMITIVE_PROCESSOR_INSTANTIATE_CONVERSION
 
-void PrimitiveProcessor::LineLoopToStrip(uint16_t* dest, const uint16_t* source,
-                                         uint32_t source_index_count,
-                                         const PassthroughIndexTransform& index_transform) {
+void PrimitiveProcessor::LineLoopToStrip(
+    uint16_t* dest, const uint16_t* source, uint32_t source_index_count,
+    [[maybe_unused]] const PassthroughIndexTransform& index_transform) {
   if (source_index_count <= 1) {
     // To match GetLineLoopStripIndexCount.
     return;
@@ -1240,9 +1240,9 @@ void PrimitiveProcessor::LineLoopToStrip(uint16_t* dest, const uint16_t* source,
   std::memcpy(dest, source, sizeof(*source) * source_index_count);
   dest[source_index_count] = source[0];
 }
-void PrimitiveProcessor::LineLoopToStrip(uint32_t* dest, const uint32_t* source,
-                                         uint32_t source_index_count,
-                                         const PassthroughIndexTransform& index_transform) {
+void PrimitiveProcessor::LineLoopToStrip(
+    uint32_t* dest, const uint32_t* source, uint32_t source_index_count,
+    [[maybe_unused]] const PassthroughIndexTransform& index_transform) {
   if (source_index_count <= 1) {
     // To match GetLineLoopStripIndexCount.
     return;

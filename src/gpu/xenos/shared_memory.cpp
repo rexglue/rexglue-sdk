@@ -269,8 +269,8 @@ void SharedMemory::RangeWrittenByGpu(uint32_t start, uint32_t length) {
   MakeRangeValid(start, length, true);
 }
 
-bool SharedMemory::AllocateSparseHostGpuMemoryRange(uint32_t offset_allocations,
-                                                    uint32_t length_allocations) {
+bool SharedMemory::AllocateSparseHostGpuMemoryRange([[maybe_unused]] uint32_t offset_allocations,
+                                                    [[maybe_unused]] uint32_t length_allocations) {
   REX_ASSERT_ALWAYS(
       "Sparse host GPU memory allocation has been initialized, but the "
       "implementation doesn't provide AllocateSparseHostGpuMemoryRange");

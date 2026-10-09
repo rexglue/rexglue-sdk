@@ -272,6 +272,11 @@ set(ENABLE_RTTI ON CACHE BOOL "" FORCE)
 # Set policy minimum for older glslang versions with outdated cmake_minimum_required
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "" FORCE)
 add_subdirectory(glslang)
+foreach(glslang_target glslang MachineIndependent GenericCodeGen OSDependent SPIRV)
+    if(TARGET ${glslang_target})
+        target_compile_options(${glslang_target} PRIVATE -w)
+    endif()
+endforeach()
 # Create alias for older glslang versions that don't provide it
 if(NOT TARGET glslang::SPIRV)
     add_library(glslang::SPIRV ALIAS SPIRV)

@@ -61,8 +61,8 @@ void AddODDContentTest(StaticItems& items, XContentType content_type) {
   }
 }
 
-u32 XamContentAggregateCreateEnumerator_entry(u64 xuid, u32 device_id, u32 content_type, u32 unk3,
-                                              mapped_u32 handle_out) {
+u32 XamContentAggregateCreateEnumerator_entry(u64 xuid, u32 device_id, u32 content_type,
+                                              [[maybe_unused]] u32 unk3, mapped_u32 handle_out) {
   REX_ASSERT(handle_out != nullptr);
 
   auto device_info = device_id == 0 ? nullptr : GetDummyDeviceInfo(device_id);

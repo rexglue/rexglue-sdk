@@ -1473,8 +1473,8 @@ u32 InterlockedPopEntrySList_entry(ppc_ptr_t<X_SLIST_HEADER> plist_ptr) {
   REX_ASSERT(plist_ptr != nullptr);
 
   uint32_t popped = 0;
-  alignas(8) X_SLIST_HEADER old_hdr = {0};
-  alignas(8) X_SLIST_HEADER new_hdr = {0};
+  alignas(8) X_SLIST_HEADER old_hdr = {};
+  alignas(8) X_SLIST_HEADER new_hdr = {};
   do {
     old_hdr = *plist_ptr;
     auto next =
@@ -1498,7 +1498,7 @@ u32 InterlockedFlushSList_entry(ppc_ptr_t<X_SLIST_HEADER> plist_ptr) {
   REX_ASSERT(plist_ptr != nullptr);
 
   alignas(8) X_SLIST_HEADER old_hdr = *plist_ptr;
-  alignas(8) X_SLIST_HEADER new_hdr = {0};
+  alignas(8) X_SLIST_HEADER new_hdr = {};
   uint32_t first = 0;
   do {
     old_hdr = *plist_ptr;

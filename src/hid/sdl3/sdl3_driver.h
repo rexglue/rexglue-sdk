@@ -73,9 +73,9 @@ class SDL3Driver final : public Driver {
   };
 
   X_RESULT ReadDeviceState(DeviceId id, X_INPUT_STATE* out_state);
-  X_RESULT ReadDeviceCapabilities(DeviceId id, uint32_t flags, X_INPUT_CAPABILITIES* out_caps);
+  X_RESULT ReadDeviceCapabilities(DeviceId id, X_INPUT_CAPABILITIES* out_caps);
   X_RESULT WriteDeviceVibration(DeviceId id, X_INPUT_VIBRATION* vibration);
-  X_RESULT ReadDeviceKeystroke(DeviceId id, uint32_t flags, X_INPUT_KEYSTROKE* out_keystroke);
+  X_RESULT ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_keystroke);
 
   static bool EventWatch(void* userdata, SDL_Event* event);
   void HandleEvent(const SDL_Event& event);

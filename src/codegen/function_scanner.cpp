@@ -1242,7 +1242,7 @@ bool isProloguePattern(const DecodedInsn& insn) {
 // Helper: Check if block should stop at this instruction
 //=============================================================================
 
-bool isBlockTerminator(const DecodedInsn& insn, uint32_t addr, const CodeRegion& region,
+bool isBlockTerminator(const DecodedInsn& insn, const CodeRegion& region,
                        const std::unordered_set<uint32_t>& knownFunctions) {
   using namespace rex::codegen::ppc;
 
@@ -2054,7 +2054,7 @@ BlockDiscoveryResult discoverBlocks(
       }
 
       // Check for block terminator (null, prologue of next function and others)
-      if (isBlockTerminator(*insn, addr, containingRegion, knownFunctions)) {
+      if (isBlockTerminator(*insn, containingRegion, knownFunctions)) {
         REXLOG_TRACE(codegen, "discoverBlocks: 0x{:08X} block terminator at 0x{:08X}", entryPoint,
                      addr);
         block.size = addr - blockStart + 4;

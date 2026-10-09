@@ -62,7 +62,7 @@ struct Visit {
   u32 sector = 0;
   u32 length = 0;
   u8 attributes = 0;
-  std::string name;
+  std::string name = {};
 };
 
 class GDFXReader {

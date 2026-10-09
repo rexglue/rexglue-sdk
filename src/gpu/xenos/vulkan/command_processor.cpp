@@ -2196,8 +2196,8 @@ void VulkanCommandProcessor::OnGammaRampPWLValueWritten() {
   gamma_ramp_pwl_current_frame_ = UINT32_MAX;
 }
 
-void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
-                                       uint32_t frontbuffer_height) {
+void VulkanCommandProcessor::IssueSwap([[maybe_unused]] uint32_t frontbuffer_ptr,
+                                       uint32_t frontbuffer_width, uint32_t frontbuffer_height) {
   REX_PROFILE_SCOPE("gpu");
   vertex_buffers_in_sync_[0] = 0;
   vertex_buffers_in_sync_[1] = 0;
@@ -3512,7 +3512,8 @@ void VulkanCommandProcessor::OnPrimaryBufferEnd() {
   }
 }
 
-Shader* VulkanCommandProcessor::LoadShader(xenos::ShaderType shader_type, uint32_t guest_address,
+Shader* VulkanCommandProcessor::LoadShader(xenos::ShaderType shader_type,
+                                           [[maybe_unused]] uint32_t guest_address,
                                            const uint32_t* host_address, uint32_t dword_count) {
   return pipeline_cache_->LoadShader(shader_type, host_address, dword_count);
 }

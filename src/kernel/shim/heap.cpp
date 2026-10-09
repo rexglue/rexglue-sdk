@@ -304,20 +304,20 @@ HeapDiagnostics ReXHeap::GetDiagnosticsLocked() const {
 
 ReXHeap g_heap;
 
-REX_SHIM_FN(RtlAllocateHeap, u32, u32 hHeap, u32 dwFlags, u32 dwBytes) {
+REX_SHIM_FN(RtlAllocateHeap, u32, [[maybe_unused]] u32 hHeap, u32 dwFlags, u32 dwBytes) {
   return g_heap.Alloc(dwBytes, dwFlags & HEAP_ZERO_MEMORY);
 }
 
-REX_SHIM_FN(RtlFreeHeap, u32, u32 hHeap, u32 dwFlags, u32 ptr) {
+REX_SHIM_FN(RtlFreeHeap, u32, [[maybe_unused]] u32 hHeap, [[maybe_unused]] u32 dwFlags, u32 ptr) {
   g_heap.Free(static_cast<u32>(ptr));
   return 1;
 }
 
-REX_SHIM_FN(RtlSizeHeap, u32, u32 hHeap, u32 dwFlags, u32 ptr) {
+REX_SHIM_FN(RtlSizeHeap, u32, [[maybe_unused]] u32 hHeap, [[maybe_unused]] u32 dwFlags, u32 ptr) {
   return g_heap.Size(static_cast<u32>(ptr));
 }
 
-REX_SHIM_FN(RtlReAllocateHeap, u32, u32 hHeap, u32 dwFlags, u32 ptr, u32 dwBytes) {
+REX_SHIM_FN(RtlReAllocateHeap, u32, [[maybe_unused]] u32 hHeap, u32 dwFlags, u32 ptr, u32 dwBytes) {
   return g_heap.Realloc(static_cast<u32>(ptr), dwBytes, dwFlags & HEAP_ZERO_MEMORY);
 }
 

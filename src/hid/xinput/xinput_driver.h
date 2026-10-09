@@ -42,7 +42,7 @@ class XInputDriver final : public Driver {
   X_RESULT ReadDeviceState(DeviceId id, X_INPUT_STATE* out_state);
   X_RESULT ReadDeviceCapabilities(DeviceId id, u32 flags, X_INPUT_CAPABILITIES* out_caps);
   X_RESULT WriteDeviceVibration(DeviceId id, X_INPUT_VIBRATION* vibration);
-  X_RESULT ReadDeviceKeystroke(DeviceId id, u32 flags, X_INPUT_KEYSTROKE* out_keystroke);
+  X_RESULT ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_keystroke);
 
   platform::DynamicLibrary library_;
   decltype(&XInputGetCapabilities) get_capabilities_ = nullptr;

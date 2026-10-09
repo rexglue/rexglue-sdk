@@ -323,11 +323,11 @@ void XamShowDirtyDiscErrorUI_entry(u32 user_index) {
   runtime::Current().ExitTitle(rex::runtime::TitleExitReason::TitleDataError);
 }
 
-u32 XamShowPartyUI_entry(u32 r3, u32 r4) {
+u32 XamShowPartyUI_entry([[maybe_unused]] u32 r3, [[maybe_unused]] u32 r4) {
   return X_ERROR_FUNCTION_FAILED;
 }
 
-u32 XamShowCommunitySessionsUI_entry(u32 r3, u32 r4) {
+u32 XamShowCommunitySessionsUI_entry([[maybe_unused]] u32 r3, [[maybe_unused]] u32 r4) {
   return X_ERROR_FUNCTION_FAILED;
 }
 

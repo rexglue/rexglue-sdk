@@ -59,9 +59,10 @@ static filesystem::Disposition MapDisposition(u32 win32_disp) {
   }
 }
 
-REX_SHIM_FN(CreateFileA, u32, mapped_string lpFileName, u32 dwDesiredAccess, u32 dwShareMode,
-            mapped_void lpSecurityAttributes, u32 dwCreationDisposition, u32 dwFlagsAndAttributes,
-            u32 hTemplateFile) {
+REX_SHIM_FN(CreateFileA, u32, mapped_string lpFileName, u32 dwDesiredAccess,
+            [[maybe_unused]] u32 dwShareMode, [[maybe_unused]] mapped_void lpSecurityAttributes,
+            u32 dwCreationDisposition, [[maybe_unused]] u32 dwFlagsAndAttributes,
+            [[maybe_unused]] u32 hTemplateFile) {
   const char* path = static_cast<const char*>(lpFileName);
   auto& runtime = runtime::Current();
   auto disposition = MapDisposition(static_cast<u32>(dwCreationDisposition));
@@ -319,7 +320,8 @@ REX_SHIM_FN(FindNextFileA, u32, u32 hFindFile, mapped_void lpFindFileData) {
   return 1;
 }
 
-REX_SHIM_FN(CreateDirectoryA, u32, mapped_string lpPathName, mapped_void lpSecurityAttributes) {
+REX_SHIM_FN(CreateDirectoryA, u32, mapped_string lpPathName,
+            [[maybe_unused]] mapped_void lpSecurityAttributes) {
   const char* path = static_cast<const char*>(lpPathName);
   auto* fs = runtime::Current().file_system();
   if (fs->Stat(path)) {
@@ -340,7 +342,7 @@ REX_SHIM_FN(GetFileAttributesA, u32, mapped_string lpFileName) {
   return std::to_underlying(entry->attributes);
 }
 
-REX_SHIM_FN(GetFileAttributesExA, u32, u32 fInfoLevelId, mapped_string lpFileName,
+REX_SHIM_FN(GetFileAttributesExA, u32, [[maybe_unused]] u32 fInfoLevelId, mapped_string lpFileName,
             mapped_void lpFileInformation) {
   const char* path = static_cast<const char*>(lpFileName);
   auto entry = runtime::Current().file_system()->Stat(path);

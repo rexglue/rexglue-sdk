@@ -692,8 +692,8 @@ void TextureCache::Texture::WatchCallback(bool is_mip) {
   }
 }
 
-void TextureCache::WatchCallback(void* context, void* data, uint64_t argument,
-                                 bool invalidated_by_gpu) {
+void TextureCache::WatchCallback(void* context, [[maybe_unused]] void* data, uint64_t argument,
+                                 [[maybe_unused]] bool invalidated_by_gpu) {
   Texture& texture = *static_cast<Texture*>(context);
   texture.WatchCallback(argument != 0);
   texture.texture_cache().texture_became_outdated_.store(true, std::memory_order_release);

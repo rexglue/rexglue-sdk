@@ -21,6 +21,13 @@ namespace gpu {
 namespace vulkan {
 namespace util {
 
+template <typename Structure>
+constexpr Structure InitializeStructure(VkStructureType type) {
+  Structure structure = {};
+  structure.sType = type;
+  return structure;
+}
+
 template <typename DestroyFunction, typename Object>
 inline bool DestroyAndNullHandle(DestroyFunction* const destroy_function, Object& handle) {
   if (handle != VK_NULL_HANDLE) {

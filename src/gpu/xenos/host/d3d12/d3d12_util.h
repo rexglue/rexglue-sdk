@@ -21,9 +21,12 @@ namespace util {
 using DescriptorCpuGpuHandlePair =
     std::pair<D3D12_CPU_DESCRIPTOR_HANDLE, D3D12_GPU_DESCRIPTOR_HANDLE>;
 
-inline constexpr D3D12_HEAP_PROPERTIES kHeapPropertiesDefault = {D3D12_HEAP_TYPE_DEFAULT};
-inline constexpr D3D12_HEAP_PROPERTIES kHeapPropertiesUpload = {D3D12_HEAP_TYPE_UPLOAD};
-inline constexpr D3D12_HEAP_PROPERTIES kHeapPropertiesReadback = {D3D12_HEAP_TYPE_READBACK};
+inline constexpr D3D12_HEAP_PROPERTIES kHeapPropertiesDefault = {
+    D3D12_HEAP_TYPE_DEFAULT, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 0, 0};
+inline constexpr D3D12_HEAP_PROPERTIES kHeapPropertiesUpload = {
+    D3D12_HEAP_TYPE_UPLOAD, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 0, 0};
+inline constexpr D3D12_HEAP_PROPERTIES kHeapPropertiesReadback = {
+    D3D12_HEAP_TYPE_READBACK, D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_MEMORY_POOL_UNKNOWN, 0, 0};
 
 template <typename T>
 bool ReleaseAndNull(T& object) {

@@ -303,7 +303,7 @@ class WideCountFormatData {
     }
   }
 
-  bool put(uint16_t c) {
+  bool put([[maybe_unused]] uint16_t c) {
     ++count_;
     return true;
   }

@@ -80,7 +80,7 @@ Result<void> GraphicsSystem::SetupPresentation(gpu::IUIThread& ui_thread) {
   }
 
   ui_thread_ = &ui_thread;
-  auto loss_cb = [this](bool is_responsible, bool statically_from_ui_thread) {
+  auto loss_cb = [this](bool is_responsible, [[maybe_unused]] bool statically_from_ui_thread) {
     OnHostGpuLossFromAnyThread(is_responsible);
   };
   ui_thread.RunSynchronous([this, loss_cb] { presenter_ = provider_->CreatePresenter(loss_cb); });

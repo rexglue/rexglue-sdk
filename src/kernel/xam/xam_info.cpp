@@ -45,7 +45,7 @@ auto XamModule() {
 
 }  // namespace
 
-u32 XamFeatureEnabled_entry(u32 unk) {
+u32 XamFeatureEnabled_entry([[maybe_unused]] u32 unk) {
   return 0;
 }
 
@@ -92,7 +92,8 @@ static SYSTEMTIME GetLocalSystemTime(uint64_t filetime) {
 }
 #endif
 
-void XamFormatDateString_entry(u32 unk, u64 filetime, mapped_void output_buffer, u32 output_count) {
+void XamFormatDateString_entry([[maybe_unused]] u32 unk, u64 filetime, mapped_void output_buffer,
+                               u32 output_count) {
   std::memset(output_buffer, 0, output_count * sizeof(char16_t));
 
 // TODO: implement this for other platforms
@@ -106,7 +107,8 @@ void XamFormatDateString_entry(u32 unk, u64 filetime, mapped_void output_buffer,
 #endif
 }
 
-void XamFormatTimeString_entry(u32 unk, u64 filetime, mapped_void output_buffer, u32 output_count) {
+void XamFormatTimeString_entry([[maybe_unused]] u32 unk, u64 filetime, mapped_void output_buffer,
+                               u32 output_count) {
   std::memset(output_buffer, 0, output_count * sizeof(char16_t));
 
 // TODO: implement this for other platforms
@@ -339,8 +341,9 @@ u32 XamFree_entry(mapped_u32 ptr) {
   return X_ERROR_SUCCESS;
 }
 
-u32 XamQueryLiveHiveW_entry(mapped_wstring name, mapped_void out_buf, u32 out_size,
-                            u32 type /* guess */) {
+u32 XamQueryLiveHiveW_entry([[maybe_unused]] mapped_wstring name,
+                            [[maybe_unused]] mapped_void out_buf, [[maybe_unused]] u32 out_size,
+                            [[maybe_unused]] u32 type /* guess */) {
   return X_STATUS_INVALID_PARAMETER_1;
 }
 

@@ -122,7 +122,8 @@ u32 XamContentGetDeviceData_entry(u32 device_id, ppc_ptr_t<X_CONTENT_DEVICE_DATA
   return X_ERROR_SUCCESS;
 }
 
-u32 XamContentCreateDeviceEnumerator_entry(u32 content_type, u32 content_flags, u32 max_count,
+u32 XamContentCreateDeviceEnumerator_entry([[maybe_unused]] u32 content_type,
+                                           [[maybe_unused]] u32 content_flags, u32 max_count,
                                            mapped_u32 buffer_size_ptr, mapped_u32 handle_out) {
   REX_ASSERT(handle_out != nullptr);
 

@@ -843,8 +843,8 @@ void ParseControlFlowCondCall(const ControlFlowCondCallInstruction& cf, uint32_t
   }
 }
 
-void ParseControlFlowReturn(const ControlFlowReturnInstruction& cf, uint32_t cf_index,
-                            ParsedReturnInstruction& instr) {
+void ParseControlFlowReturn([[maybe_unused]] const ControlFlowReturnInstruction& cf,
+                            uint32_t cf_index, ParsedReturnInstruction& instr) {
   instr.dword_index = cf_index;
 }
 

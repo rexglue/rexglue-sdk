@@ -96,7 +96,7 @@ struct RuntimeConfig {
   /** True to skip the GPU, for analysis tools. */
   bool tool_mode = false;
   /** The display mode the title queries. TitleApp fills it from the user interface. */
-  runtime::VideoMode video_mode;
+  runtime::VideoMode video_mode = {};
   /** The user interface dialogs show through. TitleApp sets it, analysis tools leave it null. */
   ui::IUserInterface* ui = nullptr;
 };

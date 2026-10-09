@@ -308,7 +308,7 @@ class REX_RUNTIME_API BaseHeap {
   // is stored in a flag that EnableAccessCallbacks checks before re-applying
   // protection, so silently unprotecting here would disable the watch forever.
   // Only PhysicalHeap tracks this; every other heap has no watch state.
-  virtual bool IsHostPageWriteWatched(uint32_t host_page_number) const { return false; }
+  virtual bool IsHostPageWriteWatched([[maybe_unused]] u32 host_page_number) const { return false; }
 
   void Initialize(runtime::Memory* memory, uint8_t* membase, HeapType heap_type, uint32_t heap_base,
                   uint32_t heap_size, uint32_t page_size, uint32_t host_address_offset = 0);

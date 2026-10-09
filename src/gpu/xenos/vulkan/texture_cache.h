@@ -173,25 +173,25 @@ class VulkanTextureCache final : public TextureCache {
     // num_format 1 for fixed-point formats (for floating-point, it's normally
     // set to 1 though), add a constant buffer containing multipliers for the
     // textures and multiplication to the tfetch implementation.
-    VkFormat format;
+    VkFormat format = VK_FORMAT_UNDEFINED;
     // Whether the format is block-compressed on the host (the host block size
     // matches the guest format block size in this case), and isn't decompressed
     // on load.
-    bool block_compressed;
+    bool block_compressed = false;
 
     // Set up dynamically based on what's supported by the device.
-    bool linear_filterable;
+    bool linear_filterable = false;
   };
 
   struct HostFormatPair {
     HostFormat format_unsigned;
     HostFormat format_signed;
     // Mapping of Xenos swizzle components to Vulkan format components.
-    uint32_t swizzle;
+    uint32_t swizzle = 0;
     // Whether the unsigned and the signed formats are compatible for one image
     // and the same image data (on a portability subset device, this should also
     // take imageViewFormatReinterpretation into account).
-    bool unsigned_signed_compatible;
+    bool unsigned_signed_compatible = false;
   };
 
   class VulkanTexture final : public Texture {

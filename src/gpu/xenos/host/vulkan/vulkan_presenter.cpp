@@ -276,11 +276,9 @@ VkCommandBuffer VulkanPresenter::AcquireUISetupCommandBufferFromUIThread() {
 }
 
 Presenter::SurfacePaintConnectResult
-VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(gpu::Surface& new_surface,
-                                                                 uint32_t new_surface_width,
-                                                                 uint32_t new_surface_height,
-                                                                 bool was_paintable,
-                                                                 bool& is_vsync_implicit_out) {
+VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
+    gpu::Surface& new_surface, uint32_t new_surface_width, uint32_t new_surface_height,
+    [[maybe_unused]] bool was_paintable, bool& is_vsync_implicit_out) {
   const VulkanInstance* const vulkan_instance = vulkan_device_->vulkan_instance();
   const VulkanInstance::Functions& ifn = vulkan_instance->functions();
   const VkInstance instance = vulkan_instance->instance();

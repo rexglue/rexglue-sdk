@@ -115,7 +115,7 @@ u32 RtlCompareStringN_entry(mapped_string string_1, u32 string_1_len, mapped_str
   if (string_2_len == 0xFFFF) {
     len2 = static_cast<uint32_t>(std::strlen(string_2));
   }
-  auto len = std::min(string_1_len, string_2_len);
+  auto len = std::min(len1, len2);
 
   int ret = case_insensitive ? rex::compare_case_n(string_1, string_2, len)
                              : std::strncmp(string_1, string_2, len);

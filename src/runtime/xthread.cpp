@@ -1011,7 +1011,7 @@ void ThreadRecord::TakeDeferredSuspend() {
 }
 
 // NOLINTNEXTLINE(readability-make-member-function-const): waits on the host thread
-X_STATUS ThreadRecord::Delay(uint32_t processor_mode, uint32_t alertable, uint64_t interval) {
+X_STATUS ThreadRecord::Delay([[maybe_unused]] u32 processor_mode, u32 alertable, u64 interval) {
   const u32 timeout_ms =
       Clock::ScaleGuestDurationMillis(TimeoutTicksToMs(static_cast<i64>(interval)));
   CheckStop();

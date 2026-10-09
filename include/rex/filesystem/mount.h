@@ -44,11 +44,11 @@ enum class MountFlags : u32 {
 
 /** Description of 1 mount. */
 struct MountEntry {
-  std::string path; /**< Guest mount path, such as \\Device\\Cdrom0. */
+  std::string path = {}; /**< Guest mount path, such as \\Device\\Cdrom0. */
   ProviderKind kind = ProviderKind::kHostDirectory; /**< The provider. */
-  std::filesystem::path source;         /**< Host folder or container file, empty for kNull. */
-  MountFlags flags = MountFlags::kNone; /**< Behavior bits. */
-  std::vector<std::string> null_paths;  /**< Paths the null provider answers. */
+  std::filesystem::path source = {};        /**< Host folder or container file, empty for kNull. */
+  MountFlags flags = MountFlags::kNone;     /**< Behavior bits. */
+  std::vector<std::string> null_paths = {}; /**< Paths the null provider answers. */
 };
 
 }  // namespace rex::filesystem

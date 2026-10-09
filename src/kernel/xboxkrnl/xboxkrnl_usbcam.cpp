@@ -18,9 +18,9 @@
 
 namespace rex::kernel::xboxkrnl {
 
-u32 XUsbcamCreate_entry(u32 buffer,
-                        u32 buffer_size,  // 0x4B000 640x480?
-                        mapped_void unk3_ptr) {
+u32 XUsbcamCreate_entry([[maybe_unused]] u32 buffer,
+                        [[maybe_unused]] u32 buffer_size,  // 0x4B000 640x480?
+                        [[maybe_unused]] mapped_void unk3_ptr) {
   // This function should return success.
   // It looks like it only allocates space for usbcam support.
   // returning error code might cause games to initialize incorrectly.

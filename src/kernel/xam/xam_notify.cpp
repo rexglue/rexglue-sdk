@@ -98,12 +98,12 @@ u32 XNotifyGetNext_entry(u32 handle, u32 match_id, mapped_u32 id_ptr, mapped_u32
   return dequeued ? 1 : 0;
 }
 
-u32 XNotifyDelayUI_entry(u32 delay_ms) {
+u32 XNotifyDelayUI_entry([[maybe_unused]] u32 delay_ms) {
   // Ignored.
   return 0;
 }
 
-void XNotifyPositionUI_entry(u32 position) {
+void XNotifyPositionUI_entry([[maybe_unused]] u32 position) {
   // Ignored.
 }
 

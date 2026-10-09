@@ -43,7 +43,7 @@ class AchievementToastDialog : public AchievementNotificationDialog {
   struct PendingToast {
     rex::runtime::AchievementEvent event;
     std::chrono::steady_clock::time_point arrived;
-    std::optional<std::chrono::steady_clock::time_point> visible_since;
+    std::optional<std::chrono::steady_clock::time_point> visible_since = {};
   };
 
   std::mutex mutex_;

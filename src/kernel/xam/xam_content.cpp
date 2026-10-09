@@ -44,8 +44,10 @@ u32 XamContentGetLicenseMask_entry(mapped_u32 mask_ptr, mapped_void overlapped_p
   }
 }
 
-u32 XamContentResolve_entry(u32 user_index, mapped_void content_data_ptr, mapped_void buffer_ptr,
-                            u32 buffer_size, u32 unk1, u32 unk2, u32 unk3) {
+u32 XamContentResolve_entry([[maybe_unused]] u32 user_index, mapped_void content_data_ptr,
+                            [[maybe_unused]] mapped_void buffer_ptr,
+                            [[maybe_unused]] u32 buffer_size, [[maybe_unused]] u32 unk1,
+                            [[maybe_unused]] u32 unk2, [[maybe_unused]] u32 unk3) {
   auto content_data = content_data_ptr.as<XCONTENT_DATA*>();
 
   // Result of buffer_ptr is sent to RtlInitAnsiString.
@@ -58,9 +60,10 @@ u32 XamContentResolve_entry(u32 user_index, mapped_void content_data_ptr, mapped
 
 // https://github.com/MrColdbird/gameservice/blob/master/ContentManager.cpp
 // https://github.com/LestaD/SourceEngine2007/blob/master/se2007/engine/xboxsystem.cpp#L499
-u32 XamContentCreateEnumerator_entry(u32 user_index, u32 device_id, u32 content_type,
-                                     u32 content_flags, u32 items_per_enumerate,
-                                     mapped_u32 buffer_size_ptr, mapped_u32 handle_out) {
+u32 XamContentCreateEnumerator_entry([[maybe_unused]] u32 user_index, u32 device_id,
+                                     u32 content_type, [[maybe_unused]] u32 content_flags,
+                                     u32 items_per_enumerate, mapped_u32 buffer_size_ptr,
+                                     mapped_u32 handle_out) {
   REX_ASSERT(handle_out != nullptr);
 
   auto device_info = device_id == 0 ? nullptr : GetDummyDeviceInfo(device_id);
@@ -129,9 +132,8 @@ u32 XamContentCreateEnumerator_entry(u32 user_index, u32 device_id, u32 content_
 
 enum class kDispositionState : u8 { Unknown = 0, Create = 1, Open = 2 };
 
-u32 XamContentCreate(u32 user_index, mapped_string root_name, mapped_void content_data_ptr,
-                     u32 content_data_size, u32 flags, mapped_u32 disposition_ptr,
-                     mapped_u32 license_mask_ptr, u32 cache_size, u64 content_size,
+u32 XamContentCreate(mapped_string root_name, mapped_void content_data_ptr, u32 content_data_size,
+                     u32 flags, mapped_u32 disposition_ptr, mapped_u32 license_mask_ptr,
                      mapped_void overlapped_ptr) {
   uint64_t xuid = runtime::Current().content_manager().user_profile().xuid();
 
@@ -252,37 +254,40 @@ u32 XamContentCreate(u32 user_index, mapped_string root_name, mapped_void conten
   }
 }
 
-u32 XamContentCreateEx_entry(u32 user_index, mapped_string root_name, mapped_void content_data_ptr,
-                             u32 flags, mapped_u32 disposition_ptr, mapped_u32 license_mask_ptr,
-                             u32 cache_size, u64 content_size, mapped_void overlapped_ptr) {
-  return XamContentCreate(user_index, root_name, content_data_ptr, sizeof(XCONTENT_DATA), flags,
-                          disposition_ptr, license_mask_ptr, cache_size, content_size,
-                          overlapped_ptr);
+u32 XamContentCreateEx_entry([[maybe_unused]] u32 user_index, mapped_string root_name,
+                             mapped_void content_data_ptr, u32 flags, mapped_u32 disposition_ptr,
+                             mapped_u32 license_mask_ptr, [[maybe_unused]] u32 cache_size,
+                             [[maybe_unused]] u64 content_size, mapped_void overlapped_ptr) {
+  return XamContentCreate(root_name, content_data_ptr, sizeof(XCONTENT_DATA), flags,
+                          disposition_ptr, license_mask_ptr, overlapped_ptr);
 }
 
-u32 XamContentCreate_entry(u32 user_index, mapped_string root_name, mapped_void content_data_ptr,
-                           u32 flags, mapped_u32 disposition_ptr, mapped_u32 license_mask_ptr,
-                           mapped_void overlapped_ptr) {
-  return XamContentCreate(user_index, root_name, content_data_ptr, sizeof(XCONTENT_DATA), flags,
-                          disposition_ptr, license_mask_ptr, 0, 0, overlapped_ptr);
+u32 XamContentCreate_entry([[maybe_unused]] u32 user_index, mapped_string root_name,
+                           mapped_void content_data_ptr, u32 flags, mapped_u32 disposition_ptr,
+                           mapped_u32 license_mask_ptr, mapped_void overlapped_ptr) {
+  return XamContentCreate(root_name, content_data_ptr, sizeof(XCONTENT_DATA), flags,
+                          disposition_ptr, license_mask_ptr, overlapped_ptr);
 }
 
 u32 XamContentCreateInternal_entry(mapped_string root_name, mapped_void content_data_ptr, u32 flags,
                                    mapped_u32 disposition_ptr, mapped_u32 license_mask_ptr,
-                                   u32 cache_size, u64 content_size, mapped_void overlapped_ptr) {
-  return XamContentCreate(0xFE, root_name, content_data_ptr, sizeof(XCONTENT_AGGREGATE_DATA), flags,
-                          disposition_ptr, license_mask_ptr, cache_size, content_size,
-                          overlapped_ptr);
+                                   [[maybe_unused]] u32 cache_size,
+                                   [[maybe_unused]] u64 content_size, mapped_void overlapped_ptr) {
+  return XamContentCreate(root_name, content_data_ptr, sizeof(XCONTENT_AGGREGATE_DATA), flags,
+                          disposition_ptr, license_mask_ptr, overlapped_ptr);
 }
 
-u32 XamContentOpenFile_entry(u32 user_index, mapped_string root_name, mapped_string path, u32 flags,
-                             mapped_u32 disposition_ptr, mapped_u32 license_mask_ptr,
-                             mapped_void overlapped_ptr) {
+u32 XamContentOpenFile_entry([[maybe_unused]] u32 user_index,
+                             [[maybe_unused]] mapped_string root_name,
+                             [[maybe_unused]] mapped_string path, [[maybe_unused]] u32 flags,
+                             [[maybe_unused]] mapped_u32 disposition_ptr,
+                             [[maybe_unused]] mapped_u32 license_mask_ptr,
+                             [[maybe_unused]] mapped_void overlapped_ptr) {
   // TODO(gibbed): arguments assumed based on XamContentCreate.
   return X_ERROR_FILE_NOT_FOUND;
 }
 
-u32 XamContentFlush_entry(mapped_string root_name, mapped_void overlapped_ptr) {
+u32 XamContentFlush_entry([[maybe_unused]] mapped_string root_name, mapped_void overlapped_ptr) {
   X_RESULT result = X_ERROR_SUCCESS;
   if (overlapped_ptr) {
     runtime::Current().dispatcher().CompleteOverlappedImmediate(overlapped_ptr.guest_address(),
@@ -306,7 +311,7 @@ u32 XamContentClose_entry(mapped_string root_name, mapped_void overlapped_ptr) {
   }
 }
 
-u32 XamContentGetCreator_entry(u32 user_index, mapped_void content_data_ptr,
+u32 XamContentGetCreator_entry([[maybe_unused]] u32 user_index, mapped_void content_data_ptr,
                                mapped_u32 is_creator_ptr, mapped_u64 creator_xuid_ptr,
                                mapped_void overlapped_ptr) {
   auto result = X_ERROR_SUCCESS;
@@ -342,7 +347,7 @@ u32 XamContentGetCreator_entry(u32 user_index, mapped_void content_data_ptr,
   }
 }
 
-u32 XamContentGetThumbnail_entry(u32 user_index, mapped_void content_data_ptr,
+u32 XamContentGetThumbnail_entry([[maybe_unused]] u32 user_index, mapped_void content_data_ptr,
                                  mapped_void buffer_ptr, mapped_u32 buffer_size_ptr,
                                  mapped_void overlapped_ptr) {
   REX_ASSERT(buffer_size_ptr != nullptr);
@@ -383,7 +388,7 @@ u32 XamContentGetThumbnail_entry(u32 user_index, mapped_void content_data_ptr,
   }
 }
 
-u32 XamContentSetThumbnail_entry(u32 user_index, mapped_void content_data_ptr,
+u32 XamContentSetThumbnail_entry([[maybe_unused]] u32 user_index, mapped_void content_data_ptr,
                                  mapped_void buffer_ptr, u32 buffer_size,
                                  mapped_void overlapped_ptr) {
   uint64_t xuid = runtime::Current().content_manager().user_profile().xuid();
@@ -404,7 +409,7 @@ u32 XamContentSetThumbnail_entry(u32 user_index, mapped_void content_data_ptr,
   }
 }
 
-u32 XamContentDelete_entry(u32 user_index, mapped_void content_data_ptr,
+u32 XamContentDelete_entry([[maybe_unused]] u32 user_index, mapped_void content_data_ptr,
                            mapped_void overlapped_ptr) {
   uint64_t xuid = runtime::Current().content_manager().user_profile().xuid();
   XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_DATA*>();

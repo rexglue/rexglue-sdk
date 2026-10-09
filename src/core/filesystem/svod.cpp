@@ -157,7 +157,7 @@ class SVODReader {
     u32 parent = 0;
     bool emit = false;
     DirectoryEntry entry{};
-    std::string name;
+    std::string name = {};
   };
 
   [[nodiscard]] Result<void> Expand(const Visit& visit, std::vector<Visit>& stack) {

@@ -21,6 +21,7 @@
 #include <rex/platform.h>
 #include <rex/string.h>
 #include "gpu/xenos/host/vulkan/device.h"
+#include "gpu/xenos/host/vulkan/util.h"
 
 #include "gpu/xenos/cvar_table.h"
 
@@ -30,8 +31,8 @@ namespace vulkan {
 
 template <typename Structure, VkStructureType StructureType>
 struct VulkanFeatures {
-  Structure supported = {StructureType};
-  Structure enabled = {StructureType};
+  Structure supported = util::InitializeStructure<Structure>(StructureType);
+  Structure enabled = util::InitializeStructure<Structure>(StructureType);
 
   void Link(VkPhysicalDeviceFeatures2& supported_features_2,
             VkDeviceCreateInfo& device_create_info) {
@@ -276,7 +277,8 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
     return nullptr;
   }
 
-  VkDeviceCreateInfo device_create_info = {VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
+  auto device_create_info =
+      util::InitializeStructure<VkDeviceCreateInfo>(VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO);
 
   device_create_info.enabledExtensionCount = static_cast<uint32_t>(enabled_extensions.size());
   device_create_info.ppEnabledExtensionNames = enabled_extensions.data();
@@ -287,9 +289,11 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   // minimum / maximum requirements for the simplicity of handling unavailable
   // VK_KHR_get_physical_device_properties2.
 
-  VkPhysicalDeviceProperties2 properties_2 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
+  auto properties_2 = util::InitializeStructure<VkPhysicalDeviceProperties2>(
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2);
 
-  VkPhysicalDeviceFeatures2 supported_features_2 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+  auto supported_features_2 = util::InitializeStructure<VkPhysicalDeviceFeatures2>(
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2);
 
   VulkanFeatures<VkPhysicalDeviceVulkan12Features,
                  VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES>
@@ -300,10 +304,12 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   VulkanFeatures<VkPhysicalDevicePortabilitySubsetFeaturesKHR,
                  VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_FEATURES_KHR>
       features_KHR_portability_subset;
-  VkPhysicalDeviceDriverPropertiesKHR properties_1_2_KHR_driver_properties = {
-      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES};
-  VkPhysicalDeviceFloatControlsProperties properties_1_2_KHR_shader_float_controls = {
-      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FLOAT_CONTROLS_PROPERTIES};
+  auto properties_1_2_KHR_driver_properties =
+      util::InitializeStructure<VkPhysicalDeviceDriverPropertiesKHR>(
+          VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES);
+  auto properties_1_2_KHR_shader_float_controls =
+      util::InitializeStructure<VkPhysicalDeviceFloatControlsProperties>(
+          VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FLOAT_CONTROLS_PROPERTIES);
   VulkanFeatures<VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT,
                  VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_INTERLOCK_FEATURES_EXT>
       features_EXT_fragment_shader_interlock;
@@ -319,8 +325,9 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   VulkanFeatures<VkPhysicalDeviceCustomBorderColorFeaturesEXT,
                  VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CUSTOM_BORDER_COLOR_FEATURES_EXT>
       features_EXT_custom_border_color;
-  VkPhysicalDeviceCustomBorderColorPropertiesEXT properties_EXT_custom_border_color = {
-      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CUSTOM_BORDER_COLOR_PROPERTIES_EXT};
+  auto properties_EXT_custom_border_color =
+      util::InitializeStructure<VkPhysicalDeviceCustomBorderColorPropertiesEXT>(
+          VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CUSTOM_BORDER_COLOR_PROPERTIES_EXT);
   VulkanFeatures<VkPhysicalDeviceRobustness2FeaturesEXT,
                  VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_EXT>
       features_EXT_robustness2;

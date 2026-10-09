@@ -387,7 +387,8 @@ class Win32Timer : public Win32Handle<Timer> {
   }
 
  private:
-  static void CompletionRoutine(Win32Timer* timer, DWORD timer_low, DWORD timer_high) {
+  static void CompletionRoutine(Win32Timer* timer, [[maybe_unused]] DWORD timer_low,
+                                [[maybe_unused]] DWORD timer_high) {
     // As the callback may reset the timer, store local.
     std::function<void()> callback;
     {

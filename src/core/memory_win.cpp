@@ -188,7 +188,8 @@ FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, siz
   return reinterpret_cast<FileMappingHandle>(h);
 }
 
-void CloseFileMappingHandle(FileMappingHandle handle, const std::filesystem::path& path) {
+void CloseFileMappingHandle(FileMappingHandle handle,
+                            [[maybe_unused]] const std::filesystem::path& path) {
   CloseHandle(reinterpret_cast<HANDLE>(handle));
 }
 
@@ -239,7 +240,8 @@ void* MapFileView(FileMappingHandle handle, void* base_address, size_t length, P
 #endif
 }
 
-bool UnmapFileView(FileMappingHandle handle, void* base_address, size_t length) {
+bool UnmapFileView([[maybe_unused]] FileMappingHandle handle, void* base_address,
+                   [[maybe_unused]] size_t length) {
   return UnmapViewOfFile(base_address) ? true : false;
 }
 

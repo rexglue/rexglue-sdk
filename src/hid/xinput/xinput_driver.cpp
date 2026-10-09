@@ -127,9 +127,10 @@ Result<void> XInputDriver::SetDeviceVibration(DeviceId id, const X_INPUT_VIBRATI
   return ToResult(WriteDeviceVibration(id, &copy));
 }
 
-Result<X_INPUT_KEYSTROKE> XInputDriver::GetDeviceKeystroke(DeviceId id, u32 flags) {
+Result<X_INPUT_KEYSTROKE> XInputDriver::GetDeviceKeystroke(DeviceId id,
+                                                           [[maybe_unused]] u32 flags) {
   X_INPUT_KEYSTROKE keystroke{};
-  return ToResult(ReadDeviceKeystroke(id, flags, &keystroke), keystroke);
+  return ToResult(ReadDeviceKeystroke(id, &keystroke), keystroke);
 }
 
 X_RESULT XInputDriver::ReadDeviceCapabilities(DeviceId id, u32 flags,
@@ -228,8 +229,7 @@ X_RESULT XInputDriver::WriteDeviceVibration(DeviceId id, X_INPUT_VIBRATION* vibr
   return result;
 }
 
-X_RESULT XInputDriver::ReadDeviceKeystroke(DeviceId id, u32 flags,
-                                           X_INPUT_KEYSTROKE* out_keystroke) {
+X_RESULT XInputDriver::ReadDeviceKeystroke(DeviceId id, X_INPUT_KEYSTROKE* out_keystroke) {
   // We may want to filter flags before sending to native.
   // flags is reserved on desktop.
   uint32_t user_index = 0;

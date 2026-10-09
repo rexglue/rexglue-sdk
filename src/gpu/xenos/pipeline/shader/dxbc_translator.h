@@ -998,7 +998,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     const char* name;
     ShaderRdefTypeIndex type;
     uint32_t size;
-    uint32_t padding_after;
+    uint32_t padding_after = 0;
   };
   static const SystemConstantRdef
       system_constant_rdef_[std::to_underlying(SystemConstants::Index::kCount)];

@@ -214,10 +214,12 @@ class TextureCache : public rex::NonCopyable {
     static constexpr uint32_t kOutdatedBitMips = UINT32_C(1) << 1;
     uint32_t outdated_mask() const { return outdated_mask_.load(std::memory_order_acquire); }
 
-    bool base_outdated(const std::unique_lock<rex::platform::RankedMutex>& watch_lock) const {
+    bool base_outdated(
+        [[maybe_unused]] const std::unique_lock<rex::platform::RankedMutex>& watch_lock) const {
       return base_outdated_;
     }
-    bool mips_outdated(const std::unique_lock<rex::platform::RankedMutex>& watch_lock) const {
+    bool mips_outdated(
+        [[maybe_unused]] const std::unique_lock<rex::platform::RankedMutex>& watch_lock) const {
       return mips_outdated_;
     }
     void MakeUpToDateAndWatch(const std::unique_lock<rex::platform::RankedMutex>& watch_lock);

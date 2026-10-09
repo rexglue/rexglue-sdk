@@ -88,8 +88,10 @@ u32 XamEnumerate_entry(u32 handle, u32 flags, mapped_void buffer, u32 buffer_len
   return result;
 }
 
-u32 XamCreateEnumeratorHandle_entry(u32 unk1, u32 unk2, u32 unk3, u32 unk4, u32 unk5, u32 unk6,
-                                    u32 unk7, u32 unk8) {
+u32 XamCreateEnumeratorHandle_entry([[maybe_unused]] u32 unk1, [[maybe_unused]] u32 unk2,
+                                    [[maybe_unused]] u32 unk3, [[maybe_unused]] u32 unk4,
+                                    [[maybe_unused]] u32 unk5, [[maybe_unused]] u32 unk6,
+                                    [[maybe_unused]] u32 unk7, [[maybe_unused]] u32 unk8) {
   return X_ERROR_INVALID_PARAMETER;
 }
 

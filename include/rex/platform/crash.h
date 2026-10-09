@@ -21,7 +21,7 @@ namespace rex::platform {
 /** Options for the process crash reporter. */
 struct CrashReporterOptions {
   /** Name in the report banner and the dialog. Empty names the executable. */
-  std::string app_name;
+  std::string app_name = {};
   /** Shows a message box after the report is written. */
   bool show_dialog = false;
 };

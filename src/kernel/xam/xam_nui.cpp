@@ -33,7 +33,8 @@ void XamNuiGetDeviceStatus_entry(ppc_ptr_t<X_NUI_DEVICE_STATUS> status_ptr) {
   status_ptr->status = 0;  // Not connected.
 }
 
-u32 XamShowNuiTroubleshooterUI_entry(u32 unk1, u32 unk2, u32 unk3) {
+u32 XamShowNuiTroubleshooterUI_entry([[maybe_unused]] u32 unk1, [[maybe_unused]] u32 unk2,
+                                     [[maybe_unused]] u32 unk3) {
   // unk1 is 0xFF - possibly user index?
   // unk2, unk3 appear to always be zero.
   return 0;

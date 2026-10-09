@@ -12,6 +12,7 @@
 #include <rex/assert.h>
 #include <rex/logging.h>
 #include "gpu/xenos/host/vulkan/ui_samplers.h"
+#include "gpu/xenos/host/vulkan/util.h"
 
 namespace rex {
 namespace gpu {
@@ -25,7 +26,8 @@ std::unique_ptr<UISamplers> UISamplers::Create(const VulkanDevice* const vulkan_
   const VulkanDevice::Functions& dfn = vulkan_device->functions();
   const VkDevice device = vulkan_device->device();
 
-  VkSamplerCreateInfo sampler_create_info = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+  auto sampler_create_info =
+      util::InitializeStructure<VkSamplerCreateInfo>(VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO);
 
   for (int sampler_index = 0; sampler_index < kSamplerCount; ++sampler_index) {
     if (sampler_index == kSamplerIndexLinearRepeat ||
