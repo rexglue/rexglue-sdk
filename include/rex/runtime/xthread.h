@@ -10,6 +10,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -17,6 +18,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <string_view>
 
 #include <rex/macros.h>
 #include <rex/platform.h>
@@ -479,6 +481,15 @@ class REX_RUNTIME_API ThreadRecord : public rex::NonCopyable {
   const std::string& name() const { return thread_name_; }
 
   /**
+   * Returns the thread name without allocating or locking, for a crash report.
+   *
+   * @return The name, cut to 63 characters.
+   */
+  std::string_view crash_name() const {
+    return {crash_name_.data(), crash_name_length_.load(std::memory_order_acquire)};
+  }
+
+  /**
    * Returns the creation parameters.
    *
    * @return The parameters.
@@ -740,6 +751,8 @@ class REX_RUNTIME_API ThreadRecord : public rex::NonCopyable {
   bool stop_requested_ = false;
 
   std::string thread_name_;
+  std::array<char, 64> crash_name_{};
+  std::atomic<u8> crash_name_length_{0};
   std::unique_ptr<runtime::ThreadState> thread_state_;
 
   i32 priority_ = 0;

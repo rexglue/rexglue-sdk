@@ -9,11 +9,11 @@
  * @modified    Tom Clay & Rien Gupta, 2026 - Adapted for ReXGlue runtime (POSIX + macOS)
  */
 
+#include <array>
 #include <cerrno>
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
-#include <fstream>
 #include <functional>
 #include <string>
 
@@ -34,6 +34,10 @@
 #include <rex/memory/utils.h>
 #include <rex/platform.h>
 #include <rex/string.h>
+
+#if REX_PLATFORM_LINUX
+#include "core/proc_maps.h"
+#endif
 
 // macOS off_t is 64-bit with no *64 large-file variants; Linux keeps the
 // explicit *64 forms for legacy 32-bit off_t distributions.
@@ -150,79 +154,32 @@ bool IsWritableExecutableMemorySupported() {
 #if REX_PLATFORM_LINUX
 namespace {
 
-struct LinuxMapEntry {
-  uintptr_t start = 0;
-  uintptr_t end = 0;
-  char perms[5] = {};
-};
-
-// Parse a line from /proc/self/maps into a LinuxMapEntry
-static bool ParseProcMapsLine(const std::string& line, LinuxMapEntry& out) {
-  out = LinuxMapEntry{};
-  unsigned long long start = 0, end = 0;
-  char perms[5] = {};
-  const int matched = std::sscanf(line.c_str(), "%llx-%llx %4s", &start, &end, perms);
-  if (matched < 3)
+bool IsRangeFullyMapped(void* base_address, size_t length) {
+  if (!base_address || length == 0) {
     return false;
-  out.start = static_cast<uintptr_t>(start);
-  out.end = static_cast<uintptr_t>(end);
-  std::memcpy(out.perms, perms, sizeof(out.perms));
-  return out.start < out.end;
-}
-
-// Find the mapping entry in /proc/self/maps that contains the given address
-static bool FindEntryForAddress(void* address, LinuxMapEntry& out_entry) {
-  const uintptr_t addr = reinterpret_cast<uintptr_t>(address);
-  std::ifstream maps("/proc/self/maps");
-  if (!maps.is_open())
+  }
+  const u64 begin = reinterpret_cast<u64>(base_address);
+  const u64 end = begin + length;
+  if (end < begin) {
     return false;
-  std::string line;
-  while (std::getline(maps, line)) {
-    LinuxMapEntry e;
-    if (!ParseProcMapsLine(line, e))
-      continue;
-    if (addr >= e.start && addr < e.end) {
-      out_entry = e;
+  }
+  u64 cursor = begin;
+  bool gap = false;
+  ForEachMapping([&](const ProcMapping& mapping) {
+    if (mapping.end <= cursor) {
       return true;
     }
-  }
-  return false;
+    if (mapping.start > cursor) {
+      gap = true;
+      return false;
+    }
+    cursor = mapping.end;
+    return cursor < end;
+  });
+  return !gap && cursor >= end;
 }
 
-// Check if [base, base+length) is fully covered by existing mappings (no gaps)
-static bool IsRangeFullyMapped(void* base_address, size_t length) {
-  if (!base_address || length == 0)
-    return false;
-
-  const uintptr_t begin = reinterpret_cast<uintptr_t>(base_address);
-  const uintptr_t end = begin + length;
-  if (end < begin) {  // overflow check
-    return false;
-  }
-
-  std::ifstream maps("/proc/self/maps");
-  if (!maps.is_open())
-    return false;
-
-  uintptr_t cursor = begin;
-  std::string line;
-  while (std::getline(maps, line)) {
-    LinuxMapEntry e;
-    if (!ParseProcMapsLine(line, e))
-      continue;
-    if (e.end <= cursor)
-      continue;
-    if (e.start > cursor)
-      return false;  // gap found
-    cursor = e.end;
-    if (cursor >= end)
-      return true;
-  }
-  return cursor >= end;
-}
-
-// Convert /proc/self/maps permission chars to PageAccess
-static PageAccess PermsToPageAccess(const char perms[5]) {
+PageAccess PermsToPageAccess(const std::array<char, 4>& perms) {
   const bool r = perms[0] == 'r';
   const bool w = perms[1] == 'w';
   const bool x = perms[2] == 'x';
@@ -357,8 +314,8 @@ bool Protect(void* base_address, size_t length, PageAccess access, PageAccess* o
   //             atomic in a mutli-threaded process either, but it's something to be aware of.
   // Query old access before changing, if the caller needs it
   if (out_old_access) {
-    LinuxMapEntry e;
-    if (FindEntryForAddress(base_address, e)) {
+    ProcMapping e;
+    if (FindMapping(reinterpret_cast<u64>(base_address), e)) {
       *out_old_access = PermsToPageAccess(e.perms);
     }
   }
@@ -416,8 +373,8 @@ bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out) {
   access_out = PageAccess::kNoAccess;
   length = 0;
 
-  LinuxMapEntry e;
-  if (!FindEntryForAddress(base_address, e)) {
+  ProcMapping e;
+  if (!FindMapping(reinterpret_cast<u64>(base_address), e)) {
     return false;
   }
 

@@ -38,4 +38,10 @@ std::tm ToLocalTime(std::time_t time) {
   return local;
 }
 
+int OpenCrashFile(const std::filesystem::path&) {
+  return -1;
+}
+
+void CloseCrashFile(int) {}
+
 }  // namespace rex::log

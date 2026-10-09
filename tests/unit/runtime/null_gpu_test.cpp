@@ -52,10 +52,14 @@ TEST_CASE("NullGPU raises the vblank interrupt at the refresh rate", "[gpu]") {
   rex::runtime::NullGPU gpu;
   gpu.SetInterruptCallback(callback, 0x1234);
   REQUIRE(gpu.SetupGuestGPU(*runtime.function_dispatcher(), runtime));
+  const auto start = std::chrono::steady_clock::now();
   std::this_thread::sleep_for(std::chrono::seconds(1));
+  const std::chrono::duration<rex::f64> elapsed = std::chrono::steady_clock::now() - start;
+  const int vblanks = g_vblanks;
   gpu.Shutdown();
-  CHECK(g_vblanks >= 58);
-  CHECK(g_vblanks <= 62);
+  const rex::f64 expected = elapsed.count() * 60.0;
+  CHECK(vblanks >= expected - 2.0);
+  CHECK(vblanks <= expected + 2.0);
   CHECK(g_source == 0);
   CHECK(g_user_data == 0x1234);
 }

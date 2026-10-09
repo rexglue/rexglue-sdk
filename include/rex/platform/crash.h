@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <span>
 #include <string>
 
 #include <rex/macros.h>
@@ -26,8 +27,15 @@ struct CrashReporterOptions {
   bool show_dialog = false;
 };
 
-/** Describes a host fault address in title terms, or returns an empty string. */
-using CrashAddressDescriber = std::string (*)(u64 host_address);
+/**
+ * Describes a host fault address in title terms. Runs inside a signal handler, so it neither
+ * allocates nor locks.
+ *
+ * @param host_address The host fault address, or 0 when the fault has none.
+ * @param out The buffer the text goes into.
+ * @return The length of the text, 0 for none.
+ */
+using CrashAddressDescriber = u32 (*)(u64 host_address, std::span<char> out);
 
 /**
  * Installs the crash reporter for the process, or replaces its options when it is installed.

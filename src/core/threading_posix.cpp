@@ -14,6 +14,7 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 #include <signal.h>
 
 #include <atomic>
+#include <condition_variable>
 #include <array>
 #include <cerrno>
 #include <chrono>
@@ -132,6 +133,46 @@ int GetSystemSignal(SignalType num) {
   return result;
 #endif
 }
+
+/** A mutex whose holder takes no thread suspend signal until it unlocks. */
+class SuspendSafeMutex {
+ public:
+  void lock() {
+    if (depth_++ == 0) {
+      sigset_t suspend;
+      sigemptyset(&suspend);
+      sigaddset(&suspend, GetSystemSignal(SignalType::kThreadSuspend));
+      pthread_sigmask(SIG_BLOCK, &suspend, &saved_mask_);
+    }
+    mutex_.lock();
+  }
+
+  void unlock() {
+    mutex_.unlock();
+    if (--depth_ == 0) {
+      pthread_sigmask(SIG_SETMASK, &saved_mask_, nullptr);
+    }
+  }
+
+  /**
+   * Waits on a condition with the lock held and the suspend signal blocked throughout.
+   *
+   * @tparam Predicate A callable returning true when the wait is over.
+   * @param signal The condition notified under this mutex.
+   * @param ready The predicate checked under this mutex.
+   */
+  template <typename Predicate>
+  void wait(std::condition_variable& signal, Predicate ready) {
+    std::unique_lock inner(mutex_, std::adopt_lock);
+    signal.wait(inner, ready);
+    inner.release();
+  }
+
+ private:
+  static inline thread_local u32 depth_ = 0;
+  static inline thread_local sigset_t saved_mask_;
+  std::mutex mutex_;
+};
 
 SignalType GetSystemSignalType(int num) {
 #if defined(__APPLE__)
@@ -753,6 +794,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
       pthread_attr_destroy(&attr);
       return false;
     }
+    owns_thread_ = true;
     start_data.release();
     pthread_attr_destroy(&attr);
     return true;
@@ -777,9 +819,14 @@ class PosixCondition<Thread> : public PosixConditionBase {
   }
 
   virtual ~PosixCondition() {
-    // Match Canary/Edge behavior.
-    // Force-cancel/join from the condition destructor can self-join/crash
-    // depending on shutdown ordering, so threads must be stopped explicitly.
+    if (!owns_thread_ || std::exchange(joined_, true)) {
+      return;
+    }
+    if (pthread_equal(thread_, pthread_self())) {
+      pthread_detach(thread_);
+    } else {
+      pthread_join(thread_, nullptr);
+    }
   }
 
   bool Signal() override { return true; }
@@ -787,7 +834,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
   std::string name() const {
     WaitStarted();
     auto result = std::array<char, 17>{'\0'};
-    std::unique_lock<std::mutex> lock(state_mutex_);
+    std::unique_lock lock(state_mutex_);
     if (state_ != State::kUninitialized && state_ != State::kFinished) {
 #if REX_PLATFORM_ANDROID
       // pthread_getname_np was added in API 26 - below that, store the name in
@@ -812,7 +859,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
 
   void set_name(const std::string& name) {
     WaitStarted();
-    std::unique_lock<std::mutex> lock(state_mutex_);
+    std::unique_lock lock(state_mutex_);
     if (state_ != State::kUninitialized && state_ != State::kFinished) {
 #if defined(__APPLE__)
       // macOS pthread_setname_np() only names the calling thread.
@@ -952,7 +999,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
       return;
     }
 
-    std::unique_lock<std::mutex> lock(state_mutex_);
+    std::unique_lock lock(state_mutex_);
     if (state_ == State::kFinished) {
       return;
     }
@@ -1003,7 +1050,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
       *out_previous_suspend_count = 0;
     }
     WaitStarted();
-    std::unique_lock<std::mutex> lock(state_mutex_);
+    std::unique_lock lock(state_mutex_);
     if (suspend_count_ == 0) {
       return false;
     }
@@ -1011,8 +1058,10 @@ class PosixCondition<Thread> : public PosixConditionBase {
       *out_previous_suspend_count = suspend_count_;
     }
     --suspend_count_;
-    if (suspend_count_ == 0 && state_ == State::kSuspended) {
-      state_ = State::kRunning;
+    if (suspend_count_ == 0 && (state_ == State::kSuspended || state_ == State::kFinished)) {
+      if (state_ == State::kSuspended) {
+        state_ = State::kRunning;
+      }
       // Async-signal-safe wakeup for WaitSuspended() from signal handler path.
       sem_post(suspend_sem_ptr());
     }
@@ -1026,7 +1075,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
     }
     WaitStarted();
     bool is_current_thread = pthread_self() == thread_;
-    std::unique_lock<std::mutex> lock(state_mutex_);
+    std::unique_lock lock(state_mutex_);
     if (state_ == State::kFinished) {
       return false;
     }
@@ -1158,18 +1207,18 @@ class PosixCondition<Thread> : public PosixConditionBase {
 
   [[noreturn]] void ExitCurrent(int exit_code) {
     {
-      std::unique_lock<std::mutex> lock(state_mutex_);
+      std::unique_lock lock(state_mutex_);
       state_ = State::kFinished;
     }
     PosixCondition<Mutant>::AbandonOwnedBy(thread_);
-    SignalExit(exit_code, false);
+    SignalExit(exit_code);
     // NOLINTNEXTLINE(performance-no-int-to-ptr): the pthread API carries the value as a pointer
     pthread_exit(reinterpret_cast<void*>(exit_code));
   }
 
   void WaitStarted() const {
-    std::unique_lock<std::mutex> lock(state_mutex_);
-    state_signal_.wait(lock, [this] { return state_ != State::kUninitialized; });
+    std::unique_lock lock(state_mutex_);
+    state_mutex_.wait(state_signal_, [this] { return state_ != State::kUninitialized; });
   }
 
   /// Uses sem_wait because it may be called from signal handler context.
@@ -1185,9 +1234,8 @@ class PosixCondition<Thread> : public PosixConditionBase {
 
  private:
   static void* ThreadStartRoutine(void* parameter);
-  void SignalExit(int exit_code, bool joined) {
+  void SignalExit(int exit_code) {
     std::lock_guard<std::mutex> lock(mutex_);
-    joined_ = joined;
     exit_code_ = exit_code;
     signaled_ = true;
     cond_.notify_all();
@@ -1224,6 +1272,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
   void* suspend_filter_context_ = nullptr;
   bool signaled_;
   bool joined_ = false;
+  bool owns_thread_ = false;
   int exit_code_;
   State state_;             // Protected by state_mutex_
   uint32_t suspend_count_;  // Protected by state_mutex_
@@ -1234,7 +1283,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
   sem_t suspend_sem_;
   sem_t* suspend_sem_ptr() { return &suspend_sem_; }
 #endif
-  mutable std::mutex state_mutex_;
+  mutable SuspendSafeMutex state_mutex_;
   mutable std::mutex callback_mutex_;
   mutable std::condition_variable state_signal_;
   std::deque<std::move_only_function<void()>> user_callbacks_;
@@ -1366,11 +1415,8 @@ WaitResult Wait(WaitHandle* wait_handle, bool is_alertable, std::chrono::millise
     if (DispatchCurrentThreadUserCallback()) {
       return WaitResult::kUserCallback;
     }
-    if (HasAlertableTimeoutElapsed(deadline)) {
-      return WaitResult::kTimeout;
-    }
     auto result = posix_wait_handle->condition().Wait(ComputeAlertableWaitTimeout(deadline));
-    if (result != WaitResult::kTimeout) {
+    if (result != WaitResult::kTimeout || HasAlertableTimeoutElapsed(deadline)) {
       return result;
     }
   }
@@ -1477,11 +1523,8 @@ WaitResult SignalAndWait(WaitHandle* wait_handle_to_signal, WaitHandle* wait_han
     if (DispatchCurrentThreadUserCallback()) {
       return WaitResult::kUserCallback;
     }
-    if (HasAlertableTimeoutElapsed(deadline)) {
-      return WaitResult::kTimeout;
-    }
     result = posix_wait_handle_to_wait_on->condition().Wait(ComputeAlertableWaitTimeout(deadline));
-    if (result != WaitResult::kTimeout) {
+    if (result != WaitResult::kTimeout || HasAlertableTimeoutElapsed(deadline)) {
       return result;
     }
   }
@@ -1509,12 +1552,9 @@ std::pair<WaitResult, size_t> WaitMultiple(WaitHandle* wait_handles[], size_t wa
     if (DispatchCurrentThreadUserCallback()) {
       return std::make_pair(WaitResult::kUserCallback, 0);
     }
-    if (HasAlertableTimeoutElapsed(deadline)) {
-      return std::make_pair(WaitResult::kTimeout, 0);
-    }
     auto result = PosixConditionBase::WaitMultiple(std::vector<PosixConditionBase*>(conditions),
                                                    wait_all, ComputeAlertableWaitTimeout(deadline));
-    if (result.first != WaitResult::kTimeout) {
+    if (result.first != WaitResult::kTimeout || HasAlertableTimeoutElapsed(deadline)) {
       return result;
     }
   }
@@ -1714,7 +1754,7 @@ void* PosixCondition<Thread>::ThreadStartRoutine(void* parameter) {
   current_thread_ = thread;
   current_thread_condition_ = &thread->handle_;
   {
-    std::unique_lock<std::mutex> lock(thread->handle_.state_mutex_);
+    std::unique_lock lock(thread->handle_.state_mutex_);
     thread->handle_.state_ = create_suspended ? State::kSuspended : State::kRunning;
     // Arm the suspend counter in the SAME critical section that publishes the
     // started state. Resume() only waits for state_ != kUninitialized, so if it
@@ -1728,20 +1768,20 @@ void* PosixCondition<Thread>::ThreadStartRoutine(void* parameter) {
   }
 
   if (create_suspended) {
-    std::unique_lock<std::mutex> lock(thread->handle_.state_mutex_);
-    thread->handle_.state_signal_.wait(lock,
-                                       [thread] { return thread->handle_.suspend_count_ == 0; });
+    std::unique_lock lock(thread->handle_.state_mutex_);
+    thread->handle_.state_mutex_.wait(thread->handle_.state_signal_,
+                                      [thread] { return thread->handle_.suspend_count_ == 0; });
   }
 
   start_routine();
 
   PosixCondition<Mutant>::AbandonOwnedBy(pthread_self());
   {
-    std::unique_lock<std::mutex> lock(thread->handle_.state_mutex_);
+    std::unique_lock lock(thread->handle_.state_mutex_);
     thread->handle_.state_ = State::kFinished;
   }
 
-  thread->handle_.SignalExit(0, false);
+  thread->handle_.SignalExit(0);
 
   current_thread_ = nullptr;
   current_thread_condition_ = nullptr;

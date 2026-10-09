@@ -21,7 +21,6 @@ std::atomic<bool> g_seh_initialized{false};
 }  // namespace
 
 static thread_local SehThreadState tls_seh_state;
-static thread_local bool tls_seh_active = false;
 
 SehThreadState& seh_thread_state() {
   return tls_seh_state;
@@ -61,10 +60,6 @@ int seh_filter(u32 code, void* ep) {
 
 void seh_initialize() {
   g_seh_initialized.store(true, std::memory_order_relaxed);
-}
-
-bool& seh_active() {
-  return tls_seh_active;
 }
 
 }  // namespace rex::platform

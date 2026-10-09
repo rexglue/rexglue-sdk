@@ -99,9 +99,9 @@ class SehException : public std::exception {
   uintptr_t address_;
 };
 
-/** Clears the SEH scope flag of the calling thread. */
+/** Clears the SEH state of the calling thread. */
 inline void initialize_seh_thread() {
-  platform::seh_active() = false;
+  platform::seh_thread_state() = {};
 }
 
 /** Installs the process wide SEH handlers. Call once at startup. */
@@ -110,13 +110,6 @@ inline void initialize_seh() {
 }
 
 #if REX_PLATFORM_WIN32
-
-/** Scope marker for SEH regions. Empty on Windows, where __try handles the scope. */
-class SehGuard : public rex::NonCopyable {
- public:
-  SehGuard() = default;
-  ~SehGuard() = default;
-};
 
 /**
  * Opens an SEH scope. Pair with SEH_CATCH or SEH_CATCH_ALL and SEH_END.
@@ -145,26 +138,15 @@ class SehGuard : public rex::NonCopyable {
 /** Closes the SEH scope. */
 #define SEH_END }
 
+/** Returns from the function that holds the SEH scope. */
+#define SEH_RETURN return
+
 #else  // !REX_PLATFORM_WIN32
 
-/** Sets the SEH scope flag of the calling thread for its lifetime and restores it after. */
-class SehGuard : public rex::NonCopyable {
- public:
-  /** Saves the current flag and sets it. */
-  SehGuard() {
-    was_active_ = platform::seh_active();
-    platform::seh_active() = true;
-  }
-
-  ~SehGuard() { platform::seh_active() = was_active_; }
-
- private:
-  bool was_active_ = false;
-};
-
 /**
- * Opens an SEH scope with a SehGuard and a C++ try block. Pair with SEH_CATCH or
- * SEH_CATCH_ALL and SEH_END.
+ * Opens an SEH scope. A fault inside it resumes at the handler through sigsetjmp, so the scope adds
+ * no C++ cleanup to the function. Pair with SEH_CATCH or SEH_CATCH_ALL and SEH_END, and leave the
+ * body early only through SEH_RETURN.
  *
  * @code
  * SEH_TRY {
@@ -175,22 +157,32 @@ class SehGuard : public rex::NonCopyable {
  * } SEH_END
  * @endcode
  */
-#define SEH_TRY                  \
-  {                              \
-    ::rex::SehGuard __seh_guard; \
-    try
+#define SEH_TRY                                \
+  {                                            \
+    ::rex::platform::SehScope rex_seh_scope;   \
+    ::rex::platform::seh_enter(rex_seh_scope); \
+    if (sigsetjmp(rex_seh_scope.env, 0) == 0)
 
-/** Opens a handler for SehException. */
-#define SEH_CATCH catch (const ::rex::SehException&)
+/** Opens the handler of the scope. */
+#define SEH_CATCH else
 
-/** Opens a handler for any exception. */
-#define SEH_CATCH_ALL catch (...)
+/** Same as SEH_CATCH on POSIX. */
+#define SEH_CATCH_ALL else
 
-/** Rethrows the current exception from inside a handler. */
-#define SEH_RETHROW throw
+/** Passes the captured exception to the next open scope from inside a handler. */
+#define SEH_RETHROW ::rex::platform::seh_rethrow()
 
 /** Closes the SEH scope. */
-#define SEH_END }
+#define SEH_END                              \
+  ::rex::platform::seh_leave(rex_seh_scope); \
+  }
+
+/** Returns from the function that holds the SEH scope. */
+#define SEH_RETURN                             \
+  do {                                         \
+    ::rex::platform::seh_leave(rex_seh_scope); \
+    return;                                    \
+  } while (0)
 
 #endif  // REX_PLATFORM_WIN32
 

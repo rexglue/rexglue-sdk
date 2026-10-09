@@ -17,8 +17,7 @@
 #include <rex/filesystem.h>
 #include <rex/gpu/backend.h>
 #include <rex/logging.h>
-#include <rex/ppc/context.h>  // PPCFuncMapping
-#include <rex/platform/crash.h>
+#include <rex/ppc/context.h>          // PPCFuncMapping
 #include <rex/platform/exceptions.h>  // SEH exception support
 #include <rex/runtime.h>
 #include <rex/runtime/function_dispatcher.h>
@@ -51,27 +50,6 @@ namespace rex {
 namespace {
 
 constexpr u32 kXNotificationSystemInputDevicesChanged = 0x00000012;
-
-std::atomic<Runtime*> g_crash_runtime{nullptr};
-
-std::string DescribeCrashAddress(u64 host_address) {
-  constexpr u64 kGuestAddressSpace = u64{1} << 32;
-  std::string text;
-  Runtime* runtime = g_crash_runtime.load(std::memory_order_acquire);
-  runtime::Memory* memory = runtime ? runtime->memory() : nullptr;
-  if (memory && host_address) {
-    const u64 base = reinterpret_cast<u64>(memory->virtual_membase());
-    if (host_address >= base && host_address - base < kGuestAddressSpace) {
-      text = std::format("guest address 0x{:08X}",
-                         memory->HostToGuestVirtual(std::bit_cast<const void*>(host_address)));
-    }
-  }
-  if (const runtime::ThreadRecord* thread = runtime::ThreadRecord::GetCurrentThread()) {
-    text += std::format("{}guest thread {:08X} {}", text.empty() ? "" : ", ", thread->thread_id(),
-                        thread->name());
-  }
-  return text;
-}
 
 rex::Error SetupError(X_STATUS status, std::string message) {
   return {ErrorCategory::Runtime, std::move(message), static_cast<int>(status)};
@@ -159,8 +137,6 @@ Result<void> Runtime::Setup(const RuntimeConfig& config) {
     return fail(X_STATUS_UNSUCCESSFUL, "memory init failed");
   }
   memory_->SetBudget(config_.runtime.title_memory_mb);
-  g_crash_runtime.store(this, std::memory_order_release);
-  platform::SetCrashAddressDescriber(DescribeCrashAddress);
 
   function_dispatcher_ = std::make_unique<runtime::FunctionDispatcher>(memory_.get());
 
@@ -300,7 +276,6 @@ void Runtime::Shutdown() {
   if (!setup_complete_ && !memory_) {
     return;
   }
-  StopThreads();
   if (gpu_) {
     gpu_->Shutdown();
     gpu_ = nullptr;

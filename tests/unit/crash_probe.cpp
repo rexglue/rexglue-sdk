@@ -9,25 +9,33 @@
  *              See LICENSE file in the project root for full license text.
  */
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <format>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <thread>
+#include <span>
 #include <utility>
 
 #include <rex/logging.h>
+#include <rex/memory/utils.h>
 #include <rex/platform.h>
 #include <rex/platform/crash.h>
 #include <rex/platform/exceptions.h>
+#include <rex/ppc/recompiled_code.h>
 #include <rex/runtime/xmemory.h>
 
 #if REX_PLATFORM_WIN32
 #include <windows.h>
 #endif
+
+extern "C" int ProbeFaultInScope(volatile int* address);
+extern "C" int ProbeFaultBelowHostFrame(volatile int* address);
 
 namespace {
 
@@ -52,16 +60,20 @@ namespace {
   Throw();
 }
 
-std::string DescribeForProbe(rex::u64 address) {
-  return "probe describer " + std::to_string(address);
+rex::u32 DescribeForProbe(rex::u64 address, std::span<char> out) {
+  return static_cast<rex::u32>(std::format_to_n(out.data(), static_cast<std::ptrdiff_t>(out.size()),
+                                                "probe describer {}", address)
+                                   .size);
 }
 
 std::atomic<bool> g_fault_other_thread{false};
 
-std::string DescribeWhileAnotherThreadFaults(rex::u64) {
+rex::u32 DescribeWhileAnotherThreadFaults(rex::u64, std::span<char> out) {
   g_fault_other_thread = true;
   std::this_thread::sleep_for(std::chrono::milliseconds(300));
-  return "probe concurrent describer";
+  constexpr std::string_view kText = "probe concurrent describer";
+  const auto end = std::ranges::copy(kText.substr(0, out.size()), out.begin()).out;
+  return static_cast<rex::u32>(end - out.begin());
 }
 
 std::pair<rex::u32, rex::u32> IgnoreInvalidation(void*, rex::u32, rex::u32, bool) {
@@ -83,17 +95,44 @@ int Run(std::string_view mode) {
       return 2;
     }
     *memory.TranslateVirtual<volatile rex::u32*>(0x7FC80010) = 1;
+  } else if (mode == "read-only-write") {
+    rex::runtime::Memory memory;
+    if (!memory.Initialize() || !memory.LookupHeap(0x40000000)
+                                     ->AllocFixed(0x40000000, 0x10000, 0x10000,
+                                                  rex::runtime::kMemoryAllocationReserve |
+                                                      rex::runtime::kMemoryAllocationCommit,
+                                                  rex::runtime::kMemoryProtectRead)) {
+      return 2;
+    }
+    *memory.TranslateVirtual<volatile rex::u32*>(0x40000010) = 1;
+  } else if (mode == "stale-protect") {
+    {
+      rex::runtime::Memory memory;
+      if (!memory.Initialize()) {
+        return 2;
+      }
+      const rex::u32 address =
+          memory.SystemHeapAlloc(0x1000, 0x1000, rex::runtime::kSystemHeapPhysical);
+      auto* host = memory.TranslateVirtual<volatile rex::u32*>(address);
+      if (!address || !rex::memory::Protect(const_cast<rex::u32*>(host), 0x1000,
+                                            rex::memory::PageAccess::kReadOnly, nullptr)) {
+        return 2;
+      }
+      *host = 1;
+      std::puts("stale resumed");
+      std::fflush(stdout);
+    }
+    return 0;
   } else if (mode == "seh") {
     rex::initialize_seh();
-    bool caught = false;
-    void (*volatile write_null)() = WriteNull;
-    SEH_TRY {
-      write_null();
-    }
-    SEH_CATCH_ALL {
-      caught = true;
-    }
-    SEH_END
+    rex::platform::AddRecompiledCode(REX_RECOMPILED_CODE());
+    const bool caught = ProbeFaultInScope(nullptr) == 1;
+    std::puts(caught ? "seh caught" : "seh missed");
+    return caught ? 0 : 3;
+  } else if (mode == "seh-host-frame") {
+    rex::initialize_seh();
+    rex::platform::AddRecompiledCode(REX_RECOMPILED_CODE());
+    const bool caught = ProbeFaultBelowHostFrame(nullptr) == 1;
     std::puts(caught ? "seh caught" : "seh missed");
     return caught ? 0 : 3;
   } else if (mode == "watch") {

@@ -226,6 +226,50 @@ void RegisterThreadNotification(Caller& c, u32 routine) {
   c.XAM("XRegisterThreadNotifyRoutine", {notification, 1});
 }
 
+#if !REX_PLATFORM_WIN32
+std::atomic<bool> g_scope_probe_armed{false};
+std::atomic<bool> g_scope_probe_ran{false};
+std::atomic<bool> g_scope_left_open{false};
+
+void ProbeScopeOnExit(PPCContext& ctx, u8*) {
+  if (ctx.r3.u32 == 0 && g_scope_probe_armed.load()) {
+    g_scope_probe_ran.store(true);
+    g_scope_left_open.store(rex::platform::seh_thread_state().top != nullptr);
+  }
+}
+
+std::atomic<bool> g_fiber_probed{false};
+std::atomic<bool> g_fiber_saw_scope{false};
+
+void ProbeScopeOnFiber(PPCContext&, u8*) {
+  g_fiber_saw_scope.store(rex::platform::seh_thread_state().top != nullptr);
+  g_fiber_probed.store(true);
+}
+
+bool SwitchToFiberInScope(Caller& t, u32 fiber_entry) {
+  bool kept = false;
+  SEH_TRY {
+    PPCContext& ctx = t.ctx();
+    u8* base = t.runtime().memory()->virtual_membase();
+    rex::platform::SehScope* const scope = rex::platform::seh_thread_state().top;
+    ctx.r3.u64 = 0;
+    rexshim_ConvertThreadToFiber(ctx, base);
+    ctx.r3.u64 = 0x10000;
+    ctx.r4.u64 = fiber_entry;
+    ctx.r5.u64 = 0;
+    rexshim_CreateFiber(ctx, base);
+    ctx.r3.u64 = ctx.r3.u32;
+    rexshim_SwitchToFiber(ctx, base);
+    kept = rex::platform::seh_thread_state().top == scope;
+  }
+  SEH_CATCH_ALL {
+    SEH_RETHROW;
+  }
+  SEH_END
+  return kept;
+}
+#endif
+
 }  // namespace
 
 TEST_CASE("ExTerminateThread from a nested call runs host destructors", "[kernel][shutdown]") {
@@ -918,6 +962,51 @@ TEST_CASE("A datagram sent with sendto arrives with its source address", "[kerne
     CHECK(c.Load32(from + 4) == 0x7F000001);
   });
 }
+
+#if !REX_PLATFORM_WIN32
+TEST_CASE("A stop that crosses an SEH scope leaves no scope open on the thread",
+          "[kernel][shutdown][seh]") {
+  KernelFixture fixture;
+  const u32 routine = fixture.runtime().function_dispatcher()->AllocateThunk(&ProbeScopeOnExit, 0);
+  REQUIRE(routine != 0);
+  g_scope_probe_ran.store(false);
+  g_scope_left_open.store(false);
+  fixture.RunOnGuestThread([routine](Caller& c) {
+    RegisterThreadNotification(c, routine);
+    const u32 event = CreateEvent(c);
+    auto handled = std::make_shared<std::atomic<bool>>(false);
+    auto waiting = std::make_shared<std::atomic<bool>>(false);
+    g_scope_probe_armed.store(true);
+    const u32 thread = c.Spawn(
+        [event, handled, waiting](Caller& t) { GuardedWait(t, event, *handled, *waiting); });
+    WaitUntil(*waiting);
+    RequestStop(c, thread);
+    CHECK(Joined(c, thread, kStopBudget));
+    g_scope_probe_armed.store(false);
+  });
+  CHECK(g_scope_probe_ran.load());
+  CHECK_FALSE(g_scope_left_open.load());
+}
+
+TEST_CASE("A guest fiber starts with no SEH scope and the switch back restores the scope",
+          "[kernel][shutdown][seh][fiber]") {
+  KernelFixture fixture;
+  const u32 fiber_entry =
+      fixture.runtime().function_dispatcher()->AllocateThunk(&ProbeScopeOnFiber, 0);
+  REQUIRE(fiber_entry != 0);
+  g_fiber_probed.store(false);
+  g_fiber_saw_scope.store(true);
+  auto kept = std::make_shared<std::atomic<bool>>(false);
+  fixture.RunOnGuestThread([fiber_entry, kept](Caller& c) {
+    const u32 thread = c.Spawn(
+        [fiber_entry, kept](Caller& t) { kept->store(SwitchToFiberInScope(t, fiber_entry)); });
+    CHECK(Joined(c, thread, 1000ms));
+  });
+  CHECK(g_fiber_probed.load());
+  CHECK_FALSE(g_fiber_saw_scope.load());
+  CHECK(kept->load());
+}
+#endif
 
 TEST_CASE("A suspend never parks a guest thread inside a host allocation", "[kernel][thread]") {
   KernelFixture fixture;

@@ -221,6 +221,12 @@ void ThreadRecord::set_last_error(uint32_t error_code) {
 void ThreadRecord::set_name(const std::string_view name) {
   std::lock_guard<std::mutex> lock(thread_lock_);
   thread_name_ = std::format("{} ({:08X})", name, handle());
+  crash_name_length_.store(0, std::memory_order_release);
+  const auto end =
+      std::ranges::copy(std::string_view(thread_name_).substr(0, crash_name_.size() - 1),
+                        crash_name_.begin())
+          .out;
+  crash_name_length_.store(static_cast<u8>(end - crash_name_.begin()), std::memory_order_release);
 
   if (thread_) {
     // May be getting set before the thread is created.
@@ -455,6 +461,9 @@ X_STATUS ThreadRecord::Create() {
     } catch (const rex::ThreadStop& stop) {
       exit_code = stop.exit_code;
     }
+#if !REX_PLATFORM_WIN32
+    rex::platform::seh_thread_state().top = nullptr;
+#endif
     REX_PERF_ADD(kActiveThreads, -1);
     Finish(exit_code);
   });

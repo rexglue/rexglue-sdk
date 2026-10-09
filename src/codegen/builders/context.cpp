@@ -85,7 +85,10 @@ const FunctionGraph& BuilderContext::graph() const {
 // Localizing a non-volatile assumes the function owns it across its whole body.
 // An SEH funclet does not: it inherits its owner's live registers through ctx.
 bool BuilderContext::localizeNonVolatiles() const {
-  return config().nonVolatileRegistersAsLocalVariables && !fn.sharesRegisters();
+  const auto& info = fn.exceptionInfo();
+  const auto* seh = info ? info->asSeh() : nullptr;
+  const bool sehScope = config().generateExceptionHandlers && seh && !seh->scopes.empty();
+  return config().nonVolatileRegistersAsLocalVariables && !fn.sharesRegisters() && !sehScope;
 }
 
 std::string BuilderContext::r(size_t index) {

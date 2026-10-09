@@ -4,6 +4,7 @@
 
 #if REX_PLATFORM_WIN32
 
+#include <algorithm>
 #include <bit>
 #include <csignal>
 #include <cstring>
@@ -122,7 +123,7 @@ bool IsReadable(u64 address, u64 size) {
   return true;
 }
 
-std::string DescribeCode(u64 address) {
+std::string_view DescribeCode(u64 address, std::span<char> out) {
   HMODULE module = nullptr;
   if (!GetModuleHandleExW(
           GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
@@ -135,7 +136,10 @@ std::string DescribeCode(u64 address) {
   if (const size_t slash = name.find_last_of("\\/"); slash != std::string_view::npos) {
     name.remove_prefix(slash + 1);
   }
-  return std::format("{}+{:#010x}", name, address - reinterpret_cast<u64>(module));
+  const auto result =
+      std::format_to_n(out.data(), static_cast<std::ptrdiff_t>(out.size()), "{}+{:#010x}", name,
+                       address - reinterpret_cast<u64>(module));
+  return {out.data(), std::min(static_cast<size_t>(result.size), out.size())};
 }
 
 void LogBacktrace() {

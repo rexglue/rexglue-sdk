@@ -194,3 +194,114 @@ TEST_CASE("A thread that ended and was waited on ignores later signals", "[core]
   CHECK_FALSE(thread->Suspend());
   CHECK_FALSE(thread->Redirect(&InRecompiledCode, nullptr, &ThrowRedirected));
 }
+
+TEST_CASE("An alertable wait with no time left still takes a signaled object", "[core][thread]") {
+  using rex::platform::WaitResult;
+  auto ready = rex::platform::Event::CreateManualResetEvent(true);
+  auto other = rex::platform::Event::CreateManualResetEvent(false);
+  CHECK(rex::platform::Wait(ready.get(), true, 0ms) == WaitResult::kSuccess);
+  CHECK(rex::platform::SignalAndWait(other.get(), ready.get(), true, 0ms) == WaitResult::kSuccess);
+  rex::platform::WaitHandle* handles[] = {other.get(), ready.get()};
+  CHECK(rex::platform::WaitAny(handles, 2, true, 0ms).first == WaitResult::kSuccess);
+}
+
+TEST_CASE("A thread suspended while it suspends another thread holds no lock on it",
+          "[core][thread]") {
+  std::atomic<bool> stop{false};
+  std::atomic<rex::u32> asked{0};
+  std::atomic<rex::u32> answered{0};
+  std::atomic<rex::u32> ready{0};
+  auto target = rex::platform::Thread::Create({}, [&stop] {
+    while (!stop.load()) {
+      std::this_thread::yield();
+    }
+  });
+  auto sender = rex::platform::Thread::Create({}, [&stop, &target, &ready] {
+    ready.fetch_add(1);
+    while (!stop.load()) {
+      target->Suspend();
+      target->Resume();
+    }
+  });
+  std::thread probe([&] {
+    ready.fetch_add(1);
+    while (!stop.load()) {
+      if (answered.load() < asked.load()) {
+        target->Suspend();
+        target->Resume();
+        answered.fetch_add(1);
+      }
+    }
+  });
+  while (ready.load() < 2) {
+    std::this_thread::yield();
+  }
+  bool answered_every_time = true;
+  for (rex::u32 i = 1; i <= 200 && answered_every_time; ++i) {
+    sender->Suspend();
+    asked.store(i);
+    const auto until = std::chrono::steady_clock::now() + 1s;
+    while (answered.load() < i && std::chrono::steady_clock::now() < until) {
+      std::this_thread::yield();
+    }
+    answered_every_time = answered.load() == i;
+    sender->Resume();
+  }
+  stop = true;
+  probe.join();
+  CHECK(answered_every_time);
+  CHECK(rex::platform::Wait(sender.get(), false, 1s) == rex::platform::WaitResult::kSuccess);
+  CHECK(rex::platform::Wait(target.get(), false, 1s) == rex::platform::WaitResult::kSuccess);
+}
+
+/** Covers a Resume that runs before the delayed suspend handler parks and one that runs after. */
+TEST_CASE("A thread suspended as it exits finishes once resumed", "[core][thread]") {
+  using rex::platform::WaitResult;
+  bool finished_every_time = true;
+  constexpr rex::u32 kPairs = 2000;
+  for (rex::u32 i = 0; i < 200 && finished_every_time; ++i) {
+    std::atomic<bool> go{false};
+    auto thread = rex::platform::Thread::Create({}, [&go] {
+      while (!go.load()) {
+        std::this_thread::yield();
+      }
+    });
+    std::thread hammer([&] {
+      for (rex::u32 n = 0; n < kPairs; ++n) {
+        thread->Suspend();
+        thread->Resume();
+      }
+    });
+    go = true;
+    for (rex::u32 n = 0; n < kPairs; ++n) {
+      thread->Suspend();
+      thread->Resume();
+    }
+    hammer.join();
+    finished_every_time = rex::platform::Wait(thread.get(), false, 30s) == WaitResult::kSuccess;
+    if (!finished_every_time) {
+      (void)thread.release();
+    }
+  }
+  CHECK(finished_every_time);
+}
+
+TEST_CASE("A thread handle destroyed right after its body ends frees nothing still in use",
+          "[core][thread]") {
+  const rex::u64 before = rex::platform::detail::LiveCount();
+  for (int i = 0; i < 200; ++i) {
+    std::atomic<bool> done{false};
+    auto thread = rex::platform::Thread::Create({}, [&done] { done.store(true); });
+    REQUIRE(thread);
+    while (!done.load()) {
+      std::this_thread::yield();
+    }
+    thread.reset();
+  }
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+  while (rex::platform::detail::LiveCount() > before &&
+         std::chrono::steady_clock::now() < deadline) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  CHECK(rex::platform::detail::LiveCount() == before);
+}

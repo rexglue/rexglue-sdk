@@ -14,7 +14,6 @@
 #include <cstring>
 #include <format>
 
-#include <dlfcn.h>
 #include <execinfo.h>
 #include <pthread.h>
 #include <signal.h>
@@ -23,6 +22,10 @@
 #include <unistd.h>
 
 #include "core/crash_report.h"
+#include "core/logger.h"
+#if REX_PLATFORM_LINUX
+#include "core/proc_maps.h"
+#endif
 
 namespace rex::platform {
 
@@ -34,7 +37,22 @@ constexpr u32 kMaxRepeatedFaults = 64;
 constexpr u32 kReportWatchdogSeconds = 10;
 constexpr std::array kReporterSignals = {SIGSEGV, SIGILL, SIGBUS, SIGFPE, SIGABRT};
 
+constexpr size_t kMaxModules = 512;
+constexpr size_t kModuleNameSize = 96;
+
 std::array<bool, kReporterSignals.size()> g_owned{};
+
+struct MappedModule {
+  u64 start = 0;
+  u64 end = 0;
+  u64 offset = 0;
+  std::array<char, kModuleNameSize> name{};
+  u8 name_length = 0;
+};
+
+std::array<MappedModule, kMaxModules> g_modules;
+size_t g_module_count = 0;
+bool g_modules_read = false;
 
 struct AltStack {
   void* memory = nullptr;
@@ -141,6 +159,42 @@ u64 ContextPC(const HostThreadContext& context) {
 #endif
 }
 
+void WriteAll(int fd, std::string_view text) {
+  while (!text.empty()) {
+    const ssize_t written = write(fd, text.data(), text.size());
+    if (written <= 0) {
+      return;
+    }
+    text.remove_prefix(static_cast<size_t>(written));
+  }
+}
+
+void ReadModules() {
+  g_modules_read = true;
+#if REX_PLATFORM_LINUX
+  memory::ForEachMapping([](const memory::ProcMapping& mapping) {
+    std::string_view name = mapping.path;
+    if (mapping.perms[2] != 'x' || name.empty() || name.front() == '[') {
+      return true;
+    }
+    if (const size_t slash = name.rfind('/'); slash != std::string_view::npos) {
+      name.remove_prefix(slash + 1);
+    }
+    if (name.empty()) {
+      return true;
+    }
+    MappedModule& module = g_modules[g_module_count++];
+    module.start = mapping.start;
+    module.end = mapping.end;
+    module.offset = mapping.offset;
+    name = name.substr(0, module.name.size());
+    std::ranges::copy(name, module.name.begin());
+    module.name_length = static_cast<u8>(name.size());
+    return g_module_count < g_modules.size();
+  });
+#endif
+}
+
 void ReporterSignal(int signal_number, siginfo_t* info, void* signal_context) {
   detail::ReportFatalSignal(signal_number, info, signal_context);
   detail::DieWithDefaultDisposition(signal_number);
@@ -171,6 +225,7 @@ void ReportFatalSignal(int signal_number, siginfo_t* info, void* signal_context)
     WaitForOtherReport();
     return;
   }
+  UseRawOutput();
   struct sigaction watchdog{};
   watchdog.sa_handler = SIG_DFL;
   sigemptyset(&watchdog.sa_mask);
@@ -248,15 +303,32 @@ bool IsReadable(u64 address, u64 size) {
   return readable;
 }
 
-std::string DescribeCode(u64 address) {
-  Dl_info info{};
-  // NOLINTNEXTLINE(performance-no-int-to-ptr): dladdr takes the code address as a pointer
-  if (!dladdr(reinterpret_cast<void*>(address), &info) || !info.dli_fbase || !info.dli_fname) {
+void WriteRaw(std::string_view text) {
+  const int log_fd = log::GetLoggerInstance().crash_fd();
+  for (const int fd : {STDERR_FILENO, log_fd}) {
+    if (fd >= 0) {
+      WriteAll(fd, text);
+      WriteAll(fd, "\n");
+    }
+  }
+}
+
+std::string_view DescribeCode(u64 address, std::span<char> out) {
+  if (!g_modules_read) {
+    ReadModules();
+  }
+  const auto modules = std::span(g_modules).first(g_module_count);
+  const auto found = std::ranges::find_if(modules, [address](const MappedModule& module) {
+    return address >= module.start && address < module.end;
+  });
+  if (found == modules.end()) {
     return {};
   }
-  const char* slash = std::strrchr(info.dli_fname, '/');
-  return std::format("{}+{:#010x}", slash ? slash + 1 : info.dli_fname,
-                     address - reinterpret_cast<u64>(info.dli_fbase));
+  const auto result =
+      std::format_to_n(out.data(), static_cast<std::ptrdiff_t>(out.size()), "{}+{:#010x}",
+                       std::string_view(found->name.data(), found->name_length),
+                       address - found->start + found->offset);
+  return {out.data(), std::min(static_cast<size_t>(result.size), out.size())};
 }
 
 void LogBacktrace() {
@@ -268,6 +340,8 @@ void LogBacktrace() {
 }
 
 [[nodiscard]] Result<void> InstallPlatform() {
+  void* primed = nullptr;
+  backtrace(&primed, 1);
   for (size_t i = 0; i < kReporterSignals.size(); ++i) {
     struct sigaction current{};
     if (sigaction(kReporterSignals[i], nullptr, &current) != 0) {

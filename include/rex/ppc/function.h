@@ -370,6 +370,9 @@ __attribute__((noinline)) void HostToGuestFunction(PPCContext& ctx, uint8_t* bas
   if (thread_state && thread_state->stop_requested()) {
     throw rex::ThreadStop{};
   }
+#if !REX_PLATFORM_WIN32
+  const rex::platform::HostCallDepth host_call_depth;
+#endif
   auto args = function_args(Func);
   _translate_args_to_host<Func>(ctx, base, args);
 

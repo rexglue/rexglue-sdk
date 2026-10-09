@@ -100,6 +100,13 @@ class Logger final : public ILogger {
   bool TryFlush(std::chrono::milliseconds timeout);
 
   /**
+   * Returns a descriptor that appends to the log file, read without allocating or locking.
+   *
+   * @return The descriptor, or -1 when no log file is open.
+   */
+  int crash_fd() const { return crash_fd_.load(std::memory_order_acquire); }
+
+  /**
    * Opens the sinks of a configuration, registers core and consumer categories and attaches the
    * log cvars.
    *
@@ -173,6 +180,7 @@ class Logger final : public ILogger {
   void OpenFile(const LogFileConfig& file, std::chrono::seconds interval);
   [[nodiscard]] Result<void> RegisterStarted(const LogConfig& config);
   void StopAll();
+  void SetCrashFile(const std::filesystem::path& path);
 
   std::array<std::atomic<Level>, kMaxCategories> levels_{};
   std::vector<Slot> slots_;
@@ -188,6 +196,7 @@ class Logger final : public ILogger {
   std::unique_ptr<DebuggerSink> debugger_;
   std::unique_ptr<ConsoleSink> console_;
   std::unique_ptr<FileSink> file_;
+  std::atomic<int> crash_fd_{-1};
   std::deque<CapturedRecord> bootstrap_;
   bool buffering_ = true;
   bool started_ = false;
@@ -253,6 +262,21 @@ std::string_view LevelColor(Level level);
  * @return The letter.
  */
 char LevelLetter(Level level);
+
+/**
+ * Opens a raw append descriptor on a log file for the crash report.
+ *
+ * @param path The log file.
+ * @return The descriptor, or -1 when the platform reports through the logger instead.
+ */
+int OpenCrashFile(const std::filesystem::path& path);
+
+/**
+ * Closes a descriptor from OpenCrashFile.
+ *
+ * @param fd The descriptor, or -1 for none.
+ */
+void CloseCrashFile(int fd);
 
 }  // namespace rex::log
 

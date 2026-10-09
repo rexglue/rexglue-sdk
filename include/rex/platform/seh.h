@@ -14,7 +14,12 @@
 #include <cstdint>
 
 #include <rex/macros.h>
+#include <rex/platform.h>
 #include <rex/types.h>
+
+#if !REX_PLATFORM_WIN32
+#include <setjmp.h>
+#endif
 
 namespace rex {
 class SehException;
@@ -22,10 +27,23 @@ class SehException;
 
 namespace rex::platform {
 
+#if !REX_PLATFORM_WIN32
+/** 1 open SEH scope on POSIX, linked into the chain of its thread. */
+struct SehScope {
+  sigjmp_buf env;            /**< Where a fault inside the scope resumes. */
+  SehScope* outer = nullptr; /**< The enclosing scope, null for the outermost. */
+  u32 host_depth = 0;        /**< The host call depth when the scope opened. */
+};
+#endif
+
 /** Exception details captured for the calling thread. */
 struct SehThreadState {
   u32 code = 0;               /**< Exception code in Windows EXCEPTION_ form. */
   uintptr_t info[2] = {0, 0}; /**< Access type and fault address. */
+#if !REX_PLATFORM_WIN32
+  SehScope* top = nullptr; /**< The innermost open scope. */
+  u32 host_depth = 0;      /**< The number of host frames that recompiled code called into. */
+#endif
 };
 
 /**
@@ -37,7 +55,7 @@ REX_API SehThreadState& seh_thread_state();
 
 /**
  * Filter for the Windows __except clause. Captures the exception into seh_thread_state() when
- * the code is handled. Always 0 on POSIX, where signal handlers throw instead.
+ * the code is handled. Always 0 on POSIX, where the signal handler jumps to the scope instead.
  *
  * @param code Exception code.
  * @param exception_pointers EXCEPTION_POINTERS of the exception.
@@ -45,18 +63,48 @@ REX_API SehThreadState& seh_thread_state();
  */
 REX_API int seh_filter(u32 code, void* exception_pointers);
 
-/** Raises the exception captured in seh_thread_state() again as a host exception or signal. */
+/**
+ * Raises the exception captured in seh_thread_state() again. On POSIX it resumes the next open
+ * scope, or ends the process when none may take it.
+ */
 [[noreturn]] REX_API void seh_rethrow();
 
 /** Installs the SIGSEGV, SIGBUS, SIGFPE and SIGILL handlers once on POSIX. No effect on Windows. */
 REX_API void seh_initialize();
 
+#if !REX_PLATFORM_WIN32
 /**
- * Returns the flag that marks the calling thread as inside an SEH scope. POSIX signal handlers
- * throw SehException only while it is set.
+ * Links a scope into the chain of the calling thread.
  *
- * @return Thread local flag.
+ * @param scope The scope SEH_TRY opens.
  */
-REX_API bool& seh_active();
+inline void seh_enter(SehScope& scope) {
+  SehThreadState& state = seh_thread_state();
+  scope.outer = state.top;
+  scope.host_depth = state.host_depth;
+  state.top = &scope;
+}
+
+/**
+ * Unlinks a scope when it is still the innermost one.
+ *
+ * @param scope The scope SEH_TRY opened.
+ */
+inline void seh_leave(SehScope& scope) {
+  SehThreadState& state = seh_thread_state();
+  if (state.top == &scope) {
+    state.top = scope.outer;
+  }
+}
+
+/** Counts a host frame that recompiled code called into for its lifetime. */
+class HostCallDepth {
+ public:
+  HostCallDepth() { ++seh_thread_state().host_depth; }
+  ~HostCallDepth() { --seh_thread_state().host_depth; }
+  HostCallDepth(const HostCallDepth&) = delete;
+  HostCallDepth& operator=(const HostCallDepth&) = delete;
+};
+#endif
 
 }  // namespace rex::platform

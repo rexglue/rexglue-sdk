@@ -10,6 +10,7 @@
 #include <exception>
 #include <format>
 #include <mutex>
+#include <span>
 #include <thread>
 #include <typeinfo>
 
@@ -33,6 +34,10 @@ constexpr auto kLogTimeout = std::chrono::milliseconds(200);
 constexpr u64 kStackScanWords = 64;
 constexpr u32 kStackScanHits = 24;
 constexpr u64 kScanPageSize = 4096;
+constexpr size_t kLineSize = 512;
+constexpr size_t kCodeTextSize = 192;
+constexpr size_t kModuleTextSize = 128;
+constexpr size_t kDescriberTextSize = 256;
 
 std::mutex g_install_mutex;
 CrashReporterOptions g_options;
@@ -41,8 +46,17 @@ std::atomic<CrashAddressDescriber> g_describer{nullptr};
 std::atomic_flag g_reporting = ATOMIC_FLAG_INIT;
 thread_local bool t_reporting = false;
 std::terminate_handler g_previous_terminate = nullptr;
+bool g_raw_output = false;
+char g_line[kLineSize];
+char g_code_text[kCodeTextSize];
 
 void WriteLine(std::string_view text) {
+#if !REX_PLATFORM_WIN32
+  if (g_raw_output) {
+    detail::WriteRaw(text);
+    return;
+  }
+#endif
   if (!log::GetLoggerInstance().TryWrite(log::system, log::Level::kCritical, text, kLogTimeout)) {
     std::fwrite(text.data(), 1, text.size(), stderr);
     std::fputc('\n', stderr);
@@ -50,14 +64,23 @@ void WriteLine(std::string_view text) {
 }
 
 template <typename... Args>
-void Line(std::format_string<Args...> format, Args&&... args) {
-  WriteLine(std::format(format, std::forward<Args>(args)...));
+std::string_view FormatInto(std::span<char> out, std::format_string<Args...> format,
+                            Args&&... args) {
+  const auto result = std::format_to_n(out.data(), static_cast<std::ptrdiff_t>(out.size()), format,
+                                       std::forward<Args>(args)...);
+  return {out.data(), std::min(static_cast<size_t>(result.size), out.size())};
 }
 
-std::string CodeText(u64 address) {
-  const std::string module = detail::DescribeCode(address);
-  return module.empty() ? std::format("{:#018x}", address)
-                        : std::format("{:#018x} ({})", address, module);
+template <typename... Args>
+void Line(std::format_string<Args...> format, Args&&... args) {
+  WriteLine(FormatInto(g_line, format, std::forward<Args>(args)...));
+}
+
+std::string_view CodeText(u64 address) {
+  char module[kModuleTextSize];
+  const std::string_view name = detail::DescribeCode(address, module);
+  return name.empty() ? FormatInto(g_code_text, "{:#018x}", address)
+                      : FormatInto(g_code_text, "{:#018x} ({})", address, name);
 }
 
 void Banner() {
@@ -107,7 +130,8 @@ void LogStackCodeAddresses(const HostThreadContext& context) {
     if (!value) {
       continue;
     }
-    const std::string module = detail::DescribeCode(value);
+    char text[kModuleTextSize];
+    const std::string_view module = detail::DescribeCode(value, text);
     if (module.empty()) {
       continue;
     }
@@ -133,8 +157,10 @@ std::string TypeName(const std::type_info& type) {
 
 void DescribeContext(u64 address) {
   if (const CrashAddressDescriber describer = g_describer.load(std::memory_order_acquire)) {
-    if (std::string text = describer(address); !text.empty()) {
-      Line("{}", text);
+    char text[kDescriberTextSize];
+    const u32 length = describer(address, text);
+    if (length) {
+      Line("{}", std::string_view(text, std::min<size_t>(length, sizeof(text))));
     }
   }
 }
@@ -180,6 +206,12 @@ void WaitForOtherReport() {
   }
 }
 
+#if !REX_PLATFORM_WIN32
+void UseRawOutput() {
+  g_raw_output = true;
+}
+#endif
+
 bool IsCrashReporterInstalled() {
   return g_installed.load(std::memory_order_acquire);
 }
@@ -196,7 +228,9 @@ void ReportFault(const FaultReport& fault) {
     LogRegisters(*fault.context);
     LogStackCodeAddresses(*fault.context);
   }
-  log::GetLoggerInstance().TryFlush(kLogTimeout);
+  if (!g_raw_output) {
+    log::GetLoggerInstance().TryFlush(kLogTimeout);
+  }
   Line("backtrace:");
   LogBacktrace();
 }
@@ -212,6 +246,9 @@ void ReportMessage(std::string_view message) {
 
 void EndReport() {
   Line("==== end of crash report ====");
+  if (g_raw_output) {
+    return;
+  }
   log::GetLoggerInstance().TryFlush(kLogTimeout);
   std::fflush(stdout);
   std::fflush(stderr);

@@ -10,10 +10,12 @@
 
 #include <chrono>
 #include <cstdint>
+#include <thread>
 
 #include <catch2/catch_test_macros.hpp>
 
 #include <rex/chrono/chrono.h>
+#include <rex/chrono/clock.h>
 
 using rex::WinSystemClock;
 
@@ -312,4 +314,16 @@ TEST_CASE("weekday c_encoding returns 0=Sunday through 6=Saturday", "[chrono]") 
   CHECK(weekday{sys_days{year{2021} / month{1} / day{1}}}.c_encoding() == 5);
   // 2000-01-01 is Saturday (6)
   CHECK(weekday{sys_days{year{2000} / month{1} / day{1}}}.c_encoding() == 6);
+}
+
+TEST_CASE("The host tick count advances at the rate of steady_clock", "[chrono]") {
+  const auto start = std::chrono::steady_clock::now();
+  const rex::u64 ticks_start = rex::Clock::QueryHostTickCount();
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
+  const rex::u64 ticks = rex::Clock::QueryHostTickCount() - ticks_start;
+  const auto elapsed = std::chrono::duration<rex::f64>(std::chrono::steady_clock::now() - start);
+  const rex::f64 seconds =
+      static_cast<rex::f64>(ticks) / static_cast<rex::f64>(rex::Clock::QueryHostTickFrequency());
+  CHECK(seconds / elapsed.count() > 0.99);
+  CHECK(seconds / elapsed.count() < 1.01);
 }

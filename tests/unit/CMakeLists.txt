@@ -94,6 +94,7 @@ add_executable(unit_tests
     codegen/midasm_hook_config_test.cpp
     codegen/output_partition_test.cpp
     codegen/output_stamp_test.cpp
+    codegen/seh_scope_test.cpp
     codegen/shim_config_test.cpp
     codegen/tool_runtime_test.cpp
     codegen/mmio_analysis_test.cpp
@@ -132,7 +133,12 @@ target_link_libraries(unit_tests PRIVATE
 target_compile_definitions(unit_tests PRIVATE
     REX_TEST_RUNTIME_PATH="$<TARGET_FILE:rex-runtime>")
 
-add_executable(rex-crash-probe crash_probe.cpp)
+add_executable(rex-crash-probe crash_probe.cpp crash_probe_recompiled_code.cpp)
+if(WIN32)
+    set_source_files_properties(crash_probe_recompiled_code.cpp PROPERTIES COMPILE_OPTIONS -fasync-exceptions)
+else()
+    set_source_files_properties(crash_probe_recompiled_code.cpp PROPERTIES COMPILE_OPTIONS -fasynchronous-unwind-tables)
+endif()
 target_link_libraries(rex-crash-probe PRIVATE rex-runtime)
 set_target_properties(rex-crash-probe PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY $<TARGET_FILE_DIR:rex-runtime>

@@ -86,6 +86,9 @@ static void FiberEntryPoint(void* raw_arg) {
   // Read fiber_data (lpParameter) from guest context buffer
   auto* fiber = mem->TranslateVirtual<X_FIBER_CONTEXT*>(args->guest_fiber_addr);
   ctx.r3.u64 = static_cast<u32>(fiber->fiber_data);
+#if !REX_PLATFORM_WIN32
+  rex::platform::seh_thread_state().top = nullptr;
+#endif
 
   try {
     args->start_fn(ctx, mem->virtual_membase());
@@ -321,8 +324,14 @@ REX_SHIM_FN(SwitchToFiber, void, mapped_void lpFiber) {
         runtime.thread_registry().GetOrCreateFiberName(target_info->uid, thread->name().c_str()));
   }
 
+#if !REX_PLATFORM_WIN32
+  rex::platform::SehScope* const scope = rex::platform::seh_thread_state().top;
+#endif
   // Host fiber switch -- suspends here, resumes when switched back
   rex::platform::Fiber::SwitchTo(target_info->host_fiber);
+#if !REX_PLATFORM_WIN32
+  rex::platform::seh_thread_state().top = scope;
+#endif
   ctx->fpscr.setcsr(ctx->fpscr.csr);
   ThreadRecord::CheckStop();
 }

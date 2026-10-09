@@ -301,11 +301,11 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
             break;
           }
           data_ += capacity_;
-          if (!successful) {
-            REXLOG_ERROR(core, "Unable to find space for mapping");
-            data_ = nullptr;
-            return false;
-          }
+        }
+        if (!successful) {
+          REXLOG_ERROR(core, "Unable to find space for mapping");
+          data_ = nullptr;
+          return false;
         }
       } else {
 #ifdef REX_BASE_MAPPED_MEMORY_WIN_USE_DESKTOP_FUNCTIONS

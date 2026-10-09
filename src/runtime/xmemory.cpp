@@ -11,8 +11,10 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <bit>
 #include <cstring>
+#include <optional>
 #include <span>
 #include <utility>
 
@@ -31,6 +33,8 @@
 #include <rex/runtime/function_dispatcher.h>
 #include <rex/mmio.h>
 #include <rex/runtime/xmemory.h>
+#include <rex/runtime/xthread.h>
+#include <rex/platform/crash.h>
 #include <rex/platform/thread.h>
 #include "runtime/cvar_table.h"
 
@@ -75,7 +79,7 @@ uint32_t get_page_count(uint32_t value, uint32_t page_size, uint32_t page_size_s
  * this.
  */
 
-static runtime::Memory* active_memory_ = nullptr;
+static std::atomic<runtime::Memory*> active_memory_{nullptr};
 
 namespace {
 
@@ -92,36 +96,6 @@ struct GuestFault {
 
 thread_local std::optional<GuestFault> t_guest_fault;
 
-class PendingScribble {
- public:
-  PendingScribble(u32 allocation_type, u32 protect)
-      : enabled_((allocation_type & ~static_cast<u32>(kMemoryAllocationTitle)) !=
-                     kMemoryAllocationReserve &&
-                 REXCVAR_GET(::rex::runtime::cvars::scribble_heap) &&
-                 (protect & kMemoryProtectWrite)) {}
-  PendingScribble(const PendingScribble&) = delete;
-  PendingScribble& operator=(const PendingScribble&) = delete;
-  ~PendingScribble() {
-    for (const auto& [host, size] : ranges_) {
-      if (host) {
-        std::memset(host, 0xCD, size);
-      }
-    }
-  }
-
-  void Add(const BaseHeap& heap, u32 address, u32 size) {
-    if (!enabled_) {
-      return;
-    }
-    auto& range = ranges_[ranges_[0].first ? 1 : 0];
-    range = {heap.TranslateRelative(address - heap.heap_base()),
-             rex::round_up(size, heap.page_size())};
-  }
-
- private:
-  bool enabled_;
-  std::array<std::pair<u8*, u32>, 2> ranges_{};
-};
 std::atomic<u32> g_recovered_protect_count{0};
 std::atomic<u32> g_recovered_protect_address{0};
 
@@ -182,13 +156,11 @@ bool OnAccessViolation(rex::platform::Exception* ex, void* data) {
   switch (memory->HandleAccessViolation(host_address, is_write)) {
     case AccessViolationResult::Resumed:
       return true;
-    case AccessViolationResult::MMIOMiss: {
-      const u32 address = memory->HostToGuestVirtual(host_address);
-      REXLOG_ERROR(system, "{} register {} 0x{:08X} at host PC 0x{:016X}",
-                   MMIOBlockOf(address) == MMIOBlock::GPU ? "GPU" : "APU",
-                   is_write ? "write" : "read", address, ex->pc());
+    case AccessViolationResult::MMIOMiss:
+      t_guest_fault = GuestFault{.kind = GuestFaultKind::kMMIO,
+                                 .address = memory->HostToGuestVirtual(host_address),
+                                 .is_write = is_write};
       return false;
-    }
     case AccessViolationResult::Unhandled:
       return false;
   }
@@ -200,13 +172,19 @@ bool OnAccessViolation(rex::platform::Exception* ex, void* data) {
 Memory::Memory() {
   system_page_size_ = static_cast<uint32_t>(rex::memory::page_size());
   system_allocation_granularity_ = static_cast<uint32_t>(rex::memory::allocation_granularity());
-  REX_ASSERT(active_memory_ == 0);
-  active_memory_ = this;
+  REX_ASSERT(active_memory_.load() == nullptr);
+  active_memory_.store(this, std::memory_order_release);
+  platform::SetCrashAddressDescriber(DescribeCrashAddress);
 }
 
 Memory::~Memory() {
-  REX_ASSERT(active_memory_ == this);
-  active_memory_ = nullptr;
+  REX_ASSERT(active_memory_.load() == this);
+  platform::SetCrashAddressDescriber(nullptr);
+  active_memory_.store(nullptr, std::memory_order_release);
+  if (const u32 count = g_recovered_protect_count.exchange(0, std::memory_order_relaxed)) {
+    REXLOG_WARN(system, "Recovered stale physical page protection {} times, last at guest {:08X}",
+                count, g_recovered_protect_address.load(std::memory_order_relaxed));
+  }
 
   rex::platform::ExceptionHandler::Uninstall(OnAccessViolation, this);
 
@@ -603,11 +581,9 @@ bool Memory::AccessViolationCallback(void* host_address, bool is_write) {
   uint32_t virtual_address = HostToGuestVirtual(host_address);
   BaseHeap* heap = LookupHeap(virtual_address);
   if (!heap || heap->heap_type() != runtime::HeapType::kGuestPhysical) {
-    REX_FAIL(
-        system, false,
-        "Unhandled guest access violation: {} of guest 0x{:08X} (host 0x{:016X}) on thread 0x{:X}",
-        is_write ? "write" : "read", virtual_address, reinterpret_cast<uintptr_t>(host_address),
-        rex::platform::current_thread_id());
+    t_guest_fault = GuestFault{
+        .kind = GuestFaultKind::kUnhandled, .address = virtual_address, .is_write = is_write};
+    return false;
   }
 
   // Will be rounded to physical page boundaries internally, so pass 1 as
@@ -666,10 +642,8 @@ bool Memory::AccessViolationCallback(void* host_address, bool is_write) {
                        (reinterpret_cast<uintptr_t>(host_address) & (host_page_size - 1));
       if (rex::memory::Protect(page, host_page_size, rex::memory::PageAccess::kReadWrite,
                                nullptr)) {
-        REXLOG_WARN(system,
-                    "Recovered stale physical page protection for guest {:08X} (host {:016X}, "
-                    "guest_protect {:08X})",
-                    virtual_address, reinterpret_cast<uintptr_t>(page), guest_protect);
+        g_recovered_protect_count.fetch_add(1, std::memory_order_relaxed);
+        g_recovered_protect_address.store(virtual_address, std::memory_order_relaxed);
         return true;
       }
     }
@@ -681,11 +655,12 @@ bool Memory::AccessViolationCallback(void* host_address, bool is_write) {
     if (physical_address != UINT32_MAX) {
       heaps_.physical.QueryProtect(physical_address, &physical_protect);
     }
-    REXLOG_ERROR(system,
-                 "Unhandled guest physical write fault: guest={:08X} host={:016X} phys={:08X} "
-                 "guest_protect={:08X} physical_protect={:08X}",
-                 virtual_address, static_cast<uint64_t>(reinterpret_cast<uintptr_t>(host_address)),
-                 physical_address, current_guest_protect, physical_protect);
+    t_guest_fault = GuestFault{.kind = GuestFaultKind::kPhysicalWrite,
+                               .address = virtual_address,
+                               .is_write = true,
+                               .physical_address = physical_address,
+                               .guest_protect = current_guest_protect,
+                               .physical_protect = physical_protect};
   }
 
   return false;

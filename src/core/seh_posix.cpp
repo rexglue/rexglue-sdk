@@ -15,8 +15,10 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 #include <cstdlib>
 
 #include <rex/platform/exceptions.h>
+#include <rex/ppc/recompiled_code.h>
 
 #include "core/crash_report.h"
+#include "core/signal_context.h"
 
 namespace rex::platform {
 
@@ -37,7 +39,6 @@ struct sigaction* PreviousAction(int signal_number) {
 }  // namespace
 
 static thread_local SehThreadState tls_seh_state;
-static thread_local bool tls_seh_active = false;
 
 SehThreadState& seh_thread_state() {
   return tls_seh_state;
@@ -47,8 +48,15 @@ int seh_filter(u32 /*code*/, void* /*ep*/) {
   return 0;
 }
 
+[[noreturn]] static void ResumeScope(SehScope& scope) {
+  tls_seh_state.top = scope.outer;
+  siglongjmp(scope.env, 1);
+}
+
 static void signal_handler(int sig, siginfo_t* info, void* ucontext) {
-  if (!tls_seh_active) {
+  SehScope* scope = tls_seh_state.top;
+  if (!scope || scope->host_depth != tls_seh_state.host_depth ||
+      !IsRecompiledCode(detail::SignalPc(ucontext))) {
     if (struct sigaction* previous = PreviousAction(sig)) {
       detail::ForwardSignal(*previous, sig, info, ucontext);
       return;
@@ -82,11 +90,13 @@ static void signal_handler(int sig, siginfo_t* info, void* ucontext) {
   tls_seh_state.info[0] = 0;
   tls_seh_state.info[1] = address;
 
-  // libunwind unwinds through the signal frame.
-  throw SehException(code, address);
+  ResumeScope(*scope);
 }
 
 [[noreturn]] void seh_rethrow() {
+  if (SehScope* scope = tls_seh_state.top; scope && scope->host_depth == tls_seh_state.host_depth) {
+    ResumeScope(*scope);
+  }
   u32 code = tls_seh_state.code;
   int sig;
   switch (code) {
@@ -122,10 +132,6 @@ void seh_initialize() {
   for (size_t i = 0; i < kSEHSignals.size(); ++i) {
     sigaction(kSEHSignals[i], &sa, &g_previous[i]);
   }
-}
-
-bool& seh_active() {
-  return tls_seh_active;
 }
 
 }  // namespace rex::platform

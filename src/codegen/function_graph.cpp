@@ -18,6 +18,7 @@
 #include <cassert>
 #include <iterator>
 #include <span>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 #include <unordered_set>
@@ -589,6 +590,9 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
   emit_println(out, "DEFINE_REX_FUNC({}) {{", name);
   emit_println(out, "\tREX_FUNC_PROLOGUE();");
 
+  const bool generateSeh =
+      sehInfo && !sehInfo->scopes.empty() && ctx.config.generateExceptionHandlers;
+
   // --- Second pass: emit instruction code ---
   const JumpTable* activeJt = nullptr;
   bool allRecompiled = true;
@@ -672,7 +676,6 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
   }
 
   // --- Close function body (or SEH try block) ---
-  bool generateSeh = sehInfo && !sehInfo->scopes.empty() && ctx.config.generateExceptionHandlers;
   if (generateSeh) {
     emit_println(body, "\t\t}} SEH_CATCH_ALL {{");
     emit_println(body, "\t\t\tREXLOG_WARN(\"SEH exception caught in sub_{:08X}\");", base());
@@ -745,6 +748,12 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
   // If SEH, emit SEH_TRY and indent body
   if (generateSeh) {
     emit_println(out, "\tSEH_TRY {{");
+    constexpr std::string_view kReturn = "return;";
+    constexpr std::string_view kSehReturn = "SEH_RETURN;";
+    for (size_t at = body.find(kReturn); at != std::string::npos;
+         at = body.find(kReturn, at + kSehReturn.size())) {
+      body.replace(at, kReturn.size(), kSehReturn);
+    }
     std::string indentedBody;
     indentedBody.reserve(body.size() + body.size() / 20);
     for (size_t i = 0; i < body.size(); ++i) {

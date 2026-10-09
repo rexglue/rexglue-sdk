@@ -118,12 +118,12 @@ class REX_API ChunkedMappedMemoryWriter {
   virtual ~ChunkedMappedMemoryWriter() = default;
 
   /**
-   * Creates a writer. POSIX has no implementation and returns nullptr.
+   * Creates a writer.
    *
    * @param path Base path of the chunk files.
    * @param chunk_size Byte size of each chunk, rounded up to the allocation granularity.
    * @param low_address_space True to map chunks below 4 GiB.
-   * @return The writer, or nullptr when unsupported.
+   * @return The writer.
    */
   static std::unique_ptr<ChunkedMappedMemoryWriter> Open(const std::filesystem::path& path,
                                                          size_t chunk_size,

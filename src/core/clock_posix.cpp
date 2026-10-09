@@ -27,7 +27,7 @@ uint64_t Clock::host_tick_frequency_platform() noexcept {
                                static_cast<uint64_t>(info.numer));
 #else
   timespec res;
-  int error = clock_getres(CLOCK_MONOTONIC_RAW, &res);
+  int error = clock_getres(CLOCK_MONOTONIC, &res);
   REX_ASSERT(error == 0);
   REX_ASSERT(res.tv_sec == 0);  // Sub second resolution is required.
 
@@ -40,12 +40,12 @@ uint64_t Clock::host_tick_count_platform() {
 #ifdef __APPLE__
   // mach_absolute_time() returns raw hardware ticks; host_tick_frequency_platform()
   // expresses the rate of these same ticks via mach_timebase_info.
-  // clock_gettime(CLOCK_MONOTONIC_RAW) returns nanoseconds, which would be
+  // clock_gettime(CLOCK_MONOTONIC) returns nanoseconds, which would be
   // inconsistent with the 24 MHz mach frequency and cause ~41x time acceleration.
   return mach_absolute_time();
 #else
   timespec tp;
-  int error = clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
+  int error = clock_gettime(CLOCK_MONOTONIC, &tp);
   REX_ASSERT(error == 0);
 
   return tp.tv_nsec + tp.tv_sec * 1000000000ull;

@@ -12,6 +12,7 @@
 #pragma once
 
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 
@@ -80,12 +81,13 @@ void ReportMessage(std::string_view message);
 void EndReport();
 
 /**
- * Names the module that holds a host code address.
+ * Names the module that holds a host code address, without allocating or locking.
  *
  * @param address A host code address.
- * @return `module+0xRVA`, or an empty string when no module holds the address.
+ * @param out The buffer the name goes into.
+ * @return `module+0xRVA` inside out, or an empty view when no module holds the address.
  */
-std::string DescribeCode(u64 address);
+std::string_view DescribeCode(u64 address, std::span<char> out);
 
 /**
  * Reports whether a host range can be read without a fault.
@@ -118,6 +120,16 @@ void WriteBacktraceFrame(u32 index, u64 address);
 void UninstallPlatform();
 
 #if !REX_PLATFORM_WIN32
+/** Sends every later report line through WriteRaw instead of the logger. */
+void UseRawOutput();
+
+/**
+ * Writes 1 report line to stderr and the log file without allocating or locking.
+ *
+ * @param text The line, without its newline.
+ */
+void WriteRaw(std::string_view text);
+
 /**
  * Writes a report for a fatal signal when the reporter is installed and no report has run.
  *

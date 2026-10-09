@@ -97,19 +97,49 @@ TEST_CASE("A stack overflow is reported", "[crash]") {
 #endif
 }
 
-TEST_CASE("A GPU register write outside generated code names the block and address", "[crash]") {
+TEST_CASE(
+    "A GPU register write outside generated code names the block and address from the "
+    "faulting thread",
+    "[crash][crash_report]") {
   const auto result = RunProbe("mmio");
   CHECK(result.status != 0);
   CHECK(result.Has("GPU register write 0x7FC80010"));
   CHECK(result.Reported());
 }
 
-TEST_CASE("An access violation inside SEH_TRY is not reported", "[crash]") {
+TEST_CASE("A write to read only guest memory names the address from the faulting thread",
+          "[crash][crash_report]") {
+  const auto result = RunProbe("read-only-write");
+  CHECK(result.status != 0);
+  CHECK(result.Has("unhandled title write of 0x40000010"));
+  CHECK(result.Reported());
+}
+
+TEST_CASE("A write to a page with stale host protection resumes and teardown counts it",
+          "[crash][crash_report]") {
+  const auto result = RunProbe("stale-protect");
+  CHECK(result.status == 0);
+  CHECK(result.Has("stale resumed"));
+  CHECK(result.Has("Recovered stale physical page protection 1 times"));
+  CHECK_FALSE(result.Reported());
+}
+
+TEST_CASE("An access violation inside SEH_TRY is not reported", "[crash][crash_report]") {
   const auto result = RunProbe("seh");
   CHECK(result.status == 0);
   CHECK(result.Has("seh caught"));
   CHECK_FALSE(result.Reported());
 }
+
+#if !REX_PLATFORM_WIN32
+TEST_CASE("A fault in recompiled code under a host frame is not caught by an outer SEH_TRY",
+          "[core][seh]") {
+  const auto result = RunProbe("seh-host-frame");
+  CHECK(result.status != 0);
+  CHECK_FALSE(result.Has("seh caught"));
+  CHECK(result.Reported());
+}
+#endif
 
 #if REX_PLATFORM_WIN32
 TEST_CASE("A write watch fault resumes without a report", "[crash]") {

@@ -489,6 +489,7 @@ void Logger::OpenSinks(const LogConfig& config) {
   debugger_ = config.debugger ? std::make_unique<DebuggerSink>(config.format) : nullptr;
   console_ = config.console ? std::make_unique<ConsoleSink>(config.format) : nullptr;
   file_.reset();
+  SetCrashFile({});
   config_sinks_ = config.sinks;
   flush_level_ = config.flush_level;
   started_ = true;
@@ -561,6 +562,11 @@ void Logger::UnhookCvars() {
   cvars_ = nullptr;
 }
 
+void Logger::SetCrashFile(const std::filesystem::path& path) {
+  CloseCrashFile(
+      crash_fd_.exchange(path.empty() ? -1 : OpenCrashFile(path), std::memory_order_acq_rel));
+}
+
 void Logger::OpenFile(const LogFileConfig& file, std::chrono::seconds interval) {
   std::string file_error;
   {
@@ -568,6 +574,7 @@ void Logger::OpenFile(const LogFileConfig& file, std::chrono::seconds interval) 
     if (const auto path = ResolveLogFile(file); !path.empty()) {
       if (auto opened = FileSink::Open(path, file.format)) {
         file_ = std::move(*opened);
+        SetCrashFile(path);
         for (const CapturedRecord& record : bootstrap_) {
           file_->Write(View(record));
         }
@@ -696,6 +703,7 @@ void Logger::StopAll() {
   debugger_.reset();
   console_.reset();
   file_.reset();
+  SetCrashFile({});
   config_sinks_.clear();
   RebuildSinksLocked();
 }

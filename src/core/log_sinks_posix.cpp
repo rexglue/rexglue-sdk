@@ -1,3 +1,4 @@
+#include <fcntl.h>
 #include <unistd.h>
 
 #include <cstdio>
@@ -28,6 +29,16 @@ std::tm ToLocalTime(std::time_t time) {
   std::tm local{};
   localtime_r(&time, &local);
   return local;
+}
+
+int OpenCrashFile(const std::filesystem::path& path) {
+  return open(path.c_str(), O_WRONLY | O_APPEND | O_CLOEXEC);
+}
+
+void CloseCrashFile(int fd) {
+  if (fd >= 0) {
+    close(fd);
+  }
 }
 
 }  // namespace rex::log
