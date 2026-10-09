@@ -279,26 +279,4 @@ struct UnresolvedJump {
   bool isConditional;  // true = bc/beq/bne and others, false = b
 };
 
-//=============================================================================
-// Code Buffer - Holds executable code for a section
-//=============================================================================
-// The graph owns code buffers so recompilation doesn't need module access.
-// Each buffer corresponds to one executable section.
-
-struct CodeBuffer {
-  std::vector<uint8_t> data;
-  uint32_t baseAddress = 0;
-
-  uint32_t size() const { return static_cast<uint32_t>(data.size()); }
-  uint32_t endAddress() const { return baseAddress + size(); }
-
-  bool contains(uint32_t addr) const { return addr >= baseAddress && addr < endAddress(); }
-
-  const uint8_t* translate(uint32_t addr) const {
-    if (!contains(addr))
-      return nullptr;
-    return data.data() + (addr - baseAddress);
-  }
-};
-
 }  // namespace rex::codegen

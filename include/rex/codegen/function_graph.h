@@ -32,19 +32,6 @@ class FunctionGraph {
   using MemoryReader = std::move_only_function<std::optional<uint32_t>(uint32_t addr) const>;
 
   //=========================================================================
-  // Code Buffer Management
-  //=========================================================================
-
-  // Add a code buffer (copies executable section data into graph)
-  void addCodeBuffer(uint32_t baseAddress, const uint8_t* data, size_t size);
-
-  // Translate guest address to host pointer (searches all code buffers)
-  const uint8_t* translateCode(uint32_t addr) const;
-
-  // Get all code buffers (for iteration/debugging)
-  const std::vector<CodeBuffer>& codeBuffers() const { return codeBuffers_; }
-
-  //=========================================================================
   // Function Management
   //=========================================================================
 
@@ -187,7 +174,6 @@ class FunctionGraph {
   TargetKind classifyTarget(uint32_t target, uint32_t callerAddr, bool isCallInstruction) const;
 
  private:
-  std::vector<CodeBuffer> codeBuffers_;
   std::unordered_map<uint32_t, std::unique_ptr<FunctionNode>> functions_;
   std::map<uint32_t, FunctionNode*>
       functionsByBase_;  // sorted by base for O(log f) interval lookup

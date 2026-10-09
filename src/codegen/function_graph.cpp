@@ -770,27 +770,6 @@ std::string FunctionNode::emitCpp(const EmitContext& ctx) const {
   return out;
 }
 
-void FunctionGraph::addCodeBuffer(uint32_t baseAddress, const uint8_t* data, size_t size) {
-  REX_ASSERT_ALWAYS("FunctionGraph::addCodeBuffer not implemented. Use Recompiler with builders");
-  // CodeBuffer buffer;
-  // buffer.baseAddress = baseAddress;
-  // buffer.data.assign(data, data + size);
-  // codeBuffers_.push_back(std::move(buffer));
-  // REXLOG_DEBUG(codegen, "FunctionGraph: added code buffer 0x{:08X}-0x{:08X} ({} bytes)",
-  //                 baseAddress, baseAddress + static_cast<uint32_t>(size), size);
-}
-
-const uint8_t* FunctionGraph::translateCode(uint32_t addr) const {
-  REX_ASSERT_ALWAYS("FunctionGraph::translateCode not implemented. Use Recompiler with builders");
-  return nullptr;
-  // for (const auto& buffer : codeBuffers_) {
-  //     if (buffer.contains(addr)) {
-  //         return buffer.translate(addr);
-  //     }
-  // }
-  // return nullptr;
-}
-
 //=============================================================================
 // FunctionGraph - Function Management
 //=============================================================================
