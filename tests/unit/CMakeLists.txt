@@ -50,6 +50,7 @@ add_executable(unit_tests
     core/fat_timestamp_test.cpp
     core/cli_arg_list_test.cpp
     core/cvar_test.cpp
+    core/endian_atomic_test.cpp
     core/config_test.cpp
     core/core_fixes_test.cpp
     core/crash_reporter_test.cpp

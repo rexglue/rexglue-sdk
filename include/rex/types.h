@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <bit>
 #include <compare>
 #include <concepts>
@@ -120,6 +121,64 @@ struct endian_store {
       return value;
     }
     return rex::byte_swap(value);
+  }
+
+  /**
+   * Loads the native value atomically.
+   *
+   * @param order The memory order of the load.
+   * @return The value in native byte order.
+   */
+  T load(std::memory_order order) const {
+    static_assert(std::atomic_ref<T>::is_always_lock_free);
+    REX_ASSERT(std::bit_cast<uintptr_t>(&value) % std::atomic_ref<T>::required_alignment == 0);
+    const T raw = std::atomic_ref<const T>(value).load(order);
+    if constexpr (std::endian::native == E) {
+      return raw;
+    }
+    return rex::byte_swap(raw);
+  }
+
+  /**
+   * Stores a native value in byte order E atomically.
+   *
+   * @param src The native value.
+   * @param order The memory order of the store.
+   */
+  void store(T src, std::memory_order order) {
+    static_assert(std::atomic_ref<T>::is_always_lock_free);
+    REX_ASSERT(std::bit_cast<uintptr_t>(&value) % std::atomic_ref<T>::required_alignment == 0);
+    if constexpr (std::endian::native != E) {
+      src = rex::byte_swap(src);
+    }
+    std::atomic_ref<T>(value).store(src, order);
+  }
+
+  /**
+   * Replaces the value atomically when it equals an expected native value.
+   *
+   * @param expected The native value to compare. Receives the current native value on failure.
+   * @param desired The native value to store on success.
+   * @param order The memory order of the exchange.
+   * @return True when the value matched and desired was stored.
+   */
+  bool compare_exchange(T& expected, T desired, std::memory_order order) {
+    static_assert(std::atomic_ref<T>::is_always_lock_free);
+    REX_ASSERT(std::bit_cast<uintptr_t>(&value) % std::atomic_ref<T>::required_alignment == 0);
+    T raw_expected = expected;
+    if constexpr (std::endian::native != E) {
+      raw_expected = rex::byte_swap(expected);
+      desired = rex::byte_swap(desired);
+    }
+    if (std::atomic_ref<T>(value).compare_exchange_strong(raw_expected, desired, order)) {
+      return true;
+    }
+    if constexpr (std::endian::native != E) {
+      expected = rex::byte_swap(raw_expected);
+    } else {
+      expected = raw_expected;
+    }
+    return false;
   }
 
   /**

@@ -11,6 +11,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <atomic>
 #include <chrono>
 #include <string>
 #include <thread>
@@ -44,7 +45,7 @@ void Put(rex::runtime::Memory& memory, rex::u32 physical, rex::u32 value) {
 }
 
 rex::u32 Get(rex::runtime::Memory& memory, rex::u32 physical) {
-  return *memory.TranslatePhysical<const be_u32*>(physical);
+  return memory.TranslatePhysical<const be_u32*>(physical)->load(std::memory_order_acquire);
 }
 
 constexpr rex::u32 kWritePointerRegister = 0x01C5;

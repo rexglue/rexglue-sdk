@@ -139,6 +139,15 @@ class CommandProcessor {
   };
 
   void WorkerThreadMain();
+
+  /**
+   * Writes an occlusion query result with the fields a title polls written last, as release
+   * stores.
+   *
+   * @param counts The guest sample counts.
+   * @param samples The passed sample count for Total_A and ZPass_A. Every other field is 0.
+   */
+  static void WriteSampleCounts(xenos::DepthSampleCounts& counts, u32 samples);
   bool IsWorkerThread();
   bool HasPendingFns();
   void RunPendingFns();

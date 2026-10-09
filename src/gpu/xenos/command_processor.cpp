@@ -57,6 +57,14 @@ ReadbackResolveMode ParseReadbackResolveMode(std::string_view value) {
   return ReadbackResolveMode::kDisabled;
 }
 
+void StoreRelease(void* host, u32 value) {
+  std::atomic_ref<u32>(*static_cast<u32*>(host)).store(value, std::memory_order_release);
+}
+
+u32 LoadAcquire(const void* host) {
+  return std::atomic_ref<const u32>(*static_cast<const u32*>(host)).load(std::memory_order_acquire);
+}
+
 }  // namespace
 
 CommandProcessor::CommandProcessor(GraphicsSystem* graphics_system, Runtime& runtime)
@@ -239,7 +247,8 @@ void CommandProcessor::WorkerThreadMain() {
     // TODO(benvanik): use reader->Read_update_freq_ and only issue after moving
     //     that many indices.
     if (read_ptr_writeback_ptr_) {
-      *memory_->TranslatePhysical<be_u32*>(read_ptr_writeback_ptr_) = read_ptr_index_;
+      memory_->TranslatePhysical<be_u32*>(read_ptr_writeback_ptr_)
+          ->store(read_ptr_index_, std::memory_order_release);
     }
 
     // FIXME: We're supposed to process the WAIT_UNTIL register here,
@@ -317,7 +326,7 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
       // Enabled - write to address.
       uint32_t scratch_addr = regs.values[std::to_underlying(xenos::Register::SCRATCH_ADDR)];
       uint32_t mem_addr = scratch_addr + (scratch_reg * 4);
-      *memory_->TranslatePhysical<be_u32*>(mem_addr) = value;
+      memory_->TranslatePhysical<be_u32*>(mem_addr)->store(value, std::memory_order_release);
     }
   } else {
     switch (index) {
@@ -950,8 +959,7 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reade
   do {
     uint32_t value = 0;
     if (is_memory) {
-      value = *reinterpret_cast<uint32_t*>(
-          memory_->TranslatePhysical(poll_reg_addr & ~static_cast<uint32_t>(0x3)));
+      value = LoadAcquire(memory_->TranslatePhysical(poll_reg_addr & ~static_cast<uint32_t>(0x3)));
       value = xenos::GPUSwap(value, static_cast<xenos::Endian>(poll_reg_addr & 0x3));
     } else {
       value = ReadRegisterValue(poll_reg_addr);
@@ -1053,7 +1061,7 @@ bool CommandProcessor::ExecutePacketType3_REG_TO_MEM(memory::RingBuffer* reader,
   auto endianness = static_cast<xenos::Endian>(mem_addr & 0x3);
   mem_addr &= ~0x3;
   reg_val = GPUSwap(reg_val, endianness);
-  memory::store(memory_->TranslatePhysical(mem_addr), reg_val);
+  StoreRelease(memory_->TranslatePhysical(mem_addr), reg_val);
 
   return true;
 }
@@ -1067,7 +1075,7 @@ bool CommandProcessor::ExecutePacketType3_MEM_WRITE(memory::RingBuffer* reader,
     auto endianness = static_cast<xenos::Endian>(write_addr & 0x3);
     auto addr = write_addr & ~0x3;
     write_data = GPUSwap(write_data, endianness);
-    memory::store(memory_->TranslatePhysical(addr), write_data);
+    StoreRelease(memory_->TranslatePhysical(addr), write_data);
     write_addr += 4;
   }
 
@@ -1089,7 +1097,7 @@ bool CommandProcessor::ExecutePacketType3_COND_WRITE(memory::RingBuffer* reader,
     // Memory.
     auto endianness = static_cast<xenos::Endian>(poll_reg_addr & 0x3);
     poll_reg_addr &= ~0x3;
-    value = memory::load<uint32_t>(memory_->TranslatePhysical(poll_reg_addr));
+    value = LoadAcquire(memory_->TranslatePhysical(poll_reg_addr));
     value = GPUSwap(value, endianness);
   } else {
     // Register.
@@ -1129,7 +1137,7 @@ bool CommandProcessor::ExecutePacketType3_COND_WRITE(memory::RingBuffer* reader,
       auto endianness = static_cast<xenos::Endian>(write_reg_addr & 0x3);
       write_reg_addr &= ~0x3;
       write_data = GPUSwap(write_data, endianness);
-      memory::store(memory_->TranslatePhysical(write_reg_addr), write_data);
+      StoreRelease(memory_->TranslatePhysical(write_reg_addr), write_data);
     } else {
       // Register.
       WriteRegister(write_reg_addr, write_data);
@@ -1175,7 +1183,7 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_SHD(memory::RingBuffer* re
   auto endianness = static_cast<xenos::Endian>(address & 0x3);
   address &= ~0x3;
   data_value = GPUSwap(data_value, endianness);
-  memory::store(memory_->TranslatePhysical(address), data_value);
+  StoreRelease(memory_->TranslatePhysical(address), data_value);
   return true;
 }
 
@@ -1208,6 +1216,17 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_EXT(memory::RingBuffer* re
   return true;
 }
 
+void CommandProcessor::WriteSampleCounts(xenos::DepthSampleCounts& counts, u32 samples) {
+  counts.Total_A = samples;
+  counts.Total_B = 0;
+  counts.StencilFail_A = 0;
+  counts.StencilFail_B = 0;
+  counts.ZFail_B.store(0, std::memory_order_release);
+  counts.ZFail_A.store(0, std::memory_order_release);
+  counts.ZPass_B.store(0, std::memory_order_release);
+  counts.ZPass_A.store(samples, std::memory_order_release);
+}
+
 bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffer* reader,
                                                           [[maybe_unused]] u32 packet, u32 count) {
   // Set by D3D as BE but struct ABI is LE
@@ -1234,11 +1253,9 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffer* re
     // Older versions of D3D also checks for ZFail (4D5307D5).
     bool is_end_via_z_fail =
         pSampleCounts->ZFail_A == kQueryFinished || pSampleCounts->ZFail_B == kQueryFinished;
-    std::memset(pSampleCounts, 0, sizeof(DepthSampleCounts));
-    if (is_end_via_z_pass || is_end_via_z_fail) {
-      pSampleCounts->ZPass_A = fake_sample_count;
-      pSampleCounts->Total_A = fake_sample_count;
-    }
+    WriteSampleCounts(*pSampleCounts, is_end_via_z_pass || is_end_via_z_fail
+                                          ? static_cast<u32>(fake_sample_count)
+                                          : 0);
   }
 
   return true;

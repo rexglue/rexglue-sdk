@@ -1002,10 +1002,11 @@ static void KfLowerIrql(runtime::Memory& memory, PPCContext* ctx, unsigned char 
 uint32_t KeKfAcquireSpinLock(runtime::Memory& memory, PPCContext* ctx, X_KSPINLOCK* lock,
                              bool change_irql) {
   uint32_t old_irql = change_irql ? KfRaiseIrql(memory, ctx, IRQL_DISPATCH) : 0;
-  uint32_t pcr_addr = static_cast<uint32_t>(ctx->r13.u64);
-  const uint32_t self = std::byteswap(pcr_addr);
-  REX_ASSERT(lock->prcb_of_owner.value != self);  // self-deadlock detection
-  while (!rex::platform::atomic_cas(0u, self, &lock->prcb_of_owner.value)) {
+  const u32 pcr_addr = static_cast<u32>(ctx->r13.u64);
+  REX_ASSERT(lock->prcb_of_owner.load(std::memory_order_relaxed) != pcr_addr);
+  for (u32 expected = 0;
+       !lock->prcb_of_owner.compare_exchange(expected, pcr_addr, std::memory_order_acquire);
+       expected = 0) {
     rex::platform::MaybeYield();
   }
   return old_irql;
@@ -1013,8 +1014,9 @@ uint32_t KeKfAcquireSpinLock(runtime::Memory& memory, PPCContext* ctx, X_KSPINLO
 
 void KeKfReleaseSpinLock(runtime::Memory& memory, PPCContext* ctx, X_KSPINLOCK* lock,
                          uint32_t old_irql, bool change_irql) {
-  REX_ASSERT(lock->prcb_of_owner == static_cast<uint32_t>(ctx->r13.u64));
-  rex::platform::atomic_store_release(0u, &lock->prcb_of_owner.value);
+  REX_ASSERT(lock->prcb_of_owner.load(std::memory_order_relaxed) ==
+             static_cast<uint32_t>(ctx->r13.u64));
+  lock->prcb_of_owner.store(0, std::memory_order_release);
   if (change_irql && old_irql < IRQL_DISPATCH) {
     KfLowerIrql(memory, ctx, static_cast<unsigned char>(old_irql));
   }
@@ -1101,11 +1103,11 @@ void KeAcquireSpinLockAtRaisedIrql_entry(mapped_u32 lock_ptr) {
 u32 KeTryToAcquireSpinLockAtRaisedIrql_entry(mapped_u32 lock_ptr) {
   auto lock = reinterpret_cast<X_KSPINLOCK*>(lock_ptr.host_address());
   auto* ctx = ThreadState::Get()->context();
-  uint32_t pcr_addr = static_cast<uint32_t>(ctx->r13.u64);
-  if (!rex::platform::atomic_cas(0u, std::byteswap(pcr_addr), &lock->prcb_of_owner.value)) {
-    return 0;
-  }
-  return 1;
+  u32 expected = 0;
+  return lock->prcb_of_owner.compare_exchange(expected, static_cast<u32>(ctx->r13.u64),
+                                              std::memory_order_acquire)
+             ? 1
+             : 0;
 }
 
 void KeReleaseSpinLockFromRaisedIrql_entry(mapped_u32 lock_ptr) {
@@ -1338,7 +1340,7 @@ void ExInitializeReadWriteLock_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {
                                   lock_ptr.guest_address() + offsetof(X_ERWLOCK, reader_semaphore));
   KeInitializeEvent_entry(event_ptr, 1, 0);
   KeInitializeSemaphore_entry(sem_ptr, 0, 0x7FFFFFFF);
-  lock_ptr->spin_lock.prcb_of_owner = 0;
+  lock_ptr->spin_lock.prcb_of_owner.store(0, std::memory_order_release);
 }
 
 void ExAcquireReadWriteLockExclusive_entry(ppc_ptr_t<X_ERWLOCK> lock_ptr) {

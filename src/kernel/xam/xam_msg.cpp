@@ -103,21 +103,17 @@ u32 XMsgCompleteIORequest_entry(ppc_ptr_t<XAM_OVERLAPPED> overlapped_ptr, u32 re
 
 u32 XamGetOverlappedResult_entry(ppc_ptr_t<XAM_OVERLAPPED> overlapped_ptr, mapped_u32 length_ptr,
                                  u32 unknown) {
-  uint32_t result;
-  if (overlapped_ptr->result != X_ERROR_IO_PENDING) {
-    result = overlapped_ptr->result;
-  } else if (!overlapped_ptr->event) {
+  XAM_OVERLAPPED* overlapped = overlapped_ptr.host_address();
+  uint32_t result = XOverlappedGetResult(overlapped);
+  if (result == X_ERROR_IO_PENDING && !overlapped->event) {
     result = X_ERROR_IO_INCOMPLETE;
-  } else {
-    result = WaitOn(runtime::Current(), overlapped_ptr->event, 3, 1, 0, nullptr);
-    if (XSUCCEEDED(result)) {
-      result = overlapped_ptr->result;
-    } else {
-      result = xboxkrnl::RtlNtStatusToDosError(result);
-    }
+  } else if (result == X_ERROR_IO_PENDING) {
+    result = WaitOn(runtime::Current(), overlapped->event, 3, 1, 0, nullptr);
+    result = XSUCCEEDED(result) ? XOverlappedGetResult(overlapped)
+                                : xboxkrnl::RtlNtStatusToDosError(result);
   }
   if (XSUCCEEDED(result) && length_ptr) {
-    *length_ptr = overlapped_ptr->length;
+    *length_ptr = overlapped->length;
   }
   return result;
 }

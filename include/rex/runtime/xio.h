@@ -47,7 +47,10 @@ struct XAM_OVERLAPPED {
 REX_STATIC_ASSERT_SIZE(XAM_OVERLAPPED, 0x1C);
 
 inline void XOverlappedSetResult(void* ptr, uint32_t value) {
-  static_cast<XAM_OVERLAPPED*>(ptr)->result = value;
+  static_cast<XAM_OVERLAPPED*>(ptr)->result.store(value, std::memory_order_release);
+}
+inline uint32_t XOverlappedGetResult(void* ptr) {
+  return static_cast<XAM_OVERLAPPED*>(ptr)->result.load(std::memory_order_acquire);
 }
 inline void XOverlappedSetLength(void* ptr, uint32_t value) {
   static_cast<XAM_OVERLAPPED*>(ptr)->length = value;

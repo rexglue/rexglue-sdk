@@ -191,11 +191,9 @@ bool D3D12CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffe
         sample_counts->ZPass_A == kQueryFinished || sample_counts->ZPass_B == kQueryFinished;
     bool is_end_via_z_fail =
         sample_counts->ZFail_A == kQueryFinished || sample_counts->ZFail_B == kQueryFinished;
-    std::memset(sample_counts, 0, sizeof(xenos::DepthSampleCounts));
-    if (is_end_via_z_pass || is_end_via_z_fail) {
-      sample_counts->ZPass_A = fake_sample_count;
-      sample_counts->Total_A = fake_sample_count;
-    }
+    WriteSampleCounts(*sample_counts, is_end_via_z_pass || is_end_via_z_fail
+                                          ? static_cast<u32>(fake_sample_count)
+                                          : 0);
     return true;
   };
 
@@ -5015,14 +5013,7 @@ void D3D12CommandProcessor::WriteGuestOcclusionResult(xenos::DepthSampleCounts* 
   }
   uint32_t clamped =
       samples > static_cast<uint64_t>(UINT32_MAX) ? UINT32_MAX : static_cast<uint32_t>(samples);
-  sample_counts->Total_A = clamped;
-  sample_counts->Total_B = 0;
-  sample_counts->ZPass_A = clamped;
-  sample_counts->ZPass_B = 0;
-  sample_counts->ZFail_A = 0;
-  sample_counts->ZFail_B = 0;
-  sample_counts->StencilFail_A = 0;
-  sample_counts->StencilFail_B = 0;
+  WriteSampleCounts(*sample_counts, clamped);
 }
 
 void D3D12CommandProcessor::WriteGammaRampSRV(bool is_pwl,

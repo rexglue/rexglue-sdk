@@ -73,9 +73,9 @@ Dispatcher::~Dispatcher() {
 void Dispatcher::CompleteOverlappedEx(u32 overlapped_ptr, X_RESULT result, u32 extended_error,
                                       u32 length) {
   auto ptr = runtime_.memory()->TranslateVirtual(overlapped_ptr);
-  XOverlappedSetResult(ptr, result);
   XOverlappedSetExtendedError(ptr, extended_error);
   XOverlappedSetLength(ptr, length);
+  XOverlappedSetResult(ptr, result);
   X_HANDLE event_handle = XOverlappedGetEvent(ptr);
   if (event_handle) {
     auto ev = runtime_.object_table().Get<EventObject>(event_handle);

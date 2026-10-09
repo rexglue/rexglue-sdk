@@ -20,6 +20,8 @@
 
 #include <rex/api.h>
 #include <rex/runtime/thread_registry.h>
+#include <rex/runtime/xio.h>
+#include <rex/runtime/xmemory.h>
 #include <rex/runtime/xthread.h>
 #include <rex/string.h>
 #include <rex/ui/null_user_interface.h>
@@ -158,12 +160,13 @@ rex::u32 MessageBox(rex::testing::Caller& caller, rex::Runtime& runtime, std::u1
   return caller.Load32(result_ptr);
 }
 
-rex::u32 WaitOverlapped(rex::testing::Caller& caller, rex::u32 overlapped) {
+rex::u32 WaitOverlapped(rex::Runtime& runtime, rex::u32 overlapped) {
+  auto* host = runtime.memory()->TranslateVirtual<XAM_OVERLAPPED*>(overlapped);
   const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
-  while (caller.Load32(overlapped) == kIOPending && std::chrono::steady_clock::now() < deadline) {
+  while (XOverlappedGetResult(host) == kIOPending && std::chrono::steady_clock::now() < deadline) {
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
   }
-  return caller.Load32(overlapped);
+  return XOverlappedGetResult(host);
 }
 
 }  // namespace
@@ -233,7 +236,7 @@ TEST_CASE("XamShowKeyboardUI writes the typed text and completes the overlapped"
         "XamShowKeyboardUI",
         {0, 0, PutWide(caller, fixture.runtime(), u"Seed"), 0, 0, buffer, 16, overlapped});
     CHECK(status == 0x3E5);
-    CHECK(WaitOverlapped(caller, overlapped) == 0);
+    CHECK(WaitOverlapped(fixture.runtime(), overlapped) == 0);
     CHECK(caller.Load32(overlapped + 0x18) == 0);
     CHECK(ReadWide(fixture.runtime(), buffer) == u"Tom");
     CHECK(scripted.Desc().title == "Keyboard Input");
@@ -255,8 +258,8 @@ TEST_CASE("XamShowKeyboardUI uses the description as the title when no title is 
         "XamShowKeyboardUI",
         {0, 0, 0, 0, PutWide(caller, fixture.runtime(), u"Enter a name"), buffer, 16, overlapped});
     WaitOverlapped(fixture.runtime(), overlapped);
-    CHECK(scripted.Desc().title == "Enter a name");
-    CHECK(scripted.Desc().body.empty());
+    CHECK(scripted.desc.title == "Enter a name");
+    CHECK(scripted.desc.body.empty());
   });
 }
 
@@ -269,7 +272,7 @@ TEST_CASE("XamShowKeyboardUI reports a cancelled prompt as cancelled and leaves 
     const rex::u32 buffer = caller.Alloc(32);
     const rex::u32 overlapped = caller.Alloc(0x1C);
     caller.XAM("XamShowKeyboardUI", {0, 0, 0, 0, 0, buffer, 16, overlapped});
-    CHECK(WaitOverlapped(caller, overlapped) == 0);
+    CHECK(WaitOverlapped(fixture.runtime(), overlapped) == 0);
     CHECK(caller.Load32(overlapped + 0x18) == kCancelled);
     CHECK(caller.Load32(buffer) == 0);
   });
@@ -282,7 +285,7 @@ TEST_CASE("XamShowKeyboardUI without a ui copies the default text", "[xam][ui]")
     const rex::u32 overlapped = caller.Alloc(0x1C);
     caller.XAM("XamShowKeyboardUI",
                {0, 0, PutWide(caller, fixture.runtime(), u"Seed"), 0, 0, buffer, 16, overlapped});
-    CHECK(WaitOverlapped(caller, overlapped) == 0);
+    CHECK(WaitOverlapped(fixture.runtime(), overlapped) == 0);
     CHECK(ReadWide(fixture.runtime(), buffer) == u"Seed");
   });
 }
