@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <vector>
 
 #include <rex/dbg.h>
 #include <rex/logging.h>
@@ -14,6 +15,7 @@
 #include <rex/runtime/xobject.h>
 #include <rex/runtime/xthread.h>
 
+#include "runtime/thread_wait.h"
 #include "runtime/xma/decoder.h"
 
 namespace rex::runtime {
@@ -111,7 +113,7 @@ void APU::WorkerMain() {
   worker_running_ = false;
 }
 
-void APU::Shutdown() {
+void APU::StopWorker() {
   {
     std::lock_guard pause_lock(pause_mutex_);
     if (worker_running_) {
@@ -127,22 +129,23 @@ void APU::Shutdown() {
   }
   if (worker_thread_) {
     {
-      ThreadPin pin = runtime_.thread_registry().FindByHandle(worker_thread_);
-      platform::Thread* host_thread = pin ? pin->thread() : nullptr;
-      const bool exited =
-          host_thread && platform::Wait(host_thread, false, kWorkerShutdownTimeout) ==
-                             platform::WaitResult::kSuccess;
-      if (!exited) {
-        REXLOG_WARN(apu, "Audio worker did not exit within {} ms; terminating",
-                    kWorkerShutdownTimeout.count());
-        if (pin) {
-          pin->Terminate(0);
-        }
+      if (ThreadPin pin = runtime_.thread_registry().FindByHandle(worker_thread_)) {
+        pin->RequestStop();
+        std::vector<ThreadPin> threads;
+        threads.push_back(std::move(pin));
+        WaitForThreadsToStop(threads, kWorkerShutdownTimeout, [](const ThreadPin&) {
+          REXLOG_WARN(apu, "Audio worker still running after {} ms",
+                      kWorkerShutdownTimeout.count());
+        });
       }
     }
     (void)runtime_.object_table().Close(worker_thread_);
     worker_thread_ = 0;
   }
+}
+
+void APU::Shutdown() {
+  StopWorker();
   std::lock_guard lock(mutex_);
   for (Client& client : clients_) {
     if (!client.in_use) {

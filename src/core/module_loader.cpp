@@ -91,8 +91,8 @@ u64 InterfaceRequestCount() {
 }
 
 ModuleLoader& ModuleLoader::Instance() {
-  static ModuleLoader* instance = new ModuleLoader();
-  return *instance;
+  static ModuleLoader instance;
+  return instance;
 }
 
 Error ModuleLoader::ModuleError(std::string message) {
@@ -297,7 +297,6 @@ Result<void> ModuleLoader::InitAll() {
 
 void ModuleLoader::UnwindAll() {
   ShutdownModules();
-  platform::detail::ShutdownTimerQueue();
   CloseLibraries();
   StopLogger();
 }
@@ -315,21 +314,24 @@ void ModuleLoader::ShutdownModules() {
       it->connected = false;
     }
   }
-  StopLogger();
+  DetachLoggerCvars();
   UnregisterTables();
   registry_.clear();
+}
+
+void ModuleLoader::CloseLibraries() {
   for (auto it = loaded_.rbegin(); it != loaded_.rend(); ++it) {
     it->module = nullptr;
     it->interfaces = {};
     it->library.Close();
   }
   loaded_.clear();
+  initialized_ = false;
+  connected_ = false;
 }
 
 void ModuleLoader::Shutdown() {
   UnwindAll();
-  initialized_ = false;
-  connected_ = false;
 }
 
 Result<void> ModuleLoader::RegisterConsumerTables() {

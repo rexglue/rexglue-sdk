@@ -11,7 +11,9 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <span>
 #include <string>
+#include <string_view>
 
 #include <rex/macros.h>
 #include <rex/platform.h>
@@ -84,6 +86,17 @@ class REX_API DynamicLibrary : public rex::MoveOnly {
   void* handle_ = nullptr;
   std::string last_error_;
 };
+
+#if REX_PLATFORM_WIN32
+/**
+ * Finds a section of a loaded image by name.
+ *
+ * @param image The base address of the image.
+ * @param name The section name, at most 8 characters.
+ * @return The section bytes, empty when the image has no such section.
+ */
+REX_API std::span<const u8> FindImageSection(const void* image, std::string_view name);
+#endif
 
 namespace lib_names {
 

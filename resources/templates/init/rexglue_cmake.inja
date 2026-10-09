@@ -44,6 +44,8 @@ if(WIN32)
     elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         list(APPEND REXGLUE_RECOMP_OPTIONS -fasync-exceptions)
     endif()
+else()
+    list(APPEND REXGLUE_RECOMP_OPTIONS -fasynchronous-unwind-tables)
 endif()
 if(REXGLUE_RECOMP_DEBUG_INFO STREQUAL "none")
     list(APPEND REXGLUE_RECOMP_OPTIONS

@@ -13,6 +13,8 @@ static_assert(REX_PLATFORM_WIN32, "This file is Windows-only");
 #include "core/thread_registry.h"
 #include "platform_win.h"
 
+#include <array>
+#include <cstring>
 #include <rex/assert.h>
 #include <rex/logging.h>
 #include <rex/chrono/chrono_steady_cast.h>
@@ -419,6 +421,37 @@ std::unique_ptr<Timer> Timer::CreateSynchronizationTimer() {
   }
 }
 
+extern "C" void rex_redirect_stub();
+
+#if REX_ARCH_AMD64
+__asm__(
+    ".text\n"
+    ".globl rex_redirect_stub\n"
+    ".p2align 4\n"
+    "rex_redirect_stub:\n"
+    ".seh_proc rex_redirect_stub\n"
+    ".seh_pushframe\n"
+    "subq $32, %rsp\n"
+    ".seh_stackalloc 32\n"
+    ".seh_endprologue\n"
+    "callq *%rax\n"
+    "int3\n"
+    ".seh_endproc\n");
+#elif REX_ARCH_ARM64
+__asm__(
+    ".text\n"
+    ".globl rex_redirect_stub\n"
+    ".p2align 2\n"
+    "rex_redirect_stub:\n"
+    ".seh_proc rex_redirect_stub\n"
+    ".seh_context\n"
+    ".seh_endprologue\n"
+    "blr x16\n"
+    "brk #0xf000\n"
+    ".seh_endfunclet\n"
+    ".seh_endproc\n");
+#endif
+
 class Win32Thread : public Win32Handle<Thread> {
  public:
   explicit Win32Thread(HANDLE handle) : Win32Handle(handle) {}
@@ -490,11 +523,53 @@ class Win32Thread : public Win32Handle<Thread> {
     return true;
   }
 
-  void Terminate(int exit_code) override {
-    detail::UnregisterThread(::GetThreadId(handle_));
-    if (TerminateThread(handle_, exit_code)) {
-      WaitForSingleObject(handle_, INFINITE);
+  bool Redirect(RedirectFilter filter, void* context, void (*target)()) override {
+    if (SuspendThread(handle_) == UINT_MAX) {
+      return false;
     }
+    CONTEXT state{};
+    state.ContextFlags = CONTEXT_FULL;
+    bool redirected = false;
+#if REX_ARCH_AMD64
+    if (GetThreadContext(handle_, &state) && filter(state.Rip, context)) {
+      const u64 frame = (state.Rsp - 5 * sizeof(u64)) & ~u64{0xF};
+      const std::array<u64, 5> machine_frame{state.Rip, state.SegCs, state.EFlags, state.Rsp,
+                                             state.SegSs};
+      std::memcpy(reinterpret_cast<void*>(frame), machine_frame.data(), sizeof(machine_frame));
+      state.Rsp = frame;
+      state.Rip = reinterpret_cast<u64>(&rex_redirect_stub);
+      state.Rax = reinterpret_cast<u64>(target);
+      redirected = SetThreadContext(handle_, &state) != 0;
+    }
+#elif REX_ARCH_ARM64
+    if (GetThreadContext(handle_, &state) && filter(state.Pc, context)) {
+      const u64 frame = (state.Sp - sizeof(CONTEXT)) & ~u64{0xF};
+      std::memcpy(reinterpret_cast<void*>(frame), &state, sizeof(CONTEXT));
+      state.Sp = frame;
+      state.Pc = reinterpret_cast<u64>(&rex_redirect_stub);
+      state.X16 = reinterpret_cast<u64>(target);
+      redirected = SetThreadContext(handle_, &state) != 0;
+    }
+#endif
+    ResumeThread(handle_);
+    return redirected;
+  }
+
+  bool SuspendIf(RedirectFilter filter, void* context) override {
+    if (SuspendThread(handle_) == UINT_MAX) {
+      return false;
+    }
+    CONTEXT state{};
+    state.ContextFlags = CONTEXT_CONTROL;
+#if REX_ARCH_AMD64
+    const bool accepted = GetThreadContext(handle_, &state) && filter(state.Rip, context);
+#elif REX_ARCH_ARM64
+    const bool accepted = GetThreadContext(handle_, &state) && filter(state.Pc, context);
+#endif
+    if (!accepted) {
+      ResumeThread(handle_);
+    }
+    return accepted;
   }
 
  private:

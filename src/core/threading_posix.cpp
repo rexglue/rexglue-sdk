@@ -5,6 +5,7 @@
  * @license     BSD 3-Clause License
  */
 
+#include <rex/net/socket.h>
 #include <rex/platform.h>
 #include <rex/platform/thread.h>
 
@@ -15,6 +16,7 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 #include <atomic>
 #include <array>
 #include <cerrno>
+#include <chrono>
 #include <cstddef>
 #include <ctime>
 #include <deque>
@@ -25,6 +27,7 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 #include <utility>
 #include <vector>
 
+#include <poll.h>
 #include <pthread.h>
 #include <semaphore.h>
 
@@ -43,6 +46,7 @@ static_assert(REX_PLATFORM_LINUX || REX_PLATFORM_MAC, "This file is POSIX-only")
 #include <rex/logging.h>
 #include <rex/platform/timer_queue.h>
 
+#include "core/signal_context.h"
 #include "core/thread_registry.h"
 
 #include <sched.h>
@@ -107,17 +111,7 @@ inline timespec DurationToTimeSpec(std::chrono::duration<_Rep, _Period> duration
 // This implementation uses the SIGRTMAX - SIGRTMIN to signal to a thread
 // gdb tip, for SIG = SIGRTMIN + SignalType : handle SIG nostop
 // lldb tip, for SIG = SIGRTMIN + SignalType : process handle SIG -s false
-enum class SignalType : u8 {
-  kThreadSuspend,
-  kThreadUserCallback,
-#if REX_PLATFORM_ANDROID
-  // pthread_cancel is not available on Android, using a signal handler for
-  // simplified PTHREAD_CANCEL_ASYNCHRONOUS-like behavior - not disabling
-  // cancellation, so should be enough.
-  kThreadTerminate,
-#endif
-  k_Count
-};
+enum class SignalType : u8 { kThreadSuspend, kThreadUserCallback, k_Count };
 
 int GetSystemSignal(SignalType num) {
 #if defined(__APPLE__)
@@ -586,8 +580,8 @@ class PosixCondition<Mutant> : public PosixConditionBase {
   };
 
   static MutantRegistry& Registry() {
-    static auto* registry = new MutantRegistry();
-    return *registry;
+    static MutantRegistry registry;
+    return registry;
   }
 
   bool signaled() const override { return count_ == 0 || pthread_equal(owner_, pthread_self()); }
@@ -958,6 +952,10 @@ class PosixCondition<Thread> : public PosixConditionBase {
       return;
     }
 
+    std::unique_lock<std::mutex> lock(state_mutex_);
+    if (state_ == State::kFinished) {
+      return;
+    }
 #if defined(__APPLE__)
     // macOS has no sigqueue/pthread_sigqueue; pthread_kill delivers the signal
     // without the sigval payload.
@@ -972,6 +970,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
     int result = pthread_sigqueue(thread_, GetSystemSignal(SignalType::kThreadUserCallback), value);
 #endif
 #endif
+    lock.unlock();
     if (result != 0) {
       REXLOG_WARN(system, "QueueUserCallback: signal delivery failed ({})", result);
     }
@@ -1027,68 +1026,145 @@ class PosixCondition<Thread> : public PosixConditionBase {
     }
     WaitStarted();
     bool is_current_thread = pthread_self() == thread_;
-    bool already_suspended = false;
-    {
-      std::unique_lock<std::mutex> lock(state_mutex_);
-      if (out_previous_suspend_count) {
-        *out_previous_suspend_count = suspend_count_;
-      }
-      state_ = State::kSuspended;
-      already_suspended = suspend_count_++ > 0;
+    std::unique_lock<std::mutex> lock(state_mutex_);
+    if (state_ == State::kFinished) {
+      return false;
     }
-
+    if (out_previous_suspend_count) {
+      *out_previous_suspend_count = suspend_count_;
+    }
+    state_ = State::kSuspended;
+    const bool already_suspended = suspend_count_++ > 0;
     if (is_current_thread) {
+      lock.unlock();
       WaitSuspended();
       return true;
     }
     if (already_suspended) {
       return true;
     }
-
-    int result = pthread_kill(thread_, GetSystemSignal(SignalType::kThreadSuspend));
-    return result == 0;
+    park_requests_.fetch_add(1, std::memory_order_acq_rel);
+    return pthread_kill(thread_, GetSystemSignal(SignalType::kThreadSuspend)) == 0;
   }
 
-  void Terminate(int exit_code) {
-    bool is_current_thread = pthread_self() == thread_;
+  bool SuspendIf(Thread::RedirectFilter filter, void* context) {
+    WaitStarted();
+    if (pthread_equal(thread_, pthread_self())) {
+      return false;
+    }
+    std::lock_guard redirect_lock(redirect_mutex_);
     {
-      std::unique_lock<std::mutex> lock(state_mutex_);
+      std::unique_lock lock(state_mutex_);
       if (state_ == State::kFinished) {
-        if (is_current_thread) {
-          // This is bad. Some thread must have called Terminate() on us
-          // right before we decided to terminate ourselves
-          REX_ASSERT_ALWAYS();
-          for (;;) {
-            // Wait for pthread_cancel() to happen.
-          }
-        }
+        return false;
+      }
+      if (suspend_count_ > 0) {
+        ++suspend_count_;
+        return true;
+      }
+      suspend_count_ = 1;
+      state_ = State::kSuspended;
+      suspend_filter_ = filter;
+      suspend_filter_context_ = context;
+      suspend_result_.store(kRedirectWaiting, std::memory_order_relaxed);
+      suspend_pending_.store(true, std::memory_order_release);
+      if (pthread_kill(thread_, GetSystemSignal(SignalType::kThreadSuspend)) != 0) {
+        suspend_pending_.store(false, std::memory_order_relaxed);
+        suspend_count_ = 0;
+        state_ = State::kRunning;
+        return false;
+      }
+    }
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(100);
+    while (suspend_result_.load(std::memory_order_acquire) == kRedirectWaiting) {
+      if (std::chrono::steady_clock::now() >= deadline &&
+          suspend_pending_.exchange(false, std::memory_order_acq_rel)) {
+        break;
+      }
+      sched_yield();
+    }
+    if (suspend_result_.load(std::memory_order_acquire) == kRedirectTaken) {
+      return true;
+    }
+    std::unique_lock lock(state_mutex_);
+    suspend_count_ = 0;
+    state_ = State::kRunning;
+    return false;
+  }
+
+  void HandleSuspend(void* signal_context) {
+    if (suspend_pending_.exchange(false, std::memory_order_acq_rel)) {
+      if (!suspend_filter_(detail::SignalPc(signal_context), suspend_filter_context_)) {
+        suspend_result_.store(kRedirectRefused, std::memory_order_release);
         return;
       }
+      suspend_result_.store(kRedirectTaken, std::memory_order_release);
+      WaitSuspended();
+      return;
+    }
+    if (park_requests_.load(std::memory_order_acquire) > 0) {
+      park_requests_.fetch_sub(1, std::memory_order_acq_rel);
+      WaitSuspended();
+    }
+  }
+
+  bool Redirect(Thread::RedirectFilter filter, void* context, void (*target)()) {
+    WaitStarted();
+    if (pthread_equal(thread_, pthread_self())) {
+      return false;
+    }
+    std::lock_guard lock(redirect_mutex_);
+    install_signal_handler(SignalType::kThreadUserCallback);
+    redirect_filter_ = filter;
+    redirect_context_ = context;
+    redirect_target_ = target;
+    redirect_result_.store(kRedirectWaiting, std::memory_order_relaxed);
+    redirect_pending_.store(true, std::memory_order_release);
+    {
+      std::lock_guard state_lock(state_mutex_);
+      if (state_ == State::kFinished ||
+          pthread_kill(thread_, GetSystemSignal(SignalType::kThreadUserCallback)) != 0) {
+        redirect_pending_.store(false, std::memory_order_relaxed);
+        return false;
+      }
+    }
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(100);
+    while (redirect_result_.load(std::memory_order_acquire) == kRedirectWaiting) {
+      if (std::chrono::steady_clock::now() >= deadline &&
+          redirect_pending_.exchange(false, std::memory_order_acq_rel)) {
+        return false;
+      }
+      sched_yield();
+    }
+    return redirect_result_.load(std::memory_order_acquire) == kRedirectTaken;
+  }
+
+  void HandleRedirect(int signal, void* signal_context) {
+    if (!redirect_pending_.exchange(false, std::memory_order_acq_rel)) {
+      return;
+    }
+    const auto target = redirect_target_;
+    if (!redirect_filter_(detail::SignalPc(signal_context), redirect_context_)) {
+      redirect_result_.store(kRedirectRefused, std::memory_order_release);
+      return;
+    }
+    redirect_result_.store(kRedirectTaken, std::memory_order_release);
+    sigset_t unblock;
+    sigemptyset(&unblock);
+    sigaddset(&unblock, signal);
+    pthread_sigmask(SIG_UNBLOCK, &unblock, nullptr);
+    target();
+  }
+
+  [[noreturn]] void ExitCurrent(int exit_code) {
+    {
+      std::unique_lock<std::mutex> lock(state_mutex_);
       state_ = State::kFinished;
     }
-
-    if (is_current_thread) {
-      PosixCondition<Mutant>::AbandonOwnedBy(thread_);
-      SignalExit(exit_code, false);
-      // NOLINTNEXTLINE(performance-no-int-to-ptr): the pthread API carries the value as a pointer
-      pthread_exit(reinterpret_cast<void*>(exit_code));
-    }
-#if REX_PLATFORM_ANDROID
-    if (pthread_kill(thread_, GetSystemSignal(SignalType::kThreadTerminate)) != 0) {
-      REX_ASSERT_ALWAYS();
-    }
-#else
-    if constexpr (std::is_pointer_v<pthread_t>) {
-      detail::UnregisterThread(reinterpret_cast<uintptr_t>(thread_));
-    } else {
-      detail::UnregisterThread(static_cast<u64>(thread_));
-    }
-    if (pthread_cancel(thread_) != 0) {
-      REX_ASSERT_ALWAYS();
-    }
-#endif
-    pthread_join(thread_, nullptr);
-    SignalExit(exit_code, true);
+    PosixCondition<Mutant>::AbandonOwnedBy(thread_);
+    SignalExit(exit_code, false);
+    // NOLINTNEXTLINE(performance-no-int-to-ptr): the pthread API carries the value as a pointer
+    pthread_exit(reinterpret_cast<void*>(exit_code));
   }
 
   void WaitStarted() const {
@@ -1130,7 +1206,22 @@ class PosixCondition<Thread> : public PosixConditionBase {
     sem_destroy(&suspend_sem_);
 #endif
   }
+  static constexpr int kRedirectWaiting = 0;
+  static constexpr int kRedirectRefused = 1;
+  static constexpr int kRedirectTaken = 2;
+
   pthread_t thread_;
+  std::mutex redirect_mutex_;
+  std::atomic<bool> redirect_pending_{false};
+  std::atomic<int> redirect_result_{kRedirectWaiting};
+  Thread::RedirectFilter redirect_filter_ = nullptr;
+  void* redirect_context_ = nullptr;
+  void (*redirect_target_)() = nullptr;
+  std::atomic<bool> suspend_pending_{false};
+  std::atomic<int> suspend_result_{kRedirectWaiting};
+  std::atomic<u32> park_requests_{0};
+  Thread::RedirectFilter suspend_filter_ = nullptr;
+  void* suspend_filter_context_ = nullptr;
   bool signaled_;
   bool joined_ = false;
   int exit_code_;
@@ -1283,6 +1374,85 @@ WaitResult Wait(WaitHandle* wait_handle, bool is_alertable, std::chrono::millise
       return result;
     }
   }
+}
+
+WaitResult socket_wait(std::span<const SocketWait> sockets, bool alertable,
+                       std::chrono::milliseconds timeout) {
+  std::vector<pollfd> fds;
+  fds.reserve(sockets.size());
+  for (const SocketWait& socket : sockets) {
+    short events = 0;
+    if ((socket.ready & SocketReady::kRead) != SocketReady::kNone) {
+      events |= POLLIN;
+    }
+    if ((socket.ready & SocketReady::kWrite) != SocketReady::kNone) {
+      events |= POLLOUT;
+    }
+    if ((socket.ready & SocketReady::kExcept) != SocketReady::kNone) {
+      events |= POLLPRI;
+    }
+    fds.push_back({static_cast<int>(socket.handle), events, 0});
+  }
+  const auto deadline = ComputeAlertableDeadline(timeout);
+  ScopedAlertableState alertable_state_guard(alertable);
+#if defined(__APPLE__)
+  while (true) {
+    if (alertable && DispatchCurrentThreadUserCallback()) {
+      return WaitResult::kUserCallback;
+    }
+    const auto slice = alertable ? ComputeAlertableWaitTimeout(deadline) : timeout;
+    const int ready =
+        poll(fds.data(), fds.size(),
+             slice == std::chrono::milliseconds::max() ? -1 : static_cast<int>(slice.count()));
+    if (ready > 0) {
+      return WaitResult::kSuccess;
+    }
+    if (ready < 0 && errno != EINTR) {
+      return WaitResult::kFailed;
+    }
+    if (HasAlertableTimeoutElapsed(deadline)) {
+      return WaitResult::kTimeout;
+    }
+  }
+#else
+  sigset_t callback;
+  sigemptyset(&callback);
+  sigaddset(&callback, GetSystemSignal(SignalType::kThreadUserCallback));
+  sigset_t saved;
+  pthread_sigmask(SIG_BLOCK, &callback, &saved);
+  sigset_t during = saved;
+  if (alertable) {
+    sigdelset(&during, GetSystemSignal(SignalType::kThreadUserCallback));
+  }
+  WaitResult result = WaitResult::kFailed;
+  while (true) {
+    if (alertable && DispatchCurrentThreadUserCallback()) {
+      result = WaitResult::kUserCallback;
+      break;
+    }
+    timespec left{};
+    timespec* left_ptr = nullptr;
+    if (deadline != std::chrono::steady_clock::time_point::max()) {
+      left = DurationToTimeSpec(std::max(deadline - std::chrono::steady_clock::now(),
+                                         std::chrono::steady_clock::duration::zero()));
+      left_ptr = &left;
+    }
+    const int ready = ppoll(fds.data(), fds.size(), left_ptr, &during);
+    if (ready > 0) {
+      result = WaitResult::kSuccess;
+      break;
+    }
+    if (ready == 0) {
+      result = WaitResult::kTimeout;
+      break;
+    }
+    if (errno != EINTR) {
+      break;
+    }
+  }
+  pthread_sigmask(SIG_SETMASK, &saved, nullptr);
+  return result;
+#endif
 }
 
 WaitResult SignalAndWait(WaitHandle* wait_handle_to_signal, WaitHandle* wait_handle_to_wait_on,
@@ -1500,12 +1670,27 @@ class PosixThread : public PosixConditionHandle<Thread> {
     return handle_.Suspend(out_previous_suspend_count);
   }
 
-  void Terminate(int exit_code) override { handle_.Terminate(exit_code); }
+  bool Redirect(RedirectFilter filter, void* context, void (*target)()) override {
+    return handle_.Redirect(filter, context, target);
+  }
+
+  [[noreturn]] void ExitCurrent(int exit_code) { handle_.ExitCurrent(exit_code); }
 
   void WaitSuspended() { handle_.WaitSuspended(); }
+
+  bool SuspendIf(RedirectFilter filter, void* context) override {
+    return handle_.SuspendIf(filter, context);
+  }
+
+  void HandleSuspend(void* signal_context) { handle_.HandleSuspend(signal_context); }
+
+  void HandleRedirect(int signal, void* signal_context) {
+    handle_.HandleRedirect(signal, signal_context);
+  }
 };
 
 thread_local PosixThread* current_thread_ = nullptr;
+thread_local std::unique_ptr<PosixThread> owned_current_thread_;
 
 void* PosixCondition<Thread>::ThreadStartRoutine(void* parameter) {
 #if !REX_PLATFORM_ANDROID
@@ -1567,9 +1752,6 @@ std::unique_ptr<Thread> Thread::Create(CreationParameters params,
                                        std::move_only_function<void()> start_routine) {
   install_signal_handler(SignalType::kThreadSuspend);
   install_signal_handler(SignalType::kThreadUserCallback);
-#if REX_PLATFORM_ANDROID
-  install_signal_handler(SignalType::kThreadTerminate);
-#endif
   auto thread = std::make_unique<PosixThread>();
   if (!thread->Initialize(params, std::move(start_routine)))
     return nullptr;
@@ -1586,27 +1768,21 @@ Thread* Thread::GetCurrentThread() {
   // process-wide signal handlers used by suspend/APC machinery.
   install_signal_handler(SignalType::kThreadSuspend);
   install_signal_handler(SignalType::kThreadUserCallback);
-#if REX_PLATFORM_ANDROID
-  install_signal_handler(SignalType::kThreadTerminate);
-#endif
 
   // Should take this route only for threads not created by Thread::Create.
   // The only thread not created by Thread::Create should be the main thread.
   pthread_t handle = pthread_self();
 
-  current_thread_ = new PosixThread(handle);
+  owned_current_thread_ = std::make_unique<PosixThread>(handle);
+  current_thread_ = owned_current_thread_.get();
   current_thread_condition_ = &current_thread_->condition();
-  // TODO(bwrsandman): Disabling deleting thread_local current thread to prevent
-  //                   assert in destructor. Since this is thread local, the
-  //                   "memory leaking" is controlled.
-  // atexit([] { delete current_thread_; });
 
   return current_thread_;
 }
 
 void Thread::Exit(int exit_code) {
   if (current_thread_) {
-    current_thread_->Terminate(exit_code);
+    current_thread_->ExitCurrent(exit_code);
   } else {
     // Should only happen with the main thread
     // NOLINTNEXTLINE(performance-no-int-to-ptr): the pthread API carries the value as a pointer
@@ -1629,23 +1805,19 @@ void set_current_thread_name(const std::string_view name) {
 #endif
 }
 
-static void signal_handler(int signal, siginfo_t* /*info*/, void* /*context*/) {
+static void signal_handler(int signal, siginfo_t* /*info*/, void* context) {
   switch (GetSystemSignalType(signal)) {
     case SignalType::kThreadSuspend: {
       if (!current_thread_) {
         return;
       }
-      current_thread_->WaitSuspended();
+      current_thread_->HandleSuspend(context);
     } break;
     case SignalType::kThreadUserCallback: {
-      // Callbacks are drained from alertable waits in normal thread context.
-      // This signal is only used as a wakeup hint.
+      if (current_thread_) {
+        current_thread_->HandleRedirect(signal, context);
+      }
     } break;
-#if REX_PLATFORM_ANDROID
-    case SignalType::kThreadTerminate: {
-      pthread_exit(reinterpret_cast<void*>(-1));
-    } break;
-#endif
     default:
       REX_ASSERT_ALWAYS();
   }

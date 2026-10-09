@@ -15,10 +15,13 @@
 #include <chrono>
 #include <mutex>
 #include <thread>
+#include <utility>
 #include <vector>
 
+#include <rex/platform/lock_order.h>
 #include <rex/runtime/function_dispatcher.h>
 #include <rex/runtime/thread_state.h>
+#include <rex/runtime/xmemory.h>
 
 #include "kernel_fixture.h"
 
@@ -150,6 +153,16 @@ u32 MakeDPC(Caller& c, void (*routine)(PPCContext&, u8*), u32 context = 0) {
   const u32 dpc = c.Alloc(0x20);
   c.Kernel("KeInitializeDpc", {dpc, thunk, context});
   return dpc;
+}
+
+std::atomic<int> g_violations{0};
+
+void CountViolation(rex::platform::LockRank, rex::platform::LockRank) {
+  ++g_violations;
+}
+
+std::pair<u32, u32> IgnoreInvalidation(void*, u32, u32, bool) {
+  return {0, UINT32_MAX};
 }
 
 std::vector<u32> Order() {
@@ -308,4 +321,29 @@ TEST_CASE("The DPC safe calls work inside a DPC", "[kernel][dpc]") {
   REQUIRE(g_safe_results.size() == 5);
   CHECK(g_safe_results[3] == 0);
   CHECK(g_safe_results[4] == 0);
+}
+
+TEST_CASE("Queueing a DPC that sits in a write watched page keeps the lock order",
+          "[kernel][dpc][lock_order]") {
+#ifdef NDEBUG
+  SKIP("lock order is checked in debug builds only");
+#endif
+  Reset();
+  KernelFixture fixture;
+  fixture.RunOnGuestThread([](Caller& c) {
+    auto& memory = *c.runtime().memory();
+    const u32 thunk = c.runtime().function_dispatcher()->AllocateThunk(&CountingDPC, 0);
+    const u32 dpc = memory.SystemHeapAlloc(0x1000, 0x1000, rex::runtime::kSystemHeapPhysical);
+    REQUIRE(dpc != 0);
+    c.Kernel("KeInitializeDpc", {dpc, thunk, 7});
+    void* handle = memory.RegisterPhysicalMemoryInvalidationCallback(IgnoreInvalidation, nullptr);
+    memory.EnablePhysicalMemoryAccessCallbacks(memory.GetPhysicalAddress(dpc), 0x1000, true, false);
+    g_violations = 0;
+    const auto previous = rex::platform::SetLockOrderHandler(&CountViolation);
+    CHECK(c.Kernel("KeInsertQueueDpc", {dpc, 1, 2}) == 1);
+    rex::platform::SetLockOrderHandler(previous);
+    memory.UnregisterPhysicalMemoryInvalidationCallback(handle);
+    CHECK(g_violations == 0);
+    CHECK(g_runs == 1);
+  });
 }

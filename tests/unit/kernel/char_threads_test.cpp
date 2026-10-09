@@ -353,7 +353,7 @@ TEST_CASE("threads: exit writes the exit code, state 4, the exit time and the pr
   });
 }
 
-TEST_CASE("threads: Terminate writes the same exit state before a waiter wakes",
+TEST_CASE("threads: a stop writes the same exit state before a waiter wakes",
           "[char][threads][exit]") {
   KernelFixture fixture;
   fixture.RunOnGuestThread([](Caller& c) {
@@ -370,8 +370,9 @@ TEST_CASE("threads: Terminate writes the same exit state before a waiter wakes",
     {
       auto pin = c.runtime().thread_registry().FindByHandle(handle);
       REQUIRE(pin);
-      pin->Terminate(9);
+      pin->RequestStop(9);
     }
+    c.Kernel("NtResumeThread", {handle, 0});
     CHECK(c.Kernel("NtWaitForSingleObjectEx", {waiter, 1, 0, c.Quad(-50000000)}) == 0);
     c.Kernel("NtClose", {waiter});
     CHECK(seen->load() == 9);

@@ -117,11 +117,13 @@ struct SocketObject {
   bool bound = false;
   u16 bound_port = 0;
   bool broadcast_socket = false;
+  bool nonblocking = false;
   std::unique_ptr<rex::platform::Event> event;
 };
 
 /**
- * Creates the native socket for the address family, type and protocol of the object.
+ * Creates the native socket for the address family, type and protocol of the object. The native
+ * socket never blocks, and a call the title made blocking waits for readiness instead.
  *
  * @param sock The socket.
  * @return X_STATUS_SUCCESS, or X_STATUS_UNSUCCESSFUL.

@@ -15,6 +15,7 @@
 #include <cstring>
 
 #include <format>
+#include <vector>
 
 #include <rex/chrono/clock.h>
 #include <rex/cvar.h>
@@ -24,6 +25,7 @@
 #include <rex/logging.h>
 #include <rex/math.h>
 #include <rex/ppc/context.h>
+#include <rex/ppc/recompiled_code.h>
 #include <rex/platform/exceptions.h>
 #include <rex/runtime.h>
 #include <rex/runtime/function_dispatcher.h>
@@ -58,8 +60,6 @@ ThreadRecord::ThreadRecord(Runtime& runtime, uint32_t stack_size, uint32_t xapi_
   // bit 0 = 1 to create suspended
   creation_params_.creation_flags = creation_flags;
   creation_params_.guest_process = guest_process;
-
-  exit_gate_ = rex::platform::Event::CreateManualResetEvent(false);
 }
 
 ThreadRecord::ThreadRecord(Runtime& runtime, uint32_t stack_size, uint32_t creation_flags,
@@ -127,12 +127,66 @@ ThreadRecord* ThreadRecord::GetCurrentThread() {
   return thread;
 }
 
-void ThreadRecord::CheckTitleTermination() {
+void ThreadRecord::CheckStop() {
   ThreadRecord* self = GetBoundCurrentThread();
-  if (self && !self->exiting_ && self->is_guest_thread() && self->is_running() &&
-      self->runtime().is_terminating_title()) {
-    // Unwind cleanly at this safe point. Does not return.
-    self->Exit(0);
+  if (!self || self->exiting_ || !self->is_running()) {
+    return;
+  }
+  if (self->suspend_deferred_.load(std::memory_order_acquire)) {
+    self->TakeDeferredSuspend();
+  }
+  if (self->thread_state_->stop_requested() ||
+      (self->is_guest_thread() && self->runtime().is_terminating_title())) {
+    throw rex::ThreadStop{self->stop_exit_code_.load(std::memory_order_acquire)};
+  }
+}
+
+void ThreadRecord::ThrowStop() {
+  throw rex::ThreadStop{GetCurrentThread()->stop_exit_code_.load(std::memory_order_acquire)};
+}
+
+bool ThreadRecord::ForceStop() {
+  rex::platform::Thread* thread = nullptr;
+  {
+    std::lock_guard lock(stop_mutex_);
+    thread = thread_.get();
+  }
+  if (!thread) {
+    return false;
+  }
+  while (suspend_count() > 0 && Resume() == X_STATUS_SUCCESS) {}
+  const auto in_code = [](u64 pc, void* context) {
+    const auto* thread = static_cast<ThreadRecord*>(context);
+    return !thread->exiting_ && thread->thread_state_->stop_requested() &&
+           rex::platform::IsRecompiledCode(pc);
+  };
+  return thread->Redirect(in_code, this, &ThrowStop);
+}
+
+void ThreadRecord::Sleep(std::chrono::microseconds duration) {
+  if (!GetBoundCurrentThread()) {
+    rex::platform::Sleep(duration);
+    return;
+  }
+  const auto deadline = std::chrono::steady_clock::now() + duration;
+  CheckStop();
+  for (auto left = duration; left.count() > 0;
+       left = std::chrono::duration_cast<std::chrono::microseconds>(
+           deadline - std::chrono::steady_clock::now())) {
+    (void)rex::platform::AlertableSleep(left);
+    CheckStop();
+  }
+}
+
+void ThreadRecord::RequestStop(i32 exit_code) {
+  stop_exit_code_.store(exit_code, std::memory_order_release);
+  std::lock_guard lock(stop_mutex_);
+  stop_requested_ = true;
+  if (thread_state_) {
+    thread_state_->RequestStop();
+  }
+  if (thread_) {
+    thread_->QueueUserCallback([] {});
   }
 }
 
@@ -263,7 +317,7 @@ void ThreadRecord::FreeStack() {
   auto* lock = globals_address
                    ? &memory()->TranslateVirtual<KernelGuestGlobals*>(globals_address)->tls_lock
                    : nullptr;
-  if (lock && owner->thread_state_ && lock->prcb_of_owner != pcr_address_) {
+  if (lock && owner->thread_state_) {
     const bool change_irql = caller != nullptr;
     auto* ctx = owner->thread_state_->context();
     const auto old_irql = kernel::xboxkrnl::KeKfAcquireSpinLock(*memory(), ctx, lock, change_irql);
@@ -332,8 +386,14 @@ X_STATUS ThreadRecord::Create() {
   }
 
   // Create thread state - needed for interrupt callbacks and kernel exports
-  thread_state_ = std::make_unique<runtime::ThreadState>(thread_id_, stack_base_, pcr_address_,
-                                                         memory(), runtime_);
+  {
+    std::lock_guard lock(stop_mutex_);
+    thread_state_ = std::make_unique<runtime::ThreadState>(thread_id_, stack_base_, pcr_address_,
+                                                           memory(), runtime_);
+    if (stop_requested_ || (is_guest_thread() && runtime_->is_terminating_title())) {
+      thread_state_->RequestStop();
+    }
+  }
 
   REXLOG_DEV(system, "XThread{:08X} ({:X}) Stack: {:08X}-{:08X}", handle(), thread_id_,
              stack_limit_, stack_base_);
@@ -370,7 +430,10 @@ X_STATUS ThreadRecord::Create() {
   rex::platform::Thread::CreationParameters params;
   params.stack_size = 16_MiB;  // Allocate a big host stack.
   params.create_suspended = true;
-  thread_ = rex::platform::Thread::Create(params, [this]() {
+  auto thread = rex::platform::Thread::Create(params, [this]() {
+    if (abandoned_.load(std::memory_order_acquire)) {
+      return;
+    }
     rex::initialize_seh_thread();
     runtime::ThreadState::Bind(thread_state_.get());
 
@@ -385,18 +448,20 @@ X_STATUS ThreadRecord::Create() {
 
     // Execute user code.
     current_thread_tls_ = this;
-    started_ = true;
-    registry_->NoteStarted();
     running_ = true;
-    Execute();
-    running_ = false;
-    current_thread_tls_ = nullptr;
-
+    int exit_code = 0;
+    try {
+      exit_code = Execute();
+    } catch (const rex::ThreadStop& stop) {
+      exit_code = stop.exit_code;
+    }
     REX_PERF_ADD(kActiveThreads, -1);
-
-    // Release the self-reference to the thread.
-    ReleaseSelf();
+    Finish(exit_code);
   });
+  {
+    std::lock_guard lock(stop_mutex_);
+    thread_ = std::move(thread);
+  }
 
   if (!thread_) {
     // TODO(benvanik): translate error?
@@ -416,12 +481,19 @@ X_STATUS ThreadRecord::Create() {
   // the current CPU in KPCR and KTHREAD.
   SetActiveCPU(cpu_index);
 
+  return X_STATUS_SUCCESS;
+}
+
+void ThreadRecord::Start() {
   if ((creation_params_.creation_flags & X_CREATE_SUSPENDED) == 0) {
-    // Start the thread now that we're all setup.
     thread_->Resume();
   }
+}
 
-  return X_STATUS_SUCCESS;
+void ThreadRecord::Abandon() {
+  abandoned_.store(true, std::memory_order_release);
+  thread_->Resume();
+  rex::platform::Wait(thread_.get(), false, std::chrono::milliseconds::max());
 }
 
 void ThreadRecord::NoteKernelTime() {
@@ -459,44 +531,29 @@ void ThreadRecord::WriteExitState(u32 exit_code) {
                                         change_irql);
 }
 
-X_STATUS ThreadRecord::Exit(int exit_code) {
+void ThreadRecord::Exit(int exit_code) {
   REX_ASSERT(ThreadRecord::GetCurrentThread() == this);
+  throw rex::ThreadStop{exit_code};
+}
 
-  if (exit_claimed_.exchange(true)) {
-    rex::platform::Wait(exit_gate_.get(), false, std::chrono::milliseconds::max());
+void ThreadRecord::Finish(int exit_code) {
+  thread_state_->ClearStop();
+  if (!host_fn_ && !runtime_->is_terminating_title()) {
+    try {
+      CallThreadNotifyRoutines(false);
+    } catch (const rex::ThreadStop&) {}
   }
   exiting_ = true;
-
-  if (!host_fn_ && !runtime_->is_terminating_title()) {
-    CallThreadNotifyRoutines(false);
-  }
 
   guest_object<X_KTHREAD>()->terminated = 1;
   RundownAPCs();
   WriteExitState(static_cast<u32>(exit_code));
   FreeStack();
+  if (main_fiber_) {
+    main_fiber_->Destroy();
+    main_fiber_ = nullptr;
+  }
   ReleaseSelf();
-  rex::platform::Thread::Exit(exit_code);
-  return X_STATUS_SUCCESS;
-}
-
-X_STATUS ThreadRecord::Terminate(int exit_code) {
-  if (exit_claimed_.exchange(true)) {
-    return X_STATUS_SUCCESS;
-  }
-
-  WriteExitState(static_cast<u32>(exit_code));
-  if (ThreadRecord::IsInThread(this)) {
-    FreeStack();
-    ReleaseSelf();
-    rex::platform::Thread::Exit(exit_code);
-  } else {
-    thread_->Terminate(exit_code);
-    FreeStack();
-    ReleaseSelf();
-  }
-
-  return X_STATUS_SUCCESS;
 }
 
 void ThreadRecord::ReleaseSelf() {
@@ -505,27 +562,23 @@ void ThreadRecord::ReleaseSelf() {
   }
   const X_HANDLE handle = handle_;
   ThreadRegistry* registry = registry_;
-  const bool started = started_;
   running_ = false;
   if (IsInThread(this)) {
     current_thread_tls_ = nullptr;
   }
   registry->NoteExited(*this);
   (void)runtime_->object_table().Close(handle);
-  if (started) {
-    registry->NoteStopped();
-  }
 }
 
-void ThreadRecord::Execute() {
+int ThreadRecord::Execute() {
   REXLOG_DEV(system, "Execute thid {} (handle={:08X}, '{}', native={:08X})", thread_id_, handle(),
              thread_name_, thread_->system_id());
 
   thread_state_->context()->fpscr.InitHost();
+  CheckStop();
 
   if (host_fn_) {
-    Exit(host_fn_());
-    return;
+    return host_fn_();
   }
 
   // Dispatch any APCs that were queued before the thread was created first.
@@ -554,7 +607,7 @@ void ThreadRecord::Execute() {
   Runtime* runtime = runtime_;
   if (!runtime->function_dispatcher()) {
     REXLOG_ERROR(system, "ThreadRecord::Execute - Runtime not initialized");
-    return;
+    return 0;
   }
 
   auto* dispatcher = runtime->function_dispatcher();
@@ -562,7 +615,7 @@ void ThreadRecord::Execute() {
   PPCFunc* func = dispatcher->GetFunction(address);
   if (!func) {
     REXLOG_ERROR(system, "ThreadRecord::Execute - No function registered at {:08X}", address);
-    return;
+    return 0;
   }
 
   auto* ctx = thread_state_->context();
@@ -599,7 +652,7 @@ void ThreadRecord::Execute() {
 
   // If we got here it means the execute completed without an exit being called.
   // Treat the return code as an implicit exit code (if desired).
-  Exit(!want_exit_code ? 0 : exit_code);
+  return want_exit_code ? exit_code : 0;
 }
 
 void ThreadRecord::EnterCriticalRegion() {
@@ -883,115 +936,89 @@ bool ThreadRecord::SetTLSValue(uint32_t slot, uint32_t value) {
 }
 
 uint32_t ThreadRecord::suspend_count() {
+  std::lock_guard lock(suspend_mutex_);
   return guest_object<X_KTHREAD>()->suspend_count;
 }
 
 X_STATUS ThreadRecord::Resume(uint32_t* out_suspend_count) {
   auto guest_thread = guest_object<X_KTHREAD>();
-  uint32_t unused_host_suspend_count = 0;
-
-#if REX_PLATFORM_WIN32
-  uint8_t previous_suspend_count =
-      reinterpret_cast<std::atomic_uint8_t*>(&guest_thread->suspend_count)->fetch_sub(1);
-  if (out_suspend_count) {
-    *out_suspend_count = previous_suspend_count;
-  }
-  return thread_->Resume(&unused_host_suspend_count) ? X_STATUS_SUCCESS : X_STATUS_UNSUCCESSFUL;
-#elif REX_PLATFORM_LINUX || REX_PLATFORM_MAC
-  std::lock_guard<std::mutex> lock(suspend_mutex_);
+  std::lock_guard lock(suspend_mutex_);
   const u8 previous = guest_thread->suspend_count;
-  if (previous > 0) {
-    guest_thread->suspend_count--;
-  }
   if (out_suspend_count) {
     *out_suspend_count = previous;
   }
-  suspend_cv_.notify_all();
-  if (previous > 0) {
-    thread_->Resume(&unused_host_suspend_count);
+  if (previous == 0) {
+    return X_STATUS_SUCCESS;
   }
-  return X_STATUS_SUCCESS;
-#else
-  uint8_t previous_suspend_count = guest_thread->suspend_count;
-  if (guest_thread->suspend_count > 0) {
-    --guest_thread->suspend_count;
+  guest_thread->suspend_count = static_cast<u8>(previous - 1);
+  if (previous > 1) {
+    return X_STATUS_SUCCESS;
   }
-  if (out_suspend_count) {
-    *out_suspend_count = previous_suspend_count;
+  if (suspend_deferred_.exchange(false, std::memory_order_acq_rel)) {
+    suspend_cv_.notify_all();
+    return X_STATUS_SUCCESS;
   }
-  return thread_->Resume(&unused_host_suspend_count) ? X_STATUS_SUCCESS : X_STATUS_UNSUCCESSFUL;
-#endif
+  return thread_->Resume() ? X_STATUS_SUCCESS : X_STATUS_UNSUCCESSFUL;
 }
 
 X_STATUS ThreadRecord::Suspend(uint32_t* out_suspend_count) {
-  const bool self = IsInThread(this);
-  auto guest_thread = guest_object<X_KTHREAD>();
-  uint32_t unused_host_suspend_count = 0;
-#if REX_PLATFORM_LINUX || REX_PLATFORM_MAC
-  if (self) {
+  if (IsInThread(this)) {
     const u32 previous = SelfSuspend();
     if (out_suspend_count) {
       *out_suspend_count = previous;
     }
     return X_STATUS_SUCCESS;
   }
-  std::lock_guard<std::mutex> lock(suspend_mutex_);
+  auto guest_thread = guest_object<X_KTHREAD>();
+  std::lock_guard lock(suspend_mutex_);
   const u8 previous = guest_thread->suspend_count;
-  guest_thread->suspend_count = static_cast<u8>(previous + 1);
   if (out_suspend_count) {
     *out_suspend_count = previous;
   }
-  if (guest_thread->suspend_count == 0) {
+  guest_thread->suspend_count = static_cast<u8>(previous + 1);
+  if (previous > 0 || guest_thread->suspend_count == 0) {
     return X_STATUS_SUCCESS;
   }
-  return thread_->Suspend(&unused_host_suspend_count) ? X_STATUS_SUCCESS : X_STATUS_UNSUCCESSFUL;
-#else
-  if (self) {
-    CheckTitleTermination();
-  }
-  uint8_t previous_suspend_count =
-      reinterpret_cast<std::atomic_uint8_t*>(&guest_thread->suspend_count)->fetch_add(1);
-  if (out_suspend_count) {
-    *out_suspend_count = previous_suspend_count;
-  }
-
-  // Wrapped to 0 - treat as not suspended.
-  if (guest_thread->suspend_count == 0) {
+  const auto in_recompiled_code = [](u64 pc, void*) { return rex::platform::IsRecompiledCode(pc); };
+  if (thread_->SuspendIf(in_recompiled_code, nullptr)) {
     return X_STATUS_SUCCESS;
   }
-  const bool suspended = thread_->Suspend(&unused_host_suspend_count);
-  if (self) {
-    CheckTitleTermination();
-  }
-  return suspended ? X_STATUS_SUCCESS : X_STATUS_UNSUCCESSFUL;
-#endif
+  suspend_deferred_.store(true, std::memory_order_release);
+  thread_->QueueUserCallback([] {});
+  return X_STATUS_SUCCESS;
 }
 
-#if REX_PLATFORM_LINUX || REX_PLATFORM_MAC
 uint32_t ThreadRecord::SelfSuspend() {
-  CheckTitleTermination();
+  CheckStop();
   auto guest_thread = guest_object<X_KTHREAD>();
   uint32_t previous = 0;
   {
-    std::unique_lock<std::mutex> lock(suspend_mutex_);
+    std::unique_lock lock(suspend_mutex_);
     previous = guest_thread->suspend_count;
-    guest_thread->suspend_count++;
-    suspend_cv_.wait(lock, [guest_thread]() { return guest_thread->suspend_count == 0; });
+    guest_thread->suspend_count = static_cast<u8>(previous + 1);
+    if (previous == 0 && guest_thread->suspend_count != 0) {
+      suspend_deferred_.store(true, std::memory_order_release);
+    }
+    suspend_cv_.wait(lock, [this] { return !suspend_deferred_.load(std::memory_order_acquire); });
   }
-  CheckTitleTermination();
+  CheckStop();
   return previous;
 }
-#endif
+
+void ThreadRecord::TakeDeferredSuspend() {
+  std::unique_lock lock(suspend_mutex_);
+  suspend_cv_.wait(lock, [this] { return !suspend_deferred_.load(std::memory_order_acquire); });
+}
 
 // NOLINTNEXTLINE(readability-make-member-function-const): waits on the host thread
 X_STATUS ThreadRecord::Delay(uint32_t processor_mode, uint32_t alertable, uint64_t interval) {
   const u32 timeout_ms =
       Clock::ScaleGuestDurationMillis(TimeoutTicksToMs(static_cast<i64>(interval)));
-  CheckTitleTermination();
+  CheckStop();
   NoteKernelTime();
   if (alertable) {
     auto result = rex::platform::AlertableSleep(std::chrono::milliseconds(timeout_ms));
-    CheckTitleTermination();
+    CheckStop();
     switch (result) {
       default:
       case rex::platform::SleepResult::kSuccess:
@@ -1007,9 +1034,9 @@ X_STATUS ThreadRecord::Delay(uint32_t processor_mode, uint32_t alertable, uint64
         rex::platform::MaybeYield();
       }
     } else {
-      rex::platform::Sleep(std::chrono::milliseconds(timeout_ms));
+      Sleep(std::chrono::milliseconds(timeout_ms));
     }
-    CheckTitleTermination();
+    CheckStop();
   }
 
   return X_STATUS_SUCCESS;

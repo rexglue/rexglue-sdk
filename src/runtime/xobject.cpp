@@ -24,6 +24,8 @@
 #include <rex/runtime/util/string_utils.h>
 #include <rex/runtime/workspace_heap.h>
 
+#include "runtime/thread_wait.h"
+
 namespace rex::runtime {
 
 namespace {
@@ -74,6 +76,33 @@ WaitTarget Resolve(Runtime& runtime, X_HANDLE handle) {
   return target;
 }
 
+template <typename Wait, typename IsCallback>
+auto WaitGuest(u32 alertable, std::chrono::milliseconds timeout, Wait wait,
+               IsCallback is_callback) {
+  using clock = std::chrono::steady_clock;
+  const bool infinite = timeout == std::chrono::milliseconds::max();
+  const auto deadline = infinite ? clock::time_point::max() : clock::now() + timeout;
+  while (true) {
+    auto result = wait(timeout);
+    if (!is_callback(result)) {
+      return result;
+    }
+    ThreadRecord::CheckStop();
+    if (alertable) {
+      return result;
+    }
+    if (!infinite) {
+      timeout =
+          std::max(std::chrono::duration_cast<std::chrono::milliseconds>(deadline - clock::now()),
+                   std::chrono::milliseconds(0));
+    }
+  }
+}
+
+bool IsCallback(rex::platform::WaitResult result) {
+  return result == rex::platform::WaitResult::kUserCallback;
+}
+
 std::chrono::milliseconds TimeoutOf(u64* opt_timeout) {
   return opt_timeout ? std::chrono::milliseconds(Clock::ScaleGuestDurationMillis(
                            TimeoutTicksToMs(static_cast<i64>(*opt_timeout))))
@@ -95,6 +124,20 @@ X_STATUS MapResult(rex::platform::WaitResult result) {
 }
 
 }  // namespace
+
+rex::platform::WaitResult WaitHostObject(rex::platform::WaitHandle* handle,
+                                         std::chrono::milliseconds timeout) {
+  return WaitGuest(
+      0, timeout, [handle](auto left) { return rex::platform::Wait(handle, true, left); },
+      IsCallback);
+}
+
+rex::platform::WaitResult WaitHostSockets(std::span<const rex::platform::SocketWait> sockets,
+                                          std::chrono::milliseconds timeout) {
+  return WaitGuest(
+      0, timeout, [sockets](auto left) { return rex::platform::socket_wait(sockets, true, left); },
+      IsCallback);
+}
 
 u32 TimeoutTicksToMs(i64 timeout_ticks) {
   constexpr u64 kTicksPerMs = 10000;
@@ -161,10 +204,15 @@ X_STATUS WaitOn(Runtime& runtime, X_HANDLE handle, u32 wait_reason, u32 processo
     return X_STATUS_SUCCESS;
   }
   const auto timeout = TimeoutOf(opt_timeout);
-  ThreadRecord::CheckTitleTermination();
+  ThreadRecord::CheckStop();
   ThreadRecord::NoteKernelTime();
-  auto result = rex::platform::Wait(target.handle, alertable ? true : false, timeout);
-  ThreadRecord::CheckTitleTermination();
+  auto result = WaitGuest(
+      alertable, timeout,
+      [&](std::chrono::milliseconds left) {
+        return rex::platform::Wait(target.handle, true, left);
+      },
+      IsCallback);
+  ThreadRecord::CheckStop();
   const X_STATUS status = MapResult(result);
   if ((status == X_STATUS_SUCCESS || status == X_STATUS_ABANDONED_WAIT_0) && target.mutant &&
       MutantAcquired(*target.mutant)) {
@@ -180,9 +228,20 @@ X_STATUS SignalAndWaitOn(Runtime& runtime, X_HANDLE signal_handle, X_HANDLE wait
   if (!signal.slot || !wait.slot) {
     return X_STATUS_INVALID_HANDLE;
   }
+  ThreadRecord::CheckStop();
   ThreadRecord::NoteKernelTime();
-  auto result = rex::platform::SignalAndWait(signal.handle, wait.handle, alertable ? true : false,
-                                             TimeoutOf(opt_timeout));
+  bool signaled = false;
+  auto result = WaitGuest(
+      alertable, TimeoutOf(opt_timeout),
+      [&](std::chrono::milliseconds left) {
+        if (signaled) {
+          return rex::platform::Wait(wait.handle, true, left);
+        }
+        signaled = true;
+        return rex::platform::SignalAndWait(signal.handle, wait.handle, true, left);
+      },
+      IsCallback);
+  ThreadRecord::CheckStop();
   const X_STATUS status = MapResult(result);
   if ((status == X_STATUS_SUCCESS || status == X_STATUS_ABANDONED_WAIT_0) && wait.mutant &&
       MutantAcquired(*wait.mutant)) {
@@ -207,12 +266,16 @@ X_STATUS WaitOnMany(Runtime& runtime, std::span<const X_HANDLE> handles, u32 wai
     targets.push_back(std::move(target));
   }
   const auto timeout = TimeoutOf(opt_timeout);
-  ThreadRecord::CheckTitleTermination();
+  ThreadRecord::CheckStop();
   ThreadRecord::NoteKernelTime();
   if (wait_type) {
-    auto result =
-        rex::platform::WaitAny(std::move(wait_handles), alertable ? true : false, timeout);
-    ThreadRecord::CheckTitleTermination();
+    auto result = WaitGuest(
+        alertable, timeout,
+        [&](std::chrono::milliseconds left) {
+          return rex::platform::WaitAny(wait_handles.data(), wait_handles.size(), true, left);
+        },
+        [](const auto& r) { return IsCallback(r.first); });
+    ThreadRecord::CheckStop();
     switch (result.first) {
       case rex::platform::WaitResult::kSuccess:
         if (targets[result.second].mutant && MutantAcquired(*targets[result.second].mutant)) {
@@ -233,8 +296,13 @@ X_STATUS WaitOnMany(Runtime& runtime, std::span<const X_HANDLE> handles, u32 wai
         return X_STATUS(X_STATUS_ABANDONED_WAIT_0 + result.second);
     }
   }
-  auto result = rex::platform::WaitAll(std::move(wait_handles), alertable ? true : false, timeout);
-  ThreadRecord::CheckTitleTermination();
+  auto result = WaitGuest(
+      alertable, timeout,
+      [&](std::chrono::milliseconds left) {
+        return rex::platform::WaitAll(wait_handles.data(), wait_handles.size(), true, left);
+      },
+      IsCallback);
+  ThreadRecord::CheckStop();
   switch (result) {
     case rex::platform::WaitResult::kSuccess: {
       bool abandoned = false;

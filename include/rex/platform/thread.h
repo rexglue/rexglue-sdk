@@ -695,12 +695,34 @@ class REX_API Thread : public WaitHandle {
   virtual bool Suspend(u32* out_previous_suspend_count = nullptr) = 0;
 
   /**
-   * Terminates the thread without running destructors. Signals the thread object and
-   * releases its waiters. When another thread calls it, it returns once the thread has stopped.
+   * Decides whether Redirect sends a stopped thread to its target.
    *
-   * @param exit_code Thread exit code.
+   * @param pc The instruction pointer of the stopped thread.
+   * @param context The context passed to Redirect.
+   * @return True to send the thread to the target.
    */
-  virtual void Terminate(int exit_code) = 0;
+  using RedirectFilter = bool (*)(u64 pc, void* context);
+
+  /**
+   * Makes the thread call target in place of its current instruction when filter accepts that
+   * instruction. Filter runs while the thread does not run, so it must not lock or allocate.
+   *
+   * @param filter Called with the instruction pointer of the stopped thread.
+   * @param context Passed to filter.
+   * @param target Called on the thread. It never returns.
+   * @return True when the thread now runs target.
+   */
+  virtual bool Redirect(RedirectFilter filter, void* context, void (*target)()) = 0;
+
+  /**
+   * Suspends the thread when filter accepts its current instruction, and leaves it running
+   * otherwise. Filter runs while the thread does not run, so it must not lock or allocate.
+   *
+   * @param filter Called with the instruction pointer of the stopped thread.
+   * @param context Passed to filter.
+   * @return True when the thread is now suspended and its suspend count went up by 1.
+   */
+  virtual bool SuspendIf(RedirectFilter filter, void* context) = 0;
 
  protected:
   std::string name_;

@@ -43,6 +43,7 @@
 #include <rex/string.h>
 
 #include "runtime/achievement_manager.h"
+#include "runtime/apu.h"
 #include "runtime/dispatcher.h"
 #include "runtime/module_registry.h"
 #include "runtime/notifier.h"
@@ -55,6 +56,16 @@
 namespace rex {
 
 using namespace rex::runtime;
+
+namespace {
+
+void ShutDownSockets(IObjectTable& table) {
+  for (auto& sock : table.GetAll<SocketObject>()) {
+    SocketShutdown(*sock, 2);
+  }
+}
+
+}  // namespace
 
 void Runtime::CreateConcerns() {
   app_manager_ = std::make_unique<runtime::xam::AppManager>();
@@ -110,13 +121,25 @@ void Runtime::CreateConcerns() {
 }
 
 void Runtime::DestroyConcerns() {
+  terminating_title_.store(true, std::memory_order_release);
   app_manager_.reset();
   if (dispatcher_) {
     dispatcher_->Stop(config_.runtime.terminate_timeout);
   }
-  if (thread_registry_ && !thread_registry_->JoinThreads(config_.runtime.terminate_timeout)) {
-    REXLOG_WARN(system, "Guest threads still running after {} ms",
-                config_.runtime.terminate_timeout.count());
+  if (thread_registry_) {
+    std::vector<ThreadPin> threads = thread_registry_->All();
+    for (ThreadPin& thread : threads) {
+      thread->RequestStop();
+      while (thread->suspend_count() > 0 && thread->Resume() == X_STATUS_SUCCESS) {}
+    }
+    if (object_table_) {
+      ShutDownSockets(*object_table_);
+    }
+    const auto interval = config_.runtime.terminate_timeout;
+    WaitForThreadsToStop(threads, interval, [interval](const ThreadPin& thread) {
+      REXLOG_WARN(system, "Thread {:08X} '{}' still running after {} ms", thread->thread_id(),
+                  thread->name(), interval.count());
+    });
   }
   if (module_registry_) {
     module_registry_->UnloadAll();
@@ -151,6 +174,7 @@ void Runtime::DestroyConcerns() {
     terminate_registrations_.clear();
   }
   terminating_title_.store(false, std::memory_order_release);
+  terminate_claimed_.store(false, std::memory_order_release);
 }
 
 void Runtime::CreateWorkspace(u32 size) {
@@ -288,7 +312,7 @@ void Runtime::RunTerminateNotifications(std::chrono::milliseconds timeout) {
   if (done.wait_for(timeout) == std::future_status::timeout) {
     REXLOG_WARN(system, "Title terminate notification {:08X} still running after {} ms",
                 progress->routine.load(), timeout.count());
-    dispatcher_->Stop(std::chrono::milliseconds(0));
+    dispatcher_->RequestStop();
   }
 }
 
@@ -352,67 +376,57 @@ void Runtime::SetExecutableModule(X_HANDLE module_handle) {
   LoadAchievementsData();
 }
 
-void Runtime::SignalAllWaitableObjects() {
-  for (PinnedSlot& slot : object_table_->GetAll()) {
-    std::visit(
-        [](auto& object) {
-          using T = std::decay_t<decltype(object)>;
-          if constexpr (std::is_same_v<T, EventObject>) {
-            EventSet(object);
-          } else if constexpr (std::is_same_v<T, MutantObject>) {
-            if (ThreadRecord::IsInThread()) {
-              MutantRelease(object, false);
-            }
-          } else if constexpr (std::is_same_v<T, SemaphoreObject>) {
-            (void)SemaphoreRelease(object, static_cast<i32>(object.maximum_count), nullptr);
-          } else if constexpr (std::is_same_v<T, TimerObject>) {
-            TimerCancel(object);
-          }
-        },
-        slot.data());
-  }
-}
-
 void Runtime::TerminateTitle() {
   REXLOG_DEBUG(system, "Runtime::TerminateTitle");
+  if (ThreadRecord::IsInThread() && terminate_claimed_.exchange(true, std::memory_order_acq_rel)) {
+    ThreadRecord::GetCurrentThread()->Exit(0);
+  }
 
   const auto timeout = config_.runtime.terminate_timeout;
   RunTerminateNotifications(timeout);
+  StopGuestThreads(timeout);
 
+  if (ThreadRecord::IsInThread()) {
+    ThreadRecord::GetCurrentThread()->Exit(0);
+  }
+}
+
+void Runtime::StopGuestThreads(std::chrono::milliseconds timeout) {
   terminating_title_.store(true, std::memory_order_release);
+  if (!thread_registry_) {
+    return;
+  }
 
   std::vector<ThreadPin> target_threads;
   for (ThreadPin& thread : thread_registry_->All()) {
-    if (!ThreadRecord::IsInThread(thread.get()) && thread->is_guest_thread() &&
-        thread->is_running()) {
+    if (!ThreadRecord::IsInThread(thread.get()) && thread->is_guest_thread()) {
       target_threads.push_back(std::move(thread));
     }
   }
 
-  SignalAllWaitableObjects();
   for (auto& thread : target_threads) {
-    thread->thread()->QueueUserCallback([] {});
+    thread->RequestStop();
     while (thread->suspend_count() > 0 && thread->Resume() == X_STATUS_SUCCESS) {}
   }
-
-  WaitForThreadsToExit(target_threads, timeout);
-
-  for (auto& thread : target_threads) {
-    if (thread->is_running()) {
-      REXLOG_WARN(system,
-                  "TerminateTitle: thread {:08X} '{}' entry {:08X} still running after {} ms",
-                  thread->thread_id(), thread->name(), thread->creation_params()->start_address,
-                  timeout.count());
-      thread->Terminate(0);
-    }
+  if (object_table_) {
+    ShutDownSockets(*object_table_);
   }
 
-  WaitForThreadsToExit(target_threads, timeout);
+  WaitForThreadsToStop(target_threads, timeout, [timeout](const ThreadPin& thread) {
+    REXLOG_WARN(system, "Guest thread {:08X} '{}' entry {:08X} still running after {} ms",
+                thread->thread_id(), thread->name(), thread->creation_params()->start_address,
+                timeout.count());
+  });
+}
 
-  target_threads.clear();
-
-  if (ThreadRecord::IsInThread()) {
-    ThreadRecord::GetCurrentThread()->Terminate(0);
+void Runtime::StopThreads() {
+  const auto timeout = config_.runtime.terminate_timeout;
+  StopGuestThreads(timeout);
+  if (dispatcher_) {
+    dispatcher_->Stop(timeout);
+  }
+  if (apu_) {
+    apu_->StopWorker();
   }
 }
 

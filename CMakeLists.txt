@@ -238,6 +238,10 @@ add_compile_options(
     -Wextra
 )
 
+if(MSVC)
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/EHs> $<$<COMPILE_LANGUAGE:CXX>:/EHc->)
+endif()
+
 include_directories(${REXGLUE_ROOT}/include)
 
 add_subdirectory(src/core)

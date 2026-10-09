@@ -11,6 +11,10 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <fstream>
+#include <iterator>
 #include <memory>
 #include <span>
 #include <string>
@@ -24,6 +28,13 @@
 #include <rex/logging/sink.h>
 #include <rex/platform/dynlib.h>
 #include <rex/platform/process.h>
+#include <rex/platform/timer_queue.h>
+
+#if REX_PLATFORM_WIN32
+#include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
 
 #include "core/app_state.h"
 #include "core/module_loader.h"
@@ -61,6 +72,18 @@ class Pinned {
 
 [[nodiscard]] rex::Result<void> FailRelaunch(std::span<const std::string>) {
   return rex::Err<void>(rex::ErrorCategory::Runtime, "no relaunch");
+}
+
+bool AddressMapped(const void* address) {
+#if REX_PLATFORM_WIN32
+  HMODULE module = nullptr;
+  return GetModuleHandleExA(
+             GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+             static_cast<LPCSTR>(address), &module) != 0;
+#else
+  Dl_info info{};
+  return dladdr(address, &info) != 0;
+#endif
 }
 
 class TestApp : public rex::App {
@@ -301,4 +324,67 @@ TEST_CASE("A category keeps writing after the logger stops and starts", "[app]")
   REQUIRE(std::ranges::any_of(entries, [](const rex::log::CapturedRecord& entry) {
     return entry.text.find("after logging shut down") != std::string::npos;
   }));
+}
+
+TEST_CASE_METHOD(Fixture, "App teardown runs twice in 1 process", "[app]") {
+  Pinned pin("rexmod-test-good");
+  TestApp first;
+  REQUIRE(first.Init(Args()));
+  first.Run();
+  REQUIRE(first.Shutdown() == 0);
+  auto events = g_events;
+  std::erase(events, std::string("rexmod-test-good:constructor"));
+  g_events.clear();
+  TestApp second;
+  REQUIRE(second.Init(Args()));
+  REQUIRE(second.saw_echo);
+  second.Run();
+  REQUIRE(second.Shutdown() == 0);
+  REQUIRE(g_events == events);
+}
+
+TEST_CASE_METHOD(Fixture, "The logger outlives the timer queue and the relaunch log", "[app]") {
+  rex::detail::SetRelaunchForTest(&FailRelaunch, true);
+  TestApp app;
+  app.modules = {};
+  REQUIRE(app.Init(Args()));
+  const std::filesystem::path file = app.api().Get<rex::ILogger>()->FilePath();
+  rex::RequestRestart();
+  REQUIRE(app.Shutdown() == 0);
+  std::ifstream in(file);
+  const std::string text{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
+  REQUIRE(text.find("relaunch failed") != std::string::npos);
+}
+
+TEST_CASE_METHOD(Fixture, "Module libraries close after the timer queue stops", "[app]") {
+  TestApp app;
+  REQUIRE(app.Init(Args()));
+  app.Run();
+  const void* code = nullptr;
+  {
+    rex::platform::DynamicLibrary library;
+    REQUIRE(library.Load(rex::platform::GetExecutableFolder() /
+                         rex::detail::ModuleFileName("rexmod-test-good")));
+    code = reinterpret_cast<const void*>(
+        library.GetSymbol<void (*)(RexModTestSink)>("rexmod_test_set_sink"));
+    REQUIRE(code != nullptr);
+  }
+  REQUIRE(AddressMapped(code));
+  auto started = std::make_shared<std::atomic<bool>>(false);
+  auto mapped = std::make_shared<std::atomic<bool>>(false);
+  (void)rex::platform::QueueTimerOnce(
+      [started, mapped, code](void*) {
+        started->store(true);
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        mapped->store(AddressMapped(code));
+      },
+      nullptr, rex::platform::TimerQueueWaitItem::clock::now());
+  const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+  while (!started->load() && std::chrono::steady_clock::now() < until) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  REQUIRE(started->load());
+  REQUIRE(app.Shutdown() == 0);
+  CHECK(mapped->load());
+  CHECK_FALSE(AddressMapped(code));
 }

@@ -157,8 +157,7 @@ u32 ExCreateThread_entry(mapped_u32 handle_ptr, u32 stack_size, mapped_u32 threa
 u32 ExTerminateThread_entry(u32 exit_code) {
   ThreadRecord* thread = ThreadRecord::GetCurrentThread();
 
-  // NOTE: this kills us right now. We won't return from it.
-  return thread->Exit(exit_code);
+  thread->Exit(static_cast<int>(exit_code));
 }
 
 u32 NtResumeThread_entry(u32 handle, mapped_u32 suspend_count_ptr) {
@@ -376,6 +375,7 @@ u32 KeDelayExecutionThread_entry(u32 processor_mode, u32 alertable, mapped_u64 i
 }
 
 u32 NtYieldExecution_entry() {
+  ThreadRecord::CheckStop();
   ThreadRecord::NoteKernelTime();
   rex::platform::MaybeYield();
   return X_STATUS_SUCCESS;

@@ -13,10 +13,13 @@
 #include <chrono>
 #include <cstring>
 #include <functional>
+#include <memory>
+#include <mutex>
 #include <string>
 #include <type_traits>
 #include <vector>
 
+#include <rex/runtime/xthread.h>
 #include <rex/api.h>
 #include <rex/logging.h>
 #include <rex/runtime.h>
@@ -30,6 +33,7 @@
 #include <rex/platform/thread.h>
 #include <rex/ui/user_interface.h>
 #include "kernel/kernel_macros.h"
+#include "runtime/thread_wait.h"
 
 namespace rex {
 namespace kernel {
@@ -54,19 +58,42 @@ bool HasWindow() {
   return user_interface != nullptr && user_interface->GetWindow() != nullptr;
 }
 
+struct PromptWait {
+  std::mutex mutex;
+  bool abandoned = false;
+  X_RESULT result = X_ERROR_CANCELLED;
+  std::unique_ptr<rex::platform::Event> done = rex::platform::Event::CreateManualResetEvent(false);
+};
+
+class PromptShown : public rex::NonCopyable {
+ public:
+  explicit PromptShown(PromptWait& wait) : wait_(wait) { ++xam_dialogs_shown_; }
+  ~PromptShown() {
+    std::lock_guard lock(wait_.mutex);
+    wait_.abandoned = true;
+    --xam_dialogs_shown_;
+  }
+
+ private:
+  PromptWait& wait_;
+};
+
 template <std::invocable<const ui::PromptResult&> F>
 X_RESULT XamPromptAndWait(const ui::PromptDesc& desc, const F& complete) {
   ScopedTitleInputBlock input_block;
-  X_RESULT result = X_ERROR_CANCELLED;
-  rex::platform::Fence fence;
-  ++xam_dialogs_shown_;
-  runtime::Current().ui()->Prompt(desc, [&](const ui::PromptResult& prompt) {
-    result = complete(prompt);
-    fence.Signal();
+  auto wait = std::make_shared<PromptWait>();
+  PromptShown shown(*wait);
+  runtime::Current().ui()->Prompt(desc, [wait, &complete](const ui::PromptResult& prompt) {
+    std::lock_guard lock(wait->mutex);
+    if (wait->abandoned) {
+      return;
+    }
+    wait->result = complete(prompt);
+    wait->done->Set();
   });
-  fence.Wait();
-  --xam_dialogs_shown_;
-  return result;
+  runtime::WaitHostObject(wait->done.get(), std::chrono::milliseconds::max());
+  std::lock_guard lock(wait->mutex);
+  return wait->result;
 }
 
 }  // namespace
@@ -75,7 +102,7 @@ template <typename Close>
 X_RESULT XamDispatchPrompt(ui::PromptDesc desc, Close close, u32 overlapped) {
   auto pre = []() { runtime::Current().notifier().BroadcastNotification(0x9, true); };
   auto post = []() {
-    rex::platform::Sleep(std::chrono::milliseconds(100));
+    rex::runtime::ThreadRecord::Sleep(std::chrono::milliseconds(100));
     runtime::Current().notifier().BroadcastNotification(0x9, false);
   };
   if constexpr (std::is_invocable_r_v<X_RESULT, Close&, const ui::PromptResult&, u32&, u32&>) {
@@ -116,7 +143,7 @@ X_RESULT XamDispatchHeadless(std::function<X_RESULT()> run_callback, u32 overlap
     runtime::Current().notifier().BroadcastNotification(0x9, true);
   };
   auto post = []() {
-    rex::platform::Sleep(std::chrono::milliseconds(100));
+    rex::runtime::ThreadRecord::Sleep(std::chrono::milliseconds(100));
     REXLOG_DEBUG(kernel, "XamDispatchHeadless: Broadcasting XN_SYS_UI = false");
     runtime::Current().notifier().BroadcastNotification(0x9, false);
   };

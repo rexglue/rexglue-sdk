@@ -55,6 +55,9 @@ class REX_RUNTIME_API APU : public NonCopyable {
    */
   [[nodiscard]] Result<void> Setup();
 
+  /** Stops the worker and the decoder and waits for the worker to end. */
+  void StopWorker();
+
   /** Stops the worker and the decoder and closes every client stream. */
   void Shutdown();
 

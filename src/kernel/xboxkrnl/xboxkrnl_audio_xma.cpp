@@ -15,6 +15,7 @@
 #include <bit>
 #include <cstring>
 
+#include <rex/runtime/xthread.h>
 #include <rex/assert.h>
 #include <rex/kernel/xboxkrnl/private.h>
 #include <rex/logging.h>
@@ -356,7 +357,7 @@ u32 XMABlockWhileInUse_entry(mapped_void context_ptr) {
     if (!context.work_buffer_ptr) {
       break;
     }
-    rex::platform::Sleep(std::chrono::milliseconds(1));
+    rex::runtime::ThreadRecord::Sleep(std::chrono::milliseconds(1));
   } while (true);
   return 0;
 }

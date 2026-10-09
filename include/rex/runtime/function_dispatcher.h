@@ -100,7 +100,15 @@ class REX_RUNTIME_API FunctionDispatcher : public IModuleRegistrar {
    * `code_base` must equal the value previously passed to InitializeFunctionTable
    * for the same module.
    */
-  void RegisterModule(const std::string& module_id, uint32_t code_base, RegisterFn register_func);
+  void RegisterModule(const std::string& module_id, uint32_t code_base, RegisterFn register_func,
+                      std::span<const u8> recompiled_code = {});
+
+  /**
+   * Registers recompiled code, where a stop may redirect a thread.
+   *
+   * @param code The recompiled code of 1 image.
+   */
+  void AddRecompiledCode(std::span<const u8> code);
 
   /**
    * Unregister `module_id`: clears its function-table entries, releases its
@@ -153,6 +161,9 @@ class REX_RUNTIME_API FunctionDispatcher : public IModuleRegistrar {
   mutable std::recursive_mutex dispatch_mutex_;
 
   rex::platform::RankedMutex interrupt_mutex_{rex::platform::LockRank::Interrupt};
+
+  mutable std::mutex recompiled_code_mutex_;
+  std::vector<std::pair<std::string, std::span<const u8>>> recompiled_code_;
 };
 
 }  // namespace rex::runtime

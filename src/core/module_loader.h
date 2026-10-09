@@ -62,6 +62,12 @@ class REX_API ModuleLoader final : public IInterfaceFactory {
   Config& mutable_config() { return config_; }
   void Shutdown();
 
+  /** Shuts down and disconnects every module in reverse load order and resets the cvar tables. */
+  void ShutdownModules();
+
+  /** Closes every module library in reverse load order. */
+  void CloseLibraries();
+
   [[nodiscard]] Result<void*> Get(std::string_view name, u32 version) override;
   void* GetForAPI(const char* name, u32 version) const;
   bool IsLoaded(std::string_view module_name) const;

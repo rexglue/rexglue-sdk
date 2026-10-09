@@ -24,6 +24,7 @@
 #include <rex/platform/thread.h>
 
 #include "core/app_state.h"
+#include "core/logger.h"
 #include "core/module_loader.h"
 
 #if REX_PLATFORM_WIN32
@@ -375,8 +376,10 @@ i32 App::Shutdown() {
     OnShutdown();
   }
   Release();
-  if (stage_ == Stage::kConnected || stage_ == Stage::kInitialized) {
-    rex::Shutdown();
+  const bool loaded = stage_ == Stage::kConnected || stage_ == Stage::kInitialized;
+  auto& loader = detail::ModuleLoader::Instance();
+  if (loaded) {
+    loader.ShutdownModules();
   }
   api_ = nullptr;
   platform::Profiler::Shutdown();
@@ -384,6 +387,9 @@ i32 App::Shutdown() {
     EndTimerResolution();
   }
   platform::detail::ShutdownTimerQueue();
+  if (loaded) {
+    loader.CloseLibraries();
+  }
   lock_.reset();
 
   if (auto requested = detail::RequestedExitCode()) {
@@ -404,6 +410,9 @@ i32 App::Shutdown() {
   }
   RemoveSignalHandlers();
   platform::UninstallCrashReporter();
+  if (loaded) {
+    detail::StopLogger();
+  }
   detail::SetShutdownWake({});
   stage_ = Stage::kShutdown;
   FinishTeardown();

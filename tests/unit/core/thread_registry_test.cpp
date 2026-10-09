@@ -44,7 +44,7 @@ TEST_CASE("A thread leaving through Thread::Exit leaves the registry", "[thread_
   REQUIRE(rex::platform::detail::LiveCount() == before);
 }
 
-TEST_CASE("Terminate removes the terminated thread", "[thread_registry]") {
+TEST_CASE("A thread asked to stop leaves the registry", "[thread_registry]") {
   const rex::u64 before = rex::platform::detail::LiveCount();
   std::latch started(1);
   std::atomic<bool> stop{false};
@@ -57,7 +57,7 @@ TEST_CASE("Terminate removes the terminated thread", "[thread_registry]") {
   REQUIRE(thread != nullptr);
   started.wait();
   REQUIRE(rex::platform::detail::LiveCount() == before + 1);
-  thread->Terminate(0);
+  stop.store(true);
   rex::platform::Wait(thread.get(), false);
   REQUIRE(rex::platform::detail::LiveCount() == before);
 }

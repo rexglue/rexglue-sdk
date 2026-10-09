@@ -16,6 +16,8 @@
 
 #include <rex/assert.h>
 
+#include "runtime/thread_wait.h"
+
 namespace rex::runtime {
 
 IOCompletionObject::IOCompletionObject() {
@@ -32,7 +34,7 @@ void IOCompletionQueue(IOCompletionObject& port, const IONotification& notificat
 
 bool IOCompletionWait(IOCompletionObject& port, u64 wait_ticks, IONotification* notify) {
   auto ms = std::chrono::milliseconds(TimeoutTicksToMs(static_cast<i64>(wait_ticks)));
-  auto res = rex::platform::Wait(port.notification_semaphore.get(), false, ms);
+  auto res = WaitHostObject(port.notification_semaphore.get(), ms);
   if (res == rex::platform::WaitResult::kSuccess) {
     std::unique_lock<std::mutex> lock(port.notification_lock);
     REX_ASSERT(!port.notifications.empty());

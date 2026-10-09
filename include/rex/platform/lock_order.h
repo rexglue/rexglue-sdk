@@ -32,6 +32,7 @@ enum class LockRank : u8 {
   ThreadRegistry,
   ModuleRegistry,
   Object,
+  DPC,
   Leaf,
 };
 

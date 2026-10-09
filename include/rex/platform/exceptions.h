@@ -28,6 +28,12 @@
 
 namespace rex {
 
+/** Unwinds a thread that runs recompiled code to its entry when it stops or exits. */
+struct ThreadStop {
+  /** The exit code the thread ends with. */
+  i32 exit_code = 0;
+};
+
 /** Thrown when a hardware exception occurs inside an SEH scope on POSIX. */
 class SehException : public std::exception {
  public:

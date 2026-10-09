@@ -81,7 +81,7 @@ TEST_CASE("ParseCommandLine fills structural fields and modules", "[config]") {
   REQUIRE(cfg.cvars.values.empty());
 }
 
-TEST_CASE("--modules appends to the configured list", "[config]") {
+TEST_CASE("The --modules flag appends to the configured list", "[config]") {
   rex::Config cfg;
   cfg.modules = {"x"};
   auto rest = Parse(cfg, {"--modules=a", "--modules", "b,c"});

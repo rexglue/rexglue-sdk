@@ -14,7 +14,9 @@
 #include <atomic>
 #include <cstring>
 
+#include <rex/platform/lock_order.h>
 #include <rex/runtime/function_dispatcher.h>
+#include <rex/runtime/thread_registry.h>
 #include <rex/runtime/xmemory.h>
 
 #include "kernel_fixture.h"
@@ -35,6 +37,12 @@ using rex::testing::Caller;
 using rex::testing::KernelFixture;
 
 namespace {
+
+std::atomic<int> g_violations{0};
+
+void CountViolation(rex::platform::LockRank, rex::platform::LockRank) {
+  ++g_violations;
+}
 
 constexpr PPCRegister PPCContext::* kGPRs[] = {
     &PPCContext::r14, &PPCContext::r15, &PPCContext::r16, &PPCContext::r17, &PPCContext::r18,
@@ -134,4 +142,26 @@ TEST_CASE("fibers: ResolveGuestStackSize allows 12 KB fiber stacks", "[char][fib
   CHECK(rex::runtime::ResolveGuestStackSize(0x2000, 0x10000, 12 * 1024) == 0x3000);
   CHECK(rex::runtime::ResolveGuestStackSize(0, 0x10000, 12 * 1024) == 0x10000);
   CHECK(rex::runtime::ResolveGuestStackSize(0x3001, 0x10000, 12 * 1024) == 0x4000);
+}
+
+TEST_CASE("Teardown frees a fiber context in a physical heap without breaking the lock order",
+          "[kernel][fiber][lock_order]") {
+#ifdef NDEBUG
+  SKIP("lock order is checked in debug builds only");
+#endif
+  g_violations = 0;
+  rex::platform::LockOrderHandler previous = nullptr;
+  {
+    KernelFixture fixture;
+    fixture.RunOnGuestThread([](Caller& c) {
+      const u32 context =
+          c.runtime().memory()->SystemHeapAlloc(0x1000, 0x1000, rex::runtime::kSystemHeapPhysical);
+      REQUIRE(context != 0);
+      c.runtime().thread_registry().RegisterFiber(
+          context, rex::runtime::FiberInfo{nullptr, 0, context, 0, true});
+    });
+    previous = rex::platform::SetLockOrderHandler(&CountViolation);
+  }
+  rex::platform::SetLockOrderHandler(previous);
+  CHECK(g_violations == 0);
 }

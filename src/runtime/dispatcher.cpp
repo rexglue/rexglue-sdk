@@ -10,20 +10,19 @@
  */
 
 #include "runtime/dispatcher.h"
+#include "runtime/thread_wait.h"
 #include "runtime/guest_stack.h"
 
 #include <chrono>
 #include <exception>
 #include <memory>
 #include <mutex>
-
-#if defined(__GLIBCXX__)
-#include <cxxabi.h>
-#endif
+#include <vector>
 
 #include <rex/assert.h>
 #include <rex/logging.h>
 #include <rex/math.h>
+#include <rex/platform/exceptions.h>
 #include <rex/platform/thread.h>
 #include <rex/runtime.h>
 #include <rex/runtime/error.h>
@@ -330,10 +329,8 @@ void Dispatcher::Start() {
       lock.unlock();
       try {
         fn();
-#if defined(__GLIBCXX__)
-      } catch (const abi::__forced_unwind&) {
+      } catch (const rex::ThreadStop&) {
         throw;
-#endif
       } catch (const std::exception& e) {
         REX_FATAL(system, "Dispatch thread: deferred completion threw '{}'", e.what());
       } catch (...) {
@@ -355,7 +352,21 @@ void Dispatcher::Start() {
   dispatch_thread_ = *launched;
 }
 
-void Dispatcher::Stop(std::chrono::milliseconds timeout) {
+void Dispatcher::RequestStop() {
+  if (!dispatch_thread_running_) {
+    return;
+  }
+  {
+    std::lock_guard lock(dispatch_mutex_);
+    dispatch_thread_running_ = false;
+  }
+  dispatch_cond_.notify_all();
+  if (ThreadPin thread = runtime_.thread_registry().FindByHandle(dispatch_thread_)) {
+    thread->RequestStop();
+  }
+}
+
+void Dispatcher::Stop(std::chrono::milliseconds interval) {
   {
     std::lock_guard lock(expiry_mutex_);
     expiries_stopped_ = true;
@@ -366,19 +377,14 @@ void Dispatcher::Stop(std::chrono::milliseconds timeout) {
     }
     timer_expiries_.clear();
   }
-  if (dispatch_thread_running_) {
-    {
-      std::lock_guard lock(dispatch_mutex_);
-      dispatch_thread_running_ = false;
-    }
-    dispatch_cond_.notify_all();
-    u64 wait = static_cast<u64>(-static_cast<i64>(timeout.count()) * 10000);
-    if (WaitOn(runtime_, dispatch_thread_, 0, 0, 0, &wait) == X_STATUS_TIMEOUT) {
-      REXLOG_WARN(system, "Kernel Dispatch thread still running after {} ms, terminating it",
-                  timeout.count());
-      if (ThreadPin thread = runtime_.thread_registry().FindByHandle(dispatch_thread_)) {
-        thread->Terminate(0);
-      }
+  if (dispatch_thread_) {
+    RequestStop();
+    if (ThreadPin thread = runtime_.thread_registry().FindByHandle(dispatch_thread_)) {
+      std::vector<ThreadPin> threads;
+      threads.push_back(std::move(thread));
+      WaitForThreadsToStop(threads, interval, [interval](const ThreadPin&) {
+        REXLOG_WARN(system, "Kernel Dispatch thread still running after {} ms", interval.count());
+      });
     }
     (void)runtime_.object_table().Close(dispatch_thread_);
     dispatch_thread_ = 0;

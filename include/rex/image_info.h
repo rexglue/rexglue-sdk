@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include <span>
+
 #include <rex/types.h>
 
 struct PPCFuncMapping;
@@ -27,6 +29,13 @@ namespace rex {
  * @param modules The module registry of the runtime being launched.
  */
 using RegisterModulesFunc = void (*)(runtime::IModuleRegistry& modules);
+
+/**
+ * Returns the recompiled code that codegen generated for 1 image.
+ *
+ * @return The code range.
+ */
+using RecompiledCodeFunc = std::span<const u8> (*)();
 
 struct PPCCodegenFlags {
   bool skip_lr = false;
@@ -49,6 +58,8 @@ struct PPCImageInfo {
   bool shim_heap = false;  ///< Set by codegen when [shim] holds the heap functions
   RegisterModulesFunc register_modules = nullptr;  ///< Set by codegen for multi-binary projects
   PPCCodegenFlags codegen_flags{};                 ///< Set by codegen from the config flags
+  RecompiledCodeFunc recompiled_code =
+      nullptr;  ///< Set by codegen to the generated recompiled code
 };
 
 }  // namespace rex

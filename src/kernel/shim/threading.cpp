@@ -16,6 +16,7 @@
 #include <memory>
 #include <tuple>
 
+#include <rex/platform/exceptions.h>
 #include <rex/dbg.h>
 #include <rex/logging.h>
 #include <rex/hook.h>
@@ -86,8 +87,11 @@ static void FiberEntryPoint(void* raw_arg) {
   auto* fiber = mem->TranslateVirtual<X_FIBER_CONTEXT*>(args->guest_fiber_addr);
   ctx.r3.u64 = static_cast<u32>(fiber->fiber_data);
 
-  // Call the fiber function
-  args->start_fn(ctx, mem->virtual_membase());
+  try {
+    args->start_fn(ctx, mem->virtual_membase());
+  } catch (const rex::ThreadStop& stop) {
+    thread->RequestStop(stop.exit_code);
+  }
 
   // Fiber returned (shouldn't per XDK) -- safe fallback
   if (thread->main_fiber()) {
@@ -320,6 +324,7 @@ REX_SHIM_FN(SwitchToFiber, void, mapped_void lpFiber) {
   // Host fiber switch -- suspends here, resumes when switched back
   rex::platform::Fiber::SwitchTo(target_info->host_fiber);
   ctx->fpscr.setcsr(ctx->fpscr.csr);
+  ThreadRecord::CheckStop();
 }
 
 }  // namespace rex::kernel::shim

@@ -460,6 +460,16 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
  private:
   void CreateConcerns();
   void DestroyConcerns();
+
+  /**
+   * Stops every guest thread except the caller and waits for them.
+   *
+   * @param timeout The time each thread has to stop before it is forced.
+   */
+  void StopGuestThreads(std::chrono::milliseconds timeout);
+
+  /** Stops the guest threads, then the dispatcher and the audio worker. */
+  void StopThreads();
   void InitializeProcess(runtime::X_KPROCESS* process, u32 process_type, u8 unk_18, u8 unk_19,
                          u8 unk_1A);
   void SetProcessTLSVars(runtime::X_KPROCESS* process, u32 num_slots, u32 tls_data_size,
@@ -467,7 +477,6 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
   void SetExecutableModule(X_HANDLE module);
   void CreateWorkspace(u32 size);
   void LoadAchievementsData();
-  void SignalAllWaitableObjects();
   void RunTerminateNotifications(std::chrono::milliseconds timeout);
 
   std::mutex title_exit_mutex_;
@@ -502,6 +511,7 @@ class REX_RUNTIME_API Runtime : public rex::NonCopyable {
   std::unique_ptr<runtime::WorkspaceHeap> workspace_;
   u32 kernel_guest_globals_ = 0;
   std::atomic<bool> terminating_title_{false};
+  std::atomic<bool> terminate_claimed_{false};
   rex::platform::RankedMutex terminate_mutex_{rex::platform::LockRank::Leaf};
   std::vector<u32> terminate_registrations_;
   gpu::IBackend* gpu_ = nullptr;

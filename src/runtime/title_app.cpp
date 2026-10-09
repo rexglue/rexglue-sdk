@@ -381,7 +381,6 @@ void TitleApp::Release() {
   events_ready_ = false;
   if (ui_) {
     ui_->SetPresenter(nullptr);
-    ui_->CloseWindow();
   }
   runtime_.reset();
   SetInvokeTarget(nullptr);

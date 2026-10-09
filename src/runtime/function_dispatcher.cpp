@@ -13,7 +13,13 @@
  *              role as a function dispatch table rather than a CPU emulator.
  */
 
+#include <csetjmp>
+#include <cstdlib>
 #include <ranges>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <unordered_map>
 
 #include <rex/assert.h>
 #include <rex/dbg.h>
@@ -22,6 +28,7 @@
 #include <rex/memory.h>
 #include <rex/ppc/context.h>
 #include <rex/ppc/function.h>
+#include <rex/ppc/recompiled_code.h>
 #include <rex/runtime.h>
 #include <rex/runtime/function_dispatcher.h>
 #include <rex/runtime/thread_state.h>
@@ -59,9 +66,65 @@ PPCFunc* ResolveIndirectFunction(uint32_t guest_address) {
   return &InvalidFunctionTrap;
 }
 
+}  // namespace rex::runtime
+
+namespace rex::ppc {
+
+void Trap(PPCContext& ctx, uint8_t* base, uint16_t trap_type) {
+  switch (trap_type) {
+    case 20:
+    case 26: {
+      const u32 address = ctx.r3.u32;
+      const u32 offset = address >= 0xE0000000u ? 0x1000u : 0u;
+      const std::string_view text(reinterpret_cast<const char*>(base + address + offset),
+                                  ctx.r4.u16);
+      REXLOG_DEBUG(cpu, "(service trap) {}", text);
+      break;
+    }
+    case 0:
+    case 22:
+      REXLOG_WARN(cpu, "tw/td trap hit (type {})", trap_type);
+      break;
+    case 25:
+      break;
+    default:
+      REXLOG_WARN(cpu, "Unknown trap type {}", trap_type);
+      break;
+  }
+}
+
+namespace {
+thread_local std::unordered_map<uint32_t, std::jmp_buf> t_jump_buffers;
+}  // namespace
+
+std::jmp_buf& JumpBuffer(uint32_t address) {
+  return t_jump_buffers[address];
+}
+
+void LongJump(uint32_t address, int value) {
+  const auto it = t_jump_buffers.find(address);
+  if (it != t_jump_buffers.end()) {
+    std::longjmp(it->second, value);
+  }
+  std::abort();
+}
+
+void Unimplemented(const char* opcode) {
+  throw std::runtime_error(std::string("Unimplemented PPC instruction: ") + opcode);
+}
+
+}  // namespace rex::ppc
+
+namespace rex::runtime {
+
 FunctionDispatcher::FunctionDispatcher(rex::runtime::Memory* memory) : memory_(memory) {}
 
-FunctionDispatcher::~FunctionDispatcher() = default;
+FunctionDispatcher::~FunctionDispatcher() {
+  std::lock_guard lock(recompiled_code_mutex_);
+  for (const auto& [id, code] : recompiled_code_) {
+    rex::platform::RemoveRecompiledCode(code);
+  }
+}
 
 bool FunctionDispatcher::Run(ThreadState* thread_state, uint32_t address,
                              std::span<const uint64_t> args) {
@@ -304,7 +367,8 @@ uint32_t FunctionDispatcher::AllocateThunk(::PPCFunc* func, uint32_t caller_addr
 }
 
 void FunctionDispatcher::RegisterModule(const std::string& module_id, uint32_t code_base,
-                                        RegisterFn register_func) {
+                                        RegisterFn register_func,
+                                        std::span<const u8> recompiled_code) {
   std::lock_guard<std::recursive_mutex> lock(dispatch_mutex_);
   if (recording_) {
     REX_FATAL(cpu, "RegisterModule called while already recording (re-entrancy)");
@@ -335,11 +399,28 @@ void FunctionDispatcher::RegisterModule(const std::string& module_id, uint32_t c
   ModuleRegistration reg;
   reg.code_base = code_base;
   reg.addresses = std::move(recording_addresses_);
+  if (!recompiled_code.empty() && rex::platform::AddRecompiledCode(recompiled_code)) {
+    std::lock_guard host_lock(recompiled_code_mutex_);
+    recompiled_code_.emplace_back(module_id, recompiled_code);
+  }
 
   size_t count = reg.addresses.size();
   module_addresses_[module_id] = std::move(reg);
 
   REXLOG_INFO(cpu, "Module '{}' registered {} functions", module_id, count);
+}
+
+void FunctionDispatcher::AddRecompiledCode(std::span<const u8> code) {
+  if (code.empty()) {
+    return;
+  }
+  if (!rex::platform::AddRecompiledCode(code)) {
+    REXLOG_ERROR(cpu, "AddRecompiledCode: no slot left for {} bytes of recompiled code",
+                 code.size());
+    return;
+  }
+  std::lock_guard lock(recompiled_code_mutex_);
+  recompiled_code_.emplace_back(std::string(), code);
 }
 
 std::optional<std::pair<uint32_t, uint32_t>> FunctionDispatcher::UnregisterModule(
@@ -349,6 +430,16 @@ std::optional<std::pair<uint32_t, uint32_t>> FunctionDispatcher::UnregisterModul
   if (it == module_addresses_.end()) {
     REXLOG_WARN(cpu, "UnregisterModule: module '{}' not found", module_id);
     return std::nullopt;
+  }
+  {
+    std::lock_guard host_lock(recompiled_code_mutex_);
+    std::erase_if(recompiled_code_, [&module_id](const auto& entry) {
+      if (entry.first != module_id) {
+        return false;
+      }
+      rex::platform::RemoveRecompiledCode(entry.second);
+      return true;
+    });
   }
 
   REXLOG_DEBUG(cpu, "Unregistering module: {} ({} functions)", module_id,

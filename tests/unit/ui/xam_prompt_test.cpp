@@ -18,6 +18,8 @@
 #include <vector>
 
 #include <rex/api.h>
+#include <rex/runtime/thread_registry.h>
+#include <rex/runtime/xthread.h>
 #include <rex/string.h>
 #include <rex/ui/null_user_interface.h>
 #include <rex/ui/user_interface.h>
@@ -42,9 +44,16 @@ class ScriptedUI final : public rex::ui::IUserInterface {
   rex::ui::PromptResult answer;
   rex::ui::PromptDesc desc;
   std::atomic<rex::i32> prompts{0};
+  bool hold = false;
+  std::move_only_function<void(rex::ui::PromptResult)> held;
 
   void Prompt(rex::ui::PromptDesc request,
               std::move_only_function<void(rex::ui::PromptResult)> done) override {
+    if (hold) {
+      held = std::move(done);
+      ++prompts;
+      return;
+    }
     desc = std::move(request);
     ++prompts;
     done(answer);
@@ -297,4 +306,52 @@ TEST_CASE("A XAM message box on the module waits until the prompts are cancelled
   CHECK(status == 0);
   CHECK(chosen == 1);
   ui->CloseWindow();
+}
+
+TEST_CASE("Teardown stops a prompt still running on the dispatcher", "[xam][ui][shutdown]") {
+  ScriptedUI scripted;
+  scripted.hold = true;
+  {
+    rex::testing::KernelFixture fixture({}, {}, &scripted);
+    fixture.RunOnGuestThread([&](rex::testing::Caller& caller) {
+      const rex::u32 buffer = caller.Alloc(32);
+      const rex::u32 overlapped = caller.Alloc(0x1C);
+      CHECK(caller.XAM("XamShowKeyboardUI", {0, 0, PutWide(caller, fixture.runtime(), u"Seed"), 0,
+                                             0, buffer, 16, overlapped}) == kIOPending);
+    });
+    const auto shown_by = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while (scripted.prompts == 0 && std::chrono::steady_clock::now() < shown_by) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    REQUIRE(scripted.prompts == 1);
+  }
+  scripted.held(rex::ui::PromptResult{});
+}
+
+TEST_CASE("A stop ends a guest thread waiting on a prompt", "[xam][ui][shutdown]") {
+  ScriptedUI scripted;
+  scripted.hold = true;
+  rex::testing::KernelFixture fixture({}, {}, &scripted);
+  rex::u32 thread = 0;
+  fixture.RunOnGuestThread([&](rex::testing::Caller& caller) {
+    thread = caller.Spawn([&fixture](rex::testing::Caller& title) {
+      const rex::u32 result_ptr = title.Alloc(4);
+      rex::u32 status = 0;
+      MessageBox(title, fixture.runtime(), u"Pick", u"Body", 0, result_ptr, &status);
+    });
+  });
+  const auto shown_by = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+  while (scripted.prompts == 0 && std::chrono::steady_clock::now() < shown_by) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  REQUIRE(scripted.prompts == 1);
+  auto pin = fixture.runtime().thread_registry().FindByHandle(thread);
+  REQUIRE(pin);
+  pin->RequestStop();
+  const auto stopped_by = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
+  while (pin->is_running() && std::chrono::steady_clock::now() < stopped_by) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  CHECK_FALSE(pin->is_running());
+  scripted.held(rex::ui::PromptResult{});
 }

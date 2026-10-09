@@ -34,6 +34,7 @@
 #include <rex/runtime/xthread.h>
 #include <rex/runtime/xtypes.h>
 #include "kernel/kernel_macros.h"
+#include "runtime/thread_wait.h"
 
 #if REX_PLATFORM_WIN32
 // NOTE: must be included last as it expects windows.h to already be included.
@@ -753,34 +754,75 @@ i32 NetDll_select_entry(i32 caller, i32 nfds, ppc_ptr_t<x_fd_set> readfds,
                         ppc_ptr_t<x_fd_set> writefds, ppc_ptr_t<x_fd_set> exceptfds,
                         mapped_void timeout_ptr) {
   host_set host_readfds = {};
-  fd_set native_readfds = {};
+  host_set host_writefds = {};
+  host_set host_exceptfds = {};
   if (readfds) {
     host_readfds.Load(readfds);
-    host_readfds.Store(&native_readfds);
   }
-  host_set host_writefds = {};
-  fd_set native_writefds = {};
   if (writefds) {
     host_writefds.Load(writefds);
-    host_writefds.Store(&native_writefds);
   }
-  host_set host_exceptfds = {};
-  fd_set native_exceptfds = {};
   if (exceptfds) {
     host_exceptfds.Load(exceptfds);
-    host_exceptfds.Store(&native_exceptfds);
   }
+  std::vector<rex::platform::SocketWait> waits;
+  auto watch = [&waits](const host_set& set, rex::platform::SocketReady ready) {
+    for (u32 i = 0; i < set.count; ++i) {
+      waits.push_back({static_cast<rex::platform::SocketHandle>(set.sockets[i]->native_handle),
+                       set.sockets[i]->event.get(), ready});
+    }
+  };
+  watch(host_readfds, rex::platform::SocketReady::kRead);
+  watch(host_writefds, rex::platform::SocketReady::kWrite);
+  watch(host_exceptfds, rex::platform::SocketReady::kExcept);
+
   timeval* timeout_in = nullptr;
-  timeval timeout;
+  timeval timeout = {};
+  auto wait_time = std::chrono::milliseconds::max();
   if (timeout_ptr) {
     i32 timeout_sec = static_cast<int32_t>(timeout_ptr.as_array<int32_t>()[0]);
     i32 timeout_usec = static_cast<int32_t>(timeout_ptr.as_array<int32_t>()[1]);
     Clock::ScaleGuestDurationTimeval(&timeout_sec, &timeout_usec);
     timeout = {timeout_sec, timeout_usec};
     timeout_in = &timeout;
+    wait_time = std::chrono::ceil<std::chrono::milliseconds>(
+        std::chrono::seconds(timeout_sec) + std::chrono::microseconds(timeout_usec));
   }
-  int ret = select(nfds, readfds ? &native_readfds : nullptr, writefds ? &native_writefds : nullptr,
-                   exceptfds ? &native_exceptfds : nullptr, timeout_in);
+
+  fd_set native_readfds = {};
+  fd_set native_writefds = {};
+  fd_set native_exceptfds = {};
+  auto select_now = [&](timeval* limit) {
+    host_readfds.Store(&native_readfds);
+    host_writefds.Store(&native_writefds);
+    host_exceptfds.Store(&native_exceptfds);
+    return select(nfds, readfds ? &native_readfds : nullptr, writefds ? &native_writefds : nullptr,
+                  exceptfds ? &native_exceptfds : nullptr, limit);
+  };
+
+  int ret = 0;
+  if (waits.empty()) {
+    ret = select_now(timeout_in);
+  } else {
+    using clock = std::chrono::steady_clock;
+    const bool infinite = wait_time == std::chrono::milliseconds::max();
+    const auto deadline = infinite ? clock::time_point::max() : clock::now() + wait_time;
+    while (true) {
+      timeval zero = {};
+      ret = select_now(&zero);
+      if (ret != 0 || (!infinite && clock::now() >= deadline)) {
+        break;
+      }
+      const auto left = infinite
+                            ? std::chrono::milliseconds::max()
+                            : std::chrono::ceil<std::chrono::milliseconds>(deadline - clock::now());
+      if (runtime::WaitHostSockets(waits, left) == rex::platform::WaitResult::kFailed) {
+        ret = -1;
+        break;
+      }
+    }
+  }
+
   if (readfds) {
     host_readfds.UpdateFrom(&native_readfds);
     host_readfds.Store(readfds);

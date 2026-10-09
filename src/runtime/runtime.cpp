@@ -241,6 +241,9 @@ Result<void> Runtime::Setup(const rex::PPCImageInfo& image_info, const RuntimeCo
   REX_TRY_VOID(Setup(config));
 
   codegen_flags_ = image_info.codegen_flags;
+  if (image_info.recompiled_code) {
+    function_dispatcher_->AddRecompiledCode(image_info.recompiled_code());
+  }
 
   if (!function_dispatcher_->InitializeFunctionTable(image_info.code_base, image_info.code_size,
                                                      image_info.image_base, image_info.image_size,
@@ -297,10 +300,7 @@ void Runtime::Shutdown() {
   if (!setup_complete_ && !memory_) {
     return;
   }
-  if (g_crash_runtime.load(std::memory_order_acquire) == this) {
-    platform::SetCrashAddressDescriber(nullptr);
-    g_crash_runtime.store(nullptr, std::memory_order_release);
-  }
+  StopThreads();
   if (gpu_) {
     gpu_->Shutdown();
     gpu_ = nullptr;

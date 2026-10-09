@@ -22,6 +22,7 @@ add_library(rex-core SHARED
     hid/key_chord.cpp
     hid/null_backend.cpp
     hid/virtual_key.cpp
+    recompiled_code.cpp
     log_file.cpp
     log_sinks.cpp
     logger.cpp

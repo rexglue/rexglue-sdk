@@ -13,6 +13,7 @@
 
 #pragma once
 
+#include <csetjmp>
 #include <cstddef>
 #include <cstdint>
 
@@ -33,6 +34,40 @@ using PPCFunc = void(PPCContext& ctx, uint8_t* base);
 namespace rex::runtime {
 REX_RUNTIME_API PPCFunc* ResolveIndirectFunction(uint32_t guest_address);
 }  // namespace rex::runtime
+
+namespace rex::ppc {
+/**
+ * Handles a trap instruction of generated code.
+ *
+ * @param ctx The context of the trapping thread.
+ * @param base The guest memory base.
+ * @param trap_type The trap type the instruction encodes.
+ */
+REX_RUNTIME_API void Trap(PPCContext& ctx, uint8_t* base, uint16_t trap_type);
+
+/**
+ * Returns the host jump buffer of the calling thread for a title jump buffer.
+ *
+ * @param address The guest address of the jump buffer.
+ * @return The host jump buffer, created on first use.
+ */
+REX_RUNTIME_API std::jmp_buf& JumpBuffer(uint32_t address);
+
+/**
+ * Jumps to the host jump buffer of the calling thread for a title jump buffer.
+ *
+ * @param address The guest address of the jump buffer.
+ * @param value The value setjmp returns.
+ */
+[[noreturn]] REX_RUNTIME_API void LongJump(uint32_t address, int value);
+
+/**
+ * Throws for an instruction that codegen does not translate.
+ *
+ * @param opcode The instruction name.
+ */
+[[noreturn]] REX_RUNTIME_API void Unimplemented(const char* opcode);
+}  // namespace rex::ppc
 
 //=============================================================================
 // PPC Function Macros

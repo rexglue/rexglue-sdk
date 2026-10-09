@@ -11,6 +11,7 @@
  */
 
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <functional>
 #include <memory>
@@ -403,8 +404,16 @@ class REX_RUNTIME_API ThreadRecord : public rex::NonCopyable {
    */
   static u32 GetCurrentThreadId();
 
-  /** Exits the calling thread when the title is terminating. Does not return then. */
-  static void CheckTitleTermination();
+  /** Throws rex::ThreadStop when the calling thread has a stop request or the title is terminating.
+   */
+  static void CheckStop();
+
+  /**
+   * Sleeps the calling thread, waking early to stop when it has a stop request.
+   *
+   * @param duration The time to sleep.
+   */
+  static void Sleep(std::chrono::microseconds duration);
 
   /** Writes the CPU time of the calling thread to its KTHREAD. Does nothing without a record. */
   static void NoteKernelTime();
@@ -540,20 +549,25 @@ class REX_RUNTIME_API ThreadRecord : public rex::NonCopyable {
   void set_name(const std::string_view name);
 
   /**
-   * Exits the calling thread. Does not return.
+   * Exits the calling thread by unwinding to its entry.
    *
    * @param exit_code The exit code.
-   * @return Never returns on success.
    */
-  X_STATUS Exit(int exit_code);
+  [[noreturn]] void Exit(int exit_code);
 
   /**
-   * Terminates the thread.
+   * Asks the thread to stop at its next wait or kernel call and wakes it.
    *
-   * @param exit_code The exit code.
-   * @return X_STATUS_SUCCESS.
+   * @param exit_code The exit code the thread ends with.
    */
-  X_STATUS Terminate(int exit_code);
+  void RequestStop(i32 exit_code = 0);
+
+  /**
+   * Sends the thread to its requested stop when it runs recompiled code.
+   *
+   * @return True when the thread now unwinds to its entry.
+   */
+  bool ForceStop();
 
   /**
    * Returns the main fiber.
@@ -720,18 +734,19 @@ class REX_RUNTIME_API ThreadRecord : public rex::NonCopyable {
   bool guest_thread_ = false;
   bool main_thread_ = false;
   std::atomic<bool> running_{false};
-  std::atomic<bool> exit_claimed_{false};
-  bool exiting_ = false;
+  std::atomic<bool> exiting_{false};
+  std::atomic<i32> stop_exit_code_{0};
+  std::mutex stop_mutex_;
+  bool stop_requested_ = false;
 
   std::string thread_name_;
   std::unique_ptr<runtime::ThreadState> thread_state_;
 
   i32 priority_ = 0;
 
-#if REX_PLATFORM_LINUX || REX_PLATFORM_MAC
   std::mutex suspend_mutex_;
   std::condition_variable suspend_cv_;
-#endif
+  std::atomic<bool> suspend_deferred_{false};
 
   std::mutex thread_lock_;
 
@@ -740,12 +755,25 @@ class REX_RUNTIME_API ThreadRecord : public rex::NonCopyable {
 
  private:
   friend class ThreadRegistry;
+
+  /**
+   * Writes the guest object and creates the host thread without running it.
+   *
+   * @return X_STATUS_SUCCESS, or the failure status.
+   */
   X_STATUS Create();
+
+  /** Runs the host thread unless the title created the thread suspended. */
+  void Start();
+
+  /** Ends a created host thread that never ran, and waits until it has ended. */
+  void Abandon();
   void SetHandle(X_HANDLE handle) { handle_ = handle; }
   void SetGuestObject(u32 address) { guest_object_ptr_ = address; }
-  void Execute();
+  int Execute();
+  void Finish(int exit_code);
+  [[noreturn]] static void ThrowStop();
   void ReleaseSelf();
-#if REX_PLATFORM_LINUX || REX_PLATFORM_MAC
 
   /**
    * Increments the suspend count and blocks until another thread resumes the caller.
@@ -753,7 +781,9 @@ class REX_RUNTIME_API ThreadRecord : public rex::NonCopyable {
    * @return The previous count.
    */
   u32 SelfSuspend();
-#endif
+
+  /** Blocks the calling thread until a resume clears the suspend it was given in host code. */
+  void TakeDeferredSuspend();
 
   /**
    * Returns the guest address of the process block the thread belongs to.
@@ -782,9 +812,8 @@ class REX_RUNTIME_API ThreadRecord : public rex::NonCopyable {
   X_HANDLE handle_ = 0;
   u32 guest_object_ptr_ = 0;
   std::move_only_function<int()> host_fn_;
-  std::unique_ptr<rex::platform::Event> exit_gate_;
   std::atomic<bool> released_{false};
-  std::atomic<bool> started_{false};
+  std::atomic<bool> abandoned_{false};
   bool exited_ = false;
   bool handles_closed_ = false;
 };

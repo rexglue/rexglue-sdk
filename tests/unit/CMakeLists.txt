@@ -32,6 +32,7 @@ add_executable(unit_tests
     kernel/char_events_test.cpp
     kernel/char_sync_test.cpp
     kernel/char_handles_test.cpp
+    kernel/shutdown_test.cpp
     kernel/char_threads_test.cpp
     kernel/char_files_test.cpp
     kernel/char_identity_test.cpp
@@ -59,6 +60,7 @@ add_executable(unit_tests
     core/mmio_test.cpp
     core/module_loader_test.cpp
     core/relaunch_test.cpp
+    core/thread_redirect_test.cpp
     core/thread_registry_test.cpp
     ppc/import_function_test.cpp
     ppc/stack_test.cpp
@@ -153,7 +155,7 @@ endif()
 # Strip Tracy/profiling instrumentation from test targets
 target_compile_options(unit_tests PRIVATE
     -UTRACY_ENABLE -UREXGLUE_ENABLE_PROFILING
-    -UREXGLUE_ENABLE_PERF_COUNTERS -UREXGLUE_PROFILE_GUEST_FUNCTIONS
+    -UREXGLUE_ENABLE_PERF_COUNTERS
 )
 
 set_target_properties(unit_tests PROPERTIES

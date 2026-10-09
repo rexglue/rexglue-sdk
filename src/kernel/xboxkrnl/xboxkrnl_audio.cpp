@@ -12,6 +12,7 @@
 // Disable warnings about unused parameters for kernel functions
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
+#include <rex/runtime/xthread.h>
 #include <rex/kernel/xboxkrnl/private.h>
 #include <rex/logging.h>
 #include <rex/hook.h>
@@ -33,7 +34,7 @@ u32 XAudioGetSpeakerConfig_entry(mapped_u32 config_ptr) {
 u32 XAudioGetVoiceCategoryVolumeChangeMask_entry(mapped_void driver_ptr, mapped_u32 out_ptr) {
   REX_ASSERT((driver_ptr.guest_address() & 0xFFFF0000) == 0x41550000);
 
-  rex::platform::Sleep(std::chrono::microseconds(1));
+  rex::runtime::ThreadRecord::Sleep(std::chrono::microseconds(1));
 
   // Checking these bits to see if any voice volume changed.
   // I think.

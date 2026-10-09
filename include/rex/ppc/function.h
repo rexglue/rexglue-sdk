@@ -25,6 +25,7 @@
 
 #include <rex/assert.h>
 #include <rex/logging.h>
+#include <rex/platform/exceptions.h>
 #include <rex/ppc/context.h>
 #include <rex/runtime.h>
 #include <rex/runtime/thread_state.h>
@@ -365,6 +366,10 @@ template <auto Func>
 __attribute__((noinline)) void HostToGuestFunction(PPCContext& ctx, uint8_t* base) {
   using ret_t = decltype(std::apply(Func, function_args(Func)));
 
+  auto* thread_state = rex::runtime::ThreadState::Get();
+  if (thread_state && thread_state->stop_requested()) {
+    throw rex::ThreadStop{};
+  }
   auto args = function_args(Func);
   _translate_args_to_host<Func>(ctx, base, args);
 
@@ -388,6 +393,9 @@ __attribute__((noinline)) void HostToGuestFunction(PPCContext& ctx, uint8_t* bas
     } else {
       ctx.r3.u64 = static_cast<uint64_t>(v);
     }
+  }
+  if (thread_state && thread_state->stop_requested()) {
+    throw rex::ThreadStop{};
   }
 }
 

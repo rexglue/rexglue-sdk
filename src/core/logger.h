@@ -133,6 +133,9 @@ class Logger final : public ILogger {
   /** Stops a standalone logger and returns to bootstrap output. */
   void StopStandalone();
 
+  /** Releases the cvar handles so the cvar registry can reset while the sinks keep writing. */
+  void DetachCvars();
+
   /**
    * Returns the time the logger was created.
    *
@@ -272,7 +275,10 @@ namespace rex::detail {
  */
 void FinishLoggerStart(cvar::ICvarRegistry& cvars);
 
-/** Stops the process logger. ModuleLoader::UnwindAll calls it after every module disconnects. */
+/** Releases the cvar handles of the process logger before the cvar registry resets. */
+void DetachLoggerCvars();
+
+/** Stops the process logger. The teardown calls it last, after the libraries close. */
 void StopLogger();
 
 }  // namespace rex::detail

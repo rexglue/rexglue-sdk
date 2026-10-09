@@ -11,7 +11,9 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <atomic>
 #include <chrono>
+#include <thread>
 #include <map>
 #include <mutex>
 #include <vector>
@@ -19,6 +21,8 @@
 #include <rex/apu.h>
 #include <rex/runtime.h>
 #include <rex/runtime/error.h>
+#include <rex/runtime/function_dispatcher.h>
+#include <rex/runtime/thread_state.h>
 
 #include "../kernel/kernel_fixture.h"
 #include "runtime/apu.h"
@@ -140,4 +144,41 @@ TEST_CASE("APU shutdown releases a paused worker", "[apu]") {
   apu.Shutdown();
   CHECK(std::chrono::steady_clock::now() - start < std::chrono::milliseconds(250));
   CHECK_FALSE(apu.paused());
+}
+
+namespace {
+
+std::atomic<rex::u32> g_callback_event{0};
+std::atomic<bool> g_in_callback{false};
+
+void WaitingClientCallback(PPCContext& ctx, rex::u8* base) {
+  g_in_callback.store(true);
+  rex::testing::Caller caller(ctx, base, *rex::runtime::ThreadState::Get()->runtime());
+  caller.Kernel("NtWaitForSingleObjectEx", {g_callback_event.load(), 1, 0, 0});
+}
+
+}  // namespace
+
+TEST_CASE("APU shutdown stops a worker blocked in its title callback", "[runtime][shutdown]") {
+  rex::testing::KernelFixture fixture;
+  g_in_callback.store(false);
+  fixture.RunOnGuestThread([](rex::testing::Caller& c) {
+    const rex::u32 handle_ptr = c.Alloc(4);
+    REQUIRE(c.Kernel("NtCreateEvent", {handle_ptr, 0, 0, 0}) == 0);
+    g_callback_event.store(c.Load32(handle_ptr));
+  });
+  const rex::u32 callback =
+      fixture.runtime().function_dispatcher()->AllocateThunk(&WaitingClientCallback, 0);
+  RecordingBackend backend;
+  rex::runtime::APU apu(fixture.runtime(), backend, 4);
+  REQUIRE(apu.Setup());
+  REQUIRE(apu.RegisterClient(callback, 0));
+  const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+  while (!g_in_callback.load() && std::chrono::steady_clock::now() < until) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  REQUIRE(g_in_callback.load());
+  const auto start = std::chrono::steady_clock::now();
+  apu.Shutdown();
+  CHECK(std::chrono::steady_clock::now() - start < std::chrono::milliseconds(1000));
 }

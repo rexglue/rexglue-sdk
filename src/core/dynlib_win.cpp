@@ -3,7 +3,10 @@
 
 static_assert(REX_PLATFORM_WIN32, "This file is Windows-only");
 
+#include <cstring>
+#include <span>
 #include <string>
+#include <string_view>
 
 #include "platform_win.h"
 
@@ -64,6 +67,20 @@ void* DynamicLibrary::GetRawSymbol(const char* name) const {
   if (!handle_)
     return nullptr;
   return reinterpret_cast<void*>(GetProcAddress(static_cast<HMODULE>(handle_), name));
+}
+
+std::span<const u8> FindImageSection(const void* image, std::string_view name) {
+  const auto* base = static_cast<const u8*>(image);
+  const auto* dos = static_cast<const IMAGE_DOS_HEADER*>(image);
+  const auto* nt = reinterpret_cast<const IMAGE_NT_HEADERS*>(base + dos->e_lfanew);
+  const std::span sections(IMAGE_FIRST_SECTION(nt), nt->FileHeader.NumberOfSections);
+  for (const IMAGE_SECTION_HEADER& section : sections) {
+    const auto* text = reinterpret_cast<const char*>(section.Name);
+    if (std::string_view(text, strnlen(text, IMAGE_SIZEOF_SHORT_NAME)) == name) {
+      return {base + section.VirtualAddress, section.Misc.VirtualSize};
+    }
+  }
+  return {};
 }
 
 }  // namespace rex::platform

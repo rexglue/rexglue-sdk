@@ -322,8 +322,9 @@ Result<X_HANDLE> ModuleRegistry::LoadUserModule(std::string_view raw_name, bool 
                        image_info->image_size)) {
           REXLOG_ERROR(system, "InitializeFunctionTable failed for module '{}'", recomp->pe_name);
         } else {
-          runtime_.function_dispatcher()->RegisterModule(lib_key, image_info->code_base,
-                                                         register_func);
+          runtime_.function_dispatcher()->RegisterModule(
+              lib_key, image_info->code_base, register_func,
+              image_info->recompiled_code ? image_info->recompiled_code() : std::span<const u8>());
           std::lock_guard lock(recompiled_mutex_);
           auto lib_it = module_libraries_.find(lib_key);
           REX_ASSERT(lib_it != module_libraries_.end());

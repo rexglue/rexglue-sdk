@@ -79,6 +79,94 @@ static runtime::Memory* active_memory_ = nullptr;
 
 namespace {
 
+enum class GuestFaultKind : u8 { kMMIO, kUnhandled, kPhysicalWrite };
+
+struct GuestFault {
+  GuestFaultKind kind = GuestFaultKind::kUnhandled;
+  u32 address = 0;
+  bool is_write = false;
+  u32 physical_address = 0;
+  u32 guest_protect = 0;
+  u32 physical_protect = 0;
+};
+
+thread_local std::optional<GuestFault> t_guest_fault;
+
+class PendingScribble {
+ public:
+  PendingScribble(u32 allocation_type, u32 protect)
+      : enabled_((allocation_type & ~static_cast<u32>(kMemoryAllocationTitle)) !=
+                     kMemoryAllocationReserve &&
+                 REXCVAR_GET(::rex::runtime::cvars::scribble_heap) &&
+                 (protect & kMemoryProtectWrite)) {}
+  PendingScribble(const PendingScribble&) = delete;
+  PendingScribble& operator=(const PendingScribble&) = delete;
+  ~PendingScribble() {
+    for (const auto& [host, size] : ranges_) {
+      if (host) {
+        std::memset(host, 0xCD, size);
+      }
+    }
+  }
+
+  void Add(const BaseHeap& heap, u32 address, u32 size) {
+    if (!enabled_) {
+      return;
+    }
+    auto& range = ranges_[ranges_[0].first ? 1 : 0];
+    range = {heap.TranslateRelative(address - heap.heap_base()),
+             rex::round_up(size, heap.page_size())};
+  }
+
+ private:
+  bool enabled_;
+  std::array<std::pair<u8*, u32>, 2> ranges_{};
+};
+std::atomic<u32> g_recovered_protect_count{0};
+std::atomic<u32> g_recovered_protect_address{0};
+
+u32 DescribeCrashAddress(u64 host_address, std::span<char> out) {
+  constexpr u64 kGuestAddressSpace = u64{1} << 32;
+  char* cursor = out.data();
+  char* const end = out.data() + out.size();
+  const auto append = [&]<typename... Args>(std::format_string<Args...> format, Args&&... args) {
+    cursor = std::format_to_n(cursor, end - cursor, format, std::forward<Args>(args)...).out;
+  };
+  if (const auto& fault = t_guest_fault) {
+    const std::string_view access = fault->is_write ? "write" : "read";
+    switch (fault->kind) {
+      case GuestFaultKind::kMMIO:
+        append("{} register {} 0x{:08X}",
+               MMIOBlockOf(fault->address) == MMIOBlock::GPU ? "GPU" : "APU", access,
+               fault->address);
+        break;
+      case GuestFaultKind::kUnhandled:
+        append("unhandled guest {} of 0x{:08X}", access, fault->address);
+        break;
+      case GuestFaultKind::kPhysicalWrite:
+        append(
+            "unhandled guest physical write of 0x{:08X}, physical 0x{:08X}, guest protect "
+            "0x{:08X}, physical protect 0x{:08X}",
+            fault->address, fault->physical_address, fault->guest_protect, fault->physical_protect);
+        break;
+    }
+  }
+  const Memory* memory = active_memory_.load(std::memory_order_acquire);
+  if (memory && host_address) {
+    const u64 base = reinterpret_cast<u64>(memory->virtual_membase());
+    if (host_address >= base && host_address - base < kGuestAddressSpace) {
+      append("{}guest address 0x{:08X}", cursor == out.data() ? "" : ", ",
+             memory->HostToGuestVirtual(std::bit_cast<const void*>(host_address)));
+    }
+  }
+  if (const ThreadRecord* thread =
+          ThreadRecord::IsInThread() ? ThreadRecord::GetCurrentThread() : nullptr) {
+    append("{}guest thread {:08X} {}", cursor == out.data() ? "" : ", ", thread->thread_id(),
+           thread->crash_name());
+  }
+  return static_cast<u32>(cursor - out.data());
+}
+
 bool OnAccessViolation(rex::platform::Exception* ex, void* data) {
   if (ex->code() != rex::platform::Exception::Code::kAccessViolation) {
     return false;
@@ -1017,8 +1105,13 @@ bool BaseHeap::AllocSystemHeap(uint32_t size, uint32_t alignment, uint32_t alloc
 
 bool BaseHeap::AllocFixed(uint32_t base_address, uint32_t size, uint32_t alignment,
                           uint32_t allocation_type, uint32_t protect) {
+  PendingScribble scribble(allocation_type, protect);
   auto reconcile_lock = AcquireHostPageReconcileLock();
-  return AllocFixedLocked(base_address, size, alignment, allocation_type, protect);
+  if (!AllocFixedLocked(base_address, size, alignment, allocation_type, protect)) {
+    return false;
+  }
+  scribble.Add(*this, base_address, size);
+  return true;
 }
 
 bool BaseHeap::AllocFixedLocked(uint32_t base_address, uint32_t size, uint32_t alignment,
@@ -1125,22 +1218,20 @@ bool BaseHeap::AllocFixedLocked(uint32_t base_address, uint32_t size, uint32_t a
     return false;
   }
 
-  if (allocation_type != runtime::kMemoryAllocationReserve &&
-      REXCVAR_GET(::rex::runtime::cvars::scribble_heap) &&
-      (protect & runtime::kMemoryProtectWrite)) {
-    std::memset(TranslateRelative(start_page_number << page_size_shift_), 0xCD,
-                page_count << page_size_shift_);
-  }
-
   return true;
 }
 
 bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address, uint32_t size,
                           uint32_t alignment, uint32_t allocation_type, uint32_t protect,
                           bool top_down, uint32_t* out_address) {
+  PendingScribble scribble(allocation_type, protect);
   auto reconcile_lock = AcquireHostPageReconcileLock();
-  return AllocRangeLocked(low_address, high_address, size, alignment, allocation_type, protect,
-                          top_down, out_address);
+  if (!AllocRangeLocked(low_address, high_address, size, alignment, allocation_type, protect,
+                        top_down, out_address)) {
+    return false;
+  }
+  scribble.Add(*this, *out_address, size);
+  return true;
 }
 
 bool BaseHeap::AllocRangeLocked(uint32_t low_address, uint32_t high_address, uint32_t size,
@@ -1294,13 +1385,6 @@ bool BaseHeap::AllocRangeLocked(uint32_t low_address, uint32_t high_address, uin
 
   if (!SyncHostPageAccess(start_page_number, end_page_number)) {
     return false;
-  }
-
-  if (allocation_type != runtime::kMemoryAllocationReserve &&
-      REXCVAR_GET(::rex::runtime::cvars::scribble_heap) &&
-      (protect & runtime::kMemoryProtectWrite)) {
-    std::memset(TranslateRelative(start_page_number << page_size_shift_), 0xCD,
-                page_count << page_size_shift_);
   }
 
   *out_address = heap_base_ + (start_page_number << page_size_shift_);
@@ -1648,6 +1732,7 @@ bool PhysicalHeap::Alloc(uint32_t size, uint32_t alignment, uint32_t allocation_
   size = rex::round_up(size, page_size_);
   alignment = rex::round_up(alignment, page_size_);
 
+  PendingScribble scribble(allocation_type, protect);
   auto reconcile_lock = AcquireHostPageReconcileLock();
   std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
 
@@ -1670,6 +1755,8 @@ bool PhysicalHeap::Alloc(uint32_t size, uint32_t alignment, uint32_t allocation_
     parent_heap_->ReleaseLocked(parent_address, nullptr);
     return false;
   }
+  scribble.Add(*parent_heap_, parent_address, size);
+  scribble.Add(*this, address, size);
   *out_address = address;
   return true;
 }
@@ -1680,6 +1767,7 @@ bool PhysicalHeap::AllocFixed(uint32_t base_address, uint32_t size, uint32_t ali
   size = rex::round_up(size, page_size_);
   alignment = rex::round_up(alignment, page_size_);
 
+  PendingScribble scribble(allocation_type, protect);
   auto reconcile_lock = AcquireHostPageReconcileLock();
   std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
 
@@ -1721,6 +1809,8 @@ bool PhysicalHeap::AllocFixed(uint32_t base_address, uint32_t size, uint32_t ali
     }
     return false;
   }
+  scribble.Add(*parent_heap_, parent_base_address, size);
+  scribble.Add(*this, address, size);
 
   return true;
 }
@@ -1734,6 +1824,7 @@ bool PhysicalHeap::AllocRange(uint32_t low_address, uint32_t high_address, uint3
   size = rex::round_up(size, page_size_);
   alignment = rex::round_up(alignment, page_size_);
 
+  PendingScribble scribble(allocation_type, protect);
   auto reconcile_lock = AcquireHostPageReconcileLock();
   std::lock_guard<std::recursive_mutex> heap_lock(heap_mutex_);
 
@@ -1758,6 +1849,8 @@ bool PhysicalHeap::AllocRange(uint32_t low_address, uint32_t high_address, uint3
     parent_heap_->ReleaseLocked(parent_address, nullptr);
     return false;
   }
+  scribble.Add(*parent_heap_, parent_address, size);
+  scribble.Add(*this, address, size);
   *out_address = address;
   return true;
 }

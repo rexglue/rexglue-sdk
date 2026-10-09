@@ -670,6 +670,10 @@ void Logger::Stop() {
   StopAll();
 }
 
+void Logger::DetachCvars() {
+  UnhookCvars();
+}
+
 void Logger::StopStandalone() {
   UnhookCvars();
   standalone_ = false;
@@ -715,6 +719,10 @@ Result<void> StartLogger(const LogConfig& config, cvar::ICvarRegistry& cvars) {
 
 void FinishLoggerStart(cvar::ICvarRegistry& cvars) {
   log::GetLoggerInstance().Finish(cvars);
+}
+
+void DetachLoggerCvars() {
+  log::GetLoggerInstance().DetachCvars();
 }
 
 void StopLogger() {

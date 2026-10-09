@@ -11,6 +11,7 @@
  */
 
 #include <array>
+#include <atomic>
 #include <string>
 
 #include <rex/macros.h>
@@ -48,6 +49,19 @@ class REX_RUNTIME_API ThreadState {
   ~ThreadState();
 
   Memory* memory() const { return memory_; }
+
+  /** Asks the thread to stop at its next kernel boundary. */
+  void RequestStop() { stop_requested_.store(true, std::memory_order_release); }
+
+  /**
+   * Reports whether the thread has a stop request.
+   *
+   * @return True when RequestStop ran.
+   */
+  bool stop_requested() const { return stop_requested_.load(std::memory_order_acquire); }
+
+  /** Drops the stop request once the thread runs its exit sequence. */
+  void ClearStop() { stop_requested_.store(false, std::memory_order_release); }
   /**
    * Returns the register file of this thread.
    *
@@ -84,6 +98,7 @@ class REX_RUNTIME_API ThreadState {
   alignas(64)::PPCContext context_storage_{};
   ::PPCContext* context_ = &context_storage_;
   DPCSaveArea dpc_save_area_;
+  std::atomic<bool> stop_requested_{false};
 };
 
 namespace detail {

@@ -6,6 +6,7 @@
 #define REX_CONFIG_H_INCLUDED
 
 #include <rex/ppc.h>
+#include <rex/ppc/recompiled_code.h>
 #include <rex/image_info.h>
 #include <rex/logging.h>
 #include <rex/chrono/clock.h>
@@ -30,8 +31,6 @@
 
 #endif // REX_CONFIG_H_INCLUDED
 
-// Prologue macro (codegen init header defines this with Tracy/alignment hints;
-// tests just need a no-op)
 #ifndef REX_FUNC_PROLOGUE
 #if defined(__clang__)
 #define REX_FUNC_PROLOGUE() __builtin_assume(((size_t)base & 0x1F) == 0)
@@ -63,12 +62,12 @@
       PPCContext& __restrict ctx, uint8_t* base) {                       \
     [[clang::musttail]] return __imp__##name(ctx, base);                 \
   }                                                                      \
-  extern "C" void __imp__##name([[maybe_unused]] PPCContext& __restrict ctx, uint8_t* base)
+  REX_RECOMPILED_CODE_SECTION extern "C" void __imp__##name([[maybe_unused]] PPCContext& __restrict ctx, uint8_t* base)
 #else
 #define DEFINE_REX_FUNC(name)                                       \
   __attribute__((alias("__imp__" #name)))                           \
   __attribute__((weak, noinline)) extern "C" REX_FUNC(name);        \
-  REX_EXTERN(__imp__##name)
+  REX_RECOMPILED_CODE_SECTION REX_EXTERN(__imp__##name)
 #endif
 #endif
 
@@ -203,8 +202,7 @@
 // Misc
 //=============================================================================
 
-#define REX_UNIMPLEMENTED(addr, opcode) \
-  throw std::runtime_error("Unimplemented PPC instruction: " opcode)
+#define REX_UNIMPLEMENTED(addr, opcode) ::rex::ppc::Unimplemented(opcode)
 
 #define REX_QUERY_TIMEBASE() rex::Clock::QueryGuestTickCount()
 
@@ -212,45 +210,15 @@
 // Setjmp/Longjmp
 //=============================================================================
 
-inline std::unordered_map<u32, jmp_buf>& get_jmp_buf_map() {
-  static thread_local std::unordered_map<u32, jmp_buf> map;
-  return map;
-}
+#define ppc_setjmp(guest_buf_addr) (setjmp(::rex::ppc::JumpBuffer(guest_buf_addr)))
 
-#define ppc_setjmp(guest_buf_addr) (setjmp(::get_jmp_buf_map()[(guest_buf_addr)]))
-
-[[noreturn]] inline void ppc_longjmp(u32 guest_buf_addr, int val) {
-  auto& map = get_jmp_buf_map();
-  auto it = map.find(guest_buf_addr);
-  if (it != map.end()) {
-    longjmp(it->second, val);
-  }
-  std::abort();
-}
+#define ppc_longjmp(guest_buf_addr, val) ::rex::ppc::LongJump((guest_buf_addr), (val))
 
 //=============================================================================
 // Trap Handling
 //=============================================================================
 
-inline void ppc_trap(PPCContext& ctx, u8* base, u16 trap_type) {
-  switch (trap_type) {
-    case 20:
-    case 26: {
-      auto str = REX_LOAD_STRING(ctx.r3.u32, ctx.r4.u16);
-      REXLOG_DEBUG(cpu, "(service trap) {}", str);
-      break;
-    }
-    case 0:
-    case 22:
-      REXLOG_WARN(cpu, "tw/td trap hit (type {})", trap_type);
-      break;
-    case 25:
-      break;
-    default:
-      REXLOG_WARN(cpu, "Unknown trap type {}", trap_type);
-      break;
-  }
-}
+#define ppc_trap(ctx, base, trap_type) ::rex::ppc::Trap((ctx), (base), (trap_type))
 
 //=============================================================================
 // Interrupt Locks

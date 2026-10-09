@@ -115,13 +115,16 @@ class REX_RUNTIME_API Dispatcher final : public IDispatcher {
   /** Allocates the DPC stack and starts the dispatch thread unless it runs. */
   void Start();
 
+  /** Asks the dispatch thread to stop at its next wait or kernel call and returns at once. */
+  void RequestStop();
+
   /**
-   * Disarms the KTIMER expiries, stops the dispatch thread, terminates it when it outlives the
-   * timeout and closes its handle. The DPC stack stays allocated until the dispatcher is destroyed.
+   * Disarms the KTIMER expiries, stops the dispatch thread, waits for it and closes its handle.
+   * The DPC stack stays allocated until the dispatcher is destroyed.
    *
-   * @param timeout How long to wait for the thread to finish its current work.
+   * @param interval The time between reports of a dispatch thread still running.
    */
-  void Stop(std::chrono::milliseconds timeout);
+  void Stop(std::chrono::milliseconds interval);
 
  private:
   struct QueuedDPC {
@@ -147,7 +150,7 @@ class REX_RUNTIME_API Dispatcher final : public IDispatcher {
   u32 dpc_stack_base_ = 0;
   u32 dpc_stack_top_ = 0;
   std::atomic<bool> draining_{false};
-  rex::platform::RankedMutex dpc_mutex_{rex::platform::LockRank::Leaf};
+  rex::platform::RankedMutex dpc_mutex_{rex::platform::LockRank::DPC};
   rex::platform::RankedMutex dispatch_mutex_{rex::platform::LockRank::Leaf};
   std::condition_variable_any dispatch_cond_;
   std::list<std::move_only_function<void()>> dispatch_queue_;

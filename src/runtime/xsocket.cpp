@@ -9,6 +9,7 @@
  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
  */
 
+#include <chrono>
 #include <cstring>
 
 #include <rex/net/socket.h>
@@ -28,7 +29,89 @@
 #include <sys/socket.h>
 #endif
 
+#include "runtime/thread_wait.h"
+
 namespace rex::runtime {
+
+namespace {
+
+using rex::platform::SocketReady;
+
+constexpr u32 kFIONBIO = 0x8004667E;
+
+#if defined(MSG_NOSIGNAL)
+constexpr int kSendFlags = MSG_NOSIGNAL;
+#else
+constexpr int kSendFlags = 0;
+#endif
+
+rex::platform::SocketWait WaitOf(const SocketObject& sock, SocketReady ready) {
+  return {static_cast<rex::platform::SocketHandle>(sock.native_handle), sock.event.get(), ready};
+}
+
+bool WaitToRetry(const SocketObject& sock, SocketReady ready) {
+  if (sock.nonblocking || !rex::platform::socket_would_block()) {
+    return false;
+  }
+  const rex::platform::SocketWait wait = WaitOf(sock, ready);
+  return WaitHostSockets({&wait, 1}, std::chrono::milliseconds::max()) ==
+         rex::platform::WaitResult::kSuccess;
+}
+
+bool WaitConnected(const SocketObject& sock) {
+  const rex::platform::SocketWait wait = WaitOf(sock, SocketReady::kWrite | SocketReady::kExcept);
+  while (WaitHostSockets({&wait, 1}, std::chrono::milliseconds::max()) ==
+         rex::platform::WaitResult::kSuccess) {
+    int error = 0;
+    socklen_t error_len = sizeof(error);
+    if (getsockopt(sock.native_handle, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&error),
+                   &error_len) != 0 ||
+        error != 0) {
+      return false;
+    }
+    sockaddr_storage peer;
+    socklen_t peer_len = sizeof(peer);
+    if (getpeername(sock.native_handle, reinterpret_cast<sockaddr*>(&peer), &peer_len) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+sockaddr_in ToHost(const N_XSOCKADDR_IN& name) {
+  sockaddr_in host{};
+  host.sin_family = name.sin_family;
+  host.sin_port = htons(name.sin_port);
+  host.sin_addr.s_addr = htonl(name.sin_addr);
+  return host;
+}
+
+sockaddr_in ToHost(const N_XSOCKADDR& name) {
+  sockaddr_in host{};
+  host.sin_family = name.address_family;
+  std::memcpy(&host.sin_port, name.sa_data, sizeof(host.sin_port));
+  std::memcpy(&host.sin_addr, name.sa_data + sizeof(host.sin_port), sizeof(host.sin_addr));
+  return host;
+}
+
+void FromHost(const sockaddr_in& host, N_XSOCKADDR& name) {
+  name.address_family = host.sin_family;
+  std::memset(name.sa_data, 0, sizeof(name.sa_data));
+  std::memcpy(name.sa_data, &host.sin_port, sizeof(host.sin_port));
+  std::memcpy(name.sa_data + sizeof(host.sin_port), &host.sin_addr, sizeof(host.sin_addr));
+}
+
+X_STATUS Prepare(SocketObject& sock) {
+  sock.event = rex::platform::Event::CreateManualResetEvent(false);
+  if (!sock.event ||
+      rex::platform::socket_prepare(static_cast<rex::platform::SocketHandle>(sock.native_handle),
+                                    sock.event.get()) != 0) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+  return X_STATUS_SUCCESS;
+}
+
+}  // namespace
 
 SocketObject::SocketObject(SocketAddressFamily af_in, SocketType type_in, SocketProtocol proto_in)
     : af(af_in), type(type_in), proto(proto_in) {}
@@ -48,7 +131,7 @@ X_STATUS SocketInitialize(SocketObject& sock) {
     return X_STATUS_UNSUCCESSFUL;
   }
 
-  return X_STATUS_SUCCESS;
+  return Prepare(sock);
 }
 
 X_STATUS SocketClose(SocketObject& sock) {
@@ -84,6 +167,13 @@ X_STATUS SocketSetOption(SocketObject& sock, u32 level, u32 optname, void* optva
 }
 
 X_STATUS SocketIOControl(SocketObject& sock, u32 cmd, u8* arg_ptr) {
+  if (cmd == kFIONBIO && arg_ptr) {
+    u32 value = 0;
+    std::memcpy(&value, arg_ptr, sizeof(value));
+    sock.nonblocking = value != 0;
+    return X_STATUS_SUCCESS;
+  }
+
   int ret = rex::platform::socket_ioctl(sock.native_handle, cmd, arg_ptr);
   if (ret < 0) {
     return X_STATUS_UNSUCCESSFUL;
@@ -93,8 +183,13 @@ X_STATUS SocketIOControl(SocketObject& sock, u32 cmd, u8* arg_ptr) {
 }
 
 X_STATUS SocketConnect(SocketObject& sock, N_XSOCKADDR* name, int name_len) {
-  int ret = connect(sock.native_handle, reinterpret_cast<sockaddr*>(name), name_len);
-  if (ret < 0) {
+  if (name_len < static_cast<int>(sizeof(XSOCKADDR_IN))) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+  const sockaddr_in host = ToHost(*name);
+  int ret = connect(sock.native_handle, reinterpret_cast<const sockaddr*>(&host), sizeof(host));
+  if (ret < 0 &&
+      (sock.nonblocking || !rex::platform::socket_would_block() || !WaitConnected(sock))) {
     return X_STATUS_UNSUCCESSFUL;
   }
 
@@ -123,9 +218,13 @@ X_STATUS SocketListen(SocketObject& sock, int backlog) {
 }
 
 X_HANDLE SocketAccept(Runtime& runtime, SocketObject& sock, N_XSOCKADDR* name, int* name_len) {
-  sockaddr n_sockaddr;
-  socklen_t n_name_len = sizeof(sockaddr);
-  uintptr_t ret = accept(sock.native_handle, &n_sockaddr, &n_name_len);
+  sockaddr_in n_sockaddr{};
+  socklen_t n_name_len = sizeof(n_sockaddr);
+  uintptr_t ret;
+  do {
+    n_name_len = sizeof(n_sockaddr);
+    ret = accept(sock.native_handle, reinterpret_cast<sockaddr*>(&n_sockaddr), &n_name_len);
+  } while (ret == static_cast<uintptr_t>(-1) && WaitToRetry(sock, SocketReady::kRead));
   if (ret == static_cast<uintptr_t>(-1)) {
     std::memset(name, 0, *name_len);
     *name_len = 0;
@@ -143,7 +242,13 @@ X_HANDLE SocketAccept(Runtime& runtime, SocketObject& sock, N_XSOCKADDR* name, i
     return X_INVALID_HANDLE_VALUE;
   }
   const X_HANDLE handle = *added;
-  table.Get<SocketObject>(handle)->native_handle = ret;
+  auto accepted = table.Get<SocketObject>(handle);
+  accepted->native_handle = ret;
+  accepted->nonblocking = sock.nonblocking;
+  if (XFAILED(Prepare(*accepted))) {
+    (void)table.Close(handle);
+    return X_INVALID_HANDLE_VALUE;
+  }
 
   return handle;
 }
@@ -153,15 +258,23 @@ int SocketShutdown(SocketObject& sock, int how) {
 }
 
 int SocketRecv(SocketObject& sock, u8* buf, u32 buf_len, u32 flags) {
-  return recv(sock.native_handle, reinterpret_cast<char*>(buf), buf_len, flags);
+  int ret;
+  do {
+    ret = recv(sock.native_handle, reinterpret_cast<char*>(buf), buf_len, flags);
+  } while (ret == -1 && WaitToRetry(sock, SocketReady::kRead));
+  return ret;
 }
 
 int SocketRecvFrom(SocketObject& sock, u8* buf, u32 buf_len, u32 flags, N_XSOCKADDR_IN* from,
                    u32* from_len) {
   sockaddr_in nfrom;
   socklen_t nfromlen = sizeof(sockaddr_in);
-  int ret = recvfrom(sock.native_handle, reinterpret_cast<char*>(buf), buf_len, flags,
-                     reinterpret_cast<sockaddr*>(&nfrom), &nfromlen);
+  int ret;
+  do {
+    nfromlen = sizeof(sockaddr_in);
+    ret = recvfrom(sock.native_handle, reinterpret_cast<char*>(buf), buf_len, flags,
+                   reinterpret_cast<sockaddr*>(&nfrom), &nfromlen);
+  } while (ret == -1 && WaitToRetry(sock, SocketReady::kRead));
   if (from) {
     from->sin_family = nfrom.sin_family;
     from->sin_addr = ntohl(nfrom.sin_addr.s_addr);
@@ -177,7 +290,21 @@ int SocketRecvFrom(SocketObject& sock, u8* buf, u32 buf_len, u32 flags, N_XSOCKA
 }
 
 int SocketSend(SocketObject& sock, const u8* buf, u32 buf_len, u32 flags) {
-  return send(sock.native_handle, reinterpret_cast<const char*>(buf), buf_len, flags);
+  u32 sent = 0;
+  while (true) {
+    const int ret = send(sock.native_handle, reinterpret_cast<const char*>(buf + sent),
+                         buf_len - sent, static_cast<int>(flags) | kSendFlags);
+    if (ret == -1) {
+      if (WaitToRetry(sock, SocketReady::kWrite)) {
+        continue;
+      }
+      return sent > 0 ? static_cast<int>(sent) : -1;
+    }
+    sent += static_cast<u32>(ret);
+    if (sent >= buf_len || sock.nonblocking || sock.type != X_SOCK_STREAM) {
+      return static_cast<int>(sent);
+    }
+  }
 }
 
 int SocketSendTo(SocketObject& sock, u8* buf, u32 buf_len, u32 flags, N_XSOCKADDR_IN* to,
@@ -189,8 +316,14 @@ int SocketSendTo(SocketObject& sock, u8* buf, u32 buf_len, u32 flags, N_XSOCKADD
     nto.sin_port = to->sin_port;
   }
 
-  return sendto(sock.native_handle, reinterpret_cast<char*>(buf), buf_len, flags,
-                to ? reinterpret_cast<sockaddr*>(&nto) : nullptr, to_len);
+  int ret;
+  do {
+    ret = sendto(sock.native_handle, reinterpret_cast<char*>(buf), buf_len,
+                 static_cast<int>(flags) | kSendFlags,
+                 to ? reinterpret_cast<const sockaddr*>(&nto) : nullptr,
+                 to ? static_cast<socklen_t>(sizeof(nto)) : 0);
+  } while (ret == -1 && WaitToRetry(sock, SocketReady::kWrite));
+  return ret;
 }
 
 }  // namespace rex::runtime

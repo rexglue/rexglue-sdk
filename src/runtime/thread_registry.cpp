@@ -47,30 +47,33 @@ Result<X_HANDLE> ThreadRegistry::Launch(std::unique_ptr<ThreadRecord> record) {
   }
   raw->SetGuestObject(block.address);
   block.owned = false;
-  {
-    std::unique_lock lock(mutex_);
-    threads_.emplace(raw->thread_id(), std::move(record));
-  }
   Result<X_HANDLE> handle =
       table_.Emplace<ThreadRef>(AddOptions{{}, block}, raw->thread_id(), this);
   if (!handle) {
-    std::unique_ptr<ThreadRecord> failed;
-    {
-      std::unique_lock lock(mutex_);
-      auto it = threads_.find(raw->thread_id());
-      failed = std::move(it->second);
-      threads_.erase(it);
-    }
     return handle;
   }
   StashHandle(&raw->guest_object<X_KTHREAD>()->header, *handle);
   raw->SetHandle(*handle);
   const X_STATUS status = raw->Create();
   if (XFAILED(status)) {
-    NoteExited(*raw);
     (void)table_.Close(*handle);
     return Err<X_HANDLE>(StatusError(status));
   }
+  bool published = false;
+  {
+    std::unique_lock lock(mutex_);
+    if (!raw->is_guest_thread() || !runtime_.is_terminating_title()) {
+      threads_.emplace(raw->thread_id(), std::move(record));
+      published = true;
+    }
+  }
+  if (!published) {
+    raw->Abandon();
+    (void)table_.Close(*handle);
+    (void)table_.Close(*handle);
+    return Err<X_HANDLE>(StatusError(X_STATUS_PROCESS_IS_TERMINATING));
+  }
+  raw->Start();
   return handle;
 }
 
@@ -132,25 +135,6 @@ void ThreadRegistry::NoteHandlesClosed(u32 thread_id) {
     }
   }
   Dispose(std::move(retired));
-}
-
-void ThreadRegistry::NoteStarted() {
-  started_threads_.fetch_add(1, std::memory_order_acq_rel);
-}
-
-void ThreadRegistry::NoteStopped() {
-  started_threads_.fetch_sub(1, std::memory_order_acq_rel);
-}
-
-bool ThreadRegistry::JoinThreads(std::chrono::milliseconds timeout) {
-  const auto deadline = std::chrono::steady_clock::now() + timeout;
-  while (started_threads_.load(std::memory_order_acquire) != 0) {
-    if (std::chrono::steady_clock::now() >= deadline) {
-      return false;
-    }
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
-  }
-  return true;
 }
 
 std::optional<u32> ThreadRegistry::AllocateTLS(PPCContext* context) {
@@ -295,9 +279,13 @@ const char* ThreadRegistry::GetOrCreateFiberName(u32 address, const char* thread
 }
 
 void ThreadRegistry::DestroyFibers() {
-  std::lock_guard lock(fiber_mutex_);
-  for (auto& [guest_addr, info] : fiber_map_) {
-    if (info.host_fiber) {
+  decltype(fiber_map_) fibers;
+  {
+    std::lock_guard lock(fiber_mutex_);
+    fibers.swap(fiber_map_);
+  }
+  for (auto& [guest_addr, info] : fibers) {
+    if (info.host_fiber && !info.is_thread_fiber) {
       info.host_fiber->Destroy();
     }
     if (!info.is_thread_fiber) {
@@ -307,7 +295,6 @@ void ThreadRegistry::DestroyFibers() {
       runtime_.memory()->SystemHeapFree(info.guest_context_addr);
     }
   }
-  fiber_map_.clear();
 }
 
 void ThreadRegistry::RegisterThreadNotify(u32 notification) {
