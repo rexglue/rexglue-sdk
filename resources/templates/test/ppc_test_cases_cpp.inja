@@ -81,7 +81,7 @@ TEST_CASE("{{ test.name }}", "[ppc][{{ test.category }}][{{ test.stem }}]") {
 ## else if reg.type == "float"
     REQUIRE(ctx.{{ reg.reg }}.f64 == {{ reg.value }});
 ## else
-    REQUIRE(ctx.{{ reg.reg }}.u64 == {{ reg.value }});
+    REQUIRE(ctx.{{ reg.reg }}.u64 == static_cast<u64>({{ reg.value }}));
 ## endif
 ## endfor
 ## for mem_out in test.outputs.memory
